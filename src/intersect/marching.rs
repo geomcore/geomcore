@@ -13,7 +13,10 @@ use crate::curves::{
 };
 use crate::math::boxtree::{Aabb, boxes_apart};
 use crate::math::{solve_2x2, solve_3x3, solve_4x4};
-use crate::surfaces::{BSplineSurface, ElementarySurface, ParametricSurface, Surface};
+use crate::surfaces::{
+    BSplineSurface, ElementarySurface, ParametricSurface, Surface, partials_span_a_plane,
+    reference_widths,
+};
 use crate::{Bound3D, BoundingBox3D, Point3D, Tolerance, Vector3D};
 
 /// Marching surface-surface intersection for any two parametric surfaces.
@@ -350,7 +353,7 @@ where
         let spacing = (su.magnitude() * u_half_step).min(sv.magnitude() * v_half_step);
         let allowed_tilt = tol.angular.max(2.0 * tol.confusion / spacing);
         let (_, [ou, ov]) = other.eval_d1(foot.u, foot.v);
-        if let (Some(n), Some(m)) = (unit_normal(su, sv), unit_normal(ou, ov))
+        if let (Some(n), Some(m)) = (unit_normal(s, su, sv, tol), unit_normal(other, ou, ov, tol))
             && n.cross(m).magnitude() > allowed_tilt
         {
             return None;
@@ -388,21 +391,26 @@ fn covering_range(
     }
 }
 
-/// The unit normal `su x sv`, or `None` where it degenerates: where the
-/// derivatives are parallel to within `NORMAL_DEGENERACY` of their size,
-/// as at a sphere's pole, where `su` vanishes and rounding leaves its
-/// direction arbitrary.
-fn unit_normal(su: Vector3D, sv: Vector3D) -> Option<Vector3D> {
+/// The unit normal `su x sv` of `surface` from its partials `su` and
+/// `sv`, or `None` where it degenerates: where a partial is negligible
+/// over its parameter width or the two are parallel within `tol.angular`
+/// (the first rung of [`ParametricSurface::normal`], ADR 0010), as at a
+/// sphere's pole, where `su` vanishes and rounding leaves its direction
+/// arbitrary. Unlike `normal` it does not recover the limiting normal
+/// there: the second forms built on it need the tangent plane that
+/// `(su, sv)` spans.
+fn unit_normal<S: ParametricSurface + ?Sized>(
+    surface: &S,
+    su: Vector3D,
+    sv: Vector3D,
+    tol: Tolerance,
+) -> Option<Vector3D> {
     let n = su.cross(sv);
-    if n.magnitude() <= NORMAL_DEGENERACY * (su.dot(su) + sv.dot(sv)) {
-        return None;
-    }
-    n.normalized()
+    let length = n.magnitude();
+    let widths = reference_widths(surface, tol);
+    partials_span_a_plane(su.magnitude(), sv.magnitude(), length, widths, tol)
+        .then(|| n * (1.0 / length))
 }
-
-/// The size of `su x sv`, relative to `|su|^2 + |sv|^2`, below which a
-/// normal degenerates (see [`unit_normal`]).
-const NORMAL_DEGENERACY: f64 = 1e-9;
 
 /// The corners of the box around `s`: its own box when it is elementary
 /// or a B-spline, else the box around a grid of its points.
@@ -1306,6 +1314,7 @@ fn second_forms<A, B>(
     a: &A,
     b: &B,
     x: [f64; 4],
+    tol: Tolerance,
 ) -> Option<([[f64; 3]; 2], (Vector3D, Vector3D), (Vector3D, Vector3D))>
 where
     A: ParametricSurface,
@@ -1313,8 +1322,8 @@ where
 {
     let (_, [au, av], a2) = a.eval_d2(x[0], x[1]);
     let (_, [bu, bv], b2) = b.eval_d2(x[2], x[3]);
-    let na = unit_normal(au, av)?;
-    let mut nb = unit_normal(bu, bv)?;
+    let na = unit_normal(a, au, av, tol)?;
+    let mut nb = unit_normal(b, bu, bv, tol)?;
     if na.dot(nb) < 0.0 {
         nb = -nb;
     }
@@ -1351,7 +1360,7 @@ where
     A: ParametricSurface,
     B: ParametricSurface,
 {
-    let ([first, second], _, (e1, e2)) = second_forms(a, b, x)?;
+    let ([first, second], _, (e1, e2)) = second_forms(a, b, x, tol)?;
     let [p, q, r] = std::array::from_fn(|k| first[k] - second[k]);
     let spread = (0.25 * (p - r) * (p - r) + q * q).sqrt();
     let mean = 0.5 * (p + r);
@@ -1388,7 +1397,7 @@ where
     A: ParametricSurface,
     B: ParametricSurface,
 {
-    second_forms(a, b, x).is_some_and(|([first, second], _, _)| {
+    second_forms(a, b, x, tol).is_some_and(|([first, second], _, _)| {
         let [p, q, r] = std::array::from_fn(|k| first[k] - second[k]);
         let spread = (0.25 * (p - r) * (p - r) + q * q).sqrt();
         spread + (0.5 * (p + r)).abs() <= osculation(tol)
@@ -1423,7 +1432,7 @@ where
     A: ParametricSurface,
     B: ParametricSurface,
 {
-    let Some(([first, second], (na, nb), (e1, e2))) = second_forms(a, b, x) else {
+    let Some(([first, second], (na, nb), (e1, e2))) = second_forms(a, b, x, tol) else {
         return false;
     };
     let sine = na.cross(nb).magnitude();
