@@ -12,10 +12,10 @@
 use geomcore::curves::{ParametricCurve2D, ParametricCurve3D};
 use geomcore::surfaces::{ParametricSurface, Surface};
 use geomcore::{
-    Axis3D, BSplineCurve3D, BSplineSurface, Circle3D, Cone, Curve3D, CurveCurveIntersection,
-    CurveSurfaceIntersection, Cylinder, ElementaryCurve, Ellipse3D, Frame3D, Hyperbola3D,
-    Intersect, Line3D, Parabola3D, Plane, Point3D, Sphere, SurfaceIntersection, Tolerance, Torus,
-    Transform, Vector3D,
+    Axis3D, BSplineCurve3D, BSplineSurface, Circle3D, Cone, Curve3D, CurveCurveHit, Cylinder,
+    ElementaryCurve, Ellipse3D, ExactCurveCurveIntersection, ExactCurveSurfaceIntersection,
+    ExactSurfaceIntersection, Frame3D, Hyperbola3D, IntersectExact, Line3D, Parabola3D, Plane,
+    Point3D, Sphere, Tolerance, Torus, Transform, Vector3D,
 };
 
 const PARAMETERS: [(f64, f64); 4] = [(0.0, 0.0), (0.3, 0.2), (2.0, -0.7), (4.5, 1.1)];
@@ -488,12 +488,12 @@ fn test_transform_commutes_with_curve_evaluation_and_parameter_recovery() {
 
 /// Every hit of a curve/surface intersection: parameter, point and
 /// multiplicity.
-fn curve_surface_hits(result: CurveSurfaceIntersection) -> (u8, Vec<(f64, Point3D, u32)>) {
+fn curve_surface_hits(result: ExactCurveSurfaceIntersection) -> (u8, Vec<(f64, Point3D, u32)>) {
     match result {
-        CurveSurfaceIntersection::Empty => (0, vec![]),
-        CurveSurfaceIntersection::Coincident => (1, vec![]),
-        CurveSurfaceIntersection::NotAnalytic => (2, vec![]),
-        CurveSurfaceIntersection::Points(list) => (
+        ExactCurveSurfaceIntersection::Empty => (0, vec![]),
+        ExactCurveSurfaceIntersection::Coincident => (1, vec![]),
+        ExactCurveSurfaceIntersection::NotAnalytic => (2, vec![]),
+        ExactCurveSurfaceIntersection::Points(list) => (
             3,
             list.iter()
                 .map(|hit| (hit.parameter, hit.point, hit.multiplicity))
@@ -539,9 +539,9 @@ fn test_curve_surface_intersection_commutes_with_mirrors() {
                     continue;
                 }
                 let image_curve = transformed_curve(&curve, t);
-                let (kind, hits) = curve_surface_hits(curve.intersect(&surface, tol));
+                let (kind, hits) = curve_surface_hits(curve.intersect_exact(&surface, tol));
                 let (image_kind, image_hits) =
-                    curve_surface_hits(image_curve.intersect(&image_surface, tol));
+                    curve_surface_hits(image_curve.intersect_exact(&image_surface, tol));
                 let context = format!("{} of {curve:?} and {surface:?}", similarity.name);
                 assert_eq!(kind, image_kind, "{context}");
                 assert_eq!(hits.len(), image_hits.len(), "{context}");
@@ -569,6 +569,17 @@ fn test_curve_surface_intersection_commutes_with_mirrors() {
         }
     }
     assert!(checked_hits > 300, "only {checked_hits} hits checked");
+}
+
+/// A hit's parameters on both curves, recovered from its point where the
+/// exact solver did not store them.
+fn hit_parameters(hit: &CurveCurveHit, first: &Curve3D, second: &Curve3D) -> (f64, f64) {
+    (
+        hit.first_parameter
+            .unwrap_or_else(|| first.parameter_of(hit.point)),
+        hit.second_parameter
+            .unwrap_or_else(|| second.parameter_of(hit.point)),
+    )
 }
 
 #[test]
@@ -605,13 +616,13 @@ fn test_curve_curve_intersection_commutes_with_mirrors() {
             for second in &in_plane[i + 1..] {
                 let (first_image, second_image) =
                     (transformed_curve(first, t), transformed_curve(second, t));
-                let result = first.intersect(second, tol);
-                let image_result = first_image.intersect(&second_image, tol);
+                let result = first.intersect_exact(second, tol);
+                let image_result = first_image.intersect_exact(&second_image, tol);
                 let context = format!("{} of {first:?} and {second:?}", similarity.name);
                 match (result, image_result) {
                     (
-                        CurveCurveIntersection::Points(hits),
-                        CurveCurveIntersection::Points(image_hits),
+                        ExactCurveCurveIntersection::Points(hits),
+                        ExactCurveCurveIntersection::Points(image_hits),
                     ) => {
                         assert_eq!(hits.len(), image_hits.len(), "{context}");
                         let first_factor = if is_length_parameter(first) {
@@ -626,13 +637,17 @@ fn test_curve_curve_intersection_commutes_with_mirrors() {
                         };
                         checked_hits += hits.len();
                         for (hit, image_hit) in hits.iter().zip(image_hits.iter()) {
+                            let (first_parameter, second_parameter) =
+                                hit_parameters(hit, first, second);
+                            let (image_first_parameter, image_second_parameter) =
+                                hit_parameters(image_hit, &first_image, &second_image);
                             assert!(
-                                (image_hit.first_param - first_factor * hit.first_param).abs()
+                                (image_first_parameter - first_factor * first_parameter).abs()
                                     < 1e-8,
                                 "{context}"
                             );
                             assert!(
-                                (image_hit.second_param - second_factor * hit.second_param).abs()
+                                (image_second_parameter - second_factor * second_parameter).abs()
                                     < 1e-8,
                                 "{context}"
                             );
@@ -642,13 +657,13 @@ fn test_curve_curve_intersection_commutes_with_mirrors() {
                             );
                             assert!(
                                 first_image
-                                    .eval_point(image_hit.first_param)
+                                    .eval_point(image_first_parameter)
                                     .distance(image_hit.point)
                                     < 1e-8
                             );
                             assert!(
                                 second_image
-                                    .eval_point(image_hit.second_param)
+                                    .eval_point(image_second_parameter)
                                     .distance(image_hit.point)
                                     < 1e-8
                             );
@@ -666,12 +681,12 @@ fn test_curve_curve_intersection_commutes_with_mirrors() {
     assert!(checked_hits > 20, "only {checked_hits} hits checked");
 }
 
-fn surface_intersection_curves(result: SurfaceIntersection) -> (u8, Vec<ElementaryCurve>, usize) {
+fn surface_intersection_curves(result: ExactSurfaceIntersection) -> (u8, Vec<ElementaryCurve>, usize) {
     match result {
-        SurfaceIntersection::Empty => (0, vec![], 0),
-        SurfaceIntersection::Coincident => (1, vec![], 0),
-        SurfaceIntersection::NotAnalytic => (2, vec![], 0),
-        SurfaceIntersection::Meets { curves, points } => (
+        ExactSurfaceIntersection::Empty => (0, vec![], 0),
+        ExactSurfaceIntersection::Coincident => (1, vec![], 0),
+        ExactSurfaceIntersection::NotAnalytic => (2, vec![], 0),
+        ExactSurfaceIntersection::Meets { curves, points } => (
             3,
             curves.iter().map(|(curve, _)| *curve).collect(),
             points.len(),
@@ -729,9 +744,9 @@ fn test_surface_surface_intersection_commutes_with_mirrors() {
             for other in &others {
                 let other_image = transformed(other, t);
                 let (kind, curves, points) =
-                    surface_intersection_curves(surface.intersect(other, tol));
+                    surface_intersection_curves(surface.intersect_exact(other, tol));
                 let (image_kind, image_curves, image_points) =
-                    surface_intersection_curves(image.intersect(&other_image, tol));
+                    surface_intersection_curves(image.intersect_exact(&other_image, tol));
                 let context = format!("{} of {surface:?} and {other:?}", similarity.name);
                 assert_eq!(kind, image_kind, "{context}");
                 assert_eq!(
