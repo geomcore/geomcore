@@ -361,7 +361,8 @@ impl PyCircle3D {
         PyBSplineCurve3D(self.0.to_bspline())
     }
 
-    /// The unit normal of the circle's plane.
+    /// The unit normal of the circle's plane, on the side the circle turns
+    /// counterclockwise about.
     fn normal(&self) -> PyVector3D {
         PyVector3D(self.0.normal())
     }
