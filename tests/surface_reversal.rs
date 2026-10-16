@@ -14,8 +14,8 @@ use geomcore::surfaces::{ParametricSurface, Surface};
 use geomcore::{
     Axis3D, BSplineCurve3D, BSplineSurface, Circle3D, Cone, Curve3D, CurveCurveHit, Cylinder,
     ElementaryCurve, Ellipse3D, ExactCurveCurveIntersection, ExactCurveSurfaceIntersection,
-    ExactSurfaceIntersection, Frame3D, Hyperbola3D, IntersectExact, Line3D, Parabola3D, Plane,
-    Point3D, Sphere, Tolerance, Torus, Transform, Vector3D,
+    ExactSurfaceIntersection, Frame3D, Hyperbola3D, Intersect, IntersectExact, IntersectionMethod,
+    Line3D, Parabola3D, Plane, Point3D, Sphere, Tolerance, Torus, Transform, Vector3D,
 };
 
 const PARAMETERS: [(f64, f64); 4] = [(0.0, 0.0), (0.3, 0.2), (2.0, -0.7), (4.5, 1.1)];
@@ -362,6 +362,14 @@ fn test_projection_onto_reversed_and_mirrored_surfaces_finds_the_foot() {
                 let projection = target.project_point(off, tol);
                 let found = target.eval_point(projection.u, projection.v);
                 assert!(found.distance(foot) < 1e-9, "{target:?} at ({u}, {v})");
+                assert!(
+                    projection.point.distance(foot) < 1e-9,
+                    "{target:?} at ({u}, {v})"
+                );
+                assert!(
+                    (projection.distance - 0.1).abs() < 1e-9,
+                    "{target:?} at ({u}, {v})"
+                );
             }
         }
     }
@@ -681,7 +689,9 @@ fn test_curve_curve_intersection_commutes_with_mirrors() {
     assert!(checked_hits > 20, "only {checked_hits} hits checked");
 }
 
-fn surface_intersection_curves(result: ExactSurfaceIntersection) -> (u8, Vec<ElementaryCurve>, usize) {
+fn surface_intersection_curves(
+    result: ExactSurfaceIntersection,
+) -> (u8, Vec<ElementaryCurve>, usize) {
     match result {
         ExactSurfaceIntersection::Empty => (0, vec![], 0),
         ExactSurfaceIntersection::Coincident => (1, vec![], 0),
@@ -764,6 +774,148 @@ fn test_surface_surface_intersection_commutes_with_mirrors() {
                             "{context}"
                         );
                     }
+                }
+            }
+        }
+    }
+    assert!(checked_curves > 30, "only {checked_curves} curves checked");
+}
+
+/// Whether every point of `image` is within `gap` of the image of a point
+/// of `original`, both lists having the same length.
+fn same_points_moved(original: &[Point3D], image: &[Point3D], t: Transform, gap: f64) -> bool {
+    original.len() == image.len()
+        && image.iter().all(|point| {
+            original
+                .iter()
+                .any(|before| t.apply_point(*before).distance(*point) < gap)
+        })
+}
+
+#[test]
+fn test_routed_curve_surface_intersection_commutes_with_mirrors() {
+    // The routed intersection, numeric paths included: B-spline surfaces
+    // and a B-spline curve against reversed and mirrored operands.
+    let tol = Tolerance::DEFAULT;
+    let mut curves = crossing_curves();
+    let crossing_circle = match &curves[1] {
+        Curve3D::Circle(circle) => *circle,
+        _ => unreachable!("the second crossing curve is a circle"),
+    };
+    curves.push(Curve3D::BSpline(crossing_circle.to_bspline()));
+    let mut checked_hits = 0;
+    for similarity in [&similarities()[0], &similarities()[3], &similarities()[4]] {
+        let t = similarity.transform;
+        for surface in all_orientations() {
+            let image_surface = transformed(&surface, t);
+            for curve in &curves {
+                let image_curve = transformed_curve(curve, t);
+                let result = curve.intersect(&surface, tol);
+                let image_result = image_curve.intersect(&image_surface, tol);
+                let context = format!("{} of {curve:?} and {surface:?}", similarity.name);
+                assert_eq!(result.method(), image_result.method(), "{context}");
+                let points: Vec<Point3D> = result.hits().iter().map(|hit| hit.point).collect();
+                let image_points: Vec<Point3D> =
+                    image_result.hits().iter().map(|hit| hit.point).collect();
+                assert!(
+                    same_points_moved(&points, &image_points, t, 1e-7),
+                    "{context}: {points:?} vs {image_points:?}"
+                );
+                for hit in image_result.hits() {
+                    assert!(
+                        image_curve.project_point(hit.point, tol).distance < 1e-7,
+                        "{context}"
+                    );
+                    assert!(
+                        image_surface.project_point(hit.point, tol).distance < 1e-7,
+                        "{context}"
+                    );
+                    if let Some(parameter) = hit.curve_parameter {
+                        assert!(
+                            image_curve.eval_point(parameter).distance(hit.point) < 1e-7,
+                            "{context}"
+                        );
+                    }
+                    if let Some((u, v)) = hit.surface_parameters {
+                        assert!(
+                            image_surface.eval_point(u, v).distance(hit.point) < 1e-7,
+                            "{context}"
+                        );
+                    }
+                    checked_hits += 1;
+                }
+            }
+        }
+    }
+    assert!(checked_hits > 300, "only {checked_hits} hits checked");
+}
+
+#[test]
+fn test_routed_surface_surface_intersection_commutes_with_mirrors() {
+    // Pairs without a closed form march: the B-spline patch and a torus off
+    // the tilted axis, against every orientation.
+    let tol = Tolerance::DEFAULT;
+    let off_axis = Frame3D::new(
+        Point3D::new(0.5, -1.0, 1.0),
+        Vector3D::new(1.0, 0.3, 0.2),
+        Vector3D::new(0.0, 1.0, -1.5),
+    )
+    .unwrap();
+    let others: Vec<Surface> = vec![
+        Surface::from(bspline().reversed_u()),
+        Surface::from(Torus::from_frame(off_axis.flipped_z(), 2.5, 0.8).unwrap()),
+        Surface::from(Cylinder::from_frame(off_axis, 1.2).unwrap().reversed_u()),
+    ];
+    let mut checked_curves = 0;
+    for similarity in [&similarities()[0], &similarities()[3]] {
+        let t = similarity.transform;
+        for surface in all_orientations() {
+            let image = transformed(&surface, t);
+            for other in &others {
+                let other_image = transformed(other, t);
+                let result = surface.intersect(other, tol);
+                let image_result = image.intersect(&other_image, tol);
+                let context = format!("{} of {surface:?} and {other:?}", similarity.name);
+                assert_eq!(result.method(), image_result.method(), "{context}");
+                assert_eq!(
+                    result.is_coincident(),
+                    image_result.is_coincident(),
+                    "{context}"
+                );
+                assert_eq!(
+                    result.curves().len(),
+                    image_result.curves().len(),
+                    "{context}"
+                );
+                assert!(
+                    same_points_moved(
+                        result.contact_points(),
+                        image_result.contact_points(),
+                        t,
+                        1e-6
+                    ),
+                    "{context}"
+                );
+                // A marched curve interpolates its traced points, and strays
+                // from both surfaces between them by about 1e-5 whatever the
+                // orientation; a closed-form curve lies on both.
+                let gap = match image_result.method() {
+                    IntersectionMethod::Exact => 1e-8,
+                    IntersectionMethod::Numeric => 1e-4,
+                };
+                for piece in image_result.curves() {
+                    let (first, last) = piece.curve.bounds();
+                    let (first, last) = (first.max(-3.0), last.min(3.0));
+                    for step in 0..=4 {
+                        let parameter = first + (last - first) * step as f64 / 4.0;
+                        let point = piece.curve.eval_point(parameter);
+                        assert!(image.project_point(point, tol).distance < gap, "{context}");
+                        assert!(
+                            other_image.project_point(point, tol).distance < gap,
+                            "{context}"
+                        );
+                    }
+                    checked_curves += 1;
                 }
             }
         }
