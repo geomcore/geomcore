@@ -2405,6 +2405,7 @@ mod tests {
             SurfaceProjection {
                 u: 0.0,
                 v: 0.0,
+                point: Point3D::ORIGIN,
                 distance: 0.0,
             }
         }
