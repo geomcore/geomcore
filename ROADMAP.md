@@ -30,7 +30,7 @@ ones before them. If you'd like to help with any of it, see
 - **0.15–0.16** — Analytic curve–curve intersections: 2D pairs,
   3D line–line, line–circle, and coplanar circle–circle.
 - **0.17** — Generic curve–surface intersection over the
-  `ParametricCurve3D` × `ParametricSurface` traits.
+  `ParametricCurve` × `ParametricSurface` traits.
 - **0.18** — Points-to-B-spline interpolation (chordal/centripetal,
   averaged knots, banded LU).
 - **0.19** — Marching surface–surface intersection with B-spline fits.
@@ -85,14 +85,20 @@ ones before them. If you'd like to help with any of it, see
   tangent, curvature and centre of curvature, unit surface normal and
   principal curvatures; closedness and continuity queries; surface
   reversal; one-sided B-spline evaluation at knots and seams.
+- **0.37** — Only 2D types carry a dimension suffix: `Point3D` becomes
+  `Point`, `Line3D` becomes `Line`, and so on; the old names warn for one
+  release.
 
 ## Next
 
-1. **Marching intersection** — trace through points where the two
+1. **2D curve tier** — ellipse, parabola, hyperbola and B-spline curves
+   in 2D, so curve-on-surface parametrization returns the exact image of
+   every curve (ADR 0014).
+2. **Marching intersection** — trace through points where the two
    surfaces touch, and find isolated loops smaller than the iso-curve
    spacing on surfaces other than B-splines (two B-spline surfaces
    already find them from overlapping patch pairs, #30).
-2. **Hosted documentation** — tutorials on the docs site, and a Python
+3. **Hosted documentation** — tutorials on the docs site, and a Python
    API reference generated from docstrings.
 
 ## Someday
@@ -110,5 +116,5 @@ Contributions are very welcome, at every stage of this roadmap.
   (1e-7 tolerance), rustdoc with doctests, and — where it's user-facing —
   Python bindings and tests.
 - **Good first contributions:** new curve/surface types via the
-  `ParametricCurve3D` / `ParametricSurface` traits (no changes to core dispatch
+  `ParametricCurve` / `ParametricSurface` traits (no changes to core dispatch
   needed), examples, documentation, and benchmarks.
