@@ -76,13 +76,13 @@ use results::{
     PyCurveCurveHit, PyCurveCurveHit2D, PyCurveCurveIntersection, PyCurveCurveIntersection2D,
     PyCurveCurveOverlap, PyCurveCurveRegion, PyCurveProjection, PyCurveProjection2D,
     PyCurveSurfaceHit, PyCurveSurfaceIntersection, PyCurveSurfaceRegion, PyIncompleteReason,
-    PyIntersectionCurve, PyIntersectionMethod, PySurfaceProjection, PySurfaceSurfaceIntersection,
-    PySurfaceSurfaceRegion,
+    PyIntersectionCurve, PyIntersectionMethod, PySurfaceCurvatures, PySurfaceProjection,
+    PySurfaceSurfaceIntersection, PySurfaceSurfaceRegion,
 };
 use surfaces::{PyBSplineSurface, PyCone, PyCylinder, PyPlane, PySphere, PyTorus};
 use values::{
     PyAxis2D, PyAxis3D, PyBoundingBox3D, PyDiscretization2D, PyDiscretization3D, PyFrame2D,
-    PyFrame3D, PyPoint2D, PyPoint3D, PyTolerance, PyTransform, PyVector2D, PyVector3D,
+    PyFrame3D, PyPoint2D, PyPoint3D, PySide, PyTolerance, PyTransform, PyVector2D, PyVector3D,
 };
 
 // ---------------------------------------------------------------------------
@@ -107,6 +107,10 @@ fn geomcore_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyBoundingBox3D>()?;
     m.add_class::<PyDiscretization2D>()?;
     m.add_class::<PyDiscretization3D>()?;
+    m.add_class::<PySide>()?;
+    // The continuity order the queries report where a shape is smooth
+    // (`u32::MAX` in Rust).
+    m.add("SMOOTH_CONTINUITY", u32::MAX)?;
 
     m.add_class::<PyIntersectionMethod>()?;
     m.add_class::<PyCompletenessStatus>()?;
@@ -129,6 +133,7 @@ fn geomcore_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PySurfaceProjection>()?;
     m.add_class::<PyCurveCurveExtremum>()?;
     m.add_class::<PyCurveCurveExtrema>()?;
+    m.add_class::<PySurfaceCurvatures>()?;
 
     let curves = PyModule::new(py, "curves")?;
     curves.add_class::<PyLine3D>()?;

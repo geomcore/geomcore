@@ -14,6 +14,8 @@ jobs:
       - run: cargo clippy --all-targets -- -D warnings
       - run: cargo test
       - run: cargo test --doc
+      - run: cargo doc --no-deps
+        env: { RUSTDOCFLAGS: "-D warnings" }
   python:
     runs-on: ubuntu-latest
     strategy:

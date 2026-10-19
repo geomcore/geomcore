@@ -34,7 +34,7 @@ _Avoid_: raw cross product for the normal, tangent for either partial derivative
 A curve or surface defined by poles, knots and optional weights. Every curve or surface is either elementary or a B-spline.
 
 **Continuity**:
-The order `C^n` up to which derivatives are guaranteed to agree at a parameter: `degree − multiplicity` at a B-spline knot, smooth everywhere else and on elementary shapes. It is read from the knots, so the shape may be smoother than reported. The ends of a non-periodic range report smooth, seen from the inside; a periodic seam is a knot like any other. Trimming never lowers it, and a piece that avoids a knot does not inherit it.
+The order `C^n` up to which derivatives are guaranteed to agree at a parameter: `degree − multiplicity` at a B-spline knot, smooth everywhere else and on elementary shapes. It is read from the knots, so the shape may be smoother than reported. The ends of a non-periodic range report smooth, seen from the inside; a periodic seam is a knot like any other. Trimming never lowers it, and a piece that avoids a knot does not inherit it. Derivatives of higher order than the continuity may differ on the two sides of the parameter; one-sided evaluation (see **Side**) reads each.
 _Avoid_: smoothness as a yes-or-no answer, regularity
 
 **Reversal**:
@@ -146,5 +146,5 @@ _Avoid_: mean curvature for the product
 ## Evaluation
 
 **Side**:
-Which span to evaluate at a knot or periodic seam: `Below` approaches from the span ending there, `Above` from the span starting there (the side plain evaluation takes, except at the upper bound). Both sides agree away from knots.
+Which span to evaluate at a knot or periodic seam: `Below` approaches from the span ending there, `Above` from the span starting there (the side plain evaluation takes, except at the upper bound). Both sides agree away from knots, and at a knot they differ only in derivatives of higher order than its **Continuity**.
 _Avoid_: left/right (which flip with traversal direction), sidedness
