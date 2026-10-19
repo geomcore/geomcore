@@ -41,6 +41,15 @@ the Python distribution are versioned in lockstep.
   coincide, clamped or not, and trims spanning a full period count as
   closed without being periodic.
 
+- Continuity order queries (#72): `continuity(u, tol)` on curves and
+  `continuity_u/v` on surfaces report `C^n` (`u32::MAX` = smooth),
+  with `min_continuity` (curves) and `min_continuity_u/v` (surfaces)
+  summaries. Elementary shapes are smooth everywhere; B-splines report
+  the `degree − multiplicity` their knots guarantee, wrapping periodic
+  parameters into the period. A trimmed curve reports its basis order
+  inside its range, smooth at its ends, and only the knots inside its
+  range in its minimum.
+
 ## [0.35.0] - 2026-10-19
 
 ### Added
