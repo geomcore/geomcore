@@ -10,6 +10,7 @@
 
 use crate::Point;
 use crate::curve_math::bspline as math;
+use crate::curve_math::bspline::{HomogeneousPole, Pole, PolePoint};
 use crate::curves::{BSplineConstructionError, BSplineCurve};
 
 /// How fitting assigns a parameter to each data point.
@@ -32,8 +33,8 @@ impl PointParametrization {
 
 /// Increasing parameters of `points` in `[0, 1]` (`exponent` 1 chordal, 0.5
 /// centripetal), or `ConfusedPoints` for coincident consecutive points.
-fn point_parameters(
-    points: &[Point],
+fn point_parameters<G: PolePoint>(
+    points: &[G],
     parametrization: PointParametrization,
 ) -> Result<Vec<f64>, BSplineConstructionError> {
     let exponent = parametrization.exponent();
@@ -170,10 +171,10 @@ pub(crate) fn check_degree(degree: usize) -> Result<(), BSplineConstructionError
 /// `r`: every line's own parameters (as [`point_parameters`] gives them),
 /// averaged over the lines that have a length. `ConfusedPoints` if none
 /// has, or if two averaged parameters coincide.
-pub(crate) fn shared_parameters(
+pub(crate) fn shared_parameters<G: PolePoint>(
     lines: usize,
     count: usize,
-    point: impl Fn(usize, usize) -> Point,
+    point: impl Fn(usize, usize) -> G,
     parametrization: PointParametrization,
 ) -> Result<Vec<f64>, BSplineConstructionError> {
     let exponent = parametrization.exponent();
@@ -250,15 +251,15 @@ impl BasisTable {
     }
 
     /// The point at parameter `k` of the curve with `poles`.
-    pub(crate) fn point(&self, k: usize, poles: &[Point]) -> Point {
+    pub(crate) fn point<G: PolePoint>(&self, k: usize, poles: &[G]) -> G {
         let (first, values) = self.at(k);
-        let mut x = [0.0; 3];
+        let mut s = [0.0; 4];
         for (&v, q) in values.iter().zip(&poles[first..]) {
-            x[0] += v * q.x;
-            x[1] += v * q.y;
-            x[2] += v * q.z;
+            for (c, x) in s.iter_mut().enumerate().take(G::DIM) {
+                *x += v * G::coord(*q, c);
+            }
         }
-        Point::new(x[0], x[1], x[2])
+        G::point_of(s)
     }
 }
 
@@ -268,12 +269,12 @@ impl BasisTable {
 /// `A'A x = A'b`, of half-bandwidth `degree`, are factored once by banded
 /// Cholesky for all the lines. `None` when the data leaves a pole (nearly)
 /// undetermined.
-pub(crate) fn least_squares(
+pub(crate) fn least_squares<G: PolePoint>(
     basis: &BasisTable,
     pole_count: usize,
     lines: usize,
-    point: impl Fn(usize, usize) -> Point,
-) -> Option<Vec<Point>> {
+    point: impl Fn(usize, usize) -> G,
+) -> Option<Vec<G>> {
     let (width, m) = (basis.width, pole_count);
     let p = width - 1;
     let mut lower = vec![0.0; m * width];
@@ -291,20 +292,28 @@ pub(crate) fn least_squares(
     if !factor_symmetric_band(&mut lower, p, 1e-12) {
         return None;
     }
-    let mut poles = vec![Point::ORIGIN; lines * m];
+    let zero = <G::Homogeneous as HomogeneousPole>::of_lanes([0.0; 4]);
+    let mut poles: Vec<G::Homogeneous> = vec![zero; lines * m];
     for (r, line) in poles.chunks_exact_mut(m).enumerate() {
         for k in 0..basis.len() {
             let (first, values) = basis.at(k);
-            let q = point(r, k);
+            let q = <G::Homogeneous as HomogeneousPole>::fold(point(r, k), 1.0);
             for (&v, pole) in values.iter().zip(&mut line[first..]) {
-                pole.x += v * q.x;
-                pole.y += v * q.y;
-                pole.z += v * q.z;
+                *pole = pole.combine(1.0, q, v);
             }
         }
         substitute_symmetric_band(&lower, p, line);
     }
-    poles.iter().all(|q| q.is_finite()).then_some(poles)
+    poles
+        .iter()
+        .map(|s| HomogeneousPole::lanes(*s))
+        .all(|s| s[..G::DIM].iter().all(|x| x.is_finite()))
+        .then(|| {
+            poles
+                .into_iter()
+                .map(|s| G::point_of(HomogeneousPole::lanes(s)))
+                .collect()
+        })
 }
 
 /// The interpolating poles, one per parameter of `basis`, whose knots
@@ -313,11 +322,11 @@ pub(crate) fn least_squares(
 /// once, by LU without pivoting (safe: averaged knots satisfy
 /// Schoenberg-Whitney, so the matrix is totally positive), for all the
 /// lines; each line's end poles are its end points.
-pub(crate) fn interpolation(
+pub(crate) fn interpolation<G: PolePoint>(
     basis: &BasisTable,
     lines: usize,
-    point: impl Fn(usize, usize) -> Point,
-) -> Vec<Point> {
+    point: impl Fn(usize, usize) -> G,
+) -> Vec<G> {
     let n = basis.len();
     let p = basis.width - 1;
     // Row j holds the basis functions at parameter j, over poles
@@ -555,7 +564,7 @@ fn factor_band(band: &mut [f64], bandwidth: usize) {
 
 /// Solves `A x = b` in place with the factors [`factor_band`] left in
 /// `band`: `rhs` holds `b` and receives `x`.
-fn substitute_band(band: &[f64], bandwidth: usize, rhs: &mut [Point]) {
+fn substitute_band<P: Pole>(band: &[f64], bandwidth: usize, rhs: &mut [P]) {
     let (n, h) = (rhs.len(), bandwidth);
     let w = 2 * h + 1;
     for k in 0..n {
@@ -567,21 +576,17 @@ fn substitute_band(band: &[f64], bandwidth: usize, rhs: &mut [Point]) {
                 continue;
             }
             let bi = &mut rhs[k + 1 + d];
-            bi.x -= factor * bk.x;
-            bi.y -= factor * bk.y;
-            bi.z -= factor * bk.z;
+            *bi = bi.combine(1.0, bk, -factor);
         }
     }
     for i in (0..n).rev() {
         let row = &band[i * w + h..i * w + h + (n - i).min(h + 1)];
         let mut x = rhs[i];
         for (&a, r) in row[1..].iter().zip(&rhs[i + 1..]) {
-            x.x -= a * r.x;
-            x.y -= a * r.y;
-            x.z -= a * r.z;
+            x = x.combine(1.0, *r, -a);
         }
         let inverse = 1.0 / row[0];
-        rhs[i] = Point::new(x.x * inverse, x.y * inverse, x.z * inverse);
+        rhs[i] = x.scale(inverse);
     }
 }
 
@@ -620,7 +625,7 @@ fn factor_symmetric_band(lower: &mut [f64], h: usize, relative_floor: f64) -> bo
 
 /// Solves `A x = b` in place with the factor [`factor_symmetric_band`]
 /// left in `lower`: `rhs` holds `b` and receives `x`.
-fn substitute_symmetric_band(lower: &[f64], h: usize, rhs: &mut [Point]) {
+fn substitute_symmetric_band<P: Pole>(lower: &[f64], h: usize, rhs: &mut [P]) {
     let n = rhs.len();
     let w = h + 1;
     let at = |i: usize, j: usize| i * w + j + h - i;
@@ -629,29 +634,25 @@ fn substitute_symmetric_band(lower: &[f64], h: usize, rhs: &mut [Point]) {
         let mut y = rhs[i];
         for k in i.saturating_sub(h)..i {
             let l = lower[at(i, k)];
-            y.x -= l * rhs[k].x;
-            y.y -= l * rhs[k].y;
-            y.z -= l * rhs[k].z;
+            y = y.combine(1.0, rhs[k], -l);
         }
         let inverse = 1.0 / lower[at(i, i)];
-        rhs[i] = Point::new(y.x * inverse, y.y * inverse, y.z * inverse);
+        rhs[i] = y.scale(inverse);
     }
     for i in (0..n).rev() {
         let mut x = rhs[i];
         for k in i + 1..(i + h + 1).min(n) {
             let l = lower[at(k, i)];
-            x.x -= l * rhs[k].x;
-            x.y -= l * rhs[k].y;
-            x.z -= l * rhs[k].z;
+            x = x.combine(1.0, rhs[k], -l);
         }
         let inverse = 1.0 / lower[at(i, i)];
-        rhs[i] = Point::new(x.x * inverse, x.y * inverse, x.z * inverse);
+        rhs[i] = x.scale(inverse);
     }
 }
 
 /// The interpolation of `points` at `params` by a clamped B-spline of
 /// `degree`: its flat knots (averaged) and poles.
-fn interpolated(points: &[Point], params: &[f64], degree: usize) -> (Vec<f64>, Vec<Point>) {
+fn interpolated<G: PolePoint>(points: &[G], params: &[f64], degree: usize) -> (Vec<f64>, Vec<G>) {
     let flat = averaged_knots(params, degree);
     let basis = BasisTable::new(&flat, degree, params);
     let poles = interpolation(&basis, 1, |_, k| points[k]);

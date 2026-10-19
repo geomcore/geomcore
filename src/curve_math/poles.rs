@@ -208,6 +208,9 @@ pub(crate) trait PolePoint: Copy + Pole<Cartesian = Self> {
     /// The vector from `Self::ORIGIN` to `self`, the point as a position.
     fn to_vector(self) -> Self::Vector;
 
+    /// The Euclidean distance between the two points.
+    fn distance(self, other: Self) -> f64;
+
     /// The point of homogeneous sums `s`: the coordinates in `[0..DIM]`
     /// and the weight in the last of a four-wide array, the spare
     /// coordinate zero and ignored.
@@ -245,6 +248,11 @@ impl PolePoint for Point {
     }
 
     #[inline]
+    fn distance(self, other: Self) -> f64 {
+        Point::distance(self, other)
+    }
+
+    #[inline]
     fn point_of(s: [f64; 4]) -> Self {
         Point::new(s[0], s[1], s[2])
     }
@@ -278,6 +286,11 @@ impl PolePoint for Point2D {
     #[inline]
     fn to_vector(self) -> Self::Vector {
         Vector2D::new(self.x, self.y)
+    }
+
+    #[inline]
+    fn distance(self, other: Self) -> f64 {
+        Point2D::distance(self, other)
     }
 
     #[inline]
