@@ -7,7 +7,6 @@ import pytest
 
 import geomcore
 from geomcore import (
-    SMOOTH_CONTINUITY,
     Axis3D,
     Frame3D,
     FrameConstructionError,
@@ -174,18 +173,24 @@ def test_curve_closedness():
 
 
 def test_curve_continuity():
-    assert SMOOTH_CONTINUITY == 2**32 - 1
-    assert Circle3D(ORIGIN, Z, 1.0).continuity(0.0) == SMOOTH_CONTINUITY
-    assert Line3D(ORIGIN, X).min_continuity() == SMOOTH_CONTINUITY
+    assert not hasattr(geomcore, "math.inf")
+    smooth = Circle3D(ORIGIN, Z, 1.0).continuity(0.0)
+    assert smooth == math.inf and isinstance(smooth, float)
+    assert Line3D(ORIGIN, X).min_continuity() == math.inf
     kinked = kinked_polyline()
-    assert kinked.continuity(1.0) == 0
+    kink = kinked.continuity(1.0)
+    assert kink == 0 and type(kink) is int
+    # A finite order compares below smooth, so plain comparisons and
+    # min() read naturally.
+    assert kinked.continuity(0.5) >= 2 and not kink >= 1
+    assert min(kinked.continuity(u) for u in (0.5, 1.0, 1.5)) == 0
     assert kinked.continuity(1.0 + 1e-12) == 0  # within tol.parametric
-    assert kinked.continuity(0.5) == SMOOTH_CONTINUITY
+    assert kinked.continuity(0.5) == math.inf
     # The ends of a non-periodic curve report smooth.
-    assert kinked.continuity(0.0) == SMOOTH_CONTINUITY
-    assert kinked.continuity(2.0) == SMOOTH_CONTINUITY
+    assert kinked.continuity(0.0) == math.inf
+    assert kinked.continuity(2.0) == math.inf
     assert kinked.min_continuity() == 0
-    assert kinked.continuity(math.nan) == SMOOTH_CONTINUITY
+    assert kinked.continuity(math.nan) == math.inf
     # A periodic curve's seam is a knot, at either bound.
     periodic = periodic_quadratic()
     assert periodic.continuity(0.0) == 1
@@ -194,7 +199,7 @@ def test_curve_continuity():
     # A trimmed curve reports its basis inside the range, and only the
     # knots inside the range in its minimum.
     assert TrimmedCurve3D(kinked, 0.5, 1.5).continuity(1.0) == 0
-    assert TrimmedCurve3D(kinked, 0.2, 0.8).min_continuity() == SMOOTH_CONTINUITY
+    assert TrimmedCurve3D(kinked, 0.2, 0.8).min_continuity() == math.inf
 
 
 def test_surface_closedness_and_continuity():
@@ -205,16 +210,16 @@ def test_surface_closedness_and_continuity():
     plane = Plane(ORIGIN, Z)
     assert not plane.is_u_closed() and not plane.is_v_closed()
     for surface in [plane, cylinder, Cone(ORIGIN, Z, 0.4, 2.0), Sphere(ORIGIN, 1.0), torus]:
-        assert surface.continuity_u(0.3) == SMOOTH_CONTINUITY
-        assert surface.continuity_v(0.3) == SMOOTH_CONTINUITY
-        assert surface.min_continuity_u() == SMOOTH_CONTINUITY
-        assert surface.min_continuity_v() == SMOOTH_CONTINUITY
+        assert surface.continuity_u(0.3) == math.inf
+        assert surface.continuity_v(0.3) == math.inf
+        assert surface.min_continuity_u() == math.inf
+        assert surface.min_continuity_v() == math.inf
     creased = creased_surface()
     assert creased.continuity_u(1.0) == 0
-    assert creased.continuity_u(0.5, Tolerance.default()) == SMOOTH_CONTINUITY
-    assert creased.continuity_v(0.5) == SMOOTH_CONTINUITY
+    assert creased.continuity_u(0.5, Tolerance.default()) == math.inf
+    assert creased.continuity_v(0.5) == math.inf
     assert creased.min_continuity_u() == 0
-    assert creased.min_continuity_v() == SMOOTH_CONTINUITY
+    assert creased.min_continuity_v() == math.inf
     assert not creased.is_u_closed() and not creased.is_v_closed()
     # Coinciding first and last pole rows close a clamped surface in u.
     def row(x):

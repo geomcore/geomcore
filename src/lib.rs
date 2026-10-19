@@ -170,8 +170,8 @@ pub mod vector;
 pub use bounding_box::{Bound3D, BoundingBox3D};
 pub use curves::{
     BSplineConstructionError, BSplineConversionError, BSplineCurve3D, BSplineSplitError, Circle2D,
-    Circle3D, CircleConstructionError, Curve2D, Curve3D, DegreeElevationError, ElementaryCurve,
-    Ellipse3D, EllipseConstructionError, Hyperbola3D, HyperbolaConstructionError,
+    Circle3D, CircleConstructionError, Continuity, Curve2D, Curve3D, DegreeElevationError,
+    ElementaryCurve, Ellipse3D, EllipseConstructionError, Hyperbola3D, HyperbolaConstructionError,
     KnotInsertionError, KnotRemovalError, Line2D, Line3D, LineConstructionError, Parabola3D,
     ParabolaConstructionError, ParametricCurve2D, ParametricCurve3D, ParametrizeError,
     PointExtrema2D, PointExtrema3D, PointParametrization, Side, TrimmedCurve2D, TrimmedCurve3D,

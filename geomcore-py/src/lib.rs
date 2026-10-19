@@ -13,12 +13,29 @@ use errors::invalid_argument;
 use pyo3::prelude::*;
 use pyo3::types::PyModule;
 
-use geomcore::Tolerance;
 use geomcore::curves::PointParametrization;
+use geomcore::{Continuity, Tolerance};
 
 /// The tolerance given, or the default.
 pub(crate) fn tolerance(tolerance: Option<PyTolerance>) -> Tolerance {
     tolerance.map_or(Tolerance::DEFAULT, |given| given.0)
+}
+
+/// A [`Continuity`] as Python sees it: the `int` order of `Order(k)`, or
+/// `math.inf` for `Smooth`, so `c >= 2` and `min(...)` work directly.
+pub(crate) struct ContinuityNumber(pub(crate) Continuity);
+
+impl<'py> IntoPyObject<'py> for ContinuityNumber {
+    type Target = PyAny;
+    type Output = Bound<'py, PyAny>;
+    type Error = std::convert::Infallible;
+
+    fn into_pyobject(self, py: Python<'py>) -> Result<Self::Output, Self::Error> {
+        Ok(match self.0 {
+            Continuity::Order(order) => order.into_pyobject(py)?.into_any(),
+            Continuity::Smooth => f64::INFINITY.into_pyobject(py)?.into_any(),
+        })
+    }
 }
 
 /// Checks a curve derivative order lies in `1..=max`.
@@ -108,9 +125,6 @@ fn geomcore_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyDiscretization2D>()?;
     m.add_class::<PyDiscretization3D>()?;
     m.add_class::<PySide>()?;
-    // The continuity order the queries report where a shape is smooth
-    // (`u32::MAX` in Rust).
-    m.add("SMOOTH_CONTINUITY", u32::MAX)?;
 
     m.add_class::<PyIntersectionMethod>()?;
     m.add_class::<PyCompletenessStatus>()?;

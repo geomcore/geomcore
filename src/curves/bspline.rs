@@ -15,7 +15,7 @@ use crate::math::boxtree::{BoxTree, Lazy};
 use crate::math::{newton_min_1d, quadrature};
 use crate::projection::CurveProjection;
 use crate::surfaces::Surface;
-use crate::{Point3D, Tolerance, Transform, Vector3D};
+use crate::{Continuity, Point3D, Tolerance, Transform, Vector3D};
 
 /// Error returned when a [`BSplineCurve3D`] cannot be constructed from the
 /// given degree, poles, knots, multiplicities, and (for rational curves)
@@ -428,9 +428,8 @@ impl BSplineCurve3D {
         self.eval_point(lo).distance(self.eval_point(hi)) <= tol.confusion
     }
 
-    /// Continuity order `C^n` at parameter `u` (`u32::MAX` = smooth):
-    /// `degree − multiplicity` at a knot within `tol.parametric`, smooth
-    /// elsewhere. This is the order the knots guarantee; the curve may be
+    /// [`Continuity`] at parameter `u`: `Order(degree − multiplicity)` at a
+    /// knot within `tol.parametric`, `Smooth` elsewhere. This is the order the knots guarantee; the curve may be
     /// smoother (after knot insertion, for instance). A non-periodic curve
     /// reports smooth at and beyond its bounds, being seen from the inside
     /// only; a periodic one wraps `u` into its period, so its seam is a
@@ -443,12 +442,12 @@ impl BSplineCurve3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{BSplineCurve3D, Point3D, Tolerance};
+    /// use geomcore::{BSplineCurve3D, Continuity, Point3D, Tolerance};
     /// let poles = vec![Point3D::new(0.0, 0.0, 0.0), Point3D::new(2.0, 0.0, 0.0)];
     /// let curve = BSplineCurve3D::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
-    /// assert_eq!(curve.continuity(0.5, Tolerance::DEFAULT), u32::MAX);
+    /// assert_eq!(curve.continuity(0.5, Tolerance::DEFAULT), Continuity::Smooth);
     /// ```
-    pub fn continuity(&self, u: f64, tol: Tolerance) -> u32 {
+    pub fn continuity(&self, u: f64, tol: Tolerance) -> Continuity {
         math::continuity_at(
             self.degree(),
             self.knots(),
@@ -460,14 +459,14 @@ impl BSplineCurve3D {
         )
     }
 
-    /// Minimum continuity order over the domain (`u32::MAX` = smooth
-    /// everywhere): the worst knot strictly inside the bounds, or, on a
+    /// Minimum [`Continuity`] over the domain (`Smooth` when no knot
+    /// constrains it): the worst knot strictly inside the bounds, or, on a
     /// periodic curve, the worst knot including the seam.
     ///
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{BSplineCurve3D, Point3D};
+    /// use geomcore::{BSplineCurve3D, Continuity, Point3D};
     /// let poles = vec![
     ///     Point3D::ORIGIN,
     ///     Point3D::new(1.0, 0.0, 0.0),
@@ -476,9 +475,9 @@ impl BSplineCurve3D {
     ///     Point3D::new(4.0, 0.0, 0.0),
     /// ];
     /// let curve = BSplineCurve3D::new(2, poles, vec![0.0, 0.5, 1.0], vec![3, 2, 3], false).unwrap();
-    /// assert_eq!(curve.min_continuity(), 0);
+    /// assert_eq!(curve.min_continuity(), Continuity::Order(0));
     /// ```
-    pub fn min_continuity(&self) -> u32 {
+    pub fn min_continuity(&self) -> Continuity {
         math::min_continuity(
             self.degree(),
             self.knots(),
