@@ -1670,3 +1670,83 @@ def test_a_pole_iso_is_a_circle_of_radius_zero():
     pole = Sphere(Point.origin(), 1.0).v_iso(math.pi / 2)
     assert pole.radius() == pytest.approx(0.0, abs=1e-12)
     assert pole.center().z == pytest.approx(1.0)
+
+
+def _cubic_curve_2d():
+    from geomcore.curves import BSplineCurve2D
+
+    return BSplineCurve2D(
+        3,
+        [Point2D(0.0, 0.0), Point2D(1.0, 2.0), Point2D(3.0, 2.0), Point2D(4.0, 0.0)],
+        [0.0, 1.0],
+        [4, 4],
+        False,
+    )
+
+
+def test_bspline_curve_2d_matches_its_3d_twin():
+    planar = _cubic_curve_2d()
+    spatial = BSplineCurve(
+        3,
+        [Point(p.x, p.y, 0.0) for p in planar.poles()],
+        [0.0, 1.0],
+        [4, 4],
+        False,
+    )
+    assert planar.degree() == 3 and not planar.is_rational()
+    assert planar.bounds() == (0.0, 1.0) and planar.period() is None
+    for u in [0.0, 0.25, 0.5, 0.9, 1.0]:
+        p, q = planar.eval_point(u), spatial.eval_point(u)
+        assert (p.x, p.y) == pytest.approx((q.x, q.y), abs=1e-14)
+        _, d1 = planar.eval_d1(u)
+        _, e1 = spatial.eval_d1(u)
+        assert (d1.x, d1.y) == pytest.approx((e1.x, e1.y), abs=1e-14)
+    assert planar.length(1e-9) == pytest.approx(spatial.length(1e-9), rel=1e-12)
+    left, right = planar.split_at(0.5)
+    assert left.bounds() == (0.0, 0.5) and right.bounds() == (0.5, 1.0)
+    assert planar.reversed().eval_point(0.0).x == pytest.approx(4.0)
+    assert len(planar.insert_knot(0.5, 1).poles()) == 5
+
+
+def test_bspline_curve_2d_projection_and_discretization():
+    curve = _cubic_curve_2d()
+    on = curve.eval_point(0.3)
+    assert curve.contains(on)
+    assert curve.parameter_of(on) == pytest.approx(0.3)
+    projection = curve.project_point(Point2D(2.0, 3.0))
+    assert projection.point.x == pytest.approx(2.0)
+    assert projection.distance == pytest.approx(3.0 - curve.eval_point(0.5).y)
+    nan = curve.project_point(Point2D(math.nan, 0.0))
+    assert math.isnan(nan.parameter) and math.isnan(nan.distance)
+    d = curve.discretize(1e-3)
+    assert isinstance(d, geomcore.Discretization2D)
+    assert d.parameters[0] == 0.0 and d.parameters[-1] == 1.0
+    assert all(dev <= 1e-3 for dev in d.chord_deviations)
+    assert curve.point_count(1e-3) == len(d.points)
+
+
+def test_bspline_curve_2d_intersections_are_numeric_and_complete():
+    from geomcore import IntersectionMethod
+    from geomcore.curves import Circle2D, TrimmedCurve2D
+
+    curve = _cubic_curve_2d()
+    line = Line2D(Point2D(0.0, 1.0), Vector2D(1.0, 0.0))
+    result = curve.intersect(line)
+    assert result.method == IntersectionMethod.NUMERIC and result.is_complete()
+    assert len(result.hits) == 2
+    for hit in result.hits:
+        assert hit.point.y == pytest.approx(1.0)
+        assert curve.eval_point(hit.first_parameter).x == pytest.approx(hit.point.x)
+    # The same crossings, seen from the line.
+    assert len(line.intersect(curve).hits) == 2
+
+    circle = Circle2D(Point2D(0.0, 0.0), 2.0)
+    spline = circle.to_bspline()
+    assert spline.is_rational() and spline.is_closed()
+    other = Circle2D(Point2D(3.0, 0.0), 2.0).to_bspline()
+    hits = spline.intersect(other).hits
+    assert sorted(h.point.y for h in hits) == pytest.approx([-math.sqrt(1.75), math.sqrt(1.75)])
+
+    arc = TrimmedCurve2D(circle, 0.0, math.pi)
+    half = arc.to_bspline()
+    assert half.eval_point(half.bounds()[1]).x == pytest.approx(-2.0)

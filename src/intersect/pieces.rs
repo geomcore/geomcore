@@ -56,7 +56,7 @@ impl CurvePieces {
         for w in breaks.windows(2) {
             let (t0, t1) = (w[0], w[1]);
             let mid = 0.5 * (t0 + t1);
-            curve.span_bezier_points(mid, &mut span);
+            curve.spline().span_bezier_lanes(mid, &mut span);
             let (a, b) = span_around(knots, period, mid);
             restrict(&mut span, (t0 - a) / (b - a), (t1 - a) / (b - a));
             points.extend(span.iter().flatten());

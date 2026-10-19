@@ -219,6 +219,16 @@ pub(crate) trait PolePoint: Copy + Pole<Cartesian = Self> {
     /// The vector of the same sums, seen from the origin: a derivative
     /// before the quotient rule.
     fn vector_of(s: [f64; 4]) -> Self::Vector;
+
+    /// The point at `position` from the origin, the inverse of
+    /// [`PolePoint::to_vector`].
+    fn from_position(position: Self::Vector) -> Self;
+
+    /// The point in space: itself in 3D, at `z = 0` in the plane.
+    fn embedded(self) -> Point;
+
+    /// Whether every coordinate is finite.
+    fn is_finite(self) -> bool;
 }
 
 impl PolePoint for Point {
@@ -261,6 +271,21 @@ impl PolePoint for Point {
     fn vector_of(s: [f64; 4]) -> Self::Vector {
         Vector::new(s[0], s[1], s[2])
     }
+
+    #[inline]
+    fn from_position(position: Vector) -> Self {
+        Point::ORIGIN + position
+    }
+
+    #[inline]
+    fn embedded(self) -> Point {
+        self
+    }
+
+    #[inline]
+    fn is_finite(self) -> bool {
+        Point::is_finite(self)
+    }
 }
 
 impl PolePoint for Point2D {
@@ -301,6 +326,21 @@ impl PolePoint for Point2D {
     #[inline]
     fn vector_of(s: [f64; 4]) -> Self::Vector {
         Vector2D::new(s[0], s[1])
+    }
+
+    #[inline]
+    fn from_position(position: Vector2D) -> Self {
+        Point2D::ORIGIN + position
+    }
+
+    #[inline]
+    fn embedded(self) -> Point {
+        Point::new(self.x, self.y, 0.0)
+    }
+
+    #[inline]
+    fn is_finite(self) -> bool {
+        Point2D::is_finite(self)
     }
 }
 

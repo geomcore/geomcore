@@ -7,16 +7,12 @@
 //! expanded into its flat knot sequence at construction, so evaluation
 //! never re-derives it.
 
-use crate::curve_math::bspline as math;
-use crate::curve_math::bspline::SpanEnds;
-use crate::curve_math::editing::{self, Elevation, Insertion, Lanes};
 use crate::curves::bspline::{
     BSplineConstructionError, BSplineSplitError, DegreeElevationError, KnotInsertionError,
     KnotRemovalError,
 };
-use crate::curves::{ParametricCurve2D, PointExtrema2D, Side};
-use crate::math::boxtree::{BoxTree, Lazy};
-use crate::math::quadrature;
+use crate::curves::spline::Spline;
+use crate::curves::{BSplineCurve, ParametricCurve2D, PointExtrema2D, Side};
 use crate::projection::CurveProjection2D;
 use crate::{Continuity, Point2D, Tolerance, Vector2D};
 
@@ -52,22 +48,7 @@ use crate::{Continuity, Point2D, Tolerance, Vector2D};
 /// assert_eq!(curve.bounds(), (0.0, 3.0));
 /// ```
 #[derive(Debug, Clone, PartialEq)]
-pub struct BSplineCurve2D {
-    knots: math::KnotVector,
-    poles: Vec<Point2D>,
-    /// One weight per pole if rational.
-    weights: Option<Vec<f64>>,
-    /// Bounding-box hierarchy of the knot spans, built on the first
-    /// projection.
-    spans: Lazy<SpanTree>,
-}
-
-/// The knot-span boundaries of a curve and the box hierarchy over its spans.
-#[derive(Clone)]
-struct SpanTree {
-    breaks: Vec<f64>,
-    tree: BoxTree,
-}
+pub struct BSplineCurve2D(Spline<Point2D>);
 
 impl BSplineCurve2D {
     /// Creates a non-rational (polynomial) B-spline curve.
@@ -94,7 +75,7 @@ impl BSplineCurve2D {
         multiplicities: Vec<u32>,
         periodic: bool,
     ) -> Result<BSplineCurve2D, BSplineConstructionError> {
-        Self::build(degree, poles, None, knots, multiplicities, periodic)
+        Spline::new(degree, poles, None, knots, multiplicities, periodic).map(BSplineCurve2D)
     }
 
     /// Creates a rational (NURBS) B-spline curve with one weight per pole.
@@ -139,7 +120,7 @@ impl BSplineCurve2D {
         multiplicities: Vec<u32>,
         periodic: bool,
     ) -> Result<BSplineCurve2D, BSplineConstructionError> {
-        Self::build(
+        Spline::new(
             degree,
             poles,
             Some(weights),
@@ -147,31 +128,7 @@ impl BSplineCurve2D {
             multiplicities,
             periodic,
         )
-    }
-
-    fn build(
-        degree: usize,
-        poles: Vec<Point2D>,
-        weights: Option<Vec<f64>>,
-        knots: Vec<f64>,
-        multiplicities: Vec<u32>,
-        periodic: bool,
-    ) -> Result<BSplineCurve2D, BSplineConstructionError> {
-        if let Some(ws) = &weights {
-            if ws.len() != poles.len() {
-                return Err(BSplineConstructionError::WeightCountMismatch);
-            }
-            if ws.iter().any(|&w| w <= 0.0) {
-                return Err(BSplineConstructionError::NonPositiveWeight);
-            }
-        }
-        let knots = math::KnotVector::new(degree, knots, multiplicities, periodic, poles.len())?;
-        Ok(BSplineCurve2D {
-            knots,
-            poles,
-            weights,
-            spans: Lazy::default(),
-        })
+        .map(BSplineCurve2D)
     }
 
     /// A curve from parts already known to be consistent (as the
@@ -187,14 +144,15 @@ impl BSplineCurve2D {
         flat: Vec<f64>,
         periodic: bool,
     ) -> BSplineCurve2D {
-        let knots = math::KnotVector::from_validated(degree, knots, multiplicities, flat, periodic);
-        debug_assert_eq!(knots.pole_count(), poles.len());
-        BSplineCurve2D {
-            knots,
+        BSplineCurve2D(Spline::from_validated_parts(
+            degree,
             poles,
             weights,
-            spans: Lazy::default(),
-        }
+            knots,
+            multiplicities,
+            flat,
+            periodic,
+        ))
     }
 
     /// Returns the curve's degree.
@@ -208,7 +166,7 @@ impl BSplineCurve2D {
     /// assert_eq!(curve.degree(), 1);
     /// ```
     pub fn degree(&self) -> usize {
-        self.knots.degree()
+        self.0.degree()
     }
 
     /// Returns whether the curve is periodic.
@@ -222,7 +180,7 @@ impl BSplineCurve2D {
     /// assert!(!curve.is_periodic());
     /// ```
     pub fn is_periodic(&self) -> bool {
-        self.knots.is_periodic()
+        self.0.is_periodic()
     }
 
     /// Returns whether the curve's ends meet: a periodic curve, or one
@@ -243,11 +201,7 @@ impl BSplineCurve2D {
     /// assert!(closed.is_closed(Tolerance::DEFAULT));
     /// ```
     pub fn is_closed(&self, tol: Tolerance) -> bool {
-        if self.is_periodic() {
-            return true;
-        }
-        let (lo, hi) = self.bounds();
-        self.eval_point(lo).distance(self.eval_point(hi)) <= tol.confusion
+        self.0.is_closed(tol)
     }
 
     /// [`Continuity`] at parameter `u`: `Order(degree − multiplicity)` at a
@@ -270,15 +224,7 @@ impl BSplineCurve2D {
     /// assert_eq!(curve.continuity(0.5, Tolerance::DEFAULT), Continuity::Smooth);
     /// ```
     pub fn continuity(&self, u: f64, tol: Tolerance) -> Continuity {
-        math::continuity_at(
-            self.degree(),
-            self.knots(),
-            self.multiplicities(),
-            self.bounds(),
-            self.is_periodic(),
-            u,
-            tol,
-        )
+        self.0.continuity(u, tol)
     }
 
     /// Minimum [`Continuity`] over the domain (`Smooth` when no knot
@@ -300,13 +246,7 @@ impl BSplineCurve2D {
     /// assert_eq!(curve.min_continuity(), Continuity::Order(0));
     /// ```
     pub fn min_continuity(&self) -> Continuity {
-        math::min_continuity(
-            self.degree(),
-            self.knots(),
-            self.multiplicities(),
-            self.bounds(),
-            self.is_periodic(),
-        )
+        self.0.min_continuity()
     }
 
     /// Returns whether the curve is rational (has per-pole weights).
@@ -320,7 +260,7 @@ impl BSplineCurve2D {
     /// assert!(!curve.is_rational());
     /// ```
     pub fn is_rational(&self) -> bool {
-        self.weights.is_some()
+        self.0.is_rational()
     }
 
     /// Returns the control poles.
@@ -334,7 +274,7 @@ impl BSplineCurve2D {
     /// assert_eq!(curve.poles(), poles.as_slice());
     /// ```
     pub fn poles(&self) -> &[Point2D] {
-        &self.poles
+        self.0.poles()
     }
 
     /// Returns the per-pole weights, or `None` if the curve is not rational.
@@ -348,7 +288,7 @@ impl BSplineCurve2D {
     /// assert_eq!(curve.weights(), None);
     /// ```
     pub fn weights(&self) -> Option<&[f64]> {
-        self.weights.as_deref()
+        self.0.weights()
     }
 
     /// Returns the (non-flattened) knot values.
@@ -362,7 +302,7 @@ impl BSplineCurve2D {
     /// assert_eq!(curve.knots(), &[0.0, 1.0]);
     /// ```
     pub fn knots(&self) -> &[f64] {
-        self.knots.knots()
+        self.0.knots()
     }
 
     /// Returns the knot multiplicities.
@@ -376,7 +316,7 @@ impl BSplineCurve2D {
     /// assert_eq!(curve.multiplicities(), &[2, 2]);
     /// ```
     pub fn multiplicities(&self) -> &[u32] {
-        self.knots.multiplicities()
+        self.0.multiplicities()
     }
 
     /// Returns the same curve with the knot `u` inserted `times` times:
@@ -421,9 +361,7 @@ impl BSplineCurve2D {
     /// }
     /// ```
     pub fn insert_knot(&self, u: f64, times: u32) -> Result<BSplineCurve2D, KnotInsertionError> {
-        let copies = [u; math::MAX_DEGREE + 1];
-        // More copies than any multiplicity allows fail the same way.
-        self.refine_knots(&copies[..(times as usize).min(copies.len())])
+        self.0.insert_knot(u, times).map(BSplineCurve2D)
     }
 
     /// Returns the same curve with all of `knots` inserted in one pass:
@@ -465,22 +403,7 @@ impl BSplineCurve2D {
     /// }
     /// ```
     pub fn refine_knots(&self, knots: &[f64]) -> Result<BSplineCurve2D, KnotInsertionError> {
-        if knots.is_empty() {
-            return Ok(self.clone());
-        }
-        let (direction, poles, weights) = editing::edit(
-            &Insertion(knots),
-            &self.knots,
-            &self.poles,
-            self.weights.as_deref(),
-            Lanes::CURVE,
-        )?;
-        Ok(BSplineCurve2D {
-            knots: direction,
-            poles,
-            weights,
-            spans: Lazy::default(),
-        })
+        self.0.refine_knots(knots).map(BSplineCurve2D)
     }
 
     /// Returns the same curve with its degree raised by `amount`: it
@@ -531,19 +454,7 @@ impl BSplineCurve2D {
     /// }
     /// ```
     pub fn elevate_degree(&self, amount: usize) -> Result<BSplineCurve2D, DegreeElevationError> {
-        let (direction, poles, weights) = editing::edit(
-            &Elevation(amount),
-            &self.knots,
-            &self.poles,
-            self.weights.as_deref(),
-            Lanes::CURVE,
-        )?;
-        Ok(BSplineCurve2D {
-            knots: direction,
-            poles,
-            weights,
-            spans: Lazy::default(),
-        })
+        self.0.elevate_degree(amount).map(BSplineCurve2D)
     }
 
     /// Returns the curve with the knot `u` removed up to `times` times,
@@ -604,13 +515,9 @@ impl BSplineCurve2D {
         times: u32,
         max_deviation: f64,
     ) -> Result<(BSplineCurve2D, u32), KnotRemovalError> {
-        let copies = [u; math::MAX_DEGREE + 1];
-        let copies = &copies[..(times as usize).min(copies.len())];
-        if copies.is_empty() {
-            editing::check_removal(&self.knots, &[u], max_deviation)?;
-        }
-        let (curve, removed) = self.remove_knots(copies, max_deviation)?;
-        Ok((curve, removed as u32))
+        self.0
+            .remove_knot(u, times, max_deviation)
+            .map(|(curve, removed)| (BSplineCurve2D(curve), removed))
     }
 
     /// Returns the curve with each of `knots` removed once, in order, a
@@ -655,27 +562,9 @@ impl BSplineCurve2D {
         knots: &[f64],
         max_deviation: f64,
     ) -> Result<(BSplineCurve2D, usize), KnotRemovalError> {
-        editing::check_removal(&self.knots, knots, max_deviation)?;
-        let removal = editing::remove_knots(
-            &self.knots,
-            &self.poles,
-            self.weights.as_deref(),
-            Lanes::CURVE,
-            knots,
-            max_deviation,
-        );
-        Ok(match removal {
-            Some(removed) => (
-                BSplineCurve2D {
-                    knots: removed.knots,
-                    poles: removed.points,
-                    weights: removed.weights,
-                    spans: Lazy::default(),
-                },
-                removed.count,
-            ),
-            None => (self.clone(), 0),
-        })
+        self.0
+            .remove_knots(knots, max_deviation)
+            .map(|(curve, removed)| (BSplineCurve2D(curve), removed))
     }
 
     /// Returns the polynomial (or rational) piece of each knot span within
@@ -703,22 +592,11 @@ impl BSplineCurve2D {
     /// assert!(pieces[1].eval_point(1.5).distance(curve.eval_point(1.5)) < 1e-12);
     /// ```
     pub fn to_bezier_pieces(&self) -> Vec<BSplineCurve2D> {
-        let p = self.degree();
-        let mut pieces = Vec::with_capacity(self.knots.knots().len() - 1);
-        editing::curve_pieces(
-            &self.knots,
-            &self.poles,
-            self.weights.as_deref(),
-            |x, y, poles, weights| {
-                pieces.push(BSplineCurve2D {
-                    knots: math::KnotVector::bezier(p, x, y),
-                    poles,
-                    weights,
-                    spans: Lazy::default(),
-                });
-            },
-        );
-        pieces
+        self.0
+            .to_bezier_pieces()
+            .into_iter()
+            .map(BSplineCurve2D)
+            .collect()
     }
 
     /// Returns the piece of the curve over `[first, last]` as a clamped,
@@ -768,12 +646,7 @@ impl BSplineCurve2D {
     /// assert_eq!(curve.extract(1.5, 0.5), Err(BSplineSplitError::EmptyRange));
     /// ```
     pub fn extract(&self, first: f64, last: f64) -> Result<BSplineCurve2D, BSplineSplitError> {
-        editing::check_piece(&self.knots, first, last)?;
-        if editing::is_clamped_to(&self.knots, first, last) {
-            return Ok(self.clone());
-        }
-        let [piece] = self.cut(&[first, last]);
-        Ok(piece)
+        self.0.extract(first, last).map(BSplineCurve2D)
     }
 
     /// Splits the curve at `u` into the pieces over `[first, u]` and
@@ -813,10 +686,9 @@ impl BSplineCurve2D {
     /// assert_eq!(curve.split_at(1.0), Err(BSplineSplitError::EmptyRange));
     /// ```
     pub fn split_at(&self, u: f64) -> Result<(BSplineCurve2D, BSplineCurve2D), BSplineSplitError> {
-        editing::check_split(&self.knots, u)?;
-        let (first, last) = self.bounds();
-        let [left, right] = self.cut(&[first, u, last]);
-        Ok((left, right))
+        self.0
+            .split_at(u)
+            .map(|(left, right)| (BSplineCurve2D(left), BSplineCurve2D(right)))
     }
 
     /// Returns the curve traversed the other way: its point at `u` is this
@@ -848,40 +720,7 @@ impl BSplineCurve2D {
     /// assert_eq!(reversed.reversed(), curve);
     /// ```
     pub fn reversed(&self) -> BSplineCurve2D {
-        let old: Vec<usize> = (0..self.poles.len())
-            .map(|i| editing::reversed_slot(&self.knots, i))
-            .collect();
-        BSplineCurve2D {
-            knots: editing::reversed_knots(&self.knots),
-            poles: old.iter().map(|&i| self.poles[i]).collect(),
-            weights: self
-                .weights
-                .as_ref()
-                .map(|w| old.iter().map(|&i| w[i]).collect()),
-            spans: Lazy::default(),
-        }
-    }
-
-    /// The curve's pieces between the increasing `cuts`, checked against
-    /// its bounds.
-    fn cut<const N: usize>(&self, cuts: &[f64]) -> [BSplineCurve2D; N] {
-        let pieces = editing::cut(
-            &self.knots,
-            &self.poles,
-            self.weights.as_deref(),
-            Lanes::CURVE,
-            cuts,
-        );
-        let pieces = pieces.into_iter().map(|piece| BSplineCurve2D {
-            knots: piece.knots,
-            poles: piece.points,
-            weights: piece.weights,
-            spans: Lazy::default(),
-        });
-        let pieces: Vec<BSplineCurve2D> = pieces.collect();
-        pieces
-            .try_into()
-            .unwrap_or_else(|_| unreachable!("a piece between each two cuts"))
+        BSplineCurve2D(self.0.reversed())
     }
 
     /// Returns the curve's parameter bounds `(first, last)`.
@@ -899,7 +738,7 @@ impl BSplineCurve2D {
     /// assert_eq!(curve.bounds(), (0.0, 1.0));
     /// ```
     pub fn bounds(&self) -> (f64, f64) {
-        self.knots.bounds()
+        self.0.bounds()
     }
 
     /// Evaluates the point on the curve at parameter `u`.
@@ -916,7 +755,7 @@ impl BSplineCurve2D {
     /// assert_eq!(curve.eval_point(0.5), Point2D::new(1.0, 0.0));
     /// ```
     pub fn eval_point(&self, u: f64) -> Point2D {
-        math::point(&self.knots, self.pole_view(), u)
+        self.0.eval_point(u)
     }
 
     /// Evaluates the points on the curve at each parameter in `us`.
@@ -931,7 +770,7 @@ impl BSplineCurve2D {
     /// assert_eq!(points[1], Point2D::new(1.0, 0.0));
     /// ```
     pub fn eval_points(&self, us: &[f64]) -> Vec<Point2D> {
-        us.iter().map(|&u| self.eval_point(u)).collect()
+        self.0.eval_points(us)
     }
 
     /// Evaluates the derivative of the given `order` at parameter `u`.
@@ -953,14 +792,7 @@ impl BSplineCurve2D {
     /// assert_eq!(curve.eval_derivative(0.5, 1), Vector2D::new(2.0, 0.0));
     /// ```
     pub fn eval_derivative(&self, u: f64, order: u32) -> Vector2D {
-        match order {
-            0 => panic!("eval_derivative: order must be >= 1 (use eval_point for order 0)"),
-            1 => math::derivatives::<1, Point2D>(&self.knots, self.pole_view(), u)[1],
-            2 => math::derivatives::<2, Point2D>(&self.knots, self.pole_view(), u)[2],
-            _ => panic!(
-                "eval_derivative: order {order} is not supported (only first and second derivatives are supported)"
-            ),
-        }
+        self.0.eval_derivative(u, order)
     }
 
     /// Evaluates the point and the first derivative at parameter `u`, from
@@ -977,8 +809,7 @@ impl BSplineCurve2D {
     /// assert_eq!(d1, Vector2D::new(2.0, 0.0));
     /// ```
     pub fn eval_d1(&self, u: f64) -> (Point2D, Vector2D) {
-        let [c, d1, _] = math::derivatives::<1, Point2D>(&self.knots, self.pole_view(), u);
-        (Point2D::ORIGIN + c, d1)
+        self.0.eval_d1(u)
     }
 
     /// Evaluates the point and the first and second derivatives at
@@ -1000,8 +831,7 @@ impl BSplineCurve2D {
     /// assert_eq!(d2, Vector2D::new(0.0, -4.0));
     /// ```
     pub fn eval_d2(&self, u: f64) -> (Point2D, Vector2D, Vector2D) {
-        let [c, d1, d2] = math::derivatives::<2, Point2D>(&self.knots, self.pole_view(), u);
-        (Point2D::ORIGIN + c, d1, d2)
+        self.0.eval_d2(u)
     }
 
     /// Evaluates the point and the first derivative at parameter `u` from
@@ -1030,8 +860,7 @@ impl BSplineCurve2D {
     /// assert_eq!(curve.eval_d1_sided(1.0, Side::Above).1, Vector2D::new(0.0, 1.0));
     /// ```
     pub fn eval_d1_sided(&self, u: f64, side: Side) -> (Point2D, Vector2D) {
-        let [c, d1, _] = math::derivatives_sided::<1, Point2D>(&self.knots, self.pole_view(), u, side);
-        (Point2D::ORIGIN + c, d1)
+        self.0.eval_d1_sided(u, side)
     }
 
     /// Evaluates the derivative of the given `order` at parameter `u`
@@ -1062,22 +891,14 @@ impl BSplineCurve2D {
     /// assert_eq!(curve.eval_derivative_sided(1.0, 1, Side::Above), Vector2D::new(2.0, -2.0));
     /// ```
     pub fn eval_derivative_sided(&self, u: f64, order: u32, side: Side) -> Vector2D {
-        match order {
-            0 => panic!("eval_derivative: order must be >= 1 (use eval_point for order 0)"),
-            1 => math::derivatives_sided::<1, Point2D>(&self.knots, self.pole_view(), u, side)[1],
-            2 => math::derivatives_sided::<2, Point2D>(&self.knots, self.pole_view(), u, side)[2],
-            _ => panic!(
-                "eval_derivative: order {order} is not supported (only first and second derivatives are supported)"
-            ),
-        }
+        self.0.eval_derivative_sided(u, order, side)
     }
 
     /// Evaluates the point and the first and second derivatives at
     /// parameter `u` from one side, as
     /// [`eval_d1_sided`](Self::eval_d1_sided).
     pub fn eval_d2_sided(&self, u: f64, side: Side) -> (Point2D, Vector2D, Vector2D) {
-        let [c, d1, d2] = math::derivatives_sided::<2, Point2D>(&self.knots, self.pole_view(), u, side);
-        (Point2D::ORIGIN + c, d1, d2)
+        self.0.eval_d2_sided(u, side)
     }
 
     /// The length of the curve over its bounds, within `max_error` as far
@@ -1106,20 +927,7 @@ impl BSplineCurve2D {
     /// assert!((curve.length(1e-12) - exact).abs() <= 1e-12);
     /// ```
     pub fn length(&self, max_error: f64) -> f64 {
-        let (first, last) = self.bounds();
-        let breaks = self.knots.breaks();
-        let degree = self.degree();
-        let mut net = [[0.0; 3]; math::LARGE];
-        breaks
-            .windows(2)
-            .map(|span| {
-                let (a, b) = (span[0], span[1]);
-                math::span_bezier(&self.knots, self.pole_view(), 0.5 * (a + b), &mut net);
-                let net = &net[..=degree];
-                let share = max_error * (b - a) / (last - first);
-                quadrature::integrate(&|t| bezier_speed(net, t), 0.0, 1.0, share)
-            })
-            .sum()
+        self.0.length(max_error)
     }
 
     /// Returns whether `point` lies on the curve: the curve is projected
@@ -1137,10 +945,7 @@ impl BSplineCurve2D {
     /// assert!(!curve.contains(Point2D::new(1.0, 1.0), tol));
     /// ```
     pub fn contains(&self, point: Point2D, tol: Tolerance) -> bool {
-        if !point.is_finite() {
-            return false;
-        }
-        self.project_point(point, tol).distance <= tol.confusion
+        self.0.contains(point, tol)
     }
 
     /// The local minima of the distance from `point` to the curve, ordered
@@ -1165,44 +970,11 @@ impl BSplineCurve2D {
     /// assert_eq!(extrema[0].distance, 1.0);
     /// ```
     pub fn extrema(&self, point: Point2D, tol: Tolerance) -> Vec<CurveProjection2D> {
-        if !point.is_finite() {
-            return Vec::new();
-        }
-        use crate::projection::snap_distance;
-        let (first, last) = self.bounds();
-        let breaks = &self.span_tree().breaks;
-        let n = breaks.len() - 1;
-        let mut params = vec![self.project_point(point, tol).parameter];
-        let ends: Vec<SpanEnds> = (0..n)
-            .map(|k| self.scan_span(point, breaks[k], breaks[k + 1], &mut params))
-            .collect();
-        for k in 1..n {
-            if ends[k - 1].end_falling && ends[k].start_rising {
-                params.push(breaks[k]);
-            }
-        }
-        if !self.is_periodic() {
-            params.push(first);
-            params.push(last);
-        } else if ends[n - 1].end_falling && ends[0].start_rising {
-            params.push(first);
-        }
-        let mut out: Vec<CurveProjection2D> = Vec::new();
-        let mut kept: Vec<Point2D> = Vec::new();
-        for t in params {
-            let p = self.eval_point(t);
-            if kept.iter().any(|q| q.distance(p) <= tol.confusion) {
-                continue;
-            }
-            kept.push(p);
-            out.push(CurveProjection2D {
-                parameter: t,
-                point: p,
-                distance: snap_distance(p.distance(point), tol.confusion),
-            });
-        }
-        out.sort_by(|x, y| x.distance.total_cmp(&y.distance));
-        out
+        self.0
+            .extrema(point, tol)
+            .into_iter()
+            .map(Into::into)
+            .collect()
     }
 
     /// Projects `point` onto the curve: the global minimum of the distance,
@@ -1231,46 +1003,7 @@ impl BSplineCurve2D {
     /// assert_eq!(proj.distance, 1.0);
     /// ```
     pub fn project_point(&self, point: Point2D, tol: Tolerance) -> CurveProjection2D {
-        if !point.is_finite() {
-            return CurveProjection2D::UNDEFINED;
-        }
-        use crate::projection::snap_distance;
-        let spans = self.span_tree();
-        let breaks = &spans.breaks;
-        // (distance, parameter) of the closest point so far.
-        let mut best = (f64::INFINITY, breaks[0]);
-        let mut minima = Vec::new();
-        spans
-            .tree
-            .nearest_first(crate::Point::new(point.x, point.y, 0.0), |k| {
-                let (a, b) = (breaks[k], breaks[k + 1]);
-                minima.clear();
-                let ends = self.scan_span(point, a, b, &mut minima);
-                let interior = minima
-                    .iter()
-                    .map(|&t| (self.eval_point(t).distance(point), t));
-                for (d, t) in [(ends.distance[0], a), (ends.distance[1], b)]
-                    .into_iter()
-                    .chain(interior)
-                {
-                    if d < best.0 {
-                        best = (d, t);
-                    }
-                }
-                best.0
-            });
-        let (first, last) = self.bounds();
-        let t = if self.is_periodic() && best.1 == last {
-            first
-        } else {
-            best.1
-        };
-        let foot = self.eval_point(t);
-        CurveProjection2D {
-            parameter: t,
-            point: foot,
-            distance: snap_distance(foot.distance(point), tol.confusion),
-        }
+        self.0.project_point(point, tol).into()
     }
 
     /// The parameter of the point of the curve closest to `point`, the
@@ -1297,100 +1030,14 @@ impl BSplineCurve2D {
         points.iter().map(|&p| self.project_point(p, tol)).collect()
     }
 
-    /// The homogeneous Bernstein control points `(x w, y w, w)`
-    /// (`w = 1` if nonrational) of the polynomial piece on the span
-    /// containing `u` (pass a parameter inside the span), over the span's
-    /// own interval, into `points[..=degree]`.
-    #[allow(dead_code)]
-    pub(crate) fn span_bezier_points(&self, u: f64, points: &mut [[f64; 3]]) {
-        math::span_bezier(&self.knots, self.pole_view(), u, points);
+    /// The curve in space at `z = 0`, with the same parameters.
+    pub(crate) fn embedded(&self) -> BSplineCurve {
+        BSplineCurve::from_spline(self.0.embedded())
     }
 
-    /// The poles as read by evaluation.
-    fn pole_view(&self) -> math::Poles<'_, Point2D> {
-        math::Poles {
-            points: &self.poles,
-            weights: self.weights.as_deref(),
-        }
-    }
-
-    /// The poles weighting the knot spans from the one containing `u0` to
-    /// the one containing `u1`, `u0 <= u1` at most a period apart.
-    #[allow(dead_code)]
-    pub(crate) fn run_poles(&self, u0: f64, u1: f64) -> impl Iterator<Item = Point2D> + '_ {
-        let n = self.poles.len();
-        let (first, last) = (
-            self.knots.span_first_pole(u0),
-            self.knots.span_first_pole(u1),
-        );
-        // Periodic pole indices wrap, so the run may end below its start.
-        let count = ((last + n - first) % n + self.degree() + 1).min(n);
-        (first..first + count).map(move |i| self.poles[i % n])
-    }
-
-    /// Calls `visit(span, piece)` in order for every knot span
-    /// `span = (start, end)` meeting `[first, last]`, `piece` being the
-    /// part of `[first, last]` inside it. A periodic curve repeats its
-    /// spans every period, so a range across the seam takes them from
-    /// consecutive periods.
-    #[allow(dead_code)]
-    pub(crate) fn for_each_span_in(
-        &self,
-        first: f64,
-        last: f64,
-        mut visit: impl FnMut((f64, f64), (f64, f64)),
-    ) {
-        let (start, end) = self.bounds();
-        let interior = self
-            .knots()
-            .iter()
-            .copied()
-            .filter(|&k| k > start && k < end);
-        let (shifts, period) = match self.knots.period() {
-            Some(period) => {
-                let shift = |u: f64| ((u - start) / period).floor() as i64;
-                (shift(first)..=shift(last), period)
-            }
-            None => (0..=0, 0.0),
-        };
-        let mut span_start = start + *shifts.start() as f64 * period;
-        for shift in shifts {
-            let offset = shift as f64 * period;
-            for knot in interior.clone().chain([end]) {
-                let span_end = knot + offset;
-                let (a, b) = (span_start.max(first), span_end.min(last));
-                if a < b {
-                    visit((span_start, span_end), (a, b));
-                }
-                span_start = span_end;
-            }
-        }
-    }
-
-    /// The knot-span box hierarchy, built on first use.
-    fn span_tree(&self) -> &SpanTree {
-        self.spans.get_or_init(|| {
-            let breaks = self.knots.breaks();
-            let boxes = math::span_boxes(&self.knots, self.pole_view(), &breaks);
-            SpanTree {
-                tree: BoxTree::new(&boxes, 1),
-                breaks,
-            }
-        })
-    }
-
-    /// Scans the knot span `[a, b]` for minima of the distance to `point`:
-    /// pushes every interior local minimum (refined) to `minima` and
-    /// returns how the distance behaves at the span ends.
-    ///
-    /// With the span's Bernstein control points, the homogeneous offset
-    /// `A = P_w - point * w` and the weight `w` are polynomials of the
-    /// degree `p`, and `d/dt |A / w|^2` has the sign of
-    /// `G = (A' . A) w - |A|^2 w'` (`A' . A` if nonrational), of degree
-    /// `3p - 1` (`2p - 1`). Interior minima are the roots where `G` rises
-    /// through zero.
-    fn scan_span(&self, point: Point2D, a: f64, b: f64, minima: &mut Vec<f64>) -> math::SpanEnds {
-        math::scan_span(&self.knots, self.pole_view(), point, a, b, minima)
+    /// The curve as the implementation shared by both tiers.
+    pub(crate) fn spline(&self) -> &Spline<Point2D> {
+        &self.0
     }
 }
 
@@ -1408,7 +1055,7 @@ impl ParametricCurve2D for BSplineCurve2D {
     }
 
     fn period(&self) -> Option<f64> {
-        self.knots.period()
+        self.0.period()
     }
 
     fn eval_points(&self, us: &[f64]) -> Vec<Point2D> {
@@ -1422,30 +1069,6 @@ impl PointExtrema2D for BSplineCurve2D {
     }
 }
 
-/// The speed `|C'(t)|` at `t` of the Bézier piece with the homogeneous
-/// control points `net`, over `[0, 1]`: de Casteljau down to the last two
-/// points, whose difference gives the derivative.
-fn bezier_speed(net: &[[f64; 3]], t: f64) -> f64 {
-    let degree = net.len() - 1;
-    let mut points = [[0.0; 3]; math::LARGE];
-    points[..=degree].copy_from_slice(net);
-    for level in (1..degree).rev() {
-        for i in 0..=level {
-            let next = points[i + 1];
-            for (x, y) in points[i].iter_mut().zip(next) {
-                *x += t * (y - *x);
-            }
-        }
-    }
-    let ([a, b], s) = ([points[0], points[1]], degree as f64);
-    let h: [f64; 3] = std::array::from_fn(|c| a[c] + t * (b[c] - a[c]));
-    let d: [f64; 3] = std::array::from_fn(|c| s * (b[c] - a[c]));
-    // The quotient rule on `C = H / w`.
-    let w = h[2];
-    let tangent = Vector2D::new(d[0] * w - h[0] * d[2], d[1] * w - h[1] * d[2]);
-    tangent.magnitude() / (w * w)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1455,7 +1078,8 @@ mod tests {
     #[test]
     fn test_new_ok_accessors() {
         let poles = vec![Point2D::new(0.0, 0.0), Point2D::new(2.0, 0.0)];
-        let curve = BSplineCurve2D::new(1, poles.clone(), vec![0.0, 1.0], vec![2, 2], false).unwrap();
+        let curve =
+            BSplineCurve2D::new(1, poles.clone(), vec![0.0, 1.0], vec![2, 2], false).unwrap();
         assert_eq!(curve.degree(), 1);
         assert!(!curve.is_periodic());
         assert!(!curve.is_rational());
@@ -1506,15 +1130,9 @@ mod tests {
     #[test]
     fn test_new_rational_weight_count_mismatch_errors() {
         let poles = vec![Point2D::ORIGIN, Point2D::new(1.0, 0.0)];
-        let err = BSplineCurve2D::new_rational(
-            1,
-            poles,
-            vec![1.0],
-            vec![0.0, 1.0],
-            vec![2, 2],
-            false,
-        )
-        .unwrap_err();
+        let err =
+            BSplineCurve2D::new_rational(1, poles, vec![1.0], vec![0.0, 1.0], vec![2, 2], false)
+                .unwrap_err();
         assert_eq!(err, BSplineConstructionError::WeightCountMismatch);
     }
 
@@ -1548,7 +1166,8 @@ mod tests {
             Point2D::new(1.0, 0.0),
             Point2D::new(0.0, 0.0),
         ];
-        let closed = BSplineCurve2D::new(1, poles, vec![0.0, 1.0, 2.0], vec![2, 1, 2], false).unwrap();
+        let closed =
+            BSplineCurve2D::new(1, poles, vec![0.0, 1.0, 2.0], vec![2, 1, 2], false).unwrap();
         assert!(closed.is_closed(Tolerance::DEFAULT));
     }
 
@@ -1573,8 +1192,14 @@ mod tests {
         let bez = |t: f64| {
             let mt = 1.0 - t;
             Point2D::new(
-                mt * mt * mt * a.x + 3.0 * mt * mt * t * b.x + 3.0 * mt * t * t * c.x + t * t * t * d.x,
-                mt * mt * mt * a.y + 3.0 * mt * mt * t * b.y + 3.0 * mt * t * t * c.y + t * t * t * d.y,
+                mt * mt * mt * a.x
+                    + 3.0 * mt * mt * t * b.x
+                    + 3.0 * mt * t * t * c.x
+                    + t * t * t * d.x,
+                mt * mt * mt * a.y
+                    + 3.0 * mt * mt * t * b.y
+                    + 3.0 * mt * t * t * c.y
+                    + t * t * t * d.y,
             )
         };
         for i in 0..=10 {
@@ -1632,8 +1257,14 @@ mod tests {
         ];
         let curve =
             BSplineCurve2D::new(1, poles, vec![0.0, 1.0, 2.0], vec![2, 1, 2], false).unwrap();
-        assert_eq!(curve.eval_d1_sided(1.0, Side::Below).1, Vector2D::new(1.0, 0.0));
-        assert_eq!(curve.eval_d1_sided(1.0, Side::Above).1, Vector2D::new(0.0, 1.0));
+        assert_eq!(
+            curve.eval_d1_sided(1.0, Side::Below).1,
+            Vector2D::new(1.0, 0.0)
+        );
+        assert_eq!(
+            curve.eval_d1_sided(1.0, Side::Above).1,
+            Vector2D::new(0.0, 1.0)
+        );
     }
 
     // ---- refinement invariants ----
@@ -1683,9 +1314,15 @@ mod tests {
             Point2D::new(1.0, 1.0),
             Point2D::new(0.0, 1.0),
         ];
-        let arc =
-            BSplineCurve2D::new_rational(2, poles, vec![1.0, w, 1.0], vec![0.0, 1.0], vec![3, 3], false)
-                .unwrap();
+        let arc = BSplineCurve2D::new_rational(
+            2,
+            poles,
+            vec![1.0, w, 1.0],
+            vec![0.0, 1.0],
+            vec![3, 3],
+            false,
+        )
+        .unwrap();
         let cubic = arc.elevate_degree(1).unwrap();
         assert_eq!(cubic.degree(), 3);
         assert!(cubic.is_rational());
@@ -1723,10 +1360,12 @@ mod tests {
 
     #[test]
     fn test_to_bezier_pieces() {
-        let poles: Vec<Point2D> =
-            (0..6).map(|i| Point2D::new(i as f64, (i % 2) as f64)).collect();
-        let curve = BSplineCurve2D::new(3, poles, vec![0.0, 1.0, 2.0, 3.0], vec![4, 1, 1, 4], false)
-            .unwrap();
+        let poles: Vec<Point2D> = (0..6)
+            .map(|i| Point2D::new(i as f64, (i % 2) as f64))
+            .collect();
+        let curve =
+            BSplineCurve2D::new(3, poles, vec![0.0, 1.0, 2.0, 3.0], vec![4, 1, 1, 4], false)
+                .unwrap();
         let pieces = curve.to_bezier_pieces();
         assert_eq!(pieces.len(), 3);
         assert_eq!(pieces[1].bounds(), (1.0, 2.0));
@@ -1745,7 +1384,10 @@ mod tests {
         let curve = BSplineCurve2D::new(3, poles, vec![0.0, 1.0], vec![4, 4], false).unwrap();
         let reversed = curve.reversed();
         assert_eq!(reversed.eval_point(0.0), curve.eval_point(1.0));
-        let (d, e) = (curve.eval_derivative(0.3, 1), reversed.eval_derivative(0.7, 1));
+        let (d, e) = (
+            curve.eval_derivative(0.3, 1),
+            reversed.eval_derivative(0.7, 1),
+        );
         assert!((d + e).magnitude() < 1e-12);
         assert_eq!(reversed.reversed(), curve);
     }
@@ -1761,13 +1403,18 @@ mod tests {
             Point2D::new(1.0, 1.0),
             Point2D::new(0.0, 1.0),
         ];
-        let curve = BSplineCurve2D::new(1, poles, vec![0.0, 1.0, 2.0, 3.0, 4.0], vec![1; 5], true)
-            .unwrap();
+        let curve =
+            BSplineCurve2D::new(1, poles, vec![0.0, 1.0, 2.0, 3.0, 4.0], vec![1; 5], true).unwrap();
         assert!(curve.is_periodic());
         assert!(curve.is_closed(Tolerance::DEFAULT));
         let (first, last) = curve.bounds();
         assert_eq!(curve.eval_point(last), curve.eval_point(first));
-        assert!(curve.eval_point(last + 2.0).distance(curve.eval_point(first + 2.0)) < 1e-15);
+        assert!(
+            curve
+                .eval_point(last + 2.0)
+                .distance(curve.eval_point(first + 2.0))
+                < 1e-15
+        );
     }
 
     // ---- length ----
@@ -1809,7 +1456,11 @@ mod tests {
         let curve = BSplineCurve2D::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
         let proj = curve.project_point(Point2D::new(f64::NAN, 0.0), Tolerance::DEFAULT);
         assert!(proj.distance.is_nan());
-        assert!(curve.extrema(Point2D::new(0.0, f64::NEG_INFINITY), Tolerance::DEFAULT).is_empty());
+        assert!(
+            curve
+                .extrema(Point2D::new(0.0, f64::NEG_INFINITY), Tolerance::DEFAULT)
+                .is_empty()
+        );
         assert!(!curve.contains(Point2D::new(f64::NAN, 0.0), Tolerance::DEFAULT));
     }
 
@@ -1823,7 +1474,10 @@ mod tests {
         assert_eq!(trait_point, Point2D::new(0.5, 0.0));
         assert_eq!(ParametricCurve2D::period(&curve), None);
         assert_eq!(ParametricCurve2D::bounds(&curve), (0.0, 1.0));
-        assert_eq!(ParametricCurve2D::eval_points(&curve, &[0.0, 0.5])[1], Point2D::new(1.0, 0.0));
+        assert_eq!(
+            ParametricCurve2D::eval_points(&curve, &[0.0, 0.5])[1],
+            Point2D::new(1.0, 0.0)
+        );
         let extrema = PointExtrema2D::extrema(&curve, Point2D::new(1.0, 1.0), Tolerance::DEFAULT);
         assert!(!extrema.is_empty());
         assert!(!ParametricCurve2D::is_periodic(&curve));

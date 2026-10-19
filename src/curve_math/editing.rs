@@ -19,7 +19,7 @@ pub(crate) use cutting::{
     check_piece, check_split, cut, is_clamped_to, reversed_knots, reversed_slot,
 };
 pub(crate) use elevation::Elevation;
-pub(crate) use removal::{check_removal, remove_knots};
+pub(crate) use removal::{Deviation, check_removal, remove_knots};
 
 use super::bspline::KnotVector;
 use super::poles::{HomogeneousPole, Pole, PolePoint};
@@ -223,8 +223,7 @@ pub(crate) trait Edit {
             // Every pole laid out as stored: the points take over the
             // homogeneous poles' storage, which they fit in, and the kept
             // ones are copied back to keep every bit.
-            let mut new_weights: Vec<f64> =
-                edited.poles.iter().map(|&h| h.weight()).collect();
+            let mut new_weights: Vec<f64> = edited.poles.iter().map(|&h| h.weight()).collect();
             let mut new_points: Vec<G> = edited
                 .poles
                 .into_iter()
@@ -319,7 +318,13 @@ pub(crate) fn surface_patches<G: PolePoint>(
         u: &KnotVector,
         v: &KnotVector,
         poles: S,
-        visit: &mut impl FnMut(usize, (f64, f64), (f64, f64), Vec<<S::Pole as Pole>::Cartesian>, Option<Vec<f64>>),
+        visit: &mut impl FnMut(
+            usize,
+            (f64, f64),
+            (f64, f64),
+            Vec<<S::Pole as Pole>::Cartesian>,
+            Option<Vec<f64>>,
+        ),
     ) {
         // The strips of `v` pieces: strip `j` holds `v degree + 1` poles of
         // every row, a grid of rows along `v` whose `u` pieces are patches.

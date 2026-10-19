@@ -3,12 +3,10 @@
 //! new poles from both ends of the run it affects, and the equation left
 //! over measures how far the shape moves.
 
-use super::{
-    Edited, Kept, Lanes, Pole, PolePoint, Source, Weighted, from_homogeneous,
-};
-use crate::{Point, Point2D};
+use super::{Edited, Kept, Lanes, Pole, PolePoint, Source, Weighted, from_homogeneous};
 use crate::curve_math::bspline::{KnotVector, MAX_DEGREE};
 use crate::curves::KnotRemovalError;
+use crate::{Point, Point2D};
 
 /// A direction with knots removed, its poles and weights laid out as the
 /// input's, and how many copies were removed.

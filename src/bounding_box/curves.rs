@@ -226,22 +226,26 @@ impl BoundRange for BSplineCurve {
         // The middles of the first and last spans the range covers; it
         // covers every span between them.
         let mut covered: Option<(f64, f64)> = None;
-        self.for_each_span_in(first, last, |(start, end), (a, b)| {
-            let middle = 0.5 * (start + end);
-            if a == start && b == end {
-                covered = Some((covered.map_or(middle, |(m, _)| m), middle));
-                return;
-            }
-            self.span_bezier_points(middle, &mut points);
-            let piece = &mut points[..=degree];
-            let length = end - start;
-            bernstein::restrict(piece, (a - start) / length, (b - start) / length);
-            for &[x, y, z, w] in piece.iter() {
-                bounds = bounds.including(Point::new(x / w, y / w, z / w));
-            }
-        });
+        self.spline()
+            .for_each_span_in(first, last, |(start, end), (a, b)| {
+                let middle = 0.5 * (start + end);
+                if a == start && b == end {
+                    covered = Some((covered.map_or(middle, |(m, _)| m), middle));
+                    return;
+                }
+                self.spline().span_bezier_lanes(middle, &mut points);
+                let piece = &mut points[..=degree];
+                let length = end - start;
+                bernstein::restrict(piece, (a - start) / length, (b - start) / length);
+                for &[x, y, z, w] in piece.iter() {
+                    bounds = bounds.including(Point::new(x / w, y / w, z / w));
+                }
+            });
         match covered {
-            Some((m0, m1)) => self.run_poles(m0, m1).fold(bounds, BoundingBox::including),
+            Some((m0, m1)) => self
+                .spline()
+                .run_poles(m0, m1)
+                .fold(bounds, BoundingBox::including),
             None => bounds,
         }
     }

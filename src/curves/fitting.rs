@@ -9,10 +9,10 @@
 //! matrix has half-bandwidth `degree`, by banded Cholesky.
 
 use crate::Point;
+use crate::Point2D;
 use crate::curve_math::bspline as math;
 use crate::curve_math::bspline::{HomogeneousPole, Pole, PolePoint};
 use crate::curves::{BSplineConstructionError, BSplineCurve, BSplineCurve2D};
-use crate::Point2D;
 
 /// How fitting assigns a parameter to each data point.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

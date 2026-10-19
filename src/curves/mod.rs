@@ -14,6 +14,7 @@ mod hyperbola;
 mod line;
 mod parabola;
 mod parametrize;
+pub(crate) mod spline;
 mod trimmed;
 pub use bspline::{
     BSplineConstructionError, BSplineCurve, BSplineSplitError, DegreeElevationError,

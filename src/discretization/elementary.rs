@@ -431,6 +431,7 @@ impl DiscretizeRange for Curve2D {
         match self {
             Curve2D::Line(c) => c.for_each_run(first, last, criteria, min_segments, visit),
             Curve2D::Circle(c) => c.for_each_run(first, last, criteria, min_segments, visit),
+            Curve2D::BSpline(c) => c.for_each_run(first, last, criteria, min_segments, visit),
         }
     }
 }

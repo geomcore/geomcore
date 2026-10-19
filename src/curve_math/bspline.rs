@@ -20,7 +20,7 @@
 use std::sync::OnceLock;
 
 use super::analytic::in_period;
-pub(crate) use super::poles::{HomogeneousPole, Poles, Pole, PolePoint};
+pub(crate) use super::poles::{HomogeneousPole, Pole, PolePoint, Poles};
 use crate::curves::Side;
 use crate::math::bernstein::{CAPACITY, add_product, rising_roots, scale, unscale};
 use crate::math::newton_min_1d;
@@ -979,11 +979,7 @@ pub(crate) fn point<G: PolePoint>(knots: &KnotVector, poles: Poles<G>, u: f64) -
 /// span's poles sliced once and every loop over constant bounds, so
 /// unrolled.
 #[inline(always)]
-fn point_of_degree<const P: usize, G: PolePoint>(
-    knots: &KnotVector,
-    poles: Poles<G>,
-    u: f64,
-) -> G {
+fn point_of_degree<const P: usize, G: PolePoint>(knots: &KnotVector, poles: Poles<G>, u: f64) -> G {
     let (first, values) = knots.basis_of_degree::<P>(u);
     let points = &poles.points[first..=first + P];
     // Each sum starts from its first term, sparing additions of zero.
@@ -1262,11 +1258,35 @@ pub(crate) fn span_bezier<G: PolePoint>(
     u: f64,
     out: &mut [G::Homogeneous],
 ) {
-    fn bezier<const N: usize, G: PolePoint>(
+    span_bezier_as(knots, poles, u, out, |h| h);
+}
+
+/// [`span_bezier`] as four-wide lanes, the spare coordinate of a 2D piece
+/// zero: one layout for the algorithms that run on either tier.
+pub(crate) fn span_bezier_lanes<G: PolePoint>(
+    knots: &KnotVector,
+    poles: Poles<G>,
+    u: f64,
+    out: &mut [[f64; 4]],
+) {
+    span_bezier_as(knots, poles, u, out, HomogeneousPole::lanes);
+}
+
+/// [`span_bezier`] with each control point written through `write`.
+#[inline]
+fn span_bezier_as<G: PolePoint, O>(
+    knots: &KnotVector,
+    poles: Poles<G>,
+    u: f64,
+    out: &mut [O],
+    write: impl Fn(G::Homogeneous) -> O,
+) {
+    fn bezier<const N: usize, G: PolePoint, O>(
         knots: &KnotVector,
         poles: Poles<G>,
         u: f64,
-        out: &mut [G::Homogeneous],
+        out: &mut [O],
+        write: impl Fn(G::Homogeneous) -> O,
     ) {
         let degree = knots.degree;
         let mut matrix = [[0.0f64; N]; N];
@@ -1281,13 +1301,13 @@ pub(crate) fn span_bezier<G: PolePoint>(
             for (&m, pole) in row.iter().zip(&local).take(degree + 1) {
                 sum = sum.combine(1.0, *pole, m);
             }
-            *point = sum;
+            *point = write(sum);
         }
     }
     if knots.degree < SMALL {
-        bezier::<SMALL, G>(knots, poles, u, out);
+        bezier::<SMALL, G, O>(knots, poles, u, out, write);
     } else {
-        bezier::<LARGE, G>(knots, poles, u, out);
+        bezier::<LARGE, G, O>(knots, poles, u, out, write);
     }
 }
 
@@ -1341,9 +1361,8 @@ fn scan_span_sized<const N: usize, G: PolePoint>(
 ) -> SpanEnds {
     let p = knots.degree();
     let rational = poles.weights.is_some();
-    let mut points: [G::Homogeneous; LARGE] = std::array::from_fn(|_| {
-        HomogeneousPole::of_lanes([0.0; 4])
-    });
+    let mut points: [G::Homogeneous; LARGE] =
+        std::array::from_fn(|_| HomogeneousPole::of_lanes([0.0; 4]));
     span_bezier(knots, poles, 0.5 * (a + b), &mut points);
     let mut bezier = [[0.0; N]; 3];
     let mut weight = [1.0; N];
@@ -1595,8 +1614,8 @@ pub(crate) fn min_continuity_within(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Point, Vector};
     use crate::Continuity::{Order, Smooth};
+    use crate::{Point, Vector};
 
     // ---- continuity: degree minus multiplicity over the knots ----
 

@@ -279,7 +279,12 @@ impl<H: HomogeneousPole> Stretch<H> {
     /// Piece `j` of a rational direction: the poles no insertion touched
     /// copied from the direction's `points` and `weights`, the others
     /// projected from homogeneous form.
-    fn rational_piece(&self, j: usize, points: &[H::Cartesian], weights: &[f64]) -> Piece<H::Cartesian> {
+    fn rational_piece(
+        &self,
+        j: usize,
+        points: &[H::Cartesian],
+        weights: &[f64],
+    ) -> Piece<H::Cartesian> {
         let slots = self.slots(j);
         let (leading, kept) = self.kept(j);
         let kept: Vec<usize> = kept.collect();
