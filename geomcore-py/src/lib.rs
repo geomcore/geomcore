@@ -98,8 +98,8 @@ use results::{
 };
 use surfaces::{PyBSplineSurface, PyCone, PyCylinder, PyPlane, PySphere, PyTorus};
 use values::{
-    PyAxis, PyAxis2D, PyBoundingBox, PyDiscretization, PyDiscretization2D, PyFrame, PyFrame2D,
-    PyPoint, PyPoint2D, PySide, PyTolerance, PyTransform, PyVector, PyVector2D,
+    PyAxis, PyAxis2D, PyBoundingBox, PyBoundingBox2D, PyDiscretization, PyDiscretization2D,
+    PyFrame, PyFrame2D, PyPoint, PyPoint2D, PySide, PyTolerance, PyTransform, PyVector, PyVector2D,
 };
 
 // ---------------------------------------------------------------------------
@@ -122,6 +122,7 @@ fn geomcore_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyTolerance>()?;
     m.add_class::<PyTransform>()?;
     m.add_class::<PyBoundingBox>()?;
+    m.add_class::<PyBoundingBox2D>()?;
     m.add_class::<PyDiscretization2D>()?;
     m.add_class::<PyDiscretization>()?;
     m.add_class::<PySide>()?;

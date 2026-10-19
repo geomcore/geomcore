@@ -1,11 +1,11 @@
 use pyo3::prelude::*;
 
-use geomcore::HasBoundingBox;
 use geomcore::curves::{
     BSplineCurve, BSplineCurve2D, Circle, Circle2D, Curve, Ellipse, Hyperbola, Line, Line2D,
     Parabola, ParametricCurve, ParametricCurve2D, PointExtrema, PointExtrema2D, TrimmedCurve,
     TrimmedCurve2D,
 };
+use geomcore::{HasBoundingBox, HasBoundingBox2D};
 
 use crate::errors::python_error;
 use crate::numeric::*;
@@ -1894,6 +1894,43 @@ pub(crate) struct PyBSplineCurve2D(pub(crate) BSplineCurve2D);
 
 #[pymethods]
 impl PyBSplineCurve2D {
+    /// Unit tangent at parameter `u` (`Tolerance.default()` when omitted),
+    /// or `None` where the speed vanishes, as at a cusp. The speed counts
+    /// as zero when the distance it would cover across the parameter range
+    /// is within `tol.confusion`, so rescaling the parameter does not
+    /// change the answer.
+    #[pyo3(signature = (u, tol = None))]
+    fn tangent(&self, u: f64, tol: Option<PyTolerance>) -> Option<PyVector2D> {
+        ParametricCurve2D::tangent(&self.0, u, tolerance(tol)).map(PyVector2D)
+    }
+
+    /// Signed curvature at parameter `u`: the turn rate of the unit
+    /// tangent per unit arc length, positive where the tangent turns left
+    /// (counterclockwise) and negative where it turns right, zero on a
+    /// straight run. A counterclockwise circle of radius `r` has
+    /// curvature `1/r`, a clockwise one `-1/r`. `None` where the speed
+    /// vanishes, by the test of `tangent`.
+    #[pyo3(signature = (u, tol = None))]
+    fn curvature(&self, u: f64, tol: Option<PyTolerance>) -> Option<f64> {
+        ParametricCurve2D::curvature(&self.0, u, tolerance(tol))
+    }
+
+    /// Centre of the osculating circle at parameter `u`, or `None` where
+    /// the speed vanishes or the curve runs straight (the centre is then
+    /// at infinity). A circle's centre is its own, whichever way it runs.
+    #[pyo3(signature = (u, tol = None))]
+    fn curvature_center(&self, u: f64, tol: Option<PyTolerance>) -> Option<PyPoint2D> {
+        ParametricCurve2D::curvature_center(&self.0, u, tolerance(tol)).map(PyPoint2D)
+    }
+
+    /// The axis-aligned box around the curve, or `None` when it is
+    /// unbounded: the tightest for a circle, the box of the control points
+    /// for a B-spline (holding the curve but possibly loose), the box of
+    /// the range for a trimmed curve.
+    fn bounding_box(&self) -> Option<PyBoundingBox2D> {
+        self.0.bounding_box().map(PyBoundingBox2D)
+    }
+
     #[new]
     /// Build a non-rational 2D B-spline curve.
     fn py_new(
@@ -2299,6 +2336,66 @@ pub(crate) struct PyLine2D(pub(crate) Line2D);
 
 #[pymethods]
 impl PyLine2D {
+    /// Unit tangent at parameter `u` (`Tolerance.default()` when omitted),
+    /// or `None` where the speed vanishes, as at a cusp. The speed counts
+    /// as zero when the distance it would cover across the parameter range
+    /// is within `tol.confusion`, so rescaling the parameter does not
+    /// change the answer.
+    #[pyo3(signature = (u, tol = None))]
+    fn tangent(&self, u: f64, tol: Option<PyTolerance>) -> Option<PyVector2D> {
+        ParametricCurve2D::tangent(&self.0, u, tolerance(tol)).map(PyVector2D)
+    }
+
+    /// Signed curvature at parameter `u`: the turn rate of the unit
+    /// tangent per unit arc length, positive where the tangent turns left
+    /// (counterclockwise) and negative where it turns right, zero on a
+    /// straight run. A counterclockwise circle of radius `r` has
+    /// curvature `1/r`, a clockwise one `-1/r`. `None` where the speed
+    /// vanishes, by the test of `tangent`.
+    #[pyo3(signature = (u, tol = None))]
+    fn curvature(&self, u: f64, tol: Option<PyTolerance>) -> Option<f64> {
+        ParametricCurve2D::curvature(&self.0, u, tolerance(tol))
+    }
+
+    /// Centre of the osculating circle at parameter `u`, or `None` where
+    /// the speed vanishes or the curve runs straight (the centre is then
+    /// at infinity). A circle's centre is its own, whichever way it runs.
+    #[pyo3(signature = (u, tol = None))]
+    fn curvature_center(&self, u: f64, tol: Option<PyTolerance>) -> Option<PyPoint2D> {
+        ParametricCurve2D::curvature_center(&self.0, u, tolerance(tol)).map(PyPoint2D)
+    }
+
+    /// Whether travelling along the curve returns to its start
+    /// (`Tolerance.default()` when omitted). A periodic curve is closed;
+    /// a clamped B-spline whose ends coincide is closed without being
+    /// periodic.
+    #[pyo3(signature = (tol = None))]
+    fn is_closed(&self, tol: Option<PyTolerance>) -> bool {
+        ParametricCurve2D::is_closed(&self.0, tolerance(tol))
+    }
+
+    /// Continuity order `n` of `C^n` at parameter `u` as an `int`, or
+    /// `math.inf` where no knot constrains the curve, as
+    /// `BSplineCurve2D.continuity`.
+    #[pyo3(signature = (u, tol = None))]
+    fn continuity(&self, u: f64, tol: Option<PyTolerance>) -> ContinuityNumber {
+        ContinuityNumber(ParametricCurve2D::continuity(&self.0, u, tolerance(tol)))
+    }
+
+    /// The lowest `continuity` anywhere inside the bounds, ends excluded
+    /// (`math.inf` when smooth everywhere).
+    fn min_continuity(&self) -> ContinuityNumber {
+        ContinuityNumber(ParametricCurve2D::min_continuity(&self.0))
+    }
+
+    /// The axis-aligned box around the curve, or `None` when it is
+    /// unbounded: the tightest for a circle, the box of the control points
+    /// for a B-spline (holding the curve but possibly loose), the box of
+    /// the range for a trimmed curve.
+    fn bounding_box(&self) -> Option<PyBoundingBox2D> {
+        self.0.bounding_box().map(PyBoundingBox2D)
+    }
+
     /// All stationary points of the distance from `point` to the line, as
     /// `CurveProjection2D` objects ordered by ascending distance.
     #[pyo3(signature = (point, tol = None))]
@@ -2474,6 +2571,66 @@ pub(crate) struct PyCircle2D(pub(crate) Circle2D);
 
 #[pymethods]
 impl PyCircle2D {
+    /// Unit tangent at parameter `u` (`Tolerance.default()` when omitted),
+    /// or `None` where the speed vanishes, as at a cusp. The speed counts
+    /// as zero when the distance it would cover across the parameter range
+    /// is within `tol.confusion`, so rescaling the parameter does not
+    /// change the answer.
+    #[pyo3(signature = (u, tol = None))]
+    fn tangent(&self, u: f64, tol: Option<PyTolerance>) -> Option<PyVector2D> {
+        ParametricCurve2D::tangent(&self.0, u, tolerance(tol)).map(PyVector2D)
+    }
+
+    /// Signed curvature at parameter `u`: the turn rate of the unit
+    /// tangent per unit arc length, positive where the tangent turns left
+    /// (counterclockwise) and negative where it turns right, zero on a
+    /// straight run. A counterclockwise circle of radius `r` has
+    /// curvature `1/r`, a clockwise one `-1/r`. `None` where the speed
+    /// vanishes, by the test of `tangent`.
+    #[pyo3(signature = (u, tol = None))]
+    fn curvature(&self, u: f64, tol: Option<PyTolerance>) -> Option<f64> {
+        ParametricCurve2D::curvature(&self.0, u, tolerance(tol))
+    }
+
+    /// Centre of the osculating circle at parameter `u`, or `None` where
+    /// the speed vanishes or the curve runs straight (the centre is then
+    /// at infinity). A circle's centre is its own, whichever way it runs.
+    #[pyo3(signature = (u, tol = None))]
+    fn curvature_center(&self, u: f64, tol: Option<PyTolerance>) -> Option<PyPoint2D> {
+        ParametricCurve2D::curvature_center(&self.0, u, tolerance(tol)).map(PyPoint2D)
+    }
+
+    /// Whether travelling along the curve returns to its start
+    /// (`Tolerance.default()` when omitted). A periodic curve is closed;
+    /// a clamped B-spline whose ends coincide is closed without being
+    /// periodic.
+    #[pyo3(signature = (tol = None))]
+    fn is_closed(&self, tol: Option<PyTolerance>) -> bool {
+        ParametricCurve2D::is_closed(&self.0, tolerance(tol))
+    }
+
+    /// Continuity order `n` of `C^n` at parameter `u` as an `int`, or
+    /// `math.inf` where no knot constrains the curve, as
+    /// `BSplineCurve2D.continuity`.
+    #[pyo3(signature = (u, tol = None))]
+    fn continuity(&self, u: f64, tol: Option<PyTolerance>) -> ContinuityNumber {
+        ContinuityNumber(ParametricCurve2D::continuity(&self.0, u, tolerance(tol)))
+    }
+
+    /// The lowest `continuity` anywhere inside the bounds, ends excluded
+    /// (`math.inf` when smooth everywhere).
+    fn min_continuity(&self) -> ContinuityNumber {
+        ContinuityNumber(ParametricCurve2D::min_continuity(&self.0))
+    }
+
+    /// The axis-aligned box around the curve, or `None` when it is
+    /// unbounded: the tightest for a circle, the box of the control points
+    /// for a B-spline (holding the curve but possibly loose), the box of
+    /// the range for a trimmed curve.
+    fn bounding_box(&self) -> Option<PyBoundingBox2D> {
+        self.0.bounding_box().map(PyBoundingBox2D)
+    }
+
     /// How many points `discretize` returns for the same arguments, without
     /// computing them.
     #[pyo3(signature = (max_chord_deviation, max_angle_deviation = None))]
@@ -2968,6 +3125,66 @@ pub(crate) struct PyTrimmedCurve2D(pub(crate) TrimmedCurve2D);
 
 #[pymethods]
 impl PyTrimmedCurve2D {
+    /// Unit tangent at parameter `u` (`Tolerance.default()` when omitted),
+    /// or `None` where the speed vanishes, as at a cusp. The speed counts
+    /// as zero when the distance it would cover across the parameter range
+    /// is within `tol.confusion`, so rescaling the parameter does not
+    /// change the answer.
+    #[pyo3(signature = (u, tol = None))]
+    fn tangent(&self, u: f64, tol: Option<PyTolerance>) -> Option<PyVector2D> {
+        ParametricCurve2D::tangent(&self.0, u, tolerance(tol)).map(PyVector2D)
+    }
+
+    /// Signed curvature at parameter `u`: the turn rate of the unit
+    /// tangent per unit arc length, positive where the tangent turns left
+    /// (counterclockwise) and negative where it turns right, zero on a
+    /// straight run. A counterclockwise circle of radius `r` has
+    /// curvature `1/r`, a clockwise one `-1/r`. `None` where the speed
+    /// vanishes, by the test of `tangent`.
+    #[pyo3(signature = (u, tol = None))]
+    fn curvature(&self, u: f64, tol: Option<PyTolerance>) -> Option<f64> {
+        ParametricCurve2D::curvature(&self.0, u, tolerance(tol))
+    }
+
+    /// Centre of the osculating circle at parameter `u`, or `None` where
+    /// the speed vanishes or the curve runs straight (the centre is then
+    /// at infinity). A circle's centre is its own, whichever way it runs.
+    #[pyo3(signature = (u, tol = None))]
+    fn curvature_center(&self, u: f64, tol: Option<PyTolerance>) -> Option<PyPoint2D> {
+        ParametricCurve2D::curvature_center(&self.0, u, tolerance(tol)).map(PyPoint2D)
+    }
+
+    /// Whether travelling along the curve returns to its start
+    /// (`Tolerance.default()` when omitted). A periodic curve is closed;
+    /// a clamped B-spline whose ends coincide is closed without being
+    /// periodic.
+    #[pyo3(signature = (tol = None))]
+    fn is_closed(&self, tol: Option<PyTolerance>) -> bool {
+        ParametricCurve2D::is_closed(&self.0, tolerance(tol))
+    }
+
+    /// Continuity order `n` of `C^n` at parameter `u` as an `int`, or
+    /// `math.inf` where no knot constrains the curve, as
+    /// `BSplineCurve2D.continuity`.
+    #[pyo3(signature = (u, tol = None))]
+    fn continuity(&self, u: f64, tol: Option<PyTolerance>) -> ContinuityNumber {
+        ContinuityNumber(ParametricCurve2D::continuity(&self.0, u, tolerance(tol)))
+    }
+
+    /// The lowest `continuity` anywhere inside the bounds, ends excluded
+    /// (`math.inf` when smooth everywhere).
+    fn min_continuity(&self) -> ContinuityNumber {
+        ContinuityNumber(ParametricCurve2D::min_continuity(&self.0))
+    }
+
+    /// The axis-aligned box around the curve, or `None` when it is
+    /// unbounded: the tightest for a circle, the box of the control points
+    /// for a B-spline (holding the curve but possibly loose), the box of
+    /// the range for a trimmed curve.
+    fn bounding_box(&self) -> Option<PyBoundingBox2D> {
+        self.0.bounding_box().map(PyBoundingBox2D)
+    }
+
     /// How many points `discretize` returns for the same arguments, without
     /// computing them.
     #[pyo3(signature = (max_chord_deviation, max_angle_deviation = None))]
