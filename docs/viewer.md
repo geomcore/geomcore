@@ -24,15 +24,15 @@ The demo scene shows an ellipse, a circle, a hyperbola and a line, with the poin
 
     ```toml
     [dependencies]
-    geomcore = "0.32"
+    geomcore = "0.36"
     geomcore-viewer = { version = "0.3", features = ["geomcore"] }
     ```
 
     The `geomcore` feature of geomcore-viewer 0.3 is built against
-    geomcore 0.32. Paired with a later geomcore, Cargo pulls in both
-    versions and the viewer does not accept the newer types, so keep
-    geomcore at 0.32 in code that uses the viewer until a viewer
-    release supports a later one. The Rust client never starts the server:
+    geomcore 0.36. Paired with another geomcore minor version, Cargo
+    pulls in both versions and the viewer does not accept the other
+    version's types, so keep geomcore at 0.36 in code that uses the
+    viewer until a viewer release supports a later one. The Rust client never starts the server:
     run `geomcore-viewer serve` from the Python package once.
 
 ## From your own code
