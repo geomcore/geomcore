@@ -116,3 +116,14 @@ _Avoid_: derivative (the un-normalized rate), tangent for a surface partial deri
 **Curvature**:
 How fast a curve's tangent turns per unit of arc length. Its reciprocal is the radius of the osculating circle, whose centre is the centre of curvature; both are undefined on a straight run and where the speed vanishes. A run is straight where the part of the second derivative that turns away from the tangent is negligible by the same distance rule, or is parallel to the tangent within `tol.angular`.
 _Avoid_: bend, curvature for a surface (which has two principal values, not one)
+
+**Principal curvature**:
+One of the two extremal normal curvatures at a surface point, with its principal direction; the other direction is perpendicular to it. At an umbilical point every direction is principal.
+_Avoid_: curvature without qualification on a surface
+
+**Mean curvature**:
+Half the sum of the principal curvatures, measured along the unit normal (negative bends away from it).
+
+**Gaussian curvature**:
+The product of the principal curvatures. Its sign classifies the point (elliptic, hyperbolic, parabolic); it vanishes where the surface is developable.
+_Avoid_: mean curvature for the product

@@ -50,6 +50,13 @@ the Python distribution are versioned in lockstep.
   inside its range, smooth at its ends, and only the knots inside its
   range in its minimum.
 
+- Surface curvature properties (#73): `curvatures(u, v, tol)` returns
+  principal curvatures with directions plus mean and Gaussian
+  curvature (`None` where the normal degenerates). Curvatures are
+  measured along the unit normal, negative bending away from it. The
+  two principal directions are always a perpendicular unit pair,
+  including at and near umbilical points.
+
 ## [0.35.0] - 2026-10-19
 
 ### Added
