@@ -6,7 +6,7 @@
 mod common;
 
 use common::load;
-use geomcore::curves::Side;
+use geomcore::curves::{ParametricCurve, ParametricCurve2D, Side};
 use geomcore::discretization::{DiscretizationCriteria, Discretize, Discretize2D};
 use geomcore::{BSplineCurve, BSplineCurve2D, Point, Point2D, Tolerance, Vector, Vector2D};
 use serde::Deserialize;
@@ -272,6 +272,56 @@ fn discretization_agrees() {
             for (&p, &q) in a.points.iter().zip(&b.points) {
                 assert_same_point(p, q, &name);
             }
+        }
+    }
+}
+
+#[test]
+fn local_properties_agree() {
+    for (name, planar, spatial) in pairs() {
+        for u in parameters(&planar) {
+            match (planar.tangent(u, TOL), spatial.tangent(u, TOL)) {
+                (Some(a), Some(b)) => assert_same_vector(a, b, &name),
+                (None, None) => {}
+                other => panic!("{name}: tangents disagree at {u}: {other:?}"),
+            }
+            // In the plane the curvature is signed; in space, not.
+            match (planar.curvature(u, TOL), spatial.curvature(u, TOL)) {
+                (Some(a), Some(b)) => assert_same(a.abs(), b, &name),
+                (None, None) => {}
+                other => panic!("{name}: curvatures disagree at {u}: {other:?}"),
+            }
+            match (
+                planar.curvature_center(u, TOL),
+                spatial.curvature_center(u, TOL),
+            ) {
+                (Some(a), Some(b)) => assert_same_point(a, b, &name),
+                (None, None) => {}
+                other => panic!("{name}: curvature centres disagree at {u}: {other:?}"),
+            }
+        }
+    }
+}
+
+#[test]
+fn closedness_and_continuity_agree() {
+    for (name, planar, spatial) in pairs() {
+        assert_eq!(
+            ParametricCurve2D::is_closed(&planar, TOL),
+            ParametricCurve::is_closed(&spatial, TOL),
+            "{name}"
+        );
+        assert_eq!(
+            ParametricCurve2D::min_continuity(&planar),
+            ParametricCurve::min_continuity(&spatial),
+            "{name}"
+        );
+        for u in parameters(&planar) {
+            assert_eq!(
+                ParametricCurve2D::continuity(&planar, u, TOL),
+                ParametricCurve::continuity(&spatial, u, TOL),
+                "{name}"
+            );
         }
     }
 }

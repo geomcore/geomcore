@@ -1,7 +1,7 @@
 //! [`ParametricCurve2D`] trait and the [`Curve2D`] enum adaptor unifying the
 //! concrete 2D curve types.
 
-use crate::curves::{BSplineCurve2D, Circle2D, Line2D};
+use crate::curves::{BSplineCurve2D, Circle2D, Continuity, Line2D};
 use crate::projection::CurveProjection2D;
 use crate::{Point2D, Tolerance, Vector2D};
 use std::f64::consts::TAU;
@@ -95,6 +95,111 @@ pub trait ParametricCurve2D {
         )
     }
 
+    /// Unit tangent `C'/|C'|` at parameter `u`, or `None` where the speed
+    /// vanishes (a cusp or a stop). The speed counts as zero when the
+    /// distance `|C'| × width` it would cover across the parameter range
+    /// (`width = last - first` of [`bounds`](Self::bounds), the model size
+    /// `tol.confusion / tol.angular` when unbounded) is within
+    /// `tol.confusion`, so rescaling the parameter does not change the
+    /// result (see ADR 0010).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::curves::ParametricCurve2D;
+    /// use geomcore::{Circle2D, Line2D, Point2D, Tolerance, Vector2D};
+    ///
+    /// let line = Line2D::new(Point2D::ORIGIN, Vector2D::X).unwrap();
+    /// assert_eq!(line.tangent(5.0, Tolerance::DEFAULT), Some(Vector2D::X));
+    ///
+    /// let circle = Circle2D::new(Point2D::ORIGIN, 2.0).unwrap();
+    /// assert_eq!(circle.tangent(0.0, Tolerance::DEFAULT), Some(Vector2D::Y));
+    /// ```
+    fn tangent(&self, u: f64, tol: Tolerance) -> Option<Vector2D> {
+        let (_, first_derivative) = self.eval_d1(u);
+        let speed = regular_speed(first_derivative, tol.reference_width(self.bounds()), tol)?;
+        Some(first_derivative * (1.0 / speed))
+    }
+
+    /// Signed scalar curvature `(x'y'' − y'x'') / |C'|³` (the turn rate of
+    /// the unit tangent per unit arc length) at parameter `u`, or `None`
+    /// where the speed vanishes, by the same test as
+    /// [`tangent`](Self::tangent). Positive where the tangent turns left
+    /// (counterclockwise in a direct plane), negative where it turns
+    /// right, zero on a straight line. A [`Circle2D`] with a direct frame
+    /// has curvature `1/r`, one with an indirect frame `−1/r`.
+    ///
+    /// The 3D [`curvature`](crate::curves::ParametricCurve::curvature) is
+    /// unsigned: in space there is no side to turn toward.
+    ///
+    /// At an interior knot where a B-spline is only tangent-continuous,
+    /// the second derivative, hence the curvature, is the one of the piece
+    /// that starts there.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::curves::ParametricCurve2D;
+    /// use geomcore::{Circle2D, Frame2D, Line2D, Point2D, Tolerance, Vector2D};
+    ///
+    /// let line = Line2D::new(Point2D::ORIGIN, Vector2D::X).unwrap();
+    /// assert_eq!(line.curvature(5.0, Tolerance::DEFAULT), Some(0.0));
+    ///
+    /// let circle = Circle2D::new(Point2D::ORIGIN, 2.0).unwrap();
+    /// assert_eq!(circle.curvature(0.0, Tolerance::DEFAULT), Some(0.5));
+    ///
+    /// // The same circle run clockwise turns right.
+    /// let frame = Frame2D::new(Point2D::ORIGIN, Vector2D::X, -Vector2D::Y).unwrap();
+    /// let clockwise = Circle2D::from_frame(frame, 2.0).unwrap();
+    /// assert_eq!(clockwise.curvature(0.0, Tolerance::DEFAULT), Some(-0.5));
+    /// ```
+    fn curvature(&self, u: f64, tol: Tolerance) -> Option<f64> {
+        let (_, first_derivative, second_derivative) = self.eval_d2(u);
+        let speed = regular_speed(first_derivative, tol.reference_width(self.bounds()), tol)?;
+        Some(first_derivative.cross(second_derivative) / (speed * speed * speed))
+    }
+
+    /// Centre of curvature `P + N/κ` at parameter `u` (`N` the left
+    /// normal of the tangent, `κ` the signed [`curvature`](Self::curvature)),
+    /// or `None` where the speed vanishes or the curve runs straight, so
+    /// the centre is at infinity. The centre lies on the left of the curve
+    /// where the curve turns left and on its right where it turns right,
+    /// so a circle's centre is its own whichever way it runs. The curve
+    /// runs straight where its second derivative is parallel to the first
+    /// within `tol.angular`, or where the part of it that turns away from
+    /// the first, `|x'y'' − y'x''| / |C'|`, is negligible: the distance it
+    /// would cover across the parameter range, times `width²`, is within
+    /// `tol.confusion`, by the rule of [`tangent`](Self::tangent).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::curves::ParametricCurve2D;
+    /// use geomcore::{Circle2D, Line2D, Point2D, Tolerance, Vector2D};
+    ///
+    /// let circle = Circle2D::new(Point2D::ORIGIN, 2.0).unwrap();
+    /// assert_eq!(
+    ///     circle.curvature_center(0.0, Tolerance::DEFAULT),
+    ///     Some(Point2D::ORIGIN)
+    /// );
+    ///
+    /// let line = Line2D::new(Point2D::ORIGIN, Vector2D::X).unwrap();
+    /// assert_eq!(line.curvature_center(5.0, Tolerance::DEFAULT), None);
+    /// ```
+    fn curvature_center(&self, u: f64, tol: Tolerance) -> Option<Point2D> {
+        let (point, first_derivative, second_derivative) = self.eval_d2(u);
+        let width = tol.reference_width(self.bounds());
+        let speed = regular_speed(first_derivative, width, tol)?;
+        let turn = first_derivative.cross(second_derivative);
+        // |C' × C''| / |C'| is the part of C'' that turns away from C'.
+        let normal_acceleration = turn.abs() / speed;
+        let curved = !tol.is_negligible_derivative(normal_acceleration, width * width)
+            && turn.abs() > tol.angular * speed * second_derivative.magnitude();
+        // perp(C') has length |C'| and points left; scaling it by
+        // |C'|² / (x'y'' − y'x'') gives the signed radius N/κ.
+        curved.then(|| point + first_derivative.perp() * (speed * speed / turn))
+    }
+
     /// Returns the curve's parameter bounds as `(first, last)`. Unbounded
     /// curves use `(f64::NEG_INFINITY, f64::INFINITY)`.
     fn bounds(&self) -> (f64, f64);
@@ -115,6 +220,98 @@ pub trait ParametricCurve2D {
     fn is_periodic(&self) -> bool {
         self.period().is_some()
     }
+
+    /// Returns whether the curve's ends meet, i.e. whether travelling
+    /// along it returns to its start.
+    ///
+    /// Periodicity implies closedness, not the other way round: a
+    /// clamped B-spline whose first and last poles coincide is closed
+    /// but not periodic. Default implementation: [`is_periodic`](Self::is_periodic).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::curves::ParametricCurve2D;
+    /// use geomcore::{Circle2D, Line2D, Point2D, Tolerance, Vector2D};
+    ///
+    /// let line = Line2D::new(Point2D::ORIGIN, Vector2D::X).unwrap();
+    /// assert!(!ParametricCurve2D::is_closed(&line, Tolerance::DEFAULT));
+    ///
+    /// let circle = Circle2D::new(Point2D::ORIGIN, 1.0).unwrap();
+    /// assert!(ParametricCurve2D::is_closed(&circle, Tolerance::DEFAULT));
+    /// ```
+    fn is_closed(&self, tol: Tolerance) -> bool {
+        // Structural default: periodicity. Shapes whose ends meet without
+        // a period (a clamped B-spline, a full-span trim) override this.
+        let _ = tol;
+        self.is_periodic()
+    }
+
+    /// [`Continuity`] at parameter `u`.
+    ///
+    /// Elementary shapes are `Smooth` everywhere. A B-spline reports
+    /// `Order(degree − multiplicity)` at a knot (within `tol.parametric`)
+    /// and `Smooth` elsewhere: the order its knots guarantee, which the
+    /// shape may exceed. The ends of a non-periodic curve's bounds report
+    /// smooth, the curve being seen from the inside only; a periodic curve
+    /// wraps `u` into its period, so its seam counts as a knot. Default
+    /// implementation: smooth.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::curves::ParametricCurve2D;
+    /// use geomcore::{Circle2D, Continuity, Point2D, Tolerance};
+    ///
+    /// let circle = Circle2D::new(Point2D::ORIGIN, 1.0).unwrap();
+    /// assert_eq!(
+    ///     ParametricCurve2D::continuity(&circle, 0.5, Tolerance::DEFAULT),
+    ///     Continuity::Smooth
+    /// );
+    /// ```
+    fn continuity(&self, u: f64, tol: Tolerance) -> Continuity {
+        let _ = (u, tol);
+        Continuity::Smooth
+    }
+
+    /// Minimum [`Continuity`] over [`bounds`](Self::bounds), ends
+    /// excluded (`Smooth` when no knot constrains it): the lowest
+    /// [`continuity`](Self::continuity) anywhere on the curve. Default
+    /// implementation: smooth.
+    fn min_continuity(&self) -> Continuity {
+        Continuity::Smooth
+    }
+
+    /// The B-spline this curve evaluates: the curve itself, or the basis
+    /// of a trimmed B-spline, of which the curve is the piece over
+    /// [`bounds`](Self::bounds). `None` for any other curve. Default
+    /// implementation: `None`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::curves::{ParametricCurve2D, TrimmedCurve2D};
+    /// use geomcore::{BSplineCurve2D, Line2D, Point2D, Vector2D};
+    ///
+    /// let poles = vec![Point2D::ORIGIN, Point2D::new(2.0, 0.0)];
+    /// let curve = BSplineCurve2D::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
+    /// let piece = TrimmedCurve2D::new(&curve, 0.25, 0.5).unwrap();
+    /// assert_eq!(piece.as_bspline(), Some(&curve));
+    ///
+    /// let line = Line2D::new(Point2D::ORIGIN, Vector2D::X).unwrap();
+    /// assert_eq!(ParametricCurve2D::as_bspline(&line), None);
+    /// ```
+    fn as_bspline(&self) -> Option<&BSplineCurve2D> {
+        None
+    }
+}
+
+/// The speed `|C'|`, or `None` where it is negligible across the
+/// parameter range of reference width `width` (a cusp or a stop) or is
+/// not a number.
+fn regular_speed(first_derivative: Vector2D, width: f64, tol: Tolerance) -> Option<f64> {
+    let speed = first_derivative.magnitude();
+    (!tol.is_negligible_derivative(speed, width)).then_some(speed)
 }
 
 /// Distance extrema from a point to a 2D curve: what a
@@ -174,6 +371,34 @@ impl<C: ParametricCurve2D + ?Sized> ParametricCurve2D for &C {
 
     fn eval_points(&self, us: &[f64]) -> Vec<Point2D> {
         (**self).eval_points(us)
+    }
+
+    fn tangent(&self, u: f64, tol: Tolerance) -> Option<Vector2D> {
+        (**self).tangent(u, tol)
+    }
+
+    fn curvature(&self, u: f64, tol: Tolerance) -> Option<f64> {
+        (**self).curvature(u, tol)
+    }
+
+    fn curvature_center(&self, u: f64, tol: Tolerance) -> Option<Point2D> {
+        (**self).curvature_center(u, tol)
+    }
+
+    fn is_closed(&self, tol: Tolerance) -> bool {
+        (**self).is_closed(tol)
+    }
+
+    fn continuity(&self, u: f64, tol: Tolerance) -> Continuity {
+        (**self).continuity(u, tol)
+    }
+
+    fn min_continuity(&self) -> Continuity {
+        (**self).min_continuity()
+    }
+
+    fn as_bspline(&self) -> Option<&BSplineCurve2D> {
+        (**self).as_bspline()
     }
 }
 
@@ -332,6 +557,53 @@ impl ParametricCurve2D for Curve2D {
             Curve2D::BSpline(c) => c.eval_points(us),
         }
     }
+
+    fn eval_d1(&self, u: f64) -> (Point2D, Vector2D) {
+        match self {
+            Curve2D::Line(c) => ParametricCurve2D::eval_d1(c, u),
+            Curve2D::Circle(c) => ParametricCurve2D::eval_d1(c, u),
+            Curve2D::BSpline(c) => c.eval_d1(u),
+        }
+    }
+
+    fn eval_d2(&self, u: f64) -> (Point2D, Vector2D, Vector2D) {
+        match self {
+            Curve2D::Line(c) => ParametricCurve2D::eval_d2(c, u),
+            Curve2D::Circle(c) => ParametricCurve2D::eval_d2(c, u),
+            Curve2D::BSpline(c) => c.eval_d2(u),
+        }
+    }
+
+    fn is_closed(&self, tol: Tolerance) -> bool {
+        match self {
+            Curve2D::Line(c) => ParametricCurve2D::is_closed(c, tol),
+            Curve2D::Circle(c) => ParametricCurve2D::is_closed(c, tol),
+            Curve2D::BSpline(c) => c.is_closed(tol),
+        }
+    }
+
+    fn continuity(&self, u: f64, tol: Tolerance) -> Continuity {
+        match self {
+            Curve2D::Line(c) => ParametricCurve2D::continuity(c, u, tol),
+            Curve2D::Circle(c) => ParametricCurve2D::continuity(c, u, tol),
+            Curve2D::BSpline(c) => c.continuity(u, tol),
+        }
+    }
+
+    fn min_continuity(&self) -> Continuity {
+        match self {
+            Curve2D::Line(c) => ParametricCurve2D::min_continuity(c),
+            Curve2D::Circle(c) => ParametricCurve2D::min_continuity(c),
+            Curve2D::BSpline(c) => c.min_continuity(),
+        }
+    }
+
+    fn as_bspline(&self) -> Option<&BSplineCurve2D> {
+        match self {
+            Curve2D::BSpline(c) => Some(c),
+            _ => None,
+        }
+    }
 }
 
 impl PointExtrema2D for Curve2D {
@@ -419,6 +691,7 @@ impl From<BSplineCurve2D> for Curve2D {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{Continuity, Frame2D};
 
     fn sample<C: ParametricCurve2D>(c: &C) -> Point2D {
         c.eval_point(0.5)
@@ -554,5 +827,170 @@ mod tests {
             ParametricCurve2D::eval_derivative(&c, 0.5, 1),
             c.eval_derivative(0.5, 1)
         );
+    }
+
+    // ---- signed local properties ----
+
+    const TOL: Tolerance = Tolerance::DEFAULT;
+
+    /// A circle of radius 2 run clockwise: its frame is indirect.
+    fn clockwise_circle() -> Circle2D {
+        let frame = Frame2D::new(Point2D::ORIGIN, Vector2D::X, -Vector2D::Y).unwrap();
+        Circle2D::from_frame(frame, 2.0).unwrap()
+    }
+
+    /// The parabola-like arch through (0, 0) and (2, 0): turns right.
+    fn arch() -> BSplineCurve2D {
+        let poles = vec![
+            Point2D::new(0.0, 0.0),
+            Point2D::new(1.0, 1.0),
+            Point2D::new(2.0, 0.0),
+        ];
+        BSplineCurve2D::new(2, poles, vec![0.0, 1.0], vec![3, 3], false).unwrap()
+    }
+
+    /// Degree 2 with a double knot at 0.5: a kink (C0) there.
+    fn kinked() -> BSplineCurve2D {
+        let poles = vec![
+            Point2D::new(0.0, 0.0),
+            Point2D::new(1.0, 0.0),
+            Point2D::new(2.0, 1.0),
+            Point2D::new(3.0, 1.0),
+            Point2D::new(4.0, 0.0),
+        ];
+        BSplineCurve2D::new(2, poles, vec![0.0, 0.5, 1.0], vec![3, 2, 3], false).unwrap()
+    }
+
+    #[test]
+    fn test_line_is_straight() {
+        let l = line();
+        assert_eq!(l.tangent(5.0, TOL), Some(Vector2D::X));
+        assert_eq!(l.curvature(5.0, TOL), Some(0.0));
+        assert_eq!(l.curvature_center(5.0, TOL), None);
+    }
+
+    #[test]
+    fn test_counterclockwise_circle_has_positive_curvature_about_its_center() {
+        let c = circle();
+        assert_eq!(c.tangent(0.0, TOL), Some(Vector2D::Y));
+        assert_eq!(c.curvature(0.0, TOL), Some(0.5));
+        assert_eq!(c.curvature_center(0.0, TOL), Some(Point2D::ORIGIN));
+    }
+
+    #[test]
+    fn test_clockwise_circle_has_negative_curvature_about_its_center() {
+        let c = clockwise_circle();
+        assert_eq!(c.tangent(0.0, TOL), Some(-Vector2D::Y));
+        assert_eq!(c.curvature(0.0, TOL), Some(-0.5));
+        assert_eq!(c.curvature_center(0.0, TOL), Some(Point2D::ORIGIN));
+    }
+
+    #[test]
+    fn test_offset_circle_center_is_its_own() {
+        let center = Point2D::new(3.0, -1.0);
+        let c = Circle2D::new(center, 2.0).unwrap();
+        let found = c.curvature_center(1.0, TOL).unwrap();
+        assert!(found.distance(center) < 1e-12);
+    }
+
+    #[test]
+    fn test_bspline_arch_turns_right() {
+        let a = arch();
+        assert_eq!(a.tangent(0.5, TOL), Some(Vector2D::X));
+        assert_eq!(a.curvature(0.5, TOL), Some(-1.0));
+        // The osculating circle sits below the arch, at (1, 0.5 - 1).
+        let center = a.curvature_center(0.5, TOL).unwrap();
+        assert!(center.distance(Point2D::new(1.0, -0.5)) < 1e-12);
+    }
+
+    #[test]
+    fn test_curve2d_enum_forwards_local_properties() {
+        let curves: Vec<Curve2D> = vec![line().into(), circle().into(), arch().into()];
+        assert_eq!(curves[0].curvature(0.0, TOL), Some(0.0));
+        assert_eq!(curves[1].curvature(0.0, TOL), Some(0.5));
+        assert_eq!(curves[2].curvature(0.5, TOL), Some(-1.0));
+        assert_eq!(curves[1].tangent(0.0, TOL), Some(Vector2D::Y));
+        assert_eq!(curves[1].curvature_center(0.0, TOL), Some(Point2D::ORIGIN));
+    }
+
+    #[test]
+    fn test_stopped_parametrization_has_no_tangent() {
+        // A line segment stopped by a degenerate speed: both poles coincide
+        // in the derivative, so the first derivative vanishes everywhere.
+        let poles = vec![Point2D::new(1.0, 1.0), Point2D::new(1.0, 1.0)];
+        let stopped = BSplineCurve2D::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
+        assert_eq!(stopped.tangent(0.5, TOL), None);
+        assert_eq!(stopped.curvature(0.5, TOL), None);
+        assert_eq!(stopped.curvature_center(0.5, TOL), None);
+    }
+
+    #[test]
+    fn test_straight_bspline_has_no_curvature_center() {
+        let poles = vec![Point2D::new(0.0, 0.0), Point2D::new(1.0, 1.0)];
+        let straight = BSplineCurve2D::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
+        assert_eq!(straight.curvature(0.5, TOL), Some(0.0));
+        assert_eq!(straight.curvature_center(0.5, TOL), None);
+    }
+
+    // ---- closedness and continuity ----
+
+    #[test]
+    fn test_elementary_closedness_and_continuity() {
+        assert!(!ParametricCurve2D::is_closed(&line(), TOL));
+        assert!(ParametricCurve2D::is_closed(&circle(), TOL));
+        assert_eq!(
+            ParametricCurve2D::continuity(&circle(), 0.5, TOL),
+            Continuity::Smooth
+        );
+        assert_eq!(
+            ParametricCurve2D::min_continuity(&line()),
+            Continuity::Smooth
+        );
+    }
+
+    #[test]
+    fn test_bspline_trait_agrees_with_inherent_closedness_and_continuity() {
+        let k = kinked();
+        assert_eq!(
+            ParametricCurve2D::continuity(&k, 0.5, TOL),
+            Continuity::Order(0)
+        );
+        assert_eq!(ParametricCurve2D::min_continuity(&k), Continuity::Order(0));
+        assert!(!ParametricCurve2D::is_closed(&k, TOL));
+
+        let poles = vec![
+            Point2D::new(0.0, 0.0),
+            Point2D::new(1.0, 0.0),
+            Point2D::new(0.0, 0.0),
+        ];
+        let closed =
+            BSplineCurve2D::new(1, poles, vec![0.0, 1.0, 2.0], vec![2, 1, 2], false).unwrap();
+        assert!(ParametricCurve2D::is_closed(&closed, TOL));
+    }
+
+    #[test]
+    fn test_curve2d_enum_forwards_closedness_and_continuity() {
+        let wrapped: Curve2D = kinked().into();
+        assert_eq!(wrapped.continuity(0.5, TOL), Continuity::Order(0));
+        assert_eq!(wrapped.min_continuity(), Continuity::Order(0));
+        assert!(!wrapped.is_closed(TOL));
+        let circle: Curve2D = circle().into();
+        assert!(circle.is_closed(TOL));
+    }
+
+    // ---- as_bspline ----
+
+    #[test]
+    fn test_as_bspline_is_some_only_for_bsplines() {
+        let a = arch();
+        assert_eq!(ParametricCurve2D::as_bspline(&a), Some(&a));
+        assert_eq!(ParametricCurve2D::as_bspline(&line()), None);
+        assert_eq!(ParametricCurve2D::as_bspline(&circle()), None);
+
+        let wrapped: Curve2D = a.clone().into();
+        assert_eq!(wrapped.as_bspline(), Some(&a));
+        let wrapped: Curve2D = circle().into();
+        assert_eq!(wrapped.as_bspline(), None);
+        assert_eq!(ParametricCurve2D::as_bspline(&&a), Some(&a));
     }
 }
