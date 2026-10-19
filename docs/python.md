@@ -37,6 +37,9 @@ with the tolerance as the keyword `tol=None` (`Tolerance.default()`):
 
 - 3D curves: `tangent(u)`, `curvature(u)` and `curvature_center(u)`,
   `is_closed()`, `continuity(u)` and `min_continuity()`.
+- 2D curves: the same queries; `curvature(u)` is signed (positive where
+  the tangent turns left). `bounding_box()` returns a `BoundingBox2D`,
+  or `None` when the curve is unbounded.
 - Surfaces: `normal(u, v)` (`Plane.normal()` takes no parameters),
   `curvatures(u, v)` returning a `SurfaceCurvatures`, `is_u_closed()` /
   `is_v_closed()`, `continuity_u(u)` / `continuity_v(v)` and their
