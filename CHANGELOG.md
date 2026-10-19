@@ -24,6 +24,16 @@ the Python distribution are versioned in lockstep.
   `BSplineSurface` (`Plane.normal()` keeps returning its constant
   normal). ADR 0010 records the design.
 
+- Curve local properties (#69): `tangent(u, tol)` returns the unit
+  direction of motion (`None` where the speed vanishes, as at a cusp),
+  `curvature(u, tol)` the turn rate per unit arc length, and
+  `curvature_center(u, tol)` the centre of the osculating circle
+  (`None` on a straight run or where the speed vanishes). A derivative
+  counts as zero when the distance it would cover across the curve's
+  parameter range is within `tol.confusion`, so rescaling a curve's knots
+  changes none of the three; the surface normal follows the same rule
+  (ADR 0010).
+
 ## [0.35.0] - 2026-10-19
 
 ### Added
