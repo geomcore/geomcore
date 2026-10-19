@@ -127,7 +127,7 @@ pub use curves::{
     Ellipse3D, EllipseConstructionError, Hyperbola3D, HyperbolaConstructionError,
     KnotInsertionError, KnotRemovalError, Line2D, Line3D, LineConstructionError, Parabola3D,
     ParabolaConstructionError, ParametricCurve2D, ParametricCurve3D, ParametrizeError,
-    PointExtrema2D, PointExtrema3D, PointParametrization, TrimmedCurve2D, TrimmedCurve3D,
+    PointExtrema2D, PointExtrema3D, PointParametrization, Side, TrimmedCurve2D, TrimmedCurve3D,
     TrimmedCurveConstructionError, parametrize_numeric,
 };
 pub use discretization::{
@@ -162,7 +162,8 @@ pub use projection::{CurveProjection, SurfaceProjection};
 pub use surfaces::{
     BSplineSurface, Cone, ConeConstructionError, Cylinder, CylinderConstructionError,
     ElementarySurface, ParametricSurface, Plane, PlaneConstructionError, Sphere,
-    SphereConstructionError, Surface, SurfaceIsoError, Torus, TorusConstructionError,
+    SphereConstructionError, Surface, SurfaceCurvatures, SurfaceIsoError, Torus,
+    TorusConstructionError,
 };
 pub use tolerance::Tolerance;
 pub use transform::Transform;

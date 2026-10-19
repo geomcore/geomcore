@@ -1,5 +1,5 @@
 //! Internal B-spline curve evaluation: basis functions with derivatives,
-//! rational (NURBS) support, and periodic (closed) curves.
+//! rational (NURBS) support, and periodic curves.
 //!
 //! A [`KnotVector`] holds one parametric direction: its degree, the flat
 //! knot sequence (its distinct knots and multiplicities derived from it on
@@ -20,7 +20,8 @@
 use std::sync::OnceLock;
 
 use super::analytic::in_period;
-use crate::{Point3D, Vector3D};
+use crate::curves::Side;
+use crate::{Point3D, Tolerance, Vector3D};
 
 /// Maximum supported B-spline degree.
 pub(crate) const MAX_DEGREE: usize = 25;
@@ -174,7 +175,7 @@ impl KnotVector {
         self.degree
     }
 
-    /// Whether the direction is periodic (closed).
+    /// Whether the direction is periodic.
     pub(crate) fn is_periodic(&self) -> bool {
         self.periodic
     }
@@ -284,6 +285,54 @@ impl KnotVector {
         (span, u)
     }
 
+    /// Mirror of [`span`](Self::span) approaching from below, in a
+    /// non-periodic direction: the nonzero-width span ending at `u` where
+    /// `u` sits exactly on a knot, the holding span otherwise (both sides
+    /// agree strictly inside a span, and at the range start nothing lies
+    /// below).
+    fn span_below(&self, u: f64) -> (usize, f64) {
+        let (s, u) = self.span(u);
+        let flat = &self.flat;
+        let lo = self.degree;
+        if u != flat[s] || s == lo {
+            return (s, u);
+        }
+        let mut t = s - 1;
+        while t > lo && flat[t] >= flat[t + 1] {
+            t -= 1;
+        }
+        if flat[t] < u { (t, u) } else { (s, u) }
+    }
+
+    /// [`span_knots`](Self::span_knots) with a side selector:
+    /// [`Side::Below`] locates the span ending at `u`, [`Side::Above`] the
+    /// span starting there. Both match `span_knots` except at a periodic
+    /// seam given as the upper bound, where `span_knots` closes the last
+    /// span and [`Side::Above`] takes the first one.
+    pub(crate) fn span_knots_sided<const N: usize>(
+        &self,
+        u: f64,
+        side: Side,
+        left: &mut [f64; N],
+        right: &mut [f64; N],
+    ) -> usize {
+        if self.periodic {
+            return self.periodic_span_knots_sided(u, side, left, right);
+        }
+        if side == Side::Above {
+            return self.span_knots(u, left, right);
+        }
+        let degree = self.degree;
+        debug_assert!(degree < N, "basis table too narrow for degree {degree}");
+        let (span, u) = self.span_below(u);
+        let flat = &self.flat;
+        for j in 1..=degree {
+            left[j] = u - flat[span + 1 - j];
+            right[j] = flat[span + j] - u;
+        }
+        span - degree
+    }
+
     /// The first pole and the non-zero basis functions at `u` of a
     /// non-periodic direction of degree 1 to 3, unrolled, or `None` for
     /// another direction.
@@ -344,7 +393,6 @@ impl KnotVector {
         right: &mut [f64; N],
     ) -> usize {
         let (first, last) = self.bounds();
-        let period = last - first;
         // Exactly `last` closes the last span instead of wrapping to the
         // first (they differ only in derivatives across the seam).
         let u = if u == last {
@@ -361,6 +409,54 @@ impl KnotVector {
             .partition_point(|&k| k <= u)
             .saturating_sub(1)
             .min(block.len() - 1);
+        self.periodic_span_at(u, local, left, right)
+    }
+
+    /// [`KnotVector::periodic_span_knots`] from one side: `u` is wrapped
+    /// into `[first, last)` so that the seam is a knot like any other,
+    /// then [`Side::Above`] takes the span starting at `u` and
+    /// [`Side::Below`] the span ending at it (at the seam, the last span
+    /// of the period).
+    fn periodic_span_knots_sided<const N: usize>(
+        &self,
+        u: f64,
+        side: Side,
+        left: &mut [f64; N],
+        right: &mut [f64; N],
+    ) -> usize {
+        let (first, last) = self.bounds();
+        let mut u = in_period(u, first, last);
+        if u >= last {
+            u = first;
+        }
+        let block = &self.flat[..self.pole_count];
+        let local = match side {
+            Side::Above => block.partition_point(|&k| k <= u),
+            Side::Below if u == first => {
+                u = last;
+                block.len()
+            }
+            Side::Below => block.partition_point(|&k| k < u),
+        }
+        .saturating_sub(1)
+        .min(block.len() - 1);
+        self.periodic_span_at(u, local, left, right)
+    }
+
+    /// Writes the knots around the periodic span opening at block knot
+    /// `local` relative to `u` (see [`KnotVector::span_knots`]) and
+    /// returns the index of the span's first pole.
+    #[inline(always)]
+    fn periodic_span_at<const N: usize>(
+        &self,
+        u: f64,
+        local: usize,
+        left: &mut [f64; N],
+        right: &mut [f64; N],
+    ) -> usize {
+        let (first, last) = self.bounds();
+        let period = last - first;
+        let block = &self.flat[..self.pole_count];
         let len = block.len() as isize;
         let knot = |offset: isize| {
             let k = local as isize + offset;
@@ -385,6 +481,34 @@ impl KnotVector {
         w.pole_count = self.pole_count;
         w.periodic = self.periodic;
         w.first = self.span_knots(u, &mut left, &mut right);
+        match order {
+            0 => basis_values(self.degree, &left, &right, &mut w.ders[0]),
+            1 => basis_first(self.degree, &left, &right, &mut w.ders),
+            _ => basis_second(self.degree, &left, &right, &mut w.ders),
+        }
+    }
+
+    /// [`window`](Self::window) from one side of `u`, the span located
+    /// by [`span_knots_sided`](Self::span_knots_sided); `None` is plain
+    /// [`window`](Self::window).
+    #[inline]
+    pub(crate) fn window_sided<const N: usize>(
+        &self,
+        u: f64,
+        order: usize,
+        side: Option<Side>,
+        w: &mut Window<N>,
+    ) {
+        let side = match side {
+            None => return self.window(u, order, w),
+            Some(Side::Above) if !self.periodic => return self.window(u, order, w),
+            Some(side) => side,
+        };
+        let mut left = [0.0f64; N];
+        let mut right = [0.0f64; N];
+        w.pole_count = self.pole_count;
+        w.periodic = self.periodic;
+        w.first = self.span_knots_sided(u, side, &mut left, &mut right);
         match order {
             0 => basis_values(self.degree, &left, &right, &mut w.ders[0]),
             1 => basis_first(self.degree, &left, &right, &mut w.ders),
@@ -982,9 +1106,27 @@ pub(crate) fn derivatives<const ORDER: usize>(
     u: f64,
 ) -> [Vector3D; 3] {
     if knots.degree < SMALL {
-        derivatives_sized::<SMALL, ORDER>(knots, poles, u)
+        derivatives_sized::<SMALL, ORDER>(knots, poles, u, None)
     } else {
-        derivatives_sized::<LARGE, ORDER>(knots, poles, u)
+        derivatives_sized::<LARGE, ORDER>(knots, poles, u, None)
+    }
+}
+
+/// [`derivatives`] from one side of `u`: [`Side::Below`] evaluates the
+/// span ending at `u`, [`Side::Above`] the span starting there (across
+/// the seam of a periodic direction too); both agree strictly inside a
+/// span.
+#[inline]
+pub(crate) fn derivatives_sided<const ORDER: usize>(
+    knots: &KnotVector,
+    poles: Poles,
+    u: f64,
+    side: Side,
+) -> [Vector3D; 3] {
+    if knots.degree < SMALL {
+        derivatives_sized::<SMALL, ORDER>(knots, poles, u, Some(side))
+    } else {
+        derivatives_sized::<LARGE, ORDER>(knots, poles, u, Some(side))
     }
 }
 
@@ -993,13 +1135,14 @@ fn derivatives_sized<const N: usize, const ORDER: usize>(
     knots: &KnotVector,
     poles: Poles,
     u: f64,
+    side: Option<Side>,
 ) -> [Vector3D; 3] {
     debug_assert!(
         ORDER <= MAX_DERIVATIVE,
         "derivative order {ORDER} not supported"
     );
     let mut w = Window::<N>::new();
-    knots.window(u, ORDER, &mut w);
+    knots.window_sided(u, ORDER, side, &mut w);
     let mut sums = [[0.0f64; 4]; MAX_DERIVATIVE + 1];
     for j in 0..=knots.degree {
         let i = w.pole(j);
@@ -1184,9 +1327,162 @@ pub(crate) fn validate_direction(
     Ok(())
 }
 
+/// The continuity order a knot of `multiplicity` guarantees in a
+/// direction of `degree`: `degree − multiplicity`. Validation caps every
+/// knot inside the range at `degree`, so this never underflows there.
+fn knot_continuity(degree: usize, multiplicity: u32) -> u32 {
+    (degree as u32).saturating_sub(multiplicity)
+}
+
+/// Continuity order `C^n` at parameter `u` for one knot direction:
+/// `degree − multiplicity` at a knot within `tol.parametric` (relative to
+/// the knot's magnitude), smooth (`u32::MAX`) anywhere else. A periodic
+/// direction wraps `u` into its period first, so its seam is a knot like
+/// any other. A non-periodic direction reports smooth at and beyond its
+/// bounds, where the shape is seen from the inside only.
+pub(crate) fn continuity_at(
+    degree: usize,
+    knots: &[f64],
+    multiplicities: &[u32],
+    bounds: (f64, f64),
+    periodic: bool,
+    u: f64,
+    tol: Tolerance,
+) -> u32 {
+    let (first, last) = bounds;
+    let u = if periodic {
+        in_period(u, first, last)
+    } else {
+        u
+    };
+    let on_knot = knots
+        .iter()
+        .zip(multiplicities)
+        .find(|(knot, _)| (u - **knot).abs() <= tol.parametric * (1.0 + knot.abs()));
+    match on_knot {
+        Some((&knot, _)) if !periodic && (knot <= first || knot >= last) => u32::MAX,
+        Some((_, &multiplicity)) => knot_continuity(degree, multiplicity),
+        None => u32::MAX,
+    }
+}
+
+/// Minimum continuity order over a whole direction: the worst knot a
+/// periodic direction holds (its seam included), or the worst knot
+/// strictly inside a non-periodic direction's bounds (`u32::MAX` when
+/// there is none).
+pub(crate) fn min_continuity(
+    degree: usize,
+    knots: &[f64],
+    multiplicities: &[u32],
+    bounds: (f64, f64),
+    periodic: bool,
+) -> u32 {
+    if periodic {
+        let period = bounds.1 - bounds.0;
+        return min_continuity_within(degree, knots, multiplicities, Some(period), bounds)
+            .min(knot_continuity(degree, multiplicities[0]));
+    }
+    min_continuity_within(degree, knots, multiplicities, None, bounds)
+}
+
+/// Minimum continuity order over the open range `(first, last)` of a
+/// direction: the worst knot strictly inside it, a periodic direction's
+/// knots shifted by whole periods into the range (which spans at most one
+/// period). `u32::MAX` when no knot falls inside.
+pub(crate) fn min_continuity_within(
+    degree: usize,
+    knots: &[f64],
+    multiplicities: &[u32],
+    period: Option<f64>,
+    (first, last): (f64, f64),
+) -> u32 {
+    knots
+        .iter()
+        .zip(multiplicities)
+        .filter(|(knot, _)| {
+            let shifted = match period {
+                Some(period) => first + (**knot - first).rem_euclid(period),
+                None => **knot,
+            };
+            first < shifted && shifted < last
+        })
+        .map(|(_, &multiplicity)| knot_continuity(degree, multiplicity))
+        .min()
+        .unwrap_or(u32::MAX)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // ---- continuity: degree minus multiplicity over the knots ----
+
+    #[test]
+    fn test_continuity_wraps_a_periodic_parameter_into_the_period() {
+        // Degree 2, period 4, double knot at 1.
+        let (knots, multiplicities) = ([0.0, 1.0, 2.0, 3.0, 4.0], [1, 2, 1, 1, 1]);
+        let tol = Tolerance::DEFAULT;
+        let at = |u| continuity_at(2, &knots, &multiplicities, (0.0, 4.0), true, u, tol);
+        assert_eq!(at(1.0), 0);
+        assert_eq!(at(5.0), 0);
+        assert_eq!(at(-3.0), 0);
+        // The seam is a single-multiplicity knot from either side.
+        assert_eq!(at(0.0), 1);
+        assert_eq!(at(4.0), 1);
+        assert_eq!(at(-1e-12), 1);
+        assert_eq!(at(0.5), u32::MAX);
+        assert_eq!(
+            min_continuity(2, &knots, &multiplicities, (0.0, 4.0), true),
+            0
+        );
+        // A seam knot of multiplicity 2 is the worst one.
+        let seam = [2, 1, 1, 1, 2];
+        assert_eq!(min_continuity(2, &knots, &seam, (0.0, 4.0), true), 0);
+        assert_eq!(
+            min_continuity(2, &knots, &[1, 1, 1, 1, 1], (0.0, 4.0), true),
+            1
+        );
+    }
+
+    #[test]
+    fn test_continuity_ignores_knots_outside_an_unclamped_range() {
+        // Unclamped degree 2: range [1, 4] between knots 0..=6, the
+        // double knot at 0 lies outside it.
+        let knots = [0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0];
+        let multiplicities = [2, 1, 1, 1, 1, 1, 1];
+        let tol = Tolerance::DEFAULT;
+        assert_eq!(
+            min_continuity(2, &knots, &multiplicities, (1.0, 4.0), false),
+            1
+        );
+        let at = |u| continuity_at(2, &knots, &multiplicities, (1.0, 4.0), false, u, tol);
+        assert_eq!(at(0.0), u32::MAX);
+        assert_eq!(at(1.0), u32::MAX);
+        assert_eq!(at(2.0), 1);
+        assert_eq!(at(4.0), u32::MAX);
+    }
+
+    #[test]
+    fn test_continuity_tolerance_is_relative_to_the_knot() {
+        let knots = [0.0, 1e6, 2e6];
+        let multiplicities = [2, 1, 2];
+        let tol = Tolerance::DEFAULT;
+        let at = |u| continuity_at(1, &knots, &multiplicities, (0.0, 2e6), false, u, tol);
+        assert_eq!(at(1e6 + 1e-4), 0);
+        assert_eq!(at(1e6 + 1e-2), u32::MAX);
+        assert_eq!(at(f64::NAN), u32::MAX);
+    }
+
+    #[test]
+    fn test_min_continuity_within_shifts_periodic_knots_into_the_range() {
+        let (knots, multiplicities) = ([0.0, 1.0, 2.0, 3.0, 4.0], [1, 2, 1, 1, 1]);
+        let within = |range| min_continuity_within(2, &knots, &multiplicities, Some(4.0), range);
+        assert_eq!(within((4.5, 5.5)), 0);
+        assert_eq!(within((1.5, 2.5)), 1);
+        assert_eq!(within((1.0, 1.9)), u32::MAX);
+        // Across the seam, which is a single knot.
+        assert_eq!(within((-0.5, 0.5)), 1);
+    }
 
     #[test]
     fn test_basis_second_matches_general_derivatives() {

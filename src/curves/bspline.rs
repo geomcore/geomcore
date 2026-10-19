@@ -1,5 +1,5 @@
 //! B-spline (NURBS) curves in 3D: de Boor evaluation with derivatives,
-//! rational (weighted) poles, and periodic (closed) curves, a thin wrapper
+//! rational (weighted) poles, and periodic curves, a thin wrapper
 //! over [`crate::curve_math::bspline`].
 //!
 //! The poles are stored once, with a separate weight per pole if rational;
@@ -10,7 +10,7 @@ use std::fmt;
 
 use crate::curve_math::bspline as math;
 use crate::curve_math::editing::{self, Elevation, Insertion, Lanes};
-use crate::curves::{Curve2D, ParametrizeError};
+use crate::curves::{Curve2D, ParametrizeError, Side};
 use crate::math::boxtree::{BoxTree, Lazy};
 use crate::math::{newton_min_1d, quadrature};
 use crate::projection::CurveProjection;
@@ -390,7 +390,7 @@ impl BSplineCurve3D {
         self.knots.degree()
     }
 
-    /// Returns whether the curve is periodic (closed).
+    /// Returns whether the curve is periodic.
     ///
     /// # Examples
     ///
@@ -402,6 +402,86 @@ impl BSplineCurve3D {
     /// ```
     pub fn is_periodic(&self) -> bool {
         self.knots.is_periodic()
+    }
+
+    /// Returns whether the curve's ends meet: a periodic curve, or one
+    /// whose first and last evaluated points coincide within
+    /// `tol.confusion`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{BSplineCurve3D, Point3D, Tolerance};
+    /// let poles = vec![
+    ///     Point3D::new(0.0, 0.0, 0.0),
+    ///     Point3D::new(1.0, 0.0, 0.0),
+    ///     Point3D::new(0.0, 0.0, 0.0),
+    /// ];
+    /// let closed = BSplineCurve3D::new(1, poles, vec![0.0, 1.0, 2.0], vec![2, 1, 2], false).unwrap();
+    /// assert!(closed.is_closed(Tolerance::DEFAULT));
+    /// ```
+    pub fn is_closed(&self, tol: Tolerance) -> bool {
+        if self.is_periodic() {
+            return true;
+        }
+        let (lo, hi) = self.bounds();
+        self.eval_point(lo).distance(self.eval_point(hi)) <= tol.confusion
+    }
+
+    /// Continuity order `C^n` at parameter `u` (`u32::MAX` = smooth):
+    /// `degree − multiplicity` at a knot within `tol.parametric`, smooth
+    /// elsewhere. This is the order the knots guarantee; the curve may be
+    /// smoother (after knot insertion, for instance). A non-periodic curve
+    /// reports smooth at and beyond its bounds, being seen from the inside
+    /// only; a periodic one wraps `u` into its period, so its seam is a
+    /// knot like any other.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{BSplineCurve3D, Point3D, Tolerance};
+    /// let poles = vec![Point3D::new(0.0, 0.0, 0.0), Point3D::new(2.0, 0.0, 0.0)];
+    /// let curve = BSplineCurve3D::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
+    /// assert_eq!(curve.continuity(0.5, Tolerance::DEFAULT), u32::MAX);
+    /// ```
+    pub fn continuity(&self, u: f64, tol: Tolerance) -> u32 {
+        math::continuity_at(
+            self.degree(),
+            self.knots(),
+            self.multiplicities(),
+            self.bounds(),
+            self.is_periodic(),
+            u,
+            tol,
+        )
+    }
+
+    /// Minimum continuity order over the domain (`u32::MAX` = smooth
+    /// everywhere): the worst knot strictly inside the bounds, or, on a
+    /// periodic curve, the worst knot including the seam.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{BSplineCurve3D, Point3D};
+    /// let poles = vec![
+    ///     Point3D::ORIGIN,
+    ///     Point3D::new(1.0, 0.0, 0.0),
+    ///     Point3D::new(2.0, 0.0, 0.0),
+    ///     Point3D::new(3.0, 0.0, 0.0),
+    ///     Point3D::new(4.0, 0.0, 0.0),
+    /// ];
+    /// let curve = BSplineCurve3D::new(2, poles, vec![0.0, 0.5, 1.0], vec![3, 2, 3], false).unwrap();
+    /// assert_eq!(curve.min_continuity(), 0);
+    /// ```
+    pub fn min_continuity(&self) -> u32 {
+        math::min_continuity(
+            self.degree(),
+            self.knots(),
+            self.multiplicities(),
+            self.bounds(),
+            self.is_periodic(),
+        )
     }
 
     /// Returns whether the curve is rational (has per-pole weights).
@@ -1142,6 +1222,80 @@ impl BSplineCurve3D {
         (Point3D::ORIGIN + c, d1, d2)
     }
 
+    /// Evaluates the point and the first derivative at parameter `u` from
+    /// one side: [`Side::Below`] takes the span ending at `u`,
+    /// [`Side::Above`] the span starting there. Both sides agree strictly
+    /// inside a span. Plain evaluation takes the above side, except at the
+    /// upper bound, where nothing lies above a non-periodic curve and both
+    /// sides take the last span. A periodic curve's seam is a knot like
+    /// any other: at either bound, [`Side::Below`] takes the last span of
+    /// the period and [`Side::Above`] the first.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{BSplineCurve3D, Point3D, Side, Vector3D};
+    /// // Two segments meeting at a kink at u = 1: direction (1,0,0) then (0,1,0).
+    /// let poles = vec![
+    ///     Point3D::new(0.0, 0.0, 0.0),
+    ///     Point3D::new(1.0, 0.0, 0.0),
+    ///     Point3D::new(1.0, 1.0, 0.0),
+    /// ];
+    /// let curve = BSplineCurve3D::new(1, poles, vec![0.0, 1.0, 2.0], vec![2, 1, 2], false).unwrap();
+    /// assert_eq!(curve.eval_d1_sided(1.0, Side::Below).1, Vector3D::new(1.0, 0.0, 0.0));
+    /// assert_eq!(curve.eval_d1_sided(1.0, Side::Above).1, Vector3D::new(0.0, 1.0, 0.0));
+    /// ```
+    pub fn eval_d1_sided(&self, u: f64, side: Side) -> (Point3D, Vector3D) {
+        let [c, d1, _] = math::derivatives_sided::<1>(&self.knots, self.pole_view(), u, side);
+        (Point3D::ORIGIN + c, d1)
+    }
+
+    /// Evaluates the derivative of the given `order` at parameter `u`
+    /// from one side, as [`eval_d1_sided`](Self::eval_d1_sided).
+    ///
+    /// Only first and second derivatives are supported.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `order == 0` or if `order > 2`, as
+    /// [`eval_derivative`](Self::eval_derivative).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{BSplineCurve3D, Point3D, Side, Vector3D};
+    /// // A quadratic with a double knot at u = 1: C0 there, the tangent
+    /// // turning from (2,2,0) to (2,-2,0).
+    /// let poles = vec![
+    ///     Point3D::new(0.0, 0.0, 0.0),
+    ///     Point3D::new(1.0, 1.0, 0.0),
+    ///     Point3D::new(2.0, 2.0, 0.0),
+    ///     Point3D::new(3.0, 1.0, 0.0),
+    ///     Point3D::new(4.0, 2.0, 0.0),
+    /// ];
+    /// let curve = BSplineCurve3D::new(2, poles, vec![0.0, 1.0, 2.0], vec![3, 2, 3], false).unwrap();
+    /// assert_eq!(curve.eval_derivative_sided(1.0, 1, Side::Below), Vector3D::new(2.0, 2.0, 0.0));
+    /// assert_eq!(curve.eval_derivative_sided(1.0, 1, Side::Above), Vector3D::new(2.0, -2.0, 0.0));
+    /// ```
+    pub fn eval_derivative_sided(&self, u: f64, order: u32, side: Side) -> Vector3D {
+        match order {
+            0 => panic!("eval_derivative: order must be >= 1 (use eval_point for order 0)"),
+            1 => math::derivatives_sided::<1>(&self.knots, self.pole_view(), u, side)[1],
+            2 => math::derivatives_sided::<2>(&self.knots, self.pole_view(), u, side)[2],
+            _ => panic!(
+                "eval_derivative: order {order} is not supported (only first and second derivatives are supported)"
+            ),
+        }
+    }
+
+    /// Evaluates the point and the first and second derivatives at
+    /// parameter `u` from one side, as
+    /// [`eval_d1_sided`](Self::eval_d1_sided).
+    pub fn eval_d2_sided(&self, u: f64, side: Side) -> (Point3D, Vector3D, Vector3D) {
+        let [c, d1, d2] = math::derivatives_sided::<2>(&self.knots, self.pole_view(), u, side);
+        (Point3D::ORIGIN + c, d1, d2)
+    }
+
     /// The length of the curve over its bounds, within `max_error` as far
     /// as the quadrature's own error estimate tells: the speed `|C'|` is
     /// integrated over each knot span by adaptive Gauss–Kronrod quadrature
@@ -1778,6 +1932,16 @@ mod tests {
     }
 
     // ---- periodic seam + wrap ----
+
+    #[test]
+    fn test_periodic_curve_is_closed() {
+        use crate::curves::ParametricCurve3D;
+
+        let curve = periodic_ring_curve();
+        assert!(curve.is_periodic());
+        assert!(curve.is_closed(Tolerance::DEFAULT));
+        assert!(ParametricCurve3D::is_closed(&curve, Tolerance::DEFAULT));
+    }
 
     #[test]
     fn test_periodic_bounds_are_full_knot_span() {
@@ -3603,5 +3767,154 @@ mod tests {
             })
             .count();
         assert!(kept > 0, "no pole kept exactly");
+    }
+
+    // ---- one-sided evaluation ----
+
+    fn creased_cubic() -> BSplineCurve3D {
+        // Cubic with a double interior knot at 0.5: C1, so first
+        // derivatives agree across it and second derivatives do not.
+        let poles = vec![
+            Point3D::new(0.0, 0.0, 0.0),
+            Point3D::new(1.0, 1.0, 0.0),
+            Point3D::new(2.0, 0.0, 1.0),
+            Point3D::new(3.0, 1.0, 1.0),
+            Point3D::new(4.0, 0.0, 0.0),
+            Point3D::new(5.0, 1.0, 0.0),
+        ];
+        BSplineCurve3D::new(3, poles, vec![0.0, 0.5, 1.0], vec![4, 2, 4], false).unwrap()
+    }
+
+    #[test]
+    fn test_sided_derivatives_match_split_pieces() {
+        let curve = creased_cubic();
+        let (left, right) = curve.split_at(0.5).unwrap();
+        let below1 = curve.eval_derivative_sided(0.5, 1, Side::Below);
+        let above1 = curve.eval_derivative_sided(0.5, 1, Side::Above);
+        let below2 = curve.eval_derivative_sided(0.5, 2, Side::Below);
+        let above2 = curve.eval_derivative_sided(0.5, 2, Side::Above);
+        // C1: positions and first derivatives agree, seconds differ.
+        assert!((below1 - above1).magnitude() < 1e-9);
+        assert!((below2 - above2).magnitude() > 1e-6);
+        // Each side matches its split piece evaluated at the cut.
+        let (_, left_hi) = left.bounds();
+        let (right_lo, _) = right.bounds();
+        assert!((left.eval_derivative(left_hi, 1) - below1).magnitude() < 1e-9);
+        assert!((left.eval_derivative(left_hi, 2) - below2).magnitude() < 1e-9);
+        assert!((right.eval_derivative(right_lo, 1) - above1).magnitude() < 1e-9);
+        assert!((right.eval_derivative(right_lo, 2) - above2).magnitude() < 1e-9);
+        // Points agree across the knot.
+        let (pb, _) = curve.eval_d1_sided(0.5, Side::Below);
+        let (pa, _) = curve.eval_d1_sided(0.5, Side::Above);
+        assert!(pb.distance(pa) < 1e-12);
+    }
+
+    #[test]
+    fn test_sided_evaluation_agrees_off_knots() {
+        let curve = creased_cubic();
+        for u in [0.1, 0.49, 0.51, 0.9] {
+            let (p, d1, d2) = curve.eval_d2(u);
+            assert_eq!(curve.eval_d1_sided(u, Side::Below), (p, d1));
+            assert_eq!(curve.eval_d1_sided(u, Side::Above), (p, d1));
+            assert_eq!(curve.eval_derivative_sided(u, 1, Side::Below), d1);
+            assert_eq!(curve.eval_derivative_sided(u, 2, Side::Above), d2);
+        }
+    }
+
+    #[test]
+    fn test_sided_evaluation_on_periodic_matches_plain() {
+        // A uniform periodic cubic is C2 everywhere, its seam included:
+        // both sides equal plain evaluation up to rounding.
+        let curve = periodic_ring_curve();
+        for u in [0.0, 2.0, 5.0, 6.0] {
+            let (p, d1, d2) = curve.eval_d2(u);
+            for side in [Side::Below, Side::Above] {
+                let (sided_p, sided_d1, sided_d2) = curve.eval_d2_sided(u, side);
+                assert!(sided_p.distance(p) < 1e-12);
+                assert!((sided_d1 - d1).magnitude() < 1e-9);
+                assert!((sided_d2 - d2).magnitude() < 1e-9);
+            }
+        }
+    }
+
+    fn creased_periodic_quadratic() -> BSplineCurve3D {
+        // Periodic quadratic, C0 at its seam (multiplicity 2 at both
+        // ends) and at the interior double knot 2.
+        let poles = (0..7)
+            .map(|i| {
+                let angle = i as f64;
+                Point3D::new(2.0 * angle.cos(), 2.0 * angle.sin(), (i % 2) as f64)
+            })
+            .collect();
+        let knots = vec![0.0, 1.0, 2.0, 3.0, 4.0, 5.0];
+        BSplineCurve3D::new(2, poles, knots, vec![2, 1, 2, 1, 1, 2], true).unwrap()
+    }
+
+    #[test]
+    fn test_sided_derivatives_on_periodic_creases_are_limits() {
+        let curve = creased_periodic_quadratic();
+        let step = 1e-9;
+        // The derivative is piecewise linear, so a parameter `step` away
+        // from the crease is within O(step) of the one-sided limit.
+        for crease in [2.0, 0.0, 5.0] {
+            let below = curve.eval_derivative_sided(crease, 1, Side::Below);
+            let above = curve.eval_derivative_sided(crease, 1, Side::Above);
+            assert!((below - above).magnitude() > 0.1, "no crease at {crease}");
+            let before = if crease == 0.0 { 5.0 } else { crease };
+            let after = if crease == 5.0 { 0.0 } else { crease };
+            assert!((curve.eval_derivative(before - step, 1) - below).magnitude() < 1e-6);
+            assert!((curve.eval_derivative(after + step, 1) - above).magnitude() < 1e-6);
+            let (point_below, _) = curve.eval_d1_sided(crease, Side::Below);
+            let (point_above, _) = curve.eval_d1_sided(crease, Side::Above);
+            assert!(point_below.distance(point_above) < 1e-12);
+        }
+        // Either bound names the seam.
+        for side in [Side::Below, Side::Above] {
+            assert_eq!(
+                curve.eval_d2_sided(0.0, side),
+                curve.eval_d2_sided(5.0, side)
+            );
+            assert_eq!(
+                curve.eval_d2_sided(-5.0, side),
+                curve.eval_d2_sided(10.0, side)
+            );
+        }
+        // Plain evaluation takes the above side, except at the upper bound.
+        assert_eq!(curve.eval_d2(0.0), curve.eval_d2_sided(0.0, Side::Above));
+        assert_eq!(curve.eval_d2(2.0), curve.eval_d2_sided(2.0, Side::Above));
+        assert_eq!(
+            curve.eval_d2(5.0).1,
+            curve.eval_derivative_sided(5.0, 1, Side::Below)
+        );
+    }
+
+    #[test]
+    fn test_sided_matches_neighbor_spans_at_knot() {
+        // Below/Above at a knot agree with evaluations one epsilon-step
+        // into each adjacent span (up to the local slope times the step),
+        // and Above equals plain evaluation at the knot itself.
+        let poles = vec![
+            Point3D::new(0.0, 1.0, 0.0),
+            Point3D::new(2.0, 3.0, 1.0),
+            Point3D::new(4.0, 0.0, 2.0),
+            Point3D::new(5.0, 2.0, 0.0),
+            Point3D::new(7.0, 1.0, 3.0),
+            Point3D::new(8.0, 4.0, 1.0),
+        ];
+        let curve =
+            BSplineCurve3D::new(3, poles, vec![0.0, 0.4, 1.0], vec![4, 2, 4], false).unwrap();
+        for order in [1u32, 2] {
+            let below = curve.eval_derivative_sided(0.4, order, Side::Below);
+            let above = curve.eval_derivative_sided(0.4, order, Side::Above);
+            let left = curve.eval_derivative(0.4 - 1e-13, order);
+            let right = curve.eval_derivative(0.4 + 1e-13, order);
+            assert!((below - left).magnitude() < 1e-9, "order {order}");
+            assert!((above - right).magnitude() < 1e-9, "order {order}");
+            assert_eq!(above, curve.eval_derivative(0.4, order));
+        }
+        // Positions are continuous: bitwise identical from either span.
+        let (pb, _) = curve.eval_d1_sided(0.4, Side::Below);
+        let (pa, _) = curve.eval_d1_sided(0.4, Side::Above);
+        assert_eq!(pb, pa);
     }
 }
