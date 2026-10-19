@@ -9,7 +9,7 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
-## [0.35.0] - 2026-10-13
+## [0.35.0] - 2026-10-19
 
 ### Added
 
