@@ -156,8 +156,10 @@ Behaviour, in Rust and Python alike:
   coincide, clamped or not, and trims spanning a full period count as
   closed without being periodic.
 - Continuity order queries (#72): `continuity(u, tol)` on curves and
-  `continuity_u/v` on surfaces report `C^n` (`u32::MAX` = smooth),
-  with `min_continuity` (curves) and `min_continuity_u/v` (surfaces)
+  `continuity_u/v` on surfaces return the new `Continuity` enum,
+  `Order(k)` for `C^k` or `Smooth` where no knot constrains the shape,
+  ordered so every `Order(k)` sorts below `Smooth` (`min` picks the
+  weaker), with `order()` and `is_at_least(k)` helpers; with `min_continuity` (curves) and `min_continuity_u/v` (surfaces)
   summaries. Elementary shapes are smooth everywhere; B-splines report
   the `degree − multiplicity` their knots guarantee, wrapping periodic
   parameters into the period. A trimmed curve reports its basis order
@@ -232,9 +234,9 @@ Behaviour, in Rust and Python alike:
   `BSplineSurface` gain `eval_d1_sided`, `eval_d2_sided` and
   `eval_derivative_sided`, taking the new `Side` enum (`BELOW`,
   `ABOVE`; hashable, with `.name`). `Frame3D` gains `from_axes`,
-  `is_direct` and `flipped_x/y/z`. Continuity queries report the
-  module constant `SMOOTH_CONTINUITY` (`2**32 - 1`, Rust's `u32::MAX`)
-  where smooth. Every tolerance is the keyword `tol=None`.
+  `is_direct` and `flipped_x/y/z`. Continuity queries return the `int`
+  order, or `math.inf` where smooth, so `c >= 2` and `min(...)` work
+  directly. Every tolerance is the keyword `tol=None`.
 
 ### Changed
 

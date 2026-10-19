@@ -298,7 +298,6 @@ class Discretization3D:
     def angle_deviations(self) -> List[float]: ...
     def __repr__(self) -> str: ...
 
-SMOOTH_CONTINUITY: int
 
 @final
 class Side:
@@ -658,7 +657,6 @@ __all__ = [
     "IntersectionMethod",
     "Point2D",
     "Point3D",
-    "SMOOTH_CONTINUITY",
     "Side",
     "SurfaceCurvatures",
     "SurfaceProjection",

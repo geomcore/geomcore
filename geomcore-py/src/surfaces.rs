@@ -10,7 +10,7 @@ use crate::curves::*;
 use crate::errors::python_error;
 use crate::results::*;
 use crate::values::*;
-use crate::{check_surface_order, parse_parametrization, tolerance};
+use crate::{ContinuityNumber, check_surface_order, parse_parametrization, tolerance};
 
 // ---------------------------------------------------------------------------
 // Surfaces
@@ -255,33 +255,33 @@ impl PyPlane {
         ParametricSurface::is_v_closed(&self.0, tolerance(tol))
     }
 
-    /// Continuity order `n` of `C^n` in `u` at parameter `u`,
-    /// `SMOOTH_CONTINUITY` where smooth. A B-spline reports `u_degree -
+    /// Continuity order `n` of `C^n` in `u` at parameter `u` as an `int`,
+    /// or `math.inf` where smooth. A B-spline reports `u_degree -
     /// multiplicity` at a `u` knot (within `tol.parametric`); the ends of
     /// a non-periodic direction report smooth, and a periodic direction's
     /// seam counts as a knot. Use `BSplineSurface.eval_d1_sided` and its
     /// siblings to evaluate each side of a knot reporting a low order.
     #[pyo3(signature = (u, tol = None))]
-    fn continuity_u(&self, u: f64, tol: Option<PyTolerance>) -> u32 {
-        ParametricSurface::continuity_u(&self.0, u, tolerance(tol))
+    fn continuity_u(&self, u: f64, tol: Option<PyTolerance>) -> ContinuityNumber {
+        ContinuityNumber(ParametricSurface::continuity_u(&self.0, u, tolerance(tol)))
     }
 
     /// Continuity order in `v` at parameter `v`, as `continuity_u`.
     #[pyo3(signature = (v, tol = None))]
-    fn continuity_v(&self, v: f64, tol: Option<PyTolerance>) -> u32 {
-        ParametricSurface::continuity_v(&self.0, v, tolerance(tol))
+    fn continuity_v(&self, v: f64, tol: Option<PyTolerance>) -> ContinuityNumber {
+        ContinuityNumber(ParametricSurface::continuity_v(&self.0, v, tolerance(tol)))
     }
 
     /// The lowest `continuity_u` anywhere inside the `u` range, ends
-    /// excluded (`SMOOTH_CONTINUITY` when smooth everywhere).
-    fn min_continuity_u(&self) -> u32 {
-        ParametricSurface::min_continuity_u(&self.0)
+    /// excluded (`math.inf` when smooth everywhere).
+    fn min_continuity_u(&self) -> ContinuityNumber {
+        ContinuityNumber(ParametricSurface::min_continuity_u(&self.0))
     }
 
     /// The lowest `continuity_v` anywhere inside the `v` range, ends
-    /// excluded (`SMOOTH_CONTINUITY` when smooth everywhere).
-    fn min_continuity_v(&self) -> u32 {
-        ParametricSurface::min_continuity_v(&self.0)
+    /// excluded (`math.inf` when smooth everywhere).
+    fn min_continuity_v(&self) -> ContinuityNumber {
+        ContinuityNumber(ParametricSurface::min_continuity_v(&self.0))
     }
 
     /// Principal curvatures with their directions, and the mean and
@@ -577,33 +577,33 @@ impl PyCylinder {
         ParametricSurface::is_v_closed(&self.0, tolerance(tol))
     }
 
-    /// Continuity order `n` of `C^n` in `u` at parameter `u`,
-    /// `SMOOTH_CONTINUITY` where smooth. A B-spline reports `u_degree -
+    /// Continuity order `n` of `C^n` in `u` at parameter `u` as an `int`,
+    /// or `math.inf` where smooth. A B-spline reports `u_degree -
     /// multiplicity` at a `u` knot (within `tol.parametric`); the ends of
     /// a non-periodic direction report smooth, and a periodic direction's
     /// seam counts as a knot. Use `BSplineSurface.eval_d1_sided` and its
     /// siblings to evaluate each side of a knot reporting a low order.
     #[pyo3(signature = (u, tol = None))]
-    fn continuity_u(&self, u: f64, tol: Option<PyTolerance>) -> u32 {
-        ParametricSurface::continuity_u(&self.0, u, tolerance(tol))
+    fn continuity_u(&self, u: f64, tol: Option<PyTolerance>) -> ContinuityNumber {
+        ContinuityNumber(ParametricSurface::continuity_u(&self.0, u, tolerance(tol)))
     }
 
     /// Continuity order in `v` at parameter `v`, as `continuity_u`.
     #[pyo3(signature = (v, tol = None))]
-    fn continuity_v(&self, v: f64, tol: Option<PyTolerance>) -> u32 {
-        ParametricSurface::continuity_v(&self.0, v, tolerance(tol))
+    fn continuity_v(&self, v: f64, tol: Option<PyTolerance>) -> ContinuityNumber {
+        ContinuityNumber(ParametricSurface::continuity_v(&self.0, v, tolerance(tol)))
     }
 
     /// The lowest `continuity_u` anywhere inside the `u` range, ends
-    /// excluded (`SMOOTH_CONTINUITY` when smooth everywhere).
-    fn min_continuity_u(&self) -> u32 {
-        ParametricSurface::min_continuity_u(&self.0)
+    /// excluded (`math.inf` when smooth everywhere).
+    fn min_continuity_u(&self) -> ContinuityNumber {
+        ContinuityNumber(ParametricSurface::min_continuity_u(&self.0))
     }
 
     /// The lowest `continuity_v` anywhere inside the `v` range, ends
-    /// excluded (`SMOOTH_CONTINUITY` when smooth everywhere).
-    fn min_continuity_v(&self) -> u32 {
-        ParametricSurface::min_continuity_v(&self.0)
+    /// excluded (`math.inf` when smooth everywhere).
+    fn min_continuity_v(&self) -> ContinuityNumber {
+        ContinuityNumber(ParametricSurface::min_continuity_v(&self.0))
     }
 
     /// Principal curvatures with their directions, and the mean and
@@ -903,33 +903,33 @@ impl PyCone {
         ParametricSurface::is_v_closed(&self.0, tolerance(tol))
     }
 
-    /// Continuity order `n` of `C^n` in `u` at parameter `u`,
-    /// `SMOOTH_CONTINUITY` where smooth. A B-spline reports `u_degree -
+    /// Continuity order `n` of `C^n` in `u` at parameter `u` as an `int`,
+    /// or `math.inf` where smooth. A B-spline reports `u_degree -
     /// multiplicity` at a `u` knot (within `tol.parametric`); the ends of
     /// a non-periodic direction report smooth, and a periodic direction's
     /// seam counts as a knot. Use `BSplineSurface.eval_d1_sided` and its
     /// siblings to evaluate each side of a knot reporting a low order.
     #[pyo3(signature = (u, tol = None))]
-    fn continuity_u(&self, u: f64, tol: Option<PyTolerance>) -> u32 {
-        ParametricSurface::continuity_u(&self.0, u, tolerance(tol))
+    fn continuity_u(&self, u: f64, tol: Option<PyTolerance>) -> ContinuityNumber {
+        ContinuityNumber(ParametricSurface::continuity_u(&self.0, u, tolerance(tol)))
     }
 
     /// Continuity order in `v` at parameter `v`, as `continuity_u`.
     #[pyo3(signature = (v, tol = None))]
-    fn continuity_v(&self, v: f64, tol: Option<PyTolerance>) -> u32 {
-        ParametricSurface::continuity_v(&self.0, v, tolerance(tol))
+    fn continuity_v(&self, v: f64, tol: Option<PyTolerance>) -> ContinuityNumber {
+        ContinuityNumber(ParametricSurface::continuity_v(&self.0, v, tolerance(tol)))
     }
 
     /// The lowest `continuity_u` anywhere inside the `u` range, ends
-    /// excluded (`SMOOTH_CONTINUITY` when smooth everywhere).
-    fn min_continuity_u(&self) -> u32 {
-        ParametricSurface::min_continuity_u(&self.0)
+    /// excluded (`math.inf` when smooth everywhere).
+    fn min_continuity_u(&self) -> ContinuityNumber {
+        ContinuityNumber(ParametricSurface::min_continuity_u(&self.0))
     }
 
     /// The lowest `continuity_v` anywhere inside the `v` range, ends
-    /// excluded (`SMOOTH_CONTINUITY` when smooth everywhere).
-    fn min_continuity_v(&self) -> u32 {
-        ParametricSurface::min_continuity_v(&self.0)
+    /// excluded (`math.inf` when smooth everywhere).
+    fn min_continuity_v(&self) -> ContinuityNumber {
+        ContinuityNumber(ParametricSurface::min_continuity_v(&self.0))
     }
 
     /// Principal curvatures with their directions, and the mean and
@@ -1223,33 +1223,33 @@ impl PySphere {
         ParametricSurface::is_v_closed(&self.0, tolerance(tol))
     }
 
-    /// Continuity order `n` of `C^n` in `u` at parameter `u`,
-    /// `SMOOTH_CONTINUITY` where smooth. A B-spline reports `u_degree -
+    /// Continuity order `n` of `C^n` in `u` at parameter `u` as an `int`,
+    /// or `math.inf` where smooth. A B-spline reports `u_degree -
     /// multiplicity` at a `u` knot (within `tol.parametric`); the ends of
     /// a non-periodic direction report smooth, and a periodic direction's
     /// seam counts as a knot. Use `BSplineSurface.eval_d1_sided` and its
     /// siblings to evaluate each side of a knot reporting a low order.
     #[pyo3(signature = (u, tol = None))]
-    fn continuity_u(&self, u: f64, tol: Option<PyTolerance>) -> u32 {
-        ParametricSurface::continuity_u(&self.0, u, tolerance(tol))
+    fn continuity_u(&self, u: f64, tol: Option<PyTolerance>) -> ContinuityNumber {
+        ContinuityNumber(ParametricSurface::continuity_u(&self.0, u, tolerance(tol)))
     }
 
     /// Continuity order in `v` at parameter `v`, as `continuity_u`.
     #[pyo3(signature = (v, tol = None))]
-    fn continuity_v(&self, v: f64, tol: Option<PyTolerance>) -> u32 {
-        ParametricSurface::continuity_v(&self.0, v, tolerance(tol))
+    fn continuity_v(&self, v: f64, tol: Option<PyTolerance>) -> ContinuityNumber {
+        ContinuityNumber(ParametricSurface::continuity_v(&self.0, v, tolerance(tol)))
     }
 
     /// The lowest `continuity_u` anywhere inside the `u` range, ends
-    /// excluded (`SMOOTH_CONTINUITY` when smooth everywhere).
-    fn min_continuity_u(&self) -> u32 {
-        ParametricSurface::min_continuity_u(&self.0)
+    /// excluded (`math.inf` when smooth everywhere).
+    fn min_continuity_u(&self) -> ContinuityNumber {
+        ContinuityNumber(ParametricSurface::min_continuity_u(&self.0))
     }
 
     /// The lowest `continuity_v` anywhere inside the `v` range, ends
-    /// excluded (`SMOOTH_CONTINUITY` when smooth everywhere).
-    fn min_continuity_v(&self) -> u32 {
-        ParametricSurface::min_continuity_v(&self.0)
+    /// excluded (`math.inf` when smooth everywhere).
+    fn min_continuity_v(&self) -> ContinuityNumber {
+        ContinuityNumber(ParametricSurface::min_continuity_v(&self.0))
     }
 
     /// Principal curvatures with their directions, and the mean and
@@ -1545,33 +1545,33 @@ impl PyTorus {
         ParametricSurface::is_v_closed(&self.0, tolerance(tol))
     }
 
-    /// Continuity order `n` of `C^n` in `u` at parameter `u`,
-    /// `SMOOTH_CONTINUITY` where smooth. A B-spline reports `u_degree -
+    /// Continuity order `n` of `C^n` in `u` at parameter `u` as an `int`,
+    /// or `math.inf` where smooth. A B-spline reports `u_degree -
     /// multiplicity` at a `u` knot (within `tol.parametric`); the ends of
     /// a non-periodic direction report smooth, and a periodic direction's
     /// seam counts as a knot. Use `BSplineSurface.eval_d1_sided` and its
     /// siblings to evaluate each side of a knot reporting a low order.
     #[pyo3(signature = (u, tol = None))]
-    fn continuity_u(&self, u: f64, tol: Option<PyTolerance>) -> u32 {
-        ParametricSurface::continuity_u(&self.0, u, tolerance(tol))
+    fn continuity_u(&self, u: f64, tol: Option<PyTolerance>) -> ContinuityNumber {
+        ContinuityNumber(ParametricSurface::continuity_u(&self.0, u, tolerance(tol)))
     }
 
     /// Continuity order in `v` at parameter `v`, as `continuity_u`.
     #[pyo3(signature = (v, tol = None))]
-    fn continuity_v(&self, v: f64, tol: Option<PyTolerance>) -> u32 {
-        ParametricSurface::continuity_v(&self.0, v, tolerance(tol))
+    fn continuity_v(&self, v: f64, tol: Option<PyTolerance>) -> ContinuityNumber {
+        ContinuityNumber(ParametricSurface::continuity_v(&self.0, v, tolerance(tol)))
     }
 
     /// The lowest `continuity_u` anywhere inside the `u` range, ends
-    /// excluded (`SMOOTH_CONTINUITY` when smooth everywhere).
-    fn min_continuity_u(&self) -> u32 {
-        ParametricSurface::min_continuity_u(&self.0)
+    /// excluded (`math.inf` when smooth everywhere).
+    fn min_continuity_u(&self) -> ContinuityNumber {
+        ContinuityNumber(ParametricSurface::min_continuity_u(&self.0))
     }
 
     /// The lowest `continuity_v` anywhere inside the `v` range, ends
-    /// excluded (`SMOOTH_CONTINUITY` when smooth everywhere).
-    fn min_continuity_v(&self) -> u32 {
-        ParametricSurface::min_continuity_v(&self.0)
+    /// excluded (`math.inf` when smooth everywhere).
+    fn min_continuity_v(&self) -> ContinuityNumber {
+        ContinuityNumber(ParametricSurface::min_continuity_v(&self.0))
     }
 
     /// Principal curvatures with their directions, and the mean and
@@ -2166,33 +2166,33 @@ impl PyBSplineSurface {
         ParametricSurface::is_v_closed(&self.0, tolerance(tol))
     }
 
-    /// Continuity order `n` of `C^n` in `u` at parameter `u`,
-    /// `SMOOTH_CONTINUITY` where smooth. A B-spline reports `u_degree -
+    /// Continuity order `n` of `C^n` in `u` at parameter `u` as an `int`,
+    /// or `math.inf` where smooth. A B-spline reports `u_degree -
     /// multiplicity` at a `u` knot (within `tol.parametric`); the ends of
     /// a non-periodic direction report smooth, and a periodic direction's
     /// seam counts as a knot. Use `BSplineSurface.eval_d1_sided` and its
     /// siblings to evaluate each side of a knot reporting a low order.
     #[pyo3(signature = (u, tol = None))]
-    fn continuity_u(&self, u: f64, tol: Option<PyTolerance>) -> u32 {
-        ParametricSurface::continuity_u(&self.0, u, tolerance(tol))
+    fn continuity_u(&self, u: f64, tol: Option<PyTolerance>) -> ContinuityNumber {
+        ContinuityNumber(ParametricSurface::continuity_u(&self.0, u, tolerance(tol)))
     }
 
     /// Continuity order in `v` at parameter `v`, as `continuity_u`.
     #[pyo3(signature = (v, tol = None))]
-    fn continuity_v(&self, v: f64, tol: Option<PyTolerance>) -> u32 {
-        ParametricSurface::continuity_v(&self.0, v, tolerance(tol))
+    fn continuity_v(&self, v: f64, tol: Option<PyTolerance>) -> ContinuityNumber {
+        ContinuityNumber(ParametricSurface::continuity_v(&self.0, v, tolerance(tol)))
     }
 
     /// The lowest `continuity_u` anywhere inside the `u` range, ends
-    /// excluded (`SMOOTH_CONTINUITY` when smooth everywhere).
-    fn min_continuity_u(&self) -> u32 {
-        ParametricSurface::min_continuity_u(&self.0)
+    /// excluded (`math.inf` when smooth everywhere).
+    fn min_continuity_u(&self) -> ContinuityNumber {
+        ContinuityNumber(ParametricSurface::min_continuity_u(&self.0))
     }
 
     /// The lowest `continuity_v` anywhere inside the `v` range, ends
-    /// excluded (`SMOOTH_CONTINUITY` when smooth everywhere).
-    fn min_continuity_v(&self) -> u32 {
-        ParametricSurface::min_continuity_v(&self.0)
+    /// excluded (`math.inf` when smooth everywhere).
+    fn min_continuity_v(&self) -> ContinuityNumber {
+        ContinuityNumber(ParametricSurface::min_continuity_v(&self.0))
     }
 
     /// Principal curvatures with their directions, and the mean and

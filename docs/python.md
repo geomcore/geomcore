@@ -49,20 +49,23 @@ with the tolerance as the keyword `tol=None` (`Tolerance.default()`):
   per direction, to read each side of a knot or periodic seam.
 
 Where Rust returns `None` (no tangent at a cusp, no normal or curvatures
-at a cone's apex), Python returns `None`. A continuity query returns
-`SMOOTH_CONTINUITY` (`2**32 - 1`, Rust's `u32::MAX`) where the shape is
-smooth.
+at a cone's apex), Python returns `None`. A continuity query returns the
+order as an `int`, or `math.inf` where the shape is smooth (Rust's
+`Continuity::Order(k)` and `Continuity::Smooth`), so `c >= 2` and
+`min(...)` need no special case.
 
 === "Python"
 
     ```python
-    from geomcore import SMOOTH_CONTINUITY, Point3D, Side
+    import math
+
+    from geomcore import Point3D, Side
     from geomcore.curves import BSplineCurve3D
 
     poles = [Point3D(0.0, 0.0, 0.0), Point3D(1.0, 0.0, 0.0), Point3D(1.0, 1.0, 0.0)]
     kinked = BSplineCurve3D(1, poles, [0.0, 1.0, 2.0], [2, 1, 2], False)
     assert kinked.continuity(1.0) == 0
-    assert kinked.continuity(0.5) == SMOOTH_CONTINUITY
+    assert kinked.continuity(0.5) == math.inf
     _, incoming = kinked.eval_d1_sided(1.0, Side.BELOW)  # (1, 0, 0)
     _, outgoing = kinked.eval_d1_sided(1.0, Side.ABOVE)  # (0, 1, 0)
     ```
@@ -70,7 +73,7 @@ smooth.
 === "Rust"
 
     ```rust
-    use geomcore::{BSplineCurve3D, Point3D, Side, Tolerance};
+    use geomcore::{BSplineCurve3D, Continuity, Point3D, Side, Tolerance};
 
     let poles = vec![
         Point3D::new(0.0, 0.0, 0.0),
@@ -78,8 +81,8 @@ smooth.
         Point3D::new(1.0, 1.0, 0.0),
     ];
     let kinked = BSplineCurve3D::new(1, poles, vec![0.0, 1.0, 2.0], vec![2, 1, 2], false).unwrap();
-    assert_eq!(kinked.continuity(1.0, Tolerance::DEFAULT), 0);
-    assert_eq!(kinked.continuity(0.5, Tolerance::DEFAULT), u32::MAX);
+    assert_eq!(kinked.continuity(1.0, Tolerance::DEFAULT), Continuity::Order(0));
+    assert_eq!(kinked.continuity(0.5, Tolerance::DEFAULT), Continuity::Smooth);
     let (_, incoming) = kinked.eval_d1_sided(1.0, Side::Below); // (1, 0, 0)
     let (_, outgoing) = kinked.eval_d1_sided(1.0, Side::Above); // (0, 1, 0)
     ```

@@ -40,7 +40,6 @@ __all__ = [
     "IntersectionMethod",
     "Point2D",
     "Point3D",
-    "SMOOTH_CONTINUITY",
     "Side",
     "SurfaceCurvatures",
     "SurfaceProjection",

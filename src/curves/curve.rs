@@ -21,6 +21,83 @@ pub enum Side {
     Above,
 }
 
+/// Continuity of a curve or surface direction at a parameter, as its
+/// knots guarantee it.
+///
+/// `Order(k)` means the shape is at least `C^k` there: its derivatives up
+/// to order `k` agree on both sides. A B-spline knot reports
+/// `Order(degree − multiplicity)`. This is the order
+/// the knots guarantee, which the shape may exceed (a knot inserted into a
+/// smooth curve lowers the reported order, not the curve's smoothness).
+/// `Smooth` means no knot constrains the shape there: every derivative
+/// agrees on both sides.
+///
+/// Every `Order(k)` sorts below `Smooth`, and orders compare by `k`, so
+/// [`Ord::min`] picks the weaker of two continuities.
+///
+/// # Examples
+///
+/// ```
+/// use geomcore::Continuity;
+///
+/// assert!(Continuity::Order(1) < Continuity::Order(2));
+/// assert!(Continuity::Order(u32::MAX) < Continuity::Smooth);
+/// assert_eq!(Continuity::Order(2).min(Continuity::Smooth), Continuity::Order(2));
+/// assert!(Continuity::Smooth.is_at_least(2));
+/// assert!(!Continuity::Order(1).is_at_least(2));
+/// ```
+// The derived ordering relies on `Order` being declared before `Smooth`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Continuity {
+    /// At least `C^k`: derivatives up to order `k` agree on both sides.
+    Order(u32),
+    /// No knot constrains the shape: every derivative agrees on both
+    /// sides.
+    Smooth,
+}
+
+impl Continuity {
+    /// The finite order `k` of `Order(k)`, or `None` when smooth.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::Continuity;
+    ///
+    /// assert_eq!(Continuity::Order(2).order(), Some(2));
+    /// assert_eq!(Continuity::Smooth.order(), None);
+    /// ```
+    #[must_use]
+    #[inline]
+    pub const fn order(self) -> Option<u32> {
+        match self {
+            Continuity::Order(order) => Some(order),
+            Continuity::Smooth => None,
+        }
+    }
+
+    /// Whether the shape is at least `C^order` here: `Smooth`, or
+    /// `Order(k)` with `k >= order`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::Continuity;
+    ///
+    /// assert!(Continuity::Order(2).is_at_least(2));
+    /// assert!(!Continuity::Order(0).is_at_least(1));
+    /// assert!(Continuity::Smooth.is_at_least(u32::MAX));
+    /// ```
+    #[must_use]
+    #[inline]
+    pub const fn is_at_least(self, order: u32) -> bool {
+        match self {
+            Continuity::Order(k) => k >= order,
+            Continuity::Smooth => true,
+        }
+    }
+}
+
 /// Common interface for 3D parametric curves. Implement this to add a new
 /// curve type that can be used generically (see [`Curve3D`] for a
 /// heterogeneous-collection adaptor built on top of it).
@@ -265,11 +342,11 @@ pub trait ParametricCurve3D {
         self.is_periodic()
     }
 
-    /// Continuity order `C^n` at parameter `u` (`u32::MAX` = smooth).
+    /// [`Continuity`] at parameter `u`.
     ///
-    /// Elementary shapes are smooth everywhere. A B-spline reports
-    /// `degree − multiplicity` at a knot (within `tol.parametric`) and
-    /// smooth elsewhere: the order its knots guarantee, which the shape may
+    /// Elementary shapes are `Smooth` everywhere. A B-spline reports
+    /// `Order(degree − multiplicity)` at a knot (within `tol.parametric`)
+    /// and `Smooth` elsewhere: the order its knots guarantee, which the shape may
     /// exceed (a knot inserted into a smooth curve lowers the reported
     /// order, not the curve's smoothness). The ends of a non-periodic
     /// curve's bounds report smooth, the curve being seen from the inside
@@ -283,22 +360,25 @@ pub trait ParametricCurve3D {
     ///
     /// ```
     /// use geomcore::curves::ParametricCurve3D;
-    /// use geomcore::{Circle3D, Point3D, Tolerance, Vector3D};
+    /// use geomcore::{Circle3D, Continuity, Point3D, Tolerance, Vector3D};
     ///
     /// let circle = Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 1.0).unwrap();
-    /// assert_eq!(ParametricCurve3D::continuity(&circle, 0.5, Tolerance::DEFAULT), u32::MAX);
+    /// assert_eq!(
+    ///     ParametricCurve3D::continuity(&circle, 0.5, Tolerance::DEFAULT),
+    ///     Continuity::Smooth
+    /// );
     /// ```
-    fn continuity(&self, u: f64, tol: Tolerance) -> u32 {
+    fn continuity(&self, u: f64, tol: Tolerance) -> Continuity {
         let _ = (u, tol);
-        u32::MAX
+        Continuity::Smooth
     }
 
-    /// Minimum continuity order over [`bounds`](Self::bounds), ends
-    /// excluded (`u32::MAX` = smooth everywhere): the lowest
+    /// Minimum [`Continuity`] over [`bounds`](Self::bounds), ends
+    /// excluded (`Smooth` when no knot constrains it): the lowest
     /// [`continuity`](Self::continuity) anywhere on the curve. Default
     /// implementation: smooth.
-    fn min_continuity(&self) -> u32 {
-        u32::MAX
+    fn min_continuity(&self) -> Continuity {
+        Continuity::Smooth
     }
 
     /// The B-spline this curve evaluates: the curve itself, or the basis
@@ -426,11 +506,11 @@ impl<C: ParametricCurve3D + ?Sized> ParametricCurve3D for &C {
         (**self).eval_points(us)
     }
 
-    fn continuity(&self, u: f64, tol: Tolerance) -> u32 {
+    fn continuity(&self, u: f64, tol: Tolerance) -> Continuity {
         (**self).continuity(u, tol)
     }
 
-    fn min_continuity(&self) -> u32 {
+    fn min_continuity(&self) -> Continuity {
         (**self).min_continuity()
     }
 
@@ -667,11 +747,11 @@ impl ParametricCurve3D for BSplineCurve3D {
         BSplineCurve3D::is_closed(self, tol)
     }
 
-    fn continuity(&self, u: f64, tol: Tolerance) -> u32 {
+    fn continuity(&self, u: f64, tol: Tolerance) -> Continuity {
         BSplineCurve3D::continuity(self, u, tol)
     }
 
-    fn min_continuity(&self) -> u32 {
+    fn min_continuity(&self) -> Continuity {
         BSplineCurve3D::min_continuity(self)
     }
 
@@ -807,7 +887,7 @@ impl ParametricCurve3D for Curve3D {
         }
     }
 
-    fn continuity(&self, u: f64, tol: Tolerance) -> u32 {
+    fn continuity(&self, u: f64, tol: Tolerance) -> Continuity {
         match self {
             Curve3D::Line(c) => ParametricCurve3D::continuity(c, u, tol),
             Curve3D::Circle(c) => ParametricCurve3D::continuity(c, u, tol),
@@ -818,7 +898,7 @@ impl ParametricCurve3D for Curve3D {
         }
     }
 
-    fn min_continuity(&self) -> u32 {
+    fn min_continuity(&self) -> Continuity {
         match self {
             Curve3D::Line(c) => ParametricCurve3D::min_continuity(c),
             Curve3D::Circle(c) => ParametricCurve3D::min_continuity(c),
@@ -1172,6 +1252,7 @@ impl From<Hyperbola3D> for ElementaryCurve {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::Continuity::{Order, Smooth};
 
     fn sample<C: ParametricCurve3D>(c: &C) -> Point3D {
         c.eval_point(0.5)
@@ -1933,6 +2014,20 @@ mod tests {
     }
 
     #[test]
+    fn test_continuity_orders_every_finite_order_below_smooth() {
+        assert!(Order(0) < Order(1));
+        assert!(Order(u32::MAX) < Smooth);
+        assert_eq!(Smooth.max(Order(3)), Smooth);
+        let found = [Smooth, Order(2), Smooth, Order(1), Order(3)];
+        assert_eq!(found.into_iter().min(), Some(Order(1)));
+        assert_eq!([Smooth, Smooth].into_iter().min(), Some(Smooth));
+        assert_eq!(Order(2).order(), Some(2));
+        assert_eq!(Smooth.order(), None);
+        assert!(Order(2).is_at_least(2) && !Order(2).is_at_least(3));
+        assert!(Smooth.is_at_least(u32::MAX));
+    }
+
+    #[test]
     fn test_bspline_continuity_follows_degree_minus_multiplicity() {
         // Degree 3 with interior multiplicities 1, 2, 3: C2, C1, C0.
         let poles = vec![
@@ -1956,11 +2051,11 @@ mod tests {
         )
         .unwrap();
         let tol = Tolerance::DEFAULT;
-        assert_eq!(c.continuity(0.3, tol), 2);
-        assert_eq!(c.continuity(0.6, tol), 1);
-        assert_eq!(c.continuity(0.8, tol), 0);
-        assert_eq!(c.continuity(0.45, tol), u32::MAX);
-        assert_eq!(c.min_continuity(), 0);
+        assert_eq!(c.continuity(0.3, tol), Order(2));
+        assert_eq!(c.continuity(0.6, tol), Order(1));
+        assert_eq!(c.continuity(0.8, tol), Order(0));
+        assert_eq!(c.continuity(0.45, tol), Smooth);
+        assert_eq!(c.min_continuity(), Order(0));
     }
 
     // ---- continuity: degree minus multiplicity, smooth elsewhere ----
@@ -1987,8 +2082,8 @@ mod tests {
             Curve3D::from(parabola()),
             Curve3D::from(hyperbola()),
         ] {
-            assert_eq!(curve.continuity(0.5, tol), u32::MAX);
-            assert_eq!(curve.min_continuity(), u32::MAX);
+            assert_eq!(curve.continuity(0.5, tol), Smooth);
+            assert_eq!(curve.min_continuity(), Smooth);
         }
     }
 
@@ -1996,14 +2091,14 @@ mod tests {
     fn test_bspline_continuity_drops_at_repeated_knots() {
         let tol = Tolerance::DEFAULT;
         let c = kinked();
-        assert_eq!(ParametricCurve3D::continuity(&c, 0.5, tol), 0);
-        assert_eq!(c.continuity(0.5, tol), 0);
-        assert_eq!(ParametricCurve3D::continuity(&c, 0.25, tol), u32::MAX);
-        assert_eq!(ParametricCurve3D::continuity(&c, 0.0, tol), u32::MAX);
-        assert_eq!(ParametricCurve3D::continuity(&c, 1.0, tol), u32::MAX);
-        assert_eq!(c.min_continuity(), 0);
-        assert_eq!(ParametricCurve3D::min_continuity(&c), 0);
-        assert_eq!(bspline().min_continuity(), u32::MAX);
+        assert_eq!(ParametricCurve3D::continuity(&c, 0.5, tol), Order(0));
+        assert_eq!(c.continuity(0.5, tol), Order(0));
+        assert_eq!(ParametricCurve3D::continuity(&c, 0.25, tol), Smooth);
+        assert_eq!(ParametricCurve3D::continuity(&c, 0.0, tol), Smooth);
+        assert_eq!(ParametricCurve3D::continuity(&c, 1.0, tol), Smooth);
+        assert_eq!(c.min_continuity(), Order(0));
+        assert_eq!(ParametricCurve3D::min_continuity(&c), Order(0));
+        assert_eq!(bspline().min_continuity(), Smooth);
     }
 
     #[test]
@@ -2012,9 +2107,9 @@ mod tests {
 
         let tol = Tolerance::DEFAULT;
         let piece = TrimmedCurve3D::new(kinked(), 0.25, 0.75).unwrap();
-        assert_eq!(piece.continuity(0.5, tol), 0);
-        assert_eq!(ParametricCurve3D::continuity(&piece, 0.5, tol), 0);
-        assert_eq!(piece.min_continuity(), 0);
+        assert_eq!(piece.continuity(0.5, tol), Order(0));
+        assert_eq!(ParametricCurve3D::continuity(&piece, 0.5, tol), Order(0));
+        assert_eq!(piece.min_continuity(), Order(0));
     }
 
     #[test]
@@ -2023,21 +2118,21 @@ mod tests {
 
         let tol = Tolerance::DEFAULT;
         let curve = kinked();
-        assert_eq!(ParametricCurve3D::continuity(&&curve, 0.5, tol), 0);
-        assert_eq!(ParametricCurve3D::min_continuity(&&curve), 0);
+        assert_eq!(ParametricCurve3D::continuity(&&curve, 0.5, tol), Order(0));
+        assert_eq!(ParametricCurve3D::min_continuity(&&curve), Order(0));
         let borrowed = TrimmedCurve3D::new(&curve, 0.25, 0.75).unwrap();
-        assert_eq!(ParametricCurve3D::continuity(&borrowed, 0.5, tol), 0);
-        assert_eq!(ParametricCurve3D::min_continuity(&borrowed), 0);
+        assert_eq!(ParametricCurve3D::continuity(&borrowed, 0.5, tol), Order(0));
+        assert_eq!(ParametricCurve3D::min_continuity(&borrowed), Order(0));
         // A piece that avoids the kink, or ends on it, is smooth.
         for (first, last) in [(0.0, 0.4), (0.0, 0.5), (0.5, 1.0)] {
             let piece = TrimmedCurve3D::new(&curve, first, last).unwrap();
-            assert_eq!(piece.min_continuity(), u32::MAX);
-            assert_eq!(piece.continuity(first, tol), u32::MAX);
-            assert_eq!(piece.continuity(last, tol), u32::MAX);
+            assert_eq!(piece.min_continuity(), Smooth);
+            assert_eq!(piece.continuity(first, tol), Smooth);
+            assert_eq!(piece.continuity(last, tol), Smooth);
         }
         // Nested trims restrict further.
         let outer = TrimmedCurve3D::new(TrimmedCurve3D::new(&curve, 0.1, 0.9).unwrap(), 0.2, 0.4);
-        assert_eq!(outer.unwrap().min_continuity(), u32::MAX);
+        assert_eq!(outer.unwrap().min_continuity(), Smooth);
     }
 
     #[test]
@@ -2054,14 +2149,14 @@ mod tests {
         let knots = vec![0.0, 1.0, 2.0, 3.0, 4.0];
         let curve = BSplineCurve3D::new(2, poles, knots, vec![1, 2, 1, 1, 1], true).unwrap();
         let tol = Tolerance::DEFAULT;
-        assert_eq!(curve.continuity(1.0, tol), 0);
-        assert_eq!(curve.continuity(5.0, tol), 0);
-        assert_eq!(curve.continuity(4.0, tol), 1);
-        assert_eq!(curve.min_continuity(), 0);
+        assert_eq!(curve.continuity(1.0, tol), Order(0));
+        assert_eq!(curve.continuity(5.0, tol), Order(0));
+        assert_eq!(curve.continuity(4.0, tol), Order(1));
+        assert_eq!(curve.min_continuity(), Order(0));
         let across_seam = TrimmedCurve3D::new(&curve, 3.5, 4.5).unwrap();
-        assert_eq!(across_seam.min_continuity(), 1);
+        assert_eq!(across_seam.min_continuity(), Order(1));
         let around_kink = TrimmedCurve3D::new(&curve, 4.5, 5.5).unwrap();
-        assert_eq!(around_kink.min_continuity(), 0);
+        assert_eq!(around_kink.min_continuity(), Order(0));
     }
 
     #[test]
@@ -2078,7 +2173,7 @@ mod tests {
         let tol = Tolerance::DEFAULT;
         let h = 1e-9;
         for knot in [1.0, 2.0] {
-            let order = curve.continuity(knot, tol);
+            let order = curve.continuity(knot, tol).order().unwrap();
             for derivative in 1..=2 {
                 let left = curve.eval_derivative(knot - h, derivative);
                 let right = curve.eval_derivative(knot + h, derivative);
@@ -2096,9 +2191,9 @@ mod tests {
                 }
             }
         }
-        assert_eq!(curve.continuity(1.0, tol), 1);
-        assert_eq!(curve.continuity(2.0, tol), 0);
-        assert_eq!(curve.min_continuity(), 0);
+        assert_eq!(curve.continuity(1.0, tol), Order(1));
+        assert_eq!(curve.continuity(2.0, tol), Order(0));
+        assert_eq!(curve.min_continuity(), Order(0));
     }
 
     #[test]

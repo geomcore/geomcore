@@ -12,7 +12,7 @@ use crate::numeric::*;
 use crate::results::*;
 use crate::surfaces::*;
 use crate::values::*;
-use crate::{check_curve_order, parse_parametrization, tolerance};
+use crate::{ContinuityNumber, check_curve_order, parse_parametrization, tolerance};
 
 // ---------------------------------------------------------------------------
 // Curves
@@ -256,21 +256,21 @@ impl PyLine3D {
         ParametricCurve3D::is_closed(&self.0, tolerance(tol))
     }
 
-    /// Continuity order `n` of `C^n` at parameter `u`, `SMOOTH_CONTINUITY`
-    /// where the curve is smooth. A B-spline reports `degree -
-    /// multiplicity` at a knot (within `tol.parametric`); the ends of a
+    /// Continuity order `n` of `C^n` at parameter `u` as an `int`, or
+    /// `math.inf` where no knot constrains the curve. A B-spline reports
+    /// `degree - multiplicity` at a knot (within `tol.parametric`); the ends of a
     /// non-periodic curve report smooth, and a periodic curve's seam
     /// counts as a knot. Use the `*_sided` evaluations of a B-spline to
     /// evaluate each side of a knot reporting a low order.
     #[pyo3(signature = (u, tol = None))]
-    fn continuity(&self, u: f64, tol: Option<PyTolerance>) -> u32 {
-        ParametricCurve3D::continuity(&self.0, u, tolerance(tol))
+    fn continuity(&self, u: f64, tol: Option<PyTolerance>) -> ContinuityNumber {
+        ContinuityNumber(ParametricCurve3D::continuity(&self.0, u, tolerance(tol)))
     }
 
     /// The lowest `continuity` anywhere inside the bounds, ends excluded
-    /// (`SMOOTH_CONTINUITY` when smooth everywhere).
-    fn min_continuity(&self) -> u32 {
-        ParametricCurve3D::min_continuity(&self.0)
+    /// (`math.inf` when smooth everywhere).
+    fn min_continuity(&self) -> ContinuityNumber {
+        ContinuityNumber(ParametricCurve3D::min_continuity(&self.0))
     }
 }
 
@@ -570,21 +570,21 @@ impl PyCircle3D {
         ParametricCurve3D::is_closed(&self.0, tolerance(tol))
     }
 
-    /// Continuity order `n` of `C^n` at parameter `u`, `SMOOTH_CONTINUITY`
-    /// where the curve is smooth. A B-spline reports `degree -
-    /// multiplicity` at a knot (within `tol.parametric`); the ends of a
+    /// Continuity order `n` of `C^n` at parameter `u` as an `int`, or
+    /// `math.inf` where no knot constrains the curve. A B-spline reports
+    /// `degree - multiplicity` at a knot (within `tol.parametric`); the ends of a
     /// non-periodic curve report smooth, and a periodic curve's seam
     /// counts as a knot. Use the `*_sided` evaluations of a B-spline to
     /// evaluate each side of a knot reporting a low order.
     #[pyo3(signature = (u, tol = None))]
-    fn continuity(&self, u: f64, tol: Option<PyTolerance>) -> u32 {
-        ParametricCurve3D::continuity(&self.0, u, tolerance(tol))
+    fn continuity(&self, u: f64, tol: Option<PyTolerance>) -> ContinuityNumber {
+        ContinuityNumber(ParametricCurve3D::continuity(&self.0, u, tolerance(tol)))
     }
 
     /// The lowest `continuity` anywhere inside the bounds, ends excluded
-    /// (`SMOOTH_CONTINUITY` when smooth everywhere).
-    fn min_continuity(&self) -> u32 {
-        ParametricCurve3D::min_continuity(&self.0)
+    /// (`math.inf` when smooth everywhere).
+    fn min_continuity(&self) -> ContinuityNumber {
+        ContinuityNumber(ParametricCurve3D::min_continuity(&self.0))
     }
 }
 
@@ -880,21 +880,21 @@ impl PyEllipse3D {
         ParametricCurve3D::is_closed(&self.0, tolerance(tol))
     }
 
-    /// Continuity order `n` of `C^n` at parameter `u`, `SMOOTH_CONTINUITY`
-    /// where the curve is smooth. A B-spline reports `degree -
-    /// multiplicity` at a knot (within `tol.parametric`); the ends of a
+    /// Continuity order `n` of `C^n` at parameter `u` as an `int`, or
+    /// `math.inf` where no knot constrains the curve. A B-spline reports
+    /// `degree - multiplicity` at a knot (within `tol.parametric`); the ends of a
     /// non-periodic curve report smooth, and a periodic curve's seam
     /// counts as a knot. Use the `*_sided` evaluations of a B-spline to
     /// evaluate each side of a knot reporting a low order.
     #[pyo3(signature = (u, tol = None))]
-    fn continuity(&self, u: f64, tol: Option<PyTolerance>) -> u32 {
-        ParametricCurve3D::continuity(&self.0, u, tolerance(tol))
+    fn continuity(&self, u: f64, tol: Option<PyTolerance>) -> ContinuityNumber {
+        ContinuityNumber(ParametricCurve3D::continuity(&self.0, u, tolerance(tol)))
     }
 
     /// The lowest `continuity` anywhere inside the bounds, ends excluded
-    /// (`SMOOTH_CONTINUITY` when smooth everywhere).
-    fn min_continuity(&self) -> u32 {
-        ParametricCurve3D::min_continuity(&self.0)
+    /// (`math.inf` when smooth everywhere).
+    fn min_continuity(&self) -> ContinuityNumber {
+        ContinuityNumber(ParametricCurve3D::min_continuity(&self.0))
     }
 }
 
@@ -1133,21 +1133,21 @@ impl PyParabola3D {
         ParametricCurve3D::is_closed(&self.0, tolerance(tol))
     }
 
-    /// Continuity order `n` of `C^n` at parameter `u`, `SMOOTH_CONTINUITY`
-    /// where the curve is smooth. A B-spline reports `degree -
-    /// multiplicity` at a knot (within `tol.parametric`); the ends of a
+    /// Continuity order `n` of `C^n` at parameter `u` as an `int`, or
+    /// `math.inf` where no knot constrains the curve. A B-spline reports
+    /// `degree - multiplicity` at a knot (within `tol.parametric`); the ends of a
     /// non-periodic curve report smooth, and a periodic curve's seam
     /// counts as a knot. Use the `*_sided` evaluations of a B-spline to
     /// evaluate each side of a knot reporting a low order.
     #[pyo3(signature = (u, tol = None))]
-    fn continuity(&self, u: f64, tol: Option<PyTolerance>) -> u32 {
-        ParametricCurve3D::continuity(&self.0, u, tolerance(tol))
+    fn continuity(&self, u: f64, tol: Option<PyTolerance>) -> ContinuityNumber {
+        ContinuityNumber(ParametricCurve3D::continuity(&self.0, u, tolerance(tol)))
     }
 
     /// The lowest `continuity` anywhere inside the bounds, ends excluded
-    /// (`SMOOTH_CONTINUITY` when smooth everywhere).
-    fn min_continuity(&self) -> u32 {
-        ParametricCurve3D::min_continuity(&self.0)
+    /// (`math.inf` when smooth everywhere).
+    fn min_continuity(&self) -> ContinuityNumber {
+        ContinuityNumber(ParametricCurve3D::min_continuity(&self.0))
     }
 }
 
@@ -1408,21 +1408,21 @@ impl PyHyperbola3D {
         ParametricCurve3D::is_closed(&self.0, tolerance(tol))
     }
 
-    /// Continuity order `n` of `C^n` at parameter `u`, `SMOOTH_CONTINUITY`
-    /// where the curve is smooth. A B-spline reports `degree -
-    /// multiplicity` at a knot (within `tol.parametric`); the ends of a
+    /// Continuity order `n` of `C^n` at parameter `u` as an `int`, or
+    /// `math.inf` where no knot constrains the curve. A B-spline reports
+    /// `degree - multiplicity` at a knot (within `tol.parametric`); the ends of a
     /// non-periodic curve report smooth, and a periodic curve's seam
     /// counts as a knot. Use the `*_sided` evaluations of a B-spline to
     /// evaluate each side of a knot reporting a low order.
     #[pyo3(signature = (u, tol = None))]
-    fn continuity(&self, u: f64, tol: Option<PyTolerance>) -> u32 {
-        ParametricCurve3D::continuity(&self.0, u, tolerance(tol))
+    fn continuity(&self, u: f64, tol: Option<PyTolerance>) -> ContinuityNumber {
+        ContinuityNumber(ParametricCurve3D::continuity(&self.0, u, tolerance(tol)))
     }
 
     /// The lowest `continuity` anywhere inside the bounds, ends excluded
-    /// (`SMOOTH_CONTINUITY` when smooth everywhere).
-    fn min_continuity(&self) -> u32 {
-        ParametricCurve3D::min_continuity(&self.0)
+    /// (`math.inf` when smooth everywhere).
+    fn min_continuity(&self) -> ContinuityNumber {
+        ContinuityNumber(ParametricCurve3D::min_continuity(&self.0))
     }
 }
 
@@ -1838,21 +1838,21 @@ impl PyBSplineCurve3D {
         ParametricCurve3D::is_closed(&self.0, tolerance(tol))
     }
 
-    /// Continuity order `n` of `C^n` at parameter `u`, `SMOOTH_CONTINUITY`
-    /// where the curve is smooth. A B-spline reports `degree -
-    /// multiplicity` at a knot (within `tol.parametric`); the ends of a
+    /// Continuity order `n` of `C^n` at parameter `u` as an `int`, or
+    /// `math.inf` where no knot constrains the curve. A B-spline reports
+    /// `degree - multiplicity` at a knot (within `tol.parametric`); the ends of a
     /// non-periodic curve report smooth, and a periodic curve's seam
     /// counts as a knot. Use the `*_sided` evaluations of a B-spline to
     /// evaluate each side of a knot reporting a low order.
     #[pyo3(signature = (u, tol = None))]
-    fn continuity(&self, u: f64, tol: Option<PyTolerance>) -> u32 {
-        ParametricCurve3D::continuity(&self.0, u, tolerance(tol))
+    fn continuity(&self, u: f64, tol: Option<PyTolerance>) -> ContinuityNumber {
+        ContinuityNumber(ParametricCurve3D::continuity(&self.0, u, tolerance(tol)))
     }
 
     /// The lowest `continuity` anywhere inside the bounds, ends excluded
-    /// (`SMOOTH_CONTINUITY` when smooth everywhere).
-    fn min_continuity(&self) -> u32 {
-        ParametricCurve3D::min_continuity(&self.0)
+    /// (`math.inf` when smooth everywhere).
+    fn min_continuity(&self) -> ContinuityNumber {
+        ContinuityNumber(ParametricCurve3D::min_continuity(&self.0))
     }
 
     /// The point and the first derivative at parameter `u`, from one
@@ -2528,21 +2528,21 @@ impl PyTrimmedCurve3D {
         ParametricCurve3D::is_closed(&self.0, tolerance(tol))
     }
 
-    /// Continuity order `n` of `C^n` at parameter `u`, `SMOOTH_CONTINUITY`
-    /// where the curve is smooth. A B-spline reports `degree -
-    /// multiplicity` at a knot (within `tol.parametric`); the ends of a
+    /// Continuity order `n` of `C^n` at parameter `u` as an `int`, or
+    /// `math.inf` where no knot constrains the curve. A B-spline reports
+    /// `degree - multiplicity` at a knot (within `tol.parametric`); the ends of a
     /// non-periodic curve report smooth, and a periodic curve's seam
     /// counts as a knot. Use the `*_sided` evaluations of a B-spline to
     /// evaluate each side of a knot reporting a low order.
     #[pyo3(signature = (u, tol = None))]
-    fn continuity(&self, u: f64, tol: Option<PyTolerance>) -> u32 {
-        ParametricCurve3D::continuity(&self.0, u, tolerance(tol))
+    fn continuity(&self, u: f64, tol: Option<PyTolerance>) -> ContinuityNumber {
+        ContinuityNumber(ParametricCurve3D::continuity(&self.0, u, tolerance(tol)))
     }
 
     /// The lowest `continuity` anywhere inside the bounds, ends excluded
-    /// (`SMOOTH_CONTINUITY` when smooth everywhere).
-    fn min_continuity(&self) -> u32 {
-        ParametricCurve3D::min_continuity(&self.0)
+    /// (`math.inf` when smooth everywhere).
+    fn min_continuity(&self) -> ContinuityNumber {
+        ContinuityNumber(ParametricCurve3D::min_continuity(&self.0))
     }
 }
 

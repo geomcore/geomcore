@@ -1,7 +1,7 @@
 //! [`ParametricSurface`] trait and the [`Surface`] enum adaptor unifying the
 //! concrete analytic surface types.
 
-use crate::curves::Curve3D;
+use crate::curves::{Continuity, Curve3D};
 use crate::surfaces::{BSplineSurface, Cone, Cylinder, Plane, Sphere, SurfaceIsoError, Torus};
 use crate::{Point3D, SurfaceProjection, Tolerance, Vector3D};
 use std::f64::consts::{FRAC_PI_2, TAU};
@@ -275,12 +275,11 @@ pub trait ParametricSurface {
         self.v_period().is_some()
     }
 
-    /// Continuity order `C^n` in `u` at parameter `u` (`u32::MAX` =
-    /// smooth).
+    /// [`Continuity`] in `u` at parameter `u`.
     ///
-    /// Elementary shapes are smooth everywhere. A B-spline reports
-    /// `u_degree − multiplicity` at a `u` knot (within `tol.parametric`)
-    /// and smooth elsewhere: the order its knots guarantee, which the shape
+    /// Elementary shapes are `Smooth` everywhere. A B-spline reports
+    /// `Order(u_degree − multiplicity)` at a `u` knot (within
+    /// `tol.parametric`) and `Smooth` elsewhere: the order its knots guarantee, which the shape
     /// may exceed. The ends of a non-periodic direction report smooth, the
     /// surface being seen from the inside only; a periodic direction wraps
     /// `u` into its period, so its seam counts as a knot. Derivatives in
@@ -292,35 +291,38 @@ pub trait ParametricSurface {
     ///
     /// ```
     /// use geomcore::surfaces::ParametricSurface;
-    /// use geomcore::{Cylinder, Point3D, Tolerance, Vector3D};
+    /// use geomcore::{Continuity, Cylinder, Point3D, Tolerance, Vector3D};
     ///
     /// let cylinder = Cylinder::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
-    /// assert_eq!(ParametricSurface::continuity_u(&cylinder, 1.0, Tolerance::DEFAULT), u32::MAX);
+    /// assert_eq!(
+    ///     ParametricSurface::continuity_u(&cylinder, 1.0, Tolerance::DEFAULT),
+    ///     Continuity::Smooth
+    /// );
     /// ```
-    fn continuity_u(&self, u: f64, tol: Tolerance) -> u32 {
+    fn continuity_u(&self, u: f64, tol: Tolerance) -> Continuity {
         let _ = (u, tol);
-        u32::MAX
+        Continuity::Smooth
     }
 
-    /// Continuity order `C^n` in `v` at parameter `v`, as
+    /// [`Continuity`] in `v` at parameter `v`, as
     /// [`continuity_u`](Self::continuity_u) for `u`.
-    fn continuity_v(&self, v: f64, tol: Tolerance) -> u32 {
+    fn continuity_v(&self, v: f64, tol: Tolerance) -> Continuity {
         let _ = (v, tol);
-        u32::MAX
+        Continuity::Smooth
     }
 
-    /// Minimum continuity order in `u` over the `u` range, ends excluded
-    /// (`u32::MAX` = smooth everywhere): the lowest
+    /// Minimum [`Continuity`] in `u` over the `u` range, ends excluded
+    /// (`Smooth` when no knot constrains it): the lowest
     /// [`continuity_u`](Self::continuity_u) anywhere on the surface.
     /// Default implementation: smooth.
-    fn min_continuity_u(&self) -> u32 {
-        u32::MAX
+    fn min_continuity_u(&self) -> Continuity {
+        Continuity::Smooth
     }
 
     /// Minimum continuity order in `v` over the domain, as
     /// [`min_continuity_u`](Self::min_continuity_u) for `u`.
-    fn min_continuity_v(&self) -> u32 {
-        u32::MAX
+    fn min_continuity_v(&self) -> Continuity {
+        Continuity::Smooth
     }
 
     /// Principal, mean and Gaussian curvatures at parameters `(u, v)`,
@@ -1348,7 +1350,7 @@ impl ParametricSurface for Surface {
         }
     }
 
-    fn continuity_u(&self, u: f64, tol: Tolerance) -> u32 {
+    fn continuity_u(&self, u: f64, tol: Tolerance) -> Continuity {
         match self {
             Surface::Plane(s) => ParametricSurface::continuity_u(s, u, tol),
             Surface::Cylinder(s) => ParametricSurface::continuity_u(s, u, tol),
@@ -1359,7 +1361,7 @@ impl ParametricSurface for Surface {
         }
     }
 
-    fn continuity_v(&self, v: f64, tol: Tolerance) -> u32 {
+    fn continuity_v(&self, v: f64, tol: Tolerance) -> Continuity {
         match self {
             Surface::Plane(s) => ParametricSurface::continuity_v(s, v, tol),
             Surface::Cylinder(s) => ParametricSurface::continuity_v(s, v, tol),
@@ -1370,7 +1372,7 @@ impl ParametricSurface for Surface {
         }
     }
 
-    fn min_continuity_u(&self) -> u32 {
+    fn min_continuity_u(&self) -> Continuity {
         match self {
             Surface::Plane(s) => ParametricSurface::min_continuity_u(s),
             Surface::Cylinder(s) => ParametricSurface::min_continuity_u(s),
@@ -1381,7 +1383,7 @@ impl ParametricSurface for Surface {
         }
     }
 
-    fn min_continuity_v(&self) -> u32 {
+    fn min_continuity_v(&self) -> Continuity {
         match self {
             Surface::Plane(s) => ParametricSurface::min_continuity_v(s),
             Surface::Cylinder(s) => ParametricSurface::min_continuity_v(s),
@@ -1800,6 +1802,7 @@ impl From<Torus> for ElementarySurface {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::Continuity::{Order, Smooth};
     use crate::Point3D;
 
     fn sample<S: ParametricSurface>(s: &S) -> Point3D {
@@ -2944,10 +2947,10 @@ mod tests {
             Surface::from(sphere()),
             Surface::from(torus()),
         ] {
-            assert_eq!(surface.continuity_u(0.5, tol), u32::MAX);
-            assert_eq!(surface.continuity_v(0.5, tol), u32::MAX);
-            assert_eq!(surface.min_continuity_u(), u32::MAX);
-            assert_eq!(surface.min_continuity_v(), u32::MAX);
+            assert_eq!(surface.continuity_u(0.5, tol), Smooth);
+            assert_eq!(surface.continuity_v(0.5, tol), Smooth);
+            assert_eq!(surface.min_continuity_u(), Smooth);
+            assert_eq!(surface.min_continuity_v(), Smooth);
         }
     }
 
@@ -2955,13 +2958,13 @@ mod tests {
     fn test_bspline_continuity_drops_at_repeated_knots() {
         let tol = Tolerance::DEFAULT;
         let s = creased_u_patch();
-        assert_eq!(ParametricSurface::continuity_u(&s, 0.5, tol), 0);
-        assert_eq!(s.continuity_u(0.5, tol), 0);
-        assert_eq!(ParametricSurface::continuity_u(&s, 0.25, tol), u32::MAX);
-        assert_eq!(ParametricSurface::continuity_v(&s, 0.5, tol), u32::MAX);
-        assert_eq!(s.min_continuity_u(), 0);
-        assert_eq!(s.min_continuity_v(), u32::MAX);
-        assert_eq!(ParametricSurface::min_continuity_u(&s), 0);
+        assert_eq!(ParametricSurface::continuity_u(&s, 0.5, tol), Order(0));
+        assert_eq!(s.continuity_u(0.5, tol), Order(0));
+        assert_eq!(ParametricSurface::continuity_u(&s, 0.25, tol), Smooth);
+        assert_eq!(ParametricSurface::continuity_v(&s, 0.5, tol), Smooth);
+        assert_eq!(s.min_continuity_u(), Order(0));
+        assert_eq!(s.min_continuity_v(), Smooth);
+        assert_eq!(ParametricSurface::min_continuity_u(&s), Order(0));
     }
 
     #[test]

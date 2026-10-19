@@ -11,7 +11,7 @@ use std::collections::BinaryHeap;
 
 use crate::curve_math::bspline as curve;
 use crate::curve_math::editing::{self, Edit, Elevation, Insertion, Lanes};
-use crate::curves::Side;
+use crate::curves::{Continuity, Side};
 use crate::math::boxtree::{BoxTree, Lazy, box_distance};
 use crate::math::newton_min_2d;
 use crate::projection::SurfaceProjection;
@@ -466,9 +466,9 @@ impl BSplineSurface {
             }
     }
 
-    /// Continuity order `C^n` in `u` at parameter `u` (`u32::MAX` =
-    /// smooth): `u_degree − multiplicity` at a `u` knot within
-    /// `tol.parametric`, smooth elsewhere. This is the order the knots
+    /// [`Continuity`] in `u` at parameter `u`: `Order(u_degree −
+    /// multiplicity)` at a `u` knot within `tol.parametric`, `Smooth`
+    /// elsewhere. This is the order the knots
     /// guarantee; the surface may be smoother. A non-periodic direction
     /// reports smooth at and beyond its bounds; a periodic one wraps `u`
     /// into its period, so its seam is a knot like any other.
@@ -481,15 +481,15 @@ impl BSplineSurface {
     ///
     /// ```
     /// # use geomcore::surfaces::BSplineSurface;
-    /// # use geomcore::{Point3D, Tolerance};
+    /// # use geomcore::{Continuity, Point3D, Tolerance};
     /// # let poles = vec![
     /// #     vec![Point3D::new(0.0, 0.0, 0.0), Point3D::new(0.0, 1.0, 0.0)],
     /// #     vec![Point3D::new(1.0, 0.0, 0.0), Point3D::new(1.0, 1.0, 1.0)],
     /// # ];
     /// # let surface = BSplineSurface::new(1, 1, poles, vec![0.0, 1.0], vec![2, 2], vec![0.0, 1.0], vec![2, 2], false, false).unwrap();
-    /// assert_eq!(surface.continuity_u(0.5, Tolerance::DEFAULT), u32::MAX);
+    /// assert_eq!(surface.continuity_u(0.5, Tolerance::DEFAULT), Continuity::Smooth);
     /// ```
-    pub fn continuity_u(&self, u: f64, tol: Tolerance) -> u32 {
+    pub fn continuity_u(&self, u: f64, tol: Tolerance) -> Continuity {
         curve::continuity_at(
             self.u_degree(),
             self.u_knots(),
@@ -501,9 +501,9 @@ impl BSplineSurface {
         )
     }
 
-    /// Continuity order `C^n` in `v` at parameter `v`, as
+    /// [`Continuity`] in `v` at parameter `v`, as
     /// [`continuity_u`](Self::continuity_u) for `u`.
-    pub fn continuity_v(&self, v: f64, tol: Tolerance) -> u32 {
+    pub fn continuity_v(&self, v: f64, tol: Tolerance) -> Continuity {
         curve::continuity_at(
             self.v_degree(),
             self.v_knots(),
@@ -515,10 +515,10 @@ impl BSplineSurface {
         )
     }
 
-    /// Minimum continuity order in `u` over the domain (`u32::MAX` =
-    /// smooth everywhere): the worst `u` knot strictly inside the bounds,
+    /// Minimum [`Continuity`] in `u` over the domain (`Smooth` when no
+    /// knot constrains it): the worst `u` knot strictly inside the bounds,
     /// or, in a periodic direction, the worst `u` knot including the seam.
-    pub fn min_continuity_u(&self) -> u32 {
+    pub fn min_continuity_u(&self) -> Continuity {
         curve::min_continuity(
             self.u_degree(),
             self.u_knots(),
@@ -530,7 +530,7 @@ impl BSplineSurface {
 
     /// Minimum continuity order in `v` over the domain, as
     /// [`min_continuity_u`](Self::min_continuity_u) for `u`.
-    pub fn min_continuity_v(&self) -> u32 {
+    pub fn min_continuity_v(&self) -> Continuity {
         curve::min_continuity(
             self.v_degree(),
             self.v_knots(),
@@ -2417,19 +2417,19 @@ impl ParametricSurface for BSplineSurface {
         self.v_knots.period()
     }
 
-    fn continuity_u(&self, u: f64, tol: Tolerance) -> u32 {
+    fn continuity_u(&self, u: f64, tol: Tolerance) -> Continuity {
         BSplineSurface::continuity_u(self, u, tol)
     }
 
-    fn continuity_v(&self, v: f64, tol: Tolerance) -> u32 {
+    fn continuity_v(&self, v: f64, tol: Tolerance) -> Continuity {
         BSplineSurface::continuity_v(self, v, tol)
     }
 
-    fn min_continuity_u(&self) -> u32 {
+    fn min_continuity_u(&self) -> Continuity {
         BSplineSurface::min_continuity_u(self)
     }
 
-    fn min_continuity_v(&self) -> u32 {
+    fn min_continuity_v(&self) -> Continuity {
         BSplineSurface::min_continuity_v(self)
     }
 
