@@ -1056,6 +1056,16 @@ impl PyCylinder {
         Ok(PyVector3D(self.0.eval_derivative(u, v, du, dv)))
     }
 
+    /// Unit normal at surface parameters `(u, v)` (`Tolerance.default()`
+    /// when omitted). Singular points such as poles give their limiting
+    /// normal; returns `None` at an apex, whose meridians each have their
+    /// own, and where no normal can be recovered.
+    #[pyo3(signature = (u, v, tol = None))]
+    fn normal(&self, u: f64, v: f64, tol: Option<PyTolerance>) -> Option<PyVector3D> {
+        ParametricSurface::normal(&self.0, u, v, tol.map(|t| t.0).unwrap_or_default())
+            .map(PyVector3D)
+    }
+
     /// Recover the (u, v) parameters of a point lying on the cylinder.
     fn parameters_of(&self, point: PyPoint3D) -> (f64, f64) {
         self.0.parameters_of(point.0)
@@ -1318,6 +1328,16 @@ impl PyCone {
     fn eval_derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> PyResult<PyVector3D> {
         check_surface_order(du, dv)?;
         Ok(PyVector3D(self.0.eval_derivative(u, v, du, dv)))
+    }
+
+    /// Unit normal at surface parameters `(u, v)` (`Tolerance.default()`
+    /// when omitted). Singular points such as poles give their limiting
+    /// normal; returns `None` at an apex, whose meridians each have their
+    /// own, and where no normal can be recovered.
+    #[pyo3(signature = (u, v, tol = None))]
+    fn normal(&self, u: f64, v: f64, tol: Option<PyTolerance>) -> Option<PyVector3D> {
+        ParametricSurface::normal(&self.0, u, v, tol.map(|t| t.0).unwrap_or_default())
+            .map(PyVector3D)
     }
 
     /// Recover the (u, v) parameters of a point lying on the cone.
@@ -1600,6 +1620,16 @@ impl PySphere {
     fn eval_derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> PyResult<PyVector3D> {
         check_surface_order(du, dv)?;
         Ok(PyVector3D(self.0.eval_derivative(u, v, du, dv)))
+    }
+
+    /// Unit normal at surface parameters `(u, v)` (`Tolerance.default()`
+    /// when omitted). Singular points such as poles give their limiting
+    /// normal; returns `None` at an apex, whose meridians each have their
+    /// own, and where no normal can be recovered.
+    #[pyo3(signature = (u, v, tol = None))]
+    fn normal(&self, u: f64, v: f64, tol: Option<PyTolerance>) -> Option<PyVector3D> {
+        ParametricSurface::normal(&self.0, u, v, tol.map(|t| t.0).unwrap_or_default())
+            .map(PyVector3D)
     }
 
     /// Recover the (u, v) parameters of a point lying on the sphere.
@@ -1920,6 +1950,16 @@ impl PyTorus {
     fn eval_derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> PyResult<PyVector3D> {
         check_surface_order(du, dv)?;
         Ok(PyVector3D(self.0.eval_derivative(u, v, du, dv)))
+    }
+
+    /// Unit normal at surface parameters `(u, v)` (`Tolerance.default()`
+    /// when omitted). Singular points such as poles give their limiting
+    /// normal; returns `None` at an apex, whose meridians each have their
+    /// own, and where no normal can be recovered.
+    #[pyo3(signature = (u, v, tol = None))]
+    fn normal(&self, u: f64, v: f64, tol: Option<PyTolerance>) -> Option<PyVector3D> {
+        ParametricSurface::normal(&self.0, u, v, tol.map(|t| t.0).unwrap_or_default())
+            .map(PyVector3D)
     }
 
     /// Recover the (u, v) parameters of a point lying on the torus.
@@ -2699,6 +2739,16 @@ impl PyBSplineSurface {
     fn eval_derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> PyResult<PyVector3D> {
         check_surface_order(du, dv)?;
         Ok(PyVector3D(self.0.eval_derivative(u, v, du, dv)))
+    }
+
+    /// Unit normal at surface parameters `(u, v)` (`Tolerance.default()`
+    /// when omitted). Singular points such as poles give their limiting
+    /// normal; returns `None` at an apex, whose meridians each have their
+    /// own, and where no normal can be recovered.
+    #[pyo3(signature = (u, v, tol = None))]
+    fn normal(&self, u: f64, v: f64, tol: Option<PyTolerance>) -> Option<PyVector3D> {
+        ParametricSurface::normal(&self.0, u, v, tol.map(|t| t.0).unwrap_or_default())
+            .map(PyVector3D)
     }
 }
 
