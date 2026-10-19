@@ -88,6 +88,12 @@ seam (up to one period) on periodic directions.
     assert_eq!(curve.to_bezier_pieces().len(), 1); // single span
     ```
 
+The pieces are `BezierCurve` / `BezierCurve2D` (and, for surfaces,
+`BezierSurface`): a Bézier type holds `degree + 1` poles, with no knot
+vector, and keeps the span it came from as its bounds. `to_bspline()`
+turns one back into a B-spline, and `from_bspline` accepts a B-spline
+that is a single clamped span.
+
 The pieces are what the viewer can *not* yet take directly — trimmed
 curves have no scene mapping in the Python client
 ([viewer#6](https://github.com/geomcore/geomcore-viewer/issues/6)) —

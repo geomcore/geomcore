@@ -25,6 +25,12 @@ _Surface = Union[
     surfaces.BSplineSurface,
 ]
 
+# What a projection can target: Bézier types are projected onto but not
+# intersected (they are not an operand of `intersect`).
+_ProjectedCurve = Union[_Curve, curves.BezierCurve]
+_ProjectedCurve2D = Union[_Curve2D, curves.BezierCurve2D]
+_ProjectedSurface = Union[_Surface, surfaces.BezierSurface]
+
 class GeomcoreError(ValueError):
     """Base class of every error raised by geomcore. Subclasses `ValueError`."""
 
@@ -554,7 +560,7 @@ class CurveProjection:
     @property
     def distance(self) -> float: ...
     @property
-    def target(self) -> _Curve: ...
+    def target(self) -> _ProjectedCurve: ...
     @property
     def query_point(self) -> Point: ...
 
@@ -568,7 +574,7 @@ class CurveProjection2D:
     @property
     def distance(self) -> float: ...
     @property
-    def target(self) -> _Curve2D: ...
+    def target(self) -> _ProjectedCurve2D: ...
     @property
     def query_point(self) -> Point2D: ...
 
@@ -584,7 +590,7 @@ class SurfaceProjection:
     @property
     def distance(self) -> float: ...
     @property
-    def target(self) -> _Surface: ...
+    def target(self) -> _ProjectedSurface: ...
     @property
     def query_point(self) -> Point: ...
 
