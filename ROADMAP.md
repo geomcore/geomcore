@@ -81,7 +81,10 @@ ones before them. If you'd like to help with any of it, see
   so curves far along unbounded surfaces are found, and runs to the
   model-size cube. Projections give the closest point. Python results
   are objects holding their operands, Python exceptions mirror the Rust
-  errors, and the bindings cover the Rust API.
+  errors, and the bindings cover the Rust API. Local properties: unit
+  tangent, curvature and centre of curvature, unit surface normal and
+  principal curvatures; closedness and continuity queries; surface
+  reversal; one-sided B-spline evaluation at knots and seams.
 
 ## Next
 
