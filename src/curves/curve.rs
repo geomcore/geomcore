@@ -1,7 +1,7 @@
 //! [`ParametricCurve`] trait and the [`Curve`] enum adaptor unifying the
 //! concrete 3D curve types.
 
-use crate::curves::{BSplineCurve, Circle, Ellipse, Hyperbola, Line, Parabola};
+use crate::curves::{BSplineCurve, BezierCurve, Circle, Ellipse, Hyperbola, Line, Parabola};
 use crate::projection::CurveProjection;
 use crate::{Point, Tolerance, Vector};
 use std::f64::consts::TAU;
@@ -579,6 +579,12 @@ impl PointExtrema for BSplineCurve {
     }
 }
 
+impl PointExtrema for BezierCurve {
+    fn extrema(&self, point: Point, tol: Tolerance) -> Vec<CurveProjection> {
+        BezierCurve::extrema(self, point, tol)
+    }
+}
+
 impl ParametricCurve for Line {
     fn eval_point(&self, u: f64) -> Point {
         Line::eval_point(self, u)
@@ -757,6 +763,48 @@ impl ParametricCurve for BSplineCurve {
 
     fn as_bspline(&self) -> Option<&BSplineCurve> {
         Some(self)
+    }
+}
+
+impl ParametricCurve for BezierCurve {
+    fn eval_point(&self, u: f64) -> Point {
+        BezierCurve::eval_point(self, u)
+    }
+
+    fn eval_derivative(&self, u: f64, order: u32) -> Vector {
+        BezierCurve::eval_derivative(self, u, order)
+    }
+
+    fn eval_d1(&self, u: f64) -> (Point, Vector) {
+        BezierCurve::eval_d1(self, u)
+    }
+
+    fn eval_d2(&self, u: f64) -> (Point, Vector, Vector) {
+        BezierCurve::eval_d2(self, u)
+    }
+
+    fn bounds(&self) -> (f64, f64) {
+        BezierCurve::bounds(self)
+    }
+
+    fn period(&self) -> Option<f64> {
+        None
+    }
+
+    fn eval_points(&self, us: &[f64]) -> Vec<Point> {
+        BezierCurve::eval_points(self, us)
+    }
+
+    fn is_closed(&self, tol: Tolerance) -> bool {
+        BezierCurve::is_closed(self, tol)
+    }
+
+    fn continuity(&self, u: f64, tol: Tolerance) -> Continuity {
+        BezierCurve::continuity(self, u, tol)
+    }
+
+    fn min_continuity(&self) -> Continuity {
+        BezierCurve::min_continuity(self)
     }
 }
 

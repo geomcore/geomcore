@@ -238,7 +238,7 @@ fn editing_agrees() {
         let b = spatial.to_bezier_pieces();
         assert_eq!(a.len(), b.len(), "{name}");
         for (x, y) in a.iter().zip(&b) {
-            assert_same_curve(x, y, &name);
+            assert_same_curve(&x.to_bspline(), &y.to_bspline(), &name);
         }
         if !planar.is_periodic() {
             let (l, r) = planar.split_at(u).unwrap();

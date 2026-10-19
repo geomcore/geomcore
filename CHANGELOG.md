@@ -24,8 +24,18 @@ the Python distribution are versioned in lockstep.
   search would prove it. `CurveCurveIntersection2D::method` now reports
   this method instead of always `Exact`.
 
+- `BezierCurve` and `BezierCurve2D` (#98): first-class Bézier curves of
+  `degree + 1` poles (polynomial or rational) with evaluation, sided
+  evaluation, continuity, `split_at`, `elevate_degree`, `reversed`,
+  `to_bspline`, `from_bspline`, length, projection, bounding box and
+  discretization, and `BezierConstructionError`. The Rust surface only
+  so far.
+
 ### Changed
 
+- `BSplineCurve::to_bezier_pieces` and `BSplineCurve2D::to_bezier_pieces`
+  return `BezierCurve` and `BezierCurve2D` instead of single-span
+  B-splines (#98); `to_bspline` gives the B-spline back.
 - `BSplineCurve` and `BSplineCurve2D` share one implementation: a
   private spline generic over its pole type (ADR 0014). The two types
   agree on every operation to 1e-12, which a new test checks over the
