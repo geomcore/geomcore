@@ -324,7 +324,10 @@ pub trait ParametricSurface {
     /// Principal, mean and Gaussian curvatures at parameters `(u, v)`,
     /// or `None` where the unit normal degenerates (vanishing or
     /// parallel partials, as at a sphere's poles or a cone's apex) or a
-    /// derivative is not finite.
+    /// derivative is not finite. A partial vanishes by the same rule as
+    /// for [`normal`](Self::normal): when the distance it would cover
+    /// across its parameter range is within `tol.confusion` (ADR 0010),
+    /// so rescaling a surface's knots does not change its curvatures.
     ///
     /// Curvatures are measured along the unit normal `Su × Sv`: negative
     /// bends away from it, so an outward-normal sphere has `-1/radius`.
@@ -353,12 +356,10 @@ pub trait ParametricSurface {
         let (su_length, sv_length) = (su.magnitude(), sv.magnitude());
         let cross = su.cross(sv);
         let cross_length = cross.magnitude();
-        // Same degeneracy test as the unit normal; the negated form also
+        // Same degeneracy test as the unit normal (ADR 0010); it also
         // rejects NaN derivatives.
-        let regular = su_length > tol.confusion
-            && sv_length > tol.confusion
-            && cross_length > tol.angular * su_length * sv_length;
-        if !regular {
+        let widths = reference_widths(self, tol);
+        if !partials_span_a_plane(su_length, sv_length, cross_length, widths, tol) {
             return None;
         }
         let normal = cross * (1.0 / cross_length);
@@ -568,18 +569,42 @@ fn direct_normal(
     tol: Tolerance,
 ) -> Option<Vector3D> {
     let (su_length, sv_length) = (su.magnitude(), sv.magnitude());
-    if tol.is_negligible_derivative(su_length, u_width)
-        || tol.is_negligible_derivative(sv_length, v_width)
-    {
-        return None;
-    }
     let cross = su.cross(sv);
     let cross_length = cross.magnitude();
-    if cross_length > tol.angular * su_length * sv_length {
-        Some(cross * (1.0 / cross_length))
-    } else {
-        None
-    }
+    partials_span_a_plane(su_length, sv_length, cross_length, [u_width, v_width], tol)
+        .then(|| cross * (1.0 / cross_length))
+}
+
+/// The `u` and `v` reference widths of `surface`'s parameter bounds, over
+/// which its derivatives are measured (see
+/// [`Tolerance::reference_width`], ADR 0010).
+pub(crate) fn reference_widths<S: ParametricSurface + ?Sized>(
+    surface: &S,
+    tol: Tolerance,
+) -> [f64; 2] {
+    [
+        tol.reference_width(surface.u_bounds()),
+        tol.reference_width(surface.v_bounds()),
+    ]
+}
+
+/// Whether first partials of lengths `su_length` and `sv_length`, whose
+/// cross product has length `cross_length`, define a tangent plane, and so
+/// the unit normal `Su × Sv / cross_length`: neither partial is negligible
+/// over its parameter width (`widths`, from [`reference_widths`]; ADR
+/// 0010) and they are not parallel within `tol.angular`. `false` for NaN
+/// derivatives.
+#[inline]
+pub(crate) fn partials_span_a_plane(
+    su_length: f64,
+    sv_length: f64,
+    cross_length: f64,
+    [u_width, v_width]: [f64; 2],
+    tol: Tolerance,
+) -> bool {
+    !tol.is_negligible_derivative(su_length, u_width)
+        && !tol.is_negligible_derivative(sv_length, v_width)
+        && cross_length > tol.angular * su_length * sv_length
 }
 
 /// Rung 2 of [`ParametricSurface::normal`]: second derivatives stand in
@@ -2994,6 +3019,41 @@ mod tests {
             assert!((c.min_curvature + 0.5).abs() < 1e-14);
             assert!(c.max_curvature.abs() < 1e-14);
             assert!((c.max_direction.dot(Vector3D::Z).abs() - 1.0).abs() < 1e-14);
+        }
+    }
+
+    #[test]
+    fn test_curvatures_do_not_depend_on_the_knot_scale() {
+        // Same rule as the unit normal (ADR 0010): a dome on knots
+        // `[0, 1e8]` has partials of about 1e-8 per knot unit, regular
+        // over that width, and its curvatures are those on `[0, 1]`.
+        let tol = Tolerance::DEFAULT;
+        let reference = collapsed_row();
+        for scale in [1e8, 1e-8] {
+            let surface = rescaled(&reference, scale);
+            for (u, v) in [(0.3, 0.6), (0.7, 0.2), (1.0, 1.0)] {
+                let expected = ParametricSurface::curvatures(&reference, u, v, tol).unwrap();
+                let found = ParametricSurface::curvatures(&surface, u * scale, v * scale, tol)
+                    .unwrap_or_else(|| panic!("scale {scale} at ({u}, {v})"));
+                let size = expected
+                    .min_curvature
+                    .abs()
+                    .max(expected.max_curvature.abs());
+                for (got, want) in [
+                    (found.min_curvature, expected.min_curvature),
+                    (found.max_curvature, expected.max_curvature),
+                    (found.mean, expected.mean),
+                ] {
+                    assert!(
+                        (got - want).abs() < 1e-9 * size,
+                        "scale {scale} at ({u}, {v})"
+                    );
+                }
+                assert!(
+                    (found.gaussian - expected.gaussian).abs() < 1e-9 * size * size,
+                    "scale {scale} at ({u}, {v})"
+                );
+            }
         }
     }
 
