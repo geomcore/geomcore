@@ -7,29 +7,29 @@ import pytest
 import geomcore
 from geomcore import (
     Axis2D,
-    Axis3D,
+    Axis,
     Frame2D,
-    Frame3D,
+    Frame,
     Point2D,
-    Point3D,
+    Point,
     Vector2D,
-    Vector3D,
+    Vector,
 )
 from geomcore.curves import (
-    BSplineCurve3D,
+    BSplineCurve,
     Circle2D,
-    Circle3D,
-    Ellipse3D,
-    Hyperbola3D,
+    Circle,
+    Ellipse,
+    Hyperbola,
     Line2D,
-    Line3D,
-    Parabola3D,
+    Line,
+    Parabola,
     TrimmedCurve2D,
-    TrimmedCurve3D,
+    TrimmedCurve,
 )
 from geomcore.surfaces import BSplineSurface, Cone, Cylinder, Plane, Sphere, Torus
 
-Z = Vector3D(0.0, 0.0, 1.0)
+Z = Vector(0.0, 0.0, 1.0)
 
 
 # ---------------------------------------------------------------------------
@@ -64,17 +64,17 @@ def test_frame_2d():
 
 
 def test_frame_on_curves():
-    center = Point3D(1.0, 2.0, 3.0)
-    expected = Frame3D.from_z(center, Z)
-    circle = Circle3D(center, Z, 2.0)
+    center = Point(1.0, 2.0, 3.0)
+    expected = Frame.from_z(center, Z)
+    circle = Circle(center, Z, 2.0)
     assert circle.frame().origin() == center
     assert circle.frame().z_direction() == Z
-    assert circle.frame() == Circle3D.from_frame(circle.frame(), 2.0).frame()
-    ellipse = Ellipse3D.from_frame(expected, 3.0, 2.0)
+    assert circle.frame() == Circle.from_frame(circle.frame(), 2.0).frame()
+    ellipse = Ellipse.from_frame(expected, 3.0, 2.0)
     assert ellipse.frame() == expected
-    parabola = Parabola3D.from_frame(expected, 1.5)
+    parabola = Parabola.from_frame(expected, 1.5)
     assert parabola.frame() == expected
-    hyperbola = Hyperbola3D.from_frame(expected, 3.0, 2.0)
+    hyperbola = Hyperbola.from_frame(expected, 3.0, 2.0)
     assert hyperbola.frame() == expected
     assert Circle2D(Point2D(1.0, 1.0), 2.0).frame() == Frame2D(
         Point2D(1.0, 1.0), Vector2D(1.0, 0.0), Vector2D(0.0, 1.0)
@@ -82,7 +82,7 @@ def test_frame_on_curves():
 
 
 def test_frame_on_surfaces():
-    frame = Frame3D.from_z(Point3D(1.0, 2.0, 3.0), Z)
+    frame = Frame.from_z(Point(1.0, 2.0, 3.0), Z)
     assert Plane.from_frame(frame).frame() == frame
     assert Cylinder.from_frame(frame, 2.0).frame() == frame
     assert Cone.from_frame(frame, 0.5, 2.0).frame() == frame
@@ -91,19 +91,19 @@ def test_frame_on_surfaces():
 
 
 def test_axis_on_lines_and_cylinder():
-    axis = Axis3D(Point3D(1.0, 0.0, 0.0), Z)
-    assert Line3D.from_axis(axis).axis() == axis
+    axis = Axis(Point(1.0, 0.0, 0.0), Z)
+    assert Line.from_axis(axis).axis() == axis
     axis_2d = Axis2D(Point2D(1.0, 0.0), Vector2D(0.0, 1.0))
     assert Line2D.from_axis(axis_2d).axis() == axis_2d
     assert Line2D(Point2D(1.0, 0.0), Vector2D(0.0, 2.0)).axis() == axis_2d
-    cylinder = Cylinder.from_frame(Frame3D.from_z(Point3D(1.0, 0.0, 0.0), Z), 1.0)
+    cylinder = Cylinder.from_frame(Frame.from_z(Point(1.0, 0.0, 0.0), Z), 1.0)
     assert cylinder.axis() == axis
 
 
 def test_center_on_torus_and_apex_on_parabola():
-    frame = Frame3D.from_z(Point3D(1.0, 2.0, 3.0), Z)
-    assert Torus.from_frame(frame, 3.0, 1.0).center() == Point3D(1.0, 2.0, 3.0)
-    assert Parabola3D.from_frame(frame, 1.5).apex() == Point3D(1.0, 2.0, 3.0)
+    frame = Frame.from_z(Point(1.0, 2.0, 3.0), Z)
+    assert Torus.from_frame(frame, 3.0, 1.0).center() == Point(1.0, 2.0, 3.0)
+    assert Parabola.from_frame(frame, 1.5).apex() == Point(1.0, 2.0, 3.0)
 
 
 # ---------------------------------------------------------------------------
@@ -113,21 +113,21 @@ def test_center_on_torus_and_apex_on_parabola():
 
 
 def curves_3d():
-    frame = Frame3D.from_z(Point3D(0.0, 0.0, 0.0), Z)
+    frame = Frame.from_z(Point(0.0, 0.0, 0.0), Z)
     return [
-        Line3D(Point3D(0.0, 0.0, 0.0), Vector3D(1.0, 0.0, 0.0)),
-        Circle3D(Point3D(0.0, 0.0, 0.0), Z, 2.0),
-        Ellipse3D.from_frame(frame, 3.0, 2.0),
-        Parabola3D.from_frame(frame, 1.5),
-        Hyperbola3D.from_frame(frame, 3.0, 2.0),
-        BSplineCurve3D(
+        Line(Point(0.0, 0.0, 0.0), Vector(1.0, 0.0, 0.0)),
+        Circle(Point(0.0, 0.0, 0.0), Z, 2.0),
+        Ellipse.from_frame(frame, 3.0, 2.0),
+        Parabola.from_frame(frame, 1.5),
+        Hyperbola.from_frame(frame, 3.0, 2.0),
+        BSplineCurve(
             2,
-            [Point3D(0.0, 0.0, 0.0), Point3D(1.0, 1.0, 0.0), Point3D(2.0, 0.0, 1.0)],
+            [Point(0.0, 0.0, 0.0), Point(1.0, 1.0, 0.0), Point(2.0, 0.0, 1.0)],
             [0.0, 1.0],
             [3, 3],
             False,
         ),
-        TrimmedCurve3D(Circle3D(Point3D(0.0, 0.0, 0.0), Z, 2.0), 0.0, 1.0),
+        TrimmedCurve(Circle(Point(0.0, 0.0, 0.0), Z, 2.0), 0.0, 1.0),
     ]
 
 
@@ -154,7 +154,7 @@ def test_period_and_is_periodic_on_curves():
 
 
 def test_u_and_v_period_on_surfaces():
-    origin = Point3D(0.0, 0.0, 0.0)
+    origin = Point(0.0, 0.0, 0.0)
     assert Plane(origin, Z).u_period() is None
     assert Plane(origin, Z).v_period() is None
     assert Cylinder(origin, Z, 1.0).u_period() == pytest.approx(math.tau)
@@ -188,7 +188,7 @@ def test_eval_d1_d2_on_2d_curves(curve):
 
 
 def test_eval_d1_d2_on_surfaces():
-    origin = Point3D(0.0, 0.0, 0.0)
+    origin = Point(0.0, 0.0, 0.0)
     surfaces = [
         Plane(origin, Z),
         Cylinder(origin, Z, 1.0),
@@ -223,17 +223,17 @@ def test_line_2d_from_two_points():
 
 
 def test_extrema_on_lines_and_circles():
-    line = Line3D(Point3D(0.0, 0.0, 0.0), Vector3D(1.0, 0.0, 0.0))
-    query = Point3D(2.0, 3.0, 0.0)
+    line = Line(Point(0.0, 0.0, 0.0), Vector(1.0, 0.0, 0.0))
+    query = Point(2.0, 3.0, 0.0)
     (minimum,) = line.extrema(query)
-    assert minimum.point == Point3D(2.0, 0.0, 0.0)
+    assert minimum.point == Point(2.0, 0.0, 0.0)
     assert minimum.distance == pytest.approx(3.0)
     assert minimum.target is line
 
-    circle = Circle3D(Point3D(0.0, 0.0, 0.0), Z, 2.0)
-    results = circle.extrema(Point3D(3.0, 0.0, 0.0))
+    circle = Circle(Point(0.0, 0.0, 0.0), Z, 2.0)
+    results = circle.extrema(Point(3.0, 0.0, 0.0))
     assert results[0].distance == pytest.approx(1.0)
-    assert results[0].query_point == Point3D(3.0, 0.0, 0.0)
+    assert results[0].query_point == Point(3.0, 0.0, 0.0)
 
     line_2d = Line2D(Point2D(0.0, 0.0), Vector2D(1.0, 0.0))
     (minimum_2d,) = line_2d.extrema(Point2D(2.0, 3.0))
@@ -250,12 +250,12 @@ def test_extrema_on_lines_and_circles():
 
 
 def test_to_bspline_on_elementary_curves_and_surfaces():
-    frame = Frame3D.from_z(Point3D(0.0, 0.0, 0.0), Z)
-    circle = Circle3D(Point3D(0.0, 0.0, 0.0), Z, 2.0)
-    ellipse = Ellipse3D.from_frame(frame, 3.0, 2.0)
+    frame = Frame.from_z(Point(0.0, 0.0, 0.0), Z)
+    circle = Circle(Point(0.0, 0.0, 0.0), Z, 2.0)
+    ellipse = Ellipse.from_frame(frame, 3.0, 2.0)
     for curve in (circle, ellipse):
         spline = curve.to_bspline()
-        assert isinstance(spline, BSplineCurve3D)
+        assert isinstance(spline, BSplineCurve)
         first, last = spline.bounds()
         middle = 0.5 * (first + last)
         assert spline.eval_point(middle).distance(
@@ -263,13 +263,13 @@ def test_to_bspline_on_elementary_curves_and_surfaces():
         ) == pytest.approx(0.0, abs=1e-9)
     # Unbounded curves convert over a range, through a trimmed curve.
     for curve in (
-        Line3D(Point3D(0.0, 0.0, 0.0), Vector3D(1.0, 0.0, 0.0)),
-        Parabola3D.from_frame(frame, 1.5),
-        Hyperbola3D.from_frame(frame, 3.0, 2.0),
+        Line(Point(0.0, 0.0, 0.0), Vector(1.0, 0.0, 0.0)),
+        Parabola.from_frame(frame, 1.5),
+        Hyperbola.from_frame(frame, 3.0, 2.0),
     ):
-        spline = TrimmedCurve3D(curve, 0.0, 1.0).to_bspline()
+        spline = TrimmedCurve(curve, 0.0, 1.0).to_bspline()
         assert spline.eval_point(0.5).distance(curve.eval_point(0.5)) < 1e-9
-    assert isinstance(Sphere(Point3D(0.0, 0.0, 0.0), 1.0).to_bspline(), BSplineSurface)
+    assert isinstance(Sphere(Point(0.0, 0.0, 0.0), 1.0).to_bspline(), BSplineSurface)
     assert isinstance(Torus.from_frame(frame, 3.0, 1.0).to_bspline(), BSplineSurface)
     for surface in (
         Plane.from_frame(frame),
@@ -281,14 +281,14 @@ def test_to_bspline_on_elementary_curves_and_surfaces():
 
 
 def test_point_count_matches_discretize():
-    circle = Circle3D(Point3D(0.0, 0.0, 0.0), Z, 2.0)
+    circle = Circle(Point(0.0, 0.0, 0.0), Z, 2.0)
     assert circle.point_count(0.01) == len(circle.discretize(0.01).points)
     assert circle.point_count(0.01, 0.1) == len(circle.discretize(0.01, 0.1).points)
-    ellipse = Ellipse3D.from_frame(Frame3D.from_z(Point3D(0.0, 0.0, 0.0), Z), 3.0, 2.0)
+    ellipse = Ellipse.from_frame(Frame.from_z(Point(0.0, 0.0, 0.0), Z), 3.0, 2.0)
     assert ellipse.point_count(0.01) == len(ellipse.discretize(0.01).points)
     spline = curves_3d()[5]
     assert spline.point_count(0.01) == len(spline.discretize(0.01).points)
-    trimmed = TrimmedCurve3D(circle, 0.0, 1.0)
+    trimmed = TrimmedCurve(circle, 0.0, 1.0)
     assert trimmed.point_count(0.01) == len(trimmed.discretize(0.01).points)
     circle_2d = Circle2D(Point2D(0.0, 0.0), 2.0)
     assert circle_2d.point_count(0.01) == len(circle_2d.discretize(0.01).points)
@@ -299,38 +299,38 @@ def test_point_count_matches_discretize():
 
 
 # ---------------------------------------------------------------------------
-# Group 4: operators, Vector3D properties and unit constructors, Vector2D,
-# Frame3D members
+# Group 4: operators, Vector properties and unit constructors, Vector2D,
+# Frame members
 # ---------------------------------------------------------------------------
 
 
 def test_vector_3d_unit_constructors_and_properties():
-    assert Vector3D.unit_x() == Vector3D(1.0, 0.0, 0.0)
-    assert Vector3D.unit_y() == Vector3D(0.0, 1.0, 0.0)
-    assert Vector3D.unit_z() == Vector3D(0.0, 0.0, 1.0)
-    v = Vector3D(1.0, 2.0, 3.0)
+    assert Vector.unit_x() == Vector(1.0, 0.0, 0.0)
+    assert Vector.unit_y() == Vector(0.0, 1.0, 0.0)
+    assert Vector.unit_z() == Vector(0.0, 0.0, 1.0)
+    v = Vector(1.0, 2.0, 3.0)
     assert (v.x, v.y, v.z) == (1.0, 2.0, 3.0)
     assert not callable(v.x)
 
 
 def test_vector_3d_members():
-    v = Vector3D(3.0, 0.0, 4.0)
+    v = Vector(3.0, 0.0, 4.0)
     assert v.square_magnitude() == 25.0
     assert v.is_finite()
-    assert not Vector3D(math.nan, 0.0, 0.0).is_finite()
-    assert v.normalized() == Vector3D(0.6, 0.0, 0.8)
-    assert Vector3D.zero().normalized() is None
-    angle = Vector3D.unit_x().angle_with_reference(Vector3D.unit_y(), Vector3D.unit_z())
+    assert not Vector(math.nan, 0.0, 0.0).is_finite()
+    assert v.normalized() == Vector(0.6, 0.0, 0.8)
+    assert Vector.zero().normalized() is None
+    angle = Vector.unit_x().angle_with_reference(Vector.unit_y(), Vector.unit_z())
     assert angle == pytest.approx(math.pi / 2)
 
 
 def test_vector_3d_operators():
-    a, b = Vector3D(1.0, 2.0, 3.0), Vector3D(4.0, 5.0, 6.0)
-    assert a + b == Vector3D(5.0, 7.0, 9.0)
-    assert b - a == Vector3D(3.0, 3.0, 3.0)
-    assert -a == Vector3D(-1.0, -2.0, -3.0)
-    assert a * 2.0 == Vector3D(2.0, 4.0, 6.0)
-    assert 2.0 * a == Vector3D(2.0, 4.0, 6.0)
+    a, b = Vector(1.0, 2.0, 3.0), Vector(4.0, 5.0, 6.0)
+    assert a + b == Vector(5.0, 7.0, 9.0)
+    assert b - a == Vector(3.0, 3.0, 3.0)
+    assert -a == Vector(-1.0, -2.0, -3.0)
+    assert a * 2.0 == Vector(2.0, 4.0, 6.0)
+    assert 2.0 * a == Vector(2.0, 4.0, 6.0)
     with pytest.raises(TypeError):
         a + 1.0
     with pytest.raises(TypeError):
@@ -338,13 +338,13 @@ def test_vector_3d_operators():
 
 
 def test_point_3d_operators():
-    p, q = Point3D(1.0, 2.0, 3.0), Point3D(4.0, 6.0, 8.0)
-    v = Vector3D(1.0, 0.0, -1.0)
-    assert p + v == Point3D(2.0, 2.0, 2.0)
-    assert p - v == Point3D(0.0, 2.0, 4.0)
-    assert q - p == Vector3D(3.0, 4.0, 5.0)
+    p, q = Point(1.0, 2.0, 3.0), Point(4.0, 6.0, 8.0)
+    v = Vector(1.0, 0.0, -1.0)
+    assert p + v == Point(2.0, 2.0, 2.0)
+    assert p - v == Point(0.0, 2.0, 4.0)
+    assert q - p == Vector(3.0, 4.0, 5.0)
     assert p.is_finite()
-    assert not Point3D(math.inf, 0.0, 0.0).is_finite()
+    assert not Point(math.inf, 0.0, 0.0).is_finite()
     with pytest.raises(TypeError):
         p + q
     with pytest.raises(TypeError):
@@ -383,13 +383,13 @@ def test_vector_2d_members():
 
 
 def test_frame_3d_members():
-    frame = Frame3D.from_z(Point3D(1.0, 2.0, 3.0), Z)
-    assert frame.axis() == Axis3D(Point3D(1.0, 2.0, 3.0), Z)
-    local = frame.local_coordinates(Point3D(2.0, 4.0, 6.0))
+    frame = Frame.from_z(Point(1.0, 2.0, 3.0), Z)
+    assert frame.axis() == Axis(Point(1.0, 2.0, 3.0), Z)
+    local = frame.local_coordinates(Point(2.0, 4.0, 6.0))
     point = frame.point_at(*local)
-    assert point.distance(Point3D(2.0, 4.0, 6.0)) == pytest.approx(0.0)
-    assert frame.point_at(0.0, 0.0, 2.0) == Point3D(1.0, 2.0, 5.0)
-    assert frame.local_coordinates(Point3D(1.0, 2.0, 5.0))[2] == pytest.approx(2.0)
+    assert point.distance(Point(2.0, 4.0, 6.0)) == pytest.approx(0.0)
+    assert frame.point_at(0.0, 0.0, 2.0) == Point(1.0, 2.0, 5.0)
+    assert frame.local_coordinates(Point(1.0, 2.0, 5.0))[2] == pytest.approx(2.0)
 
 
 # ---------------------------------------------------------------------------
@@ -398,8 +398,8 @@ def test_frame_3d_members():
 
 
 def test_repr_floats_are_python_style():
-    assert repr(Point3D(1.0, -0.5, 1e-7)) == "Point3D(1.0, -0.5, 1e-07)"
-    assert repr(Vector3D(1e16, 1e15, 123456.789)) == "Vector3D(1e+16, 1000000000000000.0, 123456.789)"
+    assert repr(Point(1.0, -0.5, 1e-7)) == "Point(1.0, -0.5, 1e-07)"
+    assert repr(Vector(1e16, 1e15, 123456.789)) == "Vector(1e+16, 1000000000000000.0, 123456.789)"
     assert repr(Point2D(0.1, 2.5e-5)) == "Point2D(0.1, 2.5e-05)"
     assert repr(Point2D(-3.0, 1.5e300)) == "Point2D(-3.0, 1.5e+300)"
 
@@ -407,16 +407,16 @@ def test_repr_floats_are_python_style():
 def test_repr_snaps_rounding_noise_to_zero():
     noisy = math.cos(math.pi / 2)
     assert 0.0 < noisy < 1e-15
-    assert repr(Point3D(noisy, -noisy, 1.0)) == "Point3D(0.0, 0.0, 1.0)"
-    circle = Circle3D(Point3D(noisy, 0.0, 0.0), Z, 1.0)
-    assert repr(circle).startswith("Circle3D(center=(0.0, 0.0, 0.0)")
+    assert repr(Point(noisy, -noisy, 1.0)) == "Point(0.0, 0.0, 1.0)"
+    circle = Circle(Point(noisy, 0.0, 0.0), Z, 1.0)
+    assert repr(circle).startswith("Circle(center=(0.0, 0.0, 0.0)")
     # A tolerance is not geometry: tiny values are kept.
     assert "angular=1e-12" in repr(geomcore.Tolerance())
 
 
 def test_eval_d1_matches_finite_differences():
     step = 1e-6
-    circle = Circle3D(Point3D(0.0, 0.0, 0.0), Z, 2.0)
+    circle = Circle(Point(0.0, 0.0, 0.0), Z, 2.0)
     _, tangent = circle.eval_d1(0.5)
     ahead, behind = circle.eval_point(0.5 + step), circle.eval_point(0.5 - step)
     estimate = (ahead - behind) * (0.5 / step)
@@ -429,7 +429,7 @@ def test_eval_d1_matches_finite_differences():
     )
     assert (estimate_2d - tangent_2d).magnitude() < 1e-6
 
-    sphere = Sphere(Point3D(0.0, 0.0, 0.0), 2.0)
+    sphere = Sphere(Point(0.0, 0.0, 0.0), 2.0)
     _, (du, dv) = sphere.eval_d1(0.4, 0.3)
     estimate_u = (sphere.eval_point(0.4 + step, 0.3) - sphere.eval_point(0.4 - step, 0.3)) * (
         0.5 / step
@@ -442,8 +442,8 @@ def test_eval_d1_matches_finite_differences():
 
 
 def test_operator_type_errors():
-    p = Point3D(1.0, 2.0, 3.0)
-    v = Vector3D(1.0, 2.0, 3.0)
+    p = Point(1.0, 2.0, 3.0)
+    v = Vector(1.0, 2.0, 3.0)
     with pytest.raises(TypeError):
         p - 1.0
     with pytest.raises(TypeError):

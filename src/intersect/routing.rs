@@ -13,9 +13,8 @@
 
 use crate::Tolerance;
 use crate::curves::{
-    BSplineCurve3D, Circle2D, Circle3D, Curve2D, Curve3D, ElementaryCurve, Ellipse3D, Hyperbola3D,
-    Line2D, Line3D, Parabola3D, ParametricCurve2D, ParametricCurve3D, TrimmedCurve2D,
-    TrimmedCurve3D,
+    BSplineCurve, Circle, Circle2D, Curve, Curve2D, ElementaryCurve, Ellipse, Hyperbola, Line,
+    Line2D, Parabola, ParametricCurve, ParametricCurve2D, TrimmedCurve, TrimmedCurve2D,
 };
 use crate::intersect::dispatch::{ExactCurveCurve, ExactCurveSurface};
 use crate::intersect::marching::marching_intersection;
@@ -34,7 +33,7 @@ use crate::surfaces::{
     BSplineSurface, Cone, Cylinder, ElementarySurface, ParametricSurface, Plane, Sphere, Surface,
     Torus,
 };
-use crate::{Point2D, Point3D};
+use crate::{Point, Point2D};
 
 /// Routed intersection: exact when a closed form exists, numeric otherwise.
 ///
@@ -48,11 +47,11 @@ use crate::{Point2D, Point3D};
 /// # Examples
 ///
 /// ```
-/// use geomcore::{Intersect, IntersectionMethod, Line3D, Point3D, Sphere, Tolerance, Vector3D};
+/// use geomcore::{Intersect, IntersectionMethod, Line, Point, Sphere, Tolerance, Vector};
 ///
 /// // A line along z through a sphere of radius 2 crosses it at both poles.
-/// let line = Line3D::new(Point3D::new(0.0, 0.0, -5.0), Vector3D::Z).unwrap();
-/// let sphere = Sphere::new(Point3D::ORIGIN, 2.0).unwrap();
+/// let line = Line::new(Point::new(0.0, 0.0, -5.0), Vector::Z).unwrap();
+/// let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
 /// let result = line.intersect(&sphere, Tolerance::DEFAULT);
 /// assert_eq!(result.method(), IntersectionMethod::Exact);
 /// assert!(result.is_complete());
@@ -81,7 +80,7 @@ pub trait Intersect<Rhs: ?Sized = Self> {
 /// a hit's point when the curve is restricted to a range and the solver
 /// did not compute it: the range test needs it.
 pub(crate) trait CurveBasis:
-    ParametricCurve3D
+    ParametricCurve
     + Copy
     + Into<ElementaryCurve>
     + ExactCurveSurface<Plane>
@@ -90,41 +89,34 @@ pub(crate) trait CurveBasis:
     + ExactCurveSurface<Sphere>
     + ExactCurveSurface<Torus>
     + ExactCurveSurface<ElementarySurface>
-    + ExactCurveCurve<Line3D>
-    + ExactCurveCurve<Circle3D>
-    + ExactCurveCurve<Ellipse3D>
-    + ExactCurveCurve<Parabola3D>
-    + ExactCurveCurve<Hyperbola3D>
+    + ExactCurveCurve<Line>
+    + ExactCurveCurve<Circle>
+    + ExactCurveCurve<Ellipse>
+    + ExactCurveCurve<Parabola>
+    + ExactCurveCurve<Hyperbola>
     + ExactCurveCurve<ElementaryCurve>
 {
     /// The parameter of `point`, a point on the curve.
-    fn basis_parameter_of(&self, point: Point3D) -> f64;
+    fn basis_parameter_of(&self, point: Point) -> f64;
 }
 
 macro_rules! curve_basis {
     ($($curve:ty),*) => {$(
         impl CurveBasis for $curve {
             #[inline]
-            fn basis_parameter_of(&self, point: Point3D) -> f64 {
+            fn basis_parameter_of(&self, point: Point) -> f64 {
                 self.parameter_of(point)
             }
         }
     )*};
 }
 
-curve_basis!(
-    Line3D,
-    Circle3D,
-    Ellipse3D,
-    Parabola3D,
-    Hyperbola3D,
-    ElementaryCurve
-);
+curve_basis!(Line, Circle, Ellipse, Parabola, Hyperbola, ElementaryCurve);
 
 /// How a curve enters the router: its elementary basis (when it has one)
 /// and the parameter range it is restricted to (`None` = the basis's own
 /// bounds).
-pub(crate) trait CurveOperand: ParametricCurve3D {
+pub(crate) trait CurveOperand: ParametricCurve {
     /// The basis type: the curve's own type when it is a concrete
     /// elementary curve, so the pair is solved by its typed solver.
     type Basis: CurveBasis;
@@ -147,16 +139,9 @@ macro_rules! elementary_operand {
     )*};
 }
 
-elementary_operand!(
-    Line3D,
-    Circle3D,
-    Ellipse3D,
-    Parabola3D,
-    Hyperbola3D,
-    ElementaryCurve
-);
+elementary_operand!(Line, Circle, Ellipse, Parabola, Hyperbola, ElementaryCurve);
 
-impl CurveOperand for BSplineCurve3D {
+impl CurveOperand for BSplineCurve {
     type Basis = ElementaryCurve;
 
     fn elementary_basis(&self) -> Option<Operand<ElementaryCurve>> {
@@ -164,7 +149,7 @@ impl CurveOperand for BSplineCurve3D {
     }
 }
 
-impl CurveOperand for Curve3D {
+impl CurveOperand for Curve {
     type Basis = ElementaryCurve;
 
     #[inline]
@@ -173,7 +158,7 @@ impl CurveOperand for Curve3D {
     }
 }
 
-impl<C: CurveOperand> CurveOperand for TrimmedCurve3D<C> {
+impl<C: CurveOperand> CurveOperand for TrimmedCurve<C> {
     type Basis = C::Basis;
 
     /// A trimmed curve of a trimmed curve keeps the inner basis and the
@@ -427,7 +412,7 @@ where
 #[inline]
 fn from_exact_curve_surface(
     exact: ExactCurveSurfaceIntersection,
-    basis: &impl ParametricCurve3D,
+    basis: &impl ParametricCurve,
     range: Option<(f64, f64)>,
     tol: Tolerance,
 ) -> CurveSurfaceIntersection {
@@ -497,7 +482,7 @@ macro_rules! curve_surface {
 }
 
 curve_surface!(
-    Line3D, Circle3D, Ellipse3D, Parabola3D, Hyperbola3D, BSplineCurve3D, Curve3D, ElementaryCurve;
+    Line, Circle, Ellipse, Parabola, Hyperbola, BSplineCurve, Curve, ElementaryCurve;
     [Plane, Cylinder, Cone, Sphere, Torus, BSplineSurface, Surface, ElementarySurface]
 );
 
@@ -505,7 +490,7 @@ curve_surface!(
 /// and each surface, in both orders.
 macro_rules! trimmed_curve_surface {
     ($($surface:ty),*) => {$(
-        impl<X: CurveOperand> Intersect<$surface> for TrimmedCurve3D<X> {
+        impl<X: CurveOperand> Intersect<$surface> for TrimmedCurve<X> {
             type Output = CurveSurfaceIntersection;
 
             #[inline]
@@ -514,11 +499,11 @@ macro_rules! trimmed_curve_surface {
             }
         }
 
-        impl<X: CurveOperand> Intersect<TrimmedCurve3D<X>> for $surface {
+        impl<X: CurveOperand> Intersect<TrimmedCurve<X>> for $surface {
             type Output = CurveSurfaceIntersection;
 
             #[inline]
-            fn intersect(&self, other: &TrimmedCurve3D<X>, tol: Tolerance) -> CurveSurfaceIntersection {
+            fn intersect(&self, other: &TrimmedCurve<X>, tol: Tolerance) -> CurveSurfaceIntersection {
                 route_curve_surface(other, self, tol)
             }
         }
@@ -618,7 +603,7 @@ fn from_exact_surface_surface(exact: ExactSurfaceIntersection) -> SurfaceSurface
             curves
                 .iter()
                 .map(|&(curve, tangent)| IntersectionCurve {
-                    curve: Curve3D::from(curve),
+                    curve: Curve::from(curve),
                     tangent,
                 })
                 .collect(),
@@ -989,13 +974,13 @@ macro_rules! curve_curve {
 }
 
 curve_curve!([
-    Line3D,
-    Circle3D,
-    Ellipse3D,
-    Parabola3D,
-    Hyperbola3D,
-    BSplineCurve3D,
-    Curve3D,
+    Line,
+    Circle,
+    Ellipse,
+    Parabola,
+    Hyperbola,
+    BSplineCurve,
+    Curve,
     ElementaryCurve
 ]);
 
@@ -1003,7 +988,7 @@ curve_curve!([
 /// and each curve of the list, in both orders.
 macro_rules! trimmed_curve_curve {
     ($($curve:ty),*) => {$(
-        impl<X: CurveOperand> Intersect<$curve> for TrimmedCurve3D<X> {
+        impl<X: CurveOperand> Intersect<$curve> for TrimmedCurve<X> {
             type Output = CurveCurveIntersection;
 
             #[inline]
@@ -1012,14 +997,14 @@ macro_rules! trimmed_curve_curve {
             }
         }
 
-        impl<X: CurveOperand> Intersect<TrimmedCurve3D<X>> for $curve
+        impl<X: CurveOperand> Intersect<TrimmedCurve<X>> for $curve
         where
             <$curve as CurveOperand>::Basis: ExactCurveCurve<X::Basis>,
         {
             type Output = CurveCurveIntersection;
 
             #[inline]
-            fn intersect(&self, other: &TrimmedCurve3D<X>, tol: Tolerance) -> CurveCurveIntersection {
+            fn intersect(&self, other: &TrimmedCurve<X>, tol: Tolerance) -> CurveCurveIntersection {
                 route_curve_curve(self, other, tol)
             }
         }
@@ -1027,24 +1012,24 @@ macro_rules! trimmed_curve_curve {
 }
 
 trimmed_curve_curve!(
-    Line3D,
-    Circle3D,
-    Ellipse3D,
-    Parabola3D,
-    Hyperbola3D,
-    BSplineCurve3D,
-    Curve3D,
+    Line,
+    Circle,
+    Ellipse,
+    Parabola,
+    Hyperbola,
+    BSplineCurve,
+    Curve,
     ElementaryCurve
 );
 
-impl<X: CurveOperand, Y: CurveOperand> Intersect<TrimmedCurve3D<Y>> for TrimmedCurve3D<X>
+impl<X: CurveOperand, Y: CurveOperand> Intersect<TrimmedCurve<Y>> for TrimmedCurve<X>
 where
     X::Basis: ExactCurveCurve<Y::Basis>,
 {
     type Output = CurveCurveIntersection;
 
     #[inline]
-    fn intersect(&self, other: &TrimmedCurve3D<Y>, tol: Tolerance) -> CurveCurveIntersection {
+    fn intersect(&self, other: &TrimmedCurve<Y>, tol: Tolerance) -> CurveCurveIntersection {
         route_curve_curve(self, other, tol)
     }
 }
@@ -1543,8 +1528,8 @@ mod tests {
 
     #[test]
     fn test_trimmed_operand_reports_basis_and_range() {
-        let circle = crate::Circle3D::new(crate::Point3D::ORIGIN, crate::Vector3D::Z, 1.0).unwrap();
-        let arc = crate::curves::TrimmedCurve3D::new(circle, -1.0, 1.0).unwrap();
+        let circle = crate::Circle::new(crate::Point::ORIGIN, crate::Vector::Z, 1.0).unwrap();
+        let arc = crate::curves::TrimmedCurve::new(circle, -1.0, 1.0).unwrap();
         let (basis, range) = arc.elementary_basis().unwrap();
         // A trimmed circle routes through the typed circle solver.
         assert_eq!(basis, circle);
@@ -1553,11 +1538,11 @@ mod tests {
 
     #[test]
     fn test_trimmed_of_trimmed_keeps_the_outer_range() {
-        let line = crate::Line3D::new(crate::Point3D::ORIGIN, crate::Vector3D::X).unwrap();
+        let line = crate::Line::new(crate::Point::ORIGIN, crate::Vector::X).unwrap();
         let outer =
-            TrimmedCurve3D::new(TrimmedCurve3D::new(line, 0.0, 10.0).unwrap(), 2.0, 3.0).unwrap();
+            TrimmedCurve::new(TrimmedCurve::new(line, 0.0, 10.0).unwrap(), 2.0, 3.0).unwrap();
         assert_eq!(outer.elementary_basis().unwrap().1, Some((2.0, 3.0)));
-        let spline_free: Curve3D = line.into();
+        let spline_free: Curve = line.into();
         assert_eq!(spline_free.elementary_basis().unwrap().1, None);
     }
 }

@@ -1,9 +1,9 @@
 //! [`ParametricSurface`] trait and the [`Surface`] enum adaptor unifying the
 //! concrete analytic surface types.
 
-use crate::curves::{Continuity, Curve3D};
+use crate::curves::{Continuity, Curve};
 use crate::surfaces::{BSplineSurface, Cone, Cylinder, Plane, Sphere, SurfaceIsoError, Torus};
-use crate::{Point3D, SurfaceProjection, Tolerance, Vector3D};
+use crate::{Point, SurfaceProjection, Tolerance, Vector};
 use std::f64::consts::{FRAC_PI_2, TAU};
 
 /// Principal, mean and Gaussian curvatures at a surface point, with the
@@ -16,10 +16,10 @@ pub struct SurfaceCurvatures {
     /// Larger principal curvature.
     pub max_curvature: f64,
     /// Unit tangent direction of [`min_curvature`](Self::min_curvature).
-    pub min_direction: Vector3D,
+    pub min_direction: Vector,
     /// Unit tangent direction of [`max_curvature`](Self::max_curvature),
     /// always perpendicular to [`min_direction`](Self::min_direction).
-    pub max_direction: Vector3D,
+    pub max_direction: Vector,
     /// Mean curvature, `(min_curvature + max_curvature) / 2`.
     pub mean: f64,
     /// Gaussian curvature, `min_curvature * max_curvature`.
@@ -41,19 +41,19 @@ pub struct SurfaceCurvatures {
 ///
 /// ```
 /// use geomcore::surfaces::ParametricSurface;
-/// use geomcore::{Plane, Point3D, Vector3D};
+/// use geomcore::{Plane, Point, Vector};
 ///
-/// let plane = Plane::new(Point3D::ORIGIN, Vector3D::Z).unwrap();
+/// let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
 /// let uvs = [(0.0, 0.0), (1.0, 2.0)];
-/// let expected: Vec<Point3D> = uvs.iter().map(|&(u, v)| plane.eval_point(u, v)).collect();
+/// let expected: Vec<Point> = uvs.iter().map(|&(u, v)| plane.eval_point(u, v)).collect();
 /// assert_eq!(ParametricSurface::eval_points(&plane, &uvs), expected);
 /// ```
 pub trait ParametricSurface {
     /// Evaluates the point on the surface at parameters `(u, v)`.
-    fn eval_point(&self, u: f64, v: f64) -> Point3D;
+    fn eval_point(&self, u: f64, v: f64) -> Point;
 
     /// Evaluates the derivative of order `(du, dv)` at parameters `(u, v)`.
-    fn eval_derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> Vector3D;
+    fn eval_derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> Vector;
 
     /// Evaluates the point and the first derivatives `[Su, Sv]` at
     /// parameters `(u, v)`.
@@ -66,14 +66,14 @@ pub trait ParametricSurface {
     ///
     /// ```
     /// use geomcore::surfaces::ParametricSurface;
-    /// use geomcore::{Plane, Point3D, Vector3D};
+    /// use geomcore::{Plane, Point, Vector};
     ///
-    /// let plane = Plane::new(Point3D::ORIGIN, Vector3D::Z).unwrap();
+    /// let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
     /// let (point, [su, sv]) = plane.eval_d1(1.0, 2.0);
-    /// assert_eq!(point, Point3D::new(1.0, 2.0, 0.0));
-    /// assert_eq!(su.cross(sv), Vector3D::Z);
+    /// assert_eq!(point, Point::new(1.0, 2.0, 0.0));
+    /// assert_eq!(su.cross(sv), Vector::Z);
     /// ```
-    fn eval_d1(&self, u: f64, v: f64) -> (Point3D, [Vector3D; 2]) {
+    fn eval_d1(&self, u: f64, v: f64) -> (Point, [Vector; 2]) {
         (
             self.eval_point(u, v),
             [
@@ -94,15 +94,15 @@ pub trait ParametricSurface {
     ///
     /// ```
     /// use geomcore::surfaces::ParametricSurface;
-    /// use geomcore::{Point3D, Sphere};
+    /// use geomcore::{Point, Sphere};
     ///
-    /// let sphere = Sphere::new(Point3D::ORIGIN, 2.0).unwrap();
+    /// let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
     /// let (point, _, [suu, _, svv]) = sphere.eval_d2(0.0, 0.0);
-    /// assert_eq!(point, Point3D::new(2.0, 0.0, 0.0));
-    /// assert!((suu + (point - Point3D::ORIGIN)).magnitude() < 1e-15);
-    /// assert!((svv + (point - Point3D::ORIGIN)).magnitude() < 1e-15);
+    /// assert_eq!(point, Point::new(2.0, 0.0, 0.0));
+    /// assert!((suu + (point - Point::ORIGIN)).magnitude() < 1e-15);
+    /// assert!((svv + (point - Point::ORIGIN)).magnitude() < 1e-15);
     /// ```
-    fn eval_d2(&self, u: f64, v: f64) -> (Point3D, [Vector3D; 2], [Vector3D; 3]) {
+    fn eval_d2(&self, u: f64, v: f64) -> (Point, [Vector; 2], [Vector; 3]) {
         (
             self.eval_point(u, v),
             [
@@ -171,24 +171,24 @@ pub trait ParametricSurface {
     ///
     /// ```
     /// use geomcore::surfaces::ParametricSurface;
-    /// use geomcore::{Plane, Point3D, Sphere, Tolerance, Vector3D};
+    /// use geomcore::{Plane, Point, Sphere, Tolerance, Vector};
     ///
-    /// let plane = Plane::new(Point3D::ORIGIN, Vector3D::Z).unwrap();
+    /// let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
     /// assert_eq!(
     ///     ParametricSurface::normal(&plane, 1.0, 2.0, Tolerance::DEFAULT),
-    ///     Some(Vector3D::Z)
+    ///     Some(Vector::Z)
     /// );
     ///
-    /// let sphere = Sphere::new(Point3D::ORIGIN, 2.0).unwrap();
+    /// let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
     /// let normal = ParametricSurface::normal(&sphere, 0.0, 0.0, Tolerance::DEFAULT).unwrap();
-    /// assert_eq!(normal, Vector3D::X);
+    /// assert_eq!(normal, Vector::X);
     /// // Singular points recover their limiting normal: outward at the pole.
     /// use std::f64::consts::FRAC_PI_2;
     /// let pole =
     ///     ParametricSurface::normal(&sphere, 0.0, FRAC_PI_2, Tolerance::DEFAULT).unwrap();
-    /// assert!((pole - Vector3D::Z).magnitude() < 1e-12);
+    /// assert!((pole - Vector::Z).magnitude() < 1e-12);
     /// ```
-    fn normal(&self, u: f64, v: f64, tol: Tolerance) -> Option<Vector3D> {
+    fn normal(&self, u: f64, v: f64, tol: Tolerance) -> Option<Vector> {
         let bounds = [self.u_bounds(), self.v_bounds()];
         match normal_recovery(self, u, v, bounds, tol) {
             Recovery::Unique(normal) => return Some(normal),
@@ -250,12 +250,12 @@ pub trait ParametricSurface {
     ///
     /// ```
     /// use geomcore::surfaces::ParametricSurface;
-    /// use geomcore::{Cylinder, Plane, Point3D, Tolerance, Vector3D};
+    /// use geomcore::{Cylinder, Plane, Point, Tolerance, Vector};
     ///
-    /// let plane = Plane::new(Point3D::ORIGIN, Vector3D::Z).unwrap();
+    /// let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
     /// assert!(!ParametricSurface::is_u_closed(&plane, Tolerance::DEFAULT));
     ///
-    /// let cylinder = Cylinder::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
+    /// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
     /// assert!(ParametricSurface::is_u_closed(&cylinder, Tolerance::DEFAULT));
     /// assert!(!ParametricSurface::is_v_closed(&cylinder, Tolerance::DEFAULT));
     /// ```
@@ -291,9 +291,9 @@ pub trait ParametricSurface {
     ///
     /// ```
     /// use geomcore::surfaces::ParametricSurface;
-    /// use geomcore::{Continuity, Cylinder, Point3D, Tolerance, Vector3D};
+    /// use geomcore::{Continuity, Cylinder, Point, Tolerance, Vector};
     ///
-    /// let cylinder = Cylinder::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
+    /// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
     /// assert_eq!(
     ///     ParametricSurface::continuity_u(&cylinder, 1.0, Tolerance::DEFAULT),
     ///     Continuity::Smooth
@@ -346,14 +346,14 @@ pub trait ParametricSurface {
     ///
     /// ```
     /// use geomcore::surfaces::ParametricSurface;
-    /// use geomcore::{Cylinder, Point3D, Tolerance, Vector3D};
+    /// use geomcore::{Cylinder, Point, Tolerance, Vector};
     ///
-    /// let cylinder = Cylinder::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
+    /// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
     /// let c = ParametricSurface::curvatures(&cylinder, 0.0, 3.0, Tolerance::DEFAULT).unwrap();
     /// assert_eq!((c.min_curvature, c.max_curvature), (-0.5, 0.0));
     /// assert_eq!((c.mean, c.gaussian), (-0.25, 0.0));
-    /// assert_eq!(c.min_direction, Vector3D::Y);
-    /// assert_eq!(c.max_direction, Vector3D::Z);
+    /// assert_eq!(c.min_direction, Vector::Y);
+    /// assert_eq!(c.max_direction, Vector::Z);
     /// ```
     fn curvatures(&self, u: f64, v: f64, tol: Tolerance) -> Option<SurfaceCurvatures> {
         let (_, [su, sv], [suu, suv, svv]) = self.eval_d2(u, v);
@@ -414,16 +414,16 @@ pub trait ParametricSurface {
     ///
     /// Default implementation: maps [`eval_point`](Self::eval_point) over
     /// `uvs`.
-    fn eval_points(&self, uvs: &[(f64, f64)]) -> Vec<Point3D> {
+    fn eval_points(&self, uvs: &[(f64, f64)]) -> Vec<Point> {
         uvs.iter().map(|&(u, v)| self.eval_point(u, v)).collect()
     }
 
     /// Projects `point` onto the surface, returning the `(u, v)` parameters
     /// of the closest point and its distance.
-    fn project_point(&self, point: Point3D, tol: Tolerance) -> SurfaceProjection;
+    fn project_point(&self, point: Point, tol: Tolerance) -> SurfaceProjection;
 
     /// Returns whether `point` lies on the surface.
-    fn contains(&self, point: Point3D, tol: Tolerance) -> bool;
+    fn contains(&self, point: Point, tol: Tolerance) -> bool;
 
     /// The surface as a B-spline, or `None` for any other surface.
     ///
@@ -436,11 +436,11 @@ pub trait ParametricSurface {
     ///
     /// ```
     /// use geomcore::surfaces::{BSplineSurface, ParametricSurface, Surface};
-    /// use geomcore::{Plane, Point3D, Vector3D};
+    /// use geomcore::{Plane, Point, Vector};
     ///
     /// let poles = vec![
-    ///     vec![Point3D::new(0.0, 0.0, 0.0), Point3D::new(0.0, 1.0, 0.0)],
-    ///     vec![Point3D::new(1.0, 0.0, 0.0), Point3D::new(1.0, 1.0, 0.0)],
+    ///     vec![Point::new(0.0, 0.0, 0.0), Point::new(0.0, 1.0, 0.0)],
+    ///     vec![Point::new(1.0, 0.0, 0.0), Point::new(1.0, 1.0, 0.0)],
     /// ];
     /// let (knots, mults) = (vec![0.0, 1.0], vec![2, 2]);
     /// let patch =
@@ -449,7 +449,7 @@ pub trait ParametricSurface {
     /// let surface = Surface::from(&patch);
     /// assert_eq!(surface.as_bspline(), Some(&patch));
     ///
-    /// let plane = Plane::new(Point3D::ORIGIN, Vector3D::Z).unwrap();
+    /// let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
     /// assert_eq!(ParametricSurface::as_bspline(&plane), None);
     /// ```
     fn as_bspline(&self) -> Option<&BSplineSurface> {
@@ -468,9 +468,9 @@ pub trait ParametricSurface {
     ///
     /// ```
     /// use geomcore::surfaces::{ElementarySurface, ParametricSurface};
-    /// use geomcore::{Point3D, Sphere};
+    /// use geomcore::{Point, Sphere};
     ///
-    /// let sphere = Sphere::new(Point3D::ORIGIN, 1.0).unwrap();
+    /// let sphere = Sphere::new(Point::ORIGIN, 1.0).unwrap();
     /// assert_eq!(
     ///     ParametricSurface::as_elementary(&sphere),
     ///     Some(ElementarySurface::Sphere(sphere))
@@ -484,7 +484,7 @@ pub trait ParametricSurface {
 /// Outcome of rungs 1–2 of [`ParametricSurface::normal`].
 enum Recovery {
     /// A unique normal: direct, or recovered with transverse agreement.
-    Unique(Vector3D),
+    Unique(Vector),
     /// Nothing recovered here at all: rung 3 may step off instead.
     Absent,
     /// Recoveries disagree along the collapsed parameter line (a cone
@@ -555,7 +555,7 @@ fn normal_from_derivatives<S: ParametricSurface + ?Sized>(
     v: f64,
     bounds: [(f64, f64); 2],
     tol: Tolerance,
-) -> Option<Vector3D> {
+) -> Option<Vector> {
     match normal_recovery(surface, u, v, bounds, tol) {
         Recovery::Unique(normal) => Some(normal),
         Recovery::Absent | Recovery::Disputed => None,
@@ -566,12 +566,12 @@ fn normal_from_derivatives<S: ParametricSurface + ?Sized>(
 /// the first partials, or `None` where a partial is negligible over its
 /// parameter width or both run parallel.
 fn direct_normal(
-    su: Vector3D,
-    sv: Vector3D,
+    su: Vector,
+    sv: Vector,
     u_width: f64,
     v_width: f64,
     tol: Tolerance,
-) -> Option<Vector3D> {
+) -> Option<Vector> {
     let (su_length, sv_length) = (su.magnitude(), sv.magnitude());
     let cross = su.cross(sv);
     let cross_length = cross.magnitude();
@@ -624,11 +624,11 @@ pub(crate) fn partials_span_a_plane(
 /// the domain half: below an apex in the middle of the range, too.
 #[allow(clippy::too_many_arguments)]
 fn substituted_normal(
-    su: Vector3D,
-    sv: Vector3D,
-    suu: Vector3D,
-    suv: Vector3D,
-    svv: Vector3D,
+    su: Vector,
+    sv: Vector,
+    suu: Vector,
+    suv: Vector,
+    svv: Vector,
     u: f64,
     v: f64,
     bounds: [(f64, f64); 2],
@@ -636,12 +636,12 @@ fn substituted_normal(
     u_width: f64,
     v_width: f64,
     tol: Tolerance,
-) -> Option<Vector3D> {
+) -> Option<Vector> {
     let orientation = |x: f64, (first, last): (f64, f64)| {
         if x > 0.5 * (first + last) { -1.0 } else { 1.0 }
     };
     let (u_orientation, v_orientation) = (orientation(u, bounds[0]), orientation(v, bounds[1]));
-    let sign = |partial: Vector3D, substitute: Vector3D, measured: bool, guess: f64| {
+    let sign = |partial: Vector, substitute: Vector, measured: bool, guess: f64| {
         let alignment = partial.dot(substitute);
         if measured && alignment != 0.0 {
             alignment.signum()
@@ -656,7 +656,7 @@ fn substituted_normal(
         sign(su, suu, su_measured, u_orientation),
         sign(sv, svv, sv_measured, v_orientation),
     ];
-    let direction = |derivative: Vector3D, reach: f64| {
+    let direction = |derivative: Vector, reach: f64| {
         let length = derivative.magnitude();
         (!tol.is_negligible_derivative(length, reach)).then(|| derivative * (1.0 / length))
     };
@@ -707,9 +707,9 @@ enum Direction {
 /// meridian through `(u, v)` is still one direction, and its limiting
 /// normal is the normal there.
 fn lies_on_collapsed_line(
-    point: Point3D,
-    partial: Vector3D,
-    mixed: Vector3D,
+    point: Point,
+    partial: Vector,
+    mixed: Vector,
     width: f64,
     across: f64,
     (across_first, across_last): (f64, f64),
@@ -745,7 +745,7 @@ fn transverse_agreement<S: ParametricSurface + ?Sized>(
     v: f64,
     direction: Direction,
     bounds: [(f64, f64); 2],
-    candidate: Vector3D,
+    candidate: Vector,
     tol: Tolerance,
 ) -> bool {
     let agreement = tol.angular.sqrt();
@@ -806,19 +806,19 @@ fn shift_parameter(
 }
 
 impl ParametricSurface for Plane {
-    fn eval_point(&self, u: f64, v: f64) -> Point3D {
+    fn eval_point(&self, u: f64, v: f64) -> Point {
         Plane::eval_point(self, u, v)
     }
 
-    fn project_point(&self, point: Point3D, tol: Tolerance) -> SurfaceProjection {
+    fn project_point(&self, point: Point, tol: Tolerance) -> SurfaceProjection {
         Plane::project_point(self, point, tol)
     }
 
-    fn contains(&self, point: Point3D, tol: Tolerance) -> bool {
+    fn contains(&self, point: Point, tol: Tolerance) -> bool {
         Plane::contains(self, point, tol)
     }
 
-    fn eval_derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> Vector3D {
+    fn eval_derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> Vector {
         Plane::eval_derivative(self, u, v, du, dv)
     }
 
@@ -838,7 +838,7 @@ impl ParametricSurface for Plane {
         None
     }
 
-    fn eval_points(&self, uvs: &[(f64, f64)]) -> Vec<Point3D> {
+    fn eval_points(&self, uvs: &[(f64, f64)]) -> Vec<Point> {
         Plane::eval_points(self, uvs)
     }
 
@@ -848,19 +848,19 @@ impl ParametricSurface for Plane {
 }
 
 impl ParametricSurface for Cylinder {
-    fn eval_point(&self, u: f64, v: f64) -> Point3D {
+    fn eval_point(&self, u: f64, v: f64) -> Point {
         Cylinder::eval_point(self, u, v)
     }
 
-    fn project_point(&self, point: Point3D, tol: Tolerance) -> SurfaceProjection {
+    fn project_point(&self, point: Point, tol: Tolerance) -> SurfaceProjection {
         Cylinder::project_point(self, point, tol)
     }
 
-    fn contains(&self, point: Point3D, tol: Tolerance) -> bool {
+    fn contains(&self, point: Point, tol: Tolerance) -> bool {
         Cylinder::contains(self, point, tol)
     }
 
-    fn eval_derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> Vector3D {
+    fn eval_derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> Vector {
         Cylinder::eval_derivative(self, u, v, du, dv)
     }
 
@@ -880,7 +880,7 @@ impl ParametricSurface for Cylinder {
         None
     }
 
-    fn eval_points(&self, uvs: &[(f64, f64)]) -> Vec<Point3D> {
+    fn eval_points(&self, uvs: &[(f64, f64)]) -> Vec<Point> {
         Cylinder::eval_points(self, uvs)
     }
 
@@ -890,19 +890,19 @@ impl ParametricSurface for Cylinder {
 }
 
 impl ParametricSurface for Cone {
-    fn eval_point(&self, u: f64, v: f64) -> Point3D {
+    fn eval_point(&self, u: f64, v: f64) -> Point {
         Cone::eval_point(self, u, v)
     }
 
-    fn project_point(&self, point: Point3D, tol: Tolerance) -> SurfaceProjection {
+    fn project_point(&self, point: Point, tol: Tolerance) -> SurfaceProjection {
         Cone::project_point(self, point, tol)
     }
 
-    fn contains(&self, point: Point3D, tol: Tolerance) -> bool {
+    fn contains(&self, point: Point, tol: Tolerance) -> bool {
         Cone::contains(self, point, tol)
     }
 
-    fn eval_derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> Vector3D {
+    fn eval_derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> Vector {
         Cone::eval_derivative(self, u, v, du, dv)
     }
 
@@ -922,7 +922,7 @@ impl ParametricSurface for Cone {
         None
     }
 
-    fn eval_points(&self, uvs: &[(f64, f64)]) -> Vec<Point3D> {
+    fn eval_points(&self, uvs: &[(f64, f64)]) -> Vec<Point> {
         Cone::eval_points(self, uvs)
     }
 
@@ -932,19 +932,19 @@ impl ParametricSurface for Cone {
 }
 
 impl ParametricSurface for Sphere {
-    fn eval_point(&self, u: f64, v: f64) -> Point3D {
+    fn eval_point(&self, u: f64, v: f64) -> Point {
         Sphere::eval_point(self, u, v)
     }
 
-    fn project_point(&self, point: Point3D, tol: Tolerance) -> SurfaceProjection {
+    fn project_point(&self, point: Point, tol: Tolerance) -> SurfaceProjection {
         Sphere::project_point(self, point, tol)
     }
 
-    fn contains(&self, point: Point3D, tol: Tolerance) -> bool {
+    fn contains(&self, point: Point, tol: Tolerance) -> bool {
         Sphere::contains(self, point, tol)
     }
 
-    fn eval_derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> Vector3D {
+    fn eval_derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> Vector {
         Sphere::eval_derivative(self, u, v, du, dv)
     }
 
@@ -964,7 +964,7 @@ impl ParametricSurface for Sphere {
         None
     }
 
-    fn eval_points(&self, uvs: &[(f64, f64)]) -> Vec<Point3D> {
+    fn eval_points(&self, uvs: &[(f64, f64)]) -> Vec<Point> {
         Sphere::eval_points(self, uvs)
     }
 
@@ -974,19 +974,19 @@ impl ParametricSurface for Sphere {
 }
 
 impl ParametricSurface for Torus {
-    fn eval_point(&self, u: f64, v: f64) -> Point3D {
+    fn eval_point(&self, u: f64, v: f64) -> Point {
         Torus::eval_point(self, u, v)
     }
 
-    fn project_point(&self, point: Point3D, tol: Tolerance) -> SurfaceProjection {
+    fn project_point(&self, point: Point, tol: Tolerance) -> SurfaceProjection {
         Torus::project_point(self, point, tol)
     }
 
-    fn contains(&self, point: Point3D, tol: Tolerance) -> bool {
+    fn contains(&self, point: Point, tol: Tolerance) -> bool {
         Torus::contains(self, point, tol)
     }
 
-    fn eval_derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> Vector3D {
+    fn eval_derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> Vector {
         Torus::eval_derivative(self, u, v, du, dv)
     }
 
@@ -1006,7 +1006,7 @@ impl ParametricSurface for Torus {
         Some(TAU)
     }
 
-    fn eval_points(&self, uvs: &[(f64, f64)]) -> Vec<Point3D> {
+    fn eval_points(&self, uvs: &[(f64, f64)]) -> Vec<Point> {
         Torus::eval_points(self, uvs)
     }
 
@@ -1026,15 +1026,15 @@ impl ParametricSurface for Torus {
 ///
 /// ```
 /// use geomcore::surfaces::{ParametricSurface, Surface};
-/// use geomcore::{Plane, Point3D, Sphere, Vector3D};
+/// use geomcore::{Plane, Point, Sphere, Vector};
 ///
 /// let surfaces: Vec<Surface> = vec![
-///     Plane::new(Point3D::ORIGIN, Vector3D::Z).unwrap().into(),
-///     Sphere::new(Point3D::ORIGIN, 2.0).unwrap().into(),
+///     Plane::new(Point::ORIGIN, Vector::Z).unwrap().into(),
+///     Sphere::new(Point::ORIGIN, 2.0).unwrap().into(),
 /// ];
-/// let points: Vec<Point3D> = surfaces.iter().map(|s| s.eval_point(0.0, 0.0)).collect();
-/// assert_eq!(points[0], Point3D::ORIGIN);
-/// assert_eq!(points[1], Point3D::new(2.0, 0.0, 0.0));
+/// let points: Vec<Point> = surfaces.iter().map(|s| s.eval_point(0.0, 0.0)).collect();
+/// assert_eq!(points[0], Point::ORIGIN);
+/// assert_eq!(points[1], Point::new(2.0, 0.0, 0.0));
 /// ```
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
@@ -1068,19 +1068,19 @@ impl Surface {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Curve3D, Cylinder, Point3D, Surface, Vector3D};
-    /// let cylinder = Surface::from(Cylinder::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap());
-    /// assert!(matches!(cylinder.u_iso(0.0), Ok(Curve3D::Line(_))));
-    /// assert!(matches!(cylinder.v_iso(0.0), Ok(Curve3D::Circle(_))));
+    /// use geomcore::{Curve, Cylinder, Point, Surface, Vector};
+    /// let cylinder = Surface::from(Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap());
+    /// assert!(matches!(cylinder.u_iso(0.0), Ok(Curve::Line(_))));
+    /// assert!(matches!(cylinder.v_iso(0.0), Ok(Curve::Circle(_))));
     /// ```
-    pub fn u_iso(&self, u: f64) -> Result<Curve3D, SurfaceIsoError> {
+    pub fn u_iso(&self, u: f64) -> Result<Curve, SurfaceIsoError> {
         Ok(match self {
-            Surface::Plane(s) => Curve3D::Line(s.u_iso(u)?),
-            Surface::Cylinder(s) => Curve3D::Line(s.u_iso(u)?),
-            Surface::Cone(s) => Curve3D::Line(s.u_iso(u)?),
-            Surface::Sphere(s) => Curve3D::Circle(s.u_iso(u)?),
-            Surface::Torus(s) => Curve3D::Circle(s.u_iso(u)?),
-            Surface::BSpline(s) => Curve3D::BSpline(s.u_iso(u)?),
+            Surface::Plane(s) => Curve::Line(s.u_iso(u)?),
+            Surface::Cylinder(s) => Curve::Line(s.u_iso(u)?),
+            Surface::Cone(s) => Curve::Line(s.u_iso(u)?),
+            Surface::Sphere(s) => Curve::Circle(s.u_iso(u)?),
+            Surface::Torus(s) => Curve::Circle(s.u_iso(u)?),
+            Surface::BSpline(s) => Curve::BSpline(s.u_iso(u)?),
         })
     }
 
@@ -1096,18 +1096,18 @@ impl Surface {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Curve3D, Plane, Point3D, Surface, Vector3D};
-    /// let plane = Surface::from(Plane::new(Point3D::ORIGIN, Vector3D::Z).unwrap());
-    /// assert!(matches!(plane.v_iso(1.0), Ok(Curve3D::Line(_))));
+    /// use geomcore::{Curve, Plane, Point, Surface, Vector};
+    /// let plane = Surface::from(Plane::new(Point::ORIGIN, Vector::Z).unwrap());
+    /// assert!(matches!(plane.v_iso(1.0), Ok(Curve::Line(_))));
     /// ```
-    pub fn v_iso(&self, v: f64) -> Result<Curve3D, SurfaceIsoError> {
+    pub fn v_iso(&self, v: f64) -> Result<Curve, SurfaceIsoError> {
         Ok(match self {
-            Surface::Plane(s) => Curve3D::Line(s.v_iso(v)?),
-            Surface::Cylinder(s) => Curve3D::Circle(s.v_iso(v)?),
-            Surface::Cone(s) => Curve3D::Circle(s.v_iso(v)?),
-            Surface::Sphere(s) => Curve3D::Circle(s.v_iso(v)?),
-            Surface::Torus(s) => Curve3D::Circle(s.v_iso(v)?),
-            Surface::BSpline(s) => Curve3D::BSpline(s.v_iso(v)?),
+            Surface::Plane(s) => Curve::Line(s.v_iso(v)?),
+            Surface::Cylinder(s) => Curve::Circle(s.v_iso(v)?),
+            Surface::Cone(s) => Curve::Circle(s.v_iso(v)?),
+            Surface::Sphere(s) => Curve::Circle(s.v_iso(v)?),
+            Surface::Torus(s) => Curve::Circle(s.v_iso(v)?),
+            Surface::BSpline(s) => Curve::BSpline(s.v_iso(v)?),
         })
     }
 
@@ -1119,8 +1119,8 @@ impl Surface {
     ///
     /// ```
     /// use geomcore::surfaces::ParametricSurface;
-    /// use geomcore::{Cylinder, Point3D, Surface, Vector3D};
-    /// let cylinder = Surface::from(Cylinder::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap());
+    /// use geomcore::{Cylinder, Point, Surface, Vector};
+    /// let cylinder = Surface::from(Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap());
     /// let reversed = cylinder.reversed_u();
     /// assert_eq!(reversed.eval_point(1.0, 3.0), cylinder.eval_point(-1.0, 3.0));
     /// ```
@@ -1142,8 +1142,8 @@ impl Surface {
     ///
     /// ```
     /// use geomcore::surfaces::ParametricSurface;
-    /// use geomcore::{Plane, Point3D, Surface, Vector3D};
-    /// let plane = Surface::from(Plane::new(Point3D::ORIGIN, Vector3D::Z).unwrap());
+    /// use geomcore::{Plane, Point, Surface, Vector};
+    /// let plane = Surface::from(Plane::new(Point::ORIGIN, Vector::Z).unwrap());
     /// let reversed = plane.reversed_v();
     /// assert_eq!(reversed.eval_point(1.0, 2.0), plane.eval_point(1.0, -2.0));
     /// ```
@@ -1167,8 +1167,8 @@ impl Surface {
     ///
     /// ```
     /// use geomcore::surfaces::ParametricSurface;
-    /// use geomcore::{Cylinder, Point3D, Surface, Vector3D};
-    /// let cylinder = Surface::from(Cylinder::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap());
+    /// use geomcore::{Cylinder, Point, Surface, Vector};
+    /// let cylinder = Surface::from(Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap());
     /// let u = cylinder.u_reversed_parameter(1.0);
     /// let there = cylinder.reversed_u().eval_point(u, 3.0);
     /// assert!(there.distance(cylinder.eval_point(1.0, 3.0)) < 1e-12);
@@ -1190,8 +1190,8 @@ impl Surface {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Point3D, Sphere, Surface};
-    /// let sphere = Surface::from(Sphere::new(Point3D::ORIGIN, 2.0).unwrap());
+    /// use geomcore::{Point, Sphere, Surface};
+    /// let sphere = Surface::from(Sphere::new(Point::ORIGIN, 2.0).unwrap());
     /// assert_eq!(sphere.v_reversed_parameter(0.5), -0.5);
     /// ```
     pub fn v_reversed_parameter(&self, v: f64) -> f64 {
@@ -1207,7 +1207,7 @@ impl Surface {
 }
 
 impl ParametricSurface for Surface {
-    fn eval_point(&self, u: f64, v: f64) -> Point3D {
+    fn eval_point(&self, u: f64, v: f64) -> Point {
         match self {
             Surface::Plane(s) => s.eval_point(u, v),
             Surface::Cylinder(s) => s.eval_point(u, v),
@@ -1218,7 +1218,7 @@ impl ParametricSurface for Surface {
         }
     }
 
-    fn eval_derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> Vector3D {
+    fn eval_derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> Vector {
         match self {
             Surface::Plane(s) => s.eval_derivative(u, v, du, dv),
             Surface::Cylinder(s) => s.eval_derivative(u, v, du, dv),
@@ -1229,7 +1229,7 @@ impl ParametricSurface for Surface {
         }
     }
 
-    fn eval_d1(&self, u: f64, v: f64) -> (Point3D, [Vector3D; 2]) {
+    fn eval_d1(&self, u: f64, v: f64) -> (Point, [Vector; 2]) {
         match self {
             Surface::Plane(s) => ParametricSurface::eval_d1(s, u, v),
             Surface::Cylinder(s) => ParametricSurface::eval_d1(s, u, v),
@@ -1240,7 +1240,7 @@ impl ParametricSurface for Surface {
         }
     }
 
-    fn eval_d2(&self, u: f64, v: f64) -> (Point3D, [Vector3D; 2], [Vector3D; 3]) {
+    fn eval_d2(&self, u: f64, v: f64) -> (Point, [Vector; 2], [Vector; 3]) {
         match self {
             Surface::Plane(s) => ParametricSurface::eval_d2(s, u, v),
             Surface::Cylinder(s) => ParametricSurface::eval_d2(s, u, v),
@@ -1317,7 +1317,7 @@ impl ParametricSurface for Surface {
         }
     }
 
-    fn project_point(&self, point: Point3D, tol: Tolerance) -> SurfaceProjection {
+    fn project_point(&self, point: Point, tol: Tolerance) -> SurfaceProjection {
         match self {
             Surface::Plane(s) => s.project_point(point, tol),
             Surface::Cylinder(s) => s.project_point(point, tol),
@@ -1328,7 +1328,7 @@ impl ParametricSurface for Surface {
         }
     }
 
-    fn contains(&self, point: Point3D, tol: Tolerance) -> bool {
+    fn contains(&self, point: Point, tol: Tolerance) -> bool {
         match self {
             Surface::Plane(s) => s.contains(point, tol),
             Surface::Cylinder(s) => s.contains(point, tol),
@@ -1339,7 +1339,7 @@ impl ParametricSurface for Surface {
         }
     }
 
-    fn eval_points(&self, uvs: &[(f64, f64)]) -> Vec<Point3D> {
+    fn eval_points(&self, uvs: &[(f64, f64)]) -> Vec<Point> {
         match self {
             Surface::Plane(s) => s.eval_points(uvs),
             Surface::Cylinder(s) => s.eval_points(uvs),
@@ -1513,9 +1513,9 @@ impl From<&BSplineSurface> for Surface {
 ///
 /// ```
 /// use geomcore::surfaces::{ElementarySurface, Surface};
-/// use geomcore::{Plane, Point3D, Vector3D};
+/// use geomcore::{Plane, Point, Vector};
 ///
-/// let plane = Plane::new(Point3D::ORIGIN, Vector3D::Z).unwrap();
+/// let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
 /// let surface = Surface::from(plane);
 /// assert_eq!(surface.as_elementary(), Some(ElementarySurface::Plane(plane)));
 /// ```
@@ -1542,19 +1542,19 @@ impl Surface {
     ///
     /// ```
     /// use geomcore::surfaces::Surface;
-    /// use geomcore::{Plane, Point3D, Tolerance, Vector3D};
+    /// use geomcore::{Plane, Point, Tolerance, Vector};
     ///
-    /// let surface = Surface::from(Plane::new(Point3D::ORIGIN, Vector3D::Z).unwrap());
-    /// let projection = surface.project_point(Point3D::new(1.0, 2.0, 3.0), Tolerance::DEFAULT);
-    /// assert_eq!(projection.point, Point3D::new(1.0, 2.0, 0.0));
+    /// let surface = Surface::from(Plane::new(Point::ORIGIN, Vector::Z).unwrap());
+    /// let projection = surface.project_point(Point::new(1.0, 2.0, 3.0), Tolerance::DEFAULT);
+    /// assert_eq!(projection.point, Point::new(1.0, 2.0, 0.0));
     /// assert_eq!(projection.distance, 3.0);
     /// ```
-    pub fn project_point(&self, point: Point3D, tol: Tolerance) -> SurfaceProjection {
+    pub fn project_point(&self, point: Point, tol: Tolerance) -> SurfaceProjection {
         ParametricSurface::project_point(self, point, tol)
     }
 
     /// Projects each point in `points` onto the surface.
-    pub fn project_points(&self, points: &[Point3D], tol: Tolerance) -> Vec<SurfaceProjection> {
+    pub fn project_points(&self, points: &[Point], tol: Tolerance) -> Vec<SurfaceProjection> {
         points.iter().map(|&p| self.project_point(p, tol)).collect()
     }
 
@@ -1571,14 +1571,14 @@ impl Surface {
     ///
     /// ```
     /// use geomcore::surfaces::Surface;
-    /// use geomcore::{Plane, Point3D, Vector3D};
+    /// use geomcore::{Plane, Point, Vector};
     ///
-    /// let surface = Surface::from(Plane::new(Point3D::ORIGIN, Vector3D::Z).unwrap());
-    /// let (u, v) = surface.parameters_of(Point3D::new(1.0, 2.0, 0.0));
+    /// let surface = Surface::from(Plane::new(Point::ORIGIN, Vector::Z).unwrap());
+    /// let (u, v) = surface.parameters_of(Point::new(1.0, 2.0, 0.0));
     /// let back = geomcore::ParametricSurface::eval_point(&surface, u, v);
-    /// assert!(back.distance(Point3D::new(1.0, 2.0, 0.0)) < 1e-12);
+    /// assert!(back.distance(Point::new(1.0, 2.0, 0.0)) < 1e-12);
     /// ```
-    pub fn parameters_of(&self, point: Point3D) -> (f64, f64) {
+    pub fn parameters_of(&self, point: Point) -> (f64, f64) {
         match self {
             Surface::Plane(s) => s.parameters_of(point),
             Surface::Cylinder(s) => s.parameters_of(point),
@@ -1613,14 +1613,14 @@ impl ElementarySurface {
     ///
     /// ```
     /// use geomcore::surfaces::ElementarySurface;
-    /// use geomcore::{Plane, Point3D, Vector3D};
+    /// use geomcore::{Plane, Point, Vector};
     ///
-    /// let surface = ElementarySurface::from(Plane::new(Point3D::ORIGIN, Vector3D::Z).unwrap());
-    /// let (u, v) = surface.parameters_of(Point3D::new(1.0, 2.0, 0.0));
+    /// let surface = ElementarySurface::from(Plane::new(Point::ORIGIN, Vector::Z).unwrap());
+    /// let (u, v) = surface.parameters_of(Point::new(1.0, 2.0, 0.0));
     /// let back = geomcore::ParametricSurface::eval_point(&surface, u, v);
-    /// assert!(back.distance(Point3D::new(1.0, 2.0, 0.0)) < 1e-12);
+    /// assert!(back.distance(Point::new(1.0, 2.0, 0.0)) < 1e-12);
     /// ```
-    pub fn parameters_of(&self, point: Point3D) -> (f64, f64) {
+    pub fn parameters_of(&self, point: Point) -> (f64, f64) {
         match self {
             ElementarySurface::Plane(s) => s.parameters_of(point),
             ElementarySurface::Cylinder(s) => s.parameters_of(point),
@@ -1638,25 +1638,25 @@ impl ElementarySurface {
     ///
     /// ```
     /// use geomcore::surfaces::ElementarySurface;
-    /// use geomcore::{Plane, Point3D, Tolerance, Vector3D};
+    /// use geomcore::{Plane, Point, Tolerance, Vector};
     ///
-    /// let surface = ElementarySurface::from(Plane::new(Point3D::ORIGIN, Vector3D::Z).unwrap());
-    /// let projection = surface.project_point(Point3D::new(1.0, 2.0, 3.0), Tolerance::DEFAULT);
-    /// assert_eq!(projection.point, Point3D::new(1.0, 2.0, 0.0));
+    /// let surface = ElementarySurface::from(Plane::new(Point::ORIGIN, Vector::Z).unwrap());
+    /// let projection = surface.project_point(Point::new(1.0, 2.0, 3.0), Tolerance::DEFAULT);
+    /// assert_eq!(projection.point, Point::new(1.0, 2.0, 0.0));
     /// assert_eq!(projection.distance, 3.0);
     /// ```
-    pub fn project_point(&self, point: Point3D, tol: Tolerance) -> SurfaceProjection {
+    pub fn project_point(&self, point: Point, tol: Tolerance) -> SurfaceProjection {
         ParametricSurface::project_point(self, point, tol)
     }
 
     /// Projects each point in `points` onto the surface.
-    pub fn project_points(&self, points: &[Point3D], tol: Tolerance) -> Vec<SurfaceProjection> {
+    pub fn project_points(&self, points: &[Point], tol: Tolerance) -> Vec<SurfaceProjection> {
         points.iter().map(|&p| self.project_point(p, tol)).collect()
     }
 }
 
 impl ParametricSurface for ElementarySurface {
-    fn eval_point(&self, u: f64, v: f64) -> Point3D {
+    fn eval_point(&self, u: f64, v: f64) -> Point {
         match self {
             ElementarySurface::Plane(s) => s.eval_point(u, v),
             ElementarySurface::Cylinder(s) => s.eval_point(u, v),
@@ -1666,7 +1666,7 @@ impl ParametricSurface for ElementarySurface {
         }
     }
 
-    fn eval_derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> Vector3D {
+    fn eval_derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> Vector {
         match self {
             ElementarySurface::Plane(s) => s.eval_derivative(u, v, du, dv),
             ElementarySurface::Cylinder(s) => s.eval_derivative(u, v, du, dv),
@@ -1716,7 +1716,7 @@ impl ParametricSurface for ElementarySurface {
         }
     }
 
-    fn project_point(&self, point: Point3D, tol: Tolerance) -> SurfaceProjection {
+    fn project_point(&self, point: Point, tol: Tolerance) -> SurfaceProjection {
         match self {
             ElementarySurface::Plane(s) => s.project_point(point, tol),
             ElementarySurface::Cylinder(s) => s.project_point(point, tol),
@@ -1726,7 +1726,7 @@ impl ParametricSurface for ElementarySurface {
         }
     }
 
-    fn contains(&self, point: Point3D, tol: Tolerance) -> bool {
+    fn contains(&self, point: Point, tol: Tolerance) -> bool {
         match self {
             ElementarySurface::Plane(s) => s.contains(point, tol),
             ElementarySurface::Cylinder(s) => s.contains(point, tol),
@@ -1736,7 +1736,7 @@ impl ParametricSurface for ElementarySurface {
         }
     }
 
-    fn eval_points(&self, uvs: &[(f64, f64)]) -> Vec<Point3D> {
+    fn eval_points(&self, uvs: &[(f64, f64)]) -> Vec<Point> {
         match self {
             ElementarySurface::Plane(s) => s.eval_points(uvs),
             ElementarySurface::Cylinder(s) => s.eval_points(uvs),
@@ -1803,37 +1803,37 @@ impl From<Torus> for ElementarySurface {
 mod tests {
     use super::*;
     use crate::Continuity::{Order, Smooth};
-    use crate::Point3D;
+    use crate::Point;
 
-    fn sample<S: ParametricSurface>(s: &S) -> Point3D {
+    fn sample<S: ParametricSurface>(s: &S) -> Point {
         s.eval_point(0.3, 0.4)
     }
 
     fn plane() -> Plane {
-        Plane::new(Point3D::ORIGIN, Vector3D::Z).unwrap()
+        Plane::new(Point::ORIGIN, Vector::Z).unwrap()
     }
 
     fn cylinder() -> Cylinder {
-        Cylinder::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap()
+        Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap()
     }
 
     fn cone() -> Cone {
-        Cone::new(Point3D::ORIGIN, Vector3D::Z, 0.4, 2.0).unwrap()
+        Cone::new(Point::ORIGIN, Vector::Z, 0.4, 2.0).unwrap()
     }
 
     fn sphere() -> Sphere {
-        Sphere::new(Point3D::ORIGIN, 3.0).unwrap()
+        Sphere::new(Point::ORIGIN, 3.0).unwrap()
     }
 
     fn torus() -> Torus {
-        Torus::new(Point3D::ORIGIN, Vector3D::Z, 5.0, 1.5).unwrap()
+        Torus::new(Point::ORIGIN, Vector::Z, 5.0, 1.5).unwrap()
     }
 
     fn bspline() -> BSplineSurface {
         // Bilinear degree-1x1 patch over the unit square (clamped both ways).
         let poles = vec![
-            vec![Point3D::new(0.0, 0.0, 0.0), Point3D::new(0.0, 1.0, 0.0)],
-            vec![Point3D::new(1.0, 0.0, 0.0), Point3D::new(1.0, 1.0, 1.0)],
+            vec![Point::new(0.0, 0.0, 0.0), Point::new(0.0, 1.0, 0.0)],
+            vec![Point::new(1.0, 0.0, 0.0), Point::new(1.0, 1.0, 1.0)],
         ];
         BSplineSurface::new(
             1,
@@ -1904,7 +1904,7 @@ mod tests {
         let s = sphere();
         let t = torus();
         let surfaces: Vec<Surface> = vec![p.into(), c.into(), cn.into(), s.into(), t.into()];
-        let points: Vec<Point3D> = surfaces
+        let points: Vec<Point> = surfaces
             .iter()
             .map(|surf| surf.eval_point(0.2, 0.1))
             .collect();
@@ -2168,23 +2168,23 @@ mod tests {
         let uvs = [(0.0, 0.0), (0.5, 0.2), (1.0, -0.3), (-2.0, 1.1)];
 
         let p = plane();
-        let expected: Vec<Point3D> = uvs.iter().map(|&(u, v)| p.eval_point(u, v)).collect();
+        let expected: Vec<Point> = uvs.iter().map(|&(u, v)| p.eval_point(u, v)).collect();
         assert_eq!(ParametricSurface::eval_points(&p, &uvs), expected);
 
         let c = cylinder();
-        let expected: Vec<Point3D> = uvs.iter().map(|&(u, v)| c.eval_point(u, v)).collect();
+        let expected: Vec<Point> = uvs.iter().map(|&(u, v)| c.eval_point(u, v)).collect();
         assert_eq!(ParametricSurface::eval_points(&c, &uvs), expected);
 
         let cn = cone();
-        let expected: Vec<Point3D> = uvs.iter().map(|&(u, v)| cn.eval_point(u, v)).collect();
+        let expected: Vec<Point> = uvs.iter().map(|&(u, v)| cn.eval_point(u, v)).collect();
         assert_eq!(ParametricSurface::eval_points(&cn, &uvs), expected);
 
         let s = sphere();
-        let expected: Vec<Point3D> = uvs.iter().map(|&(u, v)| s.eval_point(u, v)).collect();
+        let expected: Vec<Point> = uvs.iter().map(|&(u, v)| s.eval_point(u, v)).collect();
         assert_eq!(ParametricSurface::eval_points(&s, &uvs), expected);
 
         let t = torus();
-        let expected: Vec<Point3D> = uvs.iter().map(|&(u, v)| t.eval_point(u, v)).collect();
+        let expected: Vec<Point> = uvs.iter().map(|&(u, v)| t.eval_point(u, v)).collect();
         assert_eq!(ParametricSurface::eval_points(&t, &uvs), expected);
     }
 
@@ -2199,8 +2199,7 @@ mod tests {
             torus().into(),
         ];
         for surface in &surfaces {
-            let expected: Vec<Point3D> =
-                uvs.iter().map(|&(u, v)| surface.eval_point(u, v)).collect();
+            let expected: Vec<Point> = uvs.iter().map(|&(u, v)| surface.eval_point(u, v)).collect();
             assert_eq!(surface.eval_points(&uvs), expected);
         }
     }
@@ -2234,7 +2233,7 @@ mod tests {
         let tol = Tolerance::DEFAULT;
         assert_eq!(
             ParametricSurface::normal(&p, 1.0, -2.0, tol),
-            Some(Vector3D::Z)
+            Some(Vector::Z)
         );
         assert_eq!(
             ParametricSurface::normal(&p, 0.0, 0.0, tol),
@@ -2248,7 +2247,7 @@ mod tests {
         let tol = Tolerance::DEFAULT;
         assert_eq!(
             ParametricSurface::normal(&c, 0.0, 3.0, tol),
-            Some(Vector3D::X)
+            Some(Vector::X)
         );
     }
 
@@ -2257,7 +2256,7 @@ mod tests {
         let c = cone();
         let tol = Tolerance::DEFAULT;
         let n = ParametricSurface::normal(&c, 0.0, 0.0, tol).unwrap();
-        let expected = Vector3D::new(0.4f64.cos(), 0.0, -0.4f64.sin());
+        let expected = Vector::new(0.4f64.cos(), 0.0, -0.4f64.sin());
         assert!((n - expected).magnitude() < 1e-12);
         assert!((n.magnitude() - 1.0).abs() < 1e-12);
     }
@@ -2268,13 +2267,13 @@ mod tests {
         let tol = Tolerance::DEFAULT;
         assert_eq!(
             ParametricSurface::normal(&s, 0.0, 0.0, tol),
-            Some(Vector3D::X)
+            Some(Vector::X)
         );
         // Singular points recover their limiting (outward) normal via rung 2.
         let north = ParametricSurface::normal(&s, 0.0, FRAC_PI_2, tol).unwrap();
-        assert!((north - Vector3D::Z).magnitude() < 1e-9);
+        assert!((north - Vector::Z).magnitude() < 1e-9);
         let south = ParametricSurface::normal(&s, 1.0, -FRAC_PI_2, tol).unwrap();
-        assert!((south + Vector3D::Z).magnitude() < 1e-9);
+        assert!((south + Vector::Z).magnitude() < 1e-9);
     }
 
     #[test]
@@ -2283,7 +2282,7 @@ mod tests {
         let tol = Tolerance::DEFAULT;
         assert_eq!(
             ParametricSurface::normal(&t, 0.0, 0.0, tol),
-            Some(Vector3D::X)
+            Some(Vector::X)
         );
     }
 
@@ -2310,15 +2309,9 @@ mod tests {
         let tol = Tolerance::DEFAULT;
         for u in [0.0f64, 1.0, 2.0, 4.0] {
             let north = ParametricSurface::normal(&s, u, FRAC_PI_2, tol).unwrap();
-            assert!(
-                (north - Vector3D::Z).magnitude() < 1e-9,
-                "u = {u}: {north:?}"
-            );
+            assert!((north - Vector::Z).magnitude() < 1e-9, "u = {u}: {north:?}");
             let south = ParametricSurface::normal(&s, u, -FRAC_PI_2, tol).unwrap();
-            assert!(
-                (south + Vector3D::Z).magnitude() < 1e-9,
-                "u = {u}: {south:?}"
-            );
+            assert!((south + Vector::Z).magnitude() < 1e-9, "u = {u}: {south:?}");
         }
     }
 
@@ -2337,7 +2330,7 @@ mod tests {
         // is noise: a 1e-9 sphere's partials cover ~6e-9 over a turn, so
         // it has no normal anywhere.
         let tol = Tolerance::DEFAULT;
-        let tiny = Sphere::new(Point3D::ORIGIN, 1e-9).unwrap();
+        let tiny = Sphere::new(Point::ORIGIN, 1e-9).unwrap();
         assert_eq!(ParametricSurface::normal(&tiny, 0.0, 0.0, tol), None);
     }
 
@@ -2376,17 +2369,17 @@ mod tests {
     }
 
     impl ParametricSurface for DeadZone {
-        fn eval_point(&self, _u: f64, _v: f64) -> Point3D {
-            Point3D::ORIGIN
+        fn eval_point(&self, _u: f64, _v: f64) -> Point {
+            Point::ORIGIN
         }
 
-        fn eval_derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> Vector3D {
+        fn eval_derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> Vector {
             let reach = self.dead * self.scale;
             let dead = u.abs() < reach && v.abs() < reach;
             match (du, dv) {
-                (1, 0) if !dead => Vector3D::X * (1.0 / self.scale),
-                (0, 1) if !dead => Vector3D::Y * (1.0 / self.scale),
-                _ => Vector3D::ZERO,
+                (1, 0) if !dead => Vector::X * (1.0 / self.scale),
+                (0, 1) if !dead => Vector::Y * (1.0 / self.scale),
+                _ => Vector::ZERO,
             }
         }
 
@@ -2406,16 +2399,16 @@ mod tests {
             None
         }
 
-        fn project_point(&self, _point: Point3D, _tol: Tolerance) -> SurfaceProjection {
+        fn project_point(&self, _point: Point, _tol: Tolerance) -> SurfaceProjection {
             SurfaceProjection {
                 u: 0.0,
                 v: 0.0,
-                point: Point3D::ORIGIN,
+                point: Point::ORIGIN,
                 distance: 0.0,
             }
         }
 
-        fn contains(&self, _point: Point3D, _tol: Tolerance) -> bool {
+        fn contains(&self, _point: Point, _tol: Tolerance) -> bool {
             false
         }
     }
@@ -2431,7 +2424,7 @@ mod tests {
             for (u, v) in [(0.0, 0.0), (0.5 * scale, -0.5 * scale)] {
                 let normal = ParametricSurface::normal(&surface, u, v, tol);
                 let normal = normal.unwrap_or_else(|| panic!("scale {scale}, ({u}, {v}): None"));
-                assert!((normal - Vector3D::Z).magnitude() < 1e-15, "scale {scale}");
+                assert!((normal - Vector::Z).magnitude() < 1e-15, "scale {scale}");
             }
         }
     }
@@ -2505,18 +2498,18 @@ mod tests {
     /// A biquadratic dome over `[0, 1]²` whose first pole row collapses
     /// to the apex `(0, 0, 1)`: `Sv` vanishes along `u = 0`.
     fn collapsed_row() -> BSplineSurface {
-        let apex = Point3D::new(0.0, 0.0, 1.0);
+        let apex = Point::new(0.0, 0.0, 1.0);
         let poles = vec![
             vec![apex, apex, apex],
             vec![
-                Point3D::new(0.5, -0.5, 0.6),
-                Point3D::new(0.6, 0.0, 0.7),
-                Point3D::new(0.5, 0.5, 0.6),
+                Point::new(0.5, -0.5, 0.6),
+                Point::new(0.6, 0.0, 0.7),
+                Point::new(0.5, 0.5, 0.6),
             ],
             vec![
-                Point3D::new(1.0, -1.0, 0.0),
-                Point3D::new(1.1, 0.0, 0.1),
-                Point3D::new(1.0, 1.0, 0.0),
+                Point::new(1.0, -1.0, 0.0),
+                Point::new(1.1, 0.0, 0.1),
+                Point::new(1.0, 1.0, 0.0),
             ],
         ];
         let (knots, multiplicities) = (vec![0.0, 1.0], vec![3, 3]);
@@ -2560,7 +2553,7 @@ mod tests {
         // meridian still has a normal: Su × Sv, oriented as it is there.
         let tol = Tolerance::DEFAULT;
         for semi_angle in [0.1, 0.4, 1.2] {
-            let c = Cone::new(Point3D::ORIGIN, Vector3D::Z, semi_angle, 2.0).unwrap();
+            let c = Cone::new(Point::ORIGIN, Vector::Z, semi_angle, 2.0).unwrap();
             let v_apex = -2.0 / semi_angle.sin();
             for offset in [1e-9, -1e-9, 1e-8, -1e-8, 1e-6, -1e-3] {
                 for u in [0.0, 1.0, 4.0] {
@@ -2651,11 +2644,11 @@ mod tests {
             let north = ParametricSurface::normal(&patch, u, FRAC_PI_2, tol).unwrap();
             let south = ParametricSurface::normal(&patch, u, -FRAC_PI_2, tol).unwrap();
             assert!(
-                (north - Vector3D::Z).magnitude() < 1e-12,
+                (north - Vector::Z).magnitude() < 1e-12,
                 "u = {u}: {north:?}"
             );
             assert!(
-                (south + Vector3D::Z).magnitude() < 1e-12,
+                (south + Vector::Z).magnitude() < 1e-12,
                 "u = {u}: {south:?}"
             );
         }
@@ -2671,7 +2664,7 @@ mod tests {
         for polar_angle in [1e-9, 1e-6, 1e-3] {
             let v = FRAC_PI_2 - polar_angle;
             let normal = ParametricSurface::normal(&s, 0.7, v, tol).unwrap();
-            let exact = (s.eval_point(0.7, v) - Point3D::ORIGIN) * (1.0 / 3.0);
+            let exact = (s.eval_point(0.7, v) - Point::ORIGIN) * (1.0 / 3.0);
             assert!(
                 (normal - exact).magnitude() <= 1.01 * polar_angle,
                 "polar angle {polar_angle}: {normal:?}"
@@ -2684,7 +2677,7 @@ mod tests {
     fn closed_u_patch() -> BSplineSurface {
         // Clamped degree-1 patch whose first and last pole rows coincide:
         // closed in `u`, open in `v`, not periodic either way.
-        let row = |x: f64| vec![Point3D::new(x, 0.0, 0.0), Point3D::new(x, 1.0, 0.0)];
+        let row = |x: f64| vec![Point::new(x, 0.0, 0.0), Point::new(x, 1.0, 0.0)];
         BSplineSurface::new(
             1,
             1,
@@ -2754,8 +2747,8 @@ mod tests {
     #[test]
     fn test_bspline_closed_clamped_patch_in_v() {
         // The transpose of `closed_u_patch`: closed in `v` only.
-        let column = |y: f64| Point3D::new(0.0, y, 0.0);
-        let shifted = |y: f64| Point3D::new(1.0, y, 0.0);
+        let column = |y: f64| Point::new(0.0, y, 0.0);
+        let shifted = |y: f64| Point::new(1.0, y, 0.0);
         let s = BSplineSurface::new(
             1,
             1,
@@ -2781,16 +2774,16 @@ mod tests {
         // A closed ring stored without the periodic flag: unclamped
         // uniform knots and the first `degree` pole rows repeated at the
         // end. The boundary curves meet although no pole row sits on them.
-        let ring: Vec<Point3D> = (0..6)
+        let ring: Vec<Point> = (0..6)
             .map(|i| {
                 let angle = i as f64 * std::f64::consts::TAU / 6.0;
-                Point3D::new(angle.cos(), angle.sin(), 0.0)
+                Point::new(angle.cos(), angle.sin(), 0.0)
             })
             .collect();
-        let rows: Vec<Vec<Point3D>> = ring
+        let rows: Vec<Vec<Point>> = ring
             .iter()
             .chain(&ring[..2])
-            .map(|p| vec![*p, Point3D::new(p.x, p.y, 1.0)])
+            .map(|p| vec![*p, Point::new(p.x, p.y, 1.0)])
             .collect();
         let knot_count = rows.len() + 3;
         let s = BSplineSurface::new(
@@ -2814,7 +2807,7 @@ mod tests {
 
     #[test]
     fn test_bspline_rational_closedness_needs_proportional_weights() {
-        let row = |x: f64| vec![Point3D::new(x, 0.0, 0.0), Point3D::new(x, 1.0, 0.0)];
+        let row = |x: f64| vec![Point::new(x, 0.0, 0.0), Point::new(x, 1.0, 0.0)];
         let patch = |last_row_weights: Vec<f64>| {
             BSplineSurface::new_rational(
                 1,
@@ -2885,7 +2878,7 @@ mod tests {
             sphere().into(),
             torus().into(),
         ];
-        let query = Point3D::new(0.7, -1.2, 2.5);
+        let query = Point::new(0.7, -1.2, 2.5);
         for surface in surfaces {
             let wrapped = Surface::from(surface);
             assert_eq!(wrapped.as_elementary(), Some(surface));
@@ -2916,7 +2909,7 @@ mod tests {
     fn creased_u_patch() -> BSplineSurface {
         // Degree 2 in `u` with a double interior knot (C0 at u = 0.5),
         // degree 1 in `v` without interior knots (smooth).
-        let row = |x: f64, z: f64| vec![Point3D::new(x, 0.0, z), Point3D::new(x, 1.0, z)];
+        let row = |x: f64, z: f64| vec![Point::new(x, 0.0, z), Point::new(x, 1.0, z)];
         BSplineSurface::new(
             2,
             1,
@@ -3005,7 +2998,7 @@ mod tests {
 
     // ---- curvatures: principal, mean, Gaussian ----
 
-    fn assert_frame(c: &SurfaceCurvatures, normal: Vector3D) {
+    fn assert_frame(c: &SurfaceCurvatures, normal: Vector) {
         // Unit, orthonormal, tangent directions; k1 + k2 = 2H, k1*k2 = K.
         for direction in [c.min_direction, c.max_direction] {
             assert!((direction.magnitude() - 1.0).abs() < 1e-12);
@@ -3026,8 +3019,8 @@ mod tests {
             SurfaceCurvatures {
                 min_curvature: 0.0,
                 max_curvature: 0.0,
-                min_direction: Vector3D::X,
-                max_direction: Vector3D::Y,
+                min_direction: Vector::X,
+                max_direction: Vector::Y,
                 mean: 0.0,
                 gaussian: 0.0,
             }
@@ -3041,9 +3034,9 @@ mod tests {
         assert!((c.min_curvature + 0.5).abs() < 1e-12);
         assert_eq!(c.max_curvature, 0.0);
         assert_eq!((c.mean, c.gaussian), (-0.25, 0.0));
-        assert!((c.min_direction.dot(Vector3D::Y).abs() - 1.0).abs() < 1e-12);
-        assert!((c.max_direction.dot(Vector3D::Z).abs() - 1.0).abs() < 1e-12);
-        assert_frame(&c, Vector3D::X);
+        assert!((c.min_direction.dot(Vector::Y).abs() - 1.0).abs() < 1e-12);
+        assert!((c.max_direction.dot(Vector::Z).abs() - 1.0).abs() < 1e-12);
+        assert_frame(&c, Vector::X);
     }
 
     #[test]
@@ -3054,7 +3047,7 @@ mod tests {
         assert!((c.max_curvature + 1.0 / 3.0).abs() < 1e-15);
         assert!((c.mean + 1.0 / 3.0).abs() < 1e-15);
         assert!((c.gaussian - 1.0 / 9.0).abs() < 1e-15);
-        assert_frame(&c, Vector3D::X);
+        assert_frame(&c, Vector::X);
     }
 
     #[test]
@@ -3064,9 +3057,9 @@ mod tests {
         assert!((c.min_curvature + 1.0 / 1.5).abs() < 1e-12);
         assert!((c.max_curvature + 1.0 / 6.5).abs() < 1e-12);
         assert!((c.gaussian - 1.0 / (6.5 * 1.5)).abs() < 1e-12);
-        assert!((c.min_direction.dot(Vector3D::Z).abs() - 1.0).abs() < 1e-12);
-        assert!((c.max_direction.dot(Vector3D::Y).abs() - 1.0).abs() < 1e-12);
-        assert_frame(&c, Vector3D::X);
+        assert!((c.min_direction.dot(Vector::Z).abs() - 1.0).abs() < 1e-12);
+        assert!((c.max_direction.dot(Vector::Y).abs() - 1.0).abs() < 1e-12);
+        assert_frame(&c, Vector::X);
     }
 
     #[test]
@@ -3081,9 +3074,9 @@ mod tests {
         assert!((c.max_curvature - 2.0 / 7.0).abs() < 1e-12);
         assert!((c.mean + 4.0 / 21.0).abs() < 1e-12);
         assert!((c.gaussian + 4.0 / 21.0).abs() < 1e-12);
-        assert!((c.min_direction.dot(Vector3D::Z).abs() - 1.0).abs() < 1e-12);
-        assert!((c.max_direction.dot(Vector3D::Y).abs() - 1.0).abs() < 1e-12);
-        assert_frame(&c, -Vector3D::X);
+        assert!((c.min_direction.dot(Vector::Z).abs() - 1.0).abs() < 1e-12);
+        assert!((c.max_direction.dot(Vector::Y).abs() - 1.0).abs() < 1e-12);
+        assert_frame(&c, -Vector::X);
     }
 
     #[test]
@@ -3093,7 +3086,7 @@ mod tests {
         assert!((c.min_curvature + 0.4f64.cos() / 2.0).abs() < 1e-9);
         assert!(c.max_curvature.abs() < 1e-9);
         assert!(c.gaussian.abs() < 1e-9);
-        assert_frame(&c, Vector3D::new(0.4f64.cos(), 0.0, -0.4f64.sin()));
+        assert_frame(&c, Vector::new(0.4f64.cos(), 0.0, -0.4f64.sin()));
     }
 
     #[test]
@@ -3103,7 +3096,7 @@ mod tests {
         let c = ParametricSurface::curvatures(&bspline(), 0.5, 0.5, tol).unwrap();
         assert!((c.gaussian + 1.0 / 2.25).abs() < 1e-9);
         assert!((c.mean + 0.25 / 1.5f64.powf(1.5)).abs() < 1e-9);
-        let n = Vector3D::new(-0.5, -0.5, 1.0);
+        let n = Vector::new(-0.5, -0.5, 1.0);
         assert_frame(&c, n * (1.0 / n.magnitude()));
     }
 
@@ -3130,7 +3123,7 @@ mod tests {
         surface: &S,
         u: f64,
         v: f64,
-        direction: Vector3D,
+        direction: Vector,
     ) -> f64 {
         let (_, [su, sv], [suu, suv, svv]) = surface.eval_d2(u, v);
         let normal = su.cross(sv) * (1.0 / su.cross(sv).magnitude());
@@ -3167,7 +3160,7 @@ mod tests {
         // equator; the directions must stay a perpendicular unit pair and
         // the curvatures must not pick up a spurious √ε gap.
         let tol = Tolerance::DEFAULT;
-        let sphere = Sphere::new(Point3D::new(1.0, 2.0, 3.0), 3.0).unwrap();
+        let sphere = Sphere::new(Point::new(1.0, 2.0, 3.0), 3.0).unwrap();
         for i in 0..40 {
             let (u, v) = (0.157 * f64::from(i), -1.5 + 0.075 * f64::from(i));
             let c = ParametricSurface::curvatures(&sphere, u, v, tol).unwrap();
@@ -3184,9 +3177,9 @@ mod tests {
         // along the unit normal, zero along the ruling, at any weight.
         let weight = std::f64::consts::FRAC_1_SQRT_2;
         let poles = vec![
-            vec![Point3D::new(2.0, 0.0, 0.0), Point3D::new(2.0, 0.0, 1.0)],
-            vec![Point3D::new(2.0, 2.0, 0.0), Point3D::new(2.0, 2.0, 1.0)],
-            vec![Point3D::new(0.0, 2.0, 0.0), Point3D::new(0.0, 2.0, 1.0)],
+            vec![Point::new(2.0, 0.0, 0.0), Point::new(2.0, 0.0, 1.0)],
+            vec![Point::new(2.0, 2.0, 0.0), Point::new(2.0, 2.0, 1.0)],
+            vec![Point::new(0.0, 2.0, 0.0), Point::new(0.0, 2.0, 1.0)],
         ];
         let weights = vec![vec![1.0, 1.0], vec![weight, weight], vec![1.0, 1.0]];
         let surface = BSplineSurface::new_rational(
@@ -3207,7 +3200,7 @@ mod tests {
             let c = ParametricSurface::curvatures(&surface, u, 0.5, tol).unwrap();
             assert!((c.min_curvature + 0.5).abs() < 1e-14);
             assert!(c.max_curvature.abs() < 1e-14);
-            assert!((c.max_direction.dot(Vector3D::Z).abs() - 1.0).abs() < 1e-14);
+            assert!((c.max_direction.dot(Vector::Z).abs() - 1.0).abs() < 1e-14);
         }
     }
 

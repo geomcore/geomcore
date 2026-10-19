@@ -43,8 +43,8 @@ pointer or topology.
 === "Python"
 
     ```python
-    circle.contains(Point3D(2, 0, 0))          # True, on the radius-2 circle
-    sphere.contains(Point3D(0, 0, 2.01))       # False, off the surface
+    circle.contains(Point(2, 0, 0))          # True, on the radius-2 circle
+    sphere.contains(Point(0, 0, 2.01))       # False, off the surface
     ```
 
 === "Rust"
@@ -53,8 +53,8 @@ pointer or topology.
     use geomcore::Tolerance;
 
     let tol = Tolerance::DEFAULT;
-    assert!(circle.contains(Point3D::new(2.0, 0.0, 0.0), tol));
-    assert!(!sphere.contains(Point3D::new(0.0, 0.0, 2.01), tol));
+    assert!(circle.contains(Point::new(2.0, 0.0, 0.0), tol));
+    assert!(!sphere.contains(Point::new(0.0, 0.0, 2.01), tol));
     ```
 
 ## project_point
@@ -69,20 +69,20 @@ it was computed on and the `query_point`. Batch variants
 === "Python"
 
     ```python
-    foot = circle.project_point(Point3D(3, 0, 0))
+    foot = circle.project_point(Point(3, 0, 0))
     foot.parameter, foot.point, foot.distance, foot.target is circle
-    sfoot = sphere.project_point(Point3D(0, 0, 5))
+    sfoot = sphere.project_point(Point(0, 0, 5))
     sfoot.u, sfoot.v, sfoot.point, sfoot.distance
     ```
 
 === "Rust"
 
     ```rust
-    let foot = circle.project_point(Point3D::new(3.0, 0.0, 0.0), tol);
+    let foot = circle.project_point(Point::new(3.0, 0.0, 0.0), tol);
     assert_eq!((foot.parameter, foot.distance), (0.0, 1.0));
-    assert_eq!(foot.point, Point3D::new(2.0, 0.0, 0.0));
+    assert_eq!(foot.point, Point::new(2.0, 0.0, 0.0));
 
-    let sfoot = sphere.project_point(Point3D::new(0.0, 0.0, 5.0), tol);
+    let sfoot = sphere.project_point(Point::new(0.0, 0.0, 5.0), tol);
     ```
 
 ## extrema
@@ -94,13 +94,13 @@ returns whole.
 === "Python"
 
     ```python
-    minima = ellipse.extrema(Point3D(4, 1, 0))   # [CurveProjection, ...] nearest first
+    minima = ellipse.extrema(Point(4, 1, 0))   # [CurveProjection, ...] nearest first
     ```
 
 === "Rust"
 
     ```rust
-    let minima = ellipse.extrema(Point3D::new(4.0, 1.0, 0.0), tol);
+    let minima = ellipse.extrema(Point::new(4.0, 1.0, 0.0), tol);
     ```
 
 On seams the parameters are normalised into `bounds()`; a hit within

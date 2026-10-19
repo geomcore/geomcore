@@ -12,10 +12,9 @@
 mod common;
 
 use common::{assert_close, load};
-use geomcore::discretization::{DiscretizationCriteria, Discretize2D, Discretize3D};
+use geomcore::discretization::{DiscretizationCriteria, Discretize, Discretize2D};
 use geomcore::{
-    BSplineCurve3D, Circle2D, Circle3D, Ellipse3D, Parabola3D, Point2D, Point3D, TrimmedCurve3D,
-    Vector3D,
+    BSplineCurve, Circle, Circle2D, Ellipse, Parabola, Point, Point2D, TrimmedCurve, Vector,
 };
 use serde_json::{Value, json};
 
@@ -35,7 +34,7 @@ fn criteria() -> [DiscretizationCriteria; 2] {
     [chord, chord.with_max_angle_deviation(0.05).unwrap()]
 }
 
-fn cases_3d(name: &str, curve: &impl Discretize3D) -> Vec<Case> {
+fn cases_3d(name: &str, curve: &impl Discretize) -> Vec<Case> {
     criteria()
         .into_iter()
         .map(|criteria| {
@@ -67,18 +66,18 @@ fn cases_2d(name: &str, curve: &impl Discretize2D) -> Vec<Case> {
 
 /// The discretizations the fixture records, computed now.
 fn cases() -> Vec<Case> {
-    let normal = Vector3D::new(0.2, -0.3, 1.0);
-    let circle = Circle3D::new(Point3D::new(1.0, 2.0, 3.0), normal, 2.0).unwrap();
-    let circle_arc = TrimmedCurve3D::new(circle, 0.5, 4.0).unwrap();
-    let poles: Vec<Point3D> = (0..7)
+    let normal = Vector::new(0.2, -0.3, 1.0);
+    let circle = Circle::new(Point::new(1.0, 2.0, 3.0), normal, 2.0).unwrap();
+    let circle_arc = TrimmedCurve::new(circle, 0.5, 4.0).unwrap();
+    let poles: Vec<Point> = (0..7)
         .map(|i| {
             let a = f64::from(i);
-            Point3D::new(a, (1.3 * a).sin(), 0.4 * a.cos())
+            Point::new(a, (1.3 * a).sin(), 0.4 * a.cos())
         })
         .collect();
     let knots = vec![0.0, 1.0, 2.5, 3.0, 4.0];
     let multiplicities = vec![4, 1, 1, 1, 4];
-    let nonrational = BSplineCurve3D::new(
+    let nonrational = BSplineCurve::new(
         3,
         poles.clone(),
         knots.clone(),
@@ -88,11 +87,11 @@ fn cases() -> Vec<Case> {
     .unwrap();
     let weights = vec![1.0, 0.5, 2.0, 1.0, 3.0, 0.7, 1.0];
     let rational =
-        BSplineCurve3D::new_rational(3, poles, weights, knots, multiplicities, false).unwrap();
-    let x_direction = Vector3D::X.cross(normal);
-    let ellipse = Ellipse3D::new(Point3D::ORIGIN, normal, x_direction, 3.0, 1.0).unwrap();
-    let parabola = Parabola3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, 0.5).unwrap();
-    let parabola_arc = TrimmedCurve3D::new(parabola, -2.0, 3.0).unwrap();
+        BSplineCurve::new_rational(3, poles, weights, knots, multiplicities, false).unwrap();
+    let x_direction = Vector::X.cross(normal);
+    let ellipse = Ellipse::new(Point::ORIGIN, normal, x_direction, 3.0, 1.0).unwrap();
+    let parabola = Parabola::new(Point::ORIGIN, Vector::Z, Vector::X, 0.5).unwrap();
+    let parabola_arc = TrimmedCurve::new(parabola, -2.0, 3.0).unwrap();
     let circle_2d = Circle2D::new(Point2D::new(0.5, -1.0), 1.5).unwrap();
     [
         cases_3d("circle_arc", &circle_arc),

@@ -12,21 +12,21 @@ API.
 === "Python"
 
     ```python
-    from geomcore import Point3D, Vector3D
-    from geomcore.curves import Circle3D
+    from geomcore import Point, Vector
+    from geomcore.curves import Circle
     import math
 
-    circle = Circle3D(Point3D.origin(), Vector3D.unit_z(), 2.0)
+    circle = Circle(Point.origin(), Vector.unit_z(), 2.0)
     point = circle.eval_point(math.pi / 4)
     ```
 
 === "Rust"
 
     ```rust
-    use geomcore::{Point3D, Vector3D};
-    use geomcore::curves::Circle3D;
+    use geomcore::{Point, Vector};
+    use geomcore::curves::Circle;
 
-    let circle = Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
+    let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
     let point = circle.eval_point(std::f64::consts::FRAC_PI_4);
     ```
 
@@ -59,11 +59,11 @@ order as an `int`, or `math.inf` where the shape is smooth (Rust's
     ```python
     import math
 
-    from geomcore import Point3D, Side
-    from geomcore.curves import BSplineCurve3D
+    from geomcore import Point, Side
+    from geomcore.curves import BSplineCurve
 
-    poles = [Point3D(0.0, 0.0, 0.0), Point3D(1.0, 0.0, 0.0), Point3D(1.0, 1.0, 0.0)]
-    kinked = BSplineCurve3D(1, poles, [0.0, 1.0, 2.0], [2, 1, 2], False)
+    poles = [Point(0.0, 0.0, 0.0), Point(1.0, 0.0, 0.0), Point(1.0, 1.0, 0.0)]
+    kinked = BSplineCurve(1, poles, [0.0, 1.0, 2.0], [2, 1, 2], False)
     assert kinked.continuity(1.0) == 0
     assert kinked.continuity(0.5) == math.inf
     _, incoming = kinked.eval_d1_sided(1.0, Side.BELOW)  # (1, 0, 0)
@@ -73,14 +73,14 @@ order as an `int`, or `math.inf` where the shape is smooth (Rust's
 === "Rust"
 
     ```rust
-    use geomcore::{BSplineCurve3D, Continuity, Point3D, Side, Tolerance};
+    use geomcore::{BSplineCurve, Continuity, Point, Side, Tolerance};
 
     let poles = vec![
-        Point3D::new(0.0, 0.0, 0.0),
-        Point3D::new(1.0, 0.0, 0.0),
-        Point3D::new(1.0, 1.0, 0.0),
+        Point::new(0.0, 0.0, 0.0),
+        Point::new(1.0, 0.0, 0.0),
+        Point::new(1.0, 1.0, 0.0),
     ];
-    let kinked = BSplineCurve3D::new(1, poles, vec![0.0, 1.0, 2.0], vec![2, 1, 2], false).unwrap();
+    let kinked = BSplineCurve::new(1, poles, vec![0.0, 1.0, 2.0], vec![2, 1, 2], false).unwrap();
     assert_eq!(kinked.continuity(1.0, Tolerance::DEFAULT), Continuity::Order(0));
     assert_eq!(kinked.continuity(0.5, Tolerance::DEFAULT), Continuity::Smooth);
     let (_, incoming) = kinked.eval_d1_sided(1.0, Side::Below); // (1, 0, 0)

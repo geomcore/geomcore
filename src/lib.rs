@@ -10,40 +10,40 @@
 //! # Namespace layout
 //!
 //! - The crate root re-exports the placement and value types shared by
-//!   everything else: [`Point3D`]/[`Point2D`], [`Vector3D`]/[`Vector2D`],
-//!   [`Axis3D`]/[`Axis2D`], [`Frame3D`]/[`Frame2D`], and [`Transform`].
-//! - [`curves`] holds the 3D and 2D curve types ([`curves::Line3D`],
-//!   [`curves::Circle3D`], [`curves::Ellipse3D`], [`curves::Parabola3D`],
-//!   [`curves::Hyperbola3D`], [`curves::BSplineCurve3D`],
-//!   [`curves::Line2D`], [`curves::Circle2D`]), the [`curves::Curve3D`]/
+//!   everything else: [`Point`]/[`Point2D`], [`Vector`]/[`Vector2D`],
+//!   [`Axis`]/[`Axis2D`], [`Frame`]/[`Frame2D`], and [`Transform`].
+//! - [`curves`] holds the 3D and 2D curve types ([`curves::Line`],
+//!   [`curves::Circle`], [`curves::Ellipse`], [`curves::Parabola`],
+//!   [`curves::Hyperbola`], [`curves::BSplineCurve`],
+//!   [`curves::Line2D`], [`curves::Circle2D`]), the [`curves::Curve`]/
 //!   [`curves::Curve2D`] enum adaptors, the
-//!   [`curves::TrimmedCurve3D`]/[`curves::TrimmedCurve2D`] pieces of a
+//!   [`curves::TrimmedCurve`]/[`curves::TrimmedCurve2D`] pieces of a
 //!   curve over a parameter range (segments, arcs), and the
-//!   [`curves::ParametricCurve3D`]/[`curves::ParametricCurve2D`] traits.
+//!   [`curves::ParametricCurve`]/[`curves::ParametricCurve2D`] traits.
 //! - [`surfaces`] holds the five elementary surfaces
 //!   ([`surfaces::Plane`], [`surfaces::Cylinder`], [`surfaces::Cone`],
 //!   [`surfaces::Sphere`], [`surfaces::Torus`]) plus
 //!   [`surfaces::BSplineSurface`], the [`surfaces::Surface`] enum adaptor,
 //!   and the [`surfaces::ParametricSurface`] trait.
-//! - [`bounding_box`] holds [`BoundingBox3D`] and the [`Bound3D`] trait,
+//! - [`bounding_box`] holds [`BoundingBox`] and the [`HasBoundingBox`] trait,
 //!   through which curves and surfaces report the axis-aligned box
 //!   bounding them.
 //!
 //! # Quick start
 //!
 //! ```
-//! use geomcore::{Cylinder, Point3D, Tolerance, Vector3D};
-//! use geomcore::curves::Circle3D;
+//! use geomcore::{Cylinder, Point, Tolerance, Vector};
+//! use geomcore::curves::Circle;
 //!
 //! // Evaluate a circle at a single parameter, and over a batch of parameters.
-//! let circle = Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
+//! let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
 //! let point = circle.eval_point(std::f64::consts::PI / 4.0);
 //! let points = circle.eval_points(&[0.0, 1.0, 2.0]);
 //! assert_eq!(points[0], circle.eval_point(0.0));
 //!
 //! // Curve-on-surface parametrization: this circle is coaxial with the
 //! // cylinder, so it has an exact 2D image, a horizontal line in (u, v).
-//! let cylinder = Cylinder::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
+//! let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
 //! let pcurve = circle.parametrize_on(&cylinder, Tolerance::DEFAULT).unwrap();
 //! # let _ = point;
 //! ```
@@ -57,17 +57,17 @@
 //! every hit.
 //!
 //! ```
-//! use geomcore::curves::TrimmedCurve3D;
+//! use geomcore::curves::TrimmedCurve;
 //! use geomcore::{
-//!     BSplineCurve3D, Completeness, Intersect, IntersectionMethod, Line3D, Point3D, Sphere,
-//!     Tolerance, Vector3D,
+//!     BSplineCurve, Completeness, Intersect, IntersectionMethod, Line, Point, Sphere,
+//!     Tolerance, Vector,
 //! };
 //!
 //! let tol = Tolerance::DEFAULT;
-//! let sphere = Sphere::new(Point3D::ORIGIN, 2.0).unwrap();
+//! let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
 //!
 //! // A line through a sphere has a closed form: exact, and so complete.
-//! let line = Line3D::new(Point3D::new(0.0, 0.0, -5.0), Vector3D::Z).unwrap();
+//! let line = Line::new(Point::new(0.0, 0.0, -5.0), Vector::Z).unwrap();
 //! let result = line.intersect(&sphere, tol);
 //! assert_eq!(result.method(), IntersectionMethod::Exact);
 //! assert_eq!(result.completeness(), &Completeness::Complete);
@@ -80,12 +80,12 @@
 //! assert!((latitude + std::f64::consts::FRAC_PI_2).abs() < 1e-12);
 //!
 //! // A segment keeps only the hits in its range.
-//! let segment = TrimmedCurve3D::new(line, 0.0, 5.0).unwrap();
+//! let segment = TrimmedCurve::new(line, 0.0, 5.0).unwrap();
 //! assert_eq!(segment.intersect(&sphere, tol).hits().len(), 1);
 //!
 //! // A B-spline has no closed form: the numeric search runs.
-//! let poles = vec![Point3D::new(0.0, 0.0, -5.0), Point3D::new(0.0, 0.0, 5.0)];
-//! let spline = BSplineCurve3D::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
+//! let poles = vec![Point::new(0.0, 0.0, -5.0), Point::new(0.0, 0.0, 5.0)];
+//! let spline = BSplineCurve::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
 //! let result = spline.intersect(&sphere, tol);
 //! assert_eq!(result.method(), IntersectionMethod::Numeric);
 //! assert_eq!(result.hits().len(), 2);
@@ -96,11 +96,11 @@
 //! parameters it does not need and never falls back to a numeric search.
 //!
 //! ```
-//! use geomcore::{IntersectExact, PlaneSphereIntersection, Point3D, Vector3D};
+//! use geomcore::{IntersectExact, PlaneSphereIntersection, Point, Vector};
 //! use geomcore::surfaces::{Plane, Sphere};
 //!
-//! let plane = Plane::new(Point3D::ORIGIN, Vector3D::Z).unwrap();
-//! let sphere = Sphere::new(Point3D::ORIGIN, 2.0).unwrap();
+//! let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
+//! let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
 //! let tol = geomcore::Tolerance::default();
 //! let PlaneSphereIntersection::Circle(circle) = plane.intersect_exact(&sphere, tol) else {
 //!     panic!("expected a circle");
@@ -108,7 +108,7 @@
 //! assert_eq!(sphere.intersect_exact(&plane, tol), PlaneSphereIntersection::Circle(circle));
 //! ```
 //!
-//! Between [`surfaces::Surface`] or [`curves::Curve3D`] values it returns
+//! Between [`surfaces::Surface`] or [`curves::Curve`] values it returns
 //! a general result such as [`ExactSurfaceIntersection`], which reports
 //! `NotAnalytic` for a B-spline or a pair without a closed form, where
 //! [`Intersect::intersect`] runs the numeric search. Two surfaces without
@@ -117,9 +117,9 @@
 //! # Extending the kernel
 //!
 //! New curve or surface types are added by implementing
-//! [`curves::ParametricCurve3D`] (or [`curves::ParametricCurve2D`]) and
+//! [`curves::ParametricCurve`] (or [`curves::ParametricCurve2D`]) and
 //! [`surfaces::ParametricSurface`] respectively, without touching the
-//! existing dispatch code in [`curves::Curve3D`]/[`surfaces::Surface`].
+//! existing dispatch code in [`curves::Curve`]/[`surfaces::Surface`].
 //! Such types are intersected by [`intersect_curve_curve`] and
 //! [`intersect_curve_surface`], which run the numeric search on any
 //! curve and surface and return the same result types as
@@ -167,28 +167,28 @@ pub mod transform;
 /// Vectors in 2D and 3D space.
 pub mod vector;
 
-pub use bounding_box::{Bound3D, BoundingBox3D};
+pub use bounding_box::{BoundingBox, HasBoundingBox};
 pub use curves::{
-    BSplineConstructionError, BSplineConversionError, BSplineCurve3D, BSplineSplitError, Circle2D,
-    Circle3D, CircleConstructionError, Continuity, Curve2D, Curve3D, DegreeElevationError,
-    ElementaryCurve, Ellipse3D, EllipseConstructionError, Hyperbola3D, HyperbolaConstructionError,
-    KnotInsertionError, KnotRemovalError, Line2D, Line3D, LineConstructionError, Parabola3D,
-    ParabolaConstructionError, ParametricCurve2D, ParametricCurve3D, ParametrizeError,
-    PointExtrema2D, PointExtrema3D, PointParametrization, Side, TrimmedCurve2D, TrimmedCurve3D,
+    BSplineConstructionError, BSplineConversionError, BSplineCurve, BSplineSplitError, Circle,
+    Circle2D, CircleConstructionError, Continuity, Curve, Curve2D, DegreeElevationError,
+    ElementaryCurve, Ellipse, EllipseConstructionError, Hyperbola, HyperbolaConstructionError,
+    KnotInsertionError, KnotRemovalError, Line, Line2D, LineConstructionError, Parabola,
+    ParabolaConstructionError, ParametricCurve, ParametricCurve2D, ParametrizeError, PointExtrema,
+    PointExtrema2D, PointParametrization, Side, TrimmedCurve, TrimmedCurve2D,
     TrimmedCurveConstructionError, parametrize_numeric,
 };
 pub use discretization::{
-    Discretization2D, Discretization3D, DiscretizationCriteria, DiscretizationCriteriaError,
-    Discretize2D, Discretize3D,
+    Discretization, Discretization2D, DiscretizationCriteria, DiscretizationCriteriaError,
+    Discretize, Discretize2D,
 };
-pub use frame::{Axis2D, Axis3D, Frame2D, Frame3D, FrameConstructionError};
+pub use frame::{Axis, Axis2D, Frame, Frame2D, FrameConstructionError};
 pub use intersect::curve_curve_extrema;
 pub use intersect::{
-    CircleCircle2DIntersection, CircleCircle3DIntersection, CircleSurfaceIntersection,
+    CircleCircle2DIntersection, CircleCircleIntersection, CircleSurfaceIntersection,
     ConeConeIntersection, ConeCylinderIntersection, ConicConicIntersection, ConicSurfaceHit,
     ConicSurfaceIntersection, CurveCurveExtremum, CurveCurveHit, CurveSurfaceHit,
-    CylinderCylinderIntersection, LatitudeRing, LineCircle2DIntersection, LineCircle3DIntersection,
-    LineConic3DIntersection, LineConicHit, LineLine2DIntersection, LineLine3DIntersection,
+    CylinderCylinderIntersection, LatitudeRing, LineCircle2DIntersection, LineCircleIntersection,
+    LineConicHit, LineConicIntersection, LineLine2DIntersection, LineLineIntersection,
     LinePlaneIntersection, LineQuadricIntersection, LineTorusHit, LineTorusIntersection,
     PlaneConeIntersection, PlaneCylinderIntersection, PlanePlaneIntersection,
     PlaneSphereIntersection, SphereConeIntersection, SphereCylinderIntersection,
@@ -210,7 +210,7 @@ pub use intersect::{
 pub use intersect::{intersect_curve_curve, intersect_curve_surface};
 #[cfg(test)]
 pub(crate) use intersect::{search_curve_curve, search_curve_surface};
-pub use point::{Point2D, Point3D};
+pub use point::{Point, Point2D};
 pub use projection::{CurveProjection, CurveProjection2D, SurfaceProjection};
 pub use surfaces::{
     BSplineSurface, Cone, ConeConstructionError, Cylinder, CylinderConstructionError,
@@ -220,4 +220,34 @@ pub use surfaces::{
 };
 pub use tolerance::Tolerance;
 pub use transform::Transform;
-pub use vector::{Vector2D, Vector3D};
+pub use vector::{Vector, Vector2D};
+
+// The 0.36 names, deprecated in 0.37 (ADR 0013): kept for one release so
+// callers migrate with warnings instead of errors.
+#[allow(deprecated)]
+#[doc(hidden)]
+pub use bounding_box::{Bound3D, BoundingBox3D};
+#[allow(deprecated)]
+#[doc(hidden)]
+pub use curves::{
+    BSplineCurve3D, Circle3D, Curve3D, Ellipse3D, Hyperbola3D, Line3D, Parabola3D,
+    ParametricCurve3D, PointExtrema3D, TrimmedCurve3D,
+};
+#[allow(deprecated)]
+#[doc(hidden)]
+pub use discretization::{Discretization3D, Discretize3D};
+#[allow(deprecated)]
+#[doc(hidden)]
+pub use frame::{Axis3D, Frame3D};
+#[allow(deprecated)]
+#[doc(hidden)]
+pub use intersect::{
+    CircleCircle3DIntersection, LineCircle3DIntersection, LineConic3DIntersection,
+    LineLine3DIntersection,
+};
+#[allow(deprecated)]
+#[doc(hidden)]
+pub use point::Point3D;
+#[allow(deprecated)]
+#[doc(hidden)]
+pub use vector::Vector3D;

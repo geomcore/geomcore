@@ -16,7 +16,7 @@ use criterion::{Criterion, Throughput, criterion_group, criterion_main};
 use std::hint::black_box;
 
 use geomcore::surfaces::BSplineSurface;
-use geomcore::{BSplineCurve3D, Circle3D, Cylinder, Intersect, Point3D, Tolerance, Vector3D};
+use geomcore::{BSplineCurve, Circle, Cylinder, Intersect, Point, Tolerance, Vector};
 
 const CURVES: usize = 64;
 
@@ -37,7 +37,7 @@ fn surface() -> BSplineSurface {
     let poles = (0..6)
         .map(|i| {
             (0..6)
-                .map(|j| Point3D::new(i as f64, j as f64, ((i * j) as f64 * 0.7).sin()))
+                .map(|j| Point::new(i as f64, j as f64, ((i * j) as f64 * 0.7).sin()))
                 .collect()
         })
         .collect();
@@ -56,7 +56,7 @@ fn surface() -> BSplineSurface {
     .unwrap()
 }
 
-fn curves() -> Vec<BSplineCurve3D> {
+fn curves() -> Vec<BSplineCurve> {
     let mut rng = Lcg(42);
     (0..CURVES)
         .map(|_| {
@@ -65,29 +65,28 @@ fn curves() -> Vec<BSplineCurve3D> {
             let poles = (0..6)
                 .map(|k| {
                     let s = k as f64 / 5.0;
-                    Point3D::new(
+                    Point::new(
                         x0 + (x1 - x0) * s + 0.3 * (7.0 * s).sin(),
                         y0 + (y1 - y0) * s,
                         -2.0 + 4.0 * s,
                     )
                 })
                 .collect();
-            BSplineCurve3D::new(3, poles, vec![0.0, 1.0, 2.0, 3.0], vec![4, 1, 1, 4], false)
-                .unwrap()
+            BSplineCurve::new(3, poles, vec![0.0, 1.0, 2.0, 3.0], vec![4, 1, 1, 4], false).unwrap()
         })
         .collect()
 }
 
 /// Circles of radius 0.6 to 1.2 centred over the surface's footprint, in
 /// vertical planes of random directions.
-fn circles() -> Vec<Circle3D> {
+fn circles() -> Vec<Circle> {
     let mut rng = Lcg(7);
     (0..CURVES)
         .map(|_| {
-            let centre = Point3D::new(1.2 + rng.next() * 2.6, 1.2 + rng.next() * 2.6, 0.0);
+            let centre = Point::new(1.2 + rng.next() * 2.6, 1.2 + rng.next() * 2.6, 0.0);
             let angle = rng.next() * std::f64::consts::PI;
-            let normal = Vector3D::new(angle.cos(), angle.sin(), 0.0);
-            Circle3D::new(centre, normal, 0.6 + 0.6 * rng.next()).unwrap()
+            let normal = Vector::new(angle.cos(), angle.sin(), 0.0);
+            Circle::new(centre, normal, 0.6 + 0.6 * rng.next()).unwrap()
         })
         .collect()
 }
@@ -105,7 +104,7 @@ fn bench_intersect_curve_surface(c: &mut Criterion) {
             }
         })
     });
-    let cylinder = Cylinder::new(Point3D::new(2.5, 2.5, 0.0), Vector3D::Z, 2.0).unwrap();
+    let cylinder = Cylinder::new(Point::new(2.5, 2.5, 0.0), Vector::Z, 2.0).unwrap();
     group.bench_function("bspline_curve_cylinder", |b| {
         b.iter(|| {
             for curve in black_box(&curves) {

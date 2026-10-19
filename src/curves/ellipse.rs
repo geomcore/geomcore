@@ -11,10 +11,10 @@ use crate::math::{polish_root, real_roots};
 use crate::projection::{self, CurveProjection};
 use crate::surfaces::Surface;
 use crate::tol;
-use crate::{Cone, Cylinder, Frame3D, Plane, Point3D, Sphere, Tolerance, Transform, Vector3D};
+use crate::{Cone, Cylinder, Frame, Plane, Point, Sphere, Tolerance, Transform, Vector};
 use std::fmt;
 
-/// Error returned when an [`Ellipse3D`] cannot be constructed from the given
+/// Error returned when an [`Ellipse`] cannot be constructed from the given
 /// inputs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EllipseConstructionError {
@@ -55,7 +55,7 @@ impl fmt::Display for EllipseConstructionError {
 
 impl std::error::Error for EllipseConstructionError {}
 
-/// An ellipse in 3D: a plane [`Frame3D`] (origin plus local x/y directions
+/// An ellipse in 3D: a plane [`Frame`] (origin plus local x/y directions
 /// defining the plane, the major axis, and the angular origin), a semi-major
 /// radius, and a semi-minor radius, evaluated as
 /// `origin + major*cos(u)*x_dir + minor*sin(u)*y_dir`.
@@ -63,23 +63,23 @@ impl std::error::Error for EllipseConstructionError {}
 /// # Examples
 ///
 /// ```
-/// use geomcore::{Ellipse3D, Point3D, Vector3D};
-/// let ellipse = Ellipse3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, 3.0, 1.5).unwrap();
-/// assert_eq!(ellipse.eval_point(0.0), Point3D::new(3.0, 0.0, 0.0));
+/// use geomcore::{Ellipse, Point, Vector};
+/// let ellipse = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 3.0, 1.5).unwrap();
+/// assert_eq!(ellipse.eval_point(0.0), Point::new(3.0, 0.0, 0.0));
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Ellipse3D {
-    frame: Frame3D,
+pub struct Ellipse {
+    frame: Frame,
     major_radius: f64,
     minor_radius: f64,
 }
 
-impl Ellipse3D {
+impl Ellipse {
     /// Creates an ellipse from a center, a normal, an x-axis hint, a
     /// semi-major radius, and a semi-minor radius.
     ///
     /// The plane frame is derived from `normal` and `x_direction` via
-    /// [`Frame3D::new`].
+    /// [`Frame::new`].
     ///
     /// # Errors
     ///
@@ -95,23 +95,23 @@ impl Ellipse3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Ellipse3D, Point3D, Vector3D};
-    /// let ellipse = Ellipse3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, 3.0, 1.5).unwrap();
+    /// use geomcore::{Ellipse, Point, Vector};
+    /// let ellipse = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 3.0, 1.5).unwrap();
     /// assert_eq!(ellipse.major_radius(), 3.0);
     /// assert_eq!(ellipse.minor_radius(), 1.5);
     /// ```
     pub fn new(
-        center: Point3D,
-        normal: Vector3D,
-        x_direction: Vector3D,
+        center: Point,
+        normal: Vector,
+        x_direction: Vector,
         major_radius: f64,
         minor_radius: f64,
-    ) -> Result<Ellipse3D, EllipseConstructionError> {
-        let frame = Frame3D::new(center, normal, x_direction).map_err(frame_error(
+    ) -> Result<Ellipse, EllipseConstructionError> {
+        let frame = Frame::new(center, normal, x_direction).map_err(frame_error(
             EllipseConstructionError::NonFinite,
             EllipseConstructionError::NullNormal,
         ))?;
-        Ellipse3D::from_frame(frame, major_radius, minor_radius)
+        Ellipse::from_frame(frame, major_radius, minor_radius)
     }
 
     /// Creates an ellipse from a plane frame, a semi-major radius, and a
@@ -128,15 +128,15 @@ impl Ellipse3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Ellipse3D, Frame3D};
-    /// let ellipse = Ellipse3D::from_frame(Frame3D::WORLD, 3.0, 1.5).unwrap();
-    /// assert_eq!(ellipse.frame(), Frame3D::WORLD);
+    /// use geomcore::{Ellipse, Frame};
+    /// let ellipse = Ellipse::from_frame(Frame::WORLD, 3.0, 1.5).unwrap();
+    /// assert_eq!(ellipse.frame(), Frame::WORLD);
     /// ```
     pub fn from_frame(
-        frame: Frame3D,
+        frame: Frame,
         major_radius: f64,
         minor_radius: f64,
-    ) -> Result<Ellipse3D, EllipseConstructionError> {
+    ) -> Result<Ellipse, EllipseConstructionError> {
         if !(major_radius.is_finite() && minor_radius.is_finite()) {
             return Err(EllipseConstructionError::NonFinite);
         }
@@ -146,7 +146,7 @@ impl Ellipse3D {
         if major_radius < minor_radius {
             return Err(EllipseConstructionError::InvertedRadii);
         }
-        Ok(Ellipse3D {
+        Ok(Ellipse {
             frame,
             major_radius,
             minor_radius,
@@ -160,7 +160,7 @@ impl Ellipse3D {
     /// semi-major radius `d1 = |s1 - center|`. The semi-minor radius `d2` is
     /// the distance from `s2` to the line `(center, x_axis)`. The plane
     /// normal is `normalize(x_axis × (s2 - center))`, and the resulting
-    /// frame is `Frame3D::new(center, normal, x_axis)`.
+    /// frame is `Frame::new(center, normal, x_axis)`.
     ///
     /// # Errors
     ///
@@ -173,21 +173,21 @@ impl Ellipse3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Ellipse3D, Point3D};
-    /// let ellipse = Ellipse3D::from_center_and_points(
-    ///     Point3D::ORIGIN,
-    ///     Point3D::new(3.0, 0.0, 0.0),
-    ///     Point3D::new(0.0, 1.5, 0.0),
+    /// use geomcore::{Ellipse, Point};
+    /// let ellipse = Ellipse::from_center_and_points(
+    ///     Point::ORIGIN,
+    ///     Point::new(3.0, 0.0, 0.0),
+    ///     Point::new(0.0, 1.5, 0.0),
     /// )
     /// .unwrap();
     /// assert_eq!(ellipse.major_radius(), 3.0);
     /// assert_eq!(ellipse.minor_radius(), 1.5);
     /// ```
     pub fn from_center_and_points(
-        center: Point3D,
-        s1: Point3D,
-        s2: Point3D,
-    ) -> Result<Ellipse3D, EllipseConstructionError> {
+        center: Point,
+        s1: Point,
+        s2: Point,
+    ) -> Result<Ellipse, EllipseConstructionError> {
         let v1 = s1 - center;
         let d1 = v1.magnitude();
         if d1 < tol::CONFUSION {
@@ -209,11 +209,11 @@ impl Ellipse3D {
             return Err(EllipseConstructionError::InvertedAxis);
         }
 
-        let frame = Frame3D::new(center, normal, x_axis).map_err(frame_error(
+        let frame = Frame::new(center, normal, x_axis).map_err(frame_error(
             EllipseConstructionError::NonFinite,
             EllipseConstructionError::InvertedAxis,
         ))?;
-        Ellipse3D::from_frame(frame, d1, d2)
+        Ellipse::from_frame(frame, d1, d2)
     }
 
     /// Returns the center of the ellipse.
@@ -221,11 +221,11 @@ impl Ellipse3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Ellipse3D, Point3D, Vector3D};
-    /// let ellipse = Ellipse3D::new(Point3D::new(1.0, 2.0, 3.0), Vector3D::Z, Vector3D::X, 3.0, 1.5).unwrap();
-    /// assert_eq!(ellipse.center(), Point3D::new(1.0, 2.0, 3.0));
+    /// use geomcore::{Ellipse, Point, Vector};
+    /// let ellipse = Ellipse::new(Point::new(1.0, 2.0, 3.0), Vector::Z, Vector::X, 3.0, 1.5).unwrap();
+    /// assert_eq!(ellipse.center(), Point::new(1.0, 2.0, 3.0));
     /// ```
-    pub fn center(&self) -> Point3D {
+    pub fn center(&self) -> Point {
         self.frame.origin()
     }
 
@@ -234,11 +234,11 @@ impl Ellipse3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Ellipse3D, Frame3D};
-    /// let ellipse = Ellipse3D::from_frame(Frame3D::WORLD, 3.0, 1.5).unwrap();
-    /// assert_eq!(ellipse.frame(), Frame3D::WORLD);
+    /// use geomcore::{Ellipse, Frame};
+    /// let ellipse = Ellipse::from_frame(Frame::WORLD, 3.0, 1.5).unwrap();
+    /// assert_eq!(ellipse.frame(), Frame::WORLD);
     /// ```
-    pub fn frame(&self) -> Frame3D {
+    pub fn frame(&self) -> Frame {
         self.frame
     }
 
@@ -247,8 +247,8 @@ impl Ellipse3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Ellipse3D, Frame3D};
-    /// let ellipse = Ellipse3D::from_frame(Frame3D::WORLD, 3.0, 1.5).unwrap();
+    /// use geomcore::{Ellipse, Frame};
+    /// let ellipse = Ellipse::from_frame(Frame::WORLD, 3.0, 1.5).unwrap();
     /// assert_eq!(ellipse.major_radius(), 3.0);
     /// ```
     pub fn major_radius(&self) -> f64 {
@@ -260,8 +260,8 @@ impl Ellipse3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Ellipse3D, Frame3D};
-    /// let ellipse = Ellipse3D::from_frame(Frame3D::WORLD, 3.0, 1.5).unwrap();
+    /// use geomcore::{Ellipse, Frame};
+    /// let ellipse = Ellipse::from_frame(Frame::WORLD, 3.0, 1.5).unwrap();
     /// assert_eq!(ellipse.minor_radius(), 1.5);
     /// ```
     pub fn minor_radius(&self) -> f64 {
@@ -282,19 +282,19 @@ impl Ellipse3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Ellipse3D, Point3D, Transform, Vector3D};
-    /// let ellipse = Ellipse3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, 3.0, 1.5).unwrap();
-    /// let moved = ellipse.transformed(Transform::scaling(Point3D::ORIGIN, 2.0)).unwrap();
-    /// assert_eq!(moved.center(), Point3D::ORIGIN);
+    /// use geomcore::{Ellipse, Point, Transform, Vector};
+    /// let ellipse = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 3.0, 1.5).unwrap();
+    /// let moved = ellipse.transformed(Transform::scaling(Point::ORIGIN, 2.0)).unwrap();
+    /// assert_eq!(moved.center(), Point::ORIGIN);
     /// assert_eq!(moved.major_radius(), 6.0);
     /// assert_eq!(moved.minor_radius(), 3.0);
     /// ```
-    pub fn transformed(&self, transform: Transform) -> Result<Ellipse3D, EllipseConstructionError> {
+    pub fn transformed(&self, transform: Transform) -> Result<Ellipse, EllipseConstructionError> {
         let (frame, scale) = transform.apply_frame(self.frame()).map_err(frame_error(
             EllipseConstructionError::NonFinite,
             EllipseConstructionError::NullNormal,
         ))?;
-        Ellipse3D::from_frame(
+        Ellipse::from_frame(
             frame,
             self.major_radius() * scale,
             self.minor_radius() * scale,
@@ -309,9 +309,9 @@ impl Ellipse3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Ellipse3D, Point3D, Vector3D};
+    /// use geomcore::{Ellipse, Point, Vector};
     /// use std::f64::consts::PI;
-    /// let ellipse = Ellipse3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, 3.0, 1.5).unwrap();
+    /// let ellipse = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 3.0, 1.5).unwrap();
     /// assert!((ellipse.area() - PI * 4.5).abs() < 1e-12);
     /// ```
     pub fn area(&self) -> f64 {
@@ -324,11 +324,11 @@ impl Ellipse3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Ellipse3D, Point3D, Vector3D};
-    /// let ellipse = Ellipse3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, 3.0, 1.5).unwrap();
-    /// assert_eq!(ellipse.eval_point(0.0), Point3D::new(3.0, 0.0, 0.0));
+    /// use geomcore::{Ellipse, Point, Vector};
+    /// let ellipse = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 3.0, 1.5).unwrap();
+    /// assert_eq!(ellipse.eval_point(0.0), Point::new(3.0, 0.0, 0.0));
     /// ```
-    pub fn eval_point(&self, u: f64) -> Point3D {
+    pub fn eval_point(&self, u: f64) -> Point {
         analytic::ellipse_d0(&self.frame, self.major_radius, self.minor_radius, u)
     }
 
@@ -337,12 +337,12 @@ impl Ellipse3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Ellipse3D, Point3D, Vector3D};
-    /// let ellipse = Ellipse3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, 3.0, 1.5).unwrap();
+    /// use geomcore::{Ellipse, Point, Vector};
+    /// let ellipse = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 3.0, 1.5).unwrap();
     /// let points = ellipse.eval_points(&[0.0, 1.0]);
-    /// assert_eq!(points[0], Point3D::new(3.0, 0.0, 0.0));
+    /// assert_eq!(points[0], Point::new(3.0, 0.0, 0.0));
     /// ```
-    pub fn eval_points(&self, us: &[f64]) -> Vec<Point3D> {
+    pub fn eval_points(&self, us: &[f64]) -> Vec<Point> {
         us.iter().map(|&u| self.eval_point(u)).collect()
     }
 
@@ -353,17 +353,17 @@ impl Ellipse3D {
     ///
     /// # Panics
     ///
-    /// Panics if `order == 0`; use [`Ellipse3D::eval_point`] to evaluate the
+    /// Panics if `order == 0`; use [`Ellipse::eval_point`] to evaluate the
     /// position itself.
     ///
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Ellipse3D, Point3D, Vector3D};
-    /// let ellipse = Ellipse3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, 3.0, 1.5).unwrap();
-    /// assert_eq!(ellipse.eval_derivative(0.0, 1), Vector3D::new(0.0, 1.5, 0.0));
+    /// use geomcore::{Ellipse, Point, Vector};
+    /// let ellipse = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 3.0, 1.5).unwrap();
+    /// assert_eq!(ellipse.eval_derivative(0.0, 1), Vector::new(0.0, 1.5, 0.0));
     /// ```
-    pub fn eval_derivative(&self, u: f64, order: u32) -> Vector3D {
+    pub fn eval_derivative(&self, u: f64, order: u32) -> Vector {
         match order {
             0 => panic!("eval_derivative: order must be >= 1 (use eval_point for order 0)"),
             _ => analytic::ellipse_dn(&self.frame, self.major_radius, self.minor_radius, u, order),
@@ -371,11 +371,11 @@ impl Ellipse3D {
     }
 
     /// The parameter to report for a point found at parameter `u`: `u`
-    /// wrapped into [`bounds`](crate::curves::ParametricCurve3D::bounds),
+    /// wrapped into [`bounds`](crate::curves::ParametricCurve::bounds),
     /// and the start of the bounds when within `tol.confusion` of the seam
     /// along the curve, so a point at the seam has one parameter.
     pub(crate) fn parameter_in_bounds(&self, u: f64, tol: Tolerance) -> f64 {
-        let (first, last) = crate::curves::ParametricCurve3D::bounds(self);
+        let (first, last) = crate::curves::ParametricCurve::bounds(self);
         // The speed at parameter 0 is the minor radius.
         analytic::seam_wrapped(u, first, last - first, self.minor_radius, tol.confusion)
     }
@@ -386,33 +386,33 @@ impl Ellipse3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Ellipse3D, Point3D, Vector3D};
-    /// let ellipse = Ellipse3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, 3.0, 1.5).unwrap();
-    /// assert!((ellipse.parameter_of(Point3D::new(0.0, 1.5, 0.0)) - std::f64::consts::FRAC_PI_2).abs() < 1e-9);
+    /// use geomcore::{Ellipse, Point, Vector};
+    /// let ellipse = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 3.0, 1.5).unwrap();
+    /// assert!((ellipse.parameter_of(Point::new(0.0, 1.5, 0.0)) - std::f64::consts::FRAC_PI_2).abs() < 1e-9);
     /// ```
-    pub fn parameter_of(&self, point: Point3D) -> f64 {
+    pub fn parameter_of(&self, point: Point) -> f64 {
         analytic::ellipse_parameter(&self.frame, self.major_radius, self.minor_radius, point)
     }
 
     /// Returns whether `point` lies on the ellipse: within `tol.confusion`
-    /// of it, exactly when [`Ellipse3D::project_point`] reports distance `0.0`.
+    /// of it, exactly when [`Ellipse::project_point`] reports distance `0.0`.
     /// Its implicit equation decides most points at once: off the plane,
     /// clearly far from the curve or clearly on it, with rigorous bounds
     /// for a quadratic equation. Of the points left, within a few
     /// tolerances of the curve, the inverse parameter of
-    /// [`Ellipse3D::parameter_of`] (exact on the curve, cheap) accepts most; the
+    /// [`Ellipse::parameter_of`] (exact on the curve, cheap) accepts most; the
     /// projection settles the rest.
     ///
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Ellipse3D, Point3D, Tolerance, Vector3D};
-    /// let ellipse = Ellipse3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, 3.0, 1.5).unwrap();
+    /// use geomcore::{Ellipse, Point, Tolerance, Vector};
+    /// let ellipse = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 3.0, 1.5).unwrap();
     /// let tol = Tolerance::DEFAULT;
-    /// assert!(ellipse.contains(Point3D::new(3.0, 0.0, 0.0), tol));
-    /// assert!(!ellipse.contains(Point3D::new(4.0, 0.0, 0.0), tol));
+    /// assert!(ellipse.contains(Point::new(3.0, 0.0, 0.0), tol));
+    /// assert!(!ellipse.contains(Point::new(4.0, 0.0, 0.0), tol));
     /// ```
-    pub fn contains(&self, point: Point3D, tol: Tolerance) -> bool {
+    pub fn contains(&self, point: Point, tol: Tolerance) -> bool {
         let (a, b) = (self.major_radius, self.minor_radius);
         // `(x/a)² + (y/b)² = 1`: on it `|∇f| ≥ 2/a`, as `b ≤ a`.
         let near = analytic::conic_proximity(
@@ -443,20 +443,20 @@ impl Ellipse3D {
     /// vanishes there), so the reversed quartic in `r = tan((t - PI)/2)` is
     /// solved too, and every candidate is polished by Newton iteration on
     /// the trigonometric condition itself. The first entry is the global
-    /// closest point (see [`Ellipse3D::project_point`]).
+    /// closest point (see [`Ellipse::project_point`]).
     ///
     /// A query point with a non-finite coordinate has no extrema.
     ///
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Ellipse3D, Point3D, Tolerance, Vector3D};
-    /// let ellipse = Ellipse3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, 3.0, 1.5).unwrap();
-    /// let extrema = ellipse.extrema(Point3D::new(4.0, 0.0, 0.0), Tolerance::DEFAULT);
+    /// use geomcore::{Ellipse, Point, Tolerance, Vector};
+    /// let ellipse = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 3.0, 1.5).unwrap();
+    /// let extrema = ellipse.extrema(Point::new(4.0, 0.0, 0.0), Tolerance::DEFAULT);
     /// assert!(!extrema.is_empty());
     /// assert_eq!(extrema[0].distance, 1.0);
     /// ```
-    pub fn extrema(&self, point: Point3D, tol: Tolerance) -> Vec<CurveProjection> {
+    pub fn extrema(&self, point: Point, tol: Tolerance) -> Vec<CurveProjection> {
         if ![point.x, point.y, point.z].iter().all(|c| c.is_finite()) {
             return Vec::new();
         }
@@ -484,7 +484,7 @@ impl Ellipse3D {
         ];
         // s = -1/r maps the quartic to its reversal with alternating signs.
         let reversed = [coeffs[4], -coeffs[3], coeffs[2], -coeffs[1], coeffs[0]];
-        let mut ts: Vec<(f64, Point3D, f64)> = real_roots(&coeffs, tol.confusion)
+        let mut ts: Vec<(f64, Point, f64)> = real_roots(&coeffs, tol.confusion)
             .into_iter()
             .map(|r| 2.0 * r.value.atan())
             .chain(
@@ -520,8 +520,8 @@ impl Ellipse3D {
     }
 
     /// Projects `point` onto the ellipse: the nearest of
-    /// [`Ellipse3D::extrema`]. Distances within `tol.confusion` snap to
-    /// `0.0`, matching [`Ellipse3D::contains`].
+    /// [`Ellipse::extrema`]. Distances within `tol.confusion` snap to
+    /// `0.0`, matching [`Ellipse::contains`].
     ///
     /// A query point with a non-finite coordinate projects to a NaN
     /// parameter and distance.
@@ -529,13 +529,13 @@ impl Ellipse3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Ellipse3D, Point3D, Tolerance, Vector3D};
-    /// let ellipse = Ellipse3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, 3.0, 1.5).unwrap();
-    /// let proj = ellipse.project_point(Point3D::new(4.0, 0.0, 0.0), Tolerance::DEFAULT);
+    /// use geomcore::{Ellipse, Point, Tolerance, Vector};
+    /// let ellipse = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 3.0, 1.5).unwrap();
+    /// let proj = ellipse.project_point(Point::new(4.0, 0.0, 0.0), Tolerance::DEFAULT);
     /// assert_eq!(proj.parameter, 0.0);
     /// assert_eq!(proj.distance, 1.0);
     /// ```
-    pub fn project_point(&self, point: Point3D, tol: Tolerance) -> CurveProjection {
+    pub fn project_point(&self, point: Point, tol: Tolerance) -> CurveProjection {
         self.extrema(point, tol)
             .into_iter()
             .next()
@@ -544,9 +544,9 @@ impl Ellipse3D {
 
     /// Projects each point in `points` onto the ellipse.
     ///
-    /// Default-style batch wrapper over [`Ellipse3D::project_point`]: one
-    /// native call per batch, mirroring [`Ellipse3D::eval_points`].
-    pub fn project_points(&self, points: &[Point3D], tol: Tolerance) -> Vec<CurveProjection> {
+    /// Default-style batch wrapper over [`Ellipse::project_point`]: one
+    /// native call per batch, mirroring [`Ellipse::eval_points`].
+    pub fn project_points(&self, points: &[Point], tol: Tolerance) -> Vec<CurveProjection> {
         points.iter().map(|&p| self.project_point(p, tol)).collect()
     }
 
@@ -556,17 +556,17 @@ impl Ellipse3D {
     /// No ellipse/surface pair has a closed-form 2D image in this release, so
     /// this always returns [`ParametrizeError::NotAnalytic`]. The `surface`
     /// and `tol` arguments are accepted for signature parity with the analytic
-    /// [`crate::Line3D::parametrize_on`] and
-    /// [`crate::Circle3D::parametrize_on`].
+    /// [`crate::Line::parametrize_on`] and
+    /// [`crate::Circle::parametrize_on`].
     ///
     /// # Examples
     ///
     /// ```
     /// use geomcore::curves::ParametrizeError;
-    /// use geomcore::{Ellipse3D, Plane, Point3D, Tolerance, Vector3D};
+    /// use geomcore::{Ellipse, Plane, Point, Tolerance, Vector};
     ///
-    /// let plane = Plane::new(Point3D::ORIGIN, Vector3D::Z).unwrap();
-    /// let ellipse = Ellipse3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, 3.0, 1.5).unwrap();
+    /// let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
+    /// let ellipse = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 3.0, 1.5).unwrap();
     /// assert_eq!(ellipse.parametrize_on(&plane, Tolerance::DEFAULT), Err(ParametrizeError::NotAnalytic));
     /// ```
     pub fn parametrize_on(
@@ -579,7 +579,7 @@ impl Ellipse3D {
     }
 }
 
-impl IntersectExact<Plane> for Ellipse3D {
+impl IntersectExact<Plane> for Ellipse {
     type Output = ConicSurfaceIntersection;
 
     /// Intersects this ellipse with a plane.
@@ -591,9 +591,9 @@ impl IntersectExact<Plane> for Ellipse3D {
     ///
     /// ```
     /// use geomcore::IntersectExact;
-    /// use geomcore::{ConicSurfaceIntersection, Ellipse3D, Plane, Point3D, Tolerance, Vector3D};
-    /// let ellipse = Ellipse3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, 3.0, 1.5).unwrap();
-    /// let plane = Plane::new(Point3D::ORIGIN, Vector3D::X).unwrap();
+    /// use geomcore::{ConicSurfaceIntersection, Ellipse, Plane, Point, Tolerance, Vector};
+    /// let ellipse = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 3.0, 1.5).unwrap();
+    /// let plane = Plane::new(Point::ORIGIN, Vector::X).unwrap();
     /// let tol = Tolerance::DEFAULT;
     /// match ellipse.intersect_exact(&plane, tol) {
     ///     ConicSurfaceIntersection::Hits(hits) => assert_eq!(hits.len(), 2),
@@ -605,7 +605,7 @@ impl IntersectExact<Plane> for Ellipse3D {
     }
 }
 
-impl IntersectExact<Sphere> for Ellipse3D {
+impl IntersectExact<Sphere> for Ellipse {
     type Output = ConicSurfaceIntersection;
 
     /// Intersects this ellipse with a sphere.
@@ -617,9 +617,9 @@ impl IntersectExact<Sphere> for Ellipse3D {
     ///
     /// ```
     /// use geomcore::IntersectExact;
-    /// use geomcore::{ConicSurfaceIntersection, Ellipse3D, Point3D, Sphere, Tolerance, Vector3D};
-    /// let ellipse = Ellipse3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, 3.0, 1.5).unwrap();
-    /// let sphere = Sphere::new(Point3D::ORIGIN, 3.0).unwrap();
+    /// use geomcore::{ConicSurfaceIntersection, Ellipse, Point, Sphere, Tolerance, Vector};
+    /// let ellipse = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 3.0, 1.5).unwrap();
+    /// let sphere = Sphere::new(Point::ORIGIN, 3.0).unwrap();
     /// let tol = Tolerance::DEFAULT;
     /// match ellipse.intersect_exact(&sphere, tol) {
     ///     // Both major vertices graze the sphere: two tangent hits.
@@ -635,19 +635,19 @@ impl IntersectExact<Sphere> for Ellipse3D {
     }
 }
 
-impl IntersectExact<Cylinder> for Ellipse3D {
+impl IntersectExact<Cylinder> for Ellipse {
     type Output = ConicSurfaceIntersection;
 
     /// Intersects this ellipse with a cylinder; hits verified on the
-    /// cylinder. See [`Ellipse3D::intersect_exact`] for the calling shape.
+    /// cylinder. See [`Ellipse::intersect_exact`] for the calling shape.
     ///
     /// # Examples
     ///
     /// ```
     /// use geomcore::IntersectExact;
-    /// use geomcore::{ConicSurfaceIntersection, Cylinder, Ellipse3D, Point3D, Tolerance, Vector3D};
-    /// let ellipse = Ellipse3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, 3.0, 1.5).unwrap();
-    /// let cylinder = Cylinder::new(Point3D::ORIGIN, Vector3D::X, 1.5).unwrap();
+    /// use geomcore::{ConicSurfaceIntersection, Cylinder, Ellipse, Point, Tolerance, Vector};
+    /// let ellipse = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 3.0, 1.5).unwrap();
+    /// let cylinder = Cylinder::new(Point::ORIGIN, Vector::X, 1.5).unwrap();
     /// let tol = Tolerance::DEFAULT;
     /// match ellipse.intersect_exact(&cylinder, tol) {
     ///     ConicSurfaceIntersection::Hits(hits) => assert_eq!(hits.len(), 2),
@@ -659,20 +659,20 @@ impl IntersectExact<Cylinder> for Ellipse3D {
     }
 }
 
-impl IntersectExact<Cone> for Ellipse3D {
+impl IntersectExact<Cone> for Ellipse {
     type Output = ConicSurfaceIntersection;
 
     /// Intersects this ellipse with a cone (both nappes); hits verified on
-    /// the cone. See [`Ellipse3D::intersect_exact`] for the
+    /// the cone. See [`Ellipse::intersect_exact`] for the
     /// calling shape.
     ///
     /// # Examples
     ///
     /// ```
     /// use geomcore::IntersectExact;
-    /// use geomcore::{Cone, ConicSurfaceIntersection, Ellipse3D, Frame3D, Point3D, Tolerance, Vector3D};
-    /// let ellipse = Ellipse3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, 3.0, 1.5).unwrap();
-    /// let cone = Cone::from_frame(Frame3D::WORLD, 0.4, 2.0).unwrap();
+    /// use geomcore::{Cone, ConicSurfaceIntersection, Ellipse, Frame, Point, Tolerance, Vector};
+    /// let ellipse = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 3.0, 1.5).unwrap();
+    /// let cone = Cone::from_frame(Frame::WORLD, 0.4, 2.0).unwrap();
     /// let tol = Tolerance::DEFAULT;
     /// match ellipse.intersect_exact(&cone, tol) {
     ///     ConicSurfaceIntersection::Hits(hits) => assert!(!hits.is_empty()),
@@ -688,9 +688,9 @@ impl IntersectExact<Cone> for Ellipse3D {
 mod tests {
     use crate::IntersectExact;
     use crate::{
-        Axis3D, ConicConicIntersection, ConicSurfaceIntersection, Ellipse3D,
-        EllipseConstructionError, Frame3D, Point3D, Sphere, Tolerance, Transform, Vector3D,
-        search_curve_curve, search_curve_surface,
+        Axis, ConicConicIntersection, ConicSurfaceIntersection, Ellipse, EllipseConstructionError,
+        Frame, Point, Sphere, Tolerance, Transform, Vector, search_curve_curve,
+        search_curve_surface,
     };
 
     /// A tangent contact at `t = π` reports multiplicity 2, like its mirror
@@ -699,7 +699,7 @@ mod tests {
     fn test_ellipse3d_quadric_tangency_at_t_pi() {
         use crate::Cylinder;
         let tol = Tolerance::DEFAULT;
-        let (o, z, x) = (Point3D::ORIGIN, Vector3D::Z, Vector3D::X);
+        let (o, z, x) = (Point::ORIGIN, Vector::Z, Vector::X);
         let sphere = Sphere::new(o, 2.0).unwrap();
         let multiplicities = |result: ConicSurfaceIntersection| match result {
             ConicSurfaceIntersection::Hits(hits) => hits
@@ -708,9 +708,9 @@ mod tests {
                 .collect::<Vec<_>>(),
             other => panic!("expected hits, got {other:?}"),
         };
-        let right = Ellipse3D::new(Point3D::new(0.5, 0.0, 0.0), z, x, 1.5, 1.0).unwrap();
-        let left = Ellipse3D::new(Point3D::new(-0.5, 0.0, 0.0), z, x, 1.5, 1.0).unwrap();
-        let both = Ellipse3D::new(o, z, x, 2.0, 1.0).unwrap();
+        let right = Ellipse::new(Point::new(0.5, 0.0, 0.0), z, x, 1.5, 1.0).unwrap();
+        let left = Ellipse::new(Point::new(-0.5, 0.0, 0.0), z, x, 1.5, 1.0).unwrap();
+        let both = Ellipse::new(o, z, x, 2.0, 1.0).unwrap();
         assert_eq!(
             multiplicities(right.intersect_exact(&sphere, tol)),
             [(0.0, 2)]
@@ -727,7 +727,7 @@ mod tests {
         );
 
         let cylinder = Cylinder::new(o, z, 1.0).unwrap();
-        let upright = Ellipse3D::new(o, x, Vector3D::Y, 1.0, 0.5).unwrap();
+        let upright = Ellipse::new(o, x, Vector::Y, 1.0, 0.5).unwrap();
         let hits = multiplicities(upright.intersect_exact(&cylinder, tol));
         assert_eq!(
             hits.iter().map(|h| h.1).collect::<Vec<_>>(),
@@ -740,8 +740,8 @@ mod tests {
 
     #[test]
     fn test_ellipse3d_new_ok() {
-        let e = Ellipse3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, 3.0, 1.5).unwrap();
-        assert_eq!(e.center(), Point3D::ORIGIN);
+        let e = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 3.0, 1.5).unwrap();
+        assert_eq!(e.center(), Point::ORIGIN);
         assert_eq!(e.major_radius(), 3.0);
         assert_eq!(e.minor_radius(), 1.5);
     }
@@ -749,7 +749,7 @@ mod tests {
     #[test]
     fn test_ellipse3d_new_negative_minor_radius_errors() {
         assert_eq!(
-            Ellipse3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, 3.0, -1.0),
+            Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 3.0, -1.0),
             Err(EllipseConstructionError::NonPositiveRadius)
         );
     }
@@ -757,7 +757,7 @@ mod tests {
     #[test]
     fn test_ellipse3d_new_inverted_radii_errors() {
         assert_eq!(
-            Ellipse3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, 1.0, 2.0),
+            Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 1.0, 2.0),
             Err(EllipseConstructionError::InvertedRadii)
         );
     }
@@ -765,7 +765,7 @@ mod tests {
     #[test]
     fn test_ellipse3d_new_null_normal_errors() {
         assert_eq!(
-            Ellipse3D::new(Point3D::ORIGIN, Vector3D::ZERO, Vector3D::X, 3.0, 1.5),
+            Ellipse::new(Point::ORIGIN, Vector::ZERO, Vector::X, 3.0, 1.5),
             Err(EllipseConstructionError::NullNormal)
         );
     }
@@ -773,15 +773,15 @@ mod tests {
     #[test]
     fn test_ellipse3d_new_parallel_x_direction_errors() {
         assert_eq!(
-            Ellipse3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::Z, 3.0, 1.5),
+            Ellipse::new(Point::ORIGIN, Vector::Z, Vector::Z, 3.0, 1.5),
             Err(EllipseConstructionError::NullNormal)
         );
     }
 
     #[test]
     fn test_ellipse3d_from_frame_ok() {
-        let e = Ellipse3D::from_frame(Frame3D::WORLD, 3.0, 1.5).unwrap();
-        assert_eq!(e.frame(), Frame3D::WORLD);
+        let e = Ellipse::from_frame(Frame::WORLD, 3.0, 1.5).unwrap();
+        assert_eq!(e.frame(), Frame::WORLD);
         assert_eq!(e.major_radius(), 3.0);
         assert_eq!(e.minor_radius(), 1.5);
     }
@@ -789,7 +789,7 @@ mod tests {
     #[test]
     fn test_ellipse3d_from_frame_negative_radius_errors() {
         assert_eq!(
-            Ellipse3D::from_frame(Frame3D::WORLD, 3.0, -1.0),
+            Ellipse::from_frame(Frame::WORLD, 3.0, -1.0),
             Err(EllipseConstructionError::NonPositiveRadius)
         );
     }
@@ -797,17 +797,17 @@ mod tests {
     #[test]
     fn test_ellipse3d_from_frame_inverted_radii_errors() {
         assert_eq!(
-            Ellipse3D::from_frame(Frame3D::WORLD, 1.0, 2.0),
+            Ellipse::from_frame(Frame::WORLD, 1.0, 2.0),
             Err(EllipseConstructionError::InvertedRadii)
         );
     }
 
     #[test]
     fn test_ellipse3d_from_center_and_points_ok() {
-        let e = Ellipse3D::from_center_and_points(
-            Point3D::ORIGIN,
-            Point3D::new(3.0, 0.0, 0.0),
-            Point3D::new(0.0, 1.5, 0.0),
+        let e = Ellipse::from_center_and_points(
+            Point::ORIGIN,
+            Point::new(3.0, 0.0, 0.0),
+            Point::new(0.0, 1.5, 0.0),
         )
         .unwrap();
         assert_eq!(e.major_radius(), 3.0);
@@ -817,10 +817,10 @@ mod tests {
     #[test]
     fn test_ellipse3d_from_center_and_points_null_axis_errors() {
         assert_eq!(
-            Ellipse3D::from_center_and_points(
-                Point3D::ORIGIN,
-                Point3D::ORIGIN,
-                Point3D::new(0.0, 1.5, 0.0),
+            Ellipse::from_center_and_points(
+                Point::ORIGIN,
+                Point::ORIGIN,
+                Point::new(0.0, 1.5, 0.0),
             ),
             Err(EllipseConstructionError::NullAxis)
         );
@@ -829,10 +829,10 @@ mod tests {
     #[test]
     fn test_ellipse3d_from_center_and_points_inverted_axis_errors_when_minor_larger() {
         assert_eq!(
-            Ellipse3D::from_center_and_points(
-                Point3D::ORIGIN,
-                Point3D::new(1.0, 0.0, 0.0),
-                Point3D::new(0.0, 3.0, 0.0),
+            Ellipse::from_center_and_points(
+                Point::ORIGIN,
+                Point::new(1.0, 0.0, 0.0),
+                Point::new(0.0, 3.0, 0.0),
             ),
             Err(EllipseConstructionError::InvertedAxis)
         );
@@ -841,10 +841,10 @@ mod tests {
     #[test]
     fn test_ellipse3d_from_center_and_points_inverted_axis_errors_when_collinear() {
         assert_eq!(
-            Ellipse3D::from_center_and_points(
-                Point3D::ORIGIN,
-                Point3D::new(3.0, 0.0, 0.0),
-                Point3D::new(1.0, 0.0, 0.0),
+            Ellipse::from_center_and_points(
+                Point::ORIGIN,
+                Point::new(3.0, 0.0, 0.0),
+                Point::new(1.0, 0.0, 0.0),
             ),
             Err(EllipseConstructionError::InvertedAxis)
         );
@@ -854,7 +854,7 @@ mod tests {
 
     #[test]
     fn test_ellipse3d_eval_point_zero() {
-        let e = Ellipse3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, 3.0, 1.5).unwrap();
+        let e = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 3.0, 1.5).unwrap();
         let p = e.eval_point(0.0);
         assert!((p.x - 3.0).abs() < 1e-9);
         assert!(p.y.abs() < 1e-9);
@@ -863,15 +863,15 @@ mod tests {
 
     #[test]
     fn test_ellipse3d_eval_points_matches_loop() {
-        let e = Ellipse3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, 3.0, 1.5).unwrap();
+        let e = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 3.0, 1.5).unwrap();
         let us = [0.0, 0.5, 1.5];
-        let expected: Vec<Point3D> = us.iter().map(|&u| e.eval_point(u)).collect();
+        let expected: Vec<Point> = us.iter().map(|&u| e.eval_point(u)).collect();
         assert_eq!(e.eval_points(&us), expected);
     }
 
     #[test]
     fn test_ellipse3d_eval_derivative_order1() {
-        let e = Ellipse3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, 3.0, 1.5).unwrap();
+        let e = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 3.0, 1.5).unwrap();
         let d1 = e.eval_derivative(0.0, 1);
         assert!(d1.x.abs() < 1e-9);
         assert!((d1.y - 1.5).abs() < 1e-9);
@@ -880,13 +880,13 @@ mod tests {
     #[test]
     #[should_panic]
     fn test_ellipse3d_eval_derivative_order0_panics() {
-        let e = Ellipse3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, 3.0, 1.5).unwrap();
+        let e = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 3.0, 1.5).unwrap();
         e.eval_derivative(0.0, 0);
     }
 
     #[test]
     fn test_ellipse3d_parameter_of_round_trip() {
-        let e = Ellipse3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, 3.0, 1.5).unwrap();
+        let e = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 3.0, 1.5).unwrap();
         for u in [0.3, 2.0, 5.5] {
             let p = e.eval_point(u);
             assert!((e.parameter_of(p) - u).abs() < 1e-9);
@@ -895,7 +895,7 @@ mod tests {
 
     #[test]
     fn test_ellipse3d_parameter_of_in_zero_to_tau() {
-        let e = Ellipse3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, 3.0, 1.5).unwrap();
+        let e = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 3.0, 1.5).unwrap();
         for u in [-1.0, -0.1, 7.0] {
             let p = e.eval_point(u);
             let recovered = e.parameter_of(p);
@@ -937,27 +937,27 @@ mod tests {
 
     #[test]
     fn test_ellipse3d_contains() {
-        let e = Ellipse3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, 3.0, 1.5).unwrap();
+        let e = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 3.0, 1.5).unwrap();
         let tol = Tolerance::DEFAULT;
-        assert!(e.contains(Point3D::new(3.0, 0.0, 0.0), tol));
-        assert!(e.contains(Point3D::new(0.0, 1.5, 0.0), tol));
+        assert!(e.contains(Point::new(3.0, 0.0, 0.0), tol));
+        assert!(e.contains(Point::new(0.0, 1.5, 0.0), tol));
         assert!(e.contains(e.eval_point(1.0), tol));
-        assert!(!e.contains(Point3D::ORIGIN, tol));
-        assert!(!e.contains(Point3D::new(4.0, 0.0, 0.0), tol));
+        assert!(!e.contains(Point::ORIGIN, tol));
+        assert!(!e.contains(Point::new(4.0, 0.0, 0.0), tol));
     }
 
     #[test]
     fn test_ellipse3d_extrema() {
-        let e = Ellipse3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, 3.0, 1.5).unwrap();
+        let e = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 3.0, 1.5).unwrap();
         let tol = Tolerance::DEFAULT;
         // Outside on the major axis: nearest (3,0,0), farthest (-3,0,0).
-        let ext = e.extrema(Point3D::new(4.0, 0.0, 0.0), tol);
+        let ext = e.extrema(Point::new(4.0, 0.0, 0.0), tol);
         assert!(ext.len() >= 2);
         assert_eq!(ext[0].distance, 1.0);
         assert!((ext[0].parameter - 0.0).abs() < 1e-9);
         assert!((ext.last().unwrap().distance - 7.0).abs() < 1e-9);
         // Center: all four axis endpoints equidistant in pairs.
-        let center_ext = e.extrema(Point3D::ORIGIN, tol);
+        let center_ext = e.extrema(Point::ORIGIN, tol);
         assert_eq!(center_ext.len(), 4);
         assert!((center_ext[0].distance - 1.5).abs() < 1e-9);
         assert!((center_ext[3].distance - 3.0).abs() < 1e-9);
@@ -965,13 +965,13 @@ mod tests {
 
     #[test]
     fn test_ellipse3d_project_point() {
-        let e = Ellipse3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, 3.0, 1.5).unwrap();
+        let e = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 3.0, 1.5).unwrap();
         let tol = Tolerance::DEFAULT;
-        let proj = e.project_point(Point3D::new(0.0, 3.0, 0.0), tol);
+        let proj = e.project_point(Point::new(0.0, 3.0, 0.0), tol);
         assert!((proj.distance - 1.5).abs() < 1e-9);
         assert!((proj.parameter - std::f64::consts::FRAC_PI_2).abs() < 1e-9);
         // Batch agrees with scalar.
-        let batch = e.project_points(&[Point3D::new(4.0, 0.0, 0.0)], tol);
+        let batch = e.project_points(&[Point::new(4.0, 0.0, 0.0)], tol);
         assert_eq!(batch.len(), 1);
         assert_eq!(batch[0].distance, 1.0);
     }
@@ -986,7 +986,7 @@ mod tests {
             (3.0, 1.0, std::f64::consts::PI + 1e-6),
             (3.0, 1.0, std::f64::consts::PI),
         ] {
-            let e = Ellipse3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, a, b).unwrap();
+            let e = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, a, b).unwrap();
             let proj = e.project_point(e.eval_point(u), tol);
             assert!(proj.distance < 1e-12, "({a}, {b}, {u}): {}", proj.distance);
         }
@@ -995,16 +995,9 @@ mod tests {
     #[test]
     fn test_ellipse3d_intersect_ellipse() {
         let tol = Tolerance::DEFAULT;
-        let e1 = Ellipse3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, 3.0, 1.5).unwrap();
+        let e1 = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 3.0, 1.5).unwrap();
         // Offset circle cutting the ring four times, with consistent parameters.
-        let e2 = Ellipse3D::new(
-            Point3D::new(0.5, 0.0, 0.0),
-            Vector3D::Z,
-            Vector3D::X,
-            2.0,
-            2.0,
-        )
-        .unwrap();
+        let e2 = Ellipse::new(Point::new(0.5, 0.0, 0.0), Vector::Z, Vector::X, 2.0, 2.0).unwrap();
         match e1.intersect_exact(&e2, tol) {
             ConicConicIntersection::Hits(hits) => {
                 assert_eq!(hits.len(), 4);
@@ -1026,20 +1019,14 @@ mod tests {
             _ => panic!("expected four points"),
         }
         // Grazing circle at the major vertex: a lone tangent.
-        let grazing = Ellipse3D::new(
-            Point3D::new(5.0, 0.0, 0.0),
-            Vector3D::Z,
-            Vector3D::X,
-            2.0,
-            2.0,
-        )
-        .unwrap();
+        let grazing =
+            Ellipse::new(Point::new(5.0, 0.0, 0.0), Vector::Z, Vector::X, 2.0, 2.0).unwrap();
         match e1.intersect_exact(&grazing, tol) {
             ConicConicIntersection::Hits(hits) => {
                 assert_eq!(hits.len(), 1);
                 let hit = hits[0];
                 assert_eq!(hit.multiplicity, 2);
-                assert!(hit.point.distance(Point3D::new(3.0, 0.0, 0.0)) < 1e-12);
+                assert!(hit.point.distance(Point::new(3.0, 0.0, 0.0)) < 1e-12);
                 let angle = hit.first_parameter.unwrap();
                 assert!(e1.eval_point(angle).distance(hit.point) < 1e-9);
                 assert_eq!(hit.second_parameter, None);
@@ -1047,14 +1034,7 @@ mod tests {
             other => panic!("expected a tangent, got {other:?}"),
         }
         // Distant ellipse: nothing.
-        let far = Ellipse3D::new(
-            Point3D::new(10.0, 0.0, 0.0),
-            Vector3D::Z,
-            Vector3D::X,
-            3.0,
-            1.5,
-        )
-        .unwrap();
+        let far = Ellipse::new(Point::new(10.0, 0.0, 0.0), Vector::Z, Vector::X, 3.0, 1.5).unwrap();
         assert_eq!(e1.intersect_exact(&far, tol), ConicConicIntersection::Empty);
         // Same center, plane, and radii: coincident.
         assert_eq!(
@@ -1063,12 +1043,12 @@ mod tests {
         );
         // Crossing planes: both pass through (0, ±1.5, 0) on the line the
         // planes share, crossing there.
-        let tilted = Ellipse3D::new(Point3D::ORIGIN, Vector3D::X, Vector3D::Z, 3.0, 1.5).unwrap();
+        let tilted = Ellipse::new(Point::ORIGIN, Vector::X, Vector::Z, 3.0, 1.5).unwrap();
         match e1.intersect_exact(&tilted, tol) {
             ConicConicIntersection::Hits(hits) => {
                 assert_eq!(hits.len(), 2);
                 for (h, y) in hits.iter().zip([1.5, -1.5]) {
-                    assert!(h.point.distance(Point3D::new(0.0, y, 0.0)) < 1e-12);
+                    assert!(h.point.distance(Point::new(0.0, y, 0.0)) < 1e-12);
                     assert_eq!(h.multiplicity, 1);
                     let angle = h
                         .second_parameter
@@ -1079,14 +1059,8 @@ mod tests {
             other => panic!("expected two crossings, got {other:?}"),
         }
         // Distinct parallel planes: no meeting.
-        let lifted = Ellipse3D::new(
-            Point3D::new(0.0, 0.0, 1.0),
-            Vector3D::Z,
-            Vector3D::X,
-            3.0,
-            1.5,
-        )
-        .unwrap();
+        let lifted =
+            Ellipse::new(Point::new(0.0, 0.0, 1.0), Vector::Z, Vector::X, 3.0, 1.5).unwrap();
         assert_eq!(
             e1.intersect_exact(&lifted, tol),
             ConicConicIntersection::Empty
@@ -1107,10 +1081,10 @@ mod tests {
         };
         for _ in 0..25 {
             let major1 = 1.0 + 2.0 * next();
-            let e1 = Ellipse3D::new(
-                Point3D::new(4.0 * next() - 2.0, 4.0 * next() - 2.0, 0.0),
-                Vector3D::Z,
-                Vector3D::X,
+            let e1 = Ellipse::new(
+                Point::new(4.0 * next() - 2.0, 4.0 * next() - 2.0, 0.0),
+                Vector::Z,
+                Vector::X,
                 major1,
                 (0.5 + next()).min(major1),
             )
@@ -1118,14 +1092,14 @@ mod tests {
             // Second frame rotated in-plane by a random angle.
             let angle = next() * std::f64::consts::TAU;
             let (c, s) = (angle.cos(), angle.sin());
-            let frame = Frame3D::new(
-                Point3D::new(4.0 * next() - 2.0, 4.0 * next() - 2.0, 0.0),
-                Vector3D::Z,
-                Vector3D::new(c, s, 0.0),
+            let frame = Frame::new(
+                Point::new(4.0 * next() - 2.0, 4.0 * next() - 2.0, 0.0),
+                Vector::Z,
+                Vector::new(c, s, 0.0),
             )
             .unwrap();
             let major = 1.0 + 2.0 * next();
-            let e2 = Ellipse3D::from_frame(frame, major, (0.5 + next()).min(major)).unwrap();
+            let e2 = Ellipse::from_frame(frame, major, (0.5 + next()).min(major)).unwrap();
             let analytic = e1.intersect_exact(&e2, tol);
             let generic = search_curve_curve(&e1, &e2, tol);
             match analytic {
@@ -1153,9 +1127,9 @@ mod tests {
     #[test]
     fn test_ellipse3d_intersect_sphere_crosscheck() {
         let tol = Tolerance::DEFAULT;
-        let e = Ellipse3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, 3.0, 1.5).unwrap();
+        let e = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 3.0, 1.5).unwrap();
         // Tilted sphere cutting the ring twice per side.
-        let sphere = Sphere::new(Point3D::new(0.0, 0.0, 1.0), 2.5).unwrap();
+        let sphere = Sphere::new(Point::new(0.0, 0.0, 1.0), 2.5).unwrap();
         match e.intersect_exact(&sphere, tol) {
             ConicSurfaceIntersection::Hits(hits) => {
                 assert!(!hits.is_empty());
@@ -1171,51 +1145,45 @@ mod tests {
         }
     }
 
-    // ---- Ellipse3D transformed ----
+    // ---- Ellipse transformed ----
 
     #[test]
     fn test_ellipse3d_transformed_rotation_spot_check() {
         use std::f64::consts::PI;
-        let ellipse = Ellipse3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, 3.0, 1.5).unwrap();
-        let axis = Axis3D::new(Point3D::ORIGIN, Vector3D::Z).unwrap();
+        let ellipse = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 3.0, 1.5).unwrap();
+        let axis = Axis::new(Point::ORIGIN, Vector::Z).unwrap();
         let moved = ellipse
             .transformed(Transform::rotation(axis, PI / 2.0))
             .unwrap();
-        assert!(moved.center().distance(Point3D::ORIGIN) < 1e-9);
+        assert!(moved.center().distance(Point::ORIGIN) < 1e-9);
         assert_eq!(moved.major_radius(), 3.0);
         assert_eq!(moved.minor_radius(), 1.5);
         // Major axis (was X) now lies along Y: u = 0 evaluates on Y.
-        assert!(moved.eval_point(0.0).distance(Point3D::new(0.0, 3.0, 0.0)) < 1e-9);
+        assert!(moved.eval_point(0.0).distance(Point::new(0.0, 3.0, 0.0)) < 1e-9);
     }
 
     #[test]
     fn test_ellipse3d_transformed_round_trip_and_mirror() {
-        let ellipse = Ellipse3D::new(
-            Point3D::new(1.0, 2.0, 0.0),
-            Vector3D::Z,
-            Vector3D::X,
-            3.0,
-            1.5,
-        )
-        .unwrap();
-        let t = Transform::translation(Vector3D::new(-1.0, 0.5, 2.0))
-            .then(Transform::scaling(Point3D::ORIGIN, 0.5));
+        let ellipse =
+            Ellipse::new(Point::new(1.0, 2.0, 0.0), Vector::Z, Vector::X, 3.0, 1.5).unwrap();
+        let t = Transform::translation(Vector::new(-1.0, 0.5, 2.0))
+            .then(Transform::scaling(Point::ORIGIN, 0.5));
         let moved = ellipse.transformed(t).unwrap();
-        assert!(moved.center().distance(Point3D::new(0.0, 1.25, 1.0)) < 1e-9);
+        assert!(moved.center().distance(Point::new(0.0, 1.25, 1.0)) < 1e-9);
         assert_eq!(moved.major_radius(), 1.5);
         assert_eq!(moved.minor_radius(), 0.75);
         let tol = Tolerance::DEFAULT;
         for u in [0.0, 1.0, 4.0] {
             assert!(moved.contains(t.apply_point(ellipse.eval_point(u)), tol));
         }
-        let inv = Transform::scaling(Point3D::ORIGIN, 2.0)
-            .then(Transform::translation(Vector3D::new(1.0, -0.5, -2.0)));
+        let inv = Transform::scaling(Point::ORIGIN, 2.0)
+            .then(Transform::translation(Vector::new(1.0, -0.5, -2.0)));
         let back = moved.transformed(inv).unwrap();
         for u in [0.0, 1.0, 4.0] {
             assert!(back.eval_point(u).distance(ellipse.eval_point(u)) < 1e-9);
         }
         // Mirror across the xy-plane preserves the point set.
-        let m = Transform::mirror_plane(Frame3D::WORLD);
+        let m = Transform::mirror_plane(Frame::WORLD);
         let mirrored = ellipse.transformed(m).unwrap();
         for u in [0.0, 1.0, 4.0] {
             assert!(mirrored.contains(m.apply_point(ellipse.eval_point(u)), tol));
@@ -1230,11 +1198,11 @@ mod projection_input_tests {
 
     #[test]
     fn test_ellipse3d_project_non_finite_point_is_nan() {
-        let curve = Ellipse3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, 3.0, 2.0).unwrap();
+        let curve = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 3.0, 2.0).unwrap();
         let tol = Tolerance::DEFAULT;
         for p in [
-            Point3D::new(f64::NAN, 0.0, 0.0),
-            Point3D::new(f64::INFINITY, 0.0, 0.0),
+            Point::new(f64::NAN, 0.0, 0.0),
+            Point::new(f64::INFINITY, 0.0, 0.0),
         ] {
             assert!(curve.extrema(p, tol).is_empty());
             let proj = curve.project_point(p, tol);

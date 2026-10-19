@@ -9,32 +9,32 @@
 //! frame changes handedness and the normal turns to the opposite of the
 //! mirrored normal, exactly as for a B-spline whose poles are mirrored.
 
-use geomcore::curves::{ParametricCurve2D, ParametricCurve3D};
+use geomcore::curves::{ParametricCurve, ParametricCurve2D};
 use geomcore::surfaces::{ParametricSurface, Surface};
 use geomcore::{
-    Axis3D, BSplineCurve3D, BSplineSurface, Circle3D, Cone, Curve3D, CurveCurveHit, Cylinder,
-    ElementaryCurve, Ellipse3D, ExactCurveCurveIntersection, ExactCurveSurfaceIntersection,
-    ExactSurfaceIntersection, Frame3D, Hyperbola3D, Intersect, IntersectExact, IntersectionMethod,
-    Line3D, Parabola3D, Plane, Point3D, Sphere, Tolerance, Torus, Transform, Vector3D,
+    Axis, BSplineCurve, BSplineSurface, Circle, Cone, Curve, CurveCurveHit, Cylinder,
+    ElementaryCurve, Ellipse, ExactCurveCurveIntersection, ExactCurveSurfaceIntersection,
+    ExactSurfaceIntersection, Frame, Hyperbola, Intersect, IntersectExact, IntersectionMethod,
+    Line, Parabola, Plane, Point, Sphere, Tolerance, Torus, Transform, Vector,
 };
 
 const PARAMETERS: [(f64, f64); 4] = [(0.0, 0.0), (0.3, 0.2), (2.0, -0.7), (4.5, 1.1)];
 const CURVE_PARAMETERS: [f64; 4] = [0.0, 0.3, 2.0, 4.5];
 
-fn tilted_frame() -> Frame3D {
-    Frame3D::new(
-        Point3D::new(1.0, -2.0, 0.5),
-        Vector3D::new(0.3, -0.4, 0.86),
-        Vector3D::new(1.0, 0.2, 0.0),
+fn tilted_frame() -> Frame {
+    Frame::new(
+        Point::new(1.0, -2.0, 0.5),
+        Vector::new(0.3, -0.4, 0.86),
+        Vector::new(1.0, 0.2, 0.0),
     )
     .unwrap()
 }
 
 fn bspline() -> BSplineSurface {
-    let poles: Vec<Vec<Point3D>> = (0..3)
+    let poles: Vec<Vec<Point>> = (0..3)
         .map(|i| {
             (0..3)
-                .map(|j| Point3D::new(i as f64, j as f64, ((i + 1) * (j + 2)) as f64 * 0.1))
+                .map(|j| Point::new(i as f64, j as f64, ((i + 1) * (j + 2)) as f64 * 0.1))
                 .collect()
         })
         .collect();
@@ -84,7 +84,7 @@ fn all_orientations() -> Vec<Surface> {
         .collect()
 }
 
-fn unit_normal(surface: &Surface, u: f64, v: f64) -> Vector3D {
+fn unit_normal(surface: &Surface, u: f64, v: f64) -> Vector {
     let (_, [su, sv]) = surface.eval_d1(u, v);
     su.cross(sv).normalized().unwrap()
 }
@@ -99,13 +99,13 @@ struct Similarity {
 }
 
 fn similarities() -> Vec<Similarity> {
-    let axis = Axis3D::new(Point3D::new(1.0, 0.0, 0.0), Vector3D::new(0.2, 1.0, 0.3)).unwrap();
-    let center = Point3D::new(0.5, -1.0, 2.0);
+    let axis = Axis::new(Point::new(1.0, 0.0, 0.0), Vector::new(0.2, 1.0, 0.3)).unwrap();
+    let center = Point::new(0.5, -1.0, 2.0);
     vec![
         Similarity {
             name: "rotation and translation",
             transform: Transform::rotation(axis, 0.7)
-                .then(Transform::translation(Vector3D::new(1.0, 2.0, 3.0))),
+                .then(Transform::translation(Vector::new(1.0, 2.0, 3.0))),
             scale: 1.0,
             mirror: false,
         },
@@ -124,10 +124,10 @@ fn similarities() -> Vec<Similarity> {
         Similarity {
             name: "mirror across a plane",
             transform: Transform::mirror_plane(
-                Frame3D::new(
-                    Point3D::new(0.2, 0.1, -0.3),
-                    Vector3D::new(0.5, 0.5, 0.7),
-                    Vector3D::new(1.0, -1.0, 0.0),
+                Frame::new(
+                    Point::new(0.2, 0.1, -0.3),
+                    Vector::new(0.5, 0.5, 0.7),
+                    Vector::new(1.0, -1.0, 0.0),
                 )
                 .unwrap(),
             ),
@@ -375,25 +375,25 @@ fn test_projection_onto_reversed_and_mirrored_surfaces_finds_the_foot() {
     }
 }
 
-fn curves() -> Vec<Curve3D> {
+fn curves() -> Vec<Curve> {
     let frame = tilted_frame();
     let (origin, z, x) = (frame.origin(), frame.z_direction(), frame.x_direction());
     vec![
-        Line3D::new(origin, Vector3D::new(0.3, 0.9, -0.2))
+        Line::new(origin, Vector::new(0.3, 0.9, -0.2))
             .unwrap()
             .into(),
-        Circle3D::from_frame(frame, 2.0).unwrap().into(),
-        Circle3D::from_frame(frame.flipped_y(), 2.0).unwrap().into(),
-        Ellipse3D::new(origin, z, x, 3.0, 1.5).unwrap().into(),
-        Parabola3D::new(origin, z, x, 0.8).unwrap().into(),
-        Hyperbola3D::new(origin, z, x, 2.0, 1.0).unwrap().into(),
-        BSplineCurve3D::new(
+        Circle::from_frame(frame, 2.0).unwrap().into(),
+        Circle::from_frame(frame.flipped_y(), 2.0).unwrap().into(),
+        Ellipse::new(origin, z, x, 3.0, 1.5).unwrap().into(),
+        Parabola::new(origin, z, x, 0.8).unwrap().into(),
+        Hyperbola::new(origin, z, x, 2.0, 1.0).unwrap().into(),
+        BSplineCurve::new(
             3,
             vec![
-                Point3D::new(0.0, 0.0, 0.0),
-                Point3D::new(1.0, 2.0, 0.5),
-                Point3D::new(3.0, 1.0, -0.5),
-                Point3D::new(4.0, 3.0, 1.0),
+                Point::new(0.0, 0.0, 0.0),
+                Point::new(1.0, 2.0, 0.5),
+                Point::new(3.0, 1.0, -0.5),
+                Point::new(4.0, 3.0, 1.0),
             ],
             vec![0.0, 5.0],
             vec![4, 4],
@@ -404,35 +404,35 @@ fn curves() -> Vec<Curve3D> {
     ]
 }
 
-fn transformed_curve(curve: &Curve3D, transform: Transform) -> Curve3D {
+fn transformed_curve(curve: &Curve, transform: Transform) -> Curve {
     match curve {
-        Curve3D::Line(c) => c.transformed(transform).unwrap().into(),
-        Curve3D::Circle(c) => c.transformed(transform).unwrap().into(),
-        Curve3D::Ellipse(c) => c.transformed(transform).unwrap().into(),
-        Curve3D::Parabola(c) => c.transformed(transform).unwrap().into(),
-        Curve3D::Hyperbola(c) => c.transformed(transform).unwrap().into(),
-        Curve3D::BSpline(c) => c.transformed(transform).into(),
+        Curve::Line(c) => c.transformed(transform).unwrap().into(),
+        Curve::Circle(c) => c.transformed(transform).unwrap().into(),
+        Curve::Ellipse(c) => c.transformed(transform).unwrap().into(),
+        Curve::Parabola(c) => c.transformed(transform).unwrap().into(),
+        Curve::Hyperbola(c) => c.transformed(transform).unwrap().into(),
+        Curve::BSpline(c) => c.transformed(transform).into(),
         _ => unreachable!("every curve type is listed"),
     }
 }
 
-fn project_on_curve(curve: &Curve3D, point: Point3D) -> f64 {
+fn project_on_curve(curve: &Curve, point: Point) -> f64 {
     let tol = Tolerance::DEFAULT;
     match curve {
-        Curve3D::Line(c) => c.project_point(point, tol).parameter,
-        Curve3D::Circle(c) => c.project_point(point, tol).parameter,
-        Curve3D::Ellipse(c) => c.project_point(point, tol).parameter,
-        Curve3D::Parabola(c) => c.project_point(point, tol).parameter,
-        Curve3D::Hyperbola(c) => c.project_point(point, tol).parameter,
-        Curve3D::BSpline(c) => c.project_point(point, tol).parameter,
+        Curve::Line(c) => c.project_point(point, tol).parameter,
+        Curve::Circle(c) => c.project_point(point, tol).parameter,
+        Curve::Ellipse(c) => c.project_point(point, tol).parameter,
+        Curve::Parabola(c) => c.project_point(point, tol).parameter,
+        Curve::Hyperbola(c) => c.project_point(point, tol).parameter,
+        Curve::BSpline(c) => c.project_point(point, tol).parameter,
         _ => unreachable!("every curve type is listed"),
     }
 }
 
 /// Whether the curve parameter is a length, and so scales with the
 /// transform.
-fn is_length_parameter(curve: &Curve3D) -> bool {
-    matches!(curve, Curve3D::Line(_) | Curve3D::Parabola(_))
+fn is_length_parameter(curve: &Curve) -> bool {
+    matches!(curve, Curve::Line(_) | Curve::Parabola(_))
 }
 
 #[test]
@@ -465,7 +465,7 @@ fn test_transform_commutes_with_curve_evaluation_and_parameter_recovery() {
                     "parameter recovery: {context}, got {recovered}"
                 );
             }
-            if let (Curve3D::Circle(circle), Curve3D::Circle(image)) = (&curve, &image) {
+            if let (Curve::Circle(circle), Curve::Circle(image)) = (&curve, &image) {
                 let sign = if similarity.mirror { -1.0 } else { 1.0 };
                 let expected = (sign / similarity.scale) * t.apply_vector(circle.normal());
                 assert!((image.normal() - expected).magnitude() < 1e-12);
@@ -475,10 +475,8 @@ fn test_transform_commutes_with_curve_evaluation_and_parameter_recovery() {
                 assert!(radial.cross(d1).dot(image.normal()) > 0.0);
             }
             let conversions = match (&curve, &image) {
-                (Curve3D::Circle(c), Curve3D::Circle(i)) => Some((c.to_bspline(), i.to_bspline())),
-                (Curve3D::Ellipse(c), Curve3D::Ellipse(i)) => {
-                    Some((c.to_bspline(), i.to_bspline()))
-                }
+                (Curve::Circle(c), Curve::Circle(i)) => Some((c.to_bspline(), i.to_bspline())),
+                (Curve::Ellipse(c), Curve::Ellipse(i)) => Some((c.to_bspline(), i.to_bspline())),
                 _ => None,
             };
             if let Some((converted, image_converted)) = conversions {
@@ -496,7 +494,7 @@ fn test_transform_commutes_with_curve_evaluation_and_parameter_recovery() {
 
 /// Every hit of a curve/surface intersection: parameter, point and
 /// multiplicity.
-fn curve_surface_hits(result: ExactCurveSurfaceIntersection) -> (u8, Vec<(f64, Point3D, u32)>) {
+fn curve_surface_hits(result: ExactCurveSurfaceIntersection) -> (u8, Vec<(f64, Point, u32)>) {
     match result {
         ExactCurveSurfaceIntersection::Empty => (0, vec![]),
         ExactCurveSurfaceIntersection::Coincident => (1, vec![]),
@@ -512,20 +510,20 @@ fn curve_surface_hits(result: ExactCurveSurfaceIntersection) -> (u8, Vec<(f64, P
 
 /// Elementary curves in general position against the test surfaces, with
 /// direct and indirect frames.
-fn crossing_curves() -> Vec<Curve3D> {
-    let frame = Frame3D::new(
-        Point3D::new(0.4, -1.1, 1.2),
-        Vector3D::new(-0.2, 0.7, 0.4),
-        Vector3D::new(0.5, 0.1, 0.9),
+fn crossing_curves() -> Vec<Curve> {
+    let frame = Frame::new(
+        Point::new(0.4, -1.1, 1.2),
+        Vector::new(-0.2, 0.7, 0.4),
+        Vector::new(0.5, 0.1, 0.9),
     )
     .unwrap();
     vec![
-        Line3D::new(Point3D::new(-3.0, -2.5, 0.0), Vector3D::new(1.0, 0.1, 0.3))
+        Line::new(Point::new(-3.0, -2.5, 0.0), Vector::new(1.0, 0.1, 0.3))
             .unwrap()
             .into(),
-        Circle3D::from_frame(frame, 2.5).unwrap().into(),
-        Circle3D::from_frame(frame.flipped_x(), 2.5).unwrap().into(),
-        Ellipse3D::from_frame(frame.flipped_z(), 3.0, 1.5)
+        Circle::from_frame(frame, 2.5).unwrap().into(),
+        Circle::from_frame(frame.flipped_x(), 2.5).unwrap().into(),
+        Ellipse::from_frame(frame.flipped_z(), 3.0, 1.5)
             .unwrap()
             .into(),
     ]
@@ -581,7 +579,7 @@ fn test_curve_surface_intersection_commutes_with_mirrors() {
 
 /// A hit's parameters on both curves, recovered from its point where the
 /// exact solver did not store them.
-fn hit_parameters(hit: &CurveCurveHit, first: &Curve3D, second: &Curve3D) -> (f64, f64) {
+fn hit_parameters(hit: &CurveCurveHit, first: &Curve, second: &Curve) -> (f64, f64) {
     (
         hit.first_parameter
             .unwrap_or_else(|| first.parameter_of(hit.point)),
@@ -595,11 +593,11 @@ fn test_curve_curve_intersection_commutes_with_mirrors() {
     let tol = Tolerance::DEFAULT;
     let mut checked_hits = 0;
     let frame = tilted_frame();
-    let in_plane: Vec<Curve3D> = vec![
-        Circle3D::from_frame(frame, 2.0).unwrap().into(),
-        Circle3D::from_frame(frame.flipped_y(), 2.0).unwrap().into(),
-        Ellipse3D::from_frame(
-            Frame3D::new(
+    let in_plane: Vec<Curve> = vec![
+        Circle::from_frame(frame, 2.0).unwrap().into(),
+        Circle::from_frame(frame.flipped_y(), 2.0).unwrap().into(),
+        Ellipse::from_frame(
+            Frame::new(
                 frame.origin() + 0.7 * frame.x_direction(),
                 frame.z_direction(),
                 frame.y_direction(),
@@ -611,7 +609,7 @@ fn test_curve_curve_intersection_commutes_with_mirrors() {
         )
         .unwrap()
         .into(),
-        Line3D::new(
+        Line::new(
             frame.origin() + 0.5 * frame.y_direction(),
             frame.x_direction() + 0.2 * frame.y_direction(),
         )
@@ -707,18 +705,18 @@ fn surface_intersection_curves(
 #[test]
 fn test_surface_surface_intersection_commutes_with_mirrors() {
     let tol = Tolerance::DEFAULT;
-    let frame = Frame3D::new(
-        Point3D::new(1.3, -1.6, 0.9),
-        Vector3D::new(0.3, -0.4, 0.86),
-        Vector3D::new(1.0, 0.2, 0.0),
+    let frame = Frame::new(
+        Point::new(1.3, -1.6, 0.9),
+        Vector::new(0.3, -0.4, 0.86),
+        Vector::new(1.0, 0.2, 0.0),
     )
     .unwrap();
     let others: Vec<Surface> = vec![
         Plane::from_frame(
-            Frame3D::new(
-                Point3D::new(1.0, -1.5, 0.8),
-                Vector3D::new(0.2, 0.3, 1.0),
-                Vector3D::X,
+            Frame::new(
+                Point::new(1.0, -1.5, 0.8),
+                Vector::new(0.2, 0.3, 1.0),
+                Vector::X,
             )
             .unwrap(),
         )
@@ -783,7 +781,7 @@ fn test_surface_surface_intersection_commutes_with_mirrors() {
 
 /// Whether every point of `image` is within `gap` of the image of a point
 /// of `original`, both lists having the same length.
-fn same_points_moved(original: &[Point3D], image: &[Point3D], t: Transform, gap: f64) -> bool {
+fn same_points_moved(original: &[Point], image: &[Point], t: Transform, gap: f64) -> bool {
     original.len() == image.len()
         && image.iter().all(|point| {
             original
@@ -799,10 +797,10 @@ fn test_routed_curve_surface_intersection_commutes_with_mirrors() {
     let tol = Tolerance::DEFAULT;
     let mut curves = crossing_curves();
     let crossing_circle = match &curves[1] {
-        Curve3D::Circle(circle) => *circle,
+        Curve::Circle(circle) => *circle,
         _ => unreachable!("the second crossing curve is a circle"),
     };
-    curves.push(Curve3D::BSpline(crossing_circle.to_bspline()));
+    curves.push(Curve::BSpline(crossing_circle.to_bspline()));
     let mut checked_hits = 0;
     for similarity in [&similarities()[0], &similarities()[3], &similarities()[4]] {
         let t = similarity.transform;
@@ -814,8 +812,8 @@ fn test_routed_curve_surface_intersection_commutes_with_mirrors() {
                 let image_result = image_curve.intersect(&image_surface, tol);
                 let context = format!("{} of {curve:?} and {surface:?}", similarity.name);
                 assert_eq!(result.method(), image_result.method(), "{context}");
-                let points: Vec<Point3D> = result.hits().iter().map(|hit| hit.point).collect();
-                let image_points: Vec<Point3D> =
+                let points: Vec<Point> = result.hits().iter().map(|hit| hit.point).collect();
+                let image_points: Vec<Point> =
                     image_result.hits().iter().map(|hit| hit.point).collect();
                 assert!(
                     same_points_moved(&points, &image_points, t, 1e-7),
@@ -855,10 +853,10 @@ fn test_routed_surface_surface_intersection_commutes_with_mirrors() {
     // Pairs without a closed form march: the B-spline patch and a torus off
     // the tilted axis, against every orientation.
     let tol = Tolerance::DEFAULT;
-    let off_axis = Frame3D::new(
-        Point3D::new(0.5, -1.0, 1.0),
-        Vector3D::new(1.0, 0.3, 0.2),
-        Vector3D::new(0.0, 1.0, -1.5),
+    let off_axis = Frame::new(
+        Point::new(0.5, -1.0, 1.0),
+        Vector::new(1.0, 0.3, 0.2),
+        Vector::new(0.0, 1.0, -1.5),
     )
     .unwrap();
     let others: Vec<Surface> = vec![
@@ -925,7 +923,7 @@ fn test_routed_surface_surface_intersection_commutes_with_mirrors() {
 
 /// Circles and lines lying on the surface: its isoparametric curves, each
 /// also with an indirect frame or a reversed direction.
-fn curves_on(surface: &Surface) -> Vec<Curve3D> {
+fn curves_on(surface: &Surface) -> Vec<Curve> {
     let mut on_surface = Vec::new();
     let isos = [
         surface.u_iso(0.8),
@@ -935,7 +933,7 @@ fn curves_on(surface: &Surface) -> Vec<Curve3D> {
     ];
     for iso in isos.into_iter().flatten() {
         match iso {
-            Curve3D::Circle(circle) => {
+            Curve::Circle(circle) => {
                 let frame = circle.frame();
                 for variant in [
                     frame,
@@ -943,33 +941,25 @@ fn curves_on(surface: &Surface) -> Vec<Curve3D> {
                     frame.flipped_y(),
                     frame.flipped_y().flipped_z(),
                 ] {
-                    on_surface.push(
-                        Circle3D::from_frame(variant, circle.radius())
-                            .unwrap()
-                            .into(),
-                    );
+                    on_surface.push(Circle::from_frame(variant, circle.radius()).unwrap().into());
                 }
             }
-            Curve3D::Line(line) => {
+            Curve::Line(line) => {
                 on_surface.push(line.into());
-                on_surface.push(
-                    Line3D::new(line.origin(), -line.direction())
-                        .unwrap()
-                        .into(),
-                );
+                on_surface.push(Line::new(line.origin(), -line.direction()).unwrap().into());
             }
             _ => {}
         }
     }
     if let Surface::Plane(plane) = surface {
-        let frame = Frame3D::new(
+        let frame = Frame::new(
             plane.eval_point(0.4, -0.3),
             plane.normal(),
             plane.frame().x_direction() + plane.frame().y_direction(),
         )
         .unwrap();
         for variant in [frame, frame.flipped_z(), frame.flipped_y()] {
-            on_surface.push(Circle3D::from_frame(variant, 1.3).unwrap().into());
+            on_surface.push(Circle::from_frame(variant, 1.3).unwrap().into());
         }
     }
     on_surface
@@ -986,8 +976,8 @@ fn test_parametrization_on_reversed_and_mirrored_surfaces() {
         for target in [surface.clone(), transformed(&surface, mirror.transform)] {
             for curve in curves_on(&target) {
                 let pcurve = match &curve {
-                    Curve3D::Circle(c) => c.parametrize_on(target.clone(), tol),
-                    Curve3D::Line(c) => c.parametrize_on(target.clone(), tol),
+                    Curve::Circle(c) => c.parametrize_on(target.clone(), tol),
+                    Curve::Line(c) => c.parametrize_on(target.clone(), tol),
                     _ => unreachable!(),
                 };
                 let pcurve =

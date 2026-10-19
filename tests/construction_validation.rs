@@ -2,40 +2,40 @@
 //! zero sizes that collapse them onto lines or segments.
 
 use geomcore::{
-    Axis2D, Axis3D, Circle2D, Circle3D, CircleConstructionError, Cone, ConeConstructionError,
-    Cylinder, CylinderConstructionError, Ellipse3D, EllipseConstructionError, Frame2D, Frame3D,
-    FrameConstructionError, Hyperbola3D, HyperbolaConstructionError, Line2D, Line3D,
-    LineConstructionError, Parabola3D, ParabolaConstructionError, Plane, PlaneConstructionError,
-    Point2D, Point3D, Sphere, SphereConstructionError, Torus, TorusConstructionError, Vector2D,
-    Vector3D,
+    Axis, Axis2D, Circle, Circle2D, CircleConstructionError, Cone, ConeConstructionError, Cylinder,
+    CylinderConstructionError, Ellipse, EllipseConstructionError, Frame, Frame2D,
+    FrameConstructionError, Hyperbola, HyperbolaConstructionError, Line, Line2D,
+    LineConstructionError, Parabola, ParabolaConstructionError, Plane, PlaneConstructionError,
+    Point, Point2D, Sphere, SphereConstructionError, Torus, TorusConstructionError, Vector,
+    Vector2D,
 };
 
 const BAD: [f64; 3] = [f64::NAN, f64::INFINITY, f64::NEG_INFINITY];
-const O: Point3D = Point3D::ORIGIN;
-const X: Vector3D = Vector3D::X;
-const Z: Vector3D = Vector3D::Z;
+const O: Point = Point::ORIGIN;
+const X: Vector = Vector::X;
+const Z: Vector = Vector::Z;
 
-fn bad_points() -> impl Iterator<Item = Point3D> {
-    BAD.into_iter().map(|b| Point3D::new(1.0, b, 0.0))
+fn bad_points() -> impl Iterator<Item = Point> {
+    BAD.into_iter().map(|b| Point::new(1.0, b, 0.0))
 }
 
-fn bad_vectors() -> impl Iterator<Item = Vector3D> {
-    BAD.into_iter().map(|b| Vector3D::new(b, 0.0, 1.0))
+fn bad_vectors() -> impl Iterator<Item = Vector> {
+    BAD.into_iter().map(|b| Vector::new(b, 0.0, 1.0))
 }
 
 #[test]
 fn test_frames_and_axes_reject_non_finite() {
     let nf = Some(FrameConstructionError::NonFinite);
     for p in bad_points() {
-        assert_eq!(Axis3D::new(p, Z).err(), nf);
-        assert_eq!(Frame3D::new(p, Z, X).err(), nf);
-        assert_eq!(Frame3D::from_z(p, Z).err(), nf);
+        assert_eq!(Axis::new(p, Z).err(), nf);
+        assert_eq!(Frame::new(p, Z, X).err(), nf);
+        assert_eq!(Frame::from_z(p, Z).err(), nf);
     }
     for v in bad_vectors() {
-        assert_eq!(Axis3D::new(O, v).err(), nf);
-        assert_eq!(Frame3D::new(O, v, X).err(), nf);
-        assert_eq!(Frame3D::new(O, Z, v).err(), nf);
-        assert_eq!(Frame3D::from_z(O, v).err(), nf);
+        assert_eq!(Axis::new(O, v).err(), nf);
+        assert_eq!(Frame::new(O, v, X).err(), nf);
+        assert_eq!(Frame::new(O, Z, v).err(), nf);
+        assert_eq!(Frame::from_z(O, v).err(), nf);
     }
     for b in BAD {
         let (p, v) = (Point2D::new(b, 0.0), Vector2D::new(1.0, b));
@@ -51,19 +51,19 @@ fn test_frames_and_axes_reject_non_finite() {
 #[test]
 fn test_lines_and_planes_reject_non_finite() {
     for p in bad_points() {
-        assert_eq!(Line3D::new(p, X), Err(LineConstructionError::NonFinite));
+        assert_eq!(Line::new(p, X), Err(LineConstructionError::NonFinite));
         assert_eq!(
-            Line3D::from_two_points(O, p),
+            Line::from_two_points(O, p),
             Err(LineConstructionError::NonFinite)
         );
         assert_eq!(Plane::new(p, Z), Err(PlaneConstructionError::NonFinite));
         assert_eq!(
-            Plane::from_three_points(O, Point3D::new(1.0, 0.0, 0.0), p),
+            Plane::from_three_points(O, Point::new(1.0, 0.0, 0.0), p),
             Err(PlaneConstructionError::NonFinite)
         );
     }
     for v in bad_vectors() {
-        assert_eq!(Line3D::new(O, v), Err(LineConstructionError::NonFinite));
+        assert_eq!(Line::new(O, v), Err(LineConstructionError::NonFinite));
         // Used to panic while picking the frame's x direction.
         assert_eq!(Plane::new(O, v), Err(PlaneConstructionError::NonFinite));
     }
@@ -92,70 +92,70 @@ fn test_lines_and_planes_reject_non_finite() {
 fn test_circles_reject_non_finite() {
     let nf = Some(CircleConstructionError::NonFinite);
     for b in BAD {
-        assert_eq!(Circle3D::new(O, Z, b).err(), nf);
-        assert_eq!(Circle3D::from_frame(Frame3D::WORLD, b).err(), nf);
+        assert_eq!(Circle::new(O, Z, b).err(), nf);
+        assert_eq!(Circle::from_frame(Frame::WORLD, b).err(), nf);
         assert_eq!(Circle2D::new(Point2D::ORIGIN, b).err(), nf);
         assert_eq!(Circle2D::new(Point2D::new(b, 0.0), 1.0).err(), nf);
     }
     for p in bad_points() {
-        assert_eq!(Circle3D::new(p, Z, 1.0).err(), nf);
+        assert_eq!(Circle::new(p, Z, 1.0).err(), nf);
         assert_eq!(
-            Circle3D::from_three_points(O, Point3D::new(1.0, 0.0, 0.0), p).err(),
+            Circle::from_three_points(O, Point::new(1.0, 0.0, 0.0), p).err(),
             nf
         );
     }
     // A zero radius is a valid (point) circle.
-    assert!(Circle3D::new(O, Z, 0.0).is_ok());
+    assert!(Circle::new(O, Z, 0.0).is_ok());
 }
 
 #[test]
 fn test_conics_reject_non_finite_and_zero_sizes() {
     for b in BAD {
         assert_eq!(
-            Ellipse3D::new(O, Z, X, b, 1.0),
+            Ellipse::new(O, Z, X, b, 1.0),
             Err(EllipseConstructionError::NonFinite)
         );
         assert_eq!(
-            Ellipse3D::new(O, Z, X, 3.0, b),
+            Ellipse::new(O, Z, X, 3.0, b),
             Err(EllipseConstructionError::NonFinite)
         );
         assert_eq!(
-            Hyperbola3D::new(O, Z, X, b, 1.0),
+            Hyperbola::new(O, Z, X, b, 1.0),
             Err(HyperbolaConstructionError::NonFinite)
         );
         assert_eq!(
-            Hyperbola3D::new(O, Z, X, 2.0, b),
+            Hyperbola::new(O, Z, X, 2.0, b),
             Err(HyperbolaConstructionError::NonFinite)
         );
         assert_eq!(
-            Parabola3D::new(O, Z, X, b),
+            Parabola::new(O, Z, X, b),
             Err(ParabolaConstructionError::NonFinite)
         );
     }
     for p in bad_points() {
         assert_eq!(
-            Ellipse3D::new(p, Z, X, 3.0, 1.0),
+            Ellipse::new(p, Z, X, 3.0, 1.0),
             Err(EllipseConstructionError::NonFinite)
         );
         assert_eq!(
-            Ellipse3D::from_center_and_points(O, Point3D::new(3.0, 0.0, 0.0), p),
+            Ellipse::from_center_and_points(O, Point::new(3.0, 0.0, 0.0), p),
             Err(EllipseConstructionError::NonFinite)
         );
         assert_eq!(
-            Hyperbola3D::from_center_and_points(O, Point3D::new(2.0, 0.0, 0.0), p),
+            Hyperbola::from_center_and_points(O, Point::new(2.0, 0.0, 0.0), p),
             Err(HyperbolaConstructionError::NonFinite)
         );
     }
     assert_eq!(
-        Ellipse3D::new(O, Z, X, 3.0, 0.0),
+        Ellipse::new(O, Z, X, 3.0, 0.0),
         Err(EllipseConstructionError::NonPositiveRadius)
     );
     assert_eq!(
-        Hyperbola3D::new(O, Z, X, 0.0, 1.0),
+        Hyperbola::new(O, Z, X, 0.0, 1.0),
         Err(HyperbolaConstructionError::NonPositiveRadius)
     );
     assert_eq!(
-        Parabola3D::new(O, Z, X, 0.0),
+        Parabola::new(O, Z, X, 0.0),
         Err(ParabolaConstructionError::NonPositiveFocal)
     );
 }
@@ -185,7 +185,7 @@ fn test_elementary_surfaces_reject_non_finite() {
             Err(ConeConstructionError::NonFinite)
         );
         assert_eq!(
-            Cone::from_two_points_and_radii(O, Point3D::new(0.0, 0.0, 1.0), 1.0, b),
+            Cone::from_two_points_and_radii(O, Point::new(0.0, 0.0, 1.0), 1.0, b),
             Err(ConeConstructionError::NonFinite)
         );
     }

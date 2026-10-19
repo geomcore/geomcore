@@ -11,8 +11,8 @@
 
 use super::sealed::{DiscretizeRange, Run};
 use super::{DiscretizationCriteria, smallest_count};
+use crate::{Circle, Curve, Ellipse, Hyperbola, Line, Parabola, Point};
 use crate::{Circle2D, Curve2D, Line2D, Point2D};
-use crate::{Circle3D, Curve3D, Ellipse3D, Hyperbola3D, Line3D, Parabola3D, Point3D};
 use std::f64::consts::{FRAC_PI_2, TAU};
 
 /// One run of equal steps over `[first, last]` of the curve evaluated by
@@ -103,8 +103,8 @@ fn line_steps<P, F>(
     );
 }
 
-impl DiscretizeRange for Circle3D {
-    type Point = Point3D;
+impl DiscretizeRange for Circle {
+    type Point = Point;
 
     fn for_each_run<F>(
         &self,
@@ -198,8 +198,8 @@ fn conic_guess(
     guess.max(sweep * turning_rate / (2.0 * limit))
 }
 
-impl DiscretizeRange for Ellipse3D {
-    type Point = Point3D;
+impl DiscretizeRange for Ellipse {
+    type Point = Point;
 
     /// The image of a circle under `diag(a, b)`: a step of `h` around `m`
     /// lies `2 sin²(h/4) / sqrt(cos²m/a² + sin²m/b²)` from its chord, the
@@ -251,8 +251,8 @@ impl DiscretizeRange for Ellipse3D {
     }
 }
 
-impl DiscretizeRange for Hyperbola3D {
-    type Point = Point3D;
+impl DiscretizeRange for Hyperbola {
+    type Point = Point;
 
     /// The image of `(cosh u, sinh u)` under `diag(a, b)`: a step of `h`
     /// around `m` lies `2 sinh²(h/4) / sqrt(cosh²m/a² + sinh²m/b²)` from
@@ -298,8 +298,8 @@ impl DiscretizeRange for Hyperbola3D {
     }
 }
 
-impl DiscretizeRange for Parabola3D {
-    type Point = Point3D;
+impl DiscretizeRange for Parabola {
+    type Point = Point;
 
     /// `u²/4f` along the axis, `u` across: a step of `h` around `m` lies
     /// `h²/16f / sqrt(1 + m²/4f²)` from its chord, the largest over a
@@ -345,8 +345,8 @@ impl DiscretizeRange for Parabola3D {
     }
 }
 
-impl DiscretizeRange for Line3D {
-    type Point = Point3D;
+impl DiscretizeRange for Line {
+    type Point = Point;
 
     fn for_each_run<F>(
         &self,
@@ -391,8 +391,8 @@ impl DiscretizeRange for Line2D {
     }
 }
 
-impl DiscretizeRange for Curve3D {
-    type Point = Point3D;
+impl DiscretizeRange for Curve {
+    type Point = Point;
 
     fn for_each_run<F>(
         &self,
@@ -405,12 +405,12 @@ impl DiscretizeRange for Curve3D {
         F: FnMut(Run, &dyn Fn(f64) -> Self::Point),
     {
         match self {
-            Curve3D::Line(c) => c.for_each_run(first, last, criteria, min_segments, visit),
-            Curve3D::Circle(c) => c.for_each_run(first, last, criteria, min_segments, visit),
-            Curve3D::Ellipse(c) => c.for_each_run(first, last, criteria, min_segments, visit),
-            Curve3D::Parabola(c) => c.for_each_run(first, last, criteria, min_segments, visit),
-            Curve3D::Hyperbola(c) => c.for_each_run(first, last, criteria, min_segments, visit),
-            Curve3D::BSpline(c) => c.for_each_run(first, last, criteria, min_segments, visit),
+            Curve::Line(c) => c.for_each_run(first, last, criteria, min_segments, visit),
+            Curve::Circle(c) => c.for_each_run(first, last, criteria, min_segments, visit),
+            Curve::Ellipse(c) => c.for_each_run(first, last, criteria, min_segments, visit),
+            Curve::Parabola(c) => c.for_each_run(first, last, criteria, min_segments, visit),
+            Curve::Hyperbola(c) => c.for_each_run(first, last, criteria, min_segments, visit),
+            Curve::BSpline(c) => c.for_each_run(first, last, criteria, min_segments, visit),
         }
     }
 }

@@ -13,10 +13,10 @@ use std::f64::consts::{FRAC_PI_2, PI, TAU};
 use std::fmt;
 
 use crate::curve_math::analytic::{in_period, wrap_to_turn};
-use crate::curves::{Circle2D, Circle3D, Curve2D, Line2D, Line3D};
+use crate::curves::{Circle, Circle2D, Curve2D, Line, Line2D};
 use crate::surfaces::{ParametricSurface, Surface};
 use crate::tol;
-use crate::{Frame2D, Point2D, Point3D, Tolerance, Vector2D, Vector3D};
+use crate::{Frame2D, Point, Point2D, Tolerance, Vector, Vector2D};
 
 /// Error returned when a 3D curve cannot be given an analytic 2D
 /// representation on a surface.
@@ -49,7 +49,7 @@ const CHECK_PARAMS: [f64; 3] = [0.0, 1.7, 4.1];
 
 /// Computes the analytic 2D image of `line` on `surface`, or an error.
 pub(crate) fn line_on_surface(
-    line: &Line3D,
+    line: &Line,
     surface: &Surface,
     tol: Tolerance,
 ) -> Result<Curve2D, ParametrizeError> {
@@ -74,7 +74,7 @@ pub(crate) fn line_on_surface(
 
 /// Computes the analytic 2D image of `circle` on `surface`, or an error.
 pub(crate) fn circle_on_surface(
-    circle: &Circle3D,
+    circle: &Circle,
     surface: &Surface,
     tol: Tolerance,
 ) -> Result<Curve2D, ParametrizeError> {
@@ -127,7 +127,7 @@ pub(crate) fn circle_on_surface(
 fn finish_line(
     surface: &Surface,
     pcurve: Line2D,
-    curve_point: impl Fn(f64) -> Point3D,
+    curve_point: impl Fn(f64) -> Point,
     tol: Tolerance,
 ) -> Result<Curve2D, ParametrizeError> {
     verify_on_surface(surface, &Curve2D::Line(pcurve), curve_point, tol)?;
@@ -147,7 +147,7 @@ fn finish_line(
 fn verify_on_surface(
     surface: &Surface,
     pcurve: &Curve2D,
-    curve_point: impl Fn(f64) -> Point3D,
+    curve_point: impl Fn(f64) -> Point,
     tol: Tolerance,
 ) -> Result<(), ParametrizeError> {
     use crate::curves::ParametricCurve2D;
@@ -173,7 +173,7 @@ fn verify_on_surface(
 
 /// 2D image of a line lying in a plane: local x/y coordinates of the origin
 /// and the projected (renormalized) direction.
-fn line_on_plane(line: &Line3D, frame: crate::Frame3D) -> Result<Line2D, ParametrizeError> {
+fn line_on_plane(line: &Line, frame: crate::Frame) -> Result<Line2D, ParametrizeError> {
     let origin = eval_point2d_plane(frame, line.origin());
     let d = line.direction();
     let dir = Vector2D::new(d.dot(frame.x_direction()), d.dot(frame.y_direction()));
@@ -191,8 +191,8 @@ fn line_on_plane(line: &Line3D, frame: crate::Frame3D) -> Result<Line2D, Paramet
 /// circle's normal must turn onto the plane's while moving it by at most
 /// the confusion tolerance. Either frame may be indirect.
 fn circle_on_plane(
-    circle: &Circle3D,
-    frame: crate::Frame3D,
+    circle: &Circle,
+    frame: crate::Frame,
     tol: Tolerance,
 ) -> Result<Circle2D, ParametrizeError> {
     let normal = circle.normal();
@@ -214,13 +214,13 @@ fn circle_on_plane(
 }
 
 /// Local (x, y) coordinates of `p` in the plane `frame`.
-fn eval_point2d_plane(frame: crate::Frame3D, p: Point3D) -> Point2D {
+fn eval_point2d_plane(frame: crate::Frame, p: Point) -> Point2D {
     let d = p - frame.origin();
     Point2D::new(d.dot(frame.x_direction()), d.dot(frame.y_direction()))
 }
 
 /// Local (x, y) components of the direction `d` in the plane `frame`.
-fn eval_dir2d_plane(frame: crate::Frame3D, d: Vector3D) -> Vector2D {
+fn eval_dir2d_plane(frame: crate::Frame, d: Vector) -> Vector2D {
     Vector2D::new(d.dot(frame.x_direction()), d.dot(frame.y_direction()))
 }
 
@@ -229,8 +229,8 @@ fn eval_dir2d_plane(frame: crate::Frame3D, d: Vector3D) -> Vector2D {
 /// 2D image of a line on a cylinder: succeeds only when the line is parallel
 /// to the cylinder axis (a vertical iso-`u` line in `(u, v)`).
 fn line_on_cylinder(
-    line: &Line3D,
-    frame: crate::Frame3D,
+    line: &Line,
+    frame: crate::Frame,
     tol: Tolerance,
 ) -> Result<Line2D, ParametrizeError> {
     let axis = frame.z_direction();
@@ -252,8 +252,8 @@ fn line_on_cylinder(
 /// 2D image of a circle on a cylinder: succeeds only when the circle's normal
 /// is parallel to the cylinder axis (a horizontal iso-`v` line in `(u, v)`).
 fn circle_on_cylinder(
-    circle: &Circle3D,
-    frame: crate::Frame3D,
+    circle: &Circle,
+    frame: crate::Frame,
     tol: Tolerance,
 ) -> Result<Line2D, ParametrizeError> {
     let axis = frame.z_direction();
@@ -277,8 +277,8 @@ fn circle_on_cylinder(
 /// 2D image of a line on a cone: succeeds only when the line is a generator
 /// (parallel to the `v`-isoline through its own foot point).
 fn line_on_cone(
-    line: &Line3D,
-    frame: crate::Frame3D,
+    line: &Line,
+    frame: crate::Frame,
     ref_r: f64,
     semi_angle: f64,
     tol: Tolerance,
@@ -312,8 +312,8 @@ fn line_on_cone(
 /// 2D image of a circle on a cone: succeeds only when the circle's normal is
 /// parallel to the cone axis (a horizontal iso-`v` line in `(u, v)`).
 fn circle_on_cone(
-    circle: &Circle3D,
-    frame: crate::Frame3D,
+    circle: &Circle,
+    frame: crate::Frame,
     ref_r: f64,
     semi_angle: f64,
     tol: Tolerance,
@@ -348,7 +348,7 @@ fn circle_on_cone(
 
 /// The cone's apex point in world coordinates: the axis point where the
 /// section radius shrinks to zero.
-fn cone_apex(frame: crate::Frame3D, ref_r: f64, semi_angle: f64) -> Point3D {
+fn cone_apex(frame: crate::Frame, ref_r: f64, semi_angle: f64) -> Point {
     let v_apex = -ref_r / semi_angle.sin();
     frame.origin() + (v_apex * semi_angle.cos()) * frame.z_direction()
 }
@@ -358,8 +358,8 @@ fn cone_apex(frame: crate::Frame3D, ref_r: f64, semi_angle: f64) -> Point3D {
 /// 2D image of a circle on a sphere: succeeds only for a meridian (great
 /// circle through the poles) or a parallel (horizontal circle).
 fn circle_on_sphere(
-    circle: &Circle3D,
-    frame: crate::Frame3D,
+    circle: &Circle,
+    frame: crate::Frame,
     tol: Tolerance,
 ) -> Result<Line2D, ParametrizeError> {
     let z = frame.z_direction();
@@ -384,7 +384,7 @@ fn circle_on_sphere(
 
 /// Meridian (iso-`u`) image: a vertical line in `(u, v)` derived from the 2D
 /// images of the circle's x and y axis endpoints, with seam/pole handling.
-fn sphere_meridian(circle: &Circle3D, frame: crate::Frame3D) -> Line2D {
+fn sphere_meridian(circle: &Circle, frame: crate::Frame) -> Line2D {
     let cf = circle.frame();
     let mut p1 = eval_point2d_sphere(frame, cf.x_direction());
     let mut p2 = eval_point2d_sphere(frame, cf.y_direction());
@@ -408,7 +408,7 @@ fn sphere_meridian(circle: &Circle3D, frame: crate::Frame3D) -> Line2D {
 
 /// Parallel (iso-`v`) image: a horizontal line in `(u, v)` at constant
 /// latitude, running in `+u` or `-u` by the circle's orientation.
-fn sphere_parallel(circle: &Circle3D, frame: crate::Frame3D) -> Result<Line2D, ParametrizeError> {
+fn sphere_parallel(circle: &Circle, frame: crate::Frame) -> Result<Line2D, ParametrizeError> {
     let z = frame.z_direction();
     let cf = circle.frame();
     let u = frame_angle(frame, cf.x_direction());
@@ -427,7 +427,7 @@ fn sphere_parallel(circle: &Circle3D, frame: crate::Frame3D) -> Result<Line2D, P
 }
 
 /// Local sphere `(u, v)` of a unit direction `dir` seen from the sphere frame.
-fn eval_point2d_sphere(frame: crate::Frame3D, dir: Vector3D) -> Point2D {
+fn eval_point2d_sphere(frame: crate::Frame, dir: Vector) -> Point2D {
     let x = dir.dot(frame.x_direction());
     let y = dir.dot(frame.y_direction());
     let z = dir.dot(frame.z_direction());
@@ -486,8 +486,8 @@ fn mirror_about_horizontal(line: Line2D, c: f64) -> Line2D {
 /// or a poloidal circle (a meridian around the tube, running in `v` at fixed
 /// `u`).
 fn circle_on_torus(
-    circle: &Circle3D,
-    frame: crate::Frame3D,
+    circle: &Circle,
+    frame: crate::Frame,
     maj: f64,
     min: f64,
     tol: Tolerance,
@@ -511,8 +511,8 @@ fn circle_on_torus(
 /// center's axial offset over the minor radius, on the near or far tube half
 /// depending on whether the circle radius is below the major radius.
 fn torus_toroidal(
-    circle: &Circle3D,
-    frame: crate::Frame3D,
+    circle: &Circle,
+    frame: crate::Frame,
     maj: f64,
     min: f64,
 ) -> Result<Line2D, ParametrizeError> {
@@ -545,7 +545,7 @@ fn torus_toroidal(
 
 /// Poloidal image (meridian circle at fixed toroidal angle `u`): a vertical
 /// line in `(u, v)`.
-fn torus_poloidal(circle: &Circle3D, frame: crate::Frame3D) -> Result<Line2D, ParametrizeError> {
+fn torus_poloidal(circle: &Circle, frame: crate::Frame) -> Result<Line2D, ParametrizeError> {
     let z = frame.z_direction();
     let oc = circle.center() - frame.origin();
     let cf = circle.frame();
@@ -563,7 +563,7 @@ fn torus_poloidal(circle: &Circle3D, frame: crate::Frame3D) -> Result<Line2D, Pa
 
 /// Toroidal `u` of a unit direction: the angle of its projection into the
 /// torus's equatorial plane, with the `v` slot left at zero for the caller.
-fn torus_eval_u(frame: crate::Frame3D, dir: Vector3D) -> Point2D {
+fn torus_eval_u(frame: crate::Frame, dir: Vector) -> Point2D {
     let x = dir.dot(frame.x_direction());
     let y = dir.dot(frame.y_direction());
     Point2D::new(angle_or_zero(y, x), 0.0)
@@ -574,14 +574,14 @@ fn torus_eval_u(frame: crate::Frame3D, dir: Vector3D) -> Point2D {
 /// The direction about which the angle `u` of a surface placed by `frame`
 /// turns counterclockwise: `x × y`, the frame's z direction on a direct
 /// frame and its negation on an indirect one.
-fn angular_axis(frame: crate::Frame3D) -> Vector3D {
+fn angular_axis(frame: crate::Frame) -> Vector {
     frame.x_direction().cross(frame.y_direction())
 }
 
 /// The angle of `direction` about the frame's z axis, measured from its x
 /// direction towards its y direction and wrapped into `[0, 2π)`, whatever
 /// the frame's handedness.
-fn frame_angle(frame: crate::Frame3D, direction: Vector3D) -> f64 {
+fn frame_angle(frame: crate::Frame, direction: Vector) -> f64 {
     angle_or_zero(
         direction.dot(frame.y_direction()),
         direction.dot(frame.x_direction()),
@@ -642,14 +642,14 @@ fn angle_or_zero(y: f64, x: f64) -> f64 {
 /// over its bounds (`[-10, 10]` for unbounded curves) and inverts each sample onto the surface with
 /// [`ParametricSurface::project_point`]. The returned `(u, v)` points
 /// approximate the exact pcurve; where a closed form exists, prefer the
-/// exact [`parametrize_on`](crate::Line3D::parametrize_on) methods.
+/// exact [`parametrize_on`](crate::Line::parametrize_on) methods.
 ///
 /// # Examples
 ///
 /// ```
-/// use geomcore::{Circle3D, Cylinder, Point3D, Tolerance, Vector3D, parametrize_numeric};
-/// let circle = Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
-/// let cylinder = Cylinder::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
+/// use geomcore::{Circle, Cylinder, Point, Tolerance, Vector, parametrize_numeric};
+/// let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
+/// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
 /// let pcurve = parametrize_numeric(&circle, &cylinder, 9, Tolerance::DEFAULT);
 /// assert_eq!(pcurve.len(), 9);
 /// // Coaxial circle on a cylinder: the horizontal line v = 0.
@@ -664,7 +664,7 @@ pub fn parametrize_numeric<C, S>(
     tol: Tolerance,
 ) -> Vec<Point2D>
 where
-    C: crate::curves::ParametricCurve3D,
+    C: crate::curves::ParametricCurve,
     S: ParametricSurface,
 {
     let (t0, t1) = curve.bounds();
@@ -691,12 +691,12 @@ mod tests {
         sphere_set_in_bounds,
     };
     use crate::curve_math::analytic::in_period;
-    use crate::curves::{Curve2D, ParametricCurve2D, ParametricCurve3D, ParametrizeError};
+    use crate::curves::{Curve2D, ParametricCurve, ParametricCurve2D, ParametrizeError};
     use crate::surfaces::ParametricSurface;
     use crate::tol;
     use crate::{
-        BSplineCurve3D, Circle3D, Cylinder, Ellipse3D, Frame3D, Line2D, Line3D, Plane, Point2D,
-        Point3D, Sphere, Tolerance, Vector2D, Vector3D,
+        BSplineCurve, Circle, Cylinder, Ellipse, Frame, Line, Line2D, Plane, Point, Point2D,
+        Sphere, Tolerance, Vector, Vector2D,
     };
 
     #[test]
@@ -704,8 +704,8 @@ mod tests {
         // A radius-1 circle cannot lie on a radius-2 cylinder even though its
         // axis is coaxial: the projection would be geometrically consistent
         // (normal parallel to axis) but off-surface.
-        let cylinder = Cylinder::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
-        let circle = Circle3D::new(Point3D::new(0.0, 0.0, 1.0), Vector3D::Z, 1.0).unwrap();
+        let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
+        let circle = Circle::new(Point::new(0.0, 0.0, 1.0), Vector::Z, 1.0).unwrap();
         assert_eq!(
             circle.parametrize_on(cylinder, Tolerance::DEFAULT),
             Err(ParametrizeError::CurveNotOnSurface)
@@ -720,9 +720,9 @@ mod tests {
             confusion: 1e-3,
             ..Tolerance::DEFAULT
         };
-        let cylinder = Cylinder::new(Point3D::ORIGIN, Vector3D::Z, 1.0).unwrap();
-        let center = Point3D::new(0.0, 0.0, 2.0);
-        let wide = Circle3D::new(center, Vector3D::Z, 1.0 + 1e-4).unwrap();
+        let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
+        let center = Point::new(0.0, 0.0, 2.0);
+        let wide = Circle::new(center, Vector::Z, 1.0 + 1e-4).unwrap();
         assert!(matches!(
             wide.parametrize_on(cylinder, loose),
             Ok(Curve2D::Line(_))
@@ -731,14 +731,14 @@ mod tests {
             wide.parametrize_on(cylinder, Tolerance::DEFAULT),
             Err(ParametrizeError::CurveNotOnSurface)
         );
-        let slightly_wide = Circle3D::new(center, Vector3D::Z, 1.0 + 1e-6).unwrap();
+        let slightly_wide = Circle::new(center, Vector::Z, 1.0 + 1e-6).unwrap();
         assert_eq!(
             slightly_wide.parametrize_on(cylinder, Tolerance::DEFAULT),
             Err(ParametrizeError::CurveNotOnSurface)
         );
         // A line 1e-4 off a plane.
-        let plane = Plane::new(Point3D::ORIGIN, Vector3D::Z).unwrap();
-        let line = Line3D::new(Point3D::new(0.0, 0.0, 1e-4), Vector3D::X).unwrap();
+        let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
+        let line = Line::new(Point::new(0.0, 0.0, 1e-4), Vector::X).unwrap();
         assert!(matches!(
             line.parametrize_on(plane, loose),
             Ok(Curve2D::Line(_))
@@ -757,9 +757,9 @@ mod tests {
             confusion: 1e-3,
             ..Tolerance::DEFAULT
         };
-        let sphere = Sphere::new(Point3D::ORIGIN, 10.0).unwrap();
-        let normal = Vector3D::new(1.0, 0.0, 1e-5);
-        let circle = Circle3D::new(Point3D::ORIGIN, normal, 10.0).unwrap();
+        let sphere = Sphere::new(Point::ORIGIN, 10.0).unwrap();
+        let normal = Vector::new(1.0, 0.0, 1e-5);
+        let circle = Circle::new(Point::ORIGIN, normal, 10.0).unwrap();
         assert!(matches!(
             circle.parametrize_on(sphere, loose),
             Ok(Curve2D::Line(_))
@@ -769,7 +769,7 @@ mod tests {
             Err(ParametrizeError::NotAnalytic)
         );
         // Tilted 1e-3 rad it strays 1e-2: a great circle, not a meridian.
-        let steep = Circle3D::new(Point3D::ORIGIN, Vector3D::new(1.0, 0.0, 1e-3), 10.0).unwrap();
+        let steep = Circle::new(Point::ORIGIN, Vector::new(1.0, 0.0, 1e-3), 10.0).unwrap();
         assert_eq!(
             steep.parametrize_on(sphere, loose),
             Err(ParametrizeError::NotAnalytic)
@@ -780,8 +780,8 @@ mod tests {
     fn test_line_skew_to_cylinder_axis_is_not_analytic() {
         // A line not parallel to the axis has no straight-line 2D image: the
         // geometric failure condition fires first, before any on-surface test.
-        let cylinder = Cylinder::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
-        let line = Line3D::new(Point3D::new(2.0, 0.0, 0.0), Vector3D::new(1.0, 0.0, 1.0)).unwrap();
+        let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
+        let line = Line::new(Point::new(2.0, 0.0, 0.0), Vector::new(1.0, 0.0, 1.0)).unwrap();
         assert_eq!(
             line.parametrize_on(cylinder, Tolerance::DEFAULT),
             Err(ParametrizeError::NotAnalytic)
@@ -794,8 +794,8 @@ mod tests {
         // The public method takes `impl Into<Surface>`, which `&Cylinder`
         // satisfies via `From<&Cylinder>` (Cylinder is Copy, so clippy would
         // rather drop the borrow; pinning the borrowed form is the point).
-        let cylinder = Cylinder::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
-        let circle = Circle3D::new(Point3D::new(0.0, 0.0, 3.0), Vector3D::Z, 2.0).unwrap();
+        let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
+        let circle = Circle::new(Point::new(0.0, 0.0, 3.0), Vector::Z, 2.0).unwrap();
         assert!(circle.parametrize_on(&cylinder, Tolerance::DEFAULT).is_ok());
     }
 
@@ -804,8 +804,8 @@ mod tests {
         // A line pointing out of the plane projects to a zero-length 2D
         // direction, which is reported as off-surface rather than a garbage
         // parametrization.
-        let plane = Plane::new(Point3D::ORIGIN, Vector3D::Z).unwrap();
-        let line = Line3D::new(Point3D::ORIGIN, Vector3D::Z).unwrap();
+        let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
+        let line = Line::new(Point::ORIGIN, Vector::Z).unwrap();
         assert_eq!(
             line.parametrize_on(plane, Tolerance::DEFAULT),
             Err(ParametrizeError::CurveNotOnSurface)
@@ -844,7 +844,7 @@ mod tests {
     // exactly the condition on lines 393-396.
     #[test]
     fn test_sphere_meridian_pole_mirror_north() {
-        let sphere = Sphere::new(Point3D::ORIGIN, 2.0).unwrap();
+        let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
 
         // circle normal = +X (perpendicular to the sphere's z-axis, so this
         // is a meridian); x_hint tilts x_direction() a hair off the north
@@ -853,9 +853,9 @@ mod tests {
         // sub-case) instead of snapping p1 to it (the pole sub-case).
         let eps = 2e-7_f64;
         let phi = 15.0_f64.to_radians();
-        let x_hint = Vector3D::new(phi.cos() * eps.sin(), phi.sin() * eps.sin(), eps.cos());
-        let frame = Frame3D::new(Point3D::ORIGIN, Vector3D::X, x_hint).unwrap();
-        let circle = Circle3D::from_frame(frame, 2.0).unwrap();
+        let x_hint = Vector::new(phi.cos() * eps.sin(), phi.sin() * eps.sin(), eps.cos());
+        let frame = Frame::new(Point::ORIGIN, Vector::X, x_hint).unwrap();
+        let circle = Circle::from_frame(frame, 2.0).unwrap();
 
         let sf = sphere.frame();
         let raw = sphere_meridian(&circle, sf);
@@ -895,16 +895,16 @@ mod tests {
 
     #[test]
     fn test_sphere_meridian_pole_mirror_south() {
-        let sphere = Sphere::new(Point3D::ORIGIN, 2.0).unwrap();
+        let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
 
         // South twin: negating the whole north x_hint reflects the
         // construction through the sphere's center, landing x_direction()
         // just short of the south pole with the matching seam-fold geometry.
         let eps = 2e-7_f64;
         let phi = 15.0_f64.to_radians();
-        let x_hint = -Vector3D::new(phi.cos() * eps.sin(), phi.sin() * eps.sin(), eps.cos());
-        let frame = Frame3D::new(Point3D::ORIGIN, Vector3D::X, x_hint).unwrap();
-        let circle = Circle3D::from_frame(frame, 2.0).unwrap();
+        let x_hint = -Vector::new(phi.cos() * eps.sin(), phi.sin() * eps.sin(), eps.cos());
+        let frame = Frame::new(Point::ORIGIN, Vector::X, x_hint).unwrap();
+        let circle = Circle::from_frame(frame, 2.0).unwrap();
 
         let sf = sphere.frame();
         let raw = sphere_meridian(&circle, sf);
@@ -972,7 +972,7 @@ mod tests {
     /// the curve points (the defining property of a parametrization).
     fn assert_roundtrip<C, S>(curve: &C, surface: &S, n: usize, eps: f64)
     where
-        C: ParametricCurve3D,
+        C: ParametricCurve,
         S: ParametricSurface,
     {
         let tol = Tolerance::DEFAULT;
@@ -998,8 +998,8 @@ mod tests {
 
     #[test]
     fn test_numeric_circle_on_cylinder_matches_analytic() {
-        let circle = Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
-        let cylinder = Cylinder::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
+        let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
+        let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
         // Analytic image is the horizontal line v = 0.
         let analytic = circle.parametrize_on(cylinder, Tolerance::DEFAULT).unwrap();
         let numeric = parametrize_numeric(&circle, &cylinder, 17, Tolerance::DEFAULT);
@@ -1020,8 +1020,8 @@ mod tests {
 
     #[test]
     fn test_numeric_line_on_plane_roundtrip() {
-        let line = Line3D::new(Point3D::ORIGIN, Vector3D::new(1.0, 1.0, 0.0)).unwrap();
-        let plane = Plane::new(Point3D::ORIGIN, Vector3D::Z).unwrap();
+        let line = Line::new(Point::ORIGIN, Vector::new(1.0, 1.0, 0.0)).unwrap();
+        let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
         assert_roundtrip(&line, &plane, 9, 1e-9);
     }
 
@@ -1030,8 +1030,8 @@ mod tests {
         // No closed form exists here: numeric path only. The ellipse lies
         // inside the sphere, so samples validate as on-surface projections
         // (idempotent), not as round-trips to the curve.
-        let ellipse = Ellipse3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, 3.0, 1.5).unwrap();
-        let sphere = Sphere::new(Point3D::ORIGIN, 3.0).unwrap();
+        let ellipse = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 3.0, 1.5).unwrap();
+        let sphere = Sphere::new(Point::ORIGIN, 3.0).unwrap();
         let tol = Tolerance::DEFAULT;
         let pcurve = parametrize_numeric(&ellipse, &sphere, 33, tol);
         assert_eq!(pcurve.len(), 33);
@@ -1046,9 +1046,9 @@ mod tests {
 
     #[test]
     fn test_numeric_bspline_on_plane_roundtrip() {
-        let poles = vec![Point3D::new(0.0, 0.0, 0.0), Point3D::new(2.0, 1.0, 0.0)];
-        let curve = BSplineCurve3D::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
-        let plane = Plane::new(Point3D::ORIGIN, Vector3D::Z).unwrap();
+        let poles = vec![Point::new(0.0, 0.0, 0.0), Point::new(2.0, 1.0, 0.0)];
+        let curve = BSplineCurve::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
+        let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
         assert_roundtrip(&curve, &plane, 9, 1e-9);
     }
 }

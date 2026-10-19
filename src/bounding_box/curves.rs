@@ -1,15 +1,15 @@
 //! Boxes of curves: closed form for elementary curves, Bézier control
 //! points for B-splines.
 
-use super::sealed::BoundRange3D;
-use super::{Bound3D, BoundingBox3D, coordinates, point};
+use super::sealed::BoundRange;
+use super::{BoundingBox, HasBoundingBox, coordinates, point};
 use crate::curve_math::bspline as math;
 use crate::curves::{
-    BSplineCurve3D, Circle3D, Curve3D, ElementaryCurve, Ellipse3D, Hyperbola3D, Line3D, Parabola3D,
-    ParametricCurve3D, TrimmedCurve3D,
+    BSplineCurve, Circle, Curve, ElementaryCurve, Ellipse, Hyperbola, Line, Parabola,
+    ParametricCurve, TrimmedCurve,
 };
 use crate::math::bernstein;
-use crate::{Point3D, Vector3D};
+use crate::{Point, Vector};
 use std::f64::consts::{PI, TAU};
 
 /// The box of the curve `center + a cos t + b sin t` (`curve`) over `t` in
@@ -20,21 +20,21 @@ use std::f64::consts::{PI, TAU};
 /// `φ_k + π`. Over a range it reaches those only where they fall in it,
 /// its other extremes being at the ends.
 fn trigonometric_box(
-    curve: &impl ParametricCurve3D,
-    center: Point3D,
-    a: Vector3D,
-    b: Vector3D,
+    curve: &impl ParametricCurve,
+    center: Point,
+    a: Vector,
+    b: Vector,
     range: Option<(f64, f64)>,
-) -> BoundingBox3D {
+) -> BoundingBox {
     let (c, a, b) = (coordinates(center), [a.x, a.y, a.z], [b.x, b.y, b.z]);
     let amplitude: [f64; 3] = std::array::from_fn(|k| a[k].hypot(b[k]));
     let Some((first, last)) = range else {
-        return BoundingBox3D {
+        return BoundingBox {
             min: point(std::array::from_fn(|k| c[k] - amplitude[k])),
             max: point(std::array::from_fn(|k| c[k] + amplitude[k])),
         };
     };
-    let ends = BoundingBox3D::new(curve.eval_point(first), curve.eval_point(last));
+    let ends = BoundingBox::new(curve.eval_point(first), curve.eval_point(last));
     let (mut lo, mut hi) = (coordinates(ends.min), coordinates(ends.max));
     let reached = |t: f64| first + (t - first).rem_euclid(TAU) <= last;
     for k in 0..3 {
@@ -46,7 +46,7 @@ fn trigonometric_box(
             lo[k] = c[k] - amplitude[k];
         }
     }
-    BoundingBox3D {
+    BoundingBox {
         min: point(lo),
         max: point(hi),
     }
@@ -57,69 +57,69 @@ fn trigonometric_box(
 /// (those outside the range or not finite are skipped). Exact when every
 /// coordinate has its extremes there.
 fn box_through(
-    curve: &impl ParametricCurve3D,
+    curve: &impl ParametricCurve,
     first: f64,
     last: f64,
     stationary: [f64; 3],
-) -> BoundingBox3D {
-    let ends = BoundingBox3D::new(curve.eval_point(first), curve.eval_point(last));
+) -> BoundingBox {
+    let ends = BoundingBox::new(curve.eval_point(first), curve.eval_point(last));
     stationary
         .into_iter()
         .filter(|&t| first < t && t < last)
         .fold(ends, |b, t| b.including(curve.eval_point(t)))
 }
 
-impl Bound3D for Line3D {
-    fn bounding_box(&self) -> Option<BoundingBox3D> {
+impl HasBoundingBox for Line {
+    fn bounding_box(&self) -> Option<BoundingBox> {
         None
     }
 }
 
-impl Bound3D for Circle3D {
-    fn bounding_box(&self) -> Option<BoundingBox3D> {
+impl HasBoundingBox for Circle {
+    fn bounding_box(&self) -> Option<BoundingBox> {
         Some(circle_box(self, None))
     }
 }
 
-impl Bound3D for Ellipse3D {
-    fn bounding_box(&self) -> Option<BoundingBox3D> {
+impl HasBoundingBox for Ellipse {
+    fn bounding_box(&self) -> Option<BoundingBox> {
         Some(ellipse_box(self, None))
     }
 }
 
-impl Bound3D for Parabola3D {
-    fn bounding_box(&self) -> Option<BoundingBox3D> {
+impl HasBoundingBox for Parabola {
+    fn bounding_box(&self) -> Option<BoundingBox> {
         None
     }
 }
 
-impl Bound3D for Hyperbola3D {
-    fn bounding_box(&self) -> Option<BoundingBox3D> {
+impl HasBoundingBox for Hyperbola {
+    fn bounding_box(&self) -> Option<BoundingBox> {
         None
     }
 }
 
-impl Bound3D for BSplineCurve3D {
-    fn bounding_box(&self) -> Option<BoundingBox3D> {
-        BoundingBox3D::from_points(self.poles().iter().copied())
+impl HasBoundingBox for BSplineCurve {
+    fn bounding_box(&self) -> Option<BoundingBox> {
+        BoundingBox::from_points(self.poles().iter().copied())
     }
 }
 
-impl Bound3D for Curve3D {
-    fn bounding_box(&self) -> Option<BoundingBox3D> {
+impl HasBoundingBox for Curve {
+    fn bounding_box(&self) -> Option<BoundingBox> {
         match self {
-            Curve3D::Line(c) => c.bounding_box(),
-            Curve3D::Circle(c) => c.bounding_box(),
-            Curve3D::Ellipse(c) => c.bounding_box(),
-            Curve3D::Parabola(c) => c.bounding_box(),
-            Curve3D::Hyperbola(c) => c.bounding_box(),
-            Curve3D::BSpline(c) => c.bounding_box(),
+            Curve::Line(c) => c.bounding_box(),
+            Curve::Circle(c) => c.bounding_box(),
+            Curve::Ellipse(c) => c.bounding_box(),
+            Curve::Parabola(c) => c.bounding_box(),
+            Curve::Hyperbola(c) => c.bounding_box(),
+            Curve::BSpline(c) => c.bounding_box(),
         }
     }
 }
 
-impl Bound3D for ElementaryCurve {
-    fn bounding_box(&self) -> Option<BoundingBox3D> {
+impl HasBoundingBox for ElementaryCurve {
+    fn bounding_box(&self) -> Option<BoundingBox> {
         match self {
             ElementaryCurve::Line(c) => c.bounding_box(),
             ElementaryCurve::Circle(c) => c.bounding_box(),
@@ -130,14 +130,14 @@ impl Bound3D for ElementaryCurve {
     }
 }
 
-impl<C: BoundRange3D> Bound3D for TrimmedCurve3D<C> {
-    fn bounding_box(&self) -> Option<BoundingBox3D> {
+impl<C: BoundRange> HasBoundingBox for TrimmedCurve<C> {
+    fn bounding_box(&self) -> Option<BoundingBox> {
         let (first, last) = self.bounds();
         Some(self.basis().range_box(first, last))
     }
 }
 
-fn circle_box(circle: &Circle3D, range: Option<(f64, f64)>) -> BoundingBox3D {
+fn circle_box(circle: &Circle, range: Option<(f64, f64)>) -> BoundingBox {
     let frame = circle.frame();
     let r = circle.radius();
     trigonometric_box(
@@ -149,7 +149,7 @@ fn circle_box(circle: &Circle3D, range: Option<(f64, f64)>) -> BoundingBox3D {
     )
 }
 
-fn ellipse_box(ellipse: &Ellipse3D, range: Option<(f64, f64)>) -> BoundingBox3D {
+fn ellipse_box(ellipse: &Ellipse, range: Option<(f64, f64)>) -> BoundingBox {
     let frame = ellipse.frame();
     trigonometric_box(
         ellipse,
@@ -160,28 +160,28 @@ fn ellipse_box(ellipse: &Ellipse3D, range: Option<(f64, f64)>) -> BoundingBox3D 
     )
 }
 
-impl BoundRange3D for Line3D {
-    fn range_box(&self, first: f64, last: f64) -> BoundingBox3D {
-        BoundingBox3D::new(self.eval_point(first), self.eval_point(last))
+impl BoundRange for Line {
+    fn range_box(&self, first: f64, last: f64) -> BoundingBox {
+        BoundingBox::new(self.eval_point(first), self.eval_point(last))
     }
 }
 
-impl BoundRange3D for Circle3D {
-    fn range_box(&self, first: f64, last: f64) -> BoundingBox3D {
+impl BoundRange for Circle {
+    fn range_box(&self, first: f64, last: f64) -> BoundingBox {
         circle_box(self, Some((first, last)))
     }
 }
 
-impl BoundRange3D for Ellipse3D {
-    fn range_box(&self, first: f64, last: f64) -> BoundingBox3D {
+impl BoundRange for Ellipse {
+    fn range_box(&self, first: f64, last: f64) -> BoundingBox {
         ellipse_box(self, Some((first, last)))
     }
 }
 
-impl BoundRange3D for Parabola3D {
+impl BoundRange for Parabola {
     /// Coordinate `k` is `o_k + u² x_k / (4 f) + u y_k`, stationary at
     /// `u = −2 f y_k / x_k`.
-    fn range_box(&self, first: f64, last: f64) -> BoundingBox3D {
+    fn range_box(&self, first: f64, last: f64) -> BoundingBox {
         let frame = self.frame();
         let (x, y) = (frame.x_direction(), frame.y_direction());
         let (x, y) = ([x.x, x.y, x.z], [y.x, y.y, y.z]);
@@ -195,10 +195,10 @@ impl BoundRange3D for Parabola3D {
     }
 }
 
-impl BoundRange3D for Hyperbola3D {
+impl BoundRange for Hyperbola {
     /// Coordinate `k` is `o_k + a cosh(u) x_k + b sinh(u) y_k`, stationary
     /// where `tanh u = −b y_k / (a x_k)`, if that is within `(−1, 1)`.
-    fn range_box(&self, first: f64, last: f64) -> BoundingBox3D {
+    fn range_box(&self, first: f64, last: f64) -> BoundingBox {
         let frame = self.frame();
         let (x, y) = (frame.x_direction(), frame.y_direction());
         let (x, y) = ([x.x, x.y, x.z], [y.x, y.y, y.z]);
@@ -212,16 +212,16 @@ impl BoundRange3D for Hyperbola3D {
     }
 }
 
-impl BoundRange3D for BSplineCurve3D {
+impl BoundRange for BSplineCurve {
     /// The union, over the knot spans meeting the range, of the boxes of
     /// the poles of the spans it covers and of the Bézier control points
     /// of the pieces of the spans it cuts, restricted to the range (whose
     /// ends are the range's ends). Each piece lies in the convex hull of
     /// either.
-    fn range_box(&self, first: f64, last: f64) -> BoundingBox3D {
+    fn range_box(&self, first: f64, last: f64) -> BoundingBox {
         let degree = self.degree();
         let start_point = self.eval_point(first);
-        let mut bounds = BoundingBox3D::new(start_point, start_point);
+        let mut bounds = BoundingBox::new(start_point, start_point);
         let mut points = [[0.0; 4]; math::LARGE];
         // The middles of the first and last spans the range covers; it
         // covers every span between them.
@@ -237,33 +237,31 @@ impl BoundRange3D for BSplineCurve3D {
             let length = end - start;
             bernstein::restrict(piece, (a - start) / length, (b - start) / length);
             for &[x, y, z, w] in piece.iter() {
-                bounds = bounds.including(Point3D::new(x / w, y / w, z / w));
+                bounds = bounds.including(Point::new(x / w, y / w, z / w));
             }
         });
         match covered {
-            Some((m0, m1)) => self
-                .run_poles(m0, m1)
-                .fold(bounds, BoundingBox3D::including),
+            Some((m0, m1)) => self.run_poles(m0, m1).fold(bounds, BoundingBox::including),
             None => bounds,
         }
     }
 }
 
-impl BoundRange3D for Curve3D {
-    fn range_box(&self, first: f64, last: f64) -> BoundingBox3D {
+impl BoundRange for Curve {
+    fn range_box(&self, first: f64, last: f64) -> BoundingBox {
         match self {
-            Curve3D::Line(c) => c.range_box(first, last),
-            Curve3D::Circle(c) => c.range_box(first, last),
-            Curve3D::Ellipse(c) => c.range_box(first, last),
-            Curve3D::Parabola(c) => c.range_box(first, last),
-            Curve3D::Hyperbola(c) => c.range_box(first, last),
-            Curve3D::BSpline(c) => c.range_box(first, last),
+            Curve::Line(c) => c.range_box(first, last),
+            Curve::Circle(c) => c.range_box(first, last),
+            Curve::Ellipse(c) => c.range_box(first, last),
+            Curve::Parabola(c) => c.range_box(first, last),
+            Curve::Hyperbola(c) => c.range_box(first, last),
+            Curve::BSpline(c) => c.range_box(first, last),
         }
     }
 }
 
-impl BoundRange3D for ElementaryCurve {
-    fn range_box(&self, first: f64, last: f64) -> BoundingBox3D {
+impl BoundRange for ElementaryCurve {
+    fn range_box(&self, first: f64, last: f64) -> BoundingBox {
         match self {
             ElementaryCurve::Line(c) => c.range_box(first, last),
             ElementaryCurve::Circle(c) => c.range_box(first, last),
@@ -274,8 +272,8 @@ impl BoundRange3D for ElementaryCurve {
     }
 }
 
-impl<C: BoundRange3D + ?Sized> BoundRange3D for &C {
-    fn range_box(&self, first: f64, last: f64) -> BoundingBox3D {
+impl<C: BoundRange + ?Sized> BoundRange for &C {
+    fn range_box(&self, first: f64, last: f64) -> BoundingBox {
         (**self).range_box(first, last)
     }
 }

@@ -10,8 +10,8 @@ use common::{
 use geomcore::curves::ParametricCurve2D;
 use geomcore::surfaces::{BSplineSurface, ParametricSurface};
 use geomcore::{
-    Axis3D, BSplineCurve3D, Circle3D, Cone, Curve2D, Cylinder, Ellipse3D, Hyperbola3D, Line3D,
-    Parabola3D, ParametrizeError, Plane, Sphere, Tolerance, Torus, Transform,
+    Axis, BSplineCurve, Circle, Cone, Curve2D, Cylinder, Ellipse, Hyperbola, Line, Parabola,
+    ParametrizeError, Plane, Sphere, Tolerance, Torus, Transform,
 };
 use serde::Deserialize;
 
@@ -60,7 +60,7 @@ fn build_transform(cases: &[TransformCase], index: usize) -> Transform {
                 angle: f64,
             }
             let spec: Spec = serde_json::from_value(case.spec.clone()).unwrap();
-            let axis = Axis3D::new(point3(spec.axis_origin), vector3(spec.axis_dir)).unwrap();
+            let axis = Axis::new(point3(spec.axis_origin), vector3(spec.axis_dir)).unwrap();
             Transform::rotation(axis, spec.angle)
         }
         "scale" => {
@@ -82,7 +82,7 @@ fn build_transform(cases: &[TransformCase], index: usize) -> Transform {
         }
         "mirror_axis" => {
             let spec: MirrorAxisSpec = serde_json::from_value(case.spec.clone()).unwrap();
-            let axis = Axis3D::new(point3(spec.origin), vector3(spec.dir)).unwrap();
+            let axis = Axis::new(point3(spec.origin), vector3(spec.dir)).unwrap();
             Transform::mirror_axis(axis)
         }
         "mirror_plane" => {
@@ -276,8 +276,8 @@ fn lines_match_golden_fixture() {
         serde_json::from_value(load("curves_analytic.json")).unwrap();
 
     for (i, case) in fixture.lines.iter().enumerate() {
-        let line = Line3D::new(point3(case.origin), vector3(case.direction))
-            .unwrap_or_else(|e| panic!("case {i}: failed to build Line3D: {e}"));
+        let line = Line::new(point3(case.origin), vector3(case.direction))
+            .unwrap_or_else(|e| panic!("case {i}: failed to build Line: {e}"));
 
         for sample in &case.samples {
             let point = line.eval_point(sample.u);
@@ -306,8 +306,8 @@ fn circles_match_golden_fixture() {
         serde_json::from_value(load("curves_analytic.json")).unwrap();
 
     for (i, case) in fixture.circles.iter().enumerate() {
-        let circle = Circle3D::from_frame(frame3(&case.frame), case.radius)
-            .unwrap_or_else(|e| panic!("case {i}: failed to build Circle3D: {e}"));
+        let circle = Circle::from_frame(frame3(&case.frame), case.radius)
+            .unwrap_or_else(|e| panic!("case {i}: failed to build Circle: {e}"));
 
         for sample in &case.samples {
             let point = circle.eval_point(sample.u);
@@ -336,8 +336,8 @@ fn circle_three_point_cases_match_golden_fixture() {
         serde_json::from_value(load("curves_analytic.json")).unwrap();
 
     for (i, case) in fixture.three_point_cases.iter().enumerate() {
-        let circle = Circle3D::from_three_points(point3(case.p1), point3(case.p2), point3(case.p3))
-            .unwrap_or_else(|e| panic!("case {i}: failed to build Circle3D: {e}"));
+        let circle = Circle::from_three_points(point3(case.p1), point3(case.p2), point3(case.p3))
+            .unwrap_or_else(|e| panic!("case {i}: failed to build Circle: {e}"));
 
         assert_close(circle.radius(), case.radius);
 
@@ -356,8 +356,8 @@ fn ellipses_match_golden_fixture() {
 
     for (i, case) in fixture.ellipses.iter().enumerate() {
         let ellipse =
-            Ellipse3D::from_frame(frame3(&case.frame), case.major_radius, case.minor_radius)
-                .unwrap_or_else(|e| panic!("case {i}: failed to build Ellipse3D: {e}"));
+            Ellipse::from_frame(frame3(&case.frame), case.major_radius, case.minor_radius)
+                .unwrap_or_else(|e| panic!("case {i}: failed to build Ellipse: {e}"));
 
         for sample in &case.samples {
             let point = ellipse.eval_point(sample.u);
@@ -386,8 +386,8 @@ fn parabolas_match_golden_fixture() {
         serde_json::from_value(load("curves_analytic.json")).unwrap();
 
     for (i, case) in fixture.parabolas.iter().enumerate() {
-        let parabola = Parabola3D::from_frame(frame3(&case.frame), case.focal)
-            .unwrap_or_else(|e| panic!("case {i}: failed to build Parabola3D: {e}"));
+        let parabola = Parabola::from_frame(frame3(&case.frame), case.focal)
+            .unwrap_or_else(|e| panic!("case {i}: failed to build Parabola: {e}"));
 
         for sample in &case.samples {
             let point = parabola.eval_point(sample.u);
@@ -417,8 +417,8 @@ fn hyperbolas_match_golden_fixture() {
 
     for (i, case) in fixture.hyperbolas.iter().enumerate() {
         let hyperbola =
-            Hyperbola3D::from_frame(frame3(&case.frame), case.major_radius, case.minor_radius)
-                .unwrap_or_else(|e| panic!("case {i}: failed to build Hyperbola3D: {e}"));
+            Hyperbola::from_frame(frame3(&case.frame), case.major_radius, case.minor_radius)
+                .unwrap_or_else(|e| panic!("case {i}: failed to build Hyperbola: {e}"));
 
         for sample in &case.samples {
             let point = hyperbola.eval_point(sample.u);
@@ -472,12 +472,9 @@ fn ellipses_center_two_points_match_golden_fixture() {
     let fixture: ConstructionFixture = serde_json::from_value(load("construction.json")).unwrap();
 
     for (i, case) in fixture.ellipses_center_two_points.iter().enumerate() {
-        let ellipse = Ellipse3D::from_center_and_points(
-            point3(case.center),
-            point3(case.s1),
-            point3(case.s2),
-        )
-        .unwrap_or_else(|e| panic!("case {i}: failed to build Ellipse3D: {e}"));
+        let ellipse =
+            Ellipse::from_center_and_points(point3(case.center), point3(case.s1), point3(case.s2))
+                .unwrap_or_else(|e| panic!("case {i}: failed to build Ellipse: {e}"));
 
         assert_close(ellipse.major_radius(), case.major_radius);
         assert_close(ellipse.minor_radius(), case.minor_radius);
@@ -495,12 +492,12 @@ fn hyperbolas_center_two_points_match_golden_fixture() {
     let fixture: ConstructionFixture = serde_json::from_value(load("construction.json")).unwrap();
 
     for (i, case) in fixture.hyperbolas_center_two_points.iter().enumerate() {
-        let hyperbola = Hyperbola3D::from_center_and_points(
+        let hyperbola = Hyperbola::from_center_and_points(
             point3(case.center),
             point3(case.s1),
             point3(case.s2),
         )
-        .unwrap_or_else(|e| panic!("case {i}: failed to build Hyperbola3D: {e}"));
+        .unwrap_or_else(|e| panic!("case {i}: failed to build Hyperbola: {e}"));
 
         assert_close(hyperbola.major_radius(), case.major_radius);
         assert_close(hyperbola.minor_radius(), case.minor_radius);
@@ -538,10 +535,10 @@ struct BSplineFixture {
     cases: Vec<BSplineCase>,
 }
 
-fn build_bspline(case: &BSplineCase) -> BSplineCurve3D {
-    let poles: Vec<geomcore::Point3D> = case.poles.iter().map(|&p| point3(p)).collect();
+fn build_bspline(case: &BSplineCase) -> BSplineCurve {
+    let poles: Vec<geomcore::Point> = case.poles.iter().map(|&p| point3(p)).collect();
     let result = match &case.weights {
-        Some(weights) => BSplineCurve3D::new_rational(
+        Some(weights) => BSplineCurve::new_rational(
             case.degree,
             poles,
             weights.clone(),
@@ -549,7 +546,7 @@ fn build_bspline(case: &BSplineCase) -> BSplineCurve3D {
             case.mults.clone(),
             case.periodic,
         ),
-        None => BSplineCurve3D::new(
+        None => BSplineCurve::new(
             case.degree,
             poles,
             case.knots.clone(),
@@ -557,7 +554,7 @@ fn build_bspline(case: &BSplineCase) -> BSplineCurve3D {
             case.periodic,
         ),
     };
-    result.unwrap_or_else(|e| panic!("{}: failed to build BSplineCurve3D: {e}", case.name))
+    result.unwrap_or_else(|e| panic!("{}: failed to build BSplineCurve: {e}", case.name))
 }
 
 #[test]
@@ -654,11 +651,11 @@ struct SurfacesAnalyticFixture {
 fn assert_surface_samples_and_parameters<F>(
     samples: &[SurfaceSample],
     parameters_of: &[SurfaceParametersOf],
-    eval_point: impl Fn(f64, f64) -> geomcore::Point3D,
-    eval_derivative: impl Fn(f64, f64, u32, u32) -> geomcore::Vector3D,
+    eval_point: impl Fn(f64, f64) -> geomcore::Point,
+    eval_derivative: impl Fn(f64, f64, u32, u32) -> geomcore::Vector,
     parameters: F,
 ) where
-    F: Fn(geomcore::Point3D) -> (f64, f64),
+    F: Fn(geomcore::Point) -> (f64, f64),
 {
     for sample in samples {
         let (u, v) = (sample.u, sample.v);
@@ -817,7 +814,7 @@ struct SurfaceConstructionFixture {
     cylinders_from_circle: Vec<CylinderFromCircleCase>,
 }
 
-fn assert_frame_matches(frame: geomcore::Frame3D, expected: &FrameJson) {
+fn assert_frame_matches(frame: geomcore::Frame, expected: &FrameJson) {
     assert_point3(frame.origin(), expected.origin);
     assert_vector3(frame.x_direction(), expected.x_dir);
     assert_vector3(frame.y_direction(), expected.y_dir);
@@ -869,7 +866,7 @@ fn cylinders_from_circle_match_golden_fixture() {
         serde_json::from_value(load("construction.json")).unwrap();
 
     for case in &fixture.cylinders_from_circle {
-        let circle = Circle3D::from_frame(frame3(&case.circle.frame), case.circle.radius).unwrap();
+        let circle = Circle::from_frame(frame3(&case.circle.frame), case.circle.radius).unwrap();
         let cylinder = Cylinder::from_circle(&circle);
         assert_close(cylinder.radius(), case.radius);
         assert_frame_matches(cylinder.frame(), &case.frame);
@@ -912,7 +909,7 @@ struct BSplineSurfaceFixture {
 }
 
 fn build_bspline_surface(case: &BSplineSurfaceCase) -> BSplineSurface {
-    let poles: Vec<Vec<geomcore::Point3D>> = case
+    let poles: Vec<Vec<geomcore::Point>> = case
         .poles
         .iter()
         .map(|row| row.iter().map(|&p| point3(p)).collect())
@@ -1025,8 +1022,8 @@ struct ParametrizeFixture {
 }
 
 enum ParamCurve {
-    Line(Line3D),
-    Circle(Circle3D),
+    Line(Line),
+    Circle(Circle),
 }
 
 fn build_parametrize_surface(s: &ParametrizeSurface) -> geomcore::Surface {
@@ -1050,11 +1047,11 @@ fn build_parametrize_surface(s: &ParametrizeSurface) -> geomcore::Surface {
 fn build_parametrize_curve(c: &ParametrizeCurve) -> ParamCurve {
     match c.kind.as_str() {
         "line" => ParamCurve::Line(
-            Line3D::new(point3(c.origin.unwrap()), vector3(c.direction.unwrap())).unwrap(),
+            Line::new(point3(c.origin.unwrap()), vector3(c.direction.unwrap())).unwrap(),
         ),
         "circle" => {
             let frame = frame3(c.frame.as_ref().unwrap());
-            ParamCurve::Circle(Circle3D::from_frame(frame, c.radius.unwrap()).unwrap())
+            ParamCurve::Circle(Circle::from_frame(frame, c.radius.unwrap()).unwrap())
         }
         other => panic!("unknown parametrize curve kind: {other}"),
     }

@@ -1,6 +1,6 @@
 //! Public surface types: the five elementary analytic surfaces (plane,
 //! cylinder, cone, sphere, torus) plus B-spline surfaces, built on top of
-//! the crate's placement type ([`crate::Frame3D`]).
+//! the crate's placement type ([`crate::Frame`]).
 
 mod bspline;
 mod cone;

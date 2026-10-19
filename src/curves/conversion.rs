@@ -12,10 +12,10 @@ use std::fmt;
 
 use crate::curve_math::conic_bspline::{self, PlaneNet};
 use crate::curves::{
-    BSplineCurve3D, Circle3D, Curve3D, ElementaryCurve, Ellipse3D, Hyperbola3D, Line3D, Parabola3D,
-    ParametricCurve3D, TrimmedCurve3D,
+    BSplineCurve, Circle, Curve, ElementaryCurve, Ellipse, Hyperbola, Line, Parabola,
+    ParametricCurve, TrimmedCurve,
 };
-use crate::{Frame3D, Point3D};
+use crate::{Frame, Point};
 
 /// Error returned when a curve or surface cannot be converted to a
 /// B-spline.
@@ -52,12 +52,12 @@ impl std::error::Error for BSplineConversionError {}
 /// y coordinates by `y_scale`.
 fn place(
     net: PlaneNet,
-    frame: Frame3D,
+    frame: Frame,
     x_scale: f64,
     y_scale: f64,
-) -> Result<BSplineCurve3D, BSplineConversionError> {
+) -> Result<BSplineCurve, BSplineConversionError> {
     let (origin, x, y) = (frame.origin(), frame.x_direction(), frame.y_direction());
-    let poles: Vec<Point3D> = net
+    let poles: Vec<Point> = net
         .poles
         .iter()
         .map(|&[a, b]| origin + (x_scale * a) * x + (y_scale * b) * y)
@@ -67,7 +67,7 @@ fn place(
         return Err(BSplineConversionError::NotRepresentable);
     }
     let curve = match net.weights {
-        Some(weights) => BSplineCurve3D::new_rational(
+        Some(weights) => BSplineCurve::new_rational(
             net.degree,
             poles,
             weights,
@@ -75,7 +75,7 @@ fn place(
             net.multiplicities,
             net.periodic,
         ),
-        None => BSplineCurve3D::new(
+        None => BSplineCurve::new(
             net.degree,
             poles,
             net.knots,
@@ -96,7 +96,7 @@ fn arc_net(first: f64, last: f64) -> PlaneNet {
     net
 }
 
-impl Circle3D {
+impl Circle {
     /// The circle as an exact rational B-spline of degree 2, periodic over
     /// `[0, 2π]` like the circle: four quarter turns, eight poles, double
     /// knots at `0, π/2, π, 3π/2, 2π`.
@@ -108,29 +108,29 @@ impl Circle3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Circle3D, Point3D, Vector3D};
+    /// use geomcore::{Circle, Point, Vector};
     /// use std::f64::consts::{FRAC_PI_2, TAU};
     ///
-    /// let circle = Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
+    /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
     /// let bspline = circle.to_bspline();
     /// assert!(bspline.is_periodic());
     /// assert_eq!(bspline.bounds(), (0.0, TAU));
     /// let p = bspline.eval_point(FRAC_PI_2);
     /// assert!(p.distance(circle.eval_point(FRAC_PI_2)) < 1e-15);
     /// let q = bspline.eval_point(0.3);
-    /// assert!((q.distance(Point3D::ORIGIN) - 2.0).abs() < 1e-15);
+    /// assert!((q.distance(Point::ORIGIN) - 2.0).abs() < 1e-15);
     /// ```
-    pub fn to_bspline(&self) -> BSplineCurve3D {
+    pub fn to_bspline(&self) -> BSplineCurve {
         let r = self.radius();
         place(conic_bspline::full_circle(), self.frame(), r, r)
             .expect("a finite circle has finite poles")
     }
 }
 
-impl Ellipse3D {
+impl Ellipse {
     /// The ellipse as an exact rational B-spline of degree 2, periodic over
     /// `[0, 2π]` like the ellipse: the B-spline of the unit circle (see
-    /// [`Circle3D::to_bspline`]) scaled by the radii along the frame's axes.
+    /// [`Circle::to_bspline`]) scaled by the radii along the frame's axes.
     ///
     /// Every point of the B-spline lies on the ellipse; its parameter
     /// agrees with the ellipse's at the knots `0, π/2, π, 3π/2, 2π` and at
@@ -139,15 +139,15 @@ impl Ellipse3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Ellipse3D, Point3D, Vector3D};
+    /// use geomcore::{Ellipse, Point, Vector};
     ///
-    /// let ellipse = Ellipse3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, 3.0, 1.0).unwrap();
+    /// let ellipse = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 3.0, 1.0).unwrap();
     /// let bspline = ellipse.to_bspline();
     /// assert!(bspline.is_periodic());
     /// let p = bspline.eval_point(1.0);
     /// assert!(((p.x / 3.0).powi(2) + p.y.powi(2) - 1.0).abs() < 1e-15);
     /// ```
-    pub fn to_bspline(&self) -> BSplineCurve3D {
+    pub fn to_bspline(&self) -> BSplineCurve {
         place(
             conic_bspline::full_circle(),
             self.frame(),
@@ -160,54 +160,42 @@ impl Ellipse3D {
 
 pub(crate) mod sealed {
     use super::BSplineConversionError;
-    use crate::BSplineCurve3D;
+    use crate::BSplineCurve;
 
     /// Exact B-spline of a range of a curve: what a trimmed curve needs
     /// from its basis.
-    pub trait BSplineRange3D: crate::curves::ParametricCurve3D {
+    pub trait BSplineRange: crate::curves::ParametricCurve {
         /// The B-spline over `[first, last]`, a range accepted by
-        /// [`TrimmedCurve3D::new`](crate::curves::TrimmedCurve3D::new).
+        /// [`TrimmedCurve::new`](crate::curves::TrimmedCurve::new).
         fn bspline_range(
             &self,
             first: f64,
             last: f64,
-        ) -> Result<BSplineCurve3D, BSplineConversionError>;
+        ) -> Result<BSplineCurve, BSplineConversionError>;
     }
 }
-use sealed::BSplineRange3D;
+use sealed::BSplineRange;
 
-impl BSplineRange3D for Line3D {
-    fn bspline_range(
-        &self,
-        first: f64,
-        last: f64,
-    ) -> Result<BSplineCurve3D, BSplineConversionError> {
+impl BSplineRange for Line {
+    fn bspline_range(&self, first: f64, last: f64) -> Result<BSplineCurve, BSplineConversionError> {
         let poles = vec![self.eval_point(first), self.eval_point(last)];
         if !poles.iter().all(|p| p.is_finite()) {
             return Err(BSplineConversionError::NotRepresentable);
         }
-        BSplineCurve3D::new(1, poles, vec![first, last], vec![2, 2], false)
+        BSplineCurve::new(1, poles, vec![first, last], vec![2, 2], false)
             .map_err(|_| BSplineConversionError::NotRepresentable)
     }
 }
 
-impl BSplineRange3D for Circle3D {
-    fn bspline_range(
-        &self,
-        first: f64,
-        last: f64,
-    ) -> Result<BSplineCurve3D, BSplineConversionError> {
+impl BSplineRange for Circle {
+    fn bspline_range(&self, first: f64, last: f64) -> Result<BSplineCurve, BSplineConversionError> {
         let r = self.radius();
         place(arc_net(first, last), self.frame(), r, r)
     }
 }
 
-impl BSplineRange3D for Ellipse3D {
-    fn bspline_range(
-        &self,
-        first: f64,
-        last: f64,
-    ) -> Result<BSplineCurve3D, BSplineConversionError> {
+impl BSplineRange for Ellipse {
+    fn bspline_range(&self, first: f64, last: f64) -> Result<BSplineCurve, BSplineConversionError> {
         place(
             arc_net(first, last),
             self.frame(),
@@ -217,23 +205,15 @@ impl BSplineRange3D for Ellipse3D {
     }
 }
 
-impl BSplineRange3D for Parabola3D {
-    fn bspline_range(
-        &self,
-        first: f64,
-        last: f64,
-    ) -> Result<BSplineCurve3D, BSplineConversionError> {
+impl BSplineRange for Parabola {
+    fn bspline_range(&self, first: f64, last: f64) -> Result<BSplineCurve, BSplineConversionError> {
         let net = conic_bspline::parabola_arc(self.focal(), first, last);
         place(net, self.frame(), 1.0, 1.0)
     }
 }
 
-impl BSplineRange3D for Hyperbola3D {
-    fn bspline_range(
-        &self,
-        first: f64,
-        last: f64,
-    ) -> Result<BSplineCurve3D, BSplineConversionError> {
+impl BSplineRange for Hyperbola {
+    fn bspline_range(&self, first: f64, last: f64) -> Result<BSplineCurve, BSplineConversionError> {
         place(
             conic_bspline::hyperbola_arc(first, last),
             self.frame(),
@@ -243,12 +223,8 @@ impl BSplineRange3D for Hyperbola3D {
     }
 }
 
-impl BSplineRange3D for ElementaryCurve {
-    fn bspline_range(
-        &self,
-        first: f64,
-        last: f64,
-    ) -> Result<BSplineCurve3D, BSplineConversionError> {
+impl BSplineRange for ElementaryCurve {
+    fn bspline_range(&self, first: f64, last: f64) -> Result<BSplineCurve, BSplineConversionError> {
         match self {
             ElementaryCurve::Line(c) => c.bspline_range(first, last),
             ElementaryCurve::Circle(c) => c.bspline_range(first, last),
@@ -259,22 +235,18 @@ impl BSplineRange3D for ElementaryCurve {
     }
 }
 
-impl<C: BSplineRange3D + ?Sized> BSplineRange3D for &C {
-    fn bspline_range(
-        &self,
-        first: f64,
-        last: f64,
-    ) -> Result<BSplineCurve3D, BSplineConversionError> {
+impl<C: BSplineRange + ?Sized> BSplineRange for &C {
+    fn bspline_range(&self, first: f64, last: f64) -> Result<BSplineCurve, BSplineConversionError> {
         (**self).bspline_range(first, last)
     }
 }
 
-impl<C: BSplineRange3D> TrimmedCurve3D<C> {
+impl<C: BSplineRange> TrimmedCurve<C> {
     /// The piece of an elementary curve as an exact B-spline over the same
     /// range `[first, last]`, starting and ending on the same points.
     ///
-    /// The basis is a [`Line3D`], [`Circle3D`], [`Ellipse3D`],
-    /// [`Parabola3D`], [`Hyperbola3D`] or [`ElementaryCurve`], owned or
+    /// The basis is a [`Line`], [`Circle`], [`Ellipse`],
+    /// [`Parabola`], [`Hyperbola`] or [`ElementaryCurve`], owned or
     /// borrowed. A segment becomes a B-spline of degree 1 and a parabola
     /// one polynomial quadratic piece, both with the curve's own
     /// parameter. A hyperbola becomes one rational quadratic piece, and a
@@ -296,20 +268,20 @@ impl<C: BSplineRange3D> TrimmedCurve3D<C> {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::curves::TrimmedCurve3D;
-    /// use geomcore::{Circle3D, Point3D, Tolerance, Vector3D};
+    /// use geomcore::curves::TrimmedCurve;
+    /// use geomcore::{Circle, Point, Tolerance, Vector};
     /// use std::f64::consts::PI;
     ///
-    /// let circle = Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 1.0).unwrap();
+    /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
     /// // Three quarters of the circle, across the seam at angle 0.
-    /// let arc = TrimmedCurve3D::new(circle, -PI / 2.0, PI).unwrap();
+    /// let arc = TrimmedCurve::new(circle, -PI / 2.0, PI).unwrap();
     /// let bspline = arc.to_bspline().unwrap();
     /// assert_eq!(bspline.bounds(), (-PI / 2.0, PI));
     /// assert_eq!(bspline.knots().len(), 4);
-    /// assert!(bspline.eval_point(0.0).distance(Point3D::new(1.0, 0.0, 0.0)) < 1e-15);
+    /// assert!(bspline.eval_point(0.0).distance(Point::new(1.0, 0.0, 0.0)) < 1e-15);
     /// assert!(circle.contains(bspline.eval_point(1.0), Tolerance::DEFAULT));
     /// ```
-    pub fn to_bspline(&self) -> Result<BSplineCurve3D, BSplineConversionError> {
+    pub fn to_bspline(&self) -> Result<BSplineCurve, BSplineConversionError> {
         let (first, last) = self.bounds();
         self.basis().bspline_range(first, last)
     }
@@ -317,29 +289,29 @@ impl<C: BSplineRange3D> TrimmedCurve3D<C> {
 
 impl ElementaryCurve {
     /// The whole curve as an exact B-spline: a circle or ellipse becomes
-    /// its periodic B-spline ([`Circle3D::to_bspline`],
-    /// [`Ellipse3D::to_bspline`]).
+    /// its periodic B-spline ([`Circle::to_bspline`],
+    /// [`Ellipse::to_bspline`]).
     ///
     /// # Errors
     ///
     /// Returns [`BSplineConversionError::Unbounded`] for a line, parabola
-    /// or hyperbola; trim it first and use [`TrimmedCurve3D::to_bspline`].
+    /// or hyperbola; trim it first and use [`TrimmedCurve::to_bspline`].
     ///
     /// # Examples
     ///
     /// ```
     /// use geomcore::curves::{BSplineConversionError, ElementaryCurve};
-    /// use geomcore::{Circle3D, Line3D, Point3D, Vector3D};
+    /// use geomcore::{Circle, Line, Point, Vector};
     ///
-    /// let circle = Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 1.0).unwrap();
+    /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
     /// assert!(ElementaryCurve::Circle(circle).to_bspline().unwrap().is_periodic());
-    /// let line = Line3D::new(Point3D::ORIGIN, Vector3D::X).unwrap();
+    /// let line = Line::new(Point::ORIGIN, Vector::X).unwrap();
     /// assert_eq!(
     ///     ElementaryCurve::Line(line).to_bspline().err(),
     ///     Some(BSplineConversionError::Unbounded)
     /// );
     /// ```
-    pub fn to_bspline(&self) -> Result<BSplineCurve3D, BSplineConversionError> {
+    pub fn to_bspline(&self) -> Result<BSplineCurve, BSplineConversionError> {
         match self {
             ElementaryCurve::Circle(c) => Ok(c.to_bspline()),
             ElementaryCurve::Ellipse(c) => Ok(c.to_bspline()),
@@ -350,7 +322,7 @@ impl ElementaryCurve {
     }
 }
 
-impl Curve3D {
+impl Curve {
     /// The whole curve as a B-spline: a B-spline is cloned, an elementary
     /// curve converted by [`ElementaryCurve::to_bspline`].
     ///
@@ -362,21 +334,21 @@ impl Curve3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::curves::{BSplineConversionError, Curve3D};
-    /// use geomcore::{Ellipse3D, Parabola3D, Point3D, Vector3D};
+    /// use geomcore::curves::{BSplineConversionError, Curve};
+    /// use geomcore::{Ellipse, Parabola, Point, Vector};
     ///
-    /// let ellipse = Ellipse3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, 2.0, 1.0).unwrap();
-    /// let bspline = Curve3D::from(ellipse).to_bspline().unwrap();
-    /// assert_eq!(Curve3D::from(bspline.clone()).to_bspline(), Ok(bspline));
-    /// let parabola = Parabola3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, 1.0).unwrap();
+    /// let ellipse = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 2.0, 1.0).unwrap();
+    /// let bspline = Curve::from(ellipse).to_bspline().unwrap();
+    /// assert_eq!(Curve::from(bspline.clone()).to_bspline(), Ok(bspline));
+    /// let parabola = Parabola::new(Point::ORIGIN, Vector::Z, Vector::X, 1.0).unwrap();
     /// assert_eq!(
-    ///     Curve3D::from(parabola).to_bspline().err(),
+    ///     Curve::from(parabola).to_bspline().err(),
     ///     Some(BSplineConversionError::Unbounded)
     /// );
     /// ```
-    pub fn to_bspline(&self) -> Result<BSplineCurve3D, BSplineConversionError> {
+    pub fn to_bspline(&self) -> Result<BSplineCurve, BSplineConversionError> {
         match self {
-            Curve3D::BSpline(c) => Ok(c.clone()),
+            Curve::BSpline(c) => Ok(c.clone()),
             _ => self
                 .as_elementary()
                 .expect("every other curve is elementary")
@@ -388,39 +360,39 @@ impl Curve3D {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::discretization::{DiscretizationCriteria, Discretize3D};
-    use crate::{Tolerance, Vector3D};
+    use crate::discretization::{DiscretizationCriteria, Discretize};
+    use crate::{Tolerance, Vector};
     use std::f64::consts::{FRAC_PI_2, FRAC_PI_4, PI};
 
     const RELATIVE: f64 = 1e-12;
 
-    fn tilted_frame(origin: Point3D) -> Frame3D {
-        Frame3D::new(
+    fn tilted_frame(origin: Point) -> Frame {
+        Frame::new(
             origin,
-            Vector3D::new(1.0, -2.0, 0.5),
-            Vector3D::new(0.3, 1.0, 2.0),
+            Vector::new(1.0, -2.0, 0.5),
+            Vector::new(0.3, 1.0, 2.0),
         )
         .unwrap()
     }
 
-    fn circle(radius: f64) -> Circle3D {
-        let center = Point3D::new(0.4 * radius, -0.7 * radius, 0.2 * radius);
-        Circle3D::from_frame(tilted_frame(center), radius).unwrap()
+    fn circle(radius: f64) -> Circle {
+        let center = Point::new(0.4 * radius, -0.7 * radius, 0.2 * radius);
+        Circle::from_frame(tilted_frame(center), radius).unwrap()
     }
 
-    fn ellipse() -> Ellipse3D {
-        Ellipse3D::from_frame(tilted_frame(Point3D::new(1.0, 2.0, -1.0)), 5.0, 0.5).unwrap()
+    fn ellipse() -> Ellipse {
+        Ellipse::from_frame(tilted_frame(Point::new(1.0, 2.0, -1.0)), 5.0, 0.5).unwrap()
     }
 
-    fn parabola() -> Parabola3D {
-        Parabola3D::from_frame(tilted_frame(Point3D::new(-1.0, 0.5, 2.0)), 0.75).unwrap()
+    fn parabola() -> Parabola {
+        Parabola::from_frame(tilted_frame(Point::new(-1.0, 0.5, 2.0)), 0.75).unwrap()
     }
 
-    fn hyperbola() -> Hyperbola3D {
-        Hyperbola3D::from_frame(tilted_frame(Point3D::new(2.0, 1.0, 0.0)), 1.5, 0.8).unwrap()
+    fn hyperbola() -> Hyperbola {
+        Hyperbola::from_frame(tilted_frame(Point::new(2.0, 1.0, 0.0)), 1.5, 0.8).unwrap()
     }
 
-    fn circle_distance(c: &Circle3D, p: Point3D) -> f64 {
+    fn circle_distance(c: &Circle, p: Point) -> f64 {
         let (x, y, z) = c.frame().local_coordinates(p);
         z.hypot(x.hypot(y) - c.radius())
     }
@@ -428,7 +400,7 @@ mod tests {
     /// The largest of `distance` (an upper bound of the distance from a
     /// point to the original curve) over a dense sample of the B-spline,
     /// its knots and the middles of its spans.
-    fn max_deviation(b: &BSplineCurve3D, distance: impl Fn(Point3D) -> f64) -> f64 {
+    fn max_deviation(b: &BSplineCurve, distance: impl Fn(Point) -> f64) -> f64 {
         let (first, last) = b.bounds();
         let n = 4000;
         let dense = (0..=n).map(|i| first + (last - first) * (i as f64 / n as f64));
@@ -443,8 +415,8 @@ mod tests {
 
     /// The B-spline and the curve agree at the knots and the middle of
     /// every span.
-    fn assert_matches_at_knots_and_middles<C: ParametricCurve3D>(
-        b: &BSplineCurve3D,
+    fn assert_matches_at_knots_and_middles<C: ParametricCurve>(
+        b: &BSplineCurve,
         curve: &C,
         scale: f64,
     ) {
@@ -518,7 +490,7 @@ mod tests {
         for radius in [1e-6, 1.0, 1e6] {
             let c = circle(radius);
             for (first, last) in ARCS {
-                let arc = TrimmedCurve3D::new(c, first, last).unwrap();
+                let arc = TrimmedCurve::new(c, first, last).unwrap();
                 let b = arc.to_bspline().unwrap();
                 assert!(!b.is_periodic());
                 assert_eq!(b.bounds(), (first, last));
@@ -540,7 +512,7 @@ mod tests {
     fn test_ellipse_arcs_are_exact_over_their_range() {
         let e = ellipse();
         for (first, last) in ARCS {
-            let arc = TrimmedCurve3D::new(e, first, last).unwrap();
+            let arc = TrimmedCurve::new(e, first, last).unwrap();
             let b = arc.to_bspline().unwrap();
             assert_eq!(b.bounds(), (first, last));
             let dev = max_deviation(&b, |p| p.distance(e.eval_point(e.parameter_of(p))));
@@ -555,7 +527,7 @@ mod tests {
     fn test_whole_turn_arc_is_clamped_and_closed() {
         let c = circle(2.0);
         for first in [0.0, -1.0, 3.0] {
-            let arc = TrimmedCurve3D::new(c, first, first + TAU).unwrap();
+            let arc = TrimmedCurve::new(c, first, first + TAU).unwrap();
             let b = arc.to_bspline().unwrap();
             assert!(!b.is_periodic());
             assert_eq!(b.bounds(), (first, first + TAU));
@@ -564,14 +536,14 @@ mod tests {
             assert_eq!(b.eval_point(first), b.eval_point(first + TAU));
             assert!(max_deviation(&b, |p| circle_distance(&c, p)) <= RELATIVE * 2.0);
         }
-        let e = TrimmedCurve3D::new(ellipse(), 1.0, 1.0 + TAU).unwrap();
+        let e = TrimmedCurve::new(ellipse(), 1.0, 1.0 + TAU).unwrap();
         let b = e.to_bspline().unwrap();
         assert_eq!(b.poles().first(), b.poles().last());
     }
 
     #[test]
     fn test_quarter_turn_pieces() {
-        let arc = TrimmedCurve3D::new(circle(1.0), 0.0, PI).unwrap();
+        let arc = TrimmedCurve::new(circle(1.0), 0.0, PI).unwrap();
         let b = arc.to_bspline().unwrap();
         assert_eq!(b.knots(), &[0.0, FRAC_PI_2, PI]);
         assert_eq!(b.multiplicities(), &[3, 2, 3]);
@@ -584,8 +556,8 @@ mod tests {
 
     #[test]
     fn test_segment_keeps_the_line_parameter() {
-        let line = Line3D::new(Point3D::new(1.0, 2.0, 3.0), Vector3D::new(1.0, -1.0, 2.0)).unwrap();
-        let segment = TrimmedCurve3D::new(line, -2.0, 3.5).unwrap();
+        let line = Line::new(Point::new(1.0, 2.0, 3.0), Vector::new(1.0, -1.0, 2.0)).unwrap();
+        let segment = TrimmedCurve::new(line, -2.0, 3.5).unwrap();
         let b = segment.to_bspline().unwrap();
         assert_eq!((b.degree(), b.is_rational()), (1, false));
         assert_eq!(b.bounds(), (-2.0, 3.5));
@@ -601,7 +573,7 @@ mod tests {
     fn test_parabola_is_one_polynomial_piece_with_its_parameter() {
         let p = parabola();
         for (first, last) in [(-3.0, 5.0), (0.2, 0.200_001), (-1e3, 1e3), (-7.0, -6.0)] {
-            let arc = TrimmedCurve3D::new(p, first, last).unwrap();
+            let arc = TrimmedCurve::new(p, first, last).unwrap();
             let b = arc.to_bspline().unwrap();
             assert_eq!((b.degree(), b.is_rational()), (2, false));
             assert_eq!(b.poles().len(), 3);
@@ -623,7 +595,7 @@ mod tests {
     fn test_hyperbola_is_one_rational_piece_on_the_branch() {
         let h = hyperbola();
         for (first, last) in [(-3.0, 2.0), (0.1, 0.100_000_1), (-0.5, 0.5), (4.0, 6.0)] {
-            let arc = TrimmedCurve3D::new(h, first, last).unwrap();
+            let arc = TrimmedCurve::new(h, first, last).unwrap();
             let b = arc.to_bspline().unwrap();
             assert_eq!((b.degree(), b.poles().len()), (2, 3));
             assert_eq!(b.bounds(), (first, last));
@@ -637,7 +609,7 @@ mod tests {
 
     #[test]
     fn test_hyperbola_far_out_is_not_representable() {
-        let arc = TrimmedCurve3D::new(hyperbola(), 700.0, 720.0).unwrap();
+        let arc = TrimmedCurve::new(hyperbola(), 700.0, 720.0).unwrap();
         assert_eq!(
             arc.to_bspline().err(),
             Some(BSplineConversionError::NotRepresentable)
@@ -648,7 +620,7 @@ mod tests {
     fn test_arc_whose_knots_collapse_is_not_representable() {
         // At 2^54 the parameters are 4 apart: three pieces cannot fit.
         let first = 2f64.powi(54);
-        let arc = TrimmedCurve3D::new(circle(1.0), first, first + 4.0).unwrap();
+        let arc = TrimmedCurve::new(circle(1.0), first, first + 4.0).unwrap();
         assert_eq!(
             arc.to_bspline().err(),
             Some(BSplineConversionError::NotRepresentable)
@@ -659,12 +631,12 @@ mod tests {
 
     #[test]
     fn test_unbounded_curves_are_rejected() {
-        let line = Line3D::new(Point3D::ORIGIN, Vector3D::X).unwrap();
+        let line = Line::new(Point::ORIGIN, Vector::X).unwrap();
         let unbounded: [ElementaryCurve; 3] = [line.into(), parabola().into(), hyperbola().into()];
         for curve in unbounded {
             let err = Some(BSplineConversionError::Unbounded);
             assert_eq!(curve.to_bspline().err(), err);
-            assert_eq!(Curve3D::from(curve).to_bspline().err(), err);
+            assert_eq!(Curve::from(curve).to_bspline().err(), err);
         }
     }
 
@@ -672,17 +644,17 @@ mod tests {
     fn test_run_time_curves_convert_like_the_concrete_ones() {
         let c = circle(3.0);
         assert_eq!(ElementaryCurve::from(c).to_bspline(), Ok(c.to_bspline()));
-        assert_eq!(Curve3D::from(c).to_bspline(), Ok(c.to_bspline()));
+        assert_eq!(Curve::from(c).to_bspline(), Ok(c.to_bspline()));
         let e = ellipse();
-        assert_eq!(Curve3D::from(e).to_bspline(), Ok(e.to_bspline()));
+        assert_eq!(Curve::from(e).to_bspline(), Ok(e.to_bspline()));
         let b = e.to_bspline();
-        assert_eq!(Curve3D::from(b.clone()).to_bspline(), Ok(b));
+        assert_eq!(Curve::from(b.clone()).to_bspline(), Ok(b));
 
         let h = hyperbola();
-        let concrete = TrimmedCurve3D::new(h, -1.0, 2.0).unwrap().to_bspline();
-        let run_time = TrimmedCurve3D::new(ElementaryCurve::from(h), -1.0, 2.0).unwrap();
+        let concrete = TrimmedCurve::new(h, -1.0, 2.0).unwrap().to_bspline();
+        let run_time = TrimmedCurve::new(ElementaryCurve::from(h), -1.0, 2.0).unwrap();
         assert_eq!(run_time.to_bspline(), concrete);
-        let borrowed = TrimmedCurve3D::new(&h, -1.0, 2.0).unwrap();
+        let borrowed = TrimmedCurve::new(&h, -1.0, 2.0).unwrap();
         assert_eq!(borrowed.to_bspline(), concrete);
     }
 
@@ -720,7 +692,7 @@ mod tests {
         assert!(d.chord_deviations.iter().all(|&dev| dev <= 1e-3));
         assert!(d.points.iter().all(|&p| circle_distance(&c, p) <= 1e-12));
 
-        let arc = TrimmedCurve3D::new(b, 5.0, 7.5).unwrap();
+        let arc = TrimmedCurve::new(b, 5.0, 7.5).unwrap();
         assert!(arc.contains(c.eval_point(0.0), tol));
     }
 }

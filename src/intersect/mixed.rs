@@ -20,13 +20,13 @@ use super::curve_curve_hull::{bspline_curve_curve, bspline_minima};
 use super::curve_surface_hull::{CurveSurfaceHits, Range, bspline_curve_surface};
 use super::results::sort_by_known_parameter;
 use super::{Completeness, CurveCurveExtremum, CurveCurveRegion};
-use crate::curves::{BSplineCurve3D, Circle3D, ElementaryCurve, ParametricCurve3D, TrimmedCurve3D};
+use crate::curves::{BSplineCurve, Circle, ElementaryCurve, ParametricCurve, TrimmedCurve};
 use crate::math::boxtree::Aabb;
 use crate::surfaces::{BSplineSurface, ElementarySurface, ParametricSurface};
-use crate::{Point3D, Tolerance, Vector3D};
+use crate::{Point, Tolerance, Vector};
 
 /// The box of the control points of `curve`, which holds the curve.
-fn curve_box(curve: &BSplineCurve3D) -> Aabb {
+fn curve_box(curve: &BSplineCurve) -> Aabb {
     let empty = [
         f64::INFINITY,
         f64::INFINITY,
@@ -57,7 +57,7 @@ fn grown(b: &Aabb, tol: Tolerance) -> Aabb {
 }
 
 /// The range of `(p - origin) . direction` over the points `p` of `b`.
-fn reach(b: &Aabb, origin: Point3D, direction: Vector3D) -> (f64, f64) {
+fn reach(b: &Aabb, origin: Point, direction: Vector) -> (f64, f64) {
     let (o, d) = (
         [origin.x, origin.y, origin.z],
         [direction.x, direction.y, direction.z],
@@ -70,7 +70,7 @@ fn reach(b: &Aabb, origin: Point3D, direction: Vector3D) -> (f64, f64) {
 
 /// The range of `t` over which `origin + t direction` lies inside `b`,
 /// with `lo > hi` when it misses `b`.
-fn clip(b: &Aabb, origin: Point3D, direction: Vector3D) -> (f64, f64) {
+fn clip(b: &Aabb, origin: Point, direction: Vector) -> (f64, f64) {
     let (o, d) = (
         [origin.x, origin.y, origin.z],
         [direction.x, direction.y, direction.z],
@@ -103,7 +103,7 @@ fn settle(range: Range, x: f64) -> f64 {
 /// A curve as a B-spline over a parameter range: a B-spline, or trimmed
 /// B-spline, as it is, or an elementary curve converted.
 struct HullCurve<'a> {
-    bspline: Cow<'a, BSplineCurve3D>,
+    bspline: Cow<'a, BSplineCurve>,
     range: Range,
     /// The elementary curve converted, if any.
     source: Option<ElementaryCurve>,
@@ -167,7 +167,7 @@ fn inside(curve: ElementaryCurve, b: &Aabb) -> Option<(f64, f64)> {
 /// restricted to the parameters of its points inside `cover` (see
 /// [`inside`]). `None` for any other curve, an unbounded one without
 /// `cover`, or a range whose B-spline does not fit in `f64`.
-fn hull_curve<'a, C: ParametricCurve3D>(curve: &'a C, cover: Option<&Aabb>) -> Option<Hull<'a>> {
+fn hull_curve<'a, C: ParametricCurve>(curve: &'a C, cover: Option<&Aabb>) -> Option<Hull<'a>> {
     if let Some(bspline) = curve.as_bspline() {
         return Some(Hull::Curve(Box::new(HullCurve {
             bspline: Cow::Borrowed(bspline),
@@ -187,10 +187,7 @@ fn hull_curve<'a, C: ParametricCurve3D>(curve: &'a C, cover: Option<&Aabb>) -> O
     let bspline = if periodic {
         source.to_bspline().ok()?
     } else {
-        TrimmedCurve3D::new(source, lo, hi)
-            .ok()?
-            .to_bspline()
-            .ok()?
+        TrimmedCurve::new(source, lo, hi).ok()?.to_bspline().ok()?
     };
     Some(Hull::Curve(Box::new(HullCurve {
         bspline: Cow::Owned(bspline),
@@ -207,18 +204,15 @@ enum Direction {
     /// The angle of the unit circle's B-spline `arc` over the same range,
     /// built from the same pieces as the patch's.
     Circular {
-        circle: Circle3D,
-        arc: Box<BSplineCurve3D>,
+        circle: Circle,
+        arc: Box<BSplineCurve>,
     },
 }
 
 impl Direction {
     fn circular((lo, hi): (f64, f64)) -> Option<Direction> {
-        let circle = Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 1.0).ok()?;
-        let arc = TrimmedCurve3D::new(circle, lo, hi)
-            .ok()?
-            .to_bspline()
-            .ok()?;
+        let circle = Circle::new(Point::ORIGIN, Vector::Z, 1.0).ok()?;
+        let arc = TrimmedCurve::new(circle, lo, hi).ok()?.to_bspline().ok()?;
         Some(Direction::Circular {
             circle,
             arc: Box::new(arc),
@@ -359,7 +353,7 @@ pub(super) fn curve_surface<C, S>(
     tol: Tolerance,
 ) -> Option<CurveSurfaceHits>
 where
-    C: ParametricCurve3D,
+    C: ParametricCurve,
     S: ParametricSurface,
 {
     let (bounds, periodic) = (curve.bounds(), curve.period().is_some());
@@ -416,9 +410,9 @@ where
 /// `curve`, paired with the B-spline `other`, as a [`Hull`] restricted
 /// to its points inside the box of `other`'s control points, grown, which
 /// hold its meetings with `other`.
-fn restricted<'a, C: ParametricCurve3D>(
+fn restricted<'a, C: ParametricCurve>(
     curve: &'a C,
-    other: &BSplineCurve3D,
+    other: &BSplineCurve,
     tol: Tolerance,
 ) -> Option<Hull<'a>> {
     hull_curve(curve, Some(&grown(&curve_box(other), tol)))
@@ -434,8 +428,8 @@ fn hull_pair<'a, A, B>(
     tol: Tolerance,
 ) -> Option<(Hull<'a>, Hull<'a>)>
 where
-    A: ParametricCurve3D,
-    B: ParametricCurve3D,
+    A: ParametricCurve,
+    B: ParametricCurve,
 {
     match (a.as_bspline(), b.as_bspline()) {
         (Some(_), Some(_)) => Some((hull_curve(a, None)?, hull_curve(b, None)?)),
@@ -481,8 +475,8 @@ pub(super) fn curve_curve_meetings<A, B>(
     tol: Tolerance,
 ) -> Option<(Vec<CurveCurveExtremum>, Completeness<CurveCurveRegion>)>
 where
-    A: ParametricCurve3D,
-    B: ParametricCurve3D,
+    A: ParametricCurve,
+    B: ParametricCurve,
 {
     let (Hull::Curve(ha), Hull::Curve(hb)) = hull_pair(a, b, true, tol)? else {
         return Some((Vec::new(), Completeness::Complete));
@@ -512,7 +506,7 @@ where
 /// elementary curve slow the search down (a closed one adds a maximum of
 /// the distance for every point of the other curve), and a full line
 /// reduces exactly to the other curve alone.
-fn searched<C: ParametricCurve3D>(curve: &C) -> bool {
+fn searched<C: ParametricCurve>(curve: &C) -> bool {
     match curve.as_elementary() {
         None => true,
         Some(ElementaryCurve::Line(_)) => curve.bounds().0.is_finite(),
@@ -531,8 +525,8 @@ pub(super) fn curve_curve_seeds<A, B>(
     tol: Tolerance,
 ) -> Option<(Vec<[f64; 2]>, Completeness<CurveCurveRegion>)>
 where
-    A: ParametricCurve3D,
-    B: ParametricCurve3D,
+    A: ParametricCurve,
+    B: ParametricCurve,
 {
     if !(searched(a) && searched(b)) {
         return None;
@@ -553,7 +547,7 @@ mod tests {
     use std::f64::consts::{FRAC_PI_4, PI};
 
     use super::*;
-    use crate::curves::{Curve3D, Ellipse3D, Hyperbola3D, Line3D, Parabola3D};
+    use crate::curves::{Curve, Ellipse, Hyperbola, Line, Parabola};
     use crate::intersect::curve_curve::{curve_curve_minima, sampled_curve_curve};
     use crate::intersect::curve_surface::sampled_curve_surface;
     use crate::intersect::{
@@ -576,16 +570,16 @@ mod tests {
         }
     }
 
-    fn p(x: f64, y: f64, z: f64) -> Point3D {
-        Point3D::new(x, y, z)
+    fn p(x: f64, y: f64, z: f64) -> Point {
+        Point::new(x, y, z)
     }
 
-    fn v(x: f64, y: f64, z: f64) -> Vector3D {
-        Vector3D::new(x, y, z)
+    fn v(x: f64, y: f64, z: f64) -> Vector {
+        Vector::new(x, y, z)
     }
 
     /// A clamped B-spline of `degree` on uniform knots through `poles`.
-    fn bspline(degree: usize, poles: &[[f64; 3]]) -> BSplineCurve3D {
+    fn bspline(degree: usize, poles: &[[f64; 3]]) -> BSplineCurve {
         let poles = poles
             .iter()
             .map(|&[x, y, z]| p(x, y, z))
@@ -595,20 +589,20 @@ mod tests {
         let mut mults = vec![1; spans + 1];
         let end = u32::try_from(degree).unwrap() + 1;
         (mults[0], mults[spans]) = (end, end);
-        BSplineCurve3D::new(degree, poles, knots, mults, false).unwrap()
+        BSplineCurve::new(degree, poles, knots, mults, false).unwrap()
     }
 
-    fn segment(from: Point3D, to: Point3D) -> BSplineCurve3D {
+    fn segment(from: Point, to: Point) -> BSplineCurve {
         bspline(1, &[[from.x, from.y, from.z], [to.x, to.y, to.z]])
     }
 
     /// A bicubic 6×6 net over `[0, 5]^2` moved by `offset`, with heights
     /// `sin(0.7 i j)`.
-    fn wavy(offset: Vector3D) -> BSplineSurface {
+    fn wavy(offset: Vector) -> BSplineSurface {
         net(offset, |i, j| ((i * j) as f64 * 0.7).sin())
     }
 
-    fn net(offset: Vector3D, height: impl Fn(usize, usize) -> f64) -> BSplineSurface {
+    fn net(offset: Vector, height: impl Fn(usize, usize) -> f64) -> BSplineSurface {
         let poles = (0..6)
             .map(|i| {
                 (0..6)
@@ -632,7 +626,7 @@ mod tests {
     }
 
     /// A cubic wandering through `[-3, 3]^2 × [-2, 2]`.
-    fn wander() -> BSplineCurve3D {
+    fn wander() -> BSplineCurve {
         bspline(
             3,
             &[
@@ -646,7 +640,7 @@ mod tests {
     }
 
     /// A cubic in the plane `z = 0` swinging across the origin.
-    fn swing() -> BSplineCurve3D {
+    fn swing() -> BSplineCurve {
         bspline(
             3,
             &[
@@ -659,7 +653,7 @@ mod tests {
     }
 
     /// A cubic swinging over the plane `z = 0`, never meeting it.
-    fn skew() -> BSplineCurve3D {
+    fn skew() -> BSplineCurve {
         bspline(
             3,
             &[
@@ -673,7 +667,7 @@ mod tests {
 
     /// Whether `t` is within the bounds of `curve`: the sampled searches
     /// can stray past those of a trimmed curve.
-    fn within<C: ParametricCurve3D>(curve: &C, t: f64) -> bool {
+    fn within<C: ParametricCurve>(curve: &C, t: f64) -> bool {
         let (lo, hi) = curve.bounds();
         (lo - 1e-9..=hi + 1e-9).contains(&t)
     }
@@ -681,7 +675,7 @@ mod tests {
     /// Asserts every hit lies on both shapes, with parameters within the
     /// shapes' bounds, ordered along the curve.
     #[track_caller]
-    fn assert_on_both<C: ParametricCurve3D, S: ParametricSurface>(
+    fn assert_on_both<C: ParametricCurve, S: ParametricSurface>(
         hits: &[CurveSurfaceHit],
         curve: &C,
         surface: &S,
@@ -710,7 +704,7 @@ mod tests {
     /// Asserts the hits are complete, lie on both shapes and are those of
     /// the sampled search, and returns them.
     #[track_caller]
-    fn assert_surface_hits<C: ParametricCurve3D, S: ParametricSurface>(
+    fn assert_surface_hits<C: ParametricCurve, S: ParametricSurface>(
         curve: &C,
         surface: &S,
     ) -> Vec<CurveSurfaceHit> {
@@ -736,7 +730,7 @@ mod tests {
     /// Asserts the hits are complete, lie on both curves and are those of
     /// the sampled search, multiplicities included, and returns them.
     #[track_caller]
-    fn assert_curve_hits<A: ParametricCurve3D, B: ParametricCurve3D>(
+    fn assert_curve_hits<A: ParametricCurve, B: ParametricCurve>(
         a: &A,
         b: &B,
     ) -> Vec<CurveCurveHit> {
@@ -763,7 +757,7 @@ mod tests {
     }
 
     #[track_caller]
-    fn assert_curve_hits_on_both<A: ParametricCurve3D, B: ParametricCurve3D>(
+    fn assert_curve_hits_on_both<A: ParametricCurve, B: ParametricCurve>(
         hits: &[CurveCurveHit],
         a: &A,
         b: &B,
@@ -798,7 +792,7 @@ mod tests {
     /// within the curves' bounds, and include those of the sampled search,
     /// and returns them.
     #[track_caller]
-    fn assert_extrema<A: ParametricCurve3D, B: ParametricCurve3D>(
+    fn assert_extrema<A: ParametricCurve, B: ParametricCurve>(
         a: &A,
         b: &B,
     ) -> Vec<CurveCurveExtremum> {
@@ -839,22 +833,21 @@ mod tests {
 
     #[test]
     fn test_elementary_curves_against_bspline_surface() {
-        let surface = wavy(Vector3D::ZERO);
-        let circle = Circle3D::new(p(2.5, 2.5, 0.0), Vector3D::X, 2.0).unwrap();
+        let surface = wavy(Vector::ZERO);
+        let circle = Circle::new(p(2.5, 2.5, 0.0), Vector::X, 2.0).unwrap();
         let ellipse =
-            Ellipse3D::new(p(2.5, 2.5, 0.2), v(1.0, 1.0, 0.0), Vector3D::Z, 2.0, 1.0).unwrap();
-        let vertical = Line3D::new(p(2.0, 2.0, -1.0), Vector3D::Z).unwrap();
-        let slanted = Line3D::new(p(0.2, 0.3, -1.0), v(1.0, 0.8, 0.5)).unwrap();
-        let parabola = Parabola3D::new(p(2.5, 2.5, -1.0), Vector3D::X, Vector3D::Z, 0.5).unwrap();
-        let hyperbola =
-            Hyperbola3D::new(p(2.5, 2.5, -2.0), Vector3D::X, Vector3D::Z, 1.0, 1.0).unwrap();
+            Ellipse::new(p(2.5, 2.5, 0.2), v(1.0, 1.0, 0.0), Vector::Z, 2.0, 1.0).unwrap();
+        let vertical = Line::new(p(2.0, 2.0, -1.0), Vector::Z).unwrap();
+        let slanted = Line::new(p(0.2, 0.3, -1.0), v(1.0, 0.8, 0.5)).unwrap();
+        let parabola = Parabola::new(p(2.5, 2.5, -1.0), Vector::X, Vector::Z, 0.5).unwrap();
+        let hyperbola = Hyperbola::new(p(2.5, 2.5, -2.0), Vector::X, Vector::Z, 1.0, 1.0).unwrap();
         assert_eq!(assert_surface_hits(&circle, &surface).len(), 2);
         assert_eq!(assert_surface_hits(&ellipse, &surface).len(), 2);
         assert_eq!(assert_surface_hits(&vertical, &surface).len(), 1);
         assert!(!assert_surface_hits(&slanted, &surface).is_empty());
         assert_eq!(assert_surface_hits(&parabola, &surface).len(), 2);
         assert_eq!(assert_surface_hits(&hyperbola, &surface).len(), 2);
-        let curve = Curve3D::Circle(circle);
+        let curve = Curve::Circle(circle);
         let hits = assert_surface_hits(&curve, &Surface::BSpline(surface.clone()));
         assert_eq!(
             hits,
@@ -864,11 +857,11 @@ mod tests {
 
     #[test]
     fn test_trimmed_elementary_curves_keep_their_hits_in_range() {
-        let surface = wavy(Vector3D::ZERO);
-        let circle = Circle3D::new(p(2.5, 2.5, 0.0), Vector3D::X, 2.0).unwrap();
+        let surface = wavy(Vector::ZERO);
+        let circle = Circle::new(p(2.5, 2.5, 0.0), Vector::X, 2.0).unwrap();
         let whole = assert_surface_hits(&circle, &surface);
         for (lo, hi) in [(0.5, 3.5), (3.0, 6.0), (2.0, 2.5)] {
-            let arc = TrimmedCurve3D::new(circle, lo, hi).unwrap();
+            let arc = TrimmedCurve::new(circle, lo, hi).unwrap();
             let hits = assert_surface_hits(&arc, &surface);
             let inside = whole
                 .iter()
@@ -880,27 +873,23 @@ mod tests {
                 );
             }
         }
-        let line = Line3D::new(p(2.0, 2.0, -1.0), Vector3D::Z).unwrap();
+        let line = Line::new(p(2.0, 2.0, -1.0), Vector::Z).unwrap();
         let hit = assert_surface_hits(&line, &surface)[0];
-        let trimmed = TrimmedCurve3D::new(line, hit.curve_parameter.unwrap() - 0.5, 10.0).unwrap();
+        let trimmed = TrimmedCurve::new(line, hit.curve_parameter.unwrap() - 0.5, 10.0).unwrap();
         let hits = assert_surface_hits(&trimmed, &surface);
         assert_eq!(hits.len(), 1);
         assert!((hits[0].curve_parameter.unwrap() - hit.curve_parameter.unwrap()).abs() < 1e-9);
-        let missed = TrimmedCurve3D::new(line, hit.curve_parameter.unwrap() + 0.5, 10.0).unwrap();
+        let missed = TrimmedCurve::new(line, hit.curve_parameter.unwrap() + 0.5, 10.0).unwrap();
         assert!(assert_surface_hits(&missed, &surface).is_empty());
-        let parabola = Parabola3D::new(p(2.5, 2.5, -1.0), Vector3D::X, Vector3D::Z, 0.5).unwrap();
-        let half = TrimmedCurve3D::new(parabola, 0.0, 5.0).unwrap();
+        let parabola = Parabola::new(p(2.5, 2.5, -1.0), Vector::X, Vector::Z, 0.5).unwrap();
+        let half = TrimmedCurve::new(parabola, 0.0, 5.0).unwrap();
         assert_eq!(assert_surface_hits(&half, &surface).len(), 1);
     }
 
     /// Asserts the hits hold one at `at`, and that they are complete or
     /// incomplete with a region holding it.
     #[track_caller]
-    fn assert_contact<C: ParametricCurve3D, S: ParametricSurface>(
-        curve: &C,
-        surface: &S,
-        at: Point3D,
-    ) {
+    fn assert_contact<C: ParametricCurve, S: ParametricSurface>(curve: &C, surface: &S, at: Point) {
         let hits = search_curve_surface(curve, surface, TOL);
         let hit = *hits
             .iter()
@@ -923,11 +912,11 @@ mod tests {
 
     #[test]
     fn test_tangent_contacts_are_found() {
-        let flat = net(Vector3D::ZERO, |_, _| 0.0);
-        let resting = Circle3D::new(p(2.5, 2.2, 1.0), Vector3D::X, 1.0).unwrap();
+        let flat = net(Vector::ZERO, |_, _| 0.0);
+        let resting = Circle::new(p(2.5, 2.2, 1.0), Vector::X, 1.0).unwrap();
         assert_contact(&resting, &flat, p(2.5, 2.2, 0.0));
         let touching = segment(p(0.0, -2.0, 1.0), p(0.0, 2.0, 1.0));
-        let cylinder = Cylinder::new(Point3D::ORIGIN, Vector3D::X, 1.0).unwrap();
+        let cylinder = Cylinder::new(Point::ORIGIN, Vector::X, 1.0).unwrap();
         assert_contact(&touching, &cylinder, p(0.0, 0.0, 1.0));
     }
 
@@ -936,12 +925,12 @@ mod tests {
         let curve = wander();
         // A torus whose tube the curve runs through at its middle.
         let tangent = curve.eval_derivative(1.0, 1).normalized().unwrap();
-        let across = tangent.cross(Vector3D::X).normalized().unwrap();
+        let across = tangent.cross(Vector::X).normalized().unwrap();
         let core = curve.eval_point(1.0) - across * 2.0;
         let surfaces = [
             Surface::Plane(Plane::new(p(0.0, 0.0, 0.3), v(0.2, 0.1, 1.0)).unwrap()),
-            Surface::Cylinder(Cylinder::new(Point3D::ORIGIN, Vector3D::Z, 1.5).unwrap()),
-            Surface::Cone(Cone::new(Point3D::ORIGIN, Vector3D::Z, 0.5, 1.0).unwrap()),
+            Surface::Cylinder(Cylinder::new(Point::ORIGIN, Vector::Z, 1.5).unwrap()),
+            Surface::Cone(Cone::new(Point::ORIGIN, Vector::Z, 0.5, 1.0).unwrap()),
             Surface::Sphere(Sphere::new(p(0.2, 0.1, 0.0), 2.0).unwrap()),
             Surface::Torus(Torus::new(core, tangent, 2.0, 0.6).unwrap()),
         ];
@@ -952,7 +941,7 @@ mod tests {
             let again = assert_surface_hits(&curve, &elementary);
             assert_eq!(hits, again);
         }
-        let circle = Circle3D::new(p(0.3, 0.0, 0.2), v(0.3, 1.0, 0.2), 2.5).unwrap();
+        let circle = Circle::new(p(0.3, 0.0, 0.2), v(0.3, 1.0, 0.2), 2.5).unwrap();
         let rational = circle.to_bspline();
         for surface in &surfaces {
             assert_surface_hits(&rational, surface);
@@ -974,7 +963,7 @@ mod tests {
         assert!((hits[1].surface_parameters.unwrap().1 - FRAC_PI_2).abs() < 1e-6);
 
         // The apex is at height -1; the axis meets the cone there alone.
-        let cone = Cone::new(Point3D::ORIGIN, Vector3D::Z, FRAC_PI_4, 1.0).unwrap();
+        let cone = Cone::new(Point::ORIGIN, Vector::Z, FRAC_PI_4, 1.0).unwrap();
         let axis = segment(p(0.0, 0.0, -3.0), p(0.0, 0.0, 1.0));
         let hits = search_curve_surface(&axis, &cone, TOL);
         assert_ne!(hits.completeness(), &Completeness::Sampled);
@@ -1001,12 +990,8 @@ mod tests {
         let offset = v(1000.0, -2000.0, 500.0);
         let surface = wavy(offset);
         let target = surface.eval_point(1.3, 1.7);
-        let line = Line3D::new(
-            Point3D::ORIGIN,
-            target - Point3D::ORIGIN + v(0.0, 0.0, 300.0),
-        )
-        .unwrap();
-        let line = Line3D::new(target - line.direction() * 2500.0, line.direction()).unwrap();
+        let line = Line::new(Point::ORIGIN, target - Point::ORIGIN + v(0.0, 0.0, 300.0)).unwrap();
+        let line = Line::new(target - line.direction() * 2500.0, line.direction()).unwrap();
         let hits = search_curve_surface(&line, &surface, TOL);
         assert_eq!(hits.completeness(), &Completeness::Complete);
         let hits = hits.into_hits();
@@ -1031,13 +1016,13 @@ mod tests {
                 [5010.0, 1.0, 3003.0],
             ],
         );
-        let plane = Plane::new(p(5000.0, 0.0, 0.0), Vector3D::X).unwrap();
+        let plane = Plane::new(p(5000.0, 0.0, 0.0), Vector::X).unwrap();
         let hits = search_curve_surface(&far, &plane, TOL);
         assert_eq!(hits.completeness(), &Completeness::Complete);
         let hits = hits.into_hits();
         assert_on_both(&hits, &far, &plane);
         assert_eq!(hits.len(), 1, "{hits:#?}");
-        let cylinder = Cylinder::new(p(4998.0, 0.0, 0.0), Vector3D::Z, 5.0).unwrap();
+        let cylinder = Cylinder::new(p(4998.0, 0.0, 0.0), Vector::Z, 5.0).unwrap();
         let hits = search_curve_surface(&far, &cylinder, TOL);
         assert_eq!(hits.completeness(), &Completeness::Complete);
         let hits = hits.into_hits();
@@ -1047,7 +1032,7 @@ mod tests {
             hits.iter()
                 .all(|h| h.surface_parameters.unwrap().1 > 2999.0)
         );
-        let cone = Cone::new(p(5000.0, 0.0, 2000.0), Vector3D::Z, 0.004, 1.0).unwrap();
+        let cone = Cone::new(p(5000.0, 0.0, 2000.0), Vector::Z, 0.004, 1.0).unwrap();
         let hits = search_curve_surface(&far, &cone, TOL);
         assert_eq!(hits.completeness(), &Completeness::Complete);
         let hits = hits.into_hits();
@@ -1057,7 +1042,7 @@ mod tests {
 
     #[test]
     fn test_restriction_keeps_every_hit() {
-        let surface = wavy(Vector3D::ZERO);
+        let surface = wavy(Vector::ZERO);
         let cover = grown(surface.patch_boxes().bounds(), TOL);
         let mut rng = Lcg(5);
         for _ in 0..40 {
@@ -1065,8 +1050,8 @@ mod tests {
             let target = surface.eval_point(u, w);
             let direction = v(rng.next() - 0.5, rng.next() - 0.5, rng.next() + 0.2);
             let reach = 1e4 * (rng.next() - 0.5);
-            let line = Line3D::new(Point3D::ORIGIN, direction).unwrap();
-            let line = Line3D::new(target - line.direction() * reach, direction).unwrap();
+            let line = Line::new(Point::ORIGIN, direction).unwrap();
+            let line = Line::new(target - line.direction() * reach, direction).unwrap();
             let Some(Hull::Curve(hull)) = hull_curve(&line, Some(&cover)) else {
                 panic!("{line:?} misses the box of {target:?}");
             };
@@ -1079,7 +1064,7 @@ mod tests {
                 "{target:?} missing from {hits:#?}"
             );
         }
-        let beside = Line3D::new(p(7.0, 0.0, 0.0), Vector3D::Z).unwrap();
+        let beside = Line::new(p(7.0, 0.0, 0.0), Vector::Z).unwrap();
         assert!(matches!(
             hull_curve(&beside, Some(&cover)),
             Some(Hull::Apart)
@@ -1106,26 +1091,25 @@ mod tests {
     #[test]
     fn test_elementary_curves_against_bspline_curve() {
         let curve = swing();
-        let circle = Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 1.5).unwrap();
+        let circle = Circle::new(Point::ORIGIN, Vector::Z, 1.5).unwrap();
         let ellipse =
-            Ellipse3D::new(p(0.2, 0.0, 0.0), Vector3D::Z, v(1.0, 0.2, 0.0), 2.5, 1.0).unwrap();
-        let line = Line3D::new(p(-4.0, 0.3, 0.0), Vector3D::X).unwrap();
-        let parabola = Parabola3D::new(p(0.0, -1.0, 0.0), Vector3D::Z, Vector3D::Y, 0.5).unwrap();
-        let hyperbola =
-            Hyperbola3D::new(p(0.0, -2.0, 0.0), Vector3D::Z, Vector3D::Y, 1.0, 1.0).unwrap();
+            Ellipse::new(p(0.2, 0.0, 0.0), Vector::Z, v(1.0, 0.2, 0.0), 2.5, 1.0).unwrap();
+        let line = Line::new(p(-4.0, 0.3, 0.0), Vector::X).unwrap();
+        let parabola = Parabola::new(p(0.0, -1.0, 0.0), Vector::Z, Vector::Y, 0.5).unwrap();
+        let hyperbola = Hyperbola::new(p(0.0, -2.0, 0.0), Vector::Z, Vector::Y, 1.0, 1.0).unwrap();
         assert_eq!(assert_curve_hits(&circle, &curve).len(), 2);
         assert_eq!(assert_curve_hits(&curve, &circle).len(), 2);
         assert!(!assert_curve_hits(&ellipse, &curve).is_empty());
         assert_eq!(assert_curve_hits(&line, &curve).len(), 3);
         assert!(!assert_curve_hits(&curve, &parabola).is_empty());
         assert!(!assert_curve_hits(&hyperbola, &curve).is_empty());
-        let (a, b) = (Curve3D::Circle(circle), Curve3D::BSpline(curve.clone()));
+        let (a, b) = (Curve::Circle(circle), Curve::BSpline(curve.clone()));
         let hits = assert_curve_hits(&a, &b);
         assert_eq!(hits, search_curve_curve(&circle, &curve, TOL).into_hits());
 
         let whole = assert_curve_hits(&circle, &curve);
         for (lo, hi) in [(0.0, PI), (2.0, 5.5)] {
-            let arc = TrimmedCurve3D::new(circle, lo, hi).unwrap();
+            let arc = TrimmedCurve::new(circle, lo, hi).unwrap();
             let hits = assert_curve_hits(&arc, &curve);
             let inside = whole
                 .iter()
@@ -1135,7 +1119,7 @@ mod tests {
                 assert!(hit.point.distance(want.point) < 1e-9);
             }
         }
-        let short = TrimmedCurve3D::new(line, 1.0, 5.0).unwrap();
+        let short = TrimmedCurve::new(line, 1.0, 5.0).unwrap();
         assert!(!assert_curve_hits(&short, &curve).is_empty());
     }
 
@@ -1144,10 +1128,9 @@ mod tests {
         // `y = 1 + x^2 / 2` touches the unit circle and the line `y = 1`
         // at `(0, 1)`.
         let cup = bspline(2, &[[-1.0, 1.5, 0.0], [0.0, 0.5, 0.0], [1.0, 1.5, 0.0]]);
-        let circle = Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 1.0).unwrap();
-        let line = Line3D::new(p(-3.0, 1.0, 0.0), Vector3D::X).unwrap();
-        let ellipse =
-            Ellipse3D::new(p(0.0, -1.0, 0.0), Vector3D::Z, Vector3D::Y, 2.0, 1.0).unwrap();
+        let circle = Circle::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
+        let line = Line::new(p(-3.0, 1.0, 0.0), Vector::X).unwrap();
+        let ellipse = Ellipse::new(p(0.0, -1.0, 0.0), Vector::Z, Vector::Y, 2.0, 1.0).unwrap();
         assert_tangent(&circle, &cup);
         assert_tangent(&cup, &line);
         assert_tangent(&ellipse, &cup);
@@ -1157,7 +1140,7 @@ mod tests {
     /// search finds, multiplicity included, and that the search leaves
     /// the contact unsettled within a region holding it.
     #[track_caller]
-    fn assert_tangent<A: ParametricCurve3D, B: ParametricCurve3D>(a: &A, b: &B) {
+    fn assert_tangent<A: ParametricCurve, B: ParametricCurve>(a: &A, b: &B) {
         let hits = search_curve_curve(a, b, TOL);
         let Completeness::Incomplete { reason, regions } = hits.completeness().clone() else {
             panic!("{:?}", hits.completeness());
@@ -1185,11 +1168,11 @@ mod tests {
     #[test]
     fn test_line_meets_bspline_curve_far_from_origin() {
         let curve = swing();
-        let line = Line3D::new(p(-1e4, 0.3, 0.0), Vector3D::X).unwrap();
+        let line = Line::new(p(-1e4, 0.3, 0.0), Vector::X).unwrap();
         let hits = assert_curve_hits_far(&line, &curve);
         assert_eq!(hits.len(), 3);
         assert!(hits.iter().all(|h| h.first_parameter.unwrap() > 9990.0));
-        let beside = Line3D::new(p(0.0, 0.0, 5.0), Vector3D::X).unwrap();
+        let beside = Line::new(p(0.0, 0.0, 5.0), Vector::X).unwrap();
         let hits = search_curve_curve(&beside, &curve, TOL);
         assert_eq!(hits.completeness(), &Completeness::Complete);
         assert!(hits.is_empty());
@@ -1197,7 +1180,7 @@ mod tests {
 
     /// The hits of `a` and `b`, which must be complete and on both curves.
     #[track_caller]
-    fn assert_curve_hits_far<A: ParametricCurve3D, B: ParametricCurve3D>(
+    fn assert_curve_hits_far<A: ParametricCurve, B: ParametricCurve>(
         a: &A,
         b: &B,
     ) -> Vec<CurveCurveHit> {
@@ -1211,26 +1194,26 @@ mod tests {
     #[test]
     fn test_extrema_of_segments_and_bspline_curve() {
         let curve = skew();
-        let line = Line3D::new(p(0.0, 0.0, -1.0), v(1.0, 0.3, 0.2)).unwrap();
-        let far = Line3D::new(line.eval_point(-5e3), line.direction()).unwrap();
-        let segment = TrimmedCurve3D::new(line, -3.0, 3.0).unwrap();
+        let line = Line::new(p(0.0, 0.0, -1.0), v(1.0, 0.3, 0.2)).unwrap();
+        let far = Line::new(line.eval_point(-5e3), line.direction()).unwrap();
+        let segment = TrimmedCurve::new(line, -3.0, 3.0).unwrap();
         assert_extrema(&curve, &segment);
         let near = assert_extrema(&segment, &curve);
-        let shifted = assert_extrema(&TrimmedCurve3D::new(far, 4997.0, 5003.0).unwrap(), &curve);
+        let shifted = assert_extrema(&TrimmedCurve::new(far, 4997.0, 5003.0).unwrap(), &curve);
         assert_eq!(near.len(), shifted.len());
         for (a, b) in near.iter().zip(&shifted) {
             assert!((a.distance - b.distance).abs() < 1e-9);
             assert!((a.first_parameter + 5e3 - b.first_parameter).abs() < 1e-6);
         }
-        let short = TrimmedCurve3D::new(line, -2.0, 1.0).unwrap();
+        let short = TrimmedCurve::new(line, -2.0, 1.0).unwrap();
         assert_extrema(&curve, &short);
         assert_sampled_extrema(&line, &curve);
-        assert_sampled_extrema(&Curve3D::Line(line), &Curve3D::BSpline(curve.clone()));
+        assert_sampled_extrema(&Curve::Line(line), &Curve::BSpline(curve.clone()));
     }
 
     /// Asserts the minima of `a` and `b` are the grid's, sampled.
     #[track_caller]
-    fn assert_sampled_extrema<A: ParametricCurve3D, B: ParametricCurve3D>(a: &A, b: &B) {
+    fn assert_sampled_extrema<A: ParametricCurve, B: ParametricCurve>(a: &A, b: &B) {
         let extrema = curve_curve_extrema(a, b, TOL);
         assert_eq!(extrema.completeness(), &Completeness::Sampled);
         let grid = curve_curve_minima(a, b, TOL, false);
@@ -1241,19 +1224,19 @@ mod tests {
     #[test]
     fn test_extrema_of_curved_elementary_curves_stay_sampled() {
         let curve = skew();
-        let circle = Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 1.5).unwrap();
+        let circle = Circle::new(Point::ORIGIN, Vector::Z, 1.5).unwrap();
         let ellipse =
-            Ellipse3D::new(p(0.2, 0.0, 0.0), Vector3D::Z, v(1.0, 0.2, 0.0), 2.5, 1.0).unwrap();
-        let parabola = Parabola3D::new(p(0.0, -1.0, 0.0), Vector3D::Z, Vector3D::Y, 0.5).unwrap();
+            Ellipse::new(p(0.2, 0.0, 0.0), Vector::Z, v(1.0, 0.2, 0.0), 2.5, 1.0).unwrap();
+        let parabola = Parabola::new(p(0.0, -1.0, 0.0), Vector::Z, Vector::Y, 0.5).unwrap();
         assert_sampled_extrema(&circle, &curve);
         assert_sampled_extrema(&curve, &circle);
         assert_sampled_extrema(&ellipse, &curve);
-        assert_sampled_extrema(&TrimmedCurve3D::new(circle, 1.0, 4.0).unwrap(), &curve);
-        assert_sampled_extrema(&TrimmedCurve3D::new(ellipse, 0.0, PI).unwrap(), &curve);
+        assert_sampled_extrema(&TrimmedCurve::new(circle, 1.0, 4.0).unwrap(), &curve);
+        assert_sampled_extrema(&TrimmedCurve::new(ellipse, 0.0, PI).unwrap(), &curve);
         assert_sampled_extrema(&parabola, &curve);
-        assert_sampled_extrema(&TrimmedCurve3D::new(parabola, -3.0, 3.0).unwrap(), &curve);
-        let (a, b) = (Curve3D::Ellipse(ellipse), Curve3D::BSpline(curve.clone()));
+        assert_sampled_extrema(&TrimmedCurve::new(parabola, -3.0, 3.0).unwrap(), &curve);
+        let (a, b) = (Curve::Ellipse(ellipse), Curve::BSpline(curve.clone()));
         assert_sampled_extrema(&a, &b);
-        assert_sampled_extrema(&Curve3D::Circle(circle), &curve);
+        assert_sampled_extrema(&Curve::Circle(circle), &curve);
     }
 }

@@ -13,11 +13,11 @@
 //! `parameter_of` or `parameters_of` when it needs them.
 //!
 //! ```
-//! use geomcore::{Circle3D, Completeness, Intersect, IntersectionMethod, Line3D, Point3D};
-//! use geomcore::{Tolerance, Vector3D};
+//! use geomcore::{Circle, Completeness, Intersect, IntersectionMethod, Line, Point};
+//! use geomcore::{Tolerance, Vector};
 //!
-//! let line = Line3D::new(Point3D::new(-5.0, 0.0, 0.0), Vector3D::X).unwrap();
-//! let circle = Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
+//! let line = Line::new(Point::new(-5.0, 0.0, 0.0), Vector::X).unwrap();
+//! let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
 //! let result = line.intersect(&circle, Tolerance::DEFAULT);
 //! assert_eq!(result.method(), IntersectionMethod::Exact);
 //! assert_eq!(result.completeness(), &Completeness::Complete);
@@ -34,14 +34,12 @@
 //! back to a numeric search.
 //!
 //! When the types are only known at run time, the same call on
-//! [`crate::surfaces::Surface`], [`crate::curves::Curve3D`] or their
+//! [`crate::surfaces::Surface`], [`crate::curves::Curve`] or their
 //! elementary enums returns a general result instead:
 //! [`ExactSurfaceIntersection`], [`ExactCurveSurfaceIntersection`] or
 //! [`ExactCurveCurveIntersection`].
 
-use crate::{
-    Circle3D, Ellipse3D, Hyperbola3D, Line3D, Parabola3D, Plane, Point2D, Point3D, Vector3D,
-};
+use crate::{Circle, Ellipse, Hyperbola, Line, Parabola, Plane, Point, Point2D, Vector};
 
 mod completeness;
 mod conic;
@@ -84,7 +82,7 @@ pub use routing::Intersect;
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum PlanePlaneIntersection {
     /// The planes meet in a line.
-    Line(Line3D),
+    Line(Line),
     /// The planes are parallel but distinct.
     Parallel,
     /// The planes coincide.
@@ -95,9 +93,9 @@ pub enum PlanePlaneIntersection {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum PlaneSphereIntersection {
     /// The plane cuts the sphere in a circle.
-    Circle(Circle3D),
+    Circle(Circle),
     /// The plane grazes the sphere in a single point.
-    TangentPoint(Point3D),
+    TangentPoint(Point),
     /// The plane misses the sphere.
     Empty,
 }
@@ -106,9 +104,9 @@ pub enum PlaneSphereIntersection {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum SphereSphereIntersection {
     /// The spheres meet in a circle.
-    Circle(Circle3D),
+    Circle(Circle),
     /// The spheres touch in a single point.
-    TangentPoint(Point3D),
+    TangentPoint(Point),
     /// The spheres are separate, one inside the other without contact, or
     /// concentric with different radii.
     Empty,
@@ -120,13 +118,13 @@ pub enum SphereSphereIntersection {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum PlaneCylinderIntersection {
     /// The plane is perpendicular to the axis: a circle.
-    Circle(Circle3D),
+    Circle(Circle),
     /// The general oblique section: an ellipse.
-    Ellipse(Ellipse3D),
+    Ellipse(Ellipse),
     /// The plane is parallel to the axis and cuts two generators.
-    TwoLines(Line3D, Line3D),
+    TwoLines(Line, Line),
     /// The plane is parallel to the axis and grazes one generator.
-    TangentLine(Line3D),
+    TangentLine(Line),
     /// The plane is parallel to the axis and misses the cylinder.
     Empty,
 }
@@ -138,27 +136,27 @@ pub enum PlaneCylinderIntersection {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum PlaneConeIntersection {
     /// The plane is perpendicular to the axis: a circle.
-    Circle(Circle3D),
+    Circle(Circle),
     /// The plane meets one nappe in an ellipse.
-    Ellipse(Ellipse3D),
+    Ellipse(Ellipse),
     /// The plane is parallel to a generator: a parabola.
-    Parabola(Parabola3D),
+    Parabola(Parabola),
     /// The plane cuts both nappes: the two branches of a hyperbola, the
     /// second the first turned half a turn about its centre.
-    Hyperbola(Hyperbola3D, Hyperbola3D),
+    Hyperbola(Hyperbola, Hyperbola),
     /// The plane passes through the apex and contains two generators.
-    TwoLines(Line3D, Line3D),
+    TwoLines(Line, Line),
     /// The plane passes through the apex along a single generator.
-    TangentLine(Line3D),
+    TangentLine(Line),
     /// The plane passes through the apex without meeting a generator.
-    ApexPoint(Point3D),
+    ApexPoint(Point),
 }
 
 /// Result of intersecting a line with a plane.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum LinePlaneIntersection {
     /// Transversal hit: the line parameter and the point.
-    Point(f64, Point3D),
+    Point(f64, Point),
     /// The line is parallel to the plane but offset from it.
     Parallel,
     /// The line lies in the plane.
@@ -169,12 +167,12 @@ pub enum LinePlaneIntersection {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum LineQuadricIntersection {
     /// Two transversal hits: `(parameter, point)` pairs, ordered.
-    TwoPoints((f64, Point3D), (f64, Point3D)),
+    TwoPoints((f64, Point), (f64, Point)),
     /// A single transversal hit: the linear case (line parallel to a
     /// cylinder axis or cone generator).
-    OnePoint(f64, Point3D),
+    OnePoint(f64, Point),
     /// Grazing contact: the line parameter and the point.
-    Tangent(f64, Point3D),
+    Tangent(f64, Point),
     /// No intersection.
     Empty,
     /// The line lies entirely on the surface (a cylinder or cone
@@ -207,7 +205,7 @@ pub struct LineTorusHit {
     /// Parameter on the line.
     pub line_parameter: f64,
     /// The hit point.
-    pub point: Point3D,
+    pub point: Point,
     /// Parameters on the torus.
     pub surface_parameters: (f64, f64),
     /// Root multiplicity (≥ 2 signals tangency).
@@ -223,9 +221,9 @@ pub struct LineTorusHit {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum SphereCylinderIntersection {
     /// Latitude circle(s): one tangent ring or a symmetric pair.
-    Circle(Circle3D),
+    Circle(Circle),
     /// Two latitude rings symmetric about the equatorial plane.
-    TwoCircles(Circle3D, Circle3D),
+    TwoCircles(Circle, Circle),
     /// The cylinder misses the sphere.
     Empty,
     /// No closed form for this configuration.
@@ -241,9 +239,9 @@ pub enum SphereCylinderIntersection {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum SphereConeIntersection {
     /// Two latitude circles (on one nappe or one on each).
-    TwoCircles(Circle3D, Circle3D),
+    TwoCircles(Circle, Circle),
     /// Grazing contact ring.
-    TangentCircle(Circle3D),
+    TangentCircle(Circle),
     /// The sphere misses the cone.
     Empty,
     /// No closed form for this configuration.
@@ -259,9 +257,9 @@ pub enum SphereConeIntersection {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum CylinderCylinderIntersection {
     /// Two shared generators.
-    TwoLines(Line3D, Line3D),
+    TwoLines(Line, Line),
     /// One shared grazing generator.
-    TangentLine(Line3D),
+    TangentLine(Line),
     /// Separate, nested without contact, or concentric with different radii.
     Empty,
     /// Same axis and radius within tolerance.
@@ -281,9 +279,9 @@ pub enum CylinderCylinderIntersection {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ConeCylinderIntersection {
     /// One latitude circle on each nappe, the first along the cone axis.
-    TwoCircles(Circle3D, Circle3D),
+    TwoCircles(Circle, Circle),
     /// Degenerate tube (its axis) meeting the cone at the apex.
-    ApexPoint(Point3D),
+    ApexPoint(Point),
     /// No closed form for this configuration.
     NotAnalytic,
 }
@@ -299,11 +297,11 @@ pub enum ConeCylinderIntersection {
 pub enum TorusPlaneIntersection {
     /// Two circles: meridian (axis-containing plane), latitude
     /// (perpendicular plane) or Villarceau (bitangent plane).
-    TwoCircles(Circle3D, Circle3D),
+    TwoCircles(Circle, Circle),
     /// Grazing ring (perpendicular plane at tube top/bottom).
-    TangentCircle(Circle3D),
+    TangentCircle(Circle),
     /// Single latitude ring (spindle case).
-    Circle(Circle3D),
+    Circle(Circle),
     /// The plane misses the torus.
     Empty,
     /// No closed form for this configuration.
@@ -318,11 +316,11 @@ pub enum TorusPlaneIntersection {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum TorusSphereIntersection {
     /// Latitude ring.
-    Circle(Circle3D),
+    Circle(Circle),
     /// Two latitude rings.
-    TwoCircles(Circle3D, Circle3D),
+    TwoCircles(Circle, Circle),
     /// Grazing ring.
-    TangentCircle(Circle3D),
+    TangentCircle(Circle),
     /// No ring.
     Empty,
     /// No closed form for this configuration.
@@ -336,9 +334,9 @@ pub enum TorusSphereIntersection {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum TorusCylinderIntersection {
     /// Two latitude rings symmetric about the equatorial plane.
-    TwoCircles(Circle3D, Circle3D),
+    TwoCircles(Circle, Circle),
     /// Grazing ring in the equatorial plane.
-    TangentCircle(Circle3D),
+    TangentCircle(Circle),
     /// The tube misses the torus.
     Empty,
     /// No closed form for this configuration.
@@ -349,7 +347,7 @@ pub enum TorusCylinderIntersection {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct LatitudeRing {
     /// The ring.
-    pub circle: Circle3D,
+    pub circle: Circle,
     /// Whether the surfaces graze along it instead of crossing.
     pub tangent: bool,
 }
@@ -377,11 +375,11 @@ pub enum TorusConeIntersection {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum TorusTorusIntersection {
     /// Latitude ring.
-    Circle(Circle3D),
+    Circle(Circle),
     /// Two latitude rings.
-    TwoCircles(Circle3D, Circle3D),
+    TwoCircles(Circle, Circle),
     /// Grazing ring.
-    TangentCircle(Circle3D),
+    TangentCircle(Circle),
     /// No rings.
     Empty,
     /// Same center and radii within tolerance.
@@ -399,11 +397,11 @@ pub enum TorusTorusIntersection {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ConeConeIntersection {
     /// One latitude ring (equal semi-angles, distinct apexes).
-    Circle(Circle3D),
+    Circle(Circle),
     /// Two latitude rings, ordered along the first cone's axis.
-    TwoCircles(Circle3D, Circle3D),
+    TwoCircles(Circle, Circle),
     /// The rings collapse to the shared apex.
-    ApexPoint(Point3D),
+    ApexPoint(Point),
     /// Same apex, axis, and semi-angle within tolerance.
     Coincident,
     /// No closed form for this configuration.
@@ -450,9 +448,9 @@ pub enum CircleCircle2DIntersection {
 
 /// Result of intersecting two 3D lines.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum LineLine3DIntersection {
+pub enum LineLineIntersection {
     /// Transversal hit: parameter on self, point, parameter on other.
-    Point(f64, Point3D, f64),
+    Point(f64, Point, f64),
     /// Parallel distinct lines, with their distance.
     Parallel(f64),
     /// Coincident lines.
@@ -473,11 +471,11 @@ pub enum LineLine3DIntersection {
 /// The line meets the circle's plane in at most one point (transversal
 /// graze or miss); a line lying in the plane reduces to the 2D problem.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum LineCircle3DIntersection {
+pub enum LineCircleIntersection {
     /// Two hits: `(line parameter, point)` pairs, ordered.
-    Points((f64, Point3D), (f64, Point3D)),
+    Points((f64, Point), (f64, Point)),
     /// Grazing contact: line parameter and point.
-    Tangent(f64, Point3D),
+    Tangent(f64, Point),
     /// No intersection.
     Empty,
 }
@@ -485,20 +483,20 @@ pub enum LineCircle3DIntersection {
 /// Result of intersecting two 3D circles.
 ///
 /// This typed solver handles coplanar pairs (via 2D images in the shared
-/// plane). Distinct parallel planes are [`CircleCircle3DIntersection::Empty`];
-/// crossing planes report [`CircleCircle3DIntersection::NotAnalytic`]: they
+/// plane). Distinct parallel planes are [`CircleCircleIntersection::Empty`];
+/// crossing planes report [`CircleCircleIntersection::NotAnalytic`]: they
 /// meet in up to two points, one of which may be a lone crossing, which the
 /// variants here cannot hold. The routed
 /// [`Intersect::intersect`] solves them exactly
 /// as conics, on the line the planes share.
 /// Parameters are omitted (no natural primary curve); recover them with
-/// [`Circle3D::parameter_of`].
+/// [`Circle::parameter_of`].
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum CircleCircle3DIntersection {
+pub enum CircleCircleIntersection {
     /// Two meeting points.
-    Points(Point3D, Point3D),
+    Points(Point, Point),
     /// Grazing contact point.
-    Tangent(Point3D),
+    Tangent(Point),
     /// No intersection.
     Empty,
     /// Same center, radius, and plane within tolerance.
@@ -515,7 +513,7 @@ pub struct LineConicHit {
     /// Parameter on the line.
     pub line_parameter: f64,
     /// The hit point.
-    pub point: Point3D,
+    pub point: Point,
     /// Parameter on the conic.
     pub conic_parameter: f64,
 }
@@ -527,7 +525,7 @@ pub struct LineConicHit {
 /// line lying in the plane substitutes into the conic's implicit equation
 /// (quadratic in the line parameter).
 #[derive(Debug, Clone, PartialEq)]
-pub enum LineConic3DIntersection {
+pub enum LineConicIntersection {
     /// Two hits, ordered by line parameter.
     Points(LineConicHit, LineConicHit),
     /// Grazing contact (double or linear root).
@@ -615,11 +613,11 @@ pub(crate) struct PlacedConic {
     /// The conic's plane.
     pub plane: Plane,
     /// The frame x direction.
-    pub x: Vector3D,
+    pub x: Vector,
     /// The frame y direction.
-    pub y: Vector3D,
+    pub y: Vector,
     /// The frame origin (center or apex).
-    pub origin: Point3D,
+    pub origin: Point,
     /// The implicit equation in frame coordinates.
     pub implicit: ImplicitConic,
     /// How far the conic reaches from its origin: infinite for a parabola
@@ -635,7 +633,7 @@ pub struct ConicSurfaceHit {
     /// circle or ellipse, where a hit at the seam reports `0`.
     pub parameter: f64,
     /// The hit point.
-    pub point: Point3D,
+    pub point: Point,
     /// Root multiplicity (≥ 2 signals tangency).
     pub multiplicity: u32,
 }
@@ -646,7 +644,7 @@ pub struct ConicSurfaceHit {
 #[derive(Debug, Clone, PartialEq)]
 pub enum CircleSurfaceIntersection {
     /// The whole circle lies on the surface (sample-verified).
-    Circle(Circle3D),
+    Circle(Circle),
     /// Isolated hits with multiplicity, ordered by circle parameter.
     Hits(Vec<ConicSurfaceHit>),
     /// No intersection.
@@ -670,7 +668,7 @@ pub enum ConicSurfaceIntersection {
 
 /// Result of intersecting two conics: a circle, ellipse, parabola or
 /// hyperbola with another (two circles have
-/// [`CircleCircle3DIntersection`]).
+/// [`CircleCircleIntersection`]).
 ///
 /// Coplanar conics meet at up to four points: one conic's
 /// parametrization substitutes into the other's implicit equation. Conics
@@ -681,9 +679,9 @@ pub enum ConicSurfaceIntersection {
 /// # Examples
 ///
 /// ```
-/// use geomcore::{ConicConicIntersection, Ellipse3D, Frame3D, Hyperbola3D, IntersectExact, Tolerance};
-/// let ellipse = Ellipse3D::from_frame(Frame3D::WORLD, 3.0, 2.0).unwrap();
-/// let hyperbola = Hyperbola3D::from_frame(Frame3D::WORLD, 1.0, 0.5).unwrap();
+/// use geomcore::{ConicConicIntersection, Ellipse, Frame, Hyperbola, IntersectExact, Tolerance};
+/// let ellipse = Ellipse::from_frame(Frame::WORLD, 3.0, 2.0).unwrap();
+/// let hyperbola = Hyperbola::from_frame(Frame::WORLD, 1.0, 0.5).unwrap();
 /// match ellipse.intersect_exact(&hyperbola, Tolerance::DEFAULT) {
 ///     // The branch x > 0 meets the ellipse at (2.4739, ±1.1314).
 ///     ConicConicIntersection::Hits(hits) => assert_eq!(hits.len(), 2),
@@ -723,11 +721,11 @@ pub struct CurveCurveExtremum {
 /// # Examples
 ///
 /// ```
-/// use geomcore::{Circle3D, Intersect, Point3D, Tolerance, Vector3D};
+/// use geomcore::{Circle, Intersect, Point, Tolerance, Vector};
 ///
 /// // Two coplanar circles: the solver finds the points, not the angles.
-/// let first = Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
-/// let second = Circle3D::new(Point3D::new(2.0, 0.0, 0.0), Vector3D::Z, 2.0).unwrap();
+/// let first = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
+/// let second = Circle::new(Point::new(2.0, 0.0, 0.0), Vector::Z, 2.0).unwrap();
 /// let result = first.intersect(&second, Tolerance::DEFAULT);
 /// let hit = result.hits()[0];
 /// assert_eq!(hit.first_parameter, None);
@@ -748,7 +746,7 @@ pub struct CurveCurveHit {
     /// compute it; recover it with the curve's `parameter_of(hit.point)`.
     pub second_parameter: Option<f64>,
     /// The meeting point, within tolerance of both curves.
-    pub point: Point3D,
+    pub point: Point,
     /// 1 where the curves cross, 2 or more where they are tangent.
     pub multiplicity: u32,
 }
@@ -800,11 +798,11 @@ pub struct CurveCurveHit2D {
 /// # Examples
 ///
 /// ```
-/// use geomcore::{CurveSurfaceHit, Point3D};
+/// use geomcore::{CurveSurfaceHit, Point};
 /// let hit = CurveSurfaceHit {
 ///     curve_parameter: Some(2.0),
 ///     surface_parameters: None,
-///     point: Point3D::new(2.0, 0.0, 0.0),
+///     point: Point::new(2.0, 0.0, 0.0),
 ///     multiplicity: 1,
 /// };
 /// assert_eq!(hit.curve_parameter, Some(2.0));
@@ -820,8 +818,36 @@ pub struct CurveSurfaceHit {
     /// them; recover them with the surface's `parameters_of(hit.point)`.
     pub surface_parameters: Option<(f64, f64)>,
     /// The meeting point (on the curve; within tolerance of the surface).
-    pub point: Point3D,
+    pub point: Point,
     /// 1 where the curve crosses the surface, 2 or more where the curve is
     /// tangent to it.
     pub multiplicity: u32,
 }
+
+/// The former name of [`LineConicIntersection`].
+#[deprecated(
+    since = "0.37.0",
+    note = "renamed `LineConicIntersection`: only 2D types carry a dimension suffix"
+)]
+pub type LineConic3DIntersection = LineConicIntersection;
+
+/// The former name of [`CircleCircleIntersection`].
+#[deprecated(
+    since = "0.37.0",
+    note = "renamed `CircleCircleIntersection`: only 2D types carry a dimension suffix"
+)]
+pub type CircleCircle3DIntersection = CircleCircleIntersection;
+
+/// The former name of [`LineCircleIntersection`].
+#[deprecated(
+    since = "0.37.0",
+    note = "renamed `LineCircleIntersection`: only 2D types carry a dimension suffix"
+)]
+pub type LineCircle3DIntersection = LineCircleIntersection;
+
+/// The former name of [`LineLineIntersection`].
+#[deprecated(
+    since = "0.37.0",
+    note = "renamed `LineLineIntersection`: only 2D types carry a dimension suffix"
+)]
+pub type LineLine3DIntersection = LineLineIntersection;

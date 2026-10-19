@@ -22,7 +22,7 @@ use crate::surfaces::{
     BSplineSurface, Cone, Cylinder, ElementarySurface, ParametricSurface, Plane, Sphere, Surface,
     Torus,
 };
-use crate::{Frame3D, Point3D};
+use crate::{Frame, Point};
 
 /// Validates `[first, last]` against a direction with the given bounds and
 /// period. A periodic direction accepts any start, so a range may cross its
@@ -100,7 +100,7 @@ fn on_axis(radius: f64, scale: f64) -> f64 {
 /// axis) turned about the z axis of `frame` to the angle of each pole of
 /// the unit `circle`: `poles[i][j]` for circle pole `i` and profile pole
 /// `j`.
-fn revolved_poles(frame: Frame3D, circle: &PlaneNet, profile: &PlaneNet) -> Vec<Vec<Point3D>> {
+fn revolved_poles(frame: Frame, circle: &PlaneNet, profile: &PlaneNet) -> Vec<Vec<Point>> {
     let (origin, x, y, z) = (
         frame.origin(),
         frame.x_direction(),
@@ -125,7 +125,7 @@ fn revolved_poles(frame: Frame3D, circle: &PlaneNet, profile: &PlaneNet) -> Vec<
 /// The surface turning `profile` about the z axis of `frame` over the
 /// angles `u_range`.
 fn revolve(
-    frame: Frame3D,
+    frame: Frame,
     (first, last): (f64, f64),
     profile: PlaneNet,
 ) -> Result<BSplineSurface, BSplineConversionError> {
@@ -174,9 +174,9 @@ impl Plane {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Plane, Point3D, Vector3D};
+    /// use geomcore::{Plane, Point, Vector};
     ///
-    /// let plane = Plane::new(Point3D::new(0.0, 0.0, 1.0), Vector3D::Z).unwrap();
+    /// let plane = Plane::new(Point::new(0.0, 0.0, 1.0), Vector::Z).unwrap();
     /// let patch = plane.to_bspline_patch((-1.0, 2.0), (0.0, 3.0)).unwrap();
     /// assert_eq!((patch.u_degree(), patch.v_degree()), (1, 1));
     /// assert_eq!(patch.eval_point(0.5, 2.0), plane.eval_point(0.5, 2.0));
@@ -241,10 +241,10 @@ impl Cylinder {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{BSplineConversionError, Cylinder, Point3D, Vector3D};
+    /// use geomcore::{BSplineConversionError, Cylinder, Point, Vector};
     /// use std::f64::consts::{FRAC_PI_2, TAU};
     ///
-    /// let cylinder = Cylinder::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
+    /// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
     /// let tube = cylinder.to_bspline_patch((0.0, TAU), (-1.0, 4.0)).unwrap();
     /// assert!(tube.is_u_periodic() && !tube.is_v_periodic());
     /// let p = tube.eval_point(FRAC_PI_2, 3.0);
@@ -302,10 +302,10 @@ impl Cone {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Cone, Point3D, Vector3D};
+    /// use geomcore::{Cone, Point, Vector};
     /// use std::f64::consts::PI;
     ///
-    /// let cone = Cone::new(Point3D::ORIGIN, Vector3D::Z, PI / 6.0, 1.0).unwrap();
+    /// let cone = Cone::new(Point::ORIGIN, Vector::Z, PI / 6.0, 1.0).unwrap();
     /// // From the apex (v = -ref_radius / sin(semi_angle) = -2) up to v = 1.
     /// let patch = cone.to_bspline_patch((0.0, PI), (-2.0, 1.0)).unwrap();
     /// let apex = cone.eval_point(0.0, -2.0);
@@ -348,16 +348,16 @@ impl Sphere {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Point3D, Sphere};
+    /// use geomcore::{Point, Sphere};
     /// use std::f64::consts::{FRAC_PI_2, TAU};
     ///
-    /// let sphere = Sphere::new(Point3D::ORIGIN, 2.0).unwrap();
+    /// let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
     /// let bspline = sphere.to_bspline();
     /// assert!(bspline.is_u_periodic() && !bspline.is_v_periodic());
     /// let north = bspline.eval_point(1.0, FRAC_PI_2);
-    /// assert!(north.distance(Point3D::new(0.0, 0.0, 2.0)) < 1e-15);
+    /// assert!(north.distance(Point::new(0.0, 0.0, 2.0)) < 1e-15);
     /// let p = bspline.eval_point(0.3, 0.7);
-    /// assert!((p.distance(Point3D::ORIGIN) - 2.0).abs() < 1e-15);
+    /// assert!((p.distance(Point::ORIGIN) - 2.0).abs() < 1e-15);
     /// ```
     pub fn to_bspline(&self) -> BSplineSurface {
         self.to_bspline_patch(self.u_bounds(), self.v_bounds())
@@ -388,15 +388,15 @@ impl Sphere {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Point3D, Sphere};
+    /// use geomcore::{Point, Sphere};
     /// use std::f64::consts::{FRAC_PI_2, PI};
     ///
-    /// let sphere = Sphere::new(Point3D::ORIGIN, 1.0).unwrap();
+    /// let sphere = Sphere::new(Point::ORIGIN, 1.0).unwrap();
     /// // The northern half of the sphere's eastern half.
     /// let patch = sphere.to_bspline_patch((-FRAC_PI_2, FRAC_PI_2), (0.0, FRAC_PI_2)).unwrap();
     /// assert!(!patch.is_u_periodic());
-    /// assert!(patch.eval_point(0.0, 0.0).distance(Point3D::new(1.0, 0.0, 0.0)) < 1e-15);
-    /// assert!((patch.eval_point(0.4, 1.1).distance(Point3D::ORIGIN) - 1.0).abs() < 1e-15);
+    /// assert!(patch.eval_point(0.0, 0.0).distance(Point::new(1.0, 0.0, 0.0)) < 1e-15);
+    /// assert!((patch.eval_point(0.4, 1.1).distance(Point::ORIGIN) - 1.0).abs() < 1e-15);
     /// assert!(sphere.to_bspline_patch((0.0, PI), (0.0, 2.0)).is_err());
     /// ```
     pub fn to_bspline_patch(
@@ -437,12 +437,12 @@ impl Torus {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Point3D, Torus, Vector3D};
+    /// use geomcore::{Point, Torus, Vector};
     ///
-    /// let torus = Torus::new(Point3D::ORIGIN, Vector3D::Z, 3.0, 1.0).unwrap();
+    /// let torus = Torus::new(Point::ORIGIN, Vector::Z, 3.0, 1.0).unwrap();
     /// let bspline = torus.to_bspline();
     /// assert!(bspline.is_u_periodic() && bspline.is_v_periodic());
-    /// assert!(bspline.eval_point(0.0, 0.0).distance(Point3D::new(4.0, 0.0, 0.0)) < 1e-15);
+    /// assert!(bspline.eval_point(0.0, 0.0).distance(Point::new(4.0, 0.0, 0.0)) < 1e-15);
     /// ```
     pub fn to_bspline(&self) -> BSplineSurface {
         self.to_bspline_patch(self.u_bounds(), self.v_bounds())
@@ -470,15 +470,15 @@ impl Torus {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Point3D, Torus, Vector3D};
+    /// use geomcore::{Point, Torus, Vector};
     /// use std::f64::consts::{PI, TAU};
     ///
-    /// let torus = Torus::new(Point3D::ORIGIN, Vector3D::Z, 3.0, 1.0).unwrap();
+    /// let torus = Torus::new(Point::ORIGIN, Vector::Z, 3.0, 1.0).unwrap();
     /// // The outer half of the tube, all the way round.
     /// let band = torus.to_bspline_patch((0.0, TAU), (-PI / 2.0, PI / 2.0)).unwrap();
     /// assert!(band.is_u_periodic() && !band.is_v_periodic());
     /// let p = band.eval_point(PI, 0.0);
-    /// assert!(p.distance(Point3D::new(-4.0, 0.0, 0.0)) < 1e-15);
+    /// assert!(p.distance(Point::new(-4.0, 0.0, 0.0)) < 1e-15);
     /// ```
     pub fn to_bspline_patch(
         &self,
@@ -506,11 +506,11 @@ impl ElementarySurface {
     ///
     /// ```
     /// use geomcore::surfaces::ElementarySurface;
-    /// use geomcore::{BSplineConversionError, Plane, Point3D, Sphere, Vector3D};
+    /// use geomcore::{BSplineConversionError, Plane, Point, Sphere, Vector};
     ///
-    /// let sphere = Sphere::new(Point3D::ORIGIN, 1.0).unwrap();
+    /// let sphere = Sphere::new(Point::ORIGIN, 1.0).unwrap();
     /// assert!(ElementarySurface::Sphere(sphere).to_bspline().unwrap().is_u_periodic());
-    /// let plane = Plane::new(Point3D::ORIGIN, Vector3D::Z).unwrap();
+    /// let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
     /// assert_eq!(
     ///     ElementarySurface::Plane(plane).to_bspline().err(),
     ///     Some(BSplineConversionError::Unbounded)
@@ -539,9 +539,9 @@ impl ElementarySurface {
     ///
     /// ```
     /// use geomcore::surfaces::ElementarySurface;
-    /// use geomcore::{Cylinder, Point3D, Vector3D};
+    /// use geomcore::{Cylinder, Point, Vector};
     ///
-    /// let cylinder = Cylinder::new(Point3D::ORIGIN, Vector3D::Z, 1.0).unwrap();
+    /// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
     /// let surface = ElementarySurface::Cylinder(cylinder);
     /// assert_eq!(
     ///     surface.to_bspline_patch((0.0, 1.0), (0.0, 2.0)),
@@ -575,12 +575,12 @@ impl Surface {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{BSplineConversionError, Cone, Point3D, Surface, Torus, Vector3D};
+    /// use geomcore::{BSplineConversionError, Cone, Point, Surface, Torus, Vector};
     ///
-    /// let torus = Torus::new(Point3D::ORIGIN, Vector3D::Z, 3.0, 1.0).unwrap();
+    /// let torus = Torus::new(Point::ORIGIN, Vector::Z, 3.0, 1.0).unwrap();
     /// let bspline = Surface::from(torus).to_bspline().unwrap();
     /// assert_eq!(Surface::from(bspline.clone()).to_bspline(), Ok(bspline));
-    /// let cone = Cone::new(Point3D::ORIGIN, Vector3D::Z, 0.5, 1.0).unwrap();
+    /// let cone = Cone::new(Point::ORIGIN, Vector::Z, 0.5, 1.0).unwrap();
     /// assert_eq!(
     ///     Surface::from(cone).to_bspline().err(),
     ///     Some(BSplineConversionError::Unbounded)
@@ -600,17 +600,17 @@ impl Surface {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::curves::TrimmedCurve3D;
-    use crate::{Circle3D, Tolerance, Vector3D};
+    use crate::curves::TrimmedCurve;
+    use crate::{Circle, Tolerance, Vector};
     use std::f64::consts::{FRAC_PI_2, FRAC_PI_4, PI};
 
     const RELATIVE: f64 = 1e-12;
 
-    fn tilted_frame(origin: Point3D) -> Frame3D {
-        Frame3D::new(
+    fn tilted_frame(origin: Point) -> Frame {
+        Frame::new(
             origin,
-            Vector3D::new(1.0, -2.0, 0.5),
-            Vector3D::new(0.3, 1.0, 2.0),
+            Vector::new(1.0, -2.0, 0.5),
+            Vector::new(0.3, 1.0, 2.0),
         )
         .unwrap()
     }
@@ -642,9 +642,9 @@ mod tests {
             let circle = match self {
                 Direction::Straight => None,
                 Direction::Circular => {
-                    let unit = Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 1.0).unwrap();
+                    let unit = Circle::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
                     Some(
-                        TrimmedCurve3D::new(unit, first, last)
+                        TrimmedCurve::new(unit, first, last)
                             .unwrap()
                             .to_bspline()
                             .unwrap(),
@@ -686,7 +686,7 @@ mod tests {
         v: (f64, f64),
         directions: (Direction, Direction),
         scale: f64,
-        distance: impl Fn(Point3D) -> f64,
+        distance: impl Fn(Point) -> f64,
     ) {
         assert_eq!(b.u_bounds(), u);
         assert_eq!(b.v_bounds(), v);
@@ -720,7 +720,7 @@ mod tests {
         last - first >= TAU * (1.0 - 1e-12)
     }
 
-    fn assert_collapsed(poles: &[Vec<Point3D>], j: usize) {
+    fn assert_collapsed(poles: &[Vec<Point>], j: usize) {
         assert!(poles.iter().all(|row| row[j] == poles[0][j]));
     }
 
@@ -728,7 +728,7 @@ mod tests {
 
     #[test]
     fn test_plane_patch_is_bilinear_with_the_plane_parameters() {
-        let plane = Plane::from_frame(tilted_frame(Point3D::new(1.0, -2.0, 3.0)));
+        let plane = Plane::from_frame(tilted_frame(Point::new(1.0, -2.0, 3.0)));
         for (u, v) in [
             ((-3.0, 5.0), (0.5, 2.0)),
             ((0.2, 0.200_000_001), (-1e-9, 0.0)),
@@ -737,7 +737,7 @@ mod tests {
             let b = plane.to_bspline_patch(u, v).unwrap();
             assert_eq!((b.u_degree(), b.v_degree(), b.is_rational()), (1, 1, false));
             let scale = u.0.abs().max(u.1.abs()).max(v.0.abs()).max(v.1.abs()) + 4.0;
-            let distance = |p: Point3D| plane.frame().local_coordinates(p).2.abs();
+            let distance = |p: Point| plane.frame().local_coordinates(p).2.abs();
             let directions = (Direction::Straight, Direction::Straight);
             check_patch(&b, &plane, u, v, directions, scale, distance);
         }
@@ -746,7 +746,7 @@ mod tests {
     // ---- cylinders and cones ----
 
     fn cylinder(radius: f64) -> Cylinder {
-        let origin = Point3D::new(0.4 * radius, -0.7 * radius, 0.2 * radius);
+        let origin = Point::new(0.4 * radius, -0.7 * radius, 0.2 * radius);
         Cylinder::from_frame(tilted_frame(origin), radius).unwrap()
     }
 
@@ -754,7 +754,7 @@ mod tests {
     fn test_cylinder_patches_are_exact() {
         for radius in [1e-6, 1.0, 1e6] {
             let c = cylinder(radius);
-            let distance = |p: Point3D| {
+            let distance = |p: Point| {
                 let (x, y, _) = c.frame().local_coordinates(p);
                 (x.hypot(y) - radius).abs()
             };
@@ -801,17 +801,17 @@ mod tests {
         assert_eq!(circle.knots, vec![0.0, FRAC_PI_2, PI]);
         let w = circle.weights.as_ref().unwrap();
         assert!((w[1] - FRAC_PI_4.cos()).abs() < 1e-15);
-        assert_eq!(revolved_poles(Frame3D::WORLD, &circle, &profile).len(), 5);
+        assert_eq!(revolved_poles(Frame::WORLD, &circle, &profile).len(), 5);
         assert_eq!(profile.weights, None);
     }
 
     fn cone(semi_angle: f64) -> Cone {
-        Cone::from_frame(tilted_frame(Point3D::new(1.0, 0.5, -2.0)), semi_angle, 2.0).unwrap()
+        Cone::from_frame(tilted_frame(Point::new(1.0, 0.5, -2.0)), semi_angle, 2.0).unwrap()
     }
 
     /// Distance to the double cone, from the point's radius and height in
     /// the cone's frame.
-    fn cone_distance(c: &Cone, p: Point3D) -> f64 {
+    fn cone_distance(c: &Cone, p: Point) -> f64 {
         let (x, y, z) = c.frame().local_coordinates(p);
         let (sin, cos) = (c.semi_angle().sin(), c.semi_angle().cos());
         let rho = x.hypot(y);
@@ -862,7 +862,7 @@ mod tests {
     // ---- spheres and tori ----
 
     fn sphere(radius: f64) -> Sphere {
-        let center = Point3D::new(0.4 * radius, -0.7 * radius, 0.2 * radius);
+        let center = Point::new(0.4 * radius, -0.7 * radius, 0.2 * radius);
         Sphere::from_frame(tilted_frame(center), radius).unwrap()
     }
 
@@ -883,7 +883,7 @@ mod tests {
             assert!(b.is_u_periodic() && !b.is_v_periodic() && b.is_rational());
             assert_eq!((b.u_degree(), b.v_degree()), (2, 2));
             assert_eq!(b.u_period(), Some(TAU));
-            let distance = |p: Point3D| (p.distance(s.center()) - radius).abs();
+            let distance = |p: Point| (p.distance(s.center()) - radius).abs();
             let directions = (Direction::Circular, Direction::Circular);
             let (u, v) = ((0.0, TAU), (-FRAC_PI_2, FRAC_PI_2));
             check_patch(&b, &s, u, v, directions, radius, distance);
@@ -903,7 +903,7 @@ mod tests {
     fn test_sphere_patches_are_exact() {
         for radius in [1e-6, 1.0, 1e6] {
             let s = sphere(radius);
-            let distance = |p: Point3D| (p.distance(s.center()) - radius).abs();
+            let distance = |p: Point| (p.distance(s.center()) - radius).abs();
             for u in ANGLES {
                 for v in LATITUDES {
                     let b = s.to_bspline_patch(u, v).unwrap();
@@ -916,12 +916,12 @@ mod tests {
     }
 
     fn torus(major: f64, minor: f64) -> Torus {
-        Torus::from_frame(tilted_frame(Point3D::new(-1.0, 2.0, 0.5)), major, minor).unwrap()
+        Torus::from_frame(tilted_frame(Point::new(-1.0, 2.0, 0.5)), major, minor).unwrap()
     }
 
     /// Distance to the torus, the point's radius taken on either side of
     /// the axis for a tube that crosses it.
-    fn torus_distance(t: &Torus, p: Point3D) -> f64 {
+    fn torus_distance(t: &Torus, p: Point) -> f64 {
         let (x, y, z) = t.frame().local_coordinates(p);
         let rho = x.hypot(y);
         let to_tube = |r: f64| ((r - t.major_radius()).hypot(z) - t.minor_radius()).abs();
@@ -973,7 +973,7 @@ mod tests {
 
     #[test]
     fn test_unbounded_and_invalid_ranges_are_rejected() {
-        let plane = Plane::from_frame(Frame3D::WORLD);
+        let plane = Plane::from_frame(Frame::WORLD);
         let c = cylinder(1.0);
         let s = sphere(1.0);
         let unbounded = Err(BSplineConversionError::Unbounded);
@@ -1011,7 +1011,7 @@ mod tests {
     #[test]
     fn test_overflowing_patches_are_not_representable() {
         let not_representable = Err(BSplineConversionError::NotRepresentable);
-        let frame = Frame3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::new(1.0, 1.0, 0.0));
+        let frame = Frame::new(Point::ORIGIN, Vector::Z, Vector::new(1.0, 1.0, 0.0));
         let plane = Plane::from_frame(frame.unwrap());
         let huge = (-1.5e308, 1.5e308);
         assert_eq!(plane.to_bspline_patch(huge, huge), not_representable);
@@ -1022,7 +1022,7 @@ mod tests {
             c.to_bspline_patch((first, first + 4.0), (0.0, 1.0)),
             not_representable
         );
-        let far = Sphere::new(Point3D::new(1.5e308, 0.0, 0.0), 1e308).unwrap();
+        let far = Sphere::new(Point::new(1.5e308, 0.0, 0.0), 1e308).unwrap();
         assert_eq!(
             far.to_bspline_patch((0.0, 1.0), (0.0, 1.0)),
             not_representable
@@ -1042,7 +1042,7 @@ mod tests {
         assert_eq!(Surface::from(b.clone()).to_bspline(), Ok(b));
 
         let (u, v) = ((-1.0, 2.0), (0.0, 0.5));
-        let plane = Plane::from_frame(tilted_frame(Point3D::ORIGIN));
+        let plane = Plane::from_frame(tilted_frame(Point::ORIGIN));
         let c = cylinder(1.0);
         let k = cone(0.4);
         let surfaces: [ElementarySurface; 5] =

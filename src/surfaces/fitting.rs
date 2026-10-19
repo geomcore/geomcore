@@ -5,19 +5,19 @@
 //! grid row is fitted along `v`, then each column of those fits' poles
 //! along `u`, every row (column) on the same parameters and knots, so one
 //! factored system per direction serves them all (see
-//! [`crate::BSplineCurve3D::approximate`] for the curve fit).
+//! [`crate::BSplineCurve::approximate`] for the curve fit).
 
 use crate::curves::BSplineConstructionError;
 use crate::curves::fitting::{
     BasisTable, approximation_knots, averaged_knots, check_degree, fit_within_fewest,
     interpolation, least_squares, shared_parameters,
 };
-use crate::{BSplineSurface, Point3D, PointParametrization};
+use crate::{BSplineSurface, Point, PointParametrization};
 
 /// A grid of points `points[i][j]`, `i` along `u` and `j` along `v`,
 /// checked rectangular, with its parameters in both directions.
 struct Grid<'a> {
-    points: &'a [Vec<Point3D>],
+    points: &'a [Vec<Point>],
     rows: usize,
     cols: usize,
     u_params: Vec<f64>,
@@ -26,7 +26,7 @@ struct Grid<'a> {
 
 impl<'a> Grid<'a> {
     fn new(
-        points: &'a [Vec<Point3D>],
+        points: &'a [Vec<Point>],
         parametrization: PointParametrization,
     ) -> Result<Self, BSplineConstructionError> {
         let rows = points.len();
@@ -51,7 +51,7 @@ impl<'a> Grid<'a> {
 
     /// The least-squares poles along `v`, `count` per grid row, on `basis`
     /// (`rows x count`, row-major).
-    fn fit_rows(&self, basis: &BasisTable, count: usize) -> Option<Vec<Point3D>> {
+    fn fit_rows(&self, basis: &BasisTable, count: usize) -> Option<Vec<Point>> {
         least_squares(basis, count, self.rows, |i, j| self.points[i][j])
     }
 
@@ -62,9 +62,9 @@ impl<'a> Grid<'a> {
         &self,
         basis: &BasisTable,
         count: usize,
-        row_poles: &[Point3D],
+        row_poles: &[Point],
         columns: usize,
-    ) -> Option<Vec<Point3D>> {
+    ) -> Option<Vec<Point>> {
         let by_column = least_squares(basis, count, columns, |l, i| row_poles[i * columns + l])?;
         Some(transposed(&by_column, columns, count))
     }
@@ -76,7 +76,7 @@ impl<'a> Grid<'a> {
     fn row_deviations(
         &self,
         basis: &BasisTable,
-        row_poles: &[Point3D],
+        row_poles: &[Point],
         count: usize,
         deviations: &mut [f64],
     ) {
@@ -95,12 +95,12 @@ impl<'a> Grid<'a> {
     fn deviations(
         &self,
         (u_basis, v_basis): (&BasisTable, &BasisTable),
-        poles: &[Point3D],
+        poles: &[Point],
         columns: usize,
         deviations: &mut [f64],
     ) {
         // The poles of the `v` curve at each `u` parameter, then its points.
-        let mut curve = vec![Point3D::ORIGIN; columns];
+        let mut curve = vec![Point::ORIGIN; columns];
         for (i, deviation) in deviations.iter_mut().enumerate() {
             let (first, values) = u_basis.at(i);
             for (l, pole) in curve.iter_mut().enumerate() {
@@ -111,7 +111,7 @@ impl<'a> Grid<'a> {
                     x[1] += value * q.y;
                     x[2] += value * q.z;
                 }
-                *pole = Point3D::new(x[0], x[1], x[2]);
+                *pole = Point::new(x[0], x[1], x[2]);
             }
             *deviation = (0..self.cols)
                 .map(|j| v_basis.point(j, &curve).distance(self.points[i][j]))
@@ -121,7 +121,7 @@ impl<'a> Grid<'a> {
 }
 
 /// `values` (`lines` lines of `count`) as `count` lines of `lines`.
-fn transposed(values: &[Point3D], lines: usize, count: usize) -> Vec<Point3D> {
+fn transposed(values: &[Point], lines: usize, count: usize) -> Vec<Point> {
     let mut out = Vec::with_capacity(values.len());
     out.extend((0..count).flat_map(|k| (0..lines).map(move |l| values[l * count + k])));
     out
@@ -134,7 +134,7 @@ impl BSplineSurface {
     ///
     /// Each direction's parameters average those of its lines of points
     /// (the columns for `u`, the rows for `v`), as
-    /// [`crate::BSplineCurve3D::approximate`] gives a curve's, over the
+    /// [`crate::BSplineCurve::approximate`] gives a curve's, over the
     /// lines that have a length, and its knots follow those parameters as
     /// the curve fit's do. The fit
     /// approximates rather than hits the points.
@@ -155,13 +155,13 @@ impl BSplineSurface {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{BSplineSurface, Point3D, PointParametrization};
-    /// let points: Vec<Vec<Point3D>> = (0..10)
+    /// use geomcore::{BSplineSurface, Point, PointParametrization};
+    /// let points: Vec<Vec<Point>> = (0..10)
     ///     .map(|i| {
     ///         (0..10)
     ///             .map(|j| {
     ///                 let (x, y) = (i as f64 / 9.0, j as f64 / 9.0);
-    ///                 Point3D::new(x, y, x * x - y * y)
+    ///                 Point::new(x, y, x * x - y * y)
     ///             })
     ///             .collect()
     ///     })
@@ -174,7 +174,7 @@ impl BSplineSurface {
     /// assert!((p.z - (p.x * p.x - p.y * p.y)).abs() < 1e-12);
     /// ```
     pub fn approximate(
-        points: &[Vec<Point3D>],
+        points: &[Vec<Point>],
         u_degree: usize,
         v_degree: usize,
         u_pole_count: usize,
@@ -219,7 +219,7 @@ impl BSplineSurface {
     /// The `v` knots come first, until every row fits within 0.8 of
     /// `max_deviation`; then the `u` knots, until the whole grid fits
     /// within `max_deviation`. Each direction keeps the fewer poles of
-    /// knots refined as [`crate::BSplineCurve3D::approximate_within`]
+    /// knots refined as [`crate::BSplineCurve::approximate_within`]
     /// refines a curve's and of the fewest poles that fit on knots spread
     /// along the parameters, as [`BSplineSurface::approximate`] places
     /// them. A direction no least-squares fit brings close enough
@@ -235,13 +235,13 @@ impl BSplineSurface {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{BSplineSurface, Point3D, PointParametrization};
-    /// let points: Vec<Vec<Point3D>> = (0..20)
+    /// use geomcore::{BSplineSurface, Point, PointParametrization};
+    /// let points: Vec<Vec<Point>> = (0..20)
     ///     .map(|i| {
     ///         (0..20)
     ///             .map(|j| {
     ///                 let (x, y) = (i as f64 / 19.0, j as f64 / 19.0);
-    ///                 Point3D::new(x, y, (3.0 * x).sin() * (2.0 * y).cos())
+    ///                 Point::new(x, y, (3.0 * x).sin() * (2.0 * y).cos())
     ///             })
     ///             .collect()
     ///     })
@@ -253,7 +253,7 @@ impl BSplineSurface {
     /// assert!(surface.u_pole_count() < 20 && surface.v_pole_count() < 20);
     /// ```
     pub fn approximate_within(
-        points: &[Vec<Point3D>],
+        points: &[Vec<Point>],
         u_degree: usize,
         v_degree: usize,
         max_deviation: f64,
@@ -312,7 +312,7 @@ impl BSplineSurface {
 mod tests {
     use super::*;
 
-    fn wavy_grid(rows: usize, cols: usize) -> Vec<Vec<Point3D>> {
+    fn wavy_grid(rows: usize, cols: usize) -> Vec<Vec<Point>> {
         (0..rows)
             .map(|i| {
                 (0..cols)
@@ -320,7 +320,7 @@ mod tests {
                         let (x, y) = (i as f64 / (rows - 1) as f64, j as f64 / (cols - 1) as f64);
                         // Uneven spacing along both directions.
                         let (x, y) = (x + 0.1 * x * x, y - 0.05 * y * y);
-                        Point3D::new(x, y, (3.0 * x).sin() * (2.0 * y).cos() + 0.2 * x * y)
+                        Point::new(x, y, (3.0 * x).sin() * (2.0 * y).cos() + 0.2 * x * y)
                     })
                     .collect()
             })
@@ -328,7 +328,7 @@ mod tests {
     }
 
     /// Dense Gaussian elimination with partial pivoting.
-    fn dense_solve(mut a: Vec<Vec<f64>>, mut b: Vec<Point3D>) -> Vec<Point3D> {
+    fn dense_solve(mut a: Vec<Vec<f64>>, mut b: Vec<Point>) -> Vec<Point> {
         let n = b.len();
         for k in 0..n {
             let pivot = (k..n)
@@ -343,19 +343,19 @@ mod tests {
                     *x -= f * y;
                 }
                 let bk = b[k];
-                b[i] = Point3D::new(b[i].x - f * bk.x, b[i].y - f * bk.y, b[i].z - f * bk.z);
+                b[i] = Point::new(b[i].x - f * bk.x, b[i].y - f * bk.y, b[i].z - f * bk.z);
             }
         }
         for i in (0..n).rev() {
             let mut x = b[i];
             for j in i + 1..n {
-                x = Point3D::new(
+                x = Point::new(
                     x.x - a[i][j] * b[j].x,
                     x.y - a[i][j] * b[j].y,
                     x.z - a[i][j] * b[j].z,
                 );
             }
-            b[i] = Point3D::new(x.x / a[i][i], x.y / a[i][i], x.z / a[i][i]);
+            b[i] = Point::new(x.x / a[i][i], x.y / a[i][i], x.z / a[i][i]);
         }
         b
     }
@@ -389,7 +389,7 @@ mod tests {
             );
             // One equation per grid point over the `mu * mv` poles.
             let mut normal = vec![vec![0.0; mu * mv]; mu * mv];
-            let mut rhs = vec![Point3D::ORIGIN; mu * mv];
+            let mut rhs = vec![Point::ORIGIN; mu * mv];
             for (i, line) in points.iter().enumerate() {
                 let nu = dense_row(&u_basis, i, mu);
                 for (j, &x) in line.iter().enumerate() {
@@ -402,7 +402,7 @@ mod tests {
                         for (c, &ac) in row.iter().enumerate() {
                             normal[r][c] += ar * ac;
                         }
-                        rhs[r] = Point3D::new(
+                        rhs[r] = Point::new(
                             rhs[r].x + ar * x.x,
                             rhs[r].y + ar * x.y,
                             rhs[r].z + ar * x.z,
@@ -451,7 +451,7 @@ mod tests {
         let par = PointParametrization::Chordal;
         let points = wavy_grid(4, 5);
         let fixed =
-            |points: &[Vec<Point3D>], p, mu| BSplineSurface::approximate(points, p, 1, mu, 3, par);
+            |points: &[Vec<Point>], p, mu| BSplineSurface::approximate(points, p, 1, mu, 3, par);
         assert_eq!(
             fixed(&points[..1], 1, 2),
             Err(BSplineConstructionError::TooFewPoints)
@@ -482,7 +482,7 @@ mod tests {
         assert_eq!(within(4), Err(BSplineConstructionError::DegreeTooHigh));
         assert!(within(3).is_ok());
         // Every row the same point: no `v` parameters.
-        let collapsed = vec![vec![Point3D::ORIGIN; 3]; 3];
+        let collapsed = vec![vec![Point::ORIGIN; 3]; 3];
         assert_eq!(
             BSplineSurface::approximate(&collapsed, 1, 1, 2, 2, par),
             Err(BSplineConstructionError::ConfusedPoints)

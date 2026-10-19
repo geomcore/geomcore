@@ -7,29 +7,29 @@ import pytest
 
 import geomcore
 from geomcore import (
-    Axis3D,
-    Frame3D,
+    Axis,
+    Frame,
     FrameConstructionError,
-    Point3D,
+    Point,
     Side,
     SurfaceCurvatures,
     Tolerance,
     Transform,
-    Vector3D,
+    Vector,
 )
 from geomcore.curves import (
-    BSplineCurve3D,
-    Circle3D,
-    Ellipse3D,
-    Hyperbola3D,
-    Line3D,
-    Parabola3D,
-    TrimmedCurve3D,
+    BSplineCurve,
+    Circle,
+    Ellipse,
+    Hyperbola,
+    Line,
+    Parabola,
+    TrimmedCurve,
 )
 from geomcore.surfaces import BSplineSurface, Cone, Cylinder, Plane, Sphere, Torus
 
-ORIGIN = Point3D.origin()
-X, Y, Z = Vector3D.unit_x(), Vector3D.unit_y(), Vector3D.unit_z()
+ORIGIN = Point.origin()
+X, Y, Z = Vector.unit_x(), Vector.unit_y(), Vector.unit_z()
 
 
 def coordinates(value):
@@ -42,29 +42,29 @@ def close(a, b, abs=1e-12):
 
 def kinked_polyline():
     """Two straight pieces meeting at a right angle at u = 1."""
-    poles = [Point3D(0.0, 0.0, 0.0), Point3D(1.0, 0.0, 0.0), Point3D(1.0, 1.0, 0.0)]
-    return BSplineCurve3D(1, poles, [0.0, 1.0, 2.0], [2, 1, 2], False)
+    poles = [Point(0.0, 0.0, 0.0), Point(1.0, 0.0, 0.0), Point(1.0, 1.0, 0.0)]
+    return BSplineCurve(1, poles, [0.0, 1.0, 2.0], [2, 1, 2], False)
 
 
 def periodic_quadratic():
     """A closed quadratic through four poles, C1 at each of its knots."""
     poles = [
-        Point3D(1.0, 0.0, 0.0),
-        Point3D(0.0, 1.0, 0.0),
-        Point3D(-1.0, 0.0, 0.5),
-        Point3D(0.0, -1.0, 0.0),
+        Point(1.0, 0.0, 0.0),
+        Point(0.0, 1.0, 0.0),
+        Point(-1.0, 0.0, 0.5),
+        Point(0.0, -1.0, 0.0),
     ]
-    return BSplineCurve3D(2, poles, [0.0, 1.0, 2.0, 3.0, 4.0], [1, 1, 1, 1, 1], True)
+    return BSplineCurve(2, poles, [0.0, 1.0, 2.0, 3.0, 4.0], [1, 1, 1, 1, 1], True)
 
 
 def creased_surface():
     """Two bilinear patches meeting at a crease along u = 1, flat then rising."""
 
     def flat(x):
-        return [Point3D(x, 0.0, 0.0), Point3D(x, 1.0, 0.0)]
+        return [Point(x, 0.0, 0.0), Point(x, 1.0, 0.0)]
 
     def tilted(x):
-        return [Point3D(x, 0.0, 0.0), Point3D(x, 1.0, 1.0)]
+        return [Point(x, 0.0, 0.0), Point(x, 1.0, 1.0)]
 
     return BSplineSurface(
         1, 1, [flat(0.0), flat(1.0), tilted(2.0)],
@@ -78,28 +78,28 @@ def creased_surface():
 
 
 def test_circle_local_properties_match_closed_form():
-    circle = Circle3D(ORIGIN, Z, 2.0)
+    circle = Circle(ORIGIN, Z, 2.0)
     assert close(circle.tangent(0.0), Y)
     assert circle.curvature(0.0) == pytest.approx(0.5)
     assert close(circle.curvature_center(1.3), ORIGIN)
 
 
 def test_line_is_straight():
-    line = Line3D(ORIGIN, X)
+    line = Line(ORIGIN, X)
     assert close(line.tangent(5.0, Tolerance.default()), X)
     assert line.curvature(5.0) == 0.0
     assert line.curvature_center(5.0) is None
 
 
 def test_conic_curvatures_match_closed_forms():
-    ellipse = Ellipse3D(ORIGIN, Z, X, 3.0, 2.0)
+    ellipse = Ellipse(ORIGIN, Z, X, 3.0, 2.0)
     # At the end of the major axis the curvature is a / b².
     assert ellipse.curvature(0.0) == pytest.approx(3.0 / 4.0)
-    assert close(ellipse.curvature_center(0.0), Point3D(3.0 - 4.0 / 3.0, 0.0, 0.0))
-    parabola = Parabola3D(ORIGIN, Z, X, 0.5)
+    assert close(ellipse.curvature_center(0.0), Point(3.0 - 4.0 / 3.0, 0.0, 0.0))
+    parabola = Parabola(ORIGIN, Z, X, 0.5)
     # At the apex the radius of curvature is twice the focal length.
     assert parabola.curvature(0.0) == pytest.approx(1.0)
-    hyperbola = Hyperbola3D(ORIGIN, Z, X, 3.0, 2.0)
+    hyperbola = Hyperbola(ORIGIN, Z, X, 3.0, 2.0)
     # At the vertex the curvature is a / b².
     assert hyperbola.curvature(0.0) == pytest.approx(3.0 / 4.0)
     for curve in [ellipse, parabola, hyperbola]:
@@ -111,39 +111,39 @@ def test_conic_curvatures_match_closed_forms():
 def test_bspline_cusp_has_no_tangent_or_curvature():
     # A quadratic whose two middle poles coincide comes to a cusp at u = 1.
     poles = [
-        Point3D(0.0, 0.0, 0.0),
-        Point3D(1.0, 1.0, 0.0),
-        Point3D(1.0, 1.0, 0.0),
-        Point3D(2.0, 0.0, 0.0),
+        Point(0.0, 0.0, 0.0),
+        Point(1.0, 1.0, 0.0),
+        Point(1.0, 1.0, 0.0),
+        Point(2.0, 0.0, 0.0),
     ]
-    cusp = BSplineCurve3D(2, poles, [0.0, 1.0, 2.0], [3, 1, 3], False)
+    cusp = BSplineCurve(2, poles, [0.0, 1.0, 2.0], [3, 1, 3], False)
     _, speed = cusp.eval_d1(1.0)
     assert speed.magnitude() == 0.0
     assert cusp.tangent(1.0) is None
     assert cusp.curvature(1.0) is None
     assert cusp.curvature_center(1.0) is None
-    assert close(cusp.tangent(0.5), Vector3D(1.0, 1.0, 0.0).normalized())
+    assert close(cusp.tangent(0.5), Vector(1.0, 1.0, 0.0).normalized())
 
 
 def test_rescaling_the_parameter_keeps_the_answers():
-    poles = [Point3D(0.0, 0.0, 0.0), Point3D(1.0, 2.0, 0.0), Point3D(3.0, 0.0, 1.0)]
-    unit = BSplineCurve3D(2, poles, [0.0, 1.0], [3, 3], False)
-    wide = BSplineCurve3D(2, poles, [0.0, 1000.0], [3, 3], False)
+    poles = [Point(0.0, 0.0, 0.0), Point(1.0, 2.0, 0.0), Point(3.0, 0.0, 1.0)]
+    unit = BSplineCurve(2, poles, [0.0, 1.0], [3, 3], False)
+    wide = BSplineCurve(2, poles, [0.0, 1000.0], [3, 3], False)
     assert close(unit.tangent(0.3), wide.tangent(300.0))
     assert unit.curvature(0.3) == pytest.approx(wide.curvature(300.0))
     assert close(unit.curvature_center(0.3), wide.curvature_center(300.0), abs=1e-9)
 
 
 def test_trimmed_curve_local_properties_follow_the_basis():
-    circle = Circle3D(ORIGIN, Z, 2.0)
-    arc = TrimmedCurve3D(circle, 0.5, 2.0)
+    circle = Circle(ORIGIN, Z, 2.0)
+    arc = TrimmedCurve(circle, 0.5, 2.0)
     assert close(arc.tangent(1.0), circle.tangent(1.0))
     assert arc.curvature(1.0) == pytest.approx(0.5)
     assert close(arc.curvature_center(1.0), ORIGIN)
 
 
 def test_curve_local_properties_at_nan_are_none():
-    circle = Circle3D(ORIGIN, Z, 2.0)
+    circle = Circle(ORIGIN, Z, 2.0)
     assert circle.tangent(math.nan) is None
     assert circle.curvature(math.nan) is None
     assert circle.curvature_center(math.nan) is None
@@ -155,28 +155,28 @@ def test_curve_local_properties_at_nan_are_none():
 
 
 def test_curve_closedness():
-    assert Circle3D(ORIGIN, Z, 1.0).is_closed()
-    assert not Line3D(ORIGIN, X).is_closed(Tolerance.default())
+    assert Circle(ORIGIN, Z, 1.0).is_closed()
+    assert not Line(ORIGIN, X).is_closed(Tolerance.default())
     assert not kinked_polyline().is_closed()
     assert periodic_quadratic().is_closed()
     # A clamped B-spline whose ends coincide is closed without a period.
-    loop = BSplineCurve3D(
+    loop = BSplineCurve(
         1,
-        [Point3D(0.0, 0.0, 0.0), Point3D(1.0, 0.0, 0.0), Point3D(0.0, 1.0, 0.0),
-         Point3D(0.0, 0.0, 0.0)],
+        [Point(0.0, 0.0, 0.0), Point(1.0, 0.0, 0.0), Point(0.0, 1.0, 0.0),
+         Point(0.0, 0.0, 0.0)],
         [0.0, 1.0, 2.0, 3.0], [2, 1, 1, 2], False,
     )
     assert loop.is_closed() and not loop.is_periodic()
-    circle = Circle3D(ORIGIN, Z, 1.0)
-    assert TrimmedCurve3D(circle, 1.0, 1.0 + 2.0 * math.pi).is_closed()
-    assert not TrimmedCurve3D(circle, 1.0, 2.0).is_closed()
+    circle = Circle(ORIGIN, Z, 1.0)
+    assert TrimmedCurve(circle, 1.0, 1.0 + 2.0 * math.pi).is_closed()
+    assert not TrimmedCurve(circle, 1.0, 2.0).is_closed()
 
 
 def test_curve_continuity():
     assert not hasattr(geomcore, "math.inf")
-    smooth = Circle3D(ORIGIN, Z, 1.0).continuity(0.0)
+    smooth = Circle(ORIGIN, Z, 1.0).continuity(0.0)
     assert smooth == math.inf and isinstance(smooth, float)
-    assert Line3D(ORIGIN, X).min_continuity() == math.inf
+    assert Line(ORIGIN, X).min_continuity() == math.inf
     kinked = kinked_polyline()
     kink = kinked.continuity(1.0)
     assert kink == 0 and type(kink) is int
@@ -198,8 +198,8 @@ def test_curve_continuity():
     assert periodic.min_continuity() == 1
     # A trimmed curve reports its basis inside the range, and only the
     # knots inside the range in its minimum.
-    assert TrimmedCurve3D(kinked, 0.5, 1.5).continuity(1.0) == 0
-    assert TrimmedCurve3D(kinked, 0.2, 0.8).min_continuity() == math.inf
+    assert TrimmedCurve(kinked, 0.5, 1.5).continuity(1.0) == 0
+    assert TrimmedCurve(kinked, 0.2, 0.8).min_continuity() == math.inf
 
 
 def test_surface_closedness_and_continuity():
@@ -223,7 +223,7 @@ def test_surface_closedness_and_continuity():
     assert not creased.is_u_closed() and not creased.is_v_closed()
     # Coinciding first and last pole rows close a clamped surface in u.
     def row(x):
-        return [Point3D(x, 0.0, 0.0), Point3D(x, 1.0, 0.0)]
+        return [Point(x, 0.0, 0.0), Point(x, 1.0, 0.0)]
 
     folded = BSplineSurface(
         1, 1, [row(0.0), row(1.0), row(0.0)],
@@ -285,10 +285,10 @@ def test_curvatures_are_none_where_the_normal_degenerates():
     assert cone.curvatures(0.0, -2.0 / math.sin(0.4)) is None
     assert sphere.curvatures(math.nan, 0.2) is None
     # A B-spline whose first pole row collapses to one point.
-    apex = Point3D(0.0, 0.0, 1.0)
+    apex = Point(0.0, 0.0, 1.0)
     collapsed = BSplineSurface(
         1, 1,
-        [[apex, apex], [Point3D(1.0, 0.0, 0.0), Point3D(0.0, 1.0, 0.0)]],
+        [[apex, apex], [Point(1.0, 0.0, 0.0), Point(0.0, 1.0, 0.0)]],
         [0.0, 1.0], [2, 2], [0.0, 1.0], [2, 2], False, False,
     )
     assert collapsed.curvatures(0.0, 0.5) is None
@@ -348,12 +348,12 @@ def test_reversed_surface_curvatures_change_sign():
 
 
 def test_frame_from_axes_accepts_either_handedness():
-    right = Frame3D.from_axes(ORIGIN, X, Y, Z)
+    right = Frame.from_axes(ORIGIN, X, Y, Z)
     assert right.is_direct()
-    left = Frame3D.from_axes(ORIGIN, X, -Y, Z)
+    left = Frame.from_axes(ORIGIN, X, -Y, Z)
     assert not left.is_direct()
     assert close(left.y_direction(), -Y)
-    world = Frame3D.world()
+    world = Frame.world()
     assert world.is_direct()
     for flipped in (world.flipped_x(), world.flipped_y(), world.flipped_z()):
         assert not flipped.is_direct()
@@ -366,29 +366,29 @@ def test_frame_from_axes_accepts_either_handedness():
 @pytest.mark.parametrize(
     "axes",
     [
-        (Vector3D(math.nan, 0.0, 0.0), Y, Z),
-        (X, Vector3D(0.0, math.inf, 0.0), Z),
-        (Vector3D(0.0, 0.0, 0.0), Y, Z),
-        (X, Vector3D(1.0, 1.0, 0.0), Z),
+        (Vector(math.nan, 0.0, 0.0), Y, Z),
+        (X, Vector(0.0, math.inf, 0.0), Z),
+        (Vector(0.0, 0.0, 0.0), Y, Z),
+        (X, Vector(1.0, 1.0, 0.0), Z),
     ],
 )
 def test_frame_from_axes_rejects_bad_directions(axes):
     with pytest.raises(FrameConstructionError):
-        Frame3D.from_axes(ORIGIN, *axes)
+        Frame.from_axes(ORIGIN, *axes)
     with pytest.raises(FrameConstructionError):
-        Frame3D.from_axes(Point3D(math.nan, 0.0, 0.0), X, Y, Z)
+        Frame.from_axes(Point(math.nan, 0.0, 0.0), X, Y, Z)
 
 
 def test_plane_and_circle_normals_follow_orientation():
-    left = Frame3D.from_axes(ORIGIN, X, -Y, Z)
+    left = Frame.from_axes(ORIGIN, X, -Y, Z)
     assert close(Plane.from_frame(left).normal(), -Z)
-    assert close(Circle3D.from_frame(left, 1.0).normal(), -Z)
+    assert close(Circle.from_frame(left, 1.0).normal(), -Z)
     assert close(Plane(ORIGIN, Z).normal(), Z)
 
 
 def test_mirrored_surface_maps_its_parametrization_and_flips_its_normal():
-    sphere = Sphere(Point3D(1.0, 2.0, 0.0), 2.0)
-    mirror = Transform.mirror_plane(Frame3D.world())
+    sphere = Sphere(Point(1.0, 2.0, 0.0), 2.0)
+    mirror = Transform.mirror_plane(Frame.world())
     image = sphere.transformed(mirror)
     u, v = 0.3, 0.2
     assert image.eval_point(u, v).distance(mirror.apply_point(sphere.eval_point(u, v))) < 1e-12
@@ -397,7 +397,7 @@ def test_mirrored_surface_maps_its_parametrization_and_flips_its_normal():
     assert close(image.normal(u, v), -mirror.apply_vector(sphere.normal(u, v)))
     assert close(image.reversed_u().normal(image.u_reversed_parameter(u), v),
                  mirror.apply_vector(sphere.normal(u, v)))
-    circle = Circle3D(ORIGIN, Z, 1.0).transformed(Transform.mirror_axis(Axis3D(ORIGIN, X)))
+    circle = Circle(ORIGIN, Z, 1.0).transformed(Transform.mirror_axis(Axis(ORIGIN, X)))
     assert close(circle.normal(), -Z)
 
 
@@ -418,13 +418,13 @@ def test_curve_sided_evaluation_at_a_kink():
     curve = kinked_polyline()
     below = curve.eval_d1_sided(1.0, Side.BELOW)
     above = curve.eval_d1_sided(1.0, Side.ABOVE)
-    assert below[0] == above[0] == Point3D(1.0, 0.0, 0.0)
+    assert below[0] == above[0] == Point(1.0, 0.0, 0.0)
     assert below[1] == X and above[1] == Y
     # Plain evaluation takes the above side.
     assert curve.eval_d1(1.0)[1] == above[1]
     assert curve.eval_derivative_sided(1.0, 1, Side.BELOW) == X
     point, first, second = curve.eval_d2_sided(1.0, Side.BELOW)
-    assert (point, first, second) == (Point3D(1.0, 0.0, 0.0), X, Vector3D(0.0, 0.0, 0.0))
+    assert (point, first, second) == (Point(1.0, 0.0, 0.0), X, Vector(0.0, 0.0, 0.0))
     # Strictly inside a span both sides agree.
     assert curve.eval_d1_sided(0.5, Side.BELOW) == curve.eval_d1_sided(0.5, Side.ABOVE)
 
@@ -459,17 +459,17 @@ def test_surface_sided_evaluation_across_a_crease():
     surface = creased_surface()
     below = surface.eval_d1_sided(1.0, 0.5, Side.BELOW, Side.ABOVE)
     above = surface.eval_d1_sided(1.0, 0.5, Side.ABOVE, Side.ABOVE)
-    assert below[1][0] == Vector3D(1.0, 0.0, 0.0)
-    assert above[1][0] == Vector3D(1.0, 0.0, 0.5)
+    assert below[1][0] == Vector(1.0, 0.0, 0.0)
+    assert above[1][0] == Vector(1.0, 0.0, 0.5)
     assert surface.eval_d1(1.0, 0.5)[1][0] == above[1][0]
-    assert surface.eval_derivative_sided(1.0, 0.5, 1, 1, Side.BELOW, Side.ABOVE) == Vector3D(
+    assert surface.eval_derivative_sided(1.0, 0.5, 1, 1, Side.BELOW, Side.ABOVE) == Vector(
         0.0, 0.0, 0.0
     )
-    assert surface.eval_derivative_sided(1.0, 0.5, 1, 1, Side.ABOVE, Side.ABOVE) == Vector3D(
+    assert surface.eval_derivative_sided(1.0, 0.5, 1, 1, Side.ABOVE, Side.ABOVE) == Vector(
         0.0, 0.0, 1.0
     )
     point, (du, dv), (duu, duv, dvv) = surface.eval_d2_sided(1.0, 0.5, Side.BELOW, Side.BELOW)
-    assert du == Vector3D(1.0, 0.0, 0.0) and duv == Vector3D(0.0, 0.0, 0.0)
+    assert du == Vector(1.0, 0.0, 0.0) and duv == Vector(0.0, 0.0, 0.0)
     with pytest.raises(ValueError, match="du \\+ dv must be >= 1"):
         surface.eval_derivative_sided(1.0, 0.5, 0, 0, Side.BELOW, Side.BELOW)
     with pytest.raises(ValueError, match="du \\+ dv must be <= 2"):

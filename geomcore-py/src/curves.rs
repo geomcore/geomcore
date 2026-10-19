@@ -1,10 +1,9 @@
 use pyo3::prelude::*;
 
-use geomcore::Bound3D;
+use geomcore::HasBoundingBox;
 use geomcore::curves::{
-    BSplineCurve3D, Circle2D, Circle3D, Curve3D, Ellipse3D, Hyperbola3D, Line2D, Line3D,
-    Parabola3D, ParametricCurve2D, ParametricCurve3D, PointExtrema2D, PointExtrema3D,
-    TrimmedCurve2D, TrimmedCurve3D,
+    BSplineCurve, Circle, Circle2D, Curve, Ellipse, Hyperbola, Line, Line2D, Parabola,
+    ParametricCurve, ParametricCurve2D, PointExtrema, PointExtrema2D, TrimmedCurve, TrimmedCurve2D,
 };
 
 use crate::errors::python_error;
@@ -19,22 +18,22 @@ use crate::{ContinuityNumber, check_curve_order, parse_parametrization, toleranc
 // ---------------------------------------------------------------------------
 
 /// An infinite straight line in 3D, parametrized by arc length from its origin.
-#[pyclass(name = "Line3D", module = "geomcore.curves", eq)]
+#[pyclass(name = "Line", module = "geomcore.curves", eq)]
 #[derive(Clone, PartialEq)]
-pub(crate) struct PyLine3D(pub(crate) Line3D);
+pub(crate) struct PyLine(pub(crate) Line);
 
 #[pymethods]
-impl PyLine3D {
+impl PyLine {
     /// All stationary points of the distance from `point` to the line, as
     /// `CurveProjection` objects ordered by ascending distance.
     #[pyo3(signature = (point, tol = None))]
     fn extrema(
         slf: &Bound<'_, Self>,
-        point: PyPoint3D,
+        point: PyPoint,
         tol: Option<PyTolerance>,
     ) -> Vec<PyCurveProjection> {
         let tol = tolerance(tol);
-        let projections = PointExtrema3D::extrema(&slf.borrow().0, point.0, tol);
+        let projections = PointExtrema::extrema(&slf.borrow().0, point.0, tol);
         projections
             .into_iter()
             .map(|projection| PyCurveProjection::new(projection, slf, point.0))
@@ -42,35 +41,35 @@ impl PyLine3D {
     }
 
     /// The point and the first derivative at parameter `u`.
-    fn eval_d1(&self, u: f64) -> (PyPoint3D, PyVector3D) {
-        let (point, first) = ParametricCurve3D::eval_d1(&self.0, u);
-        (PyPoint3D(point), PyVector3D(first))
+    fn eval_d1(&self, u: f64) -> (PyPoint, PyVector) {
+        let (point, first) = ParametricCurve::eval_d1(&self.0, u);
+        (PyPoint(point), PyVector(first))
     }
 
     /// The point and the first two derivatives at parameter `u`.
-    fn eval_d2(&self, u: f64) -> (PyPoint3D, PyVector3D, PyVector3D) {
-        let (point, first, second) = ParametricCurve3D::eval_d2(&self.0, u);
-        (PyPoint3D(point), PyVector3D(first), PyVector3D(second))
+    fn eval_d2(&self, u: f64) -> (PyPoint, PyVector, PyVector) {
+        let (point, first, second) = ParametricCurve::eval_d2(&self.0, u);
+        (PyPoint(point), PyVector(first), PyVector(second))
     }
 
     /// The period of the parameter, or `None` when the curve is not periodic.
     fn period(&self) -> Option<f64> {
-        ParametricCurve3D::period(&self.0)
+        ParametricCurve::period(&self.0)
     }
 
     /// Whether the curve is periodic.
     fn is_periodic(&self) -> bool {
-        ParametricCurve3D::is_periodic(&self.0)
+        ParametricCurve::is_periodic(&self.0)
     }
 
     /// The axis of the line: its origin and unit direction.
-    fn axis(&self) -> PyAxis3D {
-        PyAxis3D(self.0.axis())
+    fn axis(&self) -> PyAxis {
+        PyAxis(self.0.axis())
     }
 
     fn __repr__(&self) -> String {
         format!(
-            "Line3D(origin={}, direction={})",
+            "Line(origin={}, direction={})",
             crate::values::coordinates(self.0.origin()),
             crate::values::coordinates(self.0.direction())
         )
@@ -78,80 +77,80 @@ impl PyLine3D {
 
     #[new]
     /// Build a line from an origin and a direction (normalized internally).
-    fn py_new(origin: PyPoint3D, direction: PyVector3D) -> PyResult<Self> {
-        Ok(PyLine3D(
-            Line3D::new(origin.0, direction.0).map_err(python_error)?,
+    fn py_new(origin: PyPoint, direction: PyVector) -> PyResult<Self> {
+        Ok(PyLine(
+            Line::new(origin.0, direction.0).map_err(python_error)?,
         ))
     }
 
     /// Build a line from an axis.
     #[staticmethod]
-    fn from_axis(axis: PyAxis3D) -> Self {
-        PyLine3D(Line3D::from_axis(axis.0))
+    fn from_axis(axis: PyAxis) -> Self {
+        PyLine(Line::from_axis(axis.0))
     }
 
     /// Build a line through two distinct points.
     #[staticmethod]
-    fn from_two_points(p1: PyPoint3D, p2: PyPoint3D) -> PyResult<Self> {
-        Ok(PyLine3D(
-            Line3D::from_two_points(p1.0, p2.0).map_err(python_error)?,
+    fn from_two_points(p1: PyPoint, p2: PyPoint) -> PyResult<Self> {
+        Ok(PyLine(
+            Line::from_two_points(p1.0, p2.0).map_err(python_error)?,
         ))
     }
 
     /// The line origin (point at parameter 0).
-    fn origin(&self) -> PyPoint3D {
-        PyPoint3D(self.0.origin())
+    fn origin(&self) -> PyPoint {
+        PyPoint(self.0.origin())
     }
 
     /// The unit direction of the line.
-    fn direction(&self) -> PyVector3D {
-        PyVector3D(self.0.direction())
+    fn direction(&self) -> PyVector {
+        PyVector(self.0.direction())
     }
 
     /// Image of this line under `transform` (raises ValueError for a
     /// collapsing transform).
     #[pyo3(signature = (transform,))]
     fn transformed(&self, transform: &PyTransform) -> PyResult<Self> {
-        Ok(PyLine3D(
+        Ok(PyLine(
             self.0.transformed(transform.0).map_err(python_error)?,
         ))
     }
 
     /// Evaluate the point at parameter `u`.
-    fn eval_point(&self, u: f64) -> PyPoint3D {
-        PyPoint3D(self.0.eval_point(u))
+    fn eval_point(&self, u: f64) -> PyPoint {
+        PyPoint(self.0.eval_point(u))
     }
 
     /// Evaluate many parameters at once.
-    fn eval_points(&self, us: Vec<f64>) -> Vec<PyPoint3D> {
-        self.0.eval_points(&us).into_iter().map(PyPoint3D).collect()
+    fn eval_points(&self, us: Vec<f64>) -> Vec<PyPoint> {
+        self.0.eval_points(&us).into_iter().map(PyPoint).collect()
     }
 
     /// Evaluate the derivative of the given order (>= 1) at `u`.
-    fn eval_derivative(&self, u: f64, order: u32) -> PyResult<PyVector3D> {
+    fn eval_derivative(&self, u: f64, order: u32) -> PyResult<PyVector> {
         check_curve_order(order, u32::MAX)?;
-        Ok(PyVector3D(self.0.eval_derivative(u, order)))
+        Ok(PyVector(self.0.eval_derivative(u, order)))
     }
 
     /// Recover the parameter of a point lying on the line.
-    fn parameter_of(&self, point: PyPoint3D) -> f64 {
+    fn parameter_of(&self, point: PyPoint) -> f64 {
         self.0.parameter_of(point.0)
     }
 
     /// The (first, last) parameter bounds (unbounded here).
     fn bounds(&self) -> (f64, f64) {
-        ParametricCurve3D::bounds(&self.0)
+        ParametricCurve::bounds(&self.0)
     }
 
     /// The axis-aligned box around the shape (`None` when unbounded).
-    fn bounding_box(&self) -> Option<PyBoundingBox3D> {
-        self.0.bounding_box().map(PyBoundingBox3D)
+    fn bounding_box(&self) -> Option<PyBoundingBox> {
+        self.0.bounding_box().map(PyBoundingBox)
     }
 
     /// Returns whether `point` lies on the curve within `tol`
     /// (`Tolerance.default()` when omitted).
     #[pyo3(signature = (point, tol = None))]
-    fn contains(&self, point: PyPoint3D, tol: Option<PyTolerance>) -> bool {
+    fn contains(&self, point: PyPoint, tol: Option<PyTolerance>) -> bool {
         self.0.contains(point.0, tolerance(tol))
     }
 
@@ -160,7 +159,7 @@ impl PyLine3D {
     #[pyo3(signature = (point, tol = None))]
     fn project_point(
         slf: &Bound<'_, Self>,
-        point: PyPoint3D,
+        point: PyPoint,
         tol: Option<PyTolerance>,
     ) -> PyCurveProjection {
         let projection = slf.borrow().0.project_point(point.0, tolerance(tol));
@@ -172,7 +171,7 @@ impl PyLine3D {
     #[pyo3(signature = (points, tol = None))]
     fn project_points(
         slf: &Bound<'_, Self>,
-        points: Vec<PyPoint3D>,
+        points: Vec<PyPoint>,
         tol: Option<PyTolerance>,
     ) -> Vec<PyCurveProjection> {
         let points = points.into_iter().map(|p| p.0).collect::<Vec<_>>();
@@ -227,8 +226,8 @@ impl PyLine3D {
     /// is within `tol.confusion`, so rescaling the parameter does not
     /// change the answer.
     #[pyo3(signature = (u, tol = None))]
-    fn tangent(&self, u: f64, tol: Option<PyTolerance>) -> Option<PyVector3D> {
-        ParametricCurve3D::tangent(&self.0, u, tolerance(tol)).map(PyVector3D)
+    fn tangent(&self, u: f64, tol: Option<PyTolerance>) -> Option<PyVector> {
+        ParametricCurve::tangent(&self.0, u, tolerance(tol)).map(PyVector)
     }
 
     /// Curvature at parameter `u`: the turn rate of the unit tangent per
@@ -236,15 +235,15 @@ impl PyLine3D {
     /// vanishes, by the test of `tangent`.
     #[pyo3(signature = (u, tol = None))]
     fn curvature(&self, u: f64, tol: Option<PyTolerance>) -> Option<f64> {
-        ParametricCurve3D::curvature(&self.0, u, tolerance(tol))
+        ParametricCurve::curvature(&self.0, u, tolerance(tol))
     }
 
     /// Centre of the osculating circle at parameter `u`, or `None` where
     /// the speed vanishes or the curve runs straight (the centre is then
     /// at infinity).
     #[pyo3(signature = (u, tol = None))]
-    fn curvature_center(&self, u: f64, tol: Option<PyTolerance>) -> Option<PyPoint3D> {
-        ParametricCurve3D::curvature_center(&self.0, u, tolerance(tol)).map(PyPoint3D)
+    fn curvature_center(&self, u: f64, tol: Option<PyTolerance>) -> Option<PyPoint> {
+        ParametricCurve::curvature_center(&self.0, u, tolerance(tol)).map(PyPoint)
     }
 
     /// Whether travelling along the curve returns to its start
@@ -253,7 +252,7 @@ impl PyLine3D {
     /// periodic.
     #[pyo3(signature = (tol = None))]
     fn is_closed(&self, tol: Option<PyTolerance>) -> bool {
-        ParametricCurve3D::is_closed(&self.0, tolerance(tol))
+        ParametricCurve::is_closed(&self.0, tolerance(tol))
     }
 
     /// Continuity order `n` of `C^n` at parameter `u` as an `int`, or
@@ -264,23 +263,23 @@ impl PyLine3D {
     /// evaluate each side of a knot reporting a low order.
     #[pyo3(signature = (u, tol = None))]
     fn continuity(&self, u: f64, tol: Option<PyTolerance>) -> ContinuityNumber {
-        ContinuityNumber(ParametricCurve3D::continuity(&self.0, u, tolerance(tol)))
+        ContinuityNumber(ParametricCurve::continuity(&self.0, u, tolerance(tol)))
     }
 
     /// The lowest `continuity` anywhere inside the bounds, ends excluded
     /// (`math.inf` when smooth everywhere).
     fn min_continuity(&self) -> ContinuityNumber {
-        ContinuityNumber(ParametricCurve3D::min_continuity(&self.0))
+        ContinuityNumber(ParametricCurve::min_continuity(&self.0))
     }
 }
 
 /// A circle in 3D, parametrized by the angle from its frame's x direction.
-#[pyclass(name = "Circle3D", module = "geomcore.curves", eq)]
+#[pyclass(name = "Circle", module = "geomcore.curves", eq)]
 #[derive(Clone, PartialEq)]
-pub(crate) struct PyCircle3D(pub(crate) Circle3D);
+pub(crate) struct PyCircle(pub(crate) Circle);
 
 #[pymethods]
-impl PyCircle3D {
+impl PyCircle {
     /// How many points `discretize` returns for the same arguments, without
     /// computing them.
     #[pyo3(signature = (max_chord_deviation, max_angle_deviation = None))]
@@ -297,11 +296,11 @@ impl PyCircle3D {
     #[pyo3(signature = (point, tol = None))]
     fn extrema(
         slf: &Bound<'_, Self>,
-        point: PyPoint3D,
+        point: PyPoint,
         tol: Option<PyTolerance>,
     ) -> Vec<PyCurveProjection> {
         let tol = tolerance(tol);
-        let projections = PointExtrema3D::extrema(&slf.borrow().0, point.0, tol);
+        let projections = PointExtrema::extrema(&slf.borrow().0, point.0, tol);
         projections
             .into_iter()
             .map(|projection| PyCurveProjection::new(projection, slf, point.0))
@@ -309,35 +308,35 @@ impl PyCircle3D {
     }
 
     /// The point and the first derivative at parameter `u`.
-    fn eval_d1(&self, u: f64) -> (PyPoint3D, PyVector3D) {
-        let (point, first) = ParametricCurve3D::eval_d1(&self.0, u);
-        (PyPoint3D(point), PyVector3D(first))
+    fn eval_d1(&self, u: f64) -> (PyPoint, PyVector) {
+        let (point, first) = ParametricCurve::eval_d1(&self.0, u);
+        (PyPoint(point), PyVector(first))
     }
 
     /// The point and the first two derivatives at parameter `u`.
-    fn eval_d2(&self, u: f64) -> (PyPoint3D, PyVector3D, PyVector3D) {
-        let (point, first, second) = ParametricCurve3D::eval_d2(&self.0, u);
-        (PyPoint3D(point), PyVector3D(first), PyVector3D(second))
+    fn eval_d2(&self, u: f64) -> (PyPoint, PyVector, PyVector) {
+        let (point, first, second) = ParametricCurve::eval_d2(&self.0, u);
+        (PyPoint(point), PyVector(first), PyVector(second))
     }
 
     /// The period of the parameter, or `None` when the curve is not periodic.
     fn period(&self) -> Option<f64> {
-        ParametricCurve3D::period(&self.0)
+        ParametricCurve::period(&self.0)
     }
 
     /// Whether the curve is periodic.
     fn is_periodic(&self) -> bool {
-        ParametricCurve3D::is_periodic(&self.0)
+        ParametricCurve::is_periodic(&self.0)
     }
 
     /// The placement frame of the circle.
-    fn frame(&self) -> PyFrame3D {
-        PyFrame3D(self.0.frame())
+    fn frame(&self) -> PyFrame {
+        PyFrame(self.0.frame())
     }
 
     fn __repr__(&self) -> String {
         format!(
-            "Circle3D(center={}, normal={}, radius={})",
+            "Circle(center={}, normal={}, radius={})",
             crate::values::coordinates(self.0.center()),
             crate::values::coordinates(self.0.normal()),
             float_repr(self.0.radius())
@@ -346,40 +345,40 @@ impl PyCircle3D {
 
     #[new]
     /// Build a circle from its center, plane normal and radius.
-    fn py_new(center: PyPoint3D, normal: PyVector3D, radius: f64) -> PyResult<Self> {
-        Ok(PyCircle3D(
-            Circle3D::new(center.0, normal.0, radius).map_err(python_error)?,
+    fn py_new(center: PyPoint, normal: PyVector, radius: f64) -> PyResult<Self> {
+        Ok(PyCircle(
+            Circle::new(center.0, normal.0, radius).map_err(python_error)?,
         ))
     }
 
     /// Build a circle from an axis (center + normal) and a radius.
     #[staticmethod]
-    fn from_axis(axis: PyAxis3D, radius: f64) -> PyResult<Self> {
-        Ok(PyCircle3D(
-            Circle3D::from_axis(axis.0, radius).map_err(python_error)?,
+    fn from_axis(axis: PyAxis, radius: f64) -> PyResult<Self> {
+        Ok(PyCircle(
+            Circle::from_axis(axis.0, radius).map_err(python_error)?,
         ))
     }
 
     /// Build a circle from a placement frame and a radius.
     #[staticmethod]
-    fn from_frame(frame: PyFrame3D, radius: f64) -> PyResult<Self> {
-        Ok(PyCircle3D(
-            Circle3D::from_frame(frame.0, radius).map_err(python_error)?,
+    fn from_frame(frame: PyFrame, radius: f64) -> PyResult<Self> {
+        Ok(PyCircle(
+            Circle::from_frame(frame.0, radius).map_err(python_error)?,
         ))
     }
 
     /// Build the circle through three non-collinear points; the curve starts
     /// at the first point.
     #[staticmethod]
-    fn from_three_points(p1: PyPoint3D, p2: PyPoint3D, p3: PyPoint3D) -> PyResult<Self> {
-        Ok(PyCircle3D(
-            Circle3D::from_three_points(p1.0, p2.0, p3.0).map_err(python_error)?,
+    fn from_three_points(p1: PyPoint, p2: PyPoint, p3: PyPoint) -> PyResult<Self> {
+        Ok(PyCircle(
+            Circle::from_three_points(p1.0, p2.0, p3.0).map_err(python_error)?,
         ))
     }
 
     /// The circle center.
-    fn center(&self) -> PyPoint3D {
-        PyPoint3D(self.0.center())
+    fn center(&self) -> PyPoint {
+        PyPoint(self.0.center())
     }
 
     /// The circle radius.
@@ -399,43 +398,43 @@ impl PyCircle3D {
 
     /// The (first, last) parameter bounds (`[0, 2π)`).
     fn bounds(&self) -> (f64, f64) {
-        ParametricCurve3D::bounds(&self.0)
+        ParametricCurve::bounds(&self.0)
     }
 
     /// The axis-aligned box around the shape (`None` when unbounded).
-    fn bounding_box(&self) -> Option<PyBoundingBox3D> {
-        self.0.bounding_box().map(PyBoundingBox3D)
+    fn bounding_box(&self) -> Option<PyBoundingBox> {
+        self.0.bounding_box().map(PyBoundingBox)
     }
 
     /// The circle as an exact periodic rational quadratic B-spline over
     /// `[0, 2π]`.
-    fn to_bspline(&self) -> PyBSplineCurve3D {
-        PyBSplineCurve3D(self.0.to_bspline())
+    fn to_bspline(&self) -> PyBSplineCurve {
+        PyBSplineCurve(self.0.to_bspline())
     }
 
     /// The unit normal of the circle's plane, on the side the circle turns
     /// counterclockwise about.
-    fn normal(&self) -> PyVector3D {
-        PyVector3D(self.0.normal())
+    fn normal(&self) -> PyVector {
+        PyVector(self.0.normal())
     }
 
     /// Image of this circle under `transform` (raises ValueError for a
     /// collapsing transform).
     #[pyo3(signature = (transform,))]
     fn transformed(&self, transform: &PyTransform) -> PyResult<Self> {
-        Ok(PyCircle3D(
+        Ok(PyCircle(
             self.0.transformed(transform.0).map_err(python_error)?,
         ))
     }
 
     /// Evaluate the point at angle `u` (radians).
-    fn eval_point(&self, u: f64) -> PyPoint3D {
-        PyPoint3D(self.0.eval_point(u))
+    fn eval_point(&self, u: f64) -> PyPoint {
+        PyPoint(self.0.eval_point(u))
     }
 
     /// Evaluate many parameters at once.
-    fn eval_points(&self, us: Vec<f64>) -> Vec<PyPoint3D> {
-        self.0.eval_points(&us).into_iter().map(PyPoint3D).collect()
+    fn eval_points(&self, us: Vec<f64>) -> Vec<PyPoint> {
+        self.0.eval_points(&us).into_iter().map(PyPoint).collect()
     }
 
     /// Discretize the circle into points joined by straight segments,
@@ -447,25 +446,25 @@ impl PyCircle3D {
         &self,
         max_chord_deviation: f64,
         max_angle_deviation: Option<f64>,
-    ) -> PyResult<PyDiscretization3D> {
+    ) -> PyResult<PyDiscretization> {
         discretize_3d(&self.0, max_chord_deviation, max_angle_deviation)
     }
 
     /// Evaluate the derivative of the given order (>= 1) at `u`.
-    fn eval_derivative(&self, u: f64, order: u32) -> PyResult<PyVector3D> {
+    fn eval_derivative(&self, u: f64, order: u32) -> PyResult<PyVector> {
         check_curve_order(order, u32::MAX)?;
-        Ok(PyVector3D(self.0.eval_derivative(u, order)))
+        Ok(PyVector(self.0.eval_derivative(u, order)))
     }
 
     /// Recover the parameter in [0, 2*pi) of a point lying on the circle.
-    fn parameter_of(&self, point: PyPoint3D) -> f64 {
+    fn parameter_of(&self, point: PyPoint) -> f64 {
         self.0.parameter_of(point.0)
     }
 
     /// Returns whether `point` lies on the curve within `tol`
     /// (`Tolerance.default()` when omitted).
     #[pyo3(signature = (point, tol = None))]
-    fn contains(&self, point: PyPoint3D, tol: Option<PyTolerance>) -> bool {
+    fn contains(&self, point: PyPoint, tol: Option<PyTolerance>) -> bool {
         self.0.contains(point.0, tolerance(tol))
     }
 
@@ -474,7 +473,7 @@ impl PyCircle3D {
     #[pyo3(signature = (point, tol = None))]
     fn project_point(
         slf: &Bound<'_, Self>,
-        point: PyPoint3D,
+        point: PyPoint,
         tol: Option<PyTolerance>,
     ) -> PyCurveProjection {
         let projection = slf.borrow().0.project_point(point.0, tolerance(tol));
@@ -486,7 +485,7 @@ impl PyCircle3D {
     #[pyo3(signature = (points, tol = None))]
     fn project_points(
         slf: &Bound<'_, Self>,
-        points: Vec<PyPoint3D>,
+        points: Vec<PyPoint>,
         tol: Option<PyTolerance>,
     ) -> Vec<PyCurveProjection> {
         let points = points.into_iter().map(|p| p.0).collect::<Vec<_>>();
@@ -541,8 +540,8 @@ impl PyCircle3D {
     /// is within `tol.confusion`, so rescaling the parameter does not
     /// change the answer.
     #[pyo3(signature = (u, tol = None))]
-    fn tangent(&self, u: f64, tol: Option<PyTolerance>) -> Option<PyVector3D> {
-        ParametricCurve3D::tangent(&self.0, u, tolerance(tol)).map(PyVector3D)
+    fn tangent(&self, u: f64, tol: Option<PyTolerance>) -> Option<PyVector> {
+        ParametricCurve::tangent(&self.0, u, tolerance(tol)).map(PyVector)
     }
 
     /// Curvature at parameter `u`: the turn rate of the unit tangent per
@@ -550,15 +549,15 @@ impl PyCircle3D {
     /// vanishes, by the test of `tangent`.
     #[pyo3(signature = (u, tol = None))]
     fn curvature(&self, u: f64, tol: Option<PyTolerance>) -> Option<f64> {
-        ParametricCurve3D::curvature(&self.0, u, tolerance(tol))
+        ParametricCurve::curvature(&self.0, u, tolerance(tol))
     }
 
     /// Centre of the osculating circle at parameter `u`, or `None` where
     /// the speed vanishes or the curve runs straight (the centre is then
     /// at infinity).
     #[pyo3(signature = (u, tol = None))]
-    fn curvature_center(&self, u: f64, tol: Option<PyTolerance>) -> Option<PyPoint3D> {
-        ParametricCurve3D::curvature_center(&self.0, u, tolerance(tol)).map(PyPoint3D)
+    fn curvature_center(&self, u: f64, tol: Option<PyTolerance>) -> Option<PyPoint> {
+        ParametricCurve::curvature_center(&self.0, u, tolerance(tol)).map(PyPoint)
     }
 
     /// Whether travelling along the curve returns to its start
@@ -567,7 +566,7 @@ impl PyCircle3D {
     /// periodic.
     #[pyo3(signature = (tol = None))]
     fn is_closed(&self, tol: Option<PyTolerance>) -> bool {
-        ParametricCurve3D::is_closed(&self.0, tolerance(tol))
+        ParametricCurve::is_closed(&self.0, tolerance(tol))
     }
 
     /// Continuity order `n` of `C^n` at parameter `u` as an `int`, or
@@ -578,23 +577,23 @@ impl PyCircle3D {
     /// evaluate each side of a knot reporting a low order.
     #[pyo3(signature = (u, tol = None))]
     fn continuity(&self, u: f64, tol: Option<PyTolerance>) -> ContinuityNumber {
-        ContinuityNumber(ParametricCurve3D::continuity(&self.0, u, tolerance(tol)))
+        ContinuityNumber(ParametricCurve::continuity(&self.0, u, tolerance(tol)))
     }
 
     /// The lowest `continuity` anywhere inside the bounds, ends excluded
     /// (`math.inf` when smooth everywhere).
     fn min_continuity(&self) -> ContinuityNumber {
-        ContinuityNumber(ParametricCurve3D::min_continuity(&self.0))
+        ContinuityNumber(ParametricCurve::min_continuity(&self.0))
     }
 }
 
 /// An ellipse in 3D.
-#[pyclass(name = "Ellipse3D", module = "geomcore.curves", eq)]
+#[pyclass(name = "Ellipse", module = "geomcore.curves", eq)]
 #[derive(Clone, PartialEq)]
-pub(crate) struct PyEllipse3D(pub(crate) Ellipse3D);
+pub(crate) struct PyEllipse(pub(crate) Ellipse);
 
 #[pymethods]
-impl PyEllipse3D {
+impl PyEllipse {
     /// How many points `discretize` returns for the same arguments, without
     /// computing them.
     #[pyo3(signature = (max_chord_deviation, max_angle_deviation = None))]
@@ -607,35 +606,35 @@ impl PyEllipse3D {
     }
 
     /// The point and the first derivative at parameter `u`.
-    fn eval_d1(&self, u: f64) -> (PyPoint3D, PyVector3D) {
-        let (point, first) = ParametricCurve3D::eval_d1(&self.0, u);
-        (PyPoint3D(point), PyVector3D(first))
+    fn eval_d1(&self, u: f64) -> (PyPoint, PyVector) {
+        let (point, first) = ParametricCurve::eval_d1(&self.0, u);
+        (PyPoint(point), PyVector(first))
     }
 
     /// The point and the first two derivatives at parameter `u`.
-    fn eval_d2(&self, u: f64) -> (PyPoint3D, PyVector3D, PyVector3D) {
-        let (point, first, second) = ParametricCurve3D::eval_d2(&self.0, u);
-        (PyPoint3D(point), PyVector3D(first), PyVector3D(second))
+    fn eval_d2(&self, u: f64) -> (PyPoint, PyVector, PyVector) {
+        let (point, first, second) = ParametricCurve::eval_d2(&self.0, u);
+        (PyPoint(point), PyVector(first), PyVector(second))
     }
 
     /// The period of the parameter, or `None` when the curve is not periodic.
     fn period(&self) -> Option<f64> {
-        ParametricCurve3D::period(&self.0)
+        ParametricCurve::period(&self.0)
     }
 
     /// Whether the curve is periodic.
     fn is_periodic(&self) -> bool {
-        ParametricCurve3D::is_periodic(&self.0)
+        ParametricCurve::is_periodic(&self.0)
     }
 
     /// The placement frame of the ellipse.
-    fn frame(&self) -> PyFrame3D {
-        PyFrame3D(self.0.frame())
+    fn frame(&self) -> PyFrame {
+        PyFrame(self.0.frame())
     }
 
     fn __repr__(&self) -> String {
         format!(
-            "Ellipse3D(center={}, normal={}, major_radius={}, minor_radius={})",
+            "Ellipse(center={}, normal={}, major_radius={}, minor_radius={})",
             crate::values::coordinates(self.0.center()),
             crate::values::coordinates(self.0.frame().z_direction()),
             float_repr(self.0.major_radius()),
@@ -646,14 +645,14 @@ impl PyEllipse3D {
     #[new]
     /// Build an ellipse from center, normal, major-axis direction and radii.
     fn py_new(
-        center: PyPoint3D,
-        normal: PyVector3D,
-        x_direction: PyVector3D,
+        center: PyPoint,
+        normal: PyVector,
+        x_direction: PyVector,
         major_radius: f64,
         minor_radius: f64,
     ) -> PyResult<Self> {
-        Ok(PyEllipse3D(
-            Ellipse3D::new(
+        Ok(PyEllipse(
+            Ellipse::new(
                 center.0,
                 normal.0,
                 x_direction.0,
@@ -666,40 +665,40 @@ impl PyEllipse3D {
 
     /// Build an ellipse from a placement frame and the two radii.
     #[staticmethod]
-    fn from_frame(frame: PyFrame3D, major_radius: f64, minor_radius: f64) -> PyResult<Self> {
-        Ok(PyEllipse3D(
-            Ellipse3D::from_frame(frame.0, major_radius, minor_radius).map_err(python_error)?,
+    fn from_frame(frame: PyFrame, major_radius: f64, minor_radius: f64) -> PyResult<Self> {
+        Ok(PyEllipse(
+            Ellipse::from_frame(frame.0, major_radius, minor_radius).map_err(python_error)?,
         ))
     }
 
     /// Build an ellipse from its center, the major-axis end point and a
     /// second point on the curve.
     #[staticmethod]
-    fn from_center_and_points(center: PyPoint3D, s1: PyPoint3D, s2: PyPoint3D) -> PyResult<Self> {
-        Ok(PyEllipse3D(
-            Ellipse3D::from_center_and_points(center.0, s1.0, s2.0).map_err(python_error)?,
+    fn from_center_and_points(center: PyPoint, s1: PyPoint, s2: PyPoint) -> PyResult<Self> {
+        Ok(PyEllipse(
+            Ellipse::from_center_and_points(center.0, s1.0, s2.0).map_err(python_error)?,
         ))
     }
 
     /// The ellipse center.
-    fn center(&self) -> PyPoint3D {
-        PyPoint3D(self.0.center())
+    fn center(&self) -> PyPoint {
+        PyPoint(self.0.center())
     }
 
     /// The (first, last) parameter bounds (`[0, 2π)`).
     fn bounds(&self) -> (f64, f64) {
-        ParametricCurve3D::bounds(&self.0)
+        ParametricCurve::bounds(&self.0)
     }
 
     /// The axis-aligned box around the shape (`None` when unbounded).
-    fn bounding_box(&self) -> Option<PyBoundingBox3D> {
-        self.0.bounding_box().map(PyBoundingBox3D)
+    fn bounding_box(&self) -> Option<PyBoundingBox> {
+        self.0.bounding_box().map(PyBoundingBox)
     }
 
     /// The ellipse as an exact periodic rational quadratic B-spline over
     /// `[0, 2π]`.
-    fn to_bspline(&self) -> PyBSplineCurve3D {
-        PyBSplineCurve3D(self.0.to_bspline())
+    fn to_bspline(&self) -> PyBSplineCurve {
+        PyBSplineCurve(self.0.to_bspline())
     }
 
     /// The semi-major radius.
@@ -721,19 +720,19 @@ impl PyEllipse3D {
     /// collapsing transform).
     #[pyo3(signature = (transform,))]
     fn transformed(&self, transform: &PyTransform) -> PyResult<Self> {
-        Ok(PyEllipse3D(
+        Ok(PyEllipse(
             self.0.transformed(transform.0).map_err(python_error)?,
         ))
     }
 
     /// Evaluate the point at angle `u` (radians).
-    fn eval_point(&self, u: f64) -> PyPoint3D {
-        PyPoint3D(self.0.eval_point(u))
+    fn eval_point(&self, u: f64) -> PyPoint {
+        PyPoint(self.0.eval_point(u))
     }
 
     /// Evaluate many parameters at once.
-    fn eval_points(&self, us: Vec<f64>) -> Vec<PyPoint3D> {
-        self.0.eval_points(&us).into_iter().map(PyPoint3D).collect()
+    fn eval_points(&self, us: Vec<f64>) -> Vec<PyPoint> {
+        self.0.eval_points(&us).into_iter().map(PyPoint).collect()
     }
 
     /// Discretize the ellipse into points joined by straight segments,
@@ -745,25 +744,25 @@ impl PyEllipse3D {
         &self,
         max_chord_deviation: f64,
         max_angle_deviation: Option<f64>,
-    ) -> PyResult<PyDiscretization3D> {
+    ) -> PyResult<PyDiscretization> {
         discretize_3d(&self.0, max_chord_deviation, max_angle_deviation)
     }
 
     /// Evaluate the derivative of the given order (>= 1) at `u`.
-    fn eval_derivative(&self, u: f64, order: u32) -> PyResult<PyVector3D> {
+    fn eval_derivative(&self, u: f64, order: u32) -> PyResult<PyVector> {
         check_curve_order(order, u32::MAX)?;
-        Ok(PyVector3D(self.0.eval_derivative(u, order)))
+        Ok(PyVector(self.0.eval_derivative(u, order)))
     }
 
     /// Recover the parameter in [0, 2*pi) of a point lying on the ellipse.
-    fn parameter_of(&self, point: PyPoint3D) -> f64 {
+    fn parameter_of(&self, point: PyPoint) -> f64 {
         self.0.parameter_of(point.0)
     }
 
     /// Returns whether `point` lies on the curve within `tol`
     /// (`Tolerance.default()` when omitted).
     #[pyo3(signature = (point, tol = None))]
-    fn contains(&self, point: PyPoint3D, tol: Option<PyTolerance>) -> bool {
+    fn contains(&self, point: PyPoint, tol: Option<PyTolerance>) -> bool {
         self.0.contains(point.0, tolerance(tol))
     }
 
@@ -772,7 +771,7 @@ impl PyEllipse3D {
     #[pyo3(signature = (point, tol = None))]
     fn extrema(
         slf: &Bound<'_, Self>,
-        point: PyPoint3D,
+        point: PyPoint,
         tol: Option<PyTolerance>,
     ) -> Vec<PyCurveProjection> {
         let tol = tolerance(tol);
@@ -788,7 +787,7 @@ impl PyEllipse3D {
     #[pyo3(signature = (point, tol = None))]
     fn project_point(
         slf: &Bound<'_, Self>,
-        point: PyPoint3D,
+        point: PyPoint,
         tol: Option<PyTolerance>,
     ) -> PyCurveProjection {
         let projection = slf.borrow().0.project_point(point.0, tolerance(tol));
@@ -800,7 +799,7 @@ impl PyEllipse3D {
     #[pyo3(signature = (points, tol = None))]
     fn project_points(
         slf: &Bound<'_, Self>,
-        points: Vec<PyPoint3D>,
+        points: Vec<PyPoint>,
         tol: Option<PyTolerance>,
     ) -> Vec<PyCurveProjection> {
         let points = points.into_iter().map(|p| p.0).collect::<Vec<_>>();
@@ -851,8 +850,8 @@ impl PyEllipse3D {
     /// is within `tol.confusion`, so rescaling the parameter does not
     /// change the answer.
     #[pyo3(signature = (u, tol = None))]
-    fn tangent(&self, u: f64, tol: Option<PyTolerance>) -> Option<PyVector3D> {
-        ParametricCurve3D::tangent(&self.0, u, tolerance(tol)).map(PyVector3D)
+    fn tangent(&self, u: f64, tol: Option<PyTolerance>) -> Option<PyVector> {
+        ParametricCurve::tangent(&self.0, u, tolerance(tol)).map(PyVector)
     }
 
     /// Curvature at parameter `u`: the turn rate of the unit tangent per
@@ -860,15 +859,15 @@ impl PyEllipse3D {
     /// vanishes, by the test of `tangent`.
     #[pyo3(signature = (u, tol = None))]
     fn curvature(&self, u: f64, tol: Option<PyTolerance>) -> Option<f64> {
-        ParametricCurve3D::curvature(&self.0, u, tolerance(tol))
+        ParametricCurve::curvature(&self.0, u, tolerance(tol))
     }
 
     /// Centre of the osculating circle at parameter `u`, or `None` where
     /// the speed vanishes or the curve runs straight (the centre is then
     /// at infinity).
     #[pyo3(signature = (u, tol = None))]
-    fn curvature_center(&self, u: f64, tol: Option<PyTolerance>) -> Option<PyPoint3D> {
-        ParametricCurve3D::curvature_center(&self.0, u, tolerance(tol)).map(PyPoint3D)
+    fn curvature_center(&self, u: f64, tol: Option<PyTolerance>) -> Option<PyPoint> {
+        ParametricCurve::curvature_center(&self.0, u, tolerance(tol)).map(PyPoint)
     }
 
     /// Whether travelling along the curve returns to its start
@@ -877,7 +876,7 @@ impl PyEllipse3D {
     /// periodic.
     #[pyo3(signature = (tol = None))]
     fn is_closed(&self, tol: Option<PyTolerance>) -> bool {
-        ParametricCurve3D::is_closed(&self.0, tolerance(tol))
+        ParametricCurve::is_closed(&self.0, tolerance(tol))
     }
 
     /// Continuity order `n` of `C^n` at parameter `u` as an `int`, or
@@ -888,59 +887,59 @@ impl PyEllipse3D {
     /// evaluate each side of a knot reporting a low order.
     #[pyo3(signature = (u, tol = None))]
     fn continuity(&self, u: f64, tol: Option<PyTolerance>) -> ContinuityNumber {
-        ContinuityNumber(ParametricCurve3D::continuity(&self.0, u, tolerance(tol)))
+        ContinuityNumber(ParametricCurve::continuity(&self.0, u, tolerance(tol)))
     }
 
     /// The lowest `continuity` anywhere inside the bounds, ends excluded
     /// (`math.inf` when smooth everywhere).
     fn min_continuity(&self) -> ContinuityNumber {
-        ContinuityNumber(ParametricCurve3D::min_continuity(&self.0))
+        ContinuityNumber(ParametricCurve::min_continuity(&self.0))
     }
 }
 
 /// A parabola in 3D, parametrized so the apex is at parameter 0.
-#[pyclass(name = "Parabola3D", module = "geomcore.curves", eq)]
+#[pyclass(name = "Parabola", module = "geomcore.curves", eq)]
 #[derive(Clone, PartialEq)]
-pub(crate) struct PyParabola3D(pub(crate) Parabola3D);
+pub(crate) struct PyParabola(pub(crate) Parabola);
 
 #[pymethods]
-impl PyParabola3D {
+impl PyParabola {
     /// The point and the first derivative at parameter `u`.
-    fn eval_d1(&self, u: f64) -> (PyPoint3D, PyVector3D) {
-        let (point, first) = ParametricCurve3D::eval_d1(&self.0, u);
-        (PyPoint3D(point), PyVector3D(first))
+    fn eval_d1(&self, u: f64) -> (PyPoint, PyVector) {
+        let (point, first) = ParametricCurve::eval_d1(&self.0, u);
+        (PyPoint(point), PyVector(first))
     }
 
     /// The point and the first two derivatives at parameter `u`.
-    fn eval_d2(&self, u: f64) -> (PyPoint3D, PyVector3D, PyVector3D) {
-        let (point, first, second) = ParametricCurve3D::eval_d2(&self.0, u);
-        (PyPoint3D(point), PyVector3D(first), PyVector3D(second))
+    fn eval_d2(&self, u: f64) -> (PyPoint, PyVector, PyVector) {
+        let (point, first, second) = ParametricCurve::eval_d2(&self.0, u);
+        (PyPoint(point), PyVector(first), PyVector(second))
     }
 
     /// The period of the parameter, or `None` when the curve is not periodic.
     fn period(&self) -> Option<f64> {
-        ParametricCurve3D::period(&self.0)
+        ParametricCurve::period(&self.0)
     }
 
     /// Whether the curve is periodic.
     fn is_periodic(&self) -> bool {
-        ParametricCurve3D::is_periodic(&self.0)
+        ParametricCurve::is_periodic(&self.0)
     }
 
     /// The apex of the parabola: its point of smallest radius, at the frame
     /// origin.
-    fn apex(&self) -> PyPoint3D {
-        PyPoint3D(self.0.apex())
+    fn apex(&self) -> PyPoint {
+        PyPoint(self.0.apex())
     }
 
     /// The placement frame of the parabola.
-    fn frame(&self) -> PyFrame3D {
-        PyFrame3D(self.0.frame())
+    fn frame(&self) -> PyFrame {
+        PyFrame(self.0.frame())
     }
 
     fn __repr__(&self) -> String {
         format!(
-            "Parabola3D(apex={}, normal={}, focal={})",
+            "Parabola(apex={}, normal={}, focal={})",
             crate::values::coordinates(self.0.apex()),
             crate::values::coordinates(self.0.frame().z_direction()),
             float_repr(self.0.focal())
@@ -950,21 +949,21 @@ impl PyParabola3D {
     #[new]
     /// Build a parabola from apex, plane normal, axis direction and focal distance.
     fn py_new(
-        apex: PyPoint3D,
-        normal: PyVector3D,
-        x_direction: PyVector3D,
+        apex: PyPoint,
+        normal: PyVector,
+        x_direction: PyVector,
         focal: f64,
     ) -> PyResult<Self> {
-        Ok(PyParabola3D(
-            Parabola3D::new(apex.0, normal.0, x_direction.0, focal).map_err(python_error)?,
+        Ok(PyParabola(
+            Parabola::new(apex.0, normal.0, x_direction.0, focal).map_err(python_error)?,
         ))
     }
 
     /// Build a parabola from a placement frame and focal distance.
     #[staticmethod]
-    fn from_frame(frame: PyFrame3D, focal: f64) -> PyResult<Self> {
-        Ok(PyParabola3D(
-            Parabola3D::from_frame(frame.0, focal).map_err(python_error)?,
+    fn from_frame(frame: PyFrame, focal: f64) -> PyResult<Self> {
+        Ok(PyParabola(
+            Parabola::from_frame(frame.0, focal).map_err(python_error)?,
         ))
     }
 
@@ -975,48 +974,48 @@ impl PyParabola3D {
 
     /// The (first, last) parameter bounds (unbounded here).
     fn bounds(&self) -> (f64, f64) {
-        ParametricCurve3D::bounds(&self.0)
+        ParametricCurve::bounds(&self.0)
     }
 
     /// The axis-aligned box around the shape (`None` when unbounded).
-    fn bounding_box(&self) -> Option<PyBoundingBox3D> {
-        self.0.bounding_box().map(PyBoundingBox3D)
+    fn bounding_box(&self) -> Option<PyBoundingBox> {
+        self.0.bounding_box().map(PyBoundingBox)
     }
 
     /// Image of this parabola under `transform` (raises ValueError for a
     /// collapsing transform).
     #[pyo3(signature = (transform,))]
     fn transformed(&self, transform: &PyTransform) -> PyResult<Self> {
-        Ok(PyParabola3D(
+        Ok(PyParabola(
             self.0.transformed(transform.0).map_err(python_error)?,
         ))
     }
 
     /// Evaluate the point at parameter `u`.
-    fn eval_point(&self, u: f64) -> PyPoint3D {
-        PyPoint3D(self.0.eval_point(u))
+    fn eval_point(&self, u: f64) -> PyPoint {
+        PyPoint(self.0.eval_point(u))
     }
 
     /// Evaluate many parameters at once.
-    fn eval_points(&self, us: Vec<f64>) -> Vec<PyPoint3D> {
-        self.0.eval_points(&us).into_iter().map(PyPoint3D).collect()
+    fn eval_points(&self, us: Vec<f64>) -> Vec<PyPoint> {
+        self.0.eval_points(&us).into_iter().map(PyPoint).collect()
     }
 
     /// Evaluate the derivative of the given order (>= 1) at `u`.
-    fn eval_derivative(&self, u: f64, order: u32) -> PyResult<PyVector3D> {
+    fn eval_derivative(&self, u: f64, order: u32) -> PyResult<PyVector> {
         check_curve_order(order, u32::MAX)?;
-        Ok(PyVector3D(self.0.eval_derivative(u, order)))
+        Ok(PyVector(self.0.eval_derivative(u, order)))
     }
 
     /// Recover the parameter of a point lying on the parabola.
-    fn parameter_of(&self, point: PyPoint3D) -> f64 {
+    fn parameter_of(&self, point: PyPoint) -> f64 {
         self.0.parameter_of(point.0)
     }
 
     /// Returns whether `point` lies on the curve within `tol`
     /// (`Tolerance.default()` when omitted).
     #[pyo3(signature = (point, tol = None))]
-    fn contains(&self, point: PyPoint3D, tol: Option<PyTolerance>) -> bool {
+    fn contains(&self, point: PyPoint, tol: Option<PyTolerance>) -> bool {
         self.0.contains(point.0, tolerance(tol))
     }
 
@@ -1025,7 +1024,7 @@ impl PyParabola3D {
     #[pyo3(signature = (point, tol = None))]
     fn extrema(
         slf: &Bound<'_, Self>,
-        point: PyPoint3D,
+        point: PyPoint,
         tol: Option<PyTolerance>,
     ) -> Vec<PyCurveProjection> {
         let tol = tolerance(tol);
@@ -1041,7 +1040,7 @@ impl PyParabola3D {
     #[pyo3(signature = (point, tol = None))]
     fn project_point(
         slf: &Bound<'_, Self>,
-        point: PyPoint3D,
+        point: PyPoint,
         tol: Option<PyTolerance>,
     ) -> PyCurveProjection {
         let projection = slf.borrow().0.project_point(point.0, tolerance(tol));
@@ -1053,7 +1052,7 @@ impl PyParabola3D {
     #[pyo3(signature = (points, tol = None))]
     fn project_points(
         slf: &Bound<'_, Self>,
-        points: Vec<PyPoint3D>,
+        points: Vec<PyPoint>,
         tol: Option<PyTolerance>,
     ) -> Vec<PyCurveProjection> {
         let points = points.into_iter().map(|p| p.0).collect::<Vec<_>>();
@@ -1104,8 +1103,8 @@ impl PyParabola3D {
     /// is within `tol.confusion`, so rescaling the parameter does not
     /// change the answer.
     #[pyo3(signature = (u, tol = None))]
-    fn tangent(&self, u: f64, tol: Option<PyTolerance>) -> Option<PyVector3D> {
-        ParametricCurve3D::tangent(&self.0, u, tolerance(tol)).map(PyVector3D)
+    fn tangent(&self, u: f64, tol: Option<PyTolerance>) -> Option<PyVector> {
+        ParametricCurve::tangent(&self.0, u, tolerance(tol)).map(PyVector)
     }
 
     /// Curvature at parameter `u`: the turn rate of the unit tangent per
@@ -1113,15 +1112,15 @@ impl PyParabola3D {
     /// vanishes, by the test of `tangent`.
     #[pyo3(signature = (u, tol = None))]
     fn curvature(&self, u: f64, tol: Option<PyTolerance>) -> Option<f64> {
-        ParametricCurve3D::curvature(&self.0, u, tolerance(tol))
+        ParametricCurve::curvature(&self.0, u, tolerance(tol))
     }
 
     /// Centre of the osculating circle at parameter `u`, or `None` where
     /// the speed vanishes or the curve runs straight (the centre is then
     /// at infinity).
     #[pyo3(signature = (u, tol = None))]
-    fn curvature_center(&self, u: f64, tol: Option<PyTolerance>) -> Option<PyPoint3D> {
-        ParametricCurve3D::curvature_center(&self.0, u, tolerance(tol)).map(PyPoint3D)
+    fn curvature_center(&self, u: f64, tol: Option<PyTolerance>) -> Option<PyPoint> {
+        ParametricCurve::curvature_center(&self.0, u, tolerance(tol)).map(PyPoint)
     }
 
     /// Whether travelling along the curve returns to its start
@@ -1130,7 +1129,7 @@ impl PyParabola3D {
     /// periodic.
     #[pyo3(signature = (tol = None))]
     fn is_closed(&self, tol: Option<PyTolerance>) -> bool {
-        ParametricCurve3D::is_closed(&self.0, tolerance(tol))
+        ParametricCurve::is_closed(&self.0, tolerance(tol))
     }
 
     /// Continuity order `n` of `C^n` at parameter `u` as an `int`, or
@@ -1141,53 +1140,53 @@ impl PyParabola3D {
     /// evaluate each side of a knot reporting a low order.
     #[pyo3(signature = (u, tol = None))]
     fn continuity(&self, u: f64, tol: Option<PyTolerance>) -> ContinuityNumber {
-        ContinuityNumber(ParametricCurve3D::continuity(&self.0, u, tolerance(tol)))
+        ContinuityNumber(ParametricCurve::continuity(&self.0, u, tolerance(tol)))
     }
 
     /// The lowest `continuity` anywhere inside the bounds, ends excluded
     /// (`math.inf` when smooth everywhere).
     fn min_continuity(&self) -> ContinuityNumber {
-        ContinuityNumber(ParametricCurve3D::min_continuity(&self.0))
+        ContinuityNumber(ParametricCurve::min_continuity(&self.0))
     }
 }
 
 /// One branch of a hyperbola in 3D.
-#[pyclass(name = "Hyperbola3D", module = "geomcore.curves", eq)]
+#[pyclass(name = "Hyperbola", module = "geomcore.curves", eq)]
 #[derive(Clone, PartialEq)]
-pub(crate) struct PyHyperbola3D(pub(crate) Hyperbola3D);
+pub(crate) struct PyHyperbola(pub(crate) Hyperbola);
 
 #[pymethods]
-impl PyHyperbola3D {
+impl PyHyperbola {
     /// The point and the first derivative at parameter `u`.
-    fn eval_d1(&self, u: f64) -> (PyPoint3D, PyVector3D) {
-        let (point, first) = ParametricCurve3D::eval_d1(&self.0, u);
-        (PyPoint3D(point), PyVector3D(first))
+    fn eval_d1(&self, u: f64) -> (PyPoint, PyVector) {
+        let (point, first) = ParametricCurve::eval_d1(&self.0, u);
+        (PyPoint(point), PyVector(first))
     }
 
     /// The point and the first two derivatives at parameter `u`.
-    fn eval_d2(&self, u: f64) -> (PyPoint3D, PyVector3D, PyVector3D) {
-        let (point, first, second) = ParametricCurve3D::eval_d2(&self.0, u);
-        (PyPoint3D(point), PyVector3D(first), PyVector3D(second))
+    fn eval_d2(&self, u: f64) -> (PyPoint, PyVector, PyVector) {
+        let (point, first, second) = ParametricCurve::eval_d2(&self.0, u);
+        (PyPoint(point), PyVector(first), PyVector(second))
     }
 
     /// The period of the parameter, or `None` when the curve is not periodic.
     fn period(&self) -> Option<f64> {
-        ParametricCurve3D::period(&self.0)
+        ParametricCurve::period(&self.0)
     }
 
     /// Whether the curve is periodic.
     fn is_periodic(&self) -> bool {
-        ParametricCurve3D::is_periodic(&self.0)
+        ParametricCurve::is_periodic(&self.0)
     }
 
     /// The placement frame of the hyperbola.
-    fn frame(&self) -> PyFrame3D {
-        PyFrame3D(self.0.frame())
+    fn frame(&self) -> PyFrame {
+        PyFrame(self.0.frame())
     }
 
     fn __repr__(&self) -> String {
         format!(
-            "Hyperbola3D(center={}, normal={}, major_radius={}, minor_radius={})",
+            "Hyperbola(center={}, normal={}, major_radius={}, minor_radius={})",
             crate::values::coordinates(self.0.center()),
             crate::values::coordinates(self.0.frame().z_direction()),
             float_repr(self.0.major_radius()),
@@ -1198,14 +1197,14 @@ impl PyHyperbola3D {
     #[new]
     /// Build a hyperbola from center, normal, major-axis direction and radii.
     fn py_new(
-        center: PyPoint3D,
-        normal: PyVector3D,
-        x_direction: PyVector3D,
+        center: PyPoint,
+        normal: PyVector,
+        x_direction: PyVector,
         major_radius: f64,
         minor_radius: f64,
     ) -> PyResult<Self> {
-        Ok(PyHyperbola3D(
-            Hyperbola3D::new(
+        Ok(PyHyperbola(
+            Hyperbola::new(
                 center.0,
                 normal.0,
                 x_direction.0,
@@ -1218,34 +1217,34 @@ impl PyHyperbola3D {
 
     /// Build a hyperbola from a placement frame and the two radii.
     #[staticmethod]
-    fn from_frame(frame: PyFrame3D, major_radius: f64, minor_radius: f64) -> PyResult<Self> {
-        Ok(PyHyperbola3D(
-            Hyperbola3D::from_frame(frame.0, major_radius, minor_radius).map_err(python_error)?,
+    fn from_frame(frame: PyFrame, major_radius: f64, minor_radius: f64) -> PyResult<Self> {
+        Ok(PyHyperbola(
+            Hyperbola::from_frame(frame.0, major_radius, minor_radius).map_err(python_error)?,
         ))
     }
 
     /// Build a hyperbola from its center, the vertex point and a second
     /// point on the curve.
     #[staticmethod]
-    fn from_center_and_points(center: PyPoint3D, s1: PyPoint3D, s2: PyPoint3D) -> PyResult<Self> {
-        Ok(PyHyperbola3D(
-            Hyperbola3D::from_center_and_points(center.0, s1.0, s2.0).map_err(python_error)?,
+    fn from_center_and_points(center: PyPoint, s1: PyPoint, s2: PyPoint) -> PyResult<Self> {
+        Ok(PyHyperbola(
+            Hyperbola::from_center_and_points(center.0, s1.0, s2.0).map_err(python_error)?,
         ))
     }
 
     /// The hyperbola center.
-    fn center(&self) -> PyPoint3D {
-        PyPoint3D(self.0.center())
+    fn center(&self) -> PyPoint {
+        PyPoint(self.0.center())
     }
 
     /// The (first, last) parameter bounds (unbounded here).
     fn bounds(&self) -> (f64, f64) {
-        ParametricCurve3D::bounds(&self.0)
+        ParametricCurve::bounds(&self.0)
     }
 
     /// The axis-aligned box around the shape (`None` when unbounded).
-    fn bounding_box(&self) -> Option<PyBoundingBox3D> {
-        self.0.bounding_box().map(PyBoundingBox3D)
+    fn bounding_box(&self) -> Option<PyBoundingBox> {
+        self.0.bounding_box().map(PyBoundingBox)
     }
 
     /// The semi-major (transverse) radius.
@@ -1262,36 +1261,36 @@ impl PyHyperbola3D {
     /// collapsing transform).
     #[pyo3(signature = (transform,))]
     fn transformed(&self, transform: &PyTransform) -> PyResult<Self> {
-        Ok(PyHyperbola3D(
+        Ok(PyHyperbola(
             self.0.transformed(transform.0).map_err(python_error)?,
         ))
     }
 
     /// Evaluate the point at parameter `u`.
-    fn eval_point(&self, u: f64) -> PyPoint3D {
-        PyPoint3D(self.0.eval_point(u))
+    fn eval_point(&self, u: f64) -> PyPoint {
+        PyPoint(self.0.eval_point(u))
     }
 
     /// Evaluate many parameters at once.
-    fn eval_points(&self, us: Vec<f64>) -> Vec<PyPoint3D> {
-        self.0.eval_points(&us).into_iter().map(PyPoint3D).collect()
+    fn eval_points(&self, us: Vec<f64>) -> Vec<PyPoint> {
+        self.0.eval_points(&us).into_iter().map(PyPoint).collect()
     }
 
     /// Evaluate the derivative of the given order (>= 1) at `u`.
-    fn eval_derivative(&self, u: f64, order: u32) -> PyResult<PyVector3D> {
+    fn eval_derivative(&self, u: f64, order: u32) -> PyResult<PyVector> {
         check_curve_order(order, u32::MAX)?;
-        Ok(PyVector3D(self.0.eval_derivative(u, order)))
+        Ok(PyVector(self.0.eval_derivative(u, order)))
     }
 
     /// Recover the parameter of a point lying on the hyperbola.
-    fn parameter_of(&self, point: PyPoint3D) -> f64 {
+    fn parameter_of(&self, point: PyPoint) -> f64 {
         self.0.parameter_of(point.0)
     }
 
     /// Returns whether `point` lies on the curve within `tol`
     /// (`Tolerance.default()` when omitted).
     #[pyo3(signature = (point, tol = None))]
-    fn contains(&self, point: PyPoint3D, tol: Option<PyTolerance>) -> bool {
+    fn contains(&self, point: PyPoint, tol: Option<PyTolerance>) -> bool {
         self.0.contains(point.0, tolerance(tol))
     }
 
@@ -1300,7 +1299,7 @@ impl PyHyperbola3D {
     #[pyo3(signature = (point, tol = None))]
     fn extrema(
         slf: &Bound<'_, Self>,
-        point: PyPoint3D,
+        point: PyPoint,
         tol: Option<PyTolerance>,
     ) -> Vec<PyCurveProjection> {
         let tol = tolerance(tol);
@@ -1316,7 +1315,7 @@ impl PyHyperbola3D {
     #[pyo3(signature = (point, tol = None))]
     fn project_point(
         slf: &Bound<'_, Self>,
-        point: PyPoint3D,
+        point: PyPoint,
         tol: Option<PyTolerance>,
     ) -> PyCurveProjection {
         let projection = slf.borrow().0.project_point(point.0, tolerance(tol));
@@ -1328,7 +1327,7 @@ impl PyHyperbola3D {
     #[pyo3(signature = (points, tol = None))]
     fn project_points(
         slf: &Bound<'_, Self>,
-        points: Vec<PyPoint3D>,
+        points: Vec<PyPoint>,
         tol: Option<PyTolerance>,
     ) -> Vec<PyCurveProjection> {
         let points = points.into_iter().map(|p| p.0).collect::<Vec<_>>();
@@ -1379,8 +1378,8 @@ impl PyHyperbola3D {
     /// is within `tol.confusion`, so rescaling the parameter does not
     /// change the answer.
     #[pyo3(signature = (u, tol = None))]
-    fn tangent(&self, u: f64, tol: Option<PyTolerance>) -> Option<PyVector3D> {
-        ParametricCurve3D::tangent(&self.0, u, tolerance(tol)).map(PyVector3D)
+    fn tangent(&self, u: f64, tol: Option<PyTolerance>) -> Option<PyVector> {
+        ParametricCurve::tangent(&self.0, u, tolerance(tol)).map(PyVector)
     }
 
     /// Curvature at parameter `u`: the turn rate of the unit tangent per
@@ -1388,15 +1387,15 @@ impl PyHyperbola3D {
     /// vanishes, by the test of `tangent`.
     #[pyo3(signature = (u, tol = None))]
     fn curvature(&self, u: f64, tol: Option<PyTolerance>) -> Option<f64> {
-        ParametricCurve3D::curvature(&self.0, u, tolerance(tol))
+        ParametricCurve::curvature(&self.0, u, tolerance(tol))
     }
 
     /// Centre of the osculating circle at parameter `u`, or `None` where
     /// the speed vanishes or the curve runs straight (the centre is then
     /// at infinity).
     #[pyo3(signature = (u, tol = None))]
-    fn curvature_center(&self, u: f64, tol: Option<PyTolerance>) -> Option<PyPoint3D> {
-        ParametricCurve3D::curvature_center(&self.0, u, tolerance(tol)).map(PyPoint3D)
+    fn curvature_center(&self, u: f64, tol: Option<PyTolerance>) -> Option<PyPoint> {
+        ParametricCurve::curvature_center(&self.0, u, tolerance(tol)).map(PyPoint)
     }
 
     /// Whether travelling along the curve returns to its start
@@ -1405,7 +1404,7 @@ impl PyHyperbola3D {
     /// periodic.
     #[pyo3(signature = (tol = None))]
     fn is_closed(&self, tol: Option<PyTolerance>) -> bool {
-        ParametricCurve3D::is_closed(&self.0, tolerance(tol))
+        ParametricCurve::is_closed(&self.0, tolerance(tol))
     }
 
     /// Continuity order `n` of `C^n` at parameter `u` as an `int`, or
@@ -1416,23 +1415,23 @@ impl PyHyperbola3D {
     /// evaluate each side of a knot reporting a low order.
     #[pyo3(signature = (u, tol = None))]
     fn continuity(&self, u: f64, tol: Option<PyTolerance>) -> ContinuityNumber {
-        ContinuityNumber(ParametricCurve3D::continuity(&self.0, u, tolerance(tol)))
+        ContinuityNumber(ParametricCurve::continuity(&self.0, u, tolerance(tol)))
     }
 
     /// The lowest `continuity` anywhere inside the bounds, ends excluded
     /// (`math.inf` when smooth everywhere).
     fn min_continuity(&self) -> ContinuityNumber {
-        ContinuityNumber(ParametricCurve3D::min_continuity(&self.0))
+        ContinuityNumber(ParametricCurve::min_continuity(&self.0))
     }
 }
 
 /// A B-spline (optionally rational, optionally periodic) curve in 3D.
-#[pyclass(name = "BSplineCurve3D", module = "geomcore.curves", eq)]
+#[pyclass(name = "BSplineCurve", module = "geomcore.curves", eq)]
 #[derive(Clone, PartialEq)]
-pub(crate) struct PyBSplineCurve3D(pub(crate) BSplineCurve3D);
+pub(crate) struct PyBSplineCurve(pub(crate) BSplineCurve);
 
 #[pymethods]
-impl PyBSplineCurve3D {
+impl PyBSplineCurve {
     /// How many points `discretize` returns for the same arguments, without
     /// computing them.
     #[pyo3(signature = (max_chord_deviation, max_angle_deviation = None))]
@@ -1445,25 +1444,25 @@ impl PyBSplineCurve3D {
     }
 
     /// The point and the first derivative at parameter `u`.
-    fn eval_d1(&self, u: f64) -> (PyPoint3D, PyVector3D) {
-        let (point, first) = ParametricCurve3D::eval_d1(&self.0, u);
-        (PyPoint3D(point), PyVector3D(first))
+    fn eval_d1(&self, u: f64) -> (PyPoint, PyVector) {
+        let (point, first) = ParametricCurve::eval_d1(&self.0, u);
+        (PyPoint(point), PyVector(first))
     }
 
     /// The point and the first two derivatives at parameter `u`.
-    fn eval_d2(&self, u: f64) -> (PyPoint3D, PyVector3D, PyVector3D) {
-        let (point, first, second) = ParametricCurve3D::eval_d2(&self.0, u);
-        (PyPoint3D(point), PyVector3D(first), PyVector3D(second))
+    fn eval_d2(&self, u: f64) -> (PyPoint, PyVector, PyVector) {
+        let (point, first, second) = ParametricCurve::eval_d2(&self.0, u);
+        (PyPoint(point), PyVector(first), PyVector(second))
     }
 
     /// The period of the parameter, or `None` when the curve is not periodic.
     fn period(&self) -> Option<f64> {
-        ParametricCurve3D::period(&self.0)
+        ParametricCurve::period(&self.0)
     }
 
     fn __repr__(&self) -> String {
         format!(
-            "BSplineCurve3D(degree={}, pole_count={}, rational={}, periodic={})",
+            "BSplineCurve(degree={}, pole_count={}, rational={}, periodic={})",
             self.0.degree(),
             self.0.poles().len(),
             crate::values::py_bool(self.0.is_rational()),
@@ -1475,14 +1474,14 @@ impl PyBSplineCurve3D {
     /// Build a non-rational B-spline curve.
     fn py_new(
         degree: usize,
-        poles: Vec<PyPoint3D>,
+        poles: Vec<PyPoint>,
         knots: Vec<f64>,
         multiplicities: Vec<u32>,
         periodic: bool,
     ) -> PyResult<Self> {
         let poles = poles.into_iter().map(|p| p.0).collect();
-        Ok(PyBSplineCurve3D(
-            BSplineCurve3D::new(degree, poles, knots, multiplicities, periodic)
+        Ok(PyBSplineCurve(
+            BSplineCurve::new(degree, poles, knots, multiplicities, periodic)
                 .map_err(python_error)?,
         ))
     }
@@ -1491,15 +1490,15 @@ impl PyBSplineCurve3D {
     #[staticmethod]
     fn new_rational(
         degree: usize,
-        poles: Vec<PyPoint3D>,
+        poles: Vec<PyPoint>,
         weights: Vec<f64>,
         knots: Vec<f64>,
         multiplicities: Vec<u32>,
         periodic: bool,
     ) -> PyResult<Self> {
         let poles = poles.into_iter().map(|p| p.0).collect();
-        Ok(PyBSplineCurve3D(
-            BSplineCurve3D::new_rational(degree, poles, weights, knots, multiplicities, periodic)
+        Ok(PyBSplineCurve(
+            BSplineCurve::new_rational(degree, poles, weights, knots, multiplicities, periodic)
                 .map_err(python_error)?,
         ))
     }
@@ -1510,11 +1509,11 @@ impl PyBSplineCurve3D {
     /// turns) or `"chordal"`.
     #[staticmethod]
     #[pyo3(signature = (points, degree, parametrization = "centripetal"))]
-    fn interpolate(points: Vec<PyPoint3D>, degree: usize, parametrization: &str) -> PyResult<Self> {
+    fn interpolate(points: Vec<PyPoint>, degree: usize, parametrization: &str) -> PyResult<Self> {
         let param = parse_parametrization(parametrization)?;
         let points = points.into_iter().map(|p| p.0).collect::<Vec<_>>();
-        Ok(PyBSplineCurve3D(
-            BSplineCurve3D::interpolate(&points, degree, param).map_err(python_error)?,
+        Ok(PyBSplineCurve(
+            BSplineCurve::interpolate(&points, degree, param).map_err(python_error)?,
         ))
     }
 
@@ -1524,15 +1523,15 @@ impl PyBSplineCurve3D {
     #[staticmethod]
     #[pyo3(signature = (points, degree, num_poles, parametrization = "centripetal"))]
     fn approximate(
-        points: Vec<PyPoint3D>,
+        points: Vec<PyPoint>,
         degree: usize,
         num_poles: usize,
         parametrization: &str,
     ) -> PyResult<Self> {
         let param = parse_parametrization(parametrization)?;
         let points = points.into_iter().map(|p| p.0).collect::<Vec<_>>();
-        Ok(PyBSplineCurve3D(
-            BSplineCurve3D::approximate(&points, degree, num_poles, param).map_err(python_error)?,
+        Ok(PyBSplineCurve(
+            BSplineCurve::approximate(&points, degree, num_poles, param).map_err(python_error)?,
         ))
     }
 
@@ -1552,8 +1551,8 @@ impl PyBSplineCurve3D {
     }
 
     /// The control poles.
-    fn poles(&self) -> Vec<PyPoint3D> {
-        self.0.poles().iter().map(|p| PyPoint3D(*p)).collect()
+    fn poles(&self) -> Vec<PyPoint> {
+        self.0.poles().iter().map(|p| PyPoint(*p)).collect()
     }
 
     /// The per-pole weights, or `None` when the curve is not rational.
@@ -1572,8 +1571,8 @@ impl PyBSplineCurve3D {
     }
 
     /// The axis-aligned box around the shape (`None` when unbounded).
-    fn bounding_box(&self) -> Option<PyBoundingBox3D> {
-        self.0.bounding_box().map(PyBoundingBox3D)
+    fn bounding_box(&self) -> Option<PyBoundingBox> {
+        self.0.bounding_box().map(PyBoundingBox)
     }
 
     /// Least-squares B-spline fit through `points` with as few poles as
@@ -1584,15 +1583,15 @@ impl PyBSplineCurve3D {
     #[staticmethod]
     #[pyo3(signature = (points, degree, max_deviation, parametrization = "centripetal"))]
     fn approximate_within(
-        points: Vec<PyPoint3D>,
+        points: Vec<PyPoint>,
         degree: usize,
         max_deviation: f64,
         parametrization: &str,
     ) -> PyResult<Self> {
         let param = parse_parametrization(parametrization)?;
         let points = points.into_iter().map(|p| p.0).collect::<Vec<_>>();
-        Ok(PyBSplineCurve3D(
-            BSplineCurve3D::approximate_within(&points, degree, max_deviation, param)
+        Ok(PyBSplineCurve(
+            BSplineCurve::approximate_within(&points, degree, max_deviation, param)
                 .map_err(python_error)?,
         ))
     }
@@ -1600,7 +1599,7 @@ impl PyBSplineCurve3D {
     /// The curve with the knot `u` inserted `times` times (same shape,
     /// more poles).
     fn insert_knot(&self, u: f64, times: u32) -> PyResult<Self> {
-        Ok(PyBSplineCurve3D(
+        Ok(PyBSplineCurve(
             self.0.insert_knot(u, times).map_err(python_error)?,
         ))
     }
@@ -1608,14 +1607,14 @@ impl PyBSplineCurve3D {
     /// The curve with each of `knots` inserted once (same shape, more
     /// poles).
     fn refine_knots(&self, knots: Vec<f64>) -> PyResult<Self> {
-        Ok(PyBSplineCurve3D(
+        Ok(PyBSplineCurve(
             self.0.refine_knots(&knots).map_err(python_error)?,
         ))
     }
 
     /// The curve of degree raised by `amount` (same shape).
     fn elevate_degree(&self, amount: usize) -> PyResult<Self> {
-        Ok(PyBSplineCurve3D(
+        Ok(PyBSplineCurve(
             self.0.elevate_degree(amount).map_err(python_error)?,
         ))
     }
@@ -1628,7 +1627,7 @@ impl PyBSplineCurve3D {
             .0
             .remove_knot(u, times, max_deviation)
             .map_err(python_error)?;
-        Ok((PyBSplineCurve3D(curve), removed))
+        Ok((PyBSplineCurve(curve), removed))
     }
 
     /// The curve with each of `knots` removed once, in order, and how
@@ -1638,7 +1637,7 @@ impl PyBSplineCurve3D {
             .0
             .remove_knots(&knots, max_deviation)
             .map_err(python_error)?;
-        Ok((PyBSplineCurve3D(curve), removed))
+        Ok((PyBSplineCurve(curve), removed))
     }
 
     /// The polynomial piece of each knot span as a Bézier B-spline, in
@@ -1647,7 +1646,7 @@ impl PyBSplineCurve3D {
         self.0
             .to_bezier_pieces()
             .into_iter()
-            .map(PyBSplineCurve3D)
+            .map(PyBSplineCurve)
             .collect()
     }
 
@@ -1655,7 +1654,7 @@ impl PyBSplineCurve3D {
     /// (the range may cross the seam of a periodic curve, up to one
     /// period).
     fn extract(&self, first: f64, last: f64) -> PyResult<Self> {
-        Ok(PyBSplineCurve3D(
+        Ok(PyBSplineCurve(
             self.0.extract(first, last).map_err(python_error)?,
         ))
     }
@@ -1663,13 +1662,13 @@ impl PyBSplineCurve3D {
     /// The two halves split at `u`, each a clamped, non-periodic B-spline.
     fn split_at(&self, u: f64) -> PyResult<(Self, Self)> {
         let (a, b) = self.0.split_at(u).map_err(python_error)?;
-        Ok((PyBSplineCurve3D(a), PyBSplineCurve3D(b)))
+        Ok((PyBSplineCurve(a), PyBSplineCurve(b)))
     }
 
     /// The curve with its parameter mirrored, keeping a periodic curve
     /// periodic.
     fn reversed(&self) -> Self {
-        PyBSplineCurve3D(self.0.reversed())
+        PyBSplineCurve(self.0.reversed())
     }
 
     /// The arc length, integrating the speed to within `max_error`.
@@ -1685,7 +1684,7 @@ impl PyBSplineCurve3D {
     /// Returns whether `point` lies on the curve within `tol`
     /// (`Tolerance.default()` when omitted).
     #[pyo3(signature = (point, tol = None))]
-    fn contains(&self, point: PyPoint3D, tol: Option<PyTolerance>) -> bool {
+    fn contains(&self, point: PyPoint, tol: Option<PyTolerance>) -> bool {
         self.0.contains(point.0, tolerance(tol))
     }
 
@@ -1695,7 +1694,7 @@ impl PyBSplineCurve3D {
     #[pyo3(signature = (point, tol = None))]
     fn extrema(
         slf: &Bound<'_, Self>,
-        point: PyPoint3D,
+        point: PyPoint,
         tol: Option<PyTolerance>,
     ) -> Vec<PyCurveProjection> {
         let tol = tolerance(tol);
@@ -1711,7 +1710,7 @@ impl PyBSplineCurve3D {
     #[pyo3(signature = (point, tol = None))]
     fn project_point(
         slf: &Bound<'_, Self>,
-        point: PyPoint3D,
+        point: PyPoint,
         tol: Option<PyTolerance>,
     ) -> PyCurveProjection {
         let projection = slf.borrow().0.project_point(point.0, tolerance(tol));
@@ -1723,7 +1722,7 @@ impl PyBSplineCurve3D {
     #[pyo3(signature = (points, tol = None))]
     fn project_points(
         slf: &Bound<'_, Self>,
-        points: Vec<PyPoint3D>,
+        points: Vec<PyPoint>,
         tol: Option<PyTolerance>,
     ) -> Vec<PyCurveProjection> {
         let points = points.into_iter().map(|p| p.0).collect::<Vec<_>>();
@@ -1739,17 +1738,17 @@ impl PyBSplineCurve3D {
     /// Image of this curve under `transform` (maps every control pole).
     #[pyo3(signature = (transform,))]
     fn transformed(&self, transform: &PyTransform) -> Self {
-        PyBSplineCurve3D(self.0.transformed(transform.0))
+        PyBSplineCurve(self.0.transformed(transform.0))
     }
 
     /// Evaluate the point at parameter `u`.
-    fn eval_point(&self, u: f64) -> PyPoint3D {
-        PyPoint3D(self.0.eval_point(u))
+    fn eval_point(&self, u: f64) -> PyPoint {
+        PyPoint(self.0.eval_point(u))
     }
 
     /// Evaluate many parameters at once.
-    fn eval_points(&self, us: Vec<f64>) -> Vec<PyPoint3D> {
-        self.0.eval_points(&us).into_iter().map(PyPoint3D).collect()
+    fn eval_points(&self, us: Vec<f64>) -> Vec<PyPoint> {
+        self.0.eval_points(&us).into_iter().map(PyPoint).collect()
     }
 
     /// Discretize the curve into points joined by straight segments,
@@ -1761,14 +1760,14 @@ impl PyBSplineCurve3D {
         &self,
         max_chord_deviation: f64,
         max_angle_deviation: Option<f64>,
-    ) -> PyResult<PyDiscretization3D> {
+    ) -> PyResult<PyDiscretization> {
         discretize_3d(&self.0, max_chord_deviation, max_angle_deviation)
     }
 
     /// Evaluate the derivative at `u`; orders 1 and 2 are supported.
-    fn eval_derivative(&self, u: f64, order: u32) -> PyResult<PyVector3D> {
+    fn eval_derivative(&self, u: f64, order: u32) -> PyResult<PyVector> {
         check_curve_order(order, 2)?;
-        Ok(PyVector3D(self.0.eval_derivative(u, order)))
+        Ok(PyVector(self.0.eval_derivative(u, order)))
     }
 
     /// Not available for B-spline curves in this release; always raises `ValueError`.
@@ -1809,8 +1808,8 @@ impl PyBSplineCurve3D {
     /// is within `tol.confusion`, so rescaling the parameter does not
     /// change the answer.
     #[pyo3(signature = (u, tol = None))]
-    fn tangent(&self, u: f64, tol: Option<PyTolerance>) -> Option<PyVector3D> {
-        ParametricCurve3D::tangent(&self.0, u, tolerance(tol)).map(PyVector3D)
+    fn tangent(&self, u: f64, tol: Option<PyTolerance>) -> Option<PyVector> {
+        ParametricCurve::tangent(&self.0, u, tolerance(tol)).map(PyVector)
     }
 
     /// Curvature at parameter `u`: the turn rate of the unit tangent per
@@ -1818,15 +1817,15 @@ impl PyBSplineCurve3D {
     /// vanishes, by the test of `tangent`.
     #[pyo3(signature = (u, tol = None))]
     fn curvature(&self, u: f64, tol: Option<PyTolerance>) -> Option<f64> {
-        ParametricCurve3D::curvature(&self.0, u, tolerance(tol))
+        ParametricCurve::curvature(&self.0, u, tolerance(tol))
     }
 
     /// Centre of the osculating circle at parameter `u`, or `None` where
     /// the speed vanishes or the curve runs straight (the centre is then
     /// at infinity).
     #[pyo3(signature = (u, tol = None))]
-    fn curvature_center(&self, u: f64, tol: Option<PyTolerance>) -> Option<PyPoint3D> {
-        ParametricCurve3D::curvature_center(&self.0, u, tolerance(tol)).map(PyPoint3D)
+    fn curvature_center(&self, u: f64, tol: Option<PyTolerance>) -> Option<PyPoint> {
+        ParametricCurve::curvature_center(&self.0, u, tolerance(tol)).map(PyPoint)
     }
 
     /// Whether travelling along the curve returns to its start
@@ -1835,7 +1834,7 @@ impl PyBSplineCurve3D {
     /// periodic.
     #[pyo3(signature = (tol = None))]
     fn is_closed(&self, tol: Option<PyTolerance>) -> bool {
-        ParametricCurve3D::is_closed(&self.0, tolerance(tol))
+        ParametricCurve::is_closed(&self.0, tolerance(tol))
     }
 
     /// Continuity order `n` of `C^n` at parameter `u` as an `int`, or
@@ -1846,13 +1845,13 @@ impl PyBSplineCurve3D {
     /// evaluate each side of a knot reporting a low order.
     #[pyo3(signature = (u, tol = None))]
     fn continuity(&self, u: f64, tol: Option<PyTolerance>) -> ContinuityNumber {
-        ContinuityNumber(ParametricCurve3D::continuity(&self.0, u, tolerance(tol)))
+        ContinuityNumber(ParametricCurve::continuity(&self.0, u, tolerance(tol)))
     }
 
     /// The lowest `continuity` anywhere inside the bounds, ends excluded
     /// (`math.inf` when smooth everywhere).
     fn min_continuity(&self) -> ContinuityNumber {
-        ContinuityNumber(ParametricCurve3D::min_continuity(&self.0))
+        ContinuityNumber(ParametricCurve::min_continuity(&self.0))
     }
 
     /// The point and the first derivative at parameter `u`, from one
@@ -1862,23 +1861,23 @@ impl PyBSplineCurve3D {
     /// non-periodic curve. A periodic curve's seam is a knot like any
     /// other: at either bound, `BELOW` takes the last span of the period
     /// and `ABOVE` the first.
-    fn eval_d1_sided(&self, u: f64, side: PySide) -> (PyPoint3D, PyVector3D) {
+    fn eval_d1_sided(&self, u: f64, side: PySide) -> (PyPoint, PyVector) {
         let (point, first) = self.0.eval_d1_sided(u, side.into());
-        (PyPoint3D(point), PyVector3D(first))
+        (PyPoint(point), PyVector(first))
     }
 
     /// The point and the first two derivatives at parameter `u`, from one
     /// `side`, as `eval_d1_sided`.
-    fn eval_d2_sided(&self, u: f64, side: PySide) -> (PyPoint3D, PyVector3D, PyVector3D) {
+    fn eval_d2_sided(&self, u: f64, side: PySide) -> (PyPoint, PyVector, PyVector) {
         let (point, first, second) = self.0.eval_d2_sided(u, side.into());
-        (PyPoint3D(point), PyVector3D(first), PyVector3D(second))
+        (PyPoint(point), PyVector(first), PyVector(second))
     }
 
     /// The derivative of order 1 or 2 at parameter `u`, from one `side`,
     /// as `eval_d1_sided`.
-    fn eval_derivative_sided(&self, u: f64, order: u32, side: PySide) -> PyResult<PyVector3D> {
+    fn eval_derivative_sided(&self, u: f64, order: u32, side: PySide) -> PyResult<PyVector> {
         check_curve_order(order, 2)?;
-        Ok(PyVector3D(self.0.eval_derivative_sided(
+        Ok(PyVector(self.0.eval_derivative_sided(
             u,
             order,
             side.into(),
@@ -2246,9 +2245,9 @@ impl PyCircle2D {
 }
 
 /// The highest derivative order a 3D basis curve evaluates.
-pub(crate) fn max_curve_order(curve: &Curve3D) -> u32 {
+pub(crate) fn max_curve_order(curve: &Curve) -> u32 {
     match curve {
-        Curve3D::BSpline(_) => 2,
+        Curve::BSpline(_) => 2,
         _ => u32::MAX,
     }
 }
@@ -2262,12 +2261,12 @@ pub(crate) fn max_curve_order(curve: &Curve3D) -> u32 {
 /// B-spline) the range may cross the seam, up to one period. Pass it to
 /// `intersect`, `curve_curve_extrema` or `parametrize_numeric` to search
 /// only the range.
-#[pyclass(name = "TrimmedCurve3D", module = "geomcore.curves", eq)]
+#[pyclass(name = "TrimmedCurve", module = "geomcore.curves", eq)]
 #[derive(Clone, PartialEq)]
-pub(crate) struct PyTrimmedCurve3D(pub(crate) TrimmedCurve3D);
+pub(crate) struct PyTrimmedCurve(pub(crate) TrimmedCurve);
 
 #[pymethods]
-impl PyTrimmedCurve3D {
+impl PyTrimmedCurve {
     /// How many points `discretize` returns for the same arguments, without
     /// computing them.
     #[pyo3(signature = (max_chord_deviation, max_angle_deviation = None))]
@@ -2280,25 +2279,25 @@ impl PyTrimmedCurve3D {
     }
 
     /// The point and the first derivative at parameter `u`.
-    fn eval_d1(&self, u: f64) -> (PyPoint3D, PyVector3D) {
-        let (point, first) = ParametricCurve3D::eval_d1(&self.0, u);
-        (PyPoint3D(point), PyVector3D(first))
+    fn eval_d1(&self, u: f64) -> (PyPoint, PyVector) {
+        let (point, first) = ParametricCurve::eval_d1(&self.0, u);
+        (PyPoint(point), PyVector(first))
     }
 
     /// The point and the first two derivatives at parameter `u`.
-    fn eval_d2(&self, u: f64) -> (PyPoint3D, PyVector3D, PyVector3D) {
-        let (point, first, second) = ParametricCurve3D::eval_d2(&self.0, u);
-        (PyPoint3D(point), PyVector3D(first), PyVector3D(second))
+    fn eval_d2(&self, u: f64) -> (PyPoint, PyVector, PyVector) {
+        let (point, first, second) = ParametricCurve::eval_d2(&self.0, u);
+        (PyPoint(point), PyVector(first), PyVector(second))
     }
 
     /// The period of the parameter, or `None` when the curve is not periodic.
     fn period(&self) -> Option<f64> {
-        ParametricCurve3D::period(&self.0)
+        ParametricCurve::period(&self.0)
     }
 
     /// Whether the curve is periodic.
     fn is_periodic(&self) -> bool {
-        ParametricCurve3D::is_periodic(&self.0)
+        ParametricCurve::is_periodic(&self.0)
     }
 
     #[new]
@@ -2308,17 +2307,17 @@ impl PyTrimmedCurve3D {
     /// than a periodic basis's period.
     fn py_new(basis: &Bound<'_, PyAny>, first: f64, last: f64) -> PyResult<Self> {
         let basis = extract_curve3d(basis)?;
-        Ok(PyTrimmedCurve3D(
-            TrimmedCurve3D::new(basis, first, last).map_err(python_error)?,
+        Ok(PyTrimmedCurve(
+            TrimmedCurve::new(basis, first, last).map_err(python_error)?,
         ))
     }
 
     /// The segment from `start` to `end`, parametrised by arc length from
     /// `start` over `[0, |end - start|]`.
     #[staticmethod]
-    fn segment(start: PyPoint3D, end: PyPoint3D) -> PyResult<Self> {
-        let segment = TrimmedCurve3D::segment(start.0, end.0).map_err(python_error)?;
-        Ok(PyTrimmedCurve3D(segment.into_curve3d()))
+    fn segment(start: PyPoint, end: PyPoint) -> PyResult<Self> {
+        let segment = TrimmedCurve::segment(start.0, end.0).map_err(python_error)?;
+        Ok(PyTrimmedCurve(segment.into_curve3d()))
     }
 
     /// The basis curve.
@@ -2338,31 +2337,31 @@ impl PyTrimmedCurve3D {
 
     /// The (first, last) parameter bounds.
     fn bounds(&self) -> (f64, f64) {
-        ParametricCurve3D::bounds(&self.0)
+        ParametricCurve::bounds(&self.0)
     }
 
     /// The axis-aligned box around the shape (`None` when unbounded).
-    fn bounding_box(&self) -> Option<PyBoundingBox3D> {
-        self.0.bounding_box().map(PyBoundingBox3D)
+    fn bounding_box(&self) -> Option<PyBoundingBox> {
+        self.0.bounding_box().map(PyBoundingBox)
     }
 
     /// The trimmed piece as an exact B-spline over the same range: a
     /// clamped B-spline for an elementary basis, the extracted piece for
     /// a B-spline one (raises `ValueError` when the poles would overflow
     /// `f64`).
-    fn to_bspline(&self) -> PyResult<PyBSplineCurve3D> {
+    fn to_bspline(&self) -> PyResult<PyBSplineCurve> {
         let (first, last) = (self.0.first(), self.0.last());
         let basis = self.0.basis().clone();
         if let Some(b) = basis.as_bspline() {
-            return Ok(PyBSplineCurve3D(
+            return Ok(PyBSplineCurve(
                 b.extract(first, last).map_err(python_error)?,
             ));
         }
         let elementary = basis
             .as_elementary()
             .expect("every non-B-spline curve is elementary");
-        Ok(PyBSplineCurve3D(
-            TrimmedCurve3D::new(elementary, first, last)
+        Ok(PyBSplineCurve(
+            TrimmedCurve::new(elementary, first, last)
                 .map_err(python_error)?
                 .to_bspline()
                 .map_err(python_error)?,
@@ -2370,24 +2369,24 @@ impl PyTrimmedCurve3D {
     }
 
     /// The point at the start of the range.
-    fn start_point(&self) -> PyPoint3D {
-        PyPoint3D(self.0.start_point())
+    fn start_point(&self) -> PyPoint {
+        PyPoint(self.0.start_point())
     }
 
     /// The point at the end of the range.
-    fn end_point(&self) -> PyPoint3D {
-        PyPoint3D(self.0.end_point())
+    fn end_point(&self) -> PyPoint {
+        PyPoint(self.0.end_point())
     }
 
     /// Evaluate the basis point at parameter `u` (not checked against the
     /// range).
-    fn eval_point(&self, u: f64) -> PyPoint3D {
-        PyPoint3D(self.0.eval_point(u))
+    fn eval_point(&self, u: f64) -> PyPoint {
+        PyPoint(self.0.eval_point(u))
     }
 
     /// Evaluate many parameters at once.
-    fn eval_points(&self, us: Vec<f64>) -> Vec<PyPoint3D> {
-        self.0.eval_points(&us).into_iter().map(PyPoint3D).collect()
+    fn eval_points(&self, us: Vec<f64>) -> Vec<PyPoint> {
+        self.0.eval_points(&us).into_iter().map(PyPoint).collect()
     }
 
     /// Discretize the trimmed curve into points joined by straight segments,
@@ -2399,21 +2398,21 @@ impl PyTrimmedCurve3D {
         &self,
         max_chord_deviation: f64,
         max_angle_deviation: Option<f64>,
-    ) -> PyResult<PyDiscretization3D> {
+    ) -> PyResult<PyDiscretization> {
         discretize_3d(&self.0, max_chord_deviation, max_angle_deviation)
     }
 
     /// Evaluate the derivative of the given order (>= 1) at `u`, within
     /// the orders the basis supports.
-    fn eval_derivative(&self, u: f64, order: u32) -> PyResult<PyVector3D> {
+    fn eval_derivative(&self, u: f64, order: u32) -> PyResult<PyVector> {
         check_curve_order(order, max_curve_order(self.0.basis()))?;
-        Ok(PyVector3D(self.0.eval_derivative(u, order)))
+        Ok(PyVector(self.0.eval_derivative(u, order)))
     }
 
     /// Returns whether `point` lies on the trimmed curve within `tol`
     /// (`Tolerance.default()` when omitted).
     #[pyo3(signature = (point, tol = None))]
-    fn contains(&self, point: PyPoint3D, tol: Option<PyTolerance>) -> bool {
+    fn contains(&self, point: PyPoint, tol: Option<PyTolerance>) -> bool {
         self.0.contains(point.0, tolerance(tol))
     }
 
@@ -2422,11 +2421,11 @@ impl PyTrimmedCurve3D {
     #[pyo3(signature = (point, tol = None))]
     fn extrema(
         slf: &Bound<'_, Self>,
-        point: PyPoint3D,
+        point: PyPoint,
         tol: Option<PyTolerance>,
     ) -> Vec<PyCurveProjection> {
         let tol = tolerance(tol);
-        let projections = PointExtrema3D::extrema(&slf.borrow().0, point.0, tol);
+        let projections = PointExtrema::extrema(&slf.borrow().0, point.0, tol);
         projections
             .into_iter()
             .map(|projection| PyCurveProjection::new(projection, slf, point.0))
@@ -2438,7 +2437,7 @@ impl PyTrimmedCurve3D {
     #[pyo3(signature = (point, tol = None))]
     fn project_point(
         slf: &Bound<'_, Self>,
-        point: PyPoint3D,
+        point: PyPoint,
         tol: Option<PyTolerance>,
     ) -> PyCurveProjection {
         let projection = slf.borrow().0.project_point(point.0, tolerance(tol));
@@ -2450,7 +2449,7 @@ impl PyTrimmedCurve3D {
     #[pyo3(signature = (points, tol = None))]
     fn project_points(
         slf: &Bound<'_, Self>,
-        points: Vec<PyPoint3D>,
+        points: Vec<PyPoint>,
         tol: Option<PyTolerance>,
     ) -> Vec<PyCurveProjection> {
         let points = points.into_iter().map(|p| p.0).collect::<Vec<_>>();
@@ -2466,7 +2465,7 @@ impl PyTrimmedCurve3D {
     fn __repr__(&self) -> String {
         let (s, e) = (self.0.start_point(), self.0.end_point());
         format!(
-            "TrimmedCurve3D(first={}, last={}, start={}, end={})",
+            "TrimmedCurve(first={}, last={}, start={}, end={})",
             float_repr(self.0.first()),
             float_repr(self.0.last()),
             coordinates(s),
@@ -2499,8 +2498,8 @@ impl PyTrimmedCurve3D {
     /// is within `tol.confusion`, so rescaling the parameter does not
     /// change the answer.
     #[pyo3(signature = (u, tol = None))]
-    fn tangent(&self, u: f64, tol: Option<PyTolerance>) -> Option<PyVector3D> {
-        ParametricCurve3D::tangent(&self.0, u, tolerance(tol)).map(PyVector3D)
+    fn tangent(&self, u: f64, tol: Option<PyTolerance>) -> Option<PyVector> {
+        ParametricCurve::tangent(&self.0, u, tolerance(tol)).map(PyVector)
     }
 
     /// Curvature at parameter `u`: the turn rate of the unit tangent per
@@ -2508,15 +2507,15 @@ impl PyTrimmedCurve3D {
     /// vanishes, by the test of `tangent`.
     #[pyo3(signature = (u, tol = None))]
     fn curvature(&self, u: f64, tol: Option<PyTolerance>) -> Option<f64> {
-        ParametricCurve3D::curvature(&self.0, u, tolerance(tol))
+        ParametricCurve::curvature(&self.0, u, tolerance(tol))
     }
 
     /// Centre of the osculating circle at parameter `u`, or `None` where
     /// the speed vanishes or the curve runs straight (the centre is then
     /// at infinity).
     #[pyo3(signature = (u, tol = None))]
-    fn curvature_center(&self, u: f64, tol: Option<PyTolerance>) -> Option<PyPoint3D> {
-        ParametricCurve3D::curvature_center(&self.0, u, tolerance(tol)).map(PyPoint3D)
+    fn curvature_center(&self, u: f64, tol: Option<PyTolerance>) -> Option<PyPoint> {
+        ParametricCurve::curvature_center(&self.0, u, tolerance(tol)).map(PyPoint)
     }
 
     /// Whether travelling along the curve returns to its start
@@ -2525,7 +2524,7 @@ impl PyTrimmedCurve3D {
     /// periodic.
     #[pyo3(signature = (tol = None))]
     fn is_closed(&self, tol: Option<PyTolerance>) -> bool {
-        ParametricCurve3D::is_closed(&self.0, tolerance(tol))
+        ParametricCurve::is_closed(&self.0, tolerance(tol))
     }
 
     /// Continuity order `n` of `C^n` at parameter `u` as an `int`, or
@@ -2536,19 +2535,19 @@ impl PyTrimmedCurve3D {
     /// evaluate each side of a knot reporting a low order.
     #[pyo3(signature = (u, tol = None))]
     fn continuity(&self, u: f64, tol: Option<PyTolerance>) -> ContinuityNumber {
-        ContinuityNumber(ParametricCurve3D::continuity(&self.0, u, tolerance(tol)))
+        ContinuityNumber(ParametricCurve::continuity(&self.0, u, tolerance(tol)))
     }
 
     /// The lowest `continuity` anywhere inside the bounds, ends excluded
     /// (`math.inf` when smooth everywhere).
     fn min_continuity(&self) -> ContinuityNumber {
-        ContinuityNumber(ParametricCurve3D::min_continuity(&self.0))
+        ContinuityNumber(ParametricCurve::min_continuity(&self.0))
     }
 }
 
 /// A 2D curve restricted to the parameter range `[first, last]` of a
 /// basis curve: a line segment or a circular arc, typically a trimmed
-/// pcurve in a surface's (u, v) parameter space. Mirrors `TrimmedCurve3D`.
+/// pcurve in a surface's (u, v) parameter space. Mirrors `TrimmedCurve`.
 #[pyclass(name = "TrimmedCurve2D", module = "geomcore.curves", eq)]
 #[derive(Clone, PartialEq)]
 pub(crate) struct PyTrimmedCurve2D(pub(crate) TrimmedCurve2D);
@@ -2590,7 +2589,7 @@ impl PyTrimmedCurve2D {
 
     #[new]
     /// Restrict `basis` (a Line2D or Circle2D) to the parameter range
-    /// `[first, last]`, under the rules of `TrimmedCurve3D`.
+    /// `[first, last]`, under the rules of `TrimmedCurve`.
     fn py_new(basis: &Bound<'_, PyAny>, first: f64, last: f64) -> PyResult<Self> {
         let basis = extract_curve2d(basis)?;
         Ok(PyTrimmedCurve2D(

@@ -10,8 +10,8 @@ use std::f64::consts::TAU;
 /// curve type that can be used generically (see [`Curve2D`] for a
 /// heterogeneous-collection adaptor built on top of it).
 ///
-/// Mirrors [`crate::curves::ParametricCurve3D`] with [`Point2D`]/[`Vector2D`]
-/// in place of `Point3D`/`Vector3D`. Concrete curve types (e.g. [`Line2D`],
+/// Mirrors [`crate::curves::ParametricCurve`] with [`Point2D`]/[`Vector2D`]
+/// in place of `Point`/`Vector`. Concrete curve types (e.g. [`Line2D`],
 /// [`Circle2D`]) already provide inherent methods with the same names; their
 /// trait impls simply delegate to those inherent methods, so calling code
 /// can use either form.
@@ -120,7 +120,7 @@ pub trait ParametricCurve2D {
 /// Distance extrema from a point to a 2D curve: what a
 /// [`TrimmedCurve2D`](crate::curves::TrimmedCurve2D) needs from its basis
 /// to project onto a piece of it. Mirrors
-/// [`crate::curves::PointExtrema3D`].
+/// [`crate::curves::PointExtrema`].
 ///
 /// # Examples
 ///

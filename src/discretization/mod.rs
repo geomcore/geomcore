@@ -3,19 +3,19 @@
 //! deviation and angle deviation (see `CONTEXT.md`).
 //!
 //! The work is done in two steps, so a caller controls memory and threads:
-//! [`Discretize3D::point_count`] counts the points for the given criteria,
-//! and [`Discretize3D::discretize_into`] writes exactly that many into
-//! slices the caller owns, without allocating. [`Discretize3D::discretize`]
+//! [`Discretize::point_count`] counts the points for the given criteria,
+//! and [`Discretize::discretize_into`] writes exactly that many into
+//! slices the caller owns, without allocating. [`Discretize::discretize`]
 //! wraps both and allocates the result.
 //!
 //! Ranges are given by trimmed curves: an infinite line, parabola or
 //! hyperbola has no discretization until it is trimmed.
 //!
 //! ```compile_fail
-//! use geomcore::discretization::{DiscretizationCriteria, Discretize3D};
-//! use geomcore::{Line3D, Point3D, Vector3D};
+//! use geomcore::discretization::{DiscretizationCriteria, Discretize};
+//! use geomcore::{Line, Point, Vector};
 //!
-//! let line = Line3D::new(Point3D::ORIGIN, Vector3D::X).unwrap();
+//! let line = Line::new(Point::ORIGIN, Vector::X).unwrap();
 //! line.discretize(DiscretizationCriteria::new(0.1).unwrap());
 //! ```
 
@@ -24,8 +24,8 @@ mod elementary;
 
 #[cfg(doc)]
 use crate::Tolerance;
-use crate::curves::{ParametricCurve2D, ParametricCurve3D, TrimmedCurve2D, TrimmedCurve3D};
-use crate::{BSplineCurve3D, Circle2D, Circle3D, Ellipse3D, Point2D, Point3D};
+use crate::curves::{ParametricCurve, ParametricCurve2D, TrimmedCurve, TrimmedCurve2D};
+use crate::{BSplineCurve, Circle, Circle2D, Ellipse, Point, Point2D};
 use std::fmt;
 
 /// Error returned when a [`DiscretizationCriteria`] value is not a
@@ -81,7 +81,7 @@ impl DiscretizationCriteria {
     /// times the curve's distance from the origin, 1e-13 near it and 1e-10
     /// at the edge of a [`Tolerance::MODEL_SIZE`] model. A finer request
     /// only adds points, about three times as many for each tenfold;
-    /// [`point_count`](Discretize3D::point_count) gives the count before
+    /// [`point_count`](Discretize::point_count) gives the count before
     /// anything is allocated.
     pub fn new(max_chord_deviation: f64) -> Result<Self, DiscretizationCriteriaError> {
         if !(max_chord_deviation.is_finite() && max_chord_deviation > 0.0) {
@@ -144,11 +144,11 @@ impl DiscretizationCriteria {
 /// its coordinates, is not included.
 #[derive(Debug, Clone, PartialEq, Default)]
 #[non_exhaustive]
-pub struct Discretization3D {
+pub struct Discretization {
     /// The parameter of each point, increasing.
     pub parameters: Vec<f64>,
     /// The points on the curve.
-    pub points: Vec<Point3D>,
+    pub points: Vec<Point>,
     /// The chord deviation of each segment.
     pub chord_deviations: Vec<f64>,
     /// The angle deviation of each segment, in radians.
@@ -156,7 +156,7 @@ pub struct Discretization3D {
 }
 
 /// Discretization of a bounded 3D curve over its whole
-/// [`bounds`](ParametricCurve3D::bounds).
+/// [`bounds`](ParametricCurve::bounds).
 ///
 /// Both end points are the curve's points at the range ends; a closed
 /// curve (a full circle, a periodic B-spline, a trimmed curve spanning a
@@ -179,15 +179,15 @@ pub struct Discretization3D {
 /// # Examples
 ///
 /// ```
-/// use geomcore::discretization::{DiscretizationCriteria, Discretize3D};
-/// use geomcore::{Circle3D, Point3D, Vector3D};
+/// use geomcore::discretization::{DiscretizationCriteria, Discretize};
+/// use geomcore::{Circle, Point, Vector};
 ///
-/// let circle = Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 1.0).unwrap();
+/// let circle = Circle::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
 /// let criteria = DiscretizationCriteria::new(1e-3).unwrap();
 ///
 /// // Count, then fill buffers the caller owns...
 /// let n = circle.point_count(criteria);
-/// let (mut parameters, mut points) = (vec![0.0; n], vec![Point3D::ORIGIN; n]);
+/// let (mut parameters, mut points) = (vec![0.0; n], vec![Point::ORIGIN; n]);
 /// let (mut chords, mut angles) = (vec![0.0; n - 1], vec![0.0; n - 1]);
 /// circle.discretize_into(criteria, &mut parameters, &mut points, &mut chords, &mut angles);
 /// assert!(chords.iter().all(|&d| d <= 1e-3));
@@ -197,7 +197,7 @@ pub struct Discretization3D {
 /// assert_eq!(d.points, points);
 /// assert_eq!(d.points[0], d.points[n - 1]);
 /// ```
-pub trait Discretize3D {
+pub trait Discretize {
     /// The number of points the discretization has for `criteria`.
     ///
     /// A chord deviation far below the curve's size asks for as many points
@@ -216,17 +216,17 @@ pub trait Discretize3D {
         &self,
         criteria: DiscretizationCriteria,
         parameters: &mut [f64],
-        points: &mut [Point3D],
+        points: &mut [Point],
         chord_deviations: &mut [f64],
         angle_deviations: &mut [f64],
     );
 
     /// Counts, allocates and fills the discretization.
-    fn discretize(&self, criteria: DiscretizationCriteria) -> Discretization3D {
+    fn discretize(&self, criteria: DiscretizationCriteria) -> Discretization {
         let n = self.point_count(criteria);
-        let mut d = Discretization3D {
+        let mut d = Discretization {
             parameters: vec![0.0; n],
-            points: vec![Point3D::ORIGIN; n],
+            points: vec![Point::ORIGIN; n],
             chord_deviations: vec![0.0; n - 1],
             angle_deviations: vec![0.0; n - 1],
         };
@@ -242,7 +242,7 @@ pub trait Discretize3D {
 }
 
 /// A discretized 2D curve, such as a curve in a surface's parameter
-/// plane: the 2D counterpart of [`Discretization3D`], its chord
+/// plane: the 2D counterpart of [`Discretization`], its chord
 /// deviations being distances in the plane.
 #[derive(Debug, Clone, PartialEq, Default)]
 #[non_exhaustive]
@@ -259,7 +259,7 @@ pub struct Discretization2D {
 
 /// Discretization of a bounded 2D curve over its whole
 /// [`bounds`](ParametricCurve2D::bounds): the 2D counterpart of
-/// [`Discretize3D`], with the same rules.
+/// [`Discretize`], with the same rules.
 ///
 /// # Examples
 ///
@@ -339,7 +339,7 @@ pub(crate) mod sealed {
     /// from its basis. Implemented by every curve, bounded or not, in 3D
     /// and in 2D.
     pub trait DiscretizeRange {
-        /// The curve's points: `Point3D` or `Point2D`.
+        /// The curve's points: `Point` or `Point2D`.
         type Point: Copy;
 
         /// Calls `visit` with the runs covering `[first, last]` in order,
@@ -538,7 +538,7 @@ fn smallest_count(guess: f64, fits: impl Fn(usize) -> bool) -> usize {
     high
 }
 
-/// Implements a discretization trait (`Discretize3D` or `Discretize2D`,
+/// Implements a discretization trait (`Discretize` or `Discretize2D`,
 /// writing points of type `$point`) over the whole bounds of bounded
 /// curves.
 macro_rules! discretize_bounded {
@@ -590,7 +590,7 @@ macro_rules! discretize_bounded {
     )*};
 }
 
-discretize_bounded!(Discretize3D, Discretization3D, Point3D: Circle3D, Ellipse3D, BSplineCurve3D);
+discretize_bounded!(Discretize, Discretization, Point: Circle, Ellipse, BSplineCurve);
 discretize_bounded!(Discretize2D, Discretization2D, Point2D: Circle2D);
 
 /// Implements a discretization trait for a trimmed curve type over its
@@ -651,11 +651,11 @@ fn spans_period((first, last): (f64, f64), period: Option<f64>) -> bool {
 }
 
 discretize_trimmed!(
-    Discretize3D,
-    Discretization3D,
-    Point3D,
-    TrimmedCurve3D,
-    ParametricCurve3D
+    Discretize,
+    Discretization,
+    Point,
+    TrimmedCurve,
+    ParametricCurve
 );
 discretize_trimmed!(
     Discretize2D,
@@ -681,3 +681,14 @@ impl<C: DiscretizeRange + ?Sized> DiscretizeRange for &C {
         (**self).for_each_run(first, last, criteria, min_segments, visit);
     }
 }
+
+/// The former name of [`Discretization`].
+#[deprecated(
+    since = "0.37.0",
+    note = "renamed `Discretization`: only 2D types carry a dimension suffix"
+)]
+pub type Discretization3D = Discretization;
+
+/// The former name of [`Discretize`], kept until the next breaking release.
+#[doc(hidden)]
+pub use Discretize as Discretize3D;

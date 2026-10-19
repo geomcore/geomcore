@@ -1,12 +1,10 @@
 use pyo3::prelude::*;
 
 use geomcore::{
-    Axis2D, Axis3D, Frame2D, Frame3D, Point2D, Point3D, Side, Tolerance, Transform, Vector2D,
-    Vector3D,
+    Axis, Axis2D, Frame, Frame2D, Point, Point2D, Side, Tolerance, Transform, Vector, Vector2D,
 };
 use geomcore::{
-    BoundingBox3D, Discretization2D, Discretization3D, DiscretizationCriteria, Discretize2D,
-    Discretize3D,
+    BoundingBox, Discretization, Discretization2D, DiscretizationCriteria, Discretize, Discretize2D,
 };
 
 use crate::errors::{invalid_argument, python_error};
@@ -16,12 +14,12 @@ use crate::tolerance;
 // Root value types
 // ---------------------------------------------------------------------------
 
-/// What `Point3D.__sub__` accepts: a point (giving the vector between the
+/// What `Point.__sub__` accepts: a point (giving the vector between the
 /// two) or a vector (giving the moved point).
 #[derive(FromPyObject)]
-enum PointOrVector3D {
-    Point(PyPoint3D),
-    Vector(PyVector3D),
+enum PointOrVector {
+    Point(PyPoint),
+    Vector(PyVector),
 }
 
 /// What `Point2D.__sub__` accepts: a point or a vector.
@@ -32,22 +30,22 @@ enum PointOrVector2D {
 }
 
 /// A point in 3D space with `x`, `y` and `z` coordinates.
-#[pyclass(name = "Point3D", module = "geomcore", eq)]
+#[pyclass(name = "Point", module = "geomcore", eq)]
 #[derive(Clone, PartialEq)]
-pub(crate) struct PyPoint3D(pub(crate) Point3D);
+pub(crate) struct PyPoint(pub(crate) Point);
 
 #[pymethods]
-impl PyPoint3D {
+impl PyPoint {
     #[new]
     /// Build a point from its three coordinates.
     fn py_new(x: f64, y: f64, z: f64) -> Self {
-        PyPoint3D(Point3D::new(x, y, z))
+        PyPoint(Point::new(x, y, z))
     }
 
     /// The origin (0, 0, 0).
     #[staticmethod]
     fn origin() -> Self {
-        PyPoint3D(Point3D::ORIGIN)
+        PyPoint(Point::ORIGIN)
     }
 
     #[getter]
@@ -66,7 +64,7 @@ impl PyPoint3D {
     }
 
     /// Euclidean distance to another point.
-    fn distance(&self, other: &PyPoint3D) -> f64 {
+    fn distance(&self, other: &PyPoint) -> f64 {
         self.0.distance(other.0)
     }
 
@@ -74,7 +72,7 @@ impl PyPoint3D {
     /// (`Tolerance.default()` when omitted). `==` compares coordinates
     /// exactly instead.
     #[pyo3(signature = (other, tol = None))]
-    fn coincides(&self, other: &PyPoint3D, tol: Option<PyTolerance>) -> bool {
+    fn coincides(&self, other: &PyPoint, tol: Option<PyTolerance>) -> bool {
         self.0.coincides(other.0, tolerance(tol))
     }
 
@@ -83,17 +81,17 @@ impl PyPoint3D {
         self.0.is_finite()
     }
 
-    fn __add__(&self, offset: PyVector3D) -> PyPoint3D {
-        PyPoint3D(self.0 + offset.0)
+    fn __add__(&self, offset: PyVector) -> PyPoint {
+        PyPoint(self.0 + offset.0)
     }
 
-    fn __sub__(&self, other: PointOrVector3D, py: Python<'_>) -> PyResult<Py<PyAny>> {
+    fn __sub__(&self, other: PointOrVector, py: Python<'_>) -> PyResult<Py<PyAny>> {
         match other {
-            PointOrVector3D::Point(point) => Ok(PyVector3D(self.0 - point.0)
+            PointOrVector::Point(point) => Ok(PyVector(self.0 - point.0)
                 .into_pyobject(py)?
                 .into_any()
                 .unbind()),
-            PointOrVector3D::Vector(vector) => Ok(PyPoint3D(self.0 - vector.0)
+            PointOrVector::Vector(vector) => Ok(PyPoint(self.0 - vector.0)
                 .into_pyobject(py)?
                 .into_any()
                 .unbind()),
@@ -101,7 +99,7 @@ impl PyPoint3D {
     }
 
     fn __repr__(&self) -> String {
-        format!("Point3D{}", coordinates(self.0))
+        format!("Point{}", coordinates(self.0))
     }
 }
 
@@ -111,40 +109,40 @@ impl PyPoint3D {
 /// `components()`; the unit vectors along the world axes are the static
 /// methods `unit_x()`, `unit_y()` and `unit_z()`. Vectors add, subtract,
 /// negate and scale by a number with the usual operators.
-#[pyclass(name = "Vector3D", module = "geomcore", eq)]
+#[pyclass(name = "Vector", module = "geomcore", eq)]
 #[derive(Clone, PartialEq)]
-pub(crate) struct PyVector3D(pub(crate) Vector3D);
+pub(crate) struct PyVector(pub(crate) Vector);
 
 #[pymethods]
-impl PyVector3D {
+impl PyVector {
     #[new]
     /// Build a vector from its three components.
     fn py_new(x: f64, y: f64, z: f64) -> Self {
-        PyVector3D(Vector3D::new(x, y, z))
+        PyVector(Vector::new(x, y, z))
     }
 
     /// The zero vector.
     #[staticmethod]
     fn zero() -> Self {
-        PyVector3D(Vector3D::ZERO)
+        PyVector(Vector::ZERO)
     }
 
     /// The unit vector along the world x axis.
     #[staticmethod]
     fn unit_x() -> Self {
-        PyVector3D(Vector3D::X)
+        PyVector(Vector::X)
     }
 
     /// The unit vector along the world y axis.
     #[staticmethod]
     fn unit_y() -> Self {
-        PyVector3D(Vector3D::Y)
+        PyVector(Vector::Y)
     }
 
     /// The unit vector along the world z axis.
     #[staticmethod]
     fn unit_z() -> Self {
-        PyVector3D(Vector3D::Z)
+        PyVector(Vector::Z)
     }
 
     #[getter]
@@ -168,13 +166,13 @@ impl PyVector3D {
     }
 
     /// Dot product with another vector.
-    fn dot(&self, other: &PyVector3D) -> f64 {
+    fn dot(&self, other: &PyVector) -> f64 {
         self.0.dot(other.0)
     }
 
     /// Cross product with another vector.
-    fn cross(&self, other: &PyVector3D) -> PyVector3D {
-        PyVector3D(self.0.cross(other.0))
+    fn cross(&self, other: &PyVector) -> PyVector {
+        PyVector(self.0.cross(other.0))
     }
 
     /// Euclidean length of the vector.
@@ -194,39 +192,39 @@ impl PyVector3D {
 
     /// The unit vector with the same direction, or `None` for a vector too
     /// short to normalize.
-    fn normalized(&self) -> Option<PyVector3D> {
-        self.0.normalized().map(PyVector3D)
+    fn normalized(&self) -> Option<PyVector> {
+        self.0.normalized().map(PyVector)
     }
 
     /// The signed angle from this vector to `other` around `reference`
     /// (right-hand rule), in (-pi, pi]. A zero `reference` gives the unsigned
     /// angle in [0, pi].
-    fn angle_with_reference(&self, other: &PyVector3D, reference: &PyVector3D) -> f64 {
+    fn angle_with_reference(&self, other: &PyVector, reference: &PyVector) -> f64 {
         self.0.angle_with_reference(other.0, reference.0)
     }
 
-    fn __add__(&self, other: &PyVector3D) -> PyVector3D {
-        PyVector3D(self.0 + other.0)
+    fn __add__(&self, other: &PyVector) -> PyVector {
+        PyVector(self.0 + other.0)
     }
 
-    fn __sub__(&self, other: &PyVector3D) -> PyVector3D {
-        PyVector3D(self.0 - other.0)
+    fn __sub__(&self, other: &PyVector) -> PyVector {
+        PyVector(self.0 - other.0)
     }
 
-    fn __neg__(&self) -> PyVector3D {
-        PyVector3D(-self.0)
+    fn __neg__(&self) -> PyVector {
+        PyVector(-self.0)
     }
 
-    fn __mul__(&self, scalar: f64) -> PyVector3D {
-        PyVector3D(self.0 * scalar)
+    fn __mul__(&self, scalar: f64) -> PyVector {
+        PyVector(self.0 * scalar)
     }
 
-    fn __rmul__(&self, scalar: f64) -> PyVector3D {
-        PyVector3D(scalar * self.0)
+    fn __rmul__(&self, scalar: f64) -> PyVector {
+        PyVector(scalar * self.0)
     }
 
     fn __repr__(&self) -> String {
-        format!("Vector3D{}", coordinates(self.0))
+        format!("Vector{}", coordinates(self.0))
     }
 }
 
@@ -408,28 +406,28 @@ impl PyVector2D {
 }
 
 /// An axis: a point plus a unit direction.
-#[pyclass(name = "Axis3D", module = "geomcore", eq)]
+#[pyclass(name = "Axis", module = "geomcore", eq)]
 #[derive(Clone, PartialEq)]
-pub(crate) struct PyAxis3D(pub(crate) Axis3D);
+pub(crate) struct PyAxis(pub(crate) Axis);
 
 #[pymethods]
-impl PyAxis3D {
+impl PyAxis {
     #[new]
     /// Build an axis from an origin and a direction (normalized internally).
-    fn py_new(origin: PyPoint3D, direction: PyVector3D) -> PyResult<Self> {
-        Ok(PyAxis3D(
-            Axis3D::new(origin.0, direction.0).map_err(python_error)?,
+    fn py_new(origin: PyPoint, direction: PyVector) -> PyResult<Self> {
+        Ok(PyAxis(
+            Axis::new(origin.0, direction.0).map_err(python_error)?,
         ))
     }
 
     /// The axis origin.
-    fn origin(&self) -> PyPoint3D {
-        PyPoint3D(self.0.origin())
+    fn origin(&self) -> PyPoint {
+        PyPoint(self.0.origin())
     }
 
     /// The unit direction of the axis.
-    fn direction(&self) -> PyVector3D {
-        PyVector3D(self.0.direction())
+    fn direction(&self) -> PyVector {
+        PyVector(self.0.direction())
     }
 }
 
@@ -537,33 +535,33 @@ impl PyFrame2D {
 /// The constructors build direct (right-handed, `x × y = z`) frames;
 /// `from_axes` accepts either handedness, and reversing a surface's
 /// direction or mirroring it turns its frame indirect.
-#[pyclass(name = "Frame3D", module = "geomcore", eq)]
+#[pyclass(name = "Frame", module = "geomcore", eq)]
 #[derive(Clone, PartialEq)]
-pub(crate) struct PyFrame3D(pub(crate) Frame3D);
+pub(crate) struct PyFrame(pub(crate) Frame);
 
 #[pymethods]
-impl PyFrame3D {
+impl PyFrame {
     #[new]
     /// Build a frame from an origin, main (z) direction, and an x hint.
-    fn py_new(origin: PyPoint3D, z_direction: PyVector3D, x_hint: PyVector3D) -> PyResult<Self> {
-        Ok(PyFrame3D(
-            Frame3D::new(origin.0, z_direction.0, x_hint.0).map_err(python_error)?,
+    fn py_new(origin: PyPoint, z_direction: PyVector, x_hint: PyVector) -> PyResult<Self> {
+        Ok(PyFrame(
+            Frame::new(origin.0, z_direction.0, x_hint.0).map_err(python_error)?,
         ))
     }
 
     /// Build a frame from an origin and main (z) direction, deriving an
     /// arbitrary perpendicular x direction.
     #[staticmethod]
-    fn from_z(origin: PyPoint3D, z_direction: PyVector3D) -> PyResult<Self> {
-        Ok(PyFrame3D(
-            Frame3D::from_z(origin.0, z_direction.0).map_err(python_error)?,
+    fn from_z(origin: PyPoint, z_direction: PyVector) -> PyResult<Self> {
+        Ok(PyFrame(
+            Frame::from_z(origin.0, z_direction.0).map_err(python_error)?,
         ))
     }
 
     /// The world frame at the origin.
     #[staticmethod]
     fn world() -> Self {
-        PyFrame3D(Frame3D::WORLD)
+        PyFrame(Frame::WORLD)
     }
 
     /// Build a frame from an origin and its three directions (each
@@ -572,13 +570,13 @@ impl PyFrame3D {
     /// non-finite input, a zero direction or non-orthogonal directions.
     #[staticmethod]
     fn from_axes(
-        origin: PyPoint3D,
-        x_direction: PyVector3D,
-        y_direction: PyVector3D,
-        z_direction: PyVector3D,
+        origin: PyPoint,
+        x_direction: PyVector,
+        y_direction: PyVector,
+        z_direction: PyVector,
     ) -> PyResult<Self> {
-        Ok(PyFrame3D(
-            Frame3D::from_axes(origin.0, x_direction.0, y_direction.0, z_direction.0)
+        Ok(PyFrame(
+            Frame::from_axes(origin.0, x_direction.0, y_direction.0, z_direction.0)
                 .map_err(python_error)?,
         ))
     }
@@ -591,53 +589,53 @@ impl PyFrame3D {
 
     /// The frame with its x direction negated (handedness flips).
     fn flipped_x(&self) -> Self {
-        PyFrame3D(self.0.flipped_x())
+        PyFrame(self.0.flipped_x())
     }
 
     /// The frame with its y direction negated (handedness flips).
     fn flipped_y(&self) -> Self {
-        PyFrame3D(self.0.flipped_y())
+        PyFrame(self.0.flipped_y())
     }
 
     /// The frame with its z direction negated (handedness flips).
     fn flipped_z(&self) -> Self {
-        PyFrame3D(self.0.flipped_z())
+        PyFrame(self.0.flipped_z())
     }
 
     /// The frame origin.
-    fn origin(&self) -> PyPoint3D {
-        PyPoint3D(self.0.origin())
+    fn origin(&self) -> PyPoint {
+        PyPoint(self.0.origin())
     }
 
     /// The unit x direction.
-    fn x_direction(&self) -> PyVector3D {
-        PyVector3D(self.0.x_direction())
+    fn x_direction(&self) -> PyVector {
+        PyVector(self.0.x_direction())
     }
 
     /// The unit y direction.
-    fn y_direction(&self) -> PyVector3D {
-        PyVector3D(self.0.y_direction())
+    fn y_direction(&self) -> PyVector {
+        PyVector(self.0.y_direction())
     }
 
     /// The unit z direction.
-    fn z_direction(&self) -> PyVector3D {
-        PyVector3D(self.0.z_direction())
+    fn z_direction(&self) -> PyVector {
+        PyVector(self.0.z_direction())
     }
 
     /// The axis through the origin along the z direction.
-    fn axis(&self) -> PyAxis3D {
-        PyAxis3D(self.0.axis())
+    fn axis(&self) -> PyAxis {
+        PyAxis(self.0.axis())
     }
 
     /// The coordinates `(u, v, w)` of `point` along the x, y and z
     /// directions, measured from the origin.
-    fn local_coordinates(&self, point: PyPoint3D) -> (f64, f64, f64) {
+    fn local_coordinates(&self, point: PyPoint) -> (f64, f64, f64) {
         self.0.local_coordinates(point.0)
     }
 
     /// The point at `u` along x, `v` along y and `w` along z from the origin.
-    fn point_at(&self, u: f64, v: f64, w: f64) -> PyPoint3D {
-        PyPoint3D(self.0.point_at(u, v, w))
+    fn point_at(&self, u: f64, v: f64, w: f64) -> PyPoint {
+        PyPoint(self.0.point_at(u, v, w))
     }
 }
 
@@ -727,38 +725,38 @@ impl PyTransform {
 
     /// Translation by an offset vector.
     #[staticmethod]
-    fn translation(offset: PyVector3D) -> Self {
+    fn translation(offset: PyVector) -> Self {
         PyTransform(Transform::translation(offset.0))
     }
 
     /// Rotation by `angle` radians about `axis` (right-hand rule).
     #[staticmethod]
-    fn rotation(axis: PyAxis3D, angle: f64) -> Self {
+    fn rotation(axis: PyAxis, angle: f64) -> Self {
         PyTransform(Transform::rotation(axis.0, angle))
     }
 
     /// Uniform scaling about `center`.
     #[staticmethod]
-    fn scaling(center: PyPoint3D, factor: f64) -> Self {
+    fn scaling(center: PyPoint, factor: f64) -> Self {
         PyTransform(Transform::scaling(center.0, factor))
     }
 
     /// Point reflection through `center`.
     #[staticmethod]
-    fn mirror_point(center: PyPoint3D) -> Self {
+    fn mirror_point(center: PyPoint) -> Self {
         PyTransform(Transform::mirror_point(center.0))
     }
 
     /// Reflection about an axis (rotation by pi around the line).
     #[staticmethod]
-    fn mirror_axis(axis: PyAxis3D) -> Self {
+    fn mirror_axis(axis: PyAxis) -> Self {
         PyTransform(Transform::mirror_axis(axis.0))
     }
 
     /// Reflection across the plane through the frame origin with normal
     /// equal to the frame's z direction.
     #[staticmethod]
-    fn mirror_plane(frame: PyFrame3D) -> Self {
+    fn mirror_plane(frame: PyFrame) -> Self {
         PyTransform(Transform::mirror_plane(frame.0))
     }
 
@@ -768,85 +766,85 @@ impl PyTransform {
     }
 
     /// Apply the transformation to a point.
-    fn apply_point(&self, p: PyPoint3D) -> PyPoint3D {
-        PyPoint3D(self.0.apply_point(p.0))
+    fn apply_point(&self, p: PyPoint) -> PyPoint {
+        PyPoint(self.0.apply_point(p.0))
     }
 
     /// Apply the transformation to a vector (ignores the translation part).
-    fn apply_vector(&self, v: PyVector3D) -> PyVector3D {
-        PyVector3D(self.0.apply_vector(v.0))
+    fn apply_vector(&self, v: PyVector) -> PyVector {
+        PyVector(self.0.apply_vector(v.0))
     }
 }
 
 /// The axis-aligned box around a curve or surface, holding the shape but
 /// possibly loose for B-splines (their control points' box); `None`
 /// wherever `bounding_box` reports no box for an unbounded shape.
-#[pyclass(name = "BoundingBox3D", module = "geomcore", eq)]
+#[pyclass(name = "BoundingBox", module = "geomcore", eq)]
 #[derive(Clone, Copy, PartialEq)]
-pub(crate) struct PyBoundingBox3D(pub(crate) BoundingBox3D);
+pub(crate) struct PyBoundingBox(pub(crate) BoundingBox);
 
 #[pymethods]
-impl PyBoundingBox3D {
+impl PyBoundingBox {
     #[new]
     /// The box with opposite corners `a` and `b`, in any order.
-    fn py_new(a: PyPoint3D, b: PyPoint3D) -> Self {
-        PyBoundingBox3D(BoundingBox3D::new(a.0, b.0))
+    fn py_new(a: PyPoint, b: PyPoint) -> Self {
+        PyBoundingBox(BoundingBox::new(a.0, b.0))
     }
 
     /// The smallest box holding every point of `points` (`ValueError`
     /// when there are none).
     #[staticmethod]
-    fn from_points(points: Vec<PyPoint3D>) -> PyResult<Self> {
+    fn from_points(points: Vec<PyPoint>) -> PyResult<Self> {
         let points = points.into_iter().map(|p| p.0);
-        BoundingBox3D::from_points(points)
-            .map(PyBoundingBox3D)
+        BoundingBox::from_points(points)
+            .map(PyBoundingBox)
             .ok_or_else(|| invalid_argument("from_points needs at least one point"))
     }
 
     /// The corner with the smallest coordinates.
-    fn min(&self) -> PyPoint3D {
-        PyPoint3D(self.0.min())
+    fn min(&self) -> PyPoint {
+        PyPoint(self.0.min())
     }
 
     /// The corner with the largest coordinates.
-    fn max(&self) -> PyPoint3D {
-        PyPoint3D(self.0.max())
+    fn max(&self) -> PyPoint {
+        PyPoint(self.0.max())
     }
 
     /// The middle of the box.
-    fn center(&self) -> PyPoint3D {
-        PyPoint3D(self.0.center())
+    fn center(&self) -> PyPoint {
+        PyPoint(self.0.center())
     }
 
     /// The vector from the `min` corner to the `max` corner.
-    fn diagonal(&self) -> PyVector3D {
-        PyVector3D(self.0.diagonal())
+    fn diagonal(&self) -> PyVector {
+        PyVector(self.0.diagonal())
     }
 
     /// The smallest box holding both boxes.
-    fn union(&self, other: &PyBoundingBox3D) -> Self {
-        PyBoundingBox3D(self.0.union(other.0))
+    fn union(&self, other: &PyBoundingBox) -> Self {
+        PyBoundingBox(self.0.union(other.0))
     }
 
     /// The box grown by `distance` on every side (negative shrinks it).
     fn enlarged(&self, distance: f64) -> Self {
-        PyBoundingBox3D(self.0.enlarged(distance))
+        PyBoundingBox(self.0.enlarged(distance))
     }
 
     /// Whether the box holds `point` on every axis.
-    fn encloses(&self, point: PyPoint3D) -> bool {
+    fn encloses(&self, point: PyPoint) -> bool {
         self.0.encloses(point.0)
     }
 
     /// Whether the boxes touch or overlap on every axis.
-    fn overlaps(&self, other: &PyBoundingBox3D) -> bool {
+    fn overlaps(&self, other: &PyBoundingBox) -> bool {
         self.0.overlaps(other.0)
     }
 
     fn __repr__(&self) -> String {
         let (lo, hi) = (self.0.min(), self.0.max());
         format!(
-            "BoundingBox3D(min={}, max={})",
+            "BoundingBox(min={}, max={})",
             coordinates(lo),
             coordinates(hi)
         )
@@ -860,12 +858,12 @@ impl PyBoundingBox3D {
 /// distance from the curve to the segment) and angle deviation (the
 /// largest angle between the curve's tangent and the segment, π where no
 /// bound exists).
-#[pyclass(name = "Discretization3D", module = "geomcore", frozen, eq)]
+#[pyclass(name = "Discretization", module = "geomcore", frozen, eq)]
 #[derive(PartialEq)]
-pub(crate) struct PyDiscretization3D(pub(crate) Discretization3D);
+pub(crate) struct PyDiscretization(pub(crate) Discretization);
 
 #[pymethods]
-impl PyDiscretization3D {
+impl PyDiscretization {
     /// The parameter of each point, increasing.
     #[getter]
     fn parameters(&self) -> Vec<f64> {
@@ -874,8 +872,8 @@ impl PyDiscretization3D {
 
     /// The points on the curve.
     #[getter]
-    fn points(&self) -> Vec<PyPoint3D> {
-        self.0.points.iter().copied().map(PyPoint3D).collect()
+    fn points(&self) -> Vec<PyPoint> {
+        self.0.points.iter().copied().map(PyPoint).collect()
     }
 
     /// The chord deviation of each segment.
@@ -891,12 +889,12 @@ impl PyDiscretization3D {
     }
 
     fn __repr__(&self) -> String {
-        format!("Discretization3D({} points)", self.0.points.len())
+        format!("Discretization({} points)", self.0.points.len())
     }
 }
 
 /// A discretized 2D curve, such as a curve in a surface's parameter
-/// plane: the 2D counterpart of `Discretization3D`, its chord deviations
+/// plane: the 2D counterpart of `Discretization`, its chord deviations
 /// being distances in the plane.
 #[pyclass(name = "Discretization2D", module = "geomcore", frozen, eq)]
 #[derive(PartialEq)]
@@ -948,12 +946,12 @@ pub(crate) fn discretization_criteria(
 }
 
 pub(crate) fn discretize_3d(
-    curve: &impl Discretize3D,
+    curve: &impl Discretize,
     max_chord_deviation: f64,
     max_angle_deviation: Option<f64>,
-) -> PyResult<PyDiscretization3D> {
+) -> PyResult<PyDiscretization> {
     let criteria = discretization_criteria(max_chord_deviation, max_angle_deviation)?;
-    Ok(PyDiscretization3D(curve.discretize(criteria)))
+    Ok(PyDiscretization(curve.discretize(criteria)))
 }
 
 pub(crate) fn discretize_2d(
@@ -966,7 +964,7 @@ pub(crate) fn discretize_2d(
 }
 
 pub(crate) fn point_count_3d(
-    curve: &impl Discretize3D,
+    curve: &impl Discretize,
     max_chord_deviation: f64,
     max_angle_deviation: Option<f64>,
 ) -> PyResult<usize> {
@@ -988,13 +986,13 @@ pub(crate) trait Coordinates {
     fn xyz(&self) -> (f64, f64, f64);
 }
 
-impl Coordinates for Point3D {
+impl Coordinates for Point {
     fn xyz(&self) -> (f64, f64, f64) {
         (self.x, self.y, self.z)
     }
 }
 
-impl Coordinates for Vector3D {
+impl Coordinates for Vector {
     fn xyz(&self) -> (f64, f64, f64) {
         (self.x, self.y, self.z)
     }

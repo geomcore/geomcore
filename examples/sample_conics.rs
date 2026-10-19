@@ -4,8 +4,8 @@
 //!
 //! Run with `cargo run --example sample_conics`.
 
-use geomcore::curves::{Circle3D, Curve2D, Ellipse3D, ParametricCurve2D};
-use geomcore::{Cylinder, Point3D, Tolerance, Vector3D};
+use geomcore::curves::{Circle, Curve2D, Ellipse, ParametricCurve2D};
+use geomcore::{Cylinder, Point, Tolerance, Vector};
 use std::f64::consts::TAU;
 
 const SAMPLE_COUNT: usize = 100;
@@ -15,10 +15,10 @@ fn main() {
         .map(|i| TAU * i as f64 / SAMPLE_COUNT as f64)
         .collect();
 
-    let circle = Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
+    let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
     let circle_points = circle.eval_points(&params);
 
-    let ellipse = Ellipse3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, 3.0, 1.5).unwrap();
+    let ellipse = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 3.0, 1.5).unwrap();
     let ellipse_points = ellipse.eval_points(&params);
 
     println!("Circle (radius 2.0), first/last 3 of {SAMPLE_COUNT} points over [0, TAU):");
@@ -31,8 +31,8 @@ fn main() {
 
     // Curve-on-surface parametrization: a circle coaxial with a cylinder
     // has an exact 2D image, a horizontal line at v = height in (u, v).
-    let cylinder = Cylinder::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
-    let section = Circle3D::new(Point3D::new(0.0, 0.0, 3.0), Vector3D::Z, 2.0).unwrap();
+    let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
+    let section = Circle::new(Point::new(0.0, 0.0, 3.0), Vector::Z, 2.0).unwrap();
     let pcurve = section
         .parametrize_on(cylinder, Tolerance::DEFAULT)
         .unwrap();
@@ -52,7 +52,7 @@ fn main() {
     println!("pcurve(1.0) = ({:.6}, {:.6})", q.x, q.y);
 }
 
-fn print_head_and_tail(params: &[f64], points: &[Point3D]) {
+fn print_head_and_tail(params: &[f64], points: &[Point]) {
     let n = points.len();
     for i in 0..3 {
         println!("  u={:.4}  ->  {:?}", params[i], points[i]);

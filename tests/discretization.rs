@@ -1,22 +1,21 @@
 //! Discretization through its public interface: every reported deviation
 //! is checked against an independent measurement of the true one.
 
-use geomcore::curves::{ParametricCurve2D, ParametricCurve3D};
+use geomcore::curves::{ParametricCurve, ParametricCurve2D};
 use geomcore::discretization::{
-    Discretization2D, Discretization3D, DiscretizationCriteria, DiscretizationCriteriaError,
-    Discretize2D, Discretize3D,
+    Discretization, Discretization2D, DiscretizationCriteria, DiscretizationCriteriaError,
+    Discretize, Discretize2D,
 };
 use geomcore::{
-    BSplineCurve3D, Circle2D, Circle3D, Curve2D, Curve3D, Ellipse3D, Frame2D, Hyperbola3D, Line2D,
-    Line3D, Parabola3D, Point2D, Point3D, Tolerance, TrimmedCurve2D, TrimmedCurve3D, Vector2D,
-    Vector3D,
+    BSplineCurve, Circle, Circle2D, Curve, Curve2D, Ellipse, Frame2D, Hyperbola, Line, Line2D,
+    Parabola, Point, Point2D, Tolerance, TrimmedCurve, TrimmedCurve2D, Vector, Vector2D,
 };
 use std::f64::consts::{FRAC_PI_2, PI, TAU};
 
 // ---------------------------------------------------------------- checker
 
 /// The distance from `p` to the segment `[a, b]`.
-fn distance_to_segment(p: Point3D, a: Point3D, b: Point3D) -> f64 {
+fn distance_to_segment(p: Point, a: Point, b: Point) -> f64 {
     let ab = b - a;
     let length2 = ab.dot(ab);
     let t = if length2 > 0.0 {
@@ -28,7 +27,7 @@ fn distance_to_segment(p: Point3D, a: Point3D, b: Point3D) -> f64 {
 }
 
 /// The angle between the curve's tangent at `u` and the segment `[a, b]`.
-fn angle_to_segment<C: ParametricCurve3D>(curve: &C, u: f64, a: Point3D, b: Point3D) -> f64 {
+fn angle_to_segment<C: ParametricCurve>(curve: &C, u: f64, a: Point, b: Point) -> f64 {
     let tangent = curve.eval_derivative(u, 1);
     let chord = b - a;
     tangent.cross(chord).magnitude().atan2(tangent.dot(chord))
@@ -62,7 +61,7 @@ fn maximum(a: f64, b: f64, f: impl Fn(f64) -> f64) -> f64 {
 
 /// The true chord and angle deviation of each segment, measured on the
 /// curve itself.
-fn true_deviations<C: ParametricCurve3D>(curve: &C, d: &Discretization3D) -> Vec<(f64, f64)> {
+fn true_deviations<C: ParametricCurve>(curve: &C, d: &Discretization) -> Vec<(f64, f64)> {
     (0..d.points.len() - 1)
         .map(|i| {
             let (u0, u1) = (d.parameters[i], d.parameters[i + 1]);
@@ -77,9 +76,9 @@ fn true_deviations<C: ParametricCurve3D>(curve: &C, d: &Discretization3D) -> Vec
 /// Checks the shape of a discretization and that every reported deviation
 /// is proven (at least the true one) and meets the criteria. `scale` is
 /// the curve's size, for the rounding slack of the measurement.
-fn assert_proven<C: ParametricCurve3D>(
+fn assert_proven<C: ParametricCurve>(
     curve: &C,
-    d: &Discretization3D,
+    d: &Discretization,
     criteria: DiscretizationCriteria,
     scale: f64,
 ) {
@@ -141,10 +140,10 @@ fn test_criteria_reject_non_positive_and_non_finite_values() {
 
 // ---------------------------------------------------------------- circles
 
-fn circle(radius: f64) -> Circle3D {
-    Circle3D::new(
-        Point3D::new(1.0, -2.0, 0.5),
-        Vector3D::new(1.0, 1.0, 1.0),
+fn circle(radius: f64) -> Circle {
+    Circle::new(
+        Point::new(1.0, -2.0, 0.5),
+        Vector::new(1.0, 1.0, 1.0),
         radius,
     )
     .unwrap()
@@ -183,7 +182,7 @@ fn test_full_circle_is_closed_with_at_least_three_segments() {
 fn test_circle_arcs_whole_and_across_the_seam() {
     let c = circle(3.0);
     for (first, last) in [(0.0, FRAC_PI_2), (1.0, 4.0), (-1.0, 1.0), (5.0, 5.0 + TAU)] {
-        let arc = TrimmedCurve3D::new(c, first, last).unwrap();
+        let arc = TrimmedCurve::new(c, first, last).unwrap();
         for criteria in [chord(1e-2), chord(1e-4), chord_and_angle(1e-2, 0.05)] {
             let d = arc.discretize(criteria);
             assert_eq!(d.points[0], c.eval_point(first));
@@ -191,54 +190,54 @@ fn test_circle_arcs_whole_and_across_the_seam() {
         }
     }
     // An arc shorter than the requested deviation is one segment.
-    let tiny = TrimmedCurve3D::new(c, 0.0, 1e-4).unwrap();
+    let tiny = TrimmedCurve::new(c, 0.0, 1e-4).unwrap();
     assert_eq!(tiny.discretize(chord(1e-3)).points.len(), 2);
 }
 
 // ---------------------------------------------------------------- B-splines
 
 /// A wavy cubic over three spans of uneven length.
-fn wavy() -> BSplineCurve3D {
+fn wavy() -> BSplineCurve {
     let poles = vec![
-        Point3D::new(0.0, 0.0, 0.0),
-        Point3D::new(1.0, 2.0, 0.5),
-        Point3D::new(2.0, -1.0, 0.0),
-        Point3D::new(3.0, 1.5, -0.5),
-        Point3D::new(4.0, 0.0, 1.0),
-        Point3D::new(5.0, 1.0, 0.0),
+        Point::new(0.0, 0.0, 0.0),
+        Point::new(1.0, 2.0, 0.5),
+        Point::new(2.0, -1.0, 0.0),
+        Point::new(3.0, 1.5, -0.5),
+        Point::new(4.0, 0.0, 1.0),
+        Point::new(5.0, 1.0, 0.0),
     ];
-    BSplineCurve3D::new(3, poles, vec![0.0, 0.2, 1.0, 1.5], vec![4, 1, 1, 4], false).unwrap()
+    BSplineCurve::new(3, poles, vec![0.0, 0.2, 1.0, 1.5], vec![4, 1, 1, 4], false).unwrap()
 }
 
 /// A rational cubic with weights from 0.2 to 8.
-fn uneven_weights() -> BSplineCurve3D {
+fn uneven_weights() -> BSplineCurve {
     let poles = vec![
-        Point3D::new(0.0, 0.0, 0.0),
-        Point3D::new(1.0, 3.0, 0.0),
-        Point3D::new(3.0, 3.0, 1.0),
-        Point3D::new(4.0, -1.0, 0.0),
-        Point3D::new(6.0, 0.0, -1.0),
-        Point3D::new(7.0, 2.0, 0.0),
+        Point::new(0.0, 0.0, 0.0),
+        Point::new(1.0, 3.0, 0.0),
+        Point::new(3.0, 3.0, 1.0),
+        Point::new(4.0, -1.0, 0.0),
+        Point::new(6.0, 0.0, -1.0),
+        Point::new(7.0, 2.0, 0.0),
     ];
     let weights = vec![1.0, 0.2, 8.0, 0.5, 3.0, 1.0];
-    BSplineCurve3D::new_rational(3, poles, weights, vec![0.0, 1.0, 2.0], vec![4, 2, 4], false)
+    BSplineCurve::new_rational(3, poles, weights, vec![0.0, 1.0, 2.0], vec![4, 2, 4], false)
         .unwrap()
 }
 
 /// A rational quadratic whose weights make the centroid term of the
 /// rational bound necessary.
-fn skewed_weights() -> BSplineCurve3D {
+fn skewed_weights() -> BSplineCurve {
     let poles = vec![
-        Point3D::new(-0.7348247574079321, -0.4659857917540662, 0.0),
-        Point3D::new(-0.8715469097018922, -0.6487383729544853, 0.0),
-        Point3D::new(0.26508886772773677, 0.9783988954513023, 0.0),
+        Point::new(-0.7348247574079321, -0.4659857917540662, 0.0),
+        Point::new(-0.8715469097018922, -0.6487383729544853, 0.0),
+        Point::new(0.26508886772773677, 0.9783988954513023, 0.0),
     ];
     let weights = vec![1.656624523186388, 0.27100620195828673, 0.3570884064073742];
-    BSplineCurve3D::new_rational(2, poles, weights, vec![0.0, 1.0], vec![3, 3], false).unwrap()
+    BSplineCurve::new_rational(2, poles, weights, vec![0.0, 1.0], vec![3, 3], false).unwrap()
 }
 
 /// A unit circle as four rational quadratic arcs.
-fn rational_circle() -> BSplineCurve3D {
+fn rational_circle() -> BSplineCurve {
     let h = std::f64::consts::FRAC_1_SQRT_2;
     let poles = [
         (1.0, 0.0),
@@ -251,10 +250,10 @@ fn rational_circle() -> BSplineCurve3D {
         (1.0, -1.0),
         (1.0, 0.0),
     ]
-    .map(|(x, y)| Point3D::new(x, y, 0.0))
+    .map(|(x, y)| Point::new(x, y, 0.0))
     .to_vec();
     let weights = vec![1.0, h, 1.0, h, 1.0, h, 1.0, h, 1.0];
-    BSplineCurve3D::new_rational(
+    BSplineCurve::new_rational(
         2,
         poles,
         weights,
@@ -266,18 +265,18 @@ fn rational_circle() -> BSplineCurve3D {
 }
 
 /// A closed cubic over six spans.
-fn periodic_ring() -> BSplineCurve3D {
+fn periodic_ring() -> BSplineCurve {
     let poles = (0..6)
         .map(|i| {
             let a = i as f64 * TAU / 6.0;
-            Point3D::new(
+            Point::new(
                 2.0 * a.cos(),
                 2.0 * a.sin(),
                 if i % 2 == 0 { 0.3 } else { -0.3 },
             )
         })
         .collect();
-    BSplineCurve3D::new(3, poles, (0..7).map(f64::from).collect(), vec![1; 7], true).unwrap()
+    BSplineCurve::new(3, poles, (0..7).map(f64::from).collect(), vec![1; 7], true).unwrap()
 }
 
 #[test]
@@ -302,7 +301,7 @@ fn test_bspline_chord_deviations_are_proven() {
 fn test_trimmed_bsplines_including_across_the_seam() {
     let ring = periodic_ring();
     for (first, last) in [(0.5, 2.7), (-1.3, 0.4), (5.5, 7.0), (2.0, 8.0)] {
-        let piece = TrimmedCurve3D::new(&ring, first, last).unwrap();
+        let piece = TrimmedCurve::new(&ring, first, last).unwrap();
         let d = piece.discretize(chord(1e-4));
         assert_proven(&piece, &d, chord(1e-4), 4.0);
         assert_eq!(d.points[0], ring.eval_point(first));
@@ -312,7 +311,7 @@ fn test_trimmed_bsplines_including_across_the_seam() {
         );
     }
     let curve = uneven_weights();
-    let piece = TrimmedCurve3D::new(curve.clone(), 0.3, 1.9).unwrap();
+    let piece = TrimmedCurve::new(curve.clone(), 0.3, 1.9).unwrap();
     assert_proven(&piece, &piece.discretize(chord(1e-4)), chord(1e-4), 8.0);
 }
 
@@ -327,12 +326,12 @@ fn test_closed_bsplines_are_closed() {
 #[test]
 fn test_degree_one_is_one_segment_per_span() {
     let poles = vec![
-        Point3D::new(0.0, 0.0, 0.0),
-        Point3D::new(1.0, 1.0, 0.0),
-        Point3D::new(2.0, 0.0, 1.0),
-        Point3D::new(4.0, 0.0, 0.0),
+        Point::new(0.0, 0.0, 0.0),
+        Point::new(1.0, 1.0, 0.0),
+        Point::new(2.0, 0.0, 1.0),
+        Point::new(4.0, 0.0, 0.0),
     ];
-    let polyline = BSplineCurve3D::new(
+    let polyline = BSplineCurve::new(
         1,
         poles.clone(),
         vec![0.0, 1.0, 3.0, 4.0],
@@ -349,24 +348,24 @@ fn test_degree_one_is_one_segment_per_span() {
 #[test]
 fn test_a_span_shorter_than_the_deviation_is_one_segment() {
     let poles = vec![
-        Point3D::new(0.0, 0.0, 0.0),
-        Point3D::new(1e-4, 1e-4, 0.0),
-        Point3D::new(2e-4, 0.0, 0.0),
+        Point::new(0.0, 0.0, 0.0),
+        Point::new(1e-4, 1e-4, 0.0),
+        Point::new(2e-4, 0.0, 0.0),
     ];
-    let small = BSplineCurve3D::new(2, poles, vec![0.0, 1.0], vec![3, 3], false).unwrap();
+    let small = BSplineCurve::new(2, poles, vec![0.0, 1.0], vec![3, 3], false).unwrap();
     assert_eq!(small.discretize(chord(1e-3)).points.len(), 2);
 }
 
 #[test]
 fn test_borrowed_and_owned_trimmed_curves_agree() {
     let curve = uneven_weights();
-    let owned = TrimmedCurve3D::new(curve.clone(), 0.2, 1.7).unwrap();
-    let borrowed = TrimmedCurve3D::new(&curve, 0.2, 1.7).unwrap();
+    let owned = TrimmedCurve::new(curve.clone(), 0.2, 1.7).unwrap();
+    let borrowed = TrimmedCurve::new(&curve, 0.2, 1.7).unwrap();
     let criteria = chord(1e-4);
     assert_eq!(owned.discretize(criteria), borrowed.discretize(criteria));
     let c = circle(2.0);
-    let owned = TrimmedCurve3D::new(c, 1.0, 3.0).unwrap();
-    let borrowed = TrimmedCurve3D::new(&c, 1.0, 3.0).unwrap();
+    let owned = TrimmedCurve::new(c, 1.0, 3.0).unwrap();
+    let borrowed = TrimmedCurve::new(&c, 1.0, 3.0).unwrap();
     assert_eq!(owned.discretize(criteria), borrowed.discretize(criteria));
 }
 
@@ -379,7 +378,7 @@ fn test_count_then_fill_into_part_of_a_larger_buffer() {
     let n = curve.point_count(criteria);
     let expected = curve.discretize(criteria);
     assert_eq!(expected.points.len(), n);
-    let (mut parameters, mut points) = (vec![-1.0; n + 10], vec![Point3D::ORIGIN; n + 10]);
+    let (mut parameters, mut points) = (vec![-1.0; n + 10], vec![Point::ORIGIN; n + 10]);
     let (mut chords, mut angles) = (vec![-1.0; n + 10], vec![-1.0; n + 10]);
     curve.discretize_into(
         criteria,
@@ -397,12 +396,9 @@ fn test_count_then_fill_into_part_of_a_larger_buffer() {
 }
 
 /// The discretization by counting, then filling caller-owned slices.
-fn count_then_fill<C: Discretize3D>(
-    curve: &C,
-    criteria: DiscretizationCriteria,
-) -> Discretization3D {
+fn count_then_fill<C: Discretize>(curve: &C, criteria: DiscretizationCriteria) -> Discretization {
     let n = curve.point_count(criteria);
-    let (mut parameters, mut points) = (vec![0.0; n], vec![Point3D::ORIGIN; n]);
+    let (mut parameters, mut points) = (vec![0.0; n], vec![Point::ORIGIN; n]);
     let (mut chords, mut angles) = (vec![0.0; n - 1], vec![0.0; n - 1]);
     curve.discretize_into(
         criteria,
@@ -411,7 +407,7 @@ fn count_then_fill<C: Discretize3D>(
         &mut chords,
         &mut angles,
     );
-    let mut d = Discretization3D::default();
+    let mut d = Discretization::default();
     (d.parameters, d.points) = (parameters, points);
     (d.chord_deviations, d.angle_deviations) = (chords, angles);
     d
@@ -427,18 +423,18 @@ fn test_discretize_agrees_with_count_then_fill() {
                 count_then_fill(&curve, criteria)
             );
             let (first, last) = curve.bounds();
-            let piece = TrimmedCurve3D::new(&curve, first + 0.3, last - 0.1).unwrap();
+            let piece = TrimmedCurve::new(&curve, first + 0.3, last - 0.1).unwrap();
             assert_eq!(
                 piece.discretize(criteria),
                 count_then_fill(&piece, criteria)
             );
         }
-        let across = TrimmedCurve3D::new(periodic_ring(), -1.3, 0.4).unwrap();
+        let across = TrimmedCurve::new(periodic_ring(), -1.3, 0.4).unwrap();
         assert_eq!(
             across.discretize(criteria),
             count_then_fill(&across, criteria)
         );
-        let whole = TrimmedCurve3D::new(periodic_ring(), 2.0, 8.0).unwrap();
+        let whole = TrimmedCurve::new(periodic_ring(), 2.0, 8.0).unwrap();
         assert_eq!(
             whole.discretize(criteria),
             count_then_fill(&whole, criteria)
@@ -446,7 +442,7 @@ fn test_discretize_agrees_with_count_then_fill() {
         // A closed curve gets at least three segments.
         let c = circle(1.0);
         assert_eq!(c.discretize(criteria), count_then_fill(&c, criteria));
-        let arc = TrimmedCurve3D::new(c, 1.0, 1.0 + TAU).unwrap();
+        let arc = TrimmedCurve::new(c, 1.0, 1.0 + TAU).unwrap();
         assert_eq!(arc.discretize(criteria), count_then_fill(&arc, criteria));
     }
 }
@@ -457,7 +453,7 @@ fn test_fill_panics_on_a_wrong_length() {
     let curve = wavy();
     let criteria = chord(1e-4);
     let n = curve.point_count(criteria);
-    let (mut parameters, mut points) = (vec![0.0; n], vec![Point3D::ORIGIN; n + 1]);
+    let (mut parameters, mut points) = (vec![0.0; n], vec![Point::ORIGIN; n + 1]);
     let (mut chords, mut angles) = (vec![0.0; n - 1], vec![0.0; n - 1]);
     curve.discretize_into(
         criteria,
@@ -486,13 +482,13 @@ fn test_same_input_gives_bit_identical_output() {
 // ---------------------------------------------------------------- angle deviation
 
 /// A cubic over one span from four planar poles.
-fn planar_cubic(poles: [(f64, f64); 4]) -> BSplineCurve3D {
-    let poles = poles.map(|(x, y)| Point3D::new(x, y, 0.0)).to_vec();
-    BSplineCurve3D::new(3, poles, vec![0.0, 1.0], vec![4, 4], false).unwrap()
+fn planar_cubic(poles: [(f64, f64); 4]) -> BSplineCurve {
+    let poles = poles.map(|(x, y)| Point::new(x, y, 0.0)).to_vec();
+    BSplineCurve::new(3, poles, vec![0.0, 1.0], vec![4, 4], false).unwrap()
 }
 
 /// The segments reporting an angle deviation of π, as parameter ranges.
-fn unbounded_segments(d: &Discretization3D) -> Vec<(f64, f64)> {
+fn unbounded_segments(d: &Discretization) -> Vec<(f64, f64)> {
     (0..d.angle_deviations.len())
         .filter(|&i| d.angle_deviations[i] == PI)
         .map(|i| (d.parameters[i], d.parameters[i + 1]))
@@ -554,15 +550,15 @@ fn test_coincident_poles_report_pi_only_at_that_end() {
 #[test]
 fn test_the_highest_degree_is_proven() {
     let degree = 25;
-    let poles: Vec<Point3D> = (0..=degree)
+    let poles: Vec<Point> = (0..=degree)
         .map(|i| {
             let a = i as f64;
-            Point3D::new(a, (0.7 * a).sin(), 0.3 * (1.1 * a).cos())
+            Point::new(a, (0.7 * a).sin(), 0.3 * (1.1 * a).cos())
         })
         .collect();
     let weights: Vec<f64> = (0..=degree).map(|i| 1.0 + 0.5 * (i % 3) as f64).collect();
     let (knots, multiplicities) = (vec![0.0, 1.0], vec![26, 26]);
-    let polynomial = BSplineCurve3D::new(
+    let polynomial = BSplineCurve::new(
         degree,
         poles.clone(),
         knots.clone(),
@@ -571,7 +567,7 @@ fn test_the_highest_degree_is_proven() {
     )
     .unwrap();
     let rational =
-        BSplineCurve3D::new_rational(degree, poles, weights, knots, multiplicities, false).unwrap();
+        BSplineCurve::new_rational(degree, poles, weights, knots, multiplicities, false).unwrap();
     let criteria = chord_and_angle(1e-2, 0.1);
     for curve in [polynomial, rational] {
         assert_proven(&curve, &curve.discretize(criteria), criteria, 25.0);
@@ -580,8 +576,8 @@ fn test_the_highest_degree_is_proven() {
 
 #[test]
 fn test_degree_one_segments_have_no_angle_deviation() {
-    let poles = vec![Point3D::new(0.0, 0.0, 0.0), Point3D::new(1.0, 1.0, 0.0)];
-    let line = BSplineCurve3D::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
+    let poles = vec![Point::new(0.0, 0.0, 0.0), Point::new(1.0, 1.0, 0.0)];
+    let line = BSplineCurve::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
     assert_eq!(line.discretize(chord(1e-3)).angle_deviations, vec![0.0]);
 }
 
@@ -606,7 +602,7 @@ fn test_rational_angle_deviations_are_proven() {
 
 #[test]
 fn test_a_rational_circle_needs_few_more_points_than_the_exact_one() {
-    let exact = Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 1.0).unwrap();
+    let exact = Circle::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
     let ratio = |criteria| {
         rational_circle().point_count(criteria) as f64 / exact.point_count(criteria) as f64
     };
@@ -624,21 +620,21 @@ fn test_a_rational_circle_needs_few_more_points_than_the_exact_one() {
 
 // ---------------------------------------------------------------- conics and lines
 
-fn ellipse(major: f64, minor: f64) -> Ellipse3D {
-    let normal = Vector3D::new(0.2, -0.3, 1.0);
-    let x = Vector3D::new(1.0, 0.0, 0.0).cross(normal);
-    Ellipse3D::new(Point3D::new(1.0, 2.0, 3.0), normal, x, major, minor).unwrap()
+fn ellipse(major: f64, minor: f64) -> Ellipse {
+    let normal = Vector::new(0.2, -0.3, 1.0);
+    let x = Vector::new(1.0, 0.0, 0.0).cross(normal);
+    Ellipse::new(Point::new(1.0, 2.0, 3.0), normal, x, major, minor).unwrap()
 }
 
-fn parabola(focal: f64) -> Parabola3D {
-    let normal = Vector3D::new(0.0, 1.0, 1.0);
-    Parabola3D::new(Point3D::new(-1.0, 0.5, 0.0), normal, Vector3D::X, focal).unwrap()
+fn parabola(focal: f64) -> Parabola {
+    let normal = Vector::new(0.0, 1.0, 1.0);
+    Parabola::new(Point::new(-1.0, 0.5, 0.0), normal, Vector::X, focal).unwrap()
 }
 
-fn hyperbola(major: f64, minor: f64) -> Hyperbola3D {
-    let normal = Vector3D::new(1.0, 1.0, 0.0);
-    let x = Vector3D::new(-1.0, 1.0, 0.5);
-    Hyperbola3D::new(Point3D::new(0.0, 0.0, 2.0), normal, x, major, minor).unwrap()
+fn hyperbola(major: f64, minor: f64) -> Hyperbola {
+    let normal = Vector::new(1.0, 1.0, 0.0);
+    let x = Vector::new(-1.0, 1.0, 0.5);
+    Hyperbola::new(Point::new(0.0, 0.0, 2.0), normal, x, major, minor).unwrap()
 }
 
 const CRITERIA: [(f64, Option<f64>); 4] = [
@@ -664,7 +660,7 @@ fn test_ellipses_whole_and_arcs() {
             assert_proven(&e, &d, criteria, major);
             assert_eq!(d.points[0], d.points[d.points.len() - 1]);
             for (first, last) in [(0.3, 1.2), (2.0, 5.0), (-1.0, 0.5)] {
-                let arc = TrimmedCurve3D::new(e, first, last).unwrap();
+                let arc = TrimmedCurve::new(e, first, last).unwrap();
                 assert_proven(&arc, &arc.discretize(criteria), criteria, major);
             }
         }
@@ -674,14 +670,14 @@ fn test_ellipses_whole_and_arcs() {
 #[test]
 fn test_trimmed_parabolas_and_hyperbolas_including_far_along() {
     for (first, last) in [(-3.0, 3.0), (0.0, 1.0), (20.0, 40.0)] {
-        let p = TrimmedCurve3D::new(parabola(0.5), first, last).unwrap();
+        let p = TrimmedCurve::new(parabola(0.5), first, last).unwrap();
         for criteria in criteria_list() {
             assert_proven(&p, &p.discretize(criteria), criteria, 400.0);
         }
     }
     for (major, minor) in [(1.0, 1.0), (3.0, 0.5), (0.5, 3.0)] {
         for (first, last) in [(-2.0, 2.0), (0.0, 0.5), (4.0, 6.0)] {
-            let h = TrimmedCurve3D::new(hyperbola(major, minor), first, last).unwrap();
+            let h = TrimmedCurve::new(hyperbola(major, minor), first, last).unwrap();
             for criteria in criteria_list() {
                 assert_proven(&h, &h.discretize(criteria), criteria, 1000.0);
             }
@@ -693,19 +689,19 @@ fn test_trimmed_parabolas_and_hyperbolas_including_far_along() {
 fn test_far_along_a_hyperbola_needs_few_points() {
     // Nearly straight beyond the vertex: the count follows the bend at the
     // vertex, not the parameter speed, which grows like e^u.
-    let h = TrimmedCurve3D::new(hyperbola(1.0, 1.0), 0.0, 10.0).unwrap();
+    let h = TrimmedCurve::new(hyperbola(1.0, 1.0), 0.0, 10.0).unwrap();
     assert!(
         h.point_count(chord(1e-3)) < 300,
         "{}",
         h.point_count(chord(1e-3))
     );
-    let far = TrimmedCurve3D::new(hyperbola(1.0, 1.0), 8.0, 10.0).unwrap();
+    let far = TrimmedCurve::new(hyperbola(1.0, 1.0), 8.0, 10.0).unwrap();
     assert!(
         far.point_count(chord(1e-3)) < 20,
         "{}",
         far.point_count(chord(1e-3))
     );
-    let p = TrimmedCurve3D::new(parabola(1.0), 100.0, 120.0).unwrap();
+    let p = TrimmedCurve::new(parabola(1.0), 100.0, 120.0).unwrap();
     assert!(
         p.point_count(chord(1e-3)) < 100,
         "{}",
@@ -715,8 +711,8 @@ fn test_far_along_a_hyperbola_needs_few_points() {
 
 #[test]
 fn test_a_trimmed_line_is_one_segment() {
-    let line = Line3D::new(Point3D::new(1.0, 2.0, 3.0), Vector3D::new(0.0, 3.0, 4.0)).unwrap();
-    let segment = TrimmedCurve3D::new(line, -1.0, 2.0).unwrap();
+    let line = Line::new(Point::new(1.0, 2.0, 3.0), Vector::new(0.0, 3.0, 4.0)).unwrap();
+    let segment = TrimmedCurve::new(line, -1.0, 2.0).unwrap();
     let d = segment.discretize(chord_and_angle(1e-7, 1e-9));
     assert_eq!(d.parameters, vec![-1.0, 2.0]);
     assert_eq!(d.points, vec![line.eval_point(-1.0), line.eval_point(2.0)]);
@@ -728,16 +724,16 @@ fn test_a_trimmed_line_is_one_segment() {
 fn test_run_time_curves_match_the_concrete_types() {
     fn same<C>(basis: C, first: f64, last: f64)
     where
-        C: Clone + Into<Curve3D> + ParametricCurve3D,
-        TrimmedCurve3D<C>: Discretize3D,
+        C: Clone + Into<Curve> + ParametricCurve,
+        TrimmedCurve<C>: Discretize,
     {
-        let concrete = TrimmedCurve3D::new(basis.clone(), first, last).unwrap();
-        let run_time = TrimmedCurve3D::new(basis.into(), first, last).unwrap();
+        let concrete = TrimmedCurve::new(basis.clone(), first, last).unwrap();
+        let run_time = TrimmedCurve::new(basis.into(), first, last).unwrap();
         for criteria in criteria_list() {
             assert_eq!(concrete.discretize(criteria), run_time.discretize(criteria));
         }
     }
-    let line = Line3D::new(Point3D::ORIGIN, Vector3D::new(1.0, 1.0, 0.0)).unwrap();
+    let line = Line::new(Point::ORIGIN, Vector::new(1.0, 1.0, 0.0)).unwrap();
     same(line, 0.0, 2.0);
     same(circle(2.0), 1.0, 4.0);
     same(ellipse(3.0, 1.0), -1.0, 2.0);
@@ -755,14 +751,14 @@ fn test_coarse_tolerances_keep_points_over_their_chords() {
     for max in [0.5, 2.0, 5.0] {
         let criteria = chord(max);
         for (first, last) in [(0.0, 6.0), (-1.0, 2.5), (0.5, 3.0), (2.0, 4.0)] {
-            let arc = TrimmedCurve3D::new(flat, first, last).unwrap();
+            let arc = TrimmedCurve::new(flat, first, last).unwrap();
             assert_proven(&arc, &arc.discretize(criteria), criteria, 10.0);
         }
         for (first, last) in [(-1.0, 3.0), (-0.2, 2.0), (-3.0, 0.5)] {
-            let arc = TrimmedCurve3D::new(narrow, first, last).unwrap();
+            let arc = TrimmedCurve::new(narrow, first, last).unwrap();
             assert_proven(&arc, &arc.discretize(criteria), criteria, 50.0);
         }
-        let arc = TrimmedCurve3D::new(hyperbola(0.2, 3.0), -0.5, 3.0).unwrap();
+        let arc = TrimmedCurve::new(hyperbola(0.2, 3.0), -0.5, 3.0).unwrap();
         assert_proven(&arc, &arc.discretize(criteria), criteria, 100.0);
     }
 }
@@ -910,7 +906,7 @@ fn test_2d_borrowed_and_run_time_curves_match_concrete_ones() {
 }
 
 /// Checks that every segment's true chord deviation meets `max`, up to 1 %.
-fn assert_true_chords_within<C: ParametricCurve3D + Discretize3D>(curve: &C, max: f64) {
+fn assert_true_chords_within<C: ParametricCurve + Discretize>(curve: &C, max: f64) {
     let d = curve.discretize(chord(max));
     assert!(d.points.len() > 100, "{} points", d.points.len());
     for (i, (chord, _)) in true_deviations(curve, &d).into_iter().enumerate() {
@@ -930,10 +926,10 @@ fn test_chord_deviations_below_the_confusion_tolerance_are_met() {
     let poles = wavy()
         .poles()
         .iter()
-        .map(|&p| Point3D::ORIGIN + (p - Point3D::ORIGIN) * 1e-6)
+        .map(|&p| Point::ORIGIN + (p - Point::ORIGIN) * 1e-6)
         .collect();
     let small_wavy =
-        BSplineCurve3D::new(3, poles, vec![0.0, 0.2, 1.0, 1.5], vec![4, 1, 1, 4], false).unwrap();
+        BSplineCurve::new(3, poles, vec![0.0, 0.2, 1.0, 1.5], vec![4, 1, 1, 4], false).unwrap();
     assert_true_chords_within(&small_wavy, 1e-12);
     for tiny in [1e-30, f64::MIN_POSITIVE] {
         assert!(DiscretizationCriteria::new(tiny).is_ok());
@@ -996,7 +992,7 @@ fn test_ranges_overshooting_a_knot_by_rounding_make_no_tiny_segments() {
         (&ring, below(2.0), 4.5),
     ];
     for (basis, first, last) in ranges {
-        let trimmed = TrimmedCurve3D::new(basis, first, last).unwrap();
+        let trimmed = TrimmedCurve::new(basis, first, last).unwrap();
         for criteria in criteria_list() {
             let d = trimmed.discretize(criteria);
             assert_proven(&trimmed, &d, criteria, 6.0);
