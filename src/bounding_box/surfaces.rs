@@ -4,7 +4,7 @@
 use super::{BoundingBox, HasBoundingBox, coordinates, point};
 use crate::Point;
 use crate::surfaces::{
-    BSplineSurface, Cone, Cylinder, ElementarySurface, Plane, Sphere, Surface, Torus,
+    BSplineSurface, BezierSurface, Cone, Cylinder, ElementarySurface, Plane, Sphere, Surface, Torus,
 };
 
 /// The box `center ± half` on each axis.
@@ -58,6 +58,12 @@ impl HasBoundingBox for Torus {
 }
 
 impl HasBoundingBox for BSplineSurface {
+    fn bounding_box(&self) -> Option<BoundingBox> {
+        BoundingBox::from_points(self.poles().iter().copied())
+    }
+}
+
+impl HasBoundingBox for BezierSurface {
     fn bounding_box(&self) -> Option<BoundingBox> {
         BoundingBox::from_points(self.poles().iter().copied())
     }

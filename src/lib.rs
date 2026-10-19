@@ -24,7 +24,8 @@
 //! - [`surfaces`] holds the five elementary surfaces
 //!   ([`surfaces::Plane`], [`surfaces::Cylinder`], [`surfaces::Cone`],
 //!   [`surfaces::Sphere`], [`surfaces::Torus`]) plus
-//!   [`surfaces::BSplineSurface`], the [`surfaces::Surface`] enum adaptor,
+//!   [`surfaces::BSplineSurface`], [`surfaces::BezierSurface`], the
+//!   [`surfaces::Surface`] enum adaptor,
 //!   and the [`surfaces::ParametricSurface`] trait.
 //! - [`bounding_box`] holds [`BoundingBox`] and the [`HasBoundingBox`] trait,
 //!   through which curves and surfaces report the axis-aligned box
@@ -215,9 +216,9 @@ pub(crate) use intersect::{search_curve_curve, search_curve_surface};
 pub use point::{Point, Point2D};
 pub use projection::{CurveProjection, CurveProjection2D, SurfaceProjection};
 pub use surfaces::{
-    BSplineSurface, Cone, ConeConstructionError, Cylinder, CylinderConstructionError,
-    ElementarySurface, ParametricSurface, Plane, PlaneConstructionError, Sphere,
-    SphereConstructionError, Surface, SurfaceCurvatures, SurfaceIsoError, Torus,
+    BSplineSurface, BezierSurface, Cone, ConeConstructionError, Cylinder,
+    CylinderConstructionError, ElementarySurface, ParametricSurface, Plane, PlaneConstructionError,
+    Sphere, SphereConstructionError, Surface, SurfaceCurvatures, SurfaceIsoError, Torus,
     TorusConstructionError,
 };
 pub use tolerance::Tolerance;

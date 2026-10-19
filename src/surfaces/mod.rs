@@ -1,7 +1,8 @@
 //! Public surface types: the five elementary analytic surfaces (plane,
-//! cylinder, cone, sphere, torus) plus B-spline surfaces, built on top of
-//! the crate's placement type ([`crate::Frame`]).
+//! cylinder, cone, sphere, torus) plus B-spline and Bézier surfaces, built on
+//! top of the crate's placement type ([`crate::Frame`]).
 
+mod bezier;
 mod bspline;
 mod cone;
 mod conversion;
@@ -13,6 +14,7 @@ mod sphere;
 mod surface;
 mod torus;
 
+pub use bezier::BezierSurface;
 pub use bspline::BSplineSurface;
 pub use cone::{Cone, ConeConstructionError};
 pub use cylinder::{Cylinder, CylinderConstructionError};
