@@ -8,7 +8,10 @@ mod common;
 use common::load;
 use geomcore::curves::{ParametricCurve, ParametricCurve2D, Side};
 use geomcore::discretization::{DiscretizationCriteria, Discretize, Discretize2D};
-use geomcore::{BSplineCurve, BSplineCurve2D, Point, Point2D, Tolerance, Vector, Vector2D};
+use geomcore::{
+    BSplineCurve, BSplineCurve2D, HasBoundingBox, HasBoundingBox2D, Point, Point2D, Tolerance,
+    Vector, Vector2D,
+};
 use serde::Deserialize;
 
 const TOL: Tolerance = Tolerance::DEFAULT;
@@ -304,7 +307,7 @@ fn local_properties_agree() {
 }
 
 #[test]
-fn closedness_and_continuity_agree() {
+fn closedness_continuity_and_boxes_agree() {
     for (name, planar, spatial) in pairs() {
         assert_eq!(
             ParametricCurve2D::is_closed(&planar, TOL),
@@ -323,5 +326,11 @@ fn closedness_and_continuity_agree() {
                 "{name}"
             );
         }
+        let (flat, boxed) = (
+            planar.bounding_box().unwrap(),
+            spatial.bounding_box().unwrap(),
+        );
+        assert_same_point(flat.min(), boxed.min(), &name);
+        assert_same_point(flat.max(), boxed.max(), &name);
     }
 }

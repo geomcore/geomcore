@@ -13,6 +13,10 @@
 //! cuts. Unbounded shapes (lines, parabolas, hyperbolas, planes,
 //! cylinders, cones) have no box; trimmed curves always have one.
 //!
+//! The 2D curves have the same in the plane: [`BoundingBox2D`] and
+//! [`HasBoundingBox2D`], with the same rules for circles, lines, B-splines
+//! and trimmed curves.
+//!
 //! ```
 //! use geomcore::{HasBoundingBox, Circle, Line, Point, TrimmedCurve, Vector};
 //!
@@ -28,8 +32,12 @@
 //! assert_eq!(line.bounding_box(), None);
 //! ```
 
+mod box2d;
 mod curves;
+mod curves2d;
 mod surfaces;
+
+pub use box2d::{BoundingBox2D, HasBoundingBox2D};
 
 use crate::{Point, Vector};
 
@@ -309,7 +317,7 @@ impl<T: HasBoundingBox + ?Sized> HasBoundingBox for &T {
 }
 
 pub(crate) mod sealed {
-    use super::BoundingBox;
+    use super::{BoundingBox, BoundingBox2D};
 
     /// The box of a range of a curve: what a trimmed curve needs from its
     /// basis. Implemented by every curve, bounded or not.
@@ -318,6 +326,16 @@ pub(crate) mod sealed {
         /// with `first < last`, at most one period long on a periodic
         /// curve and anywhere on it.
         fn range_box(&self, first: f64, last: f64) -> BoundingBox;
+    }
+
+    /// The box of a range of a 2D curve: what a
+    /// [`TrimmedCurve2D`](crate::curves::TrimmedCurve2D) needs from its
+    /// basis. Implemented by every 2D curve, bounded or not.
+    pub trait BoundRange2D: crate::curves::ParametricCurve2D {
+        /// The box bounding the curve over `[first, last]`, a finite range
+        /// with `first < last`, at most one period long on a periodic
+        /// curve and anywhere on it.
+        fn range_box(&self, first: f64, last: f64) -> BoundingBox2D;
     }
 }
 
