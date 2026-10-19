@@ -804,11 +804,7 @@ impl BSplineCurve {
     /// assert!(pieces[1].eval_point(1.5).distance(curve.eval_point(1.5)) < 1e-12);
     /// ```
     pub fn to_bezier_pieces(&self) -> Vec<BSplineCurve> {
-        self.0
-            .to_bezier_pieces()
-            .into_iter()
-            .map(BSplineCurve)
-            .collect()
+        self.0.to_bezier_pieces(BSplineCurve)
     }
 
     /// Returns the piece of the curve over `[first, last]` as a clamped,

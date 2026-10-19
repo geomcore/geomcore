@@ -233,7 +233,7 @@ impl BoundRange for BSplineCurve {
                     covered = Some((covered.map_or(middle, |(m, _)| m), middle));
                     return;
                 }
-                self.spline().span_bezier_lanes(middle, &mut points);
+                self.spline().span_bezier_points(middle, &mut points);
                 let piece = &mut points[..=degree];
                 let length = end - start;
                 bernstein::restrict(piece, (a - start) / length, (b - start) / length);

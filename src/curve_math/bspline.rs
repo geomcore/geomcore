@@ -1247,67 +1247,46 @@ pub(crate) fn span_boxes<G: PolePoint>(
     }
 }
 
-/// Homogeneous Bernstein control points `(x w, y w, (w z,) w)` (`w = 1` if
+/// Homogeneous Bernstein control points `(x w, y w, z w, w)` (`w = 1` if
 /// nonrational), over its own parameter interval, of the polynomial piece
 /// on the span containing `u` (pass a parameter inside the span), into
 /// `out[..=degree]`: the span's poles mapped by
-/// [`KnotVector::bezier_matrix`].
+/// [`KnotVector::bezier_matrix`]. A 2D piece lies at `z = 0`: one layout
+/// for the algorithms that run on either tier.
 pub(crate) fn span_bezier<G: PolePoint>(
-    knots: &KnotVector,
-    poles: Poles<G>,
-    u: f64,
-    out: &mut [G::Homogeneous],
-) {
-    span_bezier_as(knots, poles, u, out, |h| h);
-}
-
-/// [`span_bezier`] as four-wide lanes, the spare coordinate of a 2D piece
-/// zero: one layout for the algorithms that run on either tier.
-pub(crate) fn span_bezier_lanes<G: PolePoint>(
     knots: &KnotVector,
     poles: Poles<G>,
     u: f64,
     out: &mut [[f64; 4]],
 ) {
-    span_bezier_as(knots, poles, u, out, HomogeneousPole::lanes);
-}
-
-/// [`span_bezier`] with each control point written through `write`.
-#[inline]
-fn span_bezier_as<G: PolePoint, O>(
-    knots: &KnotVector,
-    poles: Poles<G>,
-    u: f64,
-    out: &mut [O],
-    write: impl Fn(G::Homogeneous) -> O,
-) {
-    fn bezier<const N: usize, G: PolePoint, O>(
+    fn bezier<const N: usize, G: PolePoint>(
         knots: &KnotVector,
         poles: Poles<G>,
         u: f64,
-        out: &mut [O],
-        write: impl Fn(G::Homogeneous) -> O,
+        out: &mut [[f64; 4]],
     ) {
         let degree = knots.degree;
         let mut matrix = [[0.0f64; N]; N];
         let first = knots.bezier_matrix(u, &mut matrix);
-        let mut local: [G::Homogeneous; N] =
-            std::array::from_fn(|_| HomogeneousPole::of_lanes([0.0; 4]));
+        let mut local = [[0.0f64; 4]; N];
         for (j, pole) in local.iter_mut().enumerate().take(degree + 1) {
-            *pole = poles.homogeneous(wrap(first + j, knots.pole_count, knots.periodic));
+            *pole = poles
+                .homogeneous(wrap(first + j, knots.pole_count, knots.periodic))
+                .lanes();
         }
         for (point, row) in out.iter_mut().zip(&matrix).take(degree + 1) {
-            let mut sum: G::Homogeneous = HomogeneousPole::of_lanes([0.0; 4]);
+            *point = [0.0; 4];
             for (&m, pole) in row.iter().zip(&local).take(degree + 1) {
-                sum = sum.combine(1.0, *pole, m);
+                for c in 0..4 {
+                    point[c] += m * pole[c];
+                }
             }
-            *point = write(sum);
         }
     }
     if knots.degree < SMALL {
-        bezier::<SMALL, G, O>(knots, poles, u, out, write);
+        bezier::<SMALL, G>(knots, poles, u, out);
     } else {
-        bezier::<LARGE, G, O>(knots, poles, u, out, write);
+        bezier::<LARGE, G>(knots, poles, u, out);
     }
 }
 
@@ -1361,13 +1340,11 @@ fn scan_span_sized<const N: usize, G: PolePoint>(
 ) -> SpanEnds {
     let p = knots.degree();
     let rational = poles.weights.is_some();
-    let mut points: [G::Homogeneous; LARGE] =
-        std::array::from_fn(|_| HomogeneousPole::of_lanes([0.0; 4]));
+    let mut points = [[0.0; 4]; LARGE];
     span_bezier(knots, poles, 0.5 * (a + b), &mut points);
     let mut bezier = [[0.0; N]; 3];
     let mut weight = [1.0; N];
-    for (k, x) in points.iter().enumerate().take(p + 1) {
-        let lanes = HomogeneousPole::lanes(*x);
+    for (k, lanes) in points.iter().enumerate().take(p + 1) {
         for c in 0..3 {
             bezier[c][k] = lanes[c];
         }
