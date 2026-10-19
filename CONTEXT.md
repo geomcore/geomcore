@@ -127,3 +127,9 @@ Half the sum of the principal curvatures, measured along the unit normal (negati
 **Gaussian curvature**:
 The product of the principal curvatures. Its sign classifies the point (elliptic, hyperbolic, parabolic); it vanishes where the surface is developable.
 _Avoid_: mean curvature for the product
+
+## Evaluation
+
+**Side**:
+Which span to evaluate at a knot or periodic seam: `Below` approaches from the span ending there, `Above` from the span starting there (the side plain evaluation takes, except at the upper bound). Both sides agree away from knots.
+_Avoid_: left/right (which flip with traversal direction), sidedness

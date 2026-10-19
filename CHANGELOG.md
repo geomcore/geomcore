@@ -57,6 +57,14 @@ the Python distribution are versioned in lockstep.
   two principal directions are always a perpendicular unit pair,
   including at and near umbilical points.
 
+- One-sided evaluation at B-spline knots and periodic seams (#78):
+  `eval_d1_sided`, `eval_derivative_sided` and `eval_d2_sided` on
+  B-spline curves and surfaces take a `Side` per direction.
+  `Side::Below` takes the span ending at the parameter, `Side::Above`
+  the span starting there, as plain evaluation does everywhere except
+  at the upper bound. A periodic seam is handled like any other knot,
+  whichever bound names it. Plain evaluation paths are untouched.
+
 ## [0.35.0] - 2026-10-19
 
 ### Added
