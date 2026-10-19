@@ -4,7 +4,7 @@ Uses the real kernel + the real viewer client, so every scene is computed,
 not drawn: exact intersections, marching loops, projection feet.
 
 Run:  python3 docs/assets/scenes/gen_scenes.py
-Needs the released packages: pip install "geomcore>=0.33" "geomcore-viewer>=0.2"
+Needs the released packages: pip install "geomcore>=0.36" "geomcore-viewer>=0.2"
 (the viewer only writes the JSON here; no server is started). A scene that
 shows an unreleased API needs this repo's geomcore-py build instead.
 """
@@ -38,20 +38,26 @@ def save(view: gv.Viewer, name: str) -> None:
     print(f"saved {path.name} ({n} objects)")
 
 
+def meeting(result):
+    """What a surface-surface intersection draws: its curves, then the
+    isolated points where the surfaces touch."""
+    return [piece.curve for piece in result.curves] + list(result.contact_points)
+
+
 def exact_scene() -> None:
     """Sphere cap cylinder: two exact latitude rings (plane page: no — intersection)."""
     t0 = time.perf_counter()
     view = gv.Viewer("Sphere ∩ cylinder (exact)", spawn=False, open_browser=False)
     s = Sphere(Point3D.origin(), 3.0)
-    y = Cylinder(Point3D.origin(), Vector3D.z(), 2.0)
+    y = Cylinder(Point3D.origin(), Vector3D.unit_z(), 2.0)
     view.add(s, label="S", opacity=0.35, group="exact")
     view.add(y, label="Y", opacity=0.35, v=(-3.5, 3.5), group="exact")
     t0 = time.perf_counter()
     for _ in range(200):
         res = s.intersect(y)
     dt = (time.perf_counter() - t0) / 200
-    view.add(res, label="rings", group="exact")
-    print(f"exact: {res[0]} in {dt * 1e6:.1f} us/call (200-call mean)")
+    view.add(*meeting(res), label="rings", group="exact")
+    print(f"exact: {len(res.curves)} ring(s) in {dt * 1e6:.1f} us/call (200-call mean)")
     save(view, "intersect-exact.json")
 
 
@@ -61,10 +67,8 @@ def marching_scene() -> None:
     grid = [[Point3D(x, y, 1.5 * math.sin(x) * math.cos(y)) for y in xs] for x in xs]
     patch = BSplineSurface.approximate(grid, 3, 3, 6, 6)
     s = Sphere(Point3D.origin(), 3.0)
-    from geomcore import intersect_marching
-
     t0 = time.perf_counter()
-    curves = intersect_marching(patch, s)
+    curves = meeting(patch.intersect(s))
     dt = time.perf_counter() - t0
     print(f"marching: {len(curves)} loop(s) in {dt * 1e3:.0f} ms")
 
@@ -88,15 +92,16 @@ def marching_scene() -> None:
 def projection_scene() -> None:
     """Ellipse with all four feet of one query point."""
     view = gv.Viewer("Four feet on an ellipse", spawn=False, open_browser=False)
-    e = Ellipse3D(Point3D.origin(), Vector3D.z(), Vector3D.x(), 3.0, 2.0)
+    e = Ellipse3D(Point3D.origin(), Vector3D.unit_z(), Vector3D.unit_x(), 3.0, 2.0)
     q = Point3D(0.5, 0.2, 0)
     feet = e.extrema(q)
     print(
-        f"projection: {len(feet)} feet: {[(round(t, 4), round(d, 4)) for t, d in feet]}"
+        f"projection: {len(feet)} feet: "
+        f"{[(round(f.parameter, 4), round(f.distance, 4)) for f in feet]}"
     )
     view.add(e, label="E")
     view.add(q, label="Q")
-    view.add([e.eval_point(t) for t, _ in feet], label="foot")
+    view.add([foot.point for foot in feet], label="foot")
     save(view, "projection-feet.json")
 
 
@@ -155,7 +160,7 @@ def three_curves_scene(
 def facing_frame() -> Frame3D:
     """z up, u = 0 turned so the figures' u ≈ 1 faces the viewer's default camera."""
     return Frame3D(
-        Point3D.origin(), Vector3D.z(), Vector3D(math.cos(-1.5), math.sin(-1.5), 0)
+        Point3D.origin(), Vector3D.unit_z(), Vector3D(math.cos(-1.5), math.sin(-1.5), 0)
     )
 
 
@@ -236,7 +241,7 @@ def point_resolved_scene(
 
 
 def elementary_scenes() -> None:
-    o, z = Point3D.origin(), Vector3D.z()
+    o, z = Point3D.origin(), Vector3D.unit_z()
     sphere = Sphere(o, 2.0)
     # u = -0.4: the default camera looks from u ≈ -1, so P sits in front, just right of centre.
     view = point_resolved_scene(
@@ -267,7 +272,7 @@ def plane_sphere_scene() -> None:
     ):
         c = Point3D(3.5 * (i - 1), 0, 0)
         sphere = Sphere(c, 1.0)
-        plane = Plane(Point3D(c.x, 0, delta), Vector3D.z())
+        plane = Plane(Point3D(c.x, 0, delta), Vector3D.unit_z())
         view.add(
             sphere,
             label=f"S ({what})",
@@ -285,13 +290,9 @@ def plane_sphere_scene() -> None:
             v=(-1.6, 1.6),
             group=what,
         )
-        view.add(
-            sphere.intersect(plane),
-            label=f"S ∩ P ({what})",
-            color=B,
-            width=3,
-            group=what,
-        )
+        parts = meeting(sphere.intersect(plane))
+        if parts:
+            view.add(*parts, label=f"S ∩ P ({what})", color=B, width=3, group=what)
     save(view, "plane-sphere.json")
 
 

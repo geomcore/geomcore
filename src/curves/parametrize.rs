@@ -550,7 +550,7 @@ fn torus_poloidal(circle: &Circle3D, frame: crate::Frame3D) -> Result<Line2D, Pa
     let oc = circle.center() - frame.origin();
     let cf = circle.frame();
     let u = frame_angle(frame, oc);
-    let mut v1 = oc.angle_with_ref(cf.x_direction(), oc.cross(z));
+    let mut v1 = oc.angle_with_reference(cf.x_direction(), oc.cross(z));
     if v1 < 0.0 {
         v1 += TAU;
     }
@@ -638,8 +638,8 @@ fn angle_or_zero(y: f64, x: f64) -> f64 {
 
 /// Numeric curve-on-surface parametrization for pairs without closed form.
 ///
-/// Samples the curve uniformly over its bounds (`[-10, 10]` for unbounded
-/// curves) and inverts each sample onto the surface with
+/// Samples the curve at `sample_count` uniform parameters (at least 2)
+/// over its bounds (`[-10, 10]` for unbounded curves) and inverts each sample onto the surface with
 /// [`ParametricSurface::project_point`]. The returned `(u, v)` points
 /// approximate the exact pcurve; where a closed form exists, prefer the
 /// exact [`parametrize_on`](crate::Line3D::parametrize_on) methods.
@@ -657,7 +657,12 @@ fn angle_or_zero(y: f64, x: f64) -> f64 {
 ///     assert!(p.y.abs() < 1e-9);
 /// }
 /// ```
-pub fn parametrize_numeric<C, S>(curve: &C, surface: &S, n: usize, tol: Tolerance) -> Vec<Point2D>
+pub fn parametrize_numeric<C, S>(
+    curve: &C,
+    surface: &S,
+    sample_count: usize,
+    tol: Tolerance,
+) -> Vec<Point2D>
 where
     C: crate::curves::ParametricCurve3D,
     S: ParametricSurface,
@@ -669,10 +674,10 @@ where
         if t0.is_finite() { t0 } else { -WINDOW },
         if t1.is_finite() { t1 } else { WINDOW },
     );
-    let n = n.max(2);
-    (0..n)
+    let sample_count = sample_count.max(2);
+    (0..sample_count)
         .map(|i| {
-            let t = lo + (hi - lo) * i as f64 / (n - 1) as f64;
+            let t = lo + (hi - lo) * i as f64 / (sample_count - 1) as f64;
             let p = surface.project_point(curve.eval_point(t), tol);
             Point2D::new(p.u, p.v)
         })
