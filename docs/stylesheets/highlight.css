@@ -1,0 +1,26 @@
+/* Distinguish classes from callables the way Sphinx's "colorful" style
+   does. Material's default maps both .nc and .nf to one purple. */
+
+:root > * {
+  --md-code-hl-class-color: #a846b9;
+  --md-code-hl-callable-color: #3f6ec6;
+}
+
+[data-md-color-scheme="slate"] {
+  --md-code-hl-class-color: #d29fd8;
+  --md-code-hl-callable-color: #7f9bf0;
+}
+
+.highlight .nc,
+.highlight .ne {
+  color: var(--md-code-hl-class-color);
+}
+
+.highlight .nf,
+.highlight .fm {
+  color: var(--md-code-hl-callable-color);
+}
+
+.highlight .nn {
+  color: var(--md-code-hl-function-color);
+}
