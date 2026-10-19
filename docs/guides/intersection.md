@@ -122,7 +122,9 @@ The search reports whether it finished: the result's `method()` is
 was proven apart or isolated, `Incomplete` with the parameter regions
 where hits may be missing otherwise, and `Sampled` when the hits come
 from samples (a pair without a B-spline, such as an ellipse against a
-torus).
+torus). Between two curves the sampled search halves its grid's spans
+wherever their chords come within the curves' offset from them, so
+crossings closer together than the grid spacing are each found.
 
 === "Python"
 

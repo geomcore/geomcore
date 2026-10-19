@@ -19,6 +19,9 @@ const SEED_GRID_1D: usize = 256;
 /// Most seeds taken from one sampled grid (or edge) of the extrema
 /// search.
 const MAX_SEEDS: usize = 64;
+/// Most halvings of span pairs in the search for the points where two
+/// curves may meet (see [`meeting_seeds`]).
+const MAX_MEETING_HALVINGS: usize = 256;
 /// Unbounded parameters are seeded until the curve has moved this many
 /// configuration scales from its reference point.
 const SEED_REACH: f64 = 64.0;
@@ -267,7 +270,11 @@ where
 /// minimum). A full line against any curve reduces exactly to the minima
 /// of that curve's distance to the line, along the curve alone. Otherwise
 /// the minimiser starts from the discrete local minima of a parameter
-/// grid, and of dense samples along each finite edge of the box. An
+/// grid, and of dense samples along each finite edge of the box, and from
+/// the points where the curves may meet: the pairs of grid spans whose
+/// chords come within the curves' estimated offset from them are halved
+/// until each holds a single minimum, so that crossings closer together
+/// than the grid spacing are each seeded. An
 /// unbounded parameter is seeded geometrically from its reference
 /// parameter, out to many times the configuration's own length scale
 /// (the gap between the curves plus their sizes), and the minimiser may
@@ -492,7 +499,8 @@ where
 
 /// Seeds for the local minima of the distance between two curves over
 /// their parameter box, for [`refine_minima`]: the discrete local minima
-/// of a parameter grid and of dense samples along each finite edge.
+/// of a parameter grid and of dense samples along each finite edge, and
+/// the points where the curves may meet (see [`meeting_seeds`]).
 fn box_seeds<A, B>(a: &A, da: ParamDomain, b: &B, db: ParamDomain) -> Vec<[f64; 2]>
 where
     A: ParametricCurve3D,
@@ -503,13 +511,11 @@ where
         .distance(b.eval_point(db.reference()));
     let scale = configuration_scale(gap, curve_size(a, da), curve_size(b, db));
     let (ss, ts) = (da.seeds(a, scale, SEED_GRID), db.seeds(b, scale, SEED_GRID));
+    let pa: Vec<Point3D> = ss.iter().map(|&s| a.eval_point(s)).collect();
     let pb: Vec<Point3D> = ts.iter().map(|&t| b.eval_point(t)).collect();
-    let values: Vec<f64> = ss
+    let values: Vec<f64> = pa
         .iter()
-        .flat_map(|&s| {
-            let p = a.eval_point(s);
-            pb.iter().map(move |q| p.distance(*q))
-        })
+        .flat_map(|p| pb.iter().map(move |q| p.distance(*q)))
         .collect();
     let shape = [ss.len(), ts.len()];
     let mut seeds: Vec<[f64; 2]> =
@@ -517,6 +523,15 @@ where
             .into_iter()
             .map(|(i, j)| [ss[i], ts[j]])
             .collect();
+    // The grid sees one minimum where two lie closer together than its
+    // spacing (two crossings of a thin lens, a crossing next to a near
+    // touch), and the minimiser reaches only one of them.
+    seeds.extend(meeting_seeds(
+        a,
+        &Span::chain(a, da, &ss, &pa),
+        b,
+        &Span::chain(b, db, &ts, &pb),
+    ));
     // A minimum on an edge of the box can have a basin narrower than the
     // grid: seed each finite edge at the discrete minima of dense samples.
     let edge = |p: Point3D, curve: &dyn Fn(f64) -> Point3D, us: &[f64], dom: ParamDomain| {
@@ -538,7 +553,216 @@ where
         let on_a = edge(b.eval_point(t), &|s| a.eval_point(s), &dense_s, da);
         seeds.extend(on_a.into_iter().map(|s| [s, t]));
     }
+    // A span's closest point may sit on the end of a period.
     seeds
+        .into_iter()
+        .map(|[s, t]| [da.wrap(s), db.wrap(t)])
+        .collect()
+}
+
+/// A stretch of a curve between two parameters: its chord, and an
+/// estimate of how far the curve strays from the chord.
+#[derive(Debug, Clone, Copy)]
+struct Span {
+    lo: f64,
+    hi: f64,
+    start: Point3D,
+    end: Point3D,
+    middle: Point3D,
+    /// Twice the larger of the curve's offset from the chord at the
+    /// middle parameter and the offset `|C''| h^2 / 8` its second
+    /// derivative there predicts: exact for constant curvature, with a
+    /// margin for curvature that varies along the span.
+    deviation: f64,
+    /// The chord's midpoint, and the radius about it of a ball that holds
+    /// the curve over the span: half the chord plus the deviation.
+    centre: Point3D,
+    reach: f64,
+}
+
+impl Span {
+    fn new<C: ParametricCurve3D>(
+        curve: &C,
+        lo: f64,
+        hi: f64,
+        start: Point3D,
+        end: Point3D,
+    ) -> Span {
+        let step = hi - lo;
+        let (middle, _, second) = curve.eval_d2(lo + 0.5 * step);
+        let centre = start + (end - start) * 0.5;
+        let deviation = 2.0
+            * middle
+                .distance(centre)
+                .max(second.magnitude() * step * step / 8.0);
+        Span {
+            lo,
+            hi,
+            start,
+            end,
+            middle,
+            deviation,
+            centre,
+            reach: 0.5 * start.distance(end) + deviation,
+        }
+    }
+
+    /// The spans between consecutive seed parameters of a curve; a
+    /// periodic curve's last span closes the period.
+    fn chain<C: ParametricCurve3D>(
+        curve: &C,
+        dom: ParamDomain,
+        parameters: &[f64],
+        points: &[Point3D],
+    ) -> Vec<Span> {
+        let closing = match dom {
+            ParamDomain::Periodic { start, period } => Some((start + period, points[0])),
+            ParamDomain::Interval(..) => None,
+        };
+        let nodes: Vec<(f64, Point3D)> = parameters
+            .iter()
+            .copied()
+            .zip(points.iter().copied())
+            .chain(closing)
+            .collect();
+        nodes
+            .windows(2)
+            .map(|pair| Span::new(curve, pair[0].0, pair[1].0, pair[0].1, pair[1].1))
+            .collect()
+    }
+
+    /// The two halves of the span.
+    fn halves<C: ParametricCurve3D>(&self, curve: &C) -> [Span; 2] {
+        let middle = 0.5 * (self.lo + self.hi);
+        [
+            Span::new(curve, self.lo, middle, self.start, self.middle),
+            Span::new(curve, middle, self.hi, self.middle, self.end),
+        ]
+    }
+
+    fn chord(&self) -> Vector3D {
+        self.end - self.start
+    }
+
+    /// The closest points of this span's chord and `other`'s, as
+    /// parameters interpolated linearly along the spans, and their
+    /// distance.
+    fn closest(&self, other: &Span) -> ([f64; 2], f64) {
+        let (along_p, along_q) = (self.chord(), other.chord());
+        let [f, g] = closest_on_segments(self.start, along_p, other.start, along_q);
+        (
+            [
+                self.lo + (self.hi - self.lo) * f,
+                other.lo + (other.hi - other.lo) * g,
+            ],
+            (self.start + along_p * f).distance(other.start + along_q * g),
+        )
+    }
+
+    /// Whether the curves over the two spans may meet: their chords come
+    /// within the sum of the spans' deviations.
+    fn may_meet(&self, other: &Span, chord_distance: f64) -> bool {
+        chord_distance <= self.deviation + other.deviation
+    }
+
+    /// A cheap necessary condition for [`Span::may_meet`]: the balls
+    /// about the chords' midpoints holding the curves over the spans
+    /// overlap.
+    fn within_reach(&self, other: &Span) -> bool {
+        let reach = self.reach + other.reach;
+        (self.centre - other.centre).square_magnitude() <= reach * reach
+    }
+
+    /// Whether the distance between the curves over the two spans has at
+    /// most one local minimum: the chords cross at an angle wider than
+    /// the curves' tangents can turn within the spans (about
+    /// `8 deviation / chord length` each), so the curves cross at most
+    /// once and their tangents are never parallel.
+    fn single_minimum(&self, other: &Span) -> bool {
+        let (along_p, along_q) = (self.chord(), other.chord());
+        let (length_p, length_q) = (along_p.magnitude(), along_q.magnitude());
+        let sine = along_p.cross(along_q).magnitude() / (length_p * length_q);
+        sine > 8.0 * (self.deviation / length_p + other.deviation / length_q)
+    }
+}
+
+/// Seeds near every point where the curves may meet: the pairs of spans
+/// whose chords come within their deviations are halved until the curves
+/// over them part ([`Span::may_meet`] fails) or hold a single minimum
+/// ([`Span::single_minimum`]), which is seeded at the chords' closest
+/// points. A uniform grid resolves two minima only when they lie a few
+/// spans apart; two crossings of a thin lens, or a crossing next to a near
+/// touch, can lie closer, at the scale where the curves stray from their
+/// chords by the gap between them, and halving reaches that scale. Pairs
+/// still unsettled after [`MAX_MEETING_HALVINGS`] halvings in all (a
+/// tangency, an overlap) are seeded as they stand, the closest first, at
+/// most [`MAX_SEEDS`].
+fn meeting_seeds<A, B>(a: &A, spans_a: &[Span], b: &B, spans_b: &[Span]) -> Vec<[f64; 2]>
+where
+    A: ParametricCurve3D,
+    B: ParametricCurve3D,
+{
+    let mut pending: Vec<(Span, Span)> = spans_a
+        .iter()
+        .flat_map(|p| spans_b.iter().map(move |q| (*p, *q)))
+        .filter(|(p, q)| p.within_reach(q))
+        .collect();
+    let mut settled: Vec<([f64; 2], f64)> = Vec::new();
+    let mut halvings = 0;
+    while let Some((p, q)) = pending.pop() {
+        let (closest, distance) = p.closest(&q);
+        if !p.may_meet(&q, distance) {
+            continue;
+        }
+        if halvings == MAX_MEETING_HALVINGS || p.single_minimum(&q) {
+            settled.push((closest, distance));
+            continue;
+        }
+        halvings += 1;
+        let (halves_p, halves_q) = (p.halves(a), q.halves(b));
+        for half_p in halves_p {
+            pending.extend(halves_q.iter().map(|half_q| (half_p, *half_q)));
+        }
+    }
+    settled.sort_by(|x, y| x.1.total_cmp(&y.1));
+    settled.truncate(MAX_SEEDS);
+    settled.into_iter().map(|(seed, _)| seed).collect()
+}
+
+/// The fractions `[f, g]` in `[0, 1]` of the closest points
+/// `p + f * along_p` and `q + g * along_q` of two segments; a degenerate
+/// segment is its start point, and parallel segments take the first
+/// segment's start.
+fn closest_on_segments(p: Point3D, along_p: Vector3D, q: Point3D, along_q: Vector3D) -> [f64; 2] {
+    let r = p - q;
+    let (aa, bb) = (along_p.dot(along_p), along_q.dot(along_q));
+    let (ar, br) = (along_p.dot(r), along_q.dot(r));
+    if aa <= 0.0 {
+        let g = if bb > 0.0 {
+            (br / bb).clamp(0.0, 1.0)
+        } else {
+            0.0
+        };
+        return [0.0, g];
+    }
+    if bb <= 0.0 {
+        return [(-ar / aa).clamp(0.0, 1.0), 0.0];
+    }
+    let ab = along_p.dot(along_q);
+    let denominator = along_p.cross(along_q).square_magnitude();
+    let f = if denominator > 0.0 {
+        ((ab * br - ar * bb) / denominator).clamp(0.0, 1.0)
+    } else {
+        0.0
+    };
+    let g = (ab * f + br) / bb;
+    if g < 0.0 {
+        [(-ar / aa).clamp(0.0, 1.0), 0.0]
+    } else if g > 1.0 {
+        [((ab - ar) / aa).clamp(0.0, 1.0), 1.0]
+    } else {
+        [f, g]
+    }
 }
 
 /// The local minima reached by Newton minimisation of the squared
@@ -1237,6 +1461,251 @@ mod tests {
                 assert!((hits[1].first_parameter.unwrap() - t2).abs() < 1e-9);
             }
             _ => panic!("exact intersection expected two points"),
+        }
+    }
+
+    /// A deterministic stream of numbers in `[0, 1)` (xorshift).
+    struct Random(u64);
+
+    impl Random {
+        fn unit(&mut self) -> f64 {
+            self.0 ^= self.0 << 13;
+            self.0 ^= self.0 >> 7;
+            self.0 ^= self.0 << 17;
+            (self.0 >> 11) as f64 / (1u64 << 53) as f64
+        }
+
+        /// A number in `[lo, hi)` rounded to two decimals.
+        fn rounded(&mut self, lo: f64, hi: f64) -> f64 {
+            ((lo + (hi - lo) * self.unit()) * 100.0).round() / 100.0
+        }
+
+        fn unit_vector(&mut self) -> Vector3D {
+            loop {
+                let v = Vector3D::new(
+                    2.0 * self.unit() - 1.0,
+                    2.0 * self.unit() - 1.0,
+                    2.0 * self.unit() - 1.0,
+                );
+                if let Some(unit) = v.normalized()
+                    && v.magnitude() > 0.1
+                {
+                    return unit;
+                }
+            }
+        }
+    }
+
+    /// A plane for the random conic pairs: the XY plane, or a random
+    /// frame centred within 5 of the origin.
+    struct Frame {
+        origin: Point3D,
+        normal: Vector3D,
+        x: Vector3D,
+        y: Vector3D,
+    }
+
+    impl Frame {
+        fn new(random: &mut Random, tilted: bool) -> Frame {
+            if !tilted {
+                return Frame {
+                    origin: Point3D::ORIGIN,
+                    normal: Vector3D::Z,
+                    x: Vector3D::X,
+                    y: Vector3D::Y,
+                };
+            }
+            let origin = Point3D::ORIGIN + random.unit_vector() * (5.0 * random.unit());
+            let normal = random.unit_vector();
+            let x = loop {
+                let w = random.unit_vector();
+                if let Some(x) = (w - normal * w.dot(normal)).normalized() {
+                    break x;
+                }
+            };
+            Frame {
+                origin,
+                normal,
+                x,
+                y: normal.cross(x),
+            }
+        }
+
+        fn point(&self, u: f64, v: f64) -> Point3D {
+            self.origin + self.x * u + self.y * v
+        }
+
+        fn direction(&self, angle: f64) -> Vector3D {
+            self.x * angle.cos() + self.y * angle.sin()
+        }
+
+        fn circle(&self, random: &mut Random) -> crate::curves::ElementaryCurve {
+            let center = self.point(random.rounded(-3.0, 3.0), random.rounded(-3.0, 3.0));
+            let radius = random.rounded(0.2, 4.0);
+            crate::Circle3D::new(center, self.normal, radius)
+                .unwrap()
+                .into()
+        }
+
+        /// An ellipse, at the origin along the frame's axes when
+        /// `centred`, else anywhere at any angle.
+        fn ellipse(&self, random: &mut Random, centred: bool) -> crate::curves::ElementaryCurve {
+            let major = random.rounded(0.2, 4.0);
+            let minor = random.rounded(0.1, major);
+            let (center, axis) = if centred {
+                (self.origin, self.x)
+            } else {
+                let center = self.point(random.rounded(-2.0, 2.0), random.rounded(-2.0, 2.0));
+                (
+                    center,
+                    self.direction(random.rounded(0.0, std::f64::consts::PI)),
+                )
+            };
+            crate::Ellipse3D::new(center, self.normal, axis, major, minor)
+                .unwrap()
+                .into()
+        }
+
+        fn line(&self, random: &mut Random) -> Line3D {
+            let through = self.point(random.rounded(-3.0, 3.0), random.rounded(-3.0, 3.0));
+            Line3D::new(
+                through,
+                self.direction(random.rounded(0.0, std::f64::consts::PI)),
+            )
+            .unwrap()
+        }
+    }
+
+    /// Whether `intersect_curve_curve` finds, within `tol.confusion`, every
+    /// transversal hit of the exact solver on `first` and `second` whose
+    /// parameter on `first` lies in `window`, and only points of the exact
+    /// solution; the number of transversal hits compared.
+    fn finds_exact_hits<A: ParametricCurve3D>(
+        first: &A,
+        exact_first: &crate::curves::ElementaryCurve,
+        second: &crate::curves::ElementaryCurve,
+        window: (f64, f64),
+        tol: Tolerance,
+    ) -> Result<usize, String> {
+        let crate::ExactCurveCurveIntersection::Points(exact) =
+            exact_first.intersect_exact(second, tol)
+        else {
+            return Ok(0);
+        };
+        let numeric = intersect_curve_curve(first, second, tol);
+        let inside = |u: f64| u > window.0 + 1e-6 && u < window.1 - 1e-6;
+        let transversal: Vec<_> = exact
+            .iter()
+            .filter(|h| h.multiplicity == 1 && h.first_parameter.is_some_and(inside))
+            .collect();
+        for hit in &transversal {
+            if !numeric
+                .hits()
+                .iter()
+                .any(|n| n.point.distance(hit.point) <= tol.confusion)
+            {
+                return Err(format!(
+                    "missed {hit:?}: exact {exact:?}, numeric {numeric:?}"
+                ));
+            }
+        }
+        for n in numeric.hits() {
+            if !exact.iter().any(|h| h.point.distance(n.point) <= 1e-6) {
+                return Err(format!("{n:?} is not exact: exact {exact:?}"));
+            }
+        }
+        Ok(transversal.len())
+    }
+
+    /// Compares the numeric and exact hits of `pairs` random coplanar
+    /// conic pairs of each kind (circle and centred ellipse, two ellipses,
+    /// a line or a segment of it and a circle or an ellipse), in the XY
+    /// plane or in random frames; the failures and the number of
+    /// transversal hits compared.
+    fn compare_conic_pairs(seed: u64, pairs: usize, tilted: bool) -> (Vec<String>, usize) {
+        use crate::curves::ElementaryCurve;
+        let tol = Tolerance::DEFAULT;
+        let mut random = Random(seed);
+        let (mut failures, mut compared) = (Vec::new(), 0);
+        let mut check = |outcome: Result<usize, String>| match outcome {
+            Ok(hits) => compared += hits,
+            Err(failure) => failures.push(failure),
+        };
+        let unbounded = (f64::NEG_INFINITY, f64::INFINITY);
+        for k in 0..pairs {
+            let frame = Frame::new(&mut random, tilted);
+            let circle = frame.circle(&mut random);
+            let centred = frame.ellipse(&mut random, true);
+            check(finds_exact_hits(&circle, &circle, &centred, unbounded, tol));
+            let (first, second) = (
+                frame.ellipse(&mut random, false),
+                frame.ellipse(&mut random, false),
+            );
+            check(finds_exact_hits(&first, &first, &second, unbounded, tol));
+            let conic = if k % 2 == 0 { circle } else { second };
+            let line = frame.line(&mut random);
+            let exact_line = ElementaryCurve::from(line);
+            check(finds_exact_hits(&line, &exact_line, &conic, unbounded, tol));
+            let range = (random.rounded(-6.0, 0.0), random.rounded(0.01, 6.0));
+            let segment = crate::TrimmedCurve3D::new(line, range.0, range.1).unwrap();
+            check(finds_exact_hits(&segment, &exact_line, &conic, range, tol));
+        }
+        (failures, compared)
+    }
+
+    #[test]
+    fn test_intersect_curve_curve_finds_close_circle_ellipse_crossings() {
+        // Issue #13: each pair has a crossing the grid alone missed, close
+        // to another crossing or to a near touch.
+        let tol = Tolerance::DEFAULT;
+        let cases = [
+            ((3.44, 1.03), (-1.77, 0.84), 1.9, (-3.42685, -0.08997)),
+            ((1.04, 0.22), (0.73, -1.52), 2.31, (-1.03236, -0.02662)),
+            ((2.56, 1.21), (-0.57, 0.97), 2.21, (-0.18799, -1.20673)),
+            ((2.72, 0.66), (0.86, 1.86), 2.49, (1.45751, -0.55725)),
+        ];
+        for ((major, minor), (x, y), radius, missed) in cases {
+            let ellipse =
+                crate::Ellipse3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, major, minor)
+                    .unwrap();
+            let circle =
+                crate::Circle3D::new(Point3D::new(x, y, 0.0), Vector3D::Z, radius).unwrap();
+            let exact = crate::Intersect::intersect(&circle, &ellipse, tol);
+            let numeric = intersect_curve_curve(&circle, &ellipse, tol);
+            assert_eq!(numeric.hits().len(), exact.hits().len(), "{numeric:?}");
+            for hit in exact.hits() {
+                assert!(
+                    numeric
+                        .hits()
+                        .iter()
+                        .any(|n| n.point.distance(hit.point) <= tol.confusion),
+                    "missed {hit:?}: {numeric:?}"
+                );
+            }
+            let missed = Point3D::new(missed.0, missed.1, 0.0);
+            assert!(
+                numeric
+                    .hits()
+                    .iter()
+                    .any(|n| n.point.distance(missed) < 1e-5)
+            );
+        }
+    }
+
+    #[test]
+    fn test_intersect_curve_curve_finds_every_exact_conic_hit() {
+        for (seed, tilted) in [
+            (0x9E37_79B9_7F4A_7C15, false),
+            (0x2545_F491_4F6C_DD1D, true),
+        ] {
+            let (failures, compared) = compare_conic_pairs(seed, 1000, tilted);
+            assert!(compared >= 3000, "only {compared} hits compared");
+            assert!(
+                failures.is_empty(),
+                "{} failures, first: {}",
+                failures.len(),
+                failures[0]
+            );
         }
     }
 }

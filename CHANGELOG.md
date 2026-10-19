@@ -9,6 +9,28 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+### Fixed
+
+- The sampled curve–curve search no longer drops a transversal crossing
+  that lies close to another crossing or to a near touch (#13). It runs
+  in `intersect_curve_curve` and `curve_curve_extrema` (Rust and Python)
+  on every pair the B-spline piece search does not take (two elementary
+  curves, curves defined outside the crate), and completes a piece search
+  that ends `Incomplete`, including under the routed `intersect`.
+  It seeded the minimiser from the discrete local minima of a 32 × 32
+  parameter grid, which sees one minimum where two lie closer together
+  than the grid spacing; the minimiser then reached only one of them.
+  The pairs of grid spans whose chords come within the curves' offset
+  from them are now halved until each holds a single minimum, and each
+  is seeded. On random coplanar circle–ellipse pairs, 184 of 20,000 in
+  the XY plane and 51 of 5,000 in random frames missed a crossing; none
+  do now, nor any circle–ellipse, ellipse–ellipse or line–conic pair of
+  the new randomized comparison against the exact solvers. The search
+  costs more where the curves meet, as each crossing is now refined: a
+  circle–ellipse pair through `intersect_curve_curve` takes about 20 µs
+  instead of 14 µs. Sampled extrema between curves that stay apart cost
+  up to about 7 % more, near the benchmarks' noise.
+
 ## [0.36.0] - 2026-10-19
 
 One breaking release for Rust and Python. `a.intersect(&b, tol)` now
