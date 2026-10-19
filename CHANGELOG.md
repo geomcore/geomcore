@@ -9,6 +9,88 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+### Added
+
+- Unit surface normal: `ParametricSurface::normal(u, v, tol)` returns the
+  unit `Su × Sv`, recovering the limiting normal at singular points (a
+  sphere's poles, a B-spline row collapsing to a smooth point) from second
+  derivatives, then from nearby parameters; `None` where no normal can be
+  recovered, and at an apex (a cone's, or a collapsed B-spline row whose
+  rows meet at an angle), whose meridians each have their own limit. A
+  partial counts as zero when the distance it would cover across its
+  parameter range is within `tol.confusion`, so rescaling a surface's
+  knots does not change its normals. In Python,
+  `normal(u, v, tol=None)` on `Cylinder`, `Cone`, `Sphere`, `Torus` and
+  `BSplineSurface` (`Plane.normal()` keeps returning its constant
+  normal). ADR 0010 records the design.
+
+- Curve local properties (#69): `tangent(u, tol)` returns the unit
+  direction of motion (`None` where the speed vanishes, as at a cusp),
+  `curvature(u, tol)` the turn rate per unit arc length, and
+  `curvature_center(u, tol)` the centre of the osculating circle
+  (`None` on a straight run or where the speed vanishes). A derivative
+  counts as zero when the distance it would cover across the curve's
+  parameter range is within `tol.confusion`, so rescaling a curve's knots
+  changes none of the three; the surface normal follows the same rule
+  (ADR 0010).
+
+- Closedness queries (#70): `is_closed(tol)` on curves and
+  `is_u_closed(tol)` / `is_v_closed(tol)` on surfaces report whether
+  travelling returns to its start. Periodicity implies closedness, not
+  conversely: B-splines whose ends (boundary curves, for surfaces)
+  coincide, clamped or not, and trims spanning a full period count as
+  closed without being periodic.
+
+- Continuity order queries (#72): `continuity(u, tol)` on curves and
+  `continuity_u/v` on surfaces report `C^n` (`u32::MAX` = smooth),
+  with `min_continuity` (curves) and `min_continuity_u/v` (surfaces)
+  summaries. Elementary shapes are smooth everywhere; B-splines report
+  the `degree − multiplicity` their knots guarantee, wrapping periodic
+  parameters into the period. A trimmed curve reports its basis order
+  inside its range, smooth at its ends, and only the knots inside its
+  range in its minimum.
+
+- Surface curvature properties (#73): `curvatures(u, v, tol)` returns
+  principal curvatures with directions plus mean and Gaussian
+  curvature (`None` where the normal degenerates). Curvatures are
+  measured along the unit normal, negative bending away from it. The
+  two principal directions are always a perpendicular unit pair,
+  including at and near umbilical points.
+
+- One-sided evaluation at B-spline knots and periodic seams (#78):
+  `eval_d1_sided`, `eval_derivative_sided` and `eval_d2_sided` on
+  B-spline curves and surfaces take a `Side` per direction.
+  `Side::Below` takes the span ending at the parameter, `Side::Above`
+  the span starting there, as plain evaluation does everywhere except
+  at the upper bound. A periodic seam is handled like any other knot,
+  whichever bound names it. Plain evaluation paths are untouched.
+
+- Surface reversal, part 1 (#71): `reversed_u()` / `reversed_v()` on
+  every elementary surface plus `Surface`, with `u/v_reversed_parameter`
+  on every surface type and `Surface` mapping parameters onto the
+  reversed shape. Reversal flips one frame axis (frames may now be
+  indirect: `Frame3D::from_axes`, `Frame3D::is_direct`,
+  `flipped_x/y/z`). Isoparametric curves, projection, conversion to
+  B-splines, intersections and curve-on-surface parametrization follow
+  the reversed parametrization. Sided evaluation at seams follows
+  separately.
+
+### Changed
+
+- `transformed` on every elementary surface and on circles, ellipses,
+  parabolas and hyperbolas maps each frame axis through the transform,
+  so the image's parametrization is the image of the original one
+  (`s.transformed(t).eval_point(u, v) == t.apply_point(s.eval_point(u, v))`
+  under rotations, translations and mirrors), as `BSplineSurface` and
+  `BSplineCurve3D` already did. A mirror now turns the frame indirect
+  and the normal to the opposite of the mirrored normal, where it used
+  to re-derive a direct frame and keep the side; call `reversed_u` or
+  `reversed_v` on the image to keep it.
+- `Plane::normal` and `Circle3D::normal` follow orientation: the frame's
+  z direction on a direct frame, its negation on an indirect one.
+  Unchanged for every plane and circle built by a constructor (all
+  direct).
+
 ## [0.36.0] - 2026-10-15
 
 One breaking release for Rust and Python. `a.intersect(&b, tol)` now
@@ -276,7 +358,7 @@ Python:
   `intersect_curve_curve` and `intersect_marching`, all superseded by
   `intersect`.
 
-## [0.35.0] - 2026-10-13
+## [0.35.0] - 2026-10-19
 
 ### Added
 

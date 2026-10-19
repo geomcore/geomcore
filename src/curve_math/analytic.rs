@@ -126,15 +126,16 @@ pub(crate) fn line_parameter(axis: &Axis3D, p: Point3D) -> f64 {
 /// Recovers the angular parameter of a point on (or near) the circle,
 /// wrapped into `[0, 2*PI)`.
 ///
-/// Projects `p - origin` onto the circle's plane implicitly by taking the
-/// signed angle from `x_dir` to `p - origin`, referenced against `z_dir`.
+/// Projects `p - origin` onto the circle's plane by taking its local x/y
+/// coordinates, then their angle. Measuring from the frame's own x and y
+/// directions (not about its z direction) keeps the result right for an
+/// indirect (left-handed) frame too.
 pub(crate) fn circle_parameter(frame: &Frame3D, p: Point3D) -> f64 {
     let op = p - frame.origin();
-    wrap_to_turn(signed_angle_around_unit_axis(
-        frame.x_direction(),
-        op,
-        frame.z_direction(),
-    ))
+    wrap_to_turn(
+        op.dot(frame.y_direction())
+            .atan2(op.dot(frame.x_direction())),
+    )
 }
 
 /// Recovers the angular parameter of a point on (or near) the ellipse,
@@ -148,26 +149,7 @@ pub(crate) fn ellipse_parameter(frame: &Frame3D, maj: f64, min: f64, p: Point3D)
     let op = p - frame.origin();
     let nx = op.dot(frame.x_direction());
     let ny = op.dot(frame.y_direction());
-    let om = nx * frame.x_direction() + ny * (maj / min) * frame.y_direction();
-    wrap_to_turn(signed_angle_around_unit_axis(
-        frame.x_direction(),
-        om,
-        frame.z_direction(),
-    ))
-}
-
-/// Signed angle from `from` to `to` around `unit_axis` (right-hand rule),
-/// in `(-PI, PI]`.
-///
-/// The same angle as [`Vector3D::angle_with_reference`], without normalizing
-/// the axis on every call: a frame's z direction is unit by construction,
-/// so the circle and ellipse parameters skip that square root and division.
-fn signed_angle_around_unit_axis(from: Vector3D, to: Vector3D, unit_axis: Vector3D) -> f64 {
-    debug_assert!(
-        (unit_axis.square_magnitude() - 1.0).abs() <= 1e-12,
-        "the axis must be unit"
-    );
-    unit_axis.dot(from.cross(to)).atan2(from.dot(to))
+    wrap_to_turn((ny * (maj / min)).atan2(nx))
 }
 
 /// Whether `p` is within `tol` of a conic in the frame's plane, decided
