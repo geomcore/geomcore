@@ -1,4 +1,5 @@
-//! Intersection, projection and extrema results, mirroring the Rust result types.
+//! Intersection, projection, extrema and surface curvature results, mirroring
+//! the Rust result types.
 //!
 //! Every class is frozen. Its fields are read-only properties named as in
 //! Rust, compared by value. The intersection results and the curve–curve
@@ -14,11 +15,11 @@ use geomcore::{
     CurveCurveIntersection, CurveCurveIntersection2D, CurveCurveOverlap, CurveCurveRegion,
     CurveProjection, CurveProjection2D, CurveSurfaceHit, CurveSurfaceIntersection,
     CurveSurfaceRegion, IncompleteReason, IntersectionCurve, IntersectionMethod, Point2D, Point3D,
-    SurfaceProjection, SurfaceSurfaceIntersection, SurfaceSurfaceRegion,
+    SurfaceCurvatures, SurfaceProjection, SurfaceSurfaceIntersection, SurfaceSurfaceRegion,
 };
 
 use crate::numeric::curve3d_to_py;
-use crate::values::{PyPoint2D, PyPoint3D, coordinates, coordinates_2d, float_repr};
+use crate::values::{PyPoint2D, PyPoint3D, PyVector3D, coordinates, coordinates_2d, float_repr};
 
 // ---------------------------------------------------------------------------
 // repr helpers
@@ -1471,5 +1472,74 @@ impl PyCurveCurveExtrema {
             list_repr(self.result.minima(), |m| PyCurveCurveExtremum(*m)
                 .__repr__()),
         ))
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Surface curvatures
+// ---------------------------------------------------------------------------
+
+/// Principal, mean and Gaussian curvatures at a surface point, with the
+/// principal directions, as `curvatures(u, v)` returns them.
+///
+/// Curvatures are measured along the unit normal: negative bends away
+/// from it, so a sphere with an outward normal has `-1 / radius`. The two
+/// principal directions are unit tangents, always perpendicular, even at
+/// an umbilical point (a sphere, a plane) where every direction is
+/// principal. Their signs are not specified.
+#[pyclass(name = "SurfaceCurvatures", module = "geomcore", eq, frozen)]
+#[derive(Clone, PartialEq)]
+pub(crate) struct PySurfaceCurvatures(pub(crate) SurfaceCurvatures);
+
+#[pymethods]
+impl PySurfaceCurvatures {
+    /// The smaller principal curvature.
+    #[getter]
+    fn min_curvature(&self) -> f64 {
+        self.0.min_curvature
+    }
+
+    /// The larger principal curvature.
+    #[getter]
+    fn max_curvature(&self) -> f64 {
+        self.0.max_curvature
+    }
+
+    /// The unit tangent direction of `min_curvature`.
+    #[getter]
+    fn min_direction(&self) -> PyVector3D {
+        PyVector3D(self.0.min_direction)
+    }
+
+    /// The unit tangent direction of `max_curvature`, perpendicular to
+    /// `min_direction`.
+    #[getter]
+    fn max_direction(&self) -> PyVector3D {
+        PyVector3D(self.0.max_direction)
+    }
+
+    /// The mean curvature, `(min_curvature + max_curvature) / 2`.
+    #[getter]
+    fn mean(&self) -> f64 {
+        self.0.mean
+    }
+
+    /// The Gaussian curvature, `min_curvature * max_curvature`.
+    #[getter]
+    fn gaussian(&self) -> f64 {
+        self.0.gaussian
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "SurfaceCurvatures(min_curvature={}, max_curvature={}, min_direction=Vector3D{}, \
+             max_direction=Vector3D{}, mean={}, gaussian={})",
+            float_repr(self.0.min_curvature),
+            float_repr(self.0.max_curvature),
+            coordinates(self.0.min_direction),
+            coordinates(self.0.max_direction),
+            float_repr(self.0.mean),
+            float_repr(self.0.gaussian),
+        )
     }
 }

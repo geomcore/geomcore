@@ -240,6 +240,85 @@ impl PyPlane {
     ) -> PyResult<Py<PyAny>> {
         crate::intersect::intersect(slf.as_any(), other, tolerance(tol))
     }
+
+    /// Whether travelling in `u` returns to its start: the boundary
+    /// curves at the two `u` bounds coincide (`Tolerance.default()` when
+    /// omitted). Periodic in `u` implies closed in `u`, not conversely.
+    #[pyo3(signature = (tol = None))]
+    fn is_u_closed(&self, tol: Option<PyTolerance>) -> bool {
+        ParametricSurface::is_u_closed(&self.0, tolerance(tol))
+    }
+
+    /// Whether travelling in `v` returns to its start, as `is_u_closed`.
+    #[pyo3(signature = (tol = None))]
+    fn is_v_closed(&self, tol: Option<PyTolerance>) -> bool {
+        ParametricSurface::is_v_closed(&self.0, tolerance(tol))
+    }
+
+    /// Continuity order `n` of `C^n` in `u` at parameter `u`,
+    /// `SMOOTH_CONTINUITY` where smooth. A B-spline reports `u_degree -
+    /// multiplicity` at a `u` knot (within `tol.parametric`); the ends of
+    /// a non-periodic direction report smooth, and a periodic direction's
+    /// seam counts as a knot. Use `BSplineSurface.eval_d1_sided` and its
+    /// siblings to evaluate each side of a knot reporting a low order.
+    #[pyo3(signature = (u, tol = None))]
+    fn continuity_u(&self, u: f64, tol: Option<PyTolerance>) -> u32 {
+        ParametricSurface::continuity_u(&self.0, u, tolerance(tol))
+    }
+
+    /// Continuity order in `v` at parameter `v`, as `continuity_u`.
+    #[pyo3(signature = (v, tol = None))]
+    fn continuity_v(&self, v: f64, tol: Option<PyTolerance>) -> u32 {
+        ParametricSurface::continuity_v(&self.0, v, tolerance(tol))
+    }
+
+    /// The lowest `continuity_u` anywhere inside the `u` range, ends
+    /// excluded (`SMOOTH_CONTINUITY` when smooth everywhere).
+    fn min_continuity_u(&self) -> u32 {
+        ParametricSurface::min_continuity_u(&self.0)
+    }
+
+    /// The lowest `continuity_v` anywhere inside the `v` range, ends
+    /// excluded (`SMOOTH_CONTINUITY` when smooth everywhere).
+    fn min_continuity_v(&self) -> u32 {
+        ParametricSurface::min_continuity_v(&self.0)
+    }
+
+    /// Principal curvatures with their directions, and the mean and
+    /// Gaussian curvatures, at `(u, v)` (`Tolerance.default()` when
+    /// omitted), as a `SurfaceCurvatures`. `None` where the unit normal
+    /// degenerates, as at a sphere's pole or a cone's apex, or a
+    /// derivative is not finite. Curvatures are measured along the unit
+    /// normal: negative bends away from it.
+    #[pyo3(signature = (u, v, tol = None))]
+    fn curvatures(&self, u: f64, v: f64, tol: Option<PyTolerance>) -> Option<PySurfaceCurvatures> {
+        ParametricSurface::curvatures(&self.0, u, v, tolerance(tol)).map(PySurfaceCurvatures)
+    }
+
+    /// Maps `u` onto the `reversed_u()` surface: the `u` parameter of the
+    /// same point there.
+    fn u_reversed_parameter(&self, u: f64) -> f64 {
+        self.0.u_reversed_parameter(u)
+    }
+
+    /// Maps `v` onto the `reversed_v()` surface: the `v` parameter of the
+    /// same point there.
+    fn v_reversed_parameter(&self, v: f64) -> f64 {
+        self.0.v_reversed_parameter(v)
+    }
+
+    /// The same surface with the `u` direction reversed: one frame axis
+    /// is negated, so the frame turns indirect and the normal reverses.
+    /// `reversed_u().eval_point(u_reversed_parameter(u), v)` is
+    /// `eval_point(u, v)`.
+    fn reversed_u(&self) -> Self {
+        PyPlane(self.0.reversed_u())
+    }
+
+    /// The same surface with the `v` direction reversed, as `reversed_u`.
+    fn reversed_v(&self) -> Self {
+        PyPlane(self.0.reversed_v())
+    }
 }
 
 /// An infinite circular cylinder; u is the angle around the axis, v the
@@ -482,6 +561,85 @@ impl PyCylinder {
         tol: Option<PyTolerance>,
     ) -> PyResult<Py<PyAny>> {
         crate::intersect::intersect(slf.as_any(), other, tolerance(tol))
+    }
+
+    /// Whether travelling in `u` returns to its start: the boundary
+    /// curves at the two `u` bounds coincide (`Tolerance.default()` when
+    /// omitted). Periodic in `u` implies closed in `u`, not conversely.
+    #[pyo3(signature = (tol = None))]
+    fn is_u_closed(&self, tol: Option<PyTolerance>) -> bool {
+        ParametricSurface::is_u_closed(&self.0, tolerance(tol))
+    }
+
+    /// Whether travelling in `v` returns to its start, as `is_u_closed`.
+    #[pyo3(signature = (tol = None))]
+    fn is_v_closed(&self, tol: Option<PyTolerance>) -> bool {
+        ParametricSurface::is_v_closed(&self.0, tolerance(tol))
+    }
+
+    /// Continuity order `n` of `C^n` in `u` at parameter `u`,
+    /// `SMOOTH_CONTINUITY` where smooth. A B-spline reports `u_degree -
+    /// multiplicity` at a `u` knot (within `tol.parametric`); the ends of
+    /// a non-periodic direction report smooth, and a periodic direction's
+    /// seam counts as a knot. Use `BSplineSurface.eval_d1_sided` and its
+    /// siblings to evaluate each side of a knot reporting a low order.
+    #[pyo3(signature = (u, tol = None))]
+    fn continuity_u(&self, u: f64, tol: Option<PyTolerance>) -> u32 {
+        ParametricSurface::continuity_u(&self.0, u, tolerance(tol))
+    }
+
+    /// Continuity order in `v` at parameter `v`, as `continuity_u`.
+    #[pyo3(signature = (v, tol = None))]
+    fn continuity_v(&self, v: f64, tol: Option<PyTolerance>) -> u32 {
+        ParametricSurface::continuity_v(&self.0, v, tolerance(tol))
+    }
+
+    /// The lowest `continuity_u` anywhere inside the `u` range, ends
+    /// excluded (`SMOOTH_CONTINUITY` when smooth everywhere).
+    fn min_continuity_u(&self) -> u32 {
+        ParametricSurface::min_continuity_u(&self.0)
+    }
+
+    /// The lowest `continuity_v` anywhere inside the `v` range, ends
+    /// excluded (`SMOOTH_CONTINUITY` when smooth everywhere).
+    fn min_continuity_v(&self) -> u32 {
+        ParametricSurface::min_continuity_v(&self.0)
+    }
+
+    /// Principal curvatures with their directions, and the mean and
+    /// Gaussian curvatures, at `(u, v)` (`Tolerance.default()` when
+    /// omitted), as a `SurfaceCurvatures`. `None` where the unit normal
+    /// degenerates, as at a sphere's pole or a cone's apex, or a
+    /// derivative is not finite. Curvatures are measured along the unit
+    /// normal: negative bends away from it.
+    #[pyo3(signature = (u, v, tol = None))]
+    fn curvatures(&self, u: f64, v: f64, tol: Option<PyTolerance>) -> Option<PySurfaceCurvatures> {
+        ParametricSurface::curvatures(&self.0, u, v, tolerance(tol)).map(PySurfaceCurvatures)
+    }
+
+    /// Maps `u` onto the `reversed_u()` surface: the `u` parameter of the
+    /// same point there.
+    fn u_reversed_parameter(&self, u: f64) -> f64 {
+        self.0.u_reversed_parameter(u)
+    }
+
+    /// Maps `v` onto the `reversed_v()` surface: the `v` parameter of the
+    /// same point there.
+    fn v_reversed_parameter(&self, v: f64) -> f64 {
+        self.0.v_reversed_parameter(v)
+    }
+
+    /// The same surface with the `u` direction reversed: one frame axis
+    /// is negated, so the frame turns indirect and the normal reverses.
+    /// `reversed_u().eval_point(u_reversed_parameter(u), v)` is
+    /// `eval_point(u, v)`.
+    fn reversed_u(&self) -> Self {
+        PyCylinder(self.0.reversed_u())
+    }
+
+    /// The same surface with the `v` direction reversed, as `reversed_u`.
+    fn reversed_v(&self) -> Self {
+        PyCylinder(self.0.reversed_v())
     }
 }
 
@@ -730,6 +888,85 @@ impl PyCone {
     ) -> PyResult<Py<PyAny>> {
         crate::intersect::intersect(slf.as_any(), other, tolerance(tol))
     }
+
+    /// Whether travelling in `u` returns to its start: the boundary
+    /// curves at the two `u` bounds coincide (`Tolerance.default()` when
+    /// omitted). Periodic in `u` implies closed in `u`, not conversely.
+    #[pyo3(signature = (tol = None))]
+    fn is_u_closed(&self, tol: Option<PyTolerance>) -> bool {
+        ParametricSurface::is_u_closed(&self.0, tolerance(tol))
+    }
+
+    /// Whether travelling in `v` returns to its start, as `is_u_closed`.
+    #[pyo3(signature = (tol = None))]
+    fn is_v_closed(&self, tol: Option<PyTolerance>) -> bool {
+        ParametricSurface::is_v_closed(&self.0, tolerance(tol))
+    }
+
+    /// Continuity order `n` of `C^n` in `u` at parameter `u`,
+    /// `SMOOTH_CONTINUITY` where smooth. A B-spline reports `u_degree -
+    /// multiplicity` at a `u` knot (within `tol.parametric`); the ends of
+    /// a non-periodic direction report smooth, and a periodic direction's
+    /// seam counts as a knot. Use `BSplineSurface.eval_d1_sided` and its
+    /// siblings to evaluate each side of a knot reporting a low order.
+    #[pyo3(signature = (u, tol = None))]
+    fn continuity_u(&self, u: f64, tol: Option<PyTolerance>) -> u32 {
+        ParametricSurface::continuity_u(&self.0, u, tolerance(tol))
+    }
+
+    /// Continuity order in `v` at parameter `v`, as `continuity_u`.
+    #[pyo3(signature = (v, tol = None))]
+    fn continuity_v(&self, v: f64, tol: Option<PyTolerance>) -> u32 {
+        ParametricSurface::continuity_v(&self.0, v, tolerance(tol))
+    }
+
+    /// The lowest `continuity_u` anywhere inside the `u` range, ends
+    /// excluded (`SMOOTH_CONTINUITY` when smooth everywhere).
+    fn min_continuity_u(&self) -> u32 {
+        ParametricSurface::min_continuity_u(&self.0)
+    }
+
+    /// The lowest `continuity_v` anywhere inside the `v` range, ends
+    /// excluded (`SMOOTH_CONTINUITY` when smooth everywhere).
+    fn min_continuity_v(&self) -> u32 {
+        ParametricSurface::min_continuity_v(&self.0)
+    }
+
+    /// Principal curvatures with their directions, and the mean and
+    /// Gaussian curvatures, at `(u, v)` (`Tolerance.default()` when
+    /// omitted), as a `SurfaceCurvatures`. `None` where the unit normal
+    /// degenerates, as at a sphere's pole or a cone's apex, or a
+    /// derivative is not finite. Curvatures are measured along the unit
+    /// normal: negative bends away from it.
+    #[pyo3(signature = (u, v, tol = None))]
+    fn curvatures(&self, u: f64, v: f64, tol: Option<PyTolerance>) -> Option<PySurfaceCurvatures> {
+        ParametricSurface::curvatures(&self.0, u, v, tolerance(tol)).map(PySurfaceCurvatures)
+    }
+
+    /// Maps `u` onto the `reversed_u()` surface: the `u` parameter of the
+    /// same point there.
+    fn u_reversed_parameter(&self, u: f64) -> f64 {
+        self.0.u_reversed_parameter(u)
+    }
+
+    /// Maps `v` onto the `reversed_v()` surface: the `v` parameter of the
+    /// same point there.
+    fn v_reversed_parameter(&self, v: f64) -> f64 {
+        self.0.v_reversed_parameter(v)
+    }
+
+    /// The same surface with the `u` direction reversed: one frame axis
+    /// is negated, so the frame turns indirect and the normal reverses.
+    /// `reversed_u().eval_point(u_reversed_parameter(u), v)` is
+    /// `eval_point(u, v)`.
+    fn reversed_u(&self) -> Self {
+        PyCone(self.0.reversed_u())
+    }
+
+    /// The same surface with the `v` direction reversed, as `reversed_u`.
+    fn reversed_v(&self) -> Self {
+        PyCone(self.0.reversed_v())
+    }
 }
 
 /// A sphere; u is the longitude in [0, 2*pi), v the latitude in [-pi/2, pi/2].
@@ -970,6 +1207,85 @@ impl PySphere {
         tol: Option<PyTolerance>,
     ) -> PyResult<Py<PyAny>> {
         crate::intersect::intersect(slf.as_any(), other, tolerance(tol))
+    }
+
+    /// Whether travelling in `u` returns to its start: the boundary
+    /// curves at the two `u` bounds coincide (`Tolerance.default()` when
+    /// omitted). Periodic in `u` implies closed in `u`, not conversely.
+    #[pyo3(signature = (tol = None))]
+    fn is_u_closed(&self, tol: Option<PyTolerance>) -> bool {
+        ParametricSurface::is_u_closed(&self.0, tolerance(tol))
+    }
+
+    /// Whether travelling in `v` returns to its start, as `is_u_closed`.
+    #[pyo3(signature = (tol = None))]
+    fn is_v_closed(&self, tol: Option<PyTolerance>) -> bool {
+        ParametricSurface::is_v_closed(&self.0, tolerance(tol))
+    }
+
+    /// Continuity order `n` of `C^n` in `u` at parameter `u`,
+    /// `SMOOTH_CONTINUITY` where smooth. A B-spline reports `u_degree -
+    /// multiplicity` at a `u` knot (within `tol.parametric`); the ends of
+    /// a non-periodic direction report smooth, and a periodic direction's
+    /// seam counts as a knot. Use `BSplineSurface.eval_d1_sided` and its
+    /// siblings to evaluate each side of a knot reporting a low order.
+    #[pyo3(signature = (u, tol = None))]
+    fn continuity_u(&self, u: f64, tol: Option<PyTolerance>) -> u32 {
+        ParametricSurface::continuity_u(&self.0, u, tolerance(tol))
+    }
+
+    /// Continuity order in `v` at parameter `v`, as `continuity_u`.
+    #[pyo3(signature = (v, tol = None))]
+    fn continuity_v(&self, v: f64, tol: Option<PyTolerance>) -> u32 {
+        ParametricSurface::continuity_v(&self.0, v, tolerance(tol))
+    }
+
+    /// The lowest `continuity_u` anywhere inside the `u` range, ends
+    /// excluded (`SMOOTH_CONTINUITY` when smooth everywhere).
+    fn min_continuity_u(&self) -> u32 {
+        ParametricSurface::min_continuity_u(&self.0)
+    }
+
+    /// The lowest `continuity_v` anywhere inside the `v` range, ends
+    /// excluded (`SMOOTH_CONTINUITY` when smooth everywhere).
+    fn min_continuity_v(&self) -> u32 {
+        ParametricSurface::min_continuity_v(&self.0)
+    }
+
+    /// Principal curvatures with their directions, and the mean and
+    /// Gaussian curvatures, at `(u, v)` (`Tolerance.default()` when
+    /// omitted), as a `SurfaceCurvatures`. `None` where the unit normal
+    /// degenerates, as at a sphere's pole or a cone's apex, or a
+    /// derivative is not finite. Curvatures are measured along the unit
+    /// normal: negative bends away from it.
+    #[pyo3(signature = (u, v, tol = None))]
+    fn curvatures(&self, u: f64, v: f64, tol: Option<PyTolerance>) -> Option<PySurfaceCurvatures> {
+        ParametricSurface::curvatures(&self.0, u, v, tolerance(tol)).map(PySurfaceCurvatures)
+    }
+
+    /// Maps `u` onto the `reversed_u()` surface: the `u` parameter of the
+    /// same point there.
+    fn u_reversed_parameter(&self, u: f64) -> f64 {
+        self.0.u_reversed_parameter(u)
+    }
+
+    /// Maps `v` onto the `reversed_v()` surface: the `v` parameter of the
+    /// same point there.
+    fn v_reversed_parameter(&self, v: f64) -> f64 {
+        self.0.v_reversed_parameter(v)
+    }
+
+    /// The same surface with the `u` direction reversed: one frame axis
+    /// is negated, so the frame turns indirect and the normal reverses.
+    /// `reversed_u().eval_point(u_reversed_parameter(u), v)` is
+    /// `eval_point(u, v)`.
+    fn reversed_u(&self) -> Self {
+        PySphere(self.0.reversed_u())
+    }
+
+    /// The same surface with the `v` direction reversed, as `reversed_u`.
+    fn reversed_v(&self) -> Self {
+        PySphere(self.0.reversed_v())
     }
 }
 
@@ -1213,6 +1529,85 @@ impl PyTorus {
         tol: Option<PyTolerance>,
     ) -> PyResult<Py<PyAny>> {
         crate::intersect::intersect(slf.as_any(), other, tolerance(tol))
+    }
+
+    /// Whether travelling in `u` returns to its start: the boundary
+    /// curves at the two `u` bounds coincide (`Tolerance.default()` when
+    /// omitted). Periodic in `u` implies closed in `u`, not conversely.
+    #[pyo3(signature = (tol = None))]
+    fn is_u_closed(&self, tol: Option<PyTolerance>) -> bool {
+        ParametricSurface::is_u_closed(&self.0, tolerance(tol))
+    }
+
+    /// Whether travelling in `v` returns to its start, as `is_u_closed`.
+    #[pyo3(signature = (tol = None))]
+    fn is_v_closed(&self, tol: Option<PyTolerance>) -> bool {
+        ParametricSurface::is_v_closed(&self.0, tolerance(tol))
+    }
+
+    /// Continuity order `n` of `C^n` in `u` at parameter `u`,
+    /// `SMOOTH_CONTINUITY` where smooth. A B-spline reports `u_degree -
+    /// multiplicity` at a `u` knot (within `tol.parametric`); the ends of
+    /// a non-periodic direction report smooth, and a periodic direction's
+    /// seam counts as a knot. Use `BSplineSurface.eval_d1_sided` and its
+    /// siblings to evaluate each side of a knot reporting a low order.
+    #[pyo3(signature = (u, tol = None))]
+    fn continuity_u(&self, u: f64, tol: Option<PyTolerance>) -> u32 {
+        ParametricSurface::continuity_u(&self.0, u, tolerance(tol))
+    }
+
+    /// Continuity order in `v` at parameter `v`, as `continuity_u`.
+    #[pyo3(signature = (v, tol = None))]
+    fn continuity_v(&self, v: f64, tol: Option<PyTolerance>) -> u32 {
+        ParametricSurface::continuity_v(&self.0, v, tolerance(tol))
+    }
+
+    /// The lowest `continuity_u` anywhere inside the `u` range, ends
+    /// excluded (`SMOOTH_CONTINUITY` when smooth everywhere).
+    fn min_continuity_u(&self) -> u32 {
+        ParametricSurface::min_continuity_u(&self.0)
+    }
+
+    /// The lowest `continuity_v` anywhere inside the `v` range, ends
+    /// excluded (`SMOOTH_CONTINUITY` when smooth everywhere).
+    fn min_continuity_v(&self) -> u32 {
+        ParametricSurface::min_continuity_v(&self.0)
+    }
+
+    /// Principal curvatures with their directions, and the mean and
+    /// Gaussian curvatures, at `(u, v)` (`Tolerance.default()` when
+    /// omitted), as a `SurfaceCurvatures`. `None` where the unit normal
+    /// degenerates, as at a sphere's pole or a cone's apex, or a
+    /// derivative is not finite. Curvatures are measured along the unit
+    /// normal: negative bends away from it.
+    #[pyo3(signature = (u, v, tol = None))]
+    fn curvatures(&self, u: f64, v: f64, tol: Option<PyTolerance>) -> Option<PySurfaceCurvatures> {
+        ParametricSurface::curvatures(&self.0, u, v, tolerance(tol)).map(PySurfaceCurvatures)
+    }
+
+    /// Maps `u` onto the `reversed_u()` surface: the `u` parameter of the
+    /// same point there.
+    fn u_reversed_parameter(&self, u: f64) -> f64 {
+        self.0.u_reversed_parameter(u)
+    }
+
+    /// Maps `v` onto the `reversed_v()` surface: the `v` parameter of the
+    /// same point there.
+    fn v_reversed_parameter(&self, v: f64) -> f64 {
+        self.0.v_reversed_parameter(v)
+    }
+
+    /// The same surface with the `u` direction reversed: one frame axis
+    /// is negated, so the frame turns indirect and the normal reverses.
+    /// `reversed_u().eval_point(u_reversed_parameter(u), v)` is
+    /// `eval_point(u, v)`.
+    fn reversed_u(&self) -> Self {
+        PyTorus(self.0.reversed_u())
+    }
+
+    /// The same surface with the `v` direction reversed, as `reversed_u`.
+    fn reversed_v(&self) -> Self {
+        PyTorus(self.0.reversed_v())
     }
 }
 
@@ -1755,6 +2150,137 @@ impl PyBSplineSurface {
         tol: Option<PyTolerance>,
     ) -> PyResult<Py<PyAny>> {
         crate::intersect::intersect(slf.as_any(), other, tolerance(tol))
+    }
+
+    /// Whether travelling in `u` returns to its start: the boundary
+    /// curves at the two `u` bounds coincide (`Tolerance.default()` when
+    /// omitted). Periodic in `u` implies closed in `u`, not conversely.
+    #[pyo3(signature = (tol = None))]
+    fn is_u_closed(&self, tol: Option<PyTolerance>) -> bool {
+        ParametricSurface::is_u_closed(&self.0, tolerance(tol))
+    }
+
+    /// Whether travelling in `v` returns to its start, as `is_u_closed`.
+    #[pyo3(signature = (tol = None))]
+    fn is_v_closed(&self, tol: Option<PyTolerance>) -> bool {
+        ParametricSurface::is_v_closed(&self.0, tolerance(tol))
+    }
+
+    /// Continuity order `n` of `C^n` in `u` at parameter `u`,
+    /// `SMOOTH_CONTINUITY` where smooth. A B-spline reports `u_degree -
+    /// multiplicity` at a `u` knot (within `tol.parametric`); the ends of
+    /// a non-periodic direction report smooth, and a periodic direction's
+    /// seam counts as a knot. Use `BSplineSurface.eval_d1_sided` and its
+    /// siblings to evaluate each side of a knot reporting a low order.
+    #[pyo3(signature = (u, tol = None))]
+    fn continuity_u(&self, u: f64, tol: Option<PyTolerance>) -> u32 {
+        ParametricSurface::continuity_u(&self.0, u, tolerance(tol))
+    }
+
+    /// Continuity order in `v` at parameter `v`, as `continuity_u`.
+    #[pyo3(signature = (v, tol = None))]
+    fn continuity_v(&self, v: f64, tol: Option<PyTolerance>) -> u32 {
+        ParametricSurface::continuity_v(&self.0, v, tolerance(tol))
+    }
+
+    /// The lowest `continuity_u` anywhere inside the `u` range, ends
+    /// excluded (`SMOOTH_CONTINUITY` when smooth everywhere).
+    fn min_continuity_u(&self) -> u32 {
+        ParametricSurface::min_continuity_u(&self.0)
+    }
+
+    /// The lowest `continuity_v` anywhere inside the `v` range, ends
+    /// excluded (`SMOOTH_CONTINUITY` when smooth everywhere).
+    fn min_continuity_v(&self) -> u32 {
+        ParametricSurface::min_continuity_v(&self.0)
+    }
+
+    /// Principal curvatures with their directions, and the mean and
+    /// Gaussian curvatures, at `(u, v)` (`Tolerance.default()` when
+    /// omitted), as a `SurfaceCurvatures`. `None` where the unit normal
+    /// degenerates, as at a sphere's pole or a cone's apex, or a
+    /// derivative is not finite. Curvatures are measured along the unit
+    /// normal: negative bends away from it.
+    #[pyo3(signature = (u, v, tol = None))]
+    fn curvatures(&self, u: f64, v: f64, tol: Option<PyTolerance>) -> Option<PySurfaceCurvatures> {
+        ParametricSurface::curvatures(&self.0, u, v, tolerance(tol)).map(PySurfaceCurvatures)
+    }
+
+    /// Maps `u` onto the `reversed_u()` surface: the `u` parameter of the
+    /// same point there.
+    fn u_reversed_parameter(&self, u: f64) -> f64 {
+        self.0.u_reversed_parameter(u)
+    }
+
+    /// Maps `v` onto the `reversed_v()` surface: the `v` parameter of the
+    /// same point there.
+    fn v_reversed_parameter(&self, v: f64) -> f64 {
+        self.0.v_reversed_parameter(v)
+    }
+
+    /// The point and the first partial derivatives `(du, dv)` at `(u, v)`,
+    /// each direction from its own side: `Side.BELOW` takes the span
+    /// ending at the parameter, `Side.ABOVE` the span starting there. Both
+    /// sides agree strictly inside a span. Plain evaluation takes the
+    /// above side, except at the upper bound of a non-periodic direction.
+    /// A periodic direction's seam is a knot like any other: at either
+    /// bound, `BELOW` takes the last span of the period and `ABOVE` the
+    /// first.
+    fn eval_d1_sided(
+        &self,
+        u: f64,
+        v: f64,
+        u_side: PySide,
+        v_side: PySide,
+    ) -> (PyPoint3D, (PyVector3D, PyVector3D)) {
+        let (point, [du, dv]) = self.0.eval_d1_sided(u, v, u_side.into(), v_side.into());
+        (PyPoint3D(point), (PyVector3D(du), PyVector3D(dv)))
+    }
+
+    /// The point, the first partial derivatives `(du, dv)` and the second
+    /// partial derivatives `(du du, du dv, dv dv)` at `(u, v)`, each
+    /// direction from its own side, as `eval_d1_sided`.
+    fn eval_d2_sided(
+        &self,
+        u: f64,
+        v: f64,
+        u_side: PySide,
+        v_side: PySide,
+    ) -> (
+        PyPoint3D,
+        (PyVector3D, PyVector3D),
+        (PyVector3D, PyVector3D, PyVector3D),
+    ) {
+        let (point, [du, dv], [duu, duv, dvv]) =
+            self.0.eval_d2_sided(u, v, u_side.into(), v_side.into());
+        (
+            PyPoint3D(point),
+            (PyVector3D(du), PyVector3D(dv)),
+            (PyVector3D(duu), PyVector3D(duv), PyVector3D(dvv)),
+        )
+    }
+
+    /// The partial derivative of order `(du, dv)`, with
+    /// `1 <= du + dv <= 2`, at `(u, v)`, each direction from its own
+    /// side, as `eval_d1_sided`.
+    fn eval_derivative_sided(
+        &self,
+        u: f64,
+        v: f64,
+        du: u32,
+        dv: u32,
+        u_side: PySide,
+        v_side: PySide,
+    ) -> PyResult<PyVector3D> {
+        check_surface_order(du, dv)?;
+        Ok(PyVector3D(self.0.eval_derivative_sided(
+            u,
+            v,
+            du,
+            dv,
+            u_side.into(),
+            v_side.into(),
+        )))
     }
 }
 

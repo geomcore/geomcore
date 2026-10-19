@@ -479,10 +479,12 @@ at these three places:
   inverse must *choose*, and the geometry does not determine the
   choice. `geomcore` reports seam parameters inside `bounds()` and
   normalises hits there to 0.
-- **Degenerate edge** — a whole edge that is one point: the cone apex,
-  the sphere poles. $\lVert \partial S/\partial u \rVert$ measures
-  $1.5\times10^{-15}$ at a pole, the normal cross product is the zero
-  vector, and there is no normal to ask for.
+- **Collapsed boundary** — a whole parameter line that is one point: the
+  cone apex, the sphere poles. $\lVert \partial S/\partial u \rVert$
+  measures $1.5\times10^{-15}$ at a pole and the normal cross product is
+  the zero vector. `normal` recovers the limiting normal where it is
+  unique (a pole reports the axis) and returns `None` at the apex, whose
+  meridians each have their own; `curvatures` returns `None` at both.
 - **Self-intersection** — the spindle torus above.
 
 <figure class="geom-fig">

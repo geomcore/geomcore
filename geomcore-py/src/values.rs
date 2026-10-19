@@ -1,7 +1,8 @@
 use pyo3::prelude::*;
 
 use geomcore::{
-    Axis2D, Axis3D, Frame2D, Frame3D, Point2D, Point3D, Tolerance, Transform, Vector2D, Vector3D,
+    Axis2D, Axis3D, Frame2D, Frame3D, Point2D, Point3D, Side, Tolerance, Transform, Vector2D,
+    Vector3D,
 };
 use geomcore::{
     BoundingBox3D, Discretization2D, Discretization3D, DiscretizationCriteria, Discretize2D,
@@ -531,7 +532,11 @@ impl PyFrame2D {
     }
 }
 
-/// A right-handed orthonormal placement frame (origin + x/y/z directions).
+/// An orthonormal placement frame (origin + x/y/z directions).
+///
+/// The constructors build direct (right-handed, `x × y = z`) frames;
+/// `from_axes` accepts either handedness, and reversing a surface's
+/// direction or mirroring it turns its frame indirect.
 #[pyclass(name = "Frame3D", module = "geomcore", eq)]
 #[derive(Clone, PartialEq)]
 pub(crate) struct PyFrame3D(pub(crate) Frame3D);
@@ -559,6 +564,44 @@ impl PyFrame3D {
     #[staticmethod]
     fn world() -> Self {
         PyFrame3D(Frame3D::WORLD)
+    }
+
+    /// Build a frame from an origin and its three directions (each
+    /// normalized internally; they must be mutually orthogonal), of
+    /// either handedness. Raises `FrameConstructionError` for a
+    /// non-finite input, a zero direction or non-orthogonal directions.
+    #[staticmethod]
+    fn from_axes(
+        origin: PyPoint3D,
+        x_direction: PyVector3D,
+        y_direction: PyVector3D,
+        z_direction: PyVector3D,
+    ) -> PyResult<Self> {
+        Ok(PyFrame3D(
+            Frame3D::from_axes(origin.0, x_direction.0, y_direction.0, z_direction.0)
+                .map_err(python_error)?,
+        ))
+    }
+
+    /// Whether the frame is right-handed (`x × y = z`) rather than
+    /// left-handed (`x × y = -z`).
+    fn is_direct(&self) -> bool {
+        self.0.is_direct()
+    }
+
+    /// The frame with its x direction negated (handedness flips).
+    fn flipped_x(&self) -> Self {
+        PyFrame3D(self.0.flipped_x())
+    }
+
+    /// The frame with its y direction negated (handedness flips).
+    fn flipped_y(&self) -> Self {
+        PyFrame3D(self.0.flipped_y())
+    }
+
+    /// The frame with its z direction negated (handedness flips).
+    fn flipped_z(&self) -> Self {
+        PyFrame3D(self.0.flipped_z())
     }
 
     /// The frame origin.
@@ -1038,4 +1081,40 @@ pub(crate) fn python_float(value: f64) -> String {
 /// A Rust `bool` as Python writes it.
 pub(crate) fn py_bool(value: bool) -> &'static str {
     if value { "True" } else { "False" }
+}
+
+/// Which side of a parameter to evaluate from, for one-sided limits at
+/// B-spline knots and periodic seams.
+///
+/// `BELOW` approaches from the span ending at the parameter, `ABOVE` from
+/// the span starting there (the side plain evaluation takes, except at
+/// the upper bound). Away from knots and seams both sides agree.
+#[pyclass(name = "Side", module = "geomcore", eq, eq_int, frozen, hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+pub(crate) enum PySide {
+    #[pyo3(name = "BELOW")]
+    Below,
+    #[pyo3(name = "ABOVE")]
+    Above,
+}
+
+impl From<PySide> for Side {
+    fn from(side: PySide) -> Self {
+        match side {
+            PySide::Below => Side::Below,
+            PySide::Above => Side::Above,
+        }
+    }
+}
+
+#[pymethods]
+impl PySide {
+    /// The member's name, as written after the dot.
+    #[getter]
+    fn name(&self) -> &'static str {
+        match self {
+            PySide::Below => "BELOW",
+            PySide::Above => "ABOVE",
+        }
+    }
 }

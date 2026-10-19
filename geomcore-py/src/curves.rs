@@ -220,6 +220,58 @@ impl PyLine3D {
     ) -> PyResult<Py<PyAny>> {
         crate::intersect::intersect(slf.as_any(), other, tolerance(tol))
     }
+
+    /// Unit tangent at parameter `u` (`Tolerance.default()` when omitted),
+    /// or `None` where the speed vanishes, as at a cusp. The speed counts
+    /// as zero when the distance it would cover across the parameter range
+    /// is within `tol.confusion`, so rescaling the parameter does not
+    /// change the answer.
+    #[pyo3(signature = (u, tol = None))]
+    fn tangent(&self, u: f64, tol: Option<PyTolerance>) -> Option<PyVector3D> {
+        ParametricCurve3D::tangent(&self.0, u, tolerance(tol)).map(PyVector3D)
+    }
+
+    /// Curvature at parameter `u`: the turn rate of the unit tangent per
+    /// unit arc length, zero on a straight run. `None` where the speed
+    /// vanishes, by the test of `tangent`.
+    #[pyo3(signature = (u, tol = None))]
+    fn curvature(&self, u: f64, tol: Option<PyTolerance>) -> Option<f64> {
+        ParametricCurve3D::curvature(&self.0, u, tolerance(tol))
+    }
+
+    /// Centre of the osculating circle at parameter `u`, or `None` where
+    /// the speed vanishes or the curve runs straight (the centre is then
+    /// at infinity).
+    #[pyo3(signature = (u, tol = None))]
+    fn curvature_center(&self, u: f64, tol: Option<PyTolerance>) -> Option<PyPoint3D> {
+        ParametricCurve3D::curvature_center(&self.0, u, tolerance(tol)).map(PyPoint3D)
+    }
+
+    /// Whether travelling along the curve returns to its start
+    /// (`Tolerance.default()` when omitted). A periodic curve is closed;
+    /// a clamped B-spline whose ends coincide is closed without being
+    /// periodic.
+    #[pyo3(signature = (tol = None))]
+    fn is_closed(&self, tol: Option<PyTolerance>) -> bool {
+        ParametricCurve3D::is_closed(&self.0, tolerance(tol))
+    }
+
+    /// Continuity order `n` of `C^n` at parameter `u`, `SMOOTH_CONTINUITY`
+    /// where the curve is smooth. A B-spline reports `degree -
+    /// multiplicity` at a knot (within `tol.parametric`); the ends of a
+    /// non-periodic curve report smooth, and a periodic curve's seam
+    /// counts as a knot. Use the `*_sided` evaluations of a B-spline to
+    /// evaluate each side of a knot reporting a low order.
+    #[pyo3(signature = (u, tol = None))]
+    fn continuity(&self, u: f64, tol: Option<PyTolerance>) -> u32 {
+        ParametricCurve3D::continuity(&self.0, u, tolerance(tol))
+    }
+
+    /// The lowest `continuity` anywhere inside the bounds, ends excluded
+    /// (`SMOOTH_CONTINUITY` when smooth everywhere).
+    fn min_continuity(&self) -> u32 {
+        ParametricCurve3D::min_continuity(&self.0)
+    }
 }
 
 /// A circle in 3D, parametrized by the angle from its frame's x direction.
@@ -482,6 +534,58 @@ impl PyCircle3D {
     ) -> PyResult<Py<PyAny>> {
         crate::intersect::intersect(slf.as_any(), other, tolerance(tol))
     }
+
+    /// Unit tangent at parameter `u` (`Tolerance.default()` when omitted),
+    /// or `None` where the speed vanishes, as at a cusp. The speed counts
+    /// as zero when the distance it would cover across the parameter range
+    /// is within `tol.confusion`, so rescaling the parameter does not
+    /// change the answer.
+    #[pyo3(signature = (u, tol = None))]
+    fn tangent(&self, u: f64, tol: Option<PyTolerance>) -> Option<PyVector3D> {
+        ParametricCurve3D::tangent(&self.0, u, tolerance(tol)).map(PyVector3D)
+    }
+
+    /// Curvature at parameter `u`: the turn rate of the unit tangent per
+    /// unit arc length, zero on a straight run. `None` where the speed
+    /// vanishes, by the test of `tangent`.
+    #[pyo3(signature = (u, tol = None))]
+    fn curvature(&self, u: f64, tol: Option<PyTolerance>) -> Option<f64> {
+        ParametricCurve3D::curvature(&self.0, u, tolerance(tol))
+    }
+
+    /// Centre of the osculating circle at parameter `u`, or `None` where
+    /// the speed vanishes or the curve runs straight (the centre is then
+    /// at infinity).
+    #[pyo3(signature = (u, tol = None))]
+    fn curvature_center(&self, u: f64, tol: Option<PyTolerance>) -> Option<PyPoint3D> {
+        ParametricCurve3D::curvature_center(&self.0, u, tolerance(tol)).map(PyPoint3D)
+    }
+
+    /// Whether travelling along the curve returns to its start
+    /// (`Tolerance.default()` when omitted). A periodic curve is closed;
+    /// a clamped B-spline whose ends coincide is closed without being
+    /// periodic.
+    #[pyo3(signature = (tol = None))]
+    fn is_closed(&self, tol: Option<PyTolerance>) -> bool {
+        ParametricCurve3D::is_closed(&self.0, tolerance(tol))
+    }
+
+    /// Continuity order `n` of `C^n` at parameter `u`, `SMOOTH_CONTINUITY`
+    /// where the curve is smooth. A B-spline reports `degree -
+    /// multiplicity` at a knot (within `tol.parametric`); the ends of a
+    /// non-periodic curve report smooth, and a periodic curve's seam
+    /// counts as a knot. Use the `*_sided` evaluations of a B-spline to
+    /// evaluate each side of a knot reporting a low order.
+    #[pyo3(signature = (u, tol = None))]
+    fn continuity(&self, u: f64, tol: Option<PyTolerance>) -> u32 {
+        ParametricCurve3D::continuity(&self.0, u, tolerance(tol))
+    }
+
+    /// The lowest `continuity` anywhere inside the bounds, ends excluded
+    /// (`SMOOTH_CONTINUITY` when smooth everywhere).
+    fn min_continuity(&self) -> u32 {
+        ParametricCurve3D::min_continuity(&self.0)
+    }
 }
 
 /// An ellipse in 3D.
@@ -740,6 +844,58 @@ impl PyEllipse3D {
     ) -> PyResult<Py<PyAny>> {
         crate::intersect::intersect(slf.as_any(), other, tolerance(tol))
     }
+
+    /// Unit tangent at parameter `u` (`Tolerance.default()` when omitted),
+    /// or `None` where the speed vanishes, as at a cusp. The speed counts
+    /// as zero when the distance it would cover across the parameter range
+    /// is within `tol.confusion`, so rescaling the parameter does not
+    /// change the answer.
+    #[pyo3(signature = (u, tol = None))]
+    fn tangent(&self, u: f64, tol: Option<PyTolerance>) -> Option<PyVector3D> {
+        ParametricCurve3D::tangent(&self.0, u, tolerance(tol)).map(PyVector3D)
+    }
+
+    /// Curvature at parameter `u`: the turn rate of the unit tangent per
+    /// unit arc length, zero on a straight run. `None` where the speed
+    /// vanishes, by the test of `tangent`.
+    #[pyo3(signature = (u, tol = None))]
+    fn curvature(&self, u: f64, tol: Option<PyTolerance>) -> Option<f64> {
+        ParametricCurve3D::curvature(&self.0, u, tolerance(tol))
+    }
+
+    /// Centre of the osculating circle at parameter `u`, or `None` where
+    /// the speed vanishes or the curve runs straight (the centre is then
+    /// at infinity).
+    #[pyo3(signature = (u, tol = None))]
+    fn curvature_center(&self, u: f64, tol: Option<PyTolerance>) -> Option<PyPoint3D> {
+        ParametricCurve3D::curvature_center(&self.0, u, tolerance(tol)).map(PyPoint3D)
+    }
+
+    /// Whether travelling along the curve returns to its start
+    /// (`Tolerance.default()` when omitted). A periodic curve is closed;
+    /// a clamped B-spline whose ends coincide is closed without being
+    /// periodic.
+    #[pyo3(signature = (tol = None))]
+    fn is_closed(&self, tol: Option<PyTolerance>) -> bool {
+        ParametricCurve3D::is_closed(&self.0, tolerance(tol))
+    }
+
+    /// Continuity order `n` of `C^n` at parameter `u`, `SMOOTH_CONTINUITY`
+    /// where the curve is smooth. A B-spline reports `degree -
+    /// multiplicity` at a knot (within `tol.parametric`); the ends of a
+    /// non-periodic curve report smooth, and a periodic curve's seam
+    /// counts as a knot. Use the `*_sided` evaluations of a B-spline to
+    /// evaluate each side of a knot reporting a low order.
+    #[pyo3(signature = (u, tol = None))]
+    fn continuity(&self, u: f64, tol: Option<PyTolerance>) -> u32 {
+        ParametricCurve3D::continuity(&self.0, u, tolerance(tol))
+    }
+
+    /// The lowest `continuity` anywhere inside the bounds, ends excluded
+    /// (`SMOOTH_CONTINUITY` when smooth everywhere).
+    fn min_continuity(&self) -> u32 {
+        ParametricCurve3D::min_continuity(&self.0)
+    }
 }
 
 /// A parabola in 3D, parametrized so the apex is at parameter 0.
@@ -940,6 +1096,58 @@ impl PyParabola3D {
         tol: Option<PyTolerance>,
     ) -> PyResult<Py<PyAny>> {
         crate::intersect::intersect(slf.as_any(), other, tolerance(tol))
+    }
+
+    /// Unit tangent at parameter `u` (`Tolerance.default()` when omitted),
+    /// or `None` where the speed vanishes, as at a cusp. The speed counts
+    /// as zero when the distance it would cover across the parameter range
+    /// is within `tol.confusion`, so rescaling the parameter does not
+    /// change the answer.
+    #[pyo3(signature = (u, tol = None))]
+    fn tangent(&self, u: f64, tol: Option<PyTolerance>) -> Option<PyVector3D> {
+        ParametricCurve3D::tangent(&self.0, u, tolerance(tol)).map(PyVector3D)
+    }
+
+    /// Curvature at parameter `u`: the turn rate of the unit tangent per
+    /// unit arc length, zero on a straight run. `None` where the speed
+    /// vanishes, by the test of `tangent`.
+    #[pyo3(signature = (u, tol = None))]
+    fn curvature(&self, u: f64, tol: Option<PyTolerance>) -> Option<f64> {
+        ParametricCurve3D::curvature(&self.0, u, tolerance(tol))
+    }
+
+    /// Centre of the osculating circle at parameter `u`, or `None` where
+    /// the speed vanishes or the curve runs straight (the centre is then
+    /// at infinity).
+    #[pyo3(signature = (u, tol = None))]
+    fn curvature_center(&self, u: f64, tol: Option<PyTolerance>) -> Option<PyPoint3D> {
+        ParametricCurve3D::curvature_center(&self.0, u, tolerance(tol)).map(PyPoint3D)
+    }
+
+    /// Whether travelling along the curve returns to its start
+    /// (`Tolerance.default()` when omitted). A periodic curve is closed;
+    /// a clamped B-spline whose ends coincide is closed without being
+    /// periodic.
+    #[pyo3(signature = (tol = None))]
+    fn is_closed(&self, tol: Option<PyTolerance>) -> bool {
+        ParametricCurve3D::is_closed(&self.0, tolerance(tol))
+    }
+
+    /// Continuity order `n` of `C^n` at parameter `u`, `SMOOTH_CONTINUITY`
+    /// where the curve is smooth. A B-spline reports `degree -
+    /// multiplicity` at a knot (within `tol.parametric`); the ends of a
+    /// non-periodic curve report smooth, and a periodic curve's seam
+    /// counts as a knot. Use the `*_sided` evaluations of a B-spline to
+    /// evaluate each side of a knot reporting a low order.
+    #[pyo3(signature = (u, tol = None))]
+    fn continuity(&self, u: f64, tol: Option<PyTolerance>) -> u32 {
+        ParametricCurve3D::continuity(&self.0, u, tolerance(tol))
+    }
+
+    /// The lowest `continuity` anywhere inside the bounds, ends excluded
+    /// (`SMOOTH_CONTINUITY` when smooth everywhere).
+    fn min_continuity(&self) -> u32 {
+        ParametricCurve3D::min_continuity(&self.0)
     }
 }
 
@@ -1163,6 +1371,58 @@ impl PyHyperbola3D {
         tol: Option<PyTolerance>,
     ) -> PyResult<Py<PyAny>> {
         crate::intersect::intersect(slf.as_any(), other, tolerance(tol))
+    }
+
+    /// Unit tangent at parameter `u` (`Tolerance.default()` when omitted),
+    /// or `None` where the speed vanishes, as at a cusp. The speed counts
+    /// as zero when the distance it would cover across the parameter range
+    /// is within `tol.confusion`, so rescaling the parameter does not
+    /// change the answer.
+    #[pyo3(signature = (u, tol = None))]
+    fn tangent(&self, u: f64, tol: Option<PyTolerance>) -> Option<PyVector3D> {
+        ParametricCurve3D::tangent(&self.0, u, tolerance(tol)).map(PyVector3D)
+    }
+
+    /// Curvature at parameter `u`: the turn rate of the unit tangent per
+    /// unit arc length, zero on a straight run. `None` where the speed
+    /// vanishes, by the test of `tangent`.
+    #[pyo3(signature = (u, tol = None))]
+    fn curvature(&self, u: f64, tol: Option<PyTolerance>) -> Option<f64> {
+        ParametricCurve3D::curvature(&self.0, u, tolerance(tol))
+    }
+
+    /// Centre of the osculating circle at parameter `u`, or `None` where
+    /// the speed vanishes or the curve runs straight (the centre is then
+    /// at infinity).
+    #[pyo3(signature = (u, tol = None))]
+    fn curvature_center(&self, u: f64, tol: Option<PyTolerance>) -> Option<PyPoint3D> {
+        ParametricCurve3D::curvature_center(&self.0, u, tolerance(tol)).map(PyPoint3D)
+    }
+
+    /// Whether travelling along the curve returns to its start
+    /// (`Tolerance.default()` when omitted). A periodic curve is closed;
+    /// a clamped B-spline whose ends coincide is closed without being
+    /// periodic.
+    #[pyo3(signature = (tol = None))]
+    fn is_closed(&self, tol: Option<PyTolerance>) -> bool {
+        ParametricCurve3D::is_closed(&self.0, tolerance(tol))
+    }
+
+    /// Continuity order `n` of `C^n` at parameter `u`, `SMOOTH_CONTINUITY`
+    /// where the curve is smooth. A B-spline reports `degree -
+    /// multiplicity` at a knot (within `tol.parametric`); the ends of a
+    /// non-periodic curve report smooth, and a periodic curve's seam
+    /// counts as a knot. Use the `*_sided` evaluations of a B-spline to
+    /// evaluate each side of a knot reporting a low order.
+    #[pyo3(signature = (u, tol = None))]
+    fn continuity(&self, u: f64, tol: Option<PyTolerance>) -> u32 {
+        ParametricCurve3D::continuity(&self.0, u, tolerance(tol))
+    }
+
+    /// The lowest `continuity` anywhere inside the bounds, ends excluded
+    /// (`SMOOTH_CONTINUITY` when smooth everywhere).
+    fn min_continuity(&self) -> u32 {
+        ParametricCurve3D::min_continuity(&self.0)
     }
 }
 
@@ -1541,6 +1801,88 @@ impl PyBSplineCurve3D {
         tol: Option<PyTolerance>,
     ) -> PyResult<Py<PyAny>> {
         crate::intersect::intersect(slf.as_any(), other, tolerance(tol))
+    }
+
+    /// Unit tangent at parameter `u` (`Tolerance.default()` when omitted),
+    /// or `None` where the speed vanishes, as at a cusp. The speed counts
+    /// as zero when the distance it would cover across the parameter range
+    /// is within `tol.confusion`, so rescaling the parameter does not
+    /// change the answer.
+    #[pyo3(signature = (u, tol = None))]
+    fn tangent(&self, u: f64, tol: Option<PyTolerance>) -> Option<PyVector3D> {
+        ParametricCurve3D::tangent(&self.0, u, tolerance(tol)).map(PyVector3D)
+    }
+
+    /// Curvature at parameter `u`: the turn rate of the unit tangent per
+    /// unit arc length, zero on a straight run. `None` where the speed
+    /// vanishes, by the test of `tangent`.
+    #[pyo3(signature = (u, tol = None))]
+    fn curvature(&self, u: f64, tol: Option<PyTolerance>) -> Option<f64> {
+        ParametricCurve3D::curvature(&self.0, u, tolerance(tol))
+    }
+
+    /// Centre of the osculating circle at parameter `u`, or `None` where
+    /// the speed vanishes or the curve runs straight (the centre is then
+    /// at infinity).
+    #[pyo3(signature = (u, tol = None))]
+    fn curvature_center(&self, u: f64, tol: Option<PyTolerance>) -> Option<PyPoint3D> {
+        ParametricCurve3D::curvature_center(&self.0, u, tolerance(tol)).map(PyPoint3D)
+    }
+
+    /// Whether travelling along the curve returns to its start
+    /// (`Tolerance.default()` when omitted). A periodic curve is closed;
+    /// a clamped B-spline whose ends coincide is closed without being
+    /// periodic.
+    #[pyo3(signature = (tol = None))]
+    fn is_closed(&self, tol: Option<PyTolerance>) -> bool {
+        ParametricCurve3D::is_closed(&self.0, tolerance(tol))
+    }
+
+    /// Continuity order `n` of `C^n` at parameter `u`, `SMOOTH_CONTINUITY`
+    /// where the curve is smooth. A B-spline reports `degree -
+    /// multiplicity` at a knot (within `tol.parametric`); the ends of a
+    /// non-periodic curve report smooth, and a periodic curve's seam
+    /// counts as a knot. Use the `*_sided` evaluations of a B-spline to
+    /// evaluate each side of a knot reporting a low order.
+    #[pyo3(signature = (u, tol = None))]
+    fn continuity(&self, u: f64, tol: Option<PyTolerance>) -> u32 {
+        ParametricCurve3D::continuity(&self.0, u, tolerance(tol))
+    }
+
+    /// The lowest `continuity` anywhere inside the bounds, ends excluded
+    /// (`SMOOTH_CONTINUITY` when smooth everywhere).
+    fn min_continuity(&self) -> u32 {
+        ParametricCurve3D::min_continuity(&self.0)
+    }
+
+    /// The point and the first derivative at parameter `u`, from one
+    /// `side`: `Side.BELOW` takes the span ending at `u`, `Side.ABOVE` the
+    /// span starting there. Both sides agree strictly inside a span. Plain
+    /// evaluation takes the above side, except at the upper bound of a
+    /// non-periodic curve. A periodic curve's seam is a knot like any
+    /// other: at either bound, `BELOW` takes the last span of the period
+    /// and `ABOVE` the first.
+    fn eval_d1_sided(&self, u: f64, side: PySide) -> (PyPoint3D, PyVector3D) {
+        let (point, first) = self.0.eval_d1_sided(u, side.into());
+        (PyPoint3D(point), PyVector3D(first))
+    }
+
+    /// The point and the first two derivatives at parameter `u`, from one
+    /// `side`, as `eval_d1_sided`.
+    fn eval_d2_sided(&self, u: f64, side: PySide) -> (PyPoint3D, PyVector3D, PyVector3D) {
+        let (point, first, second) = self.0.eval_d2_sided(u, side.into());
+        (PyPoint3D(point), PyVector3D(first), PyVector3D(second))
+    }
+
+    /// The derivative of order 1 or 2 at parameter `u`, from one `side`,
+    /// as `eval_d1_sided`.
+    fn eval_derivative_sided(&self, u: f64, order: u32, side: PySide) -> PyResult<PyVector3D> {
+        check_curve_order(order, 2)?;
+        Ok(PyVector3D(self.0.eval_derivative_sided(
+            u,
+            order,
+            side.into(),
+        )))
     }
 }
 
@@ -2149,6 +2491,58 @@ impl PyTrimmedCurve3D {
         tol: Option<PyTolerance>,
     ) -> PyResult<Py<PyAny>> {
         crate::intersect::intersect(slf.as_any(), other, tolerance(tol))
+    }
+
+    /// Unit tangent at parameter `u` (`Tolerance.default()` when omitted),
+    /// or `None` where the speed vanishes, as at a cusp. The speed counts
+    /// as zero when the distance it would cover across the parameter range
+    /// is within `tol.confusion`, so rescaling the parameter does not
+    /// change the answer.
+    #[pyo3(signature = (u, tol = None))]
+    fn tangent(&self, u: f64, tol: Option<PyTolerance>) -> Option<PyVector3D> {
+        ParametricCurve3D::tangent(&self.0, u, tolerance(tol)).map(PyVector3D)
+    }
+
+    /// Curvature at parameter `u`: the turn rate of the unit tangent per
+    /// unit arc length, zero on a straight run. `None` where the speed
+    /// vanishes, by the test of `tangent`.
+    #[pyo3(signature = (u, tol = None))]
+    fn curvature(&self, u: f64, tol: Option<PyTolerance>) -> Option<f64> {
+        ParametricCurve3D::curvature(&self.0, u, tolerance(tol))
+    }
+
+    /// Centre of the osculating circle at parameter `u`, or `None` where
+    /// the speed vanishes or the curve runs straight (the centre is then
+    /// at infinity).
+    #[pyo3(signature = (u, tol = None))]
+    fn curvature_center(&self, u: f64, tol: Option<PyTolerance>) -> Option<PyPoint3D> {
+        ParametricCurve3D::curvature_center(&self.0, u, tolerance(tol)).map(PyPoint3D)
+    }
+
+    /// Whether travelling along the curve returns to its start
+    /// (`Tolerance.default()` when omitted). A periodic curve is closed;
+    /// a clamped B-spline whose ends coincide is closed without being
+    /// periodic.
+    #[pyo3(signature = (tol = None))]
+    fn is_closed(&self, tol: Option<PyTolerance>) -> bool {
+        ParametricCurve3D::is_closed(&self.0, tolerance(tol))
+    }
+
+    /// Continuity order `n` of `C^n` at parameter `u`, `SMOOTH_CONTINUITY`
+    /// where the curve is smooth. A B-spline reports `degree -
+    /// multiplicity` at a knot (within `tol.parametric`); the ends of a
+    /// non-periodic curve report smooth, and a periodic curve's seam
+    /// counts as a knot. Use the `*_sided` evaluations of a B-spline to
+    /// evaluate each side of a knot reporting a low order.
+    #[pyo3(signature = (u, tol = None))]
+    fn continuity(&self, u: f64, tol: Option<PyTolerance>) -> u32 {
+        ParametricCurve3D::continuity(&self.0, u, tolerance(tol))
+    }
+
+    /// The lowest `continuity` anywhere inside the bounds, ends excluded
+    /// (`SMOOTH_CONTINUITY` when smooth everywhere).
+    fn min_continuity(&self) -> u32 {
+        ParametricCurve3D::min_continuity(&self.0)
     }
 }
 

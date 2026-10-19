@@ -72,8 +72,25 @@ the Python distribution are versioned in lockstep.
   indirect: `Frame3D::from_axes`, `Frame3D::is_direct`,
   `flipped_x/y/z`). Isoparametric curves, projection, conversion to
   B-splines, intersections and curve-on-surface parametrization follow
-  the reversed parametrization. Sided evaluation at seams follows
-  separately.
+  the reversed parametrization.
+
+- Python bindings for the queries above. Every 3D curve class
+  (`Line3D`, `Circle3D`, `Ellipse3D`, `Parabola3D`, `Hyperbola3D`,
+  `BSplineCurve3D`, `TrimmedCurve3D`) gains `tangent`, `curvature`,
+  `curvature_center` (each `Optional`, `None` where the Rust call
+  returns `None`), `is_closed`, `continuity` and `min_continuity`. Every
+  surface class gains `is_u_closed`, `is_v_closed`, `continuity_u`,
+  `continuity_v`, `min_continuity_u`, `min_continuity_v`, `curvatures`
+  (a frozen `SurfaceCurvatures` with `min_curvature`, `max_curvature`,
+  `min_direction`, `max_direction`, `mean`, `gaussian`, or `None`) and
+  `u_reversed_parameter` / `v_reversed_parameter`; the elementary
+  surfaces gain `reversed_u` / `reversed_v`. `BSplineCurve3D` and
+  `BSplineSurface` gain `eval_d1_sided`, `eval_d2_sided` and
+  `eval_derivative_sided`, taking the new `Side` enum (`BELOW`,
+  `ABOVE`; hashable, with `.name`). `Frame3D` gains `from_axes`,
+  `is_direct` and `flipped_x/y/z`. Continuity queries report the
+  module constant `SMOOTH_CONTINUITY` (`2**32 - 1`, Rust's `u32::MAX`)
+  where smooth. Every tolerance is the keyword `tol=None`.
 
 ### Changed
 
