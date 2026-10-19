@@ -110,29 +110,34 @@ pub trait ParametricSurface {
     ///    of the angle between the partials is checked against
     ///    `tol.angular`, the crate's parallelism convention (see
     ///    `CONTEXT.md`).
-    /// 2. At a singular point (a sphere's pole, a cone's apex, a B-spline
-    ///    row collapsed to a point), second derivatives stand in for the
-    ///    degenerate direction, measured the same way with the width
-    ///    counted once per derivative order: each pair from
+    /// 2. At a singular point (a sphere's pole, a B-spline row collapsed
+    ///    to a point), second derivatives stand in for the degenerate
+    ///    direction, measured the same way with the width counted once
+    ///    per derivative order: each pair from
     ///    `{Su, Suv, Suu} × {Sv, Suv, Svv}` whose unitized cross product
     ///    is well defined gives the limiting normal, approached across
-    ///    the parameter line where the partial vanishes and oriented by
-    ///    which half of the parameter domain `(u, v)` lies in.
+    ///    the parameter line where the partial vanishes. It is oriented
+    ///    by the side of that line `(u, v)` lies on, or, on the line
+    ///    itself, by which half of the parameter domain it lies in.
     /// 3. Stepping off to nearby parameters, diagonal steps growing from
     ///    1e-7 to 1e-4 of the parameter widths, and taking the first
     ///    defined normal there.
     ///
-    /// Returns `None` only when every rung fails: the normal is
-    /// genuinely undefined at and around `(u, v)`, or `(u, v)` is not a
-    /// finite parameter pair of the surface.
+    /// Returns `None` at an apex (see below) and when every rung fails:
+    /// the normal is genuinely undefined at and around `(u, v)`, or
+    /// `(u, v)` is not a finite parameter pair of the surface.
     ///
-    /// Two caveats. A recovered direction counts only if it does not
-    /// depend on the meaningless coordinate: every meridian agrees at a
-    /// sphere pole, so it reports the axis, but each meridian through a
-    /// cone apex has its own direction and the apex reports `None`
-    /// (rather than a nearby flank normal). And a derivative covering
-    /// less than `tol.confusion` across its parameter range never
-    /// counts, so sub-confusion geometry reports `None` everywhere.
+    /// Two caveats. Where a whole parameter line collapses to the point,
+    /// the coordinate along it is meaningless and a recovered direction
+    /// counts only if it does not depend on it: every meridian agrees at
+    /// a sphere pole, so it reports the axis, but each meridian through a
+    /// cone apex (or a collapsed B-spline row whose rows meet at an
+    /// angle) has its own direction and the apex reports `None` (rather
+    /// than a nearby flank normal). Beside the apex, even within
+    /// `tol.confusion` of it, the meridian through `(u, v)` is still one
+    /// direction and its normal answers. And a derivative covering less
+    /// than `tol.confusion` across its parameter range never counts, so
+    /// sub-confusion geometry reports `None` everywhere.
     ///
     /// Raw partials stay available through
     /// [`eval_d1`](Self::eval_d1); there is no `tangent` method.
@@ -283,30 +288,28 @@ pub trait ParametricSurface {
     }
 }
 
-/// Rungs 1–2 of [`ParametricSurface::normal`]: the unitized cross product
-/// of the first partials, falling back to second-derivative substitution
-/// at a singular point. `bounds` are the surface's `[u_bounds, v_bounds]`.
-///
-/// A derivative is a direction unless
-/// [`Tolerance::is_negligible_derivative`] rejects it over the parameter
-/// widths raised to its order. Each pair from `{Su, Suv, Suu} × {Sv, Suv,
-/// Svv}` whose unitized cross product clears `tol.angular` gives the
-/// limiting normal. Near a degenerate boundary a vanishing partial is the
-/// substituted derivative times the signed parameter distance to that
-/// boundary (`Su ≈ (v - v_last) Suv` below a pole at `v_last`), so the
-/// sign follows which half of the parameter domain `(u, v)` lies in.
-/// Outcome of the first two rungs of [`ParametricSurface::normal`].
+/// Outcome of rungs 1–2 of [`ParametricSurface::normal`].
 enum Recovery {
     /// A unique normal: direct, or recovered with transverse agreement.
     Unique(Vector3D),
     /// Nothing recovered here at all: rung 3 may step off instead.
     Absent,
-    /// Recoveries disagree across the meaningless coordinate (a cone
+    /// Recoveries disagree along the collapsed parameter line (a cone
     /// apex): no normal exists, and rung 3 must not substitute a nearby
     /// one for it.
     Disputed,
 }
 
+/// Rungs 1–2 of [`ParametricSurface::normal`]: the unitized cross product
+/// of the first partials, falling back to second-derivative substitution
+/// at a singular point. `bounds` are the surface's `[u_bounds, v_bounds]`.
+///
+/// A substituted normal is checked only where a whole parameter line
+/// collapses to the point ([`lies_on_collapsed_line`]): there the
+/// coordinate along that line is meaningless, and the normal must not
+/// depend on it ([`transverse_agreement`]). Next to the collapse, even
+/// within `tol.confusion` of it, the line still names one direction and
+/// the substituted normal is that direction's limit.
 fn normal_recovery<S: ParametricSurface + ?Sized>(
     surface: &S,
     u: f64,
@@ -316,25 +319,41 @@ fn normal_recovery<S: ParametricSurface + ?Sized>(
 ) -> Recovery {
     let [u_width, v_width] = bounds.map(|range| tol.reference_width(range));
     // Rung 1: direct unit normal.
-    let (_, [su, sv]) = surface.eval_d1(u, v);
+    let (point, [su, sv]) = surface.eval_d1(u, v);
     if let Some(normal) = direct_normal(su, sv, u_width, v_width, tol) {
         return Recovery::Unique(normal);
     }
     // Rung 2: stand a second derivative in for the degenerate direction.
+    // `Su` vanishing along all of `u` collapses the row at this `v`, so
+    // `u` is the meaningless coordinate there; likewise `Sv` and `v`.
     let (_, _, [suu, suv, svv]) = surface.eval_d2(u, v);
-    let Some(candidate) =
-        substituted_normal(su, sv, suu, suv, svv, u, v, bounds, u_width, v_width, tol)
-    else {
+    let su_vanishes = tol.is_negligible_derivative(su.magnitude(), u_width);
+    let sv_vanishes = tol.is_negligible_derivative(sv.magnitude(), v_width);
+    let su_on_line = su_vanishes && lies_on_collapsed_line(point, su, suv, u_width, v, bounds[1]);
+    let sv_on_line = sv_vanishes && lies_on_collapsed_line(point, sv, suv, v_width, u, bounds[0]);
+    let measured_signs = [su_vanishes && !su_on_line, sv_vanishes && !sv_on_line];
+    let Some(candidate) = substituted_normal(
+        su,
+        sv,
+        suu,
+        suv,
+        svv,
+        u,
+        v,
+        bounds,
+        measured_signs,
+        u_width,
+        v_width,
+        tol,
+    ) else {
         return Recovery::Absent;
     };
-    // The recovery is only a normal if it does not depend on the
-    // meaningless coordinate: every meridian agrees at a pole, each has
-    // its own at an apex.
-    if transverse_agreement(surface, v, bounds, candidate, tol) {
-        Recovery::Unique(candidate)
-    } else {
-        Recovery::Disputed
+    for (on_line, direction) in [(su_on_line, Direction::U), (sv_on_line, Direction::V)] {
+        if on_line && !transverse_agreement(surface, u, v, direction, bounds, candidate, tol) {
+            return Recovery::Disputed;
+        }
     }
+    Recovery::Unique(candidate)
 }
 
 fn normal_from_derivatives<S: ParametricSurface + ?Sized>(
@@ -382,6 +401,10 @@ fn direct_normal(
 /// is the substituted derivative times the signed parameter distance to
 /// that boundary (`Su ≈ (v - v_last) Suv` below a pole at `v_last`), so
 /// the sign follows which half of the parameter domain `(u, v)` lies in.
+/// Where `measured_signs` flags a partial (`[Su, Sv]`) as vanishing
+/// beside its collapsed line rather than on it, the partial still points
+/// along `±` its substitute, and that alignment gives the sign instead of
+/// the domain half: below an apex in the middle of the range, too.
 #[allow(clippy::too_many_arguments)]
 fn substituted_normal(
     su: Vector3D,
@@ -392,10 +415,30 @@ fn substituted_normal(
     u: f64,
     v: f64,
     bounds: [(f64, f64); 2],
+    measured_signs: [bool; 2],
     u_width: f64,
     v_width: f64,
     tol: Tolerance,
 ) -> Option<Vector3D> {
+    let orientation = |x: f64, (first, last): (f64, f64)| {
+        if x > 0.5 * (first + last) { -1.0 } else { 1.0 }
+    };
+    let (u_orientation, v_orientation) = (orientation(u, bounds[0]), orientation(v, bounds[1]));
+    let sign = |partial: Vector3D, substitute: Vector3D, measured: bool, guess: f64| {
+        let alignment = partial.dot(substitute);
+        if measured && alignment != 0.0 {
+            alignment.signum()
+        } else {
+            guess
+        }
+    };
+    let [su_measured, sv_measured] = measured_signs;
+    let [su_by_suv, sv_by_suv, su_by_suu, sv_by_svv] = [
+        sign(su, suv, su_measured, v_orientation),
+        sign(sv, suv, sv_measured, u_orientation),
+        sign(su, suu, su_measured, u_orientation),
+        sign(sv, svv, sv_measured, v_orientation),
+    ];
     let direction = |derivative: Vector3D, reach: f64| {
         let length = derivative.magnitude();
         (!tol.is_negligible_derivative(length, reach)).then(|| derivative * (1.0 / length))
@@ -405,16 +448,12 @@ fn substituted_normal(
     let suu = direction(suu, u_width * u_width);
     let suv = direction(suv, u_width * v_width);
     let svv = direction(svv, v_width * v_width);
-    let orientation = |x: f64, (first, last): (f64, f64)| {
-        if x > 0.5 * (first + last) { -1.0 } else { 1.0 }
-    };
-    let (u_orientation, v_orientation) = (orientation(u, bounds[0]), orientation(v, bounds[1]));
     // (u-like, v-like, orientation sign).
     let pairs = [
-        (suv, sv, v_orientation),
-        (su, suv, u_orientation),
-        (suu, sv, u_orientation),
-        (su, svv, v_orientation),
+        (suv, sv, su_by_suv),
+        (su, suv, sv_by_suv),
+        (suu, sv, su_by_suu),
+        (su, svv, sv_by_svv),
         (suu, suv, 1.0),
         (suv, svv, 1.0),
         (suu, svv, u_orientation * v_orientation),
@@ -431,9 +470,47 @@ fn substituted_normal(
     None
 }
 
+/// Which parameter a first partial differentiates by.
+#[derive(Clone, Copy)]
+enum Direction {
+    U,
+    V,
+}
+
+/// Whether `(u, v)` lies on the parameter line that collapses to `point`,
+/// rather than beside it: the distance `|partial| × width` the vanishing
+/// partial covers along the line is no more than rounding. Evaluation
+/// rounds relative to the point's coordinates, and relative to the
+/// parameter `across` the line, whose own rounding offsets the partial
+/// by `mixed` times that error (`Su ≈ (v - v_collapse) Suv`). The scale
+/// of `across` is the largest of its magnitude and its finite bounds'.
+///
+/// A cone's slant parameter `1e-9` from the apex leaves a row circle of
+/// radius about `1e-9`, orders of magnitude above that rounding: the
+/// meridian through `(u, v)` is still one direction, and its limiting
+/// normal is the normal there.
+fn lies_on_collapsed_line(
+    point: Point3D,
+    partial: Vector3D,
+    mixed: Vector3D,
+    width: f64,
+    across: f64,
+    (across_first, across_last): (f64, f64),
+) -> bool {
+    const ROUNDING: f64 = 64.0 * f64::EPSILON;
+    let coordinates = point.x.abs().max(point.y.abs()).max(point.z.abs());
+    let finite_magnitude = |bound: f64| if bound.is_finite() { bound.abs() } else { 0.0 };
+    let across_magnitude = across
+        .abs()
+        .max(finite_magnitude(across_first))
+        .max(finite_magnitude(across_last));
+    let rounding = ROUNDING * (coordinates + mixed.magnitude() * width * across_magnitude);
+    partial.magnitude() * width <= rounding
+}
+
 /// Whether a second-derivative `candidate` recovered at `(u, v)` is the
-/// surface's normal there: re-recover at two other `u` values spanning
-/// the range and require agreement.
+/// surface's normal there: re-recover at two other values of the
+/// collapsed `direction`, spanning its range, and require agreement.
 ///
 /// A sphere pole recovers its axis from every meridian; a cone apex
 /// recovers one direction per meridian and reports `None`. Where a
@@ -447,27 +524,47 @@ fn substituted_normal(
 /// by order one.
 fn transverse_agreement<S: ParametricSurface + ?Sized>(
     surface: &S,
+    u: f64,
     v: f64,
+    direction: Direction,
     bounds: [(f64, f64); 2],
     candidate: Vector3D,
     tol: Tolerance,
 ) -> bool {
     let agreement = tol.angular.sqrt();
-    let (first, last) = bounds[0];
+    let (first, last) = match direction {
+        Direction::U => bounds[0],
+        Direction::V => bounds[1],
+    };
     if !(first.is_finite() && last.is_finite() && last > first) {
         return true;
     }
     let [u_width, v_width] = bounds.map(|range| tol.reference_width(range));
     for fraction in [1.0 / 3.0, 2.0 / 3.0] {
-        let other_u = first + (last - first) * fraction;
-        let (_, [su, sv]) = surface.eval_d1(other_u, v);
+        let other = first + (last - first) * fraction;
+        let (other_u, other_v) = match direction {
+            Direction::U => (other, v),
+            Direction::V => (u, other),
+        };
+        let (_, [su, sv]) = surface.eval_d1(other_u, other_v);
         if direct_normal(su, sv, u_width, v_width, tol).is_some() {
             return true;
         }
-        let (_, _, [suu, suv, svv]) = surface.eval_d2(other_u, v);
-        if let Some(other) = substituted_normal(
-            su, sv, suu, suv, svv, other_u, v, bounds, u_width, v_width, tol,
-        ) && (other - candidate).magnitude() > agreement
+        let (_, _, [suu, suv, svv]) = surface.eval_d2(other_u, other_v);
+        if let Some(recovered) = substituted_normal(
+            su,
+            sv,
+            suu,
+            suv,
+            svv,
+            other_u,
+            other_v,
+            bounds,
+            [false, false],
+            u_width,
+            v_width,
+            tol,
+        ) && (recovered - candidate).magnitude() > agreement
         {
             return false;
         }
@@ -1959,14 +2056,72 @@ mod tests {
     }
 
     #[test]
-    fn test_normal_recovers_along_a_collapsed_row() {
+    fn test_normal_collapsed_row_apex_has_no_unique_normal() {
+        // The rows meet at an angle at the apex, so each v recovers its
+        // own direction there: no normal. Beside the row, even within
+        // confusion of it, the u line through (u, v) is one direction and
+        // its limit answers.
         let surface = collapsed_row();
         let tol = Tolerance::DEFAULT;
         for v in [0.0, 0.3, 0.5, 1.0] {
-            // The limit along the u isoparametric line.
+            assert_eq!(
+                ParametricSurface::normal(&surface, 0.0, v, tol),
+                None,
+                "v = {v}"
+            );
             let limit = ParametricSurface::normal(&surface, 1e-6, v, tol).unwrap();
-            let apex = ParametricSurface::normal(&surface, 0.0, v, tol).unwrap();
-            assert!((apex - limit).magnitude() < 1e-5, "v = {v}: {apex:?}");
+            let beside = ParametricSurface::normal(&surface, 1e-9, v, tol).unwrap();
+            assert!((beside - limit).magnitude() < 1e-5, "v = {v}: {beside:?}");
+        }
+    }
+
+    #[test]
+    fn test_normal_beside_a_cone_apex_is_the_flank_normal() {
+        // Within confusion of the apex but not at it, on either nappe, the
+        // meridian still has a normal: Su × Sv, oriented as it is there.
+        let tol = Tolerance::DEFAULT;
+        for semi_angle in [0.1, 0.4, 1.2] {
+            let c = Cone::new(Point3D::ORIGIN, Vector3D::Z, semi_angle, 2.0).unwrap();
+            let v_apex = -2.0 / semi_angle.sin();
+            for offset in [1e-9, -1e-9, 1e-8, -1e-8, 1e-6, -1e-3] {
+                for u in [0.0, 1.0, 4.0] {
+                    let v = v_apex + offset;
+                    let (_, [su, sv]) = c.eval_d1(u, v);
+                    let exact = su.cross(sv) * (1.0 / su.cross(sv).magnitude());
+                    let normal = ParametricSurface::normal(&c, u, v, tol).unwrap();
+                    assert!(
+                        (normal - exact).magnitude() < 1e-12,
+                        "semi-angle {semi_angle}, offset {offset}, u = {u}: {normal:?}"
+                    );
+                }
+            }
+            // The same cone as a B-spline patch from its apex up, at any
+            // knot scale.
+            let patch = c
+                .to_bspline_patch((0.0, std::f64::consts::PI), (v_apex, v_apex + 1.0))
+                .unwrap();
+            for scale in [1.0, 1e8, 1e-8] {
+                let scaled = rescaled(&patch, scale);
+                for u in [0.3, 1.5] {
+                    assert_eq!(
+                        ParametricSurface::normal(&scaled, u * scale, v_apex * scale, tol),
+                        None,
+                        "semi-angle {semi_angle}, scale {scale}, u = {u}"
+                    );
+                    // A v line is a meridian, along which the normal is
+                    // constant: compare with its regular middle.
+                    let flank =
+                        ParametricSurface::normal(&scaled, u * scale, (v_apex + 0.5) * scale, tol)
+                            .unwrap();
+                    let beside = (v_apex + 1e-9) * scale;
+                    let normal = ParametricSurface::normal(&scaled, u * scale, beside, tol)
+                        .unwrap_or_else(|| panic!("scale {scale}, u = {u}: None"));
+                    assert!(
+                        (normal - flank).magnitude() < 1e-12,
+                        "semi-angle {semi_angle}, scale {scale}, u = {u}: {normal:?}"
+                    );
+                }
+            }
         }
     }
 
@@ -1991,13 +2146,17 @@ mod tests {
             for scale in [1e8, 1e-8] {
                 let scaled = rescaled(&surface, scale);
                 for &(u, v) in parameters {
-                    let reference = ParametricSurface::normal(&surface, u, v, tol).unwrap();
-                    let normal = ParametricSurface::normal(&scaled, u * scale, v * scale, tol)
-                        .unwrap_or_else(|| panic!("scale {scale}, ({u}, {v}): None"));
-                    assert!(
-                        (normal - reference).magnitude() < 1e-12,
-                        "scale {scale}, ({u}, {v}): {normal:?} vs {reference:?}"
-                    );
+                    // The collapsed row's apex has no normal at any scale.
+                    let reference = ParametricSurface::normal(&surface, u, v, tol);
+                    let normal = ParametricSurface::normal(&scaled, u * scale, v * scale, tol);
+                    match (reference, normal) {
+                        (None, None) => {}
+                        (Some(reference), Some(normal)) => assert!(
+                            (normal - reference).magnitude() < 1e-12,
+                            "scale {scale}, ({u}, {v}): {normal:?} vs {reference:?}"
+                        ),
+                        _ => panic!("scale {scale}, ({u}, {v}): {normal:?} vs {reference:?}"),
+                    }
                 }
             }
         }

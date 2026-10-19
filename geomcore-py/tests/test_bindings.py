@@ -165,8 +165,11 @@ def test_surface_normal_is_unit_and_recovers_at_singular_points():
     pole = sphere.normal(0.3, math.pi / 2, Tolerance.default())
     assert pole.components() == pytest.approx((0.0, 0.0, 1.0), abs=1e-12)
     cone = geomcore.surfaces.Cone(Point3D.origin(), Vector3D.z(), 0.4, 2.0)
-    apex = cone.normal(0.0, -2.0 / math.sin(0.4))
-    assert apex.components() == pytest.approx(
+    v_apex = -2.0 / math.sin(0.4)
+    # Each meridian has its own limit at the apex, so there is no normal.
+    assert cone.normal(0.0, v_apex) is None
+    beside = cone.normal(0.0, v_apex + 1e-9)
+    assert beside.components() == pytest.approx(
         (math.cos(0.4), 0.0, -math.sin(0.4)), abs=1e-9
     )
     cylinder = Cylinder(Point3D.origin(), Vector3D.z(), 1.0)

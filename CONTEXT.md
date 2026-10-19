@@ -23,7 +23,7 @@ A point lies on a curve or surface when it is within `tol.confusion` of it, test
 _Avoid_: inside (reserved for polygons), containment for anything other than this test
 
 **Normal**:
-The unit direction of `Su × Sv` at a surface's parameters. A partial counts as zero when the distance it would cover across its parameter range is within `tol.confusion`, so the normal does not depend on how the surface is parametrized. Singular points resolve their limiting normal only if it is unique across the meaningless coordinate: a sphere's pole reports its axis, a cone's apex reports nothing.
+The unit direction of `Su × Sv` at a surface's parameters. A partial counts as zero when the distance it would cover across its parameter range is within `tol.confusion`, so the normal does not depend on how the surface is parametrized. Singular points resolve their limiting normal only if it is unique along the parameter line that collapses there: a sphere's pole reports its axis, a cone's apex reports nothing. A point beside the apex, even within `tol.confusion` of it, still has its meridian's normal.
 _Avoid_: raw cross product for the normal, tangent for either partial derivative
 
 **B-spline**:

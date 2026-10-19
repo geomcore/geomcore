@@ -13,9 +13,10 @@ the Python distribution are versioned in lockstep.
 
 - Unit surface normal: `ParametricSurface::normal(u, v, tol)` returns the
   unit `Su × Sv`, recovering the limiting normal at singular points (a
-  sphere's poles, a cone's apex, a collapsed B-spline row) from second
-  derivatives, then from nearby parameters; `None` only where no normal
-  can be recovered. A partial counts as zero when the distance it would
+  sphere's poles, a B-spline row collapsing to a smooth point) from second
+  derivatives, then from nearby parameters; `None` where no normal can be
+  recovered, and at an apex (a cone's, or a collapsed B-spline row whose
+  rows meet at an angle), whose meridians each have their own limit. A partial counts as zero when the distance it would
   cover across its parameter range is within `tol.confusion`, so
   rescaling a surface's knots does not change its normals. In Python,
   `normal(u, v, tol=None)` on `Cylinder`, `Cone`, `Sphere`, `Torus` and
