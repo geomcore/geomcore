@@ -16,9 +16,10 @@ the Python distribution are versioned in lockstep.
   sphere's poles, a B-spline row collapsing to a smooth point) from second
   derivatives, then from nearby parameters; `None` where no normal can be
   recovered, and at an apex (a cone's, or a collapsed B-spline row whose
-  rows meet at an angle), whose meridians each have their own limit. A partial counts as zero when the distance it would
-  cover across its parameter range is within `tol.confusion`, so
-  rescaling a surface's knots does not change its normals. In Python,
+  rows meet at an angle), whose meridians each have their own limit. A
+  partial counts as zero when the distance it would cover across its
+  parameter range is within `tol.confusion`, so rescaling a surface's
+  knots does not change its normals. In Python,
   `normal(u, v, tol=None)` on `Cylinder`, `Cone`, `Sphere`, `Torus` and
   `BSplineSurface` (`Plane.normal()` keeps returning its constant
   normal). ADR 0010 records the design.
