@@ -283,8 +283,10 @@ pub trait ParametricSurface {
     /// and smooth elsewhere: the order its knots guarantee, which the shape
     /// may exceed. The ends of a non-periodic direction report smooth, the
     /// surface being seen from the inside only; a periodic direction wraps
-    /// `u` into its period, so its seam counts as a knot. Default
-    /// implementation: smooth.
+    /// `u` into its period, so its seam counts as a knot. Derivatives in
+    /// `u` of higher order than the one reported may differ on the two
+    /// sides of `u`; [`BSplineSurface::eval_d1_sided`] and its siblings
+    /// evaluate each side. Default implementation: smooth.
     ///
     /// # Examples
     ///

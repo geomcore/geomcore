@@ -274,7 +274,10 @@ pub trait ParametricCurve3D {
     /// order, not the curve's smoothness). The ends of a non-periodic
     /// curve's bounds report smooth, the curve being seen from the inside
     /// only; a periodic curve wraps `u` into its period, so its seam
-    /// counts as a knot. Default implementation: smooth.
+    /// counts as a knot. Derivatives of higher order than the one reported
+    /// may differ on the two sides of `u`;
+    /// [`BSplineCurve3D::eval_d1_sided`] and its siblings evaluate each
+    /// side. Default implementation: smooth.
     ///
     /// # Examples
     ///

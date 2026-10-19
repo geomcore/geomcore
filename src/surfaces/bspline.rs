@@ -473,6 +473,10 @@ impl BSplineSurface {
     /// reports smooth at and beyond its bounds; a periodic one wraps `u`
     /// into its period, so its seam is a knot like any other.
     ///
+    /// Derivatives in `u` of higher order than the one reported may differ
+    /// on the two sides of `u`; [`eval_d1_sided`](Self::eval_d1_sided) and
+    /// its siblings evaluate each side.
+    ///
     /// # Examples
     ///
     /// ```
@@ -1863,7 +1867,10 @@ impl BSplineSurface {
     /// non-periodic direction and both sides take the last span. A
     /// periodic direction's seam is a knot like any other: at either
     /// bound, [`Side::Below`] takes the last span of the period and
-    /// [`Side::Above`] the first.
+    /// [`Side::Above`] the first. The two sides of a direction can differ
+    /// only in derivatives of higher order than
+    /// [`continuity_u`](Self::continuity_u) or
+    /// [`continuity_v`](Self::continuity_v) reports there.
     ///
     /// # Examples
     ///

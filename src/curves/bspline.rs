@@ -436,6 +436,10 @@ impl BSplineCurve3D {
     /// only; a periodic one wraps `u` into its period, so its seam is a
     /// knot like any other.
     ///
+    /// Derivatives of higher order than the one reported may differ on
+    /// the two sides of `u`; [`eval_d1_sided`](Self::eval_d1_sided) and its
+    /// siblings evaluate each side.
+    ///
     /// # Examples
     ///
     /// ```
@@ -1229,7 +1233,9 @@ impl BSplineCurve3D {
     /// upper bound, where nothing lies above a non-periodic curve and both
     /// sides take the last span. A periodic curve's seam is a knot like
     /// any other: at either bound, [`Side::Below`] takes the last span of
-    /// the period and [`Side::Above`] the first.
+    /// the period and [`Side::Above`] the first. The two sides can differ
+    /// only in derivatives of higher order than
+    /// [`continuity`](Self::continuity) reports at `u`.
     ///
     /// # Examples
     ///
