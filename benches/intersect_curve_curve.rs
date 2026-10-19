@@ -17,10 +17,9 @@
 use criterion::{Criterion, Throughput, criterion_group, criterion_main};
 use std::hint::black_box;
 
-use geomcore::curves::TrimmedCurve3D;
+use geomcore::curves::TrimmedCurve;
 use geomcore::{
-    BSplineCurve3D, Circle3D, Ellipse3D, Intersect, Line3D, Point3D, Tolerance, Vector3D,
-    curve_curve_extrema,
+    BSplineCurve, Circle, Ellipse, Intersect, Line, Point, Tolerance, Vector, curve_curve_extrema,
 };
 
 const PAIRS: usize = 64;
@@ -40,22 +39,22 @@ impl Lcg {
 
 /// A cubic through six poles, from `from(s)` at `s = 0` to `s = 1`, with
 /// random offsets `wave` scaled by `amplitude` per pole.
-fn cubic(rng: &mut Lcg, from: impl Fn(f64) -> [f64; 3], amplitude: [f64; 3]) -> BSplineCurve3D {
+fn cubic(rng: &mut Lcg, from: impl Fn(f64) -> [f64; 3], amplitude: [f64; 3]) -> BSplineCurve {
     let poles = (0..6)
         .map(|k| {
             let [x, y, z] = from(k as f64 / 5.0);
             let mut wave = || 2.0 * rng.next() - 1.0;
-            Point3D::new(
+            Point::new(
                 x + amplitude[0] * wave(),
                 y + amplitude[1] * wave(),
                 z + amplitude[2] * wave(),
             )
         })
         .collect();
-    BSplineCurve3D::new(3, poles, vec![0.0, 1.0, 2.0, 3.0], vec![4, 1, 1, 4], false).unwrap()
+    BSplineCurve::new(3, poles, vec![0.0, 1.0, 2.0, 3.0], vec![4, 1, 1, 4], false).unwrap()
 }
 
-fn crossing_pairs() -> Vec<(BSplineCurve3D, BSplineCurve3D)> {
+fn crossing_pairs() -> Vec<(BSplineCurve, BSplineCurve)> {
     let mut rng = Lcg(42);
     (0..PAIRS)
         .map(|_| {
@@ -76,7 +75,7 @@ fn crossing_pairs() -> Vec<(BSplineCurve3D, BSplineCurve3D)> {
         .collect()
 }
 
-fn skew_pairs() -> Vec<(BSplineCurve3D, BSplineCurve3D)> {
+fn skew_pairs() -> Vec<(BSplineCurve, BSplineCurve)> {
     let mut rng = Lcg(7);
     (0..PAIRS)
         .map(|_| {
@@ -99,30 +98,30 @@ fn skew_pairs() -> Vec<(BSplineCurve3D, BSplineCurve3D)> {
 
 /// Circles of radius 1 to 2 centred in the square `[1, 4]^2` of the
 /// plane `z = 0`.
-fn circles() -> Vec<Circle3D> {
+fn circles() -> Vec<Circle> {
     let mut rng = Lcg(11);
     (0..PAIRS)
         .map(|_| {
-            let centre = Point3D::new(1.0 + 3.0 * rng.next(), 1.0 + 3.0 * rng.next(), 0.0);
-            Circle3D::new(centre, Vector3D::Z, 1.0 + rng.next()).unwrap()
+            let centre = Point::new(1.0 + 3.0 * rng.next(), 1.0 + 3.0 * rng.next(), 0.0);
+            Circle::new(centre, Vector::Z, 1.0 + rng.next()).unwrap()
         })
         .collect()
 }
 
 /// Ellipses of radii 2 and 1 centred over the square `[1, 4]^2` at
 /// heights 1 to 2, tilted at random.
-fn ellipses() -> Vec<Ellipse3D> {
+fn ellipses() -> Vec<Ellipse> {
     let mut rng = Lcg(13);
     (0..PAIRS)
         .map(|_| {
-            let centre = Point3D::new(
+            let centre = Point::new(
                 1.0 + 3.0 * rng.next(),
                 1.0 + 3.0 * rng.next(),
                 1.0 + rng.next(),
             );
-            let normal = Vector3D::new(rng.next() - 0.5, rng.next() - 0.5, 1.0);
-            let major = Vector3D::new(normal.z, 0.0, -normal.x);
-            Ellipse3D::new(centre, normal, major, 2.0, 1.0).unwrap()
+            let normal = Vector::new(rng.next() - 0.5, rng.next() - 0.5, 1.0);
+            let major = Vector::new(normal.z, 0.0, -normal.x);
+            Ellipse::new(centre, normal, major, 2.0, 1.0).unwrap()
         })
         .collect()
 }
@@ -165,7 +164,7 @@ fn bench_curve_curve(c: &mut Criterion) {
     });
     let arcs: Vec<_> = ellipses
         .iter()
-        .map(|e| TrimmedCurve3D::new(*e, 0.0, std::f64::consts::PI).unwrap())
+        .map(|e| TrimmedCurve::new(*e, 0.0, std::f64::consts::PI).unwrap())
         .collect();
     group.bench_function("extrema_arc_bspline", |b| {
         b.iter(|| {
@@ -176,11 +175,11 @@ fn bench_curve_curve(c: &mut Criterion) {
     });
     let lines: Vec<_> = ellipses
         .iter()
-        .map(|e| Line3D::new(e.center(), e.frame().x_direction()).unwrap())
+        .map(|e| Line::new(e.center(), e.frame().x_direction()).unwrap())
         .collect();
     let segs: Vec<_> = lines
         .iter()
-        .map(|l| TrimmedCurve3D::new(*l, -2.0, 2.0).unwrap())
+        .map(|l| TrimmedCurve::new(*l, -2.0, 2.0).unwrap())
         .collect();
     group.bench_function("extrema_segment_bspline", |b| {
         b.iter(|| {

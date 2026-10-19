@@ -14,19 +14,19 @@ use geomcore::{
     Completeness, CurveCurveExtrema, CurveCurveExtremum, CurveCurveHit, CurveCurveHit2D,
     CurveCurveIntersection, CurveCurveIntersection2D, CurveCurveOverlap, CurveCurveRegion,
     CurveProjection, CurveProjection2D, CurveSurfaceHit, CurveSurfaceIntersection,
-    CurveSurfaceRegion, IncompleteReason, IntersectionCurve, IntersectionMethod, Point2D, Point3D,
+    CurveSurfaceRegion, IncompleteReason, IntersectionCurve, IntersectionMethod, Point, Point2D,
     SurfaceCurvatures, SurfaceProjection, SurfaceSurfaceIntersection, SurfaceSurfaceRegion,
 };
 
 use crate::numeric::curve3d_to_py;
-use crate::values::{PyPoint2D, PyPoint3D, PyVector3D, coordinates, coordinates_2d, float_repr};
+use crate::values::{PyPoint, PyPoint2D, PyVector, coordinates, coordinates_2d, float_repr};
 
 // ---------------------------------------------------------------------------
 // repr helpers
 // ---------------------------------------------------------------------------
 
-fn point3_repr(p: Point3D) -> String {
-    format!("Point3D{}", coordinates(p))
+fn point3_repr(p: Point) -> String {
+    format!("Point{}", coordinates(p))
 }
 
 fn point2_repr(p: Point2D) -> String {
@@ -227,14 +227,14 @@ impl PyCurveCurveRegion {
 
     /// The corner of the box with the smallest coordinates.
     #[getter]
-    fn min_corner(&self) -> PyPoint3D {
-        PyPoint3D(self.0.min_corner)
+    fn min_corner(&self) -> PyPoint {
+        PyPoint(self.0.min_corner)
     }
 
     /// The corner of the box with the largest coordinates.
     #[getter]
-    fn max_corner(&self) -> PyPoint3D {
-        PyPoint3D(self.0.max_corner)
+    fn max_corner(&self) -> PyPoint {
+        PyPoint(self.0.max_corner)
     }
 
     fn __repr__(&self) -> String {
@@ -277,14 +277,14 @@ impl PyCurveSurfaceRegion {
 
     /// The corner of the box with the smallest coordinates.
     #[getter]
-    fn min_corner(&self) -> PyPoint3D {
-        PyPoint3D(self.0.min_corner)
+    fn min_corner(&self) -> PyPoint {
+        PyPoint(self.0.min_corner)
     }
 
     /// The corner of the box with the largest coordinates.
     #[getter]
-    fn max_corner(&self) -> PyPoint3D {
-        PyPoint3D(self.0.max_corner)
+    fn max_corner(&self) -> PyPoint {
+        PyPoint(self.0.max_corner)
     }
 
     fn __repr__(&self) -> String {
@@ -334,14 +334,14 @@ impl PySurfaceSurfaceRegion {
 
     /// The corner of the box with the smallest coordinates.
     #[getter]
-    fn min_corner(&self) -> PyPoint3D {
-        PyPoint3D(self.0.min_corner)
+    fn min_corner(&self) -> PyPoint {
+        PyPoint(self.0.min_corner)
     }
 
     /// The corner of the box with the largest coordinates.
     #[getter]
-    fn max_corner(&self) -> PyPoint3D {
-        PyPoint3D(self.0.max_corner)
+    fn max_corner(&self) -> PyPoint {
+        PyPoint(self.0.max_corner)
     }
 
     fn __repr__(&self) -> String {
@@ -497,8 +497,8 @@ impl PyCurveCurveHit {
 
     /// The meeting point.
     #[getter]
-    fn point(&self) -> PyPoint3D {
-        PyPoint3D(self.0.point)
+    fn point(&self) -> PyPoint {
+        PyPoint(self.0.point)
     }
 
     /// 1 for a crossing, 2 or more where the curves are tangent.
@@ -590,8 +590,8 @@ impl PyCurveSurfaceHit {
 
     /// The meeting point.
     #[getter]
-    fn point(&self) -> PyPoint3D {
-        PyPoint3D(self.0.point)
+    fn point(&self) -> PyPoint {
+        PyPoint(self.0.point)
     }
 
     /// 1 for a crossing, 2 or more where the curve is tangent to the
@@ -661,7 +661,7 @@ pub(crate) struct PyIntersectionCurve(pub(crate) IntersectionCurve);
 #[pymethods]
 impl PyIntersectionCurve {
     /// The curve: a line, circle, ellipse, parabola or hyperbola from a
-    /// closed form, a `BSplineCurve3D` traced by marching otherwise.
+    /// closed form, a `BSplineCurve` traced by marching otherwise.
     #[getter]
     fn curve(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         curve3d_to_py(py, self.0.curve.clone())
@@ -1047,11 +1047,11 @@ impl PySurfaceSurfaceIntersection {
 
     /// The isolated points where the surfaces touch.
     #[getter]
-    fn contact_points(&self) -> Vec<PyPoint3D> {
+    fn contact_points(&self) -> Vec<PyPoint> {
         self.result
             .contact_points()
             .iter()
-            .map(|p| PyPoint3D(*p))
+            .map(|p| PyPoint(*p))
             .collect()
     }
 
@@ -1141,14 +1141,14 @@ impl PySurfaceSurfaceIntersection {
 pub(crate) struct PyCurveProjection {
     pub(crate) result: CurveProjection,
     pub(crate) target: Py<PyAny>,
-    pub(crate) query_point: Point3D,
+    pub(crate) query_point: Point,
 }
 
 impl PyCurveProjection {
     pub(crate) fn new(
         result: CurveProjection,
         target: &Bound<'_, impl pyo3::PyClass>,
-        query_point: Point3D,
+        query_point: Point,
     ) -> Self {
         PyCurveProjection {
             result,
@@ -1168,8 +1168,8 @@ impl PyCurveProjection {
 
     /// The closest point: the curve evaluated at `parameter`.
     #[getter]
-    fn point(&self) -> PyPoint3D {
-        PyPoint3D(self.result.point)
+    fn point(&self) -> PyPoint {
+        PyPoint(self.result.point)
     }
 
     /// The distance from `query_point` to the curve.
@@ -1186,8 +1186,8 @@ impl PyCurveProjection {
 
     /// The point that was projected.
     #[getter]
-    fn query_point(&self) -> PyPoint3D {
-        PyPoint3D(self.query_point)
+    fn query_point(&self) -> PyPoint {
+        PyPoint(self.query_point)
     }
 
     fn __eq__(&self, py: Python<'_>, other: PyRef<'_, Self>) -> PyResult<bool> {
@@ -1291,14 +1291,14 @@ impl PyCurveProjection2D {
 pub(crate) struct PySurfaceProjection {
     pub(crate) result: SurfaceProjection,
     pub(crate) target: Py<PyAny>,
-    pub(crate) query_point: Point3D,
+    pub(crate) query_point: Point,
 }
 
 impl PySurfaceProjection {
     pub(crate) fn new(
         result: SurfaceProjection,
         target: &Bound<'_, impl pyo3::PyClass>,
-        query_point: Point3D,
+        query_point: Point,
     ) -> Self {
         PySurfaceProjection {
             result,
@@ -1324,8 +1324,8 @@ impl PySurfaceProjection {
 
     /// The closest point: the surface evaluated at `(u, v)`.
     #[getter]
-    fn point(&self) -> PyPoint3D {
-        PyPoint3D(self.result.point)
+    fn point(&self) -> PyPoint {
+        PyPoint(self.result.point)
     }
 
     /// The distance from `query_point` to the surface.
@@ -1342,8 +1342,8 @@ impl PySurfaceProjection {
 
     /// The point that was projected.
     #[getter]
-    fn query_point(&self) -> PyPoint3D {
-        PyPoint3D(self.query_point)
+    fn query_point(&self) -> PyPoint {
+        PyPoint(self.query_point)
     }
 
     fn __eq__(&self, py: Python<'_>, other: PyRef<'_, Self>) -> PyResult<bool> {
@@ -1507,15 +1507,15 @@ impl PySurfaceCurvatures {
 
     /// The unit tangent direction of `min_curvature`.
     #[getter]
-    fn min_direction(&self) -> PyVector3D {
-        PyVector3D(self.0.min_direction)
+    fn min_direction(&self) -> PyVector {
+        PyVector(self.0.min_direction)
     }
 
     /// The unit tangent direction of `max_curvature`, perpendicular to
     /// `min_direction`.
     #[getter]
-    fn max_direction(&self) -> PyVector3D {
-        PyVector3D(self.0.max_direction)
+    fn max_direction(&self) -> PyVector {
+        PyVector(self.0.max_direction)
     }
 
     /// The mean curvature, `(min_curvature + max_curvature) / 2`.
@@ -1532,8 +1532,8 @@ impl PySurfaceCurvatures {
 
     fn __repr__(&self) -> String {
         format!(
-            "SurfaceCurvatures(min_curvature={}, max_curvature={}, min_direction=Vector3D{}, \
-             max_direction=Vector3D{}, mean={}, gaussian={})",
+            "SurfaceCurvatures(min_curvature={}, max_curvature={}, min_direction=Vector{}, \
+             max_direction=Vector{}, mean={}, gaussian={})",
             float_repr(self.0.min_curvature),
             float_repr(self.0.max_curvature),
             coordinates(self.0.min_direction),

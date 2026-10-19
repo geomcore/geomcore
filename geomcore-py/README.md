@@ -6,11 +6,11 @@ parametric evaluation, rigid transformations, and analytic curve-on-surface
 parametrization, implemented in Rust.
 
 ```python
-from geomcore import Point3D, Vector3D
-from geomcore.curves import Circle3D
+from geomcore import Point, Vector
+from geomcore.curves import Circle
 import math
 
-circle = Circle3D(Point3D.origin(), Vector3D.unit_z(), 2.0)
+circle = Circle(Point.origin(), Vector.unit_z(), 2.0)
 point = circle.eval_point(math.pi / 4)
 ```
 

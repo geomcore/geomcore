@@ -7,7 +7,7 @@
 use std::fmt;
 
 use crate::curve_math::bspline::KnotVector;
-use crate::{Circle3D, Frame3D, Line3D, Point3D, Vector3D};
+use crate::{Circle, Frame, Line, Point, Vector};
 
 /// Error returned when an isoparametric curve cannot be built.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -61,8 +61,8 @@ pub(crate) fn check_iso_param(t: f64, knots: Option<&KnotVector>) -> Result<f64,
 
 /// The line `origin + t * direction`, `direction` being a unit vector. A
 /// finite parameter can still carry `origin` past `f64` range.
-pub(crate) fn iso_line(origin: Point3D, direction: Vector3D) -> Result<Line3D, SurfaceIsoError> {
-    Line3D::new(origin, direction).map_err(|_| SurfaceIsoError::NonFinite)
+pub(crate) fn iso_line(origin: Point, direction: Vector) -> Result<Line, SurfaceIsoError> {
+    Line::new(origin, direction).map_err(|_| SurfaceIsoError::NonFinite)
 }
 
 /// The circle `center + radius * (cos(t) * x + sin(t) * y)`, `y` being
@@ -70,35 +70,35 @@ pub(crate) fn iso_line(origin: Point3D, direction: Vector3D) -> Result<Line3D, S
 /// parametrization holds through an apex or a pole, where the radius
 /// changes sign, and a zero radius gives the degenerate circle there.
 pub(crate) fn iso_circle(
-    center: Point3D,
-    normal: Vector3D,
-    x: Vector3D,
+    center: Point,
+    normal: Vector,
+    x: Vector,
     radius: f64,
-) -> Result<Circle3D, SurfaceIsoError> {
+) -> Result<Circle, SurfaceIsoError> {
     let (x, radius) = if radius < 0.0 {
         (-x, -radius)
     } else {
         (x, radius)
     };
-    let frame = Frame3D::new(center, normal, x).map_err(|_| SurfaceIsoError::NonFinite)?;
-    Circle3D::from_frame(frame, radius).map_err(|_| SurfaceIsoError::NonFinite)
+    let frame = Frame::new(center, normal, x).map_err(|_| SurfaceIsoError::NonFinite)?;
+    Circle::from_frame(frame, radius).map_err(|_| SurfaceIsoError::NonFinite)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::curves::ParametricCurve3D;
+    use crate::curves::ParametricCurve;
     use crate::surfaces::ParametricSurface;
-    use crate::{BSplineSurface, Cone, Curve3D, Cylinder, Plane, Sphere, Surface, Torus};
+    use crate::{BSplineSurface, Cone, Curve, Cylinder, Plane, Sphere, Surface, Torus};
     use std::f64::consts::{FRAC_PI_2, PI, TAU};
 
     const PARAMS: [f64; 9] = [-7.5, -PI, -1.2, -0.3, 0.0, 0.4, 1.7, PI, 9.0];
 
-    fn tilted_frame() -> Frame3D {
-        Frame3D::new(
-            Point3D::new(1.0, -2.0, 0.5),
-            Vector3D::new(0.3, -0.4, 1.0),
-            Vector3D::new(1.0, 0.2, 0.0),
+    fn tilted_frame() -> Frame {
+        Frame::new(
+            Point::new(1.0, -2.0, 0.5),
+            Vector::new(0.3, -0.4, 1.0),
+            Vector::new(1.0, 0.2, 0.0),
         )
         .unwrap()
     }
@@ -113,7 +113,7 @@ mod tests {
                     .map(move |&u| surface.eval_point(u, t))
                     .chain(vs.iter().map(move |&v| surface.eval_point(t, v)))
             })
-            .map(|p| (p - Point3D::ORIGIN).magnitude())
+            .map(|p| (p - Point::ORIGIN).magnitude())
             .fold(1.0, f64::max);
         for &u in us {
             let iso = surface.u_iso(u).unwrap();
@@ -162,23 +162,23 @@ mod tests {
 
     #[test]
     fn degenerate_isos_are_circles_of_radius_zero() {
-        let cone = Cone::new(Point3D::ORIGIN, Vector3D::Z, 0.5, 1.0).unwrap();
+        let cone = Cone::new(Point::ORIGIN, Vector::Z, 0.5, 1.0).unwrap();
         let apex = -1.0 / 0.5f64.sin();
         let at_apex = cone.v_iso(apex).unwrap();
         assert!(at_apex.radius() < 1e-12);
         assert!(at_apex.center().distance(cone.apex()) < 1e-12);
 
-        let sphere = Sphere::new(Point3D::ORIGIN, 2.0).unwrap();
+        let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
         for pole in [FRAC_PI_2, -FRAC_PI_2] {
             let iso = sphere.v_iso(pole).unwrap();
             assert!(iso.radius() < 1e-12);
             assert!(iso.center().distance(sphere.eval_point(0.0, pole)) < 1e-12);
         }
 
-        let horn = Torus::new(Point3D::ORIGIN, Vector3D::Z, 2.0, 2.0).unwrap();
+        let horn = Torus::new(Point::ORIGIN, Vector::Z, 2.0, 2.0).unwrap();
         let pinch = horn.v_iso(PI).unwrap();
         assert!(pinch.radius() < 1e-12);
-        assert!(pinch.center().distance(Point3D::ORIGIN) < 1e-12);
+        assert!(pinch.center().distance(Point::ORIGIN) < 1e-12);
     }
 
     #[test]
@@ -207,9 +207,9 @@ mod tests {
                 "circle",
             ),
         ];
-        let kind = |curve: Curve3D| match curve {
-            Curve3D::Line(_) => "line",
-            Curve3D::Circle(_) => "circle",
+        let kind = |curve: Curve| match curve {
+            Curve::Line(_) => "line",
+            Curve::Circle(_) => "circle",
             _ => "other",
         };
         for (surface, u_kind, v_kind) in cases {
@@ -239,7 +239,7 @@ mod tests {
 
     #[test]
     fn a_line_carried_past_f64_range_is_non_finite() {
-        let plane = Plane::new(Point3D::new(1e308, 0.0, 0.0), Vector3D::Z).unwrap();
+        let plane = Plane::new(Point::new(1e308, 0.0, 0.0), Vector::Z).unwrap();
         assert_eq!(
             plane.u_iso(f64::MAX).unwrap_err(),
             SurfaceIsoError::NonFinite
@@ -254,7 +254,7 @@ mod tests {
                 (0..4)
                     .map(|j| {
                         let (x, y) = (i as f64, j as f64);
-                        Point3D::new(x, y + 0.3 * x, (x * 0.7).sin() * (y - 1.5))
+                        Point::new(x, y + 0.3 * x, (x * 0.7).sin() * (y - 1.5))
                     })
                     .collect()
             })
@@ -282,7 +282,7 @@ mod tests {
                 (0..3)
                     .map(|j| {
                         let r = 2.0 + 0.4 * j as f64;
-                        Point3D::new(r * a.cos(), r * a.sin(), 1.5 * j as f64)
+                        Point::new(r * a.cos(), r * a.sin(), 1.5 * j as f64)
                     })
                     .collect()
             })
@@ -356,10 +356,10 @@ mod tests {
     fn a_surface_rational_in_one_direction_gives_polynomial_isos_across_it() {
         // Weights vary along `u` only: every column carries the same ones,
         // so each `u` iso blends them into one common weight.
-        let poles: Vec<Vec<Point3D>> = (0..3)
+        let poles: Vec<Vec<Point>> = (0..3)
             .map(|i| {
                 (0..3)
-                    .map(|j| Point3D::new(i as f64, j as f64, (i * j) as f64))
+                    .map(|j| Point::new(i as f64, j as f64, (i * j) as f64))
                     .collect()
             })
             .collect();

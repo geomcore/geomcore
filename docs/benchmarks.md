@@ -9,8 +9,8 @@ Machine: Linux 6.17, x86-64 desktop, single thread, `cargo bench` defaults
 
 | workload | input size | time / batch | throughput |
 |---|---|---|---|
-| `Circle3D::eval_points` | 100 000 params | ~1.13 ms | ~88 M evals/s |
-| `BSplineCurve3D::eval_points` (degree 3, 20 poles, clamped) | 100 000 params | ~10.5 ms | ~9.5 M evals/s |
+| `Circle::eval_points` | 100 000 params | ~1.13 ms | ~88 M evals/s |
+| `BSplineCurve::eval_points` (degree 3, 20 poles, clamped) | 100 000 params | ~10.5 ms | ~9.5 M evals/s |
 | `BSplineSurface::eval_points` (bicubic, 6×6 poles) | 100 000 (u, v) pairs | ~26.1 ms | ~3.8 M evals/s |
 
 The internals behind `eval_points` are deliberately plain scalar loops in this
@@ -36,7 +36,7 @@ Machine: Linux 7.0, x86-64 desktop, single thread, `--warm-up-time 1
 
 | workload | separate calls | `eval_d2` |
 |---|---|---|
-| `BSplineCurve3D`: point, first and second derivatives | ~172 ns | ~95 ns |
+| `BSplineCurve`: point, first and second derivatives | ~172 ns | ~95 ns |
 | `BSplineSurface`: point, `Su`, `Sv`, `Suu`, `Suv`, `Svv` | ~856 ns | ~208 ns |
 
 The numeric curve–curve extrema and intersection and the marching
@@ -50,7 +50,7 @@ its time projecting seeds onto the surface and was unchanged (see
 `benches/intersect_dispatch.rs` times batches of 1024 exact intersections of
 one pair kind three ways: the typed call (`IntersectExact::intersect_exact`
 since 0.36), the untyped call on `ElementaryCurve`/`ElementarySurface`,
-and the untyped call on `Curve3D`/`Surface`. The inputs vary across the
+and the untyped call on `Curve`/`Surface`. The inputs vary across the
 batch, so each one mixes crossings, tangencies and misses.
 
 The table below is history (0.29 to 0.35): it was measured when the typed
@@ -62,7 +62,7 @@ Machine: Linux 7.0, x86-64 desktop, single thread, `--warm-up-time 1
 --measurement-time 3` (2026-10-12). Times are per pair and vary by 5–10%
 between runs.
 
-| pair | typed | per-pair method | elementary enums | `Curve3D`/`Surface` |
+| pair | typed | per-pair method | elementary enums | `Curve`/`Surface` |
 |---|---|---|---|---|
 | plane–sphere | ~66 ns | ~64 ns | ~79 ns | ~96 ns |
 | torus–cone (coaxial) | ~190 ns | ~194 ns | ~212 ns | ~227 ns |
@@ -87,7 +87,7 @@ typed results and never allocate (sizes from `std::mem::size_of`):
 | `ElementarySurface`, `ElementaryCurve` | 120 |
 | `PlaneConeIntersection` (largest typed surface result) | 232 |
 | `PlaneSphereIntersection` | 112 |
-| `LineCircle3DIntersection` | 72 |
+| `LineCircleIntersection` | 72 |
 | `TorusConeIntersection`, `LineTorusIntersection`, `ConicSurfaceIntersection` (a `Vec`) | 24 + heap |
 
 Reproduce with:
@@ -133,8 +133,8 @@ Machine: Linux 7.0, x86-64 desktop, single thread (2026-10-15), loaded
 "Before" is the router as it was: every pair went through the untyped
 `ElementaryCurve` / `ElementarySurface` enums. "After" has two changes:
 
-- **Typed routing.** A pair of concrete types (`Line3D` with `Cylinder`,
-  `Circle3D` with `Circle3D`, `Circle2D` with `Circle2D`, and every other
+- **Typed routing.** A pair of concrete types (`Line` with `Cylinder`,
+  `Circle` with `Circle`, `Circle2D` with `Circle2D`, and every other
   concrete pair `intersect_exact` solves) now calls its typed solver
   directly; only an enum operand goes through the enum dispatch. A
   trimmed curve routes through the type of its basis curve, so a segment
@@ -232,7 +232,7 @@ instructions per pair, 35 → 25 ns. The other two pairs did not move
 
 A plane at heights up to 0.9 across a unit sphere, one circle each. The
 typed exact call returns the plane–sphere result alone; the routed call
-builds the general result, with its curve in a `Curve3D` in a `Vec` (one
+builds the general result, with its curve in a `Curve` in a `Vec` (one
 allocation per pair). Criterion medians per pair of three runs, loaded
 machine (load average 5–8), batches of 1024:
 
@@ -281,8 +281,8 @@ cargo bench --bench conic_quadric
 
 `benches/discretization.rs` discretizes 3000 model-like edges: two thirds
 cubic B-splines with 1 to 7 spans, one third quarter-circle arcs (half
-rational quadratic B-splines, half trimmed `Circle3D`s). Every edge is a
-run-time `TrimmedCurve3D`, and its maximum chord deviation is 1e-2 or 1e-3
+rational quadratic B-splines, half trimmed `Circle`s). Every edge is a
+run-time `TrimmedCurve`, and its maximum chord deviation is 1e-2 or 1e-3
 times its size, with no angle limit. Three measurements: counting the
 points, filling one set of buffers reused across the edges (count, then
 fill), and the allocating call.

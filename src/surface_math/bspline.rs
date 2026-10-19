@@ -24,7 +24,7 @@
 use super::super::curve_math::bspline as curve;
 use crate::curve_math::bspline::{KnotVector, Poles};
 use crate::curves::Side;
-use crate::{Point3D, Vector3D};
+use crate::{Point, Vector};
 
 /// The surface point `S(u, v)`: the value-only path of
 /// [`surface_derivatives`].
@@ -35,7 +35,7 @@ pub(crate) fn surface_point(
     poles: Poles,
     u: f64,
     v: f64,
-) -> Point3D {
+) -> Point {
     if let (Some((first_u, u_values)), Some((first_v, v_values))) =
         (u_knots.low_degree_basis(u), v_knots.low_degree_basis(v))
     {
@@ -61,7 +61,7 @@ fn point_sized<const N: usize>(
     poles: Poles,
     u: f64,
     v: f64,
-) -> Point3D {
+) -> Point {
     let mut u_values = [0.0f64; N];
     let mut v_values = [0.0f64; N];
     let first_u = u_knots.basis(u, &mut u_values);
@@ -84,7 +84,7 @@ fn point_from_basis<const N: usize>(
     poles: Poles,
     (first_u, u_values): (usize, &[f64; N]),
     (first_v, v_values): (usize, &[f64; N]),
-) -> Point3D {
+) -> Point {
     let s = match poles.weights {
         Some(weights) => point_sum::<N, true>(
             u_knots,
@@ -109,9 +109,9 @@ fn point_from_basis<const N: usize>(
     };
     if poles.weights.is_some() {
         let inverse = 1.0 / s[3];
-        Point3D::new(s[0] * inverse, s[1] * inverse, s[2] * inverse)
+        Point::new(s[0] * inverse, s[1] * inverse, s[2] * inverse)
     } else {
-        Point3D::new(s[0], s[1], s[2])
+        Point::new(s[0], s[1], s[2])
     }
 }
 
@@ -123,7 +123,7 @@ fn point_from_basis<const N: usize>(
 fn point_sum<const N: usize, const RATIONAL: bool>(
     u_knots: &KnotVector,
     v_knots: &KnotVector,
-    points: &[Point3D],
+    points: &[Point],
     weights: &[f64],
     u_values: &[f64; N],
     v_values: &[f64; N],
@@ -173,7 +173,7 @@ pub(crate) fn surface_derivatives<const ORDER: usize>(
     poles: Poles,
     u: f64,
     v: f64,
-) -> [Vector3D; 6] {
+) -> [Vector; 6] {
     surface_derivatives_from::<ORDER>(u_knots, v_knots, poles, u, v, None, None)
 }
 
@@ -189,7 +189,7 @@ pub(crate) fn surface_derivatives_sided<const ORDER: usize>(
     v: f64,
     u_side: Side,
     v_side: Side,
-) -> [Vector3D; 6] {
+) -> [Vector; 6] {
     surface_derivatives_from::<ORDER>(u_knots, v_knots, poles, u, v, Some(u_side), Some(v_side))
 }
 
@@ -204,9 +204,9 @@ fn surface_derivatives_from<const ORDER: usize>(
     v: f64,
     u_side: Option<Side>,
     v_side: Option<Side>,
-) -> [Vector3D; 6] {
+) -> [Vector; 6] {
     let sums = tensor::<ORDER>(u_knots, v_knots, poles, u, v, u_side, v_side);
-    let [s, su, sv, suu, suv, svv] = sums.map(|a| Vector3D::new(a[0], a[1], a[2]));
+    let [s, su, sv, suu, suv, svv] = sums.map(|a| Vector::new(a[0], a[1], a[2]));
     if poles.weights.is_none() {
         return [s, su, sv, suu, suv, svv];
     }
@@ -862,7 +862,7 @@ fn sum<const N: usize, const ORDER: usize, const RATIONAL: bool>(
     wv: &curve::Window<N>,
     u_knots: &KnotVector,
     v_knots: &KnotVector,
-    points: &[Point3D],
+    points: &[Point],
     weights: &[f64],
 ) -> [[f64; 4]; 6] {
     let n_v = v_knots.pole_count();
@@ -929,10 +929,10 @@ mod tests {
             };
             let (u_knots, v_knots) = (direction(p), direction(q));
             let count = (p + 3) * (q + 3);
-            let poles: Vec<Point3D> = (0..count)
+            let poles: Vec<Point> = (0..count)
                 .map(|k| {
                     let (i, j) = ((k / (q + 3)) as f64, (k % (q + 3)) as f64);
-                    Point3D::new(i, j, (0.7 * i + 1.3 * j).sin())
+                    Point::new(i, j, (0.7 * i + 1.3 * j).sin())
                 })
                 .collect();
             let weights: Vec<f64> = (0..count).map(|k| 0.6 + 0.2 * (k % 4) as f64).collect();
@@ -967,12 +967,12 @@ mod tests {
     //   P10=(1,0,0) P11=(1,1,1)
     // (row-major [i_u][i_v]). Bilinear interpolation gives
     //   S(u,v) = (u, v, u*v), Su = (1, 0, v), Sv = (0, 1, u).
-    fn bilinear_poles() -> Vec<Point3D> {
+    fn bilinear_poles() -> Vec<Point> {
         vec![
-            Point3D::new(0.0, 0.0, 0.0),
-            Point3D::new(0.0, 1.0, 0.0),
-            Point3D::new(1.0, 0.0, 0.0),
-            Point3D::new(1.0, 1.0, 1.0),
+            Point::new(0.0, 0.0, 0.0),
+            Point::new(0.0, 1.0, 0.0),
+            Point::new(1.0, 0.0, 0.0),
+            Point::new(1.0, 1.0, 1.0),
         ]
     }
 
@@ -1082,10 +1082,10 @@ mod tests {
                 Some(w.as_array().unwrap().iter().map(arr_f64).collect())
             }
         });
-        let poles: Vec<Point3D> = pole_grid
+        let poles: Vec<Point> = pole_grid
             .iter()
             .flatten()
-            .map(|p| Point3D::new(p[0], p[1], p[2]))
+            .map(|p| Point::new(p[0], p[1], p[2]))
             .collect();
         let weights: Option<Vec<f64>> = weights.map(|w| w.concat());
         let view = Poles {

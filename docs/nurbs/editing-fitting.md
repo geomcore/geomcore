@@ -103,9 +103,9 @@ is largest until every point is within `max_deviation`.
 
     ```python
     points = curve.eval_points([0.0, 0.25, 0.5, 0.75, 1.0])
-    interp = BSplineCurve3D.interpolate(points, 3)
-    approx = BSplineCurve3D.approximate(points, 2, 3)
-    within = BSplineCurve3D.approximate_within(points, 2, 1e-6)
+    interp = BSplineCurve.interpolate(points, 3)
+    approx = BSplineCurve.approximate(points, 2, 3)
+    within = BSplineCurve.approximate_within(points, 2, 1e-6)
     ```
 
 === "Rust"
@@ -114,9 +114,9 @@ is largest until every point is within `max_deviation`.
     use geomcore::PointParametrization;
 
     let points = curve.eval_points(&[0.0, 0.25, 0.5, 0.75, 1.0]);
-    let interp = BSplineCurve3D::interpolate(&points, 3, PointParametrization::Centripetal).unwrap();
-    let approx = BSplineCurve3D::approximate(&points, 2, 3, PointParametrization::Centripetal).unwrap();
-    let within = BSplineCurve3D::approximate_within(&points, 2, 1e-6, PointParametrization::Centripetal).unwrap();
+    let interp = BSplineCurve::interpolate(&points, 3, PointParametrization::Centripetal).unwrap();
+    let approx = BSplineCurve::approximate(&points, 2, 3, PointParametrization::Centripetal).unwrap();
+    let within = BSplineCurve::approximate_within(&points, 2, 1e-6, PointParametrization::Centripetal).unwrap();
     ```
 
 `BSplineSurface::approximate` fits a grid by separating rows and
@@ -133,26 +133,26 @@ patches.
 === "Python"
 
     ```python
-    circle_bs = Circle3D(Point3D.origin(), Vector3D.unit_z(), 2.0).to_bspline()
+    circle_bs = Circle(Point.origin(), Vector.unit_z(), 2.0).to_bspline()
     assert circle_bs.is_periodic()
 
-    ellipse_bs = Ellipse3D(Point3D.origin(), Vector3D.unit_z(), Vector3D.unit_x(), 3.0, 1.0).to_bspline()
+    ellipse_bs = Ellipse(Point.origin(), Vector.unit_z(), Vector.unit_x(), 3.0, 1.0).to_bspline()
 
-    seg_bs = TrimmedCurve3D.segment(Point3D(0, 0, 0), Point3D(1, 0, 0)).to_bspline()
+    seg_bs = TrimmedCurve.segment(Point(0, 0, 0), Point(1, 0, 0)).to_bspline()
 
-    patch = Cylinder(Point3D.origin(), Vector3D.unit_z(), 2.0).to_bspline_patch((0.0, 1.0), (-1.0, 1.0))
+    patch = Cylinder(Point.origin(), Vector.unit_z(), 2.0).to_bspline_patch((0.0, 1.0), (-1.0, 1.0))
     ```
 
 === "Rust"
 
     ```rust
-    use geomcore::{Circle3D, Ellipse3D, Point3D, Vector3D};
+    use geomcore::{Circle, Ellipse, Point, Vector};
 
-    let circle = Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
+    let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
     let circle_bs = circle.to_bspline();
     assert!(circle_bs.is_periodic());
 
-    let ellipse = Ellipse3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, 3.0, 1.0).unwrap();
+    let ellipse = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 3.0, 1.0).unwrap();
     let ellipse_bs = ellipse.to_bspline();
     ```
 
@@ -167,17 +167,17 @@ available on every 3D curve and surface.
     ```python
     assert round(curve.length(1e-9), 6) == 1.623225
     bb = curve.bounding_box()
-    assert (bb.min(), bb.max()) == (Point3D(0, 0, 0), Point3D(1, 1, 0))
+    assert (bb.min(), bb.max()) == (Point(0, 0, 0), Point(1, 1, 0))
     ```
 
 === "Rust"
 
     ```rust
-    use geomcore::Bound3D;
+    use geomcore::HasBoundingBox;
 
     let len = curve.length(1e-9);
     let bb = curve.bounding_box().unwrap();
-    assert_eq!((bb.min(), bb.max()), (Point3D::new(0.0, 0.0, 0.0), Point3D::new(1.0, 1.0, 0.0)));
+    assert_eq!((bb.min(), bb.max()), (Point::new(0.0, 0.0, 0.0), Point::new(1.0, 1.0, 0.0)));
     ```
 
 Boxes have no viewer mapping yet

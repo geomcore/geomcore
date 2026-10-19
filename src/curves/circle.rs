@@ -14,12 +14,12 @@ use crate::projection::{self, CurveProjection, CurveProjection2D};
 use crate::surfaces::Surface;
 use crate::tol;
 use crate::{
-    Axis3D, CircleCircle2DIntersection, CircleCircle3DIntersection, Cone, Cylinder, Frame2D,
-    Frame3D, Plane, Point2D, Point3D, Sphere, Tolerance, Transform, Vector2D, Vector3D,
+    Axis, CircleCircle2DIntersection, CircleCircleIntersection, Cone, Cylinder, Frame, Frame2D,
+    Plane, Point, Point2D, Sphere, Tolerance, Transform, Vector, Vector2D,
 };
 use std::fmt;
 
-/// Error returned when a [`Circle3D`] or [`Circle2D`] cannot be constructed
+/// Error returned when a [`Circle`] or [`Circle2D`] cannot be constructed
 /// from the given inputs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CircleConstructionError {
@@ -52,27 +52,27 @@ impl fmt::Display for CircleConstructionError {
 
 impl std::error::Error for CircleConstructionError {}
 
-/// A circle in 3D: a plane [`Frame3D`] (origin plus local x/y directions
+/// A circle in 3D: a plane [`Frame`] (origin plus local x/y directions
 /// defining the plane and the angular origin) and a radius, evaluated as
 /// `origin + radius*cos(u)*x_dir + radius*sin(u)*y_dir`.
 ///
 /// # Examples
 ///
 /// ```
-/// use geomcore::{Circle3D, Point3D, Vector3D};
-/// let circle = Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
-/// assert_eq!(circle.eval_point(0.0), Point3D::new(2.0, 0.0, 0.0));
+/// use geomcore::{Circle, Point, Vector};
+/// let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
+/// assert_eq!(circle.eval_point(0.0), Point::new(2.0, 0.0, 0.0));
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Circle3D {
-    frame: Frame3D,
+pub struct Circle {
+    frame: Frame,
     radius: f64,
 }
 
-impl Circle3D {
+impl Circle {
     /// Creates a circle from a center, a normal, and a radius.
     ///
-    /// The plane frame is derived from `normal` via [`Frame3D::from_z`].
+    /// The plane frame is derived from `normal` via [`Frame::from_z`].
     ///
     /// # Errors
     ///
@@ -83,21 +83,21 @@ impl Circle3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Circle3D, Point3D, Vector3D};
-    /// let circle = Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
+    /// use geomcore::{Circle, Point, Vector};
+    /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
     /// assert_eq!(circle.radius(), 2.0);
-    /// assert_eq!(circle.normal(), Vector3D::Z);
+    /// assert_eq!(circle.normal(), Vector::Z);
     /// ```
     pub fn new(
-        center: Point3D,
-        normal: Vector3D,
+        center: Point,
+        normal: Vector,
         radius: f64,
-    ) -> Result<Circle3D, CircleConstructionError> {
-        let frame = Frame3D::from_z(center, normal).map_err(frame_error(
+    ) -> Result<Circle, CircleConstructionError> {
+        let frame = Frame::from_z(center, normal).map_err(frame_error(
             CircleConstructionError::NonFinite,
             CircleConstructionError::NullNormal,
         ))?;
-        Circle3D::from_frame(frame, radius)
+        Circle::from_frame(frame, radius)
     }
 
     /// Creates a circle from a main axis (center and normal) and a radius.
@@ -109,17 +109,17 @@ impl Circle3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Axis3D, Circle3D, Point3D, Vector3D};
-    /// let axis = Axis3D::new(Point3D::ORIGIN, Vector3D::Z).unwrap();
-    /// let circle = Circle3D::from_axis(axis, 2.0).unwrap();
-    /// assert_eq!(circle.center(), Point3D::ORIGIN);
+    /// use geomcore::{Axis, Circle, Point, Vector};
+    /// let axis = Axis::new(Point::ORIGIN, Vector::Z).unwrap();
+    /// let circle = Circle::from_axis(axis, 2.0).unwrap();
+    /// assert_eq!(circle.center(), Point::ORIGIN);
     /// ```
-    pub fn from_axis(axis: Axis3D, radius: f64) -> Result<Circle3D, CircleConstructionError> {
-        let frame = Frame3D::from_z(axis.origin(), axis.direction()).map_err(frame_error(
+    pub fn from_axis(axis: Axis, radius: f64) -> Result<Circle, CircleConstructionError> {
+        let frame = Frame::from_z(axis.origin(), axis.direction()).map_err(frame_error(
             CircleConstructionError::NonFinite,
             CircleConstructionError::NullNormal,
         ))?;
-        Circle3D::from_frame(frame, radius)
+        Circle::from_frame(frame, radius)
     }
 
     /// Creates a circle from a plane frame and a radius directly.
@@ -131,18 +131,18 @@ impl Circle3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Circle3D, Frame3D};
-    /// let circle = Circle3D::from_frame(Frame3D::WORLD, 2.0).unwrap();
-    /// assert_eq!(circle.frame(), Frame3D::WORLD);
+    /// use geomcore::{Circle, Frame};
+    /// let circle = Circle::from_frame(Frame::WORLD, 2.0).unwrap();
+    /// assert_eq!(circle.frame(), Frame::WORLD);
     /// ```
-    pub fn from_frame(frame: Frame3D, radius: f64) -> Result<Circle3D, CircleConstructionError> {
+    pub fn from_frame(frame: Frame, radius: f64) -> Result<Circle, CircleConstructionError> {
         if !(radius.is_finite()) {
             return Err(CircleConstructionError::NonFinite);
         }
         if radius < 0.0 {
             return Err(CircleConstructionError::NegativeRadius);
         }
-        Ok(Circle3D { frame, radius })
+        Ok(Circle { frame, radius })
     }
 
     /// Creates the circumcircle through three points.
@@ -170,20 +170,20 @@ impl Circle3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Circle3D, Point3D};
-    /// let circle = Circle3D::from_three_points(
-    ///     Point3D::new(1.0, 0.0, 0.0),
-    ///     Point3D::new(0.0, 1.0, 0.0),
-    ///     Point3D::new(-1.0, 0.0, 0.0),
+    /// use geomcore::{Circle, Point};
+    /// let circle = Circle::from_three_points(
+    ///     Point::new(1.0, 0.0, 0.0),
+    ///     Point::new(0.0, 1.0, 0.0),
+    ///     Point::new(-1.0, 0.0, 0.0),
     /// )
     /// .unwrap();
     /// assert!((circle.radius() - 1.0).abs() < 1e-9);
     /// ```
     pub fn from_three_points(
-        p1: Point3D,
-        p2: Point3D,
-        p3: Point3D,
-    ) -> Result<Circle3D, CircleConstructionError> {
+        p1: Point,
+        p2: Point,
+        p3: Point,
+    ) -> Result<Circle, CircleConstructionError> {
         if p1.distance(p2) < tol::CONFUSION
             || p2.distance(p3) < tol::CONFUSION
             || p1.distance(p3) < tol::CONFUSION
@@ -207,12 +207,12 @@ impl Circle3D {
         let radius = center.distance(p1);
 
         let normal = (p2 - p1).cross(p3 - p2);
-        let frame = Frame3D::new(center, normal, p1 - center).map_err(frame_error(
+        let frame = Frame::new(center, normal, p1 - center).map_err(frame_error(
             CircleConstructionError::NonFinite,
             CircleConstructionError::CollinearPoints,
         ))?;
 
-        Circle3D::from_frame(frame, radius)
+        Circle::from_frame(frame, radius)
     }
 
     /// Returns the center of the circle.
@@ -220,11 +220,11 @@ impl Circle3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Circle3D, Point3D, Vector3D};
-    /// let circle = Circle3D::new(Point3D::new(1.0, 2.0, 3.0), Vector3D::Z, 2.0).unwrap();
-    /// assert_eq!(circle.center(), Point3D::new(1.0, 2.0, 3.0));
+    /// use geomcore::{Circle, Point, Vector};
+    /// let circle = Circle::new(Point::new(1.0, 2.0, 3.0), Vector::Z, 2.0).unwrap();
+    /// assert_eq!(circle.center(), Point::new(1.0, 2.0, 3.0));
     /// ```
-    pub fn center(&self) -> Point3D {
+    pub fn center(&self) -> Point {
         self.frame.origin()
     }
 
@@ -233,8 +233,8 @@ impl Circle3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Circle3D, Point3D, Vector3D};
-    /// let circle = Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
+    /// use geomcore::{Circle, Point, Vector};
+    /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
     /// assert_eq!(circle.radius(), 2.0);
     /// ```
     pub fn radius(&self) -> f64 {
@@ -246,11 +246,11 @@ impl Circle3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Circle3D, Frame3D};
-    /// let circle = Circle3D::from_frame(Frame3D::WORLD, 2.0).unwrap();
-    /// assert_eq!(circle.frame(), Frame3D::WORLD);
+    /// use geomcore::{Circle, Frame};
+    /// let circle = Circle::from_frame(Frame::WORLD, 2.0).unwrap();
+    /// assert_eq!(circle.frame(), Frame::WORLD);
     /// ```
-    pub fn frame(&self) -> Frame3D {
+    pub fn frame(&self) -> Frame {
         self.frame
     }
 
@@ -262,16 +262,16 @@ impl Circle3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Circle3D, Frame3D, Point3D, Transform, Vector3D};
-    /// let circle = Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
-    /// assert_eq!(circle.normal(), Vector3D::Z);
+    /// use geomcore::{Circle, Frame, Point, Transform, Vector};
+    /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
+    /// assert_eq!(circle.normal(), Vector::Z);
     /// // Mirrored across its own plane, every point stays put, so the
     /// // normal is unchanged while the frame's z direction flips.
-    /// let mirrored = circle.transformed(Transform::mirror_plane(Frame3D::WORLD)).unwrap();
-    /// assert_eq!(mirrored.normal(), Vector3D::Z);
-    /// assert_eq!(mirrored.frame().z_direction(), -Vector3D::Z);
+    /// let mirrored = circle.transformed(Transform::mirror_plane(Frame::WORLD)).unwrap();
+    /// assert_eq!(mirrored.normal(), Vector::Z);
+    /// assert_eq!(mirrored.frame().z_direction(), -Vector::Z);
     /// ```
-    pub fn normal(&self) -> Vector3D {
+    pub fn normal(&self) -> Vector {
         if self.frame.is_direct() {
             self.frame.z_direction()
         } else {
@@ -293,18 +293,18 @@ impl Circle3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Circle3D, Point3D, Transform, Vector3D};
-    /// let circle = Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
-    /// let moved = circle.transformed(Transform::translation(Vector3D::new(0.0, 0.0, 5.0))).unwrap();
-    /// assert_eq!(moved.center(), Point3D::new(0.0, 0.0, 5.0));
+    /// use geomcore::{Circle, Point, Transform, Vector};
+    /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
+    /// let moved = circle.transformed(Transform::translation(Vector::new(0.0, 0.0, 5.0))).unwrap();
+    /// assert_eq!(moved.center(), Point::new(0.0, 0.0, 5.0));
     /// assert_eq!(moved.radius(), 2.0);
     /// ```
-    pub fn transformed(&self, transform: Transform) -> Result<Circle3D, CircleConstructionError> {
+    pub fn transformed(&self, transform: Transform) -> Result<Circle, CircleConstructionError> {
         let (frame, scale) = transform.apply_frame(self.frame()).map_err(frame_error(
             CircleConstructionError::NonFinite,
             CircleConstructionError::NullNormal,
         ))?;
-        Circle3D::from_frame(frame, self.radius() * scale)
+        Circle::from_frame(frame, self.radius() * scale)
     }
 
     /// Evaluates the point on the circle at angular parameter `u`:
@@ -313,11 +313,11 @@ impl Circle3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Circle3D, Point3D, Vector3D};
-    /// let circle = Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
-    /// assert_eq!(circle.eval_point(0.0), Point3D::new(2.0, 0.0, 0.0));
+    /// use geomcore::{Circle, Point, Vector};
+    /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
+    /// assert_eq!(circle.eval_point(0.0), Point::new(2.0, 0.0, 0.0));
     /// ```
-    pub fn eval_point(&self, u: f64) -> Point3D {
+    pub fn eval_point(&self, u: f64) -> Point {
         analytic::circle_d0(&self.frame, self.radius, u)
     }
 
@@ -326,12 +326,12 @@ impl Circle3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Circle3D, Point3D, Vector3D};
-    /// let circle = Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
+    /// use geomcore::{Circle, Point, Vector};
+    /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
     /// let points = circle.eval_points(&[0.0, 1.0]);
-    /// assert_eq!(points[0], Point3D::new(2.0, 0.0, 0.0));
+    /// assert_eq!(points[0], Point::new(2.0, 0.0, 0.0));
     /// ```
-    pub fn eval_points(&self, us: &[f64]) -> Vec<Point3D> {
+    pub fn eval_points(&self, us: &[f64]) -> Vec<Point> {
         us.iter().map(|&u| self.eval_point(u)).collect()
     }
 
@@ -342,17 +342,17 @@ impl Circle3D {
     ///
     /// # Panics
     ///
-    /// Panics if `order == 0`; use [`Circle3D::eval_point`] to evaluate the
+    /// Panics if `order == 0`; use [`Circle::eval_point`] to evaluate the
     /// position itself.
     ///
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Circle3D, Point3D, Vector3D};
-    /// let circle = Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
-    /// assert_eq!(circle.eval_derivative(0.0, 1), Vector3D::new(0.0, 2.0, 0.0));
+    /// use geomcore::{Circle, Point, Vector};
+    /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
+    /// assert_eq!(circle.eval_derivative(0.0, 1), Vector::new(0.0, 2.0, 0.0));
     /// ```
-    pub fn eval_derivative(&self, u: f64, order: u32) -> Vector3D {
+    pub fn eval_derivative(&self, u: f64, order: u32) -> Vector {
         match order {
             0 => panic!("eval_derivative: order must be >= 1 (use eval_point for order 0)"),
             _ => analytic::circle_dn(&self.frame, self.radius, u, order),
@@ -360,11 +360,11 @@ impl Circle3D {
     }
 
     /// The parameter to report for a point found at parameter `u`: `u`
-    /// wrapped into [`bounds`](crate::curves::ParametricCurve3D::bounds),
+    /// wrapped into [`bounds`](crate::curves::ParametricCurve::bounds),
     /// and the start of the bounds when within `tol.confusion` of the seam
     /// along the curve, so a point at the seam has one parameter.
     pub(crate) fn parameter_in_bounds(&self, u: f64, tol: Tolerance) -> f64 {
-        let (first, last) = crate::curves::ParametricCurve3D::bounds(self);
+        let (first, last) = crate::curves::ParametricCurve::bounds(self);
         // The speed is the radius everywhere.
         analytic::seam_wrapped(u, first, last - first, self.radius, tol.confusion)
     }
@@ -375,47 +375,47 @@ impl Circle3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Circle3D, Point3D, Vector3D};
-    /// let circle = Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
-    /// assert!((circle.parameter_of(Point3D::new(0.0, 2.0, 0.0)) - std::f64::consts::FRAC_PI_2).abs() < 1e-9);
+    /// use geomcore::{Circle, Point, Vector};
+    /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
+    /// assert!((circle.parameter_of(Point::new(0.0, 2.0, 0.0)) - std::f64::consts::FRAC_PI_2).abs() < 1e-9);
     /// ```
-    pub fn parameter_of(&self, point: Point3D) -> f64 {
+    pub fn parameter_of(&self, point: Point) -> f64 {
         analytic::circle_parameter(&self.frame, point)
     }
 
     /// Returns whether `point` lies on the circle: the inverse parameter is
-    /// recovered with [`Circle3D::parameter_of`] and re-evaluated, and the
+    /// recovered with [`Circle::parameter_of`] and re-evaluated, and the
     /// point counts as contained when the re-evaluated point is within
     /// `tol.confusion` of it.
     ///
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Circle3D, Point3D, Tolerance, Vector3D};
-    /// let circle = Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
+    /// use geomcore::{Circle, Point, Tolerance, Vector};
+    /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
     /// let tol = Tolerance::DEFAULT;
-    /// assert!(circle.contains(Point3D::new(2.0, 0.0, 0.0), tol));
-    /// assert!(!circle.contains(Point3D::new(3.0, 0.0, 0.0), tol));
+    /// assert!(circle.contains(Point::new(2.0, 0.0, 0.0), tol));
+    /// assert!(!circle.contains(Point::new(3.0, 0.0, 0.0), tol));
     /// ```
-    pub fn contains(&self, point: Point3D, tol: Tolerance) -> bool {
+    pub fn contains(&self, point: Point, tol: Tolerance) -> bool {
         let u = self.parameter_of(point);
         self.eval_point(u).distance(point) <= tol.confusion
     }
 
     /// Projects `point` onto the circle, returning the parameter of the
     /// closest point and its distance. Distances within `tol.confusion`
-    /// snap to `0.0`, matching [`Circle3D::contains`].
+    /// snap to `0.0`, matching [`Circle::contains`].
     ///
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Circle3D, Point3D, Tolerance, Vector3D};
-    /// let circle = Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
-    /// let proj = circle.project_point(Point3D::new(3.0, 0.0, 0.0), Tolerance::DEFAULT);
+    /// use geomcore::{Circle, Point, Tolerance, Vector};
+    /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
+    /// let proj = circle.project_point(Point::new(3.0, 0.0, 0.0), Tolerance::DEFAULT);
     /// assert_eq!(proj.parameter, 0.0);
     /// assert_eq!(proj.distance, 1.0);
     /// ```
-    pub fn project_point(&self, point: Point3D, tol: Tolerance) -> CurveProjection {
+    pub fn project_point(&self, point: Point, tol: Tolerance) -> CurveProjection {
         let u = self.parameter_of(point);
         let foot = self.eval_point(u);
         let distance = foot.distance(point);
@@ -428,9 +428,9 @@ impl Circle3D {
 
     /// Projects each point in `points` onto the circle.
     ///
-    /// Default-style batch wrapper over [`Circle3D::project_point`]: one
-    /// native call per batch, mirroring [`Circle3D::eval_points`].
-    pub fn project_points(&self, points: &[Point3D], tol: Tolerance) -> Vec<CurveProjection> {
+    /// Default-style batch wrapper over [`Circle::project_point`]: one
+    /// native call per batch, mirroring [`Circle::eval_points`].
+    pub fn project_points(&self, points: &[Point], tol: Tolerance) -> Vec<CurveProjection> {
         points.iter().map(|&p| self.project_point(p, tol)).collect()
     }
 
@@ -439,9 +439,9 @@ impl Circle3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Circle3D, Point3D, Vector3D};
+    /// use geomcore::{Circle, Point, Vector};
     /// use std::f64::consts::TAU;
-    /// let circle = Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
+    /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
     /// assert_eq!(circle.circumference(), TAU * 2.0);
     /// ```
     pub fn circumference(&self) -> f64 {
@@ -453,9 +453,9 @@ impl Circle3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Circle3D, Point3D, Vector3D};
+    /// use geomcore::{Circle, Point, Vector};
     /// use std::f64::consts::PI;
-    /// let circle = Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
+    /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
     /// assert!((circle.disk_area() - PI * 4.0).abs() < 1e-12);
     /// ```
     pub fn disk_area(&self) -> f64 {
@@ -488,10 +488,10 @@ impl Circle3D {
     ///
     /// ```
     /// use geomcore::curves::{Curve2D, ParametricCurve2D};
-    /// use geomcore::{Circle3D, Cylinder, Point3D, Tolerance, Vector3D};
+    /// use geomcore::{Circle, Cylinder, Point, Tolerance, Vector};
     ///
-    /// let cylinder = Cylinder::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
-    /// let circle = Circle3D::new(Point3D::new(0.0, 0.0, 3.0), Vector3D::Z, 2.0).unwrap();
+    /// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
+    /// let circle = Circle::new(Point::new(0.0, 0.0, 3.0), Vector::Z, 2.0).unwrap();
     /// let pcurve = circle.parametrize_on(&cylinder, Tolerance::DEFAULT).unwrap();
     /// // q(t) = (t, 3): the angular parameter runs in u, the height v is fixed.
     /// let q = pcurve.eval_point(1.0);
@@ -728,7 +728,7 @@ impl Circle2D {
     }
 }
 
-impl IntersectExact<Plane> for Circle3D {
+impl IntersectExact<Plane> for Circle {
     type Output = CircleSurfaceIntersection;
 
     /// Intersects this circle with a plane.
@@ -741,9 +741,9 @@ impl IntersectExact<Plane> for Circle3D {
     ///
     /// ```
     /// use geomcore::IntersectExact;
-    /// use geomcore::{Circle3D, CircleSurfaceIntersection, Plane, Point3D, Tolerance, Vector3D};
-    /// let circle = Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
-    /// let plane = Plane::new(Point3D::ORIGIN, Vector3D::X).unwrap();
+    /// use geomcore::{Circle, CircleSurfaceIntersection, Plane, Point, Tolerance, Vector};
+    /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
+    /// let plane = Plane::new(Point::ORIGIN, Vector::X).unwrap();
     /// let tol = Tolerance::DEFAULT;
     /// match circle.intersect_exact(&plane, tol) {
     ///     CircleSurfaceIntersection::Hits(hits) => assert_eq!(hits.len(), 2),
@@ -759,7 +759,7 @@ impl IntersectExact<Plane> for Circle3D {
     }
 }
 
-impl IntersectExact<Sphere> for Circle3D {
+impl IntersectExact<Sphere> for Circle {
     type Output = CircleSurfaceIntersection;
 
     /// Intersects this circle with a sphere.
@@ -773,9 +773,9 @@ impl IntersectExact<Sphere> for Circle3D {
     ///
     /// ```
     /// use geomcore::IntersectExact;
-    /// use geomcore::{Circle3D, CircleSurfaceIntersection, Point3D, Sphere, Tolerance, Vector3D};
-    /// let circle = Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
-    /// let sphere = Sphere::new(Point3D::ORIGIN, 3.0).unwrap();
+    /// use geomcore::{Circle, CircleSurfaceIntersection, Point, Sphere, Tolerance, Vector};
+    /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
+    /// let sphere = Sphere::new(Point::ORIGIN, 3.0).unwrap();
     /// let tol = Tolerance::DEFAULT;
     /// match circle.intersect_exact(&sphere, tol) {
     ///     CircleSurfaceIntersection::Empty => {}
@@ -791,7 +791,7 @@ impl IntersectExact<Sphere> for Circle3D {
     }
 }
 
-impl IntersectExact<Cylinder> for Circle3D {
+impl IntersectExact<Cylinder> for Circle {
     type Output = CircleSurfaceIntersection;
 
     /// Intersects this circle with a cylinder.
@@ -804,9 +804,9 @@ impl IntersectExact<Cylinder> for Circle3D {
     ///
     /// ```
     /// use geomcore::IntersectExact;
-    /// use geomcore::{Circle3D, CircleSurfaceIntersection, Cylinder, Point3D, Tolerance, Vector3D};
-    /// let circle = Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
-    /// let cylinder = Cylinder::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
+    /// use geomcore::{Circle, CircleSurfaceIntersection, Cylinder, Point, Tolerance, Vector};
+    /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
+    /// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
     /// let tol = Tolerance::DEFAULT;
     /// // The equator lies entirely on the cylinder.
     /// match circle.intersect_exact(&cylinder, tol) {
@@ -823,7 +823,7 @@ impl IntersectExact<Cylinder> for Circle3D {
     }
 }
 
-impl IntersectExact<Cone> for Circle3D {
+impl IntersectExact<Cone> for Circle {
     type Output = CircleSurfaceIntersection;
 
     /// Intersects this circle with a cone.
@@ -836,9 +836,9 @@ impl IntersectExact<Cone> for Circle3D {
     ///
     /// ```
     /// use geomcore::IntersectExact;
-    /// use geomcore::{Circle3D, CircleSurfaceIntersection, Cone, Frame3D, Point3D, Tolerance, Vector3D};
-    /// let circle = Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
-    /// let cone = Cone::from_frame(Frame3D::WORLD, 0.4, 2.0).unwrap();
+    /// use geomcore::{Circle, CircleSurfaceIntersection, Cone, Frame, Point, Tolerance, Vector};
+    /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
+    /// let cone = Cone::from_frame(Frame::WORLD, 0.4, 2.0).unwrap();
     /// let tol = Tolerance::DEFAULT;
     /// // The reference circle lies entirely on the cone.
     /// match circle.intersect_exact(&cone, tol) {
@@ -855,8 +855,8 @@ impl IntersectExact<Cone> for Circle3D {
     }
 }
 
-impl IntersectExact<Circle3D> for Circle3D {
-    type Output = CircleCircle3DIntersection;
+impl IntersectExact<Circle> for Circle {
+    type Output = CircleCircleIntersection;
 
     /// Intersects this circle with another 3D circle.
     ///
@@ -867,8 +867,8 @@ impl IntersectExact<Circle3D> for Circle3D {
     /// radius). Both circles then map to 2D images in that plane, the 2D
     /// problem solves, and hits map back through the plane evaluation.
     /// Distinct parallel planes report
-    /// [`CircleCircle3DIntersection::Empty`]; crossing planes report
-    /// [`CircleCircle3DIntersection::NotAnalytic`], which the
+    /// [`CircleCircleIntersection::Empty`]; crossing planes report
+    /// [`CircleCircleIntersection::NotAnalytic`], which the
     /// [`ElementaryCurve`](crate::curves::ElementaryCurve) intersection
     /// resolves on the line the planes share.
     ///
@@ -876,34 +876,34 @@ impl IntersectExact<Circle3D> for Circle3D {
     ///
     /// ```
     /// use geomcore::IntersectExact;
-    /// use geomcore::{Circle3D, CircleCircle3DIntersection, Point3D, Tolerance, Vector3D};
-    /// let c1 = Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
-    /// let c2 = Circle3D::new(Point3D::new(3.0, 0.0, 0.0), Vector3D::Z, 2.0).unwrap();
+    /// use geomcore::{Circle, CircleCircleIntersection, Point, Tolerance, Vector};
+    /// let c1 = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
+    /// let c2 = Circle::new(Point::new(3.0, 0.0, 0.0), Vector::Z, 2.0).unwrap();
     /// let tol = Tolerance::DEFAULT;
     /// match c1.intersect_exact(&c2, tol) {
-    ///     CircleCircle3DIntersection::Points(_, _) => {}
+    ///     CircleCircleIntersection::Points(_, _) => {}
     ///     _ => panic!("expected two points"),
     /// }
     /// ```
-    fn intersect_exact(&self, other: &Circle3D, tol: Tolerance) -> CircleCircle3DIntersection {
+    fn intersect_exact(&self, other: &Circle, tol: Tolerance) -> CircleCircleIntersection {
         let host = if lies_in_plane_of(other, self, tol) {
             self
         } else if lies_in_plane_of(self, other, tol) {
             other
         } else if self.normal().cross(other.normal()).magnitude() <= tol.angular {
             // Distinct parallel planes.
-            return CircleCircle3DIntersection::Empty;
+            return CircleCircleIntersection::Empty;
         } else {
-            return CircleCircle3DIntersection::NotAnalytic;
+            return CircleCircleIntersection::NotAnalytic;
         };
         if self.center().distance(other.center()) <= tol.confusion
             && (self.radius() - other.radius()).abs() <= tol.confusion
         {
-            return CircleCircle3DIntersection::Coincident;
+            return CircleCircleIntersection::Coincident;
         }
         // Both circles in the host's plane coordinates.
         let plane = Plane::from_frame(host.frame());
-        let image = |circle: &Circle3D| {
+        let image = |circle: &Circle| {
             let w = circle.center() - plane.frame().origin();
             let center = Point2D::new(
                 w.dot(plane.frame().x_direction()),
@@ -912,15 +912,15 @@ impl IntersectExact<Circle3D> for Circle3D {
             Circle2D::new(center, circle.radius()).expect("radius is non-negative by construction")
         };
         match image(self).intersect_exact(&image(other), tol) {
-            CircleCircle2DIntersection::Points(p1, p2) => CircleCircle3DIntersection::Points(
+            CircleCircle2DIntersection::Points(p1, p2) => CircleCircleIntersection::Points(
                 plane.eval_point(p1.x, p1.y),
                 plane.eval_point(p2.x, p2.y),
             ),
             CircleCircle2DIntersection::Tangent(p) => {
-                CircleCircle3DIntersection::Tangent(plane.eval_point(p.x, p.y))
+                CircleCircleIntersection::Tangent(plane.eval_point(p.x, p.y))
             }
-            CircleCircle2DIntersection::Empty => CircleCircle3DIntersection::Empty,
-            CircleCircle2DIntersection::Coincident => CircleCircle3DIntersection::Coincident,
+            CircleCircle2DIntersection::Empty => CircleCircleIntersection::Empty,
+            CircleCircle2DIntersection::Coincident => CircleCircleIntersection::Coincident,
         }
     }
 }
@@ -928,7 +928,7 @@ impl IntersectExact<Circle3D> for Circle3D {
 /// Whether `circle` lies in the plane of `host`: its centre is on that
 /// plane and turning its normal onto the host's moves it by at most the
 /// confusion tolerance.
-fn lies_in_plane_of(circle: &Circle3D, host: &Circle3D, tol: Tolerance) -> bool {
+fn lies_in_plane_of(circle: &Circle, host: &Circle, tol: Tolerance) -> bool {
     circle.normal().cross(host.normal()).magnitude() <= tol.angular_for_extent(circle.radius())
         && Plane::from_frame(host.frame()).contains(circle.center(), tol)
 }
@@ -988,27 +988,26 @@ impl IntersectExact<Circle2D> for Circle2D {
 mod tests {
     use crate::IntersectExact;
     use crate::{
-        Circle2D, Circle3D, CircleCircle2DIntersection, CircleCircle3DIntersection,
-        CircleConstructionError, CircleSurfaceIntersection, ConicConicIntersection, Ellipse3D,
-        Frame2D, Frame3D, Hyperbola3D, Parabola3D, Point2D, Point3D, Tolerance, Transform,
-        Vector2D, Vector3D,
+        Circle, Circle2D, CircleCircle2DIntersection, CircleCircleIntersection,
+        CircleConstructionError, CircleSurfaceIntersection, ConicConicIntersection, Ellipse, Frame,
+        Frame2D, Hyperbola, Parabola, Point, Point2D, Tolerance, Transform, Vector, Vector2D,
     };
     use std::f64::consts::PI;
 
-    // ---- Circle3D construction ----
+    // ---- Circle construction ----
 
     #[test]
     fn test_circle3d_new_ok() {
-        let c = Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
-        assert_eq!(c.center(), Point3D::ORIGIN);
+        let c = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
+        assert_eq!(c.center(), Point::ORIGIN);
         assert_eq!(c.radius(), 2.0);
-        assert_eq!(c.normal(), Vector3D::Z);
+        assert_eq!(c.normal(), Vector::Z);
     }
 
     #[test]
     fn test_circle3d_new_negative_radius_errors() {
         assert_eq!(
-            Circle3D::new(Point3D::ORIGIN, Vector3D::Z, -1.0),
+            Circle::new(Point::ORIGIN, Vector::Z, -1.0),
             Err(CircleConstructionError::NegativeRadius)
         );
     }
@@ -1016,33 +1015,33 @@ mod tests {
     #[test]
     fn test_circle3d_new_null_normal_errors() {
         assert_eq!(
-            Circle3D::new(Point3D::ORIGIN, Vector3D::ZERO, 1.0),
+            Circle::new(Point::ORIGIN, Vector::ZERO, 1.0),
             Err(CircleConstructionError::NullNormal)
         );
     }
 
     #[test]
     fn test_circle3d_from_axis_ok() {
-        let axis = crate::Axis3D::new(Point3D::new(1.0, 2.0, 3.0), Vector3D::Y).unwrap();
-        let c = Circle3D::from_axis(axis, 3.0).unwrap();
-        assert_eq!(c.center(), Point3D::new(1.0, 2.0, 3.0));
-        assert_eq!(c.normal(), Vector3D::Y);
+        let axis = crate::Axis::new(Point::new(1.0, 2.0, 3.0), Vector::Y).unwrap();
+        let c = Circle::from_axis(axis, 3.0).unwrap();
+        assert_eq!(c.center(), Point::new(1.0, 2.0, 3.0));
+        assert_eq!(c.normal(), Vector::Y);
         assert_eq!(c.radius(), 3.0);
     }
 
     #[test]
     fn test_circle3d_from_axis_negative_radius_errors() {
-        let axis = crate::Axis3D::new(Point3D::ORIGIN, Vector3D::Z).unwrap();
+        let axis = crate::Axis::new(Point::ORIGIN, Vector::Z).unwrap();
         assert_eq!(
-            Circle3D::from_axis(axis, -1.0),
+            Circle::from_axis(axis, -1.0),
             Err(CircleConstructionError::NegativeRadius)
         );
     }
 
     #[test]
     fn test_circle3d_from_frame_ok() {
-        let frame = Frame3D::WORLD;
-        let c = Circle3D::from_frame(frame, 5.0).unwrap();
+        let frame = Frame::WORLD;
+        let c = Circle::from_frame(frame, 5.0).unwrap();
         assert_eq!(c.frame(), frame);
         assert_eq!(c.radius(), 5.0);
     }
@@ -1050,55 +1049,55 @@ mod tests {
     #[test]
     fn test_circle3d_from_frame_negative_radius_errors() {
         assert_eq!(
-            Circle3D::from_frame(Frame3D::WORLD, -0.1),
+            Circle::from_frame(Frame::WORLD, -0.1),
             Err(CircleConstructionError::NegativeRadius)
         );
     }
 
     #[test]
     fn test_circle3d_from_three_points_ok() {
-        let p1 = Point3D::new(1.0, 0.0, 0.0);
-        let p2 = Point3D::new(0.0, 1.0, 0.0);
-        let p3 = Point3D::new(-1.0, 0.0, 0.0);
-        let c = Circle3D::from_three_points(p1, p2, p3).unwrap();
+        let p1 = Point::new(1.0, 0.0, 0.0);
+        let p2 = Point::new(0.0, 1.0, 0.0);
+        let p3 = Point::new(-1.0, 0.0, 0.0);
+        let c = Circle::from_three_points(p1, p2, p3).unwrap();
         assert!((c.radius() - 1.0).abs() < 1e-9);
     }
 
     #[test]
     fn test_circle3d_from_three_points_two_coincident_errors() {
-        let p = Point3D::new(1.0, 2.0, 3.0);
-        let p2 = Point3D::new(4.0, 5.0, 6.0);
+        let p = Point::new(1.0, 2.0, 3.0);
+        let p2 = Point::new(4.0, 5.0, 6.0);
         assert_eq!(
-            Circle3D::from_three_points(p, p, p2),
+            Circle::from_three_points(p, p, p2),
             Err(CircleConstructionError::ConfusedPoints)
         );
     }
 
     #[test]
     fn test_circle3d_from_three_points_all_coincident_errors() {
-        let p = Point3D::new(1.0, 2.0, 3.0);
+        let p = Point::new(1.0, 2.0, 3.0);
         assert_eq!(
-            Circle3D::from_three_points(p, p, p),
+            Circle::from_three_points(p, p, p),
             Err(CircleConstructionError::ConfusedPoints)
         );
     }
 
     #[test]
     fn test_circle3d_from_three_points_collinear_errors() {
-        let p1 = Point3D::new(0.0, 0.0, 0.0);
-        let p2 = Point3D::new(1.0, 0.0, 0.0);
-        let p3 = Point3D::new(2.0, 0.0, 0.0);
+        let p1 = Point::new(0.0, 0.0, 0.0);
+        let p2 = Point::new(1.0, 0.0, 0.0);
+        let p3 = Point::new(2.0, 0.0, 0.0);
         assert_eq!(
-            Circle3D::from_three_points(p1, p2, p3),
+            Circle::from_three_points(p1, p2, p3),
             Err(CircleConstructionError::CollinearPoints)
         );
     }
 
-    // ---- Circle3D evaluation ----
+    // ---- Circle evaluation ----
 
     #[test]
     fn test_circle3d_eval_point_zero() {
-        let c = Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
+        let c = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
         let p = c.eval_point(0.0);
         assert!((p.x - 2.0).abs() < 1e-9);
         assert!(p.y.abs() < 1e-9);
@@ -1107,15 +1106,15 @@ mod tests {
 
     #[test]
     fn test_circle3d_eval_points_matches_loop() {
-        let c = Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
+        let c = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
         let us = [0.0, 0.5, 1.5];
-        let expected: Vec<Point3D> = us.iter().map(|&u| c.eval_point(u)).collect();
+        let expected: Vec<Point> = us.iter().map(|&u| c.eval_point(u)).collect();
         assert_eq!(c.eval_points(&us), expected);
     }
 
     #[test]
     fn test_circle3d_eval_derivative_order1() {
-        let c = Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
+        let c = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
         let d1 = c.eval_derivative(0.0, 1);
         assert!(d1.x.abs() < 1e-9);
         assert!((d1.y - 2.0).abs() < 1e-9);
@@ -1124,13 +1123,13 @@ mod tests {
     #[test]
     #[should_panic]
     fn test_circle3d_eval_derivative_order0_panics() {
-        let c = Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
+        let c = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
         c.eval_derivative(0.0, 0);
     }
 
     #[test]
     fn test_circle3d_parameter_of_round_trip() {
-        let c = Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
+        let c = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
         for u in [0.3, 2.0, 5.5] {
             let p = c.eval_point(u);
             assert!((c.parameter_of(p) - u).abs() < 1e-9);
@@ -1139,7 +1138,7 @@ mod tests {
 
     #[test]
     fn test_circle3d_parameter_of_in_zero_to_tau() {
-        let c = Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
+        let c = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
         for u in [-1.0, -0.1, 7.0] {
             let p = c.eval_point(u);
             let recovered = c.parameter_of(p);
@@ -1263,12 +1262,12 @@ mod tests {
 
     #[test]
     fn test_circle3d_contains() {
-        let circle = Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
+        let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
         let tol = Tolerance::DEFAULT;
-        assert!(circle.contains(Point3D::new(2.0, 0.0, 0.0), tol));
+        assert!(circle.contains(Point::new(2.0, 0.0, 0.0), tol));
         assert!(circle.contains(circle.eval_point(1.0), tol));
-        assert!(!circle.contains(Point3D::ORIGIN, tol));
-        assert!(!circle.contains(Point3D::new(3.0, 0.0, 0.0), tol));
+        assert!(!circle.contains(Point::ORIGIN, tol));
+        assert!(!circle.contains(Point::new(3.0, 0.0, 0.0), tol));
     }
 
     #[test]
@@ -1283,24 +1282,24 @@ mod tests {
 
     #[test]
     fn test_circle3d_project_point() {
-        let circle = Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
+        let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
         let tol = Tolerance::DEFAULT;
-        let on = circle.project_point(Point3D::new(2.0, 0.0, 0.0), tol);
+        let on = circle.project_point(Point::new(2.0, 0.0, 0.0), tol);
         assert_eq!(on.parameter, 0.0);
         assert_eq!(on.distance, 0.0);
-        let off = circle.project_point(Point3D::new(3.0, 0.0, 0.0), tol);
+        let off = circle.project_point(Point::new(3.0, 0.0, 0.0), tol);
         assert_eq!(off.parameter, 0.0);
         assert_eq!(off.distance, 1.0);
         // Axis point: every circle point is equidistant; distance is exact.
-        let axis = circle.project_point(Point3D::new(0.0, 0.0, 5.0), tol);
+        let axis = circle.project_point(Point::new(0.0, 0.0, 5.0), tol);
         assert!((axis.distance - (4.0 + 25.0f64).sqrt()).abs() < 1e-9);
     }
 
     #[test]
     fn test_circle3d_project_points_batch() {
-        let circle = Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
+        let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
         let tol = Tolerance::DEFAULT;
-        let points = [Point3D::new(2.0, 0.0, 0.0), Point3D::new(0.0, 3.0, 0.0)];
+        let points = [Point::new(2.0, 0.0, 0.0), Point::new(0.0, 3.0, 0.0)];
         let projs = circle.project_points(&points, tol);
         assert_eq!(projs.len(), 2);
         assert_eq!(projs[0].distance, 0.0);
@@ -1354,10 +1353,10 @@ mod tests {
     #[test]
     fn test_circle3d_intersect_circle() {
         let tol = Tolerance::DEFAULT;
-        let c1 = Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
-        let c2 = Circle3D::new(Point3D::new(3.0, 0.0, 0.0), Vector3D::Z, 2.0).unwrap();
+        let c1 = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
+        let c2 = Circle::new(Point::new(3.0, 0.0, 0.0), Vector::Z, 2.0).unwrap();
         match c1.intersect_exact(&c2, tol) {
-            CircleCircle3DIntersection::Points(p1, p2) => {
+            CircleCircleIntersection::Points(p1, p2) => {
                 assert!((p1.x - 1.5).abs() < 1e-9);
                 assert!((p1.y - 1.75f64.sqrt()).abs() < 1e-9);
                 assert!((p2.y + 1.75f64.sqrt()).abs() < 1e-9);
@@ -1367,21 +1366,21 @@ mod tests {
             _ => panic!("expected two points"),
         }
         // Tilted partner: not solved by this typed solver.
-        let tilted = Circle3D::new(Point3D::ORIGIN, Vector3D::X, 2.0).unwrap();
+        let tilted = Circle::new(Point::ORIGIN, Vector::X, 2.0).unwrap();
         assert_eq!(
             c1.intersect_exact(&tilted, tol),
-            CircleCircle3DIntersection::NotAnalytic
+            CircleCircleIntersection::NotAnalytic
         );
         // Distinct parallel planes: no meeting.
-        let lifted = Circle3D::new(Point3D::new(0.0, 0.0, 1.0), Vector3D::Z, 2.0).unwrap();
+        let lifted = Circle::new(Point::new(0.0, 0.0, 1.0), Vector::Z, 2.0).unwrap();
         assert_eq!(
             c1.intersect_exact(&lifted, tol),
-            CircleCircle3DIntersection::Empty
+            CircleCircleIntersection::Empty
         );
         // Coincident.
         assert_eq!(
             c1.intersect_exact(&c1, tol),
-            CircleCircle3DIntersection::Coincident
+            CircleCircleIntersection::Coincident
         );
     }
 
@@ -1392,10 +1391,10 @@ mod tests {
             confusion: 1e-3,
             ..Tolerance::DEFAULT
         };
-        let c1 = Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 1.0).unwrap();
-        let c2 = Circle3D::new(Point3D::new(0.5, 0.0, 1e-4), Vector3D::Z, 1.0).unwrap();
+        let c1 = Circle::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
+        let c2 = Circle::new(Point::new(0.5, 0.0, 1e-4), Vector::Z, 1.0).unwrap();
         match c1.intersect_exact(&c2, loose) {
-            CircleCircle3DIntersection::Points(p1, p2) => {
+            CircleCircleIntersection::Points(p1, p2) => {
                 for p in [p1, p2] {
                     assert!((p.x - 0.25).abs() < 1e-12);
                     assert!((p.y.abs() - 0.9375f64.sqrt()).abs() < 1e-12);
@@ -1409,8 +1408,8 @@ mod tests {
     #[test]
     fn test_circle3d_intersect_ellipse() {
         let tol = Tolerance::DEFAULT;
-        let circle = Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
-        let ellipse = Ellipse3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, 3.0, 1.5).unwrap();
+        let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
+        let ellipse = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 3.0, 1.5).unwrap();
         // Four transversal hits; each carries consistent parameters.
         match circle.intersect_exact(&ellipse, tol) {
             ConicConicIntersection::Hits(hits) => {
@@ -1427,40 +1426,27 @@ mod tests {
             _ => panic!("expected four points"),
         }
         // Circular ellipse sharing center, radius, and plane.
-        let round = Ellipse3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, 2.0, 2.0).unwrap();
+        let round = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 2.0, 2.0).unwrap();
         assert_eq!(
             circle.intersect_exact(&round, tol),
             ConicConicIntersection::Coincident
         );
         // Crossing planes: on the line they share, the circle is at
         // y = ±2 and the ellipse at y = ±1.5.
-        let tilted = Ellipse3D::new(Point3D::ORIGIN, Vector3D::X, Vector3D::Z, 3.0, 1.5).unwrap();
+        let tilted = Ellipse::new(Point::ORIGIN, Vector::X, Vector::Z, 3.0, 1.5).unwrap();
         assert_eq!(
             circle.intersect_exact(&tilted, tol),
             ConicConicIntersection::Empty
         );
         // Distant ellipse: nothing.
-        let far = Ellipse3D::new(
-            Point3D::new(10.0, 0.0, 0.0),
-            Vector3D::Z,
-            Vector3D::X,
-            3.0,
-            1.5,
-        )
-        .unwrap();
+        let far = Ellipse::new(Point::new(10.0, 0.0, 0.0), Vector::Z, Vector::X, 3.0, 1.5).unwrap();
         assert_eq!(
             circle.intersect_exact(&far, tol),
             ConicConicIntersection::Empty
         );
         // Parallel but offset plane: nothing.
-        let lifted = Ellipse3D::new(
-            Point3D::new(0.0, 0.0, 1.0),
-            Vector3D::Z,
-            Vector3D::X,
-            3.0,
-            1.5,
-        )
-        .unwrap();
+        let lifted =
+            Ellipse::new(Point::new(0.0, 0.0, 1.0), Vector::Z, Vector::X, 3.0, 1.5).unwrap();
         assert_eq!(
             circle.intersect_exact(&lifted, tol),
             ConicConicIntersection::Empty
@@ -1472,18 +1458,11 @@ mod tests {
         // The circle's x axis differs from the ellipse's (it used to be
         // solved in one frame and evaluated in the other, losing every hit).
         let tol = Tolerance::DEFAULT;
-        let x = Vector3D::new(0.1f64.cos(), 0.1f64.sin(), 0.0);
+        let x = Vector::new(0.1f64.cos(), 0.1f64.sin(), 0.0);
         let circle =
-            Circle3D::from_frame(Frame3D::new(Point3D::ORIGIN, Vector3D::Z, x).unwrap(), 2.0)
-                .unwrap();
-        let ellipse = Ellipse3D::new(
-            Point3D::new(0.5, 0.0, 0.0),
-            Vector3D::Z,
-            Vector3D::X,
-            3.0,
-            1.0,
-        )
-        .unwrap();
+            Circle::from_frame(Frame::new(Point::ORIGIN, Vector::Z, x).unwrap(), 2.0).unwrap();
+        let ellipse =
+            Ellipse::new(Point::new(0.5, 0.0, 0.0), Vector::Z, Vector::X, 3.0, 1.0).unwrap();
         match circle.intersect_exact(&ellipse, tol) {
             ConicConicIntersection::Hits(hits) => {
                 assert_eq!(hits.len(), 4);
@@ -1505,8 +1484,8 @@ mod tests {
     #[test]
     fn test_circle3d_intersect_parabola() {
         let tol = Tolerance::DEFAULT;
-        let circle = Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 1.0).unwrap();
-        let parabola = Parabola3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, 1.0).unwrap();
+        let circle = Circle::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
+        let parabola = Parabola::new(Point::ORIGIN, Vector::Z, Vector::X, 1.0).unwrap();
         match circle.intersect_exact(&parabola, tol) {
             ConicConicIntersection::Hits(hits) => {
                 assert_eq!(hits.len(), 2);
@@ -1519,7 +1498,7 @@ mod tests {
         }
         // Crossing planes: on the line they share, the circle is at
         // y = ±1 and the parabola at its apex.
-        let tilted = Parabola3D::new(Point3D::ORIGIN, Vector3D::X, Vector3D::Z, 1.0).unwrap();
+        let tilted = Parabola::new(Point::ORIGIN, Vector::X, Vector::Z, 1.0).unwrap();
         assert_eq!(
             circle.intersect_exact(&tilted, tol),
             ConicConicIntersection::Empty
@@ -1529,9 +1508,8 @@ mod tests {
     #[test]
     fn test_circle3d_intersect_hyperbola() {
         let tol = Tolerance::DEFAULT;
-        let circle = Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 3.0).unwrap();
-        let hyperbola =
-            Hyperbola3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, 2.0, 1.0).unwrap();
+        let circle = Circle::new(Point::ORIGIN, Vector::Z, 3.0).unwrap();
+        let hyperbola = Hyperbola::new(Point::ORIGIN, Vector::Z, Vector::X, 2.0, 1.0).unwrap();
         // Mirror-branch roots are dropped: two right-branch hits.
         match circle.intersect_exact(&hyperbola, tol) {
             ConicConicIntersection::Hits(hits) => {
@@ -1546,12 +1524,12 @@ mod tests {
         }
         // The osculating circle at the right vertex (radius b²/a): a lone
         // four-point contact.
-        let grazing = Circle3D::new(Point3D::new(2.5, 0.0, 0.0), Vector3D::Z, 0.5).unwrap();
+        let grazing = Circle::new(Point::new(2.5, 0.0, 0.0), Vector::Z, 0.5).unwrap();
         match grazing.intersect_exact(&hyperbola, tol) {
             ConicConicIntersection::Hits(hits) => {
                 assert_eq!(hits.len(), 1);
                 assert_eq!(hits[0].multiplicity, 4);
-                assert!(hits[0].point.distance(Point3D::new(2.0, 0.0, 0.0)) < 1e-9);
+                assert!(hits[0].point.distance(Point::new(2.0, 0.0, 0.0)) < 1e-9);
             }
             other => panic!("expected a tangent, got {other:?}"),
         }
@@ -1561,16 +1539,16 @@ mod tests {
     fn test_circle3d_intersect_plane() {
         use crate::Plane;
         let tol = Tolerance::DEFAULT;
-        let circle = Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
+        let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
         // Transversal plane through the x-axis: hits at (±2, 0, 0).
-        let plane = Plane::new(Point3D::ORIGIN, Vector3D::X).unwrap();
+        let plane = Plane::new(Point::ORIGIN, Vector::X).unwrap();
         match circle.intersect_exact(&plane, tol) {
             CircleSurfaceIntersection::Hits(hits) => {
                 assert_eq!(hits.len(), 2);
-                let mut pts: Vec<Point3D> = hits.iter().map(|h| h.point).collect();
+                let mut pts: Vec<Point> = hits.iter().map(|h| h.point).collect();
                 pts.sort_by(|a, b| a.y.partial_cmp(&b.y).unwrap());
-                assert!(pts[0].distance(Point3D::new(0.0, -2.0, 0.0)) < 1e-9);
-                assert!(pts[1].distance(Point3D::new(0.0, 2.0, 0.0)) < 1e-9);
+                assert!(pts[0].distance(Point::new(0.0, -2.0, 0.0)) < 1e-9);
+                assert!(pts[1].distance(Point::new(0.0, 2.0, 0.0)) < 1e-9);
                 for h in &hits {
                     assert!(circle.contains(h.point, tol));
                     assert!(plane.contains(h.point, tol));
@@ -1579,13 +1557,13 @@ mod tests {
             _ => panic!("expected hits"),
         }
         // Coplanar: the whole circle.
-        let flat = Plane::new(Point3D::ORIGIN, Vector3D::Z).unwrap();
+        let flat = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
         match circle.intersect_exact(&flat, tol) {
             CircleSurfaceIntersection::Circle(_) => {}
             _ => panic!("expected the whole circle"),
         }
         // Parallel offset: miss.
-        let miss = Plane::new(Point3D::new(0.0, 0.0, 1.0), Vector3D::Z).unwrap();
+        let miss = Plane::new(Point::new(0.0, 0.0, 1.0), Vector::Z).unwrap();
         assert_eq!(
             circle.intersect_exact(&miss, tol),
             CircleSurfaceIntersection::Empty
@@ -1594,11 +1572,11 @@ mod tests {
 
     #[test]
     fn test_circle3d_intersect_sphere_cylinder_cone() {
-        use crate::{Cone, Cylinder, Frame3D, Sphere};
+        use crate::{Cone, Cylinder, Frame, Sphere};
         let tol = Tolerance::DEFAULT;
-        let circle = Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
+        let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
         // Small off-center sphere: two hits, cross-checked both sides.
-        let sphere = Sphere::new(Point3D::new(1.0, 0.0, 0.0), 2.0).unwrap();
+        let sphere = Sphere::new(Point::new(1.0, 0.0, 0.0), 2.0).unwrap();
         match circle.intersect_exact(&sphere, tol) {
             CircleSurfaceIntersection::Hits(hits) => {
                 assert_eq!(hits.len(), 2);
@@ -1610,15 +1588,15 @@ mod tests {
             _ => panic!("expected hits"),
         }
         // Coaxial cylinder wider than the circle: miss.
-        let fat = Cylinder::new(Point3D::ORIGIN, Vector3D::Z, 3.0).unwrap();
+        let fat = Cylinder::new(Point::ORIGIN, Vector::Z, 3.0).unwrap();
         assert_eq!(
             circle.intersect_exact(&fat, tol),
             CircleSurfaceIntersection::Empty
         );
         // Tilted cylinder through the ring: hits on both.
         let tilted = Cylinder::new(
-            Point3D::ORIGIN,
-            Vector3D::new(0.0, 1.0, 1.0).normalized().unwrap(),
+            Point::ORIGIN,
+            Vector::new(0.0, 1.0, 1.0).normalized().unwrap(),
             2.0,
         )
         .unwrap();
@@ -1633,7 +1611,7 @@ mod tests {
             _ => panic!("expected hits"),
         }
         // Reference cone contains the ring by construction.
-        let cone = Cone::from_frame(Frame3D::WORLD, 0.4, 2.0).unwrap();
+        let cone = Cone::from_frame(Frame::WORLD, 0.4, 2.0).unwrap();
         match circle.intersect_exact(&cone, tol) {
             CircleSurfaceIntersection::Circle(_) => {}
             _ => panic!("expected the whole circle"),
@@ -1645,7 +1623,7 @@ mod tests {
     /// parameter 0; the other corners fall at 2π/3 and 4π/3. The circle
     /// touches the ellipse at the vertex and crosses it at the other two
     /// corners, and nowhere else.
-    fn circle_through_inscribed_triangle(ellipse: &Ellipse3D) -> Circle3D {
+    fn circle_through_inscribed_triangle(ellipse: &Ellipse) -> Circle {
         let (a, b) = (ellipse.major_radius(), ellipse.minor_radius());
         // Corners (a, 0) and (x, ±y) with (a - x)² = 3y² on the ellipse:
         // x is the quadratic's root other than a.
@@ -1655,14 +1633,14 @@ mod tests {
         let radius = side / 3f64.sqrt();
         let frame = ellipse.frame();
         let center = frame.origin() + frame.x_direction() * (a - radius);
-        let frame = Frame3D::new(center, frame.z_direction(), frame.x_direction()).unwrap();
-        Circle3D::from_frame(frame, radius).unwrap()
+        let frame = Frame::new(center, frame.z_direction(), frame.x_direction()).unwrap();
+        Circle::from_frame(frame, radius).unwrap()
     }
 
     /// Asserts `circle` meets `surface` at the three triangle corners
     /// only, not along its whole length.
     fn assert_three_corner_hits(
-        circle: &Circle3D,
+        circle: &Circle,
         surface: &impl crate::ParametricSurface,
         result: CircleSurfaceIntersection,
     ) {
@@ -1684,9 +1662,9 @@ mod tests {
     fn test_circle3d_on_three_samples_is_not_on_cylinder_or_cone() {
         use crate::{Cone, Cylinder, Plane, PlaneConeIntersection, PlaneCylinderIntersection};
         let tol = Tolerance::DEFAULT;
-        let plane = Plane::new(Point3D::new(0.0, 0.0, 0.5), Vector3D::Z).unwrap();
-        let tilt = Vector3D::new(1.0, 0.0, 1.0).normalized().unwrap();
-        let cylinder = Cylinder::new(Point3D::ORIGIN, tilt, 1.0).unwrap();
+        let plane = Plane::new(Point::new(0.0, 0.0, 0.5), Vector::Z).unwrap();
+        let tilt = Vector::new(1.0, 0.0, 1.0).normalized().unwrap();
+        let cylinder = Cylinder::new(Point::ORIGIN, tilt, 1.0).unwrap();
         let PlaneCylinderIntersection::Ellipse(section) = plane.intersect_exact(&cylinder, tol)
         else {
             panic!("expected an ellipse");
@@ -1694,8 +1672,8 @@ mod tests {
         let circle = circle_through_inscribed_triangle(&section);
         assert_three_corner_hits(&circle, &cylinder, circle.intersect_exact(&cylinder, tol));
 
-        let axis = Vector3D::new(0.3, 0.0, 1.0);
-        let cone = Cone::new(Point3D::new(0.0, 0.0, -1.0), axis, 0.4, 0.6).unwrap();
+        let axis = Vector::new(0.3, 0.0, 1.0);
+        let cone = Cone::new(Point::new(0.0, 0.0, -1.0), axis, 0.4, 0.6).unwrap();
         let PlaneConeIntersection::Ellipse(section) = plane.intersect_exact(&cone, tol) else {
             panic!("expected an ellipse");
         };
@@ -1706,22 +1684,22 @@ mod tests {
     /// The circle of `radius` touching the planar `curve` at parameter `t`,
     /// on the side `(T.y, -T.x)` of the tangent `T` in the XY plane: outside
     /// an ellipse, inside a parabola or hyperbola branch.
-    fn circle_touching(curve: &impl crate::ParametricCurve3D, t: f64, radius: f64) -> Circle3D {
+    fn circle_touching(curve: &impl crate::ParametricCurve, t: f64, radius: f64) -> Circle {
         let tangent = curve.eval_derivative(t, 1);
-        let side = Vector3D::new(tangent.y, -tangent.x, 0.0)
+        let side = Vector::new(tangent.y, -tangent.x, 0.0)
             .normalized()
             .unwrap();
-        Circle3D::new(curve.eval_point(t) + side * radius, Vector3D::Z, radius).unwrap()
+        Circle::new(curve.eval_point(t) + side * radius, Vector::Z, radius).unwrap()
     }
 
     /// Contacts near `s = π` on the circle, where `tan(s/2)` is large.
     #[test]
     fn test_circle3d_conic_tangency_near_s_pi() {
         let tol = Tolerance::DEFAULT;
-        let (o, z, x) = (Point3D::ORIGIN, Vector3D::Z, Vector3D::X);
-        let ellipse = Ellipse3D::new(o, z, x, 2.0, 1.0).unwrap();
-        let parabola = Parabola3D::new(o, z, x, 1.0).unwrap();
-        let hyperbola = Hyperbola3D::new(o, z, x, 1.0, 1.0).unwrap();
+        let (o, z, x) = (Point::ORIGIN, Vector::Z, Vector::X);
+        let ellipse = Ellipse::new(o, z, x, 2.0, 1.0).unwrap();
+        let parabola = Parabola::new(o, z, x, 1.0).unwrap();
+        let hyperbola = Hyperbola::new(o, z, x, 1.0, 1.0).unwrap();
         for i in -30..=30 {
             let t = f64::from(i) * 0.01;
             // Radii below the conic's smallest radius of curvature, so the
@@ -1769,18 +1747,18 @@ mod tests {
     fn test_circle3d_cylinder_tangency_near_s_pi() {
         use crate::Cylinder;
         let tol = Tolerance::DEFAULT;
-        let cylinder = Cylinder::new(Point3D::ORIGIN, Vector3D::Z, 1.0).unwrap();
+        let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
         for i in -30..=30 {
             let phi = f64::from(i) * 0.01;
-            let center = Point3D::new(1.5 * phi.cos(), 1.5 * phi.sin(), 0.0);
-            let circle = Circle3D::new(center, Vector3D::Z, 0.5).unwrap();
+            let center = Point::new(1.5 * phi.cos(), 1.5 * phi.sin(), 0.0);
+            let circle = Circle::new(center, Vector::Z, 0.5).unwrap();
             let result = circle.intersect_exact(&cylinder, tol);
             let CircleSurfaceIntersection::Hits(hits) = &result else {
                 panic!("at {phi}: expected one tangent hit, got {result:?}");
             };
             assert_eq!(hits.len(), 1, "at {phi}: {hits:?}");
             assert_eq!(hits[0].multiplicity, 2, "at {phi}: {hits:?}");
-            let contact = Point3D::new(phi.cos(), phi.sin(), 0.0);
+            let contact = Point::new(phi.cos(), phi.sin(), 0.0);
             assert!(hits[0].point.distance(contact) < 1e-6, "at {phi}: {hits:?}");
         }
     }
@@ -1798,17 +1776,17 @@ mod tests {
             (state >> 11) as f64 / (1u64 << 53) as f64
         };
         for case in 0..500 {
-            let normal = Vector3D::new(next() - 0.5, next() - 0.5, next() - 0.5);
-            let hint = Vector3D::new(next() - 0.5, next() - 0.5, next() - 0.5);
-            let frame = Frame3D::new(
-                Point3D::new(4.0 * next() - 2.0, 4.0 * next() - 2.0, 4.0 * next() - 2.0),
+            let normal = Vector::new(next() - 0.5, next() - 0.5, next() - 0.5);
+            let hint = Vector::new(next() - 0.5, next() - 0.5, next() - 0.5);
+            let frame = Frame::new(
+                Point::new(4.0 * next() - 2.0, 4.0 * next() - 2.0, 4.0 * next() - 2.0),
                 normal,
                 hint,
             )
             .unwrap();
             let a = 0.5 + 3.0 * next();
             let b = a * (0.2 + 0.8 * next());
-            let ellipse = Ellipse3D::from_frame(frame, a, b).unwrap();
+            let ellipse = Ellipse::from_frame(frame, a, b).unwrap();
             let t = std::f64::consts::TAU * next();
             let radius = 0.1 + 3.0 * next();
             // The outward normal in the ellipse's plane.
@@ -1816,7 +1794,7 @@ mod tests {
             let outward = tangent.cross(frame.z_direction()).normalized().unwrap();
             let contact = ellipse.eval_point(t);
             let circle =
-                Circle3D::new(contact + outward * radius, frame.z_direction(), radius).unwrap();
+                Circle::new(contact + outward * radius, frame.z_direction(), radius).unwrap();
             let result = circle.intersect_exact(&ellipse, tol);
             let ConicConicIntersection::Hits(hits) = &result else {
                 panic!("case {case}: expected one tangent hit, got {result:?}");
@@ -1830,26 +1808,26 @@ mod tests {
         }
     }
 
-    // ---- Circle3D transformed ----
+    // ---- Circle transformed ----
 
     #[test]
     fn test_circle3d_transformed_translation_spot_check() {
-        let circle = Circle3D::new(Point3D::new(1.0, 0.0, 0.0), Vector3D::Z, 2.0).unwrap();
-        let t = Transform::translation(Vector3D::new(0.0, 0.0, 5.0));
+        let circle = Circle::new(Point::new(1.0, 0.0, 0.0), Vector::Z, 2.0).unwrap();
+        let t = Transform::translation(Vector::new(0.0, 0.0, 5.0));
         let moved = circle.transformed(t).unwrap();
-        assert_eq!(moved.center(), Point3D::new(1.0, 0.0, 5.0));
+        assert_eq!(moved.center(), Point::new(1.0, 0.0, 5.0));
         assert_eq!(moved.radius(), 2.0);
-        assert_eq!(moved.normal(), Vector3D::Z);
+        assert_eq!(moved.normal(), Vector::Z);
         // Hand-computed evaluation at u = 0.
-        assert_eq!(moved.eval_point(0.0), Point3D::new(3.0, 0.0, 5.0));
+        assert_eq!(moved.eval_point(0.0), Point::new(3.0, 0.0, 5.0));
     }
 
     #[test]
     fn test_circle3d_transformed_scale_and_round_trip() {
-        let circle = Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
-        let t = Transform::scaling(Point3D::new(1.0, 0.0, 0.0), 2.0);
+        let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
+        let t = Transform::scaling(Point::new(1.0, 0.0, 0.0), 2.0);
         let moved = circle.transformed(t).unwrap();
-        assert_eq!(moved.center(), Point3D::new(-1.0, 0.0, 0.0));
+        assert_eq!(moved.center(), Point::new(-1.0, 0.0, 0.0));
         assert_eq!(moved.radius(), 4.0);
         // Transformed points stay on the transformed circle.
         let tol = Tolerance::DEFAULT;
@@ -1858,7 +1836,7 @@ mod tests {
         }
         // Round trip through the inverse scale restores the circle.
         let back = moved
-            .transformed(Transform::scaling(Point3D::new(1.0, 0.0, 0.0), 0.5))
+            .transformed(Transform::scaling(Point::new(1.0, 0.0, 0.0), 0.5))
             .unwrap();
         assert!(back.center().distance(circle.center()) < 1e-9);
         assert!((back.radius() - circle.radius()).abs() < 1e-9);
@@ -1866,15 +1844,15 @@ mod tests {
 
     #[test]
     fn test_circle3d_transformed_mirror_commutes_with_evaluation() {
-        let circle = Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
-        let m = Transform::mirror_plane(Frame3D::WORLD);
+        let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
+        let m = Transform::mirror_plane(Frame::WORLD);
         let moved = circle.transformed(m).unwrap();
-        assert_eq!(moved.center(), Point3D::ORIGIN);
+        assert_eq!(moved.center(), Point::ORIGIN);
         assert_eq!(moved.radius(), 2.0);
         // Mirrored across its own plane, every point stays put: the
         // parametrization and the normal are unchanged, only the frame's
         // z direction flips.
-        assert_eq!(moved.normal(), Vector3D::Z);
+        assert_eq!(moved.normal(), Vector::Z);
         assert!(!moved.frame().is_direct());
         let tol = Tolerance::DEFAULT;
         for u in [0.0, 0.7, 2.1] {
@@ -1889,9 +1867,9 @@ mod tests {
 
     #[test]
     fn test_circle3d_transformed_zero_scale_errors() {
-        let circle = Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
+        let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
         assert_eq!(
-            circle.transformed(Transform::scaling(Point3D::ORIGIN, 0.0)),
+            circle.transformed(Transform::scaling(Point::ORIGIN, 0.0)),
             Err(CircleConstructionError::NullNormal)
         );
     }

@@ -8,9 +8,9 @@ use crate::projection::{self, SurfaceProjection};
 use crate::surface_math::analytic;
 use crate::surfaces::iso::{SurfaceIsoError, check_iso_param, iso_circle};
 use crate::{
-    Circle3D, Cone, Cylinder, Frame3D, LatitudeRing, Plane, Point3D, Sphere, Tolerance,
+    Circle, Cone, Cylinder, Frame, LatitudeRing, Plane, Point, Sphere, Tolerance,
     TorusConeIntersection, TorusCylinderIntersection, TorusPlaneIntersection,
-    TorusSphereIntersection, TorusTorusIntersection, Transform, Vector3D,
+    TorusSphereIntersection, TorusTorusIntersection, Transform, Vector,
 };
 use std::fmt;
 
@@ -44,20 +44,20 @@ impl fmt::Display for TorusConstructionError {
 
 impl std::error::Error for TorusConstructionError {}
 
-/// A torus in 3D: a [`Frame3D`] (origin plus local x/y/z directions) plus a
+/// A torus in 3D: a [`Frame`] (origin plus local x/y/z directions) plus a
 /// major and a minor radius, evaluated as `R = major + minor*cos(v)`,
 /// `origin + R*cos(u)*x_dir + R*sin(u)*y_dir + minor*sin(v)*z_dir`.
 ///
 /// # Examples
 ///
 /// ```
-/// use geomcore::{Point3D, Torus, Vector3D};
-/// let torus = Torus::new(Point3D::ORIGIN, Vector3D::Z, 5.0, 1.5).unwrap();
-/// assert_eq!(torus.eval_point(0.0, 0.0), Point3D::new(6.5, 0.0, 0.0));
+/// use geomcore::{Point, Torus, Vector};
+/// let torus = Torus::new(Point::ORIGIN, Vector::Z, 5.0, 1.5).unwrap();
+/// assert_eq!(torus.eval_point(0.0, 0.0), Point::new(6.5, 0.0, 0.0));
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Torus {
-    frame: Frame3D,
+    frame: Frame,
     major_radius: f64,
     minor_radius: f64,
 }
@@ -66,7 +66,7 @@ impl Torus {
     /// Creates a torus from a center, a normal, a major radius, and a
     /// minor radius.
     ///
-    /// The frame is derived from `normal` via [`Frame3D::from_z`].
+    /// The frame is derived from `normal` via [`Frame::from_z`].
     ///
     /// # Errors
     ///
@@ -78,18 +78,18 @@ impl Torus {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Point3D, Torus, Vector3D};
-    /// let torus = Torus::new(Point3D::ORIGIN, Vector3D::Z, 5.0, 1.5).unwrap();
+    /// use geomcore::{Point, Torus, Vector};
+    /// let torus = Torus::new(Point::ORIGIN, Vector::Z, 5.0, 1.5).unwrap();
     /// assert_eq!(torus.major_radius(), 5.0);
     /// assert_eq!(torus.minor_radius(), 1.5);
     /// ```
     pub fn new(
-        center: Point3D,
-        normal: Vector3D,
+        center: Point,
+        normal: Vector,
         major_radius: f64,
         minor_radius: f64,
     ) -> Result<Torus, TorusConstructionError> {
-        let frame = Frame3D::from_z(center, normal).map_err(frame_error(
+        let frame = Frame::from_z(center, normal).map_err(frame_error(
             TorusConstructionError::NonFinite,
             TorusConstructionError::NullNormal,
         ))?;
@@ -107,12 +107,12 @@ impl Torus {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Frame3D, Torus};
-    /// let torus = Torus::from_frame(Frame3D::WORLD, 5.0, 1.5).unwrap();
-    /// assert_eq!(torus.frame(), Frame3D::WORLD);
+    /// use geomcore::{Frame, Torus};
+    /// let torus = Torus::from_frame(Frame::WORLD, 5.0, 1.5).unwrap();
+    /// assert_eq!(torus.frame(), Frame::WORLD);
     /// ```
     pub fn from_frame(
-        frame: Frame3D,
+        frame: Frame,
         major_radius: f64,
         minor_radius: f64,
     ) -> Result<Torus, TorusConstructionError> {
@@ -134,11 +134,11 @@ impl Torus {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Point3D, Torus, Vector3D};
-    /// let torus = Torus::new(Point3D::new(1.0, 2.0, 3.0), Vector3D::Z, 5.0, 1.5).unwrap();
-    /// assert_eq!(torus.center(), Point3D::new(1.0, 2.0, 3.0));
+    /// use geomcore::{Point, Torus, Vector};
+    /// let torus = Torus::new(Point::new(1.0, 2.0, 3.0), Vector::Z, 5.0, 1.5).unwrap();
+    /// assert_eq!(torus.center(), Point::new(1.0, 2.0, 3.0));
     /// ```
-    pub fn center(&self) -> Point3D {
+    pub fn center(&self) -> Point {
         self.frame.origin()
     }
 
@@ -147,11 +147,11 @@ impl Torus {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Frame3D, Torus};
-    /// let torus = Torus::from_frame(Frame3D::WORLD, 5.0, 1.5).unwrap();
-    /// assert_eq!(torus.frame(), Frame3D::WORLD);
+    /// use geomcore::{Frame, Torus};
+    /// let torus = Torus::from_frame(Frame::WORLD, 5.0, 1.5).unwrap();
+    /// assert_eq!(torus.frame(), Frame::WORLD);
     /// ```
-    pub fn frame(&self) -> Frame3D {
+    pub fn frame(&self) -> Frame {
         self.frame
     }
 
@@ -163,8 +163,8 @@ impl Torus {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Point3D, Torus, Vector3D};
-    /// let torus = Torus::new(Point3D::ORIGIN, Vector3D::Z, 5.0, 1.5).unwrap();
+    /// use geomcore::{Point, Torus, Vector};
+    /// let torus = Torus::new(Point::ORIGIN, Vector::Z, 5.0, 1.5).unwrap();
     /// let reversed = torus.reversed_u();
     /// assert!(!reversed.frame().is_direct());
     /// assert_eq!(reversed.eval_point(1.0, 0.5), torus.eval_point(-1.0, 0.5));
@@ -184,8 +184,8 @@ impl Torus {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Point3D, Torus, Vector3D};
-    /// let torus = Torus::new(Point3D::ORIGIN, Vector3D::Z, 5.0, 1.5).unwrap();
+    /// use geomcore::{Point, Torus, Vector};
+    /// let torus = Torus::new(Point::ORIGIN, Vector::Z, 5.0, 1.5).unwrap();
     /// let reversed = torus.reversed_v();
     /// assert_eq!(reversed.eval_point(1.0, 0.5), torus.eval_point(1.0, -0.5));
     /// ```
@@ -203,8 +203,8 @@ impl Torus {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Point3D, Torus, Vector3D};
-    /// let torus = Torus::new(Point3D::ORIGIN, Vector3D::Z, 5.0, 1.5).unwrap();
+    /// use geomcore::{Point, Torus, Vector};
+    /// let torus = Torus::new(Point::ORIGIN, Vector::Z, 5.0, 1.5).unwrap();
     /// let u = torus.u_reversed_parameter(1.0);
     /// let there = torus.reversed_u().eval_point(u, 0.5);
     /// assert!(there.distance(torus.eval_point(1.0, 0.5)) < 1e-12);
@@ -220,8 +220,8 @@ impl Torus {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Point3D, Torus, Vector3D};
-    /// let torus = Torus::new(Point3D::ORIGIN, Vector3D::Z, 5.0, 1.5).unwrap();
+    /// use geomcore::{Point, Torus, Vector};
+    /// let torus = Torus::new(Point::ORIGIN, Vector::Z, 5.0, 1.5).unwrap();
     /// let v = torus.v_reversed_parameter(0.5);
     /// let there = torus.reversed_v().eval_point(1.0, v);
     /// assert!(there.distance(torus.eval_point(1.0, 0.5)) < 1e-12);
@@ -237,8 +237,8 @@ impl Torus {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Frame3D, Torus};
-    /// let torus = Torus::from_frame(Frame3D::WORLD, 5.0, 1.5).unwrap();
+    /// use geomcore::{Frame, Torus};
+    /// let torus = Torus::from_frame(Frame::WORLD, 5.0, 1.5).unwrap();
     /// assert_eq!(torus.major_radius(), 5.0);
     /// ```
     pub fn major_radius(&self) -> f64 {
@@ -250,8 +250,8 @@ impl Torus {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Frame3D, Torus};
-    /// let torus = Torus::from_frame(Frame3D::WORLD, 5.0, 1.5).unwrap();
+    /// use geomcore::{Frame, Torus};
+    /// let torus = Torus::from_frame(Frame::WORLD, 5.0, 1.5).unwrap();
     /// assert_eq!(torus.minor_radius(), 1.5);
     /// ```
     pub fn minor_radius(&self) -> f64 {
@@ -269,13 +269,13 @@ impl Torus {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Point3D, Torus, Vector3D};
-    /// let torus = Torus::new(Point3D::ORIGIN, Vector3D::Z, 5.0, 1.5).unwrap();
+    /// use geomcore::{Point, Torus, Vector};
+    /// let torus = Torus::new(Point::ORIGIN, Vector::Z, 5.0, 1.5).unwrap();
     /// let iso = torus.u_iso(0.0).unwrap();
-    /// assert_eq!(iso.center(), Point3D::new(5.0, 0.0, 0.0));
+    /// assert_eq!(iso.center(), Point::new(5.0, 0.0, 0.0));
     /// assert_eq!(iso.radius(), 1.5);
     /// ```
-    pub fn u_iso(&self, u: f64) -> Result<Circle3D, SurfaceIsoError> {
+    pub fn u_iso(&self, u: f64) -> Result<Circle, SurfaceIsoError> {
         let u = check_iso_param(u, None)?;
         let frame = self.frame;
         let radial = frame.x_direction() * u.cos() + frame.y_direction() * u.sin();
@@ -299,13 +299,13 @@ impl Torus {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Point3D, Torus, Vector3D};
-    /// let torus = Torus::new(Point3D::ORIGIN, Vector3D::Z, 5.0, 1.5).unwrap();
+    /// use geomcore::{Point, Torus, Vector};
+    /// let torus = Torus::new(Point::ORIGIN, Vector::Z, 5.0, 1.5).unwrap();
     /// let iso = torus.v_iso(0.0).unwrap();
-    /// assert_eq!(iso.center(), Point3D::ORIGIN);
+    /// assert_eq!(iso.center(), Point::ORIGIN);
     /// assert_eq!(iso.radius(), 6.5);
     /// ```
-    pub fn v_iso(&self, v: f64) -> Result<Circle3D, SurfaceIsoError> {
+    pub fn v_iso(&self, v: f64) -> Result<Circle, SurfaceIsoError> {
         let v = check_iso_param(v, None)?;
         let frame = self.frame;
         iso_circle(
@@ -333,9 +333,9 @@ impl Torus {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Point3D, Torus, Transform, Vector3D};
-    /// let torus = Torus::new(Point3D::ORIGIN, Vector3D::Z, 5.0, 1.5).unwrap();
-    /// let moved = torus.transformed(Transform::scaling(Point3D::ORIGIN, 2.0)).unwrap();
+    /// use geomcore::{Point, Torus, Transform, Vector};
+    /// let torus = Torus::new(Point::ORIGIN, Vector::Z, 5.0, 1.5).unwrap();
+    /// let moved = torus.transformed(Transform::scaling(Point::ORIGIN, 2.0)).unwrap();
     /// assert_eq!(moved.major_radius(), 10.0);
     /// assert_eq!(moved.minor_radius(), 3.0);
     /// ```
@@ -357,11 +357,11 @@ impl Torus {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Point3D, Torus, Vector3D};
-    /// let torus = Torus::new(Point3D::ORIGIN, Vector3D::Z, 5.0, 1.5).unwrap();
-    /// assert_eq!(torus.eval_point(0.0, 0.0), Point3D::new(6.5, 0.0, 0.0));
+    /// use geomcore::{Point, Torus, Vector};
+    /// let torus = Torus::new(Point::ORIGIN, Vector::Z, 5.0, 1.5).unwrap();
+    /// assert_eq!(torus.eval_point(0.0, 0.0), Point::new(6.5, 0.0, 0.0));
     /// ```
-    pub fn eval_point(&self, u: f64, v: f64) -> Point3D {
+    pub fn eval_point(&self, u: f64, v: f64) -> Point {
         analytic::torus_d0(&self.frame, self.major_radius, self.minor_radius, u, v)
     }
 
@@ -370,12 +370,12 @@ impl Torus {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Point3D, Torus, Vector3D};
-    /// let torus = Torus::new(Point3D::ORIGIN, Vector3D::Z, 5.0, 1.5).unwrap();
+    /// use geomcore::{Point, Torus, Vector};
+    /// let torus = Torus::new(Point::ORIGIN, Vector::Z, 5.0, 1.5).unwrap();
     /// let points = torus.eval_points(&[(0.0, 0.0)]);
-    /// assert_eq!(points[0], Point3D::new(6.5, 0.0, 0.0));
+    /// assert_eq!(points[0], Point::new(6.5, 0.0, 0.0));
     /// ```
-    pub fn eval_points(&self, uvs: &[(f64, f64)]) -> Vec<Point3D> {
+    pub fn eval_points(&self, uvs: &[(f64, f64)]) -> Vec<Point> {
         uvs.iter().map(|&(u, v)| self.eval_point(u, v)).collect()
     }
 
@@ -391,11 +391,11 @@ impl Torus {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Point3D, Torus, Vector3D};
-    /// let torus = Torus::new(Point3D::ORIGIN, Vector3D::Z, 5.0, 1.5).unwrap();
-    /// assert_eq!(torus.eval_derivative(0.0, 0.0, 0, 1), Vector3D::Z * 1.5);
+    /// use geomcore::{Point, Torus, Vector};
+    /// let torus = Torus::new(Point::ORIGIN, Vector::Z, 5.0, 1.5).unwrap();
+    /// assert_eq!(torus.eval_derivative(0.0, 0.0, 0, 1), Vector::Z * 1.5);
     /// ```
-    pub fn eval_derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> Vector3D {
+    pub fn eval_derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> Vector {
         match du + dv {
             0 => panic!(
                 "eval_derivative: du + dv must be >= 1 (use eval_point for the (0, 0) order)"
@@ -423,12 +423,12 @@ impl Torus {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Point3D, Torus, Vector3D};
-    /// let torus = Torus::new(Point3D::ORIGIN, Vector3D::Z, 5.0, 1.5).unwrap();
-    /// let (u, v) = torus.parameters_of(Point3D::new(6.5, 0.0, 0.0));
+    /// use geomcore::{Point, Torus, Vector};
+    /// let torus = Torus::new(Point::ORIGIN, Vector::Z, 5.0, 1.5).unwrap();
+    /// let (u, v) = torus.parameters_of(Point::new(6.5, 0.0, 0.0));
     /// assert_eq!((u, v), (0.0, 0.0));
     /// ```
-    pub fn parameters_of(&self, point: Point3D) -> (f64, f64) {
+    pub fn parameters_of(&self, point: Point) -> (f64, f64) {
         analytic::torus_parameters(&self.frame, self.major_radius, self.minor_radius, point)
     }
 
@@ -440,13 +440,13 @@ impl Torus {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Point3D, Tolerance, Torus, Vector3D};
-    /// let torus = Torus::new(Point3D::ORIGIN, Vector3D::Z, 4.0, 1.0).unwrap();
+    /// use geomcore::{Point, Tolerance, Torus, Vector};
+    /// let torus = Torus::new(Point::ORIGIN, Vector::Z, 4.0, 1.0).unwrap();
     /// let tol = Tolerance::DEFAULT;
-    /// assert!(torus.contains(Point3D::new(5.0, 0.0, 0.0), tol));
-    /// assert!(!torus.contains(Point3D::ORIGIN, tol));
+    /// assert!(torus.contains(Point::new(5.0, 0.0, 0.0), tol));
+    /// assert!(!torus.contains(Point::ORIGIN, tol));
     /// ```
-    pub fn contains(&self, point: Point3D, tol: Tolerance) -> bool {
+    pub fn contains(&self, point: Point, tol: Tolerance) -> bool {
         let (u, v) = self.parameters_of(point);
         self.eval_point(u, v).distance(point) <= tol.confusion
     }
@@ -458,13 +458,13 @@ impl Torus {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Point3D, Tolerance, Torus, Vector3D};
-    /// let torus = Torus::new(Point3D::ORIGIN, Vector3D::Z, 4.0, 1.0).unwrap();
-    /// let proj = torus.project_point(Point3D::new(6.0, 0.0, 0.0), Tolerance::DEFAULT);
+    /// use geomcore::{Point, Tolerance, Torus, Vector};
+    /// let torus = Torus::new(Point::ORIGIN, Vector::Z, 4.0, 1.0).unwrap();
+    /// let proj = torus.project_point(Point::new(6.0, 0.0, 0.0), Tolerance::DEFAULT);
     /// assert_eq!((proj.u, proj.v), (0.0, 0.0));
     /// assert_eq!(proj.distance, 1.0);
     /// ```
-    pub fn project_point(&self, point: Point3D, tol: Tolerance) -> SurfaceProjection {
+    pub fn project_point(&self, point: Point, tol: Tolerance) -> SurfaceProjection {
         let (u, v) = self.parameters_of(point);
         let foot = self.eval_point(u, v);
         let distance = foot.distance(point);
@@ -480,7 +480,7 @@ impl Torus {
     ///
     /// Default-style batch wrapper over [`Torus::project_point`]: one
     /// native call per batch, mirroring [`Torus::eval_points`].
-    pub fn project_points(&self, points: &[Point3D], tol: Tolerance) -> Vec<SurfaceProjection> {
+    pub fn project_points(&self, points: &[Point], tol: Tolerance) -> Vec<SurfaceProjection> {
         points.iter().map(|&p| self.project_point(p, tol)).collect()
     }
 
@@ -507,9 +507,9 @@ impl IntersectExact<Plane> for Torus {
     ///
     /// ```
     /// use geomcore::IntersectExact;
-    /// use geomcore::{Point3D, Tolerance, Torus, TorusPlaneIntersection, Vector3D};
-    /// let torus = Torus::new(Point3D::ORIGIN, Vector3D::Z, 4.0, 1.0).unwrap();
-    /// let plane = geomcore::Plane::new(Point3D::ORIGIN, Vector3D::Z).unwrap();
+    /// use geomcore::{Point, Tolerance, Torus, TorusPlaneIntersection, Vector};
+    /// let torus = Torus::new(Point::ORIGIN, Vector::Z, 4.0, 1.0).unwrap();
+    /// let plane = geomcore::Plane::new(Point::ORIGIN, Vector::Z).unwrap();
     /// let tol = Tolerance::DEFAULT;
     /// match torus.intersect_exact(&plane, tol) {
     ///     TorusPlaneIntersection::TwoCircles(_, _) => {}
@@ -537,7 +537,7 @@ impl IntersectExact<Plane> for Torus {
             // sin is near 1 here (s near 0), so the division is safe.
             let m = n.cross(a) * (1.0 / sin);
             let mk = |sgn: f64| {
-                Circle3D::new(o + m * (sgn * major), n, minor)
+                Circle::new(o + m * (sgn * major), n, minor)
                     .expect("tube radius is positive by construction")
             };
             TorusPlaneIntersection::TwoCircles(mk(1.0), mk(-1.0))
@@ -549,13 +549,13 @@ impl IntersectExact<Plane> for Torus {
             } else if h_abs >= minor - tol.confusion {
                 let center = o - n * h;
                 TorusPlaneIntersection::TangentCircle(
-                    Circle3D::new(center, n, major)
+                    Circle::new(center, n, major)
                         .expect("major radius is positive by construction"),
                 )
             } else {
                 let s_rad = (minor * minor - h * h).sqrt();
                 let center = o - n * h;
-                let mk = |rad: f64| Circle3D::new(center, n, rad).expect("kept radii non-negative");
+                let mk = |rad: f64| Circle::new(center, n, rad).expect("kept radii non-negative");
                 if major - s_rad >= -tol.confusion {
                     TorusPlaneIntersection::TwoCircles(
                         mk(major + s_rad),
@@ -574,7 +574,7 @@ impl IntersectExact<Plane> for Torus {
             if through_center && (major * sin - minor).abs() <= tol.confusion {
                 let m = n.cross(a) * (1.0 / sin);
                 let mk = |sgn: f64| {
-                    Circle3D::new(o + m * (sgn * minor), n, major)
+                    Circle::new(o + m * (sgn * minor), n, major)
                         .expect("major radius is positive by construction")
                 };
                 TorusPlaneIntersection::TwoCircles(mk(1.0), mk(-1.0))
@@ -600,9 +600,9 @@ impl IntersectExact<Sphere> for Torus {
     ///
     /// ```
     /// use geomcore::IntersectExact;
-    /// use geomcore::{Point3D, Sphere, Tolerance, Torus, TorusSphereIntersection, Vector3D};
-    /// let torus = Torus::new(Point3D::ORIGIN, Vector3D::Z, 4.0, 1.0).unwrap();
-    /// let sphere = Sphere::new(Point3D::ORIGIN, 5.0).unwrap();
+    /// use geomcore::{Point, Sphere, Tolerance, Torus, TorusSphereIntersection, Vector};
+    /// let torus = Torus::new(Point::ORIGIN, Vector::Z, 4.0, 1.0).unwrap();
+    /// let sphere = Sphere::new(Point::ORIGIN, 5.0).unwrap();
     /// let tol = Tolerance::DEFAULT;
     /// match torus.intersect_exact(&sphere, tol) {
     ///     TorusSphereIntersection::TangentCircle(_) => {}
@@ -630,7 +630,7 @@ impl IntersectExact<Sphere> for Torus {
         let ring = |z: f64| {
             let rho = (k + 2.0 * tc * z) / (2.0 * major);
             if rho >= -tol.confusion {
-                Some(Circle3D::new(o + a * z, a, rho.max(0.0)).expect("kept radii non-negative"))
+                Some(Circle::new(o + a * z, a, rho.max(0.0)).expect("kept radii non-negative"))
             } else {
                 None
             }
@@ -667,9 +667,9 @@ impl IntersectExact<Cylinder> for Torus {
     ///
     /// ```
     /// use geomcore::IntersectExact;
-    /// use geomcore::{Cylinder, Point3D, Tolerance, Torus, TorusCylinderIntersection, Vector3D};
-    /// let torus = Torus::new(Point3D::ORIGIN, Vector3D::Z, 4.0, 1.0).unwrap();
-    /// let cylinder = Cylinder::new(Point3D::ORIGIN, Vector3D::Z, 4.5).unwrap();
+    /// use geomcore::{Cylinder, Point, Tolerance, Torus, TorusCylinderIntersection, Vector};
+    /// let torus = Torus::new(Point::ORIGIN, Vector::Z, 4.0, 1.0).unwrap();
+    /// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 4.5).unwrap();
     /// let tol = Tolerance::DEFAULT;
     /// match torus.intersect_exact(&cylinder, tol) {
     ///     TorusCylinderIntersection::TwoCircles(_, _) => {}
@@ -700,12 +700,12 @@ impl IntersectExact<Cylinder> for Torus {
             TorusCylinderIntersection::Empty
         } else if gap >= minor - tol.confusion {
             TorusCylinderIntersection::TangentCircle(
-                Circle3D::new(o, a, rc).expect("tube radius is non-negative by construction"),
+                Circle::new(o, a, rc).expect("tube radius is non-negative by construction"),
             )
         } else {
             let h = (minor * minor - gap * gap).max(0.0).sqrt();
             let mk = |s: f64| {
-                Circle3D::new(o + a * (s * h), a, rc)
+                Circle::new(o + a * (s * h), a, rc)
                     .expect("tube radius is non-negative by construction")
             };
             TorusCylinderIntersection::TwoCircles(mk(1.0), mk(-1.0))
@@ -729,9 +729,9 @@ impl IntersectExact<Cone> for Torus {
     ///
     /// ```
     /// use geomcore::IntersectExact;
-    /// use geomcore::{Cone, Frame3D, Point3D, Tolerance, Torus, TorusConeIntersection, Vector3D};
-    /// let torus = Torus::new(Point3D::ORIGIN, Vector3D::Z, 4.0, 1.0).unwrap();
-    /// let cone = Cone::from_frame(Frame3D::WORLD, 1.1, 2.0).unwrap();
+    /// use geomcore::{Cone, Frame, Point, Tolerance, Torus, TorusConeIntersection, Vector};
+    /// let torus = Torus::new(Point::ORIGIN, Vector::Z, 4.0, 1.0).unwrap();
+    /// let cone = Cone::from_frame(Frame::WORLD, 1.1, 2.0).unwrap();
     /// let tol = Tolerance::DEFAULT;
     /// match torus.intersect_exact(&cone, tol) {
     ///     TorusConeIntersection::Rings(rings) => assert_eq!(rings.len(), 2),
@@ -769,7 +769,7 @@ impl IntersectExact<Cone> for Torus {
                 let rho = m * (z - za);
                 if rho >= -tol.confusion {
                     let circle =
-                        Circle3D::new(o + a * z, a, rho.max(0.0)).expect("kept radii non-negative");
+                        Circle::new(o + a * z, a, rho.max(0.0)).expect("kept radii non-negative");
                     // A ring on the apex is found from both nappes.
                     if !rings.iter().any(|r| r.circle == circle) {
                         rings.push(LatitudeRing { circle, tangent });
@@ -813,9 +813,9 @@ impl IntersectExact<Torus> for Torus {
     ///
     /// ```
     /// use geomcore::IntersectExact;
-    /// use geomcore::{Point3D, Tolerance, Torus, TorusTorusIntersection, Vector3D};
-    /// let t1 = Torus::new(Point3D::ORIGIN, Vector3D::Z, 4.0, 1.0).unwrap();
-    /// let t2 = Torus::new(Point3D::new(0.0, 0.0, 1.5), Vector3D::Z, 4.0, 1.0).unwrap();
+    /// use geomcore::{Point, Tolerance, Torus, TorusTorusIntersection, Vector};
+    /// let t1 = Torus::new(Point::ORIGIN, Vector::Z, 4.0, 1.0).unwrap();
+    /// let t2 = Torus::new(Point::new(0.0, 0.0, 1.5), Vector::Z, 4.0, 1.0).unwrap();
     /// let tol = Tolerance::DEFAULT;
     /// match t1.intersect_exact(&t2, tol) {
     ///     TorusTorusIntersection::TwoCircles(_, _) => {}
@@ -848,7 +848,7 @@ impl IntersectExact<Torus> for Torus {
         }
         let ring = |z: f64, rho: f64| {
             if rho >= -tol.confusion {
-                Some(Circle3D::new(o1 + a * z, a, rho.max(0.0)).expect("kept radii non-negative"))
+                Some(Circle::new(o1 + a * z, a, rho.max(0.0)).expect("kept radii non-negative"))
             } else {
                 None
             }
@@ -866,7 +866,7 @@ impl IntersectExact<Torus> for Torus {
                 TorusTorusIntersection::Empty
             } else if s_rad.abs() <= tol.confusion * (s1 * s1 + z2 * z2 + 1.0) {
                 TorusTorusIntersection::TangentCircle(
-                    Circle3D::new(o1 + a * z_star, a, r1)
+                    Circle::new(o1 + a * z_star, a, r1)
                         .expect("major radius is positive by construction"),
                 )
             } else {
@@ -913,16 +913,16 @@ mod tests {
 
     #[test]
     fn test_new_ok() {
-        let t = Torus::new(Point3D::ORIGIN, Vector3D::Z, 5.0, 1.5).unwrap();
+        let t = Torus::new(Point::ORIGIN, Vector::Z, 5.0, 1.5).unwrap();
         assert_eq!(t.major_radius(), 5.0);
         assert_eq!(t.minor_radius(), 1.5);
-        assert_eq!(t.center(), Point3D::ORIGIN);
+        assert_eq!(t.center(), Point::ORIGIN);
     }
 
     #[test]
     fn test_new_null_normal_errors() {
         assert_eq!(
-            Torus::new(Point3D::ORIGIN, Vector3D::ZERO, 5.0, 1.5),
+            Torus::new(Point::ORIGIN, Vector::ZERO, 5.0, 1.5),
             Err(TorusConstructionError::NullNormal)
         );
     }
@@ -930,7 +930,7 @@ mod tests {
     #[test]
     fn test_new_negative_major_radius_errors() {
         assert_eq!(
-            Torus::new(Point3D::ORIGIN, Vector3D::Z, -5.0, 1.5),
+            Torus::new(Point::ORIGIN, Vector::Z, -5.0, 1.5),
             Err(TorusConstructionError::NegativeRadius)
         );
     }
@@ -938,25 +938,25 @@ mod tests {
     #[test]
     fn test_new_negative_minor_radius_errors() {
         assert_eq!(
-            Torus::new(Point3D::ORIGIN, Vector3D::Z, 5.0, -1.5),
+            Torus::new(Point::ORIGIN, Vector::Z, 5.0, -1.5),
             Err(TorusConstructionError::NegativeRadius)
         );
     }
 
     #[test]
     fn test_from_frame_ok() {
-        let t = Torus::from_frame(Frame3D::WORLD, 5.0, 1.5).unwrap();
-        assert_eq!(t.frame(), Frame3D::WORLD);
+        let t = Torus::from_frame(Frame::WORLD, 5.0, 1.5).unwrap();
+        assert_eq!(t.frame(), Frame::WORLD);
     }
 
     #[test]
     fn test_from_frame_negative_radius_errors() {
         assert_eq!(
-            Torus::from_frame(Frame3D::WORLD, -5.0, 1.5),
+            Torus::from_frame(Frame::WORLD, -5.0, 1.5),
             Err(TorusConstructionError::NegativeRadius)
         );
         assert_eq!(
-            Torus::from_frame(Frame3D::WORLD, 5.0, -1.5),
+            Torus::from_frame(Frame::WORLD, 5.0, -1.5),
             Err(TorusConstructionError::NegativeRadius)
         );
     }
@@ -965,36 +965,36 @@ mod tests {
 
     #[test]
     fn test_eval_point() {
-        let t = Torus::new(Point3D::ORIGIN, Vector3D::Z, 5.0, 1.5).unwrap();
-        assert_eq!(t.eval_point(0.0, 0.0), Point3D::new(6.5, 0.0, 0.0));
+        let t = Torus::new(Point::ORIGIN, Vector::Z, 5.0, 1.5).unwrap();
+        assert_eq!(t.eval_point(0.0, 0.0), Point::new(6.5, 0.0, 0.0));
     }
 
     #[test]
     fn test_eval_points_matches_loop() {
-        let t = Torus::new(Point3D::ORIGIN, Vector3D::Z, 5.0, 1.5).unwrap();
+        let t = Torus::new(Point::ORIGIN, Vector::Z, 5.0, 1.5).unwrap();
         let uvs = [(0.0, 0.0), (0.5, 1.0)];
-        let expected: Vec<Point3D> = uvs.iter().map(|&(u, v)| t.eval_point(u, v)).collect();
+        let expected: Vec<Point> = uvs.iter().map(|&(u, v)| t.eval_point(u, v)).collect();
         assert_eq!(t.eval_points(&uvs), expected);
     }
 
     #[test]
     #[should_panic(expected = "du + dv must be >= 1")]
     fn test_eval_derivative_zero_order_panics() {
-        let t = Torus::new(Point3D::ORIGIN, Vector3D::Z, 5.0, 1.5).unwrap();
+        let t = Torus::new(Point::ORIGIN, Vector::Z, 5.0, 1.5).unwrap();
         t.eval_derivative(0.0, 0.0, 0, 0);
     }
 
     #[test]
     #[should_panic(expected = "du + dv must be <= 2")]
     fn test_eval_derivative_order_too_high_panics() {
-        let t = Torus::new(Point3D::ORIGIN, Vector3D::Z, 5.0, 1.5).unwrap();
+        let t = Torus::new(Point::ORIGIN, Vector::Z, 5.0, 1.5).unwrap();
         t.eval_derivative(0.0, 0.0, 2, 1);
     }
 
     #[test]
     fn test_parameters_of_round_trip() {
-        let t = Torus::new(Point3D::ORIGIN, Vector3D::Z, 5.0, 1.5).unwrap();
-        let (u, v) = t.parameters_of(Point3D::new(6.5, 0.0, 0.0));
+        let t = Torus::new(Point::ORIGIN, Vector::Z, 5.0, 1.5).unwrap();
+        let (u, v) = t.parameters_of(Point::new(6.5, 0.0, 0.0));
         assert_eq!((u, v), (0.0, 0.0));
     }
 
@@ -1020,19 +1020,19 @@ mod tests {
 
     #[test]
     fn test_torus_contains() {
-        let torus = Torus::new(Point3D::ORIGIN, Vector3D::Z, 4.0, 1.0).unwrap();
+        let torus = Torus::new(Point::ORIGIN, Vector::Z, 4.0, 1.0).unwrap();
         let tol = Tolerance::DEFAULT;
-        assert!(torus.contains(Point3D::new(5.0, 0.0, 0.0), tol));
+        assert!(torus.contains(Point::new(5.0, 0.0, 0.0), tol));
         assert!(torus.contains(torus.eval_point(1.0, 2.0), tol));
-        assert!(!torus.contains(Point3D::ORIGIN, tol));
-        assert!(!torus.contains(Point3D::new(4.0, 0.0, 0.0), tol));
+        assert!(!torus.contains(Point::ORIGIN, tol));
+        assert!(!torus.contains(Point::new(4.0, 0.0, 0.0), tol));
     }
 
     #[test]
     fn test_torus_project_point() {
-        let torus = Torus::new(Point3D::ORIGIN, Vector3D::Z, 4.0, 1.0).unwrap();
+        let torus = Torus::new(Point::ORIGIN, Vector::Z, 4.0, 1.0).unwrap();
         let tol = Tolerance::DEFAULT;
-        let proj = torus.project_point(Point3D::new(6.0, 0.0, 0.0), tol);
+        let proj = torus.project_point(Point::new(6.0, 0.0, 0.0), tol);
         assert_eq!((proj.u, proj.v), (0.0, 0.0));
         assert_eq!(proj.distance, 1.0);
         let on = torus.project_point(torus.eval_point(1.0, 2.0), tol);
@@ -1042,9 +1042,9 @@ mod tests {
     #[test]
     fn test_torus_plane_intersection() {
         let tol = Tolerance::DEFAULT;
-        let torus = Torus::new(Point3D::ORIGIN, Vector3D::Z, 4.0, 1.0).unwrap();
+        let torus = Torus::new(Point::ORIGIN, Vector::Z, 4.0, 1.0).unwrap();
         // Perpendicular: latitude rings of radii 5 and 3.
-        let flat = Plane::new(Point3D::ORIGIN, Vector3D::Z).unwrap();
+        let flat = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
         match torus.intersect_exact(&flat, tol) {
             TorusPlaneIntersection::TwoCircles(c1, c2) => {
                 let mut radii = [c1.radius(), c2.radius()];
@@ -1058,35 +1058,35 @@ mod tests {
             _ => panic!("expected two circles"),
         }
         // Axis-containing: two meridian rings.
-        let meridional = Plane::new(Point3D::ORIGIN, Vector3D::X).unwrap();
+        let meridional = Plane::new(Point::ORIGIN, Vector::X).unwrap();
         match torus.intersect_exact(&meridional, tol) {
             TorusPlaneIntersection::TwoCircles(c1, c2) => {
                 assert_eq!(c1.radius(), 1.0);
                 assert_eq!(c2.radius(), 1.0);
                 let mut xs = [c1.center(), c2.center()];
                 xs.sort_by(|a, b| a.y.partial_cmp(&b.y).unwrap());
-                assert_eq!(xs[0], Point3D::new(0.0, -4.0, 0.0));
-                assert_eq!(xs[1], Point3D::new(0.0, 4.0, 0.0));
+                assert_eq!(xs[0], Point::new(0.0, -4.0, 0.0));
+                assert_eq!(xs[1], Point::new(0.0, 4.0, 0.0));
             }
             _ => panic!("expected two circles"),
         }
         // Grazing the tube top.
-        let grazing = Plane::new(Point3D::new(0.0, 0.0, 1.0), Vector3D::Z).unwrap();
+        let grazing = Plane::new(Point::new(0.0, 0.0, 1.0), Vector::Z).unwrap();
         match torus.intersect_exact(&grazing, tol) {
             TorusPlaneIntersection::TangentCircle(c) => {
-                assert_eq!(c.center(), Point3D::new(0.0, 0.0, 1.0));
+                assert_eq!(c.center(), Point::new(0.0, 0.0, 1.0));
                 assert_eq!(c.radius(), 4.0);
             }
             _ => panic!("expected a tangent circle"),
         }
         // Clear miss above the tube.
-        let miss = Plane::new(Point3D::new(0.0, 0.0, 2.0), Vector3D::Z).unwrap();
+        let miss = Plane::new(Point::new(0.0, 0.0, 2.0), Vector::Z).unwrap();
         assert_eq!(
             torus.intersect_exact(&miss, tol),
             TorusPlaneIntersection::Empty
         );
         // Tilted: quartic spiric section, no closed form.
-        let tilted = Plane::new(Point3D::ORIGIN, Vector3D::new(0.0, 1.0, 1.0)).unwrap();
+        let tilted = Plane::new(Point::ORIGIN, Vector::new(0.0, 1.0, 1.0)).unwrap();
         assert_eq!(
             torus.intersect_exact(&tilted, tol),
             TorusPlaneIntersection::NotAnalytic
@@ -1095,10 +1095,10 @@ mod tests {
 
     /// Torus off the origin with a tilted axis, and the plane through its
     /// center whose normal makes `asin(r / R) + extra` with the axis.
-    fn tilted_torus_and_plane(extra: f64) -> (Torus, Plane, Vector3D) {
-        let axis = Vector3D::new(1.0, 1.0, 2.0).normalized().unwrap();
-        let torus = Torus::new(Point3D::new(1.0, -2.0, 0.5), axis, 3.0, 1.0).unwrap();
-        let side = axis.cross(Vector3D::X).normalized().unwrap();
+    fn tilted_torus_and_plane(extra: f64) -> (Torus, Plane, Vector) {
+        let axis = Vector::new(1.0, 1.0, 2.0).normalized().unwrap();
+        let torus = Torus::new(Point::new(1.0, -2.0, 0.5), axis, 3.0, 1.0).unwrap();
+        let side = axis.cross(Vector::X).normalized().unwrap();
         let tilt = (1.0f64 / 3.0).asin() + extra;
         let normal = axis * tilt.cos() + side * tilt.sin();
         let plane = Plane::new(torus.center(), normal).unwrap();
@@ -1157,8 +1157,8 @@ mod tests {
     #[test]
     fn test_torus_sphere_intersection() {
         let tol = Tolerance::DEFAULT;
-        let torus = Torus::new(Point3D::ORIGIN, Vector3D::Z, 4.0, 1.0).unwrap();
-        let sphere = Sphere::new(Point3D::new(0.0, 0.0, 1.0), 4.0).unwrap();
+        let torus = Torus::new(Point::ORIGIN, Vector::Z, 4.0, 1.0).unwrap();
+        let sphere = Sphere::new(Point::new(0.0, 0.0, 1.0), 4.0).unwrap();
         match torus.intersect_exact(&sphere, tol) {
             TorusSphereIntersection::TwoCircles(c1, c2) => {
                 for p in c1.eval_points(&[0.0, 2.0]) {
@@ -1173,22 +1173,22 @@ mod tests {
             _ => panic!("expected two circles"),
         }
         // Enclosing sphere grazing the outer equator.
-        let big = Sphere::new(Point3D::ORIGIN, 5.0).unwrap();
+        let big = Sphere::new(Point::ORIGIN, 5.0).unwrap();
         match torus.intersect_exact(&big, tol) {
             TorusSphereIntersection::TangentCircle(c) => {
-                assert_eq!(c.center(), Point3D::ORIGIN);
+                assert_eq!(c.center(), Point::ORIGIN);
                 assert_eq!(c.radius(), 5.0);
             }
             _ => panic!("expected a tangent circle"),
         }
         // Small sphere in the hole.
-        let small = Sphere::new(Point3D::ORIGIN, 2.0).unwrap();
+        let small = Sphere::new(Point::ORIGIN, 2.0).unwrap();
         assert_eq!(
             torus.intersect_exact(&small, tol),
             TorusSphereIntersection::Empty
         );
         // Off-axis center: no closed form.
-        let off = Sphere::new(Point3D::new(1.0, 0.0, 0.0), 4.0).unwrap();
+        let off = Sphere::new(Point::new(1.0, 0.0, 0.0), 4.0).unwrap();
         assert_eq!(
             torus.intersect_exact(&off, tol),
             TorusSphereIntersection::NotAnalytic
@@ -1198,8 +1198,8 @@ mod tests {
     #[test]
     fn test_torus_cylinder_intersection() {
         let tol = Tolerance::DEFAULT;
-        let torus = Torus::new(Point3D::ORIGIN, Vector3D::Z, 4.0, 1.0).unwrap();
-        let cylinder = Cylinder::new(Point3D::ORIGIN, Vector3D::Z, 4.5).unwrap();
+        let torus = Torus::new(Point::ORIGIN, Vector::Z, 4.0, 1.0).unwrap();
+        let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 4.5).unwrap();
         match torus.intersect_exact(&cylinder, tol) {
             TorusCylinderIntersection::TwoCircles(c1, c2) => {
                 assert_eq!(c1.radius(), 4.5);
@@ -1213,22 +1213,22 @@ mod tests {
             _ => panic!("expected two circles"),
         }
         // Grazing the outer equator.
-        let grazing = Cylinder::new(Point3D::ORIGIN, Vector3D::Z, 5.0).unwrap();
+        let grazing = Cylinder::new(Point::ORIGIN, Vector::Z, 5.0).unwrap();
         match torus.intersect_exact(&grazing, tol) {
             TorusCylinderIntersection::TangentCircle(c) => {
-                assert_eq!(c.center(), Point3D::ORIGIN);
+                assert_eq!(c.center(), Point::ORIGIN);
                 assert_eq!(c.radius(), 5.0);
             }
             _ => panic!("expected a tangent circle"),
         }
         // Oversize tube misses.
-        let fat = Cylinder::new(Point3D::ORIGIN, Vector3D::Z, 6.0).unwrap();
+        let fat = Cylinder::new(Point::ORIGIN, Vector::Z, 6.0).unwrap();
         assert_eq!(
             torus.intersect_exact(&fat, tol),
             TorusCylinderIntersection::Empty
         );
         // Offset axis: no closed form.
-        let off = Cylinder::new(Point3D::new(1.0, 0.0, 0.0), Vector3D::Z, 4.5).unwrap();
+        let off = Cylinder::new(Point::new(1.0, 0.0, 0.0), Vector::Z, 4.5).unwrap();
         assert_eq!(
             torus.intersect_exact(&off, tol),
             TorusCylinderIntersection::NotAnalytic
@@ -1238,8 +1238,8 @@ mod tests {
     #[test]
     fn test_torus_cone_intersection() {
         let tol = Tolerance::DEFAULT;
-        let torus = Torus::new(Point3D::ORIGIN, Vector3D::Z, 4.0, 1.0).unwrap();
-        let cone = Cone::from_frame(Frame3D::WORLD, 1.1, 2.0).unwrap();
+        let torus = Torus::new(Point::ORIGIN, Vector::Z, 4.0, 1.0).unwrap();
+        let cone = Cone::from_frame(Frame::WORLD, 1.1, 2.0).unwrap();
         let check = |rings: &[LatitudeRing], cone: &Cone| {
             for ring in rings {
                 for p in ring.circle.eval_points(&[0.0, 1.0, 3.0]) {
@@ -1260,7 +1260,7 @@ mod tests {
         }
         // Apex at the centre, generators through the tube: two rings on
         // each nappe.
-        let flat = Cone::from_frame(Frame3D::WORLD, 1.4, 0.0).unwrap();
+        let flat = Cone::from_frame(Frame::WORLD, 1.4, 0.0).unwrap();
         match torus.intersect_exact(&flat, tol) {
             TorusConeIntersection::Rings(rings) => {
                 assert_eq!(rings.len(), 4);
@@ -1270,7 +1270,7 @@ mod tests {
             _ => panic!("expected four rings"),
         }
         // Generators tangent to the tube: one grazing ring per nappe.
-        let grazing = Cone::from_frame(Frame3D::WORLD, 15f64.sqrt().atan(), 0.0).unwrap();
+        let grazing = Cone::from_frame(Frame::WORLD, 15f64.sqrt().atan(), 0.0).unwrap();
         match torus.intersect_exact(&grazing, tol) {
             TorusConeIntersection::Rings(rings) => {
                 assert_eq!(rings.len(), 2);
@@ -1280,7 +1280,7 @@ mod tests {
             _ => panic!("expected two grazing rings"),
         }
         // Tilted cone axis: no closed form.
-        let tilted = Cone::new(Point3D::ORIGIN, Vector3D::X, 1.1, 2.0).unwrap();
+        let tilted = Cone::new(Point::ORIGIN, Vector::X, 1.1, 2.0).unwrap();
         assert_eq!(
             torus.intersect_exact(&tilted, tol),
             TorusConeIntersection::NotAnalytic
@@ -1290,8 +1290,8 @@ mod tests {
     #[test]
     fn test_torus_torus_intersection() {
         let tol = Tolerance::DEFAULT;
-        let t1 = Torus::new(Point3D::ORIGIN, Vector3D::Z, 4.0, 1.0).unwrap();
-        let t2 = Torus::new(Point3D::new(0.0, 0.0, 1.5), Vector3D::Z, 4.0, 1.0).unwrap();
+        let t1 = Torus::new(Point::ORIGIN, Vector::Z, 4.0, 1.0).unwrap();
+        let t2 = Torus::new(Point::new(0.0, 0.0, 1.5), Vector::Z, 4.0, 1.0).unwrap();
         match t1.intersect_exact(&t2, tol) {
             TorusTorusIntersection::TwoCircles(c1, c2) => {
                 for p in c1.eval_points(&[0.0, 2.0]) {
@@ -1311,7 +1311,7 @@ mod tests {
             TorusTorusIntersection::Coincident
         );
         // Crossed axes: up to degree 16, no closed form.
-        let crossed = Torus::new(Point3D::ORIGIN, Vector3D::X, 4.0, 1.0).unwrap();
+        let crossed = Torus::new(Point::ORIGIN, Vector::X, 4.0, 1.0).unwrap();
         assert_eq!(
             t1.intersect_exact(&crossed, tol),
             TorusTorusIntersection::NotAnalytic
@@ -1322,39 +1322,38 @@ mod tests {
 
     #[test]
     fn test_torus_transformed_translation_spot_check() {
-        let torus = Torus::new(Point3D::ORIGIN, Vector3D::Z, 5.0, 1.5).unwrap();
-        let t = Transform::translation(Vector3D::new(0.0, 0.0, 2.0));
+        let torus = Torus::new(Point::ORIGIN, Vector::Z, 5.0, 1.5).unwrap();
+        let t = Transform::translation(Vector::new(0.0, 0.0, 2.0));
         let moved = torus.transformed(t).unwrap();
-        assert_eq!(moved.center(), Point3D::new(0.0, 0.0, 2.0));
+        assert_eq!(moved.center(), Point::new(0.0, 0.0, 2.0));
         assert_eq!(moved.major_radius(), 5.0);
         assert_eq!(moved.minor_radius(), 1.5);
         // Hand-computed evaluation at (0, 0), shifted.
-        assert_eq!(moved.eval_point(0.0, 0.0), Point3D::new(6.5, 0.0, 2.0));
+        assert_eq!(moved.eval_point(0.0, 0.0), Point::new(6.5, 0.0, 2.0));
     }
 
     #[test]
     fn test_torus_transformed_round_trip_and_mirror() {
-        use crate::Axis3D;
+        use crate::Axis;
         use std::f64::consts::PI;
-        let torus = Torus::new(Point3D::new(2.0, 0.0, 0.0), Vector3D::Z, 5.0, 1.5).unwrap();
-        let axis = Axis3D::new(Point3D::ORIGIN, Vector3D::Z).unwrap();
-        let t = Transform::rotation(axis, PI / 2.0).then(Transform::scaling(Point3D::ORIGIN, 2.0));
+        let torus = Torus::new(Point::new(2.0, 0.0, 0.0), Vector::Z, 5.0, 1.5).unwrap();
+        let axis = Axis::new(Point::ORIGIN, Vector::Z).unwrap();
+        let t = Transform::rotation(axis, PI / 2.0).then(Transform::scaling(Point::ORIGIN, 2.0));
         let moved = torus.transformed(t).unwrap();
         assert_eq!(moved.major_radius(), 10.0);
         assert_eq!(moved.minor_radius(), 3.0);
-        assert!(moved.center().distance(Point3D::new(0.0, 4.0, 0.0)) < 1e-9);
+        assert!(moved.center().distance(Point::new(0.0, 4.0, 0.0)) < 1e-9);
         let tol = Tolerance::DEFAULT;
         for (u, v) in [(0.0, 0.0), (1.0, 0.3), (4.0, -0.5)] {
             assert!(moved.contains(t.apply_point(torus.eval_point(u, v)), tol));
         }
-        let inv =
-            Transform::scaling(Point3D::ORIGIN, 0.5).then(Transform::rotation(axis, -PI / 2.0));
+        let inv = Transform::scaling(Point::ORIGIN, 0.5).then(Transform::rotation(axis, -PI / 2.0));
         let back = moved.transformed(inv).unwrap();
         assert!((back.major_radius() - torus.major_radius()).abs() < 1e-9);
         assert!((back.minor_radius() - torus.minor_radius()).abs() < 1e-9);
         assert!(back.center().distance(torus.center()) < 1e-9);
         // Mirror across the xy-plane preserves the point set.
-        let m = Transform::mirror_plane(Frame3D::WORLD);
+        let m = Transform::mirror_plane(Frame::WORLD);
         let mirrored = torus.transformed(m).unwrap();
         for (u, v) in [(0.0, 0.0), (1.0, 0.3)] {
             assert!(mirrored.contains(m.apply_point(torus.eval_point(u, v)), tol));
@@ -1364,7 +1363,7 @@ mod tests {
 
     #[test]
     fn test_reversed_tori_share_point_set() {
-        let torus = Torus::new(Point3D::ORIGIN, Vector3D::Z, 5.0, 1.5).unwrap();
+        let torus = Torus::new(Point::ORIGIN, Vector::Z, 5.0, 1.5).unwrap();
         for (u, v) in [(0.0, 0.0), (1.0, 0.3), (5.0, 2.0)] {
             let ru = torus.reversed_u();
             assert!(!ru.frame().is_direct());

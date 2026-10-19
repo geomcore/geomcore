@@ -8,7 +8,7 @@
 //! so `contains(point, tol)` agrees with
 //! `project_point(point, tol).distance == 0.0`.
 
-use crate::{Point2D, Point3D};
+use crate::{Point, Point2D};
 
 /// Closest point of a query point on a curve: the parameter, the point and
 /// the distance.
@@ -16,11 +16,11 @@ use crate::{Point2D, Point3D};
 /// # Examples
 ///
 /// ```
-/// use geomcore::{Line3D, Point3D, Tolerance, Vector3D};
+/// use geomcore::{Line, Point, Tolerance, Vector};
 ///
-/// let line = Line3D::new(Point3D::ORIGIN, Vector3D::X).unwrap();
-/// let projection = line.project_point(Point3D::new(2.0, 1.0, 0.0), Tolerance::DEFAULT);
-/// assert_eq!(projection.point, Point3D::new(2.0, 0.0, 0.0));
+/// let line = Line::new(Point::ORIGIN, Vector::X).unwrap();
+/// let projection = line.project_point(Point::new(2.0, 1.0, 0.0), Tolerance::DEFAULT);
+/// assert_eq!(projection.point, Point::new(2.0, 0.0, 0.0));
 /// assert_eq!(projection.distance, 1.0);
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -30,7 +30,7 @@ pub struct CurveProjection {
     /// The closest point: the curve evaluated at `parameter`. For a query
     /// point within tolerance of the curve this is still the point on the
     /// curve, not the query point.
-    pub point: Point3D,
+    pub point: Point,
     /// Distance from the query point to the curve (`0.0` when the query
     /// point is within tolerance of the curve).
     pub distance: f64,
@@ -41,7 +41,7 @@ impl CurveProjection {
     /// parameter, point and distance are all NaN.
     pub(crate) const UNDEFINED: CurveProjection = CurveProjection {
         parameter: f64::NAN,
-        point: Point3D::new(f64::NAN, f64::NAN, f64::NAN),
+        point: Point::new(f64::NAN, f64::NAN, f64::NAN),
         distance: f64::NAN,
     };
 }
@@ -86,11 +86,11 @@ impl CurveProjection2D {
 /// # Examples
 ///
 /// ```
-/// use geomcore::{Plane, Point3D, Tolerance, Vector3D};
+/// use geomcore::{Plane, Point, Tolerance, Vector};
 ///
-/// let plane = Plane::new(Point3D::ORIGIN, Vector3D::Z).unwrap();
-/// let projection = plane.project_point(Point3D::new(1.0, 2.0, 3.0), Tolerance::DEFAULT);
-/// assert_eq!(projection.point, Point3D::new(1.0, 2.0, 0.0));
+/// let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
+/// let projection = plane.project_point(Point::new(1.0, 2.0, 3.0), Tolerance::DEFAULT);
+/// assert_eq!(projection.point, Point::new(1.0, 2.0, 0.0));
 /// assert_eq!(projection.distance, 3.0);
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -102,7 +102,7 @@ pub struct SurfaceProjection {
     /// The closest point: the surface evaluated at `(u, v)`. For a query
     /// point within tolerance of the surface this is still the point on the
     /// surface, not the query point.
-    pub point: Point3D,
+    pub point: Point,
     /// Distance from the query point to the surface (`0.0` when the query
     /// point is within tolerance of the surface).
     pub distance: f64,

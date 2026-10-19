@@ -7,14 +7,14 @@
 
 use crate::curve_math::bspline as bspline_math;
 use crate::curves::{
-    BSplineCurve3D, Curve2D, Curve3D, ElementaryCurve, Line2D, Line3D, LineConstructionError,
-    ParametricCurve2D, ParametricCurve3D, PointExtrema2D, PointExtrema3D,
+    BSplineCurve, Curve, Curve2D, ElementaryCurve, Line, Line2D, LineConstructionError,
+    ParametricCurve, ParametricCurve2D, PointExtrema, PointExtrema2D,
 };
 use crate::projection::{CurveProjection, CurveProjection2D};
-use crate::{Continuity, Point2D, Point3D, Tolerance, Vector2D, Vector3D};
+use crate::{Continuity, Point, Point2D, Tolerance, Vector, Vector2D};
 use std::fmt;
 
-/// Error returned when a [`TrimmedCurve3D`] or [`TrimmedCurve2D`] cannot be
+/// Error returned when a [`TrimmedCurve`] or [`TrimmedCurve2D`] cannot be
 /// constructed from the given range.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TrimmedCurveConstructionError {
@@ -142,44 +142,44 @@ fn restrict<P: RestrictableProjection>(
 /// B-spline.
 ///
 /// The parametrisation is the basis's own, so `eval_point(u)` is the basis
-/// point at `u` and [`bounds`](ParametricCurve3D::bounds) is
+/// point at `u` and [`bounds`](ParametricCurve::bounds) is
 /// `(first, last)`. A trimmed curve is never periodic, even when it spans
 /// a whole period of its basis. Evaluation outside the range is not
 /// checked and returns the basis point.
 ///
-/// The basis type defaults to [`Curve3D`], so `TrimmedCurve3D` alone holds
+/// The basis type defaults to [`Curve`], so `TrimmedCurve` alone holds
 /// a piece of any curve; a concrete basis such as
-/// `TrimmedCurve3D<Line3D>` keeps static dispatch.
+/// `TrimmedCurve<Line>` keeps static dispatch.
 ///
 /// # Examples
 ///
 /// ```
-/// use geomcore::curves::{ParametricCurve3D, TrimmedCurve3D};
-/// use geomcore::{Circle3D, Point3D, Tolerance, Vector3D};
+/// use geomcore::curves::{ParametricCurve, TrimmedCurve};
+/// use geomcore::{Circle, Point, Tolerance, Vector};
 /// use std::f64::consts::PI;
 ///
 /// // The upper half of the unit circle.
-/// let circle = Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 1.0).unwrap();
-/// let arc = TrimmedCurve3D::new(circle, 0.0, PI).unwrap();
+/// let circle = Circle::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
+/// let arc = TrimmedCurve::new(circle, 0.0, PI).unwrap();
 /// assert_eq!(arc.bounds(), (0.0, PI));
 /// assert!(!arc.is_periodic());
 ///
 /// // A point below the arc projects onto its nearer end.
-/// let proj = arc.project_point(Point3D::new(0.5, -2.0, 0.0), Tolerance::DEFAULT);
+/// let proj = arc.project_point(Point::new(0.5, -2.0, 0.0), Tolerance::DEFAULT);
 /// assert_eq!(proj.parameter, 0.0);
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct TrimmedCurve3D<C = Curve3D> {
+pub struct TrimmedCurve<C = Curve> {
     basis: C,
     first: f64,
     last: f64,
 }
 
-impl<C: ParametricCurve3D> TrimmedCurve3D<C> {
+impl<C: ParametricCurve> TrimmedCurve<C> {
     /// Restricts `basis` to the parameter range `[first, last]`.
     ///
     /// The ends must be finite with `first < last`. On a non-periodic basis
-    /// the range must lie within its [`bounds`](ParametricCurve3D::bounds)
+    /// the range must lie within its [`bounds`](ParametricCurve::bounds)
     /// ([`TrimmedCurveConstructionError::OutsideBasis`] otherwise). On a
     /// periodic basis any start is accepted, so an arc may cross the seam,
     /// but the range spans at most one period
@@ -188,20 +188,20 @@ impl<C: ParametricCurve3D> TrimmedCurve3D<C> {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::curves::{TrimmedCurve3D, TrimmedCurveConstructionError};
-    /// use geomcore::{Circle3D, Point3D, Vector3D};
+    /// use geomcore::curves::{TrimmedCurve, TrimmedCurveConstructionError};
+    /// use geomcore::{Circle, Point, Vector};
     ///
-    /// let circle = Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 1.0).unwrap();
+    /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
     /// // An arc across the seam at angle 0.
-    /// assert!(TrimmedCurve3D::new(circle, -1.0, 1.0).is_ok());
+    /// assert!(TrimmedCurve::new(circle, -1.0, 1.0).is_ok());
     /// assert_eq!(
-    ///     TrimmedCurve3D::new(circle, 0.0, 7.0).err(),
+    ///     TrimmedCurve::new(circle, 0.0, 7.0).err(),
     ///     Some(TrimmedCurveConstructionError::ExceedsPeriod)
     /// );
     /// ```
     pub fn new(basis: C, first: f64, last: f64) -> Result<Self, TrimmedCurveConstructionError> {
         check_range(first, last, basis.bounds(), basis.period())?;
-        Ok(TrimmedCurve3D { basis, first, last })
+        Ok(TrimmedCurve { basis, first, last })
     }
 
     /// Returns the basis curve.
@@ -225,12 +225,12 @@ impl<C: ParametricCurve3D> TrimmedCurve3D<C> {
     }
 
     /// Returns the point at the start of the range.
-    pub fn start_point(&self) -> Point3D {
+    pub fn start_point(&self) -> Point {
         self.basis.eval_point(self.first)
     }
 
     /// Returns the point at the end of the range.
-    pub fn end_point(&self) -> Point3D {
+    pub fn end_point(&self) -> Point {
         self.basis.eval_point(self.last)
     }
 
@@ -241,13 +241,13 @@ impl<C: ParametricCurve3D> TrimmedCurve3D<C> {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::curves::TrimmedCurve3D;
-    /// use geomcore::{Circle3D, Point3D, Tolerance, Vector3D};
+    /// use geomcore::curves::TrimmedCurve;
+    /// use geomcore::{Circle, Point, Tolerance, Vector};
     ///
-    /// let circle = Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 1.0).unwrap();
-    /// let whole = TrimmedCurve3D::new(circle, 0.0, std::f64::consts::TAU).unwrap();
+    /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
+    /// let whole = TrimmedCurve::new(circle, 0.0, std::f64::consts::TAU).unwrap();
     /// assert!(whole.is_closed(Tolerance::DEFAULT));
-    /// let arc = TrimmedCurve3D::new(circle, 0.0, 1.0).unwrap();
+    /// let arc = TrimmedCurve::new(circle, 0.0, 1.0).unwrap();
     /// assert!(!arc.is_closed(Tolerance::DEFAULT));
     /// ```
     pub fn is_closed(&self, tol: Tolerance) -> bool {
@@ -267,21 +267,21 @@ impl<C: ParametricCurve3D> TrimmedCurve3D<C> {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::curves::TrimmedCurve3D;
-    /// use geomcore::{BSplineCurve3D, Continuity, Point3D, Tolerance};
+    /// use geomcore::curves::TrimmedCurve;
+    /// use geomcore::{BSplineCurve, Continuity, Point, Tolerance};
     ///
     /// // Degree 2 with a double knot at 0.5: a kink (C0) there.
     /// let poles = vec![
-    ///     Point3D::ORIGIN,
-    ///     Point3D::new(1.0, 0.0, 0.0),
-    ///     Point3D::new(2.0, 1.0, 0.0),
-    ///     Point3D::new(3.0, 1.0, 0.0),
-    ///     Point3D::new(4.0, 0.0, 0.0),
+    ///     Point::ORIGIN,
+    ///     Point::new(1.0, 0.0, 0.0),
+    ///     Point::new(2.0, 1.0, 0.0),
+    ///     Point::new(3.0, 1.0, 0.0),
+    ///     Point::new(4.0, 0.0, 0.0),
     /// ];
-    /// let curve = BSplineCurve3D::new(2, poles, vec![0.0, 0.5, 1.0], vec![3, 2, 3], false).unwrap();
-    /// let piece = TrimmedCurve3D::new(&curve, 0.25, 0.75).unwrap();
+    /// let curve = BSplineCurve::new(2, poles, vec![0.0, 0.5, 1.0], vec![3, 2, 3], false).unwrap();
+    /// let piece = TrimmedCurve::new(&curve, 0.25, 0.75).unwrap();
     /// assert_eq!(piece.continuity(0.5, Tolerance::DEFAULT), Continuity::Order(0));
-    /// let half = TrimmedCurve3D::new(&curve, 0.0, 0.5).unwrap();
+    /// let half = TrimmedCurve::new(&curve, 0.0, 0.5).unwrap();
     /// assert_eq!(half.continuity(0.5, Tolerance::DEFAULT), Continuity::Smooth);
     /// ```
     pub fn continuity(&self, u: f64, tol: Tolerance) -> Continuity {
@@ -300,20 +300,20 @@ impl<C: ParametricCurve3D> TrimmedCurve3D<C> {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::curves::TrimmedCurve3D;
-    /// use geomcore::{BSplineCurve3D, Continuity, Point3D};
+    /// use geomcore::curves::TrimmedCurve;
+    /// use geomcore::{BSplineCurve, Continuity, Point};
     ///
     /// // Degree 2 with a double knot at 0.5: a kink (C0) there.
     /// let poles = vec![
-    ///     Point3D::ORIGIN,
-    ///     Point3D::new(1.0, 0.0, 0.0),
-    ///     Point3D::new(2.0, 1.0, 0.0),
-    ///     Point3D::new(3.0, 1.0, 0.0),
-    ///     Point3D::new(4.0, 0.0, 0.0),
+    ///     Point::ORIGIN,
+    ///     Point::new(1.0, 0.0, 0.0),
+    ///     Point::new(2.0, 1.0, 0.0),
+    ///     Point::new(3.0, 1.0, 0.0),
+    ///     Point::new(4.0, 0.0, 0.0),
     /// ];
-    /// let curve = BSplineCurve3D::new(2, poles, vec![0.0, 0.5, 1.0], vec![3, 2, 3], false).unwrap();
-    /// assert_eq!(TrimmedCurve3D::new(&curve, 0.25, 0.75).unwrap().min_continuity(), Continuity::Order(0));
-    /// assert_eq!(TrimmedCurve3D::new(&curve, 0.0, 0.5).unwrap().min_continuity(), Continuity::Smooth);
+    /// let curve = BSplineCurve::new(2, poles, vec![0.0, 0.5, 1.0], vec![3, 2, 3], false).unwrap();
+    /// assert_eq!(TrimmedCurve::new(&curve, 0.25, 0.75).unwrap().min_continuity(), Continuity::Order(0));
+    /// assert_eq!(TrimmedCurve::new(&curve, 0.0, 0.5).unwrap().min_continuity(), Continuity::Smooth);
     /// ```
     pub fn min_continuity(&self) -> Continuity {
         match self.basis.as_bspline() {
@@ -329,39 +329,39 @@ impl<C: ParametricCurve3D> TrimmedCurve3D<C> {
     }
 
     /// Evaluates the basis point at parameter `u`.
-    pub fn eval_point(&self, u: f64) -> Point3D {
+    pub fn eval_point(&self, u: f64) -> Point {
         self.basis.eval_point(u)
     }
 
     /// Evaluates the basis points at each parameter in `us`.
-    pub fn eval_points(&self, us: &[f64]) -> Vec<Point3D> {
+    pub fn eval_points(&self, us: &[f64]) -> Vec<Point> {
         self.basis.eval_points(us)
     }
 
     /// Evaluates the basis derivative of the given `order` at parameter `u`.
-    pub fn eval_derivative(&self, u: f64, order: u32) -> Vector3D {
+    pub fn eval_derivative(&self, u: f64, order: u32) -> Vector {
         self.basis.eval_derivative(u, order)
     }
 }
 
-impl<C: ParametricCurve3D + Into<Curve3D>> TrimmedCurve3D<C> {
-    /// Moves the basis into a [`Curve3D`], keeping the range, so pieces of
+impl<C: ParametricCurve + Into<Curve>> TrimmedCurve<C> {
+    /// Moves the basis into a [`Curve`], keeping the range, so pieces of
     /// different curve types fit in one collection.
     ///
     /// # Examples
     ///
     /// ```
-    /// use geomcore::curves::TrimmedCurve3D;
-    /// use geomcore::{Circle3D, Point3D, Vector3D};
+    /// use geomcore::curves::TrimmedCurve;
+    /// use geomcore::{Circle, Point, Vector};
     ///
-    /// let segment = TrimmedCurve3D::segment(Point3D::ORIGIN, Point3D::new(1.0, 0.0, 0.0)).unwrap();
-    /// let circle = Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 1.0).unwrap();
-    /// let arc = TrimmedCurve3D::new(circle, 0.0, 1.0).unwrap();
-    /// let pieces: Vec<TrimmedCurve3D> = vec![segment.into_curve3d(), arc.into_curve3d()];
+    /// let segment = TrimmedCurve::segment(Point::ORIGIN, Point::new(1.0, 0.0, 0.0)).unwrap();
+    /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
+    /// let arc = TrimmedCurve::new(circle, 0.0, 1.0).unwrap();
+    /// let pieces: Vec<TrimmedCurve> = vec![segment.into_curve3d(), arc.into_curve3d()];
     /// assert_eq!(pieces.len(), 2);
     /// ```
-    pub fn into_curve3d(self) -> TrimmedCurve3D<Curve3D> {
-        TrimmedCurve3D {
+    pub fn into_curve3d(self) -> TrimmedCurve<Curve> {
+        TrimmedCurve {
             basis: self.basis.into(),
             first: self.first,
             last: self.last,
@@ -369,11 +369,11 @@ impl<C: ParametricCurve3D + Into<Curve3D>> TrimmedCurve3D<C> {
     }
 }
 
-impl<C: PointExtrema3D> TrimmedCurve3D<C> {
+impl<C: PointExtrema> TrimmedCurve<C> {
     /// Projects `point` onto the trimmed curve: the closest of the basis
     /// extrema inside the range and the two ends. Distances within
     /// `tol.confusion` snap to `0.0`, matching
-    /// [`TrimmedCurve3D::contains`].
+    /// [`TrimmedCurve::contains`].
     ///
     /// A query point with a non-finite coordinate projects to a NaN
     /// parameter and distance.
@@ -381,23 +381,23 @@ impl<C: PointExtrema3D> TrimmedCurve3D<C> {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::curves::TrimmedCurve3D;
-    /// use geomcore::{Point3D, Tolerance};
+    /// use geomcore::curves::TrimmedCurve;
+    /// use geomcore::{Point, Tolerance};
     ///
-    /// let segment = TrimmedCurve3D::segment(Point3D::ORIGIN, Point3D::new(2.0, 0.0, 0.0)).unwrap();
-    /// let proj = segment.project_point(Point3D::new(5.0, 1.0, 0.0), Tolerance::DEFAULT);
+    /// let segment = TrimmedCurve::segment(Point::ORIGIN, Point::new(2.0, 0.0, 0.0)).unwrap();
+    /// let proj = segment.project_point(Point::new(5.0, 1.0, 0.0), Tolerance::DEFAULT);
     /// assert_eq!(proj.parameter, 2.0);
     /// assert_eq!(proj.distance, 10.0_f64.sqrt());
     /// ```
-    pub fn project_point(&self, point: Point3D, tol: Tolerance) -> CurveProjection {
-        PointExtrema3D::extrema(self, point, tol)
+    pub fn project_point(&self, point: Point, tol: Tolerance) -> CurveProjection {
+        PointExtrema::extrema(self, point, tol)
             .into_iter()
             .next()
             .unwrap_or(CurveProjection::UNDEFINED)
     }
 
     /// Projects each point in `points` onto the trimmed curve.
-    pub fn project_points(&self, points: &[Point3D], tol: Tolerance) -> Vec<CurveProjection> {
+    pub fn project_points(&self, points: &[Point], tol: Tolerance) -> Vec<CurveProjection> {
         points.iter().map(|&p| self.project_point(p, tol)).collect()
     }
 
@@ -407,19 +407,19 @@ impl<C: PointExtrema3D> TrimmedCurve3D<C> {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::curves::TrimmedCurve3D;
-    /// use geomcore::{Point3D, Tolerance};
+    /// use geomcore::curves::TrimmedCurve;
+    /// use geomcore::{Point, Tolerance};
     ///
-    /// let segment = TrimmedCurve3D::segment(Point3D::ORIGIN, Point3D::new(2.0, 0.0, 0.0)).unwrap();
-    /// assert!(segment.contains(Point3D::new(1.0, 0.0, 0.0), Tolerance::DEFAULT));
-    /// assert!(!segment.contains(Point3D::new(3.0, 0.0, 0.0), Tolerance::DEFAULT));
+    /// let segment = TrimmedCurve::segment(Point::ORIGIN, Point::new(2.0, 0.0, 0.0)).unwrap();
+    /// assert!(segment.contains(Point::new(1.0, 0.0, 0.0), Tolerance::DEFAULT));
+    /// assert!(!segment.contains(Point::new(3.0, 0.0, 0.0), Tolerance::DEFAULT));
     /// ```
-    pub fn contains(&self, point: Point3D, tol: Tolerance) -> bool {
+    pub fn contains(&self, point: Point, tol: Tolerance) -> bool {
         self.project_point(point, tol).distance <= tol.confusion
     }
 }
 
-impl TrimmedCurve3D<Line3D> {
+impl TrimmedCurve<Line> {
     /// The segment from `start` to `end`: the line through them, trimmed
     /// to `[0, |end - start|]`, so the parameter is the arc length from
     /// `start`.
@@ -431,20 +431,20 @@ impl TrimmedCurve3D<Line3D> {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::curves::TrimmedCurve3D;
-    /// use geomcore::Point3D;
+    /// use geomcore::curves::TrimmedCurve;
+    /// use geomcore::Point;
     ///
-    /// let end = Point3D::new(3.0, 4.0, 0.0);
-    /// let segment = TrimmedCurve3D::segment(Point3D::ORIGIN, end).unwrap();
+    /// let end = Point::new(3.0, 4.0, 0.0);
+    /// let segment = TrimmedCurve::segment(Point::ORIGIN, end).unwrap();
     /// assert_eq!(segment.last(), 5.0);
     /// assert_eq!(segment.end_point(), end);
     /// ```
-    pub fn segment(start: Point3D, end: Point3D) -> Result<Self, LineConstructionError> {
+    pub fn segment(start: Point, end: Point) -> Result<Self, LineConstructionError> {
         if !start.is_finite() || !end.is_finite() {
             return Err(LineConstructionError::NonFinite);
         }
-        let line = Line3D::from_two_points(start, end)?;
-        Ok(TrimmedCurve3D {
+        let line = Line::from_two_points(start, end)?;
+        Ok(TrimmedCurve {
             basis: line,
             first: 0.0,
             last: start.distance(end),
@@ -452,20 +452,20 @@ impl TrimmedCurve3D<Line3D> {
     }
 }
 
-impl<C: ParametricCurve3D> ParametricCurve3D for TrimmedCurve3D<C> {
-    fn eval_point(&self, u: f64) -> Point3D {
+impl<C: ParametricCurve> ParametricCurve for TrimmedCurve<C> {
+    fn eval_point(&self, u: f64) -> Point {
         self.basis.eval_point(u)
     }
 
-    fn eval_derivative(&self, u: f64, order: u32) -> Vector3D {
+    fn eval_derivative(&self, u: f64, order: u32) -> Vector {
         self.basis.eval_derivative(u, order)
     }
 
-    fn eval_d1(&self, u: f64) -> (Point3D, Vector3D) {
+    fn eval_d1(&self, u: f64) -> (Point, Vector) {
         self.basis.eval_d1(u)
     }
 
-    fn eval_d2(&self, u: f64) -> (Point3D, Vector3D, Vector3D) {
+    fn eval_d2(&self, u: f64) -> (Point, Vector, Vector) {
         self.basis.eval_d2(u)
     }
 
@@ -477,23 +477,23 @@ impl<C: ParametricCurve3D> ParametricCurve3D for TrimmedCurve3D<C> {
         None
     }
 
-    fn eval_points(&self, us: &[f64]) -> Vec<Point3D> {
+    fn eval_points(&self, us: &[f64]) -> Vec<Point> {
         self.basis.eval_points(us)
     }
 
     fn is_closed(&self, tol: Tolerance) -> bool {
-        TrimmedCurve3D::is_closed(self, tol)
+        TrimmedCurve::is_closed(self, tol)
     }
 
     fn continuity(&self, u: f64, tol: Tolerance) -> Continuity {
-        TrimmedCurve3D::continuity(self, u, tol)
+        TrimmedCurve::continuity(self, u, tol)
     }
 
     fn min_continuity(&self) -> Continuity {
-        TrimmedCurve3D::min_continuity(self)
+        TrimmedCurve::min_continuity(self)
     }
 
-    fn as_bspline(&self) -> Option<&BSplineCurve3D> {
+    fn as_bspline(&self) -> Option<&BSplineCurve> {
         self.basis.as_bspline()
     }
 
@@ -502,8 +502,8 @@ impl<C: ParametricCurve3D> ParametricCurve3D for TrimmedCurve3D<C> {
     }
 }
 
-impl<C: PointExtrema3D> PointExtrema3D for TrimmedCurve3D<C> {
-    fn extrema(&self, point: Point3D, tol: Tolerance) -> Vec<CurveProjection> {
+impl<C: PointExtrema> PointExtrema for TrimmedCurve<C> {
+    fn extrema(&self, point: Point, tol: Tolerance) -> Vec<CurveProjection> {
         if !point.is_finite() {
             return Vec::new();
         }
@@ -527,7 +527,7 @@ impl<C: PointExtrema3D> PointExtrema3D for TrimmedCurve3D<C> {
 
 /// A 2D curve restricted to the parameter range `[first, last]` of a basis
 /// curve: a line segment or a circular arc, typically a trimmed pcurve in
-/// a surface's parameter space. Mirrors [`TrimmedCurve3D`].
+/// a surface's parameter space. Mirrors [`TrimmedCurve`].
 ///
 /// # Examples
 ///
@@ -549,7 +549,7 @@ pub struct TrimmedCurve2D<C = Curve2D> {
 
 impl<C: ParametricCurve2D> TrimmedCurve2D<C> {
     /// Restricts `basis` to the parameter range `[first, last]`, under the
-    /// rules of [`TrimmedCurve3D::new`].
+    /// rules of [`TrimmedCurve::new`].
     ///
     /// # Examples
     ///
@@ -724,13 +724,13 @@ impl<C: PointExtrema2D> PointExtrema2D for TrimmedCurve2D<C> {
 mod tests {
     use super::*;
     use crate::intersect::{curve_curve_extrema, search_curve_curve, search_curve_surface};
-    use crate::{Circle2D, Circle3D, Ellipse3D, Sphere};
+    use crate::{Circle, Circle2D, Ellipse, Sphere};
     use std::f64::consts::{FRAC_PI_2, PI, TAU};
 
     const TOL: Tolerance = Tolerance::DEFAULT;
 
-    fn circle() -> Circle3D {
-        Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 1.0).unwrap()
+    fn circle() -> Circle {
+        Circle::new(Point::ORIGIN, Vector::Z, 1.0).unwrap()
     }
 
     fn close(a: f64, b: f64) -> bool {
@@ -743,48 +743,48 @@ mod tests {
     fn test_new_rejects_non_finite_ends() {
         for bad in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
             let nf = Some(TrimmedCurveConstructionError::NonFinite);
-            assert_eq!(TrimmedCurve3D::new(circle(), bad, 1.0).err(), nf);
-            assert_eq!(TrimmedCurve3D::new(circle(), 0.0, bad).err(), nf);
+            assert_eq!(TrimmedCurve::new(circle(), bad, 1.0).err(), nf);
+            assert_eq!(TrimmedCurve::new(circle(), 0.0, bad).err(), nf);
         }
     }
 
     #[test]
     fn test_new_rejects_empty_and_reversed_ranges() {
         let empty = Some(TrimmedCurveConstructionError::EmptyRange);
-        assert_eq!(TrimmedCurve3D::new(circle(), 1.0, 1.0).err(), empty);
-        assert_eq!(TrimmedCurve3D::new(circle(), 2.0, 1.0).err(), empty);
+        assert_eq!(TrimmedCurve::new(circle(), 1.0, 1.0).err(), empty);
+        assert_eq!(TrimmedCurve::new(circle(), 2.0, 1.0).err(), empty);
     }
 
     #[test]
     fn test_new_periodic_basis_accepts_any_start_up_to_one_period() {
-        assert!(TrimmedCurve3D::new(circle(), -1.0, 1.0).is_ok());
-        assert!(TrimmedCurve3D::new(circle(), 10.0, 10.0 + TAU).is_ok());
+        assert!(TrimmedCurve::new(circle(), -1.0, 1.0).is_ok());
+        assert!(TrimmedCurve::new(circle(), 10.0, 10.0 + TAU).is_ok());
         assert_eq!(
-            TrimmedCurve3D::new(circle(), 0.0, TAU + 1e-6).err(),
+            TrimmedCurve::new(circle(), 0.0, TAU + 1e-6).err(),
             Some(TrimmedCurveConstructionError::ExceedsPeriod)
         );
     }
 
     #[test]
     fn test_new_open_basis_stays_within_bounds() {
-        let poles = vec![Point3D::ORIGIN, Point3D::new(2.0, 0.0, 0.0)];
-        let b = BSplineCurve3D::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
-        assert!(TrimmedCurve3D::new(b.clone(), 0.0, 1.0).is_ok());
+        let poles = vec![Point::ORIGIN, Point::new(2.0, 0.0, 0.0)];
+        let b = BSplineCurve::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
+        assert!(TrimmedCurve::new(b.clone(), 0.0, 1.0).is_ok());
         assert_eq!(
-            TrimmedCurve3D::new(b, -0.1, 0.5).err(),
+            TrimmedCurve::new(b, -0.1, 0.5).err(),
             Some(TrimmedCurveConstructionError::OutsideBasis)
         );
     }
 
     #[test]
     fn test_segment_rejects_confused_and_non_finite_points() {
-        let p = Point3D::new(1.0, 2.0, 3.0);
+        let p = Point::new(1.0, 2.0, 3.0);
         assert_eq!(
-            TrimmedCurve3D::segment(p, p).err(),
+            TrimmedCurve::segment(p, p).err(),
             Some(LineConstructionError::ConfusedPoints)
         );
         assert_eq!(
-            TrimmedCurve3D::segment(p, Point3D::new(f64::NAN, 0.0, 0.0)).err(),
+            TrimmedCurve::segment(p, Point::new(f64::NAN, 0.0, 0.0)).err(),
             Some(LineConstructionError::NonFinite)
         );
         assert_eq!(
@@ -797,24 +797,24 @@ mod tests {
 
     #[test]
     fn test_segment_is_parametrised_by_arc_length() {
-        let (a, b) = (Point3D::new(1.0, 1.0, 1.0), Point3D::new(1.0, 4.0, 5.0));
-        let s = TrimmedCurve3D::segment(a, b).unwrap();
+        let (a, b) = (Point::new(1.0, 1.0, 1.0), Point::new(1.0, 4.0, 5.0));
+        let s = TrimmedCurve::segment(a, b).unwrap();
         assert_eq!(s.bounds(), (0.0, 5.0));
         assert_eq!(s.start_point(), a);
         assert!(s.end_point().distance(b) < 1e-12);
-        assert!(s.eval_point(2.5).distance(Point3D::new(1.0, 2.5, 3.0)) < 1e-12);
+        assert!(s.eval_point(2.5).distance(Point::new(1.0, 2.5, 3.0)) < 1e-12);
     }
 
     #[test]
     fn test_trimmed_is_never_periodic() {
-        let full = TrimmedCurve3D::new(circle(), 0.0, TAU).unwrap();
+        let full = TrimmedCurve::new(circle(), 0.0, TAU).unwrap();
         assert_eq!(full.period(), None);
         assert_eq!(full.bounds(), (0.0, TAU));
     }
 
     #[test]
     fn test_evaluation_delegates_to_basis() {
-        let arc = TrimmedCurve3D::new(circle(), 0.5, 2.0).unwrap();
+        let arc = TrimmedCurve::new(circle(), 0.5, 2.0).unwrap();
         assert_eq!(arc.eval_point(1.0), circle().eval_point(1.0));
         assert_eq!(
             arc.eval_derivative(1.0, 2),
@@ -830,25 +830,25 @@ mod tests {
 
     #[test]
     fn test_segment_projection_clamps_to_ends() {
-        let s = TrimmedCurve3D::segment(Point3D::ORIGIN, Point3D::new(2.0, 0.0, 0.0)).unwrap();
-        let inside = s.project_point(Point3D::new(1.5, 1.0, 0.0), TOL);
+        let s = TrimmedCurve::segment(Point::ORIGIN, Point::new(2.0, 0.0, 0.0)).unwrap();
+        let inside = s.project_point(Point::new(1.5, 1.0, 0.0), TOL);
         assert_eq!((inside.parameter, inside.distance), (1.5, 1.0));
-        let before = s.project_point(Point3D::new(-3.0, 4.0, 0.0), TOL);
+        let before = s.project_point(Point::new(-3.0, 4.0, 0.0), TOL);
         assert_eq!((before.parameter, before.distance), (0.0, 5.0));
-        let after = s.project_point(Point3D::new(5.0, 0.0, 4.0), TOL);
+        let after = s.project_point(Point::new(5.0, 0.0, 4.0), TOL);
         assert_eq!((after.parameter, after.distance), (2.0, 5.0));
     }
 
     #[test]
     fn test_arc_across_seam_projects_inside_and_onto_ends() {
         // Angles [-PI/2, PI/2]: the right half of the unit circle.
-        let arc = TrimmedCurve3D::new(circle(), 1.5 * PI, 2.5 * PI).unwrap();
+        let arc = TrimmedCurve::new(circle(), 1.5 * PI, 2.5 * PI).unwrap();
         // Basis parameter 0 is shifted by a period into the range.
-        let right = arc.project_point(Point3D::new(3.0, 0.0, 0.0), TOL);
+        let right = arc.project_point(Point::new(3.0, 0.0, 0.0), TOL);
         assert!(close(right.parameter, TAU));
         assert!(close(right.distance, 2.0));
         // Left of the arc: the nearer end.
-        let left = arc.project_point(Point3D::new(-3.0, 0.1, 0.0), TOL);
+        let left = arc.project_point(Point::new(-3.0, 0.1, 0.0), TOL);
         assert!(close(left.parameter, 2.5 * PI));
     }
 
@@ -857,40 +857,40 @@ mod tests {
         // The global closest point of (0, 0.5) on this ellipse is at PI/2,
         // outside the lower half kept here; the lower half's closest point
         // is the interior local minimum at 3PI/2, nearer than either end.
-        let e = Ellipse3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, 3.0, 1.5).unwrap();
-        let lower = TrimmedCurve3D::new(e, PI, TAU).unwrap();
-        let proj = lower.project_point(Point3D::new(0.0, 0.5, 0.0), TOL);
+        let e = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 3.0, 1.5).unwrap();
+        let lower = TrimmedCurve::new(e, PI, TAU).unwrap();
+        let proj = lower.project_point(Point::new(0.0, 0.5, 0.0), TOL);
         assert!(close(proj.parameter, 1.5 * PI));
         assert!(close(proj.distance, 2.0));
     }
 
     #[test]
     fn test_contains_respects_the_range() {
-        let arc = TrimmedCurve3D::new(circle(), 0.0, FRAC_PI_2).unwrap();
-        assert!(arc.contains(Point3D::new(0.0, 1.0, 0.0), TOL));
-        assert!(!arc.contains(Point3D::new(0.0, -1.0, 0.0), TOL));
+        let arc = TrimmedCurve::new(circle(), 0.0, FRAC_PI_2).unwrap();
+        assert!(arc.contains(Point::new(0.0, 1.0, 0.0), TOL));
+        assert!(!arc.contains(Point::new(0.0, -1.0, 0.0), TOL));
     }
 
     #[test]
     fn test_non_finite_query_is_undefined() {
-        let s = TrimmedCurve3D::segment(Point3D::ORIGIN, Point3D::new(1.0, 0.0, 0.0)).unwrap();
-        let proj = s.project_point(Point3D::new(f64::NAN, 0.0, 0.0), TOL);
+        let s = TrimmedCurve::segment(Point::ORIGIN, Point::new(1.0, 0.0, 0.0)).unwrap();
+        let proj = s.project_point(Point::new(f64::NAN, 0.0, 0.0), TOL);
         assert!(proj.parameter.is_nan() && proj.distance.is_nan());
     }
 
     #[test]
     fn test_extrema_keep_ends_and_sort_by_distance() {
-        let s = TrimmedCurve3D::segment(Point3D::ORIGIN, Point3D::new(4.0, 0.0, 0.0)).unwrap();
-        let ext = PointExtrema3D::extrema(&s, Point3D::new(1.0, 1.0, 0.0), TOL);
+        let s = TrimmedCurve::segment(Point::ORIGIN, Point::new(4.0, 0.0, 0.0)).unwrap();
+        let ext = PointExtrema::extrema(&s, Point::new(1.0, 1.0, 0.0), TOL);
         let params: Vec<f64> = ext.iter().map(|e| e.parameter).collect();
         assert_eq!(params, vec![1.0, 0.0, 4.0]);
     }
 
     #[test]
     fn test_curve3d_basis_projects_like_the_concrete_basis() {
-        let arc = TrimmedCurve3D::new(circle(), 1.0, 2.0).unwrap();
+        let arc = TrimmedCurve::new(circle(), 1.0, 2.0).unwrap();
         let erased = arc.into_curve3d();
-        let q = Point3D::new(-2.0, -0.5, 1.0);
+        let q = Point::new(-2.0, -0.5, 1.0);
         assert_eq!(arc.project_point(q, TOL), erased.project_point(q, TOL));
     }
 
@@ -912,11 +912,11 @@ mod tests {
 
     #[test]
     fn test_intersect_curve_curve_ignores_hits_outside_the_ranges() {
-        let s = TrimmedCurve3D::segment(Point3D::new(-2.0, 0.5, 0.0), Point3D::new(2.0, 0.5, 0.0))
-            .unwrap();
+        let s =
+            TrimmedCurve::segment(Point::new(-2.0, 0.5, 0.0), Point::new(2.0, 0.5, 0.0)).unwrap();
         let full = search_curve_curve(&s, &circle(), TOL);
         assert_eq!(full.len(), 2);
-        let upper_right = TrimmedCurve3D::new(circle(), 0.0, FRAC_PI_2).unwrap();
+        let upper_right = TrimmedCurve::new(circle(), 0.0, FRAC_PI_2).unwrap();
         let hits = search_curve_curve(&s, &upper_right, TOL);
         assert_eq!(hits.len(), 1);
         assert!(hits[0].point.x > 0.0);
@@ -924,12 +924,11 @@ mod tests {
 
     #[test]
     fn test_intersect_curve_surface_ignores_hits_outside_the_range() {
-        let sphere = Sphere::new(Point3D::ORIGIN, 1.0).unwrap();
+        let sphere = Sphere::new(Point::ORIGIN, 1.0).unwrap();
         let through =
-            TrimmedCurve3D::segment(Point3D::new(-2.0, 0.0, 0.0), Point3D::new(2.0, 0.0, 0.0))
-                .unwrap();
+            TrimmedCurve::segment(Point::new(-2.0, 0.0, 0.0), Point::new(2.0, 0.0, 0.0)).unwrap();
         assert_eq!(search_curve_surface(&through, &sphere, TOL).len(), 2);
-        let half = TrimmedCurve3D::segment(Point3D::ORIGIN, Point3D::new(2.0, 0.0, 0.0)).unwrap();
+        let half = TrimmedCurve::segment(Point::ORIGIN, Point::new(2.0, 0.0, 0.0)).unwrap();
         let hits = search_curve_surface(&half, &sphere, TOL);
         assert_eq!(hits.len(), 1);
         assert!(close(hits[0].curve_parameter.unwrap(), 1.0));
@@ -937,9 +936,9 @@ mod tests {
 
     #[test]
     fn test_curve_curve_extrema_between_segments() {
-        let a = TrimmedCurve3D::segment(Point3D::ORIGIN, Point3D::new(1.0, 0.0, 0.0)).unwrap();
-        let b = TrimmedCurve3D::segment(Point3D::new(3.0, -1.0, 1.0), Point3D::new(3.0, 1.0, 1.0))
-            .unwrap();
+        let a = TrimmedCurve::segment(Point::ORIGIN, Point::new(1.0, 0.0, 0.0)).unwrap();
+        let b =
+            TrimmedCurve::segment(Point::new(3.0, -1.0, 1.0), Point::new(3.0, 1.0, 1.0)).unwrap();
         let ext = curve_curve_extrema(&a, &b, TOL);
         assert!(close(ext[0].distance, 5.0_f64.sqrt()));
         assert!(close(ext[0].first_parameter, 1.0));
@@ -948,23 +947,23 @@ mod tests {
 
     // ---- borrowed basis ----
 
-    fn wavy() -> BSplineCurve3D {
+    fn wavy() -> BSplineCurve {
         let poles = vec![
-            Point3D::new(0.0, 0.0, 0.0),
-            Point3D::new(1.0, 2.0, 0.5),
-            Point3D::new(2.0, -1.0, 0.0),
-            Point3D::new(3.0, 1.5, -0.5),
-            Point3D::new(4.0, 0.0, 0.0),
+            Point::new(0.0, 0.0, 0.0),
+            Point::new(1.0, 2.0, 0.5),
+            Point::new(2.0, -1.0, 0.0),
+            Point::new(3.0, 1.5, -0.5),
+            Point::new(4.0, 0.0, 0.0),
         ];
-        BSplineCurve3D::new(3, poles, vec![0.0, 0.5, 1.0], vec![4, 1, 4], false).unwrap()
+        BSplineCurve::new(3, poles, vec![0.0, 0.5, 1.0], vec![4, 1, 4], false).unwrap()
     }
 
     #[test]
     fn test_borrowed_basis_matches_owned() {
         let curve = wavy();
-        let owned = TrimmedCurve3D::new(curve.clone(), 0.1, 0.8).unwrap();
-        let borrowed = TrimmedCurve3D::new(&curve, 0.1, 0.8).unwrap();
-        let point = Point3D::new(2.0, 1.0, 1.0);
+        let owned = TrimmedCurve::new(curve.clone(), 0.1, 0.8).unwrap();
+        let borrowed = TrimmedCurve::new(&curve, 0.1, 0.8).unwrap();
+        let point = Point::new(2.0, 1.0, 1.0);
         assert_eq!(borrowed.bounds(), owned.bounds());
         assert_eq!(borrowed.extrema(point, TOL), owned.extrema(point, TOL));
         assert_eq!(
@@ -973,8 +972,7 @@ mod tests {
         );
 
         let line =
-            TrimmedCurve3D::segment(Point3D::new(2.0, -3.0, 0.0), Point3D::new(2.0, 3.0, 0.0))
-                .unwrap();
+            TrimmedCurve::segment(Point::new(2.0, -3.0, 0.0), Point::new(2.0, 3.0, 0.0)).unwrap();
         assert_eq!(
             search_curve_curve(&borrowed, &line, TOL),
             search_curve_curve(&owned, &line, TOL)
@@ -983,7 +981,7 @@ mod tests {
             curve_curve_extrema(&line, &borrowed, TOL),
             curve_curve_extrema(&line, &owned, TOL)
         );
-        let sphere = Sphere::new(Point3D::new(2.0, 0.0, 0.0), 1.0).unwrap();
+        let sphere = Sphere::new(Point::new(2.0, 0.0, 0.0), 1.0).unwrap();
         assert_eq!(
             search_curve_surface(&borrowed, &sphere, TOL),
             search_curve_surface(&owned, &sphere, TOL)

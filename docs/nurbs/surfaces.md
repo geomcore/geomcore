@@ -7,27 +7,27 @@ bilinear patch over the unit square:
 === "Python"
 
     ```python
-    from geomcore import Point3D
+    from geomcore import Point
     from geomcore.surfaces import BSplineSurface
 
-    poles = [[Point3D(0, 0, 0), Point3D(1, 0, 0)],
-             [Point3D(0, 1, 0), Point3D(1, 1, 0)]]
+    poles = [[Point(0, 0, 0), Point(1, 0, 0)],
+             [Point(0, 1, 0), Point(1, 1, 0)]]
     surf = BSplineSurface(1, 1, poles, [0.0, 1.0], [2, 2], [0.0, 1.0], [2, 2], False, False)
-    assert surf.eval_point(0.5, 0.5) == Point3D(0.5, 0.5, 0)
+    assert surf.eval_point(0.5, 0.5) == Point(0.5, 0.5, 0)
     ```
 
 === "Rust"
 
     ```rust
-    use geomcore::{BSplineSurface, Point3D};
+    use geomcore::{BSplineSurface, Point};
 
     let poles = vec![
-        vec![Point3D::new(0.0, 0.0, 0.0), Point3D::new(1.0, 0.0, 0.0)],
-        vec![Point3D::new(0.0, 1.0, 0.0), Point3D::new(1.0, 1.0, 0.0)],
+        vec![Point::new(0.0, 0.0, 0.0), Point::new(1.0, 0.0, 0.0)],
+        vec![Point::new(0.0, 1.0, 0.0), Point::new(1.0, 1.0, 0.0)],
     ];
     let surf = BSplineSurface::new(1, 1, poles, vec![0.0, 1.0], vec![2, 2],
                                    vec![0.0, 1.0], vec![2, 2], false, false).unwrap();
-    assert_eq!(surf.eval_point(0.5, 0.5), Point3D::new(0.5, 0.5, 0.0));
+    assert_eq!(surf.eval_point(0.5, 0.5), Point::new(0.5, 0.5, 0.0));
     ```
 
 Derivatives come from `eval_derivative` (`du`, `dv` up to second

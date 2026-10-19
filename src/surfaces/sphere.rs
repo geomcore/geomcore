@@ -7,8 +7,8 @@ use crate::projection::{self, SurfaceProjection};
 use crate::surface_math::analytic;
 use crate::surfaces::iso::{SurfaceIsoError, check_iso_param, iso_circle};
 use crate::{
-    Circle3D, Cone, Cylinder, Frame3D, Point3D, SphereConeIntersection, SphereCylinderIntersection,
-    SphereSphereIntersection, Tolerance, Transform, Vector3D,
+    Circle, Cone, Cylinder, Frame, Point, SphereConeIntersection, SphereCylinderIntersection,
+    SphereSphereIntersection, Tolerance, Transform, Vector,
 };
 use std::fmt;
 
@@ -40,27 +40,27 @@ impl fmt::Display for SphereConstructionError {
 
 impl std::error::Error for SphereConstructionError {}
 
-/// A sphere in 3D: a [`Frame3D`] (origin plus local x/y/z directions) and a
+/// A sphere in 3D: a [`Frame`] (origin plus local x/y/z directions) and a
 /// radius, evaluated as `Rcv = r*cos(v)`,
 /// `origin + Rcv*cos(u)*x_dir + Rcv*sin(u)*y_dir + r*sin(v)*z_dir`.
 ///
 /// # Examples
 ///
 /// ```
-/// use geomcore::{Sphere, Point3D};
-/// let sphere = Sphere::new(Point3D::ORIGIN, 3.0).unwrap();
-/// assert_eq!(sphere.eval_point(0.0, 0.0), Point3D::new(3.0, 0.0, 0.0));
+/// use geomcore::{Sphere, Point};
+/// let sphere = Sphere::new(Point::ORIGIN, 3.0).unwrap();
+/// assert_eq!(sphere.eval_point(0.0, 0.0), Point::new(3.0, 0.0, 0.0));
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Sphere {
-    frame: Frame3D,
+    frame: Frame,
     radius: f64,
 }
 
 impl Sphere {
     /// Creates a sphere from a center and a radius, using a world-aligned
-    /// frame (x/y/z directions matching [`Vector3D::X`]/[`Vector3D::Y`]/
-    /// [`Vector3D::Z`]) at `center`.
+    /// frame (x/y/z directions matching [`Vector::X`]/[`Vector::Y`]/
+    /// [`Vector::Z`]) at `center`.
     ///
     /// # Errors
     ///
@@ -70,13 +70,13 @@ impl Sphere {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Point3D, Sphere};
-    /// let sphere = Sphere::new(Point3D::new(1.0, 2.0, 3.0), 2.0).unwrap();
-    /// assert_eq!(sphere.center(), Point3D::new(1.0, 2.0, 3.0));
+    /// use geomcore::{Point, Sphere};
+    /// let sphere = Sphere::new(Point::new(1.0, 2.0, 3.0), 2.0).unwrap();
+    /// assert_eq!(sphere.center(), Point::new(1.0, 2.0, 3.0));
     /// ```
-    pub fn new(center: Point3D, radius: f64) -> Result<Sphere, SphereConstructionError> {
+    pub fn new(center: Point, radius: f64) -> Result<Sphere, SphereConstructionError> {
         // Z and X are orthonormal, so only a non-finite center can fail.
-        let frame = Frame3D::new(center, Vector3D::Z, Vector3D::X)
+        let frame = Frame::new(center, Vector::Z, Vector::X)
             .map_err(|_| SphereConstructionError::NonFinite)?;
         Sphere::from_frame(frame, radius)
     }
@@ -91,11 +91,11 @@ impl Sphere {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Frame3D, Sphere};
-    /// let sphere = Sphere::from_frame(Frame3D::WORLD, 2.0).unwrap();
-    /// assert_eq!(sphere.frame(), Frame3D::WORLD);
+    /// use geomcore::{Frame, Sphere};
+    /// let sphere = Sphere::from_frame(Frame::WORLD, 2.0).unwrap();
+    /// assert_eq!(sphere.frame(), Frame::WORLD);
     /// ```
-    pub fn from_frame(frame: Frame3D, radius: f64) -> Result<Sphere, SphereConstructionError> {
+    pub fn from_frame(frame: Frame, radius: f64) -> Result<Sphere, SphereConstructionError> {
         if !(radius.is_finite()) {
             return Err(SphereConstructionError::NonFinite);
         }
@@ -110,11 +110,11 @@ impl Sphere {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Point3D, Sphere};
-    /// let sphere = Sphere::new(Point3D::new(1.0, 2.0, 3.0), 2.0).unwrap();
-    /// assert_eq!(sphere.center(), Point3D::new(1.0, 2.0, 3.0));
+    /// use geomcore::{Point, Sphere};
+    /// let sphere = Sphere::new(Point::new(1.0, 2.0, 3.0), 2.0).unwrap();
+    /// assert_eq!(sphere.center(), Point::new(1.0, 2.0, 3.0));
     /// ```
-    pub fn center(&self) -> Point3D {
+    pub fn center(&self) -> Point {
         self.frame.origin()
     }
 
@@ -123,11 +123,11 @@ impl Sphere {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Frame3D, Sphere};
-    /// let sphere = Sphere::from_frame(Frame3D::WORLD, 2.0).unwrap();
-    /// assert_eq!(sphere.frame(), Frame3D::WORLD);
+    /// use geomcore::{Frame, Sphere};
+    /// let sphere = Sphere::from_frame(Frame::WORLD, 2.0).unwrap();
+    /// assert_eq!(sphere.frame(), Frame::WORLD);
     /// ```
-    pub fn frame(&self) -> Frame3D {
+    pub fn frame(&self) -> Frame {
         self.frame
     }
 
@@ -139,8 +139,8 @@ impl Sphere {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Point3D, Sphere, Vector3D};
-    /// let sphere = Sphere::new(Point3D::ORIGIN, 2.0).unwrap();
+    /// use geomcore::{Point, Sphere, Vector};
+    /// let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
     /// let reversed = sphere.reversed_u();
     /// assert!(!reversed.frame().is_direct());
     /// assert_eq!(reversed.eval_point(1.0, 0.2), sphere.eval_point(-1.0, 0.2));
@@ -159,8 +159,8 @@ impl Sphere {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Point3D, Sphere, Vector3D};
-    /// let sphere = Sphere::new(Point3D::ORIGIN, 2.0).unwrap();
+    /// use geomcore::{Point, Sphere, Vector};
+    /// let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
     /// let reversed = sphere.reversed_v();
     /// assert_eq!(reversed.eval_point(1.0, 0.2), sphere.eval_point(1.0, -0.2));
     /// ```
@@ -177,8 +177,8 @@ impl Sphere {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Point3D, Sphere};
-    /// let sphere = Sphere::new(Point3D::ORIGIN, 2.0).unwrap();
+    /// use geomcore::{Point, Sphere};
+    /// let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
     /// let u = sphere.u_reversed_parameter(1.0);
     /// let there = sphere.reversed_u().eval_point(u, 0.5);
     /// assert!(there.distance(sphere.eval_point(1.0, 0.5)) < 1e-12);
@@ -193,8 +193,8 @@ impl Sphere {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Point3D, Sphere};
-    /// let sphere = Sphere::new(Point3D::ORIGIN, 2.0).unwrap();
+    /// use geomcore::{Point, Sphere};
+    /// let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
     /// let v = sphere.v_reversed_parameter(0.5);
     /// let there = sphere.reversed_v().eval_point(1.0, v);
     /// assert!(there.distance(sphere.eval_point(1.0, 0.5)) < 1e-12);
@@ -208,8 +208,8 @@ impl Sphere {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Point3D, Sphere};
-    /// let sphere = Sphere::new(Point3D::ORIGIN, 2.0).unwrap();
+    /// use geomcore::{Point, Sphere};
+    /// let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
     /// assert_eq!(sphere.radius(), 2.0);
     /// ```
     pub fn radius(&self) -> f64 {
@@ -228,12 +228,12 @@ impl Sphere {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Point3D, Sphere};
-    /// let sphere = Sphere::new(Point3D::ORIGIN, 2.0).unwrap();
+    /// use geomcore::{Point, Sphere};
+    /// let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
     /// let iso = sphere.u_iso(0.0).unwrap();
     /// assert!(iso.eval_point(1.0).distance(sphere.eval_point(0.0, 1.0)) < 1e-12);
     /// ```
-    pub fn u_iso(&self, u: f64) -> Result<Circle3D, SurfaceIsoError> {
+    pub fn u_iso(&self, u: f64) -> Result<Circle, SurfaceIsoError> {
         let u = check_iso_param(u, None)?;
         let frame = self.frame;
         let radial = frame.x_direction() * u.cos() + frame.y_direction() * u.sin();
@@ -256,13 +256,13 @@ impl Sphere {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Point3D, Sphere};
-    /// let sphere = Sphere::new(Point3D::ORIGIN, 2.0).unwrap();
+    /// use geomcore::{Point, Sphere};
+    /// let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
     /// let iso = sphere.v_iso(std::f64::consts::FRAC_PI_6).unwrap();
     /// assert!((iso.radius() - 3f64.sqrt()).abs() < 1e-12);
     /// assert!((iso.center().z - 1.0).abs() < 1e-12);
     /// ```
-    pub fn v_iso(&self, v: f64) -> Result<Circle3D, SurfaceIsoError> {
+    pub fn v_iso(&self, v: f64) -> Result<Circle, SurfaceIsoError> {
         let v = check_iso_param(v, None)?;
         let frame = self.frame;
         iso_circle(
@@ -290,10 +290,10 @@ impl Sphere {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Point3D, Sphere, Transform, Vector3D};
-    /// let sphere = Sphere::new(Point3D::ORIGIN, 2.0).unwrap();
-    /// let moved = sphere.transformed(Transform::translation(Vector3D::new(1.0, 2.0, 3.0))).unwrap();
-    /// assert_eq!(moved.center(), Point3D::new(1.0, 2.0, 3.0));
+    /// use geomcore::{Point, Sphere, Transform, Vector};
+    /// let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
+    /// let moved = sphere.transformed(Transform::translation(Vector::new(1.0, 2.0, 3.0))).unwrap();
+    /// assert_eq!(moved.center(), Point::new(1.0, 2.0, 3.0));
     /// assert_eq!(moved.radius(), 2.0);
     /// ```
     pub fn transformed(&self, transform: Transform) -> Result<Sphere, SphereConstructionError> {
@@ -309,9 +309,9 @@ impl Sphere {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Point3D, Sphere};
+    /// use geomcore::{Point, Sphere};
     /// use std::f64::consts::PI;
-    /// let sphere = Sphere::new(Point3D::ORIGIN, 3.0).unwrap();
+    /// let sphere = Sphere::new(Point::ORIGIN, 3.0).unwrap();
     /// assert!((sphere.area() - PI * 36.0).abs() < 1e-9);
     /// ```
     pub fn area(&self) -> f64 {
@@ -323,9 +323,9 @@ impl Sphere {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Point3D, Sphere};
+    /// use geomcore::{Point, Sphere};
     /// use std::f64::consts::PI;
-    /// let sphere = Sphere::new(Point3D::ORIGIN, 3.0).unwrap();
+    /// let sphere = Sphere::new(Point::ORIGIN, 3.0).unwrap();
     /// assert!((sphere.volume() - 4.0 / 3.0 * PI * 27.0).abs() < 1e-9);
     /// ```
     pub fn volume(&self) -> f64 {
@@ -338,11 +338,11 @@ impl Sphere {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Point3D, Sphere};
-    /// let sphere = Sphere::new(Point3D::ORIGIN, 3.0).unwrap();
-    /// assert_eq!(sphere.eval_point(0.0, 0.0), Point3D::new(3.0, 0.0, 0.0));
+    /// use geomcore::{Point, Sphere};
+    /// let sphere = Sphere::new(Point::ORIGIN, 3.0).unwrap();
+    /// assert_eq!(sphere.eval_point(0.0, 0.0), Point::new(3.0, 0.0, 0.0));
     /// ```
-    pub fn eval_point(&self, u: f64, v: f64) -> Point3D {
+    pub fn eval_point(&self, u: f64, v: f64) -> Point {
         analytic::sphere_d0(&self.frame, self.radius, u, v)
     }
 
@@ -351,12 +351,12 @@ impl Sphere {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Point3D, Sphere};
-    /// let sphere = Sphere::new(Point3D::ORIGIN, 3.0).unwrap();
+    /// use geomcore::{Point, Sphere};
+    /// let sphere = Sphere::new(Point::ORIGIN, 3.0).unwrap();
     /// let points = sphere.eval_points(&[(0.0, 0.0)]);
-    /// assert_eq!(points[0], Point3D::new(3.0, 0.0, 0.0));
+    /// assert_eq!(points[0], Point::new(3.0, 0.0, 0.0));
     /// ```
-    pub fn eval_points(&self, uvs: &[(f64, f64)]) -> Vec<Point3D> {
+    pub fn eval_points(&self, uvs: &[(f64, f64)]) -> Vec<Point> {
         uvs.iter().map(|&(u, v)| self.eval_point(u, v)).collect()
     }
 
@@ -372,11 +372,11 @@ impl Sphere {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Point3D, Sphere, Vector3D};
-    /// let sphere = Sphere::new(Point3D::ORIGIN, 3.0).unwrap();
-    /// assert_eq!(sphere.eval_derivative(0.0, 0.0, 0, 1), Vector3D::Z * 3.0);
+    /// use geomcore::{Point, Sphere, Vector};
+    /// let sphere = Sphere::new(Point::ORIGIN, 3.0).unwrap();
+    /// assert_eq!(sphere.eval_derivative(0.0, 0.0, 0, 1), Vector::Z * 3.0);
     /// ```
-    pub fn eval_derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> Vector3D {
+    pub fn eval_derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> Vector {
         match du + dv {
             0 => panic!(
                 "eval_derivative: du + dv must be >= 1 (use eval_point for the (0, 0) order)"
@@ -395,12 +395,12 @@ impl Sphere {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Point3D, Sphere};
-    /// let sphere = Sphere::new(Point3D::ORIGIN, 3.0).unwrap();
-    /// let (u, v) = sphere.parameters_of(Point3D::new(3.0, 0.0, 0.0));
+    /// use geomcore::{Point, Sphere};
+    /// let sphere = Sphere::new(Point::ORIGIN, 3.0).unwrap();
+    /// let (u, v) = sphere.parameters_of(Point::new(3.0, 0.0, 0.0));
     /// assert_eq!((u, v), (0.0, 0.0));
     /// ```
-    pub fn parameters_of(&self, point: Point3D) -> (f64, f64) {
+    pub fn parameters_of(&self, point: Point) -> (f64, f64) {
         analytic::sphere_parameters(&self.frame, self.radius, point)
     }
 
@@ -412,13 +412,13 @@ impl Sphere {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Point3D, Sphere, Tolerance};
-    /// let sphere = Sphere::new(Point3D::ORIGIN, 3.0).unwrap();
+    /// use geomcore::{Point, Sphere, Tolerance};
+    /// let sphere = Sphere::new(Point::ORIGIN, 3.0).unwrap();
     /// let tol = Tolerance::DEFAULT;
-    /// assert!(sphere.contains(Point3D::new(3.0, 0.0, 0.0), tol));
-    /// assert!(!sphere.contains(Point3D::ORIGIN, tol));
+    /// assert!(sphere.contains(Point::new(3.0, 0.0, 0.0), tol));
+    /// assert!(!sphere.contains(Point::ORIGIN, tol));
     /// ```
-    pub fn contains(&self, point: Point3D, tol: Tolerance) -> bool {
+    pub fn contains(&self, point: Point, tol: Tolerance) -> bool {
         let (u, v) = self.parameters_of(point);
         self.eval_point(u, v).distance(point) <= tol.confusion
     }
@@ -430,13 +430,13 @@ impl Sphere {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Point3D, Sphere, Tolerance};
-    /// let sphere = Sphere::new(Point3D::ORIGIN, 3.0).unwrap();
-    /// let proj = sphere.project_point(Point3D::new(4.0, 0.0, 0.0), Tolerance::DEFAULT);
+    /// use geomcore::{Point, Sphere, Tolerance};
+    /// let sphere = Sphere::new(Point::ORIGIN, 3.0).unwrap();
+    /// let proj = sphere.project_point(Point::new(4.0, 0.0, 0.0), Tolerance::DEFAULT);
     /// assert_eq!((proj.u, proj.v), (0.0, 0.0));
     /// assert_eq!(proj.distance, 1.0);
     /// ```
-    pub fn project_point(&self, point: Point3D, tol: Tolerance) -> SurfaceProjection {
+    pub fn project_point(&self, point: Point, tol: Tolerance) -> SurfaceProjection {
         let (u, v) = self.parameters_of(point);
         let foot = self.eval_point(u, v);
         let distance = foot.distance(point);
@@ -452,7 +452,7 @@ impl Sphere {
     ///
     /// Default-style batch wrapper over [`Sphere::project_point`]: one
     /// native call per batch, mirroring [`Sphere::eval_points`].
-    pub fn project_points(&self, points: &[Point3D], tol: Tolerance) -> Vec<SurfaceProjection> {
+    pub fn project_points(&self, points: &[Point], tol: Tolerance) -> Vec<SurfaceProjection> {
         points.iter().map(|&p| self.project_point(p, tol)).collect()
     }
 }
@@ -474,9 +474,9 @@ impl IntersectExact<Cylinder> for Sphere {
     ///
     /// ```
     /// use geomcore::IntersectExact;
-    /// use geomcore::{Cylinder, Point3D, Sphere, SphereCylinderIntersection, Tolerance, Vector3D};
-    /// let sphere = Sphere::new(Point3D::ORIGIN, 3.0).unwrap();
-    /// let cylinder = Cylinder::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
+    /// use geomcore::{Cylinder, Point, Sphere, SphereCylinderIntersection, Tolerance, Vector};
+    /// let sphere = Sphere::new(Point::ORIGIN, 3.0).unwrap();
+    /// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
     /// let tol = Tolerance::DEFAULT;
     /// match sphere.intersect_exact(&cylinder, tol) {
     ///     SphereCylinderIntersection::TwoCircles(c1, c2) => {
@@ -499,13 +499,13 @@ impl IntersectExact<Cylinder> for Sphere {
         if tube > r + tol.confusion {
             SphereCylinderIntersection::Empty
         } else if tube >= r - tol.confusion {
-            let circle = Circle3D::new(self.center(), a, tube)
+            let circle = Circle::new(self.center(), a, tube)
                 .expect("tube radius is non-negative by construction");
             SphereCylinderIntersection::Circle(circle)
         } else {
             let h = (r * r - tube * tube).sqrt();
             let mk = |s: f64| {
-                Circle3D::new(self.center() + a * (s * h), a, tube)
+                Circle::new(self.center() + a * (s * h), a, tube)
                     .expect("tube radius is non-negative by construction")
             };
             SphereCylinderIntersection::TwoCircles(mk(1.0), mk(-1.0))
@@ -529,9 +529,9 @@ impl IntersectExact<Cone> for Sphere {
     ///
     /// ```
     /// use geomcore::IntersectExact;
-    /// use geomcore::{Cone, Frame3D, Point3D, Sphere, SphereConeIntersection, Tolerance};
-    /// let sphere = Sphere::new(Point3D::ORIGIN, 3.0).unwrap();
-    /// let cone = Cone::from_frame(Frame3D::WORLD, 0.4, 2.0).unwrap();
+    /// use geomcore::{Cone, Frame, Point, Sphere, SphereConeIntersection, Tolerance};
+    /// let sphere = Sphere::new(Point::ORIGIN, 3.0).unwrap();
+    /// let cone = Cone::from_frame(Frame::WORLD, 0.4, 2.0).unwrap();
     /// let tol = Tolerance::DEFAULT;
     /// match sphere.intersect_exact(&cone, tol) {
     ///     SphereConeIntersection::TwoCircles(_, _) => {}
@@ -556,7 +556,7 @@ impl IntersectExact<Cone> for Sphere {
         }
         let tan_phi = cone.semi_angle().tan().abs();
         let mk = |alpha: f64| {
-            Circle3D::new(cone.apex() + a * alpha, a, alpha.abs() * tan_phi)
+            Circle::new(cone.apex() + a * alpha, a, alpha.abs() * tan_phi)
                 .expect("latitude radius is non-negative by construction")
         };
         if disc <= band {
@@ -582,19 +582,19 @@ impl IntersectExact<Sphere> for Sphere {
     /// `r1^2 - a^2` (beyond tolerance) misses
     /// ([`SphereSphereIntersection::Empty`]), a near-zero one grazes in a
     /// single [`SphereSphereIntersection::TangentPoint`], and the rest meet
-    /// in a [`Circle3D`] whose axis points from this center to the other.
+    /// in a [`Circle`] whose axis points from this center to the other.
     ///
     /// # Examples
     ///
     /// ```
     /// use geomcore::IntersectExact;
-    /// use geomcore::{Point3D, Sphere, SphereSphereIntersection, Tolerance};
-    /// let s1 = Sphere::new(Point3D::ORIGIN, 2.0).unwrap();
-    /// let s2 = Sphere::new(Point3D::new(3.0, 0.0, 0.0), 2.0).unwrap();
+    /// use geomcore::{Point, Sphere, SphereSphereIntersection, Tolerance};
+    /// let s1 = Sphere::new(Point::ORIGIN, 2.0).unwrap();
+    /// let s2 = Sphere::new(Point::new(3.0, 0.0, 0.0), 2.0).unwrap();
     /// let tol = Tolerance::DEFAULT;
     /// match s1.intersect_exact(&s2, tol) {
     ///     SphereSphereIntersection::Circle(circle) => {
-    ///         assert_eq!(circle.center(), Point3D::new(1.5, 0.0, 0.0));
+    ///         assert_eq!(circle.center(), Point::new(1.5, 0.0, 0.0));
     ///     }
     ///     _ => panic!("expected a circle"),
     /// }
@@ -625,7 +625,7 @@ impl IntersectExact<Sphere> for Sphere {
                 SphereSphereIntersection::TangentPoint(center)
             } else {
                 // disc > 0, and dir is unit: construction cannot fail.
-                let circle = Circle3D::new(center, dir, disc.sqrt())
+                let circle = Circle::new(center, dir, disc.sqrt())
                     .expect("section radius is positive by construction");
                 SphereSphereIntersection::Circle(circle)
             }
@@ -642,32 +642,32 @@ mod tests {
 
     #[test]
     fn test_new_ok_world_aligned() {
-        let s = Sphere::new(Point3D::new(1.0, 2.0, 3.0), 2.0).unwrap();
-        assert_eq!(s.center(), Point3D::new(1.0, 2.0, 3.0));
-        assert_eq!(s.frame().x_direction(), Vector3D::X);
-        assert_eq!(s.frame().y_direction(), Vector3D::Y);
-        assert_eq!(s.frame().z_direction(), Vector3D::Z);
+        let s = Sphere::new(Point::new(1.0, 2.0, 3.0), 2.0).unwrap();
+        assert_eq!(s.center(), Point::new(1.0, 2.0, 3.0));
+        assert_eq!(s.frame().x_direction(), Vector::X);
+        assert_eq!(s.frame().y_direction(), Vector::Y);
+        assert_eq!(s.frame().z_direction(), Vector::Z);
     }
 
     #[test]
     fn test_new_negative_radius_errors() {
         assert_eq!(
-            Sphere::new(Point3D::ORIGIN, -1.0),
+            Sphere::new(Point::ORIGIN, -1.0),
             Err(SphereConstructionError::NegativeRadius)
         );
     }
 
     #[test]
     fn test_from_frame_ok() {
-        let s = Sphere::from_frame(Frame3D::WORLD, 5.0).unwrap();
-        assert_eq!(s.frame(), Frame3D::WORLD);
+        let s = Sphere::from_frame(Frame::WORLD, 5.0).unwrap();
+        assert_eq!(s.frame(), Frame::WORLD);
         assert_eq!(s.radius(), 5.0);
     }
 
     #[test]
     fn test_from_frame_negative_radius_errors() {
         assert_eq!(
-            Sphere::from_frame(Frame3D::WORLD, -0.1),
+            Sphere::from_frame(Frame::WORLD, -0.1),
             Err(SphereConstructionError::NegativeRadius)
         );
     }
@@ -676,13 +676,13 @@ mod tests {
 
     #[test]
     fn test_eval_point() {
-        let s = Sphere::new(Point3D::ORIGIN, 3.0).unwrap();
-        assert_eq!(s.eval_point(0.0, 0.0), Point3D::new(3.0, 0.0, 0.0));
+        let s = Sphere::new(Point::ORIGIN, 3.0).unwrap();
+        assert_eq!(s.eval_point(0.0, 0.0), Point::new(3.0, 0.0, 0.0));
     }
 
     #[test]
     fn test_eval_point_pole() {
-        let s = Sphere::new(Point3D::ORIGIN, 3.0).unwrap();
+        let s = Sphere::new(Point::ORIGIN, 3.0).unwrap();
         let p = s.eval_point(0.0, FRAC_PI_2);
         assert!(p.x.abs() < 1e-9);
         assert!(p.y.abs() < 1e-9);
@@ -691,30 +691,30 @@ mod tests {
 
     #[test]
     fn test_eval_points_matches_loop() {
-        let s = Sphere::new(Point3D::ORIGIN, 3.0).unwrap();
+        let s = Sphere::new(Point::ORIGIN, 3.0).unwrap();
         let uvs = [(0.0, 0.0), (0.5, 1.0)];
-        let expected: Vec<Point3D> = uvs.iter().map(|&(u, v)| s.eval_point(u, v)).collect();
+        let expected: Vec<Point> = uvs.iter().map(|&(u, v)| s.eval_point(u, v)).collect();
         assert_eq!(s.eval_points(&uvs), expected);
     }
 
     #[test]
     #[should_panic(expected = "du + dv must be >= 1")]
     fn test_eval_derivative_zero_order_panics() {
-        let s = Sphere::new(Point3D::ORIGIN, 3.0).unwrap();
+        let s = Sphere::new(Point::ORIGIN, 3.0).unwrap();
         s.eval_derivative(0.0, 0.0, 0, 0);
     }
 
     #[test]
     #[should_panic(expected = "du + dv must be <= 2")]
     fn test_eval_derivative_order_too_high_panics() {
-        let s = Sphere::new(Point3D::ORIGIN, 3.0).unwrap();
+        let s = Sphere::new(Point::ORIGIN, 3.0).unwrap();
         s.eval_derivative(0.0, 0.0, 2, 1);
     }
 
     #[test]
     fn test_parameters_of_round_trip() {
-        let s = Sphere::new(Point3D::ORIGIN, 3.0).unwrap();
-        let (u, v) = s.parameters_of(Point3D::new(3.0, 0.0, 0.0));
+        let s = Sphere::new(Point::ORIGIN, 3.0).unwrap();
+        let (u, v) = s.parameters_of(Point::new(3.0, 0.0, 0.0));
         assert_eq!((u, v), (0.0, 0.0));
     }
 
@@ -740,36 +740,36 @@ mod tests {
 
     #[test]
     fn test_sphere_contains() {
-        let sphere = Sphere::new(Point3D::ORIGIN, 3.0).unwrap();
+        let sphere = Sphere::new(Point::ORIGIN, 3.0).unwrap();
         let tol = Tolerance::DEFAULT;
-        assert!(sphere.contains(Point3D::new(3.0, 0.0, 0.0), tol));
+        assert!(sphere.contains(Point::new(3.0, 0.0, 0.0), tol));
         assert!(sphere.contains(sphere.eval_point(0.7, 0.4), tol));
-        assert!(!sphere.contains(Point3D::ORIGIN, tol));
-        assert!(!sphere.contains(Point3D::new(4.0, 0.0, 0.0), tol));
+        assert!(!sphere.contains(Point::ORIGIN, tol));
+        assert!(!sphere.contains(Point::new(4.0, 0.0, 0.0), tol));
     }
 
     #[test]
     fn test_sphere_project_point() {
-        let sphere = Sphere::new(Point3D::ORIGIN, 3.0).unwrap();
+        let sphere = Sphere::new(Point::ORIGIN, 3.0).unwrap();
         let tol = Tolerance::DEFAULT;
-        let proj = sphere.project_point(Point3D::new(4.0, 0.0, 0.0), tol);
+        let proj = sphere.project_point(Point::new(4.0, 0.0, 0.0), tol);
         assert_eq!((proj.u, proj.v), (0.0, 0.0));
         assert_eq!(proj.distance, 1.0);
         // Center: every surface point is equidistant; distance is exact.
-        let center = sphere.project_point(Point3D::ORIGIN, tol);
+        let center = sphere.project_point(Point::ORIGIN, tol);
         assert_eq!(center.distance, 3.0);
     }
 
     #[test]
     fn test_sphere_sphere_intersection_circle() {
         let tol = Tolerance::DEFAULT;
-        let s1 = Sphere::new(Point3D::ORIGIN, 2.0).unwrap();
-        let s2 = Sphere::new(Point3D::new(3.0, 0.0, 0.0), 2.0).unwrap();
+        let s1 = Sphere::new(Point::ORIGIN, 2.0).unwrap();
+        let s2 = Sphere::new(Point::new(3.0, 0.0, 0.0), 2.0).unwrap();
         match s1.intersect_exact(&s2, tol) {
             SphereSphereIntersection::Circle(circle) => {
-                assert_eq!(circle.center(), Point3D::new(1.5, 0.0, 0.0));
+                assert_eq!(circle.center(), Point::new(1.5, 0.0, 0.0));
                 assert!((circle.radius() - 1.75f64.sqrt()).abs() < 1e-12);
-                assert_eq!(circle.normal(), Vector3D::X);
+                assert_eq!(circle.normal(), Vector::X);
                 // The circle lies on both spheres.
                 assert!(s1.contains(circle.eval_point(1.0), tol));
                 assert!(s2.contains(circle.eval_point(2.0), tol));
@@ -781,24 +781,24 @@ mod tests {
     #[test]
     fn test_sphere_sphere_intersection_degenerate() {
         let tol = Tolerance::DEFAULT;
-        let s1 = Sphere::new(Point3D::ORIGIN, 2.0).unwrap();
+        let s1 = Sphere::new(Point::ORIGIN, 2.0).unwrap();
         // External tangency.
-        match s1.intersect_exact(&Sphere::new(Point3D::new(4.0, 0.0, 0.0), 2.0).unwrap(), tol) {
-            SphereSphereIntersection::TangentPoint(p) => assert_eq!(p, Point3D::new(2.0, 0.0, 0.0)),
+        match s1.intersect_exact(&Sphere::new(Point::new(4.0, 0.0, 0.0), 2.0).unwrap(), tol) {
+            SphereSphereIntersection::TangentPoint(p) => assert_eq!(p, Point::new(2.0, 0.0, 0.0)),
             _ => panic!("expected a tangent point"),
         }
         // Separate.
-        match s1.intersect_exact(&Sphere::new(Point3D::new(5.0, 0.0, 0.0), 2.0).unwrap(), tol) {
+        match s1.intersect_exact(&Sphere::new(Point::new(5.0, 0.0, 0.0), 2.0).unwrap(), tol) {
             SphereSphereIntersection::Empty => {}
             _ => panic!("expected empty"),
         }
         // One inside the other without contact.
-        match s1.intersect_exact(&Sphere::new(Point3D::ORIGIN, 1.0).unwrap(), tol) {
+        match s1.intersect_exact(&Sphere::new(Point::ORIGIN, 1.0).unwrap(), tol) {
             SphereSphereIntersection::Empty => {}
             _ => panic!("expected empty"),
         }
         // Coincident.
-        match s1.intersect_exact(&Sphere::new(Point3D::ORIGIN, 2.0).unwrap(), tol) {
+        match s1.intersect_exact(&Sphere::new(Point::ORIGIN, 2.0).unwrap(), tol) {
             SphereSphereIntersection::Coincident => {}
             _ => panic!("expected coincident"),
         }
@@ -807,8 +807,8 @@ mod tests {
     #[test]
     fn test_sphere_cylinder_intersection() {
         let tol = Tolerance::DEFAULT;
-        let sphere = Sphere::new(Point3D::ORIGIN, 3.0).unwrap();
-        let cylinder = Cylinder::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
+        let sphere = Sphere::new(Point::ORIGIN, 3.0).unwrap();
+        let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
         match sphere.intersect_exact(&cylinder, tol) {
             SphereCylinderIntersection::TwoCircles(c1, c2) => {
                 assert_eq!(c1.radius(), 2.0);
@@ -823,22 +823,22 @@ mod tests {
             _ => panic!("expected two circles"),
         }
         // Grazing tube.
-        let grazing = Cylinder::new(Point3D::ORIGIN, Vector3D::Z, 3.0).unwrap();
+        let grazing = Cylinder::new(Point::ORIGIN, Vector::Z, 3.0).unwrap();
         match sphere.intersect_exact(&grazing, tol) {
             SphereCylinderIntersection::Circle(c) => {
-                assert_eq!(c.center(), Point3D::ORIGIN);
+                assert_eq!(c.center(), Point::ORIGIN);
                 assert_eq!(c.radius(), 3.0);
             }
             _ => panic!("expected a circle"),
         }
         // Oversize tube misses.
-        let fat = Cylinder::new(Point3D::ORIGIN, Vector3D::Z, 4.0).unwrap();
+        let fat = Cylinder::new(Point::ORIGIN, Vector::Z, 4.0).unwrap();
         assert_eq!(
             sphere.intersect_exact(&fat, tol),
             SphereCylinderIntersection::Empty
         );
         // Offset axis: space quartic, no closed form.
-        let off = Cylinder::new(Point3D::new(0.0, 1.0, 0.0), Vector3D::Z, 2.0).unwrap();
+        let off = Cylinder::new(Point::new(0.0, 1.0, 0.0), Vector::Z, 2.0).unwrap();
         assert_eq!(
             sphere.intersect_exact(&off, tol),
             SphereCylinderIntersection::NotAnalytic
@@ -848,8 +848,8 @@ mod tests {
     #[test]
     fn test_sphere_cone_intersection() {
         let tol = Tolerance::DEFAULT;
-        let sphere = Sphere::new(Point3D::ORIGIN, 3.0).unwrap();
-        let cone = Cone::from_frame(Frame3D::WORLD, 0.4, 2.0).unwrap();
+        let sphere = Sphere::new(Point::ORIGIN, 3.0).unwrap();
+        let cone = Cone::from_frame(Frame::WORLD, 0.4, 2.0).unwrap();
         match sphere.intersect_exact(&cone, tol) {
             SphereConeIntersection::TwoCircles(c1, c2) => {
                 // Rings at axial 6.194 (r 2.619) and 1.832 (r 0.775).
@@ -869,13 +869,13 @@ mod tests {
             _ => panic!("expected two circles"),
         }
         // Small sphere around the origin: clear of both nappes.
-        let small = Sphere::new(Point3D::ORIGIN, 0.5).unwrap();
+        let small = Sphere::new(Point::ORIGIN, 0.5).unwrap();
         assert_eq!(
             small.intersect_exact(&cone, tol),
             SphereConeIntersection::Empty
         );
         // Beyond the apex: two rings on the opposite nappe.
-        let behind = Sphere::new(Point3D::new(0.0, 0.0, -6.0), 0.5).unwrap();
+        let behind = Sphere::new(Point::new(0.0, 0.0, -6.0), 0.5).unwrap();
         match behind.intersect_exact(&cone, tol) {
             SphereConeIntersection::TwoCircles(c1, c2) => {
                 for p in [c1, c2].iter().flat_map(|c| c.eval_points(&[0.0, 2.0])) {
@@ -899,7 +899,7 @@ mod tests {
             _ => panic!("expected two circles"),
         }
         // Off-axis center: space quartic, no closed form.
-        let off = Sphere::new(Point3D::new(1.0, 0.0, 0.0), 1.0).unwrap();
+        let off = Sphere::new(Point::new(1.0, 0.0, 0.0), 1.0).unwrap();
         assert_eq!(
             off.intersect_exact(&cone, tol),
             SphereConeIntersection::NotAnalytic
@@ -910,9 +910,9 @@ mod tests {
     fn test_sphere_cone_intersection_tangent() {
         let tol = Tolerance::DEFAULT;
         // R = tc*sin(phi): grazing ring at alpha = tc*cos^2(phi).
-        let cone = Cone::from_frame(Frame3D::WORLD, 0.4, 2.0).unwrap();
-        let tc = (Point3D::ORIGIN - cone.apex()).dot(Vector3D::Z);
-        let sphere = Sphere::new(Point3D::ORIGIN, tc * 0.4f64.sin()).unwrap();
+        let cone = Cone::from_frame(Frame::WORLD, 0.4, 2.0).unwrap();
+        let tc = (Point::ORIGIN - cone.apex()).dot(Vector::Z);
+        let sphere = Sphere::new(Point::ORIGIN, tc * 0.4f64.sin()).unwrap();
         match sphere.intersect_exact(&cone, tol) {
             SphereConeIntersection::TangentCircle(c) => {
                 assert!(sphere.contains(c.eval_point(0.0), tol));
@@ -926,35 +926,35 @@ mod tests {
 
     #[test]
     fn test_sphere_transformed_translation_spot_check() {
-        let sphere = Sphere::new(Point3D::ORIGIN, 3.0).unwrap();
-        let t = Transform::translation(Vector3D::new(1.0, 2.0, 3.0));
+        let sphere = Sphere::new(Point::ORIGIN, 3.0).unwrap();
+        let t = Transform::translation(Vector::new(1.0, 2.0, 3.0));
         let moved = sphere.transformed(t).unwrap();
-        assert_eq!(moved.center(), Point3D::new(1.0, 2.0, 3.0));
+        assert_eq!(moved.center(), Point::new(1.0, 2.0, 3.0));
         assert_eq!(moved.radius(), 3.0);
         // Hand-computed evaluation at the equator origin, shifted.
-        assert_eq!(moved.eval_point(0.0, 0.0), Point3D::new(4.0, 2.0, 3.0));
+        assert_eq!(moved.eval_point(0.0, 0.0), Point::new(4.0, 2.0, 3.0));
     }
 
     #[test]
     fn test_sphere_transformed_round_trip_and_mirror() {
-        use crate::Axis3D;
-        let sphere = Sphere::new(Point3D::new(1.0, 0.0, 0.0), 3.0).unwrap();
-        let axis = Axis3D::new(Point3D::ORIGIN, Vector3D::Z).unwrap();
-        let t = Transform::rotation(axis, FRAC_PI_2).then(Transform::scaling(Point3D::ORIGIN, 2.0));
+        use crate::Axis;
+        let sphere = Sphere::new(Point::new(1.0, 0.0, 0.0), 3.0).unwrap();
+        let axis = Axis::new(Point::ORIGIN, Vector::Z).unwrap();
+        let t = Transform::rotation(axis, FRAC_PI_2).then(Transform::scaling(Point::ORIGIN, 2.0));
         let moved = sphere.transformed(t).unwrap();
         assert_eq!(moved.radius(), 6.0);
-        assert!(moved.center().distance(Point3D::new(0.0, 2.0, 0.0)) < 1e-9);
+        assert!(moved.center().distance(Point::new(0.0, 2.0, 0.0)) < 1e-9);
         let tol = Tolerance::DEFAULT;
         for (u, v) in [(0.0, 0.0), (1.0, 0.3), (4.0, -0.5)] {
             assert!(moved.contains(t.apply_point(sphere.eval_point(u, v)), tol));
         }
         let inv =
-            Transform::scaling(Point3D::ORIGIN, 0.5).then(Transform::rotation(axis, -FRAC_PI_2));
+            Transform::scaling(Point::ORIGIN, 0.5).then(Transform::rotation(axis, -FRAC_PI_2));
         let back = moved.transformed(inv).unwrap();
         assert!((back.radius() - sphere.radius()).abs() < 1e-9);
         assert!(back.center().distance(sphere.center()) < 1e-9);
         // Mirror across the xy-plane preserves the point set.
-        let m = Transform::mirror_plane(Frame3D::WORLD);
+        let m = Transform::mirror_plane(Frame::WORLD);
         let mirrored = sphere.transformed(m).unwrap();
         for (u, v) in [(0.0, 0.0), (1.0, 0.3)] {
             assert!(mirrored.contains(m.apply_point(sphere.eval_point(u, v)), tol));
@@ -964,7 +964,7 @@ mod tests {
 
     #[test]
     fn test_reversed_spheres_share_point_set() {
-        let sphere = Sphere::new(Point3D::ORIGIN, 2.0).unwrap();
+        let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
         for (u, v) in [(0.0, 0.0), (1.0, 0.3), (5.0, -0.5)] {
             let ru = sphere.reversed_u();
             assert!(!ru.frame().is_direct());

@@ -36,45 +36,45 @@ def test_hierarchy(name, parent):
 )
 def test_negative_radius_circle(catch):
     with pytest.raises(catch):
-        curves.Circle3D(geomcore.Point3D(0, 0, 0), geomcore.Vector3D(0, 0, 1), -1.0)
+        curves.Circle(geomcore.Point(0, 0, 0), geomcore.Vector(0, 0, 1), -1.0)
 
 
 def test_negative_radius_sphere_is_construction_error():
     with pytest.raises(geomcore.ConstructionError):
-        surfaces.Sphere(geomcore.Point3D(0, 0, 0), -1.0)
+        surfaces.Sphere(geomcore.Point(0, 0, 0), -1.0)
 
 
 def test_discretization_criteria_error():
-    circle = curves.Circle3D(geomcore.Point3D(0, 0, 0), geomcore.Vector3D(0, 0, 1), 1.0)
+    circle = curves.Circle(geomcore.Point(0, 0, 0), geomcore.Vector(0, 0, 1), 1.0)
     with pytest.raises(geomcore.DiscretizationCriteriaError):
         circle.discretize(-1.0)
 
 
 def test_frame_construction_error():
     with pytest.raises(geomcore.FrameConstructionError):
-        geomcore.Frame3D(
-            geomcore.Point3D(0, 0, 0),
-            geomcore.Vector3D(0, 0, 0),
-            geomcore.Vector3D(1, 0, 0),
+        geomcore.Frame(
+            geomcore.Point(0, 0, 0),
+            geomcore.Vector(0, 0, 0),
+            geomcore.Vector(1, 0, 0),
         )
 
 
 def test_trimmed_curve_construction_error():
-    line = curves.Line3D.from_two_points(
-        geomcore.Point3D(0, 0, 0), geomcore.Point3D(1, 0, 0)
+    line = curves.Line.from_two_points(
+        geomcore.Point(0, 0, 0), geomcore.Point(1, 0, 0)
     )
     with pytest.raises(geomcore.TrimmedCurveConstructionError):
-        curves.TrimmedCurve3D(line, 1.0, 0.0)
+        curves.TrimmedCurve(line, 1.0, 0.0)
     with pytest.raises(geomcore.ConstructionError):
-        curves.TrimmedCurve3D(line, 1.0, 0.0)
+        curves.TrimmedCurve(line, 1.0, 0.0)
 
 
 def _straight_bspline():
-    return curves.BSplineCurve3D.interpolate(
+    return curves.BSplineCurve.interpolate(
         [
-            geomcore.Point3D(0, 0, 0),
-            geomcore.Point3D(1, 1, 0),
-            geomcore.Point3D(2, 0, 0),
+            geomcore.Point(0, 0, 0),
+            geomcore.Point(1, 1, 0),
+            geomcore.Point(2, 0, 0),
         ],
         2,
     )
@@ -93,12 +93,12 @@ def test_bspline_split_error():
 
 
 def _cubic_spline():
-    return curves.BSplineCurve3D.interpolate(
+    return curves.BSplineCurve.interpolate(
         [
-            geomcore.Point3D(0, 0, 0),
-            geomcore.Point3D(1, 1, 0),
-            geomcore.Point3D(2, 0, 0),
-            geomcore.Point3D(3, 1, 0),
+            geomcore.Point(0, 0, 0),
+            geomcore.Point(1, 1, 0),
+            geomcore.Point(2, 0, 0),
+            geomcore.Point(3, 1, 0),
         ],
         3,
     )
@@ -106,8 +106,8 @@ def _cubic_spline():
 
 def _bilinear_surface():
     poles = [
-        [geomcore.Point3D(0, 0, 0), geomcore.Point3D(0, 1, 0)],
-        [geomcore.Point3D(1, 0, 0), geomcore.Point3D(1, 1, 0)],
+        [geomcore.Point(0, 0, 0), geomcore.Point(0, 1, 0)],
+        [geomcore.Point(1, 0, 0), geomcore.Point(1, 1, 0)],
     ]
     return surfaces.BSplineSurface(
         1, 1, poles, [0.0, 1.0], [2, 2], [0.0, 1.0], [2, 2], False, False
@@ -131,25 +131,25 @@ def test_degree_elevation_error():
 
 
 def test_bspline_conversion_error():
-    hyperbola = curves.Hyperbola3D(
-        geomcore.Point3D(0, 0, 0),
-        geomcore.Vector3D(0, 0, 1),
-        geomcore.Vector3D(1, 0, 0),
+    hyperbola = curves.Hyperbola(
+        geomcore.Point(0, 0, 0),
+        geomcore.Vector(0, 0, 1),
+        geomcore.Vector(1, 0, 0),
         1.0,
         1.0,
     )
-    far = curves.TrimmedCurve3D(hyperbola, -800.0, 800.0)
+    far = curves.TrimmedCurve(hyperbola, -800.0, 800.0)
     with pytest.raises(geomcore.BSplineConversionError):
         far.to_bspline()
-    plane = surfaces.Plane(geomcore.Point3D(0, 0, 0), geomcore.Vector3D(0, 0, 1))
+    plane = surfaces.Plane(geomcore.Point(0, 0, 0), geomcore.Vector(0, 0, 1))
     with pytest.raises(geomcore.BSplineConversionError):
         plane.to_bspline_patch((1.0, 0.0), (0.0, 1.0))
 
 
 def test_parametrize_error():
-    sphere = surfaces.Sphere(geomcore.Point3D(0, 0, 0), 1.0)
-    far_line = curves.Line3D.from_two_points(
-        geomcore.Point3D(5, 0, 0), geomcore.Point3D(5, 1, 0)
+    sphere = surfaces.Sphere(geomcore.Point(0, 0, 0), 1.0)
+    far_line = curves.Line.from_two_points(
+        geomcore.Point(5, 0, 0), geomcore.Point(5, 1, 0)
     )
     with pytest.raises(geomcore.ParametrizeError):
         far_line.parametrize_on(sphere)

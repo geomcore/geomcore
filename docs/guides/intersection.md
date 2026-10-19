@@ -43,7 +43,7 @@ and a tangency is decided by distance, not by root separation:
 
     ```python
     result = plane.intersect(sphere)    # SurfaceSurfaceIntersection
-    circle = result.curves[0].curve     # Circle3D
+    circle = result.curves[0].curve     # Circle
     hits = line.intersect(sphere).hits  # [CurveSurfaceHit], in either order
     ```
 
@@ -59,7 +59,7 @@ and a tangency is decided by distance, not by root separation:
     ```
 
 A pair of concrete types calls its exact solver directly, with no
-run-time dispatch; only `Curve3D`, `Surface`, `ElementaryCurve` or
+run-time dispatch; only `Curve`, `Surface`, `ElementaryCurve` or
 `ElementarySurface` operands pay for a `match`. For hot loops over
 elementary shapes, `a.intersect_exact(&b, tol)` (the `IntersectExact`
 trait) returns the pair's own enum, such as `PlaneSphereIntersection`,
@@ -94,7 +94,7 @@ Two more landmarks, as figures:
 The routed `a.intersect(&b, tol)` takes the numeric search for pairs
 without a closed form (a B-spline, or an ellipse against a torus), and
 trimmed pieces are searched over their own range. A curve or surface
-type you define yourself, by implementing `ParametricCurve3D` or
+type you define yourself, by implementing `ParametricCurve` or
 `ParametricSurface`, goes through `intersect_curve_curve(a, b, tol)` and
 `intersect_curve_surface(curve, surface, tol)`: they always run the
 numeric search and return the same result types as the routed call.
@@ -159,7 +159,7 @@ unbounded surface is searched whole. A B-spline side adds its own
 seeds, and two bounded surfaces add a parameter grid. It then traces
 with curvature-following steps corrected by Newton on both surfaces,
 until the trace closes or leaves the model-size cube, and fits each
-loop or arc as a `BSplineCurve3D`. Two B-spline surfaces additionally
+loop or arc as a `BSplineCurve`. Two B-spline surfaces additionally
 seed from overlapping patch pairs, so isolated loops smaller than the
 seed spacing are found there. A marched result is `Sampled`: a loop
 smaller than the iso-curve spacing can be missed.
@@ -177,8 +177,8 @@ smaller than the iso-curve spacing can be missed.
 === "Python"
 
     ```python
-    # Exact curves (Line3D, Circle3D, ...) where a closed form exists,
-    # BSplineCurve3D where marched.
+    # Exact curves (Line, Circle, ...) where a closed form exists,
+    # BSplineCurve where marched.
     result = surface_a.intersect(surface_b)
     curves = [piece.curve for piece in result.curves]
     ```

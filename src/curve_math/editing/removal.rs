@@ -4,7 +4,7 @@
 //! over measures how far the shape moves.
 
 use super::{Edited, Kept, Lanes, Pole, Source, Weighted, from_homogeneous};
-use crate::Point3D;
+use crate::Point;
 use crate::curve_math::bspline::{KnotVector, MAX_DEGREE};
 use crate::curves::KnotRemovalError;
 
@@ -12,7 +12,7 @@ use crate::curves::KnotRemovalError;
 /// input's, and how many copies were removed.
 pub(crate) struct Removed {
     pub(crate) knots: KnotVector,
-    pub(crate) points: Vec<Point3D>,
+    pub(crate) points: Vec<Point>,
     pub(crate) weights: Option<Vec<f64>>,
     pub(crate) count: usize,
 }
@@ -72,7 +72,7 @@ pub(crate) fn check_removal(
 /// stay. The arguments must pass [`check_removal`].
 pub(crate) fn remove_knots(
     direction: &KnotVector,
-    points: &[Point3D],
+    points: &[Point],
     weights: Option<&[f64]>,
     lanes: Lanes,
     remove: &[f64],
@@ -129,7 +129,7 @@ trait Deviation: Pole {
     fn is_valid(self) -> bool;
 }
 
-impl Deviation for Point3D {
+impl Deviation for Point {
     #[inline]
     fn bound(
         diffs: &[Self],

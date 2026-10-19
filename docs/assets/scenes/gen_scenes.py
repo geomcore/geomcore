@@ -15,8 +15,8 @@ import math
 import time
 from pathlib import Path
 
-from geomcore import Frame3D, Point2D, Point3D, Vector3D
-from geomcore.curves import Ellipse3D, TrimmedCurve2D, TrimmedCurve3D
+from geomcore import Frame, Point2D, Point, Vector
+from geomcore.curves import Ellipse, TrimmedCurve2D, TrimmedCurve
 from geomcore.surfaces import BSplineSurface, Cone, Cylinder, Plane, Sphere, Torus
 
 import geomcore_viewer as gv
@@ -48,8 +48,8 @@ def exact_scene() -> None:
     """Sphere cap cylinder: two exact latitude rings (plane page: no — intersection)."""
     t0 = time.perf_counter()
     view = gv.Viewer("Sphere ∩ cylinder (exact)", spawn=False, open_browser=False)
-    s = Sphere(Point3D.origin(), 3.0)
-    y = Cylinder(Point3D.origin(), Vector3D.unit_z(), 2.0)
+    s = Sphere(Point.origin(), 3.0)
+    y = Cylinder(Point.origin(), Vector.unit_z(), 2.0)
     view.add(s, label="S", opacity=0.35, group="exact")
     view.add(y, label="Y", opacity=0.35, v=(-3.5, 3.5), group="exact")
     t0 = time.perf_counter()
@@ -64,9 +64,9 @@ def exact_scene() -> None:
 def marching_scene() -> None:
     """Wavy B-spline patch through a sphere: marching loops (fitted B-splines)."""
     xs = [i * 0.75 for i in range(-4, 5)]
-    grid = [[Point3D(x, y, 1.5 * math.sin(x) * math.cos(y)) for y in xs] for x in xs]
+    grid = [[Point(x, y, 1.5 * math.sin(x) * math.cos(y)) for y in xs] for x in xs]
     patch = BSplineSurface.approximate(grid, 3, 3, 6, 6)
-    s = Sphere(Point3D.origin(), 3.0)
+    s = Sphere(Point.origin(), 3.0)
     t0 = time.perf_counter()
     curves = meeting(patch.intersect(s))
     dt = time.perf_counter() - t0
@@ -92,8 +92,8 @@ def marching_scene() -> None:
 def projection_scene() -> None:
     """Ellipse with all four feet of one query point."""
     view = gv.Viewer("Four feet on an ellipse", spawn=False, open_browser=False)
-    e = Ellipse3D(Point3D.origin(), Vector3D.unit_z(), Vector3D.unit_x(), 3.0, 2.0)
-    q = Point3D(0.5, 0.2, 0)
+    e = Ellipse(Point.origin(), Vector.unit_z(), Vector.unit_x(), 3.0, 2.0)
+    q = Point(0.5, 0.2, 0)
     feet = e.extrema(q)
     print(
         f"projection: {len(feet)} feet: "
@@ -125,13 +125,13 @@ def three_curves_scene(
     a = (at_u(0.05), at_u(0.75), at_v(a_v))
     b = (at_u(0.16), at_v(0.1), at_v(0.9))
     view.add(
-        TrimmedCurve3D(surface.v_iso(a[2]), a[0], a[1]),
+        TrimmedCurve(surface.v_iso(a[2]), a[0], a[1]),
         label="A: v = const",
         color=A,
         width=3,
     )
     view.add(
-        TrimmedCurve3D(surface.u_iso(b[0]), b[1], b[2]),
+        TrimmedCurve(surface.u_iso(b[0]), b[1], b[2]),
         label="B: u = const",
         color=B,
         width=3,
@@ -157,10 +157,10 @@ def three_curves_scene(
     save(view, name)
 
 
-def facing_frame() -> Frame3D:
+def facing_frame() -> Frame:
     """z up, u = 0 turned so the figures' u ≈ 1 faces the viewer's default camera."""
-    return Frame3D(
-        Point3D.origin(), Vector3D.unit_z(), Vector3D(math.cos(-1.5), math.sin(-1.5), 0)
+    return Frame(
+        Point.origin(), Vector.unit_z(), Vector(math.cos(-1.5), math.sin(-1.5), 0)
     )
 
 
@@ -233,7 +233,7 @@ def point_resolved_scene(
     view = gv.Viewer(title, spawn=False, open_browser=False)
     view.add(surface, label="S", color=SURFACE, **LINE_ART)
     view.add(
-        TrimmedCurve3D(surface.u_iso(u), *u_iso_v), label="u = const", color=A, width=3
+        TrimmedCurve(surface.u_iso(u), *u_iso_v), label="u = const", color=A, width=3
     )
     view.add(surface.v_iso(v), label="v = const", color=B, width=3)
     view.add(surface.eval_point(u, v), label="P(u, v)", color=POINT)
@@ -241,7 +241,7 @@ def point_resolved_scene(
 
 
 def elementary_scenes() -> None:
-    o, z = Point3D.origin(), Vector3D.unit_z()
+    o, z = Point.origin(), Vector.unit_z()
     sphere = Sphere(o, 2.0)
     # u = -0.4: the default camera looks from u ≈ -1, so P sits in front, just right of centre.
     view = point_resolved_scene(
@@ -270,9 +270,9 @@ def plane_sphere_scene() -> None:
     for i, (delta, what) in enumerate(
         [(0.5, "δ = 0.5"), (1.0, "δ = r"), (1.4, "δ = 1.4")]
     ):
-        c = Point3D(3.5 * (i - 1), 0, 0)
+        c = Point(3.5 * (i - 1), 0, 0)
         sphere = Sphere(c, 1.0)
-        plane = Plane(Point3D(c.x, 0, delta), Vector3D.unit_z())
+        plane = Plane(Point(c.x, 0, delta), Vector.unit_z())
         view.add(
             sphere,
             label=f"S ({what})",
@@ -300,9 +300,9 @@ def raised_pole_scene() -> None:
     """A flat bicubic patch with one pole raised: only the cells the pole supports move."""
     u_pole_count, v_pole_count = 7, 6
     poles = [
-        [Point3D(i, j, 0) for j in range(v_pole_count)] for i in range(u_pole_count)
+        [Point(i, j, 0) for j in range(v_pole_count)] for i in range(u_pole_count)
     ]
-    poles[4][4] = Point3D(4, 4, 2.5)
+    poles[4][4] = Point(4, 4, 2.5)
     surface = BSplineSurface(
         3,
         3,

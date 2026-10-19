@@ -1,9 +1,9 @@
-//! [`ParametricCurve3D`] trait and the [`Curve3D`] enum adaptor unifying the
+//! [`ParametricCurve`] trait and the [`Curve`] enum adaptor unifying the
 //! concrete 3D curve types.
 
-use crate::curves::{BSplineCurve3D, Circle3D, Ellipse3D, Hyperbola3D, Line3D, Parabola3D};
+use crate::curves::{BSplineCurve, Circle, Ellipse, Hyperbola, Line, Parabola};
 use crate::projection::CurveProjection;
-use crate::{Point3D, Tolerance, Vector3D};
+use crate::{Point, Tolerance, Vector};
 use std::f64::consts::TAU;
 
 /// Which side of a parameter to evaluate from, for one-sided limits at
@@ -99,47 +99,47 @@ impl Continuity {
 }
 
 /// Common interface for 3D parametric curves. Implement this to add a new
-/// curve type that can be used generically (see [`Curve3D`] for a
+/// curve type that can be used generically (see [`Curve`] for a
 /// heterogeneous-collection adaptor built on top of it).
 ///
-/// Concrete curve types (e.g. [`Line3D`], [`Circle3D`]) already provide
+/// Concrete curve types (e.g. [`Line`], [`Circle`]) already provide
 /// inherent methods with the same names; their trait impls simply delegate
 /// to those inherent methods, so calling code can use either form.
 ///
 /// # Examples
 ///
-/// The default [`eval_points`](ParametricCurve3D::eval_points) maps
-/// [`eval_point`](ParametricCurve3D::eval_point) over each parameter:
+/// The default [`eval_points`](ParametricCurve::eval_points) maps
+/// [`eval_point`](ParametricCurve::eval_point) over each parameter:
 ///
 /// ```
-/// use geomcore::curves::ParametricCurve3D;
-/// use geomcore::{Line3D, Point3D, Vector3D};
+/// use geomcore::curves::ParametricCurve;
+/// use geomcore::{Line, Point, Vector};
 ///
-/// let line = Line3D::new(Point3D::ORIGIN, Vector3D::X).unwrap();
+/// let line = Line::new(Point::ORIGIN, Vector::X).unwrap();
 /// let us = [0.0, 1.0, 2.0];
-/// let expected: Vec<Point3D> = us.iter().map(|&u| line.eval_point(u)).collect();
-/// assert_eq!(ParametricCurve3D::eval_points(&line, &us), expected);
+/// let expected: Vec<Point> = us.iter().map(|&u| line.eval_point(u)).collect();
+/// assert_eq!(ParametricCurve::eval_points(&line, &us), expected);
 /// ```
 ///
-/// The default [`is_periodic`](ParametricCurve3D::is_periodic) reports
-/// whether [`period`](ParametricCurve3D::period) is `Some`:
+/// The default [`is_periodic`](ParametricCurve::is_periodic) reports
+/// whether [`period`](ParametricCurve::period) is `Some`:
 ///
 /// ```
-/// use geomcore::curves::ParametricCurve3D;
-/// use geomcore::{Circle3D, Line3D, Point3D, Vector3D};
+/// use geomcore::curves::ParametricCurve;
+/// use geomcore::{Circle, Line, Point, Vector};
 ///
-/// let line = Line3D::new(Point3D::ORIGIN, Vector3D::X).unwrap();
-/// assert!(!ParametricCurve3D::is_periodic(&line));
+/// let line = Line::new(Point::ORIGIN, Vector::X).unwrap();
+/// assert!(!ParametricCurve::is_periodic(&line));
 ///
-/// let circle = Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 1.0).unwrap();
-/// assert!(ParametricCurve3D::is_periodic(&circle));
+/// let circle = Circle::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
+/// assert!(ParametricCurve::is_periodic(&circle));
 /// ```
-pub trait ParametricCurve3D {
+pub trait ParametricCurve {
     /// Evaluates the point on the curve at parameter `u`.
-    fn eval_point(&self, u: f64) -> Point3D;
+    fn eval_point(&self, u: f64) -> Point;
 
     /// Evaluates the derivative of the given `order` at parameter `u`.
-    fn eval_derivative(&self, u: f64, order: u32) -> Vector3D;
+    fn eval_derivative(&self, u: f64, order: u32) -> Vector;
 
     /// Evaluates the point and the first derivative at parameter `u`.
     ///
@@ -150,15 +150,15 @@ pub trait ParametricCurve3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::curves::ParametricCurve3D;
-    /// use geomcore::{Circle3D, Point3D, Vector3D};
+    /// use geomcore::curves::ParametricCurve;
+    /// use geomcore::{Circle, Point, Vector};
     ///
-    /// let circle = Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
+    /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
     /// let (point, tangent) = circle.eval_d1(0.0);
-    /// assert_eq!(point, Point3D::new(2.0, 0.0, 0.0));
-    /// assert!((tangent - Vector3D::new(0.0, 2.0, 0.0)).magnitude() < 1e-15);
+    /// assert_eq!(point, Point::new(2.0, 0.0, 0.0));
+    /// assert!((tangent - Vector::new(0.0, 2.0, 0.0)).magnitude() < 1e-15);
     /// ```
-    fn eval_d1(&self, u: f64) -> (Point3D, Vector3D) {
+    fn eval_d1(&self, u: f64) -> (Point, Vector) {
         (self.eval_point(u), self.eval_derivative(u, 1))
     }
 
@@ -172,21 +172,21 @@ pub trait ParametricCurve3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::curves::ParametricCurve3D;
-    /// use geomcore::{BSplineCurve3D, Point3D, Vector3D};
+    /// use geomcore::curves::ParametricCurve;
+    /// use geomcore::{BSplineCurve, Point, Vector};
     ///
     /// let poles = vec![
-    ///     Point3D::new(0.0, 0.0, 0.0),
-    ///     Point3D::new(1.0, 1.0, 0.0),
-    ///     Point3D::new(2.0, 0.0, 0.0),
+    ///     Point::new(0.0, 0.0, 0.0),
+    ///     Point::new(1.0, 1.0, 0.0),
+    ///     Point::new(2.0, 0.0, 0.0),
     /// ];
-    /// let curve = BSplineCurve3D::new(2, poles, vec![0.0, 1.0], vec![3, 3], false).unwrap();
+    /// let curve = BSplineCurve::new(2, poles, vec![0.0, 1.0], vec![3, 3], false).unwrap();
     /// let (point, d1, d2) = curve.eval_d2(0.5);
-    /// assert_eq!(point, Point3D::new(1.0, 0.5, 0.0));
-    /// assert_eq!(d1, Vector3D::new(2.0, 0.0, 0.0));
-    /// assert_eq!(d2, Vector3D::new(0.0, -4.0, 0.0));
+    /// assert_eq!(point, Point::new(1.0, 0.5, 0.0));
+    /// assert_eq!(d1, Vector::new(2.0, 0.0, 0.0));
+    /// assert_eq!(d2, Vector::new(0.0, -4.0, 0.0));
     /// ```
-    fn eval_d2(&self, u: f64) -> (Point3D, Vector3D, Vector3D) {
+    fn eval_d2(&self, u: f64) -> (Point, Vector, Vector) {
         (
             self.eval_point(u),
             self.eval_derivative(u, 1),
@@ -205,16 +205,16 @@ pub trait ParametricCurve3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::curves::ParametricCurve3D;
-    /// use geomcore::{Circle3D, Line3D, Point3D, Tolerance, Vector3D};
+    /// use geomcore::curves::ParametricCurve;
+    /// use geomcore::{Circle, Line, Point, Tolerance, Vector};
     ///
-    /// let line = Line3D::new(Point3D::ORIGIN, Vector3D::X).unwrap();
-    /// assert_eq!(line.tangent(5.0, Tolerance::DEFAULT), Some(Vector3D::X));
+    /// let line = Line::new(Point::ORIGIN, Vector::X).unwrap();
+    /// assert_eq!(line.tangent(5.0, Tolerance::DEFAULT), Some(Vector::X));
     ///
-    /// let circle = Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
-    /// assert_eq!(circle.tangent(0.0, Tolerance::DEFAULT), Some(Vector3D::Y));
+    /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
+    /// assert_eq!(circle.tangent(0.0, Tolerance::DEFAULT), Some(Vector::Y));
     /// ```
-    fn tangent(&self, u: f64, tol: Tolerance) -> Option<Vector3D> {
+    fn tangent(&self, u: f64, tol: Tolerance) -> Option<Vector> {
         let (_, first_derivative) = self.eval_d1(u);
         let speed = regular_speed(first_derivative, tol.reference_width(self.bounds()), tol)?;
         Some(first_derivative * (1.0 / speed))
@@ -232,13 +232,13 @@ pub trait ParametricCurve3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::curves::ParametricCurve3D;
-    /// use geomcore::{Circle3D, Line3D, Point3D, Tolerance, Vector3D};
+    /// use geomcore::curves::ParametricCurve;
+    /// use geomcore::{Circle, Line, Point, Tolerance, Vector};
     ///
-    /// let line = Line3D::new(Point3D::ORIGIN, Vector3D::X).unwrap();
+    /// let line = Line::new(Point::ORIGIN, Vector::X).unwrap();
     /// assert_eq!(line.curvature(5.0, Tolerance::DEFAULT), Some(0.0));
     ///
-    /// let circle = Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
+    /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
     /// assert_eq!(circle.curvature(0.0, Tolerance::DEFAULT), Some(0.5));
     /// ```
     fn curvature(&self, u: f64, tol: Tolerance) -> Option<f64> {
@@ -264,19 +264,19 @@ pub trait ParametricCurve3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::curves::ParametricCurve3D;
-    /// use geomcore::{Circle3D, Line3D, Point3D, Tolerance, Vector3D};
+    /// use geomcore::curves::ParametricCurve;
+    /// use geomcore::{Circle, Line, Point, Tolerance, Vector};
     ///
-    /// let circle = Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
+    /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
     /// assert_eq!(
     ///     circle.curvature_center(0.0, Tolerance::DEFAULT),
-    ///     Some(Point3D::ORIGIN)
+    ///     Some(Point::ORIGIN)
     /// );
     ///
-    /// let line = Line3D::new(Point3D::ORIGIN, Vector3D::X).unwrap();
+    /// let line = Line::new(Point::ORIGIN, Vector::X).unwrap();
     /// assert_eq!(line.curvature_center(5.0, Tolerance::DEFAULT), None);
     /// ```
-    fn curvature_center(&self, u: f64, tol: Tolerance) -> Option<Point3D> {
+    fn curvature_center(&self, u: f64, tol: Tolerance) -> Option<Point> {
         let (point, first_derivative, second_derivative) = self.eval_d2(u);
         let width = tol.reference_width(self.bounds());
         let speed = regular_speed(first_derivative, width, tol)?;
@@ -306,7 +306,7 @@ pub trait ParametricCurve3D {
     ///
     /// Default implementation: maps [`eval_point`](Self::eval_point) over
     /// `us`.
-    fn eval_points(&self, us: &[f64]) -> Vec<Point3D> {
+    fn eval_points(&self, us: &[f64]) -> Vec<Point> {
         us.iter().map(|&u| self.eval_point(u)).collect()
     }
 
@@ -326,14 +326,14 @@ pub trait ParametricCurve3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::curves::ParametricCurve3D;
-    /// use geomcore::{Circle3D, Line3D, Point3D, Tolerance, Vector3D};
+    /// use geomcore::curves::ParametricCurve;
+    /// use geomcore::{Circle, Line, Point, Tolerance, Vector};
     ///
-    /// let line = Line3D::new(Point3D::ORIGIN, Vector3D::X).unwrap();
+    /// let line = Line::new(Point::ORIGIN, Vector::X).unwrap();
     /// assert!(!line.is_closed(Tolerance::DEFAULT));
     ///
-    /// let circle = Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 1.0).unwrap();
-    /// assert!(ParametricCurve3D::is_closed(&circle, Tolerance::DEFAULT));
+    /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
+    /// assert!(ParametricCurve::is_closed(&circle, Tolerance::DEFAULT));
     /// ```
     fn is_closed(&self, tol: Tolerance) -> bool {
         // Structural default: periodicity. Shapes whose ends meet without
@@ -353,18 +353,18 @@ pub trait ParametricCurve3D {
     /// only; a periodic curve wraps `u` into its period, so its seam
     /// counts as a knot. Derivatives of higher order than the one reported
     /// may differ on the two sides of `u`;
-    /// [`BSplineCurve3D::eval_d1_sided`] and its siblings evaluate each
+    /// [`BSplineCurve::eval_d1_sided`] and its siblings evaluate each
     /// side. Default implementation: smooth.
     ///
     /// # Examples
     ///
     /// ```
-    /// use geomcore::curves::ParametricCurve3D;
-    /// use geomcore::{Circle3D, Continuity, Point3D, Tolerance, Vector3D};
+    /// use geomcore::curves::ParametricCurve;
+    /// use geomcore::{Circle, Continuity, Point, Tolerance, Vector};
     ///
-    /// let circle = Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 1.0).unwrap();
+    /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
     /// assert_eq!(
-    ///     ParametricCurve3D::continuity(&circle, 0.5, Tolerance::DEFAULT),
+    ///     ParametricCurve::continuity(&circle, 0.5, Tolerance::DEFAULT),
     ///     Continuity::Smooth
     /// );
     /// ```
@@ -393,18 +393,18 @@ pub trait ParametricCurve3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::curves::{ParametricCurve3D, TrimmedCurve3D};
-    /// use geomcore::{BSplineCurve3D, Line3D, Point3D, Vector3D};
+    /// use geomcore::curves::{ParametricCurve, TrimmedCurve};
+    /// use geomcore::{BSplineCurve, Line, Point, Vector};
     ///
-    /// let poles = vec![Point3D::ORIGIN, Point3D::new(2.0, 0.0, 0.0)];
-    /// let curve = BSplineCurve3D::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
-    /// let piece = TrimmedCurve3D::new(&curve, 0.25, 0.5).unwrap();
+    /// let poles = vec![Point::ORIGIN, Point::new(2.0, 0.0, 0.0)];
+    /// let curve = BSplineCurve::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
+    /// let piece = TrimmedCurve::new(&curve, 0.25, 0.5).unwrap();
     /// assert_eq!(piece.as_bspline(), Some(&curve));
     ///
-    /// let line = Line3D::new(Point3D::ORIGIN, Vector3D::X).unwrap();
-    /// assert_eq!(ParametricCurve3D::as_bspline(&line), None);
+    /// let line = Line::new(Point::ORIGIN, Vector::X).unwrap();
+    /// assert_eq!(ParametricCurve::as_bspline(&line), None);
     /// ```
-    fn as_bspline(&self) -> Option<&BSplineCurve3D> {
+    fn as_bspline(&self) -> Option<&BSplineCurve> {
         None
     }
 
@@ -420,16 +420,16 @@ pub trait ParametricCurve3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::curves::{ElementaryCurve, ParametricCurve3D, TrimmedCurve3D};
-    /// use geomcore::{BSplineCurve3D, Circle3D, Point3D, Vector3D};
+    /// use geomcore::curves::{ElementaryCurve, ParametricCurve, TrimmedCurve};
+    /// use geomcore::{BSplineCurve, Circle, Point, Vector};
     ///
-    /// let circle = Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 1.0).unwrap();
-    /// let arc = TrimmedCurve3D::new(&circle, 0.0, 1.0).unwrap();
+    /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
+    /// let arc = TrimmedCurve::new(&circle, 0.0, 1.0).unwrap();
     /// assert_eq!(arc.as_elementary(), Some(ElementaryCurve::Circle(circle)));
     ///
-    /// let poles = vec![Point3D::ORIGIN, Point3D::new(2.0, 0.0, 0.0)];
-    /// let curve = BSplineCurve3D::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
-    /// assert_eq!(ParametricCurve3D::as_elementary(&curve), None);
+    /// let poles = vec![Point::ORIGIN, Point::new(2.0, 0.0, 0.0)];
+    /// let curve = BSplineCurve::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
+    /// assert_eq!(ParametricCurve::as_elementary(&curve), None);
     /// ```
     fn as_elementary(&self) -> Option<ElementaryCurve> {
         None
@@ -439,27 +439,27 @@ pub trait ParametricCurve3D {
 /// The speed `|C'|`, or `None` where it is negligible across the
 /// parameter range of reference width `width` (a cusp or a stop) or is
 /// not a number.
-fn regular_speed(first_derivative: Vector3D, width: f64, tol: Tolerance) -> Option<f64> {
+fn regular_speed(first_derivative: Vector, width: f64, tol: Tolerance) -> Option<f64> {
     let speed = first_derivative.magnitude();
     (!tol.is_negligible_derivative(speed, width)).then_some(speed)
 }
 
 /// Distance extrema from a point to a 3D curve: what a
-/// [`TrimmedCurve3D`](crate::curves::TrimmedCurve3D) needs from its basis
+/// [`TrimmedCurve`](crate::curves::TrimmedCurve) needs from its basis
 /// to project onto a piece of it.
 ///
 /// # Examples
 ///
 /// ```
-/// use geomcore::curves::PointExtrema3D;
-/// use geomcore::{Line3D, Point3D, Tolerance, Vector3D};
+/// use geomcore::curves::PointExtrema;
+/// use geomcore::{Line, Point, Tolerance, Vector};
 ///
-/// let line = Line3D::new(Point3D::ORIGIN, Vector3D::X).unwrap();
-/// let extrema = line.extrema(Point3D::new(2.0, 1.0, 0.0), Tolerance::DEFAULT);
+/// let line = Line::new(Point::ORIGIN, Vector::X).unwrap();
+/// let extrema = line.extrema(Point::new(2.0, 1.0, 0.0), Tolerance::DEFAULT);
 /// assert_eq!(extrema[0].parameter, 2.0);
 /// assert_eq!(extrema[0].distance, 1.0);
 /// ```
-pub trait PointExtrema3D: ParametricCurve3D {
+pub trait PointExtrema: ParametricCurve {
     /// Parameters on the curve's own domain that include every local
     /// minimum of the distance from `point` (other stationary points may
     /// be listed too; a valley of equal minima is represented by one of
@@ -467,26 +467,26 @@ pub trait PointExtrema3D: ParametricCurve3D {
     /// point first. Distances within `tol.confusion` snap to `0.0`.
     ///
     /// A query point with a non-finite coordinate has no extrema.
-    fn extrema(&self, point: Point3D, tol: Tolerance) -> Vec<CurveProjection>;
+    fn extrema(&self, point: Point, tol: Tolerance) -> Vec<CurveProjection>;
 }
 
 /// A reference to a curve is the curve, so a
-/// [`TrimmedCurve3D`](crate::curves::TrimmedCurve3D) can borrow its
+/// [`TrimmedCurve`](crate::curves::TrimmedCurve) can borrow its
 /// basis instead of owning it.
-impl<C: ParametricCurve3D + ?Sized> ParametricCurve3D for &C {
-    fn eval_point(&self, u: f64) -> Point3D {
+impl<C: ParametricCurve + ?Sized> ParametricCurve for &C {
+    fn eval_point(&self, u: f64) -> Point {
         (**self).eval_point(u)
     }
 
-    fn eval_derivative(&self, u: f64, order: u32) -> Vector3D {
+    fn eval_derivative(&self, u: f64, order: u32) -> Vector {
         (**self).eval_derivative(u, order)
     }
 
-    fn eval_d1(&self, u: f64) -> (Point3D, Vector3D) {
+    fn eval_d1(&self, u: f64) -> (Point, Vector) {
         (**self).eval_d1(u)
     }
 
-    fn eval_d2(&self, u: f64) -> (Point3D, Vector3D, Vector3D) {
+    fn eval_d2(&self, u: f64) -> (Point, Vector, Vector) {
         (**self).eval_d2(u)
     }
 
@@ -502,7 +502,7 @@ impl<C: ParametricCurve3D + ?Sized> ParametricCurve3D for &C {
         (**self).is_closed(tol)
     }
 
-    fn eval_points(&self, us: &[f64]) -> Vec<Point3D> {
+    fn eval_points(&self, us: &[f64]) -> Vec<Point> {
         (**self).eval_points(us)
     }
 
@@ -514,7 +514,7 @@ impl<C: ParametricCurve3D + ?Sized> ParametricCurve3D for &C {
         (**self).min_continuity()
     }
 
-    fn as_bspline(&self) -> Option<&BSplineCurve3D> {
+    fn as_bspline(&self) -> Option<&BSplineCurve> {
         (**self).as_bspline()
     }
 
@@ -523,15 +523,15 @@ impl<C: ParametricCurve3D + ?Sized> ParametricCurve3D for &C {
     }
 }
 
-impl<C: PointExtrema3D + ?Sized> PointExtrema3D for &C {
-    fn extrema(&self, point: Point3D, tol: Tolerance) -> Vec<CurveProjection> {
+impl<C: PointExtrema + ?Sized> PointExtrema for &C {
+    fn extrema(&self, point: Point, tol: Tolerance) -> Vec<CurveProjection> {
         (**self).extrema(point, tol)
     }
 }
 
 /// The single local minimum of a line, or of a circle (whose distance
 /// from a point falls monotonically to it from the farthest point).
-fn only_minimum(point: Point3D, project: impl Fn() -> CurveProjection) -> Vec<CurveProjection> {
+fn only_minimum(point: Point, project: impl Fn() -> CurveProjection) -> Vec<CurveProjection> {
     if point.is_finite() {
         vec![project()]
     } else {
@@ -539,53 +539,53 @@ fn only_minimum(point: Point3D, project: impl Fn() -> CurveProjection) -> Vec<Cu
     }
 }
 
-impl PointExtrema3D for Line3D {
-    fn extrema(&self, point: Point3D, tol: Tolerance) -> Vec<CurveProjection> {
+impl PointExtrema for Line {
+    fn extrema(&self, point: Point, tol: Tolerance) -> Vec<CurveProjection> {
         only_minimum(point, || self.project_point(point, tol))
     }
 }
 
-impl PointExtrema3D for Circle3D {
-    fn extrema(&self, point: Point3D, tol: Tolerance) -> Vec<CurveProjection> {
+impl PointExtrema for Circle {
+    fn extrema(&self, point: Point, tol: Tolerance) -> Vec<CurveProjection> {
         only_minimum(point, || self.project_point(point, tol))
     }
 }
 
-impl PointExtrema3D for Ellipse3D {
-    fn extrema(&self, point: Point3D, tol: Tolerance) -> Vec<CurveProjection> {
-        Ellipse3D::extrema(self, point, tol)
+impl PointExtrema for Ellipse {
+    fn extrema(&self, point: Point, tol: Tolerance) -> Vec<CurveProjection> {
+        Ellipse::extrema(self, point, tol)
     }
 }
 
-impl PointExtrema3D for Parabola3D {
-    fn extrema(&self, point: Point3D, tol: Tolerance) -> Vec<CurveProjection> {
-        Parabola3D::extrema(self, point, tol)
+impl PointExtrema for Parabola {
+    fn extrema(&self, point: Point, tol: Tolerance) -> Vec<CurveProjection> {
+        Parabola::extrema(self, point, tol)
     }
 }
 
-impl PointExtrema3D for Hyperbola3D {
-    fn extrema(&self, point: Point3D, tol: Tolerance) -> Vec<CurveProjection> {
-        Hyperbola3D::extrema(self, point, tol)
+impl PointExtrema for Hyperbola {
+    fn extrema(&self, point: Point, tol: Tolerance) -> Vec<CurveProjection> {
+        Hyperbola::extrema(self, point, tol)
     }
 }
 
-impl PointExtrema3D for BSplineCurve3D {
-    fn extrema(&self, point: Point3D, tol: Tolerance) -> Vec<CurveProjection> {
+impl PointExtrema for BSplineCurve {
+    fn extrema(&self, point: Point, tol: Tolerance) -> Vec<CurveProjection> {
         if point.is_finite() {
-            BSplineCurve3D::extrema(self, point, tol)
+            BSplineCurve::extrema(self, point, tol)
         } else {
             Vec::new()
         }
     }
 }
 
-impl ParametricCurve3D for Line3D {
-    fn eval_point(&self, u: f64) -> Point3D {
-        Line3D::eval_point(self, u)
+impl ParametricCurve for Line {
+    fn eval_point(&self, u: f64) -> Point {
+        Line::eval_point(self, u)
     }
 
-    fn eval_derivative(&self, u: f64, order: u32) -> Vector3D {
-        Line3D::eval_derivative(self, u, order)
+    fn eval_derivative(&self, u: f64, order: u32) -> Vector {
+        Line::eval_derivative(self, u, order)
     }
 
     fn bounds(&self) -> (f64, f64) {
@@ -596,8 +596,8 @@ impl ParametricCurve3D for Line3D {
         None
     }
 
-    fn eval_points(&self, us: &[f64]) -> Vec<Point3D> {
-        Line3D::eval_points(self, us)
+    fn eval_points(&self, us: &[f64]) -> Vec<Point> {
+        Line::eval_points(self, us)
     }
 
     fn as_elementary(&self) -> Option<ElementaryCurve> {
@@ -605,13 +605,13 @@ impl ParametricCurve3D for Line3D {
     }
 }
 
-impl ParametricCurve3D for Circle3D {
-    fn eval_point(&self, u: f64) -> Point3D {
-        Circle3D::eval_point(self, u)
+impl ParametricCurve for Circle {
+    fn eval_point(&self, u: f64) -> Point {
+        Circle::eval_point(self, u)
     }
 
-    fn eval_derivative(&self, u: f64, order: u32) -> Vector3D {
-        Circle3D::eval_derivative(self, u, order)
+    fn eval_derivative(&self, u: f64, order: u32) -> Vector {
+        Circle::eval_derivative(self, u, order)
     }
 
     fn bounds(&self) -> (f64, f64) {
@@ -622,8 +622,8 @@ impl ParametricCurve3D for Circle3D {
         Some(TAU)
     }
 
-    fn eval_points(&self, us: &[f64]) -> Vec<Point3D> {
-        Circle3D::eval_points(self, us)
+    fn eval_points(&self, us: &[f64]) -> Vec<Point> {
+        Circle::eval_points(self, us)
     }
 
     fn as_elementary(&self) -> Option<ElementaryCurve> {
@@ -631,13 +631,13 @@ impl ParametricCurve3D for Circle3D {
     }
 }
 
-impl ParametricCurve3D for Ellipse3D {
-    fn eval_point(&self, u: f64) -> Point3D {
-        Ellipse3D::eval_point(self, u)
+impl ParametricCurve for Ellipse {
+    fn eval_point(&self, u: f64) -> Point {
+        Ellipse::eval_point(self, u)
     }
 
-    fn eval_derivative(&self, u: f64, order: u32) -> Vector3D {
-        Ellipse3D::eval_derivative(self, u, order)
+    fn eval_derivative(&self, u: f64, order: u32) -> Vector {
+        Ellipse::eval_derivative(self, u, order)
     }
 
     fn bounds(&self) -> (f64, f64) {
@@ -648,8 +648,8 @@ impl ParametricCurve3D for Ellipse3D {
         Some(TAU)
     }
 
-    fn eval_points(&self, us: &[f64]) -> Vec<Point3D> {
-        Ellipse3D::eval_points(self, us)
+    fn eval_points(&self, us: &[f64]) -> Vec<Point> {
+        Ellipse::eval_points(self, us)
     }
 
     fn as_elementary(&self) -> Option<ElementaryCurve> {
@@ -657,13 +657,13 @@ impl ParametricCurve3D for Ellipse3D {
     }
 }
 
-impl ParametricCurve3D for Parabola3D {
-    fn eval_point(&self, u: f64) -> Point3D {
-        Parabola3D::eval_point(self, u)
+impl ParametricCurve for Parabola {
+    fn eval_point(&self, u: f64) -> Point {
+        Parabola::eval_point(self, u)
     }
 
-    fn eval_derivative(&self, u: f64, order: u32) -> Vector3D {
-        Parabola3D::eval_derivative(self, u, order)
+    fn eval_derivative(&self, u: f64, order: u32) -> Vector {
+        Parabola::eval_derivative(self, u, order)
     }
 
     fn bounds(&self) -> (f64, f64) {
@@ -674,8 +674,8 @@ impl ParametricCurve3D for Parabola3D {
         None
     }
 
-    fn eval_points(&self, us: &[f64]) -> Vec<Point3D> {
-        Parabola3D::eval_points(self, us)
+    fn eval_points(&self, us: &[f64]) -> Vec<Point> {
+        Parabola::eval_points(self, us)
     }
 
     fn as_elementary(&self) -> Option<ElementaryCurve> {
@@ -683,13 +683,13 @@ impl ParametricCurve3D for Parabola3D {
     }
 }
 
-impl ParametricCurve3D for Hyperbola3D {
-    fn eval_point(&self, u: f64) -> Point3D {
-        Hyperbola3D::eval_point(self, u)
+impl ParametricCurve for Hyperbola {
+    fn eval_point(&self, u: f64) -> Point {
+        Hyperbola::eval_point(self, u)
     }
 
-    fn eval_derivative(&self, u: f64, order: u32) -> Vector3D {
-        Hyperbola3D::eval_derivative(self, u, order)
+    fn eval_derivative(&self, u: f64, order: u32) -> Vector {
+        Hyperbola::eval_derivative(self, u, order)
     }
 
     fn bounds(&self) -> (f64, f64) {
@@ -700,8 +700,8 @@ impl ParametricCurve3D for Hyperbola3D {
         None
     }
 
-    fn eval_points(&self, us: &[f64]) -> Vec<Point3D> {
-        Hyperbola3D::eval_points(self, us)
+    fn eval_points(&self, us: &[f64]) -> Vec<Point> {
+        Hyperbola::eval_points(self, us)
     }
 
     fn as_elementary(&self) -> Option<ElementaryCurve> {
@@ -709,60 +709,60 @@ impl ParametricCurve3D for Hyperbola3D {
     }
 }
 
-impl ParametricCurve3D for BSplineCurve3D {
-    fn eval_point(&self, u: f64) -> Point3D {
-        BSplineCurve3D::eval_point(self, u)
+impl ParametricCurve for BSplineCurve {
+    fn eval_point(&self, u: f64) -> Point {
+        BSplineCurve::eval_point(self, u)
     }
 
-    fn eval_derivative(&self, u: f64, order: u32) -> Vector3D {
-        BSplineCurve3D::eval_derivative(self, u, order)
+    fn eval_derivative(&self, u: f64, order: u32) -> Vector {
+        BSplineCurve::eval_derivative(self, u, order)
     }
 
-    fn eval_d1(&self, u: f64) -> (Point3D, Vector3D) {
-        BSplineCurve3D::eval_d1(self, u)
+    fn eval_d1(&self, u: f64) -> (Point, Vector) {
+        BSplineCurve::eval_d1(self, u)
     }
 
-    fn eval_d2(&self, u: f64) -> (Point3D, Vector3D, Vector3D) {
-        BSplineCurve3D::eval_d2(self, u)
+    fn eval_d2(&self, u: f64) -> (Point, Vector, Vector) {
+        BSplineCurve::eval_d2(self, u)
     }
 
     fn bounds(&self) -> (f64, f64) {
-        BSplineCurve3D::bounds(self)
+        BSplineCurve::bounds(self)
     }
 
     fn period(&self) -> Option<f64> {
         if self.is_periodic() {
-            let (first, last) = BSplineCurve3D::bounds(self);
+            let (first, last) = BSplineCurve::bounds(self);
             Some(last - first)
         } else {
             None
         }
     }
 
-    fn eval_points(&self, us: &[f64]) -> Vec<Point3D> {
-        BSplineCurve3D::eval_points(self, us)
+    fn eval_points(&self, us: &[f64]) -> Vec<Point> {
+        BSplineCurve::eval_points(self, us)
     }
 
     fn is_closed(&self, tol: Tolerance) -> bool {
-        BSplineCurve3D::is_closed(self, tol)
+        BSplineCurve::is_closed(self, tol)
     }
 
     fn continuity(&self, u: f64, tol: Tolerance) -> Continuity {
-        BSplineCurve3D::continuity(self, u, tol)
+        BSplineCurve::continuity(self, u, tol)
     }
 
     fn min_continuity(&self) -> Continuity {
-        BSplineCurve3D::min_continuity(self)
+        BSplineCurve::min_continuity(self)
     }
 
-    fn as_bspline(&self) -> Option<&BSplineCurve3D> {
+    fn as_bspline(&self) -> Option<&BSplineCurve> {
         Some(self)
     }
 }
 
 /// Enum adaptor unifying the concrete 3D curve types behind a single value
 /// type, so callers can build a heterogeneous collection of curves and
-/// evaluate them uniformly through [`ParametricCurve3D`].
+/// evaluate them uniformly through [`ParametricCurve`].
 ///
 /// Marked `#[non_exhaustive]`: future tasks add further variants (e.g. a
 /// B-spline curve) without that being a breaking change.
@@ -770,243 +770,243 @@ impl ParametricCurve3D for BSplineCurve3D {
 /// # Examples
 ///
 /// ```
-/// use geomcore::curves::{Curve3D, ParametricCurve3D};
-/// use geomcore::{Circle3D, Line3D, Point3D, Vector3D};
+/// use geomcore::curves::{Curve, ParametricCurve};
+/// use geomcore::{Circle, Line, Point, Vector};
 ///
-/// let curves: Vec<Curve3D> = vec![
-///     Line3D::new(Point3D::ORIGIN, Vector3D::X).unwrap().into(),
-///     Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 1.0).unwrap().into(),
+/// let curves: Vec<Curve> = vec![
+///     Line::new(Point::ORIGIN, Vector::X).unwrap().into(),
+///     Circle::new(Point::ORIGIN, Vector::Z, 1.0).unwrap().into(),
 /// ];
-/// let points: Vec<Point3D> = curves.iter().map(|c| c.eval_point(0.0)).collect();
-/// assert_eq!(points[0], Point3D::ORIGIN);
-/// assert_eq!(points[1], Point3D::new(1.0, 0.0, 0.0));
+/// let points: Vec<Point> = curves.iter().map(|c| c.eval_point(0.0)).collect();
+/// assert_eq!(points[0], Point::ORIGIN);
+/// assert_eq!(points[1], Point::new(1.0, 0.0, 0.0));
 /// ```
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
-pub enum Curve3D {
-    /// A [`Line3D`] curve.
-    Line(Line3D),
-    /// A [`Circle3D`] curve.
-    Circle(Circle3D),
-    /// An [`Ellipse3D`] curve.
-    Ellipse(Ellipse3D),
-    /// A [`Parabola3D`] curve.
-    Parabola(Parabola3D),
-    /// A [`Hyperbola3D`] curve.
-    Hyperbola(Hyperbola3D),
-    /// A [`BSplineCurve3D`] curve.
-    BSpline(BSplineCurve3D),
+pub enum Curve {
+    /// A [`Line`] curve.
+    Line(Line),
+    /// A [`Circle`] curve.
+    Circle(Circle),
+    /// An [`Ellipse`] curve.
+    Ellipse(Ellipse),
+    /// A [`Parabola`] curve.
+    Parabola(Parabola),
+    /// A [`Hyperbola`] curve.
+    Hyperbola(Hyperbola),
+    /// A [`BSplineCurve`] curve.
+    BSpline(BSplineCurve),
 }
 
-impl ParametricCurve3D for Curve3D {
-    fn eval_point(&self, u: f64) -> Point3D {
+impl ParametricCurve for Curve {
+    fn eval_point(&self, u: f64) -> Point {
         match self {
-            Curve3D::Line(c) => c.eval_point(u),
-            Curve3D::Circle(c) => c.eval_point(u),
-            Curve3D::Ellipse(c) => c.eval_point(u),
-            Curve3D::Parabola(c) => c.eval_point(u),
-            Curve3D::Hyperbola(c) => c.eval_point(u),
-            Curve3D::BSpline(c) => c.eval_point(u),
+            Curve::Line(c) => c.eval_point(u),
+            Curve::Circle(c) => c.eval_point(u),
+            Curve::Ellipse(c) => c.eval_point(u),
+            Curve::Parabola(c) => c.eval_point(u),
+            Curve::Hyperbola(c) => c.eval_point(u),
+            Curve::BSpline(c) => c.eval_point(u),
         }
     }
 
-    fn eval_derivative(&self, u: f64, order: u32) -> Vector3D {
+    fn eval_derivative(&self, u: f64, order: u32) -> Vector {
         match self {
-            Curve3D::Line(c) => c.eval_derivative(u, order),
-            Curve3D::Circle(c) => c.eval_derivative(u, order),
-            Curve3D::Ellipse(c) => c.eval_derivative(u, order),
-            Curve3D::Parabola(c) => c.eval_derivative(u, order),
-            Curve3D::Hyperbola(c) => c.eval_derivative(u, order),
-            Curve3D::BSpline(c) => c.eval_derivative(u, order),
+            Curve::Line(c) => c.eval_derivative(u, order),
+            Curve::Circle(c) => c.eval_derivative(u, order),
+            Curve::Ellipse(c) => c.eval_derivative(u, order),
+            Curve::Parabola(c) => c.eval_derivative(u, order),
+            Curve::Hyperbola(c) => c.eval_derivative(u, order),
+            Curve::BSpline(c) => c.eval_derivative(u, order),
         }
     }
 
-    fn eval_d1(&self, u: f64) -> (Point3D, Vector3D) {
+    fn eval_d1(&self, u: f64) -> (Point, Vector) {
         match self {
-            Curve3D::Line(c) => ParametricCurve3D::eval_d1(c, u),
-            Curve3D::Circle(c) => ParametricCurve3D::eval_d1(c, u),
-            Curve3D::Ellipse(c) => ParametricCurve3D::eval_d1(c, u),
-            Curve3D::Parabola(c) => ParametricCurve3D::eval_d1(c, u),
-            Curve3D::Hyperbola(c) => ParametricCurve3D::eval_d1(c, u),
-            Curve3D::BSpline(c) => c.eval_d1(u),
+            Curve::Line(c) => ParametricCurve::eval_d1(c, u),
+            Curve::Circle(c) => ParametricCurve::eval_d1(c, u),
+            Curve::Ellipse(c) => ParametricCurve::eval_d1(c, u),
+            Curve::Parabola(c) => ParametricCurve::eval_d1(c, u),
+            Curve::Hyperbola(c) => ParametricCurve::eval_d1(c, u),
+            Curve::BSpline(c) => c.eval_d1(u),
         }
     }
 
-    fn eval_d2(&self, u: f64) -> (Point3D, Vector3D, Vector3D) {
+    fn eval_d2(&self, u: f64) -> (Point, Vector, Vector) {
         match self {
-            Curve3D::Line(c) => ParametricCurve3D::eval_d2(c, u),
-            Curve3D::Circle(c) => ParametricCurve3D::eval_d2(c, u),
-            Curve3D::Ellipse(c) => ParametricCurve3D::eval_d2(c, u),
-            Curve3D::Parabola(c) => ParametricCurve3D::eval_d2(c, u),
-            Curve3D::Hyperbola(c) => ParametricCurve3D::eval_d2(c, u),
-            Curve3D::BSpline(c) => c.eval_d2(u),
+            Curve::Line(c) => ParametricCurve::eval_d2(c, u),
+            Curve::Circle(c) => ParametricCurve::eval_d2(c, u),
+            Curve::Ellipse(c) => ParametricCurve::eval_d2(c, u),
+            Curve::Parabola(c) => ParametricCurve::eval_d2(c, u),
+            Curve::Hyperbola(c) => ParametricCurve::eval_d2(c, u),
+            Curve::BSpline(c) => c.eval_d2(u),
         }
     }
 
     fn bounds(&self) -> (f64, f64) {
         match self {
-            Curve3D::Line(c) => c.bounds(),
-            Curve3D::Circle(c) => c.bounds(),
-            Curve3D::Ellipse(c) => c.bounds(),
-            Curve3D::Parabola(c) => c.bounds(),
-            Curve3D::Hyperbola(c) => c.bounds(),
-            Curve3D::BSpline(c) => ParametricCurve3D::bounds(c),
+            Curve::Line(c) => c.bounds(),
+            Curve::Circle(c) => c.bounds(),
+            Curve::Ellipse(c) => c.bounds(),
+            Curve::Parabola(c) => c.bounds(),
+            Curve::Hyperbola(c) => c.bounds(),
+            Curve::BSpline(c) => ParametricCurve::bounds(c),
         }
     }
 
     fn period(&self) -> Option<f64> {
         match self {
-            Curve3D::Line(c) => c.period(),
-            Curve3D::Circle(c) => c.period(),
-            Curve3D::Ellipse(c) => c.period(),
-            Curve3D::Parabola(c) => c.period(),
-            Curve3D::Hyperbola(c) => c.period(),
-            Curve3D::BSpline(c) => ParametricCurve3D::period(c),
+            Curve::Line(c) => c.period(),
+            Curve::Circle(c) => c.period(),
+            Curve::Ellipse(c) => c.period(),
+            Curve::Parabola(c) => c.period(),
+            Curve::Hyperbola(c) => c.period(),
+            Curve::BSpline(c) => ParametricCurve::period(c),
         }
     }
 
-    fn eval_points(&self, us: &[f64]) -> Vec<Point3D> {
+    fn eval_points(&self, us: &[f64]) -> Vec<Point> {
         match self {
-            Curve3D::Line(c) => c.eval_points(us),
-            Curve3D::Circle(c) => c.eval_points(us),
-            Curve3D::Ellipse(c) => c.eval_points(us),
-            Curve3D::Parabola(c) => c.eval_points(us),
-            Curve3D::Hyperbola(c) => c.eval_points(us),
-            Curve3D::BSpline(c) => c.eval_points(us),
+            Curve::Line(c) => c.eval_points(us),
+            Curve::Circle(c) => c.eval_points(us),
+            Curve::Ellipse(c) => c.eval_points(us),
+            Curve::Parabola(c) => c.eval_points(us),
+            Curve::Hyperbola(c) => c.eval_points(us),
+            Curve::BSpline(c) => c.eval_points(us),
         }
     }
 
     fn is_closed(&self, tol: Tolerance) -> bool {
         match self {
-            Curve3D::Line(c) => ParametricCurve3D::is_closed(c, tol),
-            Curve3D::Circle(c) => ParametricCurve3D::is_closed(c, tol),
-            Curve3D::Ellipse(c) => ParametricCurve3D::is_closed(c, tol),
-            Curve3D::Parabola(c) => ParametricCurve3D::is_closed(c, tol),
-            Curve3D::Hyperbola(c) => ParametricCurve3D::is_closed(c, tol),
-            Curve3D::BSpline(c) => c.is_closed(tol),
+            Curve::Line(c) => ParametricCurve::is_closed(c, tol),
+            Curve::Circle(c) => ParametricCurve::is_closed(c, tol),
+            Curve::Ellipse(c) => ParametricCurve::is_closed(c, tol),
+            Curve::Parabola(c) => ParametricCurve::is_closed(c, tol),
+            Curve::Hyperbola(c) => ParametricCurve::is_closed(c, tol),
+            Curve::BSpline(c) => c.is_closed(tol),
         }
     }
 
     fn continuity(&self, u: f64, tol: Tolerance) -> Continuity {
         match self {
-            Curve3D::Line(c) => ParametricCurve3D::continuity(c, u, tol),
-            Curve3D::Circle(c) => ParametricCurve3D::continuity(c, u, tol),
-            Curve3D::Ellipse(c) => ParametricCurve3D::continuity(c, u, tol),
-            Curve3D::Parabola(c) => ParametricCurve3D::continuity(c, u, tol),
-            Curve3D::Hyperbola(c) => ParametricCurve3D::continuity(c, u, tol),
-            Curve3D::BSpline(c) => c.continuity(u, tol),
+            Curve::Line(c) => ParametricCurve::continuity(c, u, tol),
+            Curve::Circle(c) => ParametricCurve::continuity(c, u, tol),
+            Curve::Ellipse(c) => ParametricCurve::continuity(c, u, tol),
+            Curve::Parabola(c) => ParametricCurve::continuity(c, u, tol),
+            Curve::Hyperbola(c) => ParametricCurve::continuity(c, u, tol),
+            Curve::BSpline(c) => c.continuity(u, tol),
         }
     }
 
     fn min_continuity(&self) -> Continuity {
         match self {
-            Curve3D::Line(c) => ParametricCurve3D::min_continuity(c),
-            Curve3D::Circle(c) => ParametricCurve3D::min_continuity(c),
-            Curve3D::Ellipse(c) => ParametricCurve3D::min_continuity(c),
-            Curve3D::Parabola(c) => ParametricCurve3D::min_continuity(c),
-            Curve3D::Hyperbola(c) => ParametricCurve3D::min_continuity(c),
-            Curve3D::BSpline(c) => c.min_continuity(),
+            Curve::Line(c) => ParametricCurve::min_continuity(c),
+            Curve::Circle(c) => ParametricCurve::min_continuity(c),
+            Curve::Ellipse(c) => ParametricCurve::min_continuity(c),
+            Curve::Parabola(c) => ParametricCurve::min_continuity(c),
+            Curve::Hyperbola(c) => ParametricCurve::min_continuity(c),
+            Curve::BSpline(c) => c.min_continuity(),
         }
     }
 
-    fn as_bspline(&self) -> Option<&BSplineCurve3D> {
+    fn as_bspline(&self) -> Option<&BSplineCurve> {
         match self {
-            Curve3D::BSpline(c) => Some(c),
+            Curve::BSpline(c) => Some(c),
             _ => None,
         }
     }
 
     fn as_elementary(&self) -> Option<ElementaryCurve> {
-        Curve3D::as_elementary(self)
+        Curve::as_elementary(self)
     }
 }
 
-impl PointExtrema3D for Curve3D {
-    fn extrema(&self, point: Point3D, tol: Tolerance) -> Vec<CurveProjection> {
+impl PointExtrema for Curve {
+    fn extrema(&self, point: Point, tol: Tolerance) -> Vec<CurveProjection> {
         match self {
-            Curve3D::Line(c) => PointExtrema3D::extrema(c, point, tol),
-            Curve3D::Circle(c) => PointExtrema3D::extrema(c, point, tol),
-            Curve3D::Ellipse(c) => PointExtrema3D::extrema(c, point, tol),
-            Curve3D::Parabola(c) => PointExtrema3D::extrema(c, point, tol),
-            Curve3D::Hyperbola(c) => PointExtrema3D::extrema(c, point, tol),
-            Curve3D::BSpline(c) => PointExtrema3D::extrema(c, point, tol),
+            Curve::Line(c) => PointExtrema::extrema(c, point, tol),
+            Curve::Circle(c) => PointExtrema::extrema(c, point, tol),
+            Curve::Ellipse(c) => PointExtrema::extrema(c, point, tol),
+            Curve::Parabola(c) => PointExtrema::extrema(c, point, tol),
+            Curve::Hyperbola(c) => PointExtrema::extrema(c, point, tol),
+            Curve::BSpline(c) => PointExtrema::extrema(c, point, tol),
         }
     }
 }
 
-impl From<Line3D> for Curve3D {
-    /// Wraps a [`Line3D`] as a [`Curve3D::Line`].
-    fn from(curve: Line3D) -> Curve3D {
-        Curve3D::Line(curve)
+impl From<Line> for Curve {
+    /// Wraps a [`Line`] as a [`Curve::Line`].
+    fn from(curve: Line) -> Curve {
+        Curve::Line(curve)
     }
 }
 
-impl From<Circle3D> for Curve3D {
-    /// Wraps a [`Circle3D`] as a [`Curve3D::Circle`].
-    fn from(curve: Circle3D) -> Curve3D {
-        Curve3D::Circle(curve)
+impl From<Circle> for Curve {
+    /// Wraps a [`Circle`] as a [`Curve::Circle`].
+    fn from(curve: Circle) -> Curve {
+        Curve::Circle(curve)
     }
 }
 
-impl From<Ellipse3D> for Curve3D {
-    /// Wraps an [`Ellipse3D`] as a [`Curve3D::Ellipse`].
-    fn from(curve: Ellipse3D) -> Curve3D {
-        Curve3D::Ellipse(curve)
+impl From<Ellipse> for Curve {
+    /// Wraps an [`Ellipse`] as a [`Curve::Ellipse`].
+    fn from(curve: Ellipse) -> Curve {
+        Curve::Ellipse(curve)
     }
 }
 
-impl From<Parabola3D> for Curve3D {
-    /// Wraps a [`Parabola3D`] as a [`Curve3D::Parabola`].
-    fn from(curve: Parabola3D) -> Curve3D {
-        Curve3D::Parabola(curve)
+impl From<Parabola> for Curve {
+    /// Wraps a [`Parabola`] as a [`Curve::Parabola`].
+    fn from(curve: Parabola) -> Curve {
+        Curve::Parabola(curve)
     }
 }
 
-impl From<Hyperbola3D> for Curve3D {
-    /// Wraps a [`Hyperbola3D`] as a [`Curve3D::Hyperbola`].
-    fn from(curve: Hyperbola3D) -> Curve3D {
-        Curve3D::Hyperbola(curve)
+impl From<Hyperbola> for Curve {
+    /// Wraps a [`Hyperbola`] as a [`Curve::Hyperbola`].
+    fn from(curve: Hyperbola) -> Curve {
+        Curve::Hyperbola(curve)
     }
 }
 
-impl From<BSplineCurve3D> for Curve3D {
-    /// Wraps a [`BSplineCurve3D`] as a [`Curve3D::BSpline`].
-    fn from(curve: BSplineCurve3D) -> Curve3D {
-        Curve3D::BSpline(curve)
+impl From<BSplineCurve> for Curve {
+    /// Wraps a [`BSplineCurve`] as a [`Curve::BSpline`].
+    fn from(curve: BSplineCurve) -> Curve {
+        Curve::BSpline(curve)
     }
 }
 
 /// An elementary curve: a line, circle, ellipse, parabola or hyperbola,
 /// the curves with a closed-form definition.
 ///
-/// Unlike [`Curve3D`] it is `Copy` and owns no heap memory, so it can be
+/// Unlike [`Curve`] it is `Copy` and owns no heap memory, so it can be
 /// stored inline in intersection results.
 ///
 /// # Examples
 ///
 /// ```
-/// use geomcore::curves::{Curve3D, ElementaryCurve};
-/// use geomcore::{Line3D, Point3D, Vector3D};
+/// use geomcore::curves::{Curve, ElementaryCurve};
+/// use geomcore::{Line, Point, Vector};
 ///
-/// let line = Line3D::new(Point3D::ORIGIN, Vector3D::X).unwrap();
-/// let curve = Curve3D::from(line);
+/// let line = Line::new(Point::ORIGIN, Vector::X).unwrap();
+/// let curve = Curve::from(line);
 /// assert_eq!(curve.as_elementary(), Some(ElementaryCurve::Line(line)));
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ElementaryCurve {
-    /// A [`Line3D`] curve.
-    Line(Line3D),
-    /// A [`Circle3D`] curve.
-    Circle(Circle3D),
-    /// An [`Ellipse3D`] curve.
-    Ellipse(Ellipse3D),
-    /// A [`Parabola3D`] curve.
-    Parabola(Parabola3D),
-    /// A [`Hyperbola3D`] curve.
-    Hyperbola(Hyperbola3D),
+    /// A [`Line`] curve.
+    Line(Line),
+    /// A [`Circle`] curve.
+    Circle(Circle),
+    /// An [`Ellipse`] curve.
+    Ellipse(Ellipse),
+    /// A [`Parabola`] curve.
+    Parabola(Parabola),
+    /// A [`Hyperbola`] curve.
+    Hyperbola(Hyperbola),
 }
 
-impl Curve3D {
+impl Curve {
     /// Projects `point` onto the curve: the closest parameter, the closest
     /// point and the distance. Distances within `tol.confusion` snap to
     /// `0.0`.
@@ -1014,27 +1014,27 @@ impl Curve3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::curves::Curve3D;
-    /// use geomcore::{Line3D, Point3D, Tolerance, Vector3D};
+    /// use geomcore::curves::Curve;
+    /// use geomcore::{Line, Point, Tolerance, Vector};
     ///
-    /// let curve = Curve3D::from(Line3D::new(Point3D::ORIGIN, Vector3D::X).unwrap());
-    /// let projection = curve.project_point(Point3D::new(2.0, 1.0, 0.0), Tolerance::DEFAULT);
-    /// assert_eq!(projection.point, Point3D::new(2.0, 0.0, 0.0));
+    /// let curve = Curve::from(Line::new(Point::ORIGIN, Vector::X).unwrap());
+    /// let projection = curve.project_point(Point::new(2.0, 1.0, 0.0), Tolerance::DEFAULT);
+    /// assert_eq!(projection.point, Point::new(2.0, 0.0, 0.0));
     /// assert_eq!(projection.distance, 1.0);
     /// ```
-    pub fn project_point(&self, point: Point3D, tol: Tolerance) -> CurveProjection {
+    pub fn project_point(&self, point: Point, tol: Tolerance) -> CurveProjection {
         match self {
-            Curve3D::Line(c) => c.project_point(point, tol),
-            Curve3D::Circle(c) => c.project_point(point, tol),
-            Curve3D::Ellipse(c) => c.project_point(point, tol),
-            Curve3D::Parabola(c) => c.project_point(point, tol),
-            Curve3D::Hyperbola(c) => c.project_point(point, tol),
-            Curve3D::BSpline(c) => c.project_point(point, tol),
+            Curve::Line(c) => c.project_point(point, tol),
+            Curve::Circle(c) => c.project_point(point, tol),
+            Curve::Ellipse(c) => c.project_point(point, tol),
+            Curve::Parabola(c) => c.project_point(point, tol),
+            Curve::Hyperbola(c) => c.project_point(point, tol),
+            Curve::BSpline(c) => c.project_point(point, tol),
         }
     }
 
     /// Projects each point in `points` onto the curve.
-    pub fn project_points(&self, points: &[Point3D], tol: Tolerance) -> Vec<CurveProjection> {
+    pub fn project_points(&self, points: &[Point], tol: Tolerance) -> Vec<CurveProjection> {
         points.iter().map(|&p| self.project_point(p, tol)).collect()
     }
 
@@ -1043,39 +1043,39 @@ impl Curve3D {
     /// An elementary curve uses its closed form (see
     /// [`ElementaryCurve::parameter_of`]). A B-spline projects the point
     /// with [`Tolerance::DEFAULT`] and returns the projection's parameter;
-    /// call [`project_point`](Curve3D::project_point) to choose the
+    /// call [`project_point`](Curve::project_point) to choose the
     /// tolerance.
     ///
     /// # Examples
     ///
     /// ```
-    /// use geomcore::curves::Curve3D;
-    /// use geomcore::{Circle3D, Point3D, Vector3D};
+    /// use geomcore::curves::Curve;
+    /// use geomcore::{Circle, Point, Vector};
     ///
-    /// let curve = Curve3D::from(Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap());
-    /// let parameter = curve.parameter_of(Point3D::new(0.0, 2.0, 0.0));
+    /// let curve = Curve::from(Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap());
+    /// let parameter = curve.parameter_of(Point::new(0.0, 2.0, 0.0));
     /// assert!((parameter - std::f64::consts::FRAC_PI_2).abs() < 1e-12);
     /// ```
-    pub fn parameter_of(&self, point: Point3D) -> f64 {
+    pub fn parameter_of(&self, point: Point) -> f64 {
         match self {
-            Curve3D::Line(c) => c.parameter_of(point),
-            Curve3D::Circle(c) => c.parameter_of(point),
-            Curve3D::Ellipse(c) => c.parameter_of(point),
-            Curve3D::Parabola(c) => c.parameter_of(point),
-            Curve3D::Hyperbola(c) => c.parameter_of(point),
-            Curve3D::BSpline(c) => c.project_point(point, Tolerance::DEFAULT).parameter,
+            Curve::Line(c) => c.parameter_of(point),
+            Curve::Circle(c) => c.parameter_of(point),
+            Curve::Ellipse(c) => c.parameter_of(point),
+            Curve::Parabola(c) => c.parameter_of(point),
+            Curve::Hyperbola(c) => c.parameter_of(point),
+            Curve::BSpline(c) => c.project_point(point, Tolerance::DEFAULT).parameter,
         }
     }
 
     /// The curve as an [`ElementaryCurve`], or `None` for a B-spline.
     pub fn as_elementary(&self) -> Option<ElementaryCurve> {
         match self {
-            Curve3D::Line(c) => Some(ElementaryCurve::Line(*c)),
-            Curve3D::Circle(c) => Some(ElementaryCurve::Circle(*c)),
-            Curve3D::Ellipse(c) => Some(ElementaryCurve::Ellipse(*c)),
-            Curve3D::Parabola(c) => Some(ElementaryCurve::Parabola(*c)),
-            Curve3D::Hyperbola(c) => Some(ElementaryCurve::Hyperbola(*c)),
-            Curve3D::BSpline(_) => None,
+            Curve::Line(c) => Some(ElementaryCurve::Line(*c)),
+            Curve::Circle(c) => Some(ElementaryCurve::Circle(*c)),
+            Curve::Ellipse(c) => Some(ElementaryCurve::Ellipse(*c)),
+            Curve::Parabola(c) => Some(ElementaryCurve::Parabola(*c)),
+            Curve::Hyperbola(c) => Some(ElementaryCurve::Hyperbola(*c)),
+            Curve::BSpline(_) => None,
         }
     }
 }
@@ -1087,12 +1087,12 @@ impl ElementaryCurve {
     ///
     /// ```
     /// use geomcore::curves::ElementaryCurve;
-    /// use geomcore::{Line3D, Point3D, Vector3D};
+    /// use geomcore::{Line, Point, Vector};
     ///
-    /// let curve = ElementaryCurve::from(Line3D::new(Point3D::ORIGIN, Vector3D::X).unwrap());
-    /// assert_eq!(curve.parameter_of(Point3D::new(2.0, 0.0, 0.0)), 2.0);
+    /// let curve = ElementaryCurve::from(Line::new(Point::ORIGIN, Vector::X).unwrap());
+    /// assert_eq!(curve.parameter_of(Point::new(2.0, 0.0, 0.0)), 2.0);
     /// ```
-    pub fn parameter_of(&self, point: Point3D) -> f64 {
+    pub fn parameter_of(&self, point: Point) -> f64 {
         match self {
             ElementaryCurve::Line(c) => c.parameter_of(point),
             ElementaryCurve::Circle(c) => c.parameter_of(point),
@@ -1110,14 +1110,14 @@ impl ElementaryCurve {
     ///
     /// ```
     /// use geomcore::curves::ElementaryCurve;
-    /// use geomcore::{Line3D, Point3D, Tolerance, Vector3D};
+    /// use geomcore::{Line, Point, Tolerance, Vector};
     ///
-    /// let curve = ElementaryCurve::from(Line3D::new(Point3D::ORIGIN, Vector3D::X).unwrap());
-    /// let projection = curve.project_point(Point3D::new(2.0, 1.0, 0.0), Tolerance::DEFAULT);
-    /// assert_eq!(projection.point, Point3D::new(2.0, 0.0, 0.0));
+    /// let curve = ElementaryCurve::from(Line::new(Point::ORIGIN, Vector::X).unwrap());
+    /// let projection = curve.project_point(Point::new(2.0, 1.0, 0.0), Tolerance::DEFAULT);
+    /// assert_eq!(projection.point, Point::new(2.0, 0.0, 0.0));
     /// assert_eq!(projection.distance, 1.0);
     /// ```
-    pub fn project_point(&self, point: Point3D, tol: Tolerance) -> CurveProjection {
+    pub fn project_point(&self, point: Point, tol: Tolerance) -> CurveProjection {
         match self {
             ElementaryCurve::Line(c) => c.project_point(point, tol),
             ElementaryCurve::Circle(c) => c.project_point(point, tol),
@@ -1128,25 +1128,25 @@ impl ElementaryCurve {
     }
 
     /// Projects each point in `points` onto the curve.
-    pub fn project_points(&self, points: &[Point3D], tol: Tolerance) -> Vec<CurveProjection> {
+    pub fn project_points(&self, points: &[Point], tol: Tolerance) -> Vec<CurveProjection> {
         points.iter().map(|&p| self.project_point(p, tol)).collect()
     }
 }
 
-impl PointExtrema3D for ElementaryCurve {
-    fn extrema(&self, point: Point3D, tol: Tolerance) -> Vec<CurveProjection> {
+impl PointExtrema for ElementaryCurve {
+    fn extrema(&self, point: Point, tol: Tolerance) -> Vec<CurveProjection> {
         match self {
-            ElementaryCurve::Line(c) => PointExtrema3D::extrema(c, point, tol),
-            ElementaryCurve::Circle(c) => PointExtrema3D::extrema(c, point, tol),
-            ElementaryCurve::Ellipse(c) => PointExtrema3D::extrema(c, point, tol),
-            ElementaryCurve::Parabola(c) => PointExtrema3D::extrema(c, point, tol),
-            ElementaryCurve::Hyperbola(c) => PointExtrema3D::extrema(c, point, tol),
+            ElementaryCurve::Line(c) => PointExtrema::extrema(c, point, tol),
+            ElementaryCurve::Circle(c) => PointExtrema::extrema(c, point, tol),
+            ElementaryCurve::Ellipse(c) => PointExtrema::extrema(c, point, tol),
+            ElementaryCurve::Parabola(c) => PointExtrema::extrema(c, point, tol),
+            ElementaryCurve::Hyperbola(c) => PointExtrema::extrema(c, point, tol),
         }
     }
 }
 
-impl ParametricCurve3D for ElementaryCurve {
-    fn eval_point(&self, u: f64) -> Point3D {
+impl ParametricCurve for ElementaryCurve {
+    fn eval_point(&self, u: f64) -> Point {
         match self {
             ElementaryCurve::Line(c) => c.eval_point(u),
             ElementaryCurve::Circle(c) => c.eval_point(u),
@@ -1156,7 +1156,7 @@ impl ParametricCurve3D for ElementaryCurve {
         }
     }
 
-    fn eval_derivative(&self, u: f64, order: u32) -> Vector3D {
+    fn eval_derivative(&self, u: f64, order: u32) -> Vector {
         match self {
             ElementaryCurve::Line(c) => c.eval_derivative(u, order),
             ElementaryCurve::Circle(c) => c.eval_derivative(u, order),
@@ -1186,7 +1186,7 @@ impl ParametricCurve3D for ElementaryCurve {
         }
     }
 
-    fn eval_points(&self, us: &[f64]) -> Vec<Point3D> {
+    fn eval_points(&self, us: &[f64]) -> Vec<Point> {
         match self {
             ElementaryCurve::Line(c) => c.eval_points(us),
             ElementaryCurve::Circle(c) => c.eval_points(us),
@@ -1201,50 +1201,50 @@ impl ParametricCurve3D for ElementaryCurve {
     }
 }
 
-impl From<ElementaryCurve> for Curve3D {
-    /// Wraps an [`ElementaryCurve`] as the matching [`Curve3D`] variant.
-    fn from(curve: ElementaryCurve) -> Curve3D {
+impl From<ElementaryCurve> for Curve {
+    /// Wraps an [`ElementaryCurve`] as the matching [`Curve`] variant.
+    fn from(curve: ElementaryCurve) -> Curve {
         match curve {
-            ElementaryCurve::Line(c) => Curve3D::Line(c),
-            ElementaryCurve::Circle(c) => Curve3D::Circle(c),
-            ElementaryCurve::Ellipse(c) => Curve3D::Ellipse(c),
-            ElementaryCurve::Parabola(c) => Curve3D::Parabola(c),
-            ElementaryCurve::Hyperbola(c) => Curve3D::Hyperbola(c),
+            ElementaryCurve::Line(c) => Curve::Line(c),
+            ElementaryCurve::Circle(c) => Curve::Circle(c),
+            ElementaryCurve::Ellipse(c) => Curve::Ellipse(c),
+            ElementaryCurve::Parabola(c) => Curve::Parabola(c),
+            ElementaryCurve::Hyperbola(c) => Curve::Hyperbola(c),
         }
     }
 }
 
-impl From<Line3D> for ElementaryCurve {
-    /// Wraps a [`Line3D`] as an [`ElementaryCurve::Line`].
-    fn from(curve: Line3D) -> ElementaryCurve {
+impl From<Line> for ElementaryCurve {
+    /// Wraps a [`Line`] as an [`ElementaryCurve::Line`].
+    fn from(curve: Line) -> ElementaryCurve {
         ElementaryCurve::Line(curve)
     }
 }
 
-impl From<Circle3D> for ElementaryCurve {
-    /// Wraps a [`Circle3D`] as an [`ElementaryCurve::Circle`].
-    fn from(curve: Circle3D) -> ElementaryCurve {
+impl From<Circle> for ElementaryCurve {
+    /// Wraps a [`Circle`] as an [`ElementaryCurve::Circle`].
+    fn from(curve: Circle) -> ElementaryCurve {
         ElementaryCurve::Circle(curve)
     }
 }
 
-impl From<Ellipse3D> for ElementaryCurve {
-    /// Wraps an [`Ellipse3D`] as an [`ElementaryCurve::Ellipse`].
-    fn from(curve: Ellipse3D) -> ElementaryCurve {
+impl From<Ellipse> for ElementaryCurve {
+    /// Wraps an [`Ellipse`] as an [`ElementaryCurve::Ellipse`].
+    fn from(curve: Ellipse) -> ElementaryCurve {
         ElementaryCurve::Ellipse(curve)
     }
 }
 
-impl From<Parabola3D> for ElementaryCurve {
-    /// Wraps a [`Parabola3D`] as an [`ElementaryCurve::Parabola`].
-    fn from(curve: Parabola3D) -> ElementaryCurve {
+impl From<Parabola> for ElementaryCurve {
+    /// Wraps a [`Parabola`] as an [`ElementaryCurve::Parabola`].
+    fn from(curve: Parabola) -> ElementaryCurve {
         ElementaryCurve::Parabola(curve)
     }
 }
 
-impl From<Hyperbola3D> for ElementaryCurve {
-    /// Wraps a [`Hyperbola3D`] as an [`ElementaryCurve::Hyperbola`].
-    fn from(curve: Hyperbola3D) -> ElementaryCurve {
+impl From<Hyperbola> for ElementaryCurve {
+    /// Wraps a [`Hyperbola`] as an [`ElementaryCurve::Hyperbola`].
+    fn from(curve: Hyperbola) -> ElementaryCurve {
         ElementaryCurve::Hyperbola(curve)
     }
 }
@@ -1254,44 +1254,44 @@ mod tests {
     use super::*;
     use crate::Continuity::{Order, Smooth};
 
-    fn sample<C: ParametricCurve3D>(c: &C) -> Point3D {
+    fn sample<C: ParametricCurve>(c: &C) -> Point {
         c.eval_point(0.5)
     }
 
-    fn line() -> Line3D {
-        Line3D::new(Point3D::ORIGIN, Vector3D::X).unwrap()
+    fn line() -> Line {
+        Line::new(Point::ORIGIN, Vector::X).unwrap()
     }
 
-    fn circle() -> Circle3D {
-        Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap()
+    fn circle() -> Circle {
+        Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap()
     }
 
-    fn ellipse() -> Ellipse3D {
-        Ellipse3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, 3.0, 1.5).unwrap()
+    fn ellipse() -> Ellipse {
+        Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 3.0, 1.5).unwrap()
     }
 
-    fn parabola() -> Parabola3D {
-        Parabola3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, 1.0).unwrap()
+    fn parabola() -> Parabola {
+        Parabola::new(Point::ORIGIN, Vector::Z, Vector::X, 1.0).unwrap()
     }
 
-    fn hyperbola() -> Hyperbola3D {
-        Hyperbola3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, 2.0, 1.0).unwrap()
+    fn hyperbola() -> Hyperbola {
+        Hyperbola::new(Point::ORIGIN, Vector::Z, Vector::X, 2.0, 1.0).unwrap()
     }
 
-    fn bspline() -> BSplineCurve3D {
+    fn bspline() -> BSplineCurve {
         // Clamped degree-1 curve: straight segment (0,0,0) -> (2,0,0).
-        let poles = vec![Point3D::ORIGIN, Point3D::new(2.0, 0.0, 0.0)];
-        BSplineCurve3D::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap()
+        let poles = vec![Point::ORIGIN, Point::new(2.0, 0.0, 0.0)];
+        BSplineCurve::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap()
     }
 
-    fn bspline_periodic() -> BSplineCurve3D {
+    fn bspline_periodic() -> BSplineCurve {
         // Periodic degree-1 triangle, knots [0,1,2,3] period 3.
         let poles = vec![
-            Point3D::new(0.0, 0.0, 0.0),
-            Point3D::new(1.0, 0.0, 0.0),
-            Point3D::new(0.0, 1.0, 0.0),
+            Point::new(0.0, 0.0, 0.0),
+            Point::new(1.0, 0.0, 0.0),
+            Point::new(0.0, 1.0, 0.0),
         ];
-        BSplineCurve3D::new(1, poles, vec![0.0, 1.0, 2.0, 3.0], vec![1, 1, 1, 1], true).unwrap()
+        BSplineCurve::new(1, poles, vec![0.0, 1.0, 2.0, 3.0], vec![1, 1, 1, 1], true).unwrap()
     }
 
     // ---- generic fn agrees with inherent calls ----
@@ -1335,11 +1335,11 @@ mod tests {
     #[test]
     fn test_sample_curve3d_enum_agrees_with_inherent() {
         let l = line();
-        let wrapped: Curve3D = l.into();
+        let wrapped: Curve = l.into();
         assert_eq!(sample(&wrapped), l.eval_point(0.5));
     }
 
-    // ---- heterogeneous Vec<Curve3D> eval ----
+    // ---- heterogeneous Vec<Curve> eval ----
 
     #[test]
     fn test_heterogeneous_vec_eval() {
@@ -1349,7 +1349,7 @@ mod tests {
         let p = parabola();
         let h = hyperbola();
         let b = bspline();
-        let curves: Vec<Curve3D> = vec![
+        let curves: Vec<Curve> = vec![
             l.into(),
             c.into(),
             e.into(),
@@ -1357,7 +1357,7 @@ mod tests {
             h.into(),
             b.clone().into(),
         ];
-        let points: Vec<Point3D> = curves.iter().map(|curve| curve.eval_point(0.25)).collect();
+        let points: Vec<Point> = curves.iter().map(|curve| curve.eval_point(0.25)).collect();
         assert_eq!(points[0], l.eval_point(0.25));
         assert_eq!(points[1], c.eval_point(0.25));
         assert_eq!(points[2], e.eval_point(0.25));
@@ -1371,54 +1371,54 @@ mod tests {
     #[test]
     fn test_from_line_round_trips() {
         let l = line();
-        match Curve3D::from(l) {
-            Curve3D::Line(inner) => assert_eq!(inner, l),
-            _ => panic!("expected Curve3D::Line"),
+        match Curve::from(l) {
+            Curve::Line(inner) => assert_eq!(inner, l),
+            _ => panic!("expected Curve::Line"),
         }
     }
 
     #[test]
     fn test_from_circle_round_trips() {
         let c = circle();
-        match Curve3D::from(c) {
-            Curve3D::Circle(inner) => assert_eq!(inner, c),
-            _ => panic!("expected Curve3D::Circle"),
+        match Curve::from(c) {
+            Curve::Circle(inner) => assert_eq!(inner, c),
+            _ => panic!("expected Curve::Circle"),
         }
     }
 
     #[test]
     fn test_from_ellipse_round_trips() {
         let e = ellipse();
-        match Curve3D::from(e) {
-            Curve3D::Ellipse(inner) => assert_eq!(inner, e),
-            _ => panic!("expected Curve3D::Ellipse"),
+        match Curve::from(e) {
+            Curve::Ellipse(inner) => assert_eq!(inner, e),
+            _ => panic!("expected Curve::Ellipse"),
         }
     }
 
     #[test]
     fn test_from_parabola_round_trips() {
         let p = parabola();
-        match Curve3D::from(p) {
-            Curve3D::Parabola(inner) => assert_eq!(inner, p),
-            _ => panic!("expected Curve3D::Parabola"),
+        match Curve::from(p) {
+            Curve::Parabola(inner) => assert_eq!(inner, p),
+            _ => panic!("expected Curve::Parabola"),
         }
     }
 
     #[test]
     fn test_from_hyperbola_round_trips() {
         let h = hyperbola();
-        match Curve3D::from(h) {
-            Curve3D::Hyperbola(inner) => assert_eq!(inner, h),
-            _ => panic!("expected Curve3D::Hyperbola"),
+        match Curve::from(h) {
+            Curve::Hyperbola(inner) => assert_eq!(inner, h),
+            _ => panic!("expected Curve::Hyperbola"),
         }
     }
 
     #[test]
     fn test_from_bspline_round_trips() {
         let b = bspline();
-        match Curve3D::from(b.clone()) {
-            Curve3D::BSpline(inner) => assert_eq!(inner, b),
-            _ => panic!("expected Curve3D::BSpline"),
+        match Curve::from(b.clone()) {
+            Curve::BSpline(inner) => assert_eq!(inner, b),
+            _ => panic!("expected Curve::BSpline"),
         }
     }
 
@@ -1428,13 +1428,13 @@ mod tests {
     fn test_line_bounds_and_period() {
         let l = line();
         assert_eq!(
-            ParametricCurve3D::bounds(&l),
+            ParametricCurve::bounds(&l),
             (f64::NEG_INFINITY, f64::INFINITY)
         );
-        assert_eq!(ParametricCurve3D::period(&l), None);
-        assert!(!ParametricCurve3D::is_periodic(&l));
+        assert_eq!(ParametricCurve::period(&l), None);
+        assert!(!ParametricCurve::is_periodic(&l));
 
-        let wrapped: Curve3D = l.into();
+        let wrapped: Curve = l.into();
         assert_eq!(wrapped.bounds(), (f64::NEG_INFINITY, f64::INFINITY));
         assert_eq!(wrapped.period(), None);
         assert!(!wrapped.is_periodic());
@@ -1443,11 +1443,11 @@ mod tests {
     #[test]
     fn test_circle_bounds_and_period() {
         let c = circle();
-        assert_eq!(ParametricCurve3D::bounds(&c), (0.0, TAU));
-        assert_eq!(ParametricCurve3D::period(&c), Some(TAU));
-        assert!(ParametricCurve3D::is_periodic(&c));
+        assert_eq!(ParametricCurve::bounds(&c), (0.0, TAU));
+        assert_eq!(ParametricCurve::period(&c), Some(TAU));
+        assert!(ParametricCurve::is_periodic(&c));
 
-        let wrapped: Curve3D = c.into();
+        let wrapped: Curve = c.into();
         assert_eq!(wrapped.bounds(), (0.0, TAU));
         assert_eq!(wrapped.period(), Some(TAU));
         assert!(wrapped.is_periodic());
@@ -1456,11 +1456,11 @@ mod tests {
     #[test]
     fn test_ellipse_bounds_and_period() {
         let e = ellipse();
-        assert_eq!(ParametricCurve3D::bounds(&e), (0.0, TAU));
-        assert_eq!(ParametricCurve3D::period(&e), Some(TAU));
-        assert!(ParametricCurve3D::is_periodic(&e));
+        assert_eq!(ParametricCurve::bounds(&e), (0.0, TAU));
+        assert_eq!(ParametricCurve::period(&e), Some(TAU));
+        assert!(ParametricCurve::is_periodic(&e));
 
-        let wrapped: Curve3D = e.into();
+        let wrapped: Curve = e.into();
         assert_eq!(wrapped.bounds(), (0.0, TAU));
         assert_eq!(wrapped.period(), Some(TAU));
         assert!(wrapped.is_periodic());
@@ -1470,13 +1470,13 @@ mod tests {
     fn test_parabola_bounds_and_period() {
         let p = parabola();
         assert_eq!(
-            ParametricCurve3D::bounds(&p),
+            ParametricCurve::bounds(&p),
             (f64::NEG_INFINITY, f64::INFINITY)
         );
-        assert_eq!(ParametricCurve3D::period(&p), None);
-        assert!(!ParametricCurve3D::is_periodic(&p));
+        assert_eq!(ParametricCurve::period(&p), None);
+        assert!(!ParametricCurve::is_periodic(&p));
 
-        let wrapped: Curve3D = p.into();
+        let wrapped: Curve = p.into();
         assert_eq!(wrapped.bounds(), (f64::NEG_INFINITY, f64::INFINITY));
         assert_eq!(wrapped.period(), None);
         assert!(!wrapped.is_periodic());
@@ -1486,13 +1486,13 @@ mod tests {
     fn test_hyperbola_bounds_and_period() {
         let h = hyperbola();
         assert_eq!(
-            ParametricCurve3D::bounds(&h),
+            ParametricCurve::bounds(&h),
             (f64::NEG_INFINITY, f64::INFINITY)
         );
-        assert_eq!(ParametricCurve3D::period(&h), None);
-        assert!(!ParametricCurve3D::is_periodic(&h));
+        assert_eq!(ParametricCurve::period(&h), None);
+        assert!(!ParametricCurve::is_periodic(&h));
 
-        let wrapped: Curve3D = h.into();
+        let wrapped: Curve = h.into();
         assert_eq!(wrapped.bounds(), (f64::NEG_INFINITY, f64::INFINITY));
         assert_eq!(wrapped.period(), None);
         assert!(!wrapped.is_periodic());
@@ -1501,11 +1501,11 @@ mod tests {
     #[test]
     fn test_bspline_clamped_bounds_and_period() {
         let b = bspline();
-        assert_eq!(ParametricCurve3D::bounds(&b), (0.0, 1.0));
-        assert_eq!(ParametricCurve3D::period(&b), None);
-        assert!(!ParametricCurve3D::is_periodic(&b));
+        assert_eq!(ParametricCurve::bounds(&b), (0.0, 1.0));
+        assert_eq!(ParametricCurve::period(&b), None);
+        assert!(!ParametricCurve::is_periodic(&b));
 
-        let wrapped: Curve3D = b.into();
+        let wrapped: Curve = b.into();
         assert_eq!(wrapped.bounds(), (0.0, 1.0));
         assert_eq!(wrapped.period(), None);
         assert!(!wrapped.is_periodic());
@@ -1514,11 +1514,11 @@ mod tests {
     #[test]
     fn test_bspline_periodic_bounds_and_period() {
         let b = bspline_periodic();
-        assert_eq!(ParametricCurve3D::bounds(&b), (0.0, 3.0));
-        assert_eq!(ParametricCurve3D::period(&b), Some(3.0));
-        assert!(ParametricCurve3D::is_periodic(&b));
+        assert_eq!(ParametricCurve::bounds(&b), (0.0, 3.0));
+        assert_eq!(ParametricCurve::period(&b), Some(3.0));
+        assert!(ParametricCurve::is_periodic(&b));
 
-        let wrapped: Curve3D = b.into();
+        let wrapped: Curve = b.into();
         assert_eq!(wrapped.bounds(), (0.0, 3.0));
         assert_eq!(wrapped.period(), Some(3.0));
         assert!(wrapped.is_periodic());
@@ -1531,34 +1531,34 @@ mod tests {
         let us = [0.0, 0.5, 1.0, -2.0];
 
         let l = line();
-        let expected: Vec<Point3D> = us.iter().map(|&u| l.eval_point(u)).collect();
-        assert_eq!(ParametricCurve3D::eval_points(&l, &us), expected);
+        let expected: Vec<Point> = us.iter().map(|&u| l.eval_point(u)).collect();
+        assert_eq!(ParametricCurve::eval_points(&l, &us), expected);
 
         let c = circle();
-        let expected: Vec<Point3D> = us.iter().map(|&u| c.eval_point(u)).collect();
-        assert_eq!(ParametricCurve3D::eval_points(&c, &us), expected);
+        let expected: Vec<Point> = us.iter().map(|&u| c.eval_point(u)).collect();
+        assert_eq!(ParametricCurve::eval_points(&c, &us), expected);
 
         let e = ellipse();
-        let expected: Vec<Point3D> = us.iter().map(|&u| e.eval_point(u)).collect();
-        assert_eq!(ParametricCurve3D::eval_points(&e, &us), expected);
+        let expected: Vec<Point> = us.iter().map(|&u| e.eval_point(u)).collect();
+        assert_eq!(ParametricCurve::eval_points(&e, &us), expected);
 
         let p = parabola();
-        let expected: Vec<Point3D> = us.iter().map(|&u| p.eval_point(u)).collect();
-        assert_eq!(ParametricCurve3D::eval_points(&p, &us), expected);
+        let expected: Vec<Point> = us.iter().map(|&u| p.eval_point(u)).collect();
+        assert_eq!(ParametricCurve::eval_points(&p, &us), expected);
 
         let h = hyperbola();
-        let expected: Vec<Point3D> = us.iter().map(|&u| h.eval_point(u)).collect();
-        assert_eq!(ParametricCurve3D::eval_points(&h, &us), expected);
+        let expected: Vec<Point> = us.iter().map(|&u| h.eval_point(u)).collect();
+        assert_eq!(ParametricCurve::eval_points(&h, &us), expected);
 
         let b = bspline();
-        let expected: Vec<Point3D> = us.iter().map(|&u| b.eval_point(u)).collect();
-        assert_eq!(ParametricCurve3D::eval_points(&b, &us), expected);
+        let expected: Vec<Point> = us.iter().map(|&u| b.eval_point(u)).collect();
+        assert_eq!(ParametricCurve::eval_points(&b, &us), expected);
     }
 
     #[test]
     fn test_curve3d_enum_eval_points_matches_mapped_eval_point() {
         let us = [0.0, 0.5, 1.0, -2.0];
-        let curves: Vec<Curve3D> = vec![
+        let curves: Vec<Curve> = vec![
             line().into(),
             circle().into(),
             ellipse().into(),
@@ -1567,7 +1567,7 @@ mod tests {
             bspline().into(),
         ];
         for curve in &curves {
-            let expected: Vec<Point3D> = us.iter().map(|&u| curve.eval_point(u)).collect();
+            let expected: Vec<Point> = us.iter().map(|&u| curve.eval_point(u)).collect();
             assert_eq!(curve.eval_points(&us), expected);
         }
     }
@@ -1576,19 +1576,19 @@ mod tests {
     fn test_eval_derivative_delegates_to_inherent() {
         let l = line();
         assert_eq!(
-            ParametricCurve3D::eval_derivative(&l, 0.5, 1),
+            ParametricCurve::eval_derivative(&l, 0.5, 1),
             l.eval_derivative(0.5, 1)
         );
 
         let c = circle();
         assert_eq!(
-            ParametricCurve3D::eval_derivative(&c, 0.5, 1),
+            ParametricCurve::eval_derivative(&c, 0.5, 1),
             c.eval_derivative(0.5, 1)
         );
 
         let b = bspline();
         assert_eq!(
-            ParametricCurve3D::eval_derivative(&b, 0.5, 1),
+            ParametricCurve::eval_derivative(&b, 0.5, 1),
             b.eval_derivative(0.5, 1)
         );
     }
@@ -1605,7 +1605,7 @@ mod tests {
             hyperbola().into(),
         ];
         for curve in curves {
-            let wrapped = Curve3D::from(curve);
+            let wrapped = Curve::from(curve);
             assert_eq!(wrapped.as_elementary(), Some(curve));
             assert_eq!(curve.eval_point(0.5), wrapped.eval_point(0.5));
             assert_eq!(
@@ -1623,25 +1623,21 @@ mod tests {
 
     #[test]
     fn test_bspline_curve_is_not_elementary() {
-        assert_eq!(Curve3D::from(bspline()).as_elementary(), None);
+        assert_eq!(Curve::from(bspline()).as_elementary(), None);
     }
 
     // ---- tangent / curvature / centre ----
 
-    fn cusp() -> BSplineCurve3D {
+    fn cusp() -> BSplineCurve {
         // Quadratic Bezier out to (1,0,0) and back: the speed vanishes
         // exactly at u = 0.5 while the second derivative does not.
-        let poles = vec![
-            Point3D::ORIGIN,
-            Point3D::new(1.0, 0.0, 0.0),
-            Point3D::ORIGIN,
-        ];
-        BSplineCurve3D::new(2, poles, vec![0.0, 1.0], vec![3, 3], false).unwrap()
+        let poles = vec![Point::ORIGIN, Point::new(1.0, 0.0, 0.0), Point::ORIGIN];
+        BSplineCurve::new(2, poles, vec![0.0, 1.0], vec![3, 3], false).unwrap()
     }
 
     /// Curvature from the turn of the unit tangent between two nearby
     /// parameters, divided by the arc length between them.
-    fn finite_difference_curvature<C: ParametricCurve3D>(curve: &C, u: f64) -> f64 {
+    fn finite_difference_curvature<C: ParametricCurve>(curve: &C, u: f64) -> f64 {
         let step = 1e-6;
         let before = curve.eval_derivative(u - step, 1).normalized().unwrap();
         let after = curve.eval_derivative(u + step, 1).normalized().unwrap();
@@ -1650,58 +1646,55 @@ mod tests {
     }
 
     /// Cubic through poles off one plane: a twisted, non-uniform curve.
-    fn twisted_cubic() -> BSplineCurve3D {
+    fn twisted_cubic() -> BSplineCurve {
         let poles = vec![
-            Point3D::ORIGIN,
-            Point3D::new(1.0, 2.0, 0.0),
-            Point3D::new(3.0, -1.0, 1.0),
-            Point3D::new(4.0, 1.0, 3.0),
+            Point::ORIGIN,
+            Point::new(1.0, 2.0, 0.0),
+            Point::new(3.0, -1.0, 1.0),
+            Point::new(4.0, 1.0, 3.0),
         ];
-        BSplineCurve3D::new(3, poles, vec![0.0, 1.0], vec![4, 4], false).unwrap()
+        BSplineCurve::new(3, poles, vec![0.0, 1.0], vec![4, 4], false).unwrap()
     }
 
     /// Rational quadratic quarter of the circle of radius 2 about the origin.
-    fn rational_quarter_circle() -> BSplineCurve3D {
+    fn rational_quarter_circle() -> BSplineCurve {
         let poles = vec![
-            Point3D::new(2.0, 0.0, 0.0),
-            Point3D::new(2.0, 2.0, 0.0),
-            Point3D::new(0.0, 2.0, 0.0),
+            Point::new(2.0, 0.0, 0.0),
+            Point::new(2.0, 2.0, 0.0),
+            Point::new(0.0, 2.0, 0.0),
         ];
         let weights = vec![1.0, std::f64::consts::FRAC_1_SQRT_2, 1.0];
-        BSplineCurve3D::new_rational(2, poles, weights, vec![0.0, 1.0], vec![3, 3], false).unwrap()
+        BSplineCurve::new_rational(2, poles, weights, vec![0.0, 1.0], vec![3, 3], false).unwrap()
     }
 
     #[test]
     fn test_tangent_is_unit_along_motion() {
         let tol = Tolerance::DEFAULT;
+        assert_eq!(ParametricCurve::tangent(&line(), 5.0, tol), Some(Vector::X));
         assert_eq!(
-            ParametricCurve3D::tangent(&line(), 5.0, tol),
-            Some(Vector3D::X)
+            ParametricCurve::tangent(&circle(), 0.0, tol),
+            Some(Vector::Y)
         );
-        assert_eq!(
-            ParametricCurve3D::tangent(&circle(), 0.0, tol),
-            Some(Vector3D::Y)
-        );
-        assert_eq!(ParametricCurve3D::tangent(&cusp(), 0.5, tol), None);
+        assert_eq!(ParametricCurve::tangent(&cusp(), 0.5, tol), None);
     }
 
     #[test]
     fn test_curvature_line_zero_circle_inverse_radius_cusp_none() {
         let tol = Tolerance::DEFAULT;
-        assert_eq!(ParametricCurve3D::curvature(&line(), 5.0, tol), Some(0.0));
-        assert_eq!(ParametricCurve3D::curvature(&circle(), 0.0, tol), Some(0.5));
-        assert_eq!(ParametricCurve3D::curvature(&cusp(), 0.5, tol), None);
+        assert_eq!(ParametricCurve::curvature(&line(), 5.0, tol), Some(0.0));
+        assert_eq!(ParametricCurve::curvature(&circle(), 0.0, tol), Some(0.5));
+        assert_eq!(ParametricCurve::curvature(&cusp(), 0.5, tol), None);
     }
 
     #[test]
     fn test_curvature_center_circle_origin_line_none_cusp_none() {
         let tol = Tolerance::DEFAULT;
         assert_eq!(
-            ParametricCurve3D::curvature_center(&circle(), 0.0, tol),
-            Some(Point3D::ORIGIN)
+            ParametricCurve::curvature_center(&circle(), 0.0, tol),
+            Some(Point::ORIGIN)
         );
-        assert_eq!(ParametricCurve3D::curvature_center(&line(), 5.0, tol), None);
-        assert_eq!(ParametricCurve3D::curvature_center(&cusp(), 0.5, tol), None);
+        assert_eq!(ParametricCurve::curvature_center(&line(), 5.0, tol), None);
+        assert_eq!(ParametricCurve::curvature_center(&cusp(), 0.5, tol), None);
     }
 
     #[test]
@@ -1709,10 +1702,10 @@ mod tests {
         // Vertex (a, 0): k = a/b^2, centre at (a - b^2/a, 0, 0).
         let tol = Tolerance::DEFAULT;
         let e = ellipse();
-        let k = ParametricCurve3D::curvature(&e, 0.0, tol).unwrap();
+        let k = ParametricCurve::curvature(&e, 0.0, tol).unwrap();
         assert!((k - 3.0 / 1.5f64.powi(2)).abs() < 1e-12);
-        let c = ParametricCurve3D::curvature_center(&e, 0.0, tol).unwrap();
-        assert!((c - Point3D::new(3.0 - 1.5f64.powi(2) / 3.0, 0.0, 0.0)).magnitude() < 1e-12);
+        let c = ParametricCurve::curvature_center(&e, 0.0, tol).unwrap();
+        assert!((c - Point::new(3.0 - 1.5f64.powi(2) / 3.0, 0.0, 0.0)).magnitude() < 1e-12);
     }
 
     #[test]
@@ -1722,7 +1715,7 @@ mod tests {
         for u in [0.3f64, 1.2, 2.5, 4.0] {
             let expected =
                 major * minor / ((major * u.sin()).powi(2) + (minor * u.cos()).powi(2)).powf(1.5);
-            let k = ParametricCurve3D::curvature(&ellipse(), u, Tolerance::DEFAULT).unwrap();
+            let k = ParametricCurve::curvature(&ellipse(), u, Tolerance::DEFAULT).unwrap();
             assert!((k - expected).abs() < 1e-14, "u = {u}: {k} vs {expected}");
         }
     }
@@ -1735,7 +1728,7 @@ mod tests {
             let k = arc.curvature(u, tol).unwrap();
             assert!((k - 0.5).abs() < 1e-14, "u = {u}: {k}");
             let centre = arc.curvature_center(u, tol).unwrap();
-            assert!((centre - Point3D::ORIGIN).magnitude() < 1e-14, "u = {u}");
+            assert!((centre - Point::ORIGIN).magnitude() < 1e-14, "u = {u}");
         }
     }
 
@@ -1744,12 +1737,12 @@ mod tests {
         // Collinear poles, unevenly spaced: C'' is parallel to C' but
         // rounding leaves a curvature of order 1e-16, not exactly zero.
         let poles = vec![
-            Point3D::ORIGIN,
-            Point3D::new(0.1, 0.2, 0.3),
-            Point3D::new(1.7, 3.4, 5.1),
-            Point3D::new(2.0, 4.0, 6.0),
+            Point::ORIGIN,
+            Point::new(0.1, 0.2, 0.3),
+            Point::new(1.7, 3.4, 5.1),
+            Point::new(2.0, 4.0, 6.0),
         ];
-        let straight = BSplineCurve3D::new(3, poles, vec![0.0, 1.0], vec![4, 4], false).unwrap();
+        let straight = BSplineCurve::new(3, poles, vec![0.0, 1.0], vec![4, 4], false).unwrap();
         let tol = Tolerance::DEFAULT;
         for u in [0.13, 0.5, 0.77] {
             assert!(straight.curvature(u, tol).unwrap() < 1e-12);
@@ -1761,10 +1754,10 @@ mod tests {
     fn test_curvature_matches_finite_differences() {
         let tol = Tolerance::DEFAULT;
         for (curve, u) in [
-            (Curve3D::from(parabola()), 0.5),
-            (Curve3D::from(hyperbola()), 0.5),
-            (Curve3D::from(twisted_cubic()), 0.3),
-            (Curve3D::from(twisted_cubic()), 0.8),
+            (Curve::from(parabola()), 0.5),
+            (Curve::from(hyperbola()), 0.5),
+            (Curve::from(twisted_cubic()), 0.3),
+            (Curve::from(twisted_cubic()), 0.8),
         ] {
             let k = curve.curvature(u, tol).unwrap();
             let expected = finite_difference_curvature(&curve, u);
@@ -1792,7 +1785,7 @@ mod tests {
     #[test]
     fn test_local_properties_are_none_at_a_nan_parameter() {
         let tol = Tolerance::DEFAULT;
-        for curve in [Curve3D::from(ellipse()), Curve3D::from(twisted_cubic())] {
+        for curve in [Curve::from(ellipse()), Curve::from(twisted_cubic())] {
             assert_eq!(curve.tangent(f64::NAN, tol), None);
             assert_eq!(curve.curvature(f64::NAN, tol), None);
             assert_eq!(curve.curvature_center(f64::NAN, tol), None);
@@ -1802,7 +1795,7 @@ mod tests {
     #[test]
     fn test_curve3d_enum_dispatch_agrees_with_concrete() {
         let tol = Tolerance::DEFAULT;
-        let curves: Vec<Curve3D> = vec![
+        let curves: Vec<Curve> = vec![
             line().into(),
             circle().into(),
             ellipse().into(),
@@ -1820,9 +1813,9 @@ mod tests {
     }
 
     /// The twisted cubic's poles on the knot range `[0, scale]`.
-    fn twisted_cubic_on(scale: f64) -> BSplineCurve3D {
+    fn twisted_cubic_on(scale: f64) -> BSplineCurve {
         let poles = twisted_cubic().poles().to_vec();
-        BSplineCurve3D::new(3, poles, vec![0.0, scale], vec![4, 4], false).unwrap()
+        BSplineCurve::new(3, poles, vec![0.0, scale], vec![4, 4], false).unwrap()
     }
 
     #[test]
@@ -1865,7 +1858,7 @@ mod tests {
         let tol = Tolerance::DEFAULT;
         for scale in [1.0, 1e8, 1e-8] {
             let poles = cusp().poles().to_vec();
-            let curve = BSplineCurve3D::new(2, poles, vec![0.0, scale], vec![3, 3], false).unwrap();
+            let curve = BSplineCurve::new(2, poles, vec![0.0, scale], vec![3, 3], false).unwrap();
             let u = 0.5 * scale;
             assert_eq!(curve.tangent(u, tol), None, "scale {scale}");
             assert_eq!(curve.curvature(u, tol), None, "scale {scale}");
@@ -1878,8 +1871,8 @@ mod tests {
         // Collinear poles off the axes and off the origin. Where C'' is
         // small its rounding error points anywhere, so the angle between
         // C' and C'' says nothing; the turning part of C'' is negligible.
-        let origin = Point3D::new(5.1, -3.3, 7.7);
-        let direction = Vector3D::new(0.3, -1.7, 2.9);
+        let origin = Point::new(5.1, -3.3, 7.7);
+        let direction = Vector::new(0.3, -1.7, 2.9);
         let tol = Tolerance::DEFAULT;
         for (first, second) in [(0.1, 1.7), (0.37, 0.61), (0.45, 0.55)] {
             let poles = vec![
@@ -1888,8 +1881,7 @@ mod tests {
                 origin + direction * second,
                 origin + direction,
             ];
-            let straight =
-                BSplineCurve3D::new(3, poles, vec![0.0, 1.0], vec![4, 4], false).unwrap();
+            let straight = BSplineCurve::new(3, poles, vec![0.0, 1.0], vec![4, 4], false).unwrap();
             // C'' changes sign where (1 - u)(b - 2a) + u(1 - 2b + a) = 0.
             let start_term = second - 2.0 * first;
             let sign_change = start_term / (start_term - (1.0 - 2.0 * second + first));
@@ -1909,12 +1901,12 @@ mod tests {
     fn test_parabola_vertex_curvature_matches_closed_form() {
         // P(u) = (u²/4, u): vertex k = 1/(2f) = 0.5, centre (2f, 0, 0).
         let tol = Tolerance::DEFAULT;
-        let p = Parabola3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, 1.0).unwrap();
-        assert_eq!(p.tangent(0.0, tol), Some(Vector3D::Y));
+        let p = Parabola::new(Point::ORIGIN, Vector::Z, Vector::X, 1.0).unwrap();
+        assert_eq!(p.tangent(0.0, tol), Some(Vector::Y));
         assert_eq!(p.curvature(0.0, tol), Some(0.5));
         assert_eq!(
             p.curvature_center(0.0, tol),
-            Some(Point3D::new(2.0, 0.0, 0.0))
+            Some(Point::new(2.0, 0.0, 0.0))
         );
         let k = p.curvature(2.0, tol).unwrap();
         assert!((k - 0.5 / (2.0 * 2.0f64.sqrt())).abs() < 1e-12);
@@ -1925,73 +1917,69 @@ mod tests {
         // P(u) = (a cosh u, b sinh u): apex k = a/b² = 0.75,
         // centre (a + b²/a, 0, 0).
         let tol = Tolerance::DEFAULT;
-        let h = Hyperbola3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, 3.0, 2.0).unwrap();
-        assert_eq!(h.tangent(0.0, tol), Some(Vector3D::Y));
+        let h = Hyperbola::new(Point::ORIGIN, Vector::Z, Vector::X, 3.0, 2.0).unwrap();
+        assert_eq!(h.tangent(0.0, tol), Some(Vector::Y));
         assert_eq!(h.curvature(0.0, tol), Some(0.75));
         let c = h.curvature_center(0.0, tol).unwrap();
-        assert!((c - Point3D::new(3.0 + 4.0 / 3.0, 0.0, 0.0)).magnitude() < 1e-12);
+        assert!((c - Point::new(3.0 + 4.0 / 3.0, 0.0, 0.0)).magnitude() < 1e-12);
     }
 
     // ---- closedness: periodicity implies closed, not conversely ----
 
-    fn closed_triangle() -> BSplineCurve3D {
+    fn closed_triangle() -> BSplineCurve {
         // Clamped degree-1 triangle returning to its start: closed in
         // geometry, without a period.
-        let poles = vec![
-            Point3D::ORIGIN,
-            Point3D::new(1.0, 0.0, 0.0),
-            Point3D::ORIGIN,
-        ];
-        BSplineCurve3D::new(1, poles, vec![0.0, 1.0, 2.0], vec![2, 1, 2], false).unwrap()
+        let poles = vec![Point::ORIGIN, Point::new(1.0, 0.0, 0.0), Point::ORIGIN];
+        BSplineCurve::new(1, poles, vec![0.0, 1.0, 2.0], vec![2, 1, 2], false).unwrap()
     }
 
     #[test]
     fn test_elementary_closedness_follows_periodicity() {
         let tol = Tolerance::DEFAULT;
-        assert!(!ParametricCurve3D::is_closed(&line(), tol));
-        assert!(ParametricCurve3D::is_closed(&circle(), tol));
-        assert!(ParametricCurve3D::is_closed(&ellipse(), tol));
-        assert!(!ParametricCurve3D::is_closed(&parabola(), tol));
-        assert!(!ParametricCurve3D::is_closed(&hyperbola(), tol));
+        assert!(!ParametricCurve::is_closed(&line(), tol));
+        assert!(ParametricCurve::is_closed(&circle(), tol));
+        assert!(ParametricCurve::is_closed(&ellipse(), tol));
+        assert!(!ParametricCurve::is_closed(&parabola(), tol));
+        assert!(!ParametricCurve::is_closed(&hyperbola(), tol));
     }
 
     #[test]
     fn test_bspline_closed_clamped_curve_without_period() {
         let tol = Tolerance::DEFAULT;
         let c = closed_triangle();
-        assert_eq!(ParametricCurve3D::period(&c), None);
-        assert!(ParametricCurve3D::is_closed(&c, tol));
+        assert_eq!(ParametricCurve::period(&c), None);
+        assert!(ParametricCurve::is_closed(&c, tol));
         assert!(c.is_closed(tol));
-        assert!(!ParametricCurve3D::is_closed(&bspline(), tol));
+        assert!(!ParametricCurve::is_closed(&bspline(), tol));
     }
 
     #[test]
     fn test_curve_reference_forwards_closedness() {
         let triangle = closed_triangle();
-        assert!(ParametricCurve3D::is_closed(&&triangle, Tolerance::DEFAULT));
+        assert!(ParametricCurve::is_closed(&&triangle, Tolerance::DEFAULT));
     }
 
     #[test]
     fn test_trimmed_closedness_needs_a_full_span() {
         use std::f64::consts::TAU;
 
-        use crate::curves::TrimmedCurve3D;
+        use crate::curves::TrimmedCurve;
 
         let tol = Tolerance::DEFAULT;
         let circle = circle();
-        let whole = TrimmedCurve3D::new(circle, 0.0, TAU).unwrap();
+        let whole = TrimmedCurve::new(circle, 0.0, TAU).unwrap();
         assert!(whole.is_closed(tol));
-        assert!(ParametricCurve3D::is_closed(&whole, tol));
-        let arc = TrimmedCurve3D::new(circle, 0.0, 1.0).unwrap();
+        assert!(ParametricCurve::is_closed(&whole, tol));
+        let arc = TrimmedCurve::new(circle, 0.0, 1.0).unwrap();
         assert!(!arc.is_closed(tol));
-        let segment = TrimmedCurve3D::new(line(), 0.0, 1.0).unwrap();
+        let segment = TrimmedCurve::new(line(), 0.0, 1.0).unwrap();
         assert!(!segment.is_closed(tol));
     }
 
     #[test]
     fn test_curve3d_enum_closedness_dispatch_agrees_with_concrete() {
         let tol = Tolerance::DEFAULT;
-        let curves: Vec<Curve3D> = vec![
+        let curves: Vec<Curve> = vec![
             line().into(),
             circle().into(),
             ellipse().into(),
@@ -2002,12 +1990,12 @@ mod tests {
         ];
         for curve in &curves {
             let expected = match curve {
-                Curve3D::Line(c) => ParametricCurve3D::is_closed(c, tol),
-                Curve3D::Circle(c) => ParametricCurve3D::is_closed(c, tol),
-                Curve3D::Ellipse(c) => ParametricCurve3D::is_closed(c, tol),
-                Curve3D::Parabola(c) => ParametricCurve3D::is_closed(c, tol),
-                Curve3D::Hyperbola(c) => ParametricCurve3D::is_closed(c, tol),
-                Curve3D::BSpline(c) => c.is_closed(tol),
+                Curve::Line(c) => ParametricCurve::is_closed(c, tol),
+                Curve::Circle(c) => ParametricCurve::is_closed(c, tol),
+                Curve::Ellipse(c) => ParametricCurve::is_closed(c, tol),
+                Curve::Parabola(c) => ParametricCurve::is_closed(c, tol),
+                Curve::Hyperbola(c) => ParametricCurve::is_closed(c, tol),
+                Curve::BSpline(c) => c.is_closed(tol),
             };
             assert_eq!(curve.is_closed(tol), expected);
         }
@@ -2031,18 +2019,18 @@ mod tests {
     fn test_bspline_continuity_follows_degree_minus_multiplicity() {
         // Degree 3 with interior multiplicities 1, 2, 3: C2, C1, C0.
         let poles = vec![
-            Point3D::ORIGIN,
-            Point3D::new(1.0, 0.0, 0.0),
-            Point3D::new(2.0, 1.0, 0.0),
-            Point3D::new(3.0, 1.0, 0.0),
-            Point3D::new(4.0, 0.0, 0.0),
-            Point3D::new(5.0, 0.0, 1.0),
-            Point3D::new(6.0, 1.0, 1.0),
-            Point3D::new(7.0, 2.0, 1.0),
-            Point3D::new(8.0, 2.0, 0.0),
-            Point3D::new(9.0, 3.0, 0.0),
+            Point::ORIGIN,
+            Point::new(1.0, 0.0, 0.0),
+            Point::new(2.0, 1.0, 0.0),
+            Point::new(3.0, 1.0, 0.0),
+            Point::new(4.0, 0.0, 0.0),
+            Point::new(5.0, 0.0, 1.0),
+            Point::new(6.0, 1.0, 1.0),
+            Point::new(7.0, 2.0, 1.0),
+            Point::new(8.0, 2.0, 0.0),
+            Point::new(9.0, 3.0, 0.0),
         ];
-        let c = BSplineCurve3D::new(
+        let c = BSplineCurve::new(
             3,
             poles,
             vec![0.0, 0.3, 0.6, 0.8, 1.0],
@@ -2060,27 +2048,27 @@ mod tests {
 
     // ---- continuity: degree minus multiplicity, smooth elsewhere ----
 
-    fn kinked() -> BSplineCurve3D {
+    fn kinked() -> BSplineCurve {
         // Degree 2 with a double interior knot: C0 at u = 0.5.
         let poles = vec![
-            Point3D::ORIGIN,
-            Point3D::new(1.0, 0.0, 0.0),
-            Point3D::new(2.0, 1.0, 0.0),
-            Point3D::new(3.0, 1.0, 0.0),
-            Point3D::new(4.0, 0.0, 0.0),
+            Point::ORIGIN,
+            Point::new(1.0, 0.0, 0.0),
+            Point::new(2.0, 1.0, 0.0),
+            Point::new(3.0, 1.0, 0.0),
+            Point::new(4.0, 0.0, 0.0),
         ];
-        BSplineCurve3D::new(2, poles, vec![0.0, 0.5, 1.0], vec![3, 2, 3], false).unwrap()
+        BSplineCurve::new(2, poles, vec![0.0, 0.5, 1.0], vec![3, 2, 3], false).unwrap()
     }
 
     #[test]
     fn test_elementary_curves_are_smooth_everywhere() {
         let tol = Tolerance::DEFAULT;
         for curve in [
-            Curve3D::from(line()),
-            Curve3D::from(circle()),
-            Curve3D::from(ellipse()),
-            Curve3D::from(parabola()),
-            Curve3D::from(hyperbola()),
+            Curve::from(line()),
+            Curve::from(circle()),
+            Curve::from(ellipse()),
+            Curve::from(parabola()),
+            Curve::from(hyperbola()),
         ] {
             assert_eq!(curve.continuity(0.5, tol), Smooth);
             assert_eq!(curve.min_continuity(), Smooth);
@@ -2091,85 +2079,85 @@ mod tests {
     fn test_bspline_continuity_drops_at_repeated_knots() {
         let tol = Tolerance::DEFAULT;
         let c = kinked();
-        assert_eq!(ParametricCurve3D::continuity(&c, 0.5, tol), Order(0));
+        assert_eq!(ParametricCurve::continuity(&c, 0.5, tol), Order(0));
         assert_eq!(c.continuity(0.5, tol), Order(0));
-        assert_eq!(ParametricCurve3D::continuity(&c, 0.25, tol), Smooth);
-        assert_eq!(ParametricCurve3D::continuity(&c, 0.0, tol), Smooth);
-        assert_eq!(ParametricCurve3D::continuity(&c, 1.0, tol), Smooth);
+        assert_eq!(ParametricCurve::continuity(&c, 0.25, tol), Smooth);
+        assert_eq!(ParametricCurve::continuity(&c, 0.0, tol), Smooth);
+        assert_eq!(ParametricCurve::continuity(&c, 1.0, tol), Smooth);
         assert_eq!(c.min_continuity(), Order(0));
-        assert_eq!(ParametricCurve3D::min_continuity(&c), Order(0));
+        assert_eq!(ParametricCurve::min_continuity(&c), Order(0));
         assert_eq!(bspline().min_continuity(), Smooth);
     }
 
     #[test]
     fn test_trimmed_curve_inherits_basis_continuity() {
-        use crate::curves::TrimmedCurve3D;
+        use crate::curves::TrimmedCurve;
 
         let tol = Tolerance::DEFAULT;
-        let piece = TrimmedCurve3D::new(kinked(), 0.25, 0.75).unwrap();
+        let piece = TrimmedCurve::new(kinked(), 0.25, 0.75).unwrap();
         assert_eq!(piece.continuity(0.5, tol), Order(0));
-        assert_eq!(ParametricCurve3D::continuity(&piece, 0.5, tol), Order(0));
+        assert_eq!(ParametricCurve::continuity(&piece, 0.5, tol), Order(0));
         assert_eq!(piece.min_continuity(), Order(0));
     }
 
     #[test]
     fn test_borrowed_and_trimmed_bases_keep_their_kink() {
-        use crate::curves::TrimmedCurve3D;
+        use crate::curves::TrimmedCurve;
 
         let tol = Tolerance::DEFAULT;
         let curve = kinked();
-        assert_eq!(ParametricCurve3D::continuity(&&curve, 0.5, tol), Order(0));
-        assert_eq!(ParametricCurve3D::min_continuity(&&curve), Order(0));
-        let borrowed = TrimmedCurve3D::new(&curve, 0.25, 0.75).unwrap();
-        assert_eq!(ParametricCurve3D::continuity(&borrowed, 0.5, tol), Order(0));
-        assert_eq!(ParametricCurve3D::min_continuity(&borrowed), Order(0));
+        assert_eq!(ParametricCurve::continuity(&&curve, 0.5, tol), Order(0));
+        assert_eq!(ParametricCurve::min_continuity(&&curve), Order(0));
+        let borrowed = TrimmedCurve::new(&curve, 0.25, 0.75).unwrap();
+        assert_eq!(ParametricCurve::continuity(&borrowed, 0.5, tol), Order(0));
+        assert_eq!(ParametricCurve::min_continuity(&borrowed), Order(0));
         // A piece that avoids the kink, or ends on it, is smooth.
         for (first, last) in [(0.0, 0.4), (0.0, 0.5), (0.5, 1.0)] {
-            let piece = TrimmedCurve3D::new(&curve, first, last).unwrap();
+            let piece = TrimmedCurve::new(&curve, first, last).unwrap();
             assert_eq!(piece.min_continuity(), Smooth);
             assert_eq!(piece.continuity(first, tol), Smooth);
             assert_eq!(piece.continuity(last, tol), Smooth);
         }
         // Nested trims restrict further.
-        let outer = TrimmedCurve3D::new(TrimmedCurve3D::new(&curve, 0.1, 0.9).unwrap(), 0.2, 0.4);
+        let outer = TrimmedCurve::new(TrimmedCurve::new(&curve, 0.1, 0.9).unwrap(), 0.2, 0.4);
         assert_eq!(outer.unwrap().min_continuity(), Smooth);
     }
 
     #[test]
     fn test_periodic_bspline_continuity_across_its_seam() {
-        use crate::curves::TrimmedCurve3D;
+        use crate::curves::TrimmedCurve;
 
         // Degree 2, period 4, double knot at 1 (a kink there).
-        let poles: Vec<Point3D> = (0..5)
+        let poles: Vec<Point> = (0..5)
             .map(|i| {
                 let angle = i as f64;
-                Point3D::new(angle.cos(), angle.sin(), 0.0)
+                Point::new(angle.cos(), angle.sin(), 0.0)
             })
             .collect();
         let knots = vec![0.0, 1.0, 2.0, 3.0, 4.0];
-        let curve = BSplineCurve3D::new(2, poles, knots, vec![1, 2, 1, 1, 1], true).unwrap();
+        let curve = BSplineCurve::new(2, poles, knots, vec![1, 2, 1, 1, 1], true).unwrap();
         let tol = Tolerance::DEFAULT;
         assert_eq!(curve.continuity(1.0, tol), Order(0));
         assert_eq!(curve.continuity(5.0, tol), Order(0));
         assert_eq!(curve.continuity(4.0, tol), Order(1));
         assert_eq!(curve.min_continuity(), Order(0));
-        let across_seam = TrimmedCurve3D::new(&curve, 3.5, 4.5).unwrap();
+        let across_seam = TrimmedCurve::new(&curve, 3.5, 4.5).unwrap();
         assert_eq!(across_seam.min_continuity(), Order(1));
-        let around_kink = TrimmedCurve3D::new(&curve, 4.5, 5.5).unwrap();
+        let around_kink = TrimmedCurve::new(&curve, 4.5, 5.5).unwrap();
         assert_eq!(around_kink.min_continuity(), Order(0));
     }
 
     #[test]
     fn test_reported_order_matches_the_derivative_jumps() {
         // Degree 2: a single knot at 1 (C1) and a double knot at 2 (C0).
-        let poles: Vec<Point3D> = (0..6)
+        let poles: Vec<Point> = (0..6)
             .map(|i| {
                 let x = i as f64;
-                Point3D::new(x, (x * 1.3).sin(), (x * 0.7).cos())
+                Point::new(x, (x * 1.3).sin(), (x * 0.7).cos())
             })
             .collect();
         let knots = vec![0.0, 1.0, 2.0, 3.0];
-        let curve = BSplineCurve3D::new(2, poles, knots, vec![3, 1, 2, 3], false).unwrap();
+        let curve = BSplineCurve::new(2, poles, knots, vec![3, 1, 2, 3], false).unwrap();
         let tol = Tolerance::DEFAULT;
         let h = 1e-9;
         for knot in [1.0, 2.0] {
@@ -2199,7 +2187,7 @@ mod tests {
     #[test]
     fn test_curve3d_enum_continuity_dispatch_agrees_with_concrete() {
         let tol = Tolerance::DEFAULT;
-        let curves: Vec<Curve3D> = vec![
+        let curves: Vec<Curve> = vec![
             line().into(),
             circle().into(),
             ellipse().into(),
@@ -2210,12 +2198,12 @@ mod tests {
         ];
         for curve in &curves {
             let expected = match curve {
-                Curve3D::Line(c) => ParametricCurve3D::continuity(c, 0.5, tol),
-                Curve3D::Circle(c) => ParametricCurve3D::continuity(c, 0.5, tol),
-                Curve3D::Ellipse(c) => ParametricCurve3D::continuity(c, 0.5, tol),
-                Curve3D::Parabola(c) => ParametricCurve3D::continuity(c, 0.5, tol),
-                Curve3D::Hyperbola(c) => ParametricCurve3D::continuity(c, 0.5, tol),
-                Curve3D::BSpline(c) => c.continuity(0.5, tol),
+                Curve::Line(c) => ParametricCurve::continuity(c, 0.5, tol),
+                Curve::Circle(c) => ParametricCurve::continuity(c, 0.5, tol),
+                Curve::Ellipse(c) => ParametricCurve::continuity(c, 0.5, tol),
+                Curve::Parabola(c) => ParametricCurve::continuity(c, 0.5, tol),
+                Curve::Hyperbola(c) => ParametricCurve::continuity(c, 0.5, tol),
+                Curve::BSpline(c) => c.continuity(0.5, tol),
             };
             assert_eq!(curve.continuity(0.5, tol), expected);
         }
