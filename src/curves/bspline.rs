@@ -9,10 +9,11 @@
 use std::fmt;
 
 use crate::curve_math::bspline as math;
+use crate::curve_math::bspline::SpanEnds;
 use crate::curve_math::editing::{self, Elevation, Insertion, Lanes};
 use crate::curves::{Curve2D, ParametrizeError, Side};
 use crate::math::boxtree::{BoxTree, Lazy};
-use crate::math::{newton_min_1d, quadrature};
+use crate::math::{quadrature};
 use crate::projection::CurveProjection;
 use crate::surfaces::Surface;
 use crate::{Continuity, Point, Tolerance, Transform, Vector};
@@ -1176,8 +1177,8 @@ impl BSplineCurve {
     pub fn eval_derivative(&self, u: f64, order: u32) -> Vector {
         match order {
             0 => panic!("eval_derivative: order must be >= 1 (use eval_point for order 0)"),
-            1 => math::derivatives::<1>(&self.knots, self.pole_view(), u)[1],
-            2 => math::derivatives::<2>(&self.knots, self.pole_view(), u)[2],
+            1 => math::derivatives::<1, Point>(&self.knots, self.pole_view(), u)[1],
+            2 => math::derivatives::<2, Point>(&self.knots, self.pole_view(), u)[2],
             _ => panic!(
                 "eval_derivative: order {order} is not supported (only first and second derivatives are supported)"
             ),
@@ -1198,7 +1199,7 @@ impl BSplineCurve {
     /// assert_eq!(d1, Vector::new(2.0, 0.0, 0.0));
     /// ```
     pub fn eval_d1(&self, u: f64) -> (Point, Vector) {
-        let [c, d1, _] = math::derivatives::<1>(&self.knots, self.pole_view(), u);
+        let [c, d1, _] = math::derivatives::<1, Point>(&self.knots, self.pole_view(), u);
         (Point::ORIGIN + c, d1)
     }
 
@@ -1221,7 +1222,7 @@ impl BSplineCurve {
     /// assert_eq!(d2, Vector::new(0.0, -4.0, 0.0));
     /// ```
     pub fn eval_d2(&self, u: f64) -> (Point, Vector, Vector) {
-        let [c, d1, d2] = math::derivatives::<2>(&self.knots, self.pole_view(), u);
+        let [c, d1, d2] = math::derivatives::<2, Point>(&self.knots, self.pole_view(), u);
         (Point::ORIGIN + c, d1, d2)
     }
 
@@ -1251,7 +1252,7 @@ impl BSplineCurve {
     /// assert_eq!(curve.eval_d1_sided(1.0, Side::Above).1, Vector::new(0.0, 1.0, 0.0));
     /// ```
     pub fn eval_d1_sided(&self, u: f64, side: Side) -> (Point, Vector) {
-        let [c, d1, _] = math::derivatives_sided::<1>(&self.knots, self.pole_view(), u, side);
+        let [c, d1, _] = math::derivatives_sided::<1, Point>(&self.knots, self.pole_view(), u, side);
         (Point::ORIGIN + c, d1)
     }
 
@@ -1285,8 +1286,8 @@ impl BSplineCurve {
     pub fn eval_derivative_sided(&self, u: f64, order: u32, side: Side) -> Vector {
         match order {
             0 => panic!("eval_derivative: order must be >= 1 (use eval_point for order 0)"),
-            1 => math::derivatives_sided::<1>(&self.knots, self.pole_view(), u, side)[1],
-            2 => math::derivatives_sided::<2>(&self.knots, self.pole_view(), u, side)[2],
+            1 => math::derivatives_sided::<1, Point>(&self.knots, self.pole_view(), u, side)[1],
+            2 => math::derivatives_sided::<2, Point>(&self.knots, self.pole_view(), u, side)[2],
             _ => panic!(
                 "eval_derivative: order {order} is not supported (only first and second derivatives are supported)"
             ),
@@ -1297,7 +1298,7 @@ impl BSplineCurve {
     /// parameter `u` from one side, as
     /// [`eval_d1_sided`](Self::eval_d1_sided).
     pub fn eval_d2_sided(&self, u: f64, side: Side) -> (Point, Vector, Vector) {
-        let [c, d1, d2] = math::derivatives_sided::<2>(&self.knots, self.pole_view(), u, side);
+        let [c, d1, d2] = math::derivatives_sided::<2, Point>(&self.knots, self.pole_view(), u, side);
         (Point::ORIGIN + c, d1, d2)
     }
 
@@ -1608,131 +1609,9 @@ impl BSplineCurve {
     /// `G = (A' . A) w - |A|^2 w'` (`A' . A` if nonrational), of degree
     /// `3p - 1` (`2p - 1`). Interior minima are the roots where `G` rises
     /// through zero.
-    fn scan_span(&self, point: Point, a: f64, b: f64, minima: &mut Vec<f64>) -> SpanEnds {
-        // `G` has up to `3 * degree` coefficients.
-        const SMALL: usize = 3 * math::SMALL;
-        if self.degree() < math::SMALL {
-            self.scan_span_sized::<SMALL>(point, a, b, minima)
-        } else {
-            self.scan_span_sized::<{ crate::math::bernstein::CAPACITY }>(point, a, b, minima)
-        }
+    fn scan_span(&self, point: Point, a: f64, b: f64, minima: &mut Vec<f64>) -> math::SpanEnds {
+        math::scan_span(&self.knots, self.pole_view(), point, a, b, minima)
     }
-
-    fn scan_span_sized<const N: usize>(
-        &self,
-        point: Point,
-        a: f64,
-        b: f64,
-        minima: &mut Vec<f64>,
-    ) -> SpanEnds {
-        use crate::math::bernstein::{add_product, rising_roots, scale, unscale};
-        let p = self.degree();
-        let rational = self.is_rational();
-        let mut points = [[0.0; 4]; math::LARGE];
-        self.span_bezier_points(0.5 * (a + b), &mut points);
-        let mut bezier = [[0.0; N]; 3];
-        let mut weight = [1.0; N];
-        for (k, x) in points.iter().enumerate().take(p + 1) {
-            for c in 0..3 {
-                bezier[c][k] = x[c];
-            }
-            weight[k] = x[3];
-        }
-        let q = [point.x, point.y, point.z];
-        // Offsets `A` per coordinate and their differences (`A'` up to the
-        // factor `p`, as `w'`), scaled; `magnitude` bounds their rounding.
-        let mut offset = [[0.0; N]; 3];
-        let mut slope = [[0.0; N]; 3];
-        let mut magnitude: f64 = 0.0;
-        for c in 0..3 {
-            for k in 0..=p {
-                offset[c][k] = bezier[c][k] - q[c] * weight[k];
-                magnitude = magnitude.max(bezier[c][k].abs() + q[c].abs() * weight[k]);
-            }
-            for k in 0..p {
-                slope[c][k] = offset[c][k + 1] - offset[c][k];
-            }
-            scale(&mut offset[c][..=p]);
-            scale(&mut slope[c][..p]);
-        }
-        // `A' . A` (degree `2p - 1`) and, if rational, `|A|^2` (`2p`).
-        let mut g = [0.0; N];
-        let degree_g = if rational { 3 * p - 1 } else { 2 * p - 1 };
-        if rational {
-            let mut dot = [0.0; N];
-            let mut square = [0.0; N];
-            for c in 0..3 {
-                add_product(&slope[c][..p], &offset[c][..=p], 1.0, &mut dot);
-                add_product(&offset[c][..=p], &offset[c][..=p], 1.0, &mut square);
-            }
-            let mut weight_slope = [0.0; N];
-            for k in 0..p {
-                weight_slope[k] = weight[k + 1] - weight[k];
-            }
-            let mut scaled_weight = weight;
-            scale(&mut scaled_weight[..=p]);
-            scale(&mut weight_slope[..p]);
-            add_product(&dot[..2 * p], &scaled_weight[..=p], 1.0, &mut g);
-            add_product(&square[..=2 * p], &weight_slope[..p], -1.0, &mut g);
-        } else {
-            for c in 0..3 {
-                add_product(&slope[c][..p], &offset[c][..=p], 1.0, &mut g);
-            }
-        }
-        let g = &mut g[..=degree_g];
-        unscale(g);
-        let max_weight = weight[..=p].iter().fold(0.0f64, |m, &w| m.max(w));
-        let tiny = 1e3 * f64::EPSILON * magnitude * magnitude * max_weight;
-        let h = b - a;
-        rising_roots::<N>(g, tiny, |s0, s1, s| {
-            let bounds = (a + s0 * h, if s1 == 1.0 { b } else { a + s1 * h });
-            minima.push(self.refine_projection(point, a + s * h, Some(bounds)));
-        });
-        // The curve passes through the end control points (whose scaled
-        // offsets are unscaled: `C(p, 0) = C(p, p) = 1`).
-        let end_distance = |k: usize| {
-            (0..3)
-                .map(|c| (offset[c][k] / weight[k]).powi(2))
-                .sum::<f64>()
-                .sqrt()
-        };
-        SpanEnds {
-            distance: [end_distance(0), end_distance(p)],
-            start_rising: g[0] >= -tiny,
-            end_falling: g[degree_g] <= tiny,
-        }
-    }
-
-    /// Bounded Newton minimisation of `|C(t) - point|^2` from `t` with
-    /// exact second derivatives, within `bounds` (`None`: unbounded, for a
-    /// smooth periodic curve); a periodic result is wrapped into
-    /// [`BSplineCurve::bounds`].
-    fn refine_projection(&self, point: Point, t: f64, bounds: Option<(f64, f64)>) -> f64 {
-        let objective = |t: f64| {
-            let [c, d1, d2] =
-                math::derivatives::<2>(&self.knots, self.pole_view(), math::inward(t, bounds));
-            let r = c - (point - Point::ORIGIN);
-            (0.5 * r.dot(r), d1.dot(r), d1.dot(d1) + d2.dot(r))
-        };
-        let t = newton_min_1d(objective, t, bounds, 1e-14, 100);
-        if self.is_periodic() {
-            let (first, last) = self.bounds();
-            first + (t - first).rem_euclid(last - first)
-        } else {
-            t
-        }
-    }
-}
-
-/// How the distance to a point behaves at the ends of one knot span.
-struct SpanEnds {
-    /// Distances at the span start and end.
-    distance: [f64; 2],
-    /// Whether the distance does not fall moving into the span from its
-    /// start.
-    start_rising: bool,
-    /// Whether the distance does not rise moving to the span end.
-    end_falling: bool,
 }
 
 /// The speed `|C'(t)|` at `t` of the Bézier piece with the homogeneous

@@ -22,65 +22,8 @@ pub(crate) use elevation::Elevation;
 pub(crate) use removal::{check_removal, remove_knots};
 
 use super::bspline::KnotVector;
-use crate::Point;
+use super::poles::{HomogeneousPole, Pole, PolePoint};
 use crate::curves::KnotInsertionError;
-
-/// A pole an editing algorithm combines linearly: a point of a
-/// nonrational shape, or a homogeneous point `(w x, w y, w z, w)` of a
-/// rational one.
-pub(crate) trait Pole: Copy + Default {
-    /// `a self + b other`.
-    fn combine(self, a: f64, other: Self, b: f64) -> Self;
-
-    /// `a self`.
-    fn scale(self, a: f64) -> Self;
-
-    /// The points of `poles` and their weights, if rational.
-    fn parts(poles: &[Self]) -> (Vec<Point>, Option<Vec<f64>>);
-}
-
-impl Pole for Point {
-    #[inline]
-    fn combine(self, a: f64, other: Self, b: f64) -> Self {
-        Point::new(
-            a * self.x + b * other.x,
-            a * self.y + b * other.y,
-            a * self.z + b * other.z,
-        )
-    }
-
-    #[inline]
-    fn scale(self, a: f64) -> Self {
-        Point::new(a * self.x, a * self.y, a * self.z)
-    }
-
-    fn parts(poles: &[Self]) -> (Vec<Point>, Option<Vec<f64>>) {
-        (poles.to_vec(), None)
-    }
-}
-
-impl Pole for [f64; 4] {
-    #[inline]
-    fn combine(self, a: f64, other: Self, b: f64) -> Self {
-        std::array::from_fn(|c| a * self[c] + b * other[c])
-    }
-
-    #[inline]
-    fn scale(self, a: f64) -> Self {
-        self.map(|c| a * c)
-    }
-
-    fn parts(poles: &[Self]) -> (Vec<Point>, Option<Vec<f64>>) {
-        let points = poles
-            .iter()
-            .map(|&[x, y, z, w]| {
-                let inverse = 1.0 / w;
-                Point::new(x * inverse, y * inverse, z * inverse)
-            })
-            .collect();
-        (points, Some(poles.iter().map(|h| h[3]).collect()))
-    }
-}
 
 /// The poles an edit reads, by index: a slice of them, or a rational
 /// shape's points and weights read as homogeneous points, so that they
@@ -155,15 +98,15 @@ impl<P: Pole> Source for &[P] {
 }
 
 /// A rational shape's points and weights, read as homogeneous points
-/// `(w x, w y, w z, w)`.
+/// `(w x, w y, (w z,) w)`.
 #[derive(Clone, Copy)]
-struct Weighted<'a> {
-    points: &'a [Point],
+struct Weighted<'a, P: PolePoint> {
+    points: &'a [P],
     weights: &'a [f64],
 }
 
-impl Source for Weighted<'_> {
-    type Pole = [f64; 4];
+impl<P: PolePoint> Source for Weighted<'_, P> {
+    type Pole = P::Homogeneous;
 
     const CONVERTS: bool = true;
 
@@ -173,9 +116,8 @@ impl Source for Weighted<'_> {
     }
 
     #[inline]
-    fn get(self, i: usize) -> [f64; 4] {
-        let (p, w) = (self.points[i], self.weights[i]);
-        [w * p.x, w * p.y, w * p.z, w]
+    fn get(self, i: usize) -> P::Homogeneous {
+        <P::Homogeneous as HomogeneousPole>::fold(self.points[i], self.weights[i])
     }
 
     #[inline]
@@ -187,28 +129,28 @@ impl Source for Weighted<'_> {
     }
 
     #[inline]
-    fn copy_to(self, start: usize, out: &mut [[f64; 4]]) {
+    fn copy_to(self, start: usize, out: &mut [P::Homogeneous]) {
         let range = start..start + out.len();
         let poles = self.points[range.clone()].iter().zip(&self.weights[range]);
         for (out, (p, &w)) in out.iter_mut().zip(poles) {
-            *out = [w * p.x, w * p.y, w * p.z, w];
+            *out = <P::Homogeneous as HomogeneousPole>::fold(*p, w);
         }
     }
 
     #[inline]
-    fn extend_to(self, range: std::ops::Range<usize>, out: &mut Vec<[f64; 4]>) {
+    fn extend_to(self, range: std::ops::Range<usize>, out: &mut Vec<P::Homogeneous>) {
         let poles = self.points[range.clone()].iter().zip(&self.weights[range]);
-        out.extend(poles.map(|(p, &w)| [w * p.x, w * p.y, w * p.z, w]));
+        out.extend(poles.map(|(p, &w)| <P::Homogeneous as HomogeneousPole>::fold(*p, w)));
     }
 }
 
 /// The points and weights of homogeneous poles.
-fn from_homogeneous(
-    edited: &Edited<[f64; 4]>,
-    points: &[Point],
+fn from_homogeneous<G: PolePoint>(
+    edited: &Edited<G::Homogeneous>,
+    points: &[G],
     weights: &[f64],
     lanes: Lanes,
-) -> (Vec<Point>, Vec<f64>) {
+) -> (Vec<G>, Vec<f64>) {
     let (rows, width) = lanes.rows_and_width();
     let (old_row, new_row) = (points.len() / rows, edited.knots.pole_count() * width);
     let (leading, trailing) = (edited.kept.leading * width, edited.kept.trailing * width);
@@ -223,11 +165,8 @@ fn from_homogeneous(
         new_weights.extend_from_slice(&weights[old.start..old.start + leading]);
         let first = row * stride + leading - edited.start * width;
         let changed = &edited.poles[first..first + changed_count];
-        new_points.extend(changed.iter().map(|&[x, y, z, w]| {
-            let inverse = 1.0 / w;
-            Point::new(x * inverse, y * inverse, z * inverse)
-        }));
-        new_weights.extend(changed.iter().map(|h| h[3]));
+        new_points.extend(changed.iter().map(|&h| h.cartesian()));
+        new_weights.extend(changed.iter().map(|&h| h.weight()));
         new_points.extend_from_slice(&points[old_end..old.end]);
         new_weights.extend_from_slice(&weights[old_end..old.end]);
     }
@@ -270,13 +209,13 @@ pub(crate) trait Edit {
     /// The edited direction, points and weights of a rational shape:
     /// [`Edit::apply`] on homogeneous points.
     #[allow(clippy::type_complexity)] // the parts a B-spline stores
-    fn apply_rational(
+    fn apply_rational<G: PolePoint>(
         &self,
         direction: &KnotVector,
-        points: &[Point],
+        points: &[G],
         weights: &[f64],
         lanes: Lanes,
-    ) -> Result<(KnotVector, Vec<Point>, Vec<f64>), Self::Error> {
+    ) -> Result<(KnotVector, Vec<G>, Vec<f64>), Self::Error> {
         let edited = self.apply(direction, Weighted { points, weights }, lanes)?;
         let (rows, width) = lanes.rows_and_width();
         let new_row = edited.knots.pole_count() * width;
@@ -284,12 +223,12 @@ pub(crate) trait Edit {
             // Every pole laid out as stored: the points take over the
             // homogeneous poles' storage, which they fit in, and the kept
             // ones are copied back to keep every bit.
-            let mut new_weights: Vec<f64> = edited.poles.iter().map(|h| h[3]).collect();
-            let mut new_points: Vec<Point> = (edited.poles.into_iter())
-                .map(|[x, y, z, w]| {
-                    let inverse = 1.0 / w;
-                    Point::new(x * inverse, y * inverse, z * inverse)
-                })
+            let mut new_weights: Vec<f64> =
+                edited.poles.iter().map(|&h| h.weight()).collect();
+            let mut new_points: Vec<G> = edited
+                .poles
+                .into_iter()
+                .map(HomogeneousPole::cartesian)
                 .collect();
             new_points.shrink_to_fit();
             let old_row = points.len() / rows;
@@ -317,13 +256,13 @@ pub(crate) trait Edit {
 /// The edited direction, poles and weights: `edit` run on the points, or
 /// on homogeneous points if there are `weights`.
 #[allow(clippy::type_complexity)] // the parts a B-spline stores
-pub(crate) fn edit<E: Edit>(
+pub(crate) fn edit<E: Edit, G: PolePoint>(
     edit: &E,
     direction: &KnotVector,
-    points: &[Point],
+    points: &[G],
     weights: Option<&[f64]>,
     lanes: Lanes,
-) -> Result<(KnotVector, Vec<Point>, Option<Vec<f64>>), E::Error> {
+) -> Result<(KnotVector, Vec<G>, Option<Vec<f64>>), E::Error> {
     match weights {
         None => {
             let edited = edit.apply(direction, points, lanes)?;
@@ -341,16 +280,16 @@ pub(crate) fn edit<E: Edit>(
 /// periodic direction's from its lower bound: `visit(x, y, points,
 /// weights)` for the piece over `[x, y]`, its `degree + 1` points and their
 /// weights if there are `weights`.
-pub(crate) fn curve_pieces(
+pub(crate) fn curve_pieces<G: PolePoint>(
     direction: &KnotVector,
-    points: &[Point],
+    points: &[G],
     weights: Option<&[f64]>,
-    mut visit: impl FnMut(f64, f64, Vec<Point>, Option<Vec<f64>>),
+    mut visit: impl FnMut(f64, f64, Vec<G>, Option<Vec<f64>>),
 ) {
     fn run<S: Source>(
         direction: &KnotVector,
         poles: S,
-        visit: &mut impl FnMut(f64, f64, Vec<Point>, Option<Vec<f64>>),
+        visit: &mut impl FnMut(f64, f64, Vec<<S::Pole as Pole>::Cartesian>, Option<Vec<f64>>),
     ) {
         Walker::new(direction, 1).for_each_piece(poles, One, |_, x, y, piece| {
             let (points, weights) = S::Pole::parts(piece);
@@ -368,19 +307,19 @@ pub(crate) fn curve_pieces(
 /// patch over `[u0, u1] x [v0, v1]`, the `i`-th along `u`, its `(u degree
 /// + 1) (v degree + 1)` points row by row and their weights if there are
 /// `weights`; patches come along `u` for each span along `v`.
-pub(crate) fn surface_patches(
+pub(crate) fn surface_patches<G: PolePoint>(
     u: &KnotVector,
     v: &KnotVector,
-    points: &[Point],
+    points: &[G],
     weights: Option<&[f64]>,
-    mut visit: impl FnMut(usize, (f64, f64), (f64, f64), Vec<Point>, Option<Vec<f64>>),
+    mut visit: impl FnMut(usize, (f64, f64), (f64, f64), Vec<G>, Option<Vec<f64>>),
 ) {
     #[allow(clippy::type_complexity)] // the visitor of `surface_patches`
     fn run<S: Source>(
         u: &KnotVector,
         v: &KnotVector,
         poles: S,
-        visit: &mut impl FnMut(usize, (f64, f64), (f64, f64), Vec<Point>, Option<Vec<f64>>),
+        visit: &mut impl FnMut(usize, (f64, f64), (f64, f64), Vec<<S::Pole as Pole>::Cartesian>, Option<Vec<f64>>),
     ) {
         // The strips of `v` pieces: strip `j` holds `v degree + 1` poles of
         // every row, a grid of rows along `v` whose `u` pieces are patches.
@@ -418,13 +357,13 @@ impl Edit for Insertion<'_> {
         insert_knots(direction, poles, lanes, self.0)
     }
 
-    fn apply_rational(
+    fn apply_rational<G: PolePoint>(
         &self,
         direction: &KnotVector,
-        points: &[Point],
+        points: &[G],
         weights: &[f64],
         lanes: Lanes,
-    ) -> Result<(KnotVector, Vec<Point>, Vec<f64>), KnotInsertionError> {
+    ) -> Result<(KnotVector, Vec<G>, Vec<f64>), KnotInsertionError> {
         if direction.is_periodic() || self.0.is_empty() {
             let edited = insert_knots(direction, Weighted { points, weights }, lanes, self.0)?;
             let (points, weights) = from_homogeneous(&edited, points, weights, lanes);
@@ -798,13 +737,13 @@ impl<const N: usize> Count for Fixed<N> {
 /// stack if few enough as for most insertions, and the changed ones
 /// divided back into the new arrays, the kept ones copied as they are.
 #[allow(clippy::type_complexity)] // the parts a B-spline stores
-fn insert_rational(
+fn insert_rational<G: PolePoint>(
     knots: &KnotVector,
-    points: &[Point],
+    points: &[G],
     weights: &[f64],
     lanes: Lanes,
     insert: &[f64],
-) -> Result<(KnotVector, Vec<Point>, Vec<f64>), KnotInsertionError> {
+) -> Result<(KnotVector, Vec<G>, Vec<f64>), KnotInsertionError> {
     /// The most homogeneous poles refined on the stack, in an array of
     /// `SMALL`, `MEDIUM` or `STACK` of them: few enough to zero quickly,
     /// the smallest for the few slots of one or two knots.
@@ -828,19 +767,22 @@ fn insert_rational(
     let window_row = slots.len() * width;
     let size = rows * (n + s) * width;
     let (mut new_points, mut new_weights) = (Vec::with_capacity(size), Vec::with_capacity(size));
-    let (mut small, mut medium, mut stack);
+    let mut small: [G::Homogeneous; SMALL];
+    let mut medium: [G::Homogeneous; MEDIUM];
+    let mut stack: [G::Homogeneous; STACK];
     let mut heap = Vec::new();
+    let zero = <G::Homogeneous as HomogeneousPole>::of_lanes([0.0; 4]);
     let window = if rows * window_row <= SMALL {
-        small = [[0.0; 4]; SMALL];
+        small = std::array::from_fn(|_| zero);
         &mut small[..rows * window_row]
     } else if rows * window_row <= MEDIUM {
-        medium = [[0.0; 4]; MEDIUM];
+        medium = std::array::from_fn(|_| zero);
         &mut medium[..rows * window_row]
     } else if rows * window_row <= STACK {
-        stack = [[0.0; 4]; STACK];
+        stack = std::array::from_fn(|_| zero);
         &mut stack[..rows * window_row]
     } else {
-        heap.resize(rows * window_row, [0.0; 4]);
+        heap.resize(rows * window_row, zero);
         &mut heap[..]
     };
     for (row, out) in window.chunks_exact_mut(window_row).enumerate() {
@@ -863,11 +805,8 @@ fn insert_rational(
         new_points.extend_from_slice(&points[old_slot(0)..old_slot(leading)]);
         new_weights.extend_from_slice(&weights[old_slot(0)..old_slot(leading)]);
         let changed = &out[at(leading)..at(trailing_start)];
-        new_points.extend(changed.iter().map(|&[x, y, z, w]| {
-            let inverse = 1.0 / w;
-            Point::new(x * inverse, y * inverse, z * inverse)
-        }));
-        new_weights.extend(changed.iter().map(|h| h[3]));
+        new_points.extend(changed.iter().map(|&h| h.cartesian()));
+        new_weights.extend(changed.iter().map(|h| h.weight()));
         new_points.extend_from_slice(&points[old_slot(b - 1)..old_slot(n)]);
         new_weights.extend_from_slice(&weights[old_slot(b - 1)..old_slot(n)]);
     }
