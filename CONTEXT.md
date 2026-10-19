@@ -37,6 +37,13 @@ A curve or surface defined by poles, knots and optional weights. Every curve or 
 The order `C^n` up to which derivatives are guaranteed to agree at a parameter: `degree − multiplicity` at a B-spline knot, smooth everywhere else and on elementary shapes. It is read from the knots, so the shape may be smoother than reported. The ends of a non-periodic range report smooth, seen from the inside; a periodic seam is a knot like any other. Trimming never lowers it, and a piece that avoids a knot does not inherit it.
 _Avoid_: smoothness as a yes-or-no answer, regularity
 
+**Reversal**:
+Running a surface in the opposite `u` or `v` direction over the same point set, so the normal reverses. An elementary surface flips one frame axis and its frame turns indirect (left-handed); a B-spline reorders its poles and mirrors its knots.
+_Avoid_: mirror (a transform of space, not of traversal)
+
+**Transformed shape**:
+The image of a curve or surface under a transform, parametrized by the image of its parametrization: `transformed(t)` evaluated at a parameter is `t` applied to the original point there (length parameters scale with a uniform scale). Every frame axis maps through the transform, so a mirror turns a direct frame indirect and the image's normal is the opposite of the mirrored normal, for elementary shapes and B-splines alike. Reversing the image restores the mirrored side.
+
 **Bounding box**:
 The axis-aligned box around a curve or surface, used to cull pairs before intersecting them. An elementary shape's box is the tightest, touching the shape on every side; a B-spline's comes from its control points, holding the shape but possibly loose. An unbounded shape has none. A box encloses a point and overlaps another box.
 _Avoid_: AABB, bbox, extent, contains or inside (reserved) for a point in a box
