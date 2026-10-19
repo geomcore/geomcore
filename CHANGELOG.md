@@ -24,7 +24,7 @@ the Python distribution are versioned in lockstep.
   `BSplineSurface` (`Plane.normal()` keeps returning its constant
   normal). ADR 0010 records the design.
 
-## [0.35.0] - 2026-10-13
+## [0.35.0] - 2026-10-19
 
 ### Added
 
