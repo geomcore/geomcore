@@ -11,6 +11,36 @@ the Python distribution are versioned in lockstep.
 
 ### Added
 
+- Unit surface normal: `ParametricSurface::normal(u, v, tol)` returns the
+  unit `Su × Sv`, recovering the limiting normal at singular points (a
+  sphere's poles, a B-spline row collapsing to a smooth point) from second
+  derivatives, then from nearby parameters; `None` where no normal can be
+  recovered, and at an apex (a cone's, or a collapsed B-spline row whose
+  rows meet at an angle), whose meridians each have their own limit. A
+  partial counts as zero when the distance it would cover across its
+  parameter range is within `tol.confusion`, so rescaling a surface's
+  knots does not change its normals. In Python,
+  `normal(u, v, tol=None)` on `Cylinder`, `Cone`, `Sphere`, `Torus` and
+  `BSplineSurface` (`Plane.normal()` keeps returning its constant
+  normal). ADR 0010 records the design.
+
+- Curve local properties (#69): `tangent(u, tol)` returns the unit
+  direction of motion (`None` where the speed vanishes, as at a cusp),
+  `curvature(u, tol)` the turn rate per unit arc length, and
+  `curvature_center(u, tol)` the centre of the osculating circle
+  (`None` on a straight run or where the speed vanishes). A derivative
+  counts as zero when the distance it would cover across the curve's
+  parameter range is within `tol.confusion`, so rescaling a curve's knots
+  changes none of the three; the surface normal follows the same rule
+  (ADR 0010).
+
+- Closedness queries (#70): `is_closed(tol)` on curves and
+  `is_u_closed(tol)` / `is_v_closed(tol)` on surfaces report whether
+  travelling returns to its start. Periodicity implies closedness, not
+  conversely: B-splines whose ends (boundary curves, for surfaces)
+  coincide, clamped or not, and trims spanning a full period count as
+  closed without being periodic.
+
 - Continuity order queries (#72): `continuity(u, tol)` on curves and
   `continuity_u/v` on surfaces report `C^n` (`u32::MAX` = smooth),
   with `min_continuity` (curves) and `min_continuity_u/v` (surfaces)
@@ -19,6 +49,15 @@ the Python distribution are versioned in lockstep.
   parameters into the period. A trimmed curve reports its basis order
   inside its range, smooth at its ends, and only the knots inside its
   range in its minimum.
+
+## [0.35.0] - 2026-10-19
+
+### Added
+
+- Python bindings for the 0.33 isoparametric curves (#63): `u_iso(u)` and
+  `v_iso(v)` on `Plane`, `Cylinder`, `Cone`, `Sphere`, `Torus` and
+  `BSplineSurface`, returning `Line3D`, `Circle3D` or `BSplineCurve3D` like
+  the Rust methods, with `SurfaceIsoError` as `ValueError`.
 
 ## [0.34.0] - 2026-10-13
 
@@ -1200,7 +1239,8 @@ the Python distribution are versioned in lockstep.
 - Golden-fixture validation of all numeric results at 1e-7 tolerance, and
   criterion throughput benchmarks (`docs/benchmarks.md`).
 
-[Unreleased]: https://github.com/geomcore/geomcore/compare/v0.34.0...HEAD
+[Unreleased]: https://github.com/geomcore/geomcore/compare/v0.35.0...HEAD
+[0.35.0]: https://github.com/geomcore/geomcore/releases/tag/v0.35.0
 [0.34.0]: https://github.com/geomcore/geomcore/releases/tag/v0.34.0
 [0.33.0]: https://github.com/geomcore/geomcore/releases/tag/v0.33.0
 [0.32.2]: https://github.com/geomcore/geomcore/releases/tag/v0.32.2
