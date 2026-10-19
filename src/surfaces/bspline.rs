@@ -4722,13 +4722,20 @@ mod tests {
         )
         .unwrap();
         let v = 0.35;
-        let below = surface.eval_derivative_sided(0.6, v, 1, 0, Side::Below, Side::Above);
-        let above = surface.eval_derivative_sided(0.6, v, 1, 0, Side::Above, Side::Above);
-        let left = surface.eval_derivative(0.6 - 1e-13, v, 1, 0);
-        let right = surface.eval_derivative(0.6 + 1e-13, v, 1, 0);
-        assert!((below - left).magnitude() < 1e-8);
-        assert!((above - right).magnitude() < 1e-8);
-        assert_eq!(above, surface.eval_derivative(0.6, v, 1, 0));
+        for du in [1u32, 2] {
+            let below = surface.eval_derivative_sided(0.6, v, du, 0, Side::Below, Side::Above);
+            let above = surface.eval_derivative_sided(0.6, v, du, 0, Side::Above, Side::Above);
+            let left = surface.eval_derivative(0.6 - 1e-13, v, du, 0);
+            let right = surface.eval_derivative(0.6 + 1e-13, v, du, 0);
+            assert!((below - left).magnitude() < 1e-8, "du = {du}");
+            assert!((above - right).magnitude() < 1e-8, "du = {du}");
+            assert_eq!(above, surface.eval_derivative(0.6, v, du, 0));
+        }
+        // The double knot leaves the patch C1 in u: only the second
+        // derivative tells the sides apart, so it must differ.
+        let jump = surface.eval_derivative_sided(0.6, v, 2, 0, Side::Below, Side::Above)
+            - surface.eval_derivative_sided(0.6, v, 2, 0, Side::Above, Side::Above);
+        assert!(jump.magnitude() > 1.0, "{jump:?}");
         let (pb, _) = surface.eval_d1_sided(0.6, v, Side::Below, Side::Above);
         let (pa, _) = surface.eval_d1_sided(0.6, v, Side::Above, Side::Above);
         assert_eq!(pb, pa);
