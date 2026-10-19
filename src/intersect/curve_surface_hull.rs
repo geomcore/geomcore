@@ -10,12 +10,12 @@ use super::pieces::{
 };
 use super::results::sort_by_known_parameter;
 use super::{Completeness, CurveSurfaceHit, curve_surface_multiplicity};
-use crate::curves::BSplineCurve3D;
+use crate::curves::BSplineCurve;
 use crate::math::boxtree::{Aabb, boxes_apart};
 use crate::math::solve_3x3;
 use crate::surface_math::bspline::net_points;
 use crate::surfaces::{BSplineSurface, ParametricSurface};
-use crate::{Point3D, Tolerance};
+use crate::{Point, Tolerance};
 use std::ops::Deref;
 
 /// The hits of a numeric curve–surface intersection, ordered by curve
@@ -127,11 +127,11 @@ impl<'a> IntoIterator for &'a CurveSurfaceHits {
 ///
 /// ```
 /// use geomcore::{
-///     BSplineCurve3D, BSplineSurface, Completeness, Intersect, Point3D, Tolerance,
+///     BSplineCurve, BSplineSurface, Completeness, Intersect, Point, Tolerance,
 /// };
 /// let poles = vec![
-///     vec![Point3D::new(0.0, 0.0, 0.0), Point3D::new(0.0, 2.0, 0.0)],
-///     vec![Point3D::new(2.0, 0.0, 0.0), Point3D::new(2.0, 2.0, 0.0)],
+///     vec![Point::new(0.0, 0.0, 0.0), Point::new(0.0, 2.0, 0.0)],
+///     vec![Point::new(2.0, 0.0, 0.0), Point::new(2.0, 2.0, 0.0)],
 /// ];
 /// let (knots, mults) = (vec![0.0, 1.0], vec![2, 2]);
 /// let square = BSplineSurface::new(
@@ -140,11 +140,11 @@ impl<'a> IntoIterator for &'a CurveSurfaceHits {
 /// .unwrap();
 /// // A parabola touching the square at (1, 1, 0), at t = 0.5.
 /// let poles = vec![
-///     Point3D::new(0.5, 1.0, 1.0),
-///     Point3D::new(1.0, 1.0, -1.0),
-///     Point3D::new(1.5, 1.0, 1.0),
+///     Point::new(0.5, 1.0, 1.0),
+///     Point::new(1.0, 1.0, -1.0),
+///     Point::new(1.5, 1.0, 1.0),
 /// ];
-/// let parabola = BSplineCurve3D::new(2, poles, knots, vec![3, 3], false).unwrap();
+/// let parabola = BSplineCurve::new(2, poles, knots, vec![3, 3], false).unwrap();
 /// let result = parabola.intersect(&square, Tolerance::DEFAULT);
 /// let Completeness::Incomplete { regions, .. } = result.completeness() else {
 ///     panic!("a tangent contact never separates");
@@ -163,9 +163,9 @@ pub struct CurveSurfaceRegion {
     /// The surface's `v` parameter interval.
     pub v_range: (f64, f64),
     /// The corner of the box with the smallest coordinates.
-    pub min_corner: Point3D,
+    pub min_corner: Point,
     /// The corner of the box with the largest coordinates.
-    pub max_corner: Point3D,
+    pub max_corner: Point,
 }
 
 impl Region for CurveSurfaceRegion {
@@ -240,7 +240,7 @@ const SLACK: f64 = 1e-10;
 /// Hits within `sqrt(tol.confusion)` of each other merge, as in the
 /// sampled search, keeping the one closest to the surface.
 pub(super) fn bspline_curve_surface(
-    curve: &BSplineCurve3D,
+    curve: &BSplineCurve,
     range: (f64, f64),
     periodic: bool,
     surface: &BSplineSurface,
@@ -252,7 +252,7 @@ pub(super) fn bspline_curve_surface(
 /// [`bspline_curve_surface`] with `splits_per_pair` halvings allowed per
 /// initial pair of pieces.
 fn search_pieces(
-    curve: &BSplineCurve3D,
+    curve: &BSplineCurve,
     range: (f64, f64),
     periodic: bool,
     surface: &BSplineSurface,
@@ -359,7 +359,7 @@ struct Node {
 struct Exhausted;
 
 struct Search<'a> {
-    curve: &'a BSplineCurve3D,
+    curve: &'a BSplineCurve,
     surface: &'a BSplineSurface,
     tol: Tolerance,
     ranges: [Range; 3],
@@ -379,7 +379,7 @@ struct Search<'a> {
 
 impl<'a> Search<'a> {
     fn new(
-        curve: &'a BSplineCurve3D,
+        curve: &'a BSplineCurve,
         pieces: &CurvePieces,
         (lo, hi): (f64, f64),
         periodic: bool,
@@ -498,8 +498,8 @@ impl<'a> Search<'a> {
             curve_range: node.t,
             u_range: (r[0], r[1]),
             v_range: (r[2], r[3]),
-            min_corner: Point3D::new(curve_box[0], curve_box[1], curve_box[2]),
-            max_corner: Point3D::new(curve_box[3], curve_box[4], curve_box[5]),
+            min_corner: Point::new(curve_box[0], curve_box[1], curve_box[2]),
+            max_corner: Point::new(curve_box[3], curve_box[4], curve_box[5]),
         }
     }
 
@@ -636,7 +636,7 @@ impl<'a> Search<'a> {
 
     /// Keeps the hit at `x` if its parameters lie in their ranges and its
     /// point within `tol.confusion` of the surface, and returns its point.
-    fn record(&mut self, x: [f64; 3]) -> Option<Point3D> {
+    fn record(&mut self, x: [f64; 3]) -> Option<Point> {
         let [t, u, v] = [0, 1, 2].map(|i| self.ranges[i].admit(x[i]));
         let (t, u, v) = (t?, u?, v?);
         let point = self.curve.eval_point(t);
@@ -682,8 +682,8 @@ impl<'a> Search<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Point3D;
-    use crate::curves::{Curve3D, ParametricCurve3D, TrimmedCurve3D};
+    use crate::Point;
+    use crate::curves::{Curve, ParametricCurve, TrimmedCurve};
     use crate::intersect::curve_surface::sampled_curve_surface;
     use crate::intersect::{IncompleteReason, search_curve_surface};
     use crate::surfaces::Surface;
@@ -708,7 +708,7 @@ mod tests {
         let poles = (0..6)
             .map(|i| {
                 (0..6)
-                    .map(|j| Point3D::new(i as f64, j as f64, height(i, j)))
+                    .map(|j| Point::new(i as f64, j as f64, height(i, j)))
                     .collect()
             })
             .collect();
@@ -759,13 +759,13 @@ mod tests {
 
     /// A cubic rising from `z = -2` to `z = 2` along a wavy path between
     /// two random points over the surfaces' footprint.
-    fn rising(rng: &mut Lcg, rational: bool) -> BSplineCurve3D {
+    fn rising(rng: &mut Lcg, rational: bool) -> BSplineCurve {
         let (x0, y0) = (0.3 + rng.next() * 4.4, 0.3 + rng.next() * 4.4);
         let (x1, y1) = (0.3 + rng.next() * 4.4, 0.3 + rng.next() * 4.4);
         let poles = (0..6)
             .map(|k| {
                 let s = k as f64 / 5.0;
-                Point3D::new(
+                Point::new(
                     x0 + (x1 - x0) * s + 0.3 * (7.0 * s).sin(),
                     y0 + (y1 - y0) * s,
                     -2.0 + 4.0 * s,
@@ -775,14 +775,14 @@ mod tests {
         let (knots, mults) = (vec![0.0, 1.0, 2.0, 3.0], vec![4, 1, 1, 4]);
         if rational {
             let weights = (0..6).map(|_| 0.4 + 1.6 * rng.next()).collect();
-            BSplineCurve3D::new_rational(3, poles, weights, knots, mults, false).unwrap()
+            BSplineCurve::new_rational(3, poles, weights, knots, mults, false).unwrap()
         } else {
-            BSplineCurve3D::new(3, poles, knots, mults, false).unwrap()
+            BSplineCurve::new(3, poles, knots, mults, false).unwrap()
         }
     }
 
     /// The hits of the piece-pair search, which must be complete.
-    fn search<C: ParametricCurve3D>(curve: &C, surface: &BSplineSurface) -> Vec<CurveSurfaceHit> {
+    fn search<C: ParametricCurve>(curve: &C, surface: &BSplineSurface) -> Vec<CurveSurfaceHit> {
         let bspline = curve.as_bspline().unwrap();
         let periodic = curve.period().is_some();
         let found = bspline_curve_surface(bspline, curve.bounds(), periodic, surface, TOL);
@@ -792,7 +792,7 @@ mod tests {
 
     /// Asserts every hit lies on both shapes, with parameters in range.
     #[track_caller]
-    fn assert_on_both<C: ParametricCurve3D>(
+    fn assert_on_both<C: ParametricCurve>(
         hits: &[CurveSurfaceHit],
         curve: &C,
         surface: &BSplineSurface,
@@ -819,7 +819,7 @@ mod tests {
     /// Asserts the search finds the sampled search's hits within the
     /// curve's range, and returns them.
     #[track_caller]
-    fn assert_matches_sampled<C: ParametricCurve3D>(
+    fn assert_matches_sampled<C: ParametricCurve>(
         curve: &C,
         surface: &BSplineSurface,
     ) -> Vec<CurveSurfaceHit> {
@@ -870,7 +870,7 @@ mod tests {
         let arc = [(2.0, 0.0), (2.0, 2.0), (0.0, 2.0)];
         let poles = arc
             .iter()
-            .map(|&(x, y)| vec![Point3D::new(x, y, 0.0), Point3D::new(x, y, 1.0)])
+            .map(|&(x, y)| vec![Point::new(x, y, 0.0), Point::new(x, y, 1.0)])
             .collect();
         BSplineSurface::new_rational(
             2,
@@ -893,11 +893,8 @@ mod tests {
         for k in 0..=8 {
             let angle = k as f64 * std::f64::consts::FRAC_PI_2 / 8.0;
             let (c, s) = (angle.cos(), angle.sin());
-            let poles = vec![
-                Point3D::new(0.0, 0.0, 0.3),
-                Point3D::new(4.0 * c, 4.0 * s, 0.7),
-            ];
-            let ray = BSplineCurve3D::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
+            let poles = vec![Point::new(0.0, 0.0, 0.3), Point::new(4.0 * c, 4.0 * s, 0.7)];
+            let ray = BSplineCurve::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
             let hits = assert_matches_sampled(&ray, &cylinder);
             assert_eq!(hits.len(), 1);
             assert!((hits[0].curve_parameter.unwrap() - 0.5).abs() < 1e-12);
@@ -907,16 +904,16 @@ mod tests {
 
     /// A closed cubic loop around `(2.5, 2.5)` swinging above and below
     /// the wavy surface.
-    fn periodic_loop() -> BSplineCurve3D {
+    fn periodic_loop() -> BSplineCurve {
         let poles = (0..8)
             .map(|k| {
                 let angle = k as f64 * std::f64::consts::TAU / 8.0;
                 let z = if k % 2 == 0 { 1.5 } else { -1.5 };
-                Point3D::new(2.5 + 1.8 * angle.cos(), 2.5 + 1.8 * angle.sin(), z)
+                Point::new(2.5 + 1.8 * angle.cos(), 2.5 + 1.8 * angle.sin(), z)
             })
             .collect();
         let knots = (0..=8).map(f64::from).collect();
-        BSplineCurve3D::new(3, poles, knots, vec![1; 9], true).unwrap()
+        BSplineCurve::new(3, poles, knots, vec![1; 9], true).unwrap()
     }
 
     #[test]
@@ -933,7 +930,7 @@ mod tests {
         let surface = wavy(false);
         let ring = periodic_loop();
         let all = search(&ring, &surface);
-        let arc = TrimmedCurve3D::new(&ring, 6.5, 9.5).unwrap();
+        let arc = TrimmedCurve::new(&ring, 6.5, 9.5).unwrap();
         let hits = assert_matches_sampled(&arc, &surface);
         let wrapped = |t: f64| if t < 6.5 { t + 8.0 } else { t };
         let expected: Vec<f64> = all
@@ -960,8 +957,8 @@ mod tests {
                 let angle = k as f64 * std::f64::consts::TAU / 6.0;
                 let (c, s) = (angle.cos(), angle.sin());
                 vec![
-                    Point3D::new(2.0 * c, 2.0 * s, 0.0),
-                    Point3D::new(2.2 * c, 2.2 * s, 3.0),
+                    Point::new(2.0 * c, 2.0 * s, 0.0),
+                    Point::new(2.2 * c, 2.2 * s, 3.0),
                 ]
             })
             .collect();
@@ -985,11 +982,8 @@ mod tests {
         for k in 0..24 {
             let angle = k as f64 * std::f64::consts::TAU / 24.0;
             let (c, s) = (angle.cos(), angle.sin());
-            let poles = vec![
-                Point3D::new(0.0, 0.0, 0.5),
-                Point3D::new(4.0 * c, 4.0 * s, 2.5),
-            ];
-            let ray = BSplineCurve3D::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
+            let poles = vec![Point::new(0.0, 0.0, 0.5), Point::new(4.0 * c, 4.0 * s, 2.5)];
+            let ray = BSplineCurve::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
             let hits = assert_matches_sampled(&ray, &tube);
             assert_eq!(hits.len(), 1);
             let (u, _) = hits[0].surface_parameters.unwrap();
@@ -999,8 +993,8 @@ mod tests {
         let seam = tube.eval_point(0.0, 0.5);
         for slant in [0.3, -0.3] {
             let line = segment(
-                Point3D::new(0.3 * seam.x, 0.3 * seam.y + slant, 0.5),
-                Point3D::new(1.7 * seam.x, 1.7 * seam.y - slant, 2.5),
+                Point::new(0.3 * seam.x, 0.3 * seam.y + slant, 0.5),
+                Point::new(1.7 * seam.x, 1.7 * seam.y - slant, 2.5),
             );
             let hits = assert_matches_sampled(&line, &tube);
             assert_eq!(hits.len(), 1, "{hits:#?}");
@@ -1011,15 +1005,15 @@ mod tests {
     }
 
     /// A cubic crossing the wavy surface back and forth.
-    fn zigzag() -> BSplineCurve3D {
+    fn zigzag() -> BSplineCurve {
         let poles = (0..10)
             .map(|k| {
                 let z = if k % 2 == 0 { 1.5 } else { -1.5 };
-                Point3D::new(0.3 + 0.48 * k as f64, 1.0 + 0.3 * k as f64, z)
+                Point::new(0.3 + 0.48 * k as f64, 1.0 + 0.3 * k as f64, z)
             })
             .collect();
         let knots = (0..=7).map(f64::from).collect();
-        BSplineCurve3D::new(3, poles, knots, vec![4, 1, 1, 1, 1, 1, 1, 4], false).unwrap()
+        BSplineCurve::new(3, poles, knots, vec![4, 1, 1, 1, 1, 1, 1, 4], false).unwrap()
     }
 
     #[test]
@@ -1037,8 +1031,8 @@ mod tests {
                 .iter()
                 .filter(|h| (first - 1e-9..=last + 1e-9).contains(&h.curve_parameter.unwrap()))
                 .collect();
-            let borrowed = TrimmedCurve3D::new(&curve, first, last).unwrap();
-            let owned = TrimmedCurve3D::new(curve.clone(), first, last).unwrap();
+            let borrowed = TrimmedCurve::new(&curve, first, last).unwrap();
+            let owned = TrimmedCurve::new(curve.clone(), first, last).unwrap();
             for hits in [
                 assert_matches_sampled(&borrowed, &surface),
                 assert_matches_sampled(&owned, &surface),
@@ -1053,15 +1047,15 @@ mod tests {
             }
         }
         let enums = search_curve_surface(
-            &Curve3D::BSpline(curve.clone()),
+            &Curve::BSpline(curve.clone()),
             &Surface::from(&surface),
             TOL,
         );
         assert_eq!(enums, search_curve_surface(&curve, &surface, TOL));
     }
 
-    fn segment(from: Point3D, to: Point3D) -> BSplineCurve3D {
-        BSplineCurve3D::new(1, vec![from, to], vec![0.0, 1.0], vec![2, 2], false).unwrap()
+    fn segment(from: Point, to: Point) -> BSplineCurve {
+        BSplineCurve::new(1, vec![from, to], vec![0.0, 1.0], vec![2, 2], false).unwrap()
     }
 
     #[test]
@@ -1070,12 +1064,12 @@ mod tests {
         let cases = [
             // Ending on the surface, starting on it, and through its edges
             // and corners.
-            (Point3D::new(2.3, 1.7, -1.0), Point3D::new(2.3, 1.7, 0.0)),
-            (Point3D::new(2.3, 1.7, 0.0), Point3D::new(2.9, 1.1, 1.0)),
-            (Point3D::new(0.0, 2.2, -1.0), Point3D::new(0.0, 2.2, 1.0)),
-            (Point3D::new(3.1, 5.0, 1.0), Point3D::new(3.1, 5.0, -1.0)),
-            (Point3D::new(0.0, 0.0, -1.0), Point3D::new(0.0, 0.0, 1.0)),
-            (Point3D::new(5.0, 5.0, 1.0), Point3D::new(5.0, 5.0, -1.0)),
+            (Point::new(2.3, 1.7, -1.0), Point::new(2.3, 1.7, 0.0)),
+            (Point::new(2.3, 1.7, 0.0), Point::new(2.9, 1.1, 1.0)),
+            (Point::new(0.0, 2.2, -1.0), Point::new(0.0, 2.2, 1.0)),
+            (Point::new(3.1, 5.0, 1.0), Point::new(3.1, 5.0, -1.0)),
+            (Point::new(0.0, 0.0, -1.0), Point::new(0.0, 0.0, 1.0)),
+            (Point::new(5.0, 5.0, 1.0), Point::new(5.0, 5.0, -1.0)),
         ];
         for (from, to) in cases {
             let curve = segment(from, to);
@@ -1085,7 +1079,7 @@ mod tests {
             let expected = if from.z == 0.0 {
                 from
             } else {
-                Point3D::new(from.x, from.y, 0.0)
+                Point::new(from.x, from.y, 0.0)
             };
             assert!(hits[0].point.distance(expected) < 1e-12);
         }
@@ -1096,12 +1090,11 @@ mod tests {
         let surface = wavy(false);
         let corner = surface.eval_point(1.0, 2.0);
         let poles = vec![
-            Point3D::new(corner.x - 0.3, corner.y - 0.2, corner.z - 1.0),
+            Point::new(corner.x - 0.3, corner.y - 0.2, corner.z - 1.0),
             corner,
-            Point3D::new(corner.x + 0.5, corner.y + 0.1, corner.z + 1.0),
+            Point::new(corner.x + 0.5, corner.y + 0.1, corner.z + 1.0),
         ];
-        let curve =
-            BSplineCurve3D::new(1, poles, vec![0.0, 1.0, 2.0], vec![2, 1, 2], false).unwrap();
+        let curve = BSplineCurve::new(1, poles, vec![0.0, 1.0, 2.0], vec![2, 1, 2], false).unwrap();
         let hits = assert_matches_sampled(&curve, &surface);
         assert_eq!(hits.len(), 1);
         assert!((hits[0].curve_parameter.unwrap() - 1.0).abs() < 1e-12);
@@ -1111,13 +1104,13 @@ mod tests {
 
     /// A parabola over the flat surface dipping `depth` below it (meeting
     /// it at `t = (1 ± sqrt(depth / (1 + depth))) / 2`).
-    fn dip(depth: f64) -> BSplineCurve3D {
+    fn dip(depth: f64) -> BSplineCurve {
         let poles = vec![
-            Point3D::new(1.0, 2.5, 1.0),
-            Point3D::new(2.5, 2.5, -1.0 - 2.0 * depth),
-            Point3D::new(4.0, 2.5, 1.0),
+            Point::new(1.0, 2.5, 1.0),
+            Point::new(2.5, 2.5, -1.0 - 2.0 * depth),
+            Point::new(4.0, 2.5, 1.0),
         ];
-        BSplineCurve3D::new(2, poles, vec![0.0, 1.0], vec![3, 3], false).unwrap()
+        BSplineCurve::new(2, poles, vec![0.0, 1.0], vec![3, 3], false).unwrap()
     }
 
     #[test]
@@ -1145,7 +1138,7 @@ mod tests {
 
     /// Whether `region` holds the curve parameter `t`, the surface
     /// parameters `(u, v)` and the point `p`.
-    fn holds(region: &CurveSurfaceRegion, t: f64, (u, v): (f64, f64), p: Point3D) -> bool {
+    fn holds(region: &CurveSurfaceRegion, t: f64, (u, v): (f64, f64), p: Point) -> bool {
         let within = |x: f64, (lo, hi): (f64, f64)| lo - 1e-9 <= x && x <= hi + 1e-9;
         let (lo, hi) = (region.min_corner, region.max_corner);
         within(t, region.curve_range)
@@ -1161,7 +1154,7 @@ mod tests {
     #[track_caller]
     fn assert_sampled_hits_kept(
         hits: &CurveSurfaceHits,
-        curve: &BSplineCurve3D,
+        curve: &BSplineCurve,
         plane: &BSplineSurface,
     ) {
         for hit in hits {
@@ -1181,7 +1174,7 @@ mod tests {
     #[test]
     fn test_curve_lying_on_the_surface_is_unseparated_along_it() {
         let plane = flat();
-        let lying = segment(Point3D::new(1.0, 1.0, 0.0), Point3D::new(4.0, 3.0, 0.0));
+        let lying = segment(Point::new(1.0, 1.0, 0.0), Point::new(4.0, 3.0, 0.0));
         let found = bspline_curve_surface(&lying, lying.bounds(), false, &plane, TOL);
         let (reason, regions) = incomplete(&found);
         assert_eq!(reason, IncompleteReason::Unseparated);
@@ -1207,7 +1200,7 @@ mod tests {
     fn test_tangent_contact_is_unseparated_around_it() {
         let plane = flat();
         let tangent = dip(0.0);
-        let contact = Point3D::new(2.5, 2.5, 0.0);
+        let contact = Point::new(2.5, 2.5, 0.0);
         assert_eq!(tangent.eval_point(0.5), contact);
         let foot = plane.project_point(contact, TOL);
         let found = bspline_curve_surface(&tangent, tangent.bounds(), false, &plane, TOL);
@@ -1237,7 +1230,7 @@ mod tests {
             let foot = (u, 0.4);
             let on = cylinder.eval_point(u, 0.4);
             // Tangent to the cylinder at `on`, and lying on it.
-            let side = crate::Vector3D::new(on.y, -on.x, 0.0) * 0.125;
+            let side = crate::Vector::new(on.y, -on.x, 0.0) * 0.125;
             let across = segment(on + side, on - side);
             let found = bspline_curve_surface(&across, across.bounds(), false, &cylinder, TOL);
             let (reason, regions) = incomplete(&found);
@@ -1303,16 +1296,16 @@ mod tests {
     #[test]
     fn test_mixed_shapes_are_settled_and_elementary_pairs_sampled() {
         let surface = wavy(false);
-        let cylinder = crate::Cylinder::new(Point3D::ORIGIN, crate::Vector3D::Z, 2.0).unwrap();
-        let ray = segment(Point3D::new(0.0, 0.0, 0.5), Point3D::new(4.0, 0.0, 0.5));
+        let cylinder = crate::Cylinder::new(Point::ORIGIN, crate::Vector::Z, 2.0).unwrap();
+        let ray = segment(Point::new(0.0, 0.0, 0.5), Point::new(4.0, 0.0, 0.5));
         let hits = search_curve_surface(&ray, &cylinder, TOL);
         assert_eq!(hits.completeness(), &Completeness::Complete);
         assert_eq!(hits.len(), 1);
-        let line = crate::Line3D::new(Point3D::new(2.0, 2.0, -1.0), crate::Vector3D::Z).unwrap();
+        let line = crate::Line::new(Point::new(2.0, 2.0, -1.0), crate::Vector::Z).unwrap();
         let hits = search_curve_surface(&line, &surface, TOL);
         assert_eq!(hits.completeness(), &Completeness::Complete);
         assert_eq!(hits.len(), 1);
-        let axis = crate::Line3D::new(Point3D::new(1.0, 0.0, 0.0), crate::Vector3D::X).unwrap();
+        let axis = crate::Line::new(Point::new(1.0, 0.0, 0.0), crate::Vector::X).unwrap();
         let hits = search_curve_surface(&axis, &cylinder, TOL);
         assert_eq!(hits.completeness(), &Completeness::Sampled);
         assert_eq!(hits.len(), 2);
@@ -1321,8 +1314,8 @@ mod tests {
     #[test]
     fn test_misses_have_no_hits() {
         let surface = wavy(true);
-        let above = segment(Point3D::new(0.5, 0.5, 2.0), Point3D::new(4.5, 4.0, 2.5));
-        let beside = segment(Point3D::new(6.0, 0.0, -1.0), Point3D::new(6.0, 5.0, 1.0));
+        let above = segment(Point::new(0.5, 0.5, 2.0), Point::new(4.5, 4.0, 2.5));
+        let beside = segment(Point::new(6.0, 0.0, -1.0), Point::new(6.0, 5.0, 1.0));
         for curve in [above, beside] {
             assert!(assert_matches_sampled(&curve, &surface).is_empty());
         }

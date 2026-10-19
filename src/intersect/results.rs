@@ -11,7 +11,7 @@ use super::{
     Completeness, CurveCurveHit, CurveCurveHit2D, CurveCurveRegion, CurveSurfaceHit,
     CurveSurfaceRegion,
 };
-use crate::{Curve3D, Point3D, Tolerance, Vector3D};
+use crate::{Curve, Point, Tolerance, Vector};
 
 /// The hits of a 3D curve-curve result. The inline capacity is the most
 /// hits an exact pair yields (two conics meet at most 4 times), so an
@@ -84,15 +84,15 @@ pub struct CurveCurveOverlap {
 /// # Examples
 ///
 /// ```
-/// use geomcore::{Curve3D, IntersectionCurve, Line3D, Point3D, Vector3D};
-/// let line = Line3D::new(Point3D::ORIGIN, Vector3D::X).unwrap();
-/// let piece = IntersectionCurve { curve: Curve3D::Line(line), tangent: false };
+/// use geomcore::{Curve, IntersectionCurve, Line, Point, Vector};
+/// let line = Line::new(Point::ORIGIN, Vector::X).unwrap();
+/// let piece = IntersectionCurve { curve: Curve::Line(line), tangent: false };
 /// assert!(!piece.tangent);
 /// ```
 #[derive(Debug, Clone, PartialEq)]
 pub struct IntersectionCurve {
     /// The curve of contact.
-    pub curve: Curve3D,
+    pub curve: Curve,
     /// `true` where the surfaces touch along the curve instead of crossing
     /// it. A numeric curve is `true` where the surfaces' normals are
     /// parallel along it, or so nearly that moving one surface by the
@@ -105,14 +105,14 @@ pub struct IntersectionCurve {
 /// # Examples
 ///
 /// ```
-/// use geomcore::{Point3D, SurfaceSurfaceRegion};
+/// use geomcore::{Point, SurfaceSurfaceRegion};
 /// let region = SurfaceSurfaceRegion {
 ///     first_u_range: (0.0, 1.0),
 ///     first_v_range: (0.0, 1.0),
 ///     second_u_range: (0.0, 1.0),
 ///     second_v_range: (0.0, 1.0),
-///     min_corner: Point3D::ORIGIN,
-///     max_corner: Point3D::new(1.0, 1.0, 1.0),
+///     min_corner: Point::ORIGIN,
+///     max_corner: Point::new(1.0, 1.0, 1.0),
 /// };
 /// assert_eq!(region.first_u_range, (0.0, 1.0));
 /// ```
@@ -127,9 +127,9 @@ pub struct SurfaceSurfaceRegion {
     /// The second surface's `v` parameter interval.
     pub second_v_range: (f64, f64),
     /// The corner of the box with the smallest coordinates.
-    pub min_corner: Point3D,
+    pub min_corner: Point,
     /// The corner of the box with the largest coordinates.
-    pub max_corner: Point3D,
+    pub max_corner: Point,
 }
 
 /// Sorts `items` by `parameter` when every item has one, and leaves them
@@ -158,16 +158,16 @@ fn sorted_by_first(mut hits: CurveCurveHitList) -> CurveCurveHitList {
 /// for the hit's extent (the curve grazes the surface), 1 otherwise. A
 /// zero `tangent` or `normal` (a singular point) counts as 1.
 pub(crate) fn curve_surface_multiplicity(
-    tangent: Vector3D,
-    normal: Vector3D,
-    point: Point3D,
+    tangent: Vector,
+    normal: Vector,
+    point: Point,
     tol: Tolerance,
 ) -> u32 {
     let scale = tangent.magnitude() * normal.magnitude();
     if scale == 0.0 || !scale.is_finite() {
         return 1;
     }
-    let extent = point.distance(Point3D::ORIGIN) + 1.0;
+    let extent = point.distance(Point::ORIGIN) + 1.0;
     if (tangent.dot(normal) / scale).abs() <= tol.angular_for_extent(extent) {
         2
     } else {
@@ -187,11 +187,11 @@ pub(crate) fn curve_surface_multiplicity(
 /// # Examples
 ///
 /// ```
-/// use geomcore::{Circle3D, Intersect, IntersectionMethod, Line3D, Point3D, Tolerance, Vector3D};
+/// use geomcore::{Circle, Intersect, IntersectionMethod, Line, Point, Tolerance, Vector};
 ///
 /// // A line through a circle of radius 2 crosses it twice.
-/// let line = Line3D::new(Point3D::new(-5.0, 0.0, 0.0), Vector3D::X).unwrap();
-/// let circle = Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
+/// let line = Line::new(Point::new(-5.0, 0.0, 0.0), Vector::X).unwrap();
+/// let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
 /// let result = line.intersect(&circle, Tolerance::DEFAULT);
 /// assert_eq!(result.method(), IntersectionMethod::Exact);
 /// assert!(result.is_complete());
@@ -250,20 +250,20 @@ impl CurveCurveIntersection {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::curves::TrimmedCurve3D;
-    /// use geomcore::{Circle3D, Intersect, Line3D, Point3D, Tolerance, Vector3D};
+    /// use geomcore::curves::TrimmedCurve;
+    /// use geomcore::{Circle, Intersect, Line, Point, Tolerance, Vector};
     ///
     /// // An arc across the seam at angle 0 keeps only the hit at angle 0.
-    /// let line = Line3D::new(Point3D::new(-5.0, 0.0, 0.0), Vector3D::X).unwrap();
-    /// let circle = Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
-    /// let arc = TrimmedCurve3D::new(circle, -1.0, 1.0).unwrap();
+    /// let line = Line::new(Point::new(-5.0, 0.0, 0.0), Vector::X).unwrap();
+    /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
+    /// let arc = TrimmedCurve::new(circle, -1.0, 1.0).unwrap();
     /// let result = arc.intersect(&line, Tolerance::DEFAULT);
     /// let hit = result.hits()[0];
     /// assert_eq!(result.hits().len(), 1);
     /// // The arc's range test computed its angle; the line's comes from the solve.
     /// assert_eq!(hit.first_parameter, Some(0.0));
     /// assert_eq!(hit.second_parameter, Some(7.0));
-    /// assert!(hit.point.distance(Point3D::new(2.0, 0.0, 0.0)) < 1e-12);
+    /// assert!(hit.point.distance(Point::new(2.0, 0.0, 0.0)) < 1e-12);
     /// ```
     pub fn hits(&self) -> &[CurveCurveHit] {
         &self.hits
@@ -291,13 +291,13 @@ impl CurveCurveIntersection {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::curves::TrimmedCurve3D;
-    /// use geomcore::{CurveCurveOverlap, Intersect, Line3D, Point3D, Tolerance, Vector3D};
+    /// use geomcore::curves::TrimmedCurve;
+    /// use geomcore::{CurveCurveOverlap, Intersect, Line, Point, Tolerance, Vector};
     ///
     /// // Two segments of one line share x in [1, 2].
-    /// let line = Line3D::new(Point3D::ORIGIN, Vector3D::X).unwrap();
-    /// let first = TrimmedCurve3D::new(line, 0.0, 2.0).unwrap();
-    /// let second = TrimmedCurve3D::new(line, 1.0, 3.0).unwrap();
+    /// let line = Line::new(Point::ORIGIN, Vector::X).unwrap();
+    /// let first = TrimmedCurve::new(line, 0.0, 2.0).unwrap();
+    /// let second = TrimmedCurve::new(line, 1.0, 3.0).unwrap();
     /// let result = first.intersect(&second, Tolerance::DEFAULT);
     /// assert!(result.hits().is_empty());
     /// assert_eq!(
@@ -318,11 +318,11 @@ impl CurveCurveIntersection {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Circle3D, Intersect, IntersectionMethod, Point3D, Tolerance, Vector3D};
+    /// use geomcore::{Circle, Intersect, IntersectionMethod, Point, Tolerance, Vector};
     ///
     /// // A B-spline has no closed form: the numeric search runs.
-    /// let circle = Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
-    /// let other = Circle3D::new(Point3D::new(2.0, 0.0, 0.0), Vector3D::Z, 2.0).unwrap();
+    /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
+    /// let other = Circle::new(Point::new(2.0, 0.0, 0.0), Vector::Z, 2.0).unwrap();
     /// let result = circle.intersect(&other.to_bspline(), Tolerance::DEFAULT);
     /// assert_eq!(result.method(), IntersectionMethod::Numeric);
     /// assert_eq!(result.hits().len(), 2);
@@ -336,10 +336,10 @@ impl CurveCurveIntersection {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Circle3D, Completeness, Intersect, Line3D, Point3D, Tolerance, Vector3D};
+    /// use geomcore::{Circle, Completeness, Intersect, Line, Point, Tolerance, Vector};
     ///
-    /// let line = Line3D::new(Point3D::ORIGIN, Vector3D::X).unwrap();
-    /// let circle = Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 1.0).unwrap();
+    /// let line = Line::new(Point::ORIGIN, Vector::X).unwrap();
+    /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
     /// let result = circle.intersect(&line, Tolerance::DEFAULT);
     /// assert_eq!(result.completeness(), &Completeness::Complete);
     /// ```
@@ -352,10 +352,10 @@ impl CurveCurveIntersection {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Ellipse3D, Frame3D, Intersect, Line3D, Point3D, Tolerance, Vector3D};
+    /// use geomcore::{Ellipse, Frame, Intersect, Line, Point, Tolerance, Vector};
     ///
-    /// let ellipse = Ellipse3D::from_frame(Frame3D::WORLD, 3.0, 1.0).unwrap();
-    /// let line = Line3D::new(Point3D::ORIGIN, Vector3D::Y).unwrap();
+    /// let ellipse = Ellipse::from_frame(Frame::WORLD, 3.0, 1.0).unwrap();
+    /// let line = Line::new(Point::ORIGIN, Vector::Y).unwrap();
     /// assert!(ellipse.intersect(&line, Tolerance::DEFAULT).is_complete());
     /// ```
     pub fn is_complete(&self) -> bool {
@@ -368,11 +368,11 @@ impl CurveCurveIntersection {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Intersect, Line3D, Point3D, Tolerance, Vector3D};
+    /// use geomcore::{Intersect, Line, Point, Tolerance, Vector};
     ///
     /// // An exact empty result proves the skew lines never meet.
-    /// let first = Line3D::new(Point3D::ORIGIN, Vector3D::X).unwrap();
-    /// let second = Line3D::new(Point3D::new(0.0, 0.0, 1.0), Vector3D::Y).unwrap();
+    /// let first = Line::new(Point::ORIGIN, Vector::X).unwrap();
+    /// let second = Line::new(Point::new(0.0, 0.0, 1.0), Vector::Y).unwrap();
     /// let result = first.intersect(&second, Tolerance::DEFAULT);
     /// assert!(result.is_empty() && result.is_complete());
     /// ```
@@ -562,11 +562,11 @@ impl CurveCurveIntersection2D {
 /// # Examples
 ///
 /// ```
-/// use geomcore::{Cylinder, Intersect, IntersectionMethod, Line3D, Point3D, Tolerance, Vector3D};
+/// use geomcore::{Cylinder, Intersect, IntersectionMethod, Line, Point, Tolerance, Vector};
 ///
 /// // A line across a unit cylinder enters and leaves it.
-/// let line = Line3D::new(Point3D::new(-5.0, 0.0, 0.0), Vector3D::X).unwrap();
-/// let cylinder = Cylinder::new(Point3D::ORIGIN, Vector3D::Z, 1.0).unwrap();
+/// let line = Line::new(Point::new(-5.0, 0.0, 0.0), Vector::X).unwrap();
+/// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
 /// let result = line.intersect(&cylinder, Tolerance::DEFAULT);
 /// assert_eq!(result.method(), IntersectionMethod::Exact);
 /// assert!(result.is_complete());
@@ -634,15 +634,15 @@ impl CurveSurfaceIntersection {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Intersect, Line3D, Plane, Point3D, Tolerance, Vector3D};
+    /// use geomcore::{Intersect, Line, Plane, Point, Tolerance, Vector};
     ///
-    /// let line = Line3D::new(Point3D::ORIGIN, Vector3D::Z).unwrap();
-    /// let plane = Plane::new(Point3D::new(0.0, 0.0, 2.0), Vector3D::Z).unwrap();
+    /// let line = Line::new(Point::ORIGIN, Vector::Z).unwrap();
+    /// let plane = Plane::new(Point::new(0.0, 0.0, 2.0), Vector::Z).unwrap();
     /// let result = line.intersect(&plane, Tolerance::DEFAULT);
     /// let hit = result.hits()[0];
     /// assert_eq!(hit.curve_parameter, Some(2.0));
     /// assert_eq!(hit.surface_parameters, None);
-    /// assert_eq!(hit.point, Point3D::new(0.0, 0.0, 2.0));
+    /// assert_eq!(hit.point, Point::new(0.0, 0.0, 2.0));
     /// assert_eq!(hit.multiplicity, 1);
     /// ```
     pub fn hits(&self) -> &[CurveSurfaceHit] {
@@ -659,11 +659,11 @@ impl CurveSurfaceIntersection {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Intersect, Line3D, Plane, Point3D, Tolerance, Vector3D};
+    /// use geomcore::{Intersect, Line, Plane, Point, Tolerance, Vector};
     ///
     /// // A line lying in the plane: the whole, unbounded line is an overlap.
-    /// let line = Line3D::new(Point3D::ORIGIN, Vector3D::X).unwrap();
-    /// let plane = Plane::new(Point3D::ORIGIN, Vector3D::Z).unwrap();
+    /// let line = Line::new(Point::ORIGIN, Vector::X).unwrap();
+    /// let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
     /// let result = line.intersect(&plane, Tolerance::DEFAULT);
     /// assert!(result.hits().is_empty());
     /// assert_eq!(result.overlaps(), &[(f64::NEG_INFINITY, f64::INFINITY)]);
@@ -677,11 +677,11 @@ impl CurveSurfaceIntersection {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Ellipse3D, Frame3D, Intersect, IntersectionMethod, Point3D, Tolerance, Torus, Vector3D};
+    /// use geomcore::{Ellipse, Frame, Intersect, IntersectionMethod, Point, Tolerance, Torus, Vector};
     ///
     /// // An ellipse and a torus have no closed form: the numeric search runs.
-    /// let ellipse = Ellipse3D::from_frame(Frame3D::WORLD, 5.0, 1.0).unwrap();
-    /// let torus = Torus::new(Point3D::ORIGIN, Vector3D::Z, 3.0, 1.0).unwrap();
+    /// let ellipse = Ellipse::from_frame(Frame::WORLD, 5.0, 1.0).unwrap();
+    /// let torus = Torus::new(Point::ORIGIN, Vector::Z, 3.0, 1.0).unwrap();
     /// let result = ellipse.intersect(&torus, Tolerance::DEFAULT);
     /// assert_eq!(result.method(), IntersectionMethod::Numeric);
     /// ```
@@ -694,10 +694,10 @@ impl CurveSurfaceIntersection {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Completeness, Intersect, Line3D, Point3D, Sphere, Tolerance, Vector3D};
+    /// use geomcore::{Completeness, Intersect, Line, Point, Sphere, Tolerance, Vector};
     ///
-    /// let line = Line3D::new(Point3D::ORIGIN, Vector3D::X).unwrap();
-    /// let sphere = Sphere::new(Point3D::ORIGIN, 1.0).unwrap();
+    /// let line = Line::new(Point::ORIGIN, Vector::X).unwrap();
+    /// let sphere = Sphere::new(Point::ORIGIN, 1.0).unwrap();
     /// let result = line.intersect(&sphere, Tolerance::DEFAULT);
     /// assert_eq!(result.completeness(), &Completeness::Complete);
     /// ```
@@ -710,10 +710,10 @@ impl CurveSurfaceIntersection {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Intersect, Line3D, Point3D, Sphere, Tolerance, Vector3D};
+    /// use geomcore::{Intersect, Line, Point, Sphere, Tolerance, Vector};
     ///
-    /// let line = Line3D::new(Point3D::ORIGIN, Vector3D::X).unwrap();
-    /// let sphere = Sphere::new(Point3D::ORIGIN, 1.0).unwrap();
+    /// let line = Line::new(Point::ORIGIN, Vector::X).unwrap();
+    /// let sphere = Sphere::new(Point::ORIGIN, 1.0).unwrap();
     /// assert!(sphere.intersect(&line, Tolerance::DEFAULT).is_complete());
     /// ```
     pub fn is_complete(&self) -> bool {
@@ -726,11 +726,11 @@ impl CurveSurfaceIntersection {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Intersect, Line3D, Point3D, Sphere, Tolerance, Vector3D};
+    /// use geomcore::{Intersect, Line, Point, Sphere, Tolerance, Vector};
     ///
     /// // An exact empty result proves the line misses the sphere.
-    /// let line = Line3D::new(Point3D::new(0.0, 5.0, 0.0), Vector3D::X).unwrap();
-    /// let sphere = Sphere::new(Point3D::ORIGIN, 1.0).unwrap();
+    /// let line = Line::new(Point::new(0.0, 5.0, 0.0), Vector::X).unwrap();
+    /// let sphere = Sphere::new(Point::ORIGIN, 1.0).unwrap();
     /// let result = line.intersect(&sphere, Tolerance::DEFAULT);
     /// assert!(result.is_empty() && result.is_complete());
     /// ```
@@ -757,11 +757,11 @@ fn sorted_by_curve_parameter(mut hits: CurveSurfaceHitList) -> CurveSurfaceHitLi
 /// # Examples
 ///
 /// ```
-/// use geomcore::{Intersect, IntersectionMethod, Plane, Point3D, Sphere, Tolerance, Vector3D};
+/// use geomcore::{Intersect, IntersectionMethod, Plane, Point, Sphere, Tolerance, Vector};
 ///
 /// // The plane z = 1 cuts a sphere of radius 2 in one circle.
-/// let plane = Plane::new(Point3D::new(0.0, 0.0, 1.0), Vector3D::Z).unwrap();
-/// let sphere = Sphere::new(Point3D::ORIGIN, 2.0).unwrap();
+/// let plane = Plane::new(Point::new(0.0, 0.0, 1.0), Vector::Z).unwrap();
+/// let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
 /// let result = plane.intersect(&sphere, Tolerance::DEFAULT);
 /// assert_eq!(result.method(), IntersectionMethod::Exact);
 /// assert!(result.is_complete() && !result.is_empty());
@@ -773,7 +773,7 @@ fn sorted_by_curve_parameter(mut hits: CurveSurfaceHitList) -> CurveSurfaceHitLi
 #[derive(Debug, Clone, PartialEq)]
 pub struct SurfaceSurfaceIntersection {
     curves: Vec<IntersectionCurve>,
-    contact_points: Vec<Point3D>,
+    contact_points: Vec<Point>,
     coincident: bool,
     method: IntersectionMethod,
     completeness: Completeness<SurfaceSurfaceRegion>,
@@ -783,7 +783,7 @@ impl SurfaceSurfaceIntersection {
     /// An exact, complete result.
     pub(crate) fn exact(
         curves: Vec<IntersectionCurve>,
-        contact_points: Vec<Point3D>,
+        contact_points: Vec<Point>,
         coincident: bool,
     ) -> Self {
         SurfaceSurfaceIntersection {
@@ -798,7 +798,7 @@ impl SurfaceSurfaceIntersection {
     /// A numeric result with the status of its search.
     pub(crate) fn numeric(
         curves: Vec<IntersectionCurve>,
-        contact_points: Vec<Point3D>,
+        contact_points: Vec<Point>,
         completeness: Completeness<SurfaceSurfaceRegion>,
     ) -> Self {
         SurfaceSurfaceIntersection {
@@ -826,9 +826,9 @@ impl SurfaceSurfaceIntersection {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Intersect, Plane, Point3D, Sphere, Tolerance, Vector3D};
-    /// let plane = Plane::new(Point3D::new(0.0, 0.0, 1.0), Vector3D::Z).unwrap();
-    /// let sphere = Sphere::new(Point3D::ORIGIN, 2.0).unwrap();
+    /// use geomcore::{Intersect, Plane, Point, Sphere, Tolerance, Vector};
+    /// let plane = Plane::new(Point::new(0.0, 0.0, 1.0), Vector::Z).unwrap();
+    /// let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
     /// let result = plane.intersect(&sphere, Tolerance::DEFAULT);
     /// assert_eq!(result.curves().len(), 1);
     /// ```
@@ -843,14 +843,14 @@ impl SurfaceSurfaceIntersection {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Intersect, Plane, Point3D, Sphere, Tolerance, Vector3D};
-    /// let plane = Plane::new(Point3D::new(0.0, 0.0, 2.0), Vector3D::Z).unwrap();
-    /// let sphere = Sphere::new(Point3D::ORIGIN, 2.0).unwrap();
+    /// use geomcore::{Intersect, Plane, Point, Sphere, Tolerance, Vector};
+    /// let plane = Plane::new(Point::new(0.0, 0.0, 2.0), Vector::Z).unwrap();
+    /// let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
     /// let result = plane.intersect(&sphere, Tolerance::DEFAULT);
     /// // Tangent at the north pole.
     /// assert_eq!(result.contact_points().len(), 1);
     /// ```
-    pub fn contact_points(&self) -> &[Point3D] {
+    pub fn contact_points(&self) -> &[Point] {
         &self.contact_points
     }
 
@@ -867,9 +867,9 @@ impl SurfaceSurfaceIntersection {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Intersect, Plane, Point3D, Sphere, Tolerance, Vector3D};
-    /// let plane = Plane::new(Point3D::new(0.0, 0.0, 1.0), Vector3D::Z).unwrap();
-    /// let sphere = Sphere::new(Point3D::ORIGIN, 2.0).unwrap();
+    /// use geomcore::{Intersect, Plane, Point, Sphere, Tolerance, Vector};
+    /// let plane = Plane::new(Point::new(0.0, 0.0, 1.0), Vector::Z).unwrap();
+    /// let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
     /// let result = plane.intersect(&sphere, Tolerance::DEFAULT);
     /// assert!(!result.is_coincident());
     ///
@@ -888,9 +888,9 @@ impl SurfaceSurfaceIntersection {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Intersect, Plane, Point3D, Sphere, Tolerance, Vector3D};
-    /// let plane = Plane::new(Point3D::new(0.0, 0.0, 1.0), Vector3D::Z).unwrap();
-    /// let sphere = Sphere::new(Point3D::ORIGIN, 2.0).unwrap();
+    /// use geomcore::{Intersect, Plane, Point, Sphere, Tolerance, Vector};
+    /// let plane = Plane::new(Point::new(0.0, 0.0, 1.0), Vector::Z).unwrap();
+    /// let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
     /// let result = plane.intersect(&sphere, Tolerance::DEFAULT);
     /// assert_eq!(result.method(), geomcore::IntersectionMethod::Exact);
     /// ```
@@ -903,9 +903,9 @@ impl SurfaceSurfaceIntersection {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Intersect, Plane, Point3D, Sphere, Tolerance, Vector3D};
-    /// let plane = Plane::new(Point3D::new(0.0, 0.0, 1.0), Vector3D::Z).unwrap();
-    /// let sphere = Sphere::new(Point3D::ORIGIN, 2.0).unwrap();
+    /// use geomcore::{Intersect, Plane, Point, Sphere, Tolerance, Vector};
+    /// let plane = Plane::new(Point::new(0.0, 0.0, 1.0), Vector::Z).unwrap();
+    /// let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
     /// let result = plane.intersect(&sphere, Tolerance::DEFAULT);
     /// assert_eq!(result.completeness(), &geomcore::Completeness::Complete);
     /// ```
@@ -918,9 +918,9 @@ impl SurfaceSurfaceIntersection {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Intersect, Plane, Point3D, Sphere, Tolerance, Vector3D};
-    /// let plane = Plane::new(Point3D::new(0.0, 0.0, 1.0), Vector3D::Z).unwrap();
-    /// let sphere = Sphere::new(Point3D::ORIGIN, 2.0).unwrap();
+    /// use geomcore::{Intersect, Plane, Point, Sphere, Tolerance, Vector};
+    /// let plane = Plane::new(Point::new(0.0, 0.0, 1.0), Vector::Z).unwrap();
+    /// let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
     /// let result = plane.intersect(&sphere, Tolerance::DEFAULT);
     /// assert!(result.is_complete());
     /// ```
@@ -935,9 +935,9 @@ impl SurfaceSurfaceIntersection {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Intersect, Plane, Point3D, Sphere, Tolerance, Vector3D};
-    /// let plane = Plane::new(Point3D::new(0.0, 0.0, 5.0), Vector3D::Z).unwrap();
-    /// let sphere = Sphere::new(Point3D::ORIGIN, 2.0).unwrap();
+    /// use geomcore::{Intersect, Plane, Point, Sphere, Tolerance, Vector};
+    /// let plane = Plane::new(Point::new(0.0, 0.0, 5.0), Vector::Z).unwrap();
+    /// let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
     /// let result = plane.intersect(&sphere, Tolerance::DEFAULT);
     /// assert!(result.is_empty());
     /// ```
@@ -949,13 +949,13 @@ impl SurfaceSurfaceIntersection {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Completeness, Point3D};
+    use crate::{Completeness, Point};
 
     fn hit(first: f64, second: f64) -> CurveCurveHit {
         CurveCurveHit {
             first_parameter: Some(first),
             second_parameter: Some(second),
-            point: Point3D::ORIGIN,
+            point: Point::ORIGIN,
             multiplicity: 1,
         }
     }
@@ -1000,17 +1000,11 @@ mod tests {
     #[test]
     fn test_multiplicity_is_two_when_tangent_is_perpendicular_to_normal() {
         let tol = Tolerance::DEFAULT;
-        let p = Point3D::ORIGIN;
+        let p = Point::ORIGIN;
+        assert_eq!(curve_surface_multiplicity(Vector::X, Vector::Z, p, tol), 2);
+        assert_eq!(curve_surface_multiplicity(Vector::Z, Vector::Z, p, tol), 1);
         assert_eq!(
-            curve_surface_multiplicity(Vector3D::X, Vector3D::Z, p, tol),
-            2
-        );
-        assert_eq!(
-            curve_surface_multiplicity(Vector3D::Z, Vector3D::Z, p, tol),
-            1
-        );
-        assert_eq!(
-            curve_surface_multiplicity(Vector3D::ZERO, Vector3D::Z, p, tol),
+            curve_surface_multiplicity(Vector::ZERO, Vector::Z, p, tol),
             1
         );
     }

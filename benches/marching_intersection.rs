@@ -34,8 +34,8 @@ use std::hint::black_box;
 
 use geomcore::surfaces::BSplineSurface;
 use geomcore::{
-    Completeness, Cone, Cylinder, IncompleteReason, Intersect, IntersectionMethod, Plane, Point3D,
-    Sphere, SurfaceSurfaceIntersection, Tolerance, Torus, Vector3D,
+    Completeness, Cone, Cylinder, IncompleteReason, Intersect, IntersectionMethod, Plane, Point,
+    Sphere, SurfaceSurfaceIntersection, Tolerance, Torus, Vector,
 };
 
 fn surface(height: impl Fn(f64, f64) -> f64) -> BSplineSurface {
@@ -44,7 +44,7 @@ fn surface(height: impl Fn(f64, f64) -> f64) -> BSplineSurface {
             (0..6)
                 .map(|j| {
                     let (x, y) = (i as f64, j as f64);
-                    Point3D::new(x, y, height(x, y))
+                    Point::new(x, y, height(x, y))
                 })
                 .collect()
         })
@@ -71,7 +71,7 @@ fn extruded_wall() -> BSplineSurface {
         .map(|i| {
             let y = -2.5 + i as f64;
             let x = if i % 2 == 0 { 0.4 } else { 0.1 };
-            vec![Point3D::new(x, y, -3.0), Point3D::new(x, y, 3.0)]
+            vec![Point::new(x, y, -3.0), Point::new(x, y, 3.0)]
         })
         .collect();
     BSplineSurface::new(
@@ -120,31 +120,31 @@ fn bench_marching_intersection(c: &mut Criterion) {
     group.bench_function("bspline_surface_pair", |b| {
         b.iter(|| black_box(black_box(&wavy).intersect(&bumpy, tol)))
     });
-    let torus = Torus::new(Point3D::ORIGIN, Vector3D::Z, 3.0, 1.0).unwrap();
+    let torus = Torus::new(Point::ORIGIN, Vector::Z, 3.0, 1.0).unwrap();
     let tilt: f64 = 0.6;
     let plane = Plane::new(
-        Point3D::new(0.5, 0.0, 0.2),
-        Vector3D::new(-tilt.sin(), 0.0, tilt.cos()),
+        Point::new(0.5, 0.0, 0.2),
+        Vector::new(-tilt.sin(), 0.0, tilt.cos()),
     )
     .unwrap();
     assert_marched(&torus, &plane, tol);
     group.bench_function("torus_plane_oblique", |b| {
         b.iter(|| black_box(black_box(&torus).intersect(&plane, tol)))
     });
-    let sphere = Sphere::new(Point3D::new(3.0, 0.0, 0.0), 1.2).unwrap();
+    let sphere = Sphere::new(Point::new(3.0, 0.0, 0.0), 1.2).unwrap();
     assert_marched(&sphere, &torus, tol);
     group.bench_function("sphere_torus", |b| {
         b.iter(|| black_box(black_box(&sphere).intersect(&torus, tol)))
     });
-    let cylinder = Cylinder::new(Point3D::ORIGIN, Vector3D::Z, 1.0).unwrap();
+    let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
     let wall = extruded_wall();
     assert_marched(&cylinder, &wall, tol);
     group.bench_function("cylinder_extruded_wall", |b| {
         b.iter(|| black_box(black_box(&cylinder).intersect(&wall, tol)))
     });
-    let cone = Cone::new(Point3D::ORIGIN, Vector3D::Z, 0.3, 1.0).unwrap();
-    let generator = Vector3D::new(0.3f64.sin(), 0.0, 0.3f64.cos());
-    let along_generator = Cylinder::new(Point3D::new(1.0, 0.0, 0.0), generator, 0.5).unwrap();
+    let cone = Cone::new(Point::ORIGIN, Vector::Z, 0.3, 1.0).unwrap();
+    let generator = Vector::new(0.3f64.sin(), 0.0, 0.3f64.cos());
+    let along_generator = Cylinder::new(Point::new(1.0, 0.0, 0.0), generator, 0.5).unwrap();
     assert_marched(&cone, &along_generator, tol);
     group.bench_function("cone_cylinder_unbounded", |b| {
         b.iter(|| black_box(black_box(&cone).intersect(&along_generator, tol)))
@@ -157,13 +157,13 @@ fn bench_degenerate_pairs(
     group: &mut criterion::BenchmarkGroup<'_, criterion::measurement::WallTime>,
     tol: Tolerance,
 ) {
-    let sphere = Sphere::new(Point3D::new(0.3, 0.2, 0.5), 0.8).unwrap();
+    let sphere = Sphere::new(Point::new(0.3, 0.2, 0.5), 0.8).unwrap();
     let sphere_copy = sphere.to_bspline();
     assert!(assert_marched(&sphere, &sphere_copy, tol).is_coincident());
     group.bench_function("sphere_bspline_copy", |b| {
         b.iter(|| black_box(black_box(&sphere).intersect(&sphere_copy, tol)))
     });
-    let cylinder = Cylinder::new(Point3D::ORIGIN, Vector3D::Z, 1.0).unwrap();
+    let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
     let cylinder_patch = cylinder
         .to_bspline_patch((0.0, std::f64::consts::TAU), (0.0, 2.0))
         .unwrap();
@@ -171,7 +171,7 @@ fn bench_degenerate_pairs(
     group.bench_function("cylinder_own_patch", |b| {
         b.iter(|| black_box(black_box(&cylinder).intersect(&cylinder_patch, tol)))
     });
-    let plane = Plane::new(Point3D::ORIGIN, Vector3D::Z).unwrap();
+    let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
     let plane_patch = plane.to_bspline_patch((-1.0, 2.0), (0.0, 3.0)).unwrap();
     assert_lies_on(&assert_marched(&plane, &plane_patch, tol));
     group.bench_function("plane_own_patch", |b| {
@@ -181,7 +181,7 @@ fn bench_degenerate_pairs(
     group.bench_function("bspline_sphere_itself", |b| {
         b.iter(|| black_box(black_box(&sphere_copy).intersect(&sphere_copy, tol)))
     });
-    let touching = Plane::new(Point3D::new(1.0, 0.0, 0.0), Vector3D::X).unwrap();
+    let touching = Plane::new(Point::new(1.0, 0.0, 0.0), Vector::X).unwrap();
     let result = assert_marched(&touching, &cylinder_patch, tol);
     assert!(result.curves().len() == 1 && result.curves()[0].tangent);
     group.bench_function("plane_tangent_to_cylinder_patch", |b| {

@@ -8,9 +8,9 @@
 //! its band directly; least squares solves the normal equations, whose
 //! matrix has half-bandwidth `degree`, by banded Cholesky.
 
-use crate::Point3D;
+use crate::Point;
 use crate::curve_math::bspline as math;
-use crate::curves::{BSplineConstructionError, BSplineCurve3D};
+use crate::curves::{BSplineConstructionError, BSplineCurve};
 
 /// How fitting assigns a parameter to each data point.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -33,7 +33,7 @@ impl PointParametrization {
 /// Increasing parameters of `points` in `[0, 1]` (`exponent` 1 chordal, 0.5
 /// centripetal), or `ConfusedPoints` for coincident consecutive points.
 fn point_parameters(
-    points: &[Point3D],
+    points: &[Point],
     parametrization: PointParametrization,
 ) -> Result<Vec<f64>, BSplineConstructionError> {
     let exponent = parametrization.exponent();
@@ -173,7 +173,7 @@ pub(crate) fn check_degree(degree: usize) -> Result<(), BSplineConstructionError
 pub(crate) fn shared_parameters(
     lines: usize,
     count: usize,
-    point: impl Fn(usize, usize) -> Point3D,
+    point: impl Fn(usize, usize) -> Point,
     parametrization: PointParametrization,
 ) -> Result<Vec<f64>, BSplineConstructionError> {
     let exponent = parametrization.exponent();
@@ -250,7 +250,7 @@ impl BasisTable {
     }
 
     /// The point at parameter `k` of the curve with `poles`.
-    pub(crate) fn point(&self, k: usize, poles: &[Point3D]) -> Point3D {
+    pub(crate) fn point(&self, k: usize, poles: &[Point]) -> Point {
         let (first, values) = self.at(k);
         let mut x = [0.0; 3];
         for (&v, q) in values.iter().zip(&poles[first..]) {
@@ -258,7 +258,7 @@ impl BasisTable {
             x[1] += v * q.y;
             x[2] += v * q.z;
         }
-        Point3D::new(x[0], x[1], x[2])
+        Point::new(x[0], x[1], x[2])
     }
 }
 
@@ -272,8 +272,8 @@ pub(crate) fn least_squares(
     basis: &BasisTable,
     pole_count: usize,
     lines: usize,
-    point: impl Fn(usize, usize) -> Point3D,
-) -> Option<Vec<Point3D>> {
+    point: impl Fn(usize, usize) -> Point,
+) -> Option<Vec<Point>> {
     let (width, m) = (basis.width, pole_count);
     let p = width - 1;
     let mut lower = vec![0.0; m * width];
@@ -291,7 +291,7 @@ pub(crate) fn least_squares(
     if !factor_symmetric_band(&mut lower, p, 1e-12) {
         return None;
     }
-    let mut poles = vec![Point3D::ORIGIN; lines * m];
+    let mut poles = vec![Point::ORIGIN; lines * m];
     for (r, line) in poles.chunks_exact_mut(m).enumerate() {
         for k in 0..basis.len() {
             let (first, values) = basis.at(k);
@@ -316,8 +316,8 @@ pub(crate) fn least_squares(
 pub(crate) fn interpolation(
     basis: &BasisTable,
     lines: usize,
-    point: impl Fn(usize, usize) -> Point3D,
-) -> Vec<Point3D> {
+    point: impl Fn(usize, usize) -> Point,
+) -> Vec<Point> {
     let n = basis.len();
     let p = basis.width - 1;
     // Row j holds the basis functions at parameter j, over poles
@@ -555,7 +555,7 @@ fn factor_band(band: &mut [f64], bandwidth: usize) {
 
 /// Solves `A x = b` in place with the factors [`factor_band`] left in
 /// `band`: `rhs` holds `b` and receives `x`.
-fn substitute_band(band: &[f64], bandwidth: usize, rhs: &mut [Point3D]) {
+fn substitute_band(band: &[f64], bandwidth: usize, rhs: &mut [Point]) {
     let (n, h) = (rhs.len(), bandwidth);
     let w = 2 * h + 1;
     for k in 0..n {
@@ -581,7 +581,7 @@ fn substitute_band(band: &[f64], bandwidth: usize, rhs: &mut [Point3D]) {
             x.z -= a * r.z;
         }
         let inverse = 1.0 / row[0];
-        rhs[i] = Point3D::new(x.x * inverse, x.y * inverse, x.z * inverse);
+        rhs[i] = Point::new(x.x * inverse, x.y * inverse, x.z * inverse);
     }
 }
 
@@ -620,7 +620,7 @@ fn factor_symmetric_band(lower: &mut [f64], h: usize, relative_floor: f64) -> bo
 
 /// Solves `A x = b` in place with the factor [`factor_symmetric_band`]
 /// left in `lower`: `rhs` holds `b` and receives `x`.
-fn substitute_symmetric_band(lower: &[f64], h: usize, rhs: &mut [Point3D]) {
+fn substitute_symmetric_band(lower: &[f64], h: usize, rhs: &mut [Point]) {
     let n = rhs.len();
     let w = h + 1;
     let at = |i: usize, j: usize| i * w + j + h - i;
@@ -634,7 +634,7 @@ fn substitute_symmetric_band(lower: &[f64], h: usize, rhs: &mut [Point3D]) {
             y.z -= l * rhs[k].z;
         }
         let inverse = 1.0 / lower[at(i, i)];
-        rhs[i] = Point3D::new(y.x * inverse, y.y * inverse, y.z * inverse);
+        rhs[i] = Point::new(y.x * inverse, y.y * inverse, y.z * inverse);
     }
     for i in (0..n).rev() {
         let mut x = rhs[i];
@@ -645,20 +645,20 @@ fn substitute_symmetric_band(lower: &[f64], h: usize, rhs: &mut [Point3D]) {
             x.z -= l * rhs[k].z;
         }
         let inverse = 1.0 / lower[at(i, i)];
-        rhs[i] = Point3D::new(x.x * inverse, x.y * inverse, x.z * inverse);
+        rhs[i] = Point::new(x.x * inverse, x.y * inverse, x.z * inverse);
     }
 }
 
 /// The interpolation of `points` at `params` by a clamped B-spline of
 /// `degree`: its flat knots (averaged) and poles.
-fn interpolated(points: &[Point3D], params: &[f64], degree: usize) -> (Vec<f64>, Vec<Point3D>) {
+fn interpolated(points: &[Point], params: &[f64], degree: usize) -> (Vec<f64>, Vec<Point>) {
     let flat = averaged_knots(params, degree);
     let basis = BasisTable::new(&flat, degree, params);
     let poles = interpolation(&basis, 1, |_, k| points[k]);
     (flat, poles)
 }
 
-impl BSplineCurve3D {
+impl BSplineCurve {
     /// Interpolates a clamped non-rational B-spline through `points`.
     ///
     /// Parameters come from chord lengths (`Chordal`) or their square
@@ -680,24 +680,24 @@ impl BSplineCurve3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{BSplineCurve3D, Point3D, PointParametrization, Tolerance};
+    /// use geomcore::{BSplineCurve, Point, PointParametrization, Tolerance};
     /// let points = vec![
-    ///     Point3D::new(0.0, 0.0, 0.0),
-    ///     Point3D::new(1.0, 1.0, 0.0),
-    ///     Point3D::new(2.0, 0.0, 0.0),
+    ///     Point::new(0.0, 0.0, 0.0),
+    ///     Point::new(1.0, 1.0, 0.0),
+    ///     Point::new(2.0, 0.0, 0.0),
     /// ];
     /// let curve =
-    ///     BSplineCurve3D::interpolate(&points, 2, PointParametrization::Centripetal).unwrap();
+    ///     BSplineCurve::interpolate(&points, 2, PointParametrization::Centripetal).unwrap();
     /// let tol = Tolerance::DEFAULT;
     /// for p in &points {
     ///     assert!(curve.contains(*p, tol));
     /// }
     /// ```
     pub fn interpolate(
-        points: &[Point3D],
+        points: &[Point],
         degree: usize,
         parametrization: PointParametrization,
-    ) -> Result<BSplineCurve3D, BSplineConstructionError> {
+    ) -> Result<BSplineCurve, BSplineConstructionError> {
         let n = points.len();
         if n < 2 {
             return Err(BSplineConstructionError::TooFewPoints);
@@ -709,7 +709,7 @@ impl BSplineCurve3D {
         let params = point_parameters(points, parametrization)?;
         let (flat, poles) = interpolated(points, &params, degree);
         let (knots, mults) = compress_knots(&flat);
-        Ok(BSplineCurve3D::from_validated_parts(
+        Ok(BSplineCurve::from_validated_parts(
             degree, poles, None, knots, mults, flat, false,
         ))
     }
@@ -717,7 +717,7 @@ impl BSplineCurve3D {
     /// Least-squares B-spline fit through `points` with `num_poles` poles.
     ///
     /// Same chord-like parametrization as
-    /// [`BSplineCurve3D::interpolate`], but an overdetermined system:
+    /// [`BSplineCurve::interpolate`], but an overdetermined system:
     /// interior knots spread along the parameters so that every knot span
     /// holds some, and the normal equations `A'A x = A'b`, whose matrix
     /// has half-bandwidth `degree`, solved by banded Cholesky. The fit
@@ -739,15 +739,15 @@ impl BSplineCurve3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{BSplineCurve3D, Point3D, PointParametrization};
-    /// let points: Vec<Point3D> = (0..9)
+    /// use geomcore::{BSplineCurve, Point, PointParametrization};
+    /// let points: Vec<Point> = (0..9)
     ///     .map(|i| {
     ///         let u = i as f64 / 8.0 * std::f64::consts::TAU;
-    ///         Point3D::new(2.0 * u.cos(), 2.0 * u.sin(), 0.0)
+    ///         Point::new(2.0 * u.cos(), 2.0 * u.sin(), 0.0)
     ///     })
     ///     .collect();
     /// let curve =
-    ///     BSplineCurve3D::approximate(&points, 3, 6, PointParametrization::Centripetal)
+    ///     BSplineCurve::approximate(&points, 3, 6, PointParametrization::Centripetal)
     ///         .unwrap();
     /// assert_eq!(curve.degree(), 3);
     /// // Near-circular fit: radius stays within a few percent of 2.
@@ -758,11 +758,11 @@ impl BSplineCurve3D {
     /// }
     /// ```
     pub fn approximate(
-        points: &[Point3D],
+        points: &[Point],
         degree: usize,
         num_poles: usize,
         parametrization: PointParametrization,
-    ) -> Result<BSplineCurve3D, BSplineConstructionError> {
+    ) -> Result<BSplineCurve, BSplineConstructionError> {
         let n = points.len();
         if n < 2 {
             return Err(BSplineConstructionError::TooFewPoints);
@@ -780,7 +780,7 @@ impl BSplineCurve3D {
         let poles = least_squares(&basis, num_poles, 1, |_, k| points[k])
             .ok_or(BSplineConstructionError::PoleCountMismatch)?;
         let (knots, mults) = compress_knots(&flat);
-        Ok(BSplineCurve3D::from_validated_parts(
+        Ok(BSplineCurve::from_validated_parts(
             degree, poles, None, knots, mults, flat, false,
         ))
     }
@@ -789,16 +789,16 @@ impl BSplineCurve3D {
     /// keeps every point within `max_deviation` of the curve.
     ///
     /// Each candidate is a least-squares fit, as in
-    /// [`BSplineCurve3D::approximate`], its deviation measured from each
+    /// [`BSplineCurve::approximate`], its deviation measured from each
     /// point to the curve at the point's parameter (which bounds the
     /// distance to the curve). Starting from a single Bézier piece, each
     /// round splits the knot spans that deviate the most between their
     /// middle points, so knots gather where the points bend. Should no
     /// span be left to split, the pole count of
-    /// [`BSplineCurve3D::approximate`] is searched instead, galloping up
+    /// [`BSplineCurve::approximate`] is searched instead, galloping up
     /// from `degree + 1`, then bisecting. When no least-squares fit is
     /// close enough, as with a `max_deviation` of zero, the result is the
-    /// interpolation of [`BSplineCurve3D::interpolate`], one pole per
+    /// interpolation of [`BSplineCurve::interpolate`], one pole per
     /// point.
     ///
     /// # Errors
@@ -813,15 +813,15 @@ impl BSplineCurve3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{BSplineCurve3D, Point3D, PointParametrization, Tolerance};
-    /// let points: Vec<Point3D> = (0..50)
+    /// use geomcore::{BSplineCurve, Point, PointParametrization, Tolerance};
+    /// let points: Vec<Point> = (0..50)
     ///     .map(|i| {
     ///         let u = i as f64 / 49.0 * std::f64::consts::PI;
-    ///         Point3D::new(u.cos(), u.sin(), 0.0)
+    ///         Point::new(u.cos(), u.sin(), 0.0)
     ///     })
     ///     .collect();
     /// let curve =
-    ///     BSplineCurve3D::approximate_within(&points, 3, 1e-4, PointParametrization::Chordal)
+    ///     BSplineCurve::approximate_within(&points, 3, 1e-4, PointParametrization::Chordal)
     ///         .unwrap();
     /// // 50 points, 11 poles.
     /// assert_eq!(curve.poles().len(), 11);
@@ -831,11 +831,11 @@ impl BSplineCurve3D {
     /// }
     /// ```
     pub fn approximate_within(
-        points: &[Point3D],
+        points: &[Point],
         degree: usize,
         max_deviation: f64,
         parametrization: PointParametrization,
-    ) -> Result<BSplineCurve3D, BSplineConstructionError> {
+    ) -> Result<BSplineCurve, BSplineConstructionError> {
         let n = points.len();
         if n < 2 {
             return Err(BSplineConstructionError::TooFewPoints);
@@ -854,7 +854,7 @@ impl BSplineCurve3D {
         });
         let (flat, poles) = fit.unwrap_or_else(|| interpolated(points, &params, degree));
         let (knots, mults) = compress_knots(&flat);
-        Ok(BSplineCurve3D::from_validated_parts(
+        Ok(BSplineCurve::from_validated_parts(
             degree, poles, None, knots, mults, flat, false,
         ))
     }
@@ -865,7 +865,7 @@ mod tests {
     use super::*;
 
     /// Dense Gaussian elimination with partial pivoting, the reference.
-    fn dense_solve(mut a: Vec<Vec<f64>>, mut b: Vec<Point3D>) -> Vec<Point3D> {
+    fn dense_solve(mut a: Vec<Vec<f64>>, mut b: Vec<Point>) -> Vec<Point> {
         let n = b.len();
         for k in 0..n {
             let pivot = (k..n)
@@ -880,19 +880,19 @@ mod tests {
                     *x -= f * y;
                 }
                 let bk = b[k];
-                b[i] = Point3D::new(b[i].x - f * bk.x, b[i].y - f * bk.y, b[i].z - f * bk.z);
+                b[i] = Point::new(b[i].x - f * bk.x, b[i].y - f * bk.y, b[i].z - f * bk.z);
             }
         }
         for i in (0..n).rev() {
             let mut x = b[i];
             for j in i + 1..n {
-                x = Point3D::new(
+                x = Point::new(
                     x.x - a[i][j] * b[j].x,
                     x.y - a[i][j] * b[j].y,
                     x.z - a[i][j] * b[j].z,
                 );
             }
-            b[i] = Point3D::new(x.x / a[i][i], x.y / a[i][i], x.z / a[i][i]);
+            b[i] = Point::new(x.x / a[i][i], x.y / a[i][i], x.z / a[i][i]);
         }
         b
     }
@@ -907,11 +907,11 @@ mod tests {
         row
     }
 
-    fn wavy_points(count: usize) -> Vec<Point3D> {
+    fn wavy_points(count: usize) -> Vec<Point> {
         (0..count)
             .map(|i| {
                 let s = i as f64 / (count - 1) as f64;
-                Point3D::new(
+                Point::new(
                     3.0 * s,
                     (7.0 * s).sin() + 0.3 * s * s,
                     (3.0 * s).cos() * 0.5,
@@ -920,7 +920,7 @@ mod tests {
             .collect()
     }
 
-    fn assert_points_close(a: &[Point3D], b: &[Point3D], tol: f64) {
+    fn assert_points_close(a: &[Point], b: &[Point], tol: f64) {
         assert_eq!(a.len(), b.len());
         for (x, y) in a.iter().zip(b) {
             assert!(x.distance(*y) <= tol, "{x:?} vs {y:?}");
@@ -961,7 +961,7 @@ mod tests {
         for (count, p) in [(2, 1), (5, 2), (9, 3), (40, 3), (23, 5)] {
             let points = wavy_points(count);
             let curve =
-                BSplineCurve3D::interpolate(&points, p, PointParametrization::Chordal).unwrap();
+                BSplineCurve::interpolate(&points, p, PointParametrization::Chordal).unwrap();
             let params = point_parameters(&points, PointParametrization::Chordal).unwrap();
             let flat = averaged_knots(&params, p);
             let a = params.iter().map(|&t| dense_row(&flat, p, t)).collect();
@@ -977,20 +977,19 @@ mod tests {
     fn test_approximation_matches_dense_normal_equations() {
         for (count, p, m) in [(4, 1, 2), (12, 3, 7), (60, 3, 20), (31, 4, 9), (8, 2, 8)] {
             let points = wavy_points(count);
-            let curve =
-                BSplineCurve3D::approximate(&points, p, m, PointParametrization::Centripetal)
-                    .unwrap();
+            let curve = BSplineCurve::approximate(&points, p, m, PointParametrization::Centripetal)
+                .unwrap();
             let params = point_parameters(&points, PointParametrization::Centripetal).unwrap();
             let flat = approximation_knots(&params, m, p);
             let rows: Vec<Vec<f64>> = params.iter().map(|&t| dense_row(&flat, p, t)).collect();
             let mut normal = vec![vec![0.0; m]; m];
-            let mut rhs = vec![Point3D::ORIGIN; m];
+            let mut rhs = vec![Point::ORIGIN; m];
             for (row, q) in rows.iter().zip(&points) {
                 for i in 0..m {
                     for j in 0..m {
                         normal[i][j] += row[i] * row[j];
                     }
-                    rhs[i] = Point3D::new(
+                    rhs[i] = Point::new(
                         rhs[i].x + row[i] * q.x,
                         rhs[i].y + row[i] * q.y,
                         rhs[i].z + row[i] * q.z,
@@ -1006,12 +1005,12 @@ mod tests {
         // Two clusters a millionth wide and far apart leave a 12-pole fit
         // numerically undetermined: the basis functions barely reach the
         // points.
-        let mut points: Vec<Point3D> = (0..6)
-            .map(|i| Point3D::new(i as f64 * 1e-6, 0.0, 0.0))
+        let mut points: Vec<Point> = (0..6)
+            .map(|i| Point::new(i as f64 * 1e-6, 0.0, 0.0))
             .collect();
-        points.extend((0..6).map(|i| Point3D::new(10.0 + i as f64 * 1e-6, 1.0, 0.0)));
+        points.extend((0..6).map(|i| Point::new(10.0 + i as f64 * 1e-6, 1.0, 0.0)));
         assert_eq!(
-            BSplineCurve3D::approximate(&points, 3, 12, PointParametrization::Chordal),
+            BSplineCurve::approximate(&points, 3, 12, PointParametrization::Chordal),
             Err(BSplineConstructionError::PoleCountMismatch)
         );
     }
@@ -1021,7 +1020,7 @@ mod tests {
         let points = wavy_points(200);
         for p in 1..=4 {
             for tolerance in [1e-1, 1e-3, 1e-5] {
-                let curve = BSplineCurve3D::approximate_within(
+                let curve = BSplineCurve::approximate_within(
                     &points,
                     p,
                     tolerance,
@@ -1041,20 +1040,20 @@ mod tests {
     fn test_approximation_within_gathers_knots_where_points_bend() {
         // Straight for x in [0, 2], then a tight wave over [2, 3], joined
         // smoothly enough for a cubic.
-        let points: Vec<Point3D> = (0..300)
+        let points: Vec<Point> = (0..300)
             .map(|i| {
                 let x = 3.0 * i as f64 / 299.0;
                 let t = (x - 2.0).max(0.0);
                 let y = t.powi(4) * (12.0 * t).sin();
-                Point3D::new(x, y, 0.0)
+                Point::new(x, y, 0.0)
             })
             .collect();
         let curve =
-            BSplineCurve3D::approximate_within(&points, 3, 1e-4, PointParametrization::Chordal)
+            BSplineCurve::approximate_within(&points, 3, 1e-4, PointParametrization::Chordal)
                 .unwrap();
         // The wave, under a third of the length, holds most interior knots.
         let start = curve
-            .project_point(Point3D::new(2.0, 0.0, 0.0), crate::Tolerance::DEFAULT)
+            .project_point(Point::new(2.0, 0.0, 0.0), crate::Tolerance::DEFAULT)
             .parameter;
         let interior = &curve.knots()[1..curve.knots().len() - 1];
         let in_wave = interior.iter().filter(|&&u| u > start).count();
@@ -1072,12 +1071,9 @@ mod tests {
             PointParametrization::Chordal,
             PointParametrization::Centripetal,
         ] {
-            let within = BSplineCurve3D::approximate_within(&points, 3, 0.0, par).unwrap();
-            assert_eq!(
-                within,
-                BSplineCurve3D::interpolate(&points, 3, par).unwrap()
-            );
-            let nan = BSplineCurve3D::approximate_within(&points, 3, f64::NAN, par).unwrap();
+            let within = BSplineCurve::approximate_within(&points, 3, 0.0, par).unwrap();
+            assert_eq!(within, BSplineCurve::interpolate(&points, 3, par).unwrap());
+            let nan = BSplineCurve::approximate_within(&points, 3, f64::NAN, par).unwrap();
             assert_eq!(nan, within);
         }
     }
@@ -1085,8 +1081,8 @@ mod tests {
     #[test]
     fn test_approximation_within_rejects_bad_input() {
         let points = wavy_points(4);
-        let fit = |points: &[Point3D], degree| {
-            BSplineCurve3D::approximate_within(points, degree, 1e-3, PointParametrization::Chordal)
+        let fit = |points: &[Point], degree| {
+            BSplineCurve::approximate_within(points, degree, 1e-3, PointParametrization::Chordal)
         };
         assert_eq!(
             fit(&points[..1], 1),
@@ -1122,8 +1118,8 @@ mod tests {
 
     #[test]
     fn test_interpolation_of_two_points_is_their_segment() {
-        let points = [Point3D::new(1.0, 2.0, 3.0), Point3D::new(4.0, 6.0, 3.0)];
-        let curve = BSplineCurve3D::interpolate(&points, 1, PointParametrization::Chordal).unwrap();
+        let points = [Point::new(1.0, 2.0, 3.0), Point::new(4.0, 6.0, 3.0)];
+        let curve = BSplineCurve::interpolate(&points, 1, PointParametrization::Chordal).unwrap();
         assert_eq!(curve.poles(), &points);
         assert_eq!(curve.knots(), &[0.0, 1.0]);
         assert_eq!(curve.multiplicities(), &[2, 2]);

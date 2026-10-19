@@ -1,7 +1,7 @@
 use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
 
-use geomcore::Bound3D;
+use geomcore::HasBoundingBox;
 use geomcore::surfaces::{
     BSplineSurface, Cone, Cylinder, ParametricSurface, Plane, Sphere, Surface, Torus,
 };
@@ -24,9 +24,9 @@ pub(crate) struct PyPlane(pub(crate) Plane);
 #[pymethods]
 impl PyPlane {
     /// The point and the first partial derivatives `(du, dv)` at `(u, v)`.
-    fn eval_d1(&self, u: f64, v: f64) -> (PyPoint3D, (PyVector3D, PyVector3D)) {
+    fn eval_d1(&self, u: f64, v: f64) -> (PyPoint, (PyVector, PyVector)) {
         let (point, [du, dv]) = ParametricSurface::eval_d1(&self.0, u, v);
-        (PyPoint3D(point), (PyVector3D(du), PyVector3D(dv)))
+        (PyPoint(point), (PyVector(du), PyVector(dv)))
     }
 
     /// The point, the first partial derivatives `(du, dv)` and the second
@@ -36,15 +36,15 @@ impl PyPlane {
         u: f64,
         v: f64,
     ) -> (
-        PyPoint3D,
-        (PyVector3D, PyVector3D),
-        (PyVector3D, PyVector3D, PyVector3D),
+        PyPoint,
+        (PyVector, PyVector),
+        (PyVector, PyVector, PyVector),
     ) {
         let (point, [du, dv], [duu, duv, dvv]) = ParametricSurface::eval_d2(&self.0, u, v);
         (
-            PyPoint3D(point),
-            (PyVector3D(du), PyVector3D(dv)),
-            (PyVector3D(duu), PyVector3D(duv), PyVector3D(dvv)),
+            PyPoint(point),
+            (PyVector(du), PyVector(dv)),
+            (PyVector(duu), PyVector(duv), PyVector(dvv)),
         )
     }
 
@@ -61,8 +61,8 @@ impl PyPlane {
     }
 
     /// The placement frame of the plane.
-    fn frame(&self) -> PyFrame3D {
-        PyFrame3D(self.0.frame())
+    fn frame(&self) -> PyFrame {
+        PyFrame(self.0.frame())
     }
 
     fn __repr__(&self) -> String {
@@ -75,7 +75,7 @@ impl PyPlane {
 
     #[new]
     /// Build a plane from a point and a normal direction.
-    fn py_new(point: PyPoint3D, normal: PyVector3D) -> PyResult<Self> {
+    fn py_new(point: PyPoint, normal: PyVector) -> PyResult<Self> {
         Ok(PyPlane(
             Plane::new(point.0, normal.0).map_err(python_error)?,
         ))
@@ -83,13 +83,13 @@ impl PyPlane {
 
     /// Build a plane from a placement frame (normal = frame z direction).
     #[staticmethod]
-    fn from_frame(frame: PyFrame3D) -> Self {
+    fn from_frame(frame: PyFrame) -> Self {
         PyPlane(Plane::from_frame(frame.0))
     }
 
     /// Build a plane through three non-collinear points.
     #[staticmethod]
-    fn from_three_points(p1: PyPoint3D, p2: PyPoint3D, p3: PyPoint3D) -> PyResult<Self> {
+    fn from_three_points(p1: PyPoint, p2: PyPoint, p3: PyPoint) -> PyResult<Self> {
         Ok(PyPlane(
             Plane::from_three_points(p1.0, p2.0, p3.0).map_err(python_error)?,
         ))
@@ -104,8 +104,8 @@ impl PyPlane {
     }
 
     /// The unit normal of the plane.
-    fn normal(&self) -> PyVector3D {
-        PyVector3D(self.0.normal())
+    fn normal(&self) -> PyVector {
+        PyVector(self.0.normal())
     }
 
     /// Image of this plane under `transform` (raises ValueError for a
@@ -118,27 +118,23 @@ impl PyPlane {
     }
 
     /// Evaluate the point at surface parameters (u, v).
-    fn eval_point(&self, u: f64, v: f64) -> PyPoint3D {
-        PyPoint3D(self.0.eval_point(u, v))
+    fn eval_point(&self, u: f64, v: f64) -> PyPoint {
+        PyPoint(self.0.eval_point(u, v))
     }
 
     /// Evaluate many (u, v) pairs at once.
-    fn eval_points(&self, uvs: Vec<(f64, f64)>) -> Vec<PyPoint3D> {
-        self.0
-            .eval_points(&uvs)
-            .into_iter()
-            .map(PyPoint3D)
-            .collect()
+    fn eval_points(&self, uvs: Vec<(f64, f64)>) -> Vec<PyPoint> {
+        self.0.eval_points(&uvs).into_iter().map(PyPoint).collect()
     }
 
     /// Evaluate the partial derivative of order (du, dv), with 1 <= du+dv <= 2.
-    fn eval_derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> PyResult<PyVector3D> {
+    fn eval_derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> PyResult<PyVector> {
         check_surface_order(du, dv)?;
-        Ok(PyVector3D(self.0.eval_derivative(u, v, du, dv)))
+        Ok(PyVector(self.0.eval_derivative(u, v, du, dv)))
     }
 
     /// Recover the (u, v) parameters of a point lying on the plane.
-    fn parameters_of(&self, point: PyPoint3D) -> (f64, f64) {
+    fn parameters_of(&self, point: PyPoint) -> (f64, f64) {
         self.0.parameters_of(point.0)
     }
 
@@ -155,20 +151,20 @@ impl PyPlane {
     /// The `u` isoparametric line through `(u, 0)` along the plane's `v` axis, parametrized by `v` like the surface:
     /// `u_iso(u).eval_point(t)` is `eval_point(u, t)` (raises `ValueError` for
     /// a non-finite parameter).
-    fn u_iso(&self, u: f64) -> PyResult<PyLine3D> {
-        Ok(PyLine3D(self.0.u_iso(u).map_err(python_error)?))
+    fn u_iso(&self, u: f64) -> PyResult<PyLine> {
+        Ok(PyLine(self.0.u_iso(u).map_err(python_error)?))
     }
 
     /// The `v` isoparametric line through `(0, v)` along the plane's `u` axis, parametrized by `u` like the surface:
     /// `v_iso(v).eval_point(t)` is `eval_point(t, v)` (raises `ValueError` for
     /// a non-finite parameter).
-    fn v_iso(&self, v: f64) -> PyResult<PyLine3D> {
-        Ok(PyLine3D(self.0.v_iso(v).map_err(python_error)?))
+    fn v_iso(&self, v: f64) -> PyResult<PyLine> {
+        Ok(PyLine(self.0.v_iso(v).map_err(python_error)?))
     }
 
     /// The axis-aligned box around the shape (`None` when unbounded).
-    fn bounding_box(&self) -> Option<PyBoundingBox3D> {
-        self.0.bounding_box().map(PyBoundingBox3D)
+    fn bounding_box(&self) -> Option<PyBoundingBox> {
+        self.0.bounding_box().map(PyBoundingBox)
     }
 
     /// The patch `u_range × v_range` as an exact bilinear B-spline
@@ -188,7 +184,7 @@ impl PyPlane {
     /// Returns whether `point` lies on the surface within `tol`
     /// (`Tolerance.default()` when omitted).
     #[pyo3(signature = (point, tol = None))]
-    fn contains(&self, point: PyPoint3D, tol: Option<PyTolerance>) -> bool {
+    fn contains(&self, point: PyPoint, tol: Option<PyTolerance>) -> bool {
         self.0.contains(point.0, tolerance(tol))
     }
 
@@ -197,7 +193,7 @@ impl PyPlane {
     #[pyo3(signature = (point, tol = None))]
     fn project_point(
         slf: &Bound<'_, Self>,
-        point: PyPoint3D,
+        point: PyPoint,
         tol: Option<PyTolerance>,
     ) -> PySurfaceProjection {
         let projection = slf.borrow().0.project_point(point.0, tolerance(tol));
@@ -209,7 +205,7 @@ impl PyPlane {
     #[pyo3(signature = (points, tol = None))]
     fn project_points(
         slf: &Bound<'_, Self>,
-        points: Vec<PyPoint3D>,
+        points: Vec<PyPoint>,
         tol: Option<PyTolerance>,
     ) -> Vec<PySurfaceProjection> {
         let points = points.into_iter().map(|p| p.0).collect::<Vec<_>>();
@@ -330,9 +326,9 @@ pub(crate) struct PyCylinder(pub(crate) Cylinder);
 #[pymethods]
 impl PyCylinder {
     /// The point and the first partial derivatives `(du, dv)` at `(u, v)`.
-    fn eval_d1(&self, u: f64, v: f64) -> (PyPoint3D, (PyVector3D, PyVector3D)) {
+    fn eval_d1(&self, u: f64, v: f64) -> (PyPoint, (PyVector, PyVector)) {
         let (point, [du, dv]) = ParametricSurface::eval_d1(&self.0, u, v);
-        (PyPoint3D(point), (PyVector3D(du), PyVector3D(dv)))
+        (PyPoint(point), (PyVector(du), PyVector(dv)))
     }
 
     /// The point, the first partial derivatives `(du, dv)` and the second
@@ -342,15 +338,15 @@ impl PyCylinder {
         u: f64,
         v: f64,
     ) -> (
-        PyPoint3D,
-        (PyVector3D, PyVector3D),
-        (PyVector3D, PyVector3D, PyVector3D),
+        PyPoint,
+        (PyVector, PyVector),
+        (PyVector, PyVector, PyVector),
     ) {
         let (point, [du, dv], [duu, duv, dvv]) = ParametricSurface::eval_d2(&self.0, u, v);
         (
-            PyPoint3D(point),
-            (PyVector3D(du), PyVector3D(dv)),
-            (PyVector3D(duu), PyVector3D(duv), PyVector3D(dvv)),
+            PyPoint(point),
+            (PyVector(du), PyVector(dv)),
+            (PyVector(duu), PyVector(duv), PyVector(dvv)),
         )
     }
 
@@ -367,13 +363,13 @@ impl PyCylinder {
     }
 
     /// The axis of the cylinder: its origin and unit direction.
-    fn axis(&self) -> PyAxis3D {
-        PyAxis3D(self.0.axis())
+    fn axis(&self) -> PyAxis {
+        PyAxis(self.0.axis())
     }
 
     /// The placement frame of the cylinder.
-    fn frame(&self) -> PyFrame3D {
-        PyFrame3D(self.0.frame())
+    fn frame(&self) -> PyFrame {
+        PyFrame(self.0.frame())
     }
 
     fn __repr__(&self) -> String {
@@ -387,7 +383,7 @@ impl PyCylinder {
 
     #[new]
     /// Build a cylinder from a point on its axis, the axis direction and a radius.
-    fn py_new(center: PyPoint3D, axis_direction: PyVector3D, radius: f64) -> PyResult<Self> {
+    fn py_new(center: PyPoint, axis_direction: PyVector, radius: f64) -> PyResult<Self> {
         Ok(PyCylinder(
             Cylinder::new(center.0, axis_direction.0, radius).map_err(python_error)?,
         ))
@@ -395,7 +391,7 @@ impl PyCylinder {
 
     /// Build a cylinder from a placement frame (axis = frame z direction).
     #[staticmethod]
-    fn from_frame(frame: PyFrame3D, radius: f64) -> PyResult<Self> {
+    fn from_frame(frame: PyFrame, radius: f64) -> PyResult<Self> {
         Ok(PyCylinder(
             Cylinder::from_frame(frame.0, radius).map_err(python_error)?,
         ))
@@ -403,7 +399,7 @@ impl PyCylinder {
 
     /// Build a cylinder from an axis and a radius.
     #[staticmethod]
-    fn from_axis(axis: PyAxis3D, radius: f64) -> PyResult<Self> {
+    fn from_axis(axis: PyAxis, radius: f64) -> PyResult<Self> {
         Ok(PyCylinder(
             Cylinder::from_axis(axis.0, radius).map_err(python_error)?,
         ))
@@ -412,7 +408,7 @@ impl PyCylinder {
     /// Build the cylinder containing a circle (axis through the circle
     /// center, along its normal).
     #[staticmethod]
-    fn from_circle(circle: &PyCircle3D) -> Self {
+    fn from_circle(circle: &PyCircle) -> Self {
         PyCylinder(Cylinder::from_circle(&circle.0))
     }
 
@@ -431,23 +427,19 @@ impl PyCylinder {
     }
 
     /// Evaluate the point at surface parameters (u, v).
-    fn eval_point(&self, u: f64, v: f64) -> PyPoint3D {
-        PyPoint3D(self.0.eval_point(u, v))
+    fn eval_point(&self, u: f64, v: f64) -> PyPoint {
+        PyPoint(self.0.eval_point(u, v))
     }
 
     /// Evaluate many (u, v) pairs at once.
-    fn eval_points(&self, uvs: Vec<(f64, f64)>) -> Vec<PyPoint3D> {
-        self.0
-            .eval_points(&uvs)
-            .into_iter()
-            .map(PyPoint3D)
-            .collect()
+    fn eval_points(&self, uvs: Vec<(f64, f64)>) -> Vec<PyPoint> {
+        self.0.eval_points(&uvs).into_iter().map(PyPoint).collect()
     }
 
     /// Evaluate the partial derivative of order (du, dv), with 1 <= du+dv <= 2.
-    fn eval_derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> PyResult<PyVector3D> {
+    fn eval_derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> PyResult<PyVector> {
         check_surface_order(du, dv)?;
-        Ok(PyVector3D(self.0.eval_derivative(u, v, du, dv)))
+        Ok(PyVector(self.0.eval_derivative(u, v, du, dv)))
     }
 
     /// Unit normal at surface parameters `(u, v)` (`Tolerance.default()`
@@ -455,12 +447,12 @@ impl PyCylinder {
     /// normal; returns `None` at an apex, whose meridians each have their
     /// own, and where no normal can be recovered.
     #[pyo3(signature = (u, v, tol = None))]
-    fn normal(&self, u: f64, v: f64, tol: Option<PyTolerance>) -> Option<PyVector3D> {
-        ParametricSurface::normal(&self.0, u, v, tolerance(tol)).map(PyVector3D)
+    fn normal(&self, u: f64, v: f64, tol: Option<PyTolerance>) -> Option<PyVector> {
+        ParametricSurface::normal(&self.0, u, v, tolerance(tol)).map(PyVector)
     }
 
     /// Recover the (u, v) parameters of a point lying on the cylinder.
-    fn parameters_of(&self, point: PyPoint3D) -> (f64, f64) {
+    fn parameters_of(&self, point: PyPoint) -> (f64, f64) {
         self.0.parameters_of(point.0)
     }
 
@@ -477,20 +469,20 @@ impl PyCylinder {
     /// The `u` isoparametric generator line at angle `u`, parametrized by `v` like the surface:
     /// `u_iso(u).eval_point(t)` is `eval_point(u, t)` (raises `ValueError` for
     /// a non-finite parameter).
-    fn u_iso(&self, u: f64) -> PyResult<PyLine3D> {
-        Ok(PyLine3D(self.0.u_iso(u).map_err(python_error)?))
+    fn u_iso(&self, u: f64) -> PyResult<PyLine> {
+        Ok(PyLine(self.0.u_iso(u).map_err(python_error)?))
     }
 
     /// The `v` isoparametric section circle at height `v`, parametrized by `u` like the surface:
     /// `v_iso(v).eval_point(t)` is `eval_point(t, v)` (raises `ValueError` for
     /// a non-finite parameter).
-    fn v_iso(&self, v: f64) -> PyResult<PyCircle3D> {
-        Ok(PyCircle3D(self.0.v_iso(v).map_err(python_error)?))
+    fn v_iso(&self, v: f64) -> PyResult<PyCircle> {
+        Ok(PyCircle(self.0.v_iso(v).map_err(python_error)?))
     }
 
     /// The axis-aligned box around the shape (`None` when unbounded).
-    fn bounding_box(&self) -> Option<PyBoundingBox3D> {
-        self.0.bounding_box().map(PyBoundingBox3D)
+    fn bounding_box(&self) -> Option<PyBoundingBox> {
+        self.0.bounding_box().map(PyBoundingBox)
     }
 
     /// The patch `u_range × v_range` as an exact rational B-spline
@@ -510,7 +502,7 @@ impl PyCylinder {
     /// Returns whether `point` lies on the surface within `tol`
     /// (`Tolerance.default()` when omitted).
     #[pyo3(signature = (point, tol = None))]
-    fn contains(&self, point: PyPoint3D, tol: Option<PyTolerance>) -> bool {
+    fn contains(&self, point: PyPoint, tol: Option<PyTolerance>) -> bool {
         self.0.contains(point.0, tolerance(tol))
     }
 
@@ -519,7 +511,7 @@ impl PyCylinder {
     #[pyo3(signature = (point, tol = None))]
     fn project_point(
         slf: &Bound<'_, Self>,
-        point: PyPoint3D,
+        point: PyPoint,
         tol: Option<PyTolerance>,
     ) -> PySurfaceProjection {
         let projection = slf.borrow().0.project_point(point.0, tolerance(tol));
@@ -531,7 +523,7 @@ impl PyCylinder {
     #[pyo3(signature = (points, tol = None))]
     fn project_points(
         slf: &Bound<'_, Self>,
-        points: Vec<PyPoint3D>,
+        points: Vec<PyPoint>,
         tol: Option<PyTolerance>,
     ) -> Vec<PySurfaceProjection> {
         let points = points.into_iter().map(|p| p.0).collect::<Vec<_>>();
@@ -652,9 +644,9 @@ pub(crate) struct PyCone(pub(crate) Cone);
 #[pymethods]
 impl PyCone {
     /// The point and the first partial derivatives `(du, dv)` at `(u, v)`.
-    fn eval_d1(&self, u: f64, v: f64) -> (PyPoint3D, (PyVector3D, PyVector3D)) {
+    fn eval_d1(&self, u: f64, v: f64) -> (PyPoint, (PyVector, PyVector)) {
         let (point, [du, dv]) = ParametricSurface::eval_d1(&self.0, u, v);
-        (PyPoint3D(point), (PyVector3D(du), PyVector3D(dv)))
+        (PyPoint(point), (PyVector(du), PyVector(dv)))
     }
 
     /// The point, the first partial derivatives `(du, dv)` and the second
@@ -664,15 +656,15 @@ impl PyCone {
         u: f64,
         v: f64,
     ) -> (
-        PyPoint3D,
-        (PyVector3D, PyVector3D),
-        (PyVector3D, PyVector3D, PyVector3D),
+        PyPoint,
+        (PyVector, PyVector),
+        (PyVector, PyVector, PyVector),
     ) {
         let (point, [du, dv], [duu, duv, dvv]) = ParametricSurface::eval_d2(&self.0, u, v);
         (
-            PyPoint3D(point),
-            (PyVector3D(du), PyVector3D(dv)),
-            (PyVector3D(duu), PyVector3D(duv), PyVector3D(dvv)),
+            PyPoint(point),
+            (PyVector(du), PyVector(dv)),
+            (PyVector(duu), PyVector(duv), PyVector(dvv)),
         )
     }
 
@@ -689,8 +681,8 @@ impl PyCone {
     }
 
     /// The placement frame of the cone.
-    fn frame(&self) -> PyFrame3D {
-        PyFrame3D(self.0.frame())
+    fn frame(&self) -> PyFrame {
+        PyFrame(self.0.frame())
     }
 
     fn __repr__(&self) -> String {
@@ -706,8 +698,8 @@ impl PyCone {
     #[new]
     /// Build a cone from a reference-circle center, axis direction, half-angle and reference radius.
     fn py_new(
-        center: PyPoint3D,
-        axis_direction: PyVector3D,
+        center: PyPoint,
+        axis_direction: PyVector,
         semi_angle: f64,
         ref_radius: f64,
     ) -> PyResult<Self> {
@@ -718,7 +710,7 @@ impl PyCone {
 
     /// Build a cone from a placement frame, half-angle and reference radius.
     #[staticmethod]
-    fn from_frame(frame: PyFrame3D, semi_angle: f64, ref_radius: f64) -> PyResult<Self> {
+    fn from_frame(frame: PyFrame, semi_angle: f64, ref_radius: f64) -> PyResult<Self> {
         Ok(PyCone(
             Cone::from_frame(frame.0, semi_angle, ref_radius).map_err(python_error)?,
         ))
@@ -726,15 +718,15 @@ impl PyCone {
 
     /// Build a cone through two circular sections given by axis points and radii.
     #[staticmethod]
-    fn from_two_points_and_radii(p1: PyPoint3D, p2: PyPoint3D, r1: f64, r2: f64) -> PyResult<Self> {
+    fn from_two_points_and_radii(p1: PyPoint, p2: PyPoint, r1: f64, r2: f64) -> PyResult<Self> {
         Ok(PyCone(
             Cone::from_two_points_and_radii(p1.0, p2.0, r1, r2).map_err(python_error)?,
         ))
     }
 
     /// The cone apex.
-    fn apex(&self) -> PyPoint3D {
-        PyPoint3D(self.0.apex())
+    fn apex(&self) -> PyPoint {
+        PyPoint(self.0.apex())
     }
 
     /// The half-angle in radians.
@@ -757,23 +749,19 @@ impl PyCone {
     }
 
     /// Evaluate the point at surface parameters (u, v).
-    fn eval_point(&self, u: f64, v: f64) -> PyPoint3D {
-        PyPoint3D(self.0.eval_point(u, v))
+    fn eval_point(&self, u: f64, v: f64) -> PyPoint {
+        PyPoint(self.0.eval_point(u, v))
     }
 
     /// Evaluate many (u, v) pairs at once.
-    fn eval_points(&self, uvs: Vec<(f64, f64)>) -> Vec<PyPoint3D> {
-        self.0
-            .eval_points(&uvs)
-            .into_iter()
-            .map(PyPoint3D)
-            .collect()
+    fn eval_points(&self, uvs: Vec<(f64, f64)>) -> Vec<PyPoint> {
+        self.0.eval_points(&uvs).into_iter().map(PyPoint).collect()
     }
 
     /// Evaluate the partial derivative of order (du, dv), with 1 <= du+dv <= 2.
-    fn eval_derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> PyResult<PyVector3D> {
+    fn eval_derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> PyResult<PyVector> {
         check_surface_order(du, dv)?;
-        Ok(PyVector3D(self.0.eval_derivative(u, v, du, dv)))
+        Ok(PyVector(self.0.eval_derivative(u, v, du, dv)))
     }
 
     /// Unit normal at surface parameters `(u, v)` (`Tolerance.default()`
@@ -781,12 +769,12 @@ impl PyCone {
     /// normal; returns `None` at an apex, whose meridians each have their
     /// own, and where no normal can be recovered.
     #[pyo3(signature = (u, v, tol = None))]
-    fn normal(&self, u: f64, v: f64, tol: Option<PyTolerance>) -> Option<PyVector3D> {
-        ParametricSurface::normal(&self.0, u, v, tolerance(tol)).map(PyVector3D)
+    fn normal(&self, u: f64, v: f64, tol: Option<PyTolerance>) -> Option<PyVector> {
+        ParametricSurface::normal(&self.0, u, v, tolerance(tol)).map(PyVector)
     }
 
     /// Recover the (u, v) parameters of a point lying on the cone.
-    fn parameters_of(&self, point: PyPoint3D) -> (f64, f64) {
+    fn parameters_of(&self, point: PyPoint) -> (f64, f64) {
         self.0.parameters_of(point.0)
     }
 
@@ -803,20 +791,20 @@ impl PyCone {
     /// The `u` isoparametric generator line at angle `u`, parametrized by `v` like the surface:
     /// `u_iso(u).eval_point(t)` is `eval_point(u, t)` (raises `ValueError` for
     /// a non-finite parameter).
-    fn u_iso(&self, u: f64) -> PyResult<PyLine3D> {
-        Ok(PyLine3D(self.0.u_iso(u).map_err(python_error)?))
+    fn u_iso(&self, u: f64) -> PyResult<PyLine> {
+        Ok(PyLine(self.0.u_iso(u).map_err(python_error)?))
     }
 
     /// The `v` isoparametric section circle at `v` (radius zero at the apex), parametrized by `u` like the surface:
     /// `v_iso(v).eval_point(t)` is `eval_point(t, v)` (raises `ValueError` for
     /// a non-finite parameter).
-    fn v_iso(&self, v: f64) -> PyResult<PyCircle3D> {
-        Ok(PyCircle3D(self.0.v_iso(v).map_err(python_error)?))
+    fn v_iso(&self, v: f64) -> PyResult<PyCircle> {
+        Ok(PyCircle(self.0.v_iso(v).map_err(python_error)?))
     }
 
     /// The axis-aligned box around the shape (`None` when unbounded).
-    fn bounding_box(&self) -> Option<PyBoundingBox3D> {
-        self.0.bounding_box().map(PyBoundingBox3D)
+    fn bounding_box(&self) -> Option<PyBoundingBox> {
+        self.0.bounding_box().map(PyBoundingBox)
     }
 
     /// The patch `u_range × v_range` as an exact rational B-spline
@@ -836,7 +824,7 @@ impl PyCone {
     /// Returns whether `point` lies on the surface within `tol`
     /// (`Tolerance.default()` when omitted).
     #[pyo3(signature = (point, tol = None))]
-    fn contains(&self, point: PyPoint3D, tol: Option<PyTolerance>) -> bool {
+    fn contains(&self, point: PyPoint, tol: Option<PyTolerance>) -> bool {
         self.0.contains(point.0, tolerance(tol))
     }
 
@@ -845,7 +833,7 @@ impl PyCone {
     #[pyo3(signature = (point, tol = None))]
     fn project_point(
         slf: &Bound<'_, Self>,
-        point: PyPoint3D,
+        point: PyPoint,
         tol: Option<PyTolerance>,
     ) -> PySurfaceProjection {
         let projection = slf.borrow().0.project_point(point.0, tolerance(tol));
@@ -857,7 +845,7 @@ impl PyCone {
     #[pyo3(signature = (points, tol = None))]
     fn project_points(
         slf: &Bound<'_, Self>,
-        points: Vec<PyPoint3D>,
+        points: Vec<PyPoint>,
         tol: Option<PyTolerance>,
     ) -> Vec<PySurfaceProjection> {
         let points = points.into_iter().map(|p| p.0).collect::<Vec<_>>();
@@ -977,9 +965,9 @@ pub(crate) struct PySphere(pub(crate) Sphere);
 #[pymethods]
 impl PySphere {
     /// The point and the first partial derivatives `(du, dv)` at `(u, v)`.
-    fn eval_d1(&self, u: f64, v: f64) -> (PyPoint3D, (PyVector3D, PyVector3D)) {
+    fn eval_d1(&self, u: f64, v: f64) -> (PyPoint, (PyVector, PyVector)) {
         let (point, [du, dv]) = ParametricSurface::eval_d1(&self.0, u, v);
-        (PyPoint3D(point), (PyVector3D(du), PyVector3D(dv)))
+        (PyPoint(point), (PyVector(du), PyVector(dv)))
     }
 
     /// The point, the first partial derivatives `(du, dv)` and the second
@@ -989,15 +977,15 @@ impl PySphere {
         u: f64,
         v: f64,
     ) -> (
-        PyPoint3D,
-        (PyVector3D, PyVector3D),
-        (PyVector3D, PyVector3D, PyVector3D),
+        PyPoint,
+        (PyVector, PyVector),
+        (PyVector, PyVector, PyVector),
     ) {
         let (point, [du, dv], [duu, duv, dvv]) = ParametricSurface::eval_d2(&self.0, u, v);
         (
-            PyPoint3D(point),
-            (PyVector3D(du), PyVector3D(dv)),
-            (PyVector3D(duu), PyVector3D(duv), PyVector3D(dvv)),
+            PyPoint(point),
+            (PyVector(du), PyVector(dv)),
+            (PyVector(duu), PyVector(duv), PyVector(dvv)),
         )
     }
 
@@ -1014,8 +1002,8 @@ impl PySphere {
     }
 
     /// The placement frame of the sphere.
-    fn frame(&self) -> PyFrame3D {
-        PyFrame3D(self.0.frame())
+    fn frame(&self) -> PyFrame {
+        PyFrame(self.0.frame())
     }
 
     fn __repr__(&self) -> String {
@@ -1028,7 +1016,7 @@ impl PySphere {
 
     #[new]
     /// Build a sphere from its center and radius (world-aligned frame).
-    fn py_new(center: PyPoint3D, radius: f64) -> PyResult<Self> {
+    fn py_new(center: PyPoint, radius: f64) -> PyResult<Self> {
         Ok(PySphere(
             Sphere::new(center.0, radius).map_err(python_error)?,
         ))
@@ -1036,15 +1024,15 @@ impl PySphere {
 
     /// Build a sphere from a placement frame and radius.
     #[staticmethod]
-    fn from_frame(frame: PyFrame3D, radius: f64) -> PyResult<Self> {
+    fn from_frame(frame: PyFrame, radius: f64) -> PyResult<Self> {
         Ok(PySphere(
             Sphere::from_frame(frame.0, radius).map_err(python_error)?,
         ))
     }
 
     /// The sphere center.
-    fn center(&self) -> PyPoint3D {
-        PyPoint3D(self.0.center())
+    fn center(&self) -> PyPoint {
+        PyPoint(self.0.center())
     }
 
     /// The sphere radius.
@@ -1072,23 +1060,19 @@ impl PySphere {
     }
 
     /// Evaluate the point at surface parameters (u, v).
-    fn eval_point(&self, u: f64, v: f64) -> PyPoint3D {
-        PyPoint3D(self.0.eval_point(u, v))
+    fn eval_point(&self, u: f64, v: f64) -> PyPoint {
+        PyPoint(self.0.eval_point(u, v))
     }
 
     /// Evaluate many (u, v) pairs at once.
-    fn eval_points(&self, uvs: Vec<(f64, f64)>) -> Vec<PyPoint3D> {
-        self.0
-            .eval_points(&uvs)
-            .into_iter()
-            .map(PyPoint3D)
-            .collect()
+    fn eval_points(&self, uvs: Vec<(f64, f64)>) -> Vec<PyPoint> {
+        self.0.eval_points(&uvs).into_iter().map(PyPoint).collect()
     }
 
     /// Evaluate the partial derivative of order (du, dv), with 1 <= du+dv <= 2.
-    fn eval_derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> PyResult<PyVector3D> {
+    fn eval_derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> PyResult<PyVector> {
         check_surface_order(du, dv)?;
-        Ok(PyVector3D(self.0.eval_derivative(u, v, du, dv)))
+        Ok(PyVector(self.0.eval_derivative(u, v, du, dv)))
     }
 
     /// Unit normal at surface parameters `(u, v)` (`Tolerance.default()`
@@ -1096,12 +1080,12 @@ impl PySphere {
     /// normal; returns `None` at an apex, whose meridians each have their
     /// own, and where no normal can be recovered.
     #[pyo3(signature = (u, v, tol = None))]
-    fn normal(&self, u: f64, v: f64, tol: Option<PyTolerance>) -> Option<PyVector3D> {
-        ParametricSurface::normal(&self.0, u, v, tolerance(tol)).map(PyVector3D)
+    fn normal(&self, u: f64, v: f64, tol: Option<PyTolerance>) -> Option<PyVector> {
+        ParametricSurface::normal(&self.0, u, v, tolerance(tol)).map(PyVector)
     }
 
     /// Recover the (u, v) parameters of a point lying on the sphere.
-    fn parameters_of(&self, point: PyPoint3D) -> (f64, f64) {
+    fn parameters_of(&self, point: PyPoint) -> (f64, f64) {
         self.0.parameters_of(point.0)
     }
 
@@ -1118,20 +1102,20 @@ impl PySphere {
     /// The `u` isoparametric meridian circle at longitude `u`, parametrized by `v` like the surface:
     /// `u_iso(u).eval_point(t)` is `eval_point(u, t)` (raises `ValueError` for
     /// a non-finite parameter).
-    fn u_iso(&self, u: f64) -> PyResult<PyCircle3D> {
-        Ok(PyCircle3D(self.0.u_iso(u).map_err(python_error)?))
+    fn u_iso(&self, u: f64) -> PyResult<PyCircle> {
+        Ok(PyCircle(self.0.u_iso(u).map_err(python_error)?))
     }
 
     /// The `v` isoparametric parallel circle at latitude `v` (radius zero at a pole), parametrized by `u` like the surface:
     /// `v_iso(v).eval_point(t)` is `eval_point(t, v)` (raises `ValueError` for
     /// a non-finite parameter).
-    fn v_iso(&self, v: f64) -> PyResult<PyCircle3D> {
-        Ok(PyCircle3D(self.0.v_iso(v).map_err(python_error)?))
+    fn v_iso(&self, v: f64) -> PyResult<PyCircle> {
+        Ok(PyCircle(self.0.v_iso(v).map_err(python_error)?))
     }
 
     /// The axis-aligned box around the shape (`None` when unbounded).
-    fn bounding_box(&self) -> Option<PyBoundingBox3D> {
-        self.0.bounding_box().map(PyBoundingBox3D)
+    fn bounding_box(&self) -> Option<PyBoundingBox> {
+        self.0.bounding_box().map(PyBoundingBox)
     }
 
     /// The whole sphere as an exact rational B-spline surface.
@@ -1156,7 +1140,7 @@ impl PySphere {
     /// Returns whether `point` lies on the surface within `tol`
     /// (`Tolerance.default()` when omitted).
     #[pyo3(signature = (point, tol = None))]
-    fn contains(&self, point: PyPoint3D, tol: Option<PyTolerance>) -> bool {
+    fn contains(&self, point: PyPoint, tol: Option<PyTolerance>) -> bool {
         self.0.contains(point.0, tolerance(tol))
     }
 
@@ -1165,7 +1149,7 @@ impl PySphere {
     #[pyo3(signature = (point, tol = None))]
     fn project_point(
         slf: &Bound<'_, Self>,
-        point: PyPoint3D,
+        point: PyPoint,
         tol: Option<PyTolerance>,
     ) -> PySurfaceProjection {
         let projection = slf.borrow().0.project_point(point.0, tolerance(tol));
@@ -1177,7 +1161,7 @@ impl PySphere {
     #[pyo3(signature = (points, tol = None))]
     fn project_points(
         slf: &Bound<'_, Self>,
-        points: Vec<PyPoint3D>,
+        points: Vec<PyPoint>,
         tol: Option<PyTolerance>,
     ) -> Vec<PySurfaceProjection> {
         let points = points.into_iter().map(|p| p.0).collect::<Vec<_>>();
@@ -1297,9 +1281,9 @@ pub(crate) struct PyTorus(pub(crate) Torus);
 #[pymethods]
 impl PyTorus {
     /// The point and the first partial derivatives `(du, dv)` at `(u, v)`.
-    fn eval_d1(&self, u: f64, v: f64) -> (PyPoint3D, (PyVector3D, PyVector3D)) {
+    fn eval_d1(&self, u: f64, v: f64) -> (PyPoint, (PyVector, PyVector)) {
         let (point, [du, dv]) = ParametricSurface::eval_d1(&self.0, u, v);
-        (PyPoint3D(point), (PyVector3D(du), PyVector3D(dv)))
+        (PyPoint(point), (PyVector(du), PyVector(dv)))
     }
 
     /// The point, the first partial derivatives `(du, dv)` and the second
@@ -1309,15 +1293,15 @@ impl PyTorus {
         u: f64,
         v: f64,
     ) -> (
-        PyPoint3D,
-        (PyVector3D, PyVector3D),
-        (PyVector3D, PyVector3D, PyVector3D),
+        PyPoint,
+        (PyVector, PyVector),
+        (PyVector, PyVector, PyVector),
     ) {
         let (point, [du, dv], [duu, duv, dvv]) = ParametricSurface::eval_d2(&self.0, u, v);
         (
-            PyPoint3D(point),
-            (PyVector3D(du), PyVector3D(dv)),
-            (PyVector3D(duu), PyVector3D(duv), PyVector3D(dvv)),
+            PyPoint(point),
+            (PyVector(du), PyVector(dv)),
+            (PyVector(duu), PyVector(duv), PyVector(dvv)),
         )
     }
 
@@ -1334,13 +1318,13 @@ impl PyTorus {
     }
 
     /// The center of the torus.
-    fn center(&self) -> PyPoint3D {
-        PyPoint3D(self.0.center())
+    fn center(&self) -> PyPoint {
+        PyPoint(self.0.center())
     }
 
     /// The placement frame of the torus.
-    fn frame(&self) -> PyFrame3D {
-        PyFrame3D(self.0.frame())
+    fn frame(&self) -> PyFrame {
+        PyFrame(self.0.frame())
     }
 
     fn __repr__(&self) -> String {
@@ -1356,8 +1340,8 @@ impl PyTorus {
     #[new]
     /// Build a torus from its center, main-axis direction and the two radii.
     fn py_new(
-        center: PyPoint3D,
-        normal: PyVector3D,
+        center: PyPoint,
+        normal: PyVector,
         major_radius: f64,
         minor_radius: f64,
     ) -> PyResult<Self> {
@@ -1368,7 +1352,7 @@ impl PyTorus {
 
     /// Build a torus from a placement frame and the two radii.
     #[staticmethod]
-    fn from_frame(frame: PyFrame3D, major_radius: f64, minor_radius: f64) -> PyResult<Self> {
+    fn from_frame(frame: PyFrame, major_radius: f64, minor_radius: f64) -> PyResult<Self> {
         Ok(PyTorus(
             Torus::from_frame(frame.0, major_radius, minor_radius).map_err(python_error)?,
         ))
@@ -1394,23 +1378,19 @@ impl PyTorus {
     }
 
     /// Evaluate the point at surface parameters (u, v).
-    fn eval_point(&self, u: f64, v: f64) -> PyPoint3D {
-        PyPoint3D(self.0.eval_point(u, v))
+    fn eval_point(&self, u: f64, v: f64) -> PyPoint {
+        PyPoint(self.0.eval_point(u, v))
     }
 
     /// Evaluate many (u, v) pairs at once.
-    fn eval_points(&self, uvs: Vec<(f64, f64)>) -> Vec<PyPoint3D> {
-        self.0
-            .eval_points(&uvs)
-            .into_iter()
-            .map(PyPoint3D)
-            .collect()
+    fn eval_points(&self, uvs: Vec<(f64, f64)>) -> Vec<PyPoint> {
+        self.0.eval_points(&uvs).into_iter().map(PyPoint).collect()
     }
 
     /// Evaluate the partial derivative of order (du, dv), with 1 <= du+dv <= 2.
-    fn eval_derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> PyResult<PyVector3D> {
+    fn eval_derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> PyResult<PyVector> {
         check_surface_order(du, dv)?;
-        Ok(PyVector3D(self.0.eval_derivative(u, v, du, dv)))
+        Ok(PyVector(self.0.eval_derivative(u, v, du, dv)))
     }
 
     /// Unit normal at surface parameters `(u, v)` (`Tolerance.default()`
@@ -1418,12 +1398,12 @@ impl PyTorus {
     /// normal; returns `None` at an apex, whose meridians each have their
     /// own, and where no normal can be recovered.
     #[pyo3(signature = (u, v, tol = None))]
-    fn normal(&self, u: f64, v: f64, tol: Option<PyTolerance>) -> Option<PyVector3D> {
-        ParametricSurface::normal(&self.0, u, v, tolerance(tol)).map(PyVector3D)
+    fn normal(&self, u: f64, v: f64, tol: Option<PyTolerance>) -> Option<PyVector> {
+        ParametricSurface::normal(&self.0, u, v, tolerance(tol)).map(PyVector)
     }
 
     /// Recover the (u, v) parameters of a point lying on the torus.
-    fn parameters_of(&self, point: PyPoint3D) -> (f64, f64) {
+    fn parameters_of(&self, point: PyPoint) -> (f64, f64) {
         self.0.parameters_of(point.0)
     }
 
@@ -1440,20 +1420,20 @@ impl PyTorus {
     /// The `u` isoparametric meridian circle of the tube at angle `u`, parametrized by `v` like the surface:
     /// `u_iso(u).eval_point(t)` is `eval_point(u, t)` (raises `ValueError` for
     /// a non-finite parameter).
-    fn u_iso(&self, u: f64) -> PyResult<PyCircle3D> {
-        Ok(PyCircle3D(self.0.u_iso(u).map_err(python_error)?))
+    fn u_iso(&self, u: f64) -> PyResult<PyCircle> {
+        Ok(PyCircle(self.0.u_iso(u).map_err(python_error)?))
     }
 
     /// The `v` isoparametric parallel circle at tube angle `v` (radius zero at a pinch), parametrized by `u` like the surface:
     /// `v_iso(v).eval_point(t)` is `eval_point(t, v)` (raises `ValueError` for
     /// a non-finite parameter).
-    fn v_iso(&self, v: f64) -> PyResult<PyCircle3D> {
-        Ok(PyCircle3D(self.0.v_iso(v).map_err(python_error)?))
+    fn v_iso(&self, v: f64) -> PyResult<PyCircle> {
+        Ok(PyCircle(self.0.v_iso(v).map_err(python_error)?))
     }
 
     /// The axis-aligned box around the shape (`None` when unbounded).
-    fn bounding_box(&self) -> Option<PyBoundingBox3D> {
-        self.0.bounding_box().map(PyBoundingBox3D)
+    fn bounding_box(&self) -> Option<PyBoundingBox> {
+        self.0.bounding_box().map(PyBoundingBox)
     }
 
     /// The whole torus as an exact rational B-spline surface.
@@ -1478,7 +1458,7 @@ impl PyTorus {
     /// Returns whether `point` lies on the surface within `tol`
     /// (`Tolerance.default()` when omitted).
     #[pyo3(signature = (point, tol = None))]
-    fn contains(&self, point: PyPoint3D, tol: Option<PyTolerance>) -> bool {
+    fn contains(&self, point: PyPoint, tol: Option<PyTolerance>) -> bool {
         self.0.contains(point.0, tolerance(tol))
     }
 
@@ -1487,7 +1467,7 @@ impl PyTorus {
     #[pyo3(signature = (point, tol = None))]
     fn project_point(
         slf: &Bound<'_, Self>,
-        point: PyPoint3D,
+        point: PyPoint,
         tol: Option<PyTolerance>,
     ) -> PySurfaceProjection {
         let projection = slf.borrow().0.project_point(point.0, tolerance(tol));
@@ -1499,7 +1479,7 @@ impl PyTorus {
     #[pyo3(signature = (points, tol = None))]
     fn project_points(
         slf: &Bound<'_, Self>,
-        points: Vec<PyPoint3D>,
+        points: Vec<PyPoint>,
         tol: Option<PyTolerance>,
     ) -> Vec<PySurfaceProjection> {
         let points = points.into_iter().map(|p| p.0).collect::<Vec<_>>();
@@ -1619,9 +1599,9 @@ pub(crate) struct PyBSplineSurface(pub(crate) BSplineSurface);
 #[pymethods]
 impl PyBSplineSurface {
     /// The point and the first partial derivatives `(du, dv)` at `(u, v)`.
-    fn eval_d1(&self, u: f64, v: f64) -> (PyPoint3D, (PyVector3D, PyVector3D)) {
+    fn eval_d1(&self, u: f64, v: f64) -> (PyPoint, (PyVector, PyVector)) {
         let (point, [du, dv]) = ParametricSurface::eval_d1(&self.0, u, v);
-        (PyPoint3D(point), (PyVector3D(du), PyVector3D(dv)))
+        (PyPoint(point), (PyVector(du), PyVector(dv)))
     }
 
     /// The point, the first partial derivatives `(du, dv)` and the second
@@ -1631,15 +1611,15 @@ impl PyBSplineSurface {
         u: f64,
         v: f64,
     ) -> (
-        PyPoint3D,
-        (PyVector3D, PyVector3D),
-        (PyVector3D, PyVector3D, PyVector3D),
+        PyPoint,
+        (PyVector, PyVector),
+        (PyVector, PyVector, PyVector),
     ) {
         let (point, [du, dv], [duu, duv, dvv]) = ParametricSurface::eval_d2(&self.0, u, v);
         (
-            PyPoint3D(point),
-            (PyVector3D(du), PyVector3D(dv)),
-            (PyVector3D(duu), PyVector3D(duv), PyVector3D(dvv)),
+            PyPoint(point),
+            (PyVector(du), PyVector(dv)),
+            (PyVector(duu), PyVector(duv), PyVector(dvv)),
         )
     }
 
@@ -1672,7 +1652,7 @@ impl PyBSplineSurface {
     fn py_new(
         u_degree: usize,
         v_degree: usize,
-        poles: Vec<Vec<PyPoint3D>>,
+        poles: Vec<Vec<PyPoint>>,
         u_knots: Vec<f64>,
         u_multiplicities: Vec<u32>,
         v_knots: Vec<f64>,
@@ -1706,7 +1686,7 @@ impl PyBSplineSurface {
     fn new_rational(
         u_degree: usize,
         v_degree: usize,
-        poles: Vec<Vec<PyPoint3D>>,
+        poles: Vec<Vec<PyPoint>>,
         weights: Vec<Vec<f64>>,
         u_knots: Vec<f64>,
         u_multiplicities: Vec<u32>,
@@ -1772,12 +1752,12 @@ impl PyBSplineSurface {
     }
 
     /// The control poles as `poles[i_u][i_v]`.
-    fn poles(&self) -> Vec<Vec<PyPoint3D>> {
+    fn poles(&self) -> Vec<Vec<PyPoint>> {
         let nv = self.0.v_pole_count();
         self.0
             .poles()
             .chunks(nv)
-            .map(|row| row.iter().map(|p| PyPoint3D(*p)).collect())
+            .map(|row| row.iter().map(|p| PyPoint(*p)).collect())
             .collect()
     }
 
@@ -1823,20 +1803,20 @@ impl PyBSplineSurface {
     /// The `u` isoparametric B-spline curve at `u`, blended from the pole net, parametrized by `v` like the surface:
     /// `u_iso(u).eval_point(t)` is `eval_point(u, t)` (raises `ValueError` for
     /// a non-finite parameter or one outside a non-periodic direction (a periodic one wraps)).
-    fn u_iso(&self, u: f64) -> PyResult<PyBSplineCurve3D> {
-        Ok(PyBSplineCurve3D(self.0.u_iso(u).map_err(python_error)?))
+    fn u_iso(&self, u: f64) -> PyResult<PyBSplineCurve> {
+        Ok(PyBSplineCurve(self.0.u_iso(u).map_err(python_error)?))
     }
 
     /// The `v` isoparametric B-spline curve at `v`, blended from the pole net, parametrized by `u` like the surface:
     /// `v_iso(v).eval_point(t)` is `eval_point(t, v)` (raises `ValueError` for
     /// a non-finite parameter or one outside a non-periodic direction (a periodic one wraps)).
-    fn v_iso(&self, v: f64) -> PyResult<PyBSplineCurve3D> {
-        Ok(PyBSplineCurve3D(self.0.v_iso(v).map_err(python_error)?))
+    fn v_iso(&self, v: f64) -> PyResult<PyBSplineCurve> {
+        Ok(PyBSplineCurve(self.0.v_iso(v).map_err(python_error)?))
     }
 
     /// The axis-aligned box around the shape (`None` when unbounded).
-    fn bounding_box(&self) -> Option<PyBoundingBox3D> {
-        self.0.bounding_box().map(PyBoundingBox3D)
+    fn bounding_box(&self) -> Option<PyBoundingBox> {
+        self.0.bounding_box().map(PyBoundingBox)
     }
 
     /// Least-squares B-spline fit through the grid `points[i][j]`.
@@ -1846,7 +1826,7 @@ impl PyBSplineSurface {
     #[allow(clippy::too_many_arguments)]
     #[pyo3(signature = (points, u_degree, v_degree, u_pole_count, v_pole_count, parametrization = "centripetal"))]
     fn approximate(
-        points: Vec<Vec<PyPoint3D>>,
+        points: Vec<Vec<PyPoint>>,
         u_degree: usize,
         v_degree: usize,
         u_pole_count: usize,
@@ -1880,7 +1860,7 @@ impl PyBSplineSurface {
     #[allow(clippy::too_many_arguments)]
     #[pyo3(signature = (points, u_degree, v_degree, max_deviation, parametrization = "centripetal"))]
     fn approximate_within(
-        points: Vec<Vec<PyPoint3D>>,
+        points: Vec<Vec<PyPoint>>,
         u_degree: usize,
         v_degree: usize,
         max_deviation: f64,
@@ -2054,7 +2034,7 @@ impl PyBSplineSurface {
     /// Returns whether `point` lies on the surface within `tol`
     /// (`Tolerance.default()` when omitted).
     #[pyo3(signature = (point, tol = None))]
-    fn contains(&self, point: PyPoint3D, tol: Option<PyTolerance>) -> bool {
+    fn contains(&self, point: PyPoint, tol: Option<PyTolerance>) -> bool {
         self.0.contains(point.0, tolerance(tol))
     }
 
@@ -2063,7 +2043,7 @@ impl PyBSplineSurface {
     #[pyo3(signature = (point, tol = None))]
     fn extrema(
         slf: &Bound<'_, Self>,
-        point: PyPoint3D,
+        point: PyPoint,
         tol: Option<PyTolerance>,
     ) -> Vec<PySurfaceProjection> {
         let tol = tolerance(tol);
@@ -2079,7 +2059,7 @@ impl PyBSplineSurface {
     #[pyo3(signature = (point, tol = None))]
     fn project_point(
         slf: &Bound<'_, Self>,
-        point: PyPoint3D,
+        point: PyPoint,
         tol: Option<PyTolerance>,
     ) -> PySurfaceProjection {
         let projection = slf.borrow().0.project_point(point.0, tolerance(tol));
@@ -2091,7 +2071,7 @@ impl PyBSplineSurface {
     #[pyo3(signature = (points, tol = None))]
     fn project_points(
         slf: &Bound<'_, Self>,
-        points: Vec<PyPoint3D>,
+        points: Vec<PyPoint>,
         tol: Option<PyTolerance>,
     ) -> Vec<PySurfaceProjection> {
         let points = points.into_iter().map(|p| p.0).collect::<Vec<_>>();
@@ -2105,23 +2085,19 @@ impl PyBSplineSurface {
     }
 
     /// Evaluate the point at surface parameters (u, v).
-    fn eval_point(&self, u: f64, v: f64) -> PyPoint3D {
-        PyPoint3D(self.0.eval_point(u, v))
+    fn eval_point(&self, u: f64, v: f64) -> PyPoint {
+        PyPoint(self.0.eval_point(u, v))
     }
 
     /// Evaluate many (u, v) pairs at once.
-    fn eval_points(&self, uvs: Vec<(f64, f64)>) -> Vec<PyPoint3D> {
-        self.0
-            .eval_points(&uvs)
-            .into_iter()
-            .map(PyPoint3D)
-            .collect()
+    fn eval_points(&self, uvs: Vec<(f64, f64)>) -> Vec<PyPoint> {
+        self.0.eval_points(&uvs).into_iter().map(PyPoint).collect()
     }
 
     /// Evaluate the partial derivative of order (du, dv), with 1 <= du+dv <= 2.
-    fn eval_derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> PyResult<PyVector3D> {
+    fn eval_derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> PyResult<PyVector> {
         check_surface_order(du, dv)?;
-        Ok(PyVector3D(self.0.eval_derivative(u, v, du, dv)))
+        Ok(PyVector(self.0.eval_derivative(u, v, du, dv)))
     }
 
     /// Unit normal at surface parameters `(u, v)` (`Tolerance.default()`
@@ -2129,8 +2105,8 @@ impl PyBSplineSurface {
     /// normal; returns `None` at an apex, whose meridians each have their
     /// own, and where no normal can be recovered.
     #[pyo3(signature = (u, v, tol = None))]
-    fn normal(&self, u: f64, v: f64, tol: Option<PyTolerance>) -> Option<PyVector3D> {
-        ParametricSurface::normal(&self.0, u, v, tolerance(tol)).map(PyVector3D)
+    fn normal(&self, u: f64, v: f64, tol: Option<PyTolerance>) -> Option<PyVector> {
+        ParametricSurface::normal(&self.0, u, v, tolerance(tol)).map(PyVector)
     }
 
     /// Intersects with any curve or surface, in either order.
@@ -2232,9 +2208,9 @@ impl PyBSplineSurface {
         v: f64,
         u_side: PySide,
         v_side: PySide,
-    ) -> (PyPoint3D, (PyVector3D, PyVector3D)) {
+    ) -> (PyPoint, (PyVector, PyVector)) {
         let (point, [du, dv]) = self.0.eval_d1_sided(u, v, u_side.into(), v_side.into());
-        (PyPoint3D(point), (PyVector3D(du), PyVector3D(dv)))
+        (PyPoint(point), (PyVector(du), PyVector(dv)))
     }
 
     /// The point, the first partial derivatives `(du, dv)` and the second
@@ -2247,16 +2223,16 @@ impl PyBSplineSurface {
         u_side: PySide,
         v_side: PySide,
     ) -> (
-        PyPoint3D,
-        (PyVector3D, PyVector3D),
-        (PyVector3D, PyVector3D, PyVector3D),
+        PyPoint,
+        (PyVector, PyVector),
+        (PyVector, PyVector, PyVector),
     ) {
         let (point, [du, dv], [duu, duv, dvv]) =
             self.0.eval_d2_sided(u, v, u_side.into(), v_side.into());
         (
-            PyPoint3D(point),
-            (PyVector3D(du), PyVector3D(dv)),
-            (PyVector3D(duu), PyVector3D(duv), PyVector3D(dvv)),
+            PyPoint(point),
+            (PyVector(du), PyVector(dv)),
+            (PyVector(duu), PyVector(duv), PyVector(dvv)),
         )
     }
 
@@ -2271,9 +2247,9 @@ impl PyBSplineSurface {
         dv: u32,
         u_side: PySide,
         v_side: PySide,
-    ) -> PyResult<PyVector3D> {
+    ) -> PyResult<PyVector> {
         check_surface_order(du, dv)?;
-        Ok(PyVector3D(self.0.eval_derivative_sided(
+        Ok(PyVector(self.0.eval_derivative_sided(
             u,
             v,
             du,

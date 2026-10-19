@@ -19,9 +19,9 @@ use super::{
     Completeness, CurveCurveHit, CurveCurveOverlap, CurveCurveRegion, CurveSurfaceHit,
     CurveSurfaceRegion,
 };
-use crate::curves::ParametricCurve3D;
+use crate::curves::ParametricCurve;
 use crate::surfaces::ParametricSurface;
-use crate::{BoundingBox3D, Point3D, Tolerance, Vector3D};
+use crate::{BoundingBox, Point, Tolerance, Vector};
 
 /// Intervals each stretch is cut into to check that the curve lies on the
 /// other operand along it.
@@ -55,7 +55,7 @@ pub(super) fn curve_surface_overlaps<C, S>(
     Completeness<CurveSurfaceRegion>,
 )
 where
-    C: ParametricCurve3D,
+    C: ParametricCurve,
     S: ParametricSurface,
 {
     let Completeness::Incomplete { reason, regions } = completeness else {
@@ -145,8 +145,8 @@ pub(super) fn curve_curve_overlaps<A, B>(
     Completeness<CurveCurveRegion>,
 )
 where
-    A: ParametricCurve3D,
-    B: ParametricCurve3D,
+    A: ParametricCurve,
+    B: ParametricCurve,
 {
     let Completeness::Incomplete { reason, regions } = completeness else {
         return (hits, Vec::new(), completeness);
@@ -229,7 +229,7 @@ struct Follower<'a, A, B> {
     tol: Tolerance,
 }
 
-impl<A: ParametricCurve3D, B: ParametricCurve3D> Follower<'_, A, B> {
+impl<A: ParametricCurve, B: ParametricCurve> Follower<'_, A, B> {
     /// The second curve's parameter of the foot of the first curve's point
     /// at `t`, with its distance, by Newton iteration from `s`; `None`
     /// where the iteration breaks down.
@@ -495,7 +495,7 @@ fn settled(run: (f64, f64), tol: Tolerance, mut distance: impl FnMut(f64) -> Opt
 
 /// Whether the curve over `run` is longer in space than `tol.confusion`
 /// (summed over `RUN_SAMPLES` chords; an unbounded run is).
-fn longer_than_confusion<C: ParametricCurve3D>(curve: &C, run: (f64, f64), tol: Tolerance) -> bool {
+fn longer_than_confusion<C: ParametricCurve>(curve: &C, run: (f64, f64), tol: Tolerance) -> bool {
     if !(run.0.is_finite() && run.1.is_finite()) {
         return true;
     }
@@ -509,12 +509,7 @@ fn longer_than_confusion<C: ParametricCurve3D>(curve: &C, run: (f64, f64), tol: 
 
 /// Whether the curve parameter `t` lies within `run`, or within
 /// `tol.confusion` in space of its ends.
-fn covers<C: ParametricCurve3D>(
-    curve: &C,
-    (low, high): (f64, f64),
-    t: f64,
-    tol: Tolerance,
-) -> bool {
+fn covers<C: ParametricCurve>(curve: &C, (low, high): (f64, f64), t: f64, tol: Tolerance) -> bool {
     let near = |end: f64| {
         let speed = if end.is_finite() {
             curve.eval_derivative(end, 1).magnitude()
@@ -528,7 +523,7 @@ fn covers<C: ParametricCurve3D>(
 
 /// `RUN_SAMPLES + 1` points of the curve over a finite `run`; over an
 /// unbounded one, the points at its finite ends.
-fn run_points<C: ParametricCurve3D>(curve: &C, (low, high): (f64, f64)) -> Vec<Point3D> {
+fn run_points<C: ParametricCurve>(curve: &C, (low, high): (f64, f64)) -> Vec<Point> {
     if !(low.is_finite() && high.is_finite()) {
         return [low, high]
             .into_iter()
@@ -543,12 +538,12 @@ fn run_points<C: ParametricCurve3D>(curve: &C, (low, high): (f64, f64)) -> Vec<P
 
 /// The corners of the box around `points`, or of an unbounded box when
 /// there are none (an overlap unbounded at both ends).
-fn corners(points: &[Point3D]) -> (Point3D, Point3D) {
-    match BoundingBox3D::from_points(points.iter().copied()) {
+fn corners(points: &[Point]) -> (Point, Point) {
+    match BoundingBox::from_points(points.iter().copied()) {
         Some(bounds) => (bounds.min(), bounds.max()),
         None => (
-            Point3D::new(f64::NEG_INFINITY, f64::NEG_INFINITY, f64::NEG_INFINITY),
-            Point3D::new(f64::INFINITY, f64::INFINITY, f64::INFINITY),
+            Point::new(f64::NEG_INFINITY, f64::NEG_INFINITY, f64::NEG_INFINITY),
+            Point::new(f64::INFINITY, f64::INFINITY, f64::INFINITY),
         ),
     }
 }
@@ -561,7 +556,7 @@ fn span(values: impl Iterator<Item = f64>) -> (f64, f64) {
 }
 
 /// `v` scaled to unit length, or `v` itself when it vanishes.
-fn unit(v: Vector3D) -> Vector3D {
+fn unit(v: Vector) -> Vector {
     let length = v.magnitude();
     if length > 0.0 { v * (1.0 / length) } else { v }
 }
@@ -569,19 +564,19 @@ fn unit(v: Vector3D) -> Vector3D {
 #[cfg(test)]
 mod tests {
     use crate::{
-        BSplineCurve3D, Circle3D, Completeness, Cylinder, IncompleteReason, Intersect, Line3D,
-        Plane, Point3D, Tolerance, Vector3D,
+        BSplineCurve, Circle, Completeness, Cylinder, IncompleteReason, Intersect, Line, Plane,
+        Point, Tolerance, Vector,
     };
 
     const TOL: Tolerance = Tolerance::DEFAULT;
 
-    fn segment(from: Point3D, to: Point3D, degree: usize) -> BSplineCurve3D {
+    fn segment(from: Point, to: Point, degree: usize) -> BSplineCurve {
         let poles = if degree == 1 {
             vec![from, to]
         } else {
             vec![
                 from,
-                Point3D::new(
+                Point::new(
                     0.5 * (from.x + to.x),
                     0.5 * (from.y + to.y),
                     0.5 * (from.z + to.z),
@@ -589,7 +584,7 @@ mod tests {
                 to,
             ]
         };
-        BSplineCurve3D::new(
+        BSplineCurve::new(
             degree,
             poles,
             vec![0.0, 1.0],
@@ -623,16 +618,15 @@ mod tests {
 
     #[test]
     fn test_planar_bspline_lying_in_a_plane_is_one_overlap() {
-        let p = Point3D::new;
+        let p = Point::new;
         let poles = vec![
             p(0.0, 0.0, 0.0),
             p(1.0, 2.0, 0.0),
             p(3.0, -1.0, 0.0),
             p(4.0, 1.0, 0.0),
         ];
-        let curve =
-            BSplineCurve3D::new(2, poles, vec![0.0, 0.5, 1.0], vec![3, 1, 3], false).unwrap();
-        let plane = Plane::new(Point3D::ORIGIN, Vector3D::Z).unwrap();
+        let curve = BSplineCurve::new(2, poles, vec![0.0, 0.5, 1.0], vec![3, 1, 3], false).unwrap();
+        let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
         let result = curve.intersect(&plane, TOL);
         assert!(result.hits().is_empty(), "{:?}", result.hits());
         assert_eq!(result.overlaps(), &[(0.0, 1.0)]);
@@ -643,7 +637,7 @@ mod tests {
     #[test]
     fn test_curve_leaving_a_plane_overlaps_only_where_it_lies() {
         // In the plane z = 0 for t in [0, 0.5], rising off it after.
-        let p = Point3D::new;
+        let p = Point::new;
         let poles = vec![
             p(0.0, 0.0, 0.0),
             p(1.0, 1.0, 0.0),
@@ -651,9 +645,8 @@ mod tests {
             p(3.0, 1.0, 1.0),
         ];
         let curve =
-            BSplineCurve3D::new(1, poles, vec![0.0, 1.0, 2.0, 3.0], vec![2, 1, 1, 2], false)
-                .unwrap();
-        let plane = Plane::new(Point3D::ORIGIN, Vector3D::Z).unwrap();
+            BSplineCurve::new(1, poles, vec![0.0, 1.0, 2.0, 3.0], vec![2, 1, 1, 2], false).unwrap();
+        let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
         let result = curve.intersect(&plane, TOL);
         assert_eq!(result.overlaps().len(), 1);
         assert_range(result.overlaps()[0], (0.0, 2.0));
@@ -662,8 +655,8 @@ mod tests {
 
     #[test]
     fn test_straight_bspline_on_a_line_overlaps_in_either_order() {
-        let line = Line3D::new(Point3D::ORIGIN, Vector3D::X).unwrap();
-        let curve = segment(Point3D::new(2.0, 0.0, 0.0), Point3D::new(4.0, 0.0, 0.0), 1);
+        let line = Line::new(Point::ORIGIN, Vector::X).unwrap();
+        let curve = segment(Point::new(2.0, 0.0, 0.0), Point::new(4.0, 0.0, 0.0), 1);
         let result = curve.intersect(&line, TOL);
         assert!(result.hits().is_empty());
         let [overlap] = result.overlaps() else {
@@ -687,7 +680,7 @@ mod tests {
 
     #[test]
     fn test_collinear_bsplines_overlap_where_they_share_the_line() {
-        let p = Point3D::new;
+        let p = Point::new;
         let first = segment(p(0.0, 0.0, 0.0), p(2.0, 2.0, 2.0), 2);
         let second = segment(p(1.0, 1.0, 1.0), p(3.0, 3.0, 3.0), 1);
         let result = first.intersect(&second, TOL);
@@ -711,7 +704,7 @@ mod tests {
 
     #[test]
     fn test_circle_and_its_bspline_form_overlap_whole() {
-        let circle = Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
+        let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
         let copy = circle.to_bspline();
         let result = circle.intersect(&copy, TOL);
         assert!(result.hits().is_empty());
@@ -720,7 +713,7 @@ mod tests {
         };
         assert_range(overlap.first_range, (0.0, std::f64::consts::TAU));
         assert!(overlap.same_direction);
-        let cylinder = Cylinder::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
+        let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
         let result = copy.intersect(&cylinder, TOL);
         assert!(result.hits().is_empty());
         assert_eq!(result.overlaps().len(), 1);
@@ -728,14 +721,14 @@ mod tests {
 
     #[test]
     fn test_tangent_contact_is_a_hit_not_an_overlap() {
-        let p = Point3D::new;
+        let p = Point::new;
         let poles = vec![p(0.0, 0.0, 1.0), p(2.0, 0.0, -1.0), p(4.0, 0.0, 1.0)];
-        let parabola = BSplineCurve3D::new(2, poles, vec![0.0, 1.0], vec![3, 3], false).unwrap();
-        let plane = Plane::new(Point3D::ORIGIN, Vector3D::Z).unwrap();
+        let parabola = BSplineCurve::new(2, poles, vec![0.0, 1.0], vec![3, 3], false).unwrap();
+        let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
         let result = parabola.intersect(&plane, TOL);
         assert!(result.overlaps().is_empty(), "{result:?}");
         assert_eq!(result.hits().len(), 1);
-        let line = Line3D::new(Point3D::ORIGIN, Vector3D::X).unwrap();
+        let line = Line::new(Point::ORIGIN, Vector::X).unwrap();
         let result = parabola.intersect(&line, TOL);
         assert!(result.overlaps().is_empty());
         assert_eq!(result.hits().len(), 1);

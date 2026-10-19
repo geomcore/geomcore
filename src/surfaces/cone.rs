@@ -9,8 +9,8 @@ use crate::surface_math::analytic;
 use crate::surfaces::iso::{SurfaceIsoError, check_iso_param, iso_circle, iso_line};
 use crate::tol;
 use crate::{
-    Circle3D, ConeConeIntersection, ConeCylinderIntersection, Cylinder, Frame3D, Line3D, Point3D,
-    Tolerance, Transform, Vector3D,
+    Circle, ConeConeIntersection, ConeCylinderIntersection, Cylinder, Frame, Line, Point,
+    Tolerance, Transform, Vector,
 };
 use std::fmt;
 
@@ -50,7 +50,7 @@ impl fmt::Display for ConeConstructionError {
 
 impl std::error::Error for ConeConstructionError {}
 
-/// A cone in 3D: a [`Frame3D`] (origin plus local x/y/z directions, `z`
+/// A cone in 3D: a [`Frame`] (origin plus local x/y/z directions, `z`
 /// being the axis), a semi-angle, and a reference radius (the radius of the
 /// circular section through the origin), evaluated as
 /// `R = ref_radius + v*sin(semi_angle)`,
@@ -63,13 +63,13 @@ impl std::error::Error for ConeConstructionError {}
 /// # Examples
 ///
 /// ```
-/// use geomcore::{Cone, Point3D, Vector3D};
-/// let cone = Cone::new(Point3D::ORIGIN, Vector3D::Z, 0.4, 2.0).unwrap();
-/// assert_eq!(cone.eval_point(0.0, 0.0), Point3D::new(2.0, 0.0, 0.0));
+/// use geomcore::{Cone, Point, Vector};
+/// let cone = Cone::new(Point::ORIGIN, Vector::Z, 0.4, 2.0).unwrap();
+/// assert_eq!(cone.eval_point(0.0, 0.0), Point::new(2.0, 0.0, 0.0));
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Cone {
-    frame: Frame3D,
+    frame: Frame,
     semi_angle: f64,
     ref_radius: f64,
 }
@@ -90,12 +90,12 @@ impl Cone {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Cone, Frame3D};
-    /// let cone = Cone::from_frame(Frame3D::WORLD, 0.4, 2.0).unwrap();
+    /// use geomcore::{Cone, Frame};
+    /// let cone = Cone::from_frame(Frame::WORLD, 0.4, 2.0).unwrap();
     /// assert_eq!(cone.ref_radius(), 2.0);
     /// ```
     pub fn from_frame(
-        frame: Frame3D,
+        frame: Frame,
         semi_angle: f64,
         ref_radius: f64,
     ) -> Result<Cone, ConeConstructionError> {
@@ -118,7 +118,7 @@ impl Cone {
     /// Creates a cone from a center, an axis direction, a semi-angle, and a
     /// reference radius.
     ///
-    /// The frame is derived from `axis_direction` via [`Frame3D::from_z`].
+    /// The frame is derived from `axis_direction` via [`Frame::from_z`].
     ///
     /// # Errors
     ///
@@ -129,17 +129,17 @@ impl Cone {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Cone, Point3D, Vector3D};
-    /// let cone = Cone::new(Point3D::ORIGIN, Vector3D::Z, 0.4, 2.0).unwrap();
+    /// use geomcore::{Cone, Point, Vector};
+    /// let cone = Cone::new(Point::ORIGIN, Vector::Z, 0.4, 2.0).unwrap();
     /// assert_eq!(cone.semi_angle(), 0.4);
     /// ```
     pub fn new(
-        center: Point3D,
-        axis_direction: Vector3D,
+        center: Point,
+        axis_direction: Vector,
         semi_angle: f64,
         ref_radius: f64,
     ) -> Result<Cone, ConeConstructionError> {
-        let frame = Frame3D::from_z(center, axis_direction).map_err(frame_error(
+        let frame = Frame::from_z(center, axis_direction).map_err(frame_error(
             ConeConstructionError::NonFinite,
             ConeConstructionError::NullNormal,
         ))?;
@@ -168,10 +168,10 @@ impl Cone {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Cone, Point3D};
+    /// use geomcore::{Cone, Point};
     /// let cone = Cone::from_two_points_and_radii(
-    ///     Point3D::ORIGIN,
-    ///     Point3D::new(0.0, 0.0, 4.0),
+    ///     Point::ORIGIN,
+    ///     Point::new(0.0, 0.0, 4.0),
     ///     2.0,
     ///     1.0,
     /// )
@@ -179,8 +179,8 @@ impl Cone {
     /// assert_eq!(cone.ref_radius(), 2.0);
     /// ```
     pub fn from_two_points_and_radii(
-        p1: Point3D,
-        p2: Point3D,
+        p1: Point,
+        p2: Point,
         r1: f64,
         r2: f64,
     ) -> Result<Cone, ConeConstructionError> {
@@ -215,11 +215,11 @@ impl Cone {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Cone, Frame3D};
-    /// let cone = Cone::from_frame(Frame3D::WORLD, 0.4, 2.0).unwrap();
-    /// assert_eq!(cone.frame(), Frame3D::WORLD);
+    /// use geomcore::{Cone, Frame};
+    /// let cone = Cone::from_frame(Frame::WORLD, 0.4, 2.0).unwrap();
+    /// assert_eq!(cone.frame(), Frame::WORLD);
     /// ```
-    pub fn frame(&self) -> Frame3D {
+    pub fn frame(&self) -> Frame {
         self.frame
     }
 
@@ -231,8 +231,8 @@ impl Cone {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Cone, Point3D, Vector3D};
-    /// let cone = Cone::new(Point3D::ORIGIN, Vector3D::Z, 0.4, 2.0).unwrap();
+    /// use geomcore::{Cone, Point, Vector};
+    /// let cone = Cone::new(Point::ORIGIN, Vector::Z, 0.4, 2.0).unwrap();
     /// let reversed = cone.reversed_u();
     /// assert!(!reversed.frame().is_direct());
     /// assert_eq!(reversed.eval_point(1.0, 3.0), cone.eval_point(-1.0, 3.0));
@@ -252,8 +252,8 @@ impl Cone {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Cone, Point3D, Vector3D};
-    /// let cone = Cone::new(Point3D::ORIGIN, Vector3D::Z, 0.4, 2.0).unwrap();
+    /// use geomcore::{Cone, Point, Vector};
+    /// let cone = Cone::new(Point::ORIGIN, Vector::Z, 0.4, 2.0).unwrap();
     /// let reversed = cone.reversed_v();
     /// assert_eq!(reversed.semi_angle(), -0.4);
     /// assert_eq!(reversed.eval_point(1.0, 3.0), cone.eval_point(1.0, -3.0));
@@ -272,8 +272,8 @@ impl Cone {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Cone, Point3D, Vector3D};
-    /// let cone = Cone::new(Point3D::ORIGIN, Vector3D::Z, 0.4, 2.0).unwrap();
+    /// use geomcore::{Cone, Point, Vector};
+    /// let cone = Cone::new(Point::ORIGIN, Vector::Z, 0.4, 2.0).unwrap();
     /// let u = cone.u_reversed_parameter(1.0);
     /// let there = cone.reversed_u().eval_point(u, 0.5);
     /// assert!(there.distance(cone.eval_point(1.0, 0.5)) < 1e-12);
@@ -288,8 +288,8 @@ impl Cone {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Cone, Point3D, Vector3D};
-    /// let cone = Cone::new(Point3D::ORIGIN, Vector3D::Z, 0.4, 2.0).unwrap();
+    /// use geomcore::{Cone, Point, Vector};
+    /// let cone = Cone::new(Point::ORIGIN, Vector::Z, 0.4, 2.0).unwrap();
     /// let v = cone.v_reversed_parameter(0.5);
     /// let there = cone.reversed_v().eval_point(1.0, v);
     /// assert!(there.distance(cone.eval_point(1.0, 0.5)) < 1e-12);
@@ -303,8 +303,8 @@ impl Cone {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Cone, Frame3D};
-    /// let cone = Cone::from_frame(Frame3D::WORLD, 0.4, 2.0).unwrap();
+    /// use geomcore::{Cone, Frame};
+    /// let cone = Cone::from_frame(Frame::WORLD, 0.4, 2.0).unwrap();
     /// assert_eq!(cone.semi_angle(), 0.4);
     /// ```
     pub fn semi_angle(&self) -> f64 {
@@ -317,8 +317,8 @@ impl Cone {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Cone, Frame3D};
-    /// let cone = Cone::from_frame(Frame3D::WORLD, 0.4, 2.0).unwrap();
+    /// use geomcore::{Cone, Frame};
+    /// let cone = Cone::from_frame(Frame::WORLD, 0.4, 2.0).unwrap();
     /// assert_eq!(cone.ref_radius(), 2.0);
     /// ```
     pub fn ref_radius(&self) -> f64 {
@@ -331,12 +331,12 @@ impl Cone {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Cone, Point3D, Vector3D};
-    /// let cone = Cone::new(Point3D::ORIGIN, Vector3D::Z, std::f64::consts::FRAC_PI_4, 1.0).unwrap();
+    /// use geomcore::{Cone, Point, Vector};
+    /// let cone = Cone::new(Point::ORIGIN, Vector::Z, std::f64::consts::FRAC_PI_4, 1.0).unwrap();
     /// let apex = cone.apex();
     /// assert!((apex.z + 1.0).abs() < 1e-9);
     /// ```
-    pub fn apex(&self) -> Point3D {
+    pub fn apex(&self) -> Point {
         let v = -self.ref_radius / self.semi_angle.tan();
         self.frame.point_at(0.0, 0.0, v)
     }
@@ -352,12 +352,12 @@ impl Cone {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Cone, Point3D, Vector3D};
-    /// let cone = Cone::new(Point3D::ORIGIN, Vector3D::Z, 0.4, 2.0).unwrap();
+    /// use geomcore::{Cone, Point, Vector};
+    /// let cone = Cone::new(Point::ORIGIN, Vector::Z, 0.4, 2.0).unwrap();
     /// let iso = cone.u_iso(1.0).unwrap();
     /// assert!(iso.eval_point(-2.0).distance(cone.eval_point(1.0, -2.0)) < 1e-12);
     /// ```
-    pub fn u_iso(&self, u: f64) -> Result<Line3D, SurfaceIsoError> {
+    pub fn u_iso(&self, u: f64) -> Result<Line, SurfaceIsoError> {
         let u = check_iso_param(u, None)?;
         iso_line(self.eval_point(u, 0.0), self.eval_derivative(u, 0.0, 0, 1))
     }
@@ -374,14 +374,14 @@ impl Cone {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Cone, Point3D, Vector3D};
-    /// let cone = Cone::new(Point3D::ORIGIN, Vector3D::Z, std::f64::consts::FRAC_PI_4, 1.0).unwrap();
+    /// use geomcore::{Cone, Point, Vector};
+    /// let cone = Cone::new(Point::ORIGIN, Vector::Z, std::f64::consts::FRAC_PI_4, 1.0).unwrap();
     /// let at_apex = -std::f64::consts::SQRT_2;
     /// let iso = cone.v_iso(at_apex).unwrap();
     /// assert!(iso.radius() < 1e-12);
     /// assert!(iso.center().distance(cone.apex()) < 1e-12);
     /// ```
-    pub fn v_iso(&self, v: f64) -> Result<Circle3D, SurfaceIsoError> {
+    pub fn v_iso(&self, v: f64) -> Result<Circle, SurfaceIsoError> {
         let v = check_iso_param(v, None)?;
         let frame = self.frame;
         iso_circle(
@@ -412,12 +412,12 @@ impl Cone {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Cone, Point3D, Transform, Vector3D};
-    /// let cone = Cone::new(Point3D::ORIGIN, Vector3D::Z, 0.4, 2.0).unwrap();
-    /// let moved = cone.transformed(Transform::translation(Vector3D::new(1.0, 0.0, 0.0))).unwrap();
+    /// use geomcore::{Cone, Point, Transform, Vector};
+    /// let cone = Cone::new(Point::ORIGIN, Vector::Z, 0.4, 2.0).unwrap();
+    /// let moved = cone.transformed(Transform::translation(Vector::new(1.0, 0.0, 0.0))).unwrap();
     /// assert_eq!(moved.semi_angle(), 0.4);
     /// assert_eq!(moved.ref_radius(), 2.0);
-    /// assert_eq!(moved.eval_point(0.0, 0.0), Point3D::new(3.0, 0.0, 0.0));
+    /// assert_eq!(moved.eval_point(0.0, 0.0), Point::new(3.0, 0.0, 0.0));
     /// ```
     pub fn transformed(&self, transform: Transform) -> Result<Cone, ConeConstructionError> {
         let (frame, scale) = transform.apply_frame(self.frame()).map_err(frame_error(
@@ -433,11 +433,11 @@ impl Cone {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Cone, Point3D, Vector3D};
-    /// let cone = Cone::new(Point3D::ORIGIN, Vector3D::Z, 0.4, 2.0).unwrap();
-    /// assert_eq!(cone.eval_point(0.0, 0.0), Point3D::new(2.0, 0.0, 0.0));
+    /// use geomcore::{Cone, Point, Vector};
+    /// let cone = Cone::new(Point::ORIGIN, Vector::Z, 0.4, 2.0).unwrap();
+    /// assert_eq!(cone.eval_point(0.0, 0.0), Point::new(2.0, 0.0, 0.0));
     /// ```
-    pub fn eval_point(&self, u: f64, v: f64) -> Point3D {
+    pub fn eval_point(&self, u: f64, v: f64) -> Point {
         analytic::cone_d0(&self.frame, self.ref_radius, self.semi_angle, u, v)
     }
 
@@ -446,12 +446,12 @@ impl Cone {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Cone, Point3D, Vector3D};
-    /// let cone = Cone::new(Point3D::ORIGIN, Vector3D::Z, 0.4, 2.0).unwrap();
+    /// use geomcore::{Cone, Point, Vector};
+    /// let cone = Cone::new(Point::ORIGIN, Vector::Z, 0.4, 2.0).unwrap();
     /// let points = cone.eval_points(&[(0.0, 0.0)]);
-    /// assert_eq!(points[0], Point3D::new(2.0, 0.0, 0.0));
+    /// assert_eq!(points[0], Point::new(2.0, 0.0, 0.0));
     /// ```
-    pub fn eval_points(&self, uvs: &[(f64, f64)]) -> Vec<Point3D> {
+    pub fn eval_points(&self, uvs: &[(f64, f64)]) -> Vec<Point> {
         uvs.iter().map(|&(u, v)| self.eval_point(u, v)).collect()
     }
 
@@ -466,12 +466,12 @@ impl Cone {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Cone, Point3D, Vector3D};
-    /// let cone = Cone::new(Point3D::ORIGIN, Vector3D::Z, 0.4, 2.0).unwrap();
+    /// use geomcore::{Cone, Point, Vector};
+    /// let cone = Cone::new(Point::ORIGIN, Vector::Z, 0.4, 2.0).unwrap();
     /// let d1v = cone.eval_derivative(0.0, 0.0, 0, 1);
     /// assert!(d1v.x > 0.0);
     /// ```
-    pub fn eval_derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> Vector3D {
+    pub fn eval_derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> Vector {
         match du + dv {
             0 => panic!(
                 "eval_derivative: du + dv must be >= 1 (use eval_point for the (0, 0) order)"
@@ -498,12 +498,12 @@ impl Cone {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Cone, Point3D, Vector3D};
-    /// let cone = Cone::new(Point3D::ORIGIN, Vector3D::Z, 0.4, 2.0).unwrap();
-    /// let (u, v) = cone.parameters_of(Point3D::new(2.0, 0.0, 0.0));
+    /// use geomcore::{Cone, Point, Vector};
+    /// let cone = Cone::new(Point::ORIGIN, Vector::Z, 0.4, 2.0).unwrap();
+    /// let (u, v) = cone.parameters_of(Point::new(2.0, 0.0, 0.0));
     /// assert_eq!((u, v), (0.0, 0.0));
     /// ```
-    pub fn parameters_of(&self, point: Point3D) -> (f64, f64) {
+    pub fn parameters_of(&self, point: Point) -> (f64, f64) {
         analytic::cone_parameters(&self.frame, self.ref_radius, self.semi_angle, point)
     }
 
@@ -515,13 +515,13 @@ impl Cone {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Cone, Frame3D, Point3D, Tolerance};
-    /// let cone = Cone::from_frame(Frame3D::WORLD, 0.4, 2.0).unwrap();
+    /// use geomcore::{Cone, Frame, Point, Tolerance};
+    /// let cone = Cone::from_frame(Frame::WORLD, 0.4, 2.0).unwrap();
     /// let tol = Tolerance::DEFAULT;
     /// assert!(cone.contains(cone.eval_point(0.0, 0.0), tol));
-    /// assert!(!cone.contains(Point3D::ORIGIN, tol));
+    /// assert!(!cone.contains(Point::ORIGIN, tol));
     /// ```
-    pub fn contains(&self, point: Point3D, tol: Tolerance) -> bool {
+    pub fn contains(&self, point: Point, tol: Tolerance) -> bool {
         let (u, v) = self.parameters_of(point);
         self.eval_point(u, v).distance(point) <= tol.confusion
     }
@@ -533,15 +533,15 @@ impl Cone {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Cone, Frame3D, Point3D, Tolerance};
-    /// let cone = Cone::from_frame(Frame3D::WORLD, 0.4, 2.0).unwrap();
+    /// use geomcore::{Cone, Frame, Point, Tolerance};
+    /// let cone = Cone::from_frame(Frame::WORLD, 0.4, 2.0).unwrap();
     /// let p = cone.eval_point(1.0, 2.0);
     /// let proj = cone.project_point(p, Tolerance::DEFAULT);
     /// assert!((proj.u - 1.0).abs() < 1e-9);
     /// assert!((proj.v - 2.0).abs() < 1e-9);
     /// assert_eq!(proj.distance, 0.0);
     /// ```
-    pub fn project_point(&self, point: Point3D, tol: Tolerance) -> SurfaceProjection {
+    pub fn project_point(&self, point: Point, tol: Tolerance) -> SurfaceProjection {
         let (u, v) = self.parameters_of(point);
         let foot = self.eval_point(u, v);
         let distance = foot.distance(point);
@@ -557,7 +557,7 @@ impl Cone {
     ///
     /// Default-style batch wrapper over [`Cone::project_point`]: one
     /// native call per batch, mirroring [`Cone::eval_points`].
-    pub fn project_points(&self, points: &[Point3D], tol: Tolerance) -> Vec<SurfaceProjection> {
+    pub fn project_points(&self, points: &[Point], tol: Tolerance) -> Vec<SurfaceProjection> {
         points.iter().map(|&p| self.project_point(p, tol)).collect()
     }
 }
@@ -580,19 +580,19 @@ fn is_valid_semi_angle(semi_angle: f64) -> bool {
 /// "arbitrary perpendicular direction" conventions upstream.
 ///
 /// `axis_direction` must already be a unit vector.
-fn arbitrary_perpendicular_frame(origin: Point3D, axis_direction: Vector3D) -> Frame3D {
+fn arbitrary_perpendicular_frame(origin: Point, axis_direction: Vector) -> Frame {
     let z = axis_direction;
     let (ax, ay, az) = (z.x.abs(), z.y.abs(), z.z.abs());
     let x_dir = if ax <= ay && ax <= az {
-        Vector3D::new(0.0, -z.z, z.y)
+        Vector::new(0.0, -z.z, z.y)
     } else if ay <= ax && ay <= az {
-        Vector3D::new(-z.z, 0.0, z.x)
+        Vector::new(-z.z, 0.0, z.x)
     } else {
-        Vector3D::new(-z.y, z.x, 0.0)
+        Vector::new(-z.y, z.x, 0.0)
     }
     .normalized()
     .expect("z is a unit vector and nonzero on at least two axes, so the swap is nonzero");
-    Frame3D::new(origin, z, x_dir).expect("x_dir constructed perpendicular to z by design")
+    Frame::new(origin, z, x_dir).expect("x_dir constructed perpendicular to z by design")
 }
 
 impl IntersectExact<Cone> for Cone {
@@ -613,9 +613,9 @@ impl IntersectExact<Cone> for Cone {
     ///
     /// ```
     /// use geomcore::IntersectExact;
-    /// use geomcore::{Cone, ConeConeIntersection, Frame3D, Point3D, Tolerance, Vector3D};
-    /// let c1 = Cone::from_frame(Frame3D::WORLD, 0.4, 2.0).unwrap();
-    /// let c2 = Cone::from_frame(Frame3D::WORLD, 0.4, 2.0).unwrap();
+    /// use geomcore::{Cone, ConeConeIntersection, Frame, Point, Tolerance, Vector};
+    /// let c1 = Cone::from_frame(Frame::WORLD, 0.4, 2.0).unwrap();
+    /// let c2 = Cone::from_frame(Frame::WORLD, 0.4, 2.0).unwrap();
     /// let tol = Tolerance::DEFAULT;
     /// assert_eq!(
     ///     c1.intersect_exact(&c2, tol),
@@ -644,7 +644,7 @@ impl IntersectExact<Cone> for Cone {
         }
         let (k1, k2) = (phi1.tan(), phi2.tan());
         let ring = |alpha: f64| {
-            Circle3D::new(self.apex() + a1 * alpha, a1, alpha.abs() * k1)
+            Circle::new(self.apex() + a1 * alpha, a1, alpha.abs() * k1)
                 .expect("ring radius is non-negative by construction")
         };
         // Rings where the radii meet with the apexes on opposite sides,
@@ -680,14 +680,14 @@ impl IntersectExact<Cylinder> for Cone {
     ///
     /// ```
     /// use geomcore::IntersectExact;
-    /// use geomcore::{Cone, ConeCylinderIntersection, Cylinder, Frame3D, Point3D, Tolerance, Vector3D};
-    /// let cone = Cone::from_frame(Frame3D::WORLD, 0.4, 2.0).unwrap();
-    /// let cylinder = Cylinder::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
+    /// use geomcore::{Cone, ConeCylinderIntersection, Cylinder, Frame, Point, Tolerance, Vector};
+    /// let cone = Cone::from_frame(Frame::WORLD, 0.4, 2.0).unwrap();
+    /// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
     /// let tol = Tolerance::DEFAULT;
     /// match cone.intersect_exact(&cylinder, tol) {
     ///     ConeCylinderIntersection::TwoCircles(_, circle) => {
     ///         assert_eq!(circle.radius(), 2.0);
-    ///         assert!(circle.center().distance(Point3D::ORIGIN) < 1e-12);
+    ///         assert!(circle.center().distance(Point::ORIGIN) < 1e-12);
     ///     }
     ///     _ => panic!("expected two circles"),
     /// }
@@ -709,7 +709,7 @@ impl IntersectExact<Cylinder> for Cone {
         // One latitude ring on each nappe.
         let alpha = r / self.semi_angle().tan().abs();
         let ring = |alpha: f64| {
-            Circle3D::new(self.apex() + a * alpha, a, r)
+            Circle::new(self.apex() + a * alpha, a, r)
                 .expect("tube radius is positive by construction")
         };
         ConeCylinderIntersection::TwoCircles(ring(-alpha), ring(alpha))
@@ -719,7 +719,7 @@ impl IntersectExact<Cylinder> for Cone {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Vector3D;
+    use crate::Vector;
     use crate::surfaces::ParametricSurface;
     use std::f64::consts::{FRAC_PI_2, FRAC_PI_4};
 
@@ -727,21 +727,21 @@ mod tests {
 
     #[test]
     fn test_from_frame_ok() {
-        let c = Cone::from_frame(Frame3D::WORLD, 0.4, 2.0).unwrap();
+        let c = Cone::from_frame(Frame::WORLD, 0.4, 2.0).unwrap();
         assert_eq!(c.semi_angle(), 0.4);
         assert_eq!(c.ref_radius(), 2.0);
     }
 
     #[test]
     fn test_from_frame_negative_angle_ok() {
-        let c = Cone::from_frame(Frame3D::WORLD, -0.4, 2.0).unwrap();
+        let c = Cone::from_frame(Frame::WORLD, -0.4, 2.0).unwrap();
         assert_eq!(c.semi_angle(), -0.4);
     }
 
     #[test]
     fn test_from_frame_negative_radius_errors() {
         assert_eq!(
-            Cone::from_frame(Frame3D::WORLD, 0.4, -1.0),
+            Cone::from_frame(Frame::WORLD, 0.4, -1.0),
             Err(ConeConstructionError::NegativeRadius)
         );
     }
@@ -749,7 +749,7 @@ mod tests {
     #[test]
     fn test_from_frame_zero_angle_errors() {
         assert_eq!(
-            Cone::from_frame(Frame3D::WORLD, 0.0, 1.0),
+            Cone::from_frame(Frame::WORLD, 0.0, 1.0),
             Err(ConeConstructionError::BadAngle)
         );
     }
@@ -757,32 +757,32 @@ mod tests {
     #[test]
     fn test_from_frame_right_angle_errors() {
         assert_eq!(
-            Cone::from_frame(Frame3D::WORLD, FRAC_PI_2, 1.0),
+            Cone::from_frame(Frame::WORLD, FRAC_PI_2, 1.0),
             Err(ConeConstructionError::BadAngle)
         );
         assert_eq!(
-            Cone::from_frame(Frame3D::WORLD, -FRAC_PI_2, 1.0),
+            Cone::from_frame(Frame::WORLD, -FRAC_PI_2, 1.0),
             Err(ConeConstructionError::BadAngle)
         );
     }
 
     #[test]
     fn test_from_frame_valid_boundary_ok() {
-        assert!(Cone::from_frame(Frame3D::WORLD, FRAC_PI_4, 1.0).is_ok());
+        assert!(Cone::from_frame(Frame::WORLD, FRAC_PI_4, 1.0).is_ok());
     }
 
     // ---- construction: new ----
 
     #[test]
     fn test_new_ok() {
-        let c = Cone::new(Point3D::ORIGIN, Vector3D::Z, 0.4, 2.0).unwrap();
-        assert_eq!(c.frame().z_direction(), Vector3D::Z);
+        let c = Cone::new(Point::ORIGIN, Vector::Z, 0.4, 2.0).unwrap();
+        assert_eq!(c.frame().z_direction(), Vector::Z);
     }
 
     #[test]
     fn test_new_null_normal_errors() {
         assert_eq!(
-            Cone::new(Point3D::ORIGIN, Vector3D::ZERO, 0.4, 2.0),
+            Cone::new(Point::ORIGIN, Vector::ZERO, 0.4, 2.0),
             Err(ConeConstructionError::NullNormal)
         );
     }
@@ -791,7 +791,7 @@ mod tests {
 
     #[test]
     fn test_from_two_points_and_radii_null_axis_errors() {
-        let p = Point3D::new(1.0, 2.0, 3.0);
+        let p = Point::new(1.0, 2.0, 3.0);
         assert_eq!(
             Cone::from_two_points_and_radii(p, p, 1.0, 2.0),
             Err(ConeConstructionError::NullAxis)
@@ -801,21 +801,11 @@ mod tests {
     #[test]
     fn test_from_two_points_and_radii_negative_radius_errors() {
         assert_eq!(
-            Cone::from_two_points_and_radii(
-                Point3D::ORIGIN,
-                Point3D::new(0.0, 0.0, 1.0),
-                -1.0,
-                2.0
-            ),
+            Cone::from_two_points_and_radii(Point::ORIGIN, Point::new(0.0, 0.0, 1.0), -1.0, 2.0),
             Err(ConeConstructionError::NegativeRadius)
         );
         assert_eq!(
-            Cone::from_two_points_and_radii(
-                Point3D::ORIGIN,
-                Point3D::new(0.0, 0.0, 1.0),
-                1.0,
-                -2.0
-            ),
+            Cone::from_two_points_and_radii(Point::ORIGIN, Point::new(0.0, 0.0, 1.0), 1.0, -2.0),
             Err(ConeConstructionError::NegativeRadius)
         );
     }
@@ -824,7 +814,7 @@ mod tests {
     fn test_from_two_points_and_radii_null_angle_errors_when_radii_equal() {
         // r1 == r2 gives a zero semi-angle: no valid cone (it's a cylinder).
         assert_eq!(
-            Cone::from_two_points_and_radii(Point3D::ORIGIN, Point3D::new(0.0, 0.0, 1.0), 2.0, 2.0),
+            Cone::from_two_points_and_radii(Point::ORIGIN, Point::new(0.0, 0.0, 1.0), 2.0, 2.0),
             Err(ConeConstructionError::NullAngle)
         );
     }
@@ -832,24 +822,23 @@ mod tests {
     #[test]
     fn test_from_two_points_and_radii_matches_golden_case_shrinking() {
         // From tests/fixtures/construction.json: cones_two_points_radii[0].
-        let c =
-            Cone::from_two_points_and_radii(Point3D::ORIGIN, Point3D::new(0.0, 0.0, 4.0), 2.0, 1.0)
-                .unwrap();
+        let c = Cone::from_two_points_and_radii(Point::ORIGIN, Point::new(0.0, 0.0, 4.0), 2.0, 1.0)
+            .unwrap();
         assert!((c.semi_angle() - (-0.24497866312686414)).abs() < 1e-9);
         assert_eq!(c.ref_radius(), 2.0);
         let frame = c.frame();
-        assert_eq!(frame.origin(), Point3D::ORIGIN);
-        assert_vector3_close(frame.x_direction(), Vector3D::new(0.0, -1.0, 0.0));
-        assert_vector3_close(frame.y_direction(), Vector3D::new(1.0, 0.0, 0.0));
-        assert_vector3_close(frame.z_direction(), Vector3D::Z);
+        assert_eq!(frame.origin(), Point::ORIGIN);
+        assert_vector3_close(frame.x_direction(), Vector::new(0.0, -1.0, 0.0));
+        assert_vector3_close(frame.y_direction(), Vector::new(1.0, 0.0, 0.0));
+        assert_vector3_close(frame.z_direction(), Vector::Z);
     }
 
     #[test]
     fn test_from_two_points_and_radii_matches_golden_case_growing() {
         // From tests/fixtures/construction.json: cones_two_points_radii[1].
         let c = Cone::from_two_points_and_radii(
-            Point3D::new(1.0, 1.0, 1.0),
-            Point3D::new(2.0, 3.0, 1.0),
+            Point::new(1.0, 1.0, 1.0),
+            Point::new(2.0, 3.0, 1.0),
             1.0,
             2.5,
         )
@@ -857,19 +846,19 @@ mod tests {
         assert!((c.semi_angle() - 0.5908727501454191).abs() < 1e-9);
         assert_eq!(c.ref_radius(), 1.0);
         let frame = c.frame();
-        assert_eq!(frame.origin(), Point3D::new(1.0, 1.0, 1.0));
+        assert_eq!(frame.origin(), Point::new(1.0, 1.0, 1.0));
         assert_vector3_close(
             frame.x_direction(),
-            Vector3D::new(-0.894427190999916, 0.447213595499958, 0.0),
+            Vector::new(-0.894427190999916, 0.447213595499958, 0.0),
         );
-        assert_vector3_close(frame.y_direction(), Vector3D::new(0.0, 0.0, 1.0));
+        assert_vector3_close(frame.y_direction(), Vector::new(0.0, 0.0, 1.0));
         assert_vector3_close(
             frame.z_direction(),
-            Vector3D::new(0.4472135954999579, 0.8944271909999159, 0.0),
+            Vector::new(0.4472135954999579, 0.8944271909999159, 0.0),
         );
     }
 
-    fn assert_vector3_close(actual: Vector3D, expected: Vector3D) {
+    fn assert_vector3_close(actual: Vector, expected: Vector) {
         assert!(
             (actual.x - expected.x).abs() < 1e-9,
             "x: {actual:?} vs {expected:?}"
@@ -888,21 +877,21 @@ mod tests {
 
     #[test]
     fn test_eval_point() {
-        let c = Cone::new(Point3D::ORIGIN, Vector3D::Z, 0.4, 2.0).unwrap();
-        assert_eq!(c.eval_point(0.0, 0.0), Point3D::new(2.0, 0.0, 0.0));
+        let c = Cone::new(Point::ORIGIN, Vector::Z, 0.4, 2.0).unwrap();
+        assert_eq!(c.eval_point(0.0, 0.0), Point::new(2.0, 0.0, 0.0));
     }
 
     #[test]
     fn test_eval_points_matches_loop() {
-        let c = Cone::new(Point3D::ORIGIN, Vector3D::Z, 0.4, 2.0).unwrap();
+        let c = Cone::new(Point::ORIGIN, Vector::Z, 0.4, 2.0).unwrap();
         let uvs = [(0.0, 0.0), (0.5, 1.0)];
-        let expected: Vec<Point3D> = uvs.iter().map(|&(u, v)| c.eval_point(u, v)).collect();
+        let expected: Vec<Point> = uvs.iter().map(|&(u, v)| c.eval_point(u, v)).collect();
         assert_eq!(c.eval_points(&uvs), expected);
     }
 
     #[test]
     fn test_apex() {
-        let c = Cone::new(Point3D::ORIGIN, Vector3D::Z, FRAC_PI_4, 1.0).unwrap();
+        let c = Cone::new(Point::ORIGIN, Vector::Z, FRAC_PI_4, 1.0).unwrap();
         let apex = c.apex();
         assert!(apex.x.abs() < 1e-9);
         assert!(apex.y.abs() < 1e-9);
@@ -912,21 +901,21 @@ mod tests {
     #[test]
     #[should_panic(expected = "du + dv must be >= 1")]
     fn test_eval_derivative_zero_order_panics() {
-        let c = Cone::new(Point3D::ORIGIN, Vector3D::Z, 0.4, 2.0).unwrap();
+        let c = Cone::new(Point::ORIGIN, Vector::Z, 0.4, 2.0).unwrap();
         c.eval_derivative(0.0, 0.0, 0, 0);
     }
 
     #[test]
     #[should_panic(expected = "du + dv must be <= 2")]
     fn test_eval_derivative_order_too_high_panics() {
-        let c = Cone::new(Point3D::ORIGIN, Vector3D::Z, 0.4, 2.0).unwrap();
+        let c = Cone::new(Point::ORIGIN, Vector::Z, 0.4, 2.0).unwrap();
         c.eval_derivative(0.0, 0.0, 2, 1);
     }
 
     #[test]
     fn test_parameters_of_round_trip() {
-        let c = Cone::new(Point3D::ORIGIN, Vector3D::Z, 0.4, 2.0).unwrap();
-        let (u, v) = c.parameters_of(Point3D::new(2.0, 0.0, 0.0));
+        let c = Cone::new(Point::ORIGIN, Vector::Z, 0.4, 2.0).unwrap();
+        let (u, v) = c.parameters_of(Point::new(2.0, 0.0, 0.0));
         assert_eq!((u, v), (0.0, 0.0));
     }
 
@@ -964,17 +953,17 @@ mod tests {
 
     #[test]
     fn test_cone_contains() {
-        let cone = Cone::from_frame(Frame3D::WORLD, 0.4, 2.0).unwrap();
+        let cone = Cone::from_frame(Frame::WORLD, 0.4, 2.0).unwrap();
         let tol = Tolerance::DEFAULT;
         assert!(cone.contains(cone.eval_point(0.0, 0.0), tol));
         assert!(cone.contains(cone.eval_point(1.0, 2.0), tol));
-        assert!(!cone.contains(Point3D::ORIGIN, tol));
-        assert!(!cone.contains(Point3D::new(0.0, 0.0, 10.0), tol));
+        assert!(!cone.contains(Point::ORIGIN, tol));
+        assert!(!cone.contains(Point::new(0.0, 0.0, 10.0), tol));
     }
 
     #[test]
     fn test_cone_project_point() {
-        let cone = Cone::from_frame(Frame3D::WORLD, 0.4, 2.0).unwrap();
+        let cone = Cone::from_frame(Frame::WORLD, 0.4, 2.0).unwrap();
         let tol = Tolerance::DEFAULT;
         let p = cone.eval_point(1.0, 2.0);
         let proj = cone.project_point(p, tol);
@@ -986,13 +975,13 @@ mod tests {
     #[test]
     fn test_cone_cylinder_intersection() {
         let tol = Tolerance::DEFAULT;
-        let cone = Cone::from_frame(Frame3D::WORLD, 0.4, 2.0).unwrap();
-        let cylinder = Cylinder::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
+        let cone = Cone::from_frame(Frame::WORLD, 0.4, 2.0).unwrap();
+        let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
         match cone.intersect_exact(&cylinder, tol) {
             ConeCylinderIntersection::TwoCircles(lower, upper) => {
                 // The reference section, and its mirror through the apex.
-                assert!(upper.center().distance(Point3D::ORIGIN) < 1e-9);
-                let mirror = cone.apex() + (cone.apex() - Point3D::ORIGIN);
+                assert!(upper.center().distance(Point::ORIGIN) < 1e-9);
+                let mirror = cone.apex() + (cone.apex() - Point::ORIGIN);
                 assert!(lower.center().distance(mirror) < 1e-9);
                 for circle in [lower, upper] {
                     assert_eq!(circle.radius(), 2.0);
@@ -1005,7 +994,7 @@ mod tests {
             _ => panic!("expected two circles"),
         }
         // A negative semi-angle opens the other way: same two rings.
-        let flipped = Cone::from_frame(Frame3D::WORLD, -0.4, 2.0).unwrap();
+        let flipped = Cone::from_frame(Frame::WORLD, -0.4, 2.0).unwrap();
         match flipped.intersect_exact(&cylinder, tol) {
             ConeCylinderIntersection::TwoCircles(lower, upper) => {
                 for p in [lower, upper]
@@ -1019,21 +1008,21 @@ mod tests {
             _ => panic!("expected two circles"),
         }
         // Degenerate tube: just the apex.
-        let axis_line = Cylinder::new(Point3D::ORIGIN, Vector3D::Z, 0.0).unwrap();
+        let axis_line = Cylinder::new(Point::ORIGIN, Vector::Z, 0.0).unwrap();
         assert_eq!(
             cone.intersect_exact(&axis_line, tol),
             ConeCylinderIntersection::ApexPoint(cone.apex())
         );
         // Offset axis: space quartic, no closed form.
-        let off = Cylinder::new(Point3D::new(1.0, 0.0, 0.0), Vector3D::Z, 2.0).unwrap();
+        let off = Cylinder::new(Point::new(1.0, 0.0, 0.0), Vector::Z, 2.0).unwrap();
         assert_eq!(
             cone.intersect_exact(&off, tol),
             ConeCylinderIntersection::NotAnalytic
         );
         // Tilted axis: space quartic, no closed form.
         let tilted = Cylinder::new(
-            Point3D::ORIGIN,
-            Vector3D::new(0.0, 0.1, 1.0).normalized().unwrap(),
+            Point::ORIGIN,
+            Vector::new(0.0, 0.1, 1.0).normalized().unwrap(),
             2.0,
         )
         .unwrap();
@@ -1046,13 +1035,13 @@ mod tests {
     #[test]
     fn test_cone_cone_intersection() {
         let tol = Tolerance::DEFAULT;
-        let c1 = Cone::from_frame(Frame3D::WORLD, 0.4, 2.0).unwrap();
+        let c1 = Cone::from_frame(Frame::WORLD, 0.4, 2.0).unwrap();
         // Second coaxial cone: shifted frame, wider angle.
-        let frame2 = Frame3D::new(Point3D::new(0.0, 0.0, 1.0), Vector3D::Z, Vector3D::X).unwrap();
+        let frame2 = Frame::new(Point::new(0.0, 0.0, 1.0), Vector::Z, Vector::X).unwrap();
         let c2 = Cone::from_frame(frame2, 0.6, 1.0).unwrap();
         match c1.intersect_exact(&c2, tol) {
             ConeConeIntersection::TwoCircles(first, second) => {
-                let height = |c: Circle3D| c.center().z;
+                let height = |c: Circle| c.center().z;
                 assert!(height(first) < height(second));
                 for p in [first, second]
                     .iter()
@@ -1079,7 +1068,7 @@ mod tests {
             _ => panic!("expected a circle"),
         }
         // Same apex and half-angle, opposite axis: the same double cone.
-        let apex_frame = Frame3D::new(c1.apex(), Vector3D::Z * -1.0, Vector3D::X).unwrap();
+        let apex_frame = Frame::new(c1.apex(), Vector::Z * -1.0, Vector::X).unwrap();
         let reversed = Cone::from_frame(apex_frame, -0.4, 0.0).unwrap();
         assert_eq!(
             c1.intersect_exact(&reversed, tol),
@@ -1092,7 +1081,7 @@ mod tests {
             ConeConeIntersection::ApexPoint(c1.apex())
         );
         // Tilted axis: space quartic, no closed form.
-        let tilted = Cone::new(Point3D::ORIGIN, Vector3D::X, 0.4, 2.0).unwrap();
+        let tilted = Cone::new(Point::ORIGIN, Vector::X, 0.4, 2.0).unwrap();
         assert_eq!(
             c1.intersect_exact(&tilted, tol),
             ConeConeIntersection::NotAnalytic
@@ -1103,21 +1092,21 @@ mod tests {
 
     #[test]
     fn test_cone_transformed_translation_spot_check() {
-        let cone = Cone::new(Point3D::ORIGIN, Vector3D::Z, 0.4, 2.0).unwrap();
-        let t = Transform::translation(Vector3D::new(0.0, 3.0, 0.0));
+        let cone = Cone::new(Point::ORIGIN, Vector::Z, 0.4, 2.0).unwrap();
+        let t = Transform::translation(Vector::new(0.0, 3.0, 0.0));
         let moved = cone.transformed(t).unwrap();
         assert_eq!(moved.semi_angle(), 0.4);
         assert_eq!(moved.ref_radius(), 2.0);
         // Hand-computed evaluation, shifted; the apex shifts identically.
-        assert_eq!(moved.eval_point(0.0, 0.0), Point3D::new(2.0, 3.0, 0.0));
+        assert_eq!(moved.eval_point(0.0, 0.0), Point::new(2.0, 3.0, 0.0));
         assert_eq!(moved.apex(), t.apply_point(cone.apex()));
     }
 
     #[test]
     fn test_cone_transformed_round_trip_and_mirror() {
-        let cone = Cone::from_frame(Frame3D::WORLD, 0.4, 2.0).unwrap();
-        let t = Transform::translation(Vector3D::new(1.0, -1.0, 2.0))
-            .then(Transform::scaling(Point3D::ORIGIN, 2.0));
+        let cone = Cone::from_frame(Frame::WORLD, 0.4, 2.0).unwrap();
+        let t = Transform::translation(Vector::new(1.0, -1.0, 2.0))
+            .then(Transform::scaling(Point::ORIGIN, 2.0));
         let moved = cone.transformed(t).unwrap();
         assert_eq!(moved.semi_angle(), 0.4);
         assert_eq!(moved.ref_radius(), 4.0);
@@ -1125,13 +1114,13 @@ mod tests {
         for (u, v) in [(0.0, 0.0), (1.0, -2.0), (4.0, 0.5)] {
             assert!(moved.contains(t.apply_point(cone.eval_point(u, v)), tol));
         }
-        let inv = Transform::scaling(Point3D::ORIGIN, 0.5)
-            .then(Transform::translation(Vector3D::new(-1.0, 1.0, -2.0)));
+        let inv = Transform::scaling(Point::ORIGIN, 0.5)
+            .then(Transform::translation(Vector::new(-1.0, 1.0, -2.0)));
         let back = moved.transformed(inv).unwrap();
         assert!((back.ref_radius() - cone.ref_radius()).abs() < 1e-9);
         assert!(back.apex().distance(cone.apex()) < 1e-9);
         // Mirror across the xy-plane preserves the point set.
-        let m = Transform::mirror_plane(Frame3D::WORLD);
+        let m = Transform::mirror_plane(Frame::WORLD);
         let mirrored = cone.transformed(m).unwrap();
         for (u, v) in [(0.0, 0.0), (1.0, -2.0)] {
             assert!(mirrored.contains(m.apply_point(cone.eval_point(u, v)), tol));
@@ -1141,7 +1130,7 @@ mod tests {
 
     #[test]
     fn test_reversed_cones_share_point_set() {
-        let cone = Cone::new(Point3D::ORIGIN, Vector3D::Z, 0.4, 2.0).unwrap();
+        let cone = Cone::new(Point::ORIGIN, Vector::Z, 0.4, 2.0).unwrap();
         for (u, v) in [(0.0, 0.0), (1.0, -2.0), (5.0, 3.0)] {
             let ru = cone.reversed_u();
             assert!(!ru.frame().is_direct());

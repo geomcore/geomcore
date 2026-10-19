@@ -1,5 +1,5 @@
 use crate::tolerance::Tolerance;
-use crate::vector::{Vector2D, Vector3D};
+use crate::vector::{Vector, Vector2D};
 
 /// Two-dimensional point.
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
@@ -81,7 +81,7 @@ impl Point2D {
 
 /// Three-dimensional point.
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
-pub struct Point3D {
+pub struct Point {
     /// x-coordinate
     pub x: f64,
     /// y-coordinate
@@ -90,16 +90,16 @@ pub struct Point3D {
     pub z: f64,
 }
 
-impl Point3D {
+impl Point {
     /// Origin (0, 0, 0).
     ///
     /// # Examples
     ///
     /// ```
-    /// use geomcore::Point3D;
-    /// assert_eq!(Point3D::ORIGIN, Point3D::new(0.0, 0.0, 0.0));
+    /// use geomcore::Point;
+    /// assert_eq!(Point::ORIGIN, Point::new(0.0, 0.0, 0.0));
     /// ```
-    pub const ORIGIN: Point3D = Point3D {
+    pub const ORIGIN: Point = Point {
         x: 0.0,
         y: 0.0,
         z: 0.0,
@@ -110,14 +110,14 @@ impl Point3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::Point3D;
-    /// let p = Point3D::new(1.0, 2.0, 3.0);
+    /// use geomcore::Point;
+    /// let p = Point::new(1.0, 2.0, 3.0);
     /// assert_eq!(p.x, 1.0);
     /// assert_eq!(p.y, 2.0);
     /// assert_eq!(p.z, 3.0);
     /// ```
-    pub const fn new(x: f64, y: f64, z: f64) -> Point3D {
-        Point3D { x, y, z }
+    pub const fn new(x: f64, y: f64, z: f64) -> Point {
+        Point { x, y, z }
     }
 
     /// Distance to another point.
@@ -125,10 +125,10 @@ impl Point3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::Point3D;
-    /// assert_eq!(Point3D::new(1.0, 2.0, 3.0).distance(Point3D::new(4.0, 6.0, 3.0)), 5.0);
+    /// use geomcore::Point;
+    /// assert_eq!(Point::new(1.0, 2.0, 3.0).distance(Point::new(4.0, 6.0, 3.0)), 5.0);
     /// ```
-    pub fn distance(self, other: Point3D) -> f64 {
+    pub fn distance(self, other: Point) -> f64 {
         let dx = other.x - self.x;
         let dy = other.y - self.y;
         let dz = other.z - self.z;
@@ -141,13 +141,13 @@ impl Point3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Point3D, Tolerance};
-    /// let p = Point3D::new(1.0, 2.0, 3.0);
-    /// let q = Point3D::new(1.0, 2.0, 3.0 + 1e-9);
+    /// use geomcore::{Point, Tolerance};
+    /// let p = Point::new(1.0, 2.0, 3.0);
+    /// let q = Point::new(1.0, 2.0, 3.0 + 1e-9);
     /// assert!(p.coincides(q, Tolerance::DEFAULT));
     /// assert_ne!(p, q);
     /// ```
-    pub fn coincides(self, other: Point3D, tol: Tolerance) -> bool {
+    pub fn coincides(self, other: Point, tol: Tolerance) -> bool {
         self.distance(other) <= tol.confusion
     }
 
@@ -156,21 +156,21 @@ impl Point3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::Point3D;
-    /// assert!(Point3D::new(1.0, 2.0, 3.0).is_finite());
-    /// assert!(!Point3D::new(f64::NAN, 2.0, 3.0).is_finite());
+    /// use geomcore::Point;
+    /// assert!(Point::new(1.0, 2.0, 3.0).is_finite());
+    /// assert!(!Point::new(f64::NAN, 2.0, 3.0).is_finite());
     /// ```
     pub fn is_finite(self) -> bool {
         self.x.is_finite() && self.y.is_finite() && self.z.is_finite()
     }
 }
 
-// Point3D + Vector3D -> Point3D
-impl std::ops::Add<Vector3D> for Point3D {
-    type Output = Point3D;
+// Point + Vector -> Point
+impl std::ops::Add<Vector> for Point {
+    type Output = Point;
 
-    fn add(self, vector: Vector3D) -> Point3D {
-        Point3D {
+    fn add(self, vector: Vector) -> Point {
+        Point {
             x: self.x + vector.x,
             y: self.y + vector.y,
             z: self.z + vector.z,
@@ -178,12 +178,12 @@ impl std::ops::Add<Vector3D> for Point3D {
     }
 }
 
-// Point3D - Vector3D -> Point3D
-impl std::ops::Sub<Vector3D> for Point3D {
-    type Output = Point3D;
+// Point - Vector -> Point
+impl std::ops::Sub<Vector> for Point {
+    type Output = Point;
 
-    fn sub(self, vector: Vector3D) -> Point3D {
-        Point3D {
+    fn sub(self, vector: Vector) -> Point {
+        Point {
             x: self.x - vector.x,
             y: self.y - vector.y,
             z: self.z - vector.z,
@@ -191,12 +191,12 @@ impl std::ops::Sub<Vector3D> for Point3D {
     }
 }
 
-// Point3D - Point3D -> Vector3D
-impl std::ops::Sub for Point3D {
-    type Output = Vector3D;
+// Point - Point -> Vector
+impl std::ops::Sub for Point {
+    type Output = Vector;
 
-    fn sub(self, other: Point3D) -> Vector3D {
-        Vector3D {
+    fn sub(self, other: Point) -> Vector {
+        Vector {
             x: self.x - other.x,
             y: self.y - other.y,
             z: self.z - other.z,
@@ -240,18 +240,25 @@ impl std::ops::Sub for Point2D {
     }
 }
 
+/// The former name of [`Point`].
+#[deprecated(
+    since = "0.37.0",
+    note = "renamed `Point`: only 2D types carry a dimension suffix"
+)]
+pub type Point3D = Point;
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn test_point3_origin() {
-        assert_eq!(Point3D::ORIGIN, Point3D::new(0.0, 0.0, 0.0));
+        assert_eq!(Point::ORIGIN, Point::new(0.0, 0.0, 0.0));
     }
 
     #[test]
     fn test_point3_new() {
-        let p = Point3D::new(1.0, 2.0, 3.0);
+        let p = Point::new(1.0, 2.0, 3.0);
         assert_eq!(p.x, 1.0);
         assert_eq!(p.y, 2.0);
         assert_eq!(p.z, 3.0);
@@ -259,47 +266,47 @@ mod tests {
 
     #[test]
     fn test_point3_distance() {
-        let p1 = Point3D::new(1.0, 2.0, 3.0);
-        let p2 = Point3D::new(4.0, 6.0, 3.0);
+        let p1 = Point::new(1.0, 2.0, 3.0);
+        let p2 = Point::new(4.0, 6.0, 3.0);
         assert_eq!(p1.distance(p2), 5.0);
     }
 
     #[test]
     fn test_point3_coincides_within_confusion() {
-        let p = Point3D::new(1.0, 2.0, 3.0);
+        let p = Point::new(1.0, 2.0, 3.0);
         let tol = Tolerance::DEFAULT;
-        assert!(p.coincides(Point3D::new(1.0, 2.0, 3.0 + 5e-8), tol));
-        assert!(!p.coincides(Point3D::new(1.0, 2.0, 3.0 + 5e-7), tol));
+        assert!(p.coincides(Point::new(1.0, 2.0, 3.0 + 5e-8), tol));
+        assert!(!p.coincides(Point::new(1.0, 2.0, 3.0 + 5e-7), tol));
         let loose = Tolerance::new(1e-3, tol.angular, tol.parametric);
-        assert!(p.coincides(Point3D::new(1.0, 2.0005, 3.0), loose));
-        assert!(!p.coincides(Point3D::new(f64::NAN, 2.0, 3.0), loose));
+        assert!(p.coincides(Point::new(1.0, 2.0005, 3.0), loose));
+        assert!(!p.coincides(Point::new(f64::NAN, 2.0, 3.0), loose));
     }
 
     #[test]
     fn test_point3_add_vector() {
-        let p = Point3D::new(1.0, 2.0, 3.0);
-        let v = Vector3D::new(4.0, 5.0, 6.0);
-        assert_eq!(p + v, Point3D::new(5.0, 7.0, 9.0));
+        let p = Point::new(1.0, 2.0, 3.0);
+        let v = Vector::new(4.0, 5.0, 6.0);
+        assert_eq!(p + v, Point::new(5.0, 7.0, 9.0));
     }
 
     #[test]
     fn test_point3_sub_vector() {
-        let p = Point3D::new(5.0, 7.0, 9.0);
-        let v = Vector3D::new(4.0, 5.0, 6.0);
-        assert_eq!(p - v, Point3D::new(1.0, 2.0, 3.0));
+        let p = Point::new(5.0, 7.0, 9.0);
+        let v = Vector::new(4.0, 5.0, 6.0);
+        assert_eq!(p - v, Point::new(1.0, 2.0, 3.0));
     }
 
     #[test]
     fn test_point3_sub_point() {
-        let p1 = Point3D::new(4.0, 6.0, 8.0);
-        let p2 = Point3D::new(1.0, 2.0, 3.0);
-        assert_eq!(p1 - p2, Vector3D::new(3.0, 4.0, 5.0));
+        let p1 = Point::new(4.0, 6.0, 8.0);
+        let p2 = Point::new(1.0, 2.0, 3.0);
+        assert_eq!(p1 - p2, Vector::new(3.0, 4.0, 5.0));
     }
 
     #[test]
     fn test_point3_op_identity() {
-        let p = Point3D::new(1.0, 2.0, 3.0);
-        let q = Point3D::new(4.0, 5.0, 6.0);
+        let p = Point::new(1.0, 2.0, 3.0);
+        let q = Point::new(4.0, 5.0, 6.0);
         let diff = q - p;
         assert_eq!(p + diff, q);
     }

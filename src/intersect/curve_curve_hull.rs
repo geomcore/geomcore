@@ -12,11 +12,11 @@ use super::pieces::{
 use super::results::sort_by_known_parameter;
 use super::{Completeness, CurveCurveExtremum, CurveCurveHit};
 use crate::curve_math::bspline::LARGE;
-use crate::curves::BSplineCurve3D;
+use crate::curves::BSplineCurve;
 use crate::math::boxtree::{Aabb, BoxTree, boxes_apart};
 use crate::math::{newton_min_1d, newton_min_2d, solve_2x2};
 use crate::surface_math::bspline::{Interval, derivative_bounds};
-use crate::{Point3D, Tolerance};
+use crate::{Point, Tolerance};
 use std::ops::Deref;
 
 /// The hits of a numeric curve–curve intersection, ordered by parameter
@@ -114,16 +114,16 @@ impl<'a> IntoIterator for &'a CurveCurveHits {
 /// # Examples
 ///
 /// ```
-/// use geomcore::{BSplineCurve3D, Point3D, Tolerance, curve_curve_extrema};
+/// use geomcore::{BSplineCurve, Point, Tolerance, curve_curve_extrema};
 /// // An arch peaking at (1, 1, 0), under a rail across it at height 1.
 /// let arch = vec![
-///     Point3D::new(0.0, 0.0, 0.0),
-///     Point3D::new(1.0, 2.0, 0.0),
-///     Point3D::new(2.0, 0.0, 0.0),
+///     Point::new(0.0, 0.0, 0.0),
+///     Point::new(1.0, 2.0, 0.0),
+///     Point::new(2.0, 0.0, 0.0),
 /// ];
-/// let arch = BSplineCurve3D::new(2, arch, vec![0.0, 1.0], vec![3, 3], false).unwrap();
-/// let rail = vec![Point3D::new(1.0, 0.0, 1.0), Point3D::new(1.0, 2.0, 1.0)];
-/// let rail = BSplineCurve3D::new(1, rail, vec![0.0, 1.0], vec![2, 2], false).unwrap();
+/// let arch = BSplineCurve::new(2, arch, vec![0.0, 1.0], vec![3, 3], false).unwrap();
+/// let rail = vec![Point::new(1.0, 0.0, 1.0), Point::new(1.0, 2.0, 1.0)];
+/// let rail = BSplineCurve::new(1, rail, vec![0.0, 1.0], vec![2, 2], false).unwrap();
 /// let minima = curve_curve_extrema(&arch, &rail, Tolerance::DEFAULT);
 /// // Both are B-splines: the search proves there is no other minimum.
 /// assert!(minima.is_complete());
@@ -162,9 +162,9 @@ impl CurveCurveExtrema {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Line3D, Point3D, Tolerance, Vector3D, curve_curve_extrema};
-    /// let l1 = Line3D::new(Point3D::ORIGIN, Vector3D::X).unwrap();
-    /// let l2 = Line3D::new(Point3D::new(0.0, 0.0, 1.0), Vector3D::Y).unwrap();
+    /// use geomcore::{Line, Point, Tolerance, Vector, curve_curve_extrema};
+    /// let l1 = Line::new(Point::ORIGIN, Vector::X).unwrap();
+    /// let l2 = Line::new(Point::new(0.0, 0.0, 1.0), Vector::Y).unwrap();
     /// let minima = curve_curve_extrema(&l1, &l2, Tolerance::DEFAULT);
     /// assert_eq!(minima.minima()[0].distance, 1.0);
     /// ```
@@ -177,9 +177,9 @@ impl CurveCurveExtrema {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Line3D, Point3D, Tolerance, Vector3D, curve_curve_extrema};
-    /// let l1 = Line3D::new(Point3D::ORIGIN, Vector3D::X).unwrap();
-    /// let l2 = Line3D::new(Point3D::new(0.0, 0.0, 1.0), Vector3D::Y).unwrap();
+    /// use geomcore::{Line, Point, Tolerance, Vector, curve_curve_extrema};
+    /// let l1 = Line::new(Point::ORIGIN, Vector::X).unwrap();
+    /// let l2 = Line::new(Point::new(0.0, 0.0, 1.0), Vector::Y).unwrap();
     /// let minima: Vec<_> = curve_curve_extrema(&l1, &l2, Tolerance::DEFAULT).into_minima();
     /// assert_eq!(minima.len(), 1);
     /// ```
@@ -193,9 +193,9 @@ impl CurveCurveExtrema {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Completeness, Line3D, Point3D, Tolerance, Vector3D, curve_curve_extrema};
-    /// let l1 = Line3D::new(Point3D::ORIGIN, Vector3D::X).unwrap();
-    /// let l2 = Line3D::new(Point3D::new(0.0, 0.0, 1.0), Vector3D::Y).unwrap();
+    /// use geomcore::{Completeness, Line, Point, Tolerance, Vector, curve_curve_extrema};
+    /// let l1 = Line::new(Point::ORIGIN, Vector::X).unwrap();
+    /// let l2 = Line::new(Point::new(0.0, 0.0, 1.0), Vector::Y).unwrap();
     /// let minima = curve_curve_extrema(&l1, &l2, Tolerance::DEFAULT);
     /// assert_eq!(minima.completeness(), &Completeness::Sampled);
     /// ```
@@ -208,9 +208,9 @@ impl CurveCurveExtrema {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Line3D, Point3D, Tolerance, Vector3D, curve_curve_extrema};
-    /// let l1 = Line3D::new(Point3D::ORIGIN, Vector3D::X).unwrap();
-    /// let l2 = Line3D::new(Point3D::new(0.0, 0.0, 1.0), Vector3D::Y).unwrap();
+    /// use geomcore::{Line, Point, Tolerance, Vector, curve_curve_extrema};
+    /// let l1 = Line::new(Point::ORIGIN, Vector::X).unwrap();
+    /// let l2 = Line::new(Point::new(0.0, 0.0, 1.0), Vector::Y).unwrap();
     /// // Only a search with a B-spline on one side proves its minima complete.
     /// assert!(!curve_curve_extrema(&l1, &l2, Tolerance::DEFAULT).is_complete());
     /// ```
@@ -254,16 +254,16 @@ impl<'a> IntoIterator for &'a CurveCurveExtrema {
 /// # Examples
 ///
 /// ```
-/// use geomcore::{BSplineCurve3D, Completeness, Intersect, Point3D, Tolerance};
+/// use geomcore::{BSplineCurve, Completeness, Intersect, Point, Tolerance};
 /// // A parabola touching the segment at (2, 0, 0), at s = 0.5.
 /// let poles = vec![
-///     Point3D::new(0.0, 1.0, 0.0),
-///     Point3D::new(2.0, -1.0, 0.0),
-///     Point3D::new(4.0, 1.0, 0.0),
+///     Point::new(0.0, 1.0, 0.0),
+///     Point::new(2.0, -1.0, 0.0),
+///     Point::new(4.0, 1.0, 0.0),
 /// ];
-/// let parabola = BSplineCurve3D::new(2, poles, vec![0.0, 1.0], vec![3, 3], false).unwrap();
-/// let ends = vec![Point3D::new(0.0, 0.0, 0.0), Point3D::new(4.0, 0.0, 0.0)];
-/// let segment = BSplineCurve3D::new(1, ends, vec![0.0, 1.0], vec![2, 2], false).unwrap();
+/// let parabola = BSplineCurve::new(2, poles, vec![0.0, 1.0], vec![3, 3], false).unwrap();
+/// let ends = vec![Point::new(0.0, 0.0, 0.0), Point::new(4.0, 0.0, 0.0)];
+/// let segment = BSplineCurve::new(1, ends, vec![0.0, 1.0], vec![2, 2], false).unwrap();
 /// let result = parabola.intersect(&segment, Tolerance::DEFAULT);
 /// let Completeness::Incomplete { regions, .. } = result.completeness() else {
 ///     panic!("a tangent contact never separates");
@@ -282,9 +282,9 @@ pub struct CurveCurveRegion {
     /// The second curve's parameter interval.
     pub second_range: (f64, f64),
     /// The corner of the box with the smallest coordinates.
-    pub min_corner: Point3D,
+    pub min_corner: Point,
     /// The corner of the box with the largest coordinates.
-    pub max_corner: Point3D,
+    pub max_corner: Point,
 }
 
 impl Region for CurveCurveRegion {
@@ -348,9 +348,9 @@ const NEWTON_STEPS: usize = 32;
 /// left unsettled too. Either way, the result is incomplete, with the
 /// unsettled pairs as its regions.
 pub(super) fn bspline_curve_curve(
-    a: &BSplineCurve3D,
+    a: &BSplineCurve,
     ra: Range,
-    b: &BSplineCurve3D,
+    b: &BSplineCurve,
     rb: Range,
     tol: Tolerance,
 ) -> (Vec<CurveCurveExtremum>, Completeness<CurveCurveRegion>) {
@@ -360,9 +360,9 @@ pub(super) fn bspline_curve_curve(
 /// [`bspline_curve_curve`] with `splits_per_pair` halvings allowed per
 /// initial pair of pieces.
 fn search_meetings(
-    a: &BSplineCurve3D,
+    a: &BSplineCurve,
     ra: Range,
-    b: &BSplineCurve3D,
+    b: &BSplineCurve,
     rb: Range,
     tol: Tolerance,
     splits_per_pair: usize,
@@ -425,9 +425,9 @@ fn search_meetings(
 /// pair, lying within it or within `sqrt(tol.confusion)` of the whole
 /// first piece.
 fn meeting(
-    a: &BSplineCurve3D,
+    a: &BSplineCurve,
     ra: Range,
-    b: &BSplineCurve3D,
+    b: &BSplineCurve,
     rb: Range,
     pa: &[[f64; 3]],
     ranges: [(f64, f64); 2],
@@ -500,7 +500,7 @@ fn along_one_line(a: &[[f64; 3]], b: &[[f64; 3]], gap: f64) -> Option<[f64; 3]> 
 /// Gauss-Newton minimisation of `|A(s) - B(t)|^2` from `x`, each step
 /// halved until the distance decreases: the closest pair it reaches, or
 /// `None` when the tangents are parallel or the steps do not settle.
-fn closest_pair(a: &BSplineCurve3D, b: &BSplineCurve3D, mut x: [f64; 2]) -> Option<[f64; 2]> {
+fn closest_pair(a: &BSplineCurve, b: &BSplineCurve, mut x: [f64; 2]) -> Option<[f64; 2]> {
     let eval = |x: [f64; 2]| {
         let (p, dp) = a.eval_d1(x[0]);
         let (q, dq) = b.eval_d1(x[1]);
@@ -563,9 +563,9 @@ fn closest_pair(a: &BSplineCurve3D, b: &BSplineCurve3D, mut x: [f64; 2]) -> Opti
 /// separating, as is one after [`MAX_DEPTH`] halvings; a valley at a
 /// distance usually exhausts the budget first.
 pub(super) fn bspline_minima(
-    a: &BSplineCurve3D,
+    a: &BSplineCurve,
     ra: Range,
-    b: &BSplineCurve3D,
+    b: &BSplineCurve,
     rb: Range,
     tol: Tolerance,
 ) -> (Vec<[f64; 2]>, Completeness<CurveCurveRegion>) {
@@ -575,9 +575,9 @@ pub(super) fn bspline_minima(
 /// [`bspline_minima`] with `splits_per_pair` halvings allowed per initial
 /// pair of pieces of each search.
 fn search_minima(
-    a: &BSplineCurve3D,
+    a: &BSplineCurve,
     ra: Range,
-    b: &BSplineCurve3D,
+    b: &BSplineCurve,
     rb: Range,
     tol: Tolerance,
     splits_per_pair: usize,
@@ -660,7 +660,7 @@ fn search_minima(
     });
     // The point at an end, and the direction in which the other curve's
     // point must lie for the distance to rise into the range there.
-    let end = |curve: &BSplineCurve3D, u: f64, r: Range| {
+    let end = |curve: &BSplineCurve, u: f64, r: Range| {
         let (p, d) = curve.eval_d1(u);
         let hold = if u == r.lo { d } else { -d };
         ([p.x, p.y, p.z], [hold.x, hold.y, hold.z])
@@ -985,10 +985,7 @@ impl Pairs {
     fn region(&self, node: &Node) -> CurveCurveRegion {
         let corners = |p: &[[f64; 3]]| {
             let b = bounding_box(p);
-            (
-                Point3D::new(b[0], b[1], b[2]),
-                Point3D::new(b[3], b[4], b[5]),
-            )
+            (Point::new(b[0], b[1], b[2]), Point::new(b[3], b[4], b[5]))
         };
         let (min_corner, max_corner) =
             box_union(corners(&self.points[0]), corners(&self.points[1]));
@@ -1032,8 +1029,8 @@ impl Pairs {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Point3D;
-    use crate::curves::{Curve3D, ParametricCurve3D, TrimmedCurve3D};
+    use crate::Point;
+    use crate::curves::{Curve, ParametricCurve, TrimmedCurve};
     use crate::intersect::curve_curve::{
         ParamDomain, curve_curve_minima, hits_at_minima, refine_minima, sampled_curve_curve,
     };
@@ -1065,11 +1062,11 @@ mod tests {
         from: impl Fn(f64) -> [f64; 3],
         amplitude: [f64; 3],
         rational: bool,
-    ) -> BSplineCurve3D {
+    ) -> BSplineCurve {
         let poles = (0..6)
             .map(|k| {
                 let [x, y, z] = from(k as f64 / 5.0);
-                Point3D::new(
+                Point::new(
                     x + amplitude[0] * rng.wave(),
                     y + amplitude[1] * rng.wave(),
                     z + amplitude[2] * rng.wave(),
@@ -1079,15 +1076,15 @@ mod tests {
         let (knots, mults) = (vec![0.0, 1.0, 2.0, 3.0], vec![4, 1, 1, 4]);
         if rational {
             let weights = (0..6).map(|_| 0.4 + 1.6 * rng.next()).collect();
-            BSplineCurve3D::new_rational(3, poles, weights, knots, mults, false).unwrap()
+            BSplineCurve::new_rational(3, poles, weights, knots, mults, false).unwrap()
         } else {
-            BSplineCurve3D::new(3, poles, knots, mults, false).unwrap()
+            BSplineCurve::new(3, poles, knots, mults, false).unwrap()
         }
     }
 
     /// Two cubics in the plane `z = x / 2`, across and up the square `[0,
     /// 5]^2` with waves of `wave`, so that they cross.
-    fn crossing(rng: &mut Lcg, rational: bool, wave: f64) -> (BSplineCurve3D, BSplineCurve3D) {
+    fn crossing(rng: &mut Lcg, rational: bool, wave: f64) -> (BSplineCurve, BSplineCurve) {
         let tilt = |[x, y, _]: [f64; 3]| [x, y, 0.5 * x];
         let (y0, y1, x0, x1) = (
             5.0 * rng.next(),
@@ -1107,22 +1104,17 @@ mod tests {
             [wave, 0.0, 0.0],
             rational,
         );
-        let tilted = |c: &BSplineCurve3D| {
+        let tilted = |c: &BSplineCurve| {
             let poles = c.poles().iter().map(|p| {
                 let [x, y, z] = tilt([p.x, p.y, p.z]);
-                Point3D::new(x, y, z)
+                Point::new(x, y, z)
             });
             let (knots, mults) = (c.knots().to_vec(), c.multiplicities().to_vec());
             match c.weights() {
-                Some(w) => BSplineCurve3D::new_rational(
-                    3,
-                    poles.collect(),
-                    w.to_vec(),
-                    knots,
-                    mults,
-                    false,
-                ),
-                None => BSplineCurve3D::new(3, poles.collect(), knots, mults, false),
+                Some(w) => {
+                    BSplineCurve::new_rational(3, poles.collect(), w.to_vec(), knots, mults, false)
+                }
+                None => BSplineCurve::new(3, poles.collect(), knots, mults, false),
             }
             .unwrap()
         };
@@ -1130,7 +1122,7 @@ mod tests {
     }
 
     /// Two wavy cubics, one about `z = 0` and one about `z = 2`.
-    fn skew(rng: &mut Lcg, rational: bool) -> (BSplineCurve3D, BSplineCurve3D) {
+    fn skew(rng: &mut Lcg, rational: bool) -> (BSplineCurve, BSplineCurve) {
         let (y0, y1, x0, x1) = (
             5.0 * rng.next(),
             5.0 * rng.next(),
@@ -1153,7 +1145,7 @@ mod tests {
     }
 
     /// The hits of the piece-pair search, which must be complete.
-    fn search<A: ParametricCurve3D, B: ParametricCurve3D>(a: &A, b: &B) -> Vec<CurveCurveHit> {
+    fn search<A: ParametricCurve, B: ParametricCurve>(a: &A, b: &B) -> Vec<CurveCurveHit> {
         let (ra, rb) = (ParamDomain::of(a).range(), ParamDomain::of(b).range());
         let (sa, sb) = (a.as_bspline().unwrap(), b.as_bspline().unwrap());
         let (meetings, completeness) = bspline_curve_curve(sa, ra, sb, rb, TOL);
@@ -1162,7 +1154,7 @@ mod tests {
     }
 
     /// The minima through the piece-pair seeds, which must be complete.
-    fn minima<A: ParametricCurve3D, B: ParametricCurve3D>(a: &A, b: &B) -> Vec<CurveCurveExtremum> {
+    fn minima<A: ParametricCurve, B: ParametricCurve>(a: &A, b: &B) -> Vec<CurveCurveExtremum> {
         let (da, db) = (ParamDomain::of(a), ParamDomain::of(b));
         let (sa, sb) = (a.as_bspline().unwrap(), b.as_bspline().unwrap());
         let (seeds, completeness) = bspline_minima(sa, da.range(), sb, db.range(), TOL);
@@ -1177,7 +1169,7 @@ mod tests {
     /// within their ranges (the search may find crossings the samples
     /// miss), and returns them.
     #[track_caller]
-    fn assert_hits_match<A: ParametricCurve3D, B: ParametricCurve3D>(
+    fn assert_hits_match<A: ParametricCurve, B: ParametricCurve>(
         a: &A,
         b: &B,
     ) -> Vec<CurveCurveHit> {
@@ -1224,7 +1216,7 @@ mod tests {
     /// reports is a local minimum on the parameter box (it may find
     /// minima the grid misses), and returns them.
     #[track_caller]
-    fn assert_minima_match<A: ParametricCurve3D, B: ParametricCurve3D>(
+    fn assert_minima_match<A: ParametricCurve, B: ParametricCurve>(
         a: &A,
         b: &B,
     ) -> Vec<CurveCurveExtremum> {
@@ -1310,12 +1302,12 @@ mod tests {
 
     /// A closed cubic loop of radius `radius` about `centre`, its poles
     /// alternately `lift` above and below.
-    fn ring(centre: [f64; 3], radius: f64, lift: f64) -> BSplineCurve3D {
+    fn ring(centre: [f64; 3], radius: f64, lift: f64) -> BSplineCurve {
         let poles = (0..8)
             .map(|k| {
                 let angle = k as f64 * std::f64::consts::TAU / 8.0;
                 let z = if k % 2 == 0 { lift } else { -lift };
-                Point3D::new(
+                Point::new(
                     centre[0] + radius * angle.cos(),
                     centre[1] + radius * angle.sin(),
                     centre[2] + z,
@@ -1323,7 +1315,7 @@ mod tests {
             })
             .collect();
         let knots = (0..=8).map(f64::from).collect();
-        BSplineCurve3D::new(3, poles, knots, vec![1; 9], true).unwrap()
+        BSplineCurve::new(3, poles, knots, vec![1; 9], true).unwrap()
     }
 
     #[test]
@@ -1344,13 +1336,13 @@ mod tests {
         let mut rng = Lcg(5);
         for _ in 0..8 {
             let (across, _) = crossing(&mut rng, false, 1.0);
-            let flat = |c: &BSplineCurve3D| {
+            let flat = |c: &BSplineCurve| {
                 let poles = c
                     .poles()
                     .iter()
-                    .map(|p| Point3D::new(p.x, p.y, 0.0))
+                    .map(|p| Point::new(p.x, p.y, 0.0))
                     .collect();
-                BSplineCurve3D::new(
+                BSplineCurve::new(
                     3,
                     poles,
                     c.knots().to_vec(),
@@ -1375,11 +1367,11 @@ mod tests {
     #[test]
     fn test_trimmed_curves_search_only_their_range() {
         let ring = ring([2.5, 2.5, 0.0], 2.0, 0.0);
-        let wavy = BSplineCurve3D::new(
+        let wavy = BSplineCurve::new(
             3,
             (0..8)
                 .map(|k| {
-                    Point3D::new(
+                    Point::new(
                         -0.5 + 0.85 * k as f64,
                         if k % 2 == 0 { -4.0 } else { 9.0 },
                         0.0,
@@ -1401,8 +1393,8 @@ mod tests {
             .filter(|&t| t <= 9.5)
             .collect();
         assert!(expected.iter().any(|&t| t < 8.0) && expected.iter().any(|&t| t > 8.0));
-        let borrowed = TrimmedCurve3D::new(&ring, 6.5, 9.5).unwrap();
-        let owned = TrimmedCurve3D::new(ring.clone(), 6.5, 9.5).unwrap();
+        let borrowed = TrimmedCurve::new(&ring, 6.5, 9.5).unwrap();
+        let owned = TrimmedCurve::new(ring.clone(), 6.5, 9.5).unwrap();
         for hits in [
             assert_hits_match(&borrowed, &wavy),
             assert_hits_match(&owned, &wavy),
@@ -1423,7 +1415,7 @@ mod tests {
                 .min(all[2].second_parameter.unwrap()),
             4.2,
         );
-        let middle = TrimmedCurve3D::new(&wavy, first, last).unwrap();
+        let middle = TrimmedCurve::new(&wavy, first, last).unwrap();
         let hits = assert_hits_match(&ring, &middle);
         let inside = all
             .iter()
@@ -1434,22 +1426,22 @@ mod tests {
         assert_minima_match(&owned, &middle);
         let mut rng = Lcg(9);
         let (below, above) = skew(&mut rng, true);
-        let piece = TrimmedCurve3D::new(&below, 0.4, 2.3).unwrap();
-        assert_minima_match(&piece, &TrimmedCurve3D::new(above, 1.2, 2.9).unwrap());
+        let piece = TrimmedCurve::new(&below, 0.4, 2.3).unwrap();
+        assert_minima_match(&piece, &TrimmedCurve::new(above, 1.2, 2.9).unwrap());
     }
 
-    fn quadratic(p0: [f64; 3], p1: [f64; 3], p2: [f64; 3]) -> BSplineCurve3D {
-        let poles = [p0, p1, p2].map(|[x, y, z]| Point3D::new(x, y, z)).to_vec();
-        BSplineCurve3D::new(2, poles, vec![0.0, 1.0], vec![3, 3], false).unwrap()
+    fn quadratic(p0: [f64; 3], p1: [f64; 3], p2: [f64; 3]) -> BSplineCurve {
+        let poles = [p0, p1, p2].map(|[x, y, z]| Point::new(x, y, z)).to_vec();
+        BSplineCurve::new(2, poles, vec![0.0, 1.0], vec![3, 3], false).unwrap()
     }
 
-    fn segment(from: [f64; 3], to: [f64; 3]) -> BSplineCurve3D {
-        let poles = [from, to].map(|[x, y, z]| Point3D::new(x, y, z)).to_vec();
-        BSplineCurve3D::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap()
+    fn segment(from: [f64; 3], to: [f64; 3]) -> BSplineCurve {
+        let poles = [from, to].map(|[x, y, z]| Point::new(x, y, z)).to_vec();
+        BSplineCurve::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap()
     }
 
     /// Searches without falling back and checks the hits lie on both.
-    fn assert_search_hits(a: &BSplineCurve3D, b: &BSplineCurve3D) -> Vec<CurveCurveHit> {
+    fn assert_search_hits(a: &BSplineCurve, b: &BSplineCurve) -> Vec<CurveCurveHit> {
         let hits = search(a, b);
         for hit in &hits {
             assert!((a.bounds().0..=a.bounds().1).contains(&hit.first_parameter.unwrap()));
@@ -1496,13 +1488,13 @@ mod tests {
 
     /// Whether `region` holds the parameters `(s, t)` and the points of
     /// `a` at `s` and `b` at `t`.
-    fn holds<A: ParametricCurve3D, B: ParametricCurve3D>(
+    fn holds<A: ParametricCurve, B: ParametricCurve>(
         region: &CurveCurveRegion,
         (a, s): (&A, f64),
         (b, t): (&B, f64),
     ) -> bool {
         let within = |x: f64, (lo, hi): (f64, f64)| lo - 1e-9 <= x && x <= hi + 1e-9;
-        let in_box = |p: Point3D| {
+        let in_box = |p: Point| {
             let (lo, hi) = (region.min_corner, region.max_corner);
             within(p.x, (lo.x, hi.x)) && within(p.y, (lo.y, hi.y)) && within(p.z, (lo.z, hi.z))
         };
@@ -1515,7 +1507,7 @@ mod tests {
     /// Asserts every hit lies on both curves within their ranges, and that
     /// the sampled search's hits are among them.
     #[track_caller]
-    fn assert_sampled_hits_kept<A: ParametricCurve3D, B: ParametricCurve3D>(
+    fn assert_sampled_hits_kept<A: ParametricCurve, B: ParametricCurve>(
         hits: &CurveCurveHits,
         a: &A,
         b: &B,
@@ -1546,7 +1538,7 @@ mod tests {
     fn test_tangent_contact_is_unseparated_around_it() {
         let line = segment([0.0, 0.0, 0.0], [4.0, 0.0, 0.0]);
         let touching = quadratic([0.0, 1.0, 0.0], [2.0, -1.0, 0.0], [4.0, 1.0, 0.0]);
-        let contact = Point3D::new(2.0, 0.0, 0.0);
+        let contact = Point::new(2.0, 0.0, 0.0);
         assert_eq!(touching.eval_point(0.5), contact);
         for (a, b, at) in [
             (&touching, &line, (0.5, 0.5)),
@@ -1578,11 +1570,11 @@ mod tests {
         let poles = (0..5)
             .map(|k| {
                 let [x, y, z] = along(k as f64);
-                Point3D::new(x, y, z)
+                Point::new(x, y, z)
             })
             .collect();
         let knots = (0..=4).map(f64::from).collect();
-        let polyline = BSplineCurve3D::new(1, poles, knots, vec![2, 1, 1, 1, 2], false).unwrap();
+        let polyline = BSplineCurve::new(1, poles, knots, vec![2, 1, 1, 1, 2], false).unwrap();
         let part = segment(along(1.5), along(3.5));
         for swapped in [false, true] {
             let hits = if swapped {
@@ -1616,7 +1608,7 @@ mod tests {
     fn test_curved_overlap_is_incomplete_along_it() {
         let mut rng = Lcg(1);
         let (curve, _) = crossing(&mut rng, false, 1.0);
-        let part = TrimmedCurve3D::new(&curve, 0.5, 2.0).unwrap();
+        let part = TrimmedCurve::new(&curve, 0.5, 2.0).unwrap();
         let hits = search_curve_curve(&curve, &part, TOL);
         let (_, regions) = incomplete(hits.completeness());
         for k in 0..=16 {
@@ -1712,8 +1704,8 @@ mod tests {
 
     #[test]
     fn test_elementary_pairs_are_sampled_and_mixed_pairs_are_not() {
-        let circle = crate::Circle3D::new(Point3D::ORIGIN, crate::Vector3D::Z, 2.0).unwrap();
-        let line = crate::Line3D::new(Point3D::ORIGIN, crate::Vector3D::X).unwrap();
+        let circle = crate::Circle::new(Point::ORIGIN, crate::Vector::Z, 2.0).unwrap();
+        let line = crate::Line::new(Point::ORIGIN, crate::Vector::X).unwrap();
         let hits = search_curve_curve(&line, &circle, TOL);
         assert_eq!(hits.completeness(), &Completeness::Sampled);
         assert_eq!(hits.len(), 2);
@@ -1728,13 +1720,13 @@ mod tests {
         let extrema = curve_curve_extrema(&circle, &chord, TOL);
         assert_eq!(extrema.completeness(), &Completeness::Sampled);
         assert!(!extrema.is_empty());
-        let line = crate::Line3D::new(Point3D::new(0.0, 0.5, 1.0), crate::Vector3D::X).unwrap();
+        let line = crate::Line::new(Point::new(0.0, 0.5, 1.0), crate::Vector::X).unwrap();
         let extrema = curve_curve_extrema(&line, &chord, TOL);
         assert_eq!(extrema.completeness(), &Completeness::Sampled);
         let bend = quadratic([-1.0, 0.0, 0.0], [0.0, 2.0, 1.0], [1.0, 0.0, 0.0]);
         let extrema = curve_curve_extrema(&line, &bend, TOL);
         assert_eq!(extrema.completeness(), &Completeness::Sampled);
-        let piece = crate::curves::TrimmedCurve3D::new(line, -2.0, 2.0).unwrap();
+        let piece = crate::curves::TrimmedCurve::new(line, -2.0, 2.0).unwrap();
         let extrema = curve_curve_extrema(&piece, &bend, TOL);
         assert_eq!(extrema.completeness(), &Completeness::Complete);
     }
@@ -1747,18 +1739,14 @@ mod tests {
         let cases = [
             // End to end, end to start, end on the interior.
             (bend.eval_point(1.0), [3.0, 1.0, 0.0], end),
+            (Point::new(-1.0, 1.0, 0.5), [0.0, 0.0, 0.0], Point::ORIGIN),
             (
-                Point3D::new(-1.0, 1.0, 0.5),
-                [0.0, 0.0, 0.0],
-                Point3D::ORIGIN,
-            ),
-            (
-                Point3D::new(middle.x, middle.y - 1.0, middle.z),
+                Point::new(middle.x, middle.y - 1.0, middle.z),
                 [middle.x, middle.y + 1.0, middle.z],
                 middle,
             ),
         ]
-        .map(|(from, to, at): (Point3D, [f64; 3], Point3D)| {
+        .map(|(from, to, at): (Point, [f64; 3], Point)| {
             (segment([from.x, from.y, from.z], to), at)
         });
         for (line, at) in &cases {
@@ -1772,8 +1760,8 @@ mod tests {
         }
         // Through a knot of each curve.
         let knotted = |p: [[f64; 3]; 3]| {
-            let poles = p.map(|[x, y, z]| Point3D::new(x, y, z)).to_vec();
-            BSplineCurve3D::new(1, poles, vec![0.0, 1.0, 2.0], vec![2, 1, 2], false).unwrap()
+            let poles = p.map(|[x, y, z]| Point::new(x, y, z)).to_vec();
+            BSplineCurve::new(1, poles, vec![0.0, 1.0, 2.0], vec![2, 1, 2], false).unwrap()
         };
         let a = knotted([[0.0, 0.0, 0.0], [1.0, 1.0, 0.0], [2.0, 1.5, 0.0]]);
         let b = knotted([[1.0, 0.0, 0.0], [1.0, 1.0, 0.0], [0.5, 3.0, 0.0]]);
@@ -1789,7 +1777,7 @@ mod tests {
     fn test_enums_and_borrows_take_the_search() {
         let mut rng = Lcg(21);
         let (a, b) = crossing(&mut rng, true, 2.0);
-        let (ea, eb) = (Curve3D::BSpline(a.clone()), Curve3D::BSpline(b.clone()));
+        let (ea, eb) = (Curve::BSpline(a.clone()), Curve::BSpline(b.clone()));
         let hits = assert_hits_match(&ea, &eb);
         assert_eq!(hits, search_curve_curve(&a, &b, TOL).into_hits());
         assert_eq!(hits, search_curve_curve(&&a, &b, TOL).into_hits());
@@ -1805,11 +1793,11 @@ mod tests {
         let w = std::f64::consts::FRAC_1_SQRT_2;
         let arc = |r: f64| {
             let poles = vec![
-                Point3D::new(r, 0.0, 0.0),
-                Point3D::new(r, r, 0.0),
-                Point3D::new(0.0, r, 0.0),
+                Point::new(r, 0.0, 0.0),
+                Point::new(r, r, 0.0),
+                Point::new(0.0, r, 0.0),
             ];
-            BSplineCurve3D::new_rational(
+            BSplineCurve::new_rational(
                 2,
                 poles,
                 vec![1.0, w, 1.0],

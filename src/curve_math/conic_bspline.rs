@@ -61,7 +61,7 @@ impl PlaneNet {
 pub(crate) fn circle_arc(first: f64, last: f64) -> PlaneNet {
     let sweep = last - first;
     // The slack keeps a range a rounding error above whole quarter turns
-    // (a full turn passes `TrimmedCurve3D::new` up to `1e-12` over) from
+    // (a full turn passes `TrimmedCurve::new` up to `1e-12` over) from
     // getting an extra piece.
     let pieces = (sweep / FRAC_PI_2 - 1e-9).ceil().max(1.0) as usize;
     let mut knots = Vec::with_capacity(pieces + 1);

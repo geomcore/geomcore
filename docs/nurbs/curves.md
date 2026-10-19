@@ -1,6 +1,6 @@
 # NURBS curves
 
-Create, evaluate and sample `BSplineCurve3D`. Editing (knots, degree,
+Create, evaluate and sample `BSplineCurve`. Editing (knots, degree,
 splitting) and fitting live in [Editing & fitting](editing-fitting.md).
 
 ## Create
@@ -13,30 +13,30 @@ start from.
 === "Python"
 
     ```python
-    from geomcore import Point3D
-    from geomcore.curves import BSplineCurve3D
+    from geomcore import Point
+    from geomcore.curves import BSplineCurve
 
-    poles = [Point3D(1, 0, 0), Point3D(1, 1, 0), Point3D(0, 1, 0)]
-    curve = BSplineCurve3D(2, poles, [0.0, 1.0], [3, 3], False)
+    poles = [Point(1, 0, 0), Point(1, 1, 0), Point(0, 1, 0)]
+    curve = BSplineCurve(2, poles, [0.0, 1.0], [3, 3], False)
     assert curve.degree() == 2
     ```
 
 === "Rust"
 
     ```rust
-    use geomcore::{BSplineCurve3D, Point3D};
+    use geomcore::{BSplineCurve, Point};
 
     let poles = vec![
-        Point3D::new(1.0, 0.0, 0.0),
-        Point3D::new(1.0, 1.0, 0.0),
-        Point3D::new(0.0, 1.0, 0.0),
+        Point::new(1.0, 0.0, 0.0),
+        Point::new(1.0, 1.0, 0.0),
+        Point::new(0.0, 1.0, 0.0),
     ];
-    let curve = BSplineCurve3D::new(2, poles, vec![0.0, 1.0], vec![3, 3], false).unwrap();
+    let curve = BSplineCurve::new(2, poles, vec![0.0, 1.0], vec![3, 3], false).unwrap();
     assert_eq!(curve.degree(), 2);
     ```
 
 Rational (NURBS) curves take one weight per pole via
-`BSplineCurve3D.new_rational` / `new_rational`; periodic ones pass
+`BSplineCurve.new_rational` / `new_rational`; periodic ones pass
 `periodic=True` with a cyclic knot vector.
 
 ## Evaluate
@@ -53,7 +53,7 @@ Rational (NURBS) curves take one weight per pole via
 
     ```rust
     let p = curve.eval_point(0.5);
-    assert_eq!(p, Point3D::new(0.75, 0.75, 0.0));
+    assert_eq!(p, Point::new(0.75, 0.75, 0.0));
     let pts = curve.eval_points(&[0.0, 0.25, 0.5, 0.75, 1.0]);
     ```
 
@@ -78,7 +78,7 @@ carrying a proven chord-deviation and angle-deviation bound — see
 === "Rust"
 
     ```rust
-    use geomcore::{DiscretizationCriteria, Discretize3D};
+    use geomcore::{DiscretizationCriteria, Discretize};
 
     let d = curve.discretize(DiscretizationCriteria::new(0.01).unwrap());
     assert_eq!(d.points[0], curve.eval_point(0.0));
@@ -97,7 +97,7 @@ sampled (curve → 256-segment polyline) until native protocol types land
 
     view = gv.Viewer("Quadratic B-spline")
     view.add(curve, label="C")
-    view.polyline([Point3D(1, 0, 0), Point3D(1, 1, 0), Point3D(0, 1, 0)],
+    view.polyline([Point(1, 0, 0), Point(1, 1, 0), Point(0, 1, 0)],
                   label="control polygon", dashed=True)
     ```
 

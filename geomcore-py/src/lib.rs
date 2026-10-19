@@ -84,8 +84,8 @@ mod surfaces;
 mod values;
 
 use curves::{
-    PyBSplineCurve3D, PyCircle2D, PyCircle3D, PyEllipse3D, PyHyperbola3D, PyLine2D, PyLine3D,
-    PyParabola3D, PyTrimmedCurve2D, PyTrimmedCurve3D,
+    PyBSplineCurve, PyCircle, PyCircle2D, PyEllipse, PyHyperbola, PyLine, PyLine2D, PyParabola,
+    PyTrimmedCurve, PyTrimmedCurve2D,
 };
 use numeric::{py_curve_curve_extrema, py_parametrize_numeric};
 use results::{
@@ -98,8 +98,8 @@ use results::{
 };
 use surfaces::{PyBSplineSurface, PyCone, PyCylinder, PyPlane, PySphere, PyTorus};
 use values::{
-    PyAxis2D, PyAxis3D, PyBoundingBox3D, PyDiscretization2D, PyDiscretization3D, PyFrame2D,
-    PyFrame3D, PyPoint2D, PyPoint3D, PySide, PyTolerance, PyTransform, PyVector2D, PyVector3D,
+    PyAxis, PyAxis2D, PyBoundingBox, PyDiscretization, PyDiscretization2D, PyFrame, PyFrame2D,
+    PyPoint, PyPoint2D, PySide, PyTolerance, PyTransform, PyVector, PyVector2D,
 };
 
 // ---------------------------------------------------------------------------
@@ -111,19 +111,19 @@ fn geomcore_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     let py = m.py();
 
     errors::register(m)?;
-    m.add_class::<PyPoint3D>()?;
+    m.add_class::<PyPoint>()?;
     m.add_class::<PyPoint2D>()?;
-    m.add_class::<PyVector3D>()?;
+    m.add_class::<PyVector>()?;
     m.add_class::<PyVector2D>()?;
     m.add_class::<PyAxis2D>()?;
-    m.add_class::<PyAxis3D>()?;
+    m.add_class::<PyAxis>()?;
     m.add_class::<PyFrame2D>()?;
-    m.add_class::<PyFrame3D>()?;
+    m.add_class::<PyFrame>()?;
     m.add_class::<PyTolerance>()?;
     m.add_class::<PyTransform>()?;
-    m.add_class::<PyBoundingBox3D>()?;
+    m.add_class::<PyBoundingBox>()?;
     m.add_class::<PyDiscretization2D>()?;
-    m.add_class::<PyDiscretization3D>()?;
+    m.add_class::<PyDiscretization>()?;
     m.add_class::<PySide>()?;
 
     m.add_class::<PyIntersectionMethod>()?;
@@ -150,15 +150,15 @@ fn geomcore_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PySurfaceCurvatures>()?;
 
     let curves = PyModule::new(py, "curves")?;
-    curves.add_class::<PyLine3D>()?;
-    curves.add_class::<PyCircle3D>()?;
-    curves.add_class::<PyEllipse3D>()?;
-    curves.add_class::<PyParabola3D>()?;
-    curves.add_class::<PyHyperbola3D>()?;
-    curves.add_class::<PyBSplineCurve3D>()?;
+    curves.add_class::<PyLine>()?;
+    curves.add_class::<PyCircle>()?;
+    curves.add_class::<PyEllipse>()?;
+    curves.add_class::<PyParabola>()?;
+    curves.add_class::<PyHyperbola>()?;
+    curves.add_class::<PyBSplineCurve>()?;
     curves.add_class::<PyLine2D>()?;
     curves.add_class::<PyCircle2D>()?;
-    curves.add_class::<PyTrimmedCurve3D>()?;
+    curves.add_class::<PyTrimmedCurve>()?;
     curves.add_class::<PyTrimmedCurve2D>()?;
     m.add_submodule(&curves)?;
 
@@ -172,7 +172,7 @@ fn geomcore_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_submodule(&surfaces)?;
 
     // Register the submodules in sys.modules so that
-    // `from geomcore.curves import Circle3D` works.
+    // `from geomcore.curves import Circle` works.
     let sys_modules = py.import("sys")?.getattr("modules")?;
     sys_modules.set_item("geomcore.curves", &curves)?;
     sys_modules.set_item("geomcore.surfaces", &surfaces)?;

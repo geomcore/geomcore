@@ -5,13 +5,13 @@ use std::borrow::Cow;
 use std::ops::Range;
 
 use super::{Lanes, Pole, Source, Weighted, refine, spans};
-use crate::Point3D;
+use crate::Point;
 use crate::curve_math::bspline::KnotVector;
 use crate::curves::BSplineSplitError;
 
 /// Checks the range `[first, last]` of a piece of `direction`. A periodic
 /// direction accepts any start, so a piece may cross the seam, but no more
-/// than one period, with the same slack as [`crate::TrimmedCurve3D::new`].
+/// than one period, with the same slack as [`crate::TrimmedCurve::new`].
 pub(crate) fn check_piece(
     direction: &KnotVector,
     first: f64,
@@ -65,7 +65,7 @@ pub(crate) fn is_clamped_to(direction: &KnotVector, first: f64, last: f64) -> bo
 /// as the poles cut, with their weights if rational.
 pub(crate) struct Piece {
     pub(crate) knots: KnotVector,
-    pub(crate) points: Vec<Point3D>,
+    pub(crate) points: Vec<Point>,
     pub(crate) weights: Option<Vec<f64>>,
 }
 
@@ -81,7 +81,7 @@ pub(crate) struct Piece {
 /// insertion touched bit for bit.
 pub(crate) fn cut(
     direction: &KnotVector,
-    points: &[Point3D],
+    points: &[Point],
     weights: Option<&[f64]>,
     lanes: Lanes,
     cuts: &[f64],
@@ -280,7 +280,7 @@ impl Stretch<[f64; 4]> {
     /// Piece `j` of a rational direction: the poles no insertion touched
     /// copied from the direction's `points` and `weights`, the others
     /// projected from homogeneous form.
-    fn rational_piece(&self, j: usize, points: &[Point3D], weights: &[f64]) -> Piece {
+    fn rational_piece(&self, j: usize, points: &[Point], weights: &[f64]) -> Piece {
         let slots = self.slots(j);
         let (leading, kept) = self.kept(j);
         let kept: Vec<usize> = kept.collect();
@@ -301,7 +301,7 @@ impl Stretch<[f64; 4]> {
                             let [x, y, z, w] =
                                 self.poles[(row * self.count + slot) * self.width + c];
                             let inverse = 1.0 / w;
-                            new_points.push(Point3D::new(x * inverse, y * inverse, z * inverse));
+                            new_points.push(Point::new(x * inverse, y * inverse, z * inverse));
                             new_weights.push(w);
                         }
                     }

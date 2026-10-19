@@ -11,10 +11,10 @@ use crate::math::{polish_root, real_roots};
 use crate::projection::{self, CurveProjection};
 use crate::surfaces::Surface;
 use crate::tol;
-use crate::{Cone, Cylinder, Frame3D, Plane, Point3D, Sphere, Tolerance, Transform, Vector3D};
+use crate::{Cone, Cylinder, Frame, Plane, Point, Sphere, Tolerance, Transform, Vector};
 use std::fmt;
 
-/// Error returned when a [`Hyperbola3D`] cannot be constructed from the
+/// Error returned when a [`Hyperbola`] cannot be constructed from the
 /// given inputs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HyperbolaConstructionError {
@@ -50,7 +50,7 @@ impl fmt::Display for HyperbolaConstructionError {
 
 impl std::error::Error for HyperbolaConstructionError {}
 
-/// A hyperbola in 3D: a plane [`Frame3D`] (origin at the center, plus local
+/// A hyperbola in 3D: a plane [`Frame`] (origin at the center, plus local
 /// x/y directions defining the plane, the major axis, and the transverse
 /// direction), a semi-major radius, and a semi-minor radius, evaluated as
 /// `center + major*cosh(u)*x_dir + minor*sinh(u)*y_dir`.
@@ -58,23 +58,23 @@ impl std::error::Error for HyperbolaConstructionError {}
 /// # Examples
 ///
 /// ```
-/// use geomcore::{Hyperbola3D, Point3D, Vector3D};
-/// let hyperbola = Hyperbola3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, 2.0, 1.0).unwrap();
-/// assert_eq!(hyperbola.eval_point(0.0), Point3D::new(2.0, 0.0, 0.0));
+/// use geomcore::{Hyperbola, Point, Vector};
+/// let hyperbola = Hyperbola::new(Point::ORIGIN, Vector::Z, Vector::X, 2.0, 1.0).unwrap();
+/// assert_eq!(hyperbola.eval_point(0.0), Point::new(2.0, 0.0, 0.0));
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Hyperbola3D {
-    frame: Frame3D,
+pub struct Hyperbola {
+    frame: Frame,
     major_radius: f64,
     minor_radius: f64,
 }
 
-impl Hyperbola3D {
+impl Hyperbola {
     /// Creates a hyperbola from a center, a normal, an x-axis hint, a
     /// semi-major radius, and a semi-minor radius.
     ///
     /// The plane frame is derived from `normal` and `x_direction` via
-    /// [`Frame3D::new`].
+    /// [`Frame::new`].
     ///
     /// # Errors
     ///
@@ -89,29 +89,29 @@ impl Hyperbola3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Hyperbola3D, Point3D, Vector3D};
-    /// let hyperbola = Hyperbola3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, 2.0, 1.0).unwrap();
+    /// use geomcore::{Hyperbola, Point, Vector};
+    /// let hyperbola = Hyperbola::new(Point::ORIGIN, Vector::Z, Vector::X, 2.0, 1.0).unwrap();
     /// assert_eq!(hyperbola.major_radius(), 2.0);
     /// assert_eq!(hyperbola.minor_radius(), 1.0);
     /// ```
     pub fn new(
-        center: Point3D,
-        normal: Vector3D,
-        x_direction: Vector3D,
+        center: Point,
+        normal: Vector,
+        x_direction: Vector,
         major_radius: f64,
         minor_radius: f64,
-    ) -> Result<Hyperbola3D, HyperbolaConstructionError> {
-        let frame = Frame3D::new(center, normal, x_direction).map_err(frame_error(
+    ) -> Result<Hyperbola, HyperbolaConstructionError> {
+        let frame = Frame::new(center, normal, x_direction).map_err(frame_error(
             HyperbolaConstructionError::NonFinite,
             HyperbolaConstructionError::NullNormal,
         ))?;
-        Hyperbola3D::from_frame(frame, major_radius, minor_radius)
+        Hyperbola::from_frame(frame, major_radius, minor_radius)
     }
 
     /// Creates a hyperbola from a plane frame, a semi-major radius, and a
     /// semi-minor radius directly.
     ///
-    /// Unlike [`crate::Ellipse3D`], `minor_radius` may exceed `major_radius`
+    /// Unlike [`crate::Ellipse`], `minor_radius` may exceed `major_radius`
     /// (only positivity is checked).
     ///
     /// # Errors
@@ -124,22 +124,22 @@ impl Hyperbola3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Hyperbola3D, Frame3D};
-    /// let hyperbola = Hyperbola3D::from_frame(Frame3D::WORLD, 2.0, 1.0).unwrap();
-    /// assert_eq!(hyperbola.frame(), Frame3D::WORLD);
+    /// use geomcore::{Hyperbola, Frame};
+    /// let hyperbola = Hyperbola::from_frame(Frame::WORLD, 2.0, 1.0).unwrap();
+    /// assert_eq!(hyperbola.frame(), Frame::WORLD);
     /// ```
     pub fn from_frame(
-        frame: Frame3D,
+        frame: Frame,
         major_radius: f64,
         minor_radius: f64,
-    ) -> Result<Hyperbola3D, HyperbolaConstructionError> {
+    ) -> Result<Hyperbola, HyperbolaConstructionError> {
         if !(major_radius.is_finite() && minor_radius.is_finite()) {
             return Err(HyperbolaConstructionError::NonFinite);
         }
         if major_radius <= 0.0 || minor_radius <= 0.0 {
             return Err(HyperbolaConstructionError::NonPositiveRadius);
         }
-        Ok(Hyperbola3D {
+        Ok(Hyperbola {
             frame,
             major_radius,
             minor_radius,
@@ -154,7 +154,7 @@ impl Hyperbola3D {
     /// radius `minor_radius` is the distance from `s2` to the line
     /// `(center, x_axis)`. The plane normal is
     /// `normalize(x_axis × (s2 - center))`, and the resulting frame is
-    /// `Frame3D::new(center, normal, x_axis)`.
+    /// `Frame::new(center, normal, x_axis)`.
     ///
     /// # Errors
     ///
@@ -166,21 +166,21 @@ impl Hyperbola3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Hyperbola3D, Point3D};
-    /// let hyperbola = Hyperbola3D::from_center_and_points(
-    ///     Point3D::ORIGIN,
-    ///     Point3D::new(2.0, 0.0, 0.0),
-    ///     Point3D::new(0.0, 1.0, 0.0),
+    /// use geomcore::{Hyperbola, Point};
+    /// let hyperbola = Hyperbola::from_center_and_points(
+    ///     Point::ORIGIN,
+    ///     Point::new(2.0, 0.0, 0.0),
+    ///     Point::new(0.0, 1.0, 0.0),
     /// )
     /// .unwrap();
     /// assert_eq!(hyperbola.major_radius(), 2.0);
     /// assert_eq!(hyperbola.minor_radius(), 1.0);
     /// ```
     pub fn from_center_and_points(
-        center: Point3D,
-        s1: Point3D,
-        s2: Point3D,
-    ) -> Result<Hyperbola3D, HyperbolaConstructionError> {
+        center: Point,
+        s1: Point,
+        s2: Point,
+    ) -> Result<Hyperbola, HyperbolaConstructionError> {
         if center.distance(s1) < tol::CONFUSION
             || center.distance(s2) < tol::CONFUSION
             || s1.distance(s2) < tol::CONFUSION
@@ -206,11 +206,11 @@ impl Hyperbola3D {
             return Err(HyperbolaConstructionError::CollinearPoints);
         }
 
-        let frame = Frame3D::new(center, normal, x_axis).map_err(frame_error(
+        let frame = Frame::new(center, normal, x_axis).map_err(frame_error(
             HyperbolaConstructionError::NonFinite,
             HyperbolaConstructionError::CollinearPoints,
         ))?;
-        Hyperbola3D::from_frame(frame, d1, d2)
+        Hyperbola::from_frame(frame, d1, d2)
     }
 
     /// Returns the center of the hyperbola.
@@ -218,11 +218,11 @@ impl Hyperbola3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Hyperbola3D, Point3D, Vector3D};
-    /// let hyperbola = Hyperbola3D::new(Point3D::new(1.0, 2.0, 3.0), Vector3D::Z, Vector3D::X, 2.0, 1.0).unwrap();
-    /// assert_eq!(hyperbola.center(), Point3D::new(1.0, 2.0, 3.0));
+    /// use geomcore::{Hyperbola, Point, Vector};
+    /// let hyperbola = Hyperbola::new(Point::new(1.0, 2.0, 3.0), Vector::Z, Vector::X, 2.0, 1.0).unwrap();
+    /// assert_eq!(hyperbola.center(), Point::new(1.0, 2.0, 3.0));
     /// ```
-    pub fn center(&self) -> Point3D {
+    pub fn center(&self) -> Point {
         self.frame.origin()
     }
 
@@ -231,11 +231,11 @@ impl Hyperbola3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Hyperbola3D, Frame3D};
-    /// let hyperbola = Hyperbola3D::from_frame(Frame3D::WORLD, 2.0, 1.0).unwrap();
-    /// assert_eq!(hyperbola.frame(), Frame3D::WORLD);
+    /// use geomcore::{Hyperbola, Frame};
+    /// let hyperbola = Hyperbola::from_frame(Frame::WORLD, 2.0, 1.0).unwrap();
+    /// assert_eq!(hyperbola.frame(), Frame::WORLD);
     /// ```
-    pub fn frame(&self) -> Frame3D {
+    pub fn frame(&self) -> Frame {
         self.frame
     }
 
@@ -244,8 +244,8 @@ impl Hyperbola3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Hyperbola3D, Frame3D};
-    /// let hyperbola = Hyperbola3D::from_frame(Frame3D::WORLD, 2.0, 1.0).unwrap();
+    /// use geomcore::{Hyperbola, Frame};
+    /// let hyperbola = Hyperbola::from_frame(Frame::WORLD, 2.0, 1.0).unwrap();
     /// assert_eq!(hyperbola.major_radius(), 2.0);
     /// ```
     pub fn major_radius(&self) -> f64 {
@@ -257,8 +257,8 @@ impl Hyperbola3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Hyperbola3D, Frame3D};
-    /// let hyperbola = Hyperbola3D::from_frame(Frame3D::WORLD, 2.0, 1.0).unwrap();
+    /// use geomcore::{Hyperbola, Frame};
+    /// let hyperbola = Hyperbola::from_frame(Frame::WORLD, 2.0, 1.0).unwrap();
     /// assert_eq!(hyperbola.minor_radius(), 1.0);
     /// ```
     pub fn minor_radius(&self) -> f64 {
@@ -280,21 +280,21 @@ impl Hyperbola3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Hyperbola3D, Point3D, Transform, Vector3D};
-    /// let hyperbola = Hyperbola3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, 2.0, 1.0).unwrap();
-    /// let moved = hyperbola.transformed(Transform::translation(Vector3D::new(0.0, 3.0, 0.0))).unwrap();
-    /// assert_eq!(moved.center(), Point3D::new(0.0, 3.0, 0.0));
+    /// use geomcore::{Hyperbola, Point, Transform, Vector};
+    /// let hyperbola = Hyperbola::new(Point::ORIGIN, Vector::Z, Vector::X, 2.0, 1.0).unwrap();
+    /// let moved = hyperbola.transformed(Transform::translation(Vector::new(0.0, 3.0, 0.0))).unwrap();
+    /// assert_eq!(moved.center(), Point::new(0.0, 3.0, 0.0));
     /// assert_eq!(moved.major_radius(), 2.0);
     /// ```
     pub fn transformed(
         &self,
         transform: Transform,
-    ) -> Result<Hyperbola3D, HyperbolaConstructionError> {
+    ) -> Result<Hyperbola, HyperbolaConstructionError> {
         let (frame, scale) = transform.apply_frame(self.frame()).map_err(frame_error(
             HyperbolaConstructionError::NonFinite,
             HyperbolaConstructionError::NullNormal,
         ))?;
-        Hyperbola3D::from_frame(
+        Hyperbola::from_frame(
             frame,
             self.major_radius() * scale,
             self.minor_radius() * scale,
@@ -307,11 +307,11 @@ impl Hyperbola3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Hyperbola3D, Point3D, Vector3D};
-    /// let hyperbola = Hyperbola3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, 2.0, 1.0).unwrap();
-    /// assert_eq!(hyperbola.eval_point(0.0), Point3D::new(2.0, 0.0, 0.0));
+    /// use geomcore::{Hyperbola, Point, Vector};
+    /// let hyperbola = Hyperbola::new(Point::ORIGIN, Vector::Z, Vector::X, 2.0, 1.0).unwrap();
+    /// assert_eq!(hyperbola.eval_point(0.0), Point::new(2.0, 0.0, 0.0));
     /// ```
-    pub fn eval_point(&self, u: f64) -> Point3D {
+    pub fn eval_point(&self, u: f64) -> Point {
         analytic::hyperbola_d0(&self.frame, self.major_radius, self.minor_radius, u)
     }
 
@@ -320,12 +320,12 @@ impl Hyperbola3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Hyperbola3D, Point3D, Vector3D};
-    /// let hyperbola = Hyperbola3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, 2.0, 1.0).unwrap();
+    /// use geomcore::{Hyperbola, Point, Vector};
+    /// let hyperbola = Hyperbola::new(Point::ORIGIN, Vector::Z, Vector::X, 2.0, 1.0).unwrap();
     /// let points = hyperbola.eval_points(&[0.0, 1.0]);
-    /// assert_eq!(points[0], Point3D::new(2.0, 0.0, 0.0));
+    /// assert_eq!(points[0], Point::new(2.0, 0.0, 0.0));
     /// ```
-    pub fn eval_points(&self, us: &[f64]) -> Vec<Point3D> {
+    pub fn eval_points(&self, us: &[f64]) -> Vec<Point> {
         us.iter().map(|&u| self.eval_point(u)).collect()
     }
 
@@ -338,17 +338,17 @@ impl Hyperbola3D {
     ///
     /// # Panics
     ///
-    /// Panics if `order == 0`; use [`Hyperbola3D::eval_point`] to evaluate
+    /// Panics if `order == 0`; use [`Hyperbola::eval_point`] to evaluate
     /// the position itself.
     ///
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Hyperbola3D, Point3D, Vector3D};
-    /// let hyperbola = Hyperbola3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, 2.0, 1.0).unwrap();
-    /// assert_eq!(hyperbola.eval_derivative(0.0, 1), Vector3D::new(0.0, 1.0, 0.0));
+    /// use geomcore::{Hyperbola, Point, Vector};
+    /// let hyperbola = Hyperbola::new(Point::ORIGIN, Vector::Z, Vector::X, 2.0, 1.0).unwrap();
+    /// assert_eq!(hyperbola.eval_derivative(0.0, 1), Vector::new(0.0, 1.0, 0.0));
     /// ```
-    pub fn eval_derivative(&self, u: f64, order: u32) -> Vector3D {
+    pub fn eval_derivative(&self, u: f64, order: u32) -> Vector {
         match order {
             0 => panic!("eval_derivative: order must be >= 1 (use eval_point for order 0)"),
             _ => {
@@ -364,33 +364,33 @@ impl Hyperbola3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Hyperbola3D, Point3D, Vector3D};
-    /// let hyperbola = Hyperbola3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, 2.0, 1.0).unwrap();
-    /// assert!((hyperbola.parameter_of(Point3D::new(2.0, 0.0, 0.0)) - 0.0).abs() < 1e-9);
+    /// use geomcore::{Hyperbola, Point, Vector};
+    /// let hyperbola = Hyperbola::new(Point::ORIGIN, Vector::Z, Vector::X, 2.0, 1.0).unwrap();
+    /// assert!((hyperbola.parameter_of(Point::new(2.0, 0.0, 0.0)) - 0.0).abs() < 1e-9);
     /// ```
-    pub fn parameter_of(&self, point: Point3D) -> f64 {
+    pub fn parameter_of(&self, point: Point) -> f64 {
         analytic::hyperbola_parameter(&self.frame, self.minor_radius, point)
     }
 
     /// Returns whether `point` lies on the hyperbola: within `tol.confusion`
-    /// of it, exactly when [`Hyperbola3D::project_point`] reports distance `0.0`.
+    /// of it, exactly when [`Hyperbola::project_point`] reports distance `0.0`.
     /// Its implicit equation decides most points at once: off the plane,
     /// clearly far from the curve or clearly on it, with rigorous bounds
     /// for a quadratic equation. Of the points left, within a few
     /// tolerances of the curve, the inverse parameter of
-    /// [`Hyperbola3D::parameter_of`] (exact on the curve, cheap) accepts most; the
+    /// [`Hyperbola::parameter_of`] (exact on the curve, cheap) accepts most; the
     /// projection settles the rest.
     ///
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Hyperbola3D, Point3D, Tolerance, Vector3D};
-    /// let hyperbola = Hyperbola3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, 2.0, 1.0).unwrap();
+    /// use geomcore::{Hyperbola, Point, Tolerance, Vector};
+    /// let hyperbola = Hyperbola::new(Point::ORIGIN, Vector::Z, Vector::X, 2.0, 1.0).unwrap();
     /// let tol = Tolerance::DEFAULT;
-    /// assert!(hyperbola.contains(Point3D::new(2.0, 0.0, 0.0), tol));
-    /// assert!(!hyperbola.contains(Point3D::new(2.0, 0.0, 5.0), tol));
+    /// assert!(hyperbola.contains(Point::new(2.0, 0.0, 0.0), tol));
+    /// assert!(!hyperbola.contains(Point::new(2.0, 0.0, 5.0), tol));
     /// ```
-    pub fn contains(&self, point: Point3D, tol: Tolerance) -> bool {
+    pub fn contains(&self, point: Point, tol: Tolerance) -> bool {
         let (a, b) = (self.major_radius, self.minor_radius);
         // `(x/a)² - (y/b)² = 1`: on it `|∇f| ≥ 2/a`. Whenever the bounds
         // apply, `a ≥ 2 tol`, so the branch (`x ≥ a`) is the only part of
@@ -426,19 +426,19 @@ impl Hyperbola3D {
     /// root is then polished by Newton on the stationarity function in `t`,
     /// which the quartic's conditioning alone cannot guarantee. The
     /// first entry is the global closest point (see
-    /// [`Hyperbola3D::project_point`]).
+    /// [`Hyperbola::project_point`]).
     ///
     /// A query point with a non-finite coordinate has no extrema.
     ///
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Hyperbola3D, Point3D, Tolerance, Vector3D};
-    /// let hyperbola = Hyperbola3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, 2.0, 1.0).unwrap();
-    /// let extrema = hyperbola.extrema(Point3D::new(2.0, 0.0, 5.0), Tolerance::DEFAULT);
+    /// use geomcore::{Hyperbola, Point, Tolerance, Vector};
+    /// let hyperbola = Hyperbola::new(Point::ORIGIN, Vector::Z, Vector::X, 2.0, 1.0).unwrap();
+    /// let extrema = hyperbola.extrema(Point::new(2.0, 0.0, 5.0), Tolerance::DEFAULT);
     /// assert!(!extrema.is_empty());
     /// ```
-    pub fn extrema(&self, point: Point3D, tol: Tolerance) -> Vec<CurveProjection> {
+    pub fn extrema(&self, point: Point, tol: Tolerance) -> Vec<CurveProjection> {
         if ![point.x, point.y, point.z].iter().all(|c| c.is_finite()) {
             return Vec::new();
         }
@@ -490,8 +490,8 @@ impl Hyperbola3D {
     }
 
     /// Projects `point` onto the hyperbola: the nearest of
-    /// [`Hyperbola3D::extrema`]. Distances within `tol.confusion` snap to
-    /// `0.0`, matching [`Hyperbola3D::contains`].
+    /// [`Hyperbola::extrema`]. Distances within `tol.confusion` snap to
+    /// `0.0`, matching [`Hyperbola::contains`].
     ///
     /// A query point with a non-finite coordinate projects to a NaN
     /// parameter and distance.
@@ -499,13 +499,13 @@ impl Hyperbola3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Hyperbola3D, Point3D, Tolerance, Vector3D};
-    /// let hyperbola = Hyperbola3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, 2.0, 1.0).unwrap();
-    /// let proj = hyperbola.project_point(Point3D::new(3.0, 0.0, 0.0), Tolerance::DEFAULT);
+    /// use geomcore::{Hyperbola, Point, Tolerance, Vector};
+    /// let hyperbola = Hyperbola::new(Point::ORIGIN, Vector::Z, Vector::X, 2.0, 1.0).unwrap();
+    /// let proj = hyperbola.project_point(Point::new(3.0, 0.0, 0.0), Tolerance::DEFAULT);
     /// assert!((proj.parameter.abs() - 0.62236).abs() < 1e-4);
     /// assert!((proj.distance - 0.8f64.sqrt()).abs() < 1e-9);
     /// ```
-    pub fn project_point(&self, point: Point3D, tol: Tolerance) -> CurveProjection {
+    pub fn project_point(&self, point: Point, tol: Tolerance) -> CurveProjection {
         self.extrema(point, tol)
             .into_iter()
             .next()
@@ -514,9 +514,9 @@ impl Hyperbola3D {
 
     /// Projects each point in `points` onto the hyperbola.
     ///
-    /// Default-style batch wrapper over [`Hyperbola3D::project_point`]:
-    /// one native call per batch, mirroring [`Hyperbola3D::eval_points`].
-    pub fn project_points(&self, points: &[Point3D], tol: Tolerance) -> Vec<CurveProjection> {
+    /// Default-style batch wrapper over [`Hyperbola::project_point`]:
+    /// one native call per batch, mirroring [`Hyperbola::eval_points`].
+    pub fn project_points(&self, points: &[Point], tol: Tolerance) -> Vec<CurveProjection> {
         points.iter().map(|&p| self.project_point(p, tol)).collect()
     }
 
@@ -526,17 +526,17 @@ impl Hyperbola3D {
     /// No hyperbola/surface pair has a closed-form 2D image in this release,
     /// so this always returns [`ParametrizeError::NotAnalytic`]. The `surface`
     /// and `tol` arguments are accepted for signature parity with the analytic
-    /// [`crate::Line3D::parametrize_on`] and
-    /// [`crate::Circle3D::parametrize_on`].
+    /// [`crate::Line::parametrize_on`] and
+    /// [`crate::Circle::parametrize_on`].
     ///
     /// # Examples
     ///
     /// ```
     /// use geomcore::curves::ParametrizeError;
-    /// use geomcore::{Hyperbola3D, Plane, Point3D, Tolerance, Vector3D};
+    /// use geomcore::{Hyperbola, Plane, Point, Tolerance, Vector};
     ///
-    /// let plane = Plane::new(Point3D::ORIGIN, Vector3D::Z).unwrap();
-    /// let hyperbola = Hyperbola3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, 2.0, 1.0).unwrap();
+    /// let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
+    /// let hyperbola = Hyperbola::new(Point::ORIGIN, Vector::Z, Vector::X, 2.0, 1.0).unwrap();
     /// assert_eq!(hyperbola.parametrize_on(&plane, Tolerance::DEFAULT), Err(ParametrizeError::NotAnalytic));
     /// ```
     pub fn parametrize_on(
@@ -549,7 +549,7 @@ impl Hyperbola3D {
     }
 }
 
-impl IntersectExact<Plane> for Hyperbola3D {
+impl IntersectExact<Plane> for Hyperbola {
     type Output = ConicSurfaceIntersection;
 
     /// Intersects this hyperbola with a plane: quadratic in `u = e^t`.
@@ -558,9 +558,9 @@ impl IntersectExact<Plane> for Hyperbola3D {
     ///
     /// ```
     /// use geomcore::IntersectExact;
-    /// use geomcore::{ConicSurfaceIntersection, Hyperbola3D, Plane, Point3D, Tolerance, Vector3D};
-    /// let hyperbola = Hyperbola3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, 2.0, 1.0).unwrap();
-    /// let plane = Plane::new(Point3D::new(2.0, 0.0, 0.0), Vector3D::X).unwrap();
+    /// use geomcore::{ConicSurfaceIntersection, Hyperbola, Plane, Point, Tolerance, Vector};
+    /// let hyperbola = Hyperbola::new(Point::ORIGIN, Vector::Z, Vector::X, 2.0, 1.0).unwrap();
+    /// let plane = Plane::new(Point::new(2.0, 0.0, 0.0), Vector::X).unwrap();
     /// let tol = Tolerance::DEFAULT;
     /// match hyperbola.intersect_exact(&plane, tol) {
     ///     ConicSurfaceIntersection::Hits(hits) => assert_eq!(hits.len(), 1),
@@ -572,19 +572,19 @@ impl IntersectExact<Plane> for Hyperbola3D {
     }
 }
 
-impl IntersectExact<Sphere> for Hyperbola3D {
+impl IntersectExact<Sphere> for Hyperbola {
     type Output = ConicSurfaceIntersection;
 
     /// Intersects this hyperbola with a sphere; hits verified on the
-    /// sphere. See [`Hyperbola3D::intersect_exact`] for the calling shape.
+    /// sphere. See [`Hyperbola::intersect_exact`] for the calling shape.
     ///
     /// # Examples
     ///
     /// ```
     /// use geomcore::IntersectExact;
-    /// use geomcore::{ConicSurfaceIntersection, Hyperbola3D, Point3D, Sphere, Tolerance, Vector3D};
-    /// let hyperbola = Hyperbola3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, 2.0, 1.0).unwrap();
-    /// let sphere = Sphere::new(Point3D::ORIGIN, 2.0).unwrap();
+    /// use geomcore::{ConicSurfaceIntersection, Hyperbola, Point, Sphere, Tolerance, Vector};
+    /// let hyperbola = Hyperbola::new(Point::ORIGIN, Vector::Z, Vector::X, 2.0, 1.0).unwrap();
+    /// let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
     /// let tol = Tolerance::DEFAULT;
     /// match hyperbola.intersect_exact(&sphere, tol) {
     ///     ConicSurfaceIntersection::Hits(hits) => assert!(!hits.is_empty()),
@@ -596,20 +596,20 @@ impl IntersectExact<Sphere> for Hyperbola3D {
     }
 }
 
-impl IntersectExact<Cylinder> for Hyperbola3D {
+impl IntersectExact<Cylinder> for Hyperbola {
     type Output = ConicSurfaceIntersection;
 
     /// Intersects this hyperbola with a cylinder; hits verified on the
     /// cylinder. See
-    /// [`Hyperbola3D::intersect_exact`] for the calling shape.
+    /// [`Hyperbola::intersect_exact`] for the calling shape.
     ///
     /// # Examples
     ///
     /// ```
     /// use geomcore::IntersectExact;
-    /// use geomcore::{ConicSurfaceIntersection, Cylinder, Hyperbola3D, Point3D, Tolerance, Vector3D};
-    /// let hyperbola = Hyperbola3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, 2.0, 1.0).unwrap();
-    /// let cylinder = Cylinder::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
+    /// use geomcore::{ConicSurfaceIntersection, Cylinder, Hyperbola, Point, Tolerance, Vector};
+    /// let hyperbola = Hyperbola::new(Point::ORIGIN, Vector::Z, Vector::X, 2.0, 1.0).unwrap();
+    /// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
     /// let tol = Tolerance::DEFAULT;
     /// match hyperbola.intersect_exact(&cylinder, tol) {
     ///     ConicSurfaceIntersection::Hits(hits) => assert!(!hits.is_empty()),
@@ -621,20 +621,20 @@ impl IntersectExact<Cylinder> for Hyperbola3D {
     }
 }
 
-impl IntersectExact<Cone> for Hyperbola3D {
+impl IntersectExact<Cone> for Hyperbola {
     type Output = ConicSurfaceIntersection;
 
     /// Intersects this hyperbola with a cone; hits verified on
     /// either nappe.
-    /// See [`Hyperbola3D::intersect_exact`] for the calling shape.
+    /// See [`Hyperbola::intersect_exact`] for the calling shape.
     ///
     /// # Examples
     ///
     /// ```
     /// use geomcore::IntersectExact;
-    /// use geomcore::{Cone, ConicSurfaceIntersection, Frame3D, Hyperbola3D, Point3D, Tolerance, Vector3D};
-    /// let hyperbola = Hyperbola3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, 2.0, 1.0).unwrap();
-    /// let cone = Cone::from_frame(Frame3D::WORLD, 0.4, 2.0).unwrap();
+    /// use geomcore::{Cone, ConicSurfaceIntersection, Frame, Hyperbola, Point, Tolerance, Vector};
+    /// let hyperbola = Hyperbola::new(Point::ORIGIN, Vector::Z, Vector::X, 2.0, 1.0).unwrap();
+    /// let cone = Cone::from_frame(Frame::WORLD, 0.4, 2.0).unwrap();
     /// let tol = Tolerance::DEFAULT;
     /// match hyperbola.intersect_exact(&cone, tol) {
     ///     ConicSurfaceIntersection::Hits(hits) => assert!(!hits.is_empty()),
@@ -650,16 +650,16 @@ impl IntersectExact<Cone> for Hyperbola3D {
 mod tests {
     use crate::IntersectExact;
     use crate::{
-        Cone, ConicSurfaceIntersection, Frame3D, Hyperbola3D, HyperbolaConstructionError, Point3D,
-        Tolerance, Vector3D, search_curve_surface,
+        Cone, ConicSurfaceIntersection, Frame, Hyperbola, HyperbolaConstructionError, Point,
+        Tolerance, Vector, search_curve_surface,
     };
 
     // ---- construction ----
 
     #[test]
     fn test_hyperbola3d_new_ok() {
-        let h = Hyperbola3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, 2.0, 1.0).unwrap();
-        assert_eq!(h.center(), Point3D::ORIGIN);
+        let h = Hyperbola::new(Point::ORIGIN, Vector::Z, Vector::X, 2.0, 1.0).unwrap();
+        assert_eq!(h.center(), Point::ORIGIN);
         assert_eq!(h.major_radius(), 2.0);
         assert_eq!(h.minor_radius(), 1.0);
     }
@@ -667,7 +667,7 @@ mod tests {
     #[test]
     fn test_hyperbola3d_new_negative_major_radius_errors() {
         assert_eq!(
-            Hyperbola3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, -2.0, 1.0),
+            Hyperbola::new(Point::ORIGIN, Vector::Z, Vector::X, -2.0, 1.0),
             Err(HyperbolaConstructionError::NonPositiveRadius)
         );
     }
@@ -675,14 +675,14 @@ mod tests {
     #[test]
     fn test_hyperbola3d_new_negative_minor_radius_errors() {
         assert_eq!(
-            Hyperbola3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, 2.0, -1.0),
+            Hyperbola::new(Point::ORIGIN, Vector::Z, Vector::X, 2.0, -1.0),
             Err(HyperbolaConstructionError::NonPositiveRadius)
         );
     }
 
     #[test]
     fn test_hyperbola3d_new_minor_greater_than_major_allowed() {
-        let h = Hyperbola3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, 1.0, 2.0).unwrap();
+        let h = Hyperbola::new(Point::ORIGIN, Vector::Z, Vector::X, 1.0, 2.0).unwrap();
         assert_eq!(h.major_radius(), 1.0);
         assert_eq!(h.minor_radius(), 2.0);
     }
@@ -690,7 +690,7 @@ mod tests {
     #[test]
     fn test_hyperbola3d_new_null_normal_errors() {
         assert_eq!(
-            Hyperbola3D::new(Point3D::ORIGIN, Vector3D::ZERO, Vector3D::X, 2.0, 1.0),
+            Hyperbola::new(Point::ORIGIN, Vector::ZERO, Vector::X, 2.0, 1.0),
             Err(HyperbolaConstructionError::NullNormal)
         );
     }
@@ -698,15 +698,15 @@ mod tests {
     #[test]
     fn test_hyperbola3d_new_parallel_x_direction_errors() {
         assert_eq!(
-            Hyperbola3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::Z, 2.0, 1.0),
+            Hyperbola::new(Point::ORIGIN, Vector::Z, Vector::Z, 2.0, 1.0),
             Err(HyperbolaConstructionError::NullNormal)
         );
     }
 
     #[test]
     fn test_hyperbola3d_from_frame_ok() {
-        let h = Hyperbola3D::from_frame(Frame3D::WORLD, 2.0, 1.0).unwrap();
-        assert_eq!(h.frame(), Frame3D::WORLD);
+        let h = Hyperbola::from_frame(Frame::WORLD, 2.0, 1.0).unwrap();
+        assert_eq!(h.frame(), Frame::WORLD);
         assert_eq!(h.major_radius(), 2.0);
         assert_eq!(h.minor_radius(), 1.0);
     }
@@ -714,7 +714,7 @@ mod tests {
     #[test]
     fn test_hyperbola3d_from_frame_negative_major_radius_errors() {
         assert_eq!(
-            Hyperbola3D::from_frame(Frame3D::WORLD, -2.0, 1.0),
+            Hyperbola::from_frame(Frame::WORLD, -2.0, 1.0),
             Err(HyperbolaConstructionError::NonPositiveRadius)
         );
     }
@@ -722,17 +722,17 @@ mod tests {
     #[test]
     fn test_hyperbola3d_from_frame_negative_minor_radius_errors() {
         assert_eq!(
-            Hyperbola3D::from_frame(Frame3D::WORLD, 2.0, -1.0),
+            Hyperbola::from_frame(Frame::WORLD, 2.0, -1.0),
             Err(HyperbolaConstructionError::NonPositiveRadius)
         );
     }
 
     #[test]
     fn test_hyperbola3d_from_center_and_points_ok() {
-        let h = Hyperbola3D::from_center_and_points(
-            Point3D::ORIGIN,
-            Point3D::new(2.0, 0.0, 0.0),
-            Point3D::new(0.0, 1.0, 0.0),
+        let h = Hyperbola::from_center_and_points(
+            Point::ORIGIN,
+            Point::new(2.0, 0.0, 0.0),
+            Point::new(0.0, 1.0, 0.0),
         )
         .unwrap();
         assert_eq!(h.major_radius(), 2.0);
@@ -742,10 +742,10 @@ mod tests {
     #[test]
     fn test_hyperbola3d_from_center_and_points_confused_points_errors() {
         assert_eq!(
-            Hyperbola3D::from_center_and_points(
-                Point3D::ORIGIN,
-                Point3D::ORIGIN,
-                Point3D::new(0.0, 1.0, 0.0),
+            Hyperbola::from_center_and_points(
+                Point::ORIGIN,
+                Point::ORIGIN,
+                Point::new(0.0, 1.0, 0.0),
             ),
             Err(HyperbolaConstructionError::ConfusedPoints)
         );
@@ -754,10 +754,10 @@ mod tests {
     #[test]
     fn test_hyperbola3d_from_center_and_points_collinear_points_errors() {
         assert_eq!(
-            Hyperbola3D::from_center_and_points(
-                Point3D::ORIGIN,
-                Point3D::new(2.0, 0.0, 0.0),
-                Point3D::new(1.0, 0.0, 0.0),
+            Hyperbola::from_center_and_points(
+                Point::ORIGIN,
+                Point::new(2.0, 0.0, 0.0),
+                Point::new(1.0, 0.0, 0.0),
             ),
             Err(HyperbolaConstructionError::CollinearPoints)
         );
@@ -767,7 +767,7 @@ mod tests {
 
     #[test]
     fn test_hyperbola3d_eval_point_zero() {
-        let h = Hyperbola3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, 2.0, 1.0).unwrap();
+        let h = Hyperbola::new(Point::ORIGIN, Vector::Z, Vector::X, 2.0, 1.0).unwrap();
         let p = h.eval_point(0.0);
         assert!((p.x - 2.0).abs() < 1e-9);
         assert!(p.y.abs() < 1e-9);
@@ -776,15 +776,15 @@ mod tests {
 
     #[test]
     fn test_hyperbola3d_eval_points_matches_loop() {
-        let h = Hyperbola3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, 2.0, 1.0).unwrap();
+        let h = Hyperbola::new(Point::ORIGIN, Vector::Z, Vector::X, 2.0, 1.0).unwrap();
         let us = [0.0, 0.5, 1.5];
-        let expected: Vec<Point3D> = us.iter().map(|&u| h.eval_point(u)).collect();
+        let expected: Vec<Point> = us.iter().map(|&u| h.eval_point(u)).collect();
         assert_eq!(h.eval_points(&us), expected);
     }
 
     #[test]
     fn test_hyperbola3d_eval_derivative_order1() {
-        let h = Hyperbola3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, 2.0, 1.0).unwrap();
+        let h = Hyperbola::new(Point::ORIGIN, Vector::Z, Vector::X, 2.0, 1.0).unwrap();
         let d1 = h.eval_derivative(0.0, 1);
         assert!(d1.x.abs() < 1e-9);
         assert!((d1.y - 1.0).abs() < 1e-9);
@@ -793,13 +793,13 @@ mod tests {
     #[test]
     #[should_panic]
     fn test_hyperbola3d_eval_derivative_order0_panics() {
-        let h = Hyperbola3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, 2.0, 1.0).unwrap();
+        let h = Hyperbola::new(Point::ORIGIN, Vector::Z, Vector::X, 2.0, 1.0).unwrap();
         h.eval_derivative(0.0, 0);
     }
 
     #[test]
     fn test_hyperbola3d_parameter_of_round_trip() {
-        let h = Hyperbola3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, 2.0, 1.0).unwrap();
+        let h = Hyperbola::new(Point::ORIGIN, Vector::Z, Vector::X, 2.0, 1.0).unwrap();
         for u in [0.3, 2.0, -1.5] {
             let p = h.eval_point(u);
             assert!((h.parameter_of(p) - u).abs() < 1e-9);
@@ -808,7 +808,7 @@ mod tests {
 
     #[test]
     fn test_hyperbola3d_parameter_of_is_unbounded() {
-        let h = Hyperbola3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, 2.0, 1.0).unwrap();
+        let h = Hyperbola::new(Point::ORIGIN, Vector::Z, Vector::X, 2.0, 1.0).unwrap();
         let p = h.eval_point(5.0);
         assert!((h.parameter_of(p) - 5.0).abs() < 1e-6);
     }
@@ -843,26 +843,26 @@ mod tests {
 
     #[test]
     fn test_hyperbola3d_contains() {
-        let h = Hyperbola3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, 2.0, 1.0).unwrap();
+        let h = Hyperbola::new(Point::ORIGIN, Vector::Z, Vector::X, 2.0, 1.0).unwrap();
         let tol = Tolerance::DEFAULT;
-        assert!(h.contains(Point3D::new(2.0, 0.0, 0.0), tol));
+        assert!(h.contains(Point::new(2.0, 0.0, 0.0), tol));
         assert!(h.contains(h.eval_point(1.0), tol));
-        assert!(!h.contains(Point3D::ORIGIN, tol));
-        assert!(!h.contains(Point3D::new(2.0, 0.0, 5.0), tol));
+        assert!(!h.contains(Point::ORIGIN, tol));
+        assert!(!h.contains(Point::new(2.0, 0.0, 5.0), tol));
     }
 
     #[test]
     fn test_hyperbola3d_project_point() {
-        let h = Hyperbola3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, 2.0, 1.0).unwrap();
+        let h = Hyperbola::new(Point::ORIGIN, Vector::Z, Vector::X, 2.0, 1.0).unwrap();
         let tol = Tolerance::DEFAULT;
         // On the transverse axis right of the vertex: the true minima are
         // a symmetric pair off the vertex, closer than the vertex itself.
-        let proj = h.project_point(Point3D::new(3.0, 0.0, 0.0), tol);
+        let proj = h.project_point(Point::new(3.0, 0.0, 0.0), tol);
         assert!((proj.parameter.abs() - 0.62236).abs() < 1e-4);
         assert!((proj.distance - 0.8f64.sqrt()).abs() < 1e-9);
         // Off-curve: verify against brute-force sampling (which can only
         // overestimate the true minimum).
-        let query = Point3D::new(2.0, 0.0, 5.0);
+        let query = Point::new(2.0, 0.0, 5.0);
         let off = h.project_point(query, tol);
         let mut best = f64::INFINITY;
         for i in -1000..=1000 {
@@ -877,7 +877,7 @@ mod tests {
     fn test_hyperbola3d_project_point_polished() {
         // Thin hyperbola: the raw e^t quartic root left on-curve points
         // 3.4e-6 away before Newton polishing.
-        let h = Hyperbola3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, 0.15, 5.7).unwrap();
+        let h = Hyperbola::new(Point::ORIGIN, Vector::Z, Vector::X, 0.15, 5.7).unwrap();
         let proj = h.project_point(h.eval_point(0.0007), Tolerance::DEFAULT);
         assert!(proj.distance < 1e-12, "{}", proj.distance);
     }
@@ -885,8 +885,8 @@ mod tests {
     #[test]
     fn test_hyperbola3d_intersect_cone_crosscheck() {
         let tol = Tolerance::DEFAULT;
-        let h = Hyperbola3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, 2.0, 1.0).unwrap();
-        let cone = Cone::from_frame(Frame3D::WORLD, 0.4, 2.0).unwrap();
+        let h = Hyperbola::new(Point::ORIGIN, Vector::Z, Vector::X, 2.0, 1.0).unwrap();
+        let cone = Cone::from_frame(Frame::WORLD, 0.4, 2.0).unwrap();
         match h.intersect_exact(&cone, tol) {
             ConicSurfaceIntersection::Hits(hits) => {
                 assert!(!hits.is_empty());
@@ -907,11 +907,11 @@ mod projection_input_tests {
 
     #[test]
     fn test_hyperbola3d_project_non_finite_point_is_nan() {
-        let h = Hyperbola3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, 2.0, 1.0).unwrap();
+        let h = Hyperbola::new(Point::ORIGIN, Vector::Z, Vector::X, 2.0, 1.0).unwrap();
         let tol = Tolerance::DEFAULT;
         for p in [
-            Point3D::new(f64::NAN, 0.0, 0.0),
-            Point3D::new(f64::INFINITY, 0.0, 0.0),
+            Point::new(f64::NAN, 0.0, 0.0),
+            Point::new(f64::INFINITY, 0.0, 0.0),
         ] {
             assert!(h.extrema(p, tol).is_empty());
             let proj = h.project_point(p, tol);
@@ -921,10 +921,10 @@ mod projection_input_tests {
 
     #[test]
     fn test_hyperbola3d_zero_radii_rejected() {
-        let center = Point3D::new(1.0, 2.0, 3.0);
+        let center = Point::new(1.0, 2.0, 3.0);
         for (a, b) in [(0.0, 0.0), (2.0, 0.0), (0.0, 1.0)] {
             assert_eq!(
-                Hyperbola3D::new(center, Vector3D::Z, Vector3D::X, a, b),
+                Hyperbola::new(center, Vector::Z, Vector::X, a, b),
                 Err(HyperbolaConstructionError::NonPositiveRadius)
             );
         }
@@ -934,33 +934,26 @@ mod projection_input_tests {
 #[cfg(test)]
 mod transformed_tests {
     use super::*;
-    use crate::{Axis3D, Point3D, Tolerance, Transform, Vector3D};
+    use crate::{Axis, Point, Tolerance, Transform, Vector};
 
     #[test]
     fn test_hyperbola3d_transformed_translation_spot_check() {
-        let hyperbola =
-            Hyperbola3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, 2.0, 1.0).unwrap();
-        let t = Transform::translation(Vector3D::new(0.0, 0.0, 7.0));
+        let hyperbola = Hyperbola::new(Point::ORIGIN, Vector::Z, Vector::X, 2.0, 1.0).unwrap();
+        let t = Transform::translation(Vector::new(0.0, 0.0, 7.0));
         let moved = hyperbola.transformed(t).unwrap();
-        assert_eq!(moved.center(), Point3D::new(0.0, 0.0, 7.0));
+        assert_eq!(moved.center(), Point::new(0.0, 0.0, 7.0));
         assert_eq!(moved.major_radius(), 2.0);
         assert_eq!(moved.minor_radius(), 1.0);
         // Hand-computed: center + 2*cosh(0)*X + sinh(0)*Y, shifted.
-        assert_eq!(moved.eval_point(0.0), Point3D::new(2.0, 0.0, 7.0));
+        assert_eq!(moved.eval_point(0.0), Point::new(2.0, 0.0, 7.0));
     }
 
     #[test]
     fn test_hyperbola3d_transformed_round_trip_and_mirror() {
-        let hyperbola = Hyperbola3D::new(
-            Point3D::new(1.0, 0.0, 0.0),
-            Vector3D::Z,
-            Vector3D::X,
-            2.0,
-            1.0,
-        )
-        .unwrap();
-        let axis = Axis3D::new(Point3D::ORIGIN, Vector3D::Y).unwrap();
-        let t = Transform::translation(Vector3D::new(0.0, 4.0, 0.0))
+        let hyperbola =
+            Hyperbola::new(Point::new(1.0, 0.0, 0.0), Vector::Z, Vector::X, 2.0, 1.0).unwrap();
+        let axis = Axis::new(Point::ORIGIN, Vector::Y).unwrap();
+        let t = Transform::translation(Vector::new(0.0, 4.0, 0.0))
             .then(Transform::rotation(axis, std::f64::consts::FRAC_PI_2));
         let moved = hyperbola.transformed(t).unwrap();
         let tol = Tolerance::DEFAULT;
@@ -968,13 +961,13 @@ mod transformed_tests {
             assert!(moved.contains(t.apply_point(hyperbola.eval_point(u)), tol));
         }
         let inv = Transform::rotation(axis, -std::f64::consts::FRAC_PI_2)
-            .then(Transform::translation(Vector3D::new(0.0, -4.0, 0.0)));
+            .then(Transform::translation(Vector::new(0.0, -4.0, 0.0)));
         let back = moved.transformed(inv).unwrap();
         for u in [0.0, 0.5, -1.0] {
             assert!(back.eval_point(u).distance(hyperbola.eval_point(u)) < 1e-9);
         }
         // Mirror across the xy-plane preserves the point set.
-        let m = Transform::mirror_plane(Frame3D::WORLD);
+        let m = Transform::mirror_plane(Frame::WORLD);
         let mirrored = hyperbola.transformed(m).unwrap();
         for u in [0.0, 0.5, -1.0] {
             assert!(mirrored.contains(m.apply_point(hyperbola.eval_point(u)), tol));

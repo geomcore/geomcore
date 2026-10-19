@@ -2,10 +2,10 @@
 //! reuse its buffers across curves and threads (ADR 0004). A test binary
 //! of its own, as it replaces the global allocator.
 
-use geomcore::discretization::{DiscretizationCriteria, Discretize2D, Discretize3D};
+use geomcore::discretization::{DiscretizationCriteria, Discretize, Discretize2D};
 use geomcore::{
-    BSplineCurve3D, Circle2D, Circle3D, Curve2D, Curve3D, Ellipse3D, Point2D, Point3D,
-    TrimmedCurve2D, TrimmedCurve3D, Vector3D,
+    BSplineCurve, Circle, Circle2D, Curve, Curve2D, Ellipse, Point, Point2D, TrimmedCurve,
+    TrimmedCurve2D, Vector,
 };
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::cell::Cell;
@@ -38,10 +38,10 @@ fn allocations_during(f: impl FnOnce()) -> usize {
 
 /// Counts then fills into buffers sized once, checking neither step
 /// allocates.
-fn assert_fills_without_allocating<C: Discretize3D>(curve: &C, criteria: DiscretizationCriteria) {
+fn assert_fills_without_allocating<C: Discretize>(curve: &C, criteria: DiscretizationCriteria) {
     let mut n = 0;
     assert_eq!(allocations_during(|| n = curve.point_count(criteria)), 0);
-    let (mut parameters, mut points) = (vec![0.0; n], vec![Point3D::ORIGIN; n]);
+    let (mut parameters, mut points) = (vec![0.0; n], vec![Point::ORIGIN; n]);
     let (mut chords, mut angles) = (vec![0.0; n - 1], vec![0.0; n - 1]);
     let filling = allocations_during(|| {
         curve.discretize_into(
@@ -81,11 +81,11 @@ fn test_count_and_fill_do_not_allocate() {
     let poles = (0..6)
         .map(|i| {
             let a = f64::from(i);
-            Point3D::new(a, a.sin(), 0.5 * a.cos())
+            Point::new(a, a.sin(), 0.5 * a.cos())
         })
         .collect();
     let weights = vec![1.0, 0.5, 2.0, 1.0, 3.0, 1.0];
-    let spline = BSplineCurve3D::new_rational(
+    let spline = BSplineCurve::new_rational(
         3,
         poles,
         weights,
@@ -94,16 +94,16 @@ fn test_count_and_fill_do_not_allocate() {
         false,
     )
     .unwrap();
-    let circle = Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
-    let ellipse = Ellipse3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, 3.0, 1.0).unwrap();
-    let run_time = TrimmedCurve3D::new(Curve3D::from(spline.clone()), 0.5, 2.5).unwrap();
+    let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
+    let ellipse = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 3.0, 1.0).unwrap();
+    let run_time = TrimmedCurve::new(Curve::from(spline.clone()), 0.5, 2.5).unwrap();
     let chord = DiscretizationCriteria::new(1e-4).unwrap();
     let both = chord.with_max_angle_deviation(0.05).unwrap();
     for criteria in [chord, both] {
         assert_fills_without_allocating(&spline, criteria);
-        assert_fills_without_allocating(&TrimmedCurve3D::new(&spline, 0.5, 2.5).unwrap(), criteria);
+        assert_fills_without_allocating(&TrimmedCurve::new(&spline, 0.5, 2.5).unwrap(), criteria);
         assert_fills_without_allocating(&circle, criteria);
-        assert_fills_without_allocating(&TrimmedCurve3D::new(circle, 1.0, 3.0).unwrap(), criteria);
+        assert_fills_without_allocating(&TrimmedCurve::new(circle, 1.0, 3.0).unwrap(), criteria);
         assert_fills_without_allocating(&ellipse, criteria);
         assert_fills_without_allocating(&run_time, criteria);
         let circle_2d = Circle2D::new(Point2D::ORIGIN, 2.0).unwrap();

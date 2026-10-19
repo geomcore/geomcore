@@ -8,16 +8,14 @@ use super::{
     Completeness, CurveSurfaceIntersection, IncompleteReason, IntersectionCurve,
     SurfaceSurfaceIntersection, SurfaceSurfaceRegion, pieces, surface_surface,
 };
-use crate::curves::{
-    BSplineCurve3D, Curve3D, ElementaryCurve, ParametricCurve3D, PointParametrization,
-};
+use crate::curves::{BSplineCurve, Curve, ElementaryCurve, ParametricCurve, PointParametrization};
 use crate::math::boxtree::{Aabb, boxes_apart};
 use crate::math::{solve_2x2, solve_3x3, solve_4x4};
 use crate::surfaces::{
     BSplineSurface, ElementarySurface, ParametricSurface, Surface, partials_span_a_plane,
     reference_widths,
 };
-use crate::{Bound3D, BoundingBox3D, Point3D, Tolerance, Vector3D};
+use crate::{BoundingBox, HasBoundingBox, Point, Tolerance, Vector};
 
 /// Marching surface-surface intersection for any two parametric surfaces.
 ///
@@ -83,7 +81,7 @@ use crate::{Bound3D, BoundingBox3D, Point3D, Tolerance, Vector3D};
 /// when it closes a loop, stalls, reaches a parameter bound, or leaves
 /// the cube of side [`Tolerance::MODEL_SIZE`] centred on the origin, its
 /// last point then lying on the bound or the cube. Traces fit
-/// [`BSplineCurve3D`] interpolants (degree 3, closed loops by repeated end
+/// [`BSplineCurve`] interpolants (degree 3, closed loops by repeated end
 /// points).
 ///
 /// A seed where the surfaces touch (their normals parallel, or so nearly
@@ -141,7 +139,7 @@ where
         .curves
         .into_iter()
         .map(|(curve, tangent)| IntersectionCurve {
-            curve: Curve3D::BSpline(curve),
+            curve: Curve::BSpline(curve),
             tangent,
         })
         .collect();
@@ -178,7 +176,7 @@ where
     let (first_u_range, first_v_range) = (range(0, a.u_bounds()), range(1, a.v_bounds()));
     let last = (COINCIDENCE_SAMPLES - 1) as f64;
     let at = |(low, high): (f64, f64), i: usize| low + (high - low) * i as f64 / last;
-    let bounds = BoundingBox3D::from_points((0..COINCIDENCE_SAMPLES).flat_map(|i| {
+    let bounds = BoundingBox::from_points((0..COINCIDENCE_SAMPLES).flat_map(|i| {
         (0..COINCIDENCE_SAMPLES)
             .map(move |j| a.eval_point(at(first_u_range, i), at(first_v_range, j)))
     }))?;
@@ -401,10 +399,10 @@ fn covering_range(
 /// `(su, sv)` spans.
 fn unit_normal<S: ParametricSurface + ?Sized>(
     surface: &S,
-    su: Vector3D,
-    sv: Vector3D,
+    su: Vector,
+    sv: Vector,
     tol: Tolerance,
-) -> Option<Vector3D> {
+) -> Option<Vector> {
     let n = su.cross(sv);
     let length = n.magnitude();
     let widths = reference_widths(surface, tol);
@@ -414,7 +412,7 @@ fn unit_normal<S: ParametricSurface + ?Sized>(
 
 /// The corners of the box around `s`: its own box when it is elementary
 /// or a B-spline, else the box around a grid of its points.
-fn surface_corners<S: ParametricSurface>(s: &S) -> (Point3D, Point3D) {
+fn surface_corners<S: ParametricSurface>(s: &S) -> (Point, Point) {
     let own = match (s.as_elementary(), s.as_bspline()) {
         (Some(elementary), _) => elementary.bounding_box(),
         (None, Some(bspline)) => bspline.bounding_box(),
@@ -424,7 +422,7 @@ fn surface_corners<S: ParametricSurface>(s: &S) -> (Point3D, Point3D) {
         let (u0, u1) = s.u_bounds();
         let (v0, v1) = s.v_bounds();
         let last = (COINCIDENCE_SAMPLES - 1) as f64;
-        BoundingBox3D::from_points((0..COINCIDENCE_SAMPLES).flat_map(|i| {
+        BoundingBox::from_points((0..COINCIDENCE_SAMPLES).flat_map(|i| {
             (0..COINCIDENCE_SAMPLES).map(move |j| {
                 s.eval_point(
                     u0 + (u1 - u0) * i as f64 / last,
@@ -433,7 +431,7 @@ fn surface_corners<S: ParametricSurface>(s: &S) -> (Point3D, Point3D) {
             })
         }))
     });
-    bounds.map_or((Point3D::ORIGIN, Point3D::ORIGIN), |b| (b.min(), b.max()))
+    bounds.map_or((Point::ORIGIN, Point::ORIGIN), |b| (b.min(), b.max()))
 }
 
 /// Seeds `[a_u, a_v, b_u, b_v]` on both surfaces when each is elementary
@@ -504,7 +502,7 @@ fn distinct_seeds<A: ParametricSurface>(
     seeds: Vec<[f64; 4]>,
     tol: Tolerance,
 ) -> Vec<[f64; 4]> {
-    let mut points: Vec<Point3D> = Vec::with_capacity(seeds.len());
+    let mut points: Vec<Point> = Vec::with_capacity(seeds.len());
     let mut kept = Vec::with_capacity(seeds.len());
     for seed in seeds {
         let p = a.eval_point(seed[0], seed[1]);
@@ -553,7 +551,7 @@ impl<'a> SeedTarget<'a> {
         }
     }
 
-    fn parameters_of(self, point: Point3D, tol: Tolerance) -> (f64, f64) {
+    fn parameters_of(self, point: Point, tol: Tolerance) -> (f64, f64) {
         match self {
             SeedTarget::Elementary(surface) => surface.parameters_of(point),
             SeedTarget::BSpline(surface) => {
@@ -563,7 +561,7 @@ impl<'a> SeedTarget<'a> {
         }
     }
 
-    fn bounding_box(self) -> Option<BoundingBox3D> {
+    fn bounding_box(self) -> Option<BoundingBox> {
         match self {
             SeedTarget::Elementary(surface) => surface.bounding_box(),
             SeedTarget::BSpline(surface) => surface.bounding_box(),
@@ -632,11 +630,11 @@ fn seeding_iso_values(
     // The range of `own`'s parameters at the corners of the other surface's
     // box, grown by 10 %: `ISO_CURVE_COUNT` values across it, ends included
     // (one value when the range is flat).
-    let across_box = |bounds: BoundingBox3D| {
+    let across_box = |bounds: BoundingBox| {
         let (min, max) = (bounds.min(), bounds.max());
         let (mut low, mut high) = ([f64::INFINITY; 2], [f64::NEG_INFINITY; 2]);
         for k in 0..8 {
-            let (u, v) = own.parameters_of(Point3D::new(
+            let (u, v) = own.parameters_of(Point::new(
                 if k & 1 == 0 { min.x } else { max.x },
                 if k & 2 == 0 { min.y } else { max.y },
                 if k & 4 == 0 { min.z } else { max.z },
@@ -701,7 +699,7 @@ fn own_parameters(
     direction: IsoDirection,
     value: f64,
     parameter: f64,
-    point: Point3D,
+    point: Point,
 ) -> (f64, f64) {
     let (u, v) = match direction {
         IsoDirection::U => (value, parameter),
@@ -729,7 +727,7 @@ fn point_of_range((first, last): (f64, f64)) -> f64 {
 
 /// [`marching_intersection`] seeded from the parameter grids alone.
 #[cfg(test)]
-pub(super) fn grid_marching<A, B>(a: &A, b: &B, tol: Tolerance) -> Vec<BSplineCurve3D>
+pub(super) fn grid_marching<A, B>(a: &A, b: &B, tol: Tolerance) -> Vec<BSplineCurve>
 where
     A: ParametricSurface,
     B: ParametricSurface,
@@ -741,7 +739,7 @@ where
 
 /// The curves of [`marching_intersection`], fitted.
 #[cfg(test)]
-pub(super) fn marched_curves<A, B>(a: &A, b: &B, tol: Tolerance) -> Vec<BSplineCurve3D>
+pub(super) fn marched_curves<A, B>(a: &A, b: &B, tol: Tolerance) -> Vec<BSplineCurve>
 where
     A: ParametricSurface,
     B: ParametricSurface,
@@ -750,7 +748,7 @@ where
         .curves()
         .iter()
         .filter_map(|piece| match &piece.curve {
-            Curve3D::BSpline(curve) => Some(curve.clone()),
+            Curve::BSpline(curve) => Some(curve.clone()),
             _ => None,
         })
         .collect()
@@ -780,10 +778,10 @@ where
 /// boxes around its runs of `RUN` segments, and its points.
 #[derive(Default)]
 struct Traced {
-    curves: Vec<(BSplineCurve3D, bool)>,
-    contact_points: Vec<Point3D>,
+    curves: Vec<(BSplineCurve, bool)>,
+    contact_points: Vec<Point>,
     coincident_seeds: Vec<[f64; 4]>,
-    traces: Vec<(Aabb, Vec<Aabb>, Vec<Point3D>)>,
+    traces: Vec<(Aabb, Vec<Aabb>, Vec<Point>)>,
 }
 
 impl Traced {
@@ -809,8 +807,7 @@ impl Traced {
         // the patch around it where they lie within confusion of each
         // other, shorter than a first step: a contact point, not a curve.
         let shortest = first_step(tol);
-        let length =
-            |points: &[Point3D]| points.windows(2).map(|w| w[0].distance(w[1])).sum::<f64>();
+        let length = |points: &[Point]| points.windows(2).map(|w| w[0].distance(w[1])).sum::<f64>();
         let Some(points) = points.filter(|points| !touching || length(points) >= shortest) else {
             let gap = 8.0 * CHORD_DEVIATION * tol.confusion;
             if touching && osculates(a, b, seed, tol) {
@@ -824,7 +821,7 @@ impl Traced {
         };
         let degree = 3.min(points.len() - 1);
         if let Ok(fit) =
-            BSplineCurve3D::interpolate(&points, degree, PointParametrization::Centripetal)
+            BSplineCurve::interpolate(&points, degree, PointParametrization::Centripetal)
         {
             let coords: Vec<[f64; 3]> = points.iter().map(|p| [p.x, p.y, p.z]).collect();
             let runs = (1..coords.len())
@@ -861,7 +858,7 @@ impl Traced {
 const RUN: usize = 16;
 
 /// Whether the segment from `p` to `q` meets the box `b`.
-fn segment_meets_box(p: Point3D, q: Point3D, b: &Aabb) -> bool {
+fn segment_meets_box(p: Point, q: Point, b: &Aabb) -> bool {
     let (from, d) = ([p.x, p.y, p.z], [q.x - p.x, q.y - p.y, q.z - p.z]);
     let (mut lo, mut hi) = (0.0f64, 1.0f64);
     for c in 0..3 {
@@ -941,7 +938,7 @@ fn first_step(tol: Tolerance) -> f64 {
 /// (`touching`), the direction at each point is the one along which they
 /// keep touching where their normals are parallel (see [`direction`]),
 /// turned to go on the way the trace goes.
-fn trace<A, B>(a: &A, b: &B, seed: [f64; 4], touching: bool, tol: Tolerance) -> Option<Vec<Point3D>>
+fn trace<A, B>(a: &A, b: &B, seed: [f64; 4], touching: bool, tol: Tolerance) -> Option<Vec<Point>>
 where
     A: ParametricSurface,
     B: ParametricSurface,
@@ -970,7 +967,7 @@ where
     const CURVATURE_GROWTH: f64 = 4.0;
     let start = a.eval_point(seed[0], seed[1]);
     let t0 = direction(a, b, seed, touching, tol)?;
-    let mut halves: [Vec<Point3D>; 2] = [Vec::new(), Vec::new()];
+    let mut halves: [Vec<Point>; 2] = [Vec::new(), Vec::new()];
     let mut closed = false;
     for (half, dir) in halves.iter_mut().zip([1.0, -1.0]) {
         if closed {
@@ -1071,7 +1068,7 @@ where
         }
     }
     let [forward, backward] = halves;
-    let mut points: Vec<Point3D> = backward.into_iter().rev().collect();
+    let mut points: Vec<Point> = backward.into_iter().rev().collect();
     points.push(start);
     points.extend(forward);
     (points.len() >= 4).then_some(points)
@@ -1089,8 +1086,8 @@ const MIDPOINT_SLACK: f64 = 2.0;
 fn bulges<A, B>(
     a: &A,
     b: &B,
-    (x, p): ([f64; 4], Point3D),
-    (y, q): ([f64; 4], Point3D),
+    (x, p): ([f64; 4], Point),
+    (y, q): ([f64; 4], Point),
     deviation: f64,
     touching: bool,
     tol: Tolerance,
@@ -1226,7 +1223,7 @@ fn knot(knots: &[f64], periodic: bool, index: i64) -> f64 {
 const MODEL_HALF_SIZE: f64 = 0.5 * Tolerance::MODEL_SIZE;
 
 /// Whether `p` lies outside the model-size cube.
-fn outside_model(p: Point3D) -> bool {
+fn outside_model(p: Point) -> bool {
     [p.x, p.y, p.z].iter().any(|c| c.abs() > MODEL_HALF_SIZE)
 }
 
@@ -1237,10 +1234,10 @@ fn outside_model(p: Point3D) -> bool {
 fn model_exit<A, B>(
     a: &A,
     b: &B,
-    (x, p): ([f64; 4], Point3D),
-    (y, q): ([f64; 4], Point3D),
+    (x, p): ([f64; 4], Point),
+    (y, q): ([f64; 4], Point),
     tol: Tolerance,
-) -> Point3D
+) -> Point
 where
     A: ParametricSurface,
     B: ParametricSurface,
@@ -1265,15 +1262,15 @@ where
     let mut origin = [0.0; 3];
     origin[axis] = face;
     let plane = (
-        Point3D::new(origin[0], origin[1], origin[2]),
-        Vector3D::new(normal[0], normal[1], normal[2]),
+        Point::new(origin[0], origin[1], origin[2]),
+        Vector::new(normal[0], normal[1], normal[2]),
     );
     meet(a, b, guess, Some(plane), tol).map_or(q, |z| a.eval_point(z[0], z[1]))
 }
 
 /// Unit tangent `N1 x N2` of the intersection at parameters `x`, or `None`
 /// where the surfaces are tangent or a normal degenerates.
-fn tangent<A, B>(a: &A, b: &B, x: [f64; 4], tol: Tolerance) -> Option<Vector3D>
+fn tangent<A, B>(a: &A, b: &B, x: [f64; 4], tol: Tolerance) -> Option<Vector>
 where
     A: ParametricSurface,
     B: ParametricSurface,
@@ -1292,7 +1289,7 @@ where
 /// direction along which they keep touching (see [`contact_direction`]):
 /// there the normals are parallel, or so nearly that their cross product
 /// points anywhere in the tangent plane. `None` where it does not exist.
-fn direction<A, B>(a: &A, b: &B, x: [f64; 4], touching: bool, tol: Tolerance) -> Option<Vector3D>
+fn direction<A, B>(a: &A, b: &B, x: [f64; 4], touching: bool, tol: Tolerance) -> Option<Vector>
 where
     A: ParametricSurface,
     B: ParametricSurface,
@@ -1315,7 +1312,7 @@ fn second_forms<A, B>(
     b: &B,
     x: [f64; 4],
     tol: Tolerance,
-) -> Option<([[f64; 3]; 2], (Vector3D, Vector3D), (Vector3D, Vector3D))>
+) -> Option<([[f64; 3]; 2], (Vector, Vector), (Vector, Vector))>
 where
     A: ParametricSurface,
     B: ParametricSurface,
@@ -1329,10 +1326,10 @@ where
     }
     let e1 = au.normalized()?;
     let e2 = na.cross(e1);
-    let form = |su: Vector3D, sv: Vector3D, [suu, suv, svv]: [Vector3D; 3], n: Vector3D| {
+    let form = |su: Vector, sv: Vector, [suu, suv, svv]: [Vector; 3], n: Vector| {
         // Coordinates of `d`, a vector of the tangent plane, in `(su, sv)`.
         let m = [[su.dot(su), su.dot(sv)], [su.dot(sv), sv.dot(sv)]];
-        let coordinates = |d: Vector3D| solve_2x2(m, [su.dot(d), sv.dot(d)], 1e-12);
+        let coordinates = |d: Vector| solve_2x2(m, [su.dot(d), sv.dot(d)], 1e-12);
         let [a1, b1] = coordinates(e1)?;
         let [a2, b2] = coordinates(e2)?;
         let [l, mixed, n2] = [suu.dot(n), suv.dot(n), svv.dot(n)];
@@ -1355,7 +1352,7 @@ where
 /// eigenvector of the smaller eigenvalue of the difference of their
 /// second fundamental forms). `None` where a normal degenerates, or where
 /// the surfaces osculate (see [`osculates`]).
-fn contact_direction<A, B>(a: &A, b: &B, x: [f64; 4], tol: Tolerance) -> Option<Vector3D>
+fn contact_direction<A, B>(a: &A, b: &B, x: [f64; 4], tol: Tolerance) -> Option<Vector>
 where
     A: ParametricSurface,
     B: ParametricSurface,
@@ -1449,7 +1446,7 @@ where
 
 /// Parameters `x` moved to first order by the displacement `d` on both
 /// surfaces (unchanged on a surface whose tangent plane degenerates).
-fn predict<A, B>(a: &A, b: &B, x: [f64; 4], d: Vector3D) -> [f64; 4]
+fn predict<A, B>(a: &A, b: &B, x: [f64; 4], d: Vector) -> [f64; 4]
 where
     A: ParametricSurface,
     B: ParametricSurface,
@@ -1474,7 +1471,7 @@ fn meet<A, B>(
     a: &A,
     b: &B,
     x: [f64; 4],
-    plane: Option<(Point3D, Vector3D)>,
+    plane: Option<(Point, Vector)>,
     tol: Tolerance,
 ) -> Option<[f64; 4]>
 where
@@ -1513,7 +1510,7 @@ where
                 let dot = |p: [f64; 4], q: [f64; 4]| (0..4).map(|k| p[k] * q[k]).sum::<f64>();
                 let m = rows.map(|p| rows.map(|q| dot(p, q)));
                 let y = solve_3x3(m, [-f.x, -f.y, -f.z], 1e-12)?;
-                cols.map(|c| c.dot(Vector3D::new(y[0], y[1], y[2])))
+                cols.map(|c| c.dot(Vector::new(y[0], y[1], y[2])))
             }
         };
         let mut scale = 1.0;
@@ -1542,7 +1539,7 @@ fn correct<A, B>(
     a: &A,
     b: &B,
     x: [f64; 4],
-    plane: (Point3D, Vector3D),
+    plane: (Point, Vector),
     touching: bool,
     tol: Tolerance,
 ) -> Option<[f64; 4]>
@@ -1567,7 +1564,7 @@ fn meet_touching<A, B>(
     a: &A,
     b: &B,
     x: [f64; 4],
-    (origin, normal): (Point3D, Vector3D),
+    (origin, normal): (Point, Vector),
     tol: Tolerance,
 ) -> Option<[f64; 4]>
 where
@@ -1740,8 +1737,8 @@ mod tests {
     fn test_marching_plane_plane_line() {
         use crate::Plane;
         let tol = Tolerance::DEFAULT;
-        let xy = Plane::new(Point3D::ORIGIN, Vector3D::Z).unwrap();
-        let zy = Plane::new(Point3D::ORIGIN, Vector3D::X).unwrap();
+        let xy = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
+        let zy = Plane::new(Point::ORIGIN, Vector::X).unwrap();
         let curves = marched_curves(&xy, &zy, tol);
         assert_eq!(curves.len(), 1);
         // The traced line runs along Y through the origin.
@@ -1756,8 +1753,8 @@ mod tests {
     fn test_marching_plane_sphere_circle() {
         use crate::{Plane, Sphere};
         let tol = Tolerance::DEFAULT;
-        let plane = Plane::new(Point3D::ORIGIN, Vector3D::Z).unwrap();
-        let sphere = Sphere::new(Point3D::ORIGIN, 2.0).unwrap();
+        let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
+        let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
         let curves = marched_curves(&plane, &sphere, tol);
         assert_eq!(curves.len(), 1);
         // Approximate fit: residuals within marching scale (not confusion).
@@ -1772,8 +1769,8 @@ mod tests {
     fn test_marching_loop_is_traced_once() {
         use crate::{Plane, Sphere};
         let tol = Tolerance::DEFAULT;
-        let plane = Plane::new(Point3D::ORIGIN, Vector3D::Z).unwrap();
-        let sphere = Sphere::new(Point3D::ORIGIN, 2.0).unwrap();
+        let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
+        let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
         let curves = marched_curves(&plane, &sphere, tol);
         let curve = assert_one_curve_on_both(&curves, &plane, &sphere);
         let (t0, t1) = curve.bounds();
@@ -1792,7 +1789,7 @@ mod tests {
     }
 
     /// Asserts one traced curve whose samples lie on both surfaces.
-    fn assert_one_curve_on_both<A, B>(curves: &[BSplineCurve3D], a: &A, b: &B) -> BSplineCurve3D
+    fn assert_one_curve_on_both<A, B>(curves: &[BSplineCurve], a: &A, b: &B) -> BSplineCurve
     where
         A: ParametricSurface,
         B: ParametricSurface,
@@ -1813,10 +1810,10 @@ mod tests {
     fn test_marching_plane_sphere_off_grid_heights() {
         use crate::{Plane, Sphere};
         let tol = Tolerance::DEFAULT;
-        let sphere = Sphere::new(Point3D::ORIGIN, 1.0).unwrap();
+        let sphere = Sphere::new(Point::ORIGIN, 1.0).unwrap();
         // No grid row of either surface lands on these circles.
         for h in [0.3, 0.8, -0.45, 0.123] {
-            let plane = Plane::new(Point3D::new(0.0, 0.0, h), Vector3D::Z).unwrap();
+            let plane = Plane::new(Point::new(0.0, 0.0, h), Vector::Z).unwrap();
             let curves = marched_curves(&plane, &sphere, tol);
             let curve = assert_one_curve_on_both(&curves, &plane, &sphere);
             let r = (1.0 - h * h).sqrt();
@@ -1831,8 +1828,8 @@ mod tests {
     fn test_marching_cylinder_offset_sphere() {
         use crate::{Cylinder, Sphere};
         let tol = Tolerance::DEFAULT;
-        let cylinder = Cylinder::new(Point3D::ORIGIN, Vector3D::Z, 1.0).unwrap();
-        let sphere = Sphere::new(Point3D::new(0.8, 0.0, 0.0), 1.78).unwrap();
+        let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
+        let sphere = Sphere::new(Point::new(0.8, 0.0, 0.0), 1.78).unwrap();
         let curves = marched_curves(&cylinder, &sphere, tol);
         assert_one_curve_on_both(&curves, &cylinder, &sphere);
     }
@@ -1843,9 +1840,9 @@ mod tests {
         let tol = Tolerance::DEFAULT;
         // Unit spheres whose centers are `d` apart meet at about `d`
         // radians, on the circle z = d/2.
-        let a = Sphere::new(Point3D::ORIGIN, 1.0).unwrap();
+        let a = Sphere::new(Point::ORIGIN, 1.0).unwrap();
         for d in [0.05, 0.0175] {
-            let b = Sphere::new(Point3D::new(0.0, 0.0, d), 1.0).unwrap();
+            let b = Sphere::new(Point::new(0.0, 0.0, d), 1.0).unwrap();
             let curves = marched_curves(&a, &b, tol);
             let curve = assert_one_curve_on_both(&curves, &a, &b);
             let r = (1.0 - d * d / 4.0).sqrt();
@@ -1863,8 +1860,8 @@ mod tests {
         // curvature.
         use crate::{Plane, Sphere};
         let tol = Tolerance::DEFAULT;
-        let plane = Plane::new(Point3D::new(0.0, 0.0, 0.003), Vector3D::Z).unwrap();
-        let sphere = Sphere::new(Point3D::ORIGIN, 0.01).unwrap();
+        let plane = Plane::new(Point::new(0.0, 0.0, 0.003), Vector::Z).unwrap();
+        let sphere = Sphere::new(Point::ORIGIN, 0.01).unwrap();
         let curves = marched_curves(&plane, &sphere, tol);
         let curve = assert_one_curve_on_both(&curves, &plane, &sphere);
         let r = (1e-4f64 - 9e-6).sqrt();
@@ -1878,8 +1875,8 @@ mod tests {
     fn test_marching_open_trace_is_not_closed() {
         use crate::Plane;
         let tol = Tolerance::DEFAULT;
-        let xy = Plane::new(Point3D::ORIGIN, Vector3D::Z).unwrap();
-        let zy = Plane::new(Point3D::ORIGIN, Vector3D::X).unwrap();
+        let xy = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
+        let zy = Plane::new(Point::ORIGIN, Vector::X).unwrap();
         let curves = marched_curves(&xy, &zy, tol);
         assert_eq!(curves.len(), 1);
         let (t0, t1) = curves[0].bounds();
@@ -1888,7 +1885,7 @@ mod tests {
     }
 
     /// Polyline length of a traced curve.
-    fn traced_length(curve: &BSplineCurve3D) -> f64 {
+    fn traced_length(curve: &BSplineCurve) -> f64 {
         let (t0, t1) = curve.bounds();
         let n = 4000;
         let at = |k: usize| curve.eval_point(t0 + (t1 - t0) * k as f64 / n as f64);
@@ -1898,10 +1895,9 @@ mod tests {
     /// The torus of radii 3 and 1 about z, and the plane through its
     /// center tilted `asin(1/3) + d` about y.
     fn villarceau_pair(d: f64) -> (crate::Torus, crate::Plane) {
-        let torus = crate::Torus::new(Point3D::ORIGIN, Vector3D::Z, 3.0, 1.0).unwrap();
+        let torus = crate::Torus::new(Point::ORIGIN, Vector::Z, 3.0, 1.0).unwrap();
         let a = (1.0f64 / 3.0).asin() + d;
-        let plane =
-            crate::Plane::new(Point3D::ORIGIN, Vector3D::new(-a.sin(), 0.0, a.cos())).unwrap();
+        let plane = crate::Plane::new(Point::ORIGIN, Vector::new(-a.sin(), 0.0, a.cos())).unwrap();
         (torus, plane)
     }
 
@@ -1951,8 +1947,8 @@ mod tests {
         let unit = [0.0, 0.0, 0.0, 1.0, 1.0, 1.0];
         let meets = |p: [f64; 3], q: [f64; 3]| {
             segment_meets_box(
-                Point3D::new(p[0], p[1], p[2]),
-                Point3D::new(q[0], q[1], q[2]),
+                Point::new(p[0], p[1], p[2]),
+                Point::new(q[0], q[1], q[2]),
                 &unit,
             )
         };
@@ -1965,7 +1961,7 @@ mod tests {
     }
 
     /// Asserts every traced curve is closed and lies on both surfaces.
-    fn assert_closed_on_both<A, B>(curves: &[BSplineCurve3D], a: &A, b: &B)
+    fn assert_closed_on_both<A, B>(curves: &[BSplineCurve], a: &A, b: &B)
     where
         A: ParametricSurface,
         B: ParametricSurface,
@@ -1989,12 +1985,11 @@ mod tests {
         // +-10 along the first cylinder's axis, in one loop about 510 long.
         use crate::Cylinder;
         let tol = Tolerance::DEFAULT;
-        let along_x = Cylinder::new(Point3D::ORIGIN, Vector3D::X, 50.0).unwrap();
-        let along_y = Cylinder::new(Point3D::new(500.0, 0.0, 30.0), Vector3D::Y, 50.0).unwrap();
+        let along_x = Cylinder::new(Point::ORIGIN, Vector::X, 50.0).unwrap();
+        let along_y = Cylinder::new(Point::new(500.0, 0.0, 30.0), Vector::Y, 50.0).unwrap();
         // The same second cylinder, its parameters measured from y = 300:
         // neither grid window holds a point of the intersection.
-        let along_y_far =
-            Cylinder::new(Point3D::new(500.0, 300.0, 30.0), Vector3D::Y, 50.0).unwrap();
+        let along_y_far = Cylinder::new(Point::new(500.0, 300.0, 30.0), Vector::Y, 50.0).unwrap();
         for curves in [
             marched_curves(&along_x, &along_y, tol),
             marched_curves(&along_y, &along_x, tol),
@@ -2020,8 +2015,8 @@ mod tests {
         // tangent points), so each ellipse comes as its two halves.
         use crate::Cylinder;
         let tol = Tolerance::DEFAULT;
-        let along_x = Cylinder::new(Point3D::ORIGIN, Vector3D::X, 1.0).unwrap();
-        let along_y = Cylinder::new(Point3D::ORIGIN, Vector3D::Y, 1.0).unwrap();
+        let along_x = Cylinder::new(Point::ORIGIN, Vector::X, 1.0).unwrap();
+        let along_y = Cylinder::new(Point::ORIGIN, Vector::Y, 1.0).unwrap();
         let curves = marched_curves(&along_x, &along_y, tol);
         assert_eq!(curves.len(), 4);
         for curve in &curves {
@@ -2052,11 +2047,11 @@ mod tests {
     fn test_marching_oblique_torus_plane() {
         use crate::{Plane, Torus};
         let tol = Tolerance::DEFAULT;
-        let torus = Torus::new(Point3D::ORIGIN, Vector3D::Z, 3.0, 1.0).unwrap();
+        let torus = Torus::new(Point::ORIGIN, Vector::Z, 3.0, 1.0).unwrap();
         let tilt: f64 = 0.6;
         let plane = Plane::new(
-            Point3D::new(0.5, 0.0, 0.2),
-            Vector3D::new(-tilt.sin(), 0.0, tilt.cos()),
+            Point::new(0.5, 0.0, 0.2),
+            Vector::new(-tilt.sin(), 0.0, tilt.cos()),
         )
         .unwrap();
         let curves = marched_curves(&torus, &plane, tol);
@@ -2065,7 +2060,7 @@ mod tests {
     }
 
     /// Asserts every traced curve lies on both surfaces.
-    fn assert_on_both<A, B>(curves: &[BSplineCurve3D], a: &A, b: &B)
+    fn assert_on_both<A, B>(curves: &[BSplineCurve], a: &A, b: &B)
     where
         A: ParametricSurface,
         B: ParametricSurface,
@@ -2088,7 +2083,7 @@ mod tests {
             .map(|i| {
                 let y = -2.5 + i as f64;
                 let x = if i % 2 == 0 { 0.4 } else { 0.1 };
-                vec![Point3D::new(x, y, -3.0), Point3D::new(x, y, 3.0)]
+                vec![Point::new(x, y, -3.0), Point::new(x, y, 3.0)]
             })
             .collect();
         crate::surfaces::BSplineSurface::new(
@@ -2113,10 +2108,10 @@ mod tests {
         let tol = Tolerance::DEFAULT;
         let wall = extruded_wall();
         let tilt = 3f64.to_radians();
-        for axis in [Vector3D::Z, Vector3D::new(0.0, tilt.sin(), tilt.cos())] {
-            let cylinder = Cylinder::new(Point3D::ORIGIN, axis, 1.0).unwrap();
+        for axis in [Vector::Z, Vector::new(0.0, tilt.sin(), tilt.cos())] {
+            let cylinder = Cylinder::new(Point::ORIGIN, axis, 1.0).unwrap();
             let result = cylinder.intersect(&wall, tol);
-            let curves: Vec<BSplineCurve3D> = result
+            let curves: Vec<BSplineCurve> = result
                 .curves()
                 .iter()
                 .map(|c| c.curve.as_bspline().unwrap().clone())
@@ -2132,8 +2127,8 @@ mod tests {
         // lines of the intersection.
         use crate::Cylinder;
         let tol = Tolerance::DEFAULT;
-        let first = Cylinder::new(Point3D::ORIGIN, Vector3D::Z, 1.0).unwrap();
-        let second = Cylinder::new(Point3D::new(0.5, 0.0, 0.0), Vector3D::Z, 1.0).unwrap();
+        let first = Cylinder::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
+        let second = Cylinder::new(Point::new(0.5, 0.0, 0.0), Vector::Z, 1.0).unwrap();
         let curves = marched_curves(&first, &second, tol);
         assert_eq!(curves.len(), 2);
         assert_on_both(&curves, &first, &second);
@@ -2146,12 +2141,12 @@ mod tests {
         // inside the large one, so the grids find the curves.
         use crate::{Sphere, Torus};
         let tol = Tolerance::DEFAULT;
-        let torus = Torus::new(Point3D::ORIGIN, Vector3D::Z, 3.0, 1.0).unwrap();
+        let torus = Torus::new(Point::ORIGIN, Vector::Z, 3.0, 1.0).unwrap();
         let azimuth = 7.5f64.to_radians();
         for (distance, radius, count) in
             [(3.0, 1.2, 2), (4.0, 0.3, 1), (4.0, 0.15, 1), (2.0, 0.25, 1)]
         {
-            let centre = Point3D::new(distance * azimuth.cos(), distance * azimuth.sin(), 0.0);
+            let centre = Point::new(distance * azimuth.cos(), distance * azimuth.sin(), 0.0);
             let sphere = Sphere::new(centre, radius).unwrap();
             let curves = marched_curves(&sphere, &torus, tol);
             assert_eq!(curves.len(), count, "radius {radius} at {distance}");
@@ -2164,7 +2159,7 @@ mod tests {
         // Random spheres, cylinders and cones about a torus: wherever the
         // grid seeds find curves, so does the seeding.
         use crate::{Cone, Cylinder, Sphere, Torus};
-        let torus = Torus::new(Point3D::ORIGIN, Vector3D::Z, 3.0, 1.0).unwrap();
+        let torus = Torus::new(Point::ORIGIN, Vector::Z, 3.0, 1.0).unwrap();
         let mut state = 42u64;
         let mut next = || {
             state = state
@@ -2185,9 +2180,9 @@ mod tests {
             let azimuth = next() * std::f64::consts::TAU;
             let distance = 1.5 + 3.0 * next();
             let height = -1.5 + 3.0 * next();
-            let centre = Point3D::new(distance * azimuth.cos(), distance * azimuth.sin(), height);
+            let centre = Point::new(distance * azimuth.cos(), distance * azimuth.sin(), height);
             let radius = 0.1 + 1.5 * next();
-            let axis = Vector3D::new(next() - 0.5, next() - 0.5, next() - 0.5);
+            let axis = Vector::new(next() - 0.5, next() - 0.5, next() - 0.5);
             check(&Sphere::new(centre, radius).unwrap(), &torus, case);
             check(
                 &Cylinder::new(centre, axis, 0.1 + 0.6 * next()).unwrap(),
@@ -2234,7 +2229,7 @@ mod tests {
             .map(|(i, &s)| {
                 let off = if i == 6 { bump } else { 0.0 };
                 let (x, y) = ((s + off) * r, (s - off) * r);
-                vec![Point3D::new(x, y, -1.0), Point3D::new(x, y, 1.0)]
+                vec![Point::new(x, y, -1.0), Point::new(x, y, 1.0)]
             })
             .collect::<Vec<_>>();
         let knots: Vec<f64> = knots.map_or_else(
@@ -2264,7 +2259,7 @@ mod tests {
         // tangent: a long step across it would see no turn.
         use crate::Plane;
         let tol = Tolerance::DEFAULT;
-        let plane = Plane::new(Point3D::ORIGIN, Vector3D::Z).unwrap();
+        let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
         // Chord-length knots, and a wide span before narrow ones at the
         // bump: a step must not cross the narrow spans in one go.
         let chord_length = [
@@ -2308,7 +2303,7 @@ mod tests {
             .enumerate()
             .map(|(i, &x)| {
                 let y = if i == 2 { bump } else { 0.0 };
-                vec![Point3D::new(x, y, -1.0), Point3D::new(x, y, 1.0)]
+                vec![Point::new(x, y, -1.0), Point::new(x, y, 1.0)]
             })
             .collect::<Vec<_>>();
         let knots = vec![
@@ -2350,7 +2345,7 @@ mod tests {
             (1e-8, 0.05, 0.05, 0.3),
         ] {
             let wall = tent_wall(bump, half, at, cluster);
-            let plane = Plane::new(Point3D::new(0.0, 0.0, z0), Vector3D::Z).unwrap();
+            let plane = Plane::new(Point::new(0.0, 0.0, z0), Vector::Z).unwrap();
             let curves = marched_curves(&plane, &wall, tol);
             assert_eq!(curves.len(), 4, "cluster {cluster:e} bump {bump}");
             // The distance to the wall, exactly: to the polyline through
@@ -2363,7 +2358,7 @@ mod tests {
                 (at + 2.0 * half, 0.0),
                 (100.0, 0.0),
             ];
-            let wall_distance = |p: Point3D| {
+            let wall_distance = |p: Point| {
                 corners
                     .windows(2)
                     .map(|side| {
@@ -2409,13 +2404,13 @@ mod tests {
         // the apex: the intersection runs to infinity.
         use crate::{Cone, Cylinder};
         let tol = Tolerance::DEFAULT;
-        let cone = Cone::new(Point3D::ORIGIN, Vector3D::Z, 0.3, 1.0).unwrap();
-        let generator = Vector3D::new(0.3f64.sin(), 0.0, 0.3f64.cos());
-        let cylinder = Cylinder::new(Point3D::new(1.0, 0.0, 0.0), generator, 0.5).unwrap();
+        let cone = Cone::new(Point::ORIGIN, Vector::Z, 0.3, 1.0).unwrap();
+        let generator = Vector::new(0.3f64.sin(), 0.0, 0.3f64.cos());
+        let cylinder = Cylinder::new(Point::new(1.0, 0.0, 0.0), generator, 0.5).unwrap();
         let curves = marched_curves(&cone, &cylinder, tol);
         assert!(!curves.is_empty());
         let half = 0.5 * Tolerance::MODEL_SIZE;
-        let on_cube = |p: Point3D| {
+        let on_cube = |p: Point| {
             [p.x, p.y, p.z]
                 .iter()
                 .any(|c| (c.abs() - half).abs() < 1e-3)
@@ -2435,13 +2430,13 @@ mod tests {
     fn test_marching_miss_is_empty() {
         use crate::{Plane, Sphere};
         let tol = Tolerance::DEFAULT;
-        let plane = Plane::new(Point3D::new(0.0, 0.0, 5.0), Vector3D::Z).unwrap();
-        let sphere = Sphere::new(Point3D::ORIGIN, 2.0).unwrap();
+        let plane = Plane::new(Point::new(0.0, 0.0, 5.0), Vector::Z).unwrap();
+        let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
         assert!(marched_curves(&plane, &sphere, tol).is_empty());
     }
 
     fn cylinder_patch(u_range: (f64, f64)) -> crate::surfaces::BSplineSurface {
-        crate::Cylinder::new(Point3D::ORIGIN, Vector3D::Z, 1.0)
+        crate::Cylinder::new(Point::ORIGIN, Vector::Z, 1.0)
             .unwrap()
             .to_bspline_patch(u_range, (0.0, 2.0))
             .unwrap()
@@ -2451,7 +2446,7 @@ mod tests {
     fn test_surface_and_its_bspline_form_are_coincident() {
         use crate::Sphere;
         let tol = Tolerance::DEFAULT;
-        let sphere = Sphere::new(Point3D::new(0.3, 0.2, 0.5), 0.8).unwrap();
+        let sphere = Sphere::new(Point::new(0.3, 0.2, 0.5), 0.8).unwrap();
         let copy = sphere.to_bspline();
         for result in [
             marching_intersection(&sphere, &copy, tol),
@@ -2480,7 +2475,7 @@ mod tests {
         use crate::{Cylinder, Plane};
         use std::f64::consts::{PI, TAU};
         let tol = Tolerance::DEFAULT;
-        let cylinder = Cylinder::new(Point3D::ORIGIN, Vector3D::Z, 1.0).unwrap();
+        let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
         let whole = cylinder_patch((0.0, TAU));
         let result = marching_intersection(&cylinder, &whole, tol);
         assert!(!result.is_coincident() && result.curves().is_empty());
@@ -2498,15 +2493,15 @@ mod tests {
         let region = only_region(&marching_intersection(&cylinder, &half, tol));
         assert!(region.first_u_range.0.abs() < 1e-9 && (region.first_u_range.1 - PI).abs() < 1e-9);
         // A plane against its own bilinear patch.
-        let plane = Plane::new(Point3D::ORIGIN, Vector3D::Z).unwrap();
+        let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
         let patch = plane.to_bspline_patch((-1.0, 2.0), (0.0, 3.0)).unwrap();
         let region = only_region(&marching_intersection(&plane, &patch, tol));
         assert_eq!(
             (region.first_u_range, region.first_v_range),
             ((-1.0, 2.0), (0.0, 3.0))
         );
-        assert_eq!(region.min_corner, Point3D::new(-1.0, 0.0, 0.0));
-        assert_eq!(region.max_corner, Point3D::new(2.0, 3.0, 0.0));
+        assert_eq!(region.min_corner, Point::new(-1.0, 0.0, 0.0));
+        assert_eq!(region.max_corner, Point::new(2.0, 3.0, 0.0));
     }
 
     #[test]
@@ -2515,7 +2510,7 @@ mod tests {
         let tol = Tolerance::DEFAULT;
         // Crossing the patch through its first sample row: the check stops
         // at the first sample off the plane.
-        let plane = Plane::new(Point3D::new(1.0, 0.0, 0.0), Vector3D::new(1.0, 0.0, 1.0)).unwrap();
+        let plane = Plane::new(Point::new(1.0, 0.0, 0.0), Vector::new(1.0, 0.0, 1.0)).unwrap();
         let result =
             marching_intersection(&plane, &cylinder_patch((0.0, std::f64::consts::TAU)), tol);
         assert!(!result.is_coincident());
@@ -2532,11 +2527,11 @@ mod tests {
         // crossings lie 4.5e-5 apart at an angle of 4.5e-5 radians: a touch
         // within confusion.
         for offset in [1.0, 1.0 - 1e-9] {
-            let plane = Plane::new(Point3D::new(offset, 0.0, 0.0), Vector3D::X).unwrap();
+            let plane = Plane::new(Point::new(offset, 0.0, 0.0), Vector::X).unwrap();
             let result = marching_intersection(&plane, &patch, tol);
             assert_eq!(result.curves().len(), 1);
             assert!(result.curves()[0].tangent);
-            let Curve3D::BSpline(curve) = &result.curves()[0].curve else {
+            let Curve::BSpline(curve) = &result.curves()[0].curve else {
                 panic!("a numeric curve is a B-spline");
             };
             let (t0, t1) = curve.bounds();
@@ -2549,7 +2544,7 @@ mod tests {
             }
         }
         // Crossing at 0.99, the two curves are not tangent.
-        let plane = Plane::new(Point3D::new(0.99, 0.0, 0.0), Vector3D::X).unwrap();
+        let plane = Plane::new(Point::new(0.99, 0.0, 0.0), Vector::X).unwrap();
         let result = marching_intersection(&plane, &patch, tol);
         assert_eq!(result.curves().len(), 2);
         assert!(result.curves().iter().all(|piece| !piece.tangent));
@@ -2560,15 +2555,15 @@ mod tests {
         use crate::{Sphere, Torus};
         let tol = Tolerance::DEFAULT;
         let patch = cylinder_patch((0.0, std::f64::consts::TAU));
-        let sphere = Sphere::new(Point3D::new(0.0, 0.0, 1.0), 1.0).unwrap();
-        let torus = Torus::new(Point3D::new(0.0, 0.0, 1.0), Vector3D::Z, 2.0, 1.0).unwrap();
+        let sphere = Sphere::new(Point::new(0.0, 0.0, 1.0), 1.0).unwrap();
+        let torus = Torus::new(Point::new(0.0, 0.0, 1.0), Vector::Z, 2.0, 1.0).unwrap();
         for result in [
             marching_intersection(&sphere, &patch, tol),
             marching_intersection(&torus, &patch, tol),
         ] {
             assert_eq!(result.curves().len(), 1);
             assert!(result.curves()[0].tangent);
-            let Curve3D::BSpline(curve) = &result.curves()[0].curve else {
+            let Curve::BSpline(curve) = &result.curves()[0].curve else {
                 panic!("a numeric curve is a B-spline");
             };
             let (t0, t1) = curve.bounds();
@@ -2589,11 +2584,11 @@ mod tests {
         use crate::Sphere;
         let tol = Tolerance::DEFAULT;
         let patch = cylinder_patch((0.0, std::f64::consts::TAU));
-        let sphere = Sphere::new(Point3D::new(2.0, 0.0, 1.0), 1.0).unwrap();
+        let sphere = Sphere::new(Point::new(2.0, 0.0, 1.0), 1.0).unwrap();
         let result = marching_intersection(&sphere, &patch, tol);
         assert!(result.curves().is_empty());
         assert_eq!(result.contact_points().len(), 1);
-        assert!(result.contact_points()[0].distance(Point3D::new(1.0, 0.0, 1.0)) < 1e-6);
+        assert!(result.contact_points()[0].distance(Point::new(1.0, 0.0, 1.0)) < 1e-6);
         assert!(!result.is_empty());
     }
 
@@ -2624,7 +2619,7 @@ mod tests {
     /// `surface` moved by `offset`.
     fn shifted(
         surface: &crate::surfaces::BSplineSurface,
-        offset: Vector3D,
+        offset: Vector,
     ) -> crate::surfaces::BSplineSurface {
         surface.transformed(crate::Transform::translation(offset))
     }
@@ -2633,12 +2628,12 @@ mod tests {
     fn test_near_copies_within_confusion_are_coincident() {
         use crate::{Cylinder, Sphere};
         let tol = Tolerance::DEFAULT;
-        let sphere = Sphere::new(Point3D::new(0.3, 0.2, 0.5), 0.8).unwrap();
+        let sphere = Sphere::new(Point::new(0.3, 0.2, 0.5), 0.8).unwrap();
         let copy = sphere.to_bspline();
-        let cylinder = Cylinder::new(Point3D::ORIGIN, Vector3D::Z, 1.0).unwrap();
+        let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
         let patch = cylinder_patch((0.0, std::f64::consts::PI));
         for shift in [3e-8, 1e-7] {
-            let offset = Vector3D::new(1.0, 0.5, 0.25).normalized().unwrap() * shift;
+            let offset = Vector::new(1.0, 0.5, 0.25).normalized().unwrap() * shift;
             let moved = shifted(&copy, offset);
             for result in [
                 marching_intersection(&sphere, &moved, tol),
@@ -2660,10 +2655,10 @@ mod tests {
     fn test_copies_apart_beyond_confusion_are_not_coincident() {
         use crate::Sphere;
         let tol = Tolerance::DEFAULT;
-        let sphere = Sphere::new(Point3D::new(0.3, 0.2, 0.5), 0.8).unwrap();
+        let sphere = Sphere::new(Point::new(0.3, 0.2, 0.5), 0.8).unwrap();
         let copy = sphere.to_bspline();
         // Equal spheres 1e-5 apart cross in one great circle.
-        let offset = Vector3D::new(1.0, 0.5, 0.25).normalized().unwrap() * 1e-5;
+        let offset = Vector::new(1.0, 0.5, 0.25).normalized().unwrap() * 1e-5;
         let result = marching_intersection(&sphere, &shifted(&copy, offset), tol);
         assert!(!result.is_coincident());
         assert_eq!(result.completeness(), &Completeness::Sampled);
@@ -2695,7 +2690,7 @@ mod tests {
                 } else {
                     0.0
                 };
-                vec![Point3D::new(x, 0.0, z), Point3D::new(x, 1.0, z)]
+                vec![Point::new(x, 0.0, z), Point::new(x, 1.0, z)]
             })
             .collect();
         let knots = (0..=24).map(|k| k as f64 / 24.0).collect();
@@ -2719,7 +2714,7 @@ mod tests {
     fn test_bumps_between_the_sample_lines_are_not_coincident() {
         use crate::Plane;
         let tol = Tolerance::DEFAULT;
-        let flat = Plane::new(Point3D::ORIGIN, Vector3D::Z)
+        let flat = Plane::new(Point::ORIGIN, Vector::Z)
             .unwrap()
             .to_bspline_patch((0.0, 1.0), (0.0, 1.0))
             .unwrap();

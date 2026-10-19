@@ -2,7 +2,7 @@
 //!
 //! For a few representative pairs, times a batch of exact intersections
 //! three ways: the typed trait call, the untyped call on `ElementaryCurve`
-//! / `ElementarySurface`, and the untyped call on `Curve3D` / `Surface`.
+//! / `ElementarySurface`, and the untyped call on `Curve` / `Surface`.
 //! The untyped calls add a `match` and the conversion to the general
 //! result.
 //!
@@ -11,9 +11,9 @@
 use criterion::{Criterion, Throughput, criterion_group, criterion_main};
 use std::hint::black_box;
 
-use geomcore::curves::{Circle2D, Circle3D, Curve3D, ElementaryCurve, Ellipse3D, Line3D};
+use geomcore::curves::{Circle, Circle2D, Curve, ElementaryCurve, Ellipse, Line};
 use geomcore::surfaces::{Cone, Cylinder, ElementarySurface, Plane, Sphere, Surface, Torus};
-use geomcore::{Intersect, IntersectExact, Point2D, Point3D, Tolerance, Vector3D};
+use geomcore::{Intersect, IntersectExact, Point, Point2D, Tolerance, Vector};
 
 const BATCH: usize = 1024;
 
@@ -24,16 +24,16 @@ fn jitter(i: usize, salt: u64) -> f64 {
     (x >> 11) as f64 / (1u64 << 52) as f64 - 1.0
 }
 
-fn point(i: usize, scale: f64) -> Point3D {
-    Point3D::new(
+fn point(i: usize, scale: f64) -> Point {
+    Point::new(
         scale * jitter(i, 1),
         scale * jitter(i, 2),
         scale * jitter(i, 3),
     )
 }
 
-fn direction(i: usize) -> Vector3D {
-    Vector3D::new(jitter(i, 4), jitter(i, 5), 0.2 + jitter(i, 6).abs())
+fn direction(i: usize) -> Vector {
+    Vector::new(jitter(i, 4), jitter(i, 5), 0.2 + jitter(i, 6).abs())
 }
 
 /// Times one pair kind four ways over the same batch.
@@ -81,8 +81,8 @@ fn bench_intersect_dispatch(c: &mut Criterion) {
     // points and misses.
     let plane_sphere: Vec<(Plane, Sphere)> = (0..BATCH)
         .map(|i| {
-            let plane = Plane::new(Point3D::new(0.0, 0.0, 1.2 * jitter(i, 7)), Vector3D::Z);
-            (plane.unwrap(), Sphere::new(Point3D::ORIGIN, 1.0).unwrap())
+            let plane = Plane::new(Point::new(0.0, 0.0, 1.2 * jitter(i, 7)), Vector::Z);
+            (plane.unwrap(), Sphere::new(Point::ORIGIN, 1.0).unwrap())
         })
         .collect();
     bench_pair!(
@@ -98,9 +98,9 @@ fn bench_intersect_dispatch(c: &mut Criterion) {
     // Coaxial torus and cone: a quartic in the axial coordinate.
     let torus_cone: Vec<(Torus, Cone)> = (0..BATCH)
         .map(|i| {
-            let torus = Torus::new(Point3D::ORIGIN, Vector3D::Z, 4.0, 1.0).unwrap();
+            let torus = Torus::new(Point::ORIGIN, Vector::Z, 4.0, 1.0).unwrap();
             let apex_height = 2.0 * jitter(i, 8);
-            let cone = Cone::new(Point3D::new(0.0, 0.0, apex_height), Vector3D::Z, 0.6, 4.0);
+            let cone = Cone::new(Point::new(0.0, 0.0, apex_height), Vector::Z, 0.6, 4.0);
             (torus, cone.unwrap())
         })
         .collect();
@@ -115,12 +115,12 @@ fn bench_intersect_dispatch(c: &mut Criterion) {
     );
 
     // Random lines against a torus: up to four hits.
-    let line_torus: Vec<(Line3D, Torus)> = (0..BATCH)
+    let line_torus: Vec<(Line, Torus)> = (0..BATCH)
         .map(|i| {
-            let line = Line3D::new(point(i, 3.0), direction(i)).unwrap();
+            let line = Line::new(point(i, 3.0), direction(i)).unwrap();
             (
                 line,
-                Torus::new(Point3D::ORIGIN, Vector3D::Z, 4.0, 1.0).unwrap(),
+                Torus::new(Point::ORIGIN, Vector::Z, 4.0, 1.0).unwrap(),
             )
         })
         .collect();
@@ -130,17 +130,17 @@ fn bench_intersect_dispatch(c: &mut Criterion) {
         line_torus,
         ElementaryCurve,
         ElementarySurface,
-        Curve3D,
+        Curve,
         Surface
     );
 
     // Tilted circles against a cylinder: the conic-surface quartic.
-    let circle_cylinder: Vec<(Circle3D, Cylinder)> = (0..BATCH)
+    let circle_cylinder: Vec<(Circle, Cylinder)> = (0..BATCH)
         .map(|i| {
-            let circle = Circle3D::new(point(i, 1.0), direction(i), 2.0).unwrap();
+            let circle = Circle::new(point(i, 1.0), direction(i), 2.0).unwrap();
             (
                 circle,
-                Cylinder::new(Point3D::ORIGIN, Vector3D::Z, 1.5).unwrap(),
+                Cylinder::new(Point::ORIGIN, Vector::Z, 1.5).unwrap(),
             )
         })
         .collect();
@@ -150,19 +150,16 @@ fn bench_intersect_dispatch(c: &mut Criterion) {
         circle_cylinder,
         ElementaryCurve,
         ElementarySurface,
-        Curve3D,
+        Curve,
         Surface
     );
 
     // Lines through the plane of a circle.
-    let line_circle: Vec<(Line3D, Circle3D)> = (0..BATCH)
+    let line_circle: Vec<(Line, Circle)> = (0..BATCH)
         .map(|i| {
-            let origin = Point3D::new(3.0 * jitter(i, 9), -5.0, 0.0);
-            let line = Line3D::new(origin, Vector3D::new(jitter(i, 10), 1.0, 0.0)).unwrap();
-            (
-                line,
-                Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap(),
-            )
+            let origin = Point::new(3.0 * jitter(i, 9), -5.0, 0.0);
+            let line = Line::new(origin, Vector::new(jitter(i, 10), 1.0, 0.0)).unwrap();
+            (line, Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap())
         })
         .collect();
     bench_pair!(
@@ -171,18 +168,18 @@ fn bench_intersect_dispatch(c: &mut Criterion) {
         line_circle,
         ElementaryCurve,
         ElementaryCurve,
-        Curve3D,
-        Curve3D
+        Curve,
+        Curve
     );
 
     // Coplanar ellipses, shifted and rotated: up to four hits.
-    let ellipse_ellipse: Vec<(Ellipse3D, Ellipse3D)> = (0..BATCH)
+    let ellipse_ellipse: Vec<(Ellipse, Ellipse)> = (0..BATCH)
         .map(|i| {
-            let a = Ellipse3D::new(Point3D::ORIGIN, Vector3D::Z, Vector3D::X, 3.0, 1.5);
+            let a = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 3.0, 1.5);
             let angle = 3.0 * jitter(i, 11);
-            let x_direction = Vector3D::new(angle.cos(), angle.sin(), 0.0);
-            let center = Point3D::new(jitter(i, 12), jitter(i, 13), 0.0);
-            let b = Ellipse3D::new(center, Vector3D::Z, x_direction, 2.5, 1.0);
+            let x_direction = Vector::new(angle.cos(), angle.sin(), 0.0);
+            let center = Point::new(jitter(i, 12), jitter(i, 13), 0.0);
+            let b = Ellipse::new(center, Vector::Z, x_direction, 2.5, 1.0);
             (a.unwrap(), b.unwrap())
         })
         .collect();
@@ -192,8 +189,8 @@ fn bench_intersect_dispatch(c: &mut Criterion) {
         ellipse_ellipse,
         ElementaryCurve,
         ElementaryCurve,
-        Curve3D,
-        Curve3D
+        Curve,
+        Curve
     );
 }
 
@@ -226,24 +223,24 @@ macro_rules! bench_routed {
 
 fn bench_intersect_routed(c: &mut Criterion) {
     // Lines through the axis region of a cylinder: two hits each.
-    let line_cylinder: Vec<(Line3D, Cylinder)> = (0..BATCH)
+    let line_cylinder: Vec<(Line, Cylinder)> = (0..BATCH)
         .map(|i| {
-            let origin = Point3D::new(-3.0, 0.5 * jitter(i, 14), 0.5 * jitter(i, 15));
-            let line = Line3D::new(origin, Vector3D::new(1.0, 0.2 * jitter(i, 16), 0.0));
-            let cylinder = Cylinder::new(Point3D::ORIGIN, Vector3D::Z, 1.5);
+            let origin = Point::new(-3.0, 0.5 * jitter(i, 14), 0.5 * jitter(i, 15));
+            let line = Line::new(origin, Vector::new(1.0, 0.2 * jitter(i, 16), 0.0));
+            let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 1.5);
             (line.unwrap(), cylinder.unwrap())
         })
         .collect();
     bench_routed!(c, "line_cylinder", line_cylinder);
 
     // Coplanar circles of radius 2 and 1.5 with centres 1 to 2 apart: two hits each.
-    let circle_circle: Vec<(Circle3D, Circle3D)> = (0..BATCH)
+    let circle_circle: Vec<(Circle, Circle)> = (0..BATCH)
         .map(|i| {
-            let a = Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
+            let a = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
             let angle = 3.0 * jitter(i, 17);
             let distance = 1.5 + 0.5 * jitter(i, 18);
-            let center = Point3D::new(distance * angle.cos(), distance * angle.sin(), 0.0);
-            (a, Circle3D::new(center, Vector3D::Z, 1.5).unwrap())
+            let center = Point::new(distance * angle.cos(), distance * angle.sin(), 0.0);
+            (a, Circle::new(center, Vector::Z, 1.5).unwrap())
         })
         .collect();
     bench_routed!(c, "circle_circle", circle_circle.clone());
@@ -252,7 +249,7 @@ fn bench_intersect_routed(c: &mut Criterion) {
     let circle_circle_2d: Vec<(Circle2D, Circle2D)> = circle_circle
         .iter()
         .map(|(a, b)| {
-            let center = |c: &Circle3D| Point2D::new(c.center().x, c.center().y);
+            let center = |c: &Circle| Point2D::new(c.center().x, c.center().y);
             let a = Circle2D::new(center(a), a.radius()).unwrap();
             (a, Circle2D::new(center(b), b.radius()).unwrap())
         })
@@ -262,8 +259,8 @@ fn bench_intersect_routed(c: &mut Criterion) {
     // Planes at heights across a unit sphere: a circle each.
     let plane_sphere: Vec<(Plane, Sphere)> = (0..BATCH)
         .map(|i| {
-            let plane = Plane::new(Point3D::new(0.0, 0.0, 0.9 * jitter(i, 19)), Vector3D::Z);
-            (plane.unwrap(), Sphere::new(Point3D::ORIGIN, 1.0).unwrap())
+            let plane = Plane::new(Point::new(0.0, 0.0, 0.9 * jitter(i, 19)), Vector::Z);
+            (plane.unwrap(), Sphere::new(Point::ORIGIN, 1.0).unwrap())
         })
         .collect();
     bench_routed!(c, "plane_sphere", plane_sphere);

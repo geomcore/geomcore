@@ -15,9 +15,9 @@ use crate::math::boxtree::{BoxTree, Lazy};
 use crate::math::{newton_min_1d, quadrature};
 use crate::projection::CurveProjection;
 use crate::surfaces::Surface;
-use crate::{Continuity, Point3D, Tolerance, Transform, Vector3D};
+use crate::{Continuity, Point, Tolerance, Transform, Vector};
 
-/// Error returned when a [`BSplineCurve3D`] cannot be constructed from the
+/// Error returned when a [`BSplineCurve`] cannot be constructed from the
 /// given degree, poles, knots, multiplicities, and (for rational curves)
 /// weights.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -84,7 +84,7 @@ impl fmt::Display for BSplineConstructionError {
 
 impl std::error::Error for BSplineConstructionError {}
 
-/// Error returned when knots cannot be inserted into a [`BSplineCurve3D`]
+/// Error returned when knots cannot be inserted into a [`BSplineCurve`]
 /// or a direction of a [`crate::BSplineSurface`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum KnotInsertionError {
@@ -117,7 +117,7 @@ impl fmt::Display for KnotInsertionError {
 
 impl std::error::Error for KnotInsertionError {}
 
-/// Error returned when the degree of a [`BSplineCurve3D`] or of a direction
+/// Error returned when the degree of a [`BSplineCurve`] or of a direction
 /// of a [`crate::BSplineSurface`] cannot be raised.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DegreeElevationError {
@@ -135,7 +135,7 @@ impl fmt::Display for DegreeElevationError {
 
 impl std::error::Error for DegreeElevationError {}
 
-/// Error returned when knots cannot be removed from a [`BSplineCurve3D`]
+/// Error returned when knots cannot be removed from a [`BSplineCurve`]
 /// or a direction of a [`crate::BSplineSurface`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum KnotRemovalError {
@@ -168,7 +168,7 @@ impl fmt::Display for KnotRemovalError {
 
 impl std::error::Error for KnotRemovalError {}
 
-/// Error returned when a [`BSplineCurve3D`], or a direction of a
+/// Error returned when a [`BSplineCurve`], or a direction of a
 /// [`crate::BSplineSurface`], cannot be split at a parameter or have a
 /// piece extracted.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -213,27 +213,27 @@ impl std::error::Error for BSplineSplitError {}
 /// A clamped cubic through six poles:
 ///
 /// ```
-/// use geomcore::{BSplineCurve3D, Point3D};
+/// use geomcore::{BSplineCurve, Point};
 ///
 /// let poles = vec![
-///     Point3D::new(0.0, 0.0, 0.0),
-///     Point3D::new(1.0, 2.0, 0.0),
-///     Point3D::new(2.0, 2.0, 1.0),
-///     Point3D::new(3.0, 0.0, 1.0),
-///     Point3D::new(4.0, 1.0, 0.0),
-///     Point3D::new(5.0, 0.0, 0.0),
+///     Point::new(0.0, 0.0, 0.0),
+///     Point::new(1.0, 2.0, 0.0),
+///     Point::new(2.0, 2.0, 1.0),
+///     Point::new(3.0, 0.0, 1.0),
+///     Point::new(4.0, 1.0, 0.0),
+///     Point::new(5.0, 0.0, 0.0),
 /// ];
 /// let knots = vec![0.0, 1.0, 2.0, 3.0];
 /// let mults = vec![4, 1, 1, 4];
-/// let curve = BSplineCurve3D::new(3, poles, knots, mults, false).unwrap();
+/// let curve = BSplineCurve::new(3, poles, knots, mults, false).unwrap();
 ///
-/// assert_eq!(curve.eval_point(0.0), Point3D::new(0.0, 0.0, 0.0));
+/// assert_eq!(curve.eval_point(0.0), Point::new(0.0, 0.0, 0.0));
 /// assert_eq!(curve.bounds(), (0.0, 3.0));
 /// ```
 #[derive(Debug, Clone, PartialEq)]
-pub struct BSplineCurve3D {
+pub struct BSplineCurve {
     knots: math::KnotVector,
-    poles: Vec<Point3D>,
+    poles: Vec<Point>,
     /// One weight per pole if rational.
     weights: Option<Vec<f64>>,
     /// Bounding-box hierarchy of the knot spans, built on the first
@@ -248,7 +248,7 @@ struct SpanTree {
     tree: BoxTree,
 }
 
-impl BSplineCurve3D {
+impl BSplineCurve {
     /// Creates a non-rational (polynomial) B-spline curve.
     ///
     /// # Errors
@@ -260,19 +260,19 @@ impl BSplineCurve3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{BSplineCurve3D, Point3D};
+    /// use geomcore::{BSplineCurve, Point};
     ///
-    /// let poles = vec![Point3D::new(0.0, 0.0, 0.0), Point3D::new(2.0, 0.0, 0.0)];
-    /// let curve = BSplineCurve3D::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
-    /// assert_eq!(curve.eval_point(0.5), Point3D::new(1.0, 0.0, 0.0));
+    /// let poles = vec![Point::new(0.0, 0.0, 0.0), Point::new(2.0, 0.0, 0.0)];
+    /// let curve = BSplineCurve::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
+    /// assert_eq!(curve.eval_point(0.5), Point::new(1.0, 0.0, 0.0));
     /// ```
     pub fn new(
         degree: usize,
-        poles: Vec<Point3D>,
+        poles: Vec<Point>,
         knots: Vec<f64>,
         multiplicities: Vec<u32>,
         periodic: bool,
-    ) -> Result<BSplineCurve3D, BSplineConstructionError> {
+    ) -> Result<BSplineCurve, BSplineConstructionError> {
         Self::build(degree, poles, None, knots, multiplicities, periodic)
     }
 
@@ -284,21 +284,21 @@ impl BSplineCurve3D {
     /// `weights.len() != poles.len()`, or
     /// [`BSplineConstructionError::NonPositiveWeight`] if any weight is `<=
     /// 0`. Otherwise validates degree/knots/multiplicities/poles exactly as
-    /// [`BSplineCurve3D::new`] does.
+    /// [`BSplineCurve::new`] does.
     ///
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{BSplineCurve3D, Point3D};
+    /// use geomcore::{BSplineCurve, Point};
     ///
     /// // Rational quadratic quarter circle.
     /// let w = std::f64::consts::FRAC_1_SQRT_2;
     /// let poles = vec![
-    ///     Point3D::new(1.0, 0.0, 0.0),
-    ///     Point3D::new(1.0, 1.0, 0.0),
-    ///     Point3D::new(0.0, 1.0, 0.0),
+    ///     Point::new(1.0, 0.0, 0.0),
+    ///     Point::new(1.0, 1.0, 0.0),
+    ///     Point::new(0.0, 1.0, 0.0),
     /// ];
-    /// let curve = BSplineCurve3D::new_rational(
+    /// let curve = BSplineCurve::new_rational(
     ///     2,
     ///     poles,
     ///     vec![1.0, w, 1.0],
@@ -312,12 +312,12 @@ impl BSplineCurve3D {
     /// ```
     pub fn new_rational(
         degree: usize,
-        poles: Vec<Point3D>,
+        poles: Vec<Point>,
         weights: Vec<f64>,
         knots: Vec<f64>,
         multiplicities: Vec<u32>,
         periodic: bool,
-    ) -> Result<BSplineCurve3D, BSplineConstructionError> {
+    ) -> Result<BSplineCurve, BSplineConstructionError> {
         Self::build(
             degree,
             poles,
@@ -330,12 +330,12 @@ impl BSplineCurve3D {
 
     fn build(
         degree: usize,
-        poles: Vec<Point3D>,
+        poles: Vec<Point>,
         weights: Option<Vec<f64>>,
         knots: Vec<f64>,
         multiplicities: Vec<u32>,
         periodic: bool,
-    ) -> Result<BSplineCurve3D, BSplineConstructionError> {
+    ) -> Result<BSplineCurve, BSplineConstructionError> {
         if let Some(ws) = &weights {
             if ws.len() != poles.len() {
                 return Err(BSplineConstructionError::WeightCountMismatch);
@@ -345,7 +345,7 @@ impl BSplineCurve3D {
             }
         }
         let knots = math::KnotVector::new(degree, knots, multiplicities, periodic, poles.len())?;
-        Ok(BSplineCurve3D {
+        Ok(BSplineCurve {
             knots,
             poles,
             weights,
@@ -359,16 +359,16 @@ impl BSplineCurve3D {
     /// `multiplicities`: fitting and editing results skip revalidation.
     pub(crate) fn from_validated_parts(
         degree: usize,
-        poles: Vec<Point3D>,
+        poles: Vec<Point>,
         weights: Option<Vec<f64>>,
         knots: Vec<f64>,
         multiplicities: Vec<u32>,
         flat: Vec<f64>,
         periodic: bool,
-    ) -> BSplineCurve3D {
+    ) -> BSplineCurve {
         let knots = math::KnotVector::from_validated(degree, knots, multiplicities, flat, periodic);
         debug_assert_eq!(knots.pole_count(), poles.len());
-        BSplineCurve3D {
+        BSplineCurve {
             knots,
             poles,
             weights,
@@ -381,9 +381,9 @@ impl BSplineCurve3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{BSplineCurve3D, Point3D};
-    /// let poles = vec![Point3D::new(0.0, 0.0, 0.0), Point3D::new(2.0, 0.0, 0.0)];
-    /// let curve = BSplineCurve3D::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
+    /// use geomcore::{BSplineCurve, Point};
+    /// let poles = vec![Point::new(0.0, 0.0, 0.0), Point::new(2.0, 0.0, 0.0)];
+    /// let curve = BSplineCurve::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
     /// assert_eq!(curve.degree(), 1);
     /// ```
     pub fn degree(&self) -> usize {
@@ -395,9 +395,9 @@ impl BSplineCurve3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{BSplineCurve3D, Point3D};
-    /// let poles = vec![Point3D::new(0.0, 0.0, 0.0), Point3D::new(2.0, 0.0, 0.0)];
-    /// let curve = BSplineCurve3D::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
+    /// use geomcore::{BSplineCurve, Point};
+    /// let poles = vec![Point::new(0.0, 0.0, 0.0), Point::new(2.0, 0.0, 0.0)];
+    /// let curve = BSplineCurve::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
     /// assert!(!curve.is_periodic());
     /// ```
     pub fn is_periodic(&self) -> bool {
@@ -411,13 +411,13 @@ impl BSplineCurve3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{BSplineCurve3D, Point3D, Tolerance};
+    /// use geomcore::{BSplineCurve, Point, Tolerance};
     /// let poles = vec![
-    ///     Point3D::new(0.0, 0.0, 0.0),
-    ///     Point3D::new(1.0, 0.0, 0.0),
-    ///     Point3D::new(0.0, 0.0, 0.0),
+    ///     Point::new(0.0, 0.0, 0.0),
+    ///     Point::new(1.0, 0.0, 0.0),
+    ///     Point::new(0.0, 0.0, 0.0),
     /// ];
-    /// let closed = BSplineCurve3D::new(1, poles, vec![0.0, 1.0, 2.0], vec![2, 1, 2], false).unwrap();
+    /// let closed = BSplineCurve::new(1, poles, vec![0.0, 1.0, 2.0], vec![2, 1, 2], false).unwrap();
     /// assert!(closed.is_closed(Tolerance::DEFAULT));
     /// ```
     pub fn is_closed(&self, tol: Tolerance) -> bool {
@@ -442,9 +442,9 @@ impl BSplineCurve3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{BSplineCurve3D, Continuity, Point3D, Tolerance};
-    /// let poles = vec![Point3D::new(0.0, 0.0, 0.0), Point3D::new(2.0, 0.0, 0.0)];
-    /// let curve = BSplineCurve3D::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
+    /// use geomcore::{BSplineCurve, Continuity, Point, Tolerance};
+    /// let poles = vec![Point::new(0.0, 0.0, 0.0), Point::new(2.0, 0.0, 0.0)];
+    /// let curve = BSplineCurve::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
     /// assert_eq!(curve.continuity(0.5, Tolerance::DEFAULT), Continuity::Smooth);
     /// ```
     pub fn continuity(&self, u: f64, tol: Tolerance) -> Continuity {
@@ -466,15 +466,15 @@ impl BSplineCurve3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{BSplineCurve3D, Continuity, Point3D};
+    /// use geomcore::{BSplineCurve, Continuity, Point};
     /// let poles = vec![
-    ///     Point3D::ORIGIN,
-    ///     Point3D::new(1.0, 0.0, 0.0),
-    ///     Point3D::new(2.0, 0.0, 0.0),
-    ///     Point3D::new(3.0, 0.0, 0.0),
-    ///     Point3D::new(4.0, 0.0, 0.0),
+    ///     Point::ORIGIN,
+    ///     Point::new(1.0, 0.0, 0.0),
+    ///     Point::new(2.0, 0.0, 0.0),
+    ///     Point::new(3.0, 0.0, 0.0),
+    ///     Point::new(4.0, 0.0, 0.0),
     /// ];
-    /// let curve = BSplineCurve3D::new(2, poles, vec![0.0, 0.5, 1.0], vec![3, 2, 3], false).unwrap();
+    /// let curve = BSplineCurve::new(2, poles, vec![0.0, 0.5, 1.0], vec![3, 2, 3], false).unwrap();
     /// assert_eq!(curve.min_continuity(), Continuity::Order(0));
     /// ```
     pub fn min_continuity(&self) -> Continuity {
@@ -492,9 +492,9 @@ impl BSplineCurve3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{BSplineCurve3D, Point3D};
-    /// let poles = vec![Point3D::new(0.0, 0.0, 0.0), Point3D::new(2.0, 0.0, 0.0)];
-    /// let curve = BSplineCurve3D::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
+    /// use geomcore::{BSplineCurve, Point};
+    /// let poles = vec![Point::new(0.0, 0.0, 0.0), Point::new(2.0, 0.0, 0.0)];
+    /// let curve = BSplineCurve::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
     /// assert!(!curve.is_rational());
     /// ```
     pub fn is_rational(&self) -> bool {
@@ -506,12 +506,12 @@ impl BSplineCurve3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{BSplineCurve3D, Point3D};
-    /// let poles = vec![Point3D::new(0.0, 0.0, 0.0), Point3D::new(2.0, 0.0, 0.0)];
-    /// let curve = BSplineCurve3D::new(1, poles.clone(), vec![0.0, 1.0], vec![2, 2], false).unwrap();
+    /// use geomcore::{BSplineCurve, Point};
+    /// let poles = vec![Point::new(0.0, 0.0, 0.0), Point::new(2.0, 0.0, 0.0)];
+    /// let curve = BSplineCurve::new(1, poles.clone(), vec![0.0, 1.0], vec![2, 2], false).unwrap();
     /// assert_eq!(curve.poles(), poles.as_slice());
     /// ```
-    pub fn poles(&self) -> &[Point3D] {
+    pub fn poles(&self) -> &[Point] {
         &self.poles
     }
 
@@ -520,9 +520,9 @@ impl BSplineCurve3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{BSplineCurve3D, Point3D};
-    /// let poles = vec![Point3D::new(0.0, 0.0, 0.0), Point3D::new(2.0, 0.0, 0.0)];
-    /// let curve = BSplineCurve3D::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
+    /// use geomcore::{BSplineCurve, Point};
+    /// let poles = vec![Point::new(0.0, 0.0, 0.0), Point::new(2.0, 0.0, 0.0)];
+    /// let curve = BSplineCurve::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
     /// assert_eq!(curve.weights(), None);
     /// ```
     pub fn weights(&self) -> Option<&[f64]> {
@@ -534,9 +534,9 @@ impl BSplineCurve3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{BSplineCurve3D, Point3D};
-    /// let poles = vec![Point3D::new(0.0, 0.0, 0.0), Point3D::new(2.0, 0.0, 0.0)];
-    /// let curve = BSplineCurve3D::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
+    /// use geomcore::{BSplineCurve, Point};
+    /// let poles = vec![Point::new(0.0, 0.0, 0.0), Point::new(2.0, 0.0, 0.0)];
+    /// let curve = BSplineCurve::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
     /// assert_eq!(curve.knots(), &[0.0, 1.0]);
     /// ```
     pub fn knots(&self) -> &[f64] {
@@ -548,9 +548,9 @@ impl BSplineCurve3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{BSplineCurve3D, Point3D};
-    /// let poles = vec![Point3D::new(0.0, 0.0, 0.0), Point3D::new(2.0, 0.0, 0.0)];
-    /// let curve = BSplineCurve3D::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
+    /// use geomcore::{BSplineCurve, Point};
+    /// let poles = vec![Point::new(0.0, 0.0, 0.0), Point::new(2.0, 0.0, 0.0)];
+    /// let curve = BSplineCurve::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
     /// assert_eq!(curve.multiplicities(), &[2, 2]);
     /// ```
     pub fn multiplicities(&self) -> &[u32] {
@@ -569,19 +569,19 @@ impl BSplineCurve3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{BSplineCurve3D, Point3D, Transform, Vector3D};
-    /// let poles = vec![Point3D::new(0.0, 0.0, 0.0), Point3D::new(2.0, 0.0, 0.0)];
-    /// let curve = BSplineCurve3D::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
-    /// let moved = curve.transformed(Transform::translation(Vector3D::new(0.0, 5.0, 0.0)));
-    /// assert_eq!(moved.eval_point(0.5), Point3D::new(1.0, 5.0, 0.0));
+    /// use geomcore::{BSplineCurve, Point, Transform, Vector};
+    /// let poles = vec![Point::new(0.0, 0.0, 0.0), Point::new(2.0, 0.0, 0.0)];
+    /// let curve = BSplineCurve::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
+    /// let moved = curve.transformed(Transform::translation(Vector::new(0.0, 5.0, 0.0)));
+    /// assert_eq!(moved.eval_point(0.5), Point::new(1.0, 5.0, 0.0));
     /// ```
-    pub fn transformed(&self, transform: Transform) -> BSplineCurve3D {
-        let poles: Vec<Point3D> = self
+    pub fn transformed(&self, transform: Transform) -> BSplineCurve {
+        let poles: Vec<Point> = self
             .poles
             .iter()
             .map(|&p| transform.apply_point(p))
             .collect();
-        BSplineCurve3D {
+        BSplineCurve {
             knots: self.knots.clone(),
             poles,
             weights: self.weights.clone(),
@@ -605,7 +605,7 @@ impl BSplineCurve3D {
     ///
     /// [`KnotInsertionError::NonFiniteKnot`] if `u` is NaN or infinite,
     /// [`KnotInsertionError::KnotOutOfRange`] if it lies outside
-    /// [`BSplineCurve3D::bounds`], and
+    /// [`BSplineCurve::bounds`], and
     /// [`KnotInsertionError::MultiplicityTooLarge`] if its multiplicity
     /// would exceed the degree (`degree + 1` at the end knots of a
     /// non-periodic curve, so a clamped end takes no more).
@@ -613,15 +613,15 @@ impl BSplineCurve3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{BSplineCurve3D, KnotInsertionError, Point3D};
+    /// use geomcore::{BSplineCurve, KnotInsertionError, Point};
     ///
     /// let poles = vec![
-    ///     Point3D::new(0.0, 0.0, 0.0),
-    ///     Point3D::new(1.0, 2.0, 0.0),
-    ///     Point3D::new(3.0, 2.0, 1.0),
-    ///     Point3D::new(4.0, 0.0, 1.0),
+    ///     Point::new(0.0, 0.0, 0.0),
+    ///     Point::new(1.0, 2.0, 0.0),
+    ///     Point::new(3.0, 2.0, 1.0),
+    ///     Point::new(4.0, 0.0, 1.0),
     /// ];
-    /// let curve = BSplineCurve3D::new(3, poles, vec![0.0, 1.0], vec![4, 4], false).unwrap();
+    /// let curve = BSplineCurve::new(3, poles, vec![0.0, 1.0], vec![4, 4], false).unwrap();
     /// let refined = curve.insert_knot(0.25, 2).unwrap();
     /// assert_eq!(refined.knots(), &[0.0, 0.25, 1.0]);
     /// assert_eq!(refined.multiplicities(), &[4, 2, 4]);
@@ -634,7 +634,7 @@ impl BSplineCurve3D {
     ///     Err(KnotInsertionError::MultiplicityTooLarge)
     /// );
     /// ```
-    pub fn insert_knot(&self, u: f64, times: u32) -> Result<BSplineCurve3D, KnotInsertionError> {
+    pub fn insert_knot(&self, u: f64, times: u32) -> Result<BSplineCurve, KnotInsertionError> {
         let copies = [u; math::MAX_DEGREE + 1];
         // More copies than any multiplicity allows fail the same way.
         self.refine_knots(&copies[..(times as usize).min(copies.len())])
@@ -643,7 +643,7 @@ impl BSplineCurve3D {
     /// Returns the same curve with all of `knots` inserted in one pass:
     /// each value inserted once, a repeated value as many times as it
     /// appears. The curve gains one pole per value while every point and
-    /// derivative stays the same; see [`BSplineCurve3D::insert_knot`] for
+    /// derivative stays the same; see [`BSplineCurve::insert_knot`] for
     /// rational and periodic curves.
     ///
     /// The poles are computed once for the whole list rather than knot by
@@ -655,22 +655,22 @@ impl BSplineCurve3D {
     /// [`KnotInsertionError::NonFiniteKnot`] if a value is NaN or infinite,
     /// [`KnotInsertionError::KnotsNotSorted`] if `knots` is not in
     /// non-decreasing order, [`KnotInsertionError::KnotOutOfRange`] if a
-    /// value lies outside [`BSplineCurve3D::bounds`], and
+    /// value lies outside [`BSplineCurve::bounds`], and
     /// [`KnotInsertionError::MultiplicityTooLarge`] as for
-    /// [`BSplineCurve3D::insert_knot`].
+    /// [`BSplineCurve::insert_knot`].
     ///
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{BSplineCurve3D, KnotInsertionError, Point3D};
+    /// use geomcore::{BSplineCurve, KnotInsertionError, Point};
     ///
     /// let poles = vec![
-    ///     Point3D::new(0.0, 0.0, 0.0),
-    ///     Point3D::new(1.0, 2.0, 0.0),
-    ///     Point3D::new(3.0, 2.0, 1.0),
-    ///     Point3D::new(4.0, 0.0, 1.0),
+    ///     Point::new(0.0, 0.0, 0.0),
+    ///     Point::new(1.0, 2.0, 0.0),
+    ///     Point::new(3.0, 2.0, 1.0),
+    ///     Point::new(4.0, 0.0, 1.0),
     /// ];
-    /// let curve = BSplineCurve3D::new(3, poles, vec![0.0, 1.0], vec![4, 4], false).unwrap();
+    /// let curve = BSplineCurve::new(3, poles, vec![0.0, 1.0], vec![4, 4], false).unwrap();
     /// let refined = curve.refine_knots(&[0.25, 0.5, 0.5, 0.75]).unwrap();
     /// assert_eq!(refined.knots(), &[0.0, 0.25, 0.5, 0.75, 1.0]);
     /// assert_eq!(refined.multiplicities(), &[4, 1, 2, 1, 4]);
@@ -682,7 +682,7 @@ impl BSplineCurve3D {
     ///     Err(KnotInsertionError::KnotsNotSorted)
     /// );
     /// ```
-    pub fn refine_knots(&self, knots: &[f64]) -> Result<BSplineCurve3D, KnotInsertionError> {
+    pub fn refine_knots(&self, knots: &[f64]) -> Result<BSplineCurve, KnotInsertionError> {
         if knots.is_empty() {
             return Ok(self.clone());
         }
@@ -693,7 +693,7 @@ impl BSplineCurve3D {
             self.weights.as_deref(),
             Lanes::CURVE,
         )?;
-        Ok(BSplineCurve3D {
+        Ok(BSplineCurve {
             knots: direction,
             poles,
             weights,
@@ -727,16 +727,16 @@ impl BSplineCurve3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{BSplineCurve3D, Point3D};
+    /// use geomcore::{BSplineCurve, Point};
     ///
     /// // Rational quadratic quarter circle, raised to a cubic.
     /// let w = std::f64::consts::FRAC_1_SQRT_2;
     /// let poles = vec![
-    ///     Point3D::new(1.0, 0.0, 0.0),
-    ///     Point3D::new(1.0, 1.0, 0.0),
-    ///     Point3D::new(0.0, 1.0, 0.0),
+    ///     Point::new(1.0, 0.0, 0.0),
+    ///     Point::new(1.0, 1.0, 0.0),
+    ///     Point::new(0.0, 1.0, 0.0),
     /// ];
-    /// let arc = BSplineCurve3D::new_rational(2, poles, vec![1.0, w, 1.0], vec![0.0, 1.0], vec![3, 3], false)
+    /// let arc = BSplineCurve::new_rational(2, poles, vec![1.0, w, 1.0], vec![0.0, 1.0], vec![3, 3], false)
     ///     .unwrap();
     /// let cubic = arc.elevate_degree(1).unwrap();
     /// assert_eq!(cubic.degree(), 3);
@@ -747,7 +747,7 @@ impl BSplineCurve3D {
     ///     assert!(cubic.eval_point(u).distance(arc.eval_point(u)) < 1e-12);
     /// }
     /// ```
-    pub fn elevate_degree(&self, amount: usize) -> Result<BSplineCurve3D, DegreeElevationError> {
+    pub fn elevate_degree(&self, amount: usize) -> Result<BSplineCurve, DegreeElevationError> {
         let (direction, poles, weights) = editing::edit(
             &Elevation(amount),
             &self.knots,
@@ -755,7 +755,7 @@ impl BSplineCurve3D {
             self.weights.as_deref(),
             Lanes::CURVE,
         )?;
-        Ok(BSplineCurve3D {
+        Ok(BSplineCurve {
             knots: direction,
             poles,
             weights,
@@ -788,24 +788,24 @@ impl BSplineCurve3D {
     /// [`KnotRemovalError::InvalidDeviation`] if `max_deviation` is
     /// negative, NaN or infinite, [`KnotRemovalError::NonFiniteKnot`] if `u`
     /// is NaN or infinite, [`KnotRemovalError::KnotOutOfRange`] if it lies
-    /// outside [`BSplineCurve3D::bounds`] or, on a non-periodic curve, on
+    /// outside [`BSplineCurve::bounds`] or, on a non-periodic curve, on
     /// one of them, and [`KnotRemovalError::KnotNotFound`] if it is not one
-    /// of [`BSplineCurve3D::knots`].
+    /// of [`BSplineCurve::knots`].
     ///
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{BSplineCurve3D, KnotRemovalError, Point3D};
+    /// use geomcore::{BSplineCurve, KnotRemovalError, Point};
     ///
     /// // A polyline whose second vertex lies on the segment around it.
     /// let poles = vec![
-    ///     Point3D::new(0.0, 0.0, 0.0),
-    ///     Point3D::new(1.0, 0.0, 0.0),
-    ///     Point3D::new(2.0, 0.0, 0.0),
-    ///     Point3D::new(3.0, 1.0, 0.0),
+    ///     Point::new(0.0, 0.0, 0.0),
+    ///     Point::new(1.0, 0.0, 0.0),
+    ///     Point::new(2.0, 0.0, 0.0),
+    ///     Point::new(3.0, 1.0, 0.0),
     /// ];
     /// let knots = vec![0.0, 1.0, 2.0, 3.0];
-    /// let curve = BSplineCurve3D::new(1, poles, knots, vec![2, 1, 1, 2], false).unwrap();
+    /// let curve = BSplineCurve::new(1, poles, knots, vec![2, 1, 1, 2], false).unwrap();
     /// let (simpler, removed) = curve.remove_knot(1.0, 1, 1e-9).unwrap();
     /// assert_eq!(removed, 1);
     /// assert_eq!(simpler.knots(), &[0.0, 2.0, 3.0]);
@@ -824,7 +824,7 @@ impl BSplineCurve3D {
         u: f64,
         times: u32,
         max_deviation: f64,
-    ) -> Result<(BSplineCurve3D, u32), KnotRemovalError> {
+    ) -> Result<(BSplineCurve, u32), KnotRemovalError> {
         let copies = [u; math::MAX_DEGREE + 1];
         let copies = &copies[..(times as usize).min(copies.len())];
         if copies.is_empty() {
@@ -841,28 +841,28 @@ impl BSplineCurve3D {
     /// made, and a knot whose removal would move it further is kept.
     ///
     /// The whole list is removed in one buffer, much faster than removing
-    /// knot by knot; see [`BSplineCurve3D::remove_knot`] for the deviation
+    /// knot by knot; see [`BSplineCurve::remove_knot`] for the deviation
     /// bound and for rational and periodic curves. Which knots go depends
     /// on the order: each removal uses part of the deviation allowed
     /// around the knot. Copies beyond a knot's multiplicity are skipped.
     ///
     /// # Errors
     ///
-    /// As [`BSplineCurve3D::remove_knot`], for any value of `knots`; no
+    /// As [`BSplineCurve::remove_knot`], for any value of `knots`; no
     /// knot is removed then.
     ///
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{BSplineCurve3D, Point3D};
+    /// use geomcore::{BSplineCurve, Point};
     ///
     /// let poles = vec![
-    ///     Point3D::new(0.0, 0.0, 0.0),
-    ///     Point3D::new(1.0, 2.0, 0.0),
-    ///     Point3D::new(3.0, 2.0, 1.0),
-    ///     Point3D::new(4.0, 0.0, 1.0),
+    ///     Point::new(0.0, 0.0, 0.0),
+    ///     Point::new(1.0, 2.0, 0.0),
+    ///     Point::new(3.0, 2.0, 1.0),
+    ///     Point::new(4.0, 0.0, 1.0),
     /// ];
-    /// let curve = BSplineCurve3D::new(3, poles, vec![0.0, 1.0], vec![4, 4], false).unwrap();
+    /// let curve = BSplineCurve::new(3, poles, vec![0.0, 1.0], vec![4, 4], false).unwrap();
     /// let refined = curve.refine_knots(&[0.25, 0.5, 0.5, 0.75]).unwrap();
     /// let (simpler, removed) = refined.remove_knots(&[0.25, 0.5, 0.5, 0.75], 1e-9).unwrap();
     /// assert_eq!(removed, 4);
@@ -875,7 +875,7 @@ impl BSplineCurve3D {
         &self,
         knots: &[f64],
         max_deviation: f64,
-    ) -> Result<(BSplineCurve3D, usize), KnotRemovalError> {
+    ) -> Result<(BSplineCurve, usize), KnotRemovalError> {
         editing::check_removal(&self.knots, knots, max_deviation)?;
         let removal = editing::remove_knots(
             &self.knots,
@@ -887,7 +887,7 @@ impl BSplineCurve3D {
         );
         Ok(match removal {
             Some(removed) => (
-                BSplineCurve3D {
+                BSplineCurve {
                     knots: removed.knots,
                     poles: removed.points,
                     weights: removed.weights,
@@ -900,7 +900,7 @@ impl BSplineCurve3D {
     }
 
     /// Returns the polynomial (or rational) piece of each knot span within
-    /// the [`BSplineCurve3D::bounds`], in order, as a Bézier B-spline: one
+    /// the [`BSplineCurve::bounds`], in order, as a Bézier B-spline: one
     /// span with both end knots of multiplicity `degree + 1`, its poles
     /// the span's Bézier control points.
     ///
@@ -911,19 +911,19 @@ impl BSplineCurve3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{BSplineCurve3D, Point3D};
+    /// use geomcore::{BSplineCurve, Point};
     ///
-    /// let poles: Vec<Point3D> =
-    ///     (0..6).map(|i| Point3D::new(i as f64, (i % 2) as f64, 0.0)).collect();
+    /// let poles: Vec<Point> =
+    ///     (0..6).map(|i| Point::new(i as f64, (i % 2) as f64, 0.0)).collect();
     /// let knots = vec![0.0, 1.0, 2.0, 3.0];
-    /// let curve = BSplineCurve3D::new(3, poles, knots, vec![4, 1, 1, 4], false).unwrap();
+    /// let curve = BSplineCurve::new(3, poles, knots, vec![4, 1, 1, 4], false).unwrap();
     /// let pieces = curve.to_bezier_pieces();
     /// assert_eq!(pieces.len(), 3);
     /// assert_eq!(pieces[1].bounds(), (1.0, 2.0));
     /// assert_eq!(pieces[1].multiplicities(), &[4, 4]);
     /// assert!(pieces[1].eval_point(1.5).distance(curve.eval_point(1.5)) < 1e-12);
     /// ```
-    pub fn to_bezier_pieces(&self) -> Vec<BSplineCurve3D> {
+    pub fn to_bezier_pieces(&self) -> Vec<BSplineCurve> {
         let p = self.degree();
         let mut pieces = Vec::with_capacity(self.knots.knots().len() - 1);
         editing::curve_pieces(
@@ -931,7 +931,7 @@ impl BSplineCurve3D {
             &self.poles,
             self.weights.as_deref(),
             |x, y, poles, weights| {
-                pieces.push(BSplineCurve3D {
+                pieces.push(BSplineCurve {
                     knots: math::KnotVector::bezier(p, x, y),
                     poles,
                     weights,
@@ -952,7 +952,7 @@ impl BSplineCurve3D {
     /// multiplicity being left alone, and only the poles of the piece are
     /// kept, those no insertion touched bit for bit. A rational curve gives
     /// a rational piece. On a periodic curve, as for a
-    /// [`crate::TrimmedCurve3D`], any `first` is accepted and the piece may
+    /// [`crate::TrimmedCurve`], any `first` is accepted and the piece may
     /// cross the seam, `last` lying past the upper bound, but spans at most
     /// one period. Extracting the whole range of a non-periodic curve
     /// clamps it, and returns a clamped one unchanged.
@@ -962,24 +962,24 @@ impl BSplineCurve3D {
     /// [`BSplineSplitError::NonFinite`] if an end is NaN or infinite,
     /// [`BSplineSplitError::EmptyRange`] if `first >= last`,
     /// [`BSplineSplitError::OutOfRange`] if the range leaves the
-    /// [`BSplineCurve3D::bounds`] of a non-periodic curve, and
+    /// [`BSplineCurve::bounds`] of a non-periodic curve, and
     /// [`BSplineSplitError::ExceedsPeriod`] if it is longer than the
     /// period of a periodic one.
     ///
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{BSplineCurve3D, BSplineSplitError, Point3D};
+    /// use geomcore::{BSplineCurve, BSplineSplitError, Point};
     ///
     /// let poles = vec![
-    ///     Point3D::new(0.0, 0.0, 0.0),
-    ///     Point3D::new(1.0, 2.0, 0.0),
-    ///     Point3D::new(2.0, 2.0, 1.0),
-    ///     Point3D::new(3.0, 0.0, 1.0),
-    ///     Point3D::new(4.0, 1.0, 0.0),
+    ///     Point::new(0.0, 0.0, 0.0),
+    ///     Point::new(1.0, 2.0, 0.0),
+    ///     Point::new(2.0, 2.0, 1.0),
+    ///     Point::new(3.0, 0.0, 1.0),
+    ///     Point::new(4.0, 1.0, 0.0),
     /// ];
     /// let curve =
-    ///     BSplineCurve3D::new(3, poles, vec![0.0, 1.0, 2.0], vec![4, 1, 4], false).unwrap();
+    ///     BSplineCurve::new(3, poles, vec![0.0, 1.0, 2.0], vec![4, 1, 4], false).unwrap();
     /// let piece = curve.extract(0.5, 1.5).unwrap();
     /// assert_eq!(piece.bounds(), (0.5, 1.5));
     /// assert_eq!(piece.multiplicities(), &[4, 1, 4]);
@@ -988,7 +988,7 @@ impl BSplineCurve3D {
     /// }
     /// assert_eq!(curve.extract(1.5, 0.5), Err(BSplineSplitError::EmptyRange));
     /// ```
-    pub fn extract(&self, first: f64, last: f64) -> Result<BSplineCurve3D, BSplineSplitError> {
+    pub fn extract(&self, first: f64, last: f64) -> Result<BSplineCurve, BSplineSplitError> {
         editing::check_piece(&self.knots, first, last)?;
         if editing::is_clamped_to(&self.knots, first, last) {
             return Ok(self.clone());
@@ -998,11 +998,11 @@ impl BSplineCurve3D {
     }
 
     /// Splits the curve at `u` into the pieces over `[first, u]` and
-    /// `[u, last]` of its [`BSplineCurve3D::bounds`]: clamped, non-periodic
+    /// `[u, last]` of its [`BSplineCurve::bounds`]: clamped, non-periodic
     /// B-splines of the same degree, evaluating as this curve over their
     /// ranges and meeting at the point at `u`. A periodic curve is opened
     /// at its seam; to open it elsewhere, use
-    /// [`BSplineCurve3D::extract`] over one period.
+    /// [`BSplineCurve::extract`] over one period.
     ///
     /// `u` is raised to multiplicity `degree` by one refinement, which
     /// also clamps an unclamped end, and the poles are shared out between
@@ -1017,15 +1017,15 @@ impl BSplineCurve3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{BSplineCurve3D, BSplineSplitError, Point3D};
+    /// use geomcore::{BSplineCurve, BSplineSplitError, Point};
     ///
     /// let poles = vec![
-    ///     Point3D::new(0.0, 0.0, 0.0),
-    ///     Point3D::new(1.0, 2.0, 0.0),
-    ///     Point3D::new(3.0, 2.0, 1.0),
-    ///     Point3D::new(4.0, 0.0, 1.0),
+    ///     Point::new(0.0, 0.0, 0.0),
+    ///     Point::new(1.0, 2.0, 0.0),
+    ///     Point::new(3.0, 2.0, 1.0),
+    ///     Point::new(4.0, 0.0, 1.0),
     /// ];
-    /// let curve = BSplineCurve3D::new(3, poles, vec![0.0, 1.0], vec![4, 4], false).unwrap();
+    /// let curve = BSplineCurve::new(3, poles, vec![0.0, 1.0], vec![4, 4], false).unwrap();
     /// let (left, right) = curve.split_at(0.25).unwrap();
     /// assert_eq!((left.bounds(), right.bounds()), ((0.0, 0.25), (0.25, 1.0)));
     /// assert_eq!(left.poles()[3], right.poles()[0]);
@@ -1033,7 +1033,7 @@ impl BSplineCurve3D {
     /// assert!(right.eval_point(0.7).distance(curve.eval_point(0.7)) < 1e-12);
     /// assert_eq!(curve.split_at(1.0), Err(BSplineSplitError::EmptyRange));
     /// ```
-    pub fn split_at(&self, u: f64) -> Result<(BSplineCurve3D, BSplineCurve3D), BSplineSplitError> {
+    pub fn split_at(&self, u: f64) -> Result<(BSplineCurve, BSplineCurve), BSplineSplitError> {
         editing::check_split(&self.knots, u)?;
         let (first, last) = self.bounds();
         let [left, right] = self.cut(&[first, u, last]);
@@ -1042,7 +1042,7 @@ impl BSplineCurve3D {
 
     /// Returns the curve traversed the other way: its point at `u` is this
     /// curve's point at `first + last - u` over the same
-    /// [`BSplineCurve3D::bounds`], so its derivatives of odd order change
+    /// [`BSplineCurve::bounds`], so its derivatives of odd order change
     /// sign.
     ///
     /// The poles (and weights) are listed in reverse order and the knots
@@ -1053,26 +1053,26 @@ impl BSplineCurve3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{BSplineCurve3D, Point3D};
+    /// use geomcore::{BSplineCurve, Point};
     ///
     /// let poles = vec![
-    ///     Point3D::new(0.0, 0.0, 0.0),
-    ///     Point3D::new(1.0, 2.0, 0.0),
-    ///     Point3D::new(3.0, 2.0, 1.0),
-    ///     Point3D::new(4.0, 0.0, 1.0),
+    ///     Point::new(0.0, 0.0, 0.0),
+    ///     Point::new(1.0, 2.0, 0.0),
+    ///     Point::new(3.0, 2.0, 1.0),
+    ///     Point::new(4.0, 0.0, 1.0),
     /// ];
-    /// let curve = BSplineCurve3D::new(3, poles, vec![0.0, 1.0], vec![4, 4], false).unwrap();
+    /// let curve = BSplineCurve::new(3, poles, vec![0.0, 1.0], vec![4, 4], false).unwrap();
     /// let reversed = curve.reversed();
     /// assert_eq!(reversed.eval_point(0.0), curve.eval_point(1.0));
     /// let (d, e) = (curve.eval_derivative(0.3, 1), reversed.eval_derivative(0.7, 1));
     /// assert!((d + e).magnitude() < 1e-12);
     /// assert_eq!(reversed.reversed(), curve);
     /// ```
-    pub fn reversed(&self) -> BSplineCurve3D {
+    pub fn reversed(&self) -> BSplineCurve {
         let old: Vec<usize> = (0..self.poles.len())
             .map(|i| editing::reversed_slot(&self.knots, i))
             .collect();
-        BSplineCurve3D {
+        BSplineCurve {
             knots: editing::reversed_knots(&self.knots),
             poles: old.iter().map(|&i| self.poles[i]).collect(),
             weights: self
@@ -1085,7 +1085,7 @@ impl BSplineCurve3D {
 
     /// The curve's pieces between the increasing `cuts`, checked against
     /// its bounds.
-    fn cut<const N: usize>(&self, cuts: &[f64]) -> [BSplineCurve3D; N] {
+    fn cut<const N: usize>(&self, cuts: &[f64]) -> [BSplineCurve; N] {
         let pieces = editing::cut(
             &self.knots,
             &self.poles,
@@ -1093,13 +1093,13 @@ impl BSplineCurve3D {
             Lanes::CURVE,
             cuts,
         );
-        let pieces = pieces.into_iter().map(|piece| BSplineCurve3D {
+        let pieces = pieces.into_iter().map(|piece| BSplineCurve {
             knots: piece.knots,
             poles: piece.points,
             weights: piece.weights,
             spans: Lazy::default(),
         });
-        let pieces: Vec<BSplineCurve3D> = pieces.collect();
+        let pieces: Vec<BSplineCurve> = pieces.collect();
         pieces
             .try_into()
             .unwrap_or_else(|_| unreachable!("a piece between each two cuts"))
@@ -1114,9 +1114,9 @@ impl BSplineCurve3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{BSplineCurve3D, Point3D};
-    /// let poles = vec![Point3D::new(0.0, 0.0, 0.0), Point3D::new(2.0, 0.0, 0.0)];
-    /// let curve = BSplineCurve3D::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
+    /// use geomcore::{BSplineCurve, Point};
+    /// let poles = vec![Point::new(0.0, 0.0, 0.0), Point::new(2.0, 0.0, 0.0)];
+    /// let curve = BSplineCurve::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
     /// assert_eq!(curve.bounds(), (0.0, 1.0));
     /// ```
     pub fn bounds(&self) -> (f64, f64) {
@@ -1125,18 +1125,18 @@ impl BSplineCurve3D {
 
     /// Evaluates the point on the curve at parameter `u`.
     ///
-    /// For periodic curves, `u` outside [`BSplineCurve3D::bounds`] is wrapped
+    /// For periodic curves, `u` outside [`BSplineCurve::bounds`] is wrapped
     /// into the period before evaluation.
     ///
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{BSplineCurve3D, Point3D};
-    /// let poles = vec![Point3D::new(0.0, 0.0, 0.0), Point3D::new(2.0, 0.0, 0.0)];
-    /// let curve = BSplineCurve3D::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
-    /// assert_eq!(curve.eval_point(0.5), Point3D::new(1.0, 0.0, 0.0));
+    /// use geomcore::{BSplineCurve, Point};
+    /// let poles = vec![Point::new(0.0, 0.0, 0.0), Point::new(2.0, 0.0, 0.0)];
+    /// let curve = BSplineCurve::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
+    /// assert_eq!(curve.eval_point(0.5), Point::new(1.0, 0.0, 0.0));
     /// ```
-    pub fn eval_point(&self, u: f64) -> Point3D {
+    pub fn eval_point(&self, u: f64) -> Point {
         math::point(&self.knots, self.pole_view(), u)
     }
 
@@ -1145,13 +1145,13 @@ impl BSplineCurve3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{BSplineCurve3D, Point3D};
-    /// let poles = vec![Point3D::new(0.0, 0.0, 0.0), Point3D::new(2.0, 0.0, 0.0)];
-    /// let curve = BSplineCurve3D::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
+    /// use geomcore::{BSplineCurve, Point};
+    /// let poles = vec![Point::new(0.0, 0.0, 0.0), Point::new(2.0, 0.0, 0.0)];
+    /// let curve = BSplineCurve::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
     /// let points = curve.eval_points(&[0.0, 0.5, 1.0]);
-    /// assert_eq!(points[1], Point3D::new(1.0, 0.0, 0.0));
+    /// assert_eq!(points[1], Point::new(1.0, 0.0, 0.0));
     /// ```
-    pub fn eval_points(&self, us: &[f64]) -> Vec<Point3D> {
+    pub fn eval_points(&self, us: &[f64]) -> Vec<Point> {
         us.iter().map(|&u| self.eval_point(u)).collect()
     }
 
@@ -1161,19 +1161,19 @@ impl BSplineCurve3D {
     ///
     /// # Panics
     ///
-    /// Panics if `order == 0` (use [`BSplineCurve3D::eval_point`] for the
+    /// Panics if `order == 0` (use [`BSplineCurve::eval_point`] for the
     /// position itself) or if `order > 2`, with a message stating that only
     /// first and second derivatives are supported.
     ///
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{BSplineCurve3D, Point3D, Vector3D};
-    /// let poles = vec![Point3D::new(0.0, 0.0, 0.0), Point3D::new(2.0, 0.0, 0.0)];
-    /// let curve = BSplineCurve3D::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
-    /// assert_eq!(curve.eval_derivative(0.5, 1), Vector3D::new(2.0, 0.0, 0.0));
+    /// use geomcore::{BSplineCurve, Point, Vector};
+    /// let poles = vec![Point::new(0.0, 0.0, 0.0), Point::new(2.0, 0.0, 0.0)];
+    /// let curve = BSplineCurve::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
+    /// assert_eq!(curve.eval_derivative(0.5, 1), Vector::new(2.0, 0.0, 0.0));
     /// ```
-    pub fn eval_derivative(&self, u: f64, order: u32) -> Vector3D {
+    pub fn eval_derivative(&self, u: f64, order: u32) -> Vector {
         match order {
             0 => panic!("eval_derivative: order must be >= 1 (use eval_point for order 0)"),
             1 => math::derivatives::<1>(&self.knots, self.pole_view(), u)[1],
@@ -1190,16 +1190,16 @@ impl BSplineCurve3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{BSplineCurve3D, Point3D, Vector3D};
-    /// let poles = vec![Point3D::new(0.0, 0.0, 0.0), Point3D::new(2.0, 0.0, 0.0)];
-    /// let curve = BSplineCurve3D::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
+    /// use geomcore::{BSplineCurve, Point, Vector};
+    /// let poles = vec![Point::new(0.0, 0.0, 0.0), Point::new(2.0, 0.0, 0.0)];
+    /// let curve = BSplineCurve::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
     /// let (point, d1) = curve.eval_d1(0.5);
-    /// assert_eq!(point, Point3D::new(1.0, 0.0, 0.0));
-    /// assert_eq!(d1, Vector3D::new(2.0, 0.0, 0.0));
+    /// assert_eq!(point, Point::new(1.0, 0.0, 0.0));
+    /// assert_eq!(d1, Vector::new(2.0, 0.0, 0.0));
     /// ```
-    pub fn eval_d1(&self, u: f64) -> (Point3D, Vector3D) {
+    pub fn eval_d1(&self, u: f64) -> (Point, Vector) {
         let [c, d1, _] = math::derivatives::<1>(&self.knots, self.pole_view(), u);
-        (Point3D::ORIGIN + c, d1)
+        (Point::ORIGIN + c, d1)
     }
 
     /// Evaluates the point and the first and second derivatives at
@@ -1208,21 +1208,21 @@ impl BSplineCurve3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{BSplineCurve3D, Point3D, Vector3D};
+    /// use geomcore::{BSplineCurve, Point, Vector};
     /// let poles = vec![
-    ///     Point3D::new(0.0, 0.0, 0.0),
-    ///     Point3D::new(1.0, 1.0, 0.0),
-    ///     Point3D::new(2.0, 0.0, 0.0),
+    ///     Point::new(0.0, 0.0, 0.0),
+    ///     Point::new(1.0, 1.0, 0.0),
+    ///     Point::new(2.0, 0.0, 0.0),
     /// ];
-    /// let curve = BSplineCurve3D::new(2, poles, vec![0.0, 1.0], vec![3, 3], false).unwrap();
+    /// let curve = BSplineCurve::new(2, poles, vec![0.0, 1.0], vec![3, 3], false).unwrap();
     /// let (point, d1, d2) = curve.eval_d2(0.5);
-    /// assert_eq!(point, Point3D::new(1.0, 0.5, 0.0));
-    /// assert_eq!(d1, Vector3D::new(2.0, 0.0, 0.0));
-    /// assert_eq!(d2, Vector3D::new(0.0, -4.0, 0.0));
+    /// assert_eq!(point, Point::new(1.0, 0.5, 0.0));
+    /// assert_eq!(d1, Vector::new(2.0, 0.0, 0.0));
+    /// assert_eq!(d2, Vector::new(0.0, -4.0, 0.0));
     /// ```
-    pub fn eval_d2(&self, u: f64) -> (Point3D, Vector3D, Vector3D) {
+    pub fn eval_d2(&self, u: f64) -> (Point, Vector, Vector) {
         let [c, d1, d2] = math::derivatives::<2>(&self.knots, self.pole_view(), u);
-        (Point3D::ORIGIN + c, d1, d2)
+        (Point::ORIGIN + c, d1, d2)
     }
 
     /// Evaluates the point and the first derivative at parameter `u` from
@@ -1239,20 +1239,20 @@ impl BSplineCurve3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{BSplineCurve3D, Point3D, Side, Vector3D};
+    /// use geomcore::{BSplineCurve, Point, Side, Vector};
     /// // Two segments meeting at a kink at u = 1: direction (1,0,0) then (0,1,0).
     /// let poles = vec![
-    ///     Point3D::new(0.0, 0.0, 0.0),
-    ///     Point3D::new(1.0, 0.0, 0.0),
-    ///     Point3D::new(1.0, 1.0, 0.0),
+    ///     Point::new(0.0, 0.0, 0.0),
+    ///     Point::new(1.0, 0.0, 0.0),
+    ///     Point::new(1.0, 1.0, 0.0),
     /// ];
-    /// let curve = BSplineCurve3D::new(1, poles, vec![0.0, 1.0, 2.0], vec![2, 1, 2], false).unwrap();
-    /// assert_eq!(curve.eval_d1_sided(1.0, Side::Below).1, Vector3D::new(1.0, 0.0, 0.0));
-    /// assert_eq!(curve.eval_d1_sided(1.0, Side::Above).1, Vector3D::new(0.0, 1.0, 0.0));
+    /// let curve = BSplineCurve::new(1, poles, vec![0.0, 1.0, 2.0], vec![2, 1, 2], false).unwrap();
+    /// assert_eq!(curve.eval_d1_sided(1.0, Side::Below).1, Vector::new(1.0, 0.0, 0.0));
+    /// assert_eq!(curve.eval_d1_sided(1.0, Side::Above).1, Vector::new(0.0, 1.0, 0.0));
     /// ```
-    pub fn eval_d1_sided(&self, u: f64, side: Side) -> (Point3D, Vector3D) {
+    pub fn eval_d1_sided(&self, u: f64, side: Side) -> (Point, Vector) {
         let [c, d1, _] = math::derivatives_sided::<1>(&self.knots, self.pole_view(), u, side);
-        (Point3D::ORIGIN + c, d1)
+        (Point::ORIGIN + c, d1)
     }
 
     /// Evaluates the derivative of the given `order` at parameter `u`
@@ -1268,21 +1268,21 @@ impl BSplineCurve3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{BSplineCurve3D, Point3D, Side, Vector3D};
+    /// use geomcore::{BSplineCurve, Point, Side, Vector};
     /// // A quadratic with a double knot at u = 1: C0 there, the tangent
     /// // turning from (2,2,0) to (2,-2,0).
     /// let poles = vec![
-    ///     Point3D::new(0.0, 0.0, 0.0),
-    ///     Point3D::new(1.0, 1.0, 0.0),
-    ///     Point3D::new(2.0, 2.0, 0.0),
-    ///     Point3D::new(3.0, 1.0, 0.0),
-    ///     Point3D::new(4.0, 2.0, 0.0),
+    ///     Point::new(0.0, 0.0, 0.0),
+    ///     Point::new(1.0, 1.0, 0.0),
+    ///     Point::new(2.0, 2.0, 0.0),
+    ///     Point::new(3.0, 1.0, 0.0),
+    ///     Point::new(4.0, 2.0, 0.0),
     /// ];
-    /// let curve = BSplineCurve3D::new(2, poles, vec![0.0, 1.0, 2.0], vec![3, 2, 3], false).unwrap();
-    /// assert_eq!(curve.eval_derivative_sided(1.0, 1, Side::Below), Vector3D::new(2.0, 2.0, 0.0));
-    /// assert_eq!(curve.eval_derivative_sided(1.0, 1, Side::Above), Vector3D::new(2.0, -2.0, 0.0));
+    /// let curve = BSplineCurve::new(2, poles, vec![0.0, 1.0, 2.0], vec![3, 2, 3], false).unwrap();
+    /// assert_eq!(curve.eval_derivative_sided(1.0, 1, Side::Below), Vector::new(2.0, 2.0, 0.0));
+    /// assert_eq!(curve.eval_derivative_sided(1.0, 1, Side::Above), Vector::new(2.0, -2.0, 0.0));
     /// ```
-    pub fn eval_derivative_sided(&self, u: f64, order: u32, side: Side) -> Vector3D {
+    pub fn eval_derivative_sided(&self, u: f64, order: u32, side: Side) -> Vector {
         match order {
             0 => panic!("eval_derivative: order must be >= 1 (use eval_point for order 0)"),
             1 => math::derivatives_sided::<1>(&self.knots, self.pole_view(), u, side)[1],
@@ -1296,9 +1296,9 @@ impl BSplineCurve3D {
     /// Evaluates the point and the first and second derivatives at
     /// parameter `u` from one side, as
     /// [`eval_d1_sided`](Self::eval_d1_sided).
-    pub fn eval_d2_sided(&self, u: f64, side: Side) -> (Point3D, Vector3D, Vector3D) {
+    pub fn eval_d2_sided(&self, u: f64, side: Side) -> (Point, Vector, Vector) {
         let [c, d1, d2] = math::derivatives_sided::<2>(&self.knots, self.pole_view(), u, side);
-        (Point3D::ORIGIN + c, d1, d2)
+        (Point::ORIGIN + c, d1, d2)
     }
 
     /// The length of the curve over its bounds, within `max_error` as far
@@ -1309,20 +1309,20 @@ impl BSplineCurve3D {
     /// rounding allows gets as close as rounding does.
     ///
     /// The length over `[first, last]` is that of
-    /// [`BSplineCurve3D::extract`]`(first, last)`.
+    /// [`BSplineCurve::extract`]`(first, last)`.
     ///
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{BSplineCurve3D, Point3D};
+    /// use geomcore::{BSplineCurve, Point};
     ///
     /// // The parabola y = x² over [0, 1].
     /// let poles = vec![
-    ///     Point3D::new(0.0, 0.0, 0.0),
-    ///     Point3D::new(0.5, 0.0, 0.0),
-    ///     Point3D::new(1.0, 1.0, 0.0),
+    ///     Point::new(0.0, 0.0, 0.0),
+    ///     Point::new(0.5, 0.0, 0.0),
+    ///     Point::new(1.0, 1.0, 0.0),
     /// ];
-    /// let curve = BSplineCurve3D::new(2, poles, vec![0.0, 1.0], vec![3, 3], false).unwrap();
+    /// let curve = BSplineCurve::new(2, poles, vec![0.0, 1.0], vec![3, 3], false).unwrap();
     /// let exact = 0.5 * 5f64.sqrt() + 0.25 * (2.0 + 5f64.sqrt()).ln();
     /// assert!((curve.length(1e-12) - exact).abs() <= 1e-12);
     /// ```
@@ -1349,18 +1349,18 @@ impl BSplineCurve3D {
     /// No B-spline-curve/surface pair has a closed-form 2D image in this
     /// release, so this always returns [`ParametrizeError::NotAnalytic`]. The
     /// `surface` and `tol` arguments are accepted for signature parity with the analytic
-    /// [`crate::Line3D::parametrize_on`] and
-    /// [`crate::Circle3D::parametrize_on`].
+    /// [`crate::Line::parametrize_on`] and
+    /// [`crate::Circle::parametrize_on`].
     ///
     /// # Examples
     ///
     /// ```
     /// use geomcore::curves::ParametrizeError;
-    /// use geomcore::{BSplineCurve3D, Plane, Point3D, Tolerance, Vector3D};
+    /// use geomcore::{BSplineCurve, Plane, Point, Tolerance, Vector};
     ///
-    /// let plane = Plane::new(Point3D::ORIGIN, Vector3D::Z).unwrap();
-    /// let poles = vec![Point3D::new(0.0, 0.0, 0.0), Point3D::new(2.0, 0.0, 0.0)];
-    /// let curve = BSplineCurve3D::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
+    /// let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
+    /// let poles = vec![Point::new(0.0, 0.0, 0.0), Point::new(2.0, 0.0, 0.0)];
+    /// let curve = BSplineCurve::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
     /// assert_eq!(curve.parametrize_on(&plane, Tolerance::DEFAULT), Err(ParametrizeError::NotAnalytic));
     /// ```
     pub fn parametrize_on(
@@ -1373,20 +1373,20 @@ impl BSplineCurve3D {
     }
 
     /// Returns whether `point` lies on the curve: the curve is projected
-    /// with [`BSplineCurve3D::project_point`] and the point counts as
+    /// with [`BSplineCurve::project_point`] and the point counts as
     /// contained when the projected distance is within `tol.confusion`.
     ///
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{BSplineCurve3D, Point3D, Tolerance};
-    /// let poles = vec![Point3D::new(0.0, 0.0, 0.0), Point3D::new(2.0, 0.0, 0.0)];
-    /// let curve = BSplineCurve3D::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
+    /// use geomcore::{BSplineCurve, Point, Tolerance};
+    /// let poles = vec![Point::new(0.0, 0.0, 0.0), Point::new(2.0, 0.0, 0.0)];
+    /// let curve = BSplineCurve::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
     /// let tol = Tolerance::DEFAULT;
-    /// assert!(curve.contains(Point3D::new(1.0, 0.0, 0.0), tol));
-    /// assert!(!curve.contains(Point3D::new(1.0, 1.0, 0.0), tol));
+    /// assert!(curve.contains(Point::new(1.0, 0.0, 0.0), tol));
+    /// assert!(!curve.contains(Point::new(1.0, 1.0, 0.0), tol));
     /// ```
-    pub fn contains(&self, point: Point3D, tol: Tolerance) -> bool {
+    pub fn contains(&self, point: Point, tol: Tolerance) -> bool {
         self.project_point(point, tol).distance <= tol.confusion
     }
 
@@ -1394,7 +1394,7 @@ impl BSplineCurve3D {
     /// by ascending distance, plus the interval ends of an open curve.
     ///
     /// Every knot span is scanned exactly (see
-    /// [`BSplineCurve3D::project_point`]): its interior minima are
+    /// [`BSplineCurve::project_point`]): its interior minima are
     /// bracketed and refined by a Newton minimisation bounded to the
     /// bracket, and a knot is a minimum when the distance falls into it and
     /// rises out of it (a crease). Minima at the same point merge. The
@@ -1403,14 +1403,14 @@ impl BSplineCurve3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{BSplineCurve3D, Point3D, Tolerance};
-    /// let poles = vec![Point3D::new(0.0, 0.0, 0.0), Point3D::new(2.0, 0.0, 0.0)];
-    /// let curve = BSplineCurve3D::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
-    /// let extrema = curve.extrema(Point3D::new(1.0, 1.0, 0.0), Tolerance::DEFAULT);
+    /// use geomcore::{BSplineCurve, Point, Tolerance};
+    /// let poles = vec![Point::new(0.0, 0.0, 0.0), Point::new(2.0, 0.0, 0.0)];
+    /// let curve = BSplineCurve::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
+    /// let extrema = curve.extrema(Point::new(1.0, 1.0, 0.0), Tolerance::DEFAULT);
     /// assert!(!extrema.is_empty());
     /// assert_eq!(extrema[0].distance, 1.0);
     /// ```
-    pub fn extrema(&self, point: Point3D, tol: Tolerance) -> Vec<CurveProjection> {
+    pub fn extrema(&self, point: Point, tol: Tolerance) -> Vec<CurveProjection> {
         use crate::projection::snap_distance;
         let (first, last) = self.bounds();
         let breaks = &self.span_tree().breaks;
@@ -1431,7 +1431,7 @@ impl BSplineCurve3D {
             params.push(first);
         }
         let mut out: Vec<CurveProjection> = Vec::new();
-        let mut kept: Vec<Point3D> = Vec::new();
+        let mut kept: Vec<Point> = Vec::new();
         for t in params {
             let p = self.eval_point(t);
             if kept.iter().any(|q| q.distance(p) <= tol.confusion) {
@@ -1449,8 +1449,8 @@ impl BSplineCurve3D {
     }
 
     /// Projects `point` onto the curve: the global minimum of the distance,
-    /// the first entry of [`BSplineCurve3D::extrema`]. Distances within
-    /// `tol.confusion` snap to `0.0`, matching [`BSplineCurve3D::contains`].
+    /// the first entry of [`BSplineCurve::extrema`]. Distances within
+    /// `tol.confusion` snap to `0.0`, matching [`BSplineCurve::contains`].
     ///
     /// Branch and bound over the knot spans: each span lies in the bounding
     /// box of its poles (convex hull property), so spans are visited by
@@ -1466,14 +1466,14 @@ impl BSplineCurve3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{BSplineCurve3D, Point3D, Tolerance};
-    /// let poles = vec![Point3D::new(0.0, 0.0, 0.0), Point3D::new(2.0, 0.0, 0.0)];
-    /// let curve = BSplineCurve3D::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
-    /// let proj = curve.project_point(Point3D::new(1.0, 1.0, 0.0), Tolerance::DEFAULT);
+    /// use geomcore::{BSplineCurve, Point, Tolerance};
+    /// let poles = vec![Point::new(0.0, 0.0, 0.0), Point::new(2.0, 0.0, 0.0)];
+    /// let curve = BSplineCurve::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
+    /// let proj = curve.project_point(Point::new(1.0, 1.0, 0.0), Tolerance::DEFAULT);
     /// assert!((proj.parameter - 0.5).abs() < 1e-9);
     /// assert_eq!(proj.distance, 1.0);
     /// ```
-    pub fn project_point(&self, point: Point3D, tol: Tolerance) -> CurveProjection {
+    pub fn project_point(&self, point: Point, tol: Tolerance) -> CurveProjection {
         use crate::projection::snap_distance;
         let spans = self.span_tree();
         let breaks = &spans.breaks;
@@ -1513,9 +1513,9 @@ impl BSplineCurve3D {
 
     /// Projects each point in `points` onto the curve.
     ///
-    /// Default-style batch wrapper over [`BSplineCurve3D::project_point`]:
-    /// one native call per batch, mirroring [`BSplineCurve3D::eval_points`].
-    pub fn project_points(&self, points: &[Point3D], tol: Tolerance) -> Vec<CurveProjection> {
+    /// Default-style batch wrapper over [`BSplineCurve::project_point`]:
+    /// one native call per batch, mirroring [`BSplineCurve::eval_points`].
+    pub fn project_points(&self, points: &[Point], tol: Tolerance) -> Vec<CurveProjection> {
         points.iter().map(|&p| self.project_point(p, tol)).collect()
     }
 
@@ -1537,7 +1537,7 @@ impl BSplineCurve3D {
 
     /// The poles weighting the knot spans from the one containing `u0` to
     /// the one containing `u1`, `u0 <= u1` at most a period apart.
-    pub(crate) fn run_poles(&self, u0: f64, u1: f64) -> impl Iterator<Item = Point3D> + '_ {
+    pub(crate) fn run_poles(&self, u0: f64, u1: f64) -> impl Iterator<Item = Point> + '_ {
         let n = self.poles.len();
         let (first, last) = (
             self.knots.span_first_pole(u0),
@@ -1608,7 +1608,7 @@ impl BSplineCurve3D {
     /// `G = (A' . A) w - |A|^2 w'` (`A' . A` if nonrational), of degree
     /// `3p - 1` (`2p - 1`). Interior minima are the roots where `G` rises
     /// through zero.
-    fn scan_span(&self, point: Point3D, a: f64, b: f64, minima: &mut Vec<f64>) -> SpanEnds {
+    fn scan_span(&self, point: Point, a: f64, b: f64, minima: &mut Vec<f64>) -> SpanEnds {
         // `G` has up to `3 * degree` coefficients.
         const SMALL: usize = 3 * math::SMALL;
         if self.degree() < math::SMALL {
@@ -1620,7 +1620,7 @@ impl BSplineCurve3D {
 
     fn scan_span_sized<const N: usize>(
         &self,
-        point: Point3D,
+        point: Point,
         a: f64,
         b: f64,
         minima: &mut Vec<f64>,
@@ -1706,12 +1706,12 @@ impl BSplineCurve3D {
     /// Bounded Newton minimisation of `|C(t) - point|^2` from `t` with
     /// exact second derivatives, within `bounds` (`None`: unbounded, for a
     /// smooth periodic curve); a periodic result is wrapped into
-    /// [`BSplineCurve3D::bounds`].
-    fn refine_projection(&self, point: Point3D, t: f64, bounds: Option<(f64, f64)>) -> f64 {
+    /// [`BSplineCurve::bounds`].
+    fn refine_projection(&self, point: Point, t: f64, bounds: Option<(f64, f64)>) -> f64 {
         let objective = |t: f64| {
             let [c, d1, d2] =
                 math::derivatives::<2>(&self.knots, self.pole_view(), math::inward(t, bounds));
-            let r = c - (point - Point3D::ORIGIN);
+            let r = c - (point - Point::ORIGIN);
             (0.5 * r.dot(r), d1.dot(r), d1.dot(d1) + d2.dot(r))
         };
         let t = newton_min_1d(objective, t, bounds, 1e-14, 100);
@@ -1755,7 +1755,7 @@ fn bezier_speed(net: &[[f64; 4]], t: f64) -> f64 {
     let d: [f64; 4] = std::array::from_fn(|c| s * (b[c] - a[c]));
     // The quotient rule on `C = H / w`.
     let w = h[3];
-    let tangent = Vector3D::new(
+    let tangent = Vector::new(
         d[0] * w - h[0] * d[3],
         d[1] * w - h[1] * d[3],
         d[2] * w - h[2] * d[3],
@@ -1766,15 +1766,14 @@ fn bezier_speed(net: &[[f64; 4]], t: f64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Axis3D, Frame3D, PointParametrization};
+    use crate::{Axis, Frame, PointParametrization};
 
     // ---- construction / accessors ----
 
     #[test]
     fn test_new_ok_accessors() {
-        let poles = vec![Point3D::new(0.0, 0.0, 0.0), Point3D::new(2.0, 0.0, 0.0)];
-        let curve =
-            BSplineCurve3D::new(1, poles.clone(), vec![0.0, 1.0], vec![2, 2], false).unwrap();
+        let poles = vec![Point::new(0.0, 0.0, 0.0), Point::new(2.0, 0.0, 0.0)];
+        let curve = BSplineCurve::new(1, poles.clone(), vec![0.0, 1.0], vec![2, 2], false).unwrap();
         assert_eq!(curve.degree(), 1);
         assert!(!curve.is_periodic());
         assert!(!curve.is_rational());
@@ -1788,12 +1787,12 @@ mod tests {
     #[test]
     fn test_new_rational_ok_accessors() {
         let poles = vec![
-            Point3D::new(1.0, 0.0, 0.0),
-            Point3D::new(1.0, 1.0, 0.0),
-            Point3D::new(0.0, 1.0, 0.0),
+            Point::new(1.0, 0.0, 0.0),
+            Point::new(1.0, 1.0, 0.0),
+            Point::new(0.0, 1.0, 0.0),
         ];
         let w = std::f64::consts::FRAC_1_SQRT_2;
-        let curve = BSplineCurve3D::new_rational(
+        let curve = BSplineCurve::new_rational(
             2,
             poles,
             vec![1.0, w, 1.0],
@@ -1808,44 +1807,38 @@ mod tests {
 
     #[test]
     fn test_new_invalid_degree_errors() {
-        let poles = vec![Point3D::ORIGIN];
-        let err = BSplineCurve3D::new(0, poles, vec![0.0, 1.0], vec![1, 1], false).unwrap_err();
+        let poles = vec![Point::ORIGIN];
+        let err = BSplineCurve::new(0, poles, vec![0.0, 1.0], vec![1, 1], false).unwrap_err();
         assert_eq!(err, BSplineConstructionError::InvalidDegree);
     }
 
     #[test]
     fn test_new_pole_count_mismatch_errors() {
-        let poles = vec![Point3D::ORIGIN; 3];
-        let err = BSplineCurve3D::new(3, poles, vec![0.0, 1.0, 2.0, 3.0], vec![4, 1, 1, 4], false)
+        let poles = vec![Point::ORIGIN; 3];
+        let err = BSplineCurve::new(3, poles, vec![0.0, 1.0, 2.0, 3.0], vec![4, 1, 1, 4], false)
             .unwrap_err();
         assert_eq!(err, BSplineConstructionError::PoleCountMismatch);
     }
 
     #[test]
     fn test_new_rational_weight_count_mismatch_errors() {
-        let poles = vec![Point3D::ORIGIN, Point3D::new(1.0, 0.0, 0.0)];
+        let poles = vec![Point::ORIGIN, Point::new(1.0, 0.0, 0.0)];
         let err =
-            BSplineCurve3D::new_rational(1, poles, vec![1.0], vec![0.0, 1.0], vec![2, 2], false)
+            BSplineCurve::new_rational(1, poles, vec![1.0], vec![0.0, 1.0], vec![2, 2], false)
                 .unwrap_err();
         assert_eq!(err, BSplineConstructionError::WeightCountMismatch);
     }
 
     #[test]
     fn test_new_rational_non_positive_weight_errors() {
-        let poles = vec![Point3D::ORIGIN, Point3D::new(1.0, 0.0, 0.0)];
-        let err = BSplineCurve3D::new_rational(
-            1,
-            poles,
-            vec![1.0, 0.0],
-            vec![0.0, 1.0],
-            vec![2, 2],
-            false,
-        )
-        .unwrap_err();
+        let poles = vec![Point::ORIGIN, Point::new(1.0, 0.0, 0.0)];
+        let err =
+            BSplineCurve::new_rational(1, poles, vec![1.0, 0.0], vec![0.0, 1.0], vec![2, 2], false)
+                .unwrap_err();
         assert_eq!(err, BSplineConstructionError::NonPositiveWeight);
 
-        let poles = vec![Point3D::ORIGIN, Point3D::new(1.0, 0.0, 0.0)];
-        let err = BSplineCurve3D::new_rational(
+        let poles = vec![Point::ORIGIN, Point::new(1.0, 0.0, 0.0)];
+        let err = BSplineCurve::new_rational(
             1,
             poles,
             vec![1.0, -2.0],
@@ -1862,8 +1855,8 @@ mod tests {
         // Bad weight count AND bad degree: weight check should win, matching
         // the brief's "type-level validation: validate_direction + weights
         // checks" ordering (weights first).
-        let poles = vec![Point3D::ORIGIN];
-        let err = BSplineCurve3D::new_rational(0, poles, vec![], vec![0.0, 1.0], vec![1, 1], false)
+        let poles = vec![Point::ORIGIN];
+        let err = BSplineCurve::new_rational(0, poles, vec![], vec![0.0, 1.0], vec![1, 1], false)
             .unwrap_err();
         assert_eq!(err, BSplineConstructionError::WeightCountMismatch);
     }
@@ -1895,47 +1888,47 @@ mod tests {
 
     #[test]
     fn test_eval_point_degree1_line_midpoint() {
-        let poles = vec![Point3D::ORIGIN, Point3D::new(2.0, 0.0, 0.0)];
-        let curve = BSplineCurve3D::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
-        assert_eq!(curve.eval_point(0.5), Point3D::new(1.0, 0.0, 0.0));
+        let poles = vec![Point::ORIGIN, Point::new(2.0, 0.0, 0.0)];
+        let curve = BSplineCurve::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
+        assert_eq!(curve.eval_point(0.5), Point::new(1.0, 0.0, 0.0));
     }
 
     #[test]
     fn test_eval_points_matches_mapped_eval_point() {
-        let poles = vec![Point3D::ORIGIN, Point3D::new(2.0, 0.0, 0.0)];
-        let curve = BSplineCurve3D::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
+        let poles = vec![Point::ORIGIN, Point::new(2.0, 0.0, 0.0)];
+        let curve = BSplineCurve::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
         let us = [0.0, 0.3, 0.5, 1.0];
-        let expected: Vec<Point3D> = us.iter().map(|&u| curve.eval_point(u)).collect();
+        let expected: Vec<Point> = us.iter().map(|&u| curve.eval_point(u)).collect();
         assert_eq!(curve.eval_points(&us), expected);
     }
 
     #[test]
     fn test_eval_derivative_order1_constant_tangent() {
-        let poles = vec![Point3D::ORIGIN, Point3D::new(2.0, 0.0, 0.0)];
-        let curve = BSplineCurve3D::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
-        assert_eq!(curve.eval_derivative(0.5, 1), Vector3D::new(2.0, 0.0, 0.0));
+        let poles = vec![Point::ORIGIN, Point::new(2.0, 0.0, 0.0)];
+        let curve = BSplineCurve::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
+        assert_eq!(curve.eval_derivative(0.5, 1), Vector::new(2.0, 0.0, 0.0));
     }
 
     #[test]
     fn test_eval_derivative_order2_of_line_is_zero() {
-        let poles = vec![Point3D::ORIGIN, Point3D::new(2.0, 0.0, 0.0)];
-        let curve = BSplineCurve3D::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
-        assert_eq!(curve.eval_derivative(0.5, 2), Vector3D::ZERO);
+        let poles = vec![Point::ORIGIN, Point::new(2.0, 0.0, 0.0)];
+        let curve = BSplineCurve::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
+        assert_eq!(curve.eval_derivative(0.5, 2), Vector::ZERO);
     }
 
     #[test]
     #[should_panic(expected = "order must be >= 1")]
     fn test_eval_derivative_order0_panics() {
-        let poles = vec![Point3D::ORIGIN, Point3D::new(2.0, 0.0, 0.0)];
-        let curve = BSplineCurve3D::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
+        let poles = vec![Point::ORIGIN, Point::new(2.0, 0.0, 0.0)];
+        let curve = BSplineCurve::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
         curve.eval_derivative(0.5, 0);
     }
 
     #[test]
     #[should_panic(expected = "only first and second derivatives are supported")]
     fn test_eval_derivative_order3_panics_with_clear_message() {
-        let poles = vec![Point3D::ORIGIN, Point3D::new(2.0, 0.0, 0.0)];
-        let curve = BSplineCurve3D::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
+        let poles = vec![Point::ORIGIN, Point::new(2.0, 0.0, 0.0)];
+        let curve = BSplineCurve::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
         curve.eval_derivative(0.5, 3);
     }
 
@@ -1943,12 +1936,12 @@ mod tests {
 
     #[test]
     fn test_periodic_curve_is_closed() {
-        use crate::curves::ParametricCurve3D;
+        use crate::curves::ParametricCurve;
 
         let curve = periodic_ring_curve();
         assert!(curve.is_periodic());
         assert!(curve.is_closed(Tolerance::DEFAULT));
-        assert!(ParametricCurve3D::is_closed(&curve, Tolerance::DEFAULT));
+        assert!(ParametricCurve::is_closed(&curve, Tolerance::DEFAULT));
     }
 
     #[test]
@@ -1984,23 +1977,23 @@ mod tests {
         assert!((p.z - 0.056799999999999996).abs() < 1e-7);
     }
 
-    fn periodic_ring_curve() -> BSplineCurve3D {
+    fn periodic_ring_curve() -> BSplineCurve {
         let poles = vec![
-            Point3D::new(2.0, 0.0, 0.3),
-            Point3D::new(1.0000000000000002, 1.7320508075688772, -0.3),
-            Point3D::new(-0.9999999999999996, 1.7320508075688774, 0.3),
-            Point3D::new(-2.0, 2.4492935982947064e-16, -0.3),
-            Point3D::new(-1.0000000000000009, -1.7320508075688767, 0.3),
-            Point3D::new(1.0000000000000002, -1.7320508075688772, -0.3),
+            Point::new(2.0, 0.0, 0.3),
+            Point::new(1.0000000000000002, 1.7320508075688772, -0.3),
+            Point::new(-0.9999999999999996, 1.7320508075688774, 0.3),
+            Point::new(-2.0, 2.4492935982947064e-16, -0.3),
+            Point::new(-1.0000000000000009, -1.7320508075688767, 0.3),
+            Point::new(1.0000000000000002, -1.7320508075688772, -0.3),
         ];
         let knots = vec![0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0];
         let mults = vec![1; 7];
-        BSplineCurve3D::new(3, poles, knots, mults, true).unwrap()
+        BSplineCurve::new(3, poles, knots, mults, true).unwrap()
     }
 
-    fn degree_one_segment() -> BSplineCurve3D {
-        let poles = vec![Point3D::new(0.0, 0.0, 0.0), Point3D::new(2.0, 0.0, 0.0)];
-        BSplineCurve3D::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap()
+    fn degree_one_segment() -> BSplineCurve {
+        let poles = vec![Point::new(0.0, 0.0, 0.0), Point::new(2.0, 0.0, 0.0)];
+        BSplineCurve::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap()
     }
 
     #[test]
@@ -2008,11 +2001,11 @@ mod tests {
         let curve = degree_one_segment();
         let tol = Tolerance::DEFAULT;
         // Interior foot.
-        let proj = curve.project_point(Point3D::new(1.0, 1.0, 0.0), tol);
+        let proj = curve.project_point(Point::new(1.0, 1.0, 0.0), tol);
         assert!((proj.parameter - 0.5).abs() < 1e-9);
         assert!((proj.distance - 1.0).abs() < 1e-9);
         // Beyond the end: the endpoint wins.
-        let end = curve.project_point(Point3D::new(5.0, 0.0, 0.0), tol);
+        let end = curve.project_point(Point::new(5.0, 0.0, 0.0), tol);
         assert!((end.parameter - 1.0).abs() < 1e-9);
         assert!((end.distance - 3.0).abs() < 1e-9);
     }
@@ -2021,10 +2014,10 @@ mod tests {
     fn test_bspline_contains_segment() {
         let curve = degree_one_segment();
         let tol = Tolerance::DEFAULT;
-        assert!(curve.contains(Point3D::new(1.0, 0.0, 0.0), tol));
+        assert!(curve.contains(Point::new(1.0, 0.0, 0.0), tol));
         assert!(curve.contains(curve.eval_point(0.25), tol));
-        assert!(!curve.contains(Point3D::new(1.0, 1.0, 0.0), tol));
-        assert!(!curve.contains(Point3D::new(3.0, 0.0, 0.0), tol));
+        assert!(!curve.contains(Point::new(1.0, 1.0, 0.0), tol));
+        assert!(!curve.contains(Point::new(3.0, 0.0, 0.0), tol));
     }
 
     #[test]
@@ -2036,7 +2029,7 @@ mod tests {
         assert_eq!(curve.project_point(on, tol).distance, 0.0);
         assert!(curve.contains(on, tol));
         // Off-curve: beat against dense brute-force sampling.
-        let query = Point3D::new(0.5, 1.0, 2.0);
+        let query = Point::new(0.5, 1.0, 2.0);
         let proj = curve.project_point(query, tol);
         let (first, last) = curve.bounds();
         let mut best = f64::INFINITY;
@@ -2056,7 +2049,7 @@ mod tests {
         // On the span [6.12, 7.5] the distance to points of the curve near
         // t = 6.55 has a second, shallow basin 0.15 away; a sampling of the
         // span lands in the wrong one.
-        let poles: Vec<Point3D> = [
+        let poles: Vec<Point> = [
             (-2.25, 3.33, -1.92),
             (1.71, 1.64, 0.97),
             (1.34, 1.35, 2.74),
@@ -2081,14 +2074,14 @@ mod tests {
             (-3.26, 3.84, 0.16),
         ]
         .iter()
-        .map(|&(x, y, z)| Point3D::new(x, y, z))
+        .map(|&(x, y, z)| Point::new(x, y, z))
         .collect();
         let weights = vec![
             2.85, 3.49, 0.48, 4.48, 2.42, 0.46, 4.03, 4.34, 4.38, 2.57, 4.8, 0.85, 1.9, 1.18, 4.07,
             2.17, 1.43, 1.28, 3.19, 4.94, 1.84, 1.29,
         ];
         let knots = vec![2.07, 2.56, 3.15, 4.75, 5.48, 6.12, 7.5, 8.3, 9.67];
-        let curve = BSplineCurve3D::new_rational(
+        let curve = BSplineCurve::new_rational(
             5,
             poles,
             weights,
@@ -2113,24 +2106,24 @@ mod tests {
         // to the residual (0.274, 1.37)). The old first-order refinement
         // stopped at the seed sample u = 0.59375.
         let poles = vec![
-            Point3D::new(0.0, 0.0, 0.0),
-            Point3D::new(1.0, 1.0, 0.0),
-            Point3D::new(2.0, 1.0, 0.0),
-            Point3D::new(3.0, 0.0, 0.0),
+            Point::new(0.0, 0.0, 0.0),
+            Point::new(1.0, 1.0, 0.0),
+            Point::new(2.0, 1.0, 0.0),
+            Point::new(3.0, 0.0, 0.0),
         ];
-        let curve = BSplineCurve3D::new(3, poles, vec![0.0, 1.0], vec![4, 4], false).unwrap();
-        let proj = curve.project_point(Point3D::new(1.526, -0.65, 0.0), Tolerance::DEFAULT);
+        let curve = BSplineCurve::new(3, poles, vec![0.0, 1.0], vec![4, 4], false).unwrap();
+        let proj = curve.project_point(Point::new(1.526, -0.65, 0.0), Tolerance::DEFAULT);
         assert!((proj.parameter - 0.6).abs() < 1e-12);
         assert!((proj.distance - 1.951976f64.sqrt()).abs() < 1e-12);
         // Quadratic on an offset knot range: the minimum is a stationary
         // point (u = 1.756876, d = 5.349035), not a raw sample.
         let poles = vec![
-            Point3D::new(2.0, 0.0, 0.0),
-            Point3D::new(0.66, 3.437, 1.22),
-            Point3D::new(-4.644, 1.852, 2.439),
+            Point::new(2.0, 0.0, 0.0),
+            Point::new(0.66, 3.437, 1.22),
+            Point::new(-4.644, 1.852, 2.439),
         ];
-        let curve = BSplineCurve3D::new(2, poles, vec![1.0242, 2.3891], vec![3, 3], false).unwrap();
-        let query = Point3D::new(1.436, 5.4066, 5.122);
+        let curve = BSplineCurve::new(2, poles, vec![1.0242, 2.3891], vec![3, 3], false).unwrap();
+        let query = Point::new(1.436, 5.4066, 5.122);
         let proj = curve.project_point(query, Tolerance::DEFAULT);
         assert!((proj.parameter - 1.756876).abs() < 1e-6);
         assert!((proj.distance - 5.349035).abs() < 1e-6);
@@ -2147,15 +2140,15 @@ mod tests {
     fn test_interpolate_line_points() {
         let tol = Tolerance::DEFAULT;
         let points = vec![
-            Point3D::new(0.0, 0.0, 0.0),
-            Point3D::new(1.0, 0.0, 0.0),
-            Point3D::new(3.0, 0.0, 0.0),
+            Point::new(0.0, 0.0, 0.0),
+            Point::new(1.0, 0.0, 0.0),
+            Point::new(3.0, 0.0, 0.0),
         ];
         for param in [
             PointParametrization::Chordal,
             PointParametrization::Centripetal,
         ] {
-            let curve = BSplineCurve3D::interpolate(&points, 2, param).unwrap();
+            let curve = BSplineCurve::interpolate(&points, 2, param).unwrap();
             for p in &points {
                 assert!(curve.contains(*p, tol), "{param:?}");
             }
@@ -2168,14 +2161,14 @@ mod tests {
     #[test]
     fn test_interpolate_circle_points() {
         let tol = Tolerance::DEFAULT;
-        let points: Vec<Point3D> = (0..9)
+        let points: Vec<Point> = (0..9)
             .map(|i| {
                 let u = i as f64 / 8.0 * std::f64::consts::TAU;
-                Point3D::new(2.0 * u.cos(), 2.0 * u.sin(), 0.0)
+                Point::new(2.0 * u.cos(), 2.0 * u.sin(), 0.0)
             })
             .collect();
         let curve =
-            BSplineCurve3D::interpolate(&points, 3, PointParametrization::Centripetal).unwrap();
+            BSplineCurve::interpolate(&points, 3, PointParametrization::Centripetal).unwrap();
         for p in &points {
             assert!(curve.contains(*p, tol));
         }
@@ -2189,45 +2182,41 @@ mod tests {
 
     #[test]
     fn test_interpolate_errors() {
-        let one = vec![Point3D::ORIGIN];
+        let one = vec![Point::ORIGIN];
         assert_eq!(
-            BSplineCurve3D::interpolate(&one, 1, PointParametrization::Chordal),
+            BSplineCurve::interpolate(&one, 1, PointParametrization::Chordal),
             Err(BSplineConstructionError::TooFewPoints)
         );
         let three = vec![
-            Point3D::ORIGIN,
-            Point3D::new(1.0, 0.0, 0.0),
-            Point3D::new(1.0, 1.0, 0.0),
+            Point::ORIGIN,
+            Point::new(1.0, 0.0, 0.0),
+            Point::new(1.0, 1.0, 0.0),
         ];
         assert_eq!(
-            BSplineCurve3D::interpolate(&three, 0, PointParametrization::Chordal),
+            BSplineCurve::interpolate(&three, 0, PointParametrization::Chordal),
             Err(BSplineConstructionError::InvalidDegree)
         );
         assert_eq!(
-            BSplineCurve3D::interpolate(&three, 3, PointParametrization::Chordal),
+            BSplineCurve::interpolate(&three, 3, PointParametrization::Chordal),
             Err(BSplineConstructionError::DegreeTooHigh)
         );
-        let dup = vec![
-            Point3D::ORIGIN,
-            Point3D::ORIGIN,
-            Point3D::new(1.0, 0.0, 0.0),
-        ];
+        let dup = vec![Point::ORIGIN, Point::ORIGIN, Point::new(1.0, 0.0, 0.0)];
         assert_eq!(
-            BSplineCurve3D::interpolate(&dup, 1, PointParametrization::Chordal),
+            BSplineCurve::interpolate(&dup, 1, PointParametrization::Chordal),
             Err(BSplineConstructionError::ConfusedPoints)
         );
     }
 
     #[test]
     fn test_approximate_circle_fewer_poles() {
-        let points: Vec<Point3D> = (0..12)
+        let points: Vec<Point> = (0..12)
             .map(|i| {
                 let u = i as f64 / 12.0 * std::f64::consts::TAU;
-                Point3D::new(2.0 * u.cos(), 2.0 * u.sin(), 0.0)
+                Point::new(2.0 * u.cos(), 2.0 * u.sin(), 0.0)
             })
             .collect();
         let curve =
-            BSplineCurve3D::approximate(&points, 3, 7, PointParametrization::Centripetal).unwrap();
+            BSplineCurve::approximate(&points, 3, 7, PointParametrization::Centripetal).unwrap();
         assert_eq!(curve.degree(), 3);
         // Near-circular fit with fewer poles than points.
         for i in 0..=60 {
@@ -2240,13 +2229,13 @@ mod tests {
     #[test]
     fn test_approximate_line_data_exact() {
         let points = vec![
-            Point3D::new(0.0, 0.0, 0.0),
-            Point3D::new(1.0, 0.0, 0.0),
-            Point3D::new(2.0, 0.0, 0.0),
-            Point3D::new(3.0, 0.0, 0.0),
+            Point::new(0.0, 0.0, 0.0),
+            Point::new(1.0, 0.0, 0.0),
+            Point::new(2.0, 0.0, 0.0),
+            Point::new(3.0, 0.0, 0.0),
         ];
         let curve =
-            BSplineCurve3D::approximate(&points, 1, 2, PointParametrization::Chordal).unwrap();
+            BSplineCurve::approximate(&points, 1, 2, PointParametrization::Chordal).unwrap();
         for i in 0..=20 {
             let p = curve.eval_point(i as f64 / 20.0);
             assert!(p.y.abs() < 1e-9 && p.z.abs() < 1e-9, "{p:?}");
@@ -2256,43 +2245,43 @@ mod tests {
 
     #[test]
     fn test_approximate_errors() {
-        let one = vec![Point3D::ORIGIN];
+        let one = vec![Point::ORIGIN];
         assert_eq!(
-            BSplineCurve3D::approximate(&one, 1, 2, PointParametrization::Chordal),
+            BSplineCurve::approximate(&one, 1, 2, PointParametrization::Chordal),
             Err(BSplineConstructionError::TooFewPoints)
         );
         let four = vec![
-            Point3D::ORIGIN,
-            Point3D::new(1.0, 0.0, 0.0),
-            Point3D::new(1.0, 1.0, 0.0),
-            Point3D::new(0.0, 1.0, 0.0),
+            Point::ORIGIN,
+            Point::new(1.0, 0.0, 0.0),
+            Point::new(1.0, 1.0, 0.0),
+            Point::new(0.0, 1.0, 0.0),
         ];
         assert_eq!(
-            BSplineCurve3D::approximate(&four, 1, 5, PointParametrization::Chordal),
+            BSplineCurve::approximate(&four, 1, 5, PointParametrization::Chordal),
             Err(BSplineConstructionError::TooManyPoles)
         );
         assert_eq!(
-            BSplineCurve3D::approximate(&four, 4, 3, PointParametrization::Chordal),
+            BSplineCurve::approximate(&four, 4, 3, PointParametrization::Chordal),
             Err(BSplineConstructionError::DegreeTooHigh)
         );
     }
 
     // ---- transformed ----
 
-    fn transformed_test_curve() -> BSplineCurve3D {
+    fn transformed_test_curve() -> BSplineCurve {
         let poles = vec![
-            Point3D::new(0.0, 0.0, 0.0),
-            Point3D::new(1.0, 2.0, 0.0),
-            Point3D::new(3.0, 2.0, 1.0),
-            Point3D::new(4.0, 0.0, 1.0),
+            Point::new(0.0, 0.0, 0.0),
+            Point::new(1.0, 2.0, 0.0),
+            Point::new(3.0, 2.0, 1.0),
+            Point::new(4.0, 0.0, 1.0),
         ];
-        BSplineCurve3D::new(3, poles, vec![0.0, 1.0], vec![4, 4], false).unwrap()
+        BSplineCurve::new(3, poles, vec![0.0, 1.0], vec![4, 4], false).unwrap()
     }
 
     #[test]
     fn test_bspline_curve3d_transformed_translation_spot_check() {
         let curve = transformed_test_curve();
-        let t = Transform::translation(Vector3D::new(1.0, 1.0, 1.0));
+        let t = Transform::translation(Vector::new(1.0, 1.0, 1.0));
         let moved = curve.transformed(t);
         // Poles map point-wise; the knot structure is unchanged.
         assert_eq!(moved.poles().len(), curve.poles().len());
@@ -2304,30 +2293,29 @@ mod tests {
         // Hand-computed: translation shifts every evaluation.
         let p = moved.eval_point(0.5);
         let q = curve.eval_point(0.5);
-        assert_eq!(p, Point3D::new(q.x + 1.0, q.y + 1.0, q.z + 1.0));
+        assert_eq!(p, Point::new(q.x + 1.0, q.y + 1.0, q.z + 1.0));
     }
 
     #[test]
     fn test_bspline_curve3d_transformed_round_trip_and_mirror() {
         use std::f64::consts::PI;
         let curve = transformed_test_curve();
-        let axis = Axis3D::new(Point3D::new(0.0, 1.0, 0.0), Vector3D::Z).unwrap();
-        let t = Transform::rotation(axis, PI / 3.0).then(Transform::scaling(Point3D::ORIGIN, 2.0));
+        let axis = Axis::new(Point::new(0.0, 1.0, 0.0), Vector::Z).unwrap();
+        let t = Transform::rotation(axis, PI / 3.0).then(Transform::scaling(Point::ORIGIN, 2.0));
         let moved = curve.transformed(t);
         let tol = Tolerance::DEFAULT;
         for i in 0..=10 {
             let u = i as f64 / 10.0;
             assert!(moved.contains(t.apply_point(curve.eval_point(u)), tol));
         }
-        let inv =
-            Transform::scaling(Point3D::ORIGIN, 0.5).then(Transform::rotation(axis, -PI / 3.0));
+        let inv = Transform::scaling(Point::ORIGIN, 0.5).then(Transform::rotation(axis, -PI / 3.0));
         let back = moved.transformed(inv);
         for i in 0..=10 {
             let u = i as f64 / 10.0;
             assert!(back.eval_point(u).distance(curve.eval_point(u)) < 1e-9);
         }
         // Mirror preserves the point set (as a fresh pole net).
-        let m = Transform::mirror_plane(Frame3D::WORLD);
+        let m = Transform::mirror_plane(Frame::WORLD);
         let mirrored = curve.transformed(m);
         for i in 0..=10 {
             let u = i as f64 / 10.0;
@@ -2340,64 +2328,64 @@ mod tests {
 
     /// Nonuniform clamped cubic with an interior double knot, rational if
     /// `rational`.
-    fn clamped_curve(rational: bool) -> BSplineCurve3D {
-        let poles: Vec<Point3D> = (0..8)
-            .map(|i| Point3D::new(i as f64, (i * i % 5) as f64, (i % 3) as f64 - 1.0))
+    fn clamped_curve(rational: bool) -> BSplineCurve {
+        let poles: Vec<Point> = (0..8)
+            .map(|i| Point::new(i as f64, (i * i % 5) as f64, (i % 3) as f64 - 1.0))
             .collect();
         let knots = vec![0.0, 0.7, 1.0, 2.5, 4.0];
         let mults = vec![4, 1, 2, 1, 4];
         if rational {
             let weights = vec![1.0, 0.4, 2.5, 1.2, 0.8, 3.0, 0.6, 1.5];
-            BSplineCurve3D::new_rational(3, poles, weights, knots, mults, false).unwrap()
+            BSplineCurve::new_rational(3, poles, weights, knots, mults, false).unwrap()
         } else {
-            BSplineCurve3D::new(3, poles, knots, mults, false).unwrap()
+            BSplineCurve::new(3, poles, knots, mults, false).unwrap()
         }
     }
 
     /// Unclamped non-periodic quadratic: bounds `(2, 7)`, both bound knots
     /// interior to the knot vector.
-    fn unclamped_curve() -> BSplineCurve3D {
-        let poles: Vec<Point3D> = (0..7)
-            .map(|i| Point3D::new(i as f64, ((i * 3) % 4) as f64, 0.5 * i as f64))
+    fn unclamped_curve() -> BSplineCurve {
+        let poles: Vec<Point> = (0..7)
+            .map(|i| Point::new(i as f64, ((i * 3) % 4) as f64, 0.5 * i as f64))
             .collect();
         let knots: Vec<f64> = (0..10).map(f64::from).collect();
-        BSplineCurve3D::new(2, poles, knots, vec![1; 10], false).unwrap()
+        BSplineCurve::new(2, poles, knots, vec![1; 10], false).unwrap()
     }
 
     /// Periodic cubic with a double seam knot, rational if `rational`.
-    fn periodic_seam_curve(rational: bool) -> BSplineCurve3D {
+    fn periodic_seam_curve(rational: bool) -> BSplineCurve {
         let poles = periodic_ring_curve().poles().to_vec();
         let knots = vec![0.0, 1.5, 3.0, 4.0, 5.0, 6.0];
         let mults = vec![2, 1, 1, 1, 1, 2];
         if rational {
             let weights = vec![1.0, 2.0, 0.5, 1.5, 0.8, 1.2];
-            BSplineCurve3D::new_rational(3, poles, weights, knots, mults, true).unwrap()
+            BSplineCurve::new_rational(3, poles, weights, knots, mults, true).unwrap()
         } else {
-            BSplineCurve3D::new(3, poles, knots, mults, true).unwrap()
+            BSplineCurve::new(3, poles, knots, mults, true).unwrap()
         }
     }
 
     /// Periodic quadratic with three poles: a period shorter than the
     /// supports of the new poles.
-    fn short_periodic_curve() -> BSplineCurve3D {
+    fn short_periodic_curve() -> BSplineCurve {
         let poles = vec![
-            Point3D::new(1.0, 0.0, 0.0),
-            Point3D::new(-0.5, 0.9, 0.2),
-            Point3D::new(-0.5, -0.9, -0.2),
+            Point::new(1.0, 0.0, 0.0),
+            Point::new(-0.5, 0.9, 0.2),
+            Point::new(-0.5, -0.9, -0.2),
         ];
-        BSplineCurve3D::new(2, poles, vec![0.0, 0.5, 2.0, 3.0], vec![1; 4], true).unwrap()
+        BSplineCurve::new(2, poles, vec![0.0, 0.5, 2.0, 3.0], vec![1; 4], true).unwrap()
     }
 
     /// `refined` evaluates as `curve`, point and first two derivatives,
     /// within 1e-12 relative to the curve's size, at a spread of
     /// parameters, at every knot of both, and, on a periodic curve, past
     /// the bounds.
-    fn assert_same_curve(curve: &BSplineCurve3D, refined: &BSplineCurve3D) {
+    fn assert_same_curve(curve: &BSplineCurve, refined: &BSplineCurve) {
         assert_eq!(refined.bounds(), curve.bounds());
         assert_eq!(refined.is_periodic(), curve.is_periodic());
         assert_eq!(refined.is_rational(), curve.is_rational());
         let rebuilt = match refined.weights() {
-            Some(w) => BSplineCurve3D::new_rational(
+            Some(w) => BSplineCurve::new_rational(
                 refined.degree(),
                 refined.poles().to_vec(),
                 w.to_vec(),
@@ -2405,7 +2393,7 @@ mod tests {
                 refined.multiplicities().to_vec(),
                 refined.is_periodic(),
             ),
-            None => BSplineCurve3D::new(
+            None => BSplineCurve::new(
                 refined.degree(),
                 refined.poles().to_vec(),
                 refined.knots().to_vec(),
@@ -2431,11 +2419,7 @@ mod tests {
         for u in params {
             let (p, d1, d2) = curve.eval_d2(u);
             let (q, e1, e2) = refined.eval_d2(u);
-            let pairs = [
-                (p - Point3D::ORIGIN, q - Point3D::ORIGIN),
-                (d1, e1),
-                (d2, e2),
-            ];
+            let pairs = [(p - Point::ORIGIN, q - Point::ORIGIN), (d1, e1), (d2, e2)];
             for (k, (a, b)) in pairs.into_iter().enumerate() {
                 let tol = 1e-12 * size.max(a.magnitude());
                 assert!(
@@ -2446,7 +2430,7 @@ mod tests {
         }
     }
 
-    fn all_insertion_curves() -> Vec<BSplineCurve3D> {
+    fn all_insertion_curves() -> Vec<BSplineCurve> {
         vec![
             clamped_curve(false),
             clamped_curve(true),
@@ -2502,7 +2486,7 @@ mod tests {
     }
 
     /// The knots within the bounds, ends included.
-    fn breaks_within_bounds(curve: &BSplineCurve3D) -> Vec<f64> {
+    fn breaks_within_bounds(curve: &BSplineCurve) -> Vec<f64> {
         let (first, last) = curve.bounds();
         let mut breaks = vec![first];
         breaks.extend(curve.knots().iter().filter(|&&k| k > first && k < last));
@@ -2644,10 +2628,10 @@ mod tests {
 
     #[test]
     fn test_length_of_a_segment_and_a_circle() {
-        let poles = vec![Point3D::new(1.0, 2.0, 3.0), Point3D::new(4.0, 6.0, 3.0)];
-        let segment = BSplineCurve3D::new(1, poles, vec![0.0, 2.0], vec![2, 2], false).unwrap();
+        let poles = vec![Point::new(1.0, 2.0, 3.0), Point::new(4.0, 6.0, 3.0)];
+        let segment = BSplineCurve::new(1, poles, vec![0.0, 2.0], vec![2, 2], false).unwrap();
         assert!((segment.length(1e-12) - 5.0).abs() <= 1e-14);
-        let circle = crate::Circle3D::new(Point3D::new(1.0, -2.0, 0.5), Vector3D::Z, 3.0)
+        let circle = crate::Circle::new(Point::new(1.0, -2.0, 0.5), Vector::Z, 3.0)
             .unwrap()
             .to_bspline();
         let exact = 2.0 * std::f64::consts::PI * 3.0;
@@ -2742,14 +2726,14 @@ mod tests {
             if n_poles < degree + 1 {
                 continue;
             }
-            let poles: Vec<Point3D> = (0..n_poles)
-                .map(|_| Point3D::new(4.0 * next() - 2.0, 4.0 * next() - 2.0, 4.0 * next() - 2.0))
+            let poles: Vec<Point> = (0..n_poles)
+                .map(|_| Point::new(4.0 * next() - 2.0, 4.0 * next() - 2.0, 4.0 * next() - 2.0))
                 .collect();
             let curve = if rational {
                 let weights = (0..n_poles).map(|_| 0.3 + 2.0 * next()).collect();
-                BSplineCurve3D::new_rational(degree, poles, weights, knots, mults, periodic)
+                BSplineCurve::new_rational(degree, poles, weights, knots, mults, periodic)
             } else {
-                BSplineCurve3D::new(degree, poles, knots, mults, periodic)
+                BSplineCurve::new(degree, poles, knots, mults, periodic)
             }
             .unwrap();
             // Existing knots and quarter points of spans, kept within the
@@ -2853,7 +2837,7 @@ mod tests {
     // ---- knot removal ----
 
     /// Largest coordinate of the poles, at least one.
-    fn pole_size(curve: &BSplineCurve3D) -> f64 {
+    fn pole_size(curve: &BSplineCurve) -> f64 {
         curve
             .poles()
             .iter()
@@ -2863,7 +2847,7 @@ mod tests {
 
     /// `simpler` has the knots, multiplicities and periodicity of
     /// `curve`, and its poles and weights within 1e-12 relative.
-    fn assert_same_poles(curve: &BSplineCurve3D, simpler: &BSplineCurve3D) {
+    fn assert_same_poles(curve: &BSplineCurve, simpler: &BSplineCurve) {
         assert_eq!(simpler.knots(), curve.knots());
         assert_eq!(simpler.multiplicities(), curve.multiplicities());
         assert_eq!(simpler.is_periodic(), curve.is_periodic());
@@ -2884,9 +2868,9 @@ mod tests {
     /// Largest distance between the points of `a` and `b` at the same
     /// parameter, over 2001 parameters and every knot of both; asserts
     /// `b` is a valid curve with the bounds of `a`.
-    fn sampled_deviation(a: &BSplineCurve3D, b: &BSplineCurve3D) -> f64 {
+    fn sampled_deviation(a: &BSplineCurve, b: &BSplineCurve) -> f64 {
         let rebuilt = match b.weights() {
-            Some(w) => BSplineCurve3D::new_rational(
+            Some(w) => BSplineCurve::new_rational(
                 b.degree(),
                 b.poles().to_vec(),
                 w.to_vec(),
@@ -2894,7 +2878,7 @@ mod tests {
                 b.multiplicities().to_vec(),
                 b.is_periodic(),
             ),
-            None => BSplineCurve3D::new(
+            None => BSplineCurve::new(
                 b.degree(),
                 b.poles().to_vec(),
                 b.knots().to_vec(),
@@ -2915,7 +2899,7 @@ mod tests {
 
     /// The knots `remove_knot` accepts: those strictly inside the bounds
     /// of a non-periodic curve, every knot of a periodic one but its last.
-    fn removable_knots(curve: &BSplineCurve3D) -> Vec<(f64, u32)> {
+    fn removable_knots(curve: &BSplineCurve) -> Vec<(f64, u32)> {
         let (first, last) = curve.bounds();
         curve
             .knots()
@@ -2946,7 +2930,7 @@ mod tests {
     /// A random curve of degree `1 + case % 5`, periodic for even `case`,
     /// rational for `case` a multiple of 3, with random knots and
     /// multiplicities; `None` when they leave too few poles.
-    fn random_curve(case: usize, next: &mut impl FnMut() -> f64) -> Option<BSplineCurve3D> {
+    fn random_curve(case: usize, next: &mut impl FnMut() -> f64) -> Option<BSplineCurve> {
         let degree = 1 + case % 5;
         let periodic = case.is_multiple_of(2);
         let rational = case.is_multiple_of(3);
@@ -2974,21 +2958,21 @@ mod tests {
         if n_poles < degree + 1 {
             return None;
         }
-        let poles: Vec<Point3D> = (0..n_poles)
-            .map(|_| Point3D::new(4.0 * next() - 2.0, 4.0 * next() - 2.0, 4.0 * next() - 2.0))
+        let poles: Vec<Point> = (0..n_poles)
+            .map(|_| Point::new(4.0 * next() - 2.0, 4.0 * next() - 2.0, 4.0 * next() - 2.0))
             .collect();
         let curve = if rational {
             let weights = (0..n_poles).map(|_| 0.3 + 2.0 * next()).collect();
-            BSplineCurve3D::new_rational(degree, poles, weights, knots, mults, periodic)
+            BSplineCurve::new_rational(degree, poles, weights, knots, mults, periodic)
         } else {
-            BSplineCurve3D::new(degree, poles, knots, mults, periodic)
+            BSplineCurve::new(degree, poles, knots, mults, periodic)
         };
         Some(curve.unwrap())
     }
 
     /// Random curves of degrees 1 to 5, clamped or periodic, polynomial or
     /// rational, with random multiplicities.
-    fn random_curves(count: usize, seed: u64) -> Vec<BSplineCurve3D> {
+    fn random_curves(count: usize, seed: u64) -> Vec<BSplineCurve> {
         let mut next = uniform(seed);
         (0..count)
             .filter_map(|case| random_curve(case, &mut next))
@@ -3109,10 +3093,10 @@ mod tests {
     }
 
     /// `curve` with its poles replaced by `poles`.
-    fn with_poles(curve: &BSplineCurve3D, poles: Vec<Point3D>) -> BSplineCurve3D {
+    fn with_poles(curve: &BSplineCurve, poles: Vec<Point>) -> BSplineCurve {
         let (knots, mults) = (curve.knots().to_vec(), curve.multiplicities().to_vec());
         match curve.weights() {
-            Some(w) => BSplineCurve3D::new_rational(
+            Some(w) => BSplineCurve::new_rational(
                 curve.degree(),
                 poles,
                 w.to_vec(),
@@ -3120,7 +3104,7 @@ mod tests {
                 mults,
                 curve.is_periodic(),
             ),
-            None => BSplineCurve3D::new(curve.degree(), poles, knots, mults, curve.is_periodic()),
+            None => BSplineCurve::new(curve.degree(), poles, knots, mults, curve.is_periodic()),
         }
         .unwrap()
     }
@@ -3147,7 +3131,7 @@ mod tests {
             let poles = refined
                 .poles()
                 .iter()
-                .map(|&p| p + Vector3D::new(next() - 0.5, next() - 0.5, next() - 0.5) * noise)
+                .map(|&p| p + Vector::new(next() - 0.5, next() - 0.5, next() - 0.5) * noise)
                 .collect();
             let noisy = with_poles(&refined, poles);
             let mut all = vec![];
@@ -3186,7 +3170,7 @@ mod tests {
             let shift = 1e-4 * size;
             let mut poles = refined.poles().to_vec();
             let i = poles.len() / 2;
-            poles[i] = poles[i] + Vector3D::new(shift, -shift, 0.5 * shift);
+            poles[i] = poles[i] + Vector::new(shift, -shift, 0.5 * shift);
             let perturbed = with_poles(&refined, poles);
             let (_, removed) = perturbed.remove_knot(u, 1, 1e-3 * shift).unwrap();
             assert_eq!(removed, 0);
@@ -3199,12 +3183,12 @@ mod tests {
 
     #[test]
     fn test_remove_collinear_polyline_vertices() {
-        let poles: Vec<Point3D> = [0.0, 1.0, 2.0, 3.0, 4.0, 5.0]
+        let poles: Vec<Point> = [0.0, 1.0, 2.0, 3.0, 4.0, 5.0]
             .iter()
-            .map(|&x| Point3D::new(x, if x == 3.0 { 1.0 } else { 0.0 }, 0.0))
+            .map(|&x| Point::new(x, if x == 3.0 { 1.0 } else { 0.0 }, 0.0))
             .collect();
         let knots: Vec<f64> = (0..6).map(f64::from).collect();
-        let curve = BSplineCurve3D::new(1, poles, knots, vec![2, 1, 1, 1, 1, 2], false).unwrap();
+        let curve = BSplineCurve::new(1, poles, knots, vec![2, 1, 1, 1, 1, 2], false).unwrap();
         let (simpler, removed) = curve.remove_knots(&[1.0, 2.0, 3.0, 4.0], 1e-12).unwrap();
         assert_eq!(removed, 1);
         assert_eq!(simpler.knots(), &[0.0, 2.0, 3.0, 4.0, 5.0]);
@@ -3230,7 +3214,7 @@ mod tests {
     fn test_remove_knot_rational_far_from_origin() {
         // The bound is measured about the poles, not the origin: a curve
         // moved far away removes the same knots.
-        let offset = Vector3D::new(3e4, -2e4, 1e4);
+        let offset = Vector::new(3e4, -2e4, 1e4);
         let moved = clamped_curve(true).transformed(Transform::translation(offset));
         let refined = moved.insert_knot(1.6, 2).unwrap();
         let (simpler, removed) = refined.remove_knot(1.6, 2, 1e-8).unwrap();
@@ -3366,11 +3350,11 @@ mod tests {
     fn test_bspline_curve3d_transformed_rational_keeps_weights() {
         let w = std::f64::consts::FRAC_1_SQRT_2;
         let poles = vec![
-            Point3D::new(1.0, 0.0, 0.0),
-            Point3D::new(1.0, 1.0, 0.0),
-            Point3D::new(0.0, 1.0, 0.0),
+            Point::new(1.0, 0.0, 0.0),
+            Point::new(1.0, 1.0, 0.0),
+            Point::new(0.0, 1.0, 0.0),
         ];
-        let curve = BSplineCurve3D::new_rational(
+        let curve = BSplineCurve::new_rational(
             2,
             poles,
             vec![1.0, w, 1.0],
@@ -3379,7 +3363,7 @@ mod tests {
             false,
         )
         .unwrap();
-        let t = Transform::translation(Vector3D::new(5.0, 0.0, 0.0));
+        let t = Transform::translation(Vector::new(5.0, 0.0, 0.0));
         let moved = curve.transformed(t);
         assert_eq!(moved.weights(), curve.weights());
         assert!(moved.is_rational());
@@ -3388,13 +3372,13 @@ mod tests {
     }
 
     /// `a` and `b` agree within 1e-12 relative to `size` and to `a`.
-    fn assert_close(a: Vector3D, b: Vector3D, size: f64, context: &str) {
+    fn assert_close(a: Vector, b: Vector, size: f64, context: &str) {
         let tol = 1e-12 * size.max(a.magnitude());
         assert!((a - b).magnitude() <= tol, "{context}: {a:?} vs {b:?}");
     }
 
     /// The shortest nonzero knot span of `curve`.
-    fn shortest_span(curve: &BSplineCurve3D) -> f64 {
+    fn shortest_span(curve: &BSplineCurve) -> f64 {
         curve
             .knots()
             .windows(2)
@@ -3408,7 +3392,7 @@ mod tests {
     /// with a span shorter than any of `curve` computes its derivatives of
     /// order `k` from poles that much closer together, their rounding
     /// growing as the ratio to the power `k`.
-    fn assert_piece(curve: &BSplineCurve3D, piece: &BSplineCurve3D, (first, last): (f64, f64)) {
+    fn assert_piece(curve: &BSplineCurve, piece: &BSplineCurve, (first, last): (f64, f64)) {
         let p = curve.degree();
         assert_eq!(piece.bounds(), (first, last));
         assert_eq!(piece.degree(), p);
@@ -3420,7 +3404,7 @@ mod tests {
             (p as u32 + 1, p as u32 + 1)
         );
         let rebuilt = match piece.weights() {
-            Some(w) => BSplineCurve3D::new_rational(
+            Some(w) => BSplineCurve::new_rational(
                 p,
                 piece.poles().to_vec(),
                 w.to_vec(),
@@ -3428,7 +3412,7 @@ mod tests {
                 mults.to_vec(),
                 false,
             ),
-            None => BSplineCurve3D::new(
+            None => BSplineCurve::new(
                 p,
                 piece.poles().to_vec(),
                 piece.knots().to_vec(),
@@ -3444,8 +3428,8 @@ mod tests {
             let (p, d1, d2) = curve.eval_d2(u);
             let (q, e1, e2) = piece.eval_d2(u);
             assert_close(
-                p - Point3D::ORIGIN,
-                q - Point3D::ORIGIN,
+                p - Point::ORIGIN,
+                q - Point::ORIGIN,
                 size,
                 &format!("u = {u}"),
             );
@@ -3455,8 +3439,8 @@ mod tests {
         for &u in piece.knots() {
             let (p, q) = (curve.eval_point(u), piece.eval_point(u));
             assert_close(
-                p - Point3D::ORIGIN,
-                q - Point3D::ORIGIN,
+                p - Point::ORIGIN,
+                q - Point::ORIGIN,
                 size,
                 &format!("knot {u}"),
             );
@@ -3511,13 +3495,13 @@ mod tests {
     fn test_extract_at_knots_of_full_multiplicity_copies_poles() {
         // Cubic with a triple knot at 2: the curve is two independent
         // pieces, and extracting either inserts nothing.
-        let poles: Vec<Point3D> = (0..7)
-            .map(|i| Point3D::new(i as f64, ((i * 5) % 3) as f64, 0.5 * i as f64))
+        let poles: Vec<Point> = (0..7)
+            .map(|i| Point::new(i as f64, ((i * 5) % 3) as f64, 0.5 * i as f64))
             .collect();
         let weights = vec![1.0, 2.0, 0.5, 1.5, 0.7, 1.1, 3.0];
         let knots = vec![0.0, 2.0, 3.0];
         let curve =
-            BSplineCurve3D::new_rational(3, poles, weights, knots, vec![4, 3, 4], false).unwrap();
+            BSplineCurve::new_rational(3, poles, weights, knots, vec![4, 3, 4], false).unwrap();
         let left = curve.extract(0.0, 2.0).unwrap();
         assert_eq!(left.poles(), &curve.poles()[..4]);
         assert_eq!(left.weights(), Some(&curve.weights().unwrap()[..4]));
@@ -3564,12 +3548,7 @@ mod tests {
                 let size = pole_size(&curve);
                 let (p, d) = left.eval_d1(u);
                 let (q, e) = right.eval_d1(u);
-                assert_close(
-                    p - Point3D::ORIGIN,
-                    q - Point3D::ORIGIN,
-                    size,
-                    "split point",
-                );
+                assert_close(p - Point::ORIGIN, q - Point::ORIGIN, size, "split point");
                 if !curve.knots().contains(&u) {
                     assert_close(d, e, size, "split tangent");
                 }
@@ -3657,7 +3636,7 @@ mod tests {
 
     /// `reversed` evaluates as `curve` at the mirrored parameter, odd
     /// derivatives with the opposite sign, and reverses back to `curve`.
-    fn assert_reversed(curve: &BSplineCurve3D, reversed: &BSplineCurve3D) {
+    fn assert_reversed(curve: &BSplineCurve, reversed: &BSplineCurve) {
         let (first, last) = curve.bounds();
         assert_eq!(reversed.bounds(), (first, last));
         assert_eq!(reversed.is_periodic(), curve.is_periodic());
@@ -3678,8 +3657,8 @@ mod tests {
             let (p, d1, d2) = curve.eval_d2(mirrored);
             let (q, e1, e2) = reversed.eval_d2(u);
             assert_close(
-                p - Point3D::ORIGIN,
-                q - Point3D::ORIGIN,
+                p - Point::ORIGIN,
+                q - Point::ORIGIN,
                 size,
                 &format!("u = {u}"),
             );
@@ -3714,12 +3693,12 @@ mod tests {
             }
         }
         // Dyadic knots mirror exactly: reversing twice gives the curve back.
-        let poles: Vec<Point3D> = (0..6)
-            .map(|i| Point3D::new(i as f64, (i * i % 4) as f64, 0.0))
+        let poles: Vec<Point> = (0..6)
+            .map(|i| Point::new(i as f64, (i * i % 4) as f64, 0.0))
             .collect();
         let weights = vec![1.0, 0.5, 2.0, 1.25, 0.75, 1.0];
         let knots = vec![0.0, 1.0, 2.5, 4.0];
-        let curve = BSplineCurve3D::new_rational(3, poles, weights, knots, vec![4, 1, 1, 4], false)
+        let curve = BSplineCurve::new_rational(3, poles, weights, knots, vec![4, 1, 1, 4], false)
             .unwrap()
             .extract(0.5, 3.75)
             .unwrap();
@@ -3734,17 +3713,17 @@ mod tests {
     fn test_extract_keeps_untouched_rational_poles_exactly() {
         // Cubic over knots 0..7: cutting at 1.5 keeps the poles from 4 on,
         // cutting at 5.5 those up to 5.
-        let poles: Vec<Point3D> = (0..10)
+        let poles: Vec<Point> = (0..10)
             .map(|i| {
                 let x = i as f64;
-                Point3D::new(x.sin(), (1.7 * x).cos() / 3.0, 0.7 * x.sqrt())
+                Point::new(x.sin(), (1.7 * x).cos() / 3.0, 0.7 * x.sqrt())
             })
             .collect();
         let weights: Vec<f64> = (0..10).map(|i| 1.0 / (1.3 + 0.37 * i as f64)).collect();
         let knots: Vec<f64> = (0..8).map(f64::from).collect();
         let mut mults = vec![1; 8];
         (mults[0], mults[7]) = (4, 4);
-        let curve = BSplineCurve3D::new_rational(3, poles, weights, knots, mults, false).unwrap();
+        let curve = BSplineCurve::new_rational(3, poles, weights, knots, mults, false).unwrap();
         let piece = curve.extract(1.5, 5.5).unwrap();
         assert_piece(&curve, &piece, (1.5, 5.5));
         assert_eq!(piece.poles().len(), 8);
@@ -3779,18 +3758,18 @@ mod tests {
 
     // ---- one-sided evaluation ----
 
-    fn creased_cubic() -> BSplineCurve3D {
+    fn creased_cubic() -> BSplineCurve {
         // Cubic with a double interior knot at 0.5: C1, so first
         // derivatives agree across it and second derivatives do not.
         let poles = vec![
-            Point3D::new(0.0, 0.0, 0.0),
-            Point3D::new(1.0, 1.0, 0.0),
-            Point3D::new(2.0, 0.0, 1.0),
-            Point3D::new(3.0, 1.0, 1.0),
-            Point3D::new(4.0, 0.0, 0.0),
-            Point3D::new(5.0, 1.0, 0.0),
+            Point::new(0.0, 0.0, 0.0),
+            Point::new(1.0, 1.0, 0.0),
+            Point::new(2.0, 0.0, 1.0),
+            Point::new(3.0, 1.0, 1.0),
+            Point::new(4.0, 0.0, 0.0),
+            Point::new(5.0, 1.0, 0.0),
         ];
-        BSplineCurve3D::new(3, poles, vec![0.0, 0.5, 1.0], vec![4, 2, 4], false).unwrap()
+        BSplineCurve::new(3, poles, vec![0.0, 0.5, 1.0], vec![4, 2, 4], false).unwrap()
     }
 
     #[test]
@@ -3845,17 +3824,17 @@ mod tests {
         }
     }
 
-    fn creased_periodic_quadratic() -> BSplineCurve3D {
+    fn creased_periodic_quadratic() -> BSplineCurve {
         // Periodic quadratic, C0 at its seam (multiplicity 2 at both
         // ends) and at the interior double knot 2.
         let poles = (0..7)
             .map(|i| {
                 let angle = i as f64;
-                Point3D::new(2.0 * angle.cos(), 2.0 * angle.sin(), (i % 2) as f64)
+                Point::new(2.0 * angle.cos(), 2.0 * angle.sin(), (i % 2) as f64)
             })
             .collect();
         let knots = vec![0.0, 1.0, 2.0, 3.0, 4.0, 5.0];
-        BSplineCurve3D::new(2, poles, knots, vec![2, 1, 2, 1, 1, 2], true).unwrap()
+        BSplineCurve::new(2, poles, knots, vec![2, 1, 2, 1, 1, 2], true).unwrap()
     }
 
     #[test]
@@ -3902,15 +3881,14 @@ mod tests {
         // into each adjacent span (up to the local slope times the step),
         // and Above equals plain evaluation at the knot itself.
         let poles = vec![
-            Point3D::new(0.0, 1.0, 0.0),
-            Point3D::new(2.0, 3.0, 1.0),
-            Point3D::new(4.0, 0.0, 2.0),
-            Point3D::new(5.0, 2.0, 0.0),
-            Point3D::new(7.0, 1.0, 3.0),
-            Point3D::new(8.0, 4.0, 1.0),
+            Point::new(0.0, 1.0, 0.0),
+            Point::new(2.0, 3.0, 1.0),
+            Point::new(4.0, 0.0, 2.0),
+            Point::new(5.0, 2.0, 0.0),
+            Point::new(7.0, 1.0, 3.0),
+            Point::new(8.0, 4.0, 1.0),
         ];
-        let curve =
-            BSplineCurve3D::new(3, poles, vec![0.0, 0.4, 1.0], vec![4, 2, 4], false).unwrap();
+        let curve = BSplineCurve::new(3, poles, vec![0.0, 0.4, 1.0], vec![4, 2, 4], false).unwrap();
         for order in [1u32, 2] {
             let below = curve.eval_derivative_sided(0.4, order, Side::Below);
             let above = curve.eval_derivative_sided(0.4, order, Side::Above);

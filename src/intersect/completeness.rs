@@ -1,6 +1,6 @@
 //! Whether a numeric intersection found every hit (see [`Completeness`]).
 
-use crate::Point3D;
+use crate::Point;
 
 /// Whether the hits of a numeric intersection are all of its hits.
 ///
@@ -16,9 +16,9 @@ use crate::Point3D;
 /// # Examples
 ///
 /// ```
-/// use geomcore::{Completeness, Ellipse3D, Frame3D, Intersect, Point3D, Tolerance, Torus, Vector3D};
-/// let ellipse = Ellipse3D::from_frame(Frame3D::WORLD, 5.0, 1.0).unwrap();
-/// let torus = Torus::new(Point3D::ORIGIN, Vector3D::Z, 3.0, 1.0).unwrap();
+/// use geomcore::{Completeness, Ellipse, Frame, Intersect, Point, Tolerance, Torus, Vector};
+/// let ellipse = Ellipse::from_frame(Frame::WORLD, 5.0, 1.0).unwrap();
+/// let torus = Torus::new(Point::ORIGIN, Vector::Z, 3.0, 1.0).unwrap();
 /// let result = ellipse.intersect(&torus, Tolerance::DEFAULT);
 /// // An ellipse and a torus have no closed form, and neither is a
 /// // B-spline: the hits come from samples.
@@ -121,13 +121,10 @@ pub(super) fn span((a0, a1): (f64, f64), (b0, b1): (f64, f64)) -> (f64, f64) {
 }
 
 /// The smallest box, as its two corners, holding both.
-pub(super) fn box_union(
-    (p, r): (Point3D, Point3D),
-    (q, s): (Point3D, Point3D),
-) -> (Point3D, Point3D) {
+pub(super) fn box_union((p, r): (Point, Point), (q, s): (Point, Point)) -> (Point, Point) {
     (
-        Point3D::new(p.x.min(q.x), p.y.min(q.y), p.z.min(q.z)),
-        Point3D::new(r.x.max(s.x), r.y.max(s.y), r.z.max(s.z)),
+        Point::new(p.x.min(q.x), p.y.min(q.y), p.z.min(q.z)),
+        Point::new(r.x.max(s.x), r.y.max(s.y), r.z.max(s.z)),
     )
 }
 
@@ -161,12 +158,12 @@ pub(super) fn merged<R: Region>(mut regions: Vec<R>) -> Vec<R> {
 ///
 /// ```
 /// use geomcore::{
-///     BSplineCurve3D, BSplineSurface, Completeness, IncompleteReason, Intersect, Point3D,
+///     BSplineCurve, BSplineSurface, Completeness, IncompleteReason, Intersect, Point,
 ///     Tolerance,
 /// };
 /// let poles = vec![
-///     vec![Point3D::new(0.0, 0.0, 0.0), Point3D::new(0.0, 2.0, 0.0)],
-///     vec![Point3D::new(2.0, 0.0, 0.0), Point3D::new(2.0, 2.0, 0.0)],
+///     vec![Point::new(0.0, 0.0, 0.0), Point::new(0.0, 2.0, 0.0)],
+///     vec![Point::new(2.0, 0.0, 0.0), Point::new(2.0, 2.0, 0.0)],
 /// ];
 /// let (knots, mults) = (vec![0.0, 1.0], vec![2, 2]);
 /// let square = BSplineSurface::new(
@@ -174,8 +171,8 @@ pub(super) fn merged<R: Region>(mut regions: Vec<R>) -> Vec<R> {
 /// )
 /// .unwrap();
 /// // A segment lying on the square never separates from it.
-/// let ends = vec![Point3D::new(0.5, 0.5, 0.0), Point3D::new(1.5, 1.0, 0.0)];
-/// let segment = BSplineCurve3D::new(1, ends, knots, mults, false).unwrap();
+/// let ends = vec![Point::new(0.5, 0.5, 0.0), Point::new(1.5, 1.0, 0.0)];
+/// let segment = BSplineCurve::new(1, ends, knots, mults, false).unwrap();
 /// let result = segment.intersect(&square, Tolerance::DEFAULT);
 /// match result.completeness() {
 ///     Completeness::Incomplete { reason, regions } => {

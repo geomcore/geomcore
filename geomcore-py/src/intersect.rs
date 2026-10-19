@@ -3,7 +3,7 @@
 use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
 
-use geomcore::curves::{Curve2D, Curve3D, ParametricCurve3D, TrimmedCurve2D};
+use geomcore::curves::{Curve, Curve2D, ParametricCurve, TrimmedCurve2D};
 use geomcore::surfaces::Surface;
 use geomcore::{CurveCurveIntersection2D, Intersect, Tolerance};
 
@@ -87,7 +87,7 @@ fn is_bspline(curve: &CurveArg) -> bool {
 /// B-spline on either side, or a curve other than a whole line against a
 /// torus.
 fn may_search(curve: &CurveArg, surface: &Surface) -> bool {
-    let line = matches!(curve, CurveArg::Whole(Curve3D::Line(_)));
+    let line = matches!(curve, CurveArg::Whole(Curve::Line(_)));
     is_bspline(curve)
         || matches!(surface, Surface::BSpline(_))
         || (!line && matches!(surface, Surface::Torus(_)))

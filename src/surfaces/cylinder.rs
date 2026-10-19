@@ -8,8 +8,7 @@ use crate::projection::{self, SurfaceProjection};
 use crate::surface_math::analytic;
 use crate::surfaces::iso::{SurfaceIsoError, check_iso_param, iso_circle, iso_line};
 use crate::{
-    Axis3D, Circle3D, CylinderCylinderIntersection, Frame3D, Line3D, Point3D, Tolerance, Transform,
-    Vector3D,
+    Axis, Circle, CylinderCylinderIntersection, Frame, Line, Point, Tolerance, Transform, Vector,
 };
 use std::f64::consts::TAU;
 use std::fmt;
@@ -39,27 +38,27 @@ impl fmt::Display for CylinderConstructionError {
 
 impl std::error::Error for CylinderConstructionError {}
 
-/// A cylinder in 3D: a [`Frame3D`] (origin plus local x/y/z directions, `z`
+/// A cylinder in 3D: a [`Frame`] (origin plus local x/y/z directions, `z`
 /// being the axis) and a radius, evaluated as
 /// `origin + r*cos(u)*x_dir + r*sin(u)*y_dir + v*z_dir`.
 ///
 /// # Examples
 ///
 /// ```
-/// use geomcore::{Cylinder, Point3D, Vector3D};
-/// let cylinder = Cylinder::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
-/// assert_eq!(cylinder.eval_point(0.0, 5.0), Point3D::new(2.0, 0.0, 5.0));
+/// use geomcore::{Cylinder, Point, Vector};
+/// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
+/// assert_eq!(cylinder.eval_point(0.0, 5.0), Point::new(2.0, 0.0, 5.0));
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Cylinder {
-    frame: Frame3D,
+    frame: Frame,
     radius: f64,
 }
 
 impl Cylinder {
     /// Creates a cylinder from a center, an axis direction, and a radius.
     ///
-    /// The frame is derived from `axis_direction` via [`Frame3D::from_z`].
+    /// The frame is derived from `axis_direction` via [`Frame::from_z`].
     ///
     /// # Errors
     ///
@@ -70,16 +69,16 @@ impl Cylinder {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Cylinder, Point3D, Vector3D};
-    /// let cylinder = Cylinder::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
+    /// use geomcore::{Cylinder, Point, Vector};
+    /// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
     /// assert_eq!(cylinder.radius(), 2.0);
     /// ```
     pub fn new(
-        center: Point3D,
-        axis_direction: Vector3D,
+        center: Point,
+        axis_direction: Vector,
         radius: f64,
     ) -> Result<Cylinder, CylinderConstructionError> {
-        let frame = Frame3D::from_z(center, axis_direction).map_err(frame_error(
+        let frame = Frame::from_z(center, axis_direction).map_err(frame_error(
             CylinderConstructionError::NonFinite,
             CylinderConstructionError::NullNormal,
         ))?;
@@ -96,11 +95,11 @@ impl Cylinder {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Cylinder, Frame3D};
-    /// let cylinder = Cylinder::from_frame(Frame3D::WORLD, 2.0).unwrap();
-    /// assert_eq!(cylinder.frame(), Frame3D::WORLD);
+    /// use geomcore::{Cylinder, Frame};
+    /// let cylinder = Cylinder::from_frame(Frame::WORLD, 2.0).unwrap();
+    /// assert_eq!(cylinder.frame(), Frame::WORLD);
     /// ```
-    pub fn from_frame(frame: Frame3D, radius: f64) -> Result<Cylinder, CylinderConstructionError> {
+    pub fn from_frame(frame: Frame, radius: f64) -> Result<Cylinder, CylinderConstructionError> {
         if !(radius.is_finite()) {
             return Err(CylinderConstructionError::NonFinite);
         }
@@ -121,13 +120,13 @@ impl Cylinder {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Axis3D, Cylinder, Point3D, Vector3D};
-    /// let axis = Axis3D::new(Point3D::ORIGIN, Vector3D::Z).unwrap();
+    /// use geomcore::{Axis, Cylinder, Point, Vector};
+    /// let axis = Axis::new(Point::ORIGIN, Vector::Z).unwrap();
     /// let cylinder = Cylinder::from_axis(axis, 2.0).unwrap();
     /// assert_eq!(cylinder.axis(), axis);
     /// ```
-    pub fn from_axis(axis: Axis3D, radius: f64) -> Result<Cylinder, CylinderConstructionError> {
-        let frame = Frame3D::from_z(axis.origin(), axis.direction()).map_err(frame_error(
+    pub fn from_axis(axis: Axis, radius: f64) -> Result<Cylinder, CylinderConstructionError> {
+        let frame = Frame::from_z(axis.origin(), axis.direction()).map_err(frame_error(
             CylinderConstructionError::NonFinite,
             CylinderConstructionError::NullNormal,
         ))?;
@@ -135,19 +134,19 @@ impl Cylinder {
     }
 
     /// Creates a cylinder from an existing circle: the cylinder's frame and
-    /// radius are exactly the circle's. Infallible: a [`Circle3D`] already
+    /// radius are exactly the circle's. Infallible: a [`Circle`] already
     /// carries a valid (non-negative) radius.
     ///
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Circle3D, Cylinder, Point3D, Vector3D};
-    /// let circle = Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
+    /// use geomcore::{Circle, Cylinder, Point, Vector};
+    /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
     /// let cylinder = Cylinder::from_circle(&circle);
     /// assert_eq!(cylinder.radius(), 2.0);
     /// assert_eq!(cylinder.frame(), circle.frame());
     /// ```
-    pub fn from_circle(circle: &Circle3D) -> Cylinder {
+    pub fn from_circle(circle: &Circle) -> Cylinder {
         Cylinder {
             frame: circle.frame(),
             radius: circle.radius(),
@@ -159,11 +158,11 @@ impl Cylinder {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Cylinder, Frame3D};
-    /// let cylinder = Cylinder::from_frame(Frame3D::WORLD, 2.0).unwrap();
-    /// assert_eq!(cylinder.frame(), Frame3D::WORLD);
+    /// use geomcore::{Cylinder, Frame};
+    /// let cylinder = Cylinder::from_frame(Frame::WORLD, 2.0).unwrap();
+    /// assert_eq!(cylinder.frame(), Frame::WORLD);
     /// ```
-    pub fn frame(&self) -> Frame3D {
+    pub fn frame(&self) -> Frame {
         self.frame
     }
 
@@ -172,8 +171,8 @@ impl Cylinder {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Cylinder, Frame3D};
-    /// let cylinder = Cylinder::from_frame(Frame3D::WORLD, 2.0).unwrap();
+    /// use geomcore::{Cylinder, Frame};
+    /// let cylinder = Cylinder::from_frame(Frame::WORLD, 2.0).unwrap();
     /// assert_eq!(cylinder.radius(), 2.0);
     /// ```
     pub fn radius(&self) -> f64 {
@@ -185,11 +184,11 @@ impl Cylinder {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Cylinder, Point3D, Vector3D};
-    /// let cylinder = Cylinder::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
-    /// assert_eq!(cylinder.axis().direction(), Vector3D::Z);
+    /// use geomcore::{Cylinder, Point, Vector};
+    /// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
+    /// assert_eq!(cylinder.axis().direction(), Vector::Z);
     /// ```
-    pub fn axis(&self) -> Axis3D {
+    pub fn axis(&self) -> Axis {
         self.frame.axis()
     }
 
@@ -201,8 +200,8 @@ impl Cylinder {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Cylinder, Point3D, Vector3D};
-    /// let cylinder = Cylinder::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
+    /// use geomcore::{Cylinder, Point, Vector};
+    /// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
     /// let reversed = cylinder.reversed_u();
     /// assert!(!reversed.frame().is_direct());
     /// assert_eq!(reversed.eval_point(1.0, 3.0), cylinder.eval_point(-1.0, 3.0));
@@ -221,8 +220,8 @@ impl Cylinder {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Cylinder, Point3D, Vector3D};
-    /// let cylinder = Cylinder::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
+    /// use geomcore::{Cylinder, Point, Vector};
+    /// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
     /// let reversed = cylinder.reversed_v();
     /// assert_eq!(reversed.eval_point(1.0, 3.0), cylinder.eval_point(1.0, -3.0));
     /// ```
@@ -239,8 +238,8 @@ impl Cylinder {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Cylinder, Point3D, Vector3D};
-    /// let cylinder = Cylinder::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
+    /// use geomcore::{Cylinder, Point, Vector};
+    /// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
     /// let u = cylinder.u_reversed_parameter(1.0);
     /// let there = cylinder.reversed_u().eval_point(u, 0.5);
     /// assert!(there.distance(cylinder.eval_point(1.0, 0.5)) < 1e-12);
@@ -254,8 +253,8 @@ impl Cylinder {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Cylinder, Point3D, Vector3D};
-    /// let cylinder = Cylinder::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
+    /// use geomcore::{Cylinder, Point, Vector};
+    /// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
     /// let v = cylinder.v_reversed_parameter(0.5);
     /// let there = cylinder.reversed_v().eval_point(1.0, v);
     /// assert!(there.distance(cylinder.eval_point(1.0, 0.5)) < 1e-12);
@@ -274,12 +273,12 @@ impl Cylinder {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Cylinder, Point3D, Vector3D};
-    /// let cylinder = Cylinder::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
+    /// use geomcore::{Cylinder, Point, Vector};
+    /// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
     /// let iso = cylinder.u_iso(0.0).unwrap();
-    /// assert_eq!(iso.eval_point(3.0), Point3D::new(2.0, 0.0, 3.0));
+    /// assert_eq!(iso.eval_point(3.0), Point::new(2.0, 0.0, 3.0));
     /// ```
-    pub fn u_iso(&self, u: f64) -> Result<Line3D, SurfaceIsoError> {
+    pub fn u_iso(&self, u: f64) -> Result<Line, SurfaceIsoError> {
         let u = check_iso_param(u, None)?;
         iso_line(self.eval_point(u, 0.0), self.frame.z_direction())
     }
@@ -294,13 +293,13 @@ impl Cylinder {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Cylinder, Point3D, Vector3D};
-    /// let cylinder = Cylinder::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
+    /// use geomcore::{Cylinder, Point, Vector};
+    /// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
     /// let iso = cylinder.v_iso(3.0).unwrap();
-    /// assert_eq!(iso.center(), Point3D::new(0.0, 0.0, 3.0));
+    /// assert_eq!(iso.center(), Point::new(0.0, 0.0, 3.0));
     /// assert_eq!(iso.radius(), 2.0);
     /// ```
-    pub fn v_iso(&self, v: f64) -> Result<Circle3D, SurfaceIsoError> {
+    pub fn v_iso(&self, v: f64) -> Result<Circle, SurfaceIsoError> {
         let v = check_iso_param(v, None)?;
         let frame = self.frame;
         iso_circle(
@@ -330,11 +329,11 @@ impl Cylinder {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Cylinder, Point3D, Transform, Vector3D};
-    /// let cylinder = Cylinder::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
-    /// let moved = cylinder.transformed(Transform::scaling(Point3D::ORIGIN, 3.0)).unwrap();
+    /// use geomcore::{Cylinder, Point, Transform, Vector};
+    /// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
+    /// let moved = cylinder.transformed(Transform::scaling(Point::ORIGIN, 3.0)).unwrap();
     /// assert_eq!(moved.radius(), 6.0);
-    /// assert_eq!(moved.eval_point(0.0, 3.0), Point3D::new(6.0, 0.0, 3.0));
+    /// assert_eq!(moved.eval_point(0.0, 3.0), Point::new(6.0, 0.0, 3.0));
     /// ```
     pub fn transformed(&self, transform: Transform) -> Result<Cylinder, CylinderConstructionError> {
         let (frame, scale) = transform.apply_frame(self.frame()).map_err(frame_error(
@@ -350,11 +349,11 @@ impl Cylinder {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Cylinder, Point3D, Vector3D};
-    /// let cylinder = Cylinder::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
-    /// assert_eq!(cylinder.eval_point(0.0, 5.0), Point3D::new(2.0, 0.0, 5.0));
+    /// use geomcore::{Cylinder, Point, Vector};
+    /// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
+    /// assert_eq!(cylinder.eval_point(0.0, 5.0), Point::new(2.0, 0.0, 5.0));
     /// ```
-    pub fn eval_point(&self, u: f64, v: f64) -> Point3D {
+    pub fn eval_point(&self, u: f64, v: f64) -> Point {
         analytic::cylinder_d0(&self.frame, self.radius, u, v)
     }
 
@@ -363,12 +362,12 @@ impl Cylinder {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Cylinder, Point3D, Vector3D};
-    /// let cylinder = Cylinder::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
+    /// use geomcore::{Cylinder, Point, Vector};
+    /// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
     /// let points = cylinder.eval_points(&[(0.0, 0.0)]);
-    /// assert_eq!(points[0], Point3D::new(2.0, 0.0, 0.0));
+    /// assert_eq!(points[0], Point::new(2.0, 0.0, 0.0));
     /// ```
-    pub fn eval_points(&self, uvs: &[(f64, f64)]) -> Vec<Point3D> {
+    pub fn eval_points(&self, uvs: &[(f64, f64)]) -> Vec<Point> {
         uvs.iter().map(|&(u, v)| self.eval_point(u, v)).collect()
     }
 
@@ -386,11 +385,11 @@ impl Cylinder {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Cylinder, Point3D, Vector3D};
-    /// let cylinder = Cylinder::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
-    /// assert_eq!(cylinder.eval_derivative(0.0, 5.0, 0, 1), Vector3D::Z);
+    /// use geomcore::{Cylinder, Point, Vector};
+    /// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
+    /// assert_eq!(cylinder.eval_derivative(0.0, 5.0, 0, 1), Vector::Z);
     /// ```
-    pub fn eval_derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> Vector3D {
+    pub fn eval_derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> Vector {
         match du + dv {
             0 => panic!(
                 "eval_derivative: du + dv must be >= 1 (use eval_point for the (0, 0) order)"
@@ -409,12 +408,12 @@ impl Cylinder {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Cylinder, Point3D, Vector3D};
-    /// let cylinder = Cylinder::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
-    /// let (u, v) = cylinder.parameters_of(Point3D::new(2.0, 0.0, 5.0));
+    /// use geomcore::{Cylinder, Point, Vector};
+    /// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
+    /// let (u, v) = cylinder.parameters_of(Point::new(2.0, 0.0, 5.0));
     /// assert_eq!((u, v), (0.0, 5.0));
     /// ```
-    pub fn parameters_of(&self, point: Point3D) -> (f64, f64) {
+    pub fn parameters_of(&self, point: Point) -> (f64, f64) {
         analytic::cylinder_parameters(&self.frame, point)
     }
 
@@ -426,13 +425,13 @@ impl Cylinder {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Cylinder, Point3D, Tolerance, Vector3D};
-    /// let cylinder = Cylinder::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
+    /// use geomcore::{Cylinder, Point, Tolerance, Vector};
+    /// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
     /// let tol = Tolerance::DEFAULT;
-    /// assert!(cylinder.contains(Point3D::new(2.0, 0.0, 0.0), tol));
-    /// assert!(!cylinder.contains(Point3D::ORIGIN, tol));
+    /// assert!(cylinder.contains(Point::new(2.0, 0.0, 0.0), tol));
+    /// assert!(!cylinder.contains(Point::ORIGIN, tol));
     /// ```
-    pub fn contains(&self, point: Point3D, tol: Tolerance) -> bool {
+    pub fn contains(&self, point: Point, tol: Tolerance) -> bool {
         let (u, v) = self.parameters_of(point);
         self.eval_point(u, v).distance(point) <= tol.confusion
     }
@@ -444,13 +443,13 @@ impl Cylinder {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Cylinder, Point3D, Tolerance, Vector3D};
-    /// let cylinder = Cylinder::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
-    /// let proj = cylinder.project_point(Point3D::new(3.0, 0.0, 5.0), Tolerance::DEFAULT);
+    /// use geomcore::{Cylinder, Point, Tolerance, Vector};
+    /// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
+    /// let proj = cylinder.project_point(Point::new(3.0, 0.0, 5.0), Tolerance::DEFAULT);
     /// assert_eq!((proj.u, proj.v), (0.0, 5.0));
     /// assert_eq!(proj.distance, 1.0);
     /// ```
-    pub fn project_point(&self, point: Point3D, tol: Tolerance) -> SurfaceProjection {
+    pub fn project_point(&self, point: Point, tol: Tolerance) -> SurfaceProjection {
         let (u, v) = self.parameters_of(point);
         let foot = self.eval_point(u, v);
         let distance = foot.distance(point);
@@ -466,7 +465,7 @@ impl Cylinder {
     ///
     /// Default-style batch wrapper over [`Cylinder::project_point`]: one
     /// native call per batch, mirroring [`Cylinder::eval_points`].
-    pub fn project_points(&self, points: &[Point3D], tol: Tolerance) -> Vec<SurfaceProjection> {
+    pub fn project_points(&self, points: &[Point], tol: Tolerance) -> Vec<SurfaceProjection> {
         points.iter().map(|&p| self.project_point(p, tol)).collect()
     }
 }
@@ -489,9 +488,9 @@ impl IntersectExact<Cylinder> for Cylinder {
     ///
     /// ```
     /// use geomcore::IntersectExact;
-    /// use geomcore::{Cylinder, CylinderCylinderIntersection, Point3D, Tolerance, Vector3D};
-    /// let c1 = Cylinder::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
-    /// let c2 = Cylinder::new(Point3D::new(3.0, 0.0, 0.0), Vector3D::Z, 2.0).unwrap();
+    /// use geomcore::{Cylinder, CylinderCylinderIntersection, Point, Tolerance, Vector};
+    /// let c1 = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
+    /// let c2 = Cylinder::new(Point::new(3.0, 0.0, 0.0), Vector::Z, 2.0).unwrap();
     /// let tol = Tolerance::DEFAULT;
     /// match c1.intersect_exact(&c2, tol) {
     ///     CylinderCylinderIntersection::TwoLines(_, _) => {}
@@ -528,15 +527,15 @@ impl IntersectExact<Cylinder> for Cylinder {
         let mhat = m * (1.0 / d);
         if (d - out).abs() <= tol.confusion || (d - inn).abs() <= tol.confusion {
             let p = self.axis().origin() + mhat * ((r1 * r1 - r2 * r2 + d * d) / (2.0 * d));
-            CylinderCylinderIntersection::TangentLine(Line3D::new(p, a1).expect(expect))
+            CylinderCylinderIntersection::TangentLine(Line::new(p, a1).expect(expect))
         } else {
             let s = (r1 * r1 - r2 * r2 + d * d) / (2.0 * d);
             let h = (r1 * r1 - s * s).max(0.0).sqrt();
             let base = self.axis().origin() + mhat * s;
             let nhat = a1.cross(mhat);
             CylinderCylinderIntersection::TwoLines(
-                Line3D::new(base + nhat * h, a1).expect(expect),
-                Line3D::new(base - nhat * h, a1).expect(expect),
+                Line::new(base + nhat * h, a1).expect(expect),
+                Line::new(base - nhat * h, a1).expect(expect),
             )
         }
     }
@@ -545,7 +544,7 @@ impl IntersectExact<Cylinder> for Cylinder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Vector3D;
+    use crate::Vector;
     use crate::surfaces::ParametricSurface;
     use std::f64::consts::PI;
 
@@ -553,15 +552,15 @@ mod tests {
 
     #[test]
     fn test_new_ok() {
-        let c = Cylinder::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
+        let c = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
         assert_eq!(c.radius(), 2.0);
-        assert_eq!(c.axis().direction(), Vector3D::Z);
+        assert_eq!(c.axis().direction(), Vector::Z);
     }
 
     #[test]
     fn test_new_negative_radius_errors() {
         assert_eq!(
-            Cylinder::new(Point3D::ORIGIN, Vector3D::Z, -1.0),
+            Cylinder::new(Point::ORIGIN, Vector::Z, -1.0),
             Err(CylinderConstructionError::NegativeRadius)
         );
     }
@@ -569,7 +568,7 @@ mod tests {
     #[test]
     fn test_new_null_normal_errors() {
         assert_eq!(
-            Cylinder::new(Point3D::ORIGIN, Vector3D::ZERO, 1.0),
+            Cylinder::new(Point::ORIGIN, Vector::ZERO, 1.0),
             Err(CylinderConstructionError::NullNormal)
         );
     }
@@ -577,14 +576,14 @@ mod tests {
     #[test]
     fn test_from_frame_negative_radius_errors() {
         assert_eq!(
-            Cylinder::from_frame(Frame3D::WORLD, -0.1),
+            Cylinder::from_frame(Frame::WORLD, -0.1),
             Err(CylinderConstructionError::NegativeRadius)
         );
     }
 
     #[test]
     fn test_from_axis_ok() {
-        let axis = Axis3D::new(Point3D::new(1.0, 2.0, 3.0), Vector3D::Y).unwrap();
+        let axis = Axis::new(Point::new(1.0, 2.0, 3.0), Vector::Y).unwrap();
         let c = Cylinder::from_axis(axis, 3.0).unwrap();
         assert_eq!(c.axis(), axis);
         assert_eq!(c.radius(), 3.0);
@@ -592,7 +591,7 @@ mod tests {
 
     #[test]
     fn test_from_axis_negative_radius_errors() {
-        let axis = Axis3D::new(Point3D::ORIGIN, Vector3D::Z).unwrap();
+        let axis = Axis::new(Point::ORIGIN, Vector::Z).unwrap();
         assert_eq!(
             Cylinder::from_axis(axis, -1.0),
             Err(CylinderConstructionError::NegativeRadius)
@@ -601,7 +600,7 @@ mod tests {
 
     #[test]
     fn test_from_circle_matches_circle() {
-        let circle = Circle3D::new(Point3D::new(1.0, 2.0, 3.0), Vector3D::Y, 2.5).unwrap();
+        let circle = Circle::new(Point::new(1.0, 2.0, 3.0), Vector::Y, 2.5).unwrap();
         let cylinder = Cylinder::from_circle(&circle);
         assert_eq!(cylinder.frame(), circle.frame());
         assert_eq!(cylinder.radius(), circle.radius());
@@ -611,49 +610,49 @@ mod tests {
 
     #[test]
     fn test_eval_point() {
-        let c = Cylinder::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
-        assert_eq!(c.eval_point(0.0, 5.0), Point3D::new(2.0, 0.0, 5.0));
+        let c = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
+        assert_eq!(c.eval_point(0.0, 5.0), Point::new(2.0, 0.0, 5.0));
     }
 
     #[test]
     fn test_eval_points_matches_loop() {
-        let c = Cylinder::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
+        let c = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
         let uvs = [(0.0, 0.0), (PI / 2.0, 1.0)];
-        let expected: Vec<Point3D> = uvs.iter().map(|&(u, v)| c.eval_point(u, v)).collect();
+        let expected: Vec<Point> = uvs.iter().map(|&(u, v)| c.eval_point(u, v)).collect();
         assert_eq!(c.eval_points(&uvs), expected);
     }
 
     #[test]
     fn test_eval_derivative_first_orders() {
-        let c = Cylinder::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
-        assert_eq!(c.eval_derivative(0.0, 5.0, 0, 1), Vector3D::Z);
+        let c = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
+        assert_eq!(c.eval_derivative(0.0, 5.0, 0, 1), Vector::Z);
     }
 
     #[test]
     fn test_eval_derivative_second_orders_zero_for_sv() {
-        let c = Cylinder::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
-        assert_eq!(c.eval_derivative(0.7, 5.0, 0, 2), Vector3D::ZERO);
-        assert_eq!(c.eval_derivative(0.7, 5.0, 1, 1), Vector3D::ZERO);
+        let c = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
+        assert_eq!(c.eval_derivative(0.7, 5.0, 0, 2), Vector::ZERO);
+        assert_eq!(c.eval_derivative(0.7, 5.0, 1, 1), Vector::ZERO);
     }
 
     #[test]
     #[should_panic(expected = "du + dv must be >= 1")]
     fn test_eval_derivative_zero_order_panics() {
-        let c = Cylinder::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
+        let c = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
         c.eval_derivative(0.0, 0.0, 0, 0);
     }
 
     #[test]
     #[should_panic(expected = "du + dv must be <= 2")]
     fn test_eval_derivative_order_too_high_panics() {
-        let c = Cylinder::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
+        let c = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
         c.eval_derivative(0.0, 0.0, 2, 1);
     }
 
     #[test]
     fn test_parameters_of_round_trip() {
-        let c = Cylinder::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
-        let (u, v) = c.parameters_of(Point3D::new(2.0, 0.0, 5.0));
+        let c = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
+        let (u, v) = c.parameters_of(Point::new(2.0, 0.0, 5.0));
         assert_eq!((u, v), (0.0, 5.0));
     }
 
@@ -679,23 +678,23 @@ mod tests {
 
     #[test]
     fn test_cylinder_contains() {
-        let cylinder = Cylinder::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
+        let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
         let tol = Tolerance::DEFAULT;
-        assert!(cylinder.contains(Point3D::new(2.0, 0.0, 0.0), tol));
+        assert!(cylinder.contains(Point::new(2.0, 0.0, 0.0), tol));
         assert!(cylinder.contains(cylinder.eval_point(1.0, 3.0), tol));
-        assert!(!cylinder.contains(Point3D::ORIGIN, tol));
-        assert!(!cylinder.contains(Point3D::new(3.0, 0.0, 0.0), tol));
+        assert!(!cylinder.contains(Point::ORIGIN, tol));
+        assert!(!cylinder.contains(Point::new(3.0, 0.0, 0.0), tol));
     }
 
     #[test]
     fn test_cylinder_project_point() {
-        let cylinder = Cylinder::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
+        let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
         let tol = Tolerance::DEFAULT;
-        let proj = cylinder.project_point(Point3D::new(3.0, 0.0, 5.0), tol);
+        let proj = cylinder.project_point(Point::new(3.0, 0.0, 5.0), tol);
         assert_eq!((proj.u, proj.v), (0.0, 5.0));
         assert_eq!(proj.distance, 1.0);
         // Axis point: the whole height circle is equidistant; distance is exact.
-        let axis = cylinder.project_point(Point3D::new(0.0, 0.0, 5.0), tol);
+        let axis = cylinder.project_point(Point::new(0.0, 0.0, 5.0), tol);
         assert_eq!(axis.v, 5.0);
         assert_eq!(axis.distance, 2.0);
     }
@@ -703,11 +702,11 @@ mod tests {
     #[test]
     fn test_cylinder_cylinder_intersection_two_lines() {
         let tol = Tolerance::DEFAULT;
-        let c1 = Cylinder::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
-        let c2 = Cylinder::new(Point3D::new(3.0, 0.0, 0.0), Vector3D::Z, 2.0).unwrap();
+        let c1 = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
+        let c2 = Cylinder::new(Point::new(3.0, 0.0, 0.0), Vector::Z, 2.0).unwrap();
         match c1.intersect_exact(&c2, tol) {
             CylinderCylinderIntersection::TwoLines(l1, l2) => {
-                assert_eq!(l1.direction(), Vector3D::Z);
+                assert_eq!(l1.direction(), Vector::Z);
                 assert!((l1.origin().x - 1.5).abs() < 1e-12);
                 assert!((l1.origin().y - 1.75f64.sqrt()).abs() < 1e-9);
                 assert!((l2.origin().y + 1.75f64.sqrt()).abs() < 1e-9);
@@ -723,23 +722,23 @@ mod tests {
     #[test]
     fn test_cylinder_cylinder_intersection_degenerate() {
         let tol = Tolerance::DEFAULT;
-        let c1 = Cylinder::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
+        let c1 = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
         // External tangency.
-        let tangent = Cylinder::new(Point3D::new(4.0, 0.0, 0.0), Vector3D::Z, 2.0).unwrap();
+        let tangent = Cylinder::new(Point::new(4.0, 0.0, 0.0), Vector::Z, 2.0).unwrap();
         match c1.intersect_exact(&tangent, tol) {
             CylinderCylinderIntersection::TangentLine(l) => {
-                assert_eq!(l.origin(), Point3D::new(2.0, 0.0, 0.0));
+                assert_eq!(l.origin(), Point::new(2.0, 0.0, 0.0));
             }
             _ => panic!("expected a tangent line"),
         }
         // Separate.
-        let far = Cylinder::new(Point3D::new(5.0, 0.0, 0.0), Vector3D::Z, 2.0).unwrap();
+        let far = Cylinder::new(Point::new(5.0, 0.0, 0.0), Vector::Z, 2.0).unwrap();
         assert_eq!(
             c1.intersect_exact(&far, tol),
             CylinderCylinderIntersection::Empty
         );
         // Concentric, different radii.
-        let nested = Cylinder::new(Point3D::ORIGIN, Vector3D::Z, 1.0).unwrap();
+        let nested = Cylinder::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
         assert_eq!(
             c1.intersect_exact(&nested, tol),
             CylinderCylinderIntersection::Empty
@@ -750,7 +749,7 @@ mod tests {
             CylinderCylinderIntersection::Coincident
         );
         // Crossing axes: space quartic, no closed form.
-        let crossed = Cylinder::new(Point3D::ORIGIN, Vector3D::X, 2.0).unwrap();
+        let crossed = Cylinder::new(Point::ORIGIN, Vector::X, 2.0).unwrap();
         assert_eq!(
             c1.intersect_exact(&crossed, tol),
             CylinderCylinderIntersection::NotAnalytic
@@ -761,35 +760,34 @@ mod tests {
 
     #[test]
     fn test_cylinder_transformed_translation_spot_check() {
-        let cylinder = Cylinder::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
-        let t = Transform::translation(Vector3D::new(1.0, 0.0, 0.0));
+        let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
+        let t = Transform::translation(Vector::new(1.0, 0.0, 0.0));
         let moved = cylinder.transformed(t).unwrap();
         assert_eq!(moved.radius(), 2.0);
-        assert_eq!(moved.axis().direction(), Vector3D::Z);
+        assert_eq!(moved.axis().direction(), Vector::Z);
         // Hand-computed evaluation, shifted.
-        assert_eq!(moved.eval_point(0.0, 5.0), Point3D::new(3.0, 0.0, 5.0));
+        assert_eq!(moved.eval_point(0.0, 5.0), Point::new(3.0, 0.0, 5.0));
     }
 
     #[test]
     fn test_cylinder_transformed_round_trip_and_mirror() {
-        use crate::Axis3D;
-        let cylinder = Cylinder::new(Point3D::new(1.0, 0.0, 0.0), Vector3D::Z, 2.0).unwrap();
-        let axis = Axis3D::new(Point3D::ORIGIN, Vector3D::Z).unwrap();
-        let t = Transform::rotation(axis, PI / 2.0).then(Transform::scaling(Point3D::ORIGIN, 2.0));
+        use crate::Axis;
+        let cylinder = Cylinder::new(Point::new(1.0, 0.0, 0.0), Vector::Z, 2.0).unwrap();
+        let axis = Axis::new(Point::ORIGIN, Vector::Z).unwrap();
+        let t = Transform::rotation(axis, PI / 2.0).then(Transform::scaling(Point::ORIGIN, 2.0));
         let moved = cylinder.transformed(t).unwrap();
         assert_eq!(moved.radius(), 4.0);
-        assert!((moved.axis().direction() - Vector3D::Z).magnitude() < 1e-9);
+        assert!((moved.axis().direction() - Vector::Z).magnitude() < 1e-9);
         let tol = Tolerance::DEFAULT;
         for (u, v) in [(0.0, 0.0), (1.0, -2.0), (4.0, 0.5)] {
             assert!(moved.contains(t.apply_point(cylinder.eval_point(u, v)), tol));
         }
-        let inv =
-            Transform::scaling(Point3D::ORIGIN, 0.5).then(Transform::rotation(axis, -PI / 2.0));
+        let inv = Transform::scaling(Point::ORIGIN, 0.5).then(Transform::rotation(axis, -PI / 2.0));
         let back = moved.transformed(inv).unwrap();
         assert!((back.radius() - cylinder.radius()).abs() < 1e-9);
         assert!(back.axis().origin().distance(cylinder.axis().origin()) < 1e-9);
         // Mirror across the xy-plane preserves the point set.
-        let m = Transform::mirror_plane(Frame3D::WORLD);
+        let m = Transform::mirror_plane(Frame::WORLD);
         let mirrored = cylinder.transformed(m).unwrap();
         for (u, v) in [(0.0, 0.0), (1.0, -2.0)] {
             assert!(mirrored.contains(m.apply_point(cylinder.eval_point(u, v)), tol));
@@ -799,7 +797,7 @@ mod tests {
 
     #[test]
     fn test_reversed_cylinders_share_point_set_with_flipped_normal() {
-        let cylinder = Cylinder::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
+        let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
         for (u, v) in [(0.0, 0.0), (1.0, -2.0), (5.0, 0.5)] {
             let ru = cylinder.reversed_u();
             assert!(!ru.frame().is_direct());

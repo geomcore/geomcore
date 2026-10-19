@@ -222,8 +222,8 @@ impl Search {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Point3D;
-    use crate::curves::BSplineCurve3D;
+    use crate::Point;
+    use crate::curves::BSplineCurve;
     use crate::intersect::marching::grid_marching;
     use crate::intersect::marching::marched_curves;
 
@@ -253,7 +253,7 @@ mod tests {
             .map(|&x| {
                 greville
                     .iter()
-                    .map(|&y| Point3D::new(x, y, height(x, y)))
+                    .map(|&y| Point::new(x, y, height(x, y)))
                     .collect()
             })
             .collect();
@@ -308,17 +308,17 @@ mod tests {
         ]
     }
 
-    fn samples(curve: &BSplineCurve3D, n: usize) -> impl Iterator<Item = Point3D> + '_ {
+    fn samples(curve: &BSplineCurve, n: usize) -> impl Iterator<Item = Point> + '_ {
         let (t0, t1) = curve.bounds();
         (0..=n).map(move |k| curve.eval_point(t0 + (t1 - t0) * k as f64 / n as f64))
     }
 
-    fn is_closed(curve: &BSplineCurve3D) -> bool {
+    fn is_closed(curve: &BSplineCurve) -> bool {
         let (t0, t1) = curve.bounds();
         curve.eval_point(t0).distance(curve.eval_point(t1)) < 1e-9
     }
 
-    fn distance_to(curves: &[BSplineCurve3D], p: Point3D) -> f64 {
+    fn distance_to(curves: &[BSplineCurve], p: Point) -> f64 {
         curves
             .iter()
             .map(|c| c.project_point(p, TOL).distance)
@@ -328,7 +328,7 @@ mod tests {
     /// Asserts every curve lies on both surfaces, and that no curve runs
     /// along another (each loop is traced once).
     #[track_caller]
-    fn assert_on_both_once(curves: &[BSplineCurve3D], a: &BSplineSurface, b: &BSplineSurface) {
+    fn assert_on_both_once(curves: &[BSplineCurve], a: &BSplineSurface, b: &BSplineSurface) {
         for (i, curve) in curves.iter().enumerate() {
             for p in samples(curve, 40) {
                 assert!(a.project_point(p, TOL).distance < 1e-3, "{p:?}");
@@ -347,7 +347,7 @@ mod tests {
     /// difference of `a` and `b` (graphs over the same parameters) along
     /// the lines of a fine grid.
     #[track_caller]
-    fn assert_every_crossing(curves: &[BSplineCurve3D], a: &BSplineSurface, b: &BSplineSurface) {
+    fn assert_every_crossing(curves: &[BSplineCurve], a: &BSplineSurface, b: &BSplineSurface) {
         let m = 120;
         let at = |k: usize| 5.0 * k as f64 / m as f64;
         let d = |u: f64, v: f64| a.eval_point(u, v).z - b.eval_point(u, v).z;
@@ -404,7 +404,7 @@ mod tests {
             assert_eq!(curves.len(), 2, "{curves:?}");
             let loops: Vec<_> = curves.iter().filter(|c| is_closed(c)).collect();
             assert_eq!(loops.len(), 1);
-            let points: Vec<Point3D> = samples(loops[0], 40).collect();
+            let points: Vec<Point> = samples(loops[0], 40).collect();
             let diameter = points
                 .iter()
                 .flat_map(|p| points.iter().map(move |q| p.distance(*q)))
@@ -413,7 +413,7 @@ mod tests {
             assert!(
                 points
                     .iter()
-                    .all(|p| p.distance(Point3D::new(2.6, 2.6, p.z)) < 0.05)
+                    .all(|p| p.distance(Point::new(2.6, 2.6, p.z)) < 0.05)
             );
             // The grid seeds trace the line but miss the loop.
             let grid = grid_marching(a, b, TOL);
@@ -473,8 +473,8 @@ mod tests {
                 let angle = k as f64 * std::f64::consts::TAU / 6.0;
                 let (c, s) = (angle.cos(), angle.sin());
                 vec![
-                    Point3D::new(2.0 * c, 2.0 * s, -1.0),
-                    Point3D::new(2.2 * c, 2.2 * s, 3.0),
+                    Point::new(2.0 * c, 2.0 * s, -1.0),
+                    Point::new(2.2 * c, 2.2 * s, 3.0),
                 ]
             })
             .collect();
@@ -496,7 +496,7 @@ mod tests {
     fn test_periodic_surface_gives_one_loop_across_its_seam() {
         let tube = tube();
         // A tilted sheet over `[-2.5, 2.5]^2`, through the tube.
-        let shift = crate::Transform::translation(crate::Vector3D::new(-2.5, -2.5, 0.0));
+        let shift = crate::Transform::translation(crate::Vector::new(-2.5, -2.5, 0.0));
         let sheet = graph(&THIRDS, |x, y| 0.2 * x + 0.1 * (y - 2.5), None).transformed(shift);
         let curves = marched_curves(&tube, &sheet, TOL);
         assert_on_both_once(&curves, &tube, &sheet);

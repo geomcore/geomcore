@@ -42,13 +42,13 @@ The embedded page above is static. From a script, a debugger or a notebook, `vie
 === "Python"
 
     ```python
-    from geomcore import Frame3D, Point3D, Vector3D
-    from geomcore.curves import Circle3D, Ellipse3D
+    from geomcore import Frame, Point, Vector
+    from geomcore.curves import Circle, Ellipse
     import geomcore_viewer as gv
 
     view = gv.Viewer("Ellipse ∩ circle")          # starts the local viewer and opens a tab
-    E = Ellipse3D.from_frame(Frame3D.world(), 3.0, 2.0)
-    C = Circle3D(Point3D(2, 1, 0), Vector3D.unit_z(), 1.5)
+    E = Ellipse.from_frame(Frame.world(), 3.0, 2.0)
+    C = Circle(Point(2, 1, 0), Vector.unit_z(), 1.5)
     view.add(E, label="E")
     view.add(C, label="C")
     view.add(C.intersect(E), label="P")           # the result draws directly: hits P, operands faded
@@ -57,12 +57,12 @@ The embedded page above is static. From a script, a debugger or a notebook, `vie
 === "Rust"
 
     ```rust
-    use geomcore::{Circle3D, Cylinder, Point3D, Tolerance, Vector3D};
+    use geomcore::{Circle, Cylinder, Point, Tolerance, Vector};
     use geomcore_viewer::{Geom, Opts, Viewer};
 
     let mut view = Viewer::new("A circle on a cylinder")?;
-    let cylinder = Cylinder::new(Point3D::ORIGIN, Vector3D::Z, 2.0)?;
-    let ring = Circle3D::new(Point3D::new(0.0, 0.0, 1.0), Vector3D::Z, 2.0)?;
+    let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0)?;
+    let ring = Circle::new(Point::new(0.0, 0.0, 1.0), Vector::Z, 2.0)?;
     let s = view.add(Geom::from(&cylinder).window(None, Some([-2.0, 2.0])), Opts::new().label("S"))?;
     view.add(&ring, Opts::new().label("C"))?;
     view.pcurve(&ring.parametrize_on(cylinder, Tolerance::DEFAULT)?, &s, Opts::new().label("C in (u, v)"))?;

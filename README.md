@@ -53,10 +53,10 @@ See [ROADMAP.md](ROADMAP.md) for what's coming next and
 ## Rust
 
 ```rust
-use geomcore::{Point3D, Vector3D};
-use geomcore::curves::Circle3D;
+use geomcore::{Point, Vector};
+use geomcore::curves::Circle;
 
-let circle = Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
+let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
 let point = circle.eval_point(std::f64::consts::PI / 4.0);
 ```
 
@@ -65,11 +65,11 @@ let point = circle.eval_point(std::f64::consts::PI / 4.0);
 ## Python
 
 ```python
-from geomcore import Point3D, Vector3D
-from geomcore.curves import Circle3D
+from geomcore import Point, Vector
+from geomcore.curves import Circle
 import math
 
-circle = Circle3D(Point3D.origin(), Vector3D.unit_z(), 2.0)
+circle = Circle(Point.origin(), Vector.unit_z(), 2.0)
 point = circle.eval_point(math.pi / 4)
 ```
 
@@ -94,6 +94,6 @@ Dual-licensed under MIT or Apache-2.0, at your option.
 
 ## Contributing
 
-New curve/surface types can be added by implementing `ParametricCurve3D`/
+New curve/surface types can be added by implementing `ParametricCurve`/
 `ParametricSurface` without touching the core crate's dispatch code — see
 the crate docs for details.

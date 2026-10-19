@@ -1,7 +1,7 @@
 # NURBS
 
 B-splines — rational ones are NURBS — are the freeform half of the
-kernel: `BSplineCurve3D` and `BSplineSurface`, built from a degree,
+kernel: `BSplineCurve` and `BSplineSurface`, built from a degree,
 control poles, a knot vector and optional weights. Where
 [Elementary](../geometry/elementary.md) covers the ten closed forms,
 this module covers everything else. The math foundations below are

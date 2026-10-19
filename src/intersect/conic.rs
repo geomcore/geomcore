@@ -25,15 +25,15 @@ use super::results::sort_by_known_parameter;
 use super::{
     ConicConicIntersection, ConicSurfaceHit, ConicSurfaceIntersection, CurveCurveHit, ImplicitConic,
 };
-use crate::curves::ParametricCurve3D;
+use crate::curves::ParametricCurve;
 use crate::math::{
     QuadraticSolution, RealRoot, roots_with_tangency, solve_quadratic, solve_trig,
     solve_trig_linear,
 };
 use crate::surfaces::ParametricSurface;
 use crate::{
-    Circle3D, Cone, Cylinder, Ellipse3D, Frame3D, Hyperbola3D, InlineList, IntersectExact,
-    Parabola3D, Plane, Point3D, Sphere, Tolerance, Vector3D,
+    Circle, Cone, Cylinder, Ellipse, Frame, Hyperbola, InlineList, IntersectExact, Parabola, Plane,
+    Point, Sphere, Tolerance, Vector,
 };
 
 /// The shape of a conic in its own frame: what its parametrization
@@ -91,13 +91,13 @@ impl ConicShape {
 
 /// A conic: a curve with a frame (origin at the center, or at the apex for
 /// a parabola) and a [`ConicShape`] in it.
-pub(crate) trait Conic: ParametricCurve3D {
-    fn frame(&self) -> Frame3D;
+pub(crate) trait Conic: ParametricCurve {
+    fn frame(&self) -> Frame;
     fn shape(&self) -> ConicShape;
     /// Whether `point` is within tolerance of the curve.
-    fn contains(&self, point: Point3D, tol: Tolerance) -> bool;
+    fn contains(&self, point: Point, tol: Tolerance) -> bool;
     /// The parameter of the curve point nearest `point`.
-    fn parameter_of(&self, point: Point3D) -> f64;
+    fn parameter_of(&self, point: Point) -> f64;
     /// The parameter to report for a hit found at `t`: in the curve's
     /// bounds, with the seam of a closed conic snapped to their start.
     #[inline]
@@ -106,22 +106,22 @@ pub(crate) trait Conic: ParametricCurve3D {
     }
 }
 
-impl Conic for Circle3D {
+impl Conic for Circle {
     #[inline]
-    fn frame(&self) -> Frame3D {
-        Circle3D::frame(self)
+    fn frame(&self) -> Frame {
+        Circle::frame(self)
     }
     #[inline]
-    fn contains(&self, point: Point3D, tol: Tolerance) -> bool {
-        Circle3D::contains(self, point, tol)
+    fn contains(&self, point: Point, tol: Tolerance) -> bool {
+        Circle::contains(self, point, tol)
     }
     #[inline]
-    fn parameter_of(&self, point: Point3D) -> f64 {
-        Circle3D::parameter_of(self, point)
+    fn parameter_of(&self, point: Point) -> f64 {
+        Circle::parameter_of(self, point)
     }
     #[inline]
     fn parameter_in_bounds(&self, t: f64, tol: Tolerance) -> f64 {
-        Circle3D::parameter_in_bounds(self, t, tol)
+        Circle::parameter_in_bounds(self, t, tol)
     }
     #[inline]
     fn shape(&self) -> ConicShape {
@@ -132,22 +132,22 @@ impl Conic for Circle3D {
     }
 }
 
-impl Conic for Ellipse3D {
+impl Conic for Ellipse {
     #[inline]
-    fn frame(&self) -> Frame3D {
-        Ellipse3D::frame(self)
+    fn frame(&self) -> Frame {
+        Ellipse::frame(self)
     }
     #[inline]
-    fn contains(&self, point: Point3D, tol: Tolerance) -> bool {
-        Ellipse3D::contains(self, point, tol)
+    fn contains(&self, point: Point, tol: Tolerance) -> bool {
+        Ellipse::contains(self, point, tol)
     }
     #[inline]
-    fn parameter_of(&self, point: Point3D) -> f64 {
-        Ellipse3D::parameter_of(self, point)
+    fn parameter_of(&self, point: Point) -> f64 {
+        Ellipse::parameter_of(self, point)
     }
     #[inline]
     fn parameter_in_bounds(&self, t: f64, tol: Tolerance) -> f64 {
-        Ellipse3D::parameter_in_bounds(self, t, tol)
+        Ellipse::parameter_in_bounds(self, t, tol)
     }
     #[inline]
     fn shape(&self) -> ConicShape {
@@ -158,18 +158,18 @@ impl Conic for Ellipse3D {
     }
 }
 
-impl Conic for Parabola3D {
+impl Conic for Parabola {
     #[inline]
-    fn frame(&self) -> Frame3D {
-        Parabola3D::frame(self)
+    fn frame(&self) -> Frame {
+        Parabola::frame(self)
     }
     #[inline]
-    fn contains(&self, point: Point3D, tol: Tolerance) -> bool {
-        Parabola3D::contains(self, point, tol)
+    fn contains(&self, point: Point, tol: Tolerance) -> bool {
+        Parabola::contains(self, point, tol)
     }
     #[inline]
-    fn parameter_of(&self, point: Point3D) -> f64 {
-        Parabola3D::parameter_of(self, point)
+    fn parameter_of(&self, point: Point) -> f64 {
+        Parabola::parameter_of(self, point)
     }
     #[inline]
     fn shape(&self) -> ConicShape {
@@ -179,18 +179,18 @@ impl Conic for Parabola3D {
     }
 }
 
-impl Conic for Hyperbola3D {
+impl Conic for Hyperbola {
     #[inline]
-    fn frame(&self) -> Frame3D {
-        Hyperbola3D::frame(self)
+    fn frame(&self) -> Frame {
+        Hyperbola::frame(self)
     }
     #[inline]
-    fn contains(&self, point: Point3D, tol: Tolerance) -> bool {
-        Hyperbola3D::contains(self, point, tol)
+    fn contains(&self, point: Point, tol: Tolerance) -> bool {
+        Hyperbola::contains(self, point, tol)
     }
     #[inline]
-    fn parameter_of(&self, point: Point3D) -> f64 {
-        Hyperbola3D::parameter_of(self, point)
+    fn parameter_of(&self, point: Point) -> f64 {
+        Hyperbola::parameter_of(self, point)
     }
     #[inline]
     fn shape(&self) -> ConicShape {
@@ -208,13 +208,13 @@ pub(crate) trait Quadric: ParametricSurface + Sized {
 
     /// The section by the plane through `origin` spanned by the
     /// orthonormal `x` and `y`, in the coordinates `p = origin + αx + βy`.
-    fn section(&self, origin: Point3D, x: Vector3D, y: Vector3D) -> ImplicitConic;
+    fn section(&self, origin: Point, x: Vector, y: Vector) -> ImplicitConic;
 
     /// For a circle or ellipse of semi-axes `a`, `b` centered at `origin`
     /// whose section leaves a first-order trigonometric equation, the
     /// scale of that equation's terms for [`solve_trig_linear`]; `None`
     /// when the double-angle terms remain.
-    fn linear_trig_scale(&self, _origin: Point3D, _a: f64, _b: f64) -> Option<f64> {
+    fn linear_trig_scale(&self, _origin: Point, _a: f64, _b: f64) -> Option<f64> {
         None
     }
 
@@ -232,7 +232,7 @@ impl Quadric for Plane {
     const LINEAR: bool = true;
 
     #[inline]
-    fn section(&self, origin: Point3D, x: Vector3D, y: Vector3D) -> ImplicitConic {
+    fn section(&self, origin: Point, x: Vector, y: Vector) -> ImplicitConic {
         let n = self.normal();
         ImplicitConic {
             a2: 0.0,
@@ -245,7 +245,7 @@ impl Quadric for Plane {
     }
 
     #[inline]
-    fn linear_trig_scale(&self, origin: Point3D, a: f64, b: f64) -> Option<f64> {
+    fn linear_trig_scale(&self, origin: Point, a: f64, b: f64) -> Option<f64> {
         Some((origin - self.frame().origin()).magnitude() + a + b)
     }
 
@@ -264,7 +264,7 @@ impl Quadric for Plane {
 impl Quadric for Sphere {
     /// `|p - c|² - r²`.
     #[inline]
-    fn section(&self, origin: Point3D, x: Vector3D, y: Vector3D) -> ImplicitConic {
+    fn section(&self, origin: Point, x: Vector, y: Vector) -> ImplicitConic {
         let w = origin - self.center();
         let r = self.radius();
         ImplicitConic {
@@ -280,7 +280,7 @@ impl Quadric for Sphere {
     /// On a circle, `α² + β²` is constant, so the section's second-degree
     /// terms fold into the constant.
     #[inline]
-    fn linear_trig_scale(&self, origin: Point3D, a: f64, b: f64) -> Option<f64> {
+    fn linear_trig_scale(&self, origin: Point, a: f64, b: f64) -> Option<f64> {
         if a == b {
             let scale = (origin - self.center()).magnitude() + a + self.radius();
             Some(scale * scale)
@@ -293,7 +293,7 @@ impl Quadric for Sphere {
 impl Quadric for Cylinder {
     /// `|p - o|² - ((p - o)·d)² - r²` for the axis `(o, d)`.
     #[inline]
-    fn section(&self, origin: Point3D, x: Vector3D, y: Vector3D) -> ImplicitConic {
+    fn section(&self, origin: Point, x: Vector, y: Vector) -> ImplicitConic {
         let d = self.axis().direction();
         let w = origin - self.axis().origin();
         let r = self.radius();
@@ -313,7 +313,7 @@ impl Quadric for Cone {
     /// `((p - apex)·d)² - cos²φ |p - apex|²` for the axis direction `d`
     /// and the semi-angle `φ`: both nappes.
     #[inline]
-    fn section(&self, origin: Point3D, x: Vector3D, y: Vector3D) -> ImplicitConic {
+    fn section(&self, origin: Point, x: Vector, y: Vector) -> ImplicitConic {
         let d = self.frame().z_direction();
         let cos = self.semi_angle().cos();
         let c2 = cos * cos;
@@ -475,7 +475,7 @@ fn conic_conic_hits<A: Conic, B: Conic>(
     let mut hits = InlineList::new();
     let (frame, other_frame) = (conic.frame(), other.frame());
     let normal = frame.z_direction();
-    let hit = |t: f64, p: Point3D, multiplicity: u32| CurveCurveHit {
+    let hit = |t: f64, p: Point, multiplicity: u32| CurveCurveHit {
         first_parameter: Some(conic.parameter_in_bounds(t, tol)),
         point: p,
         second_parameter: None,
@@ -569,7 +569,7 @@ fn same_conic<A: Conic, B: Conic>(first: &A, second: &B, tol: Tolerance) -> bool
 /// cannot be placed (nor its distance measured) more finely than its
 /// coordinates' rounding, so at least a few ulps of its largest
 /// coordinate.
-fn point_tolerance(p: Point3D, tol: Tolerance) -> Tolerance {
+fn point_tolerance(p: Point, tol: Tolerance) -> Tolerance {
     let coord = p.x.abs().max(p.y.abs()).max(p.z.abs());
     Tolerance {
         confusion: tol.confusion.max(16.0 * f64::EPSILON * coord),
@@ -593,21 +593,21 @@ macro_rules! conic_conic {
 }
 
 conic_conic!(
-    Circle3D => Ellipse3D,
-    Circle3D => Parabola3D,
-    Circle3D => Hyperbola3D,
-    Ellipse3D => Circle3D,
-    Ellipse3D => Ellipse3D,
-    Ellipse3D => Parabola3D,
-    Ellipse3D => Hyperbola3D,
-    Parabola3D => Circle3D,
-    Parabola3D => Ellipse3D,
-    Parabola3D => Parabola3D,
-    Parabola3D => Hyperbola3D,
-    Hyperbola3D => Circle3D,
-    Hyperbola3D => Ellipse3D,
-    Hyperbola3D => Parabola3D,
-    Hyperbola3D => Hyperbola3D,
+    Circle => Ellipse,
+    Circle => Parabola,
+    Circle => Hyperbola,
+    Ellipse => Circle,
+    Ellipse => Ellipse,
+    Ellipse => Parabola,
+    Ellipse => Hyperbola,
+    Parabola => Circle,
+    Parabola => Ellipse,
+    Parabola => Parabola,
+    Parabola => Hyperbola,
+    Hyperbola => Circle,
+    Hyperbola => Ellipse,
+    Hyperbola => Parabola,
+    Hyperbola => Hyperbola,
 );
 
 /// The hit candidates of `conic` on the `section` in its frame
@@ -702,7 +702,7 @@ fn verify_conic_hits<C, S>(
     tol: Tolerance,
 ) -> Vec<ConicSurfaceHit>
 where
-    C: ParametricCurve3D,
+    C: ParametricCurve,
     S: ParametricSurface,
 {
     candidates
@@ -742,7 +742,7 @@ const CLOSED_CONIC_SAMPLES: [f64; 5] = [
 /// cross at three points without lying on it.
 fn conic_lies_on<C, S>(curve: &C, surface: &S, params: [f64; 5], tol: Tolerance) -> bool
 where
-    C: ParametricCurve3D,
+    C: ParametricCurve,
     S: ParametricSurface,
 {
     params
@@ -758,11 +758,11 @@ mod tests {
     /// equals the quadric's `implicit` equation, written in world
     /// coordinates independently of [`Quadric::section`], at the conic's
     /// point.
-    fn check_substitution<S: Quadric>(quadric: &S, implicit: &dyn Fn(Point3D) -> f64) {
-        let frame = Frame3D::new(
-            Point3D::new(0.3, -0.4, 0.7),
-            Vector3D::new(0.2, -0.5, 1.0),
-            Vector3D::new(1.0, 0.3, 0.05),
+    fn check_substitution<S: Quadric>(quadric: &S, implicit: &dyn Fn(Point) -> f64) {
+        let frame = Frame::new(
+            Point::new(0.3, -0.4, 0.7),
+            Vector::new(0.2, -0.5, 1.0),
+            Vector::new(1.0, 0.3, 0.05),
         )
         .unwrap();
         let (o, x, y) = (frame.origin(), frame.x_direction(), frame.y_direction());
@@ -792,23 +792,18 @@ mod tests {
 
     #[test]
     fn test_substitutions_match_the_implicit_equations() {
-        let plane =
-            Plane::new(Point3D::new(0.1, 0.2, -0.3), Vector3D::new(0.3, -0.2, 1.0)).unwrap();
+        let plane = Plane::new(Point::new(0.1, 0.2, -0.3), Vector::new(0.3, -0.2, 1.0)).unwrap();
         let (po, n) = (plane.frame().origin(), plane.normal());
         check_substitution(&plane, &|p| (p - po).dot(n));
 
-        let sphere = Sphere::new(Point3D::new(-0.2, 0.5, 0.1), 1.3).unwrap();
+        let sphere = Sphere::new(Point::new(-0.2, 0.5, 0.1), 1.3).unwrap();
         check_substitution(&sphere, &|p| {
             let w = p - sphere.center();
             w.dot(w) - 1.3 * 1.3
         });
 
-        let cylinder = Cylinder::new(
-            Point3D::new(0.4, 0.0, -0.2),
-            Vector3D::new(0.1, 1.0, 0.3),
-            0.8,
-        )
-        .unwrap();
+        let cylinder =
+            Cylinder::new(Point::new(0.4, 0.0, -0.2), Vector::new(0.1, 1.0, 0.3), 0.8).unwrap();
         let (co, d) = (cylinder.axis().origin(), cylinder.axis().direction());
         check_substitution(&cylinder, &|p| {
             let w = p - co;
@@ -816,10 +811,10 @@ mod tests {
         });
 
         let cone = Cone::from_frame(
-            Frame3D::new(
-                Point3D::new(0.2, -0.1, -1.0),
-                Vector3D::new(0.2, 0.1, 1.0),
-                Vector3D::X,
+            Frame::new(
+                Point::new(0.2, -0.1, -1.0),
+                Vector::new(0.2, 0.1, 1.0),
+                Vector::X,
             )
             .unwrap(),
             0.45,
@@ -891,7 +886,7 @@ mod tests {
 
     /// The hits' points, sorted by `x` (to rounding) then `y`, and their
     /// multiplicities.
-    fn points_and_multiplicities(mut hits: Vec<CurveCurveHit>) -> Vec<(Point3D, u32)> {
+    fn points_and_multiplicities(mut hits: Vec<CurveCurveHit>) -> Vec<(Point, u32)> {
         hits.sort_by(|p, q| {
             let (p, q) = (p.point, q.point);
             if (p.x - q.x).abs() > 1e-9 {
@@ -908,57 +903,37 @@ mod tests {
         assert_eq!(got.len(), want.len(), "{got:?}");
         for ((p, m), &(x, y, wm)) in got.iter().zip(want) {
             assert!(
-                p.distance(Point3D::new(x, y, 0.0)) < 1e-9,
+                p.distance(Point::new(x, y, 0.0)) < 1e-9,
                 "{p:?} vs ({x}, {y})"
             );
             assert_eq!(*m, wm, "multiplicity at {p:?}");
         }
     }
 
-    fn ellipse(center: (f64, f64), x_axis: Vector3D, a: f64, b: f64) -> Ellipse3D {
-        Ellipse3D::new(
-            Point3D::new(center.0, center.1, 0.0),
-            Vector3D::Z,
-            x_axis,
-            a,
-            b,
-        )
-        .unwrap()
+    fn ellipse(center: (f64, f64), x_axis: Vector, a: f64, b: f64) -> Ellipse {
+        Ellipse::new(Point::new(center.0, center.1, 0.0), Vector::Z, x_axis, a, b).unwrap()
     }
 
-    fn parabola(apex: (f64, f64), x_axis: Vector3D, focal: f64) -> Parabola3D {
-        Parabola3D::new(
-            Point3D::new(apex.0, apex.1, 0.0),
-            Vector3D::Z,
-            x_axis,
-            focal,
-        )
-        .unwrap()
+    fn parabola(apex: (f64, f64), x_axis: Vector, focal: f64) -> Parabola {
+        Parabola::new(Point::new(apex.0, apex.1, 0.0), Vector::Z, x_axis, focal).unwrap()
     }
 
-    fn hyperbola(center: (f64, f64), x_axis: Vector3D, a: f64, b: f64) -> Hyperbola3D {
-        Hyperbola3D::new(
-            Point3D::new(center.0, center.1, 0.0),
-            Vector3D::Z,
-            x_axis,
-            a,
-            b,
-        )
-        .unwrap()
+    fn hyperbola(center: (f64, f64), x_axis: Vector, a: f64, b: f64) -> Hyperbola {
+        Hyperbola::new(Point::new(center.0, center.1, 0.0), Vector::Z, x_axis, a, b).unwrap()
     }
 
     #[test]
     fn test_pulled_back_matches_the_other_conic() {
-        let frame = Frame3D::new(
-            Point3D::new(0.3, -0.4, 0.0),
-            Vector3D::Z,
-            Vector3D::new(1.0, 0.7, 0.0),
+        let frame = Frame::new(
+            Point::new(0.3, -0.4, 0.0),
+            Vector::Z,
+            Vector::new(1.0, 0.7, 0.0),
         )
         .unwrap();
-        let other = Frame3D::new(
-            Point3D::new(-1.1, 0.6, 0.0),
-            Vector3D::Z,
-            Vector3D::new(-0.2, 1.0, 0.0),
+        let other = Frame::new(
+            Point::new(-1.1, 0.6, 0.0),
+            Vector::Z,
+            Vector::new(-0.2, 1.0, 0.0),
         )
         .unwrap();
         let (x, y) = (frame.x_direction(), frame.y_direction());
@@ -989,11 +964,11 @@ mod tests {
         // x²/9 + y²/4 = 1 and x² − 4y² = 1 meet at (±√153/5, ±√128/10);
         // the branch x > 0 holds two of them.
         let (x, y) = (153f64.sqrt() / 5.0, 128f64.sqrt() / 10.0);
-        let e = ellipse((0.0, 0.0), Vector3D::X, 3.0, 2.0);
-        let h = hyperbola((0.0, 0.0), Vector3D::X, 1.0, 0.5);
+        let e = ellipse((0.0, 0.0), Vector::X, 3.0, 2.0);
+        let h = hyperbola((0.0, 0.0), Vector::X, 1.0, 0.5);
         assert_hits(conic_hits(&e, &h), &[(x, -y, 1), (x, y, 1)]);
         // An ellipse meeting only the mirror branch.
-        let left = ellipse((-3.0, 0.0), Vector3D::X, 2.5, 1.0);
+        let left = ellipse((-3.0, 0.0), Vector::X, 2.5, 1.0);
         assert_eq!(
             left.intersect_exact(&h, Tolerance::DEFAULT),
             ConicConicIntersection::Empty
@@ -1005,24 +980,24 @@ mod tests {
         // y² = 4x against x²/4 + y² = 1: x² + 16x − 4 = 0.
         let x = -8.0 + 68f64.sqrt();
         let y = (4.0 * x).sqrt();
-        let e = ellipse((0.0, 0.0), Vector3D::X, 2.0, 1.0);
-        let p = parabola((0.0, 0.0), Vector3D::X, 1.0);
+        let e = ellipse((0.0, 0.0), Vector::X, 2.0, 1.0);
+        let p = parabola((0.0, 0.0), Vector::X, 1.0);
         assert_hits(conic_hits(&e, &p), &[(x, -y, 1), (x, y, 1)]);
         // y² = 4x against x² − y² = 1 (x > 0): x² − 4x − 1 = 0.
         let x = 2.0 + 5f64.sqrt();
         let y = (4.0 * x).sqrt();
-        let h = hyperbola((0.0, 0.0), Vector3D::X, 1.0, 1.0);
+        let h = hyperbola((0.0, 0.0), Vector::X, 1.0, 1.0);
         assert_hits(conic_hits(&p, &h), &[(x, -y, 1), (x, y, 1)]);
         // y² = 4x against x = y²/4 shifted and opening the other way:
         // x = 2 − y²/4 meets it at x = 1, y = ±2.
-        let q = parabola((2.0, 0.0), -Vector3D::X, 1.0);
+        let q = parabola((2.0, 0.0), -Vector::X, 1.0);
         assert_hits(conic_hits(&p, &q), &[(1.0, -2.0, 1), (1.0, 2.0, 1)]);
         // x² − y² = 1 against the branch (y + 2)² − x² = 1 opening up:
         // y = −1/2 and x² = 5/4, on the right branch only for x > 0.
-        let up = hyperbola((0.0, -2.0), Vector3D::Y, 1.0, 1.0);
+        let up = hyperbola((0.0, -2.0), Vector::Y, 1.0, 1.0);
         assert_hits(conic_hits(&h, &up), &[(1.25f64.sqrt(), -0.5, 1)]);
         // A circle against a parabola: x² + y² = 4 and y² = 4x.
-        let c = Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
+        let c = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
         let x = -2.0 + 8f64.sqrt();
         let y = (4.0 * x).sqrt();
         assert_hits(conic_hits(&c, &p), &[(x, -y, 1), (x, y, 1)]);
@@ -1031,59 +1006,59 @@ mod tests {
     #[test]
     fn test_coplanar_conics_touch() {
         // Inside the branch x² − 4y² = 4, touching its vertex (2, 0).
-        let h = hyperbola((0.0, 0.0), Vector3D::X, 2.0, 1.0);
-        let e = ellipse((3.0, 0.0), Vector3D::X, 1.0, 0.5);
+        let h = hyperbola((0.0, 0.0), Vector::X, 2.0, 1.0);
+        let e = ellipse((3.0, 0.0), Vector::X, 1.0, 0.5);
         assert_hits(conic_hits(&e, &h), &[(2.0, 0.0, 2)]);
         // Back to back at the apex.
-        let p = parabola((0.0, 0.0), Vector3D::X, 1.0);
-        let q = parabola((0.0, 0.0), -Vector3D::X, 0.5);
+        let p = parabola((0.0, 0.0), Vector::X, 1.0);
+        let q = parabola((0.0, 0.0), -Vector::X, 0.5);
         assert_hits(conic_hits(&p, &q), &[(0.0, 0.0, 2)]);
         // Sharing the vertex (2, 0), then crossing where y² = 48.
-        let wide = parabola((2.0, 0.0), Vector3D::X, 1.0);
+        let wide = parabola((2.0, 0.0), Vector::X, 1.0);
         let y = 48f64.sqrt();
         assert_hits(
             conic_hits(&wide, &h),
             &[(2.0, 0.0, 2), (14.0, -y, 1), (14.0, y, 1)],
         );
         // Two branches sharing their vertex, one wider.
-        let flat = hyperbola((0.0, 0.0), Vector3D::X, 2.0, 2.0);
+        let flat = hyperbola((0.0, 0.0), Vector::X, 2.0, 2.0);
         assert_hits(conic_hits(&h, &flat), &[(2.0, 0.0, 2)]);
         // The parabola's apex on the ellipse's vertex.
-        let e = ellipse((-2.0, 0.0), Vector3D::X, 2.0, 1.0);
+        let e = ellipse((-2.0, 0.0), Vector::X, 2.0, 1.0);
         assert_hits(conic_hits(&e, &p), &[(0.0, 0.0, 2)]);
     }
 
     #[test]
     fn test_same_and_parallel_conics() {
         let tol = Tolerance::DEFAULT;
-        let p = parabola((1.0, 2.0), Vector3D::new(1.0, 1.0, 0.0), 0.5);
+        let p = parabola((1.0, 2.0), Vector::new(1.0, 1.0, 0.0), 0.5);
         assert_eq!(
             p.intersect_exact(&p, tol),
             ConicConicIntersection::Coincident
         );
-        let h = hyperbola((1.0, 2.0), Vector3D::new(1.0, 1.0, 0.0), 2.0, 1.0);
+        let h = hyperbola((1.0, 2.0), Vector::new(1.0, 1.0, 0.0), 2.0, 1.0);
         assert_eq!(
             h.intersect_exact(&h, tol),
             ConicConicIntersection::Coincident
         );
         // The mirror branch is another curve.
-        let mirror = hyperbola((1.0, 2.0), -Vector3D::new(1.0, 1.0, 0.0), 2.0, 1.0);
+        let mirror = hyperbola((1.0, 2.0), -Vector::new(1.0, 1.0, 0.0), 2.0, 1.0);
         assert_eq!(
             h.intersect_exact(&mirror, tol),
             ConicConicIntersection::Empty
         );
         // A circle and the ellipse that is the same circle.
-        let c = Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
-        let round = ellipse((0.0, 0.0), Vector3D::Y, 2.0, 2.0);
+        let c = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
+        let round = ellipse((0.0, 0.0), Vector::Y, 2.0, 2.0);
         assert_eq!(
             c.intersect_exact(&round, tol),
             ConicConicIntersection::Coincident
         );
         // Distinct parallel planes.
-        let lifted = Parabola3D::new(
-            Point3D::new(1.0, 2.0, 0.5),
-            Vector3D::Z,
-            Vector3D::new(1.0, 1.0, 0.0),
+        let lifted = Parabola::new(
+            Point::new(1.0, 2.0, 0.5),
+            Vector::Z,
+            Vector::new(1.0, 1.0, 0.0),
             0.5,
         )
         .unwrap();
@@ -1096,27 +1071,21 @@ mod tests {
     #[test]
     fn test_conics_in_crossing_planes() {
         let tol = Tolerance::DEFAULT;
-        let e = ellipse((0.0, 0.0), Vector3D::X, 3.0, 1.5);
+        let e = ellipse((0.0, 0.0), Vector::X, 3.0, 1.5);
         // An upright parabola through (0, ±1.5, 0), on the line the
         // planes share.
-        let p = Parabola3D::new(
-            Point3D::new(0.0, 0.0, -2.25),
-            Vector3D::X,
-            Vector3D::Z,
-            0.25,
-        )
-        .unwrap();
+        let p = Parabola::new(Point::new(0.0, 0.0, -2.25), Vector::X, Vector::Z, 0.25).unwrap();
         assert_hits(conic_hits(&e, &p), &[(0.0, -1.5, 1), (0.0, 1.5, 1)]);
         // An upright circle touching the ellipse's vertex (3, 0, 0): both
         // run along y there.
-        let touching = Circle3D::new(Point3D::new(3.0, 0.0, 1.0), Vector3D::X, 1.0).unwrap();
+        let touching = Circle::new(Point::new(3.0, 0.0, 1.0), Vector::X, 1.0).unwrap();
         assert_hits(conic_hits(&e, &touching), &[(3.0, 0.0, 2)]);
         // Through the same point, but leaving the ellipse's plane: the
         // ellipse touches the circle's plane there, yet crosses the circle.
-        let leaving = Circle3D::new(Point3D::new(3.0, 0.6, 0.8), Vector3D::X, 1.0).unwrap();
+        let leaving = Circle::new(Point::new(3.0, 0.6, 0.8), Vector::X, 1.0).unwrap();
         assert_hits(conic_hits(&e, &leaving), &[(3.0, 0.0, 1)]);
         // Missing the line the planes share.
-        let away = Circle3D::new(Point3D::new(0.0, 0.0, 5.0), Vector3D::X, 1.0).unwrap();
+        let away = Circle::new(Point::new(0.0, 0.0, 5.0), Vector::X, 1.0).unwrap();
         assert_eq!(e.intersect_exact(&away, tol), ConicConicIntersection::Empty);
     }
 }

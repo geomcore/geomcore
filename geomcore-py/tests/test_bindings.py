@@ -6,22 +6,22 @@ import pytest
 
 import geomcore
 from geomcore import (
-    Axis3D,
-    BoundingBox3D,
-    Frame3D,
+    Axis,
+    BoundingBox,
+    Frame,
     Point2D,
-    Point3D,
+    Point,
     Tolerance,
     Transform,
     Vector2D,
-    Vector3D,
+    Vector,
 )
-from geomcore.curves import BSplineCurve3D, Circle3D, Line2D
+from geomcore.curves import BSplineCurve, Circle, Line2D
 from geomcore.surfaces import Cylinder, Sphere
 
 
 def test_readme_snippet():
-    circle = Circle3D(Point3D.origin(), Vector3D.unit_z(), 2.0)
+    circle = Circle(Point.origin(), Vector.unit_z(), 2.0)
     point = circle.eval_point(math.pi / 4)
     assert point.x == pytest.approx(2.0 * math.cos(math.pi / 4))
     assert point.y == pytest.approx(2.0 * math.sin(math.pi / 4))
@@ -30,14 +30,14 @@ def test_readme_snippet():
 
 def test_submodule_import_forms():
     # Both attribute access and from-import must work.
-    assert geomcore.curves.Circle3D is Circle3D
-    from geomcore.curves import Circle3D as C2
+    assert geomcore.curves.Circle is Circle
+    from geomcore.curves import Circle as C2
 
-    assert C2 is Circle3D
+    assert C2 is Circle
 
 
 def test_eval_points_bulk():
-    circle = Circle3D(Point3D.origin(), Vector3D.unit_z(), 2.0)
+    circle = Circle(Point.origin(), Vector.unit_z(), 2.0)
     params = [i / 100 * math.tau for i in range(100)]
     points = circle.eval_points(params)
     assert len(points) == 100
@@ -48,49 +48,49 @@ def test_eval_points_bulk():
 
 def test_constructor_error_raises_value_error():
     with pytest.raises(ValueError) as excinfo:
-        Circle3D(Point3D.origin(), Vector3D.unit_z(), -1.0)
+        Circle(Point.origin(), Vector.unit_z(), -1.0)
     assert str(excinfo.value)
 
 
 @pytest.mark.parametrize("bad", [math.nan, math.inf])
 def test_non_finite_inputs_raise_value_error(bad):
-    from geomcore.curves import Parabola3D
+    from geomcore.curves import Parabola
     from geomcore.surfaces import Plane
 
     with pytest.raises(ValueError, match="NaN or infinite"):
-        Circle3D(Point3D.origin(), Vector3D.unit_z(), bad)
+        Circle(Point.origin(), Vector.unit_z(), bad)
     with pytest.raises(ValueError, match="NaN or infinite"):
-        Sphere(Point3D(bad, 0.0, 0.0), 1.0)
+        Sphere(Point(bad, 0.0, 0.0), 1.0)
     with pytest.raises(ValueError, match="NaN or infinite"):
-        Plane(Point3D.origin(), Vector3D(bad, 0.0, 1.0))
+        Plane(Point.origin(), Vector(bad, 0.0, 1.0))
     with pytest.raises(ValueError, match="NaN or infinite"):
-        Parabola3D(Point3D.origin(), Vector3D.unit_z(), Vector3D.unit_x(), bad)
+        Parabola(Point.origin(), Vector.unit_z(), Vector.unit_x(), bad)
 
 
 def test_zero_size_conics_raise_value_error():
-    from geomcore.curves import Ellipse3D, Hyperbola3D, Parabola3D
+    from geomcore.curves import Ellipse, Hyperbola, Parabola
 
-    o, z, x = Point3D.origin(), Vector3D.unit_z(), Vector3D.unit_x()
+    o, z, x = Point.origin(), Vector.unit_z(), Vector.unit_x()
     with pytest.raises(ValueError, match="not positive"):
-        Parabola3D(o, z, x, 0.0)
+        Parabola(o, z, x, 0.0)
     with pytest.raises(ValueError, match="not positive"):
-        Ellipse3D(o, z, x, 3.0, 0.0)
+        Ellipse(o, z, x, 3.0, 0.0)
     with pytest.raises(ValueError, match="not positive"):
-        Hyperbola3D(o, z, x, 2.0, 0.0)
+        Hyperbola(o, z, x, 2.0, 0.0)
 
 
 def test_init_constructs():
-    circle = Circle3D(Point3D.origin(), Vector3D.unit_z(), 2.0)
+    circle = Circle(Point.origin(), Vector.unit_z(), 2.0)
     assert circle.radius() == 2.0
     # `new` is no longer a constructor: only __init__ builds objects.
-    assert not hasattr(Circle3D, "new")
+    assert not hasattr(Circle, "new")
 
 
 def test_parametrize_on_cylinder():
     # Coaxial circle on a cylinder of the same radius: the pcurve is the
     # horizontal line v = 0 in (u, v) space.
-    cylinder = Cylinder(Point3D.origin(), Vector3D.unit_z(), 2.0)
-    circle = Circle3D(Point3D.origin(), Vector3D.unit_z(), 2.0)
+    cylinder = Cylinder(Point.origin(), Vector.unit_z(), 2.0)
+    circle = Circle(Point.origin(), Vector.unit_z(), 2.0)
     pcurve = circle.parametrize_on(cylinder)
     assert isinstance(pcurve, Line2D)
     origin = pcurve.origin()
@@ -103,8 +103,8 @@ def test_parametrize_on_cylinder():
 
 def test_parametrize_on_takes_a_tolerance():
     # A radius 1e-4 too wide lies on the cylinder at confusion 1e-3 only.
-    cylinder = Cylinder(Point3D.origin(), Vector3D.unit_z(), 1.0)
-    circle = Circle3D(Point3D(0.0, 0.0, 2.0), Vector3D.unit_z(), 1.0 + 1e-4)
+    cylinder = Cylinder(Point.origin(), Vector.unit_z(), 1.0)
+    circle = Circle(Point(0.0, 0.0, 2.0), Vector.unit_z(), 1.0 + 1e-4)
     loose = Tolerance(confusion=1e-3)
     assert isinstance(circle.parametrize_on(cylinder, loose), Line2D)
     assert isinstance(circle.parametrize_on(cylinder, tol=loose), Line2D)
@@ -113,16 +113,16 @@ def test_parametrize_on_takes_a_tolerance():
 
 
 def test_parametrize_on_not_analytic_raises():
-    sphere = Sphere(Point3D.origin(), 2.0)
-    line = geomcore.curves.Line3D(Point3D(2.0, 0.0, 0.0), Vector3D.unit_z())
+    sphere = Sphere(Point.origin(), 2.0)
+    line = geomcore.curves.Line(Point(2.0, 0.0, 0.0), Vector.unit_z())
     with pytest.raises(ValueError):
         line.parametrize_on(sphere)
 
 
 def test_bspline_curve_degree_one_line():
-    curve = BSplineCurve3D(
+    curve = BSplineCurve(
         1,
-        [Point3D(0.0, 0.0, 0.0), Point3D(2.0, 0.0, 0.0)],
+        [Point(0.0, 0.0, 0.0), Point(2.0, 0.0, 0.0)],
         [0.0, 1.0],
         [2, 2],
         False,
@@ -135,24 +135,24 @@ def test_bspline_curve_degree_one_line():
 
 
 def test_transform_rotation():
-    axis = Axis3D(Point3D.origin(), Vector3D.unit_z())
+    axis = Axis(Point.origin(), Vector.unit_z())
     rot = Transform.rotation(axis, math.pi / 2)
-    p = rot.apply_point(Point3D(1.0, 0.0, 0.0))
+    p = rot.apply_point(Point(1.0, 0.0, 0.0))
     assert p.x == pytest.approx(0.0)
     assert p.y == pytest.approx(1.0)
 
 
 def test_transform_composition():
-    t = Transform.translation(Vector3D(1.0, 0.0, 0.0))
-    rot = Transform.rotation(Axis3D(Point3D.origin(), Vector3D.unit_z()), math.pi / 2)
+    t = Transform.translation(Vector(1.0, 0.0, 0.0))
+    rot = Transform.rotation(Axis(Point.origin(), Vector.unit_z()), math.pi / 2)
     composed = t.then(rot)
-    p = composed.apply_point(Point3D.origin())
+    p = composed.apply_point(Point.origin())
     assert p.x == pytest.approx(0.0)
     assert p.y == pytest.approx(1.0)
 
 
 def test_sphere_parameters_round_trip():
-    sphere = Sphere(Point3D.origin(), 3.0)
+    sphere = Sphere(Point.origin(), 3.0)
     p = sphere.eval_point(0.7, 0.4)
     u, v = sphere.parameters_of(p)
     assert u == pytest.approx(0.7)
@@ -160,11 +160,11 @@ def test_sphere_parameters_round_trip():
 
 
 def test_surface_normal_is_unit_and_recovers_at_singular_points():
-    sphere = Sphere(Point3D.origin(), 3.0)
+    sphere = Sphere(Point.origin(), 3.0)
     assert sphere.normal(0.0, 0.0).components() == pytest.approx((1.0, 0.0, 0.0))
     pole = sphere.normal(0.3, math.pi / 2, Tolerance.default())
     assert pole.components() == pytest.approx((0.0, 0.0, 1.0), abs=1e-12)
-    cone = geomcore.surfaces.Cone(Point3D.origin(), Vector3D.unit_z(), 0.4, 2.0)
+    cone = geomcore.surfaces.Cone(Point.origin(), Vector.unit_z(), 0.4, 2.0)
     v_apex = -2.0 / math.sin(0.4)
     # Each meridian has its own limit at the apex, so there is no normal.
     assert cone.normal(0.0, v_apex) is None
@@ -172,20 +172,20 @@ def test_surface_normal_is_unit_and_recovers_at_singular_points():
     assert beside.components() == pytest.approx(
         (math.cos(0.4), 0.0, -math.sin(0.4)), abs=1e-9
     )
-    cylinder = Cylinder(Point3D.origin(), Vector3D.unit_z(), 1.0)
+    cylinder = Cylinder(Point.origin(), Vector.unit_z(), 1.0)
     assert cylinder.normal(0.0, 5.0).components() == pytest.approx((1.0, 0.0, 0.0))
     assert sphere.normal(float("nan"), 0.0) is None
 
 
 def test_frame3_accessors():
-    frame = Frame3D(Point3D.origin(), Vector3D.unit_z(), Vector3D.unit_x())
+    frame = Frame(Point.origin(), Vector.unit_z(), Vector.unit_x())
     assert frame.z_direction().components() == pytest.approx((0.0, 0.0, 1.0))
     assert frame.x_direction().components() == pytest.approx((1.0, 0.0, 0.0))
 
 
 def test_docstrings_present():
-    assert Circle3D.__doc__
-    assert Circle3D.eval_point.__doc__
+    assert Circle.__doc__
+    assert Circle.eval_point.__doc__
 
 
 def test_tolerance_defaults():
@@ -204,10 +204,10 @@ def test_tolerance_defaults():
 
 
 def test_points_coincide_within_confusion():
-    p = Point3D(1.0, 2.0, 3.0)
-    assert p.coincides(Point3D(1.0, 2.0, 3.0 + 5e-8))
-    assert not p.coincides(Point3D(1.0, 2.0, 3.0 + 5e-7))
-    near = Point3D(1.0, 2.0005, 3.0)
+    p = Point(1.0, 2.0, 3.0)
+    assert p.coincides(Point(1.0, 2.0, 3.0 + 5e-8))
+    assert not p.coincides(Point(1.0, 2.0, 3.0 + 5e-7))
+    near = Point(1.0, 2.0005, 3.0)
     assert not p.coincides(near)
     assert p.coincides(near, Tolerance(confusion=1e-3))
     assert p.coincides(near, tol=Tolerance(confusion=1e-3))
@@ -217,61 +217,61 @@ def test_points_coincide_within_confusion():
 
 
 def _bspline_curve(end):
-    return BSplineCurve3D(1, [Point3D.origin(), end], [0.0, 1.0], [2, 2], False)
+    return BSplineCurve(1, [Point.origin(), end], [0.0, 1.0], [2, 2], False)
 
 
 def _bspline_surface(corner_z):
     poles = [
-        [Point3D(0.0, 0.0, 0.0), Point3D(0.0, 1.0, 0.0)],
-        [Point3D(1.0, 0.0, 0.0), Point3D(1.0, 1.0, corner_z)],
+        [Point(0.0, 0.0, 0.0), Point(0.0, 1.0, 0.0)],
+        [Point(1.0, 0.0, 0.0), Point(1.0, 1.0, corner_z)],
     ]
     return geomcore.surfaces.BSplineSurface(
         1, 1, poles, [0.0, 1.0], [2, 2], [0.0, 1.0], [2, 2], False, False
     )
 
 
-_O, _X, _Z = Point3D.origin(), Vector3D.unit_x(), Vector3D.unit_z()
+_O, _X, _Z = Point.origin(), Vector.unit_x(), Vector.unit_z()
 
 # For each class: a factory building one value, and a value that differs from it.
 VALUE_TYPES = [
-    (lambda: Point3D(1.0, 2.0, 3.0), Point3D(1.0, 2.0, 3.0 + 1e-12)),
+    (lambda: Point(1.0, 2.0, 3.0), Point(1.0, 2.0, 3.0 + 1e-12)),
     (lambda: Point2D(1.0, 2.0), Point2D(1.0, 2.5)),
-    (lambda: Vector3D(1.0, 0.0, 0.0), Vector3D(0.0, 1.0, 0.0)),
+    (lambda: Vector(1.0, 0.0, 0.0), Vector(0.0, 1.0, 0.0)),
     (lambda: Vector2D(1.0, 0.0), Vector2D(0.0, 1.0)),
-    (lambda: Axis3D(_O, _Z), Axis3D(_O, _X)),
-    (lambda: Frame3D(_O, _Z, _X), Frame3D(Point3D(0.0, 0.0, 1.0), _Z, _X)),
+    (lambda: Axis(_O, _Z), Axis(_O, _X)),
+    (lambda: Frame(_O, _Z, _X), Frame(Point(0.0, 0.0, 1.0), _Z, _X)),
     (lambda: Tolerance(), Tolerance(confusion=1e-3)),
     (lambda: Transform.translation(_X), Transform.identity()),
-    (lambda: BoundingBox3D(_O, Point3D(1.0, 1.0, 1.0)), BoundingBox3D(_O, Point3D(2.0, 1.0, 1.0))),
+    (lambda: BoundingBox(_O, Point(1.0, 1.0, 1.0)), BoundingBox(_O, Point(2.0, 1.0, 1.0))),
     (lambda: geomcore.surfaces.Plane(_O, _Z), geomcore.surfaces.Plane(_O, _X)),
     (lambda: Cylinder(_O, _Z, 1.0), Cylinder(_O, _Z, 2.0)),
     (lambda: geomcore.surfaces.Cone(_O, _Z, 0.3, 1.0), geomcore.surfaces.Cone(_O, _Z, 0.4, 1.0)),
     (lambda: Sphere(_O, 1.0), Sphere(_O, 2.0)),
     (lambda: geomcore.surfaces.Torus(_O, _Z, 3.0, 1.0), geomcore.surfaces.Torus(_O, _Z, 3.0, 0.5)),
     (lambda: _bspline_surface(0.0), _bspline_surface(1.0)),
-    (lambda: geomcore.curves.Line3D(_O, _X), geomcore.curves.Line3D(_O, _Z)),
-    (lambda: Circle3D(_O, _Z, 2.0), Circle3D(_O, _Z, 2.5)),
+    (lambda: geomcore.curves.Line(_O, _X), geomcore.curves.Line(_O, _Z)),
+    (lambda: Circle(_O, _Z, 2.0), Circle(_O, _Z, 2.5)),
     (
-        lambda: geomcore.curves.Ellipse3D(_O, _Z, _X, 3.0, 1.0),
-        geomcore.curves.Ellipse3D(_O, _Z, _X, 3.0, 2.0),
+        lambda: geomcore.curves.Ellipse(_O, _Z, _X, 3.0, 1.0),
+        geomcore.curves.Ellipse(_O, _Z, _X, 3.0, 2.0),
     ),
-    (lambda: geomcore.curves.Parabola3D(_O, _Z, _X, 1.0), geomcore.curves.Parabola3D(_O, _Z, _X, 2.0)),
+    (lambda: geomcore.curves.Parabola(_O, _Z, _X, 1.0), geomcore.curves.Parabola(_O, _Z, _X, 2.0)),
     (
-        lambda: geomcore.curves.Hyperbola3D(_O, _Z, _X, 3.0, 1.0),
-        geomcore.curves.Hyperbola3D(_O, _Z, _X, 3.0, 2.0),
+        lambda: geomcore.curves.Hyperbola(_O, _Z, _X, 3.0, 1.0),
+        geomcore.curves.Hyperbola(_O, _Z, _X, 3.0, 2.0),
     ),
-    (lambda: _bspline_curve(Point3D(1.0, 0.0, 0.0)), _bspline_curve(Point3D(2.0, 0.0, 0.0))),
+    (lambda: _bspline_curve(Point(1.0, 0.0, 0.0)), _bspline_curve(Point(2.0, 0.0, 0.0))),
     (lambda: Line2D(Point2D.origin(), Vector2D(1.0, 0.0)), Line2D(Point2D.origin(), Vector2D(0.0, 1.0))),
     (lambda: geomcore.curves.Circle2D(Point2D.origin(), 1.0), geomcore.curves.Circle2D(Point2D.origin(), 2.0)),
     (
-        lambda: geomcore.curves.TrimmedCurve3D.segment(_O, Point3D(1.0, 0.0, 0.0)),
-        geomcore.curves.TrimmedCurve3D.segment(_O, Point3D(2.0, 0.0, 0.0)),
+        lambda: geomcore.curves.TrimmedCurve.segment(_O, Point(1.0, 0.0, 0.0)),
+        geomcore.curves.TrimmedCurve.segment(_O, Point(2.0, 0.0, 0.0)),
     ),
     (
         lambda: geomcore.curves.TrimmedCurve2D.segment(Point2D.origin(), Point2D(1.0, 0.0)),
         geomcore.curves.TrimmedCurve2D.segment(Point2D.origin(), Point2D(2.0, 0.0)),
     ),
-    (lambda: Circle3D(_O, _Z, 2.0).discretize(0.1), Circle3D(_O, _Z, 2.0).discretize(0.01)),
+    (lambda: Circle(_O, _Z, 2.0).discretize(0.1), Circle(_O, _Z, 2.0).discretize(0.01)),
     (
         lambda: geomcore.curves.Circle2D(Point2D.origin(), 1.0).discretize(0.1),
         geomcore.curves.Circle2D(Point2D.origin(), 1.0).discretize(0.01),
@@ -299,19 +299,19 @@ def test_value_types_are_unhashable(make, different):
 
 
 def test_equal_points_from_different_computations():
-    curve = _bspline_curve(Point3D(2.0, 0.0, 0.0))
-    assert curve.eval_point(0.5) == Point3D(1.0, 0.0, 0.0)
-    assert curve.eval_point(0.0) == Point3D.origin()
+    curve = _bspline_curve(Point(2.0, 0.0, 0.0))
+    assert curve.eval_point(0.5) == Point(1.0, 0.0, 0.0)
+    assert curve.eval_point(0.0) == Point.origin()
 
 
 def test_contains_curve():
-    circle = Circle3D(Point3D.origin(), Vector3D.unit_z(), 2.0)
-    assert circle.contains(Point3D(2.0, 0.0, 0.0))
+    circle = Circle(Point.origin(), Vector.unit_z(), 2.0)
+    assert circle.contains(Point(2.0, 0.0, 0.0))
     assert circle.contains(circle.eval_point(1.0))
-    assert not circle.contains(Point3D(3.0, 0.0, 0.0))
-    assert not circle.contains(Point3D.origin())
+    assert not circle.contains(Point(3.0, 0.0, 0.0))
+    assert not circle.contains(Point.origin())
     # Explicit tolerance widens the acceptance band.
-    near = Point3D(2.0 + 1e-6, 0.0, 0.0)
+    near = Point(2.0 + 1e-6, 0.0, 0.0)
     assert not circle.contains(near)
     assert circle.contains(near, Tolerance(confusion=1e-5))
 
@@ -319,29 +319,29 @@ def test_contains_curve():
 def test_contains_surface():
     from geomcore.surfaces import Plane, Torus
 
-    plane = Plane(Point3D.origin(), Vector3D.unit_z())
-    assert plane.contains(Point3D.origin())
-    assert plane.contains(Point3D(1.0, 2.0, 0.0))
-    assert not plane.contains(Point3D(0.0, 0.0, 1.0))
+    plane = Plane(Point.origin(), Vector.unit_z())
+    assert plane.contains(Point.origin())
+    assert plane.contains(Point(1.0, 2.0, 0.0))
+    assert not plane.contains(Point(0.0, 0.0, 1.0))
 
-    sphere = Sphere(Point3D.origin(), 3.0)
-    assert sphere.contains(Point3D(3.0, 0.0, 0.0))
-    assert not sphere.contains(Point3D.origin())
+    sphere = Sphere(Point.origin(), 3.0)
+    assert sphere.contains(Point(3.0, 0.0, 0.0))
+    assert not sphere.contains(Point.origin())
 
-    torus = Torus(Point3D.origin(), Vector3D.unit_z(), 4.0, 1.0)
-    assert torus.contains(Point3D(5.0, 0.0, 0.0))
-    assert not torus.contains(Point3D.origin())
+    torus = Torus(Point.origin(), Vector.unit_z(), 4.0, 1.0)
+    assert torus.contains(Point(5.0, 0.0, 0.0))
+    assert not torus.contains(Point.origin())
 
 
 def test_project_point_curve():
-    circle = Circle3D(Point3D.origin(), Vector3D.unit_z(), 2.0)
-    projection = circle.project_point(Point3D(3.0, 0.0, 0.0))
+    circle = Circle(Point.origin(), Vector.unit_z(), 2.0)
+    projection = circle.project_point(Point(3.0, 0.0, 0.0))
     assert projection.parameter == pytest.approx(0.0)
     assert projection.distance == pytest.approx(1.0)
-    projection = circle.project_point(Point3D(2.0, 0.0, 0.0))
+    projection = circle.project_point(Point(2.0, 0.0, 0.0))
     assert projection.distance == 0.0
     # Batch variant agrees with scalar calls.
-    batch = circle.project_points([Point3D(3.0, 0.0, 0.0), Point3D(2.0, 0.0, 0.0)])
+    batch = circle.project_points([Point(3.0, 0.0, 0.0), Point(2.0, 0.0, 0.0)])
     assert (batch[0].parameter, batch[0].distance) == pytest.approx((0.0, 1.0))
     assert batch[1].distance == 0.0
 
@@ -349,11 +349,11 @@ def test_project_point_curve():
 def test_project_point_surface():
     from geomcore.surfaces import Plane
 
-    plane = Plane(Point3D.origin(), Vector3D.unit_z())
-    projection = plane.project_point(Point3D(1.0, 2.0, 3.0))
+    plane = Plane(Point.origin(), Vector.unit_z())
+    projection = plane.project_point(Point(1.0, 2.0, 3.0))
     assert (projection.u, projection.v) == pytest.approx((1.0, 2.0))
     assert projection.distance == pytest.approx(3.0)
-    batch = plane.project_points([Point3D.origin(), Point3D(0.0, 0.0, 2.0)])
+    batch = plane.project_points([Point.origin(), Point(0.0, 0.0, 2.0)])
     assert batch[0].distance == 0.0
     assert batch[1].distance == pytest.approx(2.0)
 
@@ -364,18 +364,18 @@ def _curves(result):
 
 
 def test_intersect_plane_plane():
-    from geomcore.curves import Line3D
+    from geomcore.curves import Line
     from geomcore.surfaces import Plane
 
-    xy = Plane(Point3D.origin(), Vector3D.unit_z())
-    zy = Plane(Point3D.origin(), Vector3D.unit_x())
+    xy = Plane(Point.origin(), Vector.unit_z())
+    zy = Plane(Point.origin(), Vector.unit_x())
     (line,) = _curves(xy.intersect(zy))
-    assert isinstance(line, Line3D)
+    assert isinstance(line, Line)
     assert line.origin().x == pytest.approx(0.0)
     # Direction follows the ordered pair (n1 x n2 = Z x X = Y).
     assert line.direction().components() == pytest.approx((0.0, 1.0, 0.0))
 
-    parallel = xy.intersect(Plane(Point3D(0.0, 0.0, 1.0), Vector3D.unit_z()))
+    parallel = xy.intersect(Plane(Point(0.0, 0.0, 1.0), Vector.unit_z()))
     assert parallel.is_empty() and parallel.is_complete()
 
     coincident = xy.intersect(xy)
@@ -386,156 +386,156 @@ def test_intersect_plane_plane():
 def test_intersect_plane_sphere():
     from geomcore.surfaces import Plane
 
-    plane = Plane(Point3D.origin(), Vector3D.unit_z())
-    (circle,) = _curves(plane.intersect(Sphere(Point3D.origin(), 2.0)))
+    plane = Plane(Point.origin(), Vector.unit_z())
+    (circle,) = _curves(plane.intersect(Sphere(Point.origin(), 2.0)))
     assert circle.radius() == pytest.approx(2.0)
 
-    tangent = plane.intersect(Sphere(Point3D(0.0, 0.0, 2.0), 2.0))
+    tangent = plane.intersect(Sphere(Point(0.0, 0.0, 2.0), 2.0))
     assert tangent.curves == []
     (point,) = tangent.contact_points
     assert (point.x, point.y, point.z) == pytest.approx((0.0, 0.0, 0.0))
 
-    assert plane.intersect(Sphere(Point3D(0.0, 0.0, 5.0), 2.0)).is_empty()
+    assert plane.intersect(Sphere(Point(0.0, 0.0, 5.0), 2.0)).is_empty()
 
 
 def test_intersect_sphere_sphere():
-    s1 = Sphere(Point3D.origin(), 2.0)
-    (circle,) = _curves(s1.intersect(Sphere(Point3D(3.0, 0.0, 0.0), 2.0)))
+    s1 = Sphere(Point.origin(), 2.0)
+    (circle,) = _curves(s1.intersect(Sphere(Point(3.0, 0.0, 0.0), 2.0)))
     assert circle.center().x == pytest.approx(1.5)
 
-    (point,) = s1.intersect(Sphere(Point3D(4.0, 0.0, 0.0), 2.0)).contact_points
+    (point,) = s1.intersect(Sphere(Point(4.0, 0.0, 0.0), 2.0)).contact_points
     assert point.x == pytest.approx(2.0)
 
-    assert s1.intersect(Sphere(Point3D(5.0, 0.0, 0.0), 2.0)).is_empty()
+    assert s1.intersect(Sphere(Point(5.0, 0.0, 0.0), 2.0)).is_empty()
     assert s1.intersect(s1).is_coincident()
 
 
 def test_intersect_plane_cylinder():
     from geomcore.surfaces import Cylinder, Plane
 
-    plane = Plane(Point3D.origin(), Vector3D.unit_z())
-    cylinder = Cylinder(Point3D.origin(), Vector3D.unit_z(), 2.0)
+    plane = Plane(Point.origin(), Vector.unit_z())
+    cylinder = Cylinder(Point.origin(), Vector.unit_z(), 2.0)
     (circle,) = _curves(plane.intersect(cylinder))
     assert circle.radius() == pytest.approx(2.0)
 
-    side = Plane(Point3D(0.0, 1.0, 0.0), Vector3D.unit_y())
+    side = Plane(Point(0.0, 1.0, 0.0), Vector.unit_y())
     lines = _curves(side.intersect(cylinder))
     assert len(lines) == 2
     assert lines[0].direction().components() == pytest.approx((0.0, 0.0, 1.0))
 
-    assert side.intersect(Cylinder(Point3D.origin(), Vector3D.unit_z(), 0.5)).is_empty()
-    miss = Plane(Point3D(0.0, 3.0, 0.0), Vector3D.unit_y())
+    assert side.intersect(Cylinder(Point.origin(), Vector.unit_z(), 0.5)).is_empty()
+    miss = Plane(Point(0.0, 3.0, 0.0), Vector.unit_y())
     assert miss.intersect(cylinder).is_empty()
 
 
 def test_intersect_plane_cone():
-    from geomcore import Frame3D
-    from geomcore.curves import Hyperbola3D
+    from geomcore import Frame
+    from geomcore.curves import Hyperbola
     from geomcore.surfaces import Cone, Plane
 
-    plane = Plane(Point3D.origin(), Vector3D.unit_z())
-    cone = Cone.from_frame(Frame3D.world(), 0.4, 2.0)
+    plane = Plane(Point.origin(), Vector.unit_z())
+    cone = Cone.from_frame(Frame.world(), 0.4, 2.0)
     (circle,) = _curves(plane.intersect(cone))
     assert circle.radius() == pytest.approx(2.0)
 
     # The cone is double: a plane beyond the apex cuts the other nappe.
-    below = Plane(Point3D(0.0, 0.0, -6.0), Vector3D.unit_z())
+    below = Plane(Point(0.0, 0.0, -6.0), Vector.unit_z())
     (circle,) = _curves(below.intersect(cone))
     assert circle.radius() == pytest.approx(0.5368, abs=1e-3)
 
-    h1, h2 = _curves(Plane(Point3D(3.0, 0.0, 0.0), Vector3D.unit_x()).intersect(cone))
-    assert isinstance(h1, Hyperbola3D) and isinstance(h2, Hyperbola3D)
+    h1, h2 = _curves(Plane(Point(3.0, 0.0, 0.0), Vector.unit_x()).intersect(cone))
+    assert isinstance(h1, Hyperbola) and isinstance(h2, Hyperbola)
     assert h1.center().distance(h2.center()) < 1e-9
 
-    apex_plane = Plane(cone.apex(), Vector3D.unit_z())
+    apex_plane = Plane(cone.apex(), Vector.unit_z())
     (apex,) = apex_plane.intersect(cone).contact_points
     assert apex.distance(cone.apex()) < 1e-9
 
 
 def test_intersect_line_surface():
-    from geomcore.curves import Line3D
+    from geomcore.curves import Line
     from geomcore.surfaces import Cylinder, Plane
 
-    line = Line3D(Point3D.origin(), Vector3D.unit_x())
-    hits = line.intersect(Sphere(Point3D.origin(), 2.0)).hits
+    line = Line(Point.origin(), Vector.unit_x())
+    hits = line.intersect(Sphere(Point.origin(), 2.0)).hits
     assert [h.curve_parameter for h in hits] == pytest.approx([-2.0, 2.0])
     assert [h.point.x for h in hits] == pytest.approx([-2.0, 2.0])
 
-    (hit,) = Line3D(Point3D.origin(), Vector3D.unit_z()).intersect(
-        Plane(Point3D.origin(), Vector3D.unit_z())
+    (hit,) = Line(Point.origin(), Vector.unit_z()).intersect(
+        Plane(Point.origin(), Vector.unit_z())
     ).hits
     assert hit.curve_parameter == pytest.approx(0.0)
-    on_plane = line.intersect(Plane(Point3D.origin(), Vector3D.unit_z()))
+    on_plane = line.intersect(Plane(Point.origin(), Vector.unit_z()))
     assert on_plane.hits == [] and on_plane.overlaps == [(-math.inf, math.inf)]
 
-    generator = Line3D(Point3D(2.0, 0.0, 0.0), Vector3D.unit_z())
-    cylinder = Cylinder(Point3D.origin(), Vector3D.unit_z(), 2.0)
+    generator = Line(Point(2.0, 0.0, 0.0), Vector.unit_z())
+    cylinder = Cylinder(Point.origin(), Vector.unit_z(), 2.0)
     assert generator.intersect(cylinder).overlaps == [(-math.inf, math.inf)]
 
 
 def test_intersect_symmetric_quadrics():
-    from geomcore import Frame3D, IntersectionMethod
+    from geomcore import Frame, IntersectionMethod
     from geomcore.surfaces import Cone, Cylinder
 
-    sphere = Sphere(Point3D.origin(), 3.0)
-    cylinder = Cylinder(Point3D.origin(), Vector3D.unit_z(), 2.0)
+    sphere = Sphere(Point.origin(), 3.0)
+    cylinder = Cylinder(Point.origin(), Vector.unit_z(), 2.0)
 
     c1, c2 = _curves(sphere.intersect(cylinder))
     assert c1.radius() == pytest.approx(2.0)
     assert abs(c1.center().z) == pytest.approx(math.sqrt(5.0))
 
-    assert len(sphere.intersect(Cylinder(Point3D.origin(), Vector3D.unit_z(), 3.0)).curves) == 1
+    assert len(sphere.intersect(Cylinder(Point.origin(), Vector.unit_z(), 3.0)).curves) == 1
     # Off-axis pairs have no closed form: marching traces them.
-    off = Cylinder(Point3D(0.0, 1.0, 0.0), Vector3D.unit_z(), 2.0)
+    off = Cylinder(Point(0.0, 1.0, 0.0), Vector.unit_z(), 2.0)
     assert sphere.intersect(off).method == IntersectionMethod.NUMERIC
 
-    cone = Cone.from_frame(Frame3D.world(), 0.4, 2.0)
+    cone = Cone.from_frame(Frame.world(), 0.4, 2.0)
     r1, r2 = _curves(sphere.intersect(cone))
     assert sorted([r1.radius(), r2.radius()]) == pytest.approx([0.7746, 2.6188], abs=1e-3)
     # Sphere around the apex: one ring on each nappe.
-    small = Cone.from_frame(Frame3D.world(), 0.4, 0.5)
+    small = Cone.from_frame(Frame.world(), 0.4, 0.5)
     rings = sorted(_curves(sphere.intersect(small)), key=lambda c: c.center().z)
     lower, upper = rings
     assert upper.radius() == pytest.approx(1.5786, abs=1e-3)
     assert lower.radius() == pytest.approx(0.7302, abs=1e-3)
     assert lower.center().z < small.apex().z < upper.center().z
 
-    c1 = Cylinder(Point3D.origin(), Vector3D.unit_z(), 2.0)
-    c2 = Cylinder(Point3D(3.0, 0.0, 0.0), Vector3D.unit_z(), 2.0)
+    c1 = Cylinder(Point.origin(), Vector.unit_z(), 2.0)
+    c2 = Cylinder(Point(3.0, 0.0, 0.0), Vector.unit_z(), 2.0)
     l1, _ = _curves(c1.intersect(c2))
     assert l1.origin().x == pytest.approx(1.5)
     assert c1.intersect(c1).is_coincident()
-    crossed = Cylinder(Point3D.origin(), Vector3D.unit_x(), 2.0)
+    crossed = Cylinder(Point.origin(), Vector.unit_x(), 2.0)
     assert c1.intersect(crossed).method == IntersectionMethod.NUMERIC
 
 
 def test_intersect_cone_cylinder():
-    from geomcore import Frame3D, IntersectionMethod
+    from geomcore import Frame, IntersectionMethod
     from geomcore.surfaces import Cone, Cylinder
 
-    cone = Cone.from_frame(Frame3D.world(), 0.4, 2.0)
-    cylinder = Cylinder(Point3D.origin(), Vector3D.unit_z(), 2.0)
+    cone = Cone.from_frame(Frame.world(), 0.4, 2.0)
+    cylinder = Cylinder(Point.origin(), Vector.unit_z(), 2.0)
     lower, upper = sorted(_curves(cone.intersect(cylinder)), key=lambda c: c.center().z)
     assert (lower.radius(), upper.radius()) == pytest.approx((2.0, 2.0))
-    assert upper.center().distance(Point3D.origin()) < 1e-9
+    assert upper.center().distance(Point.origin()) < 1e-9
     assert lower.center().z == pytest.approx(2.0 * cone.apex().z)
 
-    off = Cylinder(Point3D(1.0, 0.0, 0.0), Vector3D.unit_z(), 2.0)
+    off = Cylinder(Point(1.0, 0.0, 0.0), Vector.unit_z(), 2.0)
     assert cone.intersect(off).method == IntersectionMethod.NUMERIC
 
 
 def test_intersect_cone_cone():
-    from geomcore import Frame3D, IntersectionMethod
+    from geomcore import Frame, IntersectionMethod
     from geomcore.surfaces import Cone
 
-    c1 = Cone.from_frame(Frame3D.world(), 0.4, 2.0)
-    frame2 = Frame3D(Point3D(0.0, 0.0, 1.0), Vector3D.unit_z(), Vector3D.unit_x())
+    c1 = Cone.from_frame(Frame.world(), 0.4, 2.0)
+    frame2 = Frame(Point(0.0, 0.0, 1.0), Vector.unit_z(), Vector.unit_x())
     c2 = Cone.from_frame(frame2, 0.6, 1.0)
     r1, r2 = _curves(c1.intersect(c2))
     assert sorted([r1.radius(), r2.radius()]) == pytest.approx([1.1155, 4.7245], abs=1e-3)
 
     assert c1.intersect(c1).is_coincident()
-    tilted = Cone(Point3D.origin(), Vector3D.unit_x(), 0.4, 2.0)
+    tilted = Cone(Point.origin(), Vector.unit_x(), 0.4, 2.0)
     assert c1.intersect(tilted).method == IntersectionMethod.NUMERIC
 
 
@@ -543,54 +543,54 @@ def test_intersect_torus_symmetric():
     from geomcore import IntersectionMethod
     from geomcore.surfaces import Cone, Cylinder, Plane, Torus
 
-    torus = Torus(Point3D.origin(), Vector3D.unit_z(), 4.0, 1.0)
+    torus = Torus(Point.origin(), Vector.unit_z(), 4.0, 1.0)
 
-    c1, c2 = _curves(torus.intersect(Plane(Point3D.origin(), Vector3D.unit_z())))
+    c1, c2 = _curves(torus.intersect(Plane(Point.origin(), Vector.unit_z())))
     assert sorted([c1.radius(), c2.radius()]) == pytest.approx([3.0, 5.0])
 
-    assert len(torus.intersect(Plane(Point3D.origin(), Vector3D.unit_x())).curves) == 2
+    assert len(torus.intersect(Plane(Point.origin(), Vector.unit_x())).curves) == 2
 
     # Bitangent plane through the center: Villarceau circles.
     tilt = math.asin(1.0 / 4.0)
-    villarceau = Plane(Point3D.origin(), Vector3D(0.0, math.sin(tilt), math.cos(tilt)))
+    villarceau = Plane(Point.origin(), Vector(0.0, math.sin(tilt), math.cos(tilt)))
     c1, c2 = _curves(torus.intersect(villarceau))
     assert [c1.radius(), c2.radius()] == pytest.approx([4.0, 4.0])
     assert sorted([c1.center().x, c2.center().x]) == pytest.approx([-1.0, 1.0])
 
-    (piece,) = torus.intersect(Sphere(Point3D.origin(), 5.0)).curves
+    (piece,) = torus.intersect(Sphere(Point.origin(), 5.0)).curves
     assert piece.tangent is True
     assert piece.curve.radius() == pytest.approx(5.0)
 
-    assert len(torus.intersect(Cylinder(Point3D.origin(), Vector3D.unit_z(), 4.5)).curves) == 2
+    assert len(torus.intersect(Cylinder(Point.origin(), Vector.unit_z(), 4.5)).curves) == 2
 
-    rings = torus.intersect(Cone.from_frame(Frame3D.world(), 1.1, 2.0)).curves
+    rings = torus.intersect(Cone.from_frame(Frame.world(), 1.1, 2.0)).curves
     assert [ring.tangent for ring in rings] == [False, False]
-    rings = torus.intersect(Cone.from_frame(Frame3D.world(), 1.4, 0.0)).curves
+    rings = torus.intersect(Cone.from_frame(Frame.world(), 1.4, 0.0)).curves
     assert len(rings) == 4
 
-    other = Torus(Point3D(0.0, 0.0, 1.5), Vector3D.unit_z(), 4.0, 1.0)
+    other = Torus(Point(0.0, 0.0, 1.5), Vector.unit_z(), 4.0, 1.0)
     assert len(torus.intersect(other).curves) == 2
     assert torus.intersect(torus).is_coincident()
-    tilted = Torus(Point3D.origin(), Vector3D.unit_x(), 4.0, 1.0)
+    tilted = Torus(Point.origin(), Vector.unit_x(), 4.0, 1.0)
     assert torus.intersect(tilted).method == IntersectionMethod.NUMERIC
 
 
 def test_conic_surface_intersections():
-    from geomcore.curves import Ellipse3D, Hyperbola3D, Parabola3D
+    from geomcore.curves import Ellipse, Hyperbola, Parabola
     from geomcore.surfaces import Cone, Cylinder, Plane
 
-    ellipse = Ellipse3D(Point3D.origin(), Vector3D.unit_z(), Vector3D.unit_x(), 3.0, 1.5)
-    assert len(ellipse.intersect(Plane(Point3D.origin(), Vector3D.unit_x())).hits) == 2
+    ellipse = Ellipse(Point.origin(), Vector.unit_z(), Vector.unit_x(), 3.0, 1.5)
+    assert len(ellipse.intersect(Plane(Point.origin(), Vector.unit_x())).hits) == 2
 
-    parabola = Parabola3D(Point3D.origin(), Vector3D.unit_z(), Vector3D.unit_x(), 1.0)
-    on_plane = parabola.intersect(Plane(Point3D.origin(), Vector3D.unit_z()))
+    parabola = Parabola(Point.origin(), Vector.unit_z(), Vector.unit_x(), 1.0)
+    on_plane = parabola.intersect(Plane(Point.origin(), Vector.unit_z()))
     assert on_plane.overlaps == [(-math.inf, math.inf)]
 
-    hyperbola = Hyperbola3D(Point3D.origin(), Vector3D.unit_z(), Vector3D.unit_x(), 2.0, 1.0)
-    cylinder = Cylinder(Point3D.origin(), Vector3D.unit_z(), 2.0)
+    hyperbola = Hyperbola(Point.origin(), Vector.unit_z(), Vector.unit_x(), 2.0, 1.0)
+    cylinder = Cylinder(Point.origin(), Vector.unit_z(), 2.0)
     assert len(hyperbola.intersect(cylinder).hits) >= 1
 
-    cone = Cone.from_frame(Frame3D.world(), 0.4, 2.0)
+    cone = Cone.from_frame(Frame.world(), 0.4, 2.0)
     assert ellipse.intersect(cone).hits
 
 
@@ -599,62 +599,62 @@ def test_circle_surface_and_measures():
 
     from geomcore.surfaces import Cone, Cylinder, Plane
 
-    circle = Circle3D(Point3D.origin(), Vector3D.unit_z(), 2.0)
+    circle = Circle(Point.origin(), Vector.unit_z(), 2.0)
     assert circle.circumference() == pytest.approx(math.tau * 2.0)
     assert circle.disk_area() == pytest.approx(math.pi * 4.0)
 
-    hits = circle.intersect(Plane(Point3D.origin(), Vector3D.unit_x())).hits
+    hits = circle.intersect(Plane(Point.origin(), Vector.unit_x())).hits
     assert len(hits) == 2
 
-    assert circle.intersect(Sphere(Point3D.origin(), 3.0)).is_empty()
+    assert circle.intersect(Sphere(Point.origin(), 3.0)).is_empty()
 
-    on_cylinder = circle.intersect(Cylinder(Point3D.origin(), Vector3D.unit_z(), 2.0))
+    on_cylinder = circle.intersect(Cylinder(Point.origin(), Vector.unit_z(), 2.0))
     assert on_cylinder.overlaps == [pytest.approx((0.0, math.tau))]
 
-    cone = Cone.from_frame(Frame3D.world(), 0.4, 2.0)
+    cone = Cone.from_frame(Frame.world(), 0.4, 2.0)
     assert circle.intersect(cone).overlaps == [pytest.approx((0.0, math.tau))]
 
-    from geomcore.curves import Ellipse3D
+    from geomcore.curves import Ellipse
 
-    ellipse = Ellipse3D(Point3D.origin(), Vector3D.unit_z(), Vector3D.unit_x(), 3.0, 1.5)
+    ellipse = Ellipse(Point.origin(), Vector.unit_z(), Vector.unit_x(), 3.0, 1.5)
     assert ellipse.area() == pytest.approx(math.pi * 4.5)
 
-    sphere = Sphere(Point3D.origin(), 3.0)
+    sphere = Sphere(Point.origin(), 3.0)
     assert sphere.area() == pytest.approx(4.0 * math.pi * 9.0)
     assert sphere.volume() == pytest.approx(4.0 / 3.0 * math.pi * 27.0)
 
 
 def test_interpolate_curve():
-    curve = BSplineCurve3D.interpolate(
-        [Point3D(0.0, 0.0, 0.0), Point3D(1.0, 1.0, 0.0), Point3D(2.0, 0.0, 0.0)], 2
+    curve = BSplineCurve.interpolate(
+        [Point(0.0, 0.0, 0.0), Point(1.0, 1.0, 0.0), Point(2.0, 0.0, 0.0)], 2
     )
-    assert curve.contains(Point3D(0.0, 0.0, 0.0))
-    assert curve.contains(Point3D(2.0, 0.0, 0.0))
+    assert curve.contains(Point(0.0, 0.0, 0.0))
+    assert curve.contains(Point(2.0, 0.0, 0.0))
     with pytest.raises(ValueError):
-        BSplineCurve3D.interpolate([Point3D.origin()], 1)
+        BSplineCurve.interpolate([Point.origin()], 1)
 
 
 def test_approximate_curve():
     import math
 
-    pts = [Point3D(2.0 * math.cos(i / 12 * math.tau), 2.0 * math.sin(i / 12 * math.tau), 0.0) for i in range(12)]
-    curve = BSplineCurve3D.approximate(pts, 3, 7)
+    pts = [Point(2.0 * math.cos(i / 12 * math.tau), 2.0 * math.sin(i / 12 * math.tau), 0.0) for i in range(12)]
+    curve = BSplineCurve.approximate(pts, 3, 7)
     assert curve.degree() == 3
     with pytest.raises(ValueError):
-        BSplineCurve3D.approximate(pts, 3, 20)
+        BSplineCurve.approximate(pts, 3, 20)
 
 
 def test_curve_surface_intersect_any_pair():
     from geomcore import IntersectionMethod
-    from geomcore.curves import Line3D
+    from geomcore.curves import Line
 
-    line = Line3D(Point3D.origin(), Vector3D.unit_x())
-    result = line.intersect(Sphere(Point3D.origin(), 2.0))
+    line = Line(Point.origin(), Vector.unit_x())
+    result = line.intersect(Sphere(Point.origin(), 2.0))
     assert [h.curve_parameter for h in result.hits] == pytest.approx([-2.0, 2.0])
-    assert line.intersect(Sphere(Point3D(0.0, 0.0, 5.0), 2.0)).hits == []
+    assert line.intersect(Sphere(Point(0.0, 0.0, 5.0), 2.0)).hits == []
 
     patch = _bspline_surface(0.0)
-    vertical = Line3D(Point3D(0.5, 0.5, -1.0), Vector3D.unit_z())
+    vertical = Line(Point(0.5, 0.5, -1.0), Vector.unit_z())
     result = vertical.intersect(patch)
     assert result.method == IntersectionMethod.NUMERIC
     (hit,) = result.hits
@@ -666,13 +666,13 @@ def test_intersect_surfaces_march_without_closed_form():
     from geomcore.surfaces import Plane
 
     patch = _bspline_surface(0.0)
-    result = patch.intersect(Plane(Point3D(0.5, 0.0, 0.0), Vector3D.unit_x()))
+    result = patch.intersect(Plane(Point(0.5, 0.0, 0.0), Vector.unit_x()))
     assert result.method == IntersectionMethod.NUMERIC
     assert result.completeness.status == CompletenessStatus.SAMPLED
     (piece,) = result.curves
-    assert isinstance(piece.curve, BSplineCurve3D)
+    assert isinstance(piece.curve, BSplineCurve)
 
-    miss = Plane(Point3D(0.0, 0.0, 5.0), Vector3D.unit_z())
+    miss = Plane(Point(0.0, 0.0, 5.0), Vector.unit_z())
     assert patch.intersect(miss).is_empty()
 
 
@@ -681,23 +681,23 @@ def test_intersect_plane_sphere_off_grid(height: float) -> None:
     # Planes between the seed grid lines used to find no curve (#6).
     from geomcore.surfaces import Plane
 
-    plane = Plane(Point3D(0.0, 0.0, height), Vector3D.unit_z())
-    (piece,) = plane.intersect(Sphere(Point3D.origin(), 1.0)).curves
+    plane = Plane(Point(0.0, 0.0, height), Vector.unit_z())
+    (piece,) = plane.intersect(Sphere(Point.origin(), 1.0)).curves
     p = piece.curve.eval_point(0.5)
     assert math.hypot(p.x, p.y) == pytest.approx(math.sqrt(1.0 - height**2), abs=1e-3)
 
 
 def test_curve_curve_generic():
     from geomcore import curve_curve_extrema
-    from geomcore.curves import Circle3D, Line3D
+    from geomcore.curves import Circle, Line
 
-    l1 = Line3D(Point3D.origin(), Vector3D.unit_x())
-    l2 = Line3D(Point3D(0.0, 0.0, 1.0), Vector3D.unit_y())
+    l1 = Line(Point.origin(), Vector.unit_x())
+    l2 = Line(Point(0.0, 0.0, 1.0), Vector.unit_y())
     extrema = curve_curve_extrema(l1, l2)
     assert len(extrema.minima) == 1
     assert extrema.minima[0].distance == pytest.approx(1.0)
 
-    circle = Circle3D(Point3D.origin(), Vector3D.unit_z(), 2.0)
+    circle = Circle(Point.origin(), Vector.unit_z(), 2.0)
     hits = l1.intersect(circle).hits
     assert [h.first_parameter for h in hits] == pytest.approx([-2.0, 2.0])
 
@@ -707,8 +707,8 @@ def test_parametrize_numeric():
 
     from geomcore import parametrize_numeric
 
-    circle = Circle3D(Point3D.origin(), Vector3D.unit_z(), 2.0)
-    cylinder = Cylinder(Point3D.origin(), Vector3D.unit_z(), 2.0)
+    circle = Circle(Point.origin(), Vector.unit_z(), 2.0)
+    cylinder = Cylinder(Point.origin(), Vector.unit_z(), 2.0)
     pcurve = parametrize_numeric(circle, cylinder, 9)
     assert len(pcurve) == 9
     assert parametrize_numeric(circle, cylinder, sample_count=9) == pcurve
@@ -723,7 +723,7 @@ def test_parametrize_numeric():
 
 
 def test_intersect_curves_2d_and_lines():
-    from geomcore.curves import Circle2D, Line2D, Line3D
+    from geomcore.curves import Circle2D, Line2D, Line
 
     l1 = Line2D(Point2D(0.0, 0.0), Vector2D(1.0, 0.0))
     l2 = Line2D(Point2D(0.0, 0.0), Vector2D(0.0, 1.0))
@@ -737,31 +737,31 @@ def test_intersect_curves_2d_and_lines():
     p1, _ = [h.point for h in circle.intersect(Circle2D(Point2D(3.0, 0.0), 2.0)).hits]
     assert p1.x == pytest.approx(1.5)
 
-    a = Line3D(Point3D.origin(), Vector3D.unit_x())
-    b = Line3D(Point3D.origin(), Vector3D.unit_y())
+    a = Line(Point.origin(), Vector.unit_x())
+    b = Line(Point.origin(), Vector.unit_y())
     (hit,) = a.intersect(b).hits
     assert (hit.point.x, hit.point.y, hit.point.z) == pytest.approx((0.0, 0.0, 0.0))
-    skew = a.intersect(Line3D(Point3D(0.0, 0.0, 1.0), Vector3D.unit_y()))
+    skew = a.intersect(Line(Point(0.0, 0.0, 1.0), Vector.unit_y()))
     assert skew.is_empty() and skew.is_complete()
 
 
 def test_intersect_curves_3d():
-    from geomcore.curves import Circle3D, Line3D
+    from geomcore.curves import Circle, Line
 
-    line = Line3D(Point3D.origin(), Vector3D.unit_x())
-    circle = Circle3D(Point3D.origin(), Vector3D.unit_z(), 2.0)
+    line = Line(Point.origin(), Vector.unit_x())
+    circle = Circle(Point.origin(), Vector.unit_z(), 2.0)
     hits = line.intersect(circle).hits
     assert [h.first_parameter for h in hits] == pytest.approx([-2.0, 2.0])
 
-    c1 = Circle3D(Point3D.origin(), Vector3D.unit_z(), 2.0)
-    c2 = Circle3D(Point3D(3.0, 0.0, 0.0), Vector3D.unit_z(), 2.0)
+    c1 = Circle(Point.origin(), Vector.unit_z(), 2.0)
+    c2 = Circle(Point(3.0, 0.0, 0.0), Vector.unit_z(), 2.0)
     p1, _ = [h.point for h in c1.intersect(c2).hits]
     assert p1.x == pytest.approx(1.5)
-    tilted = Circle3D(Point3D.origin(), Vector3D.unit_x(), 2.0)
+    tilted = Circle(Point.origin(), Vector.unit_x(), 2.0)
     assert sorted(h.point.y for h in c1.intersect(tilted).hits) == pytest.approx([-2.0, 2.0])
     (overlap,) = c1.intersect(c1).overlaps
     assert overlap.first_range == pytest.approx((0.0, math.tau))
-    lifted = Circle3D(Point3D(0.0, 0.0, 1.0), Vector3D.unit_z(), 2.0)
+    lifted = Circle(Point(0.0, 0.0, 1.0), Vector.unit_z(), 2.0)
     assert c1.intersect(lifted).is_empty()
 
 
@@ -772,8 +772,8 @@ def _bilinear_patch():
         1,
         1,
         [
-            [Point3D(0.0, 0.0, 0.0), Point3D(0.0, 2.0, 0.0)],
-            [Point3D(2.0, 0.0, 0.0), Point3D(2.0, 2.0, 0.0)],
+            [Point(0.0, 0.0, 0.0), Point(0.0, 2.0, 0.0)],
+            [Point(2.0, 0.0, 0.0), Point(2.0, 2.0, 0.0)],
         ],
         [0.0, 1.0],
         [2, 2],
@@ -786,55 +786,55 @@ def _bilinear_patch():
 
 def test_bspline_surface_projection():
     surface = _bilinear_patch()
-    projection = surface.project_point(Point3D(1.0, 1.0, 1.0))
+    projection = surface.project_point(Point(1.0, 1.0, 1.0))
     assert (projection.u, projection.v) == pytest.approx((0.5, 0.5))
     assert projection.distance == pytest.approx(1.0)
-    assert surface.contains(Point3D(1.0, 1.0, 0.0))
-    assert not surface.contains(Point3D(1.0, 1.0, 1.0))
-    ext = surface.extrema(Point3D(1.0, 1.0, 1.0))
+    assert surface.contains(Point(1.0, 1.0, 0.0))
+    assert not surface.contains(Point(1.0, 1.0, 1.0))
+    ext = surface.extrema(Point(1.0, 1.0, 1.0))
     assert len(ext) >= 1
     assert ext[0].distance == pytest.approx(1.0)
 
 
 def test_bspline_curve_projection():
-    curve = BSplineCurve3D(
+    curve = BSplineCurve(
         1,
-        [Point3D(0.0, 0.0, 0.0), Point3D(2.0, 0.0, 0.0)],
+        [Point(0.0, 0.0, 0.0), Point(2.0, 0.0, 0.0)],
         [0.0, 1.0],
         [2, 2],
         False,
     )
-    projection = curve.project_point(Point3D(1.0, 1.0, 0.0))
+    projection = curve.project_point(Point(1.0, 1.0, 0.0))
     assert projection.parameter == pytest.approx(0.5)
     assert projection.distance == pytest.approx(1.0)
-    assert curve.contains(Point3D(1.0, 0.0, 0.0))
-    assert not curve.contains(Point3D(1.0, 1.0, 0.0))
+    assert curve.contains(Point(1.0, 0.0, 0.0))
+    assert not curve.contains(Point(1.0, 1.0, 0.0))
     # Beyond the end: the endpoint wins.
-    projection = curve.project_point(Point3D(5.0, 0.0, 0.0))
+    projection = curve.project_point(Point(5.0, 0.0, 0.0))
     assert projection.parameter == pytest.approx(1.0)
     assert projection.distance == pytest.approx(3.0)
-    ext = curve.extrema(Point3D(1.0, 1.0, 0.0))
+    ext = curve.extrema(Point(1.0, 1.0, 0.0))
     assert len(ext) >= 1
     assert ext[0].distance == pytest.approx(1.0)
 
 
 def test_conic_extrema_and_projection():
-    from geomcore.curves import Ellipse3D, Hyperbola3D, Parabola3D
+    from geomcore.curves import Ellipse, Hyperbola, Parabola
 
-    ellipse = Ellipse3D(Point3D.origin(), Vector3D.unit_z(), Vector3D.unit_x(), 3.0, 1.5)
-    ext = ellipse.extrema(Point3D(4.0, 0.0, 0.0))
+    ellipse = Ellipse(Point.origin(), Vector.unit_z(), Vector.unit_x(), 3.0, 1.5)
+    ext = ellipse.extrema(Point(4.0, 0.0, 0.0))
     assert len(ext) >= 2
     assert ext[0].distance == pytest.approx(1.0)
-    projection = ellipse.project_point(Point3D(0.0, 3.0, 0.0))
+    projection = ellipse.project_point(Point(0.0, 3.0, 0.0))
     assert projection.distance == pytest.approx(1.5)
 
-    parabola = Parabola3D(Point3D.origin(), Vector3D.unit_z(), Vector3D.unit_x(), 1.0)
-    projection = parabola.project_point(Point3D(1.0, 2.0, 0.0))
+    parabola = Parabola(Point.origin(), Vector.unit_z(), Vector.unit_x(), 1.0)
+    projection = parabola.project_point(Point(1.0, 2.0, 0.0))
     assert projection.parameter == pytest.approx(2.0)
     assert projection.distance == 0.0
 
-    hyperbola = Hyperbola3D(Point3D.origin(), Vector3D.unit_z(), Vector3D.unit_x(), 2.0, 1.0)
-    projection = hyperbola.project_point(Point3D(3.0, 0.0, 0.0))
+    hyperbola = Hyperbola(Point.origin(), Vector.unit_z(), Vector.unit_x(), 2.0, 1.0)
+    projection = hyperbola.project_point(Point(3.0, 0.0, 0.0))
     assert projection.distance == pytest.approx(math.sqrt(0.8))
 
 
@@ -845,42 +845,42 @@ def _hit_tuples(result):
 
 
 def test_line_conic_intersections():
-    from geomcore.curves import Ellipse3D, Hyperbola3D, Line3D, Parabola3D
+    from geomcore.curves import Ellipse, Hyperbola, Line, Parabola
 
     tol = Tolerance.default()
-    ellipse = Ellipse3D(Point3D.origin(), Vector3D.unit_z(), Vector3D.unit_x(), 3.0, 1.5)
+    ellipse = Ellipse(Point.origin(), Vector.unit_z(), Vector.unit_x(), 3.0, 1.5)
     (t1, p1, u1, _), (t2, p2, u2, _) = _hit_tuples(
-        Line3D(Point3D.origin(), Vector3D.unit_x()).intersect(ellipse)
+        Line(Point.origin(), Vector.unit_x()).intersect(ellipse)
     )
     assert (t1, t2) == pytest.approx((-3.0, 3.0))
     assert (_or_recovered(u1, ellipse, p1), _or_recovered(u2, ellipse, p2)) == pytest.approx(
         (math.pi, 0.0)
     )
 
-    parabola = Parabola3D(Point3D.origin(), Vector3D.unit_z(), Vector3D.unit_x(), 1.0)
+    parabola = Parabola(Point.origin(), Vector.unit_z(), Vector.unit_x(), 1.0)
     # The axis crosses the parabola once, at its vertex.
-    [(t, p, u, mult)] = _hit_tuples(Line3D(Point3D.origin(), Vector3D.unit_x()).intersect(parabola))
+    [(t, p, u, mult)] = _hit_tuples(Line(Point.origin(), Vector.unit_x()).intersect(parabola))
     assert mult == 1
     assert t == pytest.approx(0.0) and _or_recovered(u, parabola, p) == pytest.approx(0.0)
 
-    hyperbola = Hyperbola3D(Point3D.origin(), Vector3D.unit_z(), Vector3D.unit_x(), 2.0, 1.0)
+    hyperbola = Hyperbola(Point.origin(), Vector.unit_z(), Vector.unit_x(), 2.0, 1.0)
     [(t, p, u, mult)] = _hit_tuples(
-        Line3D(Point3D(2.0, -5.0, 0.0), Vector3D.unit_y()).intersect(hyperbola, tol)
+        Line(Point(2.0, -5.0, 0.0), Vector.unit_y()).intersect(hyperbola, tol)
     )
     assert mult == 2
     assert (p.x, p.y, p.z) == pytest.approx((2.0, 0.0, 0.0))
 
-    miss = Line3D(Point3D(0.0, 0.0, 1.0), Vector3D.unit_x())
+    miss = Line(Point(0.0, 0.0, 1.0), Vector.unit_x())
     assert miss.intersect(ellipse).is_empty()
     assert miss.intersect(parabola).is_empty()
     assert miss.intersect(hyperbola).is_empty()
 
 
 def test_circle_conic_intersections():
-    from geomcore.curves import Circle3D, Ellipse3D, Hyperbola3D, Parabola3D
+    from geomcore.curves import Circle, Ellipse, Hyperbola, Parabola
 
-    circle = Circle3D(Point3D.origin(), Vector3D.unit_z(), 2.0)
-    ellipse = Ellipse3D(Point3D.origin(), Vector3D.unit_z(), Vector3D.unit_x(), 3.0, 1.5)
+    circle = Circle(Point.origin(), Vector.unit_z(), 2.0)
+    ellipse = Ellipse(Point.origin(), Vector.unit_z(), Vector.unit_x(), 3.0, 1.5)
     hits = _hit_tuples(circle.intersect(ellipse))
     assert len(hits) == 4
     for s, p, u, mult in hits:
@@ -893,30 +893,30 @@ def test_circle_conic_intersections():
         _assert_same_point(circle.eval_point(s), p)
         _assert_same_point(ellipse.eval_point(ellipse.parameter_of(p)), p)
 
-    same = circle.intersect(Ellipse3D(Point3D.origin(), Vector3D.unit_z(), Vector3D.unit_x(), 2.0, 2.0))
+    same = circle.intersect(Ellipse(Point.origin(), Vector.unit_z(), Vector.unit_x(), 2.0, 2.0))
     assert len(same.overlaps) == 1 and same.hits == []
     # Crossing planes: the tilted ellipse meets the shared line at
     # y = ±1.5, inside the circle.
-    tilted = Ellipse3D(Point3D.origin(), Vector3D.unit_x(), Vector3D.unit_z(), 3.0, 1.5)
+    tilted = Ellipse(Point.origin(), Vector.unit_x(), Vector.unit_z(), 3.0, 1.5)
     assert circle.intersect(tilted).is_empty()
 
-    unit = Circle3D(Point3D.origin(), Vector3D.unit_z(), 1.0)
-    parabola = Parabola3D(Point3D.origin(), Vector3D.unit_z(), Vector3D.unit_x(), 1.0)
+    unit = Circle(Point.origin(), Vector.unit_z(), 1.0)
+    parabola = Parabola(Point.origin(), Vector.unit_z(), Vector.unit_x(), 1.0)
     assert len(unit.intersect(parabola).hits) == 2
 
-    big = Circle3D(Point3D.origin(), Vector3D.unit_z(), 3.0)
-    hyperbola = Hyperbola3D(Point3D.origin(), Vector3D.unit_z(), Vector3D.unit_x(), 2.0, 1.0)
+    big = Circle(Point.origin(), Vector.unit_z(), 3.0)
+    hyperbola = Hyperbola(Point.origin(), Vector.unit_z(), Vector.unit_x(), 2.0, 1.0)
     hits = big.intersect(hyperbola).hits
     assert len(hits) == 2
     assert all(h.point.x > 0.0 for h in hits)
 
 
 def test_line_torus_intersections():
-    from geomcore.curves import Line3D
+    from geomcore.curves import Line
     from geomcore.surfaces import Torus
 
-    torus = Torus(Point3D.origin(), Vector3D.unit_z(), 4.0, 1.0)
-    hits = Line3D(Point3D.origin(), Vector3D.unit_x()).intersect(torus).hits
+    torus = Torus(Point.origin(), Vector.unit_z(), 4.0, 1.0)
+    hits = Line(Point.origin(), Vector.unit_x()).intersect(torus).hits
     assert [h.curve_parameter for h in hits] == pytest.approx([-5.0, -3.0, 3.0, 5.0])
     for hit in hits:
         assert hit.multiplicity == 1
@@ -926,47 +926,47 @@ def test_line_torus_intersections():
         if hit.surface_parameters is not None:
             assert hit.surface_parameters == pytest.approx((projection.u, projection.v))
 
-    (hit,) = Line3D(Point3D(0.0, 5.0, 0.0), Vector3D.unit_x()).intersect(torus).hits
+    (hit,) = Line(Point(0.0, 5.0, 0.0), Vector.unit_x()).intersect(torus).hits
     assert hit.curve_parameter == pytest.approx(0.0)
     assert hit.multiplicity == 2
 
-    assert Line3D(Point3D(0.0, 6.0, 0.0), Vector3D.unit_x()).intersect(torus).is_empty()
+    assert Line(Point(0.0, 6.0, 0.0), Vector.unit_x()).intersect(torus).is_empty()
 
 
 def test_ellipse_ellipse_intersections():
-    from geomcore.curves import Ellipse3D
+    from geomcore.curves import Ellipse
 
-    e1 = Ellipse3D(Point3D.origin(), Vector3D.unit_z(), Vector3D.unit_x(), 3.0, 1.5)
-    e2 = Ellipse3D(Point3D(0.5, 0.0, 0.0), Vector3D.unit_z(), Vector3D.unit_x(), 2.0, 2.0)
+    e1 = Ellipse(Point.origin(), Vector.unit_z(), Vector.unit_x(), 3.0, 1.5)
+    e2 = Ellipse(Point(0.5, 0.0, 0.0), Vector.unit_z(), Vector.unit_x(), 2.0, 2.0)
     hits = _hit_tuples(e1.intersect(e2))
     assert len(hits) == 4
     for s, p, t, _ in hits:
         assert e1.contains(p)
         assert e2.contains(p)
 
-    grazing = Ellipse3D(Point3D(5.0, 0.0, 0.0), Vector3D.unit_z(), Vector3D.unit_x(), 2.0, 2.0)
+    grazing = Ellipse(Point(5.0, 0.0, 0.0), Vector.unit_z(), Vector.unit_x(), 2.0, 2.0)
     [(s, p, t, mult)] = _hit_tuples(e1.intersect(grazing))
     assert mult == 2
     assert (p.x, p.y, p.z) == pytest.approx((3.0, 0.0, 0.0))
 
-    far = Ellipse3D(Point3D(10.0, 0.0, 0.0), Vector3D.unit_z(), Vector3D.unit_x(), 3.0, 1.5)
+    far = Ellipse(Point(10.0, 0.0, 0.0), Vector.unit_z(), Vector.unit_x(), 3.0, 1.5)
     assert e1.intersect(far).is_empty()
     assert len(e1.intersect(e1).overlaps) == 1
     # Crossing planes: both pass through (0, ±1.5, 0).
-    tilted = Ellipse3D(Point3D.origin(), Vector3D.unit_x(), Vector3D.unit_z(), 3.0, 1.5)
+    tilted = Ellipse(Point.origin(), Vector.unit_x(), Vector.unit_z(), 3.0, 1.5)
     hits = _hit_tuples(e1.intersect(tilted))
     assert sorted(p.y for _, p, _, _ in hits) == pytest.approx([-1.5, 1.5])
-    lifted = Ellipse3D(Point3D(0.0, 0.0, 1.0), Vector3D.unit_z(), Vector3D.unit_x(), 3.0, 1.5)
+    lifted = Ellipse(Point(0.0, 0.0, 1.0), Vector.unit_z(), Vector.unit_x(), 3.0, 1.5)
     assert e1.intersect(lifted).is_empty()
 
 
 def test_conic_conic_intersections():
-    from geomcore.curves import Ellipse3D, Hyperbola3D, Parabola3D
+    from geomcore.curves import Ellipse, Hyperbola, Parabola
 
-    o, z, x = Point3D.origin(), Vector3D.unit_z(), Vector3D.unit_x()
-    ellipse = Ellipse3D(o, z, x, 3.0, 2.0)
-    hyperbola = Hyperbola3D(o, z, x, 1.0, 0.5)
-    parabola = Parabola3D(o, z, x, 1.0)
+    o, z, x = Point.origin(), Vector.unit_z(), Vector.unit_x()
+    ellipse = Ellipse(o, z, x, 3.0, 2.0)
+    hyperbola = Hyperbola(o, z, x, 1.0, 0.5)
+    parabola = Parabola(o, z, x, 1.0)
     # The branch x > 0 meets the ellipse at (√153/5, ±√128/10).
     hits = _hit_tuples(ellipse.intersect(hyperbola))
     hx, hy = math.sqrt(153) / 5, math.sqrt(128) / 10
@@ -976,8 +976,8 @@ def test_conic_conic_intersections():
         (ellipse, hyperbola),
         (ellipse, parabola),
         (parabola, hyperbola),
-        (parabola, Parabola3D(Point3D(2.0, 0.0, 0.0), z, Vector3D(-1.0, 0.0, 0.0), 1.0)),
-        (hyperbola, Hyperbola3D(Point3D(0.0, -2.0, 0.0), z, Vector3D.unit_y(), 1.0, 1.0)),
+        (parabola, Parabola(Point(2.0, 0.0, 0.0), z, Vector(-1.0, 0.0, 0.0), 1.0)),
+        (hyperbola, Hyperbola(Point(0.0, -2.0, 0.0), z, Vector.unit_y(), 1.0, 1.0)),
     ]
     for a, b in pairs:
         hits = _hit_tuples(a.intersect(b))
@@ -994,13 +994,13 @@ def test_conic_conic_intersections():
         on_a = sorted(_or_recovered(s, a, p) for s, p, _, _ in hits)
         assert on_a == pytest.approx(sorted(_or_recovered(s, a, p) for _, p, s, _ in back))
     assert len(parabola.intersect(parabola).overlaps) == 1
-    lifted = Parabola3D(Point3D(0.0, 0.0, 1.0), z, x, 1.0)
+    lifted = Parabola(Point(0.0, 0.0, 1.0), z, x, 1.0)
     assert parabola.intersect(lifted).is_empty()
 
 
 def _rigid_motion():
-    axis = Axis3D(Point3D(0.5, -1.0, 0.0), Vector3D(1.0, 2.0, 2.0))
-    return Transform.translation(Vector3D(3.0, -1.0, 2.0)).then(Transform.rotation(axis, 0.7))
+    axis = Axis(Point(0.5, -1.0, 0.0), Vector(1.0, 2.0, 2.0))
+    return Transform.translation(Vector(3.0, -1.0, 2.0)).then(Transform.rotation(axis, 0.7))
 
 
 def _or_recovered(parameter, curve, point):
@@ -1014,18 +1014,18 @@ def _assert_same_point(a, b):
 
 
 def test_curves_transformed_commute_with_eval():
-    from geomcore.curves import Ellipse3D, Hyperbola3D, Line3D, Parabola3D
+    from geomcore.curves import Ellipse, Hyperbola, Line, Parabola
 
     t = _rigid_motion()
     curves = [
-        Line3D(Point3D(1.0, -2.0, 0.5), Vector3D(1.0, 2.0, 2.0)),
-        Circle3D(Point3D(1.0, 0.0, 0.0), Vector3D.unit_z(), 2.0),
-        Ellipse3D(Point3D.origin(), Vector3D.unit_z(), Vector3D.unit_x(), 3.0, 1.5),
-        Parabola3D(Point3D.origin(), Vector3D.unit_z(), Vector3D.unit_x(), 0.5),
-        Hyperbola3D(Point3D.origin(), Vector3D.unit_z(), Vector3D.unit_x(), 2.0, 1.0),
-        BSplineCurve3D(
+        Line(Point(1.0, -2.0, 0.5), Vector(1.0, 2.0, 2.0)),
+        Circle(Point(1.0, 0.0, 0.0), Vector.unit_z(), 2.0),
+        Ellipse(Point.origin(), Vector.unit_z(), Vector.unit_x(), 3.0, 1.5),
+        Parabola(Point.origin(), Vector.unit_z(), Vector.unit_x(), 0.5),
+        Hyperbola(Point.origin(), Vector.unit_z(), Vector.unit_x(), 2.0, 1.0),
+        BSplineCurve(
             2,
-            [Point3D(0.0, 0.0, 0.0), Point3D(1.0, 2.0, 0.0), Point3D(3.0, 1.0, 1.0)],
+            [Point(0.0, 0.0, 0.0), Point(1.0, 2.0, 0.0), Point(3.0, 1.0, 1.0)],
             [0.0, 1.0],
             [3, 3],
             False,
@@ -1043,11 +1043,11 @@ def test_surfaces_transformed_commute_with_eval():
 
     t = _rigid_motion()
     surfaces = [
-        Plane(Point3D(0.0, 0.0, 1.0), Vector3D(0.0, 1.0, 1.0)),
-        Cylinder(Point3D.origin(), Vector3D.unit_z(), 2.0),
-        Cone(Point3D.origin(), Vector3D.unit_z(), 0.4, 1.0),
-        Sphere(Point3D(1.0, 2.0, 3.0), 2.0),
-        Torus(Point3D.origin(), Vector3D.unit_z(), 3.0, 1.0),
+        Plane(Point(0.0, 0.0, 1.0), Vector(0.0, 1.0, 1.0)),
+        Cylinder(Point.origin(), Vector.unit_z(), 2.0),
+        Cone(Point.origin(), Vector.unit_z(), 0.4, 1.0),
+        Sphere(Point(1.0, 2.0, 3.0), 2.0),
+        Torus(Point.origin(), Vector.unit_z(), 3.0, 1.0),
         _bilinear_patch(),
     ]
     for surface in surfaces:
@@ -1058,101 +1058,101 @@ def test_surfaces_transformed_commute_with_eval():
 
 
 def test_transformed_scales_radius_and_rejects_collapse():
-    cylinder = Cylinder(Point3D.origin(), Vector3D.unit_z(), 2.0)
-    assert cylinder.transformed(Transform.scaling(Point3D.origin(), 3.0)).radius() == pytest.approx(6.0)
+    cylinder = Cylinder(Point.origin(), Vector.unit_z(), 2.0)
+    assert cylinder.transformed(Transform.scaling(Point.origin(), 3.0)).radius() == pytest.approx(6.0)
     with pytest.raises(ValueError):
-        cylinder.transformed(Transform.scaling(Point3D.origin(), 0.0))
+        cylinder.transformed(Transform.scaling(Point.origin(), 0.0))
 
 
 def test_eval_derivative_rejects_unsupported_orders():
-    circle = Circle3D(Point3D.origin(), Vector3D.unit_z(), 2.0)
+    circle = Circle(Point.origin(), Vector.unit_z(), 2.0)
     with pytest.raises(ValueError):
         circle.eval_derivative(0.0, 0)
     assert circle.eval_derivative(0.0, 5).components()[1] == pytest.approx(2.0)
-    curve = BSplineCurve3D.interpolate(
-        [Point3D(0.0, 0.0, 0.0), Point3D(1.0, 1.0, 0.0), Point3D(2.0, 0.0, 0.0)], 2
+    curve = BSplineCurve.interpolate(
+        [Point(0.0, 0.0, 0.0), Point(1.0, 1.0, 0.0), Point(2.0, 0.0, 0.0)], 2
     )
     with pytest.raises(ValueError):
         curve.eval_derivative(0.5, 3)
-    cylinder = Cylinder(Point3D.origin(), Vector3D.unit_z(), 1.0)
+    cylinder = Cylinder(Point.origin(), Vector.unit_z(), 1.0)
     for du, dv in [(0, 0), (3, 0), (2, 1)]:
         with pytest.raises(ValueError):
             cylinder.eval_derivative(0.0, 0.0, du, dv)
 
 
 def test_conic_projection_of_non_finite_point_is_nan():
-    from geomcore.curves import Ellipse3D, Hyperbola3D, Parabola3D
+    from geomcore.curves import Ellipse, Hyperbola, Parabola
 
-    o, z, x = Point3D.origin(), Vector3D.unit_z(), Vector3D.unit_x()
-    for curve in [Ellipse3D(o, z, x, 3.0, 2.0), Hyperbola3D(o, z, x, 3.0, 2.0), Parabola3D(o, z, x, 1.0)]:
-        for p in [Point3D(math.nan, 0.0, 0.0), Point3D(math.inf, 0.0, 0.0)]:
+    o, z, x = Point.origin(), Vector.unit_z(), Vector.unit_x()
+    for curve in [Ellipse(o, z, x, 3.0, 2.0), Hyperbola(o, z, x, 3.0, 2.0), Parabola(o, z, x, 1.0)]:
+        for p in [Point(math.nan, 0.0, 0.0), Point(math.inf, 0.0, 0.0)]:
             projection = curve.project_point(p)
             assert math.isnan(projection.parameter) and math.isnan(projection.distance)
             assert curve.extrema(p) == []
 
 
 def test_trimmed_curve_segment_and_arc():
-    from geomcore.curves import Line3D, TrimmedCurve3D
+    from geomcore.curves import Line, TrimmedCurve
 
-    segment = TrimmedCurve3D.segment(Point3D.origin(), Point3D(3.0, 4.0, 0.0))
+    segment = TrimmedCurve.segment(Point.origin(), Point(3.0, 4.0, 0.0))
     assert segment.bounds() == (0.0, 5.0)
-    assert isinstance(segment.basis(), Line3D)
+    assert isinstance(segment.basis(), Line)
     assert segment.end_point().y == pytest.approx(4.0)
     # Beyond the end: the projection clamps to it.
-    projection = segment.project_point(Point3D(6.0, 8.0, 0.0))
+    projection = segment.project_point(Point(6.0, 8.0, 0.0))
     assert projection.parameter == pytest.approx(5.0)
     assert projection.distance == pytest.approx(5.0)
-    assert not segment.contains(Point3D(6.0, 8.0, 0.0))
+    assert not segment.contains(Point(6.0, 8.0, 0.0))
 
     # The right half of the unit circle, across the seam at angle 0.
-    circle = Circle3D(Point3D.origin(), Vector3D.unit_z(), 1.0)
-    arc = TrimmedCurve3D(circle, 1.5 * math.pi, 2.5 * math.pi)
-    assert isinstance(arc.basis(), Circle3D)
-    projection = arc.project_point(Point3D(3.0, 0.0, 0.0))
+    circle = Circle(Point.origin(), Vector.unit_z(), 1.0)
+    arc = TrimmedCurve(circle, 1.5 * math.pi, 2.5 * math.pi)
+    assert isinstance(arc.basis(), Circle)
+    projection = arc.project_point(Point(3.0, 0.0, 0.0))
     assert projection.parameter == pytest.approx(2.0 * math.pi)
     assert projection.distance == pytest.approx(2.0)
-    projection = arc.project_point(Point3D(-3.0, 0.1, 0.0))
+    projection = arc.project_point(Point(-3.0, 0.1, 0.0))
     assert projection.parameter == pytest.approx(2.5 * math.pi)
-    assert arc.contains(Point3D(0.0, 1.0, 0.0))
-    assert not arc.contains(Point3D(-1.0, 0.0, 0.0))
-    assert arc.extrema(Point3D(3.0, 0.0, 0.0))[0].parameter == pytest.approx(2.0 * math.pi)
+    assert arc.contains(Point(0.0, 1.0, 0.0))
+    assert not arc.contains(Point(-1.0, 0.0, 0.0))
+    assert arc.extrema(Point(3.0, 0.0, 0.0))[0].parameter == pytest.approx(2.0 * math.pi)
 
 
 def test_trimmed_curve_rejects_bad_ranges():
-    from geomcore.curves import Line3D, TrimmedCurve3D
+    from geomcore.curves import Line, TrimmedCurve
 
-    circle = Circle3D(Point3D.origin(), Vector3D.unit_z(), 1.0)
+    circle = Circle(Point.origin(), Vector.unit_z(), 1.0)
     for first, last in [(1.0, 1.0), (2.0, 1.0), (0.0, 7.0), (math.nan, 1.0)]:
         with pytest.raises(ValueError):
-            TrimmedCurve3D(circle, first, last)
+            TrimmedCurve(circle, first, last)
     with pytest.raises(ValueError):
-        TrimmedCurve3D.segment(Point3D.origin(), Point3D.origin())
+        TrimmedCurve.segment(Point.origin(), Point.origin())
     with pytest.raises(TypeError):
-        TrimmedCurve3D(TrimmedCurve3D(Line3D(Point3D.origin(), Vector3D.unit_x()), 0.0, 1.0), 0.0, 1.0)
-    curve = BSplineCurve3D(1, [Point3D.origin(), Point3D(2.0, 0.0, 0.0)], [0.0, 1.0], [2, 2], False)
+        TrimmedCurve(TrimmedCurve(Line(Point.origin(), Vector.unit_x()), 0.0, 1.0), 0.0, 1.0)
+    curve = BSplineCurve(1, [Point.origin(), Point(2.0, 0.0, 0.0)], [0.0, 1.0], [2, 2], False)
     with pytest.raises(ValueError):
-        TrimmedCurve3D(curve, -0.5, 0.5)
+        TrimmedCurve(curve, -0.5, 0.5)
     with pytest.raises(ValueError):
-        TrimmedCurve3D(curve, 0.0, 1.0).eval_derivative(0.5, 3)
+        TrimmedCurve(curve, 0.0, 1.0).eval_derivative(0.5, 3)
 
 
 def test_intersect_searches_only_the_range():
     from geomcore import curve_curve_extrema
-    from geomcore.curves import TrimmedCurve3D
+    from geomcore.curves import TrimmedCurve
 
-    segment = TrimmedCurve3D.segment(Point3D(-2.0, 0.5, 0.0), Point3D(2.0, 0.5, 0.0))
-    circle = Circle3D(Point3D.origin(), Vector3D.unit_z(), 1.0)
+    segment = TrimmedCurve.segment(Point(-2.0, 0.5, 0.0), Point(2.0, 0.5, 0.0))
+    circle = Circle(Point.origin(), Vector.unit_z(), 1.0)
     assert len(segment.intersect(circle).hits) == 2
-    quarter = TrimmedCurve3D(circle, 0.0, math.pi / 2)
+    quarter = TrimmedCurve(circle, 0.0, math.pi / 2)
     (hit,) = segment.intersect(quarter).hits
     assert hit.point.x > 0.0
 
-    a = TrimmedCurve3D.segment(Point3D.origin(), Point3D(1.0, 0.0, 0.0))
-    b = TrimmedCurve3D.segment(Point3D(3.0, -1.0, 1.0), Point3D(3.0, 1.0, 1.0))
+    a = TrimmedCurve.segment(Point.origin(), Point(1.0, 0.0, 0.0))
+    b = TrimmedCurve.segment(Point(3.0, -1.0, 1.0), Point(3.0, 1.0, 1.0))
     assert curve_curve_extrema(a, b).minima[0].distance == pytest.approx(math.sqrt(5.0))
 
-    sphere = Sphere(Point3D.origin(), 1.0)
-    half = TrimmedCurve3D.segment(Point3D.origin(), Point3D(2.0, 0.0, 0.0))
+    sphere = Sphere(Point.origin(), 1.0)
+    half = TrimmedCurve.segment(Point.origin(), Point(2.0, 0.0, 0.0))
     (hit,) = half.intersect(sphere).hits
     assert hit.curve_parameter == pytest.approx(1.0)
 
@@ -1173,25 +1173,25 @@ def test_trimmed_curve_2d():
     assert isinstance(segment.basis(), Line2D)
     assert segment.bounds() == (0.0, 2.0)
     with pytest.raises(TypeError):
-        TrimmedCurve2D(Circle3D(Point3D.origin(), Vector3D.unit_z(), 1.0), 0.0, 1.0)
+        TrimmedCurve2D(Circle(Point.origin(), Vector.unit_z(), 1.0), 0.0, 1.0)
 
 
 def _intersect_shapes():
-    from geomcore.curves import Circle2D, Ellipse3D, Hyperbola3D, Line3D, Parabola3D
+    from geomcore.curves import Circle2D, Ellipse, Hyperbola, Line, Parabola
     from geomcore.surfaces import Cone, Plane, Torus
 
-    o, z, x = Point3D.origin(), Vector3D.unit_z(), Vector3D.unit_x()
+    o, z, x = Point.origin(), Vector.unit_z(), Vector.unit_x()
     return [
-        Plane(Point3D(0.0, 0.0, 0.5), z),
+        Plane(Point(0.0, 0.0, 0.5), z),
         Cylinder(o, z, 2.0),
         Cone(o, z, 0.4, 2.0),
         Sphere(o, 3.0),
         Torus(o, z, 4.0, 1.0),
-        Line3D(Point3D(0.0, -0.5, 0.25), x),
-        Circle3D(o, z, 2.5),
-        Ellipse3D(o, z, x, 3.0, 1.5),
-        Parabola3D(o, z, x, 1.0),
-        Hyperbola3D(o, z, x, 2.0, 1.0),
+        Line(Point(0.0, -0.5, 0.25), x),
+        Circle(o, z, 2.5),
+        Ellipse(o, z, x, 3.0, 1.5),
+        Parabola(o, z, x, 1.0),
+        Hyperbola(o, z, x, 2.0, 1.0),
         Line2D(Point2D(0.0, 0.5), Vector2D(1.0, 0.0)),
         Circle2D(Point2D.origin(), 1.0),
     ]
@@ -1239,8 +1239,8 @@ def test_intersect_gives_the_same_result_in_both_orders():
 def test_intersect_rejects_mixed_dimensions_and_foreign_objects():
     from geomcore.curves import Circle2D
 
-    o, z = Point3D.origin(), Vector3D.unit_z()
-    circle = Circle3D(o, z, 2.5)
+    o, z = Point.origin(), Vector.unit_z()
+    circle = Circle(o, z, 2.5)
     for a, b in [
         (circle, Circle2D(Point2D.origin(), 1.0)),
         (Sphere(o, 1.0), Circle2D(Point2D.origin(), 1.0)),
@@ -1258,7 +1258,7 @@ def _xyz(p):
 
 
 def test_discretize_circle_and_bspline():
-    circle = Circle3D(Point3D.origin(), Vector3D.unit_z(), 2.0)
+    circle = Circle(Point.origin(), Vector.unit_z(), 2.0)
     # 2(1 - cos(pi/8)) = 0.152...: eight segments meet 0.16.
     d = circle.discretize(0.16)
     assert len(d.points) == len(d.parameters) == 9
@@ -1270,9 +1270,9 @@ def test_discretize_circle_and_bspline():
     # A tighter angle limit asks for more points.
     assert len(circle.discretize(0.16, max_angle_deviation=0.1).points) == 33
 
-    curve = BSplineCurve3D(
+    curve = BSplineCurve(
         2,
-        [Point3D(0.0, 0.0, 0.0), Point3D(1.0, 2.0, 0.0), Point3D(2.0, 0.0, 0.0)],
+        [Point(0.0, 0.0, 0.0), Point(1.0, 2.0, 0.0), Point(2.0, 0.0, 0.0)],
         [0.0, 1.0],
         [3, 3],
         False,
@@ -1291,23 +1291,23 @@ def test_discretize_circle_and_bspline():
 
 
 def test_discretize_ellipse_and_trimmed_curves():
-    from geomcore.curves import Ellipse3D, Parabola3D, TrimmedCurve3D
+    from geomcore.curves import Ellipse, Parabola, TrimmedCurve
 
     # A round ellipse is a circle: 2(1 - cos(pi/8)) = 0.152... gives eight segments.
-    round_ellipse = Ellipse3D(Point3D.origin(), Vector3D.unit_z(), Vector3D.unit_x(), 2.0, 2.0)
+    round_ellipse = Ellipse(Point.origin(), Vector.unit_z(), Vector.unit_x(), 2.0, 2.0)
     d = round_ellipse.discretize(0.16)
     assert len(d.points) == 9
     assert _xyz(d.points[0]) == _xyz(d.points[-1])
-    flat = Ellipse3D(Point3D.origin(), Vector3D.unit_z(), Vector3D.unit_x(), 5.0, 0.5)
+    flat = Ellipse(Point.origin(), Vector.unit_z(), Vector.unit_x(), 5.0, 0.5)
     d = flat.discretize(1e-3, max_angle_deviation=0.1)
     assert all(dev <= 1e-3 for dev in d.chord_deviations)
     assert all(angle <= 0.1 for angle in d.angle_deviations)
     # A segment is its own chord.
-    segment = TrimmedCurve3D.segment(Point3D(0.0, 0.0, 0.0), Point3D(1.0, 2.0, 2.0))
+    segment = TrimmedCurve.segment(Point(0.0, 0.0, 0.0), Point(1.0, 2.0, 2.0))
     d = segment.discretize(1e-7, max_angle_deviation=1e-9)
     assert [_xyz(p) for p in d.points] == [(0.0, 0.0, 0.0), (1.0, 2.0, 2.0)]
     assert d.chord_deviations == [0.0]
-    arc = TrimmedCurve3D(Parabola3D(Point3D.origin(), Vector3D.unit_z(), Vector3D.unit_x(), 0.5), -2.0, 3.0)
+    arc = TrimmedCurve(Parabola(Point.origin(), Vector.unit_z(), Vector.unit_x(), 0.5), -2.0, 3.0)
     d = arc.discretize(1e-3)
     assert d.parameters[0] == -2.0 and d.parameters[-1] == 3.0
     assert all(dev <= 1e-3 for dev in d.chord_deviations)
@@ -1343,9 +1343,9 @@ def test_discretize_2d_curves():
 
 
 def _cubic_curve():
-    return BSplineCurve3D(
+    return BSplineCurve(
         3,
-        [Point3D(0.0, 0.0, 0.0), Point3D(1.0, 2.0, 0.0), Point3D(3.0, 2.0, 1.0), Point3D(4.0, 0.0, 1.0)],
+        [Point(0.0, 0.0, 0.0), Point(1.0, 2.0, 0.0), Point(3.0, 2.0, 1.0), Point(4.0, 0.0, 1.0)],
         [0.0, 1.0],
         [4, 4],
         False,
@@ -1359,9 +1359,9 @@ def test_bspline_curve_getters():
     assert curve.weights() is None
     assert curve.knots() == [0.0, 1.0]
     assert curve.multiplicities() == [4, 4]
-    rational = BSplineCurve3D.new_rational(
+    rational = BSplineCurve.new_rational(
         2,
-        [Point3D(1.0, 0.0, 0.0), Point3D(1.0, 1.0, 0.0), Point3D(0.0, 1.0, 0.0)],
+        [Point(1.0, 0.0, 0.0), Point(1.0, 1.0, 0.0), Point(0.0, 1.0, 0.0)],
         [1.0, math.sqrt(2) / 2, 1.0],
         [0.0, 1.0],
         [3, 3],
@@ -1413,9 +1413,9 @@ def test_bspline_curve_split_extract_reverse():
 
 
 def test_bspline_curve_bezier_pieces_and_length():
-    curve = BSplineCurve3D(
+    curve = BSplineCurve(
         3,
-        [Point3D(float(i), float(i % 2), 0.0) for i in range(6)],
+        [Point(float(i), float(i % 2), 0.0) for i in range(6)],
         [0.0, 1.0, 2.0, 3.0],
         [4, 1, 1, 4],
         False,
@@ -1424,31 +1424,31 @@ def test_bspline_curve_bezier_pieces_and_length():
     assert len(pieces) == 3
     assert pieces[1].bounds() == pytest.approx((1.0, 2.0))
     assert pieces[1].eval_point(1.5).distance(curve.eval_point(1.5)) < 1e-12
-    segment = BSplineCurve3D(
-        1, [Point3D.origin(), Point3D(2.0, 0.0, 0.0)], [0.0, 1.0], [2, 2], False
+    segment = BSplineCurve(
+        1, [Point.origin(), Point(2.0, 0.0, 0.0)], [0.0, 1.0], [2, 2], False
     )
     assert segment.length(1e-9) == pytest.approx(2.0)
     assert _cubic_curve().length(1e-9) == pytest.approx(5.39065, abs=1e-4)
 
 
 def test_bspline_curve_approximate_within():
-    points = [Point3D(float(i), 0.1 * float(i), 0.0) for i in range(6)]
-    fit = BSplineCurve3D.approximate_within(points, 2, 1e-6)
+    points = [Point(float(i), 0.1 * float(i), 0.0) for i in range(6)]
+    fit = BSplineCurve.approximate_within(points, 2, 1e-6)
     for p in points:
         assert fit.contains(p, Tolerance(1e-3, 1e-9, 1e-9))
 
 
 def test_conic_to_bspline():
-    from geomcore.curves import Ellipse3D, TrimmedCurve3D
+    from geomcore.curves import Ellipse, TrimmedCurve
 
-    circle = Circle3D(Point3D.origin(), Vector3D.unit_z(), 2.0)
+    circle = Circle(Point.origin(), Vector.unit_z(), 2.0)
     spline = circle.to_bspline()
     assert spline.is_periodic()
     assert spline.eval_point(math.pi / 2).distance(circle.eval_point(math.pi / 2)) < 1e-12
-    ellipse = Ellipse3D(Point3D.origin(), Vector3D.unit_z(), Vector3D.unit_x(), 3.0, 1.0)
+    ellipse = Ellipse(Point.origin(), Vector.unit_z(), Vector.unit_x(), 3.0, 1.0)
     e_spline = ellipse.to_bspline()
     assert e_spline.eval_point(0.0).distance(ellipse.eval_point(0.0)) < 1e-12
-    arc = TrimmedCurve3D(circle, 0.0, math.pi)
+    arc = TrimmedCurve(circle, 0.0, math.pi)
     arc_spline = arc.to_bspline()
     assert arc_spline.bounds() == pytest.approx((0.0, math.pi))
     # The B-spline parameter matches the angle at the knots and each
@@ -1456,55 +1456,55 @@ def test_conic_to_bspline():
     assert arc_spline.eval_point(math.pi / 2).distance(circle.eval_point(math.pi / 2)) < 1e-12
     for u in (0.0, 0.3, 1.0, 2.0, math.pi):
         assert circle.contains(arc_spline.eval_point(u))
-    segment = TrimmedCurve3D.segment(Point3D.origin(), Point3D(1.0, 0.0, 0.0))
+    segment = TrimmedCurve.segment(Point.origin(), Point(1.0, 0.0, 0.0))
     seg_spline = segment.to_bspline()
-    assert seg_spline.eval_point(0.5).distance(Point3D(0.5, 0.0, 0.0)) < 1e-12
+    assert seg_spline.eval_point(0.5).distance(Point(0.5, 0.0, 0.0)) < 1e-12
 
 
 def test_curve_bounds_and_boxes():
-    from geomcore.curves import Ellipse3D, Hyperbola3D, Line3D, Parabola3D, TrimmedCurve3D
+    from geomcore.curves import Ellipse, Hyperbola, Line, Parabola, TrimmedCurve
 
-    line = Line3D(Point3D.origin(), Vector3D.unit_x())
+    line = Line(Point.origin(), Vector.unit_x())
     assert line.bounds() == (float("-inf"), float("inf"))
     assert line.bounding_box() is None
-    circle = Circle3D(Point3D.origin(), Vector3D.unit_z(), 2.0)
+    circle = Circle(Point.origin(), Vector.unit_z(), 2.0)
     assert circle.bounds() == pytest.approx((0.0, math.tau))
     box = circle.bounding_box()
     assert (box.min().x, box.max().x) == pytest.approx((-2.0, 2.0))
     assert (box.min().y, box.max().y) == pytest.approx((-2.0, 2.0))
-    assert box.encloses(Point3D(1.0, 1.0, 0.0))
-    assert not box.encloses(Point3D(3.0, 0.0, 0.0))
-    assert Parabola3D(Point3D.origin(), Vector3D.unit_z(), Vector3D.unit_x(), 1.0).bounding_box() is None
-    assert Hyperbola3D(
-        Point3D.origin(), Vector3D.unit_z(), Vector3D.unit_x(), 1.0, 1.0
+    assert box.encloses(Point(1.0, 1.0, 0.0))
+    assert not box.encloses(Point(3.0, 0.0, 0.0))
+    assert Parabola(Point.origin(), Vector.unit_z(), Vector.unit_x(), 1.0).bounding_box() is None
+    assert Hyperbola(
+        Point.origin(), Vector.unit_z(), Vector.unit_x(), 1.0, 1.0
     ).bounding_box() is None
-    assert Ellipse3D(
-        Point3D.origin(), Vector3D.unit_z(), Vector3D.unit_x(), 2.0, 1.0
+    assert Ellipse(
+        Point.origin(), Vector.unit_z(), Vector.unit_x(), 2.0, 1.0
     ).bounding_box() is not None
     curve = _cubic_curve()
     cbox = curve.bounding_box()
     assert (cbox.min().x, cbox.max().x) == pytest.approx((0.0, 4.0))
-    trimmed = TrimmedCurve3D(circle, 0.0, math.pi / 2)
+    trimmed = TrimmedCurve(circle, 0.0, math.pi / 2)
     tbox = trimmed.bounding_box()
-    assert tbox is not None and tbox.encloses(Point3D(2.0, 0.0, 0.0))
+    assert tbox is not None and tbox.encloses(Point(2.0, 0.0, 0.0))
 
 
 def test_bounding_box_ops():
-    box = BoundingBox3D(Point3D(1.0, 0.0, 5.0), Point3D(0.0, 2.0, 3.0))
+    box = BoundingBox(Point(1.0, 0.0, 5.0), Point(0.0, 2.0, 3.0))
     assert (box.min().x, box.min().y, box.min().z) == (0.0, 0.0, 3.0)
     assert (box.max().x, box.max().y, box.max().z) == (1.0, 2.0, 5.0)
     assert (box.center().x, box.center().y, box.center().z) == (0.5, 1.0, 4.0)
     assert box.diagonal().components() == (1.0, 2.0, 2.0)
-    other = BoundingBox3D(Point3D(2.0, -1.0, 0.0), Point3D(3.0, 0.0, 0.5))
+    other = BoundingBox(Point(2.0, -1.0, 0.0), Point(3.0, 0.0, 0.5))
     both = box.union(other)
     assert (both.min().x, both.max().x) == (0.0, 3.0)
     grown = box.enlarged(0.5)
     assert grown.min().x == pytest.approx(-0.5)
     assert box.overlaps(other) or not box.overlaps(other)
-    assert not box.overlaps(BoundingBox3D(Point3D(5.0, 5.0, 5.0), Point3D(6.0, 6.0, 6.0)))
-    assert BoundingBox3D.from_points([Point3D(1.0, 2.0, 3.0)]).min().x == 1.0
+    assert not box.overlaps(BoundingBox(Point(5.0, 5.0, 5.0), Point(6.0, 6.0, 6.0)))
+    assert BoundingBox.from_points([Point(1.0, 2.0, 3.0)]).min().x == 1.0
     with pytest.raises(ValueError):
-        BoundingBox3D.from_points([])
+        BoundingBox.from_points([])
 
 
 def test_surface_getters_and_uv_bounds():
@@ -1516,13 +1516,13 @@ def test_surface_getters_and_uv_bounds():
     assert surface.u_knots() == [0.0, 1.0] and surface.v_knots() == [0.0, 1.0]
     assert surface.u_multiplicities() == [2, 2]
     assert surface.u_bounds() == (0.0, 1.0) and surface.v_bounds() == (0.0, 1.0)
-    sphere = Sphere(Point3D.origin(), 2.0)
+    sphere = Sphere(Point.origin(), 2.0)
     assert sphere.u_bounds() == pytest.approx((0.0, math.tau))
     assert sphere.bounding_box().max().x == pytest.approx(2.0)
     assert sphere.bounding_box().min().x == pytest.approx(-2.0)
     from geomcore.surfaces import Plane
 
-    plane = Plane(Point3D.origin(), Vector3D.unit_z())
+    plane = Plane(Point.origin(), Vector.unit_z())
     assert plane.bounding_box() is None
     assert plane.u_bounds() == (float("-inf"), float("inf"))
 
@@ -1565,7 +1565,7 @@ def test_surface_split_extract_reverse_and_patches():
 
     net = BSplineSurface(
         2, 2,
-        [[Point3D(float(i), float(j), float(i * j)) for j in range(3)] for i in range(4)],
+        [[Point(float(i), float(j), float(i * j)) for j in range(3)] for i in range(4)],
         [0.0, 1.0, 2.0], [3, 1, 3], [0.0, 1.0], [3, 3], False, False,
     )
     patches = net.to_bezier_patches()
@@ -1579,7 +1579,7 @@ def test_surface_approximate():
     from geomcore.surfaces import BSplineSurface
 
     grid = [
-        [Point3D(x, y, math.sin(3 * x) * math.cos(2 * y)) for j in range(8) for y in [j / 7]]
+        [Point(x, y, math.sin(3 * x) * math.cos(2 * y)) for j in range(8) for y in [j / 7]]
         for i in range(8) for x in [i / 7]
     ]
     fit = BSplineSurface.approximate(grid, 3, 3, 5, 5)
@@ -1592,22 +1592,22 @@ def test_surface_approximate():
 def test_surface_to_bspline_conversions():
     from geomcore.surfaces import BSplineSurface, Cone, Cylinder, Plane, Torus
 
-    plane = Plane(Point3D.origin(), Vector3D.unit_z())
+    plane = Plane(Point.origin(), Vector.unit_z())
     patch = plane.to_bspline_patch((0.0, 1.0), (0.0, 2.0))
     assert isinstance(patch, BSplineSurface)
     assert patch.eval_point(0.5, 1.0).distance(plane.eval_point(0.5, 1.0)) < 1e-12
-    cylinder = Cylinder(Point3D.origin(), Vector3D.unit_z(), 2.0)
+    cylinder = Cylinder(Point.origin(), Vector.unit_z(), 2.0)
     tube = cylinder.to_bspline_patch((0.0, math.tau), (-1.0, 4.0))
     assert tube.is_u_periodic() and not tube.is_v_periodic()
     assert tube.eval_point(math.pi / 2, 3.0).distance(
         cylinder.eval_point(math.pi / 2, 3.0)) < 1e-12
-    sphere = Sphere(Point3D.origin(), 2.0)
+    sphere = Sphere(Point.origin(), 2.0)
     ball = sphere.to_bspline()
     assert ball.eval_point(0.0, 0.0).distance(sphere.eval_point(0.0, 0.0)) < 1e-9
-    torus = Torus(Point3D.origin(), Vector3D.unit_z(), 3.0, 1.0)
+    torus = Torus(Point.origin(), Vector.unit_z(), 3.0, 1.0)
     donut = torus.to_bspline()
     assert donut.eval_point(0.0, 0.0).distance(torus.eval_point(0.0, 0.0)) < 1e-9
-    cone = Cone(Point3D.origin(), Vector3D.unit_z(), 0.5, 1.0)
+    cone = Cone(Point.origin(), Vector.unit_z(), 0.5, 1.0)
     assert cone.to_bspline_patch((0.0, 1.0), (0.0, 2.0)).eval_point(
         0.5, 1.0).distance(cone.eval_point(0.5, 1.0)) < 1e-9
     with pytest.raises(ValueError):
@@ -1618,12 +1618,12 @@ def _iso_surfaces():
     from geomcore.surfaces import Cone, Plane, Torus
 
     return [
-        Plane(Point3D(1.0, 2.0, 3.0), Vector3D(0.0, 0.0, 1.0)),
-        Cylinder(Point3D.origin(), Vector3D.unit_z(), 2.0),
-        Cone(Point3D.origin(), Vector3D.unit_z(), 0.4, 1.0),
-        Sphere(Point3D(1.0, 0.0, 0.0), 3.0),
-        Torus(Point3D.origin(), Vector3D.unit_z(), 5.0, 1.5),
-        Sphere(Point3D.origin(), 2.0).to_bspline_patch((0.0, 3.0), (-1.0, 1.0)),
+        Plane(Point(1.0, 2.0, 3.0), Vector(0.0, 0.0, 1.0)),
+        Cylinder(Point.origin(), Vector.unit_z(), 2.0),
+        Cone(Point.origin(), Vector.unit_z(), 0.4, 1.0),
+        Sphere(Point(1.0, 0.0, 0.0), 3.0),
+        Torus(Point.origin(), Vector.unit_z(), 5.0, 1.5),
+        Sphere(Point.origin(), 2.0).to_bspline_patch((0.0, 3.0), (-1.0, 1.0)),
     ]
 
 
@@ -1648,25 +1648,25 @@ def test_iso_curves_are_the_surface_with_one_parameter_fixed(index):
 
 
 def test_iso_curves_have_the_kernel_types():
-    from geomcore.curves import Line3D
+    from geomcore.curves import Line
 
     plane, cylinder, cone, sphere, torus, patch = _iso_surfaces()
-    assert isinstance(plane.u_iso(0.0), Line3D) and isinstance(plane.v_iso(0.0), Line3D)
-    assert isinstance(cylinder.u_iso(0.0), Line3D) and isinstance(cylinder.v_iso(0.0), Circle3D)
-    assert isinstance(cone.u_iso(0.0), Line3D) and isinstance(cone.v_iso(0.0), Circle3D)
-    assert isinstance(sphere.u_iso(0.0), Circle3D) and isinstance(sphere.v_iso(0.0), Circle3D)
-    assert isinstance(torus.u_iso(0.0), Circle3D) and isinstance(torus.v_iso(0.0), Circle3D)
-    assert isinstance(patch.u_iso(1.0), BSplineCurve3D) and isinstance(patch.v_iso(0.0), BSplineCurve3D)
+    assert isinstance(plane.u_iso(0.0), Line) and isinstance(plane.v_iso(0.0), Line)
+    assert isinstance(cylinder.u_iso(0.0), Line) and isinstance(cylinder.v_iso(0.0), Circle)
+    assert isinstance(cone.u_iso(0.0), Line) and isinstance(cone.v_iso(0.0), Circle)
+    assert isinstance(sphere.u_iso(0.0), Circle) and isinstance(sphere.v_iso(0.0), Circle)
+    assert isinstance(torus.u_iso(0.0), Circle) and isinstance(torus.v_iso(0.0), Circle)
+    assert isinstance(patch.u_iso(1.0), BSplineCurve) and isinstance(patch.v_iso(0.0), BSplineCurve)
 
 
 def test_iso_curve_errors_are_value_errors():
     with pytest.raises(ValueError):
-        Sphere(Point3D.origin(), 1.0).u_iso(math.nan)
+        Sphere(Point.origin(), 1.0).u_iso(math.nan)
     with pytest.raises(ValueError):
-        Sphere(Point3D.origin(), 2.0).to_bspline_patch((0.0, 3.0), (-1.0, 1.0)).u_iso(10.0)
+        Sphere(Point.origin(), 2.0).to_bspline_patch((0.0, 3.0), (-1.0, 1.0)).u_iso(10.0)
 
 
 def test_a_pole_iso_is_a_circle_of_radius_zero():
-    pole = Sphere(Point3D.origin(), 1.0).v_iso(math.pi / 2)
+    pole = Sphere(Point.origin(), 1.0).v_iso(math.pi / 2)
     assert pole.radius() == pytest.approx(0.0, abs=1e-12)
     assert pole.center().z == pytest.approx(1.0)

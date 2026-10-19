@@ -1,20 +1,20 @@
 //! Evaluation and parameter-inversion formulas for elementary analytic
 //! surfaces (plane, cylinder, cone, sphere, torus).
 //!
-//! Every surface is evaluated relative to a placement [`Frame3D`]: a local
+//! Every surface is evaluated relative to a placement [`Frame`]: a local
 //! origin and three orthonormal directions that the parametric formulas are
 //! expressed in terms of. Derivatives are keyed by `(du, dv)` with
 //! `1 <= du + dv <= 2`; combinations whose value is identically zero for the
 //! given surface (e.g. all second derivatives of a plane) return
-//! [`Vector3D::ZERO`] rather than being treated as an error.
+//! [`Vector::ZERO`] rather than being treated as an error.
 
 use crate::curve_math::analytic::wrap_to_turn;
-use crate::{Frame3D, Point3D, Vector3D};
+use crate::{Frame, Point, Vector};
 
 // ---- plane ----
 
 /// Evaluates the plane in `frame` at `(u, v)`: `origin + u*x_dir + v*y_dir`.
-pub(crate) fn plane_d0(frame: &Frame3D, u: f64, v: f64) -> Point3D {
+pub(crate) fn plane_d0(frame: &Frame, u: f64, v: f64) -> Point {
     frame.point_at(u, v, 0.0)
 }
 
@@ -22,18 +22,18 @@ pub(crate) fn plane_d0(frame: &Frame3D, u: f64, v: f64) -> Point3D {
 ///
 /// `Su = x_dir`, `Sv = y_dir`; every second derivative (`Suu`, `Svv`, `Suv`)
 /// is identically zero since the plane is linear in `u` and `v`.
-pub(crate) fn plane_derivative(frame: &Frame3D, du: u32, dv: u32) -> Vector3D {
+pub(crate) fn plane_derivative(frame: &Frame, du: u32, dv: u32) -> Vector {
     debug_assert!((1..=2).contains(&(du + dv)));
     match (du, dv) {
         (1, 0) => frame.x_direction(),
         (0, 1) => frame.y_direction(),
-        _ => Vector3D::ZERO,
+        _ => Vector::ZERO,
     }
 }
 
 /// Recovers `(u, v)` of a point on (or near) the plane: its local x/y
 /// coordinates in `frame`.
-pub(crate) fn plane_parameters(frame: &Frame3D, p: Point3D) -> (f64, f64) {
+pub(crate) fn plane_parameters(frame: &Frame, p: Point) -> (f64, f64) {
     let (x, y, _) = frame.local_coordinates(p);
     (x, y)
 }
@@ -42,7 +42,7 @@ pub(crate) fn plane_parameters(frame: &Frame3D, p: Point3D) -> (f64, f64) {
 
 /// Evaluates the cylinder of radius `r` in `frame` at `(u, v)`:
 /// `origin + r*cos(u)*x_dir + r*sin(u)*y_dir + v*z_dir`.
-pub(crate) fn cylinder_d0(frame: &Frame3D, r: f64, u: f64, v: f64) -> Point3D {
+pub(crate) fn cylinder_d0(frame: &Frame, r: f64, u: f64, v: f64) -> Point {
     let a1 = r * u.cos();
     let a2 = r * u.sin();
     frame.point_at(a1, a2, v)
@@ -54,13 +54,13 @@ pub(crate) fn cylinder_d0(frame: &Frame3D, r: f64, u: f64, v: f64) -> Point3D {
 /// `Svv` and `Suv` are identically zero (height `v` and angle `u` are
 /// independent, and `Sv` is the constant `z_dir`).
 pub(crate) fn cylinder_derivative(
-    frame: &Frame3D,
+    frame: &Frame,
     r: f64,
     u: f64,
     _v: f64,
     du: u32,
     dv: u32,
-) -> Vector3D {
+) -> Vector {
     debug_assert!((1..=2).contains(&(du + dv)));
     let a1 = r * u.cos();
     let a2 = r * u.sin();
@@ -70,13 +70,13 @@ pub(crate) fn cylinder_derivative(
         (1, 0) => -a2 * x + a1 * y,
         (0, 1) => frame.z_direction(),
         (2, 0) => -a1 * x - a2 * y,
-        _ => Vector3D::ZERO,
+        _ => Vector::ZERO,
     }
 }
 
 /// Recovers `(u, v)` of a point on (or near) the cylinder: `u = atan2(y, x)`
 /// wrapped into `[0, 2*PI)`, `v = z`, in `frame`'s local coordinates.
-pub(crate) fn cylinder_parameters(frame: &Frame3D, p: Point3D) -> (f64, f64) {
+pub(crate) fn cylinder_parameters(frame: &Frame, p: Point) -> (f64, f64) {
     let (x, y, z) = frame.local_coordinates(p);
     (wrap_to_turn(y.atan2(x)), z)
 }
@@ -86,7 +86,7 @@ pub(crate) fn cylinder_parameters(frame: &Frame3D, p: Point3D) -> (f64, f64) {
 /// Evaluates the cone of reference radius `ref_r` and semi-angle
 /// `semi_angle` in `frame` at `(u, v)`: `R = ref_r + v*sin(semi_angle)`,
 /// `origin + R*cos(u)*x_dir + R*sin(u)*y_dir + v*cos(semi_angle)*z_dir`.
-pub(crate) fn cone_d0(frame: &Frame3D, ref_r: f64, semi_angle: f64, u: f64, v: f64) -> Point3D {
+pub(crate) fn cone_d0(frame: &Frame, ref_r: f64, semi_angle: f64, u: f64, v: f64) -> Point {
     let r = ref_r + v * semi_angle.sin();
     let a3 = v * semi_angle.cos();
     frame.point_at(r * u.cos(), r * u.sin(), a3)
@@ -100,14 +100,14 @@ pub(crate) fn cone_d0(frame: &Frame3D, ref_r: f64, semi_angle: f64, u: f64, v: f
 /// `Suv = sin(semi_angle)*(-sin(u)*x_dir + cos(u)*y_dir)`; `Svv` is
 /// identically zero (`R` is linear in `v`, so `Sv` does not depend on `v`).
 pub(crate) fn cone_derivative(
-    frame: &Frame3D,
+    frame: &Frame,
     ref_r: f64,
     semi_angle: f64,
     u: f64,
     v: f64,
     du: u32,
     dv: u32,
-) -> Vector3D {
+) -> Vector {
     debug_assert!((1..=2).contains(&(du + dv)));
     let r = ref_r + v * semi_angle.sin();
     let x = frame.x_direction();
@@ -118,7 +118,7 @@ pub(crate) fn cone_derivative(
         (0, 1) => semi_angle.sin() * (cu * x + su * y) + semi_angle.cos() * frame.z_direction(),
         (2, 0) => -r * cu * x - r * su * y,
         (1, 1) => semi_angle.sin() * (-su * x + cu * y),
-        _ => Vector3D::ZERO,
+        _ => Vector::ZERO,
     }
 }
 
@@ -129,12 +129,7 @@ pub(crate) fn cone_derivative(
 /// `u` is measured from the branch `atan2(-y, -x)` instead of the usual
 /// `atan2(y, x)`; both are wrapped into `[0, 2*PI)`.
 /// `v = sin(semi_angle)*(x*cos(u) + y*sin(u) - ref_r) + cos(semi_angle)*z`.
-pub(crate) fn cone_parameters(
-    frame: &Frame3D,
-    ref_r: f64,
-    semi_angle: f64,
-    p: Point3D,
-) -> (f64, f64) {
+pub(crate) fn cone_parameters(frame: &Frame, ref_r: f64, semi_angle: f64, p: Point) -> (f64, f64) {
     let (x, y, z) = frame.local_coordinates(p);
     let u = if x.abs() < 1e-9 && y.abs() < 1e-9 {
         0.0
@@ -151,7 +146,7 @@ pub(crate) fn cone_parameters(
 
 /// Evaluates the sphere of radius `r` in `frame` at `(u, v)`:
 /// `Rcv = r*cos(v)`, `origin + Rcv*cos(u)*x_dir + Rcv*sin(u)*y_dir + r*sin(v)*z_dir`.
-pub(crate) fn sphere_d0(frame: &Frame3D, r: f64, u: f64, v: f64) -> Point3D {
+pub(crate) fn sphere_d0(frame: &Frame, r: f64, u: f64, v: f64) -> Point {
     let rcv = r * v.cos();
     frame.point_at(rcv * u.cos(), rcv * u.sin(), r * v.sin())
 }
@@ -163,14 +158,7 @@ pub(crate) fn sphere_d0(frame: &Frame3D, r: f64, u: f64, v: f64) -> Point3D {
 /// `Suu = -Rcv*(cos(u)*x_dir + sin(u)*y_dir)`,
 /// `Svv = -r*cos(v)*(cos(u)*x_dir + sin(u)*y_dir) - r*sin(v)*z_dir`,
 /// `Suv = -r*sin(v)*(-sin(u)*x_dir + cos(u)*y_dir)`.
-pub(crate) fn sphere_derivative(
-    frame: &Frame3D,
-    r: f64,
-    u: f64,
-    v: f64,
-    du: u32,
-    dv: u32,
-) -> Vector3D {
+pub(crate) fn sphere_derivative(frame: &Frame, r: f64, u: f64, v: f64, du: u32, dv: u32) -> Vector {
     debug_assert!((1..=2).contains(&(du + dv)));
     let x = frame.x_direction();
     let y = frame.y_direction();
@@ -184,7 +172,7 @@ pub(crate) fn sphere_derivative(
         (2, 0) => -rcv * (cu * x + su * y),
         (0, 2) => -rcv * (cu * x + su * y) - r * sv * z,
         (1, 1) => -r * sv * (-su * x + cu * y),
-        _ => Vector3D::ZERO,
+        _ => Vector::ZERO,
     }
 }
 
@@ -193,7 +181,7 @@ pub(crate) fn sphere_derivative(
 /// At the poles (`hypot(x, y) < 1e-9`), `u = 0` and `v = +-PI/2` by the sign
 /// of `z`; otherwise `u = atan2(y, x)` wrapped into `[0, 2*PI)` and
 /// `v = atan(z / hypot(x, y))`.
-pub(crate) fn sphere_parameters(frame: &Frame3D, _r: f64, p: Point3D) -> (f64, f64) {
+pub(crate) fn sphere_parameters(frame: &Frame, _r: f64, p: Point) -> (f64, f64) {
     let (x, y, z) = frame.local_coordinates(p);
     let l = x.hypot(y);
     if l < 1e-9 {
@@ -215,7 +203,7 @@ pub(crate) fn sphere_parameters(frame: &Frame3D, _r: f64, p: Point3D) -> (f64, f
 /// Evaluates the torus of major radius `maj` and minor radius `min` in
 /// `frame` at `(u, v)`: `R = maj + min*cos(v)`,
 /// `origin + R*cos(u)*x_dir + R*sin(u)*y_dir + min*sin(v)*z_dir`.
-pub(crate) fn torus_d0(frame: &Frame3D, maj: f64, min: f64, u: f64, v: f64) -> Point3D {
+pub(crate) fn torus_d0(frame: &Frame, maj: f64, min: f64, u: f64, v: f64) -> Point {
     let r = maj + min * v.cos();
     frame.point_at(r * u.cos(), r * u.sin(), min * v.sin())
 }
@@ -228,14 +216,14 @@ pub(crate) fn torus_d0(frame: &Frame3D, maj: f64, min: f64, u: f64, v: f64) -> P
 /// `Svv = -min*cos(v)*(cos(u)*x_dir + sin(u)*y_dir) - min*sin(v)*z_dir`,
 /// `Suv = min*sin(v)*(sin(u)*x_dir - cos(u)*y_dir)`.
 pub(crate) fn torus_derivative(
-    frame: &Frame3D,
+    frame: &Frame,
     maj: f64,
     min: f64,
     u: f64,
     v: f64,
     du: u32,
     dv: u32,
-) -> Vector3D {
+) -> Vector {
     debug_assert!((1..=2).contains(&(du + dv)));
     let x = frame.x_direction();
     let y = frame.y_direction();
@@ -249,7 +237,7 @@ pub(crate) fn torus_derivative(
         (2, 0) => -r * (cu * x + su * y),
         (0, 2) => -min * cv * (cu * x + su * y) - min * sv * z,
         (1, 1) => min * sv * (su * x - cu * y),
-        _ => Vector3D::ZERO,
+        _ => Vector::ZERO,
     }
 }
 
@@ -267,7 +255,7 @@ pub(crate) fn torus_derivative(
 /// by the radial direction `cos(u)*x_dir + sin(u)*y_dir` and `z_dir` (the two
 /// are orthonormal), so `v` is simply `atan2(dP . z_dir, dP . radial)`,
 /// wrapped into `[0, 2*PI)`.
-pub(crate) fn torus_parameters(frame: &Frame3D, maj: f64, min: f64, p: Point3D) -> (f64, f64) {
+pub(crate) fn torus_parameters(frame: &Frame, maj: f64, min: f64, p: Point) -> (f64, f64) {
     let (x, y, z) = frame.local_coordinates(p);
     // 3D distance from `p` to the tube's centerline circle (radius `maj`,
     // in the frame's xy-plane) at angle `candidate_u`. On the true branch
@@ -297,13 +285,13 @@ mod tests {
     use super::*;
     use std::f64::consts::{PI, TAU};
 
-    fn skewed_frame() -> Frame3D {
-        let z = Vector3D::Z;
-        let x_hint = Vector3D::new(1.0, 2.0, 2.0).normalized().unwrap();
-        Frame3D::new(Point3D::new(1.0, -2.0, 0.5), z, x_hint).unwrap()
+    fn skewed_frame() -> Frame {
+        let z = Vector::Z;
+        let x_hint = Vector::new(1.0, 2.0, 2.0).normalized().unwrap();
+        Frame::new(Point::new(1.0, -2.0, 0.5), z, x_hint).unwrap()
     }
 
-    fn assert_point3_close(actual: Point3D, expected: Point3D) {
+    fn assert_point3_close(actual: Point, expected: Point) {
         assert!(
             (actual.x - expected.x).abs() < 1e-9,
             "x: {actual:?} vs {expected:?}"
@@ -318,7 +306,7 @@ mod tests {
         );
     }
 
-    fn assert_vector3_close(actual: Vector3D, expected: Vector3D) {
+    fn assert_vector3_close(actual: Vector, expected: Vector) {
         assert!(
             (actual.x - expected.x).abs() < 1e-9,
             "x: {actual:?} vs {expected:?}"
@@ -337,22 +325,19 @@ mod tests {
 
     #[test]
     fn test_plane_d0_world() {
-        assert_point3_close(
-            plane_d0(&Frame3D::WORLD, 2.0, 3.0),
-            Point3D::new(2.0, 3.0, 0.0),
-        );
+        assert_point3_close(plane_d0(&Frame::WORLD, 2.0, 3.0), Point::new(2.0, 3.0, 0.0));
     }
 
     #[test]
     fn test_plane_derivative_first_orders() {
-        assert_vector3_close(plane_derivative(&Frame3D::WORLD, 1, 0), Vector3D::X);
-        assert_vector3_close(plane_derivative(&Frame3D::WORLD, 0, 1), Vector3D::Y);
+        assert_vector3_close(plane_derivative(&Frame::WORLD, 1, 0), Vector::X);
+        assert_vector3_close(plane_derivative(&Frame::WORLD, 0, 1), Vector::Y);
     }
 
     #[test]
     fn test_plane_derivative_second_orders_are_zero() {
         for (du, dv) in [(2, 0), (0, 2), (1, 1)] {
-            assert_vector3_close(plane_derivative(&Frame3D::WORLD, du, dv), Vector3D::ZERO);
+            assert_vector3_close(plane_derivative(&Frame::WORLD, du, dv), Vector::ZERO);
         }
     }
 
@@ -372,40 +357,40 @@ mod tests {
     #[test]
     fn test_cylinder_d0_world_hand_computed() {
         assert_point3_close(
-            cylinder_d0(&Frame3D::WORLD, 2.0, 0.0, 5.0),
-            Point3D::new(2.0, 0.0, 5.0),
+            cylinder_d0(&Frame::WORLD, 2.0, 0.0, 5.0),
+            Point::new(2.0, 0.0, 5.0),
         );
         assert_point3_close(
-            cylinder_d0(&Frame3D::WORLD, 2.0, PI / 2.0, 1.0),
-            Point3D::new(0.0, 2.0, 1.0),
+            cylinder_d0(&Frame::WORLD, 2.0, PI / 2.0, 1.0),
+            Point::new(0.0, 2.0, 1.0),
         );
     }
 
     #[test]
     fn test_cylinder_su_at_zero() {
         assert_vector3_close(
-            cylinder_derivative(&Frame3D::WORLD, 2.0, 0.0, 5.0, 1, 0),
-            Vector3D::new(0.0, 2.0, 0.0),
+            cylinder_derivative(&Frame::WORLD, 2.0, 0.0, 5.0, 1, 0),
+            Vector::new(0.0, 2.0, 0.0),
         );
     }
 
     #[test]
     fn test_cylinder_sv_is_z_dir() {
         assert_vector3_close(
-            cylinder_derivative(&Frame3D::WORLD, 2.0, 0.7, 5.0, 0, 1),
-            Vector3D::Z,
+            cylinder_derivative(&Frame::WORLD, 2.0, 0.7, 5.0, 0, 1),
+            Vector::Z,
         );
     }
 
     #[test]
     fn test_cylinder_svv_and_suv_are_zero() {
         assert_vector3_close(
-            cylinder_derivative(&Frame3D::WORLD, 2.0, 0.7, 5.0, 0, 2),
-            Vector3D::ZERO,
+            cylinder_derivative(&Frame::WORLD, 2.0, 0.7, 5.0, 0, 2),
+            Vector::ZERO,
         );
         assert_vector3_close(
-            cylinder_derivative(&Frame3D::WORLD, 2.0, 0.7, 5.0, 1, 1),
-            Vector3D::ZERO,
+            cylinder_derivative(&Frame::WORLD, 2.0, 0.7, 5.0, 1, 1),
+            Vector::ZERO,
         );
     }
 
@@ -435,8 +420,8 @@ mod tests {
     #[test]
     fn test_cone_d0_world_hand_computed() {
         assert_point3_close(
-            cone_d0(&Frame3D::WORLD, 2.0, 0.4, 0.0, 0.0),
-            Point3D::new(2.0, 0.0, 0.0),
+            cone_d0(&Frame::WORLD, 2.0, 0.4, 0.0, 0.0),
+            Point::new(2.0, 0.0, 0.0),
         );
     }
 
@@ -453,7 +438,7 @@ mod tests {
 
     #[test]
     fn test_cone_parameters_on_axis_gives_u_zero() {
-        let frame = Frame3D::WORLD;
+        let frame = Frame::WORLD;
         // A point on the axis itself (x, y both zero) picks u = 0.
         let p = frame.point_at(0.0, 0.0, 3.0);
         let (u, _) = cone_parameters(&frame, 2.0, 0.4, p);
@@ -465,8 +450,8 @@ mod tests {
     #[test]
     fn test_sphere_d0_world_pole() {
         assert_point3_close(
-            sphere_d0(&Frame3D::WORLD, 3.0, 0.0, PI / 2.0),
-            Point3D::new(0.0, 0.0, 3.0),
+            sphere_d0(&Frame::WORLD, 3.0, 0.0, PI / 2.0),
+            Point::new(0.0, 0.0, 3.0),
         );
     }
 
@@ -504,12 +489,12 @@ mod tests {
     #[test]
     fn test_torus_d0_world_hand_computed() {
         assert_point3_close(
-            torus_d0(&Frame3D::WORLD, 5.0, 1.5, 0.0, 0.0),
-            Point3D::new(6.5, 0.0, 0.0),
+            torus_d0(&Frame::WORLD, 5.0, 1.5, 0.0, 0.0),
+            Point::new(6.5, 0.0, 0.0),
         );
         assert_point3_close(
-            torus_d0(&Frame3D::WORLD, 5.0, 1.5, PI, PI),
-            Point3D::new(-3.5, 0.0, 0.0),
+            torus_d0(&Frame::WORLD, 5.0, 1.5, PI, PI),
+            Point::new(-3.5, 0.0, 0.0),
         );
     }
 
@@ -528,7 +513,7 @@ mod tests {
     fn test_torus_parameters_major_less_than_minor_branch() {
         // maj = 1, min = 2.5: the tube swallows the axis, so the near/far
         // branch pick matters for recovering u correctly.
-        let frame = Frame3D::WORLD;
+        let frame = Frame::WORLD;
         let (u, v) = (0.7, 2.0);
         let p = torus_d0(&frame, 1.0, 2.5, u, v);
         let (ru, rv) = torus_parameters(&frame, 1.0, 2.5, p);
@@ -611,28 +596,28 @@ mod tests {
             .collect()
     }
 
-    fn point3_from(v: &Value) -> Point3D {
+    fn point3_from(v: &Value) -> Point {
         let a = arr_f64(v);
-        Point3D::new(a[0], a[1], a[2])
+        Point::new(a[0], a[1], a[2])
     }
 
-    fn vector3_from(v: &Value) -> Vector3D {
+    fn vector3_from(v: &Value) -> Vector {
         let a = arr_f64(v);
-        Vector3D::new(a[0], a[1], a[2])
+        Vector::new(a[0], a[1], a[2])
     }
 
-    fn frame_from(v: &Value) -> Frame3D {
+    fn frame_from(v: &Value) -> Frame {
         let origin = point3_from(&v["origin"]);
         let x_dir = vector3_from(&v["x_dir"]);
         let z_dir = vector3_from(&v["z_dir"]);
         // Fixture frames are already orthonormal right-handed, so
-        // reconstructing via `Frame3D::new` with the stored x/z directions
+        // reconstructing via `Frame::new` with the stored x/z directions
         // reproduces the stored y_dir exactly (z x_hint projection is a
         // no-op when x_hint is already perpendicular to z).
-        Frame3D::new(origin, z_dir, x_dir).expect("fixture frame is well-formed")
+        Frame::new(origin, z_dir, x_dir).expect("fixture frame is well-formed")
     }
 
-    fn assert_vector3_tol(actual: Vector3D, expected: Vector3D, ctx: &str) {
+    fn assert_vector3_tol(actual: Vector, expected: Vector, ctx: &str) {
         for (a, e, axis) in [
             (actual.x, expected.x, "x"),
             (actual.y, expected.y, "y"),
@@ -648,9 +633,9 @@ mod tests {
 
     fn replay_case(
         case: &Value,
-        d0: impl Fn(&Frame3D, f64, f64) -> Point3D,
-        derivative: impl Fn(&Frame3D, u32, u32, f64, f64) -> Vector3D,
-        parameters: impl Fn(&Frame3D, Point3D) -> (f64, f64),
+        d0: impl Fn(&Frame, f64, f64) -> Point,
+        derivative: impl Fn(&Frame, u32, u32, f64, f64) -> Vector,
+        parameters: impl Fn(&Frame, Point) -> (f64, f64),
     ) {
         let frame = frame_from(&case["frame"]);
         for sample in case["samples"].as_array().unwrap() {
@@ -660,7 +645,7 @@ mod tests {
 
             let point = d0(&frame, u, v);
             assert_vector3_tol(
-                Vector3D::new(point.x, point.y, point.z),
+                Vector::new(point.x, point.y, point.z),
                 vector3_from(&sample["point"]),
                 &format!("{ctx} point"),
             );

@@ -6,7 +6,7 @@
 //! (weights are positive), so a box or slab around those points holds the
 //! piece, and halving a piece by de Casteljau shrinks the hull onto it.
 
-use crate::curves::BSplineCurve3D;
+use crate::curves::BSplineCurve;
 use crate::math::boxtree::Aabb;
 use crate::surface_math::bspline::{self as surface_math, Interval};
 
@@ -25,7 +25,7 @@ pub(crate) struct CurvePieces {
 impl CurvePieces {
     /// The pieces of `curve` over `[lo, hi]`, which lies within its bounds
     /// unless the curve is periodic; a periodic range may cross the seam.
-    pub(crate) fn new(curve: &BSplineCurve3D, (lo, hi): (f64, f64)) -> Self {
+    pub(crate) fn new(curve: &BSplineCurve, (lo, hi): (f64, f64)) -> Self {
         let width = curve.degree() + 1;
         let knots = curve.knots();
         let period = curve
@@ -540,11 +540,11 @@ fn unit(a: [f64; 3]) -> Option<[f64; 3]> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Point3D;
+    use crate::Point;
     use crate::math::boxtree::boxes_apart;
 
     /// The point at `f` in `[0, 1]` of the homogeneous Bézier `piece`.
-    fn bezier_point(piece: &[f64], f: f64) -> Point3D {
+    fn bezier_point(piece: &[f64], f: f64) -> Point {
         let mut points: Vec<[f64; 4]> = piece.chunks(4).map(|c| [c[0], c[1], c[2], c[3]]).collect();
         for r in 1..points.len() {
             for i in 0..points.len() - r {
@@ -553,11 +553,11 @@ mod tests {
             }
         }
         let [x, y, z, w] = points[0];
-        Point3D::new(x / w, y / w, z / w)
+        Point::new(x / w, y / w, z / w)
     }
 
     #[track_caller]
-    fn assert_pieces_follow(curve: &BSplineCurve3D, range: (f64, f64), breaks: &[f64]) {
+    fn assert_pieces_follow(curve: &BSplineCurve, range: (f64, f64), breaks: &[f64]) {
         let pieces = CurvePieces::new(curve, range);
         assert_eq!(pieces.width, curve.degree() + 1);
         let ends: Vec<f64> = std::iter::once(range.0)
@@ -573,14 +573,14 @@ mod tests {
         }
     }
 
-    fn knotted(weights: Option<Vec<f64>>) -> BSplineCurve3D {
-        let poles: Vec<Point3D> = (0..6)
-            .map(|k| Point3D::new(k as f64, (k * k % 5) as f64, (k % 3) as f64))
+    fn knotted(weights: Option<Vec<f64>>) -> BSplineCurve {
+        let poles: Vec<Point> = (0..6)
+            .map(|k| Point::new(k as f64, (k * k % 5) as f64, (k % 3) as f64))
             .collect();
         let (knots, mults) = (vec![0.0, 1.0, 1.5, 3.0], vec![4, 1, 1, 4]);
         match weights {
-            None => BSplineCurve3D::new(3, poles, knots, mults, false),
-            Some(w) => BSplineCurve3D::new_rational(3, poles, w, knots, mults, false),
+            None => BSplineCurve::new(3, poles, knots, mults, false),
+            Some(w) => BSplineCurve::new_rational(3, poles, w, knots, mults, false),
         }
         .unwrap()
     }
@@ -601,11 +601,11 @@ mod tests {
         let poles = (0..6)
             .map(|k| {
                 let angle = k as f64 * std::f64::consts::TAU / 6.0;
-                Point3D::new(2.0 * angle.cos(), 2.0 * angle.sin(), (k % 2) as f64)
+                Point::new(2.0 * angle.cos(), 2.0 * angle.sin(), (k % 2) as f64)
             })
             .collect();
         let knots = (0..=6).map(f64::from).collect();
-        let ring = BSplineCurve3D::new(3, poles, knots, vec![1; 7], true).unwrap();
+        let ring = BSplineCurve::new(3, poles, knots, vec![1; 7], true).unwrap();
         assert_pieces_follow(&ring, (0.0, 6.0), &[0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
         assert_pieces_follow(&ring, (4.5, 7.25), &[4.5, 5.0, 6.0, 7.0, 7.25]);
         assert_pieces_follow(&ring, (-1.5, 0.5), &[-1.5, -1.0, 0.0, 0.5]);

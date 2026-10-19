@@ -21,7 +21,7 @@
 
 use super::sealed::{DiscretizeRange, Run};
 use super::{DiscretizationCriteria, smallest_count};
-use crate::{BSplineCurve3D, Point3D};
+use crate::{BSplineCurve, Point};
 use std::f64::consts::{FRAC_PI_2, PI};
 
 /// Control points of the highest supported degree, 25.
@@ -116,7 +116,7 @@ impl Piece {
     }
 
     /// The point at the fraction `s` of the piece, by de Casteljau.
-    fn point_at(&self, s: f64) -> Point3D {
+    fn point_at(&self, s: f64) -> Point {
         let n = self.degree;
         let mut t = self.points;
         for r in 1..=n {
@@ -125,7 +125,7 @@ impl Piece {
             }
         }
         let [x, y, z, w] = t[0];
-        Point3D::new(x / w, y / w, z / w)
+        Point::new(x / w, y / w, z / w)
     }
 
     /// `K` such that `k` equal steps deviate by at most `K / k²`.
@@ -236,7 +236,7 @@ impl Piece {
         min_segments: usize,
         visit: &mut F,
     ) where
-        F: FnMut(Run, &dyn Fn(f64) -> Point3D),
+        F: FnMut(Run, &dyn Fn(f64) -> Point),
     {
         let may_split = match bounds.segments {
             Some(k) => depth < MAX_DEPTH && k > 2,
@@ -454,8 +454,8 @@ fn chord_segments(constant: f64, max: f64) -> usize {
     })
 }
 
-impl DiscretizeRange for BSplineCurve3D {
-    type Point = Point3D;
+impl DiscretizeRange for BSplineCurve {
+    type Point = Point;
 
     fn for_each_run<F>(
         &self,
@@ -465,7 +465,7 @@ impl DiscretizeRange for BSplineCurve3D {
         min_segments: usize,
         mut visit: F,
     ) where
-        F: FnMut(Run, &dyn Fn(f64) -> Point3D),
+        F: FnMut(Run, &dyn Fn(f64) -> Point),
     {
         let context = Context::new(criteria, self.degree(), self.is_rational());
         let mut piece = Piece {

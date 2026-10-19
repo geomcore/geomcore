@@ -1,6 +1,6 @@
 //! Axis-aligned bounding boxes of curves and surfaces (see `CONTEXT.md`).
 //!
-//! [`BoundingBox3D`] is the box; [`Bound3D`] asks a curve or surface for
+//! [`BoundingBox`] is the box; [`HasBoundingBox`] asks a curve or surface for
 //! it. Elementary shapes get their tightest box, touching the shape on
 //! every side: a circle or ellipse arc from its ends and the angles where a
 //! coordinate peaks within its range, a trimmed parabola or hyperbola from
@@ -14,28 +14,28 @@
 //! cylinders, cones) have no box; trimmed curves always have one.
 //!
 //! ```
-//! use geomcore::{Bound3D, Circle3D, Line3D, Point3D, TrimmedCurve3D, Vector3D};
+//! use geomcore::{HasBoundingBox, Circle, Line, Point, TrimmedCurve, Vector};
 //!
-//! let circle = Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
-//! let quarter = TrimmedCurve3D::new(circle, 0.0, std::f64::consts::FRAC_PI_2).unwrap();
+//! let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
+//! let quarter = TrimmedCurve::new(circle, 0.0, std::f64::consts::FRAC_PI_2).unwrap();
 //! let b = quarter.bounding_box().unwrap();
 //! // From (2, 0, 0) to (0, 2, 0): the arc's own extreme points, not the circle's.
 //! assert_eq!((b.min().y, b.max().y), (0.0, 2.0));
 //! assert_eq!(b.max().x, 2.0);
 //! assert!(b.min().x.abs() < 1e-15);
 //!
-//! let line = Line3D::new(Point3D::ORIGIN, Vector3D::X).unwrap();
+//! let line = Line::new(Point::ORIGIN, Vector::X).unwrap();
 //! assert_eq!(line.bounding_box(), None);
 //! ```
 
 mod curves;
 mod surfaces;
 
-use crate::{Point3D, Vector3D};
+use crate::{Point, Vector};
 
 /// An axis-aligned box: the points whose coordinates all lie between
-/// those of its [`min`](BoundingBox3D::min) and
-/// [`max`](BoundingBox3D::max) corners, faces included.
+/// those of its [`min`](BoundingBox::min) and
+/// [`max`](BoundingBox::max) corners, faces included.
 ///
 /// A box is never empty: `min` is at most `max` on every axis. A box of a
 /// single point is flat on every axis.
@@ -43,45 +43,45 @@ use crate::{Point3D, Vector3D};
 /// # Examples
 ///
 /// ```
-/// use geomcore::{BoundingBox3D, Point3D};
+/// use geomcore::{BoundingBox, Point};
 ///
-/// let a = BoundingBox3D::new(Point3D::new(0.0, 0.0, 0.0), Point3D::new(2.0, 1.0, 1.0));
-/// let b = BoundingBox3D::new(Point3D::new(3.0, 0.0, 0.0), Point3D::new(4.0, 1.0, 1.0));
+/// let a = BoundingBox::new(Point::new(0.0, 0.0, 0.0), Point::new(2.0, 1.0, 1.0));
+/// let b = BoundingBox::new(Point::new(3.0, 0.0, 0.0), Point::new(4.0, 1.0, 1.0));
 /// assert!(!a.overlaps(b));
 /// // Within a distance of 1 of each other: the boxes enlarged by half of it touch.
 /// assert!(a.enlarged(0.5).overlaps(b.enlarged(0.5)));
-/// assert_eq!(a.union(b).max(), Point3D::new(4.0, 1.0, 1.0));
+/// assert_eq!(a.union(b).max(), Point::new(4.0, 1.0, 1.0));
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct BoundingBox3D {
-    min: Point3D,
-    max: Point3D,
+pub struct BoundingBox {
+    min: Point,
+    max: Point,
 }
 
-fn coordinates(p: Point3D) -> [f64; 3] {
+fn coordinates(p: Point) -> [f64; 3] {
     [p.x, p.y, p.z]
 }
 
-fn point([x, y, z]: [f64; 3]) -> Point3D {
-    Point3D::new(x, y, z)
+fn point([x, y, z]: [f64; 3]) -> Point {
+    Point::new(x, y, z)
 }
 
-impl BoundingBox3D {
+impl BoundingBox {
     /// The box with opposite corners `a` and `b`, in any order.
     ///
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{BoundingBox3D, Point3D};
+    /// use geomcore::{BoundingBox, Point};
     ///
-    /// let b = BoundingBox3D::new(Point3D::new(1.0, 0.0, 5.0), Point3D::new(0.0, 2.0, 3.0));
-    /// assert_eq!(b.min(), Point3D::new(0.0, 0.0, 3.0));
-    /// assert_eq!(b.max(), Point3D::new(1.0, 2.0, 5.0));
+    /// let b = BoundingBox::new(Point::new(1.0, 0.0, 5.0), Point::new(0.0, 2.0, 3.0));
+    /// assert_eq!(b.min(), Point::new(0.0, 0.0, 3.0));
+    /// assert_eq!(b.max(), Point::new(1.0, 2.0, 5.0));
     /// ```
-    pub fn new(a: Point3D, b: Point3D) -> BoundingBox3D {
-        BoundingBox3D {
-            min: Point3D::new(a.x.min(b.x), a.y.min(b.y), a.z.min(b.z)),
-            max: Point3D::new(a.x.max(b.x), a.y.max(b.y), a.z.max(b.z)),
+    pub fn new(a: Point, b: Point) -> BoundingBox {
+        BoundingBox {
+            min: Point::new(a.x.min(b.x), a.y.min(b.y), a.z.min(b.z)),
+            max: Point::new(a.x.max(b.x), a.y.max(b.y), a.z.max(b.z)),
         }
     }
 
@@ -91,18 +91,18 @@ impl BoundingBox3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{BoundingBox3D, Point3D};
+    /// use geomcore::{BoundingBox, Point};
     ///
-    /// let points = [Point3D::new(1.0, 0.0, 0.0), Point3D::new(-1.0, 2.0, 0.5)];
-    /// let b = BoundingBox3D::from_points(points).unwrap();
-    /// assert_eq!(b.min(), Point3D::new(-1.0, 0.0, 0.0));
-    /// assert_eq!(b.max(), Point3D::new(1.0, 2.0, 0.5));
-    /// assert_eq!(BoundingBox3D::from_points([]), None);
+    /// let points = [Point::new(1.0, 0.0, 0.0), Point::new(-1.0, 2.0, 0.5)];
+    /// let b = BoundingBox::from_points(points).unwrap();
+    /// assert_eq!(b.min(), Point::new(-1.0, 0.0, 0.0));
+    /// assert_eq!(b.max(), Point::new(1.0, 2.0, 0.5));
+    /// assert_eq!(BoundingBox::from_points([]), None);
     /// ```
-    pub fn from_points(points: impl IntoIterator<Item = Point3D>) -> Option<BoundingBox3D> {
+    pub fn from_points(points: impl IntoIterator<Item = Point>) -> Option<BoundingBox> {
         let mut points = points.into_iter();
         let first = points.next()?;
-        Some(points.fold(BoundingBox3D::new(first, first), BoundingBox3D::including))
+        Some(points.fold(BoundingBox::new(first, first), BoundingBox::including))
     }
 
     /// The corner with the smallest coordinates.
@@ -110,12 +110,12 @@ impl BoundingBox3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{BoundingBox3D, Point3D};
+    /// use geomcore::{BoundingBox, Point};
     ///
-    /// let b = BoundingBox3D::new(Point3D::new(1.0, 2.0, 3.0), Point3D::ORIGIN);
-    /// assert_eq!(b.min(), Point3D::ORIGIN);
+    /// let b = BoundingBox::new(Point::new(1.0, 2.0, 3.0), Point::ORIGIN);
+    /// assert_eq!(b.min(), Point::ORIGIN);
     /// ```
-    pub fn min(self) -> Point3D {
+    pub fn min(self) -> Point {
         self.min
     }
 
@@ -124,12 +124,12 @@ impl BoundingBox3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{BoundingBox3D, Point3D};
+    /// use geomcore::{BoundingBox, Point};
     ///
-    /// let b = BoundingBox3D::new(Point3D::new(1.0, 2.0, 3.0), Point3D::ORIGIN);
-    /// assert_eq!(b.max(), Point3D::new(1.0, 2.0, 3.0));
+    /// let b = BoundingBox::new(Point::new(1.0, 2.0, 3.0), Point::ORIGIN);
+    /// assert_eq!(b.max(), Point::new(1.0, 2.0, 3.0));
     /// ```
-    pub fn max(self) -> Point3D {
+    pub fn max(self) -> Point {
         self.max
     }
 
@@ -138,12 +138,12 @@ impl BoundingBox3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{BoundingBox3D, Point3D};
+    /// use geomcore::{BoundingBox, Point};
     ///
-    /// let b = BoundingBox3D::new(Point3D::ORIGIN, Point3D::new(2.0, 4.0, 6.0));
-    /// assert_eq!(b.center(), Point3D::new(1.0, 2.0, 3.0));
+    /// let b = BoundingBox::new(Point::ORIGIN, Point::new(2.0, 4.0, 6.0));
+    /// assert_eq!(b.center(), Point::new(1.0, 2.0, 3.0));
     /// ```
-    pub fn center(self) -> Point3D {
+    pub fn center(self) -> Point {
         self.min + 0.5 * (self.max - self.min)
     }
 
@@ -153,13 +153,13 @@ impl BoundingBox3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{BoundingBox3D, Point3D, Vector3D};
+    /// use geomcore::{BoundingBox, Point, Vector};
     ///
-    /// let b = BoundingBox3D::new(Point3D::ORIGIN, Point3D::new(3.0, 4.0, 0.0));
-    /// assert_eq!(b.diagonal(), Vector3D::new(3.0, 4.0, 0.0));
+    /// let b = BoundingBox::new(Point::ORIGIN, Point::new(3.0, 4.0, 0.0));
+    /// assert_eq!(b.diagonal(), Vector::new(3.0, 4.0, 0.0));
     /// assert_eq!(b.diagonal().magnitude(), 5.0);
     /// ```
-    pub fn diagonal(self) -> Vector3D {
+    pub fn diagonal(self) -> Vector {
         self.max - self.min
     }
 
@@ -168,15 +168,15 @@ impl BoundingBox3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{BoundingBox3D, Point3D};
+    /// use geomcore::{BoundingBox, Point};
     ///
-    /// let a = BoundingBox3D::new(Point3D::ORIGIN, Point3D::new(1.0, 1.0, 1.0));
-    /// let b = BoundingBox3D::new(Point3D::new(2.0, -1.0, 0.0), Point3D::new(3.0, 0.0, 0.5));
+    /// let a = BoundingBox::new(Point::ORIGIN, Point::new(1.0, 1.0, 1.0));
+    /// let b = BoundingBox::new(Point::new(2.0, -1.0, 0.0), Point::new(3.0, 0.0, 0.5));
     /// let both = a.union(b);
-    /// assert_eq!(both.min(), Point3D::new(0.0, -1.0, 0.0));
-    /// assert_eq!(both.max(), Point3D::new(3.0, 1.0, 1.0));
+    /// assert_eq!(both.min(), Point::new(0.0, -1.0, 0.0));
+    /// assert_eq!(both.max(), Point::new(3.0, 1.0, 1.0));
     /// ```
-    pub fn union(self, other: BoundingBox3D) -> BoundingBox3D {
+    pub fn union(self, other: BoundingBox) -> BoundingBox {
         self.including(other.min).including(other.max)
     }
 
@@ -187,18 +187,18 @@ impl BoundingBox3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{BoundingBox3D, Point3D};
+    /// use geomcore::{BoundingBox, Point};
     ///
-    /// let b = BoundingBox3D::new(Point3D::ORIGIN, Point3D::new(4.0, 1.0, 1.0));
+    /// let b = BoundingBox::new(Point::ORIGIN, Point::new(4.0, 1.0, 1.0));
     /// let grown = b.enlarged(0.5);
-    /// assert_eq!(grown.min(), Point3D::new(-0.5, -0.5, -0.5));
-    /// assert_eq!(grown.max(), Point3D::new(4.5, 1.5, 1.5));
+    /// assert_eq!(grown.min(), Point::new(-0.5, -0.5, -0.5));
+    /// assert_eq!(grown.max(), Point::new(4.5, 1.5, 1.5));
     ///
     /// let shrunk = b.enlarged(-1.0);
-    /// assert_eq!(shrunk.min(), Point3D::new(1.0, 0.5, 0.5));
-    /// assert_eq!(shrunk.max(), Point3D::new(3.0, 0.5, 0.5));
+    /// assert_eq!(shrunk.min(), Point::new(1.0, 0.5, 0.5));
+    /// assert_eq!(shrunk.max(), Point::new(3.0, 0.5, 0.5));
     /// ```
-    pub fn enlarged(self, distance: f64) -> BoundingBox3D {
+    pub fn enlarged(self, distance: f64) -> BoundingBox {
         let (min, max) = (coordinates(self.min), coordinates(self.max));
         let (mut lo, mut hi) = (min, max);
         for k in 0..3 {
@@ -209,7 +209,7 @@ impl BoundingBox3D {
                 (lo[k], hi[k]) = (middle, middle);
             }
         }
-        BoundingBox3D {
+        BoundingBox {
             min: point(lo),
             max: point(hi),
         }
@@ -220,14 +220,14 @@ impl BoundingBox3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{BoundingBox3D, Point3D};
+    /// use geomcore::{BoundingBox, Point};
     ///
-    /// let b = BoundingBox3D::new(Point3D::ORIGIN, Point3D::new(1.0, 1.0, 1.0));
-    /// assert!(b.encloses(Point3D::new(0.5, 0.5, 0.5)));
-    /// assert!(b.encloses(Point3D::new(1.0, 0.0, 0.5)));
-    /// assert!(!b.encloses(Point3D::new(1.5, 0.5, 0.5)));
+    /// let b = BoundingBox::new(Point::ORIGIN, Point::new(1.0, 1.0, 1.0));
+    /// assert!(b.encloses(Point::new(0.5, 0.5, 0.5)));
+    /// assert!(b.encloses(Point::new(1.0, 0.0, 0.5)));
+    /// assert!(!b.encloses(Point::new(1.5, 0.5, 0.5)));
     /// ```
-    pub fn encloses(self, point: Point3D) -> bool {
+    pub fn encloses(self, point: Point) -> bool {
         let (p, min, max) = (
             coordinates(point),
             coordinates(self.min),
@@ -242,29 +242,29 @@ impl BoundingBox3D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{BoundingBox3D, Point3D};
+    /// use geomcore::{BoundingBox, Point};
     ///
-    /// let a = BoundingBox3D::new(Point3D::ORIGIN, Point3D::new(1.0, 1.0, 1.0));
-    /// let touching = BoundingBox3D::new(Point3D::new(1.0, 0.0, 0.0), Point3D::new(2.0, 1.0, 1.0));
-    /// let apart = BoundingBox3D::new(Point3D::new(1.5, 0.0, 0.0), Point3D::new(2.0, 1.0, 1.0));
+    /// let a = BoundingBox::new(Point::ORIGIN, Point::new(1.0, 1.0, 1.0));
+    /// let touching = BoundingBox::new(Point::new(1.0, 0.0, 0.0), Point::new(2.0, 1.0, 1.0));
+    /// let apart = BoundingBox::new(Point::new(1.5, 0.0, 0.0), Point::new(2.0, 1.0, 1.0));
     /// assert!(a.overlaps(touching));
     /// assert!(!a.overlaps(apart));
     /// ```
-    pub fn overlaps(self, other: BoundingBox3D) -> bool {
+    pub fn overlaps(self, other: BoundingBox) -> bool {
         let (a_min, a_max) = (coordinates(self.min), coordinates(self.max));
         let (b_min, b_max) = (coordinates(other.min), coordinates(other.max));
         (0..3).all(|k| a_min[k] <= b_max[k] && b_min[k] <= a_max[k])
     }
 
     /// The smallest box holding this box and `point`.
-    pub(crate) fn including(self, p: Point3D) -> BoundingBox3D {
-        BoundingBox3D {
-            min: Point3D::new(
+    pub(crate) fn including(self, p: Point) -> BoundingBox {
+        BoundingBox {
+            min: Point::new(
                 self.min.x.min(p.x),
                 self.min.y.min(p.y),
                 self.min.z.min(p.z),
             ),
-            max: Point3D::new(
+            max: Point::new(
                 self.max.x.max(p.x),
                 self.max.y.max(p.y),
                 self.max.z.max(p.z),
@@ -286,69 +286,80 @@ impl BoundingBox3D {
 /// # Examples
 ///
 /// ```
-/// use geomcore::{Bound3D, Plane, Point3D, Sphere, Vector3D};
+/// use geomcore::{HasBoundingBox, Plane, Point, Sphere, Vector};
 ///
-/// let sphere = Sphere::new(Point3D::new(1.0, 0.0, 0.0), 2.0).unwrap();
+/// let sphere = Sphere::new(Point::new(1.0, 0.0, 0.0), 2.0).unwrap();
 /// let b = sphere.bounding_box().unwrap();
-/// assert_eq!(b.min(), Point3D::new(-1.0, -2.0, -2.0));
-/// assert_eq!(b.max(), Point3D::new(3.0, 2.0, 2.0));
+/// assert_eq!(b.min(), Point::new(-1.0, -2.0, -2.0));
+/// assert_eq!(b.max(), Point::new(3.0, 2.0, 2.0));
 ///
-/// let plane = Plane::new(Point3D::ORIGIN, Vector3D::Z).unwrap();
+/// let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
 /// assert_eq!(plane.bounding_box(), None);
 /// ```
-pub trait Bound3D {
+pub trait HasBoundingBox {
     /// The axis-aligned box bounding the shape, or `None` if the shape is
     /// unbounded.
-    fn bounding_box(&self) -> Option<BoundingBox3D>;
+    fn bounding_box(&self) -> Option<BoundingBox>;
 }
 
-impl<T: Bound3D + ?Sized> Bound3D for &T {
-    fn bounding_box(&self) -> Option<BoundingBox3D> {
+impl<T: HasBoundingBox + ?Sized> HasBoundingBox for &T {
+    fn bounding_box(&self) -> Option<BoundingBox> {
         (**self).bounding_box()
     }
 }
 
 pub(crate) mod sealed {
-    use super::BoundingBox3D;
+    use super::BoundingBox;
 
     /// The box of a range of a curve: what a trimmed curve needs from its
     /// basis. Implemented by every curve, bounded or not.
-    pub trait BoundRange3D: crate::curves::ParametricCurve3D {
+    pub trait BoundRange: crate::curves::ParametricCurve {
         /// The box bounding the curve over `[first, last]`, a finite range
         /// with `first < last`, at most one period long on a periodic
         /// curve and anywhere on it.
-        fn range_box(&self, first: f64, last: f64) -> BoundingBox3D;
+        fn range_box(&self, first: f64, last: f64) -> BoundingBox;
     }
 }
+
+/// The former name of [`BoundingBox`].
+#[deprecated(
+    since = "0.37.0",
+    note = "renamed `BoundingBox`: only 2D types carry a dimension suffix"
+)]
+pub type BoundingBox3D = BoundingBox;
+
+/// The former name of [`HasBoundingBox`], kept until the next breaking release.
+#[doc(hidden)]
+pub use HasBoundingBox as Bound3D;
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn unit() -> BoundingBox3D {
-        BoundingBox3D::new(Point3D::ORIGIN, Point3D::new(1.0, 1.0, 1.0))
+    fn unit() -> BoundingBox {
+        BoundingBox::new(Point::ORIGIN, Point::new(1.0, 1.0, 1.0))
     }
 
     #[test]
     fn test_new_orders_the_corners() {
-        let b = BoundingBox3D::new(Point3D::new(1.0, -1.0, 2.0), Point3D::new(-3.0, 4.0, 2.0));
-        assert_eq!(b.min(), Point3D::new(-3.0, -1.0, 2.0));
-        assert_eq!(b.max(), Point3D::new(1.0, 4.0, 2.0));
+        let b = BoundingBox::new(Point::new(1.0, -1.0, 2.0), Point::new(-3.0, 4.0, 2.0));
+        assert_eq!(b.min(), Point::new(-3.0, -1.0, 2.0));
+        assert_eq!(b.max(), Point::new(1.0, 4.0, 2.0));
     }
 
     #[test]
     fn test_from_points_of_one_point_is_flat() {
-        let p = Point3D::new(1.0, 2.0, 3.0);
-        let b = BoundingBox3D::from_points([p]).unwrap();
+        let p = Point::new(1.0, 2.0, 3.0);
+        let b = BoundingBox::from_points([p]).unwrap();
         assert_eq!((b.min(), b.max()), (p, p));
-        assert_eq!(b.diagonal(), Vector3D::ZERO);
+        assert_eq!(b.diagonal(), Vector::ZERO);
         assert!(b.encloses(p));
     }
 
     #[test]
     fn test_union_is_symmetric_and_holds_both() {
         let a = unit();
-        let b = BoundingBox3D::new(Point3D::new(-2.0, 0.5, 0.5), Point3D::new(-1.0, 3.0, 0.7));
+        let b = BoundingBox::new(Point::new(-2.0, 0.5, 0.5), Point::new(-1.0, 3.0, 0.7));
         assert_eq!(a.union(b), b.union(a));
         let both = a.union(b);
         for corner in [a.min(), a.max(), b.min(), b.max()] {
@@ -360,23 +371,23 @@ mod tests {
     #[test]
     fn test_enlarged_grows_and_shrinks() {
         let b = unit().enlarged(0.25);
-        assert_eq!(b.min(), Point3D::new(-0.25, -0.25, -0.25));
-        assert_eq!(b.max(), Point3D::new(1.25, 1.25, 1.25));
+        assert_eq!(b.min(), Point::new(-0.25, -0.25, -0.25));
+        assert_eq!(b.max(), Point::new(1.25, 1.25, 1.25));
         assert_eq!(b.enlarged(-0.25), unit());
         let collapsed = unit().enlarged(-2.0);
-        assert_eq!(collapsed.min(), Point3D::new(0.5, 0.5, 0.5));
-        assert_eq!(collapsed.max(), Point3D::new(0.5, 0.5, 0.5));
+        assert_eq!(collapsed.min(), Point::new(0.5, 0.5, 0.5));
+        assert_eq!(collapsed.max(), Point::new(0.5, 0.5, 0.5));
     }
 
     #[test]
     fn test_encloses_counts_faces_and_rejects_each_axis() {
         let b = unit();
-        assert!(b.encloses(Point3D::ORIGIN));
-        assert!(b.encloses(Point3D::new(1.0, 1.0, 1.0)));
+        assert!(b.encloses(Point::ORIGIN));
+        assert!(b.encloses(Point::new(1.0, 1.0, 1.0)));
         for outside in [
-            Point3D::new(-1e-12, 0.5, 0.5),
-            Point3D::new(0.5, 1.0 + 1e-12, 0.5),
-            Point3D::new(0.5, 0.5, 2.0),
+            Point::new(-1e-12, 0.5, 0.5),
+            Point::new(0.5, 1.0 + 1e-12, 0.5),
+            Point::new(0.5, 0.5, 2.0),
         ] {
             assert!(!b.encloses(outside));
         }
@@ -386,19 +397,19 @@ mod tests {
     fn test_overlaps_needs_every_axis() {
         let b = unit();
         assert!(b.overlaps(b));
-        let inner = BoundingBox3D::new(Point3D::new(0.2, 0.2, 0.2), Point3D::new(0.3, 0.3, 0.3));
+        let inner = BoundingBox::new(Point::new(0.2, 0.2, 0.2), Point::new(0.3, 0.3, 0.3));
         assert!(b.overlaps(inner) && inner.overlaps(b));
-        let corner = BoundingBox3D::new(Point3D::new(1.0, 1.0, 1.0), Point3D::new(2.0, 2.0, 2.0));
+        let corner = BoundingBox::new(Point::new(1.0, 1.0, 1.0), Point::new(2.0, 2.0, 2.0));
         assert!(b.overlaps(corner));
         // Overlapping on x and y but not z.
-        let above = BoundingBox3D::new(Point3D::new(0.5, 0.5, 1.5), Point3D::new(2.0, 2.0, 2.0));
+        let above = BoundingBox::new(Point::new(0.5, 0.5, 1.5), Point::new(2.0, 2.0, 2.0));
         assert!(!b.overlaps(above) && !above.overlaps(b));
     }
 
     #[test]
     fn test_center_and_diagonal() {
-        let b = BoundingBox3D::new(Point3D::new(-1.0, 0.0, 2.0), Point3D::new(3.0, 2.0, 2.0));
-        assert_eq!(b.center(), Point3D::new(1.0, 1.0, 2.0));
-        assert_eq!(b.diagonal(), Vector3D::new(4.0, 2.0, 0.0));
+        let b = BoundingBox::new(Point::new(-1.0, 0.0, 2.0), Point::new(3.0, 2.0, 2.0));
+        assert_eq!(b.center(), Point::new(1.0, 1.0, 2.0));
+        assert_eq!(b.diagonal(), Vector::new(4.0, 2.0, 0.0));
     }
 }

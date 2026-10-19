@@ -9,6 +9,48 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+## [0.37.0] - 2026-10-19
+
+One naming release for Rust and Python, with no change in behaviour: 3D
+is the unmarked dimension, so only 2D types carry a dimension suffix
+(ADR 0013). `Point3D` becomes `Point`, `Line3D` becomes `Line`, and so
+on, the same convention the results (`CurveProjection` /
+`CurveProjection2D`) and the surfaces already followed. The old names
+still work for this release and warn on use.
+
+### Migration
+
+Rust. The old type names are deprecated type aliases. The old trait
+names are hidden re-exports, so they still compile without a warning,
+and they are removed together with the aliases in the next breaking
+release.
+
+| 0.36 | 0.37 |
+|---|---|
+| `Point3D`, `Vector3D`, `Axis3D`, `Frame3D` | `Point`, `Vector`, `Axis`, `Frame` |
+| `Line3D`, `Circle3D`, `Ellipse3D`, `Parabola3D`, `Hyperbola3D`, `BSplineCurve3D` | `Line`, `Circle`, `Ellipse`, `Parabola`, `Hyperbola`, `BSplineCurve` |
+| `Curve3D`, `TrimmedCurve3D`, `ParametricCurve3D`, `PointExtrema3D` | `Curve`, `TrimmedCurve`, `ParametricCurve`, `PointExtrema` |
+| `BoundingBox3D`, `Bound3D` | `BoundingBox`, `HasBoundingBox` |
+| `Discretization3D`, `Discretize3D` | `Discretization`, `Discretize` |
+| `LineLine3DIntersection`, `LineCircle3DIntersection`, `CircleCircle3DIntersection`, `LineConic3DIntersection` | `LineLineIntersection`, `LineCircleIntersection`, `CircleCircleIntersection`, `LineConicIntersection` |
+
+Python. The old names resolve to the new classes and raise a
+`DeprecationWarning`.
+
+| 0.36 | 0.37 |
+|---|---|
+| `geomcore.Point3D`, `Vector3D`, `Axis3D`, `Frame3D`, `BoundingBox3D`, `Discretization3D` | `geomcore.Point`, `Vector`, `Axis`, `Frame`, `BoundingBox`, `Discretization` |
+| `geomcore.curves.Line3D`, `Circle3D`, `Ellipse3D`, `Parabola3D`, `Hyperbola3D`, `BSplineCurve3D`, `TrimmedCurve3D` | `geomcore.curves.Line`, `Circle`, `Ellipse`, `Parabola`, `Hyperbola`, `BSplineCurve`, `TrimmedCurve` |
+
+The 2D names (`Point2D`, `Line2D`, `Curve2D`, …) and every surface name
+are unchanged.
+
+### Added
+
+- ADR 0014: the 2D curve tier is to mirror the 3D one (ellipse,
+  parabola, hyperbola and B-spline curves in 2D, so curve-on-surface
+  parametrization can return the exact image of every curve).
+
 ## [0.36.0] - 2026-10-19
 
 One breaking release for Rust and Python. `a.intersect(&b, tol)` now
@@ -1571,7 +1613,8 @@ Behaviour, in Rust and Python alike:
 - Golden-fixture validation of all numeric results at 1e-7 tolerance, and
   criterion throughput benchmarks (`docs/benchmarks.md`).
 
-[Unreleased]: https://github.com/geomcore/geomcore/compare/v0.36.0...HEAD
+[Unreleased]: https://github.com/geomcore/geomcore/compare/v0.37.0...HEAD
+[0.37.0]: https://github.com/geomcore/geomcore/compare/v0.36.0...v0.37.0
 [0.36.0]: https://github.com/geomcore/geomcore/compare/v0.35.0...v0.36.0
 [0.35.0]: https://github.com/geomcore/geomcore/releases/tag/v0.35.0
 [0.34.0]: https://github.com/geomcore/geomcore/releases/tag/v0.34.0

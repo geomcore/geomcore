@@ -3,12 +3,12 @@ use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
 
 use geomcore::curves::{
-    BSplineCurve3D, Curve2D, Curve3D, ElementaryCurve, ParametricCurve3D, TrimmedCurve3D,
+    BSplineCurve, Curve, Curve2D, ElementaryCurve, ParametricCurve, TrimmedCurve,
 };
 use geomcore::parametrize_numeric;
 use geomcore::surfaces::Surface;
 use geomcore::{CurveCurveIntersection, CurveSurfaceIntersection, Intersect, curve_curve_extrema};
-use geomcore::{Point3D, Tolerance, Vector3D};
+use geomcore::{Point, Tolerance, Vector};
 
 use crate::curves::*;
 use crate::results::PyCurveCurveExtrema;
@@ -16,10 +16,10 @@ use crate::surfaces::*;
 use crate::tolerance;
 use crate::values::*;
 
-pub(crate) fn extract_curve3d(obj: &Bound<'_, PyAny>) -> PyResult<Curve3D> {
+pub(crate) fn extract_curve3d(obj: &Bound<'_, PyAny>) -> PyResult<Curve> {
     curve3d_of(obj).ok_or_else(|| {
         PyTypeError::new_err(
-            "expected a geomcore 3D curve (Line3D, Circle3D, Ellipse3D, Parabola3D, Hyperbola3D or BSplineCurve3D)",
+            "expected a geomcore 3D curve (Line, Circle, Ellipse, Parabola, Hyperbola or BSplineCurve)",
         )
     })
 }
@@ -27,24 +27,24 @@ pub(crate) fn extract_curve3d(obj: &Bound<'_, PyAny>) -> PyResult<Curve3D> {
 /// The 3D curve `obj` holds, if it is one of the whole 3D curve classes.
 /// Each class is checked with a type test, so a miss raises nothing (a
 /// failed `extract` would build a Python error first).
-pub(crate) fn curve3d_of(obj: &Bound<'_, PyAny>) -> Option<Curve3D> {
-    if let Ok(c) = obj.downcast::<PyLine3D>() {
-        return Some(Curve3D::from(c.borrow().0));
+pub(crate) fn curve3d_of(obj: &Bound<'_, PyAny>) -> Option<Curve> {
+    if let Ok(c) = obj.downcast::<PyLine>() {
+        return Some(Curve::from(c.borrow().0));
     }
-    if let Ok(c) = obj.downcast::<PyCircle3D>() {
-        return Some(Curve3D::from(c.borrow().0));
+    if let Ok(c) = obj.downcast::<PyCircle>() {
+        return Some(Curve::from(c.borrow().0));
     }
-    if let Ok(c) = obj.downcast::<PyEllipse3D>() {
-        return Some(Curve3D::from(c.borrow().0));
+    if let Ok(c) = obj.downcast::<PyEllipse>() {
+        return Some(Curve::from(c.borrow().0));
     }
-    if let Ok(c) = obj.downcast::<PyParabola3D>() {
-        return Some(Curve3D::from(c.borrow().0));
+    if let Ok(c) = obj.downcast::<PyParabola>() {
+        return Some(Curve::from(c.borrow().0));
     }
-    if let Ok(c) = obj.downcast::<PyHyperbola3D>() {
-        return Some(Curve3D::from(c.borrow().0));
+    if let Ok(c) = obj.downcast::<PyHyperbola>() {
+        return Some(Curve::from(c.borrow().0));
     }
-    if let Ok(c) = obj.downcast::<PyBSplineCurve3D>() {
-        return Some(Curve3D::from(c.borrow().0.clone()));
+    if let Ok(c) = obj.downcast::<PyBSplineCurve>() {
+        return Some(Curve::from(c.borrow().0.clone()));
     }
     None
 }
@@ -52,19 +52,19 @@ pub(crate) fn curve3d_of(obj: &Bound<'_, PyAny>) -> Option<Curve3D> {
 /// A 3D curve passed to a generic function: a whole curve, or a piece of
 /// one, whose range bounds the search.
 pub(crate) enum CurveArg {
-    Whole(Curve3D),
-    Trimmed(TrimmedCurve3D),
+    Whole(Curve),
+    Trimmed(TrimmedCurve),
 }
 
-impl ParametricCurve3D for CurveArg {
-    fn eval_point(&self, u: f64) -> Point3D {
+impl ParametricCurve for CurveArg {
+    fn eval_point(&self, u: f64) -> Point {
         match self {
             CurveArg::Whole(c) => c.eval_point(u),
             CurveArg::Trimmed(c) => c.eval_point(u),
         }
     }
 
-    fn eval_derivative(&self, u: f64, order: u32) -> Vector3D {
+    fn eval_derivative(&self, u: f64, order: u32) -> Vector {
         match self {
             CurveArg::Whole(c) => c.eval_derivative(u, order),
             CurveArg::Trimmed(c) => c.eval_derivative(u, order),
@@ -85,7 +85,7 @@ impl ParametricCurve3D for CurveArg {
         }
     }
 
-    fn eval_points(&self, us: &[f64]) -> Vec<Point3D> {
+    fn eval_points(&self, us: &[f64]) -> Vec<Point> {
         match self {
             CurveArg::Whole(c) => c.eval_points(us),
             CurveArg::Trimmed(c) => c.eval_points(us),
@@ -94,7 +94,7 @@ impl ParametricCurve3D for CurveArg {
 
     // Forwarded so that the search sees a B-spline's pieces or an
     // elementary curve's closed form through the wrapper.
-    fn as_bspline(&self) -> Option<&BSplineCurve3D> {
+    fn as_bspline(&self) -> Option<&BSplineCurve> {
         match self {
             CurveArg::Whole(c) => c.as_bspline(),
             CurveArg::Trimmed(c) => c.as_bspline(),
@@ -112,7 +112,7 @@ impl ParametricCurve3D for CurveArg {
 pub(crate) fn extract_curve_arg(obj: &Bound<'_, PyAny>) -> PyResult<CurveArg> {
     curve_arg_of(obj).ok_or_else(|| {
         PyTypeError::new_err(
-            "expected a geomcore 3D curve (Line3D, Circle3D, Ellipse3D, Parabola3D, Hyperbola3D, BSplineCurve3D or TrimmedCurve3D)",
+            "expected a geomcore 3D curve (Line, Circle, Ellipse, Parabola, Hyperbola, BSplineCurve or TrimmedCurve)",
         )
     })
 }
@@ -120,20 +120,20 @@ pub(crate) fn extract_curve_arg(obj: &Bound<'_, PyAny>) -> PyResult<CurveArg> {
 /// The 3D curve or piece of one `obj` holds, if it is a 3D curve class;
 /// a miss raises nothing (see [`curve3d_of`]).
 pub(crate) fn curve_arg_of(obj: &Bound<'_, PyAny>) -> Option<CurveArg> {
-    if let Ok(c) = obj.downcast::<PyTrimmedCurve3D>() {
+    if let Ok(c) = obj.downcast::<PyTrimmedCurve>() {
         return Some(CurveArg::Trimmed(c.borrow().0.clone()));
     }
     curve3d_of(obj).map(CurveArg::Whole)
 }
 
-pub(crate) fn curve3d_to_py(py: Python<'_>, curve: Curve3D) -> PyResult<Py<PyAny>> {
+pub(crate) fn curve3d_to_py(py: Python<'_>, curve: Curve) -> PyResult<Py<PyAny>> {
     match curve {
-        Curve3D::Line(c) => Ok(PyLine3D(c).into_pyobject(py)?.into_any().unbind()),
-        Curve3D::Circle(c) => Ok(PyCircle3D(c).into_pyobject(py)?.into_any().unbind()),
-        Curve3D::Ellipse(c) => Ok(PyEllipse3D(c).into_pyobject(py)?.into_any().unbind()),
-        Curve3D::Parabola(c) => Ok(PyParabola3D(c).into_pyobject(py)?.into_any().unbind()),
-        Curve3D::Hyperbola(c) => Ok(PyHyperbola3D(c).into_pyobject(py)?.into_any().unbind()),
-        Curve3D::BSpline(c) => Ok(PyBSplineCurve3D(c).into_pyobject(py)?.into_any().unbind()),
+        Curve::Line(c) => Ok(PyLine(c).into_pyobject(py)?.into_any().unbind()),
+        Curve::Circle(c) => Ok(PyCircle(c).into_pyobject(py)?.into_any().unbind()),
+        Curve::Ellipse(c) => Ok(PyEllipse(c).into_pyobject(py)?.into_any().unbind()),
+        Curve::Parabola(c) => Ok(PyParabola(c).into_pyobject(py)?.into_any().unbind()),
+        Curve::Hyperbola(c) => Ok(PyHyperbola(c).into_pyobject(py)?.into_any().unbind()),
+        Curve::BSpline(c) => Ok(PyBSplineCurve(c).into_pyobject(py)?.into_any().unbind()),
         _ => Err(invalid_argument("unsupported 3d curve variant")),
     }
 }

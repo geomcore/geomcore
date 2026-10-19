@@ -7,10 +7,10 @@ use super::results::sort_by_known_parameter;
 use super::{
     CurveSurfaceHit, CurveSurfaceIntersection, curve_surface_multiplicity, mixed, overlap_runs,
 };
-use crate::curves::ParametricCurve3D;
+use crate::curves::ParametricCurve;
 use crate::math::{brent_minimum, newton_3d};
 use crate::surfaces::ParametricSurface;
-use crate::{Point3D, Tolerance};
+use crate::{Point, Tolerance};
 
 /// Intersects any parametric curve with any parametric surface by the
 /// numeric search: the entry point for curve and surface types defined
@@ -33,22 +33,22 @@ use crate::{Point3D, Tolerance};
 /// A helix, defined by the caller, crossing a plane:
 ///
 /// ```
-/// use geomcore::curves::ParametricCurve3D;
-/// use geomcore::{IntersectionMethod, Plane, Point3D, Tolerance, Vector3D, intersect_curve_surface};
+/// use geomcore::curves::ParametricCurve;
+/// use geomcore::{IntersectionMethod, Plane, Point, Tolerance, Vector, intersect_curve_surface};
 ///
 /// /// A helix of radius 1 about the z axis, rising 1 per turn.
 /// struct Helix;
 ///
-/// impl ParametricCurve3D for Helix {
-///     fn eval_point(&self, u: f64) -> Point3D {
+/// impl ParametricCurve for Helix {
+///     fn eval_point(&self, u: f64) -> Point {
 ///         let turn = std::f64::consts::TAU;
-///         Point3D::new(u.cos(), u.sin(), u / turn)
+///         Point::new(u.cos(), u.sin(), u / turn)
 ///     }
-///     fn eval_derivative(&self, u: f64, order: u32) -> Vector3D {
+///     fn eval_derivative(&self, u: f64, order: u32) -> Vector {
 ///         let turn = std::f64::consts::TAU;
 ///         match order {
-///             1 => Vector3D::new(-u.sin(), u.cos(), 1.0 / turn),
-///             _ => Vector3D::new(-u.cos(), -u.sin(), 0.0),
+///             1 => Vector::new(-u.sin(), u.cos(), 1.0 / turn),
+///             _ => Vector::new(-u.cos(), -u.sin(), 0.0),
 ///         }
 ///     }
 ///     fn bounds(&self) -> (f64, f64) {
@@ -59,7 +59,7 @@ use crate::{Point3D, Tolerance};
 ///     }
 /// }
 ///
-/// let plane = Plane::new(Point3D::new(0.0, 0.0, 1.5), Vector3D::Z).unwrap();
+/// let plane = Plane::new(Point::new(0.0, 0.0, 1.5), Vector::Z).unwrap();
 /// let result = intersect_curve_surface(&Helix, &plane, Tolerance::DEFAULT);
 /// assert_eq!(result.method(), IntersectionMethod::Numeric);
 /// assert_eq!(result.hits().len(), 1);
@@ -71,7 +71,7 @@ pub fn intersect_curve_surface<C, S>(
     tol: Tolerance,
 ) -> CurveSurfaceIntersection
 where
-    C: ParametricCurve3D,
+    C: ParametricCurve,
     S: ParametricSurface,
 {
     let hits = search_curve_surface(curve, surface, tol);
@@ -102,13 +102,13 @@ where
 /// missed.
 ///
 /// A B-spline curve, or a trimmed curve over one (see
-/// [`ParametricCurve3D::as_bspline`]), against a B-spline surface is
+/// [`ParametricCurve::as_bspline`]), against a B-spline surface is
 /// searched without sampling: the curve's knot spans over its range and
 /// the surface's knot-span patches are Bézier pieces, and the pairs of
 /// pieces whose control points' boxes overlap are halved until each is
 /// proven apart or provably holds at most one hit, which Newton iteration
 /// from the pair's centre then reaches. So is a B-spline against an
-/// elementary shape (see [`ParametricCurve3D::as_elementary`] and
+/// elementary shape (see [`ParametricCurve::as_elementary`] and
 /// [`ParametricSurface::as_elementary`]), either way round, converted to
 /// its exact rational B-spline. A hit lies on the B-spline, so within
 /// the box of its control points: a circle, ellipse, sphere or torus is
@@ -127,7 +127,7 @@ where
 /// merge into them.
 pub(crate) fn search_curve_surface<C, S>(curve: &C, surface: &S, tol: Tolerance) -> CurveSurfaceHits
 where
-    C: ParametricCurve3D,
+    C: ParametricCurve,
     S: ParametricSurface,
 {
     if let Some(mut hits) = mixed::curve_surface(curve, surface, tol) {
@@ -146,7 +146,7 @@ pub(super) fn sampled_curve_surface<C, S>(
     tol: Tolerance,
 ) -> Vec<CurveSurfaceHit>
 where
-    C: ParametricCurve3D,
+    C: ParametricCurve,
     S: ParametricSurface,
 {
     let (t0, t1) = curve.bounds();
@@ -185,7 +185,7 @@ where
             hits.push(hit);
         }
     };
-    let multiplicity_at = |t: f64, u: f64, v: f64, point: Point3D| {
+    let multiplicity_at = |t: f64, u: f64, v: f64, point: Point| {
         let (_, tangent) = curve.eval_d1(t);
         let (_, [su, sv]) = surface.eval_d1(u, v);
         curve_surface_multiplicity(tangent, su.cross(sv), point, tol)
@@ -254,13 +254,13 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{IntersectExact, Line3D, LineQuadricIntersection, Point3D, Sphere, Vector3D};
+    use crate::{IntersectExact, Line, LineQuadricIntersection, Point, Sphere, Vector};
 
     #[test]
     fn test_generic_line_sphere_matches_exact() {
         let tol = Tolerance::DEFAULT;
-        let line = Line3D::new(Point3D::ORIGIN, Vector3D::X).unwrap();
-        let sphere = Sphere::new(Point3D::ORIGIN, 2.0).unwrap();
+        let line = Line::new(Point::ORIGIN, Vector::X).unwrap();
+        let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
         let hits = search_curve_surface(&line, &sphere, tol);
         assert_eq!(hits.len(), 2);
         assert!((hits[0].curve_parameter.unwrap() + 2.0).abs() < 1e-9);
@@ -278,8 +278,8 @@ mod tests {
     #[test]
     fn test_generic_line_sphere_miss() {
         let tol = Tolerance::DEFAULT;
-        let line = Line3D::new(Point3D::new(0.0, 0.0, 3.0), Vector3D::X).unwrap();
-        let sphere = Sphere::new(Point3D::ORIGIN, 2.0).unwrap();
+        let line = Line::new(Point::new(0.0, 0.0, 3.0), Vector::X).unwrap();
+        let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
         assert!(search_curve_surface(&line, &sphere, tol).is_empty());
     }
 
@@ -287,7 +287,7 @@ mod tests {
     /// the Newton system on `(t, u, v)` is singular there.
     #[test]
     fn test_generic_curve_surface_hits_at_singular_points() {
-        use crate::{BSplineCurve3D, Cone};
+        use crate::{BSplineCurve, Cone};
         let tol = Tolerance::DEFAULT;
         let on_both = |hit: &CurveSurfaceHit, surface: &dyn ParametricSurface| {
             surface.contains(hit.point, tol)
@@ -301,8 +301,8 @@ mod tests {
         };
 
         // A line along the sphere's axis crosses at both poles.
-        let sphere = Sphere::new(Point3D::ORIGIN, 1.0).unwrap();
-        let line = Line3D::new(Point3D::new(0.0, 0.0, -3.0), Vector3D::Z).unwrap();
+        let sphere = Sphere::new(Point::ORIGIN, 1.0).unwrap();
+        let line = Line::new(Point::new(0.0, 0.0, -3.0), Vector::Z).unwrap();
         let hits = search_curve_surface(&line, &sphere, tol);
         assert_eq!(hits.len(), 2, "{hits:?}");
         assert!(
@@ -317,9 +317,9 @@ mod tests {
 
         // A line through a cone's apex, square to the axis, meets it there
         // only.
-        let cone = Cone::new(Point3D::new(0.0, 0.0, -1.0), Vector3D::Z, 0.5, 0.5).unwrap();
+        let cone = Cone::new(Point::new(0.0, 0.0, -1.0), Vector::Z, 0.5, 0.5).unwrap();
         let apex = cone.apex();
-        let line = Line3D::new(apex - Vector3D::X * 3.0, Vector3D::X).unwrap();
+        let line = Line::new(apex - Vector::X * 3.0, Vector::X).unwrap();
         let hits = search_curve_surface(&line, &cone, tol);
         assert_eq!(hits.len(), 1, "{hits:?}");
         assert!(hits[0].point.distance(apex) < 1e-6, "{hits:?}");
@@ -328,12 +328,12 @@ mod tests {
         // A B-spline curve, which has no exact solver, crossing the sphere
         // at its north pole (t = 0.5) and once more on the way out.
         let poles = vec![
-            Point3D::new(-1.0, 0.0, 3.0),
-            Point3D::new(0.0, 0.0, 0.0),
-            Point3D::new(1.0, 0.0, 1.0),
+            Point::new(-1.0, 0.0, 3.0),
+            Point::new(0.0, 0.0, 0.0),
+            Point::new(1.0, 0.0, 1.0),
         ];
-        let curve = BSplineCurve3D::new(2, poles, vec![0.0, 1.0], vec![3, 3], false).unwrap();
-        assert_eq!(curve.eval_point(0.5), Point3D::new(0.0, 0.0, 1.0));
+        let curve = BSplineCurve::new(2, poles, vec![0.0, 1.0], vec![3, 3], false).unwrap();
+        assert_eq!(curve.eval_point(0.5), Point::new(0.0, 0.0, 1.0));
         let hits = search_curve_surface(&curve, &sphere, tol);
         assert_eq!(hits.len(), 2, "{hits:?}");
         assert!(
@@ -345,14 +345,14 @@ mod tests {
 
     #[test]
     fn test_generic_segment_plane_hit() {
-        use crate::{BSplineCurve3D, Plane};
+        use crate::{BSplineCurve, Plane};
         let tol = Tolerance::DEFAULT;
-        let poles = vec![Point3D::new(0.0, 0.0, 0.0), Point3D::new(2.0, 0.0, 0.0)];
-        let curve = BSplineCurve3D::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
-        let plane = Plane::new(Point3D::new(1.0, 0.0, 0.0), Vector3D::X).unwrap();
+        let poles = vec![Point::new(0.0, 0.0, 0.0), Point::new(2.0, 0.0, 0.0)];
+        let curve = BSplineCurve::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
+        let plane = Plane::new(Point::new(1.0, 0.0, 0.0), Vector::X).unwrap();
         let hits = search_curve_surface(&curve, &plane, tol);
         assert_eq!(hits.len(), 1);
         assert!((hits[0].curve_parameter.unwrap() - 0.5).abs() < 1e-9);
-        assert_eq!(hits[0].point, Point3D::new(1.0, 0.0, 0.0));
+        assert_eq!(hits[0].point, Point::new(1.0, 0.0, 0.0));
     }
 }

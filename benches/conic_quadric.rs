@@ -10,9 +10,9 @@
 use criterion::{Criterion, Throughput, criterion_group, criterion_main};
 use std::hint::black_box;
 
-use geomcore::curves::{Circle3D, Ellipse3D, Hyperbola3D, Parabola3D};
+use geomcore::curves::{Circle, Ellipse, Hyperbola, Parabola};
 use geomcore::surfaces::{Cone, Cylinder, Plane, Sphere};
-use geomcore::{Frame3D, IntersectExact, Point3D, Tolerance, Vector3D};
+use geomcore::{Frame, IntersectExact, Point, Tolerance, Vector};
 
 const BATCH: usize = 1024;
 
@@ -24,44 +24,44 @@ fn jitter(i: usize, salt: u64) -> f64 {
 }
 
 /// A random frame near the origin, for the `i`-th conic.
-fn frame(i: usize) -> Frame3D {
-    let origin = Point3D::new(1.5 * jitter(i, 1), 1.5 * jitter(i, 2), 1.5 * jitter(i, 3));
-    let z = Vector3D::new(jitter(i, 4), jitter(i, 5), 0.2 + jitter(i, 6).abs())
+fn frame(i: usize) -> Frame {
+    let origin = Point::new(1.5 * jitter(i, 1), 1.5 * jitter(i, 2), 1.5 * jitter(i, 3));
+    let z = Vector::new(jitter(i, 4), jitter(i, 5), 0.2 + jitter(i, 6).abs())
         .normalized()
         .unwrap();
-    let x = z.cross(Vector3D::new(0.3, 1.0, 0.2)).normalized().unwrap();
-    Frame3D::new(origin, z, x).unwrap()
+    let x = z.cross(Vector::new(0.3, 1.0, 0.2)).normalized().unwrap();
+    Frame::new(origin, z, x).unwrap()
 }
 
-fn circles() -> Vec<Circle3D> {
+fn circles() -> Vec<Circle> {
     (0..BATCH)
         .map(|i| {
             let f = frame(i);
-            Circle3D::new(f.origin(), f.z_direction(), 1.0 + jitter(i, 7).abs()).unwrap()
+            Circle::new(f.origin(), f.z_direction(), 1.0 + jitter(i, 7).abs()).unwrap()
         })
         .collect()
 }
 
-fn ellipses() -> Vec<Ellipse3D> {
+fn ellipses() -> Vec<Ellipse> {
     (0..BATCH)
         .map(|i| {
             let a = 1.5 + jitter(i, 7).abs();
-            Ellipse3D::from_frame(frame(i), a, a * (0.3 + 0.6 * jitter(i, 8).abs())).unwrap()
+            Ellipse::from_frame(frame(i), a, a * (0.3 + 0.6 * jitter(i, 8).abs())).unwrap()
         })
         .collect()
 }
 
-fn parabolas() -> Vec<Parabola3D> {
+fn parabolas() -> Vec<Parabola> {
     (0..BATCH)
-        .map(|i| Parabola3D::from_frame(frame(i), 0.2 + jitter(i, 7).abs()).unwrap())
+        .map(|i| Parabola::from_frame(frame(i), 0.2 + jitter(i, 7).abs()).unwrap())
         .collect()
 }
 
-fn hyperbolas() -> Vec<Hyperbola3D> {
+fn hyperbolas() -> Vec<Hyperbola> {
     (0..BATCH)
         .map(|i| {
             let a = 0.5 + jitter(i, 7).abs();
-            Hyperbola3D::from_frame(frame(i), a, 0.3 + jitter(i, 8).abs()).unwrap()
+            Hyperbola::from_frame(frame(i), a, 0.3 + jitter(i, 8).abs()).unwrap()
         })
         .collect()
 }
@@ -71,10 +71,10 @@ macro_rules! bench_conic {
     ($c:expr, $name:literal, $conics:expr) => {{
         let conics = $conics;
         let tol = Tolerance::default();
-        let plane = Plane::new(Point3D::new(0.0, 0.0, 0.3), Vector3D::new(0.2, 0.1, 1.0)).unwrap();
-        let sphere = Sphere::new(Point3D::ORIGIN, 1.8).unwrap();
-        let cylinder = Cylinder::new(Point3D::ORIGIN, Vector3D::Z, 1.5).unwrap();
-        let cone = Cone::from_frame(Frame3D::WORLD, 0.5, 1.2).unwrap();
+        let plane = Plane::new(Point::new(0.0, 0.0, 0.3), Vector::new(0.2, 0.1, 1.0)).unwrap();
+        let sphere = Sphere::new(Point::ORIGIN, 1.8).unwrap();
+        let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 1.5).unwrap();
+        let cone = Cone::from_frame(Frame::WORLD, 0.5, 1.2).unwrap();
         let mut group = $c.benchmark_group(concat!("conic_quadric/", $name));
         group.throughput(Throughput::Elements(BATCH as u64));
         group.bench_function("plane", |b| {

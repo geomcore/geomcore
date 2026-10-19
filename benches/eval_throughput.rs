@@ -7,9 +7,9 @@ use criterion::{Criterion, criterion_group, criterion_main};
 use std::f64::consts::TAU;
 use std::hint::black_box;
 
-use geomcore::curves::{BSplineCurve3D, Circle3D};
+use geomcore::curves::{BSplineCurve, Circle};
 use geomcore::surfaces::BSplineSurface;
-use geomcore::{Point3D, Vector3D};
+use geomcore::{Point, Vector};
 
 const N: usize = 100_000;
 
@@ -17,27 +17,27 @@ fn circle_params() -> Vec<f64> {
     (0..N).map(|i| i as f64 / N as f64 * TAU).collect()
 }
 
-fn representative_curve() -> BSplineCurve3D {
+fn representative_curve() -> BSplineCurve {
     // Degree-3 clamped curve with 20 poles on a gentle helix.
-    let poles: Vec<Point3D> = (0..20)
+    let poles: Vec<Point> = (0..20)
         .map(|i| {
             let t = i as f64 / 19.0 * TAU;
-            Point3D::new(t.cos() * 3.0, t.sin() * 3.0, 0.4 * i as f64)
+            Point::new(t.cos() * 3.0, t.sin() * 3.0, 0.4 * i as f64)
         })
         .collect();
     let knots: Vec<f64> = (0..=17).map(|i| i as f64).collect();
     let mut mults = vec![1u32; 18];
     mults[0] = 4;
     mults[17] = 4;
-    BSplineCurve3D::new(3, poles, knots, mults, false).unwrap()
+    BSplineCurve::new(3, poles, knots, mults, false).unwrap()
 }
 
 fn representative_surface() -> BSplineSurface {
     // Bicubic clamped 6x6 patch.
-    let poles: Vec<Vec<Point3D>> = (0..6)
+    let poles: Vec<Vec<Point>> = (0..6)
         .map(|i| {
             (0..6)
-                .map(|j| Point3D::new(i as f64, j as f64, ((i * j) as f64 * 0.7).sin()))
+                .map(|j| Point::new(i as f64, j as f64, ((i * j) as f64 * 0.7).sin()))
                 .collect()
         })
         .collect();
@@ -61,7 +61,7 @@ fn bench_eval_throughput(c: &mut Criterion) {
     let mut group = c.benchmark_group("eval_throughput");
     group.sample_size(20);
 
-    let circle = Circle3D::new(Point3D::ORIGIN, Vector3D::Z, 2.0).unwrap();
+    let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
     let params = circle_params();
     group.bench_function("circle_eval_points_100k", |b| {
         b.iter(|| black_box(circle.eval_points(black_box(&params))))

@@ -7,13 +7,13 @@ use std::collections::BinaryHeap;
 use std::fmt;
 use std::sync::OnceLock;
 
-use crate::Point3D;
+use crate::Point;
 
 /// Axis-aligned box `[min_x, min_y, min_z, max_x, max_y, max_z]`.
 pub(crate) type Aabb = [f64; 6];
 
 /// Distance from `p` to the box `b` (zero inside).
-pub(crate) fn box_distance(p: Point3D, b: &Aabb) -> f64 {
+pub(crate) fn box_distance(p: Point, b: &Aabb) -> f64 {
     let gap = |x: f64, lo: f64, hi: f64| (lo - x).max(x - hi).max(0.0);
     let (dx, dy, dz) = (
         gap(p.x, b[0], b[3]),
@@ -69,7 +69,7 @@ impl BoxTree {
     /// returns the best distance after processing its leaf. Since every
     /// box contains its piece of the geometry, the leaves skipped cannot
     /// hold anything closer.
-    pub(crate) fn nearest_first(&self, point: Point3D, mut visit: impl FnMut(usize) -> f64) {
+    pub(crate) fn nearest_first(&self, point: Point, mut visit: impl FnMut(usize) -> f64) {
         let mut best = f64::INFINITY;
         // A frontier of the tree, so never more entries than leaves: room
         // for them all, up to a few levels' worth.
@@ -239,14 +239,14 @@ mod tests {
         let mut seen = Vec::new();
         // The query sits right of the last box; each visited leaf reports
         // its own box distance as the best, so only the nearest is visited.
-        tree.nearest_first(Point3D::new(10.0, 0.5, 0.5), |k| {
+        tree.nearest_first(Point::new(10.0, 0.5, 0.5), |k| {
             seen.push(k);
-            box_distance(Point3D::new(10.0, 0.5, 0.5), &leaves[k])
+            box_distance(Point::new(10.0, 0.5, 0.5), &leaves[k])
         });
         assert_eq!(seen, vec![3]);
         // Without pruning every leaf comes, nearest first.
         let mut all = Vec::new();
-        tree.nearest_first(Point3D::new(10.0, 0.5, 0.5), |k| {
+        tree.nearest_first(Point::new(10.0, 0.5, 0.5), |k| {
             all.push(k);
             f64::INFINITY
         });
@@ -279,7 +279,7 @@ mod tests {
     #[test]
     fn test_box_distance() {
         let b = [0.0, 0.0, 0.0, 1.0, 1.0, 1.0];
-        assert_eq!(box_distance(Point3D::new(0.5, 0.5, 0.5), &b), 0.0);
-        assert_eq!(box_distance(Point3D::new(4.0, 5.0, 0.5), &b), 5.0);
+        assert_eq!(box_distance(Point::new(0.5, 0.5, 0.5), &b), 0.0);
+        assert_eq!(box_distance(Point::new(4.0, 5.0, 0.5), &b), 5.0);
     }
 }

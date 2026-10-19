@@ -21,14 +21,14 @@ use std::sync::OnceLock;
 
 use super::analytic::in_period;
 use crate::curves::Side;
-use crate::{Continuity, Point3D, Tolerance, Vector3D};
+use crate::{Continuity, Point, Tolerance, Vector};
 
 /// Maximum supported B-spline degree.
 pub(crate) const MAX_DEGREE: usize = 25;
 
 /// Error type re-exported here for use by [`validate_direction`]; the
 /// canonical definition (and its docs) live on [`crate::curves`], next to
-/// [`crate::curves::BSplineCurve3D`], the type that actually constructs and
+/// [`crate::curves::BSplineCurve`], the type that actually constructs and
 /// reports these errors.
 pub(crate) use crate::curves::BSplineConstructionError;
 
@@ -697,7 +697,7 @@ impl KnotVector {
 /// along `u`.
 #[derive(Clone, Copy)]
 pub(crate) struct Poles<'a> {
-    pub(crate) points: &'a [Point3D],
+    pub(crate) points: &'a [Point],
     pub(crate) weights: Option<&'a [f64]>,
 }
 
@@ -981,7 +981,7 @@ fn basis_derivatives<const N: usize>(
 
 /// The point at `u`: the value-only path of [`derivatives`].
 #[inline]
-pub(crate) fn point(knots: &KnotVector, poles: Poles, u: f64) -> Point3D {
+pub(crate) fn point(knots: &KnotVector, poles: Poles, u: f64) -> Point {
     if !knots.periodic {
         match knots.degree {
             1 => return point_of_degree::<1>(knots, poles, u),
@@ -1001,7 +1001,7 @@ pub(crate) fn point(knots: &KnotVector, poles: Poles, u: f64) -> Point3D {
 /// span's poles sliced once and every loop over constant bounds, so
 /// unrolled.
 #[inline(always)]
-fn point_of_degree<const P: usize>(knots: &KnotVector, poles: Poles, u: f64) -> Point3D {
+fn point_of_degree<const P: usize>(knots: &KnotVector, poles: Poles, u: f64) -> Point {
     let (first, values) = knots.basis_of_degree::<P>(u);
     let points = &poles.points[first..=first + P];
     // Each sum starts from its first term, sparing additions of zero.
@@ -1017,7 +1017,7 @@ fn point_of_degree<const P: usize>(knots: &KnotVector, poles: Poles, u: f64) -> 
                 sum[1] += values[j] * points[j].y;
                 sum[2] += values[j] * points[j].z;
             }
-            Point3D::new(sum[0], sum[1], sum[2])
+            Point::new(sum[0], sum[1], sum[2])
         }
         Some(weights) => {
             let weights = &weights[first..=first + P];
@@ -1031,7 +1031,7 @@ fn point_of_degree<const P: usize>(knots: &KnotVector, poles: Poles, u: f64) -> 
                 sum[3] += b;
             }
             let inverse = 1.0 / sum[3];
-            Point3D::new(sum[0] * inverse, sum[1] * inverse, sum[2] * inverse)
+            Point::new(sum[0] * inverse, sum[1] * inverse, sum[2] * inverse)
         }
     }
 }
@@ -1062,7 +1062,7 @@ fn basis_values_of<const P: usize>(left: &[f64; 4], right: &[f64; 4]) -> [f64; 4
 }
 
 #[inline]
-fn point_sized<const N: usize>(knots: &KnotVector, poles: Poles, u: f64) -> Point3D {
+fn point_sized<const N: usize>(knots: &KnotVector, poles: Poles, u: f64) -> Point {
     let mut values = [0.0f64; N];
     let first = knots.basis(u, &mut values);
     let degree = knots.degree;
@@ -1075,7 +1075,7 @@ fn point_sized<const N: usize>(knots: &KnotVector, poles: Poles, u: f64) -> Poin
                 sum[1] += b * p.y;
                 sum[2] += b * p.z;
             }
-            Point3D::new(sum[0], sum[1], sum[2])
+            Point::new(sum[0], sum[1], sum[2])
         }
         Some(weights) => {
             for (j, &b) in values.iter().enumerate().take(degree + 1) {
@@ -1087,7 +1087,7 @@ fn point_sized<const N: usize>(knots: &KnotVector, poles: Poles, u: f64) -> Poin
                 sum[3] += b;
             }
             let inverse = 1.0 / sum[3];
-            Point3D::new(sum[0] * inverse, sum[1] * inverse, sum[2] * inverse)
+            Point::new(sum[0] * inverse, sum[1] * inverse, sum[2] * inverse)
         }
     }
 }
@@ -1104,7 +1104,7 @@ pub(crate) fn derivatives<const ORDER: usize>(
     knots: &KnotVector,
     poles: Poles,
     u: f64,
-) -> [Vector3D; 3] {
+) -> [Vector; 3] {
     if knots.degree < SMALL {
         derivatives_sized::<SMALL, ORDER>(knots, poles, u, None)
     } else {
@@ -1122,7 +1122,7 @@ pub(crate) fn derivatives_sided<const ORDER: usize>(
     poles: Poles,
     u: f64,
     side: Side,
-) -> [Vector3D; 3] {
+) -> [Vector; 3] {
     if knots.degree < SMALL {
         derivatives_sized::<SMALL, ORDER>(knots, poles, u, Some(side))
     } else {
@@ -1136,7 +1136,7 @@ fn derivatives_sized<const N: usize, const ORDER: usize>(
     poles: Poles,
     u: f64,
     side: Option<Side>,
-) -> [Vector3D; 3] {
+) -> [Vector; 3] {
     debug_assert!(
         ORDER <= MAX_DERIVATIVE,
         "derivative order {ORDER} not supported"
@@ -1156,7 +1156,7 @@ fn derivatives_sized<const N: usize, const ORDER: usize>(
             sum[3] += b;
         }
     }
-    let vector = |s: [f64; 4]| Vector3D::new(s[0], s[1], s[2]);
+    let vector = |s: [f64; 4]| Vector::new(s[0], s[1], s[2]);
     let mut out = sums.map(vector);
     if poles.weights.is_some() {
         let [w0, w1, w2] = sums.map(|s| s[3]);
@@ -1539,10 +1539,10 @@ mod tests {
 
     // ---- helpers over the new API ----
 
-    fn points(coordinates: &[[f64; 3]]) -> Vec<Point3D> {
+    fn points(coordinates: &[[f64; 3]]) -> Vec<Point> {
         coordinates
             .iter()
-            .map(|c| Point3D::new(c[0], c[1], c[2]))
+            .map(|c| Point::new(c[0], c[1], c[2]))
             .collect()
     }
 
@@ -1556,7 +1556,7 @@ mod tests {
         KnotVector::new(degree, knots.to_vec(), mults.to_vec(), periodic, count).unwrap()
     }
 
-    fn components(v: Vector3D) -> [f64; 3] {
+    fn components(v: Vector) -> [f64; 3] {
         [v.x, v.y, v.z]
     }
 
@@ -1616,10 +1616,10 @@ mod tests {
                 false,
                 degree + 3 + double as usize,
             );
-            let poles: Vec<Point3D> = (0..knots.pole_count)
+            let poles: Vec<Point> = (0..knots.pole_count)
                 .map(|i| {
                     let t = i as f64;
-                    Point3D::new(t, (1.7 * t).sin(), 0.3 * t * t)
+                    Point::new(t, (1.7 * t).sin(), 0.3 * t * t)
                 })
                 .collect();
             let weights: Vec<f64> = (0..knots.pole_count)
@@ -1698,7 +1698,7 @@ mod tests {
         periodic: bool,
         knots: &[f64],
         mults: &[u32],
-        poles: &[Point3D],
+        poles: &[Point],
         weights: Option<&[f64]>,
     ) {
         let vector = knot_vector(degree, knots, mults, periodic, poles.len());
@@ -1733,8 +1733,8 @@ mod tests {
 
     #[test]
     fn test_span_bezier_nonuniform_with_interior_multiplicity() {
-        let poles: Vec<Point3D> = (0..8)
-            .map(|i| Point3D::new(i as f64, (i * i % 5) as f64, (i % 3) as f64 - 1.0))
+        let poles: Vec<Point> = (0..8)
+            .map(|i| Point::new(i as f64, (i * i % 5) as f64, (i % 3) as f64 - 1.0))
             .collect();
         assert_bezier_matches(
             3,
@@ -1749,8 +1749,8 @@ mod tests {
     #[test]
     fn test_span_bezier_rational_homogeneous() {
         let weights = [1.0, 0.4, 2.5, 1.2, 0.8, 3.0];
-        let poles: Vec<Point3D> = (0..6)
-            .map(|i| Point3D::new(i as f64, ((i * 7) % 4) as f64, -(i as f64)))
+        let poles: Vec<Point> = (0..6)
+            .map(|i| Point::new(i as f64, ((i * 7) % 4) as f64, -(i as f64)))
             .collect();
         assert_bezier_matches(
             2,
@@ -1783,7 +1783,7 @@ mod tests {
         );
     }
 
-    fn periodic_ring_poles() -> Vec<Point3D> {
+    fn periodic_ring_poles() -> Vec<Point> {
         points(&[
             [2.0, 0.0, 0.3],
             [1.0000000000000002, 1.7320508075688772, -0.3],
@@ -1978,9 +1978,9 @@ mod tests {
             .get("weights")
             .and_then(|w| if w.is_null() { None } else { Some(arr_f64(w)) });
 
-        let poles: Vec<Point3D> = pole_rows
+        let poles: Vec<Point> = pole_rows
             .iter()
-            .map(|p| Point3D::new(p[0], p[1], p[2]))
+            .map(|p| Point::new(p[0], p[1], p[2]))
             .collect();
         let vector = KnotVector::new(degree, knots, mults, periodic, poles.len()).unwrap();
         let view = Poles {
