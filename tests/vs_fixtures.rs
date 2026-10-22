@@ -1205,6 +1205,15 @@ struct ParametrizeCurve {
     direction: Option<[f64; 3]>,
     frame: Option<FrameJson>,
     radius: Option<f64>,
+    major_radius: Option<f64>,
+    minor_radius: Option<f64>,
+    focal: Option<f64>,
+    degree: Option<usize>,
+    periodic: Option<bool>,
+    poles: Option<Vec<[f64; 3]>>,
+    weights: Option<Vec<f64>>,
+    knots: Option<Vec<f64>>,
+    mults: Option<Vec<u32>>,
 }
 
 #[derive(Deserialize)]
@@ -1216,6 +1225,15 @@ struct ParametrizeExpect {
     x_dir: Option<[f64; 2]>,
     y_dir: Option<[f64; 2]>,
     radius: Option<f64>,
+    major_radius: Option<f64>,
+    minor_radius: Option<f64>,
+    focal: Option<f64>,
+    degree: Option<usize>,
+    periodic: Option<bool>,
+    poles: Option<Vec<[f64; 2]>>,
+    weights: Option<Vec<f64>>,
+    knots: Option<Vec<f64>>,
+    mults: Option<Vec<u32>>,
 }
 
 #[derive(Deserialize)]
@@ -1247,6 +1265,10 @@ struct ParametrizeFixture {
 enum ParamCurve {
     Line(Line),
     Circle(Circle),
+    Ellipse(Ellipse),
+    Parabola(Parabola),
+    Hyperbola(Hyperbola),
+    BSpline(BSplineCurve),
 }
 
 fn build_parametrize_surface(s: &ParametrizeSurface) -> geomcore::Surface {
@@ -1276,6 +1298,46 @@ fn build_parametrize_curve(c: &ParametrizeCurve) -> ParamCurve {
             let frame = frame3(c.frame.as_ref().unwrap());
             ParamCurve::Circle(Circle::from_frame(frame, c.radius.unwrap()).unwrap())
         }
+        "ellipse" => {
+            let frame = frame3(c.frame.as_ref().unwrap());
+            ParamCurve::Ellipse(
+                Ellipse::from_frame(frame, c.major_radius.unwrap(), c.minor_radius.unwrap())
+                    .unwrap(),
+            )
+        }
+        "parabola" => {
+            let frame = frame3(c.frame.as_ref().unwrap());
+            ParamCurve::Parabola(Parabola::from_frame(frame, c.focal.unwrap()).unwrap())
+        }
+        "hyperbola" => {
+            let frame = frame3(c.frame.as_ref().unwrap());
+            ParamCurve::Hyperbola(
+                Hyperbola::from_frame(frame, c.major_radius.unwrap(), c.minor_radius.unwrap())
+                    .unwrap(),
+            )
+        }
+        "bspline" => {
+            let poles: Vec<geomcore::Point> = c
+                .poles
+                .as_ref()
+                .unwrap()
+                .iter()
+                .map(|&p| point3(p))
+                .collect();
+            let (degree, knots, mults, periodic) = (
+                c.degree.unwrap(),
+                c.knots.clone().unwrap(),
+                c.mults.clone().unwrap(),
+                c.periodic.unwrap_or(false),
+            );
+            let curve = match &c.weights {
+                Some(w) => {
+                    BSplineCurve::new_rational(degree, poles, w.clone(), knots, mults, periodic)
+                }
+                None => BSplineCurve::new(degree, poles, knots, mults, periodic),
+            };
+            ParamCurve::BSpline(curve.unwrap())
+        }
         other => panic!("unknown parametrize curve kind: {other}"),
     }
 }
@@ -1287,7 +1349,25 @@ fn parametrize_curve(
     match curve {
         ParamCurve::Line(l) => l.parametrize_on(surface.clone(), Tolerance::DEFAULT),
         ParamCurve::Circle(c) => c.parametrize_on(surface.clone(), Tolerance::DEFAULT),
+        ParamCurve::Ellipse(e) => e.parametrize_on(surface.clone(), Tolerance::DEFAULT),
+        ParamCurve::Parabola(p) => p.parametrize_on(surface.clone(), Tolerance::DEFAULT),
+        ParamCurve::Hyperbola(h) => h.parametrize_on(surface.clone(), Tolerance::DEFAULT),
+        ParamCurve::BSpline(b) => b.parametrize_on(surface.clone(), Tolerance::DEFAULT),
     }
+}
+
+/// Asserts a 2D frame against the golden `center`, `x_dir` and `y_dir`.
+#[track_caller]
+fn assert_expected_frame2(frame: geomcore::Frame2D, expect: &ParametrizeExpect) {
+    let center = expect.center.unwrap();
+    let x_dir = expect.x_dir.unwrap();
+    let y_dir = expect.y_dir.unwrap();
+    assert_close(frame.origin().x, center[0]);
+    assert_close(frame.origin().y, center[1]);
+    assert_close(frame.x_direction().x, x_dir[0]);
+    assert_close(frame.x_direction().y, x_dir[1]);
+    assert_close(frame.y_direction().x, y_dir[0]);
+    assert_close(frame.y_direction().y, y_dir[1]);
 }
 
 #[test]
@@ -1310,6 +1390,17 @@ fn parametrize_matches_golden_fixture() {
             continue;
         }
 
+        // curve_not_on_surface cases: the curve leaves the surface.
+        if case.expect.kind == "curve_not_on_surface" {
+            assert_eq!(
+                result,
+                Err(ParametrizeError::CurveNotOnSurface),
+                "case {}: expected CurveNotOnSurface",
+                case.name
+            );
+            continue;
+        }
+
         let pcurve =
             result.unwrap_or_else(|e| panic!("case {}: unexpected error {e:?}", case.name));
 
@@ -1317,6 +1408,10 @@ fn parametrize_matches_golden_fixture() {
         match (case.expect.kind.as_str(), &pcurve) {
             ("line2d", Curve2D::Line(_)) => {}
             ("circle2d", Curve2D::Circle(_)) => {}
+            ("ellipse2d", Curve2D::Ellipse(_)) => {}
+            ("parabola2d", Curve2D::Parabola(_)) => {}
+            ("hyperbola2d", Curve2D::Hyperbola(_)) => {}
+            ("bspline2d", Curve2D::BSpline(_)) => {}
             (k, got) => panic!("case {}: expected kind {k}, got {got:?}", case.name),
         }
 
@@ -1383,18 +1478,40 @@ fn parametrize_matches_golden_fixture() {
                     assert_close(l.direction().y, d[1]);
                 }
                 Curve2D::Circle(c) => {
-                    let center = case.expect.center.unwrap();
-                    let x_dir = case.expect.x_dir.unwrap();
-                    let y_dir = case.expect.y_dir.unwrap();
-                    assert_close(c.center().x, center[0]);
-                    assert_close(c.center().y, center[1]);
-                    assert_close(c.frame().x_direction().x, x_dir[0]);
-                    assert_close(c.frame().x_direction().y, x_dir[1]);
-                    assert_close(c.frame().y_direction().x, y_dir[0]);
-                    assert_close(c.frame().y_direction().y, y_dir[1]);
+                    assert_expected_frame2(c.frame(), &case.expect);
                     assert_close(c.radius(), case.expect.radius.unwrap());
                 }
-                _ => unreachable!(),
+                Curve2D::Ellipse(e) => {
+                    assert_expected_frame2(e.frame(), &case.expect);
+                    assert_close(e.major_radius(), case.expect.major_radius.unwrap());
+                    assert_close(e.minor_radius(), case.expect.minor_radius.unwrap());
+                }
+                Curve2D::Parabola(p) => {
+                    assert_expected_frame2(p.frame(), &case.expect);
+                    assert_close(p.focal(), case.expect.focal.unwrap());
+                }
+                Curve2D::Hyperbola(h) => {
+                    assert_expected_frame2(h.frame(), &case.expect);
+                    assert_close(h.major_radius(), case.expect.major_radius.unwrap());
+                    assert_close(h.minor_radius(), case.expect.minor_radius.unwrap());
+                }
+                Curve2D::BSpline(b) => {
+                    let expect = &case.expect;
+                    assert_eq!(b.degree(), expect.degree.unwrap(), "case {}", case.name);
+                    assert_eq!(b.is_periodic(), expect.periodic.unwrap_or(false));
+                    assert_eq!(b.knots(), expect.knots.as_ref().unwrap().as_slice());
+                    assert_eq!(
+                        b.multiplicities(),
+                        expect.mults.as_ref().unwrap().as_slice()
+                    );
+                    assert_eq!(b.weights(), expect.weights.as_deref());
+                    let poles = expect.poles.as_ref().unwrap();
+                    assert_eq!(b.poles().len(), poles.len(), "case {}", case.name);
+                    for (pole, expected) in b.poles().iter().zip(poles) {
+                        assert_point2(*pole, *expected);
+                    }
+                }
+                other => panic!("case {}: unexpected plane image {other:?}", case.name),
             }
         } else if case.expect.kind == "line2d" && case.in_window && case.normalized.is_none() {
             // Periodic-surface line whose raw projection was already in-window:

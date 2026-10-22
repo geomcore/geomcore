@@ -3,7 +3,7 @@
 
 use crate::IntersectExact;
 use crate::curve_math::analytic;
-use crate::curves::{Curve2D, ParametrizeError};
+use crate::curves::{Curve2D, ParametrizeError, parametrize};
 use crate::frame::frame_error;
 use crate::intersect::{ConicSurfaceIntersection, intersect_conic_quadric};
 use crate::math::real_roots;
@@ -365,31 +365,38 @@ impl Parabola {
     }
 
     /// Computes the exact 2D representation of this parabola in a surface's
-    /// parameter space.
+    /// parameter space: a [`Curve2D`] `q(t)` such that
+    /// `surface.eval_point(q(t)) == self.eval_point(t)` for the same `t`.
     ///
-    /// No parabola/surface pair has a closed-form 2D image in this release, so
-    /// this always returns [`ParametrizeError::NotAnalytic`]. The `surface`
-    /// and `tol` arguments are accepted for signature parity with the analytic
-    /// [`crate::Line::parametrize_on`] and
-    /// [`crate::Circle::parametrize_on`].
+    /// A parabola in a plane maps to a [`Parabola2D`] with the same focal
+    /// distance in the plane's `(u, v)`. On a cylinder, cone, sphere, torus
+    /// or B-spline surface no closed-form image that a [`Curve2D`] can hold
+    /// exists, so the result is [`ParametrizeError::NotAnalytic`].
+    ///
+    /// As a geomcore safeguard, the image is verified against the surface at
+    /// a few parameters: a parabola that does not lie in the plane (tilted
+    /// beyond `tol.angular`, the parabola being unbounded, or offset by more
+    /// than `tol.confusion`) gives [`ParametrizeError::CurveNotOnSurface`].
     ///
     /// # Examples
     ///
     /// ```
-    /// use geomcore::curves::ParametrizeError;
+    /// use geomcore::curves::{Curve2D, ParametricCurve2D};
     /// use geomcore::{Parabola, Plane, Point, Tolerance, Vector};
     ///
     /// let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
-    /// let parabola = Parabola::new(Point::ORIGIN, Vector::Z, Vector::X, 1.0).unwrap();
-    /// assert_eq!(parabola.parametrize_on(&plane, Tolerance::DEFAULT), Err(ParametrizeError::NotAnalytic));
+    /// let parabola = Parabola::new(Point::new(1.0, 2.0, 0.0), Vector::Z, Vector::X, 1.0).unwrap();
+    /// let pcurve = parabola.parametrize_on(&plane, Tolerance::DEFAULT).unwrap();
+    /// assert!(matches!(pcurve, Curve2D::Parabola(_)));
+    /// let q = pcurve.eval_point(2.0);
+    /// assert!((q.x - 2.0).abs() < 1e-9 && (q.y - 4.0).abs() < 1e-9);
     /// ```
     pub fn parametrize_on(
         &self,
         surface: impl Into<Surface>,
-        _tol: Tolerance,
+        tol: Tolerance,
     ) -> Result<Curve2D, ParametrizeError> {
-        let _ = surface.into();
-        Err(ParametrizeError::NotAnalytic)
+        parametrize::parabola_on_surface(self, &surface.into(), tol)
     }
 }
 

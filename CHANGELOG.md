@@ -63,6 +63,27 @@ the Python distribution are versioned in lockstep.
   support. `Curve2D` gains a `Hyperbola` variant with every operation
   forwarded, and Python gains `geomcore.curves.Hyperbola2D` with stubs.
   2D intersections with a hyperbola run the numeric search.
+- Exact plane images for conics and B-splines (#95), in Rust and Python:
+  `Ellipse::parametrize_on`, `Parabola::parametrize_on`,
+  `Hyperbola::parametrize_on` and `BSplineCurve::parametrize_on` on a
+  plane return an `Ellipse2D`, `Parabola2D`, `Hyperbola2D` or
+  `BSplineCurve2D` in the plane's `(u, v)` (they always returned
+  `NotAnalytic` before), with the 3D curve's parametrization:
+  `plane(q(t)) == curve(t)`. A B-spline's image has the poles' plane
+  coordinates with degree, knots, multiplicities, weights and periodicity
+  unchanged. A curve that leaves the plane reports `CurveNotOnSurface`: a
+  conic whose normal turns off the plane's by more than
+  `tol.angular_for_extent(extent)` (its major radius for an ellipse, the
+  model size for an unbounded parabola or hyperbola) or that sits off it, a
+  B-spline with a pole farther than `tol.confusion` from the plane. The
+  Python stubs return the matching 2D type.
+  The other pairs were checked and stay `NotAnalytic`: an ellipse,
+  parabola or hyperbola on a cylinder, cone, sphere or torus (a plane
+  section of a cylinder is a sinusoid in `(u, v)`, of a cone a polar
+  conic, neither a conic or a B-spline), a B-spline curve on those
+  surfaces, and every curve on a B-spline surface. Golden fixtures in
+  `parametrize.json` cover the plane cases, the off-plane cases and the
+  curved-surface cases.
 - `BezierCurve` and `BezierCurve2D` (#98): first-class Bézier curves of
   `degree + 1` poles (polynomial or rational) with evaluation, sided
   evaluation, continuity, `split_at`, `elevate_degree`, `reversed`,

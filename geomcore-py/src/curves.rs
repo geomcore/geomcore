@@ -814,7 +814,12 @@ impl PyEllipse {
             .collect()
     }
 
-    /// Not available for ellipses in this release; always raises `ValueError`.
+    /// Compute this ellipse's 2D representation in a surface's (u, v) space.
+    ///
+    /// An ellipse in a plane gives an `Ellipse2D`. Raises `ValueError` on a cylinder, cone, sphere, torus or
+    /// B-spline surface (no closed-form representation exists) and when the
+    /// ellipse does not lie in the plane within `tol`
+    /// (`Tolerance.default()` when omitted).
     #[pyo3(signature = (surface, tol = None))]
     fn parametrize_on(
         &self,
@@ -1067,7 +1072,12 @@ impl PyParabola {
             .collect()
     }
 
-    /// Not available for parabolas in this release; always raises `ValueError`.
+    /// Compute this parabola's 2D representation in a surface's (u, v) space.
+    ///
+    /// A parabola in a plane gives a `Parabola2D`. Raises `ValueError` on a cylinder, cone, sphere, torus or
+    /// B-spline surface (no closed-form representation exists) and when the
+    /// parabola does not lie in the plane within `tol`
+    /// (`Tolerance.default()` when omitted).
     #[pyo3(signature = (surface, tol = None))]
     fn parametrize_on(
         &self,
@@ -1342,7 +1352,12 @@ impl PyHyperbola {
             .collect()
     }
 
-    /// Not available for hyperbolas in this release; always raises `ValueError`.
+    /// Compute this hyperbola's 2D representation in a surface's (u, v) space.
+    ///
+    /// A hyperbola in a plane gives a `Hyperbola2D`. Raises `ValueError` on a cylinder, cone, sphere, torus or
+    /// B-spline surface (no closed-form representation exists) and when the
+    /// hyperbola does not lie in the plane within `tol`
+    /// (`Tolerance.default()` when omitted).
     #[pyo3(signature = (surface, tol = None))]
     fn parametrize_on(
         &self,
@@ -1772,7 +1787,12 @@ impl PyBSplineCurve {
         Ok(PyVector(self.0.eval_derivative(u, order)))
     }
 
-    /// Not available for B-spline curves in this release; always raises `ValueError`.
+    /// Compute this B-spline curve's 2D representation in a surface's (u, v) space.
+    ///
+    /// A B-spline curve in a plane gives the `BSplineCurve2D` of its poles' plane coordinates. Raises `ValueError` on a cylinder, cone, sphere, torus or
+    /// B-spline surface (no closed-form representation exists) and when the
+    /// B-spline curve does not lie in the plane within `tol`
+    /// (`Tolerance.default()` when omitted).
     #[pyo3(signature = (surface, tol = None))]
     fn parametrize_on(
         &self,
