@@ -43,6 +43,15 @@ the Python distribution are versioned in lockstep.
   discretization; exact B-spline conversion; and `TrimmedCurve2D`
   support. `Curve2D` gains an `Ellipse` variant with every operation
   forwarded, and Python gains `geomcore.curves.Ellipse2D` with stubs.
+- `Parabola2D` (#93), in Rust and Python: construction from an apex,
+  axis direction and focal distance or from a `Frame2D`, sharing
+  `ParabolaConstructionError` with `Parabola`; evaluation and
+  derivatives with the same parametrization as `Parabola`, parameter
+  inversion, containment, extrema and projection; tight bounding boxes
+  and proven discretization of its pieces; and `TrimmedCurve2D`
+  support. `Curve2D` gains a `Parabola` variant with every operation
+  forwarded, and Python gains `geomcore.curves.Parabola2D` with stubs.
+  2D intersections with a parabola run the numeric search.
 
 ### Changed
 

@@ -7,7 +7,8 @@ use super::sealed::BoundRange2D;
 use super::{BoundingBox2D, HasBoundingBox2D};
 use crate::Point2D;
 use crate::curves::{
-    BSplineCurve2D, Circle2D, Curve2D, Ellipse2D, Line2D, ParametricCurve2D, TrimmedCurve2D,
+    BSplineCurve2D, Circle2D, Curve2D, Ellipse2D, Line2D, Parabola2D, ParametricCurve2D,
+    TrimmedCurve2D,
 };
 use std::f64::consts::{PI, TAU};
 
@@ -29,6 +30,12 @@ impl HasBoundingBox2D for Ellipse2D {
     }
 }
 
+impl HasBoundingBox2D for Parabola2D {
+    fn bounding_box(&self) -> Option<BoundingBox2D> {
+        None
+    }
+}
+
 impl HasBoundingBox2D for BSplineCurve2D {
     fn bounding_box(&self) -> Option<BoundingBox2D> {
         BoundingBox2D::from_points(self.poles().iter().copied())
@@ -41,6 +48,7 @@ impl HasBoundingBox2D for Curve2D {
             Curve2D::Line(c) => c.bounding_box(),
             Curve2D::Circle(c) => c.bounding_box(),
             Curve2D::Ellipse(c) => c.bounding_box(),
+            Curve2D::Parabola(c) => c.bounding_box(),
             Curve2D::BSpline(c) => c.bounding_box(),
         }
     }
@@ -136,6 +144,21 @@ fn ellipse_box(ellipse: &Ellipse2D, range: Option<(f64, f64)>) -> BoundingBox2D 
     }
 }
 
+/// The box of the parabola over `[first, last]`: its endpoints plus the
+/// coordinate-wise stationary points `u = -2 f y_k / x_k` that lie inside.
+fn parabola_box(parabola: &Parabola2D, first: f64, last: f64) -> BoundingBox2D {
+    let frame = parabola.frame();
+    let (x, y) = (frame.x_direction(), frame.y_direction());
+    let (x, y) = (coordinates_of(x), coordinates_of(y));
+    let f = parabola.focal();
+    let ends = BoundingBox2D::new(parabola.eval_point(first), parabola.eval_point(last));
+    let stationary: [f64; 2] = std::array::from_fn(|k| -2.0 * f * y[k] / x[k]);
+    stationary
+        .into_iter()
+        .filter(|&t| first < t && t < last)
+        .fold(ends, |b, t| b.including(parabola.eval_point(t)))
+}
+
 impl BoundRange2D for Line2D {
     fn range_box(&self, first: f64, last: f64) -> BoundingBox2D {
         BoundingBox2D::new(self.eval_point(first), self.eval_point(last))
@@ -151,6 +174,12 @@ impl BoundRange2D for Circle2D {
 impl BoundRange2D for Ellipse2D {
     fn range_box(&self, first: f64, last: f64) -> BoundingBox2D {
         ellipse_box(self, Some((first, last)))
+    }
+}
+
+impl BoundRange2D for Parabola2D {
+    fn range_box(&self, first: f64, last: f64) -> BoundingBox2D {
+        parabola_box(self, first, last)
     }
 }
 
@@ -178,6 +207,7 @@ impl BoundRange2D for Curve2D {
             Curve2D::Line(c) => c.range_box(first, last),
             Curve2D::Circle(c) => c.range_box(first, last),
             Curve2D::Ellipse(c) => c.range_box(first, last),
+            Curve2D::Parabola(c) => c.range_box(first, last),
             Curve2D::BSpline(c) => c.range_box(first, last),
         }
     }

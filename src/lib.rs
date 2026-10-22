@@ -16,7 +16,8 @@
 //!   [`curves::Circle`], [`curves::Ellipse`], [`curves::Parabola`],
 //!   [`curves::Hyperbola`], [`curves::BSplineCurve`],
 //!   [`curves::Line2D`], [`curves::Circle2D`], [`curves::Ellipse2D`],
-//!   [`curves::BSplineCurve2D`]), the [`curves::Curve`]/
+//!   [`curves::Parabola2D`], [`curves::BSplineCurve2D`]), the
+//!   [`curves::Curve`]/
 //!   [`curves::Curve2D`] enum adaptors, the
 //!   [`curves::TrimmedCurve`]/[`curves::TrimmedCurve2D`] pieces of a
 //!   curve over a parameter range (segments, arcs), and the
@@ -174,9 +175,9 @@ pub use curves::{
     BSplineSplitError, Circle, Circle2D, CircleConstructionError, Continuity, Curve, Curve2D,
     DegreeElevationError, ElementaryCurve, Ellipse, Ellipse2D, EllipseConstructionError, Hyperbola,
     HyperbolaConstructionError, KnotInsertionError, KnotRemovalError, Line, Line2D,
-    LineConstructionError, Parabola, ParabolaConstructionError, ParametricCurve, ParametricCurve2D,
-    ParametrizeError, PointExtrema, PointExtrema2D, PointParametrization, Side, TrimmedCurve,
-    TrimmedCurve2D, TrimmedCurveConstructionError, parametrize_numeric,
+    LineConstructionError, Parabola, Parabola2D, ParabolaConstructionError, ParametricCurve,
+    ParametricCurve2D, ParametrizeError, PointExtrema, PointExtrema2D, PointParametrization, Side,
+    TrimmedCurve, TrimmedCurve2D, TrimmedCurveConstructionError, parametrize_numeric,
 };
 pub use discretization::{
     Discretization, Discretization2D, DiscretizationCriteria, DiscretizationCriteriaError,

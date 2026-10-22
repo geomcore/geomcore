@@ -539,6 +539,7 @@ impl BSplineRange2D for Curve2D {
             Curve2D::Line(c) => c.bspline_range(first, last),
             Curve2D::Circle(c) => c.bspline_range(first, last),
             Curve2D::Ellipse(c) => c.bspline_range(first, last),
+            Curve2D::Parabola(_) => Err(BSplineConversionError::NotRepresentable),
             Curve2D::BSpline(c) => c.bspline_range(first, last),
         }
     }
@@ -602,7 +603,8 @@ impl<C: BSplineRange2D> TrimmedCurve2D<C> {
 impl Curve2D {
     /// The whole curve as a B-spline: a B-spline is cloned, a circle or
     /// ellipse converted by [`Circle2D::to_bspline`] or
-    /// [`Ellipse2D::to_bspline`].
+    /// [`Ellipse2D::to_bspline`]. A line or parabola is unbounded, so none
+    /// exists.
     ///
     /// # Errors
     ///
@@ -631,6 +633,7 @@ impl Curve2D {
             Curve2D::BSpline(c) => Ok(c.clone()),
             Curve2D::Circle(c) => Ok(c.to_bspline()),
             Curve2D::Ellipse(c) => Ok(c.to_bspline()),
+            Curve2D::Parabola(_) => Err(BSplineConversionError::Unbounded),
             Curve2D::Line(_) => Err(BSplineConversionError::Unbounded),
         }
     }
