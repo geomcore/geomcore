@@ -806,6 +806,10 @@ impl ParametricCurve for BezierCurve {
     fn min_continuity(&self) -> Continuity {
         BezierCurve::min_continuity(self)
     }
+
+    fn as_bspline(&self) -> Option<&BSplineCurve> {
+        Some(self.bspline())
+    }
 }
 
 /// Enum adaptor unifying the concrete 3D curve types behind a single value

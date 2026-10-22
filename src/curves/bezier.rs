@@ -81,7 +81,7 @@ impl std::error::Error for BezierConstructionError {}
 /// assert_eq!(curve.bounds(), (0.0, 1.0));
 /// ```
 #[derive(Debug, Clone, PartialEq)]
-pub struct BezierCurve(Spline<Point>);
+pub struct BezierCurve(BSplineCurve);
 
 impl BezierCurve {
     /// Creates a non-rational (polynomial) Bézier curve of the given
@@ -107,7 +107,7 @@ impl BezierCurve {
     /// );
     /// ```
     pub fn new(degree: usize, poles: Vec<Point>) -> Result<BezierCurve, BezierConstructionError> {
-        Spline::bezier(degree, poles, None).map(BezierCurve)
+        Spline::bezier(degree, poles, None).map(BezierCurve::from_spline)
     }
 
     /// Creates a rational Bézier curve of the given `degree` over `[0, 1]`
@@ -140,7 +140,7 @@ impl BezierCurve {
         poles: Vec<Point>,
         weights: Vec<f64>,
     ) -> Result<BezierCurve, BezierConstructionError> {
-        Spline::bezier(degree, poles, Some(weights)).map(BezierCurve)
+        Spline::bezier(degree, poles, Some(weights)).map(BezierCurve::from_spline)
     }
 
     /// The Bézier curve a B-spline is: one clamped, non-periodic span,
@@ -173,7 +173,7 @@ impl BezierCurve {
     /// ```
     pub fn from_bspline(curve: &BSplineCurve) -> Result<BezierCurve, BezierConstructionError> {
         if curve.spline().is_bezier() {
-            Ok(BezierCurve(curve.spline().clone()))
+            Ok(BezierCurve(curve.clone()))
         } else {
             Err(BezierConstructionError::NotABezier)
         }
@@ -193,7 +193,7 @@ impl BezierCurve {
     /// assert_eq!(spline.multiplicities(), &[2, 2]);
     /// ```
     pub fn to_bspline(&self) -> BSplineCurve {
-        BSplineCurve::from_spline(self.0.clone())
+        self.0.clone()
     }
 
     /// Returns the curve's degree.
@@ -206,7 +206,7 @@ impl BezierCurve {
     /// assert_eq!(BezierCurve::new(1, poles).unwrap().degree(), 1);
     /// ```
     pub fn degree(&self) -> usize {
-        self.0.degree()
+        self.spline().degree()
     }
 
     /// Returns whether the curve is rational (has per-pole weights).
@@ -219,7 +219,7 @@ impl BezierCurve {
     /// assert!(!BezierCurve::new(1, poles).unwrap().is_rational());
     /// ```
     pub fn is_rational(&self) -> bool {
-        self.0.is_rational()
+        self.spline().is_rational()
     }
 
     /// Returns the `degree + 1` control poles.
@@ -233,7 +233,7 @@ impl BezierCurve {
     /// assert_eq!(curve.poles(), poles.as_slice());
     /// ```
     pub fn poles(&self) -> &[Point] {
-        self.0.poles()
+        self.spline().poles()
     }
 
     /// Returns the per-pole weights, or `None` if the curve is not rational.
@@ -246,7 +246,7 @@ impl BezierCurve {
     /// assert_eq!(BezierCurve::new(1, poles).unwrap().weights(), None);
     /// ```
     pub fn weights(&self) -> Option<&[f64]> {
-        self.0.weights()
+        self.spline().weights()
     }
 
     /// Returns the curve's parameter bounds `(first, last)`: `(0, 1)` for
@@ -260,7 +260,7 @@ impl BezierCurve {
     /// assert_eq!(BezierCurve::new(1, poles).unwrap().bounds(), (0.0, 1.0));
     /// ```
     pub fn bounds(&self) -> (f64, f64) {
-        self.0.bounds()
+        self.spline().bounds()
     }
 
     /// Returns whether the curve's ends meet: its first and last points
@@ -279,7 +279,7 @@ impl BezierCurve {
     /// assert!(loop_.is_closed(Tolerance::DEFAULT));
     /// ```
     pub fn is_closed(&self, tol: Tolerance) -> bool {
-        self.0.is_closed(tol)
+        self.spline().is_closed(tol)
     }
 
     /// [`Continuity`] at parameter `u`: `Smooth` everywhere, a Bézier curve
@@ -294,7 +294,7 @@ impl BezierCurve {
     /// assert_eq!(curve.continuity(0.5, Tolerance::DEFAULT), Continuity::Smooth);
     /// ```
     pub fn continuity(&self, u: f64, tol: Tolerance) -> Continuity {
-        self.0.continuity(u, tol)
+        self.spline().continuity(u, tol)
     }
 
     /// Minimum [`Continuity`] over the domain: `Smooth`.
@@ -307,7 +307,7 @@ impl BezierCurve {
     /// assert_eq!(BezierCurve::new(1, poles).unwrap().min_continuity(), Continuity::Smooth);
     /// ```
     pub fn min_continuity(&self) -> Continuity {
-        self.0.min_continuity()
+        self.spline().min_continuity()
     }
 
     /// Returns the piece of the curve either side of `u`, over
@@ -340,9 +340,12 @@ impl BezierCurve {
     /// assert_eq!(curve.split_at(1.0), Err(BSplineSplitError::EmptyRange));
     /// ```
     pub fn split_at(&self, u: f64) -> Result<(BezierCurve, BezierCurve), BSplineSplitError> {
-        self.0
-            .split_at(u)
-            .map(|(left, right)| (BezierCurve(left), BezierCurve(right)))
+        self.spline().split_at(u).map(|(left, right)| {
+            (
+                BezierCurve::from_spline(left),
+                BezierCurve::from_spline(right),
+            )
+        })
     }
 
     /// Returns the same curve with its degree raised by `amount`: it
@@ -372,7 +375,9 @@ impl BezierCurve {
     /// assert!(cubic.eval_point(0.3).distance(quadratic.eval_point(0.3)) < 1e-12);
     /// ```
     pub fn elevate_degree(&self, amount: usize) -> Result<BezierCurve, DegreeElevationError> {
-        self.0.elevate_degree(amount).map(BezierCurve)
+        self.spline()
+            .elevate_degree(amount)
+            .map(BezierCurve::from_spline)
     }
 
     /// Returns the curve traversed the other way: its point at `u` is this
@@ -397,7 +402,7 @@ impl BezierCurve {
     /// assert_eq!(reversed.reversed(), curve);
     /// ```
     pub fn reversed(&self) -> BezierCurve {
-        BezierCurve(self.0.reversed())
+        BezierCurve::from_spline(self.spline().reversed())
     }
 
     /// Evaluates the point on the curve at parameter `u`.
@@ -411,7 +416,7 @@ impl BezierCurve {
     /// assert_eq!(curve.eval_point(0.5), Point::new(1.0, 0.0, 0.0));
     /// ```
     pub fn eval_point(&self, u: f64) -> Point {
-        self.0.eval_point(u)
+        self.spline().eval_point(u)
     }
 
     /// Evaluates the points on the curve at each parameter in `us`.
@@ -425,7 +430,7 @@ impl BezierCurve {
     /// assert_eq!(curve.eval_points(&[0.0, 0.5])[1], Point::new(1.0, 0.0, 0.0));
     /// ```
     pub fn eval_points(&self, us: &[f64]) -> Vec<Point> {
-        self.0.eval_points(us)
+        self.spline().eval_points(us)
     }
 
     /// Evaluates the derivative of the given `order` at parameter `u`.
@@ -444,7 +449,7 @@ impl BezierCurve {
     /// assert_eq!(curve.eval_derivative(0.5, 1), Vector::new(2.0, 0.0, 0.0));
     /// ```
     pub fn eval_derivative(&self, u: f64, order: u32) -> Vector {
-        self.0.eval_derivative(u, order)
+        self.spline().eval_derivative(u, order)
     }
 
     /// Evaluates the point and the first derivative at parameter `u`.
@@ -459,7 +464,7 @@ impl BezierCurve {
     /// assert_eq!((point, d1), (Point::new(1.0, 0.0, 0.0), Vector::new(2.0, 0.0, 0.0)));
     /// ```
     pub fn eval_d1(&self, u: f64) -> (Point, Vector) {
-        self.0.eval_d1(u)
+        self.spline().eval_d1(u)
     }
 
     /// Evaluates the point and the first and second derivatives at
@@ -481,7 +486,7 @@ impl BezierCurve {
     /// assert_eq!(d2, Vector::new(0.0, -4.0, 0.0));
     /// ```
     pub fn eval_d2(&self, u: f64) -> (Point, Vector, Vector) {
-        self.0.eval_d2(u)
+        self.spline().eval_d2(u)
     }
 
     /// Evaluates the point and the first derivative at parameter `u` from
@@ -500,7 +505,7 @@ impl BezierCurve {
     /// );
     /// ```
     pub fn eval_d1_sided(&self, u: f64, side: Side) -> (Point, Vector) {
-        self.0.eval_d1_sided(u, side)
+        self.spline().eval_d1_sided(u, side)
     }
 
     /// Evaluates the derivative of the given `order` at parameter `u` from
@@ -510,15 +515,41 @@ impl BezierCurve {
     ///
     /// Panics if `order == 0` or `order > 2`, as
     /// [`eval_derivative`](Self::eval_derivative).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{BezierCurve, Point, Side, Vector};
+    /// let poles = vec![
+    ///     Point::new(0.0, 0.0, 0.0),
+    ///     Point::new(1.0, 1.0, 0.0),
+    ///     Point::new(2.0, 0.0, 0.0),
+    /// ];
+    /// let curve = BezierCurve::new(2, poles).unwrap();
+    /// assert_eq!(curve.eval_derivative_sided(0.5, 2, Side::Below), Vector::new(0.0, -4.0, 0.0));
+    /// ```
     pub fn eval_derivative_sided(&self, u: f64, order: u32, side: Side) -> Vector {
-        self.0.eval_derivative_sided(u, order, side)
+        self.spline().eval_derivative_sided(u, order, side)
     }
 
     /// Evaluates the point and the first and second derivatives at
     /// parameter `u` from one side, as
     /// [`eval_d1_sided`](Self::eval_d1_sided).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{BezierCurve, Point, Side};
+    /// let poles = vec![
+    ///     Point::new(0.0, 0.0, 0.0),
+    ///     Point::new(1.0, 1.0, 0.0),
+    ///     Point::new(2.0, 0.0, 0.0),
+    /// ];
+    /// let curve = BezierCurve::new(2, poles).unwrap();
+    /// assert_eq!(curve.eval_d2_sided(0.5, Side::Above), curve.eval_d2(0.5));
+    /// ```
     pub fn eval_d2_sided(&self, u: f64, side: Side) -> (Point, Vector, Vector) {
-        self.0.eval_d2_sided(u, side)
+        self.spline().eval_d2_sided(u, side)
     }
 
     /// The length of the curve over its bounds, within `max_error` as far
@@ -541,7 +572,7 @@ impl BezierCurve {
     /// assert!((curve.length(1e-12) - exact).abs() <= 1e-12);
     /// ```
     pub fn length(&self, max_error: f64) -> f64 {
-        self.0.length(max_error)
+        self.spline().length(max_error)
     }
 
     /// Returns whether `point` lies on the curve: its projected distance
@@ -557,7 +588,7 @@ impl BezierCurve {
     /// assert!(!curve.contains(Point::new(1.0, 1.0, 0.0), Tolerance::DEFAULT));
     /// ```
     pub fn contains(&self, point: Point, tol: Tolerance) -> bool {
-        self.0.contains(point, tol)
+        self.spline().contains(point, tol)
     }
 
     /// The local minima of the distance from `point` to the curve, closest
@@ -575,7 +606,7 @@ impl BezierCurve {
     /// assert_eq!(extrema[0].distance, 1.0);
     /// ```
     pub fn extrema(&self, point: Point, tol: Tolerance) -> Vec<CurveProjection> {
-        self.0
+        self.spline()
             .extrema(point, tol)
             .into_iter()
             .map(Into::into)
@@ -597,7 +628,7 @@ impl BezierCurve {
     /// assert_eq!(proj.distance, 1.0);
     /// ```
     pub fn project_point(&self, point: Point, tol: Tolerance) -> CurveProjection {
-        self.0.project_point(point, tol).into()
+        self.spline().project_point(point, tol).into()
     }
 
     /// The parameter of the point of the curve closest to `point`: the
@@ -616,6 +647,18 @@ impl BezierCurve {
     }
 
     /// Projects each point in `points` onto the curve.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{BezierCurve, Point, Tolerance};
+    /// let poles = vec![Point::new(0.0, 0.0, 0.0), Point::new(2.0, 0.0, 0.0)];
+    /// let curve = BezierCurve::new(1, poles).unwrap();
+    /// let points = [Point::new(1.0, 1.0, 0.0), Point::new(2.0, 3.0, 0.0)];
+    /// let feet = curve.project_points(&points, Tolerance::DEFAULT);
+    /// assert_eq!(feet[0].distance, 1.0);
+    /// assert_eq!(feet[1].point, Point::new(2.0, 0.0, 0.0));
+    /// ```
     pub fn project_points(&self, points: &[Point], tol: Tolerance) -> Vec<CurveProjection> {
         points.iter().map(|&p| self.project_point(p, tol)).collect()
     }
@@ -624,11 +667,17 @@ impl BezierCurve {
     /// [`Spline::to_bezier_pieces`] makes).
     pub(crate) fn from_spline(spline: Spline<Point>) -> BezierCurve {
         debug_assert!(spline.is_bezier());
-        BezierCurve(spline)
+        BezierCurve(BSplineCurve::from_spline(spline))
     }
 
     /// The curve as the implementation shared by both tiers.
     pub(crate) fn spline(&self) -> &Spline<Point> {
+        self.0.spline()
+    }
+
+    /// The curve as the B-spline it is, borrowed so intersections take the
+    /// B-spline search.
+    pub(crate) fn bspline(&self) -> &BSplineCurve {
         &self.0
     }
 }
@@ -987,7 +1036,10 @@ mod tests {
             ParametricCurve::continuity(&curve, 0.5, Tolerance::DEFAULT),
             Continuity::Smooth
         );
-        assert_eq!(ParametricCurve::as_bspline(&curve), None);
+        assert_eq!(
+            ParametricCurve::as_bspline(&curve),
+            Some(&curve.to_bspline())
+        );
     }
 
     #[test]

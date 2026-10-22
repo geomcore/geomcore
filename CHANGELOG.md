@@ -35,6 +35,9 @@ the Python distribution are versioned in lockstep.
   / `split_v_at`, `elevate_u_degree` / `elevate_v_degree`, `reversed_u`
   / `reversed_v`, `to_bspline`, `from_bspline`, bounding box and the
   `ParametricSurface` trait. It reuses `BezierConstructionError`.
+- Intersections and extrema involving a `BezierCurve` or `BezierSurface`
+  take the complete Bézier-piece search of the B-spline they are, as a
+  `BSplineCurve` or `BSplineSurface` does, instead of the sampled search.
 - `BezierCurve`, `BezierCurve2D` and `BezierSurface` in Python, with
   stubs (#98).
 - Golden fixtures (`bezier.json`) check Bézier curve and surface

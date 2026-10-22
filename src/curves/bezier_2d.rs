@@ -468,6 +468,15 @@ impl BezierCurve2D {
     ///
     /// Panics if `order == 0` or `order > 2`, as
     /// [`eval_derivative`](Self::eval_derivative).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{BezierCurve2D, Point2D, Side, Vector2D};
+    /// let poles = vec![Point2D::new(0.0, 0.0), Point2D::new(1.0, 1.0), Point2D::new(2.0, 0.0)];
+    /// let curve = BezierCurve2D::new(2, poles).unwrap();
+    /// assert_eq!(curve.eval_derivative_sided(0.5, 2, Side::Below), Vector2D::new(0.0, -4.0));
+    /// ```
     pub fn eval_derivative_sided(&self, u: f64, order: u32, side: Side) -> Vector2D {
         self.0.eval_derivative_sided(u, order, side)
     }
@@ -475,6 +484,15 @@ impl BezierCurve2D {
     /// Evaluates the point and the first and second derivatives at
     /// parameter `u` from one side, as
     /// [`eval_d1_sided`](Self::eval_d1_sided).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{BezierCurve2D, Point2D, Side};
+    /// let poles = vec![Point2D::new(0.0, 0.0), Point2D::new(1.0, 1.0), Point2D::new(2.0, 0.0)];
+    /// let curve = BezierCurve2D::new(2, poles).unwrap();
+    /// assert_eq!(curve.eval_d2_sided(0.5, Side::Above), curve.eval_d2(0.5));
+    /// ```
     pub fn eval_d2_sided(&self, u: f64, side: Side) -> (Point2D, Vector2D, Vector2D) {
         self.0.eval_d2_sided(u, side)
     }
@@ -574,6 +592,18 @@ impl BezierCurve2D {
     }
 
     /// Projects each point in `points` onto the curve.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{BezierCurve2D, Point2D, Tolerance};
+    /// let poles = vec![Point2D::new(0.0, 0.0), Point2D::new(2.0, 0.0)];
+    /// let curve = BezierCurve2D::new(1, poles).unwrap();
+    /// let points = [Point2D::new(1.0, 1.0), Point2D::new(2.0, 3.0)];
+    /// let feet = curve.project_points(&points, Tolerance::DEFAULT);
+    /// assert_eq!(feet[0].distance, 1.0);
+    /// assert_eq!(feet[1].point, Point2D::new(2.0, 0.0));
+    /// ```
     pub fn project_points(&self, points: &[Point2D], tol: Tolerance) -> Vec<CurveProjection2D> {
         points.iter().map(|&p| self.project_point(p, tol)).collect()
     }

@@ -228,26 +228,96 @@ impl BezierSurface {
     }
 
     /// Returns the surface's degree in the `u` direction.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{BezierSurface, Point};
+    ///
+    /// let poles = vec![
+    ///     vec![Point::new(0.0, 0.0, 0.0), Point::new(0.0, 1.0, 0.0)],
+    ///     vec![Point::new(1.0, 0.0, 0.0), Point::new(1.0, 1.0, 1.0)],
+    /// ];
+    /// // The surface is (u, v, uv).
+    /// let surface = BezierSurface::new(1, 1, poles).unwrap();
+    /// assert_eq!(surface.u_degree(), 1);
+    /// ```
     pub fn u_degree(&self) -> usize {
         self.0.u_degree()
     }
 
     /// Returns the surface's degree in the `v` direction.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{BezierSurface, Point};
+    ///
+    /// let poles = vec![
+    ///     vec![Point::new(0.0, 0.0, 0.0), Point::new(0.0, 1.0, 0.0)],
+    ///     vec![Point::new(1.0, 0.0, 0.0), Point::new(1.0, 1.0, 1.0)],
+    /// ];
+    /// // The surface is (u, v, uv).
+    /// let surface = BezierSurface::new(1, 1, poles).unwrap();
+    /// assert_eq!(surface.v_degree(), 1);
+    /// ```
     pub fn v_degree(&self) -> usize {
         self.0.v_degree()
     }
 
     /// Returns the number of pole rows, `u_degree + 1`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{BezierSurface, Point};
+    ///
+    /// let poles = vec![
+    ///     vec![Point::new(0.0, 0.0, 0.0), Point::new(0.0, 1.0, 0.0)],
+    ///     vec![Point::new(1.0, 0.0, 0.0), Point::new(1.0, 1.0, 1.0)],
+    /// ];
+    /// // The surface is (u, v, uv).
+    /// let surface = BezierSurface::new(1, 1, poles).unwrap();
+    /// assert_eq!(surface.u_pole_count(), 2);
+    /// ```
     pub fn u_pole_count(&self) -> usize {
         self.0.u_pole_count()
     }
 
     /// Returns the number of poles in a row, `v_degree + 1`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{BezierSurface, Point};
+    ///
+    /// let poles = vec![
+    ///     vec![Point::new(0.0, 0.0, 0.0), Point::new(0.0, 1.0, 0.0)],
+    ///     vec![Point::new(1.0, 0.0, 0.0), Point::new(1.0, 1.0, 1.0)],
+    /// ];
+    /// // The surface is (u, v, uv).
+    /// let surface = BezierSurface::new(1, 1, poles).unwrap();
+    /// assert_eq!(surface.v_pole_count(), 2);
+    /// ```
     pub fn v_pole_count(&self) -> usize {
         self.0.v_pole_count()
     }
 
     /// Returns whether the surface is rational (has per-pole weights).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{BezierSurface, Point};
+    ///
+    /// let poles = vec![
+    ///     vec![Point::new(0.0, 0.0, 0.0), Point::new(0.0, 1.0, 0.0)],
+    ///     vec![Point::new(1.0, 0.0, 0.0), Point::new(1.0, 1.0, 1.0)],
+    /// ];
+    /// // The surface is (u, v, uv).
+    /// let surface = BezierSurface::new(1, 1, poles).unwrap();
+    /// assert!(!surface.is_rational());
+    /// ```
     pub fn is_rational(&self) -> bool {
         self.0.is_rational()
     }
@@ -273,6 +343,20 @@ impl BezierSurface {
 
     /// Returns the per-pole weights, laid out as
     /// [`poles`](Self::poles), or `None` if the surface is not rational.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{BezierSurface, Point};
+    ///
+    /// let poles = vec![
+    ///     vec![Point::new(0.0, 0.0, 0.0), Point::new(0.0, 1.0, 0.0)],
+    ///     vec![Point::new(1.0, 0.0, 0.0), Point::new(1.0, 1.0, 1.0)],
+    /// ];
+    /// // The surface is (u, v, uv).
+    /// let surface = BezierSurface::new(1, 1, poles).unwrap();
+    /// assert_eq!(surface.weights(), None);
+    /// ```
     pub fn weights(&self) -> Option<&[f64]> {
         self.0.weights()
     }
@@ -280,24 +364,80 @@ impl BezierSurface {
     /// Returns the surface's `u` parameter bounds `(first, last)`: `(0,
     /// 1)` for a surface built from poles, the span of its B-spline
     /// otherwise.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{BezierSurface, Point};
+    ///
+    /// let poles = vec![
+    ///     vec![Point::new(0.0, 0.0, 0.0), Point::new(0.0, 1.0, 0.0)],
+    ///     vec![Point::new(1.0, 0.0, 0.0), Point::new(1.0, 1.0, 1.0)],
+    /// ];
+    /// // The surface is (u, v, uv).
+    /// let surface = BezierSurface::new(1, 1, poles).unwrap();
+    /// assert_eq!(surface.u_bounds(), (0.0, 1.0));
+    /// ```
     pub fn u_bounds(&self) -> (f64, f64) {
         ParametricSurface::u_bounds(&self.0)
     }
 
     /// Returns the surface's `v` parameter bounds `(first, last)`, as
     /// [`u_bounds`](Self::u_bounds).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{BezierSurface, Point};
+    ///
+    /// let poles = vec![
+    ///     vec![Point::new(0.0, 0.0, 0.0), Point::new(0.0, 1.0, 0.0)],
+    ///     vec![Point::new(1.0, 0.0, 0.0), Point::new(1.0, 1.0, 1.0)],
+    /// ];
+    /// // The surface is (u, v, uv).
+    /// let surface = BezierSurface::new(1, 1, poles).unwrap();
+    /// assert_eq!(surface.v_bounds(), (0.0, 1.0));
+    /// ```
     pub fn v_bounds(&self) -> (f64, f64) {
         ParametricSurface::v_bounds(&self.0)
     }
 
     /// Returns whether the surface's boundary curves at the two `u` bounds
     /// coincide within `tol.confusion`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{BezierSurface, Point, Tolerance};
+    ///
+    /// let poles = vec![
+    ///     vec![Point::new(0.0, 0.0, 0.0), Point::new(0.0, 1.0, 0.0)],
+    ///     vec![Point::new(1.0, 0.0, 0.0), Point::new(1.0, 1.0, 1.0)],
+    /// ];
+    /// // The surface is (u, v, uv).
+    /// let surface = BezierSurface::new(1, 1, poles).unwrap();
+    /// assert!(!surface.is_u_closed(Tolerance::DEFAULT));
+    /// ```
     pub fn is_u_closed(&self, tol: Tolerance) -> bool {
         self.0.is_u_closed(tol)
     }
 
     /// Returns whether the surface's boundary curves at the two `v` bounds
     /// coincide within `tol.confusion`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{BezierSurface, Point, Tolerance};
+    ///
+    /// let poles = vec![
+    ///     vec![Point::new(0.0, 0.0, 0.0), Point::new(0.0, 1.0, 0.0)],
+    ///     vec![Point::new(1.0, 0.0, 0.0), Point::new(1.0, 1.0, 1.0)],
+    /// ];
+    /// // The surface is (u, v, uv).
+    /// let surface = BezierSurface::new(1, 1, poles).unwrap();
+    /// assert!(!surface.is_v_closed(Tolerance::DEFAULT));
+    /// ```
     pub fn is_v_closed(&self, tol: Tolerance) -> bool {
         self.0.is_v_closed(tol)
     }
@@ -393,6 +533,22 @@ impl BezierSurface {
     /// # Errors
     ///
     /// As [`elevate_u_degree`](Self::elevate_u_degree).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{BezierSurface, Point};
+    ///
+    /// let poles = vec![
+    ///     vec![Point::new(0.0, 0.0, 0.0), Point::new(0.0, 1.0, 0.0)],
+    ///     vec![Point::new(1.0, 0.0, 0.0), Point::new(1.0, 1.0, 1.0)],
+    /// ];
+    /// // The surface is (u, v, uv).
+    /// let surface = BezierSurface::new(1, 1, poles).unwrap();
+    /// let quadratic = surface.elevate_v_degree(1).unwrap();
+    /// assert_eq!((quadratic.v_degree(), quadratic.v_pole_count()), (2, 3));
+    /// assert!(quadratic.eval_point(0.3, 0.6).distance(surface.eval_point(0.3, 0.6)) < 1e-12);
+    /// ```
     pub fn elevate_v_degree(&self, amount: usize) -> Result<BezierSurface, DegreeElevationError> {
         self.0.elevate_v_degree(amount).map(Self::from_surface)
     }
@@ -421,6 +577,22 @@ impl BezierSurface {
 
     /// Returns the surface with its `v` direction traversed the other way,
     /// as [`reversed_u`](Self::reversed_u) for `v`; `Sv` changes sign.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{BezierSurface, Point};
+    ///
+    /// let poles = vec![
+    ///     vec![Point::new(0.0, 0.0, 0.0), Point::new(0.0, 1.0, 0.0)],
+    ///     vec![Point::new(1.0, 0.0, 0.0), Point::new(1.0, 1.0, 1.0)],
+    /// ];
+    /// // The surface is (u, v, uv).
+    /// let surface = BezierSurface::new(1, 1, poles).unwrap();
+    /// let reversed = surface.reversed_v();
+    /// assert_eq!(reversed.eval_point(0.5, 0.0), surface.eval_point(0.5, 1.0));
+    /// assert_eq!(reversed.reversed_v(), surface);
+    /// ```
     pub fn reversed_v(&self) -> BezierSurface {
         Self::from_surface(self.0.reversed_v())
     }
@@ -444,6 +616,21 @@ impl BezierSurface {
     }
 
     /// Evaluates the points on the surface at each `(u, v)` in `uvs`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{BezierSurface, Point};
+    ///
+    /// let poles = vec![
+    ///     vec![Point::new(0.0, 0.0, 0.0), Point::new(0.0, 1.0, 0.0)],
+    ///     vec![Point::new(1.0, 0.0, 0.0), Point::new(1.0, 1.0, 1.0)],
+    /// ];
+    /// // The surface is (u, v, uv).
+    /// let surface = BezierSurface::new(1, 1, poles).unwrap();
+    /// let points = surface.eval_points(&[(0.5, 0.5), (1.0, 1.0)]);
+    /// assert_eq!(points, vec![Point::new(0.5, 0.5, 0.25), Point::new(1.0, 1.0, 1.0)]);
+    /// ```
     pub fn eval_points(&self, uvs: &[(f64, f64)]) -> Vec<Point> {
         self.0.eval_points(uvs)
     }
@@ -454,12 +641,44 @@ impl BezierSurface {
     ///
     /// Panics unless `du + dv` is 1 or 2: only first and second
     /// derivatives are supported.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{BezierSurface, Point, Vector};
+    ///
+    /// let poles = vec![
+    ///     vec![Point::new(0.0, 0.0, 0.0), Point::new(0.0, 1.0, 0.0)],
+    ///     vec![Point::new(1.0, 0.0, 0.0), Point::new(1.0, 1.0, 1.0)],
+    /// ];
+    /// // The surface is (u, v, uv).
+    /// let surface = BezierSurface::new(1, 1, poles).unwrap();
+    /// assert_eq!(surface.eval_derivative(0.25, 0.5, 1, 0), Vector::new(1.0, 0.0, 0.5));
+    /// assert_eq!(surface.eval_derivative(0.25, 0.5, 1, 1), Vector::new(0.0, 0.0, 1.0));
+    /// ```
     pub fn eval_derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> Vector {
         self.0.eval_derivative(u, v, du, dv)
     }
 
     /// Evaluates the point and the first derivatives `[Su, Sv]` at
     /// `(u, v)`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{BezierSurface, Point, Vector};
+    ///
+    /// let poles = vec![
+    ///     vec![Point::new(0.0, 0.0, 0.0), Point::new(0.0, 1.0, 0.0)],
+    ///     vec![Point::new(1.0, 0.0, 0.0), Point::new(1.0, 1.0, 1.0)],
+    /// ];
+    /// // The surface is (u, v, uv).
+    /// let surface = BezierSurface::new(1, 1, poles).unwrap();
+    /// let (point, [su, sv]) = surface.eval_d1(0.25, 0.5);
+    /// assert_eq!(point, Point::new(0.25, 0.5, 0.125));
+    /// assert_eq!(su, Vector::new(1.0, 0.0, 0.5));
+    /// assert_eq!(sv, Vector::new(0.0, 1.0, 0.25));
+    /// ```
     pub fn eval_d1(&self, u: f64, v: f64) -> (Point, [Vector; 2]) {
         self.0.eval_d1(u, v)
     }
@@ -489,6 +708,23 @@ impl BezierSurface {
     /// direction from its own side, as [`BSplineSurface::eval_d1_sided`].
     /// A Bézier surface is one polynomial piece, so both sides agree
     /// everywhere.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{BezierSurface, Point, Side};
+    ///
+    /// let poles = vec![
+    ///     vec![Point::new(0.0, 0.0, 0.0), Point::new(0.0, 1.0, 0.0)],
+    ///     vec![Point::new(1.0, 0.0, 0.0), Point::new(1.0, 1.0, 1.0)],
+    /// ];
+    /// // The surface is (u, v, uv).
+    /// let surface = BezierSurface::new(1, 1, poles).unwrap();
+    /// assert_eq!(
+    ///     surface.eval_d1_sided(0.5, 0.5, Side::Below, Side::Below),
+    ///     surface.eval_d1_sided(0.5, 0.5, Side::Above, Side::Above)
+    /// );
+    /// ```
     pub fn eval_d1_sided(
         &self,
         u: f64,
@@ -505,6 +741,21 @@ impl BezierSurface {
     /// # Panics
     ///
     /// As [`eval_derivative`](Self::eval_derivative).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{BezierSurface, Point, Side, Vector};
+    ///
+    /// let poles = vec![
+    ///     vec![Point::new(0.0, 0.0, 0.0), Point::new(0.0, 1.0, 0.0)],
+    ///     vec![Point::new(1.0, 0.0, 0.0), Point::new(1.0, 1.0, 1.0)],
+    /// ];
+    /// // The surface is (u, v, uv).
+    /// let surface = BezierSurface::new(1, 1, poles).unwrap();
+    /// let suv = surface.eval_derivative_sided(0.5, 0.5, 1, 1, Side::Above, Side::Below);
+    /// assert_eq!(suv, Vector::new(0.0, 0.0, 1.0));
+    /// ```
     pub fn eval_derivative_sided(
         &self,
         u: f64,
@@ -520,6 +771,23 @@ impl BezierSurface {
     /// Evaluates the point, the first and the second derivatives at
     /// `(u, v)` from the given sides, as
     /// [`eval_d1_sided`](Self::eval_d1_sided).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{BezierSurface, Point, Side};
+    ///
+    /// let poles = vec![
+    ///     vec![Point::new(0.0, 0.0, 0.0), Point::new(0.0, 1.0, 0.0)],
+    ///     vec![Point::new(1.0, 0.0, 0.0), Point::new(1.0, 1.0, 1.0)],
+    /// ];
+    /// // The surface is (u, v, uv).
+    /// let surface = BezierSurface::new(1, 1, poles).unwrap();
+    /// assert_eq!(
+    ///     surface.eval_d2_sided(0.5, 0.5, Side::Below, Side::Above),
+    ///     surface.eval_d2(0.5, 0.5)
+    /// );
+    /// ```
     pub fn eval_d2_sided(
         &self,
         u: f64,
@@ -532,12 +800,42 @@ impl BezierSurface {
 
     /// Returns whether `point` lies on the surface: its projected
     /// distance is within `tol.confusion`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{BezierSurface, Point, Tolerance};
+    ///
+    /// let poles = vec![
+    ///     vec![Point::new(0.0, 0.0, 0.0), Point::new(0.0, 1.0, 0.0)],
+    ///     vec![Point::new(1.0, 0.0, 0.0), Point::new(1.0, 1.0, 1.0)],
+    /// ];
+    /// // The surface is (u, v, uv).
+    /// let surface = BezierSurface::new(1, 1, poles).unwrap();
+    /// assert!(surface.contains(Point::new(0.5, 0.5, 0.25), Tolerance::DEFAULT));
+    /// assert!(!surface.contains(Point::new(0.5, 0.5, 1.0), Tolerance::DEFAULT));
+    /// ```
     pub fn contains(&self, point: Point, tol: Tolerance) -> bool {
         self.0.contains(point, tol)
     }
 
     /// The local minima of the distance from `point` to the surface,
     /// closest first, as [`BSplineSurface::extrema`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{BezierSurface, Point, Tolerance};
+    ///
+    /// let poles = vec![
+    ///     vec![Point::new(0.0, 0.0, 0.0), Point::new(0.0, 1.0, 0.0)],
+    ///     vec![Point::new(1.0, 0.0, 0.0), Point::new(1.0, 1.0, 1.0)],
+    /// ];
+    /// // The surface is (u, v, uv).
+    /// let surface = BezierSurface::new(1, 1, poles).unwrap();
+    /// let extrema = surface.extrema(Point::new(0.5, 0.5, 0.25), Tolerance::DEFAULT);
+    /// assert_eq!(extrema[0].distance, 0.0);
+    /// ```
     pub fn extrema(&self, point: Point, tol: Tolerance) -> Vec<SurfaceProjection> {
         self.0.extrema(point, tol)
     }
@@ -545,11 +843,45 @@ impl BezierSurface {
     /// Projects `point` onto the surface: the global minimum of the
     /// distance, the first entry of [`BezierSurface::extrema`]. Distances
     /// within `tol.confusion` snap to `0.0`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{BezierSurface, Point, Tolerance};
+    ///
+    /// let poles = vec![
+    ///     vec![Point::new(0.0, 0.0, 0.0), Point::new(0.0, 1.0, 0.0)],
+    ///     vec![Point::new(1.0, 0.0, 0.0), Point::new(1.0, 1.0, 1.0)],
+    /// ];
+    /// // The surface is (u, v, uv).
+    /// let surface = BezierSurface::new(1, 1, poles).unwrap();
+    /// // Beyond the v = 0 edge, where the surface is the segment (u, 0, 0).
+    /// let foot = surface.project_point(Point::new(2.0, 0.0, 0.0), Tolerance::DEFAULT);
+    /// assert!(foot.point.distance(Point::new(1.0, 0.0, 0.0)) < 1e-9);
+    /// assert!((foot.distance - 1.0).abs() < 1e-9);
+    /// ```
     pub fn project_point(&self, point: Point, tol: Tolerance) -> SurfaceProjection {
         self.0.project_point(point, tol)
     }
 
     /// Projects each point in `points` onto the surface.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{BezierSurface, Point, Tolerance};
+    ///
+    /// let poles = vec![
+    ///     vec![Point::new(0.0, 0.0, 0.0), Point::new(0.0, 1.0, 0.0)],
+    ///     vec![Point::new(1.0, 0.0, 0.0), Point::new(1.0, 1.0, 1.0)],
+    /// ];
+    /// // The surface is (u, v, uv).
+    /// let surface = BezierSurface::new(1, 1, poles).unwrap();
+    /// let points = [Point::new(0.5, 0.5, 0.25), Point::new(2.0, 0.0, 0.0)];
+    /// let feet = surface.project_points(&points, Tolerance::DEFAULT);
+    /// assert_eq!(feet[0].distance, 0.0);
+    /// assert!((feet[1].distance - 1.0).abs() < 1e-9);
+    /// ```
     pub fn project_points(&self, points: &[Point], tol: Tolerance) -> Vec<SurfaceProjection> {
         self.0.project_points(points, tol)
     }
@@ -622,5 +954,9 @@ impl ParametricSurface for BezierSurface {
 
     fn eval_points(&self, uvs: &[(f64, f64)]) -> Vec<Point> {
         BezierSurface::eval_points(self, uvs)
+    }
+
+    fn as_bspline(&self) -> Option<&BSplineSurface> {
+        Some(&self.0)
     }
 }
