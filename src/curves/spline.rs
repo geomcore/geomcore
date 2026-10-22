@@ -11,6 +11,7 @@ use crate::curve_math::bspline as math;
 use crate::curve_math::bspline::{PolePoint, SpanEnds};
 use crate::curve_math::editing::{self, Deviation, Elevation, Insertion, Lanes};
 use crate::curves::Side;
+use crate::curves::bezier::BezierConstructionError;
 use crate::curves::bspline::{
     BSplineConstructionError, BSplineSplitError, DegreeElevationError, KnotInsertionError,
     KnotRemovalError,
@@ -89,6 +90,47 @@ impl<P: PolePoint> Spline<P> {
         }
         let knots = math::KnotVector::new(degree, knots, multiplicities, periodic, poles.len())?;
         Ok(Spline::of(knots, poles, weights))
+    }
+
+    /// The Bézier curve of `degree` over `[0, 1]`: one clamped span of
+    /// `degree + 1` poles. The weights, if any, are checked before the
+    /// degree and the pole count.
+    pub(crate) fn bezier(
+        degree: usize,
+        poles: Vec<P>,
+        weights: Option<Vec<f64>>,
+    ) -> Result<Spline<P>, BezierConstructionError> {
+        if let Some(ws) = &weights {
+            if ws.len() != poles.len() {
+                return Err(BezierConstructionError::WeightCountMismatch);
+            }
+            if ws.iter().any(|&w| w <= 0.0) {
+                return Err(BezierConstructionError::NonPositiveWeight);
+            }
+        }
+        if !(1..=math::MAX_DEGREE).contains(&degree) {
+            return Err(BezierConstructionError::InvalidDegree);
+        }
+        if poles.len() != degree + 1 {
+            return Err(BezierConstructionError::PoleCountMismatch);
+        }
+        let end = degree as u32 + 1;
+        Spline::new(
+            degree,
+            poles,
+            weights,
+            vec![0.0, 1.0],
+            vec![end, end],
+            false,
+        )
+        .map_err(|_| unreachable!("a Bézier span of degree + 1 poles is consistent"))
+    }
+
+    /// Whether the curve is one clamped, non-periodic span: its poles are
+    /// the Bézier control points of the whole curve.
+    pub(crate) fn is_bezier(&self) -> bool {
+        let end = self.degree() as u32 + 1;
+        !self.is_periodic() && self.multiplicities() == [end, end]
     }
 
     /// A curve from parts already known to be consistent, `flat` being the

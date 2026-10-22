@@ -1,7 +1,9 @@
 //! [`ParametricCurve2D`] trait and the [`Curve2D`] enum adaptor unifying the
 //! concrete 2D curve types.
 
-use crate::curves::{BSplineCurve2D, Circle2D, Continuity, Ellipse2D, Line2D, Parabola2D};
+use crate::curves::{
+    BSplineCurve2D, BezierCurve2D, Circle2D, Continuity, Ellipse2D, Line2D, Parabola2D,
+};
 use crate::projection::CurveProjection2D;
 use crate::{Point2D, Tolerance, Vector2D};
 use std::f64::consts::TAU;
@@ -449,6 +451,58 @@ impl PointExtrema2D for Line2D {
 impl PointExtrema2D for Circle2D {
     fn extrema(&self, point: Point2D, tol: Tolerance) -> Vec<CurveProjection2D> {
         only_minimum(point, || self.project_point(point, tol))
+    }
+}
+
+impl PointExtrema2D for BezierCurve2D {
+    fn extrema(&self, point: Point2D, tol: Tolerance) -> Vec<CurveProjection2D> {
+        BezierCurve2D::extrema(self, point, tol)
+    }
+}
+
+impl ParametricCurve2D for BezierCurve2D {
+    fn eval_point(&self, u: f64) -> Point2D {
+        BezierCurve2D::eval_point(self, u)
+    }
+
+    fn eval_derivative(&self, u: f64, order: u32) -> Vector2D {
+        BezierCurve2D::eval_derivative(self, u, order)
+    }
+
+    fn eval_d1(&self, u: f64) -> (Point2D, Vector2D) {
+        BezierCurve2D::eval_d1(self, u)
+    }
+
+    fn eval_d2(&self, u: f64) -> (Point2D, Vector2D, Vector2D) {
+        BezierCurve2D::eval_d2(self, u)
+    }
+
+    fn bounds(&self) -> (f64, f64) {
+        BezierCurve2D::bounds(self)
+    }
+
+    fn period(&self) -> Option<f64> {
+        None
+    }
+
+    fn eval_points(&self, us: &[f64]) -> Vec<Point2D> {
+        BezierCurve2D::eval_points(self, us)
+    }
+
+    fn is_closed(&self, tol: Tolerance) -> bool {
+        BezierCurve2D::is_closed(self, tol)
+    }
+
+    fn continuity(&self, u: f64, tol: Tolerance) -> Continuity {
+        BezierCurve2D::continuity(self, u, tol)
+    }
+
+    fn min_continuity(&self) -> Continuity {
+        BezierCurve2D::min_continuity(self)
+    }
+
+    fn as_bspline(&self) -> Option<&BSplineCurve2D> {
+        Some(self.bspline())
     }
 }
 

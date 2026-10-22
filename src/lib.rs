@@ -14,18 +14,19 @@
 //!   [`Axis`]/[`Axis2D`], [`Frame`]/[`Frame2D`], and [`Transform`].
 //! - [`curves`] holds the 3D and 2D curve types ([`curves::Line`],
 //!   [`curves::Circle`], [`curves::Ellipse`], [`curves::Parabola`],
-//!   [`curves::Hyperbola`], [`curves::BSplineCurve`],
+//!   [`curves::Hyperbola`], [`curves::BSplineCurve`], [`curves::BezierCurve`],
 //!   [`curves::Line2D`], [`curves::Circle2D`], [`curves::Ellipse2D`],
-//!   [`curves::Parabola2D`], [`curves::BSplineCurve2D`]), the
-//!   [`curves::Curve`]/
-//!   [`curves::Curve2D`] enum adaptors, the
+//!   [`curves::Parabola2D`], [`curves::BSplineCurve2D`],
+//!   [`curves::BezierCurve2D`]), the [`curves::Curve`]/[`curves::Curve2D`]
+//!   enum adaptors, the
 //!   [`curves::TrimmedCurve`]/[`curves::TrimmedCurve2D`] pieces of a
 //!   curve over a parameter range (segments, arcs), and the
 //!   [`curves::ParametricCurve`]/[`curves::ParametricCurve2D`] traits.
 //! - [`surfaces`] holds the five elementary surfaces
 //!   ([`surfaces::Plane`], [`surfaces::Cylinder`], [`surfaces::Cone`],
 //!   [`surfaces::Sphere`], [`surfaces::Torus`]) plus
-//!   [`surfaces::BSplineSurface`], the [`surfaces::Surface`] enum adaptor,
+//!   [`surfaces::BSplineSurface`], [`surfaces::BezierSurface`], the
+//!   [`surfaces::Surface`] enum adaptor,
 //!   and the [`surfaces::ParametricSurface`] trait.
 //! - [`bounding_box`] holds [`BoundingBox`] and the [`HasBoundingBox`] trait,
 //!   through which curves and surfaces report the axis-aligned box
@@ -172,12 +173,13 @@ pub mod vector;
 pub use bounding_box::{BoundingBox, BoundingBox2D, HasBoundingBox, HasBoundingBox2D};
 pub use curves::{
     BSplineConstructionError, BSplineConversionError, BSplineCurve, BSplineCurve2D,
-    BSplineSplitError, Circle, Circle2D, CircleConstructionError, Continuity, Curve, Curve2D,
-    DegreeElevationError, ElementaryCurve, Ellipse, Ellipse2D, EllipseConstructionError, Hyperbola,
-    HyperbolaConstructionError, KnotInsertionError, KnotRemovalError, Line, Line2D,
-    LineConstructionError, Parabola, Parabola2D, ParabolaConstructionError, ParametricCurve,
-    ParametricCurve2D, ParametrizeError, PointExtrema, PointExtrema2D, PointParametrization, Side,
-    TrimmedCurve, TrimmedCurve2D, TrimmedCurveConstructionError, parametrize_numeric,
+    BSplineSplitError, BezierConstructionError, BezierCurve, BezierCurve2D, Circle, Circle2D,
+    CircleConstructionError, Continuity, Curve, Curve2D, DegreeElevationError, ElementaryCurve,
+    Ellipse, Ellipse2D, EllipseConstructionError, Hyperbola, HyperbolaConstructionError,
+    KnotInsertionError, KnotRemovalError, Line, Line2D, LineConstructionError, Parabola,
+    Parabola2D, ParabolaConstructionError, ParametricCurve, ParametricCurve2D, ParametrizeError,
+    PointExtrema, PointExtrema2D, PointParametrization, Side, TrimmedCurve, TrimmedCurve2D,
+    TrimmedCurveConstructionError, parametrize_numeric,
 };
 pub use discretization::{
     Discretization, Discretization2D, DiscretizationCriteria, DiscretizationCriteriaError,
@@ -215,9 +217,9 @@ pub(crate) use intersect::{search_curve_curve, search_curve_surface};
 pub use point::{Point, Point2D};
 pub use projection::{CurveProjection, CurveProjection2D, SurfaceProjection};
 pub use surfaces::{
-    BSplineSurface, Cone, ConeConstructionError, Cylinder, CylinderConstructionError,
-    ElementarySurface, ParametricSurface, Plane, PlaneConstructionError, Sphere,
-    SphereConstructionError, Surface, SurfaceCurvatures, SurfaceIsoError, Torus,
+    BSplineSurface, BezierSurface, Cone, ConeConstructionError, Cylinder,
+    CylinderConstructionError, ElementarySurface, ParametricSurface, Plane, PlaneConstructionError,
+    Sphere, SphereConstructionError, Surface, SurfaceCurvatures, SurfaceIsoError, Torus,
     TorusConstructionError,
 };
 pub use tolerance::Tolerance;

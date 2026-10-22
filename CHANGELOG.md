@@ -54,8 +54,34 @@ the Python distribution are versioned in lockstep.
   2D intersections with a parabola run the numeric search. A trimmed
   parabola converts exactly to a B-spline (`TrimmedCurve2D::to_bspline`).
 
+- `BezierCurve` and `BezierCurve2D` (#98): first-class Bézier curves of
+  `degree + 1` poles (polynomial or rational) with evaluation, sided
+  evaluation, continuity, `split_at`, `elevate_degree`, `reversed`,
+  `to_bspline`, `from_bspline`, length, projection, bounding box and
+  discretization, and `BezierConstructionError`.
+- `BezierSurface` (#98): the first-class Bézier patch, a grid of
+  `(u_degree + 1) x (v_degree + 1)` poles (polynomial or rational) with
+  evaluation to second order, sided evaluation, projection, `split_u_at`
+  / `split_v_at`, `elevate_u_degree` / `elevate_v_degree`, `reversed_u`
+  / `reversed_v`, `to_bspline`, `from_bspline`, bounding box and the
+  `ParametricSurface` trait. It reuses `BezierConstructionError`.
+- Intersections and extrema involving a `BezierCurve` or `BezierSurface`
+  take the complete Bézier-piece search of the B-spline they are, as a
+  `BSplineCurve` or `BSplineSurface` does, instead of the sampled search.
+- `BezierCurve`, `BezierCurve2D` and `BezierSurface` in Python, with
+  stubs (#98).
+- Golden fixtures (`bezier.json`) check Bézier curve and surface
+  evaluation and derivatives against explicit Bernstein sums to 1e-7.
+
 ### Changed
 
+- `BSplineCurve::to_bezier_pieces` and `BSplineCurve2D::to_bezier_pieces`
+  return `BezierCurve` and `BezierCurve2D` instead of single-span
+  B-splines (#98), in Rust and Python; `to_bspline` gives the B-spline
+  back.
+- `BSplineSurface::to_bezier_patches` returns `Vec<Vec<BezierSurface>>`
+  (a list of lists of `BezierSurface` in Python) instead of single-span
+  B-spline surfaces (#98); `to_bspline` gives the B-spline surface back.
 - `BSplineCurve` and `BSplineCurve2D` share one implementation: a
   private spline generic over its pole type (ADR 0014). The two types
   agree on every operation to 1e-12, which a new test checks over the

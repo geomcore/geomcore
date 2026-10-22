@@ -2,6 +2,8 @@
 //! crate's placement types ([`crate::Axis`]/[`crate::Axis2D`],
 //! [`crate::Frame`]/[`crate::Frame2D`]).
 
+mod bezier;
+mod bezier_2d;
 mod bspline;
 mod bspline_2d;
 mod circle;
@@ -16,6 +18,8 @@ mod parabola;
 mod parametrize;
 pub(crate) mod spline;
 mod trimmed;
+pub use bezier::{BezierConstructionError, BezierCurve};
+pub use bezier_2d::BezierCurve2D;
 pub use bspline::{
     BSplineConstructionError, BSplineCurve, BSplineSplitError, DegreeElevationError,
     KnotInsertionError, KnotRemovalError,

@@ -12,7 +12,7 @@ use crate::curves::bspline::{
     KnotRemovalError,
 };
 use crate::curves::spline::Spline;
-use crate::curves::{BSplineCurve, ParametricCurve2D, PointExtrema2D, Side};
+use crate::curves::{BSplineCurve, BezierCurve2D, ParametricCurve2D, PointExtrema2D, Side};
 use crate::projection::CurveProjection2D;
 use crate::{Continuity, Point2D, Tolerance, Vector2D};
 
@@ -568,9 +568,9 @@ impl BSplineCurve2D {
     }
 
     /// Returns the polynomial (or rational) piece of each knot span within
-    /// the [`BSplineCurve2D::bounds`], in order, as a Bézier B-spline: one
-    /// span with both end knots of multiplicity `degree + 1`, its poles
-    /// the span's Bézier control points.
+    /// the [`BSplineCurve2D::bounds`], in order, as a [`BezierCurve2D`]: its
+    /// poles are the span's Bézier control points, and its bounds the
+    /// span's ends.
     ///
     /// The pieces are found span after span (The NURBS Book, A5.6), each
     /// sharing its first pole with the previous piece's last. A periodic
@@ -588,11 +588,11 @@ impl BSplineCurve2D {
     /// let pieces = curve.to_bezier_pieces();
     /// assert_eq!(pieces.len(), 3);
     /// assert_eq!(pieces[1].bounds(), (1.0, 2.0));
-    /// assert_eq!(pieces[1].multiplicities(), &[4, 4]);
+    /// assert_eq!(pieces[1].poles().len(), 4);
     /// assert!(pieces[1].eval_point(1.5).distance(curve.eval_point(1.5)) < 1e-12);
     /// ```
-    pub fn to_bezier_pieces(&self) -> Vec<BSplineCurve2D> {
-        self.0.to_bezier_pieces(BSplineCurve2D)
+    pub fn to_bezier_pieces(&self) -> Vec<BezierCurve2D> {
+        self.0.to_bezier_pieces(BezierCurve2D::from_spline)
     }
 
     /// Returns the piece of the curve over `[first, last]` as a clamped,
@@ -1054,6 +1054,11 @@ impl BSplineCurve2D {
         points.iter().map(|&p| self.project_point(p, tol)).collect()
     }
 
+    /// The curve wrapping `spline`.
+    pub(crate) fn from_spline(spline: Spline<Point2D>) -> BSplineCurve2D {
+        BSplineCurve2D(spline)
+    }
+
     /// The curve in space at `z = 0`, with the same parameters.
     pub(crate) fn embedded(&self) -> BSplineCurve {
         BSplineCurve::from_spline(self.0.embedded())
@@ -1417,7 +1422,7 @@ mod tests {
         let pieces = curve.to_bezier_pieces();
         assert_eq!(pieces.len(), 3);
         assert_eq!(pieces[1].bounds(), (1.0, 2.0));
-        assert_eq!(pieces[1].multiplicities(), &[4, 4]);
+        assert_eq!(pieces[1].poles().len(), 4);
         assert!(pieces[1].eval_point(1.5).distance(curve.eval_point(1.5)) < 1e-12);
     }
 

@@ -16,8 +16,8 @@ use crate::math::boxtree::{BoxTree, Lazy, box_distance};
 use crate::math::newton_min_2d;
 use crate::projection::SurfaceProjection;
 use crate::surface_math::bspline as math;
-use crate::surfaces::ParametricSurface;
 use crate::surfaces::iso::{SurfaceIsoError, check_iso_param};
+use crate::surfaces::{BezierSurface, ParametricSurface};
 use crate::{BSplineCurve, Point, Tolerance, Transform, Vector};
 
 pub use crate::curves::BSplineConstructionError;
@@ -1106,15 +1106,15 @@ impl BSplineSurface {
     }
 
     /// Returns the polynomial (or rational) patch of each pair of knot
-    /// spans within the bounds as a Bézier B-spline surface, both
-    /// directions a single span with end knots of multiplicity
-    /// `degree + 1`: `patches[i][j]` covers the `i`-th `u` span and the
-    /// `j`-th `v` span.
+    /// spans within the bounds as a [`BezierSurface`]: `patches[i][j]`
+    /// covers the `i`-th `u` span and the `j`-th `v` span, and keeps them
+    /// as its bounds.
     ///
     /// The net is cut into strips of `u` spans, then each strip into
     /// patches of `v` spans, as [`crate::BSplineCurve::to_bezier_pieces`]
     /// cuts a curve. A periodic direction is decomposed from its lower
-    /// bound.
+    /// bound. [`BezierSurface::to_bspline`] gives a patch as a B-spline
+    /// surface.
     ///
     /// # Examples
     ///
@@ -1130,13 +1130,13 @@ impl BSplineSurface {
     /// .unwrap();
     /// let patches = surface.to_bezier_patches();
     /// assert_eq!((patches.len(), patches[0].len()), (2, 1));
-    /// assert_eq!(patches[1][0].u_knots(), &[1.0, 2.0]);
+    /// assert_eq!(patches[1][0].u_bounds(), (1.0, 2.0));
     /// let (p, q) = (surface.eval_point(1.5, 0.5), patches[1][0].eval_point(1.5, 0.5));
     /// assert!(p.distance(q) < 1e-12);
     /// ```
-    pub fn to_bezier_patches(&self) -> Vec<Vec<BSplineSurface>> {
+    pub fn to_bezier_patches(&self) -> Vec<Vec<BezierSurface>> {
         let (u, v) = (&self.u_knots, &self.v_knots);
-        let mut rows: Vec<Vec<BSplineSurface>> = Vec::with_capacity(u.knots().len() - 1);
+        let mut rows: Vec<Vec<BezierSurface>> = Vec::with_capacity(u.knots().len() - 1);
         editing::surface_patches(
             u,
             v,
@@ -1146,16 +1146,46 @@ impl BSplineSurface {
                 if i == rows.len() {
                     rows.push(Vec::with_capacity(v.knots().len() - 1));
                 }
-                rows[i].push(BSplineSurface {
+                let patch = BSplineSurface {
                     u_knots: curve::KnotVector::bezier(u.degree(), u0, u1),
                     v_knots: curve::KnotVector::bezier(v.degree(), v0, v1),
                     poles,
                     weights,
                     patches: Lazy::default(),
-                });
+                };
+                rows[i].push(BezierSurface::from_surface(patch));
             },
         );
         rows
+    }
+
+    /// The single Bézier patch of the given degrees over `u_range` x
+    /// `v_range`, its `(u_degree + 1) (v_degree + 1)` poles row-major and
+    /// their weights, if any: the caller has checked the counts.
+    pub(crate) fn bezier_patch(
+        (u_degree, u_range): (usize, (f64, f64)),
+        (v_degree, v_range): (usize, (f64, f64)),
+        poles: Vec<Point>,
+        weights: Option<Vec<f64>>,
+    ) -> BSplineSurface {
+        debug_assert_eq!(poles.len(), (u_degree + 1) * (v_degree + 1));
+        BSplineSurface {
+            u_knots: curve::KnotVector::bezier(u_degree, u_range.0, u_range.1),
+            v_knots: curve::KnotVector::bezier(v_degree, v_range.0, v_range.1),
+            poles,
+            weights,
+            patches: Lazy::default(),
+        }
+    }
+
+    /// Whether the surface is one clamped, non-periodic span in both
+    /// directions: its poles are the Bézier control points of the whole
+    /// surface.
+    pub(crate) fn is_bezier(&self) -> bool {
+        [&self.u_knots, &self.v_knots].iter().all(|knots| {
+            let end = knots.degree() as u32 + 1;
+            !knots.is_periodic() && knots.multiplicities() == [end, end]
+        })
     }
 
     /// Returns the sub-patch of the surface over `u_range` and `v_range`,
@@ -3668,10 +3698,13 @@ mod tests {
             for (i, row) in patches.iter().enumerate() {
                 assert_eq!(row.len(), vs.len() - 1);
                 for (j, patch) in row.iter().enumerate() {
-                    assert_eq!(patch.u_param_range(), (us[i], us[i + 1]));
-                    assert_eq!(patch.v_param_range(), (vs[j], vs[j + 1]));
-                    assert_eq!(patch.u_multiplicities(), &[p as u32 + 1; 2]);
-                    assert_eq!(patch.v_multiplicities(), &[q as u32 + 1; 2]);
+                    assert_eq!(patch.u_bounds(), (us[i], us[i + 1]));
+                    assert_eq!(patch.v_bounds(), (vs[j], vs[j + 1]));
+                    let spline = patch.to_bspline();
+                    assert_eq!(spline.u_multiplicities(), &[p as u32 + 1; 2]);
+                    assert_eq!(spline.v_multiplicities(), &[q as u32 + 1; 2]);
+                    assert_eq!(patch.u_pole_count(), p + 1);
+                    assert_eq!(patch.v_pole_count(), q + 1);
                     assert_eq!(patch.weights().is_some(), surface.weights().is_some());
                     for a in 0..=4 {
                         for b in 0..=4 {

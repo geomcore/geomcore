@@ -7,7 +7,7 @@ use crate::curve_math::bspline as math;
 use crate::curve_math::bspline::PolePoint;
 use crate::curves::spline::Spline;
 use crate::curves::{
-    BSplineCurve, Circle, Curve, ElementaryCurve, Ellipse, Hyperbola, Line, Parabola,
+    BSplineCurve, BezierCurve, Circle, Curve, ElementaryCurve, Ellipse, Hyperbola, Line, Parabola,
     ParametricCurve, TrimmedCurve,
 };
 use crate::math::bernstein;
@@ -102,6 +102,12 @@ impl HasBoundingBox for Hyperbola {
 }
 
 impl HasBoundingBox for BSplineCurve {
+    fn bounding_box(&self) -> Option<BoundingBox> {
+        BoundingBox::from_points(self.poles().iter().copied())
+    }
+}
+
+impl HasBoundingBox for BezierCurve {
     fn bounding_box(&self) -> Option<BoundingBox> {
         BoundingBox::from_points(self.poles().iter().copied())
     }
@@ -253,21 +259,28 @@ pub(super) fn fold_range_points<P: PolePoint, B: Copy>(
 }
 
 impl BoundRange for BSplineCurve {
-    /// The union, over the knot spans meeting the range, of the boxes of
-    /// the poles of the spans it covers and of the Bézier control points
-    /// of the pieces of the spans it cuts, restricted to the range (whose
-    /// ends are the range's ends). Each piece lies in the convex hull of
-    /// either.
     fn range_box(&self, first: f64, last: f64) -> BoundingBox {
-        let start_point = self.eval_point(first);
-        fold_range_points(
-            self.spline(),
-            (first, last),
-            BoundingBox::new(start_point, start_point),
-            |b, [x, y, z, w]| b.including(Point::new(x / w, y / w, z / w)),
-            BoundingBox::including,
-        )
+        spline_range_box(self.spline(), first, last)
     }
+}
+
+impl BoundRange for BezierCurve {
+    fn range_box(&self, first: f64, last: f64) -> BoundingBox {
+        spline_range_box(self.spline(), first, last)
+    }
+}
+
+/// The box of `spline` over `[first, last]`, from the control points of
+/// its pieces there (see [`fold_range_points`]).
+fn spline_range_box(spline: &Spline<Point>, first: f64, last: f64) -> BoundingBox {
+    let start_point = spline.eval_point(first);
+    fold_range_points(
+        spline,
+        (first, last),
+        BoundingBox::new(start_point, start_point),
+        |b, [x, y, z, w]| b.including(Point::new(x / w, y / w, z / w)),
+        BoundingBox::including,
+    )
 }
 
 impl BoundRange for Curve {

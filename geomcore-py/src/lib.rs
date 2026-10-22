@@ -84,8 +84,9 @@ mod surfaces;
 mod values;
 
 use curves::{
-    PyBSplineCurve, PyBSplineCurve2D, PyCircle, PyCircle2D, PyEllipse, PyEllipse2D, PyHyperbola,
-    PyLine, PyLine2D, PyParabola, PyParabola2D, PyTrimmedCurve, PyTrimmedCurve2D,
+    PyBSplineCurve, PyBSplineCurve2D, PyBezierCurve, PyBezierCurve2D, PyCircle, PyCircle2D,
+    PyEllipse, PyEllipse2D, PyHyperbola, PyLine, PyLine2D, PyParabola, PyParabola2D,
+    PyTrimmedCurve, PyTrimmedCurve2D,
 };
 use numeric::{py_curve_curve_extrema, py_parametrize_numeric};
 use results::{
@@ -96,7 +97,7 @@ use results::{
     PyIntersectionCurve, PyIntersectionMethod, PySurfaceCurvatures, PySurfaceProjection,
     PySurfaceSurfaceIntersection, PySurfaceSurfaceRegion,
 };
-use surfaces::{PyBSplineSurface, PyCone, PyCylinder, PyPlane, PySphere, PyTorus};
+use surfaces::{PyBSplineSurface, PyBezierSurface, PyCone, PyCylinder, PyPlane, PySphere, PyTorus};
 use values::{
     PyAxis, PyAxis2D, PyBoundingBox, PyBoundingBox2D, PyDiscretization, PyDiscretization2D,
     PyFrame, PyFrame2D, PyPoint, PyPoint2D, PySide, PyTolerance, PyTransform, PyVector, PyVector2D,
@@ -157,11 +158,13 @@ fn geomcore_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     curves.add_class::<PyParabola>()?;
     curves.add_class::<PyHyperbola>()?;
     curves.add_class::<PyBSplineCurve>()?;
+    curves.add_class::<PyBezierCurve>()?;
     curves.add_class::<PyLine2D>()?;
     curves.add_class::<PyCircle2D>()?;
     curves.add_class::<PyEllipse2D>()?;
     curves.add_class::<PyParabola2D>()?;
     curves.add_class::<PyBSplineCurve2D>()?;
+    curves.add_class::<PyBezierCurve2D>()?;
     curves.add_class::<PyTrimmedCurve>()?;
     curves.add_class::<PyTrimmedCurve2D>()?;
     m.add_submodule(&curves)?;
@@ -173,6 +176,7 @@ fn geomcore_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     surfaces.add_class::<PySphere>()?;
     surfaces.add_class::<PyTorus>()?;
     surfaces.add_class::<PyBSplineSurface>()?;
+    surfaces.add_class::<PyBezierSurface>()?;
     m.add_submodule(&surfaces)?;
 
     // Register the submodules in sys.modules so that

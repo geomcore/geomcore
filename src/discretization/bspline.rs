@@ -23,7 +23,7 @@ use super::sealed::{DiscretizeRange, Run};
 use super::{DiscretizationCriteria, smallest_count};
 use crate::curve_math::bspline::PolePoint;
 use crate::curves::spline::Spline;
-use crate::{BSplineCurve, BSplineCurve2D, Point, Point2D};
+use crate::{BSplineCurve, BSplineCurve2D, BezierCurve, BezierCurve2D, Point, Point2D};
 use std::f64::consts::{FRAC_PI_2, PI};
 
 /// Control points of the highest supported degree, 25.
@@ -516,4 +516,9 @@ macro_rules! discretize_range {
     )*};
 }
 
-discretize_range!(BSplineCurve: Point, BSplineCurve2D: Point2D);
+discretize_range!(
+    BSplineCurve: Point,
+    BSplineCurve2D: Point2D,
+    BezierCurve: Point,
+    BezierCurve2D: Point2D
+);
