@@ -1380,12 +1380,17 @@ fn test_2d_typed_conics_route_exact_and_match_the_typed_solver() {
     assert_eq!(routed.method(), IntersectionMethod::Exact);
     assert_eq!(routed.hits(), typed.as_slice());
     assert_hits_2d_lie_on(&routed, &line, &ellipse);
-    // The conic read first gets the conic's parameter first.
+    // The reverse order swaps which parameter slot holds the line vs conic.
     let reverse = exact_hits_2d(ellipse.intersect_exact(&line, TOL));
-    for (a, b) in typed.iter().zip(reverse.iter().rev()) {
-        assert!(a.point.distance(b.point) < 1e-12);
+    assert_eq!(typed.len(), reverse.len());
+    for a in &typed {
+        let b = reverse
+            .iter()
+            .find(|other| other.point.distance(a.point) < 1e-12)
+            .expect("reverse order reports the same point");
         assert_eq!(a.first_parameter, b.second_parameter);
         assert_eq!(a.second_parameter, b.first_parameter);
+        assert_eq!(a.multiplicity, b.multiplicity);
     }
 }
 
