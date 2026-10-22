@@ -36,6 +36,13 @@ the Python distribution are versioned in lockstep.
   `IntersectionMethod::Numeric` and is proved complete where the 3D
   search would prove it. `CurveCurveIntersection2D::method` now reports
   this method instead of always `Exact`.
+- `Ellipse2D` (#92), in Rust and Python: construction from a center,
+  direction and radii, from a `Frame2D`, or from a center and two
+  points; evaluation and derivatives, parameter inversion, containment,
+  extrema and projection; area, tight bounding boxes and proven
+  discretization; exact B-spline conversion; and `TrimmedCurve2D`
+  support. `Curve2D` gains an `Ellipse` variant with every operation
+  forwarded, and Python gains `geomcore.curves.Ellipse2D` with stubs.
 
 ### Changed
 
@@ -51,6 +58,15 @@ the Python distribution are versioned in lockstep.
   Callers that copied one implicitly `.clone()` it.
 
 ### Fixed
+
+- `Ellipse::from_center_and_points` (and the new
+  `Ellipse2D::from_center_and_points`) returns `NonFinite` for a NaN or
+  infinite input point instead of `InvertedAxis`.
+- `ElementaryCurve::to_bspline` and `Curve::to_bspline` (and the new
+  `Curve2D::to_bspline`) return `NotRepresentable` for a circle or
+  ellipse whose poles overflow `f64` instead of panicking.
+  `Circle::to_bspline` and `Ellipse::to_bspline` still panic there, and
+  now document it.
 
 - The sampled curve–curve search no longer drops a transversal crossing
   that lies close to another crossing or to a near touch (#13). It runs

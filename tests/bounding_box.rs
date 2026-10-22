@@ -554,7 +554,8 @@ fn test_boxes_cull_apart_shapes_and_keep_meeting_ones() {
 mod planar {
     use geomcore::curves::{Curve2D, TrimmedCurve2D};
     use geomcore::{
-        BSplineCurve2D, BoundingBox2D, Circle2D, HasBoundingBox2D, Line2D, Point2D, Vector2D,
+        BSplineCurve2D, BoundingBox2D, Circle2D, Ellipse2D, HasBoundingBox2D, Line2D, Point2D,
+        Vector2D,
     };
     use std::f64::consts::{FRAC_PI_2, TAU};
 
@@ -629,6 +630,60 @@ mod planar {
                     true,
                 );
             }
+        }
+    }
+
+    #[test]
+    fn test_ellipses_and_arcs_are_tight() {
+        let frames = [
+            Ellipse2D::from_frame(geomcore::Frame2D::WORLD, 3.0, 1.5).unwrap(),
+            Ellipse2D::from_frame(
+                geomcore::Frame2D::new(
+                    Point2D::new(1.0, -2.0),
+                    Vector2D::new(0.6, 0.8),
+                    Vector2D::new(-0.8, 0.6),
+                )
+                .unwrap(),
+                2.5,
+                1.25,
+            )
+            .unwrap(),
+            Ellipse2D::from_frame(
+                geomcore::Frame2D::new(
+                    Point2D::new(-1.0, 0.5),
+                    Vector2D::new(0.6, -0.8),
+                    Vector2D::new(-0.8, -0.6),
+                )
+                .unwrap(),
+                4.0,
+                2.0,
+            )
+            .unwrap(),
+        ];
+        for ellipse in frames {
+            check(
+                ellipse.bounding_box().unwrap(),
+                sampled(0.0, TAU, |t| ellipse.eval_point(t)),
+                true,
+            );
+            for (first, last) in [
+                (0.0, FRAC_PI_2),
+                (-1.0, 2.0),
+                (2.5, 2.5 + 5.0),
+                (1.0, 1.0 + TAU),
+            ] {
+                let arc = TrimmedCurve2D::new(ellipse, first, last).unwrap();
+                check(
+                    arc.bounding_box().unwrap(),
+                    sampled(first, last, |t| ellipse.eval_point(t)),
+                    true,
+                );
+            }
+            let wrapped = Curve2D::from(ellipse);
+            assert_eq!(wrapped.bounding_box(), ellipse.bounding_box());
+            let arc = TrimmedCurve2D::new(ellipse, 0.0, 2.0).unwrap();
+            let boxed = TrimmedCurve2D::new(wrapped, 0.0, 2.0).unwrap();
+            assert_eq!(boxed.bounding_box(), arc.bounding_box());
         }
     }
 

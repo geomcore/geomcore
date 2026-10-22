@@ -3,7 +3,7 @@
 
 use geomcore::{
     Axis, Axis2D, Circle, Circle2D, CircleConstructionError, Cone, ConeConstructionError, Cylinder,
-    CylinderConstructionError, Ellipse, EllipseConstructionError, Frame, Frame2D,
+    CylinderConstructionError, Ellipse, Ellipse2D, EllipseConstructionError, Frame, Frame2D,
     FrameConstructionError, Hyperbola, HyperbolaConstructionError, Line, Line2D,
     LineConstructionError, Parabola, ParabolaConstructionError, Plane, PlaneConstructionError,
     Point, Point2D, Sphere, SphereConstructionError, Torus, TorusConstructionError, Vector,
@@ -157,6 +157,49 @@ fn test_conics_reject_non_finite_and_zero_sizes() {
     assert_eq!(
         Parabola::new(O, Z, X, 0.0),
         Err(ParabolaConstructionError::NonPositiveFocal)
+    );
+
+    for b in BAD {
+        assert_eq!(
+            Ellipse2D::new(Point2D::ORIGIN, Vector2D::X, b, 1.0),
+            Err(EllipseConstructionError::NonFinite)
+        );
+        assert_eq!(
+            Ellipse2D::new(Point2D::ORIGIN, Vector2D::X, 3.0, b),
+            Err(EllipseConstructionError::NonFinite)
+        );
+        assert_eq!(
+            Ellipse2D::new(Point2D::new(b, 0.0), Vector2D::X, 3.0, 1.0),
+            Err(EllipseConstructionError::NonFinite)
+        );
+        assert_eq!(
+            Ellipse2D::new(Point2D::ORIGIN, Vector2D::new(1.0, b), 3.0, 1.0),
+            Err(EllipseConstructionError::NonFinite)
+        );
+    }
+    assert_eq!(
+        Ellipse2D::new(Point2D::ORIGIN, Vector2D::new(0.0, 0.0), 3.0, 1.0),
+        Err(EllipseConstructionError::NullNormal)
+    );
+    assert_eq!(
+        Ellipse2D::new(Point2D::ORIGIN, Vector2D::X, 3.0, 0.0),
+        Err(EllipseConstructionError::NonPositiveRadius)
+    );
+    assert_eq!(
+        Ellipse2D::new(Point2D::ORIGIN, Vector2D::X, 1.0, 3.0),
+        Err(EllipseConstructionError::InvertedRadii)
+    );
+    assert_eq!(
+        Ellipse2D::from_center_and_points(
+            Point2D::ORIGIN,
+            Point2D::new(3.0, 0.0),
+            Point2D::new(6.0, 0.0)
+        ),
+        Err(EllipseConstructionError::InvertedAxis)
+    );
+    assert_eq!(
+        Ellipse2D::from_center_and_points(Point2D::ORIGIN, Point2D::ORIGIN, Point2D::new(0.0, 1.0)),
+        Err(EllipseConstructionError::NullAxis)
     );
 }
 

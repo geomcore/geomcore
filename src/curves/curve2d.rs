@@ -1,7 +1,7 @@
 //! [`ParametricCurve2D`] trait and the [`Curve2D`] enum adaptor unifying the
 //! concrete 2D curve types.
 
-use crate::curves::{BSplineCurve2D, Circle2D, Continuity, Line2D};
+use crate::curves::{BSplineCurve2D, Circle2D, Continuity, Ellipse2D, Line2D};
 use crate::projection::CurveProjection2D;
 use crate::{Point2D, Tolerance, Vector2D};
 use std::f64::consts::TAU;
@@ -452,6 +452,12 @@ impl PointExtrema2D for Circle2D {
     }
 }
 
+impl PointExtrema2D for Ellipse2D {
+    fn extrema(&self, point: Point2D, tol: Tolerance) -> Vec<CurveProjection2D> {
+        Ellipse2D::extrema(self, point, tol)
+    }
+}
+
 impl ParametricCurve2D for Line2D {
     fn eval_point(&self, u: f64) -> Point2D {
         Line2D::eval_point(self, u)
@@ -496,12 +502,35 @@ impl ParametricCurve2D for Circle2D {
     }
 }
 
+impl ParametricCurve2D for Ellipse2D {
+    fn eval_point(&self, u: f64) -> Point2D {
+        Ellipse2D::eval_point(self, u)
+    }
+
+    fn eval_derivative(&self, u: f64, order: u32) -> Vector2D {
+        Ellipse2D::eval_derivative(self, u, order)
+    }
+
+    fn bounds(&self) -> (f64, f64) {
+        (0.0, TAU)
+    }
+
+    fn period(&self) -> Option<f64> {
+        Some(TAU)
+    }
+
+    fn eval_points(&self, us: &[f64]) -> Vec<Point2D> {
+        Ellipse2D::eval_points(self, us)
+    }
+}
+
 /// Enum adaptor unifying the concrete 2D curve types behind a single value
 /// type, so callers can build a heterogeneous collection of curves and
 /// evaluate them uniformly through [`ParametricCurve2D`].
 ///
-/// Cloning stays cheap for the elementary variants (`Line`, `Circle` are
-/// `Copy`-sized); a B-spline variant shares its poles by a full clone.
+/// Cloning stays cheap for the elementary variants (`Line`, `Circle` and
+/// `Ellipse` are `Copy`-sized); a B-spline variant shares its poles by a
+/// full clone.
 ///
 /// Marked `#[non_exhaustive]`: future tasks add further variants without
 /// that being a breaking change.
@@ -535,6 +564,8 @@ pub enum Curve2D {
     Line(Line2D),
     /// A [`Circle2D`] curve.
     Circle(Circle2D),
+    /// An [`Ellipse2D`] curve.
+    Ellipse(Ellipse2D),
     /// A [`BSplineCurve2D`] curve.
     BSpline(BSplineCurve2D),
 }
@@ -544,6 +575,7 @@ impl ParametricCurve2D for Curve2D {
         match self {
             Curve2D::Line(c) => c.eval_point(u),
             Curve2D::Circle(c) => c.eval_point(u),
+            Curve2D::Ellipse(c) => c.eval_point(u),
             Curve2D::BSpline(c) => c.eval_point(u),
         }
     }
@@ -552,6 +584,7 @@ impl ParametricCurve2D for Curve2D {
         match self {
             Curve2D::Line(c) => c.eval_derivative(u, order),
             Curve2D::Circle(c) => c.eval_derivative(u, order),
+            Curve2D::Ellipse(c) => c.eval_derivative(u, order),
             Curve2D::BSpline(c) => c.eval_derivative(u, order),
         }
     }
@@ -560,6 +593,7 @@ impl ParametricCurve2D for Curve2D {
         match self {
             Curve2D::Line(c) => c.bounds(),
             Curve2D::Circle(c) => c.bounds(),
+            Curve2D::Ellipse(c) => c.bounds(),
             Curve2D::BSpline(c) => c.bounds(),
         }
     }
@@ -568,6 +602,7 @@ impl ParametricCurve2D for Curve2D {
         match self {
             Curve2D::Line(c) => c.period(),
             Curve2D::Circle(c) => c.period(),
+            Curve2D::Ellipse(c) => c.period(),
             Curve2D::BSpline(c) => c.period(),
         }
     }
@@ -576,6 +611,7 @@ impl ParametricCurve2D for Curve2D {
         match self {
             Curve2D::Line(c) => c.eval_points(us),
             Curve2D::Circle(c) => c.eval_points(us),
+            Curve2D::Ellipse(c) => c.eval_points(us),
             Curve2D::BSpline(c) => c.eval_points(us),
         }
     }
@@ -584,6 +620,7 @@ impl ParametricCurve2D for Curve2D {
         match self {
             Curve2D::Line(c) => ParametricCurve2D::eval_d1(c, u),
             Curve2D::Circle(c) => ParametricCurve2D::eval_d1(c, u),
+            Curve2D::Ellipse(c) => ParametricCurve2D::eval_d1(c, u),
             Curve2D::BSpline(c) => c.eval_d1(u),
         }
     }
@@ -592,6 +629,7 @@ impl ParametricCurve2D for Curve2D {
         match self {
             Curve2D::Line(c) => ParametricCurve2D::eval_d2(c, u),
             Curve2D::Circle(c) => ParametricCurve2D::eval_d2(c, u),
+            Curve2D::Ellipse(c) => ParametricCurve2D::eval_d2(c, u),
             Curve2D::BSpline(c) => c.eval_d2(u),
         }
     }
@@ -600,6 +638,7 @@ impl ParametricCurve2D for Curve2D {
         match self {
             Curve2D::Line(c) => ParametricCurve2D::is_closed(c, tol),
             Curve2D::Circle(c) => ParametricCurve2D::is_closed(c, tol),
+            Curve2D::Ellipse(c) => ParametricCurve2D::is_closed(c, tol),
             Curve2D::BSpline(c) => c.is_closed(tol),
         }
     }
@@ -608,6 +647,7 @@ impl ParametricCurve2D for Curve2D {
         match self {
             Curve2D::Line(c) => ParametricCurve2D::continuity(c, u, tol),
             Curve2D::Circle(c) => ParametricCurve2D::continuity(c, u, tol),
+            Curve2D::Ellipse(c) => ParametricCurve2D::continuity(c, u, tol),
             Curve2D::BSpline(c) => c.continuity(u, tol),
         }
     }
@@ -616,6 +656,7 @@ impl ParametricCurve2D for Curve2D {
         match self {
             Curve2D::Line(c) => ParametricCurve2D::min_continuity(c),
             Curve2D::Circle(c) => ParametricCurve2D::min_continuity(c),
+            Curve2D::Ellipse(c) => ParametricCurve2D::min_continuity(c),
             Curve2D::BSpline(c) => c.min_continuity(),
         }
     }
@@ -633,6 +674,7 @@ impl PointExtrema2D for Curve2D {
         match self {
             Curve2D::Line(c) => PointExtrema2D::extrema(c, point, tol),
             Curve2D::Circle(c) => PointExtrema2D::extrema(c, point, tol),
+            Curve2D::Ellipse(c) => PointExtrema2D::extrema(c, point, tol),
             Curve2D::BSpline(c) => PointExtrema2D::extrema(c, point, tol),
         }
     }
@@ -658,6 +700,7 @@ impl Curve2D {
         match self {
             Curve2D::Line(c) => c.project_point(point, tol),
             Curve2D::Circle(c) => c.project_point(point, tol),
+            Curve2D::Ellipse(c) => c.project_point(point, tol),
             Curve2D::BSpline(c) => c.project_point(point, tol),
         }
     }
@@ -684,6 +727,7 @@ impl Curve2D {
         match self {
             Curve2D::Line(c) => c.parameter_of(point),
             Curve2D::Circle(c) => c.parameter_of(point),
+            Curve2D::Ellipse(c) => c.parameter_of(point),
             Curve2D::BSpline(c) => c.parameter_of(point),
         }
     }
@@ -700,6 +744,13 @@ impl From<Circle2D> for Curve2D {
     /// Wraps a [`Circle2D`] as a [`Curve2D::Circle`].
     fn from(curve: Circle2D) -> Curve2D {
         Curve2D::Circle(curve)
+    }
+}
+
+impl From<Ellipse2D> for Curve2D {
+    /// Wraps an [`Ellipse2D`] as a [`Curve2D::Ellipse`].
+    fn from(curve: Ellipse2D) -> Curve2D {
+        Curve2D::Ellipse(curve)
     }
 }
 
@@ -727,6 +778,10 @@ mod tests {
         Circle2D::new(Point2D::ORIGIN, 2.0).unwrap()
     }
 
+    fn ellipse() -> Ellipse2D {
+        Ellipse2D::new(Point2D::ORIGIN, Vector2D::X, 3.0, 1.5).unwrap()
+    }
+
     // ---- generic fn agrees with inherent calls ----
 
     #[test]
@@ -739,6 +794,12 @@ mod tests {
     fn test_sample_circle_agrees_with_inherent() {
         let c = circle();
         assert_eq!(sample(&c), c.eval_point(0.5));
+    }
+
+    #[test]
+    fn test_sample_ellipse_agrees_with_inherent() {
+        let e = ellipse();
+        assert_eq!(sample(&e), e.eval_point(0.5));
     }
 
     #[test]
@@ -780,6 +841,15 @@ mod tests {
         }
     }
 
+    #[test]
+    fn test_from_ellipse_round_trips() {
+        let e = ellipse();
+        match Curve2D::from(e) {
+            Curve2D::Ellipse(inner) => assert_eq!(inner, e),
+            _ => panic!("expected Curve2D::Ellipse"),
+        }
+    }
+
     // ---- bounds/period table, per type (inherent trait impl + enum dispatch) ----
 
     #[test]
@@ -806,6 +876,19 @@ mod tests {
         assert!(ParametricCurve2D::is_periodic(&c));
 
         let wrapped: Curve2D = c.into();
+        assert_eq!(wrapped.bounds(), (0.0, TAU));
+        assert_eq!(wrapped.period(), Some(TAU));
+        assert!(wrapped.is_periodic());
+    }
+
+    #[test]
+    fn test_ellipse_bounds_and_period() {
+        let e = ellipse();
+        assert_eq!(ParametricCurve2D::bounds(&e), (0.0, TAU));
+        assert_eq!(ParametricCurve2D::period(&e), Some(TAU));
+        assert!(ParametricCurve2D::is_periodic(&e));
+
+        let wrapped: Curve2D = e.into();
         assert_eq!(wrapped.bounds(), (0.0, TAU));
         assert_eq!(wrapped.period(), Some(TAU));
         assert!(wrapped.is_periodic());
@@ -848,6 +931,12 @@ mod tests {
         assert_eq!(
             ParametricCurve2D::eval_derivative(&c, 0.5, 1),
             c.eval_derivative(0.5, 1)
+        );
+
+        let e = ellipse();
+        assert_eq!(
+            ParametricCurve2D::eval_derivative(&e, 0.5, 1),
+            e.eval_derivative(0.5, 1)
         );
     }
 
@@ -927,12 +1016,19 @@ mod tests {
 
     #[test]
     fn test_curve2d_enum_forwards_local_properties() {
-        let curves: Vec<Curve2D> = vec![line().into(), circle().into(), arch().into()];
+        let e = ellipse();
+        let curves: Vec<Curve2D> = vec![line().into(), circle().into(), arch().into(), e.into()];
         assert_eq!(curves[0].curvature(0.0, TOL), Some(0.0));
         assert_eq!(curves[1].curvature(0.0, TOL), Some(0.5));
         assert_eq!(curves[2].curvature(0.5, TOL), Some(-1.0));
+        assert_eq!(curves[3].curvature(0.0, TOL), Some(4.0 / 3.0));
         assert_eq!(curves[1].tangent(0.0, TOL), Some(Vector2D::Y));
+        assert_eq!(curves[3].tangent(0.0, TOL), Some(Vector2D::Y));
         assert_eq!(curves[1].curvature_center(0.0, TOL), Some(Point2D::ORIGIN));
+        assert_eq!(
+            curves[3].curvature_center(0.0, TOL),
+            Some(Point2D::new(2.25, 0.0))
+        );
     }
 
     #[test]
@@ -960,8 +1056,13 @@ mod tests {
     fn test_elementary_closedness_and_continuity() {
         assert!(!ParametricCurve2D::is_closed(&line(), TOL));
         assert!(ParametricCurve2D::is_closed(&circle(), TOL));
+        assert!(ParametricCurve2D::is_closed(&ellipse(), TOL));
         assert_eq!(
             ParametricCurve2D::continuity(&circle(), 0.5, TOL),
+            Continuity::Smooth
+        );
+        assert_eq!(
+            ParametricCurve2D::continuity(&ellipse(), 0.5, TOL),
             Continuity::Smooth
         );
         assert_eq!(
