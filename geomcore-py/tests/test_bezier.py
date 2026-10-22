@@ -133,6 +133,8 @@ def test_curve_2d():
     assert curve.to_bspline().multiplicities() == [3, 3]
     assert BezierCurve2D.from_bspline(curve.to_bspline()) == curve
     assert curve.project_point(Point2D(1.0, 2.0)).target is curve
+    box = curve.bounding_box()
+    assert box is not None and box.max() == Point2D(2.0, 1.0)
     rational = BezierCurve2D.new_rational(
         2, [Point2D(1.0, 0.0), Point2D(1.0, 1.0), Point2D(0.0, 1.0)], [1.0, W, 1.0]
     )

@@ -15,7 +15,7 @@
 //! - [`curves`] holds the 3D and 2D curve types ([`curves::Line`],
 //!   [`curves::Circle`], [`curves::Ellipse`], [`curves::Parabola`],
 //!   [`curves::Hyperbola`], [`curves::BSplineCurve`], [`curves::BezierCurve`],
-//!   [`curves::Line2D`], [`curves::Circle2D`],
+//!   [`curves::Line2D`], [`curves::Circle2D`], [`curves::Ellipse2D`],
 //!   [`curves::BSplineCurve2D`], [`curves::BezierCurve2D`]), the [`curves::Curve`]/
 //!   [`curves::Curve2D`] enum adaptors, the
 //!   [`curves::TrimmedCurve`]/[`curves::TrimmedCurve2D`] pieces of a
@@ -169,16 +169,16 @@ pub mod transform;
 /// Vectors in 2D and 3D space.
 pub mod vector;
 
-pub use bounding_box::{BoundingBox, HasBoundingBox};
+pub use bounding_box::{BoundingBox, BoundingBox2D, HasBoundingBox, HasBoundingBox2D};
 pub use curves::{
     BSplineConstructionError, BSplineConversionError, BSplineCurve, BSplineCurve2D,
     BSplineSplitError, BezierConstructionError, BezierCurve, BezierCurve2D, Circle, Circle2D,
     CircleConstructionError, Continuity, Curve, Curve2D, DegreeElevationError, ElementaryCurve,
-    Ellipse, EllipseConstructionError, Hyperbola, HyperbolaConstructionError, KnotInsertionError,
-    KnotRemovalError, Line, Line2D, LineConstructionError, Parabola, ParabolaConstructionError,
-    ParametricCurve, ParametricCurve2D, ParametrizeError, PointExtrema, PointExtrema2D,
-    PointParametrization, Side, TrimmedCurve, TrimmedCurve2D, TrimmedCurveConstructionError,
-    parametrize_numeric,
+    Ellipse, Ellipse2D, EllipseConstructionError, Hyperbola, HyperbolaConstructionError,
+    KnotInsertionError, KnotRemovalError, Line, Line2D, LineConstructionError, Parabola,
+    ParabolaConstructionError, ParametricCurve, ParametricCurve2D, ParametrizeError, PointExtrema,
+    PointExtrema2D, PointParametrization, Side, TrimmedCurve, TrimmedCurve2D,
+    TrimmedCurveConstructionError, parametrize_numeric,
 };
 pub use discretization::{
     Discretization, Discretization2D, DiscretizationCriteria, DiscretizationCriteriaError,

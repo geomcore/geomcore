@@ -85,7 +85,8 @@ mod values;
 
 use curves::{
     PyBSplineCurve, PyBSplineCurve2D, PyBezierCurve, PyBezierCurve2D, PyCircle, PyCircle2D,
-    PyEllipse, PyHyperbola, PyLine, PyLine2D, PyParabola, PyTrimmedCurve, PyTrimmedCurve2D,
+    PyEllipse, PyEllipse2D, PyHyperbola, PyLine, PyLine2D, PyParabola, PyTrimmedCurve,
+    PyTrimmedCurve2D,
 };
 use numeric::{py_curve_curve_extrema, py_parametrize_numeric};
 use results::{
@@ -98,8 +99,8 @@ use results::{
 };
 use surfaces::{PyBSplineSurface, PyBezierSurface, PyCone, PyCylinder, PyPlane, PySphere, PyTorus};
 use values::{
-    PyAxis, PyAxis2D, PyBoundingBox, PyDiscretization, PyDiscretization2D, PyFrame, PyFrame2D,
-    PyPoint, PyPoint2D, PySide, PyTolerance, PyTransform, PyVector, PyVector2D,
+    PyAxis, PyAxis2D, PyBoundingBox, PyBoundingBox2D, PyDiscretization, PyDiscretization2D,
+    PyFrame, PyFrame2D, PyPoint, PyPoint2D, PySide, PyTolerance, PyTransform, PyVector, PyVector2D,
 };
 
 // ---------------------------------------------------------------------------
@@ -122,6 +123,7 @@ fn geomcore_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyTolerance>()?;
     m.add_class::<PyTransform>()?;
     m.add_class::<PyBoundingBox>()?;
+    m.add_class::<PyBoundingBox2D>()?;
     m.add_class::<PyDiscretization2D>()?;
     m.add_class::<PyDiscretization>()?;
     m.add_class::<PySide>()?;
@@ -159,6 +161,7 @@ fn geomcore_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     curves.add_class::<PyBezierCurve>()?;
     curves.add_class::<PyLine2D>()?;
     curves.add_class::<PyCircle2D>()?;
+    curves.add_class::<PyEllipse2D>()?;
     curves.add_class::<PyBSplineCurve2D>()?;
     curves.add_class::<PyBezierCurve2D>()?;
     curves.add_class::<PyTrimmedCurve>()?;

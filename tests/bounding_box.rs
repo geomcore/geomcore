@@ -548,3 +548,194 @@ fn test_boxes_cull_apart_shapes_and_keep_meeting_ones() {
     assert!(!s.enlarged(1.9).overlaps(far));
     assert!(s.enlarged(1.0).overlaps(far.enlarged(1.0)));
 }
+
+// ---------------------------------------------------------------- 2D
+
+mod planar {
+    use geomcore::curves::{Curve2D, TrimmedCurve2D};
+    use geomcore::{
+        BSplineCurve2D, BoundingBox2D, Circle2D, Ellipse2D, HasBoundingBox2D, Line2D, Point2D,
+        Vector2D,
+    };
+    use std::f64::consts::{FRAC_PI_2, TAU};
+
+    /// The extremes `(min, max)` of each coordinate of the curve `point`
+    /// over `[a, b]`, from dense samples.
+    fn sampled(a: f64, b: f64, point: impl Fn(f64) -> Point2D) -> [(f64, f64); 2] {
+        let points: Vec<Point2D> = (0..=4000)
+            .map(|i| point(a + (b - a) * i as f64 / 4000.0))
+            .collect();
+        [
+            points
+                .iter()
+                .map(|p| p.x)
+                .fold((f64::MAX, f64::MIN), minmax),
+            points
+                .iter()
+                .map(|p| p.y)
+                .fold((f64::MAX, f64::MIN), minmax),
+        ]
+    }
+
+    fn minmax((lo, hi): (f64, f64), x: f64) -> (f64, f64) {
+        (lo.min(x), hi.max(x))
+    }
+
+    /// The box holds every sample, and when `tight` the samples come within
+    /// `slack` of every side.
+    #[track_caller]
+    fn check(b: BoundingBox2D, samples: [(f64, f64); 2], tight: bool) {
+        let (min, max) = ([b.min().x, b.min().y], [b.max().x, b.max().y]);
+        for k in 0..2 {
+            assert!(min[k] <= samples[k].0 + 1e-12, "axis {k} low side");
+            assert!(max[k] >= samples[k].1 - 1e-12, "axis {k} high side");
+            if tight {
+                assert!(min[k] >= samples[k].0 - 1e-5, "axis {k} low side is loose");
+                assert!(max[k] <= samples[k].1 + 1e-5, "axis {k} high side is loose");
+            }
+        }
+    }
+
+    #[test]
+    fn test_circles_and_arcs_are_tight() {
+        let frames = [
+            Circle2D::new(Point2D::new(1.0, -2.0), 1.5).unwrap(),
+            Circle2D::from_frame(
+                geomcore::Frame2D::new(
+                    Point2D::ORIGIN,
+                    Vector2D::new(3.0, 4.0),
+                    -Vector2D::new(-4.0, 3.0),
+                )
+                .unwrap(),
+                2.0,
+            )
+            .unwrap(),
+        ];
+        for circle in frames {
+            check(
+                circle.bounding_box().unwrap(),
+                sampled(0.0, TAU, |t| circle.eval_point(t)),
+                true,
+            );
+            for (first, last) in [
+                (0.0, FRAC_PI_2),
+                (-1.0, 2.0),
+                (2.5, 2.5 + 5.0),
+                (1.0, 1.0 + TAU),
+            ] {
+                let arc = TrimmedCurve2D::new(circle, first, last).unwrap();
+                check(
+                    arc.bounding_box().unwrap(),
+                    sampled(first, last, |t| circle.eval_point(t)),
+                    true,
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_ellipses_and_arcs_are_tight() {
+        let frames = [
+            Ellipse2D::from_frame(geomcore::Frame2D::WORLD, 3.0, 1.5).unwrap(),
+            Ellipse2D::from_frame(
+                geomcore::Frame2D::new(
+                    Point2D::new(1.0, -2.0),
+                    Vector2D::new(0.6, 0.8),
+                    Vector2D::new(-0.8, 0.6),
+                )
+                .unwrap(),
+                2.5,
+                1.25,
+            )
+            .unwrap(),
+            Ellipse2D::from_frame(
+                geomcore::Frame2D::new(
+                    Point2D::new(-1.0, 0.5),
+                    Vector2D::new(0.6, -0.8),
+                    Vector2D::new(-0.8, -0.6),
+                )
+                .unwrap(),
+                4.0,
+                2.0,
+            )
+            .unwrap(),
+        ];
+        for ellipse in frames {
+            check(
+                ellipse.bounding_box().unwrap(),
+                sampled(0.0, TAU, |t| ellipse.eval_point(t)),
+                true,
+            );
+            for (first, last) in [
+                (0.0, FRAC_PI_2),
+                (-1.0, 2.0),
+                (2.5, 2.5 + 5.0),
+                (1.0, 1.0 + TAU),
+            ] {
+                let arc = TrimmedCurve2D::new(ellipse, first, last).unwrap();
+                check(
+                    arc.bounding_box().unwrap(),
+                    sampled(first, last, |t| ellipse.eval_point(t)),
+                    true,
+                );
+            }
+            let wrapped = Curve2D::from(ellipse);
+            assert_eq!(wrapped.bounding_box(), ellipse.bounding_box());
+            let arc = TrimmedCurve2D::new(ellipse, 0.0, 2.0).unwrap();
+            let boxed = TrimmedCurve2D::new(wrapped, 0.0, 2.0).unwrap();
+            assert_eq!(boxed.bounding_box(), arc.bounding_box());
+        }
+    }
+
+    #[test]
+    fn test_segments_are_their_end_points_and_lines_have_no_box() {
+        let (start, end) = (Point2D::new(2.0, 1.0), Point2D::new(-1.0, 3.0));
+        let segment = TrimmedCurve2D::segment(start, end).unwrap();
+        assert_eq!(segment.bounding_box(), Some(BoundingBox2D::new(start, end)));
+        assert_eq!(
+            Line2D::new(Point2D::ORIGIN, Vector2D::Y)
+                .unwrap()
+                .bounding_box(),
+            None
+        );
+    }
+
+    #[test]
+    fn test_bspline_boxes_hold_the_curve_and_pieces() {
+        let poles = vec![
+            Point2D::new(0.0, 0.0),
+            Point2D::new(1.0, 3.0),
+            Point2D::new(2.0, -2.0),
+            Point2D::new(4.0, 1.0),
+        ];
+        let curve =
+            BSplineCurve2D::new(3, poles.clone(), vec![0.0, 1.0], vec![4, 4], false).unwrap();
+        let whole = curve.bounding_box().unwrap();
+        assert_eq!(whole, BoundingBox2D::from_points(poles).unwrap());
+        check(whole, sampled(0.0, 1.0, |t| curve.eval_point(t)), false);
+        let piece = TrimmedCurve2D::new(&curve, 0.2, 0.6).unwrap();
+        let b = piece.bounding_box().unwrap();
+        check(b, sampled(0.2, 0.6, |t| curve.eval_point(t)), false);
+        assert!(whole.encloses(b.min()) && whole.encloses(b.max()));
+    }
+
+    #[test]
+    fn test_run_time_curves_agree_with_concrete_ones() {
+        let circle = Circle2D::new(Point2D::new(1.0, 1.0), 2.0).unwrap();
+        let wrapped = Curve2D::from(circle);
+        assert_eq!(wrapped.bounding_box(), circle.bounding_box());
+        let arc = TrimmedCurve2D::new(circle, 0.0, 2.0).unwrap();
+        let boxed = TrimmedCurve2D::new(wrapped, 0.0, 2.0).unwrap();
+        assert_eq!(boxed.bounding_box(), arc.bounding_box());
+    }
+
+    #[test]
+    fn test_boxes_cull_apart_shapes() {
+        let a = Circle2D::new(Point2D::ORIGIN, 1.0).unwrap();
+        let b = Circle2D::new(Point2D::new(5.0, 0.0), 1.0).unwrap();
+        let (a, b) = (a.bounding_box().unwrap(), b.bounding_box().unwrap());
+        assert!(!a.overlaps(b));
+        let c = Circle2D::new(Point2D::new(1.5, 0.0), 1.0).unwrap();
+        assert!(a.overlaps(c.bounding_box().unwrap()));
+    }
+}

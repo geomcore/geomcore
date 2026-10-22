@@ -18,11 +18,31 @@ the Python distribution are versioned in lockstep.
   reversal, length, projection, discretization and intersection.
   `Curve2D` gains a `BSpline` variant, and `Circle2D`,
   `TrimmedCurve2D` and `Curve2D` gain `to_bspline`.
+- `ParametricCurve2D` gains the local properties and queries of its 3D
+  counterpart (#91), in Rust and Python: `tangent`, `curvature`,
+  `curvature_center`, `is_closed`, `continuity`, `min_continuity` and,
+  in Rust, `as_bspline`. `TrimmedCurve2D` gains `is_closed`,
+  `continuity` and `min_continuity`, and `Curve2D` forwards them all.
+  The planar curvature is **signed**, `(x'y'' − y'x'') / |C'|³`: positive
+  where the tangent turns left, negative where it turns right (3D
+  curvature stays unsigned). `curvature_center` follows the turn, so a
+  `Circle2D` centres at its own centre whichever way it runs.
+- `BoundingBox2D` and `HasBoundingBox2D` (#91), in Rust and Python: the
+  planar counterpart of `BoundingBox`, tight for circles and arcs, from
+  the control points for B-splines, `None` for lines, and always present
+  on a `TrimmedCurve2D`.
 - 2D curve–curve intersections with a B-spline operand run the numeric
   search, each curve seen at `z = 0`. The result reports
   `IntersectionMethod::Numeric` and is proved complete where the 3D
   search would prove it. `CurveCurveIntersection2D::method` now reports
   this method instead of always `Exact`.
+- `Ellipse2D` (#92), in Rust and Python: construction from a center,
+  direction and radii, from a `Frame2D`, or from a center and two
+  points; evaluation and derivatives, parameter inversion, containment,
+  extrema and projection; area, tight bounding boxes and proven
+  discretization; exact B-spline conversion; and `TrimmedCurve2D`
+  support. `Curve2D` gains an `Ellipse` variant with every operation
+  forwarded, and Python gains `geomcore.curves.Ellipse2D` with stubs.
 
 - `BezierCurve` and `BezierCurve2D` (#98): first-class Bézier curves of
   `degree + 1` poles (polynomial or rational) with evaluation, sided
@@ -64,6 +84,15 @@ the Python distribution are versioned in lockstep.
   Callers that copied one implicitly `.clone()` it.
 
 ### Fixed
+
+- `Ellipse::from_center_and_points` (and the new
+  `Ellipse2D::from_center_and_points`) returns `NonFinite` for a NaN or
+  infinite input point instead of `InvertedAxis`.
+- `ElementaryCurve::to_bspline` and `Curve::to_bspline` (and the new
+  `Curve2D::to_bspline`) return `NotRepresentable` for a circle or
+  ellipse whose poles overflow `f64` instead of panicking.
+  `Circle::to_bspline` and `Ellipse::to_bspline` still panic there, and
+  now document it.
 
 - The sampled curve–curve search no longer drops a transversal crossing
   that lies close to another crossing or to a near touch (#13). It runs

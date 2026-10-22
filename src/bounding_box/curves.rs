@@ -4,6 +4,7 @@
 use super::sealed::BoundRange;
 use super::{BoundingBox, HasBoundingBox, coordinates, point};
 use crate::curve_math::bspline as math;
+use crate::curve_math::bspline::PolePoint;
 use crate::curves::spline::Spline;
 use crate::curves::{
     BSplineCurve, BezierCurve, Circle, Curve, ElementaryCurve, Ellipse, Hyperbola, Line, Parabola,
@@ -219,27 +220,20 @@ impl BoundRange for Hyperbola {
     }
 }
 
-impl BoundRange for BSplineCurve {
-    fn range_box(&self, first: f64, last: f64) -> BoundingBox {
-        spline_range_box(self.spline(), first, last)
-    }
-}
-
-impl BoundRange for BezierCurve {
-    fn range_box(&self, first: f64, last: f64) -> BoundingBox {
-        spline_range_box(self.spline(), first, last)
-    }
-}
-
-/// The union, over the knot spans meeting the range, of the boxes of
-/// the poles of the spans it covers and of the Bézier control points
-/// of the pieces of the spans it cuts, restricted to the range (whose
-/// ends are the range's ends). Each piece lies in the convex hull of
-/// either.
-fn spline_range_box(spline: &Spline<Point>, first: f64, last: f64) -> BoundingBox {
+/// Folds into `seed` the control points of the polynomial pieces of
+/// `spline` over `[first, last]`: `bezier` takes the homogeneous Bézier
+/// points of the pieces of the knot spans the range cuts, restricted to
+/// the range, and `pole` the poles of the spans it covers. Each piece lies
+/// in the convex hull of either.
+pub(super) fn fold_range_points<P: PolePoint, B: Copy>(
+    spline: &Spline<P>,
+    (first, last): (f64, f64),
+    seed: B,
+    mut bezier: impl FnMut(B, [f64; 4]) -> B,
+    pole: impl FnMut(B, P) -> B,
+) -> B {
     let degree = spline.degree();
-    let start_point = spline.eval_point(first);
-    let mut bounds = BoundingBox::new(start_point, start_point);
+    let mut bounds = seed;
     let mut points = [[0.0; 4]; math::LARGE];
     // The middles of the first and last spans the range covers; it
     // covers every span between them.
@@ -254,16 +248,39 @@ fn spline_range_box(spline: &Spline<Point>, first: f64, last: f64) -> BoundingBo
         let piece = &mut points[..=degree];
         let length = end - start;
         bernstein::restrict(piece, (a - start) / length, (b - start) / length);
-        for &[x, y, z, w] in piece.iter() {
-            bounds = bounds.including(Point::new(x / w, y / w, z / w));
+        for &lane in piece.iter() {
+            bounds = bezier(bounds, lane);
         }
     });
     match covered {
-        Some((m0, m1)) => spline
-            .run_poles(m0, m1)
-            .fold(bounds, BoundingBox::including),
+        Some((m0, m1)) => spline.run_poles(m0, m1).fold(bounds, pole),
         None => bounds,
     }
+}
+
+impl BoundRange for BSplineCurve {
+    fn range_box(&self, first: f64, last: f64) -> BoundingBox {
+        spline_range_box(self.spline(), first, last)
+    }
+}
+
+impl BoundRange for BezierCurve {
+    fn range_box(&self, first: f64, last: f64) -> BoundingBox {
+        spline_range_box(self.spline(), first, last)
+    }
+}
+
+/// The box of `spline` over `[first, last]`, from the control points of
+/// its pieces there (see [`fold_range_points`]).
+fn spline_range_box(spline: &Spline<Point>, first: f64, last: f64) -> BoundingBox {
+    let start_point = spline.eval_point(first);
+    fold_range_points(
+        spline,
+        (first, last),
+        BoundingBox::new(start_point, start_point),
+        |b, [x, y, z, w]| b.including(Point::new(x / w, y / w, z / w)),
+        BoundingBox::including,
+    )
 }
 
 impl BoundRange for Curve {

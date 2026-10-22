@@ -45,7 +45,7 @@ _Avoid_: mirror (a transform of space, not of traversal)
 The image of a curve or surface under a transform, parametrized by the image of its parametrization: `transformed(t)` evaluated at a parameter is `t` applied to the original point there (length parameters scale with a uniform scale). Every frame axis maps through the transform, so a mirror turns a direct frame indirect and the image's normal is the opposite of the mirrored normal, for elementary shapes and B-splines alike. Reversing the image restores the mirrored side.
 
 **Bounding box**:
-The axis-aligned box around a curve or surface, used to cull pairs before intersecting them. An elementary shape's box is the tightest, touching the shape on every side; a B-spline's comes from its control points, holding the shape but possibly loose. An unbounded shape has none. A box encloses a point and overlaps another box.
+The axis-aligned box around a curve or surface (`BoundingBox` in space, `BoundingBox2D` in the plane), used to cull pairs before intersecting them. An elementary shape's box is the tightest, touching the shape on every side; a B-spline's comes from its control points, holding the shape but possibly loose. An unbounded shape has none. A box encloses a point and overlaps another box.
 _Avoid_: AABB, bbox, extent, contains or inside (reserved) for a point in a box
 
 ## Precision
@@ -130,7 +130,8 @@ _Avoid_: derivative (the un-normalized rate), tangent for a surface partial deri
 
 **Curvature**:
 How fast a curve's tangent turns per unit of arc length. Its reciprocal is the radius of the osculating circle, whose centre is the centre of curvature; both are undefined on a straight run and where the speed vanishes. A run is straight where the part of the second derivative that turns away from the tangent is negligible by the same distance rule, or is parallel to the tangent within `tol.angular`.
-_Avoid_: bend, curvature for a surface (which has two principal values, not one)
+A curve in space has unsigned curvature `|C' × C''| / |C'|³`: there is no side to turn toward. A curve in the plane has signed curvature `(x'y'' − y'x'') / |C'|³`, positive where the tangent turns left (counterclockwise in a direct plane), negative where it turns right, zero on a straight run. The centre of curvature lies on the left of a left-turning curve and on the right of a right-turning one, so a circle's centre is its own whichever way it runs: a counterclockwise `Circle2D` has curvature `+1/r`, one with an indirect frame `−1/r`.
+_Avoid_: bend, curvature for a surface (which has two principal values, not one), unsigned curvature for a 2D curve
 
 **Principal curvature**:
 One of the two extremal normal curvatures at a surface point, with its principal direction; the other direction is perpendicular to it. At an umbilical point every direction is principal.

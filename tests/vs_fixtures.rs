@@ -5,13 +5,14 @@
 mod common;
 
 use common::{
-    FrameJson, assert_close, assert_point3, assert_vector3, frame3, load, point3, vector3,
+    Frame2DJson, FrameJson, assert_close, assert_point2, assert_point3, assert_vector2,
+    assert_vector3, frame2, frame3, load, point2, point3, vector3,
 };
 use geomcore::curves::ParametricCurve2D;
 use geomcore::surfaces::{BSplineSurface, ParametricSurface};
 use geomcore::{
-    Axis, BSplineCurve, BSplineCurve2D, Circle, Cone, Curve2D, Cylinder, Ellipse, Hyperbola, Line,
-    Parabola, ParametrizeError, Plane, Sphere, Tolerance, Torus, Transform,
+    Axis, BSplineCurve, BSplineCurve2D, Circle, Cone, Curve2D, Cylinder, Ellipse, Ellipse2D,
+    Hyperbola, Line, Parabola, ParametrizeError, Plane, Sphere, Tolerance, Torus, Transform,
 };
 use serde::Deserialize;
 
@@ -270,6 +271,45 @@ struct CurvesAnalyticFixture {
     hyperbolas: Vec<HyperbolaCase>,
 }
 
+#[derive(Deserialize)]
+struct Ellipse2DSample {
+    u: f64,
+    point: [f64; 2],
+    d1: [f64; 2],
+    d2: [f64; 2],
+    d3: [f64; 2],
+}
+
+#[derive(Deserialize)]
+struct Ellipse2DParameterOf {
+    point: [f64; 2],
+    u: f64,
+}
+
+#[derive(Deserialize)]
+struct Ellipse2DProjection {
+    point: [f64; 2],
+    u: f64,
+    closest: [f64; 2],
+    distance: f64,
+}
+
+#[derive(Deserialize)]
+struct Ellipse2DCase {
+    frame: Frame2DJson,
+    major_radius: f64,
+    minor_radius: f64,
+    area: f64,
+    samples: Vec<Ellipse2DSample>,
+    parameter_of: Vec<Ellipse2DParameterOf>,
+    projections: Vec<Ellipse2DProjection>,
+}
+
+#[derive(Deserialize)]
+struct CurvesAnalytic2DFixture {
+    ellipses: Vec<Ellipse2DCase>,
+}
+
 #[test]
 fn lines_match_golden_fixture() {
     let fixture: CurvesAnalyticFixture =
@@ -376,6 +416,46 @@ fn ellipses_match_golden_fixture() {
         for inversion in &case.parameter_of {
             let u = ellipse.parameter_of(point3(inversion.point));
             assert_close(u, inversion.u);
+        }
+    }
+}
+
+#[test]
+fn ellipses_2d_match_golden_fixture() {
+    let fixture: CurvesAnalytic2DFixture =
+        serde_json::from_value(load("curves_analytic_2d.json")).unwrap();
+
+    for (i, case) in fixture.ellipses.iter().enumerate() {
+        let ellipse =
+            Ellipse2D::from_frame(frame2(&case.frame), case.major_radius, case.minor_radius)
+                .unwrap_or_else(|e| panic!("case {i}: failed to build Ellipse2D: {e}"));
+
+        assert_close(ellipse.area(), case.area);
+
+        for sample in &case.samples {
+            let point = ellipse.eval_point(sample.u);
+            assert_point2(point, sample.point);
+
+            let d1 = ellipse.eval_derivative(sample.u, 1);
+            assert_vector2(d1, sample.d1);
+
+            let d2 = ellipse.eval_derivative(sample.u, 2);
+            assert_vector2(d2, sample.d2);
+
+            let d3 = ellipse.eval_derivative(sample.u, 3);
+            assert_vector2(d3, sample.d3);
+        }
+
+        for inversion in &case.parameter_of {
+            let u = ellipse.parameter_of(point2(inversion.point));
+            assert_close(u, inversion.u);
+        }
+
+        for projection in &case.projections {
+            let projected = ellipse.project_point(point2(projection.point), Tolerance::DEFAULT);
+            assert_close(projected.parameter, projection.u);
+            assert_point2(projected.point, projection.closest);
+            assert_close(projected.distance, projection.distance);
         }
     }
 }

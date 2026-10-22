@@ -1079,14 +1079,6 @@ impl ParametricCurve2D for BSplineCurve2D {
         BSplineCurve2D::eval_derivative(self, u, order)
     }
 
-    fn eval_d1(&self, u: f64) -> (Point2D, Vector2D) {
-        BSplineCurve2D::eval_d1(self, u)
-    }
-
-    fn eval_d2(&self, u: f64) -> (Point2D, Vector2D, Vector2D) {
-        BSplineCurve2D::eval_d2(self, u)
-    }
-
     fn bounds(&self) -> (f64, f64) {
         BSplineCurve2D::bounds(self)
     }
@@ -1097,6 +1089,30 @@ impl ParametricCurve2D for BSplineCurve2D {
 
     fn eval_points(&self, us: &[f64]) -> Vec<Point2D> {
         BSplineCurve2D::eval_points(self, us)
+    }
+
+    fn eval_d1(&self, u: f64) -> (Point2D, Vector2D) {
+        BSplineCurve2D::eval_d1(self, u)
+    }
+
+    fn eval_d2(&self, u: f64) -> (Point2D, Vector2D, Vector2D) {
+        BSplineCurve2D::eval_d2(self, u)
+    }
+
+    fn is_closed(&self, tol: Tolerance) -> bool {
+        BSplineCurve2D::is_closed(self, tol)
+    }
+
+    fn continuity(&self, u: f64, tol: Tolerance) -> Continuity {
+        BSplineCurve2D::continuity(self, u, tol)
+    }
+
+    fn min_continuity(&self) -> Continuity {
+        BSplineCurve2D::min_continuity(self)
+    }
+
+    fn as_bspline(&self) -> Option<&BSplineCurve2D> {
+        Some(self)
     }
 }
 
