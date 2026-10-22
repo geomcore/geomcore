@@ -112,6 +112,16 @@ the Python distribution are versioned in lockstep.
   own `[0, 1]` coordinates, so a 1e-9-wide span beside a full-width one no
   longer damps the wide direction or stops before the point is reached
   (#80).
+- The sampled curve–surface search seeds an unbounded curve from the
+  surface's bounding box, not from a fixed `[-10, 10]` parameter window.
+  When the surface is a sphere, torus or B-spline (whose box is known)
+  and the curve is elementary (whose reach is), the seeds cover the part
+  of the curve that can reach that box, so a hit far along the curve is
+  searched where the surface is instead of where the parameter happens to
+  be. A parabola crossing a torus centred at its `t = 15` point now
+  reports all four crossings; the old window found two. Curves and
+  surfaces whose types do not report a box keep the old window, and the
+  result stays `Sampled` (#74).
 - The sampled curve–curve search no longer drops a transversal crossing
   that lies close to another crossing or to a near touch (#13). It runs
   in `intersect_curve_curve` and `curve_curve_extrema` (Rust and Python)

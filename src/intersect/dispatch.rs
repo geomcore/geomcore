@@ -1501,7 +1501,8 @@ mod tests {
 
     #[test]
     fn test_curve_surface_intersection_matches_numeric() {
-        // The numeric solve seeds an unbounded curve over [-10, 10].
+        // Without a surface box to seed from, an unbounded curve keeps the
+        // default [-10, 10] window.
         let window = |c: &ElementaryCurve, t: f64| c.period().is_some() || t.abs() <= 10.0;
         let mut compared = 0;
         for curve in &curves() {
