@@ -16,8 +16,19 @@ from geomcore import (
     Vector2D,
     Vector,
 )
-from geomcore.curves import BSplineCurve, Circle, Line2D
-from geomcore.surfaces import Cylinder, Sphere
+from geomcore.curves import (
+    BSplineCurve,
+    BSplineCurve2D,
+    Circle,
+    Ellipse,
+    Ellipse2D,
+    Hyperbola,
+    Hyperbola2D,
+    Line2D,
+    Parabola,
+    Parabola2D,
+)
+from geomcore.surfaces import Cylinder, Plane, Sphere
 
 
 def test_readme_snippet():
@@ -117,6 +128,64 @@ def test_parametrize_on_not_analytic_raises():
     line = geomcore.curves.Line(Point(2.0, 0.0, 0.0), Vector.unit_z())
     with pytest.raises(ValueError):
         line.parametrize_on(sphere)
+
+
+def test_parametrize_on_plane_returns_the_new_2d_types():
+    plane = Plane(Point(0.0, 0.0, 1.0), Vector.unit_z())
+    center = Point(2.0, 1.0, 1.0)
+
+    ellipse = Ellipse(center, Vector.unit_z(), Vector.unit_x(), 3.0, 1.5)
+    pcurve = ellipse.parametrize_on(plane)
+    assert isinstance(pcurve, Ellipse2D)
+    assert pcurve.major_radius() == pytest.approx(3.0)
+    assert pcurve.minor_radius() == pytest.approx(1.5)
+    assert pcurve.center().x == pytest.approx(2.0)
+    assert pcurve.center().y == pytest.approx(1.0)
+
+    parabola = Parabola(center, Vector.unit_z(), Vector.unit_x(), 0.5)
+    pcurve = parabola.parametrize_on(plane)
+    assert isinstance(pcurve, Parabola2D)
+    assert pcurve.focal() == pytest.approx(0.5)
+
+    hyperbola = Hyperbola(center, Vector.unit_z(), Vector.unit_x(), 2.0, 1.0)
+    pcurve = hyperbola.parametrize_on(plane)
+    assert isinstance(pcurve, Hyperbola2D)
+    assert pcurve.major_radius() == pytest.approx(2.0)
+
+    # Each pcurve maps back onto the 3D curve: surface(q(t)) == curve(t).
+    for curve in (ellipse, parabola, hyperbola):
+        pcurve = curve.parametrize_on(plane)
+        for t in (0.0, 0.7, 1.9):
+            q = pcurve.eval_point(t)
+            expected = curve.eval_point(t)
+            assert q.x == pytest.approx(expected.x)
+            assert q.y == pytest.approx(expected.y)
+
+
+def test_parametrize_on_plane_bspline_returns_bspline_2d():
+    plane = Plane(Point(0.0, 0.0, 1.0), Vector.unit_z())
+    curve = BSplineCurve(
+        2,
+        [Point(0.0, 0.0, 1.0), Point(1.0, 2.0, 1.0), Point(3.0, 0.0, 1.0)],
+        [0.0, 1.0],
+        [3, 3],
+        False,
+    )
+    pcurve = curve.parametrize_on(plane)
+    assert isinstance(pcurve, BSplineCurve2D)
+    assert [(p.x, p.y) for p in pcurve.poles()] == [(0.0, 0.0), (1.0, 2.0), (3.0, 0.0)]
+    assert pcurve.knots() == [0.0, 1.0]
+
+
+def test_parametrize_on_off_plane_and_curved_surfaces_raise():
+    plane = Plane(Point.origin(), Vector.unit_z())
+    raised = Ellipse(Point(0.0, 0.0, 1.0), Vector.unit_z(), Vector.unit_x(), 3.0, 1.5)
+    with pytest.raises(ValueError):
+        raised.parametrize_on(plane)
+    cylinder = Cylinder(Point.origin(), Vector.unit_z(), 2.0)
+    flat = Ellipse(Point.origin(), Vector.unit_z(), Vector.unit_x(), 3.0, 1.5)
+    with pytest.raises(ValueError):
+        flat.parametrize_on(cylinder)
 
 
 def test_bspline_curve_degree_one_line():

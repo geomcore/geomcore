@@ -9,7 +9,7 @@
 use std::fmt;
 
 use crate::curves::spline::Spline;
-use crate::curves::{Curve2D, ParametrizeError, Side};
+use crate::curves::{Curve2D, ParametrizeError, Side, parametrize};
 use crate::projection::CurveProjection;
 use crate::surfaces::Surface;
 use crate::{Continuity, Point, Tolerance, Transform, Vector};
@@ -1143,32 +1143,40 @@ impl BSplineCurve {
     }
 
     /// Computes the exact 2D representation of this B-spline curve in a
-    /// surface's parameter space.
+    /// surface's parameter space: a [`Curve2D`] `q(t)` such that
+    /// `surface.eval_point(q(t)) == self.eval_point(t)` for the same `t`.
     ///
-    /// No B-spline-curve/surface pair has a closed-form 2D image in this
-    /// release, so this always returns [`ParametrizeError::NotAnalytic`]. The
-    /// `surface` and `tol` arguments are accepted for signature parity with the analytic
-    /// [`crate::Line::parametrize_on`] and
-    /// [`crate::Circle::parametrize_on`].
+    /// A curve in a plane maps to the [`BSplineCurve2D`](crate::BSplineCurve2D) whose poles are the
+    /// poles' plane coordinates. The map is affine, so the image is exact;
+    /// degree, knots, multiplicities, weights and periodicity carry over. On
+    /// a cylinder, cone, sphere, torus or B-spline surface no closed-form
+    /// image that a [`Curve2D`] can hold exists, so the result is
+    /// [`ParametrizeError::NotAnalytic`].
+    ///
+    /// A curve lies in a plane exactly when its poles do, so a pole farther
+    /// than `tol.confusion` from the plane gives
+    /// [`ParametrizeError::CurveNotOnSurface`].
     ///
     /// # Examples
     ///
     /// ```
-    /// use geomcore::curves::ParametrizeError;
+    /// use geomcore::curves::{Curve2D, ParametricCurve2D};
     /// use geomcore::{BSplineCurve, Plane, Point, Tolerance, Vector};
     ///
-    /// let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
-    /// let poles = vec![Point::new(0.0, 0.0, 0.0), Point::new(2.0, 0.0, 0.0)];
+    /// let plane = Plane::new(Point::new(0.0, 0.0, 1.0), Vector::Z).unwrap();
+    /// let poles = vec![Point::new(0.0, 0.0, 1.0), Point::new(2.0, 1.0, 1.0)];
     /// let curve = BSplineCurve::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
-    /// assert_eq!(curve.parametrize_on(&plane, Tolerance::DEFAULT), Err(ParametrizeError::NotAnalytic));
+    /// let pcurve = curve.parametrize_on(&plane, Tolerance::DEFAULT).unwrap();
+    /// assert!(matches!(pcurve, Curve2D::BSpline(_)));
+    /// let q = pcurve.eval_point(0.5);
+    /// assert!((q.x - 1.0).abs() < 1e-9 && (q.y - 0.5).abs() < 1e-9);
     /// ```
     pub fn parametrize_on(
         &self,
         surface: impl Into<Surface>,
-        _tol: Tolerance,
+        tol: Tolerance,
     ) -> Result<Curve2D, ParametrizeError> {
-        let _ = surface.into();
-        Err(ParametrizeError::NotAnalytic)
+        parametrize::bspline_on_surface(self, &surface.into(), tol)
     }
 
     /// Returns whether `point` lies on the curve: the curve is projected

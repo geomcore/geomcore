@@ -3,17 +3,36 @@
 //! parameter space, such that `surface.eval_point(q(t)) == curve.eval_point(t)`
 //! for the same `t`.
 //!
-//! Only a handful of curve/surface pairs admit a closed-form 2D image (a line
-//! or a circle projects to a straight line or a circle in `(u, v)`); every
-//! other pair reports [`ParametrizeError::NotAnalytic`]. The per-pair math and
-//! failure conditions are the classic elementary-surface projections; see the
-//! public `parametrize_on` methods for the user-facing contract.
+//! Only a handful of curve/surface pairs admit a closed-form 2D image that
+//! [`Curve2D`] can hold: a line or a circle projects to a straight line or a
+//! circle in `(u, v)` on the elementary surfaces, and every curve in a plane
+//! maps to the same kind of curve in the plane's `(u, v)` (an ellipse,
+//! parabola or hyperbola to its 2D counterpart, a B-spline to the B-spline of
+//! its poles' plane coordinates). Every other pair reports
+//! [`ParametrizeError::NotAnalytic`]. The per-pair math and failure
+//! conditions are the classic elementary-surface projections; see the public
+//! `parametrize_on` methods for the user-facing contract.
+//!
+//! The pairs left without an image, and why (checked for #95):
+//!
+//! - An ellipse, parabola or hyperbola on a cylinder, cone, sphere or torus:
+//!   a plane section of a cylinder is a sinusoid `v(u)`, of a cone a polar
+//!   conic `v(u) ~ 1 / (a + b cos(u - c))`, and the other sections are
+//!   quartic curves; none is a conic or a B-spline in `(u, v)`. (Circles are
+//!   the exception, with the images of [`Circle::parametrize_on`](crate::Circle::parametrize_on).)
+//! - A B-spline curve on a cylinder, cone, sphere or torus: the pcurve of a
+//!   rational curve is not rational in `(u, v)` (it involves `atan2`).
+//! - Any curve on a B-spline surface: it needs a numeric inversion; see
+//!   [`parametrize_numeric`].
 
 use std::f64::consts::{FRAC_PI_2, PI, TAU};
 use std::fmt;
 
 use crate::curve_math::analytic::{in_period, wrap_to_turn};
-use crate::curves::{Circle, Circle2D, Curve2D, Line, Line2D};
+use crate::curves::{
+    BSplineCurve, BSplineCurve2D, Circle, Circle2D, Curve2D, Ellipse, Ellipse2D, Hyperbola,
+    Hyperbola2D, Line, Line2D, Parabola, Parabola2D,
+};
 use crate::surfaces::{ParametricSurface, Surface};
 use crate::tol;
 use crate::{Frame2D, Point, Point2D, Tolerance, Vector, Vector2D};
@@ -122,6 +141,89 @@ pub(crate) fn circle_on_surface(
     }
 }
 
+/// The frame of `surface` if it is a plane. Every other surface has no
+/// closed-form image for an ellipse, parabola, hyperbola or B-spline (see
+/// the module docs), so those pairs report
+/// [`ParametrizeError::NotAnalytic`].
+fn plane_frame(surface: &Surface) -> Result<crate::Frame, ParametrizeError> {
+    match surface {
+        Surface::Plane(plane) => Ok(plane.frame()),
+        Surface::Cylinder(_)
+        | Surface::Cone(_)
+        | Surface::Sphere(_)
+        | Surface::Torus(_)
+        | Surface::BSpline(_) => Err(ParametrizeError::NotAnalytic),
+    }
+}
+
+/// Computes the analytic 2D image of `ellipse` on `surface`, or an error.
+pub(crate) fn ellipse_on_surface(
+    ellipse: &Ellipse,
+    surface: &Surface,
+    tol: Tolerance,
+) -> Result<Curve2D, ParametrizeError> {
+    let plane = plane_frame(surface)?;
+    let frame = conic_frame_on_plane(ellipse.frame(), plane, ellipse.major_radius(), tol)?;
+    let image = Ellipse2D::from_frame(frame, ellipse.major_radius(), ellipse.minor_radius())
+        .expect("ellipse radii are valid by construction");
+    let pcurve = Curve2D::Ellipse(image);
+    verify_on_surface(surface, &pcurve, |t| ellipse.eval_point(t), tol)?;
+    Ok(pcurve)
+}
+
+/// Computes the analytic 2D image of `parabola` on `surface`, or an error.
+pub(crate) fn parabola_on_surface(
+    parabola: &Parabola,
+    surface: &Surface,
+    tol: Tolerance,
+) -> Result<Curve2D, ParametrizeError> {
+    let plane = plane_frame(surface)?;
+    // A parabola is unbounded: it reaches across the model.
+    let frame = conic_frame_on_plane(parabola.frame(), plane, f64::INFINITY, tol)?;
+    let image = Parabola2D::from_frame(frame, parabola.focal())
+        .expect("parabola focal distance is valid by construction");
+    let pcurve = Curve2D::Parabola(image);
+    verify_on_surface(surface, &pcurve, |t| parabola.eval_point(t), tol)?;
+    Ok(pcurve)
+}
+
+/// Computes the analytic 2D image of `hyperbola` on `surface`, or an error.
+pub(crate) fn hyperbola_on_surface(
+    hyperbola: &Hyperbola,
+    surface: &Surface,
+    tol: Tolerance,
+) -> Result<Curve2D, ParametrizeError> {
+    let plane = plane_frame(surface)?;
+    // A hyperbola is unbounded: it reaches across the model.
+    let frame = conic_frame_on_plane(hyperbola.frame(), plane, f64::INFINITY, tol)?;
+    let image = Hyperbola2D::from_frame(frame, hyperbola.major_radius(), hyperbola.minor_radius())
+        .expect("hyperbola radii are valid by construction");
+    let pcurve = Curve2D::Hyperbola(image);
+    verify_on_surface(surface, &pcurve, |t| hyperbola.eval_point(t), tol)?;
+    Ok(pcurve)
+}
+
+/// Computes the analytic 2D image of `curve` on `surface`, or an error.
+pub(crate) fn bspline_on_surface(
+    curve: &BSplineCurve,
+    surface: &Surface,
+    tol: Tolerance,
+) -> Result<Curve2D, ParametrizeError> {
+    let plane = plane_frame(surface)?;
+    let image = bspline_on_plane(curve, plane, tol)?;
+    let pcurve = Curve2D::BSpline(image);
+
+    // The image has the curve's own knots, so it is checked across the
+    // curve's domain rather than at the fixed conic sample parameters.
+    let (first, last) = curve.bounds();
+    let params: Vec<f64> = [0.0, 0.31, 0.77, 1.0]
+        .iter()
+        .map(|f| first + (last - first) * f)
+        .collect();
+    verify_on_surface_at(surface, &pcurve, |t| curve.eval_point(t), &params, tol)?;
+    Ok(pcurve)
+}
+
 /// Verifies on-surface consistency, then normalizes the pcurve's value at
 /// `t = 0` into the surface's canonical parameter window.
 fn finish_line(
@@ -150,16 +252,27 @@ fn verify_on_surface(
     curve_point: impl Fn(f64) -> Point,
     tol: Tolerance,
 ) -> Result<(), ParametrizeError> {
+    verify_on_surface_at(surface, pcurve, curve_point, &CHECK_PARAMS, tol)
+}
+
+/// [`verify_on_surface`] at the given sample parameters.
+fn verify_on_surface_at(
+    surface: &Surface,
+    pcurve: &Curve2D,
+    curve_point: impl Fn(f64) -> Point,
+    params: &[f64],
+    tol: Tolerance,
+) -> Result<(), ParametrizeError> {
     use crate::curves::ParametricCurve2D;
 
     let mut coordinate: f64 = 0.0;
-    for &t in &CHECK_PARAMS {
+    for &t in params {
         let p = curve_point(t);
         coordinate = coordinate.max(p.x.abs()).max(p.y.abs()).max(p.z.abs());
     }
     let tolerance = tol.confusion.max(16.0 * f64::EPSILON * coordinate);
 
-    for &t in &CHECK_PARAMS {
+    for &t in params {
         let uv = pcurve.eval_point(t);
         let on_surface = surface.eval_point(uv.x, uv.y);
         if on_surface.distance(curve_point(t)) > tolerance {
@@ -185,32 +298,100 @@ fn line_on_plane(line: &Line, frame: crate::Frame) -> Result<Line2D, Parametrize
     Line2D::new(origin, dir).map_err(|_| ParametrizeError::CurveNotOnSurface)
 }
 
-/// 2D image of a circle lying in a plane: the circle's x direction mapped
-/// to local plane coordinates, its y direction the perpendicular on the
-/// side the circle's own y direction maps to, radius preserved. The
-/// circle's normal must turn onto the plane's while moving it by at most
-/// the confusion tolerance. Either frame may be indirect.
+/// 2D image of a circle lying in a plane: see [`conic_frame_on_plane`], with
+/// the radius preserved. The circle's normal must turn onto the plane's
+/// while moving it by at most the confusion tolerance.
 fn circle_on_plane(
     circle: &Circle,
     frame: crate::Frame,
     tol: Tolerance,
 ) -> Result<Circle2D, ParametrizeError> {
-    let normal = circle.normal();
-    if normal.cross(frame.z_direction()).magnitude() > tol.angular_for_extent(circle.radius()) {
+    let frame2 = conic_frame_on_plane(circle.frame(), frame, circle.radius(), tol)?;
+    Ok(Circle2D::from_frame(frame2, circle.radius())
+        .expect("circle radius is non-negative by construction"))
+}
+
+/// 2D image of the frame of a planar curve (circle, ellipse, parabola or
+/// hyperbola) lying in the plane `plane`: the frame's origin and x direction
+/// mapped to local plane coordinates, its y direction the perpendicular on
+/// the side the curve's own y direction maps to. The 2D curve built on it
+/// with the same radii or focal distance has the 3D curve's parametrization.
+///
+/// The frame's normal must turn onto the plane's moving the curve by at
+/// most the confusion tolerance across `extent`, how far the curve reaches
+/// from its origin (infinite for an unbounded curve). Either frame may be
+/// indirect.
+fn conic_frame_on_plane(
+    conic: crate::Frame,
+    plane: crate::Frame,
+    extent: f64,
+    tol: Tolerance,
+) -> Result<Frame2D, ParametrizeError> {
+    if conic.z_direction().cross(plane.z_direction()).magnitude() > tol.angular_for_extent(extent) {
         return Err(ParametrizeError::CurveNotOnSurface);
     }
-    let center = eval_point2d_plane(frame, circle.center());
-    let x_dir = eval_dir2d_plane(frame, circle.frame().x_direction());
-    let mapped_y = eval_dir2d_plane(frame, circle.frame().y_direction());
+    let origin = eval_point2d_plane(plane, conic.origin());
+    let x_dir = eval_dir2d_plane(plane, conic.x_direction());
+    let mapped_y = eval_dir2d_plane(plane, conic.y_direction());
     let y_dir = if mapped_y.dot(x_dir.perp()) > 0.0 {
         x_dir.perp()
     } else {
         -x_dir.perp()
     };
-    let frame2 =
-        Frame2D::new(center, x_dir, y_dir).map_err(|_| ParametrizeError::CurveNotOnSurface)?;
-    Ok(Circle2D::from_frame(frame2, circle.radius())
-        .expect("circle radius is non-negative by construction"))
+    Frame2D::new(origin, x_dir, y_dir).map_err(|_| ParametrizeError::CurveNotOnSurface)
+}
+
+/// 2D image of a B-spline curve lying in a plane: the same spline over the
+/// poles' local plane coordinates (an affine map, so exact), with knots,
+/// multiplicities, weights and periodicity unchanged. Every pole must lie on
+/// the plane: a curve lies in a plane exactly when its control polygon does.
+fn bspline_on_plane(
+    curve: &BSplineCurve,
+    frame: crate::Frame,
+    tol: Tolerance,
+) -> Result<BSplineCurve2D, ParametrizeError> {
+    let normal = frame.z_direction();
+    let mut coordinate: f64 = 0.0;
+    for pole in curve.poles() {
+        coordinate = coordinate
+            .max(pole.x.abs())
+            .max(pole.y.abs())
+            .max(pole.z.abs());
+    }
+    let tolerance = tol.confusion.max(16.0 * f64::EPSILON * coordinate);
+    if curve
+        .poles()
+        .iter()
+        .any(|&pole| (pole - frame.origin()).dot(normal).abs() > tolerance)
+    {
+        return Err(ParametrizeError::CurveNotOnSurface);
+    }
+
+    let poles: Vec<Point2D> = curve
+        .poles()
+        .iter()
+        .map(|&pole| eval_point2d_plane(frame, pole))
+        .collect();
+    let knots = curve.knots().to_vec();
+    let multiplicities = curve.multiplicities().to_vec();
+    match curve.weights() {
+        Some(weights) => BSplineCurve2D::new_rational(
+            curve.degree(),
+            poles,
+            weights.to_vec(),
+            knots,
+            multiplicities,
+            curve.is_periodic(),
+        ),
+        None => BSplineCurve2D::new(
+            curve.degree(),
+            poles,
+            knots,
+            multiplicities,
+            curve.is_periodic(),
+        ),
+    }
+    .map_err(|_| ParametrizeError::NotAnalytic)
 }
 
 /// Local (x, y) coordinates of `p` in the plane `frame`.
@@ -695,8 +876,8 @@ mod tests {
     use crate::surfaces::ParametricSurface;
     use crate::tol;
     use crate::{
-        BSplineCurve, Circle, Cylinder, Ellipse, Frame, Line, Line2D, Plane, Point, Point2D,
-        Sphere, Tolerance, Vector, Vector2D,
+        BSplineCurve, Circle, Cylinder, Ellipse, Frame, Hyperbola, Line, Line2D, Parabola, Plane,
+        Point, Point2D, Sphere, Tolerance, Vector, Vector2D,
     };
 
     #[test]
@@ -962,6 +1143,289 @@ mod tests {
         assert_close(twice.origin().y, line.origin().y);
         assert_close(twice.direction().x, line.direction().x);
         assert_close(twice.direction().y, line.direction().y);
+    }
+
+    // ---- ellipse, parabola, hyperbola and B-spline on a plane (#95) ----
+
+    /// A plane tilted off the axes, and a frame lying in it.
+    fn tilted_plane() -> (Plane, Frame) {
+        let normal = Vector::new(1.0, 2.0, 2.0);
+        let frame = Frame::new(
+            Point::new(1.0, -2.0, 0.5),
+            normal,
+            Vector::new(2.0, 1.0, -2.0),
+        )
+        .unwrap();
+        (Plane::from_frame(frame), frame)
+    }
+
+    /// `surface(pcurve(t)) == curve(t)` at a few parameters.
+    fn assert_consistent(
+        pcurve: &Curve2D,
+        plane: &Plane,
+        curve: impl Fn(f64) -> Point,
+        params: &[f64],
+    ) {
+        for &t in params {
+            let uv = pcurve.eval_point(t);
+            let on_surface = plane.eval_point(uv.x, uv.y);
+            assert!(
+                on_surface.distance(curve(t)) < 1e-9,
+                "t={t}: {on_surface:?} != {:?}",
+                curve(t)
+            );
+        }
+    }
+
+    #[test]
+    fn test_ellipse_on_tilted_plane_maps_to_ellipse2d() {
+        let (plane, frame) = tilted_plane();
+        // Offset center, rotated major axis, both inside the plane.
+        let center = frame.origin() + 0.7 * frame.x_direction() - 1.1 * frame.y_direction();
+        let x_hint = 0.6 * frame.x_direction() + 0.8 * frame.y_direction();
+        let ellipse = Ellipse::new(center, frame.z_direction(), x_hint, 3.0, 1.5).unwrap();
+        let pcurve = ellipse.parametrize_on(plane, Tolerance::DEFAULT).unwrap();
+        let Curve2D::Ellipse(image) = pcurve else {
+            panic!("expected an Ellipse2D, got {pcurve:?}");
+        };
+        assert_close(image.major_radius(), 3.0);
+        assert_close(image.minor_radius(), 1.5);
+        assert_close(image.center().x, 0.7);
+        assert_close(image.center().y, -1.1);
+        assert_close(image.frame().x_direction().x, 0.6);
+        assert_close(image.frame().x_direction().y, 0.8);
+        assert_consistent(
+            &pcurve,
+            &plane,
+            |t| ellipse.eval_point(t),
+            &[0.0, 1.0, 2.5, 5.0],
+        );
+    }
+
+    #[test]
+    fn test_conics_on_plane_follow_an_indirect_frame() {
+        // Mirrored curve frame: the 3D curve runs the other way around its
+        // normal, and so must the 2D curve.
+        let (plane, frame) = tilted_plane();
+        let mirrored =
+            Frame::new(frame.origin(), -frame.z_direction(), frame.x_direction()).unwrap();
+        let ellipse = Ellipse::from_frame(mirrored, 2.0, 1.0).unwrap();
+        let pcurve = ellipse.parametrize_on(plane, Tolerance::DEFAULT).unwrap();
+        assert_consistent(
+            &pcurve,
+            &plane,
+            |t| ellipse.eval_point(t),
+            &[0.0, 1.0, 2.5, 5.0],
+        );
+        let parabola = Parabola::from_frame(mirrored, 0.8).unwrap();
+        let pcurve = parabola.parametrize_on(plane, Tolerance::DEFAULT).unwrap();
+        assert_consistent(
+            &pcurve,
+            &plane,
+            |t| parabola.eval_point(t),
+            &[-2.0, 0.0, 1.7],
+        );
+    }
+
+    #[test]
+    fn test_parabola_and_hyperbola_on_plane_map_to_their_2d_types() {
+        let (plane, frame) = tilted_plane();
+        let apex = frame.origin() - 2.0 * frame.x_direction() + frame.y_direction();
+        let x_hint = -frame.y_direction();
+        let parabola = Parabola::new(apex, frame.z_direction(), x_hint, 0.75).unwrap();
+        let pcurve = parabola.parametrize_on(plane, Tolerance::DEFAULT).unwrap();
+        let Curve2D::Parabola(image) = pcurve else {
+            panic!("expected a Parabola2D, got {pcurve:?}");
+        };
+        assert_close(image.focal(), 0.75);
+        assert_close(image.apex().x, -2.0);
+        assert_close(image.apex().y, 1.0);
+        assert_consistent(
+            &pcurve,
+            &plane,
+            |t| parabola.eval_point(t),
+            &[-3.0, 0.0, 1.7, 4.1],
+        );
+
+        let hyperbola = Hyperbola::new(apex, frame.z_direction(), x_hint, 2.0, 3.0).unwrap();
+        let pcurve = hyperbola.parametrize_on(plane, Tolerance::DEFAULT).unwrap();
+        let Curve2D::Hyperbola(image) = pcurve else {
+            panic!("expected a Hyperbola2D, got {pcurve:?}");
+        };
+        assert_close(image.major_radius(), 2.0);
+        assert_close(image.minor_radius(), 3.0);
+        assert_consistent(
+            &pcurve,
+            &plane,
+            |t| hyperbola.eval_point(t),
+            &[-1.5, 0.0, 1.7, 4.1],
+        );
+    }
+
+    #[test]
+    fn test_conics_off_the_plane_are_not_on_surface() {
+        let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
+        let tol = Tolerance::DEFAULT;
+        // Parallel plane, tilted plane, perpendicular plane.
+        for (origin, normal, x) in [
+            (Point::new(0.0, 0.0, 1.0), Vector::Z, Vector::X),
+            (Point::ORIGIN, Vector::new(0.0, 0.1, 1.0), Vector::X),
+            (Point::ORIGIN, Vector::X, Vector::Y),
+        ] {
+            let ellipse = Ellipse::new(origin, normal, x, 3.0, 1.5).unwrap();
+            assert_eq!(
+                ellipse.parametrize_on(plane, tol),
+                Err(ParametrizeError::CurveNotOnSurface)
+            );
+            let parabola = Parabola::new(origin, normal, x, 1.0).unwrap();
+            assert_eq!(
+                parabola.parametrize_on(plane, tol),
+                Err(ParametrizeError::CurveNotOnSurface)
+            );
+            let hyperbola = Hyperbola::new(origin, normal, x, 2.0, 1.0).unwrap();
+            assert_eq!(
+                hyperbola.parametrize_on(plane, tol),
+                Err(ParametrizeError::CurveNotOnSurface)
+            );
+        }
+    }
+
+    #[test]
+    fn test_conic_tilt_follows_the_curve_extent() {
+        // Tilted 1e-5 rad, a radius-10 ellipse strays 1e-4 from the plane
+        // (inside confusion 1e-3, outside the default), while an unbounded
+        // parabola strays further and is rejected at both.
+        let loose = Tolerance {
+            confusion: 1e-3,
+            ..Tolerance::DEFAULT
+        };
+        let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
+        let normal = Vector::new(0.0, 1e-5, 1.0);
+        let ellipse = Ellipse::new(Point::ORIGIN, normal, Vector::X, 10.0, 5.0).unwrap();
+        assert!(matches!(
+            ellipse.parametrize_on(plane, loose),
+            Ok(Curve2D::Ellipse(_))
+        ));
+        assert_eq!(
+            ellipse.parametrize_on(plane, Tolerance::DEFAULT),
+            Err(ParametrizeError::CurveNotOnSurface)
+        );
+        let parabola = Parabola::new(Point::ORIGIN, normal, Vector::X, 1.0).unwrap();
+        assert_eq!(
+            parabola.parametrize_on(plane, loose),
+            Err(ParametrizeError::CurveNotOnSurface)
+        );
+    }
+
+    #[test]
+    fn test_conics_and_bsplines_on_curved_surfaces_are_not_analytic() {
+        let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
+        let sphere = Sphere::new(Point::ORIGIN, 3.0).unwrap();
+        let tol = Tolerance::DEFAULT;
+        let ellipse = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 2.0, 1.0).unwrap();
+        let parabola = Parabola::new(Point::ORIGIN, Vector::Z, Vector::X, 1.0).unwrap();
+        let hyperbola = Hyperbola::new(Point::ORIGIN, Vector::Z, Vector::X, 2.0, 1.0).unwrap();
+        let poles = vec![Point::new(2.0, 0.0, 0.0), Point::new(2.0, 1.0, 1.0)];
+        let spline = BSplineCurve::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
+        for surface in [crate::Surface::from(cylinder), crate::Surface::from(sphere)] {
+            let expected = Err(ParametrizeError::NotAnalytic);
+            assert_eq!(ellipse.parametrize_on(surface.clone(), tol), expected);
+            assert_eq!(parabola.parametrize_on(surface.clone(), tol), expected);
+            assert_eq!(hyperbola.parametrize_on(surface.clone(), tol), expected);
+            assert_eq!(spline.parametrize_on(surface, tol), expected);
+        }
+    }
+
+    #[test]
+    fn test_bspline_on_plane_maps_poles_and_keeps_weights_and_knots() {
+        let (plane, frame) = tilted_plane();
+        let at =
+            |u: f64, v: f64| frame.origin() + u * frame.x_direction() + v * frame.y_direction();
+        let local = [(0.0, 0.0), (1.0, 2.0), (3.0, 2.5), (4.0, -1.0)];
+        let poles: Vec<Point> = local.iter().map(|&(u, v)| at(u, v)).collect();
+        let weights = vec![1.0, 0.5, 2.0, 1.5];
+        let knots = vec![0.0, 1.0, 2.5];
+        let mults = vec![3, 1, 3];
+        let curve = BSplineCurve::new_rational(
+            2,
+            poles,
+            weights.clone(),
+            knots.clone(),
+            mults.clone(),
+            false,
+        )
+        .unwrap();
+        let pcurve = curve.parametrize_on(plane, Tolerance::DEFAULT).unwrap();
+        let Curve2D::BSpline(image) = &pcurve else {
+            panic!("expected a BSplineCurve2D, got {pcurve:?}");
+        };
+        assert_eq!(image.degree(), 2);
+        assert_eq!(image.knots(), knots.as_slice());
+        assert_eq!(image.multiplicities(), mults.as_slice());
+        assert_eq!(image.weights(), Some(weights.as_slice()));
+        for (pole, &(u, v)) in image.poles().iter().zip(&local) {
+            assert_close(pole.x, u);
+            assert_close(pole.y, v);
+        }
+        assert_consistent(
+            &pcurve,
+            &plane,
+            |t| curve.eval_point(t),
+            &[0.0, 0.3, 1.0, 1.9, 2.5],
+        );
+    }
+
+    #[test]
+    fn test_periodic_bspline_on_plane_stays_periodic() {
+        let plane = Plane::new(Point::new(0.0, 0.0, 2.0), Vector::Z).unwrap();
+        let poles = vec![
+            Point::new(1.0, 0.0, 2.0),
+            Point::new(0.0, 1.0, 2.0),
+            Point::new(-1.0, 0.0, 2.0),
+            Point::new(0.0, -1.0, 2.0),
+        ];
+        let curve = BSplineCurve::new(
+            2,
+            poles,
+            vec![0.0, 1.0, 2.0, 3.0, 4.0],
+            vec![1, 1, 1, 1, 1],
+            true,
+        )
+        .unwrap();
+        let pcurve = curve.parametrize_on(plane, Tolerance::DEFAULT).unwrap();
+        let Curve2D::BSpline(image) = &pcurve else {
+            panic!("expected a BSplineCurve2D, got {pcurve:?}");
+        };
+        assert!(image.is_periodic());
+        assert_consistent(
+            &pcurve,
+            &plane,
+            |t| curve.eval_point(t),
+            &[0.0, 0.5, 2.2, 3.9, 5.0],
+        );
+    }
+
+    #[test]
+    fn test_bspline_leaving_the_plane_is_not_on_surface() {
+        let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
+        let poles = vec![
+            Point::new(0.0, 0.0, 0.0),
+            Point::new(1.0, 1.0, 0.0),
+            Point::new(2.0, 0.0, 1e-3),
+        ];
+        let curve = BSplineCurve::new(2, poles, vec![0.0, 1.0], vec![3, 3], false).unwrap();
+        assert_eq!(
+            curve.parametrize_on(plane, Tolerance::DEFAULT),
+            Err(ParametrizeError::CurveNotOnSurface)
+        );
+        let loose = Tolerance {
+            confusion: 1e-2,
+            ..Tolerance::DEFAULT
+        };
+        assert!(matches!(
+            curve.parametrize_on(plane, loose),
+            Ok(Curve2D::BSpline(_))
+        ));
     }
 
     fn assert_close(a: f64, b: f64) {
