@@ -4,8 +4,7 @@
 use std::borrow::Cow;
 use std::ops::Range;
 
-use super::{Lanes, Pole, Source, Weighted, refine, spans};
-use crate::Point;
+use super::{HomogeneousPole, Lanes, Pole, PolePoint, Source, Weighted, refine, spans};
 use crate::curve_math::bspline::KnotVector;
 use crate::curves::BSplineSplitError;
 
@@ -63,9 +62,9 @@ pub(crate) fn is_clamped_to(direction: &KnotVector, first: f64, last: f64) -> bo
 
 /// A piece of a cut direction: its clamped knots, and its poles laid out
 /// as the poles cut, with their weights if rational.
-pub(crate) struct Piece {
+pub(crate) struct Piece<P> {
     pub(crate) knots: KnotVector,
-    pub(crate) points: Vec<Point>,
+    pub(crate) points: Vec<P>,
     pub(crate) weights: Option<Vec<f64>>,
 }
 
@@ -79,13 +78,13 @@ pub(crate) struct Piece {
 /// already of that multiplicity being left alone, and two pieces share
 /// the pole at their common cut. A rational piece keeps the poles no
 /// insertion touched bit for bit.
-pub(crate) fn cut(
+pub(crate) fn cut<G: PolePoint>(
     direction: &KnotVector,
-    points: &[Point],
+    points: &[G],
     weights: Option<&[f64]>,
     lanes: Lanes,
     cuts: &[f64],
-) -> Vec<Piece> {
+) -> Vec<Piece<G>> {
     let pieces = 0..cuts.len() - 1;
     match weights {
         None => {
@@ -276,11 +275,16 @@ impl<P: Pole> Stretch<P> {
     }
 }
 
-impl Stretch<[f64; 4]> {
+impl<H: HomogeneousPole> Stretch<H> {
     /// Piece `j` of a rational direction: the poles no insertion touched
     /// copied from the direction's `points` and `weights`, the others
     /// projected from homogeneous form.
-    fn rational_piece(&self, j: usize, points: &[Point], weights: &[f64]) -> Piece {
+    fn rational_piece(
+        &self,
+        j: usize,
+        points: &[H::Cartesian],
+        weights: &[f64],
+    ) -> Piece<H::Cartesian> {
         let slots = self.slots(j);
         let (leading, kept) = self.kept(j);
         let kept: Vec<usize> = kept.collect();
@@ -298,11 +302,9 @@ impl Stretch<[f64; 4]> {
                             new_weights.push(weights[at]);
                         }
                         None => {
-                            let [x, y, z, w] =
-                                self.poles[(row * self.count + slot) * self.width + c];
-                            let inverse = 1.0 / w;
-                            new_points.push(Point::new(x * inverse, y * inverse, z * inverse));
-                            new_weights.push(w);
+                            let h = self.poles[(row * self.count + slot) * self.width + c];
+                            new_points.push(h.cartesian());
+                            new_weights.push(h.weight());
                         }
                     }
                 }

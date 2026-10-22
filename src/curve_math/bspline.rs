@@ -20,8 +20,11 @@
 use std::sync::OnceLock;
 
 use super::analytic::in_period;
+pub(crate) use super::poles::{HomogeneousPole, Pole, PolePoint, Poles};
 use crate::curves::Side;
-use crate::{Continuity, Point, Tolerance, Vector};
+use crate::math::bernstein::{CAPACITY, add_product, rising_roots, scale, unscale};
+use crate::math::newton_min_1d;
+use crate::{Continuity, Tolerance};
 
 /// Maximum supported B-spline degree.
 pub(crate) const MAX_DEGREE: usize = 25;
@@ -692,31 +695,6 @@ impl KnotVector {
     }
 }
 
-/// The poles of a B-spline, read in place: Cartesian points and, if
-/// rational, one weight per point. A surface's poles are row-major, rows
-/// along `u`.
-#[derive(Clone, Copy)]
-pub(crate) struct Poles<'a> {
-    pub(crate) points: &'a [Point],
-    pub(crate) weights: Option<&'a [f64]>,
-}
-
-impl Poles<'_> {
-    /// Homogeneous coordinates `(x w, y w, z w, w)` of pole `i` (`w = 1` if
-    /// nonrational).
-    #[inline]
-    pub(crate) fn homogeneous(&self, i: usize) -> [f64; 4] {
-        let p = self.points[i];
-        match self.weights {
-            Some(weights) => {
-                let w = weights[i];
-                [p.x * w, p.y * w, p.z * w, w]
-            }
-            None => [p.x, p.y, p.z, 1.0],
-        }
-    }
-}
-
 /// Highest derivative order the evaluator computes.
 pub(crate) const MAX_DERIVATIVE: usize = 2;
 
@@ -981,19 +959,19 @@ fn basis_derivatives<const N: usize>(
 
 /// The point at `u`: the value-only path of [`derivatives`].
 #[inline]
-pub(crate) fn point(knots: &KnotVector, poles: Poles, u: f64) -> Point {
+pub(crate) fn point<G: PolePoint>(knots: &KnotVector, poles: Poles<G>, u: f64) -> G {
     if !knots.periodic {
         match knots.degree {
-            1 => return point_of_degree::<1>(knots, poles, u),
-            2 => return point_of_degree::<2>(knots, poles, u),
-            3 => return point_of_degree::<3>(knots, poles, u),
+            1 => return point_of_degree::<1, G>(knots, poles, u),
+            2 => return point_of_degree::<2, G>(knots, poles, u),
+            3 => return point_of_degree::<3, G>(knots, poles, u),
             _ => {}
         }
     }
     if knots.degree < SMALL {
-        point_sized::<SMALL>(knots, poles, u)
+        point_sized::<SMALL, G>(knots, poles, u)
     } else {
-        point_sized::<LARGE>(knots, poles, u)
+        point_sized::<LARGE, G>(knots, poles, u)
     }
 }
 
@@ -1001,37 +979,53 @@ pub(crate) fn point(knots: &KnotVector, poles: Poles, u: f64) -> Point {
 /// span's poles sliced once and every loop over constant bounds, so
 /// unrolled.
 #[inline(always)]
-fn point_of_degree<const P: usize>(knots: &KnotVector, poles: Poles, u: f64) -> Point {
+fn point_of_degree<const P: usize, G: PolePoint>(knots: &KnotVector, poles: Poles<G>, u: f64) -> G {
     let (first, values) = knots.basis_of_degree::<P>(u);
     let points = &poles.points[first..=first + P];
     // Each sum starts from its first term, sparing additions of zero.
     match poles.weights {
         None => {
-            let mut sum = [
-                values[0] * points[0].x,
-                values[0] * points[0].y,
-                values[0] * points[0].z,
-            ];
-            for j in 1..=P {
-                sum[0] += values[j] * points[j].x;
-                sum[1] += values[j] * points[j].y;
-                sum[2] += values[j] * points[j].z;
+            let mut sum = [0.0f64; 4];
+            {
+                let b = values[0];
+                let p = points[0];
+                for (c, s) in sum.iter_mut().enumerate().take(G::DIM) {
+                    *s = b * G::coord(p, c);
+                }
             }
-            Point::new(sum[0], sum[1], sum[2])
+            for j in 1..=P {
+                let b = values[j];
+                let p = points[j];
+                for (c, s) in sum.iter_mut().enumerate().take(G::DIM) {
+                    *s += b * G::coord(p, c);
+                }
+            }
+            G::point_of(sum)
         }
         Some(weights) => {
             let weights = &weights[first..=first + P];
             let b = values[0] * weights[0];
-            let mut sum = [b * points[0].x, b * points[0].y, b * points[0].z, b];
+            let mut sum = [0.0f64; 4];
+            {
+                let p = points[0];
+                for (c, s) in sum.iter_mut().enumerate().take(G::DIM) {
+                    *s = b * G::coord(p, c);
+                }
+            }
+            sum[3] = b;
             for j in 1..=P {
                 let b = values[j] * weights[j];
-                sum[0] += b * points[j].x;
-                sum[1] += b * points[j].y;
-                sum[2] += b * points[j].z;
+                let p = points[j];
+                for (c, s) in sum.iter_mut().enumerate().take(G::DIM) {
+                    *s += b * G::coord(p, c);
+                }
                 sum[3] += b;
             }
             let inverse = 1.0 / sum[3];
-            Point::new(sum[0] * inverse, sum[1] * inverse, sum[2] * inverse)
+            for s in sum.iter_mut().take(G::DIM) {
+                *s *= inverse;
+            }
+            G::point_of(sum)
         }
     }
 }
@@ -1062,7 +1056,7 @@ fn basis_values_of<const P: usize>(left: &[f64; 4], right: &[f64; 4]) -> [f64; 4
 }
 
 #[inline]
-fn point_sized<const N: usize>(knots: &KnotVector, poles: Poles, u: f64) -> Point {
+fn point_sized<const N: usize, G: PolePoint>(knots: &KnotVector, poles: Poles<G>, u: f64) -> G {
     let mut values = [0.0f64; N];
     let first = knots.basis(u, &mut values);
     let degree = knots.degree;
@@ -1071,25 +1065,28 @@ fn point_sized<const N: usize>(knots: &KnotVector, poles: Poles, u: f64) -> Poin
         None => {
             for (j, &b) in values.iter().enumerate().take(degree + 1) {
                 let p = poles.points[knots.pole_index(first, j)];
-                sum[0] += b * p.x;
-                sum[1] += b * p.y;
-                sum[2] += b * p.z;
+                for (c, s) in sum.iter_mut().enumerate().take(G::DIM) {
+                    *s += b * G::coord(p, c);
+                }
             }
-            Point::new(sum[0], sum[1], sum[2])
         }
         Some(weights) => {
             for (j, &b) in values.iter().enumerate().take(degree + 1) {
                 let i = knots.pole_index(first, j);
-                let (p, b) = (poles.points[i], b * weights[i]);
-                sum[0] += b * p.x;
-                sum[1] += b * p.y;
-                sum[2] += b * p.z;
+                let p = poles.points[i];
+                let b = b * weights[i];
+                for (c, s) in sum.iter_mut().enumerate().take(G::DIM) {
+                    *s += b * G::coord(p, c);
+                }
                 sum[3] += b;
             }
             let inverse = 1.0 / sum[3];
-            Point::new(sum[0] * inverse, sum[1] * inverse, sum[2] * inverse)
+            for s in sum.iter_mut().take(G::DIM) {
+                *s *= inverse;
+            }
         }
     }
+    G::point_of(sum)
 }
 
 /// The point (as a vector from the origin) and its derivatives up to
@@ -1100,15 +1097,15 @@ fn point_sized<const N: usize>(knots: &KnotVector, poles: Poles, u: f64) -> Poin
 /// its derivatives, then applies the quotient rule: `C = H / w`,
 /// `C' = (H' - C w') / w`, `C'' = (H'' - 2 C' w' - C w'') / w`.
 #[inline]
-pub(crate) fn derivatives<const ORDER: usize>(
+pub(crate) fn derivatives<const ORDER: usize, G: PolePoint>(
     knots: &KnotVector,
-    poles: Poles,
+    poles: Poles<G>,
     u: f64,
-) -> [Vector; 3] {
+) -> [G::Vector; 3] {
     if knots.degree < SMALL {
-        derivatives_sized::<SMALL, ORDER>(knots, poles, u, None)
+        derivatives_sized::<SMALL, ORDER, G>(knots, poles, u, None)
     } else {
-        derivatives_sized::<LARGE, ORDER>(knots, poles, u, None)
+        derivatives_sized::<LARGE, ORDER, G>(knots, poles, u, None)
     }
 }
 
@@ -1117,26 +1114,26 @@ pub(crate) fn derivatives<const ORDER: usize>(
 /// the seam of a periodic direction too); both agree strictly inside a
 /// span.
 #[inline]
-pub(crate) fn derivatives_sided<const ORDER: usize>(
+pub(crate) fn derivatives_sided<const ORDER: usize, G: PolePoint>(
     knots: &KnotVector,
-    poles: Poles,
+    poles: Poles<G>,
     u: f64,
     side: Side,
-) -> [Vector; 3] {
+) -> [G::Vector; 3] {
     if knots.degree < SMALL {
-        derivatives_sized::<SMALL, ORDER>(knots, poles, u, Some(side))
+        derivatives_sized::<SMALL, ORDER, G>(knots, poles, u, Some(side))
     } else {
-        derivatives_sized::<LARGE, ORDER>(knots, poles, u, Some(side))
+        derivatives_sized::<LARGE, ORDER, G>(knots, poles, u, Some(side))
     }
 }
 
 #[inline]
-fn derivatives_sized<const N: usize, const ORDER: usize>(
+fn derivatives_sized<const N: usize, const ORDER: usize, G: PolePoint>(
     knots: &KnotVector,
-    poles: Poles,
+    poles: Poles<G>,
     u: f64,
     side: Option<Side>,
-) -> [Vector; 3] {
+) -> [G::Vector; 3] {
     debug_assert!(
         ORDER <= MAX_DERIVATIVE,
         "derivative order {ORDER} not supported"
@@ -1150,23 +1147,22 @@ fn derivatives_sized<const N: usize, const ORDER: usize>(
         let weight = poles.weights.map_or(1.0, |weights| weights[i]);
         for (k, sum) in sums.iter_mut().enumerate().take(ORDER + 1) {
             let b = w.ders[k][j] * weight;
-            sum[0] += b * p.x;
-            sum[1] += b * p.y;
-            sum[2] += b * p.z;
+            for (c, s) in sum.iter_mut().enumerate().take(G::DIM) {
+                *s += b * G::coord(p, c);
+            }
             sum[3] += b;
         }
     }
-    let vector = |s: [f64; 4]| Vector::new(s[0], s[1], s[2]);
-    let mut out = sums.map(vector);
+    let mut out = sums.map(G::vector_of);
     if poles.weights.is_some() {
         let [w0, w1, w2] = sums.map(|s| s[3]);
         let inverse = 1.0 / w0;
         out[0] = out[0] * inverse;
         if ORDER >= 1 {
-            out[1] = (out[1] - w1 * out[0]) * inverse;
+            out[1] = (out[1] - out[0] * w1) * inverse;
         }
         if ORDER >= 2 {
-            out[2] = (out[2] - 2.0 * w1 * out[1] - w2 * out[0]) * inverse;
+            out[2] = (out[2] - out[1] * (2.0 * w1) - out[0] * w2) * inverse;
         }
     }
     out
@@ -1208,38 +1204,46 @@ pub(crate) fn inward(x: f64, bounds: Option<(f64, f64)>) -> f64 {
 
 /// Bounding box `[min.., max..]` of the `degree + 1` poles of every span
 /// between consecutive `breaks` (each span lies in it, by the convex hull
-/// property; weights are positive).
-pub(crate) fn span_boxes(knots: &KnotVector, poles: Poles, breaks: &[f64]) -> Vec<[f64; 6]> {
-    fn boxes<const N: usize>(knots: &KnotVector, poles: Poles, breaks: &[f64]) -> Vec<[f64; 6]> {
+/// property; weights are positive). A 2D shape's boxes span the plane's
+/// coordinates alone, `z` being zero.
+pub(crate) fn span_boxes<G: PolePoint>(
+    knots: &KnotVector,
+    poles: Poles<G>,
+    breaks: &[f64],
+) -> Vec<[f64; 6]> {
+    fn boxes<const N: usize, G: PolePoint>(
+        knots: &KnotVector,
+        poles: Poles<G>,
+        breaks: &[f64],
+    ) -> Vec<[f64; 6]> {
         let (mut left, mut right) = ([0.0f64; N], [0.0f64; N]);
         breaks
             .windows(2)
             .map(|span| {
                 // The midpoint's span is exactly this one.
                 let first = knots.span_knots(0.5 * (span[0] + span[1]), &mut left, &mut right);
-                let mut b = [
-                    f64::INFINITY,
-                    f64::INFINITY,
-                    f64::INFINITY,
-                    f64::NEG_INFINITY,
-                    f64::NEG_INFINITY,
-                    f64::NEG_INFINITY,
-                ];
+                let (mut lo, mut hi) = ([f64::INFINITY; 3], [f64::NEG_INFINITY; 3]);
                 for j in 0..=knots.degree {
                     let p = poles.points[wrap(first + j, knots.pole_count, knots.periodic)];
-                    for (c, x) in [p.x, p.y, p.z].into_iter().enumerate() {
-                        b[c] = b[c].min(x);
-                        b[c + 3] = b[c + 3].max(x);
+                    for (c, (lo, hi)) in lo.iter_mut().zip(hi.iter_mut()).enumerate().take(G::DIM) {
+                        let x = G::coord(p, c);
+                        *lo = lo.min(x);
+                        *hi = hi.max(x);
                     }
                 }
-                b
+                std::array::from_fn(|c| match c {
+                    // A plane shape lies in `z = 0`, its boxes there too.
+                    c if c < G::DIM => lo[c],
+                    c if (3..3 + G::DIM).contains(&c) => hi[c - 3],
+                    _ => 0.0,
+                })
             })
             .collect()
     }
     if knots.degree < SMALL {
-        boxes::<SMALL>(knots, poles, breaks)
+        boxes::<SMALL, G>(knots, poles, breaks)
     } else {
-        boxes::<LARGE>(knots, poles, breaks)
+        boxes::<LARGE, G>(knots, poles, breaks)
     }
 }
 
@@ -1247,15 +1251,28 @@ pub(crate) fn span_boxes(knots: &KnotVector, poles: Poles, breaks: &[f64]) -> Ve
 /// nonrational), over its own parameter interval, of the polynomial piece
 /// on the span containing `u` (pass a parameter inside the span), into
 /// `out[..=degree]`: the span's poles mapped by
-/// [`KnotVector::bezier_matrix`].
-pub(crate) fn span_bezier(knots: &KnotVector, poles: Poles, u: f64, out: &mut [[f64; 4]]) {
-    fn bezier<const N: usize>(knots: &KnotVector, poles: Poles, u: f64, out: &mut [[f64; 4]]) {
+/// [`KnotVector::bezier_matrix`]. A 2D piece lies at `z = 0`: one layout
+/// for the algorithms that run on either tier.
+pub(crate) fn span_bezier<G: PolePoint>(
+    knots: &KnotVector,
+    poles: Poles<G>,
+    u: f64,
+    out: &mut [[f64; 4]],
+) {
+    fn bezier<const N: usize, G: PolePoint>(
+        knots: &KnotVector,
+        poles: Poles<G>,
+        u: f64,
+        out: &mut [[f64; 4]],
+    ) {
         let degree = knots.degree;
         let mut matrix = [[0.0f64; N]; N];
         let first = knots.bezier_matrix(u, &mut matrix);
         let mut local = [[0.0f64; 4]; N];
         for (j, pole) in local.iter_mut().enumerate().take(degree + 1) {
-            *pole = poles.homogeneous(wrap(first + j, knots.pole_count, knots.periodic));
+            *pole = poles
+                .homogeneous(wrap(first + j, knots.pole_count, knots.periodic))
+                .lanes();
         }
         for (point, row) in out.iter_mut().zip(&matrix).take(degree + 1) {
             *point = [0.0; 4];
@@ -1267,10 +1284,163 @@ pub(crate) fn span_bezier(knots: &KnotVector, poles: Poles, u: f64, out: &mut [[
         }
     }
     if knots.degree < SMALL {
-        bezier::<SMALL>(knots, poles, u, out);
+        bezier::<SMALL, G>(knots, poles, u, out);
     } else {
-        bezier::<LARGE>(knots, poles, u, out);
+        bezier::<LARGE, G>(knots, poles, u, out);
     }
+}
+
+/// How the distance to a point behaves at the ends of one knot span.
+pub(crate) struct SpanEnds {
+    /// Distances at the span start and end.
+    pub(crate) distance: [f64; 2],
+    /// Whether the distance does not fall moving into the span from its
+    /// start.
+    pub(crate) start_rising: bool,
+    /// Whether the distance does not rise moving to the span end.
+    pub(crate) end_falling: bool,
+}
+
+/// Scans the knot span `[a, b]` for minima of the distance to `point`:
+/// pushes every interior local minimum (refined) to `minima` and returns
+/// how the distance behaves at the span ends.
+///
+/// With the span's Bernstein control points, the homogeneous offset
+/// `A = P_w - point * w` and the weight `w` are polynomials of the
+/// degree `p`, and `d/dt |A / w|^2` has the sign of `G = (A' . A) w -
+/// |A|^2 w'` (`A' . A` if nonrational), of degree `3p - 1` (`2p - 1`).
+/// Interior minima are the roots where `G` rises through zero. A 2D
+/// shape scans as embedded at `z = 0`: the query's spare coordinate
+/// zero, so its lanes are the coordinate sums and the weight, no `A`
+/// lane ever reaching the spare.
+pub(crate) fn scan_span<G: PolePoint>(
+    knots: &KnotVector,
+    poles: Poles<G>,
+    point: G,
+    a: f64,
+    b: f64,
+    minima: &mut Vec<f64>,
+) -> SpanEnds {
+    // `G` has up to `3 * degree` coefficients.
+    const WIDE: usize = 3 * SMALL;
+    if knots.degree < SMALL {
+        scan_span_sized::<WIDE, G>(knots, poles, point, a, b, minima)
+    } else {
+        scan_span_sized::<CAPACITY, G>(knots, poles, point, a, b, minima)
+    }
+}
+
+fn scan_span_sized<const N: usize, G: PolePoint>(
+    knots: &KnotVector,
+    poles: Poles<G>,
+    point: G,
+    a: f64,
+    b: f64,
+    minima: &mut Vec<f64>,
+) -> SpanEnds {
+    let p = knots.degree();
+    let rational = poles.weights.is_some();
+    let mut points = [[0.0; 4]; LARGE];
+    span_bezier(knots, poles, 0.5 * (a + b), &mut points);
+    let mut bezier = [[0.0; N]; 3];
+    let mut weight = [1.0; N];
+    for (k, lanes) in points.iter().enumerate().take(p + 1) {
+        for c in 0..3 {
+            bezier[c][k] = lanes[c];
+        }
+        weight[k] = lanes[3];
+    }
+    let q: [f64; 3] = std::array::from_fn(|c| if c < G::DIM { point.coord(c) } else { 0.0 });
+    // Offsets `A` per coordinate and their differences (`A'` up to the
+    // factor `p`, as `w'`), scaled; `magnitude` bounds their rounding.
+    let mut offset = [[0.0; N]; 3];
+    let mut slope = [[0.0; N]; 3];
+    let mut magnitude: f64 = 0.0;
+    for c in 0..3 {
+        for k in 0..=p {
+            offset[c][k] = bezier[c][k] - q[c] * weight[k];
+            magnitude = magnitude.max(bezier[c][k].abs() + q[c].abs() * weight[k]);
+        }
+        for k in 0..p {
+            slope[c][k] = offset[c][k + 1] - offset[c][k];
+        }
+        scale(&mut offset[c][..=p]);
+        scale(&mut slope[c][..p]);
+    }
+    // `A' . A` (degree `2p - 1`) and, if rational, `|A|^2` (`2p`).
+    let mut g = [0.0; N];
+    let degree_g = if rational { 3 * p - 1 } else { 2 * p - 1 };
+    if rational {
+        let mut dot = [0.0; N];
+        let mut square = [0.0; N];
+        for c in 0..3 {
+            add_product(&slope[c][..p], &offset[c][..=p], 1.0, &mut dot);
+            add_product(&offset[c][..=p], &offset[c][..=p], 1.0, &mut square);
+        }
+        let mut weight_slope = [0.0; N];
+        for k in 0..p {
+            weight_slope[k] = weight[k + 1] - weight[k];
+        }
+        let mut scaled_weight = weight;
+        scale(&mut scaled_weight[..=p]);
+        scale(&mut weight_slope[..p]);
+        add_product(&dot[..2 * p], &scaled_weight[..=p], 1.0, &mut g);
+        add_product(&square[..=2 * p], &weight_slope[..p], -1.0, &mut g);
+    } else {
+        for c in 0..3 {
+            add_product(&slope[c][..p], &offset[c][..=p], 1.0, &mut g);
+        }
+    }
+    let g = &mut g[..=degree_g];
+    unscale(g);
+    let max_weight = weight[..=p].iter().fold(0.0f64, |m, &w| m.max(w));
+    let tiny = 1e3 * f64::EPSILON * magnitude * magnitude * max_weight;
+    let h = b - a;
+    rising_roots::<N>(g, tiny, |s0, s1, s| {
+        let bounds = (a + s0 * h, if s1 == 1.0 { b } else { a + s1 * h });
+        minima.push(refine_projection(
+            knots,
+            poles,
+            point,
+            a + s * h,
+            Some(bounds),
+        ));
+    });
+    // The curve passes through the end control points (whose scaled
+    // offsets are unscaled: `C(p, 0) = C(p, p) = 1`).
+    let end_distance = |k: usize| {
+        (0..3)
+            .map(|c| (offset[c][k] / weight[k]).powi(2))
+            .sum::<f64>()
+            .sqrt()
+    };
+    SpanEnds {
+        distance: [end_distance(0), end_distance(p)],
+        start_rising: g[0] >= -tiny,
+        end_falling: g[degree_g] <= tiny,
+    }
+}
+
+/// Bounded Newton minimisation of `|C(t) - point|^2` from `t` with exact
+/// second derivatives, within `bounds` (`None`: unbounded, for a smooth
+/// periodic curve).
+pub(crate) fn refine_projection<G: PolePoint>(
+    knots: &KnotVector,
+    poles: Poles<G>,
+    point: G,
+    t: f64,
+    bounds: Option<(f64, f64)>,
+) -> f64 {
+    let objective = |t: f64| {
+        let [c, d1, d2] = derivatives::<2, G>(knots, poles, inward(t, bounds));
+        let r = c - point.to_vector();
+        (
+            0.5 * <G as PolePoint>::dot(r, r),
+            <G as PolePoint>::dot(d1, r),
+            <G as PolePoint>::dot(d1, d1) + <G as PolePoint>::dot(d2, r),
+        )
+    };
+    newton_min_1d(objective, t, bounds, 1e-14, 100)
 }
 
 /// Validates a B-spline direction (shared by curves and surface directions).
@@ -1415,6 +1585,7 @@ pub(crate) fn min_continuity_within(
 mod tests {
     use super::*;
     use crate::Continuity::{Order, Smooth};
+    use crate::{Point, Vector};
 
     // ---- continuity: degree minus multiplicity over the knots ----
 
@@ -1573,7 +1744,7 @@ mod tests {
             points: &poles,
             weights: None,
         };
-        let [c, d1, _] = derivatives::<1>(&knots, view, 0.5);
+        let [c, d1, _] = derivatives::<1, Point>(&knots, view, 0.5);
         assert_close(&components(c), &[1.0, 0.0, 0.0]);
         assert_close(&components(d1), &[2.0, 0.0, 0.0]);
     }
@@ -1594,7 +1765,7 @@ mod tests {
             points: &poles,
             weights: None,
         };
-        let [c, d1, _] = derivatives::<2>(&knots, view, 0.5);
+        let [c, d1, _] = derivatives::<2, Point>(&knots, view, 0.5);
         assert_close(&components(c), &[1.0, 1.0, 0.0]);
         assert_close(&components(d1), &[2.0, 0.0, 0.0]);
         let p = point(&knots, view, 0.5);
@@ -1633,7 +1804,7 @@ mod tests {
                 for step in -2..=42 {
                     let u = step as f64 / 20.0;
                     let p = point(&knots, view, u);
-                    let [c, _, _] = derivatives::<0>(&knots, view, u);
+                    let [c, _, _] = derivatives::<0, Point>(&knots, view, u);
                     assert_close(&[p.x, p.y, p.z], &components(c));
                 }
             }
@@ -1659,7 +1830,7 @@ mod tests {
             let r = (p.x * p.x + p.y * p.y).sqrt();
             assert!((r - 1.0).abs() < 1e-12, "t={t} radius={r}");
             // The tangent of a circle is orthogonal to its radius.
-            let [c, d1, _] = derivatives::<1>(&knots, view, t);
+            let [c, d1, _] = derivatives::<1, Point>(&knots, view, t);
             assert_close(&components(c), &[p.x, p.y, p.z]);
             assert!((c.x * d1.x + c.y * d1.y).abs() < 1e-12, "t={t}");
         }
@@ -1682,8 +1853,8 @@ mod tests {
             weights: None,
         };
         for u in [0.3, 1.7, 4.9] {
-            let a = derivatives::<2>(&knots, view, u);
-            let b = derivatives::<2>(&knots, view, u + 6.0);
+            let a = derivatives::<2, Point>(&knots, view, u);
+            let b = derivatives::<2, Point>(&knots, view, u + 6.0);
             for k in 0..3 {
                 assert_close(&components(a[k]), &components(b[k]));
             }
@@ -1990,7 +2161,7 @@ mod tests {
 
         for sample in case["samples"].as_array().unwrap() {
             let u = sample["u"].as_f64().unwrap();
-            let all = derivatives::<2>(&vector, view, u);
+            let all = derivatives::<2, Point>(&vector, view, u);
             let p = point(&vector, view, u);
             let euc: Vec<f64> = all.iter().flat_map(|v| [v.x, v.y, v.z]).collect();
             for (c, (&a, b)) in euc[..3].iter().zip([p.x, p.y, p.z]).enumerate() {

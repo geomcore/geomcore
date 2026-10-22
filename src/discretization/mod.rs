@@ -25,7 +25,7 @@ mod elementary;
 #[cfg(doc)]
 use crate::Tolerance;
 use crate::curves::{ParametricCurve, ParametricCurve2D, TrimmedCurve, TrimmedCurve2D};
-use crate::{BSplineCurve, Circle, Circle2D, Ellipse, Point, Point2D};
+use crate::{BSplineCurve, BSplineCurve2D, Circle, Circle2D, Ellipse, Ellipse2D, Point, Point2D};
 use std::fmt;
 
 /// Error returned when a [`DiscretizationCriteria`] value is not a
@@ -591,7 +591,7 @@ macro_rules! discretize_bounded {
 }
 
 discretize_bounded!(Discretize, Discretization, Point: Circle, Ellipse, BSplineCurve);
-discretize_bounded!(Discretize2D, Discretization2D, Point2D: Circle2D);
+discretize_bounded!(Discretize2D, Discretization2D, Point2D: Circle2D, Ellipse2D, BSplineCurve2D);
 
 /// Implements a discretization trait for a trimmed curve type over its
 /// range: closed when the range spans a whole period of its basis.

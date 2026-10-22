@@ -41,10 +41,11 @@ Windows, for Python 3.9+ (abi3 — one wheel covers all versions).
   `NUMERIC` search) and its `completeness`. Numeric `curve_curve_extrema`
   returns its distance minima and completeness.
 - Local properties: curve `tangent`, `curvature` and
-  `curvature_center`; surface `normal` and `curvatures` (principal,
-  mean and Gaussian, with principal directions), each `None` where it
-  degenerates. Closedness and continuity queries, surface reversal, and
-  one-sided B-spline evaluation at knots and seams (`Side`).
+  `curvature_center` (signed in 2D); surface `normal` and `curvatures`
+  (principal, mean and Gaussian, with principal directions), each `None`
+  where it degenerates. Closedness and continuity queries, 2D bounding
+  boxes (`BoundingBox2D`), surface reversal, and one-sided B-spline
+  evaluation at knots and seams (`Side`).
 - Curve-on-surface parametrization: `parametrize_on` (analytic) and
   `parametrize_numeric`.
 - B-spline `interpolate` and least-squares `approximate`.

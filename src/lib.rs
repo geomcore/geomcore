@@ -15,7 +15,9 @@
 //! - [`curves`] holds the 3D and 2D curve types ([`curves::Line`],
 //!   [`curves::Circle`], [`curves::Ellipse`], [`curves::Parabola`],
 //!   [`curves::Hyperbola`], [`curves::BSplineCurve`],
-//!   [`curves::Line2D`], [`curves::Circle2D`]), the [`curves::Curve`]/
+//!   [`curves::Line2D`], [`curves::Circle2D`], [`curves::Ellipse2D`],
+//!   [`curves::Parabola2D`], [`curves::BSplineCurve2D`]), the
+//!   [`curves::Curve`]/
 //!   [`curves::Curve2D`] enum adaptors, the
 //!   [`curves::TrimmedCurve`]/[`curves::TrimmedCurve2D`] pieces of a
 //!   curve over a parameter range (segments, arcs), and the
@@ -167,15 +169,15 @@ pub mod transform;
 /// Vectors in 2D and 3D space.
 pub mod vector;
 
-pub use bounding_box::{BoundingBox, HasBoundingBox};
+pub use bounding_box::{BoundingBox, BoundingBox2D, HasBoundingBox, HasBoundingBox2D};
 pub use curves::{
-    BSplineConstructionError, BSplineConversionError, BSplineCurve, BSplineSplitError, Circle,
-    Circle2D, CircleConstructionError, Continuity, Curve, Curve2D, DegreeElevationError,
-    ElementaryCurve, Ellipse, EllipseConstructionError, Hyperbola, HyperbolaConstructionError,
-    KnotInsertionError, KnotRemovalError, Line, Line2D, LineConstructionError, Parabola,
-    ParabolaConstructionError, ParametricCurve, ParametricCurve2D, ParametrizeError, PointExtrema,
-    PointExtrema2D, PointParametrization, Side, TrimmedCurve, TrimmedCurve2D,
-    TrimmedCurveConstructionError, parametrize_numeric,
+    BSplineConstructionError, BSplineConversionError, BSplineCurve, BSplineCurve2D,
+    BSplineSplitError, Circle, Circle2D, CircleConstructionError, Continuity, Curve, Curve2D,
+    DegreeElevationError, ElementaryCurve, Ellipse, Ellipse2D, EllipseConstructionError, Hyperbola,
+    HyperbolaConstructionError, KnotInsertionError, KnotRemovalError, Line, Line2D,
+    LineConstructionError, Parabola, Parabola2D, ParabolaConstructionError, ParametricCurve,
+    ParametricCurve2D, ParametrizeError, PointExtrema, PointExtrema2D, PointParametrization, Side,
+    TrimmedCurve, TrimmedCurve2D, TrimmedCurveConstructionError, parametrize_numeric,
 };
 pub use discretization::{
     Discretization, Discretization2D, DiscretizationCriteria, DiscretizationCriteriaError,

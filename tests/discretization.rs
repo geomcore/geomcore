@@ -7,8 +7,9 @@ use geomcore::discretization::{
     Discretize, Discretize2D,
 };
 use geomcore::{
-    BSplineCurve, Circle, Circle2D, Curve, Curve2D, Ellipse, Frame2D, Hyperbola, Line, Line2D,
-    Parabola, Point, Point2D, Tolerance, TrimmedCurve, TrimmedCurve2D, Vector, Vector2D,
+    BSplineCurve, Circle, Circle2D, Curve, Curve2D, Ellipse, Ellipse2D, Frame2D, Hyperbola, Line,
+    Line2D, Parabola, Parabola2D, Point, Point2D, Tolerance, TrimmedCurve, TrimmedCurve2D, Vector,
+    Vector2D,
 };
 use std::f64::consts::{FRAC_PI_2, PI, TAU};
 
@@ -871,6 +872,84 @@ fn test_2d_circles_and_arcs_hold_their_deviations() {
     }
 }
 
+/// An ellipse with direct and indirect placement frames.
+fn ellipse_2d_cases() -> [Ellipse2D; 3] {
+    [
+        Ellipse2D::from_frame(Frame2D::WORLD, 3.0, 1.5).unwrap(),
+        Ellipse2D::from_frame(
+            Frame2D::new(
+                Point2D::new(1.0, -3.0),
+                Vector2D::new(0.6, 0.8),
+                Vector2D::new(-0.8, 0.6),
+            )
+            .unwrap(),
+            2.0,
+            0.5,
+        )
+        .unwrap(),
+        Ellipse2D::from_frame(
+            Frame2D::new(
+                Point2D::new(1.0, -3.0),
+                Vector2D::new(1.0, 1.0),
+                Vector2D::new(1.0, -1.0),
+            )
+            .unwrap(),
+            2.0,
+            1.0,
+        )
+        .unwrap(),
+    ]
+}
+
+#[test]
+fn test_2d_ellipses_and_arcs_hold_their_deviations() {
+    for ellipse in ellipse_2d_cases() {
+        for criteria in criteria_list() {
+            assert_proven_2d(&ellipse, &ellipse.discretize(criteria), criteria, 3.0);
+            for (first, last) in [(0.3, 1.2), (2.0, 7.0), (-1.0, 0.5)] {
+                let arc = TrimmedCurve2D::new(ellipse, first, last).unwrap();
+                assert_proven_2d(&arc, &arc.discretize(criteria), criteria, 3.0);
+            }
+        }
+    }
+}
+
+/// A parabola with direct and indirect placement frames.
+fn parabola_2d_cases() -> [Parabola2D; 3] {
+    [
+        Parabola2D::from_frame(Frame2D::WORLD, 0.5).unwrap(),
+        Parabola2D::new(Point2D::new(-1.0, 0.5), Vector2D::new(0.6, 0.8), 1.5).unwrap(),
+        Parabola2D::from_frame(
+            Frame2D::new(
+                Point2D::new(1.0, -3.0),
+                Vector2D::new(1.0, 1.0),
+                Vector2D::new(1.0, -1.0),
+            )
+            .unwrap(),
+            0.05,
+        )
+        .unwrap(),
+    ]
+}
+
+#[test]
+fn test_2d_trimmed_parabolas_hold_their_deviations_including_far_along() {
+    for parabola in parabola_2d_cases() {
+        for (first, last) in [(-3.0, 3.0), (0.0, 1.0), (20.0, 40.0)] {
+            let piece = TrimmedCurve2D::new(parabola, first, last).unwrap();
+            for criteria in criteria_list() {
+                assert_proven_2d(&piece, &piece.discretize(criteria), criteria, 400.0);
+            }
+        }
+    }
+    let far = TrimmedCurve2D::new(parabola_2d_cases()[1], 100.0, 120.0).unwrap();
+    assert!(
+        far.point_count(chord(1e-3)) < 100,
+        "{}",
+        far.point_count(chord(1e-3))
+    );
+}
+
 #[test]
 fn test_2d_trimmed_line_is_one_segment() {
     let line = Line2D::new(Point2D::new(1.0, 2.0), Vector2D::new(3.0, 4.0)).unwrap();
@@ -903,6 +982,13 @@ fn test_2d_borrowed_and_run_time_curves_match_concrete_ones() {
     same(line, 0.0, 2.0);
     same(clockwise_circle_2d(), 1.0, 4.0);
     same(clockwise_circle_2d(), 1.0, 1.0 + TAU);
+    for ellipse in ellipse_2d_cases() {
+        same(ellipse, 0.2, 2.0);
+        same(ellipse, 0.2, 0.2 + TAU);
+    }
+    for parabola in parabola_2d_cases() {
+        same(parabola, -2.0, 3.0);
+    }
 }
 
 /// Checks that every segment's true chord deviation meets `max`, up to 1 %.
