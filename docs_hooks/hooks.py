@@ -8,9 +8,9 @@ from pathlib import Path
 
 def on_config(config):
     """Register the geomcore-aware Python lexer before Markdown is rendered."""
-    docs = Path(__file__).resolve().parent
-    if str(docs) not in sys.path:
-        sys.path.insert(0, str(docs))
+    here = Path(__file__).resolve().parent
+    if str(here) not in sys.path:
+        sys.path.insert(0, str(here))
     from highlighting.geomcore_lexer import install
 
     install()

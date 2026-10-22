@@ -10,7 +10,7 @@ theme:
     - content.tabs.link
 
 hooks:
-  - docs/hooks.py
+  - docs_hooks/hooks.py
 
 markdown_extensions:
   - pymdownx.superfences

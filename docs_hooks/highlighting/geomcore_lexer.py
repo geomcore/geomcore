@@ -18,10 +18,7 @@ from pygments.token import Name
 _STUB_DIR = Path(__file__).resolve().parents[2] / "geomcore-py" / "geomcore"
 _CLASS_RE = re.compile(r"^class\s+([A-Za-z_]\w*)\b", re.M)
 _TOP_DEF_RE = re.compile(r"^def\s+([A-Za-z_]\w*)\b", re.M)
-_CONSTANT_RE = re.compile(
-    r"^\s+([A-Z][A-Z0-9_]*)\s*:\s*ClassVar\b",
-    re.M,
-)
+_METHOD_RE = re.compile(r"^\s+def\s+([A-Za-z_]\w*)\b")
 
 _installed = False
 _original_get_lexer_by_name = None
@@ -30,20 +27,31 @@ _original_find_lexer_class_by_name = None
 
 @lru_cache(maxsize=1)
 def _api_symbols() -> tuple[frozenset[str], frozenset[str], frozenset[str]]:
-    """Classes, module-level functions and ALL_CAPS constants from the stubs."""
+    """Classes, module-level functions and methods from the stubs.
+
+    Methods are the indented `def`s not under `@property`: an attribute
+    such as `Point.x` reads like data and stays a plain name.
+    """
     classes: set[str] = set()
     functions: set[str] = set()
-    constants: set[str] = set()
+    methods: set[str] = set()
     if not _STUB_DIR.is_dir():
         return frozenset(), frozenset(), frozenset()
     for stub in sorted(_STUB_DIR.glob("*.pyi")):
         text = stub.read_text(encoding="utf-8")
         classes.update(_CLASS_RE.findall(text))
         functions.update(_TOP_DEF_RE.findall(text))
-        constants.update(_CONSTANT_RE.findall(text))
+        under_property = False
+        for line in text.splitlines():
+            stripped = line.strip()
+            if stripped == "@property" or stripped.endswith(".setter"):
+                under_property = True
+            elif match := _METHOD_RE.match(line):
+                if not under_property:
+                    methods.add(match.group(1))
+                under_property = False
     functions -= classes
-    constants -= classes
-    return frozenset(classes), frozenset(functions), frozenset(constants)
+    return frozenset(classes), frozenset(functions), frozenset(methods)
 
 
 class GeomcorePythonLexer(PythonLexer):
@@ -55,7 +63,7 @@ class GeomcorePythonLexer(PythonLexer):
     version_added = ""
 
     def get_tokens_unprocessed(self, text):
-        classes, functions, constants = _api_symbols()
+        classes, functions, methods = _api_symbols()
         after_dot = False
         for index, token, value in super().get_tokens_unprocessed(text):
             if value == ".":
@@ -66,14 +74,20 @@ class GeomcorePythonLexer(PythonLexer):
             if token in (Name, Name.Other) and value.isidentifier():
                 if after_dot:
                     # Attribute access: colour like an IDE (class / const /
-                    # method), matching build123d's docs lexer.
-                    if value in constants or value.isupper():
-                        yield index, Name.Constant, value
-                    elif value[0].isupper():
-                        yield index, Name.Class, value
-                    else:
-                        yield index, Name.Function, value
+                    # method), matching build123d's docs lexer. Properties
+                    # and names outside geomcore (`p.x`, `math.pi`) stay
+                    # plain.
                     after_dot = False
+                    if value.isupper():
+                        yield index, Name.Constant, value
+                        continue
+                    if value[0].isupper():
+                        yield index, Name.Class, value
+                        continue
+                    if value in methods:
+                        yield index, Name.Function, value
+                        continue
+                    yield index, token, value
                     continue
 
                 if value in classes:
@@ -81,9 +95,6 @@ class GeomcorePythonLexer(PythonLexer):
                     continue
                 if value in functions:
                     yield index, Name.Function, value
-                    continue
-                if value in constants:
-                    yield index, Name.Constant, value
                     continue
 
             after_dot = False
