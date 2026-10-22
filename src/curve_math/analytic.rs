@@ -91,6 +91,27 @@ pub(crate) fn parabola_dn(frame: &Frame, focal: f64, u: f64, order: u32) -> Vect
     }
 }
 
+/// Evaluates the 2D parabola with focal distance `focal` in `frame` at
+/// parameter `u`: `origin + (u^2 / (4*focal))*x_dir + u*y_dir`.
+pub(crate) fn parabola2d_d0(frame: &Frame2D, focal: f64, u: f64) -> Point2D {
+    frame.origin() + (u * u / (4.0 * focal)) * frame.x_direction() + u * frame.y_direction()
+}
+
+/// Derivative of the given `order` (>= 1) of the 2D parabola at parameter
+/// `u`.
+///
+/// The parabola is a degree-2 polynomial curve: the first derivative is
+/// linear in `u`, the second is the constant `x_dir / (2*focal)`, and every
+/// derivative of order above 2 vanishes.
+pub(crate) fn parabola2d_dn(frame: &Frame2D, focal: f64, u: f64, order: u32) -> Vector2D {
+    debug_assert!(order >= 1, "derivative order must be >= 1");
+    match order {
+        1 => (u / (2.0 * focal)) * frame.x_direction() + frame.y_direction(),
+        2 => frame.x_direction() * (1.0 / (2.0 * focal)),
+        _ => Vector2D::ZERO,
+    }
+}
+
 /// Evaluates the hyperbola with semi-major `maj` (along x) and semi-minor
 /// `min` (along y) in `frame`'s plane at parameter `u`:
 /// `origin + maj*cosh(u)*x_dir + min*sinh(u)*y_dir`.
@@ -191,6 +212,10 @@ pub(crate) fn conic_proximity(
     }
     let (f, fx, fy) = implicit(op.dot(frame.x_direction()), op.dot(frame.y_direction()));
     let g2 = fx * fx + fy * fy;
+    // An overflowing gradient leaves the test inconclusive.
+    if !(f * f).is_finite() || !g2.is_finite() {
+        return None;
+    }
     if f * f > 6.25 * tol * tol * g2 {
         Some(false)
     } else if 2.0 * hessian * f.abs() < g2 && offset * offset * g2 + 4.0 * f * f <= tol * tol * g2 {
@@ -216,6 +241,10 @@ pub(crate) fn conic_proximity_2d(
     let op = p - frame.origin();
     let (f, fx, fy) = implicit(op.dot(frame.x_direction()), op.dot(frame.y_direction()));
     let g2 = fx * fx + fy * fy;
+    // An overflowing gradient leaves the test inconclusive.
+    if !(f * f).is_finite() || !g2.is_finite() {
+        return None;
+    }
     if f * f > 6.25 * tol * tol * g2 {
         Some(false)
     } else if 2.0 * hessian * f.abs() < g2 && 4.0 * f * f <= tol * tol * g2 {
@@ -228,6 +257,12 @@ pub(crate) fn conic_proximity_2d(
 /// Recovers the parameter of a point on (or near) the parabola: the
 /// projection `(p - origin) . y_dir`.
 pub(crate) fn parabola_parameter(frame: &Frame, p: Point) -> f64 {
+    (p - frame.origin()).dot(frame.y_direction())
+}
+
+/// Recovers the parameter of a point on (or near) the 2D parabola: the
+/// projection `(p - origin) . y_dir`.
+pub(crate) fn parabola2d_parameter(frame: &Frame2D, p: Point2D) -> f64 {
     (p - frame.origin()).dot(frame.y_direction())
 }
 
@@ -609,6 +644,37 @@ mod tests {
         for u in [0.3, 2.0, -5.5] {
             let p = parabola_d0(&frame, 1.5, u);
             let recovered = parabola_parameter(&frame, p);
+            assert!((recovered - u).abs() < 1e-9);
+        }
+    }
+
+    #[test]
+    fn test_parabola2d_d0_focal_one() {
+        let p = parabola2d_d0(&Frame2D::WORLD, 1.0, 2.0);
+        assert!((p.x - 1.0).abs() < 1e-9);
+        assert!((p.y - 2.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn test_parabola2d_dn_orders() {
+        let frame = skewed_frame2();
+        let d1 = parabola2d_dn(&frame, 1.5, 2.0, 1);
+        assert!((d1.x - (2.0 / 3.0 * frame.x_direction().x + frame.y_direction().x)).abs() < 1e-9);
+        assert!((d1.y - (2.0 / 3.0 * frame.x_direction().y + frame.y_direction().y)).abs() < 1e-9);
+        let expected = frame.x_direction() * (1.0 / 3.0);
+        assert!((parabola2d_dn(&frame, 1.5, 2.0, 2).x - expected.x).abs() < 1e-9);
+        assert!((parabola2d_dn(&frame, 1.5, 2.0, 2).y - expected.y).abs() < 1e-9);
+        for order in [3u32, 4, 10] {
+            assert_eq!(parabola2d_dn(&frame, 1.5, 2.0, order), Vector2D::ZERO);
+        }
+    }
+
+    #[test]
+    fn test_parabola2d_parameter_round_trip() {
+        let frame = skewed_frame2();
+        for u in [0.3, 2.0, -5.5] {
+            let p = parabola2d_d0(&frame, 1.5, u);
+            let recovered = parabola2d_parameter(&frame, p);
             assert!((recovered - u).abs() < 1e-9);
         }
     }

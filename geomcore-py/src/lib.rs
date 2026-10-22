@@ -85,8 +85,8 @@ mod values;
 
 use curves::{
     PyBSplineCurve, PyBSplineCurve2D, PyBezierCurve, PyBezierCurve2D, PyCircle, PyCircle2D,
-    PyEllipse, PyEllipse2D, PyHyperbola, PyLine, PyLine2D, PyParabola, PyTrimmedCurve,
-    PyTrimmedCurve2D,
+    PyEllipse, PyEllipse2D, PyHyperbola, PyLine, PyLine2D, PyParabola, PyParabola2D,
+    PyTrimmedCurve, PyTrimmedCurve2D,
 };
 use numeric::{py_curve_curve_extrema, py_parametrize_numeric};
 use results::{
@@ -162,6 +162,7 @@ fn geomcore_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     curves.add_class::<PyLine2D>()?;
     curves.add_class::<PyCircle2D>()?;
     curves.add_class::<PyEllipse2D>()?;
+    curves.add_class::<PyParabola2D>()?;
     curves.add_class::<PyBSplineCurve2D>()?;
     curves.add_class::<PyBezierCurve2D>()?;
     curves.add_class::<PyTrimmedCurve>()?;

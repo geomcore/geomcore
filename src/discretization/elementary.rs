@@ -11,7 +11,7 @@
 
 use super::sealed::{DiscretizeRange, Run};
 use super::{DiscretizationCriteria, smallest_count};
-use crate::{Circle, Curve, Ellipse, Ellipse2D, Hyperbola, Line, Parabola, Point};
+use crate::{Circle, Curve, Ellipse, Ellipse2D, Hyperbola, Line, Parabola, Parabola2D, Point};
 use crate::{Circle2D, Curve2D, Line2D, Point2D};
 use std::f64::consts::{FRAC_PI_2, TAU};
 
@@ -344,12 +344,53 @@ impl DiscretizeRange for Hyperbola {
     }
 }
 
+/// Equal steps of a parabola with focal distance `focal`: `u²/4f` along
+/// the axis, `u` across. A step of `h` around `m` lies
+/// `h²/16f / sqrt(1 + m²/4f²)` from its chord, the largest over a range
+/// nearest the vertex.
+fn parabola_steps<P, F>(
+    focal: f64,
+    point_at_parameter: impl Fn(f64) -> P,
+    (first, last): (f64, f64),
+    criteria: &DiscretizationCriteria,
+    min_segments: usize,
+    visit: F,
+) where
+    F: FnMut(Run, &dyn Fn(f64) -> P),
+{
+    let sweep = last - first;
+    let distance_factor = |m: f64| 1.0 / (1.0 + (m / (2.0 * focal)).powi(2)).sqrt();
+    let deviations = |k: usize| {
+        let h = sweep / k as f64;
+        // The tangents at an end `t` and the middle `m` of a step have
+        // cross product `h/4f` and dot product `1 + tm/4f²`, where
+        // `4tm = (t + m)² − h²/4`.
+        let sum = nearest_zero(2.0 * first + 0.5 * h, 2.0 * last - 0.5 * h);
+        let dot = 1.0 + (sum * sum - 0.25 * h * h) / (16.0 * focal * focal);
+        let angle = (h / (4.0 * focal)).atan2(dot);
+        let middle = nearest_zero(first + 0.5 * h, last - 0.5 * h);
+        let distance = h * h / (16.0 * focal) * distance_factor(middle);
+        (conic_chord_deviation(distance, angle), angle)
+    };
+    let nearest = nearest_zero(first, last);
+    let chord_rate = distance_factor(nearest) / (2.0 * focal);
+    let turning_rate = distance_factor(nearest).powi(2) / (2.0 * focal);
+    let guess = conic_guess(sweep, criteria, chord_rate, turning_rate);
+    equal_steps(
+        point_at_parameter,
+        (first, last),
+        criteria,
+        min_segments,
+        guess,
+        deviations,
+        visit,
+    );
+}
+
 impl DiscretizeRange for Parabola {
     type Point = Point;
 
-    /// `u²/4f` along the axis, `u` across: a step of `h` around `m` lies
-    /// `h²/16f / sqrt(1 + m²/4f²)` from its chord, the largest over a
-    /// range nearest the vertex.
+    /// The polynomial parabola, by [`parabola_steps`].
     fn for_each_run<F>(
         &self,
         first: f64,
@@ -360,32 +401,37 @@ impl DiscretizeRange for Parabola {
     ) where
         F: FnMut(Run, &dyn Fn(f64) -> Self::Point),
     {
-        let focal = self.focal();
-        let sweep = last - first;
-        let distance_factor = |m: f64| 1.0 / (1.0 + (m / (2.0 * focal)).powi(2)).sqrt();
-        let deviations = |k: usize| {
-            let h = sweep / k as f64;
-            // The tangents at an end `t` and the middle `m` of a step have
-            // cross product `h/4f` and dot product `1 + tm/4f²`, where
-            // `4tm = (t + m)² − h²/4`.
-            let sum = nearest_zero(2.0 * first + 0.5 * h, 2.0 * last - 0.5 * h);
-            let dot = 1.0 + (sum * sum - 0.25 * h * h) / (16.0 * focal * focal);
-            let angle = (h / (4.0 * focal)).atan2(dot);
-            let middle = nearest_zero(first + 0.5 * h, last - 0.5 * h);
-            let distance = h * h / (16.0 * focal) * distance_factor(middle);
-            (conic_chord_deviation(distance, angle), angle)
-        };
-        let nearest = nearest_zero(first, last);
-        let chord_rate = distance_factor(nearest) / (2.0 * focal);
-        let turning_rate = distance_factor(nearest).powi(2) / (2.0 * focal);
-        let guess = conic_guess(sweep, criteria, chord_rate, turning_rate);
-        equal_steps(
+        parabola_steps(
+            self.focal(),
             |u| self.eval_point(u),
             (first, last),
             criteria,
             min_segments,
-            guess,
-            deviations,
+            visit,
+        );
+    }
+}
+
+impl DiscretizeRange for Parabola2D {
+    type Point = Point2D;
+
+    /// The polynomial parabola, by [`parabola_steps`].
+    fn for_each_run<F>(
+        &self,
+        first: f64,
+        last: f64,
+        criteria: &DiscretizationCriteria,
+        min_segments: usize,
+        visit: F,
+    ) where
+        F: FnMut(Run, &dyn Fn(f64) -> Self::Point),
+    {
+        parabola_steps(
+            self.focal(),
+            |u| self.eval_point(u),
+            (first, last),
+            criteria,
+            min_segments,
             visit,
         );
     }
@@ -478,6 +524,7 @@ impl DiscretizeRange for Curve2D {
             Curve2D::Line(c) => c.for_each_run(first, last, criteria, min_segments, visit),
             Curve2D::Circle(c) => c.for_each_run(first, last, criteria, min_segments, visit),
             Curve2D::Ellipse(c) => c.for_each_run(first, last, criteria, min_segments, visit),
+            Curve2D::Parabola(c) => c.for_each_run(first, last, criteria, min_segments, visit),
             Curve2D::BSpline(c) => c.for_each_run(first, last, criteria, min_segments, visit),
         }
     }

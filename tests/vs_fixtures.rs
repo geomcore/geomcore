@@ -12,7 +12,8 @@ use geomcore::curves::ParametricCurve2D;
 use geomcore::surfaces::{BSplineSurface, ParametricSurface};
 use geomcore::{
     Axis, BSplineCurve, BSplineCurve2D, Circle, Cone, Curve2D, Cylinder, Ellipse, Ellipse2D,
-    Hyperbola, Line, Parabola, ParametrizeError, Plane, Sphere, Tolerance, Torus, Transform,
+    Hyperbola, Line, Parabola, Parabola2D, ParametrizeError, Plane, Sphere, Tolerance, Torus,
+    Transform,
 };
 use serde::Deserialize;
 
@@ -272,7 +273,7 @@ struct CurvesAnalyticFixture {
 }
 
 #[derive(Deserialize)]
-struct Ellipse2DSample {
+struct CurveSample2D {
     u: f64,
     point: [f64; 2],
     d1: [f64; 2],
@@ -281,13 +282,13 @@ struct Ellipse2DSample {
 }
 
 #[derive(Deserialize)]
-struct Ellipse2DParameterOf {
+struct ParameterOf2D {
     point: [f64; 2],
     u: f64,
 }
 
 #[derive(Deserialize)]
-struct Ellipse2DProjection {
+struct Projection2D {
     point: [f64; 2],
     u: f64,
     closest: [f64; 2],
@@ -300,14 +301,24 @@ struct Ellipse2DCase {
     major_radius: f64,
     minor_radius: f64,
     area: f64,
-    samples: Vec<Ellipse2DSample>,
-    parameter_of: Vec<Ellipse2DParameterOf>,
-    projections: Vec<Ellipse2DProjection>,
+    samples: Vec<CurveSample2D>,
+    parameter_of: Vec<ParameterOf2D>,
+    projections: Vec<Projection2D>,
+}
+
+#[derive(Deserialize)]
+struct Parabola2DCase {
+    frame: Frame2DJson,
+    focal: f64,
+    samples: Vec<CurveSample2D>,
+    parameter_of: Vec<ParameterOf2D>,
+    projections: Vec<Projection2D>,
 }
 
 #[derive(Deserialize)]
 struct CurvesAnalytic2DFixture {
     ellipses: Vec<Ellipse2DCase>,
+    parabolas: Vec<Parabola2DCase>,
 }
 
 #[test]
@@ -453,6 +464,43 @@ fn ellipses_2d_match_golden_fixture() {
 
         for projection in &case.projections {
             let projected = ellipse.project_point(point2(projection.point), Tolerance::DEFAULT);
+            assert_close(projected.parameter, projection.u);
+            assert_point2(projected.point, projection.closest);
+            assert_close(projected.distance, projection.distance);
+        }
+    }
+}
+
+#[test]
+fn parabolas_2d_match_golden_fixture() {
+    let fixture: CurvesAnalytic2DFixture =
+        serde_json::from_value(load("curves_analytic_2d.json")).unwrap();
+
+    for (i, case) in fixture.parabolas.iter().enumerate() {
+        let parabola = Parabola2D::from_frame(frame2(&case.frame), case.focal)
+            .unwrap_or_else(|e| panic!("case {i}: failed to build Parabola2D: {e}"));
+
+        for sample in &case.samples {
+            let point = parabola.eval_point(sample.u);
+            assert_point2(point, sample.point);
+
+            let d1 = parabola.eval_derivative(sample.u, 1);
+            assert_vector2(d1, sample.d1);
+
+            let d2 = parabola.eval_derivative(sample.u, 2);
+            assert_vector2(d2, sample.d2);
+
+            let d3 = parabola.eval_derivative(sample.u, 3);
+            assert_vector2(d3, sample.d3);
+        }
+
+        for inversion in &case.parameter_of {
+            let u = parabola.parameter_of(point2(inversion.point));
+            assert_close(u, inversion.u);
+        }
+
+        for projection in &case.projections {
+            let projected = parabola.project_point(point2(projection.point), Tolerance::DEFAULT);
             assert_close(projected.parameter, projection.u);
             assert_point2(projected.point, projection.closest);
             assert_close(projected.distance, projection.distance);

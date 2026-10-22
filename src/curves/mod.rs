@@ -33,7 +33,7 @@ pub use ellipse::{Ellipse, Ellipse2D, EllipseConstructionError};
 pub use fitting::PointParametrization;
 pub use hyperbola::{Hyperbola, HyperbolaConstructionError};
 pub use line::{Line, Line2D, LineConstructionError};
-pub use parabola::{Parabola, ParabolaConstructionError};
+pub use parabola::{Parabola, Parabola2D, ParabolaConstructionError};
 pub use parametrize::{ParametrizeError, parametrize_numeric};
 pub use trimmed::{TrimmedCurve, TrimmedCurve2D, TrimmedCurveConstructionError};
 
