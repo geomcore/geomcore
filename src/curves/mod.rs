@@ -25,7 +25,7 @@ pub use circle::{Circle, Circle2D, CircleConstructionError};
 pub use conversion::BSplineConversionError;
 pub use curve::{Continuity, Curve, ElementaryCurve, ParametricCurve, PointExtrema, Side};
 pub use curve2d::{Curve2D, ParametricCurve2D, PointExtrema2D};
-pub use ellipse::{Ellipse, EllipseConstructionError};
+pub use ellipse::{Ellipse, Ellipse2D, EllipseConstructionError};
 pub use fitting::PointParametrization;
 pub use hyperbola::{Hyperbola, HyperbolaConstructionError};
 pub use line::{Line, Line2D, LineConstructionError};

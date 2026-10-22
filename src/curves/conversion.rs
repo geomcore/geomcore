@@ -15,7 +15,9 @@ use crate::curves::{
     BSplineCurve, Circle, Curve, ElementaryCurve, Ellipse, Hyperbola, Line, Parabola,
     ParametricCurve, TrimmedCurve,
 };
-use crate::curves::{BSplineCurve2D, Circle2D, Curve2D, Line2D, ParametricCurve2D, TrimmedCurve2D};
+use crate::curves::{
+    BSplineCurve2D, Circle2D, Curve2D, Ellipse2D, Line2D, ParametricCurve2D, TrimmedCurve2D,
+};
 use crate::{Frame, Frame2D, Point, Point2D};
 
 /// Error returned when a curve or surface cannot be converted to a
@@ -441,6 +443,39 @@ impl Circle2D {
     }
 }
 
+impl Ellipse2D {
+    /// The ellipse as an exact rational B-spline of degree 2, periodic over
+    /// `[0, 2π]` like the ellipse: the B-spline of the unit circle scaled
+    /// by the radii along the frame's axes.
+    ///
+    /// Every point of the B-spline lies on the ellipse; its parameter
+    /// agrees with the ellipse's at the knots `0, π/2, π, 3π/2, 2π` and at
+    /// the middle of each quarter, not in between.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Ellipse2D, Point2D, Vector2D};
+    /// use std::f64::consts::TAU;
+    ///
+    /// let ellipse = Ellipse2D::new(Point2D::ORIGIN, Vector2D::X, 3.0, 1.0).unwrap();
+    /// let bspline = ellipse.to_bspline();
+    /// assert!(bspline.is_periodic());
+    /// assert_eq!(bspline.bounds(), (0.0, TAU));
+    /// let p = bspline.eval_point(1.0);
+    /// assert!(((p.x / 3.0).powi(2) + p.y.powi(2) - 1.0).abs() < 1e-15);
+    /// ```
+    pub fn to_bspline(&self) -> BSplineCurve2D {
+        place_2d(
+            conic_bspline::full_circle(),
+            self.frame(),
+            self.major_radius(),
+            self.minor_radius(),
+        )
+        .expect("a finite ellipse has finite poles")
+    }
+}
+
 impl BSplineRange2D for Line2D {
     fn bspline_range(
         &self,
@@ -467,6 +502,21 @@ impl BSplineRange2D for Circle2D {
     }
 }
 
+impl BSplineRange2D for Ellipse2D {
+    fn bspline_range(
+        &self,
+        first: f64,
+        last: f64,
+    ) -> Result<BSplineCurve2D, BSplineConversionError> {
+        place_2d(
+            arc_net(first, last),
+            self.frame(),
+            self.major_radius(),
+            self.minor_radius(),
+        )
+    }
+}
+
 impl BSplineRange2D for BSplineCurve2D {
     fn bspline_range(
         &self,
@@ -488,6 +538,7 @@ impl BSplineRange2D for Curve2D {
         match self {
             Curve2D::Line(c) => c.bspline_range(first, last),
             Curve2D::Circle(c) => c.bspline_range(first, last),
+            Curve2D::Ellipse(c) => c.bspline_range(first, last),
             Curve2D::BSpline(c) => c.bspline_range(first, last),
         }
     }
@@ -507,17 +558,18 @@ impl<C: BSplineRange2D> TrimmedCurve2D<C> {
     /// The piece of the basis as an exact B-spline over the same range
     /// `[first, last]`, starting and ending on the same points.
     ///
-    /// The basis is a [`Line2D`], a [`Circle2D`], a [`BSplineCurve2D`] or a
+    /// The basis is a [`Line2D`], a [`Circle2D`], an [`Ellipse2D`], a
+    /// [`BSplineCurve2D`] or a
     /// [`Curve2D`], owned or borrowed. A B-spline's piece is
     /// [extracted](BSplineCurve2D::extract). A segment becomes a B-spline of degree 1 with the curve's own
-    /// parameter. A circle arc becomes rational quadratic pieces of equal
-    /// sweep, at most a quarter turn each, joined at knots placed at the
-    /// angles of the piece boundaries. The B-spline parameter agrees with
-    /// the curve's at the range ends, those knots and the middle of each
-    /// piece, and differs in between (by at most `0.0161` rad on a
-    /// circle). A range spanning a whole turn gives a clamped B-spline
-    /// ending exactly on its first point, never a periodic one, as a
-    /// trimmed curve is never periodic.
+    /// parameter. A circle or ellipse arc becomes rational quadratic
+    /// pieces of equal sweep, at most a quarter turn each, joined at knots
+    /// placed at the angles of the piece boundaries. The B-spline parameter
+    /// agrees with the curve's at the range ends, those knots and the
+    /// middle of each piece, and differs in between (by at most `0.0161`
+    /// rad on a circle). A range spanning a whole turn gives a clamped
+    /// B-spline ending exactly on its first point, never a periodic one, as
+    /// a trimmed curve is never periodic.
     ///
     /// # Errors
     ///
@@ -548,8 +600,9 @@ impl<C: BSplineRange2D> TrimmedCurve2D<C> {
 }
 
 impl Curve2D {
-    /// The whole curve as a B-spline: a B-spline is cloned, a circle
-    /// converted by [`Circle2D::to_bspline`].
+    /// The whole curve as a B-spline: a B-spline is cloned, a circle or
+    /// ellipse converted by [`Circle2D::to_bspline`] or
+    /// [`Ellipse2D::to_bspline`].
     ///
     /// # Errors
     ///
@@ -577,6 +630,7 @@ impl Curve2D {
         match self {
             Curve2D::BSpline(c) => Ok(c.clone()),
             Curve2D::Circle(c) => Ok(c.to_bspline()),
+            Curve2D::Ellipse(c) => Ok(c.to_bspline()),
             Curve2D::Line(_) => Err(BSplineConversionError::Unbounded),
         }
     }
@@ -943,6 +997,10 @@ mod tests {
         (x.hypot(y) - c.radius()).abs()
     }
 
+    fn ellipse2d() -> Ellipse2D {
+        Ellipse2D::from_frame(tilted_frame2d(Point2D::new(1.0, 2.0)), 5.0, 0.5).unwrap()
+    }
+
     /// The largest of `distance` (an upper bound of the distance from a
     /// point to the original curve) over a dense sample of the 2D B-spline,
     /// its knots and the middles of its spans.
@@ -1024,6 +1082,41 @@ mod tests {
                 assert_eq!(b.eval_point(first), arc.start_point());
                 assert!(b.eval_point(last).distance(arc.end_point()) <= 1e-16 * radius);
             }
+        }
+    }
+
+    #[test]
+    fn test_full_ellipse2d_is_periodic_and_exact() {
+        let e = ellipse2d();
+        let b = e.to_bspline();
+        assert!(b.is_periodic() && b.is_rational());
+        assert_eq!(b.degree(), 2);
+        assert_eq!(b.bounds(), (0.0, TAU));
+        assert_eq!(b.poles().len(), 8);
+        let tol = Tolerance::DEFAULT;
+        let dev = max_deviation_2d(&b, |p| e.project_point(p, tol).distance);
+        assert!(dev <= RELATIVE * 5.0, "{dev}");
+        assert_matches_at_knots_and_middles_2d(&b, &e, 5.0);
+        let wrapped: Curve2D = e.into();
+        assert_eq!(wrapped.to_bspline().unwrap(), b);
+    }
+
+    #[test]
+    fn test_ellipse2d_arcs_are_exact_over_their_range() {
+        let e = ellipse2d();
+        for (first, last) in ARCS {
+            let arc = TrimmedCurve2D::new(e, first, last).unwrap();
+            let b = arc.to_bspline().unwrap();
+            assert!(!b.is_periodic());
+            assert_eq!(b.bounds(), (first, last));
+            let pieces = b.knots().len() - 1;
+            assert!((last - first) / pieces as f64 <= FRAC_PI_2 * (1.0 + 1e-12));
+            let tol = Tolerance::DEFAULT;
+            let dev = max_deviation_2d(&b, |p| e.project_point(p, tol).distance);
+            assert!(dev <= RELATIVE * 5.0, "[{first}, {last}]: {dev}");
+            assert_matches_at_knots_and_middles_2d(&b, &e, 5.0);
+            assert_eq!(b.eval_point(first), arc.start_point());
+            assert!(b.eval_point(last).distance(arc.end_point()) <= 1e-15 * 5.0);
         }
     }
 

@@ -36,6 +36,13 @@ the Python distribution are versioned in lockstep.
   `IntersectionMethod::Numeric` and is proved complete where the 3D
   search would prove it. `CurveCurveIntersection2D::method` now reports
   this method instead of always `Exact`.
+- `Ellipse2D` (#92), in Rust and Python: construction from a center,
+  direction and radii, from a `Frame2D`, or from a center and two
+  points; evaluation and derivatives, parameter inversion, containment,
+  extrema and projection; area, tight bounding boxes and proven
+  discretization; exact B-spline conversion; and `TrimmedCurve2D`
+  support. `Curve2D` gains an `Ellipse` variant with every operation
+  forwarded, and Python gains `geomcore.curves.Ellipse2D` with stubs.
 
 ### Changed
 

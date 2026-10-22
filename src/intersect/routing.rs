@@ -886,6 +886,7 @@ impl CoincidentCurve for Curve2D {
         match self {
             Curve2D::Line(line) => line.parameter_of(point),
             Curve2D::Circle(circle) => circle.parameter_of(point),
+            Curve2D::Ellipse(ellipse) => ellipse.parameter_of(point),
             Curve2D::BSpline(bspline) => bspline.parameter_of(point),
         }
     }
@@ -1156,6 +1157,7 @@ macro_rules! exact_curve_curve_2d_untyped {
                 match other {
                     Curve2D::Line(b) => self.exact_curve_curve_2d(b, tol),
                     Curve2D::Circle(b) => self.exact_curve_curve_2d(b, tol),
+                    Curve2D::Ellipse(_) => ExactCurveCurve2DIntersection::NotAnalytic,
                     Curve2D::BSpline(_) => ExactCurveCurve2DIntersection::NotAnalytic,
                 }
             }
@@ -1171,6 +1173,7 @@ macro_rules! exact_curve_curve_2d_untyped {
                 match self {
                     Curve2D::Line(a) => a.exact_curve_curve_2d(other, tol),
                     Curve2D::Circle(a) => a.exact_curve_curve_2d(other, tol),
+                    Curve2D::Ellipse(_) => ExactCurveCurve2DIntersection::NotAnalytic,
                     Curve2D::BSpline(_) => ExactCurveCurve2DIntersection::NotAnalytic,
                 }
             }
@@ -1190,6 +1193,7 @@ impl ExactCurveCurve2D<Curve2D> for Curve2D {
         match self {
             Curve2D::Line(a) => a.exact_curve_curve_2d(other, tol),
             Curve2D::Circle(a) => a.exact_curve_curve_2d(other, tol),
+            Curve2D::Ellipse(_) => ExactCurveCurve2DIntersection::NotAnalytic,
             Curve2D::BSpline(_) => ExactCurveCurve2DIntersection::NotAnalytic,
         }
     }
@@ -1231,6 +1235,7 @@ impl CurveBasis2D for Curve2D {
         match self {
             Curve2D::Line(line) => line.parameter_of(point),
             Curve2D::Circle(circle) => circle.parameter_of(point),
+            Curve2D::Ellipse(ellipse) => ellipse.parameter_of(point),
             Curve2D::BSpline(bspline) => bspline.parameter_of(point),
         }
     }

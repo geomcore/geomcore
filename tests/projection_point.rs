@@ -6,8 +6,8 @@ use geomcore::curves::{
 };
 use geomcore::surfaces::{ElementarySurface, ParametricSurface, Surface};
 use geomcore::{
-    Circle, Circle2D, Cone, CurveProjection, Cylinder, Ellipse, Frame, Hyperbola, Line, Line2D,
-    Parabola, Plane, Point, Point2D, Sphere, Tolerance, Torus, Vector, Vector2D,
+    Circle, Circle2D, Cone, CurveProjection, Cylinder, Ellipse, Ellipse2D, Frame, Hyperbola, Line,
+    Line2D, Parabola, Plane, Point, Point2D, Sphere, Tolerance, Torus, Vector, Vector2D,
 };
 
 fn query_points() -> Vec<Point> {
@@ -108,6 +108,9 @@ fn test_curve_2d_projection_returns_its_point() {
             .unwrap()
             .into(),
         Circle2D::new(Point2D::new(1.0, 0.0), 2.0).unwrap().into(),
+        Ellipse2D::new(Point2D::new(1.0, 0.0), Vector2D::new(1.0, 1.0), 3.0, 1.0)
+            .unwrap()
+            .into(),
     ];
     for curve in &curves {
         for q in [Point2D::new(3.0, -1.0), Point2D::new(-0.5, 0.25)] {

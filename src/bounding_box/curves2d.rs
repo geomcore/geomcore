@@ -6,7 +6,9 @@ use super::curves::fold_range_points;
 use super::sealed::BoundRange2D;
 use super::{BoundingBox2D, HasBoundingBox2D};
 use crate::Point2D;
-use crate::curves::{BSplineCurve2D, Circle2D, Curve2D, Line2D, ParametricCurve2D, TrimmedCurve2D};
+use crate::curves::{
+    BSplineCurve2D, Circle2D, Curve2D, Ellipse2D, Line2D, ParametricCurve2D, TrimmedCurve2D,
+};
 use std::f64::consts::{PI, TAU};
 
 impl HasBoundingBox2D for Line2D {
@@ -21,6 +23,12 @@ impl HasBoundingBox2D for Circle2D {
     }
 }
 
+impl HasBoundingBox2D for Ellipse2D {
+    fn bounding_box(&self) -> Option<BoundingBox2D> {
+        Some(ellipse_box(self, None))
+    }
+}
+
 impl HasBoundingBox2D for BSplineCurve2D {
     fn bounding_box(&self) -> Option<BoundingBox2D> {
         BoundingBox2D::from_points(self.poles().iter().copied())
@@ -32,6 +40,7 @@ impl HasBoundingBox2D for Curve2D {
         match self {
             Curve2D::Line(c) => c.bounding_box(),
             Curve2D::Circle(c) => c.bounding_box(),
+            Curve2D::Ellipse(c) => c.bounding_box(),
             Curve2D::BSpline(c) => c.bounding_box(),
         }
     }
@@ -88,6 +97,45 @@ fn coordinates_of(v: crate::Vector2D) -> [f64; 2] {
     [v.x, v.y]
 }
 
+/// The box of the ellipse over `range`, or over a whole turn.
+///
+/// Coordinate `k` is `c_k + A_k cos(t − φ_k)`, `A_k = |(a_k, b_k)|`,
+/// `φ_k = atan2(b_k, a_k)`, `a` and `b` being the major and minor radii
+/// times the frame's axes. The derivation is that of [`circle_box`], with
+/// the two radii no longer equal.
+fn ellipse_box(ellipse: &Ellipse2D, range: Option<(f64, f64)>) -> BoundingBox2D {
+    let frame = ellipse.frame();
+    let (maj, min) = (ellipse.major_radius(), ellipse.minor_radius());
+    let (c, a, b) = (
+        coordinates(frame.origin()),
+        coordinates_of(maj * frame.x_direction()),
+        coordinates_of(min * frame.y_direction()),
+    );
+    let amplitude: [f64; 2] = std::array::from_fn(|k| a[k].hypot(b[k]));
+    let Some((first, last)) = range else {
+        return BoundingBox2D {
+            min: point(std::array::from_fn(|k| c[k] - amplitude[k])),
+            max: point(std::array::from_fn(|k| c[k] + amplitude[k])),
+        };
+    };
+    let ends = BoundingBox2D::new(ellipse.eval_point(first), ellipse.eval_point(last));
+    let (mut lo, mut hi) = (coordinates(ends.min), coordinates(ends.max));
+    let reached = |t: f64| first + (t - first).rem_euclid(TAU) <= last;
+    for k in 0..2 {
+        let peak = b[k].atan2(a[k]);
+        if reached(peak) {
+            hi[k] = c[k] + amplitude[k];
+        }
+        if reached(peak + PI) {
+            lo[k] = c[k] - amplitude[k];
+        }
+    }
+    BoundingBox2D {
+        min: point(lo),
+        max: point(hi),
+    }
+}
+
 impl BoundRange2D for Line2D {
     fn range_box(&self, first: f64, last: f64) -> BoundingBox2D {
         BoundingBox2D::new(self.eval_point(first), self.eval_point(last))
@@ -97,6 +145,12 @@ impl BoundRange2D for Line2D {
 impl BoundRange2D for Circle2D {
     fn range_box(&self, first: f64, last: f64) -> BoundingBox2D {
         circle_box(self, Some((first, last)))
+    }
+}
+
+impl BoundRange2D for Ellipse2D {
+    fn range_box(&self, first: f64, last: f64) -> BoundingBox2D {
+        ellipse_box(self, Some((first, last)))
     }
 }
 
@@ -123,6 +177,7 @@ impl BoundRange2D for Curve2D {
         match self {
             Curve2D::Line(c) => c.range_box(first, last),
             Curve2D::Circle(c) => c.range_box(first, last),
+            Curve2D::Ellipse(c) => c.range_box(first, last),
             Curve2D::BSpline(c) => c.range_box(first, last),
         }
     }

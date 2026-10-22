@@ -14,7 +14,11 @@ _WholeCurve = Union[
 ]
 _Curve = Union[_WholeCurve, curves.TrimmedCurve]
 _Curve2D = Union[
-    curves.Line2D, curves.Circle2D, curves.BSplineCurve2D, curves.TrimmedCurve2D
+    curves.Line2D,
+    curves.Circle2D,
+    curves.Ellipse2D,
+    curves.BSplineCurve2D,
+    curves.TrimmedCurve2D,
 ]
 _Surface = Union[
     surfaces.Plane,
