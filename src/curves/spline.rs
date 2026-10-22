@@ -11,6 +11,7 @@ use crate::curve_math::bspline as math;
 use crate::curve_math::bspline::{PolePoint, SpanEnds};
 use crate::curve_math::editing::{self, Deviation, Elevation, Insertion, Lanes};
 use crate::curves::Side;
+use crate::curves::bezier::BezierConstructionError;
 use crate::curves::bspline::{
     BSplineConstructionError, BSplineSplitError, DegreeElevationError, KnotInsertionError,
     KnotRemovalError,
@@ -89,6 +90,47 @@ impl<P: PolePoint> Spline<P> {
         }
         let knots = math::KnotVector::new(degree, knots, multiplicities, periodic, poles.len())?;
         Ok(Spline::of(knots, poles, weights))
+    }
+
+    /// The Bézier curve of `degree` over `[0, 1]`: one clamped span of
+    /// `degree + 1` poles. The weights, if any, are checked before the
+    /// degree and the pole count.
+    pub(crate) fn bezier(
+        degree: usize,
+        poles: Vec<P>,
+        weights: Option<Vec<f64>>,
+    ) -> Result<Spline<P>, BezierConstructionError> {
+        if let Some(ws) = &weights {
+            if ws.len() != poles.len() {
+                return Err(BezierConstructionError::WeightCountMismatch);
+            }
+            if ws.iter().any(|&w| w <= 0.0) {
+                return Err(BezierConstructionError::NonPositiveWeight);
+            }
+        }
+        if !(1..=math::MAX_DEGREE).contains(&degree) {
+            return Err(BezierConstructionError::InvalidDegree);
+        }
+        if poles.len() != degree + 1 {
+            return Err(BezierConstructionError::PoleCountMismatch);
+        }
+        let end = degree as u32 + 1;
+        Spline::new(
+            degree,
+            poles,
+            weights,
+            vec![0.0, 1.0],
+            vec![end, end],
+            false,
+        )
+        .map_err(|_| unreachable!("a Bézier span of degree + 1 poles is consistent"))
+    }
+
+    /// Whether the curve is one clamped, non-periodic span: its poles are
+    /// the Bézier control points of the whole curve.
+    pub(crate) fn is_bezier(&self) -> bool {
+        let end = self.degree() as u32 + 1;
+        !self.is_periodic() && self.multiplicities() == [end, end]
     }
 
     /// A curve from parts already known to be consistent, `flat` being the
@@ -195,12 +237,14 @@ impl<P: PolePoint> Spline<P> {
         self.knots.period()
     }
 
+    #[inline]
     pub(crate) fn insert_knot(&self, u: f64, times: u32) -> Result<Spline<P>, KnotInsertionError> {
         let copies = [u; math::MAX_DEGREE + 1];
         // More copies than any multiplicity allows fail the same way.
         self.refine_knots(&copies[..(times as usize).min(copies.len())])
     }
 
+    #[inline]
     pub(crate) fn refine_knots(&self, knots: &[f64]) -> Result<Spline<P>, KnotInsertionError> {
         if knots.is_empty() {
             return Ok(self.clone());
@@ -215,6 +259,7 @@ impl<P: PolePoint> Spline<P> {
         Ok(Spline::of(direction, poles, weights))
     }
 
+    #[inline]
     pub(crate) fn elevate_degree(&self, amount: usize) -> Result<Spline<P>, DegreeElevationError> {
         let (direction, poles, weights) = editing::edit(
             &Elevation(amount),
@@ -226,6 +271,7 @@ impl<P: PolePoint> Spline<P> {
         Ok(Spline::of(direction, poles, weights))
     }
 
+    #[inline]
     pub(crate) fn remove_knot(
         &self,
         u: f64,
@@ -245,6 +291,7 @@ impl<P: PolePoint> Spline<P> {
         Ok((curve, removed as u32))
     }
 
+    #[inline]
     pub(crate) fn remove_knots(
         &self,
         knots: &[f64],
@@ -272,7 +319,9 @@ impl<P: PolePoint> Spline<P> {
         })
     }
 
-    pub(crate) fn to_bezier_pieces(&self) -> Vec<Spline<P>> {
+    /// The Bézier pieces, each built straight into its public type by
+    /// `wrap`, sparing a second pass that would move every piece.
+    pub(crate) fn to_bezier_pieces<C>(&self, wrap: impl Fn(Spline<P>) -> C) -> Vec<C> {
         let p = self.degree();
         let mut pieces = Vec::with_capacity(self.knots.knots().len() - 1);
         editing::curve_pieces(
@@ -280,16 +329,17 @@ impl<P: PolePoint> Spline<P> {
             &self.poles,
             self.weights.as_deref(),
             |x, y, poles, weights| {
-                pieces.push(Spline::of(
+                pieces.push(wrap(Spline::of(
                     math::KnotVector::bezier(p, x, y),
                     poles,
                     weights,
-                ));
+                )));
             },
         );
         pieces
     }
 
+    #[inline]
     pub(crate) fn extract(&self, first: f64, last: f64) -> Result<Spline<P>, BSplineSplitError> {
         editing::check_piece(&self.knots, first, last)?;
         if editing::is_clamped_to(&self.knots, first, last) {
@@ -299,6 +349,7 @@ impl<P: PolePoint> Spline<P> {
         Ok(piece)
     }
 
+    #[inline]
     pub(crate) fn split_at(&self, u: f64) -> Result<(Spline<P>, Spline<P>), BSplineSplitError> {
         editing::check_split(&self.knots, u)?;
         let (first, last) = self.bounds();
@@ -306,6 +357,7 @@ impl<P: PolePoint> Spline<P> {
         Ok((left, right))
     }
 
+    #[inline]
     pub(crate) fn reversed(&self) -> Spline<P> {
         let old: Vec<usize> = (0..self.poles.len())
             .map(|i| editing::reversed_slot(&self.knots, i))
@@ -320,6 +372,7 @@ impl<P: PolePoint> Spline<P> {
     }
 
     /// The pieces between consecutive `cuts`, `N` of them.
+    #[inline]
     fn cut<const N: usize>(&self, cuts: &[f64]) -> [Spline<P>; N] {
         let pieces = editing::cut(
             &self.knots,
@@ -398,7 +451,7 @@ impl<P: PolePoint> Spline<P> {
             .windows(2)
             .map(|span| {
                 let (a, b) = (span[0], span[1]);
-                self.span_bezier_lanes(0.5 * (a + b), &mut net);
+                self.span_bezier_points(0.5 * (a + b), &mut net);
                 let net = &net[..=degree];
                 let share = max_error * (b - a) / (last - first);
                 quadrature::integrate(&|t| bezier_speed(net, t), 0.0, 1.0, share)
@@ -501,8 +554,8 @@ impl<P: PolePoint> Spline<P> {
     /// the span's own interval, into `points[..=degree]`, as four-wide
     /// lanes `(x w, y w, z w, w)` (`w = 1` if nonrational, `z = 0` in the
     /// plane).
-    pub(crate) fn span_bezier_lanes(&self, u: f64, points: &mut [[f64; 4]]) {
-        math::span_bezier_lanes(&self.knots, self.pole_view(), u, points);
+    pub(crate) fn span_bezier_points(&self, u: f64, points: &mut [[f64; 4]]) {
+        math::span_bezier(&self.knots, self.pole_view(), u, points);
     }
 
     /// The poles as read by evaluation.

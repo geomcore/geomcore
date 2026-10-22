@@ -19,6 +19,7 @@ from geomcore import (
 from geomcore.curves import (
     BSplineCurve,
     BSplineCurve2D,
+    BezierCurve,
     Circle,
     Ellipse,
     Ellipse2D,
@@ -28,7 +29,7 @@ from geomcore.curves import (
     Parabola,
     Parabola2D,
 )
-from geomcore.surfaces import Cylinder, Plane, Sphere
+from geomcore.surfaces import BezierSurface, Cylinder, Plane, Sphere
 
 
 def test_readme_snippet():
@@ -1491,8 +1492,11 @@ def test_bspline_curve_bezier_pieces_and_length():
     )
     pieces = curve.to_bezier_pieces()
     assert len(pieces) == 3
+    assert all(isinstance(piece, BezierCurve) for piece in pieces)
     assert pieces[1].bounds() == pytest.approx((1.0, 2.0))
+    assert len(pieces[1].poles()) == 4
     assert pieces[1].eval_point(1.5).distance(curve.eval_point(1.5)) < 1e-12
+    assert pieces[1].to_bspline().multiplicities() == [4, 4]
     segment = BSplineCurve(
         1, [Point.origin(), Point(2.0, 0.0, 0.0)], [0.0, 1.0], [2, 2], False
     )
@@ -1639,7 +1643,10 @@ def test_surface_split_extract_reverse_and_patches():
     )
     patches = net.to_bezier_patches()
     assert (len(patches), len(patches[0])) == (2, 1)
+    assert isinstance(patches[1][0], BezierSurface)
+    assert patches[1][0].u_bounds() == pytest.approx((1.0, 2.0))
     assert patches[1][0].eval_point(1.5, 0.5).distance(net.eval_point(1.5, 0.5)) < 1e-12
+    assert patches[1][0].to_bspline().u_multiplicities() == [3, 3]
     with pytest.raises(ValueError):
         surface.split_u_at(0.0)
 
