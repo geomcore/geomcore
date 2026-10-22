@@ -278,6 +278,28 @@ pub trait ParametricCurve2D {
     /// excluded (`Smooth` when no knot constrains it): the lowest
     /// [`continuity`](Self::continuity) anywhere on the curve. Default
     /// implementation: smooth.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::curves::ParametricCurve2D;
+    /// use geomcore::{BSplineCurve2D, Circle2D, Continuity, Point2D};
+    ///
+    /// let circle = Circle2D::new(Point2D::ORIGIN, 1.0).unwrap();
+    /// assert_eq!(ParametricCurve2D::min_continuity(&circle), Continuity::Smooth);
+    ///
+    /// // A quadratic with a double interior knot: a kink at u = 0.5.
+    /// let poles = vec![
+    ///     Point2D::new(0.0, 0.0),
+    ///     Point2D::new(1.0, 0.0),
+    ///     Point2D::new(2.0, 1.0),
+    ///     Point2D::new(3.0, 1.0),
+    ///     Point2D::new(4.0, 0.0),
+    /// ];
+    /// let kinked =
+    ///     BSplineCurve2D::new(2, poles, vec![0.0, 0.5, 1.0], vec![3, 2, 3], false).unwrap();
+    /// assert_eq!(ParametricCurve2D::min_continuity(&kinked), Continuity::Order(0));
+    /// ```
     fn min_continuity(&self) -> Continuity {
         Continuity::Smooth
     }
