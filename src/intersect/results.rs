@@ -18,9 +18,10 @@ use crate::{Curve, Point, Tolerance, Vector};
 /// exact result never allocates; a numeric result keeps its `Vec`.
 pub(crate) type CurveCurveHitList = InlineOrHeapList<CurveCurveHit, 4>;
 
-/// The hits of a 2D curve-curve result: lines and circles meet at most
-/// twice.
-pub(crate) type CurveCurveHitList2D = InlineOrHeapList<CurveCurveHit2D, 2>;
+/// The hits of a 2D curve-curve result. The inline capacity is the most
+/// hits an exact pair yields (two conics meet at most 4 times), so an
+/// exact result never allocates; a numeric result keeps its `Vec`.
+pub(crate) type CurveCurveHitList2D = InlineOrHeapList<CurveCurveHit2D, 4>;
 
 /// The overlaps of a curve-curve result. Overlaps come only from
 /// coincident curves, a rare case, and an empty `Vec` does not allocate,
@@ -381,11 +382,12 @@ impl CurveCurveIntersection {
     }
 }
 
-/// The intersection of two 2D curves. Always exact and complete.
+/// The intersection of two 2D curves: exact and complete for every pair of
+/// lines and conics, numeric when one is a
+/// [`BSplineCurve2D`](crate::BSplineCurve2D).
 ///
 /// Read it through [`hits`](Self::hits), [`overlaps`](Self::overlaps),
-/// [`method`](Self::method) (always [`IntersectionMethod::Exact`]),
-/// [`completeness`](Self::completeness) (always complete),
+/// [`method`](Self::method), [`completeness`](Self::completeness),
 /// [`is_complete`](Self::is_complete) and [`is_empty`](Self::is_empty).
 /// [`Intersect::intersect`](crate::Intersect::intersect) returns it.
 ///
@@ -516,7 +518,8 @@ impl CurveCurveIntersection2D {
     }
 
     /// [`IntersectionMethod::Exact`] when the pair was solved by a closed
-    /// form: every 2D pair of elementary curves.
+    /// form: every 2D pair of lines, circles, ellipses, parabolas and
+    /// hyperbolas.
     /// [`IntersectionMethod::Numeric`] when at least one of the two is a
     /// [`BSplineCurve2D`](crate::BSplineCurve2D), or a trimmed curve over
     /// one: the pair is searched as in space, embedded at `z = 0`.

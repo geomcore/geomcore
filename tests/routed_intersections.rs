@@ -1326,3 +1326,180 @@ fn test_trimmed_bspline_2d_keeps_the_hits_in_its_range() {
     assert_hit_points_2d(&r, &[Point2D::new(2.0, 0.0)]);
     assert_hits_lie_on_2d(&r, &half, &line);
 }
+
+// ---- 2D conics: every pair of lines and conics is exact ----
+
+fn exact_hits_2d(result: Conic2DIntersection) -> Vec<CurveCurveHit2D> {
+    match result {
+        Conic2DIntersection::Hits(hits) => hits.to_vec(),
+        other => panic!("expected hits, got {other:?}"),
+    }
+}
+
+#[test]
+fn test_2d_conic_pairs_are_exact_through_every_type() {
+    let line = Line2D::new(Point2D::new(0.0, 1.0), Vector2D::X).unwrap();
+    let circle = Circle2D::new(Point2D::ORIGIN, 2.0).unwrap();
+    let ellipse = Ellipse2D::new(Point2D::ORIGIN, Vector2D::X, 3.0, 2.0).unwrap();
+    let parabola = Parabola2D::new(Point2D::ORIGIN, Vector2D::X, 1.0).unwrap();
+    let hyperbola = Hyperbola2D::new(Point2D::ORIGIN, Vector2D::X, 1.0, 0.5).unwrap();
+    let all: [Curve2D; 5] = [
+        line.into(),
+        circle.into(),
+        ellipse.into(),
+        parabola.into(),
+        hyperbola.into(),
+    ];
+    for a in &all {
+        for b in &all {
+            let r = a.intersect(b, TOL);
+            assert_eq!(r.method(), IntersectionMethod::Exact);
+            assert!(r.is_complete());
+            // The reverse order meets at the same points.
+            let back = b.intersect(a, TOL);
+            assert_eq!(back.method(), IntersectionMethod::Exact);
+            assert_eq!(back.hits().len(), r.hits().len());
+            for hit in r.hits() {
+                assert!(
+                    back.hits()
+                        .iter()
+                        .any(|other| other.point.distance(hit.point) <= 1e-9
+                            && other.multiplicity == hit.multiplicity)
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn test_2d_typed_conics_route_exact_and_match_the_typed_solver() {
+    let line = Line2D::new(Point2D::new(0.0, 1.0), Vector2D::X).unwrap();
+    let ellipse = Ellipse2D::new(Point2D::ORIGIN, Vector2D::X, 3.0, 2.0).unwrap();
+    let routed = line.intersect(&ellipse, TOL);
+    let typed = exact_hits_2d(line.intersect_exact(&ellipse, TOL));
+    assert_eq!(routed.method(), IntersectionMethod::Exact);
+    assert_eq!(routed.hits(), typed.as_slice());
+    assert_hits_2d_lie_on(&routed, &line, &ellipse);
+    // The conic read first gets the conic's parameter first.
+    let reverse = exact_hits_2d(ellipse.intersect_exact(&line, TOL));
+    for (a, b) in typed.iter().zip(reverse.iter().rev()) {
+        assert!(a.point.distance(b.point) < 1e-12);
+        assert_eq!(a.first_parameter, b.second_parameter);
+        assert_eq!(a.second_parameter, b.first_parameter);
+    }
+}
+
+#[test]
+fn test_2d_conic_tangency_multiplicities() {
+    let ellipse = Ellipse2D::new(Point2D::ORIGIN, Vector2D::X, 3.0, 2.0).unwrap();
+    let tangent = Line2D::new(Point2D::new(0.0, 2.0), Vector2D::X).unwrap();
+    let hits = exact_hits_2d(tangent.intersect_exact(&ellipse, TOL));
+    assert_eq!(hits.len(), 1);
+    assert_eq!(hits[0].multiplicity, 2);
+    // The circle of the minor radius touches the ellipse at its two minor vertices.
+    let inner = Circle2D::new(Point2D::ORIGIN, 2.0).unwrap();
+    let hits = exact_hits_2d(inner.intersect_exact(&ellipse, TOL));
+    assert_eq!(hits.len(), 2);
+    assert!(hits.iter().all(|hit| hit.multiplicity == 2));
+    let parabola = Parabola2D::new(Point2D::ORIGIN, Vector2D::X, 1.0).unwrap();
+    let hyperbola = Hyperbola2D::new(Point2D::ORIGIN, Vector2D::X, 1.0, 1.0).unwrap();
+    let apex_line = Line2D::new(Point2D::ORIGIN, Vector2D::Y).unwrap();
+    assert_eq!(
+        exact_hits_2d(parabola.intersect_exact(&apex_line, TOL))[0].multiplicity,
+        2
+    );
+    let vertex_line = Line2D::new(Point2D::new(1.0, 0.0), Vector2D::Y).unwrap();
+    assert_eq!(
+        exact_hits_2d(hyperbola.intersect_exact(&vertex_line, TOL))[0].multiplicity,
+        2
+    );
+}
+
+#[test]
+fn test_2d_conic_coincidence_and_disjoint_typed_results() {
+    let ellipse = Ellipse2D::new(Point2D::ORIGIN, Vector2D::X, 3.0, 2.0).unwrap();
+    assert_eq!(
+        ellipse.intersect_exact(&ellipse, TOL),
+        Conic2DIntersection::Coincident
+    );
+    let far = Ellipse2D::new(Point2D::new(10.0, 0.0), Vector2D::X, 3.0, 2.0).unwrap();
+    assert_eq!(
+        ellipse.intersect_exact(&far, TOL),
+        Conic2DIntersection::Empty
+    );
+    let hyperbola = Hyperbola2D::new(Point2D::ORIGIN, Vector2D::X, 1.0, 1.0).unwrap();
+    assert_eq!(
+        hyperbola.intersect_exact(&hyperbola, TOL),
+        Conic2DIntersection::Coincident
+    );
+}
+
+#[test]
+fn test_2d_trimmed_conics_clip_in_both_orders() {
+    let line = Line2D::new(Point2D::new(1.5, 0.0), Vector2D::Y).unwrap();
+    let ellipse = Ellipse2D::new(Point2D::ORIGIN, Vector2D::X, 3.0, 2.0).unwrap();
+    let upper = TrimmedCurve2D::new(ellipse, 0.0, PI).unwrap();
+    let wanted = [Point2D::new(1.5, 3.0f64.sqrt())];
+    for r in [line.intersect(&upper, TOL), upper.intersect(&line, TOL)] {
+        assert_eq!(r.method(), IntersectionMethod::Exact);
+        assert_hit_points_2d(&r, &wanted);
+    }
+    let segment = TrimmedCurve2D::new(line, 0.0, 1.0).unwrap();
+    // The segment stays below the hit.
+    assert!(segment.intersect(&upper, TOL).is_empty());
+    assert!(upper.intersect(&segment, TOL).is_empty());
+    // A trimmed conic against a trimmed conic.
+    let parabola = Parabola2D::new(Point2D::new(4.0, 0.0), -Vector2D::X, 1.0).unwrap();
+    let arc = TrimmedCurve2D::new(parabola, 0.0, 5.0).unwrap();
+    let r = upper.intersect(&arc, TOL);
+    assert_eq!(r.method(), IntersectionMethod::Exact);
+    assert_hits_2d_lie_on(&r, &upper, &arc);
+    assert_eq!(r.hits().len(), arc.intersect(&upper, TOL).hits().len());
+}
+
+#[test]
+fn test_2d_coincident_conic_pieces_overlap() {
+    let parabola = Parabola2D::new(Point2D::ORIGIN, Vector2D::X, 1.0).unwrap();
+    let a = TrimmedCurve2D::new(parabola, -2.0, 2.0).unwrap();
+    let b = TrimmedCurve2D::new(parabola, 0.0, 5.0).unwrap();
+    let r = a.intersect(&b, TOL);
+    assert_eq!(r.method(), IntersectionMethod::Exact);
+    assert_eq!(r.overlaps().len(), 1);
+    assert!(close(r.overlaps()[0].first_range, (0.0, 2.0)));
+    assert!(close(r.overlaps()[0].second_range, (0.0, 2.0)));
+    // A whole parabola against a piece of itself overlaps over the piece.
+    let whole = parabola.intersect(&b, TOL);
+    assert_eq!(whole.overlaps().len(), 1);
+    assert!(close(whole.overlaps()[0].first_range, (0.0, 5.0)));
+    let ellipse = Ellipse2D::new(Point2D::ORIGIN, Vector2D::X, 3.0, 2.0).unwrap();
+    let full = ellipse.intersect(&ellipse, TOL);
+    assert_eq!(full.overlaps().len(), 1);
+    assert!(close(full.overlaps()[0].first_range, (0.0, TAU)));
+}
+
+#[test]
+fn test_2d_bspline_against_a_conic_is_numeric() {
+    let ellipse = Ellipse2D::new(Point2D::ORIGIN, Vector2D::X, 3.0, 2.0).unwrap();
+    let spline = Ellipse2D::new(Point2D::ORIGIN, Vector2D::Y, 3.0, 2.0)
+        .unwrap()
+        .to_bspline();
+    for r in [
+        spline.intersect(&ellipse, TOL),
+        ellipse.intersect(&spline, TOL),
+    ] {
+        assert_eq!(r.method(), IntersectionMethod::Numeric);
+        assert!(r.is_complete());
+        // x^2/9 + y^2/4 = 1 and x^2/4 + y^2/9 = 1: x^2 = y^2 = 36/13.
+        let c = (36.0f64 / 13.0).sqrt();
+        assert_hit_points_2d(
+            &r,
+            &[
+                Point2D::new(c, c),
+                Point2D::new(-c, c),
+                Point2D::new(c, -c),
+                Point2D::new(-c, -c),
+            ],
+        );
+    }
+    assert_hits_lie_on_2d(&spline.intersect(&ellipse, TOL), &spline, &ellipse);
+}

@@ -70,7 +70,11 @@ Covered pairs include plane/quadric/torus surfaces against each other
 in their symmetric configurations, lines/circles/conics against each
 other and against the elementary surfaces, and any two conics —
 coplanar (up to four hits) or in crossing planes (met on the shared
-line). A sphere cut by a coaxial cylinder, computed live below —
+line). The 2D pairs are exact too: any two of `Line2D`, `Circle2D`,
+`Ellipse2D`, `Parabola2D` and `Hyperbola2D`, whole or trimmed, solved
+by the coplanar solvers with the same tangency multiplicities and
+overlaps; only a pair holding a `BSplineCurve2D` runs the numeric
+search. A sphere cut by a coaxial cylinder, computed live below —
 two exact rings in ~0.4 µs on a Linux x86-64 desktop, single thread:
 
 <iframe src="https://geomcore.github.io/geomcore-viewer/?scene=https://geomcore.github.io/geomcore/assets/scenes/intersect-exact.json" width="100%" height="480" style="border: 1px solid #333; border-radius: 8px;" allow="fullscreen" title="Sphere and cylinder with their two exact intersection rings"></iframe>

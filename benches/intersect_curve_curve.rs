@@ -12,14 +12,20 @@
 //! lines along their major axes, whole and over `[-2, 2]`, above the skew
 //! pairs' lower curve.
 //!
+//! The 2D pairs follow: `intersect` on 64 pairs of each family of 2D
+//! lines and conics, each pair solved exactly, an arc of the ellipse
+//! against a conic, and the numeric search on 64 B-spline ellipses against
+//! a line and against an ellipse.
+//!
 //! Informational only, like `eval_throughput`; not a correctness gate.
 
 use criterion::{Criterion, Throughput, criterion_group, criterion_main};
 use std::hint::black_box;
 
-use geomcore::curves::TrimmedCurve;
+use geomcore::curves::{TrimmedCurve, TrimmedCurve2D};
 use geomcore::{
-    BSplineCurve, Circle, Ellipse, Intersect, Line, Point, Tolerance, Vector, curve_curve_extrema,
+    BSplineCurve, BSplineCurve2D, Circle, Circle2D, Ellipse, Ellipse2D, Hyperbola2D, Intersect,
+    Line, Line2D, Parabola2D, Point, Point2D, Tolerance, Vector, Vector2D, curve_curve_extrema,
 };
 
 const PAIRS: usize = 64;
@@ -198,5 +204,102 @@ fn bench_curve_curve(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, bench_curve_curve);
+/// The 2D curves of one family, each centred over the square `[1, 4]^2`
+/// so that the families cross each other.
+struct Plane2D {
+    lines: Vec<Line2D>,
+    circles: Vec<Circle2D>,
+    ellipses: Vec<Ellipse2D>,
+    parabolas: Vec<Parabola2D>,
+    hyperbolas: Vec<Hyperbola2D>,
+    splines: Vec<BSplineCurve2D>,
+}
+
+fn plane_2d() -> Plane2D {
+    let mut rng = Lcg(17);
+    let centre = |rng: &mut Lcg| Point2D::new(1.0 + 3.0 * rng.next(), 1.0 + 3.0 * rng.next());
+    let direction = |rng: &mut Lcg| {
+        let angle = std::f64::consts::TAU * rng.next();
+        Vector2D::new(angle.cos(), angle.sin())
+    };
+    let mut plane = Plane2D {
+        lines: vec![],
+        circles: vec![],
+        ellipses: vec![],
+        parabolas: vec![],
+        hyperbolas: vec![],
+        splines: vec![],
+    };
+    for _ in 0..PAIRS {
+        plane
+            .lines
+            .push(Line2D::new(centre(&mut rng), direction(&mut rng)).unwrap());
+        plane
+            .circles
+            .push(Circle2D::new(centre(&mut rng), 1.0 + rng.next()).unwrap());
+        let ellipse = Ellipse2D::new(centre(&mut rng), direction(&mut rng), 2.0, 1.0).unwrap();
+        plane.ellipses.push(ellipse);
+        plane.splines.push(ellipse.to_bspline());
+        plane
+            .parabolas
+            .push(Parabola2D::new(centre(&mut rng), direction(&mut rng), 1.0).unwrap());
+        plane
+            .hyperbolas
+            .push(Hyperbola2D::new(centre(&mut rng), direction(&mut rng), 1.0, 1.0).unwrap());
+    }
+    plane
+}
+
+fn bench_curve_curve_2d(c: &mut Criterion) {
+    let tol = Tolerance::default();
+    let plane = plane_2d();
+    let Plane2D {
+        lines,
+        circles,
+        ellipses,
+        parabolas,
+        hyperbolas,
+        splines,
+    } = &plane;
+    // Each ellipse against the next one, so the pairs differ.
+    let shifted: Vec<Ellipse2D> = ellipses
+        .iter()
+        .cycle()
+        .skip(1)
+        .take(PAIRS)
+        .copied()
+        .collect();
+    let arcs: Vec<_> = ellipses
+        .iter()
+        .map(|e| TrimmedCurve2D::new(*e, 0.0, std::f64::consts::PI).unwrap())
+        .collect();
+    let mut group = c.benchmark_group("curve_curve_2d");
+    group.throughput(Throughput::Elements(PAIRS as u64));
+    macro_rules! pairs {
+        ($name:literal, $first:expr, $second:expr) => {
+            group.bench_function($name, |b| {
+                b.iter(|| {
+                    for (p, q) in black_box(&$first).iter().zip($second.iter()) {
+                        black_box(p.intersect(q, tol));
+                    }
+                })
+            });
+        };
+    }
+    pairs!("intersect_line_circle", lines, circles);
+    pairs!("intersect_line_ellipse", lines, ellipses);
+    pairs!("intersect_line_parabola", lines, parabolas);
+    pairs!("intersect_line_hyperbola", lines, hyperbolas);
+    pairs!("intersect_circle_ellipse", circles, ellipses);
+    pairs!("intersect_ellipse_ellipse", ellipses, shifted);
+    pairs!("intersect_ellipse_parabola", ellipses, parabolas);
+    pairs!("intersect_hyperbola_ellipse", hyperbolas, ellipses);
+    pairs!("intersect_parabola_hyperbola", parabolas, hyperbolas);
+    pairs!("intersect_arc_ellipse", arcs, shifted);
+    pairs!("intersect_bspline_line", splines, lines);
+    pairs!("intersect_bspline_ellipse", splines, shifted);
+    group.finish();
+}
+
+criterion_group!(benches, bench_curve_curve, bench_curve_curve_2d);
 criterion_main!(benches);
