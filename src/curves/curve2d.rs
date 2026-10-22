@@ -345,6 +345,22 @@ impl ParametricCurve2D for Curve2D {
         }
     }
 
+    fn eval_d1(&self, u: f64) -> (Point2D, Vector2D) {
+        match self {
+            Curve2D::Line(c) => ParametricCurve2D::eval_d1(c, u),
+            Curve2D::Circle(c) => ParametricCurve2D::eval_d1(c, u),
+            Curve2D::BSpline(c) => c.eval_d1(u),
+        }
+    }
+
+    fn eval_d2(&self, u: f64) -> (Point2D, Vector2D, Vector2D) {
+        match self {
+            Curve2D::Line(c) => ParametricCurve2D::eval_d2(c, u),
+            Curve2D::Circle(c) => ParametricCurve2D::eval_d2(c, u),
+            Curve2D::BSpline(c) => c.eval_d2(u),
+        }
+    }
+
     fn bounds(&self) -> (f64, f64) {
         match self {
             Curve2D::Line(c) => c.bounds(),
@@ -409,8 +425,8 @@ impl Curve2D {
         points.iter().map(|&p| self.project_point(p, tol)).collect()
     }
 
-    /// The parameter of the point of the curve closest to `point`, by the
-    /// curve's closed form.
+    /// The parameter of the point of the curve closest to `point`: by the
+    /// closed form of a line or circle, by projection for a B-spline.
     ///
     /// # Examples
     ///

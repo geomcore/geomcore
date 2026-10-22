@@ -592,11 +592,7 @@ impl BSplineCurve2D {
     /// assert!(pieces[1].eval_point(1.5).distance(curve.eval_point(1.5)) < 1e-12);
     /// ```
     pub fn to_bezier_pieces(&self) -> Vec<BezierCurve2D> {
-        self.0
-            .to_bezier_pieces()
-            .into_iter()
-            .map(BezierCurve2D::from_spline)
-            .collect()
+        self.0.to_bezier_pieces(BezierCurve2D::from_spline)
     }
 
     /// Returns the piece of the curve over `[first, last]` as a clamped,
@@ -897,6 +893,21 @@ impl BSplineCurve2D {
     /// Evaluates the point and the first and second derivatives at
     /// parameter `u` from one side, as
     /// [`eval_d1_sided`](Self::eval_d1_sided).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{BSplineCurve2D, Point2D, Side, Vector2D};
+    ///
+    /// // An L: two straight spans meeting at a corner at u = 1.
+    /// let poles = vec![Point2D::new(0.0, 0.0), Point2D::new(1.0, 0.0), Point2D::new(1.0, 1.0)];
+    /// let curve = BSplineCurve2D::new(1, poles, vec![0.0, 1.0, 2.0], vec![2, 1, 2], false).unwrap();
+    /// let (point, d1, d2) = curve.eval_d2_sided(1.0, Side::Above);
+    /// assert_eq!(point, Point2D::new(1.0, 0.0));
+    /// assert_eq!(d1, Vector2D::new(0.0, 1.0));
+    /// assert_eq!(d2, Vector2D::new(0.0, 0.0));
+    /// assert_eq!(curve.eval_d2_sided(1.0, Side::Below).1, Vector2D::new(1.0, 0.0));
+    /// ```
     pub fn eval_d2_sided(&self, u: f64, side: Side) -> (Point2D, Vector2D, Vector2D) {
         self.0.eval_d2_sided(u, side)
     }
@@ -1026,6 +1037,19 @@ impl BSplineCurve2D {
     ///
     /// Default-style batch wrapper over [`BSplineCurve2D::project_point`]:
     /// one native call per batch, mirroring [`BSplineCurve2D::eval_points`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{BSplineCurve2D, Point2D, Tolerance};
+    ///
+    /// let poles = vec![Point2D::ORIGIN, Point2D::new(2.0, 0.0)];
+    /// let curve = BSplineCurve2D::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
+    /// let points = [Point2D::new(1.0, 1.0), Point2D::new(2.0, 3.0)];
+    /// let feet = curve.project_points(&points, Tolerance::DEFAULT);
+    /// assert_eq!(feet[0].point, Point2D::new(1.0, 0.0));
+    /// assert_eq!(feet[1].distance, 3.0);
+    /// ```
     pub fn project_points(&self, points: &[Point2D], tol: Tolerance) -> Vec<CurveProjection2D> {
         points.iter().map(|&p| self.project_point(p, tol)).collect()
     }
@@ -1053,6 +1077,14 @@ impl ParametricCurve2D for BSplineCurve2D {
 
     fn eval_derivative(&self, u: f64, order: u32) -> Vector2D {
         BSplineCurve2D::eval_derivative(self, u, order)
+    }
+
+    fn eval_d1(&self, u: f64) -> (Point2D, Vector2D) {
+        BSplineCurve2D::eval_d1(self, u)
+    }
+
+    fn eval_d2(&self, u: f64) -> (Point2D, Vector2D, Vector2D) {
+        BSplineCurve2D::eval_d2(self, u)
     }
 
     fn bounds(&self) -> (f64, f64) {
@@ -1452,7 +1484,7 @@ mod tests {
         let extrema = curve.extrema(Point2D::new(1.0, 1.0), tol);
         assert!(!extrema.is_empty());
         assert_eq!(extrema[0].distance, 1.0);
-        assert!(curve.parameter_of(Point2D::new(1.0, 1.0)) - 0.5 < 1e-9);
+        assert!((curve.parameter_of(Point2D::new(1.0, 1.0)) - 0.5).abs() < 1e-9);
     }
 
     #[test]

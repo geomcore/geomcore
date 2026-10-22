@@ -250,7 +250,7 @@ fn spline_range_box(spline: &Spline<Point>, first: f64, last: f64) -> BoundingBo
             covered = Some((covered.map_or(middle, |(m, _)| m), middle));
             return;
         }
-        spline.span_bezier_lanes(middle, &mut points);
+        spline.span_bezier_points(middle, &mut points);
         let piece = &mut points[..=degree];
         let length = end - start;
         bernstein::restrict(piece, (a - start) / length, (b - start) / length);

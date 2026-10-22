@@ -526,8 +526,8 @@ impl<C: PointExtrema> PointExtrema for TrimmedCurve<C> {
 }
 
 /// A 2D curve restricted to the parameter range `[first, last]` of a basis
-/// curve: a line segment or a circular arc, typically a trimmed pcurve in
-/// a surface's parameter space. Mirrors [`TrimmedCurve`].
+/// curve: a line segment, a circular arc or a B-spline piece, typically a
+/// trimmed pcurve in a surface's parameter space. Mirrors [`TrimmedCurve`].
 ///
 /// # Examples
 ///
@@ -682,6 +682,14 @@ impl<C: ParametricCurve2D> ParametricCurve2D for TrimmedCurve2D<C> {
 
     fn eval_derivative(&self, u: f64, order: u32) -> Vector2D {
         self.basis.eval_derivative(u, order)
+    }
+
+    fn eval_d1(&self, u: f64) -> (Point2D, Vector2D) {
+        self.basis.eval_d1(u)
+    }
+
+    fn eval_d2(&self, u: f64) -> (Point2D, Vector2D, Vector2D) {
+        self.basis.eval_d2(u)
     }
 
     fn bounds(&self) -> (f64, f64) {

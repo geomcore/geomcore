@@ -432,7 +432,7 @@ impl Circle2D {
     /// let p = bspline.eval_point(FRAC_PI_2);
     /// assert!(p.distance(circle.eval_point(FRAC_PI_2)) < 1e-15);
     /// let q = bspline.eval_point(0.3);
-    /// assert!(q.distance(Point2D::ORIGIN) - 2.0 < 1e-15);
+    /// assert!((q.distance(Point2D::ORIGIN) - 2.0).abs() < 1e-15);
     /// ```
     pub fn to_bspline(&self) -> BSplineCurve2D {
         let r = self.radius();

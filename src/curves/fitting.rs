@@ -11,7 +11,7 @@
 use crate::Point;
 use crate::Point2D;
 use crate::curve_math::bspline as math;
-use crate::curve_math::bspline::{HomogeneousPole, Pole, PolePoint};
+use crate::curve_math::bspline::{Pole, PolePoint};
 use crate::curves::{BSplineConstructionError, BSplineCurve, BSplineCurve2D};
 
 /// How fitting assigns a parameter to each data point.
@@ -293,28 +293,18 @@ pub(crate) fn least_squares<G: PolePoint>(
     if !factor_symmetric_band(&mut lower, p, 1e-12) {
         return None;
     }
-    let zero = <G::Homogeneous as HomogeneousPole>::of_lanes([0.0; 4]);
-    let mut poles: Vec<G::Homogeneous> = vec![zero; lines * m];
+    let mut poles: Vec<G> = vec![G::default(); lines * m];
     for (r, line) in poles.chunks_exact_mut(m).enumerate() {
         for k in 0..basis.len() {
             let (first, values) = basis.at(k);
-            let q = <G::Homogeneous as HomogeneousPole>::fold(point(r, k), 1.0);
+            let q = point(r, k);
             for (&v, pole) in values.iter().zip(&mut line[first..]) {
                 *pole = pole.combine(1.0, q, v);
             }
         }
         substitute_symmetric_band(&lower, p, line);
     }
-    poles
-        .iter()
-        .map(|s| HomogeneousPole::lanes(*s))
-        .all(|s| s[..G::DIM].iter().all(|x| x.is_finite()))
-        .then(|| {
-            poles
-                .into_iter()
-                .map(|s| G::point_of(HomogeneousPole::lanes(s)))
-                .collect()
-        })
+    poles.iter().all(|q| q.is_finite()).then_some(poles)
 }
 
 /// The interpolating poles, one per parameter of `basis`, whose knots
