@@ -141,13 +141,13 @@ pub(crate) fn curve3d_to_py(py: Python<'_>, curve: Curve) -> PyResult<Py<PyAny>>
 pub(crate) fn extract_curve2d(obj: &Bound<'_, PyAny>) -> PyResult<Curve2D> {
     curve2d_of(obj).ok_or_else(|| {
         PyTypeError::new_err(
-            "expected a geomcore 2D curve (Line2D, Circle2D, Ellipse2D, Parabola2D or BSplineCurve2D)",
+            "expected a geomcore 2D curve (Line2D, Circle2D, Ellipse2D, Parabola2D, Hyperbola2D or BSplineCurve2D)",
         )
     })
 }
 
 /// The 2D curve `obj` holds, if it is `Line2D`, `Circle2D`, `Ellipse2D`,
-/// `Parabola2D` or `BSplineCurve2D`; a miss
+/// `Parabola2D`, `Hyperbola2D` or `BSplineCurve2D`; a miss
 /// raises nothing (see [`curve3d_of`]).
 pub(crate) fn curve2d_of(obj: &Bound<'_, PyAny>) -> Option<Curve2D> {
     if let Ok(c) = obj.downcast::<PyLine2D>() {
@@ -160,6 +160,9 @@ pub(crate) fn curve2d_of(obj: &Bound<'_, PyAny>) -> Option<Curve2D> {
         return Some(Curve2D::from(c.borrow().0));
     }
     if let Ok(c) = obj.downcast::<PyParabola2D>() {
+        return Some(Curve2D::from(c.borrow().0));
+    }
+    if let Ok(c) = obj.downcast::<PyHyperbola2D>() {
         return Some(Curve2D::from(c.borrow().0));
     }
     if let Ok(c) = obj.downcast::<PyBSplineCurve2D>() {
@@ -249,6 +252,7 @@ pub(crate) fn curve2d_to_py(py: Python<'_>, curve: Curve2D) -> PyResult<Py<PyAny
         Curve2D::Circle(c) => Ok(PyCircle2D(c).into_pyobject(py)?.into_any().unbind()),
         Curve2D::Ellipse(c) => Ok(PyEllipse2D(c).into_pyobject(py)?.into_any().unbind()),
         Curve2D::Parabola(c) => Ok(PyParabola2D(c).into_pyobject(py)?.into_any().unbind()),
+        Curve2D::Hyperbola(c) => Ok(PyHyperbola2D(c).into_pyobject(py)?.into_any().unbind()),
         Curve2D::BSpline(c) => Ok(PyBSplineCurve2D(c).into_pyobject(py)?.into_any().unbind()),
         _ => Err(invalid_argument("unsupported 2d curve variant")),
     }

@@ -18,6 +18,7 @@ _Curve2D = Union[
     curves.Circle2D,
     curves.Ellipse2D,
     curves.Parabola2D,
+    curves.Hyperbola2D,
     curves.BSplineCurve2D,
     curves.TrimmedCurve2D,
 ]

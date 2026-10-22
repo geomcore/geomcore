@@ -7,8 +7,8 @@ use super::sealed::BoundRange2D;
 use super::{BoundingBox2D, HasBoundingBox2D};
 use crate::Point2D;
 use crate::curves::{
-    BSplineCurve2D, Circle2D, Curve2D, Ellipse2D, Line2D, Parabola2D, ParametricCurve2D,
-    TrimmedCurve2D,
+    BSplineCurve2D, Circle2D, Curve2D, Ellipse2D, Hyperbola2D, Line2D, Parabola2D,
+    ParametricCurve2D, TrimmedCurve2D,
 };
 use std::f64::consts::{PI, TAU};
 
@@ -36,6 +36,12 @@ impl HasBoundingBox2D for Parabola2D {
     }
 }
 
+impl HasBoundingBox2D for Hyperbola2D {
+    fn bounding_box(&self) -> Option<BoundingBox2D> {
+        None
+    }
+}
+
 impl HasBoundingBox2D for BSplineCurve2D {
     fn bounding_box(&self) -> Option<BoundingBox2D> {
         BoundingBox2D::from_points(self.poles().iter().copied())
@@ -49,6 +55,7 @@ impl HasBoundingBox2D for Curve2D {
             Curve2D::Circle(c) => c.bounding_box(),
             Curve2D::Ellipse(c) => c.bounding_box(),
             Curve2D::Parabola(c) => c.bounding_box(),
+            Curve2D::Hyperbola(c) => c.bounding_box(),
             Curve2D::BSpline(c) => c.bounding_box(),
         }
     }
@@ -159,6 +166,25 @@ fn parabola_box(parabola: &Parabola2D, first: f64, last: f64) -> BoundingBox2D {
         .fold(ends, |b, t| b.including(parabola.eval_point(t)))
 }
 
+/// The box of the hyperbola over `[first, last]`: its endpoints plus the
+/// coordinate-wise stationary points that lie inside. Coordinate `k` is
+/// `o_k + a cosh(u) x_k + b sinh(u) y_k`, stationary where
+/// `tanh u = −b y_k / (a x_k)`, if that is within `(−1, 1)`.
+fn hyperbola_box(hyperbola: &Hyperbola2D, first: f64, last: f64) -> BoundingBox2D {
+    let frame = hyperbola.frame();
+    let (x, y) = (
+        coordinates_of(frame.x_direction()),
+        coordinates_of(frame.y_direction()),
+    );
+    let (a, b) = (hyperbola.major_radius(), hyperbola.minor_radius());
+    let ends = BoundingBox2D::new(hyperbola.eval_point(first), hyperbola.eval_point(last));
+    let stationary: [f64; 2] = std::array::from_fn(|k| (-(b * y[k]) / (a * x[k])).atanh());
+    stationary
+        .into_iter()
+        .filter(|&t| first < t && t < last)
+        .fold(ends, |bx, t| bx.including(hyperbola.eval_point(t)))
+}
+
 impl BoundRange2D for Line2D {
     fn range_box(&self, first: f64, last: f64) -> BoundingBox2D {
         BoundingBox2D::new(self.eval_point(first), self.eval_point(last))
@@ -180,6 +206,12 @@ impl BoundRange2D for Ellipse2D {
 impl BoundRange2D for Parabola2D {
     fn range_box(&self, first: f64, last: f64) -> BoundingBox2D {
         parabola_box(self, first, last)
+    }
+}
+
+impl BoundRange2D for Hyperbola2D {
+    fn range_box(&self, first: f64, last: f64) -> BoundingBox2D {
+        hyperbola_box(self, first, last)
     }
 }
 
@@ -208,6 +240,7 @@ impl BoundRange2D for Curve2D {
             Curve2D::Circle(c) => c.range_box(first, last),
             Curve2D::Ellipse(c) => c.range_box(first, last),
             Curve2D::Parabola(c) => c.range_box(first, last),
+            Curve2D::Hyperbola(c) => c.range_box(first, last),
             Curve2D::BSpline(c) => c.range_box(first, last),
         }
     }

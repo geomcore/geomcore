@@ -138,6 +138,27 @@ pub(crate) fn hyperbola_dn(frame: &Frame, maj: f64, min: f64, u: f64, order: u32
     }
 }
 
+/// Evaluates the 2D hyperbola with semi-major `maj` (along x) and
+/// semi-minor `min` (along y) in `frame` at parameter `u`:
+/// `origin + maj*cosh(u)*x_dir + min*sinh(u)*y_dir`.
+pub(crate) fn hyperbola2d_d0(frame: &Frame2D, maj: f64, min: f64, u: f64) -> Point2D {
+    frame.origin() + maj * u.cosh() * frame.x_direction() + min * u.sinh() * frame.y_direction()
+}
+
+/// Derivative of the given `order` (>= 1) of the 2D hyperbola at parameter
+/// `u`; the same `sinh`/`cosh` pattern as [`hyperbola_dn`].
+pub(crate) fn hyperbola2d_dn(frame: &Frame2D, maj: f64, min: f64, u: f64, order: u32) -> Vector2D {
+    debug_assert!(order >= 1, "derivative order must be >= 1");
+    let x = frame.x_direction();
+    let y = frame.y_direction();
+    let (sh, ch) = (u.sinh(), u.cosh());
+    if order % 2 == 1 {
+        maj * sh * x + min * ch * y
+    } else {
+        maj * ch * x + min * sh * y
+    }
+}
+
 /// Recovers the parameter `u` of a point on (or near) the line: the signed
 /// projection `(p - origin) . direction`.
 pub(crate) fn line_parameter(axis: &Axis, p: Point) -> f64 {
@@ -261,6 +282,12 @@ pub(crate) fn parabola2d_parameter(frame: &Frame2D, p: Point2D) -> f64 {
 /// Recovers the parameter of a point on (or near) the hyperbola:
 /// `asinh(((p - origin) . y_dir) / min)`.
 pub(crate) fn hyperbola_parameter(frame: &Frame, min: f64, p: Point) -> f64 {
+    (((p - frame.origin()).dot(frame.y_direction())) / min).asinh()
+}
+
+/// Recovers the parameter of a point on (or near) the 2D hyperbola:
+/// `asinh(((p - origin) . y_dir) / min)`.
+pub(crate) fn hyperbola2d_parameter(frame: &Frame2D, min: f64, p: Point2D) -> f64 {
     (((p - frame.origin()).dot(frame.y_direction())) / min).asinh()
 }
 
@@ -714,6 +741,39 @@ mod tests {
         for u in [0.3, 2.0, -1.5] {
             let p = hyperbola_d0(&frame, 2.0, 1.0, u);
             let recovered = hyperbola_parameter(&frame, 1.0, p);
+            assert!((recovered - u).abs() < 1e-9);
+        }
+    }
+
+    #[test]
+    fn test_hyperbola2d_d0_at_zero() {
+        let p = hyperbola2d_d0(&Frame2D::WORLD, 2.0, 1.0, 0.0);
+        assert!((p.x - 2.0).abs() < 1e-9);
+        assert!(p.y.abs() < 1e-9);
+    }
+
+    #[test]
+    fn test_hyperbola2d_dn_patterns() {
+        let frame = skewed_frame2();
+        let u: f64 = 0.8;
+        let odd = 2.0 * u.sinh() * frame.x_direction() + u.cosh() * frame.y_direction();
+        let even = 2.0 * u.cosh() * frame.x_direction() + u.sinh() * frame.y_direction();
+        for order in [1u32, 3] {
+            let d = hyperbola2d_dn(&frame, 2.0, 1.0, u, order);
+            assert!((d.x - odd.x).abs() < 1e-9 && (d.y - odd.y).abs() < 1e-9);
+        }
+        for order in [2u32, 4] {
+            let d = hyperbola2d_dn(&frame, 2.0, 1.0, u, order);
+            assert!((d.x - even.x).abs() < 1e-9 && (d.y - even.y).abs() < 1e-9);
+        }
+    }
+
+    #[test]
+    fn test_hyperbola2d_parameter_round_trip() {
+        let frame = skewed_frame2();
+        for u in [0.3, 2.0, -1.5] {
+            let p = hyperbola2d_d0(&frame, 2.0, 1.0, u);
+            let recovered = hyperbola2d_parameter(&frame, 1.0, p);
             assert!((recovered - u).abs() < 1e-9);
         }
     }

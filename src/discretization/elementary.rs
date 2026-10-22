@@ -11,7 +11,9 @@
 
 use super::sealed::{DiscretizeRange, Run};
 use super::{DiscretizationCriteria, smallest_count};
-use crate::{Circle, Curve, Ellipse, Ellipse2D, Hyperbola, Line, Parabola, Parabola2D, Point};
+use crate::{
+    Circle, Curve, Ellipse, Ellipse2D, Hyperbola, Hyperbola2D, Line, Parabola, Parabola2D, Point,
+};
 use crate::{Circle2D, Curve2D, Line2D, Point2D};
 use std::f64::consts::{FRAC_PI_2, TAU};
 
@@ -297,12 +299,52 @@ impl DiscretizeRange for Ellipse2D {
     }
 }
 
+/// Equal steps of a hyperbola with semi-axes `a` and `b`: the image of
+/// `(cosh u, sinh u)` under `diag(a, b)`. A step of `h` around `m` lies
+/// `2 sinh²(h/4) / sqrt(cosh²m/a² + sinh²m/b²)` from its chord, the largest
+/// over a range nearest the vertex.
+fn hyperbola_steps<P, F>(
+    (a, b): (f64, f64),
+    point_at_parameter: impl Fn(f64) -> P,
+    (first, last): (f64, f64),
+    criteria: &DiscretizationCriteria,
+    min_segments: usize,
+    visit: F,
+) where
+    F: FnMut(Run, &dyn Fn(f64) -> P),
+{
+    let sweep = last - first;
+    let distance_factor = |m: f64| 1.0 / ((m.cosh() / a).powi(2) + (m.sinh() / b).powi(2)).sqrt();
+    let deviations = |k: usize| {
+        let h = sweep / k as f64;
+        // The tangents at an end `t` and the middle `m` of a step have
+        // cross product `ab sinh(h/2)` and dot product
+        // `((b² − a²) cosh(h/2) + (a² + b²) cosh(t + m)) / 2`.
+        let sum = nearest_zero(2.0 * first + 0.5 * h, 2.0 * last - 0.5 * h);
+        let dot = 0.5 * ((b * b - a * a) * (0.5 * h).cosh() + (a * a + b * b) * sum.cosh());
+        let angle = (a * b * (0.5 * h).sinh()).atan2(dot);
+        let middle = nearest_zero(first + 0.5 * h, last - 0.5 * h);
+        let distance = 2.0 * (0.25 * h).sinh().powi(2) * distance_factor(middle);
+        (conic_chord_deviation(distance, angle), angle)
+    };
+    let nearest = nearest_zero(first, last);
+    let turning_rate = a * b / ((a * nearest.sinh()).powi(2) + (b * nearest.cosh()).powi(2));
+    let guess = conic_guess(sweep, criteria, distance_factor(nearest), turning_rate);
+    equal_steps(
+        point_at_parameter,
+        (first, last),
+        criteria,
+        min_segments,
+        guess,
+        deviations,
+        visit,
+    );
+}
+
 impl DiscretizeRange for Hyperbola {
     type Point = Point;
 
-    /// The image of `(cosh u, sinh u)` under `diag(a, b)`: a step of `h`
-    /// around `m` lies `2 sinh²(h/4) / sqrt(cosh²m/a² + sinh²m/b²)` from
-    /// its chord, the largest over a range nearest the vertex.
+    /// The hyperbola branch, by [`hyperbola_steps`].
     fn for_each_run<F>(
         &self,
         first: f64,
@@ -313,32 +355,37 @@ impl DiscretizeRange for Hyperbola {
     ) where
         F: FnMut(Run, &dyn Fn(f64) -> Self::Point),
     {
-        let (a, b) = (self.major_radius(), self.minor_radius());
-        let sweep = last - first;
-        let distance_factor =
-            |m: f64| 1.0 / ((m.cosh() / a).powi(2) + (m.sinh() / b).powi(2)).sqrt();
-        let deviations = |k: usize| {
-            let h = sweep / k as f64;
-            // The tangents at an end `t` and the middle `m` of a step have
-            // cross product `ab sinh(h/2)` and dot product
-            // `((b² − a²) cosh(h/2) + (a² + b²) cosh(t + m)) / 2`.
-            let sum = nearest_zero(2.0 * first + 0.5 * h, 2.0 * last - 0.5 * h);
-            let dot = 0.5 * ((b * b - a * a) * (0.5 * h).cosh() + (a * a + b * b) * sum.cosh());
-            let angle = (a * b * (0.5 * h).sinh()).atan2(dot);
-            let middle = nearest_zero(first + 0.5 * h, last - 0.5 * h);
-            let distance = 2.0 * (0.25 * h).sinh().powi(2) * distance_factor(middle);
-            (conic_chord_deviation(distance, angle), angle)
-        };
-        let nearest = nearest_zero(first, last);
-        let turning_rate = a * b / ((a * nearest.sinh()).powi(2) + (b * nearest.cosh()).powi(2));
-        let guess = conic_guess(sweep, criteria, distance_factor(nearest), turning_rate);
-        equal_steps(
+        hyperbola_steps(
+            (self.major_radius(), self.minor_radius()),
             |u| self.eval_point(u),
             (first, last),
             criteria,
             min_segments,
-            guess,
-            deviations,
+            visit,
+        );
+    }
+}
+
+impl DiscretizeRange for Hyperbola2D {
+    type Point = Point2D;
+
+    /// The hyperbola branch, by [`hyperbola_steps`].
+    fn for_each_run<F>(
+        &self,
+        first: f64,
+        last: f64,
+        criteria: &DiscretizationCriteria,
+        min_segments: usize,
+        visit: F,
+    ) where
+        F: FnMut(Run, &dyn Fn(f64) -> Self::Point),
+    {
+        hyperbola_steps(
+            (self.major_radius(), self.minor_radius()),
+            |u| self.eval_point(u),
+            (first, last),
+            criteria,
+            min_segments,
             visit,
         );
     }
@@ -525,6 +572,7 @@ impl DiscretizeRange for Curve2D {
             Curve2D::Circle(c) => c.for_each_run(first, last, criteria, min_segments, visit),
             Curve2D::Ellipse(c) => c.for_each_run(first, last, criteria, min_segments, visit),
             Curve2D::Parabola(c) => c.for_each_run(first, last, criteria, min_segments, visit),
+            Curve2D::Hyperbola(c) => c.for_each_run(first, last, criteria, min_segments, visit),
             Curve2D::BSpline(c) => c.for_each_run(first, last, criteria, min_segments, visit),
         }
     }

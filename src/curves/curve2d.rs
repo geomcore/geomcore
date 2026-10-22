@@ -1,7 +1,9 @@
 //! [`ParametricCurve2D`] trait and the [`Curve2D`] enum adaptor unifying the
 //! concrete 2D curve types.
 
-use crate::curves::{BSplineCurve2D, Circle2D, Continuity, Ellipse2D, Line2D, Parabola2D};
+use crate::curves::{
+    BSplineCurve2D, Circle2D, Continuity, Ellipse2D, Hyperbola2D, Line2D, Parabola2D,
+};
 use crate::projection::CurveProjection2D;
 use crate::{Point2D, Tolerance, Vector2D};
 use std::f64::consts::TAU;
@@ -442,6 +444,12 @@ impl PointExtrema2D for Parabola2D {
     }
 }
 
+impl PointExtrema2D for Hyperbola2D {
+    fn extrema(&self, point: Point2D, tol: Tolerance) -> Vec<CurveProjection2D> {
+        Hyperbola2D::extrema(self, point, tol)
+    }
+}
+
 impl ParametricCurve2D for Line2D {
     fn eval_point(&self, u: f64) -> Point2D {
         Line2D::eval_point(self, u)
@@ -530,12 +538,34 @@ impl ParametricCurve2D for Parabola2D {
     }
 }
 
+impl ParametricCurve2D for Hyperbola2D {
+    fn eval_point(&self, u: f64) -> Point2D {
+        Hyperbola2D::eval_point(self, u)
+    }
+
+    fn eval_derivative(&self, u: f64, order: u32) -> Vector2D {
+        Hyperbola2D::eval_derivative(self, u, order)
+    }
+
+    fn bounds(&self) -> (f64, f64) {
+        (f64::NEG_INFINITY, f64::INFINITY)
+    }
+
+    fn period(&self) -> Option<f64> {
+        None
+    }
+
+    fn eval_points(&self, us: &[f64]) -> Vec<Point2D> {
+        Hyperbola2D::eval_points(self, us)
+    }
+}
+
 /// Enum adaptor unifying the concrete 2D curve types behind a single value
 /// type, so callers can build a heterogeneous collection of curves and
 /// evaluate them uniformly through [`ParametricCurve2D`].
 ///
 /// Cloning stays cheap for the elementary variants (`Line`, `Circle`,
-/// `Ellipse` and `Parabola` are `Copy`-sized); a B-spline variant shares its
+/// `Ellipse`, `Parabola` and `Hyperbola` are `Copy`-sized); a B-spline variant shares its
 /// poles by a full clone.
 ///
 /// Marked `#[non_exhaustive]`: future tasks add further variants without
@@ -574,6 +604,8 @@ pub enum Curve2D {
     Ellipse(Ellipse2D),
     /// A [`Parabola2D`] curve.
     Parabola(Parabola2D),
+    /// A [`Hyperbola2D`] curve.
+    Hyperbola(Hyperbola2D),
     /// A [`BSplineCurve2D`] curve.
     BSpline(BSplineCurve2D),
 }
@@ -585,6 +617,7 @@ impl ParametricCurve2D for Curve2D {
             Curve2D::Circle(c) => c.eval_point(u),
             Curve2D::Ellipse(c) => c.eval_point(u),
             Curve2D::Parabola(c) => c.eval_point(u),
+            Curve2D::Hyperbola(c) => c.eval_point(u),
             Curve2D::BSpline(c) => c.eval_point(u),
         }
     }
@@ -595,6 +628,7 @@ impl ParametricCurve2D for Curve2D {
             Curve2D::Circle(c) => c.eval_derivative(u, order),
             Curve2D::Ellipse(c) => c.eval_derivative(u, order),
             Curve2D::Parabola(c) => c.eval_derivative(u, order),
+            Curve2D::Hyperbola(c) => c.eval_derivative(u, order),
             Curve2D::BSpline(c) => c.eval_derivative(u, order),
         }
     }
@@ -605,6 +639,7 @@ impl ParametricCurve2D for Curve2D {
             Curve2D::Circle(c) => c.bounds(),
             Curve2D::Ellipse(c) => c.bounds(),
             Curve2D::Parabola(c) => c.bounds(),
+            Curve2D::Hyperbola(c) => c.bounds(),
             Curve2D::BSpline(c) => c.bounds(),
         }
     }
@@ -615,6 +650,7 @@ impl ParametricCurve2D for Curve2D {
             Curve2D::Circle(c) => c.period(),
             Curve2D::Ellipse(c) => c.period(),
             Curve2D::Parabola(c) => c.period(),
+            Curve2D::Hyperbola(c) => c.period(),
             Curve2D::BSpline(c) => c.period(),
         }
     }
@@ -625,6 +661,7 @@ impl ParametricCurve2D for Curve2D {
             Curve2D::Circle(c) => c.eval_points(us),
             Curve2D::Ellipse(c) => c.eval_points(us),
             Curve2D::Parabola(c) => c.eval_points(us),
+            Curve2D::Hyperbola(c) => c.eval_points(us),
             Curve2D::BSpline(c) => c.eval_points(us),
         }
     }
@@ -635,6 +672,7 @@ impl ParametricCurve2D for Curve2D {
             Curve2D::Circle(c) => ParametricCurve2D::eval_d1(c, u),
             Curve2D::Ellipse(c) => ParametricCurve2D::eval_d1(c, u),
             Curve2D::Parabola(c) => ParametricCurve2D::eval_d1(c, u),
+            Curve2D::Hyperbola(c) => ParametricCurve2D::eval_d1(c, u),
             Curve2D::BSpline(c) => c.eval_d1(u),
         }
     }
@@ -645,6 +683,7 @@ impl ParametricCurve2D for Curve2D {
             Curve2D::Circle(c) => ParametricCurve2D::eval_d2(c, u),
             Curve2D::Ellipse(c) => ParametricCurve2D::eval_d2(c, u),
             Curve2D::Parabola(c) => ParametricCurve2D::eval_d2(c, u),
+            Curve2D::Hyperbola(c) => ParametricCurve2D::eval_d2(c, u),
             Curve2D::BSpline(c) => c.eval_d2(u),
         }
     }
@@ -655,6 +694,7 @@ impl ParametricCurve2D for Curve2D {
             Curve2D::Circle(c) => ParametricCurve2D::is_closed(c, tol),
             Curve2D::Ellipse(c) => ParametricCurve2D::is_closed(c, tol),
             Curve2D::Parabola(c) => ParametricCurve2D::is_closed(c, tol),
+            Curve2D::Hyperbola(c) => ParametricCurve2D::is_closed(c, tol),
             Curve2D::BSpline(c) => c.is_closed(tol),
         }
     }
@@ -665,6 +705,7 @@ impl ParametricCurve2D for Curve2D {
             Curve2D::Circle(c) => ParametricCurve2D::continuity(c, u, tol),
             Curve2D::Ellipse(c) => ParametricCurve2D::continuity(c, u, tol),
             Curve2D::Parabola(c) => ParametricCurve2D::continuity(c, u, tol),
+            Curve2D::Hyperbola(c) => ParametricCurve2D::continuity(c, u, tol),
             Curve2D::BSpline(c) => c.continuity(u, tol),
         }
     }
@@ -675,6 +716,7 @@ impl ParametricCurve2D for Curve2D {
             Curve2D::Circle(c) => ParametricCurve2D::min_continuity(c),
             Curve2D::Ellipse(c) => ParametricCurve2D::min_continuity(c),
             Curve2D::Parabola(c) => ParametricCurve2D::min_continuity(c),
+            Curve2D::Hyperbola(c) => ParametricCurve2D::min_continuity(c),
             Curve2D::BSpline(c) => c.min_continuity(),
         }
     }
@@ -694,6 +736,7 @@ impl PointExtrema2D for Curve2D {
             Curve2D::Circle(c) => PointExtrema2D::extrema(c, point, tol),
             Curve2D::Ellipse(c) => PointExtrema2D::extrema(c, point, tol),
             Curve2D::Parabola(c) => PointExtrema2D::extrema(c, point, tol),
+            Curve2D::Hyperbola(c) => PointExtrema2D::extrema(c, point, tol),
             Curve2D::BSpline(c) => PointExtrema2D::extrema(c, point, tol),
         }
     }
@@ -721,6 +764,7 @@ impl Curve2D {
             Curve2D::Circle(c) => c.project_point(point, tol),
             Curve2D::Ellipse(c) => c.project_point(point, tol),
             Curve2D::Parabola(c) => c.project_point(point, tol),
+            Curve2D::Hyperbola(c) => c.project_point(point, tol),
             Curve2D::BSpline(c) => c.project_point(point, tol),
         }
     }
@@ -749,6 +793,7 @@ impl Curve2D {
             Curve2D::Circle(c) => c.parameter_of(point),
             Curve2D::Ellipse(c) => c.parameter_of(point),
             Curve2D::Parabola(c) => c.parameter_of(point),
+            Curve2D::Hyperbola(c) => c.parameter_of(point),
             Curve2D::BSpline(c) => c.parameter_of(point),
         }
     }
@@ -779,6 +824,13 @@ impl From<Parabola2D> for Curve2D {
     /// Wraps a [`Parabola2D`] as a [`Curve2D::Parabola`].
     fn from(curve: Parabola2D) -> Curve2D {
         Curve2D::Parabola(curve)
+    }
+}
+
+impl From<Hyperbola2D> for Curve2D {
+    /// Wraps a [`Hyperbola2D`] as a [`Curve2D::Hyperbola`].
+    fn from(curve: Hyperbola2D) -> Curve2D {
+        Curve2D::Hyperbola(curve)
     }
 }
 

@@ -27,7 +27,7 @@ pub use curve::{Continuity, Curve, ElementaryCurve, ParametricCurve, PointExtrem
 pub use curve2d::{Curve2D, ParametricCurve2D, PointExtrema2D};
 pub use ellipse::{Ellipse, Ellipse2D, EllipseConstructionError};
 pub use fitting::PointParametrization;
-pub use hyperbola::{Hyperbola, HyperbolaConstructionError};
+pub use hyperbola::{Hyperbola, Hyperbola2D, HyperbolaConstructionError};
 pub use line::{Line, Line2D, LineConstructionError};
 pub use parabola::{Parabola, Parabola2D, ParabolaConstructionError};
 pub use parametrize::{ParametrizeError, parametrize_numeric};
