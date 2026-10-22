@@ -2,7 +2,7 @@
 //! concrete 2D curve types.
 
 use crate::curves::{
-    BSplineCurve2D, Circle2D, Continuity, Ellipse2D, Hyperbola2D, Line2D, Parabola2D,
+    BSplineCurve2D, BezierCurve2D, Circle2D, Continuity, Ellipse2D, Hyperbola2D, Line2D, Parabola2D,
 };
 use crate::projection::CurveProjection2D;
 use crate::{Point2D, Tolerance, Vector2D};
@@ -280,6 +280,28 @@ pub trait ParametricCurve2D {
     /// excluded (`Smooth` when no knot constrains it): the lowest
     /// [`continuity`](Self::continuity) anywhere on the curve. Default
     /// implementation: smooth.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::curves::ParametricCurve2D;
+    /// use geomcore::{BSplineCurve2D, Circle2D, Continuity, Point2D};
+    ///
+    /// let circle = Circle2D::new(Point2D::ORIGIN, 1.0).unwrap();
+    /// assert_eq!(ParametricCurve2D::min_continuity(&circle), Continuity::Smooth);
+    ///
+    /// // A quadratic with a double interior knot: a kink at u = 0.5.
+    /// let poles = vec![
+    ///     Point2D::new(0.0, 0.0),
+    ///     Point2D::new(1.0, 0.0),
+    ///     Point2D::new(2.0, 1.0),
+    ///     Point2D::new(3.0, 1.0),
+    ///     Point2D::new(4.0, 0.0),
+    /// ];
+    /// let kinked =
+    ///     BSplineCurve2D::new(2, poles, vec![0.0, 0.5, 1.0], vec![3, 2, 3], false).unwrap();
+    /// assert_eq!(ParametricCurve2D::min_continuity(&kinked), Continuity::Order(0));
+    /// ```
     fn min_continuity(&self) -> Continuity {
         Continuity::Smooth
     }
@@ -429,6 +451,58 @@ impl PointExtrema2D for Line2D {
 impl PointExtrema2D for Circle2D {
     fn extrema(&self, point: Point2D, tol: Tolerance) -> Vec<CurveProjection2D> {
         only_minimum(point, || self.project_point(point, tol))
+    }
+}
+
+impl PointExtrema2D for BezierCurve2D {
+    fn extrema(&self, point: Point2D, tol: Tolerance) -> Vec<CurveProjection2D> {
+        BezierCurve2D::extrema(self, point, tol)
+    }
+}
+
+impl ParametricCurve2D for BezierCurve2D {
+    fn eval_point(&self, u: f64) -> Point2D {
+        BezierCurve2D::eval_point(self, u)
+    }
+
+    fn eval_derivative(&self, u: f64, order: u32) -> Vector2D {
+        BezierCurve2D::eval_derivative(self, u, order)
+    }
+
+    fn eval_d1(&self, u: f64) -> (Point2D, Vector2D) {
+        BezierCurve2D::eval_d1(self, u)
+    }
+
+    fn eval_d2(&self, u: f64) -> (Point2D, Vector2D, Vector2D) {
+        BezierCurve2D::eval_d2(self, u)
+    }
+
+    fn bounds(&self) -> (f64, f64) {
+        BezierCurve2D::bounds(self)
+    }
+
+    fn period(&self) -> Option<f64> {
+        None
+    }
+
+    fn eval_points(&self, us: &[f64]) -> Vec<Point2D> {
+        BezierCurve2D::eval_points(self, us)
+    }
+
+    fn is_closed(&self, tol: Tolerance) -> bool {
+        BezierCurve2D::is_closed(self, tol)
+    }
+
+    fn continuity(&self, u: f64, tol: Tolerance) -> Continuity {
+        BezierCurve2D::continuity(self, u, tol)
+    }
+
+    fn min_continuity(&self) -> Continuity {
+        BezierCurve2D::min_continuity(self)
+    }
+
+    fn as_bspline(&self) -> Option<&BSplineCurve2D> {
+        Some(self.bspline())
     }
 }
 
@@ -774,8 +848,8 @@ impl Curve2D {
         points.iter().map(|&p| self.project_point(p, tol)).collect()
     }
 
-    /// The parameter of the point of the curve closest to `point`, by the
-    /// curve's closed form.
+    /// The parameter of the point of the curve closest to `point`: by the
+    /// closed form of a line or circle, by projection for a B-spline.
     ///
     /// # Examples
     ///

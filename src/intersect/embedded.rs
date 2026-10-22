@@ -136,6 +136,16 @@ impl<C: Embed> ParametricCurve for Embedded<'_, C> {
         vector(self.curve.eval_derivative(u, order))
     }
 
+    fn eval_d1(&self, u: f64) -> (Point, Vector) {
+        let (p, d1) = self.curve.eval_d1(u);
+        (point(p), vector(d1))
+    }
+
+    fn eval_d2(&self, u: f64) -> (Point, Vector, Vector) {
+        let (p, d1, d2) = self.curve.eval_d2(u);
+        (point(p), vector(d1), vector(d2))
+    }
+
     fn bounds(&self) -> (f64, f64) {
         self.curve.bounds()
     }

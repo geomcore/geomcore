@@ -526,8 +526,8 @@ impl<C: PointExtrema> PointExtrema for TrimmedCurve<C> {
 }
 
 /// A 2D curve restricted to the parameter range `[first, last]` of a basis
-/// curve: a line segment or a circular arc, typically a trimmed pcurve in
-/// a surface's parameter space. Mirrors [`TrimmedCurve`].
+/// curve: a line segment, a circular arc or a B-spline piece, typically a
+/// trimmed pcurve in a surface's parameter space. Mirrors [`TrimmedCurve`].
 ///
 /// # Examples
 ///
