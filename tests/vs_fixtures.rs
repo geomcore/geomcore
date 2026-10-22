@@ -10,8 +10,8 @@ use common::{
 use geomcore::curves::ParametricCurve2D;
 use geomcore::surfaces::{BSplineSurface, ParametricSurface};
 use geomcore::{
-    Axis, BSplineCurve, Circle, Cone, Curve2D, Cylinder, Ellipse, Hyperbola, Line, Parabola,
-    ParametrizeError, Plane, Sphere, Tolerance, Torus, Transform,
+    Axis, BSplineCurve, BSplineCurve2D, Circle, Cone, Curve2D, Cylinder, Ellipse, Hyperbola, Line,
+    Parabola, ParametrizeError, Plane, Sphere, Tolerance, Torus, Transform,
 };
 use serde::Deserialize;
 
@@ -573,6 +573,59 @@ fn bsplines_match_golden_fixture() {
 
             let d2 = curve.eval_derivative(sample.u, 2);
             assert_vector3(d2, sample.d2);
+        }
+    }
+}
+
+/// The planar shadow of a case: its poles with `z` dropped. Dropping a
+/// coordinate commutes with B-spline evaluation (each coordinate is the
+/// same weighted blend of its pole coordinates), so the case's samples
+/// with `z` dropped are the shadow's goldens.
+fn build_bspline_2d(case: &BSplineCase) -> BSplineCurve2D {
+    let poles: Vec<geomcore::Point2D> = case
+        .poles
+        .iter()
+        .map(|&[x, y, _]| geomcore::Point2D::new(x, y))
+        .collect();
+    let result = match &case.weights {
+        Some(weights) => BSplineCurve2D::new_rational(
+            case.degree,
+            poles,
+            weights.clone(),
+            case.knots.clone(),
+            case.mults.clone(),
+            case.periodic,
+        ),
+        None => BSplineCurve2D::new(
+            case.degree,
+            poles,
+            case.knots.clone(),
+            case.mults.clone(),
+            case.periodic,
+        ),
+    };
+    result.unwrap_or_else(|e| panic!("{}: failed to build BSplineCurve2D: {e}", case.name))
+}
+
+#[test]
+fn bspline_shadows_match_golden_fixture() {
+    let fixture: BSplineFixture = serde_json::from_value(load("curves_bspline.json")).unwrap();
+
+    for case in &fixture.cases {
+        let curve = build_bspline_2d(case);
+
+        for sample in &case.samples {
+            let point = curve.eval_point(sample.u);
+            assert_close(point.x, sample.point[0]);
+            assert_close(point.y, sample.point[1]);
+
+            let d1 = curve.eval_derivative(sample.u, 1);
+            assert_close(d1.x, sample.d1[0]);
+            assert_close(d1.y, sample.d1[1]);
+
+            let d2 = curve.eval_derivative(sample.u, 2);
+            assert_close(d2.x, sample.d2[0]);
+            assert_close(d2.y, sample.d2[1]);
         }
     }
 }

@@ -21,7 +21,9 @@
 
 use super::sealed::{DiscretizeRange, Run};
 use super::{DiscretizationCriteria, smallest_count};
-use crate::{BSplineCurve, Point};
+use crate::curve_math::bspline::PolePoint;
+use crate::curves::spline::Spline;
+use crate::{BSplineCurve, BSplineCurve2D, Point, Point2D};
 use std::f64::consts::{FRAC_PI_2, PI};
 
 /// Control points of the highest supported degree, 25.
@@ -48,7 +50,8 @@ const SPLIT_GAIN: f64 = 0.85;
 /// direction, of degree `2 × 25 − 1`.
 const DIRECTION_CAPACITY: usize = 2 * (CAPACITY - 1);
 
-/// A homogeneous control point `(x w, y w, z w, w)`.
+/// A homogeneous control point `(x w, y w, z w, w)`, `z = 0` for a 2D
+/// curve: every norm and difference below is then the planar one.
 type Homogeneous = [f64; 4];
 
 /// A polynomial piece over the parameter interval `[first, last]`, in
@@ -116,7 +119,7 @@ impl Piece {
     }
 
     /// The point at the fraction `s` of the piece, by de Casteljau.
-    fn point_at(&self, s: f64) -> Point {
+    fn point_at<P: PolePoint>(&self, s: f64) -> P {
         let n = self.degree;
         let mut t = self.points;
         for r in 1..=n {
@@ -125,7 +128,7 @@ impl Piece {
             }
         }
         let [x, y, z, w] = t[0];
-        Point::new(x / w, y / w, z / w)
+        P::point_of([x / w, y / w, z / w, 1.0])
     }
 
     /// `K` such that `k` equal steps deviate by at most `K / k²`.
@@ -228,7 +231,7 @@ impl Piece {
 
     /// Visits the leaves of the halving of this piece, of `bounds`, each
     /// as a run.
-    fn visit_leaves<F>(
+    fn visit_leaves<P: PolePoint, F>(
         &self,
         bounds: Bounds,
         context: &Context,
@@ -236,7 +239,7 @@ impl Piece {
         min_segments: usize,
         visit: &mut F,
     ) where
-        F: FnMut(Run, &dyn Fn(f64) -> Point),
+        F: FnMut(Run, &dyn Fn(f64) -> P),
     {
         let may_split = match bounds.segments {
             Some(k) => depth < MAX_DEPTH && k > 2,
@@ -454,42 +457,63 @@ fn chord_segments(constant: f64, max: f64) -> usize {
     })
 }
 
-impl DiscretizeRange for BSplineCurve {
-    type Point = Point;
-
-    fn for_each_run<F>(
-        &self,
-        first: f64,
-        last: f64,
-        criteria: &DiscretizationCriteria,
-        min_segments: usize,
-        mut visit: F,
-    ) where
-        F: FnMut(Run, &dyn Fn(f64) -> Point),
-    {
-        let context = Context::new(criteria, self.degree(), self.is_rational());
-        let mut piece = Piece {
-            first: 0.0,
-            last: 0.0,
-            degree: self.degree(),
-            rational: self.is_rational(),
-            points: [[0.0; 4]; CAPACITY],
-        };
-        // A span overlapping an end of the range by a rounding error, as
-        // when a range overshoots a knot, would make a segment of no
-        // length: the end's neighbouring span covers it instead.
-        let negligible = 1e-12 * (last - first).max(first.abs()).max(last.abs());
-        self.for_each_span_in(first, last, |(span_start, span_end), (a, b)| {
-            let at_one_end = (a == first) != (b == last);
-            if at_one_end && b - a <= negligible {
-                return;
-            }
-            self.span_bezier_points(0.5 * (span_start + span_end), &mut piece.points);
-            piece.first = span_start;
-            piece.last = span_end;
-            let piece = piece.restricted(a, b);
-            let bounds = piece.bounds(&context);
-            piece.visit_leaves(bounds, &context, 0, min_segments, &mut visit);
-        });
-    }
+/// Visits the runs of `spline` over `[first, last]`: each knot span's
+/// Bézier piece, restricted to the range and halved while that pays.
+fn for_each_run<P: PolePoint, F>(
+    spline: &Spline<P>,
+    first: f64,
+    last: f64,
+    criteria: &DiscretizationCriteria,
+    min_segments: usize,
+    mut visit: F,
+) where
+    F: FnMut(Run, &dyn Fn(f64) -> P),
+{
+    let context = Context::new(criteria, spline.degree(), spline.is_rational());
+    let mut piece = Piece {
+        first: 0.0,
+        last: 0.0,
+        degree: spline.degree(),
+        rational: spline.is_rational(),
+        points: [[0.0; 4]; CAPACITY],
+    };
+    // A span overlapping an end of the range by a rounding error, as
+    // when a range overshoots a knot, would make a segment of no
+    // length: the end's neighbouring span covers it instead.
+    let negligible = 1e-12 * (last - first).max(first.abs()).max(last.abs());
+    spline.for_each_span_in(first, last, |(span_start, span_end), (a, b)| {
+        let at_one_end = (a == first) != (b == last);
+        if at_one_end && b - a <= negligible {
+            return;
+        }
+        spline.span_bezier_points(0.5 * (span_start + span_end), &mut piece.points);
+        piece.first = span_start;
+        piece.last = span_end;
+        let piece = piece.restricted(a, b);
+        let bounds = piece.bounds(&context);
+        piece.visit_leaves(bounds, &context, 0, min_segments, &mut visit);
+    });
 }
+
+macro_rules! discretize_range {
+    ($($curve:ty: $point:ty),*) => {$(
+        impl DiscretizeRange for $curve {
+            type Point = $point;
+
+            fn for_each_run<F>(
+                &self,
+                first: f64,
+                last: f64,
+                criteria: &DiscretizationCriteria,
+                min_segments: usize,
+                visit: F,
+            ) where
+                F: FnMut(Run, &dyn Fn(f64) -> $point),
+            {
+                for_each_run(self.spline(), first, last, criteria, min_segments, visit);
+            }
+        }
+    )*};
+}
+
+discretize_range!(BSplineCurve: Point, BSplineCurve2D: Point2D);

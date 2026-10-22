@@ -1,7 +1,7 @@
 //! [`ParametricCurve2D`] trait and the [`Curve2D`] enum adaptor unifying the
 //! concrete 2D curve types.
 
-use crate::curves::{Circle2D, Line2D};
+use crate::curves::{BSplineCurve2D, Circle2D, Line2D};
 use crate::projection::CurveProjection2D;
 use crate::{Point2D, Tolerance, Vector2D};
 use std::f64::consts::TAU;
@@ -253,6 +253,9 @@ impl ParametricCurve2D for Circle2D {
 /// type, so callers can build a heterogeneous collection of curves and
 /// evaluate them uniformly through [`ParametricCurve2D`].
 ///
+/// Cloning stays cheap for the elementary variants (`Line`, `Circle` are
+/// `Copy`-sized); a B-spline variant shares its poles by a full clone.
+///
 /// Marked `#[non_exhaustive]`: future tasks add further variants without
 /// that being a breaking change.
 ///
@@ -260,23 +263,33 @@ impl ParametricCurve2D for Circle2D {
 ///
 /// ```
 /// use geomcore::curves::{Curve2D, ParametricCurve2D};
-/// use geomcore::{Circle2D, Line2D, Point2D, Vector2D};
+/// use geomcore::{BSplineCurve2D, Circle2D, Line2D, Point2D, Vector2D};
 ///
 /// let curves: Vec<Curve2D> = vec![
 ///     Line2D::new(Point2D::ORIGIN, Vector2D::X).unwrap().into(),
 ///     Circle2D::new(Point2D::ORIGIN, 1.0).unwrap().into(),
+///     Curve2D::BSpline(BSplineCurve2D::new(
+///         1,
+///         vec![Point2D::ORIGIN, Point2D::new(1.0, 1.0)],
+///         vec![0.0, 1.0],
+///         vec![2, 2],
+///         false,
+///     )?),
 /// ];
 /// let points: Vec<Point2D> = curves.iter().map(|c| c.eval_point(0.0)).collect();
 /// assert_eq!(points[0], Point2D::ORIGIN);
 /// assert_eq!(points[1], Point2D::new(1.0, 0.0));
+/// # Ok::<(), geomcore::curves::BSplineConstructionError>(())
 /// ```
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub enum Curve2D {
     /// A [`Line2D`] curve.
     Line(Line2D),
     /// A [`Circle2D`] curve.
     Circle(Circle2D),
+    /// A [`BSplineCurve2D`] curve.
+    BSpline(BSplineCurve2D),
 }
 
 impl ParametricCurve2D for Curve2D {
@@ -284,6 +297,7 @@ impl ParametricCurve2D for Curve2D {
         match self {
             Curve2D::Line(c) => c.eval_point(u),
             Curve2D::Circle(c) => c.eval_point(u),
+            Curve2D::BSpline(c) => c.eval_point(u),
         }
     }
 
@@ -291,6 +305,23 @@ impl ParametricCurve2D for Curve2D {
         match self {
             Curve2D::Line(c) => c.eval_derivative(u, order),
             Curve2D::Circle(c) => c.eval_derivative(u, order),
+            Curve2D::BSpline(c) => c.eval_derivative(u, order),
+        }
+    }
+
+    fn eval_d1(&self, u: f64) -> (Point2D, Vector2D) {
+        match self {
+            Curve2D::Line(c) => ParametricCurve2D::eval_d1(c, u),
+            Curve2D::Circle(c) => ParametricCurve2D::eval_d1(c, u),
+            Curve2D::BSpline(c) => c.eval_d1(u),
+        }
+    }
+
+    fn eval_d2(&self, u: f64) -> (Point2D, Vector2D, Vector2D) {
+        match self {
+            Curve2D::Line(c) => ParametricCurve2D::eval_d2(c, u),
+            Curve2D::Circle(c) => ParametricCurve2D::eval_d2(c, u),
+            Curve2D::BSpline(c) => c.eval_d2(u),
         }
     }
 
@@ -298,6 +329,7 @@ impl ParametricCurve2D for Curve2D {
         match self {
             Curve2D::Line(c) => c.bounds(),
             Curve2D::Circle(c) => c.bounds(),
+            Curve2D::BSpline(c) => c.bounds(),
         }
     }
 
@@ -305,6 +337,7 @@ impl ParametricCurve2D for Curve2D {
         match self {
             Curve2D::Line(c) => c.period(),
             Curve2D::Circle(c) => c.period(),
+            Curve2D::BSpline(c) => c.period(),
         }
     }
 
@@ -312,6 +345,7 @@ impl ParametricCurve2D for Curve2D {
         match self {
             Curve2D::Line(c) => c.eval_points(us),
             Curve2D::Circle(c) => c.eval_points(us),
+            Curve2D::BSpline(c) => c.eval_points(us),
         }
     }
 }
@@ -321,6 +355,7 @@ impl PointExtrema2D for Curve2D {
         match self {
             Curve2D::Line(c) => PointExtrema2D::extrema(c, point, tol),
             Curve2D::Circle(c) => PointExtrema2D::extrema(c, point, tol),
+            Curve2D::BSpline(c) => PointExtrema2D::extrema(c, point, tol),
         }
     }
 }
@@ -345,6 +380,7 @@ impl Curve2D {
         match self {
             Curve2D::Line(c) => c.project_point(point, tol),
             Curve2D::Circle(c) => c.project_point(point, tol),
+            Curve2D::BSpline(c) => c.project_point(point, tol),
         }
     }
 
@@ -353,8 +389,8 @@ impl Curve2D {
         points.iter().map(|&p| self.project_point(p, tol)).collect()
     }
 
-    /// The parameter of the point of the curve closest to `point`, by the
-    /// curve's closed form.
+    /// The parameter of the point of the curve closest to `point`: by the
+    /// closed form of a line or circle, by projection for a B-spline.
     ///
     /// # Examples
     ///
@@ -370,6 +406,7 @@ impl Curve2D {
         match self {
             Curve2D::Line(c) => c.parameter_of(point),
             Curve2D::Circle(c) => c.parameter_of(point),
+            Curve2D::BSpline(c) => c.parameter_of(point),
         }
     }
 }
@@ -385,6 +422,13 @@ impl From<Circle2D> for Curve2D {
     /// Wraps a [`Circle2D`] as a [`Curve2D::Circle`].
     fn from(curve: Circle2D) -> Curve2D {
         Curve2D::Circle(curve)
+    }
+}
+
+impl From<BSplineCurve2D> for Curve2D {
+    /// Wraps a [`BSplineCurve2D`] as a [`Curve2D::BSpline`].
+    fn from(curve: BSplineCurve2D) -> Curve2D {
+        Curve2D::BSpline(curve)
     }
 }
 

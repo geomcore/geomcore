@@ -3,6 +3,7 @@
 //! [`crate::Frame`]/[`crate::Frame2D`]).
 
 mod bspline;
+mod bspline_2d;
 mod circle;
 mod conversion;
 mod curve;
@@ -13,11 +14,13 @@ mod hyperbola;
 mod line;
 mod parabola;
 mod parametrize;
+pub(crate) mod spline;
 mod trimmed;
 pub use bspline::{
     BSplineConstructionError, BSplineCurve, BSplineSplitError, DegreeElevationError,
     KnotInsertionError, KnotRemovalError,
 };
+pub use bspline_2d::BSplineCurve2D;
 pub use circle::{Circle, Circle2D, CircleConstructionError};
 pub use conversion::BSplineConversionError;
 pub use curve::{Continuity, Curve, ElementaryCurve, ParametricCurve, PointExtrema, Side};

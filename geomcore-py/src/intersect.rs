@@ -45,7 +45,9 @@ fn operand_of(obj: &Bound<'_, PyAny>, surfaces_first: bool) -> PyResult<Operand>
         return Ok(operand);
     }
     if let Ok(trimmed) = obj.downcast::<PyTrimmedCurve2D>() {
-        return Ok(Operand::Curve2D(CurveArg2D::Trimmed(trimmed.borrow().0)));
+        return Ok(Operand::Curve2D(CurveArg2D::Trimmed(
+            trimmed.borrow().0.clone(),
+        )));
     }
     if let Some(curve) = curve2d_of(obj) {
         return Ok(Operand::Curve2D(CurveArg2D::Whole(curve)));

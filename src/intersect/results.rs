@@ -411,6 +411,7 @@ impl CurveCurveIntersection {
 pub struct CurveCurveIntersection2D {
     hits: CurveCurveHitList2D,
     overlaps: CurveCurveOverlapList,
+    method: IntersectionMethod,
     completeness: Completeness<CurveCurveRegion>,
 }
 
@@ -429,7 +430,28 @@ impl CurveCurveIntersection2D {
         let mut result = CurveCurveIntersection2D {
             hits: CurveCurveHitList2D::new(),
             overlaps,
+            method: IntersectionMethod::Exact,
             completeness: Completeness::Complete,
+        };
+        for hit in hits {
+            result.hits.push(hit);
+        }
+        sort_by_known_parameter(&mut result.hits, |hit| hit.first_parameter);
+        result
+    }
+
+    /// A result found by the numeric search.
+    #[inline]
+    pub(crate) fn numeric(
+        hits: impl IntoIterator<Item = CurveCurveHit2D>,
+        overlaps: CurveCurveOverlapList,
+        completeness: Completeness<CurveCurveRegion>,
+    ) -> Self {
+        let mut result = CurveCurveIntersection2D {
+            hits: CurveCurveHitList2D::new(),
+            overlaps,
+            method: IntersectionMethod::Numeric,
+            completeness,
         };
         for hit in hits {
             result.hits.push(hit);
@@ -493,7 +515,11 @@ impl CurveCurveIntersection2D {
         &self.overlaps
     }
 
-    /// Always [`IntersectionMethod::Exact`].
+    /// [`IntersectionMethod::Exact`] when the pair was solved by a closed
+    /// form: every 2D pair of elementary curves.
+    /// [`IntersectionMethod::Numeric`] when at least one of the two is a
+    /// [`BSplineCurve2D`](crate::BSplineCurve2D), or a trimmed curve over
+    /// one: the pair is searched as in space, embedded at `z = 0`.
     ///
     /// # Examples
     ///
@@ -504,10 +530,11 @@ impl CurveCurveIntersection2D {
     /// assert_eq!(a.intersect(&b, Tolerance::DEFAULT).method(), IntersectionMethod::Exact);
     /// ```
     pub fn method(&self) -> IntersectionMethod {
-        IntersectionMethod::Exact
+        self.method
     }
 
-    /// Always [`Completeness::Complete`].
+    /// [`Completeness::Complete`] for an exact result; for a numeric one,
+    /// as [`CurveCurveIntersection::completeness`] reports it.
     ///
     /// # Examples
     ///
@@ -521,7 +548,7 @@ impl CurveCurveIntersection2D {
         &self.completeness
     }
 
-    /// Always `true`.
+    /// Whether every hit was found: always for an exact result.
     ///
     /// # Examples
     ///

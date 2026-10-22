@@ -13,10 +13,12 @@
 
 use crate::Tolerance;
 use crate::curves::{
-    BSplineCurve, Circle, Circle2D, Curve, Curve2D, ElementaryCurve, Ellipse, Hyperbola, Line,
-    Line2D, Parabola, ParametricCurve, ParametricCurve2D, TrimmedCurve, TrimmedCurve2D,
+    BSplineCurve, BSplineCurve2D, Circle, Circle2D, Curve, Curve2D, ElementaryCurve, Ellipse,
+    Hyperbola, Line, Line2D, Parabola, ParametricCurve, ParametricCurve2D, TrimmedCurve,
+    TrimmedCurve2D,
 };
 use crate::intersect::dispatch::{ExactCurveCurve, ExactCurveSurface};
+use crate::intersect::embedded::{Embed, intersect_numeric_2d};
 use crate::intersect::marching::marching_intersection;
 use crate::intersect::results::{
     CurveCurveHitList, CurveCurveOverlapList, CurveSurfaceOverlapList, IntersectionCurve,
@@ -884,6 +886,7 @@ impl CoincidentCurve for Curve2D {
         match self {
             Curve2D::Line(line) => line.parameter_of(point),
             Curve2D::Circle(circle) => circle.parameter_of(point),
+            Curve2D::BSpline(bspline) => bspline.parameter_of(point),
         }
     }
 
@@ -1035,12 +1038,18 @@ where
 }
 
 /// The exact intersection of two 2D bases before the parameter ranges are
-/// applied: at most two hits, or a coincidence.
+/// applied: at most two hits, or a coincidence, or no closed form for the
+/// pair when one of the two is a
+/// [`BSplineCurve2D`](crate::BSplineCurve2D).
 pub(crate) enum ExactCurveCurve2DIntersection {
     /// The hits; `None` marks an empty slot.
     Hits([Option<CurveCurveHit2D>; 2]),
     /// The curves coincide.
     Coincident,
+    /// No closed form covers the pair: at least one of the two bases is a
+    /// [`BSplineCurve2D`](crate::BSplineCurve2D), so the router searches it
+    /// numerically.
+    NotAnalytic,
 }
 
 /// The exact intersection of a 2D curve with a 2D curve of type `B`, solved
@@ -1147,6 +1156,7 @@ macro_rules! exact_curve_curve_2d_untyped {
                 match other {
                     Curve2D::Line(b) => self.exact_curve_curve_2d(b, tol),
                     Curve2D::Circle(b) => self.exact_curve_curve_2d(b, tol),
+                    Curve2D::BSpline(_) => ExactCurveCurve2DIntersection::NotAnalytic,
                 }
             }
         }
@@ -1161,6 +1171,7 @@ macro_rules! exact_curve_curve_2d_untyped {
                 match self {
                     Curve2D::Line(a) => a.exact_curve_curve_2d(other, tol),
                     Curve2D::Circle(a) => a.exact_curve_curve_2d(other, tol),
+                    Curve2D::BSpline(_) => ExactCurveCurve2DIntersection::NotAnalytic,
                 }
             }
         }
@@ -1179,6 +1190,7 @@ impl ExactCurveCurve2D<Curve2D> for Curve2D {
         match self {
             Curve2D::Line(a) => a.exact_curve_curve_2d(other, tol),
             Curve2D::Circle(a) => a.exact_curve_curve_2d(other, tol),
+            Curve2D::BSpline(_) => ExactCurveCurve2DIntersection::NotAnalytic,
         }
     }
 }
@@ -1188,7 +1200,7 @@ impl ExactCurveCurve2D<Curve2D> for Curve2D {
 /// whose kind is only known at run time.
 pub(crate) trait CurveBasis2D:
     ParametricCurve2D
-    + Copy
+    + Clone
     + Into<Curve2D>
     + ExactCurveCurve2D<Line2D>
     + ExactCurveCurve2D<Circle2D>
@@ -1219,19 +1231,27 @@ impl CurveBasis2D for Curve2D {
         match self {
             Curve2D::Line(line) => line.parameter_of(point),
             Curve2D::Circle(circle) => circle.parameter_of(point),
+            Curve2D::BSpline(bspline) => bspline.parameter_of(point),
         }
     }
 }
 
-/// How a 2D curve enters the router: its basis and the parameter range it
-/// is restricted to (`None` = the basis's own bounds).
-pub(crate) trait CurveOperand2D: ParametricCurve2D {
+/// A 2D curve's exact basis and the parameter range it is restricted to
+/// (`None` = the basis's own bounds).
+type BasisAndRange<B> = (B, Option<(f64, f64)>);
+
+/// How a 2D curve enters the router: its exact basis and the parameter
+/// range it is restricted to, or `None` when the curve has no exact basis
+/// (a [`BSplineCurve2D`](crate::BSplineCurve2D), met by the numeric
+/// search).
+pub(crate) trait CurveOperand2D: Embed {
     /// The basis type: the curve's own type when it is concrete, so the
     /// pair is solved by its typed solver.
     type Basis: CurveBasis2D;
 
-    /// The basis and the restricting parameter range.
-    fn basis_and_range(&self) -> (Self::Basis, Option<(f64, f64)>);
+    /// The basis and the restricting parameter range, or `None` when the
+    /// curve has no exact basis.
+    fn basis_and_range(&self) -> Option<BasisAndRange<Self::Basis>>;
 }
 
 macro_rules! basis_operand_2d {
@@ -1240,8 +1260,8 @@ macro_rules! basis_operand_2d {
             type Basis = $curve;
 
             #[inline]
-            fn basis_and_range(&self) -> ($curve, Option<(f64, f64)>) {
-                (*self, None)
+            fn basis_and_range(&self) -> Option<BasisAndRange<$curve>> {
+                Some((self.clone(), None))
             }
         }
     )*};
@@ -1249,20 +1269,33 @@ macro_rules! basis_operand_2d {
 
 basis_operand_2d!(Line2D, Circle2D, Curve2D);
 
+impl CurveOperand2D for BSplineCurve2D {
+    /// Never built: a B-spline has no exact basis.
+    type Basis = Curve2D;
+
+    #[inline]
+    fn basis_and_range(&self) -> Option<BasisAndRange<Curve2D>> {
+        None
+    }
+}
+
 impl<C: CurveOperand2D> CurveOperand2D for TrimmedCurve2D<C> {
     type Basis = C::Basis;
 
     /// A trimmed curve of a trimmed curve keeps the inner basis and the
     /// outer range: the outer range lies within the inner one.
     #[inline]
-    fn basis_and_range(&self) -> (C::Basis, Option<(f64, f64)>) {
-        let (basis, _) = self.basis().basis_and_range();
-        (basis, Some((self.first(), self.last())))
+    fn basis_and_range(&self) -> Option<BasisAndRange<C::Basis>> {
+        self.basis()
+            .basis_and_range()
+            .map(|(basis, _)| (basis, Some((self.first(), self.last()))))
     }
 }
 
-/// Intersects two 2D curves. Every pair has a closed form, so the result
-/// is exact and complete.
+/// Intersects two 2D curves. Every pair with two elementary bases has a
+/// closed form, so the result is exact and complete; a pair with a
+/// [`BSplineCurve2D`](crate::BSplineCurve2D) operand is searched
+/// numerically, embedded in space.
 #[inline]
 pub(crate) fn route_curve_curve_2d<A: CurveOperand2D, B: CurveOperand2D>(
     a: &A,
@@ -1272,8 +1305,11 @@ pub(crate) fn route_curve_curve_2d<A: CurveOperand2D, B: CurveOperand2D>(
 where
     A::Basis: ExactCurveCurve2D<B::Basis>,
 {
-    let (first, first_range) = a.basis_and_range();
-    let (second, second_range) = b.basis_and_range();
+    let (Some((first, first_range)), Some((second, second_range))) =
+        (a.basis_and_range(), b.basis_and_range())
+    else {
+        return intersect_numeric_2d(a, b, tol);
+    };
     match first.exact_curve_curve_2d(&second, tol) {
         ExactCurveCurve2DIntersection::Coincident => {
             coincidence_2d(first.into(), first_range, second.into(), second_range, tol)
@@ -1312,6 +1348,7 @@ where
             });
             CurveCurveIntersection2D::exact(kept, CurveCurveOverlapList::new())
         }
+        ExactCurveCurve2DIntersection::NotAnalytic => intersect_numeric_2d(a, b, tol),
     }
 }
 
@@ -1359,7 +1396,7 @@ macro_rules! curve_curve_2d {
     )*};
 }
 
-curve_curve_2d!([Line2D, Circle2D, Curve2D]);
+curve_curve_2d!([Line2D, Circle2D, Curve2D, BSplineCurve2D]);
 
 /// Implements [`Intersect`] between a trimmed 2D curve over any operand and
 /// each 2D curve of the list, in both orders.
@@ -1388,7 +1425,7 @@ macro_rules! trimmed_curve_curve_2d {
     )*};
 }
 
-trimmed_curve_curve_2d!(Line2D, Circle2D, Curve2D);
+trimmed_curve_curve_2d!(Line2D, Circle2D, Curve2D, BSplineCurve2D);
 
 impl<X: CurveOperand2D, Y: CurveOperand2D> Intersect<TrimmedCurve2D<Y>> for TrimmedCurve2D<X>
 where

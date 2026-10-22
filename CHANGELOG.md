@@ -9,6 +9,34 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+### Added
+
+- `BSplineCurve2D` (#90), in Rust and Python: construction (polynomial,
+  rational, interpolation, approximation), evaluation and sided
+  evaluation, continuity, knot insertion and refinement, degree
+  elevation, knot removal, Bézier pieces, splitting, extraction,
+  reversal, length, projection, discretization and intersection.
+  `Curve2D` gains a `BSpline` variant, and `Circle2D`,
+  `TrimmedCurve2D` and `Curve2D` gain `to_bspline`.
+- 2D curve–curve intersections with a B-spline operand run the numeric
+  search, each curve seen at `z = 0`. The result reports
+  `IntersectionMethod::Numeric` and is proved complete where the 3D
+  search would prove it. `CurveCurveIntersection2D::method` now reports
+  this method instead of always `Exact`.
+
+### Changed
+
+- `BSplineCurve` and `BSplineCurve2D` share one implementation: a
+  private spline generic over its pole type (ADR 0014). The two types
+  agree on every operation to 1e-12, which a new test checks over the
+  B-spline fixtures.
+- `BSplineCurve::project_point`, `extrema` and `contains` handle a
+  query point with a non-finite coordinate as the other curves do: a
+  NaN projection, no extrema, and not contained.
+- `Curve2D` and `TrimmedCurve2D<Curve2D>` are no longer `Copy`: the
+  enum now holds a `BSplineCurve2D`, whose poles live on the heap.
+  Callers that copied one implicitly `.clone()` it.
+
 ### Fixed
 
 - The sampled curve–curve search no longer drops a transversal crossing

@@ -15,7 +15,8 @@ use crate::curves::{
     BSplineCurve, Circle, Curve, ElementaryCurve, Ellipse, Hyperbola, Line, Parabola,
     ParametricCurve, TrimmedCurve,
 };
-use crate::{Frame, Point};
+use crate::curves::{BSplineCurve2D, Circle2D, Curve2D, Line2D, ParametricCurve2D, TrimmedCurve2D};
+use crate::{Frame, Frame2D, Point, Point2D};
 
 /// Error returned when a curve or surface cannot be converted to a
 /// B-spline.
@@ -160,7 +161,7 @@ impl Ellipse {
 
 pub(crate) mod sealed {
     use super::BSplineConversionError;
-    use crate::BSplineCurve;
+    use crate::{BSplineCurve, BSplineCurve2D};
 
     /// Exact B-spline of a range of a curve: what a trimmed curve needs
     /// from its basis.
@@ -173,8 +174,22 @@ pub(crate) mod sealed {
             last: f64,
         ) -> Result<BSplineCurve, BSplineConversionError>;
     }
+
+    /// The 2D counterpart of [`BSplineRange`]: what a
+    /// [`TrimmedCurve2D`](crate::curves::TrimmedCurve2D) needs from its
+    /// basis.
+    pub trait BSplineRange2D: crate::curves::ParametricCurve2D {
+        /// The B-spline over `[first, last]`, a range accepted by
+        /// [`TrimmedCurve2D::new`](crate::curves::TrimmedCurve2D::new).
+        fn bspline_range(
+            &self,
+            first: f64,
+            last: f64,
+        ) -> Result<BSplineCurve2D, BSplineConversionError>;
+    }
 }
 use sealed::BSplineRange;
+use sealed::BSplineRange2D;
 
 impl BSplineRange for Line {
     fn bspline_range(&self, first: f64, last: f64) -> Result<BSplineCurve, BSplineConversionError> {
@@ -357,11 +372,222 @@ impl Curve {
     }
 }
 
+/// Places a plane net in `frame2d`, its x coordinates scaled by `x_scale`
+/// and its y coordinates by `y_scale`.
+fn place_2d(
+    net: PlaneNet,
+    frame: Frame2D,
+    x_scale: f64,
+    y_scale: f64,
+) -> Result<BSplineCurve2D, BSplineConversionError> {
+    let (origin, x, y) = (frame.origin(), frame.x_direction(), frame.y_direction());
+    let poles: Vec<Point2D> = net
+        .poles
+        .iter()
+        .map(|&[a, b]| origin + (x_scale * a) * x + (y_scale * b) * y)
+        .collect();
+    if !poles.iter().all(|p| p.is_finite()) || !net.weights.iter().flatten().all(|w| w.is_finite())
+    {
+        return Err(BSplineConversionError::NotRepresentable);
+    }
+    let curve = match net.weights {
+        Some(weights) => BSplineCurve2D::new_rational(
+            net.degree,
+            poles,
+            weights,
+            net.knots,
+            net.multiplicities,
+            net.periodic,
+        ),
+        None => BSplineCurve2D::new(
+            net.degree,
+            poles,
+            net.knots,
+            net.multiplicities,
+            net.periodic,
+        ),
+    };
+    curve.map_err(|_| BSplineConversionError::NotRepresentable)
+}
+
+impl Circle2D {
+    /// The circle as an exact rational B-spline of degree 2, periodic over
+    /// `[0, 2π]` like the circle: four quarter turns, eight poles, double
+    /// knots at `0, π/2, π, 3π/2, 2π`.
+    ///
+    /// Every point of the B-spline lies on the circle, but its parameter is
+    /// not the angle: they agree at the knots and at the middle of each
+    /// quarter turn, and differ by at most `0.0161` rad in between.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Circle2D, Point2D};
+    /// use std::f64::consts::{FRAC_PI_2, TAU};
+    ///
+    /// let circle = Circle2D::new(Point2D::ORIGIN, 2.0).unwrap();
+    /// let bspline = circle.to_bspline();
+    /// assert!(bspline.is_periodic());
+    /// assert_eq!(bspline.bounds(), (0.0, TAU));
+    /// let p = bspline.eval_point(FRAC_PI_2);
+    /// assert!(p.distance(circle.eval_point(FRAC_PI_2)) < 1e-15);
+    /// let q = bspline.eval_point(0.3);
+    /// assert!((q.distance(Point2D::ORIGIN) - 2.0).abs() < 1e-15);
+    /// ```
+    pub fn to_bspline(&self) -> BSplineCurve2D {
+        let r = self.radius();
+        place_2d(conic_bspline::full_circle(), self.frame(), r, r)
+            .expect("a finite circle has finite poles")
+    }
+}
+
+impl BSplineRange2D for Line2D {
+    fn bspline_range(
+        &self,
+        first: f64,
+        last: f64,
+    ) -> Result<BSplineCurve2D, BSplineConversionError> {
+        let poles = vec![self.eval_point(first), self.eval_point(last)];
+        if !poles.iter().all(|p| p.is_finite()) {
+            return Err(BSplineConversionError::NotRepresentable);
+        }
+        BSplineCurve2D::new(1, poles, vec![first, last], vec![2, 2], false)
+            .map_err(|_| BSplineConversionError::NotRepresentable)
+    }
+}
+
+impl BSplineRange2D for Circle2D {
+    fn bspline_range(
+        &self,
+        first: f64,
+        last: f64,
+    ) -> Result<BSplineCurve2D, BSplineConversionError> {
+        let r = self.radius();
+        place_2d(arc_net(first, last), self.frame(), r, r)
+    }
+}
+
+impl BSplineRange2D for BSplineCurve2D {
+    fn bspline_range(
+        &self,
+        first: f64,
+        last: f64,
+    ) -> Result<BSplineCurve2D, BSplineConversionError> {
+        // A trimmed curve's range is one `extract` accepts.
+        self.extract(first, last)
+            .map_err(|_| BSplineConversionError::NotRepresentable)
+    }
+}
+
+impl BSplineRange2D for Curve2D {
+    fn bspline_range(
+        &self,
+        first: f64,
+        last: f64,
+    ) -> Result<BSplineCurve2D, BSplineConversionError> {
+        match self {
+            Curve2D::Line(c) => c.bspline_range(first, last),
+            Curve2D::Circle(c) => c.bspline_range(first, last),
+            Curve2D::BSpline(c) => c.bspline_range(first, last),
+        }
+    }
+}
+
+impl<C: BSplineRange2D + ?Sized> BSplineRange2D for &C {
+    fn bspline_range(
+        &self,
+        first: f64,
+        last: f64,
+    ) -> Result<BSplineCurve2D, BSplineConversionError> {
+        (**self).bspline_range(first, last)
+    }
+}
+
+impl<C: BSplineRange2D> TrimmedCurve2D<C> {
+    /// The piece of the basis as an exact B-spline over the same range
+    /// `[first, last]`, starting and ending on the same points.
+    ///
+    /// The basis is a [`Line2D`], a [`Circle2D`], a [`BSplineCurve2D`] or a
+    /// [`Curve2D`], owned or borrowed. A B-spline's piece is
+    /// [extracted](BSplineCurve2D::extract). A segment becomes a B-spline of degree 1 with the curve's own
+    /// parameter. A circle arc becomes rational quadratic pieces of equal
+    /// sweep, at most a quarter turn each, joined at knots placed at the
+    /// angles of the piece boundaries. The B-spline parameter agrees with
+    /// the curve's at the range ends, those knots and the middle of each
+    /// piece, and differs in between (by at most `0.0161` rad on a
+    /// circle). A range spanning a whole turn gives a clamped B-spline
+    /// ending exactly on its first point, never a periodic one, as a
+    /// trimmed curve is never periodic.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`BSplineConversionError::NotRepresentable`] when a pole
+    /// overflows `f64` or the range ends are so large that knots round
+    /// onto each other.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::curves::TrimmedCurve2D;
+    /// use geomcore::{Circle2D, Point2D, Tolerance};
+    /// use std::f64::consts::PI;
+    ///
+    /// let circle = Circle2D::new(Point2D::ORIGIN, 1.0).unwrap();
+    /// // Three quarters of the circle, across the seam at angle 0.
+    /// let arc = TrimmedCurve2D::new(circle, -PI / 2.0, PI).unwrap();
+    /// let bspline = arc.to_bspline().unwrap();
+    /// assert_eq!(bspline.bounds(), (-PI / 2.0, PI));
+    /// assert_eq!(bspline.knots().len(), 4);
+    /// assert!(bspline.eval_point(0.0).distance(Point2D::new(1.0, 0.0)) < 1e-15);
+    /// assert!(circle.contains(bspline.eval_point(1.0), Tolerance::DEFAULT));
+    /// ```
+    pub fn to_bspline(&self) -> Result<BSplineCurve2D, BSplineConversionError> {
+        let (first, last) = self.bounds();
+        self.basis().bspline_range(first, last)
+    }
+}
+
+impl Curve2D {
+    /// The whole curve as a B-spline: a B-spline is cloned, a circle
+    /// converted by [`Circle2D::to_bspline`].
+    ///
+    /// # Errors
+    ///
+    /// Returns [`BSplineConversionError::Unbounded`] for a [`Line2D`]:
+    /// trim it first and use
+    /// [`TrimmedCurve2D::to_bspline`](TrimmedCurve2D::to_bspline).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::curves::{BSplineConversionError, Curve2D};
+    /// use geomcore::{Circle2D, Line2D, Point2D, Vector2D};
+    ///
+    /// let circle = Circle2D::new(Point2D::ORIGIN, 1.0).unwrap();
+    /// assert!(Curve2D::from(circle).to_bspline().unwrap().is_periodic());
+    /// let bspline = circle.to_bspline();
+    /// assert_eq!(Curve2D::from(bspline.clone()).to_bspline(), Ok(bspline));
+    /// let line = Line2D::new(Point2D::ORIGIN, Vector2D::X).unwrap();
+    /// assert_eq!(
+    ///     Curve2D::from(line).to_bspline().err(),
+    ///     Some(BSplineConversionError::Unbounded)
+    /// );
+    /// ```
+    pub fn to_bspline(&self) -> Result<BSplineCurve2D, BSplineConversionError> {
+        match self {
+            Curve2D::BSpline(c) => Ok(c.clone()),
+            Curve2D::Circle(c) => Ok(c.to_bspline()),
+            Curve2D::Line(_) => Err(BSplineConversionError::Unbounded),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::curves::{Circle2D, Line2D, ParametricCurve2D, TrimmedCurve2D};
     use crate::discretization::{DiscretizationCriteria, Discretize};
-    use crate::{Tolerance, Vector};
+    use crate::{Frame2D, Point2D, Tolerance, Vector, Vector2D};
     use std::f64::consts::{FRAC_PI_2, FRAC_PI_4, PI};
 
     const RELATIVE: f64 = 1e-12;
@@ -694,5 +920,130 @@ mod tests {
 
         let arc = TrimmedCurve::new(b, 5.0, 7.5).unwrap();
         assert!(arc.contains(c.eval_point(0.0), tol));
+    }
+
+    // ---- 2D: circles, arcs and lines ----
+
+    fn tilted_frame2d(origin: Point2D) -> Frame2D {
+        Frame2D::new(origin, Vector2D::new(0.8, 0.6), Vector2D::new(-0.6, 0.8)).unwrap()
+    }
+
+    fn circle2d(radius: f64) -> Circle2D {
+        let center = Point2D::new(0.4 * radius, -0.7 * radius);
+        Circle2D::from_frame(tilted_frame2d(center), radius).unwrap()
+    }
+
+    fn circle2d_distance(c: &Circle2D, p: Point2D) -> f64 {
+        let frame = c.frame();
+        let local = p - frame.origin();
+        let (x, y) = (
+            local.dot(frame.x_direction()),
+            local.dot(frame.y_direction()),
+        );
+        (x.hypot(y) - c.radius()).abs()
+    }
+
+    /// The largest of `distance` (an upper bound of the distance from a
+    /// point to the original curve) over a dense sample of the 2D B-spline,
+    /// its knots and the middles of its spans.
+    fn max_deviation_2d(b: &BSplineCurve2D, distance: impl Fn(Point2D) -> f64) -> f64 {
+        let (first, last) = b.bounds();
+        let n = 4000;
+        let dense = (0..=n).map(|i| first + (last - first) * (i as f64 / n as f64));
+        let knots = b.knots().to_vec();
+        let middles: Vec<f64> = knots.windows(2).map(|k| 0.5 * (k[0] + k[1])).collect();
+        dense
+            .chain(knots)
+            .chain(middles)
+            .map(|u| distance(b.eval_point(u)))
+            .fold(0.0, f64::max)
+    }
+
+    fn assert_matches_at_knots_and_middles_2d<C: ParametricCurve2D>(
+        b: &BSplineCurve2D,
+        curve: &C,
+        scale: f64,
+    ) {
+        let knots = b.knots();
+        let middles = knots.windows(2).map(|k| 0.5 * (k[0] + k[1]));
+        for u in knots.iter().copied().chain(middles) {
+            let d = b.eval_point(u).distance(curve.eval_point(u));
+            assert!(d <= 1e-15 * scale, "u = {u}: {d}");
+        }
+    }
+
+    #[test]
+    fn test_full_circle2d_is_periodic_and_exact() {
+        for radius in [1e-6, 2.5, 1e6] {
+            let c = circle2d(radius);
+            let b = c.to_bspline();
+            assert!(b.is_periodic() && b.is_rational());
+            assert_eq!(b.degree(), 2);
+            assert_eq!(b.bounds(), (0.0, TAU));
+            assert_eq!(b.poles().len(), 8);
+            assert_eq!(ParametricCurve2D::period(&b), Some(TAU));
+            let dev = max_deviation_2d(&b, |p| circle2d_distance(&c, p));
+            assert!(dev <= RELATIVE * radius, "radius {radius}: {dev}");
+            assert_matches_at_knots_and_middles_2d(&b, &c, radius);
+            assert_eq!(b.eval_point(0.0), c.eval_point(0.0));
+            let p = b.eval_point(1.0);
+            assert!(b.eval_point(1.0 + TAU).distance(p) <= 1e-15 * radius);
+            assert!(b.eval_point(1.0 - TAU).distance(p) <= 1e-15 * radius);
+        }
+    }
+
+    #[test]
+    fn test_full_circle2d_parameter_stays_near_the_angle() {
+        let c = circle2d(1.0);
+        let b = c.to_bspline();
+        let worst = (0..=1000)
+            .map(|i| TAU * i as f64 / 1000.0)
+            .map(|u| b.eval_point(u).distance(c.eval_point(u)))
+            .fold(0.0, f64::max);
+        // A chord of 0.0161 rad, the largest gap between parameter and angle.
+        assert!(worst > 0.01 && worst < 0.0162, "{worst}");
+    }
+
+    #[test]
+    fn test_circle2d_arcs_are_exact_over_their_range() {
+        for radius in [1e-6, 1.0, 1e6] {
+            let c = circle2d(radius);
+            for (first, last) in ARCS {
+                let arc = TrimmedCurve2D::new(c, first, last).unwrap();
+                let b = arc.to_bspline().unwrap();
+                assert!(!b.is_periodic());
+                assert_eq!(b.bounds(), (first, last));
+                let pieces = b.knots().len() - 1;
+                assert!((last - first) / pieces as f64 <= FRAC_PI_2 * (1.0 + 1e-12));
+                let dev = max_deviation_2d(&b, |p| circle2d_distance(&c, p));
+                assert!(
+                    dev <= RELATIVE * radius,
+                    "{radius} [{first}, {last}]: {dev}"
+                );
+                assert_matches_at_knots_and_middles_2d(&b, &c, radius);
+                assert_eq!(b.eval_point(first), arc.start_point());
+                assert!(b.eval_point(last).distance(arc.end_point()) <= 1e-16 * radius);
+            }
+        }
+    }
+
+    #[test]
+    fn test_trimmed_line2d_is_exact_over_its_range() {
+        let line = Line2D::new(Point2D::new(2.0, -1.0), Vector2D::new(0.6, 0.8)).unwrap();
+        let (first, last) = (-1.5, 2.5);
+        let arc = TrimmedCurve2D::new(line, first, last).unwrap();
+        let b = arc.to_bspline().unwrap();
+        assert_eq!(b.degree(), 1);
+        assert_eq!(b.knots(), [first, last]);
+        assert_eq!(b.bounds(), (first, last));
+        assert!(!b.is_periodic());
+        assert!(b.poles().iter().all(|p| p.is_finite()));
+        for i in 0..=1000 {
+            let u = first + (last - first) * (i as f64 / 1000.0);
+            let d = b.eval_point(u).distance(line.eval_point(u));
+            assert!(d <= 1e-14, "u = {u}: {d}");
+        }
+        assert_eq!(b.eval_point(first), arc.start_point());
+        assert!(b.eval_point(last).distance(arc.end_point()) <= 1e-15);
     }
 }
