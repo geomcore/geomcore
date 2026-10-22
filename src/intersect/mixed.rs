@@ -144,22 +144,56 @@ enum Hull<'a> {
 
 /// A range of parameters of the line, parabola or hyperbola `curve`
 /// holding those of its points inside the box `b`; `None` for a circle or
-/// ellipse.
-fn inside(curve: ElementaryCurve, b: &Aabb) -> Option<(f64, f64)> {
+/// ellipse. A range whose start is above its end means the curve misses
+/// the box.
+pub(super) fn inside(curve: ElementaryCurve, b: &Aabb) -> Option<(f64, f64)> {
     match curve {
         ElementaryCurve::Line(l) => Some(clip(b, l.origin(), l.direction())),
         ElementaryCurve::Parabola(p) => {
             let frame = p.frame();
-            Some(reach(b, frame.origin(), frame.y_direction()))
+            let (x0, x1) = reach(b, frame.origin(), frame.x_direction());
+            let (y0, y1) = reach(b, frame.origin(), frame.y_direction());
+            if x1 < 0.0 {
+                return Some((f64::INFINITY, f64::NEG_INFINITY));
+            }
+            // p(t) = origin + t²/(4 focal) x + t y.
+            let scale = 4.0 * p.focal();
+            let (near, far) = ((x0.max(0.0) * scale).sqrt(), (x1 * scale).sqrt());
+            Some(between_absolute((y0, y1), (near, far)))
         }
         ElementaryCurve::Hyperbola(h) => {
             let frame = h.frame();
+            let (x0, x1) = reach(b, frame.origin(), frame.x_direction());
             let (y0, y1) = reach(b, frame.origin(), frame.y_direction());
-            let minor = h.minor_radius();
-            Some(((y0 / minor).asinh(), (y1 / minor).asinh()))
+            let (major, minor) = (h.major_radius(), h.minor_radius());
+            if x1 < major {
+                return Some((f64::INFINITY, f64::NEG_INFINITY));
+            }
+            // p(t) = origin + major cosh(t) x + minor sinh(t) y.
+            let near = (x0.max(major) / major).acosh();
+            let far = (x1 / major).acosh();
+            let (y0, y1) = ((y0 / minor).asinh(), (y1 / minor).asinh());
+            Some(between_absolute((y0, y1), (near, far)))
         }
         ElementaryCurve::Circle(_) | ElementaryCurve::Ellipse(_) => None,
     }
+}
+
+/// The smallest range of `t` with `t` in `range` and `|t|` in `absolute`,
+/// or an empty range when the two do not meet.
+fn between_absolute(range: (f64, f64), absolute: (f64, f64)) -> (f64, f64) {
+    let (lo, hi) = range;
+    let (near, far) = absolute;
+    let mut result: Option<(f64, f64)> = None;
+    for (a, b) in [(lo.max(near), hi.min(far)), (lo.max(-far), hi.min(-near))] {
+        if a <= b {
+            result = Some(match result {
+                Some((r0, r1)) => (r0.min(a), r1.max(b)),
+                None => (a, b),
+            });
+        }
+    }
+    result.unwrap_or((f64::INFINITY, f64::NEG_INFINITY))
 }
 
 /// `curve` as a [`HullCurve`]: a B-spline over its range, or an
@@ -1038,6 +1072,33 @@ mod tests {
         let hits = hits.into_hits();
         assert_on_both(&hits, &far, &cone);
         assert!(!hits.is_empty());
+    }
+
+    #[test]
+    fn test_inside_uses_both_frame_axes() {
+        let center = |p: Point| {
+            [
+                p.x - 2.0,
+                p.y - 2.0,
+                p.z - 1.0,
+                p.x + 2.0,
+                p.y + 2.0,
+                p.z + 1.0,
+            ]
+        };
+        let parabola = Parabola::new(Point::ORIGIN, Vector::Z, Vector::X, 1.0).unwrap();
+        let at = parabola.eval_point(100.0);
+        let (lo, hi) = inside(ElementaryCurve::Parabola(parabola), &center(at)).unwrap();
+        // The y span alone would allow [98, 102]; the x span narrows it to
+        // the two branches near t = ±100, of which only the positive one
+        // meets the y span.
+        assert!(99.9 < lo && hi < 100.1, "{lo}..{hi}");
+
+        let hyperbola = Hyperbola::new(Point::ORIGIN, Vector::Z, Vector::X, 2.0, 1.0).unwrap();
+        let at = hyperbola.eval_point(5.0);
+        let (lo, hi) = inside(ElementaryCurve::Hyperbola(hyperbola), &center(at)).unwrap();
+        // The y span alone would be about [4.97, 5.03].
+        assert!(4.9 < lo && hi < 5.1 && hi - lo < 0.04, "{lo}..{hi}");
     }
 
     #[test]

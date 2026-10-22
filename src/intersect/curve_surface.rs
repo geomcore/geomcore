@@ -8,9 +8,15 @@ use super::{
     CurveSurfaceHit, CurveSurfaceIntersection, curve_surface_multiplicity, mixed, overlap_runs,
 };
 use crate::curves::ParametricCurve;
+use crate::math::boxtree::Aabb;
 use crate::math::{brent_minimum, newton_3d};
 use crate::surfaces::ParametricSurface;
-use crate::{Point, Tolerance};
+use crate::{HasBoundingBox, Point, Tolerance};
+
+/// The window an unbounded curve is seeded over when nothing bounds the
+/// search: no box is known for the surface, or the curve is not one whose
+/// reach can be worked out.
+const WINDOW: f64 = 10.0;
 
 /// Intersects any parametric curve with any parametric surface by the
 /// numeric search: the entry point for curve and surface types defined
@@ -92,10 +98,14 @@ where
 /// hits at singular points of the surface parametrization (a sphere
 /// pole, a cone apex, a collapsed B-spline boundary), where the Newton system
 /// is singular; their `surface_parameters` are the projection's.
-/// Unbounded curves seed `[-10, 10]`. Overlapping pairs yield dense hit
-/// sets along the overlap; the routed [`Intersect`](crate::Intersect)
-/// calls this search only for pairs without a closed form, and solves the
-/// others exactly, tangency and coincidence included.
+/// An unbounded curve seeds the range of its parameters whose points can
+/// lie in the surface's box, when the surface is a sphere, torus or
+/// B-spline (whose box is known) and the curve is elementary (whose reach
+/// is); an unbounded curve without such a box seeds `[-10, 10]`. Overlapping
+/// pairs yield dense hit sets along the overlap; the routed
+/// [`Intersect`](crate::Intersect) calls this search only for pairs
+/// without a closed form, and solves the others exactly, tangency and
+/// coincidence included.
 ///
 /// The hits are [`Completeness::Sampled`](crate::Completeness::Sampled):
 /// a hit between samples, or whose Newton iteration strays, can be
@@ -139,6 +149,40 @@ where
     CurveSurfaceHits::sampled(sampled_curve_surface(curve, surface, tol))
 }
 
+/// The box of the surface, when its type knows one: a sphere or torus's
+/// tightest box, or a B-spline surface's pole box, grown by `tol.confusion`
+/// so a hit on its face stays inside. Planes, cylinders and cones are
+/// unbounded, and a surface defined outside the crate has no known box.
+fn surface_box<S: ParametricSurface>(surface: &S, tol: Tolerance) -> Option<Aabb> {
+    let box_ = match (surface.as_elementary(), surface.as_bspline()) {
+        (Some(elementary), _) => elementary.bounding_box()?,
+        (None, Some(bspline)) => bspline.bounding_box()?,
+        (None, None) => return None,
+    };
+    let (min, max, margin) = (box_.min(), box_.max(), tol.confusion);
+    Some([
+        min.x - margin,
+        min.y - margin,
+        min.z - margin,
+        max.x + margin,
+        max.y + margin,
+        max.z + margin,
+    ])
+}
+
+/// The range of parameters of the elementary `curve` holding its points
+/// inside `surface`'s box: where an unbounded curve can meet the surface.
+/// `None` when either side does not say enough to work it out; a range
+/// with its start above its end when the curve misses the box entirely.
+fn range_reaching<C, S>(curve: &C, surface: &S, tol: Tolerance) -> Option<(f64, f64)>
+where
+    C: ParametricCurve,
+    S: ParametricSurface,
+{
+    let elementary = curve.as_elementary()?;
+    mixed::inside(elementary, &surface_box(surface, tol)?)
+}
+
 /// The sampled search of [`search_curve_surface`].
 pub(super) fn sampled_curve_surface<C, S>(
     curve: &C,
@@ -150,12 +194,19 @@ where
     S: ParametricSurface,
 {
     let (t0, t1) = curve.bounds();
-    // Unbounded curves seed a documented default window.
-    const WINDOW: f64 = 10.0;
-    let (lo, hi) = (
-        if t0.is_finite() { t0 } else { -WINDOW },
-        if t1.is_finite() { t1 } else { WINDOW },
-    );
+    let (lo, hi) = if t0.is_finite() && t1.is_finite() {
+        (t0, t1)
+    } else {
+        let within = |a: f64, b: f64| (t0.max(a), t1.min(b));
+        match range_reaching(curve, surface, tol) {
+            Some((a, b)) => within(a, b),
+            None => within(-WINDOW, WINDOW),
+        }
+    };
+    // The curve cannot reach the surface's box: no hit exists.
+    if lo > hi {
+        return Vec::new();
+    }
     const SEEDS: usize = 128;
     const KEEP: usize = 24;
     let step = (hi - lo) / (SEEDS - 1) as f64;
@@ -341,6 +392,27 @@ mod tests {
             "{hits:?}"
         );
         assert!(hits.iter().all(|h| on_both(h, &sphere)));
+    }
+
+    /// A parabola through a torus centred at t = 15, outside the old
+    /// `[-10, 10]` window. The plane z = 0 cuts the torus in two circles
+    /// (radii 1 and 3) around its centre, and the parabola passes through
+    /// that centre, so it crosses each circle twice: four hits, all far
+    /// from the parabola's apex.
+    #[test]
+    fn test_unbounded_curve_seeds_follow_the_surface_box() {
+        use crate::{Parabola, Torus};
+        let tol = Tolerance::DEFAULT;
+        let parabola = Parabola::new(Point::ORIGIN, Vector::Z, Vector::X, 1.0).unwrap();
+        let torus = Torus::new(parabola.eval_point(15.0), Vector::Z, 2.0, 1.0).unwrap();
+        let hits = search_curve_surface(&parabola, &torus, tol);
+        assert_eq!(hits.len(), 4, "{hits:?}");
+        for hit in &hits {
+            let t = hit.curve_parameter.unwrap();
+            assert!((12.0..=18.0).contains(&t), "{hit:?}");
+            assert_eq!(parabola.eval_point(t), hit.point);
+            assert!(torus.contains(hit.point, tol), "{hit:?}");
+        }
     }
 
     #[test]

@@ -167,7 +167,9 @@ impl Ellipse {
     ///
     /// # Errors
     ///
-    /// Returns [`EllipseConstructionError::NullAxis`] if `d1` is below
+    /// Returns [`EllipseConstructionError::NonFinite`] if a coordinate of
+    /// `center`, `s1` or `s2` is NaN or infinite;
+    /// [`EllipseConstructionError::NullAxis`] if `d1` is below
     /// `tol::CONFUSION` (`s1` coincides with `center`); or
     /// [`EllipseConstructionError::InvertedAxis`] if `d1 < d2`, if `d2` is
     /// below `1e-7`, or if `x_axis` is parallel to `s2 - center` (the two
@@ -191,6 +193,9 @@ impl Ellipse {
         s1: Point,
         s2: Point,
     ) -> Result<Ellipse, EllipseConstructionError> {
+        if !(center.is_finite() && s1.is_finite() && s2.is_finite()) {
+            return Err(EllipseConstructionError::NonFinite);
+        }
         let v1 = s1 - center;
         let d1 = v1.magnitude();
         if d1 < tol::CONFUSION {
@@ -694,7 +699,9 @@ impl Ellipse2D {
     ///
     /// # Errors
     ///
-    /// Returns [`EllipseConstructionError::NullAxis`] if `d1` is below
+    /// Returns [`EllipseConstructionError::NonFinite`] if a coordinate of
+    /// `center`, `s1` or `s2` is NaN or infinite;
+    /// [`EllipseConstructionError::NullAxis`] if `d1` is below
     /// `tol::CONFUSION` (`s1` coincides with `center`); or
     /// [`EllipseConstructionError::InvertedAxis`] if `d1 < d2`, if `d2` is
     /// below `1e-7`, or if `x_axis` is parallel to `s2 - center` (the two
@@ -718,6 +725,9 @@ impl Ellipse2D {
         s1: Point2D,
         s2: Point2D,
     ) -> Result<Ellipse2D, EllipseConstructionError> {
+        if !(center.is_finite() && s1.is_finite() && s2.is_finite()) {
+            return Err(EllipseConstructionError::NonFinite);
+        }
         let v1 = s1 - center;
         let d1 = v1.magnitude();
         if d1 < tol::CONFUSION {
@@ -1031,6 +1041,17 @@ impl Ellipse2D {
     ///
     /// Default-style batch wrapper over [`Ellipse2D::project_point`]: one
     /// native call per batch, mirroring [`Ellipse2D::eval_points`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Ellipse2D, Point2D, Tolerance, Vector2D};
+    /// let ellipse = Ellipse2D::new(Point2D::ORIGIN, Vector2D::X, 3.0, 1.5).unwrap();
+    /// let points = [Point2D::new(4.0, 0.0), Point2D::new(0.0, 1.5)];
+    /// let feet = ellipse.project_points(&points, Tolerance::DEFAULT);
+    /// assert_eq!(feet[0].distance, 1.0);
+    /// assert_eq!(feet[1].distance, 0.0);
+    /// ```
     pub fn project_points(&self, points: &[Point2D], tol: Tolerance) -> Vec<CurveProjection2D> {
         points.iter().map(|&p| self.project_point(p, tol)).collect()
     }
@@ -1304,6 +1325,18 @@ mod tests {
                 Point::new(1.0, 0.0, 0.0),
             ),
             Err(EllipseConstructionError::InvertedAxis)
+        );
+    }
+
+    #[test]
+    fn test_ellipse3d_from_center_and_points_non_finite_errors() {
+        assert_eq!(
+            Ellipse::from_center_and_points(
+                Point::ORIGIN,
+                Point::new(3.0, 0.0, 0.0),
+                Point::new(1.0, f64::INFINITY, 0.0),
+            ),
+            Err(EllipseConstructionError::NonFinite)
         );
     }
 
@@ -1649,6 +1682,19 @@ mod tests {
     }
 
     // ---- Ellipse2D ----
+
+    #[test]
+    fn test_ellipse2d_from_center_and_points_non_finite_errors() {
+        for s2 in [
+            Point2D::new(1.0, f64::INFINITY),
+            Point2D::new(f64::NAN, 1.0),
+        ] {
+            assert_eq!(
+                Ellipse2D::from_center_and_points(Point2D::ORIGIN, Point2D::new(3.0, 0.0), s2),
+                Err(EllipseConstructionError::NonFinite)
+            );
+        }
+    }
 
     #[test]
     fn test_ellipse2d_from_center_and_points_orients_y_toward_s2() {

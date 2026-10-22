@@ -5,8 +5,10 @@ on:
       - main
     paths:
       - docs/**
+      - docs_hooks/**
       - mkdocs.yml
       - README.md
+      - geomcore-py/geomcore/**/*.pyi
   workflow_dispatch:
 
 permissions:

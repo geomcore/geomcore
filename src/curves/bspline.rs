@@ -9,7 +9,7 @@
 use std::fmt;
 
 use crate::curves::spline::Spline;
-use crate::curves::{Curve2D, ParametrizeError, Side, parametrize};
+use crate::curves::{BezierCurve, Curve2D, ParametrizeError, Side, parametrize};
 use crate::projection::CurveProjection;
 use crate::surfaces::Surface;
 use crate::{Continuity, Point, Tolerance, Transform, Vector};
@@ -780,9 +780,9 @@ impl BSplineCurve {
     }
 
     /// Returns the polynomial (or rational) piece of each knot span within
-    /// the [`BSplineCurve::bounds`], in order, as a Bézier B-spline: one
-    /// span with both end knots of multiplicity `degree + 1`, its poles
-    /// the span's Bézier control points.
+    /// the [`BSplineCurve::bounds`], in order, as a [`BezierCurve`]: its
+    /// poles are the span's Bézier control points, and its bounds the
+    /// span's ends.
     ///
     /// The pieces are found span after span (The NURBS Book, A5.6), each
     /// sharing its first pole with the previous piece's last. A periodic
@@ -800,15 +800,11 @@ impl BSplineCurve {
     /// let pieces = curve.to_bezier_pieces();
     /// assert_eq!(pieces.len(), 3);
     /// assert_eq!(pieces[1].bounds(), (1.0, 2.0));
-    /// assert_eq!(pieces[1].multiplicities(), &[4, 4]);
+    /// assert_eq!(pieces[1].poles().len(), 4);
     /// assert!(pieces[1].eval_point(1.5).distance(curve.eval_point(1.5)) < 1e-12);
     /// ```
-    pub fn to_bezier_pieces(&self) -> Vec<BSplineCurve> {
-        self.0
-            .to_bezier_pieces()
-            .into_iter()
-            .map(BSplineCurve)
-            .collect()
+    pub fn to_bezier_pieces(&self) -> Vec<BezierCurve> {
+        self.0.to_bezier_pieces(BezierCurve::from_spline)
     }
 
     /// Returns the piece of the curve over `[first, last]` as a clamped,
@@ -2018,10 +2014,11 @@ mod tests {
                 .fold(1.0, f64::max);
             for (k, piece) in pieces.iter().enumerate() {
                 assert_eq!(piece.bounds(), (breaks[k], breaks[k + 1]));
-                assert_eq!(piece.multiplicities(), &[p as u32 + 1; 2]);
+                let spline = piece.to_bspline();
+                assert_eq!(spline.multiplicities(), &[p as u32 + 1; 2]);
                 assert_eq!(piece.poles().len(), p + 1);
                 assert_eq!(piece.is_rational(), curve.is_rational());
-                assert!(!piece.is_periodic());
+                assert!(!spline.is_periodic());
                 let (a, b) = piece.bounds();
                 for i in 0..=8 {
                     let u = a + (b - a) * i as f64 / 8.0;
@@ -3093,7 +3090,7 @@ mod tests {
             assert_piece(&curve, &right, (u, last));
             for piece in curve.to_bezier_pieces() {
                 assert_eq!(piece.poles().len(), curve.degree() + 1);
-                assert_piece(&curve, &piece, piece.bounds());
+                assert_piece(&curve, &piece.to_bspline(), piece.bounds());
             }
             checked += 1;
         }

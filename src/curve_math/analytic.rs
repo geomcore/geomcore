@@ -233,6 +233,10 @@ pub(crate) fn conic_proximity(
     }
     let (f, fx, fy) = implicit(op.dot(frame.x_direction()), op.dot(frame.y_direction()));
     let g2 = fx * fx + fy * fy;
+    // An overflowing gradient leaves the test inconclusive.
+    if !(f * f).is_finite() || !g2.is_finite() {
+        return None;
+    }
     if f * f > 6.25 * tol * tol * g2 {
         Some(false)
     } else if 2.0 * hessian * f.abs() < g2 && offset * offset * g2 + 4.0 * f * f <= tol * tol * g2 {
@@ -258,6 +262,10 @@ pub(crate) fn conic_proximity_2d(
     let op = p - frame.origin();
     let (f, fx, fy) = implicit(op.dot(frame.x_direction()), op.dot(frame.y_direction()));
     let g2 = fx * fx + fy * fy;
+    // An overflowing gradient leaves the test inconclusive.
+    if !(f * f).is_finite() || !g2.is_finite() {
+        return None;
+    }
     if f * f > 6.25 * tol * tol * g2 {
         Some(false)
     } else if 2.0 * hessian * f.abs() < g2 && 4.0 * f * f <= tol * tol * g2 {

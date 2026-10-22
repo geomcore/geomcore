@@ -7,7 +7,7 @@ use super::sealed::BoundRange2D;
 use super::{BoundingBox2D, HasBoundingBox2D};
 use crate::Point2D;
 use crate::curves::{
-    BSplineCurve2D, Circle2D, Curve2D, Ellipse2D, Hyperbola2D, Line2D, Parabola2D,
+    BSplineCurve2D, BezierCurve2D, Circle2D, Curve2D, Ellipse2D, Hyperbola2D, Line2D, Parabola2D,
     ParametricCurve2D, TrimmedCurve2D,
 };
 use std::f64::consts::{PI, TAU};
@@ -43,6 +43,12 @@ impl HasBoundingBox2D for Hyperbola2D {
 }
 
 impl HasBoundingBox2D for BSplineCurve2D {
+    fn bounding_box(&self) -> Option<BoundingBox2D> {
+        BoundingBox2D::from_points(self.poles().iter().copied())
+    }
+}
+
+impl HasBoundingBox2D for BezierCurve2D {
     fn bounding_box(&self) -> Option<BoundingBox2D> {
         BoundingBox2D::from_points(self.poles().iter().copied())
     }
@@ -256,8 +262,8 @@ impl<C: BoundRange2D + ?Sized> BoundRange2D for &C {
 mod tests {
     use crate::curves::{Curve2D, TrimmedCurve2D};
     use crate::{
-        BSplineCurve2D, BoundingBox2D, Circle2D, Frame2D, HasBoundingBox2D, Line2D, Point2D,
-        Vector2D,
+        BSplineCurve2D, BezierCurve2D, BoundingBox2D, Circle2D, Frame2D, HasBoundingBox2D, Line2D,
+        Point2D, Vector2D,
     };
     use std::f64::consts::{FRAC_PI_2, PI, TAU};
 
@@ -378,6 +384,12 @@ mod tests {
         // The arch peaks at y = 1: the box holds it but is loose.
         assert!(b.encloses(arch().eval_point(0.5)));
         assert_eq!(Curve2D::from(arch()).bounding_box(), Some(b));
+    }
+
+    #[test]
+    fn test_bezier_box_comes_from_its_poles() {
+        let bezier = BezierCurve2D::from_bspline(&arch()).unwrap();
+        assert_eq!(bezier.bounding_box(), arch().bounding_box());
     }
 
     #[test]
