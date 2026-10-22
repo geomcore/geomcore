@@ -1233,3 +1233,96 @@ fn test_excess_past_a_range_end_is_measured_in_space() {
         );
     }
 }
+
+// ---- 2D B-splines: the numeric search, embedded at z = 0 ----
+
+/// Every hit's parameters give its point on both curves.
+fn assert_hits_lie_on_2d<A: ParametricCurve2D, B: ParametricCurve2D>(
+    r: &CurveCurveIntersection2D,
+    a: &A,
+    b: &B,
+) {
+    for h in r.hits() {
+        let (s, t) = (h.first_parameter.unwrap(), h.second_parameter.unwrap());
+        assert!(a.eval_point(s).distance(h.point) <= 1e-7);
+        assert!(b.eval_point(t).distance(h.point) <= 1e-7);
+    }
+}
+
+/// Asserts that `r`'s hits are at `expected`, in any order.
+#[track_caller]
+fn assert_hit_points_2d(r: &CurveCurveIntersection2D, expected: &[Point2D]) {
+    let actual: Vec<Point2D> = r.hits().iter().map(|h| h.point).collect();
+    assert_eq!(actual.len(), expected.len(), "{actual:?}");
+    for q in expected {
+        assert!(
+            actual.iter().any(|p| p.distance(*q) <= 1e-9),
+            "{q:?} not among {actual:?}"
+        );
+    }
+}
+
+#[test]
+fn test_bspline_2d_against_a_line_is_numeric_and_complete() {
+    let circle = Circle2D::new(Point2D::ORIGIN, 2.0).unwrap().to_bspline();
+    let line = Line2D::new(Point2D::new(-5.0, 0.0), Vector2D::X).unwrap();
+    for r in [circle.intersect(&line, TOL), line.intersect(&circle, TOL)] {
+        assert_eq!(r.method(), IntersectionMethod::Numeric);
+        assert!(r.is_complete());
+        assert_hit_points_2d(&r, &[Point2D::new(-2.0, 0.0), Point2D::new(2.0, 0.0)]);
+    }
+    assert_hits_lie_on_2d(&circle.intersect(&line, TOL), &circle, &line);
+}
+
+#[test]
+fn test_two_bspline_2d_circles_meet_twice() {
+    let a = Circle2D::new(Point2D::ORIGIN, 1.0).unwrap().to_bspline();
+    let b = Circle2D::new(Point2D::new(1.0, 0.0), 1.0)
+        .unwrap()
+        .to_bspline();
+    let r = a.intersect(&b, TOL);
+    assert_eq!(r.method(), IntersectionMethod::Numeric);
+    assert!(r.is_complete());
+    let h = 0.75f64.sqrt();
+    assert_hit_points_2d(&r, &[Point2D::new(0.5, -h), Point2D::new(0.5, h)]);
+    assert_hits_lie_on_2d(&r, &a, &b);
+}
+
+#[test]
+fn test_bspline_2d_variant_against_a_circle() {
+    let spline: Curve2D = Circle2D::new(Point2D::ORIGIN, 1.0)
+        .unwrap()
+        .to_bspline()
+        .into();
+    let circle = Circle2D::new(Point2D::new(1.0, 0.0), 1.0).unwrap();
+    let r = spline.intersect(&circle, TOL);
+    assert_eq!(r.method(), IntersectionMethod::Numeric);
+    assert!(r.is_complete());
+    assert_eq!(r.hits().len(), 2);
+    assert_hits_lie_on_2d(&r, &spline, &circle);
+    // Two elementary variants keep the closed form.
+    let exact: Curve2D = Circle2D::new(Point2D::ORIGIN, 1.0).unwrap().into();
+    assert_eq!(
+        exact.intersect(&circle, TOL).method(),
+        IntersectionMethod::Exact
+    );
+}
+
+#[test]
+fn test_trimmed_bspline_2d_keeps_the_hits_in_its_range() {
+    let circle = Circle2D::new(Point2D::ORIGIN, 2.0).unwrap().to_bspline();
+    let line = Line2D::new(Point2D::new(-5.0, 0.0), Vector2D::X).unwrap();
+    // The half of the curve through (2, 0) only.
+    let start = circle.project_point(Point2D::new(0.0, -2.0), TOL).parameter;
+    let end = circle.project_point(Point2D::new(0.0, 2.0), TOL).parameter;
+    let (first, last) = if start < end {
+        (start, end)
+    } else {
+        (start, end + circle.bounds().1 - circle.bounds().0)
+    };
+    let half = TrimmedCurve2D::new(circle.clone(), first, last).unwrap();
+    let r = half.intersect(&line, TOL);
+    assert_eq!(r.method(), IntersectionMethod::Numeric);
+    assert_hit_points_2d(&r, &[Point2D::new(2.0, 0.0)]);
+    assert_hits_lie_on_2d(&r, &half, &line);
+}

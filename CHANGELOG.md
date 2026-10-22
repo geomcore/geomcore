@@ -9,8 +9,109 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+### Added
+
+- `BSplineCurve2D` (#90), in Rust and Python: construction (polynomial,
+  rational, interpolation, approximation), evaluation and sided
+  evaluation, continuity, knot insertion and refinement, degree
+  elevation, knot removal, Bézier pieces, splitting, extraction,
+  reversal, length, projection, discretization and intersection.
+  `Curve2D` gains a `BSpline` variant, and `Circle2D`,
+  `TrimmedCurve2D` and `Curve2D` gain `to_bspline`.
+- `ParametricCurve2D` gains the local properties and queries of its 3D
+  counterpart (#91), in Rust and Python: `tangent`, `curvature`,
+  `curvature_center`, `is_closed`, `continuity`, `min_continuity` and,
+  in Rust, `as_bspline`. `TrimmedCurve2D` gains `is_closed`,
+  `continuity` and `min_continuity`, and `Curve2D` forwards them all.
+  The planar curvature is **signed**, `(x'y'' − y'x'') / |C'|³`: positive
+  where the tangent turns left, negative where it turns right (3D
+  curvature stays unsigned). `curvature_center` follows the turn, so a
+  `Circle2D` centres at its own centre whichever way it runs.
+- `BoundingBox2D` and `HasBoundingBox2D` (#91), in Rust and Python: the
+  planar counterpart of `BoundingBox`, tight for circles and arcs, from
+  the control points for B-splines, `None` for lines, and always present
+  on a `TrimmedCurve2D`.
+- 2D curve–curve intersections with a B-spline operand run the numeric
+  search, each curve seen at `z = 0`. The result reports
+  `IntersectionMethod::Numeric` and is proved complete where the 3D
+  search would prove it. `CurveCurveIntersection2D::method` now reports
+  this method instead of always `Exact`.
+- `Ellipse2D` (#92), in Rust and Python: construction from a center,
+  direction and radii, from a `Frame2D`, or from a center and two
+  points; evaluation and derivatives, parameter inversion, containment,
+  extrema and projection; area, tight bounding boxes and proven
+  discretization; exact B-spline conversion; and `TrimmedCurve2D`
+  support. `Curve2D` gains an `Ellipse` variant with every operation
+  forwarded, and Python gains `geomcore.curves.Ellipse2D` with stubs.
+- `Parabola2D` (#93), in Rust and Python: construction from an apex,
+  axis direction and focal distance or from a `Frame2D`, sharing
+  `ParabolaConstructionError` with `Parabola`; evaluation and
+  derivatives with the same parametrization as `Parabola`, parameter
+  inversion, containment, extrema and projection; tight bounding boxes
+  and proven discretization of its pieces; and `TrimmedCurve2D`
+  support. `Curve2D` gains a `Parabola` variant with every operation
+  forwarded, and Python gains `geomcore.curves.Parabola2D` with stubs.
+  2D intersections with a parabola run the numeric search. A trimmed
+  parabola converts exactly to a B-spline (`TrimmedCurve2D::to_bspline`).
+
+- `BezierCurve` and `BezierCurve2D` (#98): first-class Bézier curves of
+  `degree + 1` poles (polynomial or rational) with evaluation, sided
+  evaluation, continuity, `split_at`, `elevate_degree`, `reversed`,
+  `to_bspline`, `from_bspline`, length, projection, bounding box and
+  discretization, and `BezierConstructionError`.
+- `BezierSurface` (#98): the first-class Bézier patch, a grid of
+  `(u_degree + 1) x (v_degree + 1)` poles (polynomial or rational) with
+  evaluation to second order, sided evaluation, projection, `split_u_at`
+  / `split_v_at`, `elevate_u_degree` / `elevate_v_degree`, `reversed_u`
+  / `reversed_v`, `to_bspline`, `from_bspline`, bounding box and the
+  `ParametricSurface` trait. It reuses `BezierConstructionError`.
+- Intersections and extrema involving a `BezierCurve` or `BezierSurface`
+  take the complete Bézier-piece search of the B-spline they are, as a
+  `BSplineCurve` or `BSplineSurface` does, instead of the sampled search.
+- `BezierCurve`, `BezierCurve2D` and `BezierSurface` in Python, with
+  stubs (#98).
+- Golden fixtures (`bezier.json`) check Bézier curve and surface
+  evaluation and derivatives against explicit Bernstein sums to 1e-7.
+
+### Changed
+
+- `BSplineCurve::to_bezier_pieces` and `BSplineCurve2D::to_bezier_pieces`
+  return `BezierCurve` and `BezierCurve2D` instead of single-span
+  B-splines (#98), in Rust and Python; `to_bspline` gives the B-spline
+  back.
+- `BSplineSurface::to_bezier_patches` returns `Vec<Vec<BezierSurface>>`
+  (a list of lists of `BezierSurface` in Python) instead of single-span
+  B-spline surfaces (#98); `to_bspline` gives the B-spline surface back.
+- `BSplineCurve` and `BSplineCurve2D` share one implementation: a
+  private spline generic over its pole type (ADR 0014). The two types
+  agree on every operation to 1e-12, which a new test checks over the
+  B-spline fixtures.
+- `BSplineCurve::project_point`, `extrema` and `contains` handle a
+  query point with a non-finite coordinate as the other curves do: a
+  NaN projection, no extrema, and not contained.
+- `Curve2D` and `TrimmedCurve2D<Curve2D>` are no longer `Copy`: the
+  enum now holds a `BSplineCurve2D`, whose poles live on the heap.
+  Callers that copied one implicitly `.clone()` it.
+
 ### Fixed
 
+- `Ellipse::from_center_and_points` (and the new
+  `Ellipse2D::from_center_and_points`) returns `NonFinite` for a NaN or
+  infinite input point instead of `InvertedAxis`.
+- `ElementaryCurve::to_bspline` and `Curve::to_bspline` (and the new
+  `Curve2D::to_bspline`) return `NotRepresentable` for a circle or
+  ellipse whose poles overflow `f64` instead of panicking.
+  `Circle::to_bspline` and `Ellipse::to_bspline` still panic there, and
+  now document it.
+- `Parabola::contains`, `extrema` and `project_point` stay correct for a
+  focal distance large enough (about 1e154) that the squared gradient or
+  the stationarity cubic used to overflow, which gave a wrong
+  containment answer and a NaN projection.
+- `BSplineSurface::project_point` now projects points inside a very narrow
+  knot span correctly. Its Newton refinement minimises in each subpatch's
+  own `[0, 1]` coordinates, so a 1e-9-wide span beside a full-width one no
+  longer damps the wide direction or stops before the point is reached
+  (#80).
 - The sampled curve–surface search seeds an unbounded curve from the
   surface's bounding box, not from a fixed `[-10, 10]` parameter window.
   When the surface is a sphere, torus or B-spline (whose box is known)

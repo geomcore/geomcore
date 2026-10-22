@@ -144,6 +144,7 @@ macro_rules! map_error {
 
 map_error!(ConstructionError:
     geomcore::BSplineConstructionError,
+    geomcore::BezierConstructionError,
     geomcore::CircleConstructionError,
     geomcore::EllipseConstructionError,
     geomcore::HyperbolaConstructionError,

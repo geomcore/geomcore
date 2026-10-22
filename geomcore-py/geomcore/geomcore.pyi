@@ -16,6 +16,7 @@ __all__ = [
     "Axis2D",
     "Axis",
     "BoundingBox",
+    "BoundingBox2D",
     "Completeness",
     "CompletenessStatus",
     "CurveCurveExtrema",

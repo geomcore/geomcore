@@ -48,6 +48,7 @@ mod curve_curve_hull;
 mod curve_surface;
 mod curve_surface_hull;
 mod dispatch;
+mod embedded;
 mod inline_or_heap_list;
 mod marching;
 mod mixed;

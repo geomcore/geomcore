@@ -7,8 +7,8 @@
 
 use crate::curve_math::bspline as bspline_math;
 use crate::curves::{
-    BSplineCurve, Curve, Curve2D, ElementaryCurve, Line, Line2D, LineConstructionError,
-    ParametricCurve, ParametricCurve2D, PointExtrema, PointExtrema2D,
+    BSplineCurve, BSplineCurve2D, Curve, Curve2D, ElementaryCurve, Line, Line2D,
+    LineConstructionError, ParametricCurve, ParametricCurve2D, PointExtrema, PointExtrema2D,
 };
 use crate::projection::{CurveProjection, CurveProjection2D};
 use crate::{Continuity, Point, Point2D, Tolerance, Vector, Vector2D};
@@ -526,8 +526,8 @@ impl<C: PointExtrema> PointExtrema for TrimmedCurve<C> {
 }
 
 /// A 2D curve restricted to the parameter range `[first, last]` of a basis
-/// curve: a line segment or a circular arc, typically a trimmed pcurve in
-/// a surface's parameter space. Mirrors [`TrimmedCurve`].
+/// curve: a line segment, a circular arc or a B-spline piece, typically a
+/// trimmed pcurve in a surface's parameter space. Mirrors [`TrimmedCurve`].
 ///
 /// # Examples
 ///
@@ -597,6 +597,100 @@ impl<C: ParametricCurve2D> TrimmedCurve2D<C> {
     /// Returns the point at the end of the range.
     pub fn end_point(&self) -> Point2D {
         self.basis.eval_point(self.last)
+    }
+
+    /// Returns whether the piece's ends meet: a piece spanning a full
+    /// period of a periodic basis, or whose start and end points coincide
+    /// within `tol.confusion`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::curves::TrimmedCurve2D;
+    /// use geomcore::{Circle2D, Point2D, Tolerance};
+    ///
+    /// let circle = Circle2D::new(Point2D::ORIGIN, 1.0).unwrap();
+    /// let whole = TrimmedCurve2D::new(circle, 0.0, std::f64::consts::TAU).unwrap();
+    /// assert!(whole.is_closed(Tolerance::DEFAULT));
+    /// let arc = TrimmedCurve2D::new(circle, 0.0, 1.0).unwrap();
+    /// assert!(!arc.is_closed(Tolerance::DEFAULT));
+    /// ```
+    pub fn is_closed(&self, tol: Tolerance) -> bool {
+        if let Some(period) = self.basis.period()
+            && self.last - self.first >= period - tol.parametric
+        {
+            return true;
+        }
+        self.start_point().distance(self.end_point()) <= tol.confusion
+    }
+
+    /// [`Continuity`] at parameter `u`: the basis continuity there, and
+    /// `Smooth` at the ends of the range (within `tol.parametric`), where
+    /// the piece is seen from the inside only, as at the bounds of a
+    /// non-periodic B-spline.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::curves::TrimmedCurve2D;
+    /// use geomcore::{BSplineCurve2D, Continuity, Point2D, Tolerance};
+    ///
+    /// // Degree 2 with a double knot at 0.5: a kink (C0) there.
+    /// let poles = vec![
+    ///     Point2D::ORIGIN,
+    ///     Point2D::new(1.0, 0.0),
+    ///     Point2D::new(2.0, 1.0),
+    ///     Point2D::new(3.0, 1.0),
+    ///     Point2D::new(4.0, 0.0),
+    /// ];
+    /// let curve = BSplineCurve2D::new(2, poles, vec![0.0, 0.5, 1.0], vec![3, 2, 3], false).unwrap();
+    /// let piece = TrimmedCurve2D::new(&curve, 0.25, 0.75).unwrap();
+    /// assert_eq!(piece.continuity(0.5, Tolerance::DEFAULT), Continuity::Order(0));
+    /// let half = TrimmedCurve2D::new(&curve, 0.0, 0.5).unwrap();
+    /// assert_eq!(half.continuity(0.5, Tolerance::DEFAULT), Continuity::Smooth);
+    /// ```
+    pub fn continuity(&self, u: f64, tol: Tolerance) -> Continuity {
+        let at_end = |end: f64| (u - end).abs() <= tol.parametric * (1.0 + end.abs());
+        if at_end(self.first) || at_end(self.last) {
+            return Continuity::Smooth;
+        }
+        self.basis.continuity(u, tol)
+    }
+
+    /// Minimum [`Continuity`] over the range `[first, last]` (`Smooth`
+    /// when no knot constrains it): the worst B-spline knot strictly
+    /// inside the range, so a piece that avoids a kink of its basis is
+    /// smooth. A basis other than a B-spline reports its own minimum.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::curves::TrimmedCurve2D;
+    /// use geomcore::{BSplineCurve2D, Continuity, Point2D};
+    ///
+    /// // Degree 2 with a double knot at 0.5: a kink (C0) there.
+    /// let poles = vec![
+    ///     Point2D::ORIGIN,
+    ///     Point2D::new(1.0, 0.0),
+    ///     Point2D::new(2.0, 1.0),
+    ///     Point2D::new(3.0, 1.0),
+    ///     Point2D::new(4.0, 0.0),
+    /// ];
+    /// let curve = BSplineCurve2D::new(2, poles, vec![0.0, 0.5, 1.0], vec![3, 2, 3], false).unwrap();
+    /// assert_eq!(TrimmedCurve2D::new(&curve, 0.25, 0.75).unwrap().min_continuity(), Continuity::Order(0));
+    /// assert_eq!(TrimmedCurve2D::new(&curve, 0.0, 0.5).unwrap().min_continuity(), Continuity::Smooth);
+    /// ```
+    pub fn min_continuity(&self) -> Continuity {
+        match self.basis.as_bspline() {
+            Some(bspline) => bspline_math::min_continuity_within(
+                bspline.degree(),
+                bspline.knots(),
+                bspline.multiplicities(),
+                ParametricCurve2D::period(bspline),
+                (self.first, self.last),
+            ),
+            None => self.basis.min_continuity(),
+        }
     }
 
     /// Evaluates the basis point at parameter `u`.
@@ -694,6 +788,30 @@ impl<C: ParametricCurve2D> ParametricCurve2D for TrimmedCurve2D<C> {
 
     fn eval_points(&self, us: &[f64]) -> Vec<Point2D> {
         self.basis.eval_points(us)
+    }
+
+    fn eval_d1(&self, u: f64) -> (Point2D, Vector2D) {
+        self.basis.eval_d1(u)
+    }
+
+    fn eval_d2(&self, u: f64) -> (Point2D, Vector2D, Vector2D) {
+        self.basis.eval_d2(u)
+    }
+
+    fn is_closed(&self, tol: Tolerance) -> bool {
+        TrimmedCurve2D::is_closed(self, tol)
+    }
+
+    fn continuity(&self, u: f64, tol: Tolerance) -> Continuity {
+        TrimmedCurve2D::continuity(self, u, tol)
+    }
+
+    fn min_continuity(&self) -> Continuity {
+        TrimmedCurve2D::min_continuity(self)
+    }
+
+    fn as_bspline(&self) -> Option<&BSplineCurve2D> {
+        self.basis.as_bspline()
     }
 }
 
@@ -995,6 +1113,91 @@ mod tests {
         assert_eq!(
             borrowed.project_point(point, TOL),
             owned.project_point(point, TOL)
+        );
+    }
+
+    // ---- 2D closedness, continuity and local properties ----
+
+    fn kinked_2d() -> crate::BSplineCurve2D {
+        let poles = vec![
+            Point2D::new(0.0, 0.0),
+            Point2D::new(1.0, 0.0),
+            Point2D::new(2.0, 1.0),
+            Point2D::new(3.0, 1.0),
+            Point2D::new(4.0, 0.0),
+        ];
+        crate::BSplineCurve2D::new(2, poles, vec![0.0, 0.5, 1.0], vec![3, 2, 3], false).unwrap()
+    }
+
+    #[test]
+    fn test_trimmed_2d_closed_over_a_full_period_or_when_the_ends_meet() {
+        let circle = Circle2D::new(Point2D::ORIGIN, 1.0).unwrap();
+        let whole = TrimmedCurve2D::new(circle, 0.0, TAU).unwrap();
+        assert!(ParametricCurve2D::is_closed(&whole, TOL));
+        assert!(whole.is_closed(TOL));
+        let arc = TrimmedCurve2D::new(circle, 0.0, 1.0).unwrap();
+        assert!(!ParametricCurve2D::is_closed(&arc, TOL));
+        // A periodic trim never reports a period itself, yet its ends meet.
+        assert!(!whole.is_periodic());
+
+        let segment = TrimmedCurve2D::segment(Point2D::ORIGIN, Point2D::new(1.0, 0.0)).unwrap();
+        assert!(!segment.is_closed(TOL));
+    }
+
+    #[test]
+    fn test_trimmed_2d_bspline_continuity_is_seen_from_inside_the_range() {
+        let curve = kinked_2d();
+        let piece = TrimmedCurve2D::new(&curve, 0.25, 0.75).unwrap();
+        assert_eq!(
+            ParametricCurve2D::continuity(&piece, 0.5, TOL),
+            Continuity::Order(0)
+        );
+        assert_eq!(
+            ParametricCurve2D::continuity(&piece, 0.25, TOL),
+            Continuity::Smooth
+        );
+        assert_eq!(
+            ParametricCurve2D::min_continuity(&piece),
+            Continuity::Order(0)
+        );
+        let half = TrimmedCurve2D::new(&curve, 0.0, 0.5).unwrap();
+        assert_eq!(
+            ParametricCurve2D::continuity(&half, 0.5, TOL),
+            Continuity::Smooth
+        );
+        assert_eq!(ParametricCurve2D::min_continuity(&half), Continuity::Smooth);
+    }
+
+    #[test]
+    fn test_trimmed_2d_elementary_basis_is_smooth() {
+        let circle = Circle2D::new(Point2D::ORIGIN, 1.0).unwrap();
+        let arc = TrimmedCurve2D::new(circle, 0.0, 1.0).unwrap();
+        assert_eq!(ParametricCurve2D::min_continuity(&arc), Continuity::Smooth);
+    }
+
+    #[test]
+    fn test_trimmed_2d_exposes_its_bspline_basis_only() {
+        let curve = kinked_2d();
+        let piece = TrimmedCurve2D::new(&curve, 0.25, 0.75).unwrap();
+        assert_eq!(ParametricCurve2D::as_bspline(&piece), Some(&curve));
+        let circle = Circle2D::new(Point2D::ORIGIN, 1.0).unwrap();
+        let arc = TrimmedCurve2D::new(circle, 0.0, 1.0).unwrap();
+        assert_eq!(ParametricCurve2D::as_bspline(&arc), None);
+    }
+
+    #[test]
+    fn test_trimmed_2d_arc_has_the_signed_curvature_of_its_basis() {
+        let circle = Circle2D::new(Point2D::ORIGIN, 2.0).unwrap();
+        let arc = TrimmedCurve2D::new(circle, 0.0, 1.0).unwrap();
+        assert_eq!(
+            ParametricCurve2D::curvature(&arc, 0.5, TOL),
+            circle.curvature(0.5, TOL)
+        );
+        assert_eq!(arc.curvature(0.0, TOL), Some(0.5));
+        assert_eq!(
+            arc.curvature_center(0.5, TOL)
+                .map(|c| c.distance(Point2D::ORIGIN) < 1e-12),
+            Some(true)
         );
     }
 }

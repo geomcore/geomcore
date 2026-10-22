@@ -5,13 +5,15 @@
 mod common;
 
 use common::{
-    FrameJson, assert_close, assert_point3, assert_vector3, frame3, load, point3, vector3,
+    Frame2DJson, FrameJson, assert_close, assert_point2, assert_point3, assert_vector2,
+    assert_vector3, frame2, frame3, load, point2, point3, vector3,
 };
 use geomcore::curves::ParametricCurve2D;
 use geomcore::surfaces::{BSplineSurface, ParametricSurface};
 use geomcore::{
-    Axis, BSplineCurve, Circle, Cone, Curve2D, Cylinder, Ellipse, Hyperbola, Line, Parabola,
-    ParametrizeError, Plane, Sphere, Tolerance, Torus, Transform,
+    Axis, BSplineCurve, BSplineCurve2D, Circle, Cone, Curve2D, Cylinder, Ellipse, Ellipse2D,
+    Hyperbola, Line, Parabola, Parabola2D, ParametrizeError, Plane, Sphere, Tolerance, Torus,
+    Transform,
 };
 use serde::Deserialize;
 
@@ -270,6 +272,55 @@ struct CurvesAnalyticFixture {
     hyperbolas: Vec<HyperbolaCase>,
 }
 
+#[derive(Deserialize)]
+struct CurveSample2D {
+    u: f64,
+    point: [f64; 2],
+    d1: [f64; 2],
+    d2: [f64; 2],
+    d3: [f64; 2],
+}
+
+#[derive(Deserialize)]
+struct ParameterOf2D {
+    point: [f64; 2],
+    u: f64,
+}
+
+#[derive(Deserialize)]
+struct Projection2D {
+    point: [f64; 2],
+    u: f64,
+    closest: [f64; 2],
+    distance: f64,
+}
+
+#[derive(Deserialize)]
+struct Ellipse2DCase {
+    frame: Frame2DJson,
+    major_radius: f64,
+    minor_radius: f64,
+    area: f64,
+    samples: Vec<CurveSample2D>,
+    parameter_of: Vec<ParameterOf2D>,
+    projections: Vec<Projection2D>,
+}
+
+#[derive(Deserialize)]
+struct Parabola2DCase {
+    frame: Frame2DJson,
+    focal: f64,
+    samples: Vec<CurveSample2D>,
+    parameter_of: Vec<ParameterOf2D>,
+    projections: Vec<Projection2D>,
+}
+
+#[derive(Deserialize)]
+struct CurvesAnalytic2DFixture {
+    ellipses: Vec<Ellipse2DCase>,
+    parabolas: Vec<Parabola2DCase>,
+}
+
 #[test]
 fn lines_match_golden_fixture() {
     let fixture: CurvesAnalyticFixture =
@@ -376,6 +427,83 @@ fn ellipses_match_golden_fixture() {
         for inversion in &case.parameter_of {
             let u = ellipse.parameter_of(point3(inversion.point));
             assert_close(u, inversion.u);
+        }
+    }
+}
+
+#[test]
+fn ellipses_2d_match_golden_fixture() {
+    let fixture: CurvesAnalytic2DFixture =
+        serde_json::from_value(load("curves_analytic_2d.json")).unwrap();
+
+    for (i, case) in fixture.ellipses.iter().enumerate() {
+        let ellipse =
+            Ellipse2D::from_frame(frame2(&case.frame), case.major_radius, case.minor_radius)
+                .unwrap_or_else(|e| panic!("case {i}: failed to build Ellipse2D: {e}"));
+
+        assert_close(ellipse.area(), case.area);
+
+        for sample in &case.samples {
+            let point = ellipse.eval_point(sample.u);
+            assert_point2(point, sample.point);
+
+            let d1 = ellipse.eval_derivative(sample.u, 1);
+            assert_vector2(d1, sample.d1);
+
+            let d2 = ellipse.eval_derivative(sample.u, 2);
+            assert_vector2(d2, sample.d2);
+
+            let d3 = ellipse.eval_derivative(sample.u, 3);
+            assert_vector2(d3, sample.d3);
+        }
+
+        for inversion in &case.parameter_of {
+            let u = ellipse.parameter_of(point2(inversion.point));
+            assert_close(u, inversion.u);
+        }
+
+        for projection in &case.projections {
+            let projected = ellipse.project_point(point2(projection.point), Tolerance::DEFAULT);
+            assert_close(projected.parameter, projection.u);
+            assert_point2(projected.point, projection.closest);
+            assert_close(projected.distance, projection.distance);
+        }
+    }
+}
+
+#[test]
+fn parabolas_2d_match_golden_fixture() {
+    let fixture: CurvesAnalytic2DFixture =
+        serde_json::from_value(load("curves_analytic_2d.json")).unwrap();
+
+    for (i, case) in fixture.parabolas.iter().enumerate() {
+        let parabola = Parabola2D::from_frame(frame2(&case.frame), case.focal)
+            .unwrap_or_else(|e| panic!("case {i}: failed to build Parabola2D: {e}"));
+
+        for sample in &case.samples {
+            let point = parabola.eval_point(sample.u);
+            assert_point2(point, sample.point);
+
+            let d1 = parabola.eval_derivative(sample.u, 1);
+            assert_vector2(d1, sample.d1);
+
+            let d2 = parabola.eval_derivative(sample.u, 2);
+            assert_vector2(d2, sample.d2);
+
+            let d3 = parabola.eval_derivative(sample.u, 3);
+            assert_vector2(d3, sample.d3);
+        }
+
+        for inversion in &case.parameter_of {
+            let u = parabola.parameter_of(point2(inversion.point));
+            assert_close(u, inversion.u);
+        }
+
+        for projection in &case.projections {
+            let projected = parabola.project_point(point2(projection.point), Tolerance::DEFAULT);
+            assert_close(projected.parameter, projection.u);
+            assert_point2(projected.point, projection.closest);
+            assert_close(projected.distance, projection.distance);
         }
     }
 }
@@ -573,6 +701,59 @@ fn bsplines_match_golden_fixture() {
 
             let d2 = curve.eval_derivative(sample.u, 2);
             assert_vector3(d2, sample.d2);
+        }
+    }
+}
+
+/// The planar shadow of a case: its poles with `z` dropped. Dropping a
+/// coordinate commutes with B-spline evaluation (each coordinate is the
+/// same weighted blend of its pole coordinates), so the case's samples
+/// with `z` dropped are the shadow's goldens.
+fn build_bspline_2d(case: &BSplineCase) -> BSplineCurve2D {
+    let poles: Vec<geomcore::Point2D> = case
+        .poles
+        .iter()
+        .map(|&[x, y, _]| geomcore::Point2D::new(x, y))
+        .collect();
+    let result = match &case.weights {
+        Some(weights) => BSplineCurve2D::new_rational(
+            case.degree,
+            poles,
+            weights.clone(),
+            case.knots.clone(),
+            case.mults.clone(),
+            case.periodic,
+        ),
+        None => BSplineCurve2D::new(
+            case.degree,
+            poles,
+            case.knots.clone(),
+            case.mults.clone(),
+            case.periodic,
+        ),
+    };
+    result.unwrap_or_else(|e| panic!("{}: failed to build BSplineCurve2D: {e}", case.name))
+}
+
+#[test]
+fn bspline_shadows_match_golden_fixture() {
+    let fixture: BSplineFixture = serde_json::from_value(load("curves_bspline.json")).unwrap();
+
+    for case in &fixture.cases {
+        let curve = build_bspline_2d(case);
+
+        for sample in &case.samples {
+            let point = curve.eval_point(sample.u);
+            assert_close(point.x, sample.point[0]);
+            assert_close(point.y, sample.point[1]);
+
+            let d1 = curve.eval_derivative(sample.u, 1);
+            assert_close(d1.x, sample.d1[0]);
+            assert_close(d1.y, sample.d1[1]);
+
+            let d2 = curve.eval_derivative(sample.u, 2);
+            assert_close(d2.x, sample.d2[0]);
+            assert_close(d2.y, sample.d2[1]);
         }
     }
 }

@@ -4,7 +4,7 @@ Every 3D curve type has a 2D counterpart with the same capabilities: `Line2D`, `
 
 Curve-on-surface parametrization is one of the crate's stated purposes, and its result is a 2D curve. Before this decision `Curve2D` held only lines and circles, so `parametrize_on` could not return the image of an ellipse in its own plane, the most common planar edge after lines and circles, and reported `NotAnalytic`, although that image is an ellipse in `(u, v)`. Parabolas and hyperbolas on a plane had the same gap, and a B-spline curve had no 2D curve to become: `parametrize_numeric` returned bare points. A kernel builds edges on faces from these images, so a 2D tier narrower than the 3D one leaves those edges without a curve.
 
-`BSplineCurve2D` reuses the B-spline engine that already serves 3D curves and surfaces: the engine is generic over its poles, so 2D poles are one more pole type, not a second implementation.
+`BSplineCurve2D` reuses the B-spline engine that already serves 3D curves and surfaces: the engine is generic over its poles, so 2D poles are one more pole type, not a second implementation. Above the engine, both curve types wrap one private spline generic over its pole type, which holds the validation, editing, evaluation, length and projection, so each public type is a thin layer of one-line delegations.
 
 ## Considered options
 

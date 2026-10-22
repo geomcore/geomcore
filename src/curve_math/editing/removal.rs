@@ -3,16 +3,16 @@
 //! new poles from both ends of the run it affects, and the equation left
 //! over measures how far the shape moves.
 
-use super::{Edited, Kept, Lanes, Pole, Source, Weighted, from_homogeneous};
-use crate::Point;
+use super::{Edited, Kept, Lanes, Pole, PolePoint, Source, Weighted, from_homogeneous};
 use crate::curve_math::bspline::{KnotVector, MAX_DEGREE};
 use crate::curves::KnotRemovalError;
+use crate::{Point, Point2D};
 
 /// A direction with knots removed, its poles and weights laid out as the
 /// input's, and how many copies were removed.
-pub(crate) struct Removed {
+pub(crate) struct Removed<G: PolePoint> {
     pub(crate) knots: KnotVector,
-    pub(crate) points: Vec<Point>,
+    pub(crate) points: Vec<G>,
     pub(crate) weights: Option<Vec<f64>>,
     pub(crate) count: usize,
 }
@@ -70,14 +70,18 @@ pub(crate) fn check_removal(
 /// A knot is removed only if every lane stays within `max_deviation`. On a
 /// periodic direction the seam keeps at least one copy, so the bounds
 /// stay. The arguments must pass [`check_removal`].
-pub(crate) fn remove_knots(
+pub(crate) fn remove_knots<G>(
     direction: &KnotVector,
-    points: &[Point],
+    points: &[G],
     weights: Option<&[f64]>,
     lanes: Lanes,
     remove: &[f64],
     max_deviation: f64,
-) -> Option<Removed> {
+) -> Option<Removed<G>>
+where
+    G: PolePoint + Deviation,
+    G::Homogeneous: Deviation,
+{
     match weights {
         None => {
             let removal = run(direction, points.to_vec(), lanes, remove, max_deviation)?;
@@ -90,7 +94,7 @@ pub(crate) fn remove_knots(
         }
         Some(weights) => {
             let source = Weighted { points, weights };
-            let mut poles = Vec::with_capacity(points.len());
+            let mut poles: Vec<G::Homogeneous> = Vec::with_capacity(points.len());
             source.extend_to(0..points.len(), &mut poles);
             let removal = run(direction, poles, lanes, remove, max_deviation)?;
             let edited = Edited {
@@ -111,7 +115,7 @@ pub(crate) fn remove_knots(
 }
 
 /// A pole whose removal deviation can be bounded.
-trait Deviation: Pole {
+pub(crate) trait Deviation: Pole + Default {
     /// A bound on how far the points of the shape move when each lane's
     /// pole moves by its `diffs` times `coefficient` (a basis function's
     /// maximum), or `None` if it exceeds `max` or is not finite: `centre`
@@ -141,6 +145,28 @@ impl Deviation for Point {
         let squared = diffs
             .iter()
             .map(|d| d.x * d.x + d.y * d.y + d.z * d.z)
+            .fold(0.0, f64::max);
+        squared.is_finite().then(|| coefficient * squared.sqrt())
+    }
+
+    #[inline]
+    fn is_valid(self) -> bool {
+        true
+    }
+}
+
+impl Deviation for Point2D {
+    #[inline]
+    fn bound(
+        diffs: &[Self],
+        coefficient: f64,
+        _: Self,
+        _: impl Iterator<Item = Self>,
+        _: f64,
+    ) -> Option<f64> {
+        let squared = diffs
+            .iter()
+            .map(|d| d.x * d.x + d.y * d.y)
             .fold(0.0, f64::max);
         squared.is_finite().then(|| coefficient * squared.sqrt())
     }
@@ -201,6 +227,52 @@ impl Deviation for [f64; 4] {
     #[inline]
     fn is_valid(self) -> bool {
         self[3] > 0.0
+    }
+}
+
+/// The homogeneous deviation of the plane tier, the bound of the 3D
+/// homogeneous one measured about a plane point.
+impl Deviation for [f64; 3] {
+    fn bound(
+        diffs: &[Self],
+        coefficient: f64,
+        centre: Self,
+        reach: impl Iterator<Item = Self>,
+        max: f64,
+    ) -> Option<f64> {
+        let weight = centre[2];
+        let c = [centre[0] / weight, centre[1] / weight];
+        let length_squared = |[x, y, w]: [f64; 3]| {
+            let (dx, dy) = (x - c[0] * w, y - c[1] * w);
+            dx * dx + dy * dy
+        };
+        let squared = diffs
+            .iter()
+            .map(|&d| length_squared(d) + d[2] * d[2])
+            .fold(0.0, f64::max);
+        let e = coefficient * squared.sqrt();
+        // The weight of `centre` is at least the smallest, so this bounds the
+        // bound from below.
+        if !(e < weight && e <= max * (weight - e)) {
+            return None;
+        }
+        let (mut min_weight, mut radius_squared) = (weight, 0.0_f64);
+        for pole in reach {
+            let w = pole[2];
+            min_weight = min_weight.min(w);
+            radius_squared = radius_squared.max(length_squared(pole) / (w * w));
+        }
+        let bound = if e < min_weight {
+            e * (1.0 + radius_squared).sqrt() / (min_weight - e)
+        } else {
+            f64::INFINITY
+        };
+        (bound <= max).then_some(bound)
+    }
+
+    #[inline]
+    fn is_valid(self) -> bool {
+        self[2] > 0.0
     }
 }
 

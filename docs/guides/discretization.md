@@ -61,6 +61,6 @@ allocating.
     ```
 
 In the plane, `Discretize2D` gives a `Discretization2D` of a
-`Circle2D` or a trimmed 2D curve, its chord deviations measured in the
+`Circle2D`, a `BSplineCurve2D` or a trimmed 2D curve, its chord deviations measured in the
 plane. For surface meshing these curves are the edges first — faces
 triangulate after their boundary is fixed.
