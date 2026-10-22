@@ -238,7 +238,7 @@ pub(super) fn fold_range_points<P: PolePoint, B: Copy>(
             covered = Some((covered.map_or(middle, |(m, _)| m), middle));
             return;
         }
-        spline.span_bezier_lanes(middle, &mut points);
+        spline.span_bezier_points(middle, &mut points);
         let piece = &mut points[..=degree];
         let length = end - start;
         bernstein::restrict(piece, (a - start) / length, (b - start) / length);

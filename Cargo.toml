@@ -42,6 +42,10 @@ harness = false
 name = "marching_intersection"
 harness = false
 
+[[bench]]
+name = "bspline_curve_operations"
+harness = false
+
 [workspace]
 members = [".", "geomcore-py"]
 
