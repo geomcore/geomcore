@@ -168,7 +168,7 @@ pub mod transform;
 /// Vectors in 2D and 3D space.
 pub mod vector;
 
-pub use bounding_box::{BoundingBox, HasBoundingBox};
+pub use bounding_box::{BoundingBox, BoundingBox2D, HasBoundingBox, HasBoundingBox2D};
 pub use curves::{
     BSplineConstructionError, BSplineConversionError, BSplineCurve, BSplineCurve2D,
     BSplineSplitError, Circle, Circle2D, CircleConstructionError, Continuity, Curve, Curve2D,

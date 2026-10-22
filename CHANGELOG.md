@@ -18,6 +18,19 @@ the Python distribution are versioned in lockstep.
   reversal, length, projection, discretization and intersection.
   `Curve2D` gains a `BSpline` variant, and `Circle2D`,
   `TrimmedCurve2D` and `Curve2D` gain `to_bspline`.
+- `ParametricCurve2D` gains the local properties and queries of its 3D
+  counterpart (#91), in Rust and Python: `tangent`, `curvature`,
+  `curvature_center`, `is_closed`, `continuity`, `min_continuity` and,
+  in Rust, `as_bspline`. `TrimmedCurve2D` gains `is_closed`,
+  `continuity` and `min_continuity`, and `Curve2D` forwards them all.
+  The planar curvature is **signed**, `(x'y'' − y'x'') / |C'|³`: positive
+  where the tangent turns left, negative where it turns right (3D
+  curvature stays unsigned). `curvature_center` follows the turn, so a
+  `Circle2D` centres at its own centre whichever way it runs.
+- `BoundingBox2D` and `HasBoundingBox2D` (#91), in Rust and Python: the
+  planar counterpart of `BoundingBox`, tight for circles and arcs, from
+  the control points for B-splines, `None` for lines, and always present
+  on a `TrimmedCurve2D`.
 - 2D curve–curve intersections with a B-spline operand run the numeric
   search, each curve seen at `z = 0`. The result reports
   `IntersectionMethod::Numeric` and is proved complete where the 3D

@@ -4,6 +4,8 @@
 use super::sealed::BoundRange;
 use super::{BoundingBox, HasBoundingBox, coordinates, point};
 use crate::curve_math::bspline as math;
+use crate::curve_math::bspline::PolePoint;
+use crate::curves::spline::Spline;
 use crate::curves::{
     BSplineCurve, Circle, Curve, ElementaryCurve, Ellipse, Hyperbola, Line, Parabola,
     ParametricCurve, TrimmedCurve,
@@ -212,6 +214,44 @@ impl BoundRange for Hyperbola {
     }
 }
 
+/// Folds into `seed` the control points of the polynomial pieces of
+/// `spline` over `[first, last]`: `bezier` takes the homogeneous Bézier
+/// points of the pieces of the knot spans the range cuts, restricted to
+/// the range, and `pole` the poles of the spans it covers. Each piece lies
+/// in the convex hull of either.
+pub(super) fn fold_range_points<P: PolePoint, B: Copy>(
+    spline: &Spline<P>,
+    (first, last): (f64, f64),
+    seed: B,
+    mut bezier: impl FnMut(B, [f64; 4]) -> B,
+    pole: impl FnMut(B, P) -> B,
+) -> B {
+    let degree = spline.degree();
+    let mut bounds = seed;
+    let mut points = [[0.0; 4]; math::LARGE];
+    // The middles of the first and last spans the range covers; it
+    // covers every span between them.
+    let mut covered: Option<(f64, f64)> = None;
+    spline.for_each_span_in(first, last, |(start, end), (a, b)| {
+        let middle = 0.5 * (start + end);
+        if a == start && b == end {
+            covered = Some((covered.map_or(middle, |(m, _)| m), middle));
+            return;
+        }
+        spline.span_bezier_points(middle, &mut points);
+        let piece = &mut points[..=degree];
+        let length = end - start;
+        bernstein::restrict(piece, (a - start) / length, (b - start) / length);
+        for &lane in piece.iter() {
+            bounds = bezier(bounds, lane);
+        }
+    });
+    match covered {
+        Some((m0, m1)) => spline.run_poles(m0, m1).fold(bounds, pole),
+        None => bounds,
+    }
+}
+
 impl BoundRange for BSplineCurve {
     /// The union, over the knot spans meeting the range, of the boxes of
     /// the poles of the spans it covers and of the Bézier control points
@@ -219,35 +259,14 @@ impl BoundRange for BSplineCurve {
     /// ends are the range's ends). Each piece lies in the convex hull of
     /// either.
     fn range_box(&self, first: f64, last: f64) -> BoundingBox {
-        let degree = self.degree();
         let start_point = self.eval_point(first);
-        let mut bounds = BoundingBox::new(start_point, start_point);
-        let mut points = [[0.0; 4]; math::LARGE];
-        // The middles of the first and last spans the range covers; it
-        // covers every span between them.
-        let mut covered: Option<(f64, f64)> = None;
-        self.spline()
-            .for_each_span_in(first, last, |(start, end), (a, b)| {
-                let middle = 0.5 * (start + end);
-                if a == start && b == end {
-                    covered = Some((covered.map_or(middle, |(m, _)| m), middle));
-                    return;
-                }
-                self.spline().span_bezier_points(middle, &mut points);
-                let piece = &mut points[..=degree];
-                let length = end - start;
-                bernstein::restrict(piece, (a - start) / length, (b - start) / length);
-                for &[x, y, z, w] in piece.iter() {
-                    bounds = bounds.including(Point::new(x / w, y / w, z / w));
-                }
-            });
-        match covered {
-            Some((m0, m1)) => self
-                .spline()
-                .run_poles(m0, m1)
-                .fold(bounds, BoundingBox::including),
-            None => bounds,
-        }
+        fold_range_points(
+            self.spline(),
+            (first, last),
+            BoundingBox::new(start_point, start_point),
+            |b, [x, y, z, w]| b.including(Point::new(x / w, y / w, z / w)),
+            BoundingBox::including,
+        )
     }
 }
 
