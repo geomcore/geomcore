@@ -2346,8 +2346,9 @@ impl BSplineSurface {
             Some((lo, _)) => (x - lo) / span[i].unwrap_or(1.0),
             None => x,
         };
+        // `lo + 1.0 * (hi - lo)` may round past `hi`.
         let to_global = |s: f64, i: usize| match bounds[i] {
-            Some((lo, _)) => lo + s * span[i].unwrap_or(1.0),
+            Some((lo, hi)) => (lo + s * span[i].unwrap_or(1.0)).min(hi),
             None => s,
         };
         let objective = |s: f64, t: f64| {
@@ -2951,6 +2952,32 @@ fn gathered<T: Copy>(values: &[T], indices: &[usize]) -> Vec<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// `lo + 1.0 * (hi - lo)` can round one step past `hi`: a projection
+    /// onto the upper edge must still land inside the parameter range.
+    #[test]
+    fn test_projection_on_the_upper_edge_stays_in_the_parameter_range() {
+        let poles = vec![
+            vec![Point::new(0.0, 0.0, 0.0), Point::new(0.0, 1.0, 0.0)],
+            vec![Point::new(1.0, 0.0, 0.0), Point::new(1.0, 1.0, 0.0)],
+        ];
+        let surface = BSplineSurface::new(
+            1,
+            1,
+            poles,
+            vec![0.03, 0.3],
+            vec![2, 2],
+            vec![0.0, 1.0],
+            vec![2, 2],
+            false,
+            false,
+        )
+        .unwrap();
+        let projection = surface.project_point(Point::new(2.0, 0.5, 0.0), Tolerance::DEFAULT);
+        assert_eq!(projection.distance, 1.0, "{projection:?}");
+        assert!(projection.u <= 0.3, "{projection:?}");
+        assert!((projection.v - 0.5).abs() < 1e-12, "{projection:?}");
+    }
 
     /// A flat wall whose first u span is 1e-9 wide. Points on it, including
     /// inside that span, project to themselves; the narrow u direction must
