@@ -56,6 +56,15 @@ the Python distribution are versioned in lockstep.
 
 ### Fixed
 
+- `Ellipse::from_center_and_points` (and the new
+  `Ellipse2D::from_center_and_points`) returns `NonFinite` for a NaN or
+  infinite input point instead of `InvertedAxis`.
+- `ElementaryCurve::to_bspline` and `Curve::to_bspline` (and the new
+  `Curve2D::to_bspline`) return `NotRepresentable` for a circle or
+  ellipse whose poles overflow `f64` instead of panicking.
+  `Circle::to_bspline` and `Ellipse::to_bspline` still panic there, and
+  now document it.
+
 - The sampled curve–curve search no longer drops a transversal crossing
   that lies close to another crossing or to a near touch (#13). It runs
   in `intersect_curve_curve` and `curve_curve_extrema` (Rust and Python)

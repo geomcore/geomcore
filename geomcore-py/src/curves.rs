@@ -672,8 +672,9 @@ impl PyEllipse {
         ))
     }
 
-    /// Build an ellipse from its center, the major-axis end point and a
-    /// second point on the curve.
+    /// Build an ellipse from its center, the major-axis end point `s1`
+    /// and a point `s2` whose distance from the major axis is the minor
+    /// radius.
     #[staticmethod]
     fn from_center_and_points(center: PyPoint, s1: PyPoint, s2: PyPoint) -> PyResult<Self> {
         Ok(PyEllipse(
@@ -2957,8 +2958,9 @@ impl PyEllipse2D {
         ))
     }
 
-    /// Build a 2D ellipse from its center, the major-axis end point and a
-    /// second point on the curve.
+    /// Build a 2D ellipse from its center, the major-axis end point `s1`
+    /// and a point `s2` whose distance from the major axis is the minor
+    /// radius.
     #[staticmethod]
     fn from_center_and_points(center: PyPoint2D, s1: PyPoint2D, s2: PyPoint2D) -> PyResult<Self> {
         Ok(PyEllipse2D(
@@ -3498,7 +3500,7 @@ impl PyTrimmedCurve2D {
     }
 
     #[new]
-    /// Restrict `basis` (a Line2D, Circle2D or BSplineCurve2D) to the parameter range
+    /// Restrict `basis` (a Line2D, Circle2D, Ellipse2D or BSplineCurve2D) to the parameter range
     /// `[first, last]`, under the rules of `TrimmedCurve`.
     fn py_new(basis: &Bound<'_, PyAny>, first: f64, last: f64) -> PyResult<Self> {
         let basis = extract_curve2d(basis)?;

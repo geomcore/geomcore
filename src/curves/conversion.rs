@@ -123,10 +123,22 @@ impl Circle {
     /// let q = bspline.eval_point(0.3);
     /// assert!((q.distance(Point::ORIGIN) - 2.0).abs() < 1e-15);
     /// ```
+    ///
+    /// # Panics
+    ///
+    /// Panics if a pole overflows `f64`, which takes a radius within a
+    /// factor of about 1.5 of `f64::MAX`; [`ElementaryCurve::to_bspline`] reports
+    /// that as [`BSplineConversionError::NotRepresentable`] instead.
     pub fn to_bspline(&self) -> BSplineCurve {
+        self.checked_to_bspline()
+            .expect("a circle of representable size has finite poles")
+    }
+
+    /// [`to_bspline`](Self::to_bspline), or `NotRepresentable` if a pole
+    /// overflows.
+    fn checked_to_bspline(&self) -> Result<BSplineCurve, BSplineConversionError> {
         let r = self.radius();
         place(conic_bspline::full_circle(), self.frame(), r, r)
-            .expect("a finite circle has finite poles")
     }
 }
 
@@ -150,14 +162,26 @@ impl Ellipse {
     /// let p = bspline.eval_point(1.0);
     /// assert!(((p.x / 3.0).powi(2) + p.y.powi(2) - 1.0).abs() < 1e-15);
     /// ```
+    ///
+    /// # Panics
+    ///
+    /// Panics if a pole overflows `f64`, which takes a radius within a
+    /// factor of about 1.5 of `f64::MAX`; [`ElementaryCurve::to_bspline`] reports
+    /// that as [`BSplineConversionError::NotRepresentable`] instead.
     pub fn to_bspline(&self) -> BSplineCurve {
+        self.checked_to_bspline()
+            .expect("an ellipse of representable size has finite poles")
+    }
+
+    /// [`to_bspline`](Self::to_bspline), or `NotRepresentable` if a pole
+    /// overflows.
+    fn checked_to_bspline(&self) -> Result<BSplineCurve, BSplineConversionError> {
         place(
             conic_bspline::full_circle(),
             self.frame(),
             self.major_radius(),
             self.minor_radius(),
         )
-        .expect("a finite ellipse has finite poles")
     }
 }
 
@@ -313,6 +337,8 @@ impl ElementaryCurve {
     ///
     /// Returns [`BSplineConversionError::Unbounded`] for a line, parabola
     /// or hyperbola; trim it first and use [`TrimmedCurve::to_bspline`].
+    /// Returns [`BSplineConversionError::NotRepresentable`] when a pole of
+    /// a circle or ellipse overflows `f64`.
     ///
     /// # Examples
     ///
@@ -330,8 +356,8 @@ impl ElementaryCurve {
     /// ```
     pub fn to_bspline(&self) -> Result<BSplineCurve, BSplineConversionError> {
         match self {
-            ElementaryCurve::Circle(c) => Ok(c.to_bspline()),
-            ElementaryCurve::Ellipse(c) => Ok(c.to_bspline()),
+            ElementaryCurve::Circle(c) => c.checked_to_bspline(),
+            ElementaryCurve::Ellipse(c) => c.checked_to_bspline(),
             ElementaryCurve::Line(_)
             | ElementaryCurve::Parabola(_)
             | ElementaryCurve::Hyperbola(_) => Err(BSplineConversionError::Unbounded),
@@ -434,12 +460,24 @@ impl Circle2D {
     /// let p = bspline.eval_point(FRAC_PI_2);
     /// assert!(p.distance(circle.eval_point(FRAC_PI_2)) < 1e-15);
     /// let q = bspline.eval_point(0.3);
-    /// assert!(q.distance(Point2D::ORIGIN) - 2.0 < 1e-15);
+    /// assert!((q.distance(Point2D::ORIGIN) - 2.0).abs() < 1e-15);
     /// ```
+    ///
+    /// # Panics
+    ///
+    /// Panics if a pole overflows `f64`, which takes a radius within a
+    /// factor of about 1.5 of `f64::MAX`; [`Curve2D::to_bspline`] reports
+    /// that as [`BSplineConversionError::NotRepresentable`] instead.
     pub fn to_bspline(&self) -> BSplineCurve2D {
+        self.checked_to_bspline()
+            .expect("a circle of representable size has finite poles")
+    }
+
+    /// [`to_bspline`](Self::to_bspline), or `NotRepresentable` if a pole
+    /// overflows.
+    fn checked_to_bspline(&self) -> Result<BSplineCurve2D, BSplineConversionError> {
         let r = self.radius();
         place_2d(conic_bspline::full_circle(), self.frame(), r, r)
-            .expect("a finite circle has finite poles")
     }
 }
 
@@ -465,14 +503,26 @@ impl Ellipse2D {
     /// let p = bspline.eval_point(1.0);
     /// assert!(((p.x / 3.0).powi(2) + p.y.powi(2) - 1.0).abs() < 1e-15);
     /// ```
+    ///
+    /// # Panics
+    ///
+    /// Panics if a pole overflows `f64`, which takes a radius within a
+    /// factor of about 1.5 of `f64::MAX`; [`Curve2D::to_bspline`] reports
+    /// that as [`BSplineConversionError::NotRepresentable`] instead.
     pub fn to_bspline(&self) -> BSplineCurve2D {
+        self.checked_to_bspline()
+            .expect("an ellipse of representable size has finite poles")
+    }
+
+    /// [`to_bspline`](Self::to_bspline), or `NotRepresentable` if a pole
+    /// overflows.
+    fn checked_to_bspline(&self) -> Result<BSplineCurve2D, BSplineConversionError> {
         place_2d(
             conic_bspline::full_circle(),
             self.frame(),
             self.major_radius(),
             self.minor_radius(),
         )
-        .expect("a finite ellipse has finite poles")
     }
 }
 
@@ -609,6 +659,8 @@ impl Curve2D {
     /// Returns [`BSplineConversionError::Unbounded`] for a [`Line2D`]:
     /// trim it first and use
     /// [`TrimmedCurve2D::to_bspline`](TrimmedCurve2D::to_bspline).
+    /// Returns [`BSplineConversionError::NotRepresentable`] when a pole of
+    /// a circle or ellipse overflows `f64`.
     ///
     /// # Examples
     ///
@@ -629,8 +681,8 @@ impl Curve2D {
     pub fn to_bspline(&self) -> Result<BSplineCurve2D, BSplineConversionError> {
         match self {
             Curve2D::BSpline(c) => Ok(c.clone()),
-            Curve2D::Circle(c) => Ok(c.to_bspline()),
-            Curve2D::Ellipse(c) => Ok(c.to_bspline()),
+            Curve2D::Circle(c) => c.checked_to_bspline(),
+            Curve2D::Ellipse(c) => c.checked_to_bspline(),
             Curve2D::Line(_) => Err(BSplineConversionError::Unbounded),
         }
     }
@@ -885,6 +937,35 @@ mod tests {
             assert_matches_at_knots_and_middles(&b, &h, scale);
             assert_eq!(b.eval_point(first), arc.start_point());
         }
+    }
+
+    #[test]
+    fn test_huge_conics_are_not_representable() {
+        // Along a diagonal frame the corner poles sit at about 1.4 times the
+        // radii from the center, past f64::MAX.
+        let huge = 1.5e308;
+        let diagonal = Vector::new(1.0, 1.0, 0.0);
+        let ellipse = Ellipse::new(Point::ORIGIN, Vector::Z, diagonal, huge, huge).unwrap();
+        assert_eq!(
+            ElementaryCurve::Ellipse(ellipse).to_bspline().err(),
+            Some(BSplineConversionError::NotRepresentable)
+        );
+        let circle = Circle::from_frame(ellipse.frame(), huge).unwrap();
+        assert_eq!(
+            ElementaryCurve::Circle(circle).to_bspline().err(),
+            Some(BSplineConversionError::NotRepresentable)
+        );
+        let ellipse_2d =
+            Ellipse2D::new(Point2D::ORIGIN, Vector2D::new(1.0, 1.0), huge, huge).unwrap();
+        assert_eq!(
+            Curve2D::from(ellipse_2d).to_bspline().err(),
+            Some(BSplineConversionError::NotRepresentable)
+        );
+        let circle_2d = Circle2D::from_frame(ellipse_2d.frame(), huge).unwrap();
+        assert_eq!(
+            Curve2D::from(circle_2d).to_bspline().err(),
+            Some(BSplineConversionError::NotRepresentable)
+        );
     }
 
     #[test]
