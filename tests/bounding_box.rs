@@ -554,8 +554,8 @@ fn test_boxes_cull_apart_shapes_and_keep_meeting_ones() {
 mod planar {
     use geomcore::curves::{Curve2D, TrimmedCurve2D};
     use geomcore::{
-        BSplineCurve2D, BoundingBox2D, Circle2D, Ellipse2D, HasBoundingBox2D, Line2D, Parabola2D,
-        Point2D, Vector2D,
+        BSplineCurve2D, BoundingBox2D, Circle2D, Ellipse2D, HasBoundingBox2D, Hyperbola2D, Line2D,
+        Parabola2D, Point2D, Vector2D,
     };
     use std::f64::consts::{FRAC_PI_2, TAU};
 
@@ -715,6 +715,40 @@ mod planar {
                     true,
                 );
                 let boxed = TrimmedCurve2D::new(Curve2D::from(parabola), first, last).unwrap();
+                assert_eq!(boxed.bounding_box(), piece.bounding_box());
+            }
+        }
+    }
+
+    #[test]
+    fn test_hyperbolas_have_no_box_and_their_pieces_are_tight() {
+        let hyperbolas = [
+            Hyperbola2D::from_frame(geomcore::Frame2D::WORLD, 2.0, 0.75).unwrap(),
+            Hyperbola2D::new(Point2D::new(1.0, -2.0), Vector2D::new(0.6, 0.8), 1.5, 2.5).unwrap(),
+            Hyperbola2D::from_frame(
+                geomcore::Frame2D::new(
+                    Point2D::new(-1.0, 0.5),
+                    Vector2D::new(0.6, -0.8),
+                    Vector2D::new(-0.8, -0.6),
+                )
+                .unwrap(),
+                0.8,
+                0.5,
+            )
+            .unwrap(),
+            Hyperbola2D::new(Point2D::ORIGIN, Vector2D::Y, 1.0, 2.0).unwrap(),
+        ];
+        for hyperbola in hyperbolas {
+            assert_eq!(hyperbola.bounding_box(), None);
+            assert_eq!(Curve2D::from(hyperbola).bounding_box(), None);
+            for (first, last) in [(-3.0, 2.0), (0.5, 4.0), (-1e-3, 1e-3), (-4.0, -0.2)] {
+                let piece = TrimmedCurve2D::new(hyperbola, first, last).unwrap();
+                check(
+                    piece.bounding_box().unwrap(),
+                    sampled(first, last, |t| hyperbola.eval_point(t)),
+                    true,
+                );
+                let boxed = TrimmedCurve2D::new(Curve2D::from(hyperbola), first, last).unwrap();
                 assert_eq!(boxed.bounding_box(), piece.bounding_box());
             }
         }

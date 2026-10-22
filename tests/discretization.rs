@@ -7,9 +7,9 @@ use geomcore::discretization::{
     Discretize, Discretize2D,
 };
 use geomcore::{
-    BSplineCurve, Circle, Circle2D, Curve, Curve2D, Ellipse, Ellipse2D, Frame2D, Hyperbola, Line,
-    Line2D, Parabola, Parabola2D, Point, Point2D, Tolerance, TrimmedCurve, TrimmedCurve2D, Vector,
-    Vector2D,
+    BSplineCurve, Circle, Circle2D, Curve, Curve2D, Ellipse, Ellipse2D, Frame2D, Hyperbola,
+    Hyperbola2D, Line, Line2D, Parabola, Parabola2D, Point, Point2D, Tolerance, TrimmedCurve,
+    TrimmedCurve2D, Vector, Vector2D,
 };
 use std::f64::consts::{FRAC_PI_2, PI, TAU};
 
@@ -950,6 +950,49 @@ fn test_2d_trimmed_parabolas_hold_their_deviations_including_far_along() {
     );
 }
 
+/// Hyperbolas with direct and indirect placement frames, including one
+/// whose minor radius exceeds its major radius.
+fn hyperbola_2d_cases() -> [Hyperbola2D; 3] {
+    [
+        Hyperbola2D::from_frame(Frame2D::WORLD, 1.0, 1.0).unwrap(),
+        Hyperbola2D::new(Point2D::new(-1.0, 0.5), Vector2D::new(0.6, 0.8), 3.0, 0.5).unwrap(),
+        Hyperbola2D::from_frame(
+            Frame2D::new(
+                Point2D::new(1.0, -3.0),
+                Vector2D::new(1.0, 1.0),
+                Vector2D::new(1.0, -1.0),
+            )
+            .unwrap(),
+            0.5,
+            3.0,
+        )
+        .unwrap(),
+    ]
+}
+
+#[test]
+fn test_2d_trimmed_hyperbolas_hold_their_deviations_including_far_along() {
+    for hyperbola in hyperbola_2d_cases() {
+        for (first, last) in [(-2.0, 2.0), (0.0, 0.5), (4.0, 6.0)] {
+            let piece = TrimmedCurve2D::new(hyperbola, first, last).unwrap();
+            for criteria in criteria_list() {
+                assert_proven_2d(&piece, &piece.discretize(criteria), criteria, 1000.0);
+            }
+        }
+    }
+    let far = TrimmedCurve2D::new(
+        Hyperbola2D::from_frame(Frame2D::WORLD, 1.0, 1.0).unwrap(),
+        8.0,
+        10.0,
+    )
+    .unwrap();
+    assert!(
+        far.point_count(chord(1e-3)) < 100,
+        "{}",
+        far.point_count(chord(1e-3))
+    );
+}
+
 #[test]
 fn test_2d_trimmed_line_is_one_segment() {
     let line = Line2D::new(Point2D::new(1.0, 2.0), Vector2D::new(3.0, 4.0)).unwrap();
@@ -988,6 +1031,9 @@ fn test_2d_borrowed_and_run_time_curves_match_concrete_ones() {
     }
     for parabola in parabola_2d_cases() {
         same(parabola, -2.0, 3.0);
+    }
+    for hyperbola in hyperbola_2d_cases() {
+        same(hyperbola, -1.0, 1.5);
     }
 }
 

@@ -53,7 +53,16 @@ the Python distribution are versioned in lockstep.
   forwarded, and Python gains `geomcore.curves.Parabola2D` with stubs.
   2D intersections with a parabola run the numeric search. A trimmed
   parabola converts exactly to a B-spline (`TrimmedCurve2D::to_bspline`).
-
+- `Hyperbola2D` (#94), in Rust and Python: construction from a center,
+  major-axis direction and radii, from a `Frame2D` or from a center and
+  two points, sharing `HyperbolaConstructionError` with `Hyperbola`;
+  evaluation and derivatives with the same parametrization as
+  `Hyperbola`, parameter inversion, containment, extrema and
+  projection; tight bounding boxes, proven discretization and exact
+  rational B-spline conversion of its pieces; and `TrimmedCurve2D`
+  support. `Curve2D` gains a `Hyperbola` variant with every operation
+  forwarded, and Python gains `geomcore.curves.Hyperbola2D` with stubs.
+  2D intersections with a hyperbola run the numeric search.
 - `BezierCurve` and `BezierCurve2D` (#98): first-class Bézier curves of
   `degree + 1` poles (polynomial or rational) with evaluation, sided
   evaluation, continuity, `split_at`, `elevate_degree`, `reversed`,

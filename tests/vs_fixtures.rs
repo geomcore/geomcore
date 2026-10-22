@@ -12,8 +12,8 @@ use geomcore::curves::ParametricCurve2D;
 use geomcore::surfaces::{BSplineSurface, ParametricSurface};
 use geomcore::{
     Axis, BSplineCurve, BSplineCurve2D, Circle, Cone, Curve2D, Cylinder, Ellipse, Ellipse2D,
-    Hyperbola, Line, Parabola, Parabola2D, ParametrizeError, Plane, Sphere, Tolerance, Torus,
-    Transform,
+    Hyperbola, Hyperbola2D, Line, Parabola, Parabola2D, ParametrizeError, Plane, Sphere, Tolerance,
+    Torus, Transform,
 };
 use serde::Deserialize;
 
@@ -316,9 +316,20 @@ struct Parabola2DCase {
 }
 
 #[derive(Deserialize)]
+struct Hyperbola2DCase {
+    frame: Frame2DJson,
+    major_radius: f64,
+    minor_radius: f64,
+    samples: Vec<CurveSample2D>,
+    parameter_of: Vec<ParameterOf2D>,
+    projections: Vec<Projection2D>,
+}
+
+#[derive(Deserialize)]
 struct CurvesAnalytic2DFixture {
     ellipses: Vec<Ellipse2DCase>,
     parabolas: Vec<Parabola2DCase>,
+    hyperbolas: Vec<Hyperbola2DCase>,
 }
 
 #[test]
@@ -501,6 +512,37 @@ fn parabolas_2d_match_golden_fixture() {
 
         for projection in &case.projections {
             let projected = parabola.project_point(point2(projection.point), Tolerance::DEFAULT);
+            assert_close(projected.parameter, projection.u);
+            assert_point2(projected.point, projection.closest);
+            assert_close(projected.distance, projection.distance);
+        }
+    }
+}
+
+#[test]
+fn hyperbolas_2d_match_golden_fixture() {
+    let fixture: CurvesAnalytic2DFixture =
+        serde_json::from_value(load("curves_analytic_2d.json")).unwrap();
+
+    for (i, case) in fixture.hyperbolas.iter().enumerate() {
+        let hyperbola =
+            Hyperbola2D::from_frame(frame2(&case.frame), case.major_radius, case.minor_radius)
+                .unwrap_or_else(|e| panic!("case {i}: failed to build Hyperbola2D: {e}"));
+
+        for sample in &case.samples {
+            assert_point2(hyperbola.eval_point(sample.u), sample.point);
+            assert_vector2(hyperbola.eval_derivative(sample.u, 1), sample.d1);
+            assert_vector2(hyperbola.eval_derivative(sample.u, 2), sample.d2);
+            assert_vector2(hyperbola.eval_derivative(sample.u, 3), sample.d3);
+        }
+
+        for inversion in &case.parameter_of {
+            let u = hyperbola.parameter_of(point2(inversion.point));
+            assert_close(u, inversion.u);
+        }
+
+        for projection in &case.projections {
+            let projected = hyperbola.project_point(point2(projection.point), Tolerance::DEFAULT);
             assert_close(projected.parameter, projection.u);
             assert_point2(projected.point, projection.closest);
             assert_close(projected.distance, projection.distance);

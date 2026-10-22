@@ -4,7 +4,7 @@
 use geomcore::{
     Axis, Axis2D, Circle, Circle2D, CircleConstructionError, Cone, ConeConstructionError, Cylinder,
     CylinderConstructionError, Ellipse, Ellipse2D, EllipseConstructionError, Frame, Frame2D,
-    FrameConstructionError, Hyperbola, HyperbolaConstructionError, Line, Line2D,
+    FrameConstructionError, Hyperbola, Hyperbola2D, HyperbolaConstructionError, Line, Line2D,
     LineConstructionError, Parabola, Parabola2D, ParabolaConstructionError, Plane,
     PlaneConstructionError, Point, Point2D, Sphere, SphereConstructionError, Torus,
     TorusConstructionError, Vector, Vector2D,
@@ -228,6 +228,47 @@ fn test_conics_reject_non_finite_and_zero_sizes() {
         assert_eq!(
             Parabola2D::new(Point2D::ORIGIN, Vector2D::X, focal),
             Err(ParabolaConstructionError::NonPositiveFocal)
+        );
+    }
+
+    for b in BAD {
+        assert_eq!(
+            Hyperbola2D::new(Point2D::ORIGIN, Vector2D::X, b, 1.0),
+            Err(HyperbolaConstructionError::NonFinite)
+        );
+        assert_eq!(
+            Hyperbola2D::new(Point2D::ORIGIN, Vector2D::X, 2.0, b),
+            Err(HyperbolaConstructionError::NonFinite)
+        );
+        assert_eq!(
+            Hyperbola2D::new(Point2D::new(b, 0.0), Vector2D::X, 2.0, 1.0),
+            Err(HyperbolaConstructionError::NonFinite)
+        );
+        assert_eq!(
+            Hyperbola2D::new(Point2D::ORIGIN, Vector2D::new(1.0, b), 2.0, 1.0),
+            Err(HyperbolaConstructionError::NonFinite)
+        );
+        assert_eq!(
+            Hyperbola2D::from_frame(Frame2D::WORLD, b, 1.0),
+            Err(HyperbolaConstructionError::NonFinite)
+        );
+        assert_eq!(
+            Hyperbola2D::from_center_and_points(
+                Point2D::ORIGIN,
+                Point2D::new(2.0, 0.0),
+                Point2D::new(0.0, b)
+            ),
+            Err(HyperbolaConstructionError::NonFinite)
+        );
+    }
+    assert_eq!(
+        Hyperbola2D::new(Point2D::ORIGIN, Vector2D::new(0.0, 0.0), 2.0, 1.0),
+        Err(HyperbolaConstructionError::NullNormal)
+    );
+    for (a, b) in [(0.0, 1.0), (2.0, 0.0), (-2.0, 1.0)] {
+        assert_eq!(
+            Hyperbola2D::new(Point2D::ORIGIN, Vector2D::X, a, b),
+            Err(HyperbolaConstructionError::NonPositiveRadius)
         );
     }
 }

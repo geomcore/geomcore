@@ -6,12 +6,12 @@
 use super::curve_curve::intersect_curve_curve;
 use super::results::CurveCurveIntersection2D;
 use crate::curves::{
-    BSplineCurve2D, Circle2D, Curve2D, ElementaryCurve, Ellipse2D, Line2D, Parabola2D,
+    BSplineCurve2D, Circle2D, Curve2D, ElementaryCurve, Ellipse2D, Hyperbola2D, Line2D, Parabola2D,
     ParametricCurve, ParametricCurve2D, TrimmedCurve2D,
 };
 use crate::{
-    BSplineCurve, Circle, CurveCurveHit2D, Ellipse, Frame, Line, Parabola, Point, Point2D,
-    Tolerance, Vector, Vector2D,
+    BSplineCurve, Circle, CurveCurveHit2D, Ellipse, Frame, Hyperbola, Line, Parabola, Point,
+    Point2D, Tolerance, Vector, Vector2D,
 };
 
 /// What a 2D curve is in space at `z = 0`: the B-spline or elementary
@@ -84,6 +84,18 @@ impl Embed for Parabola2D {
     }
 }
 
+impl Embed for Hyperbola2D {
+    fn embedded_basis(&self) -> EmbeddedBasis {
+        let frame = self.frame();
+        let (x, y) = (vector(frame.x_direction()), vector(frame.y_direction()));
+        let frame =
+            Frame::new(point(frame.origin()), x.cross(y), x).expect("a 2D frame embeds as a frame");
+        let hyperbola = Hyperbola::from_frame(frame, self.major_radius(), self.minor_radius())
+            .expect("a 2D hyperbola embeds as a hyperbola");
+        EmbeddedBasis::Elementary(ElementaryCurve::Hyperbola(hyperbola))
+    }
+}
+
 impl Embed for BSplineCurve2D {
     fn embedded_basis(&self) -> EmbeddedBasis {
         EmbeddedBasis::BSpline(self.embedded())
@@ -97,6 +109,7 @@ impl Embed for Curve2D {
             Curve2D::Circle(c) => c.embedded_basis(),
             Curve2D::Ellipse(c) => c.embedded_basis(),
             Curve2D::Parabola(c) => c.embedded_basis(),
+            Curve2D::Hyperbola(c) => c.embedded_basis(),
             Curve2D::BSpline(c) => c.embedded_basis(),
         }
     }
