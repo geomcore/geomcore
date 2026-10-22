@@ -1404,7 +1404,6 @@ fn scan_span_sized<const N: usize, G: PolePoint>(
             point,
             a + s * h,
             Some(bounds),
-            None,
         ));
     });
     // The curve passes through the end control points (whose scaled
@@ -1424,14 +1423,13 @@ fn scan_span_sized<const N: usize, G: PolePoint>(
 
 /// Bounded Newton minimisation of `|C(t) - point|^2` from `t` with exact
 /// second derivatives, within `bounds` (`None`: unbounded, for a smooth
-/// periodic curve); `wrap_period` wraps a periodic result into its bounds.
+/// periodic curve).
 pub(crate) fn refine_projection<G: PolePoint>(
     knots: &KnotVector,
     poles: Poles<G>,
     point: G,
     t: f64,
     bounds: Option<(f64, f64)>,
-    wrap_period: Option<(f64, f64)>,
 ) -> f64 {
     let objective = |t: f64| {
         let [c, d1, d2] = derivatives::<2, G>(knots, poles, inward(t, bounds));
@@ -1442,12 +1440,7 @@ pub(crate) fn refine_projection<G: PolePoint>(
             <G as PolePoint>::dot(d1, d1) + <G as PolePoint>::dot(d2, r),
         )
     };
-    let t = newton_min_1d(objective, t, bounds, 1e-14, 100);
-    if let Some((first, last)) = wrap_period {
-        first + (t - first).rem_euclid(last - first)
-    } else {
-        t
-    }
+    newton_min_1d(objective, t, bounds, 1e-14, 100)
 }
 
 /// Validates a B-spline direction (shared by curves and surface directions).
