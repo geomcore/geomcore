@@ -14,8 +14,8 @@
 use crate::Tolerance;
 use crate::curves::{
     BSplineCurve, BSplineCurve2D, Circle, Circle2D, Curve, Curve2D, ElementaryCurve, Ellipse,
-    Hyperbola, Line, Line2D, Parabola, ParametricCurve, ParametricCurve2D, TrimmedCurve,
-    TrimmedCurve2D,
+    Ellipse2D, Hyperbola, Hyperbola2D, Line, Line2D, Parabola, Parabola2D, ParametricCurve,
+    ParametricCurve2D, TrimmedCurve, TrimmedCurve2D,
 };
 use crate::intersect::dispatch::{ExactCurveCurve, ExactCurveSurface};
 use crate::intersect::embedded::{Embed, intersect_numeric_2d};
@@ -1041,12 +1041,14 @@ where
 }
 
 /// The exact intersection of two 2D bases before the parameter ranges are
-/// applied: at most two hits, or a coincidence, or no closed form for the
-/// pair when one of the two is a
+/// applied: at most four hits (two conics meet at most four times), or a
+/// coincidence, or no closed form for the pair when one of the two is a
 /// [`BSplineCurve2D`](crate::BSplineCurve2D).
+// The hits are stored inline so an exact result never allocates.
+#[allow(clippy::large_enum_variant)]
 pub(crate) enum ExactCurveCurve2DIntersection {
-    /// The hits; `None` marks an empty slot.
-    Hits([Option<CurveCurveHit2D>; 2]),
+    /// The hits, possibly none.
+    Hits(InlineList<CurveCurveHit2D, 4>),
     /// The curves coincide.
     Coincident,
     /// No closed form covers the pair: at least one of the two bases is a
@@ -1062,6 +1064,15 @@ pub(crate) trait ExactCurveCurve2D<B> {
     /// Intersects `self` with `other`, deciding tangency and coincidence
     /// with `tol`.
     fn exact_curve_curve_2d(&self, other: &B, tol: Tolerance) -> ExactCurveCurve2DIntersection;
+}
+
+/// The hits of a pair solved in closed form, skipping the empty slots.
+fn hits_of<const N: usize>(slots: [Option<CurveCurveHit2D>; N]) -> ExactCurveCurve2DIntersection {
+    let mut hits = InlineList::new();
+    for hit in slots.into_iter().flatten() {
+        hits.push(hit);
+    }
+    ExactCurveCurve2DIntersection::Hits(hits)
 }
 
 /// A hit read from the first curve, with the parameters the solver
@@ -1089,9 +1100,9 @@ impl ExactCurveCurve2D<Line2D> for Line2D {
     ) -> ExactCurveCurve2DIntersection {
         match self.intersect_exact(other, tol) {
             LineLine2DIntersection::Point(t, point, s) => {
-                ExactCurveCurve2DIntersection::Hits([hit_2d(Some(t), Some(s), point, 1), None])
+                hits_of([hit_2d(Some(t), Some(s), point, 1)])
             }
-            LineLine2DIntersection::Parallel => ExactCurveCurve2DIntersection::Hits([None, None]),
+            LineLine2DIntersection::Parallel => hits_of([]),
             LineLine2DIntersection::Coincident => ExactCurveCurve2DIntersection::Coincident,
         }
     }
@@ -1105,7 +1116,7 @@ impl ExactCurveCurve2D<Circle2D> for Line2D {
         tol: Tolerance,
     ) -> ExactCurveCurve2DIntersection {
         let at = |t, point, multiplicity| hit_2d(Some(t), None, point, multiplicity);
-        ExactCurveCurve2DIntersection::Hits(match self.intersect_exact(circle, tol) {
+        hits_of(match self.intersect_exact(circle, tol) {
             LineCircle2DIntersection::Points((t, p), (u, q)) => [at(t, p, 1), at(u, q, 1)],
             LineCircle2DIntersection::Tangent(t, p) => [at(t, p, 2), None],
             LineCircle2DIntersection::Empty => [None, None],
@@ -1117,7 +1128,7 @@ impl ExactCurveCurve2D<Line2D> for Circle2D {
     #[inline]
     fn exact_curve_curve_2d(&self, line: &Line2D, tol: Tolerance) -> ExactCurveCurve2DIntersection {
         let at = |t, point, multiplicity| hit_2d(None, Some(t), point, multiplicity);
-        ExactCurveCurve2DIntersection::Hits(match line.intersect_exact(self, tol) {
+        hits_of(match line.intersect_exact(self, tol) {
             LineCircle2DIntersection::Points((t, p), (u, q)) => [at(t, p, 1), at(u, q, 1)],
             LineCircle2DIntersection::Tangent(t, p) => [at(t, p, 2), None],
             LineCircle2DIntersection::Empty => [None, None],
@@ -1133,7 +1144,7 @@ impl ExactCurveCurve2D<Circle2D> for Circle2D {
         tol: Tolerance,
     ) -> ExactCurveCurve2DIntersection {
         let at = |point, multiplicity| hit_2d(None, None, point, multiplicity);
-        ExactCurveCurve2DIntersection::Hits(match self.intersect_exact(other, tol) {
+        hits_of(match self.intersect_exact(other, tol) {
             CircleCircle2DIntersection::Points(p, q) => [at(p, 1), at(q, 1)],
             CircleCircle2DIntersection::Tangent(p) => [at(p, 2), None],
             CircleCircle2DIntersection::Empty => [None, None],
@@ -1159,9 +1170,9 @@ macro_rules! exact_curve_curve_2d_untyped {
                 match other {
                     Curve2D::Line(b) => self.exact_curve_curve_2d(b, tol),
                     Curve2D::Circle(b) => self.exact_curve_curve_2d(b, tol),
-                    Curve2D::Ellipse(_) => ExactCurveCurve2DIntersection::NotAnalytic,
-                    Curve2D::Parabola(_) => ExactCurveCurve2DIntersection::NotAnalytic,
-                    Curve2D::Hyperbola(_) => ExactCurveCurve2DIntersection::NotAnalytic,
+                    Curve2D::Ellipse(b) => self.exact_curve_curve_2d(b, tol),
+                    Curve2D::Parabola(b) => self.exact_curve_curve_2d(b, tol),
+                    Curve2D::Hyperbola(b) => self.exact_curve_curve_2d(b, tol),
                     Curve2D::BSpline(_) => ExactCurveCurve2DIntersection::NotAnalytic,
                 }
             }
@@ -1177,9 +1188,9 @@ macro_rules! exact_curve_curve_2d_untyped {
                 match self {
                     Curve2D::Line(a) => a.exact_curve_curve_2d(other, tol),
                     Curve2D::Circle(a) => a.exact_curve_curve_2d(other, tol),
-                    Curve2D::Ellipse(_) => ExactCurveCurve2DIntersection::NotAnalytic,
-                    Curve2D::Parabola(_) => ExactCurveCurve2DIntersection::NotAnalytic,
-                    Curve2D::Hyperbola(_) => ExactCurveCurve2DIntersection::NotAnalytic,
+                    Curve2D::Ellipse(a) => a.exact_curve_curve_2d(other, tol),
+                    Curve2D::Parabola(a) => a.exact_curve_curve_2d(other, tol),
+                    Curve2D::Hyperbola(a) => a.exact_curve_curve_2d(other, tol),
                     Curve2D::BSpline(_) => ExactCurveCurve2DIntersection::NotAnalytic,
                 }
             }
@@ -1187,7 +1198,7 @@ macro_rules! exact_curve_curve_2d_untyped {
     )*};
 }
 
-exact_curve_curve_2d_untyped!(Line2D, Circle2D);
+exact_curve_curve_2d_untyped!(Line2D, Circle2D, Ellipse2D, Parabola2D, Hyperbola2D);
 
 impl ExactCurveCurve2D<Curve2D> for Curve2D {
     #[inline]
@@ -1199,9 +1210,9 @@ impl ExactCurveCurve2D<Curve2D> for Curve2D {
         match self {
             Curve2D::Line(a) => a.exact_curve_curve_2d(other, tol),
             Curve2D::Circle(a) => a.exact_curve_curve_2d(other, tol),
-            Curve2D::Ellipse(_) => ExactCurveCurve2DIntersection::NotAnalytic,
-            Curve2D::Parabola(_) => ExactCurveCurve2DIntersection::NotAnalytic,
-            Curve2D::Hyperbola(_) => ExactCurveCurve2DIntersection::NotAnalytic,
+            Curve2D::Ellipse(a) => a.exact_curve_curve_2d(other, tol),
+            Curve2D::Parabola(a) => a.exact_curve_curve_2d(other, tol),
+            Curve2D::Hyperbola(a) => a.exact_curve_curve_2d(other, tol),
             Curve2D::BSpline(_) => ExactCurveCurve2DIntersection::NotAnalytic,
         }
     }
@@ -1216,6 +1227,9 @@ pub(crate) trait CurveBasis2D:
     + Into<Curve2D>
     + ExactCurveCurve2D<Line2D>
     + ExactCurveCurve2D<Circle2D>
+    + ExactCurveCurve2D<Ellipse2D>
+    + ExactCurveCurve2D<Parabola2D>
+    + ExactCurveCurve2D<Hyperbola2D>
     + ExactCurveCurve2D<Curve2D>
 {
     /// The parameter of `point`, a point on the curve: the range test of a
@@ -1230,12 +1244,18 @@ impl CurveBasis2D for Line2D {
     }
 }
 
-impl CurveBasis2D for Circle2D {
-    #[inline]
-    fn basis_parameter_of(&self, point: Point2D) -> f64 {
-        self.parameter_of(point)
-    }
+macro_rules! curve_basis_2d {
+    ($($curve:ty),*) => {$(
+        impl CurveBasis2D for $curve {
+            #[inline]
+            fn basis_parameter_of(&self, point: Point2D) -> f64 {
+                self.parameter_of(point)
+            }
+        }
+    )*};
 }
+
+curve_basis_2d!(Circle2D, Ellipse2D, Parabola2D, Hyperbola2D);
 
 impl CurveBasis2D for Curve2D {
     #[inline]
@@ -1282,7 +1302,14 @@ macro_rules! basis_operand_2d {
     )*};
 }
 
-basis_operand_2d!(Line2D, Circle2D, Curve2D);
+basis_operand_2d!(
+    Line2D,
+    Circle2D,
+    Ellipse2D,
+    Parabola2D,
+    Hyperbola2D,
+    Curve2D
+);
 
 impl CurveOperand2D for BSplineCurve2D {
     /// Never built: a B-spline has no exact basis.
@@ -1334,13 +1361,10 @@ where
         ExactCurveCurve2DIntersection::Hits(hits)
             if first_range.is_none() && second_range.is_none() =>
         {
-            CurveCurveIntersection2D::exact(
-                hits.into_iter().flatten(),
-                CurveCurveOverlapList::new(),
-            )
+            CurveCurveIntersection2D::exact(hits.iter().copied(), CurveCurveOverlapList::new())
         }
         ExactCurveCurve2DIntersection::Hits(hits) => {
-            let kept = hits.into_iter().flatten().filter_map(|hit| {
+            let kept = hits.iter().copied().filter_map(|hit| {
                 Some(CurveCurveHit2D {
                     first_parameter: kept_parameter(
                         hit.first_parameter,
@@ -1411,7 +1435,15 @@ macro_rules! curve_curve_2d {
     )*};
 }
 
-curve_curve_2d!([Line2D, Circle2D, Curve2D, BSplineCurve2D]);
+curve_curve_2d!([
+    Line2D,
+    Circle2D,
+    Ellipse2D,
+    Parabola2D,
+    Hyperbola2D,
+    Curve2D,
+    BSplineCurve2D
+]);
 
 /// Implements [`Intersect`] between a trimmed 2D curve over any operand and
 /// each 2D curve of the list, in both orders.
@@ -1440,7 +1472,15 @@ macro_rules! trimmed_curve_curve_2d {
     )*};
 }
 
-trimmed_curve_curve_2d!(Line2D, Circle2D, Curve2D, BSplineCurve2D);
+trimmed_curve_curve_2d!(
+    Line2D,
+    Circle2D,
+    Ellipse2D,
+    Parabola2D,
+    Hyperbola2D,
+    Curve2D,
+    BSplineCurve2D
+);
 
 impl<X: CurveOperand2D, Y: CurveOperand2D> Intersect<TrimmedCurve2D<Y>> for TrimmedCurve2D<X>
 where

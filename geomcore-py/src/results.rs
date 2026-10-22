@@ -803,8 +803,8 @@ impl PyCurveCurveIntersection {
     }
 }
 
-/// The intersection of two 2D curves: the points where they meet and the
-/// ranges where they coincide. Always exact.
+/// The intersection of two 2D curves: exact and complete for every pair of
+/// lines and conics, numeric when one is a B-spline.
 ///
 /// `first` and `second` are the operands, in the order of the call.
 #[pyclass(name = "CurveCurveIntersection2D", module = "geomcore", frozen)]
@@ -835,13 +835,15 @@ impl PyCurveCurveIntersection2D {
         )
     }
 
-    /// Always `EXACT`.
+    /// How the result was found: exact for line and conic pairs, numeric
+    /// when a B-spline is involved.
     #[getter]
     fn method(&self) -> PyIntersectionMethod {
         self.result.method().into()
     }
 
-    /// Always complete.
+    /// Whether the search proved that nothing was missed. Exact results
+    /// are complete; numeric ones report the search status.
     #[getter]
     fn completeness(&self) -> PyCompleteness {
         PyCompleteness::curve_curve(self.result.completeness())

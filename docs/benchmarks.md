@@ -558,3 +558,30 @@ Reproduce with:
 cargo bench --bench intersect_curve_surface -- "cylinder|circle_bspline_surface" --warm-up-time 1 --measurement-time 3
 cargo bench --bench intersect_curve_curve -- "_bspline$" --warm-up-time 1 --measurement-time 3
 ```
+
+# 2D curve–curve intersections
+
+`intersect_curve_curve` also times the routed 2D `intersect` on 64 pairs of
+each family in the plane: lines, circles, ellipses (radii 2 and 1),
+parabolas and hyperbolas with random centres in `[1, 4]²` and random
+directions. Every pair of lines and conics is solved exactly, in closed
+form; the B-spline ellipses are searched numerically.
+
+Machine: Linux 7.0, x86-64 desktop, single thread, `--warm-up-time 1
+--measurement-time 2` (2026-10-22). Times are for the 64 pairs.
+
+| query | time |
+|---|---|
+| line × circle | ~6.9 µs |
+| line × ellipse, parabola or hyperbola | ~14 µs |
+| circle × ellipse, ellipse × ellipse | ~70 µs |
+| ellipse × parabola, hyperbola × ellipse, parabola × hyperbola | ~60 µs |
+| half ellipse × ellipse | ~70 µs |
+| B-spline ellipse × line (numeric) | ~340 µs |
+| B-spline ellipse × ellipse (numeric) | ~920 µs |
+
+Reproduce with:
+
+```sh
+cargo bench --bench intersect_curve_curve -- curve_curve_2d --warm-up-time 1 --measurement-time 2
+```

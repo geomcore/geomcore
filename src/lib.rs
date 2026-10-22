@@ -189,8 +189,8 @@ pub use frame::{Axis, Axis2D, Frame, Frame2D, FrameConstructionError};
 pub use intersect::curve_curve_extrema;
 pub use intersect::{
     CircleCircle2DIntersection, CircleCircleIntersection, CircleSurfaceIntersection,
-    ConeConeIntersection, ConeCylinderIntersection, ConicConicIntersection, ConicSurfaceHit,
-    ConicSurfaceIntersection, CurveCurveExtremum, CurveCurveHit, CurveSurfaceHit,
+    ConeConeIntersection, ConeCylinderIntersection, Conic2DIntersection, ConicConicIntersection,
+    ConicSurfaceHit, ConicSurfaceIntersection, CurveCurveExtremum, CurveCurveHit, CurveSurfaceHit,
     CylinderCylinderIntersection, LatitudeRing, LineCircle2DIntersection, LineCircleIntersection,
     LineConicHit, LineConicIntersection, LineLine2DIntersection, LineLineIntersection,
     LinePlaneIntersection, LineQuadricIntersection, LineTorusHit, LineTorusIntersection,

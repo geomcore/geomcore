@@ -51,8 +51,7 @@ the Python distribution are versioned in lockstep.
   and proven discretization of its pieces; and `TrimmedCurve2D`
   support. `Curve2D` gains a `Parabola` variant with every operation
   forwarded, and Python gains `geomcore.curves.Parabola2D` with stubs.
-  2D intersections with a parabola run the numeric search. A trimmed
-  parabola converts exactly to a B-spline (`TrimmedCurve2D::to_bspline`).
+  A trimmed parabola converts exactly to a B-spline (`TrimmedCurve2D::to_bspline`).
 - `Hyperbola2D` (#94), in Rust and Python: construction from a center,
   major-axis direction and radii, from a `Frame2D` or from a center and
   two points, sharing `HyperbolaConstructionError` with `Hyperbola`;
@@ -62,7 +61,6 @@ the Python distribution are versioned in lockstep.
   rational B-spline conversion of its pieces; and `TrimmedCurve2D`
   support. `Curve2D` gains a `Hyperbola` variant with every operation
   forwarded, and Python gains `geomcore.curves.Hyperbola2D` with stubs.
-  2D intersections with a hyperbola run the numeric search.
 - Exact plane images for conics and B-splines (#95), in Rust and Python:
   `Ellipse::parametrize_on`, `Parabola::parametrize_on`,
   `Hyperbola::parametrize_on` and `BSplineCurve::parametrize_on` on a
@@ -84,6 +82,25 @@ the Python distribution are versioned in lockstep.
   surfaces, and every curve on a B-spline surface. Golden fixtures in
   `parametrize.json` cover the plane cases, the off-plane cases and the
   curved-surface cases.
+- Exact 2D intersections for every pair of lines and conics (#96), in
+  Rust and Python: `Ellipse2D`, `Parabola2D` and `Hyperbola2D` gain
+  `Intersect` against `Line2D`, `Circle2D`, each other, `Curve2D` and
+  `TrimmedCurve2D`, in either order. Through `Curve2D` and Python these pairs
+  used to run the numeric search.
+  The pair is solved in closed form by the coplanar solvers of the 3D
+  pair (the line-conic substitution and the conic-conic solver, up to
+  four hits), the curves seen at `z = 0` with their own parameters, so
+  a tangency reports multiplicity 2 and coincident pieces report
+  `CurveCurveOverlap`s. The result is `IntersectionMethod::Exact` and
+  complete. `IntersectExact` gives the typed result
+  `Conic2DIntersection` (`Hits`, `Coincident`, `Empty`) for every pair
+  of lines and conics other than line-line, line-circle and
+  circle-circle, which keep their own results. `CurveCurveIntersection2D`
+  holds four hits inline. A pair with a `BSplineCurve2D` is still
+  searched numerically and reports its `Completeness` like the 3D
+  search. Golden fixtures in `intersect_2d.json` cover every pair
+  family, replayed in both orders, and the `intersect_curve_curve`
+  bench times the 2D pairs.
 - `BezierCurve` and `BezierCurve2D` (#98): first-class Bézier curves of
   `degree + 1` poles (polynomial or rational) with evaluation, sided
   evaluation, continuity, `split_at`, `elevate_degree`, `reversed`,

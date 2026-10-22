@@ -43,6 +43,7 @@ use crate::{Circle, Ellipse, Hyperbola, Line, Parabola, Plane, Point, Point2D, V
 
 mod completeness;
 mod conic;
+mod conic_2d;
 mod curve_curve;
 mod curve_curve_hull;
 mod curve_surface;
@@ -57,6 +58,7 @@ mod pieces;
 mod results;
 mod routing;
 pub use completeness::{Completeness, IncompleteReason};
+pub use conic_2d::Conic2DIntersection;
 mod surface_surface;
 pub(crate) use conic::{Conic, intersect_conic_conic, intersect_conic_quadric};
 pub use curve_curve::curve_curve_extrema;

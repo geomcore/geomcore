@@ -10,8 +10,8 @@ use crate::curves::{
     ParametricCurve, ParametricCurve2D, TrimmedCurve2D,
 };
 use crate::{
-    BSplineCurve, Circle, CurveCurveHit2D, Ellipse, Frame, Hyperbola, Line, Parabola, Point,
-    Point2D, Tolerance, Vector, Vector2D,
+    BSplineCurve, Circle, CurveCurveHit2D, Ellipse, Frame, Frame2D, Hyperbola, Line, Parabola,
+    Point, Point2D, Tolerance, Vector, Vector2D,
 };
 
 /// What a 2D curve is in space at `z = 0`: the B-spline or elementary
@@ -37,64 +37,88 @@ fn vector(v: Vector2D) -> Vector {
     Vector::new(v.x, v.y, 0.0)
 }
 
-impl Embed for Line2D {
-    fn embedded_basis(&self) -> EmbeddedBasis {
+/// A 2D elementary curve as the curve in space at `z = 0` with the same
+/// parameters.
+pub(crate) trait ToSpace {
+    /// The curve's type in space.
+    type Space: Into<ElementaryCurve>;
+
+    /// The curve in space at `z = 0`.
+    fn to_space(&self) -> Self::Space;
+}
+
+/// A frame in space at `z = 0` with the axes of a 2D frame. The normal is
+/// `-Z` for a clockwise frame, so the angle keeps turning from `x` to `y`.
+fn frame_in_space(frame: Frame2D) -> Frame {
+    let (x, y) = (vector(frame.x_direction()), vector(frame.y_direction()));
+    Frame::new(point(frame.origin()), x.cross(y), x).expect("a 2D frame embeds as a frame")
+}
+
+impl ToSpace for Line2D {
+    type Space = Line;
+
+    fn to_space(&self) -> Line {
         let axis = self.axis();
-        let line = Line::new(point(axis.origin()), vector(axis.direction()))
-            .expect("a 2D line embeds as a line");
-        EmbeddedBasis::Elementary(ElementaryCurve::Line(line))
+        Line::new(point(axis.origin()), vector(axis.direction()))
+            .expect("a 2D line embeds as a line")
     }
 }
 
-impl Embed for Circle2D {
-    fn embedded_basis(&self) -> EmbeddedBasis {
-        let frame = self.frame();
-        let (x, y) = (vector(frame.x_direction()), vector(frame.y_direction()));
-        // The normal is `-Z` for a clockwise frame, so the angle keeps
-        // turning from `x` to `y`.
-        let frame =
-            Frame::new(point(frame.origin()), x.cross(y), x).expect("a 2D frame embeds as a frame");
-        let circle =
-            Circle::from_frame(frame, self.radius()).expect("a 2D circle embeds as a circle");
-        EmbeddedBasis::Elementary(ElementaryCurve::Circle(circle))
+impl ToSpace for Circle2D {
+    type Space = Circle;
+
+    fn to_space(&self) -> Circle {
+        Circle::from_frame(frame_in_space(self.frame()), self.radius())
+            .expect("a 2D circle embeds as a circle")
     }
 }
 
-impl Embed for Ellipse2D {
-    fn embedded_basis(&self) -> EmbeddedBasis {
-        let frame = self.frame();
-        let (x, y) = (vector(frame.x_direction()), vector(frame.y_direction()));
-        let frame =
-            Frame::new(point(frame.origin()), x.cross(y), x).expect("a 2D frame embeds as a frame");
-        let ellipse = Ellipse::from_frame(frame, self.major_radius(), self.minor_radius())
-            .expect("a 2D ellipse embeds as an ellipse");
-        EmbeddedBasis::Elementary(ElementaryCurve::Ellipse(ellipse))
+impl ToSpace for Ellipse2D {
+    type Space = Ellipse;
+
+    fn to_space(&self) -> Ellipse {
+        Ellipse::from_frame(
+            frame_in_space(self.frame()),
+            self.major_radius(),
+            self.minor_radius(),
+        )
+        .expect("a 2D ellipse embeds as an ellipse")
     }
 }
 
-impl Embed for Parabola2D {
-    fn embedded_basis(&self) -> EmbeddedBasis {
-        let frame = self.frame();
-        let (x, y) = (vector(frame.x_direction()), vector(frame.y_direction()));
-        let frame =
-            Frame::new(point(frame.origin()), x.cross(y), x).expect("a 2D frame embeds as a frame");
-        let parabola =
-            Parabola::from_frame(frame, self.focal()).expect("a 2D parabola embeds as a parabola");
-        EmbeddedBasis::Elementary(ElementaryCurve::Parabola(parabola))
+impl ToSpace for Parabola2D {
+    type Space = Parabola;
+
+    fn to_space(&self) -> Parabola {
+        Parabola::from_frame(frame_in_space(self.frame()), self.focal())
+            .expect("a 2D parabola embeds as a parabola")
     }
 }
 
-impl Embed for Hyperbola2D {
-    fn embedded_basis(&self) -> EmbeddedBasis {
-        let frame = self.frame();
-        let (x, y) = (vector(frame.x_direction()), vector(frame.y_direction()));
-        let frame =
-            Frame::new(point(frame.origin()), x.cross(y), x).expect("a 2D frame embeds as a frame");
-        let hyperbola = Hyperbola::from_frame(frame, self.major_radius(), self.minor_radius())
-            .expect("a 2D hyperbola embeds as a hyperbola");
-        EmbeddedBasis::Elementary(ElementaryCurve::Hyperbola(hyperbola))
+impl ToSpace for Hyperbola2D {
+    type Space = Hyperbola;
+
+    fn to_space(&self) -> Hyperbola {
+        Hyperbola::from_frame(
+            frame_in_space(self.frame()),
+            self.major_radius(),
+            self.minor_radius(),
+        )
+        .expect("a 2D hyperbola embeds as a hyperbola")
     }
 }
+
+macro_rules! embed_elementary {
+    ($($curve:ty),*) => {$(
+        impl Embed for $curve {
+            fn embedded_basis(&self) -> EmbeddedBasis {
+                EmbeddedBasis::Elementary(self.to_space().into())
+            }
+        }
+    )*};
+}
+
+embed_elementary!(Line2D, Circle2D, Ellipse2D, Parabola2D, Hyperbola2D);
 
 impl Embed for BSplineCurve2D {
     fn embedded_basis(&self) -> EmbeddedBasis {
