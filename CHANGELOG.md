@@ -51,7 +51,8 @@ the Python distribution are versioned in lockstep.
   and proven discretization of its pieces; and `TrimmedCurve2D`
   support. `Curve2D` gains a `Parabola` variant with every operation
   forwarded, and Python gains `geomcore.curves.Parabola2D` with stubs.
-  2D intersections with a parabola run the numeric search.
+  2D intersections with a parabola run the numeric search. A trimmed
+  parabola converts exactly to a B-spline (`TrimmedCurve2D::to_bspline`).
 
 ### Changed
 
@@ -64,6 +65,11 @@ the Python distribution are versioned in lockstep.
   NaN projection, no extrema, and not contained.
 
 ### Fixed
+
+- `Parabola::contains`, `extrema` and `project_point` stay correct for a
+  focal distance large enough (about 1e154) that the squared gradient or
+  the stationarity cubic used to overflow, which gave a wrong
+  containment answer and a NaN projection.
 
 - The sampled curve–curve search no longer drops a transversal crossing
   that lies close to another crossing or to a near touch (#13). It runs

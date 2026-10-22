@@ -294,8 +294,9 @@ impl Parabola {
     /// parabola, ordered by ascending distance.
     ///
     /// The stationarity condition is the cubic
-    /// `t^3 + (8f^2 - 4f*px)t - 8f^2*py = 0` in the frame coordinates
-    /// (solved by `real_roots`). The first entry is the global closest
+    /// `t^3/(4f) + (2f - px)t - 2f*py = 0` in the frame coordinates
+    /// (solved by `real_roots`), scaled so its coefficients stay finite for
+    /// any finite focal length. The first entry is the global closest
     /// point (see [`Parabola::project_point`]).
     ///
     /// A query point with a non-finite coordinate has no extrema.
@@ -316,7 +317,7 @@ impl Parabola {
         let px = rel.dot(self.frame.x_direction());
         let py = rel.dot(self.frame.y_direction());
         let f = self.focal();
-        let coeffs = [-8.0 * f * f * py, 8.0 * f * f - 4.0 * f * px, 0.0, 1.0];
+        let coeffs = [-2.0 * f * py, 2.0 * f - px, 0.0, 0.25 / f];
         let mut out: Vec<CurveProjection> = real_roots(&coeffs, tol.confusion)
             .into_iter()
             .map(|r| {
@@ -614,8 +615,9 @@ impl Parabola2D {
     /// ordered by ascending distance.
     ///
     /// The stationarity condition is the cubic
-    /// `t^3 + (8f^2 - 4f*px)t - 8f^2*py = 0` in the frame coordinates
-    /// (solved by `real_roots`). The first entry is the global closest
+    /// `t^3/(4f) + (2f - px)t - 2f*py = 0` in the frame coordinates
+    /// (solved by `real_roots`), scaled so its coefficients stay finite for
+    /// any finite focal length. The first entry is the global closest
     /// point (see [`Parabola2D::project_point`]).
     ///
     /// A query point with a non-finite coordinate has no extrema.
@@ -636,7 +638,7 @@ impl Parabola2D {
         let px = rel.dot(self.frame.x_direction());
         let py = rel.dot(self.frame.y_direction());
         let f = self.focal();
-        let coeffs = [-8.0 * f * f * py, 8.0 * f * f - 4.0 * f * px, 0.0, 1.0];
+        let coeffs = [-2.0 * f * py, 2.0 * f - px, 0.0, 0.25 / f];
         let mut out: Vec<CurveProjection2D> = real_roots(&coeffs, tol.confusion)
             .into_iter()
             .map(|r| {
@@ -1141,6 +1143,19 @@ mod tests {
         }
     }
 
+    #[test]
+    fn test_parabola_with_huge_focal_projects_and_contains_correctly() {
+        // |∇(y² - 4fx)|² overflows at f = 1e154, as does 8f² in the
+        // stationarity cubic.
+        let tol = Tolerance::DEFAULT;
+        let parabola = Parabola::new(Point::ORIGIN, Vector::Z, Vector::X, 1e154).unwrap();
+        let point = Point::new(1.0, 0.0, 0.0);
+        assert!(!parabola.contains(point, tol));
+        let foot = parabola.project_point(point, tol);
+        assert_eq!(foot.parameter, 0.0, "{foot:?}");
+        assert_eq!(foot.distance, 1.0, "{foot:?}");
+    }
+
     // ---- Parabola transformed ----
 
     #[test]
@@ -1351,6 +1366,17 @@ mod tests {
         assert_eq!(projection.parameter, 2.0);
         assert!(!piece.contains(Point2D::new(4.0, 4.0), tol));
         assert!(piece.contains(Point2D::new(0.25, 1.0), tol));
+    }
+
+    #[test]
+    fn test_parabola2d_with_huge_focal_projects_and_contains_correctly() {
+        let tol = Tolerance::DEFAULT;
+        let parabola = Parabola2D::new(Point2D::ORIGIN, Vector2D::X, 1e154).unwrap();
+        let point = Point2D::new(1.0, 0.0);
+        assert!(!parabola.contains(point, tol));
+        let foot = parabola.project_point(point, tol);
+        assert_eq!(foot.parameter, 0.0, "{foot:?}");
+        assert_eq!(foot.distance, 1.0, "{foot:?}");
     }
 
     #[test]

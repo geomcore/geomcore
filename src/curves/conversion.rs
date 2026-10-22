@@ -16,7 +16,8 @@ use crate::curves::{
     ParametricCurve, TrimmedCurve,
 };
 use crate::curves::{
-    BSplineCurve2D, Circle2D, Curve2D, Ellipse2D, Line2D, ParametricCurve2D, TrimmedCurve2D,
+    BSplineCurve2D, Circle2D, Curve2D, Ellipse2D, Line2D, Parabola2D, ParametricCurve2D,
+    TrimmedCurve2D,
 };
 use crate::{Frame, Frame2D, Point, Point2D};
 
@@ -517,6 +518,17 @@ impl BSplineRange2D for Ellipse2D {
     }
 }
 
+impl BSplineRange2D for Parabola2D {
+    fn bspline_range(
+        &self,
+        first: f64,
+        last: f64,
+    ) -> Result<BSplineCurve2D, BSplineConversionError> {
+        let net = conic_bspline::parabola_arc(self.focal(), first, last);
+        place_2d(net, self.frame(), 1.0, 1.0)
+    }
+}
+
 impl BSplineRange2D for BSplineCurve2D {
     fn bspline_range(
         &self,
@@ -539,7 +551,7 @@ impl BSplineRange2D for Curve2D {
             Curve2D::Line(c) => c.bspline_range(first, last),
             Curve2D::Circle(c) => c.bspline_range(first, last),
             Curve2D::Ellipse(c) => c.bspline_range(first, last),
-            Curve2D::Parabola(_) => Err(BSplineConversionError::NotRepresentable),
+            Curve2D::Parabola(c) => c.bspline_range(first, last),
             Curve2D::BSpline(c) => c.bspline_range(first, last),
         }
     }
@@ -560,10 +572,11 @@ impl<C: BSplineRange2D> TrimmedCurve2D<C> {
     /// `[first, last]`, starting and ending on the same points.
     ///
     /// The basis is a [`Line2D`], a [`Circle2D`], an [`Ellipse2D`], a
-    /// [`BSplineCurve2D`] or a
-    /// [`Curve2D`], owned or borrowed. A B-spline's piece is
-    /// [extracted](BSplineCurve2D::extract). A segment becomes a B-spline of degree 1 with the curve's own
-    /// parameter. A circle or ellipse arc becomes rational quadratic
+    /// [`Parabola2D`], a [`BSplineCurve2D`] or a [`Curve2D`], owned or
+    /// borrowed. A B-spline's piece is
+    /// [extracted](BSplineCurve2D::extract). A segment becomes a B-spline
+    /// of degree 1 and a parabola piece one polynomial piece of degree 2,
+    /// both with the curve's own parameter. A circle or ellipse arc becomes rational quadratic
     /// pieces of equal sweep, at most a quarter turn each, joined at knots
     /// placed at the angles of the piece boundaries. The B-spline parameter
     /// agrees with the curve's at the range ends, those knots and the
@@ -1120,6 +1133,28 @@ mod tests {
             assert_matches_at_knots_and_middles_2d(&b, &e, 5.0);
             assert_eq!(b.eval_point(first), arc.start_point());
             assert!(b.eval_point(last).distance(arc.end_point()) <= 1e-15 * 5.0);
+        }
+    }
+
+    #[test]
+    fn test_parabola2d_is_one_polynomial_piece_with_its_parameter() {
+        let p = Parabola2D::new(Point2D::new(1.0, -2.0), Vector2D::new(0.6, 0.8), 1.5).unwrap();
+        for (first, last) in [(-3.0, 5.0), (0.2, 0.200_001), (-1e3, 1e3), (-7.0, -6.0)] {
+            let arc = TrimmedCurve2D::new(Curve2D::from(p), first, last).unwrap();
+            let b = arc.to_bspline().unwrap();
+            assert_eq!((b.degree(), b.is_rational()), (2, false));
+            assert_eq!(b.poles().len(), 3);
+            assert_eq!(b.bounds(), (first, last));
+            assert_eq!(b.eval_point(first), arc.start_point());
+            let scale = (last * last / 6.0)
+                .max(last.abs())
+                .max(first.abs())
+                .max(1.0);
+            for i in 0..=200 {
+                let u = first + (last - first) * i as f64 / 200.0;
+                let d = b.eval_point(u).distance(p.eval_point(u));
+                assert!(d <= RELATIVE * scale, "[{first}, {last}] at {u}: {d}");
+            }
         }
     }
 
