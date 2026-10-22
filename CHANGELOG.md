@@ -81,6 +81,11 @@ the Python distribution are versioned in lockstep.
   focal distance large enough (about 1e154) that the squared gradient or
   the stationarity cubic used to overflow, which gave a wrong
   containment answer and a NaN projection.
+- `BSplineSurface::project_point` now projects points inside a very narrow
+  knot span correctly. Its Newton refinement minimises in each subpatch's
+  own `[0, 1]` coordinates, so a 1e-9-wide span beside a full-width one no
+  longer damps the wide direction or stops before the point is reached
+  (#80).
 - The sampled curve–curve search no longer drops a transversal crossing
   that lies close to another crossing or to a near touch (#13). It runs
   in `intersect_curve_curve` and `curve_curve_extrema` (Rust and Python)
