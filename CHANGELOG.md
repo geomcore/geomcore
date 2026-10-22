@@ -46,6 +46,9 @@ the Python distribution are versioned in lockstep.
 - `BSplineCurve::project_point`, `extrema` and `contains` handle a
   query point with a non-finite coordinate as the other curves do: a
   NaN projection, no extrema, and not contained.
+- `Curve2D` and `TrimmedCurve2D<Curve2D>` are no longer `Copy`: the
+  enum now holds a `BSplineCurve2D`, whose poles live on the heap.
+  Callers that copied one implicitly `.clone()` it.
 
 ### Fixed
 

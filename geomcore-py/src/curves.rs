@@ -3117,8 +3117,8 @@ impl PyTrimmedCurve {
 }
 
 /// A 2D curve restricted to the parameter range `[first, last]` of a
-/// basis curve: a line segment or a circular arc, typically a trimmed
-/// pcurve in a surface's (u, v) parameter space. Mirrors `TrimmedCurve`.
+/// basis curve: a line segment, a circular arc or a B-spline piece,
+/// typically a trimmed pcurve in a surface's (u, v) parameter space. Mirrors `TrimmedCurve`.
 #[pyclass(name = "TrimmedCurve2D", module = "geomcore.curves", eq)]
 #[derive(Clone, PartialEq)]
 pub(crate) struct PyTrimmedCurve2D(pub(crate) TrimmedCurve2D);

@@ -667,8 +667,8 @@ impl Curve2D {
         points.iter().map(|&p| self.project_point(p, tol)).collect()
     }
 
-    /// The parameter of the point of the curve closest to `point`, by the
-    /// curve's closed form.
+    /// The parameter of the point of the curve closest to `point`: by the
+    /// closed form of a line or circle, by projection for a B-spline.
     ///
     /// # Examples
     ///
