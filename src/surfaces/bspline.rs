@@ -2333,10 +2333,31 @@ impl BSplineSurface {
         let (u0, u1) = self.u_param_range();
         let (v0, v1) = self.v_param_range();
         let target = Vector::new(point.x, point.y, point.z);
-        let objective = |u: f64, v: f64| {
-            let [s, su, sv, suu, suv, svv] =
+        // Minimise in each subpatch's own `[0, 1]` coordinates. In global
+        // parameters, a span 1e-9 wide beside a full-width one makes
+        // Newton's Hessian regularisation damp the wide direction, and its
+        // step tolerance stop before moving a visible distance in space.
+        let span = [
+            bounds[0].map(|(lo, hi)| hi - lo),
+            bounds[1].map(|(lo, hi)| hi - lo),
+        ];
+        let local_bounds = [bounds[0].map(|_| (0.0, 1.0)), bounds[1].map(|_| (0.0, 1.0))];
+        let to_local = |x: f64, i: usize| match bounds[i] {
+            Some((lo, _)) => (x - lo) / span[i].unwrap_or(1.0),
+            None => x,
+        };
+        let to_global = |s: f64, i: usize| match bounds[i] {
+            Some((lo, _)) => lo + s * span[i].unwrap_or(1.0),
+            None => s,
+        };
+        let objective = |s: f64, t: f64| {
+            let (du, dv) = (span[0].unwrap_or(1.0), span[1].unwrap_or(1.0));
+            let (u, v) = (to_global(s, 0), to_global(t, 1));
+            let [p, su, sv, suu, suv, svv] =
                 self.eval_surface_d2(curve::inward(u, bounds[0]), curve::inward(v, bounds[1]));
-            let r = s - target;
+            let (su, sv) = (su * du, sv * dv);
+            let (suu, suv, svv) = (suu * du * du, suv * du * dv, svv * dv * dv);
+            let r = p - target;
             let huv = su.dot(sv) + suv.dot(r);
             (
                 0.5 * r.dot(r),
@@ -2347,7 +2368,14 @@ impl BSplineSurface {
                 ],
             )
         };
-        let [u, v] = newton_min_2d(objective, [u, v], bounds, 1e-14, 100);
+        let [s, t] = newton_min_2d(
+            objective,
+            [to_local(u, 0), to_local(v, 1)],
+            local_bounds,
+            1e-14,
+            100,
+        );
+        let (u, v) = (to_global(s, 0), to_global(t, 1));
         let wrap = |x: f64, periodic: bool, lo: f64, hi: f64| {
             if periodic {
                 lo + (x - lo).rem_euclid(hi - lo)
@@ -2923,6 +2951,51 @@ fn gathered<T: Copy>(values: &[T], indices: &[usize]) -> Vec<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A flat wall whose first u span is 1e-9 wide. Points on it, including
+    /// inside that span, project to themselves; the narrow u direction must
+    /// not stall the much wider v direction or stop before the step moves a
+    /// visible distance in space.
+    #[test]
+    fn test_projection_inside_a_narrow_u_span() {
+        let xs = [
+            0.0, 40.0, 80.0, 120.0, 149.5, 149.75, 150.0, 150.25, 150.5, 200.0, 240.0, 280.0,
+        ];
+        let poles = xs
+            .iter()
+            .map(|&x| vec![Point::new(x, 0.0, -1.0), Point::new(x, 0.0, 1.0)])
+            .collect::<Vec<_>>();
+        let knots = vec![0.0, 1e-9, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0];
+        let surface = BSplineSurface::new(
+            3,
+            1,
+            poles,
+            knots,
+            vec![4, 1, 1, 1, 1, 1, 1, 1, 1, 4],
+            vec![0.0, 1.0],
+            vec![2, 2],
+            false,
+            false,
+        )
+        .unwrap();
+        let tol = Tolerance::DEFAULT;
+        for u in [0.0, 1e-10, 5e-10, 1e-9, 0.5] {
+            let point = surface.eval_point(u, 0.5);
+            let projection = surface.project_point(point, tol);
+            assert!(
+                projection.distance <= tol.confusion,
+                "u = {u:e}: {projection:?}"
+            );
+            assert!(
+                projection.point.distance(point) <= tol.confusion,
+                "u = {u:e}: {projection:?}"
+            );
+            assert!(
+                (projection.v - 0.5).abs() <= 1e-9,
+                "u = {u:e}: {projection:?}"
+            );
+        }
+    }
 
     // ---- bilinear patch by hand ----
 
