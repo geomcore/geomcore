@@ -5,9 +5,9 @@ use geomcore::{
     Axis, Axis2D, Circle, Circle2D, CircleConstructionError, Cone, ConeConstructionError, Cylinder,
     CylinderConstructionError, Ellipse, Ellipse2D, EllipseConstructionError, Frame, Frame2D,
     FrameConstructionError, Hyperbola, HyperbolaConstructionError, Line, Line2D,
-    LineConstructionError, Parabola, ParabolaConstructionError, Plane, PlaneConstructionError,
-    Point, Point2D, Sphere, SphereConstructionError, Torus, TorusConstructionError, Vector,
-    Vector2D,
+    LineConstructionError, Parabola, Parabola2D, ParabolaConstructionError, Plane,
+    PlaneConstructionError, Point, Point2D, Sphere, SphereConstructionError, Torus,
+    TorusConstructionError, Vector, Vector2D,
 };
 
 const BAD: [f64; 3] = [f64::NAN, f64::INFINITY, f64::NEG_INFINITY];
@@ -201,6 +201,35 @@ fn test_conics_reject_non_finite_and_zero_sizes() {
         Ellipse2D::from_center_and_points(Point2D::ORIGIN, Point2D::ORIGIN, Point2D::new(0.0, 1.0)),
         Err(EllipseConstructionError::NullAxis)
     );
+
+    for b in BAD {
+        assert_eq!(
+            Parabola2D::new(Point2D::ORIGIN, Vector2D::X, b),
+            Err(ParabolaConstructionError::NonFinite)
+        );
+        assert_eq!(
+            Parabola2D::new(Point2D::new(b, 0.0), Vector2D::X, 1.0),
+            Err(ParabolaConstructionError::NonFinite)
+        );
+        assert_eq!(
+            Parabola2D::new(Point2D::ORIGIN, Vector2D::new(1.0, b), 1.0),
+            Err(ParabolaConstructionError::NonFinite)
+        );
+        assert_eq!(
+            Parabola2D::from_frame(Frame2D::WORLD, b),
+            Err(ParabolaConstructionError::NonFinite)
+        );
+    }
+    assert_eq!(
+        Parabola2D::new(Point2D::ORIGIN, Vector2D::new(0.0, 0.0), 1.0),
+        Err(ParabolaConstructionError::NullNormal)
+    );
+    for focal in [0.0, -1.0] {
+        assert_eq!(
+            Parabola2D::new(Point2D::ORIGIN, Vector2D::X, focal),
+            Err(ParabolaConstructionError::NonPositiveFocal)
+        );
+    }
 }
 
 #[test]

@@ -8,7 +8,8 @@ use geomcore::discretization::{
 };
 use geomcore::{
     BSplineCurve, Circle, Circle2D, Curve, Curve2D, Ellipse, Ellipse2D, Frame2D, Hyperbola, Line,
-    Line2D, Parabola, Point, Point2D, Tolerance, TrimmedCurve, TrimmedCurve2D, Vector, Vector2D,
+    Line2D, Parabola, Parabola2D, Point, Point2D, Tolerance, TrimmedCurve, TrimmedCurve2D, Vector,
+    Vector2D,
 };
 use std::f64::consts::{FRAC_PI_2, PI, TAU};
 
@@ -913,6 +914,42 @@ fn test_2d_ellipses_and_arcs_hold_their_deviations() {
     }
 }
 
+/// A parabola with direct and indirect placement frames.
+fn parabola_2d_cases() -> [Parabola2D; 3] {
+    [
+        Parabola2D::from_frame(Frame2D::WORLD, 0.5).unwrap(),
+        Parabola2D::new(Point2D::new(-1.0, 0.5), Vector2D::new(0.6, 0.8), 1.5).unwrap(),
+        Parabola2D::from_frame(
+            Frame2D::new(
+                Point2D::new(1.0, -3.0),
+                Vector2D::new(1.0, 1.0),
+                Vector2D::new(1.0, -1.0),
+            )
+            .unwrap(),
+            0.05,
+        )
+        .unwrap(),
+    ]
+}
+
+#[test]
+fn test_2d_trimmed_parabolas_hold_their_deviations_including_far_along() {
+    for parabola in parabola_2d_cases() {
+        for (first, last) in [(-3.0, 3.0), (0.0, 1.0), (20.0, 40.0)] {
+            let piece = TrimmedCurve2D::new(parabola, first, last).unwrap();
+            for criteria in criteria_list() {
+                assert_proven_2d(&piece, &piece.discretize(criteria), criteria, 400.0);
+            }
+        }
+    }
+    let far = TrimmedCurve2D::new(parabola_2d_cases()[1], 100.0, 120.0).unwrap();
+    assert!(
+        far.point_count(chord(1e-3)) < 100,
+        "{}",
+        far.point_count(chord(1e-3))
+    );
+}
+
 #[test]
 fn test_2d_trimmed_line_is_one_segment() {
     let line = Line2D::new(Point2D::new(1.0, 2.0), Vector2D::new(3.0, 4.0)).unwrap();
@@ -948,6 +985,9 @@ fn test_2d_borrowed_and_run_time_curves_match_concrete_ones() {
     for ellipse in ellipse_2d_cases() {
         same(ellipse, 0.2, 2.0);
         same(ellipse, 0.2, 0.2 + TAU);
+    }
+    for parabola in parabola_2d_cases() {
+        same(parabola, -2.0, 3.0);
     }
 }
 

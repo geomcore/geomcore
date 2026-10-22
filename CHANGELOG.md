@@ -43,6 +43,16 @@ the Python distribution are versioned in lockstep.
   discretization; exact B-spline conversion; and `TrimmedCurve2D`
   support. `Curve2D` gains an `Ellipse` variant with every operation
   forwarded, and Python gains `geomcore.curves.Ellipse2D` with stubs.
+- `Parabola2D` (#93), in Rust and Python: construction from an apex,
+  axis direction and focal distance or from a `Frame2D`, sharing
+  `ParabolaConstructionError` with `Parabola`; evaluation and
+  derivatives with the same parametrization as `Parabola`, parameter
+  inversion, containment, extrema and projection; tight bounding boxes
+  and proven discretization of its pieces; and `TrimmedCurve2D`
+  support. `Curve2D` gains a `Parabola` variant with every operation
+  forwarded, and Python gains `geomcore.curves.Parabola2D` with stubs.
+  2D intersections with a parabola run the numeric search. A trimmed
+  parabola converts exactly to a B-spline (`TrimmedCurve2D::to_bspline`).
 
 ### Changed
 
@@ -67,7 +77,10 @@ the Python distribution are versioned in lockstep.
   ellipse whose poles overflow `f64` instead of panicking.
   `Circle::to_bspline` and `Ellipse::to_bspline` still panic there, and
   now document it.
-
+- `Parabola::contains`, `extrema` and `project_point` stay correct for a
+  focal distance large enough (about 1e154) that the squared gradient or
+  the stationarity cubic used to overflow, which gave a wrong
+  containment answer and a NaN projection.
 - The sampled curve–curve search no longer drops a transversal crossing
   that lies close to another crossing or to a near touch (#13). It runs
   in `intersect_curve_curve` and `curve_curve_extrema` (Rust and Python)
