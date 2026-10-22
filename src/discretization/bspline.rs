@@ -486,7 +486,7 @@ fn for_each_run<P: PolePoint, F>(
         if at_one_end && b - a <= negligible {
             return;
         }
-        spline.span_bezier_lanes(0.5 * (span_start + span_end), &mut piece.points);
+        spline.span_bezier_points(0.5 * (span_start + span_end), &mut piece.points);
         piece.first = span_start;
         piece.last = span_end;
         let piece = piece.restricted(a, b);

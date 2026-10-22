@@ -823,6 +823,7 @@ fn insert_rational<G: PolePoint>(
 /// consecutive ones one by one, with the lane width and up to a cubic the
 /// degree fixed, so that its loops unroll.
 #[allow(clippy::too_many_arguments)] // the parts of A5.4
+#[inline]
 fn refine_row<S: Source>(
     degree: usize,
     old: &[f64],
