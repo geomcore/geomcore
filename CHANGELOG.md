@@ -43,6 +43,21 @@ the Python distribution are versioned in lockstep.
 - `BezierSurface::u_iso`, `v_iso`, `u_reversed_parameter` and
   `v_reversed_parameter`, so `Surface::u_iso` of a Bézier surface
   returns `Curve::Bezier`.
+- In Python, every class has every method its core type has. The Bézier
+  classes gain `intersect`; `BezierCurve` and `BezierCurve2D` gain
+  `tangent`, `curvature`, `curvature_center`, `period` and
+  `is_periodic`; `BezierSurface` gains `u_iso`, `v_iso`,
+  `u_reversed_parameter`, `v_reversed_parameter`, `continuity_u`,
+  `continuity_v`, `min_continuity_u` and `min_continuity_v`.
+  `BSplineCurve`, `TrimmedCurve` and `TrimmedCurve2D` gain
+  `parameter_of`; `BSplineSurface` and `BezierSurface` gain
+  `parameters_of`.
+
+### Fixed
+
+- In Python, a 2D intersection with a B-spline or Bézier curve now
+  releases the interpreter lock while it searches, as the 3D ones
+  already did, so other Python threads keep running.
 
 ### Changed
 
@@ -59,6 +74,17 @@ the Python distribution are versioned in lockstep.
   override is what the enum answers. Internally each enum lists its
   variants once, and every forwarding match and `From` impl is
   generated from that list (ADR 0017).
+- In Python, `intersect` releases the interpreter lock around every
+  call, not only around the pairs the bindings expected to search
+  (ADR 0021). A closed-form call from Python costs about 47 ns more.
+- In the Python bindings, each method set a family of classes shares
+  (`curve`, `curve_2d`, `surface`, `discretize`, ...) is written once in
+  `geomcore-py/src/method_sets.rs`, and the classes are listed once in a
+  registry in `arguments.rs`, which gives the conversions to and from the
+  core enums and the `TypeError` text. A shared method's docstring is
+  now the same on every class; the class docstring says what its
+  parameter is. The intersection results share their common members the
+  same way.
 
 ### Removed
 
