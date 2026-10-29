@@ -10,7 +10,7 @@ cylinder, cone) around its intersection. Extend PAIRS to show other
 configurations.
 
 Usage:
-    python examples/intersection_matrix.py [--out scene.json] [--serve]
+    python geomcore-py/examples/intersection_matrix.py [--out scene.json] [--serve]
 
     --serve  also send the scene to the live geomcore-viewer (it finds or
              starts its own local server and opens a tab; needs the
