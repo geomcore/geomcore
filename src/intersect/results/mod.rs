@@ -255,6 +255,7 @@ impl CurveCurveIntersection {
     /// The same intersection read from the second curve: the parameters of
     /// every hit and overlap exchanged, and the hits sorted again by first
     /// parameter when every hit has one.
+    #[inline]
     pub(crate) fn swapped(mut self) -> Self {
         for hit in self.hits.iter_mut() {
             std::mem::swap(&mut hit.first_parameter, &mut hit.second_parameter);
@@ -497,6 +498,7 @@ impl CurveCurveIntersection2D {
     /// The same intersection read from the second curve: the parameters of
     /// every hit and overlap exchanged, and the hits sorted again by first
     /// parameter when every hit has one.
+    #[inline]
     pub(crate) fn swapped(mut self) -> Self {
         for hit in self.hits.iter_mut() {
             std::mem::swap(&mut hit.first_parameter, &mut hit.second_parameter);

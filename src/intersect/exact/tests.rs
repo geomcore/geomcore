@@ -17,8 +17,16 @@ const TOL: Tolerance = Tolerance::DEFAULT;
 
 /// The exact intersection of two unrestricted bases as its family
 /// result, `None` when the pair has no closed form.
-fn exact<A: ExactFamily<B>, B>(a: &A, b: &B) -> Option<A::Family> {
-    a.exact_family(b, (None, None), TOL)
+fn exact<A, B>(a: &A, b: &B) -> Option<A::Family>
+where
+    A: ExactFamily<B> + Intersect<B, Output = A::Family>,
+{
+    let mut closed_form = true;
+    let result = a.exact_family(b, (None, None), TOL, || {
+        closed_form = false;
+        a.intersect(b, TOL)
+    });
+    closed_form.then_some(result)
 }
 
 /// Surfaces in the configurations the exact intersections handle:

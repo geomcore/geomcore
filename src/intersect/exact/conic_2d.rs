@@ -59,8 +59,9 @@ where
 {
     let in_space = a
         .to_space()
-        .exact_family(&b.to_space(), (None, None), tol)
-        .expect("coplanar lines and conics meet in closed form");
+        .exact_family(&b.to_space(), (None, None), tol, || {
+            unreachable!("coplanar lines and conics meet in closed form")
+        });
     if !in_space.overlaps().is_empty() {
         return Conic2DIntersection::Coincident;
     }

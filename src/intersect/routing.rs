@@ -404,14 +404,14 @@ pub(crate) fn route_curve_surface<C: CurveOperand, S: SurfaceOperand>(
 where
     C::Basis: ExactFamily<S::Basis, Family = CurveSurfaceIntersection>,
 {
-    if let (Some((basis, range)), Some(elementary)) =
-        (curve.elementary_basis(), surface.surface_basis())
-        && let Some(result) = basis.exact_family(&elementary, (range, None), tol)
-    {
-        return result;
-    }
     // A trimmed curve is searched over its own range only: no clipping.
-    intersect_curve_surface(curve, surface, tol)
+    let numeric_search = || intersect_curve_surface(curve, surface, tol);
+    match (curve.elementary_basis(), surface.surface_basis()) {
+        (Some((basis, range)), Some(elementary)) => {
+            basis.exact_family(&elementary, (range, None), tol, numeric_search)
+        }
+        _ => numeric_search(),
+    }
 }
 
 /// Implements [`Intersect`] for every curve of the first list with every
@@ -494,12 +494,13 @@ pub(crate) fn route_surface_surface<A: SurfaceOperand, B: SurfaceOperand>(
 where
     A::Basis: ExactFamily<B::Basis, Family = SurfaceSurfaceIntersection>,
 {
-    if let (Some(first), Some(second)) = (a.surface_basis(), b.surface_basis())
-        && let Some(result) = first.exact_family(&second, (None, None), tol)
-    {
-        return result;
+    let numeric_search = || marching_intersection(a, b, tol);
+    match (a.surface_basis(), b.surface_basis()) {
+        (Some(first), Some(second)) => {
+            first.exact_family(&second, (None, None), tol, numeric_search)
+        }
+        _ => numeric_search(),
     }
-    marching_intersection(a, b, tol)
 }
 
 /// Implements [`Intersect`] for every surface of the list with every
@@ -536,20 +537,14 @@ pub(crate) fn route_curve_curve<A: CurveOperand, B: CurveOperand>(
 where
     A::Basis: ExactFamily<B::Basis, Family = CurveCurveIntersection>,
 {
-    if let (Some((first, first_range)), Some((second, second_range))) =
-        (a.elementary_basis(), b.elementary_basis())
-    {
-        let exact = first.exact_family(&second, (first_range, second_range), tol);
-        debug_assert!(
-            exact.is_some(),
-            "every pair of elementary curves has a closed form"
-        );
-        if let Some(result) = exact {
-            return result;
-        }
-    }
     // A trimmed curve is searched over its own range only: no clipping.
-    intersect_curve_curve(a, b, tol)
+    let numeric_search = || intersect_curve_curve(a, b, tol);
+    match (a.elementary_basis(), b.elementary_basis()) {
+        (Some((first, first_range)), Some((second, second_range))) => {
+            first.exact_family(&second, (first_range, second_range), tol, numeric_search)
+        }
+        _ => numeric_search(),
+    }
 }
 
 /// An elementary basis and the parameter range restricting it.
@@ -950,13 +945,13 @@ pub(crate) fn route_curve_curve_2d<A: CurveOperand2D, B: CurveOperand2D>(
 where
     A::Basis: ExactFamily<B::Basis, Family = CurveCurveIntersection2D>,
 {
-    if let (Some((first, first_range)), Some((second, second_range))) =
-        (a.basis_and_range(), b.basis_and_range())
-        && let Some(result) = first.exact_family(&second, (first_range, second_range), tol)
-    {
-        return result;
+    let numeric_search = || intersect_numeric_2d(a, b, tol);
+    match (a.basis_and_range(), b.basis_and_range()) {
+        (Some((first, first_range)), Some((second, second_range))) => {
+            first.exact_family(&second, (first_range, second_range), tol, numeric_search)
+        }
+        _ => numeric_search(),
     }
-    intersect_numeric_2d(a, b, tol)
 }
 
 /// Implements [`Intersect`] for every 2D curve of the list with every one
