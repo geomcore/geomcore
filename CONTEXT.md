@@ -31,7 +31,19 @@ The unit direction of `Su × Sv` at a surface's parameters. A partial counts as 
 _Avoid_: raw cross product for the normal, tangent for either partial derivative
 
 **B-spline**:
-A curve or surface defined by poles, knots and optional weights. Every curve or surface is either elementary or a B-spline.
+A curve or surface defined by poles, knots and optional weights. Every curve is either elementary or a B-spline; a surface may also be swept.
+
+**Swept surface**:
+An extrusion surface or a revolution surface: a surface traced by moving a **profile** curve. An extrusion sweeps it along a direction, `S(u, v) = C(u) + v d`; a revolution turns it about an axis, `S(u, v)` being `C(v)` rotated by `u`. Some profiles sweep an elementary surface (a circle revolved in a plane through the axis sweeps a torus); the swept surface keeps its own parametrization all the same.
+_Avoid_: sweep for a profile moved along an arbitrary path (not supported), surface of linear extrusion
+
+**Profile**:
+The curve a swept surface moves.
+_Avoid_: generatrix, basis curve, directrix
+
+**Offset**:
+The surface at a signed distance along another surface's normal. It is an operation, not a stored shape: an elementary surface's offset is elementary, and other surfaces have none yet (ADR 0016).
+_Avoid_: shell, thickening
 
 **Continuity**:
 The order `C^n` up to which derivatives are guaranteed to agree at a parameter, typed `Continuity`: `Order(degree − multiplicity)` at a B-spline knot, `Smooth` everywhere else and on elementary shapes. Every `Order(k)` ranks below `Smooth`, so the minimum over a range is the weakest point; Python reports the order as an `int` and smooth as `math.inf`. It is read from the knots, so the shape may be smoother than reported. The ends of a non-periodic range report smooth, seen from the inside; a periodic seam is a knot like any other. Trimming never lowers it, and a piece that avoids a knot does not inherit it. Derivatives of higher order than the continuity may differ on the two sides of the parameter; one-sided evaluation (see **Side**) reads each.
