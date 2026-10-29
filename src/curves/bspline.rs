@@ -748,7 +748,7 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
     }
 
     /// Returns the polynomial (or rational) piece of each knot span within
-    /// the [`BSplineCurve::bounds`], in order, as a [`BezierCurve`]: its
+    /// the [`BSplineCurve::bounds`], in order, as a [`BezierCurve`](crate::BezierCurve): its
     /// poles are the span's Bézier control points, and its bounds the
     /// span's ends.
     ///

@@ -67,11 +67,11 @@ pub struct GenericBezierCurve<P: TierPoint>(GenericBSplineCurve<P>);
 ///
 /// Its methods are those of [`GenericBezierCurve`].
 ///
-/// The curve starts at its first pole and ends at its last, and lies in
-/// the convex hull of its poles. A rational curve carries a positive
-/// weight per pole and is evaluated in homogeneous coordinates. The
-/// pieces of a B-spline ([`BSplineCurve::to_bezier_pieces`]) keep the
-/// span they came from as their bounds.
+/// The curve starts at its first pole and ends at its last, and lies in the
+/// convex hull of its poles. A rational curve carries a positive weight per
+/// pole and is evaluated in homogeneous coordinates. The pieces of a B-spline
+/// ([`BSplineCurve::to_bezier_pieces`](crate::BSplineCurve::to_bezier_pieces))
+/// keep the span they came from as their bounds.
 ///
 /// # Examples
 ///
@@ -98,11 +98,11 @@ pub type BezierCurve = GenericBezierCurve<Point>;
 ///
 /// Its methods are those of [`GenericBezierCurve`].
 ///
-/// The curve starts at its first pole and ends at its last, and lies in
-/// the convex hull of its poles. A rational curve carries a positive
-/// weight per pole and is evaluated in homogeneous coordinates. The
-/// pieces of a B-spline ([`BSplineCurve2D::to_bezier_pieces`]) keep the
-/// span they came from as their bounds.
+/// The curve starts at its first pole and ends at its last, and lies in the
+/// convex hull of its poles. A rational curve carries a positive weight per
+/// pole and is evaluated in homogeneous coordinates. The pieces of a B-spline
+/// ([`BSplineCurve2D::to_bezier_pieces`](crate::BSplineCurve2D::to_bezier_pieces))
+/// keep the span they came from as their bounds.
 ///
 /// # Examples
 ///
@@ -194,11 +194,12 @@ impl<P: TierPoint> GenericBezierCurve<P> {
     ///
     /// # Errors
     ///
-    /// [`BezierConstructionError::NotABezier`] if the B-spline has
-    /// interior knots, is periodic, or its end multiplicities are not
-    /// `degree + 1`. [`BSplineCurve::insert_knot`] and its siblings
-    /// make such a B-spline; [`BSplineCurve::to_bezier_pieces`] cuts one
-    /// into Bézier curves.
+    /// [`BezierConstructionError::NotABezier`] if the B-spline has interior
+    /// knots, is periodic, or its end multiplicities are not `degree + 1`.
+    /// [`BSplineCurve::insert_knot`](crate::BSplineCurve::insert_knot) and its
+    /// siblings make such a B-spline;
+    /// [`BSplineCurve::to_bezier_pieces`](crate::BSplineCurve::to_bezier_pieces)
+    /// cuts one into Bézier curves.
     ///
     /// # Examples
     ///
@@ -402,9 +403,10 @@ impl<P: TierPoint> GenericBezierCurve<P> {
         GenericBezierCurve::from_spline(self.spline().reversed())
     }
 
-    /// Evaluates the point and the first derivative at parameter `u` from
-    /// one side, as [`BSplineCurve::eval_d1_sided`]. A Bézier curve is one
-    /// polynomial piece, so both sides agree everywhere.
+    /// Evaluates the point and the first derivative at parameter `u` from one
+    /// side, as
+    /// [`BSplineCurve::eval_d1_sided`](crate::BSplineCurve::eval_d1_sided). A
+    /// Bézier curve is one polynomial piece, so both sides agree everywhere.
     ///
     /// # Examples
     ///
@@ -468,7 +470,7 @@ impl<P: TierPoint> GenericBezierCurve<P> {
 
     /// The length of the curve over its bounds, within `max_error` as far
     /// as the quadrature's own error estimate tells (see
-    /// [`BSplineCurve::length`]).
+    /// [`BSplineCurve::length`](crate::BSplineCurve::length)).
     ///
     /// # Examples
     ///

@@ -625,9 +625,13 @@ impl_for_both_tiers! {
         fn eval_derivative(&self, u: f64, order: u32) -> V {
             match order {
                 0 => panic!("eval_derivative: order must be >= 1 (use eval_point for order 0)"),
-                _ => {
-                    elementary::ellipse_dn(&self.frame, self.major_radius, self.minor_radius, u, order)
-                }
+                _ => elementary::ellipse_dn(
+                    &self.frame,
+                    self.major_radius,
+                    self.minor_radius,
+                    u,
+                    order,
+                ),
             }
         }
 
