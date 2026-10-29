@@ -119,6 +119,12 @@ def test_curve_round_trip_with_bspline():
         BezierCurve.from_bspline(spline.insert_knot(0.5, 1))
 
 
+def test_trimmed_curve_to_bspline_extracts_the_piece():
+    curve = cubic()
+    piece = TrimmedCurve(curve, 0.25, 0.75).to_bspline()
+    assert piece == curve.to_bspline().extract(0.25, 0.75)
+
+
 def test_curve_projection_and_discretization():
     segment = BezierCurve(1, [Point.origin(), Point(2.0, 0.0, 0.0)])
     projection = segment.project_point(Point(1.0, 1.0, 0.0))
