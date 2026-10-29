@@ -12,9 +12,11 @@ use crate::intersect::numeric::bezier_pieces::{
 use crate::intersect::numeric::subdivision::{
     Node, OnceExhausted, PairTests, Subdivision, Visit, interval,
 };
-use crate::intersect::results::completeness::{Region, both, box_union, meet, span};
+use crate::intersect::results::completeness::both;
 use crate::intersect::results::sort_by_known_parameter;
-use crate::intersect::{Completeness, CurveSurfaceHit, curve_surface_multiplicity};
+use crate::intersect::{
+    Completeness, CurveSurfaceHit, CurveSurfaceRegion, curve_surface_multiplicity,
+};
 use crate::math::boxtree::boxes_apart;
 use crate::math::solve_3x3;
 use crate::surfaces::{BSplineSurface, ParametricSurface};
@@ -117,82 +119,6 @@ impl<'a> IntoIterator for &'a CurveSurfaceHits {
 
     fn into_iter(self) -> std::slice::Iter<'a, CurveSurfaceHit> {
         self.hits.iter()
-    }
-}
-
-/// Where an incomplete curve–surface intersection may have missed hits:
-/// a curve parameter interval against a surface parameter rectangle,
-/// with a box in space holding the curve over its interval. A missed hit
-/// has its curve parameter in `curve_range`, its surface parameters in
-/// `u_range` and `v_range`, and its point in the box.
-///
-/// # Examples
-///
-/// ```
-/// use geomcore::prelude::*;
-/// use geomcore::{BSplineCurve, BSplineSurface, Completeness, Point, Tolerance};
-/// let poles = vec![
-///     vec![Point::new(0.0, 0.0, 0.0), Point::new(0.0, 2.0, 0.0)],
-///     vec![Point::new(2.0, 0.0, 0.0), Point::new(2.0, 2.0, 0.0)],
-/// ];
-/// let (knots, mults) = (vec![0.0, 1.0], vec![2, 2]);
-/// let square = BSplineSurface::new(
-///     1, 1, poles, knots.clone(), mults.clone(), knots.clone(), mults, false, false,
-/// )
-/// .unwrap();
-/// // A parabola touching the square at (1, 1, 0), at t = 0.5.
-/// let poles = vec![
-///     Point::new(0.5, 1.0, 1.0),
-///     Point::new(1.0, 1.0, -1.0),
-///     Point::new(1.5, 1.0, 1.0),
-/// ];
-/// let parabola = BSplineCurve::new(2, poles, knots, vec![3, 3], false).unwrap();
-/// let result = parabola.intersect(&square, Tolerance::DEFAULT);
-/// let Completeness::Incomplete { regions, .. } = result.completeness() else {
-///     panic!("a tangent contact never separates");
-/// };
-/// assert_eq!(regions.len(), 1);
-/// let (t0, t1) = regions[0].curve_range;
-/// assert!(t0 <= 0.5 && 0.5 <= t1 && t1 - t0 < 1e-2);
-/// assert!(regions[0].min_corner.x <= 1.0 && 1.0 <= regions[0].max_corner.x);
-/// ```
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct CurveSurfaceRegion {
-    /// The curve parameter interval.
-    pub curve_range: (f64, f64),
-    /// The surface's `u` parameter interval.
-    pub u_range: (f64, f64),
-    /// The surface's `v` parameter interval.
-    pub v_range: (f64, f64),
-    /// The corner of the box with the smallest coordinates.
-    pub min_corner: Point,
-    /// The corner of the box with the largest coordinates.
-    pub max_corner: Point,
-}
-
-impl Region for CurveSurfaceRegion {
-    fn touches(&self, other: &CurveSurfaceRegion) -> bool {
-        meet(self.curve_range, other.curve_range)
-            && meet(self.u_range, other.u_range)
-            && meet(self.v_range, other.v_range)
-    }
-
-    fn union(&self, other: &CurveSurfaceRegion) -> CurveSurfaceRegion {
-        let (min_corner, max_corner) = box_union(
-            (self.min_corner, self.max_corner),
-            (other.min_corner, other.max_corner),
-        );
-        CurveSurfaceRegion {
-            curve_range: span(self.curve_range, other.curve_range),
-            u_range: span(self.u_range, other.u_range),
-            v_range: span(self.v_range, other.v_range),
-            min_corner,
-            max_corner,
-        }
-    }
-
-    fn start(&self) -> f64 {
-        self.curve_range.0
     }
 }
 

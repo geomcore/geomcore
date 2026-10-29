@@ -1,7 +1,7 @@
-//! The results of the numeric curve–curve intersection and extrema
-//! ([`CurveCurveHits`], [`CurveCurveExtrema`]), and the intersection and
-//! distance minima of two B-spline curves by subdivision of their Bézier
-//! pieces (see [`bspline_curve_curve`] and [`bspline_minima`]).
+//! The hits of the numeric curve–curve intersection
+//! ([`CurveCurveHits`]), and the intersection and distance minima of two
+//! B-spline curves by subdivision of their Bézier pieces (see
+//! [`bspline_curve_curve`] and [`bspline_minima`]).
 
 use crate::bspline::curve::LARGE;
 use crate::bspline::surface::{Interval, derivative_bounds};
@@ -15,9 +15,9 @@ use crate::intersect::numeric::curve_surface_hull::Range;
 use crate::intersect::numeric::subdivision::{
     Node, OnceExhausted, PairTests, Subdivision, Unsettled, Visit, interval,
 };
-use crate::intersect::results::completeness::{Region, box_union, meet, span};
+use crate::intersect::results::completeness::box_union;
 use crate::intersect::results::sort_by_known_parameter;
-use crate::intersect::{Completeness, CurveCurveExtremum, CurveCurveHit};
+use crate::intersect::{Completeness, CurveCurveExtremum, CurveCurveHit, CurveCurveRegion};
 use crate::math::boxtree::{Aabb, BoxTree, boxes_apart};
 use crate::math::{newton_min_1d, newton_min_2d, solve_2x2};
 use crate::{Point, Tolerance};
@@ -106,212 +106,6 @@ impl<'a> IntoIterator for &'a CurveCurveHits {
 
     fn into_iter(self) -> std::slice::Iter<'a, CurveCurveHit> {
         self.hits.iter()
-    }
-}
-
-/// The local minima of the distance between two curves, closest first,
-/// and whether they are all of them (see
-/// [`curve_curve_extrema`](crate::curve_curve_extrema)).
-///
-/// It reads as the slice of its minima.
-///
-/// # Examples
-///
-/// ```
-/// use geomcore::{BSplineCurve, Point, Tolerance, curve_curve_extrema};
-/// // An arch peaking at (1, 1, 0), under a rail across it at height 1.
-/// let arch = vec![
-///     Point::new(0.0, 0.0, 0.0),
-///     Point::new(1.0, 2.0, 0.0),
-///     Point::new(2.0, 0.0, 0.0),
-/// ];
-/// let arch = BSplineCurve::new(2, arch, vec![0.0, 1.0], vec![3, 3], false).unwrap();
-/// let rail = vec![Point::new(1.0, 0.0, 1.0), Point::new(1.0, 2.0, 1.0)];
-/// let rail = BSplineCurve::new(1, rail, vec![0.0, 1.0], vec![2, 2], false).unwrap();
-/// let minima = curve_curve_extrema(&arch, &rail, Tolerance::DEFAULT);
-/// // Both are B-splines: the search proves there is no other minimum.
-/// assert!(minima.is_complete());
-/// assert_eq!(minima.len(), 1);
-/// assert!((minima[0].distance - 1.0).abs() < 1e-12);
-/// for minimum in &minima {
-///     assert!((minimum.first_parameter - 0.5).abs() < 1e-9);
-/// }
-/// ```
-#[derive(Debug, Clone, PartialEq)]
-pub struct CurveCurveExtrema {
-    minima: Vec<CurveCurveExtremum>,
-    completeness: Completeness<CurveCurveRegion>,
-}
-
-impl CurveCurveExtrema {
-    /// `minima`, put in order of distance, with their completeness.
-    pub(crate) fn new(
-        mut minima: Vec<CurveCurveExtremum>,
-        completeness: Completeness<CurveCurveRegion>,
-    ) -> Self {
-        minima.sort_by(|x, y| x.distance.total_cmp(&y.distance));
-        CurveCurveExtrema {
-            minima,
-            completeness,
-        }
-    }
-
-    /// Minima found from samples.
-    pub(crate) fn sampled(minima: Vec<CurveCurveExtremum>) -> Self {
-        Self::new(minima, Completeness::Sampled)
-    }
-
-    /// The minima, closest first.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{Line, Point, Tolerance, Vector, curve_curve_extrema};
-    /// let l1 = Line::new(Point::ORIGIN, Vector::X).unwrap();
-    /// let l2 = Line::new(Point::new(0.0, 0.0, 1.0), Vector::Y).unwrap();
-    /// let minima = curve_curve_extrema(&l1, &l2, Tolerance::DEFAULT);
-    /// assert_eq!(minima.minima()[0].distance, 1.0);
-    /// ```
-    pub fn minima(&self) -> &[CurveCurveExtremum] {
-        &self.minima
-    }
-
-    /// The minima, closest first, without the completeness.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{Line, Point, Tolerance, Vector, curve_curve_extrema};
-    /// let l1 = Line::new(Point::ORIGIN, Vector::X).unwrap();
-    /// let l2 = Line::new(Point::new(0.0, 0.0, 1.0), Vector::Y).unwrap();
-    /// let minima: Vec<_> = curve_curve_extrema(&l1, &l2, Tolerance::DEFAULT).into_minima();
-    /// assert_eq!(minima.len(), 1);
-    /// ```
-    pub fn into_minima(self) -> Vec<CurveCurveExtremum> {
-        self.minima
-    }
-
-    /// Whether the minima are all of them, and if not, why and where
-    /// minima may be missing.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{Completeness, Line, Point, Tolerance, Vector, curve_curve_extrema};
-    /// let l1 = Line::new(Point::ORIGIN, Vector::X).unwrap();
-    /// let l2 = Line::new(Point::new(0.0, 0.0, 1.0), Vector::Y).unwrap();
-    /// let minima = curve_curve_extrema(&l1, &l2, Tolerance::DEFAULT);
-    /// assert_eq!(minima.completeness(), &Completeness::Sampled);
-    /// ```
-    pub fn completeness(&self) -> &Completeness<CurveCurveRegion> {
-        &self.completeness
-    }
-
-    /// Whether the minima are all of them ([`Completeness::Complete`]).
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{Line, Point, Tolerance, Vector, curve_curve_extrema};
-    /// let l1 = Line::new(Point::ORIGIN, Vector::X).unwrap();
-    /// let l2 = Line::new(Point::new(0.0, 0.0, 1.0), Vector::Y).unwrap();
-    /// // Only a search with a B-spline on one side proves its minima complete.
-    /// assert!(!curve_curve_extrema(&l1, &l2, Tolerance::DEFAULT).is_complete());
-    /// ```
-    pub fn is_complete(&self) -> bool {
-        self.completeness.is_complete()
-    }
-}
-
-impl Deref for CurveCurveExtrema {
-    type Target = [CurveCurveExtremum];
-
-    fn deref(&self) -> &[CurveCurveExtremum] {
-        &self.minima
-    }
-}
-
-impl IntoIterator for CurveCurveExtrema {
-    type Item = CurveCurveExtremum;
-    type IntoIter = std::vec::IntoIter<CurveCurveExtremum>;
-
-    fn into_iter(self) -> std::vec::IntoIter<CurveCurveExtremum> {
-        self.minima.into_iter()
-    }
-}
-
-impl<'a> IntoIterator for &'a CurveCurveExtrema {
-    type Item = &'a CurveCurveExtremum;
-    type IntoIter = std::slice::Iter<'a, CurveCurveExtremum>;
-
-    fn into_iter(self) -> std::slice::Iter<'a, CurveCurveExtremum> {
-        self.minima.iter()
-    }
-}
-
-/// Where an incomplete curve–curve intersection may have missed hits, or
-/// incomplete curve–curve extrema minima: a parameter interval on each
-/// curve, with a box in space holding both curves over their intervals.
-/// A missed hit or minimum has its first parameter in `first_range`, its
-/// second in `second_range`, and its points in the box.
-///
-/// # Examples
-///
-/// ```
-/// use geomcore::prelude::*;
-/// use geomcore::{BSplineCurve, Completeness, Point, Tolerance};
-/// // A parabola touching the segment at (2, 0, 0), at s = 0.5.
-/// let poles = vec![
-///     Point::new(0.0, 1.0, 0.0),
-///     Point::new(2.0, -1.0, 0.0),
-///     Point::new(4.0, 1.0, 0.0),
-/// ];
-/// let parabola = BSplineCurve::new(2, poles, vec![0.0, 1.0], vec![3, 3], false).unwrap();
-/// let ends = vec![Point::new(0.0, 0.0, 0.0), Point::new(4.0, 0.0, 0.0)];
-/// let segment = BSplineCurve::new(1, ends, vec![0.0, 1.0], vec![2, 2], false).unwrap();
-/// let result = parabola.intersect(&segment, Tolerance::DEFAULT);
-/// let Completeness::Incomplete { regions, .. } = result.completeness() else {
-///     panic!("a tangent contact never separates");
-/// };
-/// assert_eq!(regions.len(), 1);
-/// let (s0, s1) = regions[0].first_range;
-/// assert!(s0 <= 0.5 && 0.5 <= s1 && s1 - s0 < 1e-2);
-/// assert!(regions[0].min_corner.x <= 2.0 && 2.0 <= regions[0].max_corner.x);
-/// // The sampled search, run as well, finds the contact.
-/// assert_eq!(result.hits().len(), 1);
-/// ```
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct CurveCurveRegion {
-    /// The first curve's parameter interval.
-    pub first_range: (f64, f64),
-    /// The second curve's parameter interval.
-    pub second_range: (f64, f64),
-    /// The corner of the box with the smallest coordinates.
-    pub min_corner: Point,
-    /// The corner of the box with the largest coordinates.
-    pub max_corner: Point,
-}
-
-impl Region for CurveCurveRegion {
-    fn touches(&self, other: &CurveCurveRegion) -> bool {
-        meet(self.first_range, other.first_range) && meet(self.second_range, other.second_range)
-    }
-
-    fn union(&self, other: &CurveCurveRegion) -> CurveCurveRegion {
-        let (min_corner, max_corner) = box_union(
-            (self.min_corner, self.max_corner),
-            (other.min_corner, other.max_corner),
-        );
-        CurveCurveRegion {
-            first_range: span(self.first_range, other.first_range),
-            second_range: span(self.second_range, other.second_range),
-            min_corner,
-            max_corner,
-        }
-    }
-
-    fn start(&self) -> f64 {
-        self.first_range.0
     }
 }
 
