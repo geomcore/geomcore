@@ -92,7 +92,7 @@ The outcome when two shapes overlap entirely, so their intersection is a whole s
 An isolated point where two surfaces meet, either tangentially or at a singular point such as a cone apex. It has a position but no surface parameters, which a singular point does not define.
 
 **Hit**:
-A point where a curve meets another curve or a surface, with its multiplicity (1 for a crossing, 2 or more for a tangency) and its parameters on both operands (each curve's parameter, the surface's `(u, v)`). The point is always present. A parameter is stored only when the solver computed it on its way to the point, and is otherwise absent (`None`): recover it with the operand's `parameter_of(hit.point)` or `parameters_of(hit.point)`.
+A point where a curve meets another curve or a surface, with its multiplicity (1 for a crossing, 2 or more for a tangency) and its parameters on both operands (each curve's parameter, the surface's `(u, v)`). The point is always present. A parameter is stored only when the solver computed it on its way to the point, and is otherwise absent (`None`): recover it with the operand's `parameter_of(hit.point, tol)` or `parameters_of(hit.point, tol)`.
 _Avoid_: intersection point, contact (reserved for surfaces)
 
 **Overlap**:

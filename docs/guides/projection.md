@@ -6,6 +6,14 @@ Three questions, one distance: *is the point on the shape*
 `Tolerance` and decides by distance against `tol.confusion`. Adapted
 from [Inversion and projection](https://avenirgeometry.com/articles/projection/).
 
+In Rust the curve queries are methods of the `PointExtrema` and
+`PointExtrema2D` traits, built on `extrema`, and the surface queries
+methods of `ParametricSurface`; `use geomcore::prelude::*` brings them
+all into scope. `parameter_of(point, tol)` (`parameters_of` on a
+surface) is the inverse of `eval_point` for a point on the shape: the
+projection's parameter by default, a closed form on the elementary
+geometries.
+
 ## The foot-point condition
 
 A foot point is where the curve meets its own tangent at a right angle
@@ -50,6 +58,7 @@ pointer or topology.
 === "Rust"
 
     ```rust
+    use geomcore::prelude::*;
     use geomcore::Tolerance;
 
     let tol = Tolerance::DEFAULT;

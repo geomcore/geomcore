@@ -179,8 +179,6 @@ available on every 3D curve and surface.
 === "Rust"
 
     ```rust
-    use geomcore::HasBoundingBox;
-
     let len = curve.length(1e-9);
     let bb = curve.bounding_box().unwrap();
     assert_eq!((bb.min(), bb.max()), (Point::new(0.0, 0.0, 0.0), Point::new(1.0, 1.0, 0.0)));

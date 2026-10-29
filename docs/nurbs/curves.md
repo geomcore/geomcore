@@ -24,6 +24,7 @@ start from.
 === "Rust"
 
     ```rust
+    use geomcore::prelude::*;
     use geomcore::{BSplineCurve, Point};
 
     let poles = vec![
@@ -78,7 +79,7 @@ carrying a proven chord-deviation and angle-deviation bound — see
 === "Rust"
 
     ```rust
-    use geomcore::{DiscretizationCriteria, Discretize};
+    use geomcore::DiscretizationCriteria;
 
     let d = curve.discretize(DiscretizationCriteria::new(0.01).unwrap());
     assert_eq!(d.points[0], curve.eval_point(0.0));

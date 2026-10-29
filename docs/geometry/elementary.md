@@ -58,13 +58,14 @@ space.
 === "Rust"
 
     ```rust
-    use geomcore::{Point, Vector};
+    use geomcore::prelude::*;
+    use geomcore::{Point, Tolerance, Vector};
     use geomcore::curves::Line;
 
     let line = Line::new(Point::ORIGIN, Vector::Z).unwrap();
     let p = line.eval_point(2.0); // parameter -> 3D point
     assert_eq!(p, Point::new(0.0, 0.0, 2.0));
-    assert_eq!(line.parameter_of(p), 2.0); // 3D point -> parameter
+    assert_eq!(line.parameter_of(p, Tolerance::DEFAULT), 2.0); // 3D point -> parameter
     ```
 
 $$
@@ -101,7 +102,7 @@ conic whose parameter is proportional to distance travelled.
 
     let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
     let p = circle.eval_point(1.0); // parameter -> 3D point
-    assert!((circle.parameter_of(p) - 1.0).abs() < 1e-12); // 3D point -> parameter
+    assert!((circle.parameter_of(p, Tolerance::DEFAULT) - 1.0).abs() < 1e-12); // 3D point -> parameter
     ```
 
 $$
@@ -141,7 +142,7 @@ of the major axis.
 
     let ellipse = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 3.0, 1.0).unwrap();
     let p = ellipse.eval_point(1.0); // parameter -> 3D point
-    assert!((ellipse.parameter_of(p) - 1.0).abs() < 1e-12); // 3D point -> parameter
+    assert!((ellipse.parameter_of(p, Tolerance::DEFAULT) - 1.0).abs() < 1e-12); // 3D point -> parameter
     ```
 
 $$
@@ -178,7 +179,7 @@ mirror branch is a second curve no value of $u$ reaches.
 
     let hyp = Hyperbola::new(Point::ORIGIN, Vector::Z, Vector::X, 2.0, 1.0).unwrap();
     let p = hyp.eval_point(1.0); // parameter -> 3D point
-    assert!((hyp.parameter_of(p) - 1.0).abs() < 1e-12); // 3D point -> parameter
+    assert!((hyp.parameter_of(p, Tolerance::DEFAULT) - 1.0).abs() < 1e-12); // 3D point -> parameter
     ```
 
 $$
@@ -216,7 +217,7 @@ $(f, 0)$, directrix $x = -f$.
 
     let parab = Parabola::new(Point::ORIGIN, Vector::Z, Vector::X, 1.5).unwrap();
     let p = parab.eval_point(2.0); // parameter -> 3D point
-    assert!((parab.parameter_of(p) - 2.0).abs() < 1e-12); // 3D point -> parameter
+    assert!((parab.parameter_of(p, Tolerance::DEFAULT) - 2.0).abs() < 1e-12); // 3D point -> parameter
     ```
 
 $$
@@ -262,7 +263,7 @@ periodicity, no degenerate point.
     let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
     let p = plane.eval_point(1.0, 2.0); // parameters -> 3D point
     assert_eq!(p, Point::new(1.0, 2.0, 0.0));
-    assert_eq!(plane.parameters_of(p), (1.0, 2.0)); // 3D point -> parameters
+    assert_eq!(plane.parameters_of(p, Tolerance::DEFAULT), (1.0, 2.0)); // 3D point -> parameters
     ```
 
 $$
@@ -299,7 +300,7 @@ not the same kind of quantity.
 
     let cyl = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
     let p = cyl.eval_point(1.0, 2.0); // parameters -> 3D point
-    let (u, v) = cyl.parameters_of(p); // 3D point -> parameters
+    let (u, v) = cyl.parameters_of(p, Tolerance::DEFAULT); // 3D point -> parameters
     assert!((u - 1.0).abs() < 1e-12 && (v - 2.0).abs() < 1e-12);
     ```
 
@@ -342,7 +343,7 @@ parameter plane instead; the article compares both.
 
     let cone = Cone::new(Point::ORIGIN, Vector::Z, 0.4887, 4.0).unwrap();
     let p = cone.eval_point(1.0, 2.0); // parameters -> 3D point
-    let (u, v) = cone.parameters_of(p); // 3D point -> parameters
+    let (u, v) = cone.parameters_of(p, Tolerance::DEFAULT); // 3D point -> parameters
     assert!((u - 1.0).abs() < 1e-9 && (v - 2.0).abs() < 1e-9);
     ```
 
@@ -389,7 +390,7 @@ circle of longitudes collapses onto the axis.
 
     let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
     let p = sphere.eval_point(0.5, 0.3); // parameters -> 3D point
-    let (u, v) = sphere.parameters_of(p); // 3D point -> parameters
+    let (u, v) = sphere.parameters_of(p, Tolerance::DEFAULT); // 3D point -> parameters
     assert!((u - 0.5).abs() < 1e-12 && (v - 0.3).abs() < 1e-12);
     ```
 
@@ -431,7 +432,7 @@ rectangle of the five.
 
     let torus = Torus::new(Point::ORIGIN, Vector::Z, 5.0, 1.5).unwrap();
     let p = torus.eval_point(0.5, 1.0); // parameters -> 3D point
-    let (u, v) = torus.parameters_of(p); // 3D point -> parameters
+    let (u, v) = torus.parameters_of(p, Tolerance::DEFAULT); // 3D point -> parameters
     assert!((u - 0.5).abs() < 1e-12 && (v - 1.0).abs() < 1e-12);
     ```
 
