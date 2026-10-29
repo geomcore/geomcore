@@ -1,6 +1,7 @@
 //! Discretization through its public interface: every reported deviation
 //! is checked against an independent measurement of the true one.
 
+use geomcore::curves::ElementaryCurve;
 use geomcore::discretization::{
     Discretization, Discretization2D, DiscretizationCriteria, DiscretizationCriteriaError,
 };
@@ -192,6 +193,18 @@ fn test_circle_arcs_whole_and_across_the_seam() {
     // An arc shorter than the requested deviation is one segment.
     let tiny = TrimmedCurve::new(c, 0.0, 1e-4).unwrap();
     assert_eq!(tiny.discretize(chord(1e-3)).points.len(), 2);
+}
+
+#[test]
+fn test_trimmed_run_time_curves_discretize_like_the_concrete_ones() {
+    let c = circle(2.0);
+    let concrete = TrimmedCurve::new(c, 1.0, 4.0)
+        .unwrap()
+        .discretize(chord(1e-3));
+    let elementary = TrimmedCurve::new(ElementaryCurve::from(c), 1.0, 4.0).unwrap();
+    assert_eq!(elementary.discretize(chord(1e-3)), concrete);
+    let curve = TrimmedCurve::new(Curve::from(c), 1.0, 4.0).unwrap();
+    assert_eq!(curve.discretize(chord(1e-3)), concrete);
 }
 
 // ---------------------------------------------------------------- B-splines
