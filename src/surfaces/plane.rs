@@ -423,6 +423,7 @@ fn arbitrary_perpendicular_frame(origin: Point, normal: Vector) -> Frame {
 }
 
 impl ParametricSurface for Plane {
+    #[inline]
     fn eval_point(&self, u: f64, v: f64) -> Point {
         elementary::plane_d0(&self.frame, u, v)
     }

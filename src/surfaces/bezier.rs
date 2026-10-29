@@ -652,6 +652,7 @@ impl BezierSurface {
 }
 
 impl ParametricSurface for BezierSurface {
+    #[inline]
     fn eval_point(&self, u: f64, v: f64) -> Point {
         self.0.eval_point(u, v)
     }

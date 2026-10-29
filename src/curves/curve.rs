@@ -48,6 +48,7 @@ pub enum Curve {
 }
 
 impl ParametricCurve for Curve {
+    #[inline]
     fn eval_point(&self, u: f64) -> Point {
         match self {
             Curve::Line(c) => c.eval_point(u),
@@ -339,6 +340,7 @@ impl PointExtrema for ElementaryCurve {
 }
 
 impl ParametricCurve for ElementaryCurve {
+    #[inline]
     fn eval_point(&self, u: f64) -> Point {
         match self {
             ElementaryCurve::Line(c) => c.eval_point(u),

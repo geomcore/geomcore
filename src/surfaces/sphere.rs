@@ -339,6 +339,7 @@ impl Sphere {
 }
 
 impl ParametricSurface for Sphere {
+    #[inline]
     fn eval_point(&self, u: f64, v: f64) -> Point {
         elementary::sphere_d0(&self.frame, self.radius, u, v)
     }

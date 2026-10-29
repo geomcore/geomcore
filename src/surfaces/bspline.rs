@@ -2068,6 +2068,7 @@ impl BSplineSurface {
 }
 
 impl ParametricSurface for BSplineSurface {
+    #[inline]
     fn eval_point(&self, u: f64, v: f64) -> Point {
         math::surface_point(&self.u_knots, &self.v_knots, self.pole_view(), u, v)
     }

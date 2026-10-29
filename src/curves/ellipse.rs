@@ -473,6 +473,7 @@ impl PointExtrema for Ellipse {
 }
 
 impl ParametricCurve for Ellipse {
+    #[inline]
     fn eval_point(&self, u: f64) -> Point {
         elementary::ellipse_d0(&self.frame, self.major_radius, self.minor_radius, u)
     }

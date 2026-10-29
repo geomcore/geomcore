@@ -353,6 +353,7 @@ impl Cylinder {
 }
 
 impl ParametricSurface for Cylinder {
+    #[inline]
     fn eval_point(&self, u: f64, v: f64) -> Point {
         elementary::cylinder_d0(&self.frame, self.radius, u, v)
     }

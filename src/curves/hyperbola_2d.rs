@@ -306,6 +306,7 @@ impl PointExtrema2D for Hyperbola2D {
 }
 
 impl ParametricCurve2D for Hyperbola2D {
+    #[inline]
     fn eval_point(&self, u: f64) -> Point2D {
         elementary::hyperbola2d_d0(&self.frame, self.major_radius, self.minor_radius, u)
     }

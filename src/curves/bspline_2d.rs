@@ -775,6 +775,7 @@ impl BSplineCurve2D {
 }
 
 impl ParametricCurve2D for BSplineCurve2D {
+    #[inline]
     fn eval_point(&self, u: f64) -> Point2D {
         self.0.eval_point(u)
     }

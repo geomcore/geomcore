@@ -158,6 +158,7 @@ impl PointExtrema2D for Line2D {
 }
 
 impl ParametricCurve2D for Line2D {
+    #[inline]
     fn eval_point(&self, u: f64) -> Point2D {
         elementary::line2d_d0(&self.axis, u)
     }

@@ -281,6 +281,7 @@ impl PointExtrema for Parabola {
 }
 
 impl ParametricCurve for Parabola {
+    #[inline]
     fn eval_point(&self, u: f64) -> Point {
         elementary::parabola_d0(&self.frame, self.focal, u)
     }

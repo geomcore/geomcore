@@ -144,6 +144,7 @@ impl PointExtrema2D for Circle2D {
 }
 
 impl ParametricCurve2D for Circle2D {
+    #[inline]
     fn eval_point(&self, u: f64) -> Point2D {
         elementary::circle2d_d0(&self.frame, self.radius, u)
     }

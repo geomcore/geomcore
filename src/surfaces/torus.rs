@@ -355,6 +355,7 @@ impl Torus {
 }
 
 impl ParametricSurface for Torus {
+    #[inline]
     fn eval_point(&self, u: f64, v: f64) -> Point {
         elementary::torus_d0(&self.frame, self.major_radius, self.minor_radius, u, v)
     }

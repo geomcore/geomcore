@@ -1022,6 +1022,7 @@ impl PointExtrema for BSplineCurve {
 }
 
 impl ParametricCurve for BSplineCurve {
+    #[inline]
     fn eval_point(&self, u: f64) -> Point {
         self.0.eval_point(u)
     }

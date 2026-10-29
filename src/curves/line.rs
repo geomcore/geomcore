@@ -254,6 +254,7 @@ impl PointExtrema for Line {
 }
 
 impl ParametricCurve for Line {
+    #[inline]
     fn eval_point(&self, u: f64) -> Point {
         elementary::line_d0(&self.axis, u)
     }

@@ -295,6 +295,7 @@ impl TrimmedCurve<Line> {
 }
 
 impl<C: ParametricCurve> ParametricCurve for TrimmedCurve<C> {
+    #[inline]
     fn eval_point(&self, u: f64) -> Point {
         self.basis.eval_point(u)
     }
@@ -506,6 +507,7 @@ impl TrimmedCurve2D<Line2D> {
 }
 
 impl<C: ParametricCurve2D> ParametricCurve2D for TrimmedCurve2D<C> {
+    #[inline]
     fn eval_point(&self, u: f64) -> Point2D {
         self.basis.eval_point(u)
     }

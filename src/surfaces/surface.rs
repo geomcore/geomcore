@@ -200,6 +200,7 @@ impl Surface {
 }
 
 impl ParametricSurface for Surface {
+    #[inline]
     fn eval_point(&self, u: f64, v: f64) -> Point {
         match self {
             Surface::Plane(s) => s.eval_point(u, v),
@@ -546,6 +547,7 @@ pub enum ElementarySurface {
 }
 
 impl ParametricSurface for ElementarySurface {
+    #[inline]
     fn eval_point(&self, u: f64, v: f64) -> Point {
         match self {
             ElementarySurface::Plane(s) => s.eval_point(u, v),

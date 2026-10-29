@@ -61,6 +61,7 @@ pub enum Curve2D {
 }
 
 impl ParametricCurve2D for Curve2D {
+    #[inline]
     fn eval_point(&self, u: f64) -> Point2D {
         match self {
             Curve2D::Line(c) => c.eval_point(u),

@@ -435,6 +435,7 @@ impl PointExtrema for Hyperbola {
 }
 
 impl ParametricCurve for Hyperbola {
+    #[inline]
     fn eval_point(&self, u: f64) -> Point {
         elementary::hyperbola_d0(&self.frame, self.major_radius, self.minor_radius, u)
     }

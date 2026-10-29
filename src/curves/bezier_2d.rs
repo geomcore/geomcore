@@ -424,6 +424,7 @@ impl PointExtrema2D for BezierCurve2D {
 }
 
 impl ParametricCurve2D for BezierCurve2D {
+    #[inline]
     fn eval_point(&self, u: f64) -> Point2D {
         self.spline().eval_point(u)
     }

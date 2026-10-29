@@ -421,6 +421,7 @@ impl PointExtrema for Circle {
 }
 
 impl ParametricCurve for Circle {
+    #[inline]
     fn eval_point(&self, u: f64) -> Point {
         elementary::circle_d0(&self.frame, self.radius, u)
     }

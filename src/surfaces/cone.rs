@@ -470,6 +470,7 @@ fn arbitrary_perpendicular_frame(origin: Point, axis_direction: Vector) -> Frame
 }
 
 impl ParametricSurface for Cone {
+    #[inline]
     fn eval_point(&self, u: f64, v: f64) -> Point {
         elementary::cone_d0(&self.frame, self.ref_radius, self.semi_angle, u, v)
     }

@@ -473,6 +473,7 @@ impl PointExtrema for BezierCurve {
 }
 
 impl ParametricCurve for BezierCurve {
+    #[inline]
     fn eval_point(&self, u: f64) -> Point {
         self.spline().eval_point(u)
     }

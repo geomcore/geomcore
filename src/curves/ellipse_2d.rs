@@ -344,6 +344,7 @@ impl PointExtrema2D for Ellipse2D {
 }
 
 impl ParametricCurve2D for Ellipse2D {
+    #[inline]
     fn eval_point(&self, u: f64) -> Point2D {
         elementary::ellipse2d_d0(&self.frame, self.major_radius, self.minor_radius, u)
     }
