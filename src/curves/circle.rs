@@ -3,13 +3,17 @@
 //! [`crate::curve_math::analytic`].
 
 use crate::curve_math::analytic;
-use crate::curves::Curve2D;
-use crate::curves::parametrize::{self, ParametrizeError};
+use crate::curves::ElementaryCurve;
+use crate::curves::ParametricCurve;
+use crate::curves::PointExtrema;
+use crate::curves::parametric_curve::only_minimum;
+use crate::curves::parametrize::ParametrizeError;
+use crate::curves::{Curve2D, parametrize};
 use crate::frame::frame_error;
-use crate::projection::{self, CurveProjection};
+use crate::projection::CurveProjection;
 use crate::surfaces::Surface;
-use crate::tol;
-use crate::{Axis, Frame, Point, Tolerance, Transform, Vector};
+use crate::{Axis, Frame, Point, Tolerance, Transform, Vector, projection, tol};
+use std::f64::consts::TAU;
 use std::fmt;
 
 /// Error returned when a [`Circle`] or [`Circle2D`](crate::Circle2D) cannot be constructed
@@ -498,6 +502,38 @@ impl Circle {
         tol: Tolerance,
     ) -> Result<Curve2D, ParametrizeError> {
         parametrize::circle_on_surface(self, &surface.into(), tol)
+    }
+}
+
+impl PointExtrema for Circle {
+    fn extrema(&self, point: Point, tol: Tolerance) -> Vec<CurveProjection> {
+        only_minimum(point, || self.project_point(point, tol))
+    }
+}
+
+impl ParametricCurve for Circle {
+    fn eval_point(&self, u: f64) -> Point {
+        Circle::eval_point(self, u)
+    }
+
+    fn eval_derivative(&self, u: f64, order: u32) -> Vector {
+        Circle::eval_derivative(self, u, order)
+    }
+
+    fn bounds(&self) -> (f64, f64) {
+        (0.0, TAU)
+    }
+
+    fn period(&self) -> Option<f64> {
+        Some(TAU)
+    }
+
+    fn eval_points(&self, us: &[f64]) -> Vec<Point> {
+        Circle::eval_points(self, us)
+    }
+
+    fn as_elementary(&self) -> Option<ElementaryCurve> {
+        Some(ElementaryCurve::Circle(*self))
     }
 }
 

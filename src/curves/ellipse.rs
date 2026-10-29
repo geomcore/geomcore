@@ -3,13 +3,16 @@
 //! [`crate::curve_math::analytic`].
 
 use crate::curve_math::analytic;
+use crate::curves::ElementaryCurve;
+use crate::curves::ParametricCurve;
+use crate::curves::PointExtrema;
 use crate::curves::{Curve2D, ParametrizeError, parametrize};
 use crate::frame::frame_error;
 use crate::math::{polish_root, real_roots};
-use crate::projection::{self, CurveProjection};
+use crate::projection::CurveProjection;
 use crate::surfaces::Surface;
-use crate::tol;
-use crate::{Frame, Point, Tolerance, Transform, Vector};
+use crate::{Frame, Point, Tolerance, Transform, Vector, projection, tol};
+use std::f64::consts::TAU;
 use std::fmt;
 
 /// Error returned when an [`Ellipse`] cannot be constructed from the given
@@ -586,6 +589,38 @@ impl Ellipse {
         tol: Tolerance,
     ) -> Result<Curve2D, ParametrizeError> {
         parametrize::ellipse_on_surface(self, &surface.into(), tol)
+    }
+}
+
+impl PointExtrema for Ellipse {
+    fn extrema(&self, point: Point, tol: Tolerance) -> Vec<CurveProjection> {
+        Ellipse::extrema(self, point, tol)
+    }
+}
+
+impl ParametricCurve for Ellipse {
+    fn eval_point(&self, u: f64) -> Point {
+        Ellipse::eval_point(self, u)
+    }
+
+    fn eval_derivative(&self, u: f64, order: u32) -> Vector {
+        Ellipse::eval_derivative(self, u, order)
+    }
+
+    fn bounds(&self) -> (f64, f64) {
+        (0.0, TAU)
+    }
+
+    fn period(&self) -> Option<f64> {
+        Some(TAU)
+    }
+
+    fn eval_points(&self, us: &[f64]) -> Vec<Point> {
+        Ellipse::eval_points(self, us)
+    }
+
+    fn as_elementary(&self) -> Option<ElementaryCurve> {
+        Some(ElementaryCurve::Ellipse(*self))
     }
 }
 

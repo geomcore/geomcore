@@ -2,10 +2,13 @@
 //! wrappers over [`crate::surface_math::analytic`].
 
 use crate::frame::frame_error;
-use crate::projection::{self, SurfaceProjection};
 use crate::surface_math::analytic;
-use crate::surfaces::iso::{SurfaceIsoError, check_iso_param, iso_circle};
-use crate::{Circle, Frame, Point, Tolerance, Transform, Vector};
+use crate::surfaces::ElementarySurface;
+use crate::surfaces::ParametricSurface;
+use crate::surfaces::SurfaceIsoError;
+use crate::surfaces::iso::{check_iso_param, iso_circle};
+use crate::{Circle, Frame, Point, SurfaceProjection, Tolerance, Transform, Vector, projection};
+use std::f64::consts::{FRAC_PI_2, TAU};
 use std::fmt;
 
 /// Error returned when a [`Sphere`] cannot be constructed from the given
@@ -450,6 +453,48 @@ impl Sphere {
     /// native call per batch, mirroring [`Sphere::eval_points`].
     pub fn project_points(&self, points: &[Point], tol: Tolerance) -> Vec<SurfaceProjection> {
         points.iter().map(|&p| self.project_point(p, tol)).collect()
+    }
+}
+
+impl ParametricSurface for Sphere {
+    fn eval_point(&self, u: f64, v: f64) -> Point {
+        Sphere::eval_point(self, u, v)
+    }
+
+    fn project_point(&self, point: Point, tol: Tolerance) -> SurfaceProjection {
+        Sphere::project_point(self, point, tol)
+    }
+
+    fn contains(&self, point: Point, tol: Tolerance) -> bool {
+        Sphere::contains(self, point, tol)
+    }
+
+    fn eval_derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> Vector {
+        Sphere::eval_derivative(self, u, v, du, dv)
+    }
+
+    fn u_bounds(&self) -> (f64, f64) {
+        (0.0, TAU)
+    }
+
+    fn v_bounds(&self) -> (f64, f64) {
+        (-FRAC_PI_2, FRAC_PI_2)
+    }
+
+    fn u_period(&self) -> Option<f64> {
+        Some(TAU)
+    }
+
+    fn v_period(&self) -> Option<f64> {
+        None
+    }
+
+    fn eval_points(&self, uvs: &[(f64, f64)]) -> Vec<Point> {
+        Sphere::eval_points(self, uvs)
+    }
+
+    fn as_elementary(&self) -> Option<ElementarySurface> {
+        Some(ElementarySurface::Sphere(*self))
     }
 }
 

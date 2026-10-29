@@ -3,10 +3,14 @@
 //! [`crate::surface_math::analytic`].
 
 use crate::frame::frame_error;
-use crate::projection::{self, SurfaceProjection};
 use crate::surface_math::analytic;
-use crate::surfaces::iso::{SurfaceIsoError, check_iso_param, iso_circle, iso_line};
-use crate::{Axis, Circle, Frame, Line, Point, Tolerance, Transform, Vector};
+use crate::surfaces::ElementarySurface;
+use crate::surfaces::ParametricSurface;
+use crate::surfaces::SurfaceIsoError;
+use crate::surfaces::iso::{check_iso_param, iso_circle, iso_line};
+use crate::{
+    Axis, Circle, Frame, Line, Point, SurfaceProjection, Tolerance, Transform, Vector, projection,
+};
 use std::f64::consts::TAU;
 use std::fmt;
 
@@ -464,6 +468,48 @@ impl Cylinder {
     /// native call per batch, mirroring [`Cylinder::eval_points`].
     pub fn project_points(&self, points: &[Point], tol: Tolerance) -> Vec<SurfaceProjection> {
         points.iter().map(|&p| self.project_point(p, tol)).collect()
+    }
+}
+
+impl ParametricSurface for Cylinder {
+    fn eval_point(&self, u: f64, v: f64) -> Point {
+        Cylinder::eval_point(self, u, v)
+    }
+
+    fn project_point(&self, point: Point, tol: Tolerance) -> SurfaceProjection {
+        Cylinder::project_point(self, point, tol)
+    }
+
+    fn contains(&self, point: Point, tol: Tolerance) -> bool {
+        Cylinder::contains(self, point, tol)
+    }
+
+    fn eval_derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> Vector {
+        Cylinder::eval_derivative(self, u, v, du, dv)
+    }
+
+    fn u_bounds(&self) -> (f64, f64) {
+        (0.0, TAU)
+    }
+
+    fn v_bounds(&self) -> (f64, f64) {
+        (f64::NEG_INFINITY, f64::INFINITY)
+    }
+
+    fn u_period(&self) -> Option<f64> {
+        Some(TAU)
+    }
+
+    fn v_period(&self) -> Option<f64> {
+        None
+    }
+
+    fn eval_points(&self, uvs: &[(f64, f64)]) -> Vec<Point> {
+        Cylinder::eval_points(self, uvs)
+    }
+
+    fn as_elementary(&self) -> Option<ElementarySurface> {
+        Some(ElementarySurface::Cylinder(*self))
     }
 }
 

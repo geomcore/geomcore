@@ -4,8 +4,12 @@
 
 use crate::curve_math::analytic;
 use crate::curves::CircleConstructionError;
+use crate::curves::ParametricCurve2D;
+use crate::curves::PointExtrema2D;
+use crate::curves::parametric_curve_2d::only_minimum;
 use crate::projection::CurveProjection2D;
 use crate::{Frame2D, Point2D, Tolerance, Vector2D, projection};
+use std::f64::consts::TAU;
 
 /// A circle in 2D: a [`Frame2D`] (origin plus local x/y directions defining
 /// the angular origin) and a radius, evaluated as
@@ -224,6 +228,34 @@ impl Circle2D {
     /// native call per batch, mirroring [`Circle2D::eval_points`].
     pub fn project_points(&self, points: &[Point2D], tol: Tolerance) -> Vec<CurveProjection2D> {
         points.iter().map(|&p| self.project_point(p, tol)).collect()
+    }
+}
+
+impl PointExtrema2D for Circle2D {
+    fn extrema(&self, point: Point2D, tol: Tolerance) -> Vec<CurveProjection2D> {
+        only_minimum(point, || self.project_point(point, tol))
+    }
+}
+
+impl ParametricCurve2D for Circle2D {
+    fn eval_point(&self, u: f64) -> Point2D {
+        Circle2D::eval_point(self, u)
+    }
+
+    fn eval_derivative(&self, u: f64, order: u32) -> Vector2D {
+        Circle2D::eval_derivative(self, u, order)
+    }
+
+    fn bounds(&self) -> (f64, f64) {
+        (0.0, TAU)
+    }
+
+    fn period(&self) -> Option<f64> {
+        Some(TAU)
+    }
+
+    fn eval_points(&self, us: &[f64]) -> Vec<Point2D> {
+        Circle2D::eval_points(self, us)
     }
 }
 

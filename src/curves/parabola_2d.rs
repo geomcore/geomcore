@@ -3,6 +3,8 @@
 
 use crate::curve_math::analytic;
 use crate::curves::ParabolaConstructionError;
+use crate::curves::ParametricCurve2D;
+use crate::curves::PointExtrema2D;
 use crate::frame::frame_error;
 use crate::math::real_roots;
 use crate::projection::CurveProjection2D;
@@ -309,6 +311,34 @@ impl Parabola2D {
     /// ```
     pub fn project_points(&self, points: &[Point2D], tol: Tolerance) -> Vec<CurveProjection2D> {
         points.iter().map(|&p| self.project_point(p, tol)).collect()
+    }
+}
+
+impl PointExtrema2D for Parabola2D {
+    fn extrema(&self, point: Point2D, tol: Tolerance) -> Vec<CurveProjection2D> {
+        Parabola2D::extrema(self, point, tol)
+    }
+}
+
+impl ParametricCurve2D for Parabola2D {
+    fn eval_point(&self, u: f64) -> Point2D {
+        Parabola2D::eval_point(self, u)
+    }
+
+    fn eval_derivative(&self, u: f64, order: u32) -> Vector2D {
+        Parabola2D::eval_derivative(self, u, order)
+    }
+
+    fn bounds(&self) -> (f64, f64) {
+        (f64::NEG_INFINITY, f64::INFINITY)
+    }
+
+    fn period(&self) -> Option<f64> {
+        None
+    }
+
+    fn eval_points(&self, us: &[f64]) -> Vec<Point2D> {
+        Parabola2D::eval_points(self, us)
     }
 }
 

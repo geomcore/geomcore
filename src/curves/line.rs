@@ -2,12 +2,16 @@
 //! inversion, thin wrappers over [`crate::curve_math::analytic`].
 
 use crate::curve_math::analytic;
-use crate::curves::Curve2D;
-use crate::curves::parametrize::{self, ParametrizeError};
+use crate::curves::ElementaryCurve;
+use crate::curves::ParametricCurve;
+use crate::curves::PointExtrema;
+use crate::curves::parametric_curve::only_minimum;
+use crate::curves::parametrize::ParametrizeError;
+use crate::curves::{Curve2D, parametrize};
 use crate::frame::frame_error;
-use crate::projection::{self, CurveProjection};
+use crate::projection::CurveProjection;
 use crate::surfaces::Surface;
-use crate::{Axis, Point, Tolerance, Transform, Vector};
+use crate::{Axis, Point, Tolerance, Transform, Vector, projection};
 use std::fmt;
 
 /// Error returned when a [`Line`] or [`Line2D`](crate::Line2D) cannot be constructed from
@@ -337,6 +341,38 @@ impl Line {
         tol: Tolerance,
     ) -> Result<Curve2D, ParametrizeError> {
         parametrize::line_on_surface(self, &surface.into(), tol)
+    }
+}
+
+impl PointExtrema for Line {
+    fn extrema(&self, point: Point, tol: Tolerance) -> Vec<CurveProjection> {
+        only_minimum(point, || self.project_point(point, tol))
+    }
+}
+
+impl ParametricCurve for Line {
+    fn eval_point(&self, u: f64) -> Point {
+        Line::eval_point(self, u)
+    }
+
+    fn eval_derivative(&self, u: f64, order: u32) -> Vector {
+        Line::eval_derivative(self, u, order)
+    }
+
+    fn bounds(&self) -> (f64, f64) {
+        (f64::NEG_INFINITY, f64::INFINITY)
+    }
+
+    fn period(&self) -> Option<f64> {
+        None
+    }
+
+    fn eval_points(&self, us: &[f64]) -> Vec<Point> {
+        Line::eval_points(self, us)
+    }
+
+    fn as_elementary(&self) -> Option<ElementaryCurve> {
+        Some(ElementaryCurve::Line(*self))
     }
 }
 

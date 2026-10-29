@@ -2,12 +2,15 @@
 //! thin wrapper over [`crate::curve_math::analytic`].
 
 use crate::curve_math::analytic;
+use crate::curves::ElementaryCurve;
+use crate::curves::ParametricCurve;
+use crate::curves::PointExtrema;
 use crate::curves::{Curve2D, ParametrizeError, parametrize};
 use crate::frame::frame_error;
 use crate::math::real_roots;
-use crate::projection::{self, CurveProjection};
+use crate::projection::CurveProjection;
 use crate::surfaces::Surface;
-use crate::{Frame, Point, Tolerance, Transform, Vector};
+use crate::{Frame, Point, Tolerance, Transform, Vector, projection};
 use std::fmt;
 
 /// Error returned when a [`Parabola`] cannot be constructed from the given
@@ -392,6 +395,38 @@ impl Parabola {
         tol: Tolerance,
     ) -> Result<Curve2D, ParametrizeError> {
         parametrize::parabola_on_surface(self, &surface.into(), tol)
+    }
+}
+
+impl PointExtrema for Parabola {
+    fn extrema(&self, point: Point, tol: Tolerance) -> Vec<CurveProjection> {
+        Parabola::extrema(self, point, tol)
+    }
+}
+
+impl ParametricCurve for Parabola {
+    fn eval_point(&self, u: f64) -> Point {
+        Parabola::eval_point(self, u)
+    }
+
+    fn eval_derivative(&self, u: f64, order: u32) -> Vector {
+        Parabola::eval_derivative(self, u, order)
+    }
+
+    fn bounds(&self) -> (f64, f64) {
+        (f64::NEG_INFINITY, f64::INFINITY)
+    }
+
+    fn period(&self) -> Option<f64> {
+        None
+    }
+
+    fn eval_points(&self, us: &[f64]) -> Vec<Point> {
+        Parabola::eval_points(self, us)
+    }
+
+    fn as_elementary(&self) -> Option<ElementaryCurve> {
+        Some(ElementaryCurve::Parabola(*self))
     }
 }
 

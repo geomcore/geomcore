@@ -3,11 +3,15 @@
 //! over [`crate::surface_math::analytic`].
 
 use crate::frame::frame_error;
-use crate::projection::{self, SurfaceProjection};
 use crate::surface_math::analytic;
-use crate::surfaces::iso::{SurfaceIsoError, check_iso_param, iso_circle, iso_line};
-use crate::tol;
-use crate::{Circle, Frame, Line, Point, Tolerance, Transform, Vector};
+use crate::surfaces::ElementarySurface;
+use crate::surfaces::ParametricSurface;
+use crate::surfaces::SurfaceIsoError;
+use crate::surfaces::iso::{check_iso_param, iso_circle, iso_line};
+use crate::{
+    Circle, Frame, Line, Point, SurfaceProjection, Tolerance, Transform, Vector, projection, tol,
+};
+use std::f64::consts::TAU;
 use std::fmt;
 
 /// Error returned when a [`Cone`] cannot be constructed from the given
@@ -589,6 +593,48 @@ fn arbitrary_perpendicular_frame(origin: Point, axis_direction: Vector) -> Frame
     .normalized()
     .expect("z is a unit vector and nonzero on at least two axes, so the swap is nonzero");
     Frame::new(origin, z, x_dir).expect("x_dir constructed perpendicular to z by design")
+}
+
+impl ParametricSurface for Cone {
+    fn eval_point(&self, u: f64, v: f64) -> Point {
+        Cone::eval_point(self, u, v)
+    }
+
+    fn project_point(&self, point: Point, tol: Tolerance) -> SurfaceProjection {
+        Cone::project_point(self, point, tol)
+    }
+
+    fn contains(&self, point: Point, tol: Tolerance) -> bool {
+        Cone::contains(self, point, tol)
+    }
+
+    fn eval_derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> Vector {
+        Cone::eval_derivative(self, u, v, du, dv)
+    }
+
+    fn u_bounds(&self) -> (f64, f64) {
+        (0.0, TAU)
+    }
+
+    fn v_bounds(&self) -> (f64, f64) {
+        (f64::NEG_INFINITY, f64::INFINITY)
+    }
+
+    fn u_period(&self) -> Option<f64> {
+        Some(TAU)
+    }
+
+    fn v_period(&self) -> Option<f64> {
+        None
+    }
+
+    fn eval_points(&self, uvs: &[(f64, f64)]) -> Vec<Point> {
+        Cone::eval_points(self, uvs)
+    }
+
+    fn as_elementary(&self) -> Option<ElementarySurface> {
+        Some(ElementarySurface::Cone(*self))
+    }
 }
 
 #[cfg(test)]

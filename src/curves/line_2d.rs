@@ -3,6 +3,9 @@
 
 use crate::curve_math::analytic;
 use crate::curves::LineConstructionError;
+use crate::curves::ParametricCurve2D;
+use crate::curves::PointExtrema2D;
+use crate::curves::parametric_curve_2d::only_minimum;
 use crate::frame::frame_error;
 use crate::projection::CurveProjection2D;
 use crate::{Axis2D, Point2D, Tolerance, Vector2D, projection};
@@ -243,6 +246,34 @@ impl Line2D {
     /// native call per batch, mirroring [`Line2D::eval_points`].
     pub fn project_points(&self, points: &[Point2D], tol: Tolerance) -> Vec<CurveProjection2D> {
         points.iter().map(|&p| self.project_point(p, tol)).collect()
+    }
+}
+
+impl PointExtrema2D for Line2D {
+    fn extrema(&self, point: Point2D, tol: Tolerance) -> Vec<CurveProjection2D> {
+        only_minimum(point, || self.project_point(point, tol))
+    }
+}
+
+impl ParametricCurve2D for Line2D {
+    fn eval_point(&self, u: f64) -> Point2D {
+        Line2D::eval_point(self, u)
+    }
+
+    fn eval_derivative(&self, u: f64, order: u32) -> Vector2D {
+        Line2D::eval_derivative(self, u, order)
+    }
+
+    fn bounds(&self) -> (f64, f64) {
+        (f64::NEG_INFINITY, f64::INFINITY)
+    }
+
+    fn period(&self) -> Option<f64> {
+        None
+    }
+
+    fn eval_points(&self, us: &[f64]) -> Vec<Point2D> {
+        Line2D::eval_points(self, us)
     }
 }
 

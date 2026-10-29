@@ -9,13 +9,14 @@
 //! periodicity and no knot editing. [`BezierCurve::to_bspline`] gives the
 //! B-spline when those are wanted.
 
-use std::fmt;
-
+use crate::curves::ParametricCurve;
+use crate::curves::PointExtrema;
 use crate::curves::bspline::{BSplineSplitError, DegreeElevationError};
 use crate::curves::spline::Spline;
 use crate::curves::{BSplineCurve, Side};
 use crate::projection::CurveProjection;
 use crate::{Continuity, Point, Tolerance, Vector};
+use std::fmt;
 
 /// Error returned when a [`BezierCurve`] or a [`BezierCurve2D`](crate::BezierCurve2D)
 /// cannot be constructed from the given degree, poles and weights, or
@@ -679,6 +680,58 @@ impl BezierCurve {
     /// B-spline search.
     pub(crate) fn bspline(&self) -> &BSplineCurve {
         &self.0
+    }
+}
+
+impl PointExtrema for BezierCurve {
+    fn extrema(&self, point: Point, tol: Tolerance) -> Vec<CurveProjection> {
+        BezierCurve::extrema(self, point, tol)
+    }
+}
+
+impl ParametricCurve for BezierCurve {
+    fn eval_point(&self, u: f64) -> Point {
+        BezierCurve::eval_point(self, u)
+    }
+
+    fn eval_derivative(&self, u: f64, order: u32) -> Vector {
+        BezierCurve::eval_derivative(self, u, order)
+    }
+
+    fn eval_d1(&self, u: f64) -> (Point, Vector) {
+        BezierCurve::eval_d1(self, u)
+    }
+
+    fn eval_d2(&self, u: f64) -> (Point, Vector, Vector) {
+        BezierCurve::eval_d2(self, u)
+    }
+
+    fn bounds(&self) -> (f64, f64) {
+        BezierCurve::bounds(self)
+    }
+
+    fn period(&self) -> Option<f64> {
+        None
+    }
+
+    fn eval_points(&self, us: &[f64]) -> Vec<Point> {
+        BezierCurve::eval_points(self, us)
+    }
+
+    fn is_closed(&self, tol: Tolerance) -> bool {
+        BezierCurve::is_closed(self, tol)
+    }
+
+    fn continuity(&self, u: f64, tol: Tolerance) -> Continuity {
+        BezierCurve::continuity(self, u, tol)
+    }
+
+    fn min_continuity(&self) -> Continuity {
+        BezierCurve::min_continuity(self)
+    }
+
+    fn as_bspline(&self) -> Option<&BSplineCurve> {
+        Some(self.bspline())
     }
 }
 

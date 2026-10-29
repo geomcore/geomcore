@@ -3,11 +3,12 @@
 //! [`crate::surface_math::analytic`].
 
 use crate::frame::frame_error;
-use crate::projection::{self, SurfaceProjection};
 use crate::surface_math::analytic;
-use crate::surfaces::iso::{SurfaceIsoError, check_iso_param, iso_line};
-use crate::tol;
-use crate::{Frame, Line, Point, Tolerance, Transform, Vector};
+use crate::surfaces::ElementarySurface;
+use crate::surfaces::ParametricSurface;
+use crate::surfaces::SurfaceIsoError;
+use crate::surfaces::iso::{check_iso_param, iso_line};
+use crate::{Frame, Line, Point, SurfaceProjection, Tolerance, Transform, Vector, projection, tol};
 use std::fmt;
 
 /// Error returned when a [`Plane`] cannot be constructed from the given
@@ -531,6 +532,48 @@ fn arbitrary_perpendicular_frame(origin: Point, normal: Vector) -> Frame {
     .normalized()
     .expect("z has unit length and is nonzero on at least two axes, so the swap is nonzero");
     Frame::new(origin, z, x_dir).expect("x_dir constructed perpendicular to z by design")
+}
+
+impl ParametricSurface for Plane {
+    fn eval_point(&self, u: f64, v: f64) -> Point {
+        Plane::eval_point(self, u, v)
+    }
+
+    fn project_point(&self, point: Point, tol: Tolerance) -> SurfaceProjection {
+        Plane::project_point(self, point, tol)
+    }
+
+    fn contains(&self, point: Point, tol: Tolerance) -> bool {
+        Plane::contains(self, point, tol)
+    }
+
+    fn eval_derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> Vector {
+        Plane::eval_derivative(self, u, v, du, dv)
+    }
+
+    fn u_bounds(&self) -> (f64, f64) {
+        (f64::NEG_INFINITY, f64::INFINITY)
+    }
+
+    fn v_bounds(&self) -> (f64, f64) {
+        (f64::NEG_INFINITY, f64::INFINITY)
+    }
+
+    fn u_period(&self) -> Option<f64> {
+        None
+    }
+
+    fn v_period(&self) -> Option<f64> {
+        None
+    }
+
+    fn eval_points(&self, uvs: &[(f64, f64)]) -> Vec<Point> {
+        Plane::eval_points(self, uvs)
+    }
+
+    fn as_elementary(&self) -> Option<ElementarySurface> {
+        Some(ElementarySurface::Plane(*self))
+    }
 }
 
 #[cfg(test)]

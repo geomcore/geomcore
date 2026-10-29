@@ -6,13 +6,14 @@
 //! the knot vector is expanded into its flat knot sequence at construction,
 //! so evaluation never re-derives it.
 
-use std::fmt;
-
+use crate::curves::ParametricCurve;
+use crate::curves::PointExtrema;
 use crate::curves::spline::Spline;
 use crate::curves::{BezierCurve, Curve2D, ParametrizeError, Side, parametrize};
 use crate::projection::CurveProjection;
 use crate::surfaces::Surface;
 use crate::{Continuity, Point, Tolerance, Transform, Vector};
+use std::fmt;
 
 /// Error returned when a [`BSplineCurve`] cannot be constructed from the
 /// given degree, poles, knots, multiplicities, and (for rational curves)
@@ -1266,6 +1267,67 @@ impl BSplineCurve {
     /// The curve as the implementation shared by both tiers.
     pub(crate) fn spline(&self) -> &Spline<Point> {
         &self.0
+    }
+}
+
+impl PointExtrema for BSplineCurve {
+    fn extrema(&self, point: Point, tol: Tolerance) -> Vec<CurveProjection> {
+        if point.is_finite() {
+            BSplineCurve::extrema(self, point, tol)
+        } else {
+            Vec::new()
+        }
+    }
+}
+
+impl ParametricCurve for BSplineCurve {
+    fn eval_point(&self, u: f64) -> Point {
+        BSplineCurve::eval_point(self, u)
+    }
+
+    fn eval_derivative(&self, u: f64, order: u32) -> Vector {
+        BSplineCurve::eval_derivative(self, u, order)
+    }
+
+    fn eval_d1(&self, u: f64) -> (Point, Vector) {
+        BSplineCurve::eval_d1(self, u)
+    }
+
+    fn eval_d2(&self, u: f64) -> (Point, Vector, Vector) {
+        BSplineCurve::eval_d2(self, u)
+    }
+
+    fn bounds(&self) -> (f64, f64) {
+        BSplineCurve::bounds(self)
+    }
+
+    fn period(&self) -> Option<f64> {
+        if self.is_periodic() {
+            let (first, last) = BSplineCurve::bounds(self);
+            Some(last - first)
+        } else {
+            None
+        }
+    }
+
+    fn eval_points(&self, us: &[f64]) -> Vec<Point> {
+        BSplineCurve::eval_points(self, us)
+    }
+
+    fn is_closed(&self, tol: Tolerance) -> bool {
+        BSplineCurve::is_closed(self, tol)
+    }
+
+    fn continuity(&self, u: f64, tol: Tolerance) -> Continuity {
+        BSplineCurve::continuity(self, u, tol)
+    }
+
+    fn min_continuity(&self) -> Continuity {
+        BSplineCurve::min_continuity(self)
+    }
+
+    fn as_bspline(&self) -> Option<&BSplineCurve> {
+        Some(self)
     }
 }
 
