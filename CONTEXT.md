@@ -83,6 +83,13 @@ _Avoid_: fallback, approximate intersection
 Which solver produced an intersection result: exact (a closed form, always complete) or numeric (a search, with its own completeness). Every result of `intersect` states it.
 _Avoid_: route, path, strategy
 
+**Typed result**:
+The result `intersect_exact` returns for one pair of concrete types, such as `PlaneSphereIntersection`: an enum of the outcomes that pair can have, on the stack.
+
+**Family result**:
+The result `intersect` returns for a family of pairs: `CurveCurveIntersection`, `CurveCurveIntersection2D`, `CurveSurfaceIntersection` or `SurfaceSurfaceIntersection`. It holds hits or curves, overlaps or coincidence, the intersection method and the completeness, whatever the operands. The router reads an exact pair's typed result straight into it.
+_Avoid_: general result, untyped result
+
 **Not analytic**:
 An outcome of `intersect_exact` only: the typed solver for the pair has no closed form for this configuration. `intersect` never reports it: it runs a numeric intersection instead, or a closed form the typed solver lacks (two circles in crossing planes are solved exactly as conics, on the line the planes share).
 

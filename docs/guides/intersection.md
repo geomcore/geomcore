@@ -61,8 +61,8 @@ and a tangency is decided by distance, not by root separation:
 
 A pair of concrete types calls its exact solver directly, with no
 run-time dispatch; only `Curve`, `Surface`, `ElementaryCurve` or
-`ElementarySurface` operands pay for a `match`. For hot loops over
-elementary shapes, `a.intersect_exact(&b, tol)` (the `IntersectExact`
+`ElementarySurface` operands pay for a `match`. For hot loops over a
+pair of concrete types, `a.intersect_exact(&b, tol)` (the `IntersectExact`
 trait) returns the pair's own enum, such as `PlaneSphereIntersection`,
 on the stack, recovers no parameter it does not need, and reports
 `NotAnalytic` where no closed form exists instead of searching.

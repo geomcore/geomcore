@@ -85,6 +85,9 @@ the Python distribution are versioned in lockstep.
   now the same on every class; the class docstring says what its
   parameter is. The intersection results share their common members the
   same way.
+- The router reads each typed exact result straight into its family
+  result, in one step: no intermediate untyped result, and one bridge
+  instead of four. Results are unchanged.
 
 ### Removed
 
@@ -111,6 +114,21 @@ the Python distribution are versioned in lockstep.
   The elementary types still invert in closed form and ignore it; a
   B-spline projects the point within it instead of within
   `Tolerance::DEFAULT`. Pass `Tolerance::DEFAULT` for the old behaviour.
+- The untyped exact results are gone (ADR 0018):
+  `ExactSurfaceIntersection`, `ExactCurveSurfaceIntersection` and
+  `ExactCurveCurveIntersection`, with the `IntersectExact` impls that
+  returned them: `ElementarySurface` with `ElementarySurface`,
+  `ElementaryCurve` with `ElementaryCurve` and with `ElementarySurface`
+  (both orders), `Surface` with `Surface`, `Curve` with `Curve`, and
+  `Curve` with `Surface` (both orders). `IntersectExact` itself stays,
+  for pairs of concrete types. Migration: call `intersect` on the same
+  operands and read the family result. `NotAnalytic` becomes
+  `method() == IntersectionMethod::Numeric` (the numeric search now runs
+  instead of returning nothing), `Coincident` becomes non-empty
+  `overlaps()` for curves or `is_coincident()` for surfaces, `Points` /
+  `Meets` become `hits()` or `curves()` and `contact_points()`, and
+  `Empty` becomes `is_empty()`. A curve–surface hit's `parameter` is
+  `curve_parameter`.
 
 ## [0.39.1] - 2026-10-29
 

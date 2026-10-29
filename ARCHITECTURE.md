@@ -38,6 +38,8 @@ src/
 │
 ├── intersect/           intersections, by method (ADR 0011)
 │   ├── routing.rs       Intersect: exact when a closed form exists, numeric otherwise
+│   ├── routing/exact_family.rs  ExactFamily: each typed exact result read as its
+│   │                    family result (ADR 0018)
 │   ├── exact/           IntersectExact and the closed-form solvers, by family:
 │   │                    curve_curve.rs, curve_surface.rs, surface_surface.rs
 │   ├── numeric/         the searches for pairs with no closed form
@@ -113,8 +115,10 @@ Outside `src/`:
 **A new exact intersection pair.**
 - Write the solver as `impl IntersectExact<B> for A` in the family file
   under `intersect/exact/`, with its result type, in both argument orders.
-- Register it in the dispatch in `intersect/exact/mod.rs`, so that
-  `Intersect` routes the pair there instead of to the numeric search.
+- Read its result into the family result with an `into_family` method
+  in `intersect/routing/exact_family.rs`, and list the pair in that
+  file's macro, so that `Intersect` routes the pair there instead of to
+  the numeric search.
 
 **A new operation.**
 - Give it its own folder at the top of `src/`, like `bounding_box/` and
