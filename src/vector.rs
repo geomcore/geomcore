@@ -371,13 +371,6 @@ impl Vector {
             }
         }
     }
-
-    /// Signed angle from self to other around reference: the former name
-    /// of [`Vector::angle_with_reference`].
-    #[deprecated(since = "0.36.0", note = "renamed `angle_with_reference`")]
-    pub fn angle_with_ref(self, other: Vector, reference: Vector) -> f64 {
-        self.angle_with_reference(other, reference)
-    }
 }
 
 // Implement arithmetic operations for Vector
@@ -496,13 +489,6 @@ impl std::ops::Mul<Vector2D> for f64 {
         }
     }
 }
-
-/// The former name of [`Vector`].
-#[deprecated(
-    since = "0.37.0",
-    note = "renamed `Vector`: only 2D types carry a dimension suffix"
-)]
-pub type Vector3D = Vector;
 
 #[cfg(test)]
 mod tests {
