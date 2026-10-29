@@ -1,10 +1,11 @@
 use super::*;
 use crate::Point;
 use crate::curves::{Curve, ParametricCurve, TrimmedCurve};
+use crate::intersect::numeric::curve_curve::search_curve_curve;
 use crate::intersect::numeric::curve_curve::{
     ParamDomain, curve_curve_minima, hits_at_minima, refine_minima, sampled_curve_curve,
 };
-use crate::intersect::{IncompleteReason, curve_curve_extrema, search_curve_curve};
+use crate::intersect::{IncompleteReason, curve_curve_extrema};
 
 const TOL: Tolerance = Tolerance::DEFAULT;
 

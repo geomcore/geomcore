@@ -37,7 +37,7 @@
 //! [`crate::curves::Curve`] or their elementary enums gives the answer.
 
 mod exact;
-mod numeric;
+pub(crate) mod numeric;
 mod results;
 mod routing;
 pub use exact::IntersectExact;
@@ -63,12 +63,8 @@ pub use exact::surface_surface::{
 };
 pub use numeric::curve_curve::curve_curve_extrema;
 pub use numeric::curve_curve::intersect_curve_curve;
-#[cfg(test)]
-pub(crate) use numeric::curve_curve::search_curve_curve;
 pub use numeric::curve_curve_hull::{CurveCurveExtrema, CurveCurveRegion};
 pub use numeric::curve_surface::intersect_curve_surface;
-#[cfg(test)]
-pub(crate) use numeric::curve_surface::search_curve_surface;
 pub use numeric::curve_surface_hull::CurveSurfaceRegion;
 pub use results::completeness::{Completeness, IncompleteReason};
 pub(crate) use results::curve_surface_multiplicity;

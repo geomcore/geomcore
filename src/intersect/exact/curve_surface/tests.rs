@@ -1,11 +1,11 @@
 use crate::curves::ParametricCurve;
 use crate::curves::PointExtrema;
+use crate::intersect::numeric::curve_surface::search_curve_surface;
 use crate::surfaces::ParametricSurface;
 use crate::{
     Circle, CircleSurfaceIntersection, Cone, ConicSurfaceIntersection, Cylinder, Ellipse, Frame,
     Hyperbola, IntersectExact, Line, LinePlaneIntersection, LineQuadricIntersection,
     LineTorusIntersection, Parabola, Plane, Point, Sphere, Tolerance, Torus, Vector,
-    search_curve_surface,
 };
 use std::f64::consts::PI;
 

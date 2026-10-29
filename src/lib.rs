@@ -210,8 +210,6 @@ pub use intersect::{
 };
 pub use intersect::{InlineList, Intersect, IntersectExact};
 pub use intersect::{intersect_curve_curve, intersect_curve_surface};
-#[cfg(test)]
-pub(crate) use intersect::{search_curve_curve, search_curve_surface};
 pub use point::{Point, Point2D};
 pub use projection::{CurveProjection, CurveProjection2D, SurfaceProjection};
 pub use surfaces::{
