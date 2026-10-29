@@ -129,6 +129,13 @@ the Python distribution are versioned in lockstep.
   promise. They stay on the traits, because the search is generic over
   any curve and surface (ADR 0022). A wrapper around a curve keeps
   forwarding them.
+- Internal: the numeric searches on B-spline pieces (curve–curve
+  intersection and extrema, curve–surface intersection, and the patch
+  pairs that seed the surface–surface marching) run through one shared
+  subdivision driver. Results, completeness and speed are unchanged.
+- Internal: `CurveCurveRegion`, `CurveSurfaceRegion` and
+  `CurveCurveExtrema` are defined beside the other intersection results.
+  Their public paths are unchanged.
 
 ### Deprecated
 
