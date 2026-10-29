@@ -9,6 +9,13 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+## [0.39.1] - 2026-10-29
+
+A layout release with no new behaviour: the source tree, in Rust and in
+the Python bindings, is reorganized so that each concept has one
+predictable place. Nothing changes for users of the crate or the Python
+package.
+
 ### Changed
 
 - The source tree is reorganized so that a newcomer can find things by
@@ -1846,7 +1853,8 @@ Behaviour, in Rust and Python alike:
 - Golden-fixture validation of all numeric results at 1e-7 tolerance, and
   criterion throughput benchmarks (`docs/benchmarks.md`).
 
-[Unreleased]: https://github.com/geomcore/geomcore/compare/v0.39.0...HEAD
+[Unreleased]: https://github.com/geomcore/geomcore/compare/v0.39.1...HEAD
+[0.39.1]: https://github.com/geomcore/geomcore/compare/v0.39.0...v0.39.1
 [0.39.0]: https://github.com/geomcore/geomcore/compare/v0.38.0...v0.39.0
 [0.38.0]: https://github.com/geomcore/geomcore/compare/v0.37.0...v0.38.0
 [0.37.0]: https://github.com/geomcore/geomcore/compare/v0.36.0...v0.37.0
