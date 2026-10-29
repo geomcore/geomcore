@@ -1,7 +1,7 @@
 //! Axis and frame placement types: the coordinate systems that curves and
 //! surfaces are positioned in.
 
-use crate::tol;
+use crate::Tolerance;
 use crate::{Point, Point2D, Vector, Vector2D};
 use std::fmt;
 
@@ -319,9 +319,9 @@ impl Frame {
                 .normalized()
                 .ok_or(FrameConstructionError::NullDirection)?,
         );
-        if x_dir.dot(y_dir).abs() > tol::ANGULAR
-            || y_dir.dot(z_dir).abs() > tol::ANGULAR
-            || z_dir.dot(x_dir).abs() > tol::ANGULAR
+        if x_dir.dot(y_dir).abs() > Tolerance::DEFAULT.angular
+            || y_dir.dot(z_dir).abs() > Tolerance::DEFAULT.angular
+            || z_dir.dot(x_dir).abs() > Tolerance::DEFAULT.angular
         {
             return Err(FrameConstructionError::NotOrthogonal);
         }
@@ -638,7 +638,7 @@ impl Frame2D {
         let y_dir = y_direction
             .normalized()
             .ok_or(FrameConstructionError::NullDirection)?;
-        if x_dir.dot(y_dir).abs() > tol::ANGULAR {
+        if x_dir.dot(y_dir).abs() > Tolerance::DEFAULT.angular {
             return Err(FrameConstructionError::NotOrthogonal);
         }
         Ok(Frame2D {

@@ -129,15 +129,6 @@
 //! [`Intersect::intersect`], solved numerically.
 #![warn(missing_docs)]
 
-pub(crate) mod tol {
-    /// Angular tolerance for parallelism/orthogonality checks (radians).
-    pub const ANGULAR: f64 = crate::Tolerance::DEFAULT.angular;
-    /// Distance below which two points are considered coincident.
-    pub const CONFUSION: f64 = crate::Tolerance::DEFAULT.confusion;
-    /// Parametric-space tolerance.
-    pub const P_CONFUSION: f64 = crate::Tolerance::DEFAULT.parametric;
-}
-
 /// Axis-aligned bounding boxes of curves and surfaces.
 pub mod bounding_box;
 /// Internal analytic curve evaluation math.

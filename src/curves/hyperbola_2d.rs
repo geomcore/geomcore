@@ -9,7 +9,7 @@ use crate::curves::PointExtrema2D;
 use crate::frame::frame_error;
 use crate::math::{polish_root, real_roots};
 use crate::projection::CurveProjection2D;
-use crate::{Frame2D, Point2D, Tolerance, Vector2D, projection, tol};
+use crate::{Frame2D, Point2D, Tolerance, Vector2D, projection};
 
 /// A hyperbola in 2D: a [`Frame2D`] (origin at the center, local x
 /// direction along the major axis and y across it), a semi-major radius,
@@ -116,7 +116,7 @@ impl Hyperbola2D {
     /// # Errors
     ///
     /// Returns [`HyperbolaConstructionError::ConfusedPoints`] if any pair
-    /// among `{s1, s2, center}` is within `tol::CONFUSION`; or
+    /// among `{s1, s2, center}` is within `Tolerance::DEFAULT.confusion`; or
     /// [`HyperbolaConstructionError::CollinearPoints`] if `s2` lies on the
     /// line `(center, x_axis)`.
     ///
@@ -138,9 +138,9 @@ impl Hyperbola2D {
         s1: Point2D,
         s2: Point2D,
     ) -> Result<Hyperbola2D, HyperbolaConstructionError> {
-        if center.distance(s1) < tol::CONFUSION
-            || center.distance(s2) < tol::CONFUSION
-            || s1.distance(s2) < tol::CONFUSION
+        if center.distance(s1) < Tolerance::DEFAULT.confusion
+            || center.distance(s2) < Tolerance::DEFAULT.confusion
+            || s1.distance(s2) < Tolerance::DEFAULT.confusion
         {
             return Err(HyperbolaConstructionError::ConfusedPoints);
         }
@@ -152,7 +152,7 @@ impl Hyperbola2D {
         let v2 = s2 - center;
         let cross = x_axis.cross(v2);
         let d2 = cross.abs();
-        if d2 < tol::CONFUSION {
+        if d2 < Tolerance::DEFAULT.confusion {
             return Err(HyperbolaConstructionError::CollinearPoints);
         }
         let y_axis = if cross < 0.0 {

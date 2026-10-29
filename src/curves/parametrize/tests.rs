@@ -5,7 +5,6 @@ use super::{
 use crate::curve_math::analytic::in_period;
 use crate::curves::{Curve2D, ParametricCurve, ParametricCurve2D, ParametrizeError};
 use crate::surfaces::ParametricSurface;
-use crate::tol;
 use crate::{
     BSplineCurve, Circle, Cylinder, Ellipse, Frame, Hyperbola, Line, Line2D, Parabola, Plane,
     Point, Point2D, Sphere, Tolerance, Vector, Vector2D,
@@ -147,12 +146,12 @@ fn test_parametrize_error_display_and_is_std_error() {
 //
 // The actual trigger is the *seam-fold* sub-case (line 336): tilt the
 // circle's x_direction() a hair off the pole (a few 1e-7 rad) so
-// `sphere_meridian`'s own pole snap-to (`tol::P_CONFUSION = 1e-9`)
+// `sphere_meridian`'s own pole snap-to (`Tolerance::DEFAULT.parametric = 1e-9`)
 // does *not* fire, but the endpoints still straddle the u-seam
 // (`|p1.x - p2.x| ~ pi`), which folds `p2` across the pole and makes the
 // line's v-direction continue *past* it. The resulting `p1.y` then lands
 // just inside `sphere_set_in_bounds`'s looser boundary tolerance
-// (`tol::CONFUSION = 1e-7`) with the matching direction sign, which is
+// (`Tolerance::DEFAULT.confusion = 1e-7`) with the matching direction sign, which is
 // exactly the condition on lines 393-396.
 #[test]
 fn test_sphere_meridian_pole_mirror_north() {
@@ -174,12 +173,12 @@ fn test_sphere_meridian_pole_mirror_north() {
     // q(0) sits just short of the north pole, with the v-direction
     // continuing past it — the trigger condition on line 394.
     assert!(FRAC_PI_2 - raw.origin().y > 0.0);
-    assert!(FRAC_PI_2 - raw.origin().y < tol::CONFUSION);
+    assert!(FRAC_PI_2 - raw.origin().y < Tolerance::DEFAULT.confusion);
     assert_close(raw.direction().y, 1.0);
 
     let normalized = sphere_set_in_bounds(raw);
     // Observable proof the mirror branch ran: v is reflected about
-    // pi/2 (staying within tol::CONFUSION of the pole, on the other
+    // pi/2 (staying within Tolerance::DEFAULT.confusion of the pole, on the other
     // side of it from the raw line) and u picks up the +pi shift
     // (wrapped into [0, 2pi)).
     assert_close(
@@ -187,7 +186,7 @@ fn test_sphere_meridian_pole_mirror_north() {
         in_period(raw.origin().x + PI, 0.0, TAU),
     );
     assert_close(normalized.direction().y, -raw.direction().y);
-    assert!((normalized.origin().y - FRAC_PI_2).abs() < tol::CONFUSION);
+    assert!((normalized.origin().y - FRAC_PI_2).abs() < Tolerance::DEFAULT.confusion);
     assert!((0.0..TAU + 1e-9).contains(&normalized.origin().x));
 
     // The consistency invariant is the real proof the mirror math is
@@ -221,7 +220,7 @@ fn test_sphere_meridian_pole_mirror_south() {
     let sf = sphere.frame();
     let raw = sphere_meridian(&circle, sf);
     assert!(raw.origin().y - (-FRAC_PI_2) > 0.0);
-    assert!(raw.origin().y - (-FRAC_PI_2) < tol::CONFUSION);
+    assert!(raw.origin().y - (-FRAC_PI_2) < Tolerance::DEFAULT.confusion);
     assert_close(raw.direction().y, -1.0);
 
     let normalized = sphere_set_in_bounds(raw);
@@ -232,7 +231,7 @@ fn test_sphere_meridian_pole_mirror_south() {
         in_period(raw.origin().x + PI, 0.0, TAU),
     );
     assert_close(normalized.direction().y, -raw.direction().y);
-    assert!((normalized.origin().y - (-FRAC_PI_2)).abs() < tol::CONFUSION);
+    assert!((normalized.origin().y - (-FRAC_PI_2)).abs() < Tolerance::DEFAULT.confusion);
     assert!((0.0..TAU + 1e-9).contains(&normalized.origin().x));
 
     let pcurve = circle.parametrize_on(sphere, Tolerance::DEFAULT).unwrap();

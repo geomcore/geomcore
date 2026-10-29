@@ -11,7 +11,7 @@ use crate::frame::frame_error;
 use crate::math::{polish_root, real_roots};
 use crate::projection::CurveProjection;
 use crate::surfaces::Surface;
-use crate::{Frame, Point, Tolerance, Transform, Vector, projection, tol};
+use crate::{Frame, Point, Tolerance, Transform, Vector, projection};
 use std::fmt;
 
 /// Error returned when a [`Hyperbola`] cannot be constructed from the
@@ -159,7 +159,7 @@ impl Hyperbola {
     /// # Errors
     ///
     /// Returns [`HyperbolaConstructionError::ConfusedPoints`] if any pair
-    /// among `{s1, s2, center}` is within `tol::CONFUSION`; or
+    /// among `{s1, s2, center}` is within `Tolerance::DEFAULT.confusion`; or
     /// [`HyperbolaConstructionError::CollinearPoints`] if `s2` lies on the
     /// line `(center, x_axis)`, or `x_axis` is parallel to `s2 - center`.
     ///
@@ -181,9 +181,9 @@ impl Hyperbola {
         s1: Point,
         s2: Point,
     ) -> Result<Hyperbola, HyperbolaConstructionError> {
-        if center.distance(s1) < tol::CONFUSION
-            || center.distance(s2) < tol::CONFUSION
-            || s1.distance(s2) < tol::CONFUSION
+        if center.distance(s1) < Tolerance::DEFAULT.confusion
+            || center.distance(s2) < Tolerance::DEFAULT.confusion
+            || s1.distance(s2) < Tolerance::DEFAULT.confusion
         {
             return Err(HyperbolaConstructionError::ConfusedPoints);
         }
@@ -197,12 +197,12 @@ impl Hyperbola {
         let perp = v2 - proj * x_axis;
         let d2 = perp.magnitude();
 
-        if d2 < tol::CONFUSION {
+        if d2 < Tolerance::DEFAULT.confusion {
             return Err(HyperbolaConstructionError::CollinearPoints);
         }
 
         let normal = x_axis.cross(v2);
-        if normal.magnitude() < tol::CONFUSION {
+        if normal.magnitude() < Tolerance::DEFAULT.confusion {
             return Err(HyperbolaConstructionError::CollinearPoints);
         }
 

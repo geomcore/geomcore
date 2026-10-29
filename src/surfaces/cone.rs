@@ -9,7 +9,7 @@ use crate::surfaces::ParametricSurface;
 use crate::surfaces::SurfaceIsoError;
 use crate::surfaces::iso::{check_iso_param, iso_circle, iso_line};
 use crate::{
-    Circle, Frame, Line, Point, SurfaceProjection, Tolerance, Transform, Vector, projection, tol,
+    Circle, Frame, Line, Point, SurfaceProjection, Tolerance, Transform, Vector, projection,
 };
 use std::f64::consts::TAU;
 use std::fmt;
@@ -78,7 +78,7 @@ impl Cone {
     /// Creates a cone from a frame, a semi-angle, and a reference radius.
     ///
     /// The semi-angle must satisfy `0 < |semi_angle| < PI/2` (both bounds
-    /// excluded with `tol::ANGULAR` tolerance); a negative
+    /// excluded with `Tolerance::DEFAULT.angular` tolerance); a negative
     /// semi-angle flips the direction the cone opens in along `z`.
     ///
     /// # Errors
@@ -189,7 +189,7 @@ impl Cone {
         }
         let delta = p2 - p1;
         let dist = delta.magnitude();
-        if dist < tol::CONFUSION {
+        if dist < Tolerance::DEFAULT.confusion {
             return Err(ConeConstructionError::NullAxis);
         }
         if r1 < 0.0 || r2 < 0.0 {
@@ -564,10 +564,11 @@ impl Cone {
 
 /// Checks that `semi_angle` is within the accepted range for a cone:
 /// `0 < |semi_angle| < PI/2`, both bounds excluded with
-/// [`crate::tol::ANGULAR`] tolerance.
+/// [`Tolerance::DEFAULT.angular`] tolerance.
 fn is_valid_semi_angle(semi_angle: f64) -> bool {
     let angle = semi_angle.abs();
-    angle >= tol::ANGULAR && (std::f64::consts::FRAC_PI_2 - angle) >= tol::ANGULAR
+    angle >= Tolerance::DEFAULT.angular
+        && (std::f64::consts::FRAC_PI_2 - angle) >= Tolerance::DEFAULT.angular
 }
 
 /// Builds a frame at `origin` with `z_dir = normalize(axis_direction)` and

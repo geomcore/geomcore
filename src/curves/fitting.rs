@@ -10,6 +10,7 @@
 
 use crate::Point;
 use crate::Point2D;
+use crate::Tolerance;
 use crate::curve_math::bspline as math;
 use crate::curve_math::bspline::{Pole, PolePoint};
 use crate::curves::{BSplineConstructionError, BSplineCurve, BSplineCurve2D};
@@ -44,7 +45,7 @@ fn point_parameters<G: PolePoint>(
     let mut total = 0.0;
     for pair in points.windows(2) {
         let d = pair[1].distance(pair[0]);
-        if d <= crate::tol::CONFUSION {
+        if d <= Tolerance::DEFAULT.confusion {
             return Err(BSplineConstructionError::ConfusedPoints);
         }
         total += if exponent == 1.0 { d } else { d.sqrt() };
@@ -190,7 +191,7 @@ pub(crate) fn shared_parameters<G: PolePoint>(
             total += if exponent == 1.0 { d } else { d.sqrt() };
             *t = total;
         }
-        if length <= crate::tol::CONFUSION {
+        if length <= Tolerance::DEFAULT.confusion {
             continue;
         }
         used += 1;

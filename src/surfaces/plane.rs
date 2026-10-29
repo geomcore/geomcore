@@ -8,7 +8,7 @@ use crate::surfaces::ElementarySurface;
 use crate::surfaces::ParametricSurface;
 use crate::surfaces::SurfaceIsoError;
 use crate::surfaces::iso::{check_iso_param, iso_line};
-use crate::{Frame, Line, Point, SurfaceProjection, Tolerance, Transform, Vector, projection, tol};
+use crate::{Frame, Line, Point, SurfaceProjection, Tolerance, Transform, Vector, projection};
 use std::fmt;
 
 /// Error returned when a [`Plane`] cannot be constructed from the given
@@ -103,7 +103,7 @@ impl Plane {
     ///
     /// Fails with [`PlaneConstructionError::ConfusedPoints`] if `p1` and
     /// `p2` are coincident (or too close to distinguish); otherwise, if the
-    /// three points are collinear (`|(p2-p1) x (p3-p1)| <= tol::CONFUSION *
+    /// three points are collinear (`|(p2-p1) x (p3-p1)| <= Tolerance::DEFAULT.confusion *
     /// max(|p2-p1|, |p3-p1|)`), returns
     /// [`PlaneConstructionError::CollinearPoints`].
     ///
@@ -133,14 +133,15 @@ impl Plane {
         p2: Point,
         p3: Point,
     ) -> Result<Plane, PlaneConstructionError> {
-        if p1.distance(p2) < tol::CONFUSION {
+        if p1.distance(p2) < Tolerance::DEFAULT.confusion {
             return Err(PlaneConstructionError::ConfusedPoints);
         }
 
         let v12 = p2 - p1;
         let v13 = p3 - p1;
         let normal = v12.cross(v13);
-        if normal.magnitude() <= tol::CONFUSION * v12.magnitude().max(v13.magnitude()) {
+        if normal.magnitude() <= Tolerance::DEFAULT.confusion * v12.magnitude().max(v13.magnitude())
+        {
             return Err(PlaneConstructionError::CollinearPoints);
         }
 

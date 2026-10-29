@@ -12,7 +12,7 @@ use crate::curves::{Curve2D, parametrize};
 use crate::frame::frame_error;
 use crate::projection::CurveProjection;
 use crate::surfaces::Surface;
-use crate::{Axis, Frame, Point, Tolerance, Transform, Vector, projection, tol};
+use crate::{Axis, Frame, Point, Tolerance, Transform, Vector, projection};
 use std::f64::consts::TAU;
 use std::fmt;
 
@@ -145,10 +145,10 @@ impl Circle {
     /// Creates the circumcircle through three points.
     ///
     /// Failure checks run before any circumcenter computation: any pairwise
-    /// distance below `tol::CONFUSION` is reported as
+    /// distance below `Tolerance::DEFAULT.confusion` is reported as
     /// [`CircleConstructionError::ConfusedPoints`] (this also covers all
     /// three points being coincident); otherwise, if the points are
-    /// collinear (`|(p2-p1) x (p3-p1)| <= tol::CONFUSION * max(|p2-p1|,
+    /// collinear (`|(p2-p1) x (p3-p1)| <= Tolerance::DEFAULT.confusion * max(|p2-p1|,
     /// |p3-p1|)`), [`CircleConstructionError::CollinearPoints`] is returned.
     ///
     /// The center is computed via the standard circumcenter closed form:
@@ -181,9 +181,9 @@ impl Circle {
         p2: Point,
         p3: Point,
     ) -> Result<Circle, CircleConstructionError> {
-        if p1.distance(p2) < tol::CONFUSION
-            || p2.distance(p3) < tol::CONFUSION
-            || p1.distance(p3) < tol::CONFUSION
+        if p1.distance(p2) < Tolerance::DEFAULT.confusion
+            || p2.distance(p3) < Tolerance::DEFAULT.confusion
+            || p1.distance(p3) < Tolerance::DEFAULT.confusion
         {
             return Err(CircleConstructionError::ConfusedPoints);
         }
@@ -191,7 +191,7 @@ impl Circle {
         let v12 = p2 - p1;
         let v13 = p3 - p1;
         let collinear_cross = v12.cross(v13).magnitude();
-        if collinear_cross <= tol::CONFUSION * v12.magnitude().max(v13.magnitude()) {
+        if collinear_cross <= Tolerance::DEFAULT.confusion * v12.magnitude().max(v13.magnitude()) {
             return Err(CircleConstructionError::CollinearPoints);
         }
 

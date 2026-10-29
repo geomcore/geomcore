@@ -1029,7 +1029,7 @@ where
                 h *= 0.5;
             }
             if let Some(q) = boundary_point {
-                if q.distance(p) > tol.confusion.max(crate::tol::CONFUSION) {
+                if q.distance(p) > tol.confusion.max(Tolerance::DEFAULT.confusion) {
                     // A last step much shorter than the one before makes
                     // the fitted curve overshoot the boundary: the boundary point
                     // then replaces the last point.

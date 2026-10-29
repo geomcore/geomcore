@@ -34,7 +34,6 @@ use crate::curves::{
     Hyperbola2D, Line, Line2D, Parabola, Parabola2D,
 };
 use crate::surfaces::{ParametricSurface, Surface};
-use crate::tol;
 use crate::{Frame2D, Point, Point2D, Tolerance, Vector, Vector2D};
 
 /// Error returned when a 3D curve cannot be given an analytic 2D
@@ -570,10 +569,12 @@ fn sphere_meridian(circle: &Circle, frame: crate::Frame) -> Line2D {
     let mut p1 = eval_point2d_sphere(frame, cf.x_direction());
     let mut p2 = eval_point2d_sphere(frame, cf.y_direction());
 
-    if (p1.y - FRAC_PI_2).abs() < tol::P_CONFUSION || (p1.y + FRAC_PI_2).abs() < tol::P_CONFUSION {
+    if (p1.y - FRAC_PI_2).abs() < Tolerance::DEFAULT.parametric
+        || (p1.y + FRAC_PI_2).abs() < Tolerance::DEFAULT.parametric
+    {
         // p1 sits on a pole where u is undefined; borrow p2's u.
         p1.x = p2.x;
-    } else if ((p1.x - p2.x).abs() - PI).abs() < tol::P_CONFUSION {
+    } else if ((p1.x - p2.x).abs() - PI).abs() < Tolerance::DEFAULT.parametric {
         // The two endpoints straddle the seam; fold p2 onto p1's meridian.
         p2.x = p1.x;
         p2.y = if p2.y < 0.0 { -PI - p2.y } else { PI - p2.y };
@@ -631,10 +632,10 @@ fn sphere_set_in_bounds(line: Line2D) -> Line2D {
     // 2. Pole mirroring if v(0) still overshoots ±π/2.
     let p = line.eval_point(0.0);
     let dir = line.direction();
-    let north = p.y - FRAC_PI_2 > tol::CONFUSION
-        || ((p.y - FRAC_PI_2).abs() < tol::CONFUSION && dir.y > 0.0);
-    let south = p.y + FRAC_PI_2 < -tol::CONFUSION
-        || ((p.y + FRAC_PI_2).abs() < tol::CONFUSION && dir.y < 0.0);
+    let north = p.y - FRAC_PI_2 > Tolerance::DEFAULT.confusion
+        || ((p.y - FRAC_PI_2).abs() < Tolerance::DEFAULT.confusion && dir.y > 0.0);
+    let south = p.y + FRAC_PI_2 < -Tolerance::DEFAULT.confusion
+        || ((p.y + FRAC_PI_2).abs() < Tolerance::DEFAULT.confusion && dir.y < 0.0);
     if north {
         line = mirror_about_horizontal(line, FRAC_PI_2);
         line = translate_line(line, PI, 0.0);
@@ -810,7 +811,7 @@ fn translate_line(line: Line2D, du: f64, dv: f64) -> Line2D {
 /// `atan2(y, x)` wrapped into `[0, 2π)`, returning `0` when both inputs are
 /// below the parametric-space tolerance (the angle is then undefined).
 fn angle_or_zero(y: f64, x: f64) -> f64 {
-    if x.abs() < tol::P_CONFUSION && y.abs() < tol::P_CONFUSION {
+    if x.abs() < Tolerance::DEFAULT.parametric && y.abs() < Tolerance::DEFAULT.parametric {
         0.0
     } else {
         wrap_to_turn(y.atan2(x))

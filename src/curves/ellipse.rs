@@ -11,7 +11,7 @@ use crate::frame::frame_error;
 use crate::math::{polish_root, real_roots};
 use crate::projection::CurveProjection;
 use crate::surfaces::Surface;
-use crate::{Frame, Point, Tolerance, Transform, Vector, projection, tol};
+use crate::{Frame, Point, Tolerance, Transform, Vector, projection};
 use std::f64::consts::TAU;
 use std::fmt;
 
@@ -168,7 +168,7 @@ impl Ellipse {
     /// Returns [`EllipseConstructionError::NonFinite`] if a coordinate of
     /// `center`, `s1` or `s2` is NaN or infinite;
     /// [`EllipseConstructionError::NullAxis`] if `d1` is below
-    /// `tol::CONFUSION` (`s1` coincides with `center`); or
+    /// `Tolerance::DEFAULT.confusion` (`s1` coincides with `center`); or
     /// [`EllipseConstructionError::InvertedAxis`] if `d1 < d2`, if `d2` is
     /// below `1e-7`, or if `x_axis` is parallel to `s2 - center` (the two
     /// points and the center are collinear).
@@ -196,7 +196,7 @@ impl Ellipse {
         }
         let v1 = s1 - center;
         let d1 = v1.magnitude();
-        if d1 < tol::CONFUSION {
+        if d1 < Tolerance::DEFAULT.confusion {
             return Err(EllipseConstructionError::NullAxis);
         }
         let x_axis = v1 * (1.0 / d1);
