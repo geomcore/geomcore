@@ -9,6 +9,17 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+### Removed
+
+- The 0.36 names deprecated in 0.37 (breaking, ADR 0013): `Point3D`,
+  `Line3D`, `Curve3D`, `ParametricCurve3D` and the other `*3D` type
+  aliases and trait re-exports in Rust, and the matching names under
+  `geomcore` and `geomcore.curves` in Python, which raised a
+  `DeprecationWarning`. Use the unsuffixed names in the 0.37 migration
+  table.
+- `Vector::angle_with_ref`, deprecated in 0.36 (breaking): use
+  `angle_with_reference`.
+
 ## [0.38.0] - 2026-10-29
 
 The 2D curve tier now matches the 3D one (ADR 0014). `Ellipse2D`,

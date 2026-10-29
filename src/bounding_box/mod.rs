@@ -339,17 +339,6 @@ pub(crate) mod sealed {
     }
 }
 
-/// The former name of [`BoundingBox`].
-#[deprecated(
-    since = "0.37.0",
-    note = "renamed `BoundingBox`: only 2D types carry a dimension suffix"
-)]
-pub type BoundingBox3D = BoundingBox;
-
-/// The former name of [`HasBoundingBox`], kept until the next breaking release.
-#[doc(hidden)]
-pub use HasBoundingBox as Bound3D;
-
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -225,33 +225,3 @@ pub use surfaces::{
 pub use tolerance::Tolerance;
 pub use transform::Transform;
 pub use vector::{Vector, Vector2D};
-
-// The 0.36 names, deprecated in 0.37 (ADR 0013): kept for one release so
-// callers migrate with warnings instead of errors.
-#[allow(deprecated)]
-#[doc(hidden)]
-pub use bounding_box::{Bound3D, BoundingBox3D};
-#[allow(deprecated)]
-#[doc(hidden)]
-pub use curves::{
-    BSplineCurve3D, Circle3D, Curve3D, Ellipse3D, Hyperbola3D, Line3D, Parabola3D,
-    ParametricCurve3D, PointExtrema3D, TrimmedCurve3D,
-};
-#[allow(deprecated)]
-#[doc(hidden)]
-pub use discretization::{Discretization3D, Discretize3D};
-#[allow(deprecated)]
-#[doc(hidden)]
-pub use frame::{Axis3D, Frame3D};
-#[allow(deprecated)]
-#[doc(hidden)]
-pub use intersect::{
-    CircleCircle3DIntersection, LineCircle3DIntersection, LineConic3DIntersection,
-    LineLine3DIntersection,
-};
-#[allow(deprecated)]
-#[doc(hidden)]
-pub use point::Point3D;
-#[allow(deprecated)]
-#[doc(hidden)]
-pub use vector::Vector3D;

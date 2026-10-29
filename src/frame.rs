@@ -732,20 +732,6 @@ impl Frame2D {
     }
 }
 
-/// The former name of [`Axis`].
-#[deprecated(
-    since = "0.37.0",
-    note = "renamed `Axis`: only 2D types carry a dimension suffix"
-)]
-pub type Axis3D = Axis;
-
-/// The former name of [`Frame`].
-#[deprecated(
-    since = "0.37.0",
-    note = "renamed `Frame`: only 2D types carry a dimension suffix"
-)]
-pub type Frame3D = Frame;
-
 #[cfg(test)]
 mod tests {
     use crate::{

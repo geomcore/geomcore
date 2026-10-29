@@ -826,31 +826,3 @@ pub struct CurveSurfaceHit {
     /// tangent to it.
     pub multiplicity: u32,
 }
-
-/// The former name of [`LineConicIntersection`].
-#[deprecated(
-    since = "0.37.0",
-    note = "renamed `LineConicIntersection`: only 2D types carry a dimension suffix"
-)]
-pub type LineConic3DIntersection = LineConicIntersection;
-
-/// The former name of [`CircleCircleIntersection`].
-#[deprecated(
-    since = "0.37.0",
-    note = "renamed `CircleCircleIntersection`: only 2D types carry a dimension suffix"
-)]
-pub type CircleCircle3DIntersection = CircleCircleIntersection;
-
-/// The former name of [`LineCircleIntersection`].
-#[deprecated(
-    since = "0.37.0",
-    note = "renamed `LineCircleIntersection`: only 2D types carry a dimension suffix"
-)]
-pub type LineCircle3DIntersection = LineCircleIntersection;
-
-/// The former name of [`LineLineIntersection`].
-#[deprecated(
-    since = "0.37.0",
-    note = "renamed `LineLineIntersection`: only 2D types carry a dimension suffix"
-)]
-pub type LineLine3DIntersection = LineLineIntersection;

@@ -684,14 +684,3 @@ impl<C: DiscretizeRange + ?Sized> DiscretizeRange for &C {
         (**self).for_each_run(first, last, criteria, min_segments, visit);
     }
 }
-
-/// The former name of [`Discretization`].
-#[deprecated(
-    since = "0.37.0",
-    note = "renamed `Discretization`: only 2D types carry a dimension suffix"
-)]
-pub type Discretization3D = Discretization;
-
-/// The former name of [`Discretize`], kept until the next breaking release.
-#[doc(hidden)]
-pub use Discretize as Discretize3D;

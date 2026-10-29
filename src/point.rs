@@ -240,13 +240,6 @@ impl std::ops::Sub for Point2D {
     }
 }
 
-/// The former name of [`Point`].
-#[deprecated(
-    since = "0.37.0",
-    note = "renamed `Point`: only 2D types carry a dimension suffix"
-)]
-pub type Point3D = Point;
-
 #[cfg(test)]
 mod tests {
     use super::*;
