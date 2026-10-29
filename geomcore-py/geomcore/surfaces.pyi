@@ -15,6 +15,7 @@ from geomcore import (
     Vector,
 )
 from geomcore.curves import (
+    BezierCurve,
     BSplineCurve,
     Circle,
     Ellipse,
@@ -25,9 +26,9 @@ from geomcore.curves import (
 )
 
 _Curve = Union[
-    Line, Circle, Ellipse, Parabola, Hyperbola, BSplineCurve, TrimmedCurve
+    Line, Circle, Ellipse, Parabola, Hyperbola, BSplineCurve, BezierCurve, TrimmedCurve
 ]
-_Surface = Union[Plane, Cylinder, Cone, Sphere, Torus, BSplineSurface]
+_Surface = Union[Plane, Cylinder, Cone, Sphere, Torus, BSplineSurface, BezierSurface]
 
 
 @final

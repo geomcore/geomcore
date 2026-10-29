@@ -5,9 +5,17 @@ import math
 import pytest
 
 import geomcore
-from geomcore import ConstructionError, Point2D, Point, Side, Tolerance, Vector
-from geomcore.curves import BSplineCurve, BSplineCurve2D, BezierCurve, BezierCurve2D
-from geomcore.surfaces import BSplineSurface, BezierSurface
+from geomcore import ConstructionError, Point2D, Point, Side, Tolerance, Vector, Vector2D
+from geomcore.curves import (
+    BSplineCurve,
+    BSplineCurve2D,
+    BezierCurve,
+    BezierCurve2D,
+    Line,
+    Line2D,
+    TrimmedCurve,
+)
+from geomcore.surfaces import BSplineSurface, BezierSurface, Plane
 
 W = math.sqrt(0.5)
 
@@ -262,3 +270,31 @@ def test_surface_projection_and_closedness():
     assert surface.extrema(on)[0].distance == 0.0
     assert not surface.is_u_closed() and not surface.is_v_closed()
     assert surface.curvatures(0.5, 0.5) is not None
+
+
+
+# ---- Bézier operands of intersect ----
+
+
+def test_bezier_operands_intersect_as_their_bspline():
+    arch = BezierCurve(2, [Point(0.0, 0.0, 0.0), Point(1.0, 2.0, 0.0), Point(2.0, 0.0, 0.0)])
+    line = Line(Point(0.0, 0.5, 0.0), Vector(1.0, 0.0, 0.0))
+    result = line.intersect(arch)
+    assert len(result.hits) == 2
+    assert result.second is arch
+    expected = line.intersect(arch.to_bspline())
+    assert [h.point for h in result.hits] == [h.point for h in expected.hits]
+    half = TrimmedCurve(arch, 0.0, 0.5)
+    assert isinstance(half.basis(), BezierCurve)
+    assert len(line.intersect(half).hits) == 1
+    plane = Plane(Point(0.0, 0.5, 0.0), Vector(0.0, 1.0, 0.0))
+    assert len(plane.intersect(arch).hits) == 2
+    vertical = Line(Point(1.0, 1.0, 0.0), Vector(0.0, 0.0, 1.0))
+    on_saddle = vertical.intersect(saddle())
+    assert len(on_saddle.hits) == 1
+    assert isinstance(on_saddle.surface, BezierSurface)
+    level = Plane(Point(0.0, 0.0, 1.0), Vector(0.0, 0.0, 1.0))
+    assert level.intersect(saddle()).curves
+    arch_2d = BezierCurve2D(2, [Point2D(0.0, 0.0), Point2D(1.0, 2.0), Point2D(2.0, 0.0)])
+    line_2d = Line2D(Point2D(0.0, 0.5), Vector2D(1.0, 0.0))
+    assert len(line_2d.intersect(arch_2d).hits) == 2

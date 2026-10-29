@@ -22,10 +22,18 @@ from geomcore import (
     Vector2D,
     Vector,
 )
-from geomcore.surfaces import BSplineSurface, Cone, Cylinder, Plane, Sphere, Torus
+from geomcore.surfaces import (
+    BezierSurface,
+    BSplineSurface,
+    Cone,
+    Cylinder,
+    Plane,
+    Sphere,
+    Torus,
+)
 
 _Curve = Union[
-    Line, Circle, Ellipse, Parabola, Hyperbola, BSplineCurve, TrimmedCurve
+    Line, Circle, Ellipse, Parabola, Hyperbola, BSplineCurve, BezierCurve, TrimmedCurve
 ]
 _Curve2D = Union[
     Line2D,
@@ -34,9 +42,10 @@ _Curve2D = Union[
     Parabola2D,
     Hyperbola2D,
     BSplineCurve2D,
+    BezierCurve2D,
     TrimmedCurve2D,
 ]
-_Surface = Union[Plane, Cylinder, Cone, Sphere, Torus, BSplineSurface]
+_Surface = Union[Plane, Cylinder, Cone, Sphere, Torus, BSplineSurface, BezierSurface]
 
 
 @final

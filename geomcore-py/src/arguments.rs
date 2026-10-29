@@ -15,7 +15,7 @@ use pyo3::prelude::*;
 pub(crate) fn extract_curve3d(obj: &Bound<'_, PyAny>) -> PyResult<Curve> {
     curve3d_of(obj).ok_or_else(|| {
         PyTypeError::new_err(
-            "expected a geomcore 3D curve (Line, Circle, Ellipse, Parabola, Hyperbola or BSplineCurve)",
+            "expected a geomcore 3D curve (Line, Circle, Ellipse, Parabola, Hyperbola, BSplineCurve or BezierCurve)",
         )
     })
 }
@@ -40,6 +40,9 @@ pub(crate) fn curve3d_of(obj: &Bound<'_, PyAny>) -> Option<Curve> {
         return Some(Curve::from(c.borrow().0));
     }
     if let Ok(c) = obj.downcast::<PyBSplineCurve>() {
+        return Some(Curve::from(c.borrow().0.clone()));
+    }
+    if let Ok(c) = obj.downcast::<PyBezierCurve>() {
         return Some(Curve::from(c.borrow().0.clone()));
     }
     None
@@ -108,7 +111,7 @@ impl ParametricCurve for CurveArg {
 pub(crate) fn extract_curve_arg(obj: &Bound<'_, PyAny>) -> PyResult<CurveArg> {
     curve_arg_of(obj).ok_or_else(|| {
         PyTypeError::new_err(
-            "expected a geomcore 3D curve (Line, Circle, Ellipse, Parabola, Hyperbola, BSplineCurve or TrimmedCurve)",
+            "expected a geomcore 3D curve (Line, Circle, Ellipse, Parabola, Hyperbola, BSplineCurve, BezierCurve or TrimmedCurve)",
         )
     })
 }
@@ -130,6 +133,7 @@ pub(crate) fn curve3d_to_py(py: Python<'_>, curve: Curve) -> PyResult<Py<PyAny>>
         Curve::Parabola(c) => Ok(PyParabola(c).into_pyobject(py)?.into_any().unbind()),
         Curve::Hyperbola(c) => Ok(PyHyperbola(c).into_pyobject(py)?.into_any().unbind()),
         Curve::BSpline(c) => Ok(PyBSplineCurve(c).into_pyobject(py)?.into_any().unbind()),
+        Curve::Bezier(c) => Ok(PyBezierCurve(c).into_pyobject(py)?.into_any().unbind()),
         _ => Err(invalid_argument("unsupported 3d curve variant")),
     }
 }
@@ -137,14 +141,13 @@ pub(crate) fn curve3d_to_py(py: Python<'_>, curve: Curve) -> PyResult<Py<PyAny>>
 pub(crate) fn extract_curve2d(obj: &Bound<'_, PyAny>) -> PyResult<Curve2D> {
     curve2d_of(obj).ok_or_else(|| {
         PyTypeError::new_err(
-            "expected a geomcore 2D curve (Line2D, Circle2D, Ellipse2D, Parabola2D, Hyperbola2D or BSplineCurve2D)",
+            "expected a geomcore 2D curve (Line2D, Circle2D, Ellipse2D, Parabola2D, Hyperbola2D, BSplineCurve2D or BezierCurve2D)",
         )
     })
 }
 
-/// The 2D curve `obj` holds, if it is `Line2D`, `Circle2D`, `Ellipse2D`,
-/// `Parabola2D`, `Hyperbola2D` or `BSplineCurve2D`; a miss
-/// raises nothing (see [`curve3d_of`]).
+/// The 2D curve `obj` holds, if it is one of the whole 2D curve classes; a
+/// miss raises nothing (see [`curve3d_of`]).
 pub(crate) fn curve2d_of(obj: &Bound<'_, PyAny>) -> Option<Curve2D> {
     if let Ok(c) = obj.downcast::<PyLine2D>() {
         return Some(Curve2D::from(c.borrow().0));
@@ -164,6 +167,9 @@ pub(crate) fn curve2d_of(obj: &Bound<'_, PyAny>) -> Option<Curve2D> {
     if let Ok(c) = obj.downcast::<PyBSplineCurve2D>() {
         return Some(Curve2D::from(c.borrow().0.clone()));
     }
+    if let Ok(c) = obj.downcast::<PyBezierCurve2D>() {
+        return Some(Curve2D::from(c.borrow().0.clone()));
+    }
     None
 }
 
@@ -175,6 +181,7 @@ pub(crate) fn curve2d_to_py(py: Python<'_>, curve: Curve2D) -> PyResult<Py<PyAny
         Curve2D::Parabola(c) => Ok(PyParabola2D(c).into_pyobject(py)?.into_any().unbind()),
         Curve2D::Hyperbola(c) => Ok(PyHyperbola2D(c).into_pyobject(py)?.into_any().unbind()),
         Curve2D::BSpline(c) => Ok(PyBSplineCurve2D(c).into_pyobject(py)?.into_any().unbind()),
+        Curve2D::Bezier(c) => Ok(PyBezierCurve2D(c).into_pyobject(py)?.into_any().unbind()),
         _ => Err(invalid_argument("unsupported 2d curve variant")),
     }
 }
@@ -182,7 +189,7 @@ pub(crate) fn curve2d_to_py(py: Python<'_>, curve: Curve2D) -> PyResult<Py<PyAny
 pub(crate) fn extract_surface(obj: &Bound<'_, PyAny>) -> PyResult<Surface> {
     surface_of(obj).ok_or_else(|| {
         PyTypeError::new_err(
-            "expected a geomcore surface (Plane, Cylinder, Cone, Sphere, Torus or BSplineSurface)",
+            "expected a geomcore surface (Plane, Cylinder, Cone, Sphere, Torus, BSplineSurface or BezierSurface)",
         )
     })
 }
@@ -206,6 +213,9 @@ pub(crate) fn surface_of(obj: &Bound<'_, PyAny>) -> Option<Surface> {
         return Some(Surface::from(&s.borrow().0));
     }
     if let Ok(s) = obj.downcast::<PyBSplineSurface>() {
+        return Some(Surface::from(&s.borrow().0));
+    }
+    if let Ok(s) = obj.downcast::<PyBezierSurface>() {
         return Some(Surface::from(&s.borrow().0));
     }
     None

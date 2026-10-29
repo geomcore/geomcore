@@ -80,8 +80,8 @@ fn routed_curve_curve_2d(
 // run meanwhile. Releasing it costs about 35 ns, a tenth of a closed-form
 // call from Python, so the pairs that always have a closed form keep it.
 
-/// Whether the curve is a B-spline, or a piece of one: a pair with it has
-/// no closed form.
+/// Whether the curve is a B-spline or Bézier curve, or a piece of one: a
+/// pair with it has no closed form.
 fn is_bspline(curve: &CurveArg) -> bool {
     match curve {
         CurveArg::Whole(curve) => curve.as_bspline().is_some(),
@@ -90,12 +90,12 @@ fn is_bspline(curve: &CurveArg) -> bool {
 }
 
 /// Whether the routed curve-surface call may run the numeric search: a
-/// B-spline on either side, or a curve other than a whole line against a
-/// torus.
+/// B-spline or Bézier shape on either side, or a curve other than a whole
+/// line against a torus.
 fn may_search(curve: &CurveArg, surface: &Surface) -> bool {
     let line = matches!(curve, CurveArg::Whole(Curve::Line(_)));
     is_bspline(curve)
-        || matches!(surface, Surface::BSpline(_))
+        || surface.as_bspline().is_some()
         || (!line && matches!(surface, Surface::Torus(_)))
 }
 
