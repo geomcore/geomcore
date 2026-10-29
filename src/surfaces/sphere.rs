@@ -1,15 +1,14 @@
 //! Spheres in 3D: parametric evaluation and parameter inversion, thin
 //! wrappers over [`crate::surface_math::analytic`].
 
-use crate::IntersectExact;
 use crate::frame::frame_error;
-use crate::projection::{self, SurfaceProjection};
 use crate::surface_math::analytic;
-use crate::surfaces::iso::{SurfaceIsoError, check_iso_param, iso_circle};
-use crate::{
-    Circle, Cone, Cylinder, Frame, Point, SphereConeIntersection, SphereCylinderIntersection,
-    SphereSphereIntersection, Tolerance, Transform, Vector,
-};
+use crate::surfaces::ElementarySurface;
+use crate::surfaces::ParametricSurface;
+use crate::surfaces::SurfaceIsoError;
+use crate::surfaces::iso::{check_iso_param, iso_circle};
+use crate::{Circle, Frame, Point, SurfaceProjection, Tolerance, Transform, Vector, projection};
+use std::f64::consts::{FRAC_PI_2, TAU};
 use std::fmt;
 
 /// Error returned when a [`Sphere`] cannot be constructed from the given
@@ -457,525 +456,47 @@ impl Sphere {
     }
 }
 
-impl IntersectExact<Cylinder> for Sphere {
-    type Output = SphereCylinderIntersection;
-
-    /// Intersects this sphere with a cylinder.
-    ///
-    /// The analytic path needs the cylinder axis through the sphere
-    /// center: with the axis at distance `dist` (against
-    /// `tol.confusion`), a tube radius beyond `radius + tol.confusion`
-    /// misses, a tube at the radius grazes one equatorial ring, and a
-    /// thinner tube cuts two symmetric latitude rings at axial offsets
-    /// `+-sqrt(radius^2 - tube^2)`. Anything else is a space quartic and
-    /// reports [`SphereCylinderIntersection::NotAnalytic`].
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::IntersectExact;
-    /// use geomcore::{Cylinder, Point, Sphere, SphereCylinderIntersection, Tolerance, Vector};
-    /// let sphere = Sphere::new(Point::ORIGIN, 3.0).unwrap();
-    /// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
-    /// let tol = Tolerance::DEFAULT;
-    /// match sphere.intersect_exact(&cylinder, tol) {
-    ///     SphereCylinderIntersection::TwoCircles(c1, c2) => {
-    ///         assert_eq!(c1.radius(), 2.0);
-    ///     }
-    ///     _ => panic!("expected two circles"),
-    /// }
-    /// ```
-    fn intersect_exact(&self, cylinder: &Cylinder, tol: Tolerance) -> SphereCylinderIntersection {
-        let axis = cylinder.axis();
-        let a = axis.direction();
-        let w = self.center() - axis.origin();
-        let axial = w.dot(a);
-        let dist = (w - a * axial).magnitude();
-        if dist > tol.confusion {
-            return SphereCylinderIntersection::NotAnalytic;
-        }
-        let r = self.radius();
-        let tube = cylinder.radius();
-        if tube > r + tol.confusion {
-            SphereCylinderIntersection::Empty
-        } else if tube >= r - tol.confusion {
-            let circle = Circle::new(self.center(), a, tube)
-                .expect("tube radius is non-negative by construction");
-            SphereCylinderIntersection::Circle(circle)
-        } else {
-            let h = (r * r - tube * tube).sqrt();
-            let mk = |s: f64| {
-                Circle::new(self.center() + a * (s * h), a, tube)
-                    .expect("tube radius is non-negative by construction")
-            };
-            SphereCylinderIntersection::TwoCircles(mk(1.0), mk(-1.0))
-        }
+impl ParametricSurface for Sphere {
+    fn eval_point(&self, u: f64, v: f64) -> Point {
+        Sphere::eval_point(self, u, v)
     }
-}
 
-impl IntersectExact<Cone> for Sphere {
-    type Output = SphereConeIntersection;
-
-    /// Intersects this sphere with a cone.
-    ///
-    /// The analytic path needs the sphere center on the cone axis: axial
-    /// offsets `alpha` solve `alpha^2/cos^2(phi) - 2*tc*alpha + tc^2 -
-    /// R^2 = 0`, i.e. latitude rings where the cone radius `|alpha| *
-    /// |tan(phi)|` meets the sphere section, on either nappe: two rings, a
-    /// grazing ring, or empty. Anything else is a space quartic and
-    /// reports [`SphereConeIntersection::NotAnalytic`].
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::IntersectExact;
-    /// use geomcore::{Cone, Frame, Point, Sphere, SphereConeIntersection, Tolerance};
-    /// let sphere = Sphere::new(Point::ORIGIN, 3.0).unwrap();
-    /// let cone = Cone::from_frame(Frame::WORLD, 0.4, 2.0).unwrap();
-    /// let tol = Tolerance::DEFAULT;
-    /// match sphere.intersect_exact(&cone, tol) {
-    ///     SphereConeIntersection::TwoCircles(_, _) => {}
-    ///     _ => panic!("expected two circles"),
-    /// }
-    /// ```
-    fn intersect_exact(&self, cone: &Cone, tol: Tolerance) -> SphereConeIntersection {
-        let a = cone.frame().z_direction();
-        let w = self.center() - cone.apex();
-        let tc = w.dot(a);
-        let dist = (w - a * tc).magnitude();
-        if dist > tol.confusion {
-            return SphereConeIntersection::NotAnalytic;
-        }
-        let r = self.radius();
-        let cos_phi = cone.semi_angle().cos();
-        // disc = R^2 - tc^2*sin^2(phi), in length-squared units.
-        let disc = r * r - tc * tc * (1.0 - cos_phi * cos_phi);
-        let band = tol.confusion * (r * r + tc * tc).max(1.0);
-        if disc < -band {
-            return SphereConeIntersection::Empty;
-        }
-        let tan_phi = cone.semi_angle().tan().abs();
-        let mk = |alpha: f64| {
-            Circle::new(cone.apex() + a * alpha, a, alpha.abs() * tan_phi)
-                .expect("latitude radius is non-negative by construction")
-        };
-        if disc <= band {
-            SphereConeIntersection::TangentCircle(mk(tc * cos_phi * cos_phi))
-        } else {
-            let root = disc.sqrt() * cos_phi.abs();
-            let base = tc * cos_phi * cos_phi;
-            SphereConeIntersection::TwoCircles(mk(base + root), mk(base - root))
-        }
+    fn project_point(&self, point: Point, tol: Tolerance) -> SurfaceProjection {
+        Sphere::project_point(self, point, tol)
     }
-}
 
-impl IntersectExact<Sphere> for Sphere {
-    type Output = SphereSphereIntersection;
+    fn contains(&self, point: Point, tol: Tolerance) -> bool {
+        Sphere::contains(self, point, tol)
+    }
 
-    /// Intersects this sphere with another sphere.
-    ///
-    /// Concentric spheres (center distance within `tol.confusion`) are
-    /// [`SphereSphereIntersection::Coincident`] when the radii agree within
-    /// tolerance, else [`SphereSphereIntersection::Empty`]. Otherwise the
-    /// radical plane cuts the center line at distance
-    /// `a = (r1^2 - r2^2 + d^2) / (2d)` from this center; a negative
-    /// `r1^2 - a^2` (beyond tolerance) misses
-    /// ([`SphereSphereIntersection::Empty`]), a near-zero one grazes in a
-    /// single [`SphereSphereIntersection::TangentPoint`], and the rest meet
-    /// in a [`Circle`] whose axis points from this center to the other.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::IntersectExact;
-    /// use geomcore::{Point, Sphere, SphereSphereIntersection, Tolerance};
-    /// let s1 = Sphere::new(Point::ORIGIN, 2.0).unwrap();
-    /// let s2 = Sphere::new(Point::new(3.0, 0.0, 0.0), 2.0).unwrap();
-    /// let tol = Tolerance::DEFAULT;
-    /// match s1.intersect_exact(&s2, tol) {
-    ///     SphereSphereIntersection::Circle(circle) => {
-    ///         assert_eq!(circle.center(), Point::new(1.5, 0.0, 0.0));
-    ///     }
-    ///     _ => panic!("expected a circle"),
-    /// }
-    /// ```
-    fn intersect_exact(&self, other: &Sphere, tol: Tolerance) -> SphereSphereIntersection {
-        let c1 = self.center();
-        let c2 = other.center();
-        let r1 = self.radius();
-        let r2 = other.radius();
-        let axis = c2 - c1;
-        let d = axis.magnitude();
-        if d <= tol.confusion {
-            if (r1 - r2).abs() <= tol.confusion {
-                SphereSphereIntersection::Coincident
-            } else {
-                SphereSphereIntersection::Empty
-            }
-        } else {
-            let dir = axis * (1.0 / d);
-            let a = (r1 * r1 - r2 * r2 + d * d) / (2.0 * d);
-            let center = c1 + dir * a;
-            let disc = r1 * r1 - a * a;
-            // Tangent band in length-squared units: |R - |h|| * |R + |h||.
-            let band = tol.confusion * 2.0 * (r1 + r2 + d).max(1.0);
-            if disc < -band {
-                SphereSphereIntersection::Empty
-            } else if disc <= band {
-                SphereSphereIntersection::TangentPoint(center)
-            } else {
-                // disc > 0, and dir is unit: construction cannot fail.
-                let circle = Circle::new(center, dir, disc.sqrt())
-                    .expect("section radius is positive by construction");
-                SphereSphereIntersection::Circle(circle)
-            }
-        }
+    fn eval_derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> Vector {
+        Sphere::eval_derivative(self, u, v, du, dv)
+    }
+
+    fn u_bounds(&self) -> (f64, f64) {
+        (0.0, TAU)
+    }
+
+    fn v_bounds(&self) -> (f64, f64) {
+        (-FRAC_PI_2, FRAC_PI_2)
+    }
+
+    fn u_period(&self) -> Option<f64> {
+        Some(TAU)
+    }
+
+    fn v_period(&self) -> Option<f64> {
+        None
+    }
+
+    fn eval_points(&self, uvs: &[(f64, f64)]) -> Vec<Point> {
+        Sphere::eval_points(self, uvs)
+    }
+
+    fn as_elementary(&self) -> Option<ElementarySurface> {
+        Some(ElementarySurface::Sphere(*self))
     }
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use std::f64::consts::FRAC_PI_2;
-
-    // ---- construction ----
-
-    #[test]
-    fn test_new_ok_world_aligned() {
-        let s = Sphere::new(Point::new(1.0, 2.0, 3.0), 2.0).unwrap();
-        assert_eq!(s.center(), Point::new(1.0, 2.0, 3.0));
-        assert_eq!(s.frame().x_direction(), Vector::X);
-        assert_eq!(s.frame().y_direction(), Vector::Y);
-        assert_eq!(s.frame().z_direction(), Vector::Z);
-    }
-
-    #[test]
-    fn test_new_negative_radius_errors() {
-        assert_eq!(
-            Sphere::new(Point::ORIGIN, -1.0),
-            Err(SphereConstructionError::NegativeRadius)
-        );
-    }
-
-    #[test]
-    fn test_from_frame_ok() {
-        let s = Sphere::from_frame(Frame::WORLD, 5.0).unwrap();
-        assert_eq!(s.frame(), Frame::WORLD);
-        assert_eq!(s.radius(), 5.0);
-    }
-
-    #[test]
-    fn test_from_frame_negative_radius_errors() {
-        assert_eq!(
-            Sphere::from_frame(Frame::WORLD, -0.1),
-            Err(SphereConstructionError::NegativeRadius)
-        );
-    }
-
-    // ---- evaluation ----
-
-    #[test]
-    fn test_eval_point() {
-        let s = Sphere::new(Point::ORIGIN, 3.0).unwrap();
-        assert_eq!(s.eval_point(0.0, 0.0), Point::new(3.0, 0.0, 0.0));
-    }
-
-    #[test]
-    fn test_eval_point_pole() {
-        let s = Sphere::new(Point::ORIGIN, 3.0).unwrap();
-        let p = s.eval_point(0.0, FRAC_PI_2);
-        assert!(p.x.abs() < 1e-9);
-        assert!(p.y.abs() < 1e-9);
-        assert!((p.z - 3.0).abs() < 1e-9);
-    }
-
-    #[test]
-    fn test_eval_points_matches_loop() {
-        let s = Sphere::new(Point::ORIGIN, 3.0).unwrap();
-        let uvs = [(0.0, 0.0), (0.5, 1.0)];
-        let expected: Vec<Point> = uvs.iter().map(|&(u, v)| s.eval_point(u, v)).collect();
-        assert_eq!(s.eval_points(&uvs), expected);
-    }
-
-    #[test]
-    #[should_panic(expected = "du + dv must be >= 1")]
-    fn test_eval_derivative_zero_order_panics() {
-        let s = Sphere::new(Point::ORIGIN, 3.0).unwrap();
-        s.eval_derivative(0.0, 0.0, 0, 0);
-    }
-
-    #[test]
-    #[should_panic(expected = "du + dv must be <= 2")]
-    fn test_eval_derivative_order_too_high_panics() {
-        let s = Sphere::new(Point::ORIGIN, 3.0).unwrap();
-        s.eval_derivative(0.0, 0.0, 2, 1);
-    }
-
-    #[test]
-    fn test_parameters_of_round_trip() {
-        let s = Sphere::new(Point::ORIGIN, 3.0).unwrap();
-        let (u, v) = s.parameters_of(Point::new(3.0, 0.0, 0.0));
-        assert_eq!((u, v), (0.0, 0.0));
-    }
-
-    // ---- SphereConstructionError ----
-
-    #[test]
-    fn test_error_display() {
-        assert_eq!(
-            SphereConstructionError::NegativeRadius.to_string(),
-            "radius is negative"
-        );
-        assert_eq!(
-            SphereConstructionError::NullNormal.to_string(),
-            "axis direction has zero length"
-        );
-    }
-
-    #[test]
-    fn test_error_is_std_error() {
-        fn takes_error(_e: &dyn std::error::Error) {}
-        takes_error(&SphereConstructionError::NegativeRadius);
-    }
-
-    #[test]
-    fn test_sphere_contains() {
-        let sphere = Sphere::new(Point::ORIGIN, 3.0).unwrap();
-        let tol = Tolerance::DEFAULT;
-        assert!(sphere.contains(Point::new(3.0, 0.0, 0.0), tol));
-        assert!(sphere.contains(sphere.eval_point(0.7, 0.4), tol));
-        assert!(!sphere.contains(Point::ORIGIN, tol));
-        assert!(!sphere.contains(Point::new(4.0, 0.0, 0.0), tol));
-    }
-
-    #[test]
-    fn test_sphere_project_point() {
-        let sphere = Sphere::new(Point::ORIGIN, 3.0).unwrap();
-        let tol = Tolerance::DEFAULT;
-        let proj = sphere.project_point(Point::new(4.0, 0.0, 0.0), tol);
-        assert_eq!((proj.u, proj.v), (0.0, 0.0));
-        assert_eq!(proj.distance, 1.0);
-        // Center: every surface point is equidistant; distance is exact.
-        let center = sphere.project_point(Point::ORIGIN, tol);
-        assert_eq!(center.distance, 3.0);
-    }
-
-    #[test]
-    fn test_sphere_sphere_intersection_circle() {
-        let tol = Tolerance::DEFAULT;
-        let s1 = Sphere::new(Point::ORIGIN, 2.0).unwrap();
-        let s2 = Sphere::new(Point::new(3.0, 0.0, 0.0), 2.0).unwrap();
-        match s1.intersect_exact(&s2, tol) {
-            SphereSphereIntersection::Circle(circle) => {
-                assert_eq!(circle.center(), Point::new(1.5, 0.0, 0.0));
-                assert!((circle.radius() - 1.75f64.sqrt()).abs() < 1e-12);
-                assert_eq!(circle.normal(), Vector::X);
-                // The circle lies on both spheres.
-                assert!(s1.contains(circle.eval_point(1.0), tol));
-                assert!(s2.contains(circle.eval_point(2.0), tol));
-            }
-            _ => panic!("expected a circle"),
-        }
-    }
-
-    #[test]
-    fn test_sphere_sphere_intersection_degenerate() {
-        let tol = Tolerance::DEFAULT;
-        let s1 = Sphere::new(Point::ORIGIN, 2.0).unwrap();
-        // External tangency.
-        match s1.intersect_exact(&Sphere::new(Point::new(4.0, 0.0, 0.0), 2.0).unwrap(), tol) {
-            SphereSphereIntersection::TangentPoint(p) => assert_eq!(p, Point::new(2.0, 0.0, 0.0)),
-            _ => panic!("expected a tangent point"),
-        }
-        // Separate.
-        match s1.intersect_exact(&Sphere::new(Point::new(5.0, 0.0, 0.0), 2.0).unwrap(), tol) {
-            SphereSphereIntersection::Empty => {}
-            _ => panic!("expected empty"),
-        }
-        // One inside the other without contact.
-        match s1.intersect_exact(&Sphere::new(Point::ORIGIN, 1.0).unwrap(), tol) {
-            SphereSphereIntersection::Empty => {}
-            _ => panic!("expected empty"),
-        }
-        // Coincident.
-        match s1.intersect_exact(&Sphere::new(Point::ORIGIN, 2.0).unwrap(), tol) {
-            SphereSphereIntersection::Coincident => {}
-            _ => panic!("expected coincident"),
-        }
-    }
-
-    #[test]
-    fn test_sphere_cylinder_intersection() {
-        let tol = Tolerance::DEFAULT;
-        let sphere = Sphere::new(Point::ORIGIN, 3.0).unwrap();
-        let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
-        match sphere.intersect_exact(&cylinder, tol) {
-            SphereCylinderIntersection::TwoCircles(c1, c2) => {
-                assert_eq!(c1.radius(), 2.0);
-                assert_eq!(c2.radius(), 2.0);
-                assert!((c1.center().z - 5.0f64.sqrt()).abs() < 1e-9);
-                assert!((c2.center().z + 5.0f64.sqrt()).abs() < 1e-9);
-                for p in c1.eval_points(&[0.0, 2.0]) {
-                    assert!(sphere.contains(p, tol));
-                    assert!(cylinder.contains(p, tol));
-                }
-            }
-            _ => panic!("expected two circles"),
-        }
-        // Grazing tube.
-        let grazing = Cylinder::new(Point::ORIGIN, Vector::Z, 3.0).unwrap();
-        match sphere.intersect_exact(&grazing, tol) {
-            SphereCylinderIntersection::Circle(c) => {
-                assert_eq!(c.center(), Point::ORIGIN);
-                assert_eq!(c.radius(), 3.0);
-            }
-            _ => panic!("expected a circle"),
-        }
-        // Oversize tube misses.
-        let fat = Cylinder::new(Point::ORIGIN, Vector::Z, 4.0).unwrap();
-        assert_eq!(
-            sphere.intersect_exact(&fat, tol),
-            SphereCylinderIntersection::Empty
-        );
-        // Offset axis: space quartic, no closed form.
-        let off = Cylinder::new(Point::new(0.0, 1.0, 0.0), Vector::Z, 2.0).unwrap();
-        assert_eq!(
-            sphere.intersect_exact(&off, tol),
-            SphereCylinderIntersection::NotAnalytic
-        );
-    }
-
-    #[test]
-    fn test_sphere_cone_intersection() {
-        let tol = Tolerance::DEFAULT;
-        let sphere = Sphere::new(Point::ORIGIN, 3.0).unwrap();
-        let cone = Cone::from_frame(Frame::WORLD, 0.4, 2.0).unwrap();
-        match sphere.intersect_exact(&cone, tol) {
-            SphereConeIntersection::TwoCircles(c1, c2) => {
-                // Rings at axial 6.194 (r 2.619) and 1.832 (r 0.775).
-                assert!((c1.center().z - 1.4636).abs() < 1e-3);
-                assert!((c1.radius() - 2.6188).abs() < 1e-3);
-                assert!((c2.center().z + 2.8983).abs() < 1e-3);
-                assert!((c2.radius() - 0.7746).abs() < 1e-3);
-                for p in c1.eval_points(&[0.0, 2.0]) {
-                    assert!(sphere.contains(p, tol));
-                    assert!(cone.contains(p, tol));
-                }
-                for p in c2.eval_points(&[1.0, 3.0]) {
-                    assert!(sphere.contains(p, tol));
-                    assert!(cone.contains(p, tol));
-                }
-            }
-            _ => panic!("expected two circles"),
-        }
-        // Small sphere around the origin: clear of both nappes.
-        let small = Sphere::new(Point::ORIGIN, 0.5).unwrap();
-        assert_eq!(
-            small.intersect_exact(&cone, tol),
-            SphereConeIntersection::Empty
-        );
-        // Beyond the apex: two rings on the opposite nappe.
-        let behind = Sphere::new(Point::new(0.0, 0.0, -6.0), 0.5).unwrap();
-        match behind.intersect_exact(&cone, tol) {
-            SphereConeIntersection::TwoCircles(c1, c2) => {
-                for p in [c1, c2].iter().flat_map(|c| c.eval_points(&[0.0, 2.0])) {
-                    assert!(p.z < cone.apex().z);
-                    assert!(behind.contains(p, tol));
-                    assert!(cone.contains(p, tol));
-                }
-            }
-            _ => panic!("expected two circles"),
-        }
-        // Around the apex: one ring on each nappe.
-        let around = Sphere::new(cone.apex(), 1.0).unwrap();
-        match around.intersect_exact(&cone, tol) {
-            SphereConeIntersection::TwoCircles(c1, c2) => {
-                assert!((c1.center().z - cone.apex().z) * (c2.center().z - cone.apex().z) < 0.0);
-                for p in [c1, c2].iter().flat_map(|c| c.eval_points(&[0.0, 2.0])) {
-                    assert!(around.contains(p, tol));
-                    assert!(cone.contains(p, tol));
-                }
-            }
-            _ => panic!("expected two circles"),
-        }
-        // Off-axis center: space quartic, no closed form.
-        let off = Sphere::new(Point::new(1.0, 0.0, 0.0), 1.0).unwrap();
-        assert_eq!(
-            off.intersect_exact(&cone, tol),
-            SphereConeIntersection::NotAnalytic
-        );
-    }
-
-    #[test]
-    fn test_sphere_cone_intersection_tangent() {
-        let tol = Tolerance::DEFAULT;
-        // R = tc*sin(phi): grazing ring at alpha = tc*cos^2(phi).
-        let cone = Cone::from_frame(Frame::WORLD, 0.4, 2.0).unwrap();
-        let tc = (Point::ORIGIN - cone.apex()).dot(Vector::Z);
-        let sphere = Sphere::new(Point::ORIGIN, tc * 0.4f64.sin()).unwrap();
-        match sphere.intersect_exact(&cone, tol) {
-            SphereConeIntersection::TangentCircle(c) => {
-                assert!(sphere.contains(c.eval_point(0.0), tol));
-                assert!(cone.contains(c.eval_point(1.0), tol));
-            }
-            _ => panic!("expected a tangent circle"),
-        }
-    }
-
-    // ---- transformed ----
-
-    #[test]
-    fn test_sphere_transformed_translation_spot_check() {
-        let sphere = Sphere::new(Point::ORIGIN, 3.0).unwrap();
-        let t = Transform::translation(Vector::new(1.0, 2.0, 3.0));
-        let moved = sphere.transformed(t).unwrap();
-        assert_eq!(moved.center(), Point::new(1.0, 2.0, 3.0));
-        assert_eq!(moved.radius(), 3.0);
-        // Hand-computed evaluation at the equator origin, shifted.
-        assert_eq!(moved.eval_point(0.0, 0.0), Point::new(4.0, 2.0, 3.0));
-    }
-
-    #[test]
-    fn test_sphere_transformed_round_trip_and_mirror() {
-        use crate::Axis;
-        let sphere = Sphere::new(Point::new(1.0, 0.0, 0.0), 3.0).unwrap();
-        let axis = Axis::new(Point::ORIGIN, Vector::Z).unwrap();
-        let t = Transform::rotation(axis, FRAC_PI_2).then(Transform::scaling(Point::ORIGIN, 2.0));
-        let moved = sphere.transformed(t).unwrap();
-        assert_eq!(moved.radius(), 6.0);
-        assert!(moved.center().distance(Point::new(0.0, 2.0, 0.0)) < 1e-9);
-        let tol = Tolerance::DEFAULT;
-        for (u, v) in [(0.0, 0.0), (1.0, 0.3), (4.0, -0.5)] {
-            assert!(moved.contains(t.apply_point(sphere.eval_point(u, v)), tol));
-        }
-        let inv =
-            Transform::scaling(Point::ORIGIN, 0.5).then(Transform::rotation(axis, -FRAC_PI_2));
-        let back = moved.transformed(inv).unwrap();
-        assert!((back.radius() - sphere.radius()).abs() < 1e-9);
-        assert!(back.center().distance(sphere.center()) < 1e-9);
-        // Mirror across the xy-plane preserves the point set.
-        let m = Transform::mirror_plane(Frame::WORLD);
-        let mirrored = sphere.transformed(m).unwrap();
-        for (u, v) in [(0.0, 0.0), (1.0, 0.3)] {
-            assert!(mirrored.contains(m.apply_point(sphere.eval_point(u, v)), tol));
-        }
-        assert_eq!(mirrored.transformed(m).unwrap(), sphere);
-    }
-
-    #[test]
-    fn test_reversed_spheres_share_point_set() {
-        let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
-        for (u, v) in [(0.0, 0.0), (1.0, 0.3), (5.0, -0.5)] {
-            let ru = sphere.reversed_u();
-            assert!(!ru.frame().is_direct());
-            assert!((ru.eval_point(u, v) - sphere.eval_point(-u, v)).magnitude() < 1e-12);
-            assert!((ru.u_reversed_parameter(sphere.u_reversed_parameter(u)) - u).abs() < 1e-12);
-            let rv = sphere.reversed_v();
-            assert!(!rv.frame().is_direct());
-            assert!((rv.eval_point(u, v) - sphere.eval_point(u, -v)).magnitude() < 1e-12);
-            assert_eq!(rv.v_reversed_parameter(sphere.v_reversed_parameter(v)), v);
-        }
-        assert_eq!(sphere.reversed_u().reversed_u(), sphere);
-        assert_eq!(sphere.reversed_v().reversed_v(), sphere);
-    }
-}
+mod tests;

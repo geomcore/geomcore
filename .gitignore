@@ -15,3 +15,5 @@ dist/
 .venv-py/
 .idea/
 site/
+# scenes written by geomcore-py/examples/intersection_matrix.py
+*.scene.json

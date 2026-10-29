@@ -1,0 +1,809 @@
+//! The [`ParametricSurface`] trait every surface implements, its
+//! [`SurfaceCurvatures`] result, and the normal-recovery helpers it falls
+//! back on where the partial derivatives degenerate.
+
+use crate::curves::Continuity;
+use crate::surfaces::{BSplineSurface, ElementarySurface};
+use crate::{Point, SurfaceProjection, Tolerance, Vector};
+
+/// Principal, mean and Gaussian curvatures at a surface point, with the
+/// principal directions. See
+/// [`ParametricSurface::curvatures`](ParametricSurface::curvatures).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SurfaceCurvatures {
+    /// Smaller principal curvature.
+    pub min_curvature: f64,
+    /// Larger principal curvature.
+    pub max_curvature: f64,
+    /// Unit tangent direction of [`min_curvature`](Self::min_curvature).
+    pub min_direction: Vector,
+    /// Unit tangent direction of [`max_curvature`](Self::max_curvature),
+    /// always perpendicular to [`min_direction`](Self::min_direction).
+    pub max_direction: Vector,
+    /// Mean curvature, `(min_curvature + max_curvature) / 2`.
+    pub mean: f64,
+    /// Gaussian curvature, `min_curvature * max_curvature`.
+    pub gaussian: f64,
+}
+
+/// Common interface for parametric surfaces. Implement this to add a new
+/// surface type that can be used generically (see [`Surface`](crate::Surface) for a
+/// heterogeneous-collection adaptor built on top of it).
+///
+/// Concrete surface types (e.g. [`Plane`](crate::Plane), [`Sphere`](crate::Sphere)) already provide
+/// inherent methods with the same names; their trait impls simply delegate
+/// to those inherent methods, so calling code can use either form.
+///
+/// # Examples
+///
+/// The default [`eval_points`](ParametricSurface::eval_points) maps
+/// [`eval_point`](ParametricSurface::eval_point) over each parameter pair:
+///
+/// ```
+/// use geomcore::surfaces::ParametricSurface;
+/// use geomcore::{Plane, Point, Vector};
+///
+/// let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
+/// let uvs = [(0.0, 0.0), (1.0, 2.0)];
+/// let expected: Vec<Point> = uvs.iter().map(|&(u, v)| plane.eval_point(u, v)).collect();
+/// assert_eq!(ParametricSurface::eval_points(&plane, &uvs), expected);
+/// ```
+pub trait ParametricSurface {
+    /// Evaluates the point on the surface at parameters `(u, v)`.
+    fn eval_point(&self, u: f64, v: f64) -> Point;
+
+    /// Evaluates the derivative of order `(du, dv)` at parameters `(u, v)`.
+    fn eval_derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> Vector;
+
+    /// Evaluates the point and the first derivatives `[Su, Sv]` at
+    /// parameters `(u, v)`.
+    ///
+    /// Default implementation: [`eval_point`](Self::eval_point) and
+    /// [`eval_derivative`](Self::eval_derivative). B-spline surfaces
+    /// override it to evaluate their basis functions once.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::surfaces::ParametricSurface;
+    /// use geomcore::{Plane, Point, Vector};
+    ///
+    /// let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
+    /// let (point, [su, sv]) = plane.eval_d1(1.0, 2.0);
+    /// assert_eq!(point, Point::new(1.0, 2.0, 0.0));
+    /// assert_eq!(su.cross(sv), Vector::Z);
+    /// ```
+    fn eval_d1(&self, u: f64, v: f64) -> (Point, [Vector; 2]) {
+        (
+            self.eval_point(u, v),
+            [
+                self.eval_derivative(u, v, 1, 0),
+                self.eval_derivative(u, v, 0, 1),
+            ],
+        )
+    }
+
+    /// Evaluates the point, the first derivatives `[Su, Sv]` and the second
+    /// derivatives `[Suu, Suv, Svv]` at parameters `(u, v)`.
+    ///
+    /// Default implementation: [`eval_point`](Self::eval_point) and
+    /// [`eval_derivative`](Self::eval_derivative). B-spline surfaces
+    /// override it to evaluate their basis functions once.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::surfaces::ParametricSurface;
+    /// use geomcore::{Point, Sphere};
+    ///
+    /// let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
+    /// let (point, _, [suu, _, svv]) = sphere.eval_d2(0.0, 0.0);
+    /// assert_eq!(point, Point::new(2.0, 0.0, 0.0));
+    /// assert!((suu + (point - Point::ORIGIN)).magnitude() < 1e-15);
+    /// assert!((svv + (point - Point::ORIGIN)).magnitude() < 1e-15);
+    /// ```
+    fn eval_d2(&self, u: f64, v: f64) -> (Point, [Vector; 2], [Vector; 3]) {
+        (
+            self.eval_point(u, v),
+            [
+                self.eval_derivative(u, v, 1, 0),
+                self.eval_derivative(u, v, 0, 1),
+            ],
+            [
+                self.eval_derivative(u, v, 2, 0),
+                self.eval_derivative(u, v, 1, 1),
+                self.eval_derivative(u, v, 0, 2),
+            ],
+        )
+    }
+
+    /// Unit normal `Su × Sv` at parameters `(u, v)`.
+    ///
+    /// Recovery runs in three rungs, returning the first defined normal:
+    ///
+    /// 1. The unitized cross product of the first partials. A partial is
+    ///    too short to give a direction when the distance it would cover
+    ///    across its parameter range, `|Su| × (u_last - u_first)`, is
+    ///    within `tol.confusion` (an unbounded range is measured across
+    ///    the model, `tol.confusion / tol.angular`); so the outcome does
+    ///    not change when the parameters are rescaled. Otherwise the sine
+    ///    of the angle between the partials is checked against
+    ///    `tol.angular`, the crate's parallelism convention (see
+    ///    `CONTEXT.md`).
+    /// 2. At a singular point (a sphere's pole, a B-spline row collapsed
+    ///    to a point), second derivatives stand in for the degenerate
+    ///    direction, measured the same way with the width counted once
+    ///    per derivative order: each pair from
+    ///    `{Su, Suv, Suu} × {Sv, Suv, Svv}` whose unitized cross product
+    ///    is well defined gives the limiting normal, approached across
+    ///    the parameter line where the partial vanishes. It is oriented
+    ///    by the side of that line `(u, v)` lies on, or, on the line
+    ///    itself, by which half of the parameter domain it lies in.
+    /// 3. Stepping off to nearby parameters, diagonal steps growing from
+    ///    1e-7 to 1e-4 of the parameter widths, and taking the first
+    ///    defined normal there.
+    ///
+    /// Returns `None` at an apex (see below) and when every rung fails:
+    /// the normal is genuinely undefined at and around `(u, v)`, or
+    /// `(u, v)` is not a finite parameter pair of the surface.
+    ///
+    /// Two caveats. Where a whole parameter line collapses to the point,
+    /// the coordinate along it is meaningless and a recovered direction
+    /// counts only if it does not depend on it: every meridian agrees at
+    /// a sphere pole, so it reports the axis, but each meridian through a
+    /// cone apex (or a collapsed B-spline row whose rows meet at an
+    /// angle) has its own direction and the apex reports `None` (rather
+    /// than a nearby flank normal). Beside the apex, even within
+    /// `tol.confusion` of it, the meridian through `(u, v)` is still one
+    /// direction and its normal answers. And a derivative covering less
+    /// than `tol.confusion` across its parameter range never counts, so
+    /// sub-confusion geometry reports `None` everywhere.
+    ///
+    /// Raw partials stay available through
+    /// [`eval_d1`](Self::eval_d1); there is no `tangent` method.
+    ///
+    /// Note: [`Plane`](crate::Plane) has an inherent zero-argument `normal()` returning
+    /// its constant normal, which shadows this method on that type; call
+    /// the parametric form as
+    /// [`ParametricSurface::normal`](Self::normal)`(&plane, u, v, tol)`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::surfaces::ParametricSurface;
+    /// use geomcore::{Plane, Point, Sphere, Tolerance, Vector};
+    ///
+    /// let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
+    /// assert_eq!(
+    ///     ParametricSurface::normal(&plane, 1.0, 2.0, Tolerance::DEFAULT),
+    ///     Some(Vector::Z)
+    /// );
+    ///
+    /// let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
+    /// let normal = ParametricSurface::normal(&sphere, 0.0, 0.0, Tolerance::DEFAULT).unwrap();
+    /// assert_eq!(normal, Vector::X);
+    /// // Singular points recover their limiting normal: outward at the pole.
+    /// use std::f64::consts::FRAC_PI_2;
+    /// let pole =
+    ///     ParametricSurface::normal(&sphere, 0.0, FRAC_PI_2, Tolerance::DEFAULT).unwrap();
+    /// assert!((pole - Vector::Z).magnitude() < 1e-12);
+    /// ```
+    fn normal(&self, u: f64, v: f64, tol: Tolerance) -> Option<Vector> {
+        let bounds = [self.u_bounds(), self.v_bounds()];
+        match normal_recovery(self, u, v, bounds, tol) {
+            Recovery::Unique(normal) => return Some(normal),
+            // Disputed: the singularity admits no unique normal, and
+            // rung 3 must not substitute a nearby one for it.
+            Recovery::Disputed => return None,
+            // Absent: nothing recovered here at all; step off instead.
+            Recovery::Absent => {}
+        }
+        // Rung 3: step off to nearby parameters, first defined normal wins.
+        const STEP_FRACTIONS: [f64; 4] = [1e-7, 1e-6, 1e-5, 1e-4];
+        const DIAGONALS: [(f64, f64); 4] = [(1.0, 1.0), (1.0, -1.0), (-1.0, 1.0), (-1.0, -1.0)];
+        let [u_width, v_width] = bounds.map(|range| tol.reference_width(range));
+        let (u_period, v_period) = (self.u_period(), self.v_period());
+        for fraction in STEP_FRACTIONS {
+            for (u_sign, v_sign) in DIAGONALS {
+                let (Some(stepped_u), Some(stepped_v)) = (
+                    shift_parameter(u, u_sign * fraction * u_width, bounds[0], u_period),
+                    shift_parameter(v, v_sign * fraction * v_width, bounds[1], v_period),
+                ) else {
+                    continue;
+                };
+                if let Some(normal) =
+                    normal_from_derivatives(self, stepped_u, stepped_v, bounds, tol)
+                {
+                    return Some(normal);
+                }
+            }
+        }
+        None
+    }
+
+    /// Returns the surface's `u` parameter bounds as `(first, last)`.
+    /// Unbounded surfaces use `(f64::NEG_INFINITY, f64::INFINITY)`.
+    fn u_bounds(&self) -> (f64, f64);
+
+    /// Returns the surface's `v` parameter bounds as `(first, last)`.
+    /// Unbounded surfaces use `(f64::NEG_INFINITY, f64::INFINITY)`.
+    fn v_bounds(&self) -> (f64, f64);
+
+    /// Returns the surface's period along `u`, or `None` if the surface is
+    /// not periodic in `u`.
+    fn u_period(&self) -> Option<f64>;
+
+    /// Returns the surface's period along `v`, or `None` if the surface is
+    /// not periodic in `v`.
+    fn v_period(&self) -> Option<f64>;
+
+    /// Returns whether travelling in `u` returns to its start, i.e.
+    /// whether the surface's boundary curves at the two `u` bounds
+    /// coincide.
+    ///
+    /// Periodicity implies closedness, not the other way round: a
+    /// clamped B-spline whose first and last pole rows coincide is closed
+    /// in `u` but not periodic. Default implementation: the `u` period
+    /// is [`Some`](Self::u_period).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::surfaces::ParametricSurface;
+    /// use geomcore::{Cylinder, Plane, Point, Tolerance, Vector};
+    ///
+    /// let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
+    /// assert!(!ParametricSurface::is_u_closed(&plane, Tolerance::DEFAULT));
+    ///
+    /// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
+    /// assert!(ParametricSurface::is_u_closed(&cylinder, Tolerance::DEFAULT));
+    /// assert!(!ParametricSurface::is_v_closed(&cylinder, Tolerance::DEFAULT));
+    /// ```
+    fn is_u_closed(&self, tol: Tolerance) -> bool {
+        // Structural default: periodicity. Shapes closed without
+        // a period (a B-spline with coinciding boundary curves) override this.
+        let _ = tol;
+        self.u_period().is_some()
+    }
+
+    /// Returns whether travelling in `v` returns to its start, i.e.
+    /// whether the surface's boundary curves at the two `v` bounds
+    /// coincide. As [`is_u_closed`](Self::is_u_closed),
+    /// for `v`.
+    fn is_v_closed(&self, tol: Tolerance) -> bool {
+        let _ = tol;
+        self.v_period().is_some()
+    }
+
+    /// [`Continuity`] in `u` at parameter `u`.
+    ///
+    /// Elementary shapes are `Smooth` everywhere. A B-spline reports
+    /// `Order(u_degree − multiplicity)` at a `u` knot (within
+    /// `tol.parametric`) and `Smooth` elsewhere: the order its knots guarantee, which the shape
+    /// may exceed. The ends of a non-periodic direction report smooth, the
+    /// surface being seen from the inside only; a periodic direction wraps
+    /// `u` into its period, so its seam counts as a knot. Derivatives in
+    /// `u` of higher order than the one reported may differ on the two
+    /// sides of `u`; [`BSplineSurface::eval_d1_sided`] and its siblings
+    /// evaluate each side. Default implementation: smooth.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::surfaces::ParametricSurface;
+    /// use geomcore::{Continuity, Cylinder, Point, Tolerance, Vector};
+    ///
+    /// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
+    /// assert_eq!(
+    ///     ParametricSurface::continuity_u(&cylinder, 1.0, Tolerance::DEFAULT),
+    ///     Continuity::Smooth
+    /// );
+    /// ```
+    fn continuity_u(&self, u: f64, tol: Tolerance) -> Continuity {
+        let _ = (u, tol);
+        Continuity::Smooth
+    }
+
+    /// [`Continuity`] in `v` at parameter `v`, as
+    /// [`continuity_u`](Self::continuity_u) for `u`.
+    fn continuity_v(&self, v: f64, tol: Tolerance) -> Continuity {
+        let _ = (v, tol);
+        Continuity::Smooth
+    }
+
+    /// Minimum [`Continuity`] in `u` over the `u` range, ends excluded
+    /// (`Smooth` when no knot constrains it): the lowest
+    /// [`continuity_u`](Self::continuity_u) anywhere on the surface.
+    /// Default implementation: smooth.
+    fn min_continuity_u(&self) -> Continuity {
+        Continuity::Smooth
+    }
+
+    /// Minimum continuity order in `v` over the domain, as
+    /// [`min_continuity_u`](Self::min_continuity_u) for `u`.
+    fn min_continuity_v(&self) -> Continuity {
+        Continuity::Smooth
+    }
+
+    /// Principal, mean and Gaussian curvatures at parameters `(u, v)`,
+    /// or `None` where the unit normal degenerates (vanishing or
+    /// parallel partials, as at a sphere's poles or a cone's apex) or a
+    /// derivative is not finite. A partial vanishes by the same rule as
+    /// for [`normal`](Self::normal): when the distance it would cover
+    /// across its parameter range is within `tol.confusion` (ADR 0010),
+    /// so rescaling a surface's knots does not change its curvatures.
+    ///
+    /// Curvatures are measured along the unit normal `Su × Sv`: negative
+    /// bends away from it, so an outward-normal sphere has `-1/radius`.
+    /// The principal directions are always a unit, mutually perpendicular
+    /// tangent pair. At an umbilical point (all directions principal, as
+    /// on a sphere or a plane) the minimum direction lies along `Su`;
+    /// near one, where the two curvatures agree to rounding, the pair is
+    /// arbitrary but still perpendicular. The sign of each direction is
+    /// not specified.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::surfaces::ParametricSurface;
+    /// use geomcore::{Cylinder, Point, Tolerance, Vector};
+    ///
+    /// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
+    /// let c = ParametricSurface::curvatures(&cylinder, 0.0, 3.0, Tolerance::DEFAULT).unwrap();
+    /// assert_eq!((c.min_curvature, c.max_curvature), (-0.5, 0.0));
+    /// assert_eq!((c.mean, c.gaussian), (-0.25, 0.0));
+    /// assert_eq!(c.min_direction, Vector::Y);
+    /// assert_eq!(c.max_direction, Vector::Z);
+    /// ```
+    fn curvatures(&self, u: f64, v: f64, tol: Tolerance) -> Option<SurfaceCurvatures> {
+        let (_, [su, sv], [suu, suv, svv]) = self.eval_d2(u, v);
+        let (su_length, sv_length) = (su.magnitude(), sv.magnitude());
+        let cross = su.cross(sv);
+        let cross_length = cross.magnitude();
+        // Same degeneracy test as the unit normal (ADR 0010); it also
+        // rejects NaN derivatives.
+        let widths = reference_widths(self, tol);
+        if !partials_span_a_plane(su_length, sv_length, cross_length, widths, tol) {
+            return None;
+        }
+        let normal = cross * (1.0 / cross_length);
+        // Orthonormal tangent frame: `first` along Su, `second = normal ×
+        // first = (|Su|² Sv − (Su·Sv) Su) / (|Su| |Su × Sv|)`. Each frame
+        // vector is a parameter step `(du, dv)` mapped through the partials.
+        let first = su * (1.0 / su_length);
+        let second = normal.cross(first);
+        let first_du = 1.0 / su_length;
+        let second_du = -su.dot(sv) / (su_length * cross_length);
+        let second_dv = su_length / cross_length;
+        // Second fundamental form coefficients, then the shape operator in
+        // the orthonormal frame: the symmetric matrix [[a, b], [b, c]].
+        let (form_uu, form_uv, form_vv) = (suu.dot(normal), suv.dot(normal), svv.dot(normal));
+        let a = form_uu * first_du * first_du;
+        let b = first_du * (form_uu * second_du + form_uv * second_dv);
+        let c = form_uu * second_du * second_du
+            + 2.0 * form_uv * second_du * second_dv
+            + form_vv * second_dv * second_dv;
+        // Eigenvalues `mean ± half_gap`, free of the `H² − K` cancellation
+        // that leaks a spurious gap of order √ε at umbilical points.
+        let mean = 0.5 * (a + c);
+        let half_gap = (0.5 * (a - c)).hypot(b);
+        let (min_curvature, max_curvature) = (mean - half_gap, mean + half_gap);
+        // Eigenvectors in frame coordinates, perpendicular by construction.
+        // `offset = |a − c| / 2 + half_gap` sums non-negative terms, so it
+        // carries no cancellation and vanishes only at an exact umbilic.
+        let offset = 0.5 * (a - c).abs() + half_gap;
+        let ((min_x, min_y), (max_x, max_y)) = if offset == 0.0 {
+            ((1.0, 0.0), (0.0, 1.0))
+        } else if a >= c {
+            ((-b, offset), (offset, b))
+        } else {
+            ((offset, -b), (b, offset))
+        };
+        let scale = 1.0 / min_x.hypot(min_y);
+        Some(SurfaceCurvatures {
+            min_curvature,
+            max_curvature,
+            min_direction: (first * min_x + second * min_y) * scale,
+            max_direction: (first * max_x + second * max_y) * scale,
+            mean,
+            gaussian: a * c - b * b,
+        })
+    }
+
+    /// Evaluates the points on the surface at each `(u, v)` in `uvs`.
+    ///
+    /// Default implementation: maps [`eval_point`](Self::eval_point) over
+    /// `uvs`.
+    fn eval_points(&self, uvs: &[(f64, f64)]) -> Vec<Point> {
+        uvs.iter().map(|&(u, v)| self.eval_point(u, v)).collect()
+    }
+
+    /// Projects `point` onto the surface, returning the `(u, v)` parameters
+    /// of the closest point and its distance.
+    fn project_point(&self, point: Point, tol: Tolerance) -> SurfaceProjection;
+
+    /// Returns whether `point` lies on the surface.
+    fn contains(&self, point: Point, tol: Tolerance) -> bool;
+
+    /// The surface as a B-spline, or `None` for any other surface.
+    ///
+    /// The numeric search behind
+    /// [`Intersect::intersect`](crate::Intersect::intersect) uses it
+    /// to work on the B-spline's polynomial patches. Default
+    /// implementation: `None`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::surfaces::{BSplineSurface, ParametricSurface, Surface};
+    /// use geomcore::{Plane, Point, Vector};
+    ///
+    /// let poles = vec![
+    ///     vec![Point::new(0.0, 0.0, 0.0), Point::new(0.0, 1.0, 0.0)],
+    ///     vec![Point::new(1.0, 0.0, 0.0), Point::new(1.0, 1.0, 0.0)],
+    /// ];
+    /// let (knots, mults) = (vec![0.0, 1.0], vec![2, 2]);
+    /// let patch =
+    ///     BSplineSurface::new(1, 1, poles, knots.clone(), mults.clone(), knots, mults, false, false)
+    ///         .unwrap();
+    /// let surface = Surface::from(&patch);
+    /// assert_eq!(surface.as_bspline(), Some(&patch));
+    ///
+    /// let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
+    /// assert_eq!(ParametricSurface::as_bspline(&plane), None);
+    /// ```
+    fn as_bspline(&self) -> Option<&BSplineSurface> {
+        None
+    }
+
+    /// The surface as an elementary surface, or `None` for any other
+    /// surface.
+    ///
+    /// The numeric search behind
+    /// [`Intersect::intersect`](crate::Intersect::intersect) uses it
+    /// to convert the surface to an exact B-spline when the curve is one.
+    /// Default implementation: `None`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::surfaces::{ElementarySurface, ParametricSurface};
+    /// use geomcore::{Point, Sphere};
+    ///
+    /// let sphere = Sphere::new(Point::ORIGIN, 1.0).unwrap();
+    /// assert_eq!(
+    ///     ParametricSurface::as_elementary(&sphere),
+    ///     Some(ElementarySurface::Sphere(sphere))
+    /// );
+    /// ```
+    fn as_elementary(&self) -> Option<ElementarySurface> {
+        None
+    }
+}
+
+/// Outcome of rungs 1–2 of [`ParametricSurface::normal`].
+enum Recovery {
+    /// A unique normal: direct, or recovered with transverse agreement.
+    Unique(Vector),
+    /// Nothing recovered here at all: rung 3 may step off instead.
+    Absent,
+    /// Recoveries disagree along the collapsed parameter line (a cone
+    /// apex): no normal exists, and rung 3 must not substitute a nearby
+    /// one for it.
+    Disputed,
+}
+
+/// Which parameter a first partial differentiates by.
+#[derive(Clone, Copy)]
+enum Direction {
+    U,
+    V,
+}
+
+/// Rungs 1–2 of [`ParametricSurface::normal`]: the unitized cross product
+/// of the first partials, falling back to second-derivative substitution
+/// at a singular point. `bounds` are the surface's `[u_bounds, v_bounds]`.
+///
+/// A substituted normal is checked only where a whole parameter line
+/// collapses to the point ([`lies_on_collapsed_line`]): there the
+/// coordinate along that line is meaningless, and the normal must not
+/// depend on it ([`transverse_agreement`]). Next to the collapse, even
+/// within `tol.confusion` of it, the line still names one direction and
+/// the substituted normal is that direction's limit.
+fn normal_recovery<S: ParametricSurface + ?Sized>(
+    surface: &S,
+    u: f64,
+    v: f64,
+    bounds: [(f64, f64); 2],
+    tol: Tolerance,
+) -> Recovery {
+    let [u_width, v_width] = bounds.map(|range| tol.reference_width(range));
+    // Rung 1: direct unit normal.
+    let (point, [su, sv]) = surface.eval_d1(u, v);
+    if let Some(normal) = direct_normal(su, sv, u_width, v_width, tol) {
+        return Recovery::Unique(normal);
+    }
+    // Rung 2: stand a second derivative in for the degenerate direction.
+    // `Su` vanishing along all of `u` collapses the row at this `v`, so
+    // `u` is the meaningless coordinate there; likewise `Sv` and `v`.
+    let (_, _, [suu, suv, svv]) = surface.eval_d2(u, v);
+    let su_vanishes = tol.is_negligible_derivative(su.magnitude(), u_width);
+    let sv_vanishes = tol.is_negligible_derivative(sv.magnitude(), v_width);
+    let su_on_line = su_vanishes && lies_on_collapsed_line(point, su, suv, u_width, v, bounds[1]);
+    let sv_on_line = sv_vanishes && lies_on_collapsed_line(point, sv, suv, v_width, u, bounds[0]);
+    let measured_signs = [su_vanishes && !su_on_line, sv_vanishes && !sv_on_line];
+    let Some(candidate) = substituted_normal(
+        su,
+        sv,
+        suu,
+        suv,
+        svv,
+        u,
+        v,
+        bounds,
+        measured_signs,
+        u_width,
+        v_width,
+        tol,
+    ) else {
+        return Recovery::Absent;
+    };
+    for (on_line, direction) in [(su_on_line, Direction::U), (sv_on_line, Direction::V)] {
+        if on_line && !transverse_agreement(surface, u, v, direction, bounds, candidate, tol) {
+            return Recovery::Disputed;
+        }
+    }
+    Recovery::Unique(candidate)
+}
+
+fn normal_from_derivatives<S: ParametricSurface + ?Sized>(
+    surface: &S,
+    u: f64,
+    v: f64,
+    bounds: [(f64, f64); 2],
+    tol: Tolerance,
+) -> Option<Vector> {
+    match normal_recovery(surface, u, v, bounds, tol) {
+        Recovery::Unique(normal) => Some(normal),
+        Recovery::Absent | Recovery::Disputed => None,
+    }
+}
+
+/// Rung 1 of [`ParametricSurface::normal`]: the unitized cross product of
+/// the first partials, or `None` where a partial is negligible over its
+/// parameter width or both run parallel.
+fn direct_normal(
+    su: Vector,
+    sv: Vector,
+    u_width: f64,
+    v_width: f64,
+    tol: Tolerance,
+) -> Option<Vector> {
+    let (su_length, sv_length) = (su.magnitude(), sv.magnitude());
+    let cross = su.cross(sv);
+    let cross_length = cross.magnitude();
+    partials_span_a_plane(su_length, sv_length, cross_length, [u_width, v_width], tol)
+        .then(|| cross * (1.0 / cross_length))
+}
+
+/// The `u` and `v` reference widths of `surface`'s parameter bounds, over
+/// which its derivatives are measured (see
+/// [`Tolerance::reference_width`], ADR 0010).
+pub(crate) fn reference_widths<S: ParametricSurface + ?Sized>(
+    surface: &S,
+    tol: Tolerance,
+) -> [f64; 2] {
+    [
+        tol.reference_width(surface.u_bounds()),
+        tol.reference_width(surface.v_bounds()),
+    ]
+}
+
+/// Whether first partials of lengths `su_length` and `sv_length`, whose
+/// cross product has length `cross_length`, define a tangent plane, and so
+/// the unit normal `Su × Sv / cross_length`: neither partial is negligible
+/// over its parameter width (`widths`, from [`reference_widths`]; ADR
+/// 0010) and they are not parallel within `tol.angular`. `false` for NaN
+/// derivatives.
+#[inline]
+pub(crate) fn partials_span_a_plane(
+    su_length: f64,
+    sv_length: f64,
+    cross_length: f64,
+    [u_width, v_width]: [f64; 2],
+    tol: Tolerance,
+) -> bool {
+    !tol.is_negligible_derivative(su_length, u_width)
+        && !tol.is_negligible_derivative(sv_length, v_width)
+        && cross_length > tol.angular * su_length * sv_length
+}
+
+/// Rung 2 of [`ParametricSurface::normal`]: second derivatives stand in
+/// for the degenerate direction. Each pair from `{Su, Suv, Suu} × {Sv,
+/// Suv, Svv}` whose unitized cross product clears `tol.angular` gives
+/// the limiting normal. Near a degenerate boundary a vanishing partial
+/// is the substituted derivative times the signed parameter distance to
+/// that boundary (`Su ≈ (v - v_last) Suv` below a pole at `v_last`), so
+/// the sign follows which half of the parameter domain `(u, v)` lies in.
+/// Where `measured_signs` flags a partial (`[Su, Sv]`) as vanishing
+/// beside its collapsed line rather than on it, the partial still points
+/// along `±` its substitute, and that alignment gives the sign instead of
+/// the domain half: below an apex in the middle of the range, too.
+#[allow(clippy::too_many_arguments)]
+fn substituted_normal(
+    su: Vector,
+    sv: Vector,
+    suu: Vector,
+    suv: Vector,
+    svv: Vector,
+    u: f64,
+    v: f64,
+    bounds: [(f64, f64); 2],
+    measured_signs: [bool; 2],
+    u_width: f64,
+    v_width: f64,
+    tol: Tolerance,
+) -> Option<Vector> {
+    let orientation = |x: f64, (first, last): (f64, f64)| {
+        if x > 0.5 * (first + last) { -1.0 } else { 1.0 }
+    };
+    let (u_orientation, v_orientation) = (orientation(u, bounds[0]), orientation(v, bounds[1]));
+    let sign = |partial: Vector, substitute: Vector, measured: bool, guess: f64| {
+        let alignment = partial.dot(substitute);
+        if measured && alignment != 0.0 {
+            alignment.signum()
+        } else {
+            guess
+        }
+    };
+    let [su_measured, sv_measured] = measured_signs;
+    let [su_by_suv, sv_by_suv, su_by_suu, sv_by_svv] = [
+        sign(su, suv, su_measured, v_orientation),
+        sign(sv, suv, sv_measured, u_orientation),
+        sign(su, suu, su_measured, u_orientation),
+        sign(sv, svv, sv_measured, v_orientation),
+    ];
+    let direction = |derivative: Vector, reach: f64| {
+        let length = derivative.magnitude();
+        (!tol.is_negligible_derivative(length, reach)).then(|| derivative * (1.0 / length))
+    };
+    let su = direction(su, u_width);
+    let sv = direction(sv, v_width);
+    let suu = direction(suu, u_width * u_width);
+    let suv = direction(suv, u_width * v_width);
+    let svv = direction(svv, v_width * v_width);
+    // (u-like, v-like, orientation sign).
+    let pairs = [
+        (suv, sv, su_by_suv),
+        (su, suv, sv_by_suv),
+        (suu, sv, su_by_suu),
+        (su, svv, sv_by_svv),
+        (suu, suv, 1.0),
+        (suv, svv, 1.0),
+        (suu, svv, u_orientation * v_orientation),
+    ];
+    for (first, second, sign) in pairs {
+        if let (Some(first), Some(second)) = (first, second) {
+            let cross = first.cross(second);
+            let cross_length = cross.magnitude();
+            if cross_length > tol.angular {
+                return Some(cross * (sign / cross_length));
+            }
+        }
+    }
+    None
+}
+
+/// Whether `(u, v)` lies on the parameter line that collapses to `point`,
+/// rather than beside it: the distance `|partial| × width` the vanishing
+/// partial covers along the line is no more than rounding. Evaluation
+/// rounds relative to the point's coordinates, and relative to the
+/// parameter `across` the line, whose own rounding offsets the partial
+/// by `mixed` times that error (`Su ≈ (v - v_collapse) Suv`). The scale
+/// of `across` is the largest of its magnitude and its finite bounds'.
+///
+/// A cone's slant parameter `1e-9` from the apex leaves a row circle of
+/// radius about `1e-9`, orders of magnitude above that rounding: the
+/// meridian through `(u, v)` is still one direction, and its limiting
+/// normal is the normal there.
+fn lies_on_collapsed_line(
+    point: Point,
+    partial: Vector,
+    mixed: Vector,
+    width: f64,
+    across: f64,
+    (across_first, across_last): (f64, f64),
+) -> bool {
+    const ROUNDING: f64 = 64.0 * f64::EPSILON;
+    let coordinates = point.x.abs().max(point.y.abs()).max(point.z.abs());
+    let finite_magnitude = |bound: f64| if bound.is_finite() { bound.abs() } else { 0.0 };
+    let across_magnitude = across
+        .abs()
+        .max(finite_magnitude(across_first))
+        .max(finite_magnitude(across_last));
+    let rounding = ROUNDING * (coordinates + mixed.magnitude() * width * across_magnitude);
+    partial.magnitude() * width <= rounding
+}
+
+/// Whether a second-derivative `candidate` recovered at `(u, v)` is the
+/// surface's normal there: re-recover at two other values of the
+/// collapsed `direction`, spanning its range, and require agreement.
+///
+/// A sphere pole recovers its axis from every meridian; a cone apex
+/// recovers one direction per meridian and reports `None`. Where a
+/// sample's own direct normal succeeds the degeneracy is isolated, and
+/// the candidate stands. Unbounded ranges (and samples yielding nothing)
+/// give the candidate the benefit of the doubt.
+///
+/// Agreement is within `tol.angular.sqrt()`: a recovered direction near
+/// (but not at) a singularity carries approximation error far above the
+/// angular tolerance itself, while genuinely different meridians differ
+/// by order one.
+fn transverse_agreement<S: ParametricSurface + ?Sized>(
+    surface: &S,
+    u: f64,
+    v: f64,
+    direction: Direction,
+    bounds: [(f64, f64); 2],
+    candidate: Vector,
+    tol: Tolerance,
+) -> bool {
+    let agreement = tol.angular.sqrt();
+    let (first, last) = match direction {
+        Direction::U => bounds[0],
+        Direction::V => bounds[1],
+    };
+    if !(first.is_finite() && last.is_finite() && last > first) {
+        return true;
+    }
+    let [u_width, v_width] = bounds.map(|range| tol.reference_width(range));
+    for fraction in [1.0 / 3.0, 2.0 / 3.0] {
+        let other = first + (last - first) * fraction;
+        let (other_u, other_v) = match direction {
+            Direction::U => (other, v),
+            Direction::V => (u, other),
+        };
+        let (_, [su, sv]) = surface.eval_d1(other_u, other_v);
+        if direct_normal(su, sv, u_width, v_width, tol).is_some() {
+            return true;
+        }
+        let (_, _, [suu, suv, svv]) = surface.eval_d2(other_u, other_v);
+        if let Some(recovered) = substituted_normal(
+            su,
+            sv,
+            suu,
+            suv,
+            svv,
+            other_u,
+            other_v,
+            bounds,
+            [false, false],
+            u_width,
+            v_width,
+            tol,
+        ) && (recovered - candidate).magnitude() > agreement
+        {
+            return false;
+        }
+    }
+    true
+}
+
+/// `parameter + step` kept in `bounds`: wrapped for a periodic direction,
+/// rejected (`None`) outside a non-periodic one.
+fn shift_parameter(
+    parameter: f64,
+    step: f64,
+    bounds: (f64, f64),
+    period: Option<f64>,
+) -> Option<f64> {
+    let shifted = parameter + step;
+    if let Some(period) = period {
+        Some(bounds.0 + (shifted - bounds.0).rem_euclid(period))
+    } else {
+        (bounds.0 <= shifted && shifted <= bounds.1).then_some(shifted)
+    }
+}
+
+#[cfg(test)]
+mod tests;

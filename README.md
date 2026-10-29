@@ -94,6 +94,10 @@ Dual-licensed under MIT or Apache-2.0, at your option.
 
 ## Contributing
 
-New curve/surface types can be added by implementing `ParametricCurve`/
-`ParametricSurface` without touching the core crate's dispatch code — see
-the crate docs for details.
+Start with [`ARCHITECTURE.md`](ARCHITECTURE.md). It maps every folder,
+states where new code goes and lists the checks CI runs. The domain
+vocabulary is in [`CONTEXT.md`](CONTEXT.md).
+
+Your own curve or surface types work with the crate by implementing
+`ParametricCurve` or `ParametricSurface`, without touching the core crate's
+dispatch code. See the crate docs for details.

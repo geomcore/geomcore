@@ -9,6 +9,23 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+### Changed
+
+- The source tree is reorganized so that a newcomer can find things by
+  folder, with no change to the public API. `ARCHITECTURE.md` maps every
+  folder and states the placement rules.
+  - `intersect/` is split by method into `exact/`, `numeric/` and
+    `results/`. The exact solvers have left the shape files and sit in
+    `intersect/exact/`, grouped by pair family.
+  - Every public type has its own file, the 2D types included.
+  - The shape traits sit in `parametric_curve.rs`,
+    `parametric_curve_2d.rs` and `parametric_surface.rs`, apart from the
+    `Curve`, `Curve2D` and `Surface` enums.
+  - Unit tests have moved out of the source files into sibling `tests.rs`
+    files.
+- The intersection-matrix Python example moved to `geomcore-py/examples/`.
+  The scene it writes is no longer committed.
+
 ## [0.39.0] - 2026-10-29
 
 A cleanup release with no new behaviour: the names deprecated in 0.36
