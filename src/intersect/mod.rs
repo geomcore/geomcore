@@ -13,7 +13,8 @@
 //! `parameter_of` or `parameters_of` when it needs them.
 //!
 //! ```
-//! use geomcore::{Circle, Completeness, Intersect, IntersectionMethod, Line, Point};
+//! use geomcore::prelude::*;
+//! use geomcore::{Circle, Completeness, IntersectionMethod, Line, Point};
 //! use geomcore::{Tolerance, Vector};
 //!
 //! let line = Line::new(Point::new(-5.0, 0.0, 0.0), Vector::X).unwrap();

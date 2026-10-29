@@ -172,10 +172,10 @@ fn test_eval_derivative_third_order_panics() {
 #[test]
 fn test_bounds_clamped() {
     let s = bilinear();
-    assert_eq!(ParametricSurface::u_bounds(&s), (0.0, 1.0));
-    assert_eq!(ParametricSurface::v_bounds(&s), (0.0, 1.0));
-    assert_eq!(ParametricSurface::u_period(&s), None);
-    assert_eq!(ParametricSurface::v_period(&s), None);
+    assert_eq!(s.u_bounds(), (0.0, 1.0));
+    assert_eq!(s.v_bounds(), (0.0, 1.0));
+    assert_eq!(s.u_period(), None);
+    assert_eq!(s.v_period(), None);
 }
 
 // ---- validation error variants ----
@@ -393,10 +393,10 @@ fn periodic_tube() -> BSplineSurface {
 #[test]
 fn test_periodic_bounds_and_period() {
     let s = periodic_tube();
-    assert_eq!(ParametricSurface::u_bounds(&s), (0.0, 6.0));
-    assert_eq!(ParametricSurface::v_bounds(&s), (0.0, 1.0));
-    assert_eq!(ParametricSurface::u_period(&s), Some(6.0));
-    assert_eq!(ParametricSurface::v_period(&s), None);
+    assert_eq!(s.u_bounds(), (0.0, 6.0));
+    assert_eq!(s.v_bounds(), (0.0, 1.0));
+    assert_eq!(s.u_period(), Some(6.0));
+    assert_eq!(s.v_period(), None);
 }
 
 #[test]
@@ -404,9 +404,9 @@ fn test_periodic_tube_is_u_closed_not_v() {
     let s = periodic_tube();
     assert!(s.is_u_periodic());
     assert!(s.is_u_closed(Tolerance::DEFAULT));
-    assert!(ParametricSurface::is_u_closed(&s, Tolerance::DEFAULT));
+    assert!(s.is_u_closed(Tolerance::DEFAULT));
     assert!(!s.is_v_closed(Tolerance::DEFAULT));
-    assert!(!ParametricSurface::is_v_closed(&s, Tolerance::DEFAULT));
+    assert!(!s.is_v_closed(Tolerance::DEFAULT));
 }
 
 #[test]
@@ -493,8 +493,8 @@ fn test_bspline_surface_project_point_tube() {
     // Off-surface: beat against dense brute-force sampling.
     let query = Point::new(0.0, 0.0, 5.0);
     let proj = s.project_point(query, tol);
-    let (u0, u1) = ParametricSurface::u_bounds(&s);
-    let (v0, v1) = ParametricSurface::v_bounds(&s);
+    let (u0, u1) = s.u_bounds();
+    let (v0, v1) = s.v_bounds();
     let mut best = f64::INFINITY;
     for j in 0..=60 {
         for i in 0..=60 {
@@ -1421,15 +1421,15 @@ fn test_project_point_close_basins_on_a_folded_net() {
 #[test]
 fn test_project_point_on_surface_is_zero() {
     let tube = periodic_tube();
-    let (u0, u1) = ParametricSurface::u_bounds(&tube);
+    let (u0, u1) = tube.u_bounds();
     let tol = Tolerance::DEFAULT;
     for s in [two_basins(), tube, rational_quarter_cylinder(2.0)] {
         let (u0, u1) = if s.is_u_periodic() {
             (u0, u1)
         } else {
-            ParametricSurface::u_bounds(&s)
+            s.u_bounds()
         };
-        let (v0, v1) = ParametricSurface::v_bounds(&s);
+        let (v0, v1) = s.v_bounds();
         for i in 0..=7 {
             for j in 0..=5 {
                 let (u, v) = (
@@ -1972,8 +1972,8 @@ fn test_sided_derivatives_match_split_patches() {
     assert!(pb.distance(pa) < 1e-12);
     assert!((below - above).magnitude() > 1e-6);
     // Each side matches its split patch evaluated at the cut.
-    let (_, low_hi) = ParametricSurface::u_bounds(&low);
-    let (high_lo, _) = ParametricSurface::u_bounds(&high);
+    let (_, low_hi) = low.u_bounds();
+    let (high_lo, _) = high.u_bounds();
     assert!((low.eval_derivative(low_hi, v, 1, 0) - below).magnitude() < 1e-9);
     assert!((high.eval_derivative(high_lo, v, 1, 0) - above).magnitude() < 1e-9);
     let below2 = surface.eval_derivative_sided(0.5, v, 2, 0, Side::Below, Side::Above);

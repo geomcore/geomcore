@@ -95,12 +95,9 @@ fn test_sample_bspline_agrees_with_inherent() {
 #[test]
 fn test_line_bounds_and_period() {
     let l = line();
-    assert_eq!(
-        ParametricCurve::bounds(&l),
-        (f64::NEG_INFINITY, f64::INFINITY)
-    );
-    assert_eq!(ParametricCurve::period(&l), None);
-    assert!(!ParametricCurve::is_periodic(&l));
+    assert_eq!(l.bounds(), (f64::NEG_INFINITY, f64::INFINITY));
+    assert_eq!(l.period(), None);
+    assert!(!l.is_periodic());
 
     let wrapped: Curve = l.into();
     assert_eq!(wrapped.bounds(), (f64::NEG_INFINITY, f64::INFINITY));
@@ -111,9 +108,9 @@ fn test_line_bounds_and_period() {
 #[test]
 fn test_circle_bounds_and_period() {
     let c = circle();
-    assert_eq!(ParametricCurve::bounds(&c), (0.0, TAU));
-    assert_eq!(ParametricCurve::period(&c), Some(TAU));
-    assert!(ParametricCurve::is_periodic(&c));
+    assert_eq!(c.bounds(), (0.0, TAU));
+    assert_eq!(c.period(), Some(TAU));
+    assert!(c.is_periodic());
 
     let wrapped: Curve = c.into();
     assert_eq!(wrapped.bounds(), (0.0, TAU));
@@ -124,9 +121,9 @@ fn test_circle_bounds_and_period() {
 #[test]
 fn test_ellipse_bounds_and_period() {
     let e = ellipse();
-    assert_eq!(ParametricCurve::bounds(&e), (0.0, TAU));
-    assert_eq!(ParametricCurve::period(&e), Some(TAU));
-    assert!(ParametricCurve::is_periodic(&e));
+    assert_eq!(e.bounds(), (0.0, TAU));
+    assert_eq!(e.period(), Some(TAU));
+    assert!(e.is_periodic());
 
     let wrapped: Curve = e.into();
     assert_eq!(wrapped.bounds(), (0.0, TAU));
@@ -137,12 +134,9 @@ fn test_ellipse_bounds_and_period() {
 #[test]
 fn test_parabola_bounds_and_period() {
     let p = parabola();
-    assert_eq!(
-        ParametricCurve::bounds(&p),
-        (f64::NEG_INFINITY, f64::INFINITY)
-    );
-    assert_eq!(ParametricCurve::period(&p), None);
-    assert!(!ParametricCurve::is_periodic(&p));
+    assert_eq!(p.bounds(), (f64::NEG_INFINITY, f64::INFINITY));
+    assert_eq!(p.period(), None);
+    assert!(!p.is_periodic());
 
     let wrapped: Curve = p.into();
     assert_eq!(wrapped.bounds(), (f64::NEG_INFINITY, f64::INFINITY));
@@ -153,12 +147,9 @@ fn test_parabola_bounds_and_period() {
 #[test]
 fn test_hyperbola_bounds_and_period() {
     let h = hyperbola();
-    assert_eq!(
-        ParametricCurve::bounds(&h),
-        (f64::NEG_INFINITY, f64::INFINITY)
-    );
-    assert_eq!(ParametricCurve::period(&h), None);
-    assert!(!ParametricCurve::is_periodic(&h));
+    assert_eq!(h.bounds(), (f64::NEG_INFINITY, f64::INFINITY));
+    assert_eq!(h.period(), None);
+    assert!(!h.is_periodic());
 
     let wrapped: Curve = h.into();
     assert_eq!(wrapped.bounds(), (f64::NEG_INFINITY, f64::INFINITY));
@@ -169,9 +160,9 @@ fn test_hyperbola_bounds_and_period() {
 #[test]
 fn test_bspline_clamped_bounds_and_period() {
     let b = bspline();
-    assert_eq!(ParametricCurve::bounds(&b), (0.0, 1.0));
-    assert_eq!(ParametricCurve::period(&b), None);
-    assert!(!ParametricCurve::is_periodic(&b));
+    assert_eq!(b.bounds(), (0.0, 1.0));
+    assert_eq!(b.period(), None);
+    assert!(!b.is_periodic());
 
     let wrapped: Curve = b.into();
     assert_eq!(wrapped.bounds(), (0.0, 1.0));
@@ -182,9 +173,9 @@ fn test_bspline_clamped_bounds_and_period() {
 #[test]
 fn test_bspline_periodic_bounds_and_period() {
     let b = bspline_periodic();
-    assert_eq!(ParametricCurve::bounds(&b), (0.0, 3.0));
-    assert_eq!(ParametricCurve::period(&b), Some(3.0));
-    assert!(ParametricCurve::is_periodic(&b));
+    assert_eq!(b.bounds(), (0.0, 3.0));
+    assert_eq!(b.period(), Some(3.0));
+    assert!(b.is_periodic());
 
     let wrapped: Curve = b.into();
     assert_eq!(wrapped.bounds(), (0.0, 3.0));
@@ -200,48 +191,39 @@ fn test_default_eval_points_matches_mapped_eval_point_for_each_type() {
 
     let l = line();
     let expected: Vec<Point> = us.iter().map(|&u| l.eval_point(u)).collect();
-    assert_eq!(ParametricCurve::eval_points(&l, &us), expected);
+    assert_eq!(l.eval_points(&us), expected);
 
     let c = circle();
     let expected: Vec<Point> = us.iter().map(|&u| c.eval_point(u)).collect();
-    assert_eq!(ParametricCurve::eval_points(&c, &us), expected);
+    assert_eq!(c.eval_points(&us), expected);
 
     let e = ellipse();
     let expected: Vec<Point> = us.iter().map(|&u| e.eval_point(u)).collect();
-    assert_eq!(ParametricCurve::eval_points(&e, &us), expected);
+    assert_eq!(e.eval_points(&us), expected);
 
     let p = parabola();
     let expected: Vec<Point> = us.iter().map(|&u| p.eval_point(u)).collect();
-    assert_eq!(ParametricCurve::eval_points(&p, &us), expected);
+    assert_eq!(p.eval_points(&us), expected);
 
     let h = hyperbola();
     let expected: Vec<Point> = us.iter().map(|&u| h.eval_point(u)).collect();
-    assert_eq!(ParametricCurve::eval_points(&h, &us), expected);
+    assert_eq!(h.eval_points(&us), expected);
 
     let b = bspline();
     let expected: Vec<Point> = us.iter().map(|&u| b.eval_point(u)).collect();
-    assert_eq!(ParametricCurve::eval_points(&b, &us), expected);
+    assert_eq!(b.eval_points(&us), expected);
 }
 
 #[test]
 fn test_eval_derivative_delegates_to_inherent() {
     let l = line();
-    assert_eq!(
-        ParametricCurve::eval_derivative(&l, 0.5, 1),
-        l.eval_derivative(0.5, 1)
-    );
+    assert_eq!(l.eval_derivative(0.5, 1), l.eval_derivative(0.5, 1));
 
     let c = circle();
-    assert_eq!(
-        ParametricCurve::eval_derivative(&c, 0.5, 1),
-        c.eval_derivative(0.5, 1)
-    );
+    assert_eq!(c.eval_derivative(0.5, 1), c.eval_derivative(0.5, 1));
 
     let b = bspline();
-    assert_eq!(
-        ParametricCurve::eval_derivative(&b, 0.5, 1),
-        b.eval_derivative(0.5, 1)
-    );
+    assert_eq!(b.eval_derivative(0.5, 1), b.eval_derivative(0.5, 1));
 }
 
 // ---- elementary curves ----
@@ -290,31 +272,25 @@ fn rational_quarter_circle() -> BSplineCurve {
 #[test]
 fn test_tangent_is_unit_along_motion() {
     let tol = Tolerance::DEFAULT;
-    assert_eq!(ParametricCurve::tangent(&line(), 5.0, tol), Some(Vector::X));
-    assert_eq!(
-        ParametricCurve::tangent(&circle(), 0.0, tol),
-        Some(Vector::Y)
-    );
-    assert_eq!(ParametricCurve::tangent(&cusp(), 0.5, tol), None);
+    assert_eq!(line().tangent(5.0, tol), Some(Vector::X));
+    assert_eq!(circle().tangent(0.0, tol), Some(Vector::Y));
+    assert_eq!(cusp().tangent(0.5, tol), None);
 }
 
 #[test]
 fn test_curvature_line_zero_circle_inverse_radius_cusp_none() {
     let tol = Tolerance::DEFAULT;
-    assert_eq!(ParametricCurve::curvature(&line(), 5.0, tol), Some(0.0));
-    assert_eq!(ParametricCurve::curvature(&circle(), 0.0, tol), Some(0.5));
-    assert_eq!(ParametricCurve::curvature(&cusp(), 0.5, tol), None);
+    assert_eq!(line().curvature(5.0, tol), Some(0.0));
+    assert_eq!(circle().curvature(0.0, tol), Some(0.5));
+    assert_eq!(cusp().curvature(0.5, tol), None);
 }
 
 #[test]
 fn test_curvature_center_circle_origin_line_none_cusp_none() {
     let tol = Tolerance::DEFAULT;
-    assert_eq!(
-        ParametricCurve::curvature_center(&circle(), 0.0, tol),
-        Some(Point::ORIGIN)
-    );
-    assert_eq!(ParametricCurve::curvature_center(&line(), 5.0, tol), None);
-    assert_eq!(ParametricCurve::curvature_center(&cusp(), 0.5, tol), None);
+    assert_eq!(circle().curvature_center(0.0, tol), Some(Point::ORIGIN));
+    assert_eq!(line().curvature_center(5.0, tol), None);
+    assert_eq!(cusp().curvature_center(0.5, tol), None);
 }
 
 #[test]
@@ -322,9 +298,9 @@ fn test_ellipse_vertex_curvature_matches_closed_form() {
     // Vertex (a, 0): k = a/b^2, centre at (a - b^2/a, 0, 0).
     let tol = Tolerance::DEFAULT;
     let e = ellipse();
-    let k = ParametricCurve::curvature(&e, 0.0, tol).unwrap();
+    let k = e.curvature(0.0, tol).unwrap();
     assert!((k - 3.0 / 1.5f64.powi(2)).abs() < 1e-12);
-    let c = ParametricCurve::curvature_center(&e, 0.0, tol).unwrap();
+    let c = e.curvature_center(0.0, tol).unwrap();
     assert!((c - Point::new(3.0 - 1.5f64.powi(2) / 3.0, 0.0, 0.0)).magnitude() < 1e-12);
 }
 
@@ -335,7 +311,7 @@ fn test_ellipse_curvature_matches_closed_form_off_the_vertices() {
     for u in [0.3f64, 1.2, 2.5, 4.0] {
         let expected =
             major * minor / ((major * u.sin()).powi(2) + (minor * u.cos()).powi(2)).powf(1.5);
-        let k = ParametricCurve::curvature(&ellipse(), u, Tolerance::DEFAULT).unwrap();
+        let k = ellipse().curvature(u, Tolerance::DEFAULT).unwrap();
         assert!((k - expected).abs() < 1e-14, "u = {u}: {k} vs {expected}");
     }
 }
@@ -536,21 +512,21 @@ fn closed_triangle() -> BSplineCurve {
 #[test]
 fn test_elementary_closedness_follows_periodicity() {
     let tol = Tolerance::DEFAULT;
-    assert!(!ParametricCurve::is_closed(&line(), tol));
-    assert!(ParametricCurve::is_closed(&circle(), tol));
-    assert!(ParametricCurve::is_closed(&ellipse(), tol));
-    assert!(!ParametricCurve::is_closed(&parabola(), tol));
-    assert!(!ParametricCurve::is_closed(&hyperbola(), tol));
+    assert!(!line().is_closed(tol));
+    assert!(circle().is_closed(tol));
+    assert!(ellipse().is_closed(tol));
+    assert!(!parabola().is_closed(tol));
+    assert!(!hyperbola().is_closed(tol));
 }
 
 #[test]
 fn test_bspline_closed_clamped_curve_without_period() {
     let tol = Tolerance::DEFAULT;
     let c = closed_triangle();
-    assert_eq!(ParametricCurve::period(&c), None);
-    assert!(ParametricCurve::is_closed(&c, tol));
+    assert_eq!(c.period(), None);
     assert!(c.is_closed(tol));
-    assert!(!ParametricCurve::is_closed(&bspline(), tol));
+    assert!(c.is_closed(tol));
+    assert!(!bspline().is_closed(tol));
 }
 
 #[test]
@@ -569,7 +545,7 @@ fn test_trimmed_closedness_needs_a_full_span() {
     let circle = circle();
     let whole = TrimmedCurve::new(circle, 0.0, TAU).unwrap();
     assert!(whole.is_closed(tol));
-    assert!(ParametricCurve::is_closed(&whole, tol));
+    assert!(whole.is_closed(tol));
     let arc = TrimmedCurve::new(circle, 0.0, 1.0).unwrap();
     assert!(!arc.is_closed(tol));
     let segment = TrimmedCurve::new(line(), 0.0, 1.0).unwrap();
@@ -654,13 +630,13 @@ fn test_elementary_curves_are_smooth_everywhere() {
 fn test_bspline_continuity_drops_at_repeated_knots() {
     let tol = Tolerance::DEFAULT;
     let c = kinked();
-    assert_eq!(ParametricCurve::continuity(&c, 0.5, tol), Order(0));
     assert_eq!(c.continuity(0.5, tol), Order(0));
-    assert_eq!(ParametricCurve::continuity(&c, 0.25, tol), Smooth);
-    assert_eq!(ParametricCurve::continuity(&c, 0.0, tol), Smooth);
-    assert_eq!(ParametricCurve::continuity(&c, 1.0, tol), Smooth);
+    assert_eq!(c.continuity(0.5, tol), Order(0));
+    assert_eq!(c.continuity(0.25, tol), Smooth);
+    assert_eq!(c.continuity(0.0, tol), Smooth);
+    assert_eq!(c.continuity(1.0, tol), Smooth);
     assert_eq!(c.min_continuity(), Order(0));
-    assert_eq!(ParametricCurve::min_continuity(&c), Order(0));
+    assert_eq!(c.min_continuity(), Order(0));
     assert_eq!(bspline().min_continuity(), Smooth);
 }
 
@@ -671,7 +647,7 @@ fn test_trimmed_curve_inherits_basis_continuity() {
     let tol = Tolerance::DEFAULT;
     let piece = TrimmedCurve::new(kinked(), 0.25, 0.75).unwrap();
     assert_eq!(piece.continuity(0.5, tol), Order(0));
-    assert_eq!(ParametricCurve::continuity(&piece, 0.5, tol), Order(0));
+    assert_eq!(piece.continuity(0.5, tol), Order(0));
     assert_eq!(piece.min_continuity(), Order(0));
 }
 
@@ -684,8 +660,8 @@ fn test_borrowed_and_trimmed_bases_keep_their_kink() {
     assert_eq!(ParametricCurve::continuity(&&curve, 0.5, tol), Order(0));
     assert_eq!(ParametricCurve::min_continuity(&&curve), Order(0));
     let borrowed = TrimmedCurve::new(&curve, 0.25, 0.75).unwrap();
-    assert_eq!(ParametricCurve::continuity(&borrowed, 0.5, tol), Order(0));
-    assert_eq!(ParametricCurve::min_continuity(&borrowed), Order(0));
+    assert_eq!(borrowed.continuity(0.5, tol), Order(0));
+    assert_eq!(borrowed.min_continuity(), Order(0));
     // A piece that avoids the kink, or ends on it, is smooth.
     for (first, last) in [(0.0, 0.4), (0.0, 0.5), (0.5, 1.0)] {
         let piece = TrimmedCurve::new(&curve, first, last).unwrap();

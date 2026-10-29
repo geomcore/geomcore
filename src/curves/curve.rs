@@ -18,7 +18,8 @@ use crate::{Point, Tolerance, Vector};
 /// # Examples
 ///
 /// ```
-/// use geomcore::curves::{Curve, ParametricCurve};
+/// use geomcore::prelude::*;
+/// use geomcore::curves::Curve;
 /// use geomcore::{Circle, Line, Point, Vector};
 ///
 /// let curves: Vec<Curve> = vec![
@@ -71,22 +72,22 @@ impl ParametricCurve for Curve {
 
     fn eval_d1(&self, u: f64) -> (Point, Vector) {
         match self {
-            Curve::Line(c) => ParametricCurve::eval_d1(c, u),
-            Curve::Circle(c) => ParametricCurve::eval_d1(c, u),
-            Curve::Ellipse(c) => ParametricCurve::eval_d1(c, u),
-            Curve::Parabola(c) => ParametricCurve::eval_d1(c, u),
-            Curve::Hyperbola(c) => ParametricCurve::eval_d1(c, u),
+            Curve::Line(c) => c.eval_d1(u),
+            Curve::Circle(c) => c.eval_d1(u),
+            Curve::Ellipse(c) => c.eval_d1(u),
+            Curve::Parabola(c) => c.eval_d1(u),
+            Curve::Hyperbola(c) => c.eval_d1(u),
             Curve::BSpline(c) => c.eval_d1(u),
         }
     }
 
     fn eval_d2(&self, u: f64) -> (Point, Vector, Vector) {
         match self {
-            Curve::Line(c) => ParametricCurve::eval_d2(c, u),
-            Curve::Circle(c) => ParametricCurve::eval_d2(c, u),
-            Curve::Ellipse(c) => ParametricCurve::eval_d2(c, u),
-            Curve::Parabola(c) => ParametricCurve::eval_d2(c, u),
-            Curve::Hyperbola(c) => ParametricCurve::eval_d2(c, u),
+            Curve::Line(c) => c.eval_d2(u),
+            Curve::Circle(c) => c.eval_d2(u),
+            Curve::Ellipse(c) => c.eval_d2(u),
+            Curve::Parabola(c) => c.eval_d2(u),
+            Curve::Hyperbola(c) => c.eval_d2(u),
             Curve::BSpline(c) => c.eval_d2(u),
         }
     }
@@ -98,7 +99,7 @@ impl ParametricCurve for Curve {
             Curve::Ellipse(c) => c.bounds(),
             Curve::Parabola(c) => c.bounds(),
             Curve::Hyperbola(c) => c.bounds(),
-            Curve::BSpline(c) => ParametricCurve::bounds(c),
+            Curve::BSpline(c) => c.bounds(),
         }
     }
 
@@ -109,7 +110,7 @@ impl ParametricCurve for Curve {
             Curve::Ellipse(c) => c.period(),
             Curve::Parabola(c) => c.period(),
             Curve::Hyperbola(c) => c.period(),
-            Curve::BSpline(c) => ParametricCurve::period(c),
+            Curve::BSpline(c) => c.period(),
         }
     }
 
@@ -126,33 +127,33 @@ impl ParametricCurve for Curve {
 
     fn is_closed(&self, tol: Tolerance) -> bool {
         match self {
-            Curve::Line(c) => ParametricCurve::is_closed(c, tol),
-            Curve::Circle(c) => ParametricCurve::is_closed(c, tol),
-            Curve::Ellipse(c) => ParametricCurve::is_closed(c, tol),
-            Curve::Parabola(c) => ParametricCurve::is_closed(c, tol),
-            Curve::Hyperbola(c) => ParametricCurve::is_closed(c, tol),
+            Curve::Line(c) => c.is_closed(tol),
+            Curve::Circle(c) => c.is_closed(tol),
+            Curve::Ellipse(c) => c.is_closed(tol),
+            Curve::Parabola(c) => c.is_closed(tol),
+            Curve::Hyperbola(c) => c.is_closed(tol),
             Curve::BSpline(c) => c.is_closed(tol),
         }
     }
 
     fn continuity(&self, u: f64, tol: Tolerance) -> Continuity {
         match self {
-            Curve::Line(c) => ParametricCurve::continuity(c, u, tol),
-            Curve::Circle(c) => ParametricCurve::continuity(c, u, tol),
-            Curve::Ellipse(c) => ParametricCurve::continuity(c, u, tol),
-            Curve::Parabola(c) => ParametricCurve::continuity(c, u, tol),
-            Curve::Hyperbola(c) => ParametricCurve::continuity(c, u, tol),
+            Curve::Line(c) => c.continuity(u, tol),
+            Curve::Circle(c) => c.continuity(u, tol),
+            Curve::Ellipse(c) => c.continuity(u, tol),
+            Curve::Parabola(c) => c.continuity(u, tol),
+            Curve::Hyperbola(c) => c.continuity(u, tol),
             Curve::BSpline(c) => c.continuity(u, tol),
         }
     }
 
     fn min_continuity(&self) -> Continuity {
         match self {
-            Curve::Line(c) => ParametricCurve::min_continuity(c),
-            Curve::Circle(c) => ParametricCurve::min_continuity(c),
-            Curve::Ellipse(c) => ParametricCurve::min_continuity(c),
-            Curve::Parabola(c) => ParametricCurve::min_continuity(c),
-            Curve::Hyperbola(c) => ParametricCurve::min_continuity(c),
+            Curve::Line(c) => c.min_continuity(),
+            Curve::Circle(c) => c.min_continuity(),
+            Curve::Ellipse(c) => c.min_continuity(),
+            Curve::Parabola(c) => c.min_continuity(),
+            Curve::Hyperbola(c) => c.min_continuity(),
             Curve::BSpline(c) => c.min_continuity(),
         }
     }
@@ -165,19 +166,59 @@ impl ParametricCurve for Curve {
     }
 
     fn as_elementary(&self) -> Option<ElementaryCurve> {
-        Curve::as_elementary(self)
+        match self {
+            Curve::Line(c) => Some(ElementaryCurve::Line(*c)),
+            Curve::Circle(c) => Some(ElementaryCurve::Circle(*c)),
+            Curve::Ellipse(c) => Some(ElementaryCurve::Ellipse(*c)),
+            Curve::Parabola(c) => Some(ElementaryCurve::Parabola(*c)),
+            Curve::Hyperbola(c) => Some(ElementaryCurve::Hyperbola(*c)),
+            Curve::BSpline(_) => None,
+        }
     }
 }
 
 impl PointExtrema for Curve {
     fn extrema(&self, point: Point, tol: Tolerance) -> Vec<CurveProjection> {
         match self {
-            Curve::Line(c) => PointExtrema::extrema(c, point, tol),
-            Curve::Circle(c) => PointExtrema::extrema(c, point, tol),
-            Curve::Ellipse(c) => PointExtrema::extrema(c, point, tol),
-            Curve::Parabola(c) => PointExtrema::extrema(c, point, tol),
-            Curve::Hyperbola(c) => PointExtrema::extrema(c, point, tol),
-            Curve::BSpline(c) => PointExtrema::extrema(c, point, tol),
+            Curve::Line(c) => c.extrema(point, tol),
+            Curve::Circle(c) => c.extrema(point, tol),
+            Curve::Ellipse(c) => c.extrema(point, tol),
+            Curve::Parabola(c) => c.extrema(point, tol),
+            Curve::Hyperbola(c) => c.extrema(point, tol),
+            Curve::BSpline(c) => c.extrema(point, tol),
+        }
+    }
+
+    fn project_point(&self, point: Point, tol: Tolerance) -> CurveProjection {
+        match self {
+            Curve::Line(c) => c.project_point(point, tol),
+            Curve::Circle(c) => c.project_point(point, tol),
+            Curve::Ellipse(c) => c.project_point(point, tol),
+            Curve::Parabola(c) => c.project_point(point, tol),
+            Curve::Hyperbola(c) => c.project_point(point, tol),
+            Curve::BSpline(c) => c.project_point(point, tol),
+        }
+    }
+
+    fn contains(&self, point: Point, tol: Tolerance) -> bool {
+        match self {
+            Curve::Line(c) => c.contains(point, tol),
+            Curve::Circle(c) => c.contains(point, tol),
+            Curve::Ellipse(c) => c.contains(point, tol),
+            Curve::Parabola(c) => c.contains(point, tol),
+            Curve::Hyperbola(c) => c.contains(point, tol),
+            Curve::BSpline(c) => c.contains(point, tol),
+        }
+    }
+
+    fn parameter_of(&self, point: Point, tol: Tolerance) -> f64 {
+        match self {
+            Curve::Line(c) => c.parameter_of(point, tol),
+            Curve::Circle(c) => c.parameter_of(point, tol),
+            Curve::Ellipse(c) => c.parameter_of(point, tol),
+            Curve::Parabola(c) => c.parameter_of(point, tol),
+            Curve::Hyperbola(c) => c.parameter_of(point, tol),
+            Curve::BSpline(c) => c.parameter_of(point, tol),
         }
     }
 }
@@ -233,6 +274,7 @@ impl From<BSplineCurve> for Curve {
 /// # Examples
 ///
 /// ```
+/// use geomcore::prelude::*;
 /// use geomcore::curves::{Curve, ElementaryCurve};
 /// use geomcore::{Line, Point, Vector};
 ///
@@ -254,141 +296,44 @@ pub enum ElementaryCurve {
     Hyperbola(Hyperbola),
 }
 
-impl Curve {
-    /// Projects `point` onto the curve: the closest parameter, the closest
-    /// point and the distance. Distances within `tol.confusion` snap to
-    /// `0.0`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::curves::Curve;
-    /// use geomcore::{Line, Point, Tolerance, Vector};
-    ///
-    /// let curve = Curve::from(Line::new(Point::ORIGIN, Vector::X).unwrap());
-    /// let projection = curve.project_point(Point::new(2.0, 1.0, 0.0), Tolerance::DEFAULT);
-    /// assert_eq!(projection.point, Point::new(2.0, 0.0, 0.0));
-    /// assert_eq!(projection.distance, 1.0);
-    /// ```
-    pub fn project_point(&self, point: Point, tol: Tolerance) -> CurveProjection {
+impl PointExtrema for ElementaryCurve {
+    fn extrema(&self, point: Point, tol: Tolerance) -> Vec<CurveProjection> {
         match self {
-            Curve::Line(c) => c.project_point(point, tol),
-            Curve::Circle(c) => c.project_point(point, tol),
-            Curve::Ellipse(c) => c.project_point(point, tol),
-            Curve::Parabola(c) => c.project_point(point, tol),
-            Curve::Hyperbola(c) => c.project_point(point, tol),
-            Curve::BSpline(c) => c.project_point(point, tol),
+            ElementaryCurve::Line(c) => c.extrema(point, tol),
+            ElementaryCurve::Circle(c) => c.extrema(point, tol),
+            ElementaryCurve::Ellipse(c) => c.extrema(point, tol),
+            ElementaryCurve::Parabola(c) => c.extrema(point, tol),
+            ElementaryCurve::Hyperbola(c) => c.extrema(point, tol),
         }
     }
 
-    /// Projects each point in `points` onto the curve.
-    pub fn project_points(&self, points: &[Point], tol: Tolerance) -> Vec<CurveProjection> {
-        points.iter().map(|&p| self.project_point(p, tol)).collect()
-    }
-
-    /// The parameter of the point of the curve closest to `point`.
-    ///
-    /// An elementary curve uses its closed form (see
-    /// [`ElementaryCurve::parameter_of`]). A B-spline projects the point
-    /// with [`Tolerance::DEFAULT`] and returns the projection's parameter;
-    /// call [`project_point`](Curve::project_point) to choose the
-    /// tolerance.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::curves::Curve;
-    /// use geomcore::{Circle, Point, Vector};
-    ///
-    /// let curve = Curve::from(Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap());
-    /// let parameter = curve.parameter_of(Point::new(0.0, 2.0, 0.0));
-    /// assert!((parameter - std::f64::consts::FRAC_PI_2).abs() < 1e-12);
-    /// ```
-    pub fn parameter_of(&self, point: Point) -> f64 {
+    fn contains(&self, point: Point, tol: Tolerance) -> bool {
         match self {
-            Curve::Line(c) => c.parameter_of(point),
-            Curve::Circle(c) => c.parameter_of(point),
-            Curve::Ellipse(c) => c.parameter_of(point),
-            Curve::Parabola(c) => c.parameter_of(point),
-            Curve::Hyperbola(c) => c.parameter_of(point),
-            Curve::BSpline(c) => c.project_point(point, Tolerance::DEFAULT).parameter,
+            ElementaryCurve::Line(c) => c.contains(point, tol),
+            ElementaryCurve::Circle(c) => c.contains(point, tol),
+            ElementaryCurve::Ellipse(c) => c.contains(point, tol),
+            ElementaryCurve::Parabola(c) => c.contains(point, tol),
+            ElementaryCurve::Hyperbola(c) => c.contains(point, tol),
         }
     }
 
-    /// The curve as an [`ElementaryCurve`], or `None` for a B-spline.
-    pub fn as_elementary(&self) -> Option<ElementaryCurve> {
+    fn parameter_of(&self, point: Point, tol: Tolerance) -> f64 {
         match self {
-            Curve::Line(c) => Some(ElementaryCurve::Line(*c)),
-            Curve::Circle(c) => Some(ElementaryCurve::Circle(*c)),
-            Curve::Ellipse(c) => Some(ElementaryCurve::Ellipse(*c)),
-            Curve::Parabola(c) => Some(ElementaryCurve::Parabola(*c)),
-            Curve::Hyperbola(c) => Some(ElementaryCurve::Hyperbola(*c)),
-            Curve::BSpline(_) => None,
-        }
-    }
-}
-
-impl ElementaryCurve {
-    /// The parameter of the point of the curve closest to `point`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::curves::ElementaryCurve;
-    /// use geomcore::{Line, Point, Vector};
-    ///
-    /// let curve = ElementaryCurve::from(Line::new(Point::ORIGIN, Vector::X).unwrap());
-    /// assert_eq!(curve.parameter_of(Point::new(2.0, 0.0, 0.0)), 2.0);
-    /// ```
-    pub fn parameter_of(&self, point: Point) -> f64 {
-        match self {
-            ElementaryCurve::Line(c) => c.parameter_of(point),
-            ElementaryCurve::Circle(c) => c.parameter_of(point),
-            ElementaryCurve::Ellipse(c) => c.parameter_of(point),
-            ElementaryCurve::Parabola(c) => c.parameter_of(point),
-            ElementaryCurve::Hyperbola(c) => c.parameter_of(point),
+            ElementaryCurve::Line(c) => c.parameter_of(point, tol),
+            ElementaryCurve::Circle(c) => c.parameter_of(point, tol),
+            ElementaryCurve::Ellipse(c) => c.parameter_of(point, tol),
+            ElementaryCurve::Parabola(c) => c.parameter_of(point, tol),
+            ElementaryCurve::Hyperbola(c) => c.parameter_of(point, tol),
         }
     }
 
-    /// Projects `point` onto the curve: the closest parameter, the closest
-    /// point and the distance. Distances within `tol.confusion` snap to
-    /// `0.0`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::curves::ElementaryCurve;
-    /// use geomcore::{Line, Point, Tolerance, Vector};
-    ///
-    /// let curve = ElementaryCurve::from(Line::new(Point::ORIGIN, Vector::X).unwrap());
-    /// let projection = curve.project_point(Point::new(2.0, 1.0, 0.0), Tolerance::DEFAULT);
-    /// assert_eq!(projection.point, Point::new(2.0, 0.0, 0.0));
-    /// assert_eq!(projection.distance, 1.0);
-    /// ```
-    pub fn project_point(&self, point: Point, tol: Tolerance) -> CurveProjection {
+    fn project_point(&self, point: Point, tol: Tolerance) -> CurveProjection {
         match self {
             ElementaryCurve::Line(c) => c.project_point(point, tol),
             ElementaryCurve::Circle(c) => c.project_point(point, tol),
             ElementaryCurve::Ellipse(c) => c.project_point(point, tol),
             ElementaryCurve::Parabola(c) => c.project_point(point, tol),
             ElementaryCurve::Hyperbola(c) => c.project_point(point, tol),
-        }
-    }
-
-    /// Projects each point in `points` onto the curve.
-    pub fn project_points(&self, points: &[Point], tol: Tolerance) -> Vec<CurveProjection> {
-        points.iter().map(|&p| self.project_point(p, tol)).collect()
-    }
-}
-
-impl PointExtrema for ElementaryCurve {
-    fn extrema(&self, point: Point, tol: Tolerance) -> Vec<CurveProjection> {
-        match self {
-            ElementaryCurve::Line(c) => PointExtrema::extrema(c, point, tol),
-            ElementaryCurve::Circle(c) => PointExtrema::extrema(c, point, tol),
-            ElementaryCurve::Ellipse(c) => PointExtrema::extrema(c, point, tol),
-            ElementaryCurve::Parabola(c) => PointExtrema::extrema(c, point, tol),
-            ElementaryCurve::Hyperbola(c) => PointExtrema::extrema(c, point, tol),
         }
     }
 }

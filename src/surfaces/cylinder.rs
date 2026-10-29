@@ -46,6 +46,7 @@ impl std::error::Error for CylinderConstructionError {}
 /// # Examples
 ///
 /// ```
+/// use geomcore::prelude::*;
 /// use geomcore::{Cylinder, Point, Vector};
 /// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
 /// assert_eq!(cylinder.eval_point(0.0, 5.0), Point::new(2.0, 0.0, 5.0));
@@ -201,6 +202,7 @@ impl Cylinder {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{Cylinder, Point, Vector};
     /// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
     /// let reversed = cylinder.reversed_u();
@@ -221,6 +223,7 @@ impl Cylinder {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{Cylinder, Point, Vector};
     /// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
     /// let reversed = cylinder.reversed_v();
@@ -239,6 +242,7 @@ impl Cylinder {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{Cylinder, Point, Vector};
     /// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
     /// let u = cylinder.u_reversed_parameter(1.0);
@@ -254,6 +258,7 @@ impl Cylinder {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{Cylinder, Point, Vector};
     /// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
     /// let v = cylinder.v_reversed_parameter(0.5);
@@ -274,6 +279,7 @@ impl Cylinder {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{Cylinder, Point, Vector};
     /// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
     /// let iso = cylinder.u_iso(0.0).unwrap();
@@ -330,6 +336,7 @@ impl Cylinder {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{Cylinder, Point, Transform, Vector};
     /// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
     /// let moved = cylinder.transformed(Transform::scaling(Point::ORIGIN, 3.0)).unwrap();
@@ -343,115 +350,15 @@ impl Cylinder {
         ))?;
         Cylinder::from_frame(frame, self.radius() * scale)
     }
+}
 
-    /// Evaluates the point on the cylinder at `(u, v)`:
-    /// `origin + r*cos(u)*x_dir + r*sin(u)*y_dir + v*z_dir`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{Cylinder, Point, Vector};
-    /// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
-    /// assert_eq!(cylinder.eval_point(0.0, 5.0), Point::new(2.0, 0.0, 5.0));
-    /// ```
-    pub fn eval_point(&self, u: f64, v: f64) -> Point {
+impl ParametricSurface for Cylinder {
+    fn eval_point(&self, u: f64, v: f64) -> Point {
         elementary::cylinder_d0(&self.frame, self.radius, u, v)
     }
 
-    /// Evaluates the points on the cylinder at each `(u, v)` in `uvs`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{Cylinder, Point, Vector};
-    /// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
-    /// let points = cylinder.eval_points(&[(0.0, 0.0)]);
-    /// assert_eq!(points[0], Point::new(2.0, 0.0, 0.0));
-    /// ```
-    pub fn eval_points(&self, uvs: &[(f64, f64)]) -> Vec<Point> {
-        uvs.iter().map(|&(u, v)| self.eval_point(u, v)).collect()
-    }
-
-    /// Evaluates the derivative of order `(du, dv)` at `(u, v)`.
-    ///
-    /// `Su = r*(-sin(u)*x_dir + cos(u)*y_dir)`, `Sv = z_dir`,
-    /// `Suu = -r*(cos(u)*x_dir + sin(u)*y_dir)`; `Svv` and `Suv` are
-    /// identically zero.
-    ///
-    /// # Panics
-    ///
-    /// Panics if `du + dv == 0` (use [`Cylinder::eval_point`] for the
-    /// position itself) or if `du + dv > 2`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{Cylinder, Point, Vector};
-    /// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
-    /// assert_eq!(cylinder.eval_derivative(0.0, 5.0, 0, 1), Vector::Z);
-    /// ```
-    pub fn eval_derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> Vector {
-        match du + dv {
-            0 => panic!(
-                "eval_derivative: du + dv must be >= 1 (use eval_point for the (0, 0) order)"
-            ),
-            1..=2 => elementary::cylinder_derivative(&self.frame, self.radius, u, v, du, dv),
-            _ => panic!(
-                "eval_derivative: order du={du}, dv={dv} is not supported (du + dv must be <= 2)"
-            ),
-        }
-    }
-
-    /// Recovers `(u, v)` of a point on (or near) the cylinder:
-    /// `u = atan2(y, x)` wrapped into `[0, 2*PI)`, `v = z`, in the
-    /// cylinder's local coordinates.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{Cylinder, Point, Vector};
-    /// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
-    /// let (u, v) = cylinder.parameters_of(Point::new(2.0, 0.0, 5.0));
-    /// assert_eq!((u, v), (0.0, 5.0));
-    /// ```
-    pub fn parameters_of(&self, point: Point) -> (f64, f64) {
-        elementary::cylinder_parameters(&self.frame, point)
-    }
-
-    /// Returns whether `point` lies on the cylinder: the inverse parameters
-    /// are recovered with [`Cylinder::parameters_of`] and re-evaluated, and
-    /// the point counts as contained when the re-evaluated point is within
-    /// `tol.confusion` of it.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{Cylinder, Point, Tolerance, Vector};
-    /// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
-    /// let tol = Tolerance::DEFAULT;
-    /// assert!(cylinder.contains(Point::new(2.0, 0.0, 0.0), tol));
-    /// assert!(!cylinder.contains(Point::ORIGIN, tol));
-    /// ```
-    pub fn contains(&self, point: Point, tol: Tolerance) -> bool {
-        let (u, v) = self.parameters_of(point);
-        self.eval_point(u, v).distance(point) <= tol.confusion
-    }
-
-    /// Projects `point` onto the cylinder, returning the `(u, v)`
-    /// parameters of the closest point and its distance. Distances within
-    /// `tol.confusion` snap to `0.0`, matching [`Cylinder::contains`].
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{Cylinder, Point, Tolerance, Vector};
-    /// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
-    /// let proj = cylinder.project_point(Point::new(3.0, 0.0, 5.0), Tolerance::DEFAULT);
-    /// assert_eq!((proj.u, proj.v), (0.0, 5.0));
-    /// assert_eq!(proj.distance, 1.0);
-    /// ```
-    pub fn project_point(&self, point: Point, tol: Tolerance) -> SurfaceProjection {
-        let (u, v) = self.parameters_of(point);
+    fn project_point(&self, point: Point, tol: Tolerance) -> SurfaceProjection {
+        let (u, v) = self.parameters_of(point, tol);
         let foot = self.eval_point(u, v);
         let distance = foot.distance(point);
         SurfaceProjection {
@@ -462,30 +369,21 @@ impl Cylinder {
         }
     }
 
-    /// Projects each point in `points` onto the cylinder.
-    ///
-    /// Default-style batch wrapper over [`Cylinder::project_point`]: one
-    /// native call per batch, mirroring [`Cylinder::eval_points`].
-    pub fn project_points(&self, points: &[Point], tol: Tolerance) -> Vec<SurfaceProjection> {
-        points.iter().map(|&p| self.project_point(p, tol)).collect()
-    }
-}
-
-impl ParametricSurface for Cylinder {
-    fn eval_point(&self, u: f64, v: f64) -> Point {
-        Cylinder::eval_point(self, u, v)
-    }
-
-    fn project_point(&self, point: Point, tol: Tolerance) -> SurfaceProjection {
-        Cylinder::project_point(self, point, tol)
-    }
-
     fn contains(&self, point: Point, tol: Tolerance) -> bool {
-        Cylinder::contains(self, point, tol)
+        let (u, v) = self.parameters_of(point, tol);
+        self.eval_point(u, v).distance(point) <= tol.confusion
     }
 
     fn eval_derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> Vector {
-        Cylinder::eval_derivative(self, u, v, du, dv)
+        match du + dv {
+            0 => panic!(
+                "eval_derivative: du + dv must be >= 1 (use eval_point for the (0, 0) order)"
+            ),
+            1..=2 => elementary::cylinder_derivative(&self.frame, self.radius, u, v, du, dv),
+            _ => panic!(
+                "eval_derivative: order du={du}, dv={dv} is not supported (du + dv must be <= 2)"
+            ),
+        }
     }
 
     fn u_bounds(&self) -> (f64, f64) {
@@ -504,12 +402,15 @@ impl ParametricSurface for Cylinder {
         None
     }
 
-    fn eval_points(&self, uvs: &[(f64, f64)]) -> Vec<Point> {
-        Cylinder::eval_points(self, uvs)
-    }
-
     fn as_elementary(&self) -> Option<ElementarySurface> {
         Some(ElementarySurface::Cylinder(*self))
+    }
+
+    /// Recovers `(u, v)` of a point on (or near) the cylinder:
+    /// `u = atan2(y, x)` wrapped into `[0, 2*PI)`, `v = z`, in the
+    /// cylinder's local coordinates.
+    fn parameters_of(&self, point: Point, _tol: Tolerance) -> (f64, f64) {
+        elementary::cylinder_parameters(&self.frame, point)
     }
 }
 

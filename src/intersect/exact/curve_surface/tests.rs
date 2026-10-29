@@ -1,3 +1,6 @@
+use crate::curves::ParametricCurve;
+use crate::curves::PointExtrema;
+use crate::surfaces::ParametricSurface;
 use crate::{
     Circle, CircleSurfaceIntersection, Cone, ConicSurfaceIntersection, Cylinder, Ellipse, Frame,
     Hyperbola, IntersectExact, Line, LinePlaneIntersection, LineQuadricIntersection,
@@ -159,7 +162,7 @@ fn test_line3d_intersect_torus() {
                 assert_eq!(h.point, line.eval_point(h.line_parameter));
                 assert!(torus.contains(h.point, tol));
                 assert_eq!(h.multiplicity, 1);
-                let (u, v) = torus.parameters_of(h.point);
+                let (u, v) = torus.parameters_of(h.point, tol);
                 assert!((h.surface_parameters.0 - u).abs() < 1e-12);
                 assert!((h.surface_parameters.1 - v).abs() < 1e-12);
             }

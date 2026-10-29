@@ -2,8 +2,9 @@
 //! return one at a time, on every curve and surface type and through the
 //! run-time enums, trimmed curves and references.
 
-use geomcore::curves::{Curve, ParametricCurve, TrimmedCurve};
-use geomcore::surfaces::{ParametricSurface, Surface};
+use geomcore::curves::{Curve, TrimmedCurve};
+use geomcore::prelude::*;
+use geomcore::surfaces::Surface;
 use geomcore::{
     BSplineCurve, BSplineSurface, Circle, Cone, Cylinder, Ellipse, Hyperbola, Line, Parabola,
     Plane, Point, Sphere, Torus, Vector,

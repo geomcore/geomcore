@@ -26,7 +26,8 @@ use crate::{Point2D, Tolerance};
 /// # Examples
 ///
 /// ```
-/// use geomcore::{Conic2DIntersection, Ellipse2D, IntersectExact, Line2D, Point2D, Tolerance, Vector2D};
+/// use geomcore::prelude::*;
+/// use geomcore::{Conic2DIntersection, Ellipse2D, Line2D, Point2D, Tolerance, Vector2D};
 /// // The x axis crosses an ellipse of semi-axes 3 and 2 at x = ±3.
 /// let line = Line2D::new(Point2D::ORIGIN, Vector2D::X).unwrap();
 /// let ellipse = Ellipse2D::new(Point2D::ORIGIN, Vector2D::X, 3.0, 2.0).unwrap();

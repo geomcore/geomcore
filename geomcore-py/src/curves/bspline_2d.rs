@@ -7,8 +7,8 @@ use crate::errors::python_error;
 use crate::results::*;
 use crate::values::*;
 use crate::{ContinuityNumber, check_curve_order, parse_parametrization, tolerance};
-use geomcore::HasBoundingBox2D;
-use geomcore::curves::{BSplineCurve2D, ParametricCurve2D};
+use geomcore::curves::BSplineCurve2D;
+use geomcore::prelude::*;
 use pyo3::prelude::*;
 
 /// A B-spline (optionally rational, optionally periodic) curve in 2D: the
@@ -26,7 +26,7 @@ impl PyBSplineCurve2D {
     /// change the answer.
     #[pyo3(signature = (u, tol = None))]
     fn tangent(&self, u: f64, tol: Option<PyTolerance>) -> Option<PyVector2D> {
-        ParametricCurve2D::tangent(&self.0, u, tolerance(tol)).map(PyVector2D)
+        self.0.tangent(u, tolerance(tol)).map(PyVector2D)
     }
 
     /// Signed curvature at parameter `u`: the turn rate of the unit
@@ -37,7 +37,7 @@ impl PyBSplineCurve2D {
     /// vanishes, by the test of `tangent`.
     #[pyo3(signature = (u, tol = None))]
     fn curvature(&self, u: f64, tol: Option<PyTolerance>) -> Option<f64> {
-        ParametricCurve2D::curvature(&self.0, u, tolerance(tol))
+        self.0.curvature(u, tolerance(tol))
     }
 
     /// Centre of the osculating circle at parameter `u`, or `None` where
@@ -45,7 +45,7 @@ impl PyBSplineCurve2D {
     /// at infinity). A circle's centre is its own, whichever way it runs.
     #[pyo3(signature = (u, tol = None))]
     fn curvature_center(&self, u: f64, tol: Option<PyTolerance>) -> Option<PyPoint2D> {
-        ParametricCurve2D::curvature_center(&self.0, u, tolerance(tol)).map(PyPoint2D)
+        self.0.curvature_center(u, tolerance(tol)).map(PyPoint2D)
     }
 
     /// The axis-aligned box around the curve, or `None` when it is
@@ -195,7 +195,7 @@ impl PyBSplineCurve2D {
 
     /// The period of the parameter, or `None` when the curve is not periodic.
     fn period(&self) -> Option<f64> {
-        ParametricCurve2D::period(&self.0)
+        self.0.period()
     }
 
     /// Whether travelling along the curve returns to its start
@@ -230,9 +230,9 @@ impl PyBSplineCurve2D {
         self.0.eval_points(&us).into_iter().map(PyPoint2D).collect()
     }
 
-    /// Evaluate the derivative at `u`; orders 1 and 2 are supported.
+    /// Evaluate the derivative of the given order (>= 1) at `u`.
     fn eval_derivative(&self, u: f64, order: u32) -> PyResult<PyVector2D> {
-        check_curve_order(order, 2)?;
+        check_curve_order(order)?;
         Ok(PyVector2D(self.0.eval_derivative(u, order)))
     }
 
@@ -262,10 +262,10 @@ impl PyBSplineCurve2D {
         (PyPoint2D(point), PyVector2D(first), PyVector2D(second))
     }
 
-    /// The derivative of order 1 or 2 at parameter `u`, from one `side`,
+    /// The derivative of the given order (>= 1) at parameter `u`, from one `side`,
     /// as `eval_d1_sided`.
     fn eval_derivative_sided(&self, u: f64, order: u32, side: PySide) -> PyResult<PyVector2D> {
-        check_curve_order(order, 2)?;
+        check_curve_order(order)?;
         Ok(PyVector2D(self.0.eval_derivative_sided(
             u,
             order,
@@ -353,9 +353,11 @@ impl PyBSplineCurve2D {
         self.0.length(max_error)
     }
 
-    /// The parameter of the closest point to `point`.
-    fn parameter_of(&self, point: PyPoint2D) -> f64 {
-        self.0.parameter_of(point.0)
+    /// The parameter of the closest point to `point`,
+    /// within `tol` (`Tolerance.default()` when omitted).
+    #[pyo3(signature = (point, tol = None))]
+    fn parameter_of(&self, point: PyPoint2D, tol: Option<PyTolerance>) -> f64 {
+        self.0.parameter_of(point.0, tolerance(tol))
     }
 
     /// Returns whether `point` lies on the curve within `tol`

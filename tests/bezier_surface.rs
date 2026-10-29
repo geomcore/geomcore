@@ -2,10 +2,10 @@
 //! against hand-computed values, editing, and the round trip with
 //! `BSplineSurface`.
 
-use geomcore::surfaces::ParametricSurface;
+use geomcore::prelude::*;
 use geomcore::{
     BSplineSurface, BezierConstructionError, BezierSurface, BoundingBox, DegreeElevationError,
-    HasBoundingBox, Point, Side, Tolerance, Vector,
+    Point, Side, Tolerance, Vector,
 };
 
 /// The grid `(i, j, i * j)`: the surface `(2u, 2v, 4uv)` for degrees 2 x 2
@@ -220,23 +220,14 @@ fn test_rational_quarter_cylinder_stays_on_the_cylinder() {
 #[test]
 fn test_parametric_surface_trait_delegates() {
     let surface = saddle();
-    assert_eq!(ParametricSurface::u_bounds(&surface), (0.0, 1.0));
-    assert_eq!(ParametricSurface::v_bounds(&surface), (0.0, 1.0));
-    assert_eq!(ParametricSurface::u_period(&surface), None);
-    assert_eq!(ParametricSurface::v_period(&surface), None);
-    assert!(!ParametricSurface::is_u_closed(
-        &surface,
-        Tolerance::DEFAULT
-    ));
-    assert_eq!(
-        ParametricSurface::eval_point(&surface, 0.25, 0.5),
-        surface.eval_point(0.25, 0.5)
-    );
-    assert_eq!(
-        ParametricSurface::eval_d2(&surface, 0.25, 0.5),
-        surface.eval_d2(0.25, 0.5)
-    );
-    let normal = ParametricSurface::normal(&surface, 0.0, 0.0, Tolerance::DEFAULT).unwrap();
+    assert_eq!(surface.u_bounds(), (0.0, 1.0));
+    assert_eq!(surface.v_bounds(), (0.0, 1.0));
+    assert_eq!(surface.u_period(), None);
+    assert_eq!(surface.v_period(), None);
+    assert!(!surface.is_u_closed(Tolerance::DEFAULT));
+    assert_eq!(surface.eval_point(0.25, 0.5), surface.eval_point(0.25, 0.5));
+    assert_eq!(surface.eval_d2(0.25, 0.5), surface.eval_d2(0.25, 0.5));
+    let normal = surface.normal(0.0, 0.0, Tolerance::DEFAULT).unwrap();
     assert!((normal - Vector::Z).magnitude() < 1e-12);
 }
 

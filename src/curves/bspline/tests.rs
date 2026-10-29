@@ -207,7 +207,7 @@ fn test_periodic_curve_is_closed() {
     let curve = periodic_ring_curve();
     assert!(curve.is_periodic());
     assert!(curve.is_closed(Tolerance::DEFAULT));
-    assert!(ParametricCurve::is_closed(&curve, Tolerance::DEFAULT));
+    assert!(curve.is_closed(Tolerance::DEFAULT));
 }
 
 #[test]

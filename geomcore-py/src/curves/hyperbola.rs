@@ -6,8 +6,8 @@ use crate::errors::python_error;
 use crate::results::*;
 use crate::values::*;
 use crate::{ContinuityNumber, check_curve_order, tolerance};
-use geomcore::HasBoundingBox;
-use geomcore::curves::{Hyperbola, ParametricCurve};
+use geomcore::curves::Hyperbola;
+use geomcore::prelude::*;
 use pyo3::prelude::*;
 
 /// One branch of a hyperbola in 3D.
@@ -19,24 +19,24 @@ pub(crate) struct PyHyperbola(pub(crate) Hyperbola);
 impl PyHyperbola {
     /// The point and the first derivative at parameter `u`.
     fn eval_d1(&self, u: f64) -> (PyPoint, PyVector) {
-        let (point, first) = ParametricCurve::eval_d1(&self.0, u);
+        let (point, first) = self.0.eval_d1(u);
         (PyPoint(point), PyVector(first))
     }
 
     /// The point and the first two derivatives at parameter `u`.
     fn eval_d2(&self, u: f64) -> (PyPoint, PyVector, PyVector) {
-        let (point, first, second) = ParametricCurve::eval_d2(&self.0, u);
+        let (point, first, second) = self.0.eval_d2(u);
         (PyPoint(point), PyVector(first), PyVector(second))
     }
 
     /// The period of the parameter, or `None` when the curve is not periodic.
     fn period(&self) -> Option<f64> {
-        ParametricCurve::period(&self.0)
+        self.0.period()
     }
 
     /// Whether the curve is periodic.
     fn is_periodic(&self) -> bool {
-        ParametricCurve::is_periodic(&self.0)
+        self.0.is_periodic()
     }
 
     /// The placement frame of the hyperbola.
@@ -99,7 +99,7 @@ impl PyHyperbola {
 
     /// The (first, last) parameter bounds (unbounded here).
     fn bounds(&self) -> (f64, f64) {
-        ParametricCurve::bounds(&self.0)
+        self.0.bounds()
     }
 
     /// The axis-aligned box around the shape (`None` when unbounded).
@@ -138,13 +138,15 @@ impl PyHyperbola {
 
     /// Evaluate the derivative of the given order (>= 1) at `u`.
     fn eval_derivative(&self, u: f64, order: u32) -> PyResult<PyVector> {
-        check_curve_order(order, u32::MAX)?;
+        check_curve_order(order)?;
         Ok(PyVector(self.0.eval_derivative(u, order)))
     }
 
-    /// Recover the parameter of a point lying on the hyperbola.
-    fn parameter_of(&self, point: PyPoint) -> f64 {
-        self.0.parameter_of(point.0)
+    /// Recover the parameter of a point lying on the hyperbola,
+    /// within `tol` (`Tolerance.default()` when omitted).
+    #[pyo3(signature = (point, tol = None))]
+    fn parameter_of(&self, point: PyPoint, tol: Option<PyTolerance>) -> f64 {
+        self.0.parameter_of(point.0, tolerance(tol))
     }
 
     /// Returns whether `point` lies on the curve within `tol`
@@ -244,7 +246,7 @@ impl PyHyperbola {
     /// change the answer.
     #[pyo3(signature = (u, tol = None))]
     fn tangent(&self, u: f64, tol: Option<PyTolerance>) -> Option<PyVector> {
-        ParametricCurve::tangent(&self.0, u, tolerance(tol)).map(PyVector)
+        self.0.tangent(u, tolerance(tol)).map(PyVector)
     }
 
     /// Curvature at parameter `u`: the turn rate of the unit tangent per
@@ -252,7 +254,7 @@ impl PyHyperbola {
     /// vanishes, by the test of `tangent`.
     #[pyo3(signature = (u, tol = None))]
     fn curvature(&self, u: f64, tol: Option<PyTolerance>) -> Option<f64> {
-        ParametricCurve::curvature(&self.0, u, tolerance(tol))
+        self.0.curvature(u, tolerance(tol))
     }
 
     /// Centre of the osculating circle at parameter `u`, or `None` where
@@ -260,7 +262,7 @@ impl PyHyperbola {
     /// at infinity).
     #[pyo3(signature = (u, tol = None))]
     fn curvature_center(&self, u: f64, tol: Option<PyTolerance>) -> Option<PyPoint> {
-        ParametricCurve::curvature_center(&self.0, u, tolerance(tol)).map(PyPoint)
+        self.0.curvature_center(u, tolerance(tol)).map(PyPoint)
     }
 
     /// Whether travelling along the curve returns to its start
@@ -269,7 +271,7 @@ impl PyHyperbola {
     /// periodic.
     #[pyo3(signature = (tol = None))]
     fn is_closed(&self, tol: Option<PyTolerance>) -> bool {
-        ParametricCurve::is_closed(&self.0, tolerance(tol))
+        self.0.is_closed(tolerance(tol))
     }
 
     /// Continuity order `n` of `C^n` at parameter `u` as an `int`, or
@@ -280,12 +282,12 @@ impl PyHyperbola {
     /// evaluate each side of a knot reporting a low order.
     #[pyo3(signature = (u, tol = None))]
     fn continuity(&self, u: f64, tol: Option<PyTolerance>) -> ContinuityNumber {
-        ContinuityNumber(ParametricCurve::continuity(&self.0, u, tolerance(tol)))
+        ContinuityNumber(self.0.continuity(u, tolerance(tol)))
     }
 
     /// The lowest `continuity` anywhere inside the bounds, ends excluded
     /// (`math.inf` when smooth everywhere).
     fn min_continuity(&self) -> ContinuityNumber {
-        ContinuityNumber(ParametricCurve::min_continuity(&self.0))
+        ContinuityNumber(self.0.min_continuity())
     }
 }

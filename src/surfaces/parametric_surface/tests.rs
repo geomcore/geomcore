@@ -101,16 +101,10 @@ fn test_sample_bspline_agrees_with_inherent() {
 #[test]
 fn test_plane_bounds_and_periods() {
     let p = plane();
-    assert_eq!(
-        ParametricSurface::u_bounds(&p),
-        (f64::NEG_INFINITY, f64::INFINITY)
-    );
-    assert_eq!(
-        ParametricSurface::v_bounds(&p),
-        (f64::NEG_INFINITY, f64::INFINITY)
-    );
-    assert_eq!(ParametricSurface::u_period(&p), None);
-    assert_eq!(ParametricSurface::v_period(&p), None);
+    assert_eq!(p.u_bounds(), (f64::NEG_INFINITY, f64::INFINITY));
+    assert_eq!(p.v_bounds(), (f64::NEG_INFINITY, f64::INFINITY));
+    assert_eq!(p.u_period(), None);
+    assert_eq!(p.v_period(), None);
 
     let wrapped: Surface = p.into();
     assert_eq!(wrapped.u_bounds(), (f64::NEG_INFINITY, f64::INFINITY));
@@ -122,13 +116,10 @@ fn test_plane_bounds_and_periods() {
 #[test]
 fn test_cylinder_bounds_and_periods() {
     let c = cylinder();
-    assert_eq!(ParametricSurface::u_bounds(&c), (0.0, TAU));
-    assert_eq!(
-        ParametricSurface::v_bounds(&c),
-        (f64::NEG_INFINITY, f64::INFINITY)
-    );
-    assert_eq!(ParametricSurface::u_period(&c), Some(TAU));
-    assert_eq!(ParametricSurface::v_period(&c), None);
+    assert_eq!(c.u_bounds(), (0.0, TAU));
+    assert_eq!(c.v_bounds(), (f64::NEG_INFINITY, f64::INFINITY));
+    assert_eq!(c.u_period(), Some(TAU));
+    assert_eq!(c.v_period(), None);
 
     let wrapped: Surface = c.into();
     assert_eq!(wrapped.u_bounds(), (0.0, TAU));
@@ -140,13 +131,10 @@ fn test_cylinder_bounds_and_periods() {
 #[test]
 fn test_cone_bounds_and_periods() {
     let c = cone();
-    assert_eq!(ParametricSurface::u_bounds(&c), (0.0, TAU));
-    assert_eq!(
-        ParametricSurface::v_bounds(&c),
-        (f64::NEG_INFINITY, f64::INFINITY)
-    );
-    assert_eq!(ParametricSurface::u_period(&c), Some(TAU));
-    assert_eq!(ParametricSurface::v_period(&c), None);
+    assert_eq!(c.u_bounds(), (0.0, TAU));
+    assert_eq!(c.v_bounds(), (f64::NEG_INFINITY, f64::INFINITY));
+    assert_eq!(c.u_period(), Some(TAU));
+    assert_eq!(c.v_period(), None);
 
     let wrapped: Surface = c.into();
     assert_eq!(wrapped.u_bounds(), (0.0, TAU));
@@ -158,10 +146,10 @@ fn test_cone_bounds_and_periods() {
 #[test]
 fn test_sphere_bounds_and_periods() {
     let s = sphere();
-    assert_eq!(ParametricSurface::u_bounds(&s), (0.0, TAU));
-    assert_eq!(ParametricSurface::v_bounds(&s), (-FRAC_PI_2, FRAC_PI_2));
-    assert_eq!(ParametricSurface::u_period(&s), Some(TAU));
-    assert_eq!(ParametricSurface::v_period(&s), None);
+    assert_eq!(s.u_bounds(), (0.0, TAU));
+    assert_eq!(s.v_bounds(), (-FRAC_PI_2, FRAC_PI_2));
+    assert_eq!(s.u_period(), Some(TAU));
+    assert_eq!(s.v_period(), None);
 
     let wrapped: Surface = s.into();
     assert_eq!(wrapped.u_bounds(), (0.0, TAU));
@@ -173,10 +161,10 @@ fn test_sphere_bounds_and_periods() {
 #[test]
 fn test_torus_bounds_and_periods() {
     let t = torus();
-    assert_eq!(ParametricSurface::u_bounds(&t), (0.0, TAU));
-    assert_eq!(ParametricSurface::v_bounds(&t), (0.0, TAU));
-    assert_eq!(ParametricSurface::u_period(&t), Some(TAU));
-    assert_eq!(ParametricSurface::v_period(&t), Some(TAU));
+    assert_eq!(t.u_bounds(), (0.0, TAU));
+    assert_eq!(t.v_bounds(), (0.0, TAU));
+    assert_eq!(t.u_period(), Some(TAU));
+    assert_eq!(t.v_period(), Some(TAU));
 
     let wrapped: Surface = t.into();
     assert_eq!(wrapped.u_bounds(), (0.0, TAU));
@@ -188,10 +176,10 @@ fn test_torus_bounds_and_periods() {
 #[test]
 fn test_bspline_bounds_and_periods() {
     let b = bspline();
-    assert_eq!(ParametricSurface::u_bounds(&b), (0.0, 1.0));
-    assert_eq!(ParametricSurface::v_bounds(&b), (0.0, 1.0));
-    assert_eq!(ParametricSurface::u_period(&b), None);
-    assert_eq!(ParametricSurface::v_period(&b), None);
+    assert_eq!(b.u_bounds(), (0.0, 1.0));
+    assert_eq!(b.v_bounds(), (0.0, 1.0));
+    assert_eq!(b.u_period(), None);
+    assert_eq!(b.v_period(), None);
 
     let wrapped: Surface = b.into();
     assert_eq!(wrapped.u_bounds(), (0.0, 1.0));
@@ -208,36 +196,36 @@ fn test_default_eval_points_matches_mapped_eval_point_for_each_type() {
 
     let p = plane();
     let expected: Vec<Point> = uvs.iter().map(|&(u, v)| p.eval_point(u, v)).collect();
-    assert_eq!(ParametricSurface::eval_points(&p, &uvs), expected);
+    assert_eq!(p.eval_points(&uvs), expected);
 
     let c = cylinder();
     let expected: Vec<Point> = uvs.iter().map(|&(u, v)| c.eval_point(u, v)).collect();
-    assert_eq!(ParametricSurface::eval_points(&c, &uvs), expected);
+    assert_eq!(c.eval_points(&uvs), expected);
 
     let cn = cone();
     let expected: Vec<Point> = uvs.iter().map(|&(u, v)| cn.eval_point(u, v)).collect();
-    assert_eq!(ParametricSurface::eval_points(&cn, &uvs), expected);
+    assert_eq!(cn.eval_points(&uvs), expected);
 
     let s = sphere();
     let expected: Vec<Point> = uvs.iter().map(|&(u, v)| s.eval_point(u, v)).collect();
-    assert_eq!(ParametricSurface::eval_points(&s, &uvs), expected);
+    assert_eq!(s.eval_points(&uvs), expected);
 
     let t = torus();
     let expected: Vec<Point> = uvs.iter().map(|&(u, v)| t.eval_point(u, v)).collect();
-    assert_eq!(ParametricSurface::eval_points(&t, &uvs), expected);
+    assert_eq!(t.eval_points(&uvs), expected);
 }
 
 #[test]
 fn test_eval_derivative_delegates_to_inherent() {
     let p = plane();
     assert_eq!(
-        ParametricSurface::eval_derivative(&p, 0.3, 0.4, 1, 0),
+        p.eval_derivative(0.3, 0.4, 1, 0),
         p.eval_derivative(0.3, 0.4, 1, 0)
     );
 
     let s = sphere();
     assert_eq!(
-        ParametricSurface::eval_derivative(&s, 0.3, 0.4, 1, 0),
+        s.eval_derivative(0.3, 0.4, 1, 0),
         s.eval_derivative(0.3, 0.4, 1, 0)
     );
 
@@ -268,17 +256,14 @@ fn test_normal_plane_is_constant_z() {
 fn test_normal_cylinder_points_radially_outward() {
     let c = cylinder();
     let tol = Tolerance::DEFAULT;
-    assert_eq!(
-        ParametricSurface::normal(&c, 0.0, 3.0, tol),
-        Some(Vector::X)
-    );
+    assert_eq!(c.normal(0.0, 3.0, tol), Some(Vector::X));
 }
 
 #[test]
 fn test_normal_cone_matches_tilted_radial() {
     let c = cone();
     let tol = Tolerance::DEFAULT;
-    let n = ParametricSurface::normal(&c, 0.0, 0.0, tol).unwrap();
+    let n = c.normal(0.0, 0.0, tol).unwrap();
     let expected = Vector::new(0.4f64.cos(), 0.0, -0.4f64.sin());
     assert!((n - expected).magnitude() < 1e-12);
     assert!((n.magnitude() - 1.0).abs() < 1e-12);
@@ -288,14 +273,11 @@ fn test_normal_cone_matches_tilted_radial() {
 fn test_normal_sphere_points_outward_and_recovers_at_poles() {
     let s = sphere();
     let tol = Tolerance::DEFAULT;
-    assert_eq!(
-        ParametricSurface::normal(&s, 0.0, 0.0, tol),
-        Some(Vector::X)
-    );
+    assert_eq!(s.normal(0.0, 0.0, tol), Some(Vector::X));
     // Singular points recover their limiting (outward) normal via rung 2.
-    let north = ParametricSurface::normal(&s, 0.0, FRAC_PI_2, tol).unwrap();
+    let north = s.normal(0.0, FRAC_PI_2, tol).unwrap();
     assert!((north - Vector::Z).magnitude() < 1e-9);
-    let south = ParametricSurface::normal(&s, 1.0, -FRAC_PI_2, tol).unwrap();
+    let south = s.normal(1.0, -FRAC_PI_2, tol).unwrap();
     assert!((south + Vector::Z).magnitude() < 1e-9);
 }
 
@@ -303,10 +285,7 @@ fn test_normal_sphere_points_outward_and_recovers_at_poles() {
 fn test_normal_torus_points_outward_on_outer_equator() {
     let t = torus();
     let tol = Tolerance::DEFAULT;
-    assert_eq!(
-        ParametricSurface::normal(&t, 0.0, 0.0, tol),
-        Some(Vector::X)
-    );
+    assert_eq!(t.normal(0.0, 0.0, tol), Some(Vector::X));
 }
 
 #[test]
@@ -317,11 +296,7 @@ fn test_normal_cone_apex_has_no_unique_normal() {
     let tol = Tolerance::DEFAULT;
     let v_apex = -2.0 / 0.4f64.sin();
     for u in [0.0f64, 1.0, 2.0, 4.0] {
-        assert_eq!(
-            ParametricSurface::normal(&c, u, v_apex, tol),
-            None,
-            "u = {u}"
-        );
+        assert_eq!(c.normal(u, v_apex, tol), None, "u = {u}");
     }
 }
 
@@ -331,9 +306,9 @@ fn test_normal_pole_recovery_is_independent_of_meridian() {
     let s = sphere();
     let tol = Tolerance::DEFAULT;
     for u in [0.0f64, 1.0, 2.0, 4.0] {
-        let north = ParametricSurface::normal(&s, u, FRAC_PI_2, tol).unwrap();
+        let north = s.normal(u, FRAC_PI_2, tol).unwrap();
         assert!((north - Vector::Z).magnitude() < 1e-9, "u = {u}: {north:?}");
-        let south = ParametricSurface::normal(&s, u, -FRAC_PI_2, tol).unwrap();
+        let south = s.normal(u, -FRAC_PI_2, tol).unwrap();
         assert!((south + Vector::Z).magnitude() < 1e-9, "u = {u}: {south:?}");
     }
 }
@@ -344,7 +319,7 @@ fn test_normal_bspline_agrees_with_cross_of_partials() {
     let tol = Tolerance::DEFAULT;
     let (_, [su, sv]) = b.eval_d1(0.3, 0.4);
     let expected = su.cross(sv) * (1.0 / su.cross(sv).magnitude());
-    assert_eq!(ParametricSurface::normal(&b, 0.3, 0.4, tol), Some(expected));
+    assert_eq!(b.normal(0.3, 0.4, tol), Some(expected));
 }
 
 #[test]
@@ -354,7 +329,7 @@ fn test_normal_sub_confusion_geometry_is_none() {
     // it has no normal anywhere.
     let tol = Tolerance::DEFAULT;
     let tiny = Sphere::new(Point::ORIGIN, 1e-9).unwrap();
-    assert_eq!(ParametricSurface::normal(&tiny, 0.0, 0.0, tol), None);
+    assert_eq!(tiny.normal(0.0, 0.0, tol), None);
 }
 
 // ---- normal rung 3 (step-off) and hopeless cases, via a mock ----
@@ -422,7 +397,7 @@ fn test_normal_steps_off_a_locally_dead_zone_at_any_parameter_scale() {
         // width 2 × scale, land outside the dead zone where the
         // normal is +Z. Away from the zone rung 1 answers directly.
         for (u, v) in [(0.0, 0.0), (0.5 * scale, -0.5 * scale)] {
-            let normal = ParametricSurface::normal(&surface, u, v, tol);
+            let normal = surface.normal(u, v, tol);
             let normal = normal.unwrap_or_else(|| panic!("scale {scale}, ({u}, {v}): None"));
             assert!((normal - Vector::Z).magnitude() < 1e-15, "scale {scale}");
         }
@@ -436,20 +411,17 @@ fn test_normal_is_none_where_no_rung_recovers() {
         scale: 1.0,
     };
     let tol = Tolerance::DEFAULT;
-    assert_eq!(ParametricSurface::normal(&surface, 0.5, 0.5, tol), None);
+    assert_eq!(surface.normal(0.5, 0.5, tol), None);
 }
 
 #[test]
 fn test_normal_is_none_at_non_finite_parameters() {
     let tol = Tolerance::DEFAULT;
     let s = sphere();
-    assert_eq!(ParametricSurface::normal(&s, f64::NAN, 0.0, tol), None);
-    assert_eq!(ParametricSurface::normal(&s, 0.0, f64::NAN, tol), None);
-    assert_eq!(ParametricSurface::normal(&s, f64::INFINITY, 0.0, tol), None);
-    assert_eq!(
-        ParametricSurface::normal(&bspline(), f64::NAN, 0.5, tol),
-        None
-    );
+    assert_eq!(s.normal(f64::NAN, 0.0, tol), None);
+    assert_eq!(s.normal(0.0, f64::NAN, tol), None);
+    assert_eq!(s.normal(f64::INFINITY, 0.0, tol), None);
+    assert_eq!(bspline().normal(f64::NAN, 0.5, tol), None);
 }
 
 // ---- normal: independence from the parametrization ----
@@ -536,13 +508,9 @@ fn test_normal_collapsed_row_apex_has_no_unique_normal() {
     let surface = collapsed_row();
     let tol = Tolerance::DEFAULT;
     for v in [0.0, 0.3, 0.5, 1.0] {
-        assert_eq!(
-            ParametricSurface::normal(&surface, 0.0, v, tol),
-            None,
-            "v = {v}"
-        );
-        let limit = ParametricSurface::normal(&surface, 1e-6, v, tol).unwrap();
-        let beside = ParametricSurface::normal(&surface, 1e-9, v, tol).unwrap();
+        assert_eq!(surface.normal(0.0, v, tol), None, "v = {v}");
+        let limit = surface.normal(1e-6, v, tol).unwrap();
+        let beside = surface.normal(1e-9, v, tol).unwrap();
         assert!((beside - limit).magnitude() < 1e-5, "v = {v}: {beside:?}");
     }
 }
@@ -560,7 +528,7 @@ fn test_normal_beside_a_cone_apex_is_the_flank_normal() {
                 let v = v_apex + offset;
                 let (_, [su, sv]) = c.eval_d1(u, v);
                 let exact = su.cross(sv) * (1.0 / su.cross(sv).magnitude());
-                let normal = ParametricSurface::normal(&c, u, v, tol).unwrap();
+                let normal = c.normal(u, v, tol).unwrap();
                 assert!(
                     (normal - exact).magnitude() < 1e-12,
                     "semi-angle {semi_angle}, offset {offset}, u = {u}: {normal:?}"
@@ -576,17 +544,18 @@ fn test_normal_beside_a_cone_apex_is_the_flank_normal() {
             let scaled = rescaled(&patch, scale);
             for u in [0.3, 1.5] {
                 assert_eq!(
-                    ParametricSurface::normal(&scaled, u * scale, v_apex * scale, tol),
+                    scaled.normal(u * scale, v_apex * scale, tol),
                     None,
                     "semi-angle {semi_angle}, scale {scale}, u = {u}"
                 );
                 // A v line is a meridian, along which the normal is
                 // constant: compare with its regular middle.
-                let flank =
-                    ParametricSurface::normal(&scaled, u * scale, (v_apex + 0.5) * scale, tol)
-                        .unwrap();
+                let flank = scaled
+                    .normal(u * scale, (v_apex + 0.5) * scale, tol)
+                    .unwrap();
                 let beside = (v_apex + 1e-9) * scale;
-                let normal = ParametricSurface::normal(&scaled, u * scale, beside, tol)
+                let normal = scaled
+                    .normal(u * scale, beside, tol)
                     .unwrap_or_else(|| panic!("scale {scale}, u = {u}: None"));
                 assert!(
                     (normal - flank).magnitude() < 1e-12,
@@ -619,8 +588,8 @@ fn test_normal_does_not_change_when_the_knots_are_rescaled() {
             let scaled = rescaled(&surface, scale);
             for &(u, v) in parameters {
                 // The collapsed row's apex has no normal at any scale.
-                let reference = ParametricSurface::normal(&surface, u, v, tol);
-                let normal = ParametricSurface::normal(&scaled, u * scale, v * scale, tol);
+                let reference = surface.normal(u, v, tol);
+                let normal = scaled.normal(u * scale, v * scale, tol);
                 match (reference, normal) {
                     (None, None) => {}
                     (Some(reference), Some(normal)) => assert!(
@@ -641,8 +610,8 @@ fn test_normal_poles_of_rational_sphere_patch_point_outward() {
         .to_bspline_patch((0.0, 2.0), (-FRAC_PI_2, FRAC_PI_2))
         .unwrap();
     for u in [0.0, 1.0, 2.0] {
-        let north = ParametricSurface::normal(&patch, u, FRAC_PI_2, tol).unwrap();
-        let south = ParametricSurface::normal(&patch, u, -FRAC_PI_2, tol).unwrap();
+        let north = patch.normal(u, FRAC_PI_2, tol).unwrap();
+        let south = patch.normal(u, -FRAC_PI_2, tol).unwrap();
         assert!(
             (north - Vector::Z).magnitude() < 1e-12,
             "u = {u}: {north:?}"
@@ -663,7 +632,7 @@ fn test_normal_next_to_a_pole_is_the_true_normal_within_its_distance() {
     let tol = Tolerance::DEFAULT;
     for polar_angle in [1e-9, 1e-6, 1e-3] {
         let v = FRAC_PI_2 - polar_angle;
-        let normal = ParametricSurface::normal(&s, 0.7, v, tol).unwrap();
+        let normal = s.normal(0.7, v, tol).unwrap();
         let exact = (s.eval_point(0.7, v) - Point::ORIGIN) * (1.0 / 3.0);
         assert!(
             (normal - exact).magnitude() <= 1.01 * polar_angle,
@@ -697,38 +666,23 @@ fn test_elementary_closedness_follows_periodicity() {
     let tol = Tolerance::DEFAULT;
     // (is_u_closed, is_v_closed) per type.
     assert_eq!(
-        (
-            ParametricSurface::is_u_closed(&plane(), tol),
-            ParametricSurface::is_v_closed(&plane(), tol)
-        ),
+        (plane().is_u_closed(tol), plane().is_v_closed(tol)),
         (false, false)
     );
     assert_eq!(
-        (
-            ParametricSurface::is_u_closed(&cylinder(), tol),
-            ParametricSurface::is_v_closed(&cylinder(), tol)
-        ),
+        (cylinder().is_u_closed(tol), cylinder().is_v_closed(tol)),
         (true, false)
     );
     assert_eq!(
-        (
-            ParametricSurface::is_u_closed(&cone(), tol),
-            ParametricSurface::is_v_closed(&cone(), tol)
-        ),
+        (cone().is_u_closed(tol), cone().is_v_closed(tol)),
         (true, false)
     );
     assert_eq!(
-        (
-            ParametricSurface::is_u_closed(&sphere(), tol),
-            ParametricSurface::is_v_closed(&sphere(), tol)
-        ),
+        (sphere().is_u_closed(tol), sphere().is_v_closed(tol)),
         (true, false)
     );
     assert_eq!(
-        (
-            ParametricSurface::is_u_closed(&torus(), tol),
-            ParametricSurface::is_v_closed(&torus(), tol)
-        ),
+        (torus().is_u_closed(tol), torus().is_v_closed(tol)),
         (true, true)
     );
 }
@@ -737,11 +691,11 @@ fn test_elementary_closedness_follows_periodicity() {
 fn test_bspline_closed_clamped_patch_without_period() {
     let tol = Tolerance::DEFAULT;
     let s = closed_u_patch();
-    assert_eq!(ParametricSurface::u_period(&s), None);
-    assert!(ParametricSurface::is_u_closed(&s, tol));
-    assert!(!ParametricSurface::is_v_closed(&s, tol));
-    assert!(!ParametricSurface::is_u_closed(&bspline(), tol));
-    assert!(!ParametricSurface::is_v_closed(&bspline(), tol));
+    assert_eq!(s.u_period(), None);
+    assert!(s.is_u_closed(tol));
+    assert!(!s.is_v_closed(tol));
+    assert!(!bspline().is_u_closed(tol));
+    assert!(!bspline().is_v_closed(tol));
 }
 
 #[test]
@@ -879,13 +833,13 @@ fn test_elementary_surfaces_are_smooth_everywhere() {
 fn test_bspline_continuity_drops_at_repeated_knots() {
     let tol = Tolerance::DEFAULT;
     let s = creased_u_patch();
-    assert_eq!(ParametricSurface::continuity_u(&s, 0.5, tol), Order(0));
     assert_eq!(s.continuity_u(0.5, tol), Order(0));
-    assert_eq!(ParametricSurface::continuity_u(&s, 0.25, tol), Smooth);
-    assert_eq!(ParametricSurface::continuity_v(&s, 0.5, tol), Smooth);
+    assert_eq!(s.continuity_u(0.5, tol), Order(0));
+    assert_eq!(s.continuity_u(0.25, tol), Smooth);
+    assert_eq!(s.continuity_v(0.5, tol), Smooth);
     assert_eq!(s.min_continuity_u(), Order(0));
     assert_eq!(s.min_continuity_v(), Smooth);
-    assert_eq!(ParametricSurface::min_continuity_u(&s), Order(0));
+    assert_eq!(s.min_continuity_u(), Order(0));
 }
 
 // ---- curvatures: principal, mean, Gaussian ----
@@ -905,7 +859,7 @@ fn assert_frame(c: &SurfaceCurvatures, normal: Vector) {
 #[test]
 fn test_curvatures_plane_are_zero() {
     let tol = Tolerance::DEFAULT;
-    let c = ParametricSurface::curvatures(&plane(), 1.0, 2.0, tol).unwrap();
+    let c = plane().curvatures(1.0, 2.0, tol).unwrap();
     assert_eq!(
         c,
         SurfaceCurvatures {
@@ -922,7 +876,7 @@ fn test_curvatures_plane_are_zero() {
 #[test]
 fn test_curvatures_cylinder_hoop_and_ruling() {
     let tol = Tolerance::DEFAULT;
-    let c = ParametricSurface::curvatures(&cylinder(), 0.0, 3.0, tol).unwrap();
+    let c = cylinder().curvatures(0.0, 3.0, tol).unwrap();
     assert!((c.min_curvature + 0.5).abs() < 1e-12);
     assert_eq!(c.max_curvature, 0.0);
     assert_eq!((c.mean, c.gaussian), (-0.25, 0.0));
@@ -934,7 +888,7 @@ fn test_curvatures_cylinder_hoop_and_ruling() {
 #[test]
 fn test_curvatures_sphere_umbilic() {
     let tol = Tolerance::DEFAULT;
-    let c = ParametricSurface::curvatures(&sphere(), 0.0, 0.0, tol).unwrap();
+    let c = sphere().curvatures(0.0, 0.0, tol).unwrap();
     assert!((c.min_curvature + 1.0 / 3.0).abs() < 1e-15);
     assert!((c.max_curvature + 1.0 / 3.0).abs() < 1e-15);
     assert!((c.mean + 1.0 / 3.0).abs() < 1e-15);
@@ -945,7 +899,7 @@ fn test_curvatures_sphere_umbilic() {
 #[test]
 fn test_curvatures_torus_outer_equator() {
     let tol = Tolerance::DEFAULT;
-    let c = ParametricSurface::curvatures(&torus(), 0.0, 0.0, tol).unwrap();
+    let c = torus().curvatures(0.0, 0.0, tol).unwrap();
     assert!((c.min_curvature + 1.0 / 1.5).abs() < 1e-12);
     assert!((c.max_curvature + 1.0 / 6.5).abs() < 1e-12);
     assert!((c.gaussian - 1.0 / (6.5 * 1.5)).abs() < 1e-12);
@@ -961,7 +915,7 @@ fn test_curvatures_torus_inner_equator_saddle() {
     // Inner equator (u=0, v=pi): tube k=-1/r, ring k=+1/(R-r) (the
     // ring bends toward the normal there, flipping its sign).
     let tol = Tolerance::DEFAULT;
-    let c = ParametricSurface::curvatures(&torus(), 0.0, PI, tol).unwrap();
+    let c = torus().curvatures(0.0, PI, tol).unwrap();
     assert!((c.min_curvature + 2.0 / 3.0).abs() < 1e-12);
     assert!((c.max_curvature - 2.0 / 7.0).abs() < 1e-12);
     assert!((c.mean + 4.0 / 21.0).abs() < 1e-12);
@@ -974,7 +928,7 @@ fn test_curvatures_torus_inner_equator_saddle() {
 #[test]
 fn test_curvatures_cone_developable() {
     let tol = Tolerance::DEFAULT;
-    let c = ParametricSurface::curvatures(&cone(), 0.0, 0.0, tol).unwrap();
+    let c = cone().curvatures(0.0, 0.0, tol).unwrap();
     assert!((c.min_curvature + 0.4f64.cos() / 2.0).abs() < 1e-9);
     assert!(c.max_curvature.abs() < 1e-9);
     assert!(c.gaussian.abs() < 1e-9);
@@ -985,7 +939,7 @@ fn test_curvatures_cone_developable() {
 fn test_curvatures_saddle_is_negative_gaussian() {
     // Bilinear patch S(u, v) = (u, v, u*v): K = -1/(1+u²+v²)².
     let tol = Tolerance::DEFAULT;
-    let c = ParametricSurface::curvatures(&bspline(), 0.5, 0.5, tol).unwrap();
+    let c = bspline().curvatures(0.5, 0.5, tol).unwrap();
     assert!((c.gaussian + 1.0 / 2.25).abs() < 1e-9);
     assert!((c.mean + 0.25 / 1.5f64.powf(1.5)).abs() < 1e-9);
     let n = Vector::new(-0.5, -0.5, 1.0);
@@ -997,15 +951,9 @@ fn test_curvatures_none_at_singular_points() {
     use std::f64::consts::FRAC_PI_2;
 
     let tol = Tolerance::DEFAULT;
-    assert_eq!(
-        ParametricSurface::curvatures(&sphere(), 0.0, FRAC_PI_2, tol),
-        None
-    );
+    assert_eq!(sphere().curvatures(0.0, FRAC_PI_2, tol), None);
     let v_apex = -2.0 / 0.4f64.sin();
-    assert_eq!(
-        ParametricSurface::curvatures(&cone(), 0.0, v_apex, tol),
-        None
-    );
+    assert_eq!(cone().curvatures(0.0, v_apex, tol), None);
 }
 
 /// Normal curvature `II(d, d) / I(d, d)` along a tangent `direction`,
@@ -1036,7 +984,7 @@ fn test_curvatures_saddle_directions_carry_principal_curvatures() {
     let tol = Tolerance::DEFAULT;
     let surface = bspline();
     for (u, v) in [(0.5, 0.5), (0.1, 0.8), (0.9, 0.3)] {
-        let c = ParametricSurface::curvatures(&surface, u, v, tol).unwrap();
+        let c = surface.curvatures(u, v, tol).unwrap();
         let along_min = normal_curvature_along(&surface, u, v, c.min_direction);
         let along_max = normal_curvature_along(&surface, u, v, c.max_direction);
         assert!((along_min - c.min_curvature).abs() < 1e-14);
@@ -1055,7 +1003,7 @@ fn test_curvatures_sphere_everywhere_umbilic_with_orthonormal_directions() {
     let sphere = Sphere::new(Point::new(1.0, 2.0, 3.0), 3.0).unwrap();
     for i in 0..40 {
         let (u, v) = (0.157 * f64::from(i), -1.5 + 0.075 * f64::from(i));
-        let c = ParametricSurface::curvatures(&sphere, u, v, tol).unwrap();
+        let c = sphere.curvatures(u, v, tol).unwrap();
         assert!((c.min_curvature + 1.0 / 3.0).abs() < 1e-14, "{u}, {v}");
         assert!((c.max_curvature + 1.0 / 3.0).abs() < 1e-14, "{u}, {v}");
         let (_, [su, sv]) = sphere.eval_d1(u, v);
@@ -1089,7 +1037,7 @@ fn test_curvatures_rational_cylinder_patch() {
     .unwrap();
     let tol = Tolerance::DEFAULT;
     for u in [0.0, 0.3, 0.5, 1.0] {
-        let c = ParametricSurface::curvatures(&surface, u, 0.5, tol).unwrap();
+        let c = surface.curvatures(u, 0.5, tol).unwrap();
         assert!((c.min_curvature + 0.5).abs() < 1e-14);
         assert!(c.max_curvature.abs() < 1e-14);
         assert!((c.max_direction.dot(Vector::Z).abs() - 1.0).abs() < 1e-14);
@@ -1106,8 +1054,9 @@ fn test_curvatures_do_not_depend_on_the_knot_scale() {
     for scale in [1e8, 1e-8] {
         let surface = rescaled(&reference, scale);
         for (u, v) in [(0.3, 0.6), (0.7, 0.2), (1.0, 1.0)] {
-            let expected = ParametricSurface::curvatures(&reference, u, v, tol).unwrap();
-            let found = ParametricSurface::curvatures(&surface, u * scale, v * scale, tol)
+            let expected = reference.curvatures(u, v, tol).unwrap();
+            let found = surface
+                .curvatures(u * scale, v * scale, tol)
                 .unwrap_or_else(|| panic!("scale {scale} at ({u}, {v})"));
             let size = expected
                 .min_curvature
@@ -1134,12 +1083,6 @@ fn test_curvatures_do_not_depend_on_the_knot_scale() {
 #[test]
 fn test_curvatures_none_for_non_finite_parameters() {
     let tol = Tolerance::DEFAULT;
-    assert_eq!(
-        ParametricSurface::curvatures(&torus(), f64::NAN, 0.0, tol),
-        None
-    );
-    assert_eq!(
-        ParametricSurface::curvatures(&cylinder(), f64::INFINITY, 0.0, tol),
-        None
-    );
+    assert_eq!(torus().curvatures(f64::NAN, 0.0, tol), None);
+    assert_eq!(cylinder().curvatures(f64::INFINITY, 0.0, tol), None);
 }

@@ -195,7 +195,7 @@ fn test_eval_derivative_order_too_high_panics() {
 #[test]
 fn test_parameters_of_round_trip() {
     let c = Cone::new(Point::ORIGIN, Vector::Z, 0.4, 2.0).unwrap();
-    let (u, v) = c.parameters_of(Point::new(2.0, 0.0, 0.0));
+    let (u, v) = c.parameters_of(Point::new(2.0, 0.0, 0.0), Tolerance::DEFAULT);
     assert_eq!((u, v), (0.0, 0.0));
 }
 

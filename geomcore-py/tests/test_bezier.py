@@ -77,7 +77,15 @@ def test_curve_errors():
     with pytest.raises(ConstructionError):
         BezierCurve.new_rational(1, [Point.origin()] * 2, [1.0, 0.0])
     with pytest.raises(ValueError):
-        cubic().eval_derivative(0.5, 3)
+        cubic().eval_derivative(0.5, 0)
+
+
+def test_curve_derivatives_of_every_order():
+    # The third derivative of a cubic is the constant 6 (P3 - 3 P2 + 3 P1 - P0).
+    third = cubic().eval_derivative(0.5, 3)
+    assert (third.x, third.y, third.z) == pytest.approx((-12.0, 0.0, -12.0))
+    fourth = cubic().eval_derivative(0.5, 4)
+    assert (fourth.x, fourth.y, fourth.z) == (0.0, 0.0, 0.0)
 
 
 def test_curve_editing_keeps_the_shape():

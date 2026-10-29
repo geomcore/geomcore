@@ -191,7 +191,8 @@ pub(crate) fn curve_surface_multiplicity(
 /// # Examples
 ///
 /// ```
-/// use geomcore::{Circle, Intersect, IntersectionMethod, Line, Point, Tolerance, Vector};
+/// use geomcore::prelude::*;
+/// use geomcore::{Circle, IntersectionMethod, Line, Point, Tolerance, Vector};
 ///
 /// // A line through a circle of radius 2 crosses it twice.
 /// let line = Line::new(Point::new(-5.0, 0.0, 0.0), Vector::X).unwrap();
@@ -254,8 +255,9 @@ impl CurveCurveIntersection {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::curves::TrimmedCurve;
-    /// use geomcore::{Circle, Intersect, Line, Point, Tolerance, Vector};
+    /// use geomcore::{Circle, Line, Point, Tolerance, Vector};
     ///
     /// // An arc across the seam at angle 0 keeps only the hit at angle 0.
     /// let line = Line::new(Point::new(-5.0, 0.0, 0.0), Vector::X).unwrap();
@@ -295,8 +297,9 @@ impl CurveCurveIntersection {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::curves::TrimmedCurve;
-    /// use geomcore::{CurveCurveOverlap, Intersect, Line, Point, Tolerance, Vector};
+    /// use geomcore::{CurveCurveOverlap, Line, Point, Tolerance, Vector};
     ///
     /// // Two segments of one line share x in [1, 2].
     /// let line = Line::new(Point::ORIGIN, Vector::X).unwrap();
@@ -322,7 +325,8 @@ impl CurveCurveIntersection {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Circle, Intersect, IntersectionMethod, Point, Tolerance, Vector};
+    /// use geomcore::prelude::*;
+    /// use geomcore::{Circle, IntersectionMethod, Point, Tolerance, Vector};
     ///
     /// // A B-spline has no closed form: the numeric search runs.
     /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
@@ -340,7 +344,8 @@ impl CurveCurveIntersection {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Circle, Completeness, Intersect, Line, Point, Tolerance, Vector};
+    /// use geomcore::prelude::*;
+    /// use geomcore::{Circle, Completeness, Line, Point, Tolerance, Vector};
     ///
     /// let line = Line::new(Point::ORIGIN, Vector::X).unwrap();
     /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
@@ -356,7 +361,8 @@ impl CurveCurveIntersection {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Ellipse, Frame, Intersect, Line, Point, Tolerance, Vector};
+    /// use geomcore::prelude::*;
+    /// use geomcore::{Ellipse, Frame, Line, Point, Tolerance, Vector};
     ///
     /// let ellipse = Ellipse::from_frame(Frame::WORLD, 3.0, 1.0).unwrap();
     /// let line = Line::new(Point::ORIGIN, Vector::Y).unwrap();
@@ -372,7 +378,8 @@ impl CurveCurveIntersection {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Intersect, Line, Point, Tolerance, Vector};
+    /// use geomcore::prelude::*;
+    /// use geomcore::{Line, Point, Tolerance, Vector};
     ///
     /// // An exact empty result proves the skew lines never meet.
     /// let first = Line::new(Point::ORIGIN, Vector::X).unwrap();
@@ -397,7 +404,8 @@ impl CurveCurveIntersection {
 /// # Examples
 ///
 /// ```
-/// use geomcore::{Circle2D, Intersect, IntersectionMethod, Line2D, Point2D, Tolerance, Vector2D};
+/// use geomcore::prelude::*;
+/// use geomcore::{Circle2D, IntersectionMethod, Line2D, Point2D, Tolerance, Vector2D};
 ///
 /// // The x axis crosses a circle of radius 2 at x = -2 and x = 2.
 /// let line = Line2D::new(Point2D::new(-5.0, 0.0), Vector2D::X).unwrap();
@@ -407,7 +415,7 @@ impl CurveCurveIntersection {
 /// // order, along the line: x = -2 first, then x = 2.
 /// let along_line: Vec<f64> = result.hits().iter().filter_map(|hit| hit.second_parameter).collect();
 /// assert!((along_line[0] - 3.0).abs() < 1e-9 && (along_line[1] - 7.0).abs() < 1e-9);
-/// let angle = circle.parameter_of(result.hits()[1].point);
+/// let angle = circle.parameter_of(result.hits()[1].point, Tolerance::DEFAULT);
 /// assert!(angle.abs() < 1e-9);
 /// assert_eq!(result.method(), IntersectionMethod::Exact);
 /// assert!(result.is_complete());
@@ -476,8 +484,9 @@ impl CurveCurveIntersection2D {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::curves::TrimmedCurve2D;
-    /// use geomcore::{Circle2D, Intersect, Line2D, Point2D, Tolerance, Vector2D};
+    /// use geomcore::{Circle2D, Line2D, Point2D, Tolerance, Vector2D};
     ///
     /// // The segment covers x in [-5, -1], so only the near side is met.
     /// let line = Line2D::new(Point2D::new(-5.0, 0.0), Vector2D::X).unwrap();
@@ -502,8 +511,9 @@ impl CurveCurveIntersection2D {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::curves::TrimmedCurve2D;
-    /// use geomcore::{CurveCurveOverlap, Intersect, Line2D, Point2D, Tolerance, Vector2D};
+    /// use geomcore::{CurveCurveOverlap, Line2D, Point2D, Tolerance, Vector2D};
     ///
     /// // Two segments of one line share x in [1, 2]; the second runs backwards.
     /// let forward = Line2D::new(Point2D::ORIGIN, Vector2D::X).unwrap();
@@ -530,7 +540,8 @@ impl CurveCurveIntersection2D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Intersect, IntersectionMethod, Line2D, Point2D, Tolerance, Vector2D};
+    /// use geomcore::prelude::*;
+    /// use geomcore::{IntersectionMethod, Line2D, Point2D, Tolerance, Vector2D};
     /// let a = Line2D::new(Point2D::ORIGIN, Vector2D::X).unwrap();
     /// let b = Line2D::new(Point2D::ORIGIN, Vector2D::Y).unwrap();
     /// assert_eq!(a.intersect(&b, Tolerance::DEFAULT).method(), IntersectionMethod::Exact);
@@ -545,7 +556,8 @@ impl CurveCurveIntersection2D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Completeness, Intersect, Line2D, Point2D, Tolerance, Vector2D};
+    /// use geomcore::prelude::*;
+    /// use geomcore::{Completeness, Line2D, Point2D, Tolerance, Vector2D};
     /// let a = Line2D::new(Point2D::ORIGIN, Vector2D::X).unwrap();
     /// let result = a.intersect(&a, Tolerance::DEFAULT);
     /// assert_eq!(result.completeness(), &Completeness::Complete);
@@ -559,7 +571,8 @@ impl CurveCurveIntersection2D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Circle2D, Intersect, Point2D, Tolerance};
+    /// use geomcore::prelude::*;
+    /// use geomcore::{Circle2D, Point2D, Tolerance};
     /// let a = Circle2D::new(Point2D::ORIGIN, 1.0).unwrap();
     /// let b = Circle2D::new(Point2D::new(5.0, 0.0), 1.0).unwrap();
     /// assert!(a.intersect(&b, Tolerance::DEFAULT).is_complete());
@@ -573,7 +586,8 @@ impl CurveCurveIntersection2D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Intersect, Line2D, Point2D, Tolerance, Vector2D};
+    /// use geomcore::prelude::*;
+    /// use geomcore::{Line2D, Point2D, Tolerance, Vector2D};
     /// let a = Line2D::new(Point2D::ORIGIN, Vector2D::X).unwrap();
     /// let b = Line2D::new(Point2D::new(0.0, 1.0), Vector2D::X).unwrap();
     /// assert!(a.intersect(&b, Tolerance::DEFAULT).is_empty());
@@ -595,7 +609,8 @@ impl CurveCurveIntersection2D {
 /// # Examples
 ///
 /// ```
-/// use geomcore::{Cylinder, Intersect, IntersectionMethod, Line, Point, Tolerance, Vector};
+/// use geomcore::prelude::*;
+/// use geomcore::{Cylinder, IntersectionMethod, Line, Point, Tolerance, Vector};
 ///
 /// // A line across a unit cylinder enters and leaves it.
 /// let line = Line::new(Point::new(-5.0, 0.0, 0.0), Vector::X).unwrap();
@@ -606,7 +621,7 @@ impl CurveCurveIntersection2D {
 /// let parameters: Vec<Option<f64>> = result.hits().iter().map(|h| h.curve_parameter).collect();
 /// assert_eq!(parameters, [Some(4.0), Some(6.0)]);
 /// // The surface parameters are left to the caller.
-/// let (angle, height) = cylinder.parameters_of(result.hits()[0].point);
+/// let (angle, height) = cylinder.parameters_of(result.hits()[0].point, Tolerance::DEFAULT);
 /// assert!((angle - std::f64::consts::PI).abs() < 1e-12 && height.abs() < 1e-12);
 /// ```
 #[derive(Debug, Clone, PartialEq)]
@@ -667,7 +682,8 @@ impl CurveSurfaceIntersection {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Intersect, Line, Plane, Point, Tolerance, Vector};
+    /// use geomcore::prelude::*;
+    /// use geomcore::{Line, Plane, Point, Tolerance, Vector};
     ///
     /// let line = Line::new(Point::ORIGIN, Vector::Z).unwrap();
     /// let plane = Plane::new(Point::new(0.0, 0.0, 2.0), Vector::Z).unwrap();
@@ -692,7 +708,8 @@ impl CurveSurfaceIntersection {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Intersect, Line, Plane, Point, Tolerance, Vector};
+    /// use geomcore::prelude::*;
+    /// use geomcore::{Line, Plane, Point, Tolerance, Vector};
     ///
     /// // A line lying in the plane: the whole, unbounded line is an overlap.
     /// let line = Line::new(Point::ORIGIN, Vector::X).unwrap();
@@ -710,7 +727,8 @@ impl CurveSurfaceIntersection {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Ellipse, Frame, Intersect, IntersectionMethod, Point, Tolerance, Torus, Vector};
+    /// use geomcore::prelude::*;
+    /// use geomcore::{Ellipse, Frame, IntersectionMethod, Point, Tolerance, Torus, Vector};
     ///
     /// // An ellipse and a torus have no closed form: the numeric search runs.
     /// let ellipse = Ellipse::from_frame(Frame::WORLD, 5.0, 1.0).unwrap();
@@ -727,7 +745,8 @@ impl CurveSurfaceIntersection {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Completeness, Intersect, Line, Point, Sphere, Tolerance, Vector};
+    /// use geomcore::prelude::*;
+    /// use geomcore::{Completeness, Line, Point, Sphere, Tolerance, Vector};
     ///
     /// let line = Line::new(Point::ORIGIN, Vector::X).unwrap();
     /// let sphere = Sphere::new(Point::ORIGIN, 1.0).unwrap();
@@ -743,7 +762,8 @@ impl CurveSurfaceIntersection {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Intersect, Line, Point, Sphere, Tolerance, Vector};
+    /// use geomcore::prelude::*;
+    /// use geomcore::{Line, Point, Sphere, Tolerance, Vector};
     ///
     /// let line = Line::new(Point::ORIGIN, Vector::X).unwrap();
     /// let sphere = Sphere::new(Point::ORIGIN, 1.0).unwrap();
@@ -759,7 +779,8 @@ impl CurveSurfaceIntersection {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Intersect, Line, Point, Sphere, Tolerance, Vector};
+    /// use geomcore::prelude::*;
+    /// use geomcore::{Line, Point, Sphere, Tolerance, Vector};
     ///
     /// // An exact empty result proves the line misses the sphere.
     /// let line = Line::new(Point::new(0.0, 5.0, 0.0), Vector::X).unwrap();
@@ -790,7 +811,8 @@ fn sorted_by_curve_parameter(mut hits: CurveSurfaceHitList) -> CurveSurfaceHitLi
 /// # Examples
 ///
 /// ```
-/// use geomcore::{Intersect, IntersectionMethod, Plane, Point, Sphere, Tolerance, Vector};
+/// use geomcore::prelude::*;
+/// use geomcore::{IntersectionMethod, Plane, Point, Sphere, Tolerance, Vector};
 ///
 /// // The plane z = 1 cuts a sphere of radius 2 in one circle.
 /// let plane = Plane::new(Point::new(0.0, 0.0, 1.0), Vector::Z).unwrap();
@@ -859,7 +881,8 @@ impl SurfaceSurfaceIntersection {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Intersect, Plane, Point, Sphere, Tolerance, Vector};
+    /// use geomcore::prelude::*;
+    /// use geomcore::{Plane, Point, Sphere, Tolerance, Vector};
     /// let plane = Plane::new(Point::new(0.0, 0.0, 1.0), Vector::Z).unwrap();
     /// let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
     /// let result = plane.intersect(&sphere, Tolerance::DEFAULT);
@@ -876,7 +899,8 @@ impl SurfaceSurfaceIntersection {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Intersect, Plane, Point, Sphere, Tolerance, Vector};
+    /// use geomcore::prelude::*;
+    /// use geomcore::{Plane, Point, Sphere, Tolerance, Vector};
     /// let plane = Plane::new(Point::new(0.0, 0.0, 2.0), Vector::Z).unwrap();
     /// let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
     /// let result = plane.intersect(&sphere, Tolerance::DEFAULT);
@@ -900,7 +924,8 @@ impl SurfaceSurfaceIntersection {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Intersect, Plane, Point, Sphere, Tolerance, Vector};
+    /// use geomcore::prelude::*;
+    /// use geomcore::{Plane, Point, Sphere, Tolerance, Vector};
     /// let plane = Plane::new(Point::new(0.0, 0.0, 1.0), Vector::Z).unwrap();
     /// let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
     /// let result = plane.intersect(&sphere, Tolerance::DEFAULT);
@@ -921,7 +946,8 @@ impl SurfaceSurfaceIntersection {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Intersect, Plane, Point, Sphere, Tolerance, Vector};
+    /// use geomcore::prelude::*;
+    /// use geomcore::{Plane, Point, Sphere, Tolerance, Vector};
     /// let plane = Plane::new(Point::new(0.0, 0.0, 1.0), Vector::Z).unwrap();
     /// let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
     /// let result = plane.intersect(&sphere, Tolerance::DEFAULT);
@@ -936,7 +962,8 @@ impl SurfaceSurfaceIntersection {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Intersect, Plane, Point, Sphere, Tolerance, Vector};
+    /// use geomcore::prelude::*;
+    /// use geomcore::{Plane, Point, Sphere, Tolerance, Vector};
     /// let plane = Plane::new(Point::new(0.0, 0.0, 1.0), Vector::Z).unwrap();
     /// let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
     /// let result = plane.intersect(&sphere, Tolerance::DEFAULT);
@@ -951,7 +978,8 @@ impl SurfaceSurfaceIntersection {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Intersect, Plane, Point, Sphere, Tolerance, Vector};
+    /// use geomcore::prelude::*;
+    /// use geomcore::{Plane, Point, Sphere, Tolerance, Vector};
     /// let plane = Plane::new(Point::new(0.0, 0.0, 1.0), Vector::Z).unwrap();
     /// let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
     /// let result = plane.intersect(&sphere, Tolerance::DEFAULT);
@@ -968,7 +996,8 @@ impl SurfaceSurfaceIntersection {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Intersect, Plane, Point, Sphere, Tolerance, Vector};
+    /// use geomcore::prelude::*;
+    /// use geomcore::{Plane, Point, Sphere, Tolerance, Vector};
     /// let plane = Plane::new(Point::new(0.0, 0.0, 5.0), Vector::Z).unwrap();
     /// let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
     /// let result = plane.intersect(&sphere, Tolerance::DEFAULT);
@@ -1000,7 +1029,8 @@ pub struct CurveCurveExtremum {
 /// # Examples
 ///
 /// ```
-/// use geomcore::{Circle, Intersect, Point, Tolerance, Vector};
+/// use geomcore::prelude::*;
+/// use geomcore::{Circle, Point, Tolerance, Vector};
 ///
 /// // Two coplanar circles: the solver finds the points, not the angles.
 /// let first = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
@@ -1008,7 +1038,7 @@ pub struct CurveCurveExtremum {
 /// let result = first.intersect(&second, Tolerance::DEFAULT);
 /// let hit = result.hits()[0];
 /// assert_eq!(hit.first_parameter, None);
-/// let angle = first.parameter_of(hit.point);
+/// let angle = first.parameter_of(hit.point, Tolerance::DEFAULT);
 /// assert!(first.eval_point(angle).distance(hit.point) < 1e-12);
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq)]

@@ -1,4 +1,5 @@
 use super::*;
+use crate::surfaces::ParametricSurface;
 
 fn wavy_grid(rows: usize, cols: usize) -> Vec<Vec<Point>> {
     (0..rows)

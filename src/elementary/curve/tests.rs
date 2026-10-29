@@ -1,4 +1,6 @@
 use super::*;
+use crate::curves::ParametricCurve;
+use crate::curves::PointExtrema;
 use std::f64::consts::PI;
 
 fn skewed_frame3() -> Frame {
@@ -572,7 +574,7 @@ fn test_conic_contains_matches_projection() {
             &|t| (e.eval_point(t), e.eval_derivative(t, 1)),
             &|p, tol| e.contains(p, tol),
             &|p, tol| {
-                e.eval_point(e.parameter_of(p)).distance(p) <= tol.confusion
+                e.eval_point(e.parameter_of(p, tol)).distance(p) <= tol.confusion
                     || e.project_point(p, tol).distance == 0.0
             },
             b * b / (2.0 * a),
@@ -582,7 +584,7 @@ fn test_conic_contains_matches_projection() {
             &|t| (h.eval_point(t), h.eval_derivative(t, 1)),
             &|p, tol| h.contains(p, tol),
             &|p, tol| {
-                h.eval_point(h.parameter_of(p)).distance(p) <= tol.confusion
+                h.eval_point(h.parameter_of(p, tol)).distance(p) <= tol.confusion
                     || h.project_point(p, tol).distance == 0.0
             },
             a.min(b).powi(2) / (2.0 * a),
@@ -592,7 +594,7 @@ fn test_conic_contains_matches_projection() {
             &|t| (h.eval_point(t), h.eval_derivative(t, 1)),
             &|p, tol| h.contains(p, tol),
             &|p, tol| {
-                h.eval_point(h.parameter_of(p)).distance(p) <= tol.confusion
+                h.eval_point(h.parameter_of(p, tol)).distance(p) <= tol.confusion
                     || h.project_point(p, tol).distance == 0.0
             },
             b.min(a).powi(2) / (2.0 * b),
@@ -604,7 +606,7 @@ fn test_conic_contains_matches_projection() {
             &|t| (par.eval_point(t), par.eval_derivative(t, 1)),
             &|p, tol| par.contains(p, tol),
             &|p, tol| {
-                par.eval_point(par.parameter_of(p)).distance(p) <= tol.confusion
+                par.eval_point(par.parameter_of(p, tol)).distance(p) <= tol.confusion
                     || par.project_point(p, tol).distance == 0.0
             },
             focal,

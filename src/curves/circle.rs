@@ -56,6 +56,7 @@ impl std::error::Error for CircleConstructionError {}
 /// # Examples
 ///
 /// ```
+/// use geomcore::prelude::*;
 /// use geomcore::{Circle, Point, Vector};
 /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
 /// assert_eq!(circle.eval_point(0.0), Point::new(2.0, 0.0, 0.0));
@@ -80,6 +81,7 @@ impl Circle {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{Circle, Point, Vector};
     /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
     /// assert_eq!(circle.radius(), 2.0);
@@ -259,6 +261,7 @@ impl Circle {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{Circle, Frame, Point, Transform, Vector};
     /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
     /// assert_eq!(circle.normal(), Vector::Z);
@@ -304,131 +307,14 @@ impl Circle {
         Circle::from_frame(frame, self.radius() * scale)
     }
 
-    /// Evaluates the point on the circle at angular parameter `u`:
-    /// `center + radius*cos(u)*x_dir + radius*sin(u)*y_dir`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{Circle, Point, Vector};
-    /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
-    /// assert_eq!(circle.eval_point(0.0), Point::new(2.0, 0.0, 0.0));
-    /// ```
-    pub fn eval_point(&self, u: f64) -> Point {
-        elementary::circle_d0(&self.frame, self.radius, u)
-    }
-
-    /// Evaluates the points on the circle at each parameter in `us`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{Circle, Point, Vector};
-    /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
-    /// let points = circle.eval_points(&[0.0, 1.0]);
-    /// assert_eq!(points[0], Point::new(2.0, 0.0, 0.0));
-    /// ```
-    pub fn eval_points(&self, us: &[f64]) -> Vec<Point> {
-        us.iter().map(|&u| self.eval_point(u)).collect()
-    }
-
-    /// Evaluates the derivative of the given `order` at parameter `u`.
-    ///
-    /// Derivatives cycle with period 4 in `order` (see
-    /// `crate::elementary::curve::circle_dn`).
-    ///
-    /// # Panics
-    ///
-    /// Panics if `order == 0`; use [`Circle::eval_point`] to evaluate the
-    /// position itself.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{Circle, Point, Vector};
-    /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
-    /// assert_eq!(circle.eval_derivative(0.0, 1), Vector::new(0.0, 2.0, 0.0));
-    /// ```
-    pub fn eval_derivative(&self, u: f64, order: u32) -> Vector {
-        match order {
-            0 => panic!("eval_derivative: order must be >= 1 (use eval_point for order 0)"),
-            _ => elementary::circle_dn(&self.frame, self.radius, u, order),
-        }
-    }
-
     /// The parameter to report for a point found at parameter `u`: `u`
     /// wrapped into [`bounds`](crate::curves::ParametricCurve::bounds),
     /// and the start of the bounds when within `tol.confusion` of the seam
     /// along the curve, so a point at the seam has one parameter.
     pub(crate) fn parameter_in_bounds(&self, u: f64, tol: Tolerance) -> f64 {
-        let (first, last) = crate::curves::ParametricCurve::bounds(self);
+        let (first, last) = self.bounds();
         // The speed is the radius everywhere.
         elementary::seam_wrapped(u, first, last - first, self.radius, tol.confusion)
-    }
-
-    /// Recovers the angular parameter of a point on (or near) the circle,
-    /// wrapped into `[0, 2*PI)`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{Circle, Point, Vector};
-    /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
-    /// assert!((circle.parameter_of(Point::new(0.0, 2.0, 0.0)) - std::f64::consts::FRAC_PI_2).abs() < 1e-9);
-    /// ```
-    pub fn parameter_of(&self, point: Point) -> f64 {
-        elementary::circle_parameter(&self.frame, point)
-    }
-
-    /// Returns whether `point` lies on the circle: the inverse parameter is
-    /// recovered with [`Circle::parameter_of`] and re-evaluated, and the
-    /// point counts as contained when the re-evaluated point is within
-    /// `tol.confusion` of it.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{Circle, Point, Tolerance, Vector};
-    /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
-    /// let tol = Tolerance::DEFAULT;
-    /// assert!(circle.contains(Point::new(2.0, 0.0, 0.0), tol));
-    /// assert!(!circle.contains(Point::new(3.0, 0.0, 0.0), tol));
-    /// ```
-    pub fn contains(&self, point: Point, tol: Tolerance) -> bool {
-        let u = self.parameter_of(point);
-        self.eval_point(u).distance(point) <= tol.confusion
-    }
-
-    /// Projects `point` onto the circle, returning the parameter of the
-    /// closest point and its distance. Distances within `tol.confusion`
-    /// snap to `0.0`, matching [`Circle::contains`].
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{Circle, Point, Tolerance, Vector};
-    /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
-    /// let proj = circle.project_point(Point::new(3.0, 0.0, 0.0), Tolerance::DEFAULT);
-    /// assert_eq!(proj.parameter, 0.0);
-    /// assert_eq!(proj.distance, 1.0);
-    /// ```
-    pub fn project_point(&self, point: Point, tol: Tolerance) -> CurveProjection {
-        let u = self.parameter_of(point);
-        let foot = self.eval_point(u);
-        let distance = foot.distance(point);
-        CurveProjection {
-            point: foot,
-            parameter: self.parameter_in_bounds(u, tol),
-            distance: projection::snap_distance(distance, tol.confusion),
-        }
-    }
-
-    /// Projects each point in `points` onto the circle.
-    ///
-    /// Default-style batch wrapper over [`Circle::project_point`]: one
-    /// native call per batch, mirroring [`Circle::eval_points`].
-    pub fn project_points(&self, points: &[Point], tol: Tolerance) -> Vec<CurveProjection> {
-        points.iter().map(|&p| self.project_point(p, tol)).collect()
     }
 
     /// Circumference (`2*PI*radius`).
@@ -484,7 +370,8 @@ impl Circle {
     /// `(u, v)` at the section height:
     ///
     /// ```
-    /// use geomcore::curves::{Curve2D, ParametricCurve2D};
+    /// use geomcore::prelude::*;
+    /// use geomcore::curves::Curve2D;
     /// use geomcore::{Circle, Cylinder, Point, Tolerance, Vector};
     ///
     /// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
@@ -509,15 +396,40 @@ impl PointExtrema for Circle {
     fn extrema(&self, point: Point, tol: Tolerance) -> Vec<CurveProjection> {
         only_minimum(point, || self.project_point(point, tol))
     }
+
+    /// Recovers the angular parameter of a point on (or near) the circle,
+    /// wrapped into `[0, 2*PI)`.
+    fn parameter_of(&self, point: Point, _tol: Tolerance) -> f64 {
+        elementary::circle_parameter(&self.frame, point)
+    }
+
+    fn contains(&self, point: Point, tol: Tolerance) -> bool {
+        let u = self.parameter_of(point, tol);
+        self.eval_point(u).distance(point) <= tol.confusion
+    }
+
+    fn project_point(&self, point: Point, tol: Tolerance) -> CurveProjection {
+        let u = self.parameter_of(point, tol);
+        let foot = self.eval_point(u);
+        let distance = foot.distance(point);
+        CurveProjection {
+            point: foot,
+            parameter: self.parameter_in_bounds(u, tol),
+            distance: projection::snap_distance(distance, tol.confusion),
+        }
+    }
 }
 
 impl ParametricCurve for Circle {
     fn eval_point(&self, u: f64) -> Point {
-        Circle::eval_point(self, u)
+        elementary::circle_d0(&self.frame, self.radius, u)
     }
 
     fn eval_derivative(&self, u: f64, order: u32) -> Vector {
-        Circle::eval_derivative(self, u, order)
+        match order {
+            0 => panic!("eval_derivative: order must be >= 1 (use eval_point for order 0)"),
+            _ => elementary::circle_dn(&self.frame, self.radius, u, order),
+        }
     }
 
     fn bounds(&self) -> (f64, f64) {
@@ -526,10 +438,6 @@ impl ParametricCurve for Circle {
 
     fn period(&self) -> Option<f64> {
         Some(TAU)
-    }
-
-    fn eval_points(&self, us: &[f64]) -> Vec<Point> {
-        Circle::eval_points(self, us)
     }
 
     fn as_elementary(&self) -> Option<ElementaryCurve> {

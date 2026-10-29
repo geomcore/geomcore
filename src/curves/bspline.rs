@@ -211,6 +211,7 @@ impl std::error::Error for BSplineSplitError {}
 /// A clamped cubic through six poles:
 ///
 /// ```
+/// use geomcore::prelude::*;
 /// use geomcore::{BSplineCurve, Point};
 ///
 /// let poles = vec![
@@ -243,6 +244,7 @@ impl BSplineCurve {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{BSplineCurve, Point};
     ///
     /// let poles = vec![Point::new(0.0, 0.0, 0.0), Point::new(2.0, 0.0, 0.0)];
@@ -272,6 +274,7 @@ impl BSplineCurve {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{BSplineCurve, Point};
     ///
     /// // Rational quadratic quarter circle.
@@ -348,85 +351,6 @@ impl BSplineCurve {
     /// ```
     pub fn degree(&self) -> usize {
         self.0.degree()
-    }
-
-    /// Returns whether the curve is periodic.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{BSplineCurve, Point};
-    /// let poles = vec![Point::new(0.0, 0.0, 0.0), Point::new(2.0, 0.0, 0.0)];
-    /// let curve = BSplineCurve::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
-    /// assert!(!curve.is_periodic());
-    /// ```
-    pub fn is_periodic(&self) -> bool {
-        self.0.is_periodic()
-    }
-
-    /// Returns whether the curve's ends meet: a periodic curve, or one
-    /// whose first and last evaluated points coincide within
-    /// `tol.confusion`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{BSplineCurve, Point, Tolerance};
-    /// let poles = vec![
-    ///     Point::new(0.0, 0.0, 0.0),
-    ///     Point::new(1.0, 0.0, 0.0),
-    ///     Point::new(0.0, 0.0, 0.0),
-    /// ];
-    /// let closed = BSplineCurve::new(1, poles, vec![0.0, 1.0, 2.0], vec![2, 1, 2], false).unwrap();
-    /// assert!(closed.is_closed(Tolerance::DEFAULT));
-    /// ```
-    pub fn is_closed(&self, tol: Tolerance) -> bool {
-        self.0.is_closed(tol)
-    }
-
-    /// [`Continuity`] at parameter `u`: `Order(degree − multiplicity)` at a
-    /// knot within `tol.parametric`, `Smooth` elsewhere. This is the order the knots guarantee; the curve may be
-    /// smoother (after knot insertion, for instance). A non-periodic curve
-    /// reports smooth at and beyond its bounds, being seen from the inside
-    /// only; a periodic one wraps `u` into its period, so its seam is a
-    /// knot like any other.
-    ///
-    /// Derivatives of higher order than the one reported may differ on
-    /// the two sides of `u`; [`eval_d1_sided`](Self::eval_d1_sided) and its
-    /// siblings evaluate each side.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{BSplineCurve, Continuity, Point, Tolerance};
-    /// let poles = vec![Point::new(0.0, 0.0, 0.0), Point::new(2.0, 0.0, 0.0)];
-    /// let curve = BSplineCurve::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
-    /// assert_eq!(curve.continuity(0.5, Tolerance::DEFAULT), Continuity::Smooth);
-    /// ```
-    pub fn continuity(&self, u: f64, tol: Tolerance) -> Continuity {
-        self.0.continuity(u, tol)
-    }
-
-    /// Minimum [`Continuity`] over the domain (`Smooth` when no knot
-    /// constrains it): the worst knot strictly inside the bounds, or, on a
-    /// periodic curve, the worst knot including the seam.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{BSplineCurve, Continuity, Point};
-    /// let poles = vec![
-    ///     Point::ORIGIN,
-    ///     Point::new(1.0, 0.0, 0.0),
-    ///     Point::new(2.0, 0.0, 0.0),
-    ///     Point::new(3.0, 0.0, 0.0),
-    ///     Point::new(4.0, 0.0, 0.0),
-    /// ];
-    /// let curve = BSplineCurve::new(2, poles, vec![0.0, 0.5, 1.0], vec![3, 2, 3], false).unwrap();
-    /// assert_eq!(curve.min_continuity(), Continuity::Order(0));
-    /// ```
-    pub fn min_continuity(&self) -> Continuity {
-        self.0.min_continuity()
     }
 
     /// Returns whether the curve is rational (has per-pole weights).
@@ -511,6 +435,7 @@ impl BSplineCurve {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{BSplineCurve, Point, Transform, Vector};
     /// let poles = vec![Point::new(0.0, 0.0, 0.0), Point::new(2.0, 0.0, 0.0)];
     /// let curve = BSplineCurve::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
@@ -545,6 +470,7 @@ impl BSplineCurve {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{BSplineCurve, KnotInsertionError, Point};
     ///
     /// let poles = vec![
@@ -592,6 +518,7 @@ impl BSplineCurve {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{BSplineCurve, KnotInsertionError, Point};
     ///
     /// let poles = vec![
@@ -642,6 +569,7 @@ impl BSplineCurve {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{BSplineCurve, Point};
     ///
     /// // Rational quadratic quarter circle, raised to a cubic.
@@ -792,6 +720,7 @@ impl BSplineCurve {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{BSplineCurve, Point};
     ///
     /// let poles: Vec<Point> =
@@ -835,6 +764,7 @@ impl BSplineCurve {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{BSplineCurve, BSplineSplitError, Point};
     ///
     /// let poles = vec![
@@ -878,6 +808,7 @@ impl BSplineCurve {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{BSplineCurve, BSplineSplitError, Point};
     ///
     /// let poles = vec![
@@ -913,6 +844,7 @@ impl BSplineCurve {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{BSplineCurve, Point};
     ///
     /// let poles = vec![
@@ -930,114 +862,6 @@ impl BSplineCurve {
     /// ```
     pub fn reversed(&self) -> BSplineCurve {
         BSplineCurve(self.0.reversed())
-    }
-
-    /// Returns the curve's parameter bounds `(first, last)`.
-    ///
-    /// For a clamped (non-periodic) curve this is the active span
-    /// `(flat[degree], flat[len - 1 - degree])`. For a periodic curve this
-    /// is `(knots[0], knots[last])`, the full period.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{BSplineCurve, Point};
-    /// let poles = vec![Point::new(0.0, 0.0, 0.0), Point::new(2.0, 0.0, 0.0)];
-    /// let curve = BSplineCurve::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
-    /// assert_eq!(curve.bounds(), (0.0, 1.0));
-    /// ```
-    pub fn bounds(&self) -> (f64, f64) {
-        self.0.bounds()
-    }
-
-    /// Evaluates the point on the curve at parameter `u`.
-    ///
-    /// For periodic curves, `u` outside [`BSplineCurve::bounds`] is wrapped
-    /// into the period before evaluation.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{BSplineCurve, Point};
-    /// let poles = vec![Point::new(0.0, 0.0, 0.0), Point::new(2.0, 0.0, 0.0)];
-    /// let curve = BSplineCurve::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
-    /// assert_eq!(curve.eval_point(0.5), Point::new(1.0, 0.0, 0.0));
-    /// ```
-    pub fn eval_point(&self, u: f64) -> Point {
-        self.0.eval_point(u)
-    }
-
-    /// Evaluates the points on the curve at each parameter in `us`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{BSplineCurve, Point};
-    /// let poles = vec![Point::new(0.0, 0.0, 0.0), Point::new(2.0, 0.0, 0.0)];
-    /// let curve = BSplineCurve::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
-    /// let points = curve.eval_points(&[0.0, 0.5, 1.0]);
-    /// assert_eq!(points[1], Point::new(1.0, 0.0, 0.0));
-    /// ```
-    pub fn eval_points(&self, us: &[f64]) -> Vec<Point> {
-        self.0.eval_points(us)
-    }
-
-    /// Evaluates the derivative of the given `order` at parameter `u`.
-    ///
-    /// # Panics
-    ///
-    /// Panics if `order == 0` (use [`BSplineCurve::eval_point`] for the
-    /// position itself).
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{BSplineCurve, Point, Vector};
-    /// let poles = vec![Point::new(0.0, 0.0, 0.0), Point::new(2.0, 0.0, 0.0)];
-    /// let curve = BSplineCurve::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
-    /// assert_eq!(curve.eval_derivative(0.5, 1), Vector::new(2.0, 0.0, 0.0));
-    /// ```
-    pub fn eval_derivative(&self, u: f64, order: u32) -> Vector {
-        self.0.eval_derivative(u, order)
-    }
-
-    /// Evaluates the point and the first derivative at parameter `u`, from
-    /// one evaluation of the basis functions.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{BSplineCurve, Point, Vector};
-    /// let poles = vec![Point::new(0.0, 0.0, 0.0), Point::new(2.0, 0.0, 0.0)];
-    /// let curve = BSplineCurve::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
-    /// let (point, d1) = curve.eval_d1(0.5);
-    /// assert_eq!(point, Point::new(1.0, 0.0, 0.0));
-    /// assert_eq!(d1, Vector::new(2.0, 0.0, 0.0));
-    /// ```
-    pub fn eval_d1(&self, u: f64) -> (Point, Vector) {
-        self.0.eval_d1(u)
-    }
-
-    /// Evaluates the point and the first and second derivatives at
-    /// parameter `u`, from one evaluation of the basis functions.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{BSplineCurve, Point, Vector};
-    /// let poles = vec![
-    ///     Point::new(0.0, 0.0, 0.0),
-    ///     Point::new(1.0, 1.0, 0.0),
-    ///     Point::new(2.0, 0.0, 0.0),
-    /// ];
-    /// let curve = BSplineCurve::new(2, poles, vec![0.0, 1.0], vec![3, 3], false).unwrap();
-    /// let (point, d1, d2) = curve.eval_d2(0.5);
-    /// assert_eq!(point, Point::new(1.0, 0.5, 0.0));
-    /// assert_eq!(d1, Vector::new(2.0, 0.0, 0.0));
-    /// assert_eq!(d2, Vector::new(0.0, -4.0, 0.0));
-    /// ```
-    pub fn eval_d2(&self, u: f64) -> (Point, Vector, Vector) {
-        self.0.eval_d2(u)
     }
 
     /// Evaluates the point and the first derivative at parameter `u` from
@@ -1152,7 +976,8 @@ impl BSplineCurve {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::curves::{Curve2D, ParametricCurve2D};
+    /// use geomcore::prelude::*;
+    /// use geomcore::curves::Curve2D;
     /// use geomcore::{BSplineCurve, Plane, Point, Tolerance, Vector};
     ///
     /// let plane = Plane::new(Point::new(0.0, 0.0, 1.0), Vector::Z).unwrap();
@@ -1171,89 +996,6 @@ impl BSplineCurve {
         parametrize::bspline_on_surface(self, &surface.into(), tol)
     }
 
-    /// Returns whether `point` lies on the curve: the curve is projected
-    /// with [`BSplineCurve::project_point`] and the point counts as
-    /// contained when the projected distance is within `tol.confusion`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{BSplineCurve, Point, Tolerance};
-    /// let poles = vec![Point::new(0.0, 0.0, 0.0), Point::new(2.0, 0.0, 0.0)];
-    /// let curve = BSplineCurve::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
-    /// let tol = Tolerance::DEFAULT;
-    /// assert!(curve.contains(Point::new(1.0, 0.0, 0.0), tol));
-    /// assert!(!curve.contains(Point::new(1.0, 1.0, 0.0), tol));
-    /// ```
-    pub fn contains(&self, point: Point, tol: Tolerance) -> bool {
-        self.0.contains(point, tol)
-    }
-
-    /// The local minima of the distance from `point` to the curve, ordered
-    /// by ascending distance, plus the interval ends of an open curve.
-    ///
-    /// Every knot span is scanned exactly (see
-    /// [`BSplineCurve::project_point`]): its interior minima are
-    /// bracketed and refined by a Newton minimisation bounded to the
-    /// bracket, and a knot is a minimum when the distance falls into it and
-    /// rises out of it (a crease). Minima at the same point merge. The
-    /// first entry is the global closest point.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{BSplineCurve, Point, Tolerance};
-    /// let poles = vec![Point::new(0.0, 0.0, 0.0), Point::new(2.0, 0.0, 0.0)];
-    /// let curve = BSplineCurve::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
-    /// let extrema = curve.extrema(Point::new(1.0, 1.0, 0.0), Tolerance::DEFAULT);
-    /// assert!(!extrema.is_empty());
-    /// assert_eq!(extrema[0].distance, 1.0);
-    /// ```
-    pub fn extrema(&self, point: Point, tol: Tolerance) -> Vec<CurveProjection> {
-        self.0
-            .extrema(point, tol)
-            .into_iter()
-            .map(Into::into)
-            .collect()
-    }
-
-    /// Projects `point` onto the curve: the global minimum of the distance,
-    /// the first entry of [`BSplineCurve::extrema`]. Distances within
-    /// `tol.confusion` snap to `0.0`, matching [`BSplineCurve::contains`].
-    ///
-    /// Branch and bound over the knot spans: each span lies in the bounding
-    /// box of its poles (convex hull property), so spans are visited by
-    /// increasing box distance (through a box hierarchy built once per
-    /// curve) until no remaining box can hold a closer point. A visited
-    /// span is scanned exactly: on it the curve is a polynomial (or
-    /// rational) piece, so the derivative of the squared distance has the
-    /// sign of a polynomial whose roots are bracketed in Bernstein form.
-    /// Every interior minimum is found however close basins sit, then
-    /// refined to full precision by a Newton minimisation bounded to its
-    /// bracket.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{BSplineCurve, Point, Tolerance};
-    /// let poles = vec![Point::new(0.0, 0.0, 0.0), Point::new(2.0, 0.0, 0.0)];
-    /// let curve = BSplineCurve::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
-    /// let proj = curve.project_point(Point::new(1.0, 1.0, 0.0), Tolerance::DEFAULT);
-    /// assert!((proj.parameter - 0.5).abs() < 1e-9);
-    /// assert_eq!(proj.distance, 1.0);
-    /// ```
-    pub fn project_point(&self, point: Point, tol: Tolerance) -> CurveProjection {
-        self.0.project_point(point, tol).into()
-    }
-
-    /// Projects each point in `points` onto the curve.
-    ///
-    /// Default-style batch wrapper over [`BSplineCurve::project_point`]:
-    /// one native call per batch, mirroring [`BSplineCurve::eval_points`].
-    pub fn project_points(&self, points: &[Point], tol: Tolerance) -> Vec<CurveProjection> {
-        points.iter().map(|&p| self.project_point(p, tol)).collect()
-    }
-
     /// The curve wrapping `spline`.
     pub(crate) fn from_spline(spline: Spline<Point>) -> BSplineCurve {
         BSplineCurve(spline)
@@ -1267,62 +1009,61 @@ impl BSplineCurve {
 
 impl PointExtrema for BSplineCurve {
     fn extrema(&self, point: Point, tol: Tolerance) -> Vec<CurveProjection> {
-        if point.is_finite() {
-            BSplineCurve::extrema(self, point, tol)
-        } else {
-            Vec::new()
-        }
+        self.0
+            .extrema(point, tol)
+            .into_iter()
+            .map(Into::into)
+            .collect()
+    }
+
+    fn project_point(&self, point: Point, tol: Tolerance) -> CurveProjection {
+        self.0.project_point(point, tol).into()
     }
 }
 
 impl ParametricCurve for BSplineCurve {
     fn eval_point(&self, u: f64) -> Point {
-        BSplineCurve::eval_point(self, u)
+        self.0.eval_point(u)
     }
 
     fn eval_derivative(&self, u: f64, order: u32) -> Vector {
-        BSplineCurve::eval_derivative(self, u, order)
+        self.0.eval_derivative(u, order)
     }
 
     fn eval_d1(&self, u: f64) -> (Point, Vector) {
-        BSplineCurve::eval_d1(self, u)
+        self.0.eval_d1(u)
     }
 
     fn eval_d2(&self, u: f64) -> (Point, Vector, Vector) {
-        BSplineCurve::eval_d2(self, u)
+        self.0.eval_d2(u)
     }
 
     fn bounds(&self) -> (f64, f64) {
-        BSplineCurve::bounds(self)
+        self.0.bounds()
     }
 
     fn period(&self) -> Option<f64> {
-        if self.is_periodic() {
-            let (first, last) = BSplineCurve::bounds(self);
-            Some(last - first)
-        } else {
-            None
-        }
-    }
-
-    fn eval_points(&self, us: &[f64]) -> Vec<Point> {
-        BSplineCurve::eval_points(self, us)
+        self.0.period()
     }
 
     fn is_closed(&self, tol: Tolerance) -> bool {
-        BSplineCurve::is_closed(self, tol)
+        self.0.is_closed(tol)
     }
 
     fn continuity(&self, u: f64, tol: Tolerance) -> Continuity {
-        BSplineCurve::continuity(self, u, tol)
+        self.0.continuity(u, tol)
     }
 
     fn min_continuity(&self) -> Continuity {
-        BSplineCurve::min_continuity(self)
+        self.0.min_continuity()
     }
 
     fn as_bspline(&self) -> Option<&BSplineCurve> {
         Some(self)
+    }
+
+    fn is_periodic(&self) -> bool {
+        self.0.is_periodic()
     }
 }
 

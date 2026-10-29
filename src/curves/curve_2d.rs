@@ -23,7 +23,8 @@ use crate::{Point2D, Tolerance, Vector2D};
 /// # Examples
 ///
 /// ```
-/// use geomcore::curves::{Curve2D, ParametricCurve2D};
+/// use geomcore::prelude::*;
+/// use geomcore::curves::Curve2D;
 /// use geomcore::{BSplineCurve2D, Circle2D, Line2D, Point2D, Vector2D};
 ///
 /// let curves: Vec<Curve2D> = vec![
@@ -117,55 +118,55 @@ impl ParametricCurve2D for Curve2D {
 
     fn eval_d1(&self, u: f64) -> (Point2D, Vector2D) {
         match self {
-            Curve2D::Line(c) => ParametricCurve2D::eval_d1(c, u),
-            Curve2D::Circle(c) => ParametricCurve2D::eval_d1(c, u),
-            Curve2D::Ellipse(c) => ParametricCurve2D::eval_d1(c, u),
-            Curve2D::Parabola(c) => ParametricCurve2D::eval_d1(c, u),
-            Curve2D::Hyperbola(c) => ParametricCurve2D::eval_d1(c, u),
+            Curve2D::Line(c) => c.eval_d1(u),
+            Curve2D::Circle(c) => c.eval_d1(u),
+            Curve2D::Ellipse(c) => c.eval_d1(u),
+            Curve2D::Parabola(c) => c.eval_d1(u),
+            Curve2D::Hyperbola(c) => c.eval_d1(u),
             Curve2D::BSpline(c) => c.eval_d1(u),
         }
     }
 
     fn eval_d2(&self, u: f64) -> (Point2D, Vector2D, Vector2D) {
         match self {
-            Curve2D::Line(c) => ParametricCurve2D::eval_d2(c, u),
-            Curve2D::Circle(c) => ParametricCurve2D::eval_d2(c, u),
-            Curve2D::Ellipse(c) => ParametricCurve2D::eval_d2(c, u),
-            Curve2D::Parabola(c) => ParametricCurve2D::eval_d2(c, u),
-            Curve2D::Hyperbola(c) => ParametricCurve2D::eval_d2(c, u),
+            Curve2D::Line(c) => c.eval_d2(u),
+            Curve2D::Circle(c) => c.eval_d2(u),
+            Curve2D::Ellipse(c) => c.eval_d2(u),
+            Curve2D::Parabola(c) => c.eval_d2(u),
+            Curve2D::Hyperbola(c) => c.eval_d2(u),
             Curve2D::BSpline(c) => c.eval_d2(u),
         }
     }
 
     fn is_closed(&self, tol: Tolerance) -> bool {
         match self {
-            Curve2D::Line(c) => ParametricCurve2D::is_closed(c, tol),
-            Curve2D::Circle(c) => ParametricCurve2D::is_closed(c, tol),
-            Curve2D::Ellipse(c) => ParametricCurve2D::is_closed(c, tol),
-            Curve2D::Parabola(c) => ParametricCurve2D::is_closed(c, tol),
-            Curve2D::Hyperbola(c) => ParametricCurve2D::is_closed(c, tol),
+            Curve2D::Line(c) => c.is_closed(tol),
+            Curve2D::Circle(c) => c.is_closed(tol),
+            Curve2D::Ellipse(c) => c.is_closed(tol),
+            Curve2D::Parabola(c) => c.is_closed(tol),
+            Curve2D::Hyperbola(c) => c.is_closed(tol),
             Curve2D::BSpline(c) => c.is_closed(tol),
         }
     }
 
     fn continuity(&self, u: f64, tol: Tolerance) -> Continuity {
         match self {
-            Curve2D::Line(c) => ParametricCurve2D::continuity(c, u, tol),
-            Curve2D::Circle(c) => ParametricCurve2D::continuity(c, u, tol),
-            Curve2D::Ellipse(c) => ParametricCurve2D::continuity(c, u, tol),
-            Curve2D::Parabola(c) => ParametricCurve2D::continuity(c, u, tol),
-            Curve2D::Hyperbola(c) => ParametricCurve2D::continuity(c, u, tol),
+            Curve2D::Line(c) => c.continuity(u, tol),
+            Curve2D::Circle(c) => c.continuity(u, tol),
+            Curve2D::Ellipse(c) => c.continuity(u, tol),
+            Curve2D::Parabola(c) => c.continuity(u, tol),
+            Curve2D::Hyperbola(c) => c.continuity(u, tol),
             Curve2D::BSpline(c) => c.continuity(u, tol),
         }
     }
 
     fn min_continuity(&self) -> Continuity {
         match self {
-            Curve2D::Line(c) => ParametricCurve2D::min_continuity(c),
-            Curve2D::Circle(c) => ParametricCurve2D::min_continuity(c),
-            Curve2D::Ellipse(c) => ParametricCurve2D::min_continuity(c),
-            Curve2D::Parabola(c) => ParametricCurve2D::min_continuity(c),
-            Curve2D::Hyperbola(c) => ParametricCurve2D::min_continuity(c),
+            Curve2D::Line(c) => c.min_continuity(),
+            Curve2D::Circle(c) => c.min_continuity(),
+            Curve2D::Ellipse(c) => c.min_continuity(),
+            Curve2D::Parabola(c) => c.min_continuity(),
+            Curve2D::Hyperbola(c) => c.min_continuity(),
             Curve2D::BSpline(c) => c.min_continuity(),
         }
     }
@@ -181,33 +182,16 @@ impl ParametricCurve2D for Curve2D {
 impl PointExtrema2D for Curve2D {
     fn extrema(&self, point: Point2D, tol: Tolerance) -> Vec<CurveProjection2D> {
         match self {
-            Curve2D::Line(c) => PointExtrema2D::extrema(c, point, tol),
-            Curve2D::Circle(c) => PointExtrema2D::extrema(c, point, tol),
-            Curve2D::Ellipse(c) => PointExtrema2D::extrema(c, point, tol),
-            Curve2D::Parabola(c) => PointExtrema2D::extrema(c, point, tol),
-            Curve2D::Hyperbola(c) => PointExtrema2D::extrema(c, point, tol),
-            Curve2D::BSpline(c) => PointExtrema2D::extrema(c, point, tol),
+            Curve2D::Line(c) => c.extrema(point, tol),
+            Curve2D::Circle(c) => c.extrema(point, tol),
+            Curve2D::Ellipse(c) => c.extrema(point, tol),
+            Curve2D::Parabola(c) => c.extrema(point, tol),
+            Curve2D::Hyperbola(c) => c.extrema(point, tol),
+            Curve2D::BSpline(c) => c.extrema(point, tol),
         }
     }
-}
 
-impl Curve2D {
-    /// Projects `point` onto the curve: the closest parameter, the closest
-    /// point and the distance. Distances within `tol.confusion` snap to
-    /// `0.0`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::curves::Curve2D;
-    /// use geomcore::{Line2D, Point2D, Tolerance, Vector2D};
-    ///
-    /// let curve = Curve2D::from(Line2D::new(Point2D::ORIGIN, Vector2D::X).unwrap());
-    /// let projection = curve.project_point(Point2D::new(2.0, 1.0), Tolerance::DEFAULT);
-    /// assert_eq!(projection.point, Point2D::new(2.0, 0.0));
-    /// assert_eq!(projection.distance, 1.0);
-    /// ```
-    pub fn project_point(&self, point: Point2D, tol: Tolerance) -> CurveProjection2D {
+    fn project_point(&self, point: Point2D, tol: Tolerance) -> CurveProjection2D {
         match self {
             Curve2D::Line(c) => c.project_point(point, tol),
             Curve2D::Circle(c) => c.project_point(point, tol),
@@ -218,32 +202,25 @@ impl Curve2D {
         }
     }
 
-    /// Projects each point in `points` onto the curve.
-    pub fn project_points(&self, points: &[Point2D], tol: Tolerance) -> Vec<CurveProjection2D> {
-        points.iter().map(|&p| self.project_point(p, tol)).collect()
+    fn contains(&self, point: Point2D, tol: Tolerance) -> bool {
+        match self {
+            Curve2D::Line(c) => c.contains(point, tol),
+            Curve2D::Circle(c) => c.contains(point, tol),
+            Curve2D::Ellipse(c) => c.contains(point, tol),
+            Curve2D::Parabola(c) => c.contains(point, tol),
+            Curve2D::Hyperbola(c) => c.contains(point, tol),
+            Curve2D::BSpline(c) => c.contains(point, tol),
+        }
     }
 
-    /// The parameter of the point of the curve closest to `point`: by the
-    /// closed form of a line or circle, by projection for a B-spline.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::curves::Curve2D;
-    /// use geomcore::{Circle2D, Point2D};
-    ///
-    /// let curve = Curve2D::from(Circle2D::new(Point2D::ORIGIN, 2.0).unwrap());
-    /// let parameter = curve.parameter_of(Point2D::new(0.0, 2.0));
-    /// assert!((parameter - std::f64::consts::FRAC_PI_2).abs() < 1e-12);
-    /// ```
-    pub fn parameter_of(&self, point: Point2D) -> f64 {
+    fn parameter_of(&self, point: Point2D, tol: Tolerance) -> f64 {
         match self {
-            Curve2D::Line(c) => c.parameter_of(point),
-            Curve2D::Circle(c) => c.parameter_of(point),
-            Curve2D::Ellipse(c) => c.parameter_of(point),
-            Curve2D::Parabola(c) => c.parameter_of(point),
-            Curve2D::Hyperbola(c) => c.parameter_of(point),
-            Curve2D::BSpline(c) => c.parameter_of(point),
+            Curve2D::Line(c) => c.parameter_of(point, tol),
+            Curve2D::Circle(c) => c.parameter_of(point, tol),
+            Curve2D::Ellipse(c) => c.parameter_of(point, tol),
+            Curve2D::Parabola(c) => c.parameter_of(point, tol),
+            Curve2D::Hyperbola(c) => c.parameter_of(point, tol),
+            Curve2D::BSpline(c) => c.parameter_of(point, tol),
         }
     }
 }

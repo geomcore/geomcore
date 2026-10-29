@@ -182,7 +182,8 @@ pub struct Discretization {
 /// # Examples
 ///
 /// ```
-/// use geomcore::discretization::{DiscretizationCriteria, Discretize};
+/// use geomcore::prelude::*;
+/// use geomcore::discretization::DiscretizationCriteria;
 /// use geomcore::{Circle, Point, Vector};
 ///
 /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
@@ -267,7 +268,8 @@ pub struct Discretization2D {
 /// # Examples
 ///
 /// ```
-/// use geomcore::discretization::{DiscretizationCriteria, Discretize2D};
+/// use geomcore::prelude::*;
+/// use geomcore::discretization::DiscretizationCriteria;
 /// use geomcore::{Circle2D, Line2D, Point2D, TrimmedCurve2D, Vector2D};
 ///
 /// let criteria = DiscretizationCriteria::new(1e-3).unwrap();

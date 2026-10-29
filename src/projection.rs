@@ -16,6 +16,7 @@ use crate::{Point, Point2D};
 /// # Examples
 ///
 /// ```
+/// use geomcore::prelude::*;
 /// use geomcore::{Line, Point, Tolerance, Vector};
 ///
 /// let line = Line::new(Point::ORIGIN, Vector::X).unwrap();
@@ -52,6 +53,7 @@ impl CurveProjection {
 /// # Examples
 ///
 /// ```
+/// use geomcore::prelude::*;
 /// use geomcore::{Line2D, Point2D, Tolerance, Vector2D};
 ///
 /// let line = Line2D::new(Point2D::ORIGIN, Vector2D::X).unwrap();
@@ -86,6 +88,7 @@ impl CurveProjection2D {
 /// # Examples
 ///
 /// ```
+/// use geomcore::prelude::*;
 /// use geomcore::{Plane, Point, Tolerance, Vector};
 ///
 /// let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();

@@ -18,6 +18,7 @@ use std::f64::consts::TAU;
 /// # Examples
 ///
 /// ```
+/// use geomcore::prelude::*;
 /// use geomcore::{Circle2D, Point2D};
 /// let circle = Circle2D::new(Point2D::ORIGIN, 2.0).unwrap();
 /// assert_eq!(circle.eval_point(0.0), Point2D::new(2.0, 0.0));
@@ -112,107 +113,26 @@ impl Circle2D {
     pub fn frame(&self) -> Frame2D {
         self.frame
     }
+}
 
-    /// Evaluates the point on the circle at angular parameter `u`:
-    /// `center + radius*cos(u)*x_dir + radius*sin(u)*y_dir`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{Circle2D, Point2D};
-    /// let circle = Circle2D::new(Point2D::ORIGIN, 2.0).unwrap();
-    /// assert_eq!(circle.eval_point(0.0), Point2D::new(2.0, 0.0));
-    /// ```
-    pub fn eval_point(&self, u: f64) -> Point2D {
-        elementary::circle2d_d0(&self.frame, self.radius, u)
-    }
-
-    /// Evaluates the points on the circle at each parameter in `us`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{Circle2D, Point2D};
-    /// let circle = Circle2D::new(Point2D::ORIGIN, 2.0).unwrap();
-    /// let points = circle.eval_points(&[0.0, 1.0]);
-    /// assert_eq!(points[0], Point2D::new(2.0, 0.0));
-    /// ```
-    pub fn eval_points(&self, us: &[f64]) -> Vec<Point2D> {
-        us.iter().map(|&u| self.eval_point(u)).collect()
-    }
-
-    /// Evaluates the derivative of the given `order` at parameter `u`.
-    ///
-    /// Derivatives cycle with period 4 in `order` (see
-    /// `crate::elementary::curve::circle2d_dn`).
-    ///
-    /// # Panics
-    ///
-    /// Panics if `order == 0`; use [`Circle2D::eval_point`] to evaluate the
-    /// position itself.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{Circle2D, Point2D, Vector2D};
-    /// let circle = Circle2D::new(Point2D::ORIGIN, 2.0).unwrap();
-    /// assert_eq!(circle.eval_derivative(0.0, 1), Vector2D::new(0.0, 2.0));
-    /// ```
-    pub fn eval_derivative(&self, u: f64, order: u32) -> Vector2D {
-        match order {
-            0 => panic!("eval_derivative: order must be >= 1 (use eval_point for order 0)"),
-            _ => elementary::circle2d_dn(&self.frame, self.radius, u, order),
-        }
+impl PointExtrema2D for Circle2D {
+    fn extrema(&self, point: Point2D, tol: Tolerance) -> Vec<CurveProjection2D> {
+        only_minimum(point, || self.project_point(point, tol))
     }
 
     /// Recovers the angular parameter of a point on (or near) the circle,
     /// wrapped into `[0, 2*PI)`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{Circle2D, Point2D};
-    /// let circle = Circle2D::new(Point2D::ORIGIN, 2.0).unwrap();
-    /// assert!((circle.parameter_of(Point2D::new(0.0, 2.0)) - std::f64::consts::FRAC_PI_2).abs() < 1e-9);
-    /// ```
-    pub fn parameter_of(&self, point: Point2D) -> f64 {
+    fn parameter_of(&self, point: Point2D, _tol: Tolerance) -> f64 {
         elementary::circle2d_parameter(&self.frame, point)
     }
 
-    /// Returns whether `point` lies on the circle: the inverse parameter is
-    /// recovered with [`Circle2D::parameter_of`] and re-evaluated, and the
-    /// point counts as contained when the re-evaluated point is within
-    /// `tol.confusion` of it.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{Circle2D, Point2D, Tolerance};
-    /// let circle = Circle2D::new(Point2D::ORIGIN, 2.0).unwrap();
-    /// let tol = Tolerance::DEFAULT;
-    /// assert!(circle.contains(Point2D::new(2.0, 0.0), tol));
-    /// assert!(!circle.contains(Point2D::new(3.0, 0.0), tol));
-    /// ```
-    pub fn contains(&self, point: Point2D, tol: Tolerance) -> bool {
-        let u = self.parameter_of(point);
+    fn contains(&self, point: Point2D, tol: Tolerance) -> bool {
+        let u = self.parameter_of(point, tol);
         self.eval_point(u).distance(point) <= tol.confusion
     }
 
-    /// Projects `point` onto the circle, returning the parameter of the
-    /// closest point and its distance. Distances within `tol.confusion`
-    /// snap to `0.0`, matching [`Circle2D::contains`].
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{Circle2D, Point2D, Tolerance};
-    /// let circle = Circle2D::new(Point2D::ORIGIN, 2.0).unwrap();
-    /// let proj = circle.project_point(Point2D::new(3.0, 0.0), Tolerance::DEFAULT);
-    /// assert_eq!(proj.parameter, 0.0);
-    /// assert_eq!(proj.distance, 1.0);
-    /// ```
-    pub fn project_point(&self, point: Point2D, tol: Tolerance) -> CurveProjection2D {
-        let u = self.parameter_of(point);
+    fn project_point(&self, point: Point2D, tol: Tolerance) -> CurveProjection2D {
+        let u = self.parameter_of(point, tol);
         let foot = self.eval_point(u);
         let distance = foot.distance(point);
         CurveProjection2D {
@@ -221,29 +141,18 @@ impl Circle2D {
             distance: projection::snap_distance(distance, tol.confusion),
         }
     }
-
-    /// Projects each point in `points` onto the circle.
-    ///
-    /// Default-style batch wrapper over [`Circle2D::project_point`]: one
-    /// native call per batch, mirroring [`Circle2D::eval_points`].
-    pub fn project_points(&self, points: &[Point2D], tol: Tolerance) -> Vec<CurveProjection2D> {
-        points.iter().map(|&p| self.project_point(p, tol)).collect()
-    }
-}
-
-impl PointExtrema2D for Circle2D {
-    fn extrema(&self, point: Point2D, tol: Tolerance) -> Vec<CurveProjection2D> {
-        only_minimum(point, || self.project_point(point, tol))
-    }
 }
 
 impl ParametricCurve2D for Circle2D {
     fn eval_point(&self, u: f64) -> Point2D {
-        Circle2D::eval_point(self, u)
+        elementary::circle2d_d0(&self.frame, self.radius, u)
     }
 
     fn eval_derivative(&self, u: f64, order: u32) -> Vector2D {
-        Circle2D::eval_derivative(self, u, order)
+        match order {
+            0 => panic!("eval_derivative: order must be >= 1 (use eval_point for order 0)"),
+            _ => elementary::circle2d_dn(&self.frame, self.radius, u, order),
+        }
     }
 
     fn bounds(&self) -> (f64, f64) {
@@ -252,10 +161,6 @@ impl ParametricCurve2D for Circle2D {
 
     fn period(&self) -> Option<f64> {
         Some(TAU)
-    }
-
-    fn eval_points(&self, us: &[f64]) -> Vec<Point2D> {
-        Circle2D::eval_points(self, us)
     }
 }
 

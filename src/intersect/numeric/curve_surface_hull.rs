@@ -5,6 +5,7 @@
 
 use crate::bspline::surface::net_points;
 use crate::curves::BSplineCurve;
+use crate::curves::ParametricCurve;
 use crate::intersect::numeric::bezier_pieces::{
     CurvePieces, Pool, apart_along, bounding_box, box_size, dot, euclidean, meets_at_most_once,
     net_normal, norm, sub,
@@ -126,9 +127,8 @@ impl<'a> IntoIterator for &'a CurveSurfaceHits {
 /// # Examples
 ///
 /// ```
-/// use geomcore::{
-///     BSplineCurve, BSplineSurface, Completeness, Intersect, Point, Tolerance,
-/// };
+/// use geomcore::prelude::*;
+/// use geomcore::{BSplineCurve, BSplineSurface, Completeness, Point, Tolerance};
 /// let poles = vec![
 ///     vec![Point::new(0.0, 0.0, 0.0), Point::new(0.0, 2.0, 0.0)],
 ///     vec![Point::new(2.0, 0.0, 0.0), Point::new(2.0, 2.0, 0.0)],

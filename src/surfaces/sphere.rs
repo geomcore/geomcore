@@ -46,6 +46,7 @@ impl std::error::Error for SphereConstructionError {}
 /// # Examples
 ///
 /// ```
+/// use geomcore::prelude::*;
 /// use geomcore::{Sphere, Point};
 /// let sphere = Sphere::new(Point::ORIGIN, 3.0).unwrap();
 /// assert_eq!(sphere.eval_point(0.0, 0.0), Point::new(3.0, 0.0, 0.0));
@@ -138,6 +139,7 @@ impl Sphere {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{Point, Sphere, Vector};
     /// let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
     /// let reversed = sphere.reversed_u();
@@ -158,6 +160,7 @@ impl Sphere {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{Point, Sphere, Vector};
     /// let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
     /// let reversed = sphere.reversed_v();
@@ -176,6 +179,7 @@ impl Sphere {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{Point, Sphere};
     /// let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
     /// let u = sphere.u_reversed_parameter(1.0);
@@ -192,6 +196,7 @@ impl Sphere {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{Point, Sphere};
     /// let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
     /// let v = sphere.v_reversed_parameter(0.5);
@@ -227,6 +232,7 @@ impl Sphere {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{Point, Sphere};
     /// let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
     /// let iso = sphere.u_iso(0.0).unwrap();
@@ -330,113 +336,15 @@ impl Sphere {
     pub fn volume(&self) -> f64 {
         4.0 / 3.0 * std::f64::consts::PI * self.radius.powi(3)
     }
+}
 
-    /// Evaluates the point on the sphere at `(u, v)`. See the type-level
-    /// docs for the formula.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{Point, Sphere};
-    /// let sphere = Sphere::new(Point::ORIGIN, 3.0).unwrap();
-    /// assert_eq!(sphere.eval_point(0.0, 0.0), Point::new(3.0, 0.0, 0.0));
-    /// ```
-    pub fn eval_point(&self, u: f64, v: f64) -> Point {
+impl ParametricSurface for Sphere {
+    fn eval_point(&self, u: f64, v: f64) -> Point {
         elementary::sphere_d0(&self.frame, self.radius, u, v)
     }
 
-    /// Evaluates the points on the sphere at each `(u, v)` in `uvs`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{Point, Sphere};
-    /// let sphere = Sphere::new(Point::ORIGIN, 3.0).unwrap();
-    /// let points = sphere.eval_points(&[(0.0, 0.0)]);
-    /// assert_eq!(points[0], Point::new(3.0, 0.0, 0.0));
-    /// ```
-    pub fn eval_points(&self, uvs: &[(f64, f64)]) -> Vec<Point> {
-        uvs.iter().map(|&(u, v)| self.eval_point(u, v)).collect()
-    }
-
-    /// Evaluates the derivative of order `(du, dv)` at `(u, v)`. See
-    /// `crate::elementary::surface::sphere_derivative` for the
-    /// formulas.
-    ///
-    /// # Panics
-    ///
-    /// Panics if `du + dv == 0` (use [`Sphere::eval_point`] for the
-    /// position itself) or if `du + dv > 2`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{Point, Sphere, Vector};
-    /// let sphere = Sphere::new(Point::ORIGIN, 3.0).unwrap();
-    /// assert_eq!(sphere.eval_derivative(0.0, 0.0, 0, 1), Vector::Z * 3.0);
-    /// ```
-    pub fn eval_derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> Vector {
-        match du + dv {
-            0 => panic!(
-                "eval_derivative: du + dv must be >= 1 (use eval_point for the (0, 0) order)"
-            ),
-            1..=2 => elementary::sphere_derivative(&self.frame, self.radius, u, v, du, dv),
-            _ => panic!(
-                "eval_derivative: order du={du}, dv={dv} is not supported (du + dv must be <= 2)"
-            ),
-        }
-    }
-
-    /// Recovers `(u, v)` of a point on (or near) the sphere. See
-    /// `crate::elementary::surface::sphere_parameters` for the
-    /// formula, including the pole handling.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{Point, Sphere};
-    /// let sphere = Sphere::new(Point::ORIGIN, 3.0).unwrap();
-    /// let (u, v) = sphere.parameters_of(Point::new(3.0, 0.0, 0.0));
-    /// assert_eq!((u, v), (0.0, 0.0));
-    /// ```
-    pub fn parameters_of(&self, point: Point) -> (f64, f64) {
-        elementary::sphere_parameters(&self.frame, self.radius, point)
-    }
-
-    /// Returns whether `point` lies on the sphere: the inverse parameters
-    /// are recovered with [`Sphere::parameters_of`] and re-evaluated, and
-    /// the point counts as contained when the re-evaluated point is within
-    /// `tol.confusion` of it.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{Point, Sphere, Tolerance};
-    /// let sphere = Sphere::new(Point::ORIGIN, 3.0).unwrap();
-    /// let tol = Tolerance::DEFAULT;
-    /// assert!(sphere.contains(Point::new(3.0, 0.0, 0.0), tol));
-    /// assert!(!sphere.contains(Point::ORIGIN, tol));
-    /// ```
-    pub fn contains(&self, point: Point, tol: Tolerance) -> bool {
-        let (u, v) = self.parameters_of(point);
-        self.eval_point(u, v).distance(point) <= tol.confusion
-    }
-
-    /// Projects `point` onto the sphere, returning the `(u, v)` parameters
-    /// of the closest point and its distance. Distances within
-    /// `tol.confusion` snap to `0.0`, matching [`Sphere::contains`].
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{Point, Sphere, Tolerance};
-    /// let sphere = Sphere::new(Point::ORIGIN, 3.0).unwrap();
-    /// let proj = sphere.project_point(Point::new(4.0, 0.0, 0.0), Tolerance::DEFAULT);
-    /// assert_eq!((proj.u, proj.v), (0.0, 0.0));
-    /// assert_eq!(proj.distance, 1.0);
-    /// ```
-    pub fn project_point(&self, point: Point, tol: Tolerance) -> SurfaceProjection {
-        let (u, v) = self.parameters_of(point);
+    fn project_point(&self, point: Point, tol: Tolerance) -> SurfaceProjection {
+        let (u, v) = self.parameters_of(point, tol);
         let foot = self.eval_point(u, v);
         let distance = foot.distance(point);
         SurfaceProjection {
@@ -447,30 +355,21 @@ impl Sphere {
         }
     }
 
-    /// Projects each point in `points` onto the sphere.
-    ///
-    /// Default-style batch wrapper over [`Sphere::project_point`]: one
-    /// native call per batch, mirroring [`Sphere::eval_points`].
-    pub fn project_points(&self, points: &[Point], tol: Tolerance) -> Vec<SurfaceProjection> {
-        points.iter().map(|&p| self.project_point(p, tol)).collect()
-    }
-}
-
-impl ParametricSurface for Sphere {
-    fn eval_point(&self, u: f64, v: f64) -> Point {
-        Sphere::eval_point(self, u, v)
-    }
-
-    fn project_point(&self, point: Point, tol: Tolerance) -> SurfaceProjection {
-        Sphere::project_point(self, point, tol)
-    }
-
     fn contains(&self, point: Point, tol: Tolerance) -> bool {
-        Sphere::contains(self, point, tol)
+        let (u, v) = self.parameters_of(point, tol);
+        self.eval_point(u, v).distance(point) <= tol.confusion
     }
 
     fn eval_derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> Vector {
-        Sphere::eval_derivative(self, u, v, du, dv)
+        match du + dv {
+            0 => panic!(
+                "eval_derivative: du + dv must be >= 1 (use eval_point for the (0, 0) order)"
+            ),
+            1..=2 => elementary::sphere_derivative(&self.frame, self.radius, u, v, du, dv),
+            _ => panic!(
+                "eval_derivative: order du={du}, dv={dv} is not supported (du + dv must be <= 2)"
+            ),
+        }
     }
 
     fn u_bounds(&self) -> (f64, f64) {
@@ -489,12 +388,15 @@ impl ParametricSurface for Sphere {
         None
     }
 
-    fn eval_points(&self, uvs: &[(f64, f64)]) -> Vec<Point> {
-        Sphere::eval_points(self, uvs)
-    }
-
     fn as_elementary(&self) -> Option<ElementarySurface> {
         Some(ElementarySurface::Sphere(*self))
+    }
+
+    /// Recovers `(u, v)` of a point on (or near) the sphere. See
+    /// `crate::elementary::surface::sphere_parameters` for the
+    /// formula, including the pole handling.
+    fn parameters_of(&self, point: Point, _tol: Tolerance) -> (f64, f64) {
+        elementary::sphere_parameters(&self.frame, self.radius, point)
     }
 }
 

@@ -12,6 +12,7 @@
 //! does not follow the shape's own parameter, so what the search finds is
 //! carried back to it.
 
+use crate::curves::PointExtrema;
 use std::borrow::Cow;
 use std::f64::consts::{FRAC_PI_2, TAU};
 
@@ -116,11 +117,13 @@ impl HullCurve<'_> {
     /// at its representative nearest `t`, not wrapped into the range.
     fn carried(&self, t: f64) -> f64 {
         let point = || self.bspline.eval_point(t);
+        // The conics invert in closed form, which takes no tolerance.
+        let tol = Tolerance::DEFAULT;
         match self.source {
             None | Some(ElementaryCurve::Line(_) | ElementaryCurve::Parabola(_)) => t,
-            Some(ElementaryCurve::Circle(c)) => nearest(c.parameter_of(point()), t),
-            Some(ElementaryCurve::Ellipse(e)) => nearest(e.parameter_of(point()), t),
-            Some(ElementaryCurve::Hyperbola(h)) => h.parameter_of(point()),
+            Some(ElementaryCurve::Circle(c)) => nearest(c.parameter_of(point(), tol), t),
+            Some(ElementaryCurve::Ellipse(e)) => nearest(e.parameter_of(point(), tol), t),
+            Some(ElementaryCurve::Hyperbola(h)) => h.parameter_of(point(), tol),
         }
     }
 
@@ -261,7 +264,9 @@ impl Direction {
         match self {
             Direction::Straight => x,
             Direction::Circular { circle, arc } => {
-                nearest(circle.parameter_of(arc.eval_point(x)), x)
+                // A circle inverts in closed form, which takes no tolerance.
+                let parameter = circle.parameter_of(arc.eval_point(x), Tolerance::DEFAULT);
+                nearest(parameter, x)
             }
         }
     }

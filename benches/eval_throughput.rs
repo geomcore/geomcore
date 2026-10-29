@@ -8,6 +8,7 @@ use std::f64::consts::TAU;
 use std::hint::black_box;
 
 use geomcore::curves::{BSplineCurve, Circle};
+use geomcore::prelude::*;
 use geomcore::surfaces::BSplineSurface;
 use geomcore::{Point, Vector};
 

@@ -8,6 +8,7 @@
 
 use crate::bspline::surface::{self as bspline_surface, Interval};
 use crate::curves::BSplineCurve;
+use crate::curves::ParametricCurve;
 use crate::math::boxtree::Aabb;
 
 /// The Bézier pieces of a B-spline curve over a parameter range: one per

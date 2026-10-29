@@ -1,10 +1,9 @@
 //! Every projection carries the closest point: the curve or surface evaluated
 //! at the returned parameters.
 
-use geomcore::curves::{
-    Curve, Curve2D, ElementaryCurve, ParametricCurve, ParametricCurve2D, PointExtrema, TrimmedCurve,
-};
-use geomcore::surfaces::{ElementarySurface, ParametricSurface, Surface};
+use geomcore::curves::{Curve, Curve2D, ElementaryCurve, TrimmedCurve};
+use geomcore::prelude::*;
+use geomcore::surfaces::{ElementarySurface, Surface};
 use geomcore::{
     Circle, Circle2D, Cone, CurveProjection, Cylinder, Ellipse, Ellipse2D, Frame, Hyperbola,
     Hyperbola2D, Line, Line2D, Parabola, Parabola2D, Plane, Point, Point2D, Sphere, Tolerance,
@@ -85,10 +84,7 @@ fn test_elementary_curve_extrema_and_batch_projection_agree_with_the_basis() {
     let ellipse = Ellipse::from_frame(Frame::WORLD, 3.0, 1.0).unwrap();
     let elementary = ElementaryCurve::Ellipse(ellipse);
     let q = Point::new(1.0, 2.0, 0.5);
-    assert_eq!(
-        PointExtrema::extrema(&elementary, q, tol),
-        ellipse.extrema(q, tol)
-    );
+    assert_eq!(elementary.extrema(q, tol), ellipse.extrema(q, tol));
     let points = query_points();
     assert_eq!(
         elementary.project_points(&points, tol),

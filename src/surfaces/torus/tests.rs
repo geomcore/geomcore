@@ -85,7 +85,7 @@ fn test_eval_derivative_order_too_high_panics() {
 #[test]
 fn test_parameters_of_round_trip() {
     let t = Torus::new(Point::ORIGIN, Vector::Z, 5.0, 1.5).unwrap();
-    let (u, v) = t.parameters_of(Point::new(6.5, 0.0, 0.0));
+    let (u, v) = t.parameters_of(Point::new(6.5, 0.0, 0.0), Tolerance::DEFAULT);
     assert_eq!((u, v), (0.0, 0.0));
 }
 

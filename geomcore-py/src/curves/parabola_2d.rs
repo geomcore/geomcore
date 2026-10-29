@@ -5,8 +5,8 @@ use crate::errors::python_error;
 use crate::results::*;
 use crate::values::*;
 use crate::{ContinuityNumber, check_curve_order, tolerance};
-use geomcore::HasBoundingBox2D;
-use geomcore::curves::{Parabola2D, ParametricCurve2D, PointExtrema2D};
+use geomcore::curves::Parabola2D;
+use geomcore::prelude::*;
 use pyo3::prelude::*;
 
 /// A parabola in 2D, parametrized so the apex is at parameter 0.
@@ -23,7 +23,7 @@ impl PyParabola2D {
     /// answer.
     #[pyo3(signature = (u, tol = None))]
     fn tangent(&self, u: f64, tol: Option<PyTolerance>) -> Option<PyVector2D> {
-        ParametricCurve2D::tangent(&self.0, u, tolerance(tol)).map(PyVector2D)
+        self.0.tangent(u, tolerance(tol)).map(PyVector2D)
     }
 
     /// Signed curvature at parameter `u`: positive where the tangent turns
@@ -32,7 +32,7 @@ impl PyParabola2D {
     /// `tangent`.
     #[pyo3(signature = (u, tol = None))]
     fn curvature(&self, u: f64, tol: Option<PyTolerance>) -> Option<f64> {
-        ParametricCurve2D::curvature(&self.0, u, tolerance(tol))
+        self.0.curvature(u, tolerance(tol))
     }
 
     /// Centre of the osculating circle at parameter `u`, or `None` where
@@ -40,27 +40,27 @@ impl PyParabola2D {
     /// at infinity).
     #[pyo3(signature = (u, tol = None))]
     fn curvature_center(&self, u: f64, tol: Option<PyTolerance>) -> Option<PyPoint2D> {
-        ParametricCurve2D::curvature_center(&self.0, u, tolerance(tol)).map(PyPoint2D)
+        self.0.curvature_center(u, tolerance(tol)).map(PyPoint2D)
     }
 
     /// Whether travelling along the curve returns to its start
     /// (`Tolerance.default()` when omitted); never for a parabola.
     #[pyo3(signature = (tol = None))]
     fn is_closed(&self, tol: Option<PyTolerance>) -> bool {
-        ParametricCurve2D::is_closed(&self.0, tolerance(tol))
+        self.0.is_closed(tolerance(tol))
     }
 
     /// Continuity order `n` of `C^n` at parameter `u` as an `int`, or
     /// `math.inf` where no knot constrains the curve.
     #[pyo3(signature = (u, tol = None))]
     fn continuity(&self, u: f64, tol: Option<PyTolerance>) -> ContinuityNumber {
-        ContinuityNumber(ParametricCurve2D::continuity(&self.0, u, tolerance(tol)))
+        ContinuityNumber(self.0.continuity(u, tolerance(tol)))
     }
 
     /// The lowest `continuity` anywhere inside the bounds, ends excluded
     /// (`math.inf` when smooth everywhere).
     fn min_continuity(&self) -> ContinuityNumber {
-        ContinuityNumber(ParametricCurve2D::min_continuity(&self.0))
+        ContinuityNumber(self.0.min_continuity())
     }
 
     /// The axis-aligned box around the shape (`None` when unbounded).
@@ -77,7 +77,7 @@ impl PyParabola2D {
         tol: Option<PyTolerance>,
     ) -> Vec<PyCurveProjection2D> {
         let tol = tolerance(tol);
-        let projections = PointExtrema2D::extrema(&slf.borrow().0, point.0, tol);
+        let projections = slf.borrow().0.extrema(point.0, tol);
         projections
             .into_iter()
             .map(|projection| PyCurveProjection2D::new(projection, slf, point.0))
@@ -86,29 +86,29 @@ impl PyParabola2D {
 
     /// The (first, last) parameter bounds (unbounded here).
     fn bounds(&self) -> (f64, f64) {
-        ParametricCurve2D::bounds(&self.0)
+        self.0.bounds()
     }
 
     /// The point and the first derivative at parameter `u`.
     fn eval_d1(&self, u: f64) -> (PyPoint2D, PyVector2D) {
-        let (point, first) = ParametricCurve2D::eval_d1(&self.0, u);
+        let (point, first) = self.0.eval_d1(u);
         (PyPoint2D(point), PyVector2D(first))
     }
 
     /// The point and the first two derivatives at parameter `u`.
     fn eval_d2(&self, u: f64) -> (PyPoint2D, PyVector2D, PyVector2D) {
-        let (point, first, second) = ParametricCurve2D::eval_d2(&self.0, u);
+        let (point, first, second) = self.0.eval_d2(u);
         (PyPoint2D(point), PyVector2D(first), PyVector2D(second))
     }
 
     /// The period of the parameter, or `None` when the curve is not periodic.
     fn period(&self) -> Option<f64> {
-        ParametricCurve2D::period(&self.0)
+        self.0.period()
     }
 
     /// Whether the curve is periodic.
     fn is_periodic(&self) -> bool {
-        ParametricCurve2D::is_periodic(&self.0)
+        self.0.is_periodic()
     }
 
     /// The apex of the parabola, at the frame origin.
@@ -154,13 +154,15 @@ impl PyParabola2D {
 
     /// Evaluate the derivative of the given order (>= 1) at `u`.
     fn eval_derivative(&self, u: f64, order: u32) -> PyResult<PyVector2D> {
-        check_curve_order(order, u32::MAX)?;
+        check_curve_order(order)?;
         Ok(PyVector2D(self.0.eval_derivative(u, order)))
     }
 
-    /// Recover the parameter of a point lying on the parabola.
-    fn parameter_of(&self, point: PyPoint2D) -> f64 {
-        self.0.parameter_of(point.0)
+    /// Recover the parameter of a point lying on the parabola,
+    /// within `tol` (`Tolerance.default()` when omitted).
+    #[pyo3(signature = (point, tol = None))]
+    fn parameter_of(&self, point: PyPoint2D, tol: Option<PyTolerance>) -> f64 {
+        self.0.parameter_of(point.0, tolerance(tol))
     }
 
     /// Returns whether `point` lies on the curve within `tol`

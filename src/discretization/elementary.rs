@@ -11,6 +11,8 @@
 
 use super::sealed::{DiscretizeRange, Run};
 use super::{DiscretizationCriteria, smallest_count};
+use crate::curves::ParametricCurve;
+use crate::curves::ParametricCurve2D;
 use crate::{
     Circle, Curve, Ellipse, Ellipse2D, Hyperbola, Hyperbola2D, Line, Parabola, Parabola2D, Point,
 };

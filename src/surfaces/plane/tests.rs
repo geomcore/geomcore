@@ -137,7 +137,10 @@ fn test_eval_derivative_order_too_high_panics() {
 #[test]
 fn test_parameters_of_round_trip() {
     let p = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
-    assert_eq!(p.parameters_of(Point::new(2.0, 3.0, 0.0)), (2.0, 3.0));
+    assert_eq!(
+        p.parameters_of(Point::new(2.0, 3.0, 0.0), Tolerance::DEFAULT),
+        (2.0, 3.0)
+    );
 }
 
 // ---- PlaneConstructionError ----

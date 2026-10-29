@@ -103,9 +103,11 @@ impl Continuity {
 /// curve type that can be used generically (see [`Curve`](crate::Curve) for a
 /// heterogeneous-collection adaptor built on top of it).
 ///
-/// Concrete curve types (e.g. [`Line`](crate::Line), [`Circle`](crate::Circle)) already provide
-/// inherent methods with the same names; their trait impls simply delegate
-/// to those inherent methods, so calling code can use either form.
+/// The trait is the only home of the shared curve vocabulary (ADR 0015):
+/// a concrete type such as [`Line`](crate::Line) or
+/// [`Circle`](crate::Circle) keeps inherent methods only for what is its
+/// own (a radius, poles, knots). Bring the vocabulary into scope with
+/// `use geomcore::prelude::*`.
 ///
 /// # Examples
 ///
@@ -113,33 +115,58 @@ impl Continuity {
 /// [`eval_point`](ParametricCurve::eval_point) over each parameter:
 ///
 /// ```
-/// use geomcore::curves::ParametricCurve;
+/// use geomcore::prelude::*;
 /// use geomcore::{Line, Point, Vector};
 ///
 /// let line = Line::new(Point::ORIGIN, Vector::X).unwrap();
 /// let us = [0.0, 1.0, 2.0];
 /// let expected: Vec<Point> = us.iter().map(|&u| line.eval_point(u)).collect();
-/// assert_eq!(ParametricCurve::eval_points(&line, &us), expected);
+/// assert_eq!(line.eval_points(&us), expected);
 /// ```
 ///
 /// The default [`is_periodic`](ParametricCurve::is_periodic) reports
 /// whether [`period`](ParametricCurve::period) is `Some`:
 ///
 /// ```
-/// use geomcore::curves::ParametricCurve;
+/// use geomcore::prelude::*;
 /// use geomcore::{Circle, Line, Point, Vector};
 ///
 /// let line = Line::new(Point::ORIGIN, Vector::X).unwrap();
-/// assert!(!ParametricCurve::is_periodic(&line));
+/// assert!(!line.is_periodic());
 ///
 /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
-/// assert!(ParametricCurve::is_periodic(&circle));
+/// assert!(circle.is_periodic());
 /// ```
 pub trait ParametricCurve {
     /// Evaluates the point on the curve at parameter `u`.
     fn eval_point(&self, u: f64) -> Point;
 
     /// Evaluates the derivative of the given `order` at parameter `u`.
+    ///
+    /// Every curve accepts any order from 1 up. A derivative above the
+    /// degree of a polynomial curve (a line, a parabola, a non-rational
+    /// B-spline or Bézier) is zero; a rational one follows the quotient
+    /// rule to any order.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `order == 0`; use [`eval_point`](Self::eval_point) to
+    /// evaluate the position itself.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::prelude::*;
+    /// use geomcore::{Circle, Line, Point, Vector};
+    ///
+    /// let line = Line::new(Point::ORIGIN, Vector::new(0.0, 3.0, 0.0)).unwrap();
+    /// assert_eq!(line.eval_derivative(1.5, 1), Vector::Y);
+    /// assert_eq!(line.eval_derivative(1.5, 2), Vector::ZERO);
+    ///
+    /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
+    /// let third = circle.eval_derivative(0.0, 3);
+    /// assert!((third - Vector::new(0.0, -2.0, 0.0)).magnitude() < 1e-15);
+    /// ```
     fn eval_derivative(&self, u: f64, order: u32) -> Vector;
 
     /// Evaluates the point and the first derivative at parameter `u`.
@@ -151,7 +178,7 @@ pub trait ParametricCurve {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::curves::ParametricCurve;
+    /// use geomcore::prelude::*;
     /// use geomcore::{Circle, Point, Vector};
     ///
     /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
@@ -173,7 +200,7 @@ pub trait ParametricCurve {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::curves::ParametricCurve;
+    /// use geomcore::prelude::*;
     /// use geomcore::{BSplineCurve, Point, Vector};
     ///
     /// let poles = vec![
@@ -206,7 +233,7 @@ pub trait ParametricCurve {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::curves::ParametricCurve;
+    /// use geomcore::prelude::*;
     /// use geomcore::{Circle, Line, Point, Tolerance, Vector};
     ///
     /// let line = Line::new(Point::ORIGIN, Vector::X).unwrap();
@@ -233,7 +260,7 @@ pub trait ParametricCurve {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::curves::ParametricCurve;
+    /// use geomcore::prelude::*;
     /// use geomcore::{Circle, Line, Point, Tolerance, Vector};
     ///
     /// let line = Line::new(Point::ORIGIN, Vector::X).unwrap();
@@ -265,7 +292,7 @@ pub trait ParametricCurve {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::curves::ParametricCurve;
+    /// use geomcore::prelude::*;
     /// use geomcore::{Circle, Line, Point, Tolerance, Vector};
     ///
     /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
@@ -327,14 +354,14 @@ pub trait ParametricCurve {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::curves::ParametricCurve;
+    /// use geomcore::prelude::*;
     /// use geomcore::{Circle, Line, Point, Tolerance, Vector};
     ///
     /// let line = Line::new(Point::ORIGIN, Vector::X).unwrap();
     /// assert!(!line.is_closed(Tolerance::DEFAULT));
     ///
     /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
-    /// assert!(ParametricCurve::is_closed(&circle, Tolerance::DEFAULT));
+    /// assert!(circle.is_closed(Tolerance::DEFAULT));
     /// ```
     fn is_closed(&self, tol: Tolerance) -> bool {
         // Structural default: periodicity. Shapes whose ends meet without
@@ -360,12 +387,12 @@ pub trait ParametricCurve {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::curves::ParametricCurve;
+    /// use geomcore::prelude::*;
     /// use geomcore::{Circle, Continuity, Point, Tolerance, Vector};
     ///
     /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
     /// assert_eq!(
-    ///     ParametricCurve::continuity(&circle, 0.5, Tolerance::DEFAULT),
+    ///     circle.continuity(0.5, Tolerance::DEFAULT),
     ///     Continuity::Smooth
     /// );
     /// ```
@@ -394,7 +421,8 @@ pub trait ParametricCurve {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::curves::{ParametricCurve, TrimmedCurve};
+    /// use geomcore::curves::TrimmedCurve;
+    /// use geomcore::prelude::*;
     /// use geomcore::{BSplineCurve, Line, Point, Vector};
     ///
     /// let poles = vec![Point::ORIGIN, Point::new(2.0, 0.0, 0.0)];
@@ -403,7 +431,7 @@ pub trait ParametricCurve {
     /// assert_eq!(piece.as_bspline(), Some(&curve));
     ///
     /// let line = Line::new(Point::ORIGIN, Vector::X).unwrap();
-    /// assert_eq!(ParametricCurve::as_bspline(&line), None);
+    /// assert_eq!(line.as_bspline(), None);
     /// ```
     fn as_bspline(&self) -> Option<&BSplineCurve> {
         None
@@ -421,7 +449,8 @@ pub trait ParametricCurve {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::curves::{ElementaryCurve, ParametricCurve, TrimmedCurve};
+    /// use geomcore::curves::{ElementaryCurve, TrimmedCurve};
+    /// use geomcore::prelude::*;
     /// use geomcore::{BSplineCurve, Circle, Point, Vector};
     ///
     /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
@@ -430,7 +459,7 @@ pub trait ParametricCurve {
     ///
     /// let poles = vec![Point::ORIGIN, Point::new(2.0, 0.0, 0.0)];
     /// let curve = BSplineCurve::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
-    /// assert_eq!(ParametricCurve::as_elementary(&curve), None);
+    /// assert_eq!(curve.as_elementary(), None);
     /// ```
     fn as_elementary(&self) -> Option<ElementaryCurve> {
         None
@@ -445,14 +474,18 @@ fn regular_speed(first_derivative: Vector, width: f64, tol: Tolerance) -> Option
     (!tol.is_negligible_derivative(speed, width)).then_some(speed)
 }
 
-/// Distance extrema from a point to a 3D curve: what a
-/// [`TrimmedCurve`](crate::curves::TrimmedCurve) needs from its basis
-/// to project onto a piece of it.
+/// Distance extrema from a point to a 3D curve, and the projection,
+/// containment and inversion queries built on them.
+///
+/// A curve implements [`extrema`](Self::extrema); the other queries are
+/// provided from it, and a curve with a faster closed form overrides
+/// them (a line projects in closed form, a B-spline searches for the
+/// closest point alone).
 ///
 /// # Examples
 ///
 /// ```
-/// use geomcore::curves::PointExtrema;
+/// use geomcore::prelude::*;
 /// use geomcore::{Line, Point, Tolerance, Vector};
 ///
 /// let line = Line::new(Point::ORIGIN, Vector::X).unwrap();
@@ -469,6 +502,96 @@ pub trait PointExtrema: ParametricCurve {
     ///
     /// A query point with a non-finite coordinate has no extrema.
     fn extrema(&self, point: Point, tol: Tolerance) -> Vec<CurveProjection>;
+
+    /// Projects `point` onto the curve: the parameter, the point and the
+    /// distance of the closest point of the curve. Distances within
+    /// `tol.confusion` snap to `0.0`, matching
+    /// [`contains`](Self::contains).
+    ///
+    /// A query point with a non-finite coordinate projects to a NaN
+    /// parameter and distance. Default implementation: the first of
+    /// [`extrema`](Self::extrema).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::prelude::*;
+    /// use geomcore::curves::TrimmedCurve;
+    /// use geomcore::{Line, Point, Tolerance, Vector};
+    ///
+    /// let line = Line::new(Point::ORIGIN, Vector::X).unwrap();
+    /// let projection = line.project_point(Point::new(2.5, 1.0, 0.0), Tolerance::DEFAULT);
+    /// assert_eq!(projection.parameter, 2.5);
+    /// assert_eq!(projection.distance, 1.0);
+    ///
+    /// let segment = TrimmedCurve::segment(Point::ORIGIN, Point::new(2.0, 0.0, 0.0)).unwrap();
+    /// let projection = segment.project_point(Point::new(5.0, 1.0, 0.0), Tolerance::DEFAULT);
+    /// assert_eq!(projection.parameter, 2.0);
+    /// assert_eq!(projection.distance, 10.0_f64.sqrt());
+    /// ```
+    fn project_point(&self, point: Point, tol: Tolerance) -> CurveProjection {
+        self.extrema(point, tol)
+            .into_iter()
+            .next()
+            .unwrap_or(CurveProjection::UNDEFINED)
+    }
+
+    /// Projects each point in `points` onto the curve, as
+    /// [`project_point`](Self::project_point) does.
+    fn project_points(&self, points: &[Point], tol: Tolerance) -> Vec<CurveProjection> {
+        points
+            .iter()
+            .map(|&point| self.project_point(point, tol))
+            .collect()
+    }
+
+    /// Returns whether `point` lies on the curve: within `tol.confusion`
+    /// of it. Default implementation: the distance of
+    /// [`project_point`](Self::project_point).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::prelude::*;
+    /// use geomcore::{Line, Point, Tolerance, Vector};
+    ///
+    /// let line = Line::new(Point::ORIGIN, Vector::X).unwrap();
+    /// assert!(line.contains(Point::new(2.5, 0.0, 0.0), Tolerance::DEFAULT));
+    /// assert!(!line.contains(Point::new(2.5, 1.0, 0.0), Tolerance::DEFAULT));
+    /// ```
+    fn contains(&self, point: Point, tol: Tolerance) -> bool {
+        self.project_point(point, tol).distance <= tol.confusion
+    }
+
+    /// The parameter of `point`, a point on the curve: for a point within
+    /// `tol.confusion` of the curve, the parameter that evaluates to it.
+    ///
+    /// Default implementation: the parameter of
+    /// [`project_point`](Self::project_point), so a point off the curve
+    /// gets the parameter of its closest point. An elementary curve
+    /// overrides it with a closed-form inversion, which needs no search
+    /// and does not use `tol`; off the curve, that inversion need not
+    /// return the closest point (an ellipse inverts through the angle of
+    /// the point in its frame).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::prelude::*;
+    /// use geomcore::{BSplineCurve, Circle, Point, Tolerance, Vector};
+    ///
+    /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
+    /// let parameter = circle.parameter_of(Point::new(0.0, 2.0, 0.0), Tolerance::DEFAULT);
+    /// assert!((parameter - std::f64::consts::FRAC_PI_2).abs() < 1e-12);
+    ///
+    /// let poles = vec![Point::ORIGIN, Point::new(2.0, 0.0, 0.0)];
+    /// let curve = BSplineCurve::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
+    /// let parameter = curve.parameter_of(Point::new(1.0, 1.0, 0.0), Tolerance::DEFAULT);
+    /// assert!((parameter - 0.5).abs() < 1e-9);
+    /// ```
+    fn parameter_of(&self, point: Point, tol: Tolerance) -> f64 {
+        self.project_point(point, tol).parameter
+    }
 }
 
 /// A reference to a curve is the curve, so a
@@ -527,6 +650,22 @@ impl<C: ParametricCurve + ?Sized> ParametricCurve for &C {
 impl<C: PointExtrema + ?Sized> PointExtrema for &C {
     fn extrema(&self, point: Point, tol: Tolerance) -> Vec<CurveProjection> {
         (**self).extrema(point, tol)
+    }
+
+    fn project_point(&self, point: Point, tol: Tolerance) -> CurveProjection {
+        (**self).project_point(point, tol)
+    }
+
+    fn project_points(&self, points: &[Point], tol: Tolerance) -> Vec<CurveProjection> {
+        (**self).project_points(points, tol)
+    }
+
+    fn contains(&self, point: Point, tol: Tolerance) -> bool {
+        (**self).contains(point, tol)
+    }
+
+    fn parameter_of(&self, point: Point, tol: Tolerance) -> f64 {
+        (**self).parameter_of(point, tol)
     }
 }
 

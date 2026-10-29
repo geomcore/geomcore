@@ -7,8 +7,8 @@ use crate::results::*;
 use crate::surfaces::*;
 use crate::values::*;
 use crate::{ContinuityNumber, check_surface_order, tolerance};
-use geomcore::HasBoundingBox;
-use geomcore::surfaces::{Cone, ParametricSurface};
+use geomcore::prelude::*;
+use geomcore::surfaces::Cone;
 use pyo3::prelude::*;
 
 /// An infinite cone; u is the angle around the axis, v the distance along a
@@ -21,7 +21,7 @@ pub(crate) struct PyCone(pub(crate) Cone);
 impl PyCone {
     /// The point and the first partial derivatives `(du, dv)` at `(u, v)`.
     fn eval_d1(&self, u: f64, v: f64) -> (PyPoint, (PyVector, PyVector)) {
-        let (point, [du, dv]) = ParametricSurface::eval_d1(&self.0, u, v);
+        let (point, [du, dv]) = self.0.eval_d1(u, v);
         (PyPoint(point), (PyVector(du), PyVector(dv)))
     }
 
@@ -36,7 +36,7 @@ impl PyCone {
         (PyVector, PyVector),
         (PyVector, PyVector, PyVector),
     ) {
-        let (point, [du, dv], [duu, duv, dvv]) = ParametricSurface::eval_d2(&self.0, u, v);
+        let (point, [du, dv], [duu, duv, dvv]) = self.0.eval_d2(u, v);
         (
             PyPoint(point),
             (PyVector(du), PyVector(dv)),
@@ -47,13 +47,13 @@ impl PyCone {
     /// The period of the u parameter, or `None` when the surface is not
     /// periodic in u.
     fn u_period(&self) -> Option<f64> {
-        ParametricSurface::u_period(&self.0)
+        self.0.u_period()
     }
 
     /// The period of the v parameter, or `None` when the surface is not
     /// periodic in v.
     fn v_period(&self) -> Option<f64> {
-        ParametricSurface::v_period(&self.0)
+        self.0.v_period()
     }
 
     /// The placement frame of the cone.
@@ -146,22 +146,24 @@ impl PyCone {
     /// own, and where no normal can be recovered.
     #[pyo3(signature = (u, v, tol = None))]
     fn normal(&self, u: f64, v: f64, tol: Option<PyTolerance>) -> Option<PyVector> {
-        ParametricSurface::normal(&self.0, u, v, tolerance(tol)).map(PyVector)
+        self.0.normal(u, v, tolerance(tol)).map(PyVector)
     }
 
-    /// Recover the (u, v) parameters of a point lying on the cone.
-    fn parameters_of(&self, point: PyPoint) -> (f64, f64) {
-        self.0.parameters_of(point.0)
+    /// Recover the (u, v) parameters of a point lying on the cone,
+    /// within `tol` (`Tolerance.default()` when omitted).
+    #[pyo3(signature = (point, tol = None))]
+    fn parameters_of(&self, point: PyPoint, tol: Option<PyTolerance>) -> (f64, f64) {
+        self.0.parameters_of(point.0, tolerance(tol))
     }
 
     /// The (first, last) `u` parameter bounds (a whole turn).
     fn u_bounds(&self) -> (f64, f64) {
-        ParametricSurface::u_bounds(&self.0)
+        self.0.u_bounds()
     }
 
     /// The (first, last) `v` parameter bounds (unbounded here).
     fn v_bounds(&self) -> (f64, f64) {
-        ParametricSurface::v_bounds(&self.0)
+        self.0.v_bounds()
     }
 
     /// The `u` isoparametric generator line at angle `u`, parametrized by `v` like the surface:
@@ -258,13 +260,13 @@ impl PyCone {
     /// omitted). Periodic in `u` implies closed in `u`, not conversely.
     #[pyo3(signature = (tol = None))]
     fn is_u_closed(&self, tol: Option<PyTolerance>) -> bool {
-        ParametricSurface::is_u_closed(&self.0, tolerance(tol))
+        self.0.is_u_closed(tolerance(tol))
     }
 
     /// Whether travelling in `v` returns to its start, as `is_u_closed`.
     #[pyo3(signature = (tol = None))]
     fn is_v_closed(&self, tol: Option<PyTolerance>) -> bool {
-        ParametricSurface::is_v_closed(&self.0, tolerance(tol))
+        self.0.is_v_closed(tolerance(tol))
     }
 
     /// Continuity order `n` of `C^n` in `u` at parameter `u` as an `int`,
@@ -275,25 +277,25 @@ impl PyCone {
     /// siblings to evaluate each side of a knot reporting a low order.
     #[pyo3(signature = (u, tol = None))]
     fn continuity_u(&self, u: f64, tol: Option<PyTolerance>) -> ContinuityNumber {
-        ContinuityNumber(ParametricSurface::continuity_u(&self.0, u, tolerance(tol)))
+        ContinuityNumber(self.0.continuity_u(u, tolerance(tol)))
     }
 
     /// Continuity order in `v` at parameter `v`, as `continuity_u`.
     #[pyo3(signature = (v, tol = None))]
     fn continuity_v(&self, v: f64, tol: Option<PyTolerance>) -> ContinuityNumber {
-        ContinuityNumber(ParametricSurface::continuity_v(&self.0, v, tolerance(tol)))
+        ContinuityNumber(self.0.continuity_v(v, tolerance(tol)))
     }
 
     /// The lowest `continuity_u` anywhere inside the `u` range, ends
     /// excluded (`math.inf` when smooth everywhere).
     fn min_continuity_u(&self) -> ContinuityNumber {
-        ContinuityNumber(ParametricSurface::min_continuity_u(&self.0))
+        ContinuityNumber(self.0.min_continuity_u())
     }
 
     /// The lowest `continuity_v` anywhere inside the `v` range, ends
     /// excluded (`math.inf` when smooth everywhere).
     fn min_continuity_v(&self) -> ContinuityNumber {
-        ContinuityNumber(ParametricSurface::min_continuity_v(&self.0))
+        ContinuityNumber(self.0.min_continuity_v())
     }
 
     /// Principal curvatures with their directions, and the mean and
@@ -304,7 +306,9 @@ impl PyCone {
     /// normal: negative bends away from it.
     #[pyo3(signature = (u, v, tol = None))]
     fn curvatures(&self, u: f64, v: f64, tol: Option<PyTolerance>) -> Option<PySurfaceCurvatures> {
-        ParametricSurface::curvatures(&self.0, u, v, tolerance(tol)).map(PySurfaceCurvatures)
+        self.0
+            .curvatures(u, v, tolerance(tol))
+            .map(PySurfaceCurvatures)
     }
 
     /// Maps `u` onto the `reversed_u()` surface: the `u` parameter of the

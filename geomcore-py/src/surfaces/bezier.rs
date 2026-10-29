@@ -6,8 +6,8 @@ use crate::results::*;
 use crate::surfaces::*;
 use crate::values::*;
 use crate::{check_surface_order, tolerance};
-use geomcore::HasBoundingBox;
-use geomcore::surfaces::{BezierSurface, ParametricSurface};
+use geomcore::prelude::*;
+use geomcore::surfaces::BezierSurface;
 use pyo3::prelude::*;
 
 /// A Bézier surface (optionally rational): a grid of
@@ -133,12 +133,12 @@ impl PyBezierSurface {
 
     /// The period of the u parameter: always `None`.
     fn u_period(&self) -> Option<f64> {
-        ParametricSurface::u_period(&self.0)
+        self.0.u_period()
     }
 
     /// The period of the v parameter: always `None`.
     fn v_period(&self) -> Option<f64> {
-        ParametricSurface::v_period(&self.0)
+        self.0.v_period()
     }
 
     /// The axis-aligned box around the poles, which bound the surface
@@ -355,7 +355,7 @@ impl PyBezierSurface {
     /// when omitted), or `None` where no normal can be recovered.
     #[pyo3(signature = (u, v, tol = None))]
     fn normal(&self, u: f64, v: f64, tol: Option<PyTolerance>) -> Option<PyVector> {
-        ParametricSurface::normal(&self.0, u, v, tolerance(tol)).map(PyVector)
+        self.0.normal(u, v, tolerance(tol)).map(PyVector)
     }
 
     /// Principal curvatures with their directions, and the mean and
@@ -364,6 +364,8 @@ impl PyBezierSurface {
     /// degenerates.
     #[pyo3(signature = (u, v, tol = None))]
     fn curvatures(&self, u: f64, v: f64, tol: Option<PyTolerance>) -> Option<PySurfaceCurvatures> {
-        ParametricSurface::curvatures(&self.0, u, v, tolerance(tol)).map(PySurfaceCurvatures)
+        self.0
+            .curvatures(u, v, tolerance(tol))
+            .map(PySurfaceCurvatures)
     }
 }

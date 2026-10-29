@@ -4,6 +4,7 @@
 //! multiplicities rise by the amount, for polynomial and rational, clamped,
 //! unclamped and periodic B-splines.
 
+use geomcore::prelude::*;
 use std::f64::consts::{FRAC_1_SQRT_2, TAU};
 
 use geomcore::{BSplineCurve, BSplineSurface, DegreeElevationError, Point, Vector};
@@ -378,7 +379,6 @@ fn test_zero_amount_returns_a_copy_and_degree_25_is_the_limit() {
 // ---- surfaces ----
 
 fn surface_params(surface: &BSplineSurface) -> Vec<(f64, f64)> {
-    use geomcore::ParametricSurface;
     let (u0, u1) = surface.u_bounds();
     let (v0, v1) = surface.v_bounds();
     let mut params = Vec::new();
@@ -394,7 +394,6 @@ fn surface_params(surface: &BSplineSurface) -> Vec<(f64, f64)> {
 }
 
 fn assert_same_surface(raised: &BSplineSurface, original: &BSplineSurface, scale: f64) {
-    use geomcore::ParametricSurface;
     assert_eq!(raised.u_bounds(), original.u_bounds());
     assert_eq!(raised.v_bounds(), original.v_bounds());
     assert_eq!(raised.u_period(), original.u_period());

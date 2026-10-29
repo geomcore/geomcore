@@ -9,13 +9,13 @@
 //! frame changes handedness and the normal turns to the opposite of the
 //! mirrored normal, exactly as for a B-spline whose poles are mirrored.
 
-use geomcore::curves::{ParametricCurve, ParametricCurve2D};
-use geomcore::surfaces::{ParametricSurface, Surface};
+use geomcore::prelude::*;
+use geomcore::surfaces::Surface;
 use geomcore::{
     Axis, BSplineCurve, BSplineSurface, Circle, Cone, Curve, CurveCurveHit, Cylinder,
     ElementaryCurve, Ellipse, ExactCurveCurveIntersection, ExactCurveSurfaceIntersection,
-    ExactSurfaceIntersection, Frame, Hyperbola, Intersect, IntersectExact, IntersectionMethod,
-    Line, Parabola, Plane, Point, Sphere, Tolerance, Torus, Transform, Vector,
+    ExactSurfaceIntersection, Frame, Hyperbola, IntersectionMethod, Line, Parabola, Plane, Point,
+    Sphere, Tolerance, Torus, Transform, Vector,
 };
 
 const PARAMETERS: [(f64, f64); 4] = [(0.0, 0.0), (0.3, 0.2), (2.0, -0.7), (4.5, 1.1)];
@@ -582,9 +582,9 @@ fn test_curve_surface_intersection_commutes_with_mirrors() {
 fn hit_parameters(hit: &CurveCurveHit, first: &Curve, second: &Curve) -> (f64, f64) {
     (
         hit.first_parameter
-            .unwrap_or_else(|| first.parameter_of(hit.point)),
+            .unwrap_or_else(|| first.parameter_of(hit.point, Tolerance::DEFAULT)),
         hit.second_parameter
-            .unwrap_or_else(|| second.parameter_of(hit.point)),
+            .unwrap_or_else(|| second.parameter_of(hit.point, Tolerance::DEFAULT)),
     )
 }
 

@@ -9,20 +9,9 @@ use crate::errors::python_error;
 use crate::results::*;
 use crate::values::*;
 use crate::{ContinuityNumber, check_curve_order, tolerance};
-use geomcore::curves::{
-    Curve, ParametricCurve, ParametricCurve2D, PointExtrema, PointExtrema2D, TrimmedCurve,
-    TrimmedCurve2D,
-};
-use geomcore::{HasBoundingBox, HasBoundingBox2D};
+use geomcore::curves::{TrimmedCurve, TrimmedCurve2D};
+use geomcore::prelude::*;
 use pyo3::prelude::*;
-
-/// The highest derivative order a 3D basis curve evaluates.
-pub(crate) fn max_curve_order(curve: &Curve) -> u32 {
-    match curve {
-        Curve::BSpline(_) => 2,
-        _ => u32::MAX,
-    }
-}
 
 /// A 3D curve restricted to the parameter range `[first, last]` of a
 /// basis curve: a line segment, an arc of a circle or conic, or a piece of
@@ -52,24 +41,24 @@ impl PyTrimmedCurve {
 
     /// The point and the first derivative at parameter `u`.
     fn eval_d1(&self, u: f64) -> (PyPoint, PyVector) {
-        let (point, first) = ParametricCurve::eval_d1(&self.0, u);
+        let (point, first) = self.0.eval_d1(u);
         (PyPoint(point), PyVector(first))
     }
 
     /// The point and the first two derivatives at parameter `u`.
     fn eval_d2(&self, u: f64) -> (PyPoint, PyVector, PyVector) {
-        let (point, first, second) = ParametricCurve::eval_d2(&self.0, u);
+        let (point, first, second) = self.0.eval_d2(u);
         (PyPoint(point), PyVector(first), PyVector(second))
     }
 
     /// The period of the parameter, or `None` when the curve is not periodic.
     fn period(&self) -> Option<f64> {
-        ParametricCurve::period(&self.0)
+        self.0.period()
     }
 
     /// Whether the curve is periodic.
     fn is_periodic(&self) -> bool {
-        ParametricCurve::is_periodic(&self.0)
+        self.0.is_periodic()
     }
 
     #[new]
@@ -109,7 +98,7 @@ impl PyTrimmedCurve {
 
     /// The (first, last) parameter bounds.
     fn bounds(&self) -> (f64, f64) {
-        ParametricCurve::bounds(&self.0)
+        self.0.bounds()
     }
 
     /// The axis-aligned box around the shape (`None` when unbounded).
@@ -174,10 +163,9 @@ impl PyTrimmedCurve {
         discretize_3d(&self.0, max_chord_deviation, max_angle_deviation)
     }
 
-    /// Evaluate the derivative of the given order (>= 1) at `u`, within
-    /// the orders the basis supports.
+    /// Evaluate the derivative of the given order (>= 1) at `u`.
     fn eval_derivative(&self, u: f64, order: u32) -> PyResult<PyVector> {
-        check_curve_order(order, max_curve_order(self.0.basis()))?;
+        check_curve_order(order)?;
         Ok(PyVector(self.0.eval_derivative(u, order)))
     }
 
@@ -197,7 +185,7 @@ impl PyTrimmedCurve {
         tol: Option<PyTolerance>,
     ) -> Vec<PyCurveProjection> {
         let tol = tolerance(tol);
-        let projections = PointExtrema::extrema(&slf.borrow().0, point.0, tol);
+        let projections = slf.borrow().0.extrema(point.0, tol);
         projections
             .into_iter()
             .map(|projection| PyCurveProjection::new(projection, slf, point.0))
@@ -271,7 +259,7 @@ impl PyTrimmedCurve {
     /// change the answer.
     #[pyo3(signature = (u, tol = None))]
     fn tangent(&self, u: f64, tol: Option<PyTolerance>) -> Option<PyVector> {
-        ParametricCurve::tangent(&self.0, u, tolerance(tol)).map(PyVector)
+        self.0.tangent(u, tolerance(tol)).map(PyVector)
     }
 
     /// Curvature at parameter `u`: the turn rate of the unit tangent per
@@ -279,7 +267,7 @@ impl PyTrimmedCurve {
     /// vanishes, by the test of `tangent`.
     #[pyo3(signature = (u, tol = None))]
     fn curvature(&self, u: f64, tol: Option<PyTolerance>) -> Option<f64> {
-        ParametricCurve::curvature(&self.0, u, tolerance(tol))
+        self.0.curvature(u, tolerance(tol))
     }
 
     /// Centre of the osculating circle at parameter `u`, or `None` where
@@ -287,7 +275,7 @@ impl PyTrimmedCurve {
     /// at infinity).
     #[pyo3(signature = (u, tol = None))]
     fn curvature_center(&self, u: f64, tol: Option<PyTolerance>) -> Option<PyPoint> {
-        ParametricCurve::curvature_center(&self.0, u, tolerance(tol)).map(PyPoint)
+        self.0.curvature_center(u, tolerance(tol)).map(PyPoint)
     }
 
     /// Whether travelling along the curve returns to its start
@@ -296,7 +284,7 @@ impl PyTrimmedCurve {
     /// periodic.
     #[pyo3(signature = (tol = None))]
     fn is_closed(&self, tol: Option<PyTolerance>) -> bool {
-        ParametricCurve::is_closed(&self.0, tolerance(tol))
+        self.0.is_closed(tolerance(tol))
     }
 
     /// Continuity order `n` of `C^n` at parameter `u` as an `int`, or
@@ -307,13 +295,13 @@ impl PyTrimmedCurve {
     /// evaluate each side of a knot reporting a low order.
     #[pyo3(signature = (u, tol = None))]
     fn continuity(&self, u: f64, tol: Option<PyTolerance>) -> ContinuityNumber {
-        ContinuityNumber(ParametricCurve::continuity(&self.0, u, tolerance(tol)))
+        ContinuityNumber(self.0.continuity(u, tolerance(tol)))
     }
 
     /// The lowest `continuity` anywhere inside the bounds, ends excluded
     /// (`math.inf` when smooth everywhere).
     fn min_continuity(&self) -> ContinuityNumber {
-        ContinuityNumber(ParametricCurve::min_continuity(&self.0))
+        ContinuityNumber(self.0.min_continuity())
     }
 }
 
@@ -333,7 +321,7 @@ impl PyTrimmedCurve2D {
     /// change the answer.
     #[pyo3(signature = (u, tol = None))]
     fn tangent(&self, u: f64, tol: Option<PyTolerance>) -> Option<PyVector2D> {
-        ParametricCurve2D::tangent(&self.0, u, tolerance(tol)).map(PyVector2D)
+        self.0.tangent(u, tolerance(tol)).map(PyVector2D)
     }
 
     /// Signed curvature at parameter `u`: the turn rate of the unit
@@ -344,7 +332,7 @@ impl PyTrimmedCurve2D {
     /// vanishes, by the test of `tangent`.
     #[pyo3(signature = (u, tol = None))]
     fn curvature(&self, u: f64, tol: Option<PyTolerance>) -> Option<f64> {
-        ParametricCurve2D::curvature(&self.0, u, tolerance(tol))
+        self.0.curvature(u, tolerance(tol))
     }
 
     /// Centre of the osculating circle at parameter `u`, or `None` where
@@ -352,7 +340,7 @@ impl PyTrimmedCurve2D {
     /// at infinity). A circle's centre is its own, whichever way it runs.
     #[pyo3(signature = (u, tol = None))]
     fn curvature_center(&self, u: f64, tol: Option<PyTolerance>) -> Option<PyPoint2D> {
-        ParametricCurve2D::curvature_center(&self.0, u, tolerance(tol)).map(PyPoint2D)
+        self.0.curvature_center(u, tolerance(tol)).map(PyPoint2D)
     }
 
     /// Whether travelling along the curve returns to its start
@@ -361,7 +349,7 @@ impl PyTrimmedCurve2D {
     /// periodic.
     #[pyo3(signature = (tol = None))]
     fn is_closed(&self, tol: Option<PyTolerance>) -> bool {
-        ParametricCurve2D::is_closed(&self.0, tolerance(tol))
+        self.0.is_closed(tolerance(tol))
     }
 
     /// Continuity order `n` of `C^n` at parameter `u` as an `int`, or
@@ -369,13 +357,13 @@ impl PyTrimmedCurve2D {
     /// `BSplineCurve2D.continuity`.
     #[pyo3(signature = (u, tol = None))]
     fn continuity(&self, u: f64, tol: Option<PyTolerance>) -> ContinuityNumber {
-        ContinuityNumber(ParametricCurve2D::continuity(&self.0, u, tolerance(tol)))
+        ContinuityNumber(self.0.continuity(u, tolerance(tol)))
     }
 
     /// The lowest `continuity` anywhere inside the bounds, ends excluded
     /// (`math.inf` when smooth everywhere).
     fn min_continuity(&self) -> ContinuityNumber {
-        ContinuityNumber(ParametricCurve2D::min_continuity(&self.0))
+        ContinuityNumber(self.0.min_continuity())
     }
 
     /// The axis-aligned box around the curve, or `None` when it is
@@ -399,24 +387,24 @@ impl PyTrimmedCurve2D {
 
     /// The point and the first derivative at parameter `u`.
     fn eval_d1(&self, u: f64) -> (PyPoint2D, PyVector2D) {
-        let (point, first) = ParametricCurve2D::eval_d1(&self.0, u);
+        let (point, first) = self.0.eval_d1(u);
         (PyPoint2D(point), PyVector2D(first))
     }
 
     /// The point and the first two derivatives at parameter `u`.
     fn eval_d2(&self, u: f64) -> (PyPoint2D, PyVector2D, PyVector2D) {
-        let (point, first, second) = ParametricCurve2D::eval_d2(&self.0, u);
+        let (point, first, second) = self.0.eval_d2(u);
         (PyPoint2D(point), PyVector2D(first), PyVector2D(second))
     }
 
     /// The period of the parameter, or `None` when the curve is not periodic.
     fn period(&self) -> Option<f64> {
-        ParametricCurve2D::period(&self.0)
+        self.0.period()
     }
 
     /// Whether the curve is periodic.
     fn is_periodic(&self) -> bool {
-        ParametricCurve2D::is_periodic(&self.0)
+        self.0.is_periodic()
     }
 
     #[new]
@@ -501,7 +489,7 @@ impl PyTrimmedCurve2D {
 
     /// Evaluate the derivative of the given order (>= 1) at `u`.
     fn eval_derivative(&self, u: f64, order: u32) -> PyResult<PyVector2D> {
-        check_curve_order(order, u32::MAX)?;
+        check_curve_order(order)?;
         Ok(PyVector2D(self.0.eval_derivative(u, order)))
     }
 
@@ -522,7 +510,7 @@ impl PyTrimmedCurve2D {
         tol: Option<PyTolerance>,
     ) -> Vec<PyCurveProjection2D> {
         let tol = tolerance(tol);
-        let projections = PointExtrema2D::extrema(&slf.borrow().0, point.0, tol);
+        let projections = slf.borrow().0.extrema(point.0, tol);
         projections
             .into_iter()
             .map(|projection| PyCurveProjection2D::new(projection, slf, point.0))

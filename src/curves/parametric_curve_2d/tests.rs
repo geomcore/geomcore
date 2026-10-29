@@ -51,12 +51,9 @@ fn test_sample_ellipse_agrees_with_inherent() {
 #[test]
 fn test_line_bounds_and_period() {
     let l = line();
-    assert_eq!(
-        ParametricCurve2D::bounds(&l),
-        (f64::NEG_INFINITY, f64::INFINITY)
-    );
-    assert_eq!(ParametricCurve2D::period(&l), None);
-    assert!(!ParametricCurve2D::is_periodic(&l));
+    assert_eq!(l.bounds(), (f64::NEG_INFINITY, f64::INFINITY));
+    assert_eq!(l.period(), None);
+    assert!(!l.is_periodic());
 
     let wrapped: Curve2D = l.into();
     assert_eq!(wrapped.bounds(), (f64::NEG_INFINITY, f64::INFINITY));
@@ -67,9 +64,9 @@ fn test_line_bounds_and_period() {
 #[test]
 fn test_circle_bounds_and_period() {
     let c = circle();
-    assert_eq!(ParametricCurve2D::bounds(&c), (0.0, TAU));
-    assert_eq!(ParametricCurve2D::period(&c), Some(TAU));
-    assert!(ParametricCurve2D::is_periodic(&c));
+    assert_eq!(c.bounds(), (0.0, TAU));
+    assert_eq!(c.period(), Some(TAU));
+    assert!(c.is_periodic());
 
     let wrapped: Curve2D = c.into();
     assert_eq!(wrapped.bounds(), (0.0, TAU));
@@ -80,9 +77,9 @@ fn test_circle_bounds_and_period() {
 #[test]
 fn test_ellipse_bounds_and_period() {
     let e = ellipse();
-    assert_eq!(ParametricCurve2D::bounds(&e), (0.0, TAU));
-    assert_eq!(ParametricCurve2D::period(&e), Some(TAU));
-    assert!(ParametricCurve2D::is_periodic(&e));
+    assert_eq!(e.bounds(), (0.0, TAU));
+    assert_eq!(e.period(), Some(TAU));
+    assert!(e.is_periodic());
 
     let wrapped: Curve2D = e.into();
     assert_eq!(wrapped.bounds(), (0.0, TAU));
@@ -98,32 +95,23 @@ fn test_default_eval_points_matches_mapped_eval_point_for_each_type() {
 
     let l = line();
     let expected: Vec<Point2D> = us.iter().map(|&u| l.eval_point(u)).collect();
-    assert_eq!(ParametricCurve2D::eval_points(&l, &us), expected);
+    assert_eq!(l.eval_points(&us), expected);
 
     let c = circle();
     let expected: Vec<Point2D> = us.iter().map(|&u| c.eval_point(u)).collect();
-    assert_eq!(ParametricCurve2D::eval_points(&c, &us), expected);
+    assert_eq!(c.eval_points(&us), expected);
 }
 
 #[test]
 fn test_eval_derivative_delegates_to_inherent() {
     let l = line();
-    assert_eq!(
-        ParametricCurve2D::eval_derivative(&l, 0.5, 1),
-        l.eval_derivative(0.5, 1)
-    );
+    assert_eq!(l.eval_derivative(0.5, 1), l.eval_derivative(0.5, 1));
 
     let c = circle();
-    assert_eq!(
-        ParametricCurve2D::eval_derivative(&c, 0.5, 1),
-        c.eval_derivative(0.5, 1)
-    );
+    assert_eq!(c.eval_derivative(0.5, 1), c.eval_derivative(0.5, 1));
 
     let e = ellipse();
-    assert_eq!(
-        ParametricCurve2D::eval_derivative(&e, 0.5, 1),
-        e.eval_derivative(0.5, 1)
-    );
+    assert_eq!(e.eval_derivative(0.5, 1), e.eval_derivative(0.5, 1));
 }
 
 // ---- signed local properties ----
@@ -223,32 +211,20 @@ fn test_straight_bspline_has_no_curvature_center() {
 
 #[test]
 fn test_elementary_closedness_and_continuity() {
-    assert!(!ParametricCurve2D::is_closed(&line(), TOL));
-    assert!(ParametricCurve2D::is_closed(&circle(), TOL));
-    assert!(ParametricCurve2D::is_closed(&ellipse(), TOL));
-    assert_eq!(
-        ParametricCurve2D::continuity(&circle(), 0.5, TOL),
-        Continuity::Smooth
-    );
-    assert_eq!(
-        ParametricCurve2D::continuity(&ellipse(), 0.5, TOL),
-        Continuity::Smooth
-    );
-    assert_eq!(
-        ParametricCurve2D::min_continuity(&line()),
-        Continuity::Smooth
-    );
+    assert!(!line().is_closed(TOL));
+    assert!(circle().is_closed(TOL));
+    assert!(ellipse().is_closed(TOL));
+    assert_eq!(circle().continuity(0.5, TOL), Continuity::Smooth);
+    assert_eq!(ellipse().continuity(0.5, TOL), Continuity::Smooth);
+    assert_eq!(line().min_continuity(), Continuity::Smooth);
 }
 
 #[test]
 fn test_bspline_trait_agrees_with_inherent_closedness_and_continuity() {
     let k = kinked();
-    assert_eq!(
-        ParametricCurve2D::continuity(&k, 0.5, TOL),
-        Continuity::Order(0)
-    );
-    assert_eq!(ParametricCurve2D::min_continuity(&k), Continuity::Order(0));
-    assert!(!ParametricCurve2D::is_closed(&k, TOL));
+    assert_eq!(k.continuity(0.5, TOL), Continuity::Order(0));
+    assert_eq!(k.min_continuity(), Continuity::Order(0));
+    assert!(!k.is_closed(TOL));
 
     let poles = vec![
         Point2D::new(0.0, 0.0),
@@ -256,7 +232,7 @@ fn test_bspline_trait_agrees_with_inherent_closedness_and_continuity() {
         Point2D::new(0.0, 0.0),
     ];
     let closed = BSplineCurve2D::new(1, poles, vec![0.0, 1.0, 2.0], vec![2, 1, 2], false).unwrap();
-    assert!(ParametricCurve2D::is_closed(&closed, TOL));
+    assert!(closed.is_closed(TOL));
 }
 
 // ---- as_bspline ----
@@ -264,9 +240,9 @@ fn test_bspline_trait_agrees_with_inherent_closedness_and_continuity() {
 #[test]
 fn test_as_bspline_is_some_only_for_bsplines() {
     let a = arch();
-    assert_eq!(ParametricCurve2D::as_bspline(&a), Some(&a));
-    assert_eq!(ParametricCurve2D::as_bspline(&line()), None);
-    assert_eq!(ParametricCurve2D::as_bspline(&circle()), None);
+    assert_eq!(a.as_bspline(), Some(&a));
+    assert_eq!(line().as_bspline(), None);
+    assert_eq!(circle().as_bspline(), None);
 
     let wrapped: Curve2D = a.clone().into();
     assert_eq!(wrapped.as_bspline(), Some(&a));
