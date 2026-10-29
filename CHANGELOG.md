@@ -9,6 +9,17 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+## [0.38.0] - 2026-10-29
+
+The 2D curve tier now matches the 3D one (ADR 0014). `Ellipse2D`,
+`Parabola2D`, `Hyperbola2D` and `BSplineCurve2D` join `Line2D` and
+`Circle2D`. A conic or B-spline on a plane maps to its exact image in
+the plane, and every pair of 2D curves intersects, exactly where a
+closed form exists. Bézier curves and patches are first-class types.
+This release breaks compatibility in two places: `to_bezier_pieces` /
+`to_bezier_patches` return the new Bézier types, and `Curve2D` is no
+longer `Copy` (see Changed).
+
 ### Added
 
 - `BSplineCurve2D` (#90), in Rust and Python: construction (polynomial,
@@ -1793,7 +1804,8 @@ Behaviour, in Rust and Python alike:
 - Golden-fixture validation of all numeric results at 1e-7 tolerance, and
   criterion throughput benchmarks (`docs/benchmarks.md`).
 
-[Unreleased]: https://github.com/geomcore/geomcore/compare/v0.37.0...HEAD
+[Unreleased]: https://github.com/geomcore/geomcore/compare/v0.38.0...HEAD
+[0.38.0]: https://github.com/geomcore/geomcore/compare/v0.37.0...v0.38.0
 [0.37.0]: https://github.com/geomcore/geomcore/compare/v0.36.0...v0.37.0
 [0.36.0]: https://github.com/geomcore/geomcore/compare/v0.35.0...v0.36.0
 [0.35.0]: https://github.com/geomcore/geomcore/releases/tag/v0.35.0

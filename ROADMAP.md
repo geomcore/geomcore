@@ -88,17 +88,18 @@ ones before them. If you'd like to help with any of it, see
 - **0.37** — Only 2D types carry a dimension suffix: `Point3D` becomes
   `Point`, `Line3D` becomes `Line`, and so on; the old names warn for one
   release.
+- **0.38** — The 2D curve tier mirrors the 3D one: `Ellipse2D`,
+  `Parabola2D`, `Hyperbola2D` and `BSplineCurve2D`, exact plane images
+  of conics and B-splines, and 2D intersections for every curve pair.
+  First-class `BezierCurve`, `BezierCurve2D` and `BezierSurface`.
 
 ## Next
 
-1. **2D curve tier** — ellipse, parabola, hyperbola and B-spline curves
-   in 2D, so curve-on-surface parametrization returns the exact image of
-   every curve (ADR 0014).
-2. **Marching intersection** — trace through points where the two
+1. **Marching intersection** — trace through points where the two
    surfaces touch, and find isolated loops smaller than the iso-curve
    spacing on surfaces other than B-splines (two B-spline surfaces
    already find them from overlapping patch pairs, #30).
-3. **Hosted documentation** — tutorials on the docs site, and a Python
+2. **Hosted documentation** — tutorials on the docs site, and a Python
    API reference generated from docstrings.
 
 ## Someday
