@@ -13,6 +13,7 @@ use super::sealed::{DiscretizeRange, Run};
 use super::{DiscretizationCriteria, smallest_count};
 use crate::curves::ParametricCurve;
 use crate::curves::ParametricCurve2D;
+use crate::curves::{curve_2d_dispatch, curve_dispatch};
 use crate::{
     Circle, Curve, Ellipse, Ellipse2D, Hyperbola, Hyperbola2D, Line, Parabola, Parabola2D, Point,
 };
@@ -545,14 +546,7 @@ impl DiscretizeRange for Curve {
     ) where
         F: FnMut(Run, &dyn Fn(f64) -> Self::Point),
     {
-        match self {
-            Curve::Line(c) => c.for_each_run(first, last, criteria, min_segments, visit),
-            Curve::Circle(c) => c.for_each_run(first, last, criteria, min_segments, visit),
-            Curve::Ellipse(c) => c.for_each_run(first, last, criteria, min_segments, visit),
-            Curve::Parabola(c) => c.for_each_run(first, last, criteria, min_segments, visit),
-            Curve::Hyperbola(c) => c.for_each_run(first, last, criteria, min_segments, visit),
-            Curve::BSpline(c) => c.for_each_run(first, last, criteria, min_segments, visit),
-        }
+        curve_dispatch!(self, c => c.for_each_run(first, last, criteria, min_segments, visit))
     }
 }
 
@@ -569,13 +563,6 @@ impl DiscretizeRange for Curve2D {
     ) where
         F: FnMut(Run, &dyn Fn(f64) -> Self::Point),
     {
-        match self {
-            Curve2D::Line(c) => c.for_each_run(first, last, criteria, min_segments, visit),
-            Curve2D::Circle(c) => c.for_each_run(first, last, criteria, min_segments, visit),
-            Curve2D::Ellipse(c) => c.for_each_run(first, last, criteria, min_segments, visit),
-            Curve2D::Parabola(c) => c.for_each_run(first, last, criteria, min_segments, visit),
-            Curve2D::Hyperbola(c) => c.for_each_run(first, last, criteria, min_segments, visit),
-            Curve2D::BSpline(c) => c.for_each_run(first, last, criteria, min_segments, visit),
-        }
+        curve_2d_dispatch!(self, c => c.for_each_run(first, last, criteria, min_segments, visit))
     }
 }

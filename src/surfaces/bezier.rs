@@ -12,8 +12,10 @@
 //! those are wanted.
 
 use crate::bspline::curve::MAX_DEGREE;
-use crate::curves::{BSplineSplitError, BezierConstructionError, DegreeElevationError, Side};
-use crate::surfaces::{BSplineSurface, ParametricSurface};
+use crate::curves::{
+    BSplineSplitError, BezierConstructionError, BezierCurve, DegreeElevationError, Side,
+};
+use crate::surfaces::{BSplineSurface, ParametricSurface, SurfaceIsoError};
 use crate::{Continuity, Point, SurfaceProjection, Tolerance, Vector};
 
 /// A Bézier surface (optionally rational) in 3D: a grid of
@@ -524,6 +526,74 @@ impl BezierSurface {
     /// ```
     pub fn reversed_v(&self) -> BezierSurface {
         Self::from_surface(self.0.reversed_v())
+    }
+
+    /// Maps `u` onto the [`reversed_u`](Self::reversed_u) surface:
+    /// `first + last - u`, the parameter of the same point there.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::prelude::*;
+    /// use geomcore::{BezierSurface, Point};
+    ///
+    /// let poles = (0..3)
+    ///     .map(|i| (0..2).map(|j| Point::new(i as f64, j as f64, (i * j) as f64)).collect())
+    ///     .collect();
+    /// let surface = BezierSurface::new(2, 1, poles).unwrap();
+    /// let u = surface.u_reversed_parameter(0.25);
+    /// assert_eq!(u, 0.75);
+    /// assert_eq!(surface.reversed_u().eval_point(u, 0.5), surface.eval_point(0.25, 0.5));
+    /// ```
+    pub fn u_reversed_parameter(&self, u: f64) -> f64 {
+        self.0.u_reversed_parameter(u)
+    }
+
+    /// Maps `v` onto the [`reversed_v`](Self::reversed_v) surface, as
+    /// [`u_reversed_parameter`](Self::u_reversed_parameter) for `u`.
+    pub fn v_reversed_parameter(&self, v: f64) -> f64 {
+        self.0.v_reversed_parameter(v)
+    }
+
+    /// The `u` isoparametric curve at `u`: `u` fixed, running along `v`
+    /// with the `v` degree, so `u_iso(u).eval_point(t)` is
+    /// `eval_point(u, t)` for every `t`. It is a Bézier curve over the `v`
+    /// bounds, rational when the surface is (see [`BSplineSurface::u_iso`]).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SurfaceIsoError::NonFinite`] for a NaN or infinite `u`
+    /// and [`SurfaceIsoError::OutOfRange`] for a `u` outside the `u`
+    /// bounds.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::prelude::*;
+    /// use geomcore::{BezierSurface, Point};
+    ///
+    /// let poles = (0..3)
+    ///     .map(|i| (0..2).map(|j| Point::new(i as f64, j as f64, (i * j) as f64)).collect())
+    ///     .collect();
+    /// let surface = BezierSurface::new(2, 1, poles).unwrap();
+    /// let iso = surface.u_iso(0.25).unwrap();
+    /// assert_eq!(iso.degree(), 1);
+    /// assert!(iso.eval_point(0.5).distance(surface.eval_point(0.25, 0.5)) < 1e-12);
+    /// ```
+    pub fn u_iso(&self, u: f64) -> Result<BezierCurve, SurfaceIsoError> {
+        self.0.u_iso(u).map(BezierCurve::from_span)
+    }
+
+    /// The `v` isoparametric curve at `v`: `v` fixed, running along `u`
+    /// with the `u` degree, as [`u_iso`](Self::u_iso) for `u`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SurfaceIsoError::NonFinite`] for a NaN or infinite `v`
+    /// and [`SurfaceIsoError::OutOfRange`] for a `v` outside the `v`
+    /// bounds.
+    pub fn v_iso(&self, v: f64) -> Result<BezierCurve, SurfaceIsoError> {
+        self.0.v_iso(v).map(BezierCurve::from_span)
     }
 
     /// Evaluates the point and the first derivatives at `(u, v)`, each

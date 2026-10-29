@@ -1214,7 +1214,9 @@ macro_rules! exact_curve_curve_2d_untyped {
                     Curve2D::Ellipse(b) => self.exact_curve_curve_2d(b, tol),
                     Curve2D::Parabola(b) => self.exact_curve_curve_2d(b, tol),
                     Curve2D::Hyperbola(b) => self.exact_curve_curve_2d(b, tol),
-                    Curve2D::BSpline(_) => ExactCurveCurve2DIntersection::NotAnalytic,
+                    Curve2D::BSpline(_) | Curve2D::Bezier(_) => {
+                        ExactCurveCurve2DIntersection::NotAnalytic
+                    }
                 }
             }
         }
@@ -1232,7 +1234,9 @@ macro_rules! exact_curve_curve_2d_untyped {
                     Curve2D::Ellipse(a) => a.exact_curve_curve_2d(other, tol),
                     Curve2D::Parabola(a) => a.exact_curve_curve_2d(other, tol),
                     Curve2D::Hyperbola(a) => a.exact_curve_curve_2d(other, tol),
-                    Curve2D::BSpline(_) => ExactCurveCurve2DIntersection::NotAnalytic,
+                    Curve2D::BSpline(_) | Curve2D::Bezier(_) => {
+                        ExactCurveCurve2DIntersection::NotAnalytic
+                    }
                 }
             }
         }
@@ -1254,7 +1258,7 @@ impl ExactCurveCurve2D<Curve2D> for Curve2D {
             Curve2D::Ellipse(a) => a.exact_curve_curve_2d(other, tol),
             Curve2D::Parabola(a) => a.exact_curve_curve_2d(other, tol),
             Curve2D::Hyperbola(a) => a.exact_curve_curve_2d(other, tol),
-            Curve2D::BSpline(_) => ExactCurveCurve2DIntersection::NotAnalytic,
+            Curve2D::BSpline(_) | Curve2D::Bezier(_) => ExactCurveCurve2DIntersection::NotAnalytic,
         }
     }
 }

@@ -117,7 +117,7 @@
 //!
 //! Between [`surfaces::Surface`] or [`curves::Curve`] values it returns
 //! a general result such as [`ExactSurfaceIntersection`], which reports
-//! `NotAnalytic` for a B-spline or a pair without a closed form, where
+//! `NotAnalytic` for a B-spline or Bézier shape or a pair without a closed form, where
 //! [`Intersect::intersect`] runs the numeric search. Two surfaces without
 //! a closed form are traced numerically by the same call.
 //!
@@ -157,6 +157,8 @@ pub mod point;
 pub mod prelude;
 /// Point-projection result types.
 pub mod projection;
+/// Internal macros that expand the variant list of each shape enum.
+pub(crate) mod shape_enum;
 /// Public surface types: planes, cylinders, cones, spheres, tori, and
 /// B-spline surfaces.
 pub mod surfaces;

@@ -4,21 +4,51 @@
 use crate::curves::ParametricCurve2D;
 use crate::curves::PointExtrema2D;
 use crate::curves::{
-    BSplineCurve2D, Circle2D, Continuity, Ellipse2D, Hyperbola2D, Line2D, Parabola2D,
+    BSplineCurve2D, BezierCurve2D, Circle2D, Continuity, Ellipse2D, Hyperbola2D, Line2D, Parabola2D,
 };
 use crate::projection::CurveProjection2D;
 use crate::{Point2D, Tolerance, Vector2D};
+
+/// Calls `worker!` on the variants of [`Curve2D`] (see
+/// [`crate::shape_enum`]).
+macro_rules! curve_2d_variants {
+    ($($worker:ident)::+ ! $arguments:tt) => {
+        $crate::shape_enum::expand_variants! {
+            curves::Curve2D,
+            $($worker)::+! $arguments,
+            Line(Line2D),
+            Circle(Circle2D),
+            Ellipse(Ellipse2D),
+            Parabola(Parabola2D),
+            Hyperbola(Hyperbola2D),
+            BSpline(BSplineCurve2D),
+            Bezier(BezierCurve2D),
+        }
+    };
+}
+pub(crate) use curve_2d_variants;
+
+/// The match forwarding a call to the curve a [`Curve2D`] holds:
+/// `curve_2d_dispatch!(self, c => c.eval_point(u))`.
+macro_rules! curve_2d_dispatch {
+    ($value:expr, $binding:ident => $body:expr) => {
+        $crate::curves::curve_2d_variants! {
+            $crate::shape_enum::dispatch! { $value, $binding => $body }
+        }
+    };
+}
+pub(crate) use curve_2d_dispatch;
 
 /// Enum adaptor unifying the concrete 2D curve types behind a single value
 /// type, so callers can build a heterogeneous collection of curves and
 /// evaluate them uniformly through [`ParametricCurve2D`].
 ///
 /// Cloning stays cheap for the elementary variants (`Line`, `Circle`,
-/// `Ellipse`, `Parabola` and `Hyperbola` are `Copy`-sized); a B-spline variant shares its
-/// poles by a full clone.
+/// `Ellipse`, `Parabola` and `Hyperbola` are `Copy`-sized); a B-spline or
+/// Bézier variant clones its poles.
 ///
-/// Marked `#[non_exhaustive]`: future tasks add further variants without
-/// that being a breaking change.
+/// Marked `#[non_exhaustive]`: further curve types join as variants
+/// without that being a breaking change.
 ///
 /// # Examples
 ///
@@ -58,215 +88,96 @@ pub enum Curve2D {
     Hyperbola(Hyperbola2D),
     /// A [`BSplineCurve2D`] curve.
     BSpline(BSplineCurve2D),
+    /// A [`BezierCurve2D`] curve.
+    Bezier(BezierCurve2D),
 }
 
 impl ParametricCurve2D for Curve2D {
     #[inline]
     fn eval_point(&self, u: f64) -> Point2D {
-        match self {
-            Curve2D::Line(c) => c.eval_point(u),
-            Curve2D::Circle(c) => c.eval_point(u),
-            Curve2D::Ellipse(c) => c.eval_point(u),
-            Curve2D::Parabola(c) => c.eval_point(u),
-            Curve2D::Hyperbola(c) => c.eval_point(u),
-            Curve2D::BSpline(c) => c.eval_point(u),
-        }
+        curve_2d_dispatch!(self, c => c.eval_point(u))
     }
 
     fn eval_derivative(&self, u: f64, order: u32) -> Vector2D {
-        match self {
-            Curve2D::Line(c) => c.eval_derivative(u, order),
-            Curve2D::Circle(c) => c.eval_derivative(u, order),
-            Curve2D::Ellipse(c) => c.eval_derivative(u, order),
-            Curve2D::Parabola(c) => c.eval_derivative(u, order),
-            Curve2D::Hyperbola(c) => c.eval_derivative(u, order),
-            Curve2D::BSpline(c) => c.eval_derivative(u, order),
-        }
-    }
-
-    fn bounds(&self) -> (f64, f64) {
-        match self {
-            Curve2D::Line(c) => c.bounds(),
-            Curve2D::Circle(c) => c.bounds(),
-            Curve2D::Ellipse(c) => c.bounds(),
-            Curve2D::Parabola(c) => c.bounds(),
-            Curve2D::Hyperbola(c) => c.bounds(),
-            Curve2D::BSpline(c) => c.bounds(),
-        }
-    }
-
-    fn period(&self) -> Option<f64> {
-        match self {
-            Curve2D::Line(c) => c.period(),
-            Curve2D::Circle(c) => c.period(),
-            Curve2D::Ellipse(c) => c.period(),
-            Curve2D::Parabola(c) => c.period(),
-            Curve2D::Hyperbola(c) => c.period(),
-            Curve2D::BSpline(c) => c.period(),
-        }
-    }
-
-    fn eval_points(&self, us: &[f64]) -> Vec<Point2D> {
-        match self {
-            Curve2D::Line(c) => c.eval_points(us),
-            Curve2D::Circle(c) => c.eval_points(us),
-            Curve2D::Ellipse(c) => c.eval_points(us),
-            Curve2D::Parabola(c) => c.eval_points(us),
-            Curve2D::Hyperbola(c) => c.eval_points(us),
-            Curve2D::BSpline(c) => c.eval_points(us),
-        }
+        curve_2d_dispatch!(self, c => c.eval_derivative(u, order))
     }
 
     fn eval_d1(&self, u: f64) -> (Point2D, Vector2D) {
-        match self {
-            Curve2D::Line(c) => c.eval_d1(u),
-            Curve2D::Circle(c) => c.eval_d1(u),
-            Curve2D::Ellipse(c) => c.eval_d1(u),
-            Curve2D::Parabola(c) => c.eval_d1(u),
-            Curve2D::Hyperbola(c) => c.eval_d1(u),
-            Curve2D::BSpline(c) => c.eval_d1(u),
-        }
+        curve_2d_dispatch!(self, c => c.eval_d1(u))
     }
 
     fn eval_d2(&self, u: f64) -> (Point2D, Vector2D, Vector2D) {
-        match self {
-            Curve2D::Line(c) => c.eval_d2(u),
-            Curve2D::Circle(c) => c.eval_d2(u),
-            Curve2D::Ellipse(c) => c.eval_d2(u),
-            Curve2D::Parabola(c) => c.eval_d2(u),
-            Curve2D::Hyperbola(c) => c.eval_d2(u),
-            Curve2D::BSpline(c) => c.eval_d2(u),
-        }
+        curve_2d_dispatch!(self, c => c.eval_d2(u))
+    }
+
+    fn tangent(&self, u: f64, tol: Tolerance) -> Option<Vector2D> {
+        curve_2d_dispatch!(self, c => c.tangent(u, tol))
+    }
+
+    fn curvature(&self, u: f64, tol: Tolerance) -> Option<f64> {
+        curve_2d_dispatch!(self, c => c.curvature(u, tol))
+    }
+
+    fn curvature_center(&self, u: f64, tol: Tolerance) -> Option<Point2D> {
+        curve_2d_dispatch!(self, c => c.curvature_center(u, tol))
+    }
+
+    fn bounds(&self) -> (f64, f64) {
+        curve_2d_dispatch!(self, c => c.bounds())
+    }
+
+    fn period(&self) -> Option<f64> {
+        curve_2d_dispatch!(self, c => c.period())
+    }
+
+    fn eval_points(&self, us: &[f64]) -> Vec<Point2D> {
+        curve_2d_dispatch!(self, c => c.eval_points(us))
+    }
+
+    fn is_periodic(&self) -> bool {
+        curve_2d_dispatch!(self, c => c.is_periodic())
     }
 
     fn is_closed(&self, tol: Tolerance) -> bool {
-        match self {
-            Curve2D::Line(c) => c.is_closed(tol),
-            Curve2D::Circle(c) => c.is_closed(tol),
-            Curve2D::Ellipse(c) => c.is_closed(tol),
-            Curve2D::Parabola(c) => c.is_closed(tol),
-            Curve2D::Hyperbola(c) => c.is_closed(tol),
-            Curve2D::BSpline(c) => c.is_closed(tol),
-        }
+        curve_2d_dispatch!(self, c => c.is_closed(tol))
     }
 
     fn continuity(&self, u: f64, tol: Tolerance) -> Continuity {
-        match self {
-            Curve2D::Line(c) => c.continuity(u, tol),
-            Curve2D::Circle(c) => c.continuity(u, tol),
-            Curve2D::Ellipse(c) => c.continuity(u, tol),
-            Curve2D::Parabola(c) => c.continuity(u, tol),
-            Curve2D::Hyperbola(c) => c.continuity(u, tol),
-            Curve2D::BSpline(c) => c.continuity(u, tol),
-        }
+        curve_2d_dispatch!(self, c => c.continuity(u, tol))
     }
 
     fn min_continuity(&self) -> Continuity {
-        match self {
-            Curve2D::Line(c) => c.min_continuity(),
-            Curve2D::Circle(c) => c.min_continuity(),
-            Curve2D::Ellipse(c) => c.min_continuity(),
-            Curve2D::Parabola(c) => c.min_continuity(),
-            Curve2D::Hyperbola(c) => c.min_continuity(),
-            Curve2D::BSpline(c) => c.min_continuity(),
-        }
+        curve_2d_dispatch!(self, c => c.min_continuity())
     }
 
     fn as_bspline(&self) -> Option<&BSplineCurve2D> {
-        match self {
-            Curve2D::BSpline(c) => Some(c),
-            _ => None,
-        }
+        curve_2d_dispatch!(self, c => c.as_bspline())
     }
 }
 
 impl PointExtrema2D for Curve2D {
     fn extrema(&self, point: Point2D, tol: Tolerance) -> Vec<CurveProjection2D> {
-        match self {
-            Curve2D::Line(c) => c.extrema(point, tol),
-            Curve2D::Circle(c) => c.extrema(point, tol),
-            Curve2D::Ellipse(c) => c.extrema(point, tol),
-            Curve2D::Parabola(c) => c.extrema(point, tol),
-            Curve2D::Hyperbola(c) => c.extrema(point, tol),
-            Curve2D::BSpline(c) => c.extrema(point, tol),
-        }
+        curve_2d_dispatch!(self, c => c.extrema(point, tol))
     }
 
     fn project_point(&self, point: Point2D, tol: Tolerance) -> CurveProjection2D {
-        match self {
-            Curve2D::Line(c) => c.project_point(point, tol),
-            Curve2D::Circle(c) => c.project_point(point, tol),
-            Curve2D::Ellipse(c) => c.project_point(point, tol),
-            Curve2D::Parabola(c) => c.project_point(point, tol),
-            Curve2D::Hyperbola(c) => c.project_point(point, tol),
-            Curve2D::BSpline(c) => c.project_point(point, tol),
-        }
+        curve_2d_dispatch!(self, c => c.project_point(point, tol))
+    }
+
+    fn project_points(&self, points: &[Point2D], tol: Tolerance) -> Vec<CurveProjection2D> {
+        curve_2d_dispatch!(self, c => c.project_points(points, tol))
     }
 
     fn contains(&self, point: Point2D, tol: Tolerance) -> bool {
-        match self {
-            Curve2D::Line(c) => c.contains(point, tol),
-            Curve2D::Circle(c) => c.contains(point, tol),
-            Curve2D::Ellipse(c) => c.contains(point, tol),
-            Curve2D::Parabola(c) => c.contains(point, tol),
-            Curve2D::Hyperbola(c) => c.contains(point, tol),
-            Curve2D::BSpline(c) => c.contains(point, tol),
-        }
+        curve_2d_dispatch!(self, c => c.contains(point, tol))
     }
 
     fn parameter_of(&self, point: Point2D, tol: Tolerance) -> f64 {
-        match self {
-            Curve2D::Line(c) => c.parameter_of(point, tol),
-            Curve2D::Circle(c) => c.parameter_of(point, tol),
-            Curve2D::Ellipse(c) => c.parameter_of(point, tol),
-            Curve2D::Parabola(c) => c.parameter_of(point, tol),
-            Curve2D::Hyperbola(c) => c.parameter_of(point, tol),
-            Curve2D::BSpline(c) => c.parameter_of(point, tol),
-        }
+        curve_2d_dispatch!(self, c => c.parameter_of(point, tol))
     }
 }
 
-impl From<Line2D> for Curve2D {
-    /// Wraps a [`Line2D`] as a [`Curve2D::Line`].
-    fn from(curve: Line2D) -> Curve2D {
-        Curve2D::Line(curve)
-    }
-}
-
-impl From<Circle2D> for Curve2D {
-    /// Wraps a [`Circle2D`] as a [`Curve2D::Circle`].
-    fn from(curve: Circle2D) -> Curve2D {
-        Curve2D::Circle(curve)
-    }
-}
-
-impl From<Ellipse2D> for Curve2D {
-    /// Wraps an [`Ellipse2D`] as a [`Curve2D::Ellipse`].
-    fn from(curve: Ellipse2D) -> Curve2D {
-        Curve2D::Ellipse(curve)
-    }
-}
-
-impl From<Parabola2D> for Curve2D {
-    /// Wraps a [`Parabola2D`] as a [`Curve2D::Parabola`].
-    fn from(curve: Parabola2D) -> Curve2D {
-        Curve2D::Parabola(curve)
-    }
-}
-
-impl From<Hyperbola2D> for Curve2D {
-    /// Wraps a [`Hyperbola2D`] as a [`Curve2D::Hyperbola`].
-    fn from(curve: Hyperbola2D) -> Curve2D {
-        Curve2D::Hyperbola(curve)
-    }
-}
-
-impl From<BSplineCurve2D> for Curve2D {
-    /// Wraps a [`BSplineCurve2D`] as a [`Curve2D::BSpline`].
-    fn from(curve: BSplineCurve2D) -> Curve2D {
-        Curve2D::BSpline(curve)
-    }
-}
+curve_2d_variants!(crate::shape_enum::from_shapes! {});
 
 #[cfg(test)]
 mod tests;

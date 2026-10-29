@@ -25,4 +25,5 @@ pub(crate) use parametric_surface::{partials_span_a_plane, reference_widths};
 pub use plane::{Plane, PlaneConstructionError};
 pub use sphere::{Sphere, SphereConstructionError};
 pub use surface::{ElementarySurface, Surface};
+pub(crate) use surface::{elementary_surface_dispatch, surface_dispatch, surface_variants};
 pub use torus::{Torus, TorusConstructionError};

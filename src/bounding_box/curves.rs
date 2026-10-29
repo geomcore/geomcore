@@ -10,6 +10,7 @@ use crate::curves::{
     BSplineCurve, BezierCurve, Circle, Curve, ElementaryCurve, Ellipse, Hyperbola, Line, Parabola,
     ParametricCurve, TrimmedCurve,
 };
+use crate::curves::{curve_dispatch, elementary_curve_dispatch};
 use crate::math::bernstein;
 use crate::{Point, Vector};
 use std::f64::consts::{PI, TAU};
@@ -115,26 +116,13 @@ impl HasBoundingBox for BezierCurve {
 
 impl HasBoundingBox for Curve {
     fn bounding_box(&self) -> Option<BoundingBox> {
-        match self {
-            Curve::Line(c) => c.bounding_box(),
-            Curve::Circle(c) => c.bounding_box(),
-            Curve::Ellipse(c) => c.bounding_box(),
-            Curve::Parabola(c) => c.bounding_box(),
-            Curve::Hyperbola(c) => c.bounding_box(),
-            Curve::BSpline(c) => c.bounding_box(),
-        }
+        curve_dispatch!(self, c => c.bounding_box())
     }
 }
 
 impl HasBoundingBox for ElementaryCurve {
     fn bounding_box(&self) -> Option<BoundingBox> {
-        match self {
-            ElementaryCurve::Line(c) => c.bounding_box(),
-            ElementaryCurve::Circle(c) => c.bounding_box(),
-            ElementaryCurve::Ellipse(c) => c.bounding_box(),
-            ElementaryCurve::Parabola(c) => c.bounding_box(),
-            ElementaryCurve::Hyperbola(c) => c.bounding_box(),
-        }
+        elementary_curve_dispatch!(self, c => c.bounding_box())
     }
 }
 
@@ -285,26 +273,13 @@ fn spline_range_box(spline: &Spline<Point>, first: f64, last: f64) -> BoundingBo
 
 impl BoundRange for Curve {
     fn range_box(&self, first: f64, last: f64) -> BoundingBox {
-        match self {
-            Curve::Line(c) => c.range_box(first, last),
-            Curve::Circle(c) => c.range_box(first, last),
-            Curve::Ellipse(c) => c.range_box(first, last),
-            Curve::Parabola(c) => c.range_box(first, last),
-            Curve::Hyperbola(c) => c.range_box(first, last),
-            Curve::BSpline(c) => c.range_box(first, last),
-        }
+        curve_dispatch!(self, c => c.range_box(first, last))
     }
 }
 
 impl BoundRange for ElementaryCurve {
     fn range_box(&self, first: f64, last: f64) -> BoundingBox {
-        match self {
-            ElementaryCurve::Line(c) => c.range_box(first, last),
-            ElementaryCurve::Circle(c) => c.range_box(first, last),
-            ElementaryCurve::Ellipse(c) => c.range_box(first, last),
-            ElementaryCurve::Parabola(c) => c.range_box(first, last),
-            ElementaryCurve::Hyperbola(c) => c.range_box(first, last),
-        }
+        elementary_curve_dispatch!(self, c => c.range_box(first, last))
     }
 }
 
