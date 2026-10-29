@@ -9,6 +9,12 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+## [0.39.0] - 2026-10-29
+
+A cleanup release with no new behaviour: the names deprecated in 0.36
+and 0.37 are gone. Code that builds on 0.38 without deprecation warnings
+builds on 0.39 unchanged.
+
 ### Removed
 
 - The 0.36 names deprecated in 0.37 (breaking, ADR 0013): `Point3D`,
@@ -1815,7 +1821,8 @@ Behaviour, in Rust and Python alike:
 - Golden-fixture validation of all numeric results at 1e-7 tolerance, and
   criterion throughput benchmarks (`docs/benchmarks.md`).
 
-[Unreleased]: https://github.com/geomcore/geomcore/compare/v0.38.0...HEAD
+[Unreleased]: https://github.com/geomcore/geomcore/compare/v0.39.0...HEAD
+[0.39.0]: https://github.com/geomcore/geomcore/compare/v0.38.0...v0.39.0
 [0.38.0]: https://github.com/geomcore/geomcore/compare/v0.37.0...v0.38.0
 [0.37.0]: https://github.com/geomcore/geomcore/compare/v0.36.0...v0.37.0
 [0.36.0]: https://github.com/geomcore/geomcore/compare/v0.35.0...v0.36.0

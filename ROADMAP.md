@@ -92,6 +92,7 @@ ones before them. If you'd like to help with any of it, see
   `Parabola2D`, `Hyperbola2D` and `BSplineCurve2D`, exact plane images
   of conics and B-splines, and 2D intersections for every curve pair.
   First-class `BezierCurve`, `BezierCurve2D` and `BezierSurface`.
+- **0.39** — The names deprecated in 0.36 and 0.37 are removed.
 
 ## Next
 
