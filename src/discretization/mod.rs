@@ -1,22 +1,7 @@
 //! Discretization: points on a bounded curve, in order of parameter,
 //! joined by straight segments, each segment carrying a proven chord
-//! deviation and angle deviation (see `CONTEXT.md`).
-//!
-//! The work is done in two steps, so a caller controls memory and threads:
-//! [`Discretize::point_count`] counts the points for the given criteria,
-//! and [`Discretize::discretize_into`] writes exactly that many into
-//! slices the caller owns, without allocating. [`Discretize::discretize`]
-//! wraps both and allocates the result.
-//!
-//! Ranges are given by trimmed curves: an infinite line, parabola or
-//! hyperbola has no discretization until it is trimmed.
-//!
-//! ```compile_fail
-//! use geomcore::{DiscretizationCriteria, Discretize, Line, Point, Vector};
-//!
-//! let line = Line::new(Point::ORIGIN, Vector::X).unwrap();
-//! line.discretize(DiscretizationCriteria::new(0.1).unwrap());
-//! ```
+//! deviation and angle deviation (see `CONTEXT.md`). The traits, their
+//! results and their criteria; the impls are grouped by family below.
 
 mod bspline;
 mod elementary;
@@ -172,6 +157,23 @@ pub struct Discretization {
 /// whole period) gives a last point identical to the first and at least
 /// three segments. The same curve and criteria always give the same
 /// points.
+///
+/// The work is done in two steps, so a caller controls memory and threads:
+/// [`point_count`](Self::point_count) counts the points for the given
+/// criteria, and [`discretize_into`](Self::discretize_into) writes exactly
+/// that many into slices the caller owns, without allocating.
+/// [`discretize`](Self::discretize) wraps both and allocates the result.
+///
+/// Ranges are given by trimmed curves: an infinite line, parabola or
+/// hyperbola has no discretization until it is trimmed.
+///
+/// ```compile_fail
+/// use geomcore::prelude::*;
+/// use geomcore::{DiscretizationCriteria, Line, Point, Vector};
+///
+/// let line = Line::new(Point::ORIGIN, Vector::X).unwrap();
+/// line.discretize(DiscretizationCriteria::new(0.1).unwrap());
+/// ```
 ///
 /// Elementary curves are split into equal parameter steps, the fewest the
 /// closed-form deviations allow. B-splines are split per knot span, on the

@@ -60,7 +60,11 @@
 //! every supported pair of curves and surfaces, in either order: it solves
 //! the pair exactly when a closed form exists and runs a numeric search
 //! otherwise, and the result says which method ran and whether it found
-//! every hit.
+//! every hit. The curve results ([`CurveCurveIntersection`],
+//! [`CurveCurveIntersection2D`], [`CurveSurfaceIntersection`]) carry the
+//! hits, the overlaps, the method ([`IntersectionMethod`]) and the
+//! [`Completeness`]; [`SurfaceSurfaceIntersection`] carries the curves,
+//! the contact points and whether the surfaces coincide.
 //!
 //! ```
 //! use geomcore::prelude::*;

@@ -31,7 +31,11 @@ use crate::{
 ///
 /// Each implementation returns the result type of its pair, so the
 /// compiler knows which outcomes a pair can produce, and dispatch is
-/// static. A configuration with no closed form reports "not analytic";
+/// static. On success a result holds the intersecting geometry; otherwise
+/// it classifies the pair as tangent, disjoint, parallel or coincident.
+/// Tangency and coincidence are decided with [`Tolerance`], so
+/// near-degenerate configurations classify robustly instead of collapsing
+/// to noise. A configuration with no closed form reports "not analytic";
 /// this trait never runs a numeric intersection. To get an answer for
 /// every pair, with the method that produced it, use [`Intersect`](crate::Intersect).
 pub trait IntersectExact<Rhs: ?Sized = Self> {
