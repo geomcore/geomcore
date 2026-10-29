@@ -34,6 +34,10 @@ _Avoid_: raw cross product for the normal, tangent for either partial derivative
 A curve or surface defined by poles, knots and optional weights. Every curve or surface is either elementary or a B-spline.
 A Bézier curve or surface is a B-spline of a single span, and every operation reads it as one.
 
+**Tier**:
+Space or the plane: where a curve lives. Each curve type is one generic type over its tier's point, `TierPoint` (`Point` in space, `Point2D` in the plane), named `GenericCircle`, `GenericBSplineCurve` and so on, and used through its two aliases: `Circle` in space, `Circle2D` in the plane (ADR 0014). Only the plane's name carries a suffix (ADR 0013).
+_Avoid_: dimension for the type parameter, `Circle3D`, 3D tier as a name
+
 **Shape enum**:
 `Curve`, `ElementaryCurve`, `Curve2D`, `Surface` or `ElementarySurface`: one variant per shape type, answering every trait method by forwarding to the shape it holds. Its variants are written once, in the enum's variant list (ADR 0017).
 _Avoid_: any-curve, dynamic curve, union
