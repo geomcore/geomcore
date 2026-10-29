@@ -3,16 +3,16 @@
 //! distance minima of two B-spline curves by subdivision of their Bézier
 //! pieces (see [`bspline_curve_curve`] and [`bspline_minima`]).
 
-use super::completeness::{Region, box_union, meet, of_unsettled, span};
-use super::curve_surface_hull::Range;
-use super::pieces::{
+use crate::curve_math::bspline::LARGE;
+use crate::curves::BSplineCurve;
+use crate::intersect::numeric::bezier_pieces::{
     CurvePieces, Pool, apart_along, bounding_box, box_size, cross, curves_meet_at_most_once, dot,
     euclidean, extent, norm, sub, tangent_sign,
 };
-use super::results::sort_by_known_parameter;
-use super::{Completeness, CurveCurveExtremum, CurveCurveHit};
-use crate::curve_math::bspline::LARGE;
-use crate::curves::BSplineCurve;
+use crate::intersect::numeric::curve_surface_hull::Range;
+use crate::intersect::results::completeness::{Region, box_union, meet, of_unsettled, span};
+use crate::intersect::results::sort_by_known_parameter;
+use crate::intersect::{Completeness, CurveCurveExtremum, CurveCurveHit};
 use crate::math::boxtree::{Aabb, BoxTree, boxes_apart};
 use crate::math::{newton_min_1d, newton_min_2d, solve_2x2};
 use crate::surface_math::bspline::{Interval, derivative_bounds};
@@ -32,7 +32,7 @@ pub(crate) struct CurveCurveHits {
 
 impl CurveCurveHits {
     /// `hits`, ordered by first-curve parameter, with their completeness.
-    pub(super) fn new(
+    pub(crate) fn new(
         hits: Vec<CurveCurveHit>,
         completeness: Completeness<CurveCurveRegion>,
     ) -> Self {
@@ -40,14 +40,14 @@ impl CurveCurveHits {
     }
 
     /// Hits found from samples.
-    pub(super) fn sampled(hits: Vec<CurveCurveHit>) -> Self {
+    pub(crate) fn sampled(hits: Vec<CurveCurveHit>) -> Self {
         Self::new(hits, Completeness::Sampled)
     }
 
     /// Adds the `sampled` hits farther than `sqrt(tol.confusion)` from
     /// every hit already found, keeping the order by first-curve
     /// parameter.
-    pub(super) fn add_sampled(&mut self, sampled: Vec<CurveCurveHit>, tol: Tolerance) {
+    pub(crate) fn add_sampled(&mut self, sampled: Vec<CurveCurveHit>, tol: Tolerance) {
         let merge_gap = tol.confusion.sqrt();
         for hit in sampled {
             if self
@@ -141,7 +141,7 @@ pub struct CurveCurveExtrema {
 
 impl CurveCurveExtrema {
     /// `minima`, put in order of distance, with their completeness.
-    pub(super) fn new(
+    pub(crate) fn new(
         mut minima: Vec<CurveCurveExtremum>,
         completeness: Completeness<CurveCurveRegion>,
     ) -> Self {
@@ -153,7 +153,7 @@ impl CurveCurveExtrema {
     }
 
     /// Minima found from samples.
-    pub(super) fn sampled(minima: Vec<CurveCurveExtremum>) -> Self {
+    pub(crate) fn sampled(minima: Vec<CurveCurveExtremum>) -> Self {
         Self::new(minima, Completeness::Sampled)
     }
 
@@ -347,7 +347,7 @@ const NEWTON_STEPS: usize = 32;
 /// the budget of halvings runs out first, the pairs still pending are
 /// left unsettled too. Either way, the result is incomplete, with the
 /// unsettled pairs as its regions.
-pub(super) fn bspline_curve_curve(
+pub(crate) fn bspline_curve_curve(
     a: &BSplineCurve,
     ra: Range,
     b: &BSplineCurve,
@@ -562,7 +562,7 @@ fn closest_pair(a: &BSplineCurve, b: &BSplineCurve, mut x: [f64; 2]) -> Option<[
 /// of one line (a contact, see [`along_one_line`]) is left as never
 /// separating, as is one after [`MAX_DEPTH`] halvings; a valley at a
 /// distance usually exhausts the budget first.
-pub(super) fn bspline_minima(
+pub(crate) fn bspline_minima(
     a: &BSplineCurve,
     ra: Range,
     b: &BSplineCurve,
@@ -1031,7 +1031,7 @@ mod tests {
     use super::*;
     use crate::Point;
     use crate::curves::{Curve, ParametricCurve, TrimmedCurve};
-    use crate::intersect::curve_curve::{
+    use crate::intersect::numeric::curve_curve::{
         ParamDomain, curve_curve_minima, hits_at_minima, refine_minima, sampled_curve_curve,
     };
     use crate::intersect::{IncompleteReason, curve_curve_extrema, search_curve_curve};

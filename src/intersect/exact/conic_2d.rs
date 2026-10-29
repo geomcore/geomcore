@@ -3,15 +3,15 @@
 //! A 2D curve is the curve in space at `z = 0` with the same parameters, so
 //! both operands are coplanar there and the pair goes to the coplanar
 //! solvers of the 3D pair: the line-conic substitution and
-//! [`intersect_conic_conic`](super::intersect_conic_conic). The hits come
+//! [`intersect_conic_conic`](crate::intersect::intersect_conic_conic). The hits come
 //! back with `z` dropped and their parameters and multiplicities as the
 //! solver computed them.
 
-use super::dispatch::{ExactCurveCurve, ExactCurveCurveIntersection};
-use super::embedded::ToSpace;
-use super::routing::{ExactCurveCurve2D, ExactCurveCurve2DIntersection};
-use super::{CurveCurveHit2D, InlineList, IntersectExact};
 use crate::curves::{Circle2D, Ellipse2D, Hyperbola2D, Line2D, Parabola2D};
+use crate::intersect::exact::{ExactCurveCurve, ExactCurveCurveIntersection};
+use crate::intersect::numeric::embedding_2d::ToSpace;
+use crate::intersect::routing::{ExactCurveCurve2D, ExactCurveCurve2DIntersection};
+use crate::intersect::{CurveCurveHit2D, InlineList, IntersectExact};
 use crate::{Point2D, Tolerance};
 
 /// The intersection of a 2D line or conic with a 2D conic.

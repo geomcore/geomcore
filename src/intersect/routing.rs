@@ -17,9 +17,9 @@ use crate::curves::{
     Ellipse2D, Hyperbola, Hyperbola2D, Line, Line2D, Parabola, Parabola2D, ParametricCurve,
     ParametricCurve2D, TrimmedCurve, TrimmedCurve2D,
 };
-use crate::intersect::dispatch::{ExactCurveCurve, ExactCurveSurface};
-use crate::intersect::embedded::{Embed, intersect_numeric_2d};
-use crate::intersect::marching::marching_intersection;
+use crate::intersect::exact::{ExactCurveCurve, ExactCurveSurface};
+use crate::intersect::numeric::embedding_2d::{Embed, intersect_numeric_2d};
+use crate::intersect::numeric::marching::marching_intersection;
 use crate::intersect::results::{
     CurveCurveHitList, CurveCurveOverlapList, CurveSurfaceOverlapList, IntersectionCurve,
     SurfaceSurfaceIntersection,

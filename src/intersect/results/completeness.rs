@@ -60,7 +60,7 @@ impl<R> Completeness<R> {
 /// Complete when a search left no pair of pieces unsettled, else
 /// incomplete with the merged `regions` of the pairs it left: out of
 /// budget if `exhausted`, else never separating.
-pub(super) fn of_unsettled<R: Region>(regions: Vec<R>, exhausted: bool) -> Completeness<R> {
+pub(crate) fn of_unsettled<R: Region>(regions: Vec<R>, exhausted: bool) -> Completeness<R> {
     if regions.is_empty() {
         return Completeness::Complete;
     }
@@ -77,7 +77,7 @@ pub(super) fn of_unsettled<R: Region>(regions: Vec<R>, exhausted: bool) -> Compl
 /// The completeness of the hits of two searches taken together: complete
 /// when both are, else incomplete with the regions of both, out of budget
 /// if either ran out; sampled if either is.
-pub(super) fn both<R: Region>(a: Completeness<R>, b: Completeness<R>) -> Completeness<R> {
+pub(crate) fn both<R: Region>(a: Completeness<R>, b: Completeness<R>) -> Completeness<R> {
     use Completeness::{Complete, Incomplete, Sampled};
     match (a, b) {
         (Sampled, _) | (_, Sampled) => Sampled,
@@ -101,7 +101,7 @@ pub(super) fn both<R: Region>(a: Completeness<R>, b: Completeness<R>) -> Complet
 
 /// A region of an incomplete search: parameter ranges on both shapes and
 /// a box in space.
-pub(super) trait Region: Sized {
+pub(crate) trait Region: Sized {
     /// Whether the two regions' parameter ranges meet.
     fn touches(&self, other: &Self) -> bool;
     /// The smallest region holding both.
@@ -111,17 +111,17 @@ pub(super) trait Region: Sized {
 }
 
 /// Whether two closed intervals meet.
-pub(super) fn meet((a0, a1): (f64, f64), (b0, b1): (f64, f64)) -> bool {
+pub(crate) fn meet((a0, a1): (f64, f64), (b0, b1): (f64, f64)) -> bool {
     a0 <= b1 && b0 <= a1
 }
 
 /// The smallest interval holding both.
-pub(super) fn span((a0, a1): (f64, f64), (b0, b1): (f64, f64)) -> (f64, f64) {
+pub(crate) fn span((a0, a1): (f64, f64), (b0, b1): (f64, f64)) -> (f64, f64) {
     (a0.min(b0), a1.max(b1))
 }
 
 /// The smallest box, as its two corners, holding both.
-pub(super) fn box_union((p, r): (Point, Point), (q, s): (Point, Point)) -> (Point, Point) {
+pub(crate) fn box_union((p, r): (Point, Point), (q, s): (Point, Point)) -> (Point, Point) {
     (
         Point::new(p.x.min(q.x), p.y.min(q.y), p.z.min(q.z)),
         Point::new(r.x.max(s.x), r.y.max(s.y), r.z.max(s.z)),
@@ -130,7 +130,7 @@ pub(super) fn box_union((p, r): (Point, Point), (q, s): (Point, Point)) -> (Poin
 
 /// `regions` with every group of touching ones merged into one, ordered
 /// by the start of their first parameter ranges.
-pub(super) fn merged<R: Region>(mut regions: Vec<R>) -> Vec<R> {
+pub(crate) fn merged<R: Region>(mut regions: Vec<R>) -> Vec<R> {
     let mut out: Vec<R> = Vec::new();
     while let Some(mut region) = regions.pop() {
         loop {

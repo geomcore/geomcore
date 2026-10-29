@@ -3,12 +3,13 @@
 //! patch pairs on B-splines, or from a parameter grid, traced along the
 //! intersection and fitted.
 
-use super::routing::route_curve_surface;
-use super::{
-    Completeness, CurveSurfaceIntersection, IncompleteReason, IntersectionCurve,
-    SurfaceSurfaceIntersection, SurfaceSurfaceRegion, pieces, surface_surface,
-};
 use crate::curves::{BSplineCurve, Curve, ElementaryCurve, ParametricCurve, PointParametrization};
+use crate::intersect::numeric::{bezier_pieces, patch_pairs};
+use crate::intersect::routing::route_curve_surface;
+use crate::intersect::{
+    Completeness, CurveSurfaceIntersection, IncompleteReason, IntersectionCurve,
+    SurfaceSurfaceIntersection, SurfaceSurfaceRegion,
+};
 use crate::math::boxtree::{Aabb, boxes_apart};
 use crate::math::{solve_2x2, solve_3x3, solve_4x4};
 use crate::surfaces::{
@@ -198,7 +199,7 @@ where
 {
     let mut traced = Traced::default();
     if let (Some(sa), Some(sb)) = (a.as_bspline(), b.as_bspline()) {
-        let pairs = surface_surface::patch_pairs(sa, sb, tol);
+        let pairs = patch_pairs::patch_pairs(sa, sb, tol);
         for leaf in &pairs.leaves {
             if leaf.open && traced.crosses(&leaf.overlap, tol) {
                 continue;
@@ -727,7 +728,7 @@ fn point_of_range((first, last): (f64, f64)) -> f64 {
 
 /// [`marching_intersection`] seeded from the parameter grids alone.
 #[cfg(test)]
-pub(super) fn grid_marching<A, B>(a: &A, b: &B, tol: Tolerance) -> Vec<BSplineCurve>
+pub(crate) fn grid_marching<A, B>(a: &A, b: &B, tol: Tolerance) -> Vec<BSplineCurve>
 where
     A: ParametricSurface,
     B: ParametricSurface,
@@ -739,7 +740,7 @@ where
 
 /// The curves of [`marching_intersection`], fitted.
 #[cfg(test)]
-pub(super) fn marched_curves<A, B>(a: &A, b: &B, tol: Tolerance) -> Vec<BSplineCurve>
+pub(crate) fn marched_curves<A, B>(a: &A, b: &B, tol: Tolerance) -> Vec<BSplineCurve>
 where
     A: ParametricSurface,
     B: ParametricSurface,
@@ -826,10 +827,10 @@ impl Traced {
             let coords: Vec<[f64; 3]> = points.iter().map(|p| [p.x, p.y, p.z]).collect();
             let runs = (1..coords.len())
                 .step_by(RUN)
-                .map(|k| pieces::bounding_box(&coords[k - 1..(k + RUN).min(coords.len())]))
+                .map(|k| bezier_pieces::bounding_box(&coords[k - 1..(k + RUN).min(coords.len())]))
                 .collect();
             self.traces
-                .push((pieces::bounding_box(&coords), runs, points));
+                .push((bezier_pieces::bounding_box(&coords), runs, points));
             self.curves.push((fit, touching));
         }
     }

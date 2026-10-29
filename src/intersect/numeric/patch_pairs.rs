@@ -2,11 +2,11 @@
 //! halved until each is small enough to seed the marching intersection
 //! (see [`patch_pairs`]).
 
-use super::pieces::{
+use crate::Tolerance;
+use crate::intersect::numeric::bezier_pieces::{
     Pool, apart_along, bounding_box, box_size, derivative_cones, net_normal,
     normals_never_parallel, stretches_along_rows, thickness,
 };
-use crate::Tolerance;
 use crate::math::boxtree::{Aabb, boxes_apart};
 use crate::surface_math::bspline::net_points;
 use crate::surfaces::BSplineSurface;
@@ -24,21 +24,21 @@ const FLATNESS: f64 = 1.0 / 16.0;
 const SMALLEST: f64 = 1e4;
 
 /// A pair of subpatches that may meet.
-pub(super) struct Leaf {
+pub(crate) struct Leaf {
     /// The parameter rectangles `[u0, u1, v0, v1]` of the subpatches.
-    pub(super) rects: [[f64; 4]; 2],
+    pub(crate) rects: [[f64; 4]; 2],
     /// The overlap of their control points' boxes, grown by
     /// `tol.confusion`.
-    pub(super) overlap: Aabb,
+    pub(crate) overlap: Aabb,
     /// Whether their normals are never parallel, so that every curve of
     /// their intersection leaves them (see [`normals_never_parallel`]).
-    pub(super) open: bool,
+    pub(crate) open: bool,
 }
 
 /// The leaves of the search, and whether it finished within its budget.
-pub(super) struct PatchPairs {
-    pub(super) leaves: Vec<Leaf>,
-    pub(super) complete: bool,
+pub(crate) struct PatchPairs {
+    pub(crate) leaves: Vec<Leaf>,
+    pub(crate) complete: bool,
 }
 
 /// The pairs of subpatches of `a` and `b` that may meet.
@@ -61,7 +61,7 @@ pub(super) struct PatchPairs {
 /// Once the budget of halvings is spent, or a pair has been halved
 /// `MAX_DEPTH` times, the pairs left are kept as they are, and the
 /// search reports itself incomplete.
-pub(super) fn patch_pairs(a: &BSplineSurface, b: &BSplineSurface, tol: Tolerance) -> PatchPairs {
+pub(crate) fn patch_pairs(a: &BSplineSurface, b: &BSplineSurface, tol: Tolerance) -> PatchPairs {
     let shapes = [a.patch_net_shape(), b.patch_net_shape()];
     let sizes = shapes.map(|(rows, cols, h)| rows * cols * h);
     let mut search = Search {
@@ -224,8 +224,8 @@ mod tests {
     use super::*;
     use crate::Point;
     use crate::curves::BSplineCurve;
-    use crate::intersect::marching::grid_marching;
-    use crate::intersect::marching::marched_curves;
+    use crate::intersect::numeric::marching::grid_marching;
+    use crate::intersect::numeric::marching::marched_curves;
 
     const TOL: Tolerance = Tolerance::DEFAULT;
 

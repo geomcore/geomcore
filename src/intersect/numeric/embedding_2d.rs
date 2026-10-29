@@ -3,12 +3,12 @@
 //! elementary basis, so the search proves completeness where it would in
 //! space.
 
-use super::curve_curve::intersect_curve_curve;
-use super::results::CurveCurveIntersection2D;
 use crate::curves::{
     BSplineCurve2D, Circle2D, Curve2D, ElementaryCurve, Ellipse2D, Hyperbola2D, Line2D, Parabola2D,
     ParametricCurve, ParametricCurve2D, TrimmedCurve2D,
 };
+use crate::intersect::numeric::curve_curve::intersect_curve_curve;
+use crate::intersect::results::CurveCurveIntersection2D;
 use crate::{
     BSplineCurve, Circle, CurveCurveHit2D, Ellipse, Frame, Frame2D, Hyperbola, Line, Parabola,
     Point, Point2D, Tolerance, Vector, Vector2D,

@@ -1,13 +1,11 @@
 //! Numeric curve-curve extrema and intersection for any two parametric
 //! curves: grid-seeded box minimisation of the distance between them.
 
-use super::curve_curve_hull::{CurveCurveExtrema, CurveCurveHits};
-use super::results::sort_by_known_parameter;
-use super::{
-    CurveCurveExtremum, CurveCurveHit, CurveCurveIntersection, curve_surface_hull, mixed,
-    overlap_runs,
-};
 use crate::curves::ParametricCurve;
+use crate::intersect::numeric::curve_curve_hull::{CurveCurveExtrema, CurveCurveHits};
+use crate::intersect::numeric::{curve_surface_hull, overlap_runs, pairs_with_bspline};
+use crate::intersect::results::sort_by_known_parameter;
+use crate::intersect::{CurveCurveExtremum, CurveCurveHit, CurveCurveIntersection};
 use crate::math::{newton_min_1d, newton_min_2d};
 use crate::{Point, Tolerance, Vector};
 
@@ -28,7 +26,7 @@ const SEED_REACH: f64 = 64.0;
 
 /// Parameter domain of one curve in [`curve_curve_extrema`].
 #[derive(Debug, Clone, Copy)]
-pub(super) enum ParamDomain {
+pub(crate) enum ParamDomain {
     /// A full period from `start`: unconstrained, wrapped into
     /// `[start, start + period)` on output.
     Periodic { start: f64, period: f64 },
@@ -39,7 +37,7 @@ pub(super) enum ParamDomain {
 impl ParamDomain {
     /// The domain of `curve`; a periodic curve bounded to less than a
     /// period is an arc, so it is an interval.
-    pub(super) fn of<C: ParametricCurve>(curve: &C) -> ParamDomain {
+    pub(crate) fn of<C: ParametricCurve>(curve: &C) -> ParamDomain {
         let (lo, hi) = curve.bounds();
         match curve.period() {
             Some(period) if lo.is_finite() && hi - lo >= period * (1.0 - 1e-12) => {
@@ -57,7 +55,7 @@ impl ParamDomain {
         }
     }
 
-    pub(super) fn is_periodic(self) -> bool {
+    pub(crate) fn is_periodic(self) -> bool {
         matches!(self, ParamDomain::Periodic { .. })
     }
 
@@ -107,7 +105,7 @@ impl ParamDomain {
     }
 
     /// A finite domain as the parameter range of a piece-pair search.
-    pub(super) fn range(self) -> curve_surface_hull::Range {
+    pub(crate) fn range(self) -> curve_surface_hull::Range {
         match self {
             ParamDomain::Periodic { start, period } => curve_surface_hull::Range {
                 lo: start,
@@ -337,7 +335,7 @@ where
 
 /// [`curve_curve_extrema`], through the piece-pair search on B-splines if
 /// `pieces`, else always through the grid.
-pub(super) fn curve_curve_minima<A, B>(
+pub(crate) fn curve_curve_minima<A, B>(
     a: &A,
     b: &B,
     tol: Tolerance,
@@ -351,7 +349,7 @@ where
     let straight = (Straight::of(a, da), Straight::of(b, db));
     if pieces
         && !matches!(straight, (Some(_), Some(_)))
-        && let Some((mut seeds, completeness)) = mixed::curve_curve_seeds(a, b, tol)
+        && let Some((mut seeds, completeness)) = pairs_with_bspline::curve_curve_seeds(a, b, tol)
     {
         if !completeness.is_complete() {
             seeds.extend(box_seeds(a, da, b, db));
@@ -762,7 +760,7 @@ fn closest_on_segments(p: Point, along_p: Vector, q: Point, along_q: Vector) -> 
 /// The local minima reached by Newton minimisation of the squared
 /// distance over the box from `seeds`, kept when box-optimal, one per
 /// valley of equal distance.
-pub(super) fn refine_minima<A, B>(
+pub(crate) fn refine_minima<A, B>(
     a: &A,
     da: ParamDomain,
     b: &B,
@@ -1086,7 +1084,7 @@ where
     A: ParametricCurve,
     B: ParametricCurve,
 {
-    if let Some((meetings, completeness)) = mixed::curve_curve_meetings(a, b, tol) {
+    if let Some((meetings, completeness)) = pairs_with_bspline::curve_curve_meetings(a, b, tol) {
         let mut hits = CurveCurveHits::new(hits_at_minima(a, b, meetings, tol), completeness);
         if !hits.is_complete() {
             hits.add_sampled(sampled_curve_curve(a, b, tol), tol);
@@ -1098,7 +1096,7 @@ where
 }
 
 /// [`search_curve_curve`] through the grid-seeded extrema alone.
-pub(super) fn sampled_curve_curve<A, B>(a: &A, b: &B, tol: Tolerance) -> Vec<CurveCurveHit>
+pub(crate) fn sampled_curve_curve<A, B>(a: &A, b: &B, tol: Tolerance) -> Vec<CurveCurveHit>
 where
     A: ParametricCurve,
     B: ParametricCurve,
@@ -1114,7 +1112,7 @@ where
 /// The hits among the distance minima `extrema` (closest first): those
 /// within `tol.confusion`, merged within `sqrt(tol.confusion)`, ordered
 /// by first-curve parameter.
-pub(super) fn hits_at_minima<A, B>(
+pub(crate) fn hits_at_minima<A, B>(
     a: &A,
     b: &B,
     extrema: Vec<CurveCurveExtremum>,

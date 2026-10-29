@@ -6,12 +6,18 @@
 //! ([`Completeness`]). The fields are private and read through accessors,
 //! so the storage can change without breaking callers.
 
-use super::inline_or_heap_list::InlineOrHeapList;
-use super::{
+pub(crate) mod completeness;
+mod inline_list;
+pub(crate) mod inline_or_heap_list;
+
+pub use inline_list::InlineList;
+
+use crate::intersect::{
     Completeness, CurveCurveHit, CurveCurveHit2D, CurveCurveRegion, CurveSurfaceHit,
     CurveSurfaceRegion,
 };
 use crate::{Curve, Point, Tolerance, Vector};
+use inline_or_heap_list::InlineOrHeapList;
 
 /// The hits of a 3D curve-curve result. The inline capacity is the most
 /// hits an exact pair yields (two conics meet at most 4 times), so an

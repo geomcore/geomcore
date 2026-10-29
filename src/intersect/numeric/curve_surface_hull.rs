@@ -3,14 +3,14 @@
 //! B-spline surface by subdivision of their Bézier pieces (see
 //! [`bspline_curve_surface`]).
 
-use super::completeness::{Region, both, box_union, meet, of_unsettled, span};
-use super::pieces::{
+use crate::curves::BSplineCurve;
+use crate::intersect::numeric::bezier_pieces::{
     CurvePieces, Pool, apart_along, bounding_box, box_size, dot, euclidean, meets_at_most_once,
     net_normal, norm, sub,
 };
-use super::results::sort_by_known_parameter;
-use super::{Completeness, CurveSurfaceHit, curve_surface_multiplicity};
-use crate::curves::BSplineCurve;
+use crate::intersect::results::completeness::{Region, both, box_union, meet, of_unsettled, span};
+use crate::intersect::results::sort_by_known_parameter;
+use crate::intersect::{Completeness, CurveSurfaceHit, curve_surface_multiplicity};
 use crate::math::boxtree::{Aabb, boxes_apart};
 use crate::math::solve_3x3;
 use crate::surface_math::bspline::net_points;
@@ -25,13 +25,13 @@ use std::ops::Deref;
 /// It reads as the slice of its hits.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct CurveSurfaceHits {
-    pub(super) hits: Vec<CurveSurfaceHit>,
-    pub(super) completeness: Completeness<CurveSurfaceRegion>,
+    pub(crate) hits: Vec<CurveSurfaceHit>,
+    pub(crate) completeness: Completeness<CurveSurfaceRegion>,
 }
 
 impl CurveSurfaceHits {
     /// Hits found from samples.
-    pub(super) fn sampled(hits: Vec<CurveSurfaceHit>) -> Self {
+    pub(crate) fn sampled(hits: Vec<CurveSurfaceHit>) -> Self {
         CurveSurfaceHits {
             hits,
             completeness: Completeness::Sampled,
@@ -39,7 +39,7 @@ impl CurveSurfaceHits {
     }
 
     /// Hits proven to be all of them.
-    pub(super) fn complete(hits: Vec<CurveSurfaceHit>) -> Self {
+    pub(crate) fn complete(hits: Vec<CurveSurfaceHit>) -> Self {
         CurveSurfaceHits {
             hits,
             completeness: Completeness::Complete,
@@ -49,7 +49,7 @@ impl CurveSurfaceHits {
     /// The hits of two searches of one curve against two parts of a
     /// surface: those of `other` farther than `sqrt(tol.confusion)` from
     /// every hit of `self` join them, and so do the regions of both.
-    pub(super) fn join(self, other: CurveSurfaceHits, tol: Tolerance) -> Self {
+    pub(crate) fn join(self, other: CurveSurfaceHits, tol: Tolerance) -> Self {
         let mut joined = CurveSurfaceHits {
             hits: self.hits,
             completeness: both(self.completeness, other.completeness),
@@ -60,7 +60,7 @@ impl CurveSurfaceHits {
 
     /// Adds the `sampled` hits farther than `sqrt(tol.confusion)` from
     /// every hit already found, keeping the order by curve parameter.
-    pub(super) fn add_sampled(&mut self, sampled: Vec<CurveSurfaceHit>, tol: Tolerance) {
+    pub(crate) fn add_sampled(&mut self, sampled: Vec<CurveSurfaceHit>, tol: Tolerance) {
         let merge_gap = tol.confusion.sqrt();
         for hit in sampled {
             if self
@@ -239,7 +239,7 @@ const SLACK: f64 = 1e-10;
 ///
 /// Hits within `sqrt(tol.confusion)` of each other merge, as in the
 /// sampled search, keeping the one closest to the surface.
-pub(super) fn bspline_curve_surface(
+pub(crate) fn bspline_curve_surface(
     curve: &BSplineCurve,
     range: (f64, f64),
     periodic: bool,
@@ -318,20 +318,20 @@ fn flat_against(normal: [f64; 3], curve: &[[f64; 3]], patch: &[[f64; 3]], gap: f
 
 /// A parameter interval of the curve or one direction of the surface.
 #[derive(Clone, Copy)]
-pub(super) struct Range {
-    pub(super) lo: f64,
-    pub(super) hi: f64,
-    pub(super) periodic: bool,
+pub(crate) struct Range {
+    pub(crate) lo: f64,
+    pub(crate) hi: f64,
+    pub(crate) periodic: bool,
 }
 
 impl Range {
-    pub(super) fn slack(self) -> f64 {
+    pub(crate) fn slack(self) -> f64 {
         SLACK * (self.hi - self.lo)
     }
 
     /// `x` wrapped into a periodic range (its end reading as its start),
     /// or clamped into the range from within its slack; `None` beyond.
-    pub(super) fn admit(self, x: f64) -> Option<f64> {
+    pub(crate) fn admit(self, x: f64) -> Option<f64> {
         let (lo, hi, slack) = (self.lo, self.hi, self.slack());
         if self.periodic {
             let wrapped = lo + (x - lo).rem_euclid(hi - lo);
@@ -684,7 +684,7 @@ mod tests {
     use super::*;
     use crate::Point;
     use crate::curves::{Curve, ParametricCurve, TrimmedCurve};
-    use crate::intersect::curve_surface::sampled_curve_surface;
+    use crate::intersect::numeric::curve_surface::sampled_curve_surface;
     use crate::intersect::{IncompleteReason, search_curve_surface};
     use crate::surfaces::Surface;
 

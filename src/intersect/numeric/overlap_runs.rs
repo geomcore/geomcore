@@ -14,12 +14,12 @@
 //! and the regions inside it give way to one region over it. The result
 //! stays `Incomplete`, since samples, not a proof, found the overlap.
 
-use super::completeness::merged;
-use super::{
+use crate::curves::ParametricCurve;
+use crate::intersect::results::completeness::merged;
+use crate::intersect::{
     Completeness, CurveCurveHit, CurveCurveOverlap, CurveCurveRegion, CurveSurfaceHit,
     CurveSurfaceRegion,
 };
-use crate::curves::ParametricCurve;
 use crate::surfaces::ParametricSurface;
 use crate::{BoundingBox, Point, Tolerance, Vector};
 
@@ -43,7 +43,7 @@ const FOOT_ITERATIONS: usize = 30;
 /// curve's runs lying on the surface (see the module documentation).
 /// A result without an incomplete region has no run and comes back as
 /// it is.
-pub(super) fn curve_surface_overlaps<C, S>(
+pub(crate) fn curve_surface_overlaps<C, S>(
     curve: &C,
     surface: &S,
     hits: Vec<CurveSurfaceHit>,
@@ -133,7 +133,7 @@ where
 /// curve's seam, or along which the second curve's parameter does not
 /// move one way, is left as it was found. A result without an
 /// incomplete region has no run and comes back as it is.
-pub(super) fn curve_curve_overlaps<A, B>(
+pub(crate) fn curve_curve_overlaps<A, B>(
     first: &A,
     second: &B,
     hits: Vec<CurveCurveHit>,

@@ -15,12 +15,14 @@
 use std::borrow::Cow;
 use std::f64::consts::{FRAC_PI_2, TAU};
 
-use super::curve_curve::ParamDomain;
-use super::curve_curve_hull::{bspline_curve_curve, bspline_minima};
-use super::curve_surface_hull::{CurveSurfaceHits, Range, bspline_curve_surface};
-use super::results::sort_by_known_parameter;
-use super::{Completeness, CurveCurveExtremum, CurveCurveRegion};
 use crate::curves::{BSplineCurve, Circle, ElementaryCurve, ParametricCurve, TrimmedCurve};
+use crate::intersect::numeric::curve_curve::ParamDomain;
+use crate::intersect::numeric::curve_curve_hull::{bspline_curve_curve, bspline_minima};
+use crate::intersect::numeric::curve_surface_hull::{
+    CurveSurfaceHits, Range, bspline_curve_surface,
+};
+use crate::intersect::results::sort_by_known_parameter;
+use crate::intersect::{Completeness, CurveCurveExtremum, CurveCurveRegion};
 use crate::math::boxtree::Aabb;
 use crate::surfaces::{BSplineSurface, ElementarySurface, ParametricSurface};
 use crate::{Point, Tolerance, Vector};
@@ -146,7 +148,7 @@ enum Hull<'a> {
 /// holding those of its points inside the box `b`; `None` for a circle or
 /// ellipse. A range whose start is above its end means the curve misses
 /// the box.
-pub(super) fn inside(curve: ElementaryCurve, b: &Aabb) -> Option<(f64, f64)> {
+pub(crate) fn inside(curve: ElementaryCurve, b: &Aabb) -> Option<(f64, f64)> {
     match curve {
         ElementaryCurve::Line(l) => Some(clip(b, l.origin(), l.direction())),
         ElementaryCurve::Parabola(p) => {
@@ -381,7 +383,7 @@ impl HullSurface {
 /// the other a B-spline or an elementary shape, with their parameters on
 /// the shapes themselves; `None` for any other pair, or when the
 /// elementary shape's B-spline does not fit in `f64`.
-pub(super) fn curve_surface<C, S>(
+pub(crate) fn curve_surface<C, S>(
     curve: &C,
     surface: &S,
     tol: Tolerance,
@@ -503,7 +505,7 @@ fn carried(
 /// themselves, closest first, with their completeness; `None` for any
 /// other pair, or when the elementary curve's B-spline does not fit in
 /// `f64`.
-pub(super) fn curve_curve_meetings<A, B>(
+pub(crate) fn curve_curve_meetings<A, B>(
     a: &A,
     b: &B,
     tol: Tolerance,
@@ -553,7 +555,7 @@ fn searched<C: ParametricCurve>(curve: &C) -> bool {
 /// (or a trimmed one) and the other a B-spline or a segment, as
 /// parameters on the curves themselves, with their completeness; `None`
 /// for any other pair (see [`searched`]).
-pub(super) fn curve_curve_seeds<A, B>(
+pub(crate) fn curve_curve_seeds<A, B>(
     a: &A,
     b: &B,
     tol: Tolerance,
@@ -582,8 +584,8 @@ mod tests {
 
     use super::*;
     use crate::curves::{Curve, Ellipse, Hyperbola, Line, Parabola};
-    use crate::intersect::curve_curve::{curve_curve_minima, sampled_curve_curve};
-    use crate::intersect::curve_surface::sampled_curve_surface;
+    use crate::intersect::numeric::curve_curve::{curve_curve_minima, sampled_curve_curve};
+    use crate::intersect::numeric::curve_surface::sampled_curve_surface;
     use crate::intersect::{
         CurveCurveHit, CurveSurfaceHit, curve_curve_extrema, search_curve_curve,
         search_curve_surface,
@@ -1206,7 +1208,7 @@ mod tests {
         let Completeness::Incomplete { reason, regions } = hits.completeness().clone() else {
             panic!("{:?}", hits.completeness());
         };
-        assert_eq!(reason, super::super::IncompleteReason::Unseparated);
+        assert_eq!(reason, crate::intersect::IncompleteReason::Unseparated);
         let hits = hits.into_hits();
         assert_curve_hits_on_both(&hits, a, b);
         assert_eq!(hits.len(), 1, "{hits:#?}");

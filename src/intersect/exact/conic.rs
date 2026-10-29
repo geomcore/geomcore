@@ -21,11 +21,11 @@
 //! planes cross: the hits of one conic on the other's plane, kept when
 //! they lie on the other conic.
 
-use super::results::sort_by_known_parameter;
-use super::{
+use crate::curves::ParametricCurve;
+use crate::intersect::results::sort_by_known_parameter;
+use crate::intersect::{
     ConicConicIntersection, ConicSurfaceHit, ConicSurfaceIntersection, CurveCurveHit, ImplicitConic,
 };
-use crate::curves::ParametricCurve;
 use crate::math::{
     QuadraticSolution, RealRoot, roots_with_tangency, solve_quadratic, solve_trig,
     solve_trig_linear,

@@ -2,12 +2,11 @@
 //! surface: sampled seeds refined by Newton iteration, or Bézier piece
 //! pairs on B-splines.
 
-use super::curve_surface_hull::CurveSurfaceHits;
-use super::results::sort_by_known_parameter;
-use super::{
-    CurveSurfaceHit, CurveSurfaceIntersection, curve_surface_multiplicity, mixed, overlap_runs,
-};
 use crate::curves::ParametricCurve;
+use crate::intersect::numeric::curve_surface_hull::CurveSurfaceHits;
+use crate::intersect::numeric::{overlap_runs, pairs_with_bspline};
+use crate::intersect::results::sort_by_known_parameter;
+use crate::intersect::{CurveSurfaceHit, CurveSurfaceIntersection, curve_surface_multiplicity};
 use crate::math::boxtree::Aabb;
 use crate::math::{brent_minimum, newton_3d};
 use crate::surfaces::ParametricSurface;
@@ -140,7 +139,7 @@ where
     C: ParametricCurve,
     S: ParametricSurface,
 {
-    if let Some(mut hits) = mixed::curve_surface(curve, surface, tol) {
+    if let Some(mut hits) = pairs_with_bspline::curve_surface(curve, surface, tol) {
         if !hits.is_complete() {
             hits.add_sampled(sampled_curve_surface(curve, surface, tol), tol);
         }
@@ -180,11 +179,11 @@ where
     S: ParametricSurface,
 {
     let elementary = curve.as_elementary()?;
-    mixed::inside(elementary, &surface_box(surface, tol)?)
+    pairs_with_bspline::inside(elementary, &surface_box(surface, tol)?)
 }
 
 /// The sampled search of [`search_curve_surface`].
-pub(super) fn sampled_curve_surface<C, S>(
+pub(crate) fn sampled_curve_surface<C, S>(
     curve: &C,
     surface: &S,
     tol: Tolerance,

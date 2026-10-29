@@ -41,43 +41,31 @@
 
 use crate::{Circle, Ellipse, Hyperbola, Line, Parabola, Plane, Point, Point2D, Vector};
 
-mod completeness;
-mod conic;
-mod conic_2d;
-mod curve_curve;
-mod curve_curve_hull;
-mod curve_surface;
-mod curve_surface_hull;
-mod dispatch;
-mod embedded;
-mod inline_or_heap_list;
-mod marching;
-mod mixed;
-mod overlap_runs;
-mod pieces;
+mod exact;
+mod numeric;
 mod results;
 mod routing;
-pub use completeness::{Completeness, IncompleteReason};
-pub use conic_2d::Conic2DIntersection;
-mod surface_surface;
-pub(crate) use conic::{Conic, intersect_conic_conic, intersect_conic_quadric};
-pub use curve_curve::curve_curve_extrema;
-pub use curve_curve::intersect_curve_curve;
-#[cfg(test)]
-pub(crate) use curve_curve::search_curve_curve;
-pub use curve_curve_hull::{CurveCurveExtrema, CurveCurveRegion};
-pub use curve_surface::intersect_curve_surface;
-#[cfg(test)]
-pub(crate) use curve_surface::search_curve_surface;
-pub use curve_surface_hull::CurveSurfaceRegion;
-pub use dispatch::{
+pub(crate) use exact::conic::{Conic, intersect_conic_conic, intersect_conic_quadric};
+pub use exact::conic_2d::Conic2DIntersection;
+pub use exact::{
     ExactCurveCurveIntersection, ExactCurveSurfaceIntersection, ExactSurfaceIntersection,
-    InlineList, IntersectExact,
+    IntersectExact,
 };
+pub use numeric::curve_curve::curve_curve_extrema;
+pub use numeric::curve_curve::intersect_curve_curve;
+#[cfg(test)]
+pub(crate) use numeric::curve_curve::search_curve_curve;
+pub use numeric::curve_curve_hull::{CurveCurveExtrema, CurveCurveRegion};
+pub use numeric::curve_surface::intersect_curve_surface;
+#[cfg(test)]
+pub(crate) use numeric::curve_surface::search_curve_surface;
+pub use numeric::curve_surface_hull::CurveSurfaceRegion;
+pub use results::completeness::{Completeness, IncompleteReason};
 pub(crate) use results::curve_surface_multiplicity;
 pub use results::{
     CurveCurveIntersection, CurveCurveIntersection2D, CurveCurveOverlap, CurveSurfaceIntersection,
-    IntersectionCurve, IntersectionMethod, SurfaceSurfaceIntersection, SurfaceSurfaceRegion,
+    InlineList, IntersectionCurve, IntersectionMethod, SurfaceSurfaceIntersection,
+    SurfaceSurfaceRegion,
 };
 pub use routing::Intersect;
 

@@ -7,7 +7,7 @@
 
 use std::ops::{Deref, DerefMut};
 
-use super::InlineList;
+use crate::intersect::InlineList;
 
 /// Up to `N` items inline, any number on the heap, read as a slice.
 #[derive(Clone)]
