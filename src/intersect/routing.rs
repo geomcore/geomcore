@@ -15,9 +15,9 @@ use crate::Tolerance;
 use crate::curves::PointExtrema;
 use crate::curves::PointExtrema2D;
 use crate::curves::{
-    BSplineCurve, BSplineCurve2D, Circle, Circle2D, Curve, Curve2D, ElementaryCurve, Ellipse,
-    Ellipse2D, Hyperbola, Hyperbola2D, Line, Line2D, Parabola, Parabola2D, ParametricCurve,
-    ParametricCurve2D, TrimmedCurve, TrimmedCurve2D,
+    BSplineCurve, BSplineCurve2D, BezierCurve, BezierCurve2D, Circle, Circle2D, Curve, Curve2D,
+    ElementaryCurve, Ellipse, Ellipse2D, Hyperbola, Hyperbola2D, Line, Line2D, Parabola,
+    Parabola2D, ParametricCurve, ParametricCurve2D, TrimmedCurve, TrimmedCurve2D,
 };
 use crate::intersect::exact::{
     ExactCurveCurve, ExactCurveCurve2D, ExactCurveCurve2DIntersection, ExactCurveSurface,
@@ -35,8 +35,8 @@ use crate::intersect::{
     intersect_curve_curve, intersect_curve_surface,
 };
 use crate::surfaces::{
-    BSplineSurface, Cone, Cylinder, ElementarySurface, ParametricSurface, Plane, Sphere, Surface,
-    Torus,
+    BSplineSurface, BezierSurface, Cone, Cylinder, ElementarySurface, ParametricSurface, Plane,
+    Sphere, Surface, Torus,
 };
 
 /// Routed intersection: exact when a closed form exists, numeric otherwise.
@@ -147,6 +147,14 @@ impl CurveOperand for BSplineCurve {
     }
 }
 
+impl CurveOperand for BezierCurve {
+    type Basis = ElementaryCurve;
+
+    fn elementary_basis(&self) -> Option<Operand<ElementaryCurve>> {
+        None
+    }
+}
+
 impl CurveOperand for Curve {
     type Basis = ElementaryCurve;
 
@@ -195,6 +203,14 @@ macro_rules! elementary_surface_operand {
 elementary_surface_operand!(Plane, Cylinder, Cone, Sphere, Torus, ElementarySurface);
 
 impl SurfaceOperand for BSplineSurface {
+    type Basis = ElementarySurface;
+
+    fn surface_basis(&self) -> Option<ElementarySurface> {
+        None
+    }
+}
+
+impl SurfaceOperand for BezierSurface {
     type Basis = ElementarySurface;
 
     fn surface_basis(&self) -> Option<ElementarySurface> {
@@ -480,8 +496,8 @@ macro_rules! curve_surface {
 }
 
 curve_surface!(
-    Line, Circle, Ellipse, Parabola, Hyperbola, BSplineCurve, Curve, ElementaryCurve;
-    [Plane, Cylinder, Cone, Sphere, Torus, BSplineSurface, Surface, ElementarySurface]
+    Line, Circle, Ellipse, Parabola, Hyperbola, BSplineCurve, BezierCurve, Curve, ElementaryCurve;
+    [Plane, Cylinder, Cone, Sphere, Torus, BSplineSurface, BezierSurface, Surface, ElementarySurface]
 );
 
 /// Implements [`Intersect`] between a trimmed curve over any curve operand
@@ -515,6 +531,7 @@ trimmed_curve_surface!(
     Sphere,
     Torus,
     BSplineSurface,
+    BezierSurface,
     Surface,
     ElementarySurface
 );
@@ -639,8 +656,8 @@ macro_rules! surface_surface {
 }
 
 surface_surface!(
-    Plane, Cylinder, Cone, Sphere, Torus, BSplineSurface, Surface, ElementarySurface;
-    [Plane, Cylinder, Cone, Sphere, Torus, BSplineSurface, Surface, ElementarySurface]
+    Plane, Cylinder, Cone, Sphere, Torus, BSplineSurface, BezierSurface, Surface, ElementarySurface;
+    [Plane, Cylinder, Cone, Sphere, Torus, BSplineSurface, BezierSurface, Surface, ElementarySurface]
 );
 
 /// Intersects two curves: the exact path when both have an elementary
@@ -974,6 +991,7 @@ curve_curve!([
     Parabola,
     Hyperbola,
     BSplineCurve,
+    BezierCurve,
     Curve,
     ElementaryCurve
 ]);
@@ -1012,6 +1030,7 @@ trimmed_curve_curve!(
     Parabola,
     Hyperbola,
     BSplineCurve,
+    BezierCurve,
     Curve,
     ElementaryCurve
 );
@@ -1093,6 +1112,16 @@ basis_operand_2d!(
 
 impl CurveOperand2D for BSplineCurve2D {
     /// Never built: a B-spline has no exact basis.
+    type Basis = Curve2D;
+
+    #[inline]
+    fn basis_and_range(&self) -> Option<BasisAndRange<Curve2D>> {
+        None
+    }
+}
+
+impl CurveOperand2D for BezierCurve2D {
+    /// Never built: a Bézier curve has no exact basis.
     type Basis = Curve2D;
 
     #[inline]
@@ -1222,7 +1251,8 @@ curve_curve_2d!([
     Parabola2D,
     Hyperbola2D,
     Curve2D,
-    BSplineCurve2D
+    BSplineCurve2D,
+    BezierCurve2D
 ]);
 
 /// Implements [`Intersect`] between a trimmed 2D curve over any operand and
@@ -1259,7 +1289,8 @@ trimmed_curve_curve_2d!(
     Parabola2D,
     Hyperbola2D,
     Curve2D,
-    BSplineCurve2D
+    BSplineCurve2D,
+    BezierCurve2D
 );
 
 impl<X: CurveOperand2D, Y: CurveOperand2D> Intersect<TrimmedCurve2D<Y>> for TrimmedCurve2D<X>
