@@ -30,6 +30,19 @@ the Python distribution are versioned in lockstep.
   raise `ValueError`.
 - In Python, `parameter_of` and `parameters_of` take an optional `tol`
   (`Tolerance.default()` when omitted).
+- `Curve::Bezier`, `Curve2D::Bezier` and `Surface::Bezier`: a Bézier
+  curve or surface is a shape enum variant of its own, boxed,
+  discretized, converted and parametrized as the B-spline it is
+  (ADR 0017).
+- `BezierCurve`, `BezierCurve2D` and `BezierSurface` are operands of
+  `intersect` in both orders, against every curve and surface (and
+  every 2D curve), whole or trimmed, routed to the numeric search like
+  their B-spline. In Python, every function that takes a curve or
+  surface accepts the Bézier classes, `TrimmedCurve` and
+  `TrimmedCurve2D` included.
+- `BezierSurface::u_iso`, `v_iso`, `u_reversed_parameter` and
+  `v_reversed_parameter`, so `Surface::u_iso` of a Bézier surface
+  returns `Curve::Bezier`.
 
 ### Changed
 
@@ -39,6 +52,13 @@ the Python distribution are versioned in lockstep.
   a type's inherent `impl` keeps only what is specific to it.
 - ADR 0012 now points to `parameter_of(point, tol)` and
   `parameters_of(point, tol)`.
+- The `Curve`, `ElementaryCurve`, `Curve2D`, `Surface` and
+  `ElementarySurface` enums forward every trait method to the shape they
+  hold, provided methods included (`tangent`, `curvature`,
+  `is_periodic`, `project_points`, `normal`, …), so a shape's own
+  override is what the enum answers. Internally each enum lists its
+  variants once, and every forwarding match and `From` impl is
+  generated from that list (ADR 0017).
 
 ### Removed
 
