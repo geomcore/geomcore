@@ -326,8 +326,8 @@ surface_variants!(Surface, crate::shape_enum::from_shapes! { & });
 /// use geomcore::{ElementarySurface, Plane, Point, Surface, Vector};
 ///
 /// let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
-/// let surface = Surface::from(plane);
-/// assert_eq!(surface.as_elementary(), Some(ElementarySurface::Plane(plane)));
+/// let elementary = ElementarySurface::from(plane);
+/// assert_eq!(Surface::from(elementary), Surface::Plane(plane));
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ElementarySurface {

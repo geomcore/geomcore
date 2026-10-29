@@ -206,8 +206,8 @@ curve_variants!(Curve, crate::shape_enum::from_shapes! {});
 /// use geomcore::{Curve, ElementaryCurve, Line, Point, Vector};
 ///
 /// let line = Line::new(Point::ORIGIN, Vector::X).unwrap();
-/// let curve = Curve::from(line);
-/// assert_eq!(curve.as_elementary(), Some(ElementaryCurve::Line(line)));
+/// let elementary = ElementaryCurve::from(line);
+/// assert_eq!(Curve::from(elementary), Curve::Line(line));
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ElementaryCurve {

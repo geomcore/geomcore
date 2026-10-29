@@ -311,25 +311,11 @@ pub trait ParametricCurve2D {
         Continuity::Smooth
     }
 
-    /// The B-spline this curve evaluates: the curve itself, or the basis
-    /// of a trimmed B-spline, of which the curve is the piece over
-    /// [`bounds`](Self::bounds). `None` for any other curve. Default
-    /// implementation: `None`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::prelude::*;
-    /// use geomcore::{BSplineCurve2D, Line2D, Point2D, TrimmedCurve2D, Vector2D};
-    ///
-    /// let poles = vec![Point2D::ORIGIN, Point2D::new(2.0, 0.0)];
-    /// let curve = BSplineCurve2D::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
-    /// let piece = TrimmedCurve2D::new(&curve, 0.25, 0.5).unwrap();
-    /// assert_eq!(piece.as_bspline(), Some(&curve));
-    ///
-    /// let line = Line2D::new(Point2D::ORIGIN, Vector2D::X).unwrap();
-    /// assert_eq!(line.as_bspline(), None);
-    /// ```
+    /// Routing hook of the numeric search, hidden from the documentation: the
+    /// B-spline this curve evaluates (the curve itself, or the basis of a
+    /// trimmed B-spline). `None` for any other curve, the default. A type that
+    /// wraps another curve forwards it, as `TrimmedCurve2D` does (ADR 0022).
+    #[doc(hidden)]
     fn as_bspline(&self) -> Option<&BSplineCurve2D> {
         None
     }

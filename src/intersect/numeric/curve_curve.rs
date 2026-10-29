@@ -285,10 +285,9 @@ where
 /// with its closest point on the second, when that pair belongs to the
 /// family, else a member found by the search.
 ///
-/// A B-spline curve, or trimmed curve over one (see
-/// [`ParametricCurve::as_bspline`]), against another or against a
-/// segment (a line trimmed to a range, see
-/// [`ParametricCurve::as_elementary`]), unless both are straight, is
+/// A B-spline or Bézier curve, or trimmed curve over one, against
+/// another or against a segment (a line trimmed to a range), unless both
+/// are straight, is
 /// seeded without a grid, the segment converted to a degree-1 B-spline.
 /// Every pair of their Bézier pieces is halved until the derivatives of
 /// the squared distance provably keep a sign over it (no minimum inside),
@@ -1058,9 +1057,8 @@ where
 /// to detect coincidence.
 ///
 /// The hits are [`Completeness::Sampled`](crate::Completeness::Sampled),
-/// except where one curve is a B-spline, or trimmed curve over one (see
-/// [`ParametricCurve::as_bspline`]), and the other is too, or is an
-/// elementary curve (see [`ParametricCurve::as_elementary`]). Such a
+/// except where one curve is a B-spline or Bézier curve, or trimmed curve
+/// over one, and the other is too, or is an elementary curve. Such a
 /// pair is searched without extrema, the elementary curve converted to
 /// its exact rational B-spline: a circle or ellipse whole, a trimmed
 /// curve over its range, a line, parabola or hyperbola over the part of

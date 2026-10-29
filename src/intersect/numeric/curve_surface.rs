@@ -112,15 +112,14 @@ where
 /// a hit between samples, or whose Newton iteration strays, can be
 /// missed.
 ///
-/// A B-spline curve, or a trimmed curve over one (see
-/// [`ParametricCurve::as_bspline`]), against a B-spline surface is
+/// A B-spline or Bézier curve, or a trimmed curve over one, against a
+/// B-spline or Bézier surface is
 /// searched without sampling: the curve's knot spans over its range and
 /// the surface's knot-span patches are Bézier pieces, and the pairs of
 /// pieces whose control points' boxes overlap are halved until each is
 /// proven apart or provably holds at most one hit, which Newton iteration
 /// from the pair's centre then reaches. So is a B-spline against an
-/// elementary shape (see [`ParametricCurve::as_elementary`] and
-/// [`ParametricSurface::as_elementary`]), either way round, converted to
+/// elementary curve or surface, either way round, converted to
 /// its exact rational B-spline. A hit lies on the B-spline, so within
 /// the box of its control points: a circle, ellipse, sphere or torus is
 /// converted whole, a trimmed curve over its range, and a line,

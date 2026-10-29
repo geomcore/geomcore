@@ -410,56 +410,27 @@ pub trait ParametricCurve {
         Continuity::Smooth
     }
 
-    /// The B-spline this curve evaluates: the curve itself, or the basis
-    /// of a trimmed B-spline, of which the curve is the piece over
-    /// [`bounds`](Self::bounds). `None` for any other curve.
+    /// Routing hook of the numeric search, hidden from the documentation: the
+    /// B-spline this curve evaluates (the curve itself, or the basis of a
+    /// trimmed B-spline), so that the search works on its polynomial pieces.
+    /// `None` for any other curve, the default. A type that wraps another curve
+    /// forwards it, as `TrimmedCurve` does.
     ///
-    /// The numeric search behind
-    /// [`Intersect::intersect`](crate::Intersect::intersect) uses it
-    /// to work on the B-spline's polynomial pieces. Default
-    /// implementation: `None`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::prelude::*;
-    /// use geomcore::{BSplineCurve, Line, Point, TrimmedCurve, Vector};
-    ///
-    /// let poles = vec![Point::ORIGIN, Point::new(2.0, 0.0, 0.0)];
-    /// let curve = BSplineCurve::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
-    /// let piece = TrimmedCurve::new(&curve, 0.25, 0.5).unwrap();
-    /// assert_eq!(piece.as_bspline(), Some(&curve));
-    ///
-    /// let line = Line::new(Point::ORIGIN, Vector::X).unwrap();
-    /// assert_eq!(line.as_bspline(), None);
-    /// ```
+    /// It is a trait method because the search is generic over any
+    /// `ParametricCurve`, and only the curve can say what it is without
+    /// specialization (ADR 0022).
+    #[doc(hidden)]
     fn as_bspline(&self) -> Option<&BSplineCurve> {
         None
     }
 
-    /// The elementary curve this curve evaluates: the curve itself, or the
-    /// basis of a trimmed elementary curve, of which the curve is the
-    /// piece over [`bounds`](Self::bounds). `None` for any other curve.
-    ///
-    /// The numeric search behind
-    /// [`Intersect::intersect`](crate::Intersect::intersect) uses it
-    /// to convert the curve to an exact B-spline when the other shape is
-    /// one. Default implementation: `None`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::prelude::*;
-    /// use geomcore::{BSplineCurve, Circle, ElementaryCurve, Point, TrimmedCurve, Vector};
-    ///
-    /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
-    /// let arc = TrimmedCurve::new(&circle, 0.0, 1.0).unwrap();
-    /// assert_eq!(arc.as_elementary(), Some(ElementaryCurve::Circle(circle)));
-    ///
-    /// let poles = vec![Point::ORIGIN, Point::new(2.0, 0.0, 0.0)];
-    /// let curve = BSplineCurve::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
-    /// assert_eq!(curve.as_elementary(), None);
-    /// ```
+    /// Routing hook of the numeric search, hidden from the documentation: the
+    /// elementary curve this curve evaluates (the curve itself, or the basis of
+    /// a trimmed elementary curve), so that the search can convert it to an
+    /// exact B-spline when the other shape is one. `None` for any other curve,
+    /// the default. A type that wraps another curve forwards it, as
+    /// `TrimmedCurve` does (ADR 0022).
+    #[doc(hidden)]
     fn as_elementary(&self) -> Option<ElementaryCurve> {
         None
     }
