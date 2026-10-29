@@ -117,6 +117,18 @@ the Python distribution are versioned in lockstep.
   box formulas of the two tiers are written once. Results are unchanged
   (ADR 0005 and ADR 0014, amended). In Python, `TrimmedCurve.to_bspline`
   calls the core method directly.
+- The documentation lists every item once, at the crate root, and the
+  prelude's traits link there instead of repeating their pages. The
+  folder overviews of intersections, bounding boxes and discretization
+  moved onto the crate page and the `IntersectExact`, `HasBoundingBox`
+  and `Discretize` traits.
+- `ParametricCurve::as_bspline`, `ParametricCurve::as_elementary`,
+  `ParametricCurve2D::as_bspline`, `ParametricSurface::as_bspline` and
+  `ParametricSurface::as_elementary` are hidden from the documentation:
+  they are routing hooks of the numeric search, with no stability
+  promise. They stay on the traits, because the search is generic over
+  any curve and surface (ADR 0022). A wrapper around a curve keeps
+  forwarding them.
 
 ### Deprecated
 
@@ -163,6 +175,17 @@ the Python distribution are versioned in lockstep.
   `Meets` become `hits()` or `curves()` and `contact_points()`, and
   `Empty` becomes `is_empty()`. A curve–surface hit's `parameter` is
   `curve_parameter`.
+- Every public item has one path, at the crate root (ADR 0022). The
+  folder modules `geomcore::curves`, `geomcore::surfaces`,
+  `geomcore::intersect`, `geomcore::bounding_box`,
+  `geomcore::discretization`, `geomcore::frame`, `geomcore::point`,
+  `geomcore::vector`, `geomcore::transform`, `geomcore::tolerance`,
+  `geomcore::projection` and `geomcore::tier` are private. Migration:
+  replace `geomcore::curves::Line` with `geomcore::Line`, and so on;
+  every item kept its name. Rust has no deprecation for a module path,
+  so there is no transition release. `geomcore::prelude` stays. No item
+  was made private: the audit of the 146 public items found no other
+  internal one at the root. Python is unaffected.
 
 ## [0.39.1] - 2026-10-29
 
