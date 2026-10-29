@@ -5,7 +5,7 @@
 //! carries no vertices, orientation or tolerance; those belong to the
 //! topology (edges) of a kernel built on top of geomcore.
 
-use crate::curve_math::bspline as bspline_math;
+use crate::bspline::curve as bspline_math;
 use crate::curves::{
     BSplineCurve, BSplineCurve2D, Curve, Curve2D, ElementaryCurve, Line, Line2D,
     LineConstructionError, ParametricCurve, ParametricCurve2D, PointExtrema, PointExtrema2D,

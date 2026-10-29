@@ -1,12 +1,12 @@
 //! Circles in 2D: parametric evaluation, parameter inversion, and
 //! circumcircle construction, thin wrappers over
-//! [`crate::curve_math::analytic`].
+//! [`crate::elementary::curve`].
 
-use crate::curve_math::analytic;
 use crate::curves::CircleConstructionError;
 use crate::curves::ParametricCurve2D;
 use crate::curves::PointExtrema2D;
 use crate::curves::parametric_curve_2d::only_minimum;
+use crate::elementary::curve as elementary;
 use crate::projection::CurveProjection2D;
 use crate::{Frame2D, Point2D, Tolerance, Vector2D, projection};
 use std::f64::consts::TAU;
@@ -124,7 +124,7 @@ impl Circle2D {
     /// assert_eq!(circle.eval_point(0.0), Point2D::new(2.0, 0.0));
     /// ```
     pub fn eval_point(&self, u: f64) -> Point2D {
-        analytic::circle2d_d0(&self.frame, self.radius, u)
+        elementary::circle2d_d0(&self.frame, self.radius, u)
     }
 
     /// Evaluates the points on the circle at each parameter in `us`.
@@ -144,7 +144,7 @@ impl Circle2D {
     /// Evaluates the derivative of the given `order` at parameter `u`.
     ///
     /// Derivatives cycle with period 4 in `order` (see
-    /// `curve_math::analytic::circle2d_dn`).
+    /// `crate::elementary::curve::circle2d_dn`).
     ///
     /// # Panics
     ///
@@ -161,7 +161,7 @@ impl Circle2D {
     pub fn eval_derivative(&self, u: f64, order: u32) -> Vector2D {
         match order {
             0 => panic!("eval_derivative: order must be >= 1 (use eval_point for order 0)"),
-            _ => analytic::circle2d_dn(&self.frame, self.radius, u, order),
+            _ => elementary::circle2d_dn(&self.frame, self.radius, u, order),
         }
     }
 
@@ -176,7 +176,7 @@ impl Circle2D {
     /// assert!((circle.parameter_of(Point2D::new(0.0, 2.0)) - std::f64::consts::FRAC_PI_2).abs() < 1e-9);
     /// ```
     pub fn parameter_of(&self, point: Point2D) -> f64 {
-        analytic::circle2d_parameter(&self.frame, point)
+        elementary::circle2d_parameter(&self.frame, point)
     }
 
     /// Returns whether `point` lies on the circle: the inverse parameter is

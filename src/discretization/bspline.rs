@@ -21,7 +21,7 @@
 
 use super::sealed::{DiscretizeRange, Run};
 use super::{DiscretizationCriteria, smallest_count};
-use crate::curve_math::bspline::PolePoint;
+use crate::bspline::curve::PolePoint;
 use crate::curves::spline::Spline;
 use crate::{BSplineCurve, BSplineCurve2D, BezierCurve, BezierCurve2D, Point, Point2D};
 use std::f64::consts::{FRAC_PI_2, PI};

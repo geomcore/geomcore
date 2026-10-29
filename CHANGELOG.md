@@ -23,6 +23,9 @@ the Python distribution are versioned in lockstep.
     `Curve`, `Curve2D` and `Surface` enums.
   - Unit tests have moved out of the source files into sibling `tests.rs`
     files.
+  - The internal engines are grouped by concept. `bspline/` holds the
+    B-spline engine of curves and surfaces, and `elementary/` holds the
+    closed-form formulas. They replace `curve_math/` and `surface_math/`.
 - The intersection-matrix Python example moved to `geomcore-py/examples/`.
   The scene it writes is no longer committed.
 

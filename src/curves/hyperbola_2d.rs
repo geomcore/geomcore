@@ -1,11 +1,11 @@
 //! Hyperbolas in 2D: parametric evaluation, parameter inversion, and
 //! center+two-points construction, a thin wrapper over
-//! [`crate::curve_math::analytic`].
+//! [`crate::elementary::curve`].
 
-use crate::curve_math::analytic;
 use crate::curves::HyperbolaConstructionError;
 use crate::curves::ParametricCurve2D;
 use crate::curves::PointExtrema2D;
+use crate::elementary::curve as elementary;
 use crate::frame::frame_error;
 use crate::math::{polish_root, real_roots};
 use crate::projection::CurveProjection2D;
@@ -230,7 +230,7 @@ impl Hyperbola2D {
     /// assert_eq!(hyperbola.eval_point(0.0), Point2D::new(2.0, 0.0));
     /// ```
     pub fn eval_point(&self, u: f64) -> Point2D {
-        analytic::hyperbola2d_d0(&self.frame, self.major_radius, self.minor_radius, u)
+        elementary::hyperbola2d_d0(&self.frame, self.major_radius, self.minor_radius, u)
     }
 
     /// Evaluates the points on the hyperbola at each parameter in `us`.
@@ -250,7 +250,7 @@ impl Hyperbola2D {
     /// Evaluates the derivative of the given `order` at parameter `u`.
     ///
     /// Hyperbolic derivatives do not cycle with period 4 (see
-    /// `curve_math::analytic::hyperbola2d_dn`): odd orders follow the
+    /// `crate::elementary::curve::hyperbola2d_dn`): odd orders follow the
     /// `sinh`/`cosh` pattern of the first derivative, even orders follow the
     /// `cosh`/`sinh` pattern of the second.
     ///
@@ -269,7 +269,7 @@ impl Hyperbola2D {
     pub fn eval_derivative(&self, u: f64, order: u32) -> Vector2D {
         match order {
             0 => panic!("eval_derivative: order must be >= 1 (use eval_point for order 0)"),
-            _ => analytic::hyperbola2d_dn(
+            _ => elementary::hyperbola2d_dn(
                 &self.frame,
                 self.major_radius,
                 self.minor_radius,
@@ -291,7 +291,7 @@ impl Hyperbola2D {
     /// assert!((hyperbola.parameter_of(Point2D::new(2.0, 0.0)) - 0.0).abs() < 1e-9);
     /// ```
     pub fn parameter_of(&self, point: Point2D) -> f64 {
-        analytic::hyperbola2d_parameter(&self.frame, self.minor_radius, point)
+        elementary::hyperbola2d_parameter(&self.frame, self.minor_radius, point)
     }
 
     /// Returns whether `point` lies on the hyperbola: within `tol.confusion`
@@ -318,7 +318,7 @@ impl Hyperbola2D {
         // apply, `a ≥ 2 tol`, so the branch (`x ≥ a`) is the only part of
         // the curve within `2 tol` of a point with `x ≥ a - tol`, and points
         // short of that are far from it.
-        let near = analytic::conic_proximity_2d(
+        let near = elementary::conic_proximity_2d(
             &self.frame,
             point,
             tol.confusion,

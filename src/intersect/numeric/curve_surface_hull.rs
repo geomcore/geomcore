@@ -3,6 +3,7 @@
 //! B-spline surface by subdivision of their Bézier pieces (see
 //! [`bspline_curve_surface`]).
 
+use crate::bspline::surface::net_points;
 use crate::curves::BSplineCurve;
 use crate::intersect::numeric::bezier_pieces::{
     CurvePieces, Pool, apart_along, bounding_box, box_size, dot, euclidean, meets_at_most_once,
@@ -13,7 +14,6 @@ use crate::intersect::results::sort_by_known_parameter;
 use crate::intersect::{Completeness, CurveSurfaceHit, curve_surface_multiplicity};
 use crate::math::boxtree::{Aabb, boxes_apart};
 use crate::math::solve_3x3;
-use crate::surface_math::bspline::net_points;
 use crate::surfaces::{BSplineSurface, ParametricSurface};
 use crate::{Point, Tolerance};
 use std::ops::Deref;

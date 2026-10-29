@@ -1,11 +1,11 @@
 //! Parabolas in 3D: parametric evaluation and parameter inversion, a
-//! thin wrapper over [`crate::curve_math::analytic`].
+//! thin wrapper over [`crate::elementary::curve`].
 
-use crate::curve_math::analytic;
 use crate::curves::ElementaryCurve;
 use crate::curves::ParametricCurve;
 use crate::curves::PointExtrema;
 use crate::curves::{Curve2D, ParametrizeError, parametrize};
+use crate::elementary::curve as elementary;
 use crate::frame::frame_error;
 use crate::math::real_roots;
 use crate::projection::CurveProjection;
@@ -198,7 +198,7 @@ impl Parabola {
     /// assert_eq!(parabola.eval_point(2.0), Point::new(1.0, 2.0, 0.0));
     /// ```
     pub fn eval_point(&self, u: f64) -> Point {
-        analytic::parabola_d0(&self.frame, self.focal, u)
+        elementary::parabola_d0(&self.frame, self.focal, u)
     }
 
     /// Evaluates the points on the parabola at each parameter in `us`.
@@ -220,7 +220,7 @@ impl Parabola {
     /// The parabola is a degree-2 polynomial curve: the first derivative is
     /// linear in `u`, the second is a constant, and every derivative of
     /// order above 2 is zero (see
-    /// `curve_math::analytic::parabola_dn`).
+    /// `crate::elementary::curve::parabola_dn`).
     ///
     /// # Panics
     ///
@@ -237,7 +237,7 @@ impl Parabola {
     pub fn eval_derivative(&self, u: f64, order: u32) -> Vector {
         match order {
             0 => panic!("eval_derivative: order must be >= 1 (use eval_point for order 0)"),
-            _ => analytic::parabola_dn(&self.frame, self.focal, u, order),
+            _ => elementary::parabola_dn(&self.frame, self.focal, u, order),
         }
     }
 
@@ -252,7 +252,7 @@ impl Parabola {
     /// assert_eq!(parabola.parameter_of(Point::new(1.0, 2.0, 0.0)), 2.0);
     /// ```
     pub fn parameter_of(&self, point: Point) -> f64 {
-        analytic::parabola_parameter(&self.frame, point)
+        elementary::parabola_parameter(&self.frame, point)
     }
 
     /// Returns whether `point` lies on the parabola: within `tol.confusion`
@@ -277,7 +277,7 @@ impl Parabola {
         let f = self.focal;
         // `y² = 4fx`: on it `|∇f| ≥ 4f`.
         let near =
-            analytic::conic_proximity(&self.frame, point, tol.confusion, 2.0, 4.0 * f, |x, y| {
+            elementary::conic_proximity(&self.frame, point, tol.confusion, 2.0, 4.0 * f, |x, y| {
                 (y * y - 4.0 * f * x, -4.0 * f, 2.0 * y)
             });
         if let Some(near) = near {

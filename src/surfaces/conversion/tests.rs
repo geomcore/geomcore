@@ -65,7 +65,7 @@ impl Direction {
     fn matching(&self, (first, last): (f64, f64)) -> Vec<f64> {
         let knots = match self {
             Direction::Straight => vec![first, last],
-            Direction::Circular => conic_bspline::circle_arc(first, last).knots,
+            Direction::Circular => conic::circle_arc(first, last).knots,
         };
         let middles: Vec<f64> = knots.windows(2).map(|k| 0.5 * (k[0] + k[1])).collect();
         knots.into_iter().chain(middles).collect()

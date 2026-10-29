@@ -7,9 +7,9 @@
 //! length, projection and discretization exist once and the two tiers
 //! cannot drift apart.
 
-use crate::curve_math::bspline as math;
-use crate::curve_math::bspline::{PolePoint, SpanEnds};
-use crate::curve_math::editing::{self, Deviation, Elevation, Insertion, Lanes};
+use crate::bspline::curve as math;
+use crate::bspline::curve::{PolePoint, SpanEnds};
+use crate::bspline::editing::{self, Deviation, Elevation, Insertion, Lanes};
 use crate::curves::Side;
 use crate::curves::bezier::BezierConstructionError;
 use crate::curves::bspline::{

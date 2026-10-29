@@ -1,8 +1,8 @@
 //! Spheres in 3D: parametric evaluation and parameter inversion, thin
-//! wrappers over [`crate::surface_math::analytic`].
+//! wrappers over [`crate::elementary::surface`].
 
+use crate::elementary::surface as elementary;
 use crate::frame::frame_error;
-use crate::surface_math::analytic;
 use crate::surfaces::ElementarySurface;
 use crate::surfaces::ParametricSurface;
 use crate::surfaces::SurfaceIsoError;
@@ -342,7 +342,7 @@ impl Sphere {
     /// assert_eq!(sphere.eval_point(0.0, 0.0), Point::new(3.0, 0.0, 0.0));
     /// ```
     pub fn eval_point(&self, u: f64, v: f64) -> Point {
-        analytic::sphere_d0(&self.frame, self.radius, u, v)
+        elementary::sphere_d0(&self.frame, self.radius, u, v)
     }
 
     /// Evaluates the points on the sphere at each `(u, v)` in `uvs`.
@@ -360,7 +360,7 @@ impl Sphere {
     }
 
     /// Evaluates the derivative of order `(du, dv)` at `(u, v)`. See
-    /// `surface_math::analytic::sphere_derivative` for the
+    /// `crate::elementary::surface::sphere_derivative` for the
     /// formulas.
     ///
     /// # Panics
@@ -380,7 +380,7 @@ impl Sphere {
             0 => panic!(
                 "eval_derivative: du + dv must be >= 1 (use eval_point for the (0, 0) order)"
             ),
-            1..=2 => analytic::sphere_derivative(&self.frame, self.radius, u, v, du, dv),
+            1..=2 => elementary::sphere_derivative(&self.frame, self.radius, u, v, du, dv),
             _ => panic!(
                 "eval_derivative: order du={du}, dv={dv} is not supported (du + dv must be <= 2)"
             ),
@@ -388,7 +388,7 @@ impl Sphere {
     }
 
     /// Recovers `(u, v)` of a point on (or near) the sphere. See
-    /// `surface_math::analytic::sphere_parameters` for the
+    /// `crate::elementary::surface::sphere_parameters` for the
     /// formula, including the pole handling.
     ///
     /// # Examples
@@ -400,7 +400,7 @@ impl Sphere {
     /// assert_eq!((u, v), (0.0, 0.0));
     /// ```
     pub fn parameters_of(&self, point: Point) -> (f64, f64) {
-        analytic::sphere_parameters(&self.frame, self.radius, point)
+        elementary::sphere_parameters(&self.frame, self.radius, point)
     }
 
     /// Returns whether `point` lies on the sphere: the inverse parameters

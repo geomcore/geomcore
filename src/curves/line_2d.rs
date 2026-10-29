@@ -1,11 +1,11 @@
 //! Infinite lines in 2D: parametric evaluation and parameter
-//! inversion, thin wrappers over [`crate::curve_math::analytic`].
+//! inversion, thin wrappers over [`crate::elementary::curve`].
 
-use crate::curve_math::analytic;
 use crate::curves::LineConstructionError;
 use crate::curves::ParametricCurve2D;
 use crate::curves::PointExtrema2D;
 use crate::curves::parametric_curve_2d::only_minimum;
+use crate::elementary::curve as elementary;
 use crate::frame::frame_error;
 use crate::projection::CurveProjection2D;
 use crate::{Axis2D, Point2D, Tolerance, Vector2D, projection};
@@ -137,7 +137,7 @@ impl Line2D {
     /// assert_eq!(line.eval_point(3.0), Point2D::new(3.0, 0.0));
     /// ```
     pub fn eval_point(&self, u: f64) -> Point2D {
-        analytic::line2d_d0(&self.axis, u)
+        elementary::line2d_d0(&self.axis, u)
     }
 
     /// Evaluates the points on the line at each parameter in `us`.
@@ -194,7 +194,7 @@ impl Line2D {
     /// assert_eq!(line.parameter_of(Point2D::new(2.5, 0.0)), 2.5);
     /// ```
     pub fn parameter_of(&self, point: Point2D) -> f64 {
-        analytic::line2d_parameter(&self.axis, point)
+        elementary::line2d_parameter(&self.axis, point)
     }
 
     /// Returns whether `point` lies on the line: the inverse parameter is

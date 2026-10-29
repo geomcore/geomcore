@@ -4,7 +4,7 @@
 //! over measures how far the shape moves.
 
 use super::{Edited, Kept, Lanes, Pole, PolePoint, Source, Weighted, from_homogeneous};
-use crate::curve_math::bspline::{KnotVector, MAX_DEGREE};
+use crate::bspline::curve::{KnotVector, MAX_DEGREE};
 use crate::curves::KnotRemovalError;
 use crate::{Point, Point2D};
 

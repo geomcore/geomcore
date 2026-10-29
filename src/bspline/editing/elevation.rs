@@ -11,7 +11,7 @@
 
 use super::bezier::walk;
 use super::{Count, Edit, Edited, Kept, Lanes, One, Pole, Source};
-use crate::curve_math::bspline::{KnotVector, LARGE, MAX_DEGREE, flat_knots};
+use crate::bspline::curve::{KnotVector, LARGE, MAX_DEGREE, flat_knots};
 use crate::curves::DegreeElevationError;
 
 /// Raising the degree by the amount: see [`elevate`].

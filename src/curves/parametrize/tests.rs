@@ -2,8 +2,8 @@ use super::{
     FRAC_PI_2, PI, TAU, mirror_about_horizontal, parametrize_numeric, sphere_meridian,
     sphere_set_in_bounds,
 };
-use crate::curve_math::analytic::in_period;
 use crate::curves::{Curve2D, ParametricCurve, ParametricCurve2D, ParametrizeError};
+use crate::elementary::curve::in_period;
 use crate::surfaces::ParametricSurface;
 use crate::{
     BSplineCurve, Circle, Cylinder, Ellipse, Frame, Hyperbola, Line, Line2D, Parabola, Plane,

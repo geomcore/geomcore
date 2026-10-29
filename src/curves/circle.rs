@@ -1,14 +1,14 @@
 //! Circles in 3D: parametric evaluation, parameter inversion, and
 //! circumcircle construction, thin wrappers over
-//! [`crate::curve_math::analytic`].
+//! [`crate::elementary::curve`].
 
-use crate::curve_math::analytic;
 use crate::curves::ElementaryCurve;
 use crate::curves::ParametricCurve;
 use crate::curves::PointExtrema;
 use crate::curves::parametric_curve::only_minimum;
 use crate::curves::parametrize::ParametrizeError;
 use crate::curves::{Curve2D, parametrize};
+use crate::elementary::curve as elementary;
 use crate::frame::frame_error;
 use crate::projection::CurveProjection;
 use crate::surfaces::Surface;
@@ -315,7 +315,7 @@ impl Circle {
     /// assert_eq!(circle.eval_point(0.0), Point::new(2.0, 0.0, 0.0));
     /// ```
     pub fn eval_point(&self, u: f64) -> Point {
-        analytic::circle_d0(&self.frame, self.radius, u)
+        elementary::circle_d0(&self.frame, self.radius, u)
     }
 
     /// Evaluates the points on the circle at each parameter in `us`.
@@ -335,7 +335,7 @@ impl Circle {
     /// Evaluates the derivative of the given `order` at parameter `u`.
     ///
     /// Derivatives cycle with period 4 in `order` (see
-    /// `curve_math::analytic::circle_dn`).
+    /// `crate::elementary::curve::circle_dn`).
     ///
     /// # Panics
     ///
@@ -352,7 +352,7 @@ impl Circle {
     pub fn eval_derivative(&self, u: f64, order: u32) -> Vector {
         match order {
             0 => panic!("eval_derivative: order must be >= 1 (use eval_point for order 0)"),
-            _ => analytic::circle_dn(&self.frame, self.radius, u, order),
+            _ => elementary::circle_dn(&self.frame, self.radius, u, order),
         }
     }
 
@@ -363,7 +363,7 @@ impl Circle {
     pub(crate) fn parameter_in_bounds(&self, u: f64, tol: Tolerance) -> f64 {
         let (first, last) = crate::curves::ParametricCurve::bounds(self);
         // The speed is the radius everywhere.
-        analytic::seam_wrapped(u, first, last - first, self.radius, tol.confusion)
+        elementary::seam_wrapped(u, first, last - first, self.radius, tol.confusion)
     }
 
     /// Recovers the angular parameter of a point on (or near) the circle,
@@ -377,7 +377,7 @@ impl Circle {
     /// assert!((circle.parameter_of(Point::new(0.0, 2.0, 0.0)) - std::f64::consts::FRAC_PI_2).abs() < 1e-9);
     /// ```
     pub fn parameter_of(&self, point: Point) -> f64 {
-        analytic::circle_parameter(&self.frame, point)
+        elementary::circle_parameter(&self.frame, point)
     }
 
     /// Returns whether `point` lies on the circle: the inverse parameter is

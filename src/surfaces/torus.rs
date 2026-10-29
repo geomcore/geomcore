@@ -1,8 +1,8 @@
 //! Tori in 3D: parametric evaluation and parameter inversion, thin wrappers
-//! over [`crate::surface_math::analytic`].
+//! over [`crate::elementary::surface`].
 
+use crate::elementary::surface as elementary;
 use crate::frame::frame_error;
-use crate::surface_math::analytic;
 use crate::surfaces::ElementarySurface;
 use crate::surfaces::ParametricSurface;
 use crate::surfaces::SurfaceIsoError;
@@ -359,7 +359,7 @@ impl Torus {
     /// assert_eq!(torus.eval_point(0.0, 0.0), Point::new(6.5, 0.0, 0.0));
     /// ```
     pub fn eval_point(&self, u: f64, v: f64) -> Point {
-        analytic::torus_d0(&self.frame, self.major_radius, self.minor_radius, u, v)
+        elementary::torus_d0(&self.frame, self.major_radius, self.minor_radius, u, v)
     }
 
     /// Evaluates the points on the torus at each `(u, v)` in `uvs`.
@@ -377,7 +377,7 @@ impl Torus {
     }
 
     /// Evaluates the derivative of order `(du, dv)` at `(u, v)`. See
-    /// `surface_math::analytic::torus_derivative` for the
+    /// `crate::elementary::surface::torus_derivative` for the
     /// formulas.
     ///
     /// # Panics
@@ -397,7 +397,7 @@ impl Torus {
             0 => panic!(
                 "eval_derivative: du + dv must be >= 1 (use eval_point for the (0, 0) order)"
             ),
-            1..=2 => analytic::torus_derivative(
+            1..=2 => elementary::torus_derivative(
                 &self.frame,
                 self.major_radius,
                 self.minor_radius,
@@ -413,7 +413,7 @@ impl Torus {
     }
 
     /// Recovers `(u, v)` of a point on (or near) the torus. See
-    /// `surface_math::analytic::torus_parameters` for the formula,
+    /// `crate::elementary::surface::torus_parameters` for the formula,
     /// including the near/far branch handling when `major_radius <
     /// minor_radius`.
     ///
@@ -426,7 +426,7 @@ impl Torus {
     /// assert_eq!((u, v), (0.0, 0.0));
     /// ```
     pub fn parameters_of(&self, point: Point) -> (f64, f64) {
-        analytic::torus_parameters(&self.frame, self.major_radius, self.minor_radius, point)
+        elementary::torus_parameters(&self.frame, self.major_radius, self.minor_radius, point)
     }
 
     /// Returns whether `point` lies on the torus: the inverse parameters

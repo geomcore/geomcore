@@ -6,7 +6,7 @@
 
 use std::fmt;
 
-use crate::curve_math::bspline::KnotVector;
+use crate::bspline::curve::KnotVector;
 use crate::{Circle, Frame, Line, Point, Vector};
 
 /// Error returned when an isoparametric curve cannot be built.
@@ -50,7 +50,7 @@ pub(crate) fn check_iso_param(t: f64, knots: Option<&KnotVector>) -> Result<f64,
         Ok(if t == last {
             last
         } else {
-            crate::curve_math::analytic::in_period(t, first, last)
+            crate::elementary::curve::in_period(t, first, last)
         })
     } else if t < first || t > last {
         Err(SurfaceIsoError::OutOfRange)

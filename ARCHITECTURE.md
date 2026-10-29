@@ -43,8 +43,9 @@ src/
 ├── bounding_box/        HasBoundingBox: the box type and one file per family
 ├── discretization/      Discretize: proven point sequences on bounded curves
 │
-├── curve_math/          internal: elementary-curve formulas and the B-spline engine
-├── surface_math/        internal: elementary-surface formulas and B-spline patches
+├── elementary/          internal: closed-form formulas of the elementary curves and surfaces
+├── bspline/             internal: the B-spline engine (poles, curve evaluation, editing,
+│                        tensor-product surfaces, exact conic nets)
 └── math/                internal: polynomial roots, Bernstein form, solvers, quadrature
 ```
 
@@ -78,8 +79,8 @@ Outside `src/`:
    `Line`–`Plane` is in `intersect/exact/curve_surface.rs`, next to its
    result type `LinePlaneIntersection`. The general results that `Intersect`
    returns live in `intersect/results/`.
-5. **Internal math sits under the shapes.** `curve_math/`, `surface_math/`
-   and `math/` are `pub(crate)`. They work on poles, knots and numbers,
+5. **Internal math sits under the shapes.** `elementary/`, `bspline/` and
+   `math/` are `pub(crate)`. They work on poles, knots and numbers,
    not on the public shape types; a shape calls into them, never the
    other way round.
 6. **Unit tests live in a sibling `tests.rs`.** `curves/line.rs` ends with

@@ -11,8 +11,8 @@
 use crate::Point;
 use crate::Point2D;
 use crate::Tolerance;
-use crate::curve_math::bspline as math;
-use crate::curve_math::bspline::{Pole, PolePoint};
+use crate::bspline::curve as math;
+use crate::bspline::curve::{Pole, PolePoint};
 use crate::curves::{BSplineConstructionError, BSplineCurve, BSplineCurve2D};
 
 /// How fitting assigns a parameter to each data point.
