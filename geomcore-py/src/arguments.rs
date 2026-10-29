@@ -1,20 +1,17 @@
-use crate::errors::invalid_argument;
-use pyo3::exceptions::PyTypeError;
-use pyo3::prelude::*;
+//! Conversions between Python objects and the core enums: which curve or
+//! surface class a Python argument is, as a `Curve`, `Curve2D`, `CurveArg`
+//! or `Surface`, and the Python object of a core curve.
 
+use crate::curves::*;
+use crate::errors::invalid_argument;
+use crate::surfaces::*;
 use geomcore::curves::{
     BSplineCurve, Curve, Curve2D, ElementaryCurve, ParametricCurve, TrimmedCurve,
 };
-use geomcore::parametrize_numeric;
 use geomcore::surfaces::Surface;
-use geomcore::{CurveCurveIntersection, CurveSurfaceIntersection, Intersect, curve_curve_extrema};
-use geomcore::{Point, Tolerance, Vector};
-
-use crate::curves::*;
-use crate::results::PyCurveCurveExtrema;
-use crate::surfaces::*;
-use crate::tolerance;
-use crate::values::*;
+use geomcore::{Point, Vector};
+use pyo3::exceptions::PyTypeError;
+use pyo3::prelude::*;
 
 pub(crate) fn extract_curve3d(obj: &Bound<'_, PyAny>) -> PyResult<Curve> {
     curve3d_of(obj).ok_or_else(|| {
@@ -171,81 +168,6 @@ pub(crate) fn curve2d_of(obj: &Bound<'_, PyAny>) -> Option<Curve2D> {
     None
 }
 
-/// Closest-point enumeration between any two 3D curves.
-///
-/// Returns a `CurveCurveExtrema`: every local minimum of the distance over
-/// the curves' parameter domains, including minima at the ends of bounded
-/// curves, closest first, with whether the search proved there is no
-/// other. Parallel lines, concentric circles and other continuous
-/// families of equal minima report the distance once, with a
-/// representative pair. The result holds the curves as `first` and
-/// `second`. Other Python threads run during the search.
-#[pyfunction]
-#[pyo3(name = "curve_curve_extrema", signature = (first, second, tol = None))]
-pub(crate) fn py_curve_curve_extrema(
-    py: Python<'_>,
-    first: &Bound<'_, PyAny>,
-    second: &Bound<'_, PyAny>,
-    tol: Option<PyTolerance>,
-) -> PyResult<PyCurveCurveExtrema> {
-    let tol = tolerance(tol);
-    let a = extract_curve_arg(first)?;
-    let b = extract_curve_arg(second)?;
-    Ok(PyCurveCurveExtrema {
-        result: py.detach(|| curve_curve_extrema(&a, &b, tol)),
-        first: first.clone().unbind(),
-        second: second.clone().unbind(),
-    })
-}
-
-/// The routed intersection of two curves passed from Python.
-pub(crate) fn routed_curve_curve(
-    a: &CurveArg,
-    b: &CurveArg,
-    tol: Tolerance,
-) -> CurveCurveIntersection {
-    match (a, b) {
-        (CurveArg::Whole(a), CurveArg::Whole(b)) => a.intersect(b, tol),
-        (CurveArg::Whole(a), CurveArg::Trimmed(b)) => a.intersect(b, tol),
-        (CurveArg::Trimmed(a), CurveArg::Whole(b)) => a.intersect(b, tol),
-        (CurveArg::Trimmed(a), CurveArg::Trimmed(b)) => a.intersect(b, tol),
-    }
-}
-
-/// The routed intersection of a curve and a surface passed from Python.
-pub(crate) fn routed_curve_surface(
-    curve: &CurveArg,
-    surface: &Surface,
-    tol: Tolerance,
-) -> CurveSurfaceIntersection {
-    match curve {
-        CurveArg::Whole(curve) => curve.intersect(surface, tol),
-        CurveArg::Trimmed(curve) => curve.intersect(surface, tol),
-    }
-}
-
-/// Numeric curve-on-surface parametrization for pairs without closed form.
-///
-/// Samples the curve at `sample_count` uniform parameters and inverts each
-/// sample onto the surface. Returns `(u, v)` tuples; surface evaluation at
-/// them recovers the samples where the curve lies on the surface. Other
-/// Python threads run during the projections.
-#[pyfunction]
-#[pyo3(name = "parametrize_numeric", signature = (curve, surface, sample_count = 64, tol = None))]
-pub(crate) fn py_parametrize_numeric(
-    py: Python<'_>,
-    curve: &Bound<'_, PyAny>,
-    surface: &Bound<'_, PyAny>,
-    sample_count: usize,
-    tol: Option<PyTolerance>,
-) -> PyResult<Vec<(f64, f64)>> {
-    let tol = tolerance(tol);
-    let c = extract_curve_arg(curve)?;
-    let s = extract_surface(surface)?;
-    let points = py.detach(|| parametrize_numeric(&c, &s, sample_count, tol));
-    Ok(points.iter().map(|p| (p.x, p.y)).collect())
-}
-
 pub(crate) fn curve2d_to_py(py: Python<'_>, curve: Curve2D) -> PyResult<Py<PyAny>> {
     match curve {
         Curve2D::Line(l) => Ok(PyLine2D(l).into_pyobject(py)?.into_any().unbind()),
@@ -256,4 +178,36 @@ pub(crate) fn curve2d_to_py(py: Python<'_>, curve: Curve2D) -> PyResult<Py<PyAny
         Curve2D::BSpline(c) => Ok(PyBSplineCurve2D(c).into_pyobject(py)?.into_any().unbind()),
         _ => Err(invalid_argument("unsupported 2d curve variant")),
     }
+}
+
+pub(crate) fn extract_surface(obj: &Bound<'_, PyAny>) -> PyResult<Surface> {
+    surface_of(obj).ok_or_else(|| {
+        PyTypeError::new_err(
+            "expected a geomcore surface (Plane, Cylinder, Cone, Sphere, Torus or BSplineSurface)",
+        )
+    })
+}
+
+/// The surface `obj` holds, if it is one of the surface classes. Each
+/// class is checked with a type test, so a miss raises nothing.
+pub(crate) fn surface_of(obj: &Bound<'_, PyAny>) -> Option<Surface> {
+    if let Ok(s) = obj.downcast::<PyPlane>() {
+        return Some(Surface::from(&s.borrow().0));
+    }
+    if let Ok(s) = obj.downcast::<PyCylinder>() {
+        return Some(Surface::from(&s.borrow().0));
+    }
+    if let Ok(s) = obj.downcast::<PyCone>() {
+        return Some(Surface::from(&s.borrow().0));
+    }
+    if let Ok(s) = obj.downcast::<PySphere>() {
+        return Some(Surface::from(&s.borrow().0));
+    }
+    if let Ok(s) = obj.downcast::<PyTorus>() {
+        return Some(Surface::from(&s.borrow().0));
+    }
+    if let Ok(s) = obj.downcast::<PyBSplineSurface>() {
+        return Some(Surface::from(&s.borrow().0));
+    }
+    None
 }

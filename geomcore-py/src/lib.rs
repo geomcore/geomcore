@@ -76,19 +76,24 @@ pub(crate) fn parse_parametrization(s: &str) -> PyResult<PointParametrization> {
     }
 }
 
+mod arguments;
+mod bounding_box;
 mod curves;
+mod discretization;
 mod intersect;
-mod numeric;
 mod results;
 mod surfaces;
 mod values;
 
+use bounding_box::{PyBoundingBox, PyBoundingBox2D};
+use curves::py_parametrize_numeric;
 use curves::{
     PyBSplineCurve, PyBSplineCurve2D, PyBezierCurve, PyBezierCurve2D, PyCircle, PyCircle2D,
     PyEllipse, PyEllipse2D, PyHyperbola, PyHyperbola2D, PyLine, PyLine2D, PyParabola, PyParabola2D,
     PyTrimmedCurve, PyTrimmedCurve2D,
 };
-use numeric::{py_curve_curve_extrema, py_parametrize_numeric};
+use discretization::{PyDiscretization, PyDiscretization2D};
+use intersect::py_curve_curve_extrema;
 use results::{
     PyCompleteness, PyCompletenessStatus, PyCurveCurveExtrema, PyCurveCurveExtremum,
     PyCurveCurveHit, PyCurveCurveHit2D, PyCurveCurveIntersection, PyCurveCurveIntersection2D,
@@ -99,8 +104,8 @@ use results::{
 };
 use surfaces::{PyBSplineSurface, PyBezierSurface, PyCone, PyCylinder, PyPlane, PySphere, PyTorus};
 use values::{
-    PyAxis, PyAxis2D, PyBoundingBox, PyBoundingBox2D, PyDiscretization, PyDiscretization2D,
-    PyFrame, PyFrame2D, PyPoint, PyPoint2D, PySide, PyTolerance, PyTransform, PyVector, PyVector2D,
+    PyAxis, PyAxis2D, PyFrame, PyFrame2D, PyPoint, PyPoint2D, PySide, PyTolerance, PyTransform,
+    PyVector, PyVector2D,
 };
 
 // ---------------------------------------------------------------------------

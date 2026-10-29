@@ -1,21 +1,24 @@
-//! The routed `intersect` shared by every curve and surface class.
+//! The routed `intersect` shared by every curve and surface class, the
+//! routing of Python operands it relies on, and `geomcore.curve_curve_extrema`.
 
-use pyo3::exceptions::PyTypeError;
-use pyo3::prelude::*;
-
+use crate::arguments::surface_of;
+use crate::arguments::*;
+use crate::arguments::{CurveArg, curve_arg_of, curve2d_of};
+use crate::curves::PyTrimmedCurve2D;
+use crate::results::{
+    PyCurveCurveExtrema, PyCurveCurveIntersection, PyCurveCurveIntersection2D,
+    PyCurveSurfaceIntersection, PySurfaceSurfaceIntersection,
+};
+use crate::tolerance;
+use crate::values::*;
 use geomcore::curves::{Curve, Curve2D, ParametricCurve, TrimmedCurve2D};
 use geomcore::surfaces::Surface;
-use geomcore::{CurveCurveIntersection2D, Intersect, Tolerance};
-
-use crate::curves::PyTrimmedCurve2D;
-use crate::numeric::{
-    CurveArg, curve_arg_of, curve2d_of, routed_curve_curve, routed_curve_surface,
+use geomcore::{
+    CurveCurveIntersection, CurveCurveIntersection2D, CurveSurfaceIntersection, Intersect,
+    Tolerance, curve_curve_extrema,
 };
-use crate::results::{
-    PyCurveCurveIntersection, PyCurveCurveIntersection2D, PyCurveSurfaceIntersection,
-    PySurfaceSurfaceIntersection,
-};
-use crate::surfaces::surface_of;
+use pyo3::exceptions::PyTypeError;
+use pyo3::prelude::*;
 
 /// A 2D curve passed from Python: a whole curve or a piece of one.
 enum CurveArg2D {
@@ -156,4 +159,57 @@ pub(crate) fn intersect(
         }
     };
     Ok(object.unbind())
+}
+
+/// Closest-point enumeration between any two 3D curves.
+///
+/// Returns a `CurveCurveExtrema`: every local minimum of the distance over
+/// the curves' parameter domains, including minima at the ends of bounded
+/// curves, closest first, with whether the search proved there is no
+/// other. Parallel lines, concentric circles and other continuous
+/// families of equal minima report the distance once, with a
+/// representative pair. The result holds the curves as `first` and
+/// `second`. Other Python threads run during the search.
+#[pyfunction]
+#[pyo3(name = "curve_curve_extrema", signature = (first, second, tol = None))]
+pub(crate) fn py_curve_curve_extrema(
+    py: Python<'_>,
+    first: &Bound<'_, PyAny>,
+    second: &Bound<'_, PyAny>,
+    tol: Option<PyTolerance>,
+) -> PyResult<PyCurveCurveExtrema> {
+    let tol = tolerance(tol);
+    let a = extract_curve_arg(first)?;
+    let b = extract_curve_arg(second)?;
+    Ok(PyCurveCurveExtrema {
+        result: py.detach(|| curve_curve_extrema(&a, &b, tol)),
+        first: first.clone().unbind(),
+        second: second.clone().unbind(),
+    })
+}
+
+/// The routed intersection of two curves passed from Python.
+pub(crate) fn routed_curve_curve(
+    a: &CurveArg,
+    b: &CurveArg,
+    tol: Tolerance,
+) -> CurveCurveIntersection {
+    match (a, b) {
+        (CurveArg::Whole(a), CurveArg::Whole(b)) => a.intersect(b, tol),
+        (CurveArg::Whole(a), CurveArg::Trimmed(b)) => a.intersect(b, tol),
+        (CurveArg::Trimmed(a), CurveArg::Whole(b)) => a.intersect(b, tol),
+        (CurveArg::Trimmed(a), CurveArg::Trimmed(b)) => a.intersect(b, tol),
+    }
+}
+
+/// The routed intersection of a curve and a surface passed from Python.
+pub(crate) fn routed_curve_surface(
+    curve: &CurveArg,
+    surface: &Surface,
+    tol: Tolerance,
+) -> CurveSurfaceIntersection {
+    match curve {
+        CurveArg::Whole(curve) => curve.intersect(surface, tol),
+        CurveArg::Trimmed(curve) => curve.intersect(surface, tol),
+    }
 }
