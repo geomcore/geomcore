@@ -1,4 +1,5 @@
 use super::*;
+use crate::Vector2D;
 
 // ---- construction / accessors ----
 

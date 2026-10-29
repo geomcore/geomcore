@@ -1,7 +1,7 @@
 use super::*;
 use crate::curves::{ParametricCurve2D, PointExtrema2D};
 use crate::discretization::{Discretization2D, DiscretizationCriteria, Discretize2D};
-use crate::{BSplineCurve2D, BSplineSplitError, DegreeElevationError};
+use crate::{BSplineCurve2D, BSplineSplitError, DegreeElevationError, Vector2D};
 
 fn cubic() -> BezierCurve2D {
     let poles = vec![

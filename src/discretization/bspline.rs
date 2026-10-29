@@ -21,8 +21,8 @@
 
 use super::sealed::{DiscretizeRange, Run};
 use super::{DiscretizationCriteria, smallest_count};
-use crate::bspline::curve::PolePoint;
 use crate::curves::spline::Spline;
+use crate::tier::TierPoint;
 use crate::{BSplineCurve, BSplineCurve2D, BezierCurve, BezierCurve2D, Point, Point2D};
 use std::f64::consts::{FRAC_PI_2, PI};
 
@@ -119,7 +119,7 @@ impl Piece {
     }
 
     /// The point at the fraction `s` of the piece, by de Casteljau.
-    fn point_at<P: PolePoint>(&self, s: f64) -> P {
+    fn point_at<P: TierPoint>(&self, s: f64) -> P {
         let n = self.degree;
         let mut t = self.points;
         for r in 1..=n {
@@ -231,7 +231,7 @@ impl Piece {
 
     /// Visits the leaves of the halving of this piece, of `bounds`, each
     /// as a run.
-    fn visit_leaves<P: PolePoint, F>(
+    fn visit_leaves<P: TierPoint, F>(
         &self,
         bounds: Bounds,
         context: &Context,
@@ -459,7 +459,7 @@ fn chord_segments(constant: f64, max: f64) -> usize {
 
 /// Visits the runs of `spline` over `[first, last]`: each knot span's
 /// Bézier piece, restricted to the range and halved while that pays.
-fn for_each_run<P: PolePoint, F>(
+fn for_each_run<P: TierPoint, F>(
     spline: &Spline<P>,
     first: f64,
     last: f64,

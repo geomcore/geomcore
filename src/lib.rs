@@ -175,12 +175,12 @@ pub use curves::{
     BSplineConstructionError, BSplineConversionError, BSplineCurve, BSplineCurve2D,
     BSplineSplitError, BezierConstructionError, BezierCurve, BezierCurve2D, Circle, Circle2D,
     CircleConstructionError, Continuity, Curve, Curve2D, DegreeElevationError, ElementaryCurve,
-    Ellipse, Ellipse2D, EllipseConstructionError, GenericCircle, GenericEllipse, GenericHyperbola,
-    GenericLine, GenericParabola, Hyperbola, Hyperbola2D, HyperbolaConstructionError,
-    KnotInsertionError, KnotRemovalError, Line, Line2D, LineConstructionError, Parabola,
-    Parabola2D, ParabolaConstructionError, ParametricCurve, ParametricCurve2D, ParametrizeError,
-    PointExtrema, PointExtrema2D, PointParametrization, Side, TrimmedCurve, TrimmedCurve2D,
-    TrimmedCurveConstructionError, parametrize_numeric,
+    Ellipse, Ellipse2D, EllipseConstructionError, GenericBSplineCurve, GenericBezierCurve,
+    GenericCircle, GenericEllipse, GenericHyperbola, GenericLine, GenericParabola, Hyperbola,
+    Hyperbola2D, HyperbolaConstructionError, KnotInsertionError, KnotRemovalError, Line, Line2D,
+    LineConstructionError, Parabola, Parabola2D, ParabolaConstructionError, ParametricCurve,
+    ParametricCurve2D, ParametrizeError, PointExtrema, PointExtrema2D, PointParametrization, Side,
+    TrimmedCurve, TrimmedCurve2D, TrimmedCurveConstructionError, parametrize_numeric,
 };
 pub use discretization::{
     Discretization, Discretization2D, DiscretizationCriteria, DiscretizationCriteriaError,

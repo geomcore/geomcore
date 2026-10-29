@@ -6,6 +6,7 @@
 //! names are its two instances: `Circle = GenericCircle<Point>` in space
 //! and `Circle2D = GenericCircle<Point2D>` in the plane.
 
+use crate::bspline::poles::PolePoint;
 use crate::{Axis, Axis2D, Frame, Frame2D, FrameConstructionError};
 use crate::{Point, Point2D, Vector, Vector2D};
 use std::fmt::Debug;
@@ -39,6 +40,7 @@ pub trait TierPoint:
     + Add<<Self as TierPoint>::Vector, Output = Self>
     + Sub<Output = <Self as TierPoint>::Vector>
     + operations::PointOperations
+    + PolePoint
 {
     /// The tier's vector: [`Vector`] or [`Vector2D`].
     type Vector: operations::VectorOperations;
@@ -101,6 +103,9 @@ pub(crate) mod operations {
 
     /// The operations of a tier's points.
     pub trait PointOperations: Copy {
+        /// The origin.
+        const ORIGIN: Self;
+
         /// The point whose every coordinate is NaN.
         const UNDEFINED: Self;
 
@@ -177,6 +182,7 @@ pub(crate) mod operations {
     }
 
     impl PointOperations for Point {
+        const ORIGIN: Point = Point::ORIGIN;
         const UNDEFINED: Point = Point::new(f64::NAN, f64::NAN, f64::NAN);
 
         #[inline]
@@ -191,6 +197,7 @@ pub(crate) mod operations {
     }
 
     impl PointOperations for Point2D {
+        const ORIGIN: Point2D = Point2D::ORIGIN;
         const UNDEFINED: Point2D = Point2D::new(f64::NAN, f64::NAN);
 
         #[inline]
