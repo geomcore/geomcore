@@ -26,6 +26,9 @@ the Python distribution are versioned in lockstep.
   - The internal engines are grouped by concept. `bspline/` holds the
     B-spline engine of curves and surfaces, and `elementary/` holds the
     closed-form formulas. They replace `curve_math/` and `surface_math/`.
+  - The Python bindings use the core crate's folder names. Each class
+    has its own file under `geomcore-py/src/curves/` or `surfaces/`, and
+    `numeric.rs` is split between `arguments.rs` and `intersect.rs`.
 - The intersection-matrix Python example moved to `geomcore-py/examples/`.
   The scene it writes is no longer committed.
 

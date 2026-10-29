@@ -7,9 +7,8 @@
 //! `second`, and the projections hold the object they project onto, as
 //! `target`: the exact objects passed, shared rather than copied.
 
-use pyo3::prelude::*;
-use pyo3::types::PyList;
-
+use crate::arguments::curve3d_to_py;
+use crate::values::{PyPoint, PyPoint2D, PyVector, coordinates, coordinates_2d, float_repr};
 use geomcore::{
     Completeness, CurveCurveExtrema, CurveCurveExtremum, CurveCurveHit, CurveCurveHit2D,
     CurveCurveIntersection, CurveCurveIntersection2D, CurveCurveOverlap, CurveCurveRegion,
@@ -17,9 +16,8 @@ use geomcore::{
     CurveSurfaceRegion, IncompleteReason, IntersectionCurve, IntersectionMethod, Point, Point2D,
     SurfaceCurvatures, SurfaceProjection, SurfaceSurfaceIntersection, SurfaceSurfaceRegion,
 };
-
-use crate::numeric::curve3d_to_py;
-use crate::values::{PyPoint, PyPoint2D, PyVector, coordinates, coordinates_2d, float_repr};
+use pyo3::prelude::*;
+use pyo3::types::PyList;
 
 // ---------------------------------------------------------------------------
 // repr helpers
@@ -917,7 +915,7 @@ pub(crate) struct PyCurveSurfaceIntersection {
 impl PyCurveSurfaceIntersection {
     /// Whether the call was made on the surface.
     fn surface_first(&self, py: Python<'_>) -> bool {
-        crate::surfaces::surface_of(self.first.bind(py)).is_some()
+        crate::arguments::surface_of(self.first.bind(py)).is_some()
     }
 }
 

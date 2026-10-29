@@ -96,7 +96,9 @@ Outside `src/`:
 - Re-export it from the folder's `mod.rs` and from `lib.rs`.
 - Add it as a variant of the `Curve`/`ElementaryCurve` (or `Surface`) enum.
 - Give it a box in `bounding_box/` and a discretization in `discretization/`.
-- Bind it in `geomcore-py/src/` and its stub in `geomcore-py/geomcore/*.pyi`.
+- Bind it in `geomcore-py/src/curves/<name>.rs` (or `surfaces/`), register
+  the class in `geomcore-py/src/lib.rs` and add its stub to
+  `geomcore-py/geomcore/*.pyi`.
 
 **A new exact intersection pair.**
 - Write the solver as `impl IntersectExact<B> for A` in the family file
@@ -108,6 +110,22 @@ Outside `src/`:
 - Give it its own folder at the top of `src/`, like `bounding_box/` and
   `discretization/`: the trait in `mod.rs`, the impls by family.
 - Record the term in `CONTEXT.md`.
+
+## The Python bindings
+
+`geomcore-py/src/` uses the core crate's folder names. Each class sits in
+the file its core type has, under `curves/` and `surfaces/`. The other
+files are:
+
+| File | Holds |
+|---|---|
+| `lib.rs` | the module wiring (`#[pymodule]`) and small shared argument checks |
+| `values.rs` | `Point`, `Vector`, `Axis`, `Frame`, `Tolerance`, `Transform`, `Side` |
+| `bounding_box.rs`, `discretization.rs` | the classes of those operations |
+| `intersect.rs` | the routed `intersect` every class shares, and `curve_curve_extrema` |
+| `results.rs` | the intersection, projection, extrema and curvature results |
+| `arguments.rs` | conversions between Python objects and the core `Curve`/`Surface` enums |
+| `errors.rs` | the Python exception hierarchy |
 
 ## Integration tests
 
