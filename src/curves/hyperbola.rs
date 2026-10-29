@@ -2,19 +2,14 @@
 //! center+two-points construction, a thin wrapper over
 //! [`crate::curve_math::analytic`].
 
-use crate::IntersectExact;
 use crate::curve_math::analytic;
 use crate::curves::{Curve2D, ParametrizeError, parametrize};
 use crate::frame::frame_error;
-use crate::intersect::{ConicSurfaceIntersection, intersect_conic_quadric};
 use crate::math::{polish_root, real_roots};
 use crate::projection::{self, CurveProjection, CurveProjection2D};
 use crate::surfaces::Surface;
 use crate::tol;
-use crate::{
-    Cone, Cylinder, Frame, Frame2D, Plane, Point, Point2D, Sphere, Tolerance, Transform, Vector,
-    Vector2D,
-};
+use crate::{Frame, Frame2D, Point, Point2D, Tolerance, Transform, Vector, Vector2D};
 use std::fmt;
 
 /// Error returned when a [`Hyperbola`] cannot be constructed from the
@@ -990,110 +985,12 @@ impl Hyperbola2D {
     }
 }
 
-impl IntersectExact<Plane> for Hyperbola {
-    type Output = ConicSurfaceIntersection;
-
-    /// Intersects this hyperbola with a plane: quadratic in `u = e^t`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::IntersectExact;
-    /// use geomcore::{ConicSurfaceIntersection, Hyperbola, Plane, Point, Tolerance, Vector};
-    /// let hyperbola = Hyperbola::new(Point::ORIGIN, Vector::Z, Vector::X, 2.0, 1.0).unwrap();
-    /// let plane = Plane::new(Point::new(2.0, 0.0, 0.0), Vector::X).unwrap();
-    /// let tol = Tolerance::DEFAULT;
-    /// match hyperbola.intersect_exact(&plane, tol) {
-    ///     ConicSurfaceIntersection::Hits(hits) => assert_eq!(hits.len(), 1),
-    ///     _ => panic!("expected hits"),
-    /// }
-    /// ```
-    fn intersect_exact(&self, plane: &Plane, tol: Tolerance) -> ConicSurfaceIntersection {
-        intersect_conic_quadric(self, plane, tol)
-    }
-}
-
-impl IntersectExact<Sphere> for Hyperbola {
-    type Output = ConicSurfaceIntersection;
-
-    /// Intersects this hyperbola with a sphere; hits verified on the
-    /// sphere. See [`Hyperbola::intersect_exact`] for the calling shape.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::IntersectExact;
-    /// use geomcore::{ConicSurfaceIntersection, Hyperbola, Point, Sphere, Tolerance, Vector};
-    /// let hyperbola = Hyperbola::new(Point::ORIGIN, Vector::Z, Vector::X, 2.0, 1.0).unwrap();
-    /// let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
-    /// let tol = Tolerance::DEFAULT;
-    /// match hyperbola.intersect_exact(&sphere, tol) {
-    ///     ConicSurfaceIntersection::Hits(hits) => assert!(!hits.is_empty()),
-    ///     _ => panic!("expected hits"),
-    /// }
-    /// ```
-    fn intersect_exact(&self, sphere: &Sphere, tol: Tolerance) -> ConicSurfaceIntersection {
-        intersect_conic_quadric(self, sphere, tol)
-    }
-}
-
-impl IntersectExact<Cylinder> for Hyperbola {
-    type Output = ConicSurfaceIntersection;
-
-    /// Intersects this hyperbola with a cylinder; hits verified on the
-    /// cylinder. See
-    /// [`Hyperbola::intersect_exact`] for the calling shape.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::IntersectExact;
-    /// use geomcore::{ConicSurfaceIntersection, Cylinder, Hyperbola, Point, Tolerance, Vector};
-    /// let hyperbola = Hyperbola::new(Point::ORIGIN, Vector::Z, Vector::X, 2.0, 1.0).unwrap();
-    /// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
-    /// let tol = Tolerance::DEFAULT;
-    /// match hyperbola.intersect_exact(&cylinder, tol) {
-    ///     ConicSurfaceIntersection::Hits(hits) => assert!(!hits.is_empty()),
-    ///     _ => panic!("expected hits"),
-    /// }
-    /// ```
-    fn intersect_exact(&self, cylinder: &Cylinder, tol: Tolerance) -> ConicSurfaceIntersection {
-        intersect_conic_quadric(self, cylinder, tol)
-    }
-}
-
-impl IntersectExact<Cone> for Hyperbola {
-    type Output = ConicSurfaceIntersection;
-
-    /// Intersects this hyperbola with a cone; hits verified on
-    /// either nappe.
-    /// See [`Hyperbola::intersect_exact`] for the calling shape.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::IntersectExact;
-    /// use geomcore::{Cone, ConicSurfaceIntersection, Frame, Hyperbola, Point, Tolerance, Vector};
-    /// let hyperbola = Hyperbola::new(Point::ORIGIN, Vector::Z, Vector::X, 2.0, 1.0).unwrap();
-    /// let cone = Cone::from_frame(Frame::WORLD, 0.4, 2.0).unwrap();
-    /// let tol = Tolerance::DEFAULT;
-    /// match hyperbola.intersect_exact(&cone, tol) {
-    ///     ConicSurfaceIntersection::Hits(hits) => assert!(!hits.is_empty()),
-    ///     _ => panic!("expected hits"),
-    /// }
-    /// ```
-    fn intersect_exact(&self, cone: &Cone, tol: Tolerance) -> ConicSurfaceIntersection {
-        intersect_conic_quadric(self, cone, tol)
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use crate::IntersectExact;
+
     use crate::{
-        Cone, ConicSurfaceIntersection, Frame, Frame2D, Hyperbola, Hyperbola2D,
-        HyperbolaConstructionError, ParametricCurve2D, Point, Point2D, Tolerance, TrimmedCurve2D,
-        Vector, Vector2D, search_curve_surface,
+        Frame, Frame2D, Hyperbola, Hyperbola2D, HyperbolaConstructionError, ParametricCurve2D,
+        Point, Point2D, Tolerance, TrimmedCurve2D, Vector, Vector2D,
     };
 
     // ---- construction ----
@@ -1322,24 +1219,6 @@ mod tests {
         let h = Hyperbola::new(Point::ORIGIN, Vector::Z, Vector::X, 0.15, 5.7).unwrap();
         let proj = h.project_point(h.eval_point(0.0007), Tolerance::DEFAULT);
         assert!(proj.distance < 1e-12, "{}", proj.distance);
-    }
-
-    #[test]
-    fn test_hyperbola3d_intersect_cone_crosscheck() {
-        let tol = Tolerance::DEFAULT;
-        let h = Hyperbola::new(Point::ORIGIN, Vector::Z, Vector::X, 2.0, 1.0).unwrap();
-        let cone = Cone::from_frame(Frame::WORLD, 0.4, 2.0).unwrap();
-        match h.intersect_exact(&cone, tol) {
-            ConicSurfaceIntersection::Hits(hits) => {
-                assert!(!hits.is_empty());
-                for h in &hits {
-                    assert!(cone.contains(h.point, tol));
-                }
-                let generic = search_curve_surface(&h, &cone, tol);
-                assert_eq!(generic.len(), hits.len());
-            }
-            _ => panic!("expected hits"),
-        }
     }
 
     // ---- Hyperbola2D ----

@@ -1,18 +1,13 @@
 //! Parabolas in 3D and 2D: parametric evaluation and parameter inversion, a
 //! thin wrapper over [`crate::curve_math::analytic`].
 
-use crate::IntersectExact;
 use crate::curve_math::analytic;
 use crate::curves::{Curve2D, ParametrizeError, parametrize};
 use crate::frame::frame_error;
-use crate::intersect::{ConicSurfaceIntersection, intersect_conic_quadric};
 use crate::math::real_roots;
 use crate::projection::{self, CurveProjection, CurveProjection2D};
 use crate::surfaces::Surface;
-use crate::{
-    Cone, Cylinder, Frame, Frame2D, Plane, Point, Point2D, Sphere, Tolerance, Transform, Vector,
-    Vector2D,
-};
+use crate::{Frame, Frame2D, Point, Point2D, Tolerance, Transform, Vector, Vector2D};
 use std::fmt;
 
 /// Error returned when a [`Parabola`] cannot be constructed from the given
@@ -704,113 +699,12 @@ impl Parabola2D {
     }
 }
 
-impl IntersectExact<Plane> for Parabola {
-    type Output = ConicSurfaceIntersection;
-
-    /// Intersects this parabola with a plane.
-    ///
-    /// Quadratic in the curve parameter, solved exactly; a
-    /// coplanar-coincident plane holds the whole parabola.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::IntersectExact;
-    /// use geomcore::{ConicSurfaceIntersection, Parabola, Plane, Point, Tolerance, Vector};
-    /// let parabola = Parabola::new(Point::ORIGIN, Vector::Z, Vector::X, 1.0).unwrap();
-    /// let plane = Plane::new(Point::ORIGIN, Vector::X).unwrap();
-    /// let tol = Tolerance::DEFAULT;
-    /// match parabola.intersect_exact(&plane, tol) {
-    ///     ConicSurfaceIntersection::Hits(hits) => assert_eq!(hits.len(), 1),
-    ///     _ => panic!("expected hits"),
-    /// }
-    /// ```
-    fn intersect_exact(&self, plane: &Plane, tol: Tolerance) -> ConicSurfaceIntersection {
-        intersect_conic_quadric(self, plane, tol)
-    }
-}
-
-impl IntersectExact<Sphere> for Parabola {
-    type Output = ConicSurfaceIntersection;
-
-    /// Intersects this parabola with a sphere; hits verified on the
-    /// sphere. See [`Parabola::intersect_exact`] for the calling shape.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::IntersectExact;
-    /// use geomcore::{ConicSurfaceIntersection, Parabola, Point, Sphere, Tolerance, Vector};
-    /// let parabola = Parabola::new(Point::ORIGIN, Vector::Z, Vector::X, 1.0).unwrap();
-    /// let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
-    /// let tol = Tolerance::DEFAULT;
-    /// match parabola.intersect_exact(&sphere, tol) {
-    ///     ConicSurfaceIntersection::Hits(hits) => assert_eq!(hits.len(), 2),
-    ///     _ => panic!("expected hits"),
-    /// }
-    /// ```
-    fn intersect_exact(&self, sphere: &Sphere, tol: Tolerance) -> ConicSurfaceIntersection {
-        intersect_conic_quadric(self, sphere, tol)
-    }
-}
-
-impl IntersectExact<Cylinder> for Parabola {
-    type Output = ConicSurfaceIntersection;
-
-    /// Intersects this parabola with a cylinder; hits verified on the
-    /// cylinder. See
-    /// [`Parabola::intersect_exact`] for the calling shape.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::IntersectExact;
-    /// use geomcore::{ConicSurfaceIntersection, Cylinder, Parabola, Point, Tolerance, Vector};
-    /// let parabola = Parabola::new(Point::ORIGIN, Vector::Z, Vector::X, 1.0).unwrap();
-    /// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
-    /// let tol = Tolerance::DEFAULT;
-    /// match parabola.intersect_exact(&cylinder, tol) {
-    ///     ConicSurfaceIntersection::Hits(hits) => assert_eq!(hits.len(), 2),
-    ///     _ => panic!("expected hits"),
-    /// }
-    /// ```
-    fn intersect_exact(&self, cylinder: &Cylinder, tol: Tolerance) -> ConicSurfaceIntersection {
-        intersect_conic_quadric(self, cylinder, tol)
-    }
-}
-
-impl IntersectExact<Cone> for Parabola {
-    type Output = ConicSurfaceIntersection;
-
-    /// Intersects this parabola with a cone; hits verified on
-    /// either nappe.
-    /// See [`Parabola::intersect_exact`] for the calling shape.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::IntersectExact;
-    /// use geomcore::{Cone, ConicSurfaceIntersection, Frame, Parabola, Point, Tolerance, Vector};
-    /// let parabola = Parabola::new(Point::ORIGIN, Vector::Z, Vector::X, 1.0).unwrap();
-    /// let cone = Cone::from_frame(Frame::WORLD, 0.4, 2.0).unwrap();
-    /// let tol = Tolerance::DEFAULT;
-    /// match parabola.intersect_exact(&cone, tol) {
-    ///     ConicSurfaceIntersection::Hits(hits) => assert!(!hits.is_empty()),
-    ///     _ => panic!("expected hits"),
-    /// }
-    /// ```
-    fn intersect_exact(&self, cone: &Cone, tol: Tolerance) -> ConicSurfaceIntersection {
-        intersect_conic_quadric(self, cone, tol)
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use crate::IntersectExact;
+
     use crate::{
-        Axis, ConicSurfaceIntersection, Cylinder, Frame, Frame2D, Parabola, Parabola2D,
-        ParabolaConstructionError, ParametricCurve2D, Plane, Point, Point2D, Sphere, Tolerance,
-        Transform, TrimmedCurve2D, Vector, Vector2D, search_curve_surface,
+        Axis, Frame, Frame2D, Parabola, Parabola2D, ParabolaConstructionError, ParametricCurve2D,
+        Point, Point2D, Tolerance, Transform, TrimmedCurve2D, Vector, Vector2D,
     };
 
     // ---- construction ----
@@ -1009,145 +903,6 @@ mod tests {
         assert!(proj.distance <= best);
         assert!(best - proj.distance < 1e-3);
         assert!(p.contains(p.eval_point(proj.parameter), tol));
-    }
-
-    #[test]
-    fn test_parabola3d_apex_tangent_to_sphere() {
-        // The apex sits on the sphere and the parabola opens into it: the
-        // apex is a tangency (double root), which input rounding must not
-        // split into nothing; the second case also crosses the sphere twice.
-        let tol = Tolerance::DEFAULT;
-        let cases = [
-            (
-                [-1.731231704419697, -0.7340958362561167, 4.433406474277298],
-                [-0.9529764985851513, 0.1260554568656934, 0.2755826825814103],
-                [0.3021731849933078, 0.4641631581607747, 0.8326127124162926],
-                2.05398299873137,
-                1.114835151487306,
-                1,
-            ),
-            (
-                [-3.686261961698878, 2.2461263633249473, 0.025839678441132108],
-                [
-                    -0.28025499704197765,
-                    -0.9386923410260545,
-                    -0.20078303098625241,
-                ],
-                [
-                    -0.04967289504831476,
-                    0.22306643447753607,
-                    -0.9735368351053791,
-                ],
-                3.172852261703441,
-                1.4836846217149213,
-                3,
-            ),
-        ];
-        for (o, z, x, r, focal, count) in cases {
-            let centre = Point::new(o[0], o[1], o[2]);
-            let normal = Vector::new(z[0], z[1], z[2]);
-            let xdir = Vector::new(x[0], x[1], x[2]);
-            let sphere = Sphere::from_frame(Frame::new(centre, normal, xdir).unwrap(), r).unwrap();
-            let apex = centre - xdir * r;
-            let parabola =
-                Parabola::from_frame(Frame::new(apex, normal, xdir).unwrap(), focal).unwrap();
-            match parabola.intersect_exact(&sphere, tol) {
-                ConicSurfaceIntersection::Hits(hits) => {
-                    assert_eq!(hits.len(), count, "{hits:?}");
-                    let touch = hits
-                        .iter()
-                        .find(|h| h.multiplicity == 2)
-                        .unwrap_or_else(|| panic!("no tangent hit in {hits:?}"));
-                    assert!(touch.parameter.abs() < 1e-6);
-                    assert!(touch.point.distance(apex) < 1e-9);
-                }
-                other => panic!("expected hits, got {other:?}"),
-            }
-        }
-    }
-
-    #[test]
-    fn test_parabola3d_plane_far_root() {
-        // The plane is nearly parallel to the parabola's axis: the second
-        // crossing is about 3.4e9 from the origin, where the point's own
-        // rounding exceeds the tolerance; it must still be reported.
-        let tol = Tolerance::DEFAULT;
-        let parabola = Parabola::from_frame(
-            Frame::new(
-                Point::new(-1.846934674952041, -3.3584204401499695, -2.27622906393242),
-                Vector::new(
-                    -0.06113599293430543,
-                    0.9818338297888833,
-                    -0.17962383207701216,
-                ),
-                Vector::new(
-                    0.008163240668319863,
-                    -0.1794625991638955,
-                    -0.983730927135632,
-                ),
-            )
-            .unwrap(),
-            1.6472512486455413,
-        )
-        .unwrap();
-        let plane = Plane::from_frame(
-            Frame::new(
-                Point::new(-0.7209761248595257, -0.9220441826499641, 1.8828489881612174),
-                Vector::new(
-                    -0.5111262109292593,
-                    -0.8462850182163955,
-                    0.15017211606544442,
-                ),
-                Vector::new(0.14562539970239027, 0.08692546117230952, 0.9855136768008349),
-            )
-            .unwrap(),
-        );
-        match parabola.intersect_exact(&plane, tol) {
-            ConicSurfaceIntersection::Hits(hits) => {
-                assert_eq!(hits.len(), 2, "{hits:?}");
-                assert!((hits[0].parameter + 3.576729279665239).abs() < 1e-9);
-                assert!((hits[1].parameter / 148960.13911146074 - 1.0).abs() < 1e-9);
-                let far = Point::new(27341838.29244079, -604367152.2404089, -3312810312.8581567);
-                assert!(hits[1].point.distance(far) < 1e-6 * 3.4e9);
-            }
-            other => panic!("expected hits, got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn test_parabola3d_intersect_plane_coincident() {
-        let tol = Tolerance::DEFAULT;
-        let p = Parabola::new(Point::ORIGIN, Vector::Z, Vector::X, 1.0).unwrap();
-        let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
-        assert_eq!(
-            p.intersect_exact(&plane, tol),
-            ConicSurfaceIntersection::Coincident
-        );
-        // Parallel offset: miss.
-        let miss = Plane::new(Point::new(0.0, 0.0, 1.0), Vector::Z).unwrap();
-        assert_eq!(
-            p.intersect_exact(&miss, tol),
-            ConicSurfaceIntersection::Empty
-        );
-    }
-
-    #[test]
-    fn test_parabola3d_intersect_cylinder_crosscheck() {
-        let tol = Tolerance::DEFAULT;
-        let p = Parabola::new(Point::ORIGIN, Vector::Z, Vector::X, 1.0).unwrap();
-        let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
-        match p.intersect_exact(&cylinder, tol) {
-            ConicSurfaceIntersection::Hits(hits) => {
-                assert!(!hits.is_empty());
-                for h in &hits {
-                    assert!(p.contains(h.point, tol));
-                    assert!(cylinder.contains(h.point, tol));
-                }
-                let generic = search_curve_surface(&p, &cylinder, tol);
-                assert_eq!(generic.len(), hits.len());
-            }
-            _ => panic!("expected hits"),
-        }
     }
 
     #[test]

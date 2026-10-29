@@ -2,16 +2,12 @@
 //! construction from an apex angle or two circular sections, thin wrappers
 //! over [`crate::surface_math::analytic`].
 
-use crate::IntersectExact;
 use crate::frame::frame_error;
 use crate::projection::{self, SurfaceProjection};
 use crate::surface_math::analytic;
 use crate::surfaces::iso::{SurfaceIsoError, check_iso_param, iso_circle, iso_line};
 use crate::tol;
-use crate::{
-    Circle, ConeConeIntersection, ConeCylinderIntersection, Cylinder, Frame, Line, Point,
-    Tolerance, Transform, Vector,
-};
+use crate::{Circle, Frame, Line, Point, Tolerance, Transform, Vector};
 use std::fmt;
 
 /// Error returned when a [`Cone`] cannot be constructed from the given
@@ -595,127 +591,6 @@ fn arbitrary_perpendicular_frame(origin: Point, axis_direction: Vector) -> Frame
     Frame::new(origin, z, x_dir).expect("x_dir constructed perpendicular to z by design")
 }
 
-impl IntersectExact<Cone> for Cone {
-    type Output = ConeConeIntersection;
-
-    /// Intersects this cone with another cone.
-    ///
-    /// The analytic path needs coaxial axes. Along this cone's axis, with
-    /// `alpha` measured from its apex and `d` the other apex's position,
-    /// the ring radii `k1*|alpha|` and `k2*|alpha - d|` (`k = |tan(phi)|`)
-    /// agree at `alpha = k2*d / (k2 + k1)` and, for unequal angles, at
-    /// `alpha = k2*d / (k2 - k1)`: two rings, one (equal angles), or the
-    /// shared apex (`d = 0`). Same apex, axis line, and half-angle
-    /// coincide (the axes may point either way). Anything else is a space
-    /// quartic and reports [`ConeConeIntersection::NotAnalytic`].
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::IntersectExact;
-    /// use geomcore::{Cone, ConeConeIntersection, Frame, Point, Tolerance, Vector};
-    /// let c1 = Cone::from_frame(Frame::WORLD, 0.4, 2.0).unwrap();
-    /// let c2 = Cone::from_frame(Frame::WORLD, 0.4, 2.0).unwrap();
-    /// let tol = Tolerance::DEFAULT;
-    /// assert_eq!(
-    ///     c1.intersect_exact(&c2, tol),
-    ///     ConeConeIntersection::Coincident
-    /// );
-    /// ```
-    fn intersect_exact(&self, other: &Cone, tol: Tolerance) -> ConeConeIntersection {
-        let a1 = self.frame().z_direction();
-        let a2 = other.frame().z_direction();
-        if a1.cross(a2).magnitude() > tol.angular {
-            return ConeConeIntersection::NotAnalytic;
-        }
-        let w = other.apex() - self.apex();
-        if (w - a1 * w.dot(a1)).magnitude() > tol.confusion {
-            return ConeConeIntersection::NotAnalytic;
-        }
-        let d = w.dot(a1);
-        let (phi1, phi2) = (self.semi_angle().abs(), other.semi_angle().abs());
-        let same_angle = (phi1 - phi2).abs() <= tol.angular;
-        if d.abs() <= tol.confusion {
-            return if same_angle {
-                ConeConeIntersection::Coincident
-            } else {
-                ConeConeIntersection::ApexPoint(self.apex())
-            };
-        }
-        let (k1, k2) = (phi1.tan(), phi2.tan());
-        let ring = |alpha: f64| {
-            Circle::new(self.apex() + a1 * alpha, a1, alpha.abs() * k1)
-                .expect("ring radius is non-negative by construction")
-        };
-        // Rings where the radii meet with the apexes on opposite sides,
-        // and (unequal angles) on the same side.
-        let across = k2 * d / (k2 + k1);
-        if same_angle {
-            return ConeConeIntersection::Circle(ring(across));
-        }
-        let along = k2 * d / (k2 - k1);
-        let (first, second) = if across <= along {
-            (across, along)
-        } else {
-            (along, across)
-        };
-        ConeConeIntersection::TwoCircles(ring(first), ring(second))
-    }
-}
-
-impl IntersectExact<Cylinder> for Cone {
-    type Output = ConeCylinderIntersection;
-
-    /// Intersects this cone with a cylinder.
-    ///
-    /// The analytic path needs coaxial axes: with the axis lines
-    /// coincident (direction against `tol.angular`, separation against
-    /// `tol.confusion`), the tube of radius `r` meets each nappe at axial
-    /// distance `r/|tan(semi_angle)|` from the apex, two latitude circles
-    /// — or just the apex for a degenerate (zero-radius) tube. Anything
-    /// else is a space quartic and reports
-    /// [`ConeCylinderIntersection::NotAnalytic`].
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::IntersectExact;
-    /// use geomcore::{Cone, ConeCylinderIntersection, Cylinder, Frame, Point, Tolerance, Vector};
-    /// let cone = Cone::from_frame(Frame::WORLD, 0.4, 2.0).unwrap();
-    /// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
-    /// let tol = Tolerance::DEFAULT;
-    /// match cone.intersect_exact(&cylinder, tol) {
-    ///     ConeCylinderIntersection::TwoCircles(_, circle) => {
-    ///         assert_eq!(circle.radius(), 2.0);
-    ///         assert!(circle.center().distance(Point::ORIGIN) < 1e-12);
-    ///     }
-    ///     _ => panic!("expected two circles"),
-    /// }
-    /// ```
-    fn intersect_exact(&self, cylinder: &Cylinder, tol: Tolerance) -> ConeCylinderIntersection {
-        let a = self.frame().z_direction();
-        let axis = cylinder.axis();
-        if a.cross(axis.direction()).magnitude() > tol.angular {
-            return ConeCylinderIntersection::NotAnalytic;
-        }
-        let w = axis.origin() - self.apex();
-        if (w - a * w.dot(a)).magnitude() > tol.confusion {
-            return ConeCylinderIntersection::NotAnalytic;
-        }
-        let r = cylinder.radius();
-        if r <= tol.confusion {
-            return ConeCylinderIntersection::ApexPoint(self.apex());
-        }
-        // One latitude ring on each nappe.
-        let alpha = r / self.semi_angle().tan().abs();
-        let ring = |alpha: f64| {
-            Circle::new(self.apex() + a * alpha, a, r)
-                .expect("tube radius is positive by construction")
-        };
-        ConeCylinderIntersection::TwoCircles(ring(-alpha), ring(alpha))
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -970,122 +845,6 @@ mod tests {
         assert!((proj.u - 1.0).abs() < 1e-9);
         assert!((proj.v - 2.0).abs() < 1e-9);
         assert_eq!(proj.distance, 0.0);
-    }
-
-    #[test]
-    fn test_cone_cylinder_intersection() {
-        let tol = Tolerance::DEFAULT;
-        let cone = Cone::from_frame(Frame::WORLD, 0.4, 2.0).unwrap();
-        let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
-        match cone.intersect_exact(&cylinder, tol) {
-            ConeCylinderIntersection::TwoCircles(lower, upper) => {
-                // The reference section, and its mirror through the apex.
-                assert!(upper.center().distance(Point::ORIGIN) < 1e-9);
-                let mirror = cone.apex() + (cone.apex() - Point::ORIGIN);
-                assert!(lower.center().distance(mirror) < 1e-9);
-                for circle in [lower, upper] {
-                    assert_eq!(circle.radius(), 2.0);
-                    for p in circle.eval_points(&[0.0, 1.0, 3.0]) {
-                        assert!(cone.contains(p, tol));
-                        assert!(cylinder.contains(p, tol));
-                    }
-                }
-            }
-            _ => panic!("expected two circles"),
-        }
-        // A negative semi-angle opens the other way: same two rings.
-        let flipped = Cone::from_frame(Frame::WORLD, -0.4, 2.0).unwrap();
-        match flipped.intersect_exact(&cylinder, tol) {
-            ConeCylinderIntersection::TwoCircles(lower, upper) => {
-                for p in [lower, upper]
-                    .iter()
-                    .flat_map(|c| c.eval_points(&[0.0, 2.0]))
-                {
-                    assert!(flipped.contains(p, tol));
-                    assert!(cylinder.contains(p, tol));
-                }
-            }
-            _ => panic!("expected two circles"),
-        }
-        // Degenerate tube: just the apex.
-        let axis_line = Cylinder::new(Point::ORIGIN, Vector::Z, 0.0).unwrap();
-        assert_eq!(
-            cone.intersect_exact(&axis_line, tol),
-            ConeCylinderIntersection::ApexPoint(cone.apex())
-        );
-        // Offset axis: space quartic, no closed form.
-        let off = Cylinder::new(Point::new(1.0, 0.0, 0.0), Vector::Z, 2.0).unwrap();
-        assert_eq!(
-            cone.intersect_exact(&off, tol),
-            ConeCylinderIntersection::NotAnalytic
-        );
-        // Tilted axis: space quartic, no closed form.
-        let tilted = Cylinder::new(
-            Point::ORIGIN,
-            Vector::new(0.0, 0.1, 1.0).normalized().unwrap(),
-            2.0,
-        )
-        .unwrap();
-        assert_eq!(
-            cone.intersect_exact(&tilted, tol),
-            ConeCylinderIntersection::NotAnalytic
-        );
-    }
-
-    #[test]
-    fn test_cone_cone_intersection() {
-        let tol = Tolerance::DEFAULT;
-        let c1 = Cone::from_frame(Frame::WORLD, 0.4, 2.0).unwrap();
-        // Second coaxial cone: shifted frame, wider angle.
-        let frame2 = Frame::new(Point::new(0.0, 0.0, 1.0), Vector::Z, Vector::X).unwrap();
-        let c2 = Cone::from_frame(frame2, 0.6, 1.0).unwrap();
-        match c1.intersect_exact(&c2, tol) {
-            ConeConeIntersection::TwoCircles(first, second) => {
-                let height = |c: Circle| c.center().z;
-                assert!(height(first) < height(second));
-                for p in [first, second]
-                    .iter()
-                    .flat_map(|c| c.eval_points(&[0.0, 1.0, 3.0]))
-                {
-                    assert!(c1.contains(p, tol));
-                    assert!(c2.contains(p, tol));
-                }
-            }
-            _ => panic!("expected two circles"),
-        }
-        // Same angle, offset apex: the nappes facing each other meet in
-        // one ring halfway between the apexes.
-        let shifted = Cone::from_frame(frame2, 0.4, 1.0).unwrap();
-        match c1.intersect_exact(&shifted, tol) {
-            ConeConeIntersection::Circle(circle) => {
-                let mid = c1.apex() + (shifted.apex() - c1.apex()) * 0.5;
-                assert!(circle.center().distance(mid) < 1e-9);
-                for p in circle.eval_points(&[0.0, 2.0]) {
-                    assert!(c1.contains(p, tol));
-                    assert!(shifted.contains(p, tol));
-                }
-            }
-            _ => panic!("expected a circle"),
-        }
-        // Same apex and half-angle, opposite axis: the same double cone.
-        let apex_frame = Frame::new(c1.apex(), Vector::Z * -1.0, Vector::X).unwrap();
-        let reversed = Cone::from_frame(apex_frame, -0.4, 0.0).unwrap();
-        assert_eq!(
-            c1.intersect_exact(&reversed, tol),
-            ConeConeIntersection::Coincident
-        );
-        // Same apex, different angle: only the apex.
-        let wide = Cone::from_frame(apex_frame, 0.7, 0.0).unwrap();
-        assert_eq!(
-            c1.intersect_exact(&wide, tol),
-            ConeConeIntersection::ApexPoint(c1.apex())
-        );
-        // Tilted axis: space quartic, no closed form.
-        let tilted = Cone::new(Point::ORIGIN, Vector::X, 0.4, 2.0).unwrap();
-        assert_eq!(
-            c1.intersect_exact(&tilted, tol),
-            ConeConeIntersection::NotAnalytic
-        );
     }
 
     // ---- transformed ----
