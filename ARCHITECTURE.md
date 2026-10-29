@@ -28,6 +28,8 @@ src/
 │   ├── bspline.rs spline.rs     B-spline curves of both tiers and the spline they wrap
 │   ├── bezier.rs                Bézier curves of both tiers
 │   ├── trimmed.rs               TrimmedCurve and TrimmedCurve2D
+│   ├── range.rs                 internal: RangeOperations, the box, discretization and
+│   │                            B-spline of a range of each curve (ADR 0005)
 │   ├── conversion.rs fitting.rs parametrize.rs   to B-spline, from points, onto a surface
 ├── surfaces/            the public surface types, one file per type
 │   ├── parametric_surface.rs    ParametricSurface, SurfaceCurvatures, normal recovery
@@ -87,6 +89,11 @@ Outside `src/`:
    `HasBoundingBox` impls live in `bounding_box/`, `Discretize` impls in
    `discretization/`, and `IntersectExact` impls in `intersect/exact/`, all
    grouped by family. To see everything an operation does, open one folder.
+   The one exception is the table of the crate-private `RangeOperations`
+   in `curves/range.rs`: each curve's box, discretization and B-spline
+   over a range, in one impl per type that calls the formulas of those
+   folders. Trimmed curves and the whole bounded curves read their
+   operations from it (ADR 0005).
 4. **Exact intersection solvers are grouped by pair family.**
    `Line`–`Plane` is in `intersect/exact/curve_surface.rs`, next to its
    result type `LinePlaneIntersection`. The general results that `Intersect`
@@ -114,7 +121,12 @@ Outside `src/`:
   the compiler points at the matches that do real per-variant work.
 - Make it an operand of `Intersect`: a `CurveOperand`/`SurfaceOperand`
   impl and one entry in each pair list of `intersect/routing.rs`.
-- Give it a box in `bounding_box/` and a discretization in `discretization/`.
+- Implement `RangeOperations` for it in `curves/range.rs`, calling a box
+  formula from `bounding_box/`, a discretization from `discretization/`
+  and a B-spline conversion from `curves/conversion.rs`. If it is
+  bounded, add it to `box_over_bounds!` in `bounding_box/curves.rs` and
+  to `discretize_bounded!` in `discretization/mod.rs`; otherwise its
+  `bounding_box` is `None`.
 - Bind it in Python: see [The Python bindings](#the-python-bindings).
 
 **A new exact intersection pair.**

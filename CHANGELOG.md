@@ -61,6 +61,9 @@ the Python distribution are versioned in lockstep.
   (ADR 0014). `CurveProjection` is generic the same way, defaulting to
   space, and `CurveProjection2D` is its planar alias.
 - `TrimmedCurve::into_curve`, the new name of `into_curve3d`.
+- `TrimmedCurve::to_bspline` for a B-spline, Bézier or `Curve` basis,
+  as `TrimmedCurve2D` already had: the piece is extracted from the
+  B-spline. `TrimmedCurve<ElementaryCurve>` implements `Discretize`.
 
 ### Fixed
 
@@ -107,6 +110,13 @@ the Python distribution are versioned in lockstep.
 - `Circle2D` projection reports parameter `0` for a point within
   `tol.confusion` of the seam, as `Circle` and `Ellipse2D` already did,
   instead of an angle just below `2π`.
+- Internally, the five range traits behind trimmed curves (box of a
+  range in each tier, discretization of a range, B-spline of a range in
+  each tier) are one crate-private trait, generic over the tier, and the
+  whole bounded curves derive their box from it over their bounds. The
+  box formulas of the two tiers are written once. Results are unchanged
+  (ADR 0005 and ADR 0014, amended). In Python, `TrimmedCurve.to_bspline`
+  calls the core method directly.
 
 ### Deprecated
 
