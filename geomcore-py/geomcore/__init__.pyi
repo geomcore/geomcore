@@ -1,38 +1,9 @@
 from typing import ClassVar, List, Optional, Tuple, Union, final, overload
 
-from geomcore.curves import BSplineCurve
+from geomcore.curves import BSplineCurve, _Curve, _Curve2D, _WholeCurve
+from geomcore.surfaces import _Surface
 
 from . import curves, surfaces
-
-_WholeCurve = Union[
-    curves.Line,
-    curves.Circle,
-    curves.Ellipse,
-    curves.Parabola,
-    curves.Hyperbola,
-    curves.BSplineCurve,
-    curves.BezierCurve,
-]
-_Curve = Union[_WholeCurve, curves.TrimmedCurve]
-_Curve2D = Union[
-    curves.Line2D,
-    curves.Circle2D,
-    curves.Ellipse2D,
-    curves.Parabola2D,
-    curves.Hyperbola2D,
-    curves.BSplineCurve2D,
-    curves.BezierCurve2D,
-    curves.TrimmedCurve2D,
-]
-_Surface = Union[
-    surfaces.Plane,
-    surfaces.Cylinder,
-    surfaces.Cone,
-    surfaces.Sphere,
-    surfaces.Torus,
-    surfaces.BSplineSurface,
-    surfaces.BezierSurface,
-]
 
 class GeomcoreError(ValueError):
     """Base class of every error raised by geomcore. Subclasses `ValueError`."""

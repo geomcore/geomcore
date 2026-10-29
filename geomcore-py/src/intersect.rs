@@ -1,9 +1,10 @@
 //! The routed `intersect` shared by every curve and surface class, the
-//! routing of Python operands it relies on, and `geomcore.curve_curve_extrema`.
+//! reading of Python operands it relies on, and
+//! `geomcore.curve_curve_extrema`.
 
-use crate::arguments::surface_of;
-use crate::arguments::*;
-use crate::arguments::{CurveArg, curve_arg_of, curve2d_of};
+use crate::arguments::{
+    CurveArg, curve_2d_classes, curve_arg_of, extract_curve_arg, surface_classes,
+};
 use crate::curves::PyTrimmedCurve2D;
 use crate::results::{
     PyCurveCurveExtrema, PyCurveCurveIntersection, PyCurveCurveIntersection2D,
@@ -38,7 +39,7 @@ enum Operand {
 /// miss: the surface classes first when `surfaces_first` (the other
 /// operand is a surface), the 3D curve classes first otherwise.
 fn operand_of(obj: &Bound<'_, PyAny>, surfaces_first: bool) -> PyResult<Operand> {
-    let surface = || surface_of(obj).map(Operand::Surface);
+    let surface = || surface_classes::of(obj).map(Operand::Surface);
     let curve = || curve_arg_of(obj).map(Operand::Curve);
     let found = if surfaces_first {
         surface().or_else(curve)
@@ -53,7 +54,7 @@ fn operand_of(obj: &Bound<'_, PyAny>, surfaces_first: bool) -> PyResult<Operand>
             trimmed.borrow().0.clone(),
         )));
     }
-    if let Some(curve) = curve2d_of(obj) {
+    if let Some(curve) = curve_2d_classes::of(obj) {
         return Ok(Operand::Curve2D(CurveArg2D::Whole(curve)));
     }
     Err(PyTypeError::new_err(format!(
