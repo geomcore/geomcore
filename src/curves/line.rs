@@ -1,13 +1,13 @@
 //! Infinite lines in 3D: parametric evaluation and parameter
-//! inversion, thin wrappers over [`crate::curve_math::analytic`].
+//! inversion, thin wrappers over [`crate::elementary::curve`].
 
-use crate::curve_math::analytic;
 use crate::curves::ElementaryCurve;
 use crate::curves::ParametricCurve;
 use crate::curves::PointExtrema;
 use crate::curves::parametric_curve::only_minimum;
 use crate::curves::parametrize::ParametrizeError;
 use crate::curves::{Curve2D, parametrize};
+use crate::elementary::curve as elementary;
 use crate::frame::frame_error;
 use crate::projection::CurveProjection;
 use crate::surfaces::Surface;
@@ -191,7 +191,7 @@ impl Line {
     /// assert_eq!(line.eval_point(3.0), Point::new(3.0, 0.0, 0.0));
     /// ```
     pub fn eval_point(&self, u: f64) -> Point {
-        analytic::line_d0(&self.axis, u)
+        elementary::line_d0(&self.axis, u)
     }
 
     /// Evaluates the points on the line at each parameter in `us`.
@@ -232,7 +232,7 @@ impl Line {
         let _ = u;
         match order {
             0 => panic!("eval_derivative: order must be >= 1 (use eval_point for order 0)"),
-            1 => analytic::line_d1(&self.axis),
+            1 => elementary::line_d1(&self.axis),
             _ => Vector::ZERO,
         }
     }
@@ -248,7 +248,7 @@ impl Line {
     /// assert_eq!(line.parameter_of(Point::new(2.5, 0.0, 0.0)), 2.5);
     /// ```
     pub fn parameter_of(&self, point: Point) -> f64 {
-        analytic::line_parameter(&self.axis, point)
+        elementary::line_parameter(&self.axis, point)
     }
 
     /// Returns whether `point` lies on the line: the inverse parameter is

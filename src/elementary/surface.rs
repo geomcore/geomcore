@@ -8,7 +8,7 @@
 //! given surface (e.g. all second derivatives of a plane) return
 //! [`Vector::ZERO`] rather than being treated as an error.
 
-use crate::curve_math::analytic::wrap_to_turn;
+use crate::elementary::curve::wrap_to_turn;
 use crate::{Frame, Point, Vector};
 
 // ---- plane ----

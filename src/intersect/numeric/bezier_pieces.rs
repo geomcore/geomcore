@@ -6,9 +6,9 @@
 //! (weights are positive), so a box or slab around those points holds the
 //! piece, and halving a piece by de Casteljau shrinks the hull onto it.
 
+use crate::bspline::surface::{self as bspline_surface, Interval};
 use crate::curves::BSplineCurve;
 use crate::math::boxtree::Aabb;
-use crate::surface_math::bspline::{self as surface_math, Interval};
 
 /// The Bézier pieces of a B-spline curve over a parameter range: one per
 /// knot span the range meets, cut to the range.
@@ -169,7 +169,7 @@ impl Pool {
 
     /// Halves the Bernstein net in `slot`, row-major `[rows][cols][h]`,
     /// at the midpoint along the rows if `along_rows` (see
-    /// [`surface_math::halve_net`]): `slot` receives the lower half and
+    /// [`bspline_surface::halve_net`]): `slot` receives the lower half and
     /// the returned slot the upper half. A curve is a net of one column.
     pub(crate) fn halve(
         &mut self,
@@ -187,14 +187,14 @@ impl Pool {
             let (a, b) = self.data.split_at_mut(slot);
             (&mut b[..size], &mut a[other..other + size])
         };
-        surface_math::halve_net(&self.scratch, rows, cols, h, along_rows, lower, upper);
+        bspline_surface::halve_net(&self.scratch, rows, cols, h, along_rows, lower, upper);
         other
     }
 }
 
 /// The Euclidean points of homogeneous `(x w, y w, z w, w)` points.
 pub(crate) fn euclidean(homogeneous: &[f64], out: &mut Vec<[f64; 3]>) {
-    surface_math::net_points(homogeneous, 4, out);
+    bspline_surface::net_points(homogeneous, 4, out);
 }
 
 /// The axis-aligned box of `points`.
@@ -351,7 +351,7 @@ fn net_directions(points: &[[f64; 3]], rows: usize, cols: usize) -> [[f64; 3]; 2
 /// Euclidean control points `points`, row-major `[rows][cols]`; its
 /// derivatives lie in the cones of the differences along its rows and
 /// along its columns if it is polynomial, else in the boxes that
-/// [`surface_math::derivative_bounds`] encloses them in.
+/// [`bspline_surface::derivative_bounds`] encloses them in.
 pub(crate) fn meets_at_most_once(
     curve: &[[f64; 3]],
     net: &[f64],
@@ -378,7 +378,7 @@ pub(crate) fn meets_at_most_once(
         return false;
     }
     let (s_spread, t_spread) = if h == 4 {
-        let (_, d) = surface_math::derivative_bounds(net, points, rows, cols, h, false);
+        let (_, d) = bspline_surface::derivative_bounds(net, points, rows, cols, h, false);
         (box_spread(a, d[0]), box_spread(b, d[1]))
     } else {
         let at = |i: usize, j: usize| points[i * cols + j];
@@ -415,7 +415,7 @@ pub(crate) fn derivative_cones(
     let [along_s, along_t] = net_directions(points, rows, cols);
     let (a, b) = (unit(along_s)?, unit(along_t)?);
     if h == 4 {
-        let (_, d) = surface_math::derivative_bounds(net, points, rows, cols, h, false);
+        let (_, d) = bspline_surface::derivative_bounds(net, points, rows, cols, h, false);
         return Some([(a, box_spread(a, d[0])), (b, box_spread(b, d[1]))]);
     }
     let at = |i: usize, j: usize| points[i * cols + j];

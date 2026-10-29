@@ -11,7 +11,7 @@
 //! editing. [`BezierSurface::to_bspline`] gives the B-spline surface when
 //! those are wanted.
 
-use crate::curve_math::bspline::MAX_DEGREE;
+use crate::bspline::curve::MAX_DEGREE;
 use crate::curves::{BSplineSplitError, BezierConstructionError, DegreeElevationError, Side};
 use crate::surfaces::{BSplineSurface, ParametricSurface};
 use crate::{Continuity, Point, SurfaceProjection, Tolerance, Vector};

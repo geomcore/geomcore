@@ -1,9 +1,9 @@
 //! Planes in 3D: parametric evaluation, parameter inversion, and
 //! construction from points or an implicit equation, thin wrappers over
-//! [`crate::surface_math::analytic`].
+//! [`crate::elementary::surface`].
 
+use crate::elementary::surface as elementary;
 use crate::frame::frame_error;
-use crate::surface_math::analytic;
 use crate::surfaces::ElementarySurface;
 use crate::surfaces::ParametricSurface;
 use crate::surfaces::SurfaceIsoError;
@@ -399,7 +399,7 @@ impl Plane {
     /// assert_eq!(plane.eval_point(2.0, 3.0), Point::new(2.0, 3.0, 0.0));
     /// ```
     pub fn eval_point(&self, u: f64, v: f64) -> Point {
-        analytic::plane_d0(&self.frame, u, v)
+        elementary::plane_d0(&self.frame, u, v)
     }
 
     /// Evaluates the points on the plane at each `(u, v)` in `uvs`.
@@ -438,7 +438,7 @@ impl Plane {
             0 => panic!(
                 "eval_derivative: du + dv must be >= 1 (use eval_point for the (0, 0) order)"
             ),
-            1..=2 => analytic::plane_derivative(&self.frame, du, dv),
+            1..=2 => elementary::plane_derivative(&self.frame, du, dv),
             _ => panic!(
                 "eval_derivative: order du={du}, dv={dv} is not supported (du + dv must be <= 2)"
             ),
@@ -456,7 +456,7 @@ impl Plane {
     /// assert_eq!(plane.parameters_of(Point::new(2.0, 3.0, 0.0)), (2.0, 3.0));
     /// ```
     pub fn parameters_of(&self, point: Point) -> (f64, f64) {
-        analytic::plane_parameters(&self.frame, point)
+        elementary::plane_parameters(&self.frame, point)
     }
 
     /// Returns whether `point` lies on the plane: the inverse parameters

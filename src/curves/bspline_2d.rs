@@ -1,6 +1,6 @@
 //! B-spline (NURBS) curves in 2D: de Boor evaluation with derivatives,
 //! rational (weighted) poles, and periodic curves, a thin wrapper
-//! over [`crate::curve_math::bspline`].
+//! over [`crate::bspline::curve`].
 //!
 //! Mirror of [`crate::curves::BSplineCurve`]: the poles are stored once,
 //! with a separate weight per pole if rational; the knot vector is

@@ -3,8 +3,8 @@
 
 use super::sealed::BoundRange;
 use super::{BoundingBox, HasBoundingBox, coordinates, point};
-use crate::curve_math::bspline as math;
-use crate::curve_math::bspline::PolePoint;
+use crate::bspline::curve as math;
+use crate::bspline::curve::PolePoint;
 use crate::curves::spline::Spline;
 use crate::curves::{
     BSplineCurve, BezierCurve, Circle, Curve, ElementaryCurve, Ellipse, Hyperbola, Line, Parabola,

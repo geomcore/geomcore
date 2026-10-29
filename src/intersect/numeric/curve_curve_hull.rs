@@ -3,7 +3,8 @@
 //! distance minima of two B-spline curves by subdivision of their Bézier
 //! pieces (see [`bspline_curve_curve`] and [`bspline_minima`]).
 
-use crate::curve_math::bspline::LARGE;
+use crate::bspline::curve::LARGE;
+use crate::bspline::surface::{Interval, derivative_bounds};
 use crate::curves::BSplineCurve;
 use crate::intersect::numeric::bezier_pieces::{
     CurvePieces, Pool, apart_along, bounding_box, box_size, cross, curves_meet_at_most_once, dot,
@@ -15,7 +16,6 @@ use crate::intersect::results::sort_by_known_parameter;
 use crate::intersect::{Completeness, CurveCurveExtremum, CurveCurveHit};
 use crate::math::boxtree::{Aabb, BoxTree, boxes_apart};
 use crate::math::{newton_min_1d, newton_min_2d, solve_2x2};
-use crate::surface_math::bspline::{Interval, derivative_bounds};
 use crate::{Point, Tolerance};
 use std::ops::Deref;
 

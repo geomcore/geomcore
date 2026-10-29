@@ -1,6 +1,6 @@
 //! B-spline (NURBS) surfaces in 3D: tensor-product de Boor evaluation with
 //! first derivatives, rational (weighted) poles, and periodic surfaces
-//! in either direction, a thin wrapper over [`crate::surface_math::bspline`].
+//! in either direction, a thin wrapper over [`crate::bspline::surface`].
 //!
 //! Construction stores the pole grid row-major, with a separate weight per
 //! pole if rational, and each direction's knot vector with its flattened
@@ -9,13 +9,13 @@
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 
-use crate::curve_math::bspline as curve;
-use crate::curve_math::editing::{self, Edit, Elevation, Insertion, Lanes};
+use crate::bspline::curve;
+use crate::bspline::editing::{self, Edit, Elevation, Insertion, Lanes};
+use crate::bspline::surface as math;
 use crate::curves::{Continuity, Side};
 use crate::math::boxtree::{BoxTree, Lazy, box_distance};
 use crate::math::newton_min_2d;
 use crate::projection::SurfaceProjection;
-use crate::surface_math::bspline as math;
 use crate::surfaces::iso::{SurfaceIsoError, check_iso_param};
 use crate::surfaces::{BezierSurface, ParametricSurface};
 use crate::{BSplineCurve, Point, Tolerance, Transform, Vector};

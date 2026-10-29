@@ -21,7 +21,7 @@ pub(crate) use cutting::{
 pub(crate) use elevation::Elevation;
 pub(crate) use removal::{Deviation, check_removal, remove_knots};
 
-use super::bspline::KnotVector;
+use super::curve::KnotVector;
 use super::poles::{HomogeneousPole, Pole, PolePoint};
 use crate::curves::KnotInsertionError;
 

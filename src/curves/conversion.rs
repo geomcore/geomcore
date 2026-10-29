@@ -10,7 +10,7 @@
 use std::f64::consts::TAU;
 use std::fmt;
 
-use crate::curve_math::conic_bspline::{self, PlaneNet};
+use crate::bspline::conic::{self, PlaneNet};
 use crate::curves::{
     BSplineCurve, Circle, Curve, ElementaryCurve, Ellipse, Hyperbola, Line, Parabola,
     ParametricCurve, TrimmedCurve,
@@ -93,7 +93,7 @@ fn place(
 /// The net of a circle arc over `[first, last]`, ending on its first pole
 /// when the range spans a whole turn.
 fn arc_net(first: f64, last: f64) -> PlaneNet {
-    let mut net = conic_bspline::circle_arc(first, last);
+    let mut net = conic::circle_arc(first, last);
     if last - first >= TAU * (1.0 - 1e-12) {
         net.close();
     }
@@ -139,7 +139,7 @@ impl Circle {
     /// overflows.
     fn checked_to_bspline(&self) -> Result<BSplineCurve, BSplineConversionError> {
         let r = self.radius();
-        place(conic_bspline::full_circle(), self.frame(), r, r)
+        place(conic::full_circle(), self.frame(), r, r)
     }
 }
 
@@ -178,7 +178,7 @@ impl Ellipse {
     /// overflows.
     fn checked_to_bspline(&self) -> Result<BSplineCurve, BSplineConversionError> {
         place(
-            conic_bspline::full_circle(),
+            conic::full_circle(),
             self.frame(),
             self.major_radius(),
             self.minor_radius(),
@@ -249,7 +249,7 @@ impl BSplineRange for Ellipse {
 
 impl BSplineRange for Parabola {
     fn bspline_range(&self, first: f64, last: f64) -> Result<BSplineCurve, BSplineConversionError> {
-        let net = conic_bspline::parabola_arc(self.focal(), first, last);
+        let net = conic::parabola_arc(self.focal(), first, last);
         place(net, self.frame(), 1.0, 1.0)
     }
 }
@@ -257,7 +257,7 @@ impl BSplineRange for Parabola {
 impl BSplineRange for Hyperbola {
     fn bspline_range(&self, first: f64, last: f64) -> Result<BSplineCurve, BSplineConversionError> {
         place(
-            conic_bspline::hyperbola_arc(first, last),
+            conic::hyperbola_arc(first, last),
             self.frame(),
             self.major_radius(),
             self.minor_radius(),
@@ -478,7 +478,7 @@ impl Circle2D {
     /// overflows.
     fn checked_to_bspline(&self) -> Result<BSplineCurve2D, BSplineConversionError> {
         let r = self.radius();
-        place_2d(conic_bspline::full_circle(), self.frame(), r, r)
+        place_2d(conic::full_circle(), self.frame(), r, r)
     }
 }
 
@@ -519,7 +519,7 @@ impl Ellipse2D {
     /// overflows.
     fn checked_to_bspline(&self) -> Result<BSplineCurve2D, BSplineConversionError> {
         place_2d(
-            conic_bspline::full_circle(),
+            conic::full_circle(),
             self.frame(),
             self.major_radius(),
             self.minor_radius(),
@@ -574,7 +574,7 @@ impl BSplineRange2D for Parabola2D {
         first: f64,
         last: f64,
     ) -> Result<BSplineCurve2D, BSplineConversionError> {
-        let net = conic_bspline::parabola_arc(self.focal(), first, last);
+        let net = conic::parabola_arc(self.focal(), first, last);
         place_2d(net, self.frame(), 1.0, 1.0)
     }
 }
@@ -586,7 +586,7 @@ impl BSplineRange2D for Hyperbola2D {
         last: f64,
     ) -> Result<BSplineCurve2D, BSplineConversionError> {
         place_2d(
-            conic_bspline::hyperbola_arc(first, last),
+            conic::hyperbola_arc(first, last),
             self.frame(),
             self.major_radius(),
             self.minor_radius(),

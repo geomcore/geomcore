@@ -28,11 +28,11 @@
 use std::f64::consts::{FRAC_PI_2, PI, TAU};
 use std::fmt;
 
-use crate::curve_math::analytic::{in_period, wrap_to_turn};
 use crate::curves::{
     BSplineCurve, BSplineCurve2D, Circle, Circle2D, Curve2D, Ellipse, Ellipse2D, Hyperbola,
     Hyperbola2D, Line, Line2D, Parabola, Parabola2D,
 };
+use crate::elementary::curve::{in_period, wrap_to_turn};
 use crate::surfaces::{ParametricSurface, Surface};
 use crate::{Frame2D, Point, Point2D, Tolerance, Vector, Vector2D};
 
@@ -472,8 +472,8 @@ fn line_on_cone(
         foot = foot + line.direction();
         delta_v = 1.0;
     }
-    let (u, v) = crate::surface_math::analytic::cone_parameters(&frame, ref_r, semi_angle, foot);
-    let sv = crate::surface_math::analytic::cone_derivative(&frame, ref_r, semi_angle, u, v, 0, 1);
+    let (u, v) = crate::elementary::surface::cone_parameters(&frame, ref_r, semi_angle, foot);
+    let sv = crate::elementary::surface::cone_derivative(&frame, ref_r, semi_angle, u, v, 0, 1);
     if line.direction().cross(sv).square_magnitude() > tol.angular * tol.angular {
         return Err(ParametrizeError::NotAnalytic);
     }

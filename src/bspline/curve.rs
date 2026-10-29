@@ -19,9 +19,9 @@
 
 use std::sync::OnceLock;
 
-use super::analytic::in_period;
 pub(crate) use super::poles::{HomogeneousPole, Pole, PolePoint, Poles};
 use crate::curves::Side;
+use crate::elementary::curve::in_period;
 use crate::math::bernstein::{CAPACITY, add_product, rising_roots, scale, unscale};
 use crate::math::newton_min_1d;
 use crate::{Continuity, Tolerance};

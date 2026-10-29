@@ -131,13 +131,15 @@
 
 /// Axis-aligned bounding boxes of curves and surfaces.
 pub mod bounding_box;
-/// Internal curve math: elementary formulas and the B-spline engine.
-pub(crate) mod curve_math;
+/// Internal B-spline engine: poles, evaluation, editing, surfaces.
+pub(crate) mod bspline;
 /// Public curve types: lines, conics, and B-spline curves.
 pub mod curves;
 /// Discretization of curves into points joined by straight segments, with
 /// proven chord and angle deviations.
 pub mod discretization;
+/// Internal closed-form formulas of the elementary curves and surfaces.
+pub(crate) mod elementary;
 /// Axis and frame placement types.
 pub mod frame;
 /// Intersections of curves and surfaces: the routed [`Intersect`], the
@@ -149,8 +151,6 @@ pub(crate) mod math;
 pub mod point;
 /// Point-projection result types.
 pub mod projection;
-/// Internal surface math: elementary formulas and B-spline patches.
-pub(crate) mod surface_math;
 /// Public surface types: planes, cylinders, cones, spheres, tori, and
 /// B-spline surfaces.
 pub mod surfaces;

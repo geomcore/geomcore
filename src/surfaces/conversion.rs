@@ -3,7 +3,7 @@
 //! A plane patch is bilinear. The other surfaces turn a profile about their
 //! axis, so each is a tensor product of two nets: the unit circle in `u`
 //! (rational quadratic pieces of at most a quarter turn, from
-//! [`conic_bspline`]) and a profile in `v`, a segment for cylinders and
+//! [`conic`]) and a profile in `v`, a segment for cylinders and
 //! cones and a circle arc for spheres and tori. Pole `(i, j)` is profile
 //! pole `j` turned to the angle of circle pole `i`, weighted by the product
 //! of their weights. A profile pole on the axis (a cone's apex, a sphere's
@@ -16,7 +16,7 @@
 
 use std::f64::consts::TAU;
 
-use crate::curve_math::conic_bspline::{self, PlaneNet};
+use crate::bspline::conic::{self, PlaneNet};
 use crate::curves::BSplineConversionError;
 use crate::surfaces::{
     BSplineSurface, Cone, Cylinder, ElementarySurface, ParametricSurface, Plane, Sphere, Surface,
@@ -63,7 +63,7 @@ fn check_ranges<S: ParametricSurface>(
 /// The unit circle over the angles `[first, last]`, periodic when the range
 /// spans a whole turn.
 fn angle_net(first: f64, last: f64) -> PlaneNet {
-    let mut net = conic_bspline::circle_arc(first, last);
+    let mut net = conic::circle_arc(first, last);
     // A whole turn computed with rounding errors is still a whole turn.
     if last - first >= TAU * (1.0 - 1e-12) {
         net.close();
@@ -327,7 +327,7 @@ impl Sphere {
     /// the axis at the sphere's poles.
     fn profile(&self, (first, last): (f64, f64)) -> PlaneNet {
         let r = self.radius();
-        let mut meridian = conic_bspline::circle_arc(first, last);
+        let mut meridian = conic::circle_arc(first, last);
         for pole in &mut meridian.poles {
             *pole = [r * on_axis(pole[0], 1.0), r * pole[1]];
         }

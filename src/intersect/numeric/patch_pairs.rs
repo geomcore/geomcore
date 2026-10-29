@@ -3,12 +3,12 @@
 //! (see [`patch_pairs`]).
 
 use crate::Tolerance;
+use crate::bspline::surface::net_points;
 use crate::intersect::numeric::bezier_pieces::{
     Pool, apart_along, bounding_box, box_size, derivative_cones, net_normal,
     normals_never_parallel, stretches_along_rows, thickness,
 };
 use crate::math::boxtree::{Aabb, boxes_apart};
-use crate::surface_math::bspline::net_points;
 use crate::surfaces::BSplineSurface;
 
 /// Halvings allowed per pair of patches whose boxes overlap, pooled over

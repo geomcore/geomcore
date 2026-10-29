@@ -1,12 +1,12 @@
 //! Ellipses in 3D: parametric evaluation, parameter inversion, and
 //! center+two-points construction, a thin wrapper over
-//! [`crate::curve_math::analytic`].
+//! [`crate::elementary::curve`].
 
-use crate::curve_math::analytic;
 use crate::curves::ElementaryCurve;
 use crate::curves::ParametricCurve;
 use crate::curves::PointExtrema;
 use crate::curves::{Curve2D, ParametrizeError, parametrize};
+use crate::elementary::curve as elementary;
 use crate::frame::frame_error;
 use crate::math::{polish_root, real_roots};
 use crate::projection::CurveProjection;
@@ -335,7 +335,7 @@ impl Ellipse {
     /// assert_eq!(ellipse.eval_point(0.0), Point::new(3.0, 0.0, 0.0));
     /// ```
     pub fn eval_point(&self, u: f64) -> Point {
-        analytic::ellipse_d0(&self.frame, self.major_radius, self.minor_radius, u)
+        elementary::ellipse_d0(&self.frame, self.major_radius, self.minor_radius, u)
     }
 
     /// Evaluates the points on the ellipse at each parameter in `us`.
@@ -355,7 +355,7 @@ impl Ellipse {
     /// Evaluates the derivative of the given `order` at parameter `u`.
     ///
     /// Derivatives cycle with period 4 in `order` (see
-    /// `curve_math::analytic::ellipse_dn`).
+    /// `crate::elementary::curve::ellipse_dn`).
     ///
     /// # Panics
     ///
@@ -372,7 +372,9 @@ impl Ellipse {
     pub fn eval_derivative(&self, u: f64, order: u32) -> Vector {
         match order {
             0 => panic!("eval_derivative: order must be >= 1 (use eval_point for order 0)"),
-            _ => analytic::ellipse_dn(&self.frame, self.major_radius, self.minor_radius, u, order),
+            _ => {
+                elementary::ellipse_dn(&self.frame, self.major_radius, self.minor_radius, u, order)
+            }
         }
     }
 
@@ -383,7 +385,7 @@ impl Ellipse {
     pub(crate) fn parameter_in_bounds(&self, u: f64, tol: Tolerance) -> f64 {
         let (first, last) = crate::curves::ParametricCurve::bounds(self);
         // The speed at parameter 0 is the minor radius.
-        analytic::seam_wrapped(u, first, last - first, self.minor_radius, tol.confusion)
+        elementary::seam_wrapped(u, first, last - first, self.minor_radius, tol.confusion)
     }
 
     /// Recovers the angular parameter of a point on (or near) the ellipse,
@@ -397,7 +399,7 @@ impl Ellipse {
     /// assert!((ellipse.parameter_of(Point::new(0.0, 1.5, 0.0)) - std::f64::consts::FRAC_PI_2).abs() < 1e-9);
     /// ```
     pub fn parameter_of(&self, point: Point) -> f64 {
-        analytic::ellipse_parameter(&self.frame, self.major_radius, self.minor_radius, point)
+        elementary::ellipse_parameter(&self.frame, self.major_radius, self.minor_radius, point)
     }
 
     /// Returns whether `point` lies on the ellipse: within `tol.confusion`
@@ -421,7 +423,7 @@ impl Ellipse {
     pub fn contains(&self, point: Point, tol: Tolerance) -> bool {
         let (a, b) = (self.major_radius, self.minor_radius);
         // `(x/a)² + (y/b)² = 1`: on it `|∇f| ≥ 2/a`, as `b ≤ a`.
-        let near = analytic::conic_proximity(
+        let near = elementary::conic_proximity(
             &self.frame,
             point,
             tol.confusion,

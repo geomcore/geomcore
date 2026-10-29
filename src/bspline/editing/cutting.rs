@@ -5,7 +5,7 @@ use std::borrow::Cow;
 use std::ops::Range;
 
 use super::{HomogeneousPole, Lanes, Pole, PolePoint, Source, Weighted, refine, spans};
-use crate::curve_math::bspline::KnotVector;
+use crate::bspline::curve::KnotVector;
 use crate::curves::BSplineSplitError;
 
 /// Checks the range `[first, last]` of a piece of `direction`. A periodic

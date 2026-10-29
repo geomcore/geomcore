@@ -1,9 +1,9 @@
 //! Cones in 3D: parametric evaluation, parameter inversion, and
 //! construction from an apex angle or two circular sections, thin wrappers
-//! over [`crate::surface_math::analytic`].
+//! over [`crate::elementary::surface`].
 
+use crate::elementary::surface as elementary;
 use crate::frame::frame_error;
-use crate::surface_math::analytic;
 use crate::surfaces::ElementarySurface;
 use crate::surfaces::ParametricSurface;
 use crate::surfaces::SurfaceIsoError;
@@ -438,7 +438,7 @@ impl Cone {
     /// assert_eq!(cone.eval_point(0.0, 0.0), Point::new(2.0, 0.0, 0.0));
     /// ```
     pub fn eval_point(&self, u: f64, v: f64) -> Point {
-        analytic::cone_d0(&self.frame, self.ref_radius, self.semi_angle, u, v)
+        elementary::cone_d0(&self.frame, self.ref_radius, self.semi_angle, u, v)
     }
 
     /// Evaluates the points on the cone at each `(u, v)` in `uvs`.
@@ -456,7 +456,7 @@ impl Cone {
     }
 
     /// Evaluates the derivative of order `(du, dv)` at `(u, v)`. See
-    /// `surface_math::analytic::cone_derivative` for the formulas.
+    /// `crate::elementary::surface::cone_derivative` for the formulas.
     ///
     /// # Panics
     ///
@@ -476,7 +476,7 @@ impl Cone {
             0 => panic!(
                 "eval_derivative: du + dv must be >= 1 (use eval_point for the (0, 0) order)"
             ),
-            1..=2 => analytic::cone_derivative(
+            1..=2 => elementary::cone_derivative(
                 &self.frame,
                 self.ref_radius,
                 self.semi_angle,
@@ -492,7 +492,7 @@ impl Cone {
     }
 
     /// Recovers `(u, v)` of a point on (or near) the cone. See
-    /// `surface_math::analytic::cone_parameters` for the formula,
+    /// `crate::elementary::surface::cone_parameters` for the formula,
     /// including the opposite-nappe handling below the apex.
     ///
     /// # Examples
@@ -504,7 +504,7 @@ impl Cone {
     /// assert_eq!((u, v), (0.0, 0.0));
     /// ```
     pub fn parameters_of(&self, point: Point) -> (f64, f64) {
-        analytic::cone_parameters(&self.frame, self.ref_radius, self.semi_angle, point)
+        elementary::cone_parameters(&self.frame, self.ref_radius, self.semi_angle, point)
     }
 
     /// Returns whether `point` lies on the cone: the inverse parameters are

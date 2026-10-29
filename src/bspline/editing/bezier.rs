@@ -5,7 +5,7 @@
 use std::borrow::Cow;
 
 use super::{Count, Lanes, One, Pole, Source};
-use crate::curve_math::bspline::{KnotVector, LARGE};
+use crate::bspline::curve::{KnotVector, LARGE};
 
 /// The Bézier pieces of `knots` and its poles over its range, a periodic
 /// direction's from its lower bound: the knots at which pieces meet (see

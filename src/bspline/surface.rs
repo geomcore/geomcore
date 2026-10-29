@@ -1,5 +1,5 @@
 //! Internal B-spline surface evaluation: tensor-product NURBS on top of the
-//! curve engine ([`crate::curve_math::bspline`]).
+//! curve engine ([`crate::bspline::curve`]).
 //!
 //! A B-spline surface is a tensor product of two directional B-spline bases,
 //! one [`KnotVector`] per direction. Poles are read through a [`Poles`]
@@ -21,8 +21,8 @@
 //! Bernstein nets of patches are row-major `[k_u][k_v][h]`, with `h = 4`
 //! homogeneous coordinates per point if rational, else `h = 3`.
 
-use super::super::curve_math::bspline as curve;
-use crate::curve_math::bspline::{KnotVector, Poles};
+use crate::bspline::curve;
+use crate::bspline::curve::{KnotVector, Poles};
 use crate::curves::Side;
 use crate::{Point, Vector};
 

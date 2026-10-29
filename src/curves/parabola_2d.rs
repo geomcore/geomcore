@@ -1,10 +1,10 @@
 //! Parabolas in 2D: parametric evaluation and parameter inversion, a
-//! thin wrapper over [`crate::curve_math::analytic`].
+//! thin wrapper over [`crate::elementary::curve`].
 
-use crate::curve_math::analytic;
 use crate::curves::ParabolaConstructionError;
 use crate::curves::ParametricCurve2D;
 use crate::curves::PointExtrema2D;
+use crate::elementary::curve as elementary;
 use crate::frame::frame_error;
 use crate::math::real_roots;
 use crate::projection::CurveProjection2D;
@@ -135,7 +135,7 @@ impl Parabola2D {
     /// assert_eq!(parabola.eval_point(2.0), Point2D::new(1.0, 2.0));
     /// ```
     pub fn eval_point(&self, u: f64) -> Point2D {
-        analytic::parabola2d_d0(&self.frame, self.focal, u)
+        elementary::parabola2d_d0(&self.frame, self.focal, u)
     }
 
     /// Evaluates the points on the parabola at each parameter in `us`.
@@ -157,7 +157,7 @@ impl Parabola2D {
     /// The parabola is a degree-2 polynomial curve: the first derivative is
     /// linear in `u`, the second is a constant, and every derivative of
     /// order above 2 is zero (see
-    /// `curve_math::analytic::parabola2d_dn`).
+    /// `crate::elementary::curve::parabola2d_dn`).
     ///
     /// # Panics
     ///
@@ -174,7 +174,7 @@ impl Parabola2D {
     pub fn eval_derivative(&self, u: f64, order: u32) -> Vector2D {
         match order {
             0 => panic!("eval_derivative: order must be >= 1 (use eval_point for order 0)"),
-            _ => analytic::parabola2d_dn(&self.frame, self.focal, u, order),
+            _ => elementary::parabola2d_dn(&self.frame, self.focal, u, order),
         }
     }
 
@@ -189,7 +189,7 @@ impl Parabola2D {
     /// assert_eq!(parabola.parameter_of(Point2D::new(1.0, 2.0)), 2.0);
     /// ```
     pub fn parameter_of(&self, point: Point2D) -> f64 {
-        analytic::parabola2d_parameter(&self.frame, point)
+        elementary::parabola2d_parameter(&self.frame, point)
     }
 
     /// Returns whether `point` lies on the parabola: within `tol.confusion`
@@ -212,7 +212,7 @@ impl Parabola2D {
     pub fn contains(&self, point: Point2D, tol: Tolerance) -> bool {
         let f = self.focal;
         // `y² = 4fx`: on it `|∇f| ≥ 4f`.
-        let near = analytic::conic_proximity_2d(
+        let near = elementary::conic_proximity_2d(
             &self.frame,
             point,
             tol.confusion,
