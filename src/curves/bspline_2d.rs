@@ -771,13 +771,10 @@ impl BSplineCurve2D {
 
     /// Evaluates the derivative of the given `order` at parameter `u`.
     ///
-    /// Only first and second derivatives are supported.
-    ///
     /// # Panics
     ///
     /// Panics if `order == 0` (use [`BSplineCurve2D::eval_point`] for the
-    /// position itself) or if `order > 2`, with a message stating that only
-    /// first and second derivatives are supported.
+    /// position itself).
     ///
     /// # Examples
     ///
@@ -862,11 +859,9 @@ impl BSplineCurve2D {
     /// Evaluates the derivative of the given `order` at parameter `u`
     /// from one side, as [`eval_d1_sided`](Self::eval_d1_sided).
     ///
-    /// Only first and second derivatives are supported.
-    ///
     /// # Panics
     ///
-    /// Panics if `order == 0` or if `order > 2`, as
+    /// Panics if `order == 0`, as
     /// [`eval_derivative`](Self::eval_derivative).
     ///
     /// # Examples

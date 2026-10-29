@@ -89,7 +89,7 @@ fn test_basis_second_matches_general_derivatives() {
             let mut fast = [[0.0; LARGE]; MAX_DERIVATIVE + 1];
             let mut general = [[0.0; LARGE]; MAX_DERIVATIVE + 1];
             basis_second(p, &left, &right, &mut fast);
-            basis_derivatives(p, &left, &right, 2, &mut general);
+            basis_derivatives(p, &left, &right, &mut general);
             for k in 0..=2 {
                 for j in 0..=p {
                     let scale = general[k][..=p].iter().fold(1.0f64, |m, x| m.max(x.abs()));
@@ -252,6 +252,45 @@ fn test_rational_quarter_circle_on_unit_circle() {
     // Endpoint t = 1 lands exactly on (0,1,0).
     let p = point(&knots, view, 1.0);
     assert_close(&[p.x, p.y, p.z], &[0.0, 1.0, 0.0]);
+}
+
+// ---- derivatives of any order ----
+
+#[test]
+fn test_derivative_of_order_matches_the_fixed_orders() {
+    // A periodic rational cubic with a double knot: the general path agrees
+    // with the unrolled one on both sides of every knot and inside spans.
+    let poles = points(&[
+        [1.0, 0.0, 0.0],
+        [1.0, 1.0, 0.5],
+        [-1.0, 2.0, 0.0],
+        [-2.0, 0.0, 1.0],
+        [0.0, -1.0, 0.0],
+    ]);
+    let weights = [1.0, 0.7, 1.3, 0.9, 1.1];
+    let knots = knot_vector(3, &[0.0, 1.0, 1.5, 3.0, 4.0], &[1, 2, 1, 1, 1], true, 5);
+    for weights in [None, Some(&weights[..])] {
+        let view = Poles {
+            points: &poles,
+            weights,
+        };
+        for u in [0.0, 0.4, 1.0, 1.5, 2.2, 4.0] {
+            for side in [None, Some(Side::Below), Some(Side::Above)] {
+                let fixed = match side {
+                    None => derivatives::<2, Point>(&knots, view, u),
+                    Some(side) => derivatives_sided::<2, Point>(&knots, view, u, side),
+                };
+                for (order, expected) in fixed.into_iter().enumerate().skip(1) {
+                    let general = derivative_of_order(&knots, view, u, order, side);
+                    let scale = expected.magnitude().max(1.0);
+                    assert!(
+                        (general - expected).magnitude() < 1e-12 * scale,
+                        "u {u}, {side:?}, order {order}"
+                    );
+                }
+            }
+        }
+    }
 }
 
 // ---- periodic wrap smoke ----

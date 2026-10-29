@@ -403,9 +403,7 @@ impl<P: PolePoint> Spline<P> {
             0 => panic!("eval_derivative: order must be >= 1 (use eval_point for order 0)"),
             1 => math::derivatives::<1, P>(&self.knots, self.pole_view(), u)[1],
             2 => math::derivatives::<2, P>(&self.knots, self.pole_view(), u)[2],
-            _ => panic!(
-                "eval_derivative: order {order} is not supported (only first and second derivatives are supported)"
-            ),
+            _ => math::derivative_of_order(&self.knots, self.pole_view(), u, order as usize, None),
         }
     }
 
@@ -429,8 +427,12 @@ impl<P: PolePoint> Spline<P> {
             0 => panic!("eval_derivative: order must be >= 1 (use eval_point for order 0)"),
             1 => math::derivatives_sided::<1, P>(&self.knots, self.pole_view(), u, side)[1],
             2 => math::derivatives_sided::<2, P>(&self.knots, self.pole_view(), u, side)[2],
-            _ => panic!(
-                "eval_derivative: order {order} is not supported (only first and second derivatives are supported)"
+            _ => math::derivative_of_order(
+                &self.knots,
+                self.pole_view(),
+                u,
+                order as usize,
+                Some(side),
             ),
         }
     }

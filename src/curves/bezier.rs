@@ -438,8 +438,7 @@ impl BezierCurve {
     ///
     /// # Panics
     ///
-    /// Panics if `order == 0` (use [`BezierCurve::eval_point`]) or if
-    /// `order > 2`: only first and second derivatives are supported.
+    /// Panics if `order == 0` (use [`BezierCurve::eval_point`]).
     ///
     /// # Examples
     ///
@@ -514,7 +513,7 @@ impl BezierCurve {
     ///
     /// # Panics
     ///
-    /// Panics if `order == 0` or `order > 2`, as
+    /// Panics if `order == 0`, as
     /// [`eval_derivative`](Self::eval_derivative).
     ///
     /// # Examples
