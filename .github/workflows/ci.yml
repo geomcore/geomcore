@@ -17,7 +17,8 @@ jobs:
       - run: cargo doc --no-deps
         env: { RUSTDOCFLAGS: "-D warnings" }
   python:
-    runs-on: ubuntu-latest
+    # Ubuntu 26.04 has no prebuilt Python 3.9, the abi3 floor.
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         # The floor of the abi3 wheel, and a current release.
