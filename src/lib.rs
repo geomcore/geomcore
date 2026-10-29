@@ -131,7 +131,7 @@
 
 /// Axis-aligned bounding boxes of curves and surfaces.
 pub mod bounding_box;
-/// Internal analytic curve evaluation math.
+/// Internal curve math: elementary formulas and the B-spline engine.
 pub(crate) mod curve_math;
 /// Public curve types: lines, conics, and B-spline curves.
 pub mod curves;
@@ -149,7 +149,7 @@ pub(crate) mod math;
 pub mod point;
 /// Point-projection result types.
 pub mod projection;
-/// Internal analytic surface evaluation math.
+/// Internal surface math: elementary formulas and B-spline patches.
 pub(crate) mod surface_math;
 /// Public surface types: planes, cylinders, cones, spheres, tori, and
 /// B-spline surfaces.

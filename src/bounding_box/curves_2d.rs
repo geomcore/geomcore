@@ -1,7 +1,7 @@
 //! Boxes of 2D curves: closed form for elementary curves, Bézier control
 //! points for B-splines.
 
-use super::box2d::{coordinates, point};
+use super::box_2d::{coordinates, point};
 use super::curves::fold_range_points;
 use super::sealed::BoundRange2D;
 use super::{BoundingBox2D, HasBoundingBox2D};

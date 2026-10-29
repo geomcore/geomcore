@@ -32,12 +32,12 @@
 //! assert_eq!(line.bounding_box(), None);
 //! ```
 
-mod box2d;
+mod box_2d;
 mod curves;
-mod curves2d;
+mod curves_2d;
 mod surfaces;
 
-pub use box2d::{BoundingBox2D, HasBoundingBox2D};
+pub use box_2d::{BoundingBox2D, HasBoundingBox2D};
 
 use crate::{Point, Vector};
 
