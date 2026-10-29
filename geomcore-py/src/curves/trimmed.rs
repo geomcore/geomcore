@@ -40,7 +40,7 @@ shape_methods! {
     #[staticmethod]
     fn segment(start: PyPoint, end: PyPoint) -> PyResult<Self> {
         let segment = TrimmedCurve::segment(start.0, end.0).map_err(python_error)?;
-        Ok(PyTrimmedCurve(segment.into_curve3d()))
+        Ok(PyTrimmedCurve(segment.into_curve()))
     }
 
     /// The basis curve.
