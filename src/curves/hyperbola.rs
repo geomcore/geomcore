@@ -1,21 +1,23 @@
-//! Hyperbolas in 3D: parametric evaluation, parameter inversion, and
-//! center+two-points construction, a thin wrapper over
+//! Hyperbolas of both tiers: parametric evaluation, parameter inversion,
+//! and center+two-points construction, thin wrappers over
 //! [`crate::elementary::curve`].
 
-use crate::curves::ElementaryCurve;
-use crate::curves::ParametricCurve;
-use crate::curves::PointExtrema;
-use crate::curves::{Curve2D, ParametrizeError, parametrize};
+use crate::curves::parametrize::ParametrizeError;
+use crate::curves::{Curve2D, parametrize};
+use crate::curves::{ElementaryCurve, ParametricCurve, ParametricCurve2D};
+use crate::curves::{PointExtrema, PointExtrema2D};
 use crate::elementary::curve as elementary;
 use crate::frame::frame_error;
 use crate::math::{polish_root, real_roots};
 use crate::projection::CurveProjection;
 use crate::surfaces::Surface;
-use crate::{Frame, Point, Tolerance, Transform, Vector, projection};
+use crate::tier::operations::FrameOperations;
+use crate::tier::{TierPoint, impl_for_both_tiers};
+use crate::{Frame, Frame2D, Point, Point2D, Tolerance, Transform, Vector, Vector2D, projection};
 use std::fmt;
 
-/// Error returned when a [`Hyperbola`] cannot be constructed from the
-/// given inputs.
+/// Error returned when a [`Hyperbola`] or [`Hyperbola2D`] cannot be
+/// constructed from the given inputs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HyperbolaConstructionError {
     /// The major or minor radius is zero or negative (a zero radius
@@ -50,10 +52,34 @@ impl fmt::Display for HyperbolaConstructionError {
 
 impl std::error::Error for HyperbolaConstructionError {}
 
-/// A hyperbola in 3D: a plane [`Frame`] (origin at the center, plus local
-/// x/y directions defining the plane, the major axis, and the transverse
-/// direction), a semi-major radius, and a semi-minor radius, evaluated as
-/// `center + major*cosh(u)*x_dir + minor*sinh(u)*y_dir`.
+/// A hyperbola of either tier: a frame (origin at the center, plus local
+/// x/y directions defining the major axis and the transverse direction), a
+/// semi-major radius, and a semi-minor radius, evaluated as
+/// `center + major*cosh(u)*x_dir + minor*sinh(u)*y_dir`. Use it through
+/// [`Hyperbola`] in space and [`Hyperbola2D`] in the plane (ADR 0014).
+///
+/// # Examples
+///
+/// ```
+/// use geomcore::prelude::*;
+/// use geomcore::{Hyperbola, Hyperbola2D, Point, Point2D, Vector, Vector2D};
+/// let hyperbola = Hyperbola::new(Point::ORIGIN, Vector::Z, Vector::X, 2.0, 1.0).unwrap();
+/// assert_eq!(hyperbola.eval_point(0.0), Point::new(2.0, 0.0, 0.0));
+/// let hyperbola_2d = Hyperbola2D::new(Point2D::ORIGIN, Vector2D::X, 2.0, 1.0).unwrap();
+/// assert_eq!(hyperbola_2d.eval_point(0.0), Point2D::new(2.0, 0.0));
+/// ```
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct GenericHyperbola<P: TierPoint> {
+    frame: P::Frame,
+    major_radius: f64,
+    minor_radius: f64,
+}
+
+/// A hyperbola in space: a plane [`Frame`] (origin at the center, plus
+/// local x/y directions defining the plane, the major axis, and the
+/// transverse direction), a semi-major radius, and a semi-minor radius,
+/// evaluated as `center + major*cosh(u)*x_dir + minor*sinh(u)*y_dir`. Its
+/// methods are those of [`GenericHyperbola`].
 ///
 /// # Examples
 ///
@@ -63,11 +89,116 @@ impl std::error::Error for HyperbolaConstructionError {}
 /// let hyperbola = Hyperbola::new(Point::ORIGIN, Vector::Z, Vector::X, 2.0, 1.0).unwrap();
 /// assert_eq!(hyperbola.eval_point(0.0), Point::new(2.0, 0.0, 0.0));
 /// ```
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Hyperbola {
-    frame: Frame,
-    major_radius: f64,
-    minor_radius: f64,
+pub type Hyperbola = GenericHyperbola<Point>;
+
+/// A hyperbola in the plane: a [`Frame2D`] (origin at the center, local x
+/// direction along the major axis and y across it), a semi-major radius,
+/// and a semi-minor radius, evaluated as
+/// `center + major*cosh(u)*x_dir + minor*sinh(u)*y_dir`. Its methods are
+/// those of [`GenericHyperbola`].
+///
+/// # Examples
+///
+/// ```
+/// use geomcore::prelude::*;
+/// use geomcore::{Hyperbola2D, Point2D, Vector2D};
+/// let hyperbola = Hyperbola2D::new(Point2D::ORIGIN, Vector2D::X, 2.0, 1.0).unwrap();
+/// assert_eq!(hyperbola.eval_point(0.0), Point2D::new(2.0, 0.0));
+/// ```
+pub type Hyperbola2D = GenericHyperbola<Point2D>;
+
+impl<P: TierPoint> GenericHyperbola<P> {
+    /// Creates a hyperbola from a frame, a semi-major radius, and a
+    /// semi-minor radius directly.
+    ///
+    /// Unlike [`crate::Ellipse`], `minor_radius` may exceed `major_radius`
+    /// (only positivity is checked).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`HyperbolaConstructionError::NonPositiveRadius`] if
+    /// `major_radius <= 0` or `minor_radius <= 0`, or
+    /// [`HyperbolaConstructionError::NonFinite`] if either radius is NaN or
+    /// infinite.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Frame, Frame2D, Hyperbola, Hyperbola2D};
+    /// let hyperbola = Hyperbola::from_frame(Frame::WORLD, 2.0, 1.0).unwrap();
+    /// assert_eq!(hyperbola.frame(), Frame::WORLD);
+    /// let hyperbola_2d = Hyperbola2D::from_frame(Frame2D::WORLD, 2.0, 1.0).unwrap();
+    /// assert_eq!(hyperbola_2d.frame(), Frame2D::WORLD);
+    /// ```
+    pub fn from_frame(
+        frame: P::Frame,
+        major_radius: f64,
+        minor_radius: f64,
+    ) -> Result<GenericHyperbola<P>, HyperbolaConstructionError> {
+        if !(major_radius.is_finite() && minor_radius.is_finite()) {
+            return Err(HyperbolaConstructionError::NonFinite);
+        }
+        if major_radius <= 0.0 || minor_radius <= 0.0 {
+            return Err(HyperbolaConstructionError::NonPositiveRadius);
+        }
+        Ok(GenericHyperbola {
+            frame,
+            major_radius,
+            minor_radius,
+        })
+    }
+
+    /// Returns the center of the hyperbola.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Hyperbola, Point, Vector};
+    /// let hyperbola = Hyperbola::new(Point::new(1.0, 2.0, 3.0), Vector::Z, Vector::X, 2.0, 1.0).unwrap();
+    /// assert_eq!(hyperbola.center(), Point::new(1.0, 2.0, 3.0));
+    /// ```
+    pub fn center(&self) -> P {
+        self.frame.origin()
+    }
+
+    /// Returns the hyperbola's frame.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Hyperbola, Frame};
+    /// let hyperbola = Hyperbola::from_frame(Frame::WORLD, 2.0, 1.0).unwrap();
+    /// assert_eq!(hyperbola.frame(), Frame::WORLD);
+    /// ```
+    pub fn frame(&self) -> P::Frame {
+        self.frame
+    }
+
+    /// Returns the semi-major radius of the hyperbola.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Hyperbola, Frame};
+    /// let hyperbola = Hyperbola::from_frame(Frame::WORLD, 2.0, 1.0).unwrap();
+    /// assert_eq!(hyperbola.major_radius(), 2.0);
+    /// ```
+    pub fn major_radius(&self) -> f64 {
+        self.major_radius
+    }
+
+    /// Returns the semi-minor radius of the hyperbola.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Hyperbola, Frame};
+    /// let hyperbola = Hyperbola::from_frame(Frame::WORLD, 2.0, 1.0).unwrap();
+    /// assert_eq!(hyperbola.minor_radius(), 1.0);
+    /// ```
+    pub fn minor_radius(&self) -> f64 {
+        self.minor_radius
+    }
 }
 
 impl Hyperbola {
@@ -107,44 +238,6 @@ impl Hyperbola {
             HyperbolaConstructionError::NullNormal,
         ))?;
         Hyperbola::from_frame(frame, major_radius, minor_radius)
-    }
-
-    /// Creates a hyperbola from a plane frame, a semi-major radius, and a
-    /// semi-minor radius directly.
-    ///
-    /// Unlike [`crate::Ellipse`], `minor_radius` may exceed `major_radius`
-    /// (only positivity is checked).
-    ///
-    /// # Errors
-    ///
-    /// Returns [`HyperbolaConstructionError::NonPositiveRadius`] if
-    /// `major_radius <= 0` or `minor_radius <= 0`, or
-    /// [`HyperbolaConstructionError::NonFinite`] if either radius is NaN or
-    /// infinite.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{Hyperbola, Frame};
-    /// let hyperbola = Hyperbola::from_frame(Frame::WORLD, 2.0, 1.0).unwrap();
-    /// assert_eq!(hyperbola.frame(), Frame::WORLD);
-    /// ```
-    pub fn from_frame(
-        frame: Frame,
-        major_radius: f64,
-        minor_radius: f64,
-    ) -> Result<Hyperbola, HyperbolaConstructionError> {
-        if !(major_radius.is_finite() && minor_radius.is_finite()) {
-            return Err(HyperbolaConstructionError::NonFinite);
-        }
-        if major_radius <= 0.0 || minor_radius <= 0.0 {
-            return Err(HyperbolaConstructionError::NonPositiveRadius);
-        }
-        Ok(Hyperbola {
-            frame,
-            major_radius,
-            minor_radius,
-        })
     }
 
     /// Creates a hyperbola from a center, a major-axis end point `s1`, and a
@@ -212,58 +305,6 @@ impl Hyperbola {
             HyperbolaConstructionError::CollinearPoints,
         ))?;
         Hyperbola::from_frame(frame, d1, d2)
-    }
-
-    /// Returns the center of the hyperbola.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{Hyperbola, Point, Vector};
-    /// let hyperbola = Hyperbola::new(Point::new(1.0, 2.0, 3.0), Vector::Z, Vector::X, 2.0, 1.0).unwrap();
-    /// assert_eq!(hyperbola.center(), Point::new(1.0, 2.0, 3.0));
-    /// ```
-    pub fn center(&self) -> Point {
-        self.frame.origin()
-    }
-
-    /// Returns the hyperbola's plane frame.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{Hyperbola, Frame};
-    /// let hyperbola = Hyperbola::from_frame(Frame::WORLD, 2.0, 1.0).unwrap();
-    /// assert_eq!(hyperbola.frame(), Frame::WORLD);
-    /// ```
-    pub fn frame(&self) -> Frame {
-        self.frame
-    }
-
-    /// Returns the semi-major radius of the hyperbola.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{Hyperbola, Frame};
-    /// let hyperbola = Hyperbola::from_frame(Frame::WORLD, 2.0, 1.0).unwrap();
-    /// assert_eq!(hyperbola.major_radius(), 2.0);
-    /// ```
-    pub fn major_radius(&self) -> f64 {
-        self.major_radius
-    }
-
-    /// Returns the semi-minor radius of the hyperbola.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{Hyperbola, Frame};
-    /// let hyperbola = Hyperbola::from_frame(Frame::WORLD, 2.0, 1.0).unwrap();
-    /// assert_eq!(hyperbola.minor_radius(), 1.0);
-    /// ```
-    pub fn minor_radius(&self) -> f64 {
-        self.minor_radius
     }
 
     /// Returns the image of this hyperbola under `transform`: the center
@@ -339,132 +380,239 @@ impl Hyperbola {
     }
 }
 
-impl PointExtrema for Hyperbola {
-    fn extrema(&self, point: Point, tol: Tolerance) -> Vec<CurveProjection> {
-        if ![point.x, point.y, point.z].iter().all(|c| c.is_finite()) {
-            return Vec::new();
-        }
-        let rel = point - self.center();
-        let px = rel.dot(self.frame.x_direction());
-        let py = rel.dot(self.frame.y_direction());
-        let (a, b) = (self.major_radius, self.minor_radius);
-        let s2 = a * a + b * b;
-        if s2 == 0.0 {
-            // Both radii zero: the branch is its centre, every parameter
-            // equally close.
-            let centre = self.center();
-            let distance = centre.distance(point);
-            return vec![CurveProjection {
-                parameter: 0.0,
-                point: centre,
-                distance: projection::snap_distance(distance, tol.confusion),
-            }];
-        }
-        let coeffs = [
-            -s2,
-            2.0 * (a * px - b * py),
-            0.0,
-            -2.0 * (a * px + b * py),
-            s2,
-        ];
-        // The stationarity condition (H(t) - P).H'(t) in frame coordinates,
-        // and its derivative: candidates from the quartic are polished on
-        // it, since near the vertex a complex root pair crowds the real
-        // root and the polynomial alone resolves it only to ~sqrt(eps).
-        let g = |t: f64| s2 * t.sinh() * t.cosh() - a * px * t.sinh() - b * py * t.cosh();
-        let dg = |t: f64| s2 * (2.0 * t).cosh() - a * px * t.cosh() - b * py * t.sinh();
-        let mut out: Vec<CurveProjection> = real_roots(&coeffs, tol.confusion)
-            .into_iter()
-            .filter(|r| r.value > 0.0)
-            .map(|r| {
-                let t = polish_root(g, dg, r.value.ln(), 8);
-                let foot = self.eval_point(t);
-                let distance = foot.distance(point);
-                CurveProjection {
-                    parameter: t,
-                    point: foot,
-                    distance: projection::snap_distance(distance, tol.confusion),
-                }
-            })
-            .collect();
-        out.sort_by(|x, y| x.distance.total_cmp(&y.distance));
-        out
+impl Hyperbola2D {
+    /// Creates a hyperbola from a center, a major-axis direction, a
+    /// semi-major radius, and a semi-minor radius.
+    ///
+    /// The frame is direct: its y direction is the counterclockwise
+    /// perpendicular of `x_direction`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`HyperbolaConstructionError::NullNormal`] if `x_direction`
+    /// cannot be normalized;
+    /// [`HyperbolaConstructionError::NonPositiveRadius`] if
+    /// `major_radius <= 0` or `minor_radius <= 0`; or
+    /// [`HyperbolaConstructionError::NonFinite`] if any input is NaN or
+    /// infinite.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Hyperbola2D, Point2D, Vector2D};
+    /// let hyperbola = Hyperbola2D::new(Point2D::ORIGIN, Vector2D::X, 2.0, 1.0).unwrap();
+    /// assert_eq!(hyperbola.major_radius(), 2.0);
+    /// assert_eq!(hyperbola.minor_radius(), 1.0);
+    /// ```
+    pub fn new(
+        center: Point2D,
+        x_direction: Vector2D,
+        major_radius: f64,
+        minor_radius: f64,
+    ) -> Result<Hyperbola2D, HyperbolaConstructionError> {
+        let frame = Frame2D::from_x(center, x_direction).map_err(frame_error(
+            HyperbolaConstructionError::NonFinite,
+            HyperbolaConstructionError::NullNormal,
+        ))?;
+        Hyperbola2D::from_frame(frame, major_radius, minor_radius)
     }
 
-    /// Recovers the parameter of a point on (or near) the hyperbola:
-    /// `asinh(((point - center) . y_dir) / minor_radius)`. Unbounded (no
-    /// wrapping).
-    fn parameter_of(&self, point: Point, _tol: Tolerance) -> f64 {
-        elementary::hyperbola_parameter(&self.frame, self.minor_radius, point)
-    }
-
-    fn contains(&self, point: Point, tol: Tolerance) -> bool {
-        let (a, b) = (self.major_radius, self.minor_radius);
-        // `(x/a)² - (y/b)² = 1`: on it `|∇f| ≥ 2/a`. Whenever the bounds
-        // apply, `a ≥ 2 tol`, so the branch (`x ≥ a`) is the only part of
-        // the curve within `2 tol` of a point with `x ≥ a - tol`, and points
-        // short of that are far from it.
-        let near = elementary::conic_proximity(
-            &self.frame,
-            point,
-            tol.confusion,
-            2.0 / (a.min(b) * a.min(b)),
-            2.0 / a,
-            |x, y| {
-                if x < a - tol.confusion {
-                    return (f64::INFINITY, 1.0, 0.0);
-                }
-                let (sx, sy) = (x / (a * a), y / (b * b));
-                (x * sx - y * sy - 1.0, 2.0 * sx, -2.0 * sy)
-            },
-        );
-        if let Some(near) = near {
-            return near;
+    /// Creates a hyperbola from a center, a major-axis end point `s1`, and a
+    /// second point `s2` that fixes the minor axis.
+    ///
+    /// The major axis direction is `x_axis = normalize(s1 - center)`, with
+    /// semi-major radius `major_radius = |s1 - center|`. The semi-minor
+    /// radius `minor_radius` is the distance from `s2` to the line
+    /// `(center, x_axis)`, and the frame's y direction points toward `s2`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`HyperbolaConstructionError::ConfusedPoints`] if any pair
+    /// among `{s1, s2, center}` is within `Tolerance::DEFAULT.confusion`; or
+    /// [`HyperbolaConstructionError::CollinearPoints`] if `s2` lies on the
+    /// line `(center, x_axis)`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Hyperbola2D, Point2D};
+    /// let hyperbola = Hyperbola2D::from_center_and_points(
+    ///     Point2D::ORIGIN,
+    ///     Point2D::new(2.0, 0.0),
+    ///     Point2D::new(0.0, 1.0),
+    /// )
+    /// .unwrap();
+    /// assert_eq!(hyperbola.major_radius(), 2.0);
+    /// assert_eq!(hyperbola.minor_radius(), 1.0);
+    /// ```
+    pub fn from_center_and_points(
+        center: Point2D,
+        s1: Point2D,
+        s2: Point2D,
+    ) -> Result<Hyperbola2D, HyperbolaConstructionError> {
+        if center.distance(s1) < Tolerance::DEFAULT.confusion
+            || center.distance(s2) < Tolerance::DEFAULT.confusion
+            || s1.distance(s2) < Tolerance::DEFAULT.confusion
+        {
+            return Err(HyperbolaConstructionError::ConfusedPoints);
         }
-        let u = self.parameter_of(point, tol);
-        self.eval_point(u).distance(point) <= tol.confusion
-            || self.project_point(point, tol).distance <= tol.confusion
-    }
 
-    fn project_point(&self, point: Point, tol: Tolerance) -> CurveProjection {
-        self.extrema(point, tol)
-            .into_iter()
-            .next()
-            .unwrap_or(CurveProjection::UNDEFINED)
+        let v1 = s1 - center;
+        let d1 = v1.magnitude();
+        let x_axis = v1 * (1.0 / d1);
+
+        let v2 = s2 - center;
+        let cross = x_axis.cross(v2);
+        let d2 = cross.abs();
+        if d2 < Tolerance::DEFAULT.confusion {
+            return Err(HyperbolaConstructionError::CollinearPoints);
+        }
+        let y_axis = if cross < 0.0 {
+            -x_axis.perp()
+        } else {
+            x_axis.perp()
+        };
+        let frame = Frame2D::new(center, x_axis, y_axis).map_err(frame_error(
+            HyperbolaConstructionError::NonFinite,
+            HyperbolaConstructionError::CollinearPoints,
+        ))?;
+        Hyperbola2D::from_frame(frame, d1, d2)
     }
 }
 
-impl ParametricCurve for Hyperbola {
-    #[inline]
-    fn eval_point(&self, u: f64) -> Point {
-        elementary::hyperbola_d0(&self.frame, self.major_radius, self.minor_radius, u)
-    }
+impl_for_both_tiers! {
+    impl PointExtrema, PointExtrema2D for GenericHyperbola {
+        fn extrema(&self, point: P, tol: Tolerance) -> Vec<CurveProjection<P>> {
+            if !point.is_finite() {
+                return Vec::new();
+            }
+            let rel = point - self.center();
+            let px = rel.dot(self.frame.x_direction());
+            let py = rel.dot(self.frame.y_direction());
+            let (a, b) = (self.major_radius, self.minor_radius);
+            let s2 = a * a + b * b;
+            if s2 == 0.0 {
+                // Both radii zero: the branch is its centre, every parameter
+                // equally close.
+                let centre = self.center();
+                let distance = centre.distance(point);
+                return vec![CurveProjection {
+                    parameter: 0.0,
+                    point: centre,
+                    distance: projection::snap_distance(distance, tol.confusion),
+                }];
+            }
+            let coeffs = [
+                -s2,
+                2.0 * (a * px - b * py),
+                0.0,
+                -2.0 * (a * px + b * py),
+                s2,
+            ];
+            // The stationarity condition (H(t) - P).H'(t) in frame coordinates,
+            // and its derivative: candidates from the quartic are polished on
+            // it, since near the vertex a complex root pair crowds the real
+            // root and the polynomial alone resolves it only to ~sqrt(eps).
+            let g = |t: f64| s2 * t.sinh() * t.cosh() - a * px * t.sinh() - b * py * t.cosh();
+            let dg = |t: f64| s2 * (2.0 * t).cosh() - a * px * t.cosh() - b * py * t.sinh();
+            let mut out: Vec<CurveProjection<P>> = real_roots(&coeffs, tol.confusion)
+                .into_iter()
+                .filter(|r| r.value > 0.0)
+                .map(|r| {
+                    let t = polish_root(g, dg, r.value.ln(), 8);
+                    let foot = self.eval_point(t);
+                    let distance = foot.distance(point);
+                    CurveProjection {
+                        parameter: t,
+                        point: foot,
+                        distance: projection::snap_distance(distance, tol.confusion),
+                    }
+                })
+                .collect();
+            out.sort_by(|x, y| x.distance.total_cmp(&y.distance));
+            out
+        }
 
-    fn eval_derivative(&self, u: f64, order: u32) -> Vector {
-        match order {
-            0 => panic!("eval_derivative: order must be >= 1 (use eval_point for order 0)"),
-            _ => elementary::hyperbola_dn(
+        /// Recovers the parameter of a point on (or near) the hyperbola:
+        /// `asinh(((point - center) . y_dir) / minor_radius)`. Unbounded (no
+        /// wrapping).
+        fn parameter_of(&self, point: P, _tol: Tolerance) -> f64 {
+            elementary::hyperbola_parameter(&self.frame, self.minor_radius, point)
+        }
+
+        fn contains(&self, point: P, tol: Tolerance) -> bool {
+            let (a, b) = (self.major_radius, self.minor_radius);
+            // `(x/a)² - (y/b)² = 1`: on it `|∇f| ≥ 2/a`. Whenever the bounds
+            // apply, `a ≥ 2 tol`, so the branch (`x ≥ a`) is the only part of
+            // the curve within `2 tol` of a point with `x ≥ a - tol`, and points
+            // short of that are far from it.
+            let near = elementary::conic_proximity(
                 &self.frame,
-                self.major_radius,
-                self.minor_radius,
-                u,
-                order,
-            ),
+                point,
+                tol.confusion,
+                2.0 / (a.min(b) * a.min(b)),
+                2.0 / a,
+                |x, y| {
+                    if x < a - tol.confusion {
+                        return (f64::INFINITY, 1.0, 0.0);
+                    }
+                    let (sx, sy) = (x / (a * a), y / (b * b));
+                    (x * sx - y * sy - 1.0, 2.0 * sx, -2.0 * sy)
+                },
+            );
+            if let Some(near) = near {
+                return near;
+            }
+            let u = self.parameter_of(point, tol);
+            self.eval_point(u).distance(point) <= tol.confusion
+                || self.project_point(point, tol).distance <= tol.confusion
+        }
+
+        fn project_point(&self, point: P, tol: Tolerance) -> CurveProjection<P> {
+            self.extrema(point, tol)
+                .into_iter()
+                .next()
+                .unwrap_or(CurveProjection::UNDEFINED)
         }
     }
+}
 
-    fn bounds(&self) -> (f64, f64) {
-        (f64::NEG_INFINITY, f64::INFINITY)
+impl_for_both_tiers! {
+    impl ParametricCurve, ParametricCurve2D for GenericHyperbola {
+        #[inline]
+        fn eval_point(&self, u: f64) -> P {
+            elementary::hyperbola_d0(&self.frame, self.major_radius, self.minor_radius, u)
+        }
+
+        fn eval_derivative(&self, u: f64, order: u32) -> V {
+            match order {
+                0 => panic!("eval_derivative: order must be >= 1 (use eval_point for order 0)"),
+                _ => elementary::hyperbola_dn(
+                    &self.frame,
+                    self.major_radius,
+                    self.minor_radius,
+                    u,
+                    order,
+                ),
+            }
+        }
+
+        fn bounds(&self) -> (f64, f64) {
+            (f64::NEG_INFINITY, f64::INFINITY)
+        }
+
+        fn period(&self) -> Option<f64> {
+            None
+        }
     }
-
-    fn period(&self) -> Option<f64> {
-        None
-    }
-
-    fn as_elementary(&self) -> Option<ElementaryCurve> {
-        Some(ElementaryCurve::Hyperbola(*self))
+    spatial {
+        fn as_elementary(&self) -> Option<ElementaryCurve> {
+            Some(ElementaryCurve::Hyperbola(*self))
+        }
     }
 }
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_2d;
