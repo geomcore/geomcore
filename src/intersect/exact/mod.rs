@@ -10,6 +10,9 @@
 
 pub(crate) mod conic;
 pub(crate) mod conic_2d;
+pub(crate) mod curve_curve;
+pub(crate) mod curve_surface;
+pub(crate) mod surface_surface;
 
 use crate::curves::{Curve, ElementaryCurve};
 use crate::intersect::InlineList;

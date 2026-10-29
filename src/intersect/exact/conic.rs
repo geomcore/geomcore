@@ -24,7 +24,7 @@
 use crate::curves::ParametricCurve;
 use crate::intersect::results::sort_by_known_parameter;
 use crate::intersect::{
-    ConicConicIntersection, ConicSurfaceHit, ConicSurfaceIntersection, CurveCurveHit, ImplicitConic,
+    ConicConicIntersection, ConicSurfaceHit, ConicSurfaceIntersection, CurveCurveHit,
 };
 use crate::math::{
     QuadraticSolution, RealRoot, roots_with_tangency, solve_quadratic, solve_trig,
@@ -748,6 +748,97 @@ where
     params
         .iter()
         .all(|&t| surface.contains(curve.eval_point(t), tol))
+}
+
+/// Implicit quadratic `A*x^2 + B*y^2 + C*x*y + D*x + E*y + F = 0` of a
+/// conic in its own frame coordinates: the substitution target for
+/// coplanar line/circle solves.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct ImplicitConic {
+    a2: f64,
+    b2: f64,
+    c2: f64,
+    d1: f64,
+    e1: f64,
+    f0: f64,
+}
+
+impl ImplicitConic {
+    /// `(x/a)^2 + (y/b)^2 = 1`.
+    pub(crate) fn ellipse(a: f64, b: f64) -> ImplicitConic {
+        ImplicitConic {
+            a2: 1.0 / (a * a),
+            b2: 1.0 / (b * b),
+            c2: 0.0,
+            d1: 0.0,
+            e1: 0.0,
+            f0: -1.0,
+        }
+    }
+
+    /// `y^2 = 4*f*x`.
+    pub(crate) fn parabola(focal: f64) -> ImplicitConic {
+        ImplicitConic {
+            a2: 0.0,
+            b2: 1.0,
+            c2: 0.0,
+            d1: -4.0 * focal,
+            e1: 0.0,
+            f0: 0.0,
+        }
+    }
+
+    /// `(x/a)^2 - (y/b)^2 = 1`.
+    pub(crate) fn hyperbola(a: f64, b: f64) -> ImplicitConic {
+        ImplicitConic {
+            a2: 1.0 / (a * a),
+            b2: -1.0 / (b * b),
+            c2: 0.0,
+            d1: 0.0,
+            e1: 0.0,
+            f0: -1.0,
+        }
+    }
+
+    /// Coefficients `(qa, qb, qc)` of `qa*t^2 + qb*t + qc = 0` for the
+    /// line `(ox + t*dx, oy + t*dy)` substituted into the implicit
+    /// equation.
+    pub(crate) fn line_substitute(&self, ox: f64, oy: f64, dx: f64, dy: f64) -> (f64, f64, f64) {
+        let qa = self.a2 * dx * dx + self.b2 * dy * dy + self.c2 * dx * dy;
+        let qb = 2.0 * self.a2 * ox * dx
+            + 2.0 * self.b2 * oy * dy
+            + self.c2 * (ox * dy + oy * dx)
+            + self.d1 * dx
+            + self.e1 * dy;
+        let qc = self.a2 * ox * ox
+            + self.b2 * oy * oy
+            + self.c2 * ox * oy
+            + self.d1 * ox
+            + self.e1 * oy
+            + self.f0;
+        (qa, qb, qc)
+    }
+}
+
+/// Frame placement plus implicit equation of a conic for the coplanar
+/// line/circle solves: the section plane, the frame axes and reference
+/// point (center or apex) the implicit coordinates are measured in, and
+/// the [`ImplicitConic`] itself.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct PlacedConic {
+    /// The conic's plane.
+    pub plane: Plane,
+    /// The frame x direction.
+    pub x: Vector,
+    /// The frame y direction.
+    pub y: Vector,
+    /// The frame origin (center or apex).
+    pub origin: Point,
+    /// The implicit equation in frame coordinates.
+    pub implicit: ImplicitConic,
+    /// How far the conic reaches from its origin: infinite for a parabola
+    /// or a hyperbola.
+    pub extent: f64,
 }
 
 #[cfg(test)]
