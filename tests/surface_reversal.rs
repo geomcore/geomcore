@@ -12,10 +12,10 @@
 use geomcore::prelude::*;
 use geomcore::surfaces::Surface;
 use geomcore::{
-    Axis, BSplineCurve, BSplineSurface, Circle, Cone, Curve, CurveCurveHit, Cylinder,
-    ElementaryCurve, Ellipse, ExactCurveCurveIntersection, ExactCurveSurfaceIntersection,
-    ExactSurfaceIntersection, Frame, Hyperbola, IntersectionMethod, Line, Parabola, Plane, Point,
-    Sphere, Tolerance, Torus, Transform, Vector,
+    Axis, BSplineCurve, BSplineSurface, Circle, Cone, Curve, CurveCurveHit,
+    CurveSurfaceIntersection, Cylinder, Ellipse, Frame, Hyperbola, Intersect, IntersectionMethod,
+    Line, Parabola, Plane, Point, Sphere, SurfaceSurfaceIntersection, Tolerance, Torus, Transform,
+    Vector,
 };
 
 const PARAMETERS: [(f64, f64); 4] = [(0.0, 0.0), (0.3, 0.2), (2.0, -0.7), (4.5, 1.1)];
@@ -492,20 +492,23 @@ fn test_transform_commutes_with_curve_evaluation_and_parameter_recovery() {
     }
 }
 
-/// Every hit of a curve/surface intersection: parameter, point and
+/// A hit of a curve/surface intersection: parameter, point and
 /// multiplicity.
-fn curve_surface_hits(result: ExactCurveSurfaceIntersection) -> (u8, Vec<(f64, Point, u32)>) {
-    match result {
-        ExactCurveSurfaceIntersection::Empty => (0, vec![]),
-        ExactCurveSurfaceIntersection::Coincident => (1, vec![]),
-        ExactCurveSurfaceIntersection::NotAnalytic => (2, vec![]),
-        ExactCurveSurfaceIntersection::Points(list) => (
-            3,
-            list.iter()
-                .map(|hit| (hit.parameter, hit.point, hit.multiplicity))
-                .collect(),
-        ),
-    }
+type Hit = (f64, Point, u32);
+
+/// An exact curve/surface intersection: whether the curve lies on the
+/// surface, and every hit. `None` when the pair has no closed form and was
+/// searched numerically.
+fn curve_surface_hits(result: CurveSurfaceIntersection) -> Option<(bool, Vec<Hit>)> {
+    (result.method() == IntersectionMethod::Exact).then(|| {
+        let hits = result.hits().iter().map(|hit| {
+            let parameter = hit
+                .curve_parameter
+                .expect("an exact hit stores its curve parameter");
+            (parameter, hit.point, hit.multiplicity)
+        });
+        (!result.overlaps().is_empty(), hits.collect())
+    })
 }
 
 /// Elementary curves in general position against the test surfaces, with
@@ -545,11 +548,16 @@ fn test_curve_surface_intersection_commutes_with_mirrors() {
                     continue;
                 }
                 let image_curve = transformed_curve(&curve, t);
-                let (kind, hits) = curve_surface_hits(curve.intersect_exact(&surface, tol));
-                let (image_kind, image_hits) =
-                    curve_surface_hits(image_curve.intersect_exact(&image_surface, tol));
+                let outcome = curve_surface_hits(curve.intersect(&surface, tol));
+                let image_outcome = curve_surface_hits(image_curve.intersect(&image_surface, tol));
                 let context = format!("{} of {curve:?} and {surface:?}", similarity.name);
-                assert_eq!(kind, image_kind, "{context}");
+                assert_eq!(outcome.is_some(), image_outcome.is_some(), "{context}");
+                let (Some((on_surface, hits)), Some((image_on_surface, image_hits))) =
+                    (outcome, image_outcome)
+                else {
+                    continue;
+                };
+                assert_eq!(on_surface, image_on_surface, "{context}");
                 assert_eq!(hits.len(), image_hits.len(), "{context}");
                 for (
                     (parameter, point, multiplicity),
@@ -622,64 +630,55 @@ fn test_curve_curve_intersection_commutes_with_mirrors() {
             for second in &in_plane[i + 1..] {
                 let (first_image, second_image) =
                     (transformed_curve(first, t), transformed_curve(second, t));
-                let result = first.intersect_exact(second, tol);
-                let image_result = first_image.intersect_exact(&second_image, tol);
+                let result = first.intersect(second, tol);
+                let image_result = first_image.intersect(&second_image, tol);
                 let context = format!("{} of {first:?} and {second:?}", similarity.name);
-                match (result, image_result) {
-                    (
-                        ExactCurveCurveIntersection::Points(hits),
-                        ExactCurveCurveIntersection::Points(image_hits),
-                    ) => {
-                        assert_eq!(hits.len(), image_hits.len(), "{context}");
-                        let first_factor = if is_length_parameter(first) {
-                            similarity.scale
-                        } else {
-                            1.0
-                        };
-                        let second_factor = if is_length_parameter(second) {
-                            similarity.scale
-                        } else {
-                            1.0
-                        };
-                        checked_hits += hits.len();
-                        for (hit, image_hit) in hits.iter().zip(image_hits.iter()) {
-                            let (first_parameter, second_parameter) =
-                                hit_parameters(hit, first, second);
-                            let (image_first_parameter, image_second_parameter) =
-                                hit_parameters(image_hit, &first_image, &second_image);
-                            assert!(
-                                (image_first_parameter - first_factor * first_parameter).abs()
-                                    < 1e-8,
-                                "{context}"
-                            );
-                            assert!(
-                                (image_second_parameter - second_factor * second_parameter).abs()
-                                    < 1e-8,
-                                "{context}"
-                            );
-                            assert!(
-                                image_hit.point.distance(t.apply_point(hit.point)) < 1e-8,
-                                "{context}"
-                            );
-                            assert!(
-                                first_image
-                                    .eval_point(image_first_parameter)
-                                    .distance(image_hit.point)
-                                    < 1e-8
-                            );
-                            assert!(
-                                second_image
-                                    .eval_point(image_second_parameter)
-                                    .distance(image_hit.point)
-                                    < 1e-8
-                            );
-                        }
-                    }
-                    (result, image_result) => assert_eq!(
-                        std::mem::discriminant(&result),
-                        std::mem::discriminant(&image_result),
+                assert_eq!(
+                    (result.method(), result.overlaps().len()),
+                    (image_result.method(), image_result.overlaps().len()),
+                    "{context}"
+                );
+                let (hits, image_hits) = (result.hits(), image_result.hits());
+                assert_eq!(hits.len(), image_hits.len(), "{context}");
+                let first_factor = if is_length_parameter(first) {
+                    similarity.scale
+                } else {
+                    1.0
+                };
+                let second_factor = if is_length_parameter(second) {
+                    similarity.scale
+                } else {
+                    1.0
+                };
+                checked_hits += hits.len();
+                for (hit, image_hit) in hits.iter().zip(image_hits.iter()) {
+                    let (first_parameter, second_parameter) = hit_parameters(hit, first, second);
+                    let (image_first_parameter, image_second_parameter) =
+                        hit_parameters(image_hit, &first_image, &second_image);
+                    assert!(
+                        (image_first_parameter - first_factor * first_parameter).abs() < 1e-8,
                         "{context}"
-                    ),
+                    );
+                    assert!(
+                        (image_second_parameter - second_factor * second_parameter).abs() < 1e-8,
+                        "{context}"
+                    );
+                    assert!(
+                        image_hit.point.distance(t.apply_point(hit.point)) < 1e-8,
+                        "{context}"
+                    );
+                    assert!(
+                        first_image
+                            .eval_point(image_first_parameter)
+                            .distance(image_hit.point)
+                            < 1e-8
+                    );
+                    assert!(
+                        second_image
+                            .eval_point(image_second_parameter)
+                            .distance(image_hit.point)
+                            < 1e-8
+                    );
                 }
             }
         }
@@ -687,19 +686,20 @@ fn test_curve_curve_intersection_commutes_with_mirrors() {
     assert!(checked_hits > 20, "only {checked_hits} hits checked");
 }
 
+/// An exact surface/surface intersection: whether the surfaces coincide,
+/// the curves and the number of contact points. `None` when the pair has
+/// no closed form and was marched.
 fn surface_intersection_curves(
-    result: ExactSurfaceIntersection,
-) -> (u8, Vec<ElementaryCurve>, usize) {
-    match result {
-        ExactSurfaceIntersection::Empty => (0, vec![], 0),
-        ExactSurfaceIntersection::Coincident => (1, vec![], 0),
-        ExactSurfaceIntersection::NotAnalytic => (2, vec![], 0),
-        ExactSurfaceIntersection::Meets { curves, points } => (
-            3,
-            curves.iter().map(|(curve, _)| *curve).collect(),
-            points.len(),
-        ),
-    }
+    result: SurfaceSurfaceIntersection,
+) -> Option<(bool, Vec<Curve>, usize)> {
+    (result.method() == IntersectionMethod::Exact).then(|| {
+        let curves = result.curves().iter().map(|piece| piece.curve.clone());
+        (
+            result.is_coincident(),
+            curves.collect(),
+            result.contact_points().len(),
+        )
+    })
 }
 
 #[test]
@@ -751,12 +751,18 @@ fn test_surface_surface_intersection_commutes_with_mirrors() {
             let image = transformed(&surface, t);
             for other in &others {
                 let other_image = transformed(other, t);
-                let (kind, curves, points) =
-                    surface_intersection_curves(surface.intersect_exact(other, tol));
-                let (image_kind, image_curves, image_points) =
-                    surface_intersection_curves(image.intersect_exact(&other_image, tol));
+                let outcome = surface_intersection_curves(surface.intersect(other, tol));
+                let image_outcome = surface_intersection_curves(image.intersect(&other_image, tol));
                 let context = format!("{} of {surface:?} and {other:?}", similarity.name);
-                assert_eq!(kind, image_kind, "{context}");
+                assert_eq!(outcome.is_some(), image_outcome.is_some(), "{context}");
+                let (
+                    Some((coincident, curves, points)),
+                    Some((image_coincident, image_curves, image_points)),
+                ) = (outcome, image_outcome)
+                else {
+                    continue;
+                };
+                assert_eq!(coincident, image_coincident, "{context}");
                 assert_eq!(
                     (curves.len(), points),
                     (image_curves.len(), image_points),

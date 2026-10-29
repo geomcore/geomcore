@@ -32,18 +32,15 @@
 //! and coincidence are decided with [`crate::Tolerance`], so
 //! near-degenerate configurations classify robustly instead of collapsing
 //! to noise. It recovers no parameters it does not need and never falls
-//! back to a numeric search.
-//!
-//! When the types are only known at run time, the same call on
-//! [`crate::surfaces::Surface`], [`crate::curves::Curve`] or their
-//! elementary enums returns a general result instead:
-//! [`ExactSurfaceIntersection`], [`ExactCurveSurfaceIntersection`] or
-//! [`ExactCurveCurveIntersection`].
+//! back to a numeric search. When the types are only known at run time,
+//! [`Intersect::intersect`] on [`crate::surfaces::Surface`],
+//! [`crate::curves::Curve`] or their elementary enums gives the answer.
 
 mod exact;
 mod numeric;
 mod results;
 mod routing;
+pub use exact::IntersectExact;
 pub(crate) use exact::conic::{
     Conic, ImplicitConic, PlacedConic, intersect_conic_conic, intersect_conic_quadric,
 };
@@ -63,10 +60,6 @@ pub use exact::surface_surface::{
     PlaneSphereIntersection, SphereConeIntersection, SphereCylinderIntersection,
     SphereSphereIntersection, TorusConeIntersection, TorusCylinderIntersection,
     TorusPlaneIntersection, TorusSphereIntersection, TorusTorusIntersection,
-};
-pub use exact::{
-    ExactCurveCurveIntersection, ExactCurveSurfaceIntersection, ExactSurfaceIntersection,
-    IntersectExact,
 };
 pub use numeric::curve_curve::curve_curve_extrema;
 pub use numeric::curve_curve::intersect_curve_curve;

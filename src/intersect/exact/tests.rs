@@ -1,15 +1,25 @@
 use super::*;
 
-use crate::curves::{Curve, ParametricCurve, PointExtrema};
+use crate::curves::{Curve, ElementaryCurve, ParametricCurve, PointExtrema};
 use crate::intersect::numeric::marching::marched_curves;
-use crate::surfaces::{ElementarySurface, ParametricSurface};
+use crate::intersect::routing::ExactFamily;
+use crate::intersect::{
+    CurveCurveIntersection, CurveSurfaceIntersection, InlineList, Intersect, IntersectionCurve,
+    IntersectionMethod, SurfaceSurfaceIntersection,
+};
+use crate::surfaces::{ElementarySurface, ParametricSurface, Surface};
 
 use crate::{
-    Circle, Cone, Cylinder, Ellipse, Frame, Hyperbola, Line, Parabola, Plane, Point, Sphere, Torus,
-    TorusConeIntersection, Vector, search_curve_curve, search_curve_surface,
+    Frame, Point, TorusConeIntersection, Vector, search_curve_curve, search_curve_surface,
 };
 
 const TOL: Tolerance = Tolerance::DEFAULT;
+
+/// The exact intersection of two unrestricted bases as its family
+/// result, `None` when the pair has no closed form.
+fn exact<A: ExactFamily<B>, B>(a: &A, b: &B) -> Option<A::Family> {
+    a.exact_family(b, (None, None), TOL)
+}
 
 /// Surfaces in the configurations the exact intersections handle:
 /// coaxial about z, through or across the axis, and a few that are not.
@@ -49,7 +59,7 @@ fn surfaces() -> Vec<ElementarySurface> {
 }
 
 /// Points along a curve, over at most `[-3, 3]` of its parameter.
-fn samples(curve: &ElementaryCurve) -> Vec<Point> {
+fn samples(curve: &impl ParametricCurve) -> Vec<Point> {
     let (lo, hi) = curve.bounds();
     let (lo, hi) = (lo.max(-3.0), hi.min(3.0));
     (0..=8)
@@ -57,66 +67,61 @@ fn samples(curve: &ElementaryCurve) -> Vec<Point> {
         .collect()
 }
 
-fn distance_to(curve: &ElementaryCurve, point: Point) -> f64 {
-    Curve::from(*curve)
+fn distance_to(curve: &Curve, point: Point) -> f64 {
+    curve
         .extrema(point, TOL)
         .iter()
         .map(|e| e.distance)
         .fold(f64::INFINITY, f64::min)
 }
 
-fn on_some_curve(curves: &[(ElementaryCurve, bool)], point: Point, within: f64) -> bool {
-    curves.iter().any(|(c, _)| distance_to(c, point) <= within)
+fn on_some_curve(curves: &[IntersectionCurve], point: Point, within: f64) -> bool {
+    curves
+        .iter()
+        .any(|c| distance_to(&c.curve, point) <= within)
 }
 
 /// Every curve and contact point of the result lies on both surfaces.
-fn assert_on_both(result: &ExactSurfaceIntersection, a: &ElementarySurface, b: &ElementarySurface) {
-    if let ExactSurfaceIntersection::Meets { curves, points } = result {
-        assert!(!curves.is_empty() || !points.is_empty());
-        let on_both = |p: Point| a.contains(p, TOL) && b.contains(p, TOL);
-        for (curve, _) in curves {
-            for p in samples(curve) {
-                assert!(on_both(p), "{p:?} of {curve:?} is off {a:?} or {b:?}");
-            }
+fn assert_on_both(
+    result: &SurfaceSurfaceIntersection,
+    a: &ElementarySurface,
+    b: &ElementarySurface,
+) {
+    let on_both = |p: Point| a.contains(p, TOL) && b.contains(p, TOL);
+    for curve in result.curves() {
+        for p in samples(&curve.curve) {
+            assert!(on_both(p), "{p:?} of {curve:?} is off {a:?} or {b:?}");
         }
-        for &p in points {
-            assert!(on_both(p), "contact {p:?} is off {a:?} or {b:?}");
-        }
+    }
+    for &p in result.contact_points() {
+        assert!(on_both(p), "contact {p:?} is off {a:?} or {b:?}");
     }
 }
 
 /// The two results have the same outcome and the same geometry.
-fn assert_same(ab: &ExactSurfaceIntersection, ba: &ExactSurfaceIntersection) {
-    match (ab, ba) {
-        (
-            ExactSurfaceIntersection::Meets {
-                curves: c1,
-                points: p1,
-            },
-            ExactSurfaceIntersection::Meets {
-                curves: c2,
-                points: p2,
-            },
-        ) => {
-            assert_eq!(
-                (c1.len(), p1.len()),
-                (c2.len(), p2.len()),
-                "{ab:?} vs {ba:?}"
-            );
-            for (curve, tangent) in c1 {
-                for p in samples(curve) {
-                    assert!(on_some_curve(c2, p, TOL.confusion), "{ab:?} vs {ba:?}");
-                }
-                let twin = c2
-                    .iter()
-                    .find(|(c, _)| distance_to(c, curve.eval_point(0.1)) <= TOL.confusion);
-                assert_eq!(twin.map(|(_, t)| *t), Some(*tangent), "{ab:?} vs {ba:?}");
-            }
-            for &p in p1 {
-                assert!(p2.iter().any(|&q| (q - p).magnitude() <= TOL.confusion));
-            }
+fn assert_same(ab: &SurfaceSurfaceIntersection, ba: &SurfaceSurfaceIntersection) {
+    let (c1, p1) = (ab.curves(), ab.contact_points());
+    let (c2, p2) = (ba.curves(), ba.contact_points());
+    assert_eq!(
+        (ab.is_coincident(), c1.len(), p1.len()),
+        (ba.is_coincident(), c2.len(), p2.len()),
+        "{ab:?} vs {ba:?}"
+    );
+    for curve in c1 {
+        for p in samples(&curve.curve) {
+            assert!(on_some_curve(c2, p, TOL.confusion), "{ab:?} vs {ba:?}");
         }
-        _ => assert_eq!(ab, ba),
+        let twin = c2
+            .iter()
+            .find(|c| distance_to(&c.curve, curve.curve.eval_point(0.1)) <= TOL.confusion);
+        assert_eq!(
+            twin.map(|c| c.tangent),
+            Some(curve.tangent),
+            "{ab:?} vs {ba:?}"
+        );
+    }
+    for &p in p1 {
+        assert!(p2.iter().any(|&q| (q - p).magnitude() <= TOL.confusion));
     }
 }
 
@@ -125,9 +130,14 @@ fn test_surface_intersection_is_symmetric_and_on_both() {
     let all = surfaces();
     for a in &all {
         for b in &all {
-            let ab = a.intersect_exact(b, TOL);
-            assert_same(&ab, &b.intersect_exact(a, TOL));
-            assert_on_both(&ab, a, b);
+            match (exact(a, b), exact(b, a)) {
+                (Some(ab), Some(ba)) => {
+                    assert_same(&ab, &ba);
+                    assert_on_both(&ab, a, b);
+                }
+                (None, None) => {}
+                (ab, ba) => panic!("{ab:?} vs {ba:?} for {a:?} and {b:?}"),
+            }
         }
     }
 }
@@ -135,11 +145,7 @@ fn test_surface_intersection_is_symmetric_and_on_both() {
 #[test]
 fn test_surface_intersection_of_a_surface_with_itself_is_coincident() {
     for s in surfaces() {
-        assert_eq!(
-            s.intersect_exact(&s, TOL),
-            ExactSurfaceIntersection::Coincident,
-            "{s:?}"
-        );
+        assert!(exact(&s, &s).is_some_and(|r| r.is_coincident()), "{s:?}");
     }
 }
 
@@ -160,10 +166,11 @@ fn test_surface_intersection_matches_marching() {
             if !(closed(a) || closed(b)) {
                 continue;
             }
-            let ExactSurfaceIntersection::Meets { curves, .. } = a.intersect_exact(b, TOL) else {
+            let Some(result) = exact(a, b) else {
                 continue;
             };
-            if curves.is_empty() || curves.iter().any(|(_, tangent)| *tangent) {
+            let curves = result.curves();
+            if curves.is_empty() || curves.iter().any(|c| c.tangent) {
                 continue;
             }
             let traced = marched_curves(a, b, TOL);
@@ -176,7 +183,7 @@ fn test_surface_intersection_matches_marching() {
                 for k in 0..=16 {
                     let p = curve.eval_point(lo + (hi - lo) * f64::from(k) / 16.0);
                     assert!(
-                        on_some_curve(&curves, p, 1e-4),
+                        on_some_curve(curves, p, 1e-4),
                         "{p:?} off the exact curves of {a:?} and {b:?}"
                     );
                 }
@@ -193,12 +200,18 @@ fn test_surface_intersection_matches_typed_results() {
     let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
     let torus = Torus::new(Point::ORIGIN, Vector::Z, 4.0, 1.0).unwrap();
     assert_eq!(
-        ElementarySurface::from(plane).intersect_exact(&ElementarySurface::from(sphere), TOL),
-        ExactSurfaceIntersection::from(plane.intersect_exact(&sphere, TOL))
+        exact(
+            &ElementarySurface::from(plane),
+            &ElementarySurface::from(sphere)
+        ),
+        exact(&plane, &sphere)
     );
     assert_eq!(
-        ElementarySurface::from(sphere).intersect_exact(&ElementarySurface::from(torus), TOL),
-        ExactSurfaceIntersection::from(sphere.intersect_exact(&torus, TOL))
+        exact(
+            &ElementarySurface::from(sphere),
+            &ElementarySurface::from(torus)
+        ),
+        exact(&sphere, &torus)
     );
 }
 
@@ -211,16 +224,15 @@ fn test_surface_intersection_holds_four_rings() {
         panic!("expected rings");
     };
     assert_eq!(rings.len(), 4);
-    let ExactSurfaceIntersection::Meets { curves, points } =
-        ExactSurfaceIntersection::from(torus.intersect_exact(&cone, TOL))
-    else {
-        panic!("expected curves");
-    };
-    assert_eq!((curves.len(), points.len()), (4, 0));
+    let result = exact(&torus, &cone).unwrap();
+    assert_eq!(
+        (result.curves().len(), result.contact_points().len()),
+        (4, 0)
+    );
 }
 
 #[test]
-fn test_surface_intersection_of_a_bspline_is_not_analytic() {
+fn test_surface_intersection_of_a_bspline_is_numeric() {
     let plane = Surface::from(Plane::new(Point::ORIGIN, Vector::Z).unwrap());
     let poles = vec![
         vec![Point::new(0.0, 0.0, -1.0), Point::new(0.0, 1.0, -1.0)],
@@ -241,17 +253,16 @@ fn test_surface_intersection_of_a_bspline_is_not_analytic() {
         .unwrap(),
     );
     assert_eq!(
-        plane.intersect_exact(&patch, TOL),
-        ExactSurfaceIntersection::NotAnalytic
+        plane.intersect(&patch, TOL).method(),
+        IntersectionMethod::Numeric
     );
     assert_eq!(
-        patch.intersect_exact(&plane, TOL),
-        ExactSurfaceIntersection::NotAnalytic
+        patch.intersect(&plane, TOL).method(),
+        IntersectionMethod::Numeric
     );
-    assert_eq!(
-        plane.intersect_exact(&plane, TOL),
-        ExactSurfaceIntersection::Coincident
-    );
+    let itself = plane.intersect(&plane, TOL);
+    assert_eq!(itself.method(), IntersectionMethod::Exact);
+    assert!(itself.is_coincident());
 }
 
 /// Curves crossing, grazing, lying on and missing the fixture surfaces.
@@ -294,46 +305,49 @@ fn curves() -> Vec<ElementaryCurve> {
 /// Hits are ordered, on the curve at their parameter, on the surface,
 /// and the whole curve lies on the surface when coincident.
 fn assert_curve_surface_valid(
-    result: &ExactCurveSurfaceIntersection,
+    result: &CurveSurfaceIntersection,
     curve: &ElementaryCurve,
     surface: &ElementarySurface,
 ) {
-    match result {
-        ExactCurveSurfaceIntersection::Points(hits) => {
-            assert!(!hits.is_empty());
-            for pair in hits.windows(2) {
-                assert!(pair[0].parameter <= pair[1].parameter, "{hits:?}");
-            }
-            for hit in hits {
-                let scale = 1.0 + hit.point.distance(Point::ORIGIN);
-                let on_curve = curve.eval_point(hit.parameter);
-                assert!(
-                    (on_curve - hit.point).magnitude() <= 1e-9 * scale,
-                    "{hit:?} of {curve:?}"
-                );
-                assert!(surface.contains(hit.point, TOL), "{hit:?} off {surface:?}");
-                assert!(hit.multiplicity >= 1);
-            }
+    if !result.overlaps().is_empty() {
+        assert!(result.hits().is_empty(), "{result:?}");
+        for p in samples(curve) {
+            assert!(
+                surface.contains(p, TOL),
+                "{p:?} of {curve:?} off {surface:?}"
+            );
         }
-        ExactCurveSurfaceIntersection::Coincident => {
-            for p in samples(curve) {
-                assert!(
-                    surface.contains(p, TOL),
-                    "{p:?} of {curve:?} off {surface:?}"
-                );
-            }
-        }
-        ExactCurveSurfaceIntersection::Empty | ExactCurveSurfaceIntersection::NotAnalytic => {}
+        return;
+    }
+    let hits = result.hits();
+    for pair in hits.windows(2) {
+        assert!(
+            pair[0].curve_parameter <= pair[1].curve_parameter,
+            "{hits:?}"
+        );
+    }
+    for hit in hits {
+        let parameter = hit
+            .curve_parameter
+            .expect("an exact hit stores its curve parameter");
+        let scale = 1.0 + hit.point.distance(Point::ORIGIN);
+        let on_curve = curve.eval_point(parameter);
+        assert!(
+            (on_curve - hit.point).magnitude() <= 1e-9 * scale,
+            "{hit:?} of {curve:?}"
+        );
+        assert!(surface.contains(hit.point, TOL), "{hit:?} off {surface:?}");
+        assert!(hit.multiplicity >= 1);
     }
 }
 
 #[test]
-fn test_curve_surface_intersection_is_symmetric_and_valid() {
+fn test_curve_surface_intersection_is_valid() {
     for curve in &curves() {
         for surface in &surfaces() {
-            let result = curve.intersect_exact(surface, TOL);
-            assert_eq!(result, surface.intersect_exact(curve, TOL));
-            assert_curve_surface_valid(&result, curve, surface);
+            if let Some(result) = exact(curve, surface) {
+                assert_curve_surface_valid(&result, curve, surface);
+            }
         }
     }
 }
@@ -346,11 +360,13 @@ fn test_curve_surface_intersection_matches_numeric() {
     let mut compared = 0;
     for curve in &curves() {
         for surface in &surfaces() {
-            let hits = match curve.intersect_exact(surface, TOL) {
-                ExactCurveSurfaceIntersection::Points(hits) => hits,
-                ExactCurveSurfaceIntersection::Empty => InlineList::new(),
-                _ => continue,
+            let Some(result) = exact(curve, surface) else {
+                continue;
             };
+            if !result.overlaps().is_empty() {
+                continue;
+            }
+            let hits = result.hits();
             let numeric = search_curve_surface(curve, surface, TOL);
             let near = |p: Point, q: Point| {
                 (p - q).magnitude() <= 1e-6 * (1.0 + p.distance(Point::ORIGIN))
@@ -363,7 +379,7 @@ fn test_curve_surface_intersection_matches_numeric() {
             }
             for h in hits
                 .iter()
-                .filter(|h| h.multiplicity == 1 && window(curve, h.parameter))
+                .filter(|h| h.multiplicity == 1 && window(curve, h.curve_parameter.unwrap()))
             {
                 assert!(
                     numeric.iter().any(|n| near(h.point, n.point)),
@@ -384,19 +400,19 @@ fn test_curve_surface_intersection_holds_four_hits() {
     let torus: ElementarySurface = Torus::new(Point::ORIGIN, Vector::Z, 4.0, 1.0)
         .unwrap()
         .into();
-    let ExactCurveSurfaceIntersection::Points(hits) = line.intersect_exact(&torus, TOL) else {
-        panic!("expected hits");
-    };
-    assert_eq!(hits.len(), 4);
+    assert_eq!(exact(&line, &torus).unwrap().hits().len(), 4);
 }
 
 #[test]
-fn test_curve_surface_intersection_without_closed_form_is_not_analytic() {
+fn test_curve_surface_intersection_without_closed_form_is_numeric() {
     let circle = Circle::new(Point::ORIGIN, Vector::Y, 4.0).unwrap();
     let torus = Torus::new(Point::ORIGIN, Vector::Z, 4.0, 1.0).unwrap();
     assert_eq!(
-        ElementaryCurve::from(circle).intersect_exact(&ElementarySurface::from(torus), TOL),
-        ExactCurveSurfaceIntersection::NotAnalytic
+        exact(
+            &ElementaryCurve::from(circle),
+            &ElementarySurface::from(torus)
+        ),
+        None
     );
     let bspline = Curve::from(
         crate::BSplineCurve::new(
@@ -410,17 +426,17 @@ fn test_curve_surface_intersection_without_closed_form_is_not_analytic() {
     );
     let plane = Surface::from(Plane::new(Point::ORIGIN, Vector::Z).unwrap());
     assert_eq!(
-        bspline.intersect_exact(&plane, TOL),
-        ExactCurveSurfaceIntersection::NotAnalytic
+        bspline.intersect(&plane, TOL).method(),
+        IntersectionMethod::Numeric
     );
     assert_eq!(
-        plane.intersect_exact(&bspline, TOL),
-        ExactCurveSurfaceIntersection::NotAnalytic
+        plane.intersect(&bspline, TOL).method(),
+        IntersectionMethod::Numeric
     );
     let line = Curve::from(Line::new(Point::ORIGIN, Vector::Z).unwrap());
-    let ExactCurveSurfaceIntersection::Points(hits) = line.intersect_exact(&plane, TOL) else {
-        panic!("expected a hit");
-    };
+    let result = line.intersect(&plane, TOL);
+    assert_eq!(result.method(), IntersectionMethod::Exact);
+    let hits = result.hits();
     assert_eq!((hits.len(), hits[0].point), (1, Point::ORIGIN));
 }
 
@@ -431,49 +447,46 @@ fn near(p: Point, q: Point) -> bool {
 /// Hits are ordered, on both curves at their parameters, and the whole
 /// first curve lies on the second when coincident.
 fn assert_curve_curve_valid(
-    result: &ExactCurveCurveIntersection,
+    result: &CurveCurveIntersection,
     a: &ElementaryCurve,
     b: &ElementaryCurve,
 ) {
-    match result {
-        ExactCurveCurveIntersection::Points(hits) => {
-            assert!(!hits.is_empty());
-            // Sorted by first parameter when every hit stores one.
-            if hits.iter().all(|h| h.first_parameter.is_some()) {
-                for pair in hits.windows(2) {
-                    assert!(
-                        pair[0].first_parameter <= pair[1].first_parameter,
-                        "{hits:?}"
-                    );
-                }
-            }
-            for hit in hits {
-                if let Some(t) = hit.first_parameter {
-                    assert!(near(a.eval_point(t), hit.point), "{hit:?} off {a:?}");
-                }
-                if let Some(t) = hit.second_parameter {
-                    assert!(near(b.eval_point(t), hit.point), "{hit:?} off {b:?}");
-                }
-                assert!(near(
-                    a.eval_point(a.parameter_of(hit.point, Tolerance::DEFAULT)),
-                    hit.point
-                ));
-                assert!(near(
-                    b.eval_point(b.parameter_of(hit.point, Tolerance::DEFAULT)),
-                    hit.point
-                ));
-                assert!(hit.multiplicity >= 1);
-            }
+    if !result.overlaps().is_empty() {
+        assert!(result.hits().is_empty(), "{result:?}");
+        for p in samples(a) {
+            assert!(
+                distance_to(&Curve::from(*b), p) <= TOL.confusion,
+                "{p:?} of {a:?} off {b:?}"
+            );
         }
-        ExactCurveCurveIntersection::Coincident => {
-            for p in samples(a) {
-                assert!(
-                    distance_to(b, p) <= TOL.confusion,
-                    "{p:?} of {a:?} off {b:?}"
-                );
-            }
+        return;
+    }
+    let hits = result.hits();
+    // Sorted by first parameter when every hit stores one.
+    if hits.iter().all(|h| h.first_parameter.is_some()) {
+        for pair in hits.windows(2) {
+            assert!(
+                pair[0].first_parameter <= pair[1].first_parameter,
+                "{hits:?}"
+            );
         }
-        ExactCurveCurveIntersection::Empty | ExactCurveCurveIntersection::NotAnalytic => {}
+    }
+    for hit in hits {
+        if let Some(t) = hit.first_parameter {
+            assert!(near(a.eval_point(t), hit.point), "{hit:?} off {a:?}");
+        }
+        if let Some(t) = hit.second_parameter {
+            assert!(near(b.eval_point(t), hit.point), "{hit:?} off {b:?}");
+        }
+        assert!(near(
+            a.eval_point(a.parameter_of(hit.point, TOL)),
+            hit.point
+        ));
+        assert!(near(
+            b.eval_point(b.parameter_of(hit.point, TOL)),
+            hit.point
+        ));
+        assert!(hit.multiplicity >= 1);
     }
 }
 
@@ -487,25 +500,21 @@ fn test_curve_curve_intersection_is_symmetric_and_valid() {
     );
     for a in &ellipses {
         for b in &ellipses {
-            let ab = a.intersect_exact(b, TOL);
-            let ba = b.intersect_exact(a, TOL);
+            let ab = exact(a, b).expect("every pair of elementary curves has a closed form");
+            let ba = exact(b, a).expect("every pair of elementary curves has a closed form");
             assert_curve_curve_valid(&ab, a, b);
-            match (&ab, &ba) {
-                (
-                    ExactCurveCurveIntersection::Points(h1),
-                    ExactCurveCurveIntersection::Points(h2),
-                ) => {
-                    assert_eq!(h1.len(), h2.len(), "{ab:?} vs {ba:?}");
-                    for h in h1 {
-                        assert!(
-                            h2.iter()
-                                .any(|g| near(g.point, h.point)
-                                    && g.multiplicity == h.multiplicity),
-                            "{ab:?} vs {ba:?}"
-                        );
-                    }
-                }
-                _ => assert_eq!(ab, ba),
+            assert_eq!(
+                (ab.overlaps().is_empty(), ab.hits().len()),
+                (ba.overlaps().is_empty(), ba.hits().len()),
+                "{ab:?} vs {ba:?}"
+            );
+            for h in ab.hits() {
+                assert!(
+                    ba.hits()
+                        .iter()
+                        .any(|g| near(g.point, h.point) && g.multiplicity == h.multiplicity),
+                    "{ab:?} vs {ba:?}"
+                );
             }
         }
     }
@@ -518,11 +527,11 @@ fn test_curve_curve_intersection_matches_numeric() {
     let mut compared = 0;
     for a in &curves() {
         for b in &curves() {
-            let hits = match a.intersect_exact(b, TOL) {
-                ExactCurveCurveIntersection::Points(hits) => hits,
-                ExactCurveCurveIntersection::Empty => InlineList::new(),
-                _ => continue,
-            };
+            let result = exact(a, b).unwrap();
+            if !result.overlaps().is_empty() {
+                continue;
+            }
+            let hits = result.hits();
             let numeric = search_curve_curve(a, b, TOL);
             let close =
                 |p: Point, q: Point| p.distance(q) <= 1e-6 * (1.0 + p.distance(Point::ORIGIN));
@@ -578,12 +587,8 @@ fn test_numeric_curve_curve_hits_mark_tangency() {
 #[test]
 fn test_curve_curve_multiplicity_marks_only_tangency() {
     let multiplicities = |a: ElementaryCurve, b: ElementaryCurve| -> Vec<u32> {
-        match a.intersect_exact(&b, TOL) {
-            ExactCurveCurveIntersection::Points(hits) => {
-                hits.iter().map(|h| h.multiplicity).collect()
-            }
-            other => panic!("expected hits, got {other:?}"),
-        }
+        let result = exact(&a, &b).unwrap();
+        result.hits().iter().map(|h| h.multiplicity).collect()
     };
     let circle: ElementaryCurve = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap().into();
     let parabola: ElementaryCurve = Parabola::new(Point::ORIGIN, Vector::Z, Vector::X, 1.0)
@@ -626,38 +631,33 @@ fn test_curve_curve_multiplicity_marks_only_tangency() {
 fn test_curve_curve_intersection_holds_four_hits() {
     let a = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 3.0, 1.5).unwrap();
     let b = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::Y, 3.0, 1.5).unwrap();
-    let ExactCurveCurveIntersection::Points(hits) =
-        ElementaryCurve::from(a).intersect_exact(&ElementaryCurve::from(b), TOL)
-    else {
-        panic!("expected hits");
-    };
-    assert_eq!(hits.len(), 4);
+    let result = exact(&ElementaryCurve::from(a), &ElementaryCurve::from(b)).unwrap();
+    assert_eq!(result.hits().len(), 4);
 }
 
 #[test]
-fn test_curve_curve_intersection_is_not_analytic_only_for_bsplines() {
+fn test_curve_curve_intersection_is_numeric_only_for_bsplines() {
     let parabola: ElementaryCurve = Parabola::new(Point::ORIGIN, Vector::Z, Vector::X, 1.0)
         .unwrap()
         .into();
     let hyperbola: ElementaryCurve = Hyperbola::new(Point::ORIGIN, Vector::Z, Vector::X, 2.0, 1.0)
         .unwrap()
         .into();
-    let ExactCurveCurveIntersection::Points(hits) = parabola.intersect_exact(&hyperbola, TOL)
-    else {
-        panic!("expected the parabola to cross the hyperbola");
-    };
-    assert_eq!(hits.len(), 2);
+    let result = exact(&parabola, &hyperbola).unwrap();
+    assert_eq!(
+        result.hits().len(),
+        2,
+        "expected the parabola to cross the hyperbola"
+    );
     // Circles in crossing planes meet on the line the planes share.
     let flat: ElementaryCurve = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap().into();
     // Centered above the x axis, radius √5: crosses it at x = ±2.
     let upright: ElementaryCurve = Circle::new(Point::new(0.0, 0.0, 1.0), Vector::Y, 5f64.sqrt())
         .unwrap()
         .into();
-    let ExactCurveCurveIntersection::Points(hits) = flat.intersect_exact(&upright, TOL) else {
-        panic!("expected hits");
-    };
-    assert_eq!(hits.len(), 2);
-    for (h, x) in hits.iter().zip([2.0, -2.0]) {
+    let result = exact(&flat, &upright).unwrap();
+    assert_eq!(result.hits().len(), 2);
+    for (h, x) in result.hits().iter().zip([2.0, -2.0]) {
         assert!(h.point.distance(Point::new(x, 0.0, 0.0)) < 1e-12);
         assert_eq!(h.multiplicity, 1);
     }
@@ -673,17 +673,16 @@ fn test_curve_curve_intersection_is_not_analytic_only_for_bsplines() {
     );
     let line = Curve::from(Line::new(Point::ORIGIN, Vector::X).unwrap());
     assert_eq!(
-        bspline.intersect_exact(&line, TOL),
-        ExactCurveCurveIntersection::NotAnalytic
+        bspline.intersect(&line, TOL).method(),
+        IntersectionMethod::Numeric
     );
     assert_eq!(
-        line.intersect_exact(&bspline, TOL),
-        ExactCurveCurveIntersection::NotAnalytic
+        line.intersect(&bspline, TOL).method(),
+        IntersectionMethod::Numeric
     );
-    assert_eq!(
-        line.intersect_exact(&line, TOL),
-        ExactCurveCurveIntersection::Coincident
-    );
+    let itself = line.intersect(&line, TOL);
+    assert_eq!(itself.method(), IntersectionMethod::Exact);
+    assert!(itself.hits().is_empty() && !itself.overlaps().is_empty());
 }
 
 #[test]
@@ -817,22 +816,22 @@ fn test_circle_and_ellipse_parameters_lie_in_bounds() {
         ];
         for curve in &curves {
             for surface in &surfaces {
-                if let ExactCurveSurfaceIntersection::Points(list) =
-                    curve.intersect_exact(surface, TOL)
-                {
-                    for h in list.iter() {
-                        in_bounds(curve, h.parameter);
+                if let Some(result) = exact(curve, surface) {
+                    let list = result.hits();
+                    for h in list {
+                        in_bounds(curve, h.curve_parameter.unwrap());
                         hits += 1;
                     }
-                    assert!(list.windows(2).all(|w| w[0].parameter <= w[1].parameter));
+                    assert!(
+                        list.windows(2)
+                            .all(|w| w[0].curve_parameter <= w[1].curve_parameter)
+                    );
                 }
             }
             for other in &others {
                 for (first, second, swapped) in [(curve, other, false), (other, curve, true)] {
-                    if let ExactCurveCurveIntersection::Points(list) =
-                        first.intersect_exact(second, TOL)
-                    {
-                        for h in list.iter() {
+                    if let Some(result) = exact(first, second) {
+                        for h in result.hits() {
                             let stored = if swapped {
                                 h.second_parameter
                             } else {
@@ -868,11 +867,14 @@ fn test_circle_and_ellipse_parameters_lie_in_bounds() {
         ElementaryCurve::from(circle),
         ElementaryCurve::from(ellipse),
     ] {
-        let params = |surface: ElementarySurface| match curve.intersect_exact(&surface, TOL) {
-            ExactCurveSurfaceIntersection::Points(list) => {
-                list.iter().map(|h| h.parameter).collect::<Vec<_>>()
-            }
-            other => panic!("expected hits, got {other:?}"),
+        let params = |surface: ElementarySurface| {
+            let result = exact(&curve, &surface).unwrap();
+            assert!(!result.hits().is_empty(), "expected hits, got {result:?}");
+            result
+                .hits()
+                .iter()
+                .map(|h| h.curve_parameter.unwrap())
+                .collect::<Vec<_>>()
         };
         let grazing = Plane::new(Point::new(1.0, 0.0, 0.0), Vector::X).unwrap();
         assert_eq!(params(grazing.into()), [0.0]);

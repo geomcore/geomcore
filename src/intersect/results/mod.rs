@@ -157,6 +157,15 @@ fn sorted_by_first(mut hits: CurveCurveHitList) -> CurveCurveHitList {
     hits
 }
 
+/// Exchanges the two ranges of every overlap, ordered again by start on
+/// the new first curve.
+fn swap_overlaps(overlaps: &mut CurveCurveOverlapList) {
+    for overlap in overlaps.iter_mut() {
+        std::mem::swap(&mut overlap.first_range, &mut overlap.second_range);
+    }
+    overlaps.sort_by(|p, q| p.first_range.0.total_cmp(&q.first_range.0));
+}
+
 /// The multiplicity of a curve-surface hit: 2 when the curve's `tangent`
 /// is perpendicular to the surface `normal` within the angular tolerance
 /// for the hit's extent (the curve grazes the surface), 1 otherwise. A
@@ -241,6 +250,18 @@ impl CurveCurveIntersection {
             method: IntersectionMethod::Numeric,
             completeness,
         }
+    }
+
+    /// The same intersection read from the second curve: the parameters of
+    /// every hit and overlap exchanged, and the hits sorted again by first
+    /// parameter when every hit has one.
+    pub(crate) fn swapped(mut self) -> Self {
+        for hit in self.hits.iter_mut() {
+            std::mem::swap(&mut hit.first_parameter, &mut hit.second_parameter);
+        }
+        sort_by_known_parameter(&mut self.hits, |hit| hit.first_parameter);
+        swap_overlaps(&mut self.overlaps);
+        self
     }
 
     /// The isolated hits. A hit outside a trimmed curve's range is dropped.
@@ -471,6 +492,18 @@ impl CurveCurveIntersection2D {
         }
         sort_by_known_parameter(&mut result.hits, |hit| hit.first_parameter);
         result
+    }
+
+    /// The same intersection read from the second curve: the parameters of
+    /// every hit and overlap exchanged, and the hits sorted again by first
+    /// parameter when every hit has one.
+    pub(crate) fn swapped(mut self) -> Self {
+        for hit in self.hits.iter_mut() {
+            std::mem::swap(&mut hit.first_parameter, &mut hit.second_parameter);
+        }
+        sort_by_known_parameter(&mut self.hits, |hit| hit.first_parameter);
+        swap_overlaps(&mut self.overlaps);
+        self
     }
 
     /// The isolated hits. A hit outside a trimmed curve's range is dropped.
