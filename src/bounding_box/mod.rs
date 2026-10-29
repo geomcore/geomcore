@@ -39,8 +39,12 @@ mod curves_2d;
 mod surfaces;
 
 pub use box_2d::{BoundingBox2D, HasBoundingBox2D};
+pub(crate) use curves::{
+    BoundingBoxOf, box_through, hyperbola_box, parabola_box, spline_box, trigonometric_box,
+};
 
-use crate::{Point, Vector};
+use crate::tier::operations::BoxOperations;
+use crate::{Point, Point2D, Vector};
 
 /// An axis-aligned box: the points whose coordinates all lie between
 /// those of its [`min`](BoundingBox::min) and
@@ -318,28 +322,41 @@ impl<T: HasBoundingBox + ?Sized> HasBoundingBox for &T {
     }
 }
 
-pub(crate) mod sealed {
-    use super::{BoundingBox, BoundingBox2D};
+/// Implements the tier's box interface for a box type.
+macro_rules! box_operations {
+    ($($box:ident: $point:ident),*) => {$(
+        impl BoxOperations for $box {
+            type Point = $point;
 
-    /// The box of a range of a curve: what a trimmed curve needs from its
-    /// basis. Implemented by every curve, bounded or not.
-    pub trait BoundRange: crate::curves::ParametricCurve {
-        /// The box bounding the curve over `[first, last]`, a finite range
-        /// with `first < last`, at most one period long on a periodic
-        /// curve and anywhere on it.
-        fn range_box(&self, first: f64, last: f64) -> BoundingBox;
-    }
+            #[inline]
+            fn new(a: $point, b: $point) -> $box {
+                $box::new(a, b)
+            }
 
-    /// The box of a range of a 2D curve: what a
-    /// [`TrimmedCurve2D`](crate::curves::TrimmedCurve2D) needs from its
-    /// basis. Implemented by every 2D curve, bounded or not.
-    pub trait BoundRange2D: crate::curves::ParametricCurve2D {
-        /// The box bounding the curve over `[first, last]`, a finite range
-        /// with `first < last`, at most one period long on a periodic
-        /// curve and anywhere on it.
-        fn range_box(&self, first: f64, last: f64) -> BoundingBox2D;
-    }
+            #[inline]
+            fn from_corners(min: $point, max: $point) -> $box {
+                $box { min, max }
+            }
+
+            #[inline]
+            fn including(self, point: $point) -> $box {
+                $box::including(self, point)
+            }
+
+            #[inline]
+            fn min(self) -> $point {
+                $box::min(self)
+            }
+
+            #[inline]
+            fn max(self) -> $point {
+                $box::max(self)
+            }
+        }
+    )*};
 }
+
+box_operations!(BoundingBox: Point, BoundingBox2D: Point2D);
 
 #[cfg(test)]
 mod tests;

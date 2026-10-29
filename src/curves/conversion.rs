@@ -1,5 +1,10 @@
-//! Elementary curves as exact B-splines: circles and ellipses whole or as
-//! arcs, and trimmed lines, parabolas and hyperbolas.
+//! Curves as exact B-splines: circles and ellipses whole or as arcs,
+//! trimmed lines, parabolas and hyperbolas, and pieces of B-splines and
+//! Bézier curves.
+//!
+//! The functions here convert a range of a curve; the curves' range
+//! operations ([`RangeOperations`]) call them, and a trimmed curve's
+//! B-spline is its basis's over its range.
 //!
 //! The geometry is exact (every B-spline point lies on the curve, up to
 //! rounding), but a rational quadratic cannot follow an angle or a
@@ -12,14 +17,11 @@ use std::fmt;
 
 use crate::bspline::conic::{self, PlaneNet};
 use crate::curves::{BSplineCurve, Curve, ElementaryCurve, ParametricCurve, TrimmedCurve};
-use crate::curves::{BSplineCurve2D, BezierCurve2D, Curve2D, ParametricCurve2D, TrimmedCurve2D};
-use crate::curves::{
-    GenericBSplineCurve, GenericCircle, GenericEllipse, GenericHyperbola, GenericLine,
-    GenericParabola,
-};
-use crate::curves::{curve_2d_dispatch, elementary_curve_dispatch};
+use crate::curves::{BSplineCurve2D, Curve2D, ParametricCurve2D, TrimmedCurve2D};
+use crate::curves::{GenericBSplineCurve, GenericCircle, GenericEllipse, RangeOperations};
+use crate::tier::TierPoint;
 use crate::tier::operations::FrameOperations;
-use crate::tier::{TierPoint, impl_for_both_tiers};
+use crate::{Point, Point2D};
 
 /// Error returned when a curve or surface cannot be converted to a
 /// B-spline.
@@ -201,144 +203,83 @@ impl<P: TierPoint> GenericEllipse<P> {
     }
 }
 
-pub(crate) mod sealed {
-    use super::BSplineConversionError;
-    use crate::{BSplineCurve, BSplineCurve2D};
-
-    /// Exact B-spline of a range of a curve: what a trimmed curve needs
-    /// from its basis.
-    pub trait BSplineRange: crate::curves::ParametricCurve {
-        /// The B-spline over `[first, last]`, a range accepted by
-        /// [`TrimmedCurve::new`](crate::curves::TrimmedCurve::new).
-        fn bspline_range(
-            &self,
-            first: f64,
-            last: f64,
-        ) -> Result<BSplineCurve, BSplineConversionError>;
+/// The segment from `start` to `end` over `[first, last]` as a B-spline of
+/// degree 1, with the line's own parameter.
+pub(crate) fn segment_bspline<P: TierPoint>(
+    start: P,
+    end: P,
+    (first, last): (f64, f64),
+) -> Result<GenericBSplineCurve<P>, BSplineConversionError> {
+    let poles = vec![start, end];
+    if !poles.iter().all(|p| p.is_finite()) {
+        return Err(BSplineConversionError::NotRepresentable);
     }
-
-    /// The 2D counterpart of [`BSplineRange`]: what a
-    /// [`TrimmedCurve2D`](crate::curves::TrimmedCurve2D) needs from its
-    /// basis.
-    pub trait BSplineRange2D: crate::curves::ParametricCurve2D {
-        /// The B-spline over `[first, last]`, a range accepted by
-        /// [`TrimmedCurve2D::new`](crate::curves::TrimmedCurve2D::new).
-        fn bspline_range(
-            &self,
-            first: f64,
-            last: f64,
-        ) -> Result<BSplineCurve2D, BSplineConversionError>;
-    }
-}
-use sealed::BSplineRange;
-use sealed::BSplineRange2D;
-
-impl_for_both_tiers! {
-    impl BSplineRange, BSplineRange2D for GenericLine {
-        fn bspline_range(
-            &self,
-            first: f64,
-            last: f64,
-        ) -> Result<GenericBSplineCurve<P>, BSplineConversionError> {
-            let poles = vec![self.eval_point(first), self.eval_point(last)];
-            if !poles.iter().all(|p| p.is_finite()) {
-                return Err(BSplineConversionError::NotRepresentable);
-            }
-            GenericBSplineCurve::new(1, poles, vec![first, last], vec![2, 2], false)
-                .map_err(|_| BSplineConversionError::NotRepresentable)
-        }
-    }
+    GenericBSplineCurve::new(1, poles, vec![first, last], vec![2, 2], false)
+        .map_err(|_| BSplineConversionError::NotRepresentable)
 }
 
-impl_for_both_tiers! {
-    impl BSplineRange, BSplineRange2D for GenericCircle {
-        fn bspline_range(
-            &self,
-            first: f64,
-            last: f64,
-        ) -> Result<GenericBSplineCurve<P>, BSplineConversionError> {
-            let r = self.radius();
-            place(arc_net(first, last), self.frame(), r, r)
-        }
-    }
+/// The arc over `[first, last]` of the ellipse with radii `(a, b)` along
+/// the axes of `frame` (a circle when they are equal) as rational
+/// quadratic pieces of equal sweep, at most a quarter turn each.
+pub(crate) fn ellipse_arc_bspline<P: TierPoint>(
+    frame: P::Frame,
+    (a, b): (f64, f64),
+    (first, last): (f64, f64),
+) -> Result<GenericBSplineCurve<P>, BSplineConversionError> {
+    place(arc_net(first, last), frame, a, b)
 }
 
-impl_for_both_tiers! {
-    impl BSplineRange, BSplineRange2D for GenericEllipse {
-        fn bspline_range(
-            &self,
-            first: f64,
-            last: f64,
-        ) -> Result<GenericBSplineCurve<P>, BSplineConversionError> {
-            place(
-                arc_net(first, last),
-                self.frame(),
-                self.major_radius(),
-                self.minor_radius(),
-            )
-        }
-    }
+/// The piece over `[first, last]` of the parabola with focal distance
+/// `focal` in `frame` as one polynomial quadratic piece.
+pub(crate) fn parabola_arc_bspline<P: TierPoint>(
+    frame: P::Frame,
+    focal: f64,
+    (first, last): (f64, f64),
+) -> Result<GenericBSplineCurve<P>, BSplineConversionError> {
+    place(conic::parabola_arc(focal, first, last), frame, 1.0, 1.0)
 }
 
-impl_for_both_tiers! {
-    impl BSplineRange, BSplineRange2D for GenericParabola {
-        fn bspline_range(
-            &self,
-            first: f64,
-            last: f64,
-        ) -> Result<GenericBSplineCurve<P>, BSplineConversionError> {
-            let net = conic::parabola_arc(self.focal(), first, last);
-            place(net, self.frame(), 1.0, 1.0)
-        }
-    }
+/// The piece over `[first, last]` of the hyperbola with radii `(a, b)` in
+/// `frame` as one rational quadratic piece.
+pub(crate) fn hyperbola_arc_bspline<P: TierPoint>(
+    frame: P::Frame,
+    (a, b): (f64, f64),
+    (first, last): (f64, f64),
+) -> Result<GenericBSplineCurve<P>, BSplineConversionError> {
+    place(conic::hyperbola_arc(first, last), frame, a, b)
 }
 
-impl_for_both_tiers! {
-    impl BSplineRange, BSplineRange2D for GenericHyperbola {
-        fn bspline_range(
-            &self,
-            first: f64,
-            last: f64,
-        ) -> Result<GenericBSplineCurve<P>, BSplineConversionError> {
-            place(
-                conic::hyperbola_arc(first, last),
-                self.frame(),
-                self.major_radius(),
-                self.minor_radius(),
-            )
-        }
-    }
+/// The piece over `[first, last]` of a B-spline, a range a trimmed curve
+/// accepts.
+pub(crate) fn bspline_piece<P: TierPoint>(
+    bspline: &GenericBSplineCurve<P>,
+    (first, last): (f64, f64),
+) -> Result<GenericBSplineCurve<P>, BSplineConversionError> {
+    bspline
+        .extract(first, last)
+        .map_err(|_| BSplineConversionError::NotRepresentable)
 }
 
-impl BSplineRange for ElementaryCurve {
-    fn bspline_range(&self, first: f64, last: f64) -> Result<BSplineCurve, BSplineConversionError> {
-        elementary_curve_dispatch!(self, c => c.bspline_range(first, last))
-    }
-}
-
-impl<C: BSplineRange + ?Sized> BSplineRange for &C {
-    fn bspline_range(&self, first: f64, last: f64) -> Result<BSplineCurve, BSplineConversionError> {
-        (**self).bspline_range(first, last)
-    }
-}
-
-impl<C: BSplineRange> TrimmedCurve<C> {
-    /// The piece of an elementary curve as an exact B-spline over the same
-    /// range `[first, last]`, starting and ending on the same points.
+impl<C: RangeOperations<Point = Point> + ParametricCurve> TrimmedCurve<C> {
+    /// The piece of the basis as an exact B-spline over the same range
+    /// `[first, last]`, starting and ending on the same points.
     ///
-    /// The basis is a [`Line`](crate::Line), [`Circle`](crate::Circle),
-    /// [`Ellipse`](crate::Ellipse), [`Parabola`](crate::Parabola),
-    /// [`Hyperbola`](crate::Hyperbola) or [`ElementaryCurve`], owned or
-    /// borrowed. A segment becomes a B-spline of degree 1 and a parabola one
-    /// polynomial quadratic piece, both with the curve's own parameter. A
-    /// hyperbola becomes one rational quadratic piece, and a circle or ellipse
-    /// arc rational quadratic pieces of equal sweep, at most a quarter turn
+    /// The basis is any curve: a [`Line`](crate::Line),
+    /// [`Circle`](crate::Circle), [`Ellipse`](crate::Ellipse),
+    /// [`Parabola`](crate::Parabola), [`Hyperbola`](crate::Hyperbola),
+    /// [`BSplineCurve`], [`BezierCurve`](crate::BezierCurve),
+    /// [`ElementaryCurve`] or [`Curve`], owned or borrowed. A B-spline's or
+    /// Bézier curve's piece is [extracted](BSplineCurve::extract). A
+    /// segment becomes a B-spline of degree 1 and a parabola one polynomial
+    /// quadratic piece, both with the curve's own parameter. A hyperbola
+    /// becomes one rational quadratic piece, and a circle or ellipse arc
+    /// rational quadratic pieces of equal sweep, at most a quarter turn
     /// each, joined at knots placed at the angles of the piece boundaries.
     /// Their B-spline parameter agrees with the curve's at the range ends,
-    /// those knots and the middle of each piece, and differs in between (by at
-    /// most `0.0161` rad on a circle). A range spanning a whole turn gives a
-    /// clamped B-spline ending exactly on its first point, never a periodic
-    /// one, as a trimmed curve is never periodic.
+    /// those knots and the middle of each piece, and differs in between (by
+    /// at most `0.0161` rad on a circle). A range spanning a whole turn
+    /// gives a clamped B-spline ending exactly on its first point, never a
+    /// periodic one, as a trimmed curve is never periodic.
     ///
     /// # Errors
     ///
@@ -444,49 +385,7 @@ impl Curve {
     }
 }
 
-impl BSplineRange2D for BSplineCurve2D {
-    fn bspline_range(
-        &self,
-        first: f64,
-        last: f64,
-    ) -> Result<BSplineCurve2D, BSplineConversionError> {
-        // A trimmed curve's range is one `extract` accepts.
-        self.extract(first, last)
-            .map_err(|_| BSplineConversionError::NotRepresentable)
-    }
-}
-
-impl BSplineRange2D for BezierCurve2D {
-    fn bspline_range(
-        &self,
-        first: f64,
-        last: f64,
-    ) -> Result<BSplineCurve2D, BSplineConversionError> {
-        self.bspline().bspline_range(first, last)
-    }
-}
-
-impl BSplineRange2D for Curve2D {
-    fn bspline_range(
-        &self,
-        first: f64,
-        last: f64,
-    ) -> Result<BSplineCurve2D, BSplineConversionError> {
-        curve_2d_dispatch!(self, c => c.bspline_range(first, last))
-    }
-}
-
-impl<C: BSplineRange2D + ?Sized> BSplineRange2D for &C {
-    fn bspline_range(
-        &self,
-        first: f64,
-        last: f64,
-    ) -> Result<BSplineCurve2D, BSplineConversionError> {
-        (**self).bspline_range(first, last)
-    }
-}
-
-impl<C: BSplineRange2D> TrimmedCurve2D<C> {
+impl<C: RangeOperations<Point = Point2D> + ParametricCurve2D> TrimmedCurve2D<C> {
     /// The piece of the basis as an exact B-spline over the same range
     /// `[first, last]`, starting and ending on the same points.
     ///
@@ -494,10 +393,11 @@ impl<C: BSplineRange2D> TrimmedCurve2D<C> {
     /// [`Circle2D`](crate::Circle2D), an [`Ellipse2D`](crate::Ellipse2D), a
     /// [`Parabola2D`](crate::Parabola2D), a
     /// [`Hyperbola2D`](crate::Hyperbola2D), a [`BSplineCurve2D`], a
-    /// [`BezierCurve2D`] or a [`Curve2D`], owned or borrowed. A B-spline's or
-    /// Bézier curve's piece is [extracted](BSplineCurve2D::extract). A segment
-    /// becomes a B-spline of degree 1 and a parabola piece one polynomial piece
-    /// of degree 2, both with the curve's own parameter. A circle or ellipse
+    /// [`BezierCurve2D`](crate::BezierCurve2D) or a [`Curve2D`], owned or
+    /// borrowed. A B-spline's or Bézier curve's piece is
+    /// [extracted](BSplineCurve2D::extract). A segment becomes a B-spline of
+    /// degree 1 and a parabola piece one polynomial piece of degree 2, both
+    /// with the curve's own parameter. A circle or ellipse
     /// arc becomes rational quadratic pieces of equal sweep, at most a quarter
     /// turn each, joined at knots placed at the angles of the piece boundaries;
     /// a hyperbola piece is one rational quadratic piece. The B-spline

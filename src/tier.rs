@@ -7,7 +7,7 @@
 //! and `Circle2D = GenericCircle<Point2D>` in the plane.
 
 use crate::bspline::poles::PolePoint;
-use crate::{Axis, Axis2D, Frame, Frame2D, FrameConstructionError};
+use crate::{Axis, Axis2D, BoundingBox, BoundingBox2D, Frame, Frame2D, FrameConstructionError};
 use crate::{Point, Point2D, Vector, Vector2D};
 use std::fmt::Debug;
 use std::ops::{Add, Mul, Neg, Sub};
@@ -95,8 +95,8 @@ macro_rules! impl_for_both_tiers {
 }
 pub(crate) use impl_for_both_tiers;
 
-/// What tier-generic code needs from a tier's points, vectors and
-/// placements. The traits are public in a private module, which seals
+/// What tier-generic code needs from a tier's points, vectors, placements
+/// and boxes. The traits are public in a private module, which seals
 /// [`TierPoint`].
 pub(crate) mod operations {
     use super::*;
@@ -114,6 +114,10 @@ pub(crate) mod operations {
 
         /// Whether every coordinate is finite.
         fn is_finite(self) -> bool;
+
+        /// The tier's axis-aligned box: [`BoundingBox`] or
+        /// [`BoundingBox2D`].
+        type BoundingBox: BoxOperations<Point = Self>;
     }
 
     /// The operations of a tier's vectors.
@@ -140,6 +144,32 @@ pub(crate) mod operations {
 
         /// The unit vector along `self`, or `None` if it has zero length.
         fn normalized(self) -> Option<Self>;
+
+        /// Coordinate `k` of the vector, `k` below the tier's dimension
+        /// ([`PolePoint::DIM`]).
+        fn coordinate(self, k: usize) -> f64;
+    }
+
+    /// The operations of a tier's axis-aligned boxes.
+    pub trait BoxOperations: Copy {
+        /// The tier's point.
+        type Point;
+
+        /// The box with opposite corners `a` and `b`, in any order.
+        fn new(a: Self::Point, b: Self::Point) -> Self;
+
+        /// The box with corners `min` and `max`, `min` being at most `max`
+        /// on every axis.
+        fn from_corners(min: Self::Point, max: Self::Point) -> Self;
+
+        /// The smallest box holding this one and `point`.
+        fn including(self, point: Self::Point) -> Self;
+
+        /// The corner with the smallest coordinates.
+        fn min(self) -> Self::Point;
+
+        /// The corner with the largest coordinates.
+        fn max(self) -> Self::Point;
     }
 
     /// The operations of a tier's frames: an origin and the two directions
@@ -182,6 +212,8 @@ pub(crate) mod operations {
     }
 
     impl PointOperations for Point {
+        type BoundingBox = BoundingBox;
+
         const ORIGIN: Point = Point::ORIGIN;
         const UNDEFINED: Point = Point::new(f64::NAN, f64::NAN, f64::NAN);
 
@@ -197,6 +229,8 @@ pub(crate) mod operations {
     }
 
     impl PointOperations for Point2D {
+        type BoundingBox = BoundingBox2D;
+
         const ORIGIN: Point2D = Point2D::ORIGIN;
         const UNDEFINED: Point2D = Point2D::new(f64::NAN, f64::NAN);
 
@@ -233,6 +267,15 @@ pub(crate) mod operations {
         fn normalized(self) -> Option<Vector> {
             Vector::normalized(self)
         }
+
+        #[inline]
+        fn coordinate(self, k: usize) -> f64 {
+            match k {
+                0 => self.x,
+                1 => self.y,
+                _ => self.z,
+            }
+        }
     }
 
     impl VectorOperations for Vector2D {
@@ -256,6 +299,14 @@ pub(crate) mod operations {
         #[inline]
         fn normalized(self) -> Option<Vector2D> {
             Vector2D::normalized(self)
+        }
+
+        #[inline]
+        fn coordinate(self, k: usize) -> f64 {
+            match k {
+                0 => self.x,
+                _ => self.y,
+            }
         }
     }
 
