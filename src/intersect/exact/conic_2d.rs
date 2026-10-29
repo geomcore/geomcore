@@ -9,8 +9,8 @@
 
 use crate::curves::{Circle2D, Ellipse2D, Hyperbola2D, Line2D, Parabola2D};
 use crate::intersect::exact::{ExactCurveCurve, ExactCurveCurveIntersection};
+use crate::intersect::exact::{ExactCurveCurve2D, ExactCurveCurve2DIntersection};
 use crate::intersect::numeric::embedding_2d::ToSpace;
-use crate::intersect::routing::{ExactCurveCurve2D, ExactCurveCurve2DIntersection};
 use crate::intersect::{CurveCurveHit2D, InlineList, IntersectExact};
 use crate::{Point2D, Tolerance};
 
