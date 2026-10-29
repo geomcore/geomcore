@@ -13,7 +13,9 @@ the Python distribution are versioned in lockstep.
 
 A cleanup release with no new behaviour: the names deprecated in 0.36
 and 0.37 are gone. Code that builds on 0.38 without deprecation warnings
-builds on 0.39 unchanged.
+builds on 0.39 unchanged, unless it names one of the old traits
+(`ParametricCurve3D`, `PointExtrema3D`, `Bound3D`, `Discretize3D`),
+which were re-exported without a warning.
 
 ### Removed
 
