@@ -3,17 +3,19 @@
 //! B-spline surface by subdivision of their Bézier pieces (see
 //! [`bspline_curve_surface`]).
 
-use crate::bspline::surface::net_points;
 use crate::curves::BSplineCurve;
 use crate::curves::ParametricCurve;
 use crate::intersect::numeric::bezier_pieces::{
-    CurvePieces, Pool, apart_along, bounding_box, box_size, dot, euclidean, meets_at_most_once,
-    net_normal, norm, sub,
+    CurvePieces, apart_along, bounding_box, box_size, dot, euclidean, meets_at_most_once,
+    net_normal, norm, stretches_along_rows, sub,
 };
-use crate::intersect::results::completeness::{Region, both, box_union, meet, of_unsettled, span};
+use crate::intersect::numeric::subdivision::{
+    Node, OnceExhausted, PairTests, Subdivision, Visit, interval,
+};
+use crate::intersect::results::completeness::{Region, both, box_union, meet, span};
 use crate::intersect::results::sort_by_known_parameter;
 use crate::intersect::{Completeness, CurveSurfaceHit, curve_surface_multiplicity};
-use crate::math::boxtree::{Aabb, boxes_apart};
+use crate::math::boxtree::boxes_apart;
 use crate::math::solve_3x3;
 use crate::surfaces::{BSplineSurface, ParametricSurface};
 use crate::{Point, Tolerance};
@@ -197,9 +199,6 @@ impl Region for CurveSurfaceRegion {
 /// Halvings allowed per pair of pieces whose boxes overlap, pooled over
 /// all of them, before the search gives up.
 const SPLITS_PER_PAIR: usize = 1024;
-/// Halvings from a pair of pieces down to one subpiece pair, beyond which
-/// the pair counts as never separating.
-const MAX_DEPTH: u32 = 64;
 /// Newton steps from the centre of a subpiece pair.
 const NEWTON_STEPS: usize = 32;
 /// Parameters within this fraction of a domain's width outside it (or
@@ -232,10 +231,10 @@ const SLACK: f64 = 1e-10;
 /// left as never separating once its curve piece is no larger than its
 /// patch and both lie within `tol.confusion` of a plane across which
 /// they cannot be told apart (see [`flat_against`]), or after
-/// [`MAX_DEPTH`] halvings; the search goes on with the other pairs. If
-/// the budget of halvings runs out first, the pairs still pending are
-/// left unsettled too. Either way, the result is incomplete, with the
-/// unsettled pairs as its regions.
+/// [`MAX_DEPTH`](super::subdivision::MAX_DEPTH) halvings; the search goes on with
+/// the other pairs. If the budget of halvings runs out first, the pairs
+/// still pending are left unsettled too. Either way, the result is
+/// incomplete, with the unsettled pairs as its regions.
 ///
 /// Hits within `sqrt(tol.confusion)` of each other merge, as in the
 /// sampled search, keeping the one closest to the surface.
@@ -260,39 +259,47 @@ fn search_pieces(
     splits_per_pair: usize,
 ) -> CurveSurfaceHits {
     let pieces = CurvePieces::new(curve, range);
-    let mut search = Search::new(curve, &pieces, range, periodic, surface, tol);
+    let patch_shape = surface.patch_net_shape();
+    let mut pairs = Subdivision::new([(pieces.width, 1, 4), patch_shape], 0);
     let tree = surface.patch_boxes();
-    let (rows, cols, h) = search.patches_shape;
+    let (rows, cols, h) = patch_shape;
     let mut scratch = vec![0.0; rows * cols * h];
+    let mut net = vec![0.0; rows * cols * h];
     let mut points = Vec::new();
     for i in 0..pieces.len() {
         euclidean(pieces.piece(i), &mut points);
         tree.overlapping(&bounding_box(&points), tol.confusion, |k| {
-            let patch = search.patches.take();
-            let rect = surface.patch_net(k, &mut scratch, search.patches.get_mut(patch));
-            let piece = search.curves.take();
-            search
-                .curves
-                .get_mut(piece)
-                .copy_from_slice(pieces.piece(i));
-            search.pending.push(Node {
-                curve: piece,
-                t: pieces.ranges[i],
-                patch,
-                rect,
-                depth: 0,
-            });
+            let rect = surface.patch_net(k, &mut scratch, &mut net);
+            pairs.push([pieces.piece(i), &net], [interval(pieces.ranges[i]), rect]);
         });
     }
-    search.budget = splits_per_pair * search.pending.len();
-    let mut exhausted = false;
-    while let Some(node) = search.pending.pop() {
-        if search.visit(node).is_err() {
-            exhausted = true;
-            break;
-        }
+    let (lo, hi) = range;
+    let (u0, u1) = surface.u_bounds();
+    let (v0, v1) = surface.v_bounds();
+    let mut tests = PieceTests {
+        curve,
+        surface,
+        tol,
+        ranges: [
+            Range { lo, hi, periodic },
+            Range {
+                lo: u0,
+                hi: u1,
+                periodic: surface.u_period().is_some(),
+            },
+            Range {
+                lo: v0,
+                hi: v1,
+                periodic: surface.v_period().is_some(),
+            },
+        ],
+        found: Vec::new(),
+    };
+    let unsettled = pairs.search(&mut tests, splits_per_pair);
+    CurveSurfaceHits {
+        hits: tests.hits(),
+        completeness: unsettled.completeness(),
     }
-    search.finish(exhausted)
 }
 
 /// Whether the points of a patch lie within `gap` of a plane across
@@ -344,113 +351,42 @@ impl Range {
     }
 }
 
-/// A pair of subpieces awaiting its visit: the curve's control points in
-/// slot `curve` over `t`, the surface's net in slot `patch` over `rect`
-/// (`[u0, u1, v0, v1]`), and the halvings from the pair it came from.
-struct Node {
-    curve: usize,
-    t: (f64, f64),
-    patch: usize,
-    rect: [f64; 4],
-    depth: u32,
-}
-
-/// The search ran out of budget.
-struct Exhausted;
-
-struct Search<'a> {
+/// The tests of [`bspline_curve_surface`] on a pair of a curve piece and
+/// a patch, and the hits found.
+struct PieceTests<'a> {
     curve: &'a BSplineCurve,
     surface: &'a BSplineSurface,
     tol: Tolerance,
+    /// The ranges of the curve parameter and of the surface's `u` and `v`.
     ranges: [Range; 3],
-    curve_shape: (usize, usize, usize),
-    patches_shape: (usize, usize, usize),
-    curves: Pool,
-    patches: Pool,
-    pending: Vec<Node>,
-    curve_points: Vec<[f64; 3]>,
-    patch_points: Vec<[f64; 3]>,
     /// Hits found, with their distance to the surface.
     found: Vec<(CurveSurfaceHit, f64)>,
-    /// The pairs left as never separating.
-    unseparated: Vec<CurveSurfaceRegion>,
-    budget: usize,
 }
 
-impl<'a> Search<'a> {
-    fn new(
-        curve: &'a BSplineCurve,
-        pieces: &CurvePieces,
-        (lo, hi): (f64, f64),
-        periodic: bool,
-        surface: &'a BSplineSurface,
-        tol: Tolerance,
-    ) -> Self {
-        let (u0, u1) = surface.u_bounds();
-        let (v0, v1) = surface.v_bounds();
-        let patches_shape = surface.patch_net_shape();
-        let (rows, cols, h) = patches_shape;
-        Search {
-            curve,
-            surface,
-            tol,
-            ranges: [
-                Range { lo, hi, periodic },
-                Range {
-                    lo: u0,
-                    hi: u1,
-                    periodic: surface.u_period().is_some(),
-                },
-                Range {
-                    lo: v0,
-                    hi: v1,
-                    periodic: surface.v_period().is_some(),
-                },
-            ],
-            curve_shape: (pieces.width, 1, 4),
-            patches_shape,
-            curves: Pool::new(4 * pieces.width),
-            patches: Pool::new(rows * cols * h),
-            pending: Vec::new(),
-            curve_points: Vec::with_capacity(pieces.width),
-            patch_points: Vec::with_capacity(rows * cols),
-            found: Vec::new(),
-            unseparated: Vec::new(),
-            budget: 0,
-        }
-    }
+impl PairTests for PieceTests<'_> {
+    type Region = CurveSurfaceRegion;
+    const ONCE_EXHAUSTED: OnceExhausted = OnceExhausted::Stop;
 
-    /// Settles `node`, leaves it as never separating, or halves it into
-    /// two pending pairs; out of budget, puts it back.
-    fn visit(&mut self, node: Node) -> Result<(), Exhausted> {
-        let (rows, cols, h) = self.patches_shape;
-        euclidean(self.curves.get(node.curve), &mut self.curve_points);
-        net_points(self.patches.get(node.patch), h, &mut self.patch_points);
-        let (curve_box, patch_box) = (
-            bounding_box(&self.curve_points),
-            bounding_box(&self.patch_points),
-        );
+    fn visit(&mut self, pairs: &Subdivision, node: &Node) -> Visit {
+        let (curve_points, patch_points) = (pairs.points(0), pairs.points(1));
+        let (rows, cols, _) = pairs.shape(1);
+        let (curve_box, patch_box) = (bounding_box(curve_points), bounding_box(patch_points));
         let gap = self.tol.confusion;
-        let normal = net_normal(&self.patch_points, rows, cols);
+        let normal = net_normal(patch_points, rows, cols);
         if boxes_apart(&curve_box, &patch_box, gap)
-            || apart_along(normal, &self.curve_points, &self.patch_points, gap)
+            || apart_along(normal, curve_points, patch_points, gap)
         {
-            self.release(&node);
-            return Ok(());
+            return Visit::Settled;
         }
         let once = meets_at_most_once(
-            &self.curve_points,
-            self.patches.get(node.patch),
-            &self.patch_points,
-            self.patches_shape,
+            curve_points,
+            pairs.net(1, node),
+            patch_points,
+            pairs.shape(1),
         );
         if once {
-            let r = node.rect;
-            let centre = [
-                0.5 * (node.t.0 + node.t.1),
-                0.5 * (r[0] + r[1]),
-                0.5 * (r[2] + r[3]),
-            ];
+            let (t, r) = (node.range(0), node.rects[1]);
+            let centre = [0.5 * (t.0 + t.1), 0.5 * (r[0] + r[1]), 0.5 * (r[2] + r[3])];
             let within = |x: f64, (a, b): (f64, f64), range: Range| {
                 a - range.slack() <= x && x <= b + range.slack()
             };
@@ -459,138 +395,47 @@ impl<'a> Search<'a> {
             {
                 let merges = || {
                     let gap = self.merge_gap();
-                    self.curve_points
+                    curve_points
                         .iter()
                         .all(|p| norm(sub(*p, [hit.x, hit.y, hit.z])) <= gap)
                 };
-                let inside = within(x[0], node.t, self.ranges[0])
+                let inside = within(x[0], t, self.ranges[0])
                     && within(x[1], (r[0], r[1]), self.ranges[1])
                     && within(x[2], (r[2], r[3]), self.ranges[2]);
                 if inside || merges() {
-                    self.release(&node);
-                    return Ok(());
+                    return Visit::Settled;
                 }
             }
         }
-        let curve_larger = box_size(&curve_box) >= box_size(&patch_box);
-        let stuck =
-            !curve_larger && flat_against(normal, &self.curve_points, &self.patch_points, gap);
-        if stuck || node.depth >= MAX_DEPTH {
-            let region = self.region(&node, &curve_box);
-            self.unseparated.push(region);
-            self.release(&node);
-            return Ok(());
+        if box_size(&curve_box) >= box_size(&patch_box) {
+            return Visit::Split {
+                piece: 0,
+                along_rows: true,
+            };
         }
-        if self.budget == 0 {
-            self.pending.push(node);
-            return Err(Exhausted);
+        if flat_against(normal, curve_points, patch_points, gap) {
+            return Visit::Unseparated;
         }
-        self.budget -= 1;
-        self.split(node, curve_larger);
-        Ok(())
+        Visit::Split {
+            piece: 1,
+            along_rows: stretches_along_rows(patch_points, rows, cols),
+        }
     }
 
-    /// The region of `node`, whose curve piece's control points have the
-    /// box `curve_box`.
-    fn region(&self, node: &Node, curve_box: &Aabb) -> CurveSurfaceRegion {
-        let r = node.rect;
+    fn region(&mut self, pairs: &Subdivision, node: &Node) -> CurveSurfaceRegion {
+        let curve_box = bounding_box(pairs.points(0));
+        let r = node.rects[1];
         CurveSurfaceRegion {
-            curve_range: node.t,
+            curve_range: node.range(0),
             u_range: (r[0], r[1]),
             v_range: (r[2], r[3]),
             min_corner: Point::new(curve_box[0], curve_box[1], curve_box[2]),
             max_corner: Point::new(curve_box[3], curve_box[4], curve_box[5]),
         }
     }
+}
 
-    /// The hits found, complete unless pairs were left as never
-    /// separating or, if `exhausted`, still pending.
-    fn finish(mut self, exhausted: bool) -> CurveSurfaceHits {
-        let mut regions = std::mem::take(&mut self.unseparated);
-        for node in std::mem::take(&mut self.pending) {
-            euclidean(self.curves.get(node.curve), &mut self.curve_points);
-            regions.push(self.region(&node, &bounding_box(&self.curve_points)));
-        }
-        CurveSurfaceHits {
-            hits: self.hits(),
-            completeness: of_unsettled(regions, exhausted),
-        }
-    }
-
-    /// Halves the curve piece of `node` if `curve`, else its patch along
-    /// the direction its control net is longest, and queues both halves.
-    fn split(&mut self, node: Node, curve: bool) {
-        let depth = node.depth + 1;
-        if curve {
-            let upper = self.curves.halve(node.curve, self.curve_shape, true);
-            let patch = self.copy_patch(node.patch);
-            let mid = 0.5 * (node.t.0 + node.t.1);
-            self.pending.push(Node {
-                t: (mid, node.t.1),
-                curve: upper,
-                patch,
-                depth,
-                ..node
-            });
-            self.pending.push(Node {
-                t: (node.t.0, mid),
-                depth,
-                ..node
-            });
-            return;
-        }
-        // The mean length of the net's polylines along each direction.
-        let (rows, cols, _) = self.patches_shape;
-        let at = |i: usize, j: usize| self.patch_points[i * cols + j];
-        let length = |a: [f64; 3], b: [f64; 3]| norm(sub(b, a));
-        let along_rows: f64 = (0..rows - 1)
-            .flat_map(|i| (0..cols).map(move |j| length(at(i, j), at(i + 1, j))))
-            .sum();
-        let along_cols: f64 = (0..rows)
-            .flat_map(|i| (0..cols - 1).map(move |j| length(at(i, j), at(i, j + 1))))
-            .sum();
-        let along_u = along_rows * rows as f64 >= along_cols * cols as f64;
-        let upper = self.patches.halve(node.patch, self.patches_shape, along_u);
-        let curve = self.copy_curve(node.curve);
-        let r = node.rect;
-        let (lower_rect, upper_rect) = if along_u {
-            let mid = 0.5 * (r[0] + r[1]);
-            ([r[0], mid, r[2], r[3]], [mid, r[1], r[2], r[3]])
-        } else {
-            let mid = 0.5 * (r[2] + r[3]);
-            ([r[0], r[1], r[2], mid], [r[0], r[1], mid, r[3]])
-        };
-        self.pending.push(Node {
-            curve,
-            patch: upper,
-            rect: upper_rect,
-            depth,
-            ..node
-        });
-        self.pending.push(Node {
-            rect: lower_rect,
-            depth,
-            ..node
-        });
-    }
-
-    fn copy_patch(&mut self, slot: usize) -> usize {
-        let copy = self.patches.take();
-        self.patches.copy(slot, copy);
-        copy
-    }
-
-    fn copy_curve(&mut self, slot: usize) -> usize {
-        let copy = self.curves.take();
-        self.curves.copy(slot, copy);
-        copy
-    }
-
-    fn release(&mut self, node: &Node) {
-        self.curves.release(node.curve);
-        self.patches.release(node.patch);
-    }
-
+impl PieceTests<'_> {
     /// Newton's method on `C(t) - S(u, v) = 0` from `x`, each step halved
     /// until the residual decreases: the root, or the point where the
     /// residual stops decreasing (rounding), or `None` when the system is

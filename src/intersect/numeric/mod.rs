@@ -12,3 +12,4 @@ pub(crate) mod marching;
 pub(crate) mod overlap_runs;
 pub(crate) mod pairs_with_bspline;
 pub(crate) mod patch_pairs;
+pub(crate) mod subdivision;
