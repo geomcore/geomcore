@@ -13,11 +13,12 @@ use super::sealed::{DiscretizeRange, Run};
 use super::{DiscretizationCriteria, smallest_count};
 use crate::curves::ParametricCurve;
 use crate::curves::ParametricCurve2D;
-use crate::curves::{curve_2d_dispatch, curve_dispatch};
-use crate::{
-    Circle, Curve, Ellipse, Ellipse2D, Hyperbola, Hyperbola2D, Line, Parabola, Parabola2D, Point,
+use crate::curves::{
+    GenericCircle, GenericEllipse, GenericHyperbola, GenericLine, GenericParabola,
 };
-use crate::{Circle2D, Curve2D, Line2D, Point2D};
+use crate::curves::{curve_2d_dispatch, curve_dispatch};
+use crate::tier::impl_for_both_tiers;
+use crate::{Curve, Curve2D, Point, Point2D};
 use std::f64::consts::{FRAC_PI_2, TAU};
 
 /// One run of equal steps over `[first, last]` of the curve evaluated by
@@ -108,55 +109,31 @@ fn line_steps<P, F>(
     );
 }
 
-impl DiscretizeRange for Circle {
-    type Point = Point;
+impl_for_both_tiers! {
+    impl DiscretizeRange, DiscretizeRange for GenericCircle {
+        type Point = P;
 
-    fn for_each_run<F>(
-        &self,
-        first: f64,
-        last: f64,
-        criteria: &DiscretizationCriteria,
-        min_segments: usize,
-        visit: F,
-    ) where
-        F: FnMut(Run, &dyn Fn(f64) -> Self::Point),
-    {
-        let point_at_parameter = |u| self.eval_point(u);
-        let range = (first, last);
-        circle_steps(
-            self.radius(),
-            point_at_parameter,
-            range,
-            criteria,
-            min_segments,
-            visit,
-        );
-    }
-}
-
-impl DiscretizeRange for Circle2D {
-    type Point = Point2D;
-
-    fn for_each_run<F>(
-        &self,
-        first: f64,
-        last: f64,
-        criteria: &DiscretizationCriteria,
-        min_segments: usize,
-        visit: F,
-    ) where
-        F: FnMut(Run, &dyn Fn(f64) -> Self::Point),
-    {
-        let point_at_parameter = |u| self.eval_point(u);
-        let range = (first, last);
-        circle_steps(
-            self.radius(),
-            point_at_parameter,
-            range,
-            criteria,
-            min_segments,
-            visit,
-        );
+        fn for_each_run<F>(
+            &self,
+            first: f64,
+            last: f64,
+            criteria: &DiscretizationCriteria,
+            min_segments: usize,
+            visit: F,
+        ) where
+            F: FnMut(Run, &dyn Fn(f64) -> Self::Point),
+        {
+            let point_at_parameter = |u| self.eval_point(u);
+            let range = (first, last);
+            circle_steps(
+                self.radius(),
+                point_at_parameter,
+                range,
+                criteria,
+                min_segments,
+                visit,
+            );
+        }
     }
 }
 
@@ -252,53 +229,30 @@ fn ellipse_steps<P, F>(
     );
 }
 
-impl DiscretizeRange for Ellipse {
-    type Point = Point;
+impl_for_both_tiers! {
+    impl DiscretizeRange, DiscretizeRange for GenericEllipse {
+        type Point = P;
 
-    /// The image of a circle under `diag(a, b)`, by [`ellipse_steps`].
-    fn for_each_run<F>(
-        &self,
-        first: f64,
-        last: f64,
-        criteria: &DiscretizationCriteria,
-        min_segments: usize,
-        visit: F,
-    ) where
-        F: FnMut(Run, &dyn Fn(f64) -> Self::Point),
-    {
-        ellipse_steps(
-            (self.major_radius(), self.minor_radius()),
-            |u| self.eval_point(u),
-            (first, last),
-            criteria,
-            min_segments,
-            visit,
-        );
-    }
-}
-
-impl DiscretizeRange for Ellipse2D {
-    type Point = Point2D;
-
-    /// The image of a circle under `diag(a, b)`, by [`ellipse_steps`].
-    fn for_each_run<F>(
-        &self,
-        first: f64,
-        last: f64,
-        criteria: &DiscretizationCriteria,
-        min_segments: usize,
-        visit: F,
-    ) where
-        F: FnMut(Run, &dyn Fn(f64) -> Self::Point),
-    {
-        ellipse_steps(
-            (self.major_radius(), self.minor_radius()),
-            |u| self.eval_point(u),
-            (first, last),
-            criteria,
-            min_segments,
-            visit,
-        );
+        /// The image of a circle under `diag(a, b)`, by [`ellipse_steps`].
+        fn for_each_run<F>(
+            &self,
+            first: f64,
+            last: f64,
+            criteria: &DiscretizationCriteria,
+            min_segments: usize,
+            visit: F,
+        ) where
+            F: FnMut(Run, &dyn Fn(f64) -> Self::Point),
+        {
+            ellipse_steps(
+                (self.major_radius(), self.minor_radius()),
+                |u| self.eval_point(u),
+                (first, last),
+                criteria,
+                min_segments,
+                visit,
+            );
+        }
     }
 }
 
@@ -344,53 +298,30 @@ fn hyperbola_steps<P, F>(
     );
 }
 
-impl DiscretizeRange for Hyperbola {
-    type Point = Point;
+impl_for_both_tiers! {
+    impl DiscretizeRange, DiscretizeRange for GenericHyperbola {
+        type Point = P;
 
-    /// The hyperbola branch, by [`hyperbola_steps`].
-    fn for_each_run<F>(
-        &self,
-        first: f64,
-        last: f64,
-        criteria: &DiscretizationCriteria,
-        min_segments: usize,
-        visit: F,
-    ) where
-        F: FnMut(Run, &dyn Fn(f64) -> Self::Point),
-    {
-        hyperbola_steps(
-            (self.major_radius(), self.minor_radius()),
-            |u| self.eval_point(u),
-            (first, last),
-            criteria,
-            min_segments,
-            visit,
-        );
-    }
-}
-
-impl DiscretizeRange for Hyperbola2D {
-    type Point = Point2D;
-
-    /// The hyperbola branch, by [`hyperbola_steps`].
-    fn for_each_run<F>(
-        &self,
-        first: f64,
-        last: f64,
-        criteria: &DiscretizationCriteria,
-        min_segments: usize,
-        visit: F,
-    ) where
-        F: FnMut(Run, &dyn Fn(f64) -> Self::Point),
-    {
-        hyperbola_steps(
-            (self.major_radius(), self.minor_radius()),
-            |u| self.eval_point(u),
-            (first, last),
-            criteria,
-            min_segments,
-            visit,
-        );
+        /// The hyperbola branch, by [`hyperbola_steps`].
+        fn for_each_run<F>(
+            &self,
+            first: f64,
+            last: f64,
+            criteria: &DiscretizationCriteria,
+            min_segments: usize,
+            visit: F,
+        ) where
+            F: FnMut(Run, &dyn Fn(f64) -> Self::Point),
+        {
+            hyperbola_steps(
+                (self.major_radius(), self.minor_radius()),
+                |u| self.eval_point(u),
+                (first, last),
+                criteria,
+                min_segments,
+                visit,
+            );
+        }
     }
 }
 
@@ -437,99 +368,55 @@ fn parabola_steps<P, F>(
     );
 }
 
-impl DiscretizeRange for Parabola {
-    type Point = Point;
+impl_for_both_tiers! {
+    impl DiscretizeRange, DiscretizeRange for GenericParabola {
+        type Point = P;
 
-    /// The polynomial parabola, by [`parabola_steps`].
-    fn for_each_run<F>(
-        &self,
-        first: f64,
-        last: f64,
-        criteria: &DiscretizationCriteria,
-        min_segments: usize,
-        visit: F,
-    ) where
-        F: FnMut(Run, &dyn Fn(f64) -> Self::Point),
-    {
-        parabola_steps(
-            self.focal(),
-            |u| self.eval_point(u),
-            (first, last),
-            criteria,
-            min_segments,
-            visit,
-        );
+        /// The polynomial parabola, by [`parabola_steps`].
+        fn for_each_run<F>(
+            &self,
+            first: f64,
+            last: f64,
+            criteria: &DiscretizationCriteria,
+            min_segments: usize,
+            visit: F,
+        ) where
+            F: FnMut(Run, &dyn Fn(f64) -> Self::Point),
+        {
+            parabola_steps(
+                self.focal(),
+                |u| self.eval_point(u),
+                (first, last),
+                criteria,
+                min_segments,
+                visit,
+            );
+        }
     }
 }
 
-impl DiscretizeRange for Parabola2D {
-    type Point = Point2D;
+impl_for_both_tiers! {
+    impl DiscretizeRange, DiscretizeRange for GenericLine {
+        type Point = P;
 
-    /// The polynomial parabola, by [`parabola_steps`].
-    fn for_each_run<F>(
-        &self,
-        first: f64,
-        last: f64,
-        criteria: &DiscretizationCriteria,
-        min_segments: usize,
-        visit: F,
-    ) where
-        F: FnMut(Run, &dyn Fn(f64) -> Self::Point),
-    {
-        parabola_steps(
-            self.focal(),
-            |u| self.eval_point(u),
-            (first, last),
-            criteria,
-            min_segments,
-            visit,
-        );
-    }
-}
-
-impl DiscretizeRange for Line {
-    type Point = Point;
-
-    fn for_each_run<F>(
-        &self,
-        first: f64,
-        last: f64,
-        criteria: &DiscretizationCriteria,
-        min_segments: usize,
-        visit: F,
-    ) where
-        F: FnMut(Run, &dyn Fn(f64) -> Self::Point),
-    {
-        line_steps(
-            |u| self.eval_point(u),
-            (first, last),
-            criteria,
-            min_segments,
-            visit,
-        );
-    }
-}
-
-impl DiscretizeRange for Line2D {
-    type Point = Point2D;
-
-    fn for_each_run<F>(
-        &self,
-        first: f64,
-        last: f64,
-        criteria: &DiscretizationCriteria,
-        min_segments: usize,
-        visit: F,
-    ) where
-        F: FnMut(Run, &dyn Fn(f64) -> Self::Point),
-    {
-        line_steps(
-            |u| self.eval_point(u),
-            (first, last),
-            criteria,
-            min_segments,
-            visit,
-        );
+        fn for_each_run<F>(
+            &self,
+            first: f64,
+            last: f64,
+            criteria: &DiscretizationCriteria,
+            min_segments: usize,
+            visit: F,
+        ) where
+            F: FnMut(Run, &dyn Fn(f64) -> Self::Point),
+        {
+            line_steps(
+                |u| self.eval_point(u),
+                (first, last),
+                criteria,
+                min_segments,
+                visit,
+            );
+        }
     }
 }
 
