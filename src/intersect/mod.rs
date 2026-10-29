@@ -14,8 +14,7 @@
 //!
 //! ```
 //! use geomcore::prelude::*;
-//! use geomcore::{Circle, Completeness, IntersectionMethod, Line, Point};
-//! use geomcore::{Tolerance, Vector};
+//! use geomcore::{Circle, Completeness, IntersectionMethod, Line, Point, Tolerance, Vector};
 //!
 //! let line = Line::new(Point::new(-5.0, 0.0, 0.0), Vector::X).unwrap();
 //! let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
@@ -33,8 +32,8 @@
 //! near-degenerate configurations classify robustly instead of collapsing
 //! to noise. It recovers no parameters it does not need and never falls
 //! back to a numeric search. When the types are only known at run time,
-//! [`Intersect::intersect`] on [`crate::surfaces::Surface`],
-//! [`crate::curves::Curve`] or their elementary enums gives the answer.
+//! [`Intersect::intersect`] on [`crate::Surface`],
+//! [`crate::Curve`] or their elementary enums gives the answer.
 
 mod exact;
 pub(crate) mod numeric;

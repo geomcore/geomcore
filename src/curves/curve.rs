@@ -73,8 +73,7 @@ pub(crate) use elementary_curve_dispatch;
 ///
 /// ```
 /// use geomcore::prelude::*;
-/// use geomcore::curves::Curve;
-/// use geomcore::{Circle, Line, Point, Vector};
+/// use geomcore::{Circle, Curve, Line, Point, Vector};
 ///
 /// let curves: Vec<Curve> = vec![
 ///     Line::new(Point::ORIGIN, Vector::X).unwrap().into(),
@@ -204,8 +203,7 @@ curve_variants!(Curve, crate::shape_enum::from_shapes! {});
 ///
 /// ```
 /// use geomcore::prelude::*;
-/// use geomcore::curves::{Curve, ElementaryCurve};
-/// use geomcore::{Line, Point, Vector};
+/// use geomcore::{Curve, ElementaryCurve, Line, Point, Vector};
 ///
 /// let line = Line::new(Point::ORIGIN, Vector::X).unwrap();
 /// let curve = Curve::from(line);

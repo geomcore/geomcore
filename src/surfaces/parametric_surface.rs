@@ -486,7 +486,7 @@ pub trait ParametricSurface {
 
     /// The parameters `(u, v)` of `point`, a point on the surface, under
     /// the contract of
-    /// [`PointExtrema::parameter_of`](crate::curves::PointExtrema::parameter_of):
+    /// [`PointExtrema::parameter_of`](crate::PointExtrema::parameter_of):
     /// the parameters of [`project_point`](Self::project_point) by
     /// default, a closed-form inversion that ignores `tol` on an
     /// elementary surface.
@@ -518,8 +518,7 @@ pub trait ParametricSurface {
     ///
     /// ```
     /// use geomcore::prelude::*;
-    /// use geomcore::surfaces::{BSplineSurface, Surface};
-    /// use geomcore::{Plane, Point, Vector};
+    /// use geomcore::{BSplineSurface, Plane, Point, Surface, Vector};
     ///
     /// let poles = vec![
     ///     vec![Point::new(0.0, 0.0, 0.0), Point::new(0.0, 1.0, 0.0)],
@@ -551,8 +550,7 @@ pub trait ParametricSurface {
     ///
     /// ```
     /// use geomcore::prelude::*;
-    /// use geomcore::surfaces::ElementarySurface;
-    /// use geomcore::{Point, Sphere};
+    /// use geomcore::{ElementarySurface, Point, Sphere};
     ///
     /// let sphere = Sphere::new(Point::ORIGIN, 1.0).unwrap();
     /// assert_eq!(

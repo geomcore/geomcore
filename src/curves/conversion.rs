@@ -291,8 +291,7 @@ impl<C: RangeOperations<Point = Point> + ParametricCurve> TrimmedCurve<C> {
     ///
     /// ```
     /// use geomcore::prelude::*;
-    /// use geomcore::curves::TrimmedCurve;
-    /// use geomcore::{Circle, Point, Tolerance, Vector};
+    /// use geomcore::{Circle, Point, Tolerance, TrimmedCurve, Vector};
     /// use std::f64::consts::PI;
     ///
     /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
@@ -326,8 +325,7 @@ impl ElementaryCurve {
     ///
     /// ```
     /// use geomcore::prelude::*;
-    /// use geomcore::curves::{BSplineConversionError, ElementaryCurve};
-    /// use geomcore::{Circle, Line, Point, Vector};
+    /// use geomcore::{BSplineConversionError, Circle, ElementaryCurve, Line, Point, Vector};
     ///
     /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
     /// assert!(ElementaryCurve::Circle(circle).to_bspline().unwrap().is_periodic());
@@ -361,8 +359,7 @@ impl Curve {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::curves::{BSplineConversionError, Curve};
-    /// use geomcore::{Ellipse, Parabola, Point, Vector};
+    /// use geomcore::{BSplineConversionError, Curve, Ellipse, Parabola, Point, Vector};
     ///
     /// let ellipse = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 2.0, 1.0).unwrap();
     /// let bspline = Curve::from(ellipse).to_bspline().unwrap();
@@ -417,8 +414,7 @@ impl<C: RangeOperations<Point = Point2D> + ParametricCurve2D> TrimmedCurve2D<C> 
     ///
     /// ```
     /// use geomcore::prelude::*;
-    /// use geomcore::curves::TrimmedCurve2D;
-    /// use geomcore::{Circle2D, Point2D, Tolerance};
+    /// use geomcore::{Circle2D, Point2D, Tolerance, TrimmedCurve2D};
     /// use std::f64::consts::PI;
     ///
     /// let circle = Circle2D::new(Point2D::ORIGIN, 1.0).unwrap();
@@ -456,8 +452,7 @@ impl Curve2D {
     ///
     /// ```
     /// use geomcore::prelude::*;
-    /// use geomcore::curves::{BSplineConversionError, Curve2D};
-    /// use geomcore::{Circle2D, Line2D, Point2D, Vector2D};
+    /// use geomcore::{BSplineConversionError, Circle2D, Curve2D, Line2D, Point2D, Vector2D};
     ///
     /// let circle = Circle2D::new(Point2D::ORIGIN, 1.0).unwrap();
     /// assert!(Curve2D::from(circle).to_bspline().unwrap().is_periodic());

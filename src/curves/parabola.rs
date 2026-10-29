@@ -248,8 +248,7 @@ impl Parabola {
     ///
     /// ```
     /// use geomcore::prelude::*;
-    /// use geomcore::curves::Curve2D;
-    /// use geomcore::{Parabola, Plane, Point, Tolerance, Vector};
+    /// use geomcore::{Curve2D, Parabola, Plane, Point, Tolerance, Vector};
     ///
     /// let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
     /// let parabola = Parabola::new(Point::new(1.0, 2.0, 0.0), Vector::Z, Vector::X, 1.0).unwrap();

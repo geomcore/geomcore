@@ -11,10 +11,11 @@
 use criterion::{Criterion, Throughput, criterion_group, criterion_main};
 use std::hint::black_box;
 
-use geomcore::curves::{Circle, Circle2D, Curve, ElementaryCurve, Ellipse, Line};
 use geomcore::prelude::*;
-use geomcore::surfaces::{Cone, Cylinder, ElementarySurface, Plane, Sphere, Surface, Torus};
-use geomcore::{Point, Point2D, Tolerance, Vector};
+use geomcore::{
+    Circle, Circle2D, Cone, Curve, Cylinder, ElementaryCurve, ElementarySurface, Ellipse, Line,
+    Plane, Point, Point2D, Sphere, Surface, Tolerance, Torus, Vector,
+};
 
 const BATCH: usize = 1024;
 

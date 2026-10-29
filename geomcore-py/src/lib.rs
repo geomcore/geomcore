@@ -13,8 +13,7 @@ use errors::invalid_argument;
 use pyo3::prelude::*;
 use pyo3::types::PyModule;
 
-use geomcore::curves::PointParametrization;
-use geomcore::{Continuity, Tolerance};
+use geomcore::{Continuity, PointParametrization, Tolerance};
 
 /// The tolerance given, or the default.
 pub(crate) fn tolerance(tolerance: Option<PyTolerance>) -> Tolerance {

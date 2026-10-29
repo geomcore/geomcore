@@ -4,7 +4,7 @@ use crate::curves::*;
 use crate::method_sets::*;
 use crate::surfaces::*;
 use crate::values::{PyAxis, PyFrame, float_repr};
-use geomcore::surfaces::Cylinder;
+use geomcore::Cylinder;
 
 /// An infinite circular cylinder; u is the angle around the axis, v the
 /// height along it.

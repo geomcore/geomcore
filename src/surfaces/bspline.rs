@@ -52,8 +52,7 @@ enum Direction {
 ///
 /// ```
 /// use geomcore::prelude::*;
-/// use geomcore::surfaces::BSplineSurface;
-/// use geomcore::Point;
+/// use geomcore::{BSplineSurface, Point};
 ///
 /// let poles = vec![
 ///     vec![Point::new(0.0, 0.0, 0.0), Point::new(0.0, 1.0, 0.0)],
@@ -160,8 +159,7 @@ impl BSplineSurface {
     ///
     /// ```
     /// use geomcore::prelude::*;
-    /// use geomcore::surfaces::BSplineSurface;
-    /// use geomcore::Point;
+    /// use geomcore::{BSplineSurface, Point};
     ///
     /// let poles = vec![
     ///     vec![Point::new(0.0, 0.0, 0.0), Point::new(0.0, 1.0, 0.0)],
@@ -217,8 +215,7 @@ impl BSplineSurface {
     ///
     /// ```
     /// use geomcore::prelude::*;
-    /// use geomcore::surfaces::BSplineSurface;
-    /// use geomcore::Point;
+    /// use geomcore::{BSplineSurface, Point};
     ///
     /// let poles = vec![
     ///     vec![Point::new(0.0, 0.0, 0.0), Point::new(0.0, 1.0, 0.0)],
@@ -335,7 +332,7 @@ impl BSplineSurface {
     /// # Examples
     ///
     /// ```
-    /// # use geomcore::surfaces::BSplineSurface;
+    /// # use geomcore::BSplineSurface;
     /// # use geomcore::Point;
     /// # let poles = vec![
     /// #     vec![Point::new(0.0, 0.0, 0.0), Point::new(0.0, 1.0, 0.0)],
@@ -353,7 +350,7 @@ impl BSplineSurface {
     /// # Examples
     ///
     /// ```
-    /// # use geomcore::surfaces::BSplineSurface;
+    /// # use geomcore::BSplineSurface;
     /// # use geomcore::Point;
     /// # let poles = vec![
     /// #     vec![Point::new(0.0, 0.0, 0.0), Point::new(0.0, 1.0, 0.0)],
@@ -371,7 +368,7 @@ impl BSplineSurface {
     /// # Examples
     ///
     /// ```
-    /// # use geomcore::surfaces::BSplineSurface;
+    /// # use geomcore::BSplineSurface;
     /// # use geomcore::Point;
     /// # let poles = vec![
     /// #     vec![Point::new(0.0, 0.0, 0.0), Point::new(0.0, 1.0, 0.0)],
@@ -389,7 +386,7 @@ impl BSplineSurface {
     /// # Examples
     ///
     /// ```
-    /// # use geomcore::surfaces::BSplineSurface;
+    /// # use geomcore::BSplineSurface;
     /// # use geomcore::Point;
     /// # let poles = vec![
     /// #     vec![Point::new(0.0, 0.0, 0.0), Point::new(0.0, 1.0, 0.0)],
@@ -437,7 +434,7 @@ impl BSplineSurface {
     /// # Examples
     ///
     /// ```
-    /// # use geomcore::surfaces::BSplineSurface;
+    /// # use geomcore::BSplineSurface;
     /// # use geomcore::Point;
     /// # let poles = vec![
     /// #     vec![Point::new(0.0, 0.0, 0.0), Point::new(0.0, 1.0, 0.0)],
@@ -456,7 +453,7 @@ impl BSplineSurface {
     /// # Examples
     ///
     /// ```
-    /// # use geomcore::surfaces::BSplineSurface;
+    /// # use geomcore::BSplineSurface;
     /// # use geomcore::Point;
     /// # let poles = vec![
     /// #     vec![Point::new(0.0, 0.0, 0.0), Point::new(0.0, 1.0, 0.0)],
@@ -475,7 +472,7 @@ impl BSplineSurface {
     /// # Examples
     ///
     /// ```
-    /// # use geomcore::surfaces::BSplineSurface;
+    /// # use geomcore::BSplineSurface;
     /// # use geomcore::Point;
     /// # let poles = vec![
     /// #     vec![Point::new(0.0, 0.0, 0.0), Point::new(0.0, 1.0, 0.0)],
@@ -493,7 +490,7 @@ impl BSplineSurface {
     /// # Examples
     ///
     /// ```
-    /// # use geomcore::surfaces::BSplineSurface;
+    /// # use geomcore::BSplineSurface;
     /// # use geomcore::Point;
     /// # let poles = vec![
     /// #     vec![Point::new(0.0, 0.0, 0.0), Point::new(0.0, 1.0, 0.0)],
@@ -511,7 +508,7 @@ impl BSplineSurface {
     /// # Examples
     ///
     /// ```
-    /// # use geomcore::surfaces::BSplineSurface;
+    /// # use geomcore::BSplineSurface;
     /// # use geomcore::Point;
     /// # let poles = vec![
     /// #     vec![Point::new(0.0, 0.0, 0.0), Point::new(0.0, 1.0, 0.0)],
@@ -529,7 +526,7 @@ impl BSplineSurface {
     /// # Examples
     ///
     /// ```
-    /// # use geomcore::surfaces::BSplineSurface;
+    /// # use geomcore::BSplineSurface;
     /// # use geomcore::Point;
     /// # let poles = vec![
     /// #     vec![Point::new(0.0, 0.0, 0.0), Point::new(0.0, 1.0, 0.0)],
@@ -547,7 +544,7 @@ impl BSplineSurface {
     /// # Examples
     ///
     /// ```
-    /// # use geomcore::surfaces::BSplineSurface;
+    /// # use geomcore::BSplineSurface;
     /// # use geomcore::Point;
     /// # let poles = vec![
     /// #     vec![Point::new(0.0, 0.0, 0.0), Point::new(0.0, 1.0, 0.0)],
@@ -565,7 +562,7 @@ impl BSplineSurface {
     /// # Examples
     ///
     /// ```
-    /// # use geomcore::surfaces::BSplineSurface;
+    /// # use geomcore::BSplineSurface;
     /// # use geomcore::Point;
     /// # let poles = vec![
     /// #     vec![Point::new(0.0, 0.0, 0.0), Point::new(0.0, 1.0, 0.0)],
@@ -583,7 +580,7 @@ impl BSplineSurface {
     /// # Examples
     ///
     /// ```
-    /// # use geomcore::surfaces::BSplineSurface;
+    /// # use geomcore::BSplineSurface;
     /// # use geomcore::Point;
     /// # let poles = vec![
     /// #     vec![Point::new(0.0, 0.0, 0.0), Point::new(0.0, 1.0, 0.0)],
@@ -1635,7 +1632,7 @@ impl BSplineSurface {
     ///
     /// ```
     /// # use geomcore::prelude::*;
-    /// # use geomcore::surfaces::BSplineSurface;
+    /// # use geomcore::BSplineSurface;
     /// # use geomcore::{Point, Transform, Vector};
     /// # let poles = vec![
     /// #     vec![Point::new(0.0, 0.0, 0.0), Point::new(0.0, 1.0, 0.0)],

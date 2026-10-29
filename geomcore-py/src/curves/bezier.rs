@@ -2,7 +2,7 @@
 
 use crate::curves::*;
 use crate::method_sets::*;
-use geomcore::curves::BezierCurve;
+use geomcore::BezierCurve;
 
 /// A Bézier curve (optionally rational) in 3D: `degree + 1` control
 /// poles over one parameter span, `[0, 1]` when built from poles. It has

@@ -422,9 +422,8 @@ pub trait ParametricCurve {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::curves::TrimmedCurve;
     /// use geomcore::prelude::*;
-    /// use geomcore::{BSplineCurve, Line, Point, Vector};
+    /// use geomcore::{BSplineCurve, Line, Point, TrimmedCurve, Vector};
     ///
     /// let poles = vec![Point::ORIGIN, Point::new(2.0, 0.0, 0.0)];
     /// let curve = BSplineCurve::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
@@ -450,9 +449,8 @@ pub trait ParametricCurve {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::curves::{ElementaryCurve, TrimmedCurve};
     /// use geomcore::prelude::*;
-    /// use geomcore::{BSplineCurve, Circle, Point, Vector};
+    /// use geomcore::{BSplineCurve, Circle, ElementaryCurve, Point, TrimmedCurve, Vector};
     ///
     /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
     /// let arc = TrimmedCurve::new(&circle, 0.0, 1.0).unwrap();
@@ -517,8 +515,7 @@ pub trait PointExtrema: ParametricCurve {
     ///
     /// ```
     /// use geomcore::prelude::*;
-    /// use geomcore::curves::TrimmedCurve;
-    /// use geomcore::{Line, Point, Tolerance, Vector};
+    /// use geomcore::{Line, Point, Tolerance, TrimmedCurve, Vector};
     ///
     /// let line = Line::new(Point::ORIGIN, Vector::X).unwrap();
     /// let projection = line.project_point(Point::new(2.5, 1.0, 0.0), Tolerance::DEFAULT);
@@ -596,7 +593,7 @@ pub trait PointExtrema: ParametricCurve {
 }
 
 /// A reference to a curve is the curve, so a
-/// [`TrimmedCurve`](crate::curves::TrimmedCurve) can borrow its
+/// [`TrimmedCurve`](crate::TrimmedCurve) can borrow its
 /// basis instead of owning it.
 impl<C: ParametricCurve + ?Sized> ParametricCurve for &C {
     fn eval_point(&self, u: f64) -> Point {

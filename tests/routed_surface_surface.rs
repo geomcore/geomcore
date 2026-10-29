@@ -1,9 +1,7 @@
 //! The routed surface-surface intersection: exact when a closed form
 //! exists, marching otherwise, and the result says which method ran.
 
-use geomcore::curves::Curve;
-use geomcore::surfaces::Surface;
-use geomcore::*;
+use geomcore::{Curve, Surface, *};
 
 const TOL: Tolerance = Tolerance::DEFAULT;
 

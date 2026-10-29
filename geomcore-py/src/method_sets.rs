@@ -46,7 +46,7 @@ pub(crate) use crate::values::{
     PyPoint, PyPoint2D, PySide, PyTolerance, PyTransform, PyVector, PyVector2D,
 };
 pub(crate) use crate::{ContinuityNumber, check_curve_order, check_surface_order, tolerance};
-pub(crate) use geomcore::curves::Curve;
+pub(crate) use geomcore::Curve;
 pub(crate) use geomcore::prelude::*;
 pub(crate) use pyo3::prelude::*;
 

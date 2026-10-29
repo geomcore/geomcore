@@ -1,15 +1,12 @@
 //! Discretization through its public interface: every reported deviation
 //! is checked against an independent measurement of the true one.
 
-use geomcore::curves::ElementaryCurve;
-use geomcore::discretization::{
-    Discretization, Discretization2D, DiscretizationCriteria, DiscretizationCriteriaError,
-};
 use geomcore::prelude::*;
 use geomcore::{
-    BSplineCurve, Circle, Circle2D, Curve, Curve2D, Ellipse, Ellipse2D, Frame2D, Hyperbola,
-    Hyperbola2D, Line, Line2D, Parabola, Parabola2D, Point, Point2D, Tolerance, TrimmedCurve,
-    TrimmedCurve2D, Vector, Vector2D,
+    BSplineCurve, Circle, Circle2D, Curve, Curve2D, Discretization, Discretization2D,
+    DiscretizationCriteria, DiscretizationCriteriaError, ElementaryCurve, Ellipse, Ellipse2D,
+    Frame2D, Hyperbola, Hyperbola2D, Line, Line2D, Parabola, Parabola2D, Point, Point2D, Tolerance,
+    TrimmedCurve, TrimmedCurve2D, Vector, Vector2D,
 };
 use std::f64::consts::{FRAC_PI_2, PI, TAU};
 

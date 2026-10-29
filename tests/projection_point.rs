@@ -1,13 +1,12 @@
 //! Every projection carries the closest point: the curve or surface evaluated
 //! at the returned parameters.
 
-use geomcore::curves::{Curve, Curve2D, ElementaryCurve, TrimmedCurve};
 use geomcore::prelude::*;
-use geomcore::surfaces::{ElementarySurface, Surface};
 use geomcore::{
-    Circle, Circle2D, Cone, CurveProjection, Cylinder, Ellipse, Ellipse2D, Frame, Hyperbola,
-    Hyperbola2D, Line, Line2D, Parabola, Parabola2D, Plane, Point, Point2D, Sphere, Tolerance,
-    Torus, Vector, Vector2D,
+    Circle, Circle2D, Cone, Curve, Curve2D, CurveProjection, Cylinder, ElementaryCurve,
+    ElementarySurface, Ellipse, Ellipse2D, Frame, Hyperbola, Hyperbola2D, Line, Line2D, Parabola,
+    Parabola2D, Plane, Point, Point2D, Sphere, Surface, Tolerance, Torus, TrimmedCurve, Vector,
+    Vector2D,
 };
 
 fn query_points() -> Vec<Point> {

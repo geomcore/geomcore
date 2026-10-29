@@ -1004,8 +1004,9 @@ fn merge_valleys(
 /// A helix, defined by the caller, crossing a vertical line:
 ///
 /// ```
-/// use geomcore::curves::ParametricCurve;
-/// use geomcore::{IntersectionMethod, Line, Point, Tolerance, Vector, intersect_curve_curve};
+/// use geomcore::{
+///     IntersectionMethod, Line, ParametricCurve, Point, Tolerance, Vector, intersect_curve_curve,
+/// };
 ///
 /// /// A helix of radius 1 about the z axis, rising 1 per turn.
 /// struct Helix;

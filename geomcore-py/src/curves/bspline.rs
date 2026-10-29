@@ -3,7 +3,7 @@
 use crate::curves::*;
 use crate::method_sets::*;
 use crate::parse_parametrization;
-use geomcore::curves::BSplineCurve;
+use geomcore::BSplineCurve;
 
 /// A B-spline (optionally rational, optionally periodic) curve in 3D.
 #[pyclass(name = "BSplineCurve", module = "geomcore.curves", eq)]

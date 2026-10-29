@@ -10,12 +10,11 @@
 //! mirrored normal, exactly as for a B-spline whose poles are mirrored.
 
 use geomcore::prelude::*;
-use geomcore::surfaces::Surface;
 use geomcore::{
     Axis, BSplineCurve, BSplineSurface, Circle, Cone, Curve, CurveCurveHit,
     CurveSurfaceIntersection, Cylinder, Ellipse, Frame, Hyperbola, Intersect, IntersectionMethod,
-    Line, Parabola, Plane, Point, Sphere, SurfaceSurfaceIntersection, Tolerance, Torus, Transform,
-    Vector,
+    Line, Parabola, Plane, Point, Sphere, Surface, SurfaceSurfaceIntersection, Tolerance, Torus,
+    Transform, Vector,
 };
 
 const PARAMETERS: [(f64, f64); 4] = [(0.0, 0.0), (0.3, 0.2), (2.0, -0.7), (4.5, 1.1)];

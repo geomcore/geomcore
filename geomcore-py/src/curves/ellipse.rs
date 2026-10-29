@@ -3,7 +3,7 @@
 use crate::curves::*;
 use crate::method_sets::*;
 use crate::values::{PyFrame, float_repr};
-use geomcore::curves::Ellipse;
+use geomcore::Ellipse;
 
 /// An ellipse in 3D.
 #[pyclass(name = "Ellipse", module = "geomcore.curves", eq)]

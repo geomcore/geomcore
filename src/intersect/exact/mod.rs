@@ -33,7 +33,7 @@ use crate::{
 /// compiler knows which outcomes a pair can produce, and dispatch is
 /// static. A configuration with no closed form reports "not analytic";
 /// this trait never runs a numeric intersection. To get an answer for
-/// every pair, with the method that produced it, use [`Intersect`](crate::intersect::Intersect).
+/// every pair, with the method that produced it, use [`Intersect`](crate::Intersect).
 pub trait IntersectExact<Rhs: ?Sized = Self> {
     /// The result of intersecting `Self` with `Rhs`.
     type Output;

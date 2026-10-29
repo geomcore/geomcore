@@ -12,8 +12,7 @@
 //! hyperbola has no discretization until it is trimmed.
 //!
 //! ```compile_fail
-//! use geomcore::discretization::{DiscretizationCriteria, Discretize};
-//! use geomcore::{Line, Point, Vector};
+//! use geomcore::{DiscretizationCriteria, Discretize, Line, Point, Vector};
 //!
 //! let line = Line::new(Point::ORIGIN, Vector::X).unwrap();
 //! line.discretize(DiscretizationCriteria::new(0.1).unwrap());
@@ -69,12 +68,12 @@ impl std::error::Error for DiscretizationCriteriaError {}
 /// # Examples
 ///
 /// ```
-/// use geomcore::discretization::DiscretizationCriteria;
+/// use geomcore::DiscretizationCriteria;
 ///
 /// let criteria = DiscretizationCriteria::new(1e-3)?.with_max_angle_deviation(0.1)?;
 /// assert_eq!(criteria.max_chord_deviation(), 1e-3);
 /// assert_eq!(criteria.max_angle_deviation(), Some(0.1));
-/// # Ok::<(), geomcore::discretization::DiscretizationCriteriaError>(())
+/// # Ok::<(), geomcore::DiscretizationCriteriaError>(())
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct DiscretizationCriteria {
@@ -190,8 +189,7 @@ pub struct Discretization {
 ///
 /// ```
 /// use geomcore::prelude::*;
-/// use geomcore::discretization::DiscretizationCriteria;
-/// use geomcore::{Circle, Point, Vector};
+/// use geomcore::{Circle, DiscretizationCriteria, Point, Vector};
 ///
 /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
 /// let criteria = DiscretizationCriteria::new(1e-3).unwrap();
@@ -276,8 +274,7 @@ pub struct Discretization2D {
 ///
 /// ```
 /// use geomcore::prelude::*;
-/// use geomcore::discretization::DiscretizationCriteria;
-/// use geomcore::{Circle2D, Line2D, Point2D, TrimmedCurve2D, Vector2D};
+/// use geomcore::{Circle2D, DiscretizationCriteria, Line2D, Point2D, TrimmedCurve2D, Vector2D};
 ///
 /// let criteria = DiscretizationCriteria::new(1e-3).unwrap();
 /// let circle = Circle2D::new(Point2D::ORIGIN, 1.0).unwrap();

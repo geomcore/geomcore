@@ -38,8 +38,10 @@ const WINDOW: f64 = 10.0;
 /// A helix, defined by the caller, crossing a plane:
 ///
 /// ```
-/// use geomcore::curves::ParametricCurve;
-/// use geomcore::{IntersectionMethod, Plane, Point, Tolerance, Vector, intersect_curve_surface};
+/// use geomcore::{
+///     IntersectionMethod, ParametricCurve, Plane, Point, Tolerance, Vector,
+///     intersect_curve_surface,
+/// };
 ///
 /// /// A helix of radius 1 about the z axis, rising 1 per turn.
 /// struct Helix;

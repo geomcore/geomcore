@@ -11,10 +11,11 @@
 //! ```
 //!
 //! It brings traits only, no types, so a glob import cannot shadow a
-//! name of the caller's.
+//! name of the caller's. Each trait is documented at its one path, the
+//! crate root (`geomcore::ParametricCurve`).
 
-pub use crate::bounding_box::{HasBoundingBox, HasBoundingBox2D};
-pub use crate::curves::{ParametricCurve, ParametricCurve2D, PointExtrema, PointExtrema2D};
-pub use crate::discretization::{Discretize, Discretize2D};
-pub use crate::intersect::{Intersect, IntersectExact};
-pub use crate::surfaces::ParametricSurface;
+#[doc(no_inline)]
+pub use crate::{
+    Discretize, Discretize2D, HasBoundingBox, HasBoundingBox2D, Intersect, IntersectExact,
+    ParametricCurve, ParametricCurve2D, ParametricSurface, PointExtrema, PointExtrema2D,
+};

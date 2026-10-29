@@ -1058,8 +1058,7 @@ impl BSplineCurve {
     ///
     /// ```
     /// use geomcore::prelude::*;
-    /// use geomcore::curves::Curve2D;
-    /// use geomcore::{BSplineCurve, Plane, Point, Tolerance, Vector};
+    /// use geomcore::{BSplineCurve, Curve2D, Plane, Point, Tolerance, Vector};
     ///
     /// let plane = Plane::new(Point::new(0.0, 0.0, 1.0), Vector::Z).unwrap();
     /// let poles = vec![Point::new(0.0, 0.0, 1.0), Point::new(2.0, 1.0, 1.0)];

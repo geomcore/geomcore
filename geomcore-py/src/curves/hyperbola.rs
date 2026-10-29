@@ -2,7 +2,7 @@
 
 use crate::method_sets::*;
 use crate::values::{PyFrame, float_repr};
-use geomcore::curves::Hyperbola;
+use geomcore::Hyperbola;
 
 /// One branch of a hyperbola in 3D.
 #[pyclass(name = "Hyperbola", module = "geomcore.curves", eq)]

@@ -7,10 +7,8 @@ use criterion::{Criterion, criterion_group, criterion_main};
 use std::f64::consts::TAU;
 use std::hint::black_box;
 
-use geomcore::curves::{BSplineCurve, Circle};
 use geomcore::prelude::*;
-use geomcore::surfaces::BSplineSurface;
-use geomcore::{Point, Vector};
+use geomcore::{BSplineCurve, BSplineSurface, Circle, Point, Vector};
 
 const N: usize = 100_000;
 

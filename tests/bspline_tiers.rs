@@ -6,10 +6,11 @@
 mod common;
 
 use common::load;
-use geomcore::curves::Side;
-use geomcore::discretization::DiscretizationCriteria;
 use geomcore::prelude::*;
-use geomcore::{BSplineCurve, BSplineCurve2D, Point, Point2D, Tolerance, Vector, Vector2D};
+use geomcore::{
+    BSplineCurve, BSplineCurve2D, DiscretizationCriteria, Point, Point2D, Side, Tolerance, Vector,
+    Vector2D,
+};
 use serde::Deserialize;
 
 const TOL: Tolerance = Tolerance::DEFAULT;

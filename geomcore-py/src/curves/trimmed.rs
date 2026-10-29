@@ -4,7 +4,7 @@
 use crate::curves::*;
 use crate::method_sets::*;
 use crate::values::{coordinates, coordinates_2d, float_repr};
-use geomcore::curves::{TrimmedCurve, TrimmedCurve2D};
+use geomcore::{TrimmedCurve, TrimmedCurve2D};
 
 /// A 3D curve restricted to the parameter range `[first, last]` of a
 /// basis curve: a line segment, an arc of a circle or conic, or a piece of

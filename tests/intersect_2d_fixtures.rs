@@ -8,11 +8,10 @@
 mod common;
 
 use common::load;
-use geomcore::curves::{Curve2D, TrimmedCurve2D};
 use geomcore::prelude::*;
 use geomcore::{
-    BSplineCurve2D, Circle2D, CurveCurveIntersection2D, Ellipse2D, Frame2D, Hyperbola2D,
-    IntersectionMethod, Line2D, Parabola2D, Point2D, Tolerance, Vector2D,
+    BSplineCurve2D, Circle2D, Curve2D, CurveCurveIntersection2D, Ellipse2D, Frame2D, Hyperbola2D,
+    IntersectionMethod, Line2D, Parabola2D, Point2D, Tolerance, TrimmedCurve2D, Vector2D,
 };
 use serde::Deserialize;
 

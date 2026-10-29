@@ -3,7 +3,7 @@
 use crate::curves::*;
 use crate::method_sets::*;
 use crate::values::{PyAxis, PyFrame, float_repr};
-use geomcore::curves::Circle;
+use geomcore::Circle;
 
 /// A circle in 3D, parametrized by the angle from its frame's x direction.
 #[pyclass(name = "Circle", module = "geomcore.curves", eq)]

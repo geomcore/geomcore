@@ -243,7 +243,7 @@ impl BoundingBox2D {
 /// [`BSplineCurve2D`](crate::BSplineCurve2D) reports a box holding the
 /// whole curve, from its control points, which may be larger than the
 /// tightest. A [`Line2D`](crate::Line2D) is unbounded and reports `None`;
-/// a [`TrimmedCurve2D`](crate::curves::TrimmedCurve2D) always has a box,
+/// a [`TrimmedCurve2D`](crate::TrimmedCurve2D) always has a box,
 /// over its range.
 ///
 /// # Examples

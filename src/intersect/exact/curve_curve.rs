@@ -539,7 +539,7 @@ impl IntersectExact<Circle> for Circle {
     /// Distinct parallel planes report
     /// [`CircleCircleIntersection::Empty`]; crossing planes report
     /// [`CircleCircleIntersection::NotAnalytic`], which the
-    /// [`ElementaryCurve`](crate::curves::ElementaryCurve) intersection
+    /// [`ElementaryCurve`](crate::ElementaryCurve) intersection
     /// resolves on the line the planes share.
     ///
     /// # Examples

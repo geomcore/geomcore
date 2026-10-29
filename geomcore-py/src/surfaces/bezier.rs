@@ -2,7 +2,7 @@
 
 use crate::method_sets::*;
 use crate::surfaces::*;
-use geomcore::surfaces::BezierSurface;
+use geomcore::BezierSurface;
 
 /// A Bézier surface (optionally rational): a grid of
 /// `(u_degree + 1) x (v_degree + 1)` control poles over one parameter

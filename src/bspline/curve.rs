@@ -33,7 +33,7 @@ pub(crate) const MAX_DEGREE: usize = 25;
 
 /// Error type re-exported here for use by [`validate_direction`]; the
 /// canonical definition (and its docs) live on [`crate::curves`], next to
-/// [`crate::curves::BSplineCurve`], the type that actually constructs and
+/// [`crate::BSplineCurve`], the type that actually constructs and
 /// reports these errors.
 pub(crate) use crate::curves::BSplineConstructionError;
 

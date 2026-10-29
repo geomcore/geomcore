@@ -3,7 +3,7 @@
 use crate::method_sets::*;
 use crate::surfaces::*;
 use crate::values::PyFrame;
-use geomcore::surfaces::Plane;
+use geomcore::Plane;
 
 /// An infinite plane, parametrized by in-plane coordinates (u, v).
 #[pyclass(name = "Plane", module = "geomcore.surfaces", eq)]

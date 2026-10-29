@@ -2,7 +2,7 @@
 
 use crate::method_sets::*;
 use crate::values::{PyFrame2D, coordinates_2d, float_repr};
-use geomcore::curves::Hyperbola2D;
+use geomcore::Hyperbola2D;
 
 /// A hyperbola branch in 2D, parametrized as
 /// `center + major*cosh(u)*x_dir + minor*sinh(u)*y_dir`.

@@ -3,7 +3,7 @@
 use crate::curves::*;
 use crate::method_sets::*;
 use crate::values::{PyFrame2D, coordinates_2d, float_repr};
-use geomcore::curves::Ellipse2D;
+use geomcore::Ellipse2D;
 
 /// An ellipse in 2D.
 #[pyclass(name = "Ellipse2D", module = "geomcore.curves", eq)]

@@ -3,7 +3,7 @@
 use crate::method_sets::*;
 use crate::surfaces::*;
 use crate::values::{PyFrame, float_repr};
-use geomcore::surfaces::Torus;
+use geomcore::Torus;
 
 /// A torus; u is the angle around the main axis, v the angle around the tube.
 #[pyclass(name = "Torus", module = "geomcore.surfaces", eq)]
