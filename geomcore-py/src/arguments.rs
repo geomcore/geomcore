@@ -108,6 +108,8 @@ shape_classes! {
         Cone => PyCone,
         Sphere => PySphere,
         Torus => PyTorus,
+        Extrusion => PyExtrusionSurface,
+        Revolution => PyRevolutionSurface,
         BSpline => PyBSplineSurface,
         Bezier => PyBezierSurface,
     }

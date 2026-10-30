@@ -5,7 +5,9 @@ mod bezier;
 mod bspline;
 mod cone;
 mod cylinder;
+mod extrusion;
 mod plane;
+mod revolution;
 mod sphere;
 mod torus;
 
@@ -13,6 +15,8 @@ pub(crate) use bezier::PyBezierSurface;
 pub(crate) use bspline::PyBSplineSurface;
 pub(crate) use cone::PyCone;
 pub(crate) use cylinder::PyCylinder;
+pub(crate) use extrusion::PyExtrusionSurface;
 pub(crate) use plane::PyPlane;
+pub(crate) use revolution::PyRevolutionSurface;
 pub(crate) use sphere::PySphere;
 pub(crate) use torus::PyTorus;
