@@ -22,7 +22,7 @@ use std::fmt;
 
 use crate::curves::spline::Spline;
 use crate::curves::{
-    BSplineCurve, BezierCurve, Circle, Curve, Curve2D, Ellipse, Hyperbola, Line, Line2D, Parabola,
+    BSplineCurve, BezierCurve, Circle, Curve, Curve2D, Ellipse, Hyperbola, Line, Parabola,
     ParametricCurve, ParametricCurve2D,
 };
 use crate::surfaces::{
@@ -40,7 +40,8 @@ pub enum PcurveToCurveError {
     /// The 3D curve collapses to a point: a line along an iso curve that
     /// is a point, at a sphere's pole, a cone's apex, where a torus or a
     /// revolution surface meets its axis, or on a collapsed row of a
-    /// B-spline or Bézier surface.
+    /// B-spline or Bézier surface; or a straight spline pcurve whose two
+    /// poles coincide.
     Collapsed,
     /// The surface has no iso curve at the line's fixed parameter, which
     /// is outside the bounds of a non-periodic direction or not finite.
@@ -141,7 +142,8 @@ impl IsoCurves for ExtrusionSurface {
 
 /// [`ParametricSurface::pcurve_to_curve`](crate::ParametricSurface::pcurve_to_curve)
 /// of every crate surface: the affine image on an affine surface, the
-/// reparametrized iso curve for a line along `u` or `v` on any other.
+/// reparametrized iso curve for a straight pcurve along `u` or `v` on any
+/// other.
 pub(crate) fn pcurve_to_curve(
     surface: &impl IsoCurves,
     pcurve: &Curve2D,
@@ -150,10 +152,7 @@ pub(crate) fn pcurve_to_curve(
     if let Some(map) = surface.affine_map() {
         return map.curve(pcurve, tol);
     }
-    match pcurve {
-        Curve2D::Line(line) => along_iso_curve(line, surface, tol),
-        _ => Err(PcurveToCurveError::NotAnalytic),
-    }
+    along_iso_curve(StraightPcurve::of(pcurve, tol)?, surface, tol)
 }
 
 // ---- affine surfaces ----
@@ -234,65 +233,146 @@ impl AffineMap {
 
 // ---- lines along u or v ----
 
-/// The 3D curve of a line along `u` or `v`: the iso curve through its
-/// origin, run from the origin's other parameter at the line's rate `±1`.
+/// A straight pcurve, `point + (t - parameter) * velocity` over `bounds`:
+/// a line, or a degree-1 B-spline or Bézier curve with two poles and equal
+/// or no weights, as files exchanged between kernels store a straight
+/// pcurve.
+struct StraightPcurve {
+    point: Point2D,
+    parameter: f64,
+    velocity: Vector2D,
+    bounds: (f64, f64),
+}
+
+impl StraightPcurve {
+    /// `pcurve` as a straight pcurve, [`PcurveToCurveError::NotAnalytic`]
+    /// if it is not one, [`PcurveToCurveError::Collapsed`] for a spline
+    /// whose two poles coincide within `tol.parametric`.
+    fn of(pcurve: &Curve2D, tol: Tolerance) -> Result<StraightPcurve, PcurveToCurveError> {
+        let spline = match pcurve {
+            Curve2D::Line(line) => {
+                return Ok(StraightPcurve {
+                    point: line.origin(),
+                    parameter: 0.0,
+                    velocity: line.direction(),
+                    bounds: line.bounds(),
+                });
+            }
+            Curve2D::BSpline(bspline) => bspline.spline(),
+            Curve2D::Bezier(bezier) => bezier.spline(),
+            _ => return Err(PcurveToCurveError::NotAnalytic),
+        };
+        let poles = spline.poles();
+        // Unequal weights run the segment at a varying speed.
+        let straight = spline.degree() == 1
+            && poles.len() == 2
+            && !spline.is_periodic()
+            && spline
+                .weights()
+                .is_none_or(|weights| weights[0] == weights[1]);
+        if !straight {
+            return Err(PcurveToCurveError::NotAnalytic);
+        }
+        if poles[0].distance(poles[1]) <= tol.parametric {
+            return Err(PcurveToCurveError::Collapsed);
+        }
+        let (first, last) = spline.bounds();
+        Ok(StraightPcurve {
+            point: poles[0],
+            parameter: first,
+            velocity: (1.0 / (last - first)) * (poles[1] - poles[0]),
+            bounds: (first, last),
+        })
+    }
+}
+
+/// The 3D curve of a straight pcurve along `u` or `v`: the iso curve
+/// through it, run at its speed along the iso curve's parameter, signed.
 fn along_iso_curve(
-    line: &Line2D,
+    straight: StraightPcurve,
     surface: &impl IsoCurves,
     tol: Tolerance,
 ) -> Result<Curve, PcurveToCurveError> {
-    let (origin, direction) = (line.origin(), line.direction());
-    let (iso, shift, sign) = if direction.x.abs() <= tol.angular {
-        (
-            surface.u_iso_curve(origin.x),
-            origin.y,
-            direction.y.signum(),
-        )
-    } else if direction.y.abs() <= tol.angular {
-        (
-            surface.v_iso_curve(origin.y),
-            origin.x,
-            direction.x.signum(),
-        )
+    let StraightPcurve {
+        point,
+        parameter,
+        velocity,
+        bounds,
+    } = straight;
+    let speed = velocity.magnitude();
+    // At `t`, the iso curve's parameter is `shift + scale * t`.
+    let (iso, shift, scale) = if velocity.x.abs() <= tol.angular * speed {
+        let shift = point.y - parameter * velocity.y;
+        (surface.u_iso_curve(point.x), shift, velocity.y)
+    } else if velocity.y.abs() <= tol.angular * speed {
+        let shift = point.x - parameter * velocity.x;
+        (surface.v_iso_curve(point.y), shift, velocity.x)
     } else {
         return Err(PcurveToCurveError::NotAnalytic);
     };
     let iso = iso.map_err(PcurveToCurveError::IsoCurve)?;
-    reparametrized(&iso, shift, sign, tol)
+    reparametrized(&iso, shift, scale, bounds, tol)
 }
 
-/// The curve whose point at `t` is `curve`'s at `shift + sign * t`,
-/// `sign` being `1` or `-1`, if it is a [`Curve`] in that parameter.
+/// The curve whose point at `t` is `curve`'s at `shift + scale * t`, if
+/// it is a [`Curve`] in that parameter over `bounds`. A spline maps its
+/// knots for any `scale`; a conic runs at its own speed only, so `scale`
+/// must be `±1`; a line runs at speed `1`, so at any other speed it is
+/// the degree-1 B-spline over `bounds`.
 fn reparametrized(
     curve: &Curve,
     shift: f64,
-    sign: f64,
+    scale: f64,
+    bounds: (f64, f64),
     tol: Tolerance,
 ) -> Result<Curve, PcurveToCurveError> {
+    let unit_speed = (scale.abs() - 1.0).abs() <= tol.angular;
     let elementary = |kind: Kind, center: Point| {
+        if !unit_speed {
+            return Err(PcurveToCurveError::NotAnalytic);
+        }
         let (point, first, second) = curve.eval_d2(shift);
         Expansion {
             kind,
             center,
             point,
-            first: sign * first,
+            first: scale * first,
             second,
         }
         .into_curve(tol)
     };
     match curve {
+        Curve::Line(line) if !unit_speed => segment(line, shift, scale, bounds),
         Curve::Line(line) => elementary(Kind::Line, line.origin()),
         Curve::Circle(circle) => elementary(Kind::Circle, circle.center()),
         Curve::Ellipse(ellipse) => elementary(Kind::Ellipse, ellipse.center()),
         Curve::Parabola(parabola) => elementary(Kind::Parabola, parabola.frame().origin()),
         Curve::Hyperbola(hyperbola) => elementary(Kind::Hyperbola, hyperbola.center()),
-        Curve::BSpline(bspline) => reparametrized_spline(bspline.spline(), shift, sign, tol)
+        Curve::BSpline(bspline) => reparametrized_spline(bspline.spline(), shift, scale, tol)
             .map(|spline| BSplineCurve::from_spline(spline).into()),
-        // A Bézier curve keeps any bounds, so the shifted one is a Bézier
+        // A Bézier curve keeps any bounds, so the mapped one is a Bézier
         // curve too.
-        Curve::Bezier(bezier) => reparametrized_spline(bezier.spline(), shift, sign, tol)
+        Curve::Bezier(bezier) => reparametrized_spline(bezier.spline(), shift, scale, tol)
             .map(|spline| BezierCurve::from_spline(spline).into()),
     }
+}
+
+/// `line` at `shift + scale * t` over `bounds`, as the degree-1 B-spline
+/// through its points at the bounds: exact, the line being affine in its
+/// parameter.
+fn segment(
+    line: &Line,
+    shift: f64,
+    scale: f64,
+    (first, last): (f64, f64),
+) -> Result<Curve, PcurveToCurveError> {
+    let poles = vec![
+        line.eval_point(shift + scale * first),
+        line.eval_point(shift + scale * last),
+    ];
+    BSplineCurve::new(1, poles, vec![first, last], vec![2, 2], false)
+        .map(Curve::from)
+        .map_err(|_| PcurveToCurveError::NotAnalytic)
 }
 
 /// [`reparametrized`] for a B-spline or Bézier iso curve, refused when
@@ -300,7 +380,7 @@ fn reparametrized(
 fn reparametrized_spline(
     spline: &Spline<Point>,
     shift: f64,
-    sign: f64,
+    scale: f64,
     tol: Tolerance,
 ) -> Result<Spline<Point>, PcurveToCurveError> {
     let poles = spline.poles();
@@ -311,7 +391,7 @@ fn reparametrized_spline(
         return Err(PcurveToCurveError::Collapsed);
     }
     spline
-        .reparametrized(shift, sign)
+        .reparametrized(shift, scale)
         .map_err(|_| PcurveToCurveError::NotAnalytic)
 }
 

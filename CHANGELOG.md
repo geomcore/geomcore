@@ -22,6 +22,10 @@ the Python distribution are versioned in lockstep.
   (`NotAnalytic`, `Collapsed` at a pole or apex, or `IsoCurve`), never
   approximated. The trait's default refuses, so surface types defined
   outside the crate keep compiling.
+- A straight pcurve stored as a degree-1 B-spline or Bézier curve with
+  two poles is read as a line: along `u` or `v` it gives the iso curve
+  run at the spline's speed, exact for a line or spline iso curve at any
+  speed and for a conic at speed 1, and refused otherwise.
 - Python: `pcurve_to_curve(pcurve, tol=None)` on every surface
   class, taking any 2D curve, and the `PcurveToCurveError`
   exception.

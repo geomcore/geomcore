@@ -527,6 +527,14 @@ pub trait ParametricSurface {
     /// | any | extrusion of a line | its affine image, where it keeps the kind in the same parameter (below) |
     /// | line along `v`, `u = u0` | any other | `u_iso(u0)` run from `v0` at rate `±1` |
     /// | line along `u`, `v = v0` | any other | `v_iso(v0)` run from `u0` at rate `±1` |
+    /// | straight spline along `u` or `v` | any other | the iso curve run at the spline's signed speed |
+    ///
+    /// A straight spline is a degree-1 B-spline or Bézier curve with two
+    /// poles and equal or no weights, as files exchanged between kernels
+    /// store a straight pcurve. Its speed need not be `1`: a spline iso
+    /// curve maps its knots at any speed, a line iso curve at another
+    /// speed is the degree-1 B-spline over the pcurve's bounds, and a conic
+    /// iso curve is refused, since a conic runs at its own speed only.
     ///
     /// A line is along `u` or `v` when its direction is within
     /// `tol.angular` of that axis; its fixed parameter is then the one of
@@ -557,7 +565,8 @@ pub trait ParametricSurface {
     /// its kind, a 2D curve whose image overflows, and every curve on a
     /// surface type defined outside the crate, the default.
     /// [`PcurveToCurveError::Collapsed`] when the line runs along an iso
-    /// curve that is a point (a sphere's pole, a cone's apex).
+    /// curve that is a point (a sphere's pole, a cone's apex), or for a
+    /// straight spline whose two poles coincide.
     /// [`PcurveToCurveError::IsoCurve`] when the surface has no iso curve
     /// at the line's fixed parameter.
     ///

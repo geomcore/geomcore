@@ -197,7 +197,8 @@ class _SurfaceMethods(Generic[_UIsoCurveType, _VIsoCurveType]):
         Closed forms: any curve on a plane, as the same kind of curve; any
         curve on the extrusion of a line, where the affine image keeps its
         kind in the same parameter; and a line along u or v on any surface,
-        as the iso curve run from the line's origin. Raises
+        as the iso curve run from the line's origin, as is a degree-1
+        B-spline or Bezier curve with two poles. Raises
         `PcurveToCurveError` for any other pair, when the line runs
         along an iso curve that is a point (a sphere's pole, a cone's apex),
         or when the surface has no iso curve there. `tol` is

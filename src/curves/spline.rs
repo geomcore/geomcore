@@ -151,9 +151,10 @@ impl<P: TierPoint> Spline<P> {
         Spline::of(self.knots.clone(), poles, self.weights.clone())
     }
 
-    /// The curve whose point at `t` is this curve's at `shift + sign * t`,
-    /// `sign` being `1` or `-1`: the knots shifted by `-shift`, after
-    /// reversing the curve for `-1`. Exact for any shift.
+    /// The curve whose point at `t` is this curve's at `shift + scale * t`,
+    /// `scale` being nonzero: the knots `k` mapped to `(k - shift) / scale`,
+    /// after reversing the curve for a negative `scale`. Exact for any
+    /// shift and scale.
     ///
     /// # Errors
     ///
@@ -162,17 +163,21 @@ impl<P: TierPoint> Spline<P> {
     pub(crate) fn reparametrized(
         &self,
         shift: f64,
-        sign: f64,
+        scale: f64,
     ) -> Result<Spline<P>, BSplineConstructionError> {
-        let (curve, shift) = if sign < 0.0 {
-            // The reversed curve at `first + last - shift + t` is this
-            // curve at `shift - t`.
+        let (curve, shift) = if scale < 0.0 {
+            // The reversed curve at `first + last - shift + |scale| t` is
+            // this curve at `shift - |scale| t`.
             let (first, last) = self.bounds();
             (self.reversed(), first + last - shift)
         } else {
             (self.clone(), shift)
         };
-        let knots = curve.knots().iter().map(|&knot| knot - shift).collect();
+        let knots = curve
+            .knots()
+            .iter()
+            .map(|&knot| (knot - shift) / scale.abs())
+            .collect();
         let (degree, periodic) = (curve.degree(), curve.is_periodic());
         let multiplicities = curve.multiplicities().to_vec();
         Spline::new(

@@ -9,10 +9,10 @@ mod common;
 use common::samples::{curves, curves_2d, parameters, surfaces};
 use geomcore::prelude::*;
 use geomcore::{
-    Axis, Circle2D, Cone, Curve, Curve2D, Cylinder, Ellipse, Ellipse2D, ExtrusionSurface, Frame,
-    Frame2D, Hyperbola, Hyperbola2D, Line, Line2D, Parabola, Parabola2D, PcurveToCurveError, Plane,
-    Point, Point2D, RevolutionSurface, Sphere, Surface, SurfaceIsoError, Tolerance, Vector,
-    Vector2D,
+    Axis, BSplineCurve2D, BezierCurve2D, Circle2D, Cone, Curve, Curve2D, Cylinder, Ellipse,
+    Ellipse2D, ExtrusionSurface, Frame, Frame2D, Hyperbola, Hyperbola2D, Line, Line2D, Parabola,
+    Parabola2D, PcurveToCurveError, Plane, Point, Point2D, RevolutionSurface, Sphere, Surface,
+    SurfaceIsoError, Tolerance, Vector, Vector2D,
 };
 use std::f64::consts::{FRAC_PI_2, PI};
 
@@ -65,6 +65,12 @@ fn outcome(
     surface
         .pcurve_to_curve(&curve.into(), TOL)
         .map(|image| kind(&image))
+}
+
+/// The degree-1 B-spline from `from` to `to` over `bounds`: a straight
+/// pcurve as files exchanged between kernels store one.
+fn straight_spline(from: Point2D, to: Point2D, (first, last): (f64, f64)) -> BSplineCurve2D {
+    BSplineCurve2D::new(1, vec![from, to], vec![first, last], vec![2, 2], false).unwrap()
 }
 
 /// An extrusion of the line along `X` by `sweep`.
@@ -268,11 +274,12 @@ fn an_oblique_extrusion_keeps_a_kind_along_its_principal_axes_only() {
     }
 }
 
-/// Checks that `image` is `surface` over `curve` at parameters of its
-/// bounds: the points agree, and the first derivative is
+/// Checks that `image` is `surface` over `curve` at parameters of both
+/// their bounds: the points agree, and the first derivative is
 /// `Su * u' + Sv * v'`.
 fn assert_traces(image: &Curve, curve: &Curve2D, surface: &Surface, label: &str) {
-    for t in parameters(image.bounds()) {
+    let ((image_first, image_last), (first, last)) = (image.bounds(), curve.bounds());
+    for t in parameters((image_first.max(first), image_last.min(last))) {
         let (q, dq) = curve.eval_d1(t);
         let (expected, [su, sv]) = surface.eval_d1(q.x, q.y);
         let expected_derivative = su * dq.x + sv * dq.y;
@@ -293,7 +300,8 @@ fn assert_traces(image: &Curve, curve: &Curve2D, surface: &Surface, label: &str)
 #[test]
 fn every_curve_given_traces_the_surface_over_the_parameter_curve() {
     // The samples, plus lines along `u` and `v` from 0, from 0.6 and from
-    // π (the other end of an ellipse's major axis), both ways.
+    // π (the other end of an ellipse's major axis), both ways, and straight
+    // splines along each, backwards at speed 1 and forwards at speed 2.
     let mut parameter_curves = curves_2d();
     for along_v in [true, false] {
         for sign in [1.0, -1.0] {
@@ -302,6 +310,15 @@ fn every_curve_given_traces_the_surface_over_the_parameter_curve() {
                 parameter_curves.push(axis_line(u, v, along_v, sign).into());
             }
         }
+        let point = |along: f64| {
+            if along_v {
+                Point2D::new(0.3, along)
+            } else {
+                Point2D::new(along, 0.3)
+            }
+        };
+        parameter_curves.push(straight_spline(point(0.8), point(0.2), (0.5, 1.1)).into());
+        parameter_curves.push(straight_spline(point(0.1), point(0.9), (0.5, 0.9)).into());
     }
     let mut all_surfaces = surfaces();
     all_surfaces.push(oblique_extrusion());
@@ -326,9 +343,14 @@ fn every_curve_given_traces_the_surface_over_the_parameter_curve() {
     // surfaces, from 0.6 and π on the 4 parabola or hyperbola ones, both
     // ways, 2 x (2 + 2 x 4) = 20 in all; every sample on the plane and
     // the perpendicular extrusion, 2 x 8; and the 3 splines on each
-    // oblique extrusion of a line, 2 x 3.
+    // oblique extrusion of a line, 2 x 3. The straight splines, from 1.3
+    // at speed 1, on every surface but the 3 whose iso curve along them is
+    // a conic profile, 2 x 19; at speed 2 along `v`, on the 16 surfaces
+    // whose `u` iso curve is a line or spline or which are affine, and
+    // along `u` on the 9 whose `v` iso curve is a spline or which are
+    // affine.
     assert!(
-        given >= 264 - 20 + 2 * 8 + 2 * 3,
+        given >= 264 - 20 + 2 * 8 + 2 * 3 + 2 * 19 + 16 + 9,
         "only {given} curves given"
     );
 }
@@ -498,5 +520,76 @@ fn a_surface_defined_outside_the_crate_refuses_by_default() {
     assert_eq!(
         own.pcurve_to_curve(&line, TOL),
         Err(PcurveToCurveError::NotAnalytic)
+    );
+}
+
+#[test]
+fn a_straight_spline_pcurve_runs_along_its_iso_curve() {
+    let cylinder: Surface = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap().into();
+    let check = |pcurve: Curve2D, surface: &Surface, expected| {
+        let given = surface.pcurve_to_curve(&pcurve, TOL);
+        assert_eq!(
+            given.as_ref().map(kind).map_err(|&error| error),
+            expected,
+            "{pcurve:?}"
+        );
+        if let Ok(curve) = given {
+            assert_traces(&curve, &pcurve, surface, "straight spline");
+        }
+    };
+    let along_v = |speed: f64| {
+        let end = Point2D::new(0.5, 2.0 - 2.0 * speed);
+        straight_spline(Point2D::new(0.5, 2.0), end, (1.0, 3.0)).into()
+    };
+    let along_u = |speed: f64| {
+        let end = Point2D::new(0.2 + speed, 0.3);
+        straight_spline(Point2D::new(0.2, 0.3), end, (-1.0, 0.0)).into()
+    };
+    // A line runs at speed 1, so at speed 2 it is the degree-1 B-spline;
+    // a circle has no other speed.
+    check(along_v(1.0), &cylinder, Ok("Line"));
+    check(along_v(2.0), &cylinder, Ok("BSpline"));
+    check(along_u(1.0), &cylinder, Ok("Circle"));
+    check(
+        along_u(2.0),
+        &cylinder,
+        Err(PcurveToCurveError::NotAnalytic),
+    );
+    let bezier = |to: Point2D| BezierCurve2D::new(1, vec![Point2D::new(0.5, 0.25), to]).unwrap();
+    check(
+        bezier(Point2D::new(0.5, 1.25)).into(),
+        &cylinder,
+        Ok("Line"),
+    );
+    check(
+        bezier(Point2D::new(1.5, 0.25)).into(),
+        &cylinder,
+        Ok("Circle"),
+    );
+
+    // A spline iso curve maps its knots at any speed.
+    let surfaces = surfaces();
+    for (surface, expected) in [(&surfaces[10], "BSpline"), (&surfaces[12], "Bezier")] {
+        for speed in [1.0, 2.0] {
+            let end = 0.1 + 0.4 * speed;
+            let along_v =
+                straight_spline(Point2D::new(0.3, 0.1), Point2D::new(0.3, end), (0.0, 0.4));
+            let along_u =
+                straight_spline(Point2D::new(end, 0.3), Point2D::new(0.1, 0.3), (0.0, 0.4));
+            check(along_v.into(), surface, Ok(expected));
+            check(along_u.into(), surface, Ok(expected));
+        }
+    }
+
+    // A point, and a segment run at a varying speed, are refused.
+    let point = straight_spline(Point2D::new(0.5, 1.0), Point2D::new(0.5, 1.0), (0.0, 1.0));
+    check(point.into(), &cylinder, Err(PcurveToCurveError::Collapsed));
+    let poles = vec![Point2D::new(0.5, 0.0), Point2D::new(0.5, 1.0)];
+    let varying =
+        BSplineCurve2D::new_rational(1, poles, vec![1.0, 2.0], vec![0.0, 1.0], vec![2, 2], false);
+    check(
+        varying.unwrap().into(),
+        &cylinder,
+        Err(PcurveToCurveError::NotAnalytic),
     );
 }

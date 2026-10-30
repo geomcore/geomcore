@@ -8,12 +8,20 @@ import pytest
 
 import geomcore
 from geomcore import Point, Point2D, Vector, Vector2D
-from geomcore.curves import Circle, Circle2D, Ellipse, Ellipse2D, Line, Line2D
+from geomcore.curves import (
+    BSplineCurve2D,
+    Circle,
+    Circle2D,
+    Ellipse,
+    Ellipse2D,
+    Line,
+    Line2D,
+)
 from geomcore.surfaces import Cylinder, Plane, Sphere
 
 
-def assert_traces(traced, curve, surface):
-    for t in (-1.2, 0.0, 0.4, 2.5):
+def assert_traces(traced, curve, surface, parameters=(-1.2, 0.0, 0.4, 2.5)):
+    for t in parameters:
         q = curve.eval_point(t)
         assert traced.eval_point(t).distance(surface.eval_point(q.x, q.y)) < 1e-12
 
@@ -55,3 +63,12 @@ def test_a_3d_curve_is_rejected():
     line = Line(Point(0, 0, 0), Vector(0, 0, 1))
     with pytest.raises(TypeError):
         cylinder.pcurve_to_curve(line)
+
+
+def test_a_straight_spline_runs_along_its_iso_curve():
+    cylinder = Cylinder(Point(0, 0, 0), Vector(0, 0, 1), 2.0)
+    poles = [Point2D(0.5, 2.0), Point2D(0.5, 0.0)]
+    along_v = BSplineCurve2D(1, poles, [1.0, 3.0], [2, 2], False)
+    generator = cylinder.pcurve_to_curve(along_v)
+    assert isinstance(generator, Line)
+    assert_traces(generator, along_v, cylinder, (1.2, 2.0, 2.9))
