@@ -9,106 +9,17 @@ mod common;
 
 use std::f64::consts::TAU;
 
-use common::{
-    FrameJson, assert_close, assert_point3, assert_vector3, frame3, load, point3, vector3,
+use common::shapes::{
+    AxisJson, CurveJson, Projection, SurfaceCase, assert_surface_projections,
+    assert_surface_samples, tagged_cases,
 };
+use common::{assert_close, load, point3, vector3};
 use geomcore::prelude::*;
 use geomcore::{
-    Axis, BSplineCurve, BSplineSurface, BezierCurve, Circle, Curve, Cylinder, Ellipse,
-    ExtrusionSurface, Hyperbola, IntersectionMethod, Line, Parabola, Plane, Point,
+    Axis, BSplineSurface, Curve, Cylinder, ExtrusionSurface, IntersectionMethod, Plane, Point,
     RevolutionSurface, Surface, SurfaceSurfaceIntersection, Tolerance, Torus, Vector,
 };
 use serde::Deserialize;
-
-#[derive(Deserialize)]
-#[serde(tag = "type", rename_all = "lowercase")]
-enum ProfileJson {
-    Line {
-        origin: [f64; 3],
-        direction: [f64; 3],
-    },
-    Circle {
-        frame: FrameJson,
-        radius: f64,
-    },
-    Ellipse {
-        frame: FrameJson,
-        major_radius: f64,
-        minor_radius: f64,
-    },
-    Parabola {
-        frame: FrameJson,
-        focal: f64,
-    },
-    Hyperbola {
-        frame: FrameJson,
-        major_radius: f64,
-        minor_radius: f64,
-    },
-    Bspline {
-        degree: usize,
-        poles: Vec<[f64; 3]>,
-        weights: Option<Vec<f64>>,
-        knots: Vec<f64>,
-        multiplicities: Vec<u32>,
-    },
-    Bezier {
-        degree: usize,
-        poles: Vec<[f64; 3]>,
-        weights: Option<Vec<f64>>,
-    },
-}
-
-#[derive(Deserialize)]
-struct Sample {
-    u: f64,
-    v: f64,
-    point: [f64; 3],
-    d1u: [f64; 3],
-    d1v: [f64; 3],
-    d2u: [f64; 3],
-    d2v: [f64; 3],
-    d2uv: [f64; 3],
-}
-
-#[derive(Deserialize)]
-struct Projection {
-    point: [f64; 3],
-    /// `None` for a query on the axis of a revolution, whose closest
-    /// points fill a circle.
-    closest: Option<[f64; 3]>,
-    distance: f64,
-}
-
-#[derive(Deserialize)]
-struct ExtrusionCase {
-    name: String,
-    profile: ProfileJson,
-    direction: [f64; 3],
-    samples: Vec<Sample>,
-    projections: Vec<Projection>,
-}
-
-#[derive(Deserialize)]
-struct AxisJson {
-    origin: [f64; 3],
-    direction: [f64; 3],
-}
-
-#[derive(Deserialize)]
-struct RevolutionCase {
-    name: String,
-    profile: ProfileJson,
-    axis: AxisJson,
-    samples: Vec<Sample>,
-    projections: Vec<Projection>,
-}
-
-#[derive(Deserialize)]
-struct Fixture {
-    extrusions: Vec<ExtrusionCase>,
-    revolutions: Vec<RevolutionCase>,
-}
 
 #[derive(Deserialize)]
 struct PlaneJson {
@@ -119,7 +30,7 @@ struct PlaneJson {
 #[derive(Deserialize)]
 struct ExtrusionCut {
     name: String,
-    profile: ProfileJson,
+    profile: CurveJson,
     direction: [f64; 3],
     plane: PlaneJson,
     /// Points on the cut; they need not cover it.
@@ -129,7 +40,7 @@ struct ExtrusionCut {
 #[derive(Deserialize)]
 struct RevolutionCut {
     name: String,
-    profile: ProfileJson,
+    profile: CurveJson,
     axis: AxisJson,
     plane: PlaneJson,
     cut: Vec<[f64; 3]>,
@@ -141,73 +52,13 @@ struct CutFixture {
     revolutions: Vec<RevolutionCut>,
 }
 
-fn fixture() -> Fixture {
-    serde_json::from_value(load("swept_surfaces.json")).unwrap()
-}
-
-fn points(poles: &[[f64; 3]]) -> Vec<Point> {
-    poles.iter().map(|&p| point3(p)).collect()
-}
-
-fn profile(json: &ProfileJson) -> Curve {
-    match json {
-        ProfileJson::Line { origin, direction } => Line::new(point3(*origin), vector3(*direction))
-            .unwrap()
-            .into(),
-        ProfileJson::Circle { frame, radius } => {
-            Circle::from_frame(frame3(frame), *radius).unwrap().into()
-        }
-        ProfileJson::Ellipse {
-            frame,
-            major_radius,
-            minor_radius,
-        } => Ellipse::from_frame(frame3(frame), *major_radius, *minor_radius)
-            .unwrap()
-            .into(),
-        ProfileJson::Parabola { frame, focal } => {
-            Parabola::from_frame(frame3(frame), *focal).unwrap().into()
-        }
-        ProfileJson::Hyperbola {
-            frame,
-            major_radius,
-            minor_radius,
-        } => Hyperbola::from_frame(frame3(frame), *major_radius, *minor_radius)
-            .unwrap()
-            .into(),
-        ProfileJson::Bspline {
-            degree,
-            poles,
-            weights,
-            knots,
-            multiplicities,
-        } => {
-            let (poles, knots, multiplicities) =
-                (points(poles), knots.clone(), multiplicities.clone());
-            match weights {
-                Some(weights) => BSplineCurve::new_rational(
-                    *degree,
-                    poles,
-                    weights.clone(),
-                    knots,
-                    multiplicities,
-                    false,
-                ),
-                None => BSplineCurve::new(*degree, poles, knots, multiplicities, false),
-            }
-            .unwrap()
-            .into()
-        }
-        ProfileJson::Bezier {
-            degree,
-            poles,
-            weights,
-        } => match weights {
-            Some(weights) => BezierCurve::new_rational(*degree, points(poles), weights.clone()),
-            None => BezierCurve::new(*degree, points(poles)),
-        }
-        .unwrap()
-        .into(),
-    }
+/// The extrusion cases of the fixture, then its revolution cases.
+fn fixture() -> (Vec<SurfaceCase>, Vec<SurfaceCase>) {
+    let fixture = load("swept_surfaces.json");
+    (
+        tagged_cases(&fixture, "extrusions", "extrusion"),
+        tagged_cases(&fixture, "revolutions", "revolution"),
+    )
 }
 
 /// The parameter window of `profile` the patches cover: its bounds when
@@ -222,39 +73,6 @@ fn profile_window(profile: &Curve, line: (f64, f64)) -> (f64, f64) {
     }
 }
 
-#[track_caller]
-fn assert_samples(surface: &impl ParametricSurface, samples: &[Sample]) {
-    for s in samples {
-        assert_point3(surface.eval_point(s.u, s.v), s.point);
-        assert_vector3(surface.eval_derivative(s.u, s.v, 1, 0), s.d1u);
-        assert_vector3(surface.eval_derivative(s.u, s.v, 0, 1), s.d1v);
-        assert_vector3(surface.eval_derivative(s.u, s.v, 2, 0), s.d2u);
-        assert_vector3(surface.eval_derivative(s.u, s.v, 0, 2), s.d2v);
-        assert_vector3(surface.eval_derivative(s.u, s.v, 1, 1), s.d2uv);
-    }
-}
-
-#[track_caller]
-fn assert_projections(name: &str, surface: &impl ParametricSurface, projections: &[Projection]) {
-    for p in projections {
-        let found = surface.project_point(point3(p.point), Tolerance::DEFAULT);
-        assert!(
-            (found.distance - p.distance).abs() <= 1e-7 * p.distance.max(1.0),
-            "{name}: projection of {:?} at distance {} != {}",
-            p.point,
-            found.distance,
-            p.distance
-        );
-        assert_point3(
-            surface.eval_point(found.u, found.v),
-            [found.point.x, found.point.y, found.point.z],
-        );
-        if let Some(closest) = p.closest {
-            assert_point3(found.point, closest);
-        }
-    }
-}
-
 /// The patch lies on the surface, and projects each fixture query at the
 /// fixture's distance.
 #[track_caller]
@@ -262,7 +80,7 @@ fn assert_patch(
     name: &str,
     surface: &impl ParametricSurface,
     patch: &BSplineSurface,
-    projections: &[Projection],
+    projections: &[Projection<[f64; 3]>],
 ) {
     let ((u0, u1), (v0, v1)) = (patch.u_bounds(), patch.v_bounds());
     for i in 0..=6 {
@@ -355,19 +173,16 @@ where
     );
 }
 
-fn is_spline(profile: &ProfileJson) -> bool {
-    matches!(
-        profile,
-        ProfileJson::Bspline { .. } | ProfileJson::Bezier { .. }
-    )
+fn is_spline(profile: &Curve) -> bool {
+    matches!(profile, Curve::BSpline(_) | Curve::Bezier(_))
 }
 
 #[test]
 fn extrusion_plane_cuts_match_golden_fixture() {
     for case in cut_fixture().extrusions {
-        let surface =
-            ExtrusionSurface::new(profile(&case.profile), vector3(case.direction)).unwrap();
-        let spline = is_spline(&case.profile);
+        let profile = case.profile.decode();
+        let spline = is_spline(&profile);
+        let surface = ExtrusionSurface::new(profile, vector3(case.direction)).unwrap();
         assert_cut(&case.name, &surface, &plane(&case.plane), spline, &case.cut);
     }
 }
@@ -376,23 +191,27 @@ fn extrusion_plane_cuts_match_golden_fixture() {
 fn revolution_plane_cuts_match_golden_fixture() {
     for case in cut_fixture().revolutions {
         let axis = Axis::new(point3(case.axis.origin), vector3(case.axis.direction)).unwrap();
-        let surface = RevolutionSurface::new(profile(&case.profile), axis).unwrap();
-        let spline = is_spline(&case.profile);
+        let profile = case.profile.decode();
+        let spline = is_spline(&profile);
+        let surface = RevolutionSurface::new(profile, axis).unwrap();
         assert_cut(&case.name, &surface, &plane(&case.plane), spline, &case.cut);
     }
 }
 
 #[test]
 fn extrusions_match_golden_fixture() {
-    for case in fixture().extrusions {
-        let surface = ExtrusionSurface::new(profile(&case.profile), vector3(case.direction))
-            .unwrap_or_else(|e| panic!("{}: {e}", case.name));
-        assert_samples(&surface, &case.samples);
-        assert_projections(&case.name, &surface, &case.projections);
+    let (extrusions, _) = fixture();
+    assert!(!extrusions.is_empty());
+    for case in &extrusions {
+        let Surface::Extrusion(surface) = case.surface.decode() else {
+            panic!("{}: not an extrusion", case.name)
+        };
+        assert_surface_samples(&surface, &case.samples);
+        assert_surface_projections(&case.name, &surface, &case.projections);
         // Through the enum as well: the dispatch reaches the same code.
         let through_enum = Surface::from(surface.clone());
-        assert_samples(&through_enum, &case.samples);
-        assert_projections(&case.name, &through_enum, &case.projections);
+        assert_surface_samples(&through_enum, &case.samples);
+        assert_surface_projections(&case.name, &through_enum, &case.projections);
 
         let patch = surface
             .to_bspline_patch(
@@ -406,15 +225,17 @@ fn extrusions_match_golden_fixture() {
 
 #[test]
 fn revolutions_match_golden_fixture() {
-    for case in fixture().revolutions {
-        let axis = Axis::new(point3(case.axis.origin), vector3(case.axis.direction)).unwrap();
-        let surface = RevolutionSurface::new(profile(&case.profile), axis)
-            .unwrap_or_else(|e| panic!("{}: {e}", case.name));
-        assert_samples(&surface, &case.samples);
-        assert_projections(&case.name, &surface, &case.projections);
+    let (_, revolutions) = fixture();
+    assert!(!revolutions.is_empty());
+    for case in &revolutions {
+        let Surface::Revolution(surface) = case.surface.decode() else {
+            panic!("{}: not a revolution", case.name)
+        };
+        assert_surface_samples(&surface, &case.samples);
+        assert_surface_projections(&case.name, &surface, &case.projections);
         let through_enum = Surface::from(surface.clone());
-        assert_samples(&through_enum, &case.samples);
-        assert_projections(&case.name, &through_enum, &case.projections);
+        assert_surface_samples(&through_enum, &case.samples);
+        assert_surface_projections(&case.name, &through_enum, &case.projections);
 
         let patch = surface
             .to_bspline_patch((0.0, TAU), profile_window(surface.profile(), (-10.0, 10.0)))
@@ -425,22 +246,22 @@ fn revolutions_match_golden_fixture() {
 
 #[test]
 fn circle_swept_cases_match_their_elementary_surfaces() {
-    let fixture = fixture();
+    let (extrusions, revolutions) = fixture();
     let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
     let torus = Torus::new(Point::ORIGIN, Vector::Z, 3.0, 1.0).unwrap();
 
     let name = "circle along its axis (a cylinder)";
-    let case = fixture.extrusions.iter().find(|c| c.name == name).unwrap();
-    assert_samples(&cylinder, &case.samples);
-    assert_projections(name, &cylinder, &case.projections);
+    let case = extrusions.iter().find(|c| c.name == name).unwrap();
+    assert_surface_samples(&cylinder, &case.samples);
+    assert_surface_projections(name, &cylinder, &case.projections);
 
     let name = "line parallel to the axis (a cylinder)";
-    let case = fixture.revolutions.iter().find(|c| c.name == name).unwrap();
-    assert_samples(&cylinder, &case.samples);
-    assert_projections(name, &cylinder, &case.projections);
+    let case = revolutions.iter().find(|c| c.name == name).unwrap();
+    assert_surface_samples(&cylinder, &case.samples);
+    assert_surface_projections(name, &cylinder, &case.projections);
 
     let name = "circle meridian (a torus)";
-    let case = fixture.revolutions.iter().find(|c| c.name == name).unwrap();
-    assert_samples(&torus, &case.samples);
-    assert_projections(name, &torus, &case.projections);
+    let case = revolutions.iter().find(|c| c.name == name).unwrap();
+    assert_surface_samples(&torus, &case.samples);
+    assert_surface_projections(name, &torus, &case.projections);
 }
