@@ -96,6 +96,8 @@ ones before them. If you'd like to help with any of it, see
 - **0.40** — Shared behaviour lives on the traits (`geomcore::prelude`);
   Bézier variants in `Curve`, `Curve2D` and `Surface`; one generic type
   per curve across space and the plane; one public path per item.
+  0.40.1 adds `ExtrusionSurface` and `RevolutionSurface`, with exact
+  plane cuts.
 
 ## Next
 
