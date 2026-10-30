@@ -21,3 +21,7 @@ Marching, as the numeric surface–surface solver, no longer seeds from a parame
 - **Keeping marching public**: rejected. It would be a second surface–surface entry point with a different result shape and no exact path.
 - **Iso-curve seeds alone on bounded pairs**: rejected. They lost curves of sphere × torus; the grid seeds add about 0.5 ms on that pair (1.02 ms against 0.52 ms), and correctness comes first.
 - **A step cap tied to the distance from the seed**: rejected. The step grew past small B-spline features; the midpoint test and the knot-crossing rule bound the step by the geometry instead.
+
+## Amendment: traces end on the box of a bounded side
+
+A trace ends where it leaves the box around the smaller bounded elementary or B-spline side, grown by a tenth of its diagonal, and on the model-size cube only when neither side is bounded (#138). A bounded side holds the whole intersection, so the cube around the origin added nothing there but lost every curve of a pair lying beyond it.

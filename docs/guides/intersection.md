@@ -164,7 +164,8 @@ torus, lines of a plane) meet the other surface exactly, so an
 unbounded surface is searched whole. A B-spline side adds its own
 seeds, and two bounded surfaces add a parameter grid. It then traces
 with curvature-following steps corrected by Newton on both surfaces,
-until the trace closes or leaves the model-size cube, and fits each
+until the trace closes or leaves the box of the smaller bounded side
+(the model-size cube when neither is bounded), and fits each
 loop or arc as a `BSplineCurve`: where the surfaces cross, cubic
 Hermite segments through the traced points and their exact tangents,
 each checked at its midpoint, so the whole curve stays within

@@ -693,6 +693,30 @@ fn test_marching_stops_on_the_model_size_cube() {
 }
 
 #[test]
+fn test_marching_finds_bounded_curves_beyond_the_model_size_cube() {
+    // Two tori in general position cross in two loops, wherever they lie:
+    // a bounded surface bounds the curves, so traces end on its box, not
+    // on the cube around the origin (#138).
+    use crate::Torus;
+    let tol = Tolerance::DEFAULT;
+    let pair = |offset: Vector| {
+        let first = Torus::new(Point::ORIGIN + offset, Vector::Z, 3.0, 1.0).unwrap();
+        let axis = Vector::new(1.0, 0.4, 0.3);
+        let second = Torus::new(Point::new(2.0, 0.5, 0.2) + offset, axis, 2.5, 0.8).unwrap();
+        (first, second)
+    };
+    let (first, second) = pair(Vector::ZERO);
+    let near = marched_curves(&first, &second, tol);
+    assert!(!near.is_empty());
+    for offset in [1e5, 1e6] {
+        let (first, second) = pair(Vector::new(offset, offset, offset));
+        let far = marched_curves(&first, &second, tol);
+        assert_eq!(far.len(), near.len(), "offset {offset:e}");
+        assert_on_both(&far, &first, &second);
+    }
+}
+
+#[test]
 fn test_marching_miss_is_empty() {
     use crate::{Plane, Sphere};
     let tol = Tolerance::DEFAULT;

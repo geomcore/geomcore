@@ -11,6 +11,11 @@ the Python distribution are versioned in lockstep.
 
 ### Fixed
 
+- Marching found no curves for bounded surfaces lying outside the
+  model-size cube centred on the origin (#138): two tori 1e5 away
+  intersected in nothing. A trace now ends on the box of the smaller
+  bounded side, grown by a tenth of its diagonal, and on the model-size
+  cube only when neither side is bounded (ADR 0011, amended).
 - Marching lost curves where branches of the intersection cross (#139).
   At a tight confusion the steps towards a crossing shrank below the
   distance the B-spline fit separates, and the fit's refusal dropped the
