@@ -9,6 +9,27 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+### Added
+
+- `Transformable`, `ReversibleCurve` and `ReversibleSurface`, the
+  traits of moving and reversing a shape (ADR 0024), in
+  `geomcore::prelude`. Every curve and surface type implements them, and
+  so do the `Curve`, `ElementaryCurve`, `Curve2D`, `Surface` and
+  `ElementarySurface` enums and `TrimmedCurve` / `TrimmedCurve2D`, which
+  had neither. New on the way: `transformed` on `BezierCurve`,
+  `BezierSurface`, `TrimmedCurve` and the enums; `reversed` and
+  `reversed_parameter` on every curve of both tiers (only the B-spline
+  and Bézier curves had `reversed`, and none had `reversed_parameter`).
+  A circle or ellipse reverses to `2π - u`, a line, parabola or
+  hyperbola to `-u`, a B-spline or Bézier curve to `first + last - u`,
+  and a trimmed curve follows its basis.
+- `TransformError`, the one error of a failed transform: `Collapsed`
+  for a zero scale factor, `NonFinite` when the image overflows.
+- Python: every 3D curve and every surface gains `transformed`, and
+  every curve gains `reversed()` and `reversed_parameter(u)`, through the
+  shared method sets. A failed transform raises `ConstructionError`, as
+  before.
+
 ### Changed
 
 - B-spline first derivatives are faster (#141). `eval_d1` on a
@@ -20,6 +41,33 @@ the Python distribution are versioned in lockstep.
 - One closed-form pair table decides which pairs `intersect` solves in
   closed form, the plane cuts of swept surfaces included (ADR 0023).
   Results are unchanged.
+- Internal: the swept surfaces reverse and move their profile through
+  the traits, so `swept.rs` keeps only the profile geometry.
+
+### Deprecated
+
+- `RevolutionSurfaceConstructionError::NonFinite`: no longer returned;
+  a failed transform reports a `TransformError`.
+
+### Breaking
+
+- `transformed` is a `Transformable` method and returns
+  `Result<Self, TransformError>` on every type: Rust code calling it on a
+  concrete type needs `use geomcore::prelude::*`, and code that matched
+  the per-type construction errors (`CircleConstructionError`,
+  `PlaneConstructionError`, ...) matches `TransformError::Collapsed`
+  instead.
+- `BSplineCurve::transformed` and `BSplineSurface::transformed` return a
+  `Result` instead of the curve or surface: a zero scale, which used to
+  give a B-spline collapsed onto a point, now fails with
+  `TransformError::Collapsed`, and an overflow with `NonFinite`. Add
+  `.unwrap()` (or `?`) where the transform is known to be a similarity
+  with a non-zero scale.
+- `reversed` on the B-spline and Bézier curves, and `reversed_u`,
+  `reversed_v`, `u_reversed_parameter` and `v_reversed_parameter` on
+  every surface and on `Surface`, moved from the types to the
+  `ReversibleCurve` and `ReversibleSurface` traits, with the same
+  behaviour: calls on a concrete type need `use geomcore::prelude::*`.
 
 ### Fixed
 
