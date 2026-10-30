@@ -13,5 +13,7 @@ clean API and idiomatic Python bindings.
 - [Roadmap](roadmap.md) — where the kernel is heading.
 
 Rust API reference lives on [docs.rs](https://docs.rs/geomcore) (published
-with each release). A Python API reference generated from docstrings is on
+with each release). There each curve type is one generic type over its tier,
+such as `GenericCircle`; use it through its aliases, `Circle` in space and
+`Circle2D` in the plane. A Python API reference generated from docstrings is on
 the roadmap.

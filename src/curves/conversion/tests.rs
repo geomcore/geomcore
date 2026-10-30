@@ -1,9 +1,10 @@
 use super::*;
 use crate::curves::PointExtrema;
 use crate::curves::PointExtrema2D;
-use crate::curves::{Circle2D, Hyperbola2D, Line2D, ParametricCurve2D, TrimmedCurve2D};
+use crate::curves::{Circle, Ellipse, Hyperbola, Line, Parabola};
+use crate::curves::{Circle2D, Ellipse2D, Hyperbola2D, Line2D, Parabola2D};
 use crate::discretization::{DiscretizationCriteria, Discretize};
-use crate::{Frame2D, Point2D, Tolerance, Vector, Vector2D};
+use crate::{Frame, Frame2D, Point, Point2D, Tolerance, Vector, Vector2D};
 use std::f64::consts::{FRAC_PI_2, FRAC_PI_4, PI};
 
 const RELATIVE: f64 = 1e-12;

@@ -8,10 +8,12 @@
 //! so `contains(point, tol)` agrees with
 //! `project_point(point, tol).distance == 0.0`.
 
+use crate::tier::TierPoint;
 use crate::{Point, Point2D};
 
 /// Closest point of a query point on a curve: the parameter, the point and
-/// the distance.
+/// the distance. One type for both tiers: `CurveProjection` in space, its
+/// default, and [`CurveProjection2D`] in the plane.
 ///
 /// # Examples
 ///
@@ -25,30 +27,20 @@ use crate::{Point, Point2D};
 /// assert_eq!(projection.distance, 1.0);
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct CurveProjection {
+pub struct CurveProjection<P = Point> {
     /// Parameter of the closest point.
     pub parameter: f64,
     /// The closest point: the curve evaluated at `parameter`. For a query
     /// point within tolerance of the curve this is still the point on the
     /// curve, not the query point.
-    pub point: Point,
+    pub point: P,
     /// Distance from the query point to the curve (`0.0` when the query
     /// point is within tolerance of the curve).
     pub distance: f64,
 }
 
-impl CurveProjection {
-    /// The projection of a query point with a non-finite coordinate:
-    /// parameter, point and distance are all NaN.
-    pub(crate) const UNDEFINED: CurveProjection = CurveProjection {
-        parameter: f64::NAN,
-        point: Point::new(f64::NAN, f64::NAN, f64::NAN),
-        distance: f64::NAN,
-    };
-}
-
 /// Closest point of a query point on a 2D curve: the parameter, the point and
-/// the distance. The planar counterpart of [`CurveProjection`].
+/// the distance. The planar instance of [`CurveProjection`].
 ///
 /// # Examples
 ///
@@ -61,23 +53,14 @@ impl CurveProjection {
 /// assert_eq!(projection.point, Point2D::new(2.0, 0.0));
 /// assert_eq!(projection.distance, 1.0);
 /// ```
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct CurveProjection2D {
-    /// Parameter of the closest point.
-    pub parameter: f64,
-    /// The closest point: the curve evaluated at `parameter`.
-    pub point: Point2D,
-    /// Distance from the query point to the curve (`0.0` when the query
-    /// point is within tolerance of the curve).
-    pub distance: f64,
-}
+pub type CurveProjection2D = CurveProjection<Point2D>;
 
-impl CurveProjection2D {
+impl<P: TierPoint> CurveProjection<P> {
     /// The projection of a query point with a non-finite coordinate:
     /// parameter, point and distance are all NaN.
-    pub(crate) const UNDEFINED: CurveProjection2D = CurveProjection2D {
+    pub(crate) const UNDEFINED: CurveProjection<P> = CurveProjection {
         parameter: f64::NAN,
-        point: Point2D::new(f64::NAN, f64::NAN),
+        point: P::UNDEFINED,
         distance: f64::NAN,
     };
 }

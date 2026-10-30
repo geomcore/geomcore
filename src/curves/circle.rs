@@ -1,22 +1,24 @@
-//! Circles in 3D: parametric evaluation, parameter inversion, and
+//! Circles of both tiers: parametric evaluation, parameter inversion, and
 //! circumcircle construction, thin wrappers over
 //! [`crate::elementary::curve`].
 
-use crate::curves::ElementaryCurve;
-use crate::curves::ParametricCurve;
-use crate::curves::PointExtrema;
 use crate::curves::parametric_curve::only_minimum;
 use crate::curves::parametrize::ParametrizeError;
 use crate::curves::{Curve2D, parametrize};
+use crate::curves::{ElementaryCurve, ParametricCurve, ParametricCurve2D};
+use crate::curves::{PointExtrema, PointExtrema2D};
 use crate::elementary::curve as elementary;
 use crate::frame::frame_error;
+use crate::projection;
 use crate::projection::CurveProjection;
 use crate::surfaces::Surface;
-use crate::{Axis, Frame, Point, Tolerance, Transform, Vector, projection};
+use crate::tier::operations::FrameOperations;
+use crate::tier::{TierPoint, impl_for_both_tiers};
+use crate::{Axis, Frame, Frame2D, Point, Point2D, Tolerance, Transform, Vector, Vector2D};
 use std::f64::consts::TAU;
 use std::fmt;
 
-/// Error returned when a [`Circle`] or [`Circle2D`](crate::Circle2D) cannot be constructed
+/// Error returned when a [`Circle`] or [`Circle2D`] cannot be constructed
 /// from the given inputs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CircleConstructionError {
@@ -49,9 +51,31 @@ impl fmt::Display for CircleConstructionError {
 
 impl std::error::Error for CircleConstructionError {}
 
-/// A circle in 3D: a plane [`Frame`] (origin plus local x/y directions
+/// A circle of either tier: a frame (origin plus local x/y directions
 /// defining the plane and the angular origin) and a radius, evaluated as
-/// `origin + radius*cos(u)*x_dir + radius*sin(u)*y_dir`.
+/// `origin + radius*cos(u)*x_dir + radius*sin(u)*y_dir`. Use it through
+/// [`Circle`] in space and [`Circle2D`] in the plane (ADR 0014).
+///
+/// # Examples
+///
+/// ```
+/// use geomcore::prelude::*;
+/// use geomcore::{Circle, Circle2D, Point, Point2D, Vector};
+/// let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
+/// assert_eq!(circle.eval_point(0.0), Point::new(2.0, 0.0, 0.0));
+/// let circle_2d = Circle2D::new(Point2D::ORIGIN, 2.0).unwrap();
+/// assert_eq!(circle_2d.eval_point(0.0), Point2D::new(2.0, 0.0));
+/// ```
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct GenericCircle<P: TierPoint> {
+    frame: P::Frame,
+    radius: f64,
+}
+
+/// A circle in space: a plane [`Frame`] (origin plus local x/y directions
+/// defining the plane and the angular origin) and a radius, evaluated as
+/// `origin + radius*cos(u)*x_dir + radius*sin(u)*y_dir`. Its methods are
+/// those of [`GenericCircle`].
 ///
 /// # Examples
 ///
@@ -61,10 +85,127 @@ impl std::error::Error for CircleConstructionError {}
 /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
 /// assert_eq!(circle.eval_point(0.0), Point::new(2.0, 0.0, 0.0));
 /// ```
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Circle {
-    frame: Frame,
-    radius: f64,
+pub type Circle = GenericCircle<Point>;
+
+/// A circle in the plane: a [`Frame2D`] (origin plus local x/y directions
+/// defining the angular origin) and a radius, evaluated as
+/// `origin + radius*cos(u)*x_dir + radius*sin(u)*y_dir`. Its methods are
+/// those of [`GenericCircle`].
+///
+/// # Examples
+///
+/// ```
+/// use geomcore::prelude::*;
+/// use geomcore::{Circle2D, Point2D};
+/// let circle = Circle2D::new(Point2D::ORIGIN, 2.0).unwrap();
+/// assert_eq!(circle.eval_point(0.0), Point2D::new(2.0, 0.0));
+/// ```
+pub type Circle2D = GenericCircle<Point2D>;
+
+impl<P: TierPoint> GenericCircle<P> {
+    /// Creates a circle from a frame and a radius directly.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`CircleConstructionError::NegativeRadius`] if `radius < 0`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Circle, Circle2D, Frame, Frame2D};
+    /// let circle = Circle::from_frame(Frame::WORLD, 2.0).unwrap();
+    /// assert_eq!(circle.frame(), Frame::WORLD);
+    /// let circle_2d = Circle2D::from_frame(Frame2D::WORLD, 2.0).unwrap();
+    /// assert_eq!(circle_2d.frame(), Frame2D::WORLD);
+    /// ```
+    pub fn from_frame(
+        frame: P::Frame,
+        radius: f64,
+    ) -> Result<GenericCircle<P>, CircleConstructionError> {
+        if !(radius.is_finite()) {
+            return Err(CircleConstructionError::NonFinite);
+        }
+        if radius < 0.0 {
+            return Err(CircleConstructionError::NegativeRadius);
+        }
+        Ok(GenericCircle { frame, radius })
+    }
+
+    /// Returns the center of the circle.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Circle, Point, Vector};
+    /// let circle = Circle::new(Point::new(1.0, 2.0, 3.0), Vector::Z, 2.0).unwrap();
+    /// assert_eq!(circle.center(), Point::new(1.0, 2.0, 3.0));
+    /// ```
+    pub fn center(&self) -> P {
+        self.frame.origin()
+    }
+
+    /// Returns the radius of the circle.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Circle, Point, Vector};
+    /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
+    /// assert_eq!(circle.radius(), 2.0);
+    /// ```
+    pub fn radius(&self) -> f64 {
+        self.radius
+    }
+
+    /// Returns the circle's frame.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Circle, Frame};
+    /// let circle = Circle::from_frame(Frame::WORLD, 2.0).unwrap();
+    /// assert_eq!(circle.frame(), Frame::WORLD);
+    /// ```
+    pub fn frame(&self) -> P::Frame {
+        self.frame
+    }
+
+    /// The parameter to report for a point found at parameter `u`: `u`
+    /// wrapped into the bounds `[0, 2*PI)`, and `0` when within
+    /// `tol.confusion` of the seam along the curve, so a point at the seam
+    /// has one parameter.
+    pub(crate) fn parameter_in_bounds(&self, u: f64, tol: Tolerance) -> f64 {
+        // The speed is the radius everywhere.
+        elementary::seam_wrapped(u, 0.0, TAU, self.radius, tol.confusion)
+    }
+
+    /// Circumference (`2*PI*radius`).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Circle, Point, Vector};
+    /// use std::f64::consts::TAU;
+    /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
+    /// assert_eq!(circle.circumference(), TAU * 2.0);
+    /// ```
+    pub fn circumference(&self) -> f64 {
+        TAU * self.radius
+    }
+
+    /// Area of the enclosed disk (`PI*radius^2`).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Circle, Point, Vector};
+    /// use std::f64::consts::PI;
+    /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
+    /// assert!((circle.disk_area() - PI * 4.0).abs() < 1e-12);
+    /// ```
+    pub fn disk_area(&self) -> f64 {
+        std::f64::consts::PI * self.radius * self.radius
+    }
 }
 
 impl Circle {
@@ -119,29 +260,6 @@ impl Circle {
             CircleConstructionError::NullNormal,
         ))?;
         Circle::from_frame(frame, radius)
-    }
-
-    /// Creates a circle from a plane frame and a radius directly.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`CircleConstructionError::NegativeRadius`] if `radius < 0`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{Circle, Frame};
-    /// let circle = Circle::from_frame(Frame::WORLD, 2.0).unwrap();
-    /// assert_eq!(circle.frame(), Frame::WORLD);
-    /// ```
-    pub fn from_frame(frame: Frame, radius: f64) -> Result<Circle, CircleConstructionError> {
-        if !(radius.is_finite()) {
-            return Err(CircleConstructionError::NonFinite);
-        }
-        if radius < 0.0 {
-            return Err(CircleConstructionError::NegativeRadius);
-        }
-        Ok(Circle { frame, radius })
     }
 
     /// Creates the circumcircle through three points.
@@ -214,45 +332,6 @@ impl Circle {
         Circle::from_frame(frame, radius)
     }
 
-    /// Returns the center of the circle.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{Circle, Point, Vector};
-    /// let circle = Circle::new(Point::new(1.0, 2.0, 3.0), Vector::Z, 2.0).unwrap();
-    /// assert_eq!(circle.center(), Point::new(1.0, 2.0, 3.0));
-    /// ```
-    pub fn center(&self) -> Point {
-        self.frame.origin()
-    }
-
-    /// Returns the radius of the circle.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{Circle, Point, Vector};
-    /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
-    /// assert_eq!(circle.radius(), 2.0);
-    /// ```
-    pub fn radius(&self) -> f64 {
-        self.radius
-    }
-
-    /// Returns the circle's plane frame.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{Circle, Frame};
-    /// let circle = Circle::from_frame(Frame::WORLD, 2.0).unwrap();
-    /// assert_eq!(circle.frame(), Frame::WORLD);
-    /// ```
-    pub fn frame(&self) -> Frame {
-        self.frame
-    }
-
     /// Returns the unit normal of the circle's plane on the side the
     /// circle turns counterclockwise about: `x × y` of its frame. That is
     /// the frame's z direction on a direct frame and its negation on an
@@ -307,44 +386,6 @@ impl Circle {
         Circle::from_frame(frame, self.radius() * scale)
     }
 
-    /// The parameter to report for a point found at parameter `u`: `u`
-    /// wrapped into [`bounds`](crate::curves::ParametricCurve::bounds),
-    /// and the start of the bounds when within `tol.confusion` of the seam
-    /// along the curve, so a point at the seam has one parameter.
-    pub(crate) fn parameter_in_bounds(&self, u: f64, tol: Tolerance) -> f64 {
-        let (first, last) = self.bounds();
-        // The speed is the radius everywhere.
-        elementary::seam_wrapped(u, first, last - first, self.radius, tol.confusion)
-    }
-
-    /// Circumference (`2*PI*radius`).
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{Circle, Point, Vector};
-    /// use std::f64::consts::TAU;
-    /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
-    /// assert_eq!(circle.circumference(), TAU * 2.0);
-    /// ```
-    pub fn circumference(&self) -> f64 {
-        std::f64::consts::TAU * self.radius()
-    }
-
-    /// Area of the enclosed disk (`PI*radius^2`).
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{Circle, Point, Vector};
-    /// use std::f64::consts::PI;
-    /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
-    /// assert!((circle.disk_area() - PI * 4.0).abs() < 1e-12);
-    /// ```
-    pub fn disk_area(&self) -> f64 {
-        std::f64::consts::PI * self.radius() * self.radius()
-    }
-
     /// Computes the exact 2D representation of this circle in a surface's
     /// parameter space: a [`Curve2D`] `q(t)` such that
     /// `surface.eval_point(q(t)) == self.eval_point(t)` for the same `t`.
@@ -392,59 +433,90 @@ impl Circle {
     }
 }
 
-impl PointExtrema for Circle {
-    fn extrema(&self, point: Point, tol: Tolerance) -> Vec<CurveProjection> {
-        only_minimum(point, || self.project_point(point, tol))
+impl Circle2D {
+    /// Creates a circle from a center and a radius, using a world-aligned
+    /// frame (x/y directions matching [`Vector2D::X`]/[`Vector2D::Y`]) at
+    /// `center`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`CircleConstructionError::NegativeRadius`] if `radius < 0`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Circle2D, Point2D};
+    /// let circle = Circle2D::new(Point2D::new(1.0, 2.0), 3.0).unwrap();
+    /// assert_eq!(circle.center(), Point2D::new(1.0, 2.0));
+    /// ```
+    pub fn new(center: Point2D, radius: f64) -> Result<Circle2D, CircleConstructionError> {
+        // X and Y are orthonormal, so only a non-finite center can fail.
+        let frame = Frame2D::new(center, Vector2D::X, Vector2D::Y)
+            .map_err(|_| CircleConstructionError::NonFinite)?;
+        Circle2D::from_frame(frame, radius)
     }
+}
 
-    /// Recovers the angular parameter of a point on (or near) the circle,
-    /// wrapped into `[0, 2*PI)`.
-    fn parameter_of(&self, point: Point, _tol: Tolerance) -> f64 {
-        elementary::circle_parameter(&self.frame, point)
-    }
+impl_for_both_tiers! {
+    impl PointExtrema, PointExtrema2D for GenericCircle {
+        fn extrema(&self, point: P, tol: Tolerance) -> Vec<CurveProjection<P>> {
+            only_minimum(point, || self.project_point(point, tol))
+        }
 
-    fn contains(&self, point: Point, tol: Tolerance) -> bool {
-        let u = self.parameter_of(point, tol);
-        self.eval_point(u).distance(point) <= tol.confusion
-    }
+        /// Recovers the angular parameter of a point on (or near) the circle,
+        /// wrapped into `[0, 2*PI)`.
+        fn parameter_of(&self, point: P, _tol: Tolerance) -> f64 {
+            elementary::circle_parameter(&self.frame, point)
+        }
 
-    fn project_point(&self, point: Point, tol: Tolerance) -> CurveProjection {
-        let u = self.parameter_of(point, tol);
-        let foot = self.eval_point(u);
-        let distance = foot.distance(point);
-        CurveProjection {
-            point: foot,
-            parameter: self.parameter_in_bounds(u, tol),
-            distance: projection::snap_distance(distance, tol.confusion),
+        fn contains(&self, point: P, tol: Tolerance) -> bool {
+            let u = self.parameter_of(point, tol);
+            self.eval_point(u).distance(point) <= tol.confusion
+        }
+
+        fn project_point(&self, point: P, tol: Tolerance) -> CurveProjection<P> {
+            let u = self.parameter_of(point, tol);
+            let foot = self.eval_point(u);
+            let distance = foot.distance(point);
+            CurveProjection {
+                point: foot,
+                parameter: self.parameter_in_bounds(u, tol),
+                distance: projection::snap_distance(distance, tol.confusion),
+            }
         }
     }
 }
 
-impl ParametricCurve for Circle {
-    #[inline]
-    fn eval_point(&self, u: f64) -> Point {
-        elementary::circle_d0(&self.frame, self.radius, u)
-    }
+impl_for_both_tiers! {
+    impl ParametricCurve, ParametricCurve2D for GenericCircle {
+        #[inline]
+        fn eval_point(&self, u: f64) -> P {
+            elementary::circle_d0(&self.frame, self.radius, u)
+        }
 
-    fn eval_derivative(&self, u: f64, order: u32) -> Vector {
-        match order {
-            0 => panic!("eval_derivative: order must be >= 1 (use eval_point for order 0)"),
-            _ => elementary::circle_dn(&self.frame, self.radius, u, order),
+        fn eval_derivative(&self, u: f64, order: u32) -> V {
+            match order {
+                0 => panic!("eval_derivative: order must be >= 1 (use eval_point for order 0)"),
+                _ => elementary::circle_dn(&self.frame, self.radius, u, order),
+            }
+        }
+
+        fn bounds(&self) -> (f64, f64) {
+            (0.0, TAU)
+        }
+
+        fn period(&self) -> Option<f64> {
+            Some(TAU)
         }
     }
-
-    fn bounds(&self) -> (f64, f64) {
-        (0.0, TAU)
-    }
-
-    fn period(&self) -> Option<f64> {
-        Some(TAU)
-    }
-
-    fn as_elementary(&self) -> Option<ElementaryCurve> {
-        Some(ElementaryCurve::Circle(*self))
+    spatial {
+        fn as_elementary(&self) -> Option<ElementaryCurve> {
+            Some(ElementaryCurve::Circle(*self))
+        }
     }
 }
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_2d;

@@ -1,5 +1,5 @@
 use super::*;
-use crate::{Axis, Frame, PointParametrization};
+use crate::{Axis, Frame, PointParametrization, Vector};
 
 // ---- construction / accessors ----
 

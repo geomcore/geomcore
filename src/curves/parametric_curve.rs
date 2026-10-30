@@ -5,6 +5,7 @@
 use crate::curves::BSplineCurve;
 use crate::curves::ElementaryCurve;
 use crate::projection::CurveProjection;
+use crate::tier::TierPoint;
 use crate::{Point, Tolerance, Vector};
 
 /// Which side of a parameter to evaluate from, for one-sided limits at
@@ -671,10 +672,10 @@ impl<C: PointExtrema + ?Sized> PointExtrema for &C {
 
 /// The single local minimum of a line, or of a circle (whose distance
 /// from a point falls monotonically to it from the farthest point).
-pub(crate) fn only_minimum(
-    point: Point,
-    project: impl Fn() -> CurveProjection,
-) -> Vec<CurveProjection> {
+pub(crate) fn only_minimum<P: TierPoint>(
+    point: P,
+    project: impl Fn() -> CurveProjection<P>,
+) -> Vec<CurveProjection<P>> {
     if point.is_finite() {
         vec![project()]
     } else {

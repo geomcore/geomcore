@@ -115,7 +115,7 @@ where
 }
 
 /// A pole whose removal deviation can be bounded.
-pub(crate) trait Deviation: Pole + Default {
+pub trait Deviation: Pole + Default {
     /// A bound on how far the points of the shape move when each lane's
     /// pole moves by its `diffs` times `coefficient` (a basis function's
     /// maximum), or `None` if it exceeds `max` or is not finite: `centre`

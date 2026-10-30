@@ -102,3 +102,14 @@ fn test_circle2d_project_point() {
     assert_eq!(proj.parameter, 0.0);
     assert_eq!(proj.distance, 1.0);
 }
+
+#[test]
+fn test_circle2d_project_point_at_seam_reports_start() {
+    let circle = Circle2D::new(Point2D::ORIGIN, 2.0).unwrap();
+    let tol = Tolerance::DEFAULT;
+    // Just below the seam, within the confusion tolerance along the circle.
+    let point = Point2D::new(2.0, -1e-9);
+    let proj = circle.project_point(point, tol);
+    assert_eq!(proj.parameter, 0.0);
+    assert!(circle.parameter_of(point, tol) > std::f64::consts::PI);
+}

@@ -161,6 +161,8 @@ pub(crate) mod shape_enum;
 /// Public surface types: planes, cylinders, cones, spheres, tori, and
 /// B-spline surfaces.
 pub mod surfaces;
+/// The two tiers of curves, space and the plane, and the trait naming one.
+pub mod tier;
 /// Distance and angle tolerances shared by all geometric queries.
 pub mod tolerance;
 /// Rigid and affine transformations.
@@ -173,8 +175,9 @@ pub use curves::{
     BSplineConstructionError, BSplineConversionError, BSplineCurve, BSplineCurve2D,
     BSplineSplitError, BezierConstructionError, BezierCurve, BezierCurve2D, Circle, Circle2D,
     CircleConstructionError, Continuity, Curve, Curve2D, DegreeElevationError, ElementaryCurve,
-    Ellipse, Ellipse2D, EllipseConstructionError, Hyperbola, Hyperbola2D,
-    HyperbolaConstructionError, KnotInsertionError, KnotRemovalError, Line, Line2D,
+    Ellipse, Ellipse2D, EllipseConstructionError, GenericBSplineCurve, GenericBezierCurve,
+    GenericCircle, GenericEllipse, GenericHyperbola, GenericLine, GenericParabola, Hyperbola,
+    Hyperbola2D, HyperbolaConstructionError, KnotInsertionError, KnotRemovalError, Line, Line2D,
     LineConstructionError, Parabola, Parabola2D, ParabolaConstructionError, ParametricCurve,
     ParametricCurve2D, ParametrizeError, PointExtrema, PointExtrema2D, PointParametrization, Side,
     TrimmedCurve, TrimmedCurve2D, TrimmedCurveConstructionError, parametrize_numeric,
@@ -217,6 +220,7 @@ pub use surfaces::{
     Sphere, SphereConstructionError, Surface, SurfaceCurvatures, SurfaceIsoError, Torus,
     TorusConstructionError,
 };
+pub use tier::TierPoint;
 pub use tolerance::Tolerance;
 pub use transform::Transform;
 pub use vector::{Vector, Vector2D};

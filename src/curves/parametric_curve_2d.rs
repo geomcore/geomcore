@@ -506,18 +506,5 @@ impl<C: PointExtrema2D + ?Sized> PointExtrema2D for &C {
     }
 }
 
-/// The single local minimum of a line, or of a circle (whose distance
-/// from a point falls monotonically to it from the farthest point).
-pub(crate) fn only_minimum(
-    point: Point2D,
-    project: impl Fn() -> CurveProjection2D,
-) -> Vec<CurveProjection2D> {
-    if point.is_finite() {
-        vec![project()]
-    } else {
-        Vec::new()
-    }
-}
-
 #[cfg(test)]
 mod tests;

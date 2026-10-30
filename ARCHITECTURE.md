@@ -17,16 +17,16 @@ src/
 ├── transform.rs         rigid transforms
 ├── tolerance.rs         Tolerance: every geometric decision takes one
 ├── projection.rs        results of point projection (CurveProjection, …)
+├── tier.rs              TierPoint: the two tiers (space, plane) the curve types are generic over
 ├── shape_enum.rs        the macros that expand a shape enum's variant list (ADR 0017)
 │
 ├── curves/              the public curve types, one file per type
 │   ├── parametric_curve.rs      ParametricCurve, PointExtrema, Side, Continuity
 │   ├── parametric_curve_2d.rs   ParametricCurve2D, PointExtrema2D
 │   ├── curve.rs curve_2d.rs     the Curve, ElementaryCurve, Curve2D enums
-│   ├── line.rs … hyperbola.rs   elementary 3D curves
-│   ├── line_2d.rs … hyperbola_2d.rs
-│   ├── bspline.rs bspline_2d.rs spline.rs   the two B-spline tiers and their shared type
-│   ├── bezier.rs bezier_2d.rs
+│   ├── line.rs … hyperbola.rs   elementary curves, each one generic type for both tiers
+│   ├── bspline.rs spline.rs     B-spline curves of both tiers and the spline they wrap
+│   ├── bezier.rs                Bézier curves of both tiers
 │   ├── trimmed.rs               TrimmedCurve and TrimmedCurve2D
 │   ├── conversion.rs fitting.rs parametrize.rs   to B-spline, from points, onto a surface
 ├── surfaces/            the public surface types, one file per type
@@ -67,10 +67,11 @@ Outside `src/`:
 
 ## Placement rules
 
-1. **One public type per file, named after the type.** `Ellipse` lives in
-   `curves/ellipse.rs`, `Ellipse2D` in `curves/ellipse_2d.rs`. Only 2D
-   types carry a dimension suffix (ADR 0013), and the 2D files mirror the 3D
-   ones (ADR 0014). A type's construction error lives beside it.
+1. **One public type per file, named after the type.** A curve type is one
+   generic type over its tier (ADR 0014): `GenericEllipse`, with its aliases
+   `Ellipse` and `Ellipse2D`, lives in `curves/ellipse.rs`, and its 2D unit
+   tests in `curves/ellipse/tests_2d.rs`. Only 2D types carry a dimension
+   suffix (ADR 0013). A type's construction error lives beside it.
 2. **Shared behaviour lives on the traits, implemented in the type's
    file.** `ParametricCurve`, `PointExtrema`, `ParametricCurve2D`,
    `PointExtrema2D` and `ParametricSurface` are defined in the
@@ -79,7 +80,9 @@ Outside `src/`:
    the trait; a type overrides a provided method only for a faster closed
    form, and its inherent `impl` keeps only what is specific to it
    (`Circle::radius`, `BSplineCurve::insert_knot`). Callers bring the
-   traits in with `use geomcore::prelude::*` (ADR 0015).
+   traits in with `use geomcore::prelude::*` (ADR 0015). A generic curve
+   type implements the space and plane traits from one body, with the
+   crate-private `impl_for_both_tiers!` of `tier.rs`.
 3. **Operation traits are implemented in their operation's folder.**
    `HasBoundingBox` impls live in `bounding_box/`, `Discretize` impls in
    `discretization/`, and `IntersectExact` impls in `intersect/exact/`, all
@@ -101,7 +104,9 @@ Outside `src/`:
 
 **A new curve or surface type.**
 - Add `curves/<name>.rs` (or `surfaces/<name>.rs`) holding the type, its
-  constructor error and its shape-trait impls.
+  constructor error and its shape-trait impls. A curve that exists in both
+  tiers is one `Generic<Name><P: TierPoint>` with the aliases `<Name>` and
+  `<Name>2D`.
 - Re-export it from the folder's `mod.rs` and from `lib.rs`.
 - Add it as a variant of the `Curve`/`ElementaryCurve` (or `Surface`) enum,
   and as one line in that enum's `*_variants!` list beside it: every

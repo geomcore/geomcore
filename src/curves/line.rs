@@ -1,20 +1,21 @@
-//! Infinite lines in 3D: parametric evaluation and parameter
+//! Infinite lines of both tiers: parametric evaluation and parameter
 //! inversion, thin wrappers over [`crate::elementary::curve`].
 
-use crate::curves::ElementaryCurve;
-use crate::curves::ParametricCurve;
-use crate::curves::PointExtrema;
 use crate::curves::parametric_curve::only_minimum;
 use crate::curves::parametrize::ParametrizeError;
 use crate::curves::{Curve2D, parametrize};
+use crate::curves::{ElementaryCurve, ParametricCurve, ParametricCurve2D};
+use crate::curves::{PointExtrema, PointExtrema2D};
 use crate::elementary::curve as elementary;
 use crate::frame::frame_error;
 use crate::projection::CurveProjection;
 use crate::surfaces::Surface;
-use crate::{Axis, Point, Tolerance, Transform, Vector, projection};
+use crate::tier::operations::{AxisOperations, VectorOperations};
+use crate::tier::{TierPoint, impl_for_both_tiers};
+use crate::{Point, Point2D, Tolerance, Transform, projection};
 use std::fmt;
 
-/// Error returned when a [`Line`] or [`Line2D`](crate::Line2D) cannot be constructed from
+/// Error returned when a [`Line`] or [`Line2D`] cannot be constructed from
 /// the given inputs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LineConstructionError {
@@ -40,8 +41,28 @@ impl fmt::Display for LineConstructionError {
 
 impl std::error::Error for LineConstructionError {}
 
-/// An infinite line in 3D: an origin point and a unit direction, evaluated
-/// as `origin + u * direction`.
+/// An infinite line of either tier: an origin point and a unit direction,
+/// evaluated as `origin + u * direction`. Use it through [`Line`] in space
+/// and [`Line2D`] in the plane (ADR 0014).
+///
+/// # Examples
+///
+/// ```
+/// use geomcore::prelude::*;
+/// use geomcore::{Line, Line2D, Point, Point2D, Vector, Vector2D};
+/// let line = Line::new(Point::ORIGIN, Vector::X).unwrap();
+/// assert_eq!(line.eval_point(3.0), Point::new(3.0, 0.0, 0.0));
+/// let line_2d = Line2D::new(Point2D::ORIGIN, Vector2D::X).unwrap();
+/// assert_eq!(line_2d.eval_point(3.0), Point2D::new(3.0, 0.0));
+/// ```
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct GenericLine<P: TierPoint> {
+    axis: P::Axis,
+}
+
+/// An infinite line in space: an origin point and a unit direction,
+/// evaluated as `origin + u * direction`. Its methods are those of
+/// [`GenericLine`].
 ///
 /// # Examples
 ///
@@ -51,12 +72,23 @@ impl std::error::Error for LineConstructionError {}
 /// let line = Line::new(Point::ORIGIN, Vector::X).unwrap();
 /// assert_eq!(line.eval_point(3.0), Point::new(3.0, 0.0, 0.0));
 /// ```
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Line {
-    axis: Axis,
-}
+pub type Line = GenericLine<Point>;
 
-impl Line {
+/// An infinite line in the plane: an origin point and a unit direction,
+/// evaluated as `origin + u * direction`. Its methods are those of
+/// [`GenericLine`].
+///
+/// # Examples
+///
+/// ```
+/// use geomcore::prelude::*;
+/// use geomcore::{Line2D, Point2D, Vector2D};
+/// let line = Line2D::new(Point2D::ORIGIN, Vector2D::X).unwrap();
+/// assert_eq!(line.eval_point(3.0), Point2D::new(3.0, 0.0));
+/// ```
+pub type Line2D = GenericLine<Point2D>;
+
+impl<P: TierPoint> GenericLine<P> {
     /// Creates a new line from an origin and a direction.
     ///
     /// The direction is normalized. Returns
@@ -66,16 +98,18 @@ impl Line {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Line, Point, Vector};
+    /// use geomcore::{Line, Line2D, Point, Point2D, Vector, Vector2D};
     /// let line = Line::new(Point::ORIGIN, Vector::new(2.0, 0.0, 0.0)).unwrap();
     /// assert_eq!(line.direction(), Vector::X);
+    /// let line_2d = Line2D::new(Point2D::ORIGIN, Vector2D::new(0.0, 5.0)).unwrap();
+    /// assert_eq!(line_2d.direction(), Vector2D::Y);
     /// ```
-    pub fn new(origin: Point, direction: Vector) -> Result<Line, LineConstructionError> {
-        let axis = Axis::new(origin, direction).map_err(frame_error(
+    pub fn new(origin: P, direction: P::Vector) -> Result<GenericLine<P>, LineConstructionError> {
+        let axis = P::Axis::new(origin, direction).map_err(frame_error(
             LineConstructionError::NonFinite,
             LineConstructionError::NullDirection,
         ))?;
-        Ok(Line { axis })
+        Ok(GenericLine { axis })
     }
 
     /// Creates a line from an axis directly.
@@ -88,8 +122,8 @@ impl Line {
     /// let line = Line::from_axis(axis);
     /// assert_eq!(line.axis(), axis);
     /// ```
-    pub fn from_axis(axis: Axis) -> Line {
-        Line { axis }
+    pub fn from_axis(axis: P::Axis) -> GenericLine<P> {
+        GenericLine { axis }
     }
 
     /// Creates a line through two points; the direction points from `p1` to
@@ -102,16 +136,18 @@ impl Line {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Line, Point};
+    /// use geomcore::{Line, Line2D, Point, Point2D};
     /// let line = Line::from_two_points(Point::ORIGIN, Point::new(2.0, 0.0, 0.0)).unwrap();
     /// assert_eq!(line.origin(), Point::ORIGIN);
+    /// let line_2d = Line2D::from_two_points(Point2D::ORIGIN, Point2D::new(0.0, 4.0)).unwrap();
+    /// assert_eq!(line_2d.origin(), Point2D::ORIGIN);
     /// ```
-    pub fn from_two_points(p1: Point, p2: Point) -> Result<Line, LineConstructionError> {
+    pub fn from_two_points(p1: P, p2: P) -> Result<GenericLine<P>, LineConstructionError> {
         let direction = (p2 - p1)
             .normalized()
             .ok_or(LineConstructionError::ConfusedPoints)?;
-        Ok(Line {
-            axis: Axis::new(p1, direction).map_err(frame_error(
+        Ok(GenericLine {
+            axis: P::Axis::new(p1, direction).map_err(frame_error(
                 LineConstructionError::NonFinite,
                 LineConstructionError::ConfusedPoints,
             ))?,
@@ -127,7 +163,7 @@ impl Line {
     /// let line = Line::new(Point::new(1.0, 2.0, 3.0), Vector::X).unwrap();
     /// assert_eq!(line.origin(), Point::new(1.0, 2.0, 3.0));
     /// ```
-    pub fn origin(&self) -> Point {
+    pub fn origin(&self) -> P {
         self.axis.origin()
     }
 
@@ -140,7 +176,7 @@ impl Line {
     /// let line = Line::new(Point::ORIGIN, Vector::new(0.0, 5.0, 0.0)).unwrap();
     /// assert_eq!(line.direction(), Vector::Y);
     /// ```
-    pub fn direction(&self) -> Vector {
+    pub fn direction(&self) -> P::Vector {
         self.axis.direction()
     }
 
@@ -154,10 +190,12 @@ impl Line {
     /// let line = Line::from_axis(axis);
     /// assert_eq!(line.axis(), axis);
     /// ```
-    pub fn axis(&self) -> Axis {
+    pub fn axis(&self) -> P::Axis {
         self.axis
     }
+}
 
+impl Line {
     /// Returns the image of this line under `transform`: the origin maps
     /// point-wise while the direction maps as a free vector (and is
     /// re-normalized).
@@ -225,61 +263,67 @@ impl Line {
     }
 }
 
-impl PointExtrema for Line {
-    fn extrema(&self, point: Point, tol: Tolerance) -> Vec<CurveProjection> {
-        only_minimum(point, || self.project_point(point, tol))
-    }
+impl_for_both_tiers! {
+    impl PointExtrema, PointExtrema2D for GenericLine {
+        fn extrema(&self, point: P, tol: Tolerance) -> Vec<CurveProjection<P>> {
+            only_minimum(point, || self.project_point(point, tol))
+        }
 
-    /// Recovers the parameter `u` of a point on (or near) the line: the
-    /// signed projection `(point - origin) . direction`.
-    fn parameter_of(&self, point: Point, _tol: Tolerance) -> f64 {
-        elementary::line_parameter(&self.axis, point)
-    }
+        /// Recovers the parameter `u` of a point on (or near) the line: the
+        /// signed projection `(point - origin) . direction`.
+        fn parameter_of(&self, point: P, _tol: Tolerance) -> f64 {
+            elementary::line_parameter(&self.axis, point)
+        }
 
-    fn contains(&self, point: Point, tol: Tolerance) -> bool {
-        let u = self.parameter_of(point, tol);
-        self.eval_point(u).distance(point) <= tol.confusion
-    }
+        fn contains(&self, point: P, tol: Tolerance) -> bool {
+            let u = self.parameter_of(point, tol);
+            self.eval_point(u).distance(point) <= tol.confusion
+        }
 
-    fn project_point(&self, point: Point, tol: Tolerance) -> CurveProjection {
-        let u = self.parameter_of(point, tol);
-        let foot = self.eval_point(u);
-        let distance = foot.distance(point);
-        CurveProjection {
-            point: foot,
-            parameter: u,
-            distance: projection::snap_distance(distance, tol.confusion),
+        fn project_point(&self, point: P, tol: Tolerance) -> CurveProjection<P> {
+            let u = self.parameter_of(point, tol);
+            let foot = self.eval_point(u);
+            let distance = foot.distance(point);
+            CurveProjection {
+                point: foot,
+                parameter: u,
+                distance: projection::snap_distance(distance, tol.confusion),
+            }
         }
     }
 }
 
-impl ParametricCurve for Line {
-    #[inline]
-    fn eval_point(&self, u: f64) -> Point {
-        elementary::line_d0(&self.axis, u)
-    }
+impl_for_both_tiers! {
+    impl ParametricCurve, ParametricCurve2D for GenericLine {
+        #[inline]
+        fn eval_point(&self, u: f64) -> P {
+            elementary::line_d0(&self.axis, u)
+        }
 
-    fn eval_derivative(&self, u: f64, order: u32) -> Vector {
-        let _ = u;
-        match order {
-            0 => panic!("eval_derivative: order must be >= 1 (use eval_point for order 0)"),
-            1 => elementary::line_d1(&self.axis),
-            _ => Vector::ZERO,
+        fn eval_derivative(&self, _u: f64, order: u32) -> V {
+            match order {
+                0 => panic!("eval_derivative: order must be >= 1 (use eval_point for order 0)"),
+                1 => elementary::line_d1(&self.axis),
+                _ => V::ZERO,
+            }
+        }
+
+        fn bounds(&self) -> (f64, f64) {
+            (f64::NEG_INFINITY, f64::INFINITY)
+        }
+
+        fn period(&self) -> Option<f64> {
+            None
         }
     }
-
-    fn bounds(&self) -> (f64, f64) {
-        (f64::NEG_INFINITY, f64::INFINITY)
-    }
-
-    fn period(&self) -> Option<f64> {
-        None
-    }
-
-    fn as_elementary(&self) -> Option<ElementaryCurve> {
-        Some(ElementaryCurve::Line(*self))
+    spatial {
+        fn as_elementary(&self) -> Option<ElementaryCurve> {
+            Some(ElementaryCurve::Line(*self))
+        }
     }
 }
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_2d;

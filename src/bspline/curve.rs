@@ -24,6 +24,8 @@ use crate::curves::Side;
 use crate::elementary::curve::in_period;
 use crate::math::bernstein::{CAPACITY, add_product, rising_roots, scale, unscale};
 use crate::math::newton_min_1d;
+use crate::tier::TierPoint;
+use crate::tier::operations::VectorOperations;
 use crate::{Continuity, Tolerance};
 
 /// Maximum supported B-spline degree.
@@ -1098,7 +1100,7 @@ fn point_sized<const N: usize, G: PolePoint>(knots: &KnotVector, poles: Poles<G>
 /// its derivatives, then applies the quotient rule: `C = H / w`,
 /// `C' = (H' - C w') / w`, `C'' = (H'' - 2 C' w' - C w'') / w`.
 #[inline]
-pub(crate) fn derivatives<const ORDER: usize, G: PolePoint>(
+pub(crate) fn derivatives<const ORDER: usize, G: TierPoint>(
     knots: &KnotVector,
     poles: Poles<G>,
     u: f64,
@@ -1115,7 +1117,7 @@ pub(crate) fn derivatives<const ORDER: usize, G: PolePoint>(
 /// the seam of a periodic direction too); both agree strictly inside a
 /// span.
 #[inline]
-pub(crate) fn derivatives_sided<const ORDER: usize, G: PolePoint>(
+pub(crate) fn derivatives_sided<const ORDER: usize, G: TierPoint>(
     knots: &KnotVector,
     poles: Poles<G>,
     u: f64,
@@ -1129,7 +1131,7 @@ pub(crate) fn derivatives_sided<const ORDER: usize, G: PolePoint>(
 }
 
 #[inline]
-fn derivatives_sized<const N: usize, const ORDER: usize, G: PolePoint>(
+fn derivatives_sized<const N: usize, const ORDER: usize, G: TierPoint>(
     knots: &KnotVector,
     poles: Poles<G>,
     u: f64,
@@ -1154,7 +1156,7 @@ fn derivatives_sized<const N: usize, const ORDER: usize, G: PolePoint>(
             sum[3] += b;
         }
     }
-    let mut out = sums.map(G::vector_of);
+    let mut out = sums.map(vector_of::<G>);
     if poles.weights.is_some() {
         let [w0, w1, w2] = sums.map(|s| s[3]);
         let inverse = 1.0 / w0;
@@ -1169,6 +1171,13 @@ fn derivatives_sized<const N: usize, const ORDER: usize, G: PolePoint>(
     out
 }
 
+/// The vector of homogeneous sums `s` (see [`PolePoint::point_of`]),
+/// seen from the origin: a derivative before the quotient rule.
+#[inline]
+fn vector_of<G: TierPoint>(s: [f64; 4]) -> G::Vector {
+    G::point_of(s) - G::ORIGIN
+}
+
 /// The derivative of order `order >= 1` at `u`, from one side of `u` when
 /// `side` is given: the general path for the orders above
 /// [`MAX_DERIVATIVE`], which [`derivatives`] stops at.
@@ -1178,7 +1187,7 @@ fn derivatives_sized<const N: usize, const ORDER: usize, G: PolePoint>(
 /// through the quotient rule on the homogeneous sums `A` and their weight
 /// `w` (The NURBS Book, A4.2):
 /// `C⁽ᵏ⁾ = (A⁽ᵏ⁾ - Σ_{i=1..k} binomial(k, i) w⁽ⁱ⁾ C⁽ᵏ⁻ⁱ⁾) / w`.
-pub(crate) fn derivative_of_order<G: PolePoint>(
+pub(crate) fn derivative_of_order<G: TierPoint>(
     knots: &KnotVector,
     poles: Poles<G>,
     u: f64,
@@ -1209,7 +1218,7 @@ pub(crate) fn derivative_of_order<G: PolePoint>(
             sum[3] += b;
         }
     }
-    let homogeneous = |k: usize| G::vector_of(sums.get(k).copied().unwrap_or([0.0; 4]));
+    let homogeneous = |k: usize| vector_of::<G>(sums.get(k).copied().unwrap_or([0.0; 4]));
     if poles.weights.is_none() {
         return homogeneous(order);
     }
@@ -1372,7 +1381,7 @@ pub(crate) struct SpanEnds {
 /// shape scans as embedded at `z = 0`: the query's spare coordinate
 /// zero, so its lanes are the coordinate sums and the weight, no `A`
 /// lane ever reaching the spare.
-pub(crate) fn scan_span<G: PolePoint>(
+pub(crate) fn scan_span<G: TierPoint>(
     knots: &KnotVector,
     poles: Poles<G>,
     point: G,
@@ -1389,7 +1398,7 @@ pub(crate) fn scan_span<G: PolePoint>(
     }
 }
 
-fn scan_span_sized<const N: usize, G: PolePoint>(
+fn scan_span_sized<const N: usize, G: TierPoint>(
     knots: &KnotVector,
     poles: Poles<G>,
     point: G,
@@ -1483,7 +1492,7 @@ fn scan_span_sized<const N: usize, G: PolePoint>(
 /// Bounded Newton minimisation of `|C(t) - point|^2` from `t` with exact
 /// second derivatives, within `bounds` (`None`: unbounded, for a smooth
 /// periodic curve).
-pub(crate) fn refine_projection<G: PolePoint>(
+pub(crate) fn refine_projection<G: TierPoint>(
     knots: &KnotVector,
     poles: Poles<G>,
     point: G,
@@ -1492,12 +1501,8 @@ pub(crate) fn refine_projection<G: PolePoint>(
 ) -> f64 {
     let objective = |t: f64| {
         let [c, d1, d2] = derivatives::<2, G>(knots, poles, inward(t, bounds));
-        let r = c - point.to_vector();
-        (
-            0.5 * <G as PolePoint>::dot(r, r),
-            <G as PolePoint>::dot(d1, r),
-            <G as PolePoint>::dot(d1, d1) + <G as PolePoint>::dot(d2, r),
-        )
+        let r = c - (point - G::ORIGIN);
+        (0.5 * r.dot(r), d1.dot(r), d1.dot(d1) + d2.dot(r))
     };
     newton_min_1d(objective, t, bounds, 1e-14, 100)
 }

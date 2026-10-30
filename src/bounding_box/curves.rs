@@ -4,7 +4,6 @@
 use super::sealed::BoundRange;
 use super::{BoundingBox, HasBoundingBox, coordinates, point};
 use crate::bspline::curve as math;
-use crate::bspline::curve::PolePoint;
 use crate::curves::spline::Spline;
 use crate::curves::{
     BSplineCurve, BezierCurve, Circle, Curve, ElementaryCurve, Ellipse, Hyperbola, Line, Parabola,
@@ -12,6 +11,7 @@ use crate::curves::{
 };
 use crate::curves::{curve_dispatch, elementary_curve_dispatch};
 use crate::math::bernstein;
+use crate::tier::TierPoint;
 use crate::{Point, Vector};
 use std::f64::consts::{PI, TAU};
 
@@ -213,7 +213,7 @@ impl BoundRange for Hyperbola {
 /// points of the pieces of the knot spans the range cuts, restricted to
 /// the range, and `pole` the poles of the spans it covers. Each piece lies
 /// in the convex hull of either.
-pub(super) fn fold_range_points<P: PolePoint, B: Copy>(
+pub(super) fn fold_range_points<P: TierPoint, B: Copy>(
     spline: &Spline<P>,
     (first, last): (f64, f64),
     seed: B,

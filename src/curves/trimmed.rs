@@ -11,6 +11,7 @@ use crate::curves::{
     LineConstructionError, ParametricCurve, ParametricCurve2D, PointExtrema, PointExtrema2D,
 };
 use crate::projection::{CurveProjection, CurveProjection2D};
+use crate::tier::TierPoint;
 use crate::{Continuity, Point, Point2D, Tolerance, Vector, Vector2D};
 use std::fmt;
 
@@ -71,69 +72,36 @@ fn check_range(
     }
 }
 
-/// What [`restrict`] needs from a projection, so one implementation serves
-/// the 2D and 3D trimmed curves.
-trait RestrictableProjection: Copy {
-    fn parameter(&self) -> f64;
-    fn distance(&self) -> f64;
-    /// The same projection moved to the equivalent `parameter` one or more
-    /// periods away: the point and distance are unchanged.
-    fn with_parameter(self, parameter: f64) -> Self;
-}
-
-impl RestrictableProjection for CurveProjection {
-    fn parameter(&self) -> f64 {
-        self.parameter
-    }
-    fn distance(&self) -> f64 {
-        self.distance
-    }
-    fn with_parameter(self, parameter: f64) -> Self {
-        CurveProjection { parameter, ..self }
-    }
-}
-
-impl RestrictableProjection for CurveProjection2D {
-    fn parameter(&self) -> f64 {
-        self.parameter
-    }
-    fn distance(&self) -> f64 {
-        self.distance
-    }
-    fn with_parameter(self, parameter: f64) -> Self {
-        CurveProjection2D { parameter, ..self }
-    }
-}
-
 /// The extrema of a trimmed curve from those of its basis: the basis
 /// extrema inside `[first, last]` (shifted by whole periods into it), then
 /// the two ends, ordered by ascending distance. On a tie the interior
 /// extremum wins, and an end at the parameter of a kept extremum is
 /// dropped. `end_projection` builds the projection at an end parameter.
-fn restrict<P: RestrictableProjection>(
-    extrema: Vec<P>,
+fn restrict<P: TierPoint>(
+    extrema: Vec<CurveProjection<P>>,
     (first, last): (f64, f64),
     period: Option<f64>,
-    end_projection: impl Fn(f64) -> P,
+    end_projection: impl Fn(f64) -> CurveProjection<P>,
     tol: Tolerance,
-) -> Vec<P> {
-    let mut out: Vec<P> = extrema
+) -> Vec<CurveProjection<P>> {
+    let mut out: Vec<CurveProjection<P>> = extrema
         .into_iter()
         .filter_map(|e| {
             let t = match period {
-                Some(period) => first + (e.parameter() - first).rem_euclid(period),
-                None => e.parameter(),
+                Some(period) => first + (e.parameter - first).rem_euclid(period),
+                None => e.parameter,
             };
-            (first <= t && t <= last).then(|| e.with_parameter(t))
+            (first <= t && t <= last).then_some(CurveProjection { parameter: t, ..e })
         })
         .collect();
     for t in [first, last] {
-        let same = |e: &P| (e.parameter() - t).abs() <= tol.parametric * (1.0 + t.abs());
+        let same =
+            |e: &CurveProjection<P>| (e.parameter - t).abs() <= tol.parametric * (1.0 + t.abs());
         if !out.iter().any(same) {
             out.push(end_projection(t));
         }
     }
-    out.sort_by(|x, y| x.distance().total_cmp(&y.distance()));
+    out.sort_by(|x, y| x.distance.total_cmp(&y.distance));
     out
 }
 
@@ -249,15 +217,22 @@ impl<C: ParametricCurve + Into<Curve>> TrimmedCurve<C> {
     /// let segment = TrimmedCurve::segment(Point::ORIGIN, Point::new(1.0, 0.0, 0.0)).unwrap();
     /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
     /// let arc = TrimmedCurve::new(circle, 0.0, 1.0).unwrap();
-    /// let pieces: Vec<TrimmedCurve> = vec![segment.into_curve3d(), arc.into_curve3d()];
+    /// let pieces: Vec<TrimmedCurve> = vec![segment.into_curve(), arc.into_curve()];
     /// assert_eq!(pieces.len(), 2);
     /// ```
-    pub fn into_curve3d(self) -> TrimmedCurve<Curve> {
+    pub fn into_curve(self) -> TrimmedCurve<Curve> {
         TrimmedCurve {
             basis: self.basis.into(),
             first: self.first,
             last: self.last,
         }
+    }
+
+    /// Moves the basis into a [`Curve`], keeping the range: the former
+    /// name of [`into_curve`](Self::into_curve).
+    #[deprecated(note = "renamed to `into_curve`")]
+    pub fn into_curve3d(self) -> TrimmedCurve<Curve> {
+        self.into_curve()
     }
 }
 

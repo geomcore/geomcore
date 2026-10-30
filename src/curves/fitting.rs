@@ -12,8 +12,9 @@ use crate::Point;
 use crate::Point2D;
 use crate::Tolerance;
 use crate::bspline::curve as math;
-use crate::bspline::curve::{Pole, PolePoint};
+use crate::bspline::curve::Pole;
 use crate::curves::{BSplineConstructionError, BSplineCurve, BSplineCurve2D};
+use crate::tier::TierPoint;
 
 /// How fitting assigns a parameter to each data point.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -35,7 +36,7 @@ impl PointParametrization {
 
 /// Increasing parameters of `points` in `[0, 1]` (`exponent` 1 chordal, 0.5
 /// centripetal), or `ConfusedPoints` for coincident consecutive points.
-fn point_parameters<G: PolePoint>(
+fn point_parameters<G: TierPoint>(
     points: &[G],
     parametrization: PointParametrization,
 ) -> Result<Vec<f64>, BSplineConstructionError> {
@@ -173,7 +174,7 @@ pub(crate) fn check_degree(degree: usize) -> Result<(), BSplineConstructionError
 /// `r`: every line's own parameters (as [`point_parameters`] gives them),
 /// averaged over the lines that have a length. `ConfusedPoints` if none
 /// has, or if two averaged parameters coincide.
-pub(crate) fn shared_parameters<G: PolePoint>(
+pub(crate) fn shared_parameters<G: TierPoint>(
     lines: usize,
     count: usize,
     point: impl Fn(usize, usize) -> G,
@@ -253,7 +254,7 @@ impl BasisTable {
     }
 
     /// The point at parameter `k` of the curve with `poles`.
-    pub(crate) fn point<G: PolePoint>(&self, k: usize, poles: &[G]) -> G {
+    pub(crate) fn point<G: TierPoint>(&self, k: usize, poles: &[G]) -> G {
         let (first, values) = self.at(k);
         let mut s = [0.0; 4];
         for (&v, q) in values.iter().zip(&poles[first..]) {
@@ -271,7 +272,7 @@ impl BasisTable {
 /// `A'A x = A'b`, of half-bandwidth `degree`, are factored once by banded
 /// Cholesky for all the lines. `None` when the data leaves a pole (nearly)
 /// undetermined.
-pub(crate) fn least_squares<G: PolePoint>(
+pub(crate) fn least_squares<G: TierPoint>(
     basis: &BasisTable,
     pole_count: usize,
     lines: usize,
@@ -314,7 +315,7 @@ pub(crate) fn least_squares<G: PolePoint>(
 /// once, by LU without pivoting (safe: averaged knots satisfy
 /// Schoenberg-Whitney, so the matrix is totally positive), for all the
 /// lines; each line's end poles are its end points.
-pub(crate) fn interpolation<G: PolePoint>(
+pub(crate) fn interpolation<G: TierPoint>(
     basis: &BasisTable,
     lines: usize,
     point: impl Fn(usize, usize) -> G,
@@ -644,7 +645,7 @@ fn substitute_symmetric_band<P: Pole>(lower: &[f64], h: usize, rhs: &mut [P]) {
 
 /// The interpolation of `points` at `params` by a clamped B-spline of
 /// `degree`: its flat knots (averaged) and poles.
-fn interpolated<G: PolePoint>(points: &[G], params: &[f64], degree: usize) -> (Vec<f64>, Vec<G>) {
+fn interpolated<G: TierPoint>(points: &[G], params: &[f64], degree: usize) -> (Vec<f64>, Vec<G>) {
     let flat = averaged_knots(params, degree);
     let basis = BasisTable::new(&flat, degree, params);
     let poles = interpolation(&basis, 1, |_, k| points[k]);

@@ -1,12 +1,13 @@
 //! The poles a B-spline blends: one algebra for the 3D and the 2D tier.
 
-use crate::{Point, Point2D, Vector, Vector2D};
+use super::editing::Deviation;
+use crate::{Point, Point2D};
 
 /// A pole an algorithm combines linearly (knot insertion, de Casteljau,
 /// degree elevation): a point of a nonrational shape, or a homogeneous
 /// point `(w x, w y, (w z,) w)` of a rational one, the weight in the last
 /// coordinate.
-pub(crate) trait Pole: Copy + Default {
+pub trait Pole: Copy + Default {
     /// The tier's Cartesian points, a homogeneous pole dehomogenizing to.
     type Cartesian: Copy;
 
@@ -106,7 +107,7 @@ impl Pole for [f64; 3] {
 /// back as a Cartesian point and a weight. As four-wide lane arrays, the
 /// coordinates sit in `[0..DIM]`, the weight in the last lane, and the
 /// spare coordinate of the 2D tier is zero.
-pub(crate) trait HomogeneousPole: Pole<Cartesian: PolePoint<Homogeneous = Self>> {
+pub trait HomogeneousPole: Pole<Cartesian: PolePoint<Homogeneous = Self>> {
     /// The homogeneous pole of `p` with the weight `w` folded in.
     fn fold(p: Self::Cartesian, w: f64) -> Self;
 
@@ -186,57 +187,32 @@ impl HomogeneousPole for [f64; 3] {
 /// The points a B-spline's poles are, and the geometry its evaluation
 /// produces: [`Point`] in space, [`Point2D`] in the plane. One
 /// implementation per tier, monomorphized, so every loop over coordinates
-/// unrolls and no evaluation allocates.
-pub(crate) trait PolePoint: Copy + Pole<Cartesian = Self> {
+/// unrolls and no evaluation allocates. A supertrait of
+/// [`TierPoint`](crate::TierPoint), which adds the vector arithmetic; the
+/// trait is public in a crate-private module, so it seals the tier trait.
+pub trait PolePoint: Copy + Pole<Cartesian = Self> + Deviation {
     /// Euclidean coordinates per pole: 3 in space, 2 in the plane.
     const DIM: usize;
 
     /// The tier's homogeneous pole, the weight folded in.
-    type Homogeneous: HomogeneousPole<Cartesian = Self>;
-
-    /// A difference or derivative: the tier's vector type.
-    type Vector: Copy
-        + std::ops::Sub<Output = Self::Vector>
-        + std::ops::Mul<f64, Output = Self::Vector>;
+    type Homogeneous: HomogeneousPole<Cartesian = Self> + Deviation;
 
     /// Coordinate `c` of the pole, `c < DIM`.
     fn coord(self, c: usize) -> f64;
-
-    /// The dot product of two of the tier's vectors.
-    fn dot(a: Self::Vector, b: Self::Vector) -> f64;
-
-    /// The vector from `Self::ORIGIN` to `self`, the point as a position.
-    fn to_vector(self) -> Self::Vector;
-
-    /// The Euclidean distance between the two points.
-    fn distance(self, other: Self) -> f64;
 
     /// The point of homogeneous sums `s`: the coordinates in `[0..DIM]`
     /// and the weight in the last of a four-wide array, the spare
     /// coordinate zero and ignored.
     fn point_of(s: [f64; 4]) -> Self;
 
-    /// The vector of the same sums, seen from the origin: a derivative
-    /// before the quotient rule.
-    fn vector_of(s: [f64; 4]) -> Self::Vector;
-
-    /// The point at `position` from the origin, the inverse of
-    /// [`PolePoint::to_vector`].
-    fn from_position(position: Self::Vector) -> Self;
-
     /// The point in space: itself in 3D, at `z = 0` in the plane.
     fn embedded(self) -> Point;
-
-    /// Whether every coordinate is finite.
-    fn is_finite(self) -> bool;
 }
 
 impl PolePoint for Point {
     const DIM: usize = 3;
 
     type Homogeneous = [f64; 4];
-
-    type Vector = Vector;
 
     #[inline]
     fn coord(self, c: usize) -> f64 {
@@ -248,43 +224,13 @@ impl PolePoint for Point {
     }
 
     #[inline]
-    fn dot(a: Self::Vector, b: Self::Vector) -> f64 {
-        a.dot(b)
-    }
-
-    #[inline]
-    fn to_vector(self) -> Self::Vector {
-        Vector::new(self.x, self.y, self.z)
-    }
-
-    #[inline]
-    fn distance(self, other: Self) -> f64 {
-        Point::distance(self, other)
-    }
-
-    #[inline]
     fn point_of(s: [f64; 4]) -> Self {
         Point::new(s[0], s[1], s[2])
     }
 
     #[inline]
-    fn vector_of(s: [f64; 4]) -> Self::Vector {
-        Vector::new(s[0], s[1], s[2])
-    }
-
-    #[inline]
-    fn from_position(position: Vector) -> Self {
-        Point::ORIGIN + position
-    }
-
-    #[inline]
     fn embedded(self) -> Point {
         self
-    }
-
-    #[inline]
-    fn is_finite(self) -> bool {
-        Point::is_finite(self)
     }
 }
 
@@ -292,8 +238,6 @@ impl PolePoint for Point2D {
     const DIM: usize = 2;
 
     type Homogeneous = [f64; 3];
-
-    type Vector = Vector2D;
 
     #[inline]
     fn coord(self, c: usize) -> f64 {
@@ -304,43 +248,13 @@ impl PolePoint for Point2D {
     }
 
     #[inline]
-    fn dot(a: Self::Vector, b: Self::Vector) -> f64 {
-        a.dot(b)
-    }
-
-    #[inline]
-    fn to_vector(self) -> Self::Vector {
-        Vector2D::new(self.x, self.y)
-    }
-
-    #[inline]
-    fn distance(self, other: Self) -> f64 {
-        Point2D::distance(self, other)
-    }
-
-    #[inline]
     fn point_of(s: [f64; 4]) -> Self {
         Point2D::new(s[0], s[1])
     }
 
     #[inline]
-    fn vector_of(s: [f64; 4]) -> Self::Vector {
-        Vector2D::new(s[0], s[1])
-    }
-
-    #[inline]
-    fn from_position(position: Vector2D) -> Self {
-        Point2D::ORIGIN + position
-    }
-
-    #[inline]
     fn embedded(self) -> Point {
         Point::new(self.x, self.y, 0.0)
-    }
-
-    #[inline]
-    fn is_finite(self) -> bool {
-        Point2D::is_finite(self)
     }
 }
 

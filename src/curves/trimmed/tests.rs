@@ -165,7 +165,7 @@ fn test_extrema_keep_ends_and_sort_by_distance() {
 #[test]
 fn test_curve3d_basis_projects_like_the_concrete_basis() {
     let arc = TrimmedCurve::new(circle(), 1.0, 2.0).unwrap();
-    let erased = arc.into_curve3d();
+    let erased = arc.into_curve();
     let q = Point::new(-2.0, -0.5, 1.0);
     assert_eq!(arc.project_point(q, TOL), erased.project_point(q, TOL));
 }

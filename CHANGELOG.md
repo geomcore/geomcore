@@ -52,6 +52,15 @@ the Python distribution are versioned in lockstep.
   `BSplineCurve`, `TrimmedCurve` and `TrimmedCurve2D` gain
   `parameter_of`; `BSplineSurface` and `BezierSurface` gain
   `parameters_of`.
+- `TierPoint` and the tier-generic curve types `GenericLine`,
+  `GenericCircle`, `GenericEllipse`, `GenericParabola`,
+  `GenericHyperbola`, `GenericBSplineCurve` and `GenericBezierCurve`.
+  Each curve type is now one generic type over its tier, and `Circle`
+  and `Circle2D` (and the other pairs) are its two aliases, so a
+  function over `GenericCircle<P>` with `P: TierPoint` serves both tiers
+  (ADR 0014). `CurveProjection` is generic the same way, defaulting to
+  space, and `CurveProjection2D` is its planar alias.
+- `TrimmedCurve::into_curve`, the new name of `into_curve3d`.
 
 ### Fixed
 
@@ -88,6 +97,21 @@ the Python distribution are versioned in lockstep.
 - The router reads each typed exact result straight into its family
   result, in one step: no intermediate untyped result, and one bridge
   instead of four. Results are unchanged.
+- The 3D and 2D copies of every curve type are merged into one generic
+  type per curve: the shared methods, the trait impls of both tiers, the
+  B-spline conversion and the discretization are written once. The
+  public names, methods and behaviour stay, so callers compile
+  unchanged; rustdoc lists the curves as the generic structs, with
+  `Circle`, `Circle2D` and the others as type aliases (ADR 0014,
+  amended).
+- `Circle2D` projection reports parameter `0` for a point within
+  `tol.confusion` of the seam, as `Circle` and `Ellipse2D` already did,
+  instead of an angle just below `2π`.
+
+### Deprecated
+
+- `TrimmedCurve::into_curve3d`: use `into_curve` (ADR 0013). The old
+  name stays for one release.
 
 ### Removed
 
