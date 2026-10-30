@@ -209,6 +209,15 @@ written once, so a class has a method exactly when its core type has it.
 The table at the top of `method_sets.rs` says which set follows from
 which trait.
 
+The stubs mirror the sets (ADR 0029). Each set is a stub-only private
+class in `curves.pyi` or `surfaces.pyi` (`_CurveMethods`,
+`_DiscretizeMethods`, `_SurfaceMethods`, ...) holding the set's typed
+signatures and its docstrings. A class stub inherits the sets its
+`shape_methods!` line names and lists only its own methods. What differs
+by class is a type argument: `_DiscretizeMethods[Discretization2D]`,
+`_ParametrizeOnMethods[Ellipse2D]`, `_SurfaceMethods[Line, Circle]` (the
+classes of the `u` and `v` iso curves).
+
 **The class registry.** `shape_classes!` in `arguments.rs` lists, once per
 core enum, the Python class of each variant (`Line => PyLine`). From that
 list come the conversions both ways (`curve_classes::extract`,
@@ -226,12 +235,14 @@ so other Python threads run during a search (ADR 0021).
 - Add one `Variant => PyClass` line to the registry in `arguments.rs`.
   `intersect`, every argument that takes a curve or surface, and every
   method that returns one then accept the class.
-- Add its stub to `geomcore-py/geomcore/curves.pyi` (or `surfaces.pyi`)
-  and to the `_WholeCurve`, `_Curve2D` or `_Surface` union there; stubtest
-  checks the stub against the class.
-- `tests/test_parity.py` fails until the new class has a fixture, then
-  checks its method set and runs it through `intersect` against every
-  other class.
+- Add its stub to `geomcore-py/geomcore/curves.pyi` (or `surfaces.pyi`):
+  a class inheriting the stub classes of the sets named in its
+  `shape_methods!` line, with its own methods only, and add it to the
+  `_WholeCurve`, `_Curve2D` or `_Surface` union there. stubtest checks
+  the stub's methods against the class.
+- `tests/test_parity.py` fails until the new class has a fixture. It then
+  checks that the class has every method its stub inherits, and runs it
+  through `intersect` against every other class.
 
 ## Integration tests
 

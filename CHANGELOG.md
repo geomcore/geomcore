@@ -73,6 +73,9 @@ the Python distribution are versioned in lockstep.
   the fitting constructors `interpolate`,
   `approximate` and `approximate_within` are written once on
   `GenericBSplineCurve`. Every name, method and result is unchanged.
+- The Python stubs write each shared method set once, as a private
+  stub-only class that the curve and surface classes inherit (ADR 0029).
+  Type checkers see the same methods with the same types as before.
 
 ### Deprecated
 
@@ -98,6 +101,10 @@ the Python distribution are versioned in lockstep.
   every surface and on `Surface`, moved from the types to the
   `ReversibleCurve` and `ReversibleSurface` traits, with the same
   behaviour: calls on a concrete type need `use geomcore::prelude::*`.
+- The Python stubs carry the docstrings of the methods every curve or
+  surface class shares (evaluation, local properties, projection,
+  `intersect`, ...), so an IDE shows them on hover. A test keeps each one
+  equal to the docstring of the method itself.
 
 ### Fixed
 
