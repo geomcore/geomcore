@@ -7,12 +7,16 @@
 //! so the storage can change without breaking callers.
 
 pub(crate) mod completeness;
+mod extrema;
 mod inline_list;
 pub(crate) mod inline_or_heap_list;
+mod regions;
 
+pub use extrema::CurveCurveExtrema;
 pub use inline_list::InlineList;
+pub use regions::{CurveCurveRegion, CurveSurfaceRegion, SurfaceSurfaceRegion};
 
-use crate::intersect::{Completeness, CurveCurveRegion, CurveSurfaceRegion};
+use crate::intersect::Completeness;
 use crate::{Curve, Point, Point2D, Tolerance, Vector};
 use inline_or_heap_list::InlineOrHeapList;
 
@@ -102,38 +106,6 @@ pub struct IntersectionCurve {
     /// parallel along it, or so nearly that moving one surface by the
     /// confusion distance makes them touch.
     pub tangent: bool,
-}
-
-/// Where a numeric surface-surface search may have missed contact.
-///
-/// # Examples
-///
-/// ```
-/// use geomcore::{Point, SurfaceSurfaceRegion};
-/// let region = SurfaceSurfaceRegion {
-///     first_u_range: (0.0, 1.0),
-///     first_v_range: (0.0, 1.0),
-///     second_u_range: (0.0, 1.0),
-///     second_v_range: (0.0, 1.0),
-///     min_corner: Point::ORIGIN,
-///     max_corner: Point::new(1.0, 1.0, 1.0),
-/// };
-/// assert_eq!(region.first_u_range, (0.0, 1.0));
-/// ```
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct SurfaceSurfaceRegion {
-    /// The first surface's `u` parameter interval.
-    pub first_u_range: (f64, f64),
-    /// The first surface's `v` parameter interval.
-    pub first_v_range: (f64, f64),
-    /// The second surface's `u` parameter interval.
-    pub second_u_range: (f64, f64),
-    /// The second surface's `v` parameter interval.
-    pub second_v_range: (f64, f64),
-    /// The corner of the box with the smallest coordinates.
-    pub min_corner: Point,
-    /// The corner of the box with the largest coordinates.
-    pub max_corner: Point,
 }
 
 /// Sorts `items` by `parameter` when every item has one, and leaves them

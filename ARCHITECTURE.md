@@ -44,8 +44,12 @@ src/
 │   │                    family result (ADR 0018)
 │   ├── exact/           IntersectExact and the closed-form solvers, by family:
 │   │                    curve_curve.rs, curve_surface.rs, surface_surface.rs
-│   ├── numeric/         the searches for pairs with no closed form
-│   └── results/         the results Intersect returns, Completeness, InlineList
+│   ├── numeric/         the searches for pairs with no closed form. subdivision.rs is
+│   │                    the one driver of the searches on Bézier pieces (the queue of
+│   │                    pairs, the budget of halvings, the pairs left unsettled);
+│   │                    *_hull.rs and patch_pairs.rs bring their tests on a pair (ADR 0019)
+│   └── results/         the results Intersect returns, their regions (regions.rs),
+│                        Completeness, InlineList
 ├── bounding_box/        HasBoundingBox: the box type and one file per family
 ├── discretization/      Discretize: proven point sequences on bounded curves
 │

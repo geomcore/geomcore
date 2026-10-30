@@ -2,10 +2,12 @@
 //! curves: grid-seeded box minimisation of the distance between them.
 
 use crate::curves::ParametricCurve;
-use crate::intersect::numeric::curve_curve_hull::{CurveCurveExtrema, CurveCurveHits};
+use crate::intersect::numeric::curve_curve_hull::CurveCurveHits;
 use crate::intersect::numeric::{curve_surface_hull, overlap_runs, pairs_with_bspline};
 use crate::intersect::results::sort_by_known_parameter;
-use crate::intersect::{CurveCurveExtremum, CurveCurveHit, CurveCurveIntersection};
+use crate::intersect::{
+    CurveCurveExtrema, CurveCurveExtremum, CurveCurveHit, CurveCurveIntersection,
+};
 use crate::math::{newton_min_1d, newton_min_2d};
 use crate::{Point, Tolerance, Vector};
 
