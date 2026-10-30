@@ -1,4 +1,6 @@
 use super::*;
+use crate::Point;
+use crate::curves::BSplineCurve;
 use crate::curves::ParametricCurve;
 use crate::curves::PointExtrema;
 

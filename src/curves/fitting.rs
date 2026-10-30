@@ -8,13 +8,11 @@
 //! its band directly; least squares solves the normal equations, whose
 //! matrix has half-bandwidth `degree`, by banded Cholesky.
 
-use crate::Point;
-use crate::Point2D;
 use crate::Tolerance;
 use crate::Vector;
 use crate::bspline::curve as math;
 use crate::bspline::curve::Pole;
-use crate::curves::{BSplineConstructionError, BSplineCurve, BSplineCurve2D};
+use crate::curves::{BSplineConstructionError, GenericBSplineCurve};
 use crate::tier::TierPoint;
 
 /// How fitting assigns a parameter to each data point.
@@ -728,7 +726,7 @@ fn interpolated<G: TierPoint>(points: &[G], params: &[f64], degree: usize) -> (V
     (flat, poles)
 }
 
-impl BSplineCurve {
+impl<P: TierPoint> GenericBSplineCurve<P> {
     /// Interpolates a clamped non-rational B-spline through `points`.
     ///
     /// Parameters come from chord lengths (`Chordal`) or their square
@@ -752,6 +750,7 @@ impl BSplineCurve {
     /// ```
     /// use geomcore::prelude::*;
     /// use geomcore::{BSplineCurve, Point, PointParametrization, Tolerance};
+    /// use geomcore::{BSplineCurve2D, Point2D};
     /// let points = vec![
     ///     Point::new(0.0, 0.0, 0.0),
     ///     Point::new(1.0, 1.0, 0.0),
@@ -763,12 +762,25 @@ impl BSplineCurve {
     /// for p in &points {
     ///     assert!(curve.contains(*p, tol));
     /// }
+    ///
+    /// // In the plane.
+    /// let points = vec![
+    ///     Point2D::new(0.0, 0.0),
+    ///     Point2D::new(1.0, 1.0),
+    ///     Point2D::new(2.0, 0.0),
+    /// ];
+    /// let curve = BSplineCurve2D::interpolate(&points, 2, PointParametrization::Centripetal)
+    ///     .unwrap();
+    /// let tol = Tolerance::DEFAULT;
+    /// for p in &points {
+    ///     assert!(curve.contains(*p, tol));
+    /// }
     /// ```
     pub fn interpolate(
-        points: &[Point],
+        points: &[P],
         degree: usize,
         parametrization: PointParametrization,
-    ) -> Result<BSplineCurve, BSplineConstructionError> {
+    ) -> Result<GenericBSplineCurve<P>, BSplineConstructionError> {
         let n = points.len();
         if n < 2 {
             return Err(BSplineConstructionError::TooFewPoints);
@@ -780,7 +792,7 @@ impl BSplineCurve {
         let params = point_parameters(points, parametrization)?;
         let (flat, poles) = interpolated(points, &params, degree);
         let (knots, mults) = compress_knots(&flat);
-        Ok(BSplineCurve::from_validated_parts(
+        Ok(GenericBSplineCurve::from_validated_parts(
             degree, poles, None, knots, mults, flat, false,
         ))
     }
@@ -788,7 +800,7 @@ impl BSplineCurve {
     /// Least-squares B-spline fit through `points` with `num_poles` poles.
     ///
     /// Same chord-like parametrization as
-    /// [`BSplineCurve::interpolate`], but an overdetermined system:
+    /// [`interpolate`](Self::interpolate), but an overdetermined system:
     /// interior knots spread along the parameters so that every knot span
     /// holds some, and the normal equations `A'A x = A'b`, whose matrix
     /// has half-bandwidth `degree`, solved by banded Cholesky. The fit
@@ -812,6 +824,7 @@ impl BSplineCurve {
     /// ```
     /// use geomcore::prelude::*;
     /// use geomcore::{BSplineCurve, Point, PointParametrization};
+    /// use geomcore::{BSplineCurve2D, Point2D};
     /// let points: Vec<Point> = (0..9)
     ///     .map(|i| {
     ///         let u = i as f64 / 8.0 * std::f64::consts::TAU;
@@ -828,195 +841,8 @@ impl BSplineCurve {
     ///     let r = (p.x * p.x + p.y * p.y).sqrt();
     ///     assert!((r - 2.0).abs() < 0.1, "{p:?}");
     /// }
-    /// ```
-    pub fn approximate(
-        points: &[Point],
-        degree: usize,
-        num_poles: usize,
-        parametrization: PointParametrization,
-    ) -> Result<BSplineCurve, BSplineConstructionError> {
-        let n = points.len();
-        if n < 2 {
-            return Err(BSplineConstructionError::TooFewPoints);
-        }
-        check_degree(degree)?;
-        if degree > num_poles.saturating_sub(1) {
-            return Err(BSplineConstructionError::DegreeTooHigh);
-        }
-        if num_poles > n {
-            return Err(BSplineConstructionError::TooManyPoles);
-        }
-        let params = point_parameters(points, parametrization)?;
-        let flat = approximation_knots(&params, num_poles, degree);
-        let basis = BasisTable::new(&flat, degree, &params);
-        let poles = least_squares(&basis, num_poles, 1, |_, k| points[k])
-            .ok_or(BSplineConstructionError::PoleCountMismatch)?;
-        let (knots, mults) = compress_knots(&flat);
-        Ok(BSplineCurve::from_validated_parts(
-            degree, poles, None, knots, mults, flat, false,
-        ))
-    }
-
-    /// Least-squares B-spline fit through `points`, with few poles, that
-    /// keeps every point within `max_deviation` of the curve.
     ///
-    /// Each candidate is a least-squares fit, as in
-    /// [`BSplineCurve::approximate`], its deviation measured from each
-    /// point to the curve at the point's parameter (which bounds the
-    /// distance to the curve). Starting from a single Bézier piece, each
-    /// round splits the knot spans that deviate the most between their
-    /// middle points, so knots gather where the points bend. Should no
-    /// span be left to split, the pole count of
-    /// [`BSplineCurve::approximate`] is searched instead, galloping up
-    /// from `degree + 1`, then bisecting. When no least-squares fit is
-    /// close enough, as with a `max_deviation` of zero, the result is the
-    /// interpolation of [`BSplineCurve::interpolate`], one pole per
-    /// point.
-    ///
-    /// # Errors
-    ///
-    /// [`BSplineConstructionError::TooFewPoints`] for fewer than two
-    /// points, [`BSplineConstructionError::InvalidDegree`] outside
-    /// `1..=25`, [`BSplineConstructionError::DegreeTooHigh`] when
-    /// `degree` exceeds points minus one, or
-    /// [`BSplineConstructionError::ConfusedPoints`] for coincident
-    /// consecutive points.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::prelude::*;
-    /// use geomcore::{BSplineCurve, Point, PointParametrization, Tolerance};
-    /// let points: Vec<Point> = (0..50)
-    ///     .map(|i| {
-    ///         let u = i as f64 / 49.0 * std::f64::consts::PI;
-    ///         Point::new(u.cos(), u.sin(), 0.0)
-    ///     })
-    ///     .collect();
-    /// let curve =
-    ///     BSplineCurve::approximate_within(&points, 3, 1e-4, PointParametrization::Chordal)
-    ///         .unwrap();
-    /// // 50 points, 11 poles.
-    /// assert_eq!(curve.poles().len(), 11);
-    /// let tol = Tolerance::DEFAULT;
-    /// for p in &points {
-    ///     assert!(curve.project_point(*p, tol).distance <= 1e-4);
-    /// }
-    /// ```
-    pub fn approximate_within(
-        points: &[Point],
-        degree: usize,
-        max_deviation: f64,
-        parametrization: PointParametrization,
-    ) -> Result<BSplineCurve, BSplineConstructionError> {
-        let n = points.len();
-        if n < 2 {
-            return Err(BSplineConstructionError::TooFewPoints);
-        }
-        check_degree(degree)?;
-        if degree > n - 1 {
-            return Err(BSplineConstructionError::DegreeTooHigh);
-        }
-        let params = point_parameters(points, parametrization)?;
-        let fit = fit_within(&params, degree, max_deviation, |flat, basis, deviations| {
-            let poles = least_squares(basis, flat.len() - degree - 1, 1, |_, k| points[k])?;
-            for (k, deviation) in deviations.iter_mut().enumerate() {
-                *deviation = basis.point(k, &poles).distance(points[k]);
-            }
-            Some(poles)
-        });
-        let (flat, poles) = fit.unwrap_or_else(|| interpolated(points, &params, degree));
-        let (knots, mults) = compress_knots(&flat);
-        Ok(BSplineCurve::from_validated_parts(
-            degree, poles, None, knots, mults, flat, false,
-        ))
-    }
-}
-
-impl BSplineCurve2D {
-    /// Interpolates a clamped non-rational B-spline through `points`.
-    ///
-    /// Parameters come from chord lengths (`Chordal`) or their square
-    /// roots (`Centripetal`, better behaved at sharp turns), normalized
-    /// to `[0, 1]`; interior knots are parameter averages, and the
-    /// poles solve the banded interpolation system by LU without
-    /// pivoting (safe: averaged knots satisfy Schoenberg-Whitney, so the
-    /// matrix is totally positive). End poles equal the end points.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`BSplineConstructionError::TooFewPoints`] for fewer than
-    /// two points, [`BSplineConstructionError::InvalidDegree`] outside
-    /// `1..=25`, [`BSplineConstructionError::DegreeTooHigh`] when
-    /// `degree` exceeds points minus one, or
-    /// [`BSplineConstructionError::ConfusedPoints`] for coincident
-    /// consecutive points.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::prelude::*;
-    /// use geomcore::{BSplineCurve2D, Point2D, PointParametrization, Tolerance};
-    /// let points = vec![
-    ///     Point2D::new(0.0, 0.0),
-    ///     Point2D::new(1.0, 1.0),
-    ///     Point2D::new(2.0, 0.0),
-    /// ];
-    /// let curve = BSplineCurve2D::interpolate(&points, 2, PointParametrization::Centripetal)
-    ///     .unwrap();
-    /// let tol = Tolerance::DEFAULT;
-    /// for p in &points {
-    ///     assert!(curve.contains(*p, tol));
-    /// }
-    /// ```
-    pub fn interpolate(
-        points: &[Point2D],
-        degree: usize,
-        parametrization: PointParametrization,
-    ) -> Result<BSplineCurve2D, BSplineConstructionError> {
-        let n = points.len();
-        if n < 2 {
-            return Err(BSplineConstructionError::TooFewPoints);
-        }
-        check_degree(degree)?;
-        if degree > n - 1 {
-            return Err(BSplineConstructionError::DegreeTooHigh);
-        }
-        let params = point_parameters(points, parametrization)?;
-        let (flat, poles) = interpolated(points, &params, degree);
-        let (knots, mults) = compress_knots(&flat);
-        Ok(BSplineCurve2D::from_validated_parts(
-            degree, poles, None, knots, mults, flat, false,
-        ))
-    }
-
-    /// Least-squares B-spline fit through `points` with `num_poles` poles.
-    ///
-    /// Same chord-like parametrization as
-    /// [`BSplineCurve2D::interpolate`], but an overdetermined system:
-    /// interior knots spread along the parameters so that every knot span
-    /// holds some, and the normal equations `A'A x = A'b`, whose matrix
-    /// has half-bandwidth `degree`, solved by banded Cholesky. The fit
-    /// approximates rather than hits the data; poles left numerically
-    /// undetermined fail explicitly instead of producing NaNs.
-    ///
-    /// # Errors
-    ///
-    /// [`BSplineConstructionError::TooFewPoints`] for fewer than two
-    /// points, [`BSplineConstructionError::InvalidDegree`] outside
-    /// `1..=25`, [`BSplineConstructionError::DegreeTooHigh`] when
-    /// `degree` exceeds poles minus one,
-    /// [`BSplineConstructionError::TooManyPoles`] for more poles than
-    /// points, [`BSplineConstructionError::ConfusedPoints`] for
-    /// coincident consecutive points, or
-    /// [`BSplineConstructionError::PoleCountMismatch`] when the data
-    /// leaves a pole undetermined.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::prelude::*;
-    /// use geomcore::{BSplineCurve2D, Point2D, PointParametrization};
+    /// // In the plane.
     /// let points: Vec<Point2D> = (0..9)
     ///     .map(|i| {
     ///         let u = i as f64 / 8.0 * std::f64::consts::TAU;
@@ -1034,11 +860,11 @@ impl BSplineCurve2D {
     /// }
     /// ```
     pub fn approximate(
-        points: &[Point2D],
+        points: &[P],
         degree: usize,
         num_poles: usize,
         parametrization: PointParametrization,
-    ) -> Result<BSplineCurve2D, BSplineConstructionError> {
+    ) -> Result<GenericBSplineCurve<P>, BSplineConstructionError> {
         let n = points.len();
         if n < 2 {
             return Err(BSplineConstructionError::TooFewPoints);
@@ -1056,7 +882,7 @@ impl BSplineCurve2D {
         let poles = least_squares(&basis, num_poles, 1, |_, k| points[k])
             .ok_or(BSplineConstructionError::PoleCountMismatch)?;
         let (knots, mults) = compress_knots(&flat);
-        Ok(BSplineCurve2D::from_validated_parts(
+        Ok(GenericBSplineCurve::from_validated_parts(
             degree, poles, None, knots, mults, flat, false,
         ))
     }
@@ -1065,16 +891,16 @@ impl BSplineCurve2D {
     /// keeps every point within `max_deviation` of the curve.
     ///
     /// Each candidate is a least-squares fit, as in
-    /// [`BSplineCurve2D::approximate`], its deviation measured from each
+    /// [`approximate`](Self::approximate), its deviation measured from each
     /// point to the curve at the point's parameter (which bounds the
     /// distance to the curve). Starting from a single Bézier piece, each
     /// round splits the knot spans that deviate the most between their
     /// middle points, so knots gather where the points bend. Should no
     /// span be left to split, the pole count of
-    /// [`BSplineCurve2D::approximate`] is searched instead, galloping up
+    /// [`approximate`](Self::approximate) is searched instead, galloping up
     /// from `degree + 1`, then bisecting. When no least-squares fit is
     /// close enough, as with a `max_deviation` of zero, the result is the
-    /// interpolation of [`BSplineCurve2D::interpolate`], one pole per
+    /// interpolation of [`interpolate`](Self::interpolate), one pole per
     /// point.
     ///
     /// # Errors
@@ -1090,7 +916,25 @@ impl BSplineCurve2D {
     ///
     /// ```
     /// use geomcore::prelude::*;
-    /// use geomcore::{BSplineCurve2D, Point2D, PointParametrization, Tolerance};
+    /// use geomcore::{BSplineCurve, Point, PointParametrization, Tolerance};
+    /// use geomcore::{BSplineCurve2D, Point2D};
+    /// let points: Vec<Point> = (0..50)
+    ///     .map(|i| {
+    ///         let u = i as f64 / 49.0 * std::f64::consts::PI;
+    ///         Point::new(u.cos(), u.sin(), 0.0)
+    ///     })
+    ///     .collect();
+    /// let curve =
+    ///     BSplineCurve::approximate_within(&points, 3, 1e-4, PointParametrization::Chordal)
+    ///         .unwrap();
+    /// // 50 points, 11 poles.
+    /// assert_eq!(curve.poles().len(), 11);
+    /// let tol = Tolerance::DEFAULT;
+    /// for p in &points {
+    ///     assert!(curve.project_point(*p, tol).distance <= 1e-4);
+    /// }
+    ///
+    /// // In the plane.
     /// let points: Vec<Point2D> = (0..50)
     ///     .map(|i| {
     ///         let u = i as f64 / 49.0 * std::f64::consts::PI;
@@ -1108,11 +952,11 @@ impl BSplineCurve2D {
     /// }
     /// ```
     pub fn approximate_within(
-        points: &[Point2D],
+        points: &[P],
         degree: usize,
         max_deviation: f64,
         parametrization: PointParametrization,
-    ) -> Result<BSplineCurve2D, BSplineConstructionError> {
+    ) -> Result<GenericBSplineCurve<P>, BSplineConstructionError> {
         let n = points.len();
         if n < 2 {
             return Err(BSplineConstructionError::TooFewPoints);
@@ -1131,7 +975,7 @@ impl BSplineCurve2D {
         });
         let (flat, poles) = fit.unwrap_or_else(|| interpolated(points, &params, degree));
         let (knots, mults) = compress_knots(&flat);
-        Ok(BSplineCurve2D::from_validated_parts(
+        Ok(GenericBSplineCurve::from_validated_parts(
             degree, poles, None, knots, mults, flat, false,
         ))
     }
