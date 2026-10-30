@@ -21,6 +21,15 @@ the Python distribution are versioned in lockstep.
   mirror image missed a third of their intersection at any confusion.
   Where a trace stalls next to a crossing, the branches crossing there
   are now seeded and traced.
+- Marched curves stayed within confusion of both surfaces only at the
+  traced points (#140). Between them, the interpolant strayed by up to
+  the chord deviation, about a thousand times confusion: two tori in
+  general position gave curves 8e-6 off at confusion 1e-7. Where the
+  surfaces cross, the fit now passes cubic Hermite segments through the
+  points and their exact tangents, and each step is checked against its
+  segment at the midpoint. The same tori now give curves 2e-8 off, and
+  the torus–torus comparison sweep stays within confusion at 1e-7 and
+  1e-9. Marching costs about 12 % more.
 
 ## [0.40.1] - 2026-10-30
 
