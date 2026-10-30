@@ -1,0 +1,74 @@
+"""`uv_curve_to_3d` carries a UV curve, a curve of a surface's (u, v)
+parameter space, onto the surface, as the exact 3D curve at the same
+parameter."""
+
+import math
+
+import pytest
+
+import geomcore
+from geomcore import Point, Point2D, Vector, Vector2D
+from geomcore.curves import (
+    BSplineCurve2D,
+    Circle,
+    Circle2D,
+    Ellipse,
+    Ellipse2D,
+    Line,
+    Line2D,
+)
+from geomcore.surfaces import Cylinder, Plane, Sphere
+
+
+def assert_traces(traced, curve, surface, parameters=(-1.2, 0.0, 0.4, 2.5)):
+    for t in parameters:
+        q = curve.eval_point(t)
+        assert traced.eval_point(t).distance(surface.eval_point(q.x, q.y)) < 1e-12
+
+
+def test_lines_along_u_and_v_on_a_cylinder():
+    cylinder = Cylinder(Point(0, 0, 0), Vector(0, 0, 1), 2.0)
+    along_v = Line2D(Point2D(0.5, 1.0), Vector2D.unit_y())
+    along_u = Line2D(Point2D(0.5, 1.0), Vector2D(-1.0, 0.0))
+    generator = cylinder.uv_curve_to_3d(along_v)
+    parallel = cylinder.uv_curve_to_3d(along_u)
+    assert isinstance(generator, Line)
+    assert isinstance(parallel, Circle)
+    assert_traces(generator, along_v, cylinder)
+    assert_traces(parallel, along_u, cylinder)
+
+
+def test_curves_on_a_plane_keep_their_kind():
+    plane = Plane(Point(0, 0, 1), Vector(0, 0, 1))
+    circle = Circle2D(Point2D(1.0, 2.0), 0.5)
+    ellipse = Ellipse2D(Point2D(1.0, 2.0), Vector2D(0.6, 0.8), 3.0, 1.0)
+    assert isinstance(plane.uv_curve_to_3d(circle), Circle)
+    traced = plane.uv_curve_to_3d(ellipse, geomcore.Tolerance.default())
+    assert isinstance(traced, Ellipse)
+    assert_traces(traced, ellipse, plane)
+
+
+def test_refused_pairs_raise():
+    sphere = Sphere(Point(0, 0, 0), 2.0)
+    circle = Circle2D(Point2D(1.0, 0.0), 0.5)
+    with pytest.raises(geomcore.UvCurveTo3DError):
+        sphere.uv_curve_to_3d(circle)
+    pole = Line2D(Point2D(0.0, math.pi / 2), Vector2D.unit_x())
+    with pytest.raises(geomcore.UvCurveTo3DError, match="point"):
+        sphere.uv_curve_to_3d(pole)
+
+
+def test_a_3d_curve_is_rejected():
+    cylinder = Cylinder(Point(0, 0, 0), Vector(0, 0, 1), 2.0)
+    line = Line(Point(0, 0, 0), Vector(0, 0, 1))
+    with pytest.raises(TypeError):
+        cylinder.uv_curve_to_3d(line)
+
+
+def test_a_straight_spline_runs_along_its_iso_curve():
+    cylinder = Cylinder(Point(0, 0, 0), Vector(0, 0, 1), 2.0)
+    poles = [Point2D(0.5, 2.0), Point2D(0.5, 0.0)]
+    along_v = BSplineCurve2D(1, poles, [1.0, 3.0], [2, 2], False)
+    generator = cylinder.uv_curve_to_3d(along_v)
+    assert isinstance(generator, Line)
+    assert_traces(generator, along_v, cylinder, (1.2, 2.0, 2.9))

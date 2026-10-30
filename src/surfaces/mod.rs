@@ -18,6 +18,7 @@ mod sphere;
 mod surface;
 pub(crate) mod swept;
 mod torus;
+pub(crate) mod uv_curve;
 
 pub use bezier::BezierSurface;
 pub use bspline::BSplineSurface;
@@ -32,3 +33,4 @@ pub use sphere::{Sphere, SphereConstructionError};
 pub use surface::{ElementarySurface, Surface};
 pub(crate) use surface::{elementary_surface_dispatch, surface_dispatch, surface_variants};
 pub use torus::{Torus, TorusConstructionError};
+pub use uv_curve::UvCurveTo3DError;

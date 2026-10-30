@@ -8,6 +8,9 @@
 //! of the axis. Any other profile is searched along its parameter for the
 //! point whose circle about the axis passes closest.
 
+use crate::curves::Curve2D;
+use crate::surfaces::UvCurveTo3DError;
+use crate::surfaces::uv_curve::to_curve;
 use std::f64::consts::{PI, TAU};
 use std::fmt;
 
@@ -156,6 +159,9 @@ impl RevolutionSurface {
     /// The `u` isoparametric curve at `u`: the profile turned by `u` about
     /// the axis, so `u_iso(u).eval_point(t)` is `eval_point(u, t)` for
     /// every `t`.
+    /// The axis-aligned special case of
+    /// [`uv_curve_to_3d`](crate::ParametricSurface::uv_curve_to_3d):
+    /// a line along `v`, run at rate `1` from `0`.
     ///
     /// Fails with [`SurfaceIsoError::NonFinite`] for a NaN or infinite
     /// `u`; any finite value is accepted.
@@ -184,6 +190,9 @@ impl RevolutionSurface {
     /// at `v` turns along, so `v_iso(v).eval_point(t)` is
     /// `eval_point(t, v)` for every `t`. A profile point on the axis
     /// turns along a circle of zero radius.
+    /// The axis-aligned special case of
+    /// [`uv_curve_to_3d`](crate::ParametricSurface::uv_curve_to_3d):
+    /// a line along `u`, run at rate `1` from `0`.
     ///
     /// Fails with [`SurfaceIsoError::NonFinite`] for a NaN or infinite
     /// `v`, and with [`SurfaceIsoError::OutOfRange`] for a `v` outside
@@ -564,6 +573,14 @@ impl ParametricSurface for RevolutionSurface {
 
     fn as_revolution(&self) -> Option<&RevolutionSurface> {
         Some(self)
+    }
+
+    fn uv_curve_to_3d(
+        &self,
+        uv_curve: &Curve2D,
+        tol: Tolerance,
+    ) -> Result<Curve, UvCurveTo3DError> {
+        to_curve::uv_curve_to_3d(self, uv_curve, tol)
     }
 }
 

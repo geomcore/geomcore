@@ -9,6 +9,27 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+### Added
+
+- `ParametricSurface::uv_curve_to_3d(&Curve2D, tol)`, the exact 3D
+  curve a UV curve (a curve of a surface's parameter space) traces on the
+  surface, in the same parameter: the inverse of `parametrize_on` (#152,
+  ADR 0030). Any
+  curve on a plane keeps its kind; on the extrusion of a line, the
+  affine image where it keeps its kind in the same parameter; a line
+  along `u` or `v` on any surface gives the iso curve, reparametrized.
+  Every other pair is refused with the new `UvCurveTo3DError`
+  (`NotAnalytic`, `Collapsed` at a pole or apex, or `IsoCurve`), never
+  approximated. The trait's default refuses, so surface types defined
+  outside the crate keep compiling.
+- A straight UV curve stored as a degree-1 B-spline or Bézier curve with
+  two poles is read as a line: along `u` or `v` it gives the iso curve
+  run at the spline's speed, exact for a line or spline iso curve at any
+  speed and for a conic at speed 1, and refused otherwise.
+- Python: `uv_curve_to_3d(uv_curve, tol=None)` on every surface
+  class, taking any 2D curve, and the `UvCurveTo3DError`
+  exception.
+
 ## [0.41.0] - 2026-10-30
 
 Deeper modules behind the same results. One closed-form table decides

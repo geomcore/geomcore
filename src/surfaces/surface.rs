@@ -1,13 +1,13 @@
 //! The [`Surface`] and [`ElementarySurface`] enum adaptors unifying the
 //! concrete surface types behind one value type each.
 
-use crate::curves::{Continuity, Curve};
+use crate::curves::{Continuity, Curve, Curve2D};
 use crate::surfaces::ParametricSurface;
 use crate::surfaces::ReversibleSurface;
 use crate::surfaces::SurfaceCurvatures;
 use crate::surfaces::{
     BSplineSurface, BezierSurface, Cone, Cylinder, ExtrusionSurface, Plane, RevolutionSurface,
-    Sphere, SurfaceIsoError, Torus,
+    Sphere, SurfaceIsoError, Torus, UvCurveTo3DError,
 };
 use crate::{Point, SurfaceProjection, Tolerance, Vector};
 use crate::{Transform, TransformError, Transformable};
@@ -124,6 +124,9 @@ impl Surface {
     /// a sphere or torus, the turned profile on a revolution surface, a
     /// B-spline curve on a B-spline surface, a Bézier curve on a Bézier
     /// surface; see each type's `u_iso`.
+    /// The axis-aligned special case of
+    /// [`uv_curve_to_3d`](crate::ParametricSurface::uv_curve_to_3d):
+    /// a line along `v`, run at rate `1` from `0`.
     ///
     /// # Errors
     ///
@@ -150,6 +153,9 @@ impl Surface {
     /// revolution surface, the moved profile on an extrusion surface, a
     /// B-spline curve on a B-spline surface, a Bézier curve on a Bézier
     /// surface; see each type's `v_iso`.
+    /// The axis-aligned special case of
+    /// [`uv_curve_to_3d`](crate::ParametricSurface::uv_curve_to_3d):
+    /// a line along `u`, run at rate `1` from `0`.
     ///
     /// # Errors
     ///
@@ -273,6 +279,14 @@ impl ParametricSurface for Surface {
 
     fn as_revolution(&self) -> Option<&RevolutionSurface> {
         surface_dispatch!(self, s => s.as_revolution())
+    }
+
+    fn uv_curve_to_3d(
+        &self,
+        uv_curve: &Curve2D,
+        tol: Tolerance,
+    ) -> Result<Curve, UvCurveTo3DError> {
+        surface_dispatch!(self, s => s.uv_curve_to_3d(uv_curve, tol))
     }
 }
 
@@ -420,6 +434,14 @@ impl ParametricSurface for ElementarySurface {
 
     fn as_elementary(&self) -> Option<ElementarySurface> {
         Some(*self)
+    }
+
+    fn uv_curve_to_3d(
+        &self,
+        uv_curve: &Curve2D,
+        tol: Tolerance,
+    ) -> Result<Curve, UvCurveTo3DError> {
+        elementary_surface_dispatch!(self, s => s.uv_curve_to_3d(uv_curve, tol))
     }
 }
 

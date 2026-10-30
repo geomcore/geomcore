@@ -11,6 +11,7 @@ __all__ = [
     "BSplineSplitError",
     "BSplineConversionError",
     "ParametrizeError",
+    "UvCurveTo3DError",
     "SurfaceIsoError",
     "DiscretizationCriteriaError",
     "Axis2D",

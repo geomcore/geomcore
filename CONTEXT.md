@@ -42,6 +42,11 @@ _Avoid_: sweep for a profile moved along an arbitrary path (not supported), surf
 The curve a swept surface moves.
 _Avoid_: generatrix, basis curve, directrix
 
+**UV curve**:
+A 2D curve in a surface's `(u, v)` parameter space; its 3D curve is the surface composed with it, `S∘c`, which `uv_curve_to_3d` gives exactly or refuses (ADR 0030).
+Synonyms: pcurve (the ISO 10303-42 entity name), parameter-space curve.
+_Avoid_: `UV` in Rust names (the casing is `Uv`, one word), parametric curve (`ParametricCurve` already means any curve parametrized by `t`), curve on surface, lift, drop
+
 **Offset**:
 The surface at a signed distance along another surface's normal. It is an operation, not a stored shape: an elementary surface's offset is elementary, and other surfaces have none yet (ADR 0016).
 _Avoid_: shell, thickening

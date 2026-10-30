@@ -6,6 +6,9 @@
 //! pole if rational, and each direction's knot vector with its flattened
 //! knot sequence, so evaluation never re-derives them.
 
+use crate::curves::{Curve, Curve2D};
+use crate::surfaces::UvCurveTo3DError;
+use crate::surfaces::uv_curve::to_curve;
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 
@@ -1265,6 +1268,9 @@ impl BSplineSurface {
     /// The `u` isoparametric curve at `u`: `u` fixed, running along `v`
     /// with the `v` degree, knots and periodicity, so
     /// `u_iso(u).eval_point(t)` is `eval_point(u, t)` for every `t`.
+    /// The axis-aligned special case of
+    /// [`uv_curve_to_3d`](crate::ParametricSurface::uv_curve_to_3d):
+    /// a line along `v`, run at rate `1` from `0`.
     ///
     /// Each pole is a column of the net blended by the `u` basis functions
     /// at `u`, in homogeneous coordinates if rational. The curve is
@@ -1305,6 +1311,9 @@ impl BSplineSurface {
     /// with the `u` degree, knots and periodicity, so
     /// `v_iso(v).eval_point(t)` is `eval_point(t, v)` for every `t`. See
     /// [`BSplineSurface::u_iso`].
+    /// The axis-aligned special case of
+    /// [`uv_curve_to_3d`](crate::ParametricSurface::uv_curve_to_3d):
+    /// a line along `u`, run at rate `1` from `0`.
     ///
     /// # Errors
     ///
@@ -2082,6 +2091,14 @@ impl ParametricSurface for BSplineSurface {
 
     fn as_bspline(&self) -> Option<&BSplineSurface> {
         Some(self)
+    }
+
+    fn uv_curve_to_3d(
+        &self,
+        uv_curve: &Curve2D,
+        tol: Tolerance,
+    ) -> Result<Curve, UvCurveTo3DError> {
+        to_curve::uv_curve_to_3d(self, uv_curve, tol)
     }
 }
 

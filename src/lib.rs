@@ -227,7 +227,7 @@ pub use surfaces::{
     ExtrusionSurfaceConstructionError, ParametricSurface, Plane, PlaneConstructionError,
     ReversibleSurface, RevolutionSurface, RevolutionSurfaceConstructionError, Sphere,
     SphereConstructionError, Surface, SurfaceCurvatures, SurfaceIsoError, Torus,
-    TorusConstructionError,
+    TorusConstructionError, UvCurveTo3DError,
 };
 pub use tier::TierPoint;
 pub use tolerance::Tolerance;

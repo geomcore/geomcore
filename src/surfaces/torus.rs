@@ -1,13 +1,16 @@
 //! Tori in 3D: parametric evaluation and parameter inversion, thin wrappers
 //! over [`crate::elementary::surface`].
 
+use crate::curves::{Curve, Curve2D};
 use crate::elementary::surface as elementary;
 use crate::frame::frame_error;
 use crate::surfaces::ElementarySurface;
 use crate::surfaces::ParametricSurface;
 use crate::surfaces::ReversibleSurface;
 use crate::surfaces::SurfaceIsoError;
+use crate::surfaces::UvCurveTo3DError;
 use crate::surfaces::iso::{check_iso_param, iso_circle};
+use crate::surfaces::uv_curve::to_curve;
 use crate::transform::image_error;
 use crate::{Circle, Frame, Point, SurfaceProjection, Tolerance, Transform, Vector, projection};
 use crate::{TransformError, Transformable};
@@ -187,6 +190,9 @@ impl Torus {
     /// tube of the minor radius centred `major_radius` from the center in
     /// the half-plane at angle `u`, so `u_iso(u).eval_point(t)` is
     /// `eval_point(u, t)` for every `t`.
+    /// The axis-aligned special case of
+    /// [`uv_curve_to_3d`](crate::ParametricSurface::uv_curve_to_3d):
+    /// a line along `v`, run at rate `1` from `0`.
     ///
     /// Fails with [`SurfaceIsoError::NonFinite`] for a NaN or infinite
     /// `u`; any finite value is accepted.
@@ -217,6 +223,9 @@ impl Torus {
     /// axis, so `v_iso(v).eval_point(t)` is `eval_point(t, v)` for every
     /// `t`. Where a horn or spindle torus pinches on its axis it is the
     /// circle of radius zero.
+    /// The axis-aligned special case of
+    /// [`uv_curve_to_3d`](crate::ParametricSurface::uv_curve_to_3d):
+    /// a line along `u`, run at rate `1` from `0`.
     ///
     /// Fails with [`SurfaceIsoError::NonFinite`] for a NaN or infinite
     /// `v`; any finite value is accepted.
@@ -311,6 +320,14 @@ impl ParametricSurface for Torus {
     /// minor_radius`.
     fn parameters_of(&self, point: Point, _tol: Tolerance) -> (f64, f64) {
         elementary::torus_parameters(&self.frame, self.major_radius, self.minor_radius, point)
+    }
+
+    fn uv_curve_to_3d(
+        &self,
+        uv_curve: &Curve2D,
+        tol: Tolerance,
+    ) -> Result<Curve, UvCurveTo3DError> {
+        to_curve::uv_curve_to_3d(self, uv_curve, tol)
     }
 }
 

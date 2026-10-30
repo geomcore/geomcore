@@ -24,7 +24,7 @@
 //! | `discretize`, `discretize_2d` | `Discretize(2D)` | the bounded curves |
 //! | `sided_evaluation`, `sided_evaluation_2d` | the `*_sided` evaluations | B-spline and Bézier curves |
 //! | `parametrize_on` | `parametrize_on` | the 3D curves with a closed-form parametrization |
-//! | `surface` | `ParametricSurface`, `ReversibleSurface`, `Transformable`, `HasBoundingBox`, `Intersect`, isoparametric curves | every surface |
+//! | `surface` | `ParametricSurface` (with `uv_curve_to_3d`), `ReversibleSurface`, `Transformable`, `HasBoundingBox`, `Intersect`, isoparametric curves | every surface |
 //! | `surface_normal` | `ParametricSurface::normal` | every surface but `Plane`, whose `normal()` is its constant normal |
 //! | `sided_surface_evaluation` | the `*_sided` evaluations | B-spline and Bézier surfaces |
 //! | `surface_extrema` | `extrema` | B-spline and Bézier surfaces |
@@ -674,6 +674,34 @@ macro_rules! surface {
             fn v_iso(&self, py: Python<'_>, v: f64) -> PyResult<Py<PyAny>> {
                 let curve = self.0.v_iso(v).map_err(python_error)?;
                 curve_classes::to_py(py, Curve::from(curve))
+            }
+
+            /// The exact 3D curve that `uv_curve`, a curve in this surface's (u, v)
+            /// parameter space, traces on the surface, in the same parameter: its
+            /// point at `t` is the surface's point at the UV curve's (u, v) at `t`.
+            ///
+            /// Closed forms: any curve on a plane, as the same kind of curve; any
+            /// curve on the extrusion of a line, where the affine image keeps its
+            /// kind in the same parameter; and a line along u or v on any surface,
+            /// as the iso curve run from the line's origin, as is a degree-1
+            /// B-spline or Bezier curve with two poles. Raises
+            /// `UvCurveTo3DError` for any other pair, when the line runs
+            /// along an iso curve that is a point (a sphere's pole, a cone's apex),
+            /// or when the surface has no iso curve there. `tol` is
+            /// `Tolerance.default()` when omitted.
+            #[pyo3(signature = (uv_curve, tol = None))]
+            fn uv_curve_to_3d(
+                &self,
+                py: Python<'_>,
+                uv_curve: &Bound<'_, PyAny>,
+                tol: Option<PyTolerance>,
+            ) -> PyResult<Py<PyAny>> {
+                let uv_curve = curve_2d_classes::extract(uv_curve)?;
+                let traced = self
+                    .0
+                    .uv_curve_to_3d(&uv_curve, tolerance(tol))
+                    .map_err(python_error)?;
+                curve_classes::to_py(py, traced)
             }
 
             /// The image of the surface under `transform`, parametrized by

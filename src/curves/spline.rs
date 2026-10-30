@@ -144,6 +144,52 @@ impl<P: TierPoint> Spline<P> {
         Spline::of(self.knots.clone(), poles, self.weights.clone())
     }
 
+    /// The curve in space with each pole mapped by the affine map `f`, the
+    /// knots and weights kept. Exact, as for [`Spline::transformed`].
+    pub(crate) fn mapped_to_space(&self, f: impl Fn(P) -> Point) -> Spline<Point> {
+        let poles = self.poles.iter().map(|&p| f(p)).collect();
+        Spline::of(self.knots.clone(), poles, self.weights.clone())
+    }
+
+    /// The curve whose point at `t` is this curve's at `shift + scale * t`,
+    /// `scale` being nonzero: the knots `k` mapped to `(k - shift) / scale`,
+    /// after reversing the curve for a negative `scale`. Exact for any
+    /// shift and scale.
+    ///
+    /// # Errors
+    ///
+    /// The construction error when shifting rounds two distinct knots
+    /// together.
+    pub(crate) fn reparametrized(
+        &self,
+        shift: f64,
+        scale: f64,
+    ) -> Result<Spline<P>, BSplineConstructionError> {
+        let (curve, shift) = if scale < 0.0 {
+            // The reversed curve at `first + last - shift + |scale| t` is
+            // this curve at `shift - |scale| t`.
+            let (first, last) = self.bounds();
+            (self.reversed(), first + last - shift)
+        } else {
+            (self.clone(), shift)
+        };
+        let knots = curve
+            .knots()
+            .iter()
+            .map(|&knot| (knot - shift) / scale.abs())
+            .collect();
+        let (degree, periodic) = (curve.degree(), curve.is_periodic());
+        let multiplicities = curve.multiplicities().to_vec();
+        Spline::new(
+            degree,
+            curve.poles,
+            curve.weights,
+            knots,
+            multiplicities,
+            periodic,
+        )
+    }
+
     pub(crate) fn degree(&self) -> usize {
         self.knots.degree()
     }
