@@ -9,6 +9,24 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+### Added
+
+- `ExtrusionSurface` and `RevolutionSurface`, the swept surfaces
+  (ADR 0016): a profile `Curve` swept along a direction,
+  `profile(u) + v * direction`, or turned about an `Axis`, the profile
+  point at `v` rotated by the angle `u`. Each is a `Surface` variant
+  with the full `ParametricSurface` interface, exact iso curves (a line
+  and the moved profile; the rotated profile and a circle), reversal,
+  `transformed` and `to_bspline_patch`. A revolution of a bounded
+  profile has a bounding box and converts whole with `Surface::to_bspline`;
+  an extrusion is unbounded in `v`. Projection works on the profile:
+  onto its image across the direction for an extrusion (in closed form
+  for a line or a conic), onto the meridian for a revolution (in
+  closed form for a conic in a plane through the axis, a one-parameter
+  search otherwise), 4 to 80 times faster than onto the converted
+  B-spline patch. Intersections run the numeric search. In Python,
+  `geomcore.surfaces.ExtrusionSurface` and `RevolutionSurface`.
+
 ## [0.40.0] - 2026-10-30
 
 An architecture release. Shared behaviour now lives in one place per
@@ -76,21 +94,6 @@ interpreter lock.
 - `TrimmedCurve::to_bspline` for a B-spline, Bézier or `Curve` basis,
   as `TrimmedCurve2D` already had: the piece is extracted from the
   B-spline. `TrimmedCurve<ElementaryCurve>` implements `Discretize`.
-- `ExtrusionSurface` and `RevolutionSurface`, the swept surfaces
-  (ADR 0016): a profile `Curve` swept along a direction,
-  `profile(u) + v * direction`, or turned about an `Axis`, the profile
-  point at `v` rotated by the angle `u`. Each is a `Surface` variant
-  with the full `ParametricSurface` interface, exact iso curves (a line
-  and the moved profile; the rotated profile and a circle), reversal,
-  `transformed` and `to_bspline_patch`. A revolution of a bounded
-  profile has a bounding box and converts whole with `Surface::to_bspline`;
-  an extrusion is unbounded in `v`. Projection works on the profile:
-  onto its image across the direction for an extrusion (in closed form
-  for a line or a conic), onto the meridian for a revolution (in
-  closed form for a conic in a plane through the axis, a one-parameter
-  search otherwise), 4 to 80 times faster than onto the converted
-  B-spline patch. Intersections run the numeric search. In Python,
-  `geomcore.surfaces.ExtrusionSurface` and `RevolutionSurface`.
 
 ### Fixed
 
