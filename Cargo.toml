@@ -54,4 +54,4 @@ harness = false
 members = [".", "geomcore-py"]
 
 [workspace.package]
-version = "0.39.1"
+version = "0.40.0"

@@ -9,6 +9,18 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+## [0.40.0] - 2026-10-30
+
+An architecture release. Shared behaviour now lives in one place per
+concept: on the traits, which `geomcore::prelude` brings into scope; in
+one variant list per shape enum, which also gives Bézier curves and
+surfaces their own variants; in one generic type per curve across space
+and the plane; and in one step from a typed intersection result to a
+family result. Every public Rust item now has one path, at the crate
+root. Rust code needs a few mechanical edits, listed under Breaking.
+Python only gains methods, and its `intersect` now always releases the
+interpreter lock.
+
 ### Added
 
 - `geomcore::prelude`, which re-exports the shape and operation traits
@@ -2053,7 +2065,8 @@ Behaviour, in Rust and Python alike:
 - Golden-fixture validation of all numeric results at 1e-7 tolerance, and
   criterion throughput benchmarks (`docs/benchmarks.md`).
 
-[Unreleased]: https://github.com/geomcore/geomcore/compare/v0.39.1...HEAD
+[Unreleased]: https://github.com/geomcore/geomcore/compare/v0.40.0...HEAD
+[0.40.0]: https://github.com/geomcore/geomcore/compare/v0.39.1...v0.40.0
 [0.39.1]: https://github.com/geomcore/geomcore/compare/v0.39.0...v0.39.1
 [0.39.0]: https://github.com/geomcore/geomcore/compare/v0.38.0...v0.39.0
 [0.38.0]: https://github.com/geomcore/geomcore/compare/v0.37.0...v0.38.0

@@ -93,6 +93,9 @@ ones before them. If you'd like to help with any of it, see
   of conics and B-splines, and 2D intersections for every curve pair.
   First-class `BezierCurve`, `BezierCurve2D` and `BezierSurface`.
 - **0.39** — The names deprecated in 0.36 and 0.37 are removed.
+- **0.40** — Shared behaviour lives on the traits (`geomcore::prelude`);
+  Bézier variants in `Curve`, `Curve2D` and `Surface`; one generic type
+  per curve across space and the plane; one public path per item.
 
 ## Next
 
