@@ -187,18 +187,18 @@ class _SurfaceMethods(Generic[_UIsoCurveType, _VIsoCurveType]):
         """The `v` isoparametric curve at `v`, parametrized by `u` like
         the surface, as `u_iso`.
         """
-    def parameter_space_to_curve(
-        self, curve: _Curve2D, tol: Optional[Tolerance] = ...
+    def pcurve_to_curve(
+        self, pcurve: _Curve2D, tol: Optional[Tolerance] = ...
     ) -> _WholeCurve:
-        """The exact 3D curve that `curve`, a curve in this surface's (u, v)
+        """The exact 3D curve that `pcurve`, a curve in this surface's (u, v)
         parameter space, traces on the surface, in the same parameter: its
-        point at `t` is the surface's point at the curve's (u, v) at `t`.
+        point at `t` is the surface's point at the pcurve's (u, v) at `t`.
 
         Closed forms: any curve on a plane, as the same kind of curve; any
         curve on the extrusion of a line, where the affine image keeps its
         kind in the same parameter; and a line along u or v on any surface,
         as the iso curve run from the line's origin. Raises
-        `ParameterSpaceToCurveError` for any other pair, when the line runs
+        `PcurveToCurveError` for any other pair, when the line runs
         along an iso curve that is a point (a sphere's pole, a cone's apex),
         or when the surface has no iso curve there. `tol` is
         `Tolerance.default()` when omitted.

@@ -6,12 +6,12 @@ use crate::curves::{Curve, Curve2D};
 use crate::elementary::surface as elementary;
 use crate::frame::frame_error;
 use crate::surfaces::ElementarySurface;
-use crate::surfaces::ParameterSpaceToCurveError;
 use crate::surfaces::ParametricSurface;
+use crate::surfaces::PcurveToCurveError;
 use crate::surfaces::ReversibleSurface;
 use crate::surfaces::SurfaceIsoError;
 use crate::surfaces::iso::{check_iso_param, iso_line};
-use crate::surfaces::parameter_space::to_curve;
+use crate::surfaces::pcurve::to_curve;
 use crate::{Frame, Line, Point, SurfaceProjection, Tolerance, Transform, Vector, projection};
 use crate::{TransformError, Transformable};
 use std::fmt;
@@ -259,7 +259,7 @@ impl Plane {
     /// A line through `origin + u * x_direction` in the `y` direction,
     /// so `u_iso(u).eval_point(t)` is `eval_point(u, t)` for every `t`.
     /// The axis-aligned special case of
-    /// [`parameter_space_to_curve`](crate::ParametricSurface::parameter_space_to_curve):
+    /// [`pcurve_to_curve`](crate::ParametricSurface::pcurve_to_curve):
     /// a line along `v`, run at rate `1` from `0`.
     ///
     /// Fails with [`SurfaceIsoError::NonFinite`] for a NaN or infinite
@@ -283,7 +283,7 @@ impl Plane {
     /// A line through `origin + v * y_direction` in the `x` direction,
     /// so `v_iso(v).eval_point(t)` is `eval_point(t, v)` for every `t`.
     /// The axis-aligned special case of
-    /// [`parameter_space_to_curve`](crate::ParametricSurface::parameter_space_to_curve):
+    /// [`pcurve_to_curve`](crate::ParametricSurface::pcurve_to_curve):
     /// a line along `u`, run at rate `1` from `0`.
     ///
     /// Fails with [`SurfaceIsoError::NonFinite`] for a NaN or infinite
@@ -387,12 +387,12 @@ impl ParametricSurface for Plane {
         elementary::plane_parameters(&self.frame, point)
     }
 
-    fn parameter_space_to_curve(
+    fn pcurve_to_curve(
         &self,
-        curve: &Curve2D,
+        pcurve: &Curve2D,
         tol: Tolerance,
-    ) -> Result<Curve, ParameterSpaceToCurveError> {
-        to_curve::parameter_space_to_curve(self, curve, tol)
+    ) -> Result<Curve, PcurveToCurveError> {
+        to_curve::pcurve_to_curve(self, pcurve, tol)
     }
 }
 

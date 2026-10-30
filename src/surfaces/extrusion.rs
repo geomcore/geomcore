@@ -10,8 +10,8 @@
 //! for in closed form.
 
 use crate::curves::Curve2D;
-use crate::surfaces::ParameterSpaceToCurveError;
-use crate::surfaces::parameter_space::to_curve;
+use crate::surfaces::PcurveToCurveError;
+use crate::surfaces::pcurve::to_curve;
 use std::fmt;
 
 use crate::curves::ReversibleCurve;
@@ -186,7 +186,7 @@ impl ExtrusionSurface {
     /// point at `u` along the direction, so `u_iso(u).eval_point(t)` is
     /// `eval_point(u, t)` for every `t`.
     /// The axis-aligned special case of
-    /// [`parameter_space_to_curve`](crate::ParametricSurface::parameter_space_to_curve):
+    /// [`pcurve_to_curve`](crate::ParametricSurface::pcurve_to_curve):
     /// a line along `v`, run at rate `1` from `0`.
     ///
     /// Fails with [`SurfaceIsoError::NonFinite`] for a NaN or infinite
@@ -213,7 +213,7 @@ impl ExtrusionSurface {
     /// the direction, so `v_iso(v).eval_point(t)` is `eval_point(t, v)`
     /// for every `t`.
     /// The axis-aligned special case of
-    /// [`parameter_space_to_curve`](crate::ParametricSurface::parameter_space_to_curve):
+    /// [`pcurve_to_curve`](crate::ParametricSurface::pcurve_to_curve):
     /// a line along `u`, run at rate `1` from `0`.
     ///
     /// Fails with [`SurfaceIsoError::NonFinite`] for a NaN or infinite
@@ -326,12 +326,12 @@ impl ParametricSurface for ExtrusionSurface {
         Some(self)
     }
 
-    fn parameter_space_to_curve(
+    fn pcurve_to_curve(
         &self,
-        curve: &Curve2D,
+        pcurve: &Curve2D,
         tol: Tolerance,
-    ) -> Result<Curve, ParameterSpaceToCurveError> {
-        to_curve::parameter_space_to_curve(self, curve, tol)
+    ) -> Result<Curve, PcurveToCurveError> {
+        to_curve::pcurve_to_curve(self, pcurve, tol)
     }
 }
 

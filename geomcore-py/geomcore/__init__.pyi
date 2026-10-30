@@ -35,8 +35,8 @@ class BSplineConversionError(GeomcoreError):
 class ParametrizeError(GeomcoreError):
     """A curve could not be re-parametrized as requested."""
 
-class ParameterSpaceToCurveError(GeomcoreError):
-    """A curve in a surface's parameter space has no exact 3D curve in the same parameter."""
+class PcurveToCurveError(GeomcoreError):
+    """A pcurve, a curve in a surface's parameter space, has no exact 3D curve in the same parameter."""
 
 class SurfaceIsoError(GeomcoreError):
     """An iso-parametric curve of a surface could not be extracted."""
@@ -629,7 +629,7 @@ __all__ = [
     "BSplineSplitError",
     "BSplineConversionError",
     "ParametrizeError",
-    "ParameterSpaceToCurveError",
+    "PcurveToCurveError",
     "SurfaceIsoError",
     "DiscretizationCriteriaError",
     "Axis2D",

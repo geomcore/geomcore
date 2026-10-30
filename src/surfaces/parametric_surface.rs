@@ -5,8 +5,7 @@
 
 use crate::curves::{Continuity, Curve, Curve2D};
 use crate::surfaces::{
-    BSplineSurface, ElementarySurface, ExtrusionSurface, ParameterSpaceToCurveError,
-    RevolutionSurface,
+    BSplineSurface, ElementarySurface, ExtrusionSurface, PcurveToCurveError, RevolutionSurface,
 };
 use crate::{Point, SurfaceProjection, Tolerance, Vector};
 
@@ -511,10 +510,11 @@ pub trait ParametricSurface {
         (projection.u, projection.v)
     }
 
-    /// The exact 3D curve that `curve`, a curve `q` in this surface's
+    /// The exact 3D curve that `pcurve`, a curve `c` in this surface's
     /// `(u, v)` parameter space, traces on the surface, in the same
-    /// parameter: its point at `t` is `self.eval_point(q(t))` for every `t`
-    /// (every `t` of its bounds when the surface is bounded). It is
+    /// parameter: the surface composed with it, `S∘c`, whose point at `t`
+    /// is `self.eval_point(c(t))` for every `t` (every `t` of its bounds
+    /// when the surface is bounded). It is
     /// [`eval_point`](Self::eval_point) at curve level, and the inverse of
     /// `parametrize_on` ([`Line::parametrize_on`](crate::Line::parametrize_on)
     /// and its siblings).
@@ -551,14 +551,14 @@ pub trait ParametricSurface {
     ///
     /// # Errors
     ///
-    /// [`ParameterSpaceToCurveError::NotAnalytic`] for every other pair, never
+    /// [`PcurveToCurveError::NotAnalytic`] for every other pair, never
     /// approximated: a slanted line on a curved surface, a conic or a
     /// spline on any surface but an affine one, a pair above that leaves
     /// its kind, a 2D curve whose image overflows, and every curve on a
     /// surface type defined outside the crate, the default.
-    /// [`ParameterSpaceToCurveError::Collapsed`] when the line runs along an iso
+    /// [`PcurveToCurveError::Collapsed`] when the line runs along an iso
     /// curve that is a point (a sphere's pole, a cone's apex).
-    /// [`ParameterSpaceToCurveError::IsoCurve`] when the surface has no iso curve
+    /// [`PcurveToCurveError::IsoCurve`] when the surface has no iso curve
     /// at the line's fixed parameter.
     ///
     /// # Examples
@@ -574,11 +574,11 @@ pub trait ParametricSurface {
     /// let tol = Tolerance::DEFAULT;
     ///
     /// let along_v = Line2D::new(Point2D::new(0.5, 1.0), Vector2D::Y).unwrap();
-    /// let generator = cylinder.parameter_space_to_curve(&along_v.into(), tol).unwrap();
+    /// let generator = cylinder.pcurve_to_curve(&along_v.into(), tol).unwrap();
     /// assert!(matches!(generator, Curve::Line(_)));
     ///
     /// let along_u = Line2D::new(Point2D::new(0.5, 1.0), -Vector2D::X).unwrap();
-    /// let parallel = cylinder.parameter_space_to_curve(&along_u.into(), tol).unwrap();
+    /// let parallel = cylinder.pcurve_to_curve(&along_u.into(), tol).unwrap();
     /// assert!(matches!(parallel, Curve::Circle(_)));
     /// for t in [-1.0, 0.0, 2.5] {
     ///     let expected = cylinder.eval_point(0.5 - t, 1.0);
@@ -595,18 +595,18 @@ pub trait ParametricSurface {
     /// let plane = Plane::new(Point::new(0.0, 0.0, 1.0), Vector::Z).unwrap();
     /// let ellipse = Ellipse2D::new(Point2D::new(1.0, 2.0), Vector2D::X, 3.0, 1.0).unwrap();
     /// let curve = Curve2D::from(ellipse);
-    /// let traced = plane.parameter_space_to_curve(&curve, Tolerance::DEFAULT).unwrap();
+    /// let traced = plane.pcurve_to_curve(&curve, Tolerance::DEFAULT).unwrap();
     /// assert!(matches!(traced, Curve::Ellipse(_)));
     /// let q = curve.eval_point(0.7);
     /// assert!(traced.eval_point(0.7).distance(plane.eval_point(q.x, q.y)) < 1e-12);
     /// ```
-    fn parameter_space_to_curve(
+    fn pcurve_to_curve(
         &self,
-        curve: &Curve2D,
+        pcurve: &Curve2D,
         tol: Tolerance,
-    ) -> Result<Curve, ParameterSpaceToCurveError> {
-        let _ = (curve, tol);
-        Err(ParameterSpaceToCurveError::NotAnalytic)
+    ) -> Result<Curve, PcurveToCurveError> {
+        let _ = (pcurve, tol);
+        Err(PcurveToCurveError::NotAnalytic)
     }
 
     /// Routing hook of the numeric search, hidden from the documentation: the

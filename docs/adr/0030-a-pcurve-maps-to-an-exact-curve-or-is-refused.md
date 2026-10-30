@@ -1,8 +1,10 @@
-# A parameter-space curve maps to an exact curve or is refused
+# A pcurve maps to an exact curve or is refused
 
-`ParametricSurface::parameter_space_to_curve(&self, curve: &Curve2D, tol) -> Result<Curve, ParameterSpaceToCurveError>` gives the 3D curve that a **parameter-space curve** `q` traces on the surface, in the same parameter: its point at `t` is `self.eval_point(q(t))` for every `t`. It is the inverse of `parametrize_on`. It answers with a curve of `Curve` only when that curve is exact; every other pair is refused, never approximated, so a caller that needs an approximation chooses it.
+`ParametricSurface::pcurve_to_curve(&self, pcurve: &Curve2D, tol) -> Result<Curve, PcurveToCurveError>` gives the 3D curve that a **pcurve** `c`, a curve in the surface's `(u, v)` parameter space, traces on the surface `S`, in the same parameter: `S∘c`, whose point at `t` is `self.eval_point(c(t))` for every `t`. It is the inverse of `parametrize_on`. It answers with a curve of `Curve` only when that curve is exact; every other pair is refused, never approximated, so a caller that needs an approximation chooses it.
 
-The surface owns the mapping, as it owns `eval_point` and `parameters_of` at point level. It is a provided method of `ParametricSurface` whose default refuses with `NotAnalytic`, so a surface type defined outside the crate keeps compiling. Each crate surface overrides it with a one-line forward to the pair table in `surfaces/parameter_space/to_curve.rs`, and `Surface` and `ElementarySurface` forward through their variant lists (ADR 0017). The method takes `&Curve2D`, not `impl Into<Curve2D>`, so the trait stays dyn-compatible: marching works on `&dyn ParametricSurface`. Curves do not depend on surfaces for it: nothing about it lives under `curves/`.
+The surface owns the mapping, as it owns `eval_point` and `parameters_of` at point level. It is a provided method of `ParametricSurface` whose default refuses with `NotAnalytic`, so a surface type defined outside the crate keeps compiling. Each crate surface overrides it with a one-line forward to the pair table in `surfaces/pcurve/to_curve.rs`, and `Surface` and `ElementarySurface` forward through their variant lists (ADR 0017). The method takes `&Curve2D`, not `impl Into<Curve2D>`, so the trait stays dyn-compatible: marching works on `&dyn ParametricSurface`. Curves do not depend on surfaces for it: nothing about it lives under `curves/`.
+
+**Naming.** "Pcurve" is the standard B-rep term, the `pcurve` entity of ISO 10303-42, and the shortest unambiguous one; the Rust casing is `Pcurve`, one word. Mathematically, `pcurve_to_curve` returns `S∘c`, and the follow-up `curve_to_pcurve` returns the `c` with `S∘c = C`. "Parametric curve" is rejected because the `ParametricCurve` trait already means any curve parametrized by `t`. "3d_to_parametric" is rejected because it is not a valid identifier. "parameter_space_to_curve" is rejected as longer with no gain in clarity.
 
 ## The pair table
 
@@ -13,7 +15,7 @@ The surface owns the mapping, as it owns `eval_point` and `parameters_of` at poi
 | line along `v`, `u = u0` | any other | `u_iso(u0)`, run from `v0` at rate `±1` |
 | line along `u`, `v = v0` | any other | `v_iso(v0)`, run from `u0` at rate `±1` |
 
-A line is along `u` or `v` when its direction is within `tol.angular` of the axis. Its fixed parameter is then taken from its origin. `u_iso` and `v_iso` are the special case `c = 0`, rate `1`, and `parameter_space_to_curve` is built on them, not the other way round.
+A line is along `u` or `v` when its direction is within `tol.angular` of the axis. Its fixed parameter is then taken from its origin. `u_iso` and `v_iso` are the special case `c = 0`, rate `1`, and `pcurve_to_curve` is built on them, not the other way round.
 
 **Reparametrizing an iso curve** by `t ↦ c + s t`, `s = ±1`, keeps every kind it can. A line moves its origin and flips its direction, a circle turns or mirrors its frame, and a B-spline shifts and mirrors its knots. A Bézier curve keeps arbitrary bounds, so the shifted one is a Bézier curve too. Every elementary curve is rebuilt from its point, `s` times its first derivative and its second derivative at `c`. It is a curve of its kind in `t` only when those vectors fit the kind's own parametrization. An ellipse fits from either end of its major axis (`c` a multiple of `π`) and a parabola or hyperbola from its vertex only (`c = 0`). Elsewhere the curve in that parameter is not a conic of `Curve`, so the pair is refused.
 
@@ -40,4 +42,4 @@ On a plane, or an extrusion perpendicular to its line, every kind is kept.
 
 ## Consequences
 
-A surface type defined outside the crate gets `NotAnalytic` until it overrides the method. A new crate surface adds its iso curves to the table (`IsoCurves` in `to_curve.rs`) and its one-line forward. Python exposes the method on every surface class, through the `surface` method set, and raises `ParameterSpaceToCurveError`. A follow-up moves `parametrize_on` to `ParametricSurface::curve_to_parameter_space(&Curve, tol) -> Result<Curve2D, ParametrizeError>` in `surfaces/parameter_space/to_parameter_space.rs`, so the surface owns both directions.
+A surface type defined outside the crate gets `NotAnalytic` until it overrides the method. A new crate surface adds its iso curves to the table (`IsoCurves` in `to_curve.rs`) and its one-line forward. Python exposes the method on every surface class, through the `surface` method set, and raises `PcurveToCurveError`. A follow-up replaces `parametrize_on` with `ParametricSurface::curve_to_pcurve(&self, curve: &Curve, tol) -> Result<Curve2D, CurveToPcurveError>` in `surfaces/pcurve/from_curve.rs`, so the surface owns both directions.

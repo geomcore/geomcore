@@ -224,7 +224,7 @@ pub use projection::{CurveProjection, CurveProjection2D, SurfaceProjection};
 pub use surfaces::{
     BSplineSurface, BezierSurface, Cone, ConeConstructionError, Cylinder,
     CylinderConstructionError, ElementarySurface, ExtrusionSurface,
-    ExtrusionSurfaceConstructionError, ParameterSpaceToCurveError, ParametricSurface, Plane,
+    ExtrusionSurfaceConstructionError, ParametricSurface, PcurveToCurveError, Plane,
     PlaneConstructionError, ReversibleSurface, RevolutionSurface,
     RevolutionSurfaceConstructionError, Sphere, SphereConstructionError, Surface,
     SurfaceCurvatures, SurfaceIsoError, Torus, TorusConstructionError,

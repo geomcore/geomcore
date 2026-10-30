@@ -16,9 +16,9 @@ use crate::curves::{
     BSplineSplitError, BezierConstructionError, BezierCurve, DegreeElevationError, Side,
 };
 use crate::curves::{Curve, Curve2D};
-use crate::surfaces::ParameterSpaceToCurveError;
+use crate::surfaces::PcurveToCurveError;
 use crate::surfaces::ReversibleSurface;
-use crate::surfaces::parameter_space::to_curve;
+use crate::surfaces::pcurve::to_curve;
 use crate::surfaces::{BSplineSurface, ParametricSurface, SurfaceIsoError};
 use crate::{Continuity, Point, SurfaceProjection, Tolerance, Vector};
 use crate::{Transform, TransformError, Transformable};
@@ -492,7 +492,7 @@ impl BezierSurface {
     /// `eval_point(u, t)` for every `t`. It is a Bézier curve over the `v`
     /// bounds, rational when the surface is (see [`BSplineSurface::u_iso`]).
     /// The axis-aligned special case of
-    /// [`parameter_space_to_curve`](crate::ParametricSurface::parameter_space_to_curve):
+    /// [`pcurve_to_curve`](crate::ParametricSurface::pcurve_to_curve):
     /// a line along `v`, run at rate `1` from `0`.
     ///
     /// # Errors
@@ -522,7 +522,7 @@ impl BezierSurface {
     /// The `v` isoparametric curve at `v`: `v` fixed, running along `u`
     /// with the `u` degree, as [`u_iso`](Self::u_iso) for `u`.
     /// The axis-aligned special case of
-    /// [`parameter_space_to_curve`](crate::ParametricSurface::parameter_space_to_curve):
+    /// [`pcurve_to_curve`](crate::ParametricSurface::pcurve_to_curve):
     /// a line along `u`, run at rate `1` from `0`.
     ///
     /// # Errors
@@ -717,12 +717,12 @@ impl ParametricSurface for BezierSurface {
         Some(&self.0)
     }
 
-    fn parameter_space_to_curve(
+    fn pcurve_to_curve(
         &self,
-        curve: &Curve2D,
+        pcurve: &Curve2D,
         tol: Tolerance,
-    ) -> Result<Curve, ParameterSpaceToCurveError> {
-        to_curve::parameter_space_to_curve(self, curve, tol)
+    ) -> Result<Curve, PcurveToCurveError> {
+        to_curve::pcurve_to_curve(self, pcurve, tol)
     }
 }
 

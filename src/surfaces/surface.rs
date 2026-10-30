@@ -6,8 +6,8 @@ use crate::surfaces::ParametricSurface;
 use crate::surfaces::ReversibleSurface;
 use crate::surfaces::SurfaceCurvatures;
 use crate::surfaces::{
-    BSplineSurface, BezierSurface, Cone, Cylinder, ExtrusionSurface, ParameterSpaceToCurveError,
-    Plane, RevolutionSurface, Sphere, SurfaceIsoError, Torus,
+    BSplineSurface, BezierSurface, Cone, Cylinder, ExtrusionSurface, PcurveToCurveError, Plane,
+    RevolutionSurface, Sphere, SurfaceIsoError, Torus,
 };
 use crate::{Point, SurfaceProjection, Tolerance, Vector};
 use crate::{Transform, TransformError, Transformable};
@@ -125,7 +125,7 @@ impl Surface {
     /// B-spline curve on a B-spline surface, a Bézier curve on a Bézier
     /// surface; see each type's `u_iso`.
     /// The axis-aligned special case of
-    /// [`parameter_space_to_curve`](crate::ParametricSurface::parameter_space_to_curve):
+    /// [`pcurve_to_curve`](crate::ParametricSurface::pcurve_to_curve):
     /// a line along `v`, run at rate `1` from `0`.
     ///
     /// # Errors
@@ -154,7 +154,7 @@ impl Surface {
     /// B-spline curve on a B-spline surface, a Bézier curve on a Bézier
     /// surface; see each type's `v_iso`.
     /// The axis-aligned special case of
-    /// [`parameter_space_to_curve`](crate::ParametricSurface::parameter_space_to_curve):
+    /// [`pcurve_to_curve`](crate::ParametricSurface::pcurve_to_curve):
     /// a line along `u`, run at rate `1` from `0`.
     ///
     /// # Errors
@@ -281,12 +281,12 @@ impl ParametricSurface for Surface {
         surface_dispatch!(self, s => s.as_revolution())
     }
 
-    fn parameter_space_to_curve(
+    fn pcurve_to_curve(
         &self,
-        curve: &Curve2D,
+        pcurve: &Curve2D,
         tol: Tolerance,
-    ) -> Result<Curve, ParameterSpaceToCurveError> {
-        surface_dispatch!(self, s => s.parameter_space_to_curve(curve, tol))
+    ) -> Result<Curve, PcurveToCurveError> {
+        surface_dispatch!(self, s => s.pcurve_to_curve(pcurve, tol))
     }
 }
 
@@ -436,12 +436,12 @@ impl ParametricSurface for ElementarySurface {
         Some(*self)
     }
 
-    fn parameter_space_to_curve(
+    fn pcurve_to_curve(
         &self,
-        curve: &Curve2D,
+        pcurve: &Curve2D,
         tol: Tolerance,
-    ) -> Result<Curve, ParameterSpaceToCurveError> {
-        elementary_surface_dispatch!(self, s => s.parameter_space_to_curve(curve, tol))
+    ) -> Result<Curve, PcurveToCurveError> {
+        elementary_surface_dispatch!(self, s => s.pcurve_to_curve(pcurve, tol))
     }
 }
 

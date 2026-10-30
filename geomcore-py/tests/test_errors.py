@@ -13,7 +13,7 @@ SUBCLASS_PARENTS = {
     "BSplineSplitError": "GeomcoreError",
     "BSplineConversionError": "GeomcoreError",
     "ParametrizeError": "GeomcoreError",
-    "ParameterSpaceToCurveError": "GeomcoreError",
+    "PcurveToCurveError": "GeomcoreError",
     "SurfaceIsoError": "GeomcoreError",
     "DiscretizationCriteriaError": "GeomcoreError",
 }
@@ -156,11 +156,11 @@ def test_parametrize_error():
         far_line.parametrize_on(sphere)
 
 
-def test_parameter_space_to_curve_error():
+def test_pcurve_to_curve_error():
     cylinder = surfaces.Cylinder(geomcore.Point(0, 0, 0), geomcore.Vector(0, 0, 1), 2.0)
     helix = curves.Line2D(geomcore.Point2D(0, 0), geomcore.Vector2D(0.6, 0.8))
-    with pytest.raises(geomcore.ParameterSpaceToCurveError):
-        cylinder.parameter_space_to_curve(helix)
+    with pytest.raises(geomcore.PcurveToCurveError):
+        cylinder.pcurve_to_curve(helix)
 
 
 def test_surface_iso_error():

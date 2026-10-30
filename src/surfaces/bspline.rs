@@ -7,8 +7,8 @@
 //! knot sequence, so evaluation never re-derives them.
 
 use crate::curves::{Curve, Curve2D};
-use crate::surfaces::ParameterSpaceToCurveError;
-use crate::surfaces::parameter_space::to_curve;
+use crate::surfaces::PcurveToCurveError;
+use crate::surfaces::pcurve::to_curve;
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 
@@ -1269,7 +1269,7 @@ impl BSplineSurface {
     /// with the `v` degree, knots and periodicity, so
     /// `u_iso(u).eval_point(t)` is `eval_point(u, t)` for every `t`.
     /// The axis-aligned special case of
-    /// [`parameter_space_to_curve`](crate::ParametricSurface::parameter_space_to_curve):
+    /// [`pcurve_to_curve`](crate::ParametricSurface::pcurve_to_curve):
     /// a line along `v`, run at rate `1` from `0`.
     ///
     /// Each pole is a column of the net blended by the `u` basis functions
@@ -1312,7 +1312,7 @@ impl BSplineSurface {
     /// `v_iso(v).eval_point(t)` is `eval_point(t, v)` for every `t`. See
     /// [`BSplineSurface::u_iso`].
     /// The axis-aligned special case of
-    /// [`parameter_space_to_curve`](crate::ParametricSurface::parameter_space_to_curve):
+    /// [`pcurve_to_curve`](crate::ParametricSurface::pcurve_to_curve):
     /// a line along `u`, run at rate `1` from `0`.
     ///
     /// # Errors
@@ -2093,12 +2093,12 @@ impl ParametricSurface for BSplineSurface {
         Some(self)
     }
 
-    fn parameter_space_to_curve(
+    fn pcurve_to_curve(
         &self,
-        curve: &Curve2D,
+        pcurve: &Curve2D,
         tol: Tolerance,
-    ) -> Result<Curve, ParameterSpaceToCurveError> {
-        to_curve::parameter_space_to_curve(self, curve, tol)
+    ) -> Result<Curve, PcurveToCurveError> {
+        to_curve::pcurve_to_curve(self, pcurve, tol)
     }
 }
 

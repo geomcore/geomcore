@@ -4,12 +4,12 @@
 use crate::curves::{Curve, Curve2D};
 use crate::elementary::surface as elementary;
 use crate::surfaces::ElementarySurface;
-use crate::surfaces::ParameterSpaceToCurveError;
 use crate::surfaces::ParametricSurface;
+use crate::surfaces::PcurveToCurveError;
 use crate::surfaces::ReversibleSurface;
 use crate::surfaces::SurfaceIsoError;
 use crate::surfaces::iso::{check_iso_param, iso_circle};
-use crate::surfaces::parameter_space::to_curve;
+use crate::surfaces::pcurve::to_curve;
 use crate::transform::image_error;
 use crate::{Circle, Frame, Point, SurfaceProjection, Tolerance, Transform, Vector, projection};
 use crate::{TransformError, Transformable};
@@ -155,7 +155,7 @@ impl Sphere {
     /// `-PI/2 <= v <= PI/2` covers the half from pole to pole; the other
     /// half is the meridian at `u + PI`.
     /// The axis-aligned special case of
-    /// [`parameter_space_to_curve`](crate::ParametricSurface::parameter_space_to_curve):
+    /// [`pcurve_to_curve`](crate::ParametricSurface::pcurve_to_curve):
     /// a line along `v`, run at rate `1` from `0`.
     ///
     /// Fails with [`SurfaceIsoError::NonFinite`] for a NaN or infinite
@@ -187,7 +187,7 @@ impl Sphere {
     /// `v_iso(v).eval_point(t)` is `eval_point(t, v)` for every `t`. At a
     /// pole it is the circle of radius zero.
     /// The axis-aligned special case of
-    /// [`parameter_space_to_curve`](crate::ParametricSurface::parameter_space_to_curve):
+    /// [`pcurve_to_curve`](crate::ParametricSurface::pcurve_to_curve):
     /// a line along `u`, run at rate `1` from `0`.
     ///
     /// Fails with [`SurfaceIsoError::NonFinite`] for a NaN or infinite
@@ -304,12 +304,12 @@ impl ParametricSurface for Sphere {
         elementary::sphere_parameters(&self.frame, self.radius, point)
     }
 
-    fn parameter_space_to_curve(
+    fn pcurve_to_curve(
         &self,
-        curve: &Curve2D,
+        pcurve: &Curve2D,
         tol: Tolerance,
-    ) -> Result<Curve, ParameterSpaceToCurveError> {
-        to_curve::parameter_space_to_curve(self, curve, tol)
+    ) -> Result<Curve, PcurveToCurveError> {
+        to_curve::pcurve_to_curve(self, pcurve, tol)
     }
 }
 
