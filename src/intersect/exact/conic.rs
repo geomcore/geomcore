@@ -705,6 +705,7 @@ const CLOSED_CONIC_SAMPLES: [f64; 5] = [
 /// identically. Three would not do for a circle on a cylinder or cone:
 /// their section by the circle's plane is a conic, which a circle can
 /// cross at three points without lying on it.
+#[inline]
 fn conic_lies_on<C, S>(curve: &C, surface: &S, params: [f64; 5], tol: Tolerance) -> bool
 where
     C: ParametricCurve,
