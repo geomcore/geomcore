@@ -31,8 +31,20 @@ The unit direction of `Su × Sv` at a surface's parameters. A partial counts as 
 _Avoid_: raw cross product for the normal, tangent for either partial derivative
 
 **B-spline**:
-A curve or surface defined by poles, knots and optional weights. Every curve or surface is either elementary or a B-spline.
+A curve or surface defined by poles, knots and optional weights. Every curve is either elementary or a B-spline; a surface may also be swept.
 A Bézier curve or surface is a B-spline of a single span, and every operation reads it as one.
+
+**Swept surface**:
+An extrusion surface or a revolution surface: a surface traced by moving a **profile** curve. An extrusion sweeps it along a direction, `S(u, v) = C(u) + v d`; a revolution turns it about an axis, `S(u, v)` being `C(v)` rotated by `u`. Some profiles sweep an elementary surface (a circle revolved in a plane through the axis sweeps a torus); the swept surface keeps its own parametrization all the same.
+_Avoid_: sweep for a profile moved along an arbitrary path (not supported), surface of linear extrusion
+
+**Profile**:
+The curve a swept surface moves.
+_Avoid_: generatrix, basis curve, directrix
+
+**Offset**:
+The surface at a signed distance along another surface's normal. It is an operation, not a stored shape: an elementary surface's offset is elementary, and other surfaces have none yet (ADR 0016).
+_Avoid_: shell, thickening
 
 **Tier**:
 Space or the plane: where a curve lives. Each curve type is one generic type over its tier's point, `TierPoint` (`Point` in space, `Point2D` in the plane), named `GenericCircle`, `GenericBSplineCurve` and so on, and used through its two aliases: `Circle` in space, `Circle2D` in the plane (ADR 0014). Only the plane's name carries a suffix (ADR 0013).
