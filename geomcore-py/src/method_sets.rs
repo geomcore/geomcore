@@ -34,6 +34,11 @@
 //! [`shape_methods!`] passes the methods gathered so far to each set in
 //! turn, and the last one emits the block. The sets name the types
 //! re-exported below, so a class file imports `crate::method_sets::*`.
+//!
+//! The stubs mirror each set as a stub-only class (`_CurveMethods`,
+//! `_SurfaceNormalMethods`, ...) in `geomcore/curves.pyi` or
+//! `surfaces.pyi`, which the class stubs inherit (ADR 0029). A method added
+//! to a set goes into that class too, with the same docstring.
 
 pub(crate) use crate::arguments::{curve_2d_classes, curve_classes, surface_classes};
 pub(crate) use crate::bounding_box::{PyBoundingBox, PyBoundingBox2D};
