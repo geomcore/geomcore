@@ -18,6 +18,7 @@ use std::f64::consts::TAU;
 
 use crate::bspline::conic::{self, PlaneNet};
 use crate::curves::BSplineConversionError;
+use crate::surfaces::elementary_surface_dispatch;
 use crate::surfaces::{
     BSplineSurface, Cone, Cylinder, ElementarySurface, ParametricSurface, Plane, Sphere, Surface,
     Torus,
@@ -560,19 +561,15 @@ impl ElementarySurface {
         u_range: (f64, f64),
         v_range: (f64, f64),
     ) -> Result<BSplineSurface, BSplineConversionError> {
-        match self {
-            ElementarySurface::Plane(s) => s.to_bspline_patch(u_range, v_range),
-            ElementarySurface::Cylinder(s) => s.to_bspline_patch(u_range, v_range),
-            ElementarySurface::Cone(s) => s.to_bspline_patch(u_range, v_range),
-            ElementarySurface::Sphere(s) => s.to_bspline_patch(u_range, v_range),
-            ElementarySurface::Torus(s) => s.to_bspline_patch(u_range, v_range),
-        }
+        elementary_surface_dispatch!(self, s => s.to_bspline_patch(u_range, v_range))
     }
 }
 
 impl Surface {
-    /// The whole surface as a B-spline: a B-spline is cloned, an elementary
-    /// surface converted by [`ElementarySurface::to_bspline`].
+    /// The whole surface as a B-spline: a B-spline is cloned, a Bézier
+    /// surface converted by
+    /// [`BezierSurface::to_bspline`](crate::BezierSurface::to_bspline), an
+    /// elementary surface by [`ElementarySurface::to_bspline`].
     ///
     /// # Errors
     ///
@@ -596,6 +593,7 @@ impl Surface {
     pub fn to_bspline(&self) -> Result<BSplineSurface, BSplineConversionError> {
         match self {
             Surface::BSpline(s) => Ok(s.clone()),
+            Surface::Bezier(s) => Ok(s.to_bspline()),
             _ => self
                 .as_elementary()
                 .expect("every other surface is elementary")

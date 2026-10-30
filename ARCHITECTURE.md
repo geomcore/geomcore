@@ -17,6 +17,7 @@ src/
 ├── transform.rs         rigid transforms
 ├── tolerance.rs         Tolerance: every geometric decision takes one
 ├── projection.rs        results of point projection (CurveProjection, …)
+├── shape_enum.rs        the macros that expand a shape enum's variant list (ADR 0017)
 │
 ├── curves/              the public curve types, one file per type
 │   ├── parametric_curve.rs      ParametricCurve, PointExtrema, Side, Continuity
@@ -100,7 +101,12 @@ Outside `src/`:
 - Add `curves/<name>.rs` (or `surfaces/<name>.rs`) holding the type, its
   constructor error and its shape-trait impls.
 - Re-export it from the folder's `mod.rs` and from `lib.rs`.
-- Add it as a variant of the `Curve`/`ElementaryCurve` (or `Surface`) enum.
+- Add it as a variant of the `Curve`/`ElementaryCurve` (or `Surface`) enum,
+  and as one line in that enum's `*_variants!` list beside it: every
+  forwarding method and `From` impl follows from the list (ADR 0017), and
+  the compiler points at the matches that do real per-variant work.
+- Make it an operand of `Intersect`: a `CurveOperand`/`SurfaceOperand`
+  impl and one entry in each pair list of `intersect/routing.rs`.
 - Give it a box in `bounding_box/` and a discretization in `discretization/`.
 - Bind it in `geomcore-py/src/curves/<name>.rs` (or `surfaces/`), register
   the class in `geomcore-py/src/lib.rs` and add its stub to
@@ -144,7 +150,7 @@ checks.
 | Golden fixtures | `vs_fixtures.rs`, `bezier_fixtures.rs`, `discretization_fixtures.rs`, `intersect_2d_fixtures.rs` |
 | B-splines and Bézier | `bspline_tiers.rs`, `degree_elevation.rs`, `bezier_surface.rs` |
 | Projection | `projection_point.rs` |
-| Intersection | `routed_intersections.rs`, `routed_surface_surface.rs`, `bezier_intersections.rs` |
+| Intersection | `routed_intersections.rs`, `routed_surface_surface.rs`, `bezier_intersections.rs`, `bezier_through_enums.rs` |
 | Bounding boxes | `bounding_box.rs`, `bounding_box_allocation.rs` |
 | Discretization | `discretization.rs`, `discretization_allocation.rs` |
 

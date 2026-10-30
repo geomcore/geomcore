@@ -446,6 +446,13 @@ impl BezierCurve {
         BezierCurve(BSplineCurve::from_spline(spline))
     }
 
+    /// The curve wrapping `curve`, a B-spline of a single clamped span
+    /// (an iso-curve of a Bézier surface).
+    pub(crate) fn from_span(curve: BSplineCurve) -> BezierCurve {
+        debug_assert!(curve.spline().is_bezier());
+        BezierCurve(curve)
+    }
+
     /// The curve as the implementation shared by both tiers.
     pub(crate) fn spline(&self) -> &Spline<Point> {
         self.0.spline()

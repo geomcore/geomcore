@@ -32,6 +32,11 @@ _Avoid_: raw cross product for the normal, tangent for either partial derivative
 
 **B-spline**:
 A curve or surface defined by poles, knots and optional weights. Every curve or surface is either elementary or a B-spline.
+A Bézier curve or surface is a B-spline of a single span, and every operation reads it as one.
+
+**Shape enum**:
+`Curve`, `ElementaryCurve`, `Curve2D`, `Surface` or `ElementarySurface`: one variant per shape type, answering every trait method by forwarding to the shape it holds. Its variants are written once, in the enum's variant list (ADR 0017).
+_Avoid_: any-curve, dynamic curve, union
 
 **Continuity**:
 The order `C^n` up to which derivatives are guaranteed to agree at a parameter, typed `Continuity`: `Order(degree − multiplicity)` at a B-spline knot, `Smooth` everywhere else and on elementary shapes. Every `Order(k)` ranks below `Smooth`, so the minimum over a range is the weakest point; Python reports the order as an `int` and smooth as `math.inf`. It is read from the knots, so the shape may be smoother than reported. The ends of a non-periodic range report smooth, seen from the inside; a periodic seam is a knot like any other. Trimming never lowers it, and a piece that avoids a knot does not inherit it. Derivatives of higher order than the continuity may differ on the two sides of the parameter; one-sided evaluation (see **Side**) reads each.

@@ -6,6 +6,7 @@ use super::curves::fold_range_points;
 use super::sealed::BoundRange2D;
 use super::{BoundingBox2D, HasBoundingBox2D};
 use crate::Point2D;
+use crate::curves::curve_2d_dispatch;
 use crate::curves::{
     BSplineCurve2D, BezierCurve2D, Circle2D, Curve2D, Ellipse2D, Hyperbola2D, Line2D, Parabola2D,
     ParametricCurve2D, TrimmedCurve2D,
@@ -56,14 +57,7 @@ impl HasBoundingBox2D for BezierCurve2D {
 
 impl HasBoundingBox2D for Curve2D {
     fn bounding_box(&self) -> Option<BoundingBox2D> {
-        match self {
-            Curve2D::Line(c) => c.bounding_box(),
-            Curve2D::Circle(c) => c.bounding_box(),
-            Curve2D::Ellipse(c) => c.bounding_box(),
-            Curve2D::Parabola(c) => c.bounding_box(),
-            Curve2D::Hyperbola(c) => c.bounding_box(),
-            Curve2D::BSpline(c) => c.bounding_box(),
-        }
+        curve_2d_dispatch!(self, c => c.bounding_box())
     }
 }
 
@@ -239,16 +233,15 @@ impl BoundRange2D for BSplineCurve2D {
     }
 }
 
+impl BoundRange2D for BezierCurve2D {
+    fn range_box(&self, first: f64, last: f64) -> BoundingBox2D {
+        self.bspline().range_box(first, last)
+    }
+}
+
 impl BoundRange2D for Curve2D {
     fn range_box(&self, first: f64, last: f64) -> BoundingBox2D {
-        match self {
-            Curve2D::Line(c) => c.range_box(first, last),
-            Curve2D::Circle(c) => c.range_box(first, last),
-            Curve2D::Ellipse(c) => c.range_box(first, last),
-            Curve2D::Parabola(c) => c.range_box(first, last),
-            Curve2D::Hyperbola(c) => c.range_box(first, last),
-            Curve2D::BSpline(c) => c.range_box(first, last),
-        }
+        curve_2d_dispatch!(self, c => c.range_box(first, last))
     }
 }
 

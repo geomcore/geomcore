@@ -1,8 +1,8 @@
 # Intersection
 
 One entry point, two methods. `a.intersect(&b, tol)` works for any two
-curves or surfaces, B-splines and trimmed curves included, in either
-order. It solves the pair exactly whenever a closed form exists, and
+curves or surfaces, B-splines, Bézier types and trimmed curves
+included, in either order. It solves the pair exactly whenever a closed form exists, and
 runs a numeric search (curve–curve, curve–surface, marching
 surface–surface) otherwise. The result says which method ran and
 whether every hit was found, so a switch from nanoseconds to
@@ -74,8 +74,9 @@ coplanar (up to four hits) or in crossing planes (met on the shared
 line). The 2D pairs are exact too: any two of `Line2D`, `Circle2D`,
 `Ellipse2D`, `Parabola2D` and `Hyperbola2D`, whole or trimmed, solved
 by the coplanar solvers with the same tangency multiplicities and
-overlaps; only a pair holding a `BSplineCurve2D` runs the numeric
-search. A sphere cut by a coaxial cylinder, computed live below —
+overlaps; only a pair holding a `BSplineCurve2D` or a `BezierCurve2D`
+runs the numeric search. A Bézier curve or surface is searched as the
+B-spline it is. A sphere cut by a coaxial cylinder, computed live below —
 two exact rings in ~0.4 µs on a Linux x86-64 desktop, single thread:
 
 <iframe src="https://geomcore.github.io/geomcore-viewer/?scene=https://geomcore.github.io/geomcore/assets/scenes/intersect-exact.json" width="100%" height="480" style="border: 1px solid #333; border-radius: 8px;" allow="fullscreen" title="Sphere and cylinder with their two exact intersection rings"></iframe>

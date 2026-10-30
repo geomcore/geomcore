@@ -16,9 +16,10 @@ use crate::curves::{
     ParametricCurve, TrimmedCurve,
 };
 use crate::curves::{
-    BSplineCurve2D, Circle2D, Curve2D, Ellipse2D, Hyperbola2D, Line2D, Parabola2D,
+    BSplineCurve2D, BezierCurve2D, Circle2D, Curve2D, Ellipse2D, Hyperbola2D, Line2D, Parabola2D,
     ParametricCurve2D, TrimmedCurve2D,
 };
+use crate::curves::{curve_2d_dispatch, elementary_curve_dispatch};
 use crate::{Frame, Frame2D, Point, Point2D};
 
 /// Error returned when a curve or surface cannot be converted to a
@@ -269,13 +270,7 @@ impl BSplineRange for Hyperbola {
 
 impl BSplineRange for ElementaryCurve {
     fn bspline_range(&self, first: f64, last: f64) -> Result<BSplineCurve, BSplineConversionError> {
-        match self {
-            ElementaryCurve::Line(c) => c.bspline_range(first, last),
-            ElementaryCurve::Circle(c) => c.bspline_range(first, last),
-            ElementaryCurve::Ellipse(c) => c.bspline_range(first, last),
-            ElementaryCurve::Parabola(c) => c.bspline_range(first, last),
-            ElementaryCurve::Hyperbola(c) => c.bspline_range(first, last),
-        }
+        elementary_curve_dispatch!(self, c => c.bspline_range(first, last))
     }
 }
 
@@ -371,8 +366,9 @@ impl ElementaryCurve {
 }
 
 impl Curve {
-    /// The whole curve as a B-spline: a B-spline is cloned, an elementary
-    /// curve converted by [`ElementaryCurve::to_bspline`].
+    /// The whole curve as a B-spline: a B-spline is cloned, a Bézier curve
+    /// converted by [`BezierCurve::to_bspline`](crate::BezierCurve::to_bspline),
+    /// an elementary curve by [`ElementaryCurve::to_bspline`].
     ///
     /// # Errors
     ///
@@ -397,6 +393,7 @@ impl Curve {
     pub fn to_bspline(&self) -> Result<BSplineCurve, BSplineConversionError> {
         match self {
             Curve::BSpline(c) => Ok(c.clone()),
+            Curve::Bezier(c) => Ok(c.to_bspline()),
             _ => self
                 .as_elementary()
                 .expect("every other curve is elementary")
@@ -612,20 +609,23 @@ impl BSplineRange2D for BSplineCurve2D {
     }
 }
 
+impl BSplineRange2D for BezierCurve2D {
+    fn bspline_range(
+        &self,
+        first: f64,
+        last: f64,
+    ) -> Result<BSplineCurve2D, BSplineConversionError> {
+        self.bspline().bspline_range(first, last)
+    }
+}
+
 impl BSplineRange2D for Curve2D {
     fn bspline_range(
         &self,
         first: f64,
         last: f64,
     ) -> Result<BSplineCurve2D, BSplineConversionError> {
-        match self {
-            Curve2D::Line(c) => c.bspline_range(first, last),
-            Curve2D::Circle(c) => c.bspline_range(first, last),
-            Curve2D::Ellipse(c) => c.bspline_range(first, last),
-            Curve2D::Parabola(c) => c.bspline_range(first, last),
-            Curve2D::Hyperbola(c) => c.bspline_range(first, last),
-            Curve2D::BSpline(c) => c.bspline_range(first, last),
-        }
+        curve_2d_dispatch!(self, c => c.bspline_range(first, last))
     }
 }
 
@@ -644,9 +644,9 @@ impl<C: BSplineRange2D> TrimmedCurve2D<C> {
     /// `[first, last]`, starting and ending on the same points.
     ///
     /// The basis is a [`Line2D`], a [`Circle2D`], an [`Ellipse2D`], a
-    /// [`Parabola2D`], a [`Hyperbola2D`], a [`BSplineCurve2D`] or a
-    /// [`Curve2D`], owned or borrowed. A B-spline's piece is
-    /// [extracted](BSplineCurve2D::extract). A segment becomes a B-spline
+    /// [`Parabola2D`], a [`Hyperbola2D`], a [`BSplineCurve2D`], a
+    /// [`BezierCurve2D`] or a [`Curve2D`], owned or borrowed. A B-spline's
+    /// or Bézier curve's piece is [extracted](BSplineCurve2D::extract). A segment becomes a B-spline
     /// of degree 1 and a parabola piece one polynomial piece of degree 2,
     /// both with the curve's own parameter. A circle or ellipse arc becomes rational quadratic
     /// pieces of equal sweep, at most a quarter turn each, joined at knots
@@ -688,10 +688,11 @@ impl<C: BSplineRange2D> TrimmedCurve2D<C> {
 }
 
 impl Curve2D {
-    /// The whole curve as a B-spline: a B-spline is cloned, a circle or
-    /// ellipse converted by [`Circle2D::to_bspline`] or
-    /// [`Ellipse2D::to_bspline`]. A line, parabola or hyperbola is unbounded,
-    /// so none exists.
+    /// The whole curve as a B-spline: a B-spline is cloned, a Bézier curve,
+    /// circle or ellipse converted by
+    /// [`BezierCurve2D::to_bspline`](crate::BezierCurve2D::to_bspline),
+    /// [`Circle2D::to_bspline`] or [`Ellipse2D::to_bspline`]. A line,
+    /// parabola or hyperbola is unbounded, so none exists.
     ///
     /// # Errors
     ///
@@ -721,6 +722,7 @@ impl Curve2D {
     pub fn to_bspline(&self) -> Result<BSplineCurve2D, BSplineConversionError> {
         match self {
             Curve2D::BSpline(c) => Ok(c.clone()),
+            Curve2D::Bezier(c) => Ok(c.to_bspline()),
             Curve2D::Circle(c) => c.checked_to_bspline(),
             Curve2D::Ellipse(c) => c.checked_to_bspline(),
             Curve2D::Parabola(_) => Err(BSplineConversionError::Unbounded),
