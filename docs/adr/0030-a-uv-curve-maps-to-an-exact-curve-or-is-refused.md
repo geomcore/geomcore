@@ -15,6 +15,7 @@ The surface owns the mapping, as it owns `eval_point` and `parameters_of` at poi
 | line along `v`, `u = u0` | any other | `u_iso(u0)`, run from `v0` at rate `±1` |
 | line along `u`, `v = v0` | any other | `v_iso(v0)`, run from `u0` at rate `±1` |
 | straight spline along `u` or `v` | any other | the iso curve, run at the spline's signed speed `σ`: a spline at any speed, a line at speed 1 or else the degree-1 B-spline over the UV curve's bounds, a conic at speed 1 only |
+| any other line, parabola, B-spline or Bézier curve | B-spline or Bézier surface, extrusion of a B-spline or Bézier profile | the composition, a B-spline of degree `k (p + q)` (ADR 0032) |
 
 A line is along `u` or `v` when its direction is within `tol.angular` of the axis. Its fixed parameter is then taken from its origin. `u_iso` and `v_iso` are the special case `c = 0`, rate `1`, and `uv_curve_to_3d` is built on them, not the other way round.
 
@@ -45,4 +46,4 @@ On a plane, or an extrusion perpendicular to its line, every kind is kept.
 
 ## Consequences
 
-A surface type defined outside the crate gets `NotAnalytic` until it overrides the method. A new crate surface adds its iso curves to the table (`IsoCurves` in `to_curve.rs`) and its one-line forward. Python exposes the method on every surface class, through the `surface` method set, and raises `UvCurveTo3DError`. ADR 0031 replaces `parametrize_on` with `ParametricSurface::curve_3d_to_uv(&self, curve: &Curve, tol) -> Result<Curve2D, Curve3DToUvError>` in `surfaces/uv_curve/from_curve.rs`, so the surface owns both directions.
+A surface type defined outside the crate gets `NotAnalytic` until it overrides the method. A new crate surface adds its iso curves to the table (`IsoCurves` in `to_curve.rs`) and its one-line forward. Python exposes the method on every surface class, through the `surface` method set, and raises `UvCurveTo3DError`. ADR 0031 replaces `parametrize_on` with `ParametricSurface::curve_3d_to_uv(&self, curve: &Curve, tol) -> Result<Curve2D, Curve3DToUvError>` in `surfaces/uv_curve/from_curve.rs`, so the surface owns both directions. ADR 0032 composes every line, parabola and spline UV curve on a spline surface exactly, the last row of the table.

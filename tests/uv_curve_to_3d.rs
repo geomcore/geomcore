@@ -394,16 +394,130 @@ fn a_slanted_line_on_a_cylinder_is_refused() {
     );
 }
 
+/// The spline surface samples: the extrusion of a B-spline profile and the
+/// plain and rational B-spline and Bézier surfaces.
+fn spline_surfaces() -> Vec<Surface> {
+    surfaces()
+        .into_iter()
+        .filter(|surface| match surface {
+            Surface::BSpline(_) | Surface::Bezier(_) => true,
+            Surface::Extrusion(extrusion) => matches!(extrusion.profile(), Curve::BSpline(_)),
+            _ => false,
+        })
+        .collect()
+}
+
 #[test]
-fn only_lines_along_u_or_v_are_given_on_a_bspline_surface() {
-    for surface in surfaces() {
-        if !matches!(surface, Surface::BSpline(_) | Surface::Bezier(_)) {
-            continue;
-        }
+fn on_a_spline_surface_only_circles_ellipses_and_hyperbolas_are_refused() {
+    let spline_surfaces = spline_surfaces();
+    assert_eq!(spline_surfaces.len(), 5);
+    for surface in &spline_surfaces {
         for curve in curves_2d() {
-            assert_eq!(outcome(curve, &surface), Err(UvCurveTo3DError::NotAnalytic));
+            let given = outcome(curve.clone(), surface);
+            match curve {
+                Curve2D::Circle(_) | Curve2D::Ellipse(_) | Curve2D::Hyperbola(_) => {
+                    assert_eq!(given, Err(UvCurveTo3DError::NotAnalytic));
+                }
+                // Composed, or outside the surface's domain.
+                _ => assert!(
+                    matches!(given, Ok(_) | Err(UvCurveTo3DError::OutsideSurfaceDomain)),
+                    "{curve:?}: {given:?}"
+                ),
+            }
         }
-        assert!(outcome(axis_line(0.3, 0.2, true, 1.0), &surface).is_ok());
+        assert!(outcome(axis_line(0.3, 0.2, true, 1.0), surface).is_ok());
+    }
+}
+
+#[test]
+fn every_slanted_line_parabola_and_low_degree_spline_composes_on_every_spline_surface() {
+    let mut given = 0;
+    for (i, surface) in spline_surfaces().iter().enumerate() {
+        // The surface's domain, `v` in `[-1, 1]` on the extrusion, and the
+        // point at `(a, b)` of the unit square mapped onto it.
+        let (u0, u1) = surface.u_bounds();
+        let (v0, v1) = match surface.v_bounds() {
+            (first, last) if first.is_finite() && last.is_finite() => (first, last),
+            _ => (-1.0, 1.0),
+        };
+        let at = |a: f64, b: f64| Point2D::new(u0 + a * (u1 - u0), v0 + b * (v1 - v0));
+        let along = |a: f64, b: f64| Vector2D::new(a * (u1 - u0), b * (v1 - v0));
+        let points = |unit: &[(f64, f64)]| unit.iter().map(|&(a, b)| at(a, b)).collect();
+        let mut uv_curves: Vec<Curve2D> = [(1.0, 0.3), (0.4, 1.0), (1.0, -0.7), (-0.2, 1.0)]
+            .iter()
+            .map(|&(a, b)| Line2D::new(at(0.5, 0.5), along(a, b)).unwrap().into())
+            .collect();
+        let axis = Frame2D::from_x(at(0.5, 0.2), Vector2D::new(0.2, 1.0)).unwrap();
+        uv_curves.push(
+            Parabola2D::from_frame(axis, 0.02 * (v1 - v0))
+                .unwrap()
+                .into(),
+        );
+        let quadratic = points(&[(0.1, 0.2), (0.9, 0.1), (0.2, 0.8), (0.8, 0.9)]);
+        uv_curves.push(
+            BSplineCurve2D::new(2, quadratic, vec![0.0, 0.5, 1.0], vec![3, 1, 3], false)
+                .unwrap()
+                .into(),
+        );
+        let rational = points(&[(0.1, 0.9), (0.5, 0.0), (0.9, 0.9)]);
+        uv_curves.push(
+            BSplineCurve2D::new_rational(
+                2,
+                rational,
+                vec![1.0, 2.5, 0.8],
+                vec![0.0, 1.0],
+                vec![3, 3],
+                false,
+            )
+            .unwrap()
+            .into(),
+        );
+        let cubic = points(&[(0.1, 0.1), (0.3, 0.9), (0.7, 0.1), (0.9, 0.9)]);
+        uv_curves.push(BezierCurve2D::new(3, cubic).unwrap().into());
+        // A slanted straight spline run at a varying speed.
+        let straight = points(&[(0.2, 0.3), (0.8, 0.6)]);
+        uv_curves.push(
+            BSplineCurve2D::new_rational(
+                1,
+                straight,
+                vec![1.0, 3.0],
+                vec![0.0, 1.0],
+                vec![2, 2],
+                false,
+            )
+            .unwrap()
+            .into(),
+        );
+        for (j, uv_curve) in uv_curves.iter().enumerate() {
+            let image = surface
+                .uv_curve_to_3d(uv_curve, TOL)
+                .unwrap_or_else(|error| panic!("curve {j} on surface {i}: {error}"));
+            assert_traces(
+                &image,
+                uv_curve,
+                surface,
+                &format!("curve {j} on surface {i}"),
+            );
+            given += 1;
+        }
+    }
+    // 9 UV curves on each of the 5 spline surfaces.
+    assert!(given >= 45, "only {given} curves given");
+}
+
+#[test]
+fn a_line_along_u_or_v_on_a_spline_surface_is_still_its_iso_curve() {
+    for surface in spline_surfaces() {
+        let along_v = surface.uv_curve_to_3d(&axis_line(0.3, 0.0, true, 1.0).into(), TOL);
+        assert_eq!(
+            along_v,
+            surface.u_iso(0.3).map_err(UvCurveTo3DError::IsoCurve)
+        );
+        let along_u = surface.uv_curve_to_3d(&axis_line(0.0, 0.3, false, 1.0).into(), TOL);
+        assert_eq!(
+            along_u,
+            surface.v_iso(0.3).map_err(UvCurveTo3DError::IsoCurve)
+        );
     }
 }
 

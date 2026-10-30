@@ -9,6 +9,8 @@ import pytest
 import geomcore
 from geomcore import Point, Point2D, Vector, Vector2D
 from geomcore.curves import (
+    BezierCurve2D,
+    BSplineCurve,
     BSplineCurve2D,
     Circle,
     Circle2D,
@@ -17,7 +19,7 @@ from geomcore.curves import (
     Line,
     Line2D,
 )
-from geomcore.surfaces import Cylinder, Plane, Sphere
+from geomcore.surfaces import BezierSurface, Cylinder, Plane, Sphere
 
 
 def assert_traces(traced, curve, surface, parameters=(-1.2, 0.0, 0.4, 2.5)):
@@ -72,3 +74,35 @@ def test_a_straight_spline_runs_along_its_iso_curve():
     generator = cylinder.uv_curve_to_3d(along_v)
     assert isinstance(generator, Line)
     assert_traces(generator, along_v, cylinder, (1.2, 2.0, 2.9))
+
+
+def bezier_surface(degree):
+    poles = [
+        [
+            Point(i / degree, j / degree, math.sin(i + 2 * j) / degree)
+            for j in range(degree + 1)
+        ]
+        for i in range(degree + 1)
+    ]
+    return BezierSurface(degree, degree, poles)
+
+
+def test_a_slanted_line_on_a_spline_surface_is_composed():
+    surface = bezier_surface(3)
+    line = Line2D(Point2D(0.5, 0.5), Vector2D(0.6, 0.8))
+    traced = surface.uv_curve_to_3d(line)
+    assert isinstance(traced, BSplineCurve)
+    assert traced.degree() == 6
+    first, last = traced.bounds()
+    assert_traces(traced, line, surface, (first, -0.1, 0.2, last))
+
+
+def test_a_composition_outside_the_domain_or_above_degree_25_raises():
+    surface = bezier_surface(3)
+    outside = Line2D(Point2D(5.0, 3.0), Vector2D(0.6, -0.8))
+    with pytest.raises(geomcore.UvCurveTo3DError, match="domain"):
+        surface.uv_curve_to_3d(outside)
+    poles = [Point2D(0.1, 0.1), Point2D(0.3, 0.9), Point2D(0.7, 0.1), Point2D(0.9, 0.9)]
+    cubic = BezierCurve2D(3, poles)
+    with pytest.raises(geomcore.UvCurveTo3DError, match="degree 30"):
+        bezier_surface(5).uv_curve_to_3d(cubic)

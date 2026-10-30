@@ -1731,6 +1731,14 @@ impl BSplineSurface {
         patches.patch(k).0
     }
 
+    /// The knot-span boundaries of each direction, `(u, v)`, one period of
+    /// a periodic one: patch `i_u * (v.len() - 1) + i_v` of
+    /// [`Self::patch_net`] spans `[u[i_u], u[i_u + 1]] x [v[i_v], v[i_v + 1]]`.
+    pub(crate) fn patch_breaks(&self) -> (&[f64], &[f64]) {
+        let patches = self.patch_tree();
+        (&patches.u_breaks, &patches.v_breaks)
+    }
+
     fn write_patch_net(&self, patches: &PatchTree, k: usize, scratch: &mut [f64], out: &mut [f64]) {
         let n_vspans = patches.v_breaks.len() - 1;
         let (a, b) = (k / n_vspans, k % n_vspans);

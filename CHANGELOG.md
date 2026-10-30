@@ -26,6 +26,15 @@ the Python distribution are versioned in lockstep.
   two poles is read as a line: along `u` or `v` it gives the iso curve
   run at the spline's speed, exact for a line or spline iso curve at any
   speed and for a conic at speed 1, and refused otherwise.
+- `uv_curve_to_3d` composes any line, parabola, B-spline or Bézier UV
+  curve on a B-spline or Bézier surface, or on the extrusion of a
+  B-spline or Bézier profile, exactly into a B-spline of degree
+  `k (p + q)` in the UV curve's parameter (#155, ADR 0032). An unbounded
+  line or parabola is composed over its part inside the surface's
+  domain, and a periodic direction is unwrapped. Circle, ellipse and
+  hyperbola UV curves stay refused. New `UvCurveTo3DError` variants:
+  `OutsideSurfaceDomain` and `DegreeAboveLimit { degree }`, above
+  degree 25.
 - Python: `uv_curve_to_3d(uv_curve, tol=None)` on every surface
   class, taking any 2D curve, and the `UvCurveTo3DError`
   exception.

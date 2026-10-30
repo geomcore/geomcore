@@ -3,6 +3,7 @@
 //! `eval_point` and `parameters_of` at point level (ADR 0030). Curves do
 //! not depend on surfaces.
 
+pub(crate) mod composition;
 pub(crate) mod from_curve;
 pub(crate) mod to_curve;
 
