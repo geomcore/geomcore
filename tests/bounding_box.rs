@@ -2,6 +2,9 @@
 //! shape, sampled densely, and the box of an elementary shape is reached by
 //! the shape on every face.
 
+mod common;
+
+use common::samples::trimmed;
 use geomcore::prelude::*;
 use geomcore::{
     BSplineCurve, BSplineSurface, BoundingBox, Circle, Cone, Curve, Cylinder, ElementaryCurve,
@@ -527,6 +530,43 @@ fn test_bspline_surface_boxes_hold_the_surface() {
     }
 }
 
+// ---------------------------------------------------------------- every sample
+
+fn is_bounded((first, last): (f64, f64)) -> bool {
+    first.is_finite() && last.is_finite()
+}
+
+#[test]
+fn test_every_sample_box_holds_the_shape() {
+    for curve in common::samples::curves() {
+        let what = format!("{curve:?}");
+        let bounded = is_bounded(curve.bounds());
+        assert_eq!(curve.bounding_box().is_some(), bounded, "{what}");
+        if bounded {
+            check_curve(&curve, false, &what);
+        }
+        check_curve(&trimmed(&curve), false, &format!("trimmed {what}"));
+        if let Some(elementary) = curve.as_elementary() {
+            assert_eq!(elementary.bounding_box().is_some(), bounded, "{what}");
+            if bounded {
+                check_curve(&elementary, false, &what);
+            }
+        }
+    }
+    for surface in common::samples::surfaces() {
+        let what = format!("{surface:?}");
+        let (u, v) = (surface.u_bounds(), surface.v_bounds());
+        let bounded = is_bounded(u) && is_bounded(v);
+        assert_eq!(surface.bounding_box().is_some(), bounded, "{what}");
+        if let Some(b) = surface.bounding_box() {
+            check(b, surface_extremes(&surface, u, v), false, &what);
+        }
+        if let Some(elementary) = surface.as_elementary() {
+            assert_eq!(elementary.bounding_box(), surface.bounding_box(), "{what}");
+        }
+    }
+}
+
 // ---------------------------------------------------------------- culling
 
 #[test]
@@ -793,6 +833,25 @@ mod planar {
         let arc = TrimmedCurve2D::new(circle, 0.0, 2.0).unwrap();
         let boxed = TrimmedCurve2D::new(wrapped, 0.0, 2.0).unwrap();
         assert_eq!(boxed.bounding_box(), arc.bounding_box());
+    }
+
+    #[test]
+    fn test_every_sample_box_holds_the_curve() {
+        for curve in crate::common::samples::curves_2d() {
+            let (first, last) = curve.bounds();
+            let bounded = first.is_finite() && last.is_finite();
+            assert_eq!(curve.bounding_box().is_some(), bounded, "{curve:?}");
+            if let Some(b) = curve.bounding_box() {
+                check(b, sampled(first, last, |t| curve.eval_point(t)), false);
+            }
+            let piece = crate::common::samples::trimmed_2d(&curve);
+            let (first, last) = piece.bounds();
+            check(
+                piece.bounding_box().unwrap(),
+                sampled(first, last, |t| curve.eval_point(t)),
+                false,
+            );
+        }
     }
 
     #[test]

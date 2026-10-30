@@ -4,139 +4,17 @@
 //! the shape back, a reversed shape meets itself at the reversed
 //! parameter, and every shape fails a transform the same way.
 
+mod common;
+
+use common::samples::{
+    curve_parameter_is_length, curves, curves_2d, parameters, surface_parameters,
+    surface_parameters_are_lengths, surfaces, tilted_frame, trimmed, trimmed_2d,
+};
 use geomcore::prelude::*;
 use geomcore::{
-    Axis, BSplineCurve, BSplineCurve2D, BSplineSurface, BezierCurve, BezierCurve2D, BezierSurface,
-    Circle, Circle2D, Cone, Curve, Curve2D, Cylinder, Ellipse, Ellipse2D, ExtrusionSurface, Frame,
-    Hyperbola, Hyperbola2D, Line, Line2D, Parabola, Parabola2D, Plane, Point, Point2D,
-    RevolutionSurface, Sphere, Surface, Torus, Transform, TransformError, TrimmedCurve,
-    TrimmedCurve2D, Vector, Vector2D,
+    Axis, Cone, Curve, Frame, Point, Surface, Transform, TransformError, TrimmedCurve, Vector,
 };
 use std::fmt::Debug;
-
-fn tilted_frame() -> Frame {
-    Frame::new(
-        Point::new(1.0, -2.0, 0.5),
-        Vector::new(0.3, -0.4, 0.86),
-        Vector::new(1.0, 0.2, 0.0),
-    )
-    .unwrap()
-}
-
-/// One curve of each `Curve` variant, in a tilted placement.
-fn curves() -> Vec<Curve> {
-    let frame = tilted_frame();
-    let (origin, z, x) = (frame.origin(), frame.z_direction(), frame.x_direction());
-    let poles = vec![
-        Point::new(0.0, 0.0, 0.0),
-        Point::new(1.0, 2.0, 0.5),
-        Point::new(3.0, 1.0, -0.5),
-        Point::new(4.0, 3.0, 1.0),
-    ];
-    vec![
-        Line::new(origin, Vector::new(0.3, 0.9, -0.2))
-            .unwrap()
-            .into(),
-        Circle::from_frame(frame, 2.0).unwrap().into(),
-        Ellipse::new(origin, z, x, 3.0, 1.5).unwrap().into(),
-        Parabola::new(origin, z, x, 0.8).unwrap().into(),
-        Hyperbola::new(origin, z, x, 2.0, 1.0).unwrap().into(),
-        BSplineCurve::new(2, poles.clone(), vec![-1.0, 0.5, 4.0], vec![3, 1, 3], false)
-            .unwrap()
-            .into(),
-        BezierCurve::new(3, poles).unwrap().into(),
-    ]
-}
-
-/// One curve of each `Curve2D` variant.
-fn curves_2d() -> Vec<Curve2D> {
-    let center = Point2D::new(0.5, -1.0);
-    let x = Vector2D::new(0.6, 0.8);
-    let poles = vec![
-        Point2D::new(0.0, 0.0),
-        Point2D::new(1.0, 2.0),
-        Point2D::new(3.0, 1.0),
-        Point2D::new(4.0, 3.0),
-    ];
-    vec![
-        Line2D::new(center, x).unwrap().into(),
-        Circle2D::new(center, 2.0).unwrap().into(),
-        Ellipse2D::new(center, x, 3.0, 1.5).unwrap().into(),
-        Parabola2D::new(center, x, 0.8).unwrap().into(),
-        Hyperbola2D::new(center, x, 2.0, 1.0).unwrap().into(),
-        BSplineCurve2D::new(2, poles.clone(), vec![-1.0, 0.5, 4.0], vec![3, 1, 3], false)
-            .unwrap()
-            .into(),
-        BezierCurve2D::new(3, poles).unwrap().into(),
-    ]
-}
-
-/// One surface of each `Surface` variant, in a tilted placement.
-fn surfaces() -> Vec<Surface> {
-    let frame = tilted_frame();
-    let poles: Vec<Vec<Point>> = (0..3)
-        .map(|i| {
-            (0..3)
-                .map(|j| Point::new(i as f64, j as f64, ((i + 1) * (j + 2)) as f64 * 0.1))
-                .collect()
-        })
-        .collect();
-    let profile = Circle::from_frame(
-        Frame::new(Point::new(3.0, 0.5, 1.0), Vector::Y, Vector::X).unwrap(),
-        0.7,
-    )
-    .unwrap();
-    let line = Line::new(frame.origin(), Vector::new(0.3, 0.9, -0.2)).unwrap();
-    vec![
-        Plane::from_frame(frame).into(),
-        Cylinder::from_frame(frame, 2.0).unwrap().into(),
-        Cone::from_frame(frame, 0.4, 2.0).unwrap().into(),
-        Sphere::from_frame(frame, 2.0).unwrap().into(),
-        Torus::from_frame(frame, 5.0, 1.5).unwrap().into(),
-        ExtrusionSurface::new(line.into(), Vector::new(0.2, -0.1, 1.5))
-            .unwrap()
-            .into(),
-        ExtrusionSurface::new(profile.into(), Vector::new(0.2, -0.1, 1.5))
-            .unwrap()
-            .into(),
-        RevolutionSurface::new(profile.into(), Axis::new(Point::ORIGIN, Vector::Z).unwrap())
-            .unwrap()
-            .into(),
-        BSplineSurface::new(
-            2,
-            2,
-            poles.clone(),
-            vec![-1.0, 5.0],
-            vec![3, 3],
-            vec![-2.0, 2.0],
-            vec![3, 3],
-            false,
-            false,
-        )
-        .unwrap()
-        .into(),
-        BezierSurface::new(2, 2, poles).unwrap().into(),
-    ]
-}
-
-/// A trimmed piece of each curve: of an unbounded one around its
-/// parameter 0, of a bounded one inside its bounds.
-fn trimmed_range((first, last): (f64, f64)) -> (f64, f64) {
-    if first.is_finite() {
-        (first + 0.2 * (last - first), first + 0.9 * (last - first))
-    } else {
-        (-1.5, 0.7)
-    }
-}
-
-/// Parameters inside `bounds`, away from the ends.
-fn parameters((first, last): (f64, f64)) -> [f64; 3] {
-    if first.is_finite() && last.is_finite() {
-        [0.1, 0.45, 0.8].map(|fraction| first + fraction * (last - first))
-    } else {
-        [-1.3, 0.4, 2.1]
-    }
-}
 
 /// A similarity with its scale factor on lengths.
 fn similarities() -> Vec<(&'static str, Transform, f64)> {
@@ -162,23 +40,6 @@ fn similarities() -> Vec<(&'static str, Transform, f64)> {
         ("uniform scale", Transform::scaling(center, 1.7), 1.7),
         ("negative scale", Transform::scaling(center, -0.6), 0.6),
     ]
-}
-
-/// Whether a curve's parameter is a length, and so scales with a
-/// transform.
-fn curve_parameter_is_length(curve: &Curve) -> bool {
-    matches!(curve, Curve::Line(_) | Curve::Parabola(_))
-}
-
-/// Which of a surface's `(u, v)` parameters are lengths.
-fn surface_parameters_are_lengths(surface: &Surface) -> (bool, bool) {
-    match surface {
-        Surface::Plane(_) => (true, true),
-        Surface::Cylinder(_) | Surface::Cone(_) => (false, true),
-        Surface::Extrusion(extrusion) => (curve_parameter_is_length(extrusion.profile()), true),
-        Surface::Revolution(revolution) => (false, curve_parameter_is_length(revolution.profile())),
-        _ => (false, false),
-    }
 }
 
 fn scaled(parameter: f64, is_length: bool, scale: f64) -> f64 {
@@ -295,15 +156,6 @@ where
     assert_eq!(reversed.bounds(), (ends.1, ends.0), "{curve:?}");
 }
 
-/// Parameter pairs inside a surface's bounds.
-fn surface_parameters(surface: &impl ParametricSurface) -> Vec<(f64, f64)> {
-    let us = parameters(surface.u_bounds());
-    let vs = parameters(surface.v_bounds());
-    us.iter()
-        .flat_map(|&u| vs.iter().map(move |&v| (u, v)))
-        .collect()
-}
-
 fn check_surface_reversal<S>(surface: &S)
 where
     S: ParametricSurface + ReversibleSurface + Debug,
@@ -378,11 +230,7 @@ fn test_transform_commutes_with_evaluation_on_every_curve() {
     for curve in curves() {
         let is_length = curve_parameter_is_length(&curve);
         check_curve_transform(&curve, is_length);
-        let (first, last) = trimmed_range(curve.bounds());
-        check_curve_transform(
-            &TrimmedCurve::new(curve.clone(), first, last).unwrap(),
-            is_length,
-        );
+        check_curve_transform(&trimmed(&curve), is_length);
         if let Some(elementary) = curve.as_elementary() {
             check_curve_transform(&elementary, is_length);
         }
@@ -404,8 +252,7 @@ fn test_transform_commutes_with_evaluation_on_every_surface() {
 fn test_every_shape_fails_a_transform_the_same_way() {
     for curve in curves() {
         check_transform_errors(&curve);
-        let (first, last) = trimmed_range(curve.bounds());
-        check_transform_errors(&TrimmedCurve::new(curve.clone(), first, last).unwrap());
+        check_transform_errors(&trimmed(&curve));
         if let Some(elementary) = curve.as_elementary() {
             check_transform_errors(&elementary);
         }
@@ -423,8 +270,7 @@ fn test_reversed_curves_meet_themselves_at_the_reversed_parameter() {
     for curve in curves() {
         check_curve_reversal(&curve);
         check_curve_reversal(&curve.reversed());
-        let (first, last) = trimmed_range(curve.bounds());
-        check_curve_reversal(&TrimmedCurve::new(curve.clone(), first, last).unwrap());
+        check_curve_reversal(&trimmed(&curve));
         if let Some(elementary) = curve.as_elementary() {
             check_curve_reversal(&elementary);
         }
@@ -432,8 +278,7 @@ fn test_reversed_curves_meet_themselves_at_the_reversed_parameter() {
     for curve in curves_2d() {
         check_curve_2d_reversal(&curve);
         check_curve_2d_reversal(&curve.reversed());
-        let (first, last) = trimmed_range(curve.bounds());
-        check_curve_2d_reversal(&TrimmedCurve2D::new(curve.clone(), first, last).unwrap());
+        check_curve_2d_reversal(&trimmed_2d(&curve));
     }
 }
 
