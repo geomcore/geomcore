@@ -9,6 +9,11 @@ use crate::surfaces::ParametricSurface;
 
 const TOL: Tolerance = Tolerance::DEFAULT;
 
+/// `surface` as its own patch.
+fn whole(surface: &BSplineSurface) -> SurfacePatches<'_> {
+    SurfacePatches::new(surface, || None).unwrap()
+}
+
 /// A bicubic B-spline over `[0, 5]^2`, clamped, with the interior
 /// knots `knots` in both directions and its poles above the Greville
 /// abscissae, so that `S(u, v) = (u, v, z)` when polynomial: heights
@@ -156,7 +161,7 @@ fn test_bspline_pairs_trace_every_curve_once() {
     let a = wavy();
     for b in crossing_wavy() {
         let curves = marched_curves(&a, &b, TOL);
-        assert!(patch_pairs(&a, &b, TOL).complete);
+        assert!(patch_pairs(&whole(&a), &whole(&b), &|_| false, TOL).complete);
         assert_on_both_once(&curves, &a, &b);
         assert_every_crossing(&curves, &a, &b);
         let grid = grid_marching(&a, &b, TOL);
@@ -167,16 +172,21 @@ fn test_bspline_pairs_trace_every_curve_once() {
     }
 }
 
-#[test]
-fn test_small_loop_through_a_nearly_flat_surface() {
-    // A bump of width 0.1 about (2.6, 2.6), within one cell of the
-    // seed grid (lines spaced 5 / 24), pokes 0.04 through a gently
-    // tilted sheet, which also crosses the bump's flat surroundings
-    // along x = 2.1.
+/// A bump of width 0.1 about (2.6, 2.6), within one cell of the seed
+/// grid (lines spaced 5 / 24), poking 0.04 through a gently tilted
+/// sheet, which also crosses the bump's flat surroundings along
+/// x = 2.1: the bump and the sheet.
+fn bump_through_sheet() -> (BSplineSurface, BSplineSurface) {
     let knots = [1.0, 2.0, 2.4, 2.55, 2.575, 2.6, 2.625, 2.65, 2.8, 3.5, 4.25];
     let at_bump = |x: f64, y: f64| (x - 2.6).abs() < 1e-9 && (y - 2.6).abs() < 1e-9;
     let bump = graph(&knots, |x, y| if at_bump(x, y) { 0.2 } else { 0.0 }, None);
     let sheet = graph(&THIRDS, |x, y| 0.1 * (x - 2.1) + 0.005 * y.sin(), None);
+    (bump, sheet)
+}
+
+#[test]
+fn test_small_loop_through_a_nearly_flat_surface() {
+    let (bump, sheet) = bump_through_sheet();
     let spacing = 5.0 / 24.0;
     for (a, b) in [(&bump, &sheet), (&sheet, &bump)] {
         let curves = marched_curves(a, b, TOL);
@@ -201,6 +211,28 @@ fn test_small_loop_through_a_nearly_flat_surface() {
         assert!(!is_closed(&grid[0]));
         assert!(points.iter().all(|&p| distance_to(&grid, p) > 0.4));
     }
+}
+
+#[test]
+fn test_open_pairs_a_traced_curve_crosses_are_dropped() {
+    let (bump, sheet) = bump_through_sheet();
+    let (bump, sheet) = (whole(&bump), whole(&sheet));
+    // The line where the sheet crosses the flat surroundings, traced.
+    let line = |b: &Aabb| b[0] <= 2.1 && 2.1 <= b[3];
+    let all = patch_pairs(&bump, &sheet, &|_| false, TOL);
+    let left = patch_pairs(&bump, &sheet, &line, TOL);
+    assert!(left.complete);
+    assert!(left.leaves.len() < all.leaves.len());
+    assert!(all.leaves.iter().any(|l| l.open && line(&l.overlap)));
+    assert!(left.leaves.iter().all(|l| !(l.open && line(&l.overlap))));
+    // The pairs around the loop, 0.5 from the line, stay.
+    let around_loop = |l: &&Leaf| {
+        let near = |c: usize| l.overlap[c] < 2.65 && 2.55 < l.overlap[c + 3];
+        near(0) && near(1)
+    };
+    let count = |pairs: &PatchPairs| pairs.leaves.iter().filter(around_loop).count();
+    assert!(count(&left) > 0);
+    assert_eq!(count(&left), count(&all));
 }
 
 #[test]
@@ -291,7 +323,7 @@ fn test_periodic_surface_gives_one_loop_across_its_seam() {
 #[test]
 fn test_overlapping_surfaces_exhaust_the_search() {
     let a = wavy();
-    assert!(!patch_pairs(&a, &a, TOL).complete);
+    assert!(!patch_pairs(&whole(&a), &whole(&a), &|_| false, TOL).complete);
     // The grid seeds take over; the surfaces are tangent everywhere,
     // so nothing traces.
     assert!(marched_curves(&a, &a, TOL).is_empty());

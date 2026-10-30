@@ -16,7 +16,7 @@ mod plane;
 mod revolution;
 mod sphere;
 mod surface;
-mod swept;
+pub(crate) mod swept;
 mod torus;
 
 pub use bezier::BezierSurface;

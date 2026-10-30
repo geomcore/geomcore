@@ -4,7 +4,7 @@
 //! degenerate.
 
 use crate::curves::Continuity;
-use crate::surfaces::{BSplineSurface, ElementarySurface};
+use crate::surfaces::{BSplineSurface, ElementarySurface, ExtrusionSurface, RevolutionSurface};
 use crate::{Point, SurfaceProjection, Tolerance, Vector};
 
 /// Principal, mean and Gaussian curvatures at a surface point, with the
@@ -523,6 +523,24 @@ pub trait ParametricSurface {
     /// the default. A type that wraps another surface forwards it (ADR 0022).
     #[doc(hidden)]
     fn as_elementary(&self) -> Option<ElementarySurface> {
+        None
+    }
+
+    /// Routing hook of the numeric search, hidden from the documentation: the
+    /// surface as an extrusion, so that the search can convert it to exact
+    /// B-spline patches. `None` for any other surface, the default. A type
+    /// that wraps another surface forwards it (ADR 0022).
+    #[doc(hidden)]
+    fn as_extrusion(&self) -> Option<&ExtrusionSurface> {
+        None
+    }
+
+    /// Routing hook of the numeric search, hidden from the documentation: the
+    /// surface as a surface of revolution, so that the search can convert it
+    /// to exact B-spline patches. `None` for any other surface, the default.
+    /// A type that wraps another surface forwards it (ADR 0022).
+    #[doc(hidden)]
+    fn as_revolution(&self) -> Option<&RevolutionSurface> {
         None
     }
 }

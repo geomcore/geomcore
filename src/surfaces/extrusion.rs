@@ -312,6 +312,10 @@ impl ParametricSurface for ExtrusionSurface {
             distance: snap_distance(foot.distance(point), tol.confusion),
         }
     }
+
+    fn as_extrusion(&self) -> Option<&ExtrusionSurface> {
+        Some(self)
+    }
 }
 
 /// The profile carried along the direction into the plane through

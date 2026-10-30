@@ -1,11 +1,13 @@
 //! Where marching starts its traces: which seed sources run on a pair of
 //! surfaces, in what order, and when one is left out (see [`seeds`]).
 
+use super::extrema::extremum_seeds;
 use super::pair::{SurfacePair, swap};
 use super::tracer::first_step;
 use crate::curves::{Circle, ElementaryCurve, ParametricCurve, PointExtrema};
 use crate::intersect::CurveSurfaceIntersection;
 use crate::intersect::numeric::patch_pairs;
+use crate::intersect::numeric::surface_patches::{SurfacePatches, pair_patches};
 use crate::intersect::routing::{ExactFamily, route_curve_surface};
 use crate::math::boxtree::Aabb;
 use crate::surfaces::{BSplineSurface, ElementarySurface, ParametricSurface, Surface};
@@ -57,46 +59,104 @@ impl Seed {
 }
 
 /// The seeds of marching on `pair`, in the order they are traced (see
-/// [`marching_intersection`](super::marching_intersection)):
+/// [`marching_intersection`](super::marching_intersection)), and whether
+/// the seeds of [`later_seeds`] follow once these are traced:
 /// - two B-splines: the centres of their patch pairs (see
 ///   [`patch_pairs`](patch_pairs::patch_pairs)), then both parameter grids
 ///   when that search exhausts its budget;
 /// - each surface elementary or a B-spline, and one elementary: the seeds
 ///   of [`pair_seeds`], without repeats (see [`distinct_seeds`]);
 /// - otherwise both parameter grids.
-pub(super) fn seeds<A, B>(pair: SurfacePair<A, B>, tol: Tolerance) -> Vec<Seed>
+///
+/// In the last two cases [`later_seeds`] follow, so that a loop smaller
+/// than the spacing of the iso-curves and grids is found, except when
+/// both surfaces are bounded and neither is a B-spline (see
+/// [`grid_scale`]): both grids already sample each at its own scale.
+/// [`marching_intersection`](super::marching_intersection) also leaves
+/// them out when these seeds trace only touches.
+pub(super) fn seeds<A, B>(pair: SurfacePair<A, B>, tol: Tolerance) -> (Vec<Seed>, bool)
 where
     A: ParametricSurface,
     B: ParametricSurface,
 {
-    if let (Some(sa), Some(sb)) = (pair.first.as_bspline(), pair.second.as_bspline()) {
-        let pairs = patch_pairs::patch_pairs(sa, sb, tol);
-        let mut seeds: Vec<Seed> = pairs
-            .leaves
-            .iter()
-            .map(|leaf| {
-                let [ra, rb] = leaf.rects;
-                Seed::PatchPair {
-                    centre: [
-                        0.5 * (ra[0] + ra[1]),
-                        0.5 * (ra[2] + ra[3]),
-                        0.5 * (rb[0] + rb[1]),
-                        0.5 * (rb[2] + rb[3]),
-                    ],
-                    skip_if_crossed: leaf.open.then_some(leaf.overlap),
-                }
-            })
-            .collect();
-        if !pairs.complete {
+    if pair.first.as_bspline().is_some()
+        && pair.second.as_bspline().is_some()
+        && let Some(patches) = pair_patches(pair.first, pair.second, tol)
+    {
+        let (mut seeds, complete) = patch_pair_seeds(&patches, &|_| false, tol);
+        if !complete {
             seeds.extend(both_grid_seeds(pair, tol).into_iter().map(Seed::On));
         }
-        return seeds;
+        return (seeds, false);
     }
     let points = match pair_seeds(pair, tol) {
         Some(seeds) => distinct_seeds(pair.first, seeds, tol),
         None => both_grid_seeds(pair, tol),
     };
-    points.into_iter().map(Seed::On).collect()
+    let later = !(grid_scale(pair.first) && grid_scale(pair.second));
+    (points.into_iter().map(Seed::On).collect(), later)
+}
+
+/// The seeds searched once the seeds of [`seeds`] are traced:
+/// - when one surface is elementary and the other converts to patches,
+///   the iso-curves through the extrema of the elementary surface's level
+///   along the other (see [`extremum_seeds`]);
+/// - otherwise the centres of the patch pairs of the two surfaces when
+///   both convert to patches (see [`pair_patches`]): a pair whose normals
+///   are never parallel and whose overlap a traced curve crosses
+///   (`traced`) is dropped, flat or not (see
+///   [`patch_pairs`](patch_pairs::patch_pairs)), so that the search
+///   halves only around what the traces left unexplained.
+pub(super) fn later_seeds<A, B>(
+    pair: SurfacePair<A, B>,
+    traced: &dyn Fn(&Aabb) -> bool,
+    tol: Tolerance,
+) -> Vec<Seed>
+where
+    A: ParametricSurface,
+    B: ParametricSurface,
+{
+    if let Some(points) = extremum_seeds(pair, tol) {
+        return points.into_iter().map(Seed::On).collect();
+    }
+    pair_patches(pair.first, pair.second, tol).map_or_else(Vec::new, |patches| {
+        patch_pair_seeds(&patches, traced, tol).0
+    })
+}
+
+/// Whether the parameter grid of `s` samples it at its own scale: `s`
+/// is bounded, and not a B-spline, whose knot spans may hold features
+/// finer than the grid.
+fn grid_scale<S: ParametricSurface>(s: &S) -> bool {
+    let ((u0, u1), (v0, v1)) = (s.u_bounds(), s.v_bounds());
+    s.as_bspline().is_none() && [u0, u1, v0, v1].iter().all(|x| x.is_finite())
+}
+
+/// The centres of the patch pairs of `patches` (see
+/// [`patch_pairs`](patch_pairs::patch_pairs)), in the surfaces' own
+/// parameters, and whether that search finished within its budget.
+fn patch_pair_seeds(
+    (first, second): &(SurfacePatches, SurfacePatches),
+    traced: &dyn Fn(&Aabb) -> bool,
+    tol: Tolerance,
+) -> (Vec<Seed>, bool) {
+    let pairs = patch_pairs::patch_pairs(first, second, traced, tol);
+    let centre = |patches: &SurfacePatches, r: [f64; 4]| {
+        patches.parameters((0.5 * (r[0] + r[1]), 0.5 * (r[2] + r[3])))
+    };
+    let seeds = pairs
+        .leaves
+        .iter()
+        .map(|leaf| {
+            let [ra, rb] = leaf.rects;
+            let ((a_u, a_v), (b_u, b_v)) = (centre(first, ra), centre(second, rb));
+            Seed::PatchPair {
+                centre: [a_u, a_v, b_u, b_v],
+                skip_if_crossed: leaf.open.then_some(leaf.overlap),
+            }
+        })
+        .collect();
+    (seeds, pairs.complete)
 }
 
 /// Seeds on both surfaces when each is elementary or a B-spline, and one

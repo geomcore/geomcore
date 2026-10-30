@@ -103,8 +103,9 @@ ones before them. If you'd like to help with any of it, see
 
 1. **Marching intersection** — trace through points where the two
    surfaces touch, and find isolated loops smaller than the iso-curve
-   spacing on surfaces other than B-splines (two B-spline surfaces
-   already find them from overlapping patch pairs, #30).
+   spacing between two unbounded surfaces (every other pair whose
+   surfaces convert to B-spline patches finds them from overlapping
+   patch pairs, #30, ADR 0026).
 2. **Hosted documentation** — tutorials on the docs site, and a Python
    API reference generated from docstrings.
 

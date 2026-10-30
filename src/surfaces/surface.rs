@@ -266,6 +266,14 @@ impl ParametricSurface for Surface {
     fn as_elementary(&self) -> Option<ElementarySurface> {
         surface_dispatch!(self, s => s.as_elementary())
     }
+
+    fn as_extrusion(&self) -> Option<&ExtrusionSurface> {
+        surface_dispatch!(self, s => s.as_extrusion())
+    }
+
+    fn as_revolution(&self) -> Option<&RevolutionSurface> {
+        surface_dispatch!(self, s => s.as_revolution())
+    }
 }
 
 impl ReversibleSurface for Surface {
