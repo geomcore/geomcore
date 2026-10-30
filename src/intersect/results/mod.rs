@@ -17,18 +17,14 @@ pub use inline_list::InlineList;
 pub use regions::{CurveCurveRegion, CurveSurfaceRegion, SurfaceSurfaceRegion};
 
 use crate::intersect::Completeness;
-use crate::{Curve, Point, Point2D, Tolerance, Vector};
+use crate::{Curve, Point, Point2D, TierPoint, Tolerance, Vector};
 use inline_or_heap_list::InlineOrHeapList;
 
-/// The hits of a 3D curve-curve result. The inline capacity is the most
-/// hits an exact pair yields (two conics meet at most 4 times), so an
-/// exact result never allocates; a numeric result keeps its `Vec`.
-pub(crate) type CurveCurveHitList = InlineOrHeapList<CurveCurveHit, 4>;
-
-/// The hits of a 2D curve-curve result. The inline capacity is the most
-/// hits an exact pair yields (two conics meet at most 4 times), so an
-/// exact result never allocates; a numeric result keeps its `Vec`.
-pub(crate) type CurveCurveHitList2D = InlineOrHeapList<CurveCurveHit2D, 4>;
+/// The hits of a curve-curve result in the tier of `P`. The inline
+/// capacity is the most hits an exact pair yields (two conics meet at
+/// most 4 times), so an exact result never allocates; a numeric result
+/// keeps its `Vec`.
+pub(crate) type CurveCurveHitList<P = Point> = InlineOrHeapList<GenericCurveCurveHit<P>, 4>;
 
 /// The overlaps of a curve-curve result. Overlaps come only from
 /// coincident curves, a rare case, and an empty `Vec` does not allocate,
@@ -123,12 +119,6 @@ pub(crate) fn sort_by_known_parameter<T>(items: &mut [T], parameter: impl Fn(&T)
     }
 }
 
-#[inline]
-fn sorted_by_first(mut hits: CurveCurveHitList) -> CurveCurveHitList {
-    sort_by_known_parameter(&mut hits, |hit| hit.first_parameter);
-    hits
-}
-
 /// Exchanges the two ranges of every overlap, ordered again by start on
 /// the new first curve.
 fn swap_overlaps(overlaps: &mut CurveCurveOverlapList) {
@@ -160,7 +150,8 @@ pub(crate) fn curve_surface_multiplicity(
     }
 }
 
-/// The intersection of two 3D curves.
+/// The intersection of two curves of one tier: [`CurveCurveIntersection`]
+/// in space, [`CurveCurveIntersection2D`] in the plane (ADR 0014).
 ///
 /// Read it through [`hits`](Self::hits), [`overlaps`](Self::overlaps),
 /// [`method`](Self::method), [`completeness`](Self::completeness),
@@ -168,6 +159,27 @@ pub(crate) fn curve_surface_multiplicity(
 /// [`Intersect::intersect`](crate::Intersect::intersect) returns it,
 /// reading the receiver's parameters first; an exact result is always
 /// complete, so an empty one proves the curves do not meet.
+///
+/// # Examples
+///
+/// ```
+/// use geomcore::{CurveCurveIntersection, GenericCurveCurveIntersection, TierPoint};
+///
+/// // A function over the results of either tier.
+/// fn meetings<P: TierPoint>(result: &GenericCurveCurveIntersection<P>) -> usize {
+///     result.hits().len() + result.overlaps().len()
+/// }
+/// # let _ = meetings::<geomcore::Point>;
+/// ```
+#[derive(Debug, Clone, PartialEq)]
+pub struct GenericCurveCurveIntersection<P: TierPoint> {
+    hits: CurveCurveHitList<P>,
+    overlaps: CurveCurveOverlapList,
+    method: IntersectionMethod,
+    completeness: Completeness<CurveCurveRegion>,
+}
+
+/// The intersection of two 3D curves.
 ///
 /// # Examples
 ///
@@ -186,24 +198,44 @@ pub(crate) fn curve_surface_multiplicity(
 /// assert_eq!(on_line, [Some(3.0), Some(7.0)]);
 /// assert_eq!(result.hits()[0].second_parameter, None);
 /// ```
-#[derive(Debug, Clone, PartialEq)]
-pub struct CurveCurveIntersection {
-    hits: CurveCurveHitList,
-    overlaps: CurveCurveOverlapList,
-    method: IntersectionMethod,
-    completeness: Completeness<CurveCurveRegion>,
-}
+pub type CurveCurveIntersection = GenericCurveCurveIntersection<Point>;
 
-impl CurveCurveIntersection {
+/// The intersection of two 2D curves: exact and complete for every pair of
+/// lines and conics, numeric when one is a
+/// [`BSplineCurve2D`](crate::BSplineCurve2D).
+///
+/// # Examples
+///
+/// ```
+/// use geomcore::prelude::*;
+/// use geomcore::{Circle2D, IntersectionMethod, Line2D, Point2D, Tolerance, Vector2D};
+///
+/// // The x axis crosses a circle of radius 2 at x = -2 and x = 2.
+/// let line = Line2D::new(Point2D::new(-5.0, 0.0), Vector2D::X).unwrap();
+/// let circle = Circle2D::new(Point2D::ORIGIN, 2.0).unwrap();
+/// let result = circle.intersect(&line, Tolerance::DEFAULT);
+/// // The circle's angles are not computed, so the hits keep the solver's
+/// // order, along the line: x = -2 first, then x = 2.
+/// let along_line: Vec<f64> = result.hits().iter().filter_map(|hit| hit.second_parameter).collect();
+/// assert!((along_line[0] - 3.0).abs() < 1e-9 && (along_line[1] - 7.0).abs() < 1e-9);
+/// let angle = circle.parameter_of(result.hits()[1].point, Tolerance::DEFAULT);
+/// assert!(angle.abs() < 1e-9);
+/// assert_eq!(result.method(), IntersectionMethod::Exact);
+/// assert!(result.is_complete());
+/// ```
+pub type CurveCurveIntersection2D = GenericCurveCurveIntersection<Point2D>;
+
+impl<P: TierPoint> GenericCurveCurveIntersection<P> {
     /// An exact, complete result; the hits are sorted by first parameter
     /// when every hit has one.
     ///
-    /// It takes a whole list: the router hands over the exact solver's
-    /// own list unchanged when neither curve is trimmed, which measured
-    /// faster than pushing the hits one by one.
-    pub(crate) fn exact(hits: CurveCurveHitList, overlaps: CurveCurveOverlapList) -> Self {
-        CurveCurveIntersection {
-            hits: sorted_by_first(hits),
+    /// It takes a whole list: the router builds it where the solver's hits
+    /// are read, inlined there, and this constructor stays out of line,
+    /// which measured faster than pushing the hits into the result.
+    pub(crate) fn exact(mut hits: CurveCurveHitList<P>, overlaps: CurveCurveOverlapList) -> Self {
+        sort_by_known_parameter(&mut hits, |hit| hit.first_parameter);
+        GenericCurveCurveIntersection {
+            hits,
             overlaps,
             method: IntersectionMethod::Exact,
             completeness: Completeness::Complete,
@@ -212,12 +244,14 @@ impl CurveCurveIntersection {
 
     /// A numeric result with the status of its search.
     pub(crate) fn numeric(
-        hits: Vec<CurveCurveHit>,
+        hits: Vec<GenericCurveCurveHit<P>>,
         overlaps: CurveCurveOverlapList,
         completeness: Completeness<CurveCurveRegion>,
     ) -> Self {
-        CurveCurveIntersection {
-            hits: sorted_by_first(hits.into()),
+        let mut hits: CurveCurveHitList<P> = hits.into();
+        sort_by_known_parameter(&mut hits, |hit| hit.first_parameter);
+        GenericCurveCurveIntersection {
+            hits,
             overlaps,
             method: IntersectionMethod::Numeric,
             completeness,
@@ -251,6 +285,7 @@ impl CurveCurveIntersection {
     /// ```
     /// use geomcore::prelude::*;
     /// use geomcore::{Circle, Line, Point, Tolerance, TrimmedCurve, Vector};
+    /// use geomcore::{Circle2D, Line2D, Point2D, TrimmedCurve2D, Vector2D};
     ///
     /// // An arc across the seam at angle 0 keeps only the hit at angle 0.
     /// let line = Line::new(Point::new(-5.0, 0.0, 0.0), Vector::X).unwrap();
@@ -263,8 +298,17 @@ impl CurveCurveIntersection {
     /// assert_eq!(hit.first_parameter, Some(0.0));
     /// assert_eq!(hit.second_parameter, Some(7.0));
     /// assert!(hit.point.distance(Point::new(2.0, 0.0, 0.0)) < 1e-12);
+    ///
+    /// // In the plane, a segment covering x in [-5, -1] meets the near side only.
+    /// let line = Line2D::new(Point2D::new(-5.0, 0.0), Vector2D::X).unwrap();
+    /// let segment = TrimmedCurve2D::new(line, 0.0, 4.0).unwrap();
+    /// let circle = Circle2D::new(Point2D::ORIGIN, 2.0).unwrap();
+    /// let result = segment.intersect(&circle, Tolerance::DEFAULT);
+    /// assert_eq!(result.hits().len(), 1);
+    /// let on_segment = result.hits()[0].first_parameter.unwrap();
+    /// assert!((on_segment - 3.0).abs() < 1e-9);
     /// ```
-    pub fn hits(&self) -> &[CurveCurveHit] {
+    pub fn hits(&self) -> &[GenericCurveCurveHit<P>] {
         &self.hits
     }
 
@@ -292,6 +336,7 @@ impl CurveCurveIntersection {
     /// ```
     /// use geomcore::prelude::*;
     /// use geomcore::{CurveCurveOverlap, Line, Point, Tolerance, TrimmedCurve, Vector};
+    /// use geomcore::{Line2D, Point2D, TrimmedCurve2D, Vector2D};
     ///
     /// // Two segments of one line share x in [1, 2].
     /// let line = Line::new(Point::ORIGIN, Vector::X).unwrap();
@@ -307,218 +352,8 @@ impl CurveCurveIntersection {
     ///         same_direction: true,
     ///     }]
     /// );
-    /// ```
-    pub fn overlaps(&self) -> &[CurveCurveOverlap] {
-        &self.overlaps
-    }
-
-    /// Whether the result came from a closed form or a numeric search.
     ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::prelude::*;
-    /// use geomcore::{Circle, IntersectionMethod, Point, Tolerance, Vector};
-    ///
-    /// // A B-spline has no closed form: the numeric search runs.
-    /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
-    /// let other = Circle::new(Point::new(2.0, 0.0, 0.0), Vector::Z, 2.0).unwrap();
-    /// let result = circle.intersect(&other.to_bspline(), Tolerance::DEFAULT);
-    /// assert_eq!(result.method(), IntersectionMethod::Numeric);
-    /// assert_eq!(result.hits().len(), 2);
-    /// ```
-    pub fn method(&self) -> IntersectionMethod {
-        self.method
-    }
-
-    /// Whether every hit was found, and where hits may be missing if not.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::prelude::*;
-    /// use geomcore::{Circle, Completeness, Line, Point, Tolerance, Vector};
-    ///
-    /// let line = Line::new(Point::ORIGIN, Vector::X).unwrap();
-    /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
-    /// let result = circle.intersect(&line, Tolerance::DEFAULT);
-    /// assert_eq!(result.completeness(), &Completeness::Complete);
-    /// ```
-    pub fn completeness(&self) -> &Completeness<CurveCurveRegion> {
-        &self.completeness
-    }
-
-    /// Whether every hit was found.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::prelude::*;
-    /// use geomcore::{Ellipse, Frame, Line, Point, Tolerance, Vector};
-    ///
-    /// let ellipse = Ellipse::from_frame(Frame::WORLD, 3.0, 1.0).unwrap();
-    /// let line = Line::new(Point::ORIGIN, Vector::Y).unwrap();
-    /// assert!(ellipse.intersect(&line, Tolerance::DEFAULT).is_complete());
-    /// ```
-    pub fn is_complete(&self) -> bool {
-        self.completeness.is_complete()
-    }
-
-    /// Whether no hit and no overlap was found. With an incomplete result
-    /// this means "found nothing", not "nothing exists".
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::prelude::*;
-    /// use geomcore::{Line, Point, Tolerance, Vector};
-    ///
-    /// // An exact empty result proves the skew lines never meet.
-    /// let first = Line::new(Point::ORIGIN, Vector::X).unwrap();
-    /// let second = Line::new(Point::new(0.0, 0.0, 1.0), Vector::Y).unwrap();
-    /// let result = first.intersect(&second, Tolerance::DEFAULT);
-    /// assert!(result.is_empty() && result.is_complete());
-    /// ```
-    pub fn is_empty(&self) -> bool {
-        self.hits.is_empty() && self.overlaps.is_empty()
-    }
-}
-
-/// The intersection of two 2D curves: exact and complete for every pair of
-/// lines and conics, numeric when one is a
-/// [`BSplineCurve2D`](crate::BSplineCurve2D).
-///
-/// Read it through [`hits`](Self::hits), [`overlaps`](Self::overlaps),
-/// [`method`](Self::method), [`completeness`](Self::completeness),
-/// [`is_complete`](Self::is_complete) and [`is_empty`](Self::is_empty).
-/// [`Intersect::intersect`](crate::Intersect::intersect) returns it.
-///
-/// # Examples
-///
-/// ```
-/// use geomcore::prelude::*;
-/// use geomcore::{Circle2D, IntersectionMethod, Line2D, Point2D, Tolerance, Vector2D};
-///
-/// // The x axis crosses a circle of radius 2 at x = -2 and x = 2.
-/// let line = Line2D::new(Point2D::new(-5.0, 0.0), Vector2D::X).unwrap();
-/// let circle = Circle2D::new(Point2D::ORIGIN, 2.0).unwrap();
-/// let result = circle.intersect(&line, Tolerance::DEFAULT);
-/// // The circle's angles are not computed, so the hits keep the solver's
-/// // order, along the line: x = -2 first, then x = 2.
-/// let along_line: Vec<f64> = result.hits().iter().filter_map(|hit| hit.second_parameter).collect();
-/// assert!((along_line[0] - 3.0).abs() < 1e-9 && (along_line[1] - 7.0).abs() < 1e-9);
-/// let angle = circle.parameter_of(result.hits()[1].point, Tolerance::DEFAULT);
-/// assert!(angle.abs() < 1e-9);
-/// assert_eq!(result.method(), IntersectionMethod::Exact);
-/// assert!(result.is_complete());
-/// ```
-#[derive(Debug, Clone, PartialEq)]
-pub struct CurveCurveIntersection2D {
-    hits: CurveCurveHitList2D,
-    overlaps: CurveCurveOverlapList,
-    method: IntersectionMethod,
-    completeness: Completeness<CurveCurveRegion>,
-}
-
-impl CurveCurveIntersection2D {
-    /// An exact, complete result; the hits are sorted by first parameter
-    /// when every hit has one.
-    ///
-    /// The hits are pushed into the result itself: the result is about
-    /// 200 to 300 bytes, and collecting the hits first, then moving the
-    /// list in, measured slower.
-    #[inline]
-    pub(crate) fn exact(
-        hits: impl IntoIterator<Item = CurveCurveHit2D>,
-        overlaps: CurveCurveOverlapList,
-    ) -> Self {
-        let mut result = CurveCurveIntersection2D {
-            hits: CurveCurveHitList2D::new(),
-            overlaps,
-            method: IntersectionMethod::Exact,
-            completeness: Completeness::Complete,
-        };
-        for hit in hits {
-            result.hits.push(hit);
-        }
-        sort_by_known_parameter(&mut result.hits, |hit| hit.first_parameter);
-        result
-    }
-
-    /// A result found by the numeric search.
-    #[inline]
-    pub(crate) fn numeric(
-        hits: impl IntoIterator<Item = CurveCurveHit2D>,
-        overlaps: CurveCurveOverlapList,
-        completeness: Completeness<CurveCurveRegion>,
-    ) -> Self {
-        let mut result = CurveCurveIntersection2D {
-            hits: CurveCurveHitList2D::new(),
-            overlaps,
-            method: IntersectionMethod::Numeric,
-            completeness,
-        };
-        for hit in hits {
-            result.hits.push(hit);
-        }
-        sort_by_known_parameter(&mut result.hits, |hit| hit.first_parameter);
-        result
-    }
-
-    /// The same intersection read from the second curve: the parameters of
-    /// every hit and overlap exchanged, and the hits sorted again by first
-    /// parameter when every hit has one.
-    #[inline]
-    pub(crate) fn swapped(mut self) -> Self {
-        for hit in self.hits.iter_mut() {
-            std::mem::swap(&mut hit.first_parameter, &mut hit.second_parameter);
-        }
-        sort_by_known_parameter(&mut self.hits, |hit| hit.first_parameter);
-        swap_overlaps(&mut self.overlaps);
-        self
-    }
-
-    /// The isolated hits. A hit outside a trimmed curve's range is dropped.
-    ///
-    /// A parameter is stored only where the solver computed it: a line's
-    /// parameter, and a trimmed curve's, whose range test needs it. A
-    /// missing one is `None`; recover it with the curve's
-    /// `parameter_of(hit.point)`. The hits are sorted by first parameter
-    /// when every hit has one, and come in the solver's order otherwise.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::prelude::*;
-    /// use geomcore::{Circle2D, Line2D, Point2D, Tolerance, TrimmedCurve2D, Vector2D};
-    ///
-    /// // The segment covers x in [-5, -1], so only the near side is met.
-    /// let line = Line2D::new(Point2D::new(-5.0, 0.0), Vector2D::X).unwrap();
-    /// let segment = TrimmedCurve2D::new(line, 0.0, 4.0).unwrap();
-    /// let circle = Circle2D::new(Point2D::ORIGIN, 2.0).unwrap();
-    /// let result = segment.intersect(&circle, Tolerance::DEFAULT);
-    /// assert_eq!(result.hits().len(), 1);
-    /// let on_segment = result.hits()[0].first_parameter.unwrap();
-    /// assert!((on_segment - 3.0).abs() < 1e-9);
-    /// ```
-    pub fn hits(&self) -> &[CurveCurveHit2D] {
-        &self.hits
-    }
-
-    /// The ranges over which the curves coincide, with the same rules as
-    /// [`CurveCurveIntersection::overlaps`]: sorted by the start of the
-    /// first range, each range increasing and inside its curve's own range,
-    /// two pieces when an overlap crosses a closed curve's seam,
-    /// `same_direction` telling whether the curves run the same way, and
-    /// pieces that only touch reported as a hit instead.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::prelude::*;
-    /// use geomcore::{CurveCurveOverlap, Line2D, Point2D, Tolerance, TrimmedCurve2D, Vector2D};
-    ///
-    /// // Two segments of one line share x in [1, 2]; the second runs backwards.
+    /// // In the plane, the second segment runs backwards.
     /// let forward = Line2D::new(Point2D::ORIGIN, Vector2D::X).unwrap();
     /// let backward = Line2D::new(Point2D::new(3.0, 0.0), -Vector2D::X).unwrap();
     /// let first = TrimmedCurve2D::new(forward, 0.0, 2.0).unwrap();
@@ -533,18 +368,25 @@ impl CurveCurveIntersection2D {
         &self.overlaps
     }
 
-    /// [`IntersectionMethod::Exact`] when the pair was solved by a closed
-    /// form: every 2D pair of lines, circles, ellipses, parabolas and
-    /// hyperbolas.
-    /// [`IntersectionMethod::Numeric`] when at least one of the two is a
-    /// [`BSplineCurve2D`](crate::BSplineCurve2D), or a trimmed curve over
-    /// one: the pair is searched as in space, embedded at `z = 0`.
+    /// Whether the result came from a closed form or a numeric search.
+    /// Every 2D pair of lines, circles, ellipses, parabolas and hyperbolas
+    /// has a closed form; a 2D pair with a B-spline or Bézier curve is
+    /// searched as in space, embedded at `z = 0`.
     ///
     /// # Examples
     ///
     /// ```
     /// use geomcore::prelude::*;
-    /// use geomcore::{IntersectionMethod, Line2D, Point2D, Tolerance, Vector2D};
+    /// use geomcore::{Circle, IntersectionMethod, Point, Tolerance, Vector};
+    /// use geomcore::{Line2D, Point2D, Vector2D};
+    ///
+    /// // A B-spline has no closed form: the numeric search runs.
+    /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
+    /// let other = Circle::new(Point::new(2.0, 0.0, 0.0), Vector::Z, 2.0).unwrap();
+    /// let result = circle.intersect(&other.to_bspline(), Tolerance::DEFAULT);
+    /// assert_eq!(result.method(), IntersectionMethod::Numeric);
+    /// assert_eq!(result.hits().len(), 2);
+    ///
     /// let a = Line2D::new(Point2D::ORIGIN, Vector2D::X).unwrap();
     /// let b = Line2D::new(Point2D::ORIGIN, Vector2D::Y).unwrap();
     /// assert_eq!(a.intersect(&b, Tolerance::DEFAULT).method(), IntersectionMethod::Exact);
@@ -553,14 +395,20 @@ impl CurveCurveIntersection2D {
         self.method
     }
 
-    /// [`Completeness::Complete`] for an exact result; for a numeric one,
-    /// as [`CurveCurveIntersection::completeness`] reports it.
+    /// Whether every hit was found, and where hits may be missing if not.
     ///
     /// # Examples
     ///
     /// ```
     /// use geomcore::prelude::*;
-    /// use geomcore::{Completeness, Line2D, Point2D, Tolerance, Vector2D};
+    /// use geomcore::{Circle, Completeness, Line, Point, Tolerance, Vector};
+    /// use geomcore::{Line2D, Point2D, Vector2D};
+    ///
+    /// let line = Line::new(Point::ORIGIN, Vector::X).unwrap();
+    /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
+    /// let result = circle.intersect(&line, Tolerance::DEFAULT);
+    /// assert_eq!(result.completeness(), &Completeness::Complete);
+    ///
     /// let a = Line2D::new(Point2D::ORIGIN, Vector2D::X).unwrap();
     /// let result = a.intersect(&a, Tolerance::DEFAULT);
     /// assert_eq!(result.completeness(), &Completeness::Complete);
@@ -575,7 +423,13 @@ impl CurveCurveIntersection2D {
     ///
     /// ```
     /// use geomcore::prelude::*;
-    /// use geomcore::{Circle2D, Point2D, Tolerance};
+    /// use geomcore::{Ellipse, Frame, Line, Point, Tolerance, Vector};
+    /// use geomcore::{Circle2D, Point2D};
+    ///
+    /// let ellipse = Ellipse::from_frame(Frame::WORLD, 3.0, 1.0).unwrap();
+    /// let line = Line::new(Point::ORIGIN, Vector::Y).unwrap();
+    /// assert!(ellipse.intersect(&line, Tolerance::DEFAULT).is_complete());
+    ///
     /// let a = Circle2D::new(Point2D::ORIGIN, 1.0).unwrap();
     /// let b = Circle2D::new(Point2D::new(5.0, 0.0), 1.0).unwrap();
     /// assert!(a.intersect(&b, Tolerance::DEFAULT).is_complete());
@@ -584,13 +438,22 @@ impl CurveCurveIntersection2D {
         self.completeness.is_complete()
     }
 
-    /// Whether no hit and no overlap was found.
+    /// Whether no hit and no overlap was found. With an incomplete result
+    /// this means "found nothing", not "nothing exists".
     ///
     /// # Examples
     ///
     /// ```
     /// use geomcore::prelude::*;
-    /// use geomcore::{Line2D, Point2D, Tolerance, Vector2D};
+    /// use geomcore::{Line, Point, Tolerance, Vector};
+    /// use geomcore::{Line2D, Point2D, Vector2D};
+    ///
+    /// // An exact empty result proves the skew lines never meet.
+    /// let first = Line::new(Point::ORIGIN, Vector::X).unwrap();
+    /// let second = Line::new(Point::new(0.0, 0.0, 1.0), Vector::Y).unwrap();
+    /// let result = first.intersect(&second, Tolerance::DEFAULT);
+    /// assert!(result.is_empty() && result.is_complete());
+    ///
     /// let a = Line2D::new(Point2D::ORIGIN, Vector2D::X).unwrap();
     /// let b = Line2D::new(Point2D::new(0.0, 1.0), Vector2D::X).unwrap();
     /// assert!(a.intersect(&b, Tolerance::DEFAULT).is_empty());
@@ -639,8 +502,7 @@ impl CurveSurfaceIntersection {
     /// An exact, complete result; the hits are sorted by curve parameter
     /// when every hit has one.
     ///
-    /// Like [`CurveCurveIntersection2D::exact`], it pushes the hits into
-    /// the result itself.
+    /// It pushes the hits into the result itself.
     #[inline]
     pub(crate) fn exact(
         hits: impl IntoIterator<Item = CurveSurfaceHit>,
@@ -1023,11 +885,33 @@ pub struct CurveCurveExtremum {
     pub distance: f64,
 }
 
-/// One meeting of two 3D curves.
+/// One meeting of two curves of one tier: [`CurveCurveHit`] in space,
+/// [`CurveCurveHit2D`] in the plane (ADR 0014).
 ///
 /// A parameter is stored only when the solver computed it on its way to
-/// the point; the others are `None`, and the caller recovers one with the
-/// curve's `parameter_of(hit.point)` when it needs it.
+/// the point (a line's, or a trimmed curve's for its range test); the
+/// others are `None`, and the caller recovers one with the curve's
+/// `parameter_of(hit.point)` when it needs it.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct GenericCurveCurveHit<P: TierPoint> {
+    /// Parameter on the first curve, in its bounds or the trimmed curve's
+    /// range: the hit lies within `tol.confusion` in space of the range,
+    /// and a hit just beyond an end (the seam included) reports that end.
+    /// `None` when the solver did not compute it; recover it with the
+    /// curve's `parameter_of(hit.point)`.
+    pub first_parameter: Option<f64>,
+    /// Parameter on the second curve, in its bounds or the trimmed curve's
+    /// range, within `tol.confusion` in space of the range (a hit just
+    /// beyond an end reports that end). `None` when the solver did not
+    /// compute it; recover it with the curve's `parameter_of(hit.point)`.
+    pub second_parameter: Option<f64>,
+    /// The meeting point, within tolerance of both curves.
+    pub point: P,
+    /// 1 where the curves cross, 2 or more where they are tangent.
+    pub multiplicity: u32,
+}
+
+/// One meeting of two 3D curves.
 ///
 /// # Examples
 ///
@@ -1044,31 +928,9 @@ pub struct CurveCurveExtremum {
 /// let angle = first.parameter_of(hit.point, Tolerance::DEFAULT);
 /// assert!(first.eval_point(angle).distance(hit.point) < 1e-12);
 /// ```
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct CurveCurveHit {
-    /// Parameter on the first curve, in its bounds or the trimmed curve's
-    /// range: the hit lies within `tol.confusion` in space of the range,
-    /// and a hit just beyond an end (the seam included) reports that end.
-    /// `None` when the solver did not compute it; recover it with the
-    /// curve's `parameter_of(hit.point)`.
-    pub first_parameter: Option<f64>,
-    /// Parameter on the second curve, in its bounds or the trimmed curve's
-    /// range, within `tol.confusion` in space of the range (a hit just
-    /// beyond an end reports that end). `None` when the solver did not
-    /// compute it; recover it with the curve's `parameter_of(hit.point)`.
-    pub second_parameter: Option<f64>,
-    /// The meeting point, within tolerance of both curves.
-    pub point: Point,
-    /// 1 where the curves cross, 2 or more where they are tangent.
-    pub multiplicity: u32,
-}
+pub type CurveCurveHit = GenericCurveCurveHit<Point>;
 
 /// One meeting of two 2D curves.
-///
-/// A parameter is stored only when the solver computed it on its way to
-/// the point (a line's, or a trimmed curve's for its range test); the
-/// others are `None`, and the caller recovers one with the curve's
-/// `parameter_of(hit.point)` when it needs it.
 ///
 /// # Examples
 ///
@@ -1082,23 +944,7 @@ pub struct CurveCurveHit {
 /// };
 /// assert_eq!(hit.multiplicity, 1);
 /// ```
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct CurveCurveHit2D {
-    /// Parameter on the first curve, in its bounds or the trimmed curve's
-    /// range, within `tol.confusion` in space of the range (a hit just
-    /// beyond an end reports that end). `None` when the solver did not
-    /// compute it; recover it with the curve's `parameter_of(hit.point)`.
-    pub first_parameter: Option<f64>,
-    /// Parameter on the second curve, in its bounds or the trimmed curve's
-    /// range, within `tol.confusion` in space of the range (a hit just
-    /// beyond an end reports that end). `None` when the solver did not
-    /// compute it; recover it with the curve's `parameter_of(hit.point)`.
-    pub second_parameter: Option<f64>,
-    /// The meeting point, within tolerance of both curves.
-    pub point: Point2D,
-    /// 1 where the curves cross, 2 or more where they are tangent.
-    pub multiplicity: u32,
-}
+pub type CurveCurveHit2D = GenericCurveCurveHit<Point2D>;
 
 /// One meeting of a curve and a surface.
 ///

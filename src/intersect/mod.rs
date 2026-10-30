@@ -38,7 +38,7 @@ pub use results::{CurveCurveExtrema, CurveCurveRegion};
 pub use results::{
     CurveCurveExtremum, CurveCurveHit, CurveCurveHit2D, CurveCurveIntersection,
     CurveCurveIntersection2D, CurveCurveOverlap, CurveSurfaceHit, CurveSurfaceIntersection,
-    InlineList, IntersectionCurve, IntersectionMethod, SurfaceSurfaceIntersection,
-    SurfaceSurfaceRegion,
+    GenericCurveCurveHit, GenericCurveCurveIntersection, InlineList, IntersectionCurve,
+    IntersectionMethod, SurfaceSurfaceIntersection, SurfaceSurfaceRegion,
 };
 pub use routing::Intersect;

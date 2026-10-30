@@ -61,7 +61,7 @@ fn test_multiplicity_is_two_when_tangent_is_perpendicular_to_normal() {
 
 #[test]
 fn test_two_dimensional_result_is_exact_and_complete() {
-    let r = CurveCurveIntersection2D::exact([], CurveCurveOverlapList::new());
+    let r = CurveCurveIntersection2D::exact(CurveCurveHitList::new(), CurveCurveOverlapList::new());
     assert_eq!(r.method(), IntersectionMethod::Exact);
     assert!(r.is_complete() && r.is_empty());
 }
