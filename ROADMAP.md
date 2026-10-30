@@ -102,6 +102,9 @@ ones before them. If you'd like to help with any of it, see
   pair table; marching split into surface pair, tracer and seeding, and
   finding small closed loops beyond B-spline pairs; the curve tiers share
   their curve–curve results and fitting; Python stubs with docstrings.
+- **0.42** — UV curves both ways, owned by the surface: `uv_curve_to_3d`
+  exact or refused, composing UV curves on spline surfaces exactly, and
+  `curve_3d_to_uv` in place of the curves' `parametrize_on`.
 
 ## Next
 
