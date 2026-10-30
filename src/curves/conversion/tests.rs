@@ -1,7 +1,7 @@
 use super::*;
 use crate::curves::PointExtrema;
 use crate::curves::PointExtrema2D;
-use crate::curves::{Circle, Ellipse, Hyperbola, Line, Parabola};
+use crate::curves::{BezierCurve, Circle, Ellipse, Hyperbola, Line, Parabola};
 use crate::curves::{Circle2D, Ellipse2D, Hyperbola2D, Line2D, Parabola2D};
 use crate::discretization::{DiscretizationCriteria, Discretize};
 use crate::{Frame, Frame2D, Point, Point2D, Tolerance, Vector, Vector2D};
@@ -333,6 +333,30 @@ fn test_run_time_curves_convert_like_the_concrete_ones() {
     assert_eq!(run_time.to_bspline(), concrete);
     let borrowed = TrimmedCurve::new(&h, -1.0, 2.0).unwrap();
     assert_eq!(borrowed.to_bspline(), concrete);
+}
+
+#[test]
+fn test_trimmed_bspline_and_bezier_bases_give_their_extracted_piece() {
+    // A periodic B-spline, over a range across its seam.
+    let b = circle(2.0).to_bspline();
+    let expected = b.extract(5.0, 7.5).unwrap();
+    let piece = TrimmedCurve::new(&b, 5.0, 7.5).unwrap();
+    assert_eq!(piece.to_bspline(), Ok(expected.clone()));
+    let run_time = TrimmedCurve::new(Curve::from(b), 5.0, 7.5).unwrap();
+    assert_eq!(run_time.to_bspline(), Ok(expected));
+
+    let poles = vec![
+        Point::new(0.0, 0.0, 0.0),
+        Point::new(1.0, 2.0, 1.0),
+        Point::new(3.0, 2.0, -1.0),
+        Point::new(4.0, 0.0, 0.0),
+    ];
+    let bezier = BezierCurve::new(3, poles).unwrap();
+    let expected = bezier.to_bspline().extract(0.25, 0.75).unwrap();
+    let piece = TrimmedCurve::new(bezier.clone(), 0.25, 0.75).unwrap();
+    assert_eq!(piece.to_bspline(), Ok(expected.clone()));
+    let run_time = TrimmedCurve::new(Curve::from(bezier), 0.25, 0.75).unwrap();
+    assert_eq!(run_time.to_bspline(), Ok(expected));
 }
 
 #[test]

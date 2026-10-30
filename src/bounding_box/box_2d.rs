@@ -28,11 +28,11 @@ pub struct BoundingBox2D {
     pub(super) max: Point2D,
 }
 
-pub(super) fn coordinates(p: Point2D) -> [f64; 2] {
+fn coordinates(p: Point2D) -> [f64; 2] {
     [p.x, p.y]
 }
 
-pub(super) fn point([x, y]: [f64; 2]) -> Point2D {
+fn point([x, y]: [f64; 2]) -> Point2D {
     Point2D::new(x, y)
 }
 

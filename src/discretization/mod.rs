@@ -22,9 +22,16 @@
 mod bspline;
 mod elementary;
 
+pub(crate) use bspline::spline_runs;
+pub(crate) use elementary::{
+    circle_steps, ellipse_steps, hyperbola_steps, line_steps, parabola_steps,
+};
+
 #[cfg(doc)]
 use crate::Tolerance;
-use crate::curves::{ParametricCurve, ParametricCurve2D, TrimmedCurve, TrimmedCurve2D};
+use crate::curves::{
+    ParametricCurve, ParametricCurve2D, RangeOperations, TrimmedCurve, TrimmedCurve2D,
+};
 use crate::{
     BSplineCurve, BSplineCurve2D, BezierCurve, BezierCurve2D, Circle, Circle2D, Ellipse, Ellipse2D,
     Point, Point2D,
@@ -326,46 +333,9 @@ pub trait Discretize2D {
     }
 }
 
-pub(crate) mod sealed {
-    use super::DiscretizationCriteria;
-
-    /// Equal parameter steps over `[first, last]`, each segment with the
-    /// same deviations.
-    #[derive(Debug, Clone, Copy)]
-    pub struct Run {
-        pub(crate) first: f64,
-        pub(crate) last: f64,
-        pub(crate) segments: usize,
-        pub(crate) chord_deviation: f64,
-        pub(crate) angle_deviation: f64,
-    }
-
-    /// Discretization of a range of a curve: what a trimmed curve needs
-    /// from its basis. Implemented by every curve, bounded or not, in 3D
-    /// and in 2D.
-    pub trait DiscretizeRange {
-        /// The curve's points: `Point` or `Point2D`.
-        type Point: Copy;
-
-        /// Calls `visit` with the runs covering `[first, last]` in order,
-        /// each with a function evaluating the point at a fraction of
-        /// the run. Every run has at least `min_segments` segments.
-        fn for_each_run<F>(
-            &self,
-            first: f64,
-            last: f64,
-            criteria: &DiscretizationCriteria,
-            min_segments: usize,
-            visit: F,
-        ) where
-            F: FnMut(Run, &dyn Fn(f64) -> Self::Point);
-    }
-}
-use sealed::{DiscretizeRange, Run};
-
 /// The point count of `[first, last]`, and the fewest segments per run
 /// that give a closed result at least three segments.
-fn plan<C: DiscretizeRange + ?Sized>(
+fn plan<C: RangeOperations + ?Sized>(
     curve: &C,
     (first, last): (f64, f64),
     closed: bool,
@@ -412,7 +382,7 @@ impl<P> Slices<'_, P> {
 /// Writes the discretization of `[first, last]` into `out`, the end points
 /// from `point_at_parameter`: the runs may leave out a rounding error at
 /// either end.
-fn fill<C: DiscretizeRange + ?Sized>(
+fn fill<C: RangeOperations + ?Sized>(
     curve: &C,
     (first, last): (f64, f64),
     closed: bool,
@@ -450,7 +420,7 @@ type Buffers<P> = (Vec<f64>, Vec<P>, Vec<f64>, Vec<f64>);
 /// The discretization of `[first, last]` in a single pass, into buffers
 /// that grow as the runs come: parameters, points, chord deviations and
 /// angle deviations, as [`fill`] writes them.
-fn collect<C: DiscretizeRange + ?Sized>(
+fn collect<C: RangeOperations + ?Sized>(
     curve: &C,
     (first, last): (f64, f64),
     closed: bool,
@@ -602,7 +572,7 @@ discretize_bounded!(Discretize2D, Discretization2D, Point2D: Circle2D, Ellipse2D
 /// range: closed when the range spans a whole period of its basis.
 macro_rules! discretize_trimmed {
     ($discretize:ident, $discretization:ident, $point:ty, $trimmed:ident, $parametric:ident) => {
-        impl<C: DiscretizeRange<Point = $point> + $parametric> $discretize for $trimmed<C> {
+        impl<C: RangeOperations<Point = $point> + $parametric> $discretize for $trimmed<C> {
             fn discretize(&self, criteria: DiscretizationCriteria) -> $discretization {
                 let (parameters, points, chord_deviations, angle_deviations) = collect(
                     self.basis(),
@@ -669,20 +639,3 @@ discretize_trimmed!(
     TrimmedCurve2D,
     ParametricCurve2D
 );
-
-impl<C: DiscretizeRange + ?Sized> DiscretizeRange for &C {
-    type Point = C::Point;
-
-    fn for_each_run<F>(
-        &self,
-        first: f64,
-        last: f64,
-        criteria: &DiscretizationCriteria,
-        min_segments: usize,
-        visit: F,
-    ) where
-        F: FnMut(Run, &dyn Fn(f64) -> Self::Point),
-    {
-        (**self).for_each_run(first, last, criteria, min_segments, visit);
-    }
-}

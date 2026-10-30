@@ -60,25 +60,10 @@ shape_methods! {
 
     /// The trimmed piece as an exact B-spline over the same range: a
     /// clamped B-spline for an elementary basis, the extracted piece for
-    /// a B-spline one (raises `ValueError` when the poles would overflow
-    /// `f64`).
+    /// a B-spline or Bézier one (raises `ValueError` when the poles would
+    /// overflow `f64`).
     fn to_bspline(&self) -> PyResult<PyBSplineCurve> {
-        let (first, last) = (self.0.first(), self.0.last());
-        let basis = self.0.basis().clone();
-        if let Some(b) = basis.as_bspline() {
-            return Ok(PyBSplineCurve(
-                b.extract(first, last).map_err(python_error)?,
-            ));
-        }
-        let elementary = basis
-            .as_elementary()
-            .expect("every non-B-spline curve is elementary");
-        Ok(PyBSplineCurve(
-            TrimmedCurve::new(elementary, first, last)
-                .map_err(python_error)?
-                .to_bspline()
-                .map_err(python_error)?,
-        ))
+        Ok(PyBSplineCurve(self.0.to_bspline().map_err(python_error)?))
     }
 
     /// The point at the start of the range.
