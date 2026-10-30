@@ -46,6 +46,10 @@ harness = false
 name = "bspline_curve_operations"
 harness = false
 
+[[bench]]
+name = "swept_projection"
+harness = false
+
 [workspace]
 members = [".", "geomcore-py"]
 
