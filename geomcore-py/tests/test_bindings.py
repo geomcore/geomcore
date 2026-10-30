@@ -1143,7 +1143,8 @@ def test_eval_derivative_rejects_unsupported_orders():
         [Point(0.0, 0.0, 0.0), Point(1.0, 1.0, 0.0), Point(2.0, 0.0, 0.0)], 2
     )
     with pytest.raises(ValueError):
-        curve.eval_derivative(0.5, 3)
+        curve.eval_derivative(0.5, 0)
+    assert curve.eval_derivative(0.5, 3).components() == (0.0, 0.0, 0.0)
     cylinder = Cylinder(Point.origin(), Vector.unit_z(), 1.0)
     for du, dv in [(0, 0), (3, 0), (2, 1)]:
         with pytest.raises(ValueError):
@@ -1203,7 +1204,7 @@ def test_trimmed_curve_rejects_bad_ranges():
     with pytest.raises(ValueError):
         TrimmedCurve(curve, -0.5, 0.5)
     with pytest.raises(ValueError):
-        TrimmedCurve(curve, 0.0, 1.0).eval_derivative(0.5, 3)
+        TrimmedCurve(curve, 0.0, 1.0).eval_derivative(0.5, 0)
 
 
 def test_intersect_searches_only_the_range():
@@ -1789,6 +1790,7 @@ def test_bspline_curve_2d_projection_and_discretization():
     on = curve.eval_point(0.3)
     assert curve.contains(on)
     assert curve.parameter_of(on) == pytest.approx(0.3)
+    assert curve.parameter_of(on, Tolerance.default()) == pytest.approx(0.3)
     projection = curve.project_point(Point2D(2.0, 3.0))
     assert projection.point.x == pytest.approx(2.0)
     assert projection.distance == pytest.approx(3.0 - curve.eval_point(0.5).y)

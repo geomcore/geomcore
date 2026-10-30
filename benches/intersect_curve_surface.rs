@@ -15,8 +15,8 @@
 use criterion::{Criterion, Throughput, criterion_group, criterion_main};
 use std::hint::black_box;
 
-use geomcore::surfaces::BSplineSurface;
-use geomcore::{BSplineCurve, Circle, Cylinder, Intersect, Point, Tolerance, Vector};
+use geomcore::prelude::*;
+use geomcore::{BSplineCurve, BSplineSurface, Circle, Cylinder, Point, Tolerance, Vector};
 
 const CURVES: usize = 64;
 

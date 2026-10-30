@@ -18,6 +18,7 @@ use std::f64::consts::TAU;
 
 use crate::bspline::conic::{self, PlaneNet};
 use crate::curves::BSplineConversionError;
+use crate::surfaces::elementary_surface_dispatch;
 use crate::surfaces::{
     BSplineSurface, Cone, Cylinder, ElementarySurface, ParametricSurface, Plane, Sphere, Surface,
     Torus,
@@ -174,6 +175,7 @@ impl Plane {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{Plane, Point, Vector};
     ///
     /// let plane = Plane::new(Point::new(0.0, 0.0, 1.0), Vector::Z).unwrap();
@@ -241,6 +243,7 @@ impl Cylinder {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{BSplineConversionError, Cylinder, Point, Vector};
     /// use std::f64::consts::{FRAC_PI_2, TAU};
     ///
@@ -302,6 +305,7 @@ impl Cone {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{Cone, Point, Vector};
     /// use std::f64::consts::PI;
     ///
@@ -348,6 +352,7 @@ impl Sphere {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{Point, Sphere};
     /// use std::f64::consts::{FRAC_PI_2, TAU};
     ///
@@ -388,6 +393,7 @@ impl Sphere {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{Point, Sphere};
     /// use std::f64::consts::{FRAC_PI_2, PI};
     ///
@@ -437,6 +443,7 @@ impl Torus {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{Point, Torus, Vector};
     ///
     /// let torus = Torus::new(Point::ORIGIN, Vector::Z, 3.0, 1.0).unwrap();
@@ -470,6 +477,7 @@ impl Torus {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{Point, Torus, Vector};
     /// use std::f64::consts::{PI, TAU};
     ///
@@ -505,8 +513,7 @@ impl ElementarySurface {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::surfaces::ElementarySurface;
-    /// use geomcore::{BSplineConversionError, Plane, Point, Sphere, Vector};
+    /// use geomcore::{BSplineConversionError, ElementarySurface, Plane, Point, Sphere, Vector};
     ///
     /// let sphere = Sphere::new(Point::ORIGIN, 1.0).unwrap();
     /// assert!(ElementarySurface::Sphere(sphere).to_bspline().unwrap().is_u_periodic());
@@ -538,8 +545,7 @@ impl ElementarySurface {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::surfaces::ElementarySurface;
-    /// use geomcore::{Cylinder, Point, Vector};
+    /// use geomcore::{Cylinder, ElementarySurface, Point, Vector};
     ///
     /// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
     /// let surface = ElementarySurface::Cylinder(cylinder);
@@ -553,19 +559,15 @@ impl ElementarySurface {
         u_range: (f64, f64),
         v_range: (f64, f64),
     ) -> Result<BSplineSurface, BSplineConversionError> {
-        match self {
-            ElementarySurface::Plane(s) => s.to_bspline_patch(u_range, v_range),
-            ElementarySurface::Cylinder(s) => s.to_bspline_patch(u_range, v_range),
-            ElementarySurface::Cone(s) => s.to_bspline_patch(u_range, v_range),
-            ElementarySurface::Sphere(s) => s.to_bspline_patch(u_range, v_range),
-            ElementarySurface::Torus(s) => s.to_bspline_patch(u_range, v_range),
-        }
+        elementary_surface_dispatch!(self, s => s.to_bspline_patch(u_range, v_range))
     }
 }
 
 impl Surface {
-    /// The whole surface as a B-spline: a B-spline is cloned, an elementary
-    /// surface converted by [`ElementarySurface::to_bspline`].
+    /// The whole surface as a B-spline: a B-spline is cloned, a Bézier
+    /// surface converted by
+    /// [`BezierSurface::to_bspline`](crate::BezierSurface::to_bspline), an
+    /// elementary surface by [`ElementarySurface::to_bspline`].
     ///
     /// # Errors
     ///
@@ -589,6 +591,7 @@ impl Surface {
     pub fn to_bspline(&self) -> Result<BSplineSurface, BSplineConversionError> {
         match self {
             Surface::BSpline(s) => Ok(s.clone()),
+            Surface::Bezier(s) => Ok(s.to_bspline()),
             _ => self
                 .as_elementary()
                 .expect("every other surface is elementary")

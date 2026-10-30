@@ -1,5 +1,7 @@
 use super::*;
-use crate::intersect::{curve_curve_extrema, search_curve_curve, search_curve_surface};
+use crate::intersect::curve_curve_extrema;
+use crate::intersect::numeric::curve_curve::search_curve_curve;
+use crate::intersect::numeric::curve_surface::search_curve_surface;
 use crate::{Circle, Circle2D, Ellipse, Sphere};
 use std::f64::consts::{FRAC_PI_2, PI, TAU};
 
@@ -157,7 +159,7 @@ fn test_non_finite_query_is_undefined() {
 #[test]
 fn test_extrema_keep_ends_and_sort_by_distance() {
     let s = TrimmedCurve::segment(Point::ORIGIN, Point::new(4.0, 0.0, 0.0)).unwrap();
-    let ext = PointExtrema::extrema(&s, Point::new(1.0, 1.0, 0.0), TOL);
+    let ext = s.extrema(Point::new(1.0, 1.0, 0.0), TOL);
     let params: Vec<f64> = ext.iter().map(|e| e.parameter).collect();
     assert_eq!(params, vec![1.0, 0.0, 4.0]);
 }
@@ -165,7 +167,7 @@ fn test_extrema_keep_ends_and_sort_by_distance() {
 #[test]
 fn test_curve3d_basis_projects_like_the_concrete_basis() {
     let arc = TrimmedCurve::new(circle(), 1.0, 2.0).unwrap();
-    let erased = arc.into_curve3d();
+    let erased = arc.into_curve();
     let q = Point::new(-2.0, -0.5, 1.0);
     assert_eq!(arc.project_point(q, TOL), erased.project_point(q, TOL));
 }
@@ -289,10 +291,10 @@ fn kinked_2d() -> crate::BSplineCurve2D {
 fn test_trimmed_2d_closed_over_a_full_period_or_when_the_ends_meet() {
     let circle = Circle2D::new(Point2D::ORIGIN, 1.0).unwrap();
     let whole = TrimmedCurve2D::new(circle, 0.0, TAU).unwrap();
-    assert!(ParametricCurve2D::is_closed(&whole, TOL));
+    assert!(whole.is_closed(TOL));
     assert!(whole.is_closed(TOL));
     let arc = TrimmedCurve2D::new(circle, 0.0, 1.0).unwrap();
-    assert!(!ParametricCurve2D::is_closed(&arc, TOL));
+    assert!(!arc.is_closed(TOL));
     // A periodic trim never reports a period itself, yet its ends meet.
     assert!(!whole.is_periodic());
 
@@ -304,51 +306,36 @@ fn test_trimmed_2d_closed_over_a_full_period_or_when_the_ends_meet() {
 fn test_trimmed_2d_bspline_continuity_is_seen_from_inside_the_range() {
     let curve = kinked_2d();
     let piece = TrimmedCurve2D::new(&curve, 0.25, 0.75).unwrap();
-    assert_eq!(
-        ParametricCurve2D::continuity(&piece, 0.5, TOL),
-        Continuity::Order(0)
-    );
-    assert_eq!(
-        ParametricCurve2D::continuity(&piece, 0.25, TOL),
-        Continuity::Smooth
-    );
-    assert_eq!(
-        ParametricCurve2D::min_continuity(&piece),
-        Continuity::Order(0)
-    );
+    assert_eq!(piece.continuity(0.5, TOL), Continuity::Order(0));
+    assert_eq!(piece.continuity(0.25, TOL), Continuity::Smooth);
+    assert_eq!(piece.min_continuity(), Continuity::Order(0));
     let half = TrimmedCurve2D::new(&curve, 0.0, 0.5).unwrap();
-    assert_eq!(
-        ParametricCurve2D::continuity(&half, 0.5, TOL),
-        Continuity::Smooth
-    );
-    assert_eq!(ParametricCurve2D::min_continuity(&half), Continuity::Smooth);
+    assert_eq!(half.continuity(0.5, TOL), Continuity::Smooth);
+    assert_eq!(half.min_continuity(), Continuity::Smooth);
 }
 
 #[test]
 fn test_trimmed_2d_elementary_basis_is_smooth() {
     let circle = Circle2D::new(Point2D::ORIGIN, 1.0).unwrap();
     let arc = TrimmedCurve2D::new(circle, 0.0, 1.0).unwrap();
-    assert_eq!(ParametricCurve2D::min_continuity(&arc), Continuity::Smooth);
+    assert_eq!(arc.min_continuity(), Continuity::Smooth);
 }
 
 #[test]
 fn test_trimmed_2d_exposes_its_bspline_basis_only() {
     let curve = kinked_2d();
     let piece = TrimmedCurve2D::new(&curve, 0.25, 0.75).unwrap();
-    assert_eq!(ParametricCurve2D::as_bspline(&piece), Some(&curve));
+    assert_eq!(piece.as_bspline(), Some(&curve));
     let circle = Circle2D::new(Point2D::ORIGIN, 1.0).unwrap();
     let arc = TrimmedCurve2D::new(circle, 0.0, 1.0).unwrap();
-    assert_eq!(ParametricCurve2D::as_bspline(&arc), None);
+    assert_eq!(arc.as_bspline(), None);
 }
 
 #[test]
 fn test_trimmed_2d_arc_has_the_signed_curvature_of_its_basis() {
     let circle = Circle2D::new(Point2D::ORIGIN, 2.0).unwrap();
     let arc = TrimmedCurve2D::new(circle, 0.0, 1.0).unwrap();
-    assert_eq!(
-        ParametricCurve2D::curvature(&arc, 0.5, TOL),
-        circle.curvature(0.5, TOL)
-    );
+    assert_eq!(arc.curvature(0.5, TOL), circle.curvature(0.5, TOL));
     assert_eq!(arc.curvature(0.0, TOL), Some(0.5));
     assert_eq!(
         arc.curvature_center(0.5, TOL)

@@ -1,19 +1,21 @@
-//! Cost of the `IntersectExact` entry point.
+//! Cost of the intersection entry points.
 //!
 //! For a few representative pairs, times a batch of exact intersections
-//! three ways: the typed trait call, the untyped call on `ElementaryCurve`
-//! / `ElementarySurface`, and the untyped call on `Curve` / `Surface`.
-//! The untyped calls add a `match` and the conversion to the general
-//! result.
+//! four ways: the typed `intersect_exact`, and the routed `intersect` on
+//! the concrete types, on `ElementaryCurve` / `ElementarySurface`, and on
+//! `Curve` / `Surface`. The routed calls build the family result; the
+//! enum operands add a `match`.
 //!
 //! Informational only, like `eval_throughput`; not a correctness gate.
 
 use criterion::{Criterion, Throughput, criterion_group, criterion_main};
 use std::hint::black_box;
 
-use geomcore::curves::{Circle, Circle2D, Curve, ElementaryCurve, Ellipse, Line};
-use geomcore::surfaces::{Cone, Cylinder, ElementarySurface, Plane, Sphere, Surface, Torus};
-use geomcore::{Intersect, IntersectExact, Point, Point2D, Tolerance, Vector};
+use geomcore::prelude::*;
+use geomcore::{
+    Circle, Circle2D, Cone, Curve, Cylinder, ElementaryCurve, ElementarySurface, Ellipse, Line,
+    Plane, Point, Point2D, Sphere, Surface, Tolerance, Torus, Vector,
+};
 
 const BATCH: usize = 1024;
 
@@ -58,17 +60,24 @@ macro_rules! bench_pair {
                 }
             })
         });
+        group.bench_function("routed", |b| {
+            b.iter(|| {
+                for (x, y) in black_box(&pairs) {
+                    black_box(x.intersect(y, tol));
+                }
+            })
+        });
         group.bench_function("elementary", |b| {
             b.iter(|| {
                 for (x, y) in black_box(&elementary) {
-                    black_box(x.intersect_exact(y, tol));
+                    black_box(x.intersect(y, tol));
                 }
             })
         });
         group.bench_function("erased", |b| {
             b.iter(|| {
                 for (x, y) in black_box(&erased) {
-                    black_box(x.intersect_exact(y, tol));
+                    black_box(x.intersect(y, tol));
                 }
             })
         });

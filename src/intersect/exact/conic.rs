@@ -21,7 +21,7 @@
 //! planes cross: the hits of one conic on the other's plane, kept when
 //! they lie on the other conic.
 
-use crate::curves::ParametricCurve;
+use crate::curves::{ParametricCurve, PointExtrema};
 use crate::intersect::results::sort_by_known_parameter;
 use crate::intersect::{
     ConicConicIntersection, ConicSurfaceHit, ConicSurfaceIntersection, CurveCurveHit,
@@ -91,13 +91,9 @@ impl ConicShape {
 
 /// A conic: a curve with a frame (origin at the center, or at the apex for
 /// a parabola) and a [`ConicShape`] in it.
-pub(crate) trait Conic: ParametricCurve {
+pub(crate) trait Conic: PointExtrema {
     fn frame(&self) -> Frame;
     fn shape(&self) -> ConicShape;
-    /// Whether `point` is within tolerance of the curve.
-    fn contains(&self, point: Point, tol: Tolerance) -> bool;
-    /// The parameter of the curve point nearest `point`.
-    fn parameter_of(&self, point: Point) -> f64;
     /// The parameter to report for a hit found at `t`: in the curve's
     /// bounds, with the seam of a closed conic snapped to their start.
     #[inline]
@@ -110,14 +106,6 @@ impl Conic for Circle {
     #[inline]
     fn frame(&self) -> Frame {
         Circle::frame(self)
-    }
-    #[inline]
-    fn contains(&self, point: Point, tol: Tolerance) -> bool {
-        Circle::contains(self, point, tol)
-    }
-    #[inline]
-    fn parameter_of(&self, point: Point) -> f64 {
-        Circle::parameter_of(self, point)
     }
     #[inline]
     fn parameter_in_bounds(&self, t: f64, tol: Tolerance) -> f64 {
@@ -138,14 +126,6 @@ impl Conic for Ellipse {
         Ellipse::frame(self)
     }
     #[inline]
-    fn contains(&self, point: Point, tol: Tolerance) -> bool {
-        Ellipse::contains(self, point, tol)
-    }
-    #[inline]
-    fn parameter_of(&self, point: Point) -> f64 {
-        Ellipse::parameter_of(self, point)
-    }
-    #[inline]
     fn parameter_in_bounds(&self, t: f64, tol: Tolerance) -> f64 {
         Ellipse::parameter_in_bounds(self, t, tol)
     }
@@ -164,14 +144,6 @@ impl Conic for Parabola {
         Parabola::frame(self)
     }
     #[inline]
-    fn contains(&self, point: Point, tol: Tolerance) -> bool {
-        Parabola::contains(self, point, tol)
-    }
-    #[inline]
-    fn parameter_of(&self, point: Point) -> f64 {
-        Parabola::parameter_of(self, point)
-    }
-    #[inline]
     fn shape(&self) -> ConicShape {
         ConicShape::Parabola {
             focal: self.focal(),
@@ -183,14 +155,6 @@ impl Conic for Hyperbola {
     #[inline]
     fn frame(&self) -> Frame {
         Hyperbola::frame(self)
-    }
-    #[inline]
-    fn contains(&self, point: Point, tol: Tolerance) -> bool {
-        Hyperbola::contains(self, point, tol)
-    }
-    #[inline]
-    fn parameter_of(&self, point: Point) -> f64 {
-        Hyperbola::parameter_of(self, point)
     }
     #[inline]
     fn shape(&self) -> ConicShape {
@@ -504,7 +468,8 @@ fn conic_conic_hits<A: Conic, B: Conic>(
                     if h.multiplicity >= 2 {
                         // The tangency test needs the other conic's
                         // parameter, so it is kept.
-                        let second = other.parameter_in_bounds(other.parameter_of(h.point), tol);
+                        let second =
+                            other.parameter_in_bounds(other.parameter_of(h.point, tol), tol);
                         found.second_parameter = Some(second);
                         let along = other.eval_derivative(second, 1);
                         if along.dot(normal).abs() <= along_tolerance * along.magnitude() {

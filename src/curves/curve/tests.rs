@@ -24,6 +24,17 @@ fn hyperbola() -> Hyperbola {
     Hyperbola::new(Point::ORIGIN, Vector::Z, Vector::X, 2.0, 1.0).unwrap()
 }
 
+fn bezier() -> BezierCurve {
+    // Cubic arch from (0,0,0) to (3,0,0).
+    let poles = vec![
+        Point::ORIGIN,
+        Point::new(1.0, 2.0, 0.0),
+        Point::new(2.0, 2.0, 1.0),
+        Point::new(3.0, 0.0, 0.0),
+    ];
+    BezierCurve::new(3, poles).unwrap()
+}
+
 fn bspline() -> BSplineCurve {
     // Clamped degree-1 curve: straight segment (0,0,0) -> (2,0,0).
     let poles = vec![Point::ORIGIN, Point::new(2.0, 0.0, 0.0)];
@@ -224,16 +235,18 @@ fn test_curve3d_enum_closedness_dispatch_agrees_with_concrete() {
         parabola().into(),
         hyperbola().into(),
         bspline().into(),
+        bezier().into(),
         closed_triangle().into(),
     ];
     for curve in &curves {
         let expected = match curve {
-            Curve::Line(c) => ParametricCurve::is_closed(c, tol),
-            Curve::Circle(c) => ParametricCurve::is_closed(c, tol),
-            Curve::Ellipse(c) => ParametricCurve::is_closed(c, tol),
-            Curve::Parabola(c) => ParametricCurve::is_closed(c, tol),
-            Curve::Hyperbola(c) => ParametricCurve::is_closed(c, tol),
+            Curve::Line(c) => c.is_closed(tol),
+            Curve::Circle(c) => c.is_closed(tol),
+            Curve::Ellipse(c) => c.is_closed(tol),
+            Curve::Parabola(c) => c.is_closed(tol),
+            Curve::Hyperbola(c) => c.is_closed(tol),
             Curve::BSpline(c) => c.is_closed(tol),
+            Curve::Bezier(c) => c.is_closed(tol),
         };
         assert_eq!(curve.is_closed(tol), expected);
     }
@@ -263,16 +276,18 @@ fn test_curve3d_enum_continuity_dispatch_agrees_with_concrete() {
         parabola().into(),
         hyperbola().into(),
         bspline().into(),
+        bezier().into(),
         kinked().into(),
     ];
     for curve in &curves {
         let expected = match curve {
-            Curve::Line(c) => ParametricCurve::continuity(c, 0.5, tol),
-            Curve::Circle(c) => ParametricCurve::continuity(c, 0.5, tol),
-            Curve::Ellipse(c) => ParametricCurve::continuity(c, 0.5, tol),
-            Curve::Parabola(c) => ParametricCurve::continuity(c, 0.5, tol),
-            Curve::Hyperbola(c) => ParametricCurve::continuity(c, 0.5, tol),
+            Curve::Line(c) => c.continuity(0.5, tol),
+            Curve::Circle(c) => c.continuity(0.5, tol),
+            Curve::Ellipse(c) => c.continuity(0.5, tol),
+            Curve::Parabola(c) => c.continuity(0.5, tol),
+            Curve::Hyperbola(c) => c.continuity(0.5, tol),
             Curve::BSpline(c) => c.continuity(0.5, tol),
+            Curve::Bezier(c) => c.continuity(0.5, tol),
         };
         assert_eq!(curve.continuity(0.5, tol), expected);
     }

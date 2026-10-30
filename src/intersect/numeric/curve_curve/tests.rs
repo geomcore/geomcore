@@ -412,11 +412,11 @@ fn finds_exact_hits<A: ParametricCurve>(
     window: (f64, f64),
     tol: Tolerance,
 ) -> Result<usize, String> {
-    let crate::ExactCurveCurveIntersection::Points(exact) =
-        exact_first.intersect_exact(second, tol)
-    else {
+    let exact = crate::Intersect::intersect(exact_first, second, tol);
+    let exact = exact.hits();
+    if exact.is_empty() {
         return Ok(0);
-    };
+    }
     let numeric = intersect_curve_curve(first, second, tol);
     let inside = |u: f64| u > window.0 + 1e-6 && u < window.1 - 1e-6;
     let transversal: Vec<_> = exact

@@ -52,7 +52,8 @@ allocating.
 === "Rust"
 
     ```rust
-    use geomcore::{DiscretizationCriteria, Discretize, ParametricCurve};
+    use geomcore::prelude::*;
+    use geomcore::DiscretizationCriteria;
 
     let criteria = DiscretizationCriteria::new(0.01).unwrap();
     let n = curve.point_count(criteria);

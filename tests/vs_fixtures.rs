@@ -8,12 +8,11 @@ use common::{
     Frame2DJson, FrameJson, assert_close, assert_point2, assert_point3, assert_vector2,
     assert_vector3, frame2, frame3, load, point2, point3, vector3,
 };
-use geomcore::curves::ParametricCurve2D;
-use geomcore::surfaces::{BSplineSurface, ParametricSurface};
+use geomcore::prelude::*;
 use geomcore::{
-    Axis, BSplineCurve, BSplineCurve2D, Circle, Cone, Curve2D, Cylinder, Ellipse, Ellipse2D,
-    Hyperbola, Hyperbola2D, Line, Parabola, Parabola2D, ParametrizeError, Plane, Sphere, Tolerance,
-    Torus, Transform,
+    Axis, BSplineCurve, BSplineCurve2D, BSplineSurface, Circle, Cone, Curve2D, Cylinder, Ellipse,
+    Ellipse2D, Hyperbola, Hyperbola2D, Line, Parabola, Parabola2D, ParametrizeError, Plane, Sphere,
+    Tolerance, Torus, Transform,
 };
 use serde::Deserialize;
 
@@ -356,7 +355,7 @@ fn lines_match_golden_fixture() {
         }
 
         for inversion in &case.parameter_of {
-            let u = line.parameter_of(point3(inversion.point));
+            let u = line.parameter_of(point3(inversion.point), Tolerance::DEFAULT);
             assert_close(u, inversion.u);
         }
     }
@@ -386,7 +385,7 @@ fn circles_match_golden_fixture() {
         }
 
         for inversion in &case.parameter_of {
-            let u = circle.parameter_of(point3(inversion.point));
+            let u = circle.parameter_of(point3(inversion.point), Tolerance::DEFAULT);
             assert_close(u, inversion.u);
         }
     }
@@ -436,7 +435,7 @@ fn ellipses_match_golden_fixture() {
         }
 
         for inversion in &case.parameter_of {
-            let u = ellipse.parameter_of(point3(inversion.point));
+            let u = ellipse.parameter_of(point3(inversion.point), Tolerance::DEFAULT);
             assert_close(u, inversion.u);
         }
     }
@@ -469,7 +468,7 @@ fn ellipses_2d_match_golden_fixture() {
         }
 
         for inversion in &case.parameter_of {
-            let u = ellipse.parameter_of(point2(inversion.point));
+            let u = ellipse.parameter_of(point2(inversion.point), Tolerance::DEFAULT);
             assert_close(u, inversion.u);
         }
 
@@ -506,7 +505,7 @@ fn parabolas_2d_match_golden_fixture() {
         }
 
         for inversion in &case.parameter_of {
-            let u = parabola.parameter_of(point2(inversion.point));
+            let u = parabola.parameter_of(point2(inversion.point), Tolerance::DEFAULT);
             assert_close(u, inversion.u);
         }
 
@@ -537,7 +536,7 @@ fn hyperbolas_2d_match_golden_fixture() {
         }
 
         for inversion in &case.parameter_of {
-            let u = hyperbola.parameter_of(point2(inversion.point));
+            let u = hyperbola.parameter_of(point2(inversion.point), Tolerance::DEFAULT);
             assert_close(u, inversion.u);
         }
 
@@ -574,7 +573,7 @@ fn parabolas_match_golden_fixture() {
         }
 
         for inversion in &case.parameter_of {
-            let u = parabola.parameter_of(point3(inversion.point));
+            let u = parabola.parameter_of(point3(inversion.point), Tolerance::DEFAULT);
             assert_close(u, inversion.u);
         }
     }
@@ -605,7 +604,7 @@ fn hyperbolas_match_golden_fixture() {
         }
 
         for inversion in &case.parameter_of {
-            let u = hyperbola.parameter_of(point3(inversion.point));
+            let u = hyperbola.parameter_of(point3(inversion.point), Tolerance::DEFAULT);
             assert_close(u, inversion.u);
         }
     }
@@ -909,7 +908,7 @@ fn planes_match_golden_fixture() {
             &case.parameters_of,
             |u, v| plane.eval_point(u, v),
             |u, v, du, dv| plane.eval_derivative(u, v, du, dv),
-            |p| plane.parameters_of(p),
+            |p| plane.parameters_of(p, Tolerance::DEFAULT),
         );
     }
 }
@@ -927,7 +926,7 @@ fn cylinders_match_golden_fixture() {
             &case.parameters_of,
             |u, v| cylinder.eval_point(u, v),
             |u, v, du, dv| cylinder.eval_derivative(u, v, du, dv),
-            |p| cylinder.parameters_of(p),
+            |p| cylinder.parameters_of(p, Tolerance::DEFAULT),
         );
     }
 }
@@ -945,7 +944,7 @@ fn cones_match_golden_fixture() {
             &case.parameters_of,
             |u, v| cone.eval_point(u, v),
             |u, v, du, dv| cone.eval_derivative(u, v, du, dv),
-            |p| cone.parameters_of(p),
+            |p| cone.parameters_of(p, Tolerance::DEFAULT),
         );
     }
 }
@@ -963,7 +962,7 @@ fn spheres_match_golden_fixture() {
             &case.parameters_of,
             |u, v| sphere.eval_point(u, v),
             |u, v, du, dv| sphere.eval_derivative(u, v, du, dv),
-            |p| sphere.parameters_of(p),
+            |p| sphere.parameters_of(p, Tolerance::DEFAULT),
         );
     }
 }
@@ -981,7 +980,7 @@ fn tori_match_golden_fixture() {
             &case.parameters_of,
             |u, v| torus.eval_point(u, v),
             |u, v, du, dv| torus.eval_derivative(u, v, du, dv),
-            |p| torus.parameters_of(p),
+            |p| torus.parameters_of(p, Tolerance::DEFAULT),
         );
     }
 }

@@ -1,0 +1,14 @@
+# The subdivision searches share one driver
+
+The three numeric searches on Bézier pieces (curve against curve, for hits and for distance minima; curve against surface; patch against patch, which seeds the marching intersection) run through one crate-private driver, `intersect/numeric/subdivision.rs`. The driver owns what the three had each written for themselves: the queue of pairs of pieces, the pools their control nets live in, the budget of halvings, the depth limit, the halving of a pair, and the record of the pairs left unsettled and why. Each search brings its tests on a pair, which settle it, leave it as never separating, or name the piece to halve and the direction, and the region it reports for a pair left unsettled. Every result is bit for bit what it was before the driver.
+
+Each search keeps its own budget of halvings per initial pair (256 for curve against curve and patch against patch, 1024 for curve against surface), because the budgets were set by measurement for each family, and its own policy once the budget is spent. The curve searches stop, and report the pair they would have halved and every pending pair as regions where hits may be missing, as ADR 0007 requires. The patch-pair search goes on visiting the pending pairs: those its tests settle are settled, and any it would halve is kept as a leaf, in the order the leaves were found, because the marching intersection seeds from every leaf in that order.
+
+The steps after the search (add the sampled hits when the search is incomplete, join the overlap runs, build the family result) stay written once per family, in `curve_curve.rs` and `curve_surface.rs`. Their names match, but each step calls a family-specific function, and the curve–curve sampled fallback is not the search it adds hits from (the routed extrema against the grid-seeded minima). A shared function would take four family callbacks around a five-line body.
+
+## Considered options
+
+- **One loop per search** (before this decision): rejected. It kept three copies of the same bookkeeping, so a change to the queue, the budget or the record of unsettled pairs had to be made three times, and the copies had already drifted in where they tested the depth limit.
+- **One exhaustion policy for every search**: rejected. Visiting the pending pairs in the curve searches would change their hits and regions whenever the budget runs out; stopping the patch-pair search would drop leaves the marching intersection needs.
+- **A driver taking two closures (test, region) instead of a trait**: rejected. The patch-pair search pushes its settled and its unsettled leaves into one ordered list, which two closures cannot both borrow mutably.
+- **One post-search function for curve–curve and curve–surface**: rejected, as above: it would be as wide as what it hides.

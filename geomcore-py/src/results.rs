@@ -7,7 +7,7 @@
 //! `second`, and the projections hold the object they project onto, as
 //! `target`: the exact objects passed, shared rather than copied.
 
-use crate::arguments::curve3d_to_py;
+use crate::arguments::{curve_classes, surface_classes};
 use crate::values::{PyPoint, PyPoint2D, PyVector, coordinates, coordinates_2d, float_repr};
 use geomcore::{
     Completeness, CurveCurveExtrema, CurveCurveExtremum, CurveCurveHit, CurveCurveHit2D,
@@ -17,6 +17,7 @@ use geomcore::{
     SurfaceCurvatures, SurfaceProjection, SurfaceSurfaceIntersection, SurfaceSurfaceRegion,
 };
 use pyo3::prelude::*;
+use pyo3::type_object::PyTypeInfo;
 use pyo3::types::PyList;
 
 // ---------------------------------------------------------------------------
@@ -662,7 +663,7 @@ impl PyIntersectionCurve {
     /// closed form, a `BSplineCurve` traced by marching otherwise.
     #[getter]
     fn curve(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        curve3d_to_py(py, self.0.curve.clone())
+        curve_classes::to_py(py, self.0.curve.clone())
     }
 
     /// Whether the surfaces graze along the curve. Always `False` for a
@@ -685,23 +686,77 @@ impl PyIntersectionCurve {
 // Intersection results
 // ---------------------------------------------------------------------------
 
-/// The common text of a result's `repr`.
-fn result_repr(
-    py: Python<'_>,
-    class: &str,
-    first: &Py<PyAny>,
-    second: &Py<PyAny>,
-    method: IntersectionMethod,
-    completeness: &PyCompleteness,
-    content: &str,
-) -> PyResult<String> {
-    Ok(format!(
-        "{class}(first={}, second={}, method={}, completeness={}, {content})",
-        first.bind(py).get_type().name()?,
-        second.bind(py).get_type().name()?,
-        PyIntersectionMethod::from(method).repr(),
-        completeness.status.repr(),
-    ))
+/// The `#[pymethods]` block of an intersection result class: its own
+/// members, then those every result shares (`method`, `completeness`,
+/// the operands, the emptiness tests, `==` and the `repr` frame around
+/// the class's `repr_content`). `$completeness` names the
+/// `PyCompleteness` constructor of the pair family.
+macro_rules! intersection_result {
+    ($class:ident, $completeness:ident; $($own:tt)*) => {
+        #[pymethods]
+        impl $class {
+            $($own)*
+
+            /// `EXACT` for a closed form, `NUMERIC` for a search or marching.
+            #[getter]
+            fn method(&self) -> PyIntersectionMethod {
+                self.result.method().into()
+            }
+
+            /// Whether the result is proved to hold everything: exact
+            /// results are complete, numeric ones report the search status.
+            #[getter]
+            fn completeness(&self) -> PyCompleteness {
+                PyCompleteness::$completeness(self.result.completeness())
+            }
+
+            /// The first operand.
+            #[getter]
+            fn first(&self, py: Python<'_>) -> Py<PyAny> {
+                self.first.clone_ref(py)
+            }
+
+            /// The second operand.
+            #[getter]
+            fn second(&self, py: Python<'_>) -> Py<PyAny> {
+                self.second.clone_ref(py)
+            }
+
+            /// Whether the result is proved to hold everything.
+            fn is_complete(&self) -> bool {
+                self.result.is_complete()
+            }
+
+            /// Whether the result holds nothing. An empty result that is not
+            /// complete means "found nothing, may have missed something".
+            fn is_empty(&self) -> bool {
+                self.result.is_empty()
+            }
+
+            /// False when empty, so `if a.intersect(b):` reads as "they meet".
+            fn __bool__(&self) -> bool {
+                !self.result.is_empty()
+            }
+
+            fn __eq__(&self, py: Python<'_>, other: PyRef<'_, Self>) -> PyResult<bool> {
+                Ok(self.result == other.result
+                    && same_operand(py, &self.first, &other.first)?
+                    && same_operand(py, &self.second, &other.second)?)
+            }
+
+            fn __repr__(&self, py: Python<'_>) -> PyResult<String> {
+                Ok(format!(
+                    "{}(first={}, second={}, method={}, completeness={}, {})",
+                    <Self as PyTypeInfo>::NAME,
+                    self.first.bind(py).get_type().name()?,
+                    self.second.bind(py).get_type().name()?,
+                    PyIntersectionMethod::from(self.result.method()).repr(),
+                    self.completeness().status.repr(),
+                    self.repr_content(py)?,
+                ))
+            }
+        }
+    };
 }
 
 /// The intersection of two 3D curves: the points where they meet and the
@@ -715,8 +770,20 @@ pub(crate) struct PyCurveCurveIntersection {
     pub(crate) second: Py<PyAny>,
 }
 
-#[pymethods]
 impl PyCurveCurveIntersection {
+    fn repr_content(&self, _py: Python<'_>) -> PyResult<String> {
+        Ok(format!(
+            "hits={}, overlaps={}",
+            list_repr(self.result.hits(), |h| PyCurveCurveHit(*h).__repr__()),
+            list_repr(self.result.overlaps(), |o| PyCurveCurveOverlap(*o)
+                .__repr__()),
+        ))
+    }
+}
+
+intersection_result! {
+    PyCurveCurveIntersection, curve_curve;
+
     /// The points where the curves meet, by first-curve parameter when
     /// every hit has one.
     #[getter]
@@ -735,70 +802,6 @@ impl PyCurveCurveIntersection {
                 .map(|o| PyCurveCurveOverlap(*o)),
         )
     }
-
-    /// `EXACT` or `NUMERIC`.
-    #[getter]
-    fn method(&self) -> PyIntersectionMethod {
-        self.result.method().into()
-    }
-
-    /// Whether the result is proved to hold every hit.
-    #[getter]
-    fn completeness(&self) -> PyCompleteness {
-        PyCompleteness::curve_curve(self.result.completeness())
-    }
-
-    /// The first operand.
-    #[getter]
-    fn first(&self, py: Python<'_>) -> Py<PyAny> {
-        self.first.clone_ref(py)
-    }
-
-    /// The second operand.
-    #[getter]
-    fn second(&self, py: Python<'_>) -> Py<PyAny> {
-        self.second.clone_ref(py)
-    }
-
-    /// Whether the result is proved to hold every hit.
-    fn is_complete(&self) -> bool {
-        self.result.is_complete()
-    }
-
-    /// Whether there is no hit and no overlap. An empty result that is not
-    /// complete means "found nothing, may have missed something".
-    fn is_empty(&self) -> bool {
-        self.result.is_empty()
-    }
-
-    /// False when empty, so `if a.intersect(b):` reads as "they meet".
-    fn __bool__(&self) -> bool {
-        !self.result.is_empty()
-    }
-
-    fn __eq__(&self, py: Python<'_>, other: PyRef<'_, Self>) -> PyResult<bool> {
-        Ok(self.result == other.result
-            && same_operand(py, &self.first, &other.first)?
-            && same_operand(py, &self.second, &other.second)?)
-    }
-
-    fn __repr__(&self, py: Python<'_>) -> PyResult<String> {
-        let content = format!(
-            "hits={}, overlaps={}",
-            list_repr(self.result.hits(), |h| PyCurveCurveHit(*h).__repr__()),
-            list_repr(self.result.overlaps(), |o| PyCurveCurveOverlap(*o)
-                .__repr__()),
-        );
-        result_repr(
-            py,
-            "CurveCurveIntersection",
-            &self.first,
-            &self.second,
-            self.result.method(),
-            &self.completeness(),
-            &content,
-        )
-    }
 }
 
 /// The intersection of two 2D curves: exact and complete for every pair of
@@ -812,8 +815,20 @@ pub(crate) struct PyCurveCurveIntersection2D {
     pub(crate) second: Py<PyAny>,
 }
 
-#[pymethods]
 impl PyCurveCurveIntersection2D {
+    fn repr_content(&self, _py: Python<'_>) -> PyResult<String> {
+        Ok(format!(
+            "hits={}, overlaps={}",
+            list_repr(self.result.hits(), |h| PyCurveCurveHit2D(*h).__repr__()),
+            list_repr(self.result.overlaps(), |o| PyCurveCurveOverlap(*o)
+                .__repr__()),
+        ))
+    }
+}
+
+intersection_result! {
+    PyCurveCurveIntersection2D, curve_curve;
+
     /// The points where the curves meet, by first-curve parameter when
     /// every hit has one.
     #[getter]
@@ -830,71 +845,6 @@ impl PyCurveCurveIntersection2D {
                 .overlaps()
                 .iter()
                 .map(|o| PyCurveCurveOverlap(*o)),
-        )
-    }
-
-    /// How the result was found: exact for line and conic pairs, numeric
-    /// when a B-spline is involved.
-    #[getter]
-    fn method(&self) -> PyIntersectionMethod {
-        self.result.method().into()
-    }
-
-    /// Whether the search proved that nothing was missed. Exact results
-    /// are complete; numeric ones report the search status.
-    #[getter]
-    fn completeness(&self) -> PyCompleteness {
-        PyCompleteness::curve_curve(self.result.completeness())
-    }
-
-    /// The first operand.
-    #[getter]
-    fn first(&self, py: Python<'_>) -> Py<PyAny> {
-        self.first.clone_ref(py)
-    }
-
-    /// The second operand.
-    #[getter]
-    fn second(&self, py: Python<'_>) -> Py<PyAny> {
-        self.second.clone_ref(py)
-    }
-
-    /// Whether the result is proved to hold every hit.
-    fn is_complete(&self) -> bool {
-        self.result.is_complete()
-    }
-
-    /// Whether there is no hit and no overlap.
-    fn is_empty(&self) -> bool {
-        self.result.is_empty()
-    }
-
-    /// False when empty, so `if a.intersect(b):` reads as "they meet".
-    fn __bool__(&self) -> bool {
-        !self.result.is_empty()
-    }
-
-    fn __eq__(&self, py: Python<'_>, other: PyRef<'_, Self>) -> PyResult<bool> {
-        Ok(self.result == other.result
-            && same_operand(py, &self.first, &other.first)?
-            && same_operand(py, &self.second, &other.second)?)
-    }
-
-    fn __repr__(&self, py: Python<'_>) -> PyResult<String> {
-        let content = format!(
-            "hits={}, overlaps={}",
-            list_repr(self.result.hits(), |h| PyCurveCurveHit2D(*h).__repr__()),
-            list_repr(self.result.overlaps(), |o| PyCurveCurveOverlap(*o)
-                .__repr__()),
-        );
-        result_repr(
-            py,
-            "CurveCurveIntersection2D",
-            &self.first,
-            &self.second,
-            self.result.method(),
-            &self.completeness(),
-            &content,
         )
     }
 }
@@ -915,12 +865,21 @@ pub(crate) struct PyCurveSurfaceIntersection {
 impl PyCurveSurfaceIntersection {
     /// Whether the call was made on the surface.
     fn surface_first(&self, py: Python<'_>) -> bool {
-        crate::arguments::surface_of(self.first.bind(py)).is_some()
+        surface_classes::of(self.first.bind(py)).is_some()
+    }
+
+    fn repr_content(&self, _py: Python<'_>) -> PyResult<String> {
+        Ok(format!(
+            "hits={}, overlaps={}",
+            list_repr(self.result.hits(), |h| PyCurveSurfaceHit(*h).__repr__()),
+            list_repr(self.result.overlaps(), |o| range_repr(*o)),
+        ))
     }
 }
 
-#[pymethods]
-impl PyCurveSurfaceIntersection {
+intersection_result! {
+    PyCurveSurfaceIntersection, curve_surface;
+
     /// The points where the curve meets the surface, by curve parameter
     /// when every hit has one.
     #[getter]
@@ -934,30 +893,6 @@ impl PyCurveSurfaceIntersection {
     #[getter]
     fn overlaps(&self) -> Vec<(f64, f64)> {
         self.result.overlaps().to_vec()
-    }
-
-    /// `EXACT` or `NUMERIC`.
-    #[getter]
-    fn method(&self) -> PyIntersectionMethod {
-        self.result.method().into()
-    }
-
-    /// Whether the result is proved to hold every hit.
-    #[getter]
-    fn completeness(&self) -> PyCompleteness {
-        PyCompleteness::curve_surface(self.result.completeness())
-    }
-
-    /// The first operand.
-    #[getter]
-    fn first(&self, py: Python<'_>) -> Py<PyAny> {
-        self.first.clone_ref(py)
-    }
-
-    /// The second operand.
-    #[getter]
-    fn second(&self, py: Python<'_>) -> Py<PyAny> {
-        self.second.clone_ref(py)
     }
 
     /// The curve operand, whichever of `first` and `second` it is.
@@ -979,45 +914,6 @@ impl PyCurveSurfaceIntersection {
             self.second.clone_ref(py)
         }
     }
-
-    /// Whether the result is proved to hold every hit.
-    fn is_complete(&self) -> bool {
-        self.result.is_complete()
-    }
-
-    /// Whether there is no hit and no overlap. An empty result that is not
-    /// complete means "found nothing, may have missed something".
-    fn is_empty(&self) -> bool {
-        self.result.is_empty()
-    }
-
-    /// False when empty, so `if a.intersect(b):` reads as "they meet".
-    fn __bool__(&self) -> bool {
-        !self.result.is_empty()
-    }
-
-    fn __eq__(&self, py: Python<'_>, other: PyRef<'_, Self>) -> PyResult<bool> {
-        Ok(self.result == other.result
-            && same_operand(py, &self.first, &other.first)?
-            && same_operand(py, &self.second, &other.second)?)
-    }
-
-    fn __repr__(&self, py: Python<'_>) -> PyResult<String> {
-        let content = format!(
-            "hits={}, overlaps={}",
-            list_repr(self.result.hits(), |h| PyCurveSurfaceHit(*h).__repr__()),
-            list_repr(self.result.overlaps(), |o| range_repr(*o)),
-        );
-        result_repr(
-            py,
-            "CurveSurfaceIntersection",
-            &self.first,
-            &self.second,
-            self.result.method(),
-            &self.completeness(),
-            &content,
-        )
-    }
 }
 
 /// The intersection of two surfaces: the curves where they meet, the
@@ -1031,8 +927,24 @@ pub(crate) struct PySurfaceSurfaceIntersection {
     pub(crate) second: Py<PyAny>,
 }
 
-#[pymethods]
 impl PySurfaceSurfaceIntersection {
+    fn repr_content(&self, py: Python<'_>) -> PyResult<String> {
+        let mut curves = Vec::with_capacity(self.result.curves().len());
+        for piece in self.result.curves() {
+            curves.push(PyIntersectionCurve(piece.clone()).__repr__(py)?);
+        }
+        Ok(format!(
+            "curves=[{}], contact_points={}, coincident={}",
+            curves.join(", "),
+            list_repr(self.result.contact_points(), |p| point3_repr(*p)),
+            bool_repr(self.result.is_coincident()),
+        ))
+    }
+}
+
+intersection_result! {
+    PySurfaceSurfaceIntersection, surface_surface;
+
     /// The curves where the surfaces meet.
     #[getter]
     fn curves<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyList>> {
@@ -1055,77 +967,9 @@ impl PySurfaceSurfaceIntersection {
             .collect()
     }
 
-    /// `EXACT` or `NUMERIC`.
-    #[getter]
-    fn method(&self) -> PyIntersectionMethod {
-        self.result.method().into()
-    }
-
-    /// Whether the result is proved to hold every curve. Marching reports
-    /// `SAMPLED`.
-    #[getter]
-    fn completeness(&self) -> PyCompleteness {
-        PyCompleteness::surface_surface(self.result.completeness())
-    }
-
-    /// The first operand.
-    #[getter]
-    fn first(&self, py: Python<'_>) -> Py<PyAny> {
-        self.first.clone_ref(py)
-    }
-
-    /// The second operand.
-    #[getter]
-    fn second(&self, py: Python<'_>) -> Py<PyAny> {
-        self.second.clone_ref(py)
-    }
-
     /// Whether the surfaces are the same surface.
     fn is_coincident(&self) -> bool {
         self.result.is_coincident()
-    }
-
-    /// Whether the result is proved to hold every curve.
-    fn is_complete(&self) -> bool {
-        self.result.is_complete()
-    }
-
-    /// Whether there is no curve, no contact point and no coincidence.
-    fn is_empty(&self) -> bool {
-        self.result.is_empty()
-    }
-
-    /// False when empty, so `if a.intersect(b):` reads as "they meet".
-    fn __bool__(&self) -> bool {
-        !self.result.is_empty()
-    }
-
-    fn __eq__(&self, py: Python<'_>, other: PyRef<'_, Self>) -> PyResult<bool> {
-        Ok(self.result == other.result
-            && same_operand(py, &self.first, &other.first)?
-            && same_operand(py, &self.second, &other.second)?)
-    }
-
-    fn __repr__(&self, py: Python<'_>) -> PyResult<String> {
-        let mut curves = Vec::with_capacity(self.result.curves().len());
-        for piece in self.result.curves() {
-            curves.push(PyIntersectionCurve(piece.clone()).__repr__(py)?);
-        }
-        let content = format!(
-            "curves=[{}], contact_points={}, coincident={}",
-            curves.join(", "),
-            list_repr(self.result.contact_points(), |p| point3_repr(*p)),
-            bool_repr(self.result.is_coincident()),
-        );
-        result_repr(
-            py,
-            "SurfaceSurfaceIntersection",
-            &self.first,
-            &self.second,
-            self.result.method(),
-            &self.completeness(),
-            &content,
-        )
     }
 }
 

@@ -77,7 +77,7 @@ fn test_eval_derivative_order_too_high_panics() {
 #[test]
 fn test_parameters_of_round_trip() {
     let s = Sphere::new(Point::ORIGIN, 3.0).unwrap();
-    let (u, v) = s.parameters_of(Point::new(3.0, 0.0, 0.0));
+    let (u, v) = s.parameters_of(Point::new(3.0, 0.0, 0.0), Tolerance::DEFAULT);
     assert_eq!((u, v), (0.0, 0.0));
 }
 

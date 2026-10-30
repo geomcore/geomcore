@@ -1,3 +1,5 @@
+use crate::curves::ParametricCurve;
+use crate::curves::PointExtrema;
 use crate::{
     Axis, Frame, Parabola, ParabolaConstructionError, Point, Tolerance, Transform, Vector,
 };
@@ -127,7 +129,7 @@ fn test_parabola3d_parameter_of_round_trip() {
     let p = Parabola::new(Point::ORIGIN, Vector::Z, Vector::X, 1.7).unwrap();
     for u in [0.3, 2.0, -5.5] {
         let pt = p.eval_point(u);
-        assert!((p.parameter_of(pt) - u).abs() < 1e-9);
+        assert!((p.parameter_of(pt, Tolerance::DEFAULT) - u).abs() < 1e-9);
     }
 }
 
@@ -135,7 +137,7 @@ fn test_parabola3d_parameter_of_round_trip() {
 fn test_parabola3d_parameter_of_is_unbounded() {
     let p = Parabola::new(Point::ORIGIN, Vector::Z, Vector::X, 1.7).unwrap();
     let pt = p.eval_point(100.0);
-    assert!((p.parameter_of(pt) - 100.0).abs() < 1e-6);
+    assert!((p.parameter_of(pt, Tolerance::DEFAULT) - 100.0).abs() < 1e-6);
 }
 
 // ---- ParabolaConstructionError ----

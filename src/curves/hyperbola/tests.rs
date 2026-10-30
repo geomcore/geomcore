@@ -1,3 +1,5 @@
+use crate::curves::ParametricCurve;
+use crate::curves::PointExtrema;
 use crate::{
     Axis, Frame, Hyperbola, HyperbolaConstructionError, Point, Tolerance, Transform, Vector,
 };
@@ -146,7 +148,7 @@ fn test_hyperbola3d_parameter_of_round_trip() {
     let h = Hyperbola::new(Point::ORIGIN, Vector::Z, Vector::X, 2.0, 1.0).unwrap();
     for u in [0.3, 2.0, -1.5] {
         let p = h.eval_point(u);
-        assert!((h.parameter_of(p) - u).abs() < 1e-9);
+        assert!((h.parameter_of(p, Tolerance::DEFAULT) - u).abs() < 1e-9);
     }
 }
 
@@ -154,7 +156,7 @@ fn test_hyperbola3d_parameter_of_round_trip() {
 fn test_hyperbola3d_parameter_of_is_unbounded() {
     let h = Hyperbola::new(Point::ORIGIN, Vector::Z, Vector::X, 2.0, 1.0).unwrap();
     let p = h.eval_point(5.0);
-    assert!((h.parameter_of(p) - 5.0).abs() < 1e-6);
+    assert!((h.parameter_of(p, Tolerance::DEFAULT) - 5.0).abs() < 1e-6);
 }
 
 // ---- HyperbolaConstructionError ----

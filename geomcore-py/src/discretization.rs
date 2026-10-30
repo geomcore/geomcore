@@ -4,9 +4,8 @@
 
 use crate::errors::python_error;
 use crate::values::*;
-use geomcore::{
-    Discretization, Discretization2D, DiscretizationCriteria, Discretize, Discretize2D,
-};
+use geomcore::prelude::*;
+use geomcore::{Discretization, Discretization2D, DiscretizationCriteria};
 use pyo3::prelude::*;
 
 /// A discretized 3D curve: points on the curve in order of parameter,

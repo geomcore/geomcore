@@ -440,12 +440,16 @@ def test_curve_sided_evaluation_wraps_a_periodic_seam():
         assert close(curve.eval_d2_sided(seam, Side.BELOW)[2], last_span)
 
 
-def test_curve_sided_evaluation_rejects_unsupported_orders():
+def test_curve_sided_evaluation_rejects_order_zero():
     curve = kinked_polyline()
     with pytest.raises(ValueError, match="order must be >= 1"):
         curve.eval_derivative_sided(1.0, 0, Side.BELOW)
-    with pytest.raises(ValueError, match="at most 2"):
-        curve.eval_derivative_sided(1.0, 3, Side.BELOW)
+
+
+def test_curve_derivatives_above_the_degree_are_zero():
+    curve = kinked_polyline()
+    assert coordinates(curve.eval_derivative_sided(1.0, 3, Side.BELOW)) == (0.0, 0.0, 0.0)
+    assert coordinates(curve.eval_derivative(0.5, 3)) == (0.0, 0.0, 0.0)
 
 
 def test_sided_evaluation_at_nan_gives_nan():

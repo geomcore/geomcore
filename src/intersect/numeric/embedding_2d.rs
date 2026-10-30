@@ -3,9 +3,10 @@
 //! elementary basis, so the search proves completeness where it would in
 //! space.
 
+use crate::curves::curve_2d_dispatch;
 use crate::curves::{
-    BSplineCurve2D, Circle2D, Curve2D, ElementaryCurve, Ellipse2D, Hyperbola2D, Line2D, Parabola2D,
-    ParametricCurve, ParametricCurve2D, TrimmedCurve2D,
+    BSplineCurve2D, BezierCurve2D, Circle2D, Curve2D, ElementaryCurve, Ellipse2D, Hyperbola2D,
+    Line2D, Parabola2D, ParametricCurve, ParametricCurve2D, TrimmedCurve2D,
 };
 use crate::intersect::numeric::curve_curve::intersect_curve_curve;
 use crate::intersect::results::CurveCurveIntersection2D;
@@ -126,16 +127,15 @@ impl Embed for BSplineCurve2D {
     }
 }
 
+impl Embed for BezierCurve2D {
+    fn embedded_basis(&self) -> EmbeddedBasis {
+        self.bspline().embedded_basis()
+    }
+}
+
 impl Embed for Curve2D {
     fn embedded_basis(&self) -> EmbeddedBasis {
-        match self {
-            Curve2D::Line(c) => c.embedded_basis(),
-            Curve2D::Circle(c) => c.embedded_basis(),
-            Curve2D::Ellipse(c) => c.embedded_basis(),
-            Curve2D::Parabola(c) => c.embedded_basis(),
-            Curve2D::Hyperbola(c) => c.embedded_basis(),
-            Curve2D::BSpline(c) => c.embedded_basis(),
-        }
+        curve_2d_dispatch!(self, c => c.embedded_basis())
     }
 }
 

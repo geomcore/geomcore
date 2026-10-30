@@ -19,6 +19,7 @@ bilinear patch over the unit square:
 === "Rust"
 
     ```rust
+    use geomcore::prelude::*;
     use geomcore::{BSplineSurface, Point};
 
     let poles = vec![

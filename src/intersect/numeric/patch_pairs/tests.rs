@@ -1,8 +1,11 @@
 use super::*;
 use crate::Point;
 use crate::curves::BSplineCurve;
+use crate::curves::ParametricCurve;
+use crate::curves::PointExtrema;
 use crate::intersect::numeric::marching::grid_marching;
 use crate::intersect::numeric::marching::marched_curves;
+use crate::surfaces::ParametricSurface;
 
 const TOL: Tolerance = Tolerance::DEFAULT;
 

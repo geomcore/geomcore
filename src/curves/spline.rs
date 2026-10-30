@@ -8,8 +8,8 @@
 //! cannot drift apart.
 
 use crate::bspline::curve as math;
-use crate::bspline::curve::{PolePoint, SpanEnds};
-use crate::bspline::editing::{self, Deviation, Elevation, Insertion, Lanes};
+use crate::bspline::curve::SpanEnds;
+use crate::bspline::editing::{self, Elevation, Insertion, Lanes};
 use crate::curves::Side;
 use crate::curves::bezier::BezierConstructionError;
 use crate::curves::bspline::{
@@ -18,13 +18,14 @@ use crate::curves::bspline::{
 };
 use crate::math::boxtree::{BoxTree, Lazy};
 use crate::math::quadrature;
-use crate::projection::{CurveProjection, CurveProjection2D, snap_distance};
-use crate::{Continuity, Point, Point2D, Tolerance};
+use crate::projection::{CurveProjection, snap_distance};
+use crate::tier::TierPoint;
+use crate::{Continuity, Point, Tolerance};
 
 /// A B-spline curve with poles of type `P`: the knot vector, the poles,
 /// and one weight per pole if rational.
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) struct Spline<P: PolePoint> {
+pub(crate) struct Spline<P: TierPoint> {
     knots: math::KnotVector,
     poles: Vec<P>,
     /// One weight per pole if rational.
@@ -41,35 +42,7 @@ struct SpanTree {
     tree: BoxTree,
 }
 
-/// The closest point of a query point on a [`Spline`]: the tier's
-/// projection type before it is named.
-pub(crate) struct Foot<P> {
-    pub(crate) parameter: f64,
-    pub(crate) point: P,
-    pub(crate) distance: f64,
-}
-
-impl From<Foot<Point>> for CurveProjection {
-    fn from(foot: Foot<Point>) -> CurveProjection {
-        CurveProjection {
-            parameter: foot.parameter,
-            point: foot.point,
-            distance: foot.distance,
-        }
-    }
-}
-
-impl From<Foot<Point2D>> for CurveProjection2D {
-    fn from(foot: Foot<Point2D>) -> CurveProjection2D {
-        CurveProjection2D {
-            parameter: foot.parameter,
-            point: foot.point,
-            distance: foot.distance,
-        }
-    }
-}
-
-impl<P: PolePoint> Spline<P> {
+impl<P: TierPoint> Spline<P> {
     /// Validates the parts: the weights (one positive weight per pole),
     /// then the degree, knots and multiplicities against the pole count.
     pub(crate) fn new(
@@ -277,11 +250,7 @@ impl<P: PolePoint> Spline<P> {
         u: f64,
         times: u32,
         max_deviation: f64,
-    ) -> Result<(Spline<P>, u32), KnotRemovalError>
-    where
-        P: Deviation,
-        P::Homogeneous: Deviation,
-    {
+    ) -> Result<(Spline<P>, u32), KnotRemovalError> {
         let copies = [u; math::MAX_DEGREE + 1];
         let copies = &copies[..(times as usize).min(copies.len())];
         if copies.is_empty() {
@@ -296,11 +265,7 @@ impl<P: PolePoint> Spline<P> {
         &self,
         knots: &[f64],
         max_deviation: f64,
-    ) -> Result<(Spline<P>, usize), KnotRemovalError>
-    where
-        P: Deviation,
-        P::Homogeneous: Deviation,
-    {
+    ) -> Result<(Spline<P>, usize), KnotRemovalError> {
         editing::check_removal(&self.knots, knots, max_deviation)?;
         let removal = editing::remove_knots(
             &self.knots,
@@ -394,34 +359,28 @@ impl<P: PolePoint> Spline<P> {
         math::point(&self.knots, self.pole_view(), u)
     }
 
-    pub(crate) fn eval_points(&self, us: &[f64]) -> Vec<P> {
-        us.iter().map(|&u| self.eval_point(u)).collect()
-    }
-
     pub(crate) fn eval_derivative(&self, u: f64, order: u32) -> P::Vector {
         match order {
             0 => panic!("eval_derivative: order must be >= 1 (use eval_point for order 0)"),
             1 => math::derivatives::<1, P>(&self.knots, self.pole_view(), u)[1],
             2 => math::derivatives::<2, P>(&self.knots, self.pole_view(), u)[2],
-            _ => panic!(
-                "eval_derivative: order {order} is not supported (only first and second derivatives are supported)"
-            ),
+            _ => math::derivative_of_order(&self.knots, self.pole_view(), u, order as usize, None),
         }
     }
 
     pub(crate) fn eval_d1(&self, u: f64) -> (P, P::Vector) {
         let [c, d1, _] = math::derivatives::<1, P>(&self.knots, self.pole_view(), u);
-        (P::from_position(c), d1)
+        (P::ORIGIN + c, d1)
     }
 
     pub(crate) fn eval_d2(&self, u: f64) -> (P, P::Vector, P::Vector) {
         let [c, d1, d2] = math::derivatives::<2, P>(&self.knots, self.pole_view(), u);
-        (P::from_position(c), d1, d2)
+        (P::ORIGIN + c, d1, d2)
     }
 
     pub(crate) fn eval_d1_sided(&self, u: f64, side: Side) -> (P, P::Vector) {
         let [c, d1, _] = math::derivatives_sided::<1, P>(&self.knots, self.pole_view(), u, side);
-        (P::from_position(c), d1)
+        (P::ORIGIN + c, d1)
     }
 
     pub(crate) fn eval_derivative_sided(&self, u: f64, order: u32, side: Side) -> P::Vector {
@@ -429,15 +388,19 @@ impl<P: PolePoint> Spline<P> {
             0 => panic!("eval_derivative: order must be >= 1 (use eval_point for order 0)"),
             1 => math::derivatives_sided::<1, P>(&self.knots, self.pole_view(), u, side)[1],
             2 => math::derivatives_sided::<2, P>(&self.knots, self.pole_view(), u, side)[2],
-            _ => panic!(
-                "eval_derivative: order {order} is not supported (only first and second derivatives are supported)"
+            _ => math::derivative_of_order(
+                &self.knots,
+                self.pole_view(),
+                u,
+                order as usize,
+                Some(side),
             ),
         }
     }
 
     pub(crate) fn eval_d2_sided(&self, u: f64, side: Side) -> (P, P::Vector, P::Vector) {
         let [c, d1, d2] = math::derivatives_sided::<2, P>(&self.knots, self.pole_view(), u, side);
-        (P::from_position(c), d1, d2)
+        (P::ORIGIN + c, d1, d2)
     }
 
     /// The arc length, each knot span's speed integrated on its Bézier
@@ -459,14 +422,10 @@ impl<P: PolePoint> Spline<P> {
             .sum()
     }
 
-    pub(crate) fn contains(&self, point: P, tol: Tolerance) -> bool {
-        self.project_point(point, tol).distance <= tol.confusion
-    }
-
     /// Every local minimum of the distance to `point`, the global one
     /// included, closest first, feet within confusion of each other kept
     /// once. Empty for a non-finite point.
-    pub(crate) fn extrema(&self, point: P, tol: Tolerance) -> Vec<Foot<P>> {
+    pub(crate) fn extrema(&self, point: P, tol: Tolerance) -> Vec<CurveProjection<P>> {
         if !point.is_finite() {
             return Vec::new();
         }
@@ -488,13 +447,13 @@ impl<P: PolePoint> Spline<P> {
         } else if ends[n - 1].end_falling && ends[0].start_rising {
             params.push(first);
         }
-        let mut out: Vec<Foot<P>> = Vec::new();
+        let mut out: Vec<CurveProjection<P>> = Vec::new();
         for t in params {
             let p = self.eval_point(t);
             if out.iter().any(|q| q.point.distance(p) <= tol.confusion) {
                 continue;
             }
-            out.push(Foot {
+            out.push(CurveProjection {
                 parameter: t,
                 point: p,
                 distance: snap_distance(p.distance(point), tol.confusion),
@@ -505,9 +464,9 @@ impl<P: PolePoint> Spline<P> {
     }
 
     /// The closest point to `point`, all NaN for a non-finite point.
-    pub(crate) fn project_point(&self, point: P, tol: Tolerance) -> Foot<P> {
+    pub(crate) fn project_point(&self, point: P, tol: Tolerance) -> CurveProjection<P> {
         if !point.is_finite() {
-            return Foot {
+            return CurveProjection {
                 parameter: f64::NAN,
                 point: P::point_of([f64::NAN; 4]),
                 distance: f64::NAN,
@@ -542,7 +501,7 @@ impl<P: PolePoint> Spline<P> {
             best.1
         };
         let foot = self.eval_point(t);
-        Foot {
+        CurveProjection {
             parameter: t,
             point: foot,
             distance: snap_distance(foot.distance(point), tol.confusion),

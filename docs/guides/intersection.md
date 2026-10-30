@@ -1,8 +1,8 @@
 # Intersection
 
 One entry point, two methods. `a.intersect(&b, tol)` works for any two
-curves or surfaces, B-splines and trimmed curves included, in either
-order. It solves the pair exactly whenever a closed form exists, and
+curves or surfaces, B-splines, Bézier types and trimmed curves
+included, in either order. It solves the pair exactly whenever a closed form exists, and
 runs a numeric search (curve–curve, curve–surface, marching
 surface–surface) otherwise. The result says which method ran and
 whether every hit was found, so a switch from nanoseconds to
@@ -18,7 +18,7 @@ One result per family: `CurveCurveIntersection` (and
 - the **hits**: the point, the multiplicity (1 for a crossing, 2+ for a
   tangency) and the parameters on both operands. A parameter is stored
   when the solver computed it on its way to the point, and is `None`
-  otherwise; `operand.parameter_of(hit.point)` (or `parameters_of` on a
+  otherwise; `operand.parameter_of(hit.point, tol)` (or `parameters_of` on a
   surface) recovers it in one call;
 - the **overlaps**, where a curve lies on the other shape: a parameter
   range on each curve plus `same_direction`, or the curve's ranges on a
@@ -50,7 +50,8 @@ and a tangency is decided by distance, not by root separation:
 === "Rust"
 
     ```rust
-    use geomcore::{Intersect, IntersectionMethod, Tolerance};
+    use geomcore::prelude::*;
+    use geomcore::{IntersectionMethod, Tolerance};
 
     let tol = Tolerance::DEFAULT;
     let result = plane.intersect(&sphere, tol);
@@ -60,8 +61,8 @@ and a tangency is decided by distance, not by root separation:
 
 A pair of concrete types calls its exact solver directly, with no
 run-time dispatch; only `Curve`, `Surface`, `ElementaryCurve` or
-`ElementarySurface` operands pay for a `match`. For hot loops over
-elementary shapes, `a.intersect_exact(&b, tol)` (the `IntersectExact`
+`ElementarySurface` operands pay for a `match`. For hot loops over a
+pair of concrete types, `a.intersect_exact(&b, tol)` (the `IntersectExact`
 trait) returns the pair's own enum, such as `PlaneSphereIntersection`,
 on the stack, recovers no parameter it does not need, and reports
 `NotAnalytic` where no closed form exists instead of searching.
@@ -73,8 +74,9 @@ coplanar (up to four hits) or in crossing planes (met on the shared
 line). The 2D pairs are exact too: any two of `Line2D`, `Circle2D`,
 `Ellipse2D`, `Parabola2D` and `Hyperbola2D`, whole or trimmed, solved
 by the coplanar solvers with the same tangency multiplicities and
-overlaps; only a pair holding a `BSplineCurve2D` runs the numeric
-search. A sphere cut by a coaxial cylinder, computed live below —
+overlaps; only a pair holding a `BSplineCurve2D` or a `BezierCurve2D`
+runs the numeric search. A Bézier curve or surface is searched as the
+B-spline it is. A sphere cut by a coaxial cylinder, computed live below —
 two exact rings in ~0.4 µs on a Linux x86-64 desktop, single thread:
 
 <iframe src="https://geomcore.github.io/geomcore-viewer/?scene=https://geomcore.github.io/geomcore/assets/scenes/intersect-exact.json" width="100%" height="480" style="border: 1px solid #333; border-radius: 8px;" allow="fullscreen" title="Sphere and cylinder with their two exact intersection rings"></iframe>
@@ -143,7 +145,7 @@ crossings closer together than the grid spacing are each found.
 === "Rust"
 
     ```rust
-    use geomcore::Intersect;
+    use geomcore::prelude::*;
 
     let result = spline.intersect(&surface, tol);
     for h in result.hits() {
@@ -190,7 +192,7 @@ smaller than the iso-curve spacing can be missed.
 === "Rust"
 
     ```rust
-    use geomcore::Intersect;
+    use geomcore::prelude::*;
 
     let result = a.intersect(&b, tol);
     let curves = result.curves();   // BSpline curves where marched

@@ -1,41 +1,9 @@
 from typing import ClassVar, List, Optional, Tuple, Union, final, overload
 
-from geomcore.curves import BSplineCurve
+from geomcore.curves import BSplineCurve, _Curve, _Curve2D, _WholeCurve
+from geomcore.surfaces import _Surface
 
 from . import curves, surfaces
-
-_WholeCurve = Union[
-    curves.Line,
-    curves.Circle,
-    curves.Ellipse,
-    curves.Parabola,
-    curves.Hyperbola,
-    curves.BSplineCurve,
-]
-_Curve = Union[_WholeCurve, curves.TrimmedCurve]
-_Curve2D = Union[
-    curves.Line2D,
-    curves.Circle2D,
-    curves.Ellipse2D,
-    curves.Parabola2D,
-    curves.Hyperbola2D,
-    curves.BSplineCurve2D,
-    curves.TrimmedCurve2D,
-]
-_Surface = Union[
-    surfaces.Plane,
-    surfaces.Cylinder,
-    surfaces.Cone,
-    surfaces.Sphere,
-    surfaces.Torus,
-    surfaces.BSplineSurface,
-]
-
-# What a projection can target: Bézier types are projected onto but not
-# intersected (they are not an operand of `intersect`).
-_ProjectedCurve = Union[_Curve, curves.BezierCurve]
-_ProjectedCurve2D = Union[_Curve2D, curves.BezierCurve2D]
-_ProjectedSurface = Union[_Surface, surfaces.BezierSurface]
 
 class GeomcoreError(ValueError):
     """Base class of every error raised by geomcore. Subclasses `ValueError`."""
@@ -582,7 +550,7 @@ class CurveProjection:
     @property
     def distance(self) -> float: ...
     @property
-    def target(self) -> _ProjectedCurve: ...
+    def target(self) -> _Curve: ...
     @property
     def query_point(self) -> Point: ...
 
@@ -596,7 +564,7 @@ class CurveProjection2D:
     @property
     def distance(self) -> float: ...
     @property
-    def target(self) -> _ProjectedCurve2D: ...
+    def target(self) -> _Curve2D: ...
     @property
     def query_point(self) -> Point2D: ...
 
@@ -612,7 +580,7 @@ class SurfaceProjection:
     @property
     def distance(self) -> float: ...
     @property
-    def target(self) -> _ProjectedSurface: ...
+    def target(self) -> _Surface: ...
     @property
     def query_point(self) -> Point: ...
 

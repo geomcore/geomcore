@@ -1,5 +1,5 @@
 use super::*;
-use crate::{Axis, Frame, PointParametrization};
+use crate::{Axis, Frame, PointParametrization, Vector};
 
 // ---- construction / accessors ----
 
@@ -151,11 +151,51 @@ fn test_eval_derivative_order0_panics() {
 }
 
 #[test]
-#[should_panic(expected = "only first and second derivatives are supported")]
-fn test_eval_derivative_order3_panics_with_clear_message() {
+fn test_eval_derivative_above_the_degree_is_zero() {
     let poles = vec![Point::ORIGIN, Point::new(2.0, 0.0, 0.0)];
     let curve = BSplineCurve::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
-    curve.eval_derivative(0.5, 3);
+    assert_eq!(curve.eval_derivative(0.5, 2), Vector::ZERO);
+    assert_eq!(curve.eval_derivative(0.5, 3), Vector::ZERO);
+}
+
+#[test]
+fn test_eval_derivative_of_a_cubic_is_its_constant_third_derivative() {
+    // x = u^3 on [0, 1]: Bézier poles 0, 0, 0, 1 along x.
+    let poles = vec![
+        Point::ORIGIN,
+        Point::ORIGIN,
+        Point::ORIGIN,
+        Point::new(1.0, 0.0, 0.0),
+    ];
+    let curve = BSplineCurve::new(3, poles, vec![0.0, 1.0], vec![4, 4], false).unwrap();
+    for u in [0.0, 0.3, 1.0] {
+        assert!((curve.eval_derivative(u, 3) - Vector::new(6.0, 0.0, 0.0)).magnitude() < 1e-12);
+        assert_eq!(curve.eval_derivative(u, 4), Vector::ZERO);
+    }
+}
+
+#[test]
+fn test_eval_derivative_of_a_rational_circle_matches_the_circle_at_every_order() {
+    // The rational quadratic circle has non-zero derivatives of every order;
+    // its parameter is not the angle, so compare against finite differences
+    // of the order below.
+    let circle = crate::Circle::new(Point::ORIGIN, Vector::Z, 2.0)
+        .unwrap()
+        .to_bspline();
+    let h = 1e-5;
+    for order in 2..=5u32 {
+        for u in [0.3, 1.1, 2.0] {
+            let below = circle.eval_derivative(u - h, order - 1);
+            let above = circle.eval_derivative(u + h, order - 1);
+            let difference = (above - below) * (1.0 / (2.0 * h));
+            let exact = circle.eval_derivative(u, order);
+            let scale = exact.magnitude().max(1.0);
+            assert!(
+                (exact - difference).magnitude() < 1e-4 * scale,
+                "order {order} at {u}: {exact:?} vs {difference:?}"
+            );
+        }
+    }
 }
 
 // ---- periodic seam + wrap ----
@@ -167,7 +207,7 @@ fn test_periodic_curve_is_closed() {
     let curve = periodic_ring_curve();
     assert!(curve.is_periodic());
     assert!(curve.is_closed(Tolerance::DEFAULT));
-    assert!(ParametricCurve::is_closed(&curve, Tolerance::DEFAULT));
+    assert!(curve.is_closed(Tolerance::DEFAULT));
 }
 
 #[test]

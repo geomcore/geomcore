@@ -1,3 +1,5 @@
+use crate::curves::ParametricCurve2D;
+use crate::curves::PointExtrema2D;
 use crate::{Axis2D, Line2D, LineConstructionError, Point2D, Tolerance, Vector2D};
 
 #[test]
@@ -80,7 +82,7 @@ fn test_line2d_parameter_of_round_trip() {
     let line = Line2D::new(Point2D::new(1.0, -2.0), Vector2D::new(3.0, 4.0)).unwrap();
     for u in [0.3, 2.0, 5.5] {
         let p = line.eval_point(u);
-        assert!((line.parameter_of(p) - u).abs() < 1e-9);
+        assert!((line.parameter_of(p, Tolerance::DEFAULT) - u).abs() < 1e-9);
     }
 }
 

@@ -150,11 +150,11 @@ map_error!(ConstructionError:
     geomcore::HyperbolaConstructionError,
     geomcore::LineConstructionError,
     geomcore::ParabolaConstructionError,
-    geomcore::surfaces::ConeConstructionError,
-    geomcore::surfaces::CylinderConstructionError,
-    geomcore::surfaces::PlaneConstructionError,
-    geomcore::surfaces::SphereConstructionError,
-    geomcore::surfaces::TorusConstructionError,
+    geomcore::ConeConstructionError,
+    geomcore::CylinderConstructionError,
+    geomcore::PlaneConstructionError,
+    geomcore::SphereConstructionError,
+    geomcore::TorusConstructionError,
 );
 map_error!(FrameConstructionError: geomcore::FrameConstructionError);
 map_error!(TrimmedCurveConstructionError: geomcore::TrimmedCurveConstructionError);
@@ -164,5 +164,5 @@ map_error!(DegreeElevationError: geomcore::DegreeElevationError);
 map_error!(BSplineSplitError: geomcore::BSplineSplitError);
 map_error!(BSplineConversionError: geomcore::BSplineConversionError);
 map_error!(ParametrizeError: geomcore::ParametrizeError);
-map_error!(SurfaceIsoError: geomcore::surfaces::SurfaceIsoError);
+map_error!(SurfaceIsoError: geomcore::SurfaceIsoError);
 map_error!(DiscretizationCriteriaError: geomcore::DiscretizationCriteriaError);

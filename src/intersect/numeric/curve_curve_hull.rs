@@ -1,19 +1,23 @@
-//! The results of the numeric curve–curve intersection and extrema
-//! ([`CurveCurveHits`], [`CurveCurveExtrema`]), and the intersection and
-//! distance minima of two B-spline curves by subdivision of their Bézier
-//! pieces (see [`bspline_curve_curve`] and [`bspline_minima`]).
+//! The hits of the numeric curve–curve intersection
+//! ([`CurveCurveHits`]), and the intersection and distance minima of two
+//! B-spline curves by subdivision of their Bézier pieces (see
+//! [`bspline_curve_curve`] and [`bspline_minima`]).
 
 use crate::bspline::curve::LARGE;
 use crate::bspline::surface::{Interval, derivative_bounds};
 use crate::curves::BSplineCurve;
+use crate::curves::ParametricCurve;
 use crate::intersect::numeric::bezier_pieces::{
-    CurvePieces, Pool, apart_along, bounding_box, box_size, cross, curves_meet_at_most_once, dot,
+    CurvePieces, apart_along, bounding_box, box_size, cross, curves_meet_at_most_once, dot,
     euclidean, extent, norm, sub, tangent_sign,
 };
 use crate::intersect::numeric::curve_surface_hull::Range;
-use crate::intersect::results::completeness::{Region, box_union, meet, of_unsettled, span};
+use crate::intersect::numeric::subdivision::{
+    Node, OnceExhausted, PairTests, Subdivision, Unsettled, Visit, interval,
+};
+use crate::intersect::results::completeness::box_union;
 use crate::intersect::results::sort_by_known_parameter;
-use crate::intersect::{Completeness, CurveCurveExtremum, CurveCurveHit};
+use crate::intersect::{Completeness, CurveCurveExtremum, CurveCurveHit, CurveCurveRegion};
 use crate::math::boxtree::{Aabb, BoxTree, boxes_apart};
 use crate::math::{newton_min_1d, newton_min_2d, solve_2x2};
 use crate::{Point, Tolerance};
@@ -105,217 +109,9 @@ impl<'a> IntoIterator for &'a CurveCurveHits {
     }
 }
 
-/// The local minima of the distance between two curves, closest first,
-/// and whether they are all of them (see
-/// [`curve_curve_extrema`](crate::curve_curve_extrema)).
-///
-/// It reads as the slice of its minima.
-///
-/// # Examples
-///
-/// ```
-/// use geomcore::{BSplineCurve, Point, Tolerance, curve_curve_extrema};
-/// // An arch peaking at (1, 1, 0), under a rail across it at height 1.
-/// let arch = vec![
-///     Point::new(0.0, 0.0, 0.0),
-///     Point::new(1.0, 2.0, 0.0),
-///     Point::new(2.0, 0.0, 0.0),
-/// ];
-/// let arch = BSplineCurve::new(2, arch, vec![0.0, 1.0], vec![3, 3], false).unwrap();
-/// let rail = vec![Point::new(1.0, 0.0, 1.0), Point::new(1.0, 2.0, 1.0)];
-/// let rail = BSplineCurve::new(1, rail, vec![0.0, 1.0], vec![2, 2], false).unwrap();
-/// let minima = curve_curve_extrema(&arch, &rail, Tolerance::DEFAULT);
-/// // Both are B-splines: the search proves there is no other minimum.
-/// assert!(minima.is_complete());
-/// assert_eq!(minima.len(), 1);
-/// assert!((minima[0].distance - 1.0).abs() < 1e-12);
-/// for minimum in &minima {
-///     assert!((minimum.first_parameter - 0.5).abs() < 1e-9);
-/// }
-/// ```
-#[derive(Debug, Clone, PartialEq)]
-pub struct CurveCurveExtrema {
-    minima: Vec<CurveCurveExtremum>,
-    completeness: Completeness<CurveCurveRegion>,
-}
-
-impl CurveCurveExtrema {
-    /// `minima`, put in order of distance, with their completeness.
-    pub(crate) fn new(
-        mut minima: Vec<CurveCurveExtremum>,
-        completeness: Completeness<CurveCurveRegion>,
-    ) -> Self {
-        minima.sort_by(|x, y| x.distance.total_cmp(&y.distance));
-        CurveCurveExtrema {
-            minima,
-            completeness,
-        }
-    }
-
-    /// Minima found from samples.
-    pub(crate) fn sampled(minima: Vec<CurveCurveExtremum>) -> Self {
-        Self::new(minima, Completeness::Sampled)
-    }
-
-    /// The minima, closest first.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{Line, Point, Tolerance, Vector, curve_curve_extrema};
-    /// let l1 = Line::new(Point::ORIGIN, Vector::X).unwrap();
-    /// let l2 = Line::new(Point::new(0.0, 0.0, 1.0), Vector::Y).unwrap();
-    /// let minima = curve_curve_extrema(&l1, &l2, Tolerance::DEFAULT);
-    /// assert_eq!(minima.minima()[0].distance, 1.0);
-    /// ```
-    pub fn minima(&self) -> &[CurveCurveExtremum] {
-        &self.minima
-    }
-
-    /// The minima, closest first, without the completeness.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{Line, Point, Tolerance, Vector, curve_curve_extrema};
-    /// let l1 = Line::new(Point::ORIGIN, Vector::X).unwrap();
-    /// let l2 = Line::new(Point::new(0.0, 0.0, 1.0), Vector::Y).unwrap();
-    /// let minima: Vec<_> = curve_curve_extrema(&l1, &l2, Tolerance::DEFAULT).into_minima();
-    /// assert_eq!(minima.len(), 1);
-    /// ```
-    pub fn into_minima(self) -> Vec<CurveCurveExtremum> {
-        self.minima
-    }
-
-    /// Whether the minima are all of them, and if not, why and where
-    /// minima may be missing.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{Completeness, Line, Point, Tolerance, Vector, curve_curve_extrema};
-    /// let l1 = Line::new(Point::ORIGIN, Vector::X).unwrap();
-    /// let l2 = Line::new(Point::new(0.0, 0.0, 1.0), Vector::Y).unwrap();
-    /// let minima = curve_curve_extrema(&l1, &l2, Tolerance::DEFAULT);
-    /// assert_eq!(minima.completeness(), &Completeness::Sampled);
-    /// ```
-    pub fn completeness(&self) -> &Completeness<CurveCurveRegion> {
-        &self.completeness
-    }
-
-    /// Whether the minima are all of them ([`Completeness::Complete`]).
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{Line, Point, Tolerance, Vector, curve_curve_extrema};
-    /// let l1 = Line::new(Point::ORIGIN, Vector::X).unwrap();
-    /// let l2 = Line::new(Point::new(0.0, 0.0, 1.0), Vector::Y).unwrap();
-    /// // Only a search with a B-spline on one side proves its minima complete.
-    /// assert!(!curve_curve_extrema(&l1, &l2, Tolerance::DEFAULT).is_complete());
-    /// ```
-    pub fn is_complete(&self) -> bool {
-        self.completeness.is_complete()
-    }
-}
-
-impl Deref for CurveCurveExtrema {
-    type Target = [CurveCurveExtremum];
-
-    fn deref(&self) -> &[CurveCurveExtremum] {
-        &self.minima
-    }
-}
-
-impl IntoIterator for CurveCurveExtrema {
-    type Item = CurveCurveExtremum;
-    type IntoIter = std::vec::IntoIter<CurveCurveExtremum>;
-
-    fn into_iter(self) -> std::vec::IntoIter<CurveCurveExtremum> {
-        self.minima.into_iter()
-    }
-}
-
-impl<'a> IntoIterator for &'a CurveCurveExtrema {
-    type Item = &'a CurveCurveExtremum;
-    type IntoIter = std::slice::Iter<'a, CurveCurveExtremum>;
-
-    fn into_iter(self) -> std::slice::Iter<'a, CurveCurveExtremum> {
-        self.minima.iter()
-    }
-}
-
-/// Where an incomplete curve–curve intersection may have missed hits, or
-/// incomplete curve–curve extrema minima: a parameter interval on each
-/// curve, with a box in space holding both curves over their intervals.
-/// A missed hit or minimum has its first parameter in `first_range`, its
-/// second in `second_range`, and its points in the box.
-///
-/// # Examples
-///
-/// ```
-/// use geomcore::{BSplineCurve, Completeness, Intersect, Point, Tolerance};
-/// // A parabola touching the segment at (2, 0, 0), at s = 0.5.
-/// let poles = vec![
-///     Point::new(0.0, 1.0, 0.0),
-///     Point::new(2.0, -1.0, 0.0),
-///     Point::new(4.0, 1.0, 0.0),
-/// ];
-/// let parabola = BSplineCurve::new(2, poles, vec![0.0, 1.0], vec![3, 3], false).unwrap();
-/// let ends = vec![Point::new(0.0, 0.0, 0.0), Point::new(4.0, 0.0, 0.0)];
-/// let segment = BSplineCurve::new(1, ends, vec![0.0, 1.0], vec![2, 2], false).unwrap();
-/// let result = parabola.intersect(&segment, Tolerance::DEFAULT);
-/// let Completeness::Incomplete { regions, .. } = result.completeness() else {
-///     panic!("a tangent contact never separates");
-/// };
-/// assert_eq!(regions.len(), 1);
-/// let (s0, s1) = regions[0].first_range;
-/// assert!(s0 <= 0.5 && 0.5 <= s1 && s1 - s0 < 1e-2);
-/// assert!(regions[0].min_corner.x <= 2.0 && 2.0 <= regions[0].max_corner.x);
-/// // The sampled search, run as well, finds the contact.
-/// assert_eq!(result.hits().len(), 1);
-/// ```
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct CurveCurveRegion {
-    /// The first curve's parameter interval.
-    pub first_range: (f64, f64),
-    /// The second curve's parameter interval.
-    pub second_range: (f64, f64),
-    /// The corner of the box with the smallest coordinates.
-    pub min_corner: Point,
-    /// The corner of the box with the largest coordinates.
-    pub max_corner: Point,
-}
-
-impl Region for CurveCurveRegion {
-    fn touches(&self, other: &CurveCurveRegion) -> bool {
-        meet(self.first_range, other.first_range) && meet(self.second_range, other.second_range)
-    }
-
-    fn union(&self, other: &CurveCurveRegion) -> CurveCurveRegion {
-        let (min_corner, max_corner) = box_union(
-            (self.min_corner, self.max_corner),
-            (other.min_corner, other.max_corner),
-        );
-        CurveCurveRegion {
-            first_range: span(self.first_range, other.first_range),
-            second_range: span(self.second_range, other.second_range),
-            min_corner,
-            max_corner,
-        }
-    }
-
-    fn start(&self) -> f64 {
-        self.first_range.0
-    }
-}
-
 /// Halvings allowed per initial pair of pieces, pooled over all of them,
 /// before a search gives up.
 const SPLITS_PER_PAIR: usize = 256;
-/// Halvings from a pair of pieces down to one subpiece pair, beyond which
-/// the pair counts as never separating.
-const MAX_DEPTH: u32 = 64;
 /// Gauss-Newton steps from the centre of a subpiece pair.
 const NEWTON_STEPS: usize = 32;
 
@@ -343,10 +139,10 @@ const NEWTON_STEPS: usize = 32;
 /// A tangency or an overlap never separates into such pairs. A pair is
 /// left as never separating once both its pieces lie within
 /// `tol.confusion` of one line (see [`along_one_line`]), or after
-/// [`MAX_DEPTH`] halvings; the search goes on with the other pairs. If
-/// the budget of halvings runs out first, the pairs still pending are
-/// left unsettled too. Either way, the result is incomplete, with the
-/// unsettled pairs as its regions.
+/// [`MAX_DEPTH`](super::subdivision::MAX_DEPTH) halvings; the search goes on with
+/// the other pairs. If the budget of halvings runs out first, the pairs
+/// still pending are left unsettled too. Either way, the result is
+/// incomplete, with the unsettled pairs as its regions.
 pub(crate) fn bspline_curve_curve(
     a: &BSplineCurve,
     ra: Range,
@@ -371,10 +167,9 @@ fn search_meetings(
         CurvePieces::new(a, (ra.lo, ra.hi)),
         CurvePieces::new(b, (rb.lo, rb.hi)),
     );
-    let mut pairs = Pairs::new(
-        [pieces_a.width, pieces_b.width],
-        pieces_a.len() + pieces_b.len(),
-        splits_per_pair,
+    let mut pairs = Subdivision::new(
+        [pieces_a.width, pieces_b.width].map(|w| (w, 1, 4)),
+        room(pieces_a.len() + pieces_b.len()),
     );
     let mut points = Vec::new();
     let boxes_b: Vec<Aabb> = (0..pieces_b.len())
@@ -389,21 +184,45 @@ fn search_meetings(
         tree.overlapping(&bounding_box(&points), tol.confusion, |j| {
             pairs.push(
                 [pieces_a.piece(i), pieces_b.piece(j)],
-                [pieces_a.ranges[i], pieces_b.ranges[j]],
+                [interval(pieces_a.ranges[i]), interval(pieces_b.ranges[j])],
             );
         });
     }
-    let gap = tol.confusion;
-    let mut found = Vec::new();
-    let unsettled = pairs.search(|pairs, node| {
-        let [pa, pb] = &pairs.points;
+    let mut meetings = Meetings {
+        curves: [(a, ra), (b, rb)],
+        tol,
+        found: Vec::new(),
+    };
+    let unsettled = pairs.search(&mut meetings, splits_per_pair);
+    let mut found = meetings.found;
+    found.sort_by(|p, q| p.distance.total_cmp(&q.distance));
+    (found, unsettled.completeness())
+}
+
+/// The tests of [`bspline_curve_curve`] on a pair of pieces of its
+/// `curves` over their ranges, and the meetings `found`.
+struct Meetings<'a> {
+    curves: [(&'a BSplineCurve, Range); 2],
+    tol: Tolerance,
+    found: Vec<CurveCurveExtremum>,
+}
+
+impl PairTests for Meetings<'_> {
+    type Region = CurveCurveRegion;
+    const ONCE_EXHAUSTED: OnceExhausted = OnceExhausted::Stop;
+
+    fn visit(&mut self, pairs: &Subdivision, node: &Node) -> Visit {
+        let (pa, pb) = (pairs.points(0), pairs.points(1));
+        let gap = self.tol.confusion;
         if boxes_apart(&bounding_box(pa), &bounding_box(pb), gap) || separated(pa, pb, gap) {
             return Visit::Settled;
         }
+        let [(a, ra), (b, rb)] = self.curves;
         if curves_meet_at_most_once(pa, pb)
-            && let Some((hit, settles)) = meeting(a, ra, b, rb, pa, node.ranges, tol)
+            && let Some((hit, settles)) =
+                meeting(a, ra, b, rb, pa, [node.range(0), node.range(1)], self.tol)
         {
-            found.push(hit);
+            self.found.push(hit);
             if settles {
                 return Visit::Settled;
             }
@@ -411,11 +230,13 @@ fn search_meetings(
         match along_one_line(pa, pb, gap) {
             Some(axis) if apart_along(axis, pa, pb, gap) => Visit::Settled,
             Some(_) => Visit::Unseparated,
-            None => Visit::Split,
+            None => split_larger(pairs),
         }
-    });
-    found.sort_by(|p, q| p.distance.total_cmp(&q.distance));
-    (found, unsettled.completeness())
+    }
+
+    fn region(&mut self, pairs: &Subdivision, node: &Node) -> CurveCurveRegion {
+        region(pairs, node)
+    }
 }
 
 /// The meeting of the subpieces over `ranges` of a pair that meets at
@@ -560,8 +381,8 @@ fn closest_pair(a: &BSplineCurve, b: &BSplineCurve, mut x: [f64; 2]) -> Option<[
 /// Valleys of equal distance (overlaps, concentric arcs) and tangencies
 /// never become convex. A pair whose pieces lie within `tol.confusion`
 /// of one line (a contact, see [`along_one_line`]) is left as never
-/// separating, as is one after [`MAX_DEPTH`] halvings; a valley at a
-/// distance usually exhausts the budget first.
+/// separating, as is one after [`MAX_DEPTH`](super::subdivision::MAX_DEPTH)
+/// halvings; a valley at a distance usually exhausts the budget first.
 pub(crate) fn bspline_minima(
     a: &BSplineCurve,
     ra: Range,
@@ -588,76 +409,25 @@ fn search_minima(
     ];
     let ends = |r: Range| if r.periodic { vec![] } else { vec![r.lo, r.hi] };
     let (ends_a, ends_b) = (ends(ra), ends(rb));
-    let mut seeds: Vec<[f64; 2]> = ends_a
+    let seeds: Vec<[f64; 2]> = ends_a
         .iter()
         .flat_map(|&s| ends_b.iter().map(move |&t| [s, t]))
         .collect();
-    let mut pairs = Pairs::new(
-        [pieces[0].width, pieces[1].width],
-        pieces[0].len() * pieces[1].len(),
-        splits_per_pair,
+    let mut pairs = Subdivision::new(
+        [pieces[0].width, pieces[1].width].map(|w| (w, 1, 4)),
+        room(pieces[0].len() * pieces[1].len()),
     );
     for i in 0..pieces[0].len() {
         for j in 0..pieces[1].len() {
             pairs.push(
                 [pieces[0].piece(i), pieces[1].piece(j)],
-                [pieces[0].ranges[i], pieces[1].ranges[j]],
+                [interval(pieces[0].ranges[i]), interval(pieces[1].ranges[j])],
             );
         }
     }
-    let mut unsettled = pairs.search(|pairs, node| {
-        let [pa, pb] = &pairs.points;
-        if tangent_sign(pa, pb).is_some() || tangent_sign(pb, pa).is_some() {
-            return Visit::Settled;
-        }
-        let (va, da) = curve_bounds(pairs.net(0, node), pa);
-        let (vb, db) = curve_bounds(pairs.net(1, node), pb);
-        let [mut h11, mut h12, mut h22] = [Interval::ZERO; 3];
-        for c in 0..3 {
-            let r = va[c].sub(vb[c]);
-            h11 = h11.add(da[0][c].square()).add(r.mul(da[1][c]));
-            h22 = h22.add(db[0][c].square()).sub(r.mul(db[1][c]));
-            h12 = h12.add(da[0][c].mul(db[0][c]));
-        }
-        let off = h12.square();
-        if h11.hi < 0.0 || h22.hi < 0.0 || h11.mul(h22).hi < off.lo {
-            return Visit::Settled;
-        }
-        if !(h11.lo > 0.0 && h22.lo > 0.0 && h11.lo * h22.lo > off.hi) {
-            return match along_one_line(pa, pb, tol.confusion) {
-                Some(_) => Visit::Unseparated,
-                None => Visit::Split,
-            };
-        }
-        let (net_a, net_b) = (pairs.net(0, node), pairs.net(1, node));
-        let local = |u: f64, v: f64| {
-            let [pa, a1, a2] = bezier_d2(net_a, u);
-            let [pb, b1, b2] = bezier_d2(net_b, v);
-            let r = sub(pa, pb);
-            let cross = -dot(a1, b1);
-            (
-                (
-                    0.5 * dot(r, r),
-                    [dot(r, a1), -dot(r, b1)],
-                    [
-                        [dot(a1, a1) + dot(r, a2), cross],
-                        [cross, dot(b1, b1) - dot(r, b2)],
-                    ],
-                ),
-                [norm(a1), norm(b1)],
-            )
-        };
-        let unit = Some((0.0, 1.0));
-        let x = newton_min_2d(|u, v| local(u, v).0, [0.5; 2], [unit; 2], 1e-14, 100);
-        let ((_, g, _), speed) = local(x[0], x[1]);
-        let stationary =
-            (0..2).all(|i| (0.0 < x[i] && x[i] < 1.0) || g[i].abs() <= tol.confusion * speed[i]);
-        if stationary {
-            let [(s0, s1), (t0, t1)] = node.ranges;
-            seeds.push([s0 + x[0] * (s1 - s0), t0 + x[1] * (t1 - t0)]);
-        }
-        Visit::Settled
-    });
+    let mut minima = Minima { tol, seeds };
+    let mut unsettled = pairs.search(&mut minima, splits_per_pair);
+    let mut seeds = minima.seeds;
     // The point at an end, and the direction in which the other curve's
     // point must lie for the distance to rise into the range there.
     let end = |curve: &BSplineCurve, u: f64, r: Range| {
@@ -698,6 +468,77 @@ fn search_minima(
     (seeds, unsettled.completeness())
 }
 
+/// The tests of [`bspline_minima`] on a pair of pieces of the two curves,
+/// and the `seeds` found.
+struct Minima {
+    tol: Tolerance,
+    seeds: Vec<[f64; 2]>,
+}
+
+impl PairTests for Minima {
+    type Region = CurveCurveRegion;
+    const ONCE_EXHAUSTED: OnceExhausted = OnceExhausted::Stop;
+
+    fn visit(&mut self, pairs: &Subdivision, node: &Node) -> Visit {
+        let (pa, pb) = (pairs.points(0), pairs.points(1));
+        if tangent_sign(pa, pb).is_some() || tangent_sign(pb, pa).is_some() {
+            return Visit::Settled;
+        }
+        let (net_a, net_b) = (pairs.net(0, node), pairs.net(1, node));
+        let (va, da) = curve_bounds(net_a, pa);
+        let (vb, db) = curve_bounds(net_b, pb);
+        let [mut h11, mut h12, mut h22] = [Interval::ZERO; 3];
+        for c in 0..3 {
+            let r = va[c].sub(vb[c]);
+            h11 = h11.add(da[0][c].square()).add(r.mul(da[1][c]));
+            h22 = h22.add(db[0][c].square()).sub(r.mul(db[1][c]));
+            h12 = h12.add(da[0][c].mul(db[0][c]));
+        }
+        let off = h12.square();
+        if h11.hi < 0.0 || h22.hi < 0.0 || h11.mul(h22).hi < off.lo {
+            return Visit::Settled;
+        }
+        if !(h11.lo > 0.0 && h22.lo > 0.0 && h11.lo * h22.lo > off.hi) {
+            return match along_one_line(pa, pb, self.tol.confusion) {
+                Some(_) => Visit::Unseparated,
+                None => split_larger(pairs),
+            };
+        }
+        let local = |u: f64, v: f64| {
+            let [pa, a1, a2] = bezier_d2(net_a, u);
+            let [pb, b1, b2] = bezier_d2(net_b, v);
+            let r = sub(pa, pb);
+            let cross = -dot(a1, b1);
+            (
+                (
+                    0.5 * dot(r, r),
+                    [dot(r, a1), -dot(r, b1)],
+                    [
+                        [dot(a1, a1) + dot(r, a2), cross],
+                        [cross, dot(b1, b1) - dot(r, b2)],
+                    ],
+                ),
+                [norm(a1), norm(b1)],
+            )
+        };
+        let unit = Some((0.0, 1.0));
+        let x = newton_min_2d(|u, v| local(u, v).0, [0.5; 2], [unit; 2], 1e-14, 100);
+        let ((_, g, _), speed) = local(x[0], x[1]);
+        let stationary = (0..2)
+            .all(|i| (0.0 < x[i] && x[i] < 1.0) || g[i].abs() <= self.tol.confusion * speed[i]);
+        if stationary {
+            let ((s0, s1), (t0, t1)) = (node.range(0), node.range(1));
+            self.seeds
+                .push([s0 + x[0] * (s1 - s0), t0 + x[1] * (t1 - t0)]);
+        }
+        Visit::Settled
+    }
+
+    fn region(&mut self, pairs: &Subdivision, node: &Node) -> CurveCurveRegion {
+        region(pairs, node)
+    }
+}
+
 /// The parameters of a curve, cut into `pieces`, at the stationary points
 /// of the distance from `point` with a positive definite second
 /// derivative (the minima inside the pieces), found as in
@@ -710,20 +551,49 @@ fn minima_from_point(
     pieces: &CurvePieces,
     tol: Tolerance,
     splits_per_pair: usize,
-) -> (Vec<f64>, Unsettled) {
-    let reach = dot(point, hold) + tol.confusion * norm(hold);
-    let mut pairs = Pairs::new([1, pieces.width], pieces.len(), splits_per_pair);
+) -> (Vec<f64>, Unsettled<CurveCurveRegion>) {
+    let mut pairs = Subdivision::new([(1, 1, 4), (pieces.width, 1, 4)], room(pieces.len()));
     let fixed = [point[0], point[1], point[2], 1.0];
     for j in 0..pieces.len() {
-        pairs.push([&fixed, pieces.piece(j)], [(0.0, 0.0), pieces.ranges[j]]);
+        pairs.push(
+            [&fixed, pieces.piece(j)],
+            [[0.0; 4], interval(pieces.ranges[j])],
+        );
     }
-    let mut found = Vec::new();
-    let unsettled = pairs.search(|pairs, node| {
-        let [fixed, pc] = &pairs.points;
-        if extent(pc, hold).0 > reach || tangent_sign(pc, fixed).is_some() {
+    let mut minima = MinimaFromPoint {
+        point,
+        hold,
+        reach: dot(point, hold) + tol.confusion * norm(hold),
+        tol,
+        found: Vec::new(),
+    };
+    let unsettled = pairs.search(&mut minima, splits_per_pair);
+    (minima.found, unsettled)
+}
+
+/// The tests of [`minima_from_point`] on a pair of the point (a piece of
+/// one control point) and a piece of the curve, with the curve
+/// parameters `found`.
+struct MinimaFromPoint {
+    point: [f64; 3],
+    hold: [f64; 3],
+    reach: f64,
+    tol: Tolerance,
+    found: Vec<f64>,
+}
+
+impl PairTests for MinimaFromPoint {
+    type Region = CurveCurveRegion;
+    const ONCE_EXHAUSTED: OnceExhausted = OnceExhausted::Stop;
+
+    fn visit(&mut self, pairs: &Subdivision, node: &Node) -> Visit {
+        let (fixed, pc) = (pairs.points(0), pairs.points(1));
+        let point = self.point;
+        if extent(pc, self.hold).0 > self.reach || tangent_sign(pc, fixed).is_some() {
             return Visit::Settled;
         }
-        let (value, d) = curve_bounds(pairs.net(1, node), pc);
+        let net = pairs.net(1, node);
+        let (value, d) = curve_bounds(net, pc);
         let mut second = Interval::ZERO;
         for c in 0..3 {
             let at = Interval {
@@ -738,9 +608,8 @@ fn minima_from_point(
             return Visit::Settled;
         }
         if second.lo <= 0.0 {
-            return Visit::Split;
+            return split_larger(pairs);
         }
-        let net = pairs.net(1, node);
         let local = |u: f64| {
             let [c, d1, d2] = bezier_d2(net, u);
             let r = sub(c, point);
@@ -751,13 +620,16 @@ fn minima_from_point(
         };
         let u = newton_min_1d(|u| local(u).0, 0.5, Some((0.0, 1.0)), 1e-14, 100);
         let ((_, g, _), speed) = local(u);
-        if (0.0 < u && u < 1.0) || g.abs() <= tol.confusion * speed {
-            let (lo, hi) = node.ranges[1];
-            found.push(lo + u * (hi - lo));
+        if (0.0 < u && u < 1.0) || g.abs() <= self.tol.confusion * speed {
+            let (lo, hi) = node.range(1);
+            self.found.push(lo + u * (hi - lo));
         }
         Visit::Settled
-    });
-    (found, unsettled)
+    }
+
+    fn region(&mut self, pairs: &Subdivision, node: &Node) -> CurveCurveRegion {
+        region(pairs, node)
+    }
 }
 
 /// The point and its first two derivatives at `u` in `[0, 1]` of the
@@ -841,188 +713,34 @@ fn curve_bounds(net: &[f64], points: &[[f64; 3]]) -> ([Interval; 3], [[Interval;
     (value, [first.map(settle), second.map(settle)])
 }
 
-/// A pair of subpieces awaiting its visit: one per curve, in slot
-/// `slots[k]` of pool `k` over the parameters `ranges[k]`, and the
-/// halvings from the pair it came from.
-struct Node {
-    slots: [usize; 2],
-    ranges: [(f64, f64); 2],
-    depth: u32,
+/// Room for the pending pairs of a search from `count` pairs, and some
+/// halvings of them.
+fn room(count: usize) -> usize {
+    4 * count + 16
 }
 
-/// What a visit makes of a pair of subpieces.
-enum Visit {
-    /// It holds nothing more to find, or what it holds was found.
-    Settled,
-    /// Its larger piece is to be halved.
-    Split,
-    /// It never separates: it is left as a region.
-    Unseparated,
-}
-
-/// The pairs a search left unsettled, as regions, and whether its budget
-/// ran out.
-struct Unsettled {
-    regions: Vec<CurveCurveRegion>,
-    exhausted: bool,
-}
-
-impl Unsettled {
-    /// Adds the pairs `other` left, each region `placed` in the curves'
-    /// parameters.
-    fn absorb(&mut self, other: Unsettled, placed: impl Fn(CurveCurveRegion) -> CurveCurveRegion) {
-        self.regions.extend(other.regions.into_iter().map(placed));
-        self.exhausted |= other.exhausted;
-    }
-
-    fn completeness(self) -> Completeness<CurveCurveRegion> {
-        of_unsettled(self.regions, self.exhausted)
+/// The larger of the two curve pieces of the pair being visited, by the
+/// size of its control points' box, to be halved.
+fn split_larger(pairs: &Subdivision) -> Visit {
+    let sizes = [0, 1].map(|k| box_size(&bounding_box(pairs.points(k))));
+    Visit::Split {
+        piece: usize::from(sizes[1] >= sizes[0]),
+        along_rows: true,
     }
 }
 
-/// The pending pairs of a search over the pieces of two curves (or of a
-/// point, a piece of one control point, and a curve).
-struct Pairs {
-    shapes: [(usize, usize, usize); 2],
-    pools: [Pool; 2],
-    pending: Vec<Node>,
-    /// The Euclidean control points of the pair being visited.
-    points: [Vec<[f64; 3]>; 2],
-    /// The pairs left as never separating.
-    unseparated: Vec<CurveCurveRegion>,
-    splits_per_pair: usize,
-}
-
-impl Pairs {
-    /// No pairs yet, of pieces of `widths` homogeneous control points,
-    /// with room for `count` pairs and some halvings of them, and
-    /// `splits_per_pair` halvings allowed per pair queued.
-    fn new(widths: [usize; 2], count: usize, splits_per_pair: usize) -> Self {
-        let room = 4 * count + 16;
-        Pairs {
-            shapes: widths.map(|w| (w, 1, 4)),
-            pools: widths.map(|w| {
-                let mut pool = Pool::new(4 * w);
-                pool.reserve(room);
-                pool
-            }),
-            pending: Vec::with_capacity(room),
-            points: widths.map(Vec::with_capacity),
-            unseparated: Vec::new(),
-            splits_per_pair,
-        }
-    }
-
-    /// Queues the pair of pieces with the homogeneous control points
-    /// `nets` over `ranges`.
-    fn push(&mut self, nets: [&[f64]; 2], ranges: [(f64, f64); 2]) {
-        let slots = [0, 1].map(|k| {
-            let slot = self.pools[k].take();
-            self.pools[k].get_mut(slot).copy_from_slice(nets[k]);
-            slot
-        });
-        self.pending.push(Node {
-            slots,
-            ranges,
-            depth: 0,
-        });
-    }
-
-    /// The homogeneous control points of `node`'s piece of curve `k`.
-    fn net(&self, k: usize, node: &Node) -> &[f64] {
-        self.pools[k].get(node.slots[k])
-    }
-
-    /// Visits every pending pair, with its control points loaded into
-    /// [`Pairs::points`]: `visit` settles it, leaves it as never
-    /// separating (so does reaching [`MAX_DEPTH`]), or has the larger of
-    /// its pieces halved and both halves queued, until the budget of
-    /// halvings runs out. Returns the pairs left unsettled.
-    fn search(mut self, mut visit: impl FnMut(&Self, &Node) -> Visit) -> Unsettled {
-        let mut budget = self.splits_per_pair * self.pending.len();
-        let mut exhausted = false;
-        while let Some(node) = self.pending.pop() {
-            self.load(&node);
-            match visit(&self, &node) {
-                Visit::Settled => {}
-                Visit::Split if node.depth < MAX_DEPTH => {
-                    if budget == 0 {
-                        self.pending.push(node);
-                        exhausted = true;
-                        break;
-                    }
-                    budget -= 1;
-                    let sizes = self.points.each_ref().map(|p| box_size(&bounding_box(p)));
-                    self.split(node, usize::from(sizes[1] >= sizes[0]));
-                    continue;
-                }
-                Visit::Split | Visit::Unseparated => {
-                    let region = self.region(&node);
-                    self.unseparated.push(region);
-                }
-            }
-            for k in 0..2 {
-                self.pools[k].release(node.slots[k]);
-            }
-        }
-        let mut regions = std::mem::take(&mut self.unseparated);
-        for node in std::mem::take(&mut self.pending) {
-            self.load(&node);
-            regions.push(self.region(&node));
-        }
-        Unsettled { regions, exhausted }
-    }
-
-    /// Loads the Euclidean control points of `node` into
-    /// [`Pairs::points`].
-    fn load(&mut self, node: &Node) {
-        for k in 0..2 {
-            euclidean(self.pools[k].get(node.slots[k]), &mut self.points[k]);
-        }
-    }
-
-    /// The region of `node`, loaded into [`Pairs::points`].
-    fn region(&self, node: &Node) -> CurveCurveRegion {
-        let corners = |p: &[[f64; 3]]| {
-            let b = bounding_box(p);
-            (Point::new(b[0], b[1], b[2]), Point::new(b[3], b[4], b[5]))
-        };
-        let (min_corner, max_corner) =
-            box_union(corners(&self.points[0]), corners(&self.points[1]));
-        CurveCurveRegion {
-            first_range: node.ranges[0],
-            second_range: node.ranges[1],
-            min_corner,
-            max_corner,
-        }
-    }
-
-    /// Halves the piece of curve `k` of `node` and queues both halves,
-    /// each with a copy of the other piece.
-    fn split(&mut self, node: Node, k: usize) {
-        let other = 1 - k;
-        let upper = self.pools[k].halve(node.slots[k], self.shapes[k], true);
-        let copy = self.pools[other].take();
-        self.pools[other].copy(node.slots[other], copy);
-        let (lo, hi) = node.ranges[k];
-        let mid = 0.5 * (lo + hi);
-        let depth = node.depth + 1;
-        let mut slots = node.slots;
-        let mut ranges = node.ranges;
-        slots[k] = upper;
-        slots[other] = copy;
-        ranges[k] = (mid, hi);
-        self.pending.push(Node {
-            slots,
-            ranges,
-            depth,
-        });
-        ranges[k] = (lo, mid);
-        self.pending.push(Node {
-            ranges,
-            depth,
-            ..node
-        });
+/// The region of `node`, its control points loaded in `pairs`.
+fn region(pairs: &Subdivision, node: &Node) -> CurveCurveRegion {
+    let corners = |p: &[[f64; 3]]| {
+        let b = bounding_box(p);
+        (Point::new(b[0], b[1], b[2]), Point::new(b[3], b[4], b[5]))
+    };
+    let (min_corner, max_corner) = box_union(corners(pairs.points(0)), corners(pairs.points(1)));
+    CurveCurveRegion {
+        first_range: node.range(0),
+        second_range: node.range(1),
+        min_corner,
+        max_corner,
     }
 }
 

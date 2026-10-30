@@ -32,6 +32,7 @@ _Avoid_: raw cross product for the normal, tangent for either partial derivative
 
 **B-spline**:
 A curve or surface defined by poles, knots and optional weights. Every curve is either elementary or a B-spline; a surface may also be swept.
+A Bézier curve or surface is a B-spline of a single span, and every operation reads it as one.
 
 **Swept surface**:
 An extrusion surface or a revolution surface: a surface traced by moving a **profile** curve. An extrusion sweeps it along a direction, `S(u, v) = C(u) + v d`; a revolution turns it about an axis, `S(u, v)` being `C(v)` rotated by `u`. Some profiles sweep an elementary surface (a circle revolved in a plane through the axis sweeps a torus); the swept surface keeps its own parametrization all the same.
@@ -44,6 +45,14 @@ _Avoid_: generatrix, basis curve, directrix
 **Offset**:
 The surface at a signed distance along another surface's normal. It is an operation, not a stored shape: an elementary surface's offset is elementary, and other surfaces have none yet (ADR 0016).
 _Avoid_: shell, thickening
+
+**Tier**:
+Space or the plane: where a curve lives. Each curve type is one generic type over its tier's point, `TierPoint` (`Point` in space, `Point2D` in the plane), named `GenericCircle`, `GenericBSplineCurve` and so on, and used through its two aliases: `Circle` in space, `Circle2D` in the plane (ADR 0014). Only the plane's name carries a suffix (ADR 0013).
+_Avoid_: dimension for the type parameter, `Circle3D`, 3D tier as a name
+
+**Shape enum**:
+`Curve`, `ElementaryCurve`, `Curve2D`, `Surface` or `ElementarySurface`: one variant per shape type, answering every trait method by forwarding to the shape it holds. Its variants are written once, in the enum's variant list (ADR 0017).
+_Avoid_: any-curve, dynamic curve, union
 
 **Continuity**:
 The order `C^n` up to which derivatives are guaranteed to agree at a parameter, typed `Continuity`: `Order(degree − multiplicity)` at a B-spline knot, `Smooth` everywhere else and on elementary shapes. Every `Order(k)` ranks below `Smooth`, so the minimum over a range is the weakest point; Python reports the order as an `int` and smooth as `math.inf`. It is read from the knots, so the shape may be smoother than reported. The ends of a non-periodic range report smooth, seen from the inside; a periodic seam is a knot like any other. Trimming never lowers it, and a piece that avoids a knot does not inherit it. Derivatives of higher order than the continuity may differ on the two sides of the parameter; one-sided evaluation (see **Side**) reads each.
@@ -90,6 +99,13 @@ _Avoid_: fallback, approximate intersection
 Which solver produced an intersection result: exact (a closed form, always complete) or numeric (a search, with its own completeness). Every result of `intersect` states it.
 _Avoid_: route, path, strategy
 
+**Typed result**:
+The result `intersect_exact` returns for one pair of concrete types, such as `PlaneSphereIntersection`: an enum of the outcomes that pair can have, on the stack.
+
+**Family result**:
+The result `intersect` returns for a family of pairs: `CurveCurveIntersection`, `CurveCurveIntersection2D`, `CurveSurfaceIntersection` or `SurfaceSurfaceIntersection`. It holds hits or curves, overlaps or coincidence, the intersection method and the completeness, whatever the operands. The router reads an exact pair's typed result straight into it.
+_Avoid_: general result, untyped result
+
 **Not analytic**:
 An outcome of `intersect_exact` only: the typed solver for the pair has no closed form for this configuration. `intersect` never reports it: it runs a numeric intersection instead, or a closed form the typed solver lacks (two circles in crossing planes are solved exactly as conics, on the line the planes share).
 
@@ -104,7 +120,7 @@ The outcome when two shapes overlap entirely, so their intersection is a whole s
 An isolated point where two surfaces meet, either tangentially or at a singular point such as a cone apex. It has a position but no surface parameters, which a singular point does not define.
 
 **Hit**:
-A point where a curve meets another curve or a surface, with its multiplicity (1 for a crossing, 2 or more for a tangency) and its parameters on both operands (each curve's parameter, the surface's `(u, v)`). The point is always present. A parameter is stored only when the solver computed it on its way to the point, and is otherwise absent (`None`): recover it with the operand's `parameter_of(hit.point)` or `parameters_of(hit.point)`.
+A point where a curve meets another curve or a surface, with its multiplicity (1 for a crossing, 2 or more for a tangency) and its parameters on both operands (each curve's parameter, the surface's `(u, v)`). The point is always present. A parameter is stored only when the solver computed it on its way to the point, and is otherwise absent (`None`): recover it with the operand's `parameter_of(hit.point, tol)` or `parameters_of(hit.point, tol)`.
 _Avoid_: intersection point, contact (reserved for surfaces)
 
 **Overlap**:

@@ -1,3 +1,5 @@
+use crate::curves::ParametricCurve2D;
+use crate::curves::PointExtrema2D;
 use crate::{Circle2D, CircleConstructionError, Frame2D, Point2D, Tolerance, Vector2D};
 
 #[test]
@@ -68,7 +70,7 @@ fn test_circle2d_parameter_of_round_trip() {
     let c = Circle2D::new(Point2D::ORIGIN, 2.0).unwrap();
     for u in [0.3, 2.0, 5.5] {
         let p = c.eval_point(u);
-        assert!((c.parameter_of(p) - u).abs() < 1e-9);
+        assert!((c.parameter_of(p, Tolerance::DEFAULT) - u).abs() < 1e-9);
     }
 }
 
@@ -78,7 +80,7 @@ fn test_circle2d_from_frame_arbitrary() {
     let c = Circle2D::from_frame(frame, 2.5).unwrap();
     for u in [0.3, 2.0, 5.5] {
         let p = c.eval_point(u);
-        assert!((c.parameter_of(p) - u).abs() < 1e-9);
+        assert!((c.parameter_of(p, Tolerance::DEFAULT) - u).abs() < 1e-9);
     }
 }
 
@@ -99,4 +101,15 @@ fn test_circle2d_project_point() {
     let proj = circle.project_point(Point2D::new(3.0, 0.0), tol);
     assert_eq!(proj.parameter, 0.0);
     assert_eq!(proj.distance, 1.0);
+}
+
+#[test]
+fn test_circle2d_project_point_at_seam_reports_start() {
+    let circle = Circle2D::new(Point2D::ORIGIN, 2.0).unwrap();
+    let tol = Tolerance::DEFAULT;
+    // Just below the seam, within the confusion tolerance along the circle.
+    let point = Point2D::new(2.0, -1e-9);
+    let proj = circle.project_point(point, tol);
+    assert_eq!(proj.parameter, 0.0);
+    assert!(circle.parameter_of(point, tol) > std::f64::consts::PI);
 }

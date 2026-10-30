@@ -1,3 +1,5 @@
+use crate::curves::ParametricCurve;
+use crate::curves::PointExtrema;
 use crate::{Axis, Ellipse, EllipseConstructionError, Frame, Point, Tolerance, Transform, Vector};
 
 // ---- construction ----
@@ -161,7 +163,7 @@ fn test_ellipse3d_parameter_of_round_trip() {
     let e = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 3.0, 1.5).unwrap();
     for u in [0.3, 2.0, 5.5] {
         let p = e.eval_point(u);
-        assert!((e.parameter_of(p) - u).abs() < 1e-9);
+        assert!((e.parameter_of(p, Tolerance::DEFAULT) - u).abs() < 1e-9);
     }
 }
 
@@ -170,7 +172,7 @@ fn test_ellipse3d_parameter_of_in_zero_to_tau() {
     let e = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 3.0, 1.5).unwrap();
     for u in [-1.0, -0.1, 7.0] {
         let p = e.eval_point(u);
-        let recovered = e.parameter_of(p);
+        let recovered = e.parameter_of(p, Tolerance::DEFAULT);
         assert!((0.0..std::f64::consts::TAU).contains(&recovered));
     }
 }

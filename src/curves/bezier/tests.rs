@@ -279,7 +279,7 @@ fn test_projection_on_a_segment() {
     assert!((proj.parameter - 0.5).abs() < 1e-9);
     assert_eq!(proj.distance, 1.0);
     assert_eq!(proj.point, Point::new(1.0, 0.0, 0.0));
-    assert!((curve.parameter_of(off) - 0.5).abs() < 1e-9);
+    assert!((curve.parameter_of(off, tol) - 0.5).abs() < 1e-9);
     assert!(curve.contains(Point::new(1.0, 0.0, 0.0), tol));
     assert!(!curve.contains(off, tol));
     assert_eq!(curve.extrema(off, tol)[0].distance, 1.0);
@@ -337,22 +337,16 @@ fn test_discretization_meets_the_proven_deviation() {
 #[test]
 fn test_parametric_curve_trait_delegates() {
     let curve = cubic();
-    assert_eq!(ParametricCurve::bounds(&curve), (0.0, 1.0));
-    assert_eq!(ParametricCurve::period(&curve), None);
-    assert!(!ParametricCurve::is_periodic(&curve));
+    assert_eq!(curve.bounds(), (0.0, 1.0));
+    assert_eq!(curve.period(), None);
+    assert!(!curve.is_periodic());
+    assert_eq!(curve.eval_point(0.5), Point::new(2.0, 1.5, 0.5));
+    assert_eq!(curve.eval_d2(0.5), curve.eval_d2(0.5));
     assert_eq!(
-        ParametricCurve::eval_point(&curve, 0.5),
-        Point::new(2.0, 1.5, 0.5)
-    );
-    assert_eq!(ParametricCurve::eval_d2(&curve, 0.5), curve.eval_d2(0.5));
-    assert_eq!(
-        ParametricCurve::continuity(&curve, 0.5, Tolerance::DEFAULT),
+        curve.continuity(0.5, Tolerance::DEFAULT),
         Continuity::Smooth
     );
-    assert_eq!(
-        ParametricCurve::as_bspline(&curve),
-        Some(&curve.to_bspline())
-    );
+    assert_eq!(curve.as_bspline(), Some(&curve.to_bspline()));
 }
 
 #[test]

@@ -48,6 +48,7 @@ impl std::error::Error for TorusConstructionError {}
 /// # Examples
 ///
 /// ```
+/// use geomcore::prelude::*;
 /// use geomcore::{Point, Torus, Vector};
 /// let torus = Torus::new(Point::ORIGIN, Vector::Z, 5.0, 1.5).unwrap();
 /// assert_eq!(torus.eval_point(0.0, 0.0), Point::new(6.5, 0.0, 0.0));
@@ -160,6 +161,7 @@ impl Torus {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{Point, Torus, Vector};
     /// let torus = Torus::new(Point::ORIGIN, Vector::Z, 5.0, 1.5).unwrap();
     /// let reversed = torus.reversed_u();
@@ -181,6 +183,7 @@ impl Torus {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{Point, Torus, Vector};
     /// let torus = Torus::new(Point::ORIGIN, Vector::Z, 5.0, 1.5).unwrap();
     /// let reversed = torus.reversed_v();
@@ -200,6 +203,7 @@ impl Torus {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{Point, Torus, Vector};
     /// let torus = Torus::new(Point::ORIGIN, Vector::Z, 5.0, 1.5).unwrap();
     /// let u = torus.u_reversed_parameter(1.0);
@@ -217,6 +221,7 @@ impl Torus {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{Point, Torus, Vector};
     /// let torus = Torus::new(Point::ORIGIN, Vector::Z, 5.0, 1.5).unwrap();
     /// let v = torus.v_reversed_parameter(0.5);
@@ -347,52 +352,32 @@ impl Torus {
             self.minor_radius() * scale,
         )
     }
+}
 
-    /// Evaluates the point on the torus at `(u, v)`. See the type-level
-    /// docs for the formula.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{Point, Torus, Vector};
-    /// let torus = Torus::new(Point::ORIGIN, Vector::Z, 5.0, 1.5).unwrap();
-    /// assert_eq!(torus.eval_point(0.0, 0.0), Point::new(6.5, 0.0, 0.0));
-    /// ```
-    pub fn eval_point(&self, u: f64, v: f64) -> Point {
+impl ParametricSurface for Torus {
+    #[inline]
+    fn eval_point(&self, u: f64, v: f64) -> Point {
         elementary::torus_d0(&self.frame, self.major_radius, self.minor_radius, u, v)
     }
 
-    /// Evaluates the points on the torus at each `(u, v)` in `uvs`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{Point, Torus, Vector};
-    /// let torus = Torus::new(Point::ORIGIN, Vector::Z, 5.0, 1.5).unwrap();
-    /// let points = torus.eval_points(&[(0.0, 0.0)]);
-    /// assert_eq!(points[0], Point::new(6.5, 0.0, 0.0));
-    /// ```
-    pub fn eval_points(&self, uvs: &[(f64, f64)]) -> Vec<Point> {
-        uvs.iter().map(|&(u, v)| self.eval_point(u, v)).collect()
+    fn project_point(&self, point: Point, tol: Tolerance) -> SurfaceProjection {
+        let (u, v) = self.parameters_of(point, tol);
+        let foot = self.eval_point(u, v);
+        let distance = foot.distance(point);
+        SurfaceProjection {
+            u,
+            v,
+            point: foot,
+            distance: projection::snap_distance(distance, tol.confusion),
+        }
     }
 
-    /// Evaluates the derivative of order `(du, dv)` at `(u, v)`. See
-    /// `crate::elementary::surface::torus_derivative` for the
-    /// formulas.
-    ///
-    /// # Panics
-    ///
-    /// Panics if `du + dv == 0` (use [`Torus::eval_point`] for the
-    /// position itself) or if `du + dv > 2`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{Point, Torus, Vector};
-    /// let torus = Torus::new(Point::ORIGIN, Vector::Z, 5.0, 1.5).unwrap();
-    /// assert_eq!(torus.eval_derivative(0.0, 0.0, 0, 1), Vector::Z * 1.5);
-    /// ```
-    pub fn eval_derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> Vector {
+    fn contains(&self, point: Point, tol: Tolerance) -> bool {
+        let (u, v) = self.parameters_of(point, tol);
+        self.eval_point(u, v).distance(point) <= tol.confusion
+    }
+
+    fn eval_derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> Vector {
         match du + dv {
             0 => panic!(
                 "eval_derivative: du + dv must be >= 1 (use eval_point for the (0, 0) order)"
@@ -412,93 +397,6 @@ impl Torus {
         }
     }
 
-    /// Recovers `(u, v)` of a point on (or near) the torus. See
-    /// `crate::elementary::surface::torus_parameters` for the formula,
-    /// including the near/far branch handling when `major_radius <
-    /// minor_radius`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{Point, Torus, Vector};
-    /// let torus = Torus::new(Point::ORIGIN, Vector::Z, 5.0, 1.5).unwrap();
-    /// let (u, v) = torus.parameters_of(Point::new(6.5, 0.0, 0.0));
-    /// assert_eq!((u, v), (0.0, 0.0));
-    /// ```
-    pub fn parameters_of(&self, point: Point) -> (f64, f64) {
-        elementary::torus_parameters(&self.frame, self.major_radius, self.minor_radius, point)
-    }
-
-    /// Returns whether `point` lies on the torus: the inverse parameters
-    /// are recovered with [`Torus::parameters_of`] and re-evaluated, and
-    /// the point counts as contained when the re-evaluated point is within
-    /// `tol.confusion` of it.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{Point, Tolerance, Torus, Vector};
-    /// let torus = Torus::new(Point::ORIGIN, Vector::Z, 4.0, 1.0).unwrap();
-    /// let tol = Tolerance::DEFAULT;
-    /// assert!(torus.contains(Point::new(5.0, 0.0, 0.0), tol));
-    /// assert!(!torus.contains(Point::ORIGIN, tol));
-    /// ```
-    pub fn contains(&self, point: Point, tol: Tolerance) -> bool {
-        let (u, v) = self.parameters_of(point);
-        self.eval_point(u, v).distance(point) <= tol.confusion
-    }
-
-    /// Projects `point` onto the torus, returning the `(u, v)` parameters
-    /// of the closest point and its distance. Distances within
-    /// `tol.confusion` snap to `0.0`, matching [`Torus::contains`].
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{Point, Tolerance, Torus, Vector};
-    /// let torus = Torus::new(Point::ORIGIN, Vector::Z, 4.0, 1.0).unwrap();
-    /// let proj = torus.project_point(Point::new(6.0, 0.0, 0.0), Tolerance::DEFAULT);
-    /// assert_eq!((proj.u, proj.v), (0.0, 0.0));
-    /// assert_eq!(proj.distance, 1.0);
-    /// ```
-    pub fn project_point(&self, point: Point, tol: Tolerance) -> SurfaceProjection {
-        let (u, v) = self.parameters_of(point);
-        let foot = self.eval_point(u, v);
-        let distance = foot.distance(point);
-        SurfaceProjection {
-            u,
-            v,
-            point: foot,
-            distance: projection::snap_distance(distance, tol.confusion),
-        }
-    }
-
-    /// Projects each point in `points` onto the torus.
-    ///
-    /// Default-style batch wrapper over [`Torus::project_point`]: one
-    /// native call per batch, mirroring [`Torus::eval_points`].
-    pub fn project_points(&self, points: &[Point], tol: Tolerance) -> Vec<SurfaceProjection> {
-        points.iter().map(|&p| self.project_point(p, tol)).collect()
-    }
-}
-
-impl ParametricSurface for Torus {
-    fn eval_point(&self, u: f64, v: f64) -> Point {
-        Torus::eval_point(self, u, v)
-    }
-
-    fn project_point(&self, point: Point, tol: Tolerance) -> SurfaceProjection {
-        Torus::project_point(self, point, tol)
-    }
-
-    fn contains(&self, point: Point, tol: Tolerance) -> bool {
-        Torus::contains(self, point, tol)
-    }
-
-    fn eval_derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> Vector {
-        Torus::eval_derivative(self, u, v, du, dv)
-    }
-
     fn u_bounds(&self) -> (f64, f64) {
         (0.0, TAU)
     }
@@ -515,12 +413,16 @@ impl ParametricSurface for Torus {
         Some(TAU)
     }
 
-    fn eval_points(&self, uvs: &[(f64, f64)]) -> Vec<Point> {
-        Torus::eval_points(self, uvs)
-    }
-
     fn as_elementary(&self) -> Option<ElementarySurface> {
         Some(ElementarySurface::Torus(*self))
+    }
+
+    /// Recovers `(u, v)` of a point on (or near) the torus. See
+    /// `crate::elementary::surface::torus_parameters` for the formula,
+    /// including the near/far branch handling when `major_radius <
+    /// minor_radius`.
+    fn parameters_of(&self, point: Point, _tol: Tolerance) -> (f64, f64) {
+        elementary::torus_parameters(&self.frame, self.major_radius, self.minor_radius, point)
     }
 }
 

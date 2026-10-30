@@ -9,12 +9,8 @@
 //! is below a right angle; steps turning more report an infinite chord
 //! deviation, so they never fit.
 
-use super::sealed::{DiscretizeRange, Run};
 use super::{DiscretizationCriteria, smallest_count};
-use crate::{
-    Circle, Curve, Ellipse, Ellipse2D, Hyperbola, Hyperbola2D, Line, Parabola, Parabola2D, Point,
-};
-use crate::{Circle2D, Curve2D, Line2D, Point2D};
+use crate::curves::Run;
 use std::f64::consts::{FRAC_PI_2, TAU};
 
 /// One run of equal steps over `[first, last]` of the curve evaluated by
@@ -52,7 +48,7 @@ fn equal_steps<P, F>(
 /// Equal steps of a circle of radius `r`: a segment of arc angle `θ`
 /// deviates from the circle by exactly `r (1 − cos θ/2) = 2 r sin²(θ/4)`
 /// and `θ/2`.
-fn circle_steps<P, F>(
+pub(crate) fn circle_steps<P, F>(
     r: f64,
     point_at_parameter: impl Fn(f64) -> P,
     (first, last): (f64, f64),
@@ -85,7 +81,7 @@ fn circle_steps<P, F>(
 }
 
 /// A line is its own chord: one step, unless more are asked for.
-fn line_steps<P, F>(
+pub(crate) fn line_steps<P, F>(
     point_at_parameter: impl Fn(f64) -> P,
     (first, last): (f64, f64),
     criteria: &DiscretizationCriteria,
@@ -103,58 +99,6 @@ fn line_steps<P, F>(
         |_| (0.0, 0.0),
         visit,
     );
-}
-
-impl DiscretizeRange for Circle {
-    type Point = Point;
-
-    fn for_each_run<F>(
-        &self,
-        first: f64,
-        last: f64,
-        criteria: &DiscretizationCriteria,
-        min_segments: usize,
-        visit: F,
-    ) where
-        F: FnMut(Run, &dyn Fn(f64) -> Self::Point),
-    {
-        let point_at_parameter = |u| self.eval_point(u);
-        let range = (first, last);
-        circle_steps(
-            self.radius(),
-            point_at_parameter,
-            range,
-            criteria,
-            min_segments,
-            visit,
-        );
-    }
-}
-
-impl DiscretizeRange for Circle2D {
-    type Point = Point2D;
-
-    fn for_each_run<F>(
-        &self,
-        first: f64,
-        last: f64,
-        criteria: &DiscretizationCriteria,
-        min_segments: usize,
-        visit: F,
-    ) where
-        F: FnMut(Run, &dyn Fn(f64) -> Self::Point),
-    {
-        let point_at_parameter = |u| self.eval_point(u);
-        let range = (first, last);
-        circle_steps(
-            self.radius(),
-            point_at_parameter,
-            range,
-            criteria,
-            min_segments,
-            visit,
-        );
-    }
 }
 
 /// The chord deviation of a conic step whose farthest point lies
@@ -204,7 +148,7 @@ fn conic_guess(
 /// circle under `diag(a, b)`. A step of `h` around `m` lies
 /// `2 sin²(h/4) / sqrt(cos²m/a² + sin²m/b²)` from its chord, the largest
 /// over a range near the ends of the major axis.
-fn ellipse_steps<P, F>(
+pub(crate) fn ellipse_steps<P, F>(
     (a, b): (f64, f64),
     point_at_parameter: impl Fn(f64) -> P,
     (first, last): (f64, f64),
@@ -249,61 +193,11 @@ fn ellipse_steps<P, F>(
     );
 }
 
-impl DiscretizeRange for Ellipse {
-    type Point = Point;
-
-    /// The image of a circle under `diag(a, b)`, by [`ellipse_steps`].
-    fn for_each_run<F>(
-        &self,
-        first: f64,
-        last: f64,
-        criteria: &DiscretizationCriteria,
-        min_segments: usize,
-        visit: F,
-    ) where
-        F: FnMut(Run, &dyn Fn(f64) -> Self::Point),
-    {
-        ellipse_steps(
-            (self.major_radius(), self.minor_radius()),
-            |u| self.eval_point(u),
-            (first, last),
-            criteria,
-            min_segments,
-            visit,
-        );
-    }
-}
-
-impl DiscretizeRange for Ellipse2D {
-    type Point = Point2D;
-
-    /// The image of a circle under `diag(a, b)`, by [`ellipse_steps`].
-    fn for_each_run<F>(
-        &self,
-        first: f64,
-        last: f64,
-        criteria: &DiscretizationCriteria,
-        min_segments: usize,
-        visit: F,
-    ) where
-        F: FnMut(Run, &dyn Fn(f64) -> Self::Point),
-    {
-        ellipse_steps(
-            (self.major_radius(), self.minor_radius()),
-            |u| self.eval_point(u),
-            (first, last),
-            criteria,
-            min_segments,
-            visit,
-        );
-    }
-}
-
 /// Equal steps of a hyperbola with semi-axes `a` and `b`: the image of
 /// `(cosh u, sinh u)` under `diag(a, b)`. A step of `h` around `m` lies
 /// `2 sinh²(h/4) / sqrt(cosh²m/a² + sinh²m/b²)` from its chord, the largest
 /// over a range nearest the vertex.
-fn hyperbola_steps<P, F>(
+pub(crate) fn hyperbola_steps<P, F>(
     (a, b): (f64, f64),
     point_at_parameter: impl Fn(f64) -> P,
     (first, last): (f64, f64),
@@ -341,61 +235,11 @@ fn hyperbola_steps<P, F>(
     );
 }
 
-impl DiscretizeRange for Hyperbola {
-    type Point = Point;
-
-    /// The hyperbola branch, by [`hyperbola_steps`].
-    fn for_each_run<F>(
-        &self,
-        first: f64,
-        last: f64,
-        criteria: &DiscretizationCriteria,
-        min_segments: usize,
-        visit: F,
-    ) where
-        F: FnMut(Run, &dyn Fn(f64) -> Self::Point),
-    {
-        hyperbola_steps(
-            (self.major_radius(), self.minor_radius()),
-            |u| self.eval_point(u),
-            (first, last),
-            criteria,
-            min_segments,
-            visit,
-        );
-    }
-}
-
-impl DiscretizeRange for Hyperbola2D {
-    type Point = Point2D;
-
-    /// The hyperbola branch, by [`hyperbola_steps`].
-    fn for_each_run<F>(
-        &self,
-        first: f64,
-        last: f64,
-        criteria: &DiscretizationCriteria,
-        min_segments: usize,
-        visit: F,
-    ) where
-        F: FnMut(Run, &dyn Fn(f64) -> Self::Point),
-    {
-        hyperbola_steps(
-            (self.major_radius(), self.minor_radius()),
-            |u| self.eval_point(u),
-            (first, last),
-            criteria,
-            min_segments,
-            visit,
-        );
-    }
-}
-
 /// Equal steps of a parabola with focal distance `focal`: `u²/4f` along
 /// the axis, `u` across. A step of `h` around `m` lies
 /// `h²/16f / sqrt(1 + m²/4f²)` from its chord, the largest over a range
 /// nearest the vertex.
-fn parabola_steps<P, F>(
+pub(crate) fn parabola_steps<P, F>(
     focal: f64,
     point_at_parameter: impl Fn(f64) -> P,
     (first, last): (f64, f64),
@@ -432,148 +276,4 @@ fn parabola_steps<P, F>(
         deviations,
         visit,
     );
-}
-
-impl DiscretizeRange for Parabola {
-    type Point = Point;
-
-    /// The polynomial parabola, by [`parabola_steps`].
-    fn for_each_run<F>(
-        &self,
-        first: f64,
-        last: f64,
-        criteria: &DiscretizationCriteria,
-        min_segments: usize,
-        visit: F,
-    ) where
-        F: FnMut(Run, &dyn Fn(f64) -> Self::Point),
-    {
-        parabola_steps(
-            self.focal(),
-            |u| self.eval_point(u),
-            (first, last),
-            criteria,
-            min_segments,
-            visit,
-        );
-    }
-}
-
-impl DiscretizeRange for Parabola2D {
-    type Point = Point2D;
-
-    /// The polynomial parabola, by [`parabola_steps`].
-    fn for_each_run<F>(
-        &self,
-        first: f64,
-        last: f64,
-        criteria: &DiscretizationCriteria,
-        min_segments: usize,
-        visit: F,
-    ) where
-        F: FnMut(Run, &dyn Fn(f64) -> Self::Point),
-    {
-        parabola_steps(
-            self.focal(),
-            |u| self.eval_point(u),
-            (first, last),
-            criteria,
-            min_segments,
-            visit,
-        );
-    }
-}
-
-impl DiscretizeRange for Line {
-    type Point = Point;
-
-    fn for_each_run<F>(
-        &self,
-        first: f64,
-        last: f64,
-        criteria: &DiscretizationCriteria,
-        min_segments: usize,
-        visit: F,
-    ) where
-        F: FnMut(Run, &dyn Fn(f64) -> Self::Point),
-    {
-        line_steps(
-            |u| self.eval_point(u),
-            (first, last),
-            criteria,
-            min_segments,
-            visit,
-        );
-    }
-}
-
-impl DiscretizeRange for Line2D {
-    type Point = Point2D;
-
-    fn for_each_run<F>(
-        &self,
-        first: f64,
-        last: f64,
-        criteria: &DiscretizationCriteria,
-        min_segments: usize,
-        visit: F,
-    ) where
-        F: FnMut(Run, &dyn Fn(f64) -> Self::Point),
-    {
-        line_steps(
-            |u| self.eval_point(u),
-            (first, last),
-            criteria,
-            min_segments,
-            visit,
-        );
-    }
-}
-
-impl DiscretizeRange for Curve {
-    type Point = Point;
-
-    fn for_each_run<F>(
-        &self,
-        first: f64,
-        last: f64,
-        criteria: &DiscretizationCriteria,
-        min_segments: usize,
-        visit: F,
-    ) where
-        F: FnMut(Run, &dyn Fn(f64) -> Self::Point),
-    {
-        match self {
-            Curve::Line(c) => c.for_each_run(first, last, criteria, min_segments, visit),
-            Curve::Circle(c) => c.for_each_run(first, last, criteria, min_segments, visit),
-            Curve::Ellipse(c) => c.for_each_run(first, last, criteria, min_segments, visit),
-            Curve::Parabola(c) => c.for_each_run(first, last, criteria, min_segments, visit),
-            Curve::Hyperbola(c) => c.for_each_run(first, last, criteria, min_segments, visit),
-            Curve::BSpline(c) => c.for_each_run(first, last, criteria, min_segments, visit),
-        }
-    }
-}
-
-impl DiscretizeRange for Curve2D {
-    type Point = Point2D;
-
-    fn for_each_run<F>(
-        &self,
-        first: f64,
-        last: f64,
-        criteria: &DiscretizationCriteria,
-        min_segments: usize,
-        visit: F,
-    ) where
-        F: FnMut(Run, &dyn Fn(f64) -> Self::Point),
-    {
-        match self {
-            Curve2D::Line(c) => c.for_each_run(first, last, criteria, min_segments, visit),
-            Curve2D::Circle(c) => c.for_each_run(first, last, criteria, min_segments, visit),
-            Curve2D::Ellipse(c) => c.for_each_run(first, last, criteria, min_segments, visit),
-            Curve2D::Parabola(c) => c.for_each_run(first, last, criteria, min_segments, visit),
-            Curve2D::Hyperbola(c) => c.for_each_run(first, last, criteria, min_segments, visit),
-            Curve2D::BSpline(c) => c.for_each_run(first, last, criteria, min_segments, visit),
-        }
-    }
 }

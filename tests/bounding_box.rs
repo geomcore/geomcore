@@ -2,12 +2,11 @@
 //! shape, sampled densely, and the box of an elementary shape is reached by
 //! the shape on every face.
 
-use geomcore::curves::{ElementaryCurve, ParametricCurve};
-use geomcore::surfaces::{ElementarySurface, ParametricSurface};
+use geomcore::prelude::*;
 use geomcore::{
-    BSplineCurve, BSplineSurface, BoundingBox, Circle, Cone, Curve, Cylinder, Ellipse,
-    HasBoundingBox, Hyperbola, Line, Parabola, Plane, Point, Sphere, Surface, Torus, TrimmedCurve,
-    Vector,
+    BSplineCurve, BSplineSurface, BoundingBox, Circle, Cone, Curve, Cylinder, ElementaryCurve,
+    ElementarySurface, Ellipse, Hyperbola, Line, Parabola, Plane, Point, Sphere, Surface, Torus,
+    TrimmedCurve, Vector,
 };
 use std::f64::consts::{FRAC_1_SQRT_2, FRAC_PI_2, PI, TAU};
 
@@ -552,10 +551,10 @@ fn test_boxes_cull_apart_shapes_and_keep_meeting_ones() {
 // ---------------------------------------------------------------- 2D
 
 mod planar {
-    use geomcore::curves::{Curve2D, TrimmedCurve2D};
+    use geomcore::prelude::*;
     use geomcore::{
-        BSplineCurve2D, BoundingBox2D, Circle2D, Ellipse2D, HasBoundingBox2D, Hyperbola2D, Line2D,
-        Parabola2D, Point2D, Vector2D,
+        BSplineCurve2D, BoundingBox2D, Circle2D, Curve2D, Ellipse2D, Hyperbola2D, Line2D,
+        Parabola2D, Point2D, TrimmedCurve2D, Vector2D,
     };
     use std::f64::consts::{FRAC_PI_2, TAU};
 

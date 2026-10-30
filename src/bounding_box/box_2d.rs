@@ -28,11 +28,11 @@ pub struct BoundingBox2D {
     pub(super) max: Point2D,
 }
 
-pub(super) fn coordinates(p: Point2D) -> [f64; 2] {
+fn coordinates(p: Point2D) -> [f64; 2] {
     [p.x, p.y]
 }
 
-pub(super) fn point([x, y]: [f64; 2]) -> Point2D {
+fn point([x, y]: [f64; 2]) -> Point2D {
     Point2D::new(x, y)
 }
 
@@ -243,13 +243,14 @@ impl BoundingBox2D {
 /// [`BSplineCurve2D`](crate::BSplineCurve2D) reports a box holding the
 /// whole curve, from its control points, which may be larger than the
 /// tightest. A [`Line2D`](crate::Line2D) is unbounded and reports `None`;
-/// a [`TrimmedCurve2D`](crate::curves::TrimmedCurve2D) always has a box,
+/// a [`TrimmedCurve2D`](crate::TrimmedCurve2D) always has a box,
 /// over its range.
 ///
 /// # Examples
 ///
 /// ```
-/// use geomcore::{Circle2D, HasBoundingBox2D, Line2D, Point2D, Vector2D};
+/// use geomcore::prelude::*;
+/// use geomcore::{Circle2D, Line2D, Point2D, Vector2D};
 ///
 /// let circle = Circle2D::new(Point2D::new(1.0, 0.0), 2.0).unwrap();
 /// let b = circle.bounding_box().unwrap();

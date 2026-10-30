@@ -1,4 +1,7 @@
 use super::*;
+use crate::curves::ParametricCurve;
+use crate::curves::PointExtrema;
+use crate::{Axis, Axis2D, Frame, Frame2D, Point, Point2D, Vector, Vector2D};
 use std::f64::consts::PI;
 
 fn skewed_frame3() -> Frame {
@@ -241,7 +244,7 @@ fn test_parabola_parameter_round_trip_skewed() {
 
 #[test]
 fn test_parabola2d_d0_focal_one() {
-    let p = parabola2d_d0(&Frame2D::WORLD, 1.0, 2.0);
+    let p = parabola_d0(&Frame2D::WORLD, 1.0, 2.0);
     assert!((p.x - 1.0).abs() < 1e-9);
     assert!((p.y - 2.0).abs() < 1e-9);
 }
@@ -249,14 +252,14 @@ fn test_parabola2d_d0_focal_one() {
 #[test]
 fn test_parabola2d_dn_orders() {
     let frame = skewed_frame2();
-    let d1 = parabola2d_dn(&frame, 1.5, 2.0, 1);
+    let d1 = parabola_dn(&frame, 1.5, 2.0, 1);
     assert!((d1.x - (2.0 / 3.0 * frame.x_direction().x + frame.y_direction().x)).abs() < 1e-9);
     assert!((d1.y - (2.0 / 3.0 * frame.x_direction().y + frame.y_direction().y)).abs() < 1e-9);
     let expected = frame.x_direction() * (1.0 / 3.0);
-    assert!((parabola2d_dn(&frame, 1.5, 2.0, 2).x - expected.x).abs() < 1e-9);
-    assert!((parabola2d_dn(&frame, 1.5, 2.0, 2).y - expected.y).abs() < 1e-9);
+    assert!((parabola_dn(&frame, 1.5, 2.0, 2).x - expected.x).abs() < 1e-9);
+    assert!((parabola_dn(&frame, 1.5, 2.0, 2).y - expected.y).abs() < 1e-9);
     for order in [3u32, 4, 10] {
-        assert_eq!(parabola2d_dn(&frame, 1.5, 2.0, order), Vector2D::ZERO);
+        assert_eq!(parabola_dn(&frame, 1.5, 2.0, order), Vector2D::ZERO);
     }
 }
 
@@ -264,8 +267,8 @@ fn test_parabola2d_dn_orders() {
 fn test_parabola2d_parameter_round_trip() {
     let frame = skewed_frame2();
     for u in [0.3, 2.0, -5.5] {
-        let p = parabola2d_d0(&frame, 1.5, u);
-        let recovered = parabola2d_parameter(&frame, p);
+        let p = parabola_d0(&frame, 1.5, u);
+        let recovered = parabola_parameter(&frame, p);
         assert!((recovered - u).abs() < 1e-9);
     }
 }
@@ -319,7 +322,7 @@ fn test_hyperbola_parameter_round_trip_skewed() {
 
 #[test]
 fn test_hyperbola2d_d0_at_zero() {
-    let p = hyperbola2d_d0(&Frame2D::WORLD, 2.0, 1.0, 0.0);
+    let p = hyperbola_d0(&Frame2D::WORLD, 2.0, 1.0, 0.0);
     assert!((p.x - 2.0).abs() < 1e-9);
     assert!(p.y.abs() < 1e-9);
 }
@@ -331,11 +334,11 @@ fn test_hyperbola2d_dn_patterns() {
     let odd = 2.0 * u.sinh() * frame.x_direction() + u.cosh() * frame.y_direction();
     let even = 2.0 * u.cosh() * frame.x_direction() + u.sinh() * frame.y_direction();
     for order in [1u32, 3] {
-        let d = hyperbola2d_dn(&frame, 2.0, 1.0, u, order);
+        let d = hyperbola_dn(&frame, 2.0, 1.0, u, order);
         assert!((d.x - odd.x).abs() < 1e-9 && (d.y - odd.y).abs() < 1e-9);
     }
     for order in [2u32, 4] {
-        let d = hyperbola2d_dn(&frame, 2.0, 1.0, u, order);
+        let d = hyperbola_dn(&frame, 2.0, 1.0, u, order);
         assert!((d.x - even.x).abs() < 1e-9 && (d.y - even.y).abs() < 1e-9);
     }
 }
@@ -344,8 +347,8 @@ fn test_hyperbola2d_dn_patterns() {
 fn test_hyperbola2d_parameter_round_trip() {
     let frame = skewed_frame2();
     for u in [0.3, 2.0, -1.5] {
-        let p = hyperbola2d_d0(&frame, 2.0, 1.0, u);
-        let recovered = hyperbola2d_parameter(&frame, 1.0, p);
+        let p = hyperbola_d0(&frame, 2.0, 1.0, u);
+        let recovered = hyperbola_parameter(&frame, 1.0, p);
         assert!((recovered - u).abs() < 1e-9);
     }
 }
@@ -388,7 +391,7 @@ fn test_in_period_just_below_last_is_identity() {
 #[test]
 fn test_line2d_d0_world() {
     let axis = Axis2D::new(Point2D::ORIGIN, Vector2D::X).unwrap();
-    let p = line2d_d0(&axis, 3.0);
+    let p = line_d0(&axis, 3.0);
     assert!((p.x - 3.0).abs() < 1e-9);
     assert!((p.y - 0.0).abs() < 1e-9);
 }
@@ -397,8 +400,8 @@ fn test_line2d_d0_world() {
 fn test_line2d_parameter_round_trip_world() {
     let axis = Axis2D::new(Point2D::ORIGIN, Vector2D::X).unwrap();
     for u in [0.3, 2.0, -5.5] {
-        let p = line2d_d0(&axis, u);
-        assert!((line2d_parameter(&axis, p) - u).abs() < 1e-9);
+        let p = line_d0(&axis, u);
+        assert!((line_parameter(&axis, p) - u).abs() < 1e-9);
     }
 }
 
@@ -410,14 +413,14 @@ fn test_line2d_parameter_round_trip_skewed() {
     )
     .unwrap();
     for u in [0.3, 2.0, 5.5] {
-        let p = line2d_d0(&axis, u);
-        assert!((line2d_parameter(&axis, p) - u).abs() < 1e-9);
+        let p = line_d0(&axis, u);
+        assert!((line_parameter(&axis, p) - u).abs() < 1e-9);
     }
 }
 
 #[test]
 fn test_circle2d_d0_world_quarter_turn() {
-    let p = circle2d_d0(&Frame2D::WORLD, 1.0, PI / 2.0);
+    let p = circle_d0(&Frame2D::WORLD, 1.0, PI / 2.0);
     assert!((p.x - 0.0).abs() < 1e-9);
     assert!((p.y - 1.0).abs() < 1e-9);
 }
@@ -426,8 +429,8 @@ fn test_circle2d_d0_world_quarter_turn() {
 fn test_circle2d_dn_cycles_with_period_4() {
     let frame = skewed_frame2();
     for order in [1u32, 2, 3, 4] {
-        let a = circle2d_dn(&frame, 1.5, 0.7, order);
-        let b = circle2d_dn(&frame, 1.5, 0.7, order + 4);
+        let a = circle_dn(&frame, 1.5, 0.7, order);
+        let b = circle_dn(&frame, 1.5, 0.7, order + 4);
         assert!((a.x - b.x).abs() < 1e-9);
         assert!((a.y - b.y).abs() < 1e-9);
     }
@@ -436,8 +439,8 @@ fn test_circle2d_dn_cycles_with_period_4() {
 #[test]
 fn test_circle2d_parameter_round_trip_world() {
     for u in [0.3, 2.0, 5.5] {
-        let p = circle2d_d0(&Frame2D::WORLD, 2.5, u);
-        let recovered = circle2d_parameter(&Frame2D::WORLD, p);
+        let p = circle_d0(&Frame2D::WORLD, 2.5, u);
+        let recovered = circle_parameter(&Frame2D::WORLD, p);
         assert!((recovered - u).abs() < 1e-9);
     }
 }
@@ -446,8 +449,8 @@ fn test_circle2d_parameter_round_trip_world() {
 fn test_circle2d_parameter_round_trip_skewed() {
     let frame = skewed_frame2();
     for u in [0.3, 2.0, 5.5] {
-        let p = circle2d_d0(&frame, 2.5, u);
-        let recovered = circle2d_parameter(&frame, p);
+        let p = circle_d0(&frame, 2.5, u);
+        let recovered = circle_parameter(&frame, p);
         assert!((recovered - u).abs() < 1e-9);
     }
 }
@@ -459,22 +462,22 @@ fn test_circle2d_parameter_round_trip_indirect_frame() {
     let frame = Frame2D::new(Point2D::new(0.5, -1.0), x_dir, -x_dir.perp()).unwrap();
     assert!(!frame.is_direct());
     for u in [0.3, 2.0, 5.5] {
-        let p = circle2d_d0(&frame, 1.7, u);
-        let recovered = circle2d_parameter(&frame, p);
+        let p = circle_d0(&frame, 1.7, u);
+        let recovered = circle_parameter(&frame, p);
         assert!((recovered - u).abs() < 1e-9);
     }
 }
 
 #[test]
 fn test_ellipse2d_d0_quarter_turn() {
-    let p = ellipse2d_d0(&Frame2D::WORLD, 2.0, 1.0, PI / 2.0);
+    let p = ellipse_d0(&Frame2D::WORLD, 2.0, 1.0, PI / 2.0);
     assert!((p.x - 0.0).abs() < 1e-9);
     assert!((p.y - 1.0).abs() < 1e-9);
 }
 
 #[test]
 fn test_ellipse2d_dn_order1_at_zero() {
-    let d = ellipse2d_dn(&Frame2D::WORLD, 2.0, 1.0, 0.0, 1);
+    let d = ellipse_dn(&Frame2D::WORLD, 2.0, 1.0, 0.0, 1);
     assert!((d.x - 0.0).abs() < 1e-9);
     assert!((d.y - 1.0).abs() < 1e-9);
 }
@@ -483,8 +486,8 @@ fn test_ellipse2d_dn_order1_at_zero() {
 fn test_ellipse2d_dn_cycles_with_period_4() {
     let frame = skewed_frame2();
     for order in [1u32, 2, 3, 4] {
-        let a = ellipse2d_dn(&frame, 3.0, 1.2, 0.9, order);
-        let b = ellipse2d_dn(&frame, 3.0, 1.2, 0.9, order + 4);
+        let a = ellipse_dn(&frame, 3.0, 1.2, 0.9, order);
+        let b = ellipse_dn(&frame, 3.0, 1.2, 0.9, order + 4);
         assert!((a.x - b.x).abs() < 1e-9);
         assert!((a.y - b.y).abs() < 1e-9);
     }
@@ -493,8 +496,8 @@ fn test_ellipse2d_dn_cycles_with_period_4() {
 #[test]
 fn test_ellipse2d_parameter_round_trip_world() {
     for u in [0.3, 2.0, 5.5] {
-        let p = ellipse2d_d0(&Frame2D::WORLD, 2.0, 1.0, u);
-        let recovered = ellipse2d_parameter(&Frame2D::WORLD, 2.0, 1.0, p);
+        let p = ellipse_d0(&Frame2D::WORLD, 2.0, 1.0, u);
+        let recovered = ellipse_parameter(&Frame2D::WORLD, 2.0, 1.0, p);
         assert!((recovered - u).abs() < 1e-9);
     }
 }
@@ -503,8 +506,8 @@ fn test_ellipse2d_parameter_round_trip_world() {
 fn test_ellipse2d_parameter_round_trip_skewed() {
     let frame = skewed_frame2();
     for u in [0.3, 2.0, 5.5] {
-        let p = ellipse2d_d0(&frame, 3.0, 1.2, u);
-        let recovered = ellipse2d_parameter(&frame, 3.0, 1.2, p);
+        let p = ellipse_d0(&frame, 3.0, 1.2, u);
+        let recovered = ellipse_parameter(&frame, 3.0, 1.2, p);
         assert!((recovered - u).abs() < 1e-9);
     }
 }
@@ -572,7 +575,7 @@ fn test_conic_contains_matches_projection() {
             &|t| (e.eval_point(t), e.eval_derivative(t, 1)),
             &|p, tol| e.contains(p, tol),
             &|p, tol| {
-                e.eval_point(e.parameter_of(p)).distance(p) <= tol.confusion
+                e.eval_point(e.parameter_of(p, tol)).distance(p) <= tol.confusion
                     || e.project_point(p, tol).distance == 0.0
             },
             b * b / (2.0 * a),
@@ -582,7 +585,7 @@ fn test_conic_contains_matches_projection() {
             &|t| (h.eval_point(t), h.eval_derivative(t, 1)),
             &|p, tol| h.contains(p, tol),
             &|p, tol| {
-                h.eval_point(h.parameter_of(p)).distance(p) <= tol.confusion
+                h.eval_point(h.parameter_of(p, tol)).distance(p) <= tol.confusion
                     || h.project_point(p, tol).distance == 0.0
             },
             a.min(b).powi(2) / (2.0 * a),
@@ -592,7 +595,7 @@ fn test_conic_contains_matches_projection() {
             &|t| (h.eval_point(t), h.eval_derivative(t, 1)),
             &|p, tol| h.contains(p, tol),
             &|p, tol| {
-                h.eval_point(h.parameter_of(p)).distance(p) <= tol.confusion
+                h.eval_point(h.parameter_of(p, tol)).distance(p) <= tol.confusion
                     || h.project_point(p, tol).distance == 0.0
             },
             b.min(a).powi(2) / (2.0 * b),
@@ -604,7 +607,7 @@ fn test_conic_contains_matches_projection() {
             &|t| (par.eval_point(t), par.eval_derivative(t, 1)),
             &|p, tol| par.contains(p, tol),
             &|p, tol| {
-                par.eval_point(par.parameter_of(p)).distance(p) <= tol.confusion
+                par.eval_point(par.parameter_of(p, tol)).distance(p) <= tol.confusion
                     || par.project_point(p, tol).distance == 0.0
             },
             focal,

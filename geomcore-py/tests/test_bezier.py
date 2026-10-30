@@ -5,9 +5,17 @@ import math
 import pytest
 
 import geomcore
-from geomcore import ConstructionError, Point2D, Point, Side, Tolerance, Vector
-from geomcore.curves import BSplineCurve, BSplineCurve2D, BezierCurve, BezierCurve2D
-from geomcore.surfaces import BSplineSurface, BezierSurface
+from geomcore import ConstructionError, Point2D, Point, Side, Tolerance, Vector, Vector2D
+from geomcore.curves import (
+    BSplineCurve,
+    BSplineCurve2D,
+    BezierCurve,
+    BezierCurve2D,
+    Line,
+    Line2D,
+    TrimmedCurve,
+)
+from geomcore.surfaces import BSplineSurface, BezierSurface, Plane
 
 W = math.sqrt(0.5)
 
@@ -77,7 +85,15 @@ def test_curve_errors():
     with pytest.raises(ConstructionError):
         BezierCurve.new_rational(1, [Point.origin()] * 2, [1.0, 0.0])
     with pytest.raises(ValueError):
-        cubic().eval_derivative(0.5, 3)
+        cubic().eval_derivative(0.5, 0)
+
+
+def test_curve_derivatives_of_every_order():
+    # The third derivative of a cubic is the constant 6 (P3 - 3 P2 + 3 P1 - P0).
+    third = cubic().eval_derivative(0.5, 3)
+    assert (third.x, third.y, third.z) == pytest.approx((-12.0, 0.0, -12.0))
+    fourth = cubic().eval_derivative(0.5, 4)
+    assert (fourth.x, fourth.y, fourth.z) == (0.0, 0.0, 0.0)
 
 
 def test_curve_editing_keeps_the_shape():
@@ -101,6 +117,12 @@ def test_curve_round_trip_with_bspline():
     assert BezierCurve.from_bspline(spline) == curve
     with pytest.raises(ConstructionError):
         BezierCurve.from_bspline(spline.insert_knot(0.5, 1))
+
+
+def test_trimmed_curve_to_bspline_extracts_the_piece():
+    curve = cubic()
+    piece = TrimmedCurve(curve, 0.25, 0.75).to_bspline()
+    assert piece == curve.to_bspline().extract(0.25, 0.75)
 
 
 def test_curve_projection_and_discretization():
@@ -254,3 +276,31 @@ def test_surface_projection_and_closedness():
     assert surface.extrema(on)[0].distance == 0.0
     assert not surface.is_u_closed() and not surface.is_v_closed()
     assert surface.curvatures(0.5, 0.5) is not None
+
+
+
+# ---- Bézier operands of intersect ----
+
+
+def test_bezier_operands_intersect_as_their_bspline():
+    arch = BezierCurve(2, [Point(0.0, 0.0, 0.0), Point(1.0, 2.0, 0.0), Point(2.0, 0.0, 0.0)])
+    line = Line(Point(0.0, 0.5, 0.0), Vector(1.0, 0.0, 0.0))
+    result = line.intersect(arch)
+    assert len(result.hits) == 2
+    assert result.second is arch
+    expected = line.intersect(arch.to_bspline())
+    assert [h.point for h in result.hits] == [h.point for h in expected.hits]
+    half = TrimmedCurve(arch, 0.0, 0.5)
+    assert isinstance(half.basis(), BezierCurve)
+    assert len(line.intersect(half).hits) == 1
+    plane = Plane(Point(0.0, 0.5, 0.0), Vector(0.0, 1.0, 0.0))
+    assert len(plane.intersect(arch).hits) == 2
+    vertical = Line(Point(1.0, 1.0, 0.0), Vector(0.0, 0.0, 1.0))
+    on_saddle = vertical.intersect(saddle())
+    assert len(on_saddle.hits) == 1
+    assert isinstance(on_saddle.surface, BezierSurface)
+    level = Plane(Point(0.0, 0.0, 1.0), Vector(0.0, 0.0, 1.0))
+    assert level.intersect(saddle()).curves
+    arch_2d = BezierCurve2D(2, [Point2D(0.0, 0.0), Point2D(1.0, 2.0), Point2D(2.0, 0.0)])
+    line_2d = Line2D(Point2D(0.0, 0.5), Vector2D(1.0, 0.0))
+    assert len(line_2d.intersect(arch_2d).hits) == 2

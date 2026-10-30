@@ -1,36 +1,6 @@
-//! Axis-aligned bounding boxes of curves and surfaces (see `CONTEXT.md`).
-//!
-//! [`BoundingBox`] is the box; [`HasBoundingBox`] asks a curve or surface for
-//! it. Elementary shapes get their tightest box, touching the shape on
-//! every side: a circle or ellipse arc from its ends and the angles where a
-//! coordinate peaks within its range, a trimmed parabola or hyperbola from
-//! its ends and the parameters where a coordinate is stationary, a sphere
-//! or torus from its radii and the tilt of its axis. B-splines get the box
-//! of their control points, which holds the shape (weights are positive,
-//! so the shape lies in the convex hull of its poles) but may be loose; a
-//! trimmed B-spline gets the box of the poles of the knot spans its range
-//! covers and of the Bézier control points of its pieces of the spans it
-//! cuts. Unbounded shapes (lines, parabolas, hyperbolas, planes,
-//! cylinders, cones) have no box; trimmed curves always have one.
-//!
-//! The 2D curves have the same in the plane: [`BoundingBox2D`] and
-//! [`HasBoundingBox2D`], with the same rules for circles, lines, B-splines
-//! and trimmed curves.
-//!
-//! ```
-//! use geomcore::{HasBoundingBox, Circle, Line, Point, TrimmedCurve, Vector};
-//!
-//! let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
-//! let quarter = TrimmedCurve::new(circle, 0.0, std::f64::consts::FRAC_PI_2).unwrap();
-//! let b = quarter.bounding_box().unwrap();
-//! // From (2, 0, 0) to (0, 2, 0): the arc's own extreme points, not the circle's.
-//! assert_eq!((b.min().y, b.max().y), (0.0, 2.0));
-//! assert_eq!(b.max().x, 2.0);
-//! assert!(b.min().x.abs() < 1e-15);
-//!
-//! let line = Line::new(Point::ORIGIN, Vector::X).unwrap();
-//! assert_eq!(line.bounding_box(), None);
-//! ```
+//! Axis-aligned bounding boxes of curves and surfaces (see `CONTEXT.md`):
+//! the box types and traits, with the impls grouped by family in the
+//! files below.
 
 mod box_2d;
 mod curves;
@@ -38,8 +8,12 @@ mod curves_2d;
 mod surfaces;
 
 pub use box_2d::{BoundingBox2D, HasBoundingBox2D};
+pub(crate) use curves::{
+    BoundingBoxOf, box_through, hyperbola_box, parabola_box, spline_box, trigonometric_box,
+};
 
-use crate::{Point, Vector};
+use crate::tier::operations::BoxOperations;
+use crate::{Point, Point2D, Vector};
 
 /// An axis-aligned box: the points whose coordinates all lie between
 /// those of its [`min`](BoundingBox::min) and
@@ -285,16 +259,37 @@ impl BoundingBox {
 /// unbounded one.
 ///
 /// Elementary curves and surfaces report their tightest box, which touches
-/// the shape on every side (up to the rounding of evaluating it).
-/// B-splines report a box holding the whole shape, from their control
-/// points, which may be larger than the tightest. Lines, parabolas,
-/// hyperbolas, planes, cylinders and cones are unbounded and report
-/// `None`; a trimmed curve always has a box, over its range.
+/// the shape on every side (up to the rounding of evaluating it): a circle
+/// or ellipse arc from its ends and the angles where a coordinate peaks
+/// within its range, a trimmed parabola or hyperbola from its ends and the
+/// parameters where a coordinate is stationary, a sphere or torus from its
+/// radii and the tilt of its axis. B-splines report a box holding the
+/// whole shape, from their control points, which may be larger than the
+/// tightest (weights are positive, so the shape lies in the convex hull of
+/// its poles); a trimmed B-spline reports the box of the poles of the knot
+/// spans its range covers and of the Bézier control points of its pieces
+/// of the spans it cuts. Lines, parabolas, hyperbolas, planes, cylinders
+/// and cones are unbounded and report `None`; a trimmed curve always has a
+/// box, over its range.
 ///
 /// # Examples
 ///
 /// ```
-/// use geomcore::{HasBoundingBox, Plane, Point, Sphere, Vector};
+/// use geomcore::prelude::*;
+/// use geomcore::{Circle, Point, TrimmedCurve, Vector};
+///
+/// let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
+/// let quarter = TrimmedCurve::new(circle, 0.0, std::f64::consts::FRAC_PI_2).unwrap();
+/// let b = quarter.bounding_box().unwrap();
+/// // From (2, 0, 0) to (0, 2, 0): the arc's own extreme points, not the circle's.
+/// assert_eq!((b.min().y, b.max().y), (0.0, 2.0));
+/// assert_eq!(b.max().x, 2.0);
+/// assert!(b.min().x.abs() < 1e-15);
+/// ```
+///
+/// ```
+/// use geomcore::prelude::*;
+/// use geomcore::{Plane, Point, Sphere, Vector};
 ///
 /// let sphere = Sphere::new(Point::new(1.0, 0.0, 0.0), 2.0).unwrap();
 /// let b = sphere.bounding_box().unwrap();
@@ -316,28 +311,41 @@ impl<T: HasBoundingBox + ?Sized> HasBoundingBox for &T {
     }
 }
 
-pub(crate) mod sealed {
-    use super::{BoundingBox, BoundingBox2D};
+/// Implements the tier's box interface for a box type.
+macro_rules! box_operations {
+    ($($box:ident: $point:ident),*) => {$(
+        impl BoxOperations for $box {
+            type Point = $point;
 
-    /// The box of a range of a curve: what a trimmed curve needs from its
-    /// basis. Implemented by every curve, bounded or not.
-    pub trait BoundRange: crate::curves::ParametricCurve {
-        /// The box bounding the curve over `[first, last]`, a finite range
-        /// with `first < last`, at most one period long on a periodic
-        /// curve and anywhere on it.
-        fn range_box(&self, first: f64, last: f64) -> BoundingBox;
-    }
+            #[inline]
+            fn new(a: $point, b: $point) -> $box {
+                $box::new(a, b)
+            }
 
-    /// The box of a range of a 2D curve: what a
-    /// [`TrimmedCurve2D`](crate::curves::TrimmedCurve2D) needs from its
-    /// basis. Implemented by every 2D curve, bounded or not.
-    pub trait BoundRange2D: crate::curves::ParametricCurve2D {
-        /// The box bounding the curve over `[first, last]`, a finite range
-        /// with `first < last`, at most one period long on a periodic
-        /// curve and anywhere on it.
-        fn range_box(&self, first: f64, last: f64) -> BoundingBox2D;
-    }
+            #[inline]
+            fn from_corners(min: $point, max: $point) -> $box {
+                $box { min, max }
+            }
+
+            #[inline]
+            fn including(self, point: $point) -> $box {
+                $box::including(self, point)
+            }
+
+            #[inline]
+            fn min(self) -> $point {
+                $box::min(self)
+            }
+
+            #[inline]
+            fn max(self) -> $point {
+                $box::max(self)
+            }
+        }
+    )*};
 }
+
+box_operations!(BoundingBox: Point, BoundingBox2D: Point2D);
 
 #[cfg(test)]
 mod tests;

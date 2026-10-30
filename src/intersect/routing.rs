@@ -9,38 +9,36 @@
 //! [`CurveOperand`], which tells the router whether a curve has an
 //! elementary basis and which parameter range restricts it, and the
 //! parameter-range clipping that turns an exact intersection of the basis
-//! into the intersection of the trimmed curve.
+//! into the intersection of the trimmed curve. [`ExactFamily`], in
+//! `exact_family`, reads each pair's typed exact result into its family
+//! result.
 
 use crate::Tolerance;
+use crate::curves::PointExtrema;
+use crate::curves::PointExtrema2D;
 use crate::curves::{
-    BSplineCurve, BSplineCurve2D, Circle, Circle2D, Curve, Curve2D, ElementaryCurve, Ellipse,
-    Ellipse2D, Hyperbola, Hyperbola2D, Line, Line2D, Parabola, Parabola2D, ParametricCurve,
-    ParametricCurve2D, TrimmedCurve, TrimmedCurve2D,
-};
-use crate::intersect::exact::{
-    ExactCurveCurve, ExactCurveCurve2D, ExactCurveCurve2DIntersection, ExactCurveSurface,
+    BSplineCurve, BSplineCurve2D, BezierCurve, BezierCurve2D, Circle, Circle2D, Curve, Curve2D,
+    ElementaryCurve, Ellipse, Ellipse2D, Hyperbola, Hyperbola2D, Line, Line2D, Parabola,
+    Parabola2D, ParametricCurve, ParametricCurve2D, TrimmedCurve, TrimmedCurve2D,
 };
 use crate::intersect::numeric::embedding_2d::{Embed, intersect_numeric_2d};
 use crate::intersect::numeric::marching::marching_intersection;
-use crate::intersect::results::{
-    CurveCurveHitList, CurveCurveOverlapList, CurveSurfaceOverlapList, IntersectionCurve,
-    SurfaceSurfaceIntersection,
-};
+use crate::intersect::results::{CurveCurveOverlapList, SurfaceSurfaceIntersection};
 use crate::intersect::{
-    CurveCurveHit, CurveCurveHit2D, CurveCurveIntersection, CurveCurveIntersection2D,
-    CurveCurveOverlap, CurveSurfaceHit, CurveSurfaceIntersection, ExactCurveCurveIntersection,
-    ExactCurveSurfaceIntersection, ExactSurfaceIntersection, InlineList, IntersectExact,
-    intersect_curve_curve, intersect_curve_surface,
+    CurveCurveIntersection, CurveCurveIntersection2D, CurveCurveOverlap, CurveSurfaceIntersection,
+    InlineList, intersect_curve_curve, intersect_curve_surface,
 };
 use crate::surfaces::{
-    BSplineSurface, Cone, Cylinder, ElementarySurface, ParametricSurface, Plane, Sphere, Surface,
-    Torus,
+    BSplineSurface, BezierSurface, Cone, Cylinder, ElementarySurface, ParametricSurface, Plane,
+    Sphere, Surface, Torus,
 };
-use crate::{Point, Point2D};
+
+mod exact_family;
+pub(crate) use exact_family::ExactFamily;
 
 /// Routed intersection: exact when a closed form exists, numeric otherwise.
 ///
-/// Unlike [`IntersectExact`], the typed exact path that never runs numeric
+/// Unlike [`IntersectExact`](crate::IntersectExact), the typed exact path that never runs numeric
 /// work, `intersect` works for every supported pair, and its result says which
 /// method ran (`method()`) and whether it is complete.
 ///
@@ -50,7 +48,8 @@ use crate::{Point, Point2D};
 /// # Examples
 ///
 /// ```
-/// use geomcore::{Intersect, IntersectionMethod, Line, Point, Sphere, Tolerance, Vector};
+/// use geomcore::prelude::*;
+/// use geomcore::{IntersectionMethod, Line, Point, Sphere, Tolerance, Vector};
 ///
 /// // A line along z through a sphere of radius 2 crosses it at both poles.
 /// let line = Line::new(Point::new(0.0, 0.0, -5.0), Vector::Z).unwrap();
@@ -75,42 +74,35 @@ pub trait Intersect<Rhs: ?Sized = Self> {
 /// basis and every curve basis, through the pair's typed solver.
 ///
 /// The concrete curves are their own basis, so a pair whose types are known
-/// at compile time is solved without converting to the untyped
+/// at compile time is solved without converting to
 /// [`ElementaryCurve`] or dispatching at run time; [`ElementaryCurve`] is
 /// the basis of the curves whose kind is only known at run time.
 ///
-/// [`basis_parameter_of`](Self::basis_parameter_of) gives the parameter of
-/// a hit's point when the curve is restricted to a range and the solver
-/// did not compute it: the range test needs it.
+/// [`parameter_of`](PointExtrema::parameter_of) gives the parameter of a
+/// hit's point when the curve is restricted to a range and the solver did
+/// not compute it: the range test needs it.
 pub(crate) trait CurveBasis:
-    ParametricCurve
+    PointExtrema
     + Copy
     + Into<ElementaryCurve>
-    + ExactCurveSurface<Plane>
-    + ExactCurveSurface<Cylinder>
-    + ExactCurveSurface<Cone>
-    + ExactCurveSurface<Sphere>
-    + ExactCurveSurface<Torus>
-    + ExactCurveSurface<ElementarySurface>
-    + ExactCurveCurve<Line>
-    + ExactCurveCurve<Circle>
-    + ExactCurveCurve<Ellipse>
-    + ExactCurveCurve<Parabola>
-    + ExactCurveCurve<Hyperbola>
-    + ExactCurveCurve<ElementaryCurve>
+    + ExactFamily<Plane, Family = CurveSurfaceIntersection>
+    + ExactFamily<Cylinder, Family = CurveSurfaceIntersection>
+    + ExactFamily<Cone, Family = CurveSurfaceIntersection>
+    + ExactFamily<Sphere, Family = CurveSurfaceIntersection>
+    + ExactFamily<Torus, Family = CurveSurfaceIntersection>
+    + ExactFamily<ElementarySurface, Family = CurveSurfaceIntersection>
+    + ExactFamily<Line, Family = CurveCurveIntersection>
+    + ExactFamily<Circle, Family = CurveCurveIntersection>
+    + ExactFamily<Ellipse, Family = CurveCurveIntersection>
+    + ExactFamily<Parabola, Family = CurveCurveIntersection>
+    + ExactFamily<Hyperbola, Family = CurveCurveIntersection>
+    + ExactFamily<ElementaryCurve, Family = CurveCurveIntersection>
 {
-    /// The parameter of `point`, a point on the curve.
-    fn basis_parameter_of(&self, point: Point) -> f64;
 }
 
 macro_rules! curve_basis {
     ($($curve:ty),*) => {$(
-        impl CurveBasis for $curve {
-            #[inline]
-            fn basis_parameter_of(&self, point: Point) -> f64 {
-                self.parameter_of(point)
-            }
-        }
+        impl CurveBasis for $curve {}
     )*};
 }
 
@@ -145,6 +137,14 @@ macro_rules! elementary_operand {
 elementary_operand!(Line, Circle, Ellipse, Parabola, Hyperbola, ElementaryCurve);
 
 impl CurveOperand for BSplineCurve {
+    type Basis = ElementaryCurve;
+
+    fn elementary_basis(&self) -> Option<Operand<ElementaryCurve>> {
+        None
+    }
+}
+
+impl CurveOperand for BezierCurve {
     type Basis = ElementaryCurve;
 
     fn elementary_basis(&self) -> Option<Operand<ElementaryCurve>> {
@@ -200,6 +200,14 @@ macro_rules! elementary_surface_operand {
 elementary_surface_operand!(Plane, Cylinder, Cone, Sphere, Torus, ElementarySurface);
 
 impl SurfaceOperand for BSplineSurface {
+    type Basis = ElementarySurface;
+
+    fn surface_basis(&self) -> Option<ElementarySurface> {
+        None
+    }
+}
+
+impl SurfaceOperand for BezierSurface {
     type Basis = ElementarySurface;
 
     fn surface_basis(&self) -> Option<ElementarySurface> {
@@ -394,65 +402,15 @@ pub(crate) fn route_curve_surface<C: CurveOperand, S: SurfaceOperand>(
     tol: Tolerance,
 ) -> CurveSurfaceIntersection
 where
-    C::Basis: ExactCurveSurface<S::Basis>,
+    C::Basis: ExactFamily<S::Basis, Family = CurveSurfaceIntersection>,
 {
-    if let (Some((basis, range)), Some(elementary)) =
-        (curve.elementary_basis(), surface.surface_basis())
-    {
-        let exact = basis.exact_curve_surface(&elementary, tol);
-        if !matches!(exact, ExactCurveSurfaceIntersection::NotAnalytic) {
-            return from_exact_curve_surface(exact, &basis, range, tol);
-        }
-    }
     // A trimmed curve is searched over its own range only: no clipping.
-    intersect_curve_surface(curve, surface, tol)
-}
-
-/// Turns the exact intersection of the curve's elementary `basis` with the
-/// surface into the routed result: hits outside `range` dropped, the kept
-/// ones carrying their representative in `range`. The surface parameters
-/// are not computed: the caller recovers them from the point if needed.
-#[inline]
-fn from_exact_curve_surface(
-    exact: ExactCurveSurfaceIntersection,
-    basis: &impl ParametricCurve,
-    range: Option<(f64, f64)>,
-    tol: Tolerance,
-) -> CurveSurfaceIntersection {
-    match exact {
-        ExactCurveSurfaceIntersection::Points(list) => {
-            let hits = list.iter().filter_map(|hit| {
-                let curve_parameter = match range {
-                    Some(range) => in_range(
-                        hit.parameter,
-                        range,
-                        basis.period(),
-                        |parameter| basis.eval_derivative(parameter, 1).magnitude(),
-                        tol,
-                    )?,
-                    None => hit.parameter,
-                };
-                Some(CurveSurfaceHit {
-                    curve_parameter: Some(curve_parameter),
-                    surface_parameters: None,
-                    point: hit.point,
-                    multiplicity: hit.multiplicity,
-                })
-            });
-            CurveSurfaceIntersection::exact(hits, CurveSurfaceOverlapList::new())
+    let numeric_search = || intersect_curve_surface(curve, surface, tol);
+    match (curve.elementary_basis(), surface.surface_basis()) {
+        (Some((basis, range)), Some(elementary)) => {
+            basis.exact_family(&elementary, (range, None), tol, numeric_search)
         }
-        // The whole curve lies on the surface: a trimmed curve over its
-        // range, the basis over its bounds (infinite for a line).
-        ExactCurveSurfaceIntersection::Coincident => {
-            let overlap = range.unwrap_or(basis.bounds());
-            CurveSurfaceIntersection::exact([], [overlap].into_iter().collect())
-        }
-        ExactCurveSurfaceIntersection::Empty => {
-            CurveSurfaceIntersection::exact([], CurveSurfaceOverlapList::new())
-        }
-        ExactCurveSurfaceIntersection::NotAnalytic => {
-            unreachable!("the router sends a pair with no closed form to the numeric search")
-        }
+        _ => numeric_search(),
     }
 }
 
@@ -485,8 +443,8 @@ macro_rules! curve_surface {
 }
 
 curve_surface!(
-    Line, Circle, Ellipse, Parabola, Hyperbola, BSplineCurve, Curve, ElementaryCurve;
-    [Plane, Cylinder, Cone, Sphere, Torus, BSplineSurface, Surface, ElementarySurface]
+    Line, Circle, Ellipse, Parabola, Hyperbola, BSplineCurve, BezierCurve, Curve, ElementaryCurve;
+    [Plane, Cylinder, Cone, Sphere, Torus, BSplineSurface, BezierSurface, Surface, ElementarySurface]
 );
 
 /// Implements [`Intersect`] between a trimmed curve over any curve operand
@@ -520,62 +478,10 @@ trimmed_curve_surface!(
     Sphere,
     Torus,
     BSplineSurface,
+    BezierSurface,
     Surface,
     ElementarySurface
 );
-
-/// Exact intersection of two surface bases, whatever the shape of the
-/// pair's typed result: the general [`ExactSurfaceIntersection`].
-///
-/// A pair of concrete surfaces converts its own typed result (a small,
-/// stack-only value), so the pair is solved without dispatching at run
-/// time; only an enum operand goes through the enum's dispatch.
-pub(crate) trait ExactSurfaceSurface<B> {
-    /// Intersects `self` with `other`, deciding tangency and coincidence
-    /// with `tol`.
-    fn exact_surface_surface(&self, other: &B, tol: Tolerance) -> ExactSurfaceIntersection;
-}
-
-impl<A, B> ExactSurfaceSurface<B> for A
-where
-    A: IntersectExact<B>,
-    A::Output: Into<ExactSurfaceIntersection>,
-{
-    #[inline]
-    fn exact_surface_surface(&self, other: &B, tol: Tolerance) -> ExactSurfaceIntersection {
-        self.intersect_exact(other, tol).into()
-    }
-}
-
-/// Implements [`ExactSurfaceSurface`] between each concrete surface and
-/// the enum, in both orders, by wrapping the concrete one.
-macro_rules! exact_surface_surface_with_enum {
-    ($($surface:ty),*) => {$(
-        impl ExactSurfaceSurface<ElementarySurface> for $surface {
-            #[inline]
-            fn exact_surface_surface(
-                &self,
-                other: &ElementarySurface,
-                tol: Tolerance,
-            ) -> ExactSurfaceIntersection {
-                ElementarySurface::from(*self).intersect_exact(other, tol)
-            }
-        }
-
-        impl ExactSurfaceSurface<$surface> for ElementarySurface {
-            #[inline]
-            fn exact_surface_surface(
-                &self,
-                other: &$surface,
-                tol: Tolerance,
-            ) -> ExactSurfaceIntersection {
-                self.intersect_exact(&ElementarySurface::from(*other), tol)
-            }
-        }
-    )*};
-}
-
-exact_surface_surface_with_enum!(Plane, Cylinder, Cone, Sphere, Torus);
 
 /// Intersects two surfaces: the exact path when both have an elementary
 /// basis and the pair has a closed form; marching otherwise.
@@ -586,42 +492,14 @@ pub(crate) fn route_surface_surface<A: SurfaceOperand, B: SurfaceOperand>(
     tol: Tolerance,
 ) -> SurfaceSurfaceIntersection
 where
-    A::Basis: ExactSurfaceSurface<B::Basis>,
+    A::Basis: ExactFamily<B::Basis, Family = SurfaceSurfaceIntersection>,
 {
-    if let (Some(first), Some(second)) = (a.surface_basis(), b.surface_basis()) {
-        let exact = first.exact_surface_surface(&second, tol);
-        if !matches!(exact, ExactSurfaceIntersection::NotAnalytic) {
-            return from_exact_surface_surface(exact);
+    let numeric_search = || marching_intersection(a, b, tol);
+    match (a.surface_basis(), b.surface_basis()) {
+        (Some(first), Some(second)) => {
+            first.exact_family(&second, (None, None), tol, numeric_search)
         }
-    }
-    marching_intersection(a, b, tol)
-}
-
-/// Turns the exact intersection of two surface bases into the routed
-/// result.
-#[inline]
-fn from_exact_surface_surface(exact: ExactSurfaceIntersection) -> SurfaceSurfaceIntersection {
-    match exact {
-        ExactSurfaceIntersection::Meets { curves, points } => SurfaceSurfaceIntersection::exact(
-            curves
-                .iter()
-                .map(|&(curve, tangent)| IntersectionCurve {
-                    curve: Curve::from(curve),
-                    tangent,
-                })
-                .collect(),
-            points.iter().copied().collect(),
-            false,
-        ),
-        ExactSurfaceIntersection::Coincident => {
-            SurfaceSurfaceIntersection::exact(Vec::new(), Vec::new(), true)
-        }
-        ExactSurfaceIntersection::Empty => {
-            SurfaceSurfaceIntersection::exact(Vec::new(), Vec::new(), false)
-        }
-        ExactSurfaceIntersection::NotAnalytic => {
-            unreachable!("the router sends a pair with no closed form to marching")
-        }
+        _ => numeric_search(),
     }
 }
 
@@ -644,8 +522,8 @@ macro_rules! surface_surface {
 }
 
 surface_surface!(
-    Plane, Cylinder, Cone, Sphere, Torus, BSplineSurface, Surface, ElementarySurface;
-    [Plane, Cylinder, Cone, Sphere, Torus, BSplineSurface, Surface, ElementarySurface]
+    Plane, Cylinder, Cone, Sphere, Torus, BSplineSurface, BezierSurface, Surface, ElementarySurface;
+    [Plane, Cylinder, Cone, Sphere, Torus, BSplineSurface, BezierSurface, Surface, ElementarySurface]
 );
 
 /// Intersects two curves: the exact path when both have an elementary
@@ -657,97 +535,20 @@ pub(crate) fn route_curve_curve<A: CurveOperand, B: CurveOperand>(
     tol: Tolerance,
 ) -> CurveCurveIntersection
 where
-    A::Basis: ExactCurveCurve<B::Basis>,
+    A::Basis: ExactFamily<B::Basis, Family = CurveCurveIntersection>,
 {
-    if let (Some(first), Some(second)) = (a.elementary_basis(), b.elementary_basis()) {
-        let exact = first.0.exact_curve_curve(&second.0, tol);
-        debug_assert!(
-            !matches!(exact, ExactCurveCurveIntersection::NotAnalytic),
-            "every pair of elementary curves has a closed form"
-        );
-        if !matches!(exact, ExactCurveCurveIntersection::NotAnalytic) {
-            return from_exact_curve_curve(exact, first, second, tol);
-        }
-    }
     // A trimmed curve is searched over its own range only: no clipping.
-    intersect_curve_curve(a, b, tol)
+    let numeric_search = || intersect_curve_curve(a, b, tol);
+    match (a.elementary_basis(), b.elementary_basis()) {
+        (Some((first, first_range)), Some((second, second_range))) => {
+            first.exact_family(&second, (first_range, second_range), tol, numeric_search)
+        }
+        _ => numeric_search(),
+    }
 }
 
 /// An elementary basis and the parameter range restricting it.
 type Operand<C> = (C, Option<(f64, f64)>);
-
-/// Turns the exact intersection of two elementary bases into the routed
-/// result: hits outside either range dropped, the kept ones carrying their
-/// representative in each range (see [`kept_parameter`]), and a
-/// coincidence clipped to both ranges.
-#[inline]
-fn from_exact_curve_curve<A: CurveBasis, B: CurveBasis>(
-    exact: ExactCurveCurveIntersection,
-    (first, first_range): Operand<A>,
-    (second, second_range): Operand<B>,
-    tol: Tolerance,
-) -> CurveCurveIntersection {
-    match exact {
-        // Neither basis is restricted: the solver's hits are kept as they
-        // are, with no range test.
-        ExactCurveCurveIntersection::Points(list)
-            if first_range.is_none() && second_range.is_none() =>
-        {
-            CurveCurveIntersection::exact(
-                CurveCurveHitList::Inline(list),
-                CurveCurveOverlapList::new(),
-            )
-        }
-        ExactCurveCurveIntersection::Points(list) => {
-            let hits = list.iter().filter_map(|hit| {
-                Some(CurveCurveHit {
-                    first_parameter: kept_parameter(
-                        hit.first_parameter,
-                        first_range,
-                        first.period(),
-                        || first.basis_parameter_of(hit.point),
-                        |parameter| first.eval_derivative(parameter, 1).magnitude(),
-                        tol,
-                    )?,
-                    second_parameter: kept_parameter(
-                        hit.second_parameter,
-                        second_range,
-                        second.period(),
-                        || second.basis_parameter_of(hit.point),
-                        |parameter| second.eval_derivative(parameter, 1).magnitude(),
-                        tol,
-                    )?,
-                    ..*hit
-                })
-            });
-            CurveCurveIntersection::exact(hits.collect(), CurveCurveOverlapList::new())
-        }
-        // Rare: the coincidence is worked out on the untyped curves, so the
-        // overlap mapping exists once.
-        ExactCurveCurveIntersection::Coincident => {
-            let (first, second): (ElementaryCurve, ElementaryCurve) = (first.into(), second.into());
-            let first_range = first_range.unwrap_or(first.bounds());
-            let second_range = second_range.unwrap_or(second.bounds());
-            let shared = coincident_overlaps((&first, first_range), (&second, second_range), tol);
-            let hits = shared
-                .touches
-                .iter()
-                .map(|&(first_parameter, second_parameter)| CurveCurveHit {
-                    first_parameter: Some(first_parameter),
-                    second_parameter: Some(second_parameter),
-                    point: first.eval_point(first_parameter),
-                    multiplicity: 1,
-                });
-            CurveCurveIntersection::exact(hits.collect(), shared.overlaps)
-        }
-        ExactCurveCurveIntersection::Empty => {
-            CurveCurveIntersection::exact(CurveCurveHitList::new(), CurveCurveOverlapList::new())
-        }
-        ExactCurveCurveIntersection::NotAnalytic => {
-            unreachable!("the router sends a pair with no closed form to the numeric search")
-        }
-    }
-}
 
 /// The overlaps of two coincident curves restricted to `first_range` and
 /// `second_range`.
@@ -767,7 +568,7 @@ fn coincident_overlaps<C: CoincidentCurve>(
     (second, second_range): (&C, (f64, f64)),
     tol: Tolerance,
 ) -> CoincidentPieces {
-    let same_direction = runs_along(second, second_range, first);
+    let same_direction = runs_along(second, second_range, first, tol);
     let on_first = mapped_range(second, second_range, first, same_direction, tol);
     let mut overlaps = CurveCurveOverlapList::new();
     let mut touches = InlineList::new();
@@ -783,7 +584,7 @@ fn coincident_overlaps<C: CoincidentCurve>(
     for &piece in first_pieces.iter() {
         if is_single_point(piece, &first_speed, tol) {
             let first_parameter = (0.5 * (piece.0 + piece.1)).clamp(first_range.0, first_range.1);
-            let found = second.parameter_of_image(first, first_parameter);
+            let found = second.parameter_of_image(first, first_parameter, tol);
             let period = second.cycle_length();
             let second_parameter = in_range(found, second_range, period, |t| second.speed(t), tol)
                 .unwrap_or_else(|| nearest_end(found, second_range, period));
@@ -810,7 +611,7 @@ fn coincident_overlaps<C: CoincidentCurve>(
         // part of each side back from its end points.
         for &part in pieces_on_second.iter() {
             let end = |parameter: f64| {
-                let found = first.parameter_of_image(second, parameter);
+                let found = first.parameter_of_image(second, parameter, tol);
                 let period = first.cycle_length();
                 in_range(found, piece, period, |t| first.speed(t), tol)
                     .unwrap_or_else(|| nearest_end(found, piece, period))
@@ -845,11 +646,11 @@ pub(crate) trait CoincidentCurve {
 
     /// The parameter, on this curve, of the point `other` has at
     /// `parameter`; `other` coincides with this curve.
-    fn parameter_of_image(&self, other: &Self, parameter: f64) -> f64;
+    fn parameter_of_image(&self, other: &Self, parameter: f64, tol: Tolerance) -> f64;
 
     /// Whether this curve at `parameter` and `other` at the same point
     /// run the same way.
-    fn runs_with(&self, parameter: f64, other: &Self) -> bool;
+    fn runs_with(&self, parameter: f64, other: &Self, tol: Tolerance) -> bool;
 
     /// The length of the first derivative at `parameter`: the line
     /// direction's length, the circle's radius.
@@ -861,12 +662,12 @@ impl CoincidentCurve for ElementaryCurve {
         self.period()
     }
 
-    fn parameter_of_image(&self, other: &Self, parameter: f64) -> f64 {
-        self.parameter_of(other.eval_point(parameter))
+    fn parameter_of_image(&self, other: &Self, parameter: f64, tol: Tolerance) -> f64 {
+        self.parameter_of(other.eval_point(parameter), tol)
     }
 
-    fn runs_with(&self, parameter: f64, other: &Self) -> bool {
-        let image = other.parameter_of_image(self, parameter);
+    fn runs_with(&self, parameter: f64, other: &Self, tol: Tolerance) -> bool {
+        let image = other.parameter_of_image(self, parameter, tol);
         self.eval_derivative(parameter, 1)
             .dot(other.eval_derivative(image, 1))
             >= 0.0
@@ -882,20 +683,12 @@ impl CoincidentCurve for Curve2D {
         self.period()
     }
 
-    fn parameter_of_image(&self, other: &Self, parameter: f64) -> f64 {
-        let point = other.eval_point(parameter);
-        match self {
-            Curve2D::Line(line) => line.parameter_of(point),
-            Curve2D::Circle(circle) => circle.parameter_of(point),
-            Curve2D::Ellipse(ellipse) => ellipse.parameter_of(point),
-            Curve2D::Parabola(parabola) => parabola.parameter_of(point),
-            Curve2D::Hyperbola(hyperbola) => hyperbola.parameter_of(point),
-            Curve2D::BSpline(bspline) => bspline.parameter_of(point),
-        }
+    fn parameter_of_image(&self, other: &Self, parameter: f64, tol: Tolerance) -> f64 {
+        self.parameter_of(other.eval_point(parameter), tol)
     }
 
-    fn runs_with(&self, parameter: f64, other: &Self) -> bool {
-        let image = other.parameter_of_image(self, parameter);
+    fn runs_with(&self, parameter: f64, other: &Self, tol: Tolerance) -> bool {
+        let image = other.parameter_of_image(self, parameter, tol);
         self.eval_derivative(parameter, 1)
             .dot(other.eval_derivative(image, 1))
             >= 0.0
@@ -908,14 +701,14 @@ impl CoincidentCurve for Curve2D {
 
 /// Whether the coincident curves `from` and `to` run the same way: the
 /// sign of the tangents' dot product at a sample of `range`.
-fn runs_along<C: CoincidentCurve>(from: &C, range: (f64, f64), to: &C) -> bool {
+fn runs_along<C: CoincidentCurve>(from: &C, range: (f64, f64), to: &C, tol: Tolerance) -> bool {
     let sample = match (range.0.is_finite(), range.1.is_finite()) {
         (true, true) => 0.5 * (range.0 + range.1),
         (true, false) => range.0,
         (false, true) => range.1,
         (false, false) => 0.0,
     };
-    from.runs_with(sample, to)
+    from.runs_with(sample, to, tol)
 }
 
 /// The image of `range` of curve `from` on the coincident curve `to`, as a
@@ -932,7 +725,7 @@ fn mapped_range<C: CoincidentCurve>(
     along: bool,
     tol: Tolerance,
 ) -> (f64, f64) {
-    let image = |parameter: f64| to.parameter_of_image(from, parameter);
+    let image = |parameter: f64| to.parameter_of_image(from, parameter, tol);
     let Some(period) = to.cycle_length() else {
         let end = |parameter: f64| {
             if parameter.is_finite() {
@@ -987,6 +780,7 @@ curve_curve!([
     Parabola,
     Hyperbola,
     BSplineCurve,
+    BezierCurve,
     Curve,
     ElementaryCurve
 ]);
@@ -1006,7 +800,7 @@ macro_rules! trimmed_curve_curve {
 
         impl<X: CurveOperand> Intersect<TrimmedCurve<X>> for $curve
         where
-            <$curve as CurveOperand>::Basis: ExactCurveCurve<X::Basis>,
+            <$curve as CurveOperand>::Basis: ExactFamily<X::Basis, Family = CurveCurveIntersection>,
         {
             type Output = CurveCurveIntersection;
 
@@ -1025,13 +819,14 @@ trimmed_curve_curve!(
     Parabola,
     Hyperbola,
     BSplineCurve,
+    BezierCurve,
     Curve,
     ElementaryCurve
 );
 
 impl<X: CurveOperand, Y: CurveOperand> Intersect<TrimmedCurve<Y>> for TrimmedCurve<X>
 where
-    X::Basis: ExactCurveCurve<Y::Basis>,
+    X::Basis: ExactFamily<Y::Basis, Family = CurveCurveIntersection>,
 {
     type Output = CurveCurveIntersection;
 
@@ -1045,54 +840,24 @@ where
 /// concrete curves are their own basis, [`Curve2D`] the basis of a curve
 /// whose kind is only known at run time.
 pub(crate) trait CurveBasis2D:
-    ParametricCurve2D
+    PointExtrema2D
     + Clone
     + Into<Curve2D>
-    + ExactCurveCurve2D<Line2D>
-    + ExactCurveCurve2D<Circle2D>
-    + ExactCurveCurve2D<Ellipse2D>
-    + ExactCurveCurve2D<Parabola2D>
-    + ExactCurveCurve2D<Hyperbola2D>
-    + ExactCurveCurve2D<Curve2D>
+    + ExactFamily<Line2D, Family = CurveCurveIntersection2D>
+    + ExactFamily<Circle2D, Family = CurveCurveIntersection2D>
+    + ExactFamily<Ellipse2D, Family = CurveCurveIntersection2D>
+    + ExactFamily<Parabola2D, Family = CurveCurveIntersection2D>
+    + ExactFamily<Hyperbola2D, Family = CurveCurveIntersection2D>
+    + ExactFamily<Curve2D, Family = CurveCurveIntersection2D>
 {
-    /// The parameter of `point`, a point on the curve: the range test of a
-    /// restricted curve needs it when the solver did not compute it.
-    fn basis_parameter_of(&self, point: Point2D) -> f64;
 }
 
-impl CurveBasis2D for Line2D {
-    #[inline]
-    fn basis_parameter_of(&self, point: Point2D) -> f64 {
-        self.parameter_of(point)
-    }
-}
-
-macro_rules! curve_basis_2d {
-    ($($curve:ty),*) => {$(
-        impl CurveBasis2D for $curve {
-            #[inline]
-            fn basis_parameter_of(&self, point: Point2D) -> f64 {
-                self.parameter_of(point)
-            }
-        }
-    )*};
-}
-
-curve_basis_2d!(Circle2D, Ellipse2D, Parabola2D, Hyperbola2D);
-
-impl CurveBasis2D for Curve2D {
-    #[inline]
-    fn basis_parameter_of(&self, point: Point2D) -> f64 {
-        match self {
-            Curve2D::Line(line) => line.parameter_of(point),
-            Curve2D::Circle(circle) => circle.parameter_of(point),
-            Curve2D::Ellipse(ellipse) => ellipse.parameter_of(point),
-            Curve2D::Parabola(parabola) => parabola.parameter_of(point),
-            Curve2D::Hyperbola(hyperbola) => hyperbola.parameter_of(point),
-            Curve2D::BSpline(bspline) => bspline.parameter_of(point),
-        }
-    }
-}
+impl CurveBasis2D for Line2D {}
+impl CurveBasis2D for Circle2D {}
+impl CurveBasis2D for Ellipse2D {}
+impl CurveBasis2D for Parabola2D {}
+impl CurveBasis2D for Hyperbola2D {}
+impl CurveBasis2D for Curve2D {}
 
 /// A 2D curve's exact basis and the parameter range it is restricted to
 /// (`None` = the basis's own bounds).
@@ -1144,6 +909,16 @@ impl CurveOperand2D for BSplineCurve2D {
     }
 }
 
+impl CurveOperand2D for BezierCurve2D {
+    /// Never built: a Bézier curve has no exact basis.
+    type Basis = Curve2D;
+
+    #[inline]
+    fn basis_and_range(&self) -> Option<BasisAndRange<Curve2D>> {
+        None
+    }
+}
+
 impl<C: CurveOperand2D> CurveOperand2D for TrimmedCurve2D<C> {
     type Basis = C::Basis;
 
@@ -1168,73 +943,15 @@ pub(crate) fn route_curve_curve_2d<A: CurveOperand2D, B: CurveOperand2D>(
     tol: Tolerance,
 ) -> CurveCurveIntersection2D
 where
-    A::Basis: ExactCurveCurve2D<B::Basis>,
+    A::Basis: ExactFamily<B::Basis, Family = CurveCurveIntersection2D>,
 {
-    let (Some((first, first_range)), Some((second, second_range))) =
-        (a.basis_and_range(), b.basis_and_range())
-    else {
-        return intersect_numeric_2d(a, b, tol);
-    };
-    match first.exact_curve_curve_2d(&second, tol) {
-        ExactCurveCurve2DIntersection::Coincident => {
-            coincidence_2d(first.into(), first_range, second.into(), second_range, tol)
+    let numeric_search = || intersect_numeric_2d(a, b, tol);
+    match (a.basis_and_range(), b.basis_and_range()) {
+        (Some((first, first_range)), Some((second, second_range))) => {
+            first.exact_family(&second, (first_range, second_range), tol, numeric_search)
         }
-        // Neither basis is restricted: the solver's hits are kept as they
-        // are, with no range test.
-        ExactCurveCurve2DIntersection::Hits(hits)
-            if first_range.is_none() && second_range.is_none() =>
-        {
-            CurveCurveIntersection2D::exact(hits.iter().copied(), CurveCurveOverlapList::new())
-        }
-        ExactCurveCurve2DIntersection::Hits(hits) => {
-            let kept = hits.iter().copied().filter_map(|hit| {
-                Some(CurveCurveHit2D {
-                    first_parameter: kept_parameter(
-                        hit.first_parameter,
-                        first_range,
-                        first.period(),
-                        || first.basis_parameter_of(hit.point),
-                        |parameter| first.eval_derivative(parameter, 1).magnitude(),
-                        tol,
-                    )?,
-                    second_parameter: kept_parameter(
-                        hit.second_parameter,
-                        second_range,
-                        second.period(),
-                        || second.basis_parameter_of(hit.point),
-                        |parameter| second.eval_derivative(parameter, 1).magnitude(),
-                        tol,
-                    )?,
-                    ..hit
-                })
-            });
-            CurveCurveIntersection2D::exact(kept, CurveCurveOverlapList::new())
-        }
-        ExactCurveCurve2DIntersection::NotAnalytic => intersect_numeric_2d(a, b, tol),
+        _ => numeric_search(),
     }
-}
-
-/// The result for two coincident 2D bases restricted to their ranges.
-fn coincidence_2d(
-    first: Curve2D,
-    first_range: Option<(f64, f64)>,
-    second: Curve2D,
-    second_range: Option<(f64, f64)>,
-    tol: Tolerance,
-) -> CurveCurveIntersection2D {
-    let first_range = first_range.unwrap_or(first.bounds());
-    let second_range = second_range.unwrap_or(second.bounds());
-    let shared = coincident_overlaps((&first, first_range), (&second, second_range), tol);
-    let hits = shared
-        .touches
-        .iter()
-        .map(|&(first_parameter, second_parameter)| CurveCurveHit2D {
-            first_parameter: Some(first_parameter),
-            second_parameter: Some(second_parameter),
-            point: first.eval_point(first_parameter),
-            multiplicity: 1,
-        });
-    CurveCurveIntersection2D::exact(hits, shared.overlaps)
 }
 
 /// Implements [`Intersect`] for every 2D curve of the list with every one
@@ -1265,7 +982,8 @@ curve_curve_2d!([
     Parabola2D,
     Hyperbola2D,
     Curve2D,
-    BSplineCurve2D
+    BSplineCurve2D,
+    BezierCurve2D
 ]);
 
 /// Implements [`Intersect`] between a trimmed 2D curve over any operand and
@@ -1283,7 +1001,7 @@ macro_rules! trimmed_curve_curve_2d {
 
         impl<X: CurveOperand2D> Intersect<TrimmedCurve2D<X>> for $curve
         where
-            <$curve as CurveOperand2D>::Basis: ExactCurveCurve2D<X::Basis>,
+            <$curve as CurveOperand2D>::Basis: ExactFamily<X::Basis, Family = CurveCurveIntersection2D>,
         {
             type Output = CurveCurveIntersection2D;
 
@@ -1302,12 +1020,13 @@ trimmed_curve_curve_2d!(
     Parabola2D,
     Hyperbola2D,
     Curve2D,
-    BSplineCurve2D
+    BSplineCurve2D,
+    BezierCurve2D
 );
 
 impl<X: CurveOperand2D, Y: CurveOperand2D> Intersect<TrimmedCurve2D<Y>> for TrimmedCurve2D<X>
 where
-    X::Basis: ExactCurveCurve2D<Y::Basis>,
+    X::Basis: ExactFamily<Y::Basis, Family = CurveCurveIntersection2D>,
 {
     type Output = CurveCurveIntersection2D;
 

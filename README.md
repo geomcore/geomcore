@@ -53,8 +53,8 @@ See [ROADMAP.md](ROADMAP.md) for what's coming next and
 ## Rust
 
 ```rust
-use geomcore::{Point, Vector};
-use geomcore::curves::Circle;
+use geomcore::prelude::*;
+use geomcore::{Circle, Point, Vector};
 
 let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
 let point = circle.eval_point(std::f64::consts::PI / 4.0);

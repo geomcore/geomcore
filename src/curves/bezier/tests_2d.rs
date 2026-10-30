@@ -1,7 +1,7 @@
 use super::*;
 use crate::curves::{ParametricCurve2D, PointExtrema2D};
 use crate::discretization::{Discretization2D, DiscretizationCriteria, Discretize2D};
-use crate::{BSplineCurve2D, BSplineSplitError, DegreeElevationError};
+use crate::{BSplineCurve2D, BSplineSplitError, DegreeElevationError, Vector2D};
 
 fn cubic() -> BezierCurve2D {
     let poles = vec![
@@ -201,7 +201,7 @@ fn test_projection_on_a_segment() {
     let proj = curve.project_point(off, tol);
     assert!((proj.parameter - 0.5).abs() < 1e-9);
     assert_eq!(proj.distance, 1.0);
-    assert!((curve.parameter_of(off) - 0.5).abs() < 1e-9);
+    assert!((curve.parameter_of(off, tol) - 0.5).abs() < 1e-9);
     assert!(curve.contains(Point2D::new(1.0, 0.0), tol));
     assert!(!curve.contains(off, tol));
     assert_eq!(curve.extrema(off, tol)[0].distance, 1.0);
@@ -233,16 +233,15 @@ fn test_discretization_meets_the_proven_deviation() {
 #[test]
 fn test_trait_impls_delegate() {
     let curve = cubic();
-    assert_eq!(ParametricCurve2D::bounds(&curve), (0.0, 1.0));
-    assert_eq!(ParametricCurve2D::period(&curve), None);
-    assert!(!ParametricCurve2D::is_periodic(&curve));
-    assert_eq!(
-        ParametricCurve2D::eval_point(&curve, 0.5),
-        Point2D::new(2.0, 1.5)
-    );
-    assert_eq!(ParametricCurve2D::eval_d2(&curve, 0.5), curve.eval_d2(0.5));
+    assert_eq!(curve.bounds(), (0.0, 1.0));
+    assert_eq!(curve.period(), None);
+    assert!(!curve.is_periodic());
+    assert_eq!(curve.eval_point(0.5), Point2D::new(2.0, 1.5));
+    assert_eq!(curve.eval_d2(0.5), curve.eval_d2(0.5));
     assert!(
-        !PointExtrema2D::extrema(&curve, Point2D::new(1.0, 5.0), Tolerance::DEFAULT).is_empty()
+        !curve
+            .extrema(Point2D::new(1.0, 5.0), Tolerance::DEFAULT)
+            .is_empty()
     );
 }
 

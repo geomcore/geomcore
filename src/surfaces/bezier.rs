@@ -12,8 +12,10 @@
 //! those are wanted.
 
 use crate::bspline::curve::MAX_DEGREE;
-use crate::curves::{BSplineSplitError, BezierConstructionError, DegreeElevationError, Side};
-use crate::surfaces::{BSplineSurface, ParametricSurface};
+use crate::curves::{
+    BSplineSplitError, BezierConstructionError, BezierCurve, DegreeElevationError, Side,
+};
+use crate::surfaces::{BSplineSurface, ParametricSurface, SurfaceIsoError};
 use crate::{Continuity, Point, SurfaceProjection, Tolerance, Vector};
 
 /// A Bézier surface (optionally rational) in 3D: a grid of
@@ -34,6 +36,7 @@ use crate::{Continuity, Point, SurfaceProjection, Tolerance, Vector};
 /// A biquadratic patch, `(2u, 2v, 4uv)`:
 ///
 /// ```
+/// use geomcore::prelude::*;
 /// use geomcore::{BezierSurface, Point};
 ///
 /// let poles = (0..3)
@@ -66,6 +69,7 @@ impl BezierSurface {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{BezierConstructionError, BezierSurface, Point};
     ///
     /// let poles = vec![
@@ -101,6 +105,7 @@ impl BezierSurface {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{BezierSurface, Point};
     ///
     /// // A rational quadratic quarter circle in `u`, a line in `v`.
@@ -176,6 +181,7 @@ impl BezierSurface {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{BSplineSurface, BezierConstructionError, BezierSurface, Point};
     ///
     /// let poles = vec![
@@ -361,87 +367,6 @@ impl BezierSurface {
         self.0.weights()
     }
 
-    /// Returns the surface's `u` parameter bounds `(first, last)`: `(0,
-    /// 1)` for a surface built from poles, the span of its B-spline
-    /// otherwise.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{BezierSurface, Point};
-    ///
-    /// let poles = vec![
-    ///     vec![Point::new(0.0, 0.0, 0.0), Point::new(0.0, 1.0, 0.0)],
-    ///     vec![Point::new(1.0, 0.0, 0.0), Point::new(1.0, 1.0, 1.0)],
-    /// ];
-    /// // The surface is (u, v, uv).
-    /// let surface = BezierSurface::new(1, 1, poles).unwrap();
-    /// assert_eq!(surface.u_bounds(), (0.0, 1.0));
-    /// ```
-    pub fn u_bounds(&self) -> (f64, f64) {
-        ParametricSurface::u_bounds(&self.0)
-    }
-
-    /// Returns the surface's `v` parameter bounds `(first, last)`, as
-    /// [`u_bounds`](Self::u_bounds).
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{BezierSurface, Point};
-    ///
-    /// let poles = vec![
-    ///     vec![Point::new(0.0, 0.0, 0.0), Point::new(0.0, 1.0, 0.0)],
-    ///     vec![Point::new(1.0, 0.0, 0.0), Point::new(1.0, 1.0, 1.0)],
-    /// ];
-    /// // The surface is (u, v, uv).
-    /// let surface = BezierSurface::new(1, 1, poles).unwrap();
-    /// assert_eq!(surface.v_bounds(), (0.0, 1.0));
-    /// ```
-    pub fn v_bounds(&self) -> (f64, f64) {
-        ParametricSurface::v_bounds(&self.0)
-    }
-
-    /// Returns whether the surface's boundary curves at the two `u` bounds
-    /// coincide within `tol.confusion`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{BezierSurface, Point, Tolerance};
-    ///
-    /// let poles = vec![
-    ///     vec![Point::new(0.0, 0.0, 0.0), Point::new(0.0, 1.0, 0.0)],
-    ///     vec![Point::new(1.0, 0.0, 0.0), Point::new(1.0, 1.0, 1.0)],
-    /// ];
-    /// // The surface is (u, v, uv).
-    /// let surface = BezierSurface::new(1, 1, poles).unwrap();
-    /// assert!(!surface.is_u_closed(Tolerance::DEFAULT));
-    /// ```
-    pub fn is_u_closed(&self, tol: Tolerance) -> bool {
-        self.0.is_u_closed(tol)
-    }
-
-    /// Returns whether the surface's boundary curves at the two `v` bounds
-    /// coincide within `tol.confusion`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{BezierSurface, Point, Tolerance};
-    ///
-    /// let poles = vec![
-    ///     vec![Point::new(0.0, 0.0, 0.0), Point::new(0.0, 1.0, 0.0)],
-    ///     vec![Point::new(1.0, 0.0, 0.0), Point::new(1.0, 1.0, 1.0)],
-    /// ];
-    /// // The surface is (u, v, uv).
-    /// let surface = BezierSurface::new(1, 1, poles).unwrap();
-    /// assert!(!surface.is_v_closed(Tolerance::DEFAULT));
-    /// ```
-    pub fn is_v_closed(&self, tol: Tolerance) -> bool {
-        self.0.is_v_closed(tol)
-    }
-
     /// Returns the piece of the surface either side of `u`, over
     /// `[first, u]` and `[u, last]` of its [`u_bounds`](Self::u_bounds):
     /// Bézier surfaces of the same degrees, evaluating as this surface
@@ -457,6 +382,7 @@ impl BezierSurface {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{BezierSurface, Point};
     ///
     /// let poles = (0..3)
@@ -484,6 +410,7 @@ impl BezierSurface {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{BezierSurface, Point};
     ///
     /// let poles = (0..2)
@@ -513,6 +440,7 @@ impl BezierSurface {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{BezierSurface, Point};
     ///
     /// let poles = (0..2)
@@ -537,6 +465,7 @@ impl BezierSurface {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{BezierSurface, Point};
     ///
     /// let poles = vec![
@@ -561,6 +490,7 @@ impl BezierSurface {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{BezierSurface, Point};
     ///
     /// let poles = (0..3)
@@ -581,6 +511,7 @@ impl BezierSurface {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{BezierSurface, Point};
     ///
     /// let poles = vec![
@@ -597,111 +528,72 @@ impl BezierSurface {
         Self::from_surface(self.0.reversed_v())
     }
 
-    /// Evaluates the point on the surface at parameters `(u, v)`.
+    /// Maps `u` onto the [`reversed_u`](Self::reversed_u) surface:
+    /// `first + last - u`, the parameter of the same point there.
     ///
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{BezierSurface, Point};
-    ///
-    /// let poles = vec![
-    ///     vec![Point::new(0.0, 0.0, 0.0), Point::new(0.0, 1.0, 0.0)],
-    ///     vec![Point::new(1.0, 0.0, 0.0), Point::new(1.0, 1.0, 1.0)],
-    /// ];
-    /// let surface = BezierSurface::new(1, 1, poles).unwrap();
-    /// assert_eq!(surface.eval_point(0.5, 0.5), Point::new(0.5, 0.5, 0.25));
-    /// ```
-    pub fn eval_point(&self, u: f64, v: f64) -> Point {
-        self.0.eval_point(u, v)
-    }
-
-    /// Evaluates the points on the surface at each `(u, v)` in `uvs`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{BezierSurface, Point};
-    ///
-    /// let poles = vec![
-    ///     vec![Point::new(0.0, 0.0, 0.0), Point::new(0.0, 1.0, 0.0)],
-    ///     vec![Point::new(1.0, 0.0, 0.0), Point::new(1.0, 1.0, 1.0)],
-    /// ];
-    /// // The surface is (u, v, uv).
-    /// let surface = BezierSurface::new(1, 1, poles).unwrap();
-    /// let points = surface.eval_points(&[(0.5, 0.5), (1.0, 1.0)]);
-    /// assert_eq!(points, vec![Point::new(0.5, 0.5, 0.25), Point::new(1.0, 1.0, 1.0)]);
-    /// ```
-    pub fn eval_points(&self, uvs: &[(f64, f64)]) -> Vec<Point> {
-        self.0.eval_points(uvs)
-    }
-
-    /// Evaluates the derivative of order `(du, dv)` at `(u, v)`.
-    ///
-    /// # Panics
-    ///
-    /// Panics unless `du + dv` is 1 or 2: only first and second
-    /// derivatives are supported.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{BezierSurface, Point, Vector};
-    ///
-    /// let poles = vec![
-    ///     vec![Point::new(0.0, 0.0, 0.0), Point::new(0.0, 1.0, 0.0)],
-    ///     vec![Point::new(1.0, 0.0, 0.0), Point::new(1.0, 1.0, 1.0)],
-    /// ];
-    /// // The surface is (u, v, uv).
-    /// let surface = BezierSurface::new(1, 1, poles).unwrap();
-    /// assert_eq!(surface.eval_derivative(0.25, 0.5, 1, 0), Vector::new(1.0, 0.0, 0.5));
-    /// assert_eq!(surface.eval_derivative(0.25, 0.5, 1, 1), Vector::new(0.0, 0.0, 1.0));
-    /// ```
-    pub fn eval_derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> Vector {
-        self.0.eval_derivative(u, v, du, dv)
-    }
-
-    /// Evaluates the point and the first derivatives `[Su, Sv]` at
-    /// `(u, v)`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{BezierSurface, Point, Vector};
-    ///
-    /// let poles = vec![
-    ///     vec![Point::new(0.0, 0.0, 0.0), Point::new(0.0, 1.0, 0.0)],
-    ///     vec![Point::new(1.0, 0.0, 0.0), Point::new(1.0, 1.0, 1.0)],
-    /// ];
-    /// // The surface is (u, v, uv).
-    /// let surface = BezierSurface::new(1, 1, poles).unwrap();
-    /// let (point, [su, sv]) = surface.eval_d1(0.25, 0.5);
-    /// assert_eq!(point, Point::new(0.25, 0.5, 0.125));
-    /// assert_eq!(su, Vector::new(1.0, 0.0, 0.5));
-    /// assert_eq!(sv, Vector::new(0.0, 1.0, 0.25));
-    /// ```
-    pub fn eval_d1(&self, u: f64, v: f64) -> (Point, [Vector; 2]) {
-        self.0.eval_d1(u, v)
-    }
-
-    /// Evaluates the point, the first derivatives `[Su, Sv]` and the second
-    /// derivatives `[Suu, Suv, Svv]` at `(u, v)`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{BezierSurface, Point, Vector};
     ///
     /// let poles = (0..3)
-    ///     .map(|i| (0..3).map(|j| Point::new(i as f64, j as f64, (i * j) as f64)).collect())
+    ///     .map(|i| (0..2).map(|j| Point::new(i as f64, j as f64, (i * j) as f64)).collect())
     ///     .collect();
-    /// let surface = BezierSurface::new(2, 2, poles).unwrap();
-    /// // The surface is (2u, 2v, 4uv).
-    /// let (_, [su, _], [_, suv, _]) = surface.eval_d2(0.25, 0.5);
-    /// assert!((su - Vector::new(2.0, 0.0, 2.0)).magnitude() < 1e-12);
-    /// assert!((suv - Vector::new(0.0, 0.0, 4.0)).magnitude() < 1e-12);
+    /// let surface = BezierSurface::new(2, 1, poles).unwrap();
+    /// let u = surface.u_reversed_parameter(0.25);
+    /// assert_eq!(u, 0.75);
+    /// assert_eq!(surface.reversed_u().eval_point(u, 0.5), surface.eval_point(0.25, 0.5));
     /// ```
-    pub fn eval_d2(&self, u: f64, v: f64) -> (Point, [Vector; 2], [Vector; 3]) {
-        self.0.eval_d2(u, v)
+    pub fn u_reversed_parameter(&self, u: f64) -> f64 {
+        self.0.u_reversed_parameter(u)
+    }
+
+    /// Maps `v` onto the [`reversed_v`](Self::reversed_v) surface, as
+    /// [`u_reversed_parameter`](Self::u_reversed_parameter) for `u`.
+    pub fn v_reversed_parameter(&self, v: f64) -> f64 {
+        self.0.v_reversed_parameter(v)
+    }
+
+    /// The `u` isoparametric curve at `u`: `u` fixed, running along `v`
+    /// with the `v` degree, so `u_iso(u).eval_point(t)` is
+    /// `eval_point(u, t)` for every `t`. It is a Bézier curve over the `v`
+    /// bounds, rational when the surface is (see [`BSplineSurface::u_iso`]).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SurfaceIsoError::NonFinite`] for a NaN or infinite `u`
+    /// and [`SurfaceIsoError::OutOfRange`] for a `u` outside the `u`
+    /// bounds.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::prelude::*;
+    /// use geomcore::{BezierSurface, Point};
+    ///
+    /// let poles = (0..3)
+    ///     .map(|i| (0..2).map(|j| Point::new(i as f64, j as f64, (i * j) as f64)).collect())
+    ///     .collect();
+    /// let surface = BezierSurface::new(2, 1, poles).unwrap();
+    /// let iso = surface.u_iso(0.25).unwrap();
+    /// assert_eq!(iso.degree(), 1);
+    /// assert!(iso.eval_point(0.5).distance(surface.eval_point(0.25, 0.5)) < 1e-12);
+    /// ```
+    pub fn u_iso(&self, u: f64) -> Result<BezierCurve, SurfaceIsoError> {
+        self.0.u_iso(u).map(BezierCurve::from_span)
+    }
+
+    /// The `v` isoparametric curve at `v`: `v` fixed, running along `u`
+    /// with the `u` degree, as [`u_iso`](Self::u_iso) for `u`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SurfaceIsoError::NonFinite`] for a NaN or infinite `v`
+    /// and [`SurfaceIsoError::OutOfRange`] for a `v` outside the `v`
+    /// bounds.
+    pub fn v_iso(&self, v: f64) -> Result<BezierCurve, SurfaceIsoError> {
+        self.0.v_iso(v).map(BezierCurve::from_span)
     }
 
     /// Evaluates the point and the first derivatives at `(u, v)`, each
@@ -775,6 +667,7 @@ impl BezierSurface {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{BezierSurface, Point, Side};
     ///
     /// let poles = vec![
@@ -798,33 +691,13 @@ impl BezierSurface {
         self.0.eval_d2_sided(u, v, u_side, v_side)
     }
 
-    /// Returns whether `point` lies on the surface: its projected
-    /// distance is within `tol.confusion`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{BezierSurface, Point, Tolerance};
-    ///
-    /// let poles = vec![
-    ///     vec![Point::new(0.0, 0.0, 0.0), Point::new(0.0, 1.0, 0.0)],
-    ///     vec![Point::new(1.0, 0.0, 0.0), Point::new(1.0, 1.0, 1.0)],
-    /// ];
-    /// // The surface is (u, v, uv).
-    /// let surface = BezierSurface::new(1, 1, poles).unwrap();
-    /// assert!(surface.contains(Point::new(0.5, 0.5, 0.25), Tolerance::DEFAULT));
-    /// assert!(!surface.contains(Point::new(0.5, 0.5, 1.0), Tolerance::DEFAULT));
-    /// ```
-    pub fn contains(&self, point: Point, tol: Tolerance) -> bool {
-        self.0.contains(point, tol)
-    }
-
     /// The local minima of the distance from `point` to the surface,
     /// closest first, as [`BSplineSurface::extrema`].
     ///
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{BezierSurface, Point, Tolerance};
     ///
     /// let poles = vec![
@@ -840,52 +713,6 @@ impl BezierSurface {
         self.0.extrema(point, tol)
     }
 
-    /// Projects `point` onto the surface: the global minimum of the
-    /// distance, the first entry of [`BezierSurface::extrema`]. Distances
-    /// within `tol.confusion` snap to `0.0`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{BezierSurface, Point, Tolerance};
-    ///
-    /// let poles = vec![
-    ///     vec![Point::new(0.0, 0.0, 0.0), Point::new(0.0, 1.0, 0.0)],
-    ///     vec![Point::new(1.0, 0.0, 0.0), Point::new(1.0, 1.0, 1.0)],
-    /// ];
-    /// // The surface is (u, v, uv).
-    /// let surface = BezierSurface::new(1, 1, poles).unwrap();
-    /// // Beyond the v = 0 edge, where the surface is the segment (u, 0, 0).
-    /// let foot = surface.project_point(Point::new(2.0, 0.0, 0.0), Tolerance::DEFAULT);
-    /// assert!(foot.point.distance(Point::new(1.0, 0.0, 0.0)) < 1e-9);
-    /// assert!((foot.distance - 1.0).abs() < 1e-9);
-    /// ```
-    pub fn project_point(&self, point: Point, tol: Tolerance) -> SurfaceProjection {
-        self.0.project_point(point, tol)
-    }
-
-    /// Projects each point in `points` onto the surface.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{BezierSurface, Point, Tolerance};
-    ///
-    /// let poles = vec![
-    ///     vec![Point::new(0.0, 0.0, 0.0), Point::new(0.0, 1.0, 0.0)],
-    ///     vec![Point::new(1.0, 0.0, 0.0), Point::new(1.0, 1.0, 1.0)],
-    /// ];
-    /// // The surface is (u, v, uv).
-    /// let surface = BezierSurface::new(1, 1, poles).unwrap();
-    /// let points = [Point::new(0.5, 0.5, 0.25), Point::new(2.0, 0.0, 0.0)];
-    /// let feet = surface.project_points(&points, Tolerance::DEFAULT);
-    /// assert_eq!(feet[0].distance, 0.0);
-    /// assert!((feet[1].distance - 1.0).abs() < 1e-9);
-    /// ```
-    pub fn project_points(&self, points: &[Point], tol: Tolerance) -> Vec<SurfaceProjection> {
-        self.0.project_points(points, tol)
-    }
-
     /// The surface wrapping `patch`, a single clamped span in both
     /// directions (as [`BSplineSurface::to_bezier_patches`] makes).
     pub(crate) fn from_surface(patch: BSplineSurface) -> BezierSurface {
@@ -895,37 +722,33 @@ impl BezierSurface {
 }
 
 impl ParametricSurface for BezierSurface {
+    #[inline]
     fn eval_point(&self, u: f64, v: f64) -> Point {
-        BezierSurface::eval_point(self, u, v)
+        self.0.eval_point(u, v)
     }
 
     fn project_point(&self, point: Point, tol: Tolerance) -> SurfaceProjection {
-        BezierSurface::project_point(self, point, tol)
+        self.0.project_point(point, tol)
     }
 
-    fn contains(&self, point: Point, tol: Tolerance) -> bool {
-        BezierSurface::contains(self, point, tol)
-    }
-
-    /// See [`BezierSurface::eval_derivative`] for the supported orders.
     fn eval_derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> Vector {
-        BezierSurface::eval_derivative(self, u, v, du, dv)
+        self.0.eval_derivative(u, v, du, dv)
     }
 
     fn eval_d1(&self, u: f64, v: f64) -> (Point, [Vector; 2]) {
-        BezierSurface::eval_d1(self, u, v)
+        self.0.eval_d1(u, v)
     }
 
     fn eval_d2(&self, u: f64, v: f64) -> (Point, [Vector; 2], [Vector; 3]) {
-        BezierSurface::eval_d2(self, u, v)
+        self.0.eval_d2(u, v)
     }
 
     fn u_bounds(&self) -> (f64, f64) {
-        BezierSurface::u_bounds(self)
+        self.0.u_bounds()
     }
 
     fn v_bounds(&self) -> (f64, f64) {
-        BezierSurface::v_bounds(self)
+        self.0.v_bounds()
     }
 
     fn u_period(&self) -> Option<f64> {
@@ -945,15 +768,11 @@ impl ParametricSurface for BezierSurface {
     }
 
     fn is_u_closed(&self, tol: Tolerance) -> bool {
-        BezierSurface::is_u_closed(self, tol)
+        self.0.is_u_closed(tol)
     }
 
     fn is_v_closed(&self, tol: Tolerance) -> bool {
-        BezierSurface::is_v_closed(self, tol)
-    }
-
-    fn eval_points(&self, uvs: &[(f64, f64)]) -> Vec<Point> {
-        BezierSurface::eval_points(self, uvs)
+        self.0.is_v_closed(tol)
     }
 
     fn as_bspline(&self) -> Option<&BSplineSurface> {

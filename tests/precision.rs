@@ -4,9 +4,10 @@
 //! geometry tilted below that angle behaves as untilted; unbounded
 //! geometry keeps the angular tolerance.
 
+use geomcore::prelude::*;
 use geomcore::{
     Circle, CircleCircleIntersection, CircleSurfaceIntersection, Cone, ConicConicIntersection,
-    Curve2D, Cylinder, Ellipse, Frame2D, FrameConstructionError, IntersectExact, Line, Line2D,
+    Curve2D, Cylinder, Ellipse, Frame2D, FrameConstructionError, Line, Line2D,
     LineCircleIntersection, LineLine2DIntersection, LineLineIntersection, LineQuadricIntersection,
     ParametrizeError, Plane, Point, Point2D, Tolerance, Torus, TorusConeIntersection,
     TorusCylinderIntersection, TorusPlaneIntersection, TorusTorusIntersection, Vector, Vector2D,

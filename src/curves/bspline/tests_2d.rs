@@ -1,4 +1,5 @@
 use super::*;
+use crate::Vector2D;
 
 // ---- construction / accessors ----
 
@@ -356,7 +357,7 @@ fn test_project_and_contains_segment() {
     let extrema = curve.extrema(Point2D::new(1.0, 1.0), tol);
     assert!(!extrema.is_empty());
     assert_eq!(extrema[0].distance, 1.0);
-    assert!((curve.parameter_of(Point2D::new(1.0, 1.0)) - 0.5).abs() < 1e-9);
+    assert!((curve.parameter_of(Point2D::new(1.0, 1.0), tol) - 0.5).abs() < 1e-9);
 }
 
 #[test]
@@ -379,17 +380,14 @@ fn test_project_non_finite_defaults() {
 fn test_parametric_curve_2d_trait_delegates() {
     let poles = vec![Point2D::new(0.0, 0.0), Point2D::new(2.0, 0.0)];
     let curve = BSplineCurve2D::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
-    let trait_point = ParametricCurve2D::eval_point(&curve, 0.25);
+    let trait_point = curve.eval_point(0.25);
     assert_eq!(trait_point, Point2D::new(0.5, 0.0));
-    assert_eq!(ParametricCurve2D::period(&curve), None);
-    assert_eq!(ParametricCurve2D::bounds(&curve), (0.0, 1.0));
-    assert_eq!(
-        ParametricCurve2D::eval_points(&curve, &[0.0, 0.5])[1],
-        Point2D::new(1.0, 0.0)
-    );
-    let extrema = PointExtrema2D::extrema(&curve, Point2D::new(1.0, 1.0), Tolerance::DEFAULT);
+    assert_eq!(curve.period(), None);
+    assert_eq!(curve.bounds(), (0.0, 1.0));
+    assert_eq!(curve.eval_points(&[0.0, 0.5])[1], Point2D::new(1.0, 0.0));
+    let extrema = curve.extrema(Point2D::new(1.0, 1.0), Tolerance::DEFAULT);
     assert!(!extrema.is_empty());
-    assert!(!ParametricCurve2D::is_periodic(&curve));
+    assert!(!curve.is_periodic());
 }
 
 #[test]
@@ -402,6 +400,6 @@ fn test_parametric_curve_2d_periodic_period() {
     ];
     let curve =
         BSplineCurve2D::new(1, poles, vec![0.0, 1.0, 2.0, 3.0, 4.0], vec![1; 5], true).unwrap();
-    assert_eq!(ParametricCurve2D::period(&curve), Some(4.0));
-    assert!(ParametricCurve2D::is_periodic(&curve));
+    assert_eq!(curve.period(), Some(4.0));
+    assert!(curve.is_periodic());
 }

@@ -32,10 +32,10 @@
 use criterion::{Criterion, criterion_group, criterion_main};
 use std::hint::black_box;
 
-use geomcore::surfaces::BSplineSurface;
+use geomcore::prelude::*;
 use geomcore::{
-    Completeness, Cone, Cylinder, IncompleteReason, Intersect, IntersectionMethod, Plane, Point,
-    Sphere, SurfaceSurfaceIntersection, Tolerance, Torus, Vector,
+    BSplineSurface, Completeness, Cone, Cylinder, IncompleteReason, IntersectionMethod, Plane,
+    Point, Sphere, SurfaceSurfaceIntersection, Tolerance, Torus, Vector,
 };
 
 fn surface(height: impl Fn(f64, f64) -> f64) -> BSplineSurface {

@@ -13,9 +13,8 @@ use criterion::{Criterion, Throughput, criterion_group, criterion_main};
 use std::f64::consts::{FRAC_1_SQRT_2, FRAC_PI_2};
 use std::hint::black_box;
 
-use geomcore::curves::{BSplineCurve, Circle, Curve, ParametricCurve, TrimmedCurve};
-use geomcore::discretization::{DiscretizationCriteria, Discretize};
-use geomcore::{Point, Vector};
+use geomcore::prelude::*;
+use geomcore::{BSplineCurve, Circle, Curve, DiscretizationCriteria, Point, TrimmedCurve, Vector};
 
 const EDGES: usize = 3000;
 

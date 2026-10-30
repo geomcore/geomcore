@@ -1,4 +1,5 @@
 use super::*;
+use crate::curves::ParametricCurve;
 use crate::curves::TrimmedCurve;
 use crate::{Circle, Tolerance, Vector};
 use std::f64::consts::{FRAC_PI_2, FRAC_PI_4, PI};

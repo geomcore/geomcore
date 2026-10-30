@@ -1,9 +1,9 @@
 //! `geomcore.parametrize_numeric`: the numeric curve-on-surface
 //! parametrization, for pairs without a closed form.
 
-use crate::arguments::*;
+use crate::arguments::{extract_curve_arg, surface_classes};
 use crate::tolerance;
-use crate::values::*;
+use crate::values::PyTolerance;
 use geomcore::parametrize_numeric;
 use pyo3::prelude::*;
 
@@ -24,7 +24,7 @@ pub(crate) fn py_parametrize_numeric(
 ) -> PyResult<Vec<(f64, f64)>> {
     let tol = tolerance(tol);
     let c = extract_curve_arg(curve)?;
-    let s = extract_surface(surface)?;
+    let s = surface_classes::extract(surface)?;
     let points = py.detach(|| parametrize_numeric(&c, &s, sample_count, tol));
     Ok(points.iter().map(|p| (p.x, p.y)).collect())
 }

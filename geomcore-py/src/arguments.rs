@@ -1,49 +1,127 @@
-//! Conversions between Python objects and the core enums: which curve or
-//! surface class a Python argument is, as a `Curve`, `Curve2D`, `CurveArg`
-//! or `Surface`, and the Python object of a core curve.
+//! The class registry: which Python class wraps each variant of the core
+//! shape enums, written once. From it come the conversions between Python
+//! objects and `Curve`, `Curve2D` and `Surface`, the error text naming
+//! the accepted classes, and the classes' registration in their module.
+//! Also `CurveArg`, a 3D curve argument that may be a trimmed piece.
 
 use crate::curves::*;
-use crate::errors::invalid_argument;
 use crate::surfaces::*;
-use geomcore::curves::{
-    BSplineCurve, Curve, Curve2D, ElementaryCurve, ParametricCurve, TrimmedCurve,
+use geomcore::prelude::*;
+use geomcore::{
+    BSplineCurve, Curve, Curve2D, ElementaryCurve, Point, Surface, TrimmedCurve, Vector,
 };
-use geomcore::surfaces::Surface;
-use geomcore::{Point, Vector};
-use pyo3::exceptions::PyTypeError;
+use pyo3::exceptions::{PyNotImplementedError, PyTypeError};
 use pyo3::prelude::*;
+use pyo3::type_object::PyTypeInfo;
+use pyo3::types::PyModule;
 
-pub(crate) fn extract_curve3d(obj: &Bound<'_, PyAny>) -> PyResult<Curve> {
-    curve3d_of(obj).ok_or_else(|| {
-        PyTypeError::new_err(
-            "expected a geomcore 3D curve (Line, Circle, Ellipse, Parabola, Hyperbola or BSplineCurve)",
-        )
-    })
+/// One module per shape enum, from the `Variant => PyClass` list of its
+/// Python classes, each holding the core shape as its field `0`:
+///
+/// - `of(object)`: the shape a Python object holds, by type tests, so a
+///   miss raises nothing (a failed `extract` would build a Python error
+///   first);
+/// - `extract(object)`: the same, raising `TypeError` naming the classes;
+/// - `to_py(py, shape)`: the Python object of a shape;
+/// - `add_to(module)`: registers the classes;
+/// - `NAMES`: the Python class names.
+macro_rules! shape_classes {
+    ($(
+        $(#[$attribute:meta])*
+        $module:ident: $enum:ident, $description:literal {
+            $($variant:ident => $class:ident),+ $(,)?
+        }
+    )+) => {$(
+        $(#[$attribute])*
+        pub(crate) mod $module {
+            use super::*;
+
+            /// The Python class names, in registry order.
+            pub(crate) const NAMES: &[&str] = &[$(<$class as PyTypeInfo>::NAME),+];
+
+            /// The shape `object` holds, if it is one of the classes.
+            pub(crate) fn of(object: &Bound<'_, PyAny>) -> Option<$enum> {
+                $(
+                    if let Ok(shape) = object.downcast::<$class>() {
+                        return Some($enum::$variant(Clone::clone(&shape.borrow().0)));
+                    }
+                )+
+                None
+            }
+
+            /// The shape `object` holds, or a `TypeError` naming the
+            /// classes.
+            pub(crate) fn extract(object: &Bound<'_, PyAny>) -> PyResult<$enum> {
+                of(object).ok_or_else(|| expected($description, NAMES))
+            }
+
+            /// The Python object of `shape`.
+            #[allow(dead_code, reason = "no binding returns a core surface yet")]
+            pub(crate) fn to_py(py: Python<'_>, shape: $enum) -> PyResult<Py<PyAny>> {
+                match shape {
+                    $($enum::$variant(shape) => Ok(Py::new(py, $class(shape))?.into_any()),)+
+                    // The core enum is `#[non_exhaustive]`: a variant added
+                    // there lands here until it joins the list above.
+                    _ => Err(PyNotImplementedError::new_err(concat!(
+                        "the Python bindings have no class yet for this ",
+                        $description
+                    ))),
+                }
+            }
+
+            /// Registers the classes in `module`.
+            pub(crate) fn add_to(module: &Bound<'_, PyModule>) -> PyResult<()> {
+                $(module.add_class::<$class>()?;)+
+                Ok(())
+            }
+        }
+    )+};
 }
 
-/// The 3D curve `obj` holds, if it is one of the whole 3D curve classes.
-/// Each class is checked with a type test, so a miss raises nothing (a
-/// failed `extract` would build a Python error first).
-pub(crate) fn curve3d_of(obj: &Bound<'_, PyAny>) -> Option<Curve> {
-    if let Ok(c) = obj.downcast::<PyLine>() {
-        return Some(Curve::from(c.borrow().0));
+shape_classes! {
+    /// The 3D curve classes, one per `Curve` variant.
+    curve_classes: Curve, "3D curve" {
+        Line => PyLine,
+        Circle => PyCircle,
+        Ellipse => PyEllipse,
+        Parabola => PyParabola,
+        Hyperbola => PyHyperbola,
+        BSpline => PyBSplineCurve,
+        Bezier => PyBezierCurve,
     }
-    if let Ok(c) = obj.downcast::<PyCircle>() {
-        return Some(Curve::from(c.borrow().0));
+
+    /// The 2D curve classes, one per `Curve2D` variant.
+    curve_2d_classes: Curve2D, "2D curve" {
+        Line => PyLine2D,
+        Circle => PyCircle2D,
+        Ellipse => PyEllipse2D,
+        Parabola => PyParabola2D,
+        Hyperbola => PyHyperbola2D,
+        BSpline => PyBSplineCurve2D,
+        Bezier => PyBezierCurve2D,
     }
-    if let Ok(c) = obj.downcast::<PyEllipse>() {
-        return Some(Curve::from(c.borrow().0));
+
+    /// The surface classes, one per `Surface` variant.
+    surface_classes: Surface, "surface" {
+        Plane => PyPlane,
+        Cylinder => PyCylinder,
+        Cone => PyCone,
+        Sphere => PySphere,
+        Torus => PyTorus,
+        BSpline => PyBSplineSurface,
+        Bezier => PyBezierSurface,
     }
-    if let Ok(c) = obj.downcast::<PyParabola>() {
-        return Some(Curve::from(c.borrow().0));
-    }
-    if let Ok(c) = obj.downcast::<PyHyperbola>() {
-        return Some(Curve::from(c.borrow().0));
-    }
-    if let Ok(c) = obj.downcast::<PyBSplineCurve>() {
-        return Some(Curve::from(c.borrow().0.clone()));
-    }
-    None
+}
+
+/// The `TypeError` of an argument that is none of `names`:
+/// "expected a geomcore 3D curve (Line, Circle or Ellipse)".
+pub(crate) fn expected(description: &str, names: &[&str]) -> PyErr {
+    let listed = match names {
+        [] => String::new(),
+        [name] => (*name).to_string(),
+        [first @ .., last] => format!("{} or {last}", first.join(", ")),
+    };
+    PyTypeError::new_err(format!("expected a geomcore {description} ({listed})"))
 }
 
 /// A 3D curve passed to a generic function: a whole curve, or a piece of
@@ -108,106 +186,16 @@ impl ParametricCurve for CurveArg {
 
 pub(crate) fn extract_curve_arg(obj: &Bound<'_, PyAny>) -> PyResult<CurveArg> {
     curve_arg_of(obj).ok_or_else(|| {
-        PyTypeError::new_err(
-            "expected a geomcore 3D curve (Line, Circle, Ellipse, Parabola, Hyperbola, BSplineCurve or TrimmedCurve)",
-        )
+        let names = [curve_classes::NAMES, &[PyTrimmedCurve::NAME]].concat();
+        expected("3D curve", &names)
     })
 }
 
 /// The 3D curve or piece of one `obj` holds, if it is a 3D curve class;
-/// a miss raises nothing (see [`curve3d_of`]).
+/// a miss raises nothing.
 pub(crate) fn curve_arg_of(obj: &Bound<'_, PyAny>) -> Option<CurveArg> {
     if let Ok(c) = obj.downcast::<PyTrimmedCurve>() {
         return Some(CurveArg::Trimmed(c.borrow().0.clone()));
     }
-    curve3d_of(obj).map(CurveArg::Whole)
-}
-
-pub(crate) fn curve3d_to_py(py: Python<'_>, curve: Curve) -> PyResult<Py<PyAny>> {
-    match curve {
-        Curve::Line(c) => Ok(PyLine(c).into_pyobject(py)?.into_any().unbind()),
-        Curve::Circle(c) => Ok(PyCircle(c).into_pyobject(py)?.into_any().unbind()),
-        Curve::Ellipse(c) => Ok(PyEllipse(c).into_pyobject(py)?.into_any().unbind()),
-        Curve::Parabola(c) => Ok(PyParabola(c).into_pyobject(py)?.into_any().unbind()),
-        Curve::Hyperbola(c) => Ok(PyHyperbola(c).into_pyobject(py)?.into_any().unbind()),
-        Curve::BSpline(c) => Ok(PyBSplineCurve(c).into_pyobject(py)?.into_any().unbind()),
-        _ => Err(invalid_argument("unsupported 3d curve variant")),
-    }
-}
-
-pub(crate) fn extract_curve2d(obj: &Bound<'_, PyAny>) -> PyResult<Curve2D> {
-    curve2d_of(obj).ok_or_else(|| {
-        PyTypeError::new_err(
-            "expected a geomcore 2D curve (Line2D, Circle2D, Ellipse2D, Parabola2D, Hyperbola2D or BSplineCurve2D)",
-        )
-    })
-}
-
-/// The 2D curve `obj` holds, if it is `Line2D`, `Circle2D`, `Ellipse2D`,
-/// `Parabola2D`, `Hyperbola2D` or `BSplineCurve2D`; a miss
-/// raises nothing (see [`curve3d_of`]).
-pub(crate) fn curve2d_of(obj: &Bound<'_, PyAny>) -> Option<Curve2D> {
-    if let Ok(c) = obj.downcast::<PyLine2D>() {
-        return Some(Curve2D::from(c.borrow().0));
-    }
-    if let Ok(c) = obj.downcast::<PyCircle2D>() {
-        return Some(Curve2D::from(c.borrow().0));
-    }
-    if let Ok(c) = obj.downcast::<PyEllipse2D>() {
-        return Some(Curve2D::from(c.borrow().0));
-    }
-    if let Ok(c) = obj.downcast::<PyParabola2D>() {
-        return Some(Curve2D::from(c.borrow().0));
-    }
-    if let Ok(c) = obj.downcast::<PyHyperbola2D>() {
-        return Some(Curve2D::from(c.borrow().0));
-    }
-    if let Ok(c) = obj.downcast::<PyBSplineCurve2D>() {
-        return Some(Curve2D::from(c.borrow().0.clone()));
-    }
-    None
-}
-
-pub(crate) fn curve2d_to_py(py: Python<'_>, curve: Curve2D) -> PyResult<Py<PyAny>> {
-    match curve {
-        Curve2D::Line(l) => Ok(PyLine2D(l).into_pyobject(py)?.into_any().unbind()),
-        Curve2D::Circle(c) => Ok(PyCircle2D(c).into_pyobject(py)?.into_any().unbind()),
-        Curve2D::Ellipse(c) => Ok(PyEllipse2D(c).into_pyobject(py)?.into_any().unbind()),
-        Curve2D::Parabola(c) => Ok(PyParabola2D(c).into_pyobject(py)?.into_any().unbind()),
-        Curve2D::Hyperbola(c) => Ok(PyHyperbola2D(c).into_pyobject(py)?.into_any().unbind()),
-        Curve2D::BSpline(c) => Ok(PyBSplineCurve2D(c).into_pyobject(py)?.into_any().unbind()),
-        _ => Err(invalid_argument("unsupported 2d curve variant")),
-    }
-}
-
-pub(crate) fn extract_surface(obj: &Bound<'_, PyAny>) -> PyResult<Surface> {
-    surface_of(obj).ok_or_else(|| {
-        PyTypeError::new_err(
-            "expected a geomcore surface (Plane, Cylinder, Cone, Sphere, Torus or BSplineSurface)",
-        )
-    })
-}
-
-/// The surface `obj` holds, if it is one of the surface classes. Each
-/// class is checked with a type test, so a miss raises nothing.
-pub(crate) fn surface_of(obj: &Bound<'_, PyAny>) -> Option<Surface> {
-    if let Ok(s) = obj.downcast::<PyPlane>() {
-        return Some(Surface::from(&s.borrow().0));
-    }
-    if let Ok(s) = obj.downcast::<PyCylinder>() {
-        return Some(Surface::from(&s.borrow().0));
-    }
-    if let Ok(s) = obj.downcast::<PyCone>() {
-        return Some(Surface::from(&s.borrow().0));
-    }
-    if let Ok(s) = obj.downcast::<PySphere>() {
-        return Some(Surface::from(&s.borrow().0));
-    }
-    if let Ok(s) = obj.downcast::<PyTorus>() {
-        return Some(Surface::from(&s.borrow().0));
-    }
-    if let Ok(s) = obj.downcast::<PyBSplineSurface>() {
-        return Some(Surface::from(&s.borrow().0));
-    }
-    None
+    curve_classes::of(obj).map(CurveArg::Whole)
 }

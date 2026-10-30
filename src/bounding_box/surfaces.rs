@@ -6,6 +6,7 @@ use crate::Point;
 use crate::surfaces::{
     BSplineSurface, BezierSurface, Cone, Cylinder, ElementarySurface, Plane, Sphere, Surface, Torus,
 };
+use crate::surfaces::{elementary_surface_dispatch, surface_dispatch};
 
 /// The box `center ± half` on each axis.
 fn centered(center: Point, half: [f64; 3]) -> BoundingBox {
@@ -71,25 +72,12 @@ impl HasBoundingBox for BezierSurface {
 
 impl HasBoundingBox for Surface {
     fn bounding_box(&self) -> Option<BoundingBox> {
-        match self {
-            Surface::Plane(s) => s.bounding_box(),
-            Surface::Cylinder(s) => s.bounding_box(),
-            Surface::Cone(s) => s.bounding_box(),
-            Surface::Sphere(s) => s.bounding_box(),
-            Surface::Torus(s) => s.bounding_box(),
-            Surface::BSpline(s) => s.bounding_box(),
-        }
+        surface_dispatch!(self, s => s.bounding_box())
     }
 }
 
 impl HasBoundingBox for ElementarySurface {
     fn bounding_box(&self) -> Option<BoundingBox> {
-        match self {
-            ElementarySurface::Plane(s) => s.bounding_box(),
-            ElementarySurface::Cylinder(s) => s.bounding_box(),
-            ElementarySurface::Cone(s) => s.bounding_box(),
-            ElementarySurface::Sphere(s) => s.bounding_box(),
-            ElementarySurface::Torus(s) => s.bounding_box(),
-        }
+        elementary_surface_dispatch!(self, s => s.bounding_box())
     }
 }

@@ -9,11 +9,10 @@ use crate::{Point2D, Tolerance, Vector2D};
 /// curve type that can be used generically (see [`Curve2D`](crate::Curve2D) for a
 /// heterogeneous-collection adaptor built on top of it).
 ///
-/// Mirrors [`crate::curves::ParametricCurve`] with [`Point2D`]/[`Vector2D`]
-/// in place of `Point`/`Vector`. Concrete curve types (e.g. [`Line2D`](crate::Line2D),
-/// [`Circle2D`](crate::Circle2D)) already provide inherent methods with the same names; their
-/// trait impls simply delegate to those inherent methods, so calling code
-/// can use either form.
+/// Mirrors [`crate::ParametricCurve`] with [`Point2D`]/[`Vector2D`]
+/// in place of `Point`/`Vector`, and is likewise the only home of the
+/// shared vocabulary of 2D curves (ADR 0015). Bring it into scope with
+/// `use geomcore::prelude::*`.
 ///
 /// # Examples
 ///
@@ -21,33 +20,42 @@ use crate::{Point2D, Tolerance, Vector2D};
 /// [`eval_point`](ParametricCurve2D::eval_point) over each parameter:
 ///
 /// ```
-/// use geomcore::curves::ParametricCurve2D;
+/// use geomcore::prelude::*;
 /// use geomcore::{Line2D, Point2D, Vector2D};
 ///
 /// let line = Line2D::new(Point2D::ORIGIN, Vector2D::X).unwrap();
 /// let us = [0.0, 1.0, 2.0];
 /// let expected: Vec<Point2D> = us.iter().map(|&u| line.eval_point(u)).collect();
-/// assert_eq!(ParametricCurve2D::eval_points(&line, &us), expected);
+/// assert_eq!(line.eval_points(&us), expected);
 /// ```
 ///
 /// The default [`is_periodic`](ParametricCurve2D::is_periodic) reports
 /// whether [`period`](ParametricCurve2D::period) is `Some`:
 ///
 /// ```
-/// use geomcore::curves::ParametricCurve2D;
+/// use geomcore::prelude::*;
 /// use geomcore::{Circle2D, Line2D, Point2D};
 ///
 /// let line = Line2D::new(Point2D::ORIGIN, geomcore::Vector2D::X).unwrap();
-/// assert!(!ParametricCurve2D::is_periodic(&line));
+/// assert!(!line.is_periodic());
 ///
 /// let circle = Circle2D::new(Point2D::ORIGIN, 1.0).unwrap();
-/// assert!(ParametricCurve2D::is_periodic(&circle));
+/// assert!(circle.is_periodic());
 /// ```
 pub trait ParametricCurve2D {
     /// Evaluates the point on the curve at parameter `u`.
     fn eval_point(&self, u: f64) -> Point2D;
 
     /// Evaluates the derivative of the given `order` at parameter `u`.
+    ///
+    /// Every curve accepts any order from 1 up, as
+    /// [`ParametricCurve::eval_derivative`](crate::ParametricCurve::eval_derivative)
+    /// does.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `order == 0`; use [`eval_point`](Self::eval_point) to
+    /// evaluate the position itself.
     fn eval_derivative(&self, u: f64, order: u32) -> Vector2D;
 
     /// Evaluates the point and the first derivative at parameter `u`.
@@ -58,11 +66,11 @@ pub trait ParametricCurve2D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::curves::ParametricCurve2D;
+    /// use geomcore::prelude::*;
     /// use geomcore::{Circle2D, Point2D, Vector2D};
     ///
     /// let circle = Circle2D::new(Point2D::ORIGIN, 2.0).unwrap();
-    /// let (point, tangent) = ParametricCurve2D::eval_d1(&circle, 0.0);
+    /// let (point, tangent) = circle.eval_d1(0.0);
     /// assert_eq!(point, Point2D::new(2.0, 0.0));
     /// assert!((tangent - Vector2D::new(0.0, 2.0)).magnitude() < 1e-15);
     /// ```
@@ -78,11 +86,11 @@ pub trait ParametricCurve2D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::curves::ParametricCurve2D;
+    /// use geomcore::prelude::*;
     /// use geomcore::{Circle2D, Point2D, Vector2D};
     ///
     /// let circle = Circle2D::new(Point2D::ORIGIN, 2.0).unwrap();
-    /// let (point, _, acceleration) = ParametricCurve2D::eval_d2(&circle, 0.0);
+    /// let (point, _, acceleration) = circle.eval_d2(0.0);
     /// assert_eq!(point, Point2D::new(2.0, 0.0));
     /// assert!((acceleration - Vector2D::new(-2.0, 0.0)).magnitude() < 1e-15);
     /// ```
@@ -105,7 +113,7 @@ pub trait ParametricCurve2D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::curves::ParametricCurve2D;
+    /// use geomcore::prelude::*;
     /// use geomcore::{Circle2D, Line2D, Point2D, Tolerance, Vector2D};
     ///
     /// let line = Line2D::new(Point2D::ORIGIN, Vector2D::X).unwrap();
@@ -128,7 +136,7 @@ pub trait ParametricCurve2D {
     /// right, zero on a straight line. A [`Circle2D`](crate::Circle2D) with a direct frame
     /// has curvature `1/r`, one with an indirect frame `−1/r`.
     ///
-    /// The 3D [`curvature`](crate::curves::ParametricCurve::curvature) is
+    /// The 3D [`curvature`](crate::ParametricCurve::curvature) is
     /// unsigned: in space there is no side to turn toward.
     ///
     /// At an interior knot where a B-spline is only tangent-continuous,
@@ -138,7 +146,7 @@ pub trait ParametricCurve2D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::curves::ParametricCurve2D;
+    /// use geomcore::prelude::*;
     /// use geomcore::{Circle2D, Frame2D, Line2D, Point2D, Tolerance, Vector2D};
     ///
     /// let line = Line2D::new(Point2D::ORIGIN, Vector2D::X).unwrap();
@@ -173,7 +181,7 @@ pub trait ParametricCurve2D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::curves::ParametricCurve2D;
+    /// use geomcore::prelude::*;
     /// use geomcore::{Circle2D, Line2D, Point2D, Tolerance, Vector2D};
     ///
     /// let circle = Circle2D::new(Point2D::ORIGIN, 2.0).unwrap();
@@ -230,14 +238,14 @@ pub trait ParametricCurve2D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::curves::ParametricCurve2D;
+    /// use geomcore::prelude::*;
     /// use geomcore::{Circle2D, Line2D, Point2D, Tolerance, Vector2D};
     ///
     /// let line = Line2D::new(Point2D::ORIGIN, Vector2D::X).unwrap();
-    /// assert!(!ParametricCurve2D::is_closed(&line, Tolerance::DEFAULT));
+    /// assert!(!line.is_closed(Tolerance::DEFAULT));
     ///
     /// let circle = Circle2D::new(Point2D::ORIGIN, 1.0).unwrap();
-    /// assert!(ParametricCurve2D::is_closed(&circle, Tolerance::DEFAULT));
+    /// assert!(circle.is_closed(Tolerance::DEFAULT));
     /// ```
     fn is_closed(&self, tol: Tolerance) -> bool {
         // Structural default: periodicity. Shapes whose ends meet without
@@ -259,12 +267,12 @@ pub trait ParametricCurve2D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::curves::ParametricCurve2D;
+    /// use geomcore::prelude::*;
     /// use geomcore::{Circle2D, Continuity, Point2D, Tolerance};
     ///
     /// let circle = Circle2D::new(Point2D::ORIGIN, 1.0).unwrap();
     /// assert_eq!(
-    ///     ParametricCurve2D::continuity(&circle, 0.5, Tolerance::DEFAULT),
+    ///     circle.continuity(0.5, Tolerance::DEFAULT),
     ///     Continuity::Smooth
     /// );
     /// ```
@@ -281,11 +289,11 @@ pub trait ParametricCurve2D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::curves::ParametricCurve2D;
+    /// use geomcore::prelude::*;
     /// use geomcore::{BSplineCurve2D, Circle2D, Continuity, Point2D};
     ///
     /// let circle = Circle2D::new(Point2D::ORIGIN, 1.0).unwrap();
-    /// assert_eq!(ParametricCurve2D::min_continuity(&circle), Continuity::Smooth);
+    /// assert_eq!(circle.min_continuity(), Continuity::Smooth);
     ///
     /// // A quadratic with a double interior knot: a kink at u = 0.5.
     /// let poles = vec![
@@ -297,31 +305,17 @@ pub trait ParametricCurve2D {
     /// ];
     /// let kinked =
     ///     BSplineCurve2D::new(2, poles, vec![0.0, 0.5, 1.0], vec![3, 2, 3], false).unwrap();
-    /// assert_eq!(ParametricCurve2D::min_continuity(&kinked), Continuity::Order(0));
+    /// assert_eq!(kinked.min_continuity(), Continuity::Order(0));
     /// ```
     fn min_continuity(&self) -> Continuity {
         Continuity::Smooth
     }
 
-    /// The B-spline this curve evaluates: the curve itself, or the basis
-    /// of a trimmed B-spline, of which the curve is the piece over
-    /// [`bounds`](Self::bounds). `None` for any other curve. Default
-    /// implementation: `None`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::curves::{ParametricCurve2D, TrimmedCurve2D};
-    /// use geomcore::{BSplineCurve2D, Line2D, Point2D, Vector2D};
-    ///
-    /// let poles = vec![Point2D::ORIGIN, Point2D::new(2.0, 0.0)];
-    /// let curve = BSplineCurve2D::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
-    /// let piece = TrimmedCurve2D::new(&curve, 0.25, 0.5).unwrap();
-    /// assert_eq!(piece.as_bspline(), Some(&curve));
-    ///
-    /// let line = Line2D::new(Point2D::ORIGIN, Vector2D::X).unwrap();
-    /// assert_eq!(ParametricCurve2D::as_bspline(&line), None);
-    /// ```
+    /// Routing hook of the numeric search, hidden from the documentation: the
+    /// B-spline this curve evaluates (the curve itself, or the basis of a
+    /// trimmed B-spline). `None` for any other curve, the default. A type that
+    /// wraps another curve forwards it, as `TrimmedCurve2D` does (ADR 0022).
+    #[doc(hidden)]
     fn as_bspline(&self) -> Option<&BSplineCurve2D> {
         None
     }
@@ -335,15 +329,14 @@ fn regular_speed(first_derivative: Vector2D, width: f64, tol: Tolerance) -> Opti
     (!tol.is_negligible_derivative(speed, width)).then_some(speed)
 }
 
-/// Distance extrema from a point to a 2D curve: what a
-/// [`TrimmedCurve2D`](crate::curves::TrimmedCurve2D) needs from its basis
-/// to project onto a piece of it. Mirrors
-/// [`crate::curves::PointExtrema`].
+/// Distance extrema from a point to a 2D curve, and the projection,
+/// containment and inversion queries built on them. Mirrors
+/// [`crate::PointExtrema`].
 ///
 /// # Examples
 ///
 /// ```
-/// use geomcore::curves::PointExtrema2D;
+/// use geomcore::prelude::*;
 /// use geomcore::{Circle2D, Point2D, Tolerance};
 ///
 /// let circle = Circle2D::new(Point2D::ORIGIN, 1.0).unwrap();
@@ -360,10 +353,63 @@ pub trait PointExtrema2D: ParametricCurve2D {
     ///
     /// A query point with a non-finite coordinate has no extrema.
     fn extrema(&self, point: Point2D, tol: Tolerance) -> Vec<CurveProjection2D>;
+
+    /// Projects `point` onto the curve: the parameter, the point and the
+    /// distance of the closest point of the curve. Distances within
+    /// `tol.confusion` snap to `0.0`, matching
+    /// [`contains`](Self::contains).
+    ///
+    /// A query point with a non-finite coordinate projects to a NaN
+    /// parameter and distance. Default implementation: the first of
+    /// [`extrema`](Self::extrema).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::prelude::*;
+    /// use geomcore::{Circle2D, Point2D, Tolerance};
+    ///
+    /// let circle = Circle2D::new(Point2D::ORIGIN, 1.0).unwrap();
+    /// let projection = circle.project_point(Point2D::new(0.0, 3.0), Tolerance::DEFAULT);
+    /// assert!((projection.parameter - std::f64::consts::FRAC_PI_2).abs() < 1e-12);
+    /// assert_eq!(projection.distance, 2.0);
+    /// ```
+    fn project_point(&self, point: Point2D, tol: Tolerance) -> CurveProjection2D {
+        self.extrema(point, tol)
+            .into_iter()
+            .next()
+            .unwrap_or(CurveProjection2D::UNDEFINED)
+    }
+
+    /// Projects each point in `points` onto the curve, as
+    /// [`project_point`](Self::project_point) does.
+    fn project_points(&self, points: &[Point2D], tol: Tolerance) -> Vec<CurveProjection2D> {
+        points
+            .iter()
+            .map(|&point| self.project_point(point, tol))
+            .collect()
+    }
+
+    /// Returns whether `point` lies on the curve: within `tol.confusion`
+    /// of it. Default implementation: the distance of
+    /// [`project_point`](Self::project_point).
+    fn contains(&self, point: Point2D, tol: Tolerance) -> bool {
+        self.project_point(point, tol).distance <= tol.confusion
+    }
+
+    /// The parameter of `point`, a point on the curve, under the contract
+    /// of
+    /// [`PointExtrema::parameter_of`](crate::PointExtrema::parameter_of):
+    /// the parameter of [`project_point`](Self::project_point) by
+    /// default, a closed-form inversion that ignores `tol` on an
+    /// elementary curve.
+    fn parameter_of(&self, point: Point2D, tol: Tolerance) -> f64 {
+        self.project_point(point, tol).parameter
+    }
 }
 
 /// A reference to a curve is the curve, so a
-/// [`TrimmedCurve2D`](crate::curves::TrimmedCurve2D) can borrow its
+/// [`TrimmedCurve2D`](crate::TrimmedCurve2D) can borrow its
 /// basis instead of owning it.
 impl<C: ParametricCurve2D + ?Sized> ParametricCurve2D for &C {
     fn eval_point(&self, u: f64) -> Point2D {
@@ -427,18 +473,21 @@ impl<C: PointExtrema2D + ?Sized> PointExtrema2D for &C {
     fn extrema(&self, point: Point2D, tol: Tolerance) -> Vec<CurveProjection2D> {
         (**self).extrema(point, tol)
     }
-}
 
-/// The single local minimum of a line, or of a circle (whose distance
-/// from a point falls monotonically to it from the farthest point).
-pub(crate) fn only_minimum(
-    point: Point2D,
-    project: impl Fn() -> CurveProjection2D,
-) -> Vec<CurveProjection2D> {
-    if point.is_finite() {
-        vec![project()]
-    } else {
-        Vec::new()
+    fn project_point(&self, point: Point2D, tol: Tolerance) -> CurveProjection2D {
+        (**self).project_point(point, tol)
+    }
+
+    fn project_points(&self, points: &[Point2D], tol: Tolerance) -> Vec<CurveProjection2D> {
+        (**self).project_points(points, tol)
+    }
+
+    fn contains(&self, point: Point2D, tol: Tolerance) -> bool {
+        (**self).contains(point, tol)
+    }
+
+    fn parameter_of(&self, point: Point2D, tol: Tolerance) -> f64 {
+        (**self).parameter_of(point, tol)
     }
 }
 

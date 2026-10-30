@@ -26,6 +26,18 @@ fn torus() -> Torus {
     Torus::new(Point::ORIGIN, Vector::Z, 5.0, 1.5).unwrap()
 }
 
+fn bezier() -> BezierSurface {
+    // Biquadratic dome over the unit square.
+    let row = |x: f64, z: f64| {
+        vec![
+            Point::new(x, 0.0, 0.0),
+            Point::new(x, 0.5, z),
+            Point::new(x, 1.0, 0.0),
+        ]
+    };
+    BezierSurface::new(2, 2, vec![row(0.0, 0.0), row(0.5, 1.0), row(1.0, 0.0)]).unwrap()
+}
+
 fn bspline() -> BSplineSurface {
     // Bilinear degree-1x1 patch over the unit square (clamped both ways).
     let poles = vec![
@@ -250,12 +262,10 @@ fn test_normal_surface_enum_dispatch_agrees_with_concrete() {
         sphere().into(),
         torus().into(),
         bspline().into(),
+        bezier().into(),
     ];
     for surface in &surfaces {
-        assert_eq!(
-            surface.normal(0.3, 0.2, tol),
-            ParametricSurface::normal(surface, 0.3, 0.2, tol)
-        );
+        assert_eq!(surface.normal(0.3, 0.2, tol), surface.normal(0.3, 0.2, tol));
         let (_, [su, sv]) = surface.eval_d1(0.3, 0.2);
         let n = surface.normal(0.3, 0.2, tol).unwrap();
         let expected = su.cross(sv).normalized().unwrap();
@@ -297,27 +307,30 @@ fn test_surface_enum_closedness_dispatch_agrees_with_concrete() {
         sphere().into(),
         torus().into(),
         bspline().into(),
+        bezier().into(),
         closed_u_patch().into(),
     ];
     // The enum dispatches to each variant's own answer, including the
     // B-spline override.
     for surface in &surfaces {
         let expected = match surface {
-            Surface::Plane(s) => ParametricSurface::is_u_closed(s, tol),
-            Surface::Cylinder(s) => ParametricSurface::is_u_closed(s, tol),
-            Surface::Cone(s) => ParametricSurface::is_u_closed(s, tol),
-            Surface::Sphere(s) => ParametricSurface::is_u_closed(s, tol),
-            Surface::Torus(s) => ParametricSurface::is_u_closed(s, tol),
+            Surface::Plane(s) => s.is_u_closed(tol),
+            Surface::Cylinder(s) => s.is_u_closed(tol),
+            Surface::Cone(s) => s.is_u_closed(tol),
+            Surface::Sphere(s) => s.is_u_closed(tol),
+            Surface::Torus(s) => s.is_u_closed(tol),
             Surface::BSpline(s) => s.is_u_closed(tol),
+            Surface::Bezier(s) => s.is_u_closed(tol),
         };
         assert_eq!(surface.is_u_closed(tol), expected);
         let expected_v = match surface {
-            Surface::Plane(s) => ParametricSurface::is_v_closed(s, tol),
-            Surface::Cylinder(s) => ParametricSurface::is_v_closed(s, tol),
-            Surface::Cone(s) => ParametricSurface::is_v_closed(s, tol),
-            Surface::Sphere(s) => ParametricSurface::is_v_closed(s, tol),
-            Surface::Torus(s) => ParametricSurface::is_v_closed(s, tol),
+            Surface::Plane(s) => s.is_v_closed(tol),
+            Surface::Cylinder(s) => s.is_v_closed(tol),
+            Surface::Cone(s) => s.is_v_closed(tol),
+            Surface::Sphere(s) => s.is_v_closed(tol),
+            Surface::Torus(s) => s.is_v_closed(tol),
             Surface::BSpline(s) => s.is_v_closed(tol),
+            Surface::Bezier(s) => s.is_v_closed(tol),
         };
         assert_eq!(surface.is_v_closed(tol), expected_v);
     }
@@ -397,27 +410,30 @@ fn test_surface_enum_continuity_dispatch_agrees_with_concrete() {
         sphere().into(),
         torus().into(),
         bspline().into(),
+        bezier().into(),
         creased_u_patch().into(),
     ];
     for surface in &surfaces {
         let expected_u = match surface {
-            Surface::Plane(s) => ParametricSurface::continuity_u(s, 0.5, tol),
-            Surface::Cylinder(s) => ParametricSurface::continuity_u(s, 0.5, tol),
-            Surface::Cone(s) => ParametricSurface::continuity_u(s, 0.5, tol),
-            Surface::Sphere(s) => ParametricSurface::continuity_u(s, 0.5, tol),
-            Surface::Torus(s) => ParametricSurface::continuity_u(s, 0.5, tol),
+            Surface::Plane(s) => s.continuity_u(0.5, tol),
+            Surface::Cylinder(s) => s.continuity_u(0.5, tol),
+            Surface::Cone(s) => s.continuity_u(0.5, tol),
+            Surface::Sphere(s) => s.continuity_u(0.5, tol),
+            Surface::Torus(s) => s.continuity_u(0.5, tol),
             Surface::BSpline(s) => s.continuity_u(0.5, tol),
+            Surface::Bezier(s) => s.continuity_u(0.5, tol),
         };
         assert_eq!(surface.continuity_u(0.5, tol), expected_u);
         assert_eq!(
             surface.continuity_v(0.5, tol),
             match surface {
                 Surface::BSpline(s) => s.continuity_v(0.5, tol),
-                Surface::Plane(s) => ParametricSurface::continuity_v(s, 0.5, tol),
-                Surface::Cylinder(s) => ParametricSurface::continuity_v(s, 0.5, tol),
-                Surface::Cone(s) => ParametricSurface::continuity_v(s, 0.5, tol),
-                Surface::Sphere(s) => ParametricSurface::continuity_v(s, 0.5, tol),
-                Surface::Torus(s) => ParametricSurface::continuity_v(s, 0.5, tol),
+                Surface::Plane(s) => s.continuity_v(0.5, tol),
+                Surface::Cylinder(s) => s.continuity_v(0.5, tol),
+                Surface::Cone(s) => s.continuity_v(0.5, tol),
+                Surface::Sphere(s) => s.continuity_v(0.5, tol),
+                Surface::Torus(s) => s.continuity_v(0.5, tol),
+                Surface::Bezier(s) => s.continuity_v(0.5, tol),
             }
         );
     }
@@ -435,15 +451,17 @@ fn test_surface_enum_curvatures_dispatch_agrees_with_concrete() {
         sphere().into(),
         torus().into(),
         bspline().into(),
+        bezier().into(),
     ];
     for surface in &surfaces {
         let expected = match surface {
-            Surface::Plane(s) => ParametricSurface::curvatures(s, 0.3, 0.2, tol),
-            Surface::Cylinder(s) => ParametricSurface::curvatures(s, 0.3, 0.2, tol),
-            Surface::Cone(s) => ParametricSurface::curvatures(s, 0.3, 0.2, tol),
-            Surface::Sphere(s) => ParametricSurface::curvatures(s, 0.3, 0.2, tol),
-            Surface::Torus(s) => ParametricSurface::curvatures(s, 0.3, 0.2, tol),
-            Surface::BSpline(s) => ParametricSurface::curvatures(s, 0.3, 0.2, tol),
+            Surface::Plane(s) => s.curvatures(0.3, 0.2, tol),
+            Surface::Cylinder(s) => s.curvatures(0.3, 0.2, tol),
+            Surface::Cone(s) => s.curvatures(0.3, 0.2, tol),
+            Surface::Sphere(s) => s.curvatures(0.3, 0.2, tol),
+            Surface::Torus(s) => s.curvatures(0.3, 0.2, tol),
+            Surface::BSpline(s) => s.curvatures(0.3, 0.2, tol),
+            Surface::Bezier(s) => s.curvatures(0.3, 0.2, tol),
         };
         assert_eq!(surface.curvatures(0.3, 0.2, tol), expected);
     }

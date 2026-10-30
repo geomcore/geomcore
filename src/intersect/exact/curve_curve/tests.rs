@@ -1,8 +1,12 @@
+use crate::curves::ParametricCurve;
+use crate::curves::PointExtrema;
+use crate::curves::PointExtrema2D;
+use crate::intersect::numeric::curve_curve::search_curve_curve;
 use crate::{
     Circle, Circle2D, CircleCircle2DIntersection, CircleCircleIntersection, ConicConicIntersection,
     Ellipse, Frame, Hyperbola, IntersectExact, Line, Line2D, LineCircle2DIntersection,
     LineCircleIntersection, LineConicIntersection, LineLine2DIntersection, LineLineIntersection,
-    Parabola, Point, Point2D, Tolerance, Vector, Vector2D, search_curve_curve,
+    Parabola, Point, Point2D, Tolerance, Vector, Vector2D,
 };
 
 #[test]
@@ -662,7 +666,7 @@ fn test_ellipse3d_intersect_ellipse() {
                 assert_eq!(h.multiplicity, 1);
                 let angle = h
                     .second_parameter
-                    .unwrap_or_else(|| tilted.parameter_of(h.point));
+                    .unwrap_or_else(|| tilted.parameter_of(h.point, tol));
                 assert!(tilted.eval_point(angle).distance(h.point) < 1e-12);
             }
         }

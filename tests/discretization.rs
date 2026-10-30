@@ -1,15 +1,12 @@
 //! Discretization through its public interface: every reported deviation
 //! is checked against an independent measurement of the true one.
 
-use geomcore::curves::{ParametricCurve, ParametricCurve2D};
-use geomcore::discretization::{
-    Discretization, Discretization2D, DiscretizationCriteria, DiscretizationCriteriaError,
-    Discretize, Discretize2D,
-};
+use geomcore::prelude::*;
 use geomcore::{
-    BSplineCurve, Circle, Circle2D, Curve, Curve2D, Ellipse, Ellipse2D, Frame2D, Hyperbola,
-    Hyperbola2D, Line, Line2D, Parabola, Parabola2D, Point, Point2D, Tolerance, TrimmedCurve,
-    TrimmedCurve2D, Vector, Vector2D,
+    BSplineCurve, Circle, Circle2D, Curve, Curve2D, Discretization, Discretization2D,
+    DiscretizationCriteria, DiscretizationCriteriaError, ElementaryCurve, Ellipse, Ellipse2D,
+    Frame2D, Hyperbola, Hyperbola2D, Line, Line2D, Parabola, Parabola2D, Point, Point2D, Tolerance,
+    TrimmedCurve, TrimmedCurve2D, Vector, Vector2D,
 };
 use std::f64::consts::{FRAC_PI_2, PI, TAU};
 
@@ -193,6 +190,18 @@ fn test_circle_arcs_whole_and_across_the_seam() {
     // An arc shorter than the requested deviation is one segment.
     let tiny = TrimmedCurve::new(c, 0.0, 1e-4).unwrap();
     assert_eq!(tiny.discretize(chord(1e-3)).points.len(), 2);
+}
+
+#[test]
+fn test_trimmed_run_time_curves_discretize_like_the_concrete_ones() {
+    let c = circle(2.0);
+    let concrete = TrimmedCurve::new(c, 1.0, 4.0)
+        .unwrap()
+        .discretize(chord(1e-3));
+    let elementary = TrimmedCurve::new(ElementaryCurve::from(c), 1.0, 4.0).unwrap();
+    assert_eq!(elementary.discretize(chord(1e-3)), concrete);
+    let curve = TrimmedCurve::new(Curve::from(c), 1.0, 4.0).unwrap();
+    assert_eq!(curve.discretize(chord(1e-3)), concrete);
 }
 
 // ---------------------------------------------------------------- B-splines

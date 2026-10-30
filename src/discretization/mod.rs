@@ -1,30 +1,21 @@
 //! Discretization: points on a bounded curve, in order of parameter,
 //! joined by straight segments, each segment carrying a proven chord
-//! deviation and angle deviation (see `CONTEXT.md`).
-//!
-//! The work is done in two steps, so a caller controls memory and threads:
-//! [`Discretize::point_count`] counts the points for the given criteria,
-//! and [`Discretize::discretize_into`] writes exactly that many into
-//! slices the caller owns, without allocating. [`Discretize::discretize`]
-//! wraps both and allocates the result.
-//!
-//! Ranges are given by trimmed curves: an infinite line, parabola or
-//! hyperbola has no discretization until it is trimmed.
-//!
-//! ```compile_fail
-//! use geomcore::discretization::{DiscretizationCriteria, Discretize};
-//! use geomcore::{Line, Point, Vector};
-//!
-//! let line = Line::new(Point::ORIGIN, Vector::X).unwrap();
-//! line.discretize(DiscretizationCriteria::new(0.1).unwrap());
-//! ```
+//! deviation and angle deviation (see `CONTEXT.md`). The traits, their
+//! results and their criteria; the impls are grouped by family below.
 
 mod bspline;
 mod elementary;
 
+pub(crate) use bspline::spline_runs;
+pub(crate) use elementary::{
+    circle_steps, ellipse_steps, hyperbola_steps, line_steps, parabola_steps,
+};
+
 #[cfg(doc)]
 use crate::Tolerance;
-use crate::curves::{ParametricCurve, ParametricCurve2D, TrimmedCurve, TrimmedCurve2D};
+use crate::curves::{
+    ParametricCurve, ParametricCurve2D, RangeOperations, TrimmedCurve, TrimmedCurve2D,
+};
 use crate::{
     BSplineCurve, BSplineCurve2D, BezierCurve, BezierCurve2D, Circle, Circle2D, Ellipse, Ellipse2D,
     Point, Point2D,
@@ -62,12 +53,12 @@ impl std::error::Error for DiscretizationCriteriaError {}
 /// # Examples
 ///
 /// ```
-/// use geomcore::discretization::DiscretizationCriteria;
+/// use geomcore::DiscretizationCriteria;
 ///
 /// let criteria = DiscretizationCriteria::new(1e-3)?.with_max_angle_deviation(0.1)?;
 /// assert_eq!(criteria.max_chord_deviation(), 1e-3);
 /// assert_eq!(criteria.max_angle_deviation(), Some(0.1));
-/// # Ok::<(), geomcore::discretization::DiscretizationCriteriaError>(())
+/// # Ok::<(), geomcore::DiscretizationCriteriaError>(())
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct DiscretizationCriteria {
@@ -167,6 +158,23 @@ pub struct Discretization {
 /// three segments. The same curve and criteria always give the same
 /// points.
 ///
+/// The work is done in two steps, so a caller controls memory and threads:
+/// [`point_count`](Self::point_count) counts the points for the given
+/// criteria, and [`discretize_into`](Self::discretize_into) writes exactly
+/// that many into slices the caller owns, without allocating.
+/// [`discretize`](Self::discretize) wraps both and allocates the result.
+///
+/// Ranges are given by trimmed curves: an infinite line, parabola or
+/// hyperbola has no discretization until it is trimmed.
+///
+/// ```compile_fail
+/// use geomcore::prelude::*;
+/// use geomcore::{DiscretizationCriteria, Line, Point, Vector};
+///
+/// let line = Line::new(Point::ORIGIN, Vector::X).unwrap();
+/// line.discretize(DiscretizationCriteria::new(0.1).unwrap());
+/// ```
+///
 /// Elementary curves are split into equal parameter steps, the fewest the
 /// closed-form deviations allow. B-splines are split per knot span, on the
 /// span's Bézier control points: a piece is halved while that saves
@@ -182,8 +190,8 @@ pub struct Discretization {
 /// # Examples
 ///
 /// ```
-/// use geomcore::discretization::{DiscretizationCriteria, Discretize};
-/// use geomcore::{Circle, Point, Vector};
+/// use geomcore::prelude::*;
+/// use geomcore::{Circle, DiscretizationCriteria, Point, Vector};
 ///
 /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
 /// let criteria = DiscretizationCriteria::new(1e-3).unwrap();
@@ -267,8 +275,8 @@ pub struct Discretization2D {
 /// # Examples
 ///
 /// ```
-/// use geomcore::discretization::{DiscretizationCriteria, Discretize2D};
-/// use geomcore::{Circle2D, Line2D, Point2D, TrimmedCurve2D, Vector2D};
+/// use geomcore::prelude::*;
+/// use geomcore::{Circle2D, DiscretizationCriteria, Line2D, Point2D, TrimmedCurve2D, Vector2D};
 ///
 /// let criteria = DiscretizationCriteria::new(1e-3).unwrap();
 /// let circle = Circle2D::new(Point2D::ORIGIN, 1.0).unwrap();
@@ -324,46 +332,9 @@ pub trait Discretize2D {
     }
 }
 
-pub(crate) mod sealed {
-    use super::DiscretizationCriteria;
-
-    /// Equal parameter steps over `[first, last]`, each segment with the
-    /// same deviations.
-    #[derive(Debug, Clone, Copy)]
-    pub struct Run {
-        pub(crate) first: f64,
-        pub(crate) last: f64,
-        pub(crate) segments: usize,
-        pub(crate) chord_deviation: f64,
-        pub(crate) angle_deviation: f64,
-    }
-
-    /// Discretization of a range of a curve: what a trimmed curve needs
-    /// from its basis. Implemented by every curve, bounded or not, in 3D
-    /// and in 2D.
-    pub trait DiscretizeRange {
-        /// The curve's points: `Point` or `Point2D`.
-        type Point: Copy;
-
-        /// Calls `visit` with the runs covering `[first, last]` in order,
-        /// each with a function evaluating the point at a fraction of
-        /// the run. Every run has at least `min_segments` segments.
-        fn for_each_run<F>(
-            &self,
-            first: f64,
-            last: f64,
-            criteria: &DiscretizationCriteria,
-            min_segments: usize,
-            visit: F,
-        ) where
-            F: FnMut(Run, &dyn Fn(f64) -> Self::Point);
-    }
-}
-use sealed::{DiscretizeRange, Run};
-
 /// The point count of `[first, last]`, and the fewest segments per run
 /// that give a closed result at least three segments.
-fn plan<C: DiscretizeRange + ?Sized>(
+fn plan<C: RangeOperations + ?Sized>(
     curve: &C,
     (first, last): (f64, f64),
     closed: bool,
@@ -410,7 +381,7 @@ impl<P> Slices<'_, P> {
 /// Writes the discretization of `[first, last]` into `out`, the end points
 /// from `point_at_parameter`: the runs may leave out a rounding error at
 /// either end.
-fn fill<C: DiscretizeRange + ?Sized>(
+fn fill<C: RangeOperations + ?Sized>(
     curve: &C,
     (first, last): (f64, f64),
     closed: bool,
@@ -448,7 +419,7 @@ type Buffers<P> = (Vec<f64>, Vec<P>, Vec<f64>, Vec<f64>);
 /// The discretization of `[first, last]` in a single pass, into buffers
 /// that grow as the runs come: parameters, points, chord deviations and
 /// angle deviations, as [`fill`] writes them.
-fn collect<C: DiscretizeRange + ?Sized>(
+fn collect<C: RangeOperations + ?Sized>(
     curve: &C,
     (first, last): (f64, f64),
     closed: bool,
@@ -600,7 +571,7 @@ discretize_bounded!(Discretize2D, Discretization2D, Point2D: Circle2D, Ellipse2D
 /// range: closed when the range spans a whole period of its basis.
 macro_rules! discretize_trimmed {
     ($discretize:ident, $discretization:ident, $point:ty, $trimmed:ident, $parametric:ident) => {
-        impl<C: DiscretizeRange<Point = $point> + $parametric> $discretize for $trimmed<C> {
+        impl<C: RangeOperations<Point = $point> + $parametric> $discretize for $trimmed<C> {
             fn discretize(&self, criteria: DiscretizationCriteria) -> $discretization {
                 let (parameters, points, chord_deviations, angle_deviations) = collect(
                     self.basis(),
@@ -667,20 +638,3 @@ discretize_trimmed!(
     TrimmedCurve2D,
     ParametricCurve2D
 );
-
-impl<C: DiscretizeRange + ?Sized> DiscretizeRange for &C {
-    type Point = C::Point;
-
-    fn for_each_run<F>(
-        &self,
-        first: f64,
-        last: f64,
-        criteria: &DiscretizationCriteria,
-        min_segments: usize,
-        visit: F,
-    ) where
-        F: FnMut(Run, &dyn Fn(f64) -> Self::Point),
-    {
-        (**self).for_each_run(first, last, criteria, min_segments, visit);
-    }
-}

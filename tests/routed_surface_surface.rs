@@ -1,9 +1,7 @@
 //! The routed surface-surface intersection: exact when a closed form
 //! exists, marching otherwise, and the result says which method ran.
 
-use geomcore::curves::Curve;
-use geomcore::surfaces::Surface;
-use geomcore::*;
+use geomcore::{Curve, Surface, *};
 
 const TOL: Tolerance = Tolerance::DEFAULT;
 
@@ -33,18 +31,15 @@ fn test_plane_sphere_routes_exact_with_the_same_circle() {
     let routed = plane.intersect(&sphere, TOL);
     assert_eq!(routed.method(), IntersectionMethod::Exact);
     assert!(routed.is_complete());
-    let ExactSurfaceIntersection::Meets { curves, points } =
-        ElementarySurface::from(plane).intersect_exact(&ElementarySurface::from(sphere), TOL)
-    else {
+    let PlaneSphereIntersection::Circle(circle) = plane.intersect_exact(&sphere, TOL) else {
         panic!("expected a circle");
     };
     assert_eq!(
-        (routed.curves().len(), curves.len(), points.len()),
-        (1, 1, 0)
+        (routed.curves().len(), routed.contact_points().len()),
+        (1, 0)
     );
-    let (circle, tangent) = curves[0];
     assert_eq!(routed.curves()[0].curve, Curve::from(circle));
-    assert_eq!(routed.curves()[0].tangent, tangent);
+    assert!(!routed.curves()[0].tangent);
 }
 
 #[test]

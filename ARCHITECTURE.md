@@ -10,22 +10,26 @@ terms (elementary, exact, numeric, completeness, and so on) are defined in
 
 ```text
 src/
-├── lib.rs               crate docs and the flat re-exports (geomcore::Line, …)
+├── lib.rs               crate docs and the flat re-exports: each item's one public path
+├── prelude.rs           the shape and operation traits, for `use geomcore::prelude::*`
 ├── point.rs vector.rs   Point/Point2D, Vector/Vector2D
 ├── frame.rs             Axis, Frame and their 2D forms: where a shape is placed
 ├── transform.rs         rigid transforms
 ├── tolerance.rs         Tolerance: every geometric decision takes one
 ├── projection.rs        results of point projection (CurveProjection, …)
+├── tier.rs              TierPoint: the two tiers (space, plane) the curve types are generic over
+├── shape_enum.rs        the macros that expand a shape enum's variant list (ADR 0017)
 │
 ├── curves/              the public curve types, one file per type
 │   ├── parametric_curve.rs      ParametricCurve, PointExtrema, Side, Continuity
 │   ├── parametric_curve_2d.rs   ParametricCurve2D, PointExtrema2D
 │   ├── curve.rs curve_2d.rs     the Curve, ElementaryCurve, Curve2D enums
-│   ├── line.rs … hyperbola.rs   elementary 3D curves
-│   ├── line_2d.rs … hyperbola_2d.rs
-│   ├── bspline.rs bspline_2d.rs spline.rs   the two B-spline tiers and their shared type
-│   ├── bezier.rs bezier_2d.rs
+│   ├── line.rs … hyperbola.rs   elementary curves, each one generic type for both tiers
+│   ├── bspline.rs spline.rs     B-spline curves of both tiers and the spline they wrap
+│   ├── bezier.rs                Bézier curves of both tiers
 │   ├── trimmed.rs               TrimmedCurve and TrimmedCurve2D
+│   ├── range.rs                 internal: RangeOperations, the box, discretization and
+│   │                            B-spline of a range of each curve (ADR 0005)
 │   ├── conversion.rs fitting.rs parametrize.rs   to B-spline, from points, onto a surface
 ├── surfaces/            the public surface types, one file per type
 │   ├── parametric_surface.rs    ParametricSurface, SurfaceCurvatures, normal recovery
@@ -36,10 +40,16 @@ src/
 │
 ├── intersect/           intersections, by method (ADR 0011)
 │   ├── routing.rs       Intersect: exact when a closed form exists, numeric otherwise
+│   ├── routing/exact_family.rs  ExactFamily: each typed exact result read as its
+│   │                    family result (ADR 0018)
 │   ├── exact/           IntersectExact and the closed-form solvers, by family:
 │   │                    curve_curve.rs, curve_surface.rs, surface_surface.rs
-│   ├── numeric/         the searches for pairs with no closed form
-│   └── results/         the results Intersect returns, Completeness, InlineList
+│   ├── numeric/         the searches for pairs with no closed form. subdivision.rs is
+│   │                    the one driver of the searches on Bézier pieces (the queue of
+│   │                    pairs, the budget of halvings, the pairs left unsettled);
+│   │                    *_hull.rs and patch_pairs.rs bring their tests on a pair (ADR 0019)
+│   └── results/         the results Intersect returns, their regions (regions.rs),
+│                        Completeness, InlineList
 ├── bounding_box/        HasBoundingBox: the box type and one file per family
 ├── discretization/      Discretize: proven point sequences on bounded curves
 │
@@ -63,24 +73,44 @@ Outside `src/`:
 
 ## Placement rules
 
-1. **One public type per file, named after the type.** `Ellipse` lives in
-   `curves/ellipse.rs`, `Ellipse2D` in `curves/ellipse_2d.rs`. Only 2D
-   types carry a dimension suffix (ADR 0013), and the 2D files mirror the 3D
-   ones (ADR 0014). A type's construction error lives beside it.
-2. **The shape traits are implemented in the type's file.**
-   `ParametricCurve`, `PointExtrema`, `ParametricCurve2D`,
+Every public item has one path, at the crate root. The folders are
+private modules; `lib.rs` re-exports each public item (`geomcore::Line`,
+never `geomcore::curves::Line`), and `prelude` re-exports the traits.
+Moving a file between folders is therefore never a public change
+(ADR 0022). Doc examples, tests, benches and the bindings use the flat
+paths.
+
+1. **One public type per file, named after the type.** A curve type is one
+   generic type over its tier (ADR 0014): `GenericEllipse`, with its aliases
+   `Ellipse` and `Ellipse2D`, lives in `curves/ellipse.rs`, and its 2D unit
+   tests in `curves/ellipse/tests_2d.rs`. Only 2D types carry a dimension
+   suffix (ADR 0013). A type's construction error lives beside it.
+2. **Shared behaviour lives on the traits, implemented in the type's
+   file.** `ParametricCurve`, `PointExtrema`, `ParametricCurve2D`,
    `PointExtrema2D` and `ParametricSurface` are defined in the
-   `parametric_*.rs` files. Each `impl` sits with its type.
+   `parametric_*.rs` files, and each `impl` sits with its type. A method
+   that more than one type answers is a trait method, documented once on
+   the trait; a type overrides a provided method only for a faster closed
+   form, and its inherent `impl` keeps only what is specific to it
+   (`Circle::radius`, `BSplineCurve::insert_knot`). Callers bring the
+   traits in with `use geomcore::prelude::*` (ADR 0015). A generic curve
+   type implements the space and plane traits from one body, with the
+   crate-private `impl_for_both_tiers!` of `tier.rs`.
 3. **Operation traits are implemented in their operation's folder.**
    `HasBoundingBox` impls live in `bounding_box/`, `Discretize` impls in
    `discretization/`, and `IntersectExact` impls in `intersect/exact/`, all
    grouped by family. To see everything an operation does, open one folder.
+   The one exception is the table of the crate-private `RangeOperations`
+   in `curves/range.rs`: each curve's box, discretization and B-spline
+   over a range, in one impl per type that calls the formulas of those
+   folders. Trimmed curves and the whole bounded curves read their
+   operations from it (ADR 0005).
 4. **Exact intersection solvers are grouped by pair family.**
    `Line`–`Plane` is in `intersect/exact/curve_surface.rs`, next to its
    result type `LinePlaneIntersection`. The general results that `Intersect`
    returns live in `intersect/results/`.
 5. **Internal math sits under the shapes.** `elementary/`, `bspline/` and
-   `math/` are `pub(crate)`. They work on poles, knots and numbers,
+   `math/` re-export nothing from `lib.rs`. They work on poles, knots and numbers,
    not on the public shape types; a shape calls into them, never the
    other way round.
 6. **Unit tests live in a sibling `tests.rs`.** `curves/line.rs` ends with
@@ -92,19 +122,32 @@ Outside `src/`:
 
 **A new curve or surface type.**
 - Add `curves/<name>.rs` (or `surfaces/<name>.rs`) holding the type, its
-  constructor error and its shape-trait impls.
-- Re-export it from the folder's `mod.rs` and from `lib.rs`.
-- Add it as a variant of the `Curve`/`ElementaryCurve` (or `Surface`) enum.
-- Give it a box in `bounding_box/` and a discretization in `discretization/`.
-- Bind it in `geomcore-py/src/curves/<name>.rs` (or `surfaces/`), register
-  the class in `geomcore-py/src/lib.rs` and add its stub to
-  `geomcore-py/geomcore/*.pyi`.
+  constructor error and its shape-trait impls. A curve that exists in both
+  tiers is one `Generic<Name><P: TierPoint>` with the aliases `<Name>` and
+  `<Name>2D`.
+- Re-export it from the folder's `mod.rs` and from `lib.rs`, its one
+  public path.
+- Add it as a variant of the `Curve`/`ElementaryCurve` (or `Surface`) enum,
+  and as one line in that enum's `*_variants!` list beside it: every
+  forwarding method and `From` impl follows from the list (ADR 0017), and
+  the compiler points at the matches that do real per-variant work.
+- Make it an operand of `Intersect`: a `CurveOperand`/`SurfaceOperand`
+  impl and one entry in each pair list of `intersect/routing.rs`.
+- Implement `RangeOperations` for it in `curves/range.rs`, calling a box
+  formula from `bounding_box/`, a discretization from `discretization/`
+  and a B-spline conversion from `curves/conversion.rs`. If it is
+  bounded, add it to `box_over_bounds!` in `bounding_box/curves.rs` and
+  to `discretize_bounded!` in `discretization/mod.rs`; otherwise its
+  `bounding_box` is `None`.
+- Bind it in Python: see [The Python bindings](#the-python-bindings).
 
 **A new exact intersection pair.**
 - Write the solver as `impl IntersectExact<B> for A` in the family file
   under `intersect/exact/`, with its result type, in both argument orders.
-- Register it in the dispatch in `intersect/exact/mod.rs`, so that
-  `Intersect` routes the pair there instead of to the numeric search.
+- Read its result into the family result with an `into_family` method
+  in `intersect/routing/exact_family.rs`, and list the pair in that
+  file's macro, so that `Intersect` routes the pair there instead of to
+  the numeric search.
 
 **A new operation.**
 - Give it its own folder at the top of `src/`, like `bounding_box/` and
@@ -122,10 +165,44 @@ files are:
 | `lib.rs` | the module wiring (`#[pymodule]`) and small shared argument checks |
 | `values.rs` | `Point`, `Vector`, `Axis`, `Frame`, `Tolerance`, `Transform`, `Side` |
 | `bounding_box.rs`, `discretization.rs` | the classes of those operations |
+| `method_sets.rs` | the method sets the curve and surface classes share |
+| `arguments.rs` | the class registry: the Python class of each core enum variant |
 | `intersect.rs` | the routed `intersect` every class shares, and `curve_curve_extrema` |
 | `results.rs` | the intersection, projection, extrema and curvature results |
-| `arguments.rs` | conversions between Python objects and the core `Curve`/`Surface` enums |
 | `errors.rs` | the Python exception hierarchy |
+
+**Method sets.** A class writes its `#[pymethods]` block through
+`shape_methods!`, naming the sets it takes (`curve`, `discretize`,
+`surface`, ...) and listing only its own methods. Each set is the Python
+face of a core trait (`curve` is `ParametricCurve`, `PointExtrema`,
+`HasBoundingBox` and `Intersect`), with its docstrings and signatures
+written once, so a class has a method exactly when its core type has it.
+The table at the top of `method_sets.rs` says which set follows from
+which trait.
+
+**The class registry.** `shape_classes!` in `arguments.rs` lists, once per
+core enum, the Python class of each variant (`Line => PyLine`). From that
+list come the conversions both ways (`curve_classes::extract`,
+`curve_classes::to_py`), the `TypeError` text naming the accepted
+classes, and the classes' registration in their module.
+
+**The interpreter lock.** `intersect` releases it around every core call,
+so other Python threads run during a search (ADR 0021).
+
+**Binding a new curve or surface type.**
+- Add `geomcore-py/src/curves/<name>.rs` (or `surfaces/`) with the
+  `#[pyclass]` holding the core type as field `0`, and its methods through
+  `shape_methods!`: the sets its core traits give it, then its
+  constructors and inherent methods.
+- Add one `Variant => PyClass` line to the registry in `arguments.rs`.
+  `intersect`, every argument that takes a curve or surface, and every
+  method that returns one then accept the class.
+- Add its stub to `geomcore-py/geomcore/curves.pyi` (or `surfaces.pyi`)
+  and to the `_WholeCurve`, `_Curve2D` or `_Surface` union there; stubtest
+  checks the stub against the class.
+- `tests/test_parity.py` fails until the new class has a fixture, then
+  checks its method set and runs it through `intersect` against every
+  other class.
 
 ## Integration tests
 
@@ -138,7 +215,7 @@ checks.
 | Golden fixtures | `vs_fixtures.rs`, `bezier_fixtures.rs`, `discretization_fixtures.rs`, `intersect_2d_fixtures.rs` |
 | B-splines and Bézier | `bspline_tiers.rs`, `degree_elevation.rs`, `bezier_surface.rs` |
 | Projection | `projection_point.rs` |
-| Intersection | `routed_intersections.rs`, `routed_surface_surface.rs`, `bezier_intersections.rs` |
+| Intersection | `routed_intersections.rs`, `routed_surface_surface.rs`, `bezier_intersections.rs`, `bezier_through_enums.rs` |
 | Bounding boxes | `bounding_box.rs`, `bounding_box_allocation.rs` |
 | Discretization | `discretization.rs`, `discretization_allocation.rs` |
 

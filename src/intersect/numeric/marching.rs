@@ -3,6 +3,7 @@
 //! patch pairs on B-splines, or from a parameter grid, traced along the
 //! intersection and fitted.
 
+use crate::curves::PointExtrema;
 use crate::curves::{BSplineCurve, Curve, ElementaryCurve, ParametricCurve, PointParametrization};
 use crate::intersect::numeric::{bezier_pieces, patch_pairs};
 use crate::intersect::routing::route_curve_surface;
@@ -12,10 +13,8 @@ use crate::intersect::{
 };
 use crate::math::boxtree::{Aabb, boxes_apart};
 use crate::math::{solve_2x2, solve_3x3, solve_4x4};
-use crate::surfaces::{
-    BSplineSurface, ElementarySurface, ParametricSurface, Surface, partials_span_a_plane,
-    reference_widths,
-};
+use crate::surfaces::parametric_surface::{partials_span_a_plane, reference_widths};
+use crate::surfaces::{BSplineSurface, ElementarySurface, ParametricSurface, Surface};
 use crate::{BoundingBox, HasBoundingBox, Point, Tolerance, Vector};
 
 /// Marching surface-surface intersection for any two parametric surfaces.
@@ -554,7 +553,7 @@ impl<'a> SeedTarget<'a> {
 
     fn parameters_of(self, point: Point, tol: Tolerance) -> (f64, f64) {
         match self {
-            SeedTarget::Elementary(surface) => surface.parameters_of(point),
+            SeedTarget::Elementary(surface) => surface.parameters_of(point, tol),
             SeedTarget::BSpline(surface) => {
                 let projection = surface.project_point(point, tol);
                 (projection.u, projection.v)
@@ -597,7 +596,7 @@ fn family_seeds(
         let hits = result.hits().iter().map(|hit| {
             let parameter = hit
                 .curve_parameter
-                .unwrap_or_else(|| curve.parameter_of(hit.point));
+                .unwrap_or_else(|| curve.parameter_of(hit.point, tol));
             (parameter, hit.point, hit.surface_parameters)
         });
         let overlaps = result.overlaps().iter().map(|&range| {
@@ -605,7 +604,7 @@ fn family_seeds(
             (parameter, curve.eval_point(parameter), None)
         });
         for (parameter, point, other_parameters) in hits.chain(overlaps) {
-            let (u, v) = own_parameters(own, direction, value, parameter, point);
+            let (u, v) = own_parameters(own, direction, value, parameter, point, tol);
             let (other_u, other_v) =
                 other_parameters.unwrap_or_else(|| other.parameters_of(point, tol));
             seeds.push([u, v, other_u, other_v]);
@@ -635,11 +634,14 @@ fn seeding_iso_values(
         let (min, max) = (bounds.min(), bounds.max());
         let (mut low, mut high) = ([f64::INFINITY; 2], [f64::NEG_INFINITY; 2]);
         for k in 0..8 {
-            let (u, v) = own.parameters_of(Point::new(
-                if k & 1 == 0 { min.x } else { max.x },
-                if k & 2 == 0 { min.y } else { max.y },
-                if k & 4 == 0 { min.z } else { max.z },
-            ));
+            let (u, v) = own.parameters_of(
+                Point::new(
+                    if k & 1 == 0 { min.x } else { max.x },
+                    if k & 2 == 0 { min.y } else { max.y },
+                    if k & 4 == 0 { min.z } else { max.z },
+                ),
+                tol,
+            );
             (low[0], high[0]) = (low[0].min(u), high[0].max(u));
             (low[1], high[1]) = (low[1].min(v), high[1].max(v));
         }
@@ -701,6 +703,7 @@ fn own_parameters(
     value: f64,
     parameter: f64,
     point: Point,
+    tol: Tolerance,
 ) -> (f64, f64) {
     let (u, v) = match direction {
         IsoDirection::U => (value, parameter),
@@ -712,7 +715,7 @@ fn own_parameters(
     if within(u, own.u_bounds(), own.u_period()) && within(v, own.v_bounds(), own.v_period()) {
         (u, v)
     } else {
-        own.parameters_of(point)
+        own.parameters_of(point, tol)
     }
 }
 

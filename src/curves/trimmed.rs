@@ -11,6 +11,7 @@ use crate::curves::{
     LineConstructionError, ParametricCurve, ParametricCurve2D, PointExtrema, PointExtrema2D,
 };
 use crate::projection::{CurveProjection, CurveProjection2D};
+use crate::tier::TierPoint;
 use crate::{Continuity, Point, Point2D, Tolerance, Vector, Vector2D};
 use std::fmt;
 
@@ -71,69 +72,36 @@ fn check_range(
     }
 }
 
-/// What [`restrict`] needs from a projection, so one implementation serves
-/// the 2D and 3D trimmed curves.
-trait RestrictableProjection: Copy {
-    fn parameter(&self) -> f64;
-    fn distance(&self) -> f64;
-    /// The same projection moved to the equivalent `parameter` one or more
-    /// periods away: the point and distance are unchanged.
-    fn with_parameter(self, parameter: f64) -> Self;
-}
-
-impl RestrictableProjection for CurveProjection {
-    fn parameter(&self) -> f64 {
-        self.parameter
-    }
-    fn distance(&self) -> f64 {
-        self.distance
-    }
-    fn with_parameter(self, parameter: f64) -> Self {
-        CurveProjection { parameter, ..self }
-    }
-}
-
-impl RestrictableProjection for CurveProjection2D {
-    fn parameter(&self) -> f64 {
-        self.parameter
-    }
-    fn distance(&self) -> f64 {
-        self.distance
-    }
-    fn with_parameter(self, parameter: f64) -> Self {
-        CurveProjection2D { parameter, ..self }
-    }
-}
-
 /// The extrema of a trimmed curve from those of its basis: the basis
 /// extrema inside `[first, last]` (shifted by whole periods into it), then
 /// the two ends, ordered by ascending distance. On a tie the interior
 /// extremum wins, and an end at the parameter of a kept extremum is
 /// dropped. `end_projection` builds the projection at an end parameter.
-fn restrict<P: RestrictableProjection>(
-    extrema: Vec<P>,
+fn restrict<P: TierPoint>(
+    extrema: Vec<CurveProjection<P>>,
     (first, last): (f64, f64),
     period: Option<f64>,
-    end_projection: impl Fn(f64) -> P,
+    end_projection: impl Fn(f64) -> CurveProjection<P>,
     tol: Tolerance,
-) -> Vec<P> {
-    let mut out: Vec<P> = extrema
+) -> Vec<CurveProjection<P>> {
+    let mut out: Vec<CurveProjection<P>> = extrema
         .into_iter()
         .filter_map(|e| {
             let t = match period {
-                Some(period) => first + (e.parameter() - first).rem_euclid(period),
-                None => e.parameter(),
+                Some(period) => first + (e.parameter - first).rem_euclid(period),
+                None => e.parameter,
             };
-            (first <= t && t <= last).then(|| e.with_parameter(t))
+            (first <= t && t <= last).then_some(CurveProjection { parameter: t, ..e })
         })
         .collect();
     for t in [first, last] {
-        let same = |e: &P| (e.parameter() - t).abs() <= tol.parametric * (1.0 + t.abs());
+        let same =
+            |e: &CurveProjection<P>| (e.parameter - t).abs() <= tol.parametric * (1.0 + t.abs());
         if !out.iter().any(same) {
             out.push(end_projection(t));
         }
     }
-    out.sort_by(|x, y| x.distance().total_cmp(&y.distance()));
+    out.sort_by(|x, y| x.distance.total_cmp(&y.distance));
     out
 }
 
@@ -154,8 +122,8 @@ fn restrict<P: RestrictableProjection>(
 /// # Examples
 ///
 /// ```
-/// use geomcore::curves::{ParametricCurve, TrimmedCurve};
-/// use geomcore::{Circle, Point, Tolerance, Vector};
+/// use geomcore::prelude::*;
+/// use geomcore::{Circle, Point, Tolerance, TrimmedCurve, Vector};
 /// use std::f64::consts::PI;
 ///
 /// // The upper half of the unit circle.
@@ -188,8 +156,7 @@ impl<C: ParametricCurve> TrimmedCurve<C> {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::curves::{TrimmedCurve, TrimmedCurveConstructionError};
-    /// use geomcore::{Circle, Point, Vector};
+    /// use geomcore::{Circle, Point, TrimmedCurve, TrimmedCurveConstructionError, Vector};
     ///
     /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
     /// // An arc across the seam at angle 0.
@@ -233,115 +200,6 @@ impl<C: ParametricCurve> TrimmedCurve<C> {
     pub fn end_point(&self) -> Point {
         self.basis.eval_point(self.last)
     }
-
-    /// Returns whether the piece's ends meet: a piece spanning a full
-    /// period of a periodic basis, or whose start and end points coincide
-    /// within `tol.confusion`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::curves::TrimmedCurve;
-    /// use geomcore::{Circle, Point, Tolerance, Vector};
-    ///
-    /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
-    /// let whole = TrimmedCurve::new(circle, 0.0, std::f64::consts::TAU).unwrap();
-    /// assert!(whole.is_closed(Tolerance::DEFAULT));
-    /// let arc = TrimmedCurve::new(circle, 0.0, 1.0).unwrap();
-    /// assert!(!arc.is_closed(Tolerance::DEFAULT));
-    /// ```
-    pub fn is_closed(&self, tol: Tolerance) -> bool {
-        if let Some(period) = self.basis.period()
-            && self.last - self.first >= period - tol.parametric
-        {
-            return true;
-        }
-        self.start_point().distance(self.end_point()) <= tol.confusion
-    }
-
-    /// [`Continuity`] at parameter `u`: the basis continuity there, and
-    /// `Smooth` at the ends of the range (within
-    /// `tol.parametric`), where the piece is seen from the inside only, as
-    /// at the bounds of a non-periodic B-spline.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::curves::TrimmedCurve;
-    /// use geomcore::{BSplineCurve, Continuity, Point, Tolerance};
-    ///
-    /// // Degree 2 with a double knot at 0.5: a kink (C0) there.
-    /// let poles = vec![
-    ///     Point::ORIGIN,
-    ///     Point::new(1.0, 0.0, 0.0),
-    ///     Point::new(2.0, 1.0, 0.0),
-    ///     Point::new(3.0, 1.0, 0.0),
-    ///     Point::new(4.0, 0.0, 0.0),
-    /// ];
-    /// let curve = BSplineCurve::new(2, poles, vec![0.0, 0.5, 1.0], vec![3, 2, 3], false).unwrap();
-    /// let piece = TrimmedCurve::new(&curve, 0.25, 0.75).unwrap();
-    /// assert_eq!(piece.continuity(0.5, Tolerance::DEFAULT), Continuity::Order(0));
-    /// let half = TrimmedCurve::new(&curve, 0.0, 0.5).unwrap();
-    /// assert_eq!(half.continuity(0.5, Tolerance::DEFAULT), Continuity::Smooth);
-    /// ```
-    pub fn continuity(&self, u: f64, tol: Tolerance) -> Continuity {
-        let at_end = |end: f64| (u - end).abs() <= tol.parametric * (1.0 + end.abs());
-        if at_end(self.first) || at_end(self.last) {
-            return Continuity::Smooth;
-        }
-        self.basis.continuity(u, tol)
-    }
-
-    /// Minimum [`Continuity`] over the range `[first, last]` (`Smooth`
-    /// when no knot constrains it): the worst B-spline knot strictly
-    /// inside the range, so a piece that avoids a kink of its basis is
-    /// smooth. A basis other than a B-spline reports its own minimum.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::curves::TrimmedCurve;
-    /// use geomcore::{BSplineCurve, Continuity, Point};
-    ///
-    /// // Degree 2 with a double knot at 0.5: a kink (C0) there.
-    /// let poles = vec![
-    ///     Point::ORIGIN,
-    ///     Point::new(1.0, 0.0, 0.0),
-    ///     Point::new(2.0, 1.0, 0.0),
-    ///     Point::new(3.0, 1.0, 0.0),
-    ///     Point::new(4.0, 0.0, 0.0),
-    /// ];
-    /// let curve = BSplineCurve::new(2, poles, vec![0.0, 0.5, 1.0], vec![3, 2, 3], false).unwrap();
-    /// assert_eq!(TrimmedCurve::new(&curve, 0.25, 0.75).unwrap().min_continuity(), Continuity::Order(0));
-    /// assert_eq!(TrimmedCurve::new(&curve, 0.0, 0.5).unwrap().min_continuity(), Continuity::Smooth);
-    /// ```
-    pub fn min_continuity(&self) -> Continuity {
-        match self.basis.as_bspline() {
-            Some(bspline) => bspline_math::min_continuity_within(
-                bspline.degree(),
-                bspline.knots(),
-                bspline.multiplicities(),
-                bspline.period(),
-                (self.first, self.last),
-            ),
-            None => self.basis.min_continuity(),
-        }
-    }
-
-    /// Evaluates the basis point at parameter `u`.
-    pub fn eval_point(&self, u: f64) -> Point {
-        self.basis.eval_point(u)
-    }
-
-    /// Evaluates the basis points at each parameter in `us`.
-    pub fn eval_points(&self, us: &[f64]) -> Vec<Point> {
-        self.basis.eval_points(us)
-    }
-
-    /// Evaluates the basis derivative of the given `order` at parameter `u`.
-    pub fn eval_derivative(&self, u: f64, order: u32) -> Vector {
-        self.basis.eval_derivative(u, order)
-    }
 }
 
 impl<C: ParametricCurve + Into<Curve>> TrimmedCurve<C> {
@@ -351,71 +209,27 @@ impl<C: ParametricCurve + Into<Curve>> TrimmedCurve<C> {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::curves::TrimmedCurve;
-    /// use geomcore::{Circle, Point, Vector};
+    /// use geomcore::{Circle, Point, TrimmedCurve, Vector};
     ///
     /// let segment = TrimmedCurve::segment(Point::ORIGIN, Point::new(1.0, 0.0, 0.0)).unwrap();
     /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
     /// let arc = TrimmedCurve::new(circle, 0.0, 1.0).unwrap();
-    /// let pieces: Vec<TrimmedCurve> = vec![segment.into_curve3d(), arc.into_curve3d()];
+    /// let pieces: Vec<TrimmedCurve> = vec![segment.into_curve(), arc.into_curve()];
     /// assert_eq!(pieces.len(), 2);
     /// ```
-    pub fn into_curve3d(self) -> TrimmedCurve<Curve> {
+    pub fn into_curve(self) -> TrimmedCurve<Curve> {
         TrimmedCurve {
             basis: self.basis.into(),
             first: self.first,
             last: self.last,
         }
     }
-}
 
-impl<C: PointExtrema> TrimmedCurve<C> {
-    /// Projects `point` onto the trimmed curve: the closest of the basis
-    /// extrema inside the range and the two ends. Distances within
-    /// `tol.confusion` snap to `0.0`, matching
-    /// [`TrimmedCurve::contains`].
-    ///
-    /// A query point with a non-finite coordinate projects to a NaN
-    /// parameter and distance.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::curves::TrimmedCurve;
-    /// use geomcore::{Point, Tolerance};
-    ///
-    /// let segment = TrimmedCurve::segment(Point::ORIGIN, Point::new(2.0, 0.0, 0.0)).unwrap();
-    /// let proj = segment.project_point(Point::new(5.0, 1.0, 0.0), Tolerance::DEFAULT);
-    /// assert_eq!(proj.parameter, 2.0);
-    /// assert_eq!(proj.distance, 10.0_f64.sqrt());
-    /// ```
-    pub fn project_point(&self, point: Point, tol: Tolerance) -> CurveProjection {
-        PointExtrema::extrema(self, point, tol)
-            .into_iter()
-            .next()
-            .unwrap_or(CurveProjection::UNDEFINED)
-    }
-
-    /// Projects each point in `points` onto the trimmed curve.
-    pub fn project_points(&self, points: &[Point], tol: Tolerance) -> Vec<CurveProjection> {
-        points.iter().map(|&p| self.project_point(p, tol)).collect()
-    }
-
-    /// Returns whether `point` lies on the trimmed curve within
-    /// `tol.confusion`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::curves::TrimmedCurve;
-    /// use geomcore::{Point, Tolerance};
-    ///
-    /// let segment = TrimmedCurve::segment(Point::ORIGIN, Point::new(2.0, 0.0, 0.0)).unwrap();
-    /// assert!(segment.contains(Point::new(1.0, 0.0, 0.0), Tolerance::DEFAULT));
-    /// assert!(!segment.contains(Point::new(3.0, 0.0, 0.0), Tolerance::DEFAULT));
-    /// ```
-    pub fn contains(&self, point: Point, tol: Tolerance) -> bool {
-        self.project_point(point, tol).distance <= tol.confusion
+    /// Moves the basis into a [`Curve`], keeping the range: the former
+    /// name of [`into_curve`](Self::into_curve).
+    #[deprecated(note = "renamed to `into_curve`")]
+    pub fn into_curve3d(self) -> TrimmedCurve<Curve> {
+        self.into_curve()
     }
 }
 
@@ -431,8 +245,7 @@ impl TrimmedCurve<Line> {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::curves::TrimmedCurve;
-    /// use geomcore::Point;
+    /// use geomcore::{Point, TrimmedCurve};
     ///
     /// let end = Point::new(3.0, 4.0, 0.0);
     /// let segment = TrimmedCurve::segment(Point::ORIGIN, end).unwrap();
@@ -453,6 +266,7 @@ impl TrimmedCurve<Line> {
 }
 
 impl<C: ParametricCurve> ParametricCurve for TrimmedCurve<C> {
+    #[inline]
     fn eval_point(&self, u: f64) -> Point {
         self.basis.eval_point(u)
     }
@@ -481,16 +295,45 @@ impl<C: ParametricCurve> ParametricCurve for TrimmedCurve<C> {
         self.basis.eval_points(us)
     }
 
+    /// Returns whether the piece's ends meet: a piece spanning a full
+    /// period of a periodic basis, or whose start and end points coincide
+    /// within `tol.confusion`.
     fn is_closed(&self, tol: Tolerance) -> bool {
-        TrimmedCurve::is_closed(self, tol)
+        if let Some(period) = self.basis.period()
+            && self.last - self.first >= period - tol.parametric
+        {
+            return true;
+        }
+        self.start_point().distance(self.end_point()) <= tol.confusion
     }
 
+    /// [`Continuity`] at parameter `u`: the basis continuity there, and
+    /// `Smooth` at the ends of the range (within
+    /// `tol.parametric`), where the piece is seen from the inside only, as
+    /// at the bounds of a non-periodic B-spline.
     fn continuity(&self, u: f64, tol: Tolerance) -> Continuity {
-        TrimmedCurve::continuity(self, u, tol)
+        let at_end = |end: f64| (u - end).abs() <= tol.parametric * (1.0 + end.abs());
+        if at_end(self.first) || at_end(self.last) {
+            return Continuity::Smooth;
+        }
+        self.basis.continuity(u, tol)
     }
 
+    /// Minimum [`Continuity`] over the range `[first, last]` (`Smooth`
+    /// when no knot constrains it): the worst B-spline knot strictly
+    /// inside the range, so a piece that avoids a kink of its basis is
+    /// smooth. A basis other than a B-spline reports its own minimum.
     fn min_continuity(&self) -> Continuity {
-        TrimmedCurve::min_continuity(self)
+        match self.basis.as_bspline() {
+            Some(bspline) => bspline_math::min_continuity_within(
+                bspline.degree(),
+                bspline.knots(),
+                bspline.multiplicities(),
+                bspline.period(),
+                (self.first, self.last),
+            ),
+            None => self.basis.min_continuity(),
+        }
     }
 
     fn as_bspline(&self) -> Option<&BSplineCurve> {
@@ -532,8 +375,8 @@ impl<C: PointExtrema> PointExtrema for TrimmedCurve<C> {
 /// # Examples
 ///
 /// ```
-/// use geomcore::curves::{ParametricCurve2D, TrimmedCurve2D};
-/// use geomcore::{Point2D, Tolerance};
+/// use geomcore::prelude::*;
+/// use geomcore::{Point2D, Tolerance, TrimmedCurve2D};
 ///
 /// let segment = TrimmedCurve2D::segment(Point2D::ORIGIN, Point2D::new(0.0, 2.0)).unwrap();
 /// assert_eq!(segment.bounds(), (0.0, 2.0));
@@ -554,8 +397,7 @@ impl<C: ParametricCurve2D> TrimmedCurve2D<C> {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::curves::{TrimmedCurve2D, TrimmedCurveConstructionError};
-    /// use geomcore::{Line2D, Point2D, Vector2D};
+    /// use geomcore::{Line2D, Point2D, TrimmedCurve2D, TrimmedCurveConstructionError, Vector2D};
     ///
     /// let line = Line2D::new(Point2D::ORIGIN, Vector2D::X).unwrap();
     /// assert!(TrimmedCurve2D::new(line, -1.0, 1.0).is_ok());
@@ -598,115 +440,6 @@ impl<C: ParametricCurve2D> TrimmedCurve2D<C> {
     pub fn end_point(&self) -> Point2D {
         self.basis.eval_point(self.last)
     }
-
-    /// Returns whether the piece's ends meet: a piece spanning a full
-    /// period of a periodic basis, or whose start and end points coincide
-    /// within `tol.confusion`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::curves::TrimmedCurve2D;
-    /// use geomcore::{Circle2D, Point2D, Tolerance};
-    ///
-    /// let circle = Circle2D::new(Point2D::ORIGIN, 1.0).unwrap();
-    /// let whole = TrimmedCurve2D::new(circle, 0.0, std::f64::consts::TAU).unwrap();
-    /// assert!(whole.is_closed(Tolerance::DEFAULT));
-    /// let arc = TrimmedCurve2D::new(circle, 0.0, 1.0).unwrap();
-    /// assert!(!arc.is_closed(Tolerance::DEFAULT));
-    /// ```
-    pub fn is_closed(&self, tol: Tolerance) -> bool {
-        if let Some(period) = self.basis.period()
-            && self.last - self.first >= period - tol.parametric
-        {
-            return true;
-        }
-        self.start_point().distance(self.end_point()) <= tol.confusion
-    }
-
-    /// [`Continuity`] at parameter `u`: the basis continuity there, and
-    /// `Smooth` at the ends of the range (within `tol.parametric`), where
-    /// the piece is seen from the inside only, as at the bounds of a
-    /// non-periodic B-spline.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::curves::TrimmedCurve2D;
-    /// use geomcore::{BSplineCurve2D, Continuity, Point2D, Tolerance};
-    ///
-    /// // Degree 2 with a double knot at 0.5: a kink (C0) there.
-    /// let poles = vec![
-    ///     Point2D::ORIGIN,
-    ///     Point2D::new(1.0, 0.0),
-    ///     Point2D::new(2.0, 1.0),
-    ///     Point2D::new(3.0, 1.0),
-    ///     Point2D::new(4.0, 0.0),
-    /// ];
-    /// let curve = BSplineCurve2D::new(2, poles, vec![0.0, 0.5, 1.0], vec![3, 2, 3], false).unwrap();
-    /// let piece = TrimmedCurve2D::new(&curve, 0.25, 0.75).unwrap();
-    /// assert_eq!(piece.continuity(0.5, Tolerance::DEFAULT), Continuity::Order(0));
-    /// let half = TrimmedCurve2D::new(&curve, 0.0, 0.5).unwrap();
-    /// assert_eq!(half.continuity(0.5, Tolerance::DEFAULT), Continuity::Smooth);
-    /// ```
-    pub fn continuity(&self, u: f64, tol: Tolerance) -> Continuity {
-        let at_end = |end: f64| (u - end).abs() <= tol.parametric * (1.0 + end.abs());
-        if at_end(self.first) || at_end(self.last) {
-            return Continuity::Smooth;
-        }
-        self.basis.continuity(u, tol)
-    }
-
-    /// Minimum [`Continuity`] over the range `[first, last]` (`Smooth`
-    /// when no knot constrains it): the worst B-spline knot strictly
-    /// inside the range, so a piece that avoids a kink of its basis is
-    /// smooth. A basis other than a B-spline reports its own minimum.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::curves::TrimmedCurve2D;
-    /// use geomcore::{BSplineCurve2D, Continuity, Point2D};
-    ///
-    /// // Degree 2 with a double knot at 0.5: a kink (C0) there.
-    /// let poles = vec![
-    ///     Point2D::ORIGIN,
-    ///     Point2D::new(1.0, 0.0),
-    ///     Point2D::new(2.0, 1.0),
-    ///     Point2D::new(3.0, 1.0),
-    ///     Point2D::new(4.0, 0.0),
-    /// ];
-    /// let curve = BSplineCurve2D::new(2, poles, vec![0.0, 0.5, 1.0], vec![3, 2, 3], false).unwrap();
-    /// assert_eq!(TrimmedCurve2D::new(&curve, 0.25, 0.75).unwrap().min_continuity(), Continuity::Order(0));
-    /// assert_eq!(TrimmedCurve2D::new(&curve, 0.0, 0.5).unwrap().min_continuity(), Continuity::Smooth);
-    /// ```
-    pub fn min_continuity(&self) -> Continuity {
-        match self.basis.as_bspline() {
-            Some(bspline) => bspline_math::min_continuity_within(
-                bspline.degree(),
-                bspline.knots(),
-                bspline.multiplicities(),
-                ParametricCurve2D::period(bspline),
-                (self.first, self.last),
-            ),
-            None => self.basis.min_continuity(),
-        }
-    }
-
-    /// Evaluates the basis point at parameter `u`.
-    pub fn eval_point(&self, u: f64) -> Point2D {
-        self.basis.eval_point(u)
-    }
-
-    /// Evaluates the basis points at each parameter in `us`.
-    pub fn eval_points(&self, us: &[f64]) -> Vec<Point2D> {
-        self.basis.eval_points(us)
-    }
-
-    /// Evaluates the basis derivative of the given `order` at parameter `u`.
-    pub fn eval_derivative(&self, u: f64, order: u32) -> Vector2D {
-        self.basis.eval_derivative(u, order)
-    }
 }
 
 impl<C: ParametricCurve2D + Into<Curve2D>> TrimmedCurve2D<C> {
@@ -718,33 +451,6 @@ impl<C: ParametricCurve2D + Into<Curve2D>> TrimmedCurve2D<C> {
             first: self.first,
             last: self.last,
         }
-    }
-}
-
-impl<C: PointExtrema2D> TrimmedCurve2D<C> {
-    /// Projects `point` onto the trimmed curve: the closest of the basis
-    /// extrema inside the range and the two ends. Distances within
-    /// `tol.confusion` snap to `0.0`, matching
-    /// [`TrimmedCurve2D::contains`].
-    ///
-    /// A query point with a non-finite coordinate projects to a NaN
-    /// parameter and distance.
-    pub fn project_point(&self, point: Point2D, tol: Tolerance) -> CurveProjection2D {
-        PointExtrema2D::extrema(self, point, tol)
-            .into_iter()
-            .next()
-            .unwrap_or(CurveProjection2D::UNDEFINED)
-    }
-
-    /// Projects each point in `points` onto the trimmed curve.
-    pub fn project_points(&self, points: &[Point2D], tol: Tolerance) -> Vec<CurveProjection2D> {
-        points.iter().map(|&p| self.project_point(p, tol)).collect()
-    }
-
-    /// Returns whether `point` lies on the trimmed curve within
-    /// `tol.confusion`.
-    pub fn contains(&self, point: Point2D, tol: Tolerance) -> bool {
-        self.project_point(point, tol).distance <= tol.confusion
     }
 }
 
@@ -770,6 +476,7 @@ impl TrimmedCurve2D<Line2D> {
 }
 
 impl<C: ParametricCurve2D> ParametricCurve2D for TrimmedCurve2D<C> {
+    #[inline]
     fn eval_point(&self, u: f64) -> Point2D {
         self.basis.eval_point(u)
     }
@@ -798,16 +505,45 @@ impl<C: ParametricCurve2D> ParametricCurve2D for TrimmedCurve2D<C> {
         self.basis.eval_d2(u)
     }
 
+    /// Returns whether the piece's ends meet: a piece spanning a full
+    /// period of a periodic basis, or whose start and end points coincide
+    /// within `tol.confusion`.
     fn is_closed(&self, tol: Tolerance) -> bool {
-        TrimmedCurve2D::is_closed(self, tol)
+        if let Some(period) = self.basis.period()
+            && self.last - self.first >= period - tol.parametric
+        {
+            return true;
+        }
+        self.start_point().distance(self.end_point()) <= tol.confusion
     }
 
+    /// [`Continuity`] at parameter `u`: the basis continuity there, and
+    /// `Smooth` at the ends of the range (within `tol.parametric`), where
+    /// the piece is seen from the inside only, as at the bounds of a
+    /// non-periodic B-spline.
     fn continuity(&self, u: f64, tol: Tolerance) -> Continuity {
-        TrimmedCurve2D::continuity(self, u, tol)
+        let at_end = |end: f64| (u - end).abs() <= tol.parametric * (1.0 + end.abs());
+        if at_end(self.first) || at_end(self.last) {
+            return Continuity::Smooth;
+        }
+        self.basis.continuity(u, tol)
     }
 
+    /// Minimum [`Continuity`] over the range `[first, last]` (`Smooth`
+    /// when no knot constrains it): the worst B-spline knot strictly
+    /// inside the range, so a piece that avoids a kink of its basis is
+    /// smooth. A basis other than a B-spline reports its own minimum.
     fn min_continuity(&self) -> Continuity {
-        TrimmedCurve2D::min_continuity(self)
+        match self.basis.as_bspline() {
+            Some(bspline) => bspline_math::min_continuity_within(
+                bspline.degree(),
+                bspline.knots(),
+                bspline.multiplicities(),
+                bspline.period(),
+                (self.first, self.last),
+            ),
+            None => self.basis.min_continuity(),
+        }
     }
 
     fn as_bspline(&self) -> Option<&BSplineCurve2D> {

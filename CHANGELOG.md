@@ -9,6 +9,191 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+### Added
+
+- `geomcore::prelude`, which re-exports the shape and operation traits
+  (`ParametricCurve`, `ParametricCurve2D`, `PointExtrema`,
+  `PointExtrema2D`, `ParametricSurface`, `HasBoundingBox`,
+  `HasBoundingBox2D`, `Discretize`, `Discretize2D`, `Intersect`,
+  `IntersectExact`). `use geomcore::prelude::*` brings every shared
+  method into scope (ADR 0015).
+- `project_point`, `project_points`, `contains` and `parameter_of` are
+  methods of `PointExtrema` and `PointExtrema2D`, provided from
+  `extrema`, so every curve answers them, `TrimmedCurve` and a curve of
+  your own included. `ParametricSurface` gains `project_points`,
+  `contains` and `parameters_of`. The elementary types keep their closed
+  forms.
+- `eval_derivative` and `eval_derivative_sided` of B-spline and Bézier
+  curves evaluate any order: zero above the degree for a non-rational
+  curve, every order of a rational one through the quotient rule. Orders
+  1 and 2 keep their unrolled path. In Python, orders above 2 no longer
+  raise `ValueError`.
+- In Python, `parameter_of` and `parameters_of` take an optional `tol`
+  (`Tolerance.default()` when omitted).
+- `Curve::Bezier`, `Curve2D::Bezier` and `Surface::Bezier`: a Bézier
+  curve or surface is a shape enum variant of its own, boxed,
+  discretized, converted and parametrized as the B-spline it is
+  (ADR 0017).
+- `BezierCurve`, `BezierCurve2D` and `BezierSurface` are operands of
+  `intersect` in both orders, against every curve and surface (and
+  every 2D curve), whole or trimmed, routed to the numeric search like
+  their B-spline. In Python, every function that takes a curve or
+  surface accepts the Bézier classes, `TrimmedCurve` and
+  `TrimmedCurve2D` included.
+- `BezierSurface::u_iso`, `v_iso`, `u_reversed_parameter` and
+  `v_reversed_parameter`, so `Surface::u_iso` of a Bézier surface
+  returns `Curve::Bezier`.
+- In Python, every class has every method its core type has. The Bézier
+  classes gain `intersect`; `BezierCurve` and `BezierCurve2D` gain
+  `tangent`, `curvature`, `curvature_center`, `period` and
+  `is_periodic`; `BezierSurface` gains `u_iso`, `v_iso`,
+  `u_reversed_parameter`, `v_reversed_parameter`, `continuity_u`,
+  `continuity_v`, `min_continuity_u` and `min_continuity_v`.
+  `BSplineCurve`, `TrimmedCurve` and `TrimmedCurve2D` gain
+  `parameter_of`; `BSplineSurface` and `BezierSurface` gain
+  `parameters_of`.
+- `TierPoint` and the tier-generic curve types `GenericLine`,
+  `GenericCircle`, `GenericEllipse`, `GenericParabola`,
+  `GenericHyperbola`, `GenericBSplineCurve` and `GenericBezierCurve`.
+  Each curve type is now one generic type over its tier, and `Circle`
+  and `Circle2D` (and the other pairs) are its two aliases, so a
+  function over `GenericCircle<P>` with `P: TierPoint` serves both tiers
+  (ADR 0014). `CurveProjection` is generic the same way, defaulting to
+  space, and `CurveProjection2D` is its planar alias.
+- `TrimmedCurve::into_curve`, the new name of `into_curve3d`.
+- `TrimmedCurve::to_bspline` for a B-spline, Bézier or `Curve` basis,
+  as `TrimmedCurve2D` already had: the piece is extracted from the
+  B-spline. `TrimmedCurve<ElementaryCurve>` implements `Discretize`.
+
+### Fixed
+
+- In Python, a 2D intersection with a B-spline or Bézier curve now
+  releases the interpreter lock while it searches, as the 3D ones
+  already did, so other Python threads keep running.
+
+### Changed
+
+- Each shared method is documented once, on its trait, instead of on
+  every type. `ARCHITECTURE.md` placement rule 2 and ADR 0015 state the
+  rule: a method that more than one type answers is a trait method, and
+  a type's inherent `impl` keeps only what is specific to it.
+- ADR 0012 now points to `parameter_of(point, tol)` and
+  `parameters_of(point, tol)`.
+- The `Curve`, `ElementaryCurve`, `Curve2D`, `Surface` and
+  `ElementarySurface` enums forward every trait method to the shape they
+  hold, provided methods included (`tangent`, `curvature`,
+  `is_periodic`, `project_points`, `normal`, …), so a shape's own
+  override is what the enum answers. Internally each enum lists its
+  variants once, and every forwarding match and `From` impl is
+  generated from that list (ADR 0017).
+- In Python, `intersect` releases the interpreter lock around every
+  call, not only around the pairs the bindings expected to search
+  (ADR 0021). A closed-form call from Python costs about 47 ns more.
+- In the Python bindings, each method set a family of classes shares
+  (`curve`, `curve_2d`, `surface`, `discretize`, ...) is written once in
+  `geomcore-py/src/method_sets.rs`, and the classes are listed once in a
+  registry in `arguments.rs`, which gives the conversions to and from the
+  core enums and the `TypeError` text. A shared method's docstring is
+  now the same on every class; the class docstring says what its
+  parameter is. The intersection results share their common members the
+  same way.
+- The router reads each typed exact result straight into its family
+  result, in one step: no intermediate untyped result, and one bridge
+  instead of four. Results are unchanged.
+- The 3D and 2D copies of every curve type are merged into one generic
+  type per curve: the shared methods, the trait impls of both tiers, the
+  B-spline conversion and the discretization are written once. The
+  public names, methods and behaviour stay, so callers compile
+  unchanged; rustdoc lists the curves as the generic structs, with
+  `Circle`, `Circle2D` and the others as type aliases (ADR 0014,
+  amended).
+- `Circle2D` projection reports parameter `0` for a point within
+  `tol.confusion` of the seam, as `Circle` and `Ellipse2D` already did,
+  instead of an angle just below `2π`.
+- Internally, the five range traits behind trimmed curves (box of a
+  range in each tier, discretization of a range, B-spline of a range in
+  each tier) are one crate-private trait, generic over the tier, and the
+  whole bounded curves derive their box from it over their bounds. The
+  box formulas of the two tiers are written once. Results are unchanged
+  (ADR 0005 and ADR 0014, amended). In Python, `TrimmedCurve.to_bspline`
+  calls the core method directly.
+- The documentation lists every item once, at the crate root, and the
+  prelude's traits link there instead of repeating their pages. The
+  folder overviews of intersections, bounding boxes and discretization
+  moved onto the crate page and the `IntersectExact`, `HasBoundingBox`
+  and `Discretize` traits.
+- `ParametricCurve::as_bspline`, `ParametricCurve::as_elementary`,
+  `ParametricCurve2D::as_bspline`, `ParametricSurface::as_bspline` and
+  `ParametricSurface::as_elementary` are hidden from the documentation:
+  they are routing hooks of the numeric search, with no stability
+  promise. They stay on the traits, because the search is generic over
+  any curve and surface (ADR 0022). A wrapper around a curve keeps
+  forwarding them.
+- Internal: the numeric searches on B-spline pieces (curve–curve
+  intersection and extrema, curve–surface intersection, and the patch
+  pairs that seed the surface–surface marching) run through one shared
+  subdivision driver. Results, completeness and speed are unchanged.
+- Internal: `CurveCurveRegion`, `CurveSurfaceRegion` and
+  `CurveCurveExtrema` are defined beside the other intersection results.
+  Their public paths are unchanged.
+
+### Deprecated
+
+- `TrimmedCurve::into_curve3d`: use `into_curve` (ADR 0013). The old
+  name stays for one release.
+
+### Removed
+
+- The inherent twins of trait methods, on every curve and surface type
+  and on the `Curve`, `ElementaryCurve`, `Curve2D`, `Surface` and
+  `ElementarySurface` enums: `eval_point`, `eval_points`,
+  `eval_derivative`, `project_point`, `project_points`, `contains` and
+  `as_elementary` on both; `eval_d1`, `eval_d2`, `bounds`, `is_closed`,
+  `is_periodic`, `continuity`, `min_continuity`, `extrema` and
+  `parameter_of` on curves; `parameters_of`, `eval_d1`, `eval_d2`,
+  `u_bounds`, `v_bounds`, `is_u_closed`, `is_v_closed`, `continuity_u`,
+  `continuity_v`, `min_continuity_u` and `min_continuity_v` on surfaces.
+  The trait methods of the same names remain, with the same behaviour.
+  `BSplineSurface::extrema` and `BezierSurface::extrema` stay inherent.
+
+### Breaking
+
+- Rust code that calls a shared method on a concrete type without
+  importing its trait no longer compiles: `circle.eval_point(u)` needs
+  `use geomcore::prelude::*` (or the trait itself) in scope. Generic code
+  and calls through the traits are unaffected.
+- `parameter_of` and `parameters_of` take a tolerance:
+  `curve.parameter_of(point, tol)`, `surface.parameters_of(point, tol)`.
+  The elementary types still invert in closed form and ignore it; a
+  B-spline projects the point within it instead of within
+  `Tolerance::DEFAULT`. Pass `Tolerance::DEFAULT` for the old behaviour.
+- The untyped exact results are gone (ADR 0018):
+  `ExactSurfaceIntersection`, `ExactCurveSurfaceIntersection` and
+  `ExactCurveCurveIntersection`, with the `IntersectExact` impls that
+  returned them: `ElementarySurface` with `ElementarySurface`,
+  `ElementaryCurve` with `ElementaryCurve` and with `ElementarySurface`
+  (both orders), `Surface` with `Surface`, `Curve` with `Curve`, and
+  `Curve` with `Surface` (both orders). `IntersectExact` itself stays,
+  for pairs of concrete types. Migration: call `intersect` on the same
+  operands and read the family result. `NotAnalytic` becomes
+  `method() == IntersectionMethod::Numeric` (the numeric search now runs
+  instead of returning nothing), `Coincident` becomes non-empty
+  `overlaps()` for curves or `is_coincident()` for surfaces, `Points` /
+  `Meets` become `hits()` or `curves()` and `contact_points()`, and
+  `Empty` becomes `is_empty()`. A curve–surface hit's `parameter` is
+  `curve_parameter`.
+- Every public item has one path, at the crate root (ADR 0022). The
+  folder modules `geomcore::curves`, `geomcore::surfaces`,
+  `geomcore::intersect`, `geomcore::bounding_box`,
+  `geomcore::discretization`, `geomcore::frame`, `geomcore::point`,
+  `geomcore::vector`, `geomcore::transform`, `geomcore::tolerance`,
+  `geomcore::projection` and `geomcore::tier` are private. Migration:
+  replace `geomcore::curves::Line` with `geomcore::Line`, and so on;
+  every item kept its name. Rust has no deprecation for a module path,
+  so there is no transition release. `geomcore::prelude` stays. No item
+  was made private: the audit of the 146 public items found no other
+  internal one at the root. Python is unaffected.
+
 ## [0.39.1] - 2026-10-29
 
 A layout release with no new behaviour: the source tree, in Rust and in
