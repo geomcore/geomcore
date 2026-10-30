@@ -39,6 +39,26 @@ Machine: Linux 7.0, x86-64 desktop, single thread, `--warm-up-time 1
 | `BSplineCurve`: point, first and second derivatives | ~172 ns | ~95 ns |
 | `BSplineSurface`: point, `Su`, `Sv`, `Suu`, `Suv`, `Svv` | ~856 ns | ~208 ns |
 
+### First derivatives
+
+`eval_d1` on the same curve and surface, and on rational copies of them
+(weights `1 + 0.5 sin i` on the curve, `1 + 0.3 sin(i + j)` on the
+surface). Non-periodic B-splines of degree 1 to 3 in every direction take
+an unrolled path that computes the basis functions and their first
+derivatives together, as the point evaluation already did; the results
+are bit-for-bit those of the general path.
+
+Machine: Linux 7.0, x86-64 desktop, single thread, `--warm-up-time 1
+--measurement-time 2`, best of four interleaved runs on a loaded machine
+(2026-10-30). Times are per parameter.
+
+| workload | 0.40.1 | unrolled |
+|---|---|---|
+| `BSplineCurve::eval_d1` | ~41 ns | ~22 ns |
+| `BSplineCurve::eval_d1`, rational | ~47 ns | ~38 ns |
+| `BSplineSurface::eval_d1` | ~89 ns | ~61 ns |
+| `BSplineSurface::eval_d1`, rational | ~99 ns | ~81 ns |
+
 The numeric curve–curve extrema and intersection and the marching
 intersection evaluate through `eval_d1` and `eval_d2`, which made them
 12–17% faster on B-splines; the numeric curve–surface intersection spent

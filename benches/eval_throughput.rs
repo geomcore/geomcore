@@ -17,6 +17,20 @@ fn circle_params() -> Vec<f64> {
 }
 
 fn representative_curve() -> BSplineCurve {
+    let (poles, knots, mults) = curve_data();
+    BSplineCurve::new(3, poles, knots, mults, false).unwrap()
+}
+
+/// The representative curve with weights `1 + 0.5 sin i`.
+fn representative_rational_curve() -> BSplineCurve {
+    let (poles, knots, mults) = curve_data();
+    let weights = (0..poles.len())
+        .map(|i| 1.0 + 0.5 * (i as f64).sin())
+        .collect();
+    BSplineCurve::new_rational(3, poles, weights, knots, mults, false).unwrap()
+}
+
+fn curve_data() -> (Vec<Point>, Vec<f64>, Vec<u32>) {
     // Degree-3 clamped curve with 20 poles on a gentle helix.
     let poles: Vec<Point> = (0..20)
         .map(|i| {
@@ -28,20 +42,11 @@ fn representative_curve() -> BSplineCurve {
     let mut mults = vec![1u32; 18];
     mults[0] = 4;
     mults[17] = 4;
-    BSplineCurve::new(3, poles, knots, mults, false).unwrap()
+    (poles, knots, mults)
 }
 
 fn representative_surface() -> BSplineSurface {
-    // Bicubic clamped 6x6 patch.
-    let poles: Vec<Vec<Point>> = (0..6)
-        .map(|i| {
-            (0..6)
-                .map(|j| Point::new(i as f64, j as f64, ((i * j) as f64 * 0.7).sin()))
-                .collect()
-        })
-        .collect();
-    let knots = vec![0.0, 1.0, 2.0, 3.0];
-    let mults = vec![4u32, 1, 1, 4];
+    let (poles, knots, mults) = surface_data();
     BSplineSurface::new(
         3,
         3,
@@ -54,6 +59,39 @@ fn representative_surface() -> BSplineSurface {
         false,
     )
     .unwrap()
+}
+
+/// The representative surface with weights `1 + 0.3 sin(i + j)`.
+fn representative_rational_surface() -> BSplineSurface {
+    let (poles, knots, mults) = surface_data();
+    let weights = (0..6)
+        .map(|i| (0..6).map(|j| 1.0 + 0.3 * ((i + j) as f64).sin()).collect())
+        .collect();
+    BSplineSurface::new_rational(
+        3,
+        3,
+        poles,
+        weights,
+        knots.clone(),
+        mults.clone(),
+        knots,
+        mults,
+        false,
+        false,
+    )
+    .unwrap()
+}
+
+fn surface_data() -> (Vec<Vec<Point>>, Vec<f64>, Vec<u32>) {
+    // Bicubic clamped 6x6 patch.
+    let poles: Vec<Vec<Point>> = (0..6)
+        .map(|i| {
+            (0..6)
+                .map(|j| Point::new(i as f64, j as f64, ((i * j) as f64 * 0.7).sin()))
+                .collect()
+        })
+        .collect();
+    (poles, vec![0.0, 1.0, 2.0, 3.0], vec![4u32, 1, 1, 4])
 }
 
 fn bench_eval_throughput(c: &mut Criterion) {
@@ -85,6 +123,33 @@ fn bench_eval_throughput(c: &mut Criterion) {
     group.bench_function("bspline_surface_eval_points_100k", |b| {
         b.iter(|| black_box(surface.eval_points(black_box(&uvs))))
     });
+
+    let rational_curve = representative_rational_curve();
+    for (name, curve) in [
+        ("bspline_curve_eval_d1_100k", &curve),
+        ("rational_bspline_curve_eval_d1_100k", &rational_curve),
+    ] {
+        group.bench_function(name, |b| {
+            b.iter(|| {
+                for &u in black_box(&curve_params) {
+                    black_box(curve.eval_d1(u));
+                }
+            })
+        });
+    }
+    let rational_surface = representative_rational_surface();
+    for (name, surface) in [
+        ("bspline_surface_eval_d1_100k", &surface),
+        ("rational_bspline_surface_eval_d1_100k", &rational_surface),
+    ] {
+        group.bench_function(name, |b| {
+            b.iter(|| {
+                for &(u, v) in black_box(&uvs) {
+                    black_box(surface.eval_d1(u, v));
+                }
+            })
+        });
+    }
 
     group.bench_function(
         "bspline_curve_point_and_two_derivatives_separate_100k",

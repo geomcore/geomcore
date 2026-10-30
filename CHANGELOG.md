@@ -9,6 +9,15 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+### Changed
+
+- B-spline first derivatives are faster (#141). `eval_d1` on a
+  non-periodic curve or surface of degree 1 to 3 in every direction
+  computes the basis functions and their first derivatives in one
+  unrolled pass, as the point evaluation already did: about 46% faster
+  on a cubic curve, 31% on a bicubic surface and 18% on rational ones.
+  Results are bit-for-bit unchanged.
+
 ### Fixed
 
 - Marching found no curves for bounded surfaces lying outside the
