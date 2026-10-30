@@ -30,7 +30,7 @@ src/
 │   ├── trimmed.rs               TrimmedCurve and TrimmedCurve2D
 │   ├── range.rs                 internal: RangeOperations, the box, discretization and
 │   │                            B-spline of a range of each curve (ADR 0005)
-│   ├── conversion.rs fitting.rs parametrize.rs   to B-spline, from points, onto a surface
+│   ├── conversion.rs fitting.rs   to B-spline, from points
 ├── surfaces/            the public surface types, one file per type
 │   ├── parametric_surface.rs    ParametricSurface, ReversibleSurface, SurfaceCurvatures,
 │   │                            normal recovery
@@ -39,9 +39,11 @@ src/
 │   ├── extrusion.rs revolution.rs   the swept surfaces; swept.rs holds the
 │   │                            profile geometry they share (ADR 0016)
 │   ├── iso.rs                   helpers shared by the iso curves (u_iso, v_iso)
-│   ├── uv_curve.rs              UV curves to and from 3D curves (ADR 0030);
-│   │                            uv_curve/to_curve.rs is the pair table of
-│   │                            uv_curve_to_3d
+│   ├── uv_curve.rs              UV curves to and from 3D curves (ADR 0030,
+│   │                            0031); uv_curve/to_curve.rs is the pair table
+│   │                            of uv_curve_to_3d, uv_curve/from_curve.rs the
+│   │                            closed forms of curve_3d_to_uv and the
+│   │                            sampled curve_3d_to_uv_numeric
 │   └── conversion.rs fitting.rs
 │
 ├── intersect/           intersections, by method (ADR 0011)
@@ -218,8 +220,8 @@ class in `curves.pyi` or `surfaces.pyi` (`_CurveMethods`,
 signatures and its docstrings. A class stub inherits the sets its
 `shape_methods!` line names and lists only its own methods. What differs
 by class is a type argument: `_DiscretizeMethods[Discretization2D]`,
-`_ParametrizeOnMethods[Ellipse2D]`, `_SurfaceMethods[Line, Circle]` (the
-classes of the `u` and `v` iso curves).
+`_SurfaceMethods[Line, Circle]` (the classes of the `u` and `v` iso
+curves).
 
 **The class registry.** `shape_classes!` in `arguments.rs` lists, once per
 core enum, the Python class of each variant (`Line => PyLine`). From that

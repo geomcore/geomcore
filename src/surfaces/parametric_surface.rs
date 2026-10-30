@@ -5,7 +5,8 @@
 
 use crate::curves::{Continuity, Curve, Curve2D};
 use crate::surfaces::{
-    BSplineSurface, ElementarySurface, ExtrusionSurface, RevolutionSurface, UvCurveTo3DError,
+    BSplineSurface, Curve3DToUvError, ElementarySurface, ExtrusionSurface, RevolutionSurface,
+    UvCurveTo3DError,
 };
 use crate::{Point, SurfaceProjection, Tolerance, Vector};
 
@@ -516,8 +517,7 @@ pub trait ParametricSurface {
     /// is `self.eval_point(c(t))` for every `t` (every `t` of its bounds
     /// when the surface is bounded). It is
     /// [`eval_point`](Self::eval_point) at curve level, and the inverse of
-    /// `parametrize_on` ([`Line::parametrize_on`](crate::Line::parametrize_on)
-    /// and its siblings).
+    /// [`curve_3d_to_uv`](Self::curve_3d_to_uv).
     ///
     /// The pairs with a closed form, on the crate's surfaces:
     ///
@@ -616,6 +616,88 @@ pub trait ParametricSurface {
     ) -> Result<Curve, UvCurveTo3DError> {
         let _ = (uv_curve, tol);
         Err(UvCurveTo3DError::NotAnalytic)
+    }
+
+    /// The exact UV curve of `curve`, a 3D curve `C` lying on this surface:
+    /// the curve `c` in the surface's `(u, v)` parameter space, in the same
+    /// parameter, such that `self.eval_point(c(t))` is `curve.eval_point(t)`
+    /// for every `t`, so `S∘c = C`. It is
+    /// [`parameters_of`](Self::parameters_of) at curve level, and the
+    /// inverse of [`uv_curve_to_3d`](Self::uv_curve_to_3d).
+    ///
+    /// The pairs with a closed form, on the crate's surfaces:
+    ///
+    /// | Curve | Surface | UV curve |
+    /// |---|---|---|
+    /// | line | plane | a 2D line |
+    /// | line along the axis | cylinder | a line along `v` |
+    /// | line along a generator | cone | a line along `v` |
+    /// | circle | plane | a 2D circle |
+    /// | circle about the axis | cylinder, cone | a line along `u` |
+    /// | meridian or parallel | sphere | a line along `v` or `u` |
+    /// | poloidal or toroidal circle | torus | a line along `v` or `u` |
+    /// | ellipse, parabola, hyperbola | plane | the 2D conic of the same radii or focal distance |
+    /// | B-spline or Bézier curve | plane | the same spline over its poles' plane coordinates |
+    ///
+    /// The plane map is affine, so a spline keeps its degree, knots,
+    /// multiplicities, weights and periodicity. On a periodic surface a
+    /// line's point at `t = 0` is moved into the surface's canonical
+    /// parameter window.
+    ///
+    /// The projection math assumes the curve lies on the surface. As a
+    /// safeguard, the UV curve found is checked against the surface at a
+    /// few parameters, and refused when `self.eval_point(c(t))` is farther
+    /// than `tol.confusion` from `curve.eval_point(t)`. A conic must lie in
+    /// a plane to within `tol.angular_for_extent` of its reach, and a
+    /// spline lies in a plane exactly when its poles do.
+    ///
+    /// # Errors
+    ///
+    /// [`Curve3DToUvError::NotAnalytic`] for every other pair, never
+    /// approximated: a slanted line or circle on a curved surface, a conic
+    /// or a spline on any surface but a plane, every curve on an
+    /// extrusion, revolution, B-spline or Bézier surface, and every curve
+    /// on a surface type defined outside the crate, the default.
+    /// [`curve_3d_to_uv_numeric`](crate::curve_3d_to_uv_numeric) samples
+    /// those. [`Curve3DToUvError::CurveNotOnSurface`] when the curve does
+    /// not lie on the surface, as for a circle whose radius does not match
+    /// the cylinder.
+    ///
+    /// # Examples
+    ///
+    /// A cross-section circle of a cylinder maps to a line along `u` at
+    /// the section height:
+    ///
+    /// ```
+    /// use geomcore::prelude::*;
+    /// use geomcore::{Circle, Curve2D, Cylinder, Point, Tolerance, Vector};
+    ///
+    /// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
+    /// let circle = Circle::new(Point::new(0.0, 0.0, 3.0), Vector::Z, 2.0).unwrap();
+    /// let uv_curve = cylinder.curve_3d_to_uv(&circle.into(), Tolerance::DEFAULT).unwrap();
+    /// assert!(matches!(uv_curve, Curve2D::Line(_)));
+    /// // c(t) = (t, 3): the angle runs in u, the height v is fixed.
+    /// let q = uv_curve.eval_point(1.0);
+    /// assert!((q.x - 1.0).abs() < 1e-9 && (q.y - 3.0).abs() < 1e-9);
+    /// ```
+    ///
+    /// A B-spline curve in a plane maps its poles:
+    ///
+    /// ```
+    /// use geomcore::prelude::*;
+    /// use geomcore::{BSplineCurve, Curve2D, Plane, Point, Tolerance, Vector};
+    ///
+    /// let plane = Plane::new(Point::new(0.0, 0.0, 1.0), Vector::Z).unwrap();
+    /// let poles = vec![Point::new(0.0, 0.0, 1.0), Point::new(2.0, 1.0, 1.0)];
+    /// let curve = BSplineCurve::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
+    /// let uv_curve = plane.curve_3d_to_uv(&curve.into(), Tolerance::DEFAULT).unwrap();
+    /// assert!(matches!(uv_curve, Curve2D::BSpline(_)));
+    /// let q = uv_curve.eval_point(0.5);
+    /// assert!((q.x - 1.0).abs() < 1e-9 && (q.y - 0.5).abs() < 1e-9);
+    /// ```
+    fn curve_3d_to_uv(&self, curve: &Curve, tol: Tolerance) -> Result<Curve2D, Curve3DToUvError> {
+        let _ = (curve, tol);
+        Err(Curve3DToUvError::NotAnalytic)
     }
 
     /// Routing hook of the numeric search, hidden from the documentation: the

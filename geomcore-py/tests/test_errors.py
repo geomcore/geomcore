@@ -12,7 +12,7 @@ SUBCLASS_PARENTS = {
     "DegreeElevationError": "GeomcoreError",
     "BSplineSplitError": "GeomcoreError",
     "BSplineConversionError": "GeomcoreError",
-    "ParametrizeError": "GeomcoreError",
+    "Curve3DToUvError": "GeomcoreError",
     "UvCurveTo3DError": "GeomcoreError",
     "SurfaceIsoError": "GeomcoreError",
     "DiscretizationCriteriaError": "GeomcoreError",
@@ -147,13 +147,13 @@ def test_bspline_conversion_error():
         plane.to_bspline_patch((1.0, 0.0), (0.0, 1.0))
 
 
-def test_parametrize_error():
+def test_curve_3d_to_uv_error():
     sphere = surfaces.Sphere(geomcore.Point(0, 0, 0), 1.0)
     far_line = curves.Line.from_two_points(
         geomcore.Point(5, 0, 0), geomcore.Point(5, 1, 0)
     )
-    with pytest.raises(geomcore.ParametrizeError):
-        far_line.parametrize_on(sphere)
+    with pytest.raises(geomcore.Curve3DToUvError):
+        sphere.curve_3d_to_uv(far_line)
 
 
 def test_uv_curve_to_3d_error():

@@ -15,7 +15,6 @@ mod line;
 mod line_2d;
 mod parabola;
 mod parabola_2d;
-mod parametrize;
 mod trimmed;
 
 pub(crate) use bezier::PyBezierCurve;
@@ -32,5 +31,4 @@ pub(crate) use line::PyLine;
 pub(crate) use line_2d::PyLine2D;
 pub(crate) use parabola::PyParabola;
 pub(crate) use parabola_2d::PyParabola2D;
-pub(crate) use parametrize::py_parametrize_numeric;
 pub(crate) use trimmed::{PyTrimmedCurve, PyTrimmedCurve2D};

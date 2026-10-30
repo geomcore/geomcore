@@ -188,11 +188,11 @@ fn test_from_bspline_ref_clones() {
 
 #[test]
 #[allow(clippy::needless_borrows_for_generic_args)]
-fn test_into_from_reference_supports_parametrize_on_style_call() {
-    // Mirrors the Task 17 usage pattern: a function taking
-    // `impl Into<Surface>` called with a `&Cylinder` (Cylinder is Copy,
-    // so clippy would rather we drop the borrow; the point of this test
-    // is specifically that the borrowed form is accepted).
+fn test_into_from_reference_accepts_a_borrowed_surface() {
+    // A function taking `impl Into<Surface>` called with a `&Cylinder`
+    // (Cylinder is Copy, so clippy would rather we drop the borrow; the
+    // point of this test is specifically that the borrowed form is
+    // accepted).
     fn accepts(surface: impl Into<Surface>) -> Surface {
         surface.into()
     }

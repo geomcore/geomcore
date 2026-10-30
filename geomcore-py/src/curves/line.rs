@@ -10,7 +10,7 @@ use geomcore::Line;
 pub(crate) struct PyLine(pub(crate) Line);
 
 shape_methods! {
-    PyLine: [curve, parametrize_on];
+    PyLine: [curve];
 
     /// The axis of the line: its origin and unit direction.
     fn axis(&self) -> PyAxis {

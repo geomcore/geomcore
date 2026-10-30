@@ -14,7 +14,7 @@ use geomcore::{TrimmedCurve, TrimmedCurve2D};
 /// `(first, last)`; evaluation does not check a parameter against it. On
 /// a periodic basis (circle, ellipse, periodic
 /// B-spline) the range may cross the seam, up to one period. Pass it to
-/// `intersect`, `curve_curve_extrema` or `parametrize_numeric` to search
+/// `intersect`, `curve_curve_extrema` or `curve_3d_to_uv_numeric` to search
 /// only the range.
 #[pyclass(name = "TrimmedCurve", module = "geomcore.curves", eq)]
 #[derive(Clone, PartialEq)]

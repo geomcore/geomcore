@@ -40,23 +40,16 @@ _WholeCurve = Union[
     Line, Circle, Ellipse, Parabola, Hyperbola, BSplineCurve, BezierCurve
 ]
 _Curve = Union[_WholeCurve, TrimmedCurve]
-_Curve2D = Union[
-    Line2D,
-    Circle2D,
-    Ellipse2D,
-    Parabola2D,
-    Hyperbola2D,
-    BSplineCurve2D,
-    BezierCurve2D,
-    TrimmedCurve2D,
+_WholeCurve2D = Union[
+    Line2D, Circle2D, Ellipse2D, Parabola2D, Hyperbola2D, BSplineCurve2D, BezierCurve2D
 ]
+_Curve2D = Union[_WholeCurve2D, TrimmedCurve2D]
 
 _PointType = TypeVar("_PointType")
 _VectorType = TypeVar("_VectorType")
 _BoundingBoxType = TypeVar("_BoundingBoxType")
 _ProjectionType = TypeVar("_ProjectionType")
 _DiscretizationType = TypeVar("_DiscretizationType")
-_Curve2DType = TypeVar("_Curve2DType")
 _Self = TypeVar("_Self")
 
 # The method sets of geomcore-py/src/method_sets.rs, one stub-only class
@@ -256,21 +249,8 @@ class _SidedEvaluationMethods(Generic[_PointType, _VectorType]):
         from one `side`, as `eval_d1_sided`.
         """
 
-class _ParametrizeOnMethods(Generic[_Curve2DType]):
-    def parametrize_on(
-        self, surface: Any, tol: Optional[Tolerance] = ...
-    ) -> _Curve2DType:
-        """Compute this curve's 2D representation in a surface's
-        (u, v) space.
-
-        Raises `ValueError` if no closed-form representation exists
-        for the pair, or if the curve does not lie on the surface
-        within `tol` (`Tolerance.default()` when omitted).
-        """
-
-
 @final
-class Line(_CurveMethods, _ParametrizeOnMethods[Any]):
+class Line(_CurveMethods):
     def __repr__(self) -> str: ...
     __hash__: ClassVar[None]  # type: ignore[assignment]
     def __new__(cls, origin: Point, direction: Vector) -> Line: ...
@@ -286,7 +266,6 @@ class Line(_CurveMethods, _ParametrizeOnMethods[Any]):
 class Circle(
     _CurveMethods,
     _DiscretizeMethods[Discretization],
-    _ParametrizeOnMethods[Any],
 ):
     def __repr__(self) -> str: ...
     __hash__: ClassVar[None]  # type: ignore[assignment]
@@ -309,7 +288,6 @@ class Circle(
 class Ellipse(
     _CurveMethods,
     _DiscretizeMethods[Discretization],
-    _ParametrizeOnMethods[Ellipse2D],
 ):
     def __repr__(self) -> str: ...
     __hash__: ClassVar[None]  # type: ignore[assignment]
@@ -333,7 +311,7 @@ class Ellipse(
     def frame(self) -> Frame: ...
 
 @final
-class Parabola(_CurveMethods, _ParametrizeOnMethods[Parabola2D]):
+class Parabola(_CurveMethods):
     def __repr__(self) -> str: ...
     __hash__: ClassVar[None]  # type: ignore[assignment]
     def __new__(
@@ -346,7 +324,7 @@ class Parabola(_CurveMethods, _ParametrizeOnMethods[Parabola2D]):
     def apex(self) -> Point: ...
 
 @final
-class Hyperbola(_CurveMethods, _ParametrizeOnMethods[Hyperbola2D]):
+class Hyperbola(_CurveMethods):
     def __repr__(self) -> str: ...
     __hash__: ClassVar[None]  # type: ignore[assignment]
     def __new__(
@@ -371,7 +349,6 @@ class BSplineCurve(
     _CurveMethods,
     _DiscretizeMethods[Discretization],
     _SidedEvaluationMethods[Point, Vector],
-    _ParametrizeOnMethods[BSplineCurve2D],
 ):
     def __repr__(self) -> str: ...
     __hash__: ClassVar[None]  # type: ignore[assignment]

@@ -7,8 +7,8 @@
 //! knot sequence, so evaluation never re-derives them.
 
 use crate::curves::{Curve, Curve2D};
-use crate::surfaces::UvCurveTo3DError;
-use crate::surfaces::uv_curve::to_curve;
+use crate::surfaces::uv_curve::{from_curve, to_curve};
+use crate::surfaces::{Curve3DToUvError, UvCurveTo3DError};
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 
@@ -2099,6 +2099,10 @@ impl ParametricSurface for BSplineSurface {
         tol: Tolerance,
     ) -> Result<Curve, UvCurveTo3DError> {
         to_curve::uv_curve_to_3d(self, uv_curve, tol)
+    }
+
+    fn curve_3d_to_uv(&self, curve: &Curve, tol: Tolerance) -> Result<Curve2D, Curve3DToUvError> {
+        from_curve::curve_3d_to_uv(self, curve, tol)
     }
 }
 

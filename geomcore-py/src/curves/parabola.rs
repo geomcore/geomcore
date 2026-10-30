@@ -10,7 +10,7 @@ use geomcore::Parabola;
 pub(crate) struct PyParabola(pub(crate) Parabola);
 
 shape_methods! {
-    PyParabola: [curve, parametrize_on];
+    PyParabola: [curve];
 
     /// The apex of the parabola: its point of smallest radius, at the frame
     /// origin.

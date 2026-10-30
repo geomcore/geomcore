@@ -48,10 +48,10 @@
 //! assert_eq!(points[0], circle.eval_point(0.0));
 //!
 //! // Curve-on-surface parametrization: this circle is coaxial with the
-//! // cylinder, so it has an exact 2D image, a horizontal line in (u, v).
+//! // cylinder, so it has an exact UV curve, a horizontal line in (u, v).
 //! let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
-//! let pcurve = circle.parametrize_on(&cylinder, Tolerance::DEFAULT).unwrap();
-//! # let _ = point;
+//! let uv_curve = cylinder.curve_3d_to_uv(&circle.into(), Tolerance::DEFAULT).unwrap();
+//! # let _ = (point, uv_curve);
 //! ```
 //!
 //! # Intersections
@@ -187,9 +187,8 @@ pub use curves::{
     GenericCircle, GenericEllipse, GenericHyperbola, GenericLine, GenericParabola, Hyperbola,
     Hyperbola2D, HyperbolaConstructionError, KnotInsertionError, KnotRemovalError, Line, Line2D,
     LineConstructionError, Parabola, Parabola2D, ParabolaConstructionError, ParametricCurve,
-    ParametricCurve2D, ParametrizeError, PointExtrema, PointExtrema2D, PointParametrization,
-    ReversibleCurve, Side, TrimmedCurve, TrimmedCurve2D, TrimmedCurveConstructionError,
-    parametrize_numeric,
+    ParametricCurve2D, PointExtrema, PointExtrema2D, PointParametrization, ReversibleCurve, Side,
+    TrimmedCurve, TrimmedCurve2D, TrimmedCurveConstructionError,
 };
 pub use discretization::{
     Discretization, Discretization2D, DiscretizationCriteria, DiscretizationCriteriaError,
@@ -221,8 +220,9 @@ pub use intersect::{InlineList, Intersect, IntersectExact};
 pub use intersect::{intersect_curve_curve, intersect_curve_surface};
 pub use point::{Point, Point2D};
 pub use projection::{CurveProjection, CurveProjection2D, SurfaceProjection};
+pub use surfaces::curve_3d_to_uv_numeric;
 pub use surfaces::{
-    BSplineSurface, BezierSurface, Cone, ConeConstructionError, Cylinder,
+    BSplineSurface, BezierSurface, Cone, ConeConstructionError, Curve3DToUvError, Cylinder,
     CylinderConstructionError, ElementarySurface, ExtrusionSurface,
     ExtrusionSurfaceConstructionError, ParametricSurface, Plane, PlaneConstructionError,
     ReversibleSurface, RevolutionSurface, RevolutionSurfaceConstructionError, Sphere,

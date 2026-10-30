@@ -1,13 +1,13 @@
 use super::{
-    FRAC_PI_2, PI, TAU, mirror_about_horizontal, parametrize_numeric, sphere_meridian,
-    sphere_set_in_bounds,
+    Curve3DToUvError, FRAC_PI_2, PI, TAU, curve_3d_to_uv_numeric, mirror_about_horizontal,
+    sphere_meridian, sphere_set_in_bounds,
 };
-use crate::curves::{Curve2D, ParametricCurve, ParametricCurve2D, ParametrizeError};
+use crate::curves::{Curve2D, ParametricCurve, ParametricCurve2D};
 use crate::elementary::curve::in_period;
 use crate::surfaces::ParametricSurface;
 use crate::{
-    BSplineCurve, Circle, Cylinder, Ellipse, Frame, Hyperbola, Line, Line2D, Parabola, Plane,
-    Point, Point2D, Sphere, Tolerance, Vector, Vector2D,
+    BSplineCurve, BezierCurve, Circle, Cylinder, Ellipse, Frame, Hyperbola, Line, Line2D, Parabola,
+    Plane, Point, Point2D, Sphere, Tolerance, Vector, Vector2D,
 };
 
 #[test]
@@ -18,13 +18,13 @@ fn test_circle_on_cylinder_radius_mismatch_is_not_on_surface() {
     let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
     let circle = Circle::new(Point::new(0.0, 0.0, 1.0), Vector::Z, 1.0).unwrap();
     assert_eq!(
-        circle.parametrize_on(cylinder, Tolerance::DEFAULT),
-        Err(ParametrizeError::CurveNotOnSurface)
+        cylinder.curve_3d_to_uv(&circle.into(), Tolerance::DEFAULT),
+        Err(Curve3DToUvError::CurveNotOnSurface)
     );
 }
 
 #[test]
-fn test_parametrize_on_follows_the_confusion_tolerance() {
+fn test_curve_3d_to_uv_follows_the_confusion_tolerance() {
     // A radius off by 1e-4 lies on the cylinder at confusion 1e-3, and
     // one off by 1e-6 does not at the default 1e-7 (#26).
     let loose = Tolerance {
@@ -35,28 +35,28 @@ fn test_parametrize_on_follows_the_confusion_tolerance() {
     let center = Point::new(0.0, 0.0, 2.0);
     let wide = Circle::new(center, Vector::Z, 1.0 + 1e-4).unwrap();
     assert!(matches!(
-        wide.parametrize_on(cylinder, loose),
+        cylinder.curve_3d_to_uv(&wide.into(), loose),
         Ok(Curve2D::Line(_))
     ));
     assert_eq!(
-        wide.parametrize_on(cylinder, Tolerance::DEFAULT),
-        Err(ParametrizeError::CurveNotOnSurface)
+        cylinder.curve_3d_to_uv(&wide.into(), Tolerance::DEFAULT),
+        Err(Curve3DToUvError::CurveNotOnSurface)
     );
     let slightly_wide = Circle::new(center, Vector::Z, 1.0 + 1e-6).unwrap();
     assert_eq!(
-        slightly_wide.parametrize_on(cylinder, Tolerance::DEFAULT),
-        Err(ParametrizeError::CurveNotOnSurface)
+        cylinder.curve_3d_to_uv(&slightly_wide.into(), Tolerance::DEFAULT),
+        Err(Curve3DToUvError::CurveNotOnSurface)
     );
     // A line 1e-4 off a plane.
     let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
     let line = Line::new(Point::new(0.0, 0.0, 1e-4), Vector::X).unwrap();
     assert!(matches!(
-        line.parametrize_on(plane, loose),
+        plane.curve_3d_to_uv(&line.into(), loose),
         Ok(Curve2D::Line(_))
     ));
     assert_eq!(
-        line.parametrize_on(plane, Tolerance::DEFAULT),
-        Err(ParametrizeError::CurveNotOnSurface)
+        plane.curve_3d_to_uv(&line.into(), Tolerance::DEFAULT),
+        Err(Curve3DToUvError::CurveNotOnSurface)
     );
 }
 
@@ -72,18 +72,18 @@ fn test_great_circle_near_a_meridian_follows_the_confusion_tolerance() {
     let normal = Vector::new(1.0, 0.0, 1e-5);
     let circle = Circle::new(Point::ORIGIN, normal, 10.0).unwrap();
     assert!(matches!(
-        circle.parametrize_on(sphere, loose),
+        sphere.curve_3d_to_uv(&circle.into(), loose),
         Ok(Curve2D::Line(_))
     ));
     assert_eq!(
-        circle.parametrize_on(sphere, Tolerance::DEFAULT),
-        Err(ParametrizeError::NotAnalytic)
+        sphere.curve_3d_to_uv(&circle.into(), Tolerance::DEFAULT),
+        Err(Curve3DToUvError::NotAnalytic)
     );
     // Tilted 1e-3 rad it strays 1e-2: a great circle, not a meridian.
     let steep = Circle::new(Point::ORIGIN, Vector::new(1.0, 0.0, 1e-3), 10.0).unwrap();
     assert_eq!(
-        steep.parametrize_on(sphere, loose),
-        Err(ParametrizeError::NotAnalytic)
+        sphere.curve_3d_to_uv(&steep.into(), loose),
+        Err(Curve3DToUvError::NotAnalytic)
     );
 }
 
@@ -94,20 +94,9 @@ fn test_line_skew_to_cylinder_axis_is_not_analytic() {
     let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
     let line = Line::new(Point::new(2.0, 0.0, 0.0), Vector::new(1.0, 0.0, 1.0)).unwrap();
     assert_eq!(
-        line.parametrize_on(cylinder, Tolerance::DEFAULT),
-        Err(ParametrizeError::NotAnalytic)
+        cylinder.curve_3d_to_uv(&line.into(), Tolerance::DEFAULT),
+        Err(Curve3DToUvError::NotAnalytic)
     );
-}
-
-#[test]
-#[allow(clippy::needless_borrows_for_generic_args)]
-fn test_parametrize_on_accepts_surface_by_reference() {
-    // The public method takes `impl Into<Surface>`, which `&Cylinder`
-    // satisfies via `From<&Cylinder>` (Cylinder is Copy, so clippy would
-    // rather drop the borrow; pinning the borrowed form is the point).
-    let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
-    let circle = Circle::new(Point::new(0.0, 0.0, 3.0), Vector::Z, 2.0).unwrap();
-    assert!(circle.parametrize_on(&cylinder, Tolerance::DEFAULT).is_ok());
 }
 
 #[test]
@@ -118,26 +107,26 @@ fn test_line_on_plane_perpendicular_is_not_on_surface() {
     let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
     let line = Line::new(Point::ORIGIN, Vector::Z).unwrap();
     assert_eq!(
-        line.parametrize_on(plane, Tolerance::DEFAULT),
-        Err(ParametrizeError::CurveNotOnSurface)
+        plane.curve_3d_to_uv(&line.into(), Tolerance::DEFAULT),
+        Err(Curve3DToUvError::CurveNotOnSurface)
     );
 }
 
 #[test]
-fn test_parametrize_error_display_and_is_std_error() {
+fn test_curve_3d_to_uv_error_display_and_is_std_error() {
     fn takes_error(_e: &dyn std::error::Error) {}
-    takes_error(&ParametrizeError::NotAnalytic);
-    assert!(!ParametrizeError::NotAnalytic.to_string().is_empty());
-    assert!(!ParametrizeError::CurveNotOnSurface.to_string().is_empty());
+    takes_error(&Curve3DToUvError::NotAnalytic);
+    assert!(!Curve3DToUvError::NotAnalytic.to_string().is_empty());
+    assert!(!Curve3DToUvError::CurveNotOnSurface.to_string().is_empty());
 }
 
 // ---- sphere pole-mirror branch (sphere_set_in_bounds lines 397-410) ----
 //
-// The branch mirrors a meridian pcurve about v = +-pi/2 when q(0) sits
+// The branch mirrors a meridian UV curve about v = +-pi/2 when q(0) sits
 // at a pole boundary AND the line's v-direction continues past it. The
 // reviewer's suggested construction (circle-frame x_direction() pointing
 // exactly at a pole) does NOT trigger it: `sphere_meridian` derives the
-// pcurve's v-direction from `p2 - p1`, where `p2` comes from the
+// UV curve's v-direction from `p2 - p1`, where `p2` comes from the
 // circle's y_direction() — orthogonal to x_direction(), and therefore
 // always closer to the equator. That forces `dir.y` to point *away* from
 // whichever pole `p1` sits at, the opposite of what the mirror condition
@@ -191,10 +180,12 @@ fn test_sphere_meridian_pole_mirror_north() {
 
     // The consistency invariant is the real proof the mirror math is
     // right: it must hold across t values that cross the pole.
-    let pcurve = circle.parametrize_on(sphere, Tolerance::DEFAULT).unwrap();
-    assert_eq!(pcurve, Curve2D::Line(normalized));
+    let uv_curve = sphere
+        .curve_3d_to_uv(&circle.into(), Tolerance::DEFAULT)
+        .unwrap();
+    assert_eq!(uv_curve, Curve2D::Line(normalized));
     for t in [0.0_f64, 0.5, 1.7, 3.0, 4.5] {
-        let uv = pcurve.eval_point(t);
+        let uv = uv_curve.eval_point(t);
         let on_surface = sphere.eval_point(uv.x, uv.y);
         let expected = circle.eval_point(t);
         assert!(
@@ -234,10 +225,12 @@ fn test_sphere_meridian_pole_mirror_south() {
     assert!((normalized.origin().y - (-FRAC_PI_2)).abs() < Tolerance::DEFAULT.confusion);
     assert!((0.0..TAU + 1e-9).contains(&normalized.origin().x));
 
-    let pcurve = circle.parametrize_on(sphere, Tolerance::DEFAULT).unwrap();
-    assert_eq!(pcurve, Curve2D::Line(normalized));
+    let uv_curve = sphere
+        .curve_3d_to_uv(&circle.into(), Tolerance::DEFAULT)
+        .unwrap();
+    assert_eq!(uv_curve, Curve2D::Line(normalized));
     for t in [0.0_f64, 0.5, 1.7, 3.0, 4.5] {
-        let uv = pcurve.eval_point(t);
+        let uv = uv_curve.eval_point(t);
         let on_surface = sphere.eval_point(uv.x, uv.y);
         let expected = circle.eval_point(t);
         assert!(
@@ -289,15 +282,15 @@ fn tilted_plane() -> (Plane, Frame) {
     (Plane::from_frame(frame), frame)
 }
 
-/// `surface(pcurve(t)) == curve(t)` at a few parameters.
+/// `surface(uv_curve(t)) == curve(t)` at a few parameters.
 fn assert_consistent(
-    pcurve: &Curve2D,
+    uv_curve: &Curve2D,
     plane: &Plane,
     curve: impl Fn(f64) -> Point,
     params: &[f64],
 ) {
     for &t in params {
-        let uv = pcurve.eval_point(t);
+        let uv = uv_curve.eval_point(t);
         let on_surface = plane.eval_point(uv.x, uv.y);
         assert!(
             on_surface.distance(curve(t)) < 1e-9,
@@ -314,9 +307,11 @@ fn test_ellipse_on_tilted_plane_maps_to_ellipse2d() {
     let center = frame.origin() + 0.7 * frame.x_direction() - 1.1 * frame.y_direction();
     let x_hint = 0.6 * frame.x_direction() + 0.8 * frame.y_direction();
     let ellipse = Ellipse::new(center, frame.z_direction(), x_hint, 3.0, 1.5).unwrap();
-    let pcurve = ellipse.parametrize_on(plane, Tolerance::DEFAULT).unwrap();
-    let Curve2D::Ellipse(image) = pcurve else {
-        panic!("expected an Ellipse2D, got {pcurve:?}");
+    let uv_curve = plane
+        .curve_3d_to_uv(&ellipse.into(), Tolerance::DEFAULT)
+        .unwrap();
+    let Curve2D::Ellipse(image) = uv_curve else {
+        panic!("expected an Ellipse2D, got {uv_curve:?}");
     };
     assert_close(image.major_radius(), 3.0);
     assert_close(image.minor_radius(), 1.5);
@@ -325,7 +320,7 @@ fn test_ellipse_on_tilted_plane_maps_to_ellipse2d() {
     assert_close(image.frame().x_direction().x, 0.6);
     assert_close(image.frame().x_direction().y, 0.8);
     assert_consistent(
-        &pcurve,
+        &uv_curve,
         &plane,
         |t| ellipse.eval_point(t),
         &[0.0, 1.0, 2.5, 5.0],
@@ -339,17 +334,21 @@ fn test_conics_on_plane_follow_an_indirect_frame() {
     let (plane, frame) = tilted_plane();
     let mirrored = Frame::new(frame.origin(), -frame.z_direction(), frame.x_direction()).unwrap();
     let ellipse = Ellipse::from_frame(mirrored, 2.0, 1.0).unwrap();
-    let pcurve = ellipse.parametrize_on(plane, Tolerance::DEFAULT).unwrap();
+    let uv_curve = plane
+        .curve_3d_to_uv(&ellipse.into(), Tolerance::DEFAULT)
+        .unwrap();
     assert_consistent(
-        &pcurve,
+        &uv_curve,
         &plane,
         |t| ellipse.eval_point(t),
         &[0.0, 1.0, 2.5, 5.0],
     );
     let parabola = Parabola::from_frame(mirrored, 0.8).unwrap();
-    let pcurve = parabola.parametrize_on(plane, Tolerance::DEFAULT).unwrap();
+    let uv_curve = plane
+        .curve_3d_to_uv(&parabola.into(), Tolerance::DEFAULT)
+        .unwrap();
     assert_consistent(
-        &pcurve,
+        &uv_curve,
         &plane,
         |t| parabola.eval_point(t),
         &[-2.0, 0.0, 1.7],
@@ -362,29 +361,33 @@ fn test_parabola_and_hyperbola_on_plane_map_to_their_2d_types() {
     let apex = frame.origin() - 2.0 * frame.x_direction() + frame.y_direction();
     let x_hint = -frame.y_direction();
     let parabola = Parabola::new(apex, frame.z_direction(), x_hint, 0.75).unwrap();
-    let pcurve = parabola.parametrize_on(plane, Tolerance::DEFAULT).unwrap();
-    let Curve2D::Parabola(image) = pcurve else {
-        panic!("expected a Parabola2D, got {pcurve:?}");
+    let uv_curve = plane
+        .curve_3d_to_uv(&parabola.into(), Tolerance::DEFAULT)
+        .unwrap();
+    let Curve2D::Parabola(image) = uv_curve else {
+        panic!("expected a Parabola2D, got {uv_curve:?}");
     };
     assert_close(image.focal(), 0.75);
     assert_close(image.apex().x, -2.0);
     assert_close(image.apex().y, 1.0);
     assert_consistent(
-        &pcurve,
+        &uv_curve,
         &plane,
         |t| parabola.eval_point(t),
         &[-3.0, 0.0, 1.7, 4.1],
     );
 
     let hyperbola = Hyperbola::new(apex, frame.z_direction(), x_hint, 2.0, 3.0).unwrap();
-    let pcurve = hyperbola.parametrize_on(plane, Tolerance::DEFAULT).unwrap();
-    let Curve2D::Hyperbola(image) = pcurve else {
-        panic!("expected a Hyperbola2D, got {pcurve:?}");
+    let uv_curve = plane
+        .curve_3d_to_uv(&hyperbola.into(), Tolerance::DEFAULT)
+        .unwrap();
+    let Curve2D::Hyperbola(image) = uv_curve else {
+        panic!("expected a Hyperbola2D, got {uv_curve:?}");
     };
     assert_close(image.major_radius(), 2.0);
     assert_close(image.minor_radius(), 3.0);
     assert_consistent(
-        &pcurve,
+        &uv_curve,
         &plane,
         |t| hyperbola.eval_point(t),
         &[-1.5, 0.0, 1.7, 4.1],
@@ -403,18 +406,18 @@ fn test_conics_off_the_plane_are_not_on_surface() {
     ] {
         let ellipse = Ellipse::new(origin, normal, x, 3.0, 1.5).unwrap();
         assert_eq!(
-            ellipse.parametrize_on(plane, tol),
-            Err(ParametrizeError::CurveNotOnSurface)
+            plane.curve_3d_to_uv(&ellipse.into(), tol),
+            Err(Curve3DToUvError::CurveNotOnSurface)
         );
         let parabola = Parabola::new(origin, normal, x, 1.0).unwrap();
         assert_eq!(
-            parabola.parametrize_on(plane, tol),
-            Err(ParametrizeError::CurveNotOnSurface)
+            plane.curve_3d_to_uv(&parabola.into(), tol),
+            Err(Curve3DToUvError::CurveNotOnSurface)
         );
         let hyperbola = Hyperbola::new(origin, normal, x, 2.0, 1.0).unwrap();
         assert_eq!(
-            hyperbola.parametrize_on(plane, tol),
-            Err(ParametrizeError::CurveNotOnSurface)
+            plane.curve_3d_to_uv(&hyperbola.into(), tol),
+            Err(Curve3DToUvError::CurveNotOnSurface)
         );
     }
 }
@@ -432,17 +435,17 @@ fn test_conic_tilt_follows_the_curve_extent() {
     let normal = Vector::new(0.0, 1e-5, 1.0);
     let ellipse = Ellipse::new(Point::ORIGIN, normal, Vector::X, 10.0, 5.0).unwrap();
     assert!(matches!(
-        ellipse.parametrize_on(plane, loose),
+        plane.curve_3d_to_uv(&ellipse.into(), loose),
         Ok(Curve2D::Ellipse(_))
     ));
     assert_eq!(
-        ellipse.parametrize_on(plane, Tolerance::DEFAULT),
-        Err(ParametrizeError::CurveNotOnSurface)
+        plane.curve_3d_to_uv(&ellipse.into(), Tolerance::DEFAULT),
+        Err(Curve3DToUvError::CurveNotOnSurface)
     );
     let parabola = Parabola::new(Point::ORIGIN, normal, Vector::X, 1.0).unwrap();
     assert_eq!(
-        parabola.parametrize_on(plane, loose),
-        Err(ParametrizeError::CurveNotOnSurface)
+        plane.curve_3d_to_uv(&parabola.into(), loose),
+        Err(Curve3DToUvError::CurveNotOnSurface)
     );
 }
 
@@ -457,11 +460,14 @@ fn test_conics_and_bsplines_on_curved_surfaces_are_not_analytic() {
     let poles = vec![Point::new(2.0, 0.0, 0.0), Point::new(2.0, 1.0, 1.0)];
     let spline = BSplineCurve::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
     for surface in [crate::Surface::from(cylinder), crate::Surface::from(sphere)] {
-        let expected = Err(ParametrizeError::NotAnalytic);
-        assert_eq!(ellipse.parametrize_on(surface.clone(), tol), expected);
-        assert_eq!(parabola.parametrize_on(surface.clone(), tol), expected);
-        assert_eq!(hyperbola.parametrize_on(surface.clone(), tol), expected);
-        assert_eq!(spline.parametrize_on(surface, tol), expected);
+        let expected = Err(Curve3DToUvError::NotAnalytic);
+        assert_eq!(surface.curve_3d_to_uv(&ellipse.into(), tol), expected);
+        assert_eq!(surface.curve_3d_to_uv(&parabola.into(), tol), expected);
+        assert_eq!(surface.curve_3d_to_uv(&hyperbola.into(), tol), expected);
+        assert_eq!(
+            surface.curve_3d_to_uv(&spline.clone().into(), tol),
+            expected
+        );
     }
 }
 
@@ -483,9 +489,11 @@ fn test_bspline_on_plane_maps_poles_and_keeps_weights_and_knots() {
         false,
     )
     .unwrap();
-    let pcurve = curve.parametrize_on(plane, Tolerance::DEFAULT).unwrap();
-    let Curve2D::BSpline(image) = &pcurve else {
-        panic!("expected a BSplineCurve2D, got {pcurve:?}");
+    let uv_curve = plane
+        .curve_3d_to_uv(&curve.clone().into(), Tolerance::DEFAULT)
+        .unwrap();
+    let Curve2D::BSpline(image) = &uv_curve else {
+        panic!("expected a BSplineCurve2D, got {uv_curve:?}");
     };
     assert_eq!(image.degree(), 2);
     assert_eq!(image.knots(), knots.as_slice());
@@ -496,10 +504,61 @@ fn test_bspline_on_plane_maps_poles_and_keeps_weights_and_knots() {
         assert_close(pole.y, v);
     }
     assert_consistent(
-        &pcurve,
+        &uv_curve,
         &plane,
         |t| curve.eval_point(t),
         &[0.0, 0.3, 1.0, 1.9, 2.5],
+    );
+}
+
+#[test]
+fn test_bezier_on_plane_maps_poles_and_keeps_weights() {
+    let (plane, frame) = tilted_plane();
+    let at = |u: f64, v: f64| frame.origin() + u * frame.x_direction() + v * frame.y_direction();
+    let local = [(0.0, 0.0), (1.0, 2.0), (3.0, -1.0)];
+    let poles: Vec<Point> = local.iter().map(|&(u, v)| at(u, v)).collect();
+    let weights = vec![1.0, 0.5, 2.0];
+    let curve = BezierCurve::new_rational(2, poles, weights.clone()).unwrap();
+    let uv_curve = plane
+        .curve_3d_to_uv(&curve.clone().into(), Tolerance::DEFAULT)
+        .unwrap();
+    let Curve2D::Bezier(image) = &uv_curve else {
+        panic!("expected a BezierCurve2D, got {uv_curve:?}");
+    };
+    assert_eq!(image.weights(), Some(weights.as_slice()));
+    for (pole, &(u, v)) in image.poles().iter().zip(&local) {
+        assert_close(pole.x, u);
+        assert_close(pole.y, v);
+    }
+    assert_consistent(
+        &uv_curve,
+        &plane,
+        |t| curve.eval_point(t),
+        &[0.0, 0.3, 0.5, 0.8, 1.0],
+    );
+}
+
+#[test]
+fn test_bezier_off_the_plane_or_on_a_curved_surface_is_refused() {
+    let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
+    let raised = BezierCurve::new(
+        1,
+        vec![Point::new(0.0, 0.0, 0.0), Point::new(1.0, 0.0, 0.1)],
+    )
+    .unwrap();
+    assert_eq!(
+        plane.curve_3d_to_uv(&raised.into(), Tolerance::DEFAULT),
+        Err(Curve3DToUvError::CurveNotOnSurface)
+    );
+    let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
+    let generator = BezierCurve::new(
+        1,
+        vec![Point::new(1.0, 0.0, 0.0), Point::new(1.0, 0.0, 1.0)],
+    )
+    .unwrap();
+    assert_eq!(
+        cylinder.curve_3d_to_uv(&generator.into(), Tolerance::DEFAULT),
+        Err(Curve3DToUvError::NotAnalytic)
     );
 }
 
@@ -520,13 +579,15 @@ fn test_periodic_bspline_on_plane_stays_periodic() {
         true,
     )
     .unwrap();
-    let pcurve = curve.parametrize_on(plane, Tolerance::DEFAULT).unwrap();
-    let Curve2D::BSpline(image) = &pcurve else {
-        panic!("expected a BSplineCurve2D, got {pcurve:?}");
+    let uv_curve = plane
+        .curve_3d_to_uv(&curve.clone().into(), Tolerance::DEFAULT)
+        .unwrap();
+    let Curve2D::BSpline(image) = &uv_curve else {
+        panic!("expected a BSplineCurve2D, got {uv_curve:?}");
     };
     assert!(image.is_periodic());
     assert_consistent(
-        &pcurve,
+        &uv_curve,
         &plane,
         |t| curve.eval_point(t),
         &[0.0, 0.5, 2.2, 3.9, 5.0],
@@ -543,15 +604,15 @@ fn test_bspline_leaving_the_plane_is_not_on_surface() {
     ];
     let curve = BSplineCurve::new(2, poles, vec![0.0, 1.0], vec![3, 3], false).unwrap();
     assert_eq!(
-        curve.parametrize_on(plane, Tolerance::DEFAULT),
-        Err(ParametrizeError::CurveNotOnSurface)
+        plane.curve_3d_to_uv(&curve.clone().into(), Tolerance::DEFAULT),
+        Err(Curve3DToUvError::CurveNotOnSurface)
     );
     let loose = Tolerance {
         confusion: 1e-2,
         ..Tolerance::DEFAULT
     };
     assert!(matches!(
-        curve.parametrize_on(plane, loose),
+        plane.curve_3d_to_uv(&curve.clone().into(), loose),
         Ok(Curve2D::BSpline(_))
     ));
 }
@@ -560,7 +621,7 @@ fn assert_close(a: f64, b: f64) {
     assert!((a - b).abs() < 1e-9, "expected {b}, got {a}");
 }
 
-/// Round-trip: surface evaluation at numeric pcurve points recovers
+/// Round-trip: surface evaluation at numeric UV curve points recovers
 /// the curve points (the defining property of a parametrization).
 fn assert_roundtrip<C, S>(curve: &C, surface: &S, n: usize, eps: f64)
 where
@@ -573,7 +634,7 @@ where
         if t0.is_finite() { t0 } else { -10.0 },
         if t1.is_finite() { t1 } else { 10.0 },
     );
-    for (i, uv) in parametrize_numeric(curve, surface, n, tol)
+    for (i, uv) in curve_3d_to_uv_numeric(curve, surface, n, tol)
         .iter()
         .enumerate()
     {
@@ -593,8 +654,10 @@ fn test_numeric_circle_on_cylinder_matches_analytic() {
     let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
     let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
     // Analytic image is the horizontal line v = 0.
-    let analytic = circle.parametrize_on(cylinder, Tolerance::DEFAULT).unwrap();
-    let numeric = parametrize_numeric(&circle, &cylinder, 17, Tolerance::DEFAULT);
+    let analytic = cylinder
+        .curve_3d_to_uv(&circle.into(), Tolerance::DEFAULT)
+        .unwrap();
+    let numeric = curve_3d_to_uv_numeric(&circle, &cylinder, 17, Tolerance::DEFAULT);
     assert_eq!(numeric.len(), 17);
     for (i, uv) in numeric.iter().enumerate() {
         assert!(uv.y.abs() < 1e-9, "{uv:?}");
@@ -625,9 +688,9 @@ fn test_numeric_ellipse_on_sphere_roundtrip() {
     let ellipse = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 3.0, 1.5).unwrap();
     let sphere = Sphere::new(Point::ORIGIN, 3.0).unwrap();
     let tol = Tolerance::DEFAULT;
-    let pcurve = parametrize_numeric(&ellipse, &sphere, 33, tol);
-    assert_eq!(pcurve.len(), 33);
-    for uv in &pcurve {
+    let uv_curve = curve_3d_to_uv_numeric(&ellipse, &sphere, 33, tol);
+    assert_eq!(uv_curve.len(), 33);
+    for uv in &uv_curve {
         let back = sphere.eval_point(uv.x, uv.y);
         assert!(sphere.contains(back, tol), "{back:?}");
         let again = sphere.project_point(back, tol);

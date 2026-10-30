@@ -6,8 +6,8 @@ use crate::surfaces::ParametricSurface;
 use crate::surfaces::ReversibleSurface;
 use crate::surfaces::SurfaceCurvatures;
 use crate::surfaces::{
-    BSplineSurface, BezierSurface, Cone, Cylinder, ExtrusionSurface, Plane, RevolutionSurface,
-    Sphere, SurfaceIsoError, Torus, UvCurveTo3DError,
+    BSplineSurface, BezierSurface, Cone, Curve3DToUvError, Cylinder, ExtrusionSurface, Plane,
+    RevolutionSurface, Sphere, SurfaceIsoError, Torus, UvCurveTo3DError,
 };
 use crate::{Point, SurfaceProjection, Tolerance, Vector};
 use crate::{Transform, TransformError, Transformable};
@@ -288,6 +288,10 @@ impl ParametricSurface for Surface {
     ) -> Result<Curve, UvCurveTo3DError> {
         surface_dispatch!(self, s => s.uv_curve_to_3d(uv_curve, tol))
     }
+
+    fn curve_3d_to_uv(&self, curve: &Curve, tol: Tolerance) -> Result<Curve2D, Curve3DToUvError> {
+        surface_dispatch!(self, s => s.curve_3d_to_uv(curve, tol))
+    }
 }
 
 impl ReversibleSurface for Surface {
@@ -442,6 +446,10 @@ impl ParametricSurface for ElementarySurface {
         tol: Tolerance,
     ) -> Result<Curve, UvCurveTo3DError> {
         elementary_surface_dispatch!(self, s => s.uv_curve_to_3d(uv_curve, tol))
+    }
+
+    fn curve_3d_to_uv(&self, curve: &Curve, tol: Tolerance) -> Result<Curve2D, Curve3DToUvError> {
+        elementary_surface_dispatch!(self, s => s.curve_3d_to_uv(curve, tol))
     }
 }
 

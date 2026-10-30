@@ -3,15 +3,12 @@
 //! [`crate::elementary::curve`].
 
 use crate::curves::ReversibleCurve;
-use crate::curves::parametrize::ParametrizeError;
-use crate::curves::{Curve2D, parametrize};
 use crate::curves::{ElementaryCurve, ParametricCurve, ParametricCurve2D};
 use crate::curves::{PointExtrema, PointExtrema2D};
 use crate::elementary::curve as elementary;
 use crate::frame::frame_error;
 use crate::math::{polish_root, real_roots};
 use crate::projection::CurveProjection;
-use crate::surfaces::Surface;
 use crate::tier::operations::FrameOperations;
 use crate::tier::{TierPoint, impl_for_both_tiers};
 use crate::transform::image_error;
@@ -308,41 +305,6 @@ impl Hyperbola {
             HyperbolaConstructionError::CollinearPoints,
         ))?;
         Hyperbola::from_frame(frame, d1, d2)
-    }
-
-    /// Computes the exact 2D representation of this hyperbola in a surface's
-    /// parameter space: a [`Curve2D`] `q(t)` such that
-    /// `surface.eval_point(q(t)) == self.eval_point(t)` for the same `t`.
-    ///
-    /// A hyperbola in a plane maps to a [`Hyperbola2D`](crate::Hyperbola2D) with the same radii
-    /// in the plane's `(u, v)`. On a cylinder, cone, sphere, torus or
-    /// B-spline surface no closed-form image that a [`Curve2D`] can hold
-    /// exists, so the result is [`ParametrizeError::NotAnalytic`].
-    ///
-    /// As a geomcore safeguard, the image is verified against the surface at
-    /// a few parameters: a hyperbola that does not lie in the plane (tilted
-    /// beyond `tol.angular`, the hyperbola being unbounded, or offset by more
-    /// than `tol.confusion`) gives [`ParametrizeError::CurveNotOnSurface`].
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::prelude::*;
-    /// use geomcore::{Curve2D, Hyperbola, Plane, Point, Tolerance, Vector};
-    ///
-    /// let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
-    /// let hyperbola = Hyperbola::new(Point::new(1.0, 1.0, 0.0), Vector::Z, Vector::X, 2.0, 1.0).unwrap();
-    /// let pcurve = hyperbola.parametrize_on(&plane, Tolerance::DEFAULT).unwrap();
-    /// assert!(matches!(pcurve, Curve2D::Hyperbola(_)));
-    /// let q = pcurve.eval_point(0.0);
-    /// assert!((q.x - 3.0).abs() < 1e-9 && (q.y - 1.0).abs() < 1e-9);
-    /// ```
-    pub fn parametrize_on(
-        &self,
-        surface: impl Into<Surface>,
-        tol: Tolerance,
-    ) -> Result<Curve2D, ParametrizeError> {
-        parametrize::hyperbola_on_surface(self, &surface.into(), tol)
     }
 }
 

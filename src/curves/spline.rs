@@ -144,9 +144,10 @@ impl<P: TierPoint> Spline<P> {
         Spline::of(self.knots.clone(), poles, self.weights.clone())
     }
 
-    /// The curve in space with each pole mapped by the affine map `f`, the
-    /// knots and weights kept. Exact, as for [`Spline::transformed`].
-    pub(crate) fn mapped_to_space(&self, f: impl Fn(P) -> Point) -> Spline<Point> {
+    /// The curve with each pole mapped by the affine map `f`, into either
+    /// tier, the knots and weights kept. Exact, as for
+    /// [`Spline::transformed`].
+    pub(crate) fn mapped<Q: TierPoint>(&self, f: impl Fn(P) -> Q) -> Spline<Q> {
         let poles = self.poles.iter().map(|&p| f(p)).collect();
         Spline::of(self.knots.clone(), poles, self.weights.clone())
     }
