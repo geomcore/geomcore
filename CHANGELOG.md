@@ -9,6 +9,21 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+## [0.41.0] - 2026-10-30
+
+Deeper modules behind the same results. One closed-form table decides
+which pairs `intersect` solves exactly; transform and reversal are trait
+methods on every shape, with one `TransformError`; marching is split
+into a surface pair, a tracer and a seeding policy, and finds small
+closed loops on every pair with an elementary or patch-convertible
+side; the curve–curve results and fitting are written once for both
+tiers; and the Python stubs write each method set once, with
+docstrings. Marching also traces through branch crossings, stays within
+confusion between its points, and works far from the origin. Rust code
+calling `transformed` or the reversal methods needs
+`use geomcore::prelude::*`, and B-spline `transformed` returns a
+`Result` (see Breaking).
+
 ### Added
 
 - `Transformable`, `ReversibleCurve` and `ReversibleSurface`, the
@@ -33,6 +48,10 @@ the Python distribution are versioned in lockstep.
   curve–curve result and hit generic over the tier (ADR 0014, amended):
   code that reads a curve–curve result can be written once for both
   tiers.
+- The Python stubs carry the docstrings of the methods every curve or
+  surface class shares (evaluation, local properties, projection,
+  `intersect`, ...), so an IDE shows them on hover. A test keeps each one
+  equal to the docstring of the method itself.
 
 ### Changed
 
@@ -101,11 +120,6 @@ the Python distribution are versioned in lockstep.
   every surface and on `Surface`, moved from the types to the
   `ReversibleCurve` and `ReversibleSurface` traits, with the same
   behaviour: calls on a concrete type need `use geomcore::prelude::*`.
-- The Python stubs carry the docstrings of the methods every curve or
-  surface class shares (evaluation, local properties, projection,
-  `intersect`, ...), so an IDE shows them on hover. A test keeps each one
-  equal to the docstring of the method itself.
-
 ### Fixed
 
 - Marching found no curves for bounded surfaces lying outside the
@@ -2220,7 +2234,8 @@ Behaviour, in Rust and Python alike:
 - Golden-fixture validation of all numeric results at 1e-7 tolerance, and
   criterion throughput benchmarks (`docs/benchmarks.md`).
 
-[Unreleased]: https://github.com/geomcore/geomcore/compare/v0.40.1...HEAD
+[Unreleased]: https://github.com/geomcore/geomcore/compare/v0.41.0...HEAD
+[0.41.0]: https://github.com/geomcore/geomcore/compare/v0.40.1...v0.41.0
 [0.40.1]: https://github.com/geomcore/geomcore/compare/v0.40.0...v0.40.1
 [0.40.0]: https://github.com/geomcore/geomcore/compare/v0.39.1...v0.40.0
 [0.39.1]: https://github.com/geomcore/geomcore/compare/v0.39.0...v0.39.1

@@ -98,14 +98,19 @@ ones before them. If you'd like to help with any of it, see
   per curve across space and the plane; one public path per item.
   0.40.1 adds `ExtrusionSurface` and `RevolutionSurface`, with exact
   plane cuts.
+- **0.41** — Transform and reversal on the shape traits; one closed-form
+  pair table; marching split into surface pair, tracer and seeding, and
+  finding small closed loops beyond B-spline pairs; the curve tiers share
+  their curve–curve results and fitting; Python stubs with docstrings.
 
 ## Next
 
 1. **Marching intersection** — trace through points where the two
    surfaces touch, and find isolated loops smaller than the iso-curve
-   spacing between two unbounded surfaces (every other pair whose
-   surfaces convert to B-spline patches finds them from overlapping
-   patch pairs, #30, ADR 0026).
+   spacing between two unbounded surfaces (a pair with an elementary
+   side finds them from the extrema of its implicit equation, and other
+   pairs that convert to B-spline patches from overlapping patch pairs,
+   #30, ADR 0026).
 2. **Hosted documentation** — tutorials on the docs site, and a Python
    API reference generated from docstrings.
 
