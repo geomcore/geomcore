@@ -3,6 +3,7 @@
 
 use crate::curves::ParametricCurve2D;
 use crate::curves::PointExtrema2D;
+use crate::curves::ReversibleCurve;
 use crate::curves::{
     BSplineCurve2D, BezierCurve2D, Circle2D, Continuity, Ellipse2D, Hyperbola2D, Line2D, Parabola2D,
 };
@@ -184,6 +185,16 @@ impl PointExtrema2D for Curve2D {
 
     fn parameter_of(&self, point: Point2D, tol: Tolerance) -> f64 {
         curve_2d_dispatch!(self, c => c.parameter_of(point, tol))
+    }
+}
+
+impl ReversibleCurve for Curve2D {
+    fn reversed(&self) -> Curve2D {
+        curve_2d_dispatch!(self, c => Curve2D::from(c.reversed()))
+    }
+
+    fn reversed_parameter(&self, u: f64) -> f64 {
+        curve_2d_dispatch!(self, c => c.reversed_parameter(u))
     }
 }
 

@@ -361,10 +361,4 @@ shape_methods! {
         let (a, b) = self.0.split_v_at(v).map_err(python_error)?;
         Ok((PyBSplineSurface(a), PyBSplineSurface(b)))
     }
-
-    /// Image of this surface under `transform` (maps every control pole).
-    #[pyo3(signature = (transform,))]
-    fn transformed(&self, transform: &PyTransform) -> Self {
-        PyBSplineSurface(self.0.transformed(transform.0))
-    }
 }

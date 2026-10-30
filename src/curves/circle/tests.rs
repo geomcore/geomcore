@@ -1,6 +1,7 @@
 use crate::curves::ParametricCurve;
 use crate::curves::PointExtrema;
 use crate::{Circle, CircleConstructionError, Frame, Point, Tolerance, Transform, Vector};
+use crate::{TransformError, Transformable};
 
 // ---- Circle construction ----
 
@@ -284,6 +285,6 @@ fn test_circle3d_transformed_zero_scale_errors() {
     let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
     assert_eq!(
         circle.transformed(Transform::scaling(Point::ORIGIN, 0.0)),
-        Err(CircleConstructionError::NullNormal)
+        Err(TransformError::Collapsed)
     );
 }

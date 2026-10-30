@@ -9,6 +9,7 @@
 //! periodicity and no knot editing. [`GenericBezierCurve::to_bspline`]
 //! gives the B-spline when those are wanted.
 
+use crate::curves::ReversibleCurve;
 use crate::curves::bspline::{BSplineSplitError, DegreeElevationError};
 use crate::curves::spline::Spline;
 use crate::curves::{
@@ -17,6 +18,7 @@ use crate::curves::{
 use crate::projection::CurveProjection;
 use crate::tier::{TierPoint, impl_for_both_tiers};
 use crate::{Continuity, Point, Point2D, Tolerance};
+use crate::{Transform, TransformError, Transformable};
 use std::fmt;
 
 /// Error returned when a [`BezierCurve`] or a [`BezierCurve2D`](crate::BezierCurve2D)
@@ -377,32 +379,6 @@ impl<P: TierPoint> GenericBezierCurve<P> {
             .map(GenericBezierCurve::from_spline)
     }
 
-    /// Returns the curve traversed the other way: its point at `u` is this
-    /// curve's point at `first + last - u` over the same
-    /// [`bounds`](Self::bounds), so its derivatives of odd order change
-    /// sign. The poles (and weights) are listed in reverse order.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::prelude::*;
-    /// use geomcore::{BezierCurve, Point};
-    ///
-    /// let poles = vec![
-    ///     Point::new(0.0, 0.0, 0.0),
-    ///     Point::new(1.0, 2.0, 0.0),
-    ///     Point::new(3.0, 2.0, 1.0),
-    ///     Point::new(4.0, 0.0, 1.0),
-    /// ];
-    /// let curve = BezierCurve::new(3, poles).unwrap();
-    /// let reversed = curve.reversed();
-    /// assert_eq!(reversed.eval_point(0.0), curve.eval_point(1.0));
-    /// assert_eq!(reversed.reversed(), curve);
-    /// ```
-    pub fn reversed(&self) -> GenericBezierCurve<P> {
-        GenericBezierCurve::from_spline(self.spline().reversed())
-    }
-
     /// Evaluates the point and the first derivative at parameter `u` from one
     /// side, as
     /// [`BSplineCurve::eval_d1_sided`](crate::BSplineCurve::eval_d1_sided). A
@@ -571,6 +547,29 @@ impl_for_both_tiers! {
         fn as_bspline(&self) -> Option<&GenericBSplineCurve<P>> {
             Some(self.bspline())
         }
+    }
+}
+
+impl<P: TierPoint> ReversibleCurve for GenericBezierCurve<P> {
+    /// The poles (and weights) are listed in reverse order.
+    fn reversed(&self) -> GenericBezierCurve<P> {
+        GenericBezierCurve::from_spline(self.spline().reversed())
+    }
+
+    /// `first + last - u` over the bounds.
+    fn reversed_parameter(&self, u: f64) -> f64 {
+        let (first, last) = self.spline().bounds();
+        first + last - u
+    }
+}
+
+impl Transformable for BezierCurve {
+    /// Every pole maps point-wise; the degree and weights are kept, and so
+    /// is the parameter.
+    fn transformed(&self, transform: Transform) -> Result<BezierCurve, TransformError> {
+        self.spline()
+            .transformed(transform)
+            .map(GenericBezierCurve::from_spline)
     }
 }
 

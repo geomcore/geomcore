@@ -15,8 +15,10 @@ use crate::bspline::curve::MAX_DEGREE;
 use crate::curves::{
     BSplineSplitError, BezierConstructionError, BezierCurve, DegreeElevationError, Side,
 };
+use crate::surfaces::ReversibleSurface;
 use crate::surfaces::{BSplineSurface, ParametricSurface, SurfaceIsoError};
 use crate::{Continuity, Point, SurfaceProjection, Tolerance, Vector};
+use crate::{Transform, TransformError, Transformable};
 
 /// A Bézier surface (optionally rational) in 3D: a grid of
 /// `(u_degree + 1) x (v_degree + 1)` control poles over one parameter
@@ -482,79 +484,6 @@ impl BezierSurface {
         self.0.elevate_v_degree(amount).map(Self::from_surface)
     }
 
-    /// Returns the surface with its `u` direction traversed the other way:
-    /// its point at `(u, v)` is this surface's point at
-    /// `(first + last - u, v)` over the same bounds, so `Su` changes sign.
-    /// The rows of the net are listed in reverse order.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::prelude::*;
-    /// use geomcore::{BezierSurface, Point};
-    ///
-    /// let poles = (0..3)
-    ///     .map(|i| (0..2).map(|j| Point::new(i as f64, j as f64, (i * j) as f64)).collect())
-    ///     .collect();
-    /// let surface = BezierSurface::new(2, 1, poles).unwrap();
-    /// let reversed = surface.reversed_u();
-    /// assert_eq!(reversed.eval_point(0.0, 0.5), surface.eval_point(1.0, 0.5));
-    /// assert_eq!(reversed.reversed_u(), surface);
-    /// ```
-    pub fn reversed_u(&self) -> BezierSurface {
-        Self::from_surface(self.0.reversed_u())
-    }
-
-    /// Returns the surface with its `v` direction traversed the other way,
-    /// as [`reversed_u`](Self::reversed_u) for `v`; `Sv` changes sign.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::prelude::*;
-    /// use geomcore::{BezierSurface, Point};
-    ///
-    /// let poles = vec![
-    ///     vec![Point::new(0.0, 0.0, 0.0), Point::new(0.0, 1.0, 0.0)],
-    ///     vec![Point::new(1.0, 0.0, 0.0), Point::new(1.0, 1.0, 1.0)],
-    /// ];
-    /// // The surface is (u, v, uv).
-    /// let surface = BezierSurface::new(1, 1, poles).unwrap();
-    /// let reversed = surface.reversed_v();
-    /// assert_eq!(reversed.eval_point(0.5, 0.0), surface.eval_point(0.5, 1.0));
-    /// assert_eq!(reversed.reversed_v(), surface);
-    /// ```
-    pub fn reversed_v(&self) -> BezierSurface {
-        Self::from_surface(self.0.reversed_v())
-    }
-
-    /// Maps `u` onto the [`reversed_u`](Self::reversed_u) surface:
-    /// `first + last - u`, the parameter of the same point there.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::prelude::*;
-    /// use geomcore::{BezierSurface, Point};
-    ///
-    /// let poles = (0..3)
-    ///     .map(|i| (0..2).map(|j| Point::new(i as f64, j as f64, (i * j) as f64)).collect())
-    ///     .collect();
-    /// let surface = BezierSurface::new(2, 1, poles).unwrap();
-    /// let u = surface.u_reversed_parameter(0.25);
-    /// assert_eq!(u, 0.75);
-    /// assert_eq!(surface.reversed_u().eval_point(u, 0.5), surface.eval_point(0.25, 0.5));
-    /// ```
-    pub fn u_reversed_parameter(&self, u: f64) -> f64 {
-        self.0.u_reversed_parameter(u)
-    }
-
-    /// Maps `v` onto the [`reversed_v`](Self::reversed_v) surface, as
-    /// [`u_reversed_parameter`](Self::u_reversed_parameter) for `u`.
-    pub fn v_reversed_parameter(&self, v: f64) -> f64 {
-        self.0.v_reversed_parameter(v)
-    }
-
     /// The `u` isoparametric curve at `u`: `u` fixed, running along `v`
     /// with the `v` degree, so `u_iso(u).eval_point(t)` is
     /// `eval_point(u, t)` for every `t`. It is a Bézier curve over the `v`
@@ -777,5 +706,41 @@ impl ParametricSurface for BezierSurface {
 
     fn as_bspline(&self) -> Option<&BSplineSurface> {
         Some(&self.0)
+    }
+}
+
+impl ReversibleSurface for BezierSurface {
+    /// Returns the surface with its `u` direction traversed the other way:
+    /// its point at `(u, v)` is this surface's point at
+    /// `(first + last - u, v)` over the same bounds, so `Su` changes sign.
+    /// The rows of the net are listed in reverse order.
+    fn reversed_u(&self) -> BezierSurface {
+        Self::from_surface(self.0.reversed_u())
+    }
+
+    /// Returns the surface with its `v` direction traversed the other way,
+    /// as [`reversed_u`](ReversibleSurface::reversed_u) for `v`; `Sv` changes sign.
+    fn reversed_v(&self) -> BezierSurface {
+        Self::from_surface(self.0.reversed_v())
+    }
+
+    /// Maps `u` onto the [`reversed_u`](ReversibleSurface::reversed_u) surface:
+    /// `first + last - u`, the parameter of the same point there.
+    fn u_reversed_parameter(&self, u: f64) -> f64 {
+        self.0.u_reversed_parameter(u)
+    }
+
+    /// Maps `v` onto the [`reversed_v`](ReversibleSurface::reversed_v) surface, as
+    /// [`u_reversed_parameter`](ReversibleSurface::u_reversed_parameter) for `u`.
+    fn v_reversed_parameter(&self, v: f64) -> f64 {
+        self.0.v_reversed_parameter(v)
+    }
+}
+
+impl Transformable for BezierSurface {
+    /// Every pole maps point-wise; the degrees and weights are kept, and
+    /// so are the parameters.
+    fn transformed(&self, transform: Transform) -> Result<BezierSurface, TransformError> {
+        self.0.transformed(transform).map(Self::from_surface)
     }
 }

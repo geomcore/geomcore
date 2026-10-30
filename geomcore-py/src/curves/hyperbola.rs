@@ -79,13 +79,4 @@ shape_methods! {
     fn minor_radius(&self) -> f64 {
         self.0.minor_radius()
     }
-
-    /// Image of this hyperbola under `transform` (raises ValueError for a
-    /// collapsing transform).
-    #[pyo3(signature = (transform,))]
-    fn transformed(&self, transform: &PyTransform) -> PyResult<Self> {
-        Ok(PyHyperbola(
-            self.0.transformed(transform.0).map_err(python_error)?,
-        ))
-    }
 }

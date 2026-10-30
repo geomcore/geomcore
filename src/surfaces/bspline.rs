@@ -24,6 +24,8 @@ pub use crate::curves::BSplineConstructionError;
 use crate::curves::{
     BSplineSplitError, DegreeElevationError, KnotInsertionError, KnotRemovalError,
 };
+use crate::surfaces::ReversibleSurface;
+use crate::{TransformError, Transformable};
 
 /// A parametric direction of a surface.
 #[derive(Clone, Copy)]
@@ -1260,120 +1262,6 @@ impl BSplineSurface {
         Ok((low, high))
     }
 
-    /// Returns the surface with its `u` direction traversed the other way:
-    /// its point at `(u, v)` is this surface's point at
-    /// `(first + last - u, v)` over the same bounds, so `Su` changes sign.
-    /// The rows of the net are listed in reverse order and the `u` knots
-    /// mirrored, as for [`crate::BSplineCurve::reversed`]; a periodic
-    /// direction stays periodic.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::prelude::*;
-    /// use geomcore::{BSplineSurface, Point};
-    ///
-    /// let poles: Vec<Vec<Point>> = (0..3)
-    ///     .map(|i| (0..2).map(|j| Point::new(i as f64, j as f64, (i * j) as f64)).collect())
-    ///     .collect();
-    /// let surface = BSplineSurface::new(
-    ///     2, 1, poles, vec![0.0, 1.0], vec![3, 3], vec![0.0, 1.0], vec![2, 2], false, false,
-    /// )
-    /// .unwrap();
-    /// let reversed = surface.reversed_u();
-    /// assert_eq!(reversed.eval_point(0.0, 0.5), surface.eval_point(1.0, 0.5));
-    /// assert_eq!(reversed.reversed_u(), surface);
-    /// ```
-    pub fn reversed_u(&self) -> BSplineSurface {
-        let row = self.v_knots.pole_count();
-        let order: Vec<usize> = (0..self.u_knots.pole_count())
-            .flat_map(|i| {
-                let old = editing::reversed_slot(&self.u_knots, i);
-                old * row..(old + 1) * row
-            })
-            .collect();
-        BSplineSurface {
-            u_knots: editing::reversed_knots(&self.u_knots),
-            v_knots: self.v_knots.clone(),
-            poles: gathered(&self.poles, &order),
-            weights: self.weights.as_ref().map(|w| gathered(w, &order)),
-            patches: Lazy::default(),
-        }
-    }
-
-    /// Returns the surface with its `v` direction traversed the other way:
-    /// its point at `(u, v)` is this surface's point at
-    /// `(u, first + last - v)`, so `Sv` changes sign; see
-    /// [`BSplineSurface::reversed_u`].
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::prelude::*;
-    /// use geomcore::{BSplineSurface, Point};
-    ///
-    /// let poles: Vec<Vec<Point>> = (0..2)
-    ///     .map(|i| (0..3).map(|j| Point::new(i as f64, j as f64, (i * j) as f64)).collect())
-    ///     .collect();
-    /// let surface = BSplineSurface::new(
-    ///     1, 2, poles, vec![0.0, 1.0], vec![2, 2], vec![0.0, 1.0], vec![3, 3], false, false,
-    /// )
-    /// .unwrap();
-    /// let reversed = surface.reversed_v();
-    /// assert_eq!(reversed.eval_point(0.5, 0.25), surface.eval_point(0.5, 0.75));
-    /// assert_eq!(reversed.reversed_v(), surface);
-    /// ```
-    pub fn reversed_v(&self) -> BSplineSurface {
-        let row = self.v_knots.pole_count();
-        let columns: Vec<usize> = (0..row)
-            .map(|j| editing::reversed_slot(&self.v_knots, j))
-            .collect();
-        let order: Vec<usize> = (0..self.u_knots.pole_count())
-            .flat_map(|i| columns.iter().map(move |&j| i * row + j))
-            .collect();
-        BSplineSurface {
-            u_knots: self.u_knots.clone(),
-            v_knots: editing::reversed_knots(&self.v_knots),
-            poles: gathered(&self.poles, &order),
-            weights: self.weights.as_ref().map(|w| gathered(w, &order)),
-            patches: Lazy::default(),
-        }
-    }
-
-    /// Maps `u` onto the [`reversed_u`](Self::reversed_u) surface: the
-    /// parameter of the same point there, `first + last - u`. The map is
-    /// its own inverse.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::prelude::*;
-    /// use geomcore::{BSplineSurface, Point};
-    ///
-    /// let poles: Vec<Vec<Point>> = (0..3)
-    ///     .map(|i| (0..2).map(|j| Point::new(i as f64, j as f64, (i * j) as f64)).collect())
-    ///     .collect();
-    /// let surface = BSplineSurface::new(
-    ///     2, 1, poles, vec![1.0, 4.0], vec![3, 3], vec![0.0, 1.0], vec![2, 2], false, false,
-    /// )
-    /// .unwrap();
-    /// let u = surface.u_reversed_parameter(1.5);
-    /// assert_eq!(u, 3.5);
-    /// assert_eq!(surface.reversed_u().eval_point(u, 0.5), surface.eval_point(1.5, 0.5));
-    /// ```
-    pub fn u_reversed_parameter(&self, u: f64) -> f64 {
-        let (first, last) = self.u_param_range();
-        first + last - u
-    }
-
-    /// Maps `v` onto the [`reversed_v`](Self::reversed_v) surface:
-    /// `first + last - v`, as [`u_reversed_parameter`](Self::u_reversed_parameter)
-    /// for `u`.
-    pub fn v_reversed_parameter(&self, v: f64) -> f64 {
-        let (first, last) = self.v_param_range();
-        first + last - v
-    }
-
     /// The `u` isoparametric curve at `u`: `u` fixed, running along `v`
     /// with the `v` degree, knots and periodicity, so
     /// `u_iso(u).eval_point(t)` is `eval_point(u, t)` for every `t`.
@@ -1617,43 +1505,6 @@ impl BSplineSurface {
             weights,
             patches: Lazy::default(),
         })
-    }
-
-    /// Returns the image of this surface under `transform`: every control
-    /// pole maps point-wise while degrees, knots, multiplicities,
-    /// periodicity, and weights are unchanged.
-    ///
-    /// B-spline evaluation is affinely invariant, so mapping the poles is
-    /// exact for every rigid, mirrored, or uniformly scaled transform.
-    /// Infallible: pole images always form a valid net over the unchanged
-    /// knot vectors, even for a collapsing (zero-scale) transform.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use geomcore::prelude::*;
-    /// # use geomcore::BSplineSurface;
-    /// # use geomcore::{Point, Transform, Vector};
-    /// # let poles = vec![
-    /// #     vec![Point::new(0.0, 0.0, 0.0), Point::new(0.0, 1.0, 0.0)],
-    /// #     vec![Point::new(1.0, 0.0, 0.0), Point::new(1.0, 1.0, 1.0)],
-    /// # ];
-    /// # let surface = BSplineSurface::new(1, 1, poles, vec![0.0, 1.0], vec![2, 2], vec![0.0, 1.0], vec![2, 2], false, false).unwrap();
-    /// let moved = surface.transformed(Transform::translation(Vector::new(0.0, 0.0, 4.0)));
-    /// assert_eq!(moved.eval_point(0.5, 0.5), Point::new(0.5, 0.5, 4.25));
-    /// ```
-    pub fn transformed(&self, transform: Transform) -> BSplineSurface {
-        BSplineSurface {
-            u_knots: self.u_knots.clone(),
-            v_knots: self.v_knots.clone(),
-            poles: self
-                .poles
-                .iter()
-                .map(|&p| transform.apply_point(p))
-                .collect(),
-            weights: self.weights.clone(),
-            patches: Lazy::default(),
-        }
     }
 
     /// Evaluates the point and the first derivatives at `(u, v)`, each
@@ -2702,6 +2553,94 @@ fn nowhere_convex([a, b, c]: [math::Interval; 3]) -> bool {
 /// The values at `indices`, in order.
 fn gathered<T: Copy>(values: &[T], indices: &[usize]) -> Vec<T> {
     indices.iter().map(|&i| values[i]).collect()
+}
+
+impl ReversibleSurface for BSplineSurface {
+    /// Returns the surface with its `u` direction traversed the other way:
+    /// its point at `(u, v)` is this surface's point at
+    /// `(first + last - u, v)` over the same bounds, so `Su` changes sign.
+    /// The rows of the net are listed in reverse order and the `u` knots
+    /// mirrored, as for [`ReversibleCurve::reversed`](crate::ReversibleCurve::reversed); a periodic
+    /// direction stays periodic.
+    fn reversed_u(&self) -> BSplineSurface {
+        let row = self.v_knots.pole_count();
+        let order: Vec<usize> = (0..self.u_knots.pole_count())
+            .flat_map(|i| {
+                let old = editing::reversed_slot(&self.u_knots, i);
+                old * row..(old + 1) * row
+            })
+            .collect();
+        BSplineSurface {
+            u_knots: editing::reversed_knots(&self.u_knots),
+            v_knots: self.v_knots.clone(),
+            poles: gathered(&self.poles, &order),
+            weights: self.weights.as_ref().map(|w| gathered(w, &order)),
+            patches: Lazy::default(),
+        }
+    }
+
+    /// Returns the surface with its `v` direction traversed the other way:
+    /// its point at `(u, v)` is this surface's point at
+    /// `(u, first + last - v)`, so `Sv` changes sign; see
+    /// [`reversed_u`](ReversibleSurface::reversed_u).
+    fn reversed_v(&self) -> BSplineSurface {
+        let row = self.v_knots.pole_count();
+        let columns: Vec<usize> = (0..row)
+            .map(|j| editing::reversed_slot(&self.v_knots, j))
+            .collect();
+        let order: Vec<usize> = (0..self.u_knots.pole_count())
+            .flat_map(|i| columns.iter().map(move |&j| i * row + j))
+            .collect();
+        BSplineSurface {
+            u_knots: self.u_knots.clone(),
+            v_knots: editing::reversed_knots(&self.v_knots),
+            poles: gathered(&self.poles, &order),
+            weights: self.weights.as_ref().map(|w| gathered(w, &order)),
+            patches: Lazy::default(),
+        }
+    }
+
+    /// Maps `u` onto the [`reversed_u`](ReversibleSurface::reversed_u) surface: the
+    /// parameter of the same point there, `first + last - u`. The map is
+    /// its own inverse.
+    fn u_reversed_parameter(&self, u: f64) -> f64 {
+        let (first, last) = self.u_param_range();
+        first + last - u
+    }
+
+    /// Maps `v` onto the [`reversed_v`](ReversibleSurface::reversed_v) surface:
+    /// `first + last - v`, as [`u_reversed_parameter`](ReversibleSurface::u_reversed_parameter)
+    /// for `u`.
+    fn v_reversed_parameter(&self, v: f64) -> f64 {
+        let (first, last) = self.v_param_range();
+        first + last - v
+    }
+}
+
+impl Transformable for BSplineSurface {
+    /// Every pole maps point-wise; the degrees, knots, multiplicities,
+    /// weights and periodicity are kept, and so are the parameters. Exact,
+    /// as the evaluation of a B-spline is invariant under affine maps.
+    fn transformed(&self, transform: Transform) -> Result<BSplineSurface, TransformError> {
+        if transform.scale_factor() == 0.0 {
+            return Err(TransformError::Collapsed);
+        }
+        let poles: Vec<Point> = self
+            .poles
+            .iter()
+            .map(|&p| transform.apply_point(p))
+            .collect();
+        if !poles.iter().all(|p| p.is_finite()) {
+            return Err(TransformError::NonFinite);
+        }
+        Ok(BSplineSurface {
+            u_knots: self.u_knots.clone(),
+            v_knots: self.v_knots.clone(),
+            poles,
+            weights: self.weights.clone(),
+            patches: Lazy::default(),
+        })
+    }
 }
 
 #[cfg(test)]

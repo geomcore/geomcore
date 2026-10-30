@@ -6,11 +6,14 @@ use crate::elementary::surface as elementary;
 use crate::frame::frame_error;
 use crate::surfaces::ElementarySurface;
 use crate::surfaces::ParametricSurface;
+use crate::surfaces::ReversibleSurface;
 use crate::surfaces::SurfaceIsoError;
 use crate::surfaces::iso::{check_iso_param, iso_circle, iso_line};
+use crate::transform::image_error;
 use crate::{
     Axis, Circle, Frame, Line, Point, SurfaceProjection, Tolerance, Transform, Vector, projection,
 };
+use crate::{TransformError, Transformable};
 use std::f64::consts::TAU;
 use std::fmt;
 
@@ -194,81 +197,6 @@ impl Cylinder {
         self.frame.axis()
     }
 
-    /// Returns the cylinder running in the opposite angular direction:
-    /// the same point set with the frame's y direction negated, so the
-    /// frame turns indirect and the normal reverses.
-    /// `reversed_u().eval_point(u, v)` is `eval_point(-u, v)`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::prelude::*;
-    /// use geomcore::{Cylinder, Point, Vector};
-    /// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
-    /// let reversed = cylinder.reversed_u();
-    /// assert!(!reversed.frame().is_direct());
-    /// assert_eq!(reversed.eval_point(1.0, 3.0), cylinder.eval_point(-1.0, 3.0));
-    /// ```
-    pub fn reversed_u(&self) -> Cylinder {
-        Cylinder {
-            frame: self.frame.flipped_y(),
-            radius: self.radius,
-        }
-    }
-
-    /// Returns the cylinder running in the opposite axial direction:
-    /// the same point set with the frame's z direction negated.
-    /// `reversed_v().eval_point(u, v)` is `eval_point(u, -v)`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::prelude::*;
-    /// use geomcore::{Cylinder, Point, Vector};
-    /// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
-    /// let reversed = cylinder.reversed_v();
-    /// assert_eq!(reversed.eval_point(1.0, 3.0), cylinder.eval_point(1.0, -3.0));
-    /// ```
-    pub fn reversed_v(&self) -> Cylinder {
-        Cylinder {
-            frame: self.frame.flipped_z(),
-            radius: self.radius,
-        }
-    }
-
-    /// Maps `u` onto the [`reversed_u`](Self::reversed_u) cylinder: the
-    /// parameter of the same point there (`period − u`).
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::prelude::*;
-    /// use geomcore::{Cylinder, Point, Vector};
-    /// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
-    /// let u = cylinder.u_reversed_parameter(1.0);
-    /// let there = cylinder.reversed_u().eval_point(u, 0.5);
-    /// assert!(there.distance(cylinder.eval_point(1.0, 0.5)) < 1e-12);
-    /// ```
-    pub fn u_reversed_parameter(&self, u: f64) -> f64 {
-        TAU - u
-    }
-
-    /// Maps `v` onto the [`reversed_v`](Self::reversed_v) cylinder.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::prelude::*;
-    /// use geomcore::{Cylinder, Point, Vector};
-    /// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
-    /// let v = cylinder.v_reversed_parameter(0.5);
-    /// let there = cylinder.reversed_v().eval_point(1.0, v);
-    /// assert!(there.distance(cylinder.eval_point(1.0, 0.5)) < 1e-12);
-    /// ```
-    pub fn v_reversed_parameter(&self, v: f64) -> f64 {
-        -v
-    }
-
     /// The `u` isoparametric line at `u`: the generator through the point
     /// at `(u, 0)`, parallel to the axis, so `u_iso(u).eval_point(t)` is
     /// `eval_point(u, t)` for every `t`.
@@ -315,40 +243,6 @@ impl Cylinder {
             frame.x_direction(),
             self.radius,
         )
-    }
-
-    /// Returns the image of this cylinder under `transform`: the frame
-    /// origin and directions map point-wise while the radius scales by
-    /// the transform's uniform scale factor.
-    ///
-    /// Every frame axis maps through the transform, so the image's
-    /// parametrization is the transform of this one: under a rotation,
-    /// translation or mirror, `transformed(t).eval_point(u, v)` equals
-    /// `t.apply_point(self.eval_point(u, v))`. A mirror changes the
-    /// frame's handedness, so the image's normal is the opposite of
-    /// the mirrored normal (as for any map that reverses orientation);
-    /// call `reversed_u` or `reversed_v` on the image to keep the
-    /// mirrored side. Fails with [`CylinderConstructionError::NullNormal`]
-    /// only when the transform collapses the frame (a zero scale factor).
-    /// `v` is an axial length, so under a scale `s` the image of the
-    /// point at `(u, v)` sits at `(u, s * v)`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::prelude::*;
-    /// use geomcore::{Cylinder, Point, Transform, Vector};
-    /// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
-    /// let moved = cylinder.transformed(Transform::scaling(Point::ORIGIN, 3.0)).unwrap();
-    /// assert_eq!(moved.radius(), 6.0);
-    /// assert_eq!(moved.eval_point(0.0, 3.0), Point::new(6.0, 0.0, 3.0));
-    /// ```
-    pub fn transformed(&self, transform: Transform) -> Result<Cylinder, CylinderConstructionError> {
-        let (frame, scale) = transform.apply_frame(self.frame()).map_err(frame_error(
-            CylinderConstructionError::NonFinite,
-            CylinderConstructionError::NullNormal,
-        ))?;
-        Cylinder::from_frame(frame, self.radius() * scale)
     }
 }
 
@@ -412,6 +306,50 @@ impl ParametricSurface for Cylinder {
     /// cylinder's local coordinates.
     fn parameters_of(&self, point: Point, _tol: Tolerance) -> (f64, f64) {
         elementary::cylinder_parameters(&self.frame, point)
+    }
+}
+
+impl ReversibleSurface for Cylinder {
+    /// Returns the cylinder running in the opposite angular direction:
+    /// the same point set with the frame's y direction negated, so the
+    /// frame turns indirect and the normal reverses.
+    /// `reversed_u().eval_point(u, v)` is `eval_point(-u, v)`.
+    fn reversed_u(&self) -> Cylinder {
+        Cylinder {
+            frame: self.frame.flipped_y(),
+            radius: self.radius,
+        }
+    }
+
+    /// Returns the cylinder running in the opposite axial direction:
+    /// the same point set with the frame's z direction negated.
+    /// `reversed_v().eval_point(u, v)` is `eval_point(u, -v)`.
+    fn reversed_v(&self) -> Cylinder {
+        Cylinder {
+            frame: self.frame.flipped_z(),
+            radius: self.radius,
+        }
+    }
+
+    /// Maps `u` onto the [`reversed_u`](ReversibleSurface::reversed_u) cylinder: the
+    /// parameter of the same point there (`period − u`).
+    fn u_reversed_parameter(&self, u: f64) -> f64 {
+        TAU - u
+    }
+
+    /// Maps `v` onto the [`reversed_v`](ReversibleSurface::reversed_v) cylinder.
+    fn v_reversed_parameter(&self, v: f64) -> f64 {
+        -v
+    }
+}
+
+impl Transformable for Cylinder {
+    /// The frame maps through the transform and the radius scales by its
+    /// scale factor, so does the axial parameter `v`.
+    fn transformed(&self, transform: Transform) -> Result<Cylinder, TransformError> {
+        let (frame, scale) = transform.apply_frame(self.frame())?;
+        Cylinder::from_frame(frame, self.radius() * scale)
+            .map_err(image_error(CylinderConstructionError::NonFinite))
     }
 }
 

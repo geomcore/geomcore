@@ -1,6 +1,7 @@
 use crate::curves::ParametricCurve;
 use crate::curves::PointExtrema;
 use crate::{Axis, Frame, Line, LineConstructionError, Point, Tolerance, Transform, Vector};
+use crate::{TransformError, Transformable};
 
 // ---- Line construction ----
 
@@ -238,6 +239,6 @@ fn test_line3d_transformed_zero_scale_errors() {
     let line = Line::new(Point::ORIGIN, Vector::X).unwrap();
     assert_eq!(
         line.transformed(Transform::scaling(Point::ORIGIN, 0.0)),
-        Err(LineConstructionError::NullDirection)
+        Err(TransformError::Collapsed)
     );
 }

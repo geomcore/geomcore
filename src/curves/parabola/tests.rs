@@ -1,3 +1,4 @@
+use crate::Transformable;
 use crate::curves::ParametricCurve;
 use crate::curves::PointExtrema;
 use crate::{

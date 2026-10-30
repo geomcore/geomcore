@@ -1,6 +1,7 @@
 //! Infinite lines of both tiers: parametric evaluation and parameter
 //! inversion, thin wrappers over [`crate::elementary::curve`].
 
+use crate::curves::ReversibleCurve;
 use crate::curves::parametric_curve::only_minimum;
 use crate::curves::parametrize::ParametrizeError;
 use crate::curves::{Curve2D, parametrize};
@@ -12,7 +13,9 @@ use crate::projection::CurveProjection;
 use crate::surfaces::Surface;
 use crate::tier::operations::{AxisOperations, VectorOperations};
 use crate::tier::{TierPoint, impl_for_both_tiers};
+use crate::transform::image_error;
 use crate::{Point, Point2D, Tolerance, Transform, projection};
+use crate::{TransformError, Transformable};
 use std::fmt;
 
 /// Error returned when a [`Line`] or [`Line2D`] cannot be constructed from
@@ -196,30 +199,6 @@ impl<P: TierPoint> GenericLine<P> {
 }
 
 impl Line {
-    /// Returns the image of this line under `transform`: the origin maps
-    /// point-wise while the direction maps as a free vector (and is
-    /// re-normalized).
-    ///
-    /// A uniform scale leaves the normalized direction unchanged. Fails
-    /// with [`LineConstructionError::NullDirection`] only when the
-    /// transform collapses the direction (a zero scale factor).
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{Line, Point, Transform, Vector};
-    /// let line = Line::new(Point::ORIGIN, Vector::X).unwrap();
-    /// let moved = line.transformed(Transform::translation(Vector::new(1.0, 2.0, 3.0))).unwrap();
-    /// assert_eq!(moved.origin(), Point::new(1.0, 2.0, 3.0));
-    /// assert_eq!(moved.direction(), Vector::X);
-    /// ```
-    pub fn transformed(&self, transform: Transform) -> Result<Line, LineConstructionError> {
-        Line::new(
-            transform.apply_point(self.origin()),
-            transform.apply_vector(self.direction()),
-        )
-    }
-
     /// Computes the exact 2D representation of this line in a surface's
     /// parameter space: a [`Curve2D`] `q(t)` such that
     /// `surface.eval_point(q(t)) == self.eval_point(t)` for the same `t`.
@@ -319,6 +298,33 @@ impl_for_both_tiers! {
         fn as_elementary(&self) -> Option<ElementaryCurve> {
             Some(ElementaryCurve::Line(*self))
         }
+    }
+}
+
+impl Transformable for Line {
+    /// The origin maps point-wise and the direction as a free vector,
+    /// normalized again, so the parameter, a length, scales with the
+    /// transform.
+    fn transformed(&self, transform: Transform) -> Result<Line, TransformError> {
+        Line::new(
+            transform.apply_point(self.origin()),
+            transform.apply_vector(self.direction()),
+        )
+        .map_err(image_error(LineConstructionError::NonFinite))
+    }
+}
+
+impl<P: TierPoint> ReversibleCurve for GenericLine<P> {
+    /// The line through the same origin with its direction negated.
+    fn reversed(&self) -> GenericLine<P> {
+        GenericLine {
+            axis: self.axis.reversed(),
+        }
+    }
+
+    /// `-u`.
+    fn reversed_parameter(&self, u: f64) -> f64 {
+        -u
     }
 }
 

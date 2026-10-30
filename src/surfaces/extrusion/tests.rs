@@ -1,4 +1,5 @@
 use super::*;
+use crate::TransformError;
 use crate::curves::{BSplineCurve, BezierCurve};
 use crate::{Circle, Cylinder};
 
@@ -327,7 +328,7 @@ fn test_transformed_maps_every_point() {
     let (_, surface, _) = cases().remove(0);
     assert_eq!(
         surface.transformed(Transform::scaling(Point::ORIGIN, 0.0)),
-        Err(ExtrusionSurfaceConstructionError::NullDirection)
+        Err(TransformError::Collapsed)
     );
 }
 

@@ -91,11 +91,6 @@ shape_methods! {
         ))
     }
 
-    /// The curve with its parameter mirrored over the same bounds.
-    fn reversed(&self) -> Self {
-        PyBezierCurve(self.0.reversed())
-    }
-
     /// The arc length, integrating the speed to within `max_error`.
     fn length(&self, max_error: f64) -> f64 {
         self.0.length(max_error)

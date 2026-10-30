@@ -92,13 +92,4 @@ shape_methods! {
     fn area(&self) -> f64 {
         self.0.area()
     }
-
-    /// Image of this ellipse under `transform` (raises ValueError for a
-    /// collapsing transform).
-    #[pyo3(signature = (transform,))]
-    fn transformed(&self, transform: &PyTransform) -> PyResult<Self> {
-        Ok(PyEllipse(
-            self.0.transformed(transform.0).map_err(python_error)?,
-        ))
-    }
 }

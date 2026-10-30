@@ -20,11 +20,11 @@
 //!
 //! | Set | Core | Classes |
 //! |---|---|---|
-//! | `curve`, `curve_2d` | `ParametricCurve(2D)`, `PointExtrema(2D)`, `HasBoundingBox(2D)`, `Intersect` | every curve |
+//! | `curve`, `curve_2d` | `ParametricCurve(2D)`, `PointExtrema(2D)`, `ReversibleCurve`, `HasBoundingBox(2D)`, `Intersect`, and `Transformable` in 3D | every curve |
 //! | `discretize`, `discretize_2d` | `Discretize(2D)` | the bounded curves |
 //! | `sided_evaluation`, `sided_evaluation_2d` | the `*_sided` evaluations | B-spline and Bézier curves |
 //! | `parametrize_on` | `parametrize_on` | the 3D curves with a closed-form parametrization |
-//! | `surface` | `ParametricSurface`, `HasBoundingBox`, `Intersect`, isoparametric curves and reversal | every surface |
+//! | `surface` | `ParametricSurface`, `ReversibleSurface`, `Transformable`, `HasBoundingBox`, `Intersect`, isoparametric curves | every surface |
 //! | `surface_normal` | `ParametricSurface::normal` | every surface but `Plane`, whose `normal()` is its constant normal |
 //! | `sided_surface_evaluation` | the `*_sided` evaluations | B-spline and Bézier surfaces |
 //! | `surface_extrema` | `extrema` | B-spline and Bézier surfaces |
@@ -73,7 +73,19 @@ macro_rules! curve {
     ($class:ident $sets:tt { $($methods:tt)* }) => {
         $crate::method_sets::curve_methods! {
             [PyPoint, PyVector, PyBoundingBox, PyCurveProjection]
-            $class $sets { $($methods)* }
+            $class $sets {
+                $($methods)*
+
+                /// The image of the curve under `transform`, parametrized by
+                /// the image of its parametrization: a line's or parabola's
+                /// parameter, a length, scales with the transform. Raises
+                /// `ConstructionError` when the transform collapses the
+                /// curve (a zero scale) or overflows.
+                #[pyo3(signature = (transform,))]
+                fn transformed(&self, transform: &PyTransform) -> PyResult<Self> {
+                    Ok(Self(self.0.transformed(transform.0).map_err(python_error)?))
+                }
+            }
         }
     };
 }
@@ -257,6 +269,22 @@ macro_rules! curve_methods {
             #[pyo3(signature = (point, tol = None))]
             fn parameter_of(&self, point: $point, tol: Option<PyTolerance>) -> f64 {
                 self.0.parameter_of(point.0, tolerance(tol))
+            }
+
+            /// The same curve traversed the other way:
+            /// `reversed().eval_point(reversed_parameter(u))` is
+            /// `eval_point(u)`.
+            fn reversed(&self) -> Self {
+                Self(self.0.reversed())
+            }
+
+            /// Maps `u` onto the `reversed()` curve: the parameter of the
+            /// same point there. It is `first + last - u` over bounded
+            /// parameters (`2π - u` on a circle or ellipse), `-u` on a
+            /// line, parabola or hyperbola, and a trimmed curve maps as
+            /// its basis.
+            fn reversed_parameter(&self, u: f64) -> f64 {
+                self.0.reversed_parameter(u)
             }
 
             /// The axis-aligned box around the shape (`None` when unbounded).
@@ -641,6 +669,16 @@ macro_rules! surface {
             fn v_iso(&self, py: Python<'_>, v: f64) -> PyResult<Py<PyAny>> {
                 let curve = self.0.v_iso(v).map_err(python_error)?;
                 curve_classes::to_py(py, Curve::from(curve))
+            }
+
+            /// The image of the surface under `transform`, parametrized by
+            /// the image of its parametrization: a parameter that is a
+            /// length scales with the transform. Raises
+            /// `ConstructionError` when the transform collapses the surface
+            /// (a zero scale) or overflows.
+            #[pyo3(signature = (transform,))]
+            fn transformed(&self, transform: &PyTransform) -> PyResult<Self> {
+                Ok(Self(self.0.transformed(transform.0).map_err(python_error)?))
             }
 
             /// The same surface with the `u` direction reversed:

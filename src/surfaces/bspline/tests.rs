@@ -1228,7 +1228,7 @@ fn transformed_test_patch() -> BSplineSurface {
 fn test_bspline_surface_transformed_translation_spot_check() {
     let surface = transformed_test_patch();
     let t = Transform::translation(Vector::new(0.0, 0.0, 4.0));
-    let moved = surface.transformed(t);
+    let moved = surface.transformed(t).unwrap();
     // Hand-computed patch midpoint, shifted.
     assert_eq!(moved.eval_point(0.5, 0.5), Point::new(0.5, 0.5, 4.25));
     assert_eq!(moved.u_degree(), surface.u_degree());
@@ -1242,23 +1242,23 @@ fn test_bspline_surface_transformed_round_trip_and_mirror() {
     let surface = transformed_test_patch();
     let axis = Axis::new(Point::ORIGIN, Vector::Z).unwrap();
     let t = Transform::rotation(axis, PI / 2.0).then(Transform::scaling(Point::ORIGIN, 2.0));
-    let moved = surface.transformed(t);
+    let moved = surface.transformed(t).unwrap();
     let tol = Tolerance::DEFAULT;
     for (u, v) in [(0.0, 0.0), (0.5, 0.5), (1.0, 0.25)] {
         assert!(moved.contains(t.apply_point(surface.eval_point(u, v)), tol));
     }
     let inv = Transform::scaling(Point::ORIGIN, 0.5).then(Transform::rotation(axis, -PI / 2.0));
-    let back = moved.transformed(inv);
+    let back = moved.transformed(inv).unwrap();
     for (u, v) in [(0.0, 0.0), (0.5, 0.5), (1.0, 0.25)] {
         assert!(back.eval_point(u, v).distance(surface.eval_point(u, v)) < 1e-9);
     }
     // Mirror preserves the point set (as a fresh pole net).
     let m = Transform::mirror_plane(Frame::WORLD);
-    let mirrored = surface.transformed(m);
+    let mirrored = surface.transformed(m).unwrap();
     for (u, v) in [(0.0, 0.0), (0.5, 0.5), (1.0, 0.25)] {
         assert!(mirrored.contains(m.apply_point(surface.eval_point(u, v)), tol));
     }
-    assert_eq!(mirrored.transformed(m), surface);
+    assert_eq!(mirrored.transformed(m).unwrap(), surface);
 }
 
 // ---- exact projection ----

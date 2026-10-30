@@ -109,6 +109,14 @@ impl Axis {
     pub fn direction(self) -> Vector {
         self.direction
     }
+
+    /// The axis with its direction negated, through the same origin.
+    pub(crate) fn reversed(self) -> Axis {
+        Axis {
+            direction: -self.direction,
+            ..self
+        }
+    }
 }
 
 /// A 3D coordinate frame: an origin and three mutually orthogonal unit
@@ -563,6 +571,14 @@ impl Axis2D {
     pub fn direction(self) -> Vector2D {
         self.direction
     }
+
+    /// The axis with its direction negated, through the same origin.
+    pub(crate) fn reversed(self) -> Axis2D {
+        Axis2D {
+            direction: -self.direction,
+            ..self
+        }
+    }
 }
 
 /// A 2D coordinate frame: an origin and two orthogonal unit directions
@@ -729,6 +745,15 @@ impl Frame2D {
     /// ```
     pub fn is_direct(self) -> bool {
         self.x_dir.cross(self.y_dir) > 0.0
+    }
+
+    /// The frame with the y direction negated: orthonormality is kept and
+    /// the handedness flips, as [`Frame::flipped_y`] does in space.
+    pub(crate) fn flipped_y(self) -> Frame2D {
+        Frame2D {
+            y_dir: -self.y_dir,
+            ..self
+        }
     }
 }
 

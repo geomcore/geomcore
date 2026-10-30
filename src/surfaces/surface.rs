@@ -3,12 +3,14 @@
 
 use crate::curves::{Continuity, Curve};
 use crate::surfaces::ParametricSurface;
+use crate::surfaces::ReversibleSurface;
 use crate::surfaces::SurfaceCurvatures;
 use crate::surfaces::{
     BSplineSurface, BezierSurface, Cone, Cylinder, ExtrusionSurface, Plane, RevolutionSurface,
     Sphere, SurfaceIsoError, Torus,
 };
 use crate::{Point, SurfaceProjection, Tolerance, Vector};
+use crate::{Transform, TransformError, Transformable};
 
 /// Calls `worker!` on the variants of [`Surface`] or of
 /// [`ElementarySurface`] (see [`crate::shape_enum`]). The elementary
@@ -163,72 +165,6 @@ impl Surface {
     pub fn v_iso(&self, v: f64) -> Result<Curve, SurfaceIsoError> {
         Ok(surface_dispatch!(self, s => into_curve(s.v_iso(v)?)))
     }
-
-    /// The surface running in the opposite `u` direction: the same point
-    /// set with a flipped frame axis, so the normal reverses. See each
-    /// type's `reversed_u`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::prelude::*;
-    /// use geomcore::{Cylinder, Point, Surface, Vector};
-    /// let cylinder = Surface::from(Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap());
-    /// let reversed = cylinder.reversed_u();
-    /// assert_eq!(reversed.eval_point(1.0, 3.0), cylinder.eval_point(-1.0, 3.0));
-    /// ```
-    pub fn reversed_u(&self) -> Surface {
-        surface_dispatch!(self, s => Surface::from(s.reversed_u()))
-    }
-
-    /// The surface running in the opposite `v` direction, as
-    /// [`reversed_u`](Self::reversed_u) for `u`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::prelude::*;
-    /// use geomcore::{Plane, Point, Surface, Vector};
-    /// let plane = Surface::from(Plane::new(Point::ORIGIN, Vector::Z).unwrap());
-    /// let reversed = plane.reversed_v();
-    /// assert_eq!(reversed.eval_point(1.0, 2.0), plane.eval_point(1.0, -2.0));
-    /// ```
-    pub fn reversed_v(&self) -> Surface {
-        surface_dispatch!(self, s => Surface::from(s.reversed_v()))
-    }
-
-    /// Maps `u` onto the [`reversed_u`](Self::reversed_u) surface: the
-    /// parameter of the same point there. `period - u` on a periodic
-    /// elementary direction, `-u` on an unbounded one, `first + last - u`
-    /// on a B-spline or Bézier surface. The map is its own inverse.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::prelude::*;
-    /// use geomcore::{Cylinder, Point, Surface, Vector};
-    /// let cylinder = Surface::from(Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap());
-    /// let u = cylinder.u_reversed_parameter(1.0);
-    /// let there = cylinder.reversed_u().eval_point(u, 3.0);
-    /// assert!(there.distance(cylinder.eval_point(1.0, 3.0)) < 1e-12);
-    /// ```
-    pub fn u_reversed_parameter(&self, u: f64) -> f64 {
-        surface_dispatch!(self, s => s.u_reversed_parameter(u))
-    }
-
-    /// Maps `v` onto the [`reversed_v`](Self::reversed_v) surface, as
-    /// [`u_reversed_parameter`](Self::u_reversed_parameter) for `u`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{Point, Sphere, Surface};
-    /// let sphere = Surface::from(Sphere::new(Point::ORIGIN, 2.0).unwrap());
-    /// assert_eq!(sphere.v_reversed_parameter(0.5), -0.5);
-    /// ```
-    pub fn v_reversed_parameter(&self, v: f64) -> f64 {
-        surface_dispatch!(self, s => s.v_reversed_parameter(v))
-    }
 }
 
 /// An iso curve as a [`Curve`]: a line or circle converts, the iso curve
@@ -329,6 +265,30 @@ impl ParametricSurface for Surface {
 
     fn as_elementary(&self) -> Option<ElementarySurface> {
         surface_dispatch!(self, s => s.as_elementary())
+    }
+}
+
+impl ReversibleSurface for Surface {
+    fn reversed_u(&self) -> Surface {
+        surface_dispatch!(self, s => Surface::from(s.reversed_u()))
+    }
+
+    fn reversed_v(&self) -> Surface {
+        surface_dispatch!(self, s => Surface::from(s.reversed_v()))
+    }
+
+    fn u_reversed_parameter(&self, u: f64) -> f64 {
+        surface_dispatch!(self, s => s.u_reversed_parameter(u))
+    }
+
+    fn v_reversed_parameter(&self, v: f64) -> f64 {
+        surface_dispatch!(self, s => s.v_reversed_parameter(v))
+    }
+}
+
+impl Transformable for Surface {
+    fn transformed(&self, transform: Transform) -> Result<Surface, TransformError> {
+        surface_dispatch!(self, s => s.transformed(transform).map(Surface::from))
     }
 }
 
@@ -452,6 +412,30 @@ impl ParametricSurface for ElementarySurface {
 
     fn as_elementary(&self) -> Option<ElementarySurface> {
         Some(*self)
+    }
+}
+
+impl ReversibleSurface for ElementarySurface {
+    fn reversed_u(&self) -> ElementarySurface {
+        elementary_surface_dispatch!(self, s => ElementarySurface::from(s.reversed_u()))
+    }
+
+    fn reversed_v(&self) -> ElementarySurface {
+        elementary_surface_dispatch!(self, s => ElementarySurface::from(s.reversed_v()))
+    }
+
+    fn u_reversed_parameter(&self, u: f64) -> f64 {
+        elementary_surface_dispatch!(self, s => s.u_reversed_parameter(u))
+    }
+
+    fn v_reversed_parameter(&self, v: f64) -> f64 {
+        elementary_surface_dispatch!(self, s => s.v_reversed_parameter(v))
+    }
+}
+
+impl Transformable for ElementarySurface {
+    fn transformed(&self, transform: Transform) -> Result<ElementarySurface, TransformError> {
+        elementary_surface_dispatch!(self, s => s.transformed(transform).map(ElementarySurface::from))
     }
 }
 

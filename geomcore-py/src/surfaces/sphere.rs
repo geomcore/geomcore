@@ -62,15 +62,6 @@ shape_methods! {
         self.0.volume()
     }
 
-    /// Image of this sphere under `transform` (raises ValueError for a
-    /// collapsing transform).
-    #[pyo3(signature = (transform,))]
-    fn transformed(&self, transform: &PyTransform) -> PyResult<Self> {
-        Ok(PySphere(
-            self.0.transformed(transform.0).map_err(python_error)?,
-        ))
-    }
-
     /// The whole sphere as an exact rational B-spline surface.
     fn to_bspline(&self) -> PyBSplineSurface {
         PyBSplineSurface(self.0.to_bspline())

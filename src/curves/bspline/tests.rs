@@ -546,7 +546,7 @@ fn transformed_test_curve() -> BSplineCurve {
 fn test_bspline_curve3d_transformed_translation_spot_check() {
     let curve = transformed_test_curve();
     let t = Transform::translation(Vector::new(1.0, 1.0, 1.0));
-    let moved = curve.transformed(t);
+    let moved = curve.transformed(t).unwrap();
     // Poles map point-wise; the knot structure is unchanged.
     assert_eq!(moved.poles().len(), curve.poles().len());
     for (a, b) in moved.poles().iter().zip(curve.poles()) {
@@ -566,26 +566,26 @@ fn test_bspline_curve3d_transformed_round_trip_and_mirror() {
     let curve = transformed_test_curve();
     let axis = Axis::new(Point::new(0.0, 1.0, 0.0), Vector::Z).unwrap();
     let t = Transform::rotation(axis, PI / 3.0).then(Transform::scaling(Point::ORIGIN, 2.0));
-    let moved = curve.transformed(t);
+    let moved = curve.transformed(t).unwrap();
     let tol = Tolerance::DEFAULT;
     for i in 0..=10 {
         let u = i as f64 / 10.0;
         assert!(moved.contains(t.apply_point(curve.eval_point(u)), tol));
     }
     let inv = Transform::scaling(Point::ORIGIN, 0.5).then(Transform::rotation(axis, -PI / 3.0));
-    let back = moved.transformed(inv);
+    let back = moved.transformed(inv).unwrap();
     for i in 0..=10 {
         let u = i as f64 / 10.0;
         assert!(back.eval_point(u).distance(curve.eval_point(u)) < 1e-9);
     }
     // Mirror preserves the point set (as a fresh pole net).
     let m = Transform::mirror_plane(Frame::WORLD);
-    let mirrored = curve.transformed(m);
+    let mirrored = curve.transformed(m).unwrap();
     for i in 0..=10 {
         let u = i as f64 / 10.0;
         assert!(mirrored.contains(m.apply_point(curve.eval_point(u)), tol));
     }
-    assert_eq!(mirrored.transformed(m), curve);
+    assert_eq!(mirrored.transformed(m).unwrap(), curve);
 }
 
 // ---- knot insertion ----
@@ -1480,7 +1480,9 @@ fn test_remove_knot_rational_far_from_origin() {
     // The bound is measured about the poles, not the origin: a curve
     // moved far away removes the same knots.
     let offset = Vector::new(3e4, -2e4, 1e4);
-    let moved = clamped_curve(true).transformed(Transform::translation(offset));
+    let moved = clamped_curve(true)
+        .transformed(Transform::translation(offset))
+        .unwrap();
     let refined = moved.insert_knot(1.6, 2).unwrap();
     let (simpler, removed) = refined.remove_knot(1.6, 2, 1e-8).unwrap();
     assert_eq!(removed, 2);
@@ -1628,7 +1630,7 @@ fn test_bspline_curve3d_transformed_rational_keeps_weights() {
     )
     .unwrap();
     let t = Transform::translation(Vector::new(5.0, 0.0, 0.0));
-    let moved = curve.transformed(t);
+    let moved = curve.transformed(t).unwrap();
     assert_eq!(moved.weights(), curve.weights());
     assert!(moved.is_rational());
     let p = moved.eval_point(1.0);

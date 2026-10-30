@@ -6,6 +6,7 @@
 //! the knot vector is expanded into its flat knot sequence at construction,
 //! so evaluation never re-derives it.
 
+use crate::curves::ReversibleCurve;
 use crate::curves::spline::Spline;
 use crate::curves::{
     Curve2D, GenericBezierCurve, ParametricCurve, ParametricCurve2D, ParametrizeError,
@@ -15,6 +16,7 @@ use crate::projection::CurveProjection;
 use crate::surfaces::Surface;
 use crate::tier::{TierPoint, impl_for_both_tiers};
 use crate::{Continuity, Point, Point2D, Tolerance, Transform};
+use crate::{TransformError, Transformable};
 use std::fmt;
 
 /// Error returned when a [`BSplineCurve`] cannot be constructed from the
@@ -877,39 +879,6 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
             .map(|(left, right)| (GenericBSplineCurve(left), GenericBSplineCurve(right)))
     }
 
-    /// Returns the curve traversed the other way: its point at `u` is this
-    /// curve's point at `first + last - u` over the same
-    /// [`BSplineCurve::bounds`], so its derivatives of odd order change
-    /// sign.
-    ///
-    /// The poles (and weights) are listed in reverse order and the knots
-    /// mirrored, the bounds exactly; a periodic curve stays periodic, its
-    /// poles also rotated to keep the seam. Reversing twice gives the
-    /// curve back, the interior knots within rounding of the mirroring.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::prelude::*;
-    /// use geomcore::{BSplineCurve, Point};
-    ///
-    /// let poles = vec![
-    ///     Point::new(0.0, 0.0, 0.0),
-    ///     Point::new(1.0, 2.0, 0.0),
-    ///     Point::new(3.0, 2.0, 1.0),
-    ///     Point::new(4.0, 0.0, 1.0),
-    /// ];
-    /// let curve = BSplineCurve::new(3, poles, vec![0.0, 1.0], vec![4, 4], false).unwrap();
-    /// let reversed = curve.reversed();
-    /// assert_eq!(reversed.eval_point(0.0), curve.eval_point(1.0));
-    /// let (d, e) = (curve.eval_derivative(0.3, 1), reversed.eval_derivative(0.7, 1));
-    /// assert!((d + e).magnitude() < 1e-12);
-    /// assert_eq!(reversed.reversed(), curve);
-    /// ```
-    pub fn reversed(&self) -> GenericBSplineCurve<P> {
-        GenericBSplineCurve(self.0.reversed())
-    }
-
     /// Evaluates the point and the first derivative at parameter `u` from
     /// one side: [`Side::Below`] takes the span ending at `u`,
     /// [`Side::Above`] the span starting there. Both sides agree strictly
@@ -1016,29 +985,6 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
 }
 
 impl BSplineCurve {
-    /// Returns the image of this curve under `transform`: every control
-    /// pole maps point-wise while degree, knots, multiplicities,
-    /// periodicity, and weights are unchanged.
-    ///
-    /// B-spline evaluation is affinely invariant, so mapping the poles is
-    /// exact for every rigid, mirrored, or uniformly scaled transform.
-    /// Infallible: pole images always form a valid net over the unchanged
-    /// knot vector, even for a collapsing (zero-scale) transform.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::prelude::*;
-    /// use geomcore::{BSplineCurve, Point, Transform, Vector};
-    /// let poles = vec![Point::new(0.0, 0.0, 0.0), Point::new(2.0, 0.0, 0.0)];
-    /// let curve = BSplineCurve::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
-    /// let moved = curve.transformed(Transform::translation(Vector::new(0.0, 5.0, 0.0)));
-    /// assert_eq!(moved.eval_point(0.5), Point::new(1.0, 5.0, 0.0));
-    /// ```
-    pub fn transformed(&self, transform: Transform) -> BSplineCurve {
-        GenericBSplineCurve(self.0.map_poles(|p| transform.apply_point(p)))
-    }
-
     /// Computes the exact 2D representation of this B-spline curve in a
     /// surface's parameter space: a [`Curve2D`] `q(t)` such that
     /// `surface.eval_point(q(t)) == self.eval_point(t)` for the same `t`.
@@ -1142,6 +1088,30 @@ impl_for_both_tiers! {
         fn is_periodic(&self) -> bool {
             self.0.is_periodic()
         }
+    }
+}
+
+impl<P: TierPoint> ReversibleCurve for GenericBSplineCurve<P> {
+    /// The poles (and weights) are listed in reverse order and the knots
+    /// mirrored, the bounds exactly; a periodic curve stays periodic, its
+    /// poles also rotated to keep the seam. Reversing twice gives the
+    /// curve back, the interior knots within rounding of the mirroring.
+    fn reversed(&self) -> GenericBSplineCurve<P> {
+        GenericBSplineCurve(self.0.reversed())
+    }
+
+    /// `first + last - u` over the bounds.
+    fn reversed_parameter(&self, u: f64) -> f64 {
+        let (first, last) = self.0.bounds();
+        first + last - u
+    }
+}
+
+impl Transformable for BSplineCurve {
+    /// Every pole maps point-wise; the degree, knots, multiplicities,
+    /// weights and periodicity are kept, and so is the parameter.
+    fn transformed(&self, transform: Transform) -> Result<BSplineCurve, TransformError> {
+        self.0.transformed(transform).map(GenericBSplineCurve)
     }
 }
 

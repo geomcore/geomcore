@@ -6,9 +6,11 @@ use crate::elementary::surface as elementary;
 use crate::frame::frame_error;
 use crate::surfaces::ElementarySurface;
 use crate::surfaces::ParametricSurface;
+use crate::surfaces::ReversibleSurface;
 use crate::surfaces::SurfaceIsoError;
 use crate::surfaces::iso::{check_iso_param, iso_line};
 use crate::{Frame, Line, Point, SurfaceProjection, Tolerance, Transform, Vector, projection};
+use crate::{TransformError, Transformable};
 use std::fmt;
 
 /// Error returned when a [`Plane`] cannot be constructed from the given
@@ -250,80 +252,6 @@ impl Plane {
         }
     }
 
-    /// Returns the plane running in the opposite `u` direction: the same
-    /// point set with the frame's x direction negated, so the frame turns
-    /// indirect (see [`Frame::is_direct`]) and the normal reverses.
-    /// `reversed_u().eval_point(u, v)` is `eval_point(-u, v)`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::prelude::*;
-    /// use geomcore::{Plane, Point, Vector};
-    /// let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
-    /// let reversed = plane.reversed_u();
-    /// assert!(!reversed.frame().is_direct());
-    /// assert_eq!(reversed.eval_point(1.0, 2.0), plane.eval_point(-1.0, 2.0));
-    /// assert_eq!(reversed.normal(), -Vector::Z);
-    /// ```
-    pub fn reversed_u(&self) -> Plane {
-        Plane {
-            frame: self.frame.flipped_x(),
-        }
-    }
-
-    /// Returns the plane running in the opposite `v` direction: the same
-    /// point set with the frame's y direction negated.
-    /// `reversed_v().eval_point(u, v)` is `eval_point(u, -v)`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::prelude::*;
-    /// use geomcore::{Plane, Point, Vector};
-    /// let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
-    /// let reversed = plane.reversed_v();
-    /// assert_eq!(reversed.eval_point(1.0, 2.0), plane.eval_point(1.0, -2.0));
-    /// ```
-    pub fn reversed_v(&self) -> Plane {
-        Plane {
-            frame: self.frame.flipped_y(),
-        }
-    }
-
-    /// Maps `u` onto the [`reversed_u`](Self::reversed_u) plane: the
-    /// parameter of the same point there.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::prelude::*;
-    /// use geomcore::{Plane, Point, Vector};
-    /// let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
-    /// let u = plane.u_reversed_parameter(1.0);
-    /// let there = plane.reversed_u().eval_point(u, 0.5);
-    /// assert!(there.distance(plane.eval_point(1.0, 0.5)) < 1e-12);
-    /// ```
-    pub fn u_reversed_parameter(&self, u: f64) -> f64 {
-        -u
-    }
-
-    /// Maps `v` onto the [`reversed_v`](Self::reversed_v) plane.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::prelude::*;
-    /// use geomcore::{Plane, Point, Vector};
-    /// let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
-    /// let v = plane.v_reversed_parameter(0.5);
-    /// let there = plane.reversed_v().eval_point(1.0, v);
-    /// assert!(there.distance(plane.eval_point(1.0, 0.5)) < 1e-12);
-    /// ```
-    pub fn v_reversed_parameter(&self, v: f64) -> f64 {
-        -v
-    }
-
     /// The `u` isoparametric line at `u`: `u` fixed, running along `v`.
     /// A line through `origin + u * x_direction` in the `y` direction,
     /// so `u_iso(u).eval_point(t)` is `eval_point(u, t)` for every `t`.
@@ -364,39 +292,6 @@ impl Plane {
     pub fn v_iso(&self, v: f64) -> Result<Line, SurfaceIsoError> {
         let v = check_iso_param(v, None)?;
         iso_line(self.eval_point(0.0, v), self.frame.x_direction())
-    }
-
-    /// Returns the image of this plane under `transform`: the frame origin
-    /// and directions map point-wise.
-    ///
-    /// Every frame axis maps through the transform, so the image's
-    /// parametrization is the transform of this one: under a rotation,
-    /// translation or mirror, `transformed(t).eval_point(u, v)` equals
-    /// `t.apply_point(self.eval_point(u, v))`. A mirror changes the
-    /// frame's handedness, so the image's normal is the opposite of
-    /// the mirrored normal (as for any map that reverses orientation);
-    /// call `reversed_u` or `reversed_v` on the image to keep the
-    /// mirrored side. Fails with
-    /// [`PlaneConstructionError::NullNormal`] only when the transform
-    /// collapses the frame (a zero scale factor). `u` and `v` are
-    /// lengths, so under a scale `s` the image of the point at `(u, v)`
-    /// sits at `(s * u, s * v)`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::prelude::*;
-    /// use geomcore::{Plane, Point, Transform, Vector};
-    /// let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
-    /// let moved = plane.transformed(Transform::translation(Vector::new(0.0, 0.0, 2.0))).unwrap();
-    /// assert_eq!(moved.eval_point(1.0, 1.0), Point::new(1.0, 1.0, 2.0));
-    /// ```
-    pub fn transformed(&self, transform: Transform) -> Result<Plane, PlaneConstructionError> {
-        let (frame, _) = transform.apply_frame(self.frame()).map_err(frame_error(
-            PlaneConstructionError::NonFinite,
-            PlaneConstructionError::NullNormal,
-        ))?;
-        Ok(Plane::from_frame(frame))
     }
 }
 
@@ -481,6 +376,47 @@ impl ParametricSurface for Plane {
     /// coordinates in the plane's frame.
     fn parameters_of(&self, point: Point, _tol: Tolerance) -> (f64, f64) {
         elementary::plane_parameters(&self.frame, point)
+    }
+}
+
+impl ReversibleSurface for Plane {
+    /// Returns the plane running in the opposite `u` direction: the same
+    /// point set with the frame's x direction negated, so the frame turns
+    /// indirect (see [`Frame::is_direct`]) and the normal reverses.
+    /// `reversed_u().eval_point(u, v)` is `eval_point(-u, v)`.
+    fn reversed_u(&self) -> Plane {
+        Plane {
+            frame: self.frame.flipped_x(),
+        }
+    }
+
+    /// Returns the plane running in the opposite `v` direction: the same
+    /// point set with the frame's y direction negated.
+    /// `reversed_v().eval_point(u, v)` is `eval_point(u, -v)`.
+    fn reversed_v(&self) -> Plane {
+        Plane {
+            frame: self.frame.flipped_y(),
+        }
+    }
+
+    /// Maps `u` onto the [`reversed_u`](ReversibleSurface::reversed_u) plane: the
+    /// parameter of the same point there.
+    fn u_reversed_parameter(&self, u: f64) -> f64 {
+        -u
+    }
+
+    /// Maps `v` onto the [`reversed_v`](ReversibleSurface::reversed_v) plane.
+    fn v_reversed_parameter(&self, v: f64) -> f64 {
+        -v
+    }
+}
+
+impl Transformable for Plane {
+    /// The frame maps through the transform; the parameters, lengths,
+    /// scale with it.
+    fn transformed(&self, transform: Transform) -> Result<Plane, TransformError> {
+        let (frame, _) = transform.apply_frame(self.frame())?;
+        Ok(Plane::from_frame(frame))
     }
 }
 

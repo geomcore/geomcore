@@ -6,11 +6,14 @@ use crate::elementary::surface as elementary;
 use crate::frame::frame_error;
 use crate::surfaces::ElementarySurface;
 use crate::surfaces::ParametricSurface;
+use crate::surfaces::ReversibleSurface;
 use crate::surfaces::SurfaceIsoError;
 use crate::surfaces::iso::{check_iso_param, iso_circle, iso_line};
+use crate::transform::image_error;
 use crate::{
     Circle, Frame, Line, Point, SurfaceProjection, Tolerance, Transform, Vector, projection,
 };
+use crate::{TransformError, Transformable};
 use std::f64::consts::TAU;
 use std::fmt;
 
@@ -224,85 +227,6 @@ impl Cone {
         self.frame
     }
 
-    /// Returns the cone running in the opposite angular direction: the
-    /// same point set with the frame's y direction negated, so the frame
-    /// turns indirect and the normal reverses.
-    /// `reversed_u().eval_point(u, v)` is `eval_point(-u, v)`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::prelude::*;
-    /// use geomcore::{Cone, Point, Vector};
-    /// let cone = Cone::new(Point::ORIGIN, Vector::Z, 0.4, 2.0).unwrap();
-    /// let reversed = cone.reversed_u();
-    /// assert!(!reversed.frame().is_direct());
-    /// assert_eq!(reversed.eval_point(1.0, 3.0), cone.eval_point(-1.0, 3.0));
-    /// ```
-    pub fn reversed_u(&self) -> Cone {
-        Cone {
-            frame: self.frame.flipped_y(),
-            semi_angle: self.semi_angle,
-            ref_radius: self.ref_radius,
-        }
-    }
-
-    /// Returns the cone running in the opposite axial direction: the same
-    /// point set with a negated semi-angle and the frame's z direction
-    /// negated. `reversed_v().eval_point(u, v)` is `eval_point(u, -v)`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::prelude::*;
-    /// use geomcore::{Cone, Point, Vector};
-    /// let cone = Cone::new(Point::ORIGIN, Vector::Z, 0.4, 2.0).unwrap();
-    /// let reversed = cone.reversed_v();
-    /// assert_eq!(reversed.semi_angle(), -0.4);
-    /// assert_eq!(reversed.eval_point(1.0, 3.0), cone.eval_point(1.0, -3.0));
-    /// ```
-    pub fn reversed_v(&self) -> Cone {
-        Cone {
-            frame: self.frame.flipped_z(),
-            semi_angle: -self.semi_angle,
-            ref_radius: self.ref_radius,
-        }
-    }
-
-    /// Maps `u` onto the [`reversed_u`](Self::reversed_u) cone: the
-    /// parameter of the same point there (`period − u`).
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::prelude::*;
-    /// use geomcore::{Cone, Point, Vector};
-    /// let cone = Cone::new(Point::ORIGIN, Vector::Z, 0.4, 2.0).unwrap();
-    /// let u = cone.u_reversed_parameter(1.0);
-    /// let there = cone.reversed_u().eval_point(u, 0.5);
-    /// assert!(there.distance(cone.eval_point(1.0, 0.5)) < 1e-12);
-    /// ```
-    pub fn u_reversed_parameter(&self, u: f64) -> f64 {
-        use std::f64::consts::TAU;
-        TAU - u
-    }
-
-    /// Maps `v` onto the [`reversed_v`](Self::reversed_v) cone.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::prelude::*;
-    /// use geomcore::{Cone, Point, Vector};
-    /// let cone = Cone::new(Point::ORIGIN, Vector::Z, 0.4, 2.0).unwrap();
-    /// let v = cone.v_reversed_parameter(0.5);
-    /// let there = cone.reversed_v().eval_point(1.0, v);
-    /// assert!(there.distance(cone.eval_point(1.0, 0.5)) < 1e-12);
-    /// ```
-    pub fn v_reversed_parameter(&self, v: f64) -> f64 {
-        -v
-    }
-
     /// Returns the cone's semi-angle.
     ///
     /// # Examples
@@ -396,42 +320,6 @@ impl Cone {
             frame.x_direction(),
             self.ref_radius + v * self.semi_angle.sin(),
         )
-    }
-
-    /// Returns the image of this cone under `transform`: the frame origin
-    /// and directions map point-wise, the semi-angle is unchanged (a
-    /// similarity preserves angles), and the reference radius scales by
-    /// the transform's uniform scale factor.
-    ///
-    /// Every frame axis maps through the transform, so the image's
-    /// parametrization is the transform of this one: under a rotation,
-    /// translation or mirror, `transformed(t).eval_point(u, v)` equals
-    /// `t.apply_point(self.eval_point(u, v))`. A mirror changes the
-    /// frame's handedness, so the image's normal is the opposite of
-    /// the mirrored normal (as for any map that reverses orientation);
-    /// call `reversed_u` or `reversed_v` on the image to keep the
-    /// mirrored side. Fails with [`ConeConstructionError::NullNormal`] only
-    /// when the transform collapses the frame (a zero scale factor).
-    /// `v` is a length along the generatrix, so under a scale `s` the
-    /// image of the point at `(u, v)` sits at `(u, s * v)`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::prelude::*;
-    /// use geomcore::{Cone, Point, Transform, Vector};
-    /// let cone = Cone::new(Point::ORIGIN, Vector::Z, 0.4, 2.0).unwrap();
-    /// let moved = cone.transformed(Transform::translation(Vector::new(1.0, 0.0, 0.0))).unwrap();
-    /// assert_eq!(moved.semi_angle(), 0.4);
-    /// assert_eq!(moved.ref_radius(), 2.0);
-    /// assert_eq!(moved.eval_point(0.0, 0.0), Point::new(3.0, 0.0, 0.0));
-    /// ```
-    pub fn transformed(&self, transform: Transform) -> Result<Cone, ConeConstructionError> {
-        let (frame, scale) = transform.apply_frame(self.frame()).map_err(frame_error(
-            ConeConstructionError::NonFinite,
-            ConeConstructionError::NullNormal,
-        ))?;
-        Cone::from_frame(frame, self.semi_angle(), self.ref_radius() * scale)
     }
 }
 
@@ -537,6 +425,54 @@ impl ParametricSurface for Cone {
     /// including the opposite-nappe handling below the apex.
     fn parameters_of(&self, point: Point, _tol: Tolerance) -> (f64, f64) {
         elementary::cone_parameters(&self.frame, self.ref_radius, self.semi_angle, point)
+    }
+}
+
+impl ReversibleSurface for Cone {
+    /// Returns the cone running in the opposite angular direction: the
+    /// same point set with the frame's y direction negated, so the frame
+    /// turns indirect and the normal reverses.
+    /// `reversed_u().eval_point(u, v)` is `eval_point(-u, v)`.
+    fn reversed_u(&self) -> Cone {
+        Cone {
+            frame: self.frame.flipped_y(),
+            semi_angle: self.semi_angle,
+            ref_radius: self.ref_radius,
+        }
+    }
+
+    /// Returns the cone running in the opposite axial direction: the same
+    /// point set with a negated semi-angle and the frame's z direction
+    /// negated. `reversed_v().eval_point(u, v)` is `eval_point(u, -v)`.
+    fn reversed_v(&self) -> Cone {
+        Cone {
+            frame: self.frame.flipped_z(),
+            semi_angle: -self.semi_angle,
+            ref_radius: self.ref_radius,
+        }
+    }
+
+    /// Maps `u` onto the [`reversed_u`](ReversibleSurface::reversed_u) cone: the
+    /// parameter of the same point there (`period − u`).
+    fn u_reversed_parameter(&self, u: f64) -> f64 {
+        use std::f64::consts::TAU;
+        TAU - u
+    }
+
+    /// Maps `v` onto the [`reversed_v`](ReversibleSurface::reversed_v) cone.
+    fn v_reversed_parameter(&self, v: f64) -> f64 {
+        -v
+    }
+}
+
+impl Transformable for Cone {
+    /// The frame maps through the transform, the semi-angle is kept and
+    /// the reference radius scales by its scale factor, so does the
+    /// generator parameter `v`.
+    fn transformed(&self, transform: Transform) -> Result<Cone, TransformError> {
+        let (frame, scale) = transform.apply_frame(self.frame())?;
+        Cone::from_frame(frame, self.semi_angle(), self.ref_radius() * scale)
+            .map_err(image_error(ConeConstructionError::NonFinite))
     }
 }
 

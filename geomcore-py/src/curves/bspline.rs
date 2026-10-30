@@ -208,20 +208,8 @@ shape_methods! {
         Ok((PyBSplineCurve(a), PyBSplineCurve(b)))
     }
 
-    /// The curve with its parameter mirrored, keeping a periodic curve
-    /// periodic.
-    fn reversed(&self) -> Self {
-        PyBSplineCurve(self.0.reversed())
-    }
-
     /// The arc length, integrating the speed to within `max_error`.
     fn length(&self, max_error: f64) -> f64 {
         self.0.length(max_error)
-    }
-
-    /// Image of this curve under `transform` (maps every control pole).
-    #[pyo3(signature = (transform,))]
-    fn transformed(&self, transform: &PyTransform) -> Self {
-        PyBSplineCurve(self.0.transformed(transform.0))
     }
 }

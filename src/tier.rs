@@ -191,6 +191,10 @@ pub(crate) mod operations {
         /// the frame's xy plane: its z coordinate in space, zero in the
         /// plane.
         fn plane_offset(self, offset: <Self::Point as TierPoint>::Vector) -> f64;
+
+        /// The frame with the y direction negated, which reverses the
+        /// conics drawn in it.
+        fn flipped_y(self) -> Self;
     }
 
     /// The operations of a tier's axes.
@@ -209,6 +213,9 @@ pub(crate) mod operations {
 
         /// The unit direction.
         fn direction(self) -> <Self::Point as TierPoint>::Vector;
+
+        /// The axis with its direction negated.
+        fn reversed(self) -> Self;
     }
 
     impl PointOperations for Point {
@@ -332,6 +339,11 @@ pub(crate) mod operations {
         fn plane_offset(self, offset: Vector) -> f64 {
             offset.dot(self.z_direction())
         }
+
+        #[inline]
+        fn flipped_y(self) -> Frame {
+            Frame::flipped_y(self)
+        }
     }
 
     impl FrameOperations for Frame2D {
@@ -356,6 +368,11 @@ pub(crate) mod operations {
         fn plane_offset(self, _offset: Vector2D) -> f64 {
             0.0
         }
+
+        #[inline]
+        fn flipped_y(self) -> Frame2D {
+            Frame2D::flipped_y(self)
+        }
     }
 
     impl AxisOperations for Axis {
@@ -375,6 +392,11 @@ pub(crate) mod operations {
         fn direction(self) -> Vector {
             Axis::direction(self)
         }
+
+        #[inline]
+        fn reversed(self) -> Axis {
+            Axis::reversed(self)
+        }
     }
 
     impl AxisOperations for Axis2D {
@@ -393,6 +415,11 @@ pub(crate) mod operations {
         #[inline]
         fn direction(self) -> Vector2D {
             Axis2D::direction(self)
+        }
+
+        #[inline]
+        fn reversed(self) -> Axis2D {
+            Axis2D::reversed(self)
         }
     }
 }

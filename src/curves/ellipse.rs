@@ -2,6 +2,7 @@
 //! and center+two-points construction, thin wrappers over
 //! [`crate::elementary::curve`].
 
+use crate::curves::ReversibleCurve;
 use crate::curves::parametrize::ParametrizeError;
 use crate::curves::{Curve2D, parametrize};
 use crate::curves::{ElementaryCurve, ParametricCurve, ParametricCurve2D};
@@ -13,7 +14,9 @@ use crate::projection::CurveProjection;
 use crate::surfaces::Surface;
 use crate::tier::operations::FrameOperations;
 use crate::tier::{TierPoint, impl_for_both_tiers};
+use crate::transform::image_error;
 use crate::{Frame, Frame2D, Point, Point2D, Tolerance, Transform, Vector, Vector2D, projection};
+use crate::{TransformError, Transformable};
 use std::f64::consts::TAU;
 use std::fmt;
 
@@ -342,39 +345,6 @@ impl Ellipse {
         Ellipse::from_frame(frame, d1, d2)
     }
 
-    /// Returns the image of this ellipse under `transform`: the center and
-    /// frame directions map point-wise while both radii scale by the
-    /// transform's uniform scale factor.
-    ///
-    /// Every frame axis maps through the transform, so the image's
-    /// parametrization is the transform of this one: under a rotation,
-    /// translation or mirror, `transformed(t).eval_point(u)` equals
-    /// `t.apply_point(self.eval_point(u))`, and a mirror changes the
-    /// frame's handedness. Fails with [`EllipseConstructionError::NullNormal`] only
-    /// when the transform collapses the frame (a zero scale factor).
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{Ellipse, Point, Transform, Vector};
-    /// let ellipse = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 3.0, 1.5).unwrap();
-    /// let moved = ellipse.transformed(Transform::scaling(Point::ORIGIN, 2.0)).unwrap();
-    /// assert_eq!(moved.center(), Point::ORIGIN);
-    /// assert_eq!(moved.major_radius(), 6.0);
-    /// assert_eq!(moved.minor_radius(), 3.0);
-    /// ```
-    pub fn transformed(&self, transform: Transform) -> Result<Ellipse, EllipseConstructionError> {
-        let (frame, scale) = transform.apply_frame(self.frame()).map_err(frame_error(
-            EllipseConstructionError::NonFinite,
-            EllipseConstructionError::NullNormal,
-        ))?;
-        Ellipse::from_frame(
-            frame,
-            self.major_radius() * scale,
-            self.minor_radius() * scale,
-        )
-    }
-
     /// Computes the exact 2D representation of this ellipse in a surface's
     /// parameter space: a [`Curve2D`] `q(t)` such that
     /// `surface.eval_point(q(t)) == self.eval_point(t)` for the same `t`.
@@ -646,6 +616,35 @@ impl_for_both_tiers! {
         fn as_elementary(&self) -> Option<ElementaryCurve> {
             Some(ElementaryCurve::Ellipse(*self))
         }
+    }
+}
+
+impl Transformable for Ellipse {
+    /// The frame maps through the transform and both radii scale by its
+    /// scale factor.
+    fn transformed(&self, transform: Transform) -> Result<Ellipse, TransformError> {
+        let (frame, scale) = transform.apply_frame(self.frame())?;
+        Ellipse::from_frame(
+            frame,
+            self.major_radius() * scale,
+            self.minor_radius() * scale,
+        )
+        .map_err(image_error(EllipseConstructionError::NonFinite))
+    }
+}
+
+impl<P: TierPoint> ReversibleCurve for GenericEllipse<P> {
+    /// The ellipse with its frame's y direction negated.
+    fn reversed(&self) -> GenericEllipse<P> {
+        GenericEllipse {
+            frame: self.frame.flipped_y(),
+            ..*self
+        }
+    }
+
+    /// `2π - u`.
+    fn reversed_parameter(&self, u: f64) -> f64 {
+        TAU - u
     }
 }
 
