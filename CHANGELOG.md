@@ -46,16 +46,17 @@ the Python distribution are versioned in lockstep.
 - The marching intersection is split into a surface pair, a tracer and a
   seeding policy (ADR 0025). Its results are unchanged.
 - Marching finds loops smaller than the spacing of its iso-curves and
-  grids on more pairs: every pair whose surfaces convert to exact
-  B-spline patches, an unbounded one over the other's box, adds the
-  seeds of the patch-pair search, as two B-splines did (ADR 0026). A bump
-  of a B-spline finer than its knot spans against a plane, cylinder or
-  extrusion, and a small cap a plane cuts off a torus, were missed and
-  are found. Two bounded elementary surfaces, and pairs whose seeds only
-  touch, are left as they were. The search runs once those seeds are
-  traced, and drops the pairs a traced curve already explains. It costs
-  60 % more seeding time on a plane cutting a torus, and up to 20 % on a
-  plane or cylinder against a B-spline patch.
+  grids on more pairs (ADR 0026). Once those seeds are traced, a pair
+  with an elementary surface shoots an iso-curve of the other surface
+  through each maximum and minimum of the elementary surface's implicit
+  equation along it, where a closed loop must enclose one; other pairs
+  that convert to exact B-spline patches run the patch-pair search, as
+  two B-splines did. A bump of a B-spline finer than its knot spans
+  against a plane, cylinder or extrusion, and a small cap a plane cuts
+  off a torus, were missed and are found; a plane against a torus finds
+  every such loop in closed form. Two bounded elementary surfaces, and
+  pairs whose seeds only touch, are left as they were. Seeding costs at
+  most 2.2 % more on the benches where nothing new is found.
 - A B-spline curve against an `ExtrusionSurface` or `RevolutionSurface`
   of a bounded profile goes through the proven hull search: its
   completeness is `Complete` or `Incomplete` instead of `Sampled`.

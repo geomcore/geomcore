@@ -21,4 +21,4 @@ The surface pair stays generic over the two surface types, as the functions it r
 
 ## Amendment, 2026-10-30
 
-ADR 0026 adds a second round to the seeding policy: `seeds` returns the seeds traced first and whether `later_seeds` follows, and `later_seeds` runs the patch-pair search with the curves traced so far, so that it can drop the pairs they already cross. The policy still decides which sources run and in what order; `marching_intersection` traces the two rounds in turn.
+ADR 0026 adds a second round to the seeding policy: `seeds` returns the seeds traced first and whether `later_seeds` follows, and `later_seeds` runs with the curves traced so far: the extremum search of ADR 0026 when one surface is elementary, otherwise the patch-pair search, which drops the pairs those curves already cross. The policy still decides which sources run and in what order; `marching_intersection` traces the two rounds in turn.

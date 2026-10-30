@@ -10,6 +10,7 @@
 //! ([`coincidence`]) runs first.
 
 mod coincidence;
+mod extrema;
 mod pair;
 mod seeding;
 mod tracer;
@@ -157,7 +158,8 @@ use tracer::{CHORD_DEVIATION, Trace, Tracer};
 /// each other make the result `Incomplete` with an `Unseparated` region
 /// around them, but spurious curves may still cross the overlap), and a fixed number of seeding iso-curves or grid samples (a
 /// loop that no seeding iso-curve crosses, or that leaves no distance
-/// minimum on either grid, is missed where no patch-pair search runs) —
+/// minimum on either grid, is missed where neither the extremum search
+/// nor the patch-pair search of the later seeds finds it) —
 /// v1 heuristics, documented so
 /// callers can judge fit.
 pub(crate) fn marching_intersection<A, B>(

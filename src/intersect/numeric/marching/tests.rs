@@ -1214,6 +1214,13 @@ fn test_without_confused_keeps_the_ends() {
 /// `(38/96, 38/96)`: halfway between two lines of the parameter grid
 /// seeding marching, which see the sheet flat.
 fn bumped_sheet(height: f64) -> crate::surfaces::BSplineSurface {
+    sheet_with_bumps(&[(39, 39, height)])
+}
+
+/// The sheet of [`bumped_sheet`] with a bump of height `h` (negative for a
+/// dent) topped at `((i - 1) / 96, (j - 1) / 96)` for each `(i, j, h)` of
+/// `bumps`.
+pub(super) fn sheet_with_bumps(bumps: &[(usize, usize, f64)]) -> crate::surfaces::BSplineSurface {
     const SPANS: usize = 96;
     // The Greville abscissae of a clamped uniform cubic knot vector.
     let knot = |k: usize| k.clamp(2, SPANS + 2) as f64 - 2.0;
@@ -1223,11 +1230,10 @@ fn bumped_sheet(height: f64) -> crate::surfaces::BSplineSurface {
         .map(|i| {
             (0..SPANS + 3)
                 .map(|j| {
-                    let z = if i == 39 && j == 39 {
-                        2.25 * height
-                    } else {
-                        0.0
-                    };
+                    let z = bumps
+                        .iter()
+                        .find(|bump| (bump.0, bump.1) == (i, j))
+                        .map_or(0.0, |bump| 2.25 * bump.2);
                     Point::new(abscissa(i), abscissa(j), z)
                 })
                 .collect()
@@ -1251,7 +1257,7 @@ fn bumped_sheet(height: f64) -> crate::surfaces::BSplineSurface {
 }
 
 /// Asserts one closed curve on both surfaces, within `radius` of `centre`.
-fn assert_one_small_loop<A, B>(
+pub(super) fn assert_one_small_loop<A, B>(
     result: &SurfaceSurfaceIntersection,
     a: &A,
     b: &B,

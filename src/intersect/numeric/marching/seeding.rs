@@ -1,6 +1,7 @@
 //! Where marching starts its traces: which seed sources run on a pair of
 //! surfaces, in what order, and when one is left out (see [`seeds`]).
 
+use super::extrema::extremum_seeds;
 use super::pair::{SurfacePair, swap};
 use super::tracer::first_step;
 use crate::curves::{Circle, ElementaryCurve, ParametricCurve, PointExtrema};
@@ -99,12 +100,16 @@ where
     (points.into_iter().map(Seed::On).collect(), later)
 }
 
-/// The centres of the patch pairs of the two surfaces of `pair` when both
-/// convert to patches (see [`pair_patches`]), searched once the seeds of
-/// [`seeds`] are traced: a pair whose normals are never parallel and
-/// whose overlap a traced curve crosses (`traced`) is dropped, flat or
-/// not (see [`patch_pairs`](patch_pairs::patch_pairs)), so that the
-/// search halves only around what the traces left unexplained.
+/// The seeds searched once the seeds of [`seeds`] are traced:
+/// - when one surface is elementary and the other converts to patches,
+///   the iso-curves through the extrema of the elementary surface's level
+///   along the other (see [`extremum_seeds`]);
+/// - otherwise the centres of the patch pairs of the two surfaces when
+///   both convert to patches (see [`pair_patches`]): a pair whose normals
+///   are never parallel and whose overlap a traced curve crosses
+///   (`traced`) is dropped, flat or not (see
+///   [`patch_pairs`](patch_pairs::patch_pairs)), so that the search
+///   halves only around what the traces left unexplained.
 pub(super) fn later_seeds<A, B>(
     pair: SurfacePair<A, B>,
     traced: &dyn Fn(&Aabb) -> bool,
@@ -114,6 +119,9 @@ where
     A: ParametricSurface,
     B: ParametricSurface,
 {
+    if let Some(points) = extremum_seeds(pair, tol) {
+        return points.into_iter().map(Seed::On).collect();
+    }
     pair_patches(pair.first, pair.second, tol).map_or_else(Vec::new, |patches| {
         patch_pair_seeds(&patches, traced, tol).0
     })
