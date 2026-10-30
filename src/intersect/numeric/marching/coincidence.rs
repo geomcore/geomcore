@@ -70,6 +70,7 @@ where
 ///   other.
 ///
 /// `None` when neither lies on the other.
+#[inline]
 pub(super) fn coincidence<A, B>(
     pair: SurfacePair<A, B>,
     tol: Tolerance,

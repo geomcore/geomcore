@@ -508,6 +508,7 @@ fn osculation(tol: Tolerance) -> f64 {
 /// arbitrary. Unlike `normal` it does not recover the limiting normal
 /// there: the second forms built on it need the tangent plane that
 /// `(su, sv)` spans.
+#[inline]
 pub(super) fn unit_normal<S: ParametricSurface + ?Sized>(
     surface: &S,
     su: Vector,
