@@ -25,7 +25,7 @@ pub use cone::{Cone, ConeConstructionError};
 pub use cylinder::{Cylinder, CylinderConstructionError};
 pub use extrusion::{ExtrusionSurface, ExtrusionSurfaceConstructionError};
 pub use iso::SurfaceIsoError;
-pub use parametric_surface::{ParametricSurface, SurfaceCurvatures};
+pub use parametric_surface::{ParametricSurface, ReversibleSurface, SurfaceCurvatures};
 pub use plane::{Plane, PlaneConstructionError};
 pub use revolution::{RevolutionSurface, RevolutionSurfaceConstructionError};
 pub use sphere::{Sphere, SphereConstructionError};

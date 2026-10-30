@@ -36,17 +36,19 @@ Curves and surfaces answer the same differential queries as in Rust,
 with the tolerance as the keyword `tol=None` (`Tolerance.default()`):
 
 - 3D curves: `tangent(u)`, `curvature(u)` and `curvature_center(u)`,
-  `is_closed()`, `continuity(u)` and `min_continuity()`.
-- 2D curves: the same queries; `curvature(u)` is signed (positive where
-  the tangent turns left). `bounding_box()` returns a `BoundingBox2D`,
-  or `None` when the curve is unbounded.
+  `is_closed()`, `continuity(u)` and `min_continuity()`, `reversed()`
+  with `reversed_parameter(u)` mapping a parameter onto the reversed
+  curve, and `transformed(transform)`.
+- 2D curves: the same queries but `transformed`; `curvature(u)` is
+  signed (positive where the tangent turns left). `bounding_box()`
+  returns a `BoundingBox2D`, or `None` when the curve is unbounded.
 - Surfaces: `normal(u, v)` (`Plane.normal()` takes no parameters),
   `curvatures(u, v)` returning a `SurfaceCurvatures`, `is_u_closed()` /
   `is_v_closed()`, `continuity_u(u)` / `continuity_v(v)` and their
-  `min_continuity_u()` / `min_continuity_v()`, and `reversed_u()` /
+  `min_continuity_u()` / `min_continuity_v()`, `reversed_u()` /
   `reversed_v()` with `u_reversed_parameter(u)` /
   `v_reversed_parameter(v)` mapping a parameter onto the reversed
-  surface.
+  surface, and `transformed(transform)`.
 - B-splines: `eval_d1_sided`, `eval_d2_sided` and
   `eval_derivative_sided`, taking a `Side` (`Side.BELOW` or `Side.ABOVE`)
   per direction, to read each side of a knot or periodic seam.

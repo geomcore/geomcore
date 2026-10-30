@@ -61,15 +61,6 @@ shape_methods! {
         PyVector(self.0.normal())
     }
 
-    /// Image of this plane under `transform` (raises ValueError for a
-    /// collapsing transform).
-    #[pyo3(signature = (transform,))]
-    fn transformed(&self, transform: &PyTransform) -> PyResult<Self> {
-        Ok(PyPlane(
-            self.0.transformed(transform.0).map_err(python_error)?,
-        ))
-    }
-
     /// The patch `u_range × v_range` as an exact bilinear B-spline
     /// surface (raises `ValueError` for a bad range).
     fn to_bspline_patch(

@@ -46,16 +46,6 @@ shape_methods! {
         PyAxis(self.0.axis())
     }
 
-    /// Image of this surface under `transform` (raises ValueError for a
-    /// collapsing transform). A scale changes the parameter of a line or
-    /// parabola profile, whose parameter is a length.
-    #[pyo3(signature = (transform,))]
-    fn transformed(&self, transform: &PyTransform) -> PyResult<Self> {
-        Ok(PyRevolutionSurface(
-            self.0.transformed(transform.0).map_err(python_error)?,
-        ))
-    }
-
     /// The whole surface as an exact rational B-spline surface (raises
     /// `ValueError` for an unbounded profile).
     fn to_bspline(&self) -> PyResult<PyBSplineSurface> {

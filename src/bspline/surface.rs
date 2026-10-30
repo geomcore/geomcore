@@ -267,7 +267,15 @@ fn surface_derivatives_from<const ORDER: usize>(
 /// by the quotient rule of [`surface_derivatives`] when `rational`.
 #[inline]
 fn quotient(sums: [[f64; 4]; 6], rational: bool) -> [Vector; 6] {
-    let [s, su, sv, suu, suv, svv] = sums.map(|a| Vector::new(a[0], a[1], a[2]));
+    let vector = |a: [f64; 4]| Vector::new(a[0], a[1], a[2]);
+    let [s, su, sv, suu, suv, svv] = [
+        vector(sums[0]),
+        vector(sums[1]),
+        vector(sums[2]),
+        vector(sums[3]),
+        vector(sums[4]),
+        vector(sums[5]),
+    ];
     if !rational {
         return [s, su, sv, suu, suv, svv];
     }

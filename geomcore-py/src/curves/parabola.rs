@@ -57,13 +57,4 @@ shape_methods! {
     fn focal(&self) -> f64 {
         self.0.focal()
     }
-
-    /// Image of this parabola under `transform` (raises ValueError for a
-    /// collapsing transform).
-    #[pyo3(signature = (transform,))]
-    fn transformed(&self, transform: &PyTransform) -> PyResult<Self> {
-        Ok(PyParabola(
-            self.0.transformed(transform.0).map_err(python_error)?,
-        ))
-    }
 }

@@ -73,6 +73,12 @@ pub trait RangeOperations {
         first: f64,
         last: f64,
     ) -> Result<GenericBSplineCurve<Self::Point>, BSplineConversionError>;
+
+    /// Whether the parameter is a length, which a transform scales by its
+    /// scale factor (a line's and a parabola's), rather than an angle or a
+    /// B-spline parameter, which it keeps. A transformed trimmed curve
+    /// maps its range by it.
+    fn parameter_is_length(&self) -> bool;
 }
 
 impl_for_both_tiers! {
@@ -105,6 +111,10 @@ impl_for_both_tiers! {
         ) -> Result<GenericBSplineCurve<P>, BSplineConversionError> {
             let (start, end) = (self.eval_point(first), self.eval_point(last));
             conversion::segment_bspline(start, end, (first, last))
+        }
+
+        fn parameter_is_length(&self) -> bool {
+            true
         }
     }
 }
@@ -152,6 +162,10 @@ impl_for_both_tiers! {
             let r = self.radius();
             conversion::ellipse_arc_bspline(self.frame(), (r, r), (first, last))
         }
+
+        fn parameter_is_length(&self) -> bool {
+            false
+        }
     }
 }
 
@@ -198,6 +212,10 @@ impl_for_both_tiers! {
             let radii = (self.major_radius(), self.minor_radius());
             conversion::ellipse_arc_bspline(self.frame(), radii, (first, last))
         }
+
+        fn parameter_is_length(&self) -> bool {
+            false
+        }
     }
 }
 
@@ -236,6 +254,10 @@ impl_for_both_tiers! {
             last: f64,
         ) -> Result<GenericBSplineCurve<P>, BSplineConversionError> {
             conversion::parabola_arc_bspline(self.frame(), self.focal(), (first, last))
+        }
+
+        fn parameter_is_length(&self) -> bool {
+            true
         }
     }
 }
@@ -278,6 +300,10 @@ impl_for_both_tiers! {
             let radii = (self.major_radius(), self.minor_radius());
             conversion::hyperbola_arc_bspline(self.frame(), radii, (first, last))
         }
+
+        fn parameter_is_length(&self) -> bool {
+            false
+        }
     }
 }
 
@@ -309,6 +335,10 @@ impl_for_both_tiers! {
         ) -> Result<GenericBSplineCurve<P>, BSplineConversionError> {
             conversion::bspline_piece(self, (first, last))
         }
+
+        fn parameter_is_length(&self) -> bool {
+            false
+        }
     }
 }
 
@@ -339,6 +369,10 @@ impl_for_both_tiers! {
             last: f64,
         ) -> Result<GenericBSplineCurve<P>, BSplineConversionError> {
             conversion::bspline_piece(self.bspline(), (first, last))
+        }
+
+        fn parameter_is_length(&self) -> bool {
+            false
         }
     }
 }
@@ -373,6 +407,10 @@ macro_rules! range_operations_by_dispatch {
                 last: f64,
             ) -> Result<GenericBSplineCurve<$point>, BSplineConversionError> {
                 $dispatch!(self, c => c.bspline_range(first, last))
+            }
+
+            fn parameter_is_length(&self) -> bool {
+                $dispatch!(self, c => c.parameter_is_length())
             }
         }
     )*};
@@ -410,5 +448,9 @@ impl<C: RangeOperations + ?Sized> RangeOperations for &C {
         last: f64,
     ) -> Result<GenericBSplineCurve<C::Point>, BSplineConversionError> {
         (**self).bspline_range(first, last)
+    }
+
+    fn parameter_is_length(&self) -> bool {
+        (**self).parameter_is_length()
     }
 }

@@ -5,9 +5,12 @@ use crate::elementary::surface as elementary;
 use crate::frame::frame_error;
 use crate::surfaces::ElementarySurface;
 use crate::surfaces::ParametricSurface;
+use crate::surfaces::ReversibleSurface;
 use crate::surfaces::SurfaceIsoError;
 use crate::surfaces::iso::{check_iso_param, iso_circle};
+use crate::transform::image_error;
 use crate::{Circle, Frame, Point, SurfaceProjection, Tolerance, Transform, Vector, projection};
+use crate::{TransformError, Transformable};
 use std::f64::consts::TAU;
 use std::fmt;
 
@@ -153,86 +156,6 @@ impl Torus {
         self.frame
     }
 
-    /// Returns the torus running in the opposite angular direction: the
-    /// same point set with the frame's y direction negated, so the frame
-    /// turns indirect and the normal reverses.
-    /// `reversed_u().eval_point(u, v)` is `eval_point(-u, v)`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::prelude::*;
-    /// use geomcore::{Point, Torus, Vector};
-    /// let torus = Torus::new(Point::ORIGIN, Vector::Z, 5.0, 1.5).unwrap();
-    /// let reversed = torus.reversed_u();
-    /// assert!(!reversed.frame().is_direct());
-    /// assert_eq!(reversed.eval_point(1.0, 0.5), torus.eval_point(-1.0, 0.5));
-    /// ```
-    pub fn reversed_u(&self) -> Torus {
-        Torus {
-            frame: self.frame.flipped_y(),
-            major_radius: self.major_radius,
-            minor_radius: self.minor_radius,
-        }
-    }
-
-    /// Returns the torus running in the opposite tube direction: the same
-    /// point set with the frame's z direction negated.
-    /// `reversed_v().eval_point(u, v)` is `eval_point(u, -v)`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::prelude::*;
-    /// use geomcore::{Point, Torus, Vector};
-    /// let torus = Torus::new(Point::ORIGIN, Vector::Z, 5.0, 1.5).unwrap();
-    /// let reversed = torus.reversed_v();
-    /// assert_eq!(reversed.eval_point(1.0, 0.5), torus.eval_point(1.0, -0.5));
-    /// ```
-    pub fn reversed_v(&self) -> Torus {
-        Torus {
-            frame: self.frame.flipped_z(),
-            major_radius: self.major_radius,
-            minor_radius: self.minor_radius,
-        }
-    }
-
-    /// Maps `u` onto the [`reversed_u`](Self::reversed_u) torus: the
-    /// parameter of the same point there (`period − u`).
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::prelude::*;
-    /// use geomcore::{Point, Torus, Vector};
-    /// let torus = Torus::new(Point::ORIGIN, Vector::Z, 5.0, 1.5).unwrap();
-    /// let u = torus.u_reversed_parameter(1.0);
-    /// let there = torus.reversed_u().eval_point(u, 0.5);
-    /// assert!(there.distance(torus.eval_point(1.0, 0.5)) < 1e-12);
-    /// ```
-    pub fn u_reversed_parameter(&self, u: f64) -> f64 {
-        use std::f64::consts::TAU;
-        TAU - u
-    }
-
-    /// Maps `v` onto the [`reversed_v`](Self::reversed_v) torus: the
-    /// parameter of the same point there (`period − v`).
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::prelude::*;
-    /// use geomcore::{Point, Torus, Vector};
-    /// let torus = Torus::new(Point::ORIGIN, Vector::Z, 5.0, 1.5).unwrap();
-    /// let v = torus.v_reversed_parameter(0.5);
-    /// let there = torus.reversed_v().eval_point(1.0, v);
-    /// assert!(there.distance(torus.eval_point(1.0, 0.5)) < 1e-12);
-    /// ```
-    pub fn v_reversed_parameter(&self, v: f64) -> f64 {
-        use std::f64::consts::TAU;
-        TAU - v
-    }
-
     /// Returns the torus's major radius (the distance from the center to
     /// the tube's centerline circle).
     ///
@@ -317,41 +240,6 @@ impl Torus {
             self.major_radius + self.minor_radius * v.cos(),
         )
     }
-
-    /// Returns the image of this torus under `transform`: the center and
-    /// frame directions map point-wise while both radii scale by the
-    /// transform's uniform scale factor.
-    ///
-    /// Every frame axis maps through the transform, so the image's
-    /// parametrization is the transform of this one: under a rotation,
-    /// translation or mirror, `transformed(t).eval_point(u, v)` equals
-    /// `t.apply_point(self.eval_point(u, v))`. A mirror changes the
-    /// frame's handedness, so the image's normal is the opposite of
-    /// the mirrored normal (as for any map that reverses orientation);
-    /// call `reversed_u` or `reversed_v` on the image to keep the
-    /// mirrored side. Fails with [`TorusConstructionError::NullNormal`] only
-    /// when the transform collapses the frame (a zero scale factor).
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{Point, Torus, Transform, Vector};
-    /// let torus = Torus::new(Point::ORIGIN, Vector::Z, 5.0, 1.5).unwrap();
-    /// let moved = torus.transformed(Transform::scaling(Point::ORIGIN, 2.0)).unwrap();
-    /// assert_eq!(moved.major_radius(), 10.0);
-    /// assert_eq!(moved.minor_radius(), 3.0);
-    /// ```
-    pub fn transformed(&self, transform: Transform) -> Result<Torus, TorusConstructionError> {
-        let (frame, scale) = transform.apply_frame(self.frame()).map_err(frame_error(
-            TorusConstructionError::NonFinite,
-            TorusConstructionError::NullNormal,
-        ))?;
-        Torus::from_frame(
-            frame,
-            self.major_radius() * scale,
-            self.minor_radius() * scale,
-        )
-    }
 }
 
 impl ParametricSurface for Torus {
@@ -423,6 +311,59 @@ impl ParametricSurface for Torus {
     /// minor_radius`.
     fn parameters_of(&self, point: Point, _tol: Tolerance) -> (f64, f64) {
         elementary::torus_parameters(&self.frame, self.major_radius, self.minor_radius, point)
+    }
+}
+
+impl ReversibleSurface for Torus {
+    /// Returns the torus running in the opposite angular direction: the
+    /// same point set with the frame's y direction negated, so the frame
+    /// turns indirect and the normal reverses.
+    /// `reversed_u().eval_point(u, v)` is `eval_point(-u, v)`.
+    fn reversed_u(&self) -> Torus {
+        Torus {
+            frame: self.frame.flipped_y(),
+            major_radius: self.major_radius,
+            minor_radius: self.minor_radius,
+        }
+    }
+
+    /// Returns the torus running in the opposite tube direction: the same
+    /// point set with the frame's z direction negated.
+    /// `reversed_v().eval_point(u, v)` is `eval_point(u, -v)`.
+    fn reversed_v(&self) -> Torus {
+        Torus {
+            frame: self.frame.flipped_z(),
+            major_radius: self.major_radius,
+            minor_radius: self.minor_radius,
+        }
+    }
+
+    /// Maps `u` onto the [`reversed_u`](ReversibleSurface::reversed_u) torus: the
+    /// parameter of the same point there (`period − u`).
+    fn u_reversed_parameter(&self, u: f64) -> f64 {
+        use std::f64::consts::TAU;
+        TAU - u
+    }
+
+    /// Maps `v` onto the [`reversed_v`](ReversibleSurface::reversed_v) torus: the
+    /// parameter of the same point there (`period − v`).
+    fn v_reversed_parameter(&self, v: f64) -> f64 {
+        use std::f64::consts::TAU;
+        TAU - v
+    }
+}
+
+impl Transformable for Torus {
+    /// The frame maps through the transform and both radii scale by its
+    /// scale factor.
+    fn transformed(&self, transform: Transform) -> Result<Torus, TransformError> {
+        let (frame, scale) = transform.apply_frame(self.frame())?;
+        Torus::from_frame(
+            frame,
+            self.major_radius() * scale,
+            self.minor_radius() * scale,
+        )
+        .map_err(image_error(TorusConstructionError::NonFinite))
     }
 }
 

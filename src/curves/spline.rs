@@ -20,7 +20,7 @@ use crate::math::boxtree::{BoxTree, Lazy};
 use crate::math::quadrature;
 use crate::projection::{CurveProjection, snap_distance};
 use crate::tier::TierPoint;
-use crate::{Continuity, Point, Tolerance};
+use crate::{Continuity, Point, Tolerance, Transform, TransformError};
 
 /// A B-spline curve with poles of type `P`: the knot vector, the poles,
 /// and one weight per pole if rational.
@@ -592,6 +592,26 @@ impl<P: TierPoint> Spline<P> {
     /// see [`math::scan_span`].
     fn scan_span(&self, point: P, a: f64, b: f64, minima: &mut Vec<f64>) -> SpanEnds {
         math::scan_span(&self.knots, self.pole_view(), point, a, b, minima)
+    }
+}
+
+impl Spline<Point> {
+    /// The image of the curve under `transform`: each pole mapped, the
+    /// knots and weights kept. Exact, as the evaluation of a B-spline is
+    /// invariant under affine maps.
+    pub(crate) fn transformed(
+        &self,
+        transform: Transform,
+    ) -> Result<Spline<Point>, TransformError> {
+        if transform.scale_factor() == 0.0 {
+            return Err(TransformError::Collapsed);
+        }
+        let image = self.map_poles(|p| transform.apply_point(p));
+        if image.poles.iter().all(|p| p.is_finite()) {
+            Ok(image)
+        } else {
+            Err(TransformError::NonFinite)
+        }
     }
 }
 

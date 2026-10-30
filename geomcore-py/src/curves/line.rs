@@ -56,13 +56,4 @@ shape_methods! {
     fn direction(&self) -> PyVector {
         PyVector(self.0.direction())
     }
-
-    /// Image of this line under `transform` (raises ValueError for a
-    /// collapsing transform).
-    #[pyo3(signature = (transform,))]
-    fn transformed(&self, transform: &PyTransform) -> PyResult<Self> {
-        Ok(PyLine(
-            self.0.transformed(transform.0).map_err(python_error)?,
-        ))
-    }
 }

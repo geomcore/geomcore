@@ -1,6 +1,8 @@
-//! Rigid and affine transformations of points and vectors.
+//! Rigid and affine transformations of points and vectors, and the
+//! [`Transformable`] shapes they move.
 
 use crate::{Axis, Frame, FrameConstructionError, Point, Vector};
+use std::fmt;
 
 /// An affine transformation of 3D space: a linear map plus a translation.
 ///
@@ -295,6 +297,13 @@ impl Transform {
         mat_vec(self.linear, v)
     }
 
+    /// The uniform factor by which this transformation scales lengths:
+    /// the magnitude of the transformed x direction. Zero for a
+    /// transformation that collapses space onto a point.
+    pub(crate) fn scale_factor(self) -> f64 {
+        self.apply_vector(Vector::X).magnitude()
+    }
+
     /// Applies this transformation to a placement frame, returning the
     /// image frame and the uniform scale factor applied to lengths.
     ///
@@ -306,9 +315,11 @@ impl Transform {
     /// frame: anything placed by the frame (a point at local coordinates
     /// `(a, b, c)`) maps to the same local coordinates in the image. A
     /// mirror (negative determinant) therefore changes the handedness
-    /// (see [`Frame::is_direct`]); a rotation keeps it. Fails only when
-    /// the transform collapses directions (a zero scale factor).
-    pub(crate) fn apply_frame(self, frame: Frame) -> Result<(Frame, f64), FrameConstructionError> {
+    /// (see [`Frame::is_direct`]); a rotation keeps it. Fails with
+    /// [`TransformError::Collapsed`] when the transform collapses
+    /// directions (a zero scale factor) and [`TransformError::NonFinite`]
+    /// when the image overflows.
+    pub(crate) fn apply_frame(self, frame: Frame) -> Result<(Frame, f64), TransformError> {
         let x = self.apply_vector(frame.x_direction());
         let scale = x.magnitude();
         let mapped = Frame::from_axes(
@@ -316,9 +327,98 @@ impl Transform {
             x,
             self.apply_vector(frame.y_direction()),
             self.apply_vector(frame.z_direction()),
-        )?;
+        )
+        .map_err(frame_image_error)?;
         Ok((mapped, scale))
     }
+}
+
+/// Error returned when a shape cannot be moved by a [`Transform`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TransformError {
+    /// The transform has a zero scale factor, so it collapses the shape
+    /// onto a point.
+    Collapsed,
+    /// The image overflows `f64`: a coordinate or a length is no longer
+    /// finite.
+    NonFinite,
+}
+
+impl fmt::Display for TransformError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            TransformError::Collapsed => "the transform collapses the shape onto a point",
+            TransformError::NonFinite => "the transformed shape overflows f64",
+        })
+    }
+}
+
+impl std::error::Error for TransformError {}
+
+/// The error of an image frame or axis that could not be built: an
+/// overflow, or directions collapsed by a zero scale factor.
+pub(crate) fn frame_image_error(error: FrameConstructionError) -> TransformError {
+    match error {
+        FrameConstructionError::NonFinite => TransformError::NonFinite,
+        _ => TransformError::Collapsed,
+    }
+}
+
+/// The error of an image that its type's constructor rejected: an
+/// overflow when the constructor reports `non_finite`, a collapse (a
+/// length scaled down to zero) otherwise.
+pub(crate) fn image_error<E: PartialEq>(non_finite: E) -> impl FnOnce(E) -> TransformError {
+    move |error| {
+        if error == non_finite {
+            TransformError::NonFinite
+        } else {
+            TransformError::Collapsed
+        }
+    }
+}
+
+/// A shape that a [`Transform`] moves: every 3D curve and surface, and
+/// their enums.
+///
+/// The image is parametrized by the image of the shape's parametrization:
+/// under a rotation, a translation or a mirror,
+/// `shape.transformed(t)?.eval_point(u)` is `t.apply_point(shape.eval_point(u))`
+/// at every parameter. Under a scale `s`, a parameter that is a length
+/// (along a line, a parabola, the generators of a plane, cylinder or cone,
+/// the sweep of an extrusion) scales by `s` too; angles and B-spline
+/// parameters do not. Every frame axis maps through the transform, so a
+/// mirror turns a direct frame indirect and the image's normal is the
+/// opposite of the mirrored normal; reversing the image restores the
+/// mirrored side (see [`ReversibleSurface`](crate::ReversibleSurface)).
+///
+/// # Errors
+///
+/// Every shape fails the same way: with [`TransformError::Collapsed`] when
+/// the transform has a zero scale factor, and with
+/// [`TransformError::NonFinite`] when the image overflows `f64`.
+///
+/// # Examples
+///
+/// ```
+/// use geomcore::prelude::*;
+/// use geomcore::{Circle, Curve, Point, Transform, TransformError, Vector};
+///
+/// let circle = Curve::from(Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap());
+/// let shift = Transform::translation(Vector::new(0.0, 0.0, 5.0));
+/// let moved = circle.transformed(shift).unwrap();
+/// assert_eq!(moved.eval_point(0.0), Point::new(2.0, 0.0, 5.0));
+///
+/// let collapse = Transform::scaling(Point::ORIGIN, 0.0);
+/// assert_eq!(circle.transformed(collapse), Err(TransformError::Collapsed));
+/// ```
+pub trait Transformable: Sized {
+    /// Returns the image of the shape under `transform`.
+    ///
+    /// # Errors
+    ///
+    /// [`TransformError::Collapsed`] for a zero scale factor and
+    /// [`TransformError::NonFinite`] when the image overflows `f64`.
+    fn transformed(&self, transform: Transform) -> Result<Self, TransformError>;
 }
 
 #[cfg(test)]

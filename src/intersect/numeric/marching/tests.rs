@@ -910,7 +910,7 @@ fn shifted(
     surface: &crate::surfaces::BSplineSurface,
     offset: Vector,
 ) -> crate::surfaces::BSplineSurface {
-    surface.transformed(crate::Transform::translation(offset))
+    crate::Transformable::transformed(surface, crate::Transform::translation(offset)).unwrap()
 }
 
 #[test]

@@ -1,6 +1,7 @@
 //! The [`ParametricSurface`] trait every surface implements, its
-//! [`SurfaceCurvatures`] result, and the normal-recovery helpers it falls
-//! back on where the partial derivatives degenerate.
+//! [`SurfaceCurvatures`] result, the [`ReversibleSurface`] trait, and the
+//! normal-recovery helpers it falls back on where the partial derivatives
+//! degenerate.
 
 use crate::curves::Continuity;
 use crate::surfaces::{BSplineSurface, ElementarySurface};
@@ -524,6 +525,50 @@ pub trait ParametricSurface {
     fn as_elementary(&self) -> Option<ElementarySurface> {
         None
     }
+}
+
+/// A surface that runs the other way in `u` or in `v` over the same point
+/// set, so its normal reverses: every surface, and the surface enums.
+///
+/// The reversed surface keeps the bounds of the surface, and
+/// [`u_reversed_parameter`](ReversibleSurface::u_reversed_parameter) maps
+/// a parameter onto it: `reversed_u().eval_point(u_reversed_parameter(u), v)`
+/// is `eval_point(u, v)`, and likewise in `v`. Each map is its own
+/// inverse, and reversing a direction twice gives the surface back.
+///
+/// The map is `period - u` on a periodic elementary direction, `-u` on an
+/// unbounded one, and `first + last - u` on a B-spline or Bézier
+/// direction. An elementary surface flips one frame axis, so its frame
+/// turns indirect; a B-spline or Bézier surface reorders its poles and
+/// mirrors its knots; a swept surface reverses its profile
+/// ([`ReversibleCurve`](crate::ReversibleCurve)) or its sweep.
+///
+/// # Examples
+///
+/// ```
+/// use geomcore::prelude::*;
+/// use geomcore::{Cylinder, Point, Surface, Vector};
+///
+/// let cylinder = Surface::from(Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap());
+/// let reversed = cylinder.reversed_u();
+/// let u = cylinder.u_reversed_parameter(1.0);
+/// assert!(reversed.eval_point(u, 3.0).distance(cylinder.eval_point(1.0, 3.0)) < 1e-12);
+/// assert_eq!(cylinder.v_reversed_parameter(0.5), -0.5);
+/// ```
+pub trait ReversibleSurface: Sized {
+    /// Returns the surface with its `u` direction traversed the other way.
+    fn reversed_u(&self) -> Self;
+
+    /// Returns the surface with its `v` direction traversed the other way.
+    fn reversed_v(&self) -> Self;
+
+    /// Maps `u` onto the [`reversed_u`](ReversibleSurface::reversed_u)
+    /// surface: the `u` parameter of the same point there.
+    fn u_reversed_parameter(&self, u: f64) -> f64;
+
+    /// Maps `v` onto the [`reversed_v`](ReversibleSurface::reversed_v)
+    /// surface: the `v` parameter of the same point there.
+    fn v_reversed_parameter(&self, v: f64) -> f64;
 }
 
 /// Outcome of rungs 1–2 of [`ParametricSurface::normal`].

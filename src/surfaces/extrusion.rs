@@ -11,17 +11,21 @@
 
 use std::fmt;
 
+use crate::curves::ReversibleCurve;
 use crate::curves::{BSplineCurve, Continuity, Curve, ParametricCurve, PointExtrema};
 use crate::projection::snap_distance;
+use crate::surfaces::ReversibleSurface;
 use crate::surfaces::swept::{
     ROUNDING, bezier_with_poles, bspline_with_poles, check_profile_parameter,
-    profile_reversed_parameter, reversed_profile, transformed_profile, wrap_profile_parameter,
+    wrap_profile_parameter,
 };
 use crate::surfaces::{ParametricSurface, SurfaceIsoError};
+use crate::transform::image_error;
 use crate::{
     Ellipse, Frame, Hyperbola, Line, Parabola, Plane, Point, SurfaceProjection, Tolerance,
     Transform, Vector,
 };
+use crate::{TransformError, Transformable};
 
 /// Error returned when an [`ExtrusionSurface`] cannot be constructed from
 /// the given inputs.
@@ -175,79 +179,6 @@ impl ExtrusionSurface {
         self.direction
     }
 
-    /// Returns the surface with the profile run the other way: the same
-    /// point set, the point at `(u, v)` found at
-    /// `(u_reversed_parameter(u), v)`, and the normal reversed.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::prelude::*;
-    /// use geomcore::{Circle, ExtrusionSurface, Point, Vector};
-    /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
-    /// let surface = ExtrusionSurface::new(circle.into(), Vector::Z).unwrap();
-    /// let reversed = surface.reversed_u();
-    /// let u = surface.u_reversed_parameter(1.0);
-    /// assert!(reversed.eval_point(u, 2.0).distance(surface.eval_point(1.0, 2.0)) < 1e-12);
-    /// ```
-    pub fn reversed_u(&self) -> ExtrusionSurface {
-        ExtrusionSurface::new(reversed_profile(&self.profile), self.direction)
-            .expect("a reversed profile sweeps the same area")
-    }
-
-    /// Returns the surface swept the other way: the same point set with
-    /// the direction negated, so `reversed_v().eval_point(u, v)` is
-    /// `eval_point(u, -v)` and the normal is reversed.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::prelude::*;
-    /// use geomcore::{Circle, ExtrusionSurface, Point, Vector};
-    /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
-    /// let surface = ExtrusionSurface::new(circle.into(), Vector::Z).unwrap();
-    /// let reversed = surface.reversed_v();
-    /// assert_eq!(reversed.eval_point(1.0, 3.0), surface.eval_point(1.0, -3.0));
-    /// ```
-    pub fn reversed_v(&self) -> ExtrusionSurface {
-        ExtrusionSurface {
-            profile: self.profile.clone(),
-            direction: -self.direction,
-            section: self.section.clone(),
-        }
-    }
-
-    /// Maps `u` onto the [`reversed_u`](Self::reversed_u) surface: the
-    /// parameter of the same point there (`period − u` on a circle or
-    /// ellipse, `−u` on a line, parabola or hyperbola, `first + last − u`
-    /// on a B-spline or Bézier curve).
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{ExtrusionSurface, Line, Point, Vector};
-    /// let line = Line::new(Point::ORIGIN, Vector::X).unwrap();
-    /// let surface = ExtrusionSurface::new(line.into(), Vector::Z).unwrap();
-    /// assert_eq!(surface.u_reversed_parameter(2.0), -2.0);
-    /// ```
-    pub fn u_reversed_parameter(&self, u: f64) -> f64 {
-        profile_reversed_parameter(&self.profile, u)
-    }
-
-    /// Maps `v` onto the [`reversed_v`](Self::reversed_v) surface (`−v`).
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{ExtrusionSurface, Line, Point, Vector};
-    /// let line = Line::new(Point::ORIGIN, Vector::X).unwrap();
-    /// let surface = ExtrusionSurface::new(line.into(), Vector::Z).unwrap();
-    /// assert_eq!(surface.v_reversed_parameter(2.0), -2.0);
-    /// ```
-    pub fn v_reversed_parameter(&self, v: f64) -> f64 {
-        -v
-    }
-
     /// The `u` isoparametric line at `u`: the line through the profile
     /// point at `u` along the direction, so `u_iso(u).eval_point(t)` is
     /// `eval_point(u, t)` for every `t`.
@@ -293,49 +224,9 @@ impl ExtrusionSurface {
         if !v.is_finite() {
             return Err(SurfaceIsoError::NonFinite);
         }
-        transformed_profile(&self.profile, Transform::translation(v * self.direction))
-            .ok_or(SurfaceIsoError::NonFinite)
-    }
-
-    /// Returns the image of this surface under `transform`: the profile
-    /// and the direction map through it.
-    ///
-    /// The image's parametrization is the transform of this one, with
-    /// `v` a length: under a scale `s`, the image of the point at
-    /// `(u, v)` sits at `(u, s * v)`, unless the profile is a line or a
-    /// parabola, whose parameter scales with lengths too. Under a mirror the image's normal is
-    /// the opposite of the mirrored normal, as for any map that reverses
-    /// orientation; call `reversed_u` or `reversed_v` on the image to keep
-    /// the mirrored side.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`ExtrusionSurfaceConstructionError::NullDirection`] when
-    /// the transform collapses the direction (a zero scale factor) and
-    /// [`ExtrusionSurfaceConstructionError::NonFinite`] when the image
-    /// overflows `f64`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::prelude::*;
-    /// use geomcore::{Circle, ExtrusionSurface, Point, Transform, Vector};
-    /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
-    /// let surface = ExtrusionSurface::new(circle.into(), Vector::Z).unwrap();
-    /// let moved = surface.transformed(Transform::scaling(Point::ORIGIN, 3.0)).unwrap();
-    /// assert_eq!(moved.eval_point(0.0, 6.0), Point::new(3.0, 0.0, 6.0));
-    /// ```
-    pub fn transformed(
-        &self,
-        transform: Transform,
-    ) -> Result<ExtrusionSurface, ExtrusionSurfaceConstructionError> {
-        let direction = transform.apply_vector(self.direction);
-        if direction.magnitude() == 0.0 {
-            return Err(ExtrusionSurfaceConstructionError::NullDirection);
-        }
-        let profile = transformed_profile(&self.profile, transform)
-            .ok_or(ExtrusionSurfaceConstructionError::NonFinite)?;
-        ExtrusionSurface::new(profile, direction)
+        self.profile
+            .transformed(Transform::translation(v * self.direction))
+            .map_err(|_| SurfaceIsoError::NonFinite)
     }
 
     /// The parameter on the profile of the closest point to `point` once
@@ -801,6 +692,51 @@ fn hyperbolic_parameter(cosine: f64, sine: f64, value: f64) -> f64 {
         far
     } else {
         -far
+    }
+}
+
+impl ReversibleSurface for ExtrusionSurface {
+    /// Returns the surface with the profile run the other way: the same
+    /// point set, the point at `(u, v)` found at
+    /// `(u_reversed_parameter(u), v)`, and the normal reversed.
+    fn reversed_u(&self) -> ExtrusionSurface {
+        ExtrusionSurface::new(self.profile.reversed(), self.direction)
+            .expect("a reversed profile sweeps the same area")
+    }
+
+    /// Returns the surface swept the other way: the same point set with
+    /// the direction negated, so `reversed_v().eval_point(u, v)` is
+    /// `eval_point(u, -v)` and the normal is reversed.
+    fn reversed_v(&self) -> ExtrusionSurface {
+        ExtrusionSurface {
+            profile: self.profile.clone(),
+            direction: -self.direction,
+            section: self.section.clone(),
+        }
+    }
+
+    /// Maps `u` onto the [`reversed_u`](ReversibleSurface::reversed_u) surface: the
+    /// parameter of the same point there (`period − u` on a circle or
+    /// ellipse, `−u` on a line, parabola or hyperbola, `first + last − u`
+    /// on a B-spline or Bézier curve).
+    fn u_reversed_parameter(&self, u: f64) -> f64 {
+        self.profile.reversed_parameter(u)
+    }
+
+    /// Maps `v` onto the [`reversed_v`](ReversibleSurface::reversed_v) surface (`−v`).
+    fn v_reversed_parameter(&self, v: f64) -> f64 {
+        -v
+    }
+}
+
+impl Transformable for ExtrusionSurface {
+    /// The profile and the direction map through the transform. The sweep
+    /// parameter `v` is a length and scales with it; `u` follows the
+    /// profile's parameter.
+    fn transformed(&self, transform: Transform) -> Result<ExtrusionSurface, TransformError> {
+        let profile = self.profile.transformed(transform)?;
+        ExtrusionSurface::new(profile, transform.apply_vector(self.direction))
+            .map_err(image_error(ExtrusionSurfaceConstructionError::NonFinite))
     }
 }
 

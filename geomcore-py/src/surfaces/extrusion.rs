@@ -44,16 +44,6 @@ shape_methods! {
         PyVector(self.0.direction())
     }
 
-    /// Image of this surface under `transform` (raises ValueError for a
-    /// collapsing transform). A scale changes the parameter of a line or
-    /// parabola profile, whose parameter is a length.
-    #[pyo3(signature = (transform,))]
-    fn transformed(&self, transform: &PyTransform) -> PyResult<Self> {
-        Ok(PyExtrusionSurface(
-            self.0.transformed(transform.0).map_err(python_error)?,
-        ))
-    }
-
     /// The patch `u_range × v_range` as an exact B-spline surface
     /// (raises `ValueError` for a bad range).
     fn to_bspline_patch(

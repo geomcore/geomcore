@@ -277,7 +277,8 @@ fn test_periodic_surface_gives_one_loop_across_its_seam() {
     let tube = tube();
     // A tilted sheet over `[-2.5, 2.5]^2`, through the tube.
     let shift = crate::Transform::translation(crate::Vector::new(-2.5, -2.5, 0.0));
-    let sheet = graph(&THIRDS, |x, y| 0.2 * x + 0.1 * (y - 2.5), None).transformed(shift);
+    let sheet = graph(&THIRDS, |x, y| 0.2 * x + 0.1 * (y - 2.5), None);
+    let sheet = crate::Transformable::transformed(&sheet, shift).unwrap();
     let curves = marched_curves(&tube, &sheet, TOL);
     assert_on_both_once(&curves, &tube, &sheet);
     assert_eq!(curves.len(), 1);

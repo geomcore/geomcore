@@ -14,14 +14,14 @@ src/
 ├── prelude.rs           the shape and operation traits, for `use geomcore::prelude::*`
 ├── point.rs vector.rs   Point/Point2D, Vector/Vector2D
 ├── frame.rs             Axis, Frame and their 2D forms: where a shape is placed
-├── transform.rs         rigid transforms
+├── transform.rs         Transform, and the Transformable trait of the shapes it moves
 ├── tolerance.rs         Tolerance: every geometric decision takes one
 ├── projection.rs        results of point projection (CurveProjection, …)
 ├── tier.rs              TierPoint: the two tiers (space, plane) the curve types are generic over
 ├── shape_enum.rs        the macros that expand a shape enum's variant list (ADR 0017)
 │
 ├── curves/              the public curve types, one file per type
-│   ├── parametric_curve.rs      ParametricCurve, PointExtrema, Side, Continuity
+│   ├── parametric_curve.rs      ParametricCurve, PointExtrema, ReversibleCurve, Side, Continuity
 │   ├── parametric_curve_2d.rs   ParametricCurve2D, PointExtrema2D
 │   ├── curve.rs curve_2d.rs     the Curve, ElementaryCurve, Curve2D enums
 │   ├── line.rs … hyperbola.rs   elementary curves, each one generic type for both tiers
@@ -32,11 +32,12 @@ src/
 │   │                            B-spline of a range of each curve (ADR 0005)
 │   ├── conversion.rs fitting.rs parametrize.rs   to B-spline, from points, onto a surface
 ├── surfaces/            the public surface types, one file per type
-│   ├── parametric_surface.rs    ParametricSurface, SurfaceCurvatures, normal recovery
+│   ├── parametric_surface.rs    ParametricSurface, ReversibleSurface, SurfaceCurvatures,
+│   │                            normal recovery
 │   ├── surface.rs               the Surface and ElementarySurface enums
 │   ├── plane.rs … torus.rs bspline.rs bezier.rs
 │   ├── extrusion.rs revolution.rs   the swept surfaces; swept.rs holds the
-│   │                            profile operations they share (ADR 0016)
+│   │                            profile geometry they share (ADR 0016)
 │   ├── iso.rs                   helpers shared by the iso curves (u_iso, v_iso)
 │   └── conversion.rs fitting.rs
 │
@@ -93,8 +94,11 @@ paths.
    suffix (ADR 0013). A type's construction error lives beside it.
 2. **Shared behaviour lives on the traits, implemented in the type's
    file.** `ParametricCurve`, `PointExtrema`, `ParametricCurve2D`,
-   `PointExtrema2D` and `ParametricSurface` are defined in the
-   `parametric_*.rs` files, and each `impl` sits with its type. A method
+   `PointExtrema2D`, `ParametricSurface`, `ReversibleCurve` and
+   `ReversibleSurface` are defined in the `parametric_*.rs` files and
+   `Transformable` in `transform.rs`, and each `impl` sits with its type.
+   The enums forward them through their variant lists (ADR 0017), so no
+   caller matches on a variant to move or reverse a shape (ADR 0024). A method
    that more than one type answers is a trait method, documented once on
    the trait; a type overrides a provided method only for a faster closed
    form, and its inherent `impl` keeps only what is specific to it
@@ -184,7 +188,7 @@ files are:
 `shape_methods!`, naming the sets it takes (`curve`, `discretize`,
 `surface`, ...) and listing only its own methods. Each set is the Python
 face of a core trait (`curve` is `ParametricCurve`, `PointExtrema`,
-`HasBoundingBox` and `Intersect`), with its docstrings and signatures
+`ReversibleCurve`, `Transformable`, `HasBoundingBox` and `Intersect`), with its docstrings and signatures
 written once, so a class has a method exactly when its core type has it.
 The table at the top of `method_sets.rs` says which set follows from
 which trait.
@@ -220,7 +224,7 @@ checks.
 
 | Area | Files |
 |---|---|
-| Evaluation and construction | `combined_evaluation.rs`, `construction_validation.rs`, `precision.rs`, `surface_reversal.rs` |
+| Evaluation and construction | `combined_evaluation.rs`, `construction_validation.rs`, `precision.rs`, `surface_reversal.rs`, `transform_and_reversal.rs` |
 | Golden fixtures | `vs_fixtures.rs`, `bezier_fixtures.rs`, `discretization_fixtures.rs`, `intersect_2d_fixtures.rs`, `swept_fixtures.rs` |
 | B-splines and Bézier | `bspline_tiers.rs`, `degree_elevation.rs`, `bezier_surface.rs` |
 | Projection | `projection_point.rs` |

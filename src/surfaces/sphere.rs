@@ -2,12 +2,14 @@
 //! wrappers over [`crate::elementary::surface`].
 
 use crate::elementary::surface as elementary;
-use crate::frame::frame_error;
 use crate::surfaces::ElementarySurface;
 use crate::surfaces::ParametricSurface;
+use crate::surfaces::ReversibleSurface;
 use crate::surfaces::SurfaceIsoError;
 use crate::surfaces::iso::{check_iso_param, iso_circle};
+use crate::transform::image_error;
 use crate::{Circle, Frame, Point, SurfaceProjection, Tolerance, Transform, Vector, projection};
+use crate::{TransformError, Transformable};
 use std::f64::consts::{FRAC_PI_2, TAU};
 use std::fmt;
 
@@ -131,82 +133,6 @@ impl Sphere {
         self.frame
     }
 
-    /// Returns the sphere running in the opposite angular direction: the
-    /// same point set with the frame's y direction negated, so the frame
-    /// turns indirect and the normal reverses.
-    /// `reversed_u().eval_point(u, v)` is `eval_point(-u, v)`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::prelude::*;
-    /// use geomcore::{Point, Sphere, Vector};
-    /// let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
-    /// let reversed = sphere.reversed_u();
-    /// assert!(!reversed.frame().is_direct());
-    /// assert_eq!(reversed.eval_point(1.0, 0.2), sphere.eval_point(-1.0, 0.2));
-    /// ```
-    pub fn reversed_u(&self) -> Sphere {
-        Sphere {
-            frame: self.frame.flipped_y(),
-            radius: self.radius,
-        }
-    }
-
-    /// Returns the sphere running from the opposite pole: the same point
-    /// set with the frame's z direction negated.
-    /// `reversed_v().eval_point(u, v)` is `eval_point(u, -v)`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::prelude::*;
-    /// use geomcore::{Point, Sphere, Vector};
-    /// let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
-    /// let reversed = sphere.reversed_v();
-    /// assert_eq!(reversed.eval_point(1.0, 0.2), sphere.eval_point(1.0, -0.2));
-    /// ```
-    pub fn reversed_v(&self) -> Sphere {
-        Sphere {
-            frame: self.frame.flipped_z(),
-            radius: self.radius,
-        }
-    }
-
-    /// Maps `u` onto the [`reversed_u`](Self::reversed_u) sphere: the
-    /// parameter of the same point there (`period − u`).
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::prelude::*;
-    /// use geomcore::{Point, Sphere};
-    /// let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
-    /// let u = sphere.u_reversed_parameter(1.0);
-    /// let there = sphere.reversed_u().eval_point(u, 0.5);
-    /// assert!(there.distance(sphere.eval_point(1.0, 0.5)) < 1e-12);
-    /// ```
-    pub fn u_reversed_parameter(&self, u: f64) -> f64 {
-        use std::f64::consts::TAU;
-        TAU - u
-    }
-
-    /// Maps `v` onto the [`reversed_v`](Self::reversed_v) sphere.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::prelude::*;
-    /// use geomcore::{Point, Sphere};
-    /// let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
-    /// let v = sphere.v_reversed_parameter(0.5);
-    /// let there = sphere.reversed_v().eval_point(1.0, v);
-    /// assert!(there.distance(sphere.eval_point(1.0, 0.5)) < 1e-12);
-    /// ```
-    pub fn v_reversed_parameter(&self, v: f64) -> f64 {
-        -v
-    }
-
     /// Returns the sphere's radius.
     ///
     /// # Examples
@@ -276,37 +202,6 @@ impl Sphere {
             frame.x_direction(),
             self.radius * v.cos(),
         )
-    }
-
-    /// Returns the image of this sphere under `transform`: the center and
-    /// frame directions map point-wise while the radius scales by the
-    /// transform's uniform scale factor.
-    ///
-    /// Every frame axis maps through the transform, so the image's
-    /// parametrization is the transform of this one: under a rotation,
-    /// translation or mirror, `transformed(t).eval_point(u, v)` equals
-    /// `t.apply_point(self.eval_point(u, v))`. A mirror changes the
-    /// frame's handedness, so the image's normal is the opposite of
-    /// the mirrored normal (as for any map that reverses orientation);
-    /// call `reversed_u` or `reversed_v` on the image to keep the
-    /// mirrored side. Fails with [`SphereConstructionError::NullNormal`] only
-    /// when the transform collapses the frame (a zero scale factor).
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{Point, Sphere, Transform, Vector};
-    /// let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
-    /// let moved = sphere.transformed(Transform::translation(Vector::new(1.0, 2.0, 3.0))).unwrap();
-    /// assert_eq!(moved.center(), Point::new(1.0, 2.0, 3.0));
-    /// assert_eq!(moved.radius(), 2.0);
-    /// ```
-    pub fn transformed(&self, transform: Transform) -> Result<Sphere, SphereConstructionError> {
-        let (frame, scale) = transform.apply_frame(self.frame()).map_err(frame_error(
-            SphereConstructionError::NonFinite,
-            SphereConstructionError::NullNormal,
-        ))?;
-        Sphere::from_frame(frame, self.radius() * scale)
     }
 
     /// Surface area (`4*PI*radius^2`).
@@ -398,6 +293,51 @@ impl ParametricSurface for Sphere {
     /// formula, including the pole handling.
     fn parameters_of(&self, point: Point, _tol: Tolerance) -> (f64, f64) {
         elementary::sphere_parameters(&self.frame, self.radius, point)
+    }
+}
+
+impl ReversibleSurface for Sphere {
+    /// Returns the sphere running in the opposite angular direction: the
+    /// same point set with the frame's y direction negated, so the frame
+    /// turns indirect and the normal reverses.
+    /// `reversed_u().eval_point(u, v)` is `eval_point(-u, v)`.
+    fn reversed_u(&self) -> Sphere {
+        Sphere {
+            frame: self.frame.flipped_y(),
+            radius: self.radius,
+        }
+    }
+
+    /// Returns the sphere running from the opposite pole: the same point
+    /// set with the frame's z direction negated.
+    /// `reversed_v().eval_point(u, v)` is `eval_point(u, -v)`.
+    fn reversed_v(&self) -> Sphere {
+        Sphere {
+            frame: self.frame.flipped_z(),
+            radius: self.radius,
+        }
+    }
+
+    /// Maps `u` onto the [`reversed_u`](ReversibleSurface::reversed_u) sphere: the
+    /// parameter of the same point there (`period − u`).
+    fn u_reversed_parameter(&self, u: f64) -> f64 {
+        use std::f64::consts::TAU;
+        TAU - u
+    }
+
+    /// Maps `v` onto the [`reversed_v`](ReversibleSurface::reversed_v) sphere.
+    fn v_reversed_parameter(&self, v: f64) -> f64 {
+        -v
+    }
+}
+
+impl Transformable for Sphere {
+    /// The frame maps through the transform and the radius scales by its
+    /// scale factor.
+    fn transformed(&self, transform: Transform) -> Result<Sphere, TransformError> {
+        let (frame, scale) = transform.apply_frame(self.frame())?;
+        Sphere::from_frame(frame, self.radius() * scale)
+            .map_err(image_error(SphereConstructionError::NonFinite))
     }
 }
 

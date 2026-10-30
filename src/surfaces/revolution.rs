@@ -11,15 +11,16 @@
 use std::f64::consts::{PI, TAU};
 use std::fmt;
 
+use crate::curves::ReversibleCurve;
 use crate::curves::{Continuity, Curve, ParametricCurve, PointExtrema};
 use crate::math::{brent_minimum, newton_min_1d};
 use crate::projection::snap_distance;
-use crate::surfaces::swept::{
-    ROUNDING, check_profile_parameter, profile_reversed_parameter, reversed_profile,
-    transformed_profile, wrap_profile_parameter,
-};
+use crate::surfaces::ReversibleSurface;
+use crate::surfaces::swept::{ROUNDING, check_profile_parameter, wrap_profile_parameter};
 use crate::surfaces::{ParametricSurface, SurfaceIsoError};
+use crate::transform::frame_image_error;
 use crate::{Axis, Circle, Frame, Point, SurfaceProjection, Tolerance, Transform, Vector};
+use crate::{TransformError, Transformable};
 
 /// Error returned when a [`RevolutionSurface`] cannot be constructed from
 /// the given inputs.
@@ -31,11 +32,14 @@ pub enum RevolutionSurfaceConstructionError {
     /// axis).
     SweepsNoArea,
     /// The transformed surface has a NaN or infinite coordinate, or its
-    /// axis collapsed (a zero scale factor).
+    /// axis collapsed (a zero scale factor). No longer returned: a failed
+    /// transform reports a [`TransformError`].
+    #[deprecated(note = "a failed transform reports a `TransformError`")]
     NonFinite,
 }
 
 impl fmt::Display for RevolutionSurfaceConstructionError {
+    #[allow(deprecated)]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let message = match self {
             RevolutionSurfaceConstructionError::SweepsNoArea => {
@@ -149,88 +153,6 @@ impl RevolutionSurface {
         self.axis
     }
 
-    /// Returns the surface turning the other way: the same point set with
-    /// the axis direction negated, so `reversed_u().eval_point(u, v)` is
-    /// `eval_point(-u, v)` and the normal is reversed.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::prelude::*;
-    /// use geomcore::{Axis, Circle, Point, RevolutionSurface, Vector};
-    /// let axis = Axis::new(Point::ORIGIN, Vector::Z).unwrap();
-    /// let tube = Circle::new(Point::new(3.0, 0.0, 0.0), Vector::Y, 1.0).unwrap();
-    /// let surface = RevolutionSurface::new(tube.into(), axis).unwrap();
-    /// let reversed = surface.reversed_u();
-    /// assert!(reversed.eval_point(1.0, 2.0).distance(surface.eval_point(-1.0, 2.0)) < 1e-12);
-    /// ```
-    pub fn reversed_u(&self) -> RevolutionSurface {
-        let axis = Axis::new(self.axis.origin(), -self.axis.direction())
-            .expect("a reversed axis is a valid axis");
-        RevolutionSurface {
-            profile: self.profile.clone(),
-            axis,
-            meridian: self.meridian,
-        }
-    }
-
-    /// Returns the surface with the profile run the other way: the same
-    /// point set, the point at `(u, v)` found at
-    /// `(u, v_reversed_parameter(v))`, and the normal reversed.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::prelude::*;
-    /// use geomcore::{Axis, Circle, Point, RevolutionSurface, Vector};
-    /// let axis = Axis::new(Point::ORIGIN, Vector::Z).unwrap();
-    /// let tube = Circle::new(Point::new(3.0, 0.0, 0.0), Vector::Y, 1.0).unwrap();
-    /// let surface = RevolutionSurface::new(tube.into(), axis).unwrap();
-    /// let reversed = surface.reversed_v();
-    /// let v = surface.v_reversed_parameter(2.0);
-    /// assert!(reversed.eval_point(1.0, v).distance(surface.eval_point(1.0, 2.0)) < 1e-12);
-    /// ```
-    pub fn reversed_v(&self) -> RevolutionSurface {
-        RevolutionSurface {
-            profile: reversed_profile(&self.profile),
-            axis: self.axis,
-            meridian: self.meridian,
-        }
-    }
-
-    /// Maps `u` onto the [`reversed_u`](Self::reversed_u) surface: the
-    /// parameter of the same point there (`2π − u`).
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{Axis, Circle, Point, RevolutionSurface, Vector};
-    /// let axis = Axis::new(Point::ORIGIN, Vector::Z).unwrap();
-    /// let tube = Circle::new(Point::new(3.0, 0.0, 0.0), Vector::Y, 1.0).unwrap();
-    /// let surface = RevolutionSurface::new(tube.into(), axis).unwrap();
-    /// assert_eq!(surface.u_reversed_parameter(1.0), std::f64::consts::TAU - 1.0);
-    /// ```
-    pub fn u_reversed_parameter(&self, u: f64) -> f64 {
-        TAU - u
-    }
-
-    /// Maps `v` onto the [`reversed_v`](Self::reversed_v) surface (`period
-    /// − v` on a circle or ellipse, `−v` on a line, parabola or hyperbola,
-    /// `first + last − v` on a B-spline or Bézier curve).
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{Axis, Line, Point, RevolutionSurface, Vector};
-    /// let axis = Axis::new(Point::ORIGIN, Vector::Z).unwrap();
-    /// let line = Line::new(Point::new(1.0, 0.0, 0.0), Vector::Z).unwrap();
-    /// let surface = RevolutionSurface::new(line.into(), axis).unwrap();
-    /// assert_eq!(surface.v_reversed_parameter(2.0), -2.0);
-    /// ```
-    pub fn v_reversed_parameter(&self, v: f64) -> f64 {
-        profile_reversed_parameter(&self.profile, v)
-    }
-
     /// The `u` isoparametric curve at `u`: the profile turned by `u` about
     /// the axis, so `u_iso(u).eval_point(t)` is `eval_point(u, t)` for
     /// every `t`.
@@ -253,8 +175,9 @@ impl RevolutionSurface {
         if !u.is_finite() {
             return Err(SurfaceIsoError::NonFinite);
         }
-        transformed_profile(&self.profile, Transform::rotation(self.axis, u))
-            .ok_or(SurfaceIsoError::NonFinite)
+        self.profile
+            .transformed(Transform::rotation(self.axis, u))
+            .map_err(|_| SurfaceIsoError::NonFinite)
     }
 
     /// The `v` isoparametric circle at `v`: the circle the profile point
@@ -291,57 +214,6 @@ impl RevolutionSurface {
         };
         let frame = Frame::new(center, direction, x).map_err(|_| SurfaceIsoError::NonFinite)?;
         Circle::from_frame(frame, radius).map_err(|_| SurfaceIsoError::NonFinite)
-    }
-
-    /// Returns the image of this surface under `transform`: the profile
-    /// and the axis map through it.
-    ///
-    /// The image's parametrization is the transform of this one:
-    /// `transformed(t).eval_point(u, v)` equals
-    /// `t.apply_point(self.eval_point(u, v))` under a rotation, translation
-    /// or mirror. A scale keeps `u` and changes `v` as it changes the
-    /// profile's own parameter: a line's or a parabola's scales with
-    /// lengths, any other profile's is kept. A mirror turns the other
-    /// way, so the image's axis is the mirrored axis reversed; the image's
-    /// normal is then the opposite of the mirrored normal, as for any map
-    /// that reverses orientation. Call `reversed_u` or `reversed_v` on the
-    /// image to keep the mirrored side.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`RevolutionSurfaceConstructionError::NonFinite`] when the
-    /// transform collapses the axis (a zero scale factor) or the image
-    /// overflows `f64`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::prelude::*;
-    /// use geomcore::{Axis, Line, Point, RevolutionSurface, Transform, Vector};
-    /// let axis = Axis::new(Point::ORIGIN, Vector::Z).unwrap();
-    /// let line = Line::new(Point::new(1.0, 0.0, 0.0), Vector::Z).unwrap();
-    /// let surface = RevolutionSurface::new(line.into(), axis).unwrap();
-    /// let moved = surface.transformed(Transform::translation(Vector::X)).unwrap();
-    /// assert_eq!(moved.eval_point(0.0, 1.0), Point::new(2.0, 0.0, 1.0));
-    /// ```
-    pub fn transformed(
-        &self,
-        transform: Transform,
-    ) -> Result<RevolutionSurface, RevolutionSurfaceConstructionError> {
-        let direction = transform.apply_vector(self.axis.direction());
-        // The sign of the determinant of the linear part: negative for a
-        // mirror, which turns the rotation sense around.
-        let (x, y) = (
-            transform.apply_vector(Vector::X),
-            transform.apply_vector(Vector::Y),
-        );
-        let mirrored = x.cross(y).dot(transform.apply_vector(Vector::Z)) < 0.0;
-        let direction = if mirrored { -direction } else { direction };
-        let axis = Axis::new(transform.apply_point(self.axis.origin()), direction)
-            .map_err(|_| RevolutionSurfaceConstructionError::NonFinite)?;
-        let profile = transformed_profile(&self.profile, transform)
-            .ok_or(RevolutionSurfaceConstructionError::NonFinite)?;
-        RevolutionSurface::new(profile, axis)
     }
 
     /// The unit direction, perpendicular to the axis, of the plane through
@@ -688,6 +560,66 @@ impl ParametricSurface for RevolutionSurface {
             point: foot,
             distance: snap_distance(foot.distance(point), tol.confusion),
         }
+    }
+}
+
+impl ReversibleSurface for RevolutionSurface {
+    /// Returns the surface turning the other way: the same point set with
+    /// the axis direction negated, so `reversed_u().eval_point(u, v)` is
+    /// `eval_point(-u, v)` and the normal is reversed.
+    fn reversed_u(&self) -> RevolutionSurface {
+        let axis = Axis::new(self.axis.origin(), -self.axis.direction())
+            .expect("a reversed axis is a valid axis");
+        RevolutionSurface {
+            profile: self.profile.clone(),
+            axis,
+            meridian: self.meridian,
+        }
+    }
+
+    /// Returns the surface with the profile run the other way: the same
+    /// point set, the point at `(u, v)` found at
+    /// `(u, v_reversed_parameter(v))`, and the normal reversed.
+    fn reversed_v(&self) -> RevolutionSurface {
+        RevolutionSurface {
+            profile: self.profile.reversed(),
+            axis: self.axis,
+            meridian: self.meridian,
+        }
+    }
+
+    /// Maps `u` onto the [`reversed_u`](ReversibleSurface::reversed_u) surface: the
+    /// parameter of the same point there (`2π − u`).
+    fn u_reversed_parameter(&self, u: f64) -> f64 {
+        TAU - u
+    }
+
+    /// Maps `v` onto the [`reversed_v`](ReversibleSurface::reversed_v) surface (`period
+    /// − v` on a circle or ellipse, `−v` on a line, parabola or hyperbola,
+    /// `first + last − v` on a B-spline or Bézier curve).
+    fn v_reversed_parameter(&self, v: f64) -> f64 {
+        self.profile.reversed_parameter(v)
+    }
+}
+
+impl Transformable for RevolutionSurface {
+    /// The profile and the axis map through the transform. The angle `u`
+    /// is kept and `v` follows the profile's parameter. A mirror turns the
+    /// other way, so the image's axis is the mirrored axis reversed.
+    fn transformed(&self, transform: Transform) -> Result<RevolutionSurface, TransformError> {
+        let profile = self.profile.transformed(transform)?;
+        let direction = transform.apply_vector(self.axis.direction());
+        // The sign of the determinant of the linear part: negative for a
+        // mirror, which turns the rotation sense around.
+        let (x, y) = (
+            transform.apply_vector(Vector::X),
+            transform.apply_vector(Vector::Y),
+        );
+        let mirrored = x.cross(y).dot(transform.apply_vector(Vector::Z)) < 0.0;
+        let direction = if mirrored { -direction } else { direction };
+        let axis = Axis::new(transform.apply_point(self.axis.origin()), direction)
+            .map_err(frame_image_error)?;
+        RevolutionSurface::new(profile, axis).map_err(|_| TransformError::Collapsed)
     }
 }
 

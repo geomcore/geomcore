@@ -59,11 +59,11 @@ The order `C^n` up to which derivatives are guaranteed to agree at a parameter, 
 _Avoid_: smoothness as a yes-or-no answer, regularity
 
 **Reversal**:
-Running a surface in the opposite `u` or `v` direction over the same point set, so the normal reverses. An elementary surface flips one frame axis and its frame turns indirect (left-handed); a B-spline reorders its poles and mirrors its knots.
+Running a curve, or a surface in its `u` or `v` direction, the other way over the same point set; a reversed surface's normal reverses. The **reversed parameter** is where the reversed shape has the point the shape has at `u`: `first + last - u` over bounded parameters (B-spline and Bézier shapes, which reorder their poles and mirror their knots; a circle or ellipse, which flips its frame's y axis, so `2π - u`; a periodic elementary surface direction, `period - u`), and `-u` over unbounded ones (a line negates its direction, a parabola or hyperbola flips its frame's y axis, an unbounded surface direction flips its frame axis), keeping the point at parameter 0. A trimmed curve follows its basis's rule, and a swept surface its profile's. The map is its own inverse; an elementary shape's flipped frame turns indirect (left-handed).
 _Avoid_: mirror (a transform of space, not of traversal)
 
 **Transformed shape**:
-The image of a curve or surface under a transform, parametrized by the image of its parametrization: `transformed(t)` evaluated at a parameter is `t` applied to the original point there (length parameters scale with a uniform scale). Every frame axis maps through the transform, so a mirror turns a direct frame indirect and the image's normal is the opposite of the mirrored normal, for elementary shapes and B-splines alike. Reversing the image restores the mirrored side.
+The image of a curve or surface under a transform, parametrized by the image of its parametrization: `transformed(t)` evaluated at a parameter is `t` applied to the original point there (length parameters scale with a uniform scale). Every frame axis maps through the transform, so a mirror turns a direct frame indirect and the image's normal is the opposite of the mirrored normal, for elementary shapes and B-splines alike. Reversing the image restores the mirrored side. Every shape fails a transform the same two ways: collapsed by a zero scale, or overflowing.
 
 **Bounding box**:
 The axis-aligned box around a curve or surface (`BoundingBox` in space, `BoundingBox2D` in the plane), used to cull pairs before intersecting them. An elementary shape's box is the tightest, touching the shape on every side; a B-spline's comes from its control points, holding the shape but possibly loose. An unbounded shape has none. A box encloses a point and overlaps another box.

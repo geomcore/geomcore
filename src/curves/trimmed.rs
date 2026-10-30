@@ -10,9 +10,11 @@ use crate::curves::{
     BSplineCurve, BSplineCurve2D, Curve, Curve2D, ElementaryCurve, Line, Line2D,
     LineConstructionError, ParametricCurve, ParametricCurve2D, PointExtrema, PointExtrema2D,
 };
+use crate::curves::{RangeOperations, ReversibleCurve};
 use crate::projection::{CurveProjection, CurveProjection2D};
 use crate::tier::TierPoint;
 use crate::{Continuity, Point, Point2D, Tolerance, Vector, Vector2D};
+use crate::{Transform, TransformError, Transformable};
 use std::fmt;
 
 /// Error returned when a [`TrimmedCurve`] or [`TrimmedCurve2D`] cannot be
@@ -368,6 +370,41 @@ impl<C: PointExtrema> PointExtrema for TrimmedCurve<C> {
     }
 }
 
+impl<C: ReversibleCurve> ReversibleCurve for TrimmedCurve<C> {
+    /// The reversed basis over the image of the range under the basis's
+    /// [`reversed_parameter`](ReversibleCurve::reversed_parameter).
+    fn reversed(&self) -> TrimmedCurve<C> {
+        TrimmedCurve {
+            basis: self.basis.reversed(),
+            first: self.basis.reversed_parameter(self.last),
+            last: self.basis.reversed_parameter(self.first),
+        }
+    }
+
+    /// The basis's map.
+    fn reversed_parameter(&self, u: f64) -> f64 {
+        self.basis.reversed_parameter(u)
+    }
+}
+
+impl<C: Transformable + RangeOperations<Point = Point>> Transformable for TrimmedCurve<C> {
+    /// The basis maps through the transform. The range is kept, or scaled
+    /// by the transform's scale factor where the basis's parameter is a
+    /// length (a line, a parabola).
+    fn transformed(&self, transform: Transform) -> Result<TrimmedCurve<C>, TransformError> {
+        let scale = if self.basis.parameter_is_length() {
+            transform.scale_factor()
+        } else {
+            1.0
+        };
+        Ok(TrimmedCurve {
+            basis: self.basis.transformed(transform)?,
+            first: self.first * scale,
+            last: self.last * scale,
+        })
+    }
+}
+
 /// A 2D curve restricted to the parameter range `[first, last]` of a basis
 /// curve: a line segment, a circular arc or a B-spline piece, typically a
 /// trimmed pcurve in a surface's parameter space. Mirrors [`TrimmedCurve`].
@@ -571,6 +608,23 @@ impl<C: PointExtrema2D> PointExtrema2D for TrimmedCurve2D<C> {
             end_projection,
             tol,
         )
+    }
+}
+
+impl<C: ReversibleCurve> ReversibleCurve for TrimmedCurve2D<C> {
+    /// The reversed basis over the image of the range, as
+    /// [`TrimmedCurve::reversed`].
+    fn reversed(&self) -> TrimmedCurve2D<C> {
+        TrimmedCurve2D {
+            basis: self.basis.reversed(),
+            first: self.basis.reversed_parameter(self.last),
+            last: self.basis.reversed_parameter(self.first),
+        }
+    }
+
+    /// The basis's map.
+    fn reversed_parameter(&self, u: f64) -> f64 {
+        self.basis.reversed_parameter(u)
     }
 }
 

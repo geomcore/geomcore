@@ -91,13 +91,4 @@ shape_methods! {
     fn normal(&self) -> PyVector {
         PyVector(self.0.normal())
     }
-
-    /// Image of this circle under `transform` (raises ValueError for a
-    /// collapsing transform).
-    #[pyo3(signature = (transform,))]
-    fn transformed(&self, transform: &PyTransform) -> PyResult<Self> {
-        Ok(PyCircle(
-            self.0.transformed(transform.0).map_err(python_error)?,
-        ))
-    }
 }

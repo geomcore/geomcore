@@ -210,12 +210,6 @@ shape_methods! {
         Ok((PyBSplineCurve2D(a), PyBSplineCurve2D(b)))
     }
 
-    /// The curve with its parameter mirrored, keeping a periodic curve
-    /// periodic.
-    fn reversed(&self) -> Self {
-        PyBSplineCurve2D(self.0.reversed())
-    }
-
     /// The arc length, integrating the speed to within `max_error`.
     fn length(&self, max_error: f64) -> f64 {
         self.0.length(max_error)

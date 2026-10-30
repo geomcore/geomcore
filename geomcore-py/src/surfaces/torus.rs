@@ -64,15 +64,6 @@ shape_methods! {
         self.0.minor_radius()
     }
 
-    /// Image of this torus under `transform` (raises ValueError for a
-    /// collapsing transform).
-    #[pyo3(signature = (transform,))]
-    fn transformed(&self, transform: &PyTransform) -> PyResult<Self> {
-        Ok(PyTorus(
-            self.0.transformed(transform.0).map_err(python_error)?,
-        ))
-    }
-
     /// The whole torus as an exact rational B-spline surface.
     fn to_bspline(&self) -> PyBSplineSurface {
         PyBSplineSurface(self.0.to_bspline())

@@ -1,6 +1,7 @@
 //! The [`ParametricCurve`] trait every 3D curve implements, the
-//! [`PointExtrema`] point-projection trait, and the [`Side`] and
-//! [`Continuity`] values their queries take and return.
+//! [`PointExtrema`] point-projection trait, the [`ReversibleCurve`] trait
+//! of the curves of both tiers, and the [`Side`] and [`Continuity`] values
+//! their queries take and return.
 
 use crate::curves::BSplineCurve;
 use crate::curves::ElementaryCurve;
@@ -561,6 +562,49 @@ pub trait PointExtrema: ParametricCurve {
     fn parameter_of(&self, point: Point, tol: Tolerance) -> f64 {
         self.project_point(point, tol).parameter
     }
+}
+
+/// A curve that runs the other way over the same point set: every curve
+/// of both tiers, and their enums.
+///
+/// [`reversed_parameter`](ReversibleCurve::reversed_parameter) maps a
+/// parameter onto the reversed curve:
+/// `reversed().eval_point(reversed_parameter(u))` is `eval_point(u)`, and
+/// the derivatives of odd order change sign there. The map is its own
+/// inverse and takes the bounds to the reversed curve's bounds, and
+/// reversing twice gives the curve back.
+///
+/// On bounded parameters the map is `first + last - u`: B-spline and
+/// Bézier curves list their poles in reverse order and mirror their
+/// knots, and a circle or ellipse flips its frame's y direction (`2π - u`).
+/// An unbounded curve keeps the point at parameter 0 and maps `u` to `-u`:
+/// a line negates its direction, a parabola or hyperbola flips its frame's
+/// y direction. A trimmed curve reverses its basis and maps its range
+/// through the basis's map, so its parameter follows the basis's rule.
+///
+/// The trait returns `Self`, so it stands apart from
+/// [`ParametricCurve`] and [`ParametricCurve2D`](crate::ParametricCurve2D),
+/// which a reference to a curve implements too.
+///
+/// # Examples
+///
+/// ```
+/// use geomcore::prelude::*;
+/// use geomcore::{Circle, Curve, Point, Vector};
+///
+/// let circle = Curve::from(Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap());
+/// let reversed = circle.reversed();
+/// let u = circle.reversed_parameter(0.5);
+/// assert!(reversed.eval_point(u).distance(circle.eval_point(0.5)) < 1e-12);
+/// assert_eq!(reversed.bounds(), circle.bounds());
+/// ```
+pub trait ReversibleCurve: Sized {
+    /// Returns the curve traversed the other way over the same point set.
+    fn reversed(&self) -> Self;
+
+    /// Maps `u` onto the [`reversed`](ReversibleCurve::reversed) curve:
+    /// the parameter of the same point there.
+    fn reversed_parameter(&self, u: f64) -> f64;
 }
 
 /// A reference to a curve is the curve, so a

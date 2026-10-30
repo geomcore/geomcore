@@ -148,18 +148,6 @@ fn similarities() -> Vec<Similarity> {
     ]
 }
 
-fn transformed(surface: &Surface, transform: Transform) -> Surface {
-    match surface {
-        Surface::Plane(s) => Surface::Plane(s.transformed(transform).unwrap()),
-        Surface::Cylinder(s) => Surface::Cylinder(s.transformed(transform).unwrap()),
-        Surface::Cone(s) => Surface::Cone(s.transformed(transform).unwrap()),
-        Surface::Sphere(s) => Surface::Sphere(s.transformed(transform).unwrap()),
-        Surface::Torus(s) => Surface::Torus(s.transformed(transform).unwrap()),
-        Surface::BSpline(s) => Surface::BSpline(s.transformed(transform)),
-        _ => unreachable!("every surface type is listed"),
-    }
-}
-
 /// Which of `(u, v)` are lengths, and so scale with the transform; the
 /// others are angles (or B-spline parameters) and are left unchanged.
 fn length_parameters(surface: &Surface) -> (bool, bool) {
@@ -229,7 +217,7 @@ fn test_transform_commutes_with_surface_evaluation() {
     for similarity in similarities() {
         let t = similarity.transform;
         for surface in all_orientations() {
-            let image = transformed(&surface, t);
+            let image = surface.transformed(t).unwrap();
             for parameters in PARAMETERS {
                 let (u, v) = in_bounds(&surface, parameters);
                 let ((iu, iv), [u_factor, v_factor]) =
@@ -260,7 +248,7 @@ fn test_mirror_turns_the_normal_to_the_opposite_of_the_mirrored_normal() {
         let t = similarity.transform;
         let sign = if similarity.mirror { -1.0 } else { 1.0 };
         for surface in all_orientations() {
-            let image = transformed(&surface, t);
+            let image = surface.transformed(t).unwrap();
             for parameters in PARAMETERS {
                 let (u, v) = in_bounds(&surface, parameters);
                 let ((iu, iv), _) = image_parameters(&surface, similarity.scale, (u, v));
@@ -276,10 +264,10 @@ fn test_mirror_turns_the_normal_to_the_opposite_of_the_mirrored_normal() {
         // The reversal undoes the mirror's flip of the normal.
         if similarity.mirror {
             for surface in surfaces() {
-                let image = transformed(&surface, t).reversed_u();
+                let image = surface.transformed(t).unwrap().reversed_u();
                 let (u, v) = in_bounds(&surface, (0.3, 0.2));
                 let ((iu, iv), _) = image_parameters(&surface, similarity.scale, (u, v));
-                let iu = transformed(&surface, t).u_reversed_parameter(iu);
+                let iu = surface.transformed(t).unwrap().u_reversed_parameter(iu);
                 let expected =
                     (1.0 / similarity.scale) * t.apply_vector(unit_normal(&surface, u, v));
                 assert!((unit_normal(&image, iu, iv) - expected).magnitude() < 1e-11);
@@ -322,9 +310,10 @@ fn test_conversion_to_bspline_commutes_with_transforms() {
             let ((u0, u1), (v0, v1)) = patch_ranges(&surface);
             let ((iu0, iv0), _) = image_parameters(&surface, similarity.scale, (u0, v0));
             let ((iu1, iv1), _) = image_parameters(&surface, similarity.scale, (u1, v1));
-            let image = transformed(&surface, t);
-            let converted_then_moved =
-                to_bspline_patch(&surface, ((u0, u1), (v0, v1))).transformed(t);
+            let image = surface.transformed(t).unwrap();
+            let converted_then_moved = to_bspline_patch(&surface, ((u0, u1), (v0, v1)))
+                .transformed(t)
+                .unwrap();
             let moved_then_converted = to_bspline_patch(&image, ((iu0, iu1), (iv0, iv1)));
             for (a, b) in [(0.0, 0.0), (0.3, 0.7), (0.5, 0.5), (1.0, 0.2), (0.9, 1.0)] {
                 let (u, v) = (u0 + a * (u1 - u0), v0 + b * (v1 - v0));
@@ -354,7 +343,10 @@ fn test_projection_onto_reversed_and_mirrored_surfaces_finds_the_foot() {
     let tol = Tolerance::DEFAULT;
     let mirror = &similarities()[3];
     for surface in all_orientations() {
-        for target in [surface.clone(), transformed(&surface, mirror.transform)] {
+        for target in [
+            surface.clone(),
+            surface.transformed(mirror.transform).unwrap(),
+        ] {
             for (u, v) in [(0.3, 0.2), (2.0, -0.7)] {
                 let foot = target.eval_point(u, v);
                 let off = foot + 0.1 * unit_normal(&target, u, v);
@@ -403,31 +395,6 @@ fn curves() -> Vec<Curve> {
     ]
 }
 
-fn transformed_curve(curve: &Curve, transform: Transform) -> Curve {
-    match curve {
-        Curve::Line(c) => c.transformed(transform).unwrap().into(),
-        Curve::Circle(c) => c.transformed(transform).unwrap().into(),
-        Curve::Ellipse(c) => c.transformed(transform).unwrap().into(),
-        Curve::Parabola(c) => c.transformed(transform).unwrap().into(),
-        Curve::Hyperbola(c) => c.transformed(transform).unwrap().into(),
-        Curve::BSpline(c) => c.transformed(transform).into(),
-        _ => unreachable!("every curve type is listed"),
-    }
-}
-
-fn project_on_curve(curve: &Curve, point: Point) -> f64 {
-    let tol = Tolerance::DEFAULT;
-    match curve {
-        Curve::Line(c) => c.project_point(point, tol).parameter,
-        Curve::Circle(c) => c.project_point(point, tol).parameter,
-        Curve::Ellipse(c) => c.project_point(point, tol).parameter,
-        Curve::Parabola(c) => c.project_point(point, tol).parameter,
-        Curve::Hyperbola(c) => c.project_point(point, tol).parameter,
-        Curve::BSpline(c) => c.project_point(point, tol).parameter,
-        _ => unreachable!("every curve type is listed"),
-    }
-}
-
 /// Whether the curve parameter is a length, and so scales with the
 /// transform.
 fn is_length_parameter(curve: &Curve) -> bool {
@@ -439,7 +406,7 @@ fn test_transform_commutes_with_curve_evaluation_and_parameter_recovery() {
     for similarity in similarities() {
         let t = similarity.transform;
         for curve in curves() {
-            let image = transformed_curve(&curve, t);
+            let image = curve.transformed(t).unwrap();
             let factor = if is_length_parameter(&curve) {
                 similarity.scale
             } else {
@@ -458,7 +425,9 @@ fn test_transform_commutes_with_curve_evaluation_and_parameter_recovery() {
                         < 1e-10,
                     "derivative: {context}"
                 );
-                let recovered = project_on_curve(&image, image_point);
+                let recovered = image
+                    .project_point(image_point, Tolerance::DEFAULT)
+                    .parameter;
                 assert!(
                     (recovered - u * factor).abs() < 1e-9,
                     "parameter recovery: {context}, got {recovered}"
@@ -479,7 +448,7 @@ fn test_transform_commutes_with_curve_evaluation_and_parameter_recovery() {
                 _ => None,
             };
             if let Some((converted, image_converted)) = conversions {
-                let converted_then_moved = converted.transformed(t);
+                let converted_then_moved = converted.transformed(t).unwrap();
                 for u in [0.0, 1.0, 3.3, 5.9] {
                     let gap = converted_then_moved
                         .eval_point(u)
@@ -541,12 +510,12 @@ fn test_curve_surface_intersection_commutes_with_mirrors() {
             if matches!(surface, Surface::BSpline(_)) {
                 continue;
             }
-            let image_surface = transformed(&surface, t);
+            let image_surface = surface.transformed(t).unwrap();
             for curve in crossing_curves() {
                 if similarity.scale != 1.0 && is_length_parameter(&curve) {
                     continue;
                 }
-                let image_curve = transformed_curve(&curve, t);
+                let image_curve = curve.transformed(t).unwrap();
                 let outcome = curve_surface_hits(curve.intersect(&surface, tol));
                 let image_outcome = curve_surface_hits(image_curve.intersect(&image_surface, tol));
                 let context = format!("{} of {curve:?} and {surface:?}", similarity.name);
@@ -627,8 +596,10 @@ fn test_curve_curve_intersection_commutes_with_mirrors() {
         let t = similarity.transform;
         for (i, first) in in_plane.iter().enumerate() {
             for second in &in_plane[i + 1..] {
-                let (first_image, second_image) =
-                    (transformed_curve(first, t), transformed_curve(second, t));
+                let (first_image, second_image) = (
+                    first.transformed(t).unwrap(),
+                    second.transformed(t).unwrap(),
+                );
                 let result = first.intersect(second, tol);
                 let image_result = first_image.intersect(&second_image, tol);
                 let context = format!("{} of {first:?} and {second:?}", similarity.name);
@@ -747,9 +718,9 @@ fn test_surface_surface_intersection_commutes_with_mirrors() {
             if matches!(surface, Surface::BSpline(_)) {
                 continue;
             }
-            let image = transformed(&surface, t);
+            let image = surface.transformed(t).unwrap();
             for other in &others {
-                let other_image = transformed(other, t);
+                let other_image = other.transformed(t).unwrap();
                 let outcome = surface_intersection_curves(surface.intersect(other, tol));
                 let image_outcome = surface_intersection_curves(image.intersect(&other_image, tol));
                 let context = format!("{} of {surface:?} and {other:?}", similarity.name);
@@ -810,9 +781,9 @@ fn test_routed_curve_surface_intersection_commutes_with_mirrors() {
     for similarity in [&similarities()[0], &similarities()[3], &similarities()[4]] {
         let t = similarity.transform;
         for surface in all_orientations() {
-            let image_surface = transformed(&surface, t);
+            let image_surface = surface.transformed(t).unwrap();
             for curve in &curves {
-                let image_curve = transformed_curve(curve, t);
+                let image_curve = curve.transformed(t).unwrap();
                 let result = curve.intersect(&surface, tol);
                 let image_result = image_curve.intersect(&image_surface, tol);
                 let context = format!("{} of {curve:?} and {surface:?}", similarity.name);
@@ -873,9 +844,9 @@ fn test_routed_surface_surface_intersection_commutes_with_mirrors() {
     for similarity in [&similarities()[0], &similarities()[3]] {
         let t = similarity.transform;
         for surface in all_orientations() {
-            let image = transformed(&surface, t);
+            let image = surface.transformed(t).unwrap();
             for other in &others {
-                let other_image = transformed(other, t);
+                let other_image = other.transformed(t).unwrap();
                 let result = surface.intersect(other, tol);
                 let image_result = image.intersect(&other_image, tol);
                 let context = format!("{} of {surface:?} and {other:?}", similarity.name);
@@ -978,7 +949,10 @@ fn test_parametrization_on_reversed_and_mirrored_surfaces() {
         if matches!(surface, Surface::BSpline(_)) {
             continue;
         }
-        for target in [surface.clone(), transformed(&surface, mirror.transform)] {
+        for target in [
+            surface.clone(),
+            surface.transformed(mirror.transform).unwrap(),
+        ] {
             for curve in curves_on(&target) {
                 let pcurve = match &curve {
                     Curve::Circle(c) => c.parametrize_on(target.clone(), tol),

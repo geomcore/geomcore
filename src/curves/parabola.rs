@@ -1,6 +1,7 @@
 //! Parabolas of both tiers: parametric evaluation and parameter
 //! inversion, a thin wrapper over [`crate::elementary::curve`].
 
+use crate::curves::ReversibleCurve;
 use crate::curves::parametrize::ParametrizeError;
 use crate::curves::{Curve2D, parametrize};
 use crate::curves::{ElementaryCurve, ParametricCurve, ParametricCurve2D};
@@ -12,7 +13,9 @@ use crate::projection::CurveProjection;
 use crate::surfaces::Surface;
 use crate::tier::operations::FrameOperations;
 use crate::tier::{TierPoint, impl_for_both_tiers};
+use crate::transform::image_error;
 use crate::{Frame, Frame2D, Point, Point2D, Tolerance, Transform, Vector, Vector2D, projection};
+use crate::{TransformError, Transformable};
 use std::fmt;
 
 /// Error returned when a [`Parabola`] or [`Parabola2D`] cannot be
@@ -200,36 +203,6 @@ impl Parabola {
         Parabola::from_frame(frame, focal)
     }
 
-    /// Returns the image of this parabola under `transform`: the apex and
-    /// frame directions map point-wise while the focal distance scales by
-    /// the transform's uniform scale factor.
-    ///
-    /// Every frame axis maps through the transform, so the image's
-    /// parametrization is the transform of this one: under a rotation,
-    /// translation or mirror, `transformed(t).eval_point(u)` equals
-    /// `t.apply_point(self.eval_point(u))`, and a mirror changes the
-    /// frame's handedness. Fails with [`ParabolaConstructionError::NullNormal`]
-    /// only when the transform collapses the frame (a zero scale factor).
-    /// `u` is a length along the y direction, so under a scale `s` the
-    /// image of the point at `u` sits at `s * u`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{Parabola, Point, Transform, Vector};
-    /// let parabola = Parabola::new(Point::ORIGIN, Vector::Z, Vector::X, 1.0).unwrap();
-    /// let moved = parabola.transformed(Transform::translation(Vector::new(1.0, 0.0, 0.0))).unwrap();
-    /// assert_eq!(moved.apex(), Point::new(1.0, 0.0, 0.0));
-    /// assert_eq!(moved.focal(), 1.0);
-    /// ```
-    pub fn transformed(&self, transform: Transform) -> Result<Parabola, ParabolaConstructionError> {
-        let (frame, scale) = transform.apply_frame(self.frame()).map_err(frame_error(
-            ParabolaConstructionError::NonFinite,
-            ParabolaConstructionError::NullNormal,
-        ))?;
-        Parabola::from_frame(frame, self.focal() * scale)
-    }
-
     /// Computes the exact 2D representation of this parabola in a surface's
     /// parameter space: a [`Curve2D`] `q(t)` such that
     /// `surface.eval_point(q(t)) == self.eval_point(t)` for the same `t`.
@@ -387,6 +360,31 @@ impl_for_both_tiers! {
         fn as_elementary(&self) -> Option<ElementaryCurve> {
             Some(ElementaryCurve::Parabola(*self))
         }
+    }
+}
+
+impl Transformable for Parabola {
+    /// The frame maps through the transform and the focal distance scales
+    /// by its scale factor, so the parameter, a length, scales too.
+    fn transformed(&self, transform: Transform) -> Result<Parabola, TransformError> {
+        let (frame, scale) = transform.apply_frame(self.frame())?;
+        Parabola::from_frame(frame, self.focal() * scale)
+            .map_err(image_error(ParabolaConstructionError::NonFinite))
+    }
+}
+
+impl<P: TierPoint> ReversibleCurve for GenericParabola<P> {
+    /// The parabola with its frame's y direction negated.
+    fn reversed(&self) -> GenericParabola<P> {
+        GenericParabola {
+            frame: self.frame.flipped_y(),
+            focal: self.focal,
+        }
+    }
+
+    /// `-u`.
+    fn reversed_parameter(&self, u: f64) -> f64 {
+        -u
     }
 }
 

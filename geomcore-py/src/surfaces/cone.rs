@@ -73,15 +73,6 @@ shape_methods! {
         self.0.ref_radius()
     }
 
-    /// Image of this cone under `transform` (raises ValueError for a
-    /// collapsing transform).
-    #[pyo3(signature = (transform,))]
-    fn transformed(&self, transform: &PyTransform) -> PyResult<Self> {
-        Ok(PyCone(
-            self.0.transformed(transform.0).map_err(python_error)?,
-        ))
-    }
-
     /// The patch `u_range × v_range` as an exact rational B-spline
     /// surface (raises `ValueError` for a bad range).
     fn to_bspline_patch(

@@ -4,9 +4,11 @@
 use crate::curves::Continuity;
 use crate::curves::ParametricCurve;
 use crate::curves::PointExtrema;
+use crate::curves::ReversibleCurve;
 use crate::curves::{BSplineCurve, BezierCurve, Circle, Ellipse, Hyperbola, Line, Parabola};
 use crate::projection::CurveProjection;
 use crate::{Point, Tolerance, Vector};
+use crate::{Transform, TransformError, Transformable};
 
 /// Calls `worker!` on the variants of [`Curve`] or of [`ElementaryCurve`]
 /// (see [`crate::shape_enum`]). The elementary variants are listed once:
@@ -191,6 +193,22 @@ impl PointExtrema for Curve {
     }
 }
 
+impl ReversibleCurve for Curve {
+    fn reversed(&self) -> Curve {
+        curve_dispatch!(self, c => Curve::from(c.reversed()))
+    }
+
+    fn reversed_parameter(&self, u: f64) -> f64 {
+        curve_dispatch!(self, c => c.reversed_parameter(u))
+    }
+}
+
+impl Transformable for Curve {
+    fn transformed(&self, transform: Transform) -> Result<Curve, TransformError> {
+        curve_dispatch!(self, c => c.transformed(transform).map(Curve::from))
+    }
+}
+
 curve_variants!(Curve, crate::shape_enum::from_shapes! {});
 
 /// An elementary curve: a line, circle, ellipse, parabola or hyperbola,
@@ -305,6 +323,22 @@ impl PointExtrema for ElementaryCurve {
 
     fn parameter_of(&self, point: Point, tol: Tolerance) -> f64 {
         elementary_curve_dispatch!(self, c => c.parameter_of(point, tol))
+    }
+}
+
+impl ReversibleCurve for ElementaryCurve {
+    fn reversed(&self) -> ElementaryCurve {
+        elementary_curve_dispatch!(self, c => ElementaryCurve::from(c.reversed()))
+    }
+
+    fn reversed_parameter(&self, u: f64) -> f64 {
+        elementary_curve_dispatch!(self, c => c.reversed_parameter(u))
+    }
+}
+
+impl Transformable for ElementaryCurve {
+    fn transformed(&self, transform: Transform) -> Result<ElementaryCurve, TransformError> {
+        elementary_curve_dispatch!(self, c => c.transformed(transform).map(ElementaryCurve::from))
     }
 }
 
