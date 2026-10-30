@@ -2,13 +2,19 @@
 pairs with every other class.
 
 The geometry is checked elsewhere; this file checks the bindings' shape:
-that each class carries the methods its core trait gives it, that
-`intersect` accepts every class on either side, and that each class
-survives the conversions through the core enums.
+that each class carries the methods its core trait gives it, that the
+stubs type and document them as the runtime has them, that `intersect`
+accepts every class on either side, and that each class survives the
+conversions through the core enums.
+
+The method sets are read from the stubs, where each is a stub-only class
+(`_CurveMethods`, `_DiscretizeMethods`, ...) that a class inherits.
 """
 
+import ast
 import inspect
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 
 import pytest
 
@@ -27,68 +33,6 @@ from geomcore import (
     Vector,
 )
 from geomcore import curves, surfaces
-
-CURVE_METHODS = {
-    "eval_point",
-    "eval_points",
-    "eval_derivative",
-    "eval_d1",
-    "eval_d2",
-    "tangent",
-    "curvature",
-    "curvature_center",
-    "bounds",
-    "period",
-    "is_periodic",
-    "is_closed",
-    "continuity",
-    "min_continuity",
-    "extrema",
-    "project_point",
-    "project_points",
-    "contains",
-    "parameter_of",
-    "bounding_box",
-    "intersect",
-    "reversed",
-    "reversed_parameter",
-}
-
-SURFACE_METHODS = {
-    "eval_point",
-    "eval_points",
-    "eval_derivative",
-    "eval_d1",
-    "eval_d2",
-    "u_bounds",
-    "v_bounds",
-    "u_period",
-    "v_period",
-    "is_u_closed",
-    "is_v_closed",
-    "continuity_u",
-    "continuity_v",
-    "min_continuity_u",
-    "min_continuity_v",
-    "curvatures",
-    "project_point",
-    "project_points",
-    "contains",
-    "parameters_of",
-    "bounding_box",
-    "intersect",
-    "u_iso",
-    "v_iso",
-    "reversed_u",
-    "reversed_v",
-    "u_reversed_parameter",
-    "v_reversed_parameter",
-    "transformed",
-}
-
-BOUNDED_CURVE_METHODS = {"discretize", "point_count"}
-SIDED_METHODS = {"eval_d1_sided", "eval_d2_sided", "eval_derivative_sided"}
-
 
 def _curves_3d():
     """One small instance of each whole 3D curve class, near the origin."""
@@ -185,6 +129,64 @@ def _classes(module):
     }
 
 
+def _shape_classes():
+    return {**_classes(curves), **_classes(surfaces)}
+
+
+class _StubClass:
+    """A class of the curve or surface stubs, as written there."""
+
+    def __init__(self, node):
+        functions = [item for item in node.body if isinstance(item, ast.FunctionDef)]
+        self.bases = [_base_name(base) for base in node.bases]
+        self.methods = [function.name for function in functions]
+        # An overloaded method carries its docstring on its first overload.
+        self.docstrings = {}
+        for function in functions:
+            docstring = ast.get_docstring(function)
+            if docstring is not None:
+                self.docstrings.setdefault(function.name, docstring)
+
+
+def _base_name(base):
+    return base.value.id if isinstance(base, ast.Subscript) else base.id
+
+
+def _read_stub_classes():
+    stub_directory = Path(geomcore.__file__).parent
+    classes = {}
+    for module in ("curves", "surfaces"):
+        tree = ast.parse((stub_directory / f"{module}.pyi").read_text(encoding="utf-8"))
+        for node in tree.body:
+            if isinstance(node, ast.ClassDef):
+                classes[node.name] = _StubClass(node)
+    return classes
+
+
+STUB_CLASSES = _read_stub_classes()
+
+
+def _stub_bases(name):
+    """`name` and the stub classes it inherits, nearest first."""
+    yield STUB_CLASSES[name]
+    for base in STUB_CLASSES[name].bases:
+        if base in STUB_CLASSES:
+            yield from _stub_bases(base)
+
+
+def _stub_methods(name):
+    """The methods the stub of class `name` gives it, inherited ones included."""
+    return {method for stub in _stub_bases(name) for method in stub.methods}
+
+
+def _stub_docstrings(name):
+    docstrings = {}
+    for stub in _stub_bases(name):
+        for method, docstring in stub.docstrings.items():
+            docstrings.setdefault(method, docstring)
+    return docstrings
+
+
 # ---------------------------------------------------------------- method sets
 
 
@@ -193,14 +195,22 @@ def test_every_class_has_a_fixture():
     assert set(_classes(curves)) | set(_classes(surfaces)) == covered
 
 
-@pytest.mark.parametrize("name", sorted(_classes(curves)))
-def test_every_curve_class_has_the_curve_methods(name):
-    assert CURVE_METHODS <= set(dir(_classes(curves)[name]))
+def test_every_class_takes_its_tier_method_set():
+    for name in _shape_classes():
+        if name in _classes(surfaces):
+            tier = "_SurfaceMethods"
+        elif name.endswith("2D"):
+            tier = "_Curve2DMethods"
+        else:
+            tier = "_CurveMethods"
+        assert tier in STUB_CLASSES[name].bases, name
 
 
-@pytest.mark.parametrize("name", sorted(_classes(surfaces)))
-def test_every_surface_class_has_the_surface_methods(name):
-    assert SURFACE_METHODS <= set(dir(_classes(surfaces)[name]))
+@pytest.mark.parametrize("name", sorted(_shape_classes()))
+def test_every_class_answers_each_method_its_stub_gives_it(name):
+    # stubtest checks the signature of every method the stub gives a class,
+    # but not that the runtime class has each method set the stub inherits.
+    assert _stub_methods(name) <= set(dir(_shape_classes()[name]))
 
 
 def test_3d_curves_are_transformed_and_2d_curves_are_not():
@@ -209,9 +219,10 @@ def test_3d_curves_are_transformed_and_2d_curves_are_not():
 
 
 def test_bounded_curves_discretize_and_unbounded_ones_do_not():
+    discretize = _stub_methods("_DiscretizeMethods")
     for curve in _operands_3d()[:9] + _operands_2d():
         bounded = all(abs(end) != float("inf") for end in curve.bounds())
-        has = BOUNDED_CURVE_METHODS <= set(dir(curve))
+        has = discretize <= set(dir(curve))
         assert has == bounded, type(curve).__name__
 
 
@@ -220,7 +231,7 @@ def test_spline_classes_have_the_sided_evaluations():
         name
         for module in (curves, surfaces)
         for name, cls in _classes(module).items()
-        if SIDED_METHODS <= set(dir(cls))
+        if _stub_methods("_SidedEvaluationMethods") <= set(dir(cls))
     }
     assert sided == {
         "BSplineCurve",
@@ -230,6 +241,64 @@ def test_spline_classes_have_the_sided_evaluations():
         "BSplineSurface",
         "BezierSurface",
     }
+
+
+# ---------------------------------------------------------------- stubs
+
+
+def test_every_method_set_method_has_a_docstring():
+    for name, stub in STUB_CLASSES.items():
+        if name.endswith("Methods"):
+            missing = sorted(set(stub.methods) - set(stub.docstrings))
+            assert not missing, (name, missing)
+
+
+@pytest.mark.parametrize("name", sorted(_shape_classes()))
+def test_stub_docstrings_are_the_runtime_ones(name):
+    runtime = _shape_classes()[name]
+    for method, docstring in _stub_docstrings(name).items():
+        assert docstring == inspect.getdoc(getattr(runtime, method)), (name, method)
+
+
+def test_type_checkers_see_every_method_of_every_class(tmp_path):
+    mypy = pytest.importorskip("mypy.api")
+    lines = [
+        "from typing_extensions import assert_type",
+        "import geomcore",
+        "from geomcore import curves, surfaces",
+    ]
+    for module in (curves, surfaces):
+        for name, cls in sorted(_classes(module).items()):
+            for method in sorted(m for m in vars(cls) if not m.startswith("_")):
+                lines.append(f"{module.__name__}.{name}.{method}")
+    lines += [
+        "def check(",
+        "    line: curves.Line,",
+        "    line_2d: curves.Line2D,",
+        "    ellipse: curves.Ellipse,",
+        "    spline_2d: curves.BSplineCurve2D,",
+        "    plane: surfaces.Plane,",
+        "    torus: surfaces.Torus,",
+        ") -> None:",
+        "    assert_type(line.eval_point(0.0), geomcore.Point)",
+        "    assert_type(line_2d.eval_point(0.0), geomcore.Point2D)",
+        "    assert_type(line.intersect(line), geomcore.CurveCurveIntersection)",
+        "    assert_type(line.intersect(plane), geomcore.CurveSurfaceIntersection)",
+        "    assert_type(line_2d.intersect(spline_2d), geomcore.CurveCurveIntersection2D)",
+        "    assert_type(ellipse.parametrize_on(plane), curves.Ellipse2D)",
+        "    assert_type(ellipse.discretize(0.1), geomcore.Discretization)",
+        "    assert_type(spline_2d.discretize(0.1), geomcore.Discretization2D)",
+        "    assert_type(spline_2d.eval_d1_sided(0.0, geomcore.Side.BELOW)[1], geomcore.Vector2D)",
+        "    assert_type(plane.u_iso(0.0), curves.Line)",
+        "    assert_type(torus.v_iso(0.0), curves.Circle)",
+        "    assert_type(torus.intersect(plane), geomcore.SurfaceSurfaceIntersection)",
+    ]
+    source = tmp_path / "uses_the_stubs.py"
+    source.write_text("\n".join(lines) + "\n")
+    report, errors, status = mypy.run(
+        ["--strict", "--no-incremental", "--cache-dir", str(tmp_path / "cache"), str(source)]
+    )
+    assert status == 0, report + errors
 
 
 # ---------------------------------------------------------------- intersect
