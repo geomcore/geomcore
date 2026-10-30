@@ -561,6 +561,10 @@ impl ParametricSurface for RevolutionSurface {
             distance: snap_distance(foot.distance(point), tol.confusion),
         }
     }
+
+    fn as_revolution(&self) -> Option<&RevolutionSurface> {
+        Some(self)
+    }
 }
 
 impl ReversibleSurface for RevolutionSurface {
