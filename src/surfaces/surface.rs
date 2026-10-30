@@ -5,7 +5,8 @@ use crate::curves::{Continuity, Curve};
 use crate::surfaces::ParametricSurface;
 use crate::surfaces::SurfaceCurvatures;
 use crate::surfaces::{
-    BSplineSurface, BezierSurface, Cone, Cylinder, Plane, Sphere, SurfaceIsoError, Torus,
+    BSplineSurface, BezierSurface, Cone, Cylinder, ExtrusionSurface, Plane, RevolutionSurface,
+    Sphere, SurfaceIsoError, Torus,
 };
 use crate::{Point, SurfaceProjection, Tolerance, Vector};
 
@@ -18,7 +19,12 @@ macro_rules! surface_variants {
     };
     (Surface, $($worker:tt)+) => {
         $crate::surfaces::surface_variants! {
-            @elementary Surface, $($worker)+, BSpline(BSplineSurface), Bezier(BezierSurface)
+            @elementary Surface,
+            $($worker)+,
+            Extrusion(ExtrusionSurface),
+            Revolution(RevolutionSurface),
+            BSpline(BSplineSurface),
+            Bezier(BezierSurface)
         }
     };
     (@elementary $enum:ident, $($worker:ident)::+ ! $arguments:tt, $($others:tt)*) => {
@@ -65,7 +71,9 @@ pub(crate) use elementary_surface_dispatch;
 /// surfaces and evaluate them uniformly through [`ParametricSurface`].
 ///
 /// A [`BezierSurface`] is a variant of its own, intersected and boxed as
-/// the B-spline surface it is.
+/// the B-spline surface it is. An [`ExtrusionSurface`] or a
+/// [`RevolutionSurface`] holds its profile as a [`Curve`] and is
+/// intersected by the numeric search.
 ///
 /// Marked `#[non_exhaustive]`: further surface types join as variants
 /// without that being a breaking change.
@@ -97,6 +105,10 @@ pub enum Surface {
     Sphere(Sphere),
     /// A [`Torus`] surface.
     Torus(Torus),
+    /// An [`ExtrusionSurface`]: a profile curve swept along a direction.
+    Extrusion(ExtrusionSurface),
+    /// A [`RevolutionSurface`]: a profile curve turned about an axis.
+    Revolution(RevolutionSurface),
     /// A [`BSplineSurface`] (tensor-product NURBS) surface.
     BSpline(BSplineSurface),
     /// A [`BezierSurface`] surface.
@@ -106,15 +118,17 @@ pub enum Surface {
 impl Surface {
     /// The `u` isoparametric curve at `u`: `u` fixed, running along `v`,
     /// so `u_iso(u).eval_point(t)` is `eval_point(u, t)` for every `t`.
-    /// A line on a plane, cylinder or cone, a circle on a sphere or torus,
-    /// a B-spline curve on a B-spline surface, a Bézier curve on a Bézier
+    /// A line on a plane, cylinder, cone or extrusion surface, a circle on
+    /// a sphere or torus, the turned profile on a revolution surface, a
+    /// B-spline curve on a B-spline surface, a Bézier curve on a Bézier
     /// surface; see each type's `u_iso`.
     ///
     /// # Errors
     ///
     /// Returns [`SurfaceIsoError::NonFinite`] for a NaN or infinite `u`,
     /// and [`SurfaceIsoError::OutOfRange`] for a `u` outside the bounds of
-    /// a non-periodic B-spline or Bézier direction.
+    /// a non-periodic B-spline or Bézier direction or of an extrusion's
+    /// bounded profile.
     ///
     /// # Examples
     ///
@@ -125,12 +139,13 @@ impl Surface {
     /// assert!(matches!(cylinder.v_iso(0.0), Ok(Curve::Circle(_))));
     /// ```
     pub fn u_iso(&self, u: f64) -> Result<Curve, SurfaceIsoError> {
-        Ok(surface_dispatch!(self, s => Curve::from(s.u_iso(u)?)))
+        Ok(surface_dispatch!(self, s => into_curve(s.u_iso(u)?)))
     }
 
     /// The `v` isoparametric curve at `v`: `v` fixed, running along `u`,
     /// so `v_iso(v).eval_point(t)` is `eval_point(t, v)` for every `t`.
-    /// A line on a plane, a circle on a cylinder, cone, sphere or torus, a
+    /// A line on a plane, a circle on a cylinder, cone, sphere, torus or
+    /// revolution surface, the moved profile on an extrusion surface, a
     /// B-spline curve on a B-spline surface, a Bézier curve on a Bézier
     /// surface; see each type's `v_iso`.
     ///
@@ -146,7 +161,7 @@ impl Surface {
     /// assert!(matches!(plane.v_iso(1.0), Ok(Curve::Line(_))));
     /// ```
     pub fn v_iso(&self, v: f64) -> Result<Curve, SurfaceIsoError> {
-        Ok(surface_dispatch!(self, s => Curve::from(s.v_iso(v)?)))
+        Ok(surface_dispatch!(self, s => into_curve(s.v_iso(v)?)))
     }
 
     /// The surface running in the opposite `u` direction: the same point
@@ -214,6 +229,12 @@ impl Surface {
     pub fn v_reversed_parameter(&self, v: f64) -> f64 {
         surface_dispatch!(self, s => s.v_reversed_parameter(v))
     }
+}
+
+/// An iso curve as a [`Curve`]: a line or circle converts, the iso curve
+/// of a swept surface already is one.
+fn into_curve(iso: impl Into<Curve>) -> Curve {
+    iso.into()
 }
 
 impl ParametricSurface for Surface {

@@ -636,3 +636,27 @@ Reproduce with:
 ```sh
 cargo bench --bench intersect_curve_curve -- curve_curve_2d --warm-up-time 1 --measurement-time 2
 ```
+
+# Swept-surface projection
+
+`benches/swept_projection.rs` projects 256 points scattered near each swept
+surface, and the same points onto the surface converted with
+`to_bspline_patch` over the part they lie near. The swept surface works on
+its profile; the patch runs the general two-parameter search.
+
+Machine: Linux 7.0, x86-64 desktop, single thread, `--warm-up-time 1
+--measurement-time 3` (2026-10-30). Times are for the 256 points.
+
+| surface | swept | B-spline patch |
+|---|---|---|
+| extrusion of a tilted ellipse (closed-form section) | ~810 µs | ~4.1 ms |
+| extrusion of a cubic B-spline | ~340 µs | ~1.5 ms |
+| revolution of a circle meridian (closed form) | ~58 µs | ~4.6 ms |
+| revolution of a cubic B-spline in a plane through the axis | ~520 µs | ~3.7 ms |
+| revolution of a skew cubic B-spline (one-parameter search) | ~980 µs | ~4.7 ms |
+
+Reproduce with:
+
+```sh
+cargo bench --bench swept_projection -- --warm-up-time 1 --measurement-time 3
+```

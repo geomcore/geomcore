@@ -9,6 +9,10 @@
 //! of their weights. A profile pole on the axis (a cone's apex, a sphere's
 //! pole) turns into a row of coincident poles: a collapsed edge.
 //!
+//! A swept surface converts its profile's B-spline: an extrusion pairs it
+//! with a segment along the direction, a revolution turns it about the
+//! axis as the profiles above.
+//!
 //! The geometry is exact (every B-spline point lies on the surface, up to
 //! rounding). Along a straight direction the B-spline keeps the surface's
 //! parameter; along a circular one it matches the angle only at the range
@@ -17,11 +21,12 @@
 use std::f64::consts::TAU;
 
 use crate::bspline::conic::{self, PlaneNet};
-use crate::curves::BSplineConversionError;
+use crate::curves::{BSplineConversionError, BSplineCurve, ParametricCurve};
 use crate::surfaces::elementary_surface_dispatch;
+use crate::surfaces::swept::profile_bspline;
 use crate::surfaces::{
-    BSplineSurface, Cone, Cylinder, ElementarySurface, ParametricSurface, Plane, Sphere, Surface,
-    Torus,
+    BSplineSurface, Cone, Cylinder, ElementarySurface, ExtrusionSurface, ParametricSurface, Plane,
+    RevolutionSurface, Sphere, Surface, Torus,
 };
 use crate::{Frame, Point};
 
@@ -563,16 +568,201 @@ impl ElementarySurface {
     }
 }
 
+impl ExtrusionSurface {
+    /// The patch `u_range × v_range` of the surface as an exact B-spline:
+    /// the profile's B-spline over `u_range` in `u` (see
+    /// [`TrimmedCurve::to_bspline`](crate::curves::TrimmedCurve::to_bspline)),
+    /// degree 1 in `v`. It keeps the surface's `v`, and its `u` where the
+    /// profile is a line or a B-spline or Bézier curve.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`BSplineConversionError::Unbounded`] when a range end is
+    /// infinite, [`BSplineConversionError::InvalidRange`] when a range is
+    /// NaN, empty, longer than the period of a periodic profile or beyond
+    /// the bounds of a bounded one, and
+    /// [`BSplineConversionError::NotRepresentable`] when a pole overflows
+    /// `f64`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::prelude::*;
+    /// use geomcore::{Circle, ExtrusionSurface, Point, Vector};
+    /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
+    /// let surface = ExtrusionSurface::new(circle.into(), Vector::Z).unwrap();
+    /// let patch = surface.to_bspline_patch((0.0, 1.0), (0.0, 2.0)).unwrap();
+    /// assert!(patch.eval_point(0.5, 1.0).distance(Point::ORIGIN) > 0.99);
+    /// assert_eq!(patch.v_bounds(), (0.0, 2.0));
+    /// ```
+    pub fn to_bspline_patch(
+        &self,
+        u_range: (f64, f64),
+        v_range: (f64, f64),
+    ) -> Result<BSplineSurface, BSplineConversionError> {
+        check_ranges(self, u_range, v_range)?;
+        let profile = profile_bspline(self.profile(), u_range)?;
+        let (bottom, top) = (v_range.0 * self.direction(), v_range.1 * self.direction());
+        let poles = profile
+            .poles()
+            .iter()
+            .map(|&p| vec![p + bottom, p + top])
+            .collect();
+        let weights = profile
+            .weights()
+            .map(|weights| weights.iter().map(|&w| vec![w, w]).collect());
+        bspline_patch(
+            &profile,
+            poles,
+            weights,
+            1,
+            vec![v_range.0, v_range.1],
+            vec![2, 2],
+            false,
+        )
+    }
+}
+
+impl RevolutionSurface {
+    /// The patch `u_range × v_range` of the surface as an exact B-spline:
+    /// the unit circle in `u` (rational quadratic pieces of at most a
+    /// quarter turn), the profile's B-spline over `v_range` in `v` (see
+    /// [`TrimmedCurve::to_bspline`](crate::curves::TrimmedCurve::to_bspline)).
+    /// It matches the surface's angle only at the range ends, the knots
+    /// between pieces and the middle of each piece, and keeps its `v`
+    /// where the profile is a line or a B-spline or Bézier curve. A whole
+    /// turn is periodic in `u`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`BSplineConversionError::Unbounded`] when a range end is
+    /// infinite, [`BSplineConversionError::InvalidRange`] when a range is
+    /// NaN, empty, longer than a period or beyond the bounds of a bounded
+    /// profile, and [`BSplineConversionError::NotRepresentable`] when a
+    /// pole overflows `f64`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::prelude::*;
+    /// use geomcore::{Axis, Line, Point, RevolutionSurface, Vector};
+    /// let axis = Axis::new(Point::ORIGIN, Vector::Z).unwrap();
+    /// let line = Line::new(Point::new(1.0, 0.0, 0.0), Vector::Z).unwrap();
+    /// let surface = RevolutionSurface::new(line.into(), axis).unwrap();
+    /// let patch = surface.to_bspline_patch((0.0, std::f64::consts::TAU), (0.0, 2.0)).unwrap();
+    /// assert!(patch.is_u_periodic());
+    /// let p = patch.eval_point(1.0, 0.5);
+    /// assert!((p.x.hypot(p.y) - 1.0).abs() < 1e-12);
+    /// ```
+    pub fn to_bspline_patch(
+        &self,
+        u_range: (f64, f64),
+        v_range: (f64, f64),
+    ) -> Result<BSplineSurface, BSplineConversionError> {
+        check_ranges(self, u_range, v_range)?;
+        let profile = profile_bspline(self.profile(), v_range)?;
+        let circle = angle_net(u_range.0, u_range.1);
+        let (origin, axis) = (self.axis().origin(), self.axis().direction());
+        let poles: Vec<Vec<Point>> = circle
+            .poles
+            .iter()
+            .map(|&[cos, sin]| {
+                profile
+                    .poles()
+                    .iter()
+                    .map(|&p| {
+                        let offset = p - origin;
+                        let along = offset.dot(axis) * axis;
+                        let radial = offset - along;
+                        origin + along + cos * radial + sin * axis.cross(radial)
+                    })
+                    .collect()
+            })
+            .collect();
+        let circle_weights = circle.weights.as_ref().expect("circle nets are rational");
+        let weights = circle_weights
+            .iter()
+            .map(|&u_weight| match profile.weights() {
+                Some(v_weights) => v_weights.iter().map(|&w| u_weight * w).collect(),
+                None => vec![u_weight; profile.poles().len()],
+            })
+            .collect();
+        if !poles.iter().flatten().all(|p| p.is_finite()) {
+            return Err(BSplineConversionError::NotRepresentable);
+        }
+        BSplineSurface::new_rational(
+            circle.degree,
+            profile.degree(),
+            poles,
+            weights,
+            circle.knots,
+            circle.multiplicities,
+            profile.knots().to_vec(),
+            profile.multiplicities().to_vec(),
+            circle.periodic,
+            profile.period().is_some(),
+        )
+        .map_err(|_| BSplineConversionError::NotRepresentable)
+    }
+}
+
+/// The surface with `profile`'s knots in `u` and the given `v` knots, its
+/// poles (and weights, when rational) given row by row along the profile.
+fn bspline_patch(
+    profile: &BSplineCurve,
+    poles: Vec<Vec<Point>>,
+    weights: Option<Vec<Vec<f64>>>,
+    v_degree: usize,
+    v_knots: Vec<f64>,
+    v_multiplicities: Vec<u32>,
+    v_periodic: bool,
+) -> Result<BSplineSurface, BSplineConversionError> {
+    if !poles.iter().flatten().all(|p| p.is_finite()) {
+        return Err(BSplineConversionError::NotRepresentable);
+    }
+    let (u_knots, u_multiplicities) = (profile.knots().to_vec(), profile.multiplicities().to_vec());
+    let u_periodic = profile.period().is_some();
+    match weights {
+        Some(weights) => BSplineSurface::new_rational(
+            profile.degree(),
+            v_degree,
+            poles,
+            weights,
+            u_knots,
+            u_multiplicities,
+            v_knots,
+            v_multiplicities,
+            u_periodic,
+            v_periodic,
+        ),
+        None => BSplineSurface::new(
+            profile.degree(),
+            v_degree,
+            poles,
+            u_knots,
+            u_multiplicities,
+            v_knots,
+            v_multiplicities,
+            u_periodic,
+            v_periodic,
+        ),
+    }
+    .map_err(|_| BSplineConversionError::NotRepresentable)
+}
+
 impl Surface {
     /// The whole surface as a B-spline: a B-spline is cloned, a Bézier
     /// surface converted by
-    /// [`BezierSurface::to_bspline`](crate::BezierSurface::to_bspline), an
+    /// [`BezierSurface::to_bspline`](crate::BezierSurface::to_bspline), a
+    /// revolution surface by
+    /// [`RevolutionSurface::to_bspline_patch`] over its bounds, an
     /// elementary surface by [`ElementarySurface::to_bspline`].
     ///
     /// # Errors
     ///
-    /// Returns [`BSplineConversionError::Unbounded`] for a plane, cylinder
-    /// or cone.
+    /// Returns [`BSplineConversionError::Unbounded`] for a plane, cylinder,
+    /// cone or extrusion surface, and for a revolution surface whose
+    /// profile is a line, parabola or hyperbola.
     ///
     /// # Examples
     ///
@@ -592,6 +782,8 @@ impl Surface {
         match self {
             Surface::BSpline(s) => Ok(s.clone()),
             Surface::Bezier(s) => Ok(s.to_bspline()),
+            Surface::Extrusion(_) => Err(BSplineConversionError::Unbounded),
+            Surface::Revolution(s) => s.to_bspline_patch(s.u_bounds(), s.v_bounds()),
             _ => self
                 .as_elementary()
                 .expect("every other surface is elementary")

@@ -94,6 +94,17 @@ pub struct SurfaceProjection {
     pub distance: f64,
 }
 
+impl SurfaceProjection {
+    /// The projection of a query point with a non-finite coordinate:
+    /// parameters, point and distance are all NaN.
+    pub(crate) const UNDEFINED: SurfaceProjection = SurfaceProjection {
+        u: f64::NAN,
+        v: f64::NAN,
+        point: Point::new(f64::NAN, f64::NAN, f64::NAN),
+        distance: f64::NAN,
+    };
+}
+
 /// Snap a projection distance to `0.0` when it is within `confusion`.
 ///
 /// This keeps projection coherent with [`crate::Tolerance`]-based

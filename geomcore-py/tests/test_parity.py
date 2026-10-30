@@ -14,9 +14,11 @@ import pytest
 
 import geomcore
 from geomcore import (
+    Axis,
     CurveCurveIntersection,
     CurveCurveIntersection2D,
     CurveSurfaceIntersection,
+    Frame,
     Point2D,
     Point,
     SurfaceSurfaceIntersection,
@@ -136,6 +138,16 @@ def _surfaces():
         surfaces.Cone(Point(0.0, 0.0, -1.0), Vector.unit_z(), 0.4, 0.5),
         surfaces.Sphere(Point(0.2, 0.0, 0.0), 0.8),
         surfaces.Torus(Point.origin(), Vector.unit_x(), 1.0, 0.3),
+        surfaces.ExtrusionSurface(
+            curves.Ellipse(Point(0.0, 0.0, -0.5), Vector.unit_z(), Vector.unit_x(), 0.6, 0.4),
+            Vector(0.1, 0.0, 1.0),
+        ),
+        surfaces.RevolutionSurface(
+            curves.Circle.from_frame(
+                Frame(Point(0.7, 0.0, 0.0), Vector.unit_y(), Vector.unit_x()), 0.25
+            ),
+            Axis(Point.origin(), Vector.unit_z()),
+        ),
         surfaces.BSplineSurface(
             1, 1, patch, [0.0, 1.0], [2, 2], [0.0, 1.0], [2, 2], False, False
         ),

@@ -319,6 +319,14 @@ VALUE_TYPES = [
     (lambda: Sphere(_O, 1.0), Sphere(_O, 2.0)),
     (lambda: geomcore.surfaces.Torus(_O, _Z, 3.0, 1.0), geomcore.surfaces.Torus(_O, _Z, 3.0, 0.5)),
     (lambda: _bspline_surface(0.0), _bspline_surface(1.0)),
+    (
+        lambda: geomcore.surfaces.ExtrusionSurface(Circle(_O, _Z, 2.0), _Z),
+        geomcore.surfaces.ExtrusionSurface(Circle(_O, _Z, 2.0), Vector(0.0, 1.0, 1.0)),
+    ),
+    (
+        lambda: geomcore.surfaces.RevolutionSurface(geomcore.curves.Line(Point(1.0, 0.0, 0.0), _Z), Axis(_O, _Z)),
+        geomcore.surfaces.RevolutionSurface(geomcore.curves.Line(Point(2.0, 0.0, 0.0), _Z), Axis(_O, _Z)),
+    ),
     (lambda: geomcore.curves.Line(_O, _X), geomcore.curves.Line(_O, _Z)),
     (lambda: Circle(_O, _Z, 2.0), Circle(_O, _Z, 2.5)),
     (
