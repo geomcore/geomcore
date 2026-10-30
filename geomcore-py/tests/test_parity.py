@@ -22,6 +22,7 @@ from geomcore import (
     Point2D,
     Point,
     SurfaceSurfaceIntersection,
+    Transform,
     Vector2D,
     Vector,
 )
@@ -49,6 +50,8 @@ CURVE_METHODS = {
     "parameter_of",
     "bounding_box",
     "intersect",
+    "reversed",
+    "reversed_parameter",
 }
 
 SURFACE_METHODS = {
@@ -80,6 +83,7 @@ SURFACE_METHODS = {
     "reversed_v",
     "u_reversed_parameter",
     "v_reversed_parameter",
+    "transformed",
 }
 
 BOUNDED_CURVE_METHODS = {"discretize", "point_count"}
@@ -197,6 +201,11 @@ def test_every_curve_class_has_the_curve_methods(name):
 @pytest.mark.parametrize("name", sorted(_classes(surfaces)))
 def test_every_surface_class_has_the_surface_methods(name):
     assert SURFACE_METHODS <= set(dir(_classes(surfaces)[name]))
+
+
+def test_3d_curves_are_transformed_and_2d_curves_are_not():
+    for name, cls in _classes(curves).items():
+        assert ("transformed" in dir(cls)) == (not name.endswith("2D")), name
 
 
 def test_bounded_curves_discretize_and_unbounded_ones_do_not():
@@ -324,3 +333,46 @@ def test_every_surface_is_accepted_where_a_surface_is_expected():
             line.parametrize_on(surface)
         except geomcore.GeomcoreError:
             pass  # accepted, but the line does not lie on the surface
+
+
+def _rigid_motion_with_mirror():
+    axis = Axis(Point(0.5, -1.0, 0.0), Vector(1.0, 2.0, 2.0))
+    mirror = Transform.mirror_plane(
+        Frame(Point(0.1, 0.2, 0.3), Vector(1.0, 1.0, 0.0), Vector(0.0, 0.0, 1.0))
+    )
+    return Transform.rotation(axis, 0.7).then(mirror)
+
+
+def test_every_shape_is_transformed_into_its_class_and_commutes_with_evaluation():
+    t = _rigid_motion_with_mirror()
+    for curve in _operands_3d()[:9]:
+        moved = curve.transformed(t)
+        assert type(moved) is type(curve)
+        u = _middle(curve.bounds())
+        assert moved.eval_point(u).distance(t.apply_point(curve.eval_point(u))) < 1e-9
+    for surface in _surfaces():
+        moved = surface.transformed(t)
+        assert type(moved) is type(surface)
+        u, v = _middle(surface.u_bounds()), _middle(surface.v_bounds())
+        image = t.apply_point(surface.eval_point(u, v))
+        assert moved.eval_point(u, v).distance(image) < 1e-9, type(surface).__name__
+
+
+def test_every_shape_rejects_a_collapsing_transform():
+    collapse = Transform.scaling(Point.origin(), 0.0)
+    for shape in _operands_3d():
+        with pytest.raises(geomcore.ConstructionError):
+            shape.transformed(collapse)
+
+
+def test_every_curve_reversed_meets_itself_at_the_reversed_parameter():
+    for curve in _operands_3d()[:9] + _operands_2d():
+        reversed_curve = curve.reversed()
+        assert type(reversed_curve) is type(curve)
+        ends = sorted(curve.reversed_parameter(end) for end in curve.bounds())
+        assert reversed_curve.bounds() == tuple(ends)
+        first, last = (max(end, -1.0) if end < 0 else min(end, 1.0) for end in curve.bounds())
+        u = first + 0.3 * (last - first)
+        there = reversed_curve.eval_point(curve.reversed_parameter(u))
+        assert there.distance(curve.eval_point(u)) < 1e-9, type(curve).__name__
+        assert reversed_curve.reversed() == curve
