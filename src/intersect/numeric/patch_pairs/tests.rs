@@ -9,6 +9,11 @@ use crate::surfaces::ParametricSurface;
 
 const TOL: Tolerance = Tolerance::DEFAULT;
 
+/// `surface` as its own patch.
+fn whole(surface: &BSplineSurface) -> SurfacePatches<'_> {
+    SurfacePatches::new(surface, || None).unwrap()
+}
+
 /// A bicubic B-spline over `[0, 5]^2`, clamped, with the interior
 /// knots `knots` in both directions and its poles above the Greville
 /// abscissae, so that `S(u, v) = (u, v, z)` when polynomial: heights
@@ -156,7 +161,7 @@ fn test_bspline_pairs_trace_every_curve_once() {
     let a = wavy();
     for b in crossing_wavy() {
         let curves = marched_curves(&a, &b, TOL);
-        assert!(patch_pairs(&a, &b, TOL).complete);
+        assert!(patch_pairs(&whole(&a), &whole(&b), TOL).complete);
         assert_on_both_once(&curves, &a, &b);
         assert_every_crossing(&curves, &a, &b);
         let grid = grid_marching(&a, &b, TOL);
@@ -291,7 +296,7 @@ fn test_periodic_surface_gives_one_loop_across_its_seam() {
 #[test]
 fn test_overlapping_surfaces_exhaust_the_search() {
     let a = wavy();
-    assert!(!patch_pairs(&a, &a, TOL).complete);
+    assert!(!patch_pairs(&whole(&a), &whole(&a), TOL).complete);
     // The grid seeds take over; the surfaces are tangent everywhere,
     // so nothing traces.
     assert!(marched_curves(&a, &a, TOL).is_empty());

@@ -1207,3 +1207,139 @@ fn test_without_confused_keeps_the_ends() {
         vec![0.0, 1.0, 4.0]
     );
 }
+
+/// The square `[0, 2]^2` of the plane `z = 0` as a bicubic B-spline of 96
+/// uniform spans each way, `S(u, v) = (2u, 2v, z)`, with one bump of
+/// height `height` and a twenty-fourth of the square across, its top at
+/// `(38/96, 38/96)`: halfway between two lines of the parameter grid
+/// seeding marching, which see the sheet flat.
+fn bumped_sheet(height: f64) -> crate::surfaces::BSplineSurface {
+    const SPANS: usize = 96;
+    // The Greville abscissae of a clamped uniform cubic knot vector.
+    let knot = |k: usize| k.clamp(2, SPANS + 2) as f64 - 2.0;
+    let abscissa = |i: usize| 2.0 * (knot(i) + knot(i + 1) + knot(i + 2)) / (3.0 * SPANS as f64);
+    // A uniform cubic basis function peaks at 2/3 of its pole.
+    let poles = (0..SPANS + 3)
+        .map(|i| {
+            (0..SPANS + 3)
+                .map(|j| {
+                    let z = if i == 39 && j == 39 {
+                        2.25 * height
+                    } else {
+                        0.0
+                    };
+                    Point::new(abscissa(i), abscissa(j), z)
+                })
+                .collect()
+        })
+        .collect();
+    let knots: Vec<f64> = (0..=SPANS).map(|k| k as f64 / SPANS as f64).collect();
+    let mut multiplicities = vec![1; SPANS + 1];
+    (multiplicities[0], multiplicities[SPANS]) = (4, 4);
+    crate::surfaces::BSplineSurface::new(
+        3,
+        3,
+        poles,
+        knots.clone(),
+        multiplicities.clone(),
+        knots,
+        multiplicities,
+        false,
+        false,
+    )
+    .unwrap()
+}
+
+/// Asserts one closed curve on both surfaces, within `radius` of `centre`.
+fn assert_one_small_loop<A, B>(
+    result: &SurfaceSurfaceIntersection,
+    a: &A,
+    b: &B,
+    centre: Point,
+    radius: f64,
+) where
+    A: ParametricSurface,
+    B: ParametricSurface,
+{
+    let curves: Vec<BSplineCurve> = result
+        .curves()
+        .iter()
+        .filter_map(|piece| match &piece.curve {
+            Curve::BSpline(curve) => Some(curve.clone()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(curves.len(), 1, "{result:?}");
+    assert_closed_on_both(&curves, a, b);
+    let (t0, t1) = curves[0].bounds();
+    for k in 0..=40 {
+        let p = curves[0].eval_point(t0 + (t1 - t0) * k as f64 / 40.0);
+        assert!(p.distance(centre) < radius, "{p:?}");
+    }
+}
+
+#[test]
+fn test_a_bump_finer_than_the_grid_meets_a_cylinder_in_a_small_loop() {
+    use crate::Cylinder;
+    let tol = Tolerance::DEFAULT;
+    let sheet = bumped_sheet(0.04);
+    let peak = sheet.eval_point(38.0 / 96.0, 38.0 / 96.0);
+    assert!(peak.distance(Point::new(38.0 / 48.0, 38.0 / 48.0, 0.04)) < 1e-12);
+    // A cylinder along x, beside the top of the bump, dipping 0.002 into
+    // it: the loop lies between the rulings and the circles that seed
+    // from the cylinder, and the sheet's grid sees no bump.
+    let (radius, beside): (f64, f64) = (0.5, 0.1);
+    let height = peak.z - 0.002 + (radius * radius - beside * beside).sqrt();
+    let cylinder =
+        Cylinder::new(Point::new(0.0, peak.y + beside, height), Vector::X, radius).unwrap();
+    for result in [
+        marching_intersection(&sheet, &cylinder, tol),
+        marching_intersection(&cylinder, &sheet, tol),
+    ] {
+        assert_one_small_loop(&result, &sheet, &cylinder, peak, 0.05);
+    }
+    // The same cylinder as an extrusion, which seeds from both grids alone.
+    let circle =
+        crate::Circle::new(Point::new(0.0, peak.y + beside, height), Vector::X, radius).unwrap();
+    let extrusion = crate::ExtrusionSurface::new(circle.into(), Vector::X).unwrap();
+    let result = marching_intersection(&extrusion, &sheet, tol);
+    assert_one_small_loop(&result, &extrusion, &sheet, peak, 0.05);
+}
+
+#[test]
+fn test_a_plane_through_a_bump_finer_than_the_grid_finds_the_loop() {
+    use crate::Plane;
+    let tol = Tolerance::DEFAULT;
+    let sheet = bumped_sheet(0.04);
+    let peak = sheet.eval_point(38.0 / 96.0, 38.0 / 96.0);
+    // Tilted a little, so that the pair has no closed form, and too little
+    // to reach the sheet itself.
+    let plane = Plane::new(
+        Point::new(peak.x, peak.y, peak.z - 0.002),
+        Vector::new(0.01, 0.0, 1.0),
+    )
+    .unwrap();
+    let result = marching_intersection(&plane, &sheet, tol);
+    assert_one_small_loop(&result, &plane, &sheet, peak, 0.05);
+}
+
+#[test]
+fn test_a_plane_cutting_a_small_cap_off_a_torus_finds_the_loop() {
+    use crate::{Plane, Torus};
+    let tol = Tolerance::DEFAULT;
+    let torus = Torus::new(Point::ORIGIN, Vector::Z, 3.0, 1.0).unwrap();
+    // The plane tangent to the torus at a point of its outer half (where
+    // it is convex), between two of its seeding meridians, moved in by
+    // 1e-4: a loop of about 0.015 across, between the plane's seeding
+    // lines too.
+    let (azimuth, tilt) = (7.5f64.to_radians(), 30f64.to_radians());
+    let normal = Vector::new(
+        tilt.sin() * azimuth.cos(),
+        tilt.sin() * azimuth.sin(),
+        tilt.cos(),
+    );
+    let touch = Point::new(3.0 * azimuth.cos(), 3.0 * azimuth.sin(), 0.0) + normal;
+    let plane = Plane::new(touch - 1e-4 * normal, normal).unwrap();
+    let result = marching_intersection(&torus, &plane, tol);
+    assert_one_small_loop(&result, &torus, &plane, touch, 0.05);
+}

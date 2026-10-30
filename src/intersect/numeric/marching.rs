@@ -1,6 +1,6 @@
 //! Numeric surface-surface intersection by marching: seeds from the
-//! exact intersections of iso-curves with the other surface, from Bézier
-//! patch pairs on B-splines, or from a parameter grid, traced along the
+//! exact intersections of iso-curves with the other surface, from pairs
+//! of Bézier patches, or from a parameter grid, traced along the
 //! intersection and fitted.
 //!
 //! [`marching_intersection`] composes three modules: the seeding policy
@@ -131,6 +131,17 @@ use tracer::{CHORD_DEVIATION, Trace, Tracer};
 /// search that exhausts its budget (overlapping surfaces) traces the grid
 /// seeds too.
 ///
+/// Every other pair adds the same patch-pair seeds after its iso-curve
+/// or grid seeds, when both surfaces convert to patches: an elementary
+/// or swept surface becomes its exact rational B-spline, an unbounded one
+/// over the other's box grown by a margin (ADR 0026). A bump of a
+/// B-spline finer than its grid, or a small cap a plane cuts off a torus,
+/// is found this way. The search is left out where it would find nothing
+/// new at a high cost: when both surfaces are bounded and neither is a
+/// B-spline (two spheres or tori, which both grids sample at their own
+/// scale), and when every iso-curve or grid seed lies where the surfaces
+/// only touch (the search would halve along the whole touch).
+///
 /// The fits are APPROXIMATIONS (interpolation error, typically ~1e-4 at
 /// default tolerance — assert residuals, not containment): exact
 /// classification stays with the exact intersection
@@ -141,7 +152,8 @@ use tracer::{CHORD_DEVIATION, Trace, Tracer};
 /// each other make the result `Incomplete` with an `Unseparated` region
 /// around them, but spurious curves may still cross the overlap), and a fixed number of seeding iso-curves or grid samples (a
 /// loop that no seeding iso-curve crosses, or that leaves no distance
-/// minimum on either grid, is missed) — v1 heuristics, documented so
+/// minimum on either grid, is missed where no patch-pair search runs) —
+/// v1 heuristics, documented so
 /// callers can judge fit.
 pub(crate) fn marching_intersection<A, B>(
     a: &A,
