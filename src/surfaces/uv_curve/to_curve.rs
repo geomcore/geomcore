@@ -1,6 +1,6 @@
-//! Pcurve to curve: the exact 3D curve `S∘c` that a pcurve `c`, a curve
+//! UV curve to 3D curve: the exact 3D curve `S∘c` that a UV curve `c`, a curve
 //! in a surface's `(u, v)` parameter space, traces on the surface `S`, at
-//! the same parameter, so that `surface.pcurve_to_curve(c)?.eval_point(t)`
+//! the same parameter, so that `surface.uv_curve_to_3d(c)?.eval_point(t)`
 //! is `surface.eval_point(c(t))` for every `t`. It is the inverse of
 //! `parametrize_on` (`curves/parametrize.rs`).
 //!
@@ -16,7 +16,7 @@
 //!   from `c` at rate `±1`, the iso curve reparametrized by `t ↦ c ± t`.
 //!
 //! Every other pair is refused with
-//! [`PcurveToCurveError::NotAnalytic`], never approximated.
+//! [`UvCurveTo3DError::NotAnalytic`], never approximated.
 
 use std::fmt;
 
@@ -31,16 +31,16 @@ use crate::surfaces::{
 };
 use crate::{Frame, Point, Point2D, Tolerance, Vector, Vector2D};
 
-/// Error returned when a pcurve, a curve in a surface's parameter space,
+/// Error returned when a UV curve, a curve in a surface's parameter space,
 /// has no exact 3D curve in the same parameter.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum PcurveToCurveError {
+pub enum UvCurveTo3DError {
     /// The pair has no closed-form 3D curve in the same parameter.
     NotAnalytic,
     /// The 3D curve collapses to a point: a line along an iso curve that
     /// is a point, at a sphere's pole, a cone's apex, where a torus or a
     /// revolution surface meets its axis, or on a collapsed row of a
-    /// B-spline or Bézier surface; or a straight spline pcurve whose two
+    /// B-spline or Bézier surface; or a straight spline UV curve whose two
     /// poles coincide.
     Collapsed,
     /// The surface has no iso curve at the line's fixed parameter, which
@@ -48,23 +48,23 @@ pub enum PcurveToCurveError {
     IsoCurve(SurfaceIsoError),
 }
 
-impl fmt::Display for PcurveToCurveError {
+impl fmt::Display for UvCurveTo3DError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            PcurveToCurveError::NotAnalytic => f.write_str(
+            UvCurveTo3DError::NotAnalytic => f.write_str(
                 "no closed-form 3D curve in the same parameter exists for this curve/surface pair",
             ),
-            PcurveToCurveError::Collapsed => {
+            UvCurveTo3DError::Collapsed => {
                 f.write_str("the 3D curve collapses to a point of the surface")
             }
-            PcurveToCurveError::IsoCurve(error) => {
+            UvCurveTo3DError::IsoCurve(error) => {
                 write!(f, "the surface has no iso curve there: {error}")
             }
         }
     }
 }
 
-impl std::error::Error for PcurveToCurveError {}
+impl std::error::Error for UvCurveTo3DError {}
 
 /// What the pair table reads from a surface: its iso curves as [`Curve`]s
 /// and, on an affine surface, its map.
@@ -140,19 +140,19 @@ impl IsoCurves for ExtrusionSurface {
     }
 }
 
-/// [`ParametricSurface::pcurve_to_curve`](crate::ParametricSurface::pcurve_to_curve)
+/// [`ParametricSurface::uv_curve_to_3d`](crate::ParametricSurface::uv_curve_to_3d)
 /// of every crate surface: the affine image on an affine surface, the
-/// reparametrized iso curve for a straight pcurve along `u` or `v` on any
+/// reparametrized iso curve for a straight UV curve along `u` or `v` on any
 /// other.
-pub(crate) fn pcurve_to_curve(
+pub(crate) fn uv_curve_to_3d(
     surface: &impl IsoCurves,
-    pcurve: &Curve2D,
+    uv_curve: &Curve2D,
     tol: Tolerance,
-) -> Result<Curve, PcurveToCurveError> {
+) -> Result<Curve, UvCurveTo3DError> {
     if let Some(map) = surface.affine_map() {
-        return map.curve(pcurve, tol);
+        return map.curve(uv_curve, tol);
     }
-    along_iso_curve(StraightPcurve::of(pcurve, tol)?, surface, tol)
+    along_iso_curve(StraightUvCurve::of(uv_curve, tol)?, surface, tol)
 }
 
 // ---- affine surfaces ----
@@ -167,7 +167,7 @@ pub(crate) struct AffineMap {
 
 impl AffineMap {
     /// The image of `curve`, if it keeps its kind in the same parameter.
-    fn curve(&self, curve: &Curve2D, tol: Tolerance) -> Result<Curve, PcurveToCurveError> {
+    fn curve(&self, curve: &Curve2D, tol: Tolerance) -> Result<Curve, UvCurveTo3DError> {
         match curve {
             Curve2D::Line(line) => self.elementary(line, Kind::Line, line.origin(), tol),
             Curve2D::Circle(circle) => {
@@ -207,7 +207,7 @@ impl AffineMap {
         kind: Kind,
         center: Point2D,
         tol: Tolerance,
-    ) -> Result<Curve, PcurveToCurveError> {
+    ) -> Result<Curve, UvCurveTo3DError> {
         let (point, first, second) = curve.eval_d2(0.0);
         Expansion {
             kind,
@@ -221,37 +221,37 @@ impl AffineMap {
 
     /// The image of a 2D spline: its poles mapped, its knots and weights
     /// kept.
-    fn spline(&self, spline: &Spline<Point2D>) -> Result<Spline<Point>, PcurveToCurveError> {
+    fn spline(&self, spline: &Spline<Point2D>) -> Result<Spline<Point>, UvCurveTo3DError> {
         let image = spline.mapped_to_space(|pole| self.point(pole));
         if image.poles().iter().all(|pole| pole.is_finite()) {
             Ok(image)
         } else {
-            Err(PcurveToCurveError::NotAnalytic)
+            Err(UvCurveTo3DError::NotAnalytic)
         }
     }
 }
 
 // ---- lines along u or v ----
 
-/// A straight pcurve, `point + (t - parameter) * velocity` over `bounds`:
+/// A straight UV curve, `point + (t - parameter) * velocity` over `bounds`:
 /// a line, or a degree-1 B-spline or Bézier curve with two poles and equal
 /// or no weights, as files exchanged between kernels store a straight
-/// pcurve.
-struct StraightPcurve {
+/// UV curve.
+struct StraightUvCurve {
     point: Point2D,
     parameter: f64,
     velocity: Vector2D,
     bounds: (f64, f64),
 }
 
-impl StraightPcurve {
-    /// `pcurve` as a straight pcurve, [`PcurveToCurveError::NotAnalytic`]
-    /// if it is not one, [`PcurveToCurveError::Collapsed`] for a spline
+impl StraightUvCurve {
+    /// `uv_curve` as a straight UV curve, [`UvCurveTo3DError::NotAnalytic`]
+    /// if it is not one, [`UvCurveTo3DError::Collapsed`] for a spline
     /// whose two poles coincide within `tol.parametric`.
-    fn of(pcurve: &Curve2D, tol: Tolerance) -> Result<StraightPcurve, PcurveToCurveError> {
-        let spline = match pcurve {
+    fn of(uv_curve: &Curve2D, tol: Tolerance) -> Result<StraightUvCurve, UvCurveTo3DError> {
+        let spline = match uv_curve {
             Curve2D::Line(line) => {
-                return Ok(StraightPcurve {
+                return Ok(StraightUvCurve {
                     point: line.origin(),
                     parameter: 0.0,
                     velocity: line.direction(),
@@ -260,7 +260,7 @@ impl StraightPcurve {
             }
             Curve2D::BSpline(bspline) => bspline.spline(),
             Curve2D::Bezier(bezier) => bezier.spline(),
-            _ => return Err(PcurveToCurveError::NotAnalytic),
+            _ => return Err(UvCurveTo3DError::NotAnalytic),
         };
         let poles = spline.poles();
         // Unequal weights run the segment at a varying speed.
@@ -271,13 +271,13 @@ impl StraightPcurve {
                 .weights()
                 .is_none_or(|weights| weights[0] == weights[1]);
         if !straight {
-            return Err(PcurveToCurveError::NotAnalytic);
+            return Err(UvCurveTo3DError::NotAnalytic);
         }
         if poles[0].distance(poles[1]) <= tol.parametric {
-            return Err(PcurveToCurveError::Collapsed);
+            return Err(UvCurveTo3DError::Collapsed);
         }
         let (first, last) = spline.bounds();
-        Ok(StraightPcurve {
+        Ok(StraightUvCurve {
             point: poles[0],
             parameter: first,
             velocity: (1.0 / (last - first)) * (poles[1] - poles[0]),
@@ -286,14 +286,14 @@ impl StraightPcurve {
     }
 }
 
-/// The 3D curve of a straight pcurve along `u` or `v`: the iso curve
+/// The 3D curve of a straight UV curve along `u` or `v`: the iso curve
 /// through it, run at its speed along the iso curve's parameter, signed.
 fn along_iso_curve(
-    straight: StraightPcurve,
+    straight: StraightUvCurve,
     surface: &impl IsoCurves,
     tol: Tolerance,
-) -> Result<Curve, PcurveToCurveError> {
-    let StraightPcurve {
+) -> Result<Curve, UvCurveTo3DError> {
+    let StraightUvCurve {
         point,
         parameter,
         velocity,
@@ -308,9 +308,9 @@ fn along_iso_curve(
         let shift = point.x - parameter * velocity.x;
         (surface.v_iso_curve(point.y), shift, velocity.x)
     } else {
-        return Err(PcurveToCurveError::NotAnalytic);
+        return Err(UvCurveTo3DError::NotAnalytic);
     };
-    let iso = iso.map_err(PcurveToCurveError::IsoCurve)?;
+    let iso = iso.map_err(UvCurveTo3DError::IsoCurve)?;
     reparametrized(&iso, shift, scale, bounds, tol)
 }
 
@@ -325,11 +325,11 @@ fn reparametrized(
     scale: f64,
     bounds: (f64, f64),
     tol: Tolerance,
-) -> Result<Curve, PcurveToCurveError> {
+) -> Result<Curve, UvCurveTo3DError> {
     let unit_speed = (scale.abs() - 1.0).abs() <= tol.angular;
     let elementary = |kind: Kind, center: Point| {
         if !unit_speed {
-            return Err(PcurveToCurveError::NotAnalytic);
+            return Err(UvCurveTo3DError::NotAnalytic);
         }
         let (point, first, second) = curve.eval_d2(shift);
         Expansion {
@@ -365,14 +365,14 @@ fn segment(
     shift: f64,
     scale: f64,
     (first, last): (f64, f64),
-) -> Result<Curve, PcurveToCurveError> {
+) -> Result<Curve, UvCurveTo3DError> {
     let poles = vec![
         line.eval_point(shift + scale * first),
         line.eval_point(shift + scale * last),
     ];
     BSplineCurve::new(1, poles, vec![first, last], vec![2, 2], false)
         .map(Curve::from)
-        .map_err(|_| PcurveToCurveError::NotAnalytic)
+        .map_err(|_| UvCurveTo3DError::NotAnalytic)
 }
 
 /// [`reparametrized`] for a B-spline or Bézier iso curve, refused when
@@ -382,17 +382,17 @@ fn reparametrized_spline(
     shift: f64,
     scale: f64,
     tol: Tolerance,
-) -> Result<Spline<Point>, PcurveToCurveError> {
+) -> Result<Spline<Point>, UvCurveTo3DError> {
     let poles = spline.poles();
     if poles
         .iter()
         .all(|pole| pole.distance(poles[0]) <= tol.confusion)
     {
-        return Err(PcurveToCurveError::Collapsed);
+        return Err(UvCurveTo3DError::Collapsed);
     }
     spline
         .reparametrized(shift, scale)
-        .map_err(|_| PcurveToCurveError::NotAnalytic)
+        .map_err(|_| UvCurveTo3DError::NotAnalytic)
 }
 
 // ---- elementary curves from their expansion ----
@@ -433,7 +433,7 @@ struct Expansion {
 }
 
 impl Expansion {
-    fn into_curve(self, tol: Tolerance) -> Result<Curve, PcurveToCurveError> {
+    fn into_curve(self, tol: Tolerance) -> Result<Curve, UvCurveTo3DError> {
         let Expansion {
             kind,
             center,
@@ -453,13 +453,13 @@ impl Expansion {
 /// The line `origin + t * velocity`, if `velocity` is a unit vector: a
 /// speed off by `δ` moves the point at `t` by `|t| δ`, so it is held to
 /// `tol.angular`, across the model.
-fn line(origin: Point, velocity: Vector, tol: Tolerance) -> Result<Curve, PcurveToCurveError> {
+fn line(origin: Point, velocity: Vector, tol: Tolerance) -> Result<Curve, UvCurveTo3DError> {
     if (velocity.magnitude() - 1.0).abs() > tol.angular {
-        return Err(PcurveToCurveError::NotAnalytic);
+        return Err(UvCurveTo3DError::NotAnalytic);
     }
     Line::new(origin, velocity)
         .map(Curve::from)
-        .map_err(|_| PcurveToCurveError::NotAnalytic)
+        .map_err(|_| UvCurveTo3DError::NotAnalytic)
 }
 
 /// The circle or ellipse `center + cos(t) * cosine + sin(t) * sine`.
@@ -469,10 +469,10 @@ fn trigonometric(
     cosine: Vector,
     sine: Vector,
     tol: Tolerance,
-) -> Result<Curve, PcurveToCurveError> {
+) -> Result<Curve, UvCurveTo3DError> {
     let (major, minor) = (cosine.magnitude(), sine.magnitude());
     if major.max(minor) <= tol.confusion {
-        return Err(PcurveToCurveError::Collapsed);
+        return Err(UvCurveTo3DError::Collapsed);
     }
     let frame = perpendicular_frame(
         center,
@@ -483,16 +483,16 @@ fn trigonometric(
     if kind == Kind::Circle && (major - minor).abs() <= tol.confusion {
         return Circle::from_frame(frame, major)
             .map(Curve::from)
-            .map_err(|_| PcurveToCurveError::NotAnalytic);
+            .map_err(|_| UvCurveTo3DError::NotAnalytic);
     }
     // The cosine runs along the major axis; a longer sine has no ellipse
     // in this parameter.
     if minor > major + tol.confusion {
-        return Err(PcurveToCurveError::NotAnalytic);
+        return Err(UvCurveTo3DError::NotAnalytic);
     }
     Ellipse::from_frame(frame, major, minor.min(major))
         .map(Curve::from)
-        .map_err(|_| PcurveToCurveError::NotAnalytic)
+        .map_err(|_| UvCurveTo3DError::NotAnalytic)
 }
 
 /// The parabola `vertex + t * tangent + t² * curvature`, if the tangent
@@ -502,14 +502,14 @@ fn parabola(
     tangent: Vector,
     curvature: Vector,
     tol: Tolerance,
-) -> Result<Curve, PcurveToCurveError> {
+) -> Result<Curve, UvCurveTo3DError> {
     if (tangent.magnitude() - 1.0).abs() > tol.angular {
-        return Err(PcurveToCurveError::NotAnalytic);
+        return Err(UvCurveTo3DError::NotAnalytic);
     }
     let frame = perpendicular_frame(vertex, curvature, tangent, tol.angular)?;
     Parabola::from_frame(frame, 0.25 / curvature.magnitude())
         .map(Curve::from)
-        .map_err(|_| PcurveToCurveError::NotAnalytic)
+        .map_err(|_| UvCurveTo3DError::NotAnalytic)
 }
 
 /// The hyperbola `center + cosh(t) * cosine + sinh(t) * sine`.
@@ -518,11 +518,11 @@ fn hyperbola(
     cosine: Vector,
     sine: Vector,
     tol: Tolerance,
-) -> Result<Curve, PcurveToCurveError> {
+) -> Result<Curve, UvCurveTo3DError> {
     let frame = perpendicular_frame(center, cosine, sine, tol.angular)?;
     Hyperbola::from_frame(frame, cosine.magnitude(), sine.magnitude())
         .map(Curve::from)
-        .map_err(|_| PcurveToCurveError::NotAnalytic)
+        .map_err(|_| UvCurveTo3DError::NotAnalytic)
 }
 
 /// The frame at `origin` with `x` along `x` and `y` along `y`, if they are
@@ -532,11 +532,11 @@ fn perpendicular_frame(
     x: Vector,
     y: Vector,
     angular: f64,
-) -> Result<Frame, PcurveToCurveError> {
+) -> Result<Frame, UvCurveTo3DError> {
     let lengths = x.magnitude() * y.magnitude();
     if lengths == 0.0 || x.dot(y).abs() > angular * lengths {
-        return Err(PcurveToCurveError::NotAnalytic);
+        return Err(UvCurveTo3DError::NotAnalytic);
     }
     // `Frame::new` takes `y` as `z × x`, which is `y` made perpendicular.
-    Frame::new(origin, x.cross(y), x).map_err(|_| PcurveToCurveError::NotAnalytic)
+    Frame::new(origin, x.cross(y), x).map_err(|_| UvCurveTo3DError::NotAnalytic)
 }

@@ -224,10 +224,10 @@ pub use projection::{CurveProjection, CurveProjection2D, SurfaceProjection};
 pub use surfaces::{
     BSplineSurface, BezierSurface, Cone, ConeConstructionError, Cylinder,
     CylinderConstructionError, ElementarySurface, ExtrusionSurface,
-    ExtrusionSurfaceConstructionError, ParametricSurface, PcurveToCurveError, Plane,
-    PlaneConstructionError, ReversibleSurface, RevolutionSurface,
-    RevolutionSurfaceConstructionError, Sphere, SphereConstructionError, Surface,
-    SurfaceCurvatures, SurfaceIsoError, Torus, TorusConstructionError,
+    ExtrusionSurfaceConstructionError, ParametricSurface, Plane, PlaneConstructionError,
+    ReversibleSurface, RevolutionSurface, RevolutionSurfaceConstructionError, Sphere,
+    SphereConstructionError, Surface, SurfaceCurvatures, SurfaceIsoError, Torus,
+    TorusConstructionError, UvCurveTo3DError,
 };
 pub use tier::TierPoint;
 pub use tolerance::Tolerance;

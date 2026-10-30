@@ -71,9 +71,9 @@ create_exception!(
 );
 create_exception!(
     geomcore,
-    PcurveToCurveError,
+    UvCurveTo3DError,
     GeomcoreError,
-    "A pcurve, a curve in a surface's parameter space, has no exact 3D curve in the same parameter."
+    "A UV curve, a curve in a surface's parameter space, has no exact 3D curve in the same parameter."
 );
 create_exception!(
     geomcore,
@@ -113,7 +113,7 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
         py.get_type::<BSplineConversionError>(),
     )?;
     m.add("ParametrizeError", py.get_type::<ParametrizeError>())?;
-    m.add("PcurveToCurveError", py.get_type::<PcurveToCurveError>())?;
+    m.add("UvCurveTo3DError", py.get_type::<UvCurveTo3DError>())?;
     m.add("SurfaceIsoError", py.get_type::<SurfaceIsoError>())?;
     m.add(
         "DiscretizationCriteriaError",
@@ -174,6 +174,6 @@ map_error!(DegreeElevationError: geomcore::DegreeElevationError);
 map_error!(BSplineSplitError: geomcore::BSplineSplitError);
 map_error!(BSplineConversionError: geomcore::BSplineConversionError);
 map_error!(ParametrizeError: geomcore::ParametrizeError);
-map_error!(PcurveToCurveError: geomcore::PcurveToCurveError);
+map_error!(UvCurveTo3DError: geomcore::UvCurveTo3DError);
 map_error!(SurfaceIsoError: geomcore::SurfaceIsoError);
 map_error!(DiscretizationCriteriaError: geomcore::DiscretizationCriteriaError);

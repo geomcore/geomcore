@@ -5,7 +5,7 @@
 
 use crate::curves::{Continuity, Curve, Curve2D};
 use crate::surfaces::{
-    BSplineSurface, ElementarySurface, ExtrusionSurface, PcurveToCurveError, RevolutionSurface,
+    BSplineSurface, ElementarySurface, ExtrusionSurface, RevolutionSurface, UvCurveTo3DError,
 };
 use crate::{Point, SurfaceProjection, Tolerance, Vector};
 
@@ -510,7 +510,7 @@ pub trait ParametricSurface {
         (projection.u, projection.v)
     }
 
-    /// The exact 3D curve that `pcurve`, a curve `c` in this surface's
+    /// The exact 3D curve that `uv_curve`, a curve `c` in this surface's
     /// `(u, v)` parameter space, traces on the surface, in the same
     /// parameter: the surface composed with it, `S∘c`, whose point at `t`
     /// is `self.eval_point(c(t))` for every `t` (every `t` of its bounds
@@ -531,9 +531,9 @@ pub trait ParametricSurface {
     ///
     /// A straight spline is a degree-1 B-spline or Bézier curve with two
     /// poles and equal or no weights, as files exchanged between kernels
-    /// store a straight pcurve. Its speed need not be `1`: a spline iso
+    /// store a straight UV curve. Its speed need not be `1`: a spline iso
     /// curve maps its knots at any speed, a line iso curve at another
-    /// speed is the degree-1 B-spline over the pcurve's bounds, and a conic
+    /// speed is the degree-1 B-spline over the UV curve's bounds, and a conic
     /// iso curve is refused, since a conic runs at its own speed only.
     ///
     /// A line is along `u` or `v` when its direction is within
@@ -559,15 +559,15 @@ pub trait ParametricSurface {
     ///
     /// # Errors
     ///
-    /// [`PcurveToCurveError::NotAnalytic`] for every other pair, never
+    /// [`UvCurveTo3DError::NotAnalytic`] for every other pair, never
     /// approximated: a slanted line on a curved surface, a conic or a
     /// spline on any surface but an affine one, a pair above that leaves
     /// its kind, a 2D curve whose image overflows, and every curve on a
     /// surface type defined outside the crate, the default.
-    /// [`PcurveToCurveError::Collapsed`] when the line runs along an iso
+    /// [`UvCurveTo3DError::Collapsed`] when the line runs along an iso
     /// curve that is a point (a sphere's pole, a cone's apex), or for a
     /// straight spline whose two poles coincide.
-    /// [`PcurveToCurveError::IsoCurve`] when the surface has no iso curve
+    /// [`UvCurveTo3DError::IsoCurve`] when the surface has no iso curve
     /// at the line's fixed parameter.
     ///
     /// # Examples
@@ -583,11 +583,11 @@ pub trait ParametricSurface {
     /// let tol = Tolerance::DEFAULT;
     ///
     /// let along_v = Line2D::new(Point2D::new(0.5, 1.0), Vector2D::Y).unwrap();
-    /// let generator = cylinder.pcurve_to_curve(&along_v.into(), tol).unwrap();
+    /// let generator = cylinder.uv_curve_to_3d(&along_v.into(), tol).unwrap();
     /// assert!(matches!(generator, Curve::Line(_)));
     ///
     /// let along_u = Line2D::new(Point2D::new(0.5, 1.0), -Vector2D::X).unwrap();
-    /// let parallel = cylinder.pcurve_to_curve(&along_u.into(), tol).unwrap();
+    /// let parallel = cylinder.uv_curve_to_3d(&along_u.into(), tol).unwrap();
     /// assert!(matches!(parallel, Curve::Circle(_)));
     /// for t in [-1.0, 0.0, 2.5] {
     ///     let expected = cylinder.eval_point(0.5 - t, 1.0);
@@ -604,18 +604,18 @@ pub trait ParametricSurface {
     /// let plane = Plane::new(Point::new(0.0, 0.0, 1.0), Vector::Z).unwrap();
     /// let ellipse = Ellipse2D::new(Point2D::new(1.0, 2.0), Vector2D::X, 3.0, 1.0).unwrap();
     /// let curve = Curve2D::from(ellipse);
-    /// let traced = plane.pcurve_to_curve(&curve, Tolerance::DEFAULT).unwrap();
+    /// let traced = plane.uv_curve_to_3d(&curve, Tolerance::DEFAULT).unwrap();
     /// assert!(matches!(traced, Curve::Ellipse(_)));
     /// let q = curve.eval_point(0.7);
     /// assert!(traced.eval_point(0.7).distance(plane.eval_point(q.x, q.y)) < 1e-12);
     /// ```
-    fn pcurve_to_curve(
+    fn uv_curve_to_3d(
         &self,
-        pcurve: &Curve2D,
+        uv_curve: &Curve2D,
         tol: Tolerance,
-    ) -> Result<Curve, PcurveToCurveError> {
-        let _ = (pcurve, tol);
-        Err(PcurveToCurveError::NotAnalytic)
+    ) -> Result<Curve, UvCurveTo3DError> {
+        let _ = (uv_curve, tol);
+        Err(UvCurveTo3DError::NotAnalytic)
     }
 
     /// Routing hook of the numeric search, hidden from the documentation: the

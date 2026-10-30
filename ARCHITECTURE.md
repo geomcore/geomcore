@@ -39,9 +39,9 @@ src/
 │   ├── extrusion.rs revolution.rs   the swept surfaces; swept.rs holds the
 │   │                            profile geometry they share (ADR 0016)
 │   ├── iso.rs                   helpers shared by the iso curves (u_iso, v_iso)
-│   ├── pcurve.rs                pcurves to and from 3D curves (ADR 0030);
-│   │                            pcurve/to_curve.rs is the pair table of
-│   │                            pcurve_to_curve
+│   ├── uv_curve.rs              UV curves to and from 3D curves (ADR 0030);
+│   │                            uv_curve/to_curve.rs is the pair table of
+│   │                            uv_curve_to_3d
 │   └── conversion.rs fitting.rs
 │
 ├── intersect/           intersections, by method (ADR 0011)

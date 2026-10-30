@@ -6,8 +6,8 @@ use crate::surfaces::ParametricSurface;
 use crate::surfaces::ReversibleSurface;
 use crate::surfaces::SurfaceCurvatures;
 use crate::surfaces::{
-    BSplineSurface, BezierSurface, Cone, Cylinder, ExtrusionSurface, PcurveToCurveError, Plane,
-    RevolutionSurface, Sphere, SurfaceIsoError, Torus,
+    BSplineSurface, BezierSurface, Cone, Cylinder, ExtrusionSurface, Plane, RevolutionSurface,
+    Sphere, SurfaceIsoError, Torus, UvCurveTo3DError,
 };
 use crate::{Point, SurfaceProjection, Tolerance, Vector};
 use crate::{Transform, TransformError, Transformable};
@@ -125,7 +125,7 @@ impl Surface {
     /// B-spline curve on a B-spline surface, a Bézier curve on a Bézier
     /// surface; see each type's `u_iso`.
     /// The axis-aligned special case of
-    /// [`pcurve_to_curve`](crate::ParametricSurface::pcurve_to_curve):
+    /// [`uv_curve_to_3d`](crate::ParametricSurface::uv_curve_to_3d):
     /// a line along `v`, run at rate `1` from `0`.
     ///
     /// # Errors
@@ -154,7 +154,7 @@ impl Surface {
     /// B-spline curve on a B-spline surface, a Bézier curve on a Bézier
     /// surface; see each type's `v_iso`.
     /// The axis-aligned special case of
-    /// [`pcurve_to_curve`](crate::ParametricSurface::pcurve_to_curve):
+    /// [`uv_curve_to_3d`](crate::ParametricSurface::uv_curve_to_3d):
     /// a line along `u`, run at rate `1` from `0`.
     ///
     /// # Errors
@@ -281,12 +281,12 @@ impl ParametricSurface for Surface {
         surface_dispatch!(self, s => s.as_revolution())
     }
 
-    fn pcurve_to_curve(
+    fn uv_curve_to_3d(
         &self,
-        pcurve: &Curve2D,
+        uv_curve: &Curve2D,
         tol: Tolerance,
-    ) -> Result<Curve, PcurveToCurveError> {
-        surface_dispatch!(self, s => s.pcurve_to_curve(pcurve, tol))
+    ) -> Result<Curve, UvCurveTo3DError> {
+        surface_dispatch!(self, s => s.uv_curve_to_3d(uv_curve, tol))
     }
 }
 
@@ -436,12 +436,12 @@ impl ParametricSurface for ElementarySurface {
         Some(*self)
     }
 
-    fn pcurve_to_curve(
+    fn uv_curve_to_3d(
         &self,
-        pcurve: &Curve2D,
+        uv_curve: &Curve2D,
         tol: Tolerance,
-    ) -> Result<Curve, PcurveToCurveError> {
-        elementary_surface_dispatch!(self, s => s.pcurve_to_curve(pcurve, tol))
+    ) -> Result<Curve, UvCurveTo3DError> {
+        elementary_surface_dispatch!(self, s => s.uv_curve_to_3d(uv_curve, tol))
     }
 }
 

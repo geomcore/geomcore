@@ -9,8 +9,8 @@
 //! point whose circle about the axis passes closest.
 
 use crate::curves::Curve2D;
-use crate::surfaces::PcurveToCurveError;
-use crate::surfaces::pcurve::to_curve;
+use crate::surfaces::UvCurveTo3DError;
+use crate::surfaces::uv_curve::to_curve;
 use std::f64::consts::{PI, TAU};
 use std::fmt;
 
@@ -160,7 +160,7 @@ impl RevolutionSurface {
     /// the axis, so `u_iso(u).eval_point(t)` is `eval_point(u, t)` for
     /// every `t`.
     /// The axis-aligned special case of
-    /// [`pcurve_to_curve`](crate::ParametricSurface::pcurve_to_curve):
+    /// [`uv_curve_to_3d`](crate::ParametricSurface::uv_curve_to_3d):
     /// a line along `v`, run at rate `1` from `0`.
     ///
     /// Fails with [`SurfaceIsoError::NonFinite`] for a NaN or infinite
@@ -191,7 +191,7 @@ impl RevolutionSurface {
     /// `eval_point(t, v)` for every `t`. A profile point on the axis
     /// turns along a circle of zero radius.
     /// The axis-aligned special case of
-    /// [`pcurve_to_curve`](crate::ParametricSurface::pcurve_to_curve):
+    /// [`uv_curve_to_3d`](crate::ParametricSurface::uv_curve_to_3d):
     /// a line along `u`, run at rate `1` from `0`.
     ///
     /// Fails with [`SurfaceIsoError::NonFinite`] for a NaN or infinite
@@ -575,12 +575,12 @@ impl ParametricSurface for RevolutionSurface {
         Some(self)
     }
 
-    fn pcurve_to_curve(
+    fn uv_curve_to_3d(
         &self,
-        pcurve: &Curve2D,
+        uv_curve: &Curve2D,
         tol: Tolerance,
-    ) -> Result<Curve, PcurveToCurveError> {
-        to_curve::pcurve_to_curve(self, pcurve, tol)
+    ) -> Result<Curve, UvCurveTo3DError> {
+        to_curve::uv_curve_to_3d(self, uv_curve, tol)
     }
 }
 

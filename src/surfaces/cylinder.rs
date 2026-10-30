@@ -7,11 +7,11 @@ use crate::elementary::surface as elementary;
 use crate::frame::frame_error;
 use crate::surfaces::ElementarySurface;
 use crate::surfaces::ParametricSurface;
-use crate::surfaces::PcurveToCurveError;
 use crate::surfaces::ReversibleSurface;
 use crate::surfaces::SurfaceIsoError;
+use crate::surfaces::UvCurveTo3DError;
 use crate::surfaces::iso::{check_iso_param, iso_circle, iso_line};
-use crate::surfaces::pcurve::to_curve;
+use crate::surfaces::uv_curve::to_curve;
 use crate::transform::image_error;
 use crate::{
     Axis, Circle, Frame, Line, Point, SurfaceProjection, Tolerance, Transform, Vector, projection,
@@ -204,7 +204,7 @@ impl Cylinder {
     /// at `(u, 0)`, parallel to the axis, so `u_iso(u).eval_point(t)` is
     /// `eval_point(u, t)` for every `t`.
     /// The axis-aligned special case of
-    /// [`pcurve_to_curve`](crate::ParametricSurface::pcurve_to_curve):
+    /// [`uv_curve_to_3d`](crate::ParametricSurface::uv_curve_to_3d):
     /// a line along `v`, run at rate `1` from `0`.
     ///
     /// Fails with [`SurfaceIsoError::NonFinite`] for a NaN or infinite
@@ -228,7 +228,7 @@ impl Cylinder {
     /// radius at height `v` along the axis, so `v_iso(v).eval_point(t)` is
     /// `eval_point(t, v)` for every `t`.
     /// The axis-aligned special case of
-    /// [`pcurve_to_curve`](crate::ParametricSurface::pcurve_to_curve):
+    /// [`uv_curve_to_3d`](crate::ParametricSurface::uv_curve_to_3d):
     /// a line along `u`, run at rate `1` from `0`.
     ///
     /// Fails with [`SurfaceIsoError::NonFinite`] for a NaN or infinite
@@ -317,12 +317,12 @@ impl ParametricSurface for Cylinder {
         elementary::cylinder_parameters(&self.frame, point)
     }
 
-    fn pcurve_to_curve(
+    fn uv_curve_to_3d(
         &self,
-        pcurve: &Curve2D,
+        uv_curve: &Curve2D,
         tol: Tolerance,
-    ) -> Result<Curve, PcurveToCurveError> {
-        to_curve::pcurve_to_curve(self, pcurve, tol)
+    ) -> Result<Curve, UvCurveTo3DError> {
+        to_curve::uv_curve_to_3d(self, uv_curve, tol)
     }
 }
 

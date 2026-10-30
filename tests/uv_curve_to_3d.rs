@@ -1,6 +1,6 @@
-//! `pcurve_to_curve`: the exact 3D curve a pcurve traces on a surface.
+//! `uv_curve_to_3d`: the exact 3D curve a UV curve traces on a surface.
 //! Every closed-form pair gives its expected kind of curve, every curve it
-//! gives evaluates as the surface over the pcurve with matching first
+//! gives evaluates as the surface over the UV curve with matching first
 //! derivatives, it undoes `parametrize_on`, and the other pairs are
 //! refused.
 
@@ -11,8 +11,8 @@ use geomcore::prelude::*;
 use geomcore::{
     Axis, BSplineCurve2D, BezierCurve2D, Circle2D, Cone, Curve, Curve2D, Cylinder, Ellipse,
     Ellipse2D, ExtrusionSurface, Frame, Frame2D, Hyperbola, Hyperbola2D, Line, Line2D, Parabola,
-    Parabola2D, PcurveToCurveError, Plane, Point, Point2D, RevolutionSurface, Sphere, Surface,
-    SurfaceIsoError, Tolerance, Vector, Vector2D,
+    Parabola2D, Plane, Point, Point2D, RevolutionSurface, Sphere, Surface, SurfaceIsoError,
+    Tolerance, UvCurveTo3DError, Vector, Vector2D,
 };
 use std::f64::consts::{FRAC_PI_2, PI};
 
@@ -58,17 +58,14 @@ fn axis_line(u: f64, v: f64, along_v: bool, sign: f64) -> Line2D {
 }
 
 /// The result's variant name, or the error.
-fn outcome(
-    curve: impl Into<Curve2D>,
-    surface: &Surface,
-) -> Result<&'static str, PcurveToCurveError> {
+fn outcome(curve: impl Into<Curve2D>, surface: &Surface) -> Result<&'static str, UvCurveTo3DError> {
     surface
-        .pcurve_to_curve(&curve.into(), TOL)
+        .uv_curve_to_3d(&curve.into(), TOL)
         .map(|image| kind(&image))
 }
 
 /// The degree-1 B-spline from `from` to `to` over `bounds`: a straight
-/// pcurve as files exchanged between kernels store one.
+/// UV curve as files exchanged between kernels store one.
 fn straight_spline(from: Point2D, to: Point2D, (first, last): (f64, f64)) -> BSplineCurve2D {
     BSplineCurve2D::new(1, vec![from, to], vec![first, last], vec![2, 2], false).unwrap()
 }
@@ -184,7 +181,7 @@ fn a_conic_profile_keeps_its_kind_only_from_where_its_parametrization_allows() {
             for &shift in refused_shifts {
                 assert_eq!(
                     outcome(line(shift), &surface),
-                    Err(PcurveToCurveError::NotAnalytic),
+                    Err(UvCurveTo3DError::NotAnalytic),
                     "{name} {shift} {sign}"
                 );
             }
@@ -216,7 +213,7 @@ fn an_oblique_extrusion_keeps_a_kind_along_its_principal_axes_only() {
     let parabola = |x: Vector2D| Parabola2D::from_frame(Frame2D::from_x(center, x).unwrap(), 0.8);
     let hyperbola =
         |x: Vector2D| Hyperbola2D::from_frame(Frame2D::from_x(center, x).unwrap(), 2.0, 1.0);
-    let refused = Err(PcurveToCurveError::NotAnalytic);
+    let refused = Err(UvCurveTo3DError::NotAnalytic);
 
     // A line keeps unit speed along `u` or `v` only.
     for direction in [Vector2D::X, -Vector2D::Y] {
@@ -332,7 +329,7 @@ fn every_curve_given_traces_the_surface_over_the_parameter_curve() {
     let mut given = 0;
     for (i, surface) in all_surfaces.iter().enumerate() {
         for (j, curve) in parameter_curves.iter().enumerate() {
-            if let Ok(image) = surface.pcurve_to_curve(curve, TOL) {
+            if let Ok(image) = surface.uv_curve_to_3d(curve, TOL) {
                 assert_traces(&image, curve, surface, &format!("curve {j} on surface {i}"));
                 given += 1;
             }
@@ -381,11 +378,11 @@ fn parametrizing_then_carrying_back_gives_the_curve() {
     let mut round_trips = 0;
     for (i, surface) in surfaces.iter().enumerate() {
         for (j, curve) in curves_3d.iter().enumerate() {
-            let Some(pcurve) = parametrize(curve, surface) else {
+            let Some(uv_curve) = parametrize(curve, surface) else {
                 continue;
             };
             let image = surface
-                .pcurve_to_curve(&pcurve, TOL)
+                .uv_curve_to_3d(&uv_curve, TOL)
                 .unwrap_or_else(|error| panic!("curve {j} on surface {i}: {error}"));
             for t in parameters(curve.bounds()) {
                 let (point, expected) = (image.eval_point(t), curve.eval_point(t));
@@ -406,7 +403,7 @@ fn a_slanted_line_on_a_cylinder_is_refused() {
     let helix = Line2D::new(Point2D::ORIGIN, Vector2D::new(0.6, 0.8)).unwrap();
     assert_eq!(
         outcome(helix, &cylinder),
-        Err(PcurveToCurveError::NotAnalytic)
+        Err(UvCurveTo3DError::NotAnalytic)
     );
 }
 
@@ -417,10 +414,7 @@ fn only_lines_along_u_or_v_are_given_on_a_bspline_surface() {
             continue;
         }
         for curve in curves_2d() {
-            assert_eq!(
-                outcome(curve, &surface),
-                Err(PcurveToCurveError::NotAnalytic)
-            );
+            assert_eq!(outcome(curve, &surface), Err(UvCurveTo3DError::NotAnalytic));
         }
         assert!(outcome(axis_line(0.3, 0.2, true, 1.0), &surface).is_ok());
     }
@@ -430,12 +424,12 @@ fn only_lines_along_u_or_v_are_given_on_a_bspline_surface() {
 fn a_line_along_a_point_iso_curve_collapses() {
     let sphere: Surface = Sphere::new(Point::ORIGIN, 2.0).unwrap().into();
     let pole = axis_line(0.0, FRAC_PI_2, false, 1.0);
-    assert_eq!(outcome(pole, &sphere), Err(PcurveToCurveError::Collapsed));
+    assert_eq!(outcome(pole, &sphere), Err(UvCurveTo3DError::Collapsed));
     let cone = Cone::new(Point::ORIGIN, Vector::Z, FRAC_PI_2 / 2.0, 1.0).unwrap();
     let apex = axis_line(0.0, -std::f64::consts::SQRT_2, false, -1.0);
     assert_eq!(
         outcome(apex, &cone.into()),
-        Err(PcurveToCurveError::Collapsed)
+        Err(UvCurveTo3DError::Collapsed)
     );
     // A meridian through the pole is a circle like any other.
     assert_eq!(
@@ -450,7 +444,7 @@ fn a_line_outside_a_bounded_direction_has_no_iso_curve() {
     assert!(matches!(surface, Surface::BSpline(_)));
     assert_eq!(
         outcome(axis_line(9.0, 0.0, true, 1.0), &surface),
-        Err(PcurveToCurveError::IsoCurve(SurfaceIsoError::OutOfRange))
+        Err(UvCurveTo3DError::IsoCurve(SurfaceIsoError::OutOfRange))
     );
 }
 
@@ -463,7 +457,7 @@ fn a_bspline_on_a_plane_keeps_its_poles_weights_and_knots() {
         let Curve2D::BSpline(spline) = &curve else {
             continue;
         };
-        let Ok(Curve::BSpline(image)) = plane.pcurve_to_curve(&curve, TOL) else {
+        let Ok(Curve::BSpline(image)) = plane.uv_curve_to_3d(&curve, TOL) else {
             panic!("a B-spline on a plane is a B-spline");
         };
         let expected: Vec<Point> = spline
@@ -515,26 +509,26 @@ impl ParametricSurface for OwnPlane {
 fn a_surface_defined_outside_the_crate_refuses_by_default() {
     let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
     let line: Curve2D = axis_line(0.0, 0.0, true, 1.0).into();
-    assert!(plane.pcurve_to_curve(&line, TOL).is_ok());
+    assert!(plane.uv_curve_to_3d(&line, TOL).is_ok());
     let own: &dyn ParametricSurface = &OwnPlane(plane);
     assert_eq!(
-        own.pcurve_to_curve(&line, TOL),
-        Err(PcurveToCurveError::NotAnalytic)
+        own.uv_curve_to_3d(&line, TOL),
+        Err(UvCurveTo3DError::NotAnalytic)
     );
 }
 
 #[test]
-fn a_straight_spline_pcurve_runs_along_its_iso_curve() {
+fn a_straight_spline_uv_curve_runs_along_its_iso_curve() {
     let cylinder: Surface = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap().into();
-    let check = |pcurve: Curve2D, surface: &Surface, expected| {
-        let given = surface.pcurve_to_curve(&pcurve, TOL);
+    let check = |uv_curve: Curve2D, surface: &Surface, expected| {
+        let given = surface.uv_curve_to_3d(&uv_curve, TOL);
         assert_eq!(
             given.as_ref().map(kind).map_err(|&error| error),
             expected,
-            "{pcurve:?}"
+            "{uv_curve:?}"
         );
         if let Ok(curve) = given {
-            assert_traces(&curve, &pcurve, surface, "straight spline");
+            assert_traces(&curve, &uv_curve, surface, "straight spline");
         }
     };
     let along_v = |speed: f64| {
@@ -550,11 +544,7 @@ fn a_straight_spline_pcurve_runs_along_its_iso_curve() {
     check(along_v(1.0), &cylinder, Ok("Line"));
     check(along_v(2.0), &cylinder, Ok("BSpline"));
     check(along_u(1.0), &cylinder, Ok("Circle"));
-    check(
-        along_u(2.0),
-        &cylinder,
-        Err(PcurveToCurveError::NotAnalytic),
-    );
+    check(along_u(2.0), &cylinder, Err(UvCurveTo3DError::NotAnalytic));
     let bezier = |to: Point2D| BezierCurve2D::new(1, vec![Point2D::new(0.5, 0.25), to]).unwrap();
     check(
         bezier(Point2D::new(0.5, 1.25)).into(),
@@ -583,13 +573,13 @@ fn a_straight_spline_pcurve_runs_along_its_iso_curve() {
 
     // A point, and a segment run at a varying speed, are refused.
     let point = straight_spline(Point2D::new(0.5, 1.0), Point2D::new(0.5, 1.0), (0.0, 1.0));
-    check(point.into(), &cylinder, Err(PcurveToCurveError::Collapsed));
+    check(point.into(), &cylinder, Err(UvCurveTo3DError::Collapsed));
     let poles = vec![Point2D::new(0.5, 0.0), Point2D::new(0.5, 1.0)];
     let varying =
         BSplineCurve2D::new_rational(1, poles, vec![1.0, 2.0], vec![0.0, 1.0], vec![2, 2], false);
     check(
         varying.unwrap().into(),
         &cylinder,
-        Err(PcurveToCurveError::NotAnalytic),
+        Err(UvCurveTo3DError::NotAnalytic),
     );
 }
