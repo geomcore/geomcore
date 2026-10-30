@@ -1,9 +1,10 @@
 //! The routed `intersect` shared by every curve and surface class, the
-//! routing of Python operands it relies on, and `geomcore.curve_curve_extrema`.
+//! reading of Python operands it relies on, and
+//! `geomcore.curve_curve_extrema`.
 
-use crate::arguments::surface_of;
-use crate::arguments::*;
-use crate::arguments::{CurveArg, curve_arg_of, curve2d_of};
+use crate::arguments::{
+    CurveArg, curve_2d_classes, curve_arg_of, extract_curve_arg, surface_classes,
+};
 use crate::curves::PyTrimmedCurve2D;
 use crate::results::{
     PyCurveCurveExtrema, PyCurveCurveIntersection, PyCurveCurveIntersection2D,
@@ -11,7 +12,7 @@ use crate::results::{
 };
 use crate::tolerance;
 use crate::values::*;
-use geomcore::curves::{Curve, Curve2D, TrimmedCurve2D};
+use geomcore::curves::{Curve2D, TrimmedCurve2D};
 use geomcore::prelude::*;
 use geomcore::surfaces::Surface;
 use geomcore::{
@@ -38,7 +39,7 @@ enum Operand {
 /// miss: the surface classes first when `surfaces_first` (the other
 /// operand is a surface), the 3D curve classes first otherwise.
 fn operand_of(obj: &Bound<'_, PyAny>, surfaces_first: bool) -> PyResult<Operand> {
-    let surface = || surface_of(obj).map(Operand::Surface);
+    let surface = || surface_classes::of(obj).map(Operand::Surface);
     let curve = || curve_arg_of(obj).map(Operand::Curve);
     let found = if surfaces_first {
         surface().or_else(curve)
@@ -53,7 +54,7 @@ fn operand_of(obj: &Bound<'_, PyAny>, surfaces_first: bool) -> PyResult<Operand>
             trimmed.borrow().0.clone(),
         )));
     }
-    if let Some(curve) = curve2d_of(obj) {
+    if let Some(curve) = curve_2d_classes::of(obj) {
         return Ok(Operand::Curve2D(CurveArg2D::Whole(curve)));
     }
     Err(PyTypeError::new_err(format!(
@@ -75,32 +76,14 @@ fn routed_curve_curve_2d(
     }
 }
 
-// The numeric search and marching can run for milliseconds: the routed
-// call releases the interpreter lock around them, so other Python threads
-// run meanwhile. Releasing it costs about 35 ns, a tenth of a closed-form
-// call from Python, so the pairs that always have a closed form keep it.
-
-/// Whether the curve is a B-spline or Bézier curve, or a piece of one: a
-/// pair with it has no closed form.
-fn is_bspline(curve: &CurveArg) -> bool {
-    match curve {
-        CurveArg::Whole(curve) => curve.as_bspline().is_some(),
-        CurveArg::Trimmed(curve) => curve.as_bspline().is_some(),
-    }
-}
-
-/// Whether the routed curve-surface call may run the numeric search: a
-/// B-spline or Bézier shape on either side, or a curve other than a whole
-/// line against a torus.
-fn may_search(curve: &CurveArg, surface: &Surface) -> bool {
-    let line = matches!(curve, CurveArg::Whole(Curve::Line(_)));
-    is_bspline(curve)
-        || surface.as_bspline().is_some()
-        || (!line && matches!(surface, Surface::Torus(_)))
-}
-
 /// Intersects `first` with `second` through the routed Rust `intersect`
 /// and wraps the result with both operands.
+///
+/// The interpreter lock is released for every pair: the numeric search
+/// and marching can run for milliseconds, and the operands are owned Rust
+/// values, so other Python threads run meanwhile. Deciding which pairs
+/// are quick would copy the core's routing here; releasing the lock costs
+/// about 47 ns, an eighth of a closed-form call from Python (ADR 0021).
 pub(crate) fn intersect(
     first: &Bound<'_, PyAny>,
     second: &Bound<'_, PyAny>,
@@ -113,11 +96,7 @@ pub(crate) fn intersect(
     let (first, second) = (first.clone().unbind(), second.clone().unbind());
     let object = match (&a, &b) {
         (Operand::Curve(a), Operand::Curve(b)) => PyCurveCurveIntersection {
-            result: if is_bspline(a) || is_bspline(b) {
-                py.detach(|| routed_curve_curve(a, b, tol))
-            } else {
-                routed_curve_curve(a, b, tol)
-            },
+            result: py.detach(|| routed_curve_curve(a, b, tol)),
             first,
             second,
         }
@@ -125,19 +104,13 @@ pub(crate) fn intersect(
         .into_any(),
         (Operand::Curve(curve), Operand::Surface(surface))
         | (Operand::Surface(surface), Operand::Curve(curve)) => PyCurveSurfaceIntersection {
-            result: if may_search(curve, surface) {
-                py.detach(|| routed_curve_surface(curve, surface, tol))
-            } else {
-                routed_curve_surface(curve, surface, tol)
-            },
+            result: py.detach(|| routed_curve_surface(curve, surface, tol)),
             first,
             second,
         }
         .into_pyobject(py)?
         .into_any(),
         (Operand::Surface(a), Operand::Surface(b)) => PySurfaceSurfaceIntersection {
-            // Marching runs for some pairs, and the closed forms build
-            // curves: releasing the lock costs little next to either.
             result: py.detach(|| a.intersect(b, tol)),
             first,
             second,
@@ -145,7 +118,7 @@ pub(crate) fn intersect(
         .into_pyobject(py)?
         .into_any(),
         (Operand::Curve2D(a), Operand::Curve2D(b)) => PyCurveCurveIntersection2D {
-            result: routed_curve_curve_2d(a, b, tol),
+            result: py.detach(|| routed_curve_curve_2d(a, b, tol)),
             first,
             second,
         }

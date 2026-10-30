@@ -77,17 +77,15 @@ mod bounding_box;
 mod curves;
 mod discretization;
 mod intersect;
+mod method_sets;
 mod results;
 mod surfaces;
 mod values;
 
+use arguments::{curve_2d_classes, curve_classes, surface_classes};
 use bounding_box::{PyBoundingBox, PyBoundingBox2D};
 use curves::py_parametrize_numeric;
-use curves::{
-    PyBSplineCurve, PyBSplineCurve2D, PyBezierCurve, PyBezierCurve2D, PyCircle, PyCircle2D,
-    PyEllipse, PyEllipse2D, PyHyperbola, PyHyperbola2D, PyLine, PyLine2D, PyParabola, PyParabola2D,
-    PyTrimmedCurve, PyTrimmedCurve2D,
-};
+use curves::{PyTrimmedCurve, PyTrimmedCurve2D};
 use discretization::{PyDiscretization, PyDiscretization2D};
 use intersect::py_curve_curve_extrema;
 use results::{
@@ -98,7 +96,6 @@ use results::{
     PyIntersectionCurve, PyIntersectionMethod, PySurfaceCurvatures, PySurfaceProjection,
     PySurfaceSurfaceIntersection, PySurfaceSurfaceRegion,
 };
-use surfaces::{PyBSplineSurface, PyBezierSurface, PyCone, PyCylinder, PyPlane, PySphere, PyTorus};
 use values::{
     PyAxis, PyAxis2D, PyFrame, PyFrame2D, PyPoint, PyPoint2D, PySide, PyTolerance, PyTransform,
     PyVector, PyVector2D,
@@ -153,32 +150,14 @@ fn geomcore_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PySurfaceCurvatures>()?;
 
     let curves = PyModule::new(py, "curves")?;
-    curves.add_class::<PyLine>()?;
-    curves.add_class::<PyCircle>()?;
-    curves.add_class::<PyEllipse>()?;
-    curves.add_class::<PyParabola>()?;
-    curves.add_class::<PyHyperbola>()?;
-    curves.add_class::<PyBSplineCurve>()?;
-    curves.add_class::<PyBezierCurve>()?;
-    curves.add_class::<PyLine2D>()?;
-    curves.add_class::<PyCircle2D>()?;
-    curves.add_class::<PyEllipse2D>()?;
-    curves.add_class::<PyParabola2D>()?;
-    curves.add_class::<PyHyperbola2D>()?;
-    curves.add_class::<PyBSplineCurve2D>()?;
-    curves.add_class::<PyBezierCurve2D>()?;
+    curve_classes::add_to(&curves)?;
+    curve_2d_classes::add_to(&curves)?;
     curves.add_class::<PyTrimmedCurve>()?;
     curves.add_class::<PyTrimmedCurve2D>()?;
     m.add_submodule(&curves)?;
 
     let surfaces = PyModule::new(py, "surfaces")?;
-    surfaces.add_class::<PyPlane>()?;
-    surfaces.add_class::<PyCylinder>()?;
-    surfaces.add_class::<PyCone>()?;
-    surfaces.add_class::<PySphere>()?;
-    surfaces.add_class::<PyTorus>()?;
-    surfaces.add_class::<PyBSplineSurface>()?;
-    surfaces.add_class::<PyBezierSurface>()?;
+    surface_classes::add_to(&surfaces)?;
     m.add_submodule(&surfaces)?;
 
     // Register the submodules in sys.modules so that

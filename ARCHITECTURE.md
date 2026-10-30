@@ -108,9 +108,7 @@ Outside `src/`:
 - Make it an operand of `Intersect`: a `CurveOperand`/`SurfaceOperand`
   impl and one entry in each pair list of `intersect/routing.rs`.
 - Give it a box in `bounding_box/` and a discretization in `discretization/`.
-- Bind it in `geomcore-py/src/curves/<name>.rs` (or `surfaces/`), register
-  the class in `geomcore-py/src/lib.rs` and add its stub to
-  `geomcore-py/geomcore/*.pyi`.
+- Bind it in Python: see [The Python bindings](#the-python-bindings).
 
 **A new exact intersection pair.**
 - Write the solver as `impl IntersectExact<B> for A` in the family file
@@ -134,10 +132,44 @@ files are:
 | `lib.rs` | the module wiring (`#[pymodule]`) and small shared argument checks |
 | `values.rs` | `Point`, `Vector`, `Axis`, `Frame`, `Tolerance`, `Transform`, `Side` |
 | `bounding_box.rs`, `discretization.rs` | the classes of those operations |
+| `method_sets.rs` | the method sets the curve and surface classes share |
+| `arguments.rs` | the class registry: the Python class of each core enum variant |
 | `intersect.rs` | the routed `intersect` every class shares, and `curve_curve_extrema` |
 | `results.rs` | the intersection, projection, extrema and curvature results |
-| `arguments.rs` | conversions between Python objects and the core `Curve`/`Surface` enums |
 | `errors.rs` | the Python exception hierarchy |
+
+**Method sets.** A class writes its `#[pymethods]` block through
+`shape_methods!`, naming the sets it takes (`curve`, `discretize`,
+`surface`, ...) and listing only its own methods. Each set is the Python
+face of a core trait (`curve` is `ParametricCurve`, `PointExtrema`,
+`HasBoundingBox` and `Intersect`), with its docstrings and signatures
+written once, so a class has a method exactly when its core type has it.
+The table at the top of `method_sets.rs` says which set follows from
+which trait.
+
+**The class registry.** `shape_classes!` in `arguments.rs` lists, once per
+core enum, the Python class of each variant (`Line => PyLine`). From that
+list come the conversions both ways (`curve_classes::extract`,
+`curve_classes::to_py`), the `TypeError` text naming the accepted
+classes, and the classes' registration in their module.
+
+**The interpreter lock.** `intersect` releases it around every core call,
+so other Python threads run during a search (ADR 0021).
+
+**Binding a new curve or surface type.**
+- Add `geomcore-py/src/curves/<name>.rs` (or `surfaces/`) with the
+  `#[pyclass]` holding the core type as field `0`, and its methods through
+  `shape_methods!`: the sets its core traits give it, then its
+  constructors and inherent methods.
+- Add one `Variant => PyClass` line to the registry in `arguments.rs`.
+  `intersect`, every argument that takes a curve or surface, and every
+  method that returns one then accept the class.
+- Add its stub to `geomcore-py/geomcore/curves.pyi` (or `surfaces.pyi`)
+  and to the `_WholeCurve`, `_Curve2D` or `_Surface` union there; stubtest
+  checks the stub against the class.
+- `tests/test_parity.py` fails until the new class has a fixture, then
+  checks its method set and runs it through `intersect` against every
+  other class.
 
 ## Integration tests
 
