@@ -79,8 +79,8 @@ use crate::{BoundingBox, HasBoundingBox, Point, Tolerance, Vector};
 /// of a B-spline side, so that it never steps over a whole knot span
 /// (within a span the control points bound the features). A trace ends
 /// when it closes a loop, stalls, reaches a parameter bound, or leaves
-/// the cube of side [`Tolerance::MODEL_SIZE`] centred on the origin, its
-/// last point then lying on the bound or the cube. Traces fit
+/// the trace box (see [`trace_box`]), its last point then lying on the
+/// bound or the box. Traces fit
 /// [`BSplineCurve`] interpolants (degree 3, closed loops by repeated end
 /// points).
 ///
@@ -196,7 +196,7 @@ where
     A: ParametricSurface,
     B: ParametricSurface,
 {
-    let mut traced = Traced::default();
+    let mut traced = Traced::new(a, b);
     if let (Some(sa), Some(sb)) = (a.as_bspline(), b.as_bspline()) {
         let pairs = patch_pairs::patch_pairs(sa, sb, tol);
         for leaf in &pairs.leaves {
@@ -410,15 +410,19 @@ fn unit_normal<S: ParametricSurface + ?Sized>(
         .then(|| n * (1.0 / length))
 }
 
-/// The corners of the box around `s`: its own box when it is elementary
-/// or a B-spline, else the box around a grid of its points.
-fn surface_corners<S: ParametricSurface>(s: &S) -> (Point, Point) {
-    let own = match (s.as_elementary(), s.as_bspline()) {
+/// The box around `s` when it is a bounded elementary surface or B-spline.
+fn own_box<S: ParametricSurface>(s: &S) -> Option<BoundingBox> {
+    match (s.as_elementary(), s.as_bspline()) {
         (Some(elementary), _) => elementary.bounding_box(),
         (None, Some(bspline)) => bspline.bounding_box(),
         (None, None) => None,
-    };
-    let bounds = own.or_else(|| {
+    }
+}
+
+/// The corners of the box around `s`: its own box when it is elementary
+/// or a B-spline, else the box around a grid of its points.
+fn surface_corners<S: ParametricSurface>(s: &S) -> (Point, Point) {
+    let bounds = own_box(s).or_else(|| {
         let (u0, u1) = s.u_bounds();
         let (v0, v1) = s.v_bounds();
         let last = (COINCIDENCE_SAMPLES - 1) as f64;
@@ -736,7 +740,7 @@ where
     A: ParametricSurface,
     B: ParametricSurface,
 {
-    let mut traced = Traced::default();
+    let mut traced = Traced::new(a, b);
     trace_grid_seeds(a, b, tol, &mut traced);
     traced.curves.into_iter().map(|(curve, _)| curve).collect()
 }
@@ -778,17 +782,33 @@ where
 /// The curves traced so far, fitted, with whether the surfaces touch
 /// along each (see [`grazes`]); the points where they touch without a
 /// curve to trace; the seeds where they lie on each other (see
-/// [`osculates`]); and the traced polylines: the box around each, the
-/// boxes around its runs of `RUN` segments, and its points.
-#[derive(Default)]
+/// [`osculates`]); the traced polylines: the box around each, the boxes
+/// around its runs of `RUN` segments, and its points; and the box where
+/// traces end (see [`trace_box`]).
 struct Traced {
     curves: Vec<(BSplineCurve, bool)>,
     contact_points: Vec<Point>,
     coincident_seeds: Vec<[f64; 4]>,
     traces: Vec<(Aabb, Vec<Aabb>, Vec<Point>)>,
+    limit: BoundingBox,
 }
 
 impl Traced {
+    /// Nothing traced yet between `a` and `b`.
+    fn new<A, B>(a: &A, b: &B) -> Traced
+    where
+        A: ParametricSurface,
+        B: ParametricSurface,
+    {
+        Traced {
+            curves: Vec::new(),
+            contact_points: Vec::new(),
+            coincident_seeds: Vec::new(),
+            traces: Vec::new(),
+            limit: trace_box(a, b),
+        }
+    }
+
     /// Traces the curve through `seed` unless it was traced already. A
     /// seed where the surfaces touch is kept as a contact point when no
     /// curve runs from it.
@@ -802,11 +822,11 @@ impl Traced {
         // duplication). Near-tangent distinct curves (closer than this)
         // are out of scope.
         let p = a.eval_point(seed[0], seed[1]);
-        if outside_model(p) || self.crosses(&[p.x, p.y, p.z, p.x, p.y, p.z], tol) {
+        if !self.limit.encloses(p) || self.crosses(&[p.x, p.y, p.z, p.x, p.y, p.z], tol) {
             return;
         }
         let touching = grazes(a, b, seed, tol);
-        let points = trace(a, b, seed, touching, tol);
+        let points = trace(a, b, seed, touching, self.limit, tol);
         // Where the surfaces touch at a point, the trace runs only across
         // the patch around it where they lie within confusion of each
         // other, shorter than a first step: a contact point, not a curve.
@@ -942,7 +962,14 @@ fn first_step(tol: Tolerance) -> f64 {
 /// (`touching`), the direction at each point is the one along which they
 /// keep touching where their normals are parallel (see [`direction`]),
 /// turned to go on the way the trace goes.
-fn trace<A, B>(a: &A, b: &B, seed: [f64; 4], touching: bool, tol: Tolerance) -> Option<Vec<Point>>
+fn trace<A, B>(
+    a: &A,
+    b: &B,
+    seed: [f64; 4],
+    touching: bool,
+    limit: BoundingBox,
+    tol: Tolerance,
+) -> Option<Vec<Point>>
 where
     A: ParametricSurface,
     B: ParametricSurface,
@@ -956,7 +983,7 @@ where
     // bound the features.
     let chord_deviation = CHORD_DEVIATION * tol.confusion;
     // A trace ends on closing its loop, on a parameter bound, or on the
-    // model-size cube; this count only guards against a runaway trace (a
+    // trace box; this count only guards against a runaway trace (a
     // loop whose closure is missed). A curve of length `L` and curvature
     // `k` takes about `L * sqrt(k / (8 * chord_deviation))` steps: a loop
     // of radius 50 about 16 per unit of length.
@@ -1061,8 +1088,8 @@ where
                 closed = true;
                 break;
             }
-            if outside_model(q) {
-                half.push(model_exit(a, b, (x, p), (y, q), tol));
+            if !limit.encloses(q) {
+                half.push(box_exit(a, b, (x, p), (y, q), limit, tol));
                 break;
             }
             half.push(q);
@@ -1222,24 +1249,44 @@ fn knot(knots: &[f64], periodic: bool, index: i64) -> f64 {
     knots[index.rem_euclid(count) as usize] + index.div_euclid(count) as f64 * period
 }
 
-/// Half the side of the model-size cube centred on the origin, where
-/// traces end (see [`Tolerance::MODEL_SIZE`]).
-const MODEL_HALF_SIZE: f64 = 0.5 * Tolerance::MODEL_SIZE;
-
-/// Whether `p` lies outside the model-size cube.
-fn outside_model(p: Point) -> bool {
-    [p.x, p.y, p.z].iter().any(|c| c.abs() > MODEL_HALF_SIZE)
+/// The box where traces end, grown by a tenth of its diagonal so that no
+/// curve ends on it by rounding: the smaller box around a bounded
+/// elementary or B-spline side, which holds the whole intersection; else
+/// the cube of side [`Tolerance::MODEL_SIZE`] centred on the origin, the
+/// model where unbounded curves are followed.
+fn trace_box<A, B>(a: &A, b: &B) -> BoundingBox
+where
+    A: ParametricSurface,
+    B: ParametricSurface,
+{
+    let size = |b: &BoundingBox| b.diagonal().magnitude();
+    match (own_box(a), own_box(b)) {
+        (Some(first), Some(second)) if size(&second) < size(&first) => Some(second),
+        (Some(first), _) => Some(first),
+        (None, second) => second,
+    }
+    .map_or_else(
+        || {
+            let half = 0.5 * Tolerance::MODEL_SIZE;
+            BoundingBox::new(
+                Point::new(-half, -half, -half),
+                Point::new(half, half, half),
+            )
+        },
+        |bounds| bounds.enlarged(0.1 * size(&bounds)),
+    )
 }
 
-/// The point where the traced step from `p` (parameters `x`, inside the
-/// model-size cube) to `q` (parameters `y`, outside it) leaves the cube:
-/// converged onto both surfaces and the first face the chord crosses, or
-/// `q` when that does not converge.
-fn model_exit<A, B>(
+/// The point where the traced step from `p` (parameters `x`, inside
+/// `limit`) to `q` (parameters `y`, outside it) leaves `limit`: converged
+/// onto both surfaces and the first face the chord crosses, or `q` when
+/// that does not converge.
+fn box_exit<A, B>(
     a: &A,
     b: &B,
     (x, p): ([f64; 4], Point),
     (y, q): ([f64; 4], Point),
+    limit: BoundingBox,
     tol: Tolerance,
 ) -> Point
 where
@@ -1247,14 +1294,20 @@ where
     B: ParametricSurface,
 {
     let (from, to) = ([p.x, p.y, p.z], [q.x, q.y, q.z]);
+    let (low, high) = (limit.min(), limit.max());
+    let (low, high) = ([low.x, low.y, low.z], [high.x, high.y, high.z]);
     let mut first: Option<(usize, f64, f64)> = None;
     for k in 0..3 {
-        if to[k].abs() > MODEL_HALF_SIZE {
-            let face = MODEL_HALF_SIZE.copysign(to[k]);
-            let fraction = (face - from[k]) / (to[k] - from[k]);
-            if first.is_none_or(|(_, _, f)| fraction < f) {
-                first = Some((k, face, fraction));
-            }
+        let face = if to[k] > high[k] {
+            high[k]
+        } else if to[k] < low[k] {
+            low[k]
+        } else {
+            continue;
+        };
+        let fraction = (face - from[k]) / (to[k] - from[k]);
+        if first.is_none_or(|(_, _, f)| fraction < f) {
+            first = Some((k, face, fraction));
         }
     }
     let Some((axis, face, fraction)) = first else {

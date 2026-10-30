@@ -164,7 +164,8 @@ torus, lines of a plane) meet the other surface exactly, so an
 unbounded surface is searched whole. A B-spline side adds its own
 seeds, and two bounded surfaces add a parameter grid. It then traces
 with curvature-following steps corrected by Newton on both surfaces,
-until the trace closes or leaves the model-size cube, and fits each
+until the trace closes or leaves the box of the smaller bounded side
+(the model-size cube when neither is bounded), and fits each
 loop or arc as a `BSplineCurve`. Two B-spline surfaces additionally
 seed from overlapping patch pairs, so isolated loops smaller than the
 seed spacing are found there. A marched result is `Sampled`: a loop

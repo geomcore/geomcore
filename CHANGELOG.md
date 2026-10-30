@@ -9,6 +9,14 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+### Fixed
+
+- Marching found no curves for bounded surfaces lying outside the
+  model-size cube centred on the origin (#138): two tori 1e5 away
+  intersected in nothing. A trace now ends on the box of the smaller
+  bounded side, grown by a tenth of its diagonal, and on the model-size
+  cube only when neither side is bounded (ADR 0011, amended).
+
 ## [0.40.1] - 2026-10-30
 
 The swept surfaces. `ExtrusionSurface` and `RevolutionSurface` join
