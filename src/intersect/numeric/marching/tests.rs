@@ -1,4 +1,7 @@
 use super::*;
+use crate::Vector;
+use crate::curves::ParametricCurve;
+use crate::intersect::SurfaceSurfaceRegion;
 
 #[test]
 fn test_marching_plane_plane_line() {

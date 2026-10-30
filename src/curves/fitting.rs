@@ -11,6 +11,7 @@
 use crate::Point;
 use crate::Point2D;
 use crate::Tolerance;
+use crate::Vector;
 use crate::bspline::curve as math;
 use crate::bspline::curve::Pole;
 use crate::curves::{BSplineConstructionError, BSplineCurve, BSplineCurve2D};
@@ -37,6 +38,77 @@ impl PointParametrization {
 /// The distance at or below which consecutive points to fit are
 /// coincident: the fit has no parameter between them.
 pub(crate) const CONFUSED_CHORD: f64 = Tolerance::DEFAULT.confusion;
+
+/// The `points`, with their `tangents`, without those the fit cannot tell
+/// from the point kept before them (see [`CONFUSED_CHORD`]): a trace's
+/// steps may shrink that far towards a point where its surfaces touch.
+/// The last point is kept, in place of the one before it when those two
+/// are confused.
+pub(crate) fn without_confused(
+    points: Vec<Point>,
+    tangents: Vec<Vector>,
+) -> (Vec<Point>, Vec<Vector>) {
+    let Some(&last) = points.last() else {
+        return (points, tangents);
+    };
+    let last_tangent = tangents[tangents.len() - 1];
+    let mut kept: Vec<(Point, Vector)> = Vec::with_capacity(points.len());
+    for (p, t) in points.into_iter().zip(tangents) {
+        if kept
+            .last()
+            .is_none_or(|(q, _)| q.distance(p) > CONFUSED_CHORD)
+        {
+            kept.push((p, t));
+        }
+    }
+    if kept.last().map(|(p, _)| *p) != Some(last) {
+        if kept.len() > 1 {
+            kept.pop();
+        }
+        kept.push((last, last_tangent));
+    }
+    kept.into_iter().unzip()
+}
+
+/// The length of the arc from `p` to `q` with unit tangents `tp` and `tq`
+/// at its ends, taken as circular: the chord grown by the angle the
+/// tangents turn.
+pub(crate) fn segment_length(p: Point, q: Point, tp: Vector, tq: Vector) -> f64 {
+    let chord = p.distance(q);
+    let half_turn = 0.5 * tp.cross(tq).magnitude().atan2(tp.dot(tq));
+    if half_turn < 1e-8 {
+        chord
+    } else {
+        chord * half_turn / half_turn.sin()
+    }
+}
+
+/// The C1 cubic B-spline through `points` with the unit tangents
+/// `tangents` there: on each segment the cubic Hermite interpolant of its
+/// ends and tangents, over a parameter span of its length (see
+/// [`segment_length`]), so that the parameter follows arc length. Its
+/// interior knots are double, its poles the ends and the points a third
+/// of the span along the tangents.
+pub(crate) fn hermite_curve(
+    points: &[Point],
+    tangents: &[Vector],
+) -> Result<BSplineCurve, BSplineConstructionError> {
+    let mut knots = vec![0.0];
+    let mut poles = vec![points[0]];
+    for k in 1..points.len() {
+        let (p, q) = (points[k - 1], points[k]);
+        let (tp, tq) = (tangents[k - 1], tangents[k]);
+        let span = segment_length(p, q, tp, tq);
+        poles.push(p + tp * (span / 3.0));
+        poles.push(q - tq * (span / 3.0));
+        knots.push(knots[k - 1] + span);
+    }
+    poles.push(points[points.len() - 1]);
+    let mut multiplicities = vec![2u32; knots.len()];
+    multiplicities[0] = 4;
+    multiplicities[knots.len() - 1] = 4;
+    BSplineCurve::new(3, poles, knots, multiplicities, false)
+}
 
 /// Increasing parameters of `points` in `[0, 1]` (`exponent` 1 chordal, 0.5
 /// centripetal), or `ConfusedPoints` for coincident consecutive points.
