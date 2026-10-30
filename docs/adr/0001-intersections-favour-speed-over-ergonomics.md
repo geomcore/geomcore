@@ -1,6 +1,6 @@
 # Intersections favour speed over ergonomics
 
-Superseded by [ADR 0011](0011-intersections-route-to-the-exact-solution-else-numeric.md): `intersect` now routes to a numeric search when no closed form exists, and every result says which method ran. The typed path described here lives on as `intersect_exact`.
+Superseded by [ADR 0011](0011-intersections-route-to-the-exact-solution-else-numeric.md): `intersect` now routes to a numeric search when no closed form exists, and every result says which method ran. The typed path described here lives on as `intersect_exact`. The untyped path is fully superseded by [ADR 0018](0018-exact-results-convert-straight-to-family-results.md): its results are removed, and `intersect` answers for shapes known only at run time.
 
 Exact intersections are reached through one generic `Intersect<B>` trait, implemented for both argument orders, whose output is the pair's own result type: dispatch is static, results stay on the stack, and the compiler knows what each pair can return. An untyped path on `Surface` and `Curve` serves callers that only know the shape at run time, returning one general result per family (surface–surface, curve–surface, curve–curve) held in fixed-capacity inline storage. Neither path falls back to a numeric intersection on its own: a configuration with no closed form reports "not analytic", and the caller decides whether to march or refine.
 

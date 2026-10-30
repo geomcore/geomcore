@@ -47,16 +47,19 @@ its time projecting seeds onto the surface and was unchanged (see
 
 # Intersection entry point
 
-`benches/intersect_dispatch.rs` times batches of 1024 exact intersections of
-one pair kind three ways: the typed call (`IntersectExact::intersect_exact`
-since 0.36), the untyped call on `ElementaryCurve`/`ElementarySurface`,
-and the untyped call on `Curve`/`Surface`. The inputs vary across the
-batch, so each one mixes crossings, tangencies and misses.
+`benches/intersect_dispatch.rs` times batches of 1024 intersections of one
+pair kind four ways: the typed call (`IntersectExact::intersect_exact`),
+and the routed call (`Intersect::intersect`) on the concrete types, on
+`ElementaryCurve`/`ElementarySurface`, and on `Curve`/`Surface`. The
+inputs vary across the batch, so each one mixes crossings, tangencies and
+misses.
 
 The table below is history (0.29 to 0.35): it was measured when the typed
 call was `Intersect::intersect` and the per-pair methods it replaced still
 existed, deprecated. Both are gone in 0.36; the per-pair column is kept
-for the record.
+for the record. Its two enum columns are the untyped exact calls, removed
+by ADR 0018: the enums now take the routed call, measured
+[below](#one-step-reading-adr-0018).
 
 Machine: Linux 7.0, x86-64 desktop, single thread, `--warm-up-time 1
 --measurement-time 3` (2026-10-12). Times are per pair and vary by 5–10%
@@ -76,8 +79,9 @@ forwarded to it. The untyped calls add a `match` on both shapes and the
 conversion to the general result, about 15–30 ns per pair: visible on the
 closed-form pairs and lost in the noise once a polynomial is solved.
 
-The general results hold their pieces inline, so they are larger than most
-typed results and never allocate (sizes from `std::mem::size_of`):
+The untyped results held their pieces inline, so they were larger than
+most typed results and never allocated (sizes from `std::mem::size_of`,
+before ADR 0018):
 
 | type | bytes |
 |---|---|
@@ -95,6 +99,53 @@ Reproduce with:
 ```sh
 cargo bench --bench intersect_dispatch
 ```
+
+## One-step reading (ADR 0018)
+
+The router reads each typed exact result straight into its family result
+(ADR 0018), where it used to convert it to an untyped result first. The
+machine was loaded by parallel builds (load average 20–60 on 16 cores),
+so criterion medians moved by tens of percent between runs, in both
+directions, on code neither build changed. The table counts instructions
+instead, which the load does not move: `valgrind --tool=callgrind` on a
+loop of 64 varied pairs repeated 20 times, minus the same program
+repeated 0 times, per pair.
+
+| pair | call | before | after |
+|---|---|---|---|
+| line–circle (2D) | routed | 853 | 752 (−12%) |
+| circle–line (2D) | routed | 827 | 873 (+6%) |
+| line–ellipse (2D) | routed | 2415 | 2495 (+3%) |
+| circle–circle (2D) | routed | 430 | 435 (+1%) |
+| ellipse–ellipse (2D) | routed | 9792 | 9842 (+1%) |
+| line–cylinder | routed | 1215 | 1131 (−7%) |
+| circle–cylinder | routed | 14542 | 14419 (−1%) |
+| line–circle | routed | 1275 | 1231 (−4%) |
+| circle–line | routed | 1382 | 1282 (−7%) |
+| line–ellipse | routed | 1896 | 1821 (−4%) |
+| circle–circle | routed | 779 | 768 (−1%) |
+| ellipse–ellipse | routed | 9029 | 8920 (−1%) |
+| plane–sphere | routed | 824 | 620 (−25%) |
+| torus–cone | routed | 513 | 512 (0%) |
+| plane–sphere | `ElementarySurface` | 857 | 676 (−21%) |
+| plane–sphere | `Surface` | 901 | 719 (−20%) |
+| line–circle | `ElementaryCurve` | 1378 | 1253 (−9%) |
+| line–circle | `Curve` | 1427 | 1326 (−7%) |
+| circle–cylinder | `Curve`/`Surface` | 14787 | 14517 (−2%) |
+
+The surface pairs gain the most: a typed surface result now becomes the
+family result directly, where it used to be copied into the 624-byte
+untyped result on the way. Circle–line in 2D is the one pair that does
+more work: it is solved as line–circle and its result swapped, sorted
+once more by the circle's parameter, where the removed bridge had a
+hand-written reading for that order.
+
+Two shapes of the bridge were measured and dropped. Returning
+`Option<family result>` for "no closed form" cost a copy of the inline
+hits on every call, up to a third more instructions on the cheapest 2D
+pairs, so the bridge takes the numeric search as a fallback instead.
+Building the hits with one builder call per match arm kept the builder
+out of line; each reader builds fixed slots and calls it once.
 
 ## Routed against exact (0.36)
 

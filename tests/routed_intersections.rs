@@ -1,7 +1,7 @@
 //! The routed intersection: exact when a closed form exists, numeric
 //! otherwise, and the result says which method ran.
 
-use geomcore::curves::{Curve, ElementaryCurve, TrimmedCurve, TrimmedCurve2D};
+use geomcore::curves::{Curve, TrimmedCurve, TrimmedCurve2D};
 use geomcore::surfaces::Surface;
 use geomcore::*;
 use std::f64::consts::{PI, TAU};
@@ -66,10 +66,8 @@ fn test_routed_matches_exact_hits() {
     let circle = Circle::new(Point::new(0.0, 0.0, 0.5), Vector::X, 2.0).unwrap();
     let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
     let routed = circle.intersect(&sphere, TOL);
-    let ExactCurveSurfaceIntersection::Points(exact) =
-        ElementaryCurve::from(circle).intersect_exact(&ElementarySurface::from(sphere), TOL)
-    else {
-        panic!("expected points")
+    let CircleSurfaceIntersection::Hits(exact) = circle.intersect_exact(&sphere, TOL) else {
+        panic!("expected hits")
     };
     let routed_parameters: Vec<Option<f64>> =
         routed.hits().iter().map(|h| h.curve_parameter).collect();
@@ -335,11 +333,24 @@ fn test_routed_curve_curve_matches_exact_hits() {
     let line = Line::new(Point::new(-5.0, 0.5, 0.0), Vector::X).unwrap();
     let ellipse = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 3.0, 1.0).unwrap();
     let routed = Curve::from(line).intersect(&Curve::from(ellipse), TOL);
-    let exact = ElementaryCurve::from(line).intersect_exact(&ElementaryCurve::from(ellipse), TOL);
-    let ExactCurveCurveIntersection::Points(exact) = exact else {
-        panic!("expected hits");
+    let LineConicIntersection::Points(first, second) = line.intersect_exact(&ellipse, TOL) else {
+        panic!("expected two hits");
     };
-    assert_eq!(routed.hits(), &exact[..]);
+    let routed: Vec<_> = routed
+        .hits()
+        .iter()
+        .map(|h| {
+            (
+                h.first_parameter,
+                h.point,
+                h.second_parameter,
+                h.multiplicity,
+            )
+        })
+        .collect();
+    let exact =
+        [first, second].map(|h| (Some(h.line_parameter), h.point, Some(h.conic_parameter), 1));
+    assert_eq!(routed, exact);
 }
 
 #[test]

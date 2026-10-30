@@ -115,11 +115,10 @@
 //! assert_eq!(sphere.intersect_exact(&plane, tol), PlaneSphereIntersection::Circle(circle));
 //! ```
 //!
-//! Between [`surfaces::Surface`] or [`curves::Curve`] values it returns
-//! a general result such as [`ExactSurfaceIntersection`], which reports
-//! `NotAnalytic` for a B-spline or Bézier shape or a pair without a closed form, where
-//! [`Intersect::intersect`] runs the numeric search. Two surfaces without
-//! a closed form are traced numerically by the same call.
+//! It takes concrete types only. Between [`surfaces::Surface`] or
+//! [`curves::Curve`] values, whose kind is only known at run time,
+//! [`Intersect::intersect`] gives the answer: exact when a closed form
+//! exists, numeric otherwise.
 //!
 //! # Extending the kernel
 //!
@@ -206,10 +205,7 @@ pub use intersect::{
     CurveSurfaceIntersection, IntersectionCurve, IntersectionMethod, SurfaceSurfaceIntersection,
     SurfaceSurfaceRegion,
 };
-pub use intersect::{
-    ExactCurveCurveIntersection, ExactCurveSurfaceIntersection, ExactSurfaceIntersection,
-    InlineList, Intersect, IntersectExact,
-};
+pub use intersect::{InlineList, Intersect, IntersectExact};
 pub use intersect::{intersect_curve_curve, intersect_curve_surface};
 #[cfg(test)]
 pub(crate) use intersect::{search_curve_curve, search_curve_surface};
