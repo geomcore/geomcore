@@ -11,6 +11,48 @@ the Python distribution are versioned in lockstep.
 
 ### Added
 
+- `ExtrusionSurface` and `RevolutionSurface`, the swept surfaces
+  (ADR 0016): a profile `Curve` swept along a direction,
+  `profile(u) + v * direction`, or turned about an `Axis`, the profile
+  point at `v` rotated by the angle `u`. Each is a `Surface` variant
+  with the full `ParametricSurface` interface, exact iso curves (a line
+  and the moved profile; the rotated profile and a circle), reversal,
+  `transformed` and `to_bspline_patch`. A revolution of a bounded
+  profile has a bounding box and converts whole with `Surface::to_bspline`;
+  an extrusion is unbounded in `v`. Projection works on the profile:
+  onto its image across the direction for an extrusion (in closed form
+  for a line or a conic), onto the meridian for a revolution (in
+  closed form for a conic in a plane through the axis, a one-parameter
+  search otherwise), 4 to 80 times faster than onto the converted
+  B-spline patch. Intersections run the numeric search, except the plane
+  cuts below. In Python, `geomcore.surfaces.ExtrusionSurface` and
+  `RevolutionSurface`.
+- `intersect` cuts a swept surface with a plane in closed form, in
+  either order and through the `Surface` enum: an extrusion with every
+  plane (generator lines through the profile's crossings when the plane
+  holds the direction, the profile carried onto the plane otherwise),
+  and a revolution with a plane perpendicular to its axis (a circle
+  through each crossing, a contact point on the axis) or through its
+  axis when the profile lies in a plane through it (the profile turned
+  into the plane). Tangent crossings give tangent curves. The result is
+  complete, and exact unless a spline profile's crossings came from the
+  numeric curve-plane search; other positions still march. A cut takes
+  under 5 µs where marching the converted patch takes 0.5 to 6 ms.
+
+## [0.40.0] - 2026-10-30
+
+An architecture release. Shared behaviour now lives in one place per
+concept: on the traits, which `geomcore::prelude` brings into scope; in
+one variant list per shape enum, which also gives Bézier curves and
+surfaces their own variants; in one generic type per curve across space
+and the plane; and in one step from a typed intersection result to a
+family result. Every public Rust item now has one path, at the crate
+root. Rust code needs a few mechanical edits, listed under Breaking.
+Python only gains methods, and its `intersect` now always releases the
+interpreter lock.
+
+### Added
+
 - `geomcore::prelude`, which re-exports the shape and operation traits
   (`ParametricCurve`, `ParametricCurve2D`, `PointExtrema`,
   `PointExtrema2D`, `ParametricSurface`, `HasBoundingBox`,
@@ -64,33 +106,6 @@ the Python distribution are versioned in lockstep.
 - `TrimmedCurve::to_bspline` for a B-spline, Bézier or `Curve` basis,
   as `TrimmedCurve2D` already had: the piece is extracted from the
   B-spline. `TrimmedCurve<ElementaryCurve>` implements `Discretize`.
-- `ExtrusionSurface` and `RevolutionSurface`, the swept surfaces
-  (ADR 0016): a profile `Curve` swept along a direction,
-  `profile(u) + v * direction`, or turned about an `Axis`, the profile
-  point at `v` rotated by the angle `u`. Each is a `Surface` variant
-  with the full `ParametricSurface` interface, exact iso curves (a line
-  and the moved profile; the rotated profile and a circle), reversal,
-  `transformed` and `to_bspline_patch`. A revolution of a bounded
-  profile has a bounding box and converts whole with `Surface::to_bspline`;
-  an extrusion is unbounded in `v`. Projection works on the profile:
-  onto its image across the direction for an extrusion (in closed form
-  for a line or a conic), onto the meridian for a revolution (in
-  closed form for a conic in a plane through the axis, a one-parameter
-  search otherwise), 4 to 80 times faster than onto the converted
-  B-spline patch. Intersections run the numeric search, except the plane
-  cuts below. In Python, `geomcore.surfaces.ExtrusionSurface` and
-  `RevolutionSurface`.
-- `intersect` cuts a swept surface with a plane in closed form, in
-  either order and through the `Surface` enum: an extrusion with every
-  plane (generator lines through the profile's crossings when the plane
-  holds the direction, the profile carried onto the plane otherwise),
-  and a revolution with a plane perpendicular to its axis (a circle
-  through each crossing, a contact point on the axis) or through its
-  axis when the profile lies in a plane through it (the profile turned
-  into the plane). Tangent crossings give tangent curves. The result is
-  complete, and exact unless a spline profile's crossings came from the
-  numeric curve-plane search; other positions still march. A cut takes
-  under 5 µs where marching the converted patch takes 0.5 to 6 ms.
 
 ### Fixed
 
@@ -2065,7 +2080,8 @@ Behaviour, in Rust and Python alike:
 - Golden-fixture validation of all numeric results at 1e-7 tolerance, and
   criterion throughput benchmarks (`docs/benchmarks.md`).
 
-[Unreleased]: https://github.com/geomcore/geomcore/compare/v0.39.1...HEAD
+[Unreleased]: https://github.com/geomcore/geomcore/compare/v0.40.0...HEAD
+[0.40.0]: https://github.com/geomcore/geomcore/compare/v0.39.1...v0.40.0
 [0.39.1]: https://github.com/geomcore/geomcore/compare/v0.39.0...v0.39.1
 [0.39.0]: https://github.com/geomcore/geomcore/compare/v0.38.0...v0.39.0
 [0.38.0]: https://github.com/geomcore/geomcore/compare/v0.37.0...v0.38.0
