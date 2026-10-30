@@ -72,3 +72,6 @@ macro_rules! from_shapes {
     )+};
 }
 pub(crate) use from_shapes;
+
+#[cfg(test)]
+mod tests;

@@ -135,6 +135,11 @@
 //! [`Intersect::intersect`], solved numerically.
 #![warn(missing_docs)]
 
+// The test samples in `tests/common/samples.rs` name the crate `geomcore`,
+// as integration tests do; the coverage check in `shape_enum` includes them.
+#[cfg(test)]
+extern crate self as geomcore;
+
 /// Axis-aligned bounding boxes of curves and surfaces.
 mod bounding_box;
 /// Internal B-spline engine: poles, evaluation, editing, surfaces.
