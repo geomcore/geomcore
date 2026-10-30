@@ -44,6 +44,15 @@ the Python distribution are versioned in lockstep.
   segment at the midpoint. The same tori now give curves 2e-8 off, and
   the torus–torus comparison sweep stays within confusion at 1e-7 and
   1e-9. Marching costs about 12 % more.
+- Projection onto a revolution surface whose profile lies off every
+  plane through the axis stopped up to 3e-9 short of the closest point
+  (#142). The one-parameter minimiser behind it rejected its last
+  Newton steps as rounding noise: the squared distance it minimises is
+  a difference of large terms, whose rounding outgrew the minimiser's
+  allowance. A full Newton step that stays convex and at least halves
+  the slope is now accepted too, and those projections reach 1e-15.
+  B-spline curve projection and the curve–curve searches share the
+  minimiser; their tests pass unchanged.
 
 ## [0.40.1] - 2026-10-30
 

@@ -245,7 +245,12 @@ pub(crate) fn newton_min_1d(
                 break;
             }
             let (fy, gy, hy) = eval(y);
-            if fy < f || (fy <= f + flat_band(f) && gy.abs() < g.abs()) {
+            // Where `f` is a difference of large terms (a squared distance
+            // far from the origin), its rounding outgrows `flat_band` long
+            // before `x` converges. A full Newton step that stays convex
+            // and at least halves the gradient converges on it instead.
+            let converging = alpha == 1.0 && h > 0.0 && hy > 0.0 && gy.abs() <= 0.5 * g.abs();
+            if fy < f || (fy <= f + flat_band(f) && gy.abs() < g.abs()) || converging {
                 (x, f, g, h) = (y, fy, gy, hy);
                 accepted = true;
                 break;

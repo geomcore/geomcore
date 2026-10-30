@@ -464,3 +464,30 @@ fn test_bspline_patch_lies_on_the_surface() {
         }
     }
 }
+
+#[test]
+fn test_project_point_converges_to_the_closest_profile_point() {
+    // The squared distance to a profile point's circle is a difference of
+    // large terms, whose rounding hid the last Newton steps: projections
+    // onto skew profiles stopped up to 3e-9 short of the closest point
+    // (#142).
+    let tol = Tolerance::DEFAULT;
+    for (name, surface, _) in cases() {
+        for point in query_points() {
+            let projection = surface.project_point(point, tol);
+            let (first, last) = surface.v_bounds();
+            if projection.v == first || projection.v == last {
+                continue; // the closest point at an end of the profile
+            }
+            let (height, radial) = surface.split(point);
+            let (_, slope, curvature) =
+                surface.meridian_distance(projection.v, radial.magnitude(), height);
+            if curvature <= 0.0 {
+                continue;
+            }
+            let speed = surface.profile().eval_d1(projection.v).1.magnitude();
+            let short = (slope / curvature).abs() * speed;
+            assert!(short < 1e-12, "{name}: {point:?} stops {short:e} short");
+        }
+    }
+}
