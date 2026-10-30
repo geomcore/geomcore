@@ -3,8 +3,11 @@
 //! normal-recovery helpers it falls back on where the partial derivatives
 //! degenerate.
 
-use crate::curves::Continuity;
-use crate::surfaces::{BSplineSurface, ElementarySurface, ExtrusionSurface, RevolutionSurface};
+use crate::curves::{Continuity, Curve, Curve2D};
+use crate::surfaces::{
+    BSplineSurface, ElementarySurface, ExtrusionSurface, ParameterSpaceToCurveError,
+    RevolutionSurface,
+};
 use crate::{Point, SurfaceProjection, Tolerance, Vector};
 
 /// Principal, mean and Gaussian curvatures at a surface point, with the
@@ -506,6 +509,104 @@ pub trait ParametricSurface {
     fn parameters_of(&self, point: Point, tol: Tolerance) -> (f64, f64) {
         let projection = self.project_point(point, tol);
         (projection.u, projection.v)
+    }
+
+    /// The exact 3D curve that `curve`, a curve `q` in this surface's
+    /// `(u, v)` parameter space, traces on the surface, in the same
+    /// parameter: its point at `t` is `self.eval_point(q(t))` for every `t`
+    /// (every `t` of its bounds when the surface is bounded). It is
+    /// [`eval_point`](Self::eval_point) at curve level, and the inverse of
+    /// `parametrize_on` ([`Line::parametrize_on`](crate::Line::parametrize_on)
+    /// and its siblings).
+    ///
+    /// The pairs with a closed form, on the crate's surfaces:
+    ///
+    /// | Curve | Surface | 3D curve |
+    /// |---|---|---|
+    /// | any | plane | the same kind, placed by the plane's frame |
+    /// | any | extrusion of a line | its affine image, where it keeps the kind in the same parameter (below) |
+    /// | line along `v`, `u = u0` | any other | `u_iso(u0)` run from `v0` at rate `±1` |
+    /// | line along `u`, `v = v0` | any other | `v_iso(v0)` run from `u0` at rate `±1` |
+    ///
+    /// A line is along `u` or `v` when its direction is within
+    /// `tol.angular` of that axis; its fixed parameter is then the one of
+    /// its origin. The iso curve is a line, circle, B-spline or Bézier
+    /// curve, or a swept surface's profile; it is reparametrized exactly,
+    /// a conic by turning or mirroring its frame and a spline by shifting
+    /// and mirroring its knots, except an ellipse run from other than an
+    /// end of its major axis (`v0` a multiple of `π`) and a parabola or
+    /// hyperbola run from other than its vertex (`v0 = 0`), which have no
+    /// conic in that parameter.
+    ///
+    /// An extrusion of a line is the affine map
+    /// `(u, v) ↦ origin + u * e + v * d`, oblique when `e` and `d` are not
+    /// perpendicular. A B-spline or Bézier curve maps its poles. A line
+    /// keeps its kind when the map keeps its speed `1`, and a circle,
+    /// ellipse or hyperbola when the map keeps its axes perpendicular (a
+    /// circle may become an ellipse whose major axis is the image of the
+    /// circle's `x` axis), as a parabola does with its vertex tangent of
+    /// speed `1`. On a plane, or an extrusion perpendicular to its line,
+    /// that always holds; on an oblique one it holds only for directions
+    /// along the map's principal axes.
+    ///
+    /// # Errors
+    ///
+    /// [`ParameterSpaceToCurveError::NotAnalytic`] for every other pair, never
+    /// approximated: a slanted line on a curved surface, a conic or a
+    /// spline on any surface but an affine one, a pair above that leaves
+    /// its kind, a 2D curve whose image overflows, and every curve on a
+    /// surface type defined outside the crate, the default.
+    /// [`ParameterSpaceToCurveError::Collapsed`] when the line runs along an iso
+    /// curve that is a point (a sphere's pole, a cone's apex).
+    /// [`ParameterSpaceToCurveError::IsoCurve`] when the surface has no iso curve
+    /// at the line's fixed parameter.
+    ///
+    /// # Examples
+    ///
+    /// A line along `v` on a cylinder runs along a generator, and one
+    /// along `u` around a parallel circle:
+    ///
+    /// ```
+    /// use geomcore::prelude::*;
+    /// use geomcore::{Curve, Cylinder, Line2D, Point, Point2D, Tolerance, Vector, Vector2D};
+    ///
+    /// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
+    /// let tol = Tolerance::DEFAULT;
+    ///
+    /// let along_v = Line2D::new(Point2D::new(0.5, 1.0), Vector2D::Y).unwrap();
+    /// let generator = cylinder.parameter_space_to_curve(&along_v.into(), tol).unwrap();
+    /// assert!(matches!(generator, Curve::Line(_)));
+    ///
+    /// let along_u = Line2D::new(Point2D::new(0.5, 1.0), -Vector2D::X).unwrap();
+    /// let parallel = cylinder.parameter_space_to_curve(&along_u.into(), tol).unwrap();
+    /// assert!(matches!(parallel, Curve::Circle(_)));
+    /// for t in [-1.0, 0.0, 2.5] {
+    ///     let expected = cylinder.eval_point(0.5 - t, 1.0);
+    ///     assert!(parallel.eval_point(t).distance(expected) < 1e-12);
+    /// }
+    /// ```
+    ///
+    /// Every curve maps onto a plane as the same kind:
+    ///
+    /// ```
+    /// use geomcore::prelude::*;
+    /// use geomcore::{Curve, Curve2D, Ellipse2D, Plane, Point, Point2D, Tolerance, Vector, Vector2D};
+    ///
+    /// let plane = Plane::new(Point::new(0.0, 0.0, 1.0), Vector::Z).unwrap();
+    /// let ellipse = Ellipse2D::new(Point2D::new(1.0, 2.0), Vector2D::X, 3.0, 1.0).unwrap();
+    /// let curve = Curve2D::from(ellipse);
+    /// let traced = plane.parameter_space_to_curve(&curve, Tolerance::DEFAULT).unwrap();
+    /// assert!(matches!(traced, Curve::Ellipse(_)));
+    /// let q = curve.eval_point(0.7);
+    /// assert!(traced.eval_point(0.7).distance(plane.eval_point(q.x, q.y)) < 1e-12);
+    /// ```
+    fn parameter_space_to_curve(
+        &self,
+        curve: &Curve2D,
+        tol: Tolerance,
+    ) -> Result<Curve, ParameterSpaceToCurveError> {
+        let _ = (curve, tol);
+        Err(ParameterSpaceToCurveError::NotAnalytic)
     }
 
     /// Routing hook of the numeric search, hidden from the documentation: the
