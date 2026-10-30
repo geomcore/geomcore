@@ -35,6 +35,8 @@ src/
 │   ├── parametric_surface.rs    ParametricSurface, SurfaceCurvatures, normal recovery
 │   ├── surface.rs               the Surface and ElementarySurface enums
 │   ├── plane.rs … torus.rs bspline.rs bezier.rs
+│   ├── extrusion.rs revolution.rs   the swept surfaces; swept.rs holds the
+│   │                            profile operations they share (ADR 0016)
 │   ├── iso.rs                   helpers shared by the iso curves (u_iso, v_iso)
 │   └── conversion.rs fitting.rs
 │
@@ -212,7 +214,7 @@ checks.
 | Area | Files |
 |---|---|
 | Evaluation and construction | `combined_evaluation.rs`, `construction_validation.rs`, `precision.rs`, `surface_reversal.rs` |
-| Golden fixtures | `vs_fixtures.rs`, `bezier_fixtures.rs`, `discretization_fixtures.rs`, `intersect_2d_fixtures.rs` |
+| Golden fixtures | `vs_fixtures.rs`, `bezier_fixtures.rs`, `discretization_fixtures.rs`, `intersect_2d_fixtures.rs`, `swept_fixtures.rs` |
 | B-splines and Bézier | `bspline_tiers.rs`, `degree_elevation.rs`, `bezier_surface.rs` |
 | Projection | `projection_point.rs` |
 | Intersection | `routed_intersections.rs`, `routed_surface_surface.rs`, `bezier_intersections.rs`, `bezier_through_enums.rs` |
