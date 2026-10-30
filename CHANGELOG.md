@@ -11,6 +11,30 @@ the Python distribution are versioned in lockstep.
 
 ### Fixed
 
+- Marching found no curves for bounded surfaces lying outside the
+  model-size cube centred on the origin (#138): two tori 1e5 away
+  intersected in nothing. A trace now ends on the box of the smaller
+  bounded side, grown by a tenth of its diagonal, and on the model-size
+  cube only when neither side is bounded (ADR 0011, amended).
+- Marching lost curves where branches of the intersection cross (#139).
+  At a tight confusion the steps towards a crossing shrank below the
+  distance the B-spline fit separates, and the fit's refusal dropped the
+  whole curve: two equal tori with perpendicular axes gave no curve at
+  confusion 1e-8. Those points are now thinned before the fit. And a
+  stretch between two crossings had no seed of its own, the grids
+  seeding only where the surfaces are closest: a tilted torus and its
+  mirror image missed a third of their intersection at any confusion.
+  Where a trace stalls next to a crossing, the branches crossing there
+  are now seeded and traced.
+- Marched curves stayed within confusion of both surfaces only at the
+  traced points (#140). Between them, the interpolant strayed by up to
+  the chord deviation, about a thousand times confusion: two tori in
+  general position gave curves 8e-6 off at confusion 1e-7. Where the
+  surfaces cross, the fit now passes cubic Hermite segments through the
+  points and their exact tangents, and each step is checked against its
+  segment at the midpoint. The same tori now give curves 2e-8 off, and
+  the torus–torus comparison sweep stays within confusion at 1e-7 and
+  1e-9. Marching costs about 12 % more.
 - Projection onto a revolution surface whose profile lies off every
   plane through the axis stopped up to 3e-9 short of the closest point
   (#142). The one-parameter minimiser behind it rejected its last
