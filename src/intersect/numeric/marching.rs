@@ -24,6 +24,7 @@ use crate::math::boxtree::{Aabb, boxes_apart};
 use crate::surfaces::ParametricSurface;
 use crate::{Point, Tolerance};
 use pair::SurfacePair;
+use seeding::Seed;
 use tracer::{CHORD_DEVIATION, Trace, Tracer};
 
 /// Marching surface-surface intersection for any two parametric surfaces.
@@ -131,16 +132,20 @@ use tracer::{CHORD_DEVIATION, Trace, Tracer};
 /// search that exhausts its budget (overlapping surfaces) traces the grid
 /// seeds too.
 ///
-/// Every other pair adds the same patch-pair seeds after its iso-curve
-/// or grid seeds, when both surfaces convert to patches: an elementary
-/// or swept surface becomes its exact rational B-spline, an unbounded one
-/// over the other's box grown by a margin (ADR 0026). A bump of a
-/// B-spline finer than its grid, or a small cap a plane cuts off a torus,
-/// is found this way. The search is left out where it would find nothing
-/// new at a high cost: when both surfaces are bounded and neither is a
-/// B-spline (two spheres or tori, which both grids sample at their own
-/// scale), and when every iso-curve or grid seed lies where the surfaces
-/// only touch (the search would halve along the whole touch).
+/// Every other pair adds the same patch-pair seeds once its iso-curve or
+/// grid seeds are traced, when both surfaces convert to patches: an
+/// elementary or swept surface becomes its exact rational B-spline, an
+/// unbounded one over the other's box grown by a margin (ADR 0026). That
+/// search drops a pair whose normals are never parallel as soon as a
+/// curve traced already crosses it: no loop hides inside, and its seed
+/// would land on that curve. It halves only around what the traces leave
+/// unexplained. A bump of a B-spline finer than its grid, or a small cap
+/// a plane cuts off a torus, is found this way. The search is left out
+/// where it would find nothing new at a high cost: when both surfaces are
+/// bounded and neither is a B-spline (two spheres or tori, which both
+/// grids sample at their own scale), and when every iso-curve or grid
+/// seed lies where the surfaces only touch (the search would halve along
+/// the whole touch).
 ///
 /// The fits are APPROXIMATIONS (interpolation error, typically ~1e-4 at
 /// default tolerance — assert residuals, not containment): exact
@@ -187,8 +192,9 @@ where
     SurfaceSurfaceIntersection::numeric(curves, traced.contact_points, completeness)
 }
 
-/// The curves traced from every seed of the seeding policy (see
-/// [`seeding::seeds`]), in order.
+/// The curves traced from every seed of the seeding policy, in order:
+/// those of [`seeding::seeds`], then those of [`seeding::later_seeds`]
+/// when the policy says so.
 fn traced_intersection<A, B>(pair: SurfacePair<A, B>, tol: Tolerance) -> Traced
 where
     A: ParametricSurface,
@@ -196,10 +202,11 @@ where
 {
     let tracer = Tracer::new(pair, tol);
     let mut traced = Traced::default();
-    for seed in seeding::seeds(pair, tol) {
-        if let Some(start) = seed.start(&pair, |b| traced.crosses(b, tol), tol) {
-            traced.follow(&tracer, start, tol);
-        }
+    let (seeds, later) = seeding::seeds(pair, tol);
+    traced.follow_seeds(&tracer, seeds, tol);
+    if later {
+        let seeds = seeding::later_seeds(pair, &|b| traced.crosses(b, tol), tol);
+        traced.follow_seeds(&tracer, seeds, tol);
     }
     traced
 }
@@ -251,6 +258,20 @@ struct Traced {
 }
 
 impl Traced {
+    /// Follows each of `seeds` in order (see [`follow`](Self::follow)),
+    /// starting it unless a curve traced so far crosses its patches.
+    fn follow_seeds<A, B>(&mut self, tracer: &Tracer<A, B>, seeds: Vec<Seed>, tol: Tolerance)
+    where
+        A: ParametricSurface,
+        B: ParametricSurface,
+    {
+        for seed in seeds {
+            if let Some(start) = seed.start(&tracer.pair(), |b| self.crosses(b, tol), tol) {
+                self.follow(tracer, start, tol);
+            }
+        }
+    }
+
     /// Traces the curve through `seed` unless it was traced already, then
     /// the branches crossing it where a trace stalled (see
     /// [`seeding::branch_seeds`]), until every branch reached is traced.

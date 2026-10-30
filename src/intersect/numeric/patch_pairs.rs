@@ -60,17 +60,27 @@ pub(crate) struct PatchPairs {
 ///   across while their normals may still be parallel (a tangency, or a
 ///   loop too small to trace).
 ///
+/// A pair whose normals are never parallel and whose overlap `traced`
+/// says a curve traced already crosses is dropped too, flat or not: no
+/// closed loop hides inside it, and a seed from it would land on that
+/// curve.
+///
 /// Once the budget of halvings is spent, or a pair has been halved
 /// [`MAX_DEPTH`](super::subdivision::MAX_DEPTH) times, the pairs left are kept as
 /// they are, and the search reports itself incomplete.
-pub(crate) fn patch_pairs(a: &SurfacePatches, b: &SurfacePatches, tol: Tolerance) -> PatchPairs {
+pub(crate) fn patch_pairs(
+    a: &SurfacePatches,
+    b: &SurfacePatches,
+    traced: &dyn Fn(&Aabb) -> bool,
+    tol: Tolerance,
+) -> PatchPairs {
     let mut found = PatchPairs {
         leaves: Vec::new(),
         complete: true,
     };
     for patch_a in a.patches() {
         for patch_b in b.patches() {
-            found.complete &= bspline_patch_pairs(patch_a, patch_b, tol, &mut found.leaves);
+            found.complete &= bspline_patch_pairs(patch_a, patch_b, traced, tol, &mut found.leaves);
         }
     }
     found
@@ -81,6 +91,7 @@ pub(crate) fn patch_pairs(a: &SurfacePatches, b: &SurfacePatches, tol: Tolerance
 fn bspline_patch_pairs(
     a: &BSplineSurface,
     b: &BSplineSurface,
+    traced: &dyn Fn(&Aabb) -> bool,
     tol: Tolerance,
     leaves: &mut Vec<Leaf>,
 ) -> bool {
@@ -103,6 +114,7 @@ fn bspline_patch_pairs(
         });
     let mut tests = PatchTests {
         tol,
+        traced,
         leaves,
         open: false,
     };
@@ -114,6 +126,8 @@ fn bspline_patch_pairs(
 /// found, in the order they were found.
 struct PatchTests<'l> {
     tol: Tolerance,
+    /// Whether a curve traced already crosses a box.
+    traced: &'l dyn Fn(&Aabb) -> bool,
     leaves: &'l mut Vec<Leaf>,
     /// Whether the normals of the pair last visited are never parallel.
     open: bool,
@@ -141,13 +155,22 @@ impl PairTests for PatchTests<'_> {
         let sizes = boxes.map(|b| box_size(&b));
         let flat = (0..2).all(|i| thickness(pairs.points(i), normals[i]) <= FLATNESS * sizes[i]);
         let small = sizes.iter().all(|&s| s <= SMALLEST * gap);
-        self.open = (flat || small) && {
+        let overlap = overlap(boxes, gap);
+        let crossed = (self.traced)(&overlap);
+        self.open = (flat || small || crossed) && {
             let [s, r] = [0, 1]
                 .map(|i| derivative_cones(pairs.net(i, node), pairs.points(i), pairs.shape(i)));
             matches!((s, r), (Some(s), Some(r)) if normals_never_parallel(s, r))
         };
+        if self.open && crossed {
+            return Visit::Settled;
+        }
         if (self.open && flat) || small {
-            self.leaves.push(leaf(node, boxes, self.open, gap));
+            self.leaves.push(Leaf {
+                rects: node.rects,
+                overlap,
+                open: self.open,
+            });
             return Visit::Settled;
         }
         let i = usize::from(sizes[1] > sizes[0]);
@@ -160,25 +183,24 @@ impl PairTests for PatchTests<'_> {
 
     fn region(&mut self, pairs: &Subdivision, node: &Node) {
         let boxes = [0, 1].map(|i| bounding_box(pairs.points(i)));
-        self.leaves
-            .push(leaf(node, boxes, self.open, self.tol.confusion));
+        self.leaves.push(Leaf {
+            rects: node.rects,
+            overlap: overlap(boxes, self.tol.confusion),
+            open: self.open,
+        });
     }
 }
 
-/// The leaf of `node`, whose subpatches' control points have the `boxes`.
-fn leaf(node: &Node, boxes: [Aabb; 2], open: bool, gap: f64) -> Leaf {
-    let overlap = std::array::from_fn(|c| {
+/// The overlap of the `boxes` of two subpatches' control points, grown by
+/// `gap`.
+fn overlap(boxes: [Aabb; 2], gap: f64) -> Aabb {
+    std::array::from_fn(|c| {
         if c < 3 {
             boxes[0][c].max(boxes[1][c]) - gap
         } else {
             boxes[0][c].min(boxes[1][c]) + gap
         }
-    });
-    Leaf {
-        rects: node.rects,
-        overlap,
-        open,
-    }
+    })
 }
 
 #[cfg(test)]

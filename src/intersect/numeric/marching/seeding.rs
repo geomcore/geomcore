@@ -58,24 +58,23 @@ impl Seed {
 }
 
 /// The seeds of marching on `pair`, in the order they are traced (see
-/// [`marching_intersection`](super::marching_intersection)):
+/// [`marching_intersection`](super::marching_intersection)), and whether
+/// the seeds of [`later_seeds`] follow once these are traced:
 /// - two B-splines: the centres of their patch pairs (see
 ///   [`patch_pairs`](patch_pairs::patch_pairs)), then both parameter grids
 ///   when that search exhausts its budget;
 /// - each surface elementary or a B-spline, and one elementary: the seeds
 ///   of [`pair_seeds`], without repeats (see [`distinct_seeds`]);
-/// - otherwise both parameter grids;
+/// - otherwise both parameter grids.
 ///
-/// in the last two cases followed by the centres of the patch pairs of
-/// the two surfaces when both convert to patches (see [`pair_patches`]),
-/// so that a loop smaller than the spacing of the iso-curves and grids is
-/// found. They are left out
+/// In the last two cases [`later_seeds`] follow, so that a loop smaller
+/// than the spacing of the iso-curves and grids is found, except
 /// - when both surfaces are bounded and neither is a B-spline (see
 ///   [`grid_scale`]): both grids already sample each at its own scale;
-/// - when every seed found so far lies where the surfaces only touch, as
-///   the iso-curves are in [`pair_seeds`]: the search would halve every
-///   pair along the touch down to its smallest pieces.
-pub(super) fn seeds<A, B>(pair: SurfacePair<A, B>, tol: Tolerance) -> Vec<Seed>
+/// - when every seed lies where the surfaces only touch, as the
+///   iso-curves are in [`pair_seeds`]: the search would halve every pair
+///   along the touch down to its smallest pieces.
+pub(super) fn seeds<A, B>(pair: SurfacePair<A, B>, tol: Tolerance) -> (Vec<Seed>, bool)
 where
     A: ParametricSurface,
     B: ParametricSurface,
@@ -84,25 +83,40 @@ where
         && pair.second.as_bspline().is_some()
         && let Some(patches) = pair_patches(pair.first, pair.second, tol)
     {
-        let (mut seeds, complete) = patch_pair_seeds(&patches, tol);
+        let (mut seeds, complete) = patch_pair_seeds(&patches, &|_| false, tol);
         if !complete {
             seeds.extend(both_grid_seeds(pair, tol).into_iter().map(Seed::On));
         }
-        return seeds;
+        return (seeds, false);
     }
     let points = match pair_seeds(pair, tol) {
         Some(seeds) => distinct_seeds(pair.first, seeds, tol),
         None => both_grid_seeds(pair, tol),
     };
     let touching = !points.is_empty() && points.iter().all(|&x| pair.grazes(x, tol));
-    let mut seeds: Vec<Seed> = points.into_iter().map(Seed::On).collect();
     let grids_suffice = grid_scale(pair.first) && grid_scale(pair.second);
-    if !(touching || grids_suffice)
-        && let Some(patches) = pair_patches(pair.first, pair.second, tol)
-    {
-        seeds.extend(patch_pair_seeds(&patches, tol).0);
-    }
-    seeds
+    let later = !(touching || grids_suffice);
+    (points.into_iter().map(Seed::On).collect(), later)
+}
+
+/// The centres of the patch pairs of the two surfaces of `pair` when both
+/// convert to patches (see [`pair_patches`]), searched once the seeds of
+/// [`seeds`] are traced: a pair whose normals are never parallel and
+/// whose overlap a traced curve crosses (`traced`) is dropped, flat or
+/// not (see [`patch_pairs`](patch_pairs::patch_pairs)), so that the
+/// search halves only around what the traces left unexplained.
+pub(super) fn later_seeds<A, B>(
+    pair: SurfacePair<A, B>,
+    traced: &dyn Fn(&Aabb) -> bool,
+    tol: Tolerance,
+) -> Vec<Seed>
+where
+    A: ParametricSurface,
+    B: ParametricSurface,
+{
+    pair_patches(pair.first, pair.second, tol).map_or_else(Vec::new, |patches| {
+        patch_pair_seeds(&patches, traced, tol).0
+    })
 }
 
 /// Whether the parameter grid of `s` samples it at its own scale: `s`
@@ -118,9 +132,10 @@ fn grid_scale<S: ParametricSurface>(s: &S) -> bool {
 /// parameters, and whether that search finished within its budget.
 fn patch_pair_seeds(
     (first, second): &(SurfacePatches, SurfacePatches),
+    traced: &dyn Fn(&Aabb) -> bool,
     tol: Tolerance,
 ) -> (Vec<Seed>, bool) {
-    let pairs = patch_pairs::patch_pairs(first, second, tol);
+    let pairs = patch_pairs::patch_pairs(first, second, traced, tol);
     let centre = |patches: &SurfacePatches, r: [f64; 4]| {
         patches.parameters((0.5 * (r[0] + r[1]), 0.5 * (r[2] + r[3])))
     };
