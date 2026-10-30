@@ -261,6 +261,8 @@ fn test_normal_surface_enum_dispatch_agrees_with_concrete() {
         cone().into(),
         sphere().into(),
         torus().into(),
+        extrusion().into(),
+        revolution().into(),
         bspline().into(),
         bezier().into(),
     ];
@@ -306,6 +308,8 @@ fn test_surface_enum_closedness_dispatch_agrees_with_concrete() {
         cone().into(),
         sphere().into(),
         torus().into(),
+        extrusion().into(),
+        revolution().into(),
         bspline().into(),
         bezier().into(),
         closed_u_patch().into(),
@@ -319,6 +323,8 @@ fn test_surface_enum_closedness_dispatch_agrees_with_concrete() {
             Surface::Cone(s) => s.is_u_closed(tol),
             Surface::Sphere(s) => s.is_u_closed(tol),
             Surface::Torus(s) => s.is_u_closed(tol),
+            Surface::Extrusion(s) => s.is_u_closed(tol),
+            Surface::Revolution(s) => s.is_u_closed(tol),
             Surface::BSpline(s) => s.is_u_closed(tol),
             Surface::Bezier(s) => s.is_u_closed(tol),
         };
@@ -329,6 +335,8 @@ fn test_surface_enum_closedness_dispatch_agrees_with_concrete() {
             Surface::Cone(s) => s.is_v_closed(tol),
             Surface::Sphere(s) => s.is_v_closed(tol),
             Surface::Torus(s) => s.is_v_closed(tol),
+            Surface::Extrusion(s) => s.is_v_closed(tol),
+            Surface::Revolution(s) => s.is_v_closed(tol),
             Surface::BSpline(s) => s.is_v_closed(tol),
             Surface::Bezier(s) => s.is_v_closed(tol),
         };
@@ -409,6 +417,8 @@ fn test_surface_enum_continuity_dispatch_agrees_with_concrete() {
         cone().into(),
         sphere().into(),
         torus().into(),
+        extrusion().into(),
+        revolution().into(),
         bspline().into(),
         bezier().into(),
         creased_u_patch().into(),
@@ -420,6 +430,8 @@ fn test_surface_enum_continuity_dispatch_agrees_with_concrete() {
             Surface::Cone(s) => s.continuity_u(0.5, tol),
             Surface::Sphere(s) => s.continuity_u(0.5, tol),
             Surface::Torus(s) => s.continuity_u(0.5, tol),
+            Surface::Extrusion(s) => s.continuity_u(0.5, tol),
+            Surface::Revolution(s) => s.continuity_u(0.5, tol),
             Surface::BSpline(s) => s.continuity_u(0.5, tol),
             Surface::Bezier(s) => s.continuity_u(0.5, tol),
         };
@@ -433,6 +445,8 @@ fn test_surface_enum_continuity_dispatch_agrees_with_concrete() {
                 Surface::Cone(s) => s.continuity_v(0.5, tol),
                 Surface::Sphere(s) => s.continuity_v(0.5, tol),
                 Surface::Torus(s) => s.continuity_v(0.5, tol),
+                Surface::Extrusion(s) => s.continuity_v(0.5, tol),
+                Surface::Revolution(s) => s.continuity_v(0.5, tol),
                 Surface::Bezier(s) => s.continuity_v(0.5, tol),
             }
         );
@@ -450,6 +464,8 @@ fn test_surface_enum_curvatures_dispatch_agrees_with_concrete() {
         cone().into(),
         sphere().into(),
         torus().into(),
+        extrusion().into(),
+        revolution().into(),
         bspline().into(),
         bezier().into(),
     ];
@@ -460,9 +476,22 @@ fn test_surface_enum_curvatures_dispatch_agrees_with_concrete() {
             Surface::Cone(s) => s.curvatures(0.3, 0.2, tol),
             Surface::Sphere(s) => s.curvatures(0.3, 0.2, tol),
             Surface::Torus(s) => s.curvatures(0.3, 0.2, tol),
+            Surface::Extrusion(s) => s.curvatures(0.3, 0.2, tol),
+            Surface::Revolution(s) => s.curvatures(0.3, 0.2, tol),
             Surface::BSpline(s) => s.curvatures(0.3, 0.2, tol),
             Surface::Bezier(s) => s.curvatures(0.3, 0.2, tol),
         };
         assert_eq!(surface.curvatures(0.3, 0.2, tol), expected);
     }
+}
+
+fn extrusion() -> ExtrusionSurface {
+    let circle = crate::Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
+    ExtrusionSurface::new(circle.into(), Vector::new(0.2, 0.0, 1.0)).unwrap()
+}
+
+fn revolution() -> RevolutionSurface {
+    let axis = crate::Axis::new(Point::ORIGIN, Vector::Z).unwrap();
+    let line = crate::Line::new(Point::new(1.0, 0.0, 0.0), Vector::new(0.0, 1.0, 1.0)).unwrap();
+    RevolutionSurface::new(line.into(), axis).unwrap()
 }

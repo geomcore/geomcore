@@ -29,8 +29,8 @@ use crate::intersect::{
     InlineList, intersect_curve_curve, intersect_curve_surface,
 };
 use crate::surfaces::{
-    BSplineSurface, BezierSurface, Cone, Cylinder, ElementarySurface, ParametricSurface, Plane,
-    Sphere, Surface, Torus,
+    BSplineSurface, BezierSurface, Cone, Cylinder, ElementarySurface, ExtrusionSurface,
+    ParametricSurface, Plane, RevolutionSurface, Sphere, Surface, Torus,
 };
 
 mod exact_family;
@@ -199,21 +199,26 @@ macro_rules! elementary_surface_operand {
 
 elementary_surface_operand!(Plane, Cylinder, Cone, Sphere, Torus, ElementarySurface);
 
-impl SurfaceOperand for BSplineSurface {
-    type Basis = ElementarySurface;
+/// Implements [`SurfaceOperand`] for surfaces without an elementary
+/// basis: every pair with one takes the numeric search.
+macro_rules! numeric_surface_operand {
+    ($($surface:ty),*) => {$(
+        impl SurfaceOperand for $surface {
+            type Basis = ElementarySurface;
 
-    fn surface_basis(&self) -> Option<ElementarySurface> {
-        None
-    }
+            fn surface_basis(&self) -> Option<ElementarySurface> {
+                None
+            }
+        }
+    )*};
 }
 
-impl SurfaceOperand for BezierSurface {
-    type Basis = ElementarySurface;
-
-    fn surface_basis(&self) -> Option<ElementarySurface> {
-        None
-    }
-}
+numeric_surface_operand!(
+    BSplineSurface,
+    BezierSurface,
+    ExtrusionSurface,
+    RevolutionSurface
+);
 
 impl SurfaceOperand for Surface {
     type Basis = ElementarySurface;
@@ -444,7 +449,19 @@ macro_rules! curve_surface {
 
 curve_surface!(
     Line, Circle, Ellipse, Parabola, Hyperbola, BSplineCurve, BezierCurve, Curve, ElementaryCurve;
-    [Plane, Cylinder, Cone, Sphere, Torus, BSplineSurface, BezierSurface, Surface, ElementarySurface]
+    [
+        Plane,
+        Cylinder,
+        Cone,
+        Sphere,
+        Torus,
+        ExtrusionSurface,
+        RevolutionSurface,
+        BSplineSurface,
+        BezierSurface,
+        Surface,
+        ElementarySurface
+    ]
 );
 
 /// Implements [`Intersect`] between a trimmed curve over any curve operand
@@ -477,6 +494,8 @@ trimmed_curve_surface!(
     Cone,
     Sphere,
     Torus,
+    ExtrusionSurface,
+    RevolutionSurface,
     BSplineSurface,
     BezierSurface,
     Surface,
@@ -522,8 +541,30 @@ macro_rules! surface_surface {
 }
 
 surface_surface!(
-    Plane, Cylinder, Cone, Sphere, Torus, BSplineSurface, BezierSurface, Surface, ElementarySurface;
-    [Plane, Cylinder, Cone, Sphere, Torus, BSplineSurface, BezierSurface, Surface, ElementarySurface]
+    Plane,
+    Cylinder,
+    Cone,
+    Sphere,
+    Torus,
+    ExtrusionSurface,
+    RevolutionSurface,
+    BSplineSurface,
+    BezierSurface,
+    Surface,
+    ElementarySurface;
+    [
+        Plane,
+        Cylinder,
+        Cone,
+        Sphere,
+        Torus,
+        ExtrusionSurface,
+        RevolutionSurface,
+        BSplineSurface,
+        BezierSurface,
+        Surface,
+        ElementarySurface
+    ]
 );
 
 /// Intersects two curves: the exact path when both have an elementary

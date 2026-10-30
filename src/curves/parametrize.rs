@@ -24,6 +24,8 @@
 //!   rational curve is not rational in `(u, v)` (it involves `atan2`).
 //! - Any curve on a B-spline surface: it needs a numeric inversion; see
 //!   [`parametrize_numeric`].
+//! - Any curve on an extrusion or revolution surface: not attempted yet;
+//!   [`parametrize_numeric`] handles them.
 
 use crate::curves::ParametricCurve;
 use crate::curves::ParametricCurve2D;
@@ -84,7 +86,12 @@ pub(crate) fn line_on_surface(
             tol,
         ),
         // A line has no closed-form 2D image on these surfaces.
-        Surface::Sphere(_) | Surface::Torus(_) | Surface::BSpline(_) | Surface::Bezier(_) => {
+        Surface::Sphere(_)
+        | Surface::Torus(_)
+        | Surface::Extrusion(_)
+        | Surface::Revolution(_)
+        | Surface::BSpline(_)
+        | Surface::Bezier(_) => {
             return Err(ParametrizeError::NotAnalytic);
         }
     }?;
@@ -138,7 +145,10 @@ pub(crate) fn circle_on_surface(
             )?;
             finish_line(surface, pcurve, |t| circle.eval_point(t), tol)
         }
-        Surface::BSpline(_) | Surface::Bezier(_) => Err(ParametrizeError::NotAnalytic),
+        Surface::Extrusion(_)
+        | Surface::Revolution(_)
+        | Surface::BSpline(_)
+        | Surface::Bezier(_) => Err(ParametrizeError::NotAnalytic),
     }
 }
 
@@ -153,6 +163,8 @@ fn plane_frame(surface: &Surface) -> Result<crate::Frame, ParametrizeError> {
         | Surface::Cone(_)
         | Surface::Sphere(_)
         | Surface::Torus(_)
+        | Surface::Extrusion(_)
+        | Surface::Revolution(_)
         | Surface::BSpline(_)
         | Surface::Bezier(_) => Err(ParametrizeError::NotAnalytic),
     }
@@ -781,8 +793,10 @@ fn frame_angle(frame: crate::Frame, direction: Vector) -> f64 {
 pub(crate) fn normalize_line2d_at_zero(line: Line2D, surface: &Surface) -> Line2D {
     match surface {
         // A plane has no periodic direction: leave the line as-is.
-        Surface::Plane(_) | Surface::BSpline(_) | Surface::Bezier(_) => line,
-        Surface::Cylinder(_) | Surface::Cone(_) => wrap_u(line),
+        Surface::Plane(_) | Surface::Extrusion(_) | Surface::BSpline(_) | Surface::Bezier(_) => {
+            line
+        }
+        Surface::Cylinder(_) | Surface::Cone(_) | Surface::Revolution(_) => wrap_u(line),
         Surface::Sphere(_) => sphere_set_in_bounds(line),
         Surface::Torus(_) => wrap_v(wrap_u(line)),
     }
