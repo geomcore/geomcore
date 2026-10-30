@@ -76,19 +76,27 @@ use crate::{BoundingBox, HasBoundingBox, Point, Tolerance, Vector};
 /// curvature (a chord deviation of about `1000 * confusion`), with no
 /// fixed cap. A step is halved when the intersection at its midpoint,
 /// converged onto both surfaces, strays from the chord by more than twice
-/// that deviation, or when it crosses more than one knot in a parameter
-/// of a B-spline side, so that it never steps over a whole knot span
-/// (within a span the control points bound the features). A trace ends
+/// that deviation, or, where the surfaces cross, when the fitted segment
+/// between the step's ends lies there more than a quarter of confusion
+/// off either surface (see [`step_error`]), or when it crosses more than
+/// one knot in a parameter of a B-spline side, so that it never steps
+/// over a whole knot span (within a span the control points bound the
+/// features). The segment's error grows as the fourth power of the step,
+/// which sizes the next step. A trace ends
 /// when it closes a loop, stalls, reaches a parameter bound, or leaves
 /// the cube of side [`Tolerance::MODEL_SIZE`] centred on the origin, its
 /// last point then lying on the bound or the cube. Where branches cross,
 /// the surfaces touch and a trace stalls, no smooth step turning onto
 /// another branch: the branches crossing there are seeded a first step
 /// along each way (see [`branch_seeds`]), since the grids seed a stretch
-/// between two crossings only where the surfaces are closest. Traces fit
-/// [`BSplineCurve`] interpolants (degree 3, closed loops by repeated end
-/// points), without the points closer than the fit can separate (see
-/// [`without_confused`]).
+/// between two crossings only where the surfaces are closest. Where the
+/// surfaces cross, traces fit cubic Hermite curves through the traced
+/// points and their exact tangents (see [`hermite_curve`]), so the curve
+/// between the points stays within confusion of both surfaces, not only
+/// the points. Where they touch, the tangents are found only to within
+/// confusion, and traces fit [`BSplineCurve`] interpolants (degree 3,
+/// closed loops by repeated end points). Both leave out the points closer
+/// than the fit can separate (see [`without_confused`]).
 ///
 /// A seed where the surfaces touch (their normals parallel, or so nearly
 /// that moving one surface by confusion makes them touch; see [`grazes`])
@@ -835,8 +843,11 @@ impl Traced {
         // other, shorter than a first step: a contact point, not a curve.
         let shortest = first_step(tol);
         let length = |points: &[Point]| points.windows(2).map(|w| w[0].distance(w[1])).sum::<f64>();
-        let Some(Trace { points, stalls }) =
-            traced.filter(|traced| !touching || length(&traced.points) >= shortest)
+        let Some(Trace {
+            points,
+            tangents,
+            stalls,
+        }) = traced.filter(|traced| !touching || length(&traced.points) >= shortest)
         else {
             let gap = 8.0 * CHORD_DEVIATION * tol.confusion;
             if touching && osculates(a, b, seed, tol) {
@@ -848,9 +859,16 @@ impl Traced {
             }
             return Vec::new();
         };
-        let points = without_confused(points);
-        let degree = 3.min(points.len() - 1);
-        let fit = BSplineCurve::interpolate(&points, degree, PointParametrization::Centripetal);
+        let (points, tangents) = without_confused(points, tangents);
+        // Where the surfaces touch the tangents followed are directions of
+        // contact, which the curve need not take, and its points are found
+        // only to within confusion: an interpolant fits them instead.
+        let fit = if touching {
+            let degree = 3.min(points.len() - 1);
+            BSplineCurve::interpolate(&points, degree, PointParametrization::Centripetal)
+        } else {
+            hermite_curve(&points, &tangents)
+        };
         debug_assert!(fit.is_ok(), "a trace of {} points fits", points.len());
         if let Ok(fit) = fit {
             let coords: Vec<[f64; 3]> = points.iter().map(|p| [p.x, p.y, p.z]).collect();
@@ -885,28 +903,32 @@ impl Traced {
     }
 }
 
-/// The traced `points` without those the fit cannot tell from the point
-/// kept before them (see [`CONFUSED_CHORD`]): at a tight confusion the
-/// steps shrink that far towards a point where the surfaces touch. The
-/// last point is kept, in place of the one before it when those two are
-/// confused.
-fn without_confused(points: Vec<Point>) -> Vec<Point> {
+/// The traced `points`, with their `tangents`, without those the fit
+/// cannot tell from the point kept before them (see [`CONFUSED_CHORD`]):
+/// at a tight confusion the steps shrink that far towards a point where
+/// the surfaces touch. The last point is kept, in place of the one
+/// before it when those two are confused.
+fn without_confused(points: Vec<Point>, tangents: Vec<Vector>) -> (Vec<Point>, Vec<Vector>) {
     let Some(&last) = points.last() else {
-        return points;
+        return (points, tangents);
     };
-    let mut kept: Vec<Point> = Vec::with_capacity(points.len());
-    for p in points {
-        if kept.last().is_none_or(|q| q.distance(p) > CONFUSED_CHORD) {
-            kept.push(p);
+    let last_tangent = tangents[tangents.len() - 1];
+    let mut kept: Vec<(Point, Vector)> = Vec::with_capacity(points.len());
+    for (p, t) in points.into_iter().zip(tangents) {
+        if kept
+            .last()
+            .is_none_or(|(q, _)| q.distance(p) > CONFUSED_CHORD)
+        {
+            kept.push((p, t));
         }
     }
-    if kept.last() != Some(&last) {
+    if kept.last().map(|(p, _)| *p) != Some(last) {
         if kept.len() > 1 {
             kept.pop();
         }
-        kept.push(last);
+        kept.push((last, last_tangent));
     }
-    kept
+    kept.into_iter().unzip()
 }
 
 /// Segments of a traced polyline per box in [`Traced`].
@@ -988,11 +1010,13 @@ fn first_step(tol: Tolerance) -> f64 {
 }
 
 /// A traced polyline: its points in order (a closed loop ends on its
-/// first point), and the parameters where it stalled, finding no
+/// first point), the unit tangent at each along that order, and the
+/// parameters where it stalled, finding no
 /// acceptable step even shorter than confusion: next to a point where
 /// the surfaces touch, as where branches cross.
 struct Trace {
     points: Vec<Point>,
+    tangents: Vec<Vector>,
     stalls: Vec<[f64; 4]>,
 }
 
@@ -1030,7 +1054,8 @@ where
     const CURVATURE_GROWTH: f64 = 4.0;
     let start = a.eval_point(seed[0], seed[1]);
     let t0 = direction(a, b, seed, touching, tol)?;
-    let mut halves: [Vec<Point>; 2] = [Vec::new(), Vec::new()];
+    // Each traced point with the unit tangent along the way it was traced.
+    let mut halves: [Vec<(Point, Vector)>; 2] = [Vec::new(), Vec::new()];
     let mut stalls = Vec::new();
     let mut closed = false;
     for (half, dir) in halves.iter_mut().zip([1.0, -1.0]) {
@@ -1039,6 +1064,11 @@ where
         }
         let (mut x, mut p, mut t) = (seed, start, t0 * dir);
         let mut h = first_step(tol);
+        // The tangent at `y` oriented along `t`, or `t` itself
+        // where the tangent does not exist.
+        let oriented = |y: [f64; 4], t: Vector| {
+            direction(a, b, y, touching, tol).map_or(t, |ty| if ty.dot(t) < 0.0 { -ty } else { ty })
+        };
         // Curvature of the last accepted step (none before the first).
         let mut last_curvature = 0.0;
         for _ in 0..SAFETY_STEP_LIMIT {
@@ -1054,12 +1084,22 @@ where
                     // The step leaves a parameter domain: end on its boundary.
                     if let Some(y) = land(a, b, guess, pin, bound, tol) {
                         let q = a.eval_point(y[0], y[1]);
+                        let tq = oriented(y, t);
                         if (q - p).dot(t) >= 0.0
                             && q.distance(p) <= 2.0 * h
                             && crosses_one_knot_at_most(a, b, x, y, tol)
-                            && !bulges(a, b, (x, p), (y, q), chord_deviation, touching, tol)
+                            && step_error(
+                                a,
+                                b,
+                                (x, p, t),
+                                (y, q, tq),
+                                chord_deviation,
+                                touching,
+                                tol,
+                            )
+                            .is_some()
                         {
-                            boundary_point = Some(q);
+                            boundary_point = Some((q, tq));
                             break;
                         }
                     }
@@ -1083,28 +1123,29 @@ where
                         && chord * turn <= 32.0 * chord_deviation
                         && smooth
                         && crosses_one_knot_at_most(a, b, x, y, tol)
-                        && !bulges(a, b, (x, p), (y, q), chord_deviation, touching, tol)
+                        && let Some(error) =
+                            step_error(a, b, (x, p, t), (y, q, ty), chord_deviation, touching, tol)
                     {
-                        step = Some((y, q, ty, turn / chord.max(f64::MIN_POSITIVE)));
+                        step = Some((y, q, ty, turn / chord.max(f64::MIN_POSITIVE), error));
                         break;
                     }
                 }
                 h *= 0.5;
             }
-            if let Some(q) = boundary_point {
+            if let Some((q, tq)) = boundary_point {
                 if q.distance(p) > tol.confusion.max(Tolerance::DEFAULT.confusion) {
                     // A last step much shorter than the one before makes
                     // the fitted curve overshoot the boundary: the boundary point
                     // then replaces the last point.
-                    let before = half.len().checked_sub(2).map_or(start, |i| half[i]);
+                    let before = half.len().checked_sub(2).map_or(start, |i| half[i].0);
                     if !half.is_empty() && q.distance(p) < 0.25 * p.distance(before) {
                         half.pop();
                     }
-                    half.push(q);
+                    half.push((q, tq));
                 }
                 break;
             }
-            let Some((y, q, ty, curvature)) = step else {
+            let Some((y, q, ty, curvature, error)) = step else {
                 stalls.push(x);
                 break;
             };
@@ -1118,45 +1159,74 @@ where
                 if p.distance(start) < 0.1 * h {
                     half.pop();
                 }
-                half.push(start);
+                half.push((start, t0 * dir));
                 closed = true;
                 break;
             }
             if outside_model(q) {
-                half.push(model_exit(a, b, (x, p), (y, q), tol));
+                let (exit, z) = model_exit(a, b, (x, p), (y, q), tol);
+                half.push((exit, oriented(z, ty)));
                 break;
             }
-            half.push(q);
+            half.push((q, ty));
             (x, p, t) = (y, q, ty);
             last_curvature = curvature;
-            h = (2.0 * h).min((8.0 * chord_deviation / curvature.max(f64::MIN_POSITIVE)).sqrt());
+            // The Hermite error grows as the fourth power of the step: the
+            // next step aims at nine tenths of the allowance.
+            let hermite_step = 0.9 * h / error.max(f64::MIN_POSITIVE).powf(0.25);
+            h = (2.0 * h)
+                .min((8.0 * chord_deviation / curvature.max(f64::MIN_POSITIVE)).sqrt())
+                .min(hermite_step);
         }
     }
     let [forward, backward] = halves;
-    let mut points: Vec<Point> = backward.into_iter().rev().collect();
+    let (mut points, mut tangents): (Vec<Point>, Vec<Vector>) =
+        backward.into_iter().rev().map(|(p, t)| (p, -t)).unzip();
     points.push(start);
-    points.extend(forward);
-    (points.len() >= 4).then_some(Trace { points, stalls })
+    tangents.push(t0);
+    for (p, t) in forward {
+        points.push(p);
+        tangents.push(t);
+    }
+    (points.len() >= 4).then_some(Trace {
+        points,
+        tangents,
+        stalls,
+    })
 }
 
 /// Multiple of the chord deviation a step's midpoint may stray from its
-/// chord (see [`bulges`]).
+/// chord (see [`step_error`]).
 const MIDPOINT_SLACK: f64 = 2.0;
 
-/// Whether the intersection between the traced points `p` (parameters
-/// `x`) and `q` (parameters `y`) strays from their chord by more than
-/// `deviation` at its midpoint, or cannot be found there: the midpoint of
-/// the parameters converged onto both surfaces in the plane through the
-/// chord's midpoint, normal to it.
-fn bulges<A, B>(
+/// Share of `tol.confusion` a step's midpoint may stray from the cubic
+/// Hermite segment of the fitted curve (see [`step_error`] and
+/// [`hermite_curve`]): the segment's error peaks about its middle, so the
+/// curve keeps within confusion of the intersection.
+const HERMITE_SLACK: f64 = 0.25;
+
+/// The error of the step between the traced points `p` (parameters `x`,
+/// unit tangent `tp`) and `q` (parameters `y`, unit tangent `tq`) as a
+/// share of its allowance, or `None` when it is too large. The step is
+/// too large when the intersection cannot be found at its midpoint, or
+/// strays there from the chord by more than [`MIDPOINT_SLACK`] times
+/// `deviation`. Where the surfaces cross, the error is the distance to
+/// either surface there, along its normal, of the cubic Hermite segment
+/// the fit passes between the points (see [`hermite_curve`]), across
+/// [`HERMITE_SLACK`] times confusion. Where
+/// they touch (`touching`), the points of contact are found only to
+/// within confusion, which the chord bound alone covers: the error is
+/// zero. The midpoint is the midpoint of the parameters converged onto
+/// both surfaces in the plane through the chord's midpoint, normal to it.
+fn step_error<A, B>(
     a: &A,
     b: &B,
-    (x, p): ([f64; 4], Point),
-    (y, q): ([f64; 4], Point),
+    (x, p, tp): ([f64; 4], Point, Vector),
+    (y, q, tq): ([f64; 4], Point, Vector),
     deviation: f64,
     touching: bool,
     tol: Tolerance,
-) -> bool
+) -> Option<f64>
 where
     A: ParametricSurface,
     B: ParametricSurface,
@@ -1164,12 +1234,72 @@ where
     let chord = q - p;
     let length = chord.magnitude();
     if length <= tol.confusion {
-        return false;
+        return Some(0.0);
     }
+    let along = chord * (1.0 / length);
     let middle = p + chord * 0.5;
     let guess = std::array::from_fn(|k| 0.5 * (x[k] + y[k]));
-    correct(a, b, guess, (middle, chord * (1.0 / length)), touching, tol)
-        .is_none_or(|z| a.eval_point(z[0], z[1]).distance(middle) > MIDPOINT_SLACK * deviation)
+    let z = correct(a, b, guess, (middle, along), touching, tol)?;
+    let found = a.eval_point(z[0], z[1]);
+    if found.distance(middle) > MIDPOINT_SLACK * deviation {
+        return None;
+    }
+    if touching {
+        return Some(0.0);
+    }
+    let hermite = middle + (tp - tq) * (0.125 * segment_length(p, q, tp, tq));
+    // Along each normal only, the segment's distance to that surface to
+    // first order: near a tangency the found midpoint is known only to
+    // confusion over the angle between the surfaces across the curve,
+    // which moves it along the surfaces, not off them.
+    let off = found - hermite;
+    let normals = (a.normal(z[0], z[1], tol), b.normal(z[2], z[3], tol));
+    let distance = match normals {
+        (Some(na), Some(nb)) => off.dot(na).abs().max(off.dot(nb).abs()),
+        _ => (off - along * off.dot(along)).magnitude(),
+    };
+    let error = distance / (HERMITE_SLACK * tol.confusion);
+    (error <= 1.0).then_some(error)
+}
+
+/// The length of the arc from `p` to `q` with unit tangents `tp` and `tq`
+/// at its ends, taken as circular: the chord grown by the angle the
+/// tangents turn.
+fn segment_length(p: Point, q: Point, tp: Vector, tq: Vector) -> f64 {
+    let chord = p.distance(q);
+    let half_turn = 0.5 * tp.cross(tq).magnitude().atan2(tp.dot(tq));
+    if half_turn < 1e-8 {
+        chord
+    } else {
+        chord * half_turn / half_turn.sin()
+    }
+}
+
+/// The C1 cubic B-spline through `points` with the unit tangents
+/// `tangents` there: on each segment the cubic Hermite interpolant of its
+/// ends and tangents, over a parameter span of its length (see
+/// [`segment_length`]), so that the parameter follows arc length. Its
+/// interior knots are double, its poles the ends and the points a third
+/// of the span along the tangents.
+fn hermite_curve(
+    points: &[Point],
+    tangents: &[Vector],
+) -> Result<BSplineCurve, crate::curves::BSplineConstructionError> {
+    let mut knots = vec![0.0];
+    let mut poles = vec![points[0]];
+    for k in 1..points.len() {
+        let (p, q) = (points[k - 1], points[k]);
+        let (tp, tq) = (tangents[k - 1], tangents[k]);
+        let span = segment_length(p, q, tp, tq);
+        poles.push(p + tp * (span / 3.0));
+        poles.push(q - tq * (span / 3.0));
+        knots.push(knots[k - 1] + span);
+    }
+    poles.push(points[points.len() - 1]);
+    let mut multiplicities = vec![2u32; knots.len()];
+    multiplicities[0] = 4;
+    multiplicities[knots.len() - 1] = 4;
+    BSplineCurve::new(3, poles, knots, multiplicities, false)
 }
 
 /// Whether the move from parameters `x` to parameters `y` crosses at most
@@ -1293,16 +1423,16 @@ fn outside_model(p: Point) -> bool {
 }
 
 /// The point where the traced step from `p` (parameters `x`, inside the
-/// model-size cube) to `q` (parameters `y`, outside it) leaves the cube:
-/// converged onto both surfaces and the first face the chord crosses, or
-/// `q` when that does not converge.
+/// model-size cube) to `q` (parameters `y`, outside it) leaves the cube,
+/// with its parameters: converged onto both surfaces and the first face
+/// the chord crosses, or `q` when that does not converge.
 fn model_exit<A, B>(
     a: &A,
     b: &B,
     (x, p): ([f64; 4], Point),
     (y, q): ([f64; 4], Point),
     tol: Tolerance,
-) -> Point
+) -> (Point, [f64; 4])
 where
     A: ParametricSurface,
     B: ParametricSurface,
@@ -1319,7 +1449,7 @@ where
         }
     }
     let Some((axis, face, fraction)) = first else {
-        return q;
+        return (q, y);
     };
     let guess = std::array::from_fn(|k| x[k] + (y[k] - x[k]) * fraction);
     let mut normal = [0.0; 3];
@@ -1330,7 +1460,7 @@ where
         Point::new(origin[0], origin[1], origin[2]),
         Vector::new(normal[0], normal[1], normal[2]),
     );
-    meet(a, b, guess, Some(plane), tol).map_or(q, |z| a.eval_point(z[0], z[1]))
+    meet(a, b, guess, Some(plane), tol).map_or((q, y), |z| (a.eval_point(z[0], z[1]), z))
 }
 
 /// Unit tangent `N1 x N2` of the intersection at parameters `x`, or `None`

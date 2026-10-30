@@ -1035,16 +1035,18 @@ fn crossing_tori() -> [(crate::Torus, crate::Torus); 2] {
     ]
 }
 
+/// The exact signed distance from `p` to `torus`, positive outside.
+fn torus_signed_distance(torus: &crate::Torus, p: Point) -> f64 {
+    let (x, y, height) = torus.frame().local_coordinates(p);
+    (x.hypot(y) - torus.major_radius()).hypot(height) - torus.minor_radius()
+}
+
 /// Points of the intersection of two tori, independent of marching:
 /// where the signed distance to `second` changes sign along 180 circles
 /// of `first`, bisected.
 fn torus_intersection_samples(first: &crate::Torus, second: &crate::Torus) -> Vec<Point> {
     use std::f64::consts::TAU;
-    let frame = second.frame();
-    let signed = |p: Point| {
-        let (x, y, height) = frame.local_coordinates(p);
-        (x.hypot(y) - second.major_radius()).hypot(height) - second.minor_radius()
-    };
+    let signed = |p: Point| torus_signed_distance(second, p);
     let mut samples = Vec::new();
     for i in 0..180 {
         let u = TAU * i as f64 / 180.0;
@@ -1120,8 +1122,61 @@ fn test_marching_traces_every_branch_through_crossings_at_any_confusion() {
 }
 
 #[test]
+fn test_marched_curves_lie_within_confusion_of_both_surfaces() {
+    // The fit passes cubic Hermite segments through the traced points with
+    // their exact tangents, and each step is checked against the segment
+    // at its midpoint, so the whole curve, not only the traced points,
+    // stays within confusion (#140). An interpolant through the points
+    // alone strayed by the chord deviation, a thousand times confusion.
+    use crate::{Frame, Torus};
+    let first = Torus::from_frame(
+        Frame::new(Point::ORIGIN, Vector::Z, Vector::X).unwrap(),
+        3.0,
+        1.0,
+    )
+    .unwrap();
+    let axis = Vector::new(1.0, 0.4, 0.3);
+    let second = Torus::from_frame(
+        Frame::new(Point::new(2.0, 0.5, 0.2), axis, axis.cross(Vector::Z)).unwrap(),
+        2.5,
+        0.8,
+    )
+    .unwrap();
+    for confusion in [1e-7, 1e-9] {
+        let tol = Tolerance {
+            confusion,
+            ..Tolerance::DEFAULT
+        };
+        let curves = marched_curves(&first, &second, tol);
+        assert!(!curves.is_empty());
+        let worst = curves
+            .iter()
+            .flat_map(|curve| {
+                let (t0, t1) = curve.bounds();
+                (0..=4000).map(move |k| curve.eval_point(t0 + (t1 - t0) * k as f64 / 4000.0))
+            })
+            .map(|p| {
+                torus_signed_distance(&first, p)
+                    .abs()
+                    .max(torus_signed_distance(&second, p).abs())
+            })
+            .fold(0.0, f64::max);
+        assert!(
+            worst <= confusion,
+            "{worst:e} off at confusion {confusion:e}"
+        );
+    }
+}
+
+#[test]
 fn test_without_confused_keeps_the_ends() {
     let p = |x: f64| Point::new(x, 0.0, 0.0);
-    let kept = without_confused(vec![p(0.0), p(1.0), p(1.0 + 1e-9), p(2.0), p(2.0 + 1e-9)]);
+    let points = vec![p(0.0), p(1.0), p(1.0 + 1e-9), p(2.0), p(2.0 + 1e-9)];
+    let tangents = (0..5).map(|k| Vector::new(1.0, 0.0, k as f64)).collect();
+    let (kept, tangents) = without_confused(points, tangents);
     assert_eq!(kept, vec![p(0.0), p(1.0), p(2.0 + 1e-9)]);
+    assert_eq!(
+        tangents.iter().map(|t| t.z).collect::<Vec<_>>(),
+        vec![0.0, 1.0, 4.0]
+    );
 }
