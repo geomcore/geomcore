@@ -56,7 +56,7 @@ the Python distribution are versioned in lockstep.
   off a torus, were missed and are found; a plane against a torus finds
   every such loop in closed form. Two bounded elementary surfaces, and
   pairs that only touch, are left as they were. Marching costs at
-  most 1.6 % more on the benches where nothing new is found.
+  most 1.8 % more on the benches where nothing new is found.
 - A B-spline curve against an `ExtrusionSurface` or `RevolutionSurface`
   of a bounded profile goes through the proven hull search: its
   completeness is `Complete` or `Incomplete` instead of `Sampled`.
