@@ -9,6 +9,22 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+### Added
+
+- `ParametricSurface::parameter_space_to_curve(&Curve2D, tol)`, the
+  exact 3D curve a parameter-space curve traces on a surface, in the
+  same parameter: the inverse of `parametrize_on` (#152, ADR 0030). Any
+  curve on a plane keeps its kind; on the extrusion of a line, the
+  affine image where it keeps its kind in the same parameter; a line
+  along `u` or `v` on any surface gives the iso curve, reparametrized.
+  Every other pair is refused with the new `ParameterSpaceToCurveError`
+  (`NotAnalytic`, `Collapsed` at a pole or apex, or `IsoCurve`), never
+  approximated. The trait's default refuses, so surface types defined
+  outside the crate keep compiling.
+- Python: `parameter_space_to_curve(curve, tol=None)` on every surface
+  class, taking any 2D curve, and the `ParameterSpaceToCurveError`
+  exception.
+
 ## [0.41.0] - 2026-10-30
 
 Deeper modules behind the same results. One closed-form table decides
