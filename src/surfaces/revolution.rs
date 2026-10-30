@@ -344,6 +344,15 @@ impl RevolutionSurface {
         RevolutionSurface::new(profile, axis)
     }
 
+    /// The unit direction, perpendicular to the axis, of the plane through
+    /// the axis that holds the profile; `None` when no such plane does.
+    pub(crate) fn meridian_reference(&self) -> Option<Vector> {
+        match self.meridian {
+            Meridian::Planar { reference } => Some(reference),
+            Meridian::Skew => None,
+        }
+    }
+
     /// The height of `point` along the axis and its part perpendicular to
     /// the axis, from the axis origin.
     pub(crate) fn split(&self, point: Point) -> (f64, Vector) {

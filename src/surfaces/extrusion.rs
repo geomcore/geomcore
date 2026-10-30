@@ -11,7 +11,7 @@
 
 use std::fmt;
 
-use crate::curves::{Continuity, Curve, ParametricCurve, PointExtrema};
+use crate::curves::{BSplineCurve, Continuity, Curve, ParametricCurve, PointExtrema};
 use crate::projection::snap_distance;
 use crate::surfaces::swept::{
     ROUNDING, bezier_with_poles, bspline_with_poles, check_profile_parameter,
@@ -19,8 +19,8 @@ use crate::surfaces::swept::{
 };
 use crate::surfaces::{ParametricSurface, SurfaceIsoError};
 use crate::{
-    Ellipse, Frame, Hyperbola, Line, Parabola, Point, SurfaceProjection, Tolerance, Transform,
-    Vector,
+    Ellipse, Frame, Hyperbola, Line, Parabola, Plane, Point, SurfaceProjection, Tolerance,
+    Transform, Vector,
 };
 
 /// Error returned when an [`ExtrusionSurface`] cannot be constructed from
@@ -113,6 +113,37 @@ impl ExtrusionSurface {
             direction,
             section,
         })
+    }
+
+    /// The profile carried along the direction onto `plane`, a plane the
+    /// direction crosses: the curve where the surface meets it, a curve
+    /// of the profile's kind. A conic whose plane holds the direction
+    /// lands on a segment, given as a degree-1 B-spline. `None` where a
+    /// parabola or hyperbola lands on a ray, which no whole curve is, or
+    /// where the image is not finite.
+    pub(crate) fn carried_onto(&self, plane: &Plane) -> Option<Curve> {
+        let (origin, normal, direction) = (plane.frame().origin(), plane.normal(), self.direction);
+        let crossing = normal.dot(direction);
+        let section = Section::carried(
+            &self.profile,
+            |v| v - (v.dot(normal) / crossing) * direction,
+            |p| p - ((p - origin).dot(normal) / crossing) * direction,
+        )
+        .ok()?;
+        match section.shape {
+            SectionShape::Curve { curve, .. } => Some(curve),
+            SectionShape::Folded {
+                direction,
+                fold: Fold::Trigonometric { amplitude, .. },
+            } => {
+                let reach = amplitude * direction;
+                let ends = vec![section.origin - reach, section.origin + reach];
+                BSplineCurve::new(1, ends, vec![0.0, 1.0], vec![2, 2], false)
+                    .ok()
+                    .map(Curve::from)
+            }
+            SectionShape::Folded { .. } => None,
+        }
     }
 
     /// Returns the profile, the curve at `v = 0`.
@@ -428,22 +459,41 @@ enum Fold {
 }
 
 impl Section {
+    /// The profile carried along the unit `direction` into the plane
+    /// through its anchor perpendicular to the direction.
     fn new(
         profile: &Curve,
         direction: Vector,
     ) -> Result<Section, ExtrusionSurfaceConstructionError> {
-        let across = |v: Vector| v - v.dot(direction) * direction;
+        let anchor = anchor(profile);
+        Section::carried(
+            profile,
+            |v| v - v.dot(direction) * direction,
+            |p| p - (p - anchor).dot(direction) * direction,
+        )
+    }
+
+    /// The profile carried by the affine map taking a point `p` to
+    /// `point(p)`, whose linear part is `linear`. The map moves points
+    /// along the direction only, and `linear` takes the direction to
+    /// zero, so a profile vector it collapses runs along the direction.
+    fn carried(
+        profile: &Curve,
+        linear: impl Fn(Vector) -> Vector,
+        point: impl Fn(Point) -> Point,
+    ) -> Result<Section, ExtrusionSurfaceConstructionError> {
         let section = match profile {
             Curve::Line(line) => {
-                let along = across(line.direction());
+                let along = linear(line.direction());
                 let length = along.magnitude();
                 if length <= ROUNDING {
                     return Err(ExtrusionSurfaceConstructionError::SweepsNoArea);
                 }
-                let curve = Line::new(line.origin(), along)
+                let origin = point(line.origin());
+                let curve = Line::new(origin, along)
                     .map_err(|_| ExtrusionSurfaceConstructionError::NonFinite)?;
                 Section {
-                    origin: line.origin(),
+                    origin,
                     shape: SectionShape::Curve {
                         curve: curve.into(),
                         shift: 0.0,
@@ -457,39 +507,39 @@ impl Section {
                 }
                 let (frame, radius) = (circle.frame(), circle.radius());
                 elliptic(
-                    circle.center(),
-                    radius * across(frame.x_direction()),
-                    radius * across(frame.y_direction()),
+                    point(circle.center()),
+                    radius * linear(frame.x_direction()),
+                    radius * linear(frame.y_direction()),
                 )
             }
             Curve::Ellipse(ellipse) => {
                 let frame = ellipse.frame();
                 elliptic(
-                    ellipse.center(),
-                    ellipse.major_radius() * across(frame.x_direction()),
-                    ellipse.minor_radius() * across(frame.y_direction()),
+                    point(ellipse.center()),
+                    ellipse.major_radius() * linear(frame.x_direction()),
+                    ellipse.minor_radius() * linear(frame.y_direction()),
                 )
             }
             Curve::Parabola(parabola) => {
                 let frame = parabola.frame();
-                let quadratic = across(frame.x_direction()) * (0.25 / parabola.focal());
+                let axis = linear(frame.x_direction());
                 parabolic(
-                    frame.origin(),
-                    across(frame.y_direction()),
-                    quadratic,
-                    across(frame.x_direction()).magnitude() <= ROUNDING,
+                    point(frame.origin()),
+                    linear(frame.y_direction()),
+                    axis * (0.25 / parabola.focal()),
+                    axis.magnitude() <= ROUNDING,
                 )
             }
             Curve::Hyperbola(hyperbola) => {
                 let frame = hyperbola.frame();
                 hyperbolic(
-                    hyperbola.center(),
-                    hyperbola.major_radius() * across(frame.x_direction()),
-                    hyperbola.minor_radius() * across(frame.y_direction()),
+                    point(hyperbola.center()),
+                    hyperbola.major_radius() * linear(frame.x_direction()),
+                    hyperbola.minor_radius() * linear(frame.y_direction()),
                 )
             }
             Curve::BSpline(curve) => {
-                let poles = flattened_poles(curve.poles(), direction)?;
+                let poles = carried_poles(curve.poles(), point)?;
                 Section {
                     origin: poles[0],
                     shape: SectionShape::Curve {
@@ -502,7 +552,7 @@ impl Section {
                 }
             }
             Curve::Bezier(curve) => {
-                let poles = flattened_poles(curve.poles(), direction)?;
+                let poles = carried_poles(curve.poles(), point)?;
                 Section {
                     origin: poles[0],
                     shape: SectionShape::Curve {
@@ -524,27 +574,40 @@ impl Section {
     }
 }
 
-/// The poles carried along `direction` into the plane through the first
-/// one, or [`ExtrusionSurfaceConstructionError::SweepsNoArea`] when they
-/// all land on it.
-fn flattened_poles(
+/// The point of `profile` its section is anchored at: the line's origin,
+/// the conic's center or vertex, the first pole.
+fn anchor(profile: &Curve) -> Point {
+    match profile {
+        Curve::Line(c) => c.origin(),
+        Curve::Circle(c) => c.center(),
+        Curve::Ellipse(c) => c.center(),
+        Curve::Parabola(c) => c.frame().origin(),
+        Curve::Hyperbola(c) => c.center(),
+        Curve::BSpline(c) => c.poles()[0],
+        Curve::Bezier(c) => c.poles()[0],
+    }
+}
+
+/// The poles carried by `point`, or
+/// [`ExtrusionSurfaceConstructionError::SweepsNoArea`] when they all land
+/// on the first.
+fn carried_poles(
     poles: &[Point],
-    direction: Vector,
+    point: impl Fn(Point) -> Point,
 ) -> Result<Vec<Point>, ExtrusionSurfaceConstructionError> {
-    let origin = poles[0];
-    let flat: Vec<Point> = poles
-        .iter()
-        .map(|&p| p - (p - origin).dot(direction) * direction)
-        .collect();
+    let carried: Vec<Point> = poles.iter().map(|&p| point(p)).collect();
     let size = poles
         .iter()
-        .map(|&p| p.distance(origin))
+        .map(|&p| p.distance(poles[0]))
         .fold(0.0, f64::max);
-    let spread = flat.iter().map(|&p| p.distance(origin)).fold(0.0, f64::max);
+    let spread = carried
+        .iter()
+        .map(|&p| p.distance(carried[0]))
+        .fold(0.0, f64::max);
     if spread <= ROUNDING * size {
         return Err(ExtrusionSurfaceConstructionError::SweepsNoArea);
     }
-    Ok(flat)
+    Ok(carried)
 }
 
 /// Whether `a` and `b` are parallel up to rounding (either may be zero).
