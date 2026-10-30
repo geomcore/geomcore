@@ -34,6 +34,10 @@ impl PointParametrization {
     }
 }
 
+/// The distance at or below which consecutive points to fit are
+/// coincident: the fit has no parameter between them.
+pub(crate) const CONFUSED_CHORD: f64 = Tolerance::DEFAULT.confusion;
+
 /// Increasing parameters of `points` in `[0, 1]` (`exponent` 1 chordal, 0.5
 /// centripetal), or `ConfusedPoints` for coincident consecutive points.
 fn point_parameters<G: TierPoint>(
@@ -46,7 +50,7 @@ fn point_parameters<G: TierPoint>(
     let mut total = 0.0;
     for pair in points.windows(2) {
         let d = pair[1].distance(pair[0]);
-        if d <= Tolerance::DEFAULT.confusion {
+        if d <= CONFUSED_CHORD {
             return Err(BSplineConstructionError::ConfusedPoints);
         }
         total += if exponent == 1.0 { d } else { d.sqrt() };
