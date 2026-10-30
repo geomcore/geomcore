@@ -1,13 +1,16 @@
-use std::f64::consts::{FRAC_PI_4, PI};
+use std::f64::consts::{FRAC_PI_2, FRAC_PI_4, PI};
 
 use super::*;
-use crate::curves::{Curve, Ellipse, Hyperbola, Line, Parabola};
+use crate::curves::{Circle, Curve, Ellipse, Hyperbola, Line, Parabola};
 use crate::intersect::numeric::curve_curve::search_curve_curve;
 use crate::intersect::numeric::curve_curve::{curve_curve_minima, sampled_curve_curve};
 use crate::intersect::numeric::curve_surface::sampled_curve_surface;
 use crate::intersect::numeric::curve_surface::search_curve_surface;
 use crate::intersect::{CurveCurveHit, CurveSurfaceHit, curve_curve_extrema};
-use crate::surfaces::{Cone, Cylinder, Plane, Sphere, Surface, Torus};
+use crate::surfaces::{
+    BSplineSurface, Cone, Cylinder, ExtrusionSurface, Plane, RevolutionSurface, Sphere, Surface,
+    Torus,
+};
 
 const TOL: Tolerance = Tolerance::DEFAULT;
 
@@ -391,6 +394,33 @@ fn test_bspline_curve_against_elementary_surfaces() {
 }
 
 #[test]
+fn test_bspline_curve_against_swept_surfaces() {
+    let curve = wander();
+    let ring = Circle::new(p(0.0, 0.0, 0.0), v(0.1, 0.0, 1.0), 1.5).unwrap();
+    let profile = bspline(
+        3,
+        &[
+            [1.0, 0.0, -2.5],
+            [2.5, 0.0, -1.0],
+            [0.5, 0.0, 1.0],
+            [2.0, 0.0, 2.5],
+        ],
+    );
+    let ellipse = Ellipse::new(p(1.5, 0.0, 0.0), Vector::Y, Vector::Z, 2.0, 1.2).unwrap();
+    let axis = crate::Axis::new(Point::ORIGIN, Vector::Z).unwrap();
+    let surfaces = [
+        Surface::Extrusion(ExtrusionSurface::new(ring.into(), v(0.0, 0.2, 1.0)).unwrap()),
+        Surface::Extrusion(ExtrusionSurface::new(profile.clone().into(), Vector::Y).unwrap()),
+        Surface::Revolution(RevolutionSurface::new(profile.into(), axis).unwrap()),
+        Surface::Revolution(RevolutionSurface::new(ellipse.into(), axis).unwrap()),
+    ];
+    for surface in &surfaces {
+        let hits = assert_surface_hits(&curve, surface);
+        assert!(!hits.is_empty(), "{surface:?}");
+    }
+}
+
+#[test]
 fn test_hits_at_sphere_poles_and_cone_apex() {
     let sphere = Sphere::new(p(1.0, 2.0, 3.0), 2.0).unwrap();
     let through = segment(p(1.0, 2.0, 0.0), p(1.0, 2.0, 6.0));
@@ -545,8 +575,8 @@ fn test_restriction_keeps_every_hit() {
     let curve = wander();
     let cover = grown(&curve_box(&curve), TOL);
     let cone = Cone::new(p(0.0, 0.0, 0.5), v(0.2, 0.1, 1.0), 0.6, 0.8).unwrap();
-    let hull = HullSurface::new(ElementarySurface::Cone(cone), &cover).unwrap();
-    assert_eq!(hull.patches.len(), 2);
+    let patches = SurfacePatches::new(&cone, || Some(cover)).unwrap();
+    assert_eq!(patches.patches().count(), 2);
     for t in 0..=40 {
         let at = curve.eval_point(f64::from(t) / 20.0);
         for (k, x) in [at.x, at.y, at.z].into_iter().enumerate() {
