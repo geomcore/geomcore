@@ -8,11 +8,12 @@
 //! its band directly; least squares solves the normal equations, whose
 //! matrix has half-bandwidth `degree`, by banded Cholesky.
 
+use crate::Point;
 use crate::Tolerance;
 use crate::Vector;
 use crate::bspline::curve as math;
 use crate::bspline::curve::Pole;
-use crate::curves::{BSplineConstructionError, GenericBSplineCurve};
+use crate::curves::{BSplineConstructionError, BSplineCurve, GenericBSplineCurve};
 use crate::tier::TierPoint;
 
 /// How fitting assigns a parameter to each data point.
