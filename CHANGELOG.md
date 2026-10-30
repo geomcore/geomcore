@@ -9,6 +9,19 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+### Fixed
+
+- Marching lost curves where branches of the intersection cross (#139).
+  At a tight confusion the steps towards a crossing shrank below the
+  distance the B-spline fit separates, and the fit's refusal dropped the
+  whole curve: two equal tori with perpendicular axes gave no curve at
+  confusion 1e-8. Those points are now thinned before the fit. And a
+  stretch between two crossings had no seed of its own, the grids
+  seeding only where the surfaces are closest: a tilted torus and its
+  mirror image missed a third of their intersection at any confusion.
+  Where a trace stalls next to a crossing, the branches crossing there
+  are now seeded and traced.
+
 ## [0.40.1] - 2026-10-30
 
 The swept surfaces. `ExtrusionSurface` and `RevolutionSurface` join

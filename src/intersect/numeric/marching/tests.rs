@@ -1005,3 +1005,123 @@ fn test_bumps_between_the_sample_lines_are_not_coincident() {
         }
     }
 }
+
+/// The tori of the comparison cases where branches of the intersection
+/// cross (#139): equal tori about the origin with perpendicular axes, and
+/// a tilted torus with its mirror image through `z = 0`.
+fn crossing_tori() -> [(crate::Torus, crate::Torus); 2] {
+    use crate::{Frame, Torus};
+    let torus = |center: Point, z: Vector, x: Vector| {
+        Torus::from_frame(Frame::new(center, z, x).unwrap(), 4.0, 1.0).unwrap()
+    };
+    let (c, s) = (0.3f64.cos(), 0.3f64.sin());
+    [
+        (
+            torus(Point::ORIGIN, Vector::Z, Vector::X),
+            torus(Point::ORIGIN, Vector::X, Vector::Y),
+        ),
+        (
+            torus(
+                Point::new(0.0, 0.0, 0.7),
+                Vector::new(s, 0.0, c),
+                Vector::new(c, 0.0, -s),
+            ),
+            torus(
+                Point::new(0.0, 0.0, -0.7),
+                Vector::new(-s, 0.0, c),
+                Vector::new(c, 0.0, s),
+            ),
+        ),
+    ]
+}
+
+/// Points of the intersection of two tori, independent of marching:
+/// where the signed distance to `second` changes sign along 180 circles
+/// of `first`, bisected.
+fn torus_intersection_samples(first: &crate::Torus, second: &crate::Torus) -> Vec<Point> {
+    use std::f64::consts::TAU;
+    let frame = second.frame();
+    let signed = |p: Point| {
+        let (x, y, height) = frame.local_coordinates(p);
+        (x.hypot(y) - second.major_radius()).hypot(height) - second.minor_radius()
+    };
+    let mut samples = Vec::new();
+    for i in 0..180 {
+        let u = TAU * i as f64 / 180.0;
+        let at = |v: f64| first.eval_point(u, v);
+        let count = 720;
+        for j in 0..count {
+            let (mut low, mut high) = (
+                TAU * j as f64 / count as f64,
+                TAU * (j + 1) as f64 / count as f64,
+            );
+            if signed(at(low)).signum() == signed(at(high)).signum() {
+                continue;
+            }
+            for _ in 0..60 {
+                let middle = 0.5 * (low + high);
+                if signed(at(middle)).signum() == signed(at(low)).signum() {
+                    low = middle;
+                } else {
+                    high = middle;
+                }
+            }
+            samples.push(at(0.5 * (low + high)));
+        }
+    }
+    samples
+}
+
+/// Asserts that every point of `samples` lies within `reach` of `curves`.
+fn assert_covered(curves: &[BSplineCurve], samples: &[Point], reach: f64, label: &str) {
+    let polyline: Vec<Point> = curves
+        .iter()
+        .flat_map(|curve| {
+            let (t0, t1) = curve.bounds();
+            (0..=4000).map(move |k| curve.eval_point(t0 + (t1 - t0) * k as f64 / 4000.0))
+        })
+        .collect();
+    let missed = samples
+        .iter()
+        .filter(|p| polyline.iter().all(|q| q.distance(**p) > reach))
+        .count();
+    assert_eq!(
+        missed,
+        0,
+        "{label}: {missed} of {} samples uncovered",
+        samples.len()
+    );
+}
+
+#[test]
+fn test_marching_traces_every_branch_through_crossings_at_any_confusion() {
+    // Where branches cross, the surfaces touch and traces stall: the
+    // branches crossing there are seeded from the stall. At a tight
+    // confusion the steps also shrink below the fit's coincidence
+    // distance next to the crossing (#139).
+    for (index, (first, second)) in crossing_tori().into_iter().enumerate() {
+        let samples = torus_intersection_samples(&first, &second);
+        assert!(samples.len() > 100);
+        for confusion in [1e-7, 1e-9] {
+            let tol = Tolerance {
+                confusion,
+                ..Tolerance::DEFAULT
+            };
+            let curves = marched_curves(&first, &second, tol);
+            assert_on_both(&curves, &first, &second);
+            assert_covered(
+                &curves,
+                &samples,
+                0.05,
+                &format!("pair {index} at {confusion:e}"),
+            );
+        }
+    }
+}
+
+#[test]
+fn test_without_confused_keeps_the_ends() {
+    let p = |x: f64| Point::new(x, 0.0, 0.0);
+    let kept = without_confused(vec![p(0.0), p(1.0), p(1.0 + 1e-9), p(2.0), p(2.0 + 1e-9)]);
+    assert_eq!(kept, vec![p(0.0), p(1.0), p(2.0 + 1e-9)]);
+}

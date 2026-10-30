@@ -4,6 +4,7 @@
 //! intersection and fitted.
 
 use crate::curves::PointExtrema;
+use crate::curves::fitting::CONFUSED_CHORD;
 use crate::curves::{BSplineCurve, Curve, ElementaryCurve, ParametricCurve, PointParametrization};
 use crate::intersect::numeric::{bezier_pieces, patch_pairs};
 use crate::intersect::routing::route_curve_surface;
@@ -80,9 +81,14 @@ use crate::{BoundingBox, HasBoundingBox, Point, Tolerance, Vector};
 /// (within a span the control points bound the features). A trace ends
 /// when it closes a loop, stalls, reaches a parameter bound, or leaves
 /// the cube of side [`Tolerance::MODEL_SIZE`] centred on the origin, its
-/// last point then lying on the bound or the cube. Traces fit
+/// last point then lying on the bound or the cube. Where branches cross,
+/// the surfaces touch and a trace stalls, no smooth step turning onto
+/// another branch: the branches crossing there are seeded a first step
+/// along each way (see [`branch_seeds`]), since the grids seed a stretch
+/// between two crossings only where the surfaces are closest. Traces fit
 /// [`BSplineCurve`] interpolants (degree 3, closed loops by repeated end
-/// points).
+/// points), without the points closer than the fit can separate (see
+/// [`without_confused`]).
 ///
 /// A seed where the surfaces touch (their normals parallel, or so nearly
 /// that moving one surface by confusion makes them touch; see [`grazes`])
@@ -789,10 +795,27 @@ struct Traced {
 }
 
 impl Traced {
-    /// Traces the curve through `seed` unless it was traced already. A
-    /// seed where the surfaces touch is kept as a contact point when no
-    /// curve runs from it.
+    /// Traces the curve through `seed` unless it was traced already, then
+    /// the branches crossing it where a trace stalled (see
+    /// [`branch_seeds`]), until every branch reached is traced.
     fn follow<A, B>(&mut self, a: &A, b: &B, seed: [f64; 4], tol: Tolerance)
+    where
+        A: ParametricSurface,
+        B: ParametricSurface,
+    {
+        let mut pending = vec![seed];
+        while let Some(seed) = pending.pop() {
+            for stall in self.follow_one(a, b, seed, tol) {
+                pending.extend(branch_seeds(a, b, stall, tol));
+            }
+        }
+    }
+
+    /// Traces the curve through `seed` unless it was traced already, and
+    /// returns the parameters where its trace stalled. A seed where the
+    /// surfaces touch is kept as a contact point when no curve runs from
+    /// it.
+    fn follow_one<A, B>(&mut self, a: &A, b: &B, seed: [f64; 4], tol: Tolerance) -> Vec<[f64; 4]>
     where
         A: ParametricSurface,
         B: ParametricSurface,
@@ -803,16 +826,18 @@ impl Traced {
         // are out of scope.
         let p = a.eval_point(seed[0], seed[1]);
         if outside_model(p) || self.crosses(&[p.x, p.y, p.z, p.x, p.y, p.z], tol) {
-            return;
+            return Vec::new();
         }
         let touching = grazes(a, b, seed, tol);
-        let points = trace(a, b, seed, touching, tol);
+        let traced = trace(a, b, seed, touching, tol);
         // Where the surfaces touch at a point, the trace runs only across
         // the patch around it where they lie within confusion of each
         // other, shorter than a first step: a contact point, not a curve.
         let shortest = first_step(tol);
         let length = |points: &[Point]| points.windows(2).map(|w| w[0].distance(w[1])).sum::<f64>();
-        let Some(points) = points.filter(|points| !touching || length(points) >= shortest) else {
+        let Some(Trace { points, stalls }) =
+            traced.filter(|traced| !touching || length(&traced.points) >= shortest)
+        else {
             let gap = 8.0 * CHORD_DEVIATION * tol.confusion;
             if touching && osculates(a, b, seed, tol) {
                 // The surfaces lie on each other here: no point stands
@@ -821,12 +846,13 @@ impl Traced {
             } else if touching && self.contact_points.iter().all(|q| q.distance(p) > gap) {
                 self.contact_points.push(p);
             }
-            return;
+            return Vec::new();
         };
+        let points = without_confused(points);
         let degree = 3.min(points.len() - 1);
-        if let Ok(fit) =
-            BSplineCurve::interpolate(&points, degree, PointParametrization::Centripetal)
-        {
+        let fit = BSplineCurve::interpolate(&points, degree, PointParametrization::Centripetal);
+        debug_assert!(fit.is_ok(), "a trace of {} points fits", points.len());
+        if let Ok(fit) = fit {
             let coords: Vec<[f64; 3]> = points.iter().map(|p| [p.x, p.y, p.z]).collect();
             let runs = (1..coords.len())
                 .step_by(RUN)
@@ -836,6 +862,7 @@ impl Traced {
                 .push((bezier_pieces::bounding_box(&coords), runs, points));
             self.curves.push((fit, touching));
         }
+        stalls
     }
 
     /// Whether a traced polyline passes through the box `b`, grown by the
@@ -856,6 +883,30 @@ impl Traced {
                 })
         })
     }
+}
+
+/// The traced `points` without those the fit cannot tell from the point
+/// kept before them (see [`CONFUSED_CHORD`]): at a tight confusion the
+/// steps shrink that far towards a point where the surfaces touch. The
+/// last point is kept, in place of the one before it when those two are
+/// confused.
+fn without_confused(points: Vec<Point>) -> Vec<Point> {
+    let Some(&last) = points.last() else {
+        return points;
+    };
+    let mut kept: Vec<Point> = Vec::with_capacity(points.len());
+    for p in points {
+        if kept.last().is_none_or(|q| q.distance(p) > CONFUSED_CHORD) {
+            kept.push(p);
+        }
+    }
+    if kept.last() != Some(&last) {
+        if kept.len() > 1 {
+            kept.pop();
+        }
+        kept.push(last);
+    }
+    kept
 }
 
 /// Segments of a traced polyline per box in [`Traced`].
@@ -936,13 +987,21 @@ fn first_step(tol: Tolerance) -> f64 {
     (8.0 * CHORD_DEVIATION * tol.confusion).sqrt()
 }
 
-/// Trace the intersection curve through `seed` both ways. Returns its
-/// points in order (a closed loop ends on its first point), or `None`
-/// when fewer than four were traced. Where the surfaces touch
+/// A traced polyline: its points in order (a closed loop ends on its
+/// first point), and the parameters where it stalled, finding no
+/// acceptable step even shorter than confusion: next to a point where
+/// the surfaces touch, as where branches cross.
+struct Trace {
+    points: Vec<Point>,
+    stalls: Vec<[f64; 4]>,
+}
+
+/// Trace the intersection curve through `seed` both ways, or `None`
+/// when fewer than four points were traced. Where the surfaces touch
 /// (`touching`), the direction at each point is the one along which they
 /// keep touching where their normals are parallel (see [`direction`]),
 /// turned to go on the way the trace goes.
-fn trace<A, B>(a: &A, b: &B, seed: [f64; 4], touching: bool, tol: Tolerance) -> Option<Vec<Point>>
+fn trace<A, B>(a: &A, b: &B, seed: [f64; 4], touching: bool, tol: Tolerance) -> Option<Trace>
 where
     A: ParametricSurface,
     B: ParametricSurface,
@@ -972,6 +1031,7 @@ where
     let start = a.eval_point(seed[0], seed[1]);
     let t0 = direction(a, b, seed, touching, tol)?;
     let mut halves: [Vec<Point>; 2] = [Vec::new(), Vec::new()];
+    let mut stalls = Vec::new();
     let mut closed = false;
     for (half, dir) in halves.iter_mut().zip([1.0, -1.0]) {
         if closed {
@@ -1045,6 +1105,7 @@ where
                 break;
             }
             let Some((y, q, ty, curvature)) = step else {
+                stalls.push(x);
                 break;
             };
             // Back at the seed: close the loop on it.
@@ -1075,7 +1136,7 @@ where
     let mut points: Vec<Point> = backward.into_iter().rev().collect();
     points.push(start);
     points.extend(forward);
-    (points.len() >= 4).then_some(points)
+    (points.len() >= 4).then_some(Trace { points, stalls })
 }
 
 /// Multiple of the chord deviation a step's midpoint may stray from its
@@ -1387,6 +1448,83 @@ where
         return Some(if p.abs() <= r.abs() { e1 } else { e2 });
     }
     (e1 * s + e2 * t).normalized()
+}
+
+/// Where the surfaces touch at parameters `x` and their branches of
+/// intersection cross, the directions of the two branches: those of the
+/// common tangent plane in which their normal curvatures agree, the
+/// difference of their second fundamental forms being indefinite. `None`
+/// where it is definite or semidefinite (a contact point or a curve of
+/// contact), where they osculate (see [`osculates`]), or where a normal
+/// degenerates.
+fn crossing_branches<A, B>(a: &A, b: &B, x: [f64; 4], tol: Tolerance) -> Option<[Vector; 2]>
+where
+    A: ParametricSurface,
+    B: ParametricSurface,
+{
+    let ([first, second], _, (e1, e2)) = second_forms(a, b, x, tol)?;
+    let [p, q, r] = std::array::from_fn(|k| first[k] - second[k]);
+    let spread = (0.25 * (p - r) * (p - r) + q * q).sqrt();
+    let mean = 0.5 * (p + r);
+    let (low, high) = (mean - spread, mean + spread);
+    if low >= 0.0 || high <= 0.0 || spread + mean.abs() <= osculation(tol) {
+        return None;
+    }
+    // Unit eigenvectors of `high` and `low`, in `(e1, e2)`.
+    let (x1, y1) = (q, high - p);
+    let (x2, y2) = (high - r, q);
+    let (s, t) = if x1 * x1 + y1 * y1 >= x2 * x2 + y2 * y2 {
+        (x1, y1)
+    } else {
+        (x2, y2)
+    };
+    let norm = s.hypot(t);
+    let (s, t) = if norm == 0.0 {
+        if p >= r { (1.0, 0.0) } else { (0.0, 1.0) }
+    } else {
+        (s / norm, t / norm)
+    };
+    let along_high = e1 * s + e2 * t;
+    let along_low = e1 * -t + e2 * s;
+    // `low a^2 + high b^2 = 0` along `a along_low + b along_high`.
+    let (a_weight, b_weight) = (high.sqrt(), (-low).sqrt());
+    Some([
+        (along_low * a_weight + along_high * b_weight).normalized()?,
+        (along_low * a_weight - along_high * b_weight).normalized()?,
+    ])
+}
+
+/// Seeds on the branches crossing next to where a trace stalled, at
+/// parameters `x` (see [`Trace`]): a first step along each branch (see
+/// [`crossing_branches`]) both ways, converged onto both surfaces in the
+/// plane normal to it. A trace stalls at a crossing of branches, the turn
+/// onto another branch being no smooth step; seeds farther along a
+/// branch may miss the stretch between two crossings, which the grids
+/// seed only where the surfaces are closest.
+fn branch_seeds<A, B>(a: &A, b: &B, x: [f64; 4], tol: Tolerance) -> Vec<[f64; 4]>
+where
+    A: ParametricSurface,
+    B: ParametricSurface,
+{
+    let Some(branches) = crossing_branches(a, b, x, tol) else {
+        return Vec::new();
+    };
+    let p = a.eval_point(x[0], x[1]);
+    let h = first_step(tol);
+    branches
+        .into_iter()
+        .flat_map(|d| [d * h, d * -h])
+        .filter_map(|step| {
+            let direction = step * (1.0 / h);
+            meet(
+                a,
+                b,
+                predict(a, b, x, step),
+                Some((p + step, direction)),
+                tol,
+            )
+        })
+        .collect()
 }
 
 /// Whether the surfaces, touching at parameters `x`, osculate: their
