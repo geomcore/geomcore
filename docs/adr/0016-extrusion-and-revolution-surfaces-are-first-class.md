@@ -18,8 +18,8 @@ The sign follows the surface normal, and an offset that would leave a radius at 
 
 Both surfaces convert exactly to rational B-splines, so a converting constructor would lose no points. It would lose the structure, and the structure turns their queries into smaller problems:
 
-- **Projection onto an extrusion is a 2D projection.** For a fixed `u` the closest `v` is `(p - C(u)) · d`, which leaves a point-curve projection in the plane perpendicular to `d`. A parallel projection is affine, so the profile's image in that plane is a curve of the same kind: a line, a conic, or a B-spline with the same knots and weights. The 2D tier (ADR 0014) already projects onto each of them, in closed form for lines and conics.
-- **Projection onto a revolution is a one-parameter search.** For a fixed `v`, the closest `u` is the angle of the point about the axis. That leaves the distance from the point's `(radius, height)` about the axis to the profile's meridian curve `v ↦ (radius(v), height(v))`. When the profile lies in a plane through the axis, this curve is the profile itself in 2D, and the 2D tier projects onto it. Otherwise it is a one-parameter Newton search, which replaces the two-parameter search on a surface.
+- **Projection onto an extrusion is a 2D projection.** For a fixed `u` the closest `v` is `(p - C(u)) · d`, which leaves a point-curve projection in the plane perpendicular to `d`. A parallel projection is affine, so the profile's image in that plane is a curve of the same kind: a line, a conic, or a B-spline with the same knots and weights. The curve types already project onto each of them, in closed form for lines and conics. The image is kept as a 3D curve lying in that plane, so the projection needs no change of tier. When a conic's own plane holds `d`, its image folds onto a segment, and the closed form inverts the fold.
+- **Projection onto a revolution is a one-parameter search.** For a fixed `v`, the closest `u` is the angle of the point about the axis. That leaves the distance from the point's `(radius, height)` about the axis to the profile's meridian curve `v ↦ (radius(v), height(v))`. When the profile lies in a plane through the axis, this curve is the profile itself: the point turned into the profile's plane projects onto the profile with the profile's own projection. Otherwise it is a one-parameter search, which replaces the two-parameter search on a surface.
 - **Common intersections have closed forms.**
   - A plane perpendicular to the revolution axis cuts the surface in the circles through the profile's crossings with that plane.
   - A plane through the axis cuts a profile that lies in a plane through the axis in two rotated copies of it.
@@ -36,7 +36,7 @@ Some profiles sweep an elementary surface:
 - a line revolved in a plane through the axis sweeps a cylinder, a cone or a plane;
 - a circle revolved in a plane through the axis sweeps a torus, or a sphere when its centre is on the axis.
 
-The swept type keeps the caller's profile and parametrization, which is what a file or a modelling operation wrote. A query on such a surface runs on the equivalent elementary surface and maps the parameters back with an affine change in each direction: a shift, a scale and possibly a reversal.
+The swept type keeps the caller's profile and parametrization, which is what a file or a modelling operation wrote. A query on such a surface can run on the equivalent elementary surface and map the parameters back with an affine change in each direction: a shift, a scale and possibly a reversal. That shortcut comes with the first exact pairs, not with the types.
 
 ## Considered options
 
