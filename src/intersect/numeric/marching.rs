@@ -196,7 +196,9 @@ where
 
 /// The curves traced from every seed of the seeding policy, in order:
 /// those of [`seeding::seeds`], then those of [`seeding::later_seeds`]
-/// when the policy says so.
+/// when the policy says so and the first seeds traced more than touches:
+/// along a touch the patch-pair search would halve every pair down to its
+/// smallest pieces.
 fn traced_intersection<A, B>(pair: SurfacePair<A, B>, tol: Tolerance) -> Traced
 where
     A: ParametricSurface,
@@ -206,7 +208,7 @@ where
     let mut traced = Traced::default();
     let (seeds, later) = seeding::seeds(pair, tol);
     traced.follow_seeds(&tracer, seeds, tol);
-    if later {
+    if later && !traced.only_touches() {
         let seeds = seeding::later_seeds(pair, &|b| traced.crosses(b, tol), tol);
         traced.follow_seeds(&tracer, seeds, tol);
     }
@@ -355,6 +357,13 @@ impl Traced {
             self.curves.push((fit, touching));
         }
         stalls
+    }
+
+    /// Whether something was traced and all of it is where the surfaces
+    /// only touch: contact points and touching curves.
+    fn only_touches(&self) -> bool {
+        (!self.curves.is_empty() || !self.contact_points.is_empty())
+            && self.curves.iter().all(|&(_, touching)| touching)
     }
 
     /// Whether a traced polyline passes through the box `b`, grown by the

@@ -69,12 +69,11 @@ impl Seed {
 /// - otherwise both parameter grids.
 ///
 /// In the last two cases [`later_seeds`] follow, so that a loop smaller
-/// than the spacing of the iso-curves and grids is found, except
-/// - when both surfaces are bounded and neither is a B-spline (see
-///   [`grid_scale`]): both grids already sample each at its own scale;
-/// - when every seed lies where the surfaces only touch, as the
-///   iso-curves are in [`pair_seeds`]: the search would halve every pair
-///   along the touch down to its smallest pieces.
+/// than the spacing of the iso-curves and grids is found, except when
+/// both surfaces are bounded and neither is a B-spline (see
+/// [`grid_scale`]): both grids already sample each at its own scale.
+/// [`marching_intersection`](super::marching_intersection) also leaves
+/// them out when these seeds trace only touches.
 pub(super) fn seeds<A, B>(pair: SurfacePair<A, B>, tol: Tolerance) -> (Vec<Seed>, bool)
 where
     A: ParametricSurface,
@@ -94,9 +93,7 @@ where
         Some(seeds) => distinct_seeds(pair.first, seeds, tol),
         None => both_grid_seeds(pair, tol),
     };
-    let touching = !points.is_empty() && points.iter().all(|&x| pair.grazes(x, tol));
-    let grids_suffice = grid_scale(pair.first) && grid_scale(pair.second);
-    let later = !(touching || grids_suffice);
+    let later = !(grid_scale(pair.first) && grid_scale(pair.second));
     (points.into_iter().map(Seed::On).collect(), later)
 }
 
