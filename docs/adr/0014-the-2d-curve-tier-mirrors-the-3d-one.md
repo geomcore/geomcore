@@ -20,6 +20,17 @@ rustdoc shows each curve as its generic struct, with the two aliases as separate
 - **A defaulted type parameter, `Circle<P = Point>`, with `Circle2D = Circle<Point2D>`**: rejected. A default is not used in expressions, so `Circle::new(...)` would be ambiguous between the constructors of the two tiers.
 - **One trait generic over the tier**: rejected, for the signatures and the tier-only methods above. It can follow if a consumer needs a bound over both tiers that the generic types do not already give.
 
+## Amendment (2026-10-30): curve–curve intersection and fitting are written once
+
+The curve–curve intersection still had two copies of everything above the curve types: two result types and two hit types that kept the same methods by hand, two sets of readers turning each exact solver's result into them, two descriptions of a routed curve, two copies of the overlap mapping's curve interface and two macro families stamping the `Intersect` impls, while `BSplineCurve` and `BSplineCurve2D` repeated the three fitting constructors. They now follow the rule of this ADR. `GenericCurveCurveIntersection<P>` and `GenericCurveCurveHit<P>` are the result and the hit, and `CurveCurveIntersection`/`CurveCurveIntersection2D`, `CurveCurveHit`/`CurveCurveHit2D` are their aliases, so callers name them as before. `interpolate`, `approximate` and `approximate_within` sit on `GenericBSplineCurve<P>`. Inside the router, one crate-private `CurveBasis<P>`, implemented for every curve that converts into its tier's elementary enum (`ElementaryCurve` or `Curve2D`), carries what the readers and the overlap mapping ask of a curve, so each reader is written once and a coincidence is mapped on the tier's enum. One macro stamps the curve–curve `Intersect` impls of both tiers, and the 2D numeric path maps the hits of the search in space into plane hits and hands them to the same constructor.
+
+Two things stay per tier. The operand traits `CurveOperand` and `CurveOperand2D` differ in what the tier's numeric search needs, `ParametricCurve` in space and an embedding in space in the plane, and `TrimmedCurve`/`TrimmedCurve2D`, outside this change, are two types. One exact constructor serves both tiers, the 3D form: the readers, inlined where the solver's hits are read, build the list, and the constructor takes it whole.
+
+### Considered options
+
+- **One operand trait generic over the tier**: rejected. Its supertrait would depend on the tier, which a trait cannot say without one more trait per tier naming the search's bound; the two traits are a few lines each, and the routing they feed is the shared part.
+- **The 2D constructor for both, pushing the hits into the result**: rejected on the instruction counts. It cost 7 to 16 % on routed line–circle and circle–circle pairs in space, while the list form keeps every 2D pair within 2 % of its own former path.
+
 ## Considered options
 
 - **Add 2D types only when a parametrization needs them**: rejected. Every 3D curve type appears as the image of some curve on a plane, so this ends at the full mirror anyway, one exception at a time.
