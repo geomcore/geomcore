@@ -1,3 +1,4 @@
+use crate::curves::PointExtrema2D;
 use crate::{
     Frame2D, Parabola2D, ParabolaConstructionError, ParametricCurve2D, Point2D, Tolerance,
     TrimmedCurve2D, Vector2D,
@@ -93,7 +94,7 @@ fn test_parabola2d_eval_derivative_order0_panics() {
 fn test_parabola2d_parameter_of_round_trip() {
     let p = Parabola2D::new(Point2D::new(3.0, -1.0), Vector2D::new(0.6, 0.8), 1.5).unwrap();
     for u in [0.3, 2.0, -5.5] {
-        assert!((p.parameter_of(p.eval_point(u)) - u).abs() < 1e-9);
+        assert!((p.parameter_of(p.eval_point(u), Tolerance::DEFAULT) - u).abs() < 1e-9);
     }
 }
 

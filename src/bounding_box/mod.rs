@@ -18,7 +18,8 @@
 //! and trimmed curves.
 //!
 //! ```
-//! use geomcore::{HasBoundingBox, Circle, Line, Point, TrimmedCurve, Vector};
+//! use geomcore::prelude::*;
+//! use geomcore::{Circle, Line, Point, TrimmedCurve, Vector};
 //!
 //! let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
 //! let quarter = TrimmedCurve::new(circle, 0.0, std::f64::consts::FRAC_PI_2).unwrap();
@@ -294,7 +295,8 @@ impl BoundingBox {
 /// # Examples
 ///
 /// ```
-/// use geomcore::{HasBoundingBox, Plane, Point, Sphere, Vector};
+/// use geomcore::prelude::*;
+/// use geomcore::{Plane, Point, Sphere, Vector};
 ///
 /// let sphere = Sphere::new(Point::new(1.0, 0.0, 0.0), 2.0).unwrap();
 /// let b = sphere.bounding_box().unwrap();

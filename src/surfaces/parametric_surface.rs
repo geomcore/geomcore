@@ -30,9 +30,11 @@ pub struct SurfaceCurvatures {
 /// surface type that can be used generically (see [`Surface`](crate::Surface) for a
 /// heterogeneous-collection adaptor built on top of it).
 ///
-/// Concrete surface types (e.g. [`Plane`](crate::Plane), [`Sphere`](crate::Sphere)) already provide
-/// inherent methods with the same names; their trait impls simply delegate
-/// to those inherent methods, so calling code can use either form.
+/// The trait is the only home of the shared surface vocabulary (ADR 0015):
+/// a concrete type such as [`Plane`](crate::Plane) or
+/// [`Sphere`](crate::Sphere) keeps inherent methods only for what is its
+/// own (a radius, poles, knots). Bring the vocabulary into scope with
+/// `use geomcore::prelude::*`.
 ///
 /// # Examples
 ///
@@ -40,19 +42,37 @@ pub struct SurfaceCurvatures {
 /// [`eval_point`](ParametricSurface::eval_point) over each parameter pair:
 ///
 /// ```
-/// use geomcore::surfaces::ParametricSurface;
+/// use geomcore::prelude::*;
 /// use geomcore::{Plane, Point, Vector};
 ///
 /// let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
 /// let uvs = [(0.0, 0.0), (1.0, 2.0)];
 /// let expected: Vec<Point> = uvs.iter().map(|&(u, v)| plane.eval_point(u, v)).collect();
-/// assert_eq!(ParametricSurface::eval_points(&plane, &uvs), expected);
+/// assert_eq!(plane.eval_points(&uvs), expected);
 /// ```
 pub trait ParametricSurface {
     /// Evaluates the point on the surface at parameters `(u, v)`.
     fn eval_point(&self, u: f64, v: f64) -> Point;
 
-    /// Evaluates the derivative of order `(du, dv)` at parameters `(u, v)`.
+    /// Evaluates the partial derivative of order `(du, dv)` at parameters
+    /// `(u, v)`, for `1 <= du + dv <= 2`: `(1, 0)` is `∂S/∂u`, `(1, 1)` is
+    /// `∂²S/∂u∂v`, and so on.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `du + dv == 0` (use [`eval_point`](Self::eval_point) for
+    /// the position itself), or if `du + dv > 2`: no surface evaluates
+    /// higher orders yet.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::prelude::*;
+    /// use geomcore::{Point, Sphere, Vector};
+    ///
+    /// let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
+    /// assert!((sphere.eval_derivative(0.0, 0.0, 1, 0) - Vector::new(0.0, 2.0, 0.0)).magnitude() < 1e-15);
+    /// ```
     fn eval_derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> Vector;
 
     /// Evaluates the point and the first derivatives `[Su, Sv]` at
@@ -65,7 +85,7 @@ pub trait ParametricSurface {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::surfaces::ParametricSurface;
+    /// use geomcore::prelude::*;
     /// use geomcore::{Plane, Point, Vector};
     ///
     /// let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
@@ -93,7 +113,7 @@ pub trait ParametricSurface {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::surfaces::ParametricSurface;
+    /// use geomcore::prelude::*;
     /// use geomcore::{Point, Sphere};
     ///
     /// let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
@@ -170,7 +190,7 @@ pub trait ParametricSurface {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::surfaces::ParametricSurface;
+    /// use geomcore::prelude::*;
     /// use geomcore::{Plane, Point, Sphere, Tolerance, Vector};
     ///
     /// let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
@@ -180,12 +200,12 @@ pub trait ParametricSurface {
     /// );
     ///
     /// let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
-    /// let normal = ParametricSurface::normal(&sphere, 0.0, 0.0, Tolerance::DEFAULT).unwrap();
+    /// let normal = sphere.normal(0.0, 0.0, Tolerance::DEFAULT).unwrap();
     /// assert_eq!(normal, Vector::X);
     /// // Singular points recover their limiting normal: outward at the pole.
     /// use std::f64::consts::FRAC_PI_2;
     /// let pole =
-    ///     ParametricSurface::normal(&sphere, 0.0, FRAC_PI_2, Tolerance::DEFAULT).unwrap();
+    ///     sphere.normal(0.0, FRAC_PI_2, Tolerance::DEFAULT).unwrap();
     /// assert!((pole - Vector::Z).magnitude() < 1e-12);
     /// ```
     fn normal(&self, u: f64, v: f64, tol: Tolerance) -> Option<Vector> {
@@ -249,15 +269,15 @@ pub trait ParametricSurface {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::surfaces::ParametricSurface;
+    /// use geomcore::prelude::*;
     /// use geomcore::{Cylinder, Plane, Point, Tolerance, Vector};
     ///
     /// let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
-    /// assert!(!ParametricSurface::is_u_closed(&plane, Tolerance::DEFAULT));
+    /// assert!(!plane.is_u_closed(Tolerance::DEFAULT));
     ///
     /// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
-    /// assert!(ParametricSurface::is_u_closed(&cylinder, Tolerance::DEFAULT));
-    /// assert!(!ParametricSurface::is_v_closed(&cylinder, Tolerance::DEFAULT));
+    /// assert!(cylinder.is_u_closed(Tolerance::DEFAULT));
+    /// assert!(!cylinder.is_v_closed(Tolerance::DEFAULT));
     /// ```
     fn is_u_closed(&self, tol: Tolerance) -> bool {
         // Structural default: periodicity. Shapes closed without
@@ -290,12 +310,12 @@ pub trait ParametricSurface {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::surfaces::ParametricSurface;
+    /// use geomcore::prelude::*;
     /// use geomcore::{Continuity, Cylinder, Point, Tolerance, Vector};
     ///
     /// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
     /// assert_eq!(
-    ///     ParametricSurface::continuity_u(&cylinder, 1.0, Tolerance::DEFAULT),
+    ///     cylinder.continuity_u(1.0, Tolerance::DEFAULT),
     ///     Continuity::Smooth
     /// );
     /// ```
@@ -345,11 +365,11 @@ pub trait ParametricSurface {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::surfaces::ParametricSurface;
+    /// use geomcore::prelude::*;
     /// use geomcore::{Cylinder, Point, Tolerance, Vector};
     ///
     /// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
-    /// let c = ParametricSurface::curvatures(&cylinder, 0.0, 3.0, Tolerance::DEFAULT).unwrap();
+    /// let c = cylinder.curvatures(0.0, 3.0, Tolerance::DEFAULT).unwrap();
     /// assert_eq!((c.min_curvature, c.max_curvature), (-0.5, 0.0));
     /// assert_eq!((c.mean, c.gaussian), (-0.25, 0.0));
     /// assert_eq!(c.min_direction, Vector::Y);
@@ -419,11 +439,73 @@ pub trait ParametricSurface {
     }
 
     /// Projects `point` onto the surface, returning the `(u, v)` parameters
-    /// of the closest point and its distance.
+    /// of the closest point and its distance. Distances within
+    /// `tol.confusion` snap to `0.0`, matching
+    /// [`contains`](Self::contains).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::prelude::*;
+    /// use geomcore::{Plane, Point, Tolerance, Vector};
+    ///
+    /// let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
+    /// let projection = plane.project_point(Point::new(1.0, 2.0, 3.0), Tolerance::DEFAULT);
+    /// assert_eq!((projection.u, projection.v), (1.0, 2.0));
+    /// assert_eq!(projection.distance, 3.0);
+    /// ```
     fn project_point(&self, point: Point, tol: Tolerance) -> SurfaceProjection;
 
-    /// Returns whether `point` lies on the surface.
-    fn contains(&self, point: Point, tol: Tolerance) -> bool;
+    /// Projects each point in `points` onto the surface, as
+    /// [`project_point`](Self::project_point) does.
+    fn project_points(&self, points: &[Point], tol: Tolerance) -> Vec<SurfaceProjection> {
+        points
+            .iter()
+            .map(|&point| self.project_point(point, tol))
+            .collect()
+    }
+
+    /// Returns whether `point` lies on the surface: within
+    /// `tol.confusion` of it. Default implementation: the distance of
+    /// [`project_point`](Self::project_point); an elementary surface
+    /// overrides it in closed form.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::prelude::*;
+    /// use geomcore::{Point, Sphere, Tolerance};
+    ///
+    /// let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
+    /// assert!(sphere.contains(Point::new(0.0, 2.0, 0.0), Tolerance::DEFAULT));
+    /// assert!(!sphere.contains(Point::ORIGIN, Tolerance::DEFAULT));
+    /// ```
+    fn contains(&self, point: Point, tol: Tolerance) -> bool {
+        self.project_point(point, tol).distance <= tol.confusion
+    }
+
+    /// The parameters `(u, v)` of `point`, a point on the surface, under
+    /// the contract of
+    /// [`PointExtrema::parameter_of`](crate::curves::PointExtrema::parameter_of):
+    /// the parameters of [`project_point`](Self::project_point) by
+    /// default, a closed-form inversion that ignores `tol` on an
+    /// elementary surface.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::prelude::*;
+    /// use geomcore::{Cylinder, Point, Tolerance, Vector};
+    ///
+    /// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
+    /// let (u, v) = cylinder.parameters_of(Point::new(0.0, 2.0, 5.0), Tolerance::DEFAULT);
+    /// assert!((u - std::f64::consts::FRAC_PI_2).abs() < 1e-12);
+    /// assert_eq!(v, 5.0);
+    /// ```
+    fn parameters_of(&self, point: Point, tol: Tolerance) -> (f64, f64) {
+        let projection = self.project_point(point, tol);
+        (projection.u, projection.v)
+    }
 
     /// The surface as a B-spline, or `None` for any other surface.
     ///
@@ -435,7 +517,8 @@ pub trait ParametricSurface {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::surfaces::{BSplineSurface, ParametricSurface, Surface};
+    /// use geomcore::prelude::*;
+    /// use geomcore::surfaces::{BSplineSurface, Surface};
     /// use geomcore::{Plane, Point, Vector};
     ///
     /// let poles = vec![
@@ -450,7 +533,7 @@ pub trait ParametricSurface {
     /// assert_eq!(surface.as_bspline(), Some(&patch));
     ///
     /// let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
-    /// assert_eq!(ParametricSurface::as_bspline(&plane), None);
+    /// assert_eq!(plane.as_bspline(), None);
     /// ```
     fn as_bspline(&self) -> Option<&BSplineSurface> {
         None
@@ -467,12 +550,13 @@ pub trait ParametricSurface {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::surfaces::{ElementarySurface, ParametricSurface};
+    /// use geomcore::prelude::*;
+    /// use geomcore::surfaces::ElementarySurface;
     /// use geomcore::{Point, Sphere};
     ///
     /// let sphere = Sphere::new(Point::ORIGIN, 1.0).unwrap();
     /// assert_eq!(
-    ///     ParametricSurface::as_elementary(&sphere),
+    ///     sphere.as_elementary(),
     ///     Some(ElementarySurface::Sphere(sphere))
     /// );
     /// ```

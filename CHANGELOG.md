@@ -9,6 +9,63 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+### Added
+
+- `geomcore::prelude`, which re-exports the shape and operation traits
+  (`ParametricCurve`, `ParametricCurve2D`, `PointExtrema`,
+  `PointExtrema2D`, `ParametricSurface`, `HasBoundingBox`,
+  `HasBoundingBox2D`, `Discretize`, `Discretize2D`, `Intersect`,
+  `IntersectExact`). `use geomcore::prelude::*` brings every shared
+  method into scope (ADR 0015).
+- `project_point`, `project_points`, `contains` and `parameter_of` are
+  methods of `PointExtrema` and `PointExtrema2D`, provided from
+  `extrema`, so every curve answers them, `TrimmedCurve` and a curve of
+  your own included. `ParametricSurface` gains `project_points`,
+  `contains` and `parameters_of`. The elementary types keep their closed
+  forms.
+- `eval_derivative` and `eval_derivative_sided` of B-spline and Bézier
+  curves evaluate any order: zero above the degree for a non-rational
+  curve, every order of a rational one through the quotient rule. Orders
+  1 and 2 keep their unrolled path. In Python, orders above 2 no longer
+  raise `ValueError`.
+- In Python, `parameter_of` and `parameters_of` take an optional `tol`
+  (`Tolerance.default()` when omitted).
+
+### Changed
+
+- Each shared method is documented once, on its trait, instead of on
+  every type. `ARCHITECTURE.md` placement rule 2 and ADR 0015 state the
+  rule: a method that more than one type answers is a trait method, and
+  a type's inherent `impl` keeps only what is specific to it.
+- ADR 0012 now points to `parameter_of(point, tol)` and
+  `parameters_of(point, tol)`.
+
+### Removed
+
+- The inherent twins of trait methods, on every curve and surface type
+  and on the `Curve`, `ElementaryCurve`, `Curve2D`, `Surface` and
+  `ElementarySurface` enums: `eval_point`, `eval_points`,
+  `eval_derivative`, `project_point`, `project_points`, `contains` and
+  `as_elementary` on both; `eval_d1`, `eval_d2`, `bounds`, `is_closed`,
+  `is_periodic`, `continuity`, `min_continuity`, `extrema` and
+  `parameter_of` on curves; `parameters_of`, `eval_d1`, `eval_d2`,
+  `u_bounds`, `v_bounds`, `is_u_closed`, `is_v_closed`, `continuity_u`,
+  `continuity_v`, `min_continuity_u` and `min_continuity_v` on surfaces.
+  The trait methods of the same names remain, with the same behaviour.
+  `BSplineSurface::extrema` and `BezierSurface::extrema` stay inherent.
+
+### Breaking
+
+- Rust code that calls a shared method on a concrete type without
+  importing its trait no longer compiles: `circle.eval_point(u)` needs
+  `use geomcore::prelude::*` (or the trait itself) in scope. Generic code
+  and calls through the traits are unaffected.
+- `parameter_of` and `parameters_of` take a tolerance:
+  `curve.parameter_of(point, tol)`, `surface.parameters_of(point, tol)`.
+  The elementary types still invert in closed form and ignore it; a
+  B-spline projects the point within it instead of within
+  `Tolerance::DEFAULT`. Pass `Tolerance::DEFAULT` for the old behaviour.
+
 ## [0.39.1] - 2026-10-29
 
 A layout release with no new behaviour: the source tree, in Rust and in

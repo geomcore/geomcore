@@ -1,3 +1,5 @@
+use crate::curves::ParametricCurve;
+use crate::curves::PointExtrema;
 use crate::{Circle, CircleConstructionError, Frame, Point, Tolerance, Transform, Vector};
 
 // ---- Circle construction ----
@@ -138,7 +140,7 @@ fn test_circle3d_parameter_of_round_trip() {
     let c = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
     for u in [0.3, 2.0, 5.5] {
         let p = c.eval_point(u);
-        assert!((c.parameter_of(p) - u).abs() < 1e-9);
+        assert!((c.parameter_of(p, Tolerance::DEFAULT) - u).abs() < 1e-9);
     }
 }
 
@@ -147,7 +149,7 @@ fn test_circle3d_parameter_of_in_zero_to_tau() {
     let c = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
     for u in [-1.0, -0.1, 7.0] {
         let p = c.eval_point(u);
-        let recovered = c.parameter_of(p);
+        let recovered = c.parameter_of(p, Tolerance::DEFAULT);
         assert!((0.0..std::f64::consts::TAU).contains(&recovered));
     }
 }
@@ -271,7 +273,7 @@ fn test_circle3d_transformed_mirror_commutes_with_evaluation() {
         let expected = m.apply_point(circle.eval_point(u));
         assert!(moved.contains(expected, tol));
         assert!(moved.eval_point(u).distance(expected) < 1e-12);
-        assert!((moved.parameter_of(expected) - u).abs() < 1e-12);
+        assert!((moved.parameter_of(expected, tol) - u).abs() < 1e-12);
     }
     // Mirroring twice is the identity.
     assert_eq!(moved.transformed(m).unwrap(), circle);

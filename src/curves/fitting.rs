@@ -673,6 +673,7 @@ impl BSplineCurve {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{BSplineCurve, Point, PointParametrization, Tolerance};
     /// let points = vec![
     ///     Point::new(0.0, 0.0, 0.0),
@@ -732,6 +733,7 @@ impl BSplineCurve {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{BSplineCurve, Point, PointParametrization};
     /// let points: Vec<Point> = (0..9)
     ///     .map(|i| {
@@ -806,6 +808,7 @@ impl BSplineCurve {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{BSplineCurve, Point, PointParametrization, Tolerance};
     /// let points: Vec<Point> = (0..50)
     ///     .map(|i| {
@@ -875,6 +878,7 @@ impl BSplineCurve2D {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{BSplineCurve2D, Point2D, PointParametrization, Tolerance};
     /// let points = vec![
     ///     Point2D::new(0.0, 0.0),
@@ -934,6 +938,7 @@ impl BSplineCurve2D {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{BSplineCurve2D, Point2D, PointParametrization};
     /// let points: Vec<Point2D> = (0..9)
     ///     .map(|i| {
@@ -1007,6 +1012,7 @@ impl BSplineCurve2D {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{BSplineCurve2D, Point2D, PointParametrization, Tolerance};
     /// let points: Vec<Point2D> = (0..50)
     ///     .map(|i| {

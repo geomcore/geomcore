@@ -394,18 +394,12 @@ impl<P: PolePoint> Spline<P> {
         math::point(&self.knots, self.pole_view(), u)
     }
 
-    pub(crate) fn eval_points(&self, us: &[f64]) -> Vec<P> {
-        us.iter().map(|&u| self.eval_point(u)).collect()
-    }
-
     pub(crate) fn eval_derivative(&self, u: f64, order: u32) -> P::Vector {
         match order {
             0 => panic!("eval_derivative: order must be >= 1 (use eval_point for order 0)"),
             1 => math::derivatives::<1, P>(&self.knots, self.pole_view(), u)[1],
             2 => math::derivatives::<2, P>(&self.knots, self.pole_view(), u)[2],
-            _ => panic!(
-                "eval_derivative: order {order} is not supported (only first and second derivatives are supported)"
-            ),
+            _ => math::derivative_of_order(&self.knots, self.pole_view(), u, order as usize, None),
         }
     }
 
@@ -429,8 +423,12 @@ impl<P: PolePoint> Spline<P> {
             0 => panic!("eval_derivative: order must be >= 1 (use eval_point for order 0)"),
             1 => math::derivatives_sided::<1, P>(&self.knots, self.pole_view(), u, side)[1],
             2 => math::derivatives_sided::<2, P>(&self.knots, self.pole_view(), u, side)[2],
-            _ => panic!(
-                "eval_derivative: order {order} is not supported (only first and second derivatives are supported)"
+            _ => math::derivative_of_order(
+                &self.knots,
+                self.pole_view(),
+                u,
+                order as usize,
+                Some(side),
             ),
         }
     }
@@ -457,10 +455,6 @@ impl<P: PolePoint> Spline<P> {
                 quadrature::integrate(&|t| bezier_speed(net, t), 0.0, 1.0, share)
             })
             .sum()
-    }
-
-    pub(crate) fn contains(&self, point: P, tol: Tolerance) -> bool {
-        self.project_point(point, tol).distance <= tol.confusion
     }
 
     /// Every local minimum of the distance to `point`, the global one

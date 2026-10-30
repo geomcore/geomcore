@@ -1,4 +1,5 @@
 use super::*;
+use crate::curves::ParametricCurve;
 use crate::{
     Circle, Cone, Cylinder, Frame, IntersectExact, Plane, Point, Sphere, Tolerance, Torus, Vector,
 };

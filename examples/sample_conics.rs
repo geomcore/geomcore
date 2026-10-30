@@ -4,7 +4,8 @@
 //!
 //! Run with `cargo run --example sample_conics`.
 
-use geomcore::curves::{Circle, Curve2D, Ellipse, ParametricCurve2D};
+use geomcore::curves::{Circle, Curve2D, Ellipse};
+use geomcore::prelude::*;
 use geomcore::{Cylinder, Point, Tolerance, Vector};
 use std::f64::consts::TAU;
 

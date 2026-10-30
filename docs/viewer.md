@@ -57,6 +57,7 @@ The embedded page above is static. From a script, a debugger or a notebook, `vie
 === "Rust"
 
     ```rust
+    use geomcore::prelude::*;
     use geomcore::{Circle, Cylinder, Point, Tolerance, Vector};
     use geomcore_viewer::{Geom, Opts, Viewer};
 

@@ -11,11 +11,12 @@ use crate::results::{
 };
 use crate::tolerance;
 use crate::values::*;
-use geomcore::curves::{Curve, Curve2D, ParametricCurve, TrimmedCurve2D};
+use geomcore::curves::{Curve, Curve2D, TrimmedCurve2D};
+use geomcore::prelude::*;
 use geomcore::surfaces::Surface;
 use geomcore::{
-    CurveCurveIntersection, CurveCurveIntersection2D, CurveSurfaceIntersection, Intersect,
-    Tolerance, curve_curve_extrema,
+    CurveCurveIntersection, CurveCurveIntersection2D, CurveSurfaceIntersection, Tolerance,
+    curve_curve_extrema,
 };
 use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;

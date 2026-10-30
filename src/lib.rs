@@ -31,10 +31,15 @@
 //! - [`bounding_box`] holds [`BoundingBox`] and the [`HasBoundingBox`] trait,
 //!   through which curves and surfaces report the axis-aligned box
 //!   bounding them.
+//! - [`prelude`] re-exports the shape and operation traits. Every method
+//!   that more than one type answers is a trait method, documented once
+//!   on the trait, so `use geomcore::prelude::*` brings them all into
+//!   scope.
 //!
 //! # Quick start
 //!
 //! ```
+//! use geomcore::prelude::*;
 //! use geomcore::{Cylinder, Point, Tolerance, Vector};
 //! use geomcore::curves::Circle;
 //!
@@ -60,11 +65,9 @@
 //! every hit.
 //!
 //! ```
+//! use geomcore::prelude::*;
 //! use geomcore::curves::TrimmedCurve;
-//! use geomcore::{
-//!     BSplineCurve, Completeness, Intersect, IntersectionMethod, Line, Point, Sphere,
-//!     Tolerance, Vector,
-//! };
+//! use geomcore::{BSplineCurve, Completeness, IntersectionMethod, Line, Point, Sphere, Tolerance, Vector};
 //!
 //! let tol = Tolerance::DEFAULT;
 //! let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
@@ -79,7 +82,7 @@
 //! // A parameter the solver did not compute is `None`: the caller reads it
 //! // from the point, here the sphere's.
 //! assert_eq!(result.hits()[0].surface_parameters, None);
-//! let (_, latitude) = sphere.parameters_of(result.hits()[0].point);
+//! let (_, latitude) = sphere.parameters_of(result.hits()[0].point, tol);
 //! assert!((latitude + std::f64::consts::FRAC_PI_2).abs() < 1e-12);
 //!
 //! // A segment keeps only the hits in its range.
@@ -99,7 +102,8 @@
 //! parameters it does not need and never falls back to a numeric search.
 //!
 //! ```
-//! use geomcore::{IntersectExact, PlaneSphereIntersection, Point, Vector};
+//! use geomcore::prelude::*;
+//! use geomcore::{PlaneSphereIntersection, Point, Vector};
 //! use geomcore::surfaces::{Plane, Sphere};
 //!
 //! let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
@@ -149,6 +153,8 @@ pub mod intersect;
 pub(crate) mod math;
 /// Points in 2D and 3D space.
 pub mod point;
+/// The shape and operation traits, for `use geomcore::prelude::*`.
+pub mod prelude;
 /// Point-projection result types.
 pub mod projection;
 /// Public surface types: planes, cylinders, cones, spheres, tori, and

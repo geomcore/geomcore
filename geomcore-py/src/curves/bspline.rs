@@ -8,8 +8,8 @@ use crate::errors::python_error;
 use crate::results::*;
 use crate::values::*;
 use crate::{ContinuityNumber, check_curve_order, parse_parametrization, tolerance};
-use geomcore::HasBoundingBox;
-use geomcore::curves::{BSplineCurve, ParametricCurve};
+use geomcore::curves::BSplineCurve;
+use geomcore::prelude::*;
 use pyo3::prelude::*;
 
 /// A B-spline (optionally rational, optionally periodic) curve in 3D.
@@ -32,19 +32,19 @@ impl PyBSplineCurve {
 
     /// The point and the first derivative at parameter `u`.
     fn eval_d1(&self, u: f64) -> (PyPoint, PyVector) {
-        let (point, first) = ParametricCurve::eval_d1(&self.0, u);
+        let (point, first) = self.0.eval_d1(u);
         (PyPoint(point), PyVector(first))
     }
 
     /// The point and the first two derivatives at parameter `u`.
     fn eval_d2(&self, u: f64) -> (PyPoint, PyVector, PyVector) {
-        let (point, first, second) = ParametricCurve::eval_d2(&self.0, u);
+        let (point, first, second) = self.0.eval_d2(u);
         (PyPoint(point), PyVector(first), PyVector(second))
     }
 
     /// The period of the parameter, or `None` when the curve is not periodic.
     fn period(&self) -> Option<f64> {
-        ParametricCurve::period(&self.0)
+        self.0.period()
     }
 
     fn __repr__(&self) -> String {
@@ -351,9 +351,9 @@ impl PyBSplineCurve {
         discretize_3d(&self.0, max_chord_deviation, max_angle_deviation)
     }
 
-    /// Evaluate the derivative at `u`; orders 1 and 2 are supported.
+    /// Evaluate the derivative of the given order (>= 1) at `u`.
     fn eval_derivative(&self, u: f64, order: u32) -> PyResult<PyVector> {
-        check_curve_order(order, 2)?;
+        check_curve_order(order)?;
         Ok(PyVector(self.0.eval_derivative(u, order)))
     }
 
@@ -401,7 +401,7 @@ impl PyBSplineCurve {
     /// change the answer.
     #[pyo3(signature = (u, tol = None))]
     fn tangent(&self, u: f64, tol: Option<PyTolerance>) -> Option<PyVector> {
-        ParametricCurve::tangent(&self.0, u, tolerance(tol)).map(PyVector)
+        self.0.tangent(u, tolerance(tol)).map(PyVector)
     }
 
     /// Curvature at parameter `u`: the turn rate of the unit tangent per
@@ -409,7 +409,7 @@ impl PyBSplineCurve {
     /// vanishes, by the test of `tangent`.
     #[pyo3(signature = (u, tol = None))]
     fn curvature(&self, u: f64, tol: Option<PyTolerance>) -> Option<f64> {
-        ParametricCurve::curvature(&self.0, u, tolerance(tol))
+        self.0.curvature(u, tolerance(tol))
     }
 
     /// Centre of the osculating circle at parameter `u`, or `None` where
@@ -417,7 +417,7 @@ impl PyBSplineCurve {
     /// at infinity).
     #[pyo3(signature = (u, tol = None))]
     fn curvature_center(&self, u: f64, tol: Option<PyTolerance>) -> Option<PyPoint> {
-        ParametricCurve::curvature_center(&self.0, u, tolerance(tol)).map(PyPoint)
+        self.0.curvature_center(u, tolerance(tol)).map(PyPoint)
     }
 
     /// Whether travelling along the curve returns to its start
@@ -426,7 +426,7 @@ impl PyBSplineCurve {
     /// periodic.
     #[pyo3(signature = (tol = None))]
     fn is_closed(&self, tol: Option<PyTolerance>) -> bool {
-        ParametricCurve::is_closed(&self.0, tolerance(tol))
+        self.0.is_closed(tolerance(tol))
     }
 
     /// Continuity order `n` of `C^n` at parameter `u` as an `int`, or
@@ -437,13 +437,13 @@ impl PyBSplineCurve {
     /// evaluate each side of a knot reporting a low order.
     #[pyo3(signature = (u, tol = None))]
     fn continuity(&self, u: f64, tol: Option<PyTolerance>) -> ContinuityNumber {
-        ContinuityNumber(ParametricCurve::continuity(&self.0, u, tolerance(tol)))
+        ContinuityNumber(self.0.continuity(u, tolerance(tol)))
     }
 
     /// The lowest `continuity` anywhere inside the bounds, ends excluded
     /// (`math.inf` when smooth everywhere).
     fn min_continuity(&self) -> ContinuityNumber {
-        ContinuityNumber(ParametricCurve::min_continuity(&self.0))
+        ContinuityNumber(self.0.min_continuity())
     }
 
     /// The point and the first derivative at parameter `u`, from one
@@ -465,10 +465,10 @@ impl PyBSplineCurve {
         (PyPoint(point), PyVector(first), PyVector(second))
     }
 
-    /// The derivative of order 1 or 2 at parameter `u`, from one `side`,
+    /// The derivative of the given order (>= 1) at parameter `u`, from one `side`,
     /// as `eval_d1_sided`.
     fn eval_derivative_sided(&self, u: f64, order: u32, side: PySide) -> PyResult<PyVector> {
-        check_curve_order(order, 2)?;
+        check_curve_order(order)?;
         Ok(PyVector(self.0.eval_derivative_sided(
             u,
             order,

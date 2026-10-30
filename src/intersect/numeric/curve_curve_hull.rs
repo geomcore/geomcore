@@ -6,6 +6,7 @@
 use crate::bspline::curve::LARGE;
 use crate::bspline::surface::{Interval, derivative_bounds};
 use crate::curves::BSplineCurve;
+use crate::curves::ParametricCurve;
 use crate::intersect::numeric::bezier_pieces::{
     CurvePieces, Pool, apart_along, bounding_box, box_size, cross, curves_meet_at_most_once, dot,
     euclidean, extent, norm, sub, tangent_sign,
@@ -254,7 +255,8 @@ impl<'a> IntoIterator for &'a CurveCurveExtrema {
 /// # Examples
 ///
 /// ```
-/// use geomcore::{BSplineCurve, Completeness, Intersect, Point, Tolerance};
+/// use geomcore::prelude::*;
+/// use geomcore::{BSplineCurve, Completeness, Point, Tolerance};
 /// // A parabola touching the segment at (2, 0, 0), at s = 0.5.
 /// let poles = vec![
 ///     Point::new(0.0, 1.0, 0.0),

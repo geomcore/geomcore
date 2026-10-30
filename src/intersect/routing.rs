@@ -12,6 +12,8 @@
 //! into the intersection of the trimmed curve.
 
 use crate::Tolerance;
+use crate::curves::PointExtrema;
+use crate::curves::PointExtrema2D;
 use crate::curves::{
     BSplineCurve, BSplineCurve2D, Circle, Circle2D, Curve, Curve2D, ElementaryCurve, Ellipse,
     Ellipse2D, Hyperbola, Hyperbola2D, Line, Line2D, Parabola, Parabola2D, ParametricCurve,
@@ -36,7 +38,6 @@ use crate::surfaces::{
     BSplineSurface, Cone, Cylinder, ElementarySurface, ParametricSurface, Plane, Sphere, Surface,
     Torus,
 };
-use crate::{Point, Point2D};
 
 /// Routed intersection: exact when a closed form exists, numeric otherwise.
 ///
@@ -50,7 +51,8 @@ use crate::{Point, Point2D};
 /// # Examples
 ///
 /// ```
-/// use geomcore::{Intersect, IntersectionMethod, Line, Point, Sphere, Tolerance, Vector};
+/// use geomcore::prelude::*;
+/// use geomcore::{IntersectionMethod, Line, Point, Sphere, Tolerance, Vector};
 ///
 /// // A line along z through a sphere of radius 2 crosses it at both poles.
 /// let line = Line::new(Point::new(0.0, 0.0, -5.0), Vector::Z).unwrap();
@@ -79,11 +81,11 @@ pub trait Intersect<Rhs: ?Sized = Self> {
 /// [`ElementaryCurve`] or dispatching at run time; [`ElementaryCurve`] is
 /// the basis of the curves whose kind is only known at run time.
 ///
-/// [`basis_parameter_of`](Self::basis_parameter_of) gives the parameter of
-/// a hit's point when the curve is restricted to a range and the solver
-/// did not compute it: the range test needs it.
+/// [`parameter_of`](PointExtrema::parameter_of) gives the parameter of a
+/// hit's point when the curve is restricted to a range and the solver did
+/// not compute it: the range test needs it.
 pub(crate) trait CurveBasis:
-    ParametricCurve
+    PointExtrema
     + Copy
     + Into<ElementaryCurve>
     + ExactCurveSurface<Plane>
@@ -99,18 +101,11 @@ pub(crate) trait CurveBasis:
     + ExactCurveCurve<Hyperbola>
     + ExactCurveCurve<ElementaryCurve>
 {
-    /// The parameter of `point`, a point on the curve.
-    fn basis_parameter_of(&self, point: Point) -> f64;
 }
 
 macro_rules! curve_basis {
     ($($curve:ty),*) => {$(
-        impl CurveBasis for $curve {
-            #[inline]
-            fn basis_parameter_of(&self, point: Point) -> f64 {
-                self.parameter_of(point)
-            }
-        }
+        impl CurveBasis for $curve {}
     )*};
 }
 
@@ -705,7 +700,7 @@ fn from_exact_curve_curve<A: CurveBasis, B: CurveBasis>(
                         hit.first_parameter,
                         first_range,
                         first.period(),
-                        || first.basis_parameter_of(hit.point),
+                        || first.parameter_of(hit.point, tol),
                         |parameter| first.eval_derivative(parameter, 1).magnitude(),
                         tol,
                     )?,
@@ -713,7 +708,7 @@ fn from_exact_curve_curve<A: CurveBasis, B: CurveBasis>(
                         hit.second_parameter,
                         second_range,
                         second.period(),
-                        || second.basis_parameter_of(hit.point),
+                        || second.parameter_of(hit.point, tol),
                         |parameter| second.eval_derivative(parameter, 1).magnitude(),
                         tol,
                     )?,
@@ -767,7 +762,7 @@ fn coincident_overlaps<C: CoincidentCurve>(
     (second, second_range): (&C, (f64, f64)),
     tol: Tolerance,
 ) -> CoincidentPieces {
-    let same_direction = runs_along(second, second_range, first);
+    let same_direction = runs_along(second, second_range, first, tol);
     let on_first = mapped_range(second, second_range, first, same_direction, tol);
     let mut overlaps = CurveCurveOverlapList::new();
     let mut touches = InlineList::new();
@@ -783,7 +778,7 @@ fn coincident_overlaps<C: CoincidentCurve>(
     for &piece in first_pieces.iter() {
         if is_single_point(piece, &first_speed, tol) {
             let first_parameter = (0.5 * (piece.0 + piece.1)).clamp(first_range.0, first_range.1);
-            let found = second.parameter_of_image(first, first_parameter);
+            let found = second.parameter_of_image(first, first_parameter, tol);
             let period = second.cycle_length();
             let second_parameter = in_range(found, second_range, period, |t| second.speed(t), tol)
                 .unwrap_or_else(|| nearest_end(found, second_range, period));
@@ -810,7 +805,7 @@ fn coincident_overlaps<C: CoincidentCurve>(
         // part of each side back from its end points.
         for &part in pieces_on_second.iter() {
             let end = |parameter: f64| {
-                let found = first.parameter_of_image(second, parameter);
+                let found = first.parameter_of_image(second, parameter, tol);
                 let period = first.cycle_length();
                 in_range(found, piece, period, |t| first.speed(t), tol)
                     .unwrap_or_else(|| nearest_end(found, piece, period))
@@ -845,11 +840,11 @@ pub(crate) trait CoincidentCurve {
 
     /// The parameter, on this curve, of the point `other` has at
     /// `parameter`; `other` coincides with this curve.
-    fn parameter_of_image(&self, other: &Self, parameter: f64) -> f64;
+    fn parameter_of_image(&self, other: &Self, parameter: f64, tol: Tolerance) -> f64;
 
     /// Whether this curve at `parameter` and `other` at the same point
     /// run the same way.
-    fn runs_with(&self, parameter: f64, other: &Self) -> bool;
+    fn runs_with(&self, parameter: f64, other: &Self, tol: Tolerance) -> bool;
 
     /// The length of the first derivative at `parameter`: the line
     /// direction's length, the circle's radius.
@@ -861,12 +856,12 @@ impl CoincidentCurve for ElementaryCurve {
         self.period()
     }
 
-    fn parameter_of_image(&self, other: &Self, parameter: f64) -> f64 {
-        self.parameter_of(other.eval_point(parameter))
+    fn parameter_of_image(&self, other: &Self, parameter: f64, tol: Tolerance) -> f64 {
+        self.parameter_of(other.eval_point(parameter), tol)
     }
 
-    fn runs_with(&self, parameter: f64, other: &Self) -> bool {
-        let image = other.parameter_of_image(self, parameter);
+    fn runs_with(&self, parameter: f64, other: &Self, tol: Tolerance) -> bool {
+        let image = other.parameter_of_image(self, parameter, tol);
         self.eval_derivative(parameter, 1)
             .dot(other.eval_derivative(image, 1))
             >= 0.0
@@ -882,20 +877,12 @@ impl CoincidentCurve for Curve2D {
         self.period()
     }
 
-    fn parameter_of_image(&self, other: &Self, parameter: f64) -> f64 {
-        let point = other.eval_point(parameter);
-        match self {
-            Curve2D::Line(line) => line.parameter_of(point),
-            Curve2D::Circle(circle) => circle.parameter_of(point),
-            Curve2D::Ellipse(ellipse) => ellipse.parameter_of(point),
-            Curve2D::Parabola(parabola) => parabola.parameter_of(point),
-            Curve2D::Hyperbola(hyperbola) => hyperbola.parameter_of(point),
-            Curve2D::BSpline(bspline) => bspline.parameter_of(point),
-        }
+    fn parameter_of_image(&self, other: &Self, parameter: f64, tol: Tolerance) -> f64 {
+        self.parameter_of(other.eval_point(parameter), tol)
     }
 
-    fn runs_with(&self, parameter: f64, other: &Self) -> bool {
-        let image = other.parameter_of_image(self, parameter);
+    fn runs_with(&self, parameter: f64, other: &Self, tol: Tolerance) -> bool {
+        let image = other.parameter_of_image(self, parameter, tol);
         self.eval_derivative(parameter, 1)
             .dot(other.eval_derivative(image, 1))
             >= 0.0
@@ -908,14 +895,14 @@ impl CoincidentCurve for Curve2D {
 
 /// Whether the coincident curves `from` and `to` run the same way: the
 /// sign of the tangents' dot product at a sample of `range`.
-fn runs_along<C: CoincidentCurve>(from: &C, range: (f64, f64), to: &C) -> bool {
+fn runs_along<C: CoincidentCurve>(from: &C, range: (f64, f64), to: &C, tol: Tolerance) -> bool {
     let sample = match (range.0.is_finite(), range.1.is_finite()) {
         (true, true) => 0.5 * (range.0 + range.1),
         (true, false) => range.0,
         (false, true) => range.1,
         (false, false) => 0.0,
     };
-    from.runs_with(sample, to)
+    from.runs_with(sample, to, tol)
 }
 
 /// The image of `range` of curve `from` on the coincident curve `to`, as a
@@ -932,7 +919,7 @@ fn mapped_range<C: CoincidentCurve>(
     along: bool,
     tol: Tolerance,
 ) -> (f64, f64) {
-    let image = |parameter: f64| to.parameter_of_image(from, parameter);
+    let image = |parameter: f64| to.parameter_of_image(from, parameter, tol);
     let Some(period) = to.cycle_length() else {
         let end = |parameter: f64| {
             if parameter.is_finite() {
@@ -1045,7 +1032,7 @@ where
 /// concrete curves are their own basis, [`Curve2D`] the basis of a curve
 /// whose kind is only known at run time.
 pub(crate) trait CurveBasis2D:
-    ParametricCurve2D
+    PointExtrema2D
     + Clone
     + Into<Curve2D>
     + ExactCurveCurve2D<Line2D>
@@ -1055,44 +1042,14 @@ pub(crate) trait CurveBasis2D:
     + ExactCurveCurve2D<Hyperbola2D>
     + ExactCurveCurve2D<Curve2D>
 {
-    /// The parameter of `point`, a point on the curve: the range test of a
-    /// restricted curve needs it when the solver did not compute it.
-    fn basis_parameter_of(&self, point: Point2D) -> f64;
 }
 
-impl CurveBasis2D for Line2D {
-    #[inline]
-    fn basis_parameter_of(&self, point: Point2D) -> f64 {
-        self.parameter_of(point)
-    }
-}
-
-macro_rules! curve_basis_2d {
-    ($($curve:ty),*) => {$(
-        impl CurveBasis2D for $curve {
-            #[inline]
-            fn basis_parameter_of(&self, point: Point2D) -> f64 {
-                self.parameter_of(point)
-            }
-        }
-    )*};
-}
-
-curve_basis_2d!(Circle2D, Ellipse2D, Parabola2D, Hyperbola2D);
-
-impl CurveBasis2D for Curve2D {
-    #[inline]
-    fn basis_parameter_of(&self, point: Point2D) -> f64 {
-        match self {
-            Curve2D::Line(line) => line.parameter_of(point),
-            Curve2D::Circle(circle) => circle.parameter_of(point),
-            Curve2D::Ellipse(ellipse) => ellipse.parameter_of(point),
-            Curve2D::Parabola(parabola) => parabola.parameter_of(point),
-            Curve2D::Hyperbola(hyperbola) => hyperbola.parameter_of(point),
-            Curve2D::BSpline(bspline) => bspline.parameter_of(point),
-        }
-    }
-}
+impl CurveBasis2D for Line2D {}
+impl CurveBasis2D for Circle2D {}
+impl CurveBasis2D for Ellipse2D {}
+impl CurveBasis2D for Parabola2D {}
+impl CurveBasis2D for Hyperbola2D {}
+impl CurveBasis2D for Curve2D {}
 
 /// A 2D curve's exact basis and the parameter range it is restricted to
 /// (`None` = the basis's own bounds).
@@ -1193,7 +1150,7 @@ where
                         hit.first_parameter,
                         first_range,
                         first.period(),
-                        || first.basis_parameter_of(hit.point),
+                        || first.parameter_of(hit.point, tol),
                         |parameter| first.eval_derivative(parameter, 1).magnitude(),
                         tol,
                     )?,
@@ -1201,7 +1158,7 @@ where
                         hit.second_parameter,
                         second_range,
                         second.period(),
-                        || second.basis_parameter_of(hit.point),
+                        || second.parameter_of(hit.point, tol),
                         |parameter| second.eval_derivative(parameter, 1).magnitude(),
                         tol,
                     )?,

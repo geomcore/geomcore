@@ -172,7 +172,7 @@ fn test_surface_intersection_matches_marching() {
                 "marching found nothing for {a:?} and {b:?}"
             );
             for curve in &traced {
-                let (lo, hi) = ParametricCurve::bounds(curve);
+                let (lo, hi) = curve.bounds();
                 for k in 0..=16 {
                     let p = curve.eval_point(lo + (hi - lo) * f64::from(k) / 16.0);
                     assert!(
@@ -454,8 +454,14 @@ fn assert_curve_curve_valid(
                 if let Some(t) = hit.second_parameter {
                     assert!(near(b.eval_point(t), hit.point), "{hit:?} off {b:?}");
                 }
-                assert!(near(a.eval_point(a.parameter_of(hit.point)), hit.point));
-                assert!(near(b.eval_point(b.parameter_of(hit.point)), hit.point));
+                assert!(near(
+                    a.eval_point(a.parameter_of(hit.point, Tolerance::DEFAULT)),
+                    hit.point
+                ));
+                assert!(near(
+                    b.eval_point(b.parameter_of(hit.point, Tolerance::DEFAULT)),
+                    hit.point
+                ));
                 assert!(hit.multiplicity >= 1);
             }
         }
@@ -530,12 +536,13 @@ fn test_curve_curve_intersection_matches_numeric() {
                 h.multiplicity == 1
                     && window(
                         a,
-                        h.first_parameter.unwrap_or_else(|| a.parameter_of(h.point)),
+                        h.first_parameter
+                            .unwrap_or_else(|| a.parameter_of(h.point, Tolerance::DEFAULT)),
                     )
                     && window(
                         b,
                         h.second_parameter
-                            .unwrap_or_else(|| b.parameter_of(h.point)),
+                            .unwrap_or_else(|| b.parameter_of(h.point, Tolerance::DEFAULT)),
                     )
             }) {
                 assert!(

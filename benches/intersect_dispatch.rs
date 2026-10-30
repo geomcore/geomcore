@@ -12,8 +12,9 @@ use criterion::{Criterion, Throughput, criterion_group, criterion_main};
 use std::hint::black_box;
 
 use geomcore::curves::{Circle, Circle2D, Curve, ElementaryCurve, Ellipse, Line};
+use geomcore::prelude::*;
 use geomcore::surfaces::{Cone, Cylinder, ElementarySurface, Plane, Sphere, Surface, Torus};
-use geomcore::{Intersect, IntersectExact, Point, Point2D, Tolerance, Vector};
+use geomcore::{Point, Point2D, Tolerance, Vector};
 
 const BATCH: usize = 1024;
 

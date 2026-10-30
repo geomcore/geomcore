@@ -2,6 +2,7 @@
 //! pair, solved in closed form.
 
 use crate::math::{QuadraticSolution, solve_quadratic};
+use crate::surfaces::ParametricSurface;
 use crate::{
     Circle, Cone, Cylinder, Ellipse, Hyperbola, IntersectExact, Line, Parabola, Plane, Point,
     Sphere, Tolerance, Torus, Vector,
@@ -293,7 +294,7 @@ impl IntersectExact<Plane> for Plane {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::IntersectExact;
+    /// use geomcore::prelude::*;
     /// use geomcore::{Plane, PlanePlaneIntersection, Point, Tolerance, Vector};
     /// let xy = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
     /// let zy = Plane::new(Point::ORIGIN, Vector::X).unwrap();
@@ -368,7 +369,7 @@ impl IntersectExact<Sphere> for Plane {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::IntersectExact;
+    /// use geomcore::prelude::*;
     /// use geomcore::{Plane, PlaneSphereIntersection, Point, Sphere, Tolerance, Vector};
     /// let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
     /// let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
@@ -417,7 +418,7 @@ impl IntersectExact<Cylinder> for Plane {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::IntersectExact;
+    /// use geomcore::prelude::*;
     /// use geomcore::{Cylinder, Plane, PlaneCylinderIntersection, Point, Tolerance, Vector};
     /// let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
     /// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
@@ -502,7 +503,7 @@ impl IntersectExact<Cone> for Plane {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::IntersectExact;
+    /// use geomcore::prelude::*;
     /// use geomcore::{Cone, Frame, Plane, PlaneConeIntersection, Point, Tolerance, Vector};
     /// let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
     /// let cone = Cone::from_frame(Frame::WORLD, 0.4, 2.0).unwrap();
@@ -630,7 +631,7 @@ impl IntersectExact<Cylinder> for Cylinder {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::IntersectExact;
+    /// use geomcore::prelude::*;
     /// use geomcore::{Cylinder, CylinderCylinderIntersection, Point, Tolerance, Vector};
     /// let c1 = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
     /// let c2 = Cylinder::new(Point::new(3.0, 0.0, 0.0), Vector::Z, 2.0).unwrap();
@@ -701,7 +702,7 @@ impl IntersectExact<Cone> for Cone {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::IntersectExact;
+    /// use geomcore::prelude::*;
     /// use geomcore::{Cone, ConeConeIntersection, Frame, Point, Tolerance, Vector};
     /// let c1 = Cone::from_frame(Frame::WORLD, 0.4, 2.0).unwrap();
     /// let c2 = Cone::from_frame(Frame::WORLD, 0.4, 2.0).unwrap();
@@ -768,7 +769,7 @@ impl IntersectExact<Cylinder> for Cone {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::IntersectExact;
+    /// use geomcore::prelude::*;
     /// use geomcore::{Cone, ConeCylinderIntersection, Cylinder, Frame, Point, Tolerance, Vector};
     /// let cone = Cone::from_frame(Frame::WORLD, 0.4, 2.0).unwrap();
     /// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
@@ -821,7 +822,7 @@ impl IntersectExact<Cylinder> for Sphere {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::IntersectExact;
+    /// use geomcore::prelude::*;
     /// use geomcore::{Cylinder, Point, Sphere, SphereCylinderIntersection, Tolerance, Vector};
     /// let sphere = Sphere::new(Point::ORIGIN, 3.0).unwrap();
     /// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
@@ -876,7 +877,7 @@ impl IntersectExact<Cone> for Sphere {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::IntersectExact;
+    /// use geomcore::prelude::*;
     /// use geomcore::{Cone, Frame, Point, Sphere, SphereConeIntersection, Tolerance};
     /// let sphere = Sphere::new(Point::ORIGIN, 3.0).unwrap();
     /// let cone = Cone::from_frame(Frame::WORLD, 0.4, 2.0).unwrap();
@@ -935,7 +936,7 @@ impl IntersectExact<Sphere> for Sphere {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::IntersectExact;
+    /// use geomcore::prelude::*;
     /// use geomcore::{Point, Sphere, SphereSphereIntersection, Tolerance};
     /// let s1 = Sphere::new(Point::ORIGIN, 2.0).unwrap();
     /// let s2 = Sphere::new(Point::new(3.0, 0.0, 0.0), 2.0).unwrap();
@@ -996,7 +997,7 @@ impl IntersectExact<Plane> for Torus {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::IntersectExact;
+    /// use geomcore::prelude::*;
     /// use geomcore::{Point, Tolerance, Torus, TorusPlaneIntersection, Vector};
     /// let torus = Torus::new(Point::ORIGIN, Vector::Z, 4.0, 1.0).unwrap();
     /// let plane = geomcore::Plane::new(Point::ORIGIN, Vector::Z).unwrap();
@@ -1089,7 +1090,7 @@ impl IntersectExact<Sphere> for Torus {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::IntersectExact;
+    /// use geomcore::prelude::*;
     /// use geomcore::{Point, Sphere, Tolerance, Torus, TorusSphereIntersection, Vector};
     /// let torus = Torus::new(Point::ORIGIN, Vector::Z, 4.0, 1.0).unwrap();
     /// let sphere = Sphere::new(Point::ORIGIN, 5.0).unwrap();
@@ -1156,7 +1157,7 @@ impl IntersectExact<Cylinder> for Torus {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::IntersectExact;
+    /// use geomcore::prelude::*;
     /// use geomcore::{Cylinder, Point, Tolerance, Torus, TorusCylinderIntersection, Vector};
     /// let torus = Torus::new(Point::ORIGIN, Vector::Z, 4.0, 1.0).unwrap();
     /// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 4.5).unwrap();
@@ -1218,7 +1219,7 @@ impl IntersectExact<Cone> for Torus {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::IntersectExact;
+    /// use geomcore::prelude::*;
     /// use geomcore::{Cone, Frame, Point, Tolerance, Torus, TorusConeIntersection, Vector};
     /// let torus = Torus::new(Point::ORIGIN, Vector::Z, 4.0, 1.0).unwrap();
     /// let cone = Cone::from_frame(Frame::WORLD, 1.1, 2.0).unwrap();
@@ -1302,7 +1303,7 @@ impl IntersectExact<Torus> for Torus {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::IntersectExact;
+    /// use geomcore::prelude::*;
     /// use geomcore::{Point, Tolerance, Torus, TorusTorusIntersection, Vector};
     /// let t1 = Torus::new(Point::ORIGIN, Vector::Z, 4.0, 1.0).unwrap();
     /// let t2 = Torus::new(Point::new(0.0, 0.0, 1.5), Vector::Z, 4.0, 1.0).unwrap();

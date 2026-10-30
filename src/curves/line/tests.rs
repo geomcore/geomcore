@@ -1,3 +1,5 @@
+use crate::curves::ParametricCurve;
+use crate::curves::PointExtrema;
 use crate::{Axis, Frame, Line, LineConstructionError, Point, Tolerance, Transform, Vector};
 
 // ---- Line construction ----
@@ -90,7 +92,7 @@ fn test_line3d_parameter_of_round_trip() {
     let line = Line::new(Point::new(1.0, -2.0, 0.5), Vector::new(1.0, 2.0, 2.0)).unwrap();
     for u in [0.3, 2.0, -5.5] {
         let p = line.eval_point(u);
-        assert!((line.parameter_of(p) - u).abs() < 1e-9);
+        assert!((line.parameter_of(p, Tolerance::DEFAULT) - u).abs() < 1e-9);
     }
 }
 

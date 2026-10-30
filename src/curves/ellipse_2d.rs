@@ -19,6 +19,7 @@ use std::f64::consts::TAU;
 /// # Examples
 ///
 /// ```
+/// use geomcore::prelude::*;
 /// use geomcore::{Ellipse2D, Point2D, Vector2D};
 /// let ellipse = Ellipse2D::new(Point2D::ORIGIN, Vector2D::X, 3.0, 1.5).unwrap();
 /// assert_eq!(ellipse.eval_point(0.0), Point2D::new(3.0, 0.0));
@@ -235,148 +236,19 @@ impl Ellipse2D {
         std::f64::consts::PI * self.major_radius * self.minor_radius
     }
 
-    /// Evaluates the point on the ellipse at angular parameter `u`:
-    /// `center + major*cos(u)*x_dir + minor*sin(u)*y_dir`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{Ellipse2D, Point2D, Vector2D};
-    /// let ellipse = Ellipse2D::new(Point2D::ORIGIN, Vector2D::X, 3.0, 1.5).unwrap();
-    /// assert_eq!(ellipse.eval_point(0.0), Point2D::new(3.0, 0.0));
-    /// ```
-    pub fn eval_point(&self, u: f64) -> Point2D {
-        elementary::ellipse2d_d0(&self.frame, self.major_radius, self.minor_radius, u)
-    }
-
-    /// Evaluates the points on the ellipse at each parameter in `us`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{Ellipse2D, Point2D, Vector2D};
-    /// let ellipse = Ellipse2D::new(Point2D::ORIGIN, Vector2D::X, 3.0, 1.5).unwrap();
-    /// let points = ellipse.eval_points(&[0.0, 1.0]);
-    /// assert_eq!(points[0], Point2D::new(3.0, 0.0));
-    /// ```
-    pub fn eval_points(&self, us: &[f64]) -> Vec<Point2D> {
-        us.iter().map(|&u| self.eval_point(u)).collect()
-    }
-
-    /// Evaluates the derivative of the given `order` at parameter `u`.
-    ///
-    /// Derivatives cycle with period 4 in `order` (see
-    /// `crate::elementary::curve::ellipse2d_dn`).
-    ///
-    /// # Panics
-    ///
-    /// Panics if `order == 0`; use [`Ellipse2D::eval_point`] to evaluate the
-    /// position itself.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{Ellipse2D, Point2D, Vector2D};
-    /// let ellipse = Ellipse2D::new(Point2D::ORIGIN, Vector2D::X, 3.0, 1.5).unwrap();
-    /// assert_eq!(ellipse.eval_derivative(0.0, 1), Vector2D::new(0.0, 1.5));
-    /// ```
-    pub fn eval_derivative(&self, u: f64, order: u32) -> Vector2D {
-        match order {
-            0 => panic!("eval_derivative: order must be >= 1 (use eval_point for order 0)"),
-            _ => elementary::ellipse2d_dn(
-                &self.frame,
-                self.major_radius,
-                self.minor_radius,
-                u,
-                order,
-            ),
-        }
-    }
-
     /// The parameter to report for a point found at parameter `u`: `u`
     /// wrapped into `[0, 2*PI)`, and the start of the bounds when within
     /// `tol.confusion` of the seam along the curve, so a point at the seam
     /// has one parameter.
     pub(crate) fn parameter_in_bounds(&self, u: f64, tol: Tolerance) -> f64 {
-        let (first, last) = ParametricCurve2D::bounds(self);
+        let (first, last) = self.bounds();
         // The speed at parameter 0 is the minor radius.
         elementary::seam_wrapped(u, first, last - first, self.minor_radius, tol.confusion)
     }
+}
 
-    /// Recovers the angular parameter of a point on (or near) the ellipse,
-    /// wrapped into `[0, 2*PI)`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{Ellipse2D, Point2D, Vector2D};
-    /// let ellipse = Ellipse2D::new(Point2D::ORIGIN, Vector2D::X, 3.0, 1.5).unwrap();
-    /// assert!((ellipse.parameter_of(Point2D::new(0.0, 1.5)) - std::f64::consts::FRAC_PI_2).abs() < 1e-9);
-    /// ```
-    pub fn parameter_of(&self, point: Point2D) -> f64 {
-        elementary::ellipse2d_parameter(&self.frame, self.major_radius, self.minor_radius, point)
-    }
-
-    /// Returns whether `point` lies on the ellipse: within `tol.confusion`
-    /// of it, exactly when [`Ellipse2D::project_point`] reports distance
-    /// `0.0`.
-    ///
-    /// The implicit equation decides most points at once; of the points left
-    /// within a few tolerances of the curve, the inverse parameter accepts
-    /// most, and the projection settles the rest.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{Ellipse2D, Point2D, Tolerance, Vector2D};
-    /// let ellipse = Ellipse2D::new(Point2D::ORIGIN, Vector2D::X, 3.0, 1.5).unwrap();
-    /// let tol = Tolerance::DEFAULT;
-    /// assert!(ellipse.contains(Point2D::new(3.0, 0.0), tol));
-    /// assert!(!ellipse.contains(Point2D::new(4.0, 0.0), tol));
-    /// ```
-    pub fn contains(&self, point: Point2D, tol: Tolerance) -> bool {
-        let (a, b) = (self.major_radius, self.minor_radius);
-        // `(x/a)² + (y/b)² = 1`: on it `|∇f| ≥ 2/a`, as `b ≤ a`.
-        let near = elementary::conic_proximity_2d(
-            &self.frame,
-            point,
-            tol.confusion,
-            2.0 / (b * b),
-            2.0 / a,
-            |x, y| {
-                let (sx, sy) = (x / (a * a), y / (b * b));
-                (x * sx + y * sy - 1.0, 2.0 * sx, 2.0 * sy)
-            },
-        );
-        if let Some(near) = near {
-            return near;
-        }
-        let u = self.parameter_of(point);
-        self.eval_point(u).distance(point) <= tol.confusion
-            || self.project_point(point, tol).distance <= tol.confusion
-    }
-
-    /// All stationary points of the distance from `point` to the ellipse,
-    /// ordered by ascending distance.
-    ///
-    /// The stationarity condition `(E(t) - P).E'(t) = 0` becomes a quartic
-    /// in `s = tan(t/2)`, and the reversed quartic covers roots near
-    /// `t = PI`; every candidate is polished by Newton iteration. The first
-    /// entry is the global closest point (see
-    /// [`Ellipse2D::project_point`]).
-    ///
-    /// A query point with a non-finite coordinate has no extrema.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{Ellipse2D, Point2D, Tolerance, Vector2D};
-    /// let ellipse = Ellipse2D::new(Point2D::ORIGIN, Vector2D::X, 3.0, 1.5).unwrap();
-    /// let extrema = ellipse.extrema(Point2D::new(4.0, 0.0), Tolerance::DEFAULT);
-    /// assert!(!extrema.is_empty());
-    /// assert_eq!(extrema[0].distance, 1.0);
-    /// ```
-    pub fn extrema(&self, point: Point2D, tol: Tolerance) -> Vec<CurveProjection2D> {
+impl PointExtrema2D for Ellipse2D {
+    fn extrema(&self, point: Point2D, tol: Tolerance) -> Vec<CurveProjection2D> {
         if !point.is_finite() {
             return Vec::new();
         }
@@ -435,62 +307,59 @@ impl Ellipse2D {
         out
     }
 
-    /// Projects `point` onto the ellipse: the nearest of
-    /// [`Ellipse2D::extrema`]. Distances within `tol.confusion` snap to
-    /// `0.0`, matching [`Ellipse2D::contains`].
-    ///
-    /// A query point with a non-finite coordinate projects to a NaN
-    /// parameter and distance.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{Ellipse2D, Point2D, Tolerance, Vector2D};
-    /// let ellipse = Ellipse2D::new(Point2D::ORIGIN, Vector2D::X, 3.0, 1.5).unwrap();
-    /// let proj = ellipse.project_point(Point2D::new(4.0, 0.0), Tolerance::DEFAULT);
-    /// assert_eq!(proj.parameter, 0.0);
-    /// assert_eq!(proj.distance, 1.0);
-    /// ```
-    pub fn project_point(&self, point: Point2D, tol: Tolerance) -> CurveProjection2D {
+    /// Recovers the angular parameter of a point on (or near) the ellipse,
+    /// wrapped into `[0, 2*PI)`.
+    fn parameter_of(&self, point: Point2D, _tol: Tolerance) -> f64 {
+        elementary::ellipse2d_parameter(&self.frame, self.major_radius, self.minor_radius, point)
+    }
+
+    fn contains(&self, point: Point2D, tol: Tolerance) -> bool {
+        let (a, b) = (self.major_radius, self.minor_radius);
+        // `(x/a)² + (y/b)² = 1`: on it `|∇f| ≥ 2/a`, as `b ≤ a`.
+        let near = elementary::conic_proximity_2d(
+            &self.frame,
+            point,
+            tol.confusion,
+            2.0 / (b * b),
+            2.0 / a,
+            |x, y| {
+                let (sx, sy) = (x / (a * a), y / (b * b));
+                (x * sx + y * sy - 1.0, 2.0 * sx, 2.0 * sy)
+            },
+        );
+        if let Some(near) = near {
+            return near;
+        }
+        let u = self.parameter_of(point, tol);
+        self.eval_point(u).distance(point) <= tol.confusion
+            || self.project_point(point, tol).distance <= tol.confusion
+    }
+
+    fn project_point(&self, point: Point2D, tol: Tolerance) -> CurveProjection2D {
         self.extrema(point, tol)
             .into_iter()
             .next()
             .unwrap_or(CurveProjection2D::UNDEFINED)
     }
-
-    /// Projects each point in `points` onto the ellipse.
-    ///
-    /// Default-style batch wrapper over [`Ellipse2D::project_point`]: one
-    /// native call per batch, mirroring [`Ellipse2D::eval_points`].
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{Ellipse2D, Point2D, Tolerance, Vector2D};
-    /// let ellipse = Ellipse2D::new(Point2D::ORIGIN, Vector2D::X, 3.0, 1.5).unwrap();
-    /// let points = [Point2D::new(4.0, 0.0), Point2D::new(0.0, 1.5)];
-    /// let feet = ellipse.project_points(&points, Tolerance::DEFAULT);
-    /// assert_eq!(feet[0].distance, 1.0);
-    /// assert_eq!(feet[1].distance, 0.0);
-    /// ```
-    pub fn project_points(&self, points: &[Point2D], tol: Tolerance) -> Vec<CurveProjection2D> {
-        points.iter().map(|&p| self.project_point(p, tol)).collect()
-    }
-}
-
-impl PointExtrema2D for Ellipse2D {
-    fn extrema(&self, point: Point2D, tol: Tolerance) -> Vec<CurveProjection2D> {
-        Ellipse2D::extrema(self, point, tol)
-    }
 }
 
 impl ParametricCurve2D for Ellipse2D {
+    #[inline]
     fn eval_point(&self, u: f64) -> Point2D {
-        Ellipse2D::eval_point(self, u)
+        elementary::ellipse2d_d0(&self.frame, self.major_radius, self.minor_radius, u)
     }
 
     fn eval_derivative(&self, u: f64, order: u32) -> Vector2D {
-        Ellipse2D::eval_derivative(self, u, order)
+        match order {
+            0 => panic!("eval_derivative: order must be >= 1 (use eval_point for order 0)"),
+            _ => elementary::ellipse2d_dn(
+                &self.frame,
+                self.major_radius,
+                self.minor_radius,
+                u,
+                order,
+            ),
+        }
     }
 
     fn bounds(&self) -> (f64, f64) {
@@ -499,10 +368,6 @@ impl ParametricCurve2D for Ellipse2D {
 
     fn period(&self) -> Option<f64> {
         Some(TAU)
-    }
-
-    fn eval_points(&self, us: &[f64]) -> Vec<Point2D> {
-        Ellipse2D::eval_points(self, us)
     }
 }
 

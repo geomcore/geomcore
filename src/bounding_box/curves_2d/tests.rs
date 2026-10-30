@@ -1,3 +1,4 @@
+use crate::curves::ParametricCurve2D;
 use crate::curves::{Curve2D, TrimmedCurve2D};
 use crate::{
     BSplineCurve2D, BezierCurve2D, BoundingBox2D, Circle2D, Frame2D, HasBoundingBox2D, Line2D,

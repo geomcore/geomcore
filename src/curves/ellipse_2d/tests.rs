@@ -1,3 +1,5 @@
+use crate::curves::ParametricCurve2D;
+use crate::curves::PointExtrema2D;
 use crate::{Ellipse2D, EllipseConstructionError, Point2D, Tolerance, Vector2D};
 
 #[test]

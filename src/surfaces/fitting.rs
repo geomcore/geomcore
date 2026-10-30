@@ -155,6 +155,7 @@ impl BSplineSurface {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{BSplineSurface, Point, PointParametrization};
     /// let points: Vec<Vec<Point>> = (0..10)
     ///     .map(|i| {

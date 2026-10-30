@@ -5,6 +5,7 @@
 mod common;
 
 use common::{assert_point3, assert_vector3, load, point3};
+use geomcore::prelude::*;
 use geomcore::{BezierCurve, BezierSurface};
 use serde::Deserialize;
 

@@ -17,7 +17,8 @@ use crate::{Point, SurfaceProjection, Tolerance, Vector};
 /// # Examples
 ///
 /// ```
-/// use geomcore::surfaces::{ParametricSurface, Surface};
+/// use geomcore::prelude::*;
+/// use geomcore::surfaces::Surface;
 /// use geomcore::{Plane, Point, Sphere, Vector};
 ///
 /// let surfaces: Vec<Surface> = vec![
@@ -110,7 +111,7 @@ impl Surface {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::surfaces::ParametricSurface;
+    /// use geomcore::prelude::*;
     /// use geomcore::{Cylinder, Point, Surface, Vector};
     /// let cylinder = Surface::from(Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap());
     /// let reversed = cylinder.reversed_u();
@@ -133,7 +134,7 @@ impl Surface {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::surfaces::ParametricSurface;
+    /// use geomcore::prelude::*;
     /// use geomcore::{Plane, Point, Surface, Vector};
     /// let plane = Surface::from(Plane::new(Point::ORIGIN, Vector::Z).unwrap());
     /// let reversed = plane.reversed_v();
@@ -158,7 +159,7 @@ impl Surface {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::surfaces::ParametricSurface;
+    /// use geomcore::prelude::*;
     /// use geomcore::{Cylinder, Point, Surface, Vector};
     /// let cylinder = Surface::from(Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap());
     /// let u = cylinder.u_reversed_parameter(1.0);
@@ -199,6 +200,7 @@ impl Surface {
 }
 
 impl ParametricSurface for Surface {
+    #[inline]
     fn eval_point(&self, u: f64, v: f64) -> Point {
         match self {
             Surface::Plane(s) => s.eval_point(u, v),
@@ -223,22 +225,22 @@ impl ParametricSurface for Surface {
 
     fn eval_d1(&self, u: f64, v: f64) -> (Point, [Vector; 2]) {
         match self {
-            Surface::Plane(s) => ParametricSurface::eval_d1(s, u, v),
-            Surface::Cylinder(s) => ParametricSurface::eval_d1(s, u, v),
-            Surface::Cone(s) => ParametricSurface::eval_d1(s, u, v),
-            Surface::Sphere(s) => ParametricSurface::eval_d1(s, u, v),
-            Surface::Torus(s) => ParametricSurface::eval_d1(s, u, v),
+            Surface::Plane(s) => s.eval_d1(u, v),
+            Surface::Cylinder(s) => s.eval_d1(u, v),
+            Surface::Cone(s) => s.eval_d1(u, v),
+            Surface::Sphere(s) => s.eval_d1(u, v),
+            Surface::Torus(s) => s.eval_d1(u, v),
             Surface::BSpline(s) => s.eval_d1(u, v),
         }
     }
 
     fn eval_d2(&self, u: f64, v: f64) -> (Point, [Vector; 2], [Vector; 3]) {
         match self {
-            Surface::Plane(s) => ParametricSurface::eval_d2(s, u, v),
-            Surface::Cylinder(s) => ParametricSurface::eval_d2(s, u, v),
-            Surface::Cone(s) => ParametricSurface::eval_d2(s, u, v),
-            Surface::Sphere(s) => ParametricSurface::eval_d2(s, u, v),
-            Surface::Torus(s) => ParametricSurface::eval_d2(s, u, v),
+            Surface::Plane(s) => s.eval_d2(u, v),
+            Surface::Cylinder(s) => s.eval_d2(u, v),
+            Surface::Cone(s) => s.eval_d2(u, v),
+            Surface::Sphere(s) => s.eval_d2(u, v),
+            Surface::Torus(s) => s.eval_d2(u, v),
             Surface::BSpline(s) => s.eval_d2(u, v),
         }
     }
@@ -289,22 +291,22 @@ impl ParametricSurface for Surface {
 
     fn is_u_closed(&self, tol: Tolerance) -> bool {
         match self {
-            Surface::Plane(s) => ParametricSurface::is_u_closed(s, tol),
-            Surface::Cylinder(s) => ParametricSurface::is_u_closed(s, tol),
-            Surface::Cone(s) => ParametricSurface::is_u_closed(s, tol),
-            Surface::Sphere(s) => ParametricSurface::is_u_closed(s, tol),
-            Surface::Torus(s) => ParametricSurface::is_u_closed(s, tol),
+            Surface::Plane(s) => s.is_u_closed(tol),
+            Surface::Cylinder(s) => s.is_u_closed(tol),
+            Surface::Cone(s) => s.is_u_closed(tol),
+            Surface::Sphere(s) => s.is_u_closed(tol),
+            Surface::Torus(s) => s.is_u_closed(tol),
             Surface::BSpline(s) => s.is_u_closed(tol),
         }
     }
 
     fn is_v_closed(&self, tol: Tolerance) -> bool {
         match self {
-            Surface::Plane(s) => ParametricSurface::is_v_closed(s, tol),
-            Surface::Cylinder(s) => ParametricSurface::is_v_closed(s, tol),
-            Surface::Cone(s) => ParametricSurface::is_v_closed(s, tol),
-            Surface::Sphere(s) => ParametricSurface::is_v_closed(s, tol),
-            Surface::Torus(s) => ParametricSurface::is_v_closed(s, tol),
+            Surface::Plane(s) => s.is_v_closed(tol),
+            Surface::Cylinder(s) => s.is_v_closed(tol),
+            Surface::Cone(s) => s.is_v_closed(tol),
+            Surface::Sphere(s) => s.is_v_closed(tol),
+            Surface::Torus(s) => s.is_v_closed(tol),
             Surface::BSpline(s) => s.is_v_closed(tol),
         }
     }
@@ -344,56 +346,56 @@ impl ParametricSurface for Surface {
 
     fn continuity_u(&self, u: f64, tol: Tolerance) -> Continuity {
         match self {
-            Surface::Plane(s) => ParametricSurface::continuity_u(s, u, tol),
-            Surface::Cylinder(s) => ParametricSurface::continuity_u(s, u, tol),
-            Surface::Cone(s) => ParametricSurface::continuity_u(s, u, tol),
-            Surface::Sphere(s) => ParametricSurface::continuity_u(s, u, tol),
-            Surface::Torus(s) => ParametricSurface::continuity_u(s, u, tol),
+            Surface::Plane(s) => s.continuity_u(u, tol),
+            Surface::Cylinder(s) => s.continuity_u(u, tol),
+            Surface::Cone(s) => s.continuity_u(u, tol),
+            Surface::Sphere(s) => s.continuity_u(u, tol),
+            Surface::Torus(s) => s.continuity_u(u, tol),
             Surface::BSpline(s) => s.continuity_u(u, tol),
         }
     }
 
     fn continuity_v(&self, v: f64, tol: Tolerance) -> Continuity {
         match self {
-            Surface::Plane(s) => ParametricSurface::continuity_v(s, v, tol),
-            Surface::Cylinder(s) => ParametricSurface::continuity_v(s, v, tol),
-            Surface::Cone(s) => ParametricSurface::continuity_v(s, v, tol),
-            Surface::Sphere(s) => ParametricSurface::continuity_v(s, v, tol),
-            Surface::Torus(s) => ParametricSurface::continuity_v(s, v, tol),
+            Surface::Plane(s) => s.continuity_v(v, tol),
+            Surface::Cylinder(s) => s.continuity_v(v, tol),
+            Surface::Cone(s) => s.continuity_v(v, tol),
+            Surface::Sphere(s) => s.continuity_v(v, tol),
+            Surface::Torus(s) => s.continuity_v(v, tol),
             Surface::BSpline(s) => s.continuity_v(v, tol),
         }
     }
 
     fn min_continuity_u(&self) -> Continuity {
         match self {
-            Surface::Plane(s) => ParametricSurface::min_continuity_u(s),
-            Surface::Cylinder(s) => ParametricSurface::min_continuity_u(s),
-            Surface::Cone(s) => ParametricSurface::min_continuity_u(s),
-            Surface::Sphere(s) => ParametricSurface::min_continuity_u(s),
-            Surface::Torus(s) => ParametricSurface::min_continuity_u(s),
+            Surface::Plane(s) => s.min_continuity_u(),
+            Surface::Cylinder(s) => s.min_continuity_u(),
+            Surface::Cone(s) => s.min_continuity_u(),
+            Surface::Sphere(s) => s.min_continuity_u(),
+            Surface::Torus(s) => s.min_continuity_u(),
             Surface::BSpline(s) => s.min_continuity_u(),
         }
     }
 
     fn min_continuity_v(&self) -> Continuity {
         match self {
-            Surface::Plane(s) => ParametricSurface::min_continuity_v(s),
-            Surface::Cylinder(s) => ParametricSurface::min_continuity_v(s),
-            Surface::Cone(s) => ParametricSurface::min_continuity_v(s),
-            Surface::Sphere(s) => ParametricSurface::min_continuity_v(s),
-            Surface::Torus(s) => ParametricSurface::min_continuity_v(s),
+            Surface::Plane(s) => s.min_continuity_v(),
+            Surface::Cylinder(s) => s.min_continuity_v(),
+            Surface::Cone(s) => s.min_continuity_v(),
+            Surface::Sphere(s) => s.min_continuity_v(),
+            Surface::Torus(s) => s.min_continuity_v(),
             Surface::BSpline(s) => s.min_continuity_v(),
         }
     }
 
     fn curvatures(&self, u: f64, v: f64, tol: Tolerance) -> Option<SurfaceCurvatures> {
         match self {
-            Surface::Plane(s) => ParametricSurface::curvatures(s, u, v, tol),
-            Surface::Cylinder(s) => ParametricSurface::curvatures(s, u, v, tol),
-            Surface::Cone(s) => ParametricSurface::curvatures(s, u, v, tol),
-            Surface::Sphere(s) => ParametricSurface::curvatures(s, u, v, tol),
-            Surface::Torus(s) => ParametricSurface::curvatures(s, u, v, tol),
-            Surface::BSpline(s) => ParametricSurface::curvatures(s, u, v, tol),
+            Surface::Plane(s) => s.curvatures(u, v, tol),
+            Surface::Cylinder(s) => s.curvatures(u, v, tol),
+            Surface::Cone(s) => s.curvatures(u, v, tol),
+            Surface::Sphere(s) => s.curvatures(u, v, tol),
+            Surface::Torus(s) => s.curvatures(u, v, tol),
+            Surface::BSpline(s) => s.curvatures(u, v, tol),
         }
     }
 
@@ -405,7 +407,25 @@ impl ParametricSurface for Surface {
     }
 
     fn as_elementary(&self) -> Option<ElementarySurface> {
-        Surface::as_elementary(self)
+        match self {
+            Surface::Plane(s) => Some(ElementarySurface::Plane(*s)),
+            Surface::Cylinder(s) => Some(ElementarySurface::Cylinder(*s)),
+            Surface::Cone(s) => Some(ElementarySurface::Cone(*s)),
+            Surface::Sphere(s) => Some(ElementarySurface::Sphere(*s)),
+            Surface::Torus(s) => Some(ElementarySurface::Torus(*s)),
+            Surface::BSpline(_) => None,
+        }
+    }
+
+    fn parameters_of(&self, point: Point, tol: Tolerance) -> (f64, f64) {
+        match self {
+            Surface::Plane(s) => s.parameters_of(point, tol),
+            Surface::Cylinder(s) => s.parameters_of(point, tol),
+            Surface::Cone(s) => s.parameters_of(point, tol),
+            Surface::Sphere(s) => s.parameters_of(point, tol),
+            Surface::Torus(s) => s.parameters_of(point, tol),
+            Surface::BSpline(s) => s.parameters_of(point, tol),
+        }
     }
 }
 
@@ -504,6 +524,7 @@ impl From<&BSplineSurface> for Surface {
 /// # Examples
 ///
 /// ```
+/// use geomcore::prelude::*;
 /// use geomcore::surfaces::{ElementarySurface, Surface};
 /// use geomcore::{Plane, Point, Vector};
 ///
@@ -525,129 +546,8 @@ pub enum ElementarySurface {
     Torus(Torus),
 }
 
-impl Surface {
-    /// Projects `point` onto the surface: the closest parameters, the closest
-    /// point and the distance. Distances within `tol.confusion` snap to
-    /// `0.0`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::surfaces::Surface;
-    /// use geomcore::{Plane, Point, Tolerance, Vector};
-    ///
-    /// let surface = Surface::from(Plane::new(Point::ORIGIN, Vector::Z).unwrap());
-    /// let projection = surface.project_point(Point::new(1.0, 2.0, 3.0), Tolerance::DEFAULT);
-    /// assert_eq!(projection.point, Point::new(1.0, 2.0, 0.0));
-    /// assert_eq!(projection.distance, 3.0);
-    /// ```
-    pub fn project_point(&self, point: Point, tol: Tolerance) -> SurfaceProjection {
-        ParametricSurface::project_point(self, point, tol)
-    }
-
-    /// Projects each point in `points` onto the surface.
-    pub fn project_points(&self, points: &[Point], tol: Tolerance) -> Vec<SurfaceProjection> {
-        points.iter().map(|&p| self.project_point(p, tol)).collect()
-    }
-
-    /// The surface parameters `(u, v)` of the point of the surface closest
-    /// to `point`.
-    ///
-    /// An elementary surface uses its closed form (see
-    /// [`ElementarySurface::parameters_of`]). A B-spline projects the point
-    /// with [`Tolerance::DEFAULT`] and returns the projection's parameters;
-    /// call [`project_point`](Surface::project_point) to choose the
-    /// tolerance.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::surfaces::Surface;
-    /// use geomcore::{Plane, Point, Vector};
-    ///
-    /// let surface = Surface::from(Plane::new(Point::ORIGIN, Vector::Z).unwrap());
-    /// let (u, v) = surface.parameters_of(Point::new(1.0, 2.0, 0.0));
-    /// let back = geomcore::ParametricSurface::eval_point(&surface, u, v);
-    /// assert!(back.distance(Point::new(1.0, 2.0, 0.0)) < 1e-12);
-    /// ```
-    pub fn parameters_of(&self, point: Point) -> (f64, f64) {
-        match self {
-            Surface::Plane(s) => s.parameters_of(point),
-            Surface::Cylinder(s) => s.parameters_of(point),
-            Surface::Cone(s) => s.parameters_of(point),
-            Surface::Sphere(s) => s.parameters_of(point),
-            Surface::Torus(s) => s.parameters_of(point),
-            Surface::BSpline(s) => {
-                let projection = s.project_point(point, Tolerance::DEFAULT);
-                (projection.u, projection.v)
-            }
-        }
-    }
-
-    /// The surface as an [`ElementarySurface`], or `None` for a B-spline.
-    pub fn as_elementary(&self) -> Option<ElementarySurface> {
-        match self {
-            Surface::Plane(s) => Some(ElementarySurface::Plane(*s)),
-            Surface::Cylinder(s) => Some(ElementarySurface::Cylinder(*s)),
-            Surface::Cone(s) => Some(ElementarySurface::Cone(*s)),
-            Surface::Sphere(s) => Some(ElementarySurface::Sphere(*s)),
-            Surface::Torus(s) => Some(ElementarySurface::Torus(*s)),
-            Surface::BSpline(_) => None,
-        }
-    }
-}
-
-impl ElementarySurface {
-    /// The surface parameters `(u, v)` of the point of the surface closest
-    /// to `point`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::surfaces::ElementarySurface;
-    /// use geomcore::{Plane, Point, Vector};
-    ///
-    /// let surface = ElementarySurface::from(Plane::new(Point::ORIGIN, Vector::Z).unwrap());
-    /// let (u, v) = surface.parameters_of(Point::new(1.0, 2.0, 0.0));
-    /// let back = geomcore::ParametricSurface::eval_point(&surface, u, v);
-    /// assert!(back.distance(Point::new(1.0, 2.0, 0.0)) < 1e-12);
-    /// ```
-    pub fn parameters_of(&self, point: Point) -> (f64, f64) {
-        match self {
-            ElementarySurface::Plane(s) => s.parameters_of(point),
-            ElementarySurface::Cylinder(s) => s.parameters_of(point),
-            ElementarySurface::Cone(s) => s.parameters_of(point),
-            ElementarySurface::Sphere(s) => s.parameters_of(point),
-            ElementarySurface::Torus(s) => s.parameters_of(point),
-        }
-    }
-
-    /// Projects `point` onto the surface: the closest parameters, the closest
-    /// point and the distance. Distances within `tol.confusion` snap to
-    /// `0.0`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::surfaces::ElementarySurface;
-    /// use geomcore::{Plane, Point, Tolerance, Vector};
-    ///
-    /// let surface = ElementarySurface::from(Plane::new(Point::ORIGIN, Vector::Z).unwrap());
-    /// let projection = surface.project_point(Point::new(1.0, 2.0, 3.0), Tolerance::DEFAULT);
-    /// assert_eq!(projection.point, Point::new(1.0, 2.0, 0.0));
-    /// assert_eq!(projection.distance, 3.0);
-    /// ```
-    pub fn project_point(&self, point: Point, tol: Tolerance) -> SurfaceProjection {
-        ParametricSurface::project_point(self, point, tol)
-    }
-
-    /// Projects each point in `points` onto the surface.
-    pub fn project_points(&self, points: &[Point], tol: Tolerance) -> Vec<SurfaceProjection> {
-        points.iter().map(|&p| self.project_point(p, tol)).collect()
-    }
-}
-
 impl ParametricSurface for ElementarySurface {
+    #[inline]
     fn eval_point(&self, u: f64, v: f64) -> Point {
         match self {
             ElementarySurface::Plane(s) => s.eval_point(u, v),
@@ -740,6 +640,16 @@ impl ParametricSurface for ElementarySurface {
 
     fn as_elementary(&self) -> Option<ElementarySurface> {
         Some(*self)
+    }
+
+    fn parameters_of(&self, point: Point, tol: Tolerance) -> (f64, f64) {
+        match self {
+            ElementarySurface::Plane(s) => s.parameters_of(point, tol),
+            ElementarySurface::Cylinder(s) => s.parameters_of(point, tol),
+            ElementarySurface::Cone(s) => s.parameters_of(point, tol),
+            ElementarySurface::Sphere(s) => s.parameters_of(point, tol),
+            ElementarySurface::Torus(s) => s.parameters_of(point, tol),
+        }
     }
 }
 

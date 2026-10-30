@@ -112,6 +112,7 @@ impl Circle {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{Circle, Point, Vector};
     /// use std::f64::consts::{FRAC_PI_2, TAU};
     ///
@@ -155,6 +156,7 @@ impl Ellipse {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{Ellipse, Point, Vector};
     ///
     /// let ellipse = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 3.0, 1.0).unwrap();
@@ -310,6 +312,7 @@ impl<C: BSplineRange> TrimmedCurve<C> {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::curves::TrimmedCurve;
     /// use geomcore::{Circle, Point, Tolerance, Vector};
     /// use std::f64::consts::PI;
@@ -344,6 +347,7 @@ impl ElementaryCurve {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::curves::{BSplineConversionError, ElementaryCurve};
     /// use geomcore::{Circle, Line, Point, Vector};
     ///
@@ -451,6 +455,7 @@ impl Circle2D {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{Circle2D, Point2D};
     /// use std::f64::consts::{FRAC_PI_2, TAU};
     ///
@@ -494,6 +499,7 @@ impl Ellipse2D {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{Ellipse2D, Point2D, Vector2D};
     /// use std::f64::consts::TAU;
     ///
@@ -661,6 +667,7 @@ impl<C: BSplineRange2D> TrimmedCurve2D<C> {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::curves::TrimmedCurve2D;
     /// use geomcore::{Circle2D, Point2D, Tolerance};
     /// use std::f64::consts::PI;
@@ -697,6 +704,7 @@ impl Curve2D {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::curves::{BSplineConversionError, Curve2D};
     /// use geomcore::{Circle2D, Line2D, Point2D, Vector2D};
     ///

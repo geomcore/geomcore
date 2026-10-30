@@ -51,6 +51,7 @@ impl std::error::Error for PlaneConstructionError {}
 /// # Examples
 ///
 /// ```
+/// use geomcore::prelude::*;
 /// use geomcore::{Plane, Point, Vector};
 /// let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
 /// assert_eq!(plane.eval_point(2.0, 3.0), Point::new(2.0, 3.0, 0.0));
@@ -73,6 +74,7 @@ impl Plane {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{Plane, Point, Vector};
     /// let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
     /// assert_eq!(plane.normal(), Vector::Z);
@@ -119,6 +121,7 @@ impl Plane {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{Plane, Point, Vector};
     /// let plane = Plane::from_three_points(
     ///     Point::ORIGIN,
@@ -233,6 +236,7 @@ impl Plane {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{Plane, Point, Vector};
     /// let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
     /// assert_eq!(plane.normal(), Vector::Z);
@@ -254,6 +258,7 @@ impl Plane {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{Plane, Point, Vector};
     /// let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
     /// let reversed = plane.reversed_u();
@@ -274,6 +279,7 @@ impl Plane {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{Plane, Point, Vector};
     /// let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
     /// let reversed = plane.reversed_v();
@@ -291,6 +297,7 @@ impl Plane {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{Plane, Point, Vector};
     /// let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
     /// let u = plane.u_reversed_parameter(1.0);
@@ -306,6 +313,7 @@ impl Plane {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{Plane, Point, Vector};
     /// let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
     /// let v = plane.v_reversed_parameter(0.5);
@@ -326,6 +334,7 @@ impl Plane {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{Plane, Point, Vector};
     /// let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
     /// let iso = plane.u_iso(2.0).unwrap();
@@ -346,6 +355,7 @@ impl Plane {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{Plane, Point, Vector};
     /// let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
     /// let iso = plane.v_iso(2.0).unwrap();
@@ -375,6 +385,7 @@ impl Plane {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{Plane, Point, Transform, Vector};
     /// let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
     /// let moved = plane.transformed(Transform::translation(Vector::new(0.0, 0.0, 2.0))).unwrap();
@@ -386,130 +397,6 @@ impl Plane {
             PlaneConstructionError::NullNormal,
         ))?;
         Ok(Plane::from_frame(frame))
-    }
-
-    /// Evaluates the point on the plane at `(u, v)`:
-    /// `origin + u*x_dir + v*y_dir`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{Plane, Point, Vector};
-    /// let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
-    /// assert_eq!(plane.eval_point(2.0, 3.0), Point::new(2.0, 3.0, 0.0));
-    /// ```
-    pub fn eval_point(&self, u: f64, v: f64) -> Point {
-        elementary::plane_d0(&self.frame, u, v)
-    }
-
-    /// Evaluates the points on the plane at each `(u, v)` in `uvs`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{Plane, Point, Vector};
-    /// let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
-    /// let points = plane.eval_points(&[(1.0, 0.0), (0.0, 1.0)]);
-    /// assert_eq!(points[0], Point::new(1.0, 0.0, 0.0));
-    /// ```
-    pub fn eval_points(&self, uvs: &[(f64, f64)]) -> Vec<Point> {
-        uvs.iter().map(|&(u, v)| self.eval_point(u, v)).collect()
-    }
-
-    /// Evaluates the derivative of order `(du, dv)` at `(u, v)`.
-    ///
-    /// `Su = x_dir`, `Sv = y_dir`; every second derivative is identically
-    /// zero (the plane is linear in `u` and `v`).
-    ///
-    /// # Panics
-    ///
-    /// Panics if `du + dv == 0` (use [`Plane::eval_point`] for the position
-    /// itself) or if `du + dv > 2`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{Plane, Point, Vector};
-    /// let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
-    /// assert_eq!(plane.eval_derivative(0.0, 0.0, 1, 0), Vector::X);
-    /// ```
-    pub fn eval_derivative(&self, _u: f64, _v: f64, du: u32, dv: u32) -> Vector {
-        match du + dv {
-            0 => panic!(
-                "eval_derivative: du + dv must be >= 1 (use eval_point for the (0, 0) order)"
-            ),
-            1..=2 => elementary::plane_derivative(&self.frame, du, dv),
-            _ => panic!(
-                "eval_derivative: order du={du}, dv={dv} is not supported (du + dv must be <= 2)"
-            ),
-        }
-    }
-
-    /// Recovers `(u, v)` of a point on (or near) the plane: its local x/y
-    /// coordinates in the plane's frame.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{Plane, Point, Vector};
-    /// let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
-    /// assert_eq!(plane.parameters_of(Point::new(2.0, 3.0, 0.0)), (2.0, 3.0));
-    /// ```
-    pub fn parameters_of(&self, point: Point) -> (f64, f64) {
-        elementary::plane_parameters(&self.frame, point)
-    }
-
-    /// Returns whether `point` lies on the plane: the inverse parameters
-    /// are recovered with [`Plane::parameters_of`] and re-evaluated, and
-    /// the point counts as contained when the re-evaluated point is within
-    /// `tol.confusion` of it.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{Plane, Point, Tolerance, Vector};
-    /// let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
-    /// let tol = Tolerance::DEFAULT;
-    /// assert!(plane.contains(Point::ORIGIN, tol));
-    /// assert!(plane.contains(Point::new(1.0, 2.0, 0.0), tol));
-    /// assert!(!plane.contains(Point::new(0.0, 0.0, 1.0), tol));
-    /// ```
-    pub fn contains(&self, point: Point, tol: Tolerance) -> bool {
-        let (u, v) = self.parameters_of(point);
-        self.eval_point(u, v).distance(point) <= tol.confusion
-    }
-
-    /// Projects `point` onto the plane, returning the `(u, v)` parameters
-    /// of the closest point and its distance. Distances within
-    /// `tol.confusion` snap to `0.0`, matching [`Plane::contains`].
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{Plane, Point, Tolerance, Vector};
-    /// let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
-    /// let proj = plane.project_point(Point::new(1.0, 2.0, 3.0), Tolerance::DEFAULT);
-    /// assert_eq!((proj.u, proj.v), (1.0, 2.0));
-    /// assert_eq!(proj.distance, 3.0);
-    /// ```
-    pub fn project_point(&self, point: Point, tol: Tolerance) -> SurfaceProjection {
-        let (u, v) = self.parameters_of(point);
-        let foot = self.eval_point(u, v);
-        let distance = foot.distance(point);
-        SurfaceProjection {
-            u,
-            v,
-            point: foot,
-            distance: projection::snap_distance(distance, tol.confusion),
-        }
-    }
-
-    /// Projects each point in `points` onto the plane.
-    ///
-    /// Default-style batch wrapper over [`Plane::project_point`]: one
-    /// native call per batch, mirroring [`Plane::eval_points`].
-    pub fn project_points(&self, points: &[Point], tol: Tolerance) -> Vec<SurfaceProjection> {
-        points.iter().map(|&p| self.project_point(p, tol)).collect()
     }
 }
 
@@ -536,20 +423,38 @@ fn arbitrary_perpendicular_frame(origin: Point, normal: Vector) -> Frame {
 }
 
 impl ParametricSurface for Plane {
+    #[inline]
     fn eval_point(&self, u: f64, v: f64) -> Point {
-        Plane::eval_point(self, u, v)
+        elementary::plane_d0(&self.frame, u, v)
     }
 
     fn project_point(&self, point: Point, tol: Tolerance) -> SurfaceProjection {
-        Plane::project_point(self, point, tol)
+        let (u, v) = self.parameters_of(point, tol);
+        let foot = self.eval_point(u, v);
+        let distance = foot.distance(point);
+        SurfaceProjection {
+            u,
+            v,
+            point: foot,
+            distance: projection::snap_distance(distance, tol.confusion),
+        }
     }
 
     fn contains(&self, point: Point, tol: Tolerance) -> bool {
-        Plane::contains(self, point, tol)
+        let (u, v) = self.parameters_of(point, tol);
+        self.eval_point(u, v).distance(point) <= tol.confusion
     }
 
-    fn eval_derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> Vector {
-        Plane::eval_derivative(self, u, v, du, dv)
+    fn eval_derivative(&self, _u: f64, _v: f64, du: u32, dv: u32) -> Vector {
+        match du + dv {
+            0 => panic!(
+                "eval_derivative: du + dv must be >= 1 (use eval_point for the (0, 0) order)"
+            ),
+            1..=2 => elementary::plane_derivative(&self.frame, du, dv),
+            _ => panic!(
+                "eval_derivative: order du={du}, dv={dv} is not supported (du + dv must be <= 2)"
+            ),
+        }
     }
 
     fn u_bounds(&self) -> (f64, f64) {
@@ -568,12 +473,14 @@ impl ParametricSurface for Plane {
         None
     }
 
-    fn eval_points(&self, uvs: &[(f64, f64)]) -> Vec<Point> {
-        Plane::eval_points(self, uvs)
-    }
-
     fn as_elementary(&self) -> Option<ElementarySurface> {
         Some(ElementarySurface::Plane(*self))
+    }
+
+    /// Recovers `(u, v)` of a point on (or near) the plane: its local x/y
+    /// coordinates in the plane's frame.
+    fn parameters_of(&self, point: Point, _tol: Tolerance) -> (f64, f64) {
+        elementary::plane_parameters(&self.frame, point)
     }
 }
 

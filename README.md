@@ -53,6 +53,7 @@ See [ROADMAP.md](ROADMAP.md) for what's coming next and
 ## Rust
 
 ```rust
+use geomcore::prelude::*;
 use geomcore::{Point, Vector};
 use geomcore::curves::Circle;
 

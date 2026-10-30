@@ -18,7 +18,7 @@ One result per family: `CurveCurveIntersection` (and
 - the **hits**: the point, the multiplicity (1 for a crossing, 2+ for a
   tangency) and the parameters on both operands. A parameter is stored
   when the solver computed it on its way to the point, and is `None`
-  otherwise; `operand.parameter_of(hit.point)` (or `parameters_of` on a
+  otherwise; `operand.parameter_of(hit.point, tol)` (or `parameters_of` on a
   surface) recovers it in one call;
 - the **overlaps**, where a curve lies on the other shape: a parameter
   range on each curve plus `same_direction`, or the curve's ranges on a
@@ -50,7 +50,8 @@ and a tangency is decided by distance, not by root separation:
 === "Rust"
 
     ```rust
-    use geomcore::{Intersect, IntersectionMethod, Tolerance};
+    use geomcore::prelude::*;
+    use geomcore::{IntersectionMethod, Tolerance};
 
     let tol = Tolerance::DEFAULT;
     let result = plane.intersect(&sphere, tol);
@@ -143,7 +144,7 @@ crossings closer together than the grid spacing are each found.
 === "Rust"
 
     ```rust
-    use geomcore::Intersect;
+    use geomcore::prelude::*;
 
     let result = spline.intersect(&surface, tol);
     for h in result.hits() {
@@ -190,7 +191,7 @@ smaller than the iso-curve spacing can be missed.
 === "Rust"
 
     ```rust
-    use geomcore::Intersect;
+    use geomcore::prelude::*;
 
     let result = a.intersect(&b, tol);
     let curves = result.curves();   // BSpline curves where marched

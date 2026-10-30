@@ -174,6 +174,7 @@ impl Plane {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{Plane, Point, Vector};
     ///
     /// let plane = Plane::new(Point::new(0.0, 0.0, 1.0), Vector::Z).unwrap();
@@ -241,6 +242,7 @@ impl Cylinder {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{BSplineConversionError, Cylinder, Point, Vector};
     /// use std::f64::consts::{FRAC_PI_2, TAU};
     ///
@@ -302,6 +304,7 @@ impl Cone {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{Cone, Point, Vector};
     /// use std::f64::consts::PI;
     ///
@@ -348,6 +351,7 @@ impl Sphere {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{Point, Sphere};
     /// use std::f64::consts::{FRAC_PI_2, TAU};
     ///
@@ -388,6 +392,7 @@ impl Sphere {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{Point, Sphere};
     /// use std::f64::consts::{FRAC_PI_2, PI};
     ///
@@ -437,6 +442,7 @@ impl Torus {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{Point, Torus, Vector};
     ///
     /// let torus = Torus::new(Point::ORIGIN, Vector::Z, 3.0, 1.0).unwrap();
@@ -470,6 +476,7 @@ impl Torus {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{Point, Torus, Vector};
     /// use std::f64::consts::{PI, TAU};
     ///

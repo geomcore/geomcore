@@ -16,7 +16,8 @@ use crate::Point;
 /// # Examples
 ///
 /// ```
-/// use geomcore::{Completeness, Ellipse, Frame, Intersect, Point, Tolerance, Torus, Vector};
+/// use geomcore::prelude::*;
+/// use geomcore::{Completeness, Ellipse, Frame, Point, Tolerance, Torus, Vector};
 /// let ellipse = Ellipse::from_frame(Frame::WORLD, 5.0, 1.0).unwrap();
 /// let torus = Torus::new(Point::ORIGIN, Vector::Z, 3.0, 1.0).unwrap();
 /// let result = ellipse.intersect(&torus, Tolerance::DEFAULT);
@@ -157,10 +158,8 @@ pub(crate) fn merged<R: Region>(mut regions: Vec<R>) -> Vec<R> {
 /// # Examples
 ///
 /// ```
-/// use geomcore::{
-///     BSplineCurve, BSplineSurface, Completeness, IncompleteReason, Intersect, Point,
-///     Tolerance,
-/// };
+/// use geomcore::prelude::*;
+/// use geomcore::{BSplineCurve, BSplineSurface, Completeness, IncompleteReason, Point, Tolerance};
 /// let poles = vec![
 ///     vec![Point::new(0.0, 0.0, 0.0), Point::new(0.0, 2.0, 0.0)],
 ///     vec![Point::new(2.0, 0.0, 0.0), Point::new(2.0, 2.0, 0.0)],

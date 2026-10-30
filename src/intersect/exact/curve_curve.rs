@@ -1,8 +1,13 @@
 //! Exact intersections of two elementary curves, in space and in the
 //! plane: one result type per pair, solved in closed form.
 
+use crate::curves::ParametricCurve;
+use crate::curves::ParametricCurve2D;
+use crate::curves::PointExtrema;
+use crate::curves::PointExtrema2D;
 use crate::intersect::{CurveCurveHit, ImplicitConic, LinePlaneIntersection, PlacedConic};
 use crate::math::{QuadraticSolution, quadratic_centre, solve_quadratic};
+use crate::surfaces::ParametricSurface;
 use crate::{
     Circle, Circle2D, Ellipse, Hyperbola, IntersectExact, Line, Line2D, Parabola, Plane, Point,
     Point2D, Tolerance, Vector2D,
@@ -146,7 +151,8 @@ pub enum LineConicIntersection {
 /// # Examples
 ///
 /// ```
-/// use geomcore::{ConicConicIntersection, Ellipse, Frame, Hyperbola, IntersectExact, Tolerance};
+/// use geomcore::prelude::*;
+/// use geomcore::{ConicConicIntersection, Ellipse, Frame, Hyperbola, Tolerance};
 /// let ellipse = Ellipse::from_frame(Frame::WORLD, 3.0, 2.0).unwrap();
 /// let hyperbola = Hyperbola::from_frame(Frame::WORLD, 1.0, 0.5).unwrap();
 /// match ellipse.intersect_exact(&hyperbola, Tolerance::DEFAULT) {
@@ -179,7 +185,7 @@ impl IntersectExact<Line> for Line {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::IntersectExact;
+    /// use geomcore::prelude::*;
     /// use geomcore::{Line, LineLineIntersection, Point, Tolerance, Vector};
     /// let l1 = Line::new(Point::ORIGIN, Vector::X).unwrap();
     /// let l2 = Line::new(Point::ORIGIN, Vector::Y).unwrap();
@@ -236,7 +242,7 @@ impl IntersectExact<Circle> for Line {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::IntersectExact;
+    /// use geomcore::prelude::*;
     /// use geomcore::{Circle, Line, LineCircleIntersection, Point, Tolerance, Vector};
     /// let line = Line::new(Point::ORIGIN, Vector::X).unwrap();
     /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
@@ -265,7 +271,7 @@ impl IntersectExact<Circle> for Line {
                 let (x, y) = (plane.frame().x_direction(), plane.frame().y_direction());
                 let (d, w) = (
                     self.direction(),
-                    self.eval_point(self.parameter_of(circle.center())) - circle.center(),
+                    self.eval_point(self.parameter_of(circle.center(), tol)) - circle.center(),
                 );
                 let Ok(l2) = Line2D::new(
                     Point2D::new(w.dot(x), w.dot(y)),
@@ -279,13 +285,13 @@ impl IntersectExact<Circle> for Line {
                     LineCircle2DIntersection::Points((_, p1), (_, p2)) => {
                         let (q1, q2) = (plane.eval_point(p1.x, p1.y), plane.eval_point(p2.x, p2.y));
                         LineCircleIntersection::Points(
-                            (self.parameter_of(q1), q1),
-                            (self.parameter_of(q2), q2),
+                            (self.parameter_of(q1, tol), q1),
+                            (self.parameter_of(q2, tol), q2),
                         )
                     }
                     LineCircle2DIntersection::Tangent(_, p) => {
                         let q = plane.eval_point(p.x, p.y);
-                        LineCircleIntersection::Tangent(self.parameter_of(q), q)
+                        LineCircleIntersection::Tangent(self.parameter_of(q, tol), q)
                     }
                     LineCircle2DIntersection::Empty => LineCircleIntersection::Empty,
                 }
@@ -306,7 +312,7 @@ impl IntersectExact<Ellipse> for Line {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::IntersectExact;
+    /// use geomcore::prelude::*;
     /// use geomcore::{Ellipse, Line, LineConicIntersection, Point, Tolerance, Vector};
     /// let line = Line::new(Point::ORIGIN, Vector::X).unwrap();
     /// let ellipse = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 3.0, 1.5).unwrap();
@@ -333,7 +339,7 @@ impl IntersectExact<Ellipse> for Line {
             self,
             &conic,
             |p| ellipse.contains(p, tol),
-            |p| ellipse.parameter_in_bounds(ellipse.parameter_of(p), tol),
+            |p| ellipse.parameter_in_bounds(ellipse.parameter_of(p, tol), tol),
             tol,
         )
     }
@@ -351,7 +357,7 @@ impl IntersectExact<Parabola> for Line {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::IntersectExact;
+    /// use geomcore::prelude::*;
     /// use geomcore::{Line, LineConicIntersection, Parabola, Point, Tolerance, Vector};
     /// let line = Line::new(Point::ORIGIN, Vector::X).unwrap();
     /// let parabola = Parabola::new(Point::ORIGIN, Vector::Z, Vector::X, 1.0).unwrap();
@@ -378,7 +384,7 @@ impl IntersectExact<Parabola> for Line {
             self,
             &conic,
             |p| parabola.contains(p, tol),
-            |p| parabola.parameter_of(p),
+            |p| parabola.parameter_of(p, tol),
             tol,
         )
     }
@@ -397,7 +403,7 @@ impl IntersectExact<Hyperbola> for Line {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::IntersectExact;
+    /// use geomcore::prelude::*;
     /// use geomcore::{Hyperbola, Line, LineConicIntersection, Point, Tolerance, Vector};
     /// let line = Line::new(Point::new(2.0, -5.0, 0.0), Vector::Y).unwrap();
     /// let hyperbola = Hyperbola::new(Point::ORIGIN, Vector::Z, Vector::X, 2.0, 1.0).unwrap();
@@ -423,7 +429,7 @@ impl IntersectExact<Hyperbola> for Line {
             self,
             &conic,
             |p| hyperbola.contains(p, tol),
-            |p| hyperbola.parameter_of(p),
+            |p| hyperbola.parameter_of(p, tol),
             tol,
         )
     }
@@ -440,7 +446,7 @@ impl IntersectExact<Line2D> for Line2D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::IntersectExact;
+    /// use geomcore::prelude::*;
     /// use geomcore::{Line2D, LineLine2DIntersection, Point2D, Tolerance, Vector2D};
     /// let l1 = Line2D::new(Point2D::ORIGIN, Vector2D::X).unwrap();
     /// let l2 = Line2D::new(Point2D::ORIGIN, Vector2D::Y).unwrap();
@@ -485,7 +491,7 @@ impl IntersectExact<Circle2D> for Line2D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::IntersectExact;
+    /// use geomcore::prelude::*;
     /// use geomcore::{Circle2D, Line2D, LineCircle2DIntersection, Point2D, Tolerance, Vector2D};
     /// let line = Line2D::new(Point2D::ORIGIN, Vector2D::X).unwrap();
     /// let circle = Circle2D::new(Point2D::ORIGIN, 2.0).unwrap();
@@ -539,7 +545,7 @@ impl IntersectExact<Circle> for Circle {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::IntersectExact;
+    /// use geomcore::prelude::*;
     /// use geomcore::{Circle, CircleCircleIntersection, Point, Tolerance, Vector};
     /// let c1 = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
     /// let c2 = Circle::new(Point::new(3.0, 0.0, 0.0), Vector::Z, 2.0).unwrap();
@@ -609,7 +615,7 @@ impl IntersectExact<Circle2D> for Circle2D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::IntersectExact;
+    /// use geomcore::prelude::*;
     /// use geomcore::{Circle2D, CircleCircle2DIntersection, Point2D, Tolerance};
     /// let c1 = Circle2D::new(Point2D::ORIGIN, 2.0).unwrap();
     /// let c2 = Circle2D::new(Point2D::new(3.0, 0.0), 2.0).unwrap();
@@ -661,7 +667,7 @@ fn line_meets_plane_near(
 ) -> LinePlaneIntersection {
     let n = plane.normal();
     let b = n.dot(line.direction());
-    let foot = line.parameter_of(centre);
+    let foot = line.parameter_of(centre, tol);
     let c = n.dot(line.eval_point(foot) - plane.frame().origin());
     if b.abs() <= tol.angular_for_extent(extent) {
         if c.abs() <= tol.confusion {

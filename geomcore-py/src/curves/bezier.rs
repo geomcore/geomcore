@@ -7,8 +7,8 @@ use crate::errors::python_error;
 use crate::results::*;
 use crate::values::*;
 use crate::{ContinuityNumber, check_curve_order, tolerance};
-use geomcore::HasBoundingBox;
 use geomcore::curves::BezierCurve;
+use geomcore::prelude::*;
 use pyo3::prelude::*;
 
 /// A Bézier curve (optionally rational) in 3D: `degree + 1` control
@@ -147,9 +147,9 @@ impl PyBezierCurve {
         self.0.eval_points(&us).into_iter().map(PyPoint).collect()
     }
 
-    /// Evaluate the derivative at `u`; orders 1 and 2 are supported.
+    /// Evaluate the derivative of the given order (>= 1) at `u`.
     fn eval_derivative(&self, u: f64, order: u32) -> PyResult<PyVector> {
-        check_curve_order(order, 2)?;
+        check_curve_order(order)?;
         Ok(PyVector(self.0.eval_derivative(u, order)))
     }
 
@@ -179,10 +179,10 @@ impl PyBezierCurve {
         (PyPoint(point), PyVector(first), PyVector(second))
     }
 
-    /// The derivative of order 1 or 2 at `u` from one `side`, as
+    /// The derivative of the given order (>= 1) at `u` from one `side`, as
     /// `eval_d1_sided`.
     fn eval_derivative_sided(&self, u: f64, order: u32, side: PySide) -> PyResult<PyVector> {
-        check_curve_order(order, 2)?;
+        check_curve_order(order)?;
         Ok(PyVector(self.0.eval_derivative_sided(
             u,
             order,
@@ -190,9 +190,11 @@ impl PyBezierCurve {
         )))
     }
 
-    /// The parameter of the point of the curve closest to `point`.
-    fn parameter_of(&self, point: PyPoint) -> f64 {
-        self.0.parameter_of(point.0)
+    /// The parameter of the point of the curve closest to `point`,
+    /// within `tol` (`Tolerance.default()` when omitted).
+    #[pyo3(signature = (point, tol = None))]
+    fn parameter_of(&self, point: PyPoint, tol: Option<PyTolerance>) -> f64 {
+        self.0.parameter_of(point.0, tolerance(tol))
     }
 
     /// Returns whether `point` lies on the curve within `tol`

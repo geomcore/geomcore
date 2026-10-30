@@ -1,4 +1,6 @@
 use super::*;
+use crate::curves::ParametricCurve;
+use crate::curves::PointExtrema;
 
 /// Dense Gaussian elimination with partial pivoting, the reference.
 fn dense_solve(mut a: Vec<Vec<f64>>, mut b: Vec<Point>) -> Vec<Point> {

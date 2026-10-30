@@ -1,11 +1,10 @@
 //! Discretization through its public interface: every reported deviation
 //! is checked against an independent measurement of the true one.
 
-use geomcore::curves::{ParametricCurve, ParametricCurve2D};
 use geomcore::discretization::{
     Discretization, Discretization2D, DiscretizationCriteria, DiscretizationCriteriaError,
-    Discretize, Discretize2D,
 };
+use geomcore::prelude::*;
 use geomcore::{
     BSplineCurve, Circle, Circle2D, Curve, Curve2D, Ellipse, Ellipse2D, Frame2D, Hyperbola,
     Hyperbola2D, Line, Line2D, Parabola, Parabola2D, Point, Point2D, Tolerance, TrimmedCurve,

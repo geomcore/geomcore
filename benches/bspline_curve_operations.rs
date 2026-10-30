@@ -8,8 +8,8 @@ use criterion::{Criterion, criterion_group, criterion_main};
 use std::f64::consts::TAU;
 use std::hint::black_box;
 
-use geomcore::bounding_box::HasBoundingBox;
 use geomcore::curves::BSplineCurve;
+use geomcore::prelude::*;
 use geomcore::{Point, Tolerance};
 
 const TOL: Tolerance = Tolerance::DEFAULT;

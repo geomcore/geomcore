@@ -51,6 +51,7 @@ enum Direction {
 /// A bilinear (degree-1 × degree-1) patch over the unit square:
 ///
 /// ```
+/// use geomcore::prelude::*;
 /// use geomcore::surfaces::BSplineSurface;
 /// use geomcore::Point;
 ///
@@ -158,6 +159,7 @@ impl BSplineSurface {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::surfaces::BSplineSurface;
     /// use geomcore::Point;
     ///
@@ -214,6 +216,7 @@ impl BSplineSurface {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::surfaces::BSplineSurface;
     /// use geomcore::Point;
     ///
@@ -399,43 +402,6 @@ impl BSplineSurface {
         self.v_knots.is_periodic()
     }
 
-    /// Returns whether travelling in `u` returns to its start: a periodic
-    /// surface, or one whose boundary curves at the two `u` bounds
-    /// coincide, their poles within `tol.confusion` (and their weights
-    /// proportional where rational).
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use geomcore::surfaces::BSplineSurface;
-    /// # use geomcore::{Point, Tolerance};
-    /// # let row = |x: f64| vec![Point::new(x, 0.0, 0.0), Point::new(x, 1.0, 0.0)];
-    /// # let surface = BSplineSurface::new(1, 1, vec![row(0.0), row(1.0), row(0.0)], vec![0.0, 1.0, 2.0], vec![2, 1, 2], vec![0.0, 1.0], vec![2, 2], false, false).unwrap();
-    /// assert!(surface.is_u_closed(Tolerance::DEFAULT));
-    /// assert!(!surface.is_v_closed(Tolerance::DEFAULT));
-    /// ```
-    pub fn is_u_closed(&self, tol: Tolerance) -> bool {
-        self.is_u_periodic() || self.boundaries_meet(Direction::U, tol)
-    }
-
-    /// Returns whether travelling in `v` returns to its start: a periodic
-    /// surface, or one whose boundary curves at the two `v` bounds
-    /// coincide, their poles within `tol.confusion` (and their weights
-    /// proportional where rational).
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use geomcore::surfaces::BSplineSurface;
-    /// # use geomcore::{Point, Tolerance};
-    /// # let surface = BSplineSurface::new(1, 1, vec![vec![Point::new(0.0, 0.0, 0.0), Point::new(0.0, 1.0, 0.0)], vec![Point::new(1.0, 0.0, 0.0), Point::new(1.0, 1.0, 0.0)]], vec![0.0, 1.0], vec![2, 2], vec![0.0, 1.0], vec![2, 2], false, false).unwrap();
-    /// assert!(!surface.is_u_closed(Tolerance::DEFAULT));
-    /// assert!(!surface.is_v_closed(Tolerance::DEFAULT));
-    /// ```
-    pub fn is_v_closed(&self, tol: Tolerance) -> bool {
-        self.is_v_periodic() || self.boundaries_meet(Direction::V, tol)
-    }
-
     /// Whether the isoparametric curves at the two bounds of `direction`
     /// coincide. Both share the knot vector across `direction`, so they
     /// are the same curve exactly when their poles match and their weights
@@ -464,80 +430,6 @@ impl BSplineSurface {
                 // One boundary has uniform weights, the other does not.
                 _ => false,
             }
-    }
-
-    /// [`Continuity`] in `u` at parameter `u`: `Order(u_degree −
-    /// multiplicity)` at a `u` knot within `tol.parametric`, `Smooth`
-    /// elsewhere. This is the order the knots
-    /// guarantee; the surface may be smoother. A non-periodic direction
-    /// reports smooth at and beyond its bounds; a periodic one wraps `u`
-    /// into its period, so its seam is a knot like any other.
-    ///
-    /// Derivatives in `u` of higher order than the one reported may differ
-    /// on the two sides of `u`; [`eval_d1_sided`](Self::eval_d1_sided) and
-    /// its siblings evaluate each side.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use geomcore::surfaces::BSplineSurface;
-    /// # use geomcore::{Continuity, Point, Tolerance};
-    /// # let poles = vec![
-    /// #     vec![Point::new(0.0, 0.0, 0.0), Point::new(0.0, 1.0, 0.0)],
-    /// #     vec![Point::new(1.0, 0.0, 0.0), Point::new(1.0, 1.0, 1.0)],
-    /// # ];
-    /// # let surface = BSplineSurface::new(1, 1, poles, vec![0.0, 1.0], vec![2, 2], vec![0.0, 1.0], vec![2, 2], false, false).unwrap();
-    /// assert_eq!(surface.continuity_u(0.5, Tolerance::DEFAULT), Continuity::Smooth);
-    /// ```
-    pub fn continuity_u(&self, u: f64, tol: Tolerance) -> Continuity {
-        curve::continuity_at(
-            self.u_degree(),
-            self.u_knots(),
-            self.u_multiplicities(),
-            self.u_param_range(),
-            self.is_u_periodic(),
-            u,
-            tol,
-        )
-    }
-
-    /// [`Continuity`] in `v` at parameter `v`, as
-    /// [`continuity_u`](Self::continuity_u) for `u`.
-    pub fn continuity_v(&self, v: f64, tol: Tolerance) -> Continuity {
-        curve::continuity_at(
-            self.v_degree(),
-            self.v_knots(),
-            self.v_multiplicities(),
-            self.v_param_range(),
-            self.is_v_periodic(),
-            v,
-            tol,
-        )
-    }
-
-    /// Minimum [`Continuity`] in `u` over the domain (`Smooth` when no
-    /// knot constrains it): the worst `u` knot strictly inside the bounds,
-    /// or, in a periodic direction, the worst `u` knot including the seam.
-    pub fn min_continuity_u(&self) -> Continuity {
-        curve::min_continuity(
-            self.u_degree(),
-            self.u_knots(),
-            self.u_multiplicities(),
-            self.u_param_range(),
-            self.is_u_periodic(),
-        )
-    }
-
-    /// Minimum continuity order in `v` over the domain, as
-    /// [`min_continuity_u`](Self::min_continuity_u) for `u`.
-    pub fn min_continuity_v(&self) -> Continuity {
-        curve::min_continuity(
-            self.v_degree(),
-            self.v_knots(),
-            self.v_multiplicities(),
-            self.v_param_range(),
-            self.is_v_periodic(),
-        )
     }
 
     /// Returns whether the surface is rational (has per-pole weights).
@@ -720,6 +612,7 @@ impl BSplineSurface {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{BSplineSurface, Point};
     ///
     /// let poles: Vec<Vec<Point>> = (0..3)
@@ -756,6 +649,7 @@ impl BSplineSurface {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{BSplineSurface, Point};
     ///
     /// let poles: Vec<Vec<Point>> = (0..2)
@@ -826,6 +720,7 @@ impl BSplineSurface {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{BSplineSurface, Point};
     ///
     /// let poles: Vec<Vec<Point>> = (0..2)
@@ -866,6 +761,7 @@ impl BSplineSurface {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{BSplineSurface, Point};
     ///
     /// let poles = vec![
@@ -897,6 +793,7 @@ impl BSplineSurface {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{BSplineSurface, Point};
     ///
     /// let poles = vec![
@@ -1119,6 +1016,7 @@ impl BSplineSurface {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{BSplineSurface, Point};
     ///
     /// let poles: Vec<Vec<Point>> = (0..4)
@@ -1206,6 +1104,7 @@ impl BSplineSurface {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{BSplineSurface, BSplineSplitError, Point};
     ///
     /// let poles: Vec<Vec<Point>> = (0..3)
@@ -1272,6 +1171,7 @@ impl BSplineSurface {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{BSplineSurface, Point};
     ///
     /// let poles: Vec<Vec<Point>> = (0..2)
@@ -1303,6 +1203,7 @@ impl BSplineSurface {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{BSplineSurface, Point};
     ///
     /// let poles: Vec<Vec<Point>> = (0..3)
@@ -1372,6 +1273,7 @@ impl BSplineSurface {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{BSplineSurface, Point};
     ///
     /// let poles: Vec<Vec<Point>> = (0..3)
@@ -1410,6 +1312,7 @@ impl BSplineSurface {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{BSplineSurface, Point};
     ///
     /// let poles: Vec<Vec<Point>> = (0..2)
@@ -1447,6 +1350,7 @@ impl BSplineSurface {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{BSplineSurface, Point};
     ///
     /// let poles: Vec<Vec<Point>> = (0..3)
@@ -1493,6 +1397,7 @@ impl BSplineSurface {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{BSplineSurface, Point};
     ///
     /// let poles: Vec<Vec<Point>> = (0..3)
@@ -1526,6 +1431,7 @@ impl BSplineSurface {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{BSplineSurface, Point};
     ///
     /// let poles: Vec<Vec<Point>> = (0..3)
@@ -1728,6 +1634,7 @@ impl BSplineSurface {
     /// # Examples
     ///
     /// ```
+    /// # use geomcore::prelude::*;
     /// # use geomcore::surfaces::BSplineSurface;
     /// # use geomcore::{Point, Transform, Vector};
     /// # let poles = vec![
@@ -1750,143 +1657,6 @@ impl BSplineSurface {
             weights: self.weights.clone(),
             patches: Lazy::default(),
         }
-    }
-
-    /// Evaluates the point on the surface at parameters `(u, v)`.
-    ///
-    /// For periodic directions, a parameter outside the bounds is wrapped into
-    /// the period before evaluation.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use geomcore::surfaces::BSplineSurface;
-    /// # use geomcore::Point;
-    /// # let poles = vec![
-    /// #     vec![Point::new(0.0, 0.0, 0.0), Point::new(0.0, 1.0, 0.0)],
-    /// #     vec![Point::new(1.0, 0.0, 0.0), Point::new(1.0, 1.0, 1.0)],
-    /// # ];
-    /// # let surface = BSplineSurface::new(1, 1, poles, vec![0.0, 1.0], vec![2, 2], vec![0.0, 1.0], vec![2, 2], false, false).unwrap();
-    /// assert_eq!(surface.eval_point(0.5, 0.5), Point::new(0.5, 0.5, 0.25));
-    /// ```
-    pub fn eval_point(&self, u: f64, v: f64) -> Point {
-        math::surface_point(&self.u_knots, &self.v_knots, self.pole_view(), u, v)
-    }
-
-    /// Evaluates the points on the surface at each `(u, v)` in `uvs`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use geomcore::surfaces::BSplineSurface;
-    /// # use geomcore::Point;
-    /// # let poles = vec![
-    /// #     vec![Point::new(0.0, 0.0, 0.0), Point::new(0.0, 1.0, 0.0)],
-    /// #     vec![Point::new(1.0, 0.0, 0.0), Point::new(1.0, 1.0, 1.0)],
-    /// # ];
-    /// # let surface = BSplineSurface::new(1, 1, poles, vec![0.0, 1.0], vec![2, 2], vec![0.0, 1.0], vec![2, 2], false, false).unwrap();
-    /// let points = surface.eval_points(&[(0.0, 0.0), (0.5, 0.5)]);
-    /// assert_eq!(points[1], Point::new(0.5, 0.5, 0.25));
-    /// ```
-    pub fn eval_points(&self, uvs: &[(f64, f64)]) -> Vec<Point> {
-        uvs.iter().map(|&(u, v)| self.eval_point(u, v)).collect()
-    }
-
-    /// Evaluates the partial derivative of order `(du, dv)` at `(u, v)`,
-    /// for `1 <= du + dv <= 2`: `(1, 0)` is `∂S/∂u`, `(1, 1)` is
-    /// `∂²S/∂u∂v`, and so on.
-    ///
-    /// # Panics
-    ///
-    /// Panics if `du + dv == 0` (use [`BSplineSurface::eval_point`] for the
-    /// position itself), or if `du + dv > 2`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use geomcore::surfaces::BSplineSurface;
-    /// # use geomcore::{Point, Vector};
-    /// # let poles = vec![
-    /// #     vec![Point::new(0.0, 0.0, 0.0), Point::new(0.0, 1.0, 0.0)],
-    /// #     vec![Point::new(1.0, 0.0, 0.0), Point::new(1.0, 1.0, 1.0)],
-    /// # ];
-    /// # let surface = BSplineSurface::new(1, 1, poles, vec![0.0, 1.0], vec![2, 2], vec![0.0, 1.0], vec![2, 2], false, false).unwrap();
-    /// // Bilinear patch: Su = (1, 0, v), Sv = (0, 1, u).
-    /// assert_eq!(surface.eval_derivative(0.3, 0.7, 1, 0), Vector::new(1.0, 0.0, 0.7));
-    /// assert_eq!(surface.eval_derivative(0.3, 0.7, 0, 1), Vector::new(0.0, 1.0, 0.3));
-    /// ```
-    pub fn eval_derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> Vector {
-        match (du, dv) {
-            (0, 0) => panic!(
-                "eval_derivative: du + dv must be >= 1 (use eval_point for the (0, 0) order)"
-            ),
-            (1, 0) | (0, 1) => {
-                let (_s, su, sv) = self.eval_surface_d1(u, v);
-                if du == 1 { su } else { sv }
-            }
-            (2, 0) | (1, 1) | (0, 2) => {
-                let [_, _, _, suu, suv, svv] = self.eval_surface_d2(u, v);
-                match du {
-                    2 => suu,
-                    1 => suv,
-                    _ => svv,
-                }
-            }
-            _ => panic!(
-                "eval_derivative: order du={du}, dv={dv} is not supported (du + dv must be <= 2)"
-            ),
-        }
-    }
-
-    /// Evaluates the point and the first derivatives `[Su, Sv]` at
-    /// parameters `(u, v)`, from one evaluation of the basis functions.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{BSplineSurface, Point, Vector};
-    /// let poles = vec![
-    ///     vec![Point::new(0.0, 0.0, 0.0), Point::new(0.0, 2.0, 0.0)],
-    ///     vec![Point::new(2.0, 0.0, 0.0), Point::new(2.0, 2.0, 0.0)],
-    /// ];
-    /// let surface = BSplineSurface::new(
-    ///     1, 1, poles, vec![0.0, 1.0], vec![2, 2], vec![0.0, 1.0], vec![2, 2], false, false,
-    /// )
-    /// .unwrap();
-    /// let (point, [su, sv]) = surface.eval_d1(0.5, 0.5);
-    /// assert_eq!(point, Point::new(1.0, 1.0, 0.0));
-    /// assert_eq!(su, Vector::new(2.0, 0.0, 0.0));
-    /// assert_eq!(sv, Vector::new(0.0, 2.0, 0.0));
-    /// ```
-    pub fn eval_d1(&self, u: f64, v: f64) -> (Point, [Vector; 2]) {
-        let (s, su, sv) = self.eval_surface_d1(u, v);
-        (s, [su, sv])
-    }
-
-    /// Evaluates the point, the first derivatives `[Su, Sv]` and the second
-    /// derivatives `[Suu, Suv, Svv]` at parameters `(u, v)`, from one
-    /// evaluation of the basis functions.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{BSplineSurface, Point, Vector};
-    /// let poles = vec![
-    ///     vec![Point::new(0.0, 0.0, 0.0), Point::new(0.0, 2.0, 0.0)],
-    ///     vec![Point::new(2.0, 0.0, 0.0), Point::new(2.0, 2.0, 1.0)],
-    /// ];
-    /// let surface = BSplineSurface::new(
-    ///     1, 1, poles, vec![0.0, 1.0], vec![2, 2], vec![0.0, 1.0], vec![2, 2], false, false,
-    /// )
-    /// .unwrap();
-    /// let (_, _, [suu, suv, svv]) = surface.eval_d2(0.5, 0.5);
-    /// assert_eq!(suu, Vector::ZERO);
-    /// assert_eq!(suv, Vector::new(0.0, 0.0, 1.0));
-    /// assert_eq!(svv, Vector::ZERO);
-    /// ```
-    pub fn eval_d2(&self, u: f64, v: f64) -> (Point, [Vector; 2], [Vector; 3]) {
-        let [s, su, sv, suu, suv, svv] = self.eval_surface_d2(u, v);
-        (Point::ORIGIN + s, [su, sv], [suu, suv, svv])
     }
 
     /// Evaluates the point and the first derivatives at `(u, v)`, each
@@ -2006,31 +1776,6 @@ impl BSplineSurface {
         (Point::ORIGIN + s, [su, sv], [suu, suv, svv])
     }
 
-    /// Returns whether `point` lies on the surface: the surface is
-    /// projected with [`BSplineSurface::project_point`] and the point
-    /// counts as contained when the projected distance is within
-    /// `tol.confusion`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{BSplineSurface, Point, Tolerance};
-    /// let poles = vec![
-    ///     vec![Point::new(0.0, 0.0, 0.0), Point::new(0.0, 2.0, 0.0)],
-    ///     vec![Point::new(2.0, 0.0, 0.0), Point::new(2.0, 2.0, 0.0)],
-    /// ];
-    /// let surface = BSplineSurface::new(
-    ///     1, 1, poles, vec![0.0, 1.0], vec![2, 2], vec![0.0, 1.0], vec![2, 2], false, false,
-    /// )
-    /// .unwrap();
-    /// let tol = Tolerance::DEFAULT;
-    /// assert!(surface.contains(Point::new(1.0, 1.0, 0.0), tol));
-    /// assert!(!surface.contains(Point::new(1.0, 1.0, 1.0), tol));
-    /// ```
-    pub fn contains(&self, point: Point, tol: Tolerance) -> bool {
-        self.project_point(point, tol).distance <= tol.confusion
-    }
-
     /// All local minima of the distance from `point` to the surface,
     /// ordered by ascending distance, the first being
     /// [`BSplineSurface::project_point`].
@@ -2047,6 +1792,7 @@ impl BSplineSurface {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{BSplineSurface, Point, Tolerance};
     /// let poles = vec![
     ///     vec![Point::new(0.0, 0.0, 0.0), Point::new(0.0, 2.0, 0.0)],
@@ -2103,118 +1849,6 @@ impl BSplineSurface {
         // The projection leads, even past a rounding-level tie.
         out[1..].sort_by(|x, y| x.distance.total_cmp(&y.distance));
         out
-    }
-
-    /// Projects `point` onto the surface: the global minimum of the
-    /// distance, as the first entry of [`BSplineSurface::extrema`] but
-    /// without visiting the whole surface. Distances within
-    /// `tol.confusion` snap to `0.0`, matching [`BSplineSurface::contains`].
-    ///
-    /// Branch and bound, exact up to rounding. The knot-span patches whose
-    /// control poles' bounding boxes (convex hull property) may hold the
-    /// closest point are found from a hierarchy built once per surface.
-    /// Each patch's Bernstein (Bezier) control net is then halved by de
-    /// Casteljau subdivision, closest control point first, until each
-    /// subpatch is either
-    ///
-    /// - farther than the closest point so far, its control points' boxes
-    ///   being a lower bound (a box fitted to a small subpatch is flat, so
-    ///   the bound is tight to second order);
-    /// - free of local minima, by interval bounds on the gradient and
-    ///   Hessian of the squared distance from the nets of its derivatives
-    ///   (a gradient that keeps its sign towards a smooth edge, or a
-    ///   direction of negative curvature);
-    /// - or holding a single minimum, convex there, which a box-bounded
-    ///   Newton minimisation with exact second derivatives then reaches.
-    ///
-    /// A subpatch whose gradient pins its minima to a crease or boundary
-    /// edge is searched as that edge curve. Subpatch corners lie on the
-    /// surface and tighten the closest point. The search stops within a
-    /// relative `1e-12` of the surface's extent; where the distance is
-    /// flat to that resolution (a point on an axis of revolution) a cap on
-    /// the subdivision falls back to Newton from the closest subpatches.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::{BSplineSurface, Point, Tolerance};
-    /// let poles = vec![
-    ///     vec![Point::new(0.0, 0.0, 0.0), Point::new(0.0, 2.0, 0.0)],
-    ///     vec![Point::new(2.0, 0.0, 0.0), Point::new(2.0, 2.0, 0.0)],
-    /// ];
-    /// let surface = BSplineSurface::new(
-    ///     1, 1, poles, vec![0.0, 1.0], vec![2, 2], vec![0.0, 1.0], vec![2, 2], false, false,
-    /// )
-    /// .unwrap();
-    /// let proj = surface.project_point(Point::new(1.0, 1.0, 1.0), Tolerance::DEFAULT);
-    /// assert!((proj.u - 0.5).abs() < 1e-9);
-    /// assert!((proj.v - 0.5).abs() < 1e-9);
-    /// assert_eq!(proj.distance, 1.0);
-    /// ```
-    pub fn project_point(&self, point: Point, tol: Tolerance) -> SurfaceProjection {
-        use crate::projection::snap_distance;
-        let patches = self.patch_tree();
-        let mut search = PatchSearch::new(self, point, patches.resolution(point), false);
-        // Every patch that may hold the closest point, by their pole boxes
-        // then their Bernstein nets (whose corners tighten the bound),
-        // searched closest control point first. Only the first keeps its
-        // net while waiting, the others' written again when searched.
-        let mut roots = Vec::with_capacity(RESERVED_SLOTS);
-        let mut first: Option<Subpatch> = None;
-        patches.tree.nearest_first(point, |k| {
-            if let Some(root) = search.root(patches, k) {
-                roots.push((root.key, root.lower, k));
-                let freed = if first.is_none_or(|held| root.key < held.key) {
-                    first.replace(root)
-                } else {
-                    Some(root)
-                };
-                if let Some(freed) = freed {
-                    search.free.push(freed.slot);
-                }
-            }
-            search.best.0
-        });
-        // A stable sort, so that the first held stays first among ties.
-        roots.sort_by(|a, b| a.0.total_cmp(&b.0));
-        for (index, (key, lower, k)) in roots.into_iter().enumerate() {
-            if lower < search.best.0 - search.resolution {
-                let slot = match first {
-                    Some(held) if index == 0 => held.slot,
-                    _ => {
-                        let slot = search.slot();
-                        search.write_root(patches, k, slot);
-                        slot
-                    }
-                };
-                let (rect, creases) = patches.patch(k);
-                let root = Subpatch {
-                    lower,
-                    key,
-                    slot,
-                    rect,
-                    depth: 0,
-                    edge: None,
-                };
-                search.search(root, rect, creases);
-            }
-        }
-        let (distance, u, v) = search.best;
-        // The search tracks distances, not points: one evaluation.
-        SurfaceProjection {
-            u,
-            v,
-            point: self.eval_point(u, v),
-            distance: snap_distance(distance, tol.confusion),
-        }
-    }
-
-    /// Projects each point in `points` onto the surface.
-    ///
-    /// Default-style batch wrapper over [`BSplineSurface::project_point`]:
-    /// one native call per batch, mirroring [`BSplineSurface::eval_points`].
-    pub fn project_points(&self, points: &[Point], tol: Tolerance) -> Vec<SurfaceProjection> {
-        points.iter().map(|&p| self.project_point(p, tol)).collect()
     }
 
     /// The shape of a knot-span patch's Bernstein net: `(rows, cols, h)`,
@@ -2434,30 +2068,100 @@ impl BSplineSurface {
 }
 
 impl ParametricSurface for BSplineSurface {
+    #[inline]
     fn eval_point(&self, u: f64, v: f64) -> Point {
-        BSplineSurface::eval_point(self, u, v)
+        math::surface_point(&self.u_knots, &self.v_knots, self.pole_view(), u, v)
     }
 
     fn project_point(&self, point: Point, tol: Tolerance) -> SurfaceProjection {
-        BSplineSurface::project_point(self, point, tol)
+        use crate::projection::snap_distance;
+        let patches = self.patch_tree();
+        let mut search = PatchSearch::new(self, point, patches.resolution(point), false);
+        // Every patch that may hold the closest point, by their pole boxes
+        // then their Bernstein nets (whose corners tighten the bound),
+        // searched closest control point first. Only the first keeps its
+        // net while waiting, the others' written again when searched.
+        let mut roots = Vec::with_capacity(RESERVED_SLOTS);
+        let mut first: Option<Subpatch> = None;
+        patches.tree.nearest_first(point, |k| {
+            if let Some(root) = search.root(patches, k) {
+                roots.push((root.key, root.lower, k));
+                let freed = if first.is_none_or(|held| root.key < held.key) {
+                    first.replace(root)
+                } else {
+                    Some(root)
+                };
+                if let Some(freed) = freed {
+                    search.free.push(freed.slot);
+                }
+            }
+            search.best.0
+        });
+        // A stable sort, so that the first held stays first among ties.
+        roots.sort_by(|a, b| a.0.total_cmp(&b.0));
+        for (index, (key, lower, k)) in roots.into_iter().enumerate() {
+            if lower < search.best.0 - search.resolution {
+                let slot = match first {
+                    Some(held) if index == 0 => held.slot,
+                    _ => {
+                        let slot = search.slot();
+                        search.write_root(patches, k, slot);
+                        slot
+                    }
+                };
+                let (rect, creases) = patches.patch(k);
+                let root = Subpatch {
+                    lower,
+                    key,
+                    slot,
+                    rect,
+                    depth: 0,
+                    edge: None,
+                };
+                search.search(root, rect, creases);
+            }
+        }
+        let (distance, u, v) = search.best;
+        // The search tracks distances, not points: one evaluation.
+        SurfaceProjection {
+            u,
+            v,
+            point: self.eval_point(u, v),
+            distance: snap_distance(distance, tol.confusion),
+        }
     }
 
-    fn contains(&self, point: Point, tol: Tolerance) -> bool {
-        BSplineSurface::contains(self, point, tol)
-    }
-
-    /// See [`BSplineSurface::eval_derivative`] for the supported orders and the
-    /// panic conditions (`du + dv` must be 1 or 2).
     fn eval_derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> Vector {
-        BSplineSurface::eval_derivative(self, u, v, du, dv)
+        match (du, dv) {
+            (0, 0) => panic!(
+                "eval_derivative: du + dv must be >= 1 (use eval_point for the (0, 0) order)"
+            ),
+            (1, 0) | (0, 1) => {
+                let (_s, su, sv) = self.eval_surface_d1(u, v);
+                if du == 1 { su } else { sv }
+            }
+            (2, 0) | (1, 1) | (0, 2) => {
+                let [_, _, _, suu, suv, svv] = self.eval_surface_d2(u, v);
+                match du {
+                    2 => suu,
+                    1 => suv,
+                    _ => svv,
+                }
+            }
+            _ => panic!(
+                "eval_derivative: order du={du}, dv={dv} is not supported (du + dv must be <= 2)"
+            ),
+        }
     }
 
     fn eval_d1(&self, u: f64, v: f64) -> (Point, [Vector; 2]) {
-        BSplineSurface::eval_d1(self, u, v)
+        let (s, su, sv) = self.eval_surface_d1(u, v);
+        (s, [su, sv])
     }
 
     fn eval_d2(&self, u: f64, v: f64) -> (Point, [Vector; 2], [Vector; 3]) {
-        BSplineSurface::eval_d2(self, u, v)
+        let [s, su, sv, suu, suv, svv] = self.eval_surface_d2(u, v);
+        (Point::ORIGIN + s, [su, sv], [suu, suv, svv])
     }
 
     fn u_bounds(&self) -> (f64, f64) {
@@ -2477,31 +2181,55 @@ impl ParametricSurface for BSplineSurface {
     }
 
     fn continuity_u(&self, u: f64, tol: Tolerance) -> Continuity {
-        BSplineSurface::continuity_u(self, u, tol)
+        curve::continuity_at(
+            self.u_degree(),
+            self.u_knots(),
+            self.u_multiplicities(),
+            self.u_param_range(),
+            self.is_u_periodic(),
+            u,
+            tol,
+        )
     }
 
     fn continuity_v(&self, v: f64, tol: Tolerance) -> Continuity {
-        BSplineSurface::continuity_v(self, v, tol)
+        curve::continuity_at(
+            self.v_degree(),
+            self.v_knots(),
+            self.v_multiplicities(),
+            self.v_param_range(),
+            self.is_v_periodic(),
+            v,
+            tol,
+        )
     }
 
     fn min_continuity_u(&self) -> Continuity {
-        BSplineSurface::min_continuity_u(self)
+        curve::min_continuity(
+            self.u_degree(),
+            self.u_knots(),
+            self.u_multiplicities(),
+            self.u_param_range(),
+            self.is_u_periodic(),
+        )
     }
 
     fn min_continuity_v(&self) -> Continuity {
-        BSplineSurface::min_continuity_v(self)
+        curve::min_continuity(
+            self.v_degree(),
+            self.v_knots(),
+            self.v_multiplicities(),
+            self.v_param_range(),
+            self.is_v_periodic(),
+        )
     }
 
     fn is_u_closed(&self, tol: Tolerance) -> bool {
-        BSplineSurface::is_u_closed(self, tol)
+        self.is_u_periodic() || self.boundaries_meet(Direction::U, tol)
     }
 
     fn is_v_closed(&self, tol: Tolerance) -> bool {
-        BSplineSurface::is_v_closed(self, tol)
-    }
-
-    fn eval_points(&self, uvs: &[(f64, f64)]) -> Vec<Point> {
-        BSplineSurface::eval_points(self, uvs)
+        self.is_v_periodic() || self.boundaries_meet(Direction::V, tol)
     }
 
     fn as_bspline(&self) -> Option<&BSplineSurface> {

@@ -1,4 +1,6 @@
 use super::*;
+use crate::curves::PointExtrema;
+use crate::curves::PointExtrema2D;
 use crate::curves::{Circle2D, Hyperbola2D, Line2D, ParametricCurve2D, TrimmedCurve2D};
 use crate::discretization::{DiscretizationCriteria, Discretize};
 use crate::{Frame2D, Point2D, Tolerance, Vector, Vector2D};
@@ -120,7 +122,9 @@ fn test_full_ellipse_is_periodic_and_exact() {
     let b = e.to_bspline();
     assert!(b.is_periodic());
     assert_eq!(b.bounds(), (0.0, TAU));
-    let dev = max_deviation(&b, |p| p.distance(e.eval_point(e.parameter_of(p))));
+    let dev = max_deviation(&b, |p| {
+        p.distance(e.eval_point(e.parameter_of(p, Tolerance::DEFAULT)))
+    });
     assert!(dev <= RELATIVE * 5.0, "{dev}");
     assert_matches_at_knots_and_middles(&b, &e, 5.0);
 }
@@ -155,7 +159,9 @@ fn test_ellipse_arcs_are_exact_over_their_range() {
         let arc = TrimmedCurve::new(e, first, last).unwrap();
         let b = arc.to_bspline().unwrap();
         assert_eq!(b.bounds(), (first, last));
-        let dev = max_deviation(&b, |p| p.distance(e.eval_point(e.parameter_of(p))));
+        let dev = max_deviation(&b, |p| {
+            p.distance(e.eval_point(e.parameter_of(p, Tolerance::DEFAULT)))
+        });
         assert!(dev <= RELATIVE * 5.0, "[{first}, {last}]: {dev}");
         assert_matches_at_knots_and_middles(&b, &e, 5.0);
         assert_eq!(b.eval_point(first), arc.start_point());
@@ -240,7 +246,9 @@ fn test_hyperbola_is_one_rational_piece_on_the_branch() {
         assert_eq!((b.degree(), b.poles().len()), (2, 3));
         assert_eq!(b.bounds(), (first, last));
         let scale = 1.5 * first.abs().max(last.abs()).cosh();
-        let dev = max_deviation(&b, |p| p.distance(h.eval_point(h.parameter_of(p))));
+        let dev = max_deviation(&b, |p| {
+            p.distance(h.eval_point(h.parameter_of(p, Tolerance::DEFAULT)))
+        });
         assert!(dev <= RELATIVE * scale, "[{first}, {last}]: {dev}");
         assert_matches_at_knots_and_middles(&b, &h, scale);
         assert_eq!(b.eval_point(first), arc.start_point());
@@ -431,7 +439,7 @@ fn test_full_circle2d_is_periodic_and_exact() {
         assert_eq!(b.degree(), 2);
         assert_eq!(b.bounds(), (0.0, TAU));
         assert_eq!(b.poles().len(), 8);
-        assert_eq!(ParametricCurve2D::period(&b), Some(TAU));
+        assert_eq!(b.period(), Some(TAU));
         let dev = max_deviation_2d(&b, |p| circle2d_distance(&c, p));
         assert!(dev <= RELATIVE * radius, "radius {radius}: {dev}");
         assert_matches_at_knots_and_middles_2d(&b, &c, radius);
@@ -563,7 +571,9 @@ fn test_hyperbola2d_is_one_rational_piece_on_the_branch() {
         assert_eq!((b.degree(), b.poles().len()), (2, 3));
         assert_eq!(b.bounds(), (first, last));
         let scale = 1.5 * first.abs().max(last.abs()).cosh();
-        let dev = max_deviation_2d(&b, |p| p.distance(h.eval_point(h.parameter_of(p))));
+        let dev = max_deviation_2d(&b, |p| {
+            p.distance(h.eval_point(h.parameter_of(p, Tolerance::DEFAULT)))
+        });
         assert!(dev <= RELATIVE * scale, "[{first}, {last}]: {dev}");
         assert_matches_at_knots_and_middles_2d(&b, &h, scale);
         assert_eq!(b.eval_point(first), arc.start_point());

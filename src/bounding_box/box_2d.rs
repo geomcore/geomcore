@@ -249,7 +249,8 @@ impl BoundingBox2D {
 /// # Examples
 ///
 /// ```
-/// use geomcore::{Circle2D, HasBoundingBox2D, Line2D, Point2D, Vector2D};
+/// use geomcore::prelude::*;
+/// use geomcore::{Circle2D, Line2D, Point2D, Vector2D};
 ///
 /// let circle = Circle2D::new(Point2D::new(1.0, 0.0), 2.0).unwrap();
 /// let b = circle.bounding_box().unwrap();

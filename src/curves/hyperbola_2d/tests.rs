@@ -1,3 +1,4 @@
+use crate::curves::PointExtrema2D;
 use crate::{
     Frame2D, Hyperbola2D, HyperbolaConstructionError, ParametricCurve2D, Point2D, Tolerance,
     TrimmedCurve2D, Vector2D,
@@ -143,7 +144,7 @@ fn test_hyperbola2d_eval_derivative_order0_panics() {
 fn test_hyperbola2d_parameter_of_round_trip() {
     let h = Hyperbola2D::new(Point2D::new(3.0, -1.0), Vector2D::new(0.6, 0.8), 2.0, 1.5).unwrap();
     for u in [0.3, 2.0, -1.5] {
-        assert!((h.parameter_of(h.eval_point(u)) - u).abs() < 1e-9);
+        assert!((h.parameter_of(h.eval_point(u), Tolerance::DEFAULT) - u).abs() < 1e-9);
     }
 }
 

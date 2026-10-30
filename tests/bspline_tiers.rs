@@ -6,12 +6,10 @@
 mod common;
 
 use common::load;
-use geomcore::curves::{ParametricCurve, ParametricCurve2D, Side};
-use geomcore::discretization::{DiscretizationCriteria, Discretize, Discretize2D};
-use geomcore::{
-    BSplineCurve, BSplineCurve2D, HasBoundingBox, HasBoundingBox2D, Point, Point2D, Tolerance,
-    Vector, Vector2D,
-};
+use geomcore::curves::Side;
+use geomcore::discretization::DiscretizationCriteria;
+use geomcore::prelude::*;
+use geomcore::{BSplineCurve, BSplineCurve2D, Point, Point2D, Tolerance, Vector, Vector2D};
 use serde::Deserialize;
 
 const TOL: Tolerance = Tolerance::DEFAULT;
@@ -309,20 +307,12 @@ fn local_properties_agree() {
 #[test]
 fn closedness_continuity_and_boxes_agree() {
     for (name, planar, spatial) in pairs() {
-        assert_eq!(
-            ParametricCurve2D::is_closed(&planar, TOL),
-            ParametricCurve::is_closed(&spatial, TOL),
-            "{name}"
-        );
-        assert_eq!(
-            ParametricCurve2D::min_continuity(&planar),
-            ParametricCurve::min_continuity(&spatial),
-            "{name}"
-        );
+        assert_eq!(planar.is_closed(TOL), spatial.is_closed(TOL), "{name}");
+        assert_eq!(planar.min_continuity(), spatial.min_continuity(), "{name}");
         for u in parameters(&planar) {
             assert_eq!(
-                ParametricCurve2D::continuity(&planar, u, TOL),
-                ParametricCurve::continuity(&spatial, u, TOL),
+                planar.continuity(u, TOL),
+                spatial.continuity(u, TOL),
                 "{name}"
             );
         }

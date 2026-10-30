@@ -5,9 +5,8 @@
 use crate::curves::*;
 use crate::errors::invalid_argument;
 use crate::surfaces::*;
-use geomcore::curves::{
-    BSplineCurve, Curve, Curve2D, ElementaryCurve, ParametricCurve, TrimmedCurve,
-};
+use geomcore::curves::{BSplineCurve, Curve, Curve2D, ElementaryCurve, TrimmedCurve};
+use geomcore::prelude::*;
 use geomcore::surfaces::Surface;
 use geomcore::{Point, Vector};
 use pyo3::exceptions::PyTypeError;

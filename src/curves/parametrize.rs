@@ -25,6 +25,8 @@
 //! - Any curve on a B-spline surface: it needs a numeric inversion; see
 //!   [`parametrize_numeric`].
 
+use crate::curves::ParametricCurve;
+use crate::curves::ParametricCurve2D;
 use std::f64::consts::{FRAC_PI_2, PI, TAU};
 use std::fmt;
 

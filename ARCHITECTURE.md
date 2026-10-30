@@ -11,6 +11,7 @@ terms (elementary, exact, numeric, completeness, and so on) are defined in
 ```text
 src/
 ├── lib.rs               crate docs and the flat re-exports (geomcore::Line, …)
+├── prelude.rs           the shape and operation traits, for `use geomcore::prelude::*`
 ├── point.rs vector.rs   Point/Point2D, Vector/Vector2D
 ├── frame.rs             Axis, Frame and their 2D forms: where a shape is placed
 ├── transform.rs         rigid transforms
@@ -67,10 +68,15 @@ Outside `src/`:
    `curves/ellipse.rs`, `Ellipse2D` in `curves/ellipse_2d.rs`. Only 2D
    types carry a dimension suffix (ADR 0013), and the 2D files mirror the 3D
    ones (ADR 0014). A type's construction error lives beside it.
-2. **The shape traits are implemented in the type's file.**
-   `ParametricCurve`, `PointExtrema`, `ParametricCurve2D`,
+2. **Shared behaviour lives on the traits, implemented in the type's
+   file.** `ParametricCurve`, `PointExtrema`, `ParametricCurve2D`,
    `PointExtrema2D` and `ParametricSurface` are defined in the
-   `parametric_*.rs` files. Each `impl` sits with its type.
+   `parametric_*.rs` files, and each `impl` sits with its type. A method
+   that more than one type answers is a trait method, documented once on
+   the trait; a type overrides a provided method only for a faster closed
+   form, and its inherent `impl` keeps only what is specific to it
+   (`Circle::radius`, `BSplineCurve::insert_knot`). Callers bring the
+   traits in with `use geomcore::prelude::*` (ADR 0015).
 3. **Operation traits are implemented in their operation's folder.**
    `HasBoundingBox` impls live in `bounding_box/`, `Discretize` impls in
    `discretization/`, and `IntersectExact` impls in `intersect/exact/`, all

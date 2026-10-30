@@ -46,7 +46,7 @@ fn test_line_sphere_routes_exact_and_leaves_surface_parameters_to_the_caller() {
         // The line parameter comes out of the solve; the sphere's do not.
         assert!(h.curve_parameter.is_some());
         assert_eq!(h.surface_parameters, None);
-        let (u, v) = sphere.parameters_of(h.point);
+        let (u, v) = sphere.parameters_of(h.point, Tolerance::DEFAULT);
         assert!(sphere.eval_point(u, v).distance(h.point) <= 1e-7);
     }
 }
@@ -315,7 +315,7 @@ fn test_trimmed_curves_keep_only_their_hits() {
     // The trimmed arc stores its angle, which agrees with the circle's own.
     let angle = r.hits()[0].second_parameter.unwrap();
     assert!(angle.abs() < 1e-12);
-    assert!((angle - circle.parameter_of(r.hits()[0].point)).abs() < 1e-12);
+    assert!((angle - circle.parameter_of(r.hits()[0].point, Tolerance::DEFAULT)).abs() < 1e-12);
     assert_curve_hits_lie_on(&r, &line, &arc);
     // A segment that stops before the circle meets it once, at PI.
     let segment = TrimmedCurve::new(line, 0.0, 5.0).unwrap();
@@ -325,7 +325,7 @@ fn test_trimmed_curves_keep_only_their_hits() {
     // computed the line parameter.
     let hit = r.hits()[0];
     assert_eq!(hit.first_parameter, None);
-    assert!((circle.parameter_of(hit.point) - PI).abs() < 1e-12);
+    assert!((circle.parameter_of(hit.point, Tolerance::DEFAULT) - PI).abs() < 1e-12);
     assert!((hit.second_parameter.unwrap() - 3.0).abs() < 1e-12);
     assert_curve_hits_lie_on(&r, &circle, &segment);
 }
@@ -620,7 +620,9 @@ fn test_hit_just_below_the_seam_leaves_the_angle_to_the_caller() {
     assert_eq!(r.hits().len(), 2);
     assert!(r.hits().iter().all(|h| h.first_parameter.is_none()));
     let seam_hit = r.hits().iter().find(|h| h.point.x > 0.0).unwrap();
-    assert!(near_seam(circle.parameter_of(seam_hit.point)));
+    assert!(near_seam(
+        circle.parameter_of(seam_hit.point, Tolerance::DEFAULT)
+    ));
     let circle_3d = Circle::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
     let line_3d = Line::new(Point::new(-5.0, -1e-11, 0.0), Vector::X).unwrap();
     let r_3d = circle_3d.intersect(&line_3d, TOL);
@@ -630,7 +632,9 @@ fn test_hit_just_below_the_seam_leaves_the_angle_to_the_caller() {
     let r = circle.intersect(&other, TOL);
     assert_eq!(r.hits().len(), 1);
     assert_eq!(r.hits()[0].first_parameter, None);
-    assert!(near_seam(circle.parameter_of(r.hits()[0].point)));
+    assert!(near_seam(
+        circle.parameter_of(r.hits()[0].point, Tolerance::DEFAULT)
+    ));
 }
 
 #[test]
@@ -821,7 +825,10 @@ fn test_routed_circle_circle_leaves_both_angles_to_the_caller() {
     assert_eq!(r.hits().len(), 2);
     for h in r.hits() {
         assert_eq!((h.first_parameter, h.second_parameter), (None, None));
-        let (a, b) = (first.parameter_of(h.point), second.parameter_of(h.point));
+        let (a, b) = (
+            first.parameter_of(h.point, Tolerance::DEFAULT),
+            second.parameter_of(h.point, Tolerance::DEFAULT),
+        );
         assert!(first.eval_point(a).distance(h.point) < 1e-12);
         assert!(second.eval_point(b).distance(h.point) < 1e-12);
     }
@@ -839,7 +846,7 @@ fn test_trimmed_operands_store_their_parameter_within_range() {
         let angle = h.first_parameter.unwrap();
         assert!((-PI / 2.0..=PI / 2.0).contains(&angle));
         // The stored angle is the circle's own, up to a whole turn.
-        let own = first.parameter_of(h.point);
+        let own = first.parameter_of(h.point, Tolerance::DEFAULT);
         assert!(((angle - own).rem_euclid(TAU) + 1e-12) % TAU < 1e-9);
         // The untrimmed side is left to the caller.
         assert_eq!(h.second_parameter, None);
@@ -1107,10 +1114,10 @@ impl ParametricSurface for Floor {
         None
     }
     fn project_point(&self, point: Point, tol: Tolerance) -> SurfaceProjection {
-        ParametricSurface::project_point(&self.0, point, tol)
+        self.0.project_point(point, tol)
     }
     fn contains(&self, point: Point, tol: Tolerance) -> bool {
-        ParametricSurface::contains(&self.0, point, tol)
+        self.0.contains(point, tol)
     }
 }
 

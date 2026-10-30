@@ -21,10 +21,13 @@ pub(crate) mod curve_curve;
 pub(crate) mod curve_surface;
 pub(crate) mod surface_surface;
 
+use crate::curves::ParametricCurve;
+use crate::curves::PointExtrema;
 use crate::curves::{Curve, Curve2D, ElementaryCurve, Ellipse2D, Hyperbola2D, Parabola2D};
 use crate::intersect::InlineList;
 use crate::intersect::results::sort_by_known_parameter;
 use crate::intersect::{Conic, intersect_conic_conic};
+use crate::surfaces::ParametricSurface;
 use crate::surfaces::{ElementarySurface, Surface};
 use crate::{
     Circle, Circle2D, CircleCircleIntersection, CircleSurfaceIntersection, ConicConicIntersection,
@@ -96,8 +99,9 @@ reversed!(
 /// # Examples
 ///
 /// ```
+/// use geomcore::prelude::*;
 /// use geomcore::surfaces::Surface;
-/// use geomcore::{IntersectExact, Plane, Point, Sphere, ExactSurfaceIntersection, Tolerance, Vector};
+/// use geomcore::{Plane, Point, Sphere, ExactSurfaceIntersection, Tolerance, Vector};
 /// let plane = Surface::from(Plane::new(Point::ORIGIN, Vector::Z).unwrap());
 /// let sphere = Surface::from(Sphere::new(Point::ORIGIN, 2.0).unwrap());
 /// match plane.intersect_exact(&sphere, Tolerance::DEFAULT) {
@@ -464,9 +468,10 @@ reversed!(
 /// # Examples
 ///
 /// ```
+/// use geomcore::prelude::*;
 /// use geomcore::curves::Curve;
 /// use geomcore::surfaces::Surface;
-/// use geomcore::{ExactCurveSurfaceIntersection, IntersectExact, Line, Point, Sphere, Tolerance, Vector};
+/// use geomcore::{ExactCurveSurfaceIntersection, Line, Point, Sphere, Tolerance, Vector};
 /// let line = Curve::from(Line::new(Point::ORIGIN, Vector::X).unwrap());
 /// let sphere = Surface::from(Sphere::new(Point::ORIGIN, 2.0).unwrap());
 /// let ExactCurveSurfaceIntersection::Points(hits) = line.intersect_exact(&sphere, Tolerance::DEFAULT) else {
@@ -754,8 +759,9 @@ reversed!(
 /// # Examples
 ///
 /// ```
+/// use geomcore::prelude::*;
 /// use geomcore::curves::Curve;
-/// use geomcore::{Circle, ExactCurveCurveIntersection, IntersectExact, Line, Point, Tolerance, Vector};
+/// use geomcore::{Circle, ExactCurveCurveIntersection, Line, Point, Tolerance, Vector};
 /// let line = Curve::from(Line::new(Point::ORIGIN, Vector::X).unwrap());
 /// let circle = Curve::from(Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap());
 /// let ExactCurveCurveIntersection::Points(hits) = line.intersect_exact(&circle, Tolerance::DEFAULT) else {
@@ -871,7 +877,7 @@ fn line_circle(
         }
         // The tangency test needs the circle's parameter, so it is kept.
         LineCircleIntersection::Tangent(t, p) => {
-            let angle = circle.parameter_in_bounds(circle.parameter_of(p), tol);
+            let angle = circle.parameter_in_bounds(circle.parameter_of(p, tol), tol);
             let multiplicity = lone_hit_multiplicity(line, circle, angle, tol);
             ExactCurveCurveIntersection::points([pair(Some(t), p, Some(angle), multiplicity)])
         }

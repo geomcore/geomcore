@@ -1,9 +1,10 @@
 //! Bounding boxes allocate nothing, so culling many pairs costs no heap
 //! traffic. A test binary of its own, as it replaces the global allocator.
 
+use geomcore::prelude::*;
 use geomcore::{
-    BSplineCurve, BSplineSurface, Circle, Curve, Ellipse, HasBoundingBox, Hyperbola, Parabola,
-    Point, Sphere, Surface, Torus, TrimmedCurve, Vector,
+    BSplineCurve, BSplineSurface, Circle, Curve, Ellipse, Hyperbola, Parabola, Point, Sphere,
+    Surface, Torus, TrimmedCurve, Vector,
 };
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::cell::Cell;

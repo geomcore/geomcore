@@ -38,18 +38,14 @@ impl<'py> IntoPyObject<'py> for ContinuityNumber {
     }
 }
 
-/// Checks a curve derivative order lies in `1..=max`.
-pub(crate) fn check_curve_order(order: u32, max: u32) -> PyResult<()> {
-    if (1..=max).contains(&order) {
-        Ok(())
-    } else if order == 0 {
+/// Checks a curve derivative order is at least 1.
+pub(crate) fn check_curve_order(order: u32) -> PyResult<()> {
+    if order == 0 {
         Err(invalid_argument(
             "order must be >= 1 (use eval_point for order 0)",
         ))
     } else {
-        Err(invalid_argument(format!(
-            "order {order} is not supported (at most {max})"
-        )))
+        Ok(())
     }
 }
 

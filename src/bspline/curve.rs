@@ -695,7 +695,8 @@ impl KnotVector {
     }
 }
 
-/// Highest derivative order the evaluator computes.
+/// Highest derivative order of the fixed-size evaluator, [`derivatives`];
+/// higher orders take [`derivative_of_order`].
 pub(crate) const MAX_DERIVATIVE: usize = 2;
 
 /// Basis-table width for degrees below 8: covers every curve and surface
@@ -883,20 +884,20 @@ fn basis_second<const N: usize>(
     seconds[p] = p as f64 * previous_lower;
 }
 
-/// Non-zero basis functions and their derivatives up to `order` (The NURBS
-/// Book, A2.3), from `left[j] = u - U[span + 1 - j]` and
-/// `right[j] = U[span + j] - u` for `j` in `1..=degree`.
+/// Non-zero basis functions and their derivatives (The NURBS Book, A2.3),
+/// `ders[k]` the `k`-th derivatives, from `left[j] = u - U[span + 1 - j]`
+/// and `right[j] = U[span + j] - u` for `j` in `1..=degree`: the general
+/// path behind [`derivative_of_order`], and the tests' reference for the
+/// unrolled [`basis_first`] and [`basis_second`].
 ///
 /// Every divisor is a difference of two knots on either side of a
 /// nonzero-width span, so none is zero. Derivatives above the degree vanish
-/// and are left at zero.
-#[cfg(test)]
+/// and their rows are left untouched.
 fn basis_derivatives<const N: usize>(
     degree: usize,
     left: &[f64; N],
     right: &[f64; N],
-    order: usize,
-    ders: &mut [[f64; N]; MAX_DERIVATIVE + 1],
+    ders: &mut [[f64; N]],
 ) {
     let p = degree;
     // ndu: basis functions in the upper triangle, knot differences in the
@@ -916,11 +917,11 @@ fn basis_derivatives<const N: usize>(
     for j in 0..=p {
         ders[0][j] = ndu[j][p];
     }
-    let order = order.min(p).min(MAX_DERIVATIVE);
+    let order = (ders.len() - 1).min(p);
     if order == 0 {
         return;
     }
-    let mut a = [[0.0f64; MAX_DERIVATIVE + 1]; 2];
+    let mut a = [[0.0f64; N]; 2];
     for r in 0..=p {
         let (mut s1, mut s2) = (0, 1);
         a[0][0] = 1.0;
@@ -1166,6 +1167,64 @@ fn derivatives_sized<const N: usize, const ORDER: usize, G: PolePoint>(
         }
     }
     out
+}
+
+/// The derivative of order `order >= 1` at `u`, from one side of `u` when
+/// `side` is given: the general path for the orders above
+/// [`MAX_DERIVATIVE`], which [`derivatives`] stops at.
+///
+/// The basis derivatives above the degree vanish, so a non-rational
+/// curve's derivative is zero there. A rational curve keeps every order
+/// through the quotient rule on the homogeneous sums `A` and their weight
+/// `w` (The NURBS Book, A4.2):
+/// `C⁽ᵏ⁾ = (A⁽ᵏ⁾ - Σ_{i=1..k} binomial(k, i) w⁽ⁱ⁾ C⁽ᵏ⁻ⁱ⁾) / w`.
+pub(crate) fn derivative_of_order<G: PolePoint>(
+    knots: &KnotVector,
+    poles: Poles<G>,
+    u: f64,
+    order: usize,
+    side: Option<Side>,
+) -> G::Vector {
+    debug_assert!(order >= 1, "derivative order must be at least 1");
+    let degree = knots.degree;
+    let mut left = [0.0f64; LARGE];
+    let mut right = [0.0f64; LARGE];
+    let first = match side {
+        Some(side) => knots.span_knots_sided(u, side, &mut left, &mut right),
+        None => knots.span_knots(u, &mut left, &mut right),
+    };
+    let basis_order = order.min(degree);
+    let mut ders = vec![[0.0f64; LARGE]; basis_order + 1];
+    basis_derivatives(degree, &left, &right, &mut ders);
+    let mut sums = vec![[0.0f64; 4]; basis_order + 1];
+    for j in 0..=degree {
+        let i = knots.pole_index(first, j);
+        let p = poles.points[i];
+        let weight = poles.weights.map_or(1.0, |weights| weights[i]);
+        for (row, sum) in ders.iter().zip(sums.iter_mut()) {
+            let b = row[j] * weight;
+            for (c, s) in sum.iter_mut().enumerate().take(G::DIM) {
+                *s += b * G::coord(p, c);
+            }
+            sum[3] += b;
+        }
+    }
+    let homogeneous = |k: usize| G::vector_of(sums.get(k).copied().unwrap_or([0.0; 4]));
+    if poles.weights.is_none() {
+        return homogeneous(order);
+    }
+    let inverse = 1.0 / sums[0][3];
+    let mut curve: Vec<G::Vector> = Vec::with_capacity(order + 1);
+    for k in 0..=order {
+        let mut value = homogeneous(k);
+        let mut binomial = 1.0;
+        for i in 1..=k.min(degree) {
+            binomial = binomial * (k + 1 - i) as f64 / i as f64;
+            value = value - curve[k - i] * (binomial * sums[i][3]);
+        }
+        curve.push(value * inverse);
+    }
+    curve[order]
 }
 
 /// The bounds for refining from `t` (within `[lo, lo + period]`): each
