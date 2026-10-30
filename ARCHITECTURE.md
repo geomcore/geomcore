@@ -54,7 +54,10 @@ src/
 │   ├── numeric/         the searches for pairs with no closed form. subdivision.rs is
 │   │                    the one driver of the searches on Bézier pieces (the queue of
 │   │                    pairs, the budget of halvings, the pairs left unsettled);
-│   │                    *_hull.rs and patch_pairs.rs bring their tests on a pair (ADR 0019)
+│   │                    *_hull.rs and patch_pairs.rs bring their tests on a pair (ADR 0019).
+│   │                    marching.rs composes marching/: the surface pair (pair.rs), the
+│   │                    tracer's step loop (tracer.rs), the seeding policy (seeding.rs)
+│   │                    and the coincidence check (coincidence.rs) (ADR 0025)
 │   └── results/         the results Intersect returns, their regions (regions.rs),
 │                        Completeness, InlineList
 ├── bounding_box/        HasBoundingBox: the box type and one file per family
@@ -161,6 +164,12 @@ paths.
   family's entry of the closed-form pair table,
   `intersect/routing/closed_form.rs`, so that `Intersect` routes the pair
   there instead of to the numeric search.
+
+**A change to marching.** A new seed source, or a change to when one
+runs, goes in `intersect/numeric/marching/seeding.rs`; a change to the
+step loop, such as tracing through a point where the surfaces touch, in
+`tracer.rs`; a new question asked of the two surfaces at a point on
+both, in `pair.rs` (ADR 0025).
 
 **A new operation.**
 - Give it its own folder at the top of `src/`, like `bounding_box/` and
