@@ -42,10 +42,12 @@ src/
 │
 ├── intersect/           intersections, by method (ADR 0011)
 │   ├── routing.rs       Intersect: exact when a closed form exists, numeric otherwise
-│   ├── routing/exact_family.rs  ExactFamily: each typed exact result read as its
-│   │                    family result (ADR 0018)
+│   ├── routing/closed_form.rs  the closed-form pair table: which pairs have a closed
+│   │                    form and which solver answers each (ADR 0023)
+│   ├── routing/exact_family.rs  each typed exact result read as its family
+│   │                    result (ADR 0018)
 │   ├── routing/swept_plane.rs  plane cuts of the swept surfaces in closed form,
-│   │                    tried before marching
+│   │                    entries of the table
 │   ├── exact/           IntersectExact and the closed-form solvers, by family:
 │   │                    curve_curve.rs, curve_surface.rs, surface_surface.rs
 │   ├── numeric/         the searches for pairs with no closed form. subdivision.rs is
@@ -136,7 +138,9 @@ paths.
   forwarding method and `From` impl follows from the list (ADR 0017), and
   the compiler points at the matches that do real per-variant work.
 - Make it an operand of `Intersect`: a `CurveOperand`/`SurfaceOperand`
-  impl and one entry in each pair list of `intersect/routing.rs`.
+  impl in `intersect/routing.rs` saying which basis it is read as. The
+  `Intersect` pair lists follow the variant list, so they need no entry
+  (ADR 0023).
 - Implement `RangeOperations` for it in `curves/range.rs`, calling a box
   formula from `bounding_box/`, a discretization from `discretization/`
   and a B-spline conversion from `curves/conversion.rs`. If it is
@@ -149,9 +153,10 @@ paths.
 - Write the solver as `impl IntersectExact<B> for A` in the family file
   under `intersect/exact/`, with its result type, in both argument orders.
 - Read its result into the family result with an `into_family` method
-  in `intersect/routing/exact_family.rs`, and list the pair in that
-  file's macro, so that `Intersect` routes the pair there instead of to
-  the numeric search.
+  in `intersect/routing/exact_family.rs`, and list the pair in its
+  family's entry of the closed-form pair table,
+  `intersect/routing/closed_form.rs`, so that `Intersect` routes the pair
+  there instead of to the numeric search.
 
 **A new operation.**
 - Give it its own folder at the top of `src/`, like `bounding_box/` and

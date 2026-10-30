@@ -17,6 +17,9 @@ the Python distribution are versioned in lockstep.
   unrolled pass, as the point evaluation already did: about 46% faster
   on a cubic curve, 31% on a bicubic surface and 18% on rational ones.
   Results are bit-for-bit unchanged.
+- One closed-form pair table decides which pairs `intersect` solves in
+  closed form, the plane cuts of swept surfaces included (ADR 0023).
+  Results are unchanged.
 
 ### Fixed
 

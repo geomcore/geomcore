@@ -5,21 +5,24 @@
 //! the result says which method ran. [`IntersectExact`] is the typed exact
 //! path, and never falls back to numeric work.
 //!
-//! This module also holds the helpers the routed implementations share:
-//! [`CurveOperand`], which tells the router whether a curve has an
-//! elementary basis and which parameter range restricts it, and the
-//! parameter-range clipping that turns an exact intersection of the basis
-//! into the intersection of the trimmed curve. [`ExactFamily`], in
-//! `exact_family`, reads each pair's typed exact result into its family
-//! result.
+//! Which pairs have a closed form, and which solver answers each, is the
+//! closed-form pair table in `closed_form`; `exact_family` reads each
+//! pair's typed exact result into its family result. This module holds
+//! the helpers the routed implementations share: the operand traits
+//! ([`CurveOperand`], [`SurfaceOperand`], [`CurveOperand2D`]), which read
+//! an operand as the basis the table matches on and give the parameter
+//! range restricting a curve, and the parameter-range clipping that turns
+//! an exact intersection of the basis into the intersection of the
+//! trimmed curve. The operand lists of the [`Intersect`] implementations
+//! come from the shape enums' variant lists, so a new shape type edits no
+//! list here.
 
 use crate::Tolerance;
 use crate::curves::PointExtrema;
 use crate::curves::PointExtrema2D;
 use crate::curves::{
-    BSplineCurve, BSplineCurve2D, BezierCurve, BezierCurve2D, Circle, Circle2D, Curve, Curve2D,
-    ElementaryCurve, Ellipse, Ellipse2D, Hyperbola, Hyperbola2D, Line, Line2D, Parabola,
-    Parabola2D, ParametricCurve, ParametricCurve2D, TrimmedCurve, TrimmedCurve2D,
+    BSplineCurve, BSplineCurve2D, BezierCurve, BezierCurve2D, Curve, Curve2D, ElementaryCurve,
+    ParametricCurve, ParametricCurve2D, TrimmedCurve, TrimmedCurve2D,
 };
 use crate::intersect::numeric::embedding_2d::{Embed, intersect_numeric_2d};
 use crate::intersect::numeric::marching::marching_intersection;
@@ -29,15 +32,67 @@ use crate::intersect::{
     InlineList, intersect_curve_curve, intersect_curve_surface,
 };
 use crate::surfaces::{
-    BSplineSurface, BezierSurface, Cone, Cylinder, ElementarySurface, ExtrusionSurface,
-    ParametricSurface, Plane, RevolutionSurface, Sphere, Surface, Torus,
+    BSplineSurface, BezierSurface, ElementarySurface, ExtrusionSurface, ParametricSurface,
+    RevolutionSurface, Surface,
 };
 
+// The list macros come before the submodules, which use `shapes!` too.
+
+/// Calls `$then! { $arguments [shapes] }` with the shapes of a shape
+/// enum's variant list (ADR 0017), so the routing lists follow the
+/// variants.
+macro_rules! shapes {
+    ([$then:ident $($arguments:tt)*] $enum:ty; $($variant:path: $shape:ty),+) => {
+        $then! { $($arguments)* [$($shape),+] }
+    };
+}
+
+/// Calls `$then! { $arguments [operands] }` with the operands of a
+/// family: the shapes of a variant list, then the enums named after them.
+/// A shape is an operand of every pair once it is a variant.
+macro_rules! operands {
+    (
+        [$then:ident [$($arguments:tt)*] $($enums:ty),+]
+        $enum:ty;
+        $($variant:path: $shape:ty),+
+    ) => {
+        $then! { $($arguments)* [$($shape,)+ $($enums),+] }
+    };
+}
+
+/// Calls `$then! { $arguments [curves] }` with every curve operand.
+macro_rules! curve_operands {
+    ($then:ident $($arguments:tt)*) => {
+        crate::curves::curve_variants!(
+            Curve,
+            operands! { $then [$($arguments)*] Curve, ElementaryCurve }
+        );
+    };
+}
+
+/// Calls `$then! { $arguments [surfaces] }` with every surface operand.
+macro_rules! surface_operands {
+    ($then:ident $($arguments:tt)*) => {
+        crate::surfaces::surface_variants!(
+            Surface,
+            operands! { $then [$($arguments)*] Surface, ElementarySurface }
+        );
+    };
+}
+
+/// Calls `$then! { $arguments [curves] }` with every 2D curve operand.
+macro_rules! curve_operands_2d {
+    ($then:ident $($arguments:tt)*) => {
+        crate::curves::curve_2d_variants!(operands! { $then [$($arguments)*] Curve2D });
+    };
+}
+
+mod closed_form;
 mod exact_family;
 mod swept_plane;
-pub(crate) use exact_family::ExactFamily;
-pub(crate) use swept_plane::Swept;
-use swept_plane::swept_plane_intersection;
+pub(crate) use closed_form::ExactFamily;
+use closed_form::{CurveKind, CurveKind2D, SurfaceKind};
+use swept_plane::Swept;
 
 /// Routed intersection: exact when a closed form exists, numeric otherwise.
 ///
@@ -73,94 +128,72 @@ pub trait Intersect<Rhs: ?Sized = Self> {
     fn intersect(&self, other: &Rhs, tol: Tolerance) -> Self::Output;
 }
 
-/// An elementary curve the router solves exactly against every surface
-/// basis and every curve basis, through the pair's typed solver.
-///
-/// The concrete curves are their own basis, so a pair whose types are known
-/// at compile time is solved without converting to
-/// [`ElementaryCurve`] or dispatching at run time; [`ElementaryCurve`] is
-/// the basis of the curves whose kind is only known at run time.
+/// A concrete elementary curve, as the readers of `exact_family` take it.
 ///
 /// [`parameter_of`](PointExtrema::parameter_of) gives the parameter of a
 /// hit's point when the curve is restricted to a range and the solver did
-/// not compute it: the range test needs it.
-pub(crate) trait CurveBasis:
-    PointExtrema
-    + Copy
-    + Into<ElementaryCurve>
-    + ExactFamily<Plane, Family = CurveSurfaceIntersection>
-    + ExactFamily<Cylinder, Family = CurveSurfaceIntersection>
-    + ExactFamily<Cone, Family = CurveSurfaceIntersection>
-    + ExactFamily<Sphere, Family = CurveSurfaceIntersection>
-    + ExactFamily<Torus, Family = CurveSurfaceIntersection>
-    + ExactFamily<ElementarySurface, Family = CurveSurfaceIntersection>
-    + ExactFamily<Line, Family = CurveCurveIntersection>
-    + ExactFamily<Circle, Family = CurveCurveIntersection>
-    + ExactFamily<Ellipse, Family = CurveCurveIntersection>
-    + ExactFamily<Parabola, Family = CurveCurveIntersection>
-    + ExactFamily<Hyperbola, Family = CurveCurveIntersection>
-    + ExactFamily<ElementaryCurve, Family = CurveCurveIntersection>
-{
-}
+/// not compute it: the range test needs it. A coincidence is mapped on
+/// the [`ElementaryCurve`] the curve converts into.
+pub(crate) trait CurveBasis: PointExtrema + Copy + Into<ElementaryCurve> {}
 
-macro_rules! curve_basis {
-    ($($curve:ty),*) => {$(
-        impl CurveBasis for $curve {}
-    )*};
-}
-
-curve_basis!(Line, Circle, Ellipse, Parabola, Hyperbola, ElementaryCurve);
-
-/// How a curve enters the router: its elementary basis (when it has one)
-/// and the parameter range it is restricted to (`None` = the basis's own
-/// bounds).
+/// How a curve enters the router: its basis, the shape the closed-form
+/// pair table matches it on (see `closed_form`), and the parameter range
+/// it is restricted to (`None` = the basis's own bounds).
 pub(crate) trait CurveOperand: ParametricCurve {
     /// The basis type: the curve's own type when it is a concrete
-    /// elementary curve, so the pair is solved by its typed solver.
-    type Basis: CurveBasis;
+    /// elementary curve, so the pair is solved by its typed solver;
+    /// [`ElementaryCurve`], or a [`CurveKind`], when its kind is only known
+    /// at run time.
+    type Basis: Copy;
 
-    /// The elementary basis and the restricting parameter range, or `None`
-    /// when the curve has no elementary basis.
-    fn elementary_basis(&self) -> Option<Operand<Self::Basis>>;
+    /// The basis and the restricting parameter range.
+    fn basis_and_range(&self) -> Operand<Self::Basis>;
 }
 
-macro_rules! elementary_operand {
-    ($($curve:ty),*) => {$(
+/// Makes each concrete elementary curve, and [`ElementaryCurve`], its own
+/// basis.
+macro_rules! own_curve_basis {
+    ([$($curve:ty),*]) => {$(
+        impl CurveBasis for $curve {}
+
         impl CurveOperand for $curve {
             type Basis = $curve;
 
             #[inline]
-            fn elementary_basis(&self) -> Option<Operand<$curve>> {
-                Some((*self, None))
+            fn basis_and_range(&self) -> Operand<$curve> {
+                (*self, None)
             }
         }
     )*};
 }
 
-elementary_operand!(Line, Circle, Ellipse, Parabola, Hyperbola, ElementaryCurve);
+crate::curves::curve_variants!(ElementaryCurve, shapes! { own_curve_basis });
+own_curve_basis!([ElementaryCurve]);
 
 impl CurveOperand for BSplineCurve {
-    type Basis = ElementaryCurve;
+    type Basis = CurveKind;
 
-    fn elementary_basis(&self) -> Option<Operand<ElementaryCurve>> {
-        None
+    #[inline]
+    fn basis_and_range(&self) -> Operand<CurveKind> {
+        (CurveKind::Unlisted, None)
     }
 }
 
 impl CurveOperand for BezierCurve {
-    type Basis = ElementaryCurve;
+    type Basis = CurveKind;
 
-    fn elementary_basis(&self) -> Option<Operand<ElementaryCurve>> {
-        None
+    #[inline]
+    fn basis_and_range(&self) -> Operand<CurveKind> {
+        (CurveKind::Unlisted, None)
     }
 }
 
 impl CurveOperand for Curve {
-    type Basis = ElementaryCurve;
+    type Basis = CurveKind;
 
     #[inline]
-    fn elementary_basis(&self) -> Option<Operand<ElementaryCurve>> {
-        self.as_elementary().map(|basis| (basis, None))
+    fn basis_and_range(&self) -> Operand<CurveKind> {
+        (CurveKind::from(self), None)
     }
 }
 
@@ -170,146 +203,93 @@ impl<C: CurveOperand> CurveOperand for TrimmedCurve<C> {
     /// A trimmed curve of a trimmed curve keeps the inner basis and the
     /// outer range: the outer range lies within the inner one.
     #[inline]
-    fn elementary_basis(&self) -> Option<Operand<C::Basis>> {
-        self.basis()
-            .elementary_basis()
-            .map(|(basis, _)| (basis, Some((self.first(), self.last()))))
+    fn basis_and_range(&self) -> Operand<C::Basis> {
+        let (basis, _) = self.basis().basis_and_range();
+        (basis, Some((self.first(), self.last())))
     }
 }
 
-/// How a surface enters the router: its elementary basis, when it has one.
+/// How a surface enters the router: its basis, the shape the closed-form
+/// pair table matches it on (see `closed_form`).
 pub(crate) trait SurfaceOperand: ParametricSurface {
     /// The basis type: the surface's own type when it is a concrete
-    /// elementary surface, so the pair is solved by its typed solver.
-    type Basis: Copy;
+    /// elementary surface, so a curve meeting it is solved by the pair's
+    /// typed solver; [`ElementarySurface`], or a [`SurfaceKind`], when its
+    /// kind is only known at run time. A surface pair is matched on the
+    /// kinds the two bases convert into.
+    type Basis<'a>: Copy + Into<SurfaceKind<'a>>
+    where
+        Self: 'a;
 
-    /// The elementary basis, or `None` when the surface has none.
-    fn surface_basis(&self) -> Option<Self::Basis>;
-
-    /// The surface as a plane, when it is one.
-    #[inline]
-    fn as_plane(&self) -> Option<Plane> {
-        None
-    }
-
-    /// The surface as a swept surface, when it is one.
-    #[inline]
-    fn as_swept(&self) -> Option<Swept<'_>> {
-        None
-    }
+    /// The basis.
+    fn surface_basis(&self) -> Self::Basis<'_>;
 }
 
-macro_rules! elementary_surface_operand {
-    ($($surface:ty),*) => {$(
+/// Makes each concrete elementary surface, and [`ElementarySurface`], its
+/// own basis.
+macro_rules! own_surface_basis {
+    ([$($surface:ty),*]) => {$(
         impl SurfaceOperand for $surface {
-            type Basis = $surface;
+            type Basis<'a> = $surface;
 
             #[inline]
-            fn surface_basis(&self) -> Option<$surface> {
-                Some(*self)
+            fn surface_basis(&self) -> $surface {
+                *self
             }
         }
     )*};
 }
 
-elementary_surface_operand!(Cylinder, Cone, Sphere, Torus);
-
-impl SurfaceOperand for Plane {
-    type Basis = Plane;
-
-    #[inline]
-    fn surface_basis(&self) -> Option<Plane> {
-        Some(*self)
-    }
-
-    #[inline]
-    fn as_plane(&self) -> Option<Plane> {
-        Some(*self)
-    }
-}
-
-impl SurfaceOperand for ElementarySurface {
-    type Basis = ElementarySurface;
-
-    #[inline]
-    fn surface_basis(&self) -> Option<ElementarySurface> {
-        Some(*self)
-    }
-
-    #[inline]
-    fn as_plane(&self) -> Option<Plane> {
-        match self {
-            ElementarySurface::Plane(plane) => Some(*plane),
-            _ => None,
-        }
-    }
-}
-
-/// Implements [`SurfaceOperand`] for surfaces without an elementary
-/// basis: every pair with one takes the numeric search.
-macro_rules! numeric_surface_operand {
-    ($($surface:ty),*) => {$(
-        impl SurfaceOperand for $surface {
-            type Basis = ElementarySurface;
-
-            fn surface_basis(&self) -> Option<ElementarySurface> {
-                None
-            }
-        }
-    )*};
-}
-
-numeric_surface_operand!(BSplineSurface, BezierSurface);
+crate::surfaces::surface_variants!(ElementarySurface, shapes! { own_surface_basis });
+own_surface_basis!([ElementarySurface]);
 
 impl SurfaceOperand for ExtrusionSurface {
-    type Basis = ElementarySurface;
-
-    fn surface_basis(&self) -> Option<ElementarySurface> {
-        None
-    }
+    type Basis<'a> = SurfaceKind<'a>;
 
     #[inline]
-    fn as_swept(&self) -> Option<Swept<'_>> {
-        Some(Swept::Extrusion(self))
+    fn surface_basis(&self) -> SurfaceKind<'_> {
+        SurfaceKind::Swept(Swept::Extrusion(self))
     }
 }
 
 impl SurfaceOperand for RevolutionSurface {
-    type Basis = ElementarySurface;
-
-    fn surface_basis(&self) -> Option<ElementarySurface> {
-        None
-    }
+    type Basis<'a> = SurfaceKind<'a>;
 
     #[inline]
-    fn as_swept(&self) -> Option<Swept<'_>> {
-        Some(Swept::Revolution(self))
+    fn surface_basis(&self) -> SurfaceKind<'_> {
+        SurfaceKind::Swept(Swept::Revolution(self))
+    }
+}
+
+impl SurfaceOperand for BSplineSurface {
+    type Basis<'a> = SurfaceKind<'a>;
+
+    #[inline]
+    fn surface_basis(&self) -> SurfaceKind<'_> {
+        SurfaceKind::Unlisted
+    }
+}
+
+impl SurfaceOperand for BezierSurface {
+    type Basis<'a> = SurfaceKind<'a>;
+
+    #[inline]
+    fn surface_basis(&self) -> SurfaceKind<'_> {
+        SurfaceKind::Unlisted
     }
 }
 
 impl SurfaceOperand for Surface {
-    type Basis = ElementarySurface;
+    type Basis<'a> = SurfaceKind<'a>;
 
+    /// The kind of the surface the variant holds, built in one match.
+    #[allow(
+        clippy::useless_conversion,
+        reason = "a swept or unlisted variant's basis is its kind already"
+    )]
     #[inline]
-    fn surface_basis(&self) -> Option<ElementarySurface> {
-        self.as_elementary()
-    }
-
-    #[inline]
-    fn as_plane(&self) -> Option<Plane> {
-        match self {
-            Surface::Plane(plane) => Some(*plane),
-            _ => None,
-        }
-    }
-
-    #[inline]
-    fn as_swept(&self) -> Option<Swept<'_>> {
-        match self {
-            Surface::Extrusion(surface) => Some(Swept::Extrusion(surface)),
-            Surface::Revolution(surface) => Some(Swept::Revolution(surface)),
-            _ => None,
-        }
+    fn surface_basis(&self) -> SurfaceKind<'_> {
+        crate::surfaces::surface_dispatch!(self, surface => surface.surface_basis().into())
     }
 }
 
@@ -481,26 +461,21 @@ pub(crate) fn is_single_point(
     length.is_finite() && length.abs() * speed(0.5 * (low + high)) <= tol.confusion
 }
 
-/// Intersects a curve with a surface: the exact path when the curve has an
-/// elementary basis, the surface is elementary and the pair has a closed
-/// form; the numeric search otherwise.
+/// Intersects a curve with a surface: in closed form when the table lists
+/// the pair, by the numeric search otherwise.
 #[inline]
-pub(crate) fn route_curve_surface<C: CurveOperand, S: SurfaceOperand>(
+pub(crate) fn route_curve_surface<'s, C: CurveOperand, S: SurfaceOperand>(
     curve: &C,
-    surface: &S,
+    surface: &'s S,
     tol: Tolerance,
 ) -> CurveSurfaceIntersection
 where
-    C::Basis: ExactFamily<S::Basis, Family = CurveSurfaceIntersection>,
+    C::Basis: ExactFamily<S::Basis<'s>, Family = CurveSurfaceIntersection>,
 {
     // A trimmed curve is searched over its own range only: no clipping.
     let numeric_search = || intersect_curve_surface(curve, surface, tol);
-    match (curve.elementary_basis(), surface.surface_basis()) {
-        (Some((basis, range)), Some(elementary)) => {
-            basis.exact_family(&elementary, (range, None), tol, numeric_search)
-        }
-        _ => numeric_search(),
-    }
+    let (basis, range) = curve.basis_and_range();
+    basis.exact_family(&surface.surface_basis(), (range, None), tol, numeric_search)
 }
 
 /// Implements [`Intersect`] for every curve of the first list with every
@@ -526,33 +501,22 @@ macro_rules! curve_surface {
             }
         }
     )*};
-    ($($curve:ty),*; $surfaces:tt) => {$(
+    ([$($curve:ty),*] $surfaces:tt) => {$(
         curve_surface!(@pairs $curve; $surfaces);
     )*};
 }
 
-curve_surface!(
-    Line, Circle, Ellipse, Parabola, Hyperbola, BSplineCurve, BezierCurve, Curve, ElementaryCurve;
-    [
-        Plane,
-        Cylinder,
-        Cone,
-        Sphere,
-        Torus,
-        ExtrusionSurface,
-        RevolutionSurface,
-        BSplineSurface,
-        BezierSurface,
-        Surface,
-        ElementarySurface
-    ]
-);
+curve_operands!(surface_operands curve_surface);
 
 /// Implements [`Intersect`] between a trimmed curve over any curve operand
 /// and each surface, in both orders.
 macro_rules! trimmed_curve_surface {
-    ($($surface:ty),*) => {$(
-        impl<X: CurveOperand> Intersect<$surface> for TrimmedCurve<X> {
+    ([$($surface:ty),*]) => {$(
+        impl<X: CurveOperand> Intersect<$surface> for TrimmedCurve<X>
+        where
+            for<'a> X::Basis:
+                ExactFamily<<$surface as SurfaceOperand>::Basis<'a>, Family = CurveSurfaceIntersection>,
+        {
             type Output = CurveSurfaceIntersection;
 
             #[inline]
@@ -561,7 +525,11 @@ macro_rules! trimmed_curve_surface {
             }
         }
 
-        impl<X: CurveOperand> Intersect<TrimmedCurve<X>> for $surface {
+        impl<X: CurveOperand> Intersect<TrimmedCurve<X>> for $surface
+        where
+            for<'a> X::Basis:
+                ExactFamily<<$surface as SurfaceOperand>::Basis<'a>, Family = CurveSurfaceIntersection>,
+        {
             type Output = CurveSurfaceIntersection;
 
             #[inline]
@@ -572,40 +540,21 @@ macro_rules! trimmed_curve_surface {
     )*};
 }
 
-trimmed_curve_surface!(
-    Plane,
-    Cylinder,
-    Cone,
-    Sphere,
-    Torus,
-    ExtrusionSurface,
-    RevolutionSurface,
-    BSplineSurface,
-    BezierSurface,
-    Surface,
-    ElementarySurface
-);
+surface_operands!(trimmed_curve_surface);
 
-/// Intersects two surfaces: the exact path when both have an elementary
-/// basis and the pair has a closed form, or when a plane cuts a swept
-/// surface in a position with a closed form (see `swept_plane`);
-/// marching otherwise.
+/// Intersects two surfaces: in closed form when the table lists the
+/// pair, by marching otherwise. The pair is matched on the two kinds: the
+/// match costs nothing next to a closed-form solver or a march.
 #[inline]
 pub(crate) fn route_surface_surface<A: SurfaceOperand, B: SurfaceOperand>(
     a: &A,
     b: &B,
     tol: Tolerance,
-) -> SurfaceSurfaceIntersection
-where
-    A::Basis: ExactFamily<B::Basis, Family = SurfaceSurfaceIntersection>,
-{
+) -> SurfaceSurfaceIntersection {
     let numeric_search = || marching_intersection(a, b, tol);
-    match (a.surface_basis(), b.surface_basis()) {
-        (Some(first), Some(second)) => {
-            first.exact_family(&second, (None, None), tol, numeric_search)
-        }
-        _ => swept_plane_intersection(a, b, tol).unwrap_or_else(numeric_search),
-    }
+    let first: SurfaceKind<'_> = a.surface_basis().into();
+    let second: SurfaceKind<'_> = b.surface_basis().into();
+    first.exact_family(&second, (None, None), tol, numeric_search)
 }
 
 /// Implements [`Intersect`] for every surface of the list with every
@@ -621,40 +570,15 @@ macro_rules! surface_surface {
             }
         }
     )*};
-    ($($first:ty),*; $seconds:tt) => {$(
+    ([$($first:ty),*] $seconds:tt) => {$(
         surface_surface!(@pairs $first; $seconds);
     )*};
 }
 
-surface_surface!(
-    Plane,
-    Cylinder,
-    Cone,
-    Sphere,
-    Torus,
-    ExtrusionSurface,
-    RevolutionSurface,
-    BSplineSurface,
-    BezierSurface,
-    Surface,
-    ElementarySurface;
-    [
-        Plane,
-        Cylinder,
-        Cone,
-        Sphere,
-        Torus,
-        ExtrusionSurface,
-        RevolutionSurface,
-        BSplineSurface,
-        BezierSurface,
-        Surface,
-        ElementarySurface
-    ]
-);
+surface_operands!(surface_operands surface_surface);
 
-/// Intersects two curves: the exact path when both have an elementary
-/// basis, the numeric search otherwise.
+/// Intersects two curves: in closed form when the table lists the pair,
+/// by the numeric search otherwise.
 #[inline]
 pub(crate) fn route_curve_curve<A: CurveOperand, B: CurveOperand>(
     a: &A,
@@ -666,15 +590,12 @@ where
 {
     // A trimmed curve is searched over its own range only: no clipping.
     let numeric_search = || intersect_curve_curve(a, b, tol);
-    match (a.elementary_basis(), b.elementary_basis()) {
-        (Some((first, first_range)), Some((second, second_range))) => {
-            first.exact_family(&second, (first_range, second_range), tol, numeric_search)
-        }
-        _ => numeric_search(),
-    }
+    let (first, first_range) = a.basis_and_range();
+    let (second, second_range) = b.basis_and_range();
+    first.exact_family(&second, (first_range, second_range), tol, numeric_search)
 }
 
-/// An elementary basis and the parameter range restricting it.
+/// A basis and the parameter range restricting it.
 type Operand<C> = (C, Option<(f64, f64)>);
 
 /// The overlaps of two coincident curves restricted to `first_range` and
@@ -892,31 +813,21 @@ macro_rules! curve_curve {
             }
         }
     )*};
-    ([$($first:ty),*]) => {
-        curve_curve!(@all [$($first),*]; [$($first),*]);
-    };
-    (@all [$($first:ty),*]; $seconds:tt) => {$(
+    ([$($first:ty),*] $seconds:tt) => {$(
         curve_curve!(@row $first; $seconds);
     )*};
 }
 
-curve_curve!([
-    Line,
-    Circle,
-    Ellipse,
-    Parabola,
-    Hyperbola,
-    BSplineCurve,
-    BezierCurve,
-    Curve,
-    ElementaryCurve
-]);
+curve_operands!(curve_operands curve_curve);
 
 /// Implements [`Intersect`] between a trimmed curve over any curve operand
 /// and each curve of the list, in both orders.
 macro_rules! trimmed_curve_curve {
-    ($($curve:ty),*) => {$(
-        impl<X: CurveOperand> Intersect<$curve> for TrimmedCurve<X> {
+    ([$($curve:ty),*]) => {$(
+        impl<X: CurveOperand> Intersect<$curve> for TrimmedCurve<X>
+        where
+            X::Basis: ExactFamily<<$curve as CurveOperand>::Basis, Family = CurveCurveIntersection>,
+        {
             type Output = CurveCurveIntersection;
 
             #[inline]
@@ -939,17 +850,7 @@ macro_rules! trimmed_curve_curve {
     )*};
 }
 
-trimmed_curve_curve!(
-    Line,
-    Circle,
-    Ellipse,
-    Parabola,
-    Hyperbola,
-    BSplineCurve,
-    BezierCurve,
-    Curve,
-    ElementaryCurve
-);
+curve_operands!(trimmed_curve_curve);
 
 impl<X: CurveOperand, Y: CurveOperand> Intersect<TrimmedCurve<Y>> for TrimmedCurve<X>
 where
@@ -963,86 +864,71 @@ where
     }
 }
 
-/// A 2D curve the router solves exactly against every 2D basis: the
-/// concrete curves are their own basis, [`Curve2D`] the basis of a curve
-/// whose kind is only known at run time.
-pub(crate) trait CurveBasis2D:
-    PointExtrema2D
-    + Clone
-    + Into<Curve2D>
-    + ExactFamily<Line2D, Family = CurveCurveIntersection2D>
-    + ExactFamily<Circle2D, Family = CurveCurveIntersection2D>
-    + ExactFamily<Ellipse2D, Family = CurveCurveIntersection2D>
-    + ExactFamily<Parabola2D, Family = CurveCurveIntersection2D>
-    + ExactFamily<Hyperbola2D, Family = CurveCurveIntersection2D>
-    + ExactFamily<Curve2D, Family = CurveCurveIntersection2D>
-{
-}
+/// A concrete elementary 2D curve or a [`Curve2D`], as the readers of
+/// `exact_family` take it.
+pub(crate) trait CurveBasis2D: PointExtrema2D + Clone + Into<Curve2D> {}
 
-impl CurveBasis2D for Line2D {}
-impl CurveBasis2D for Circle2D {}
-impl CurveBasis2D for Ellipse2D {}
-impl CurveBasis2D for Parabola2D {}
-impl CurveBasis2D for Hyperbola2D {}
-impl CurveBasis2D for Curve2D {}
-
-/// A 2D curve's exact basis and the parameter range it is restricted to
+/// A 2D curve's basis and the parameter range it is restricted to
 /// (`None` = the basis's own bounds).
 type BasisAndRange<B> = (B, Option<(f64, f64)>);
 
-/// How a 2D curve enters the router: its exact basis and the parameter
-/// range it is restricted to, or `None` when the curve has no exact basis
-/// (a [`BSplineCurve2D`](crate::BSplineCurve2D), met by the numeric
-/// search).
+/// How a 2D curve enters the router: its basis, the shape the closed-form
+/// pair table matches it on (see `closed_form`), and the parameter range
+/// it is restricted to.
 pub(crate) trait CurveOperand2D: Embed {
-    /// The basis type: the curve's own type when it is concrete, so the
-    /// pair is solved by its typed solver.
-    type Basis: CurveBasis2D;
+    /// The basis type: the curve's own type when it is a concrete
+    /// elementary curve, so the pair is solved by its typed solver; a
+    /// [`CurveKind2D`] when its kind is only known at run time.
+    type Basis: Clone;
 
-    /// The basis and the restricting parameter range, or `None` when the
-    /// curve has no exact basis.
-    fn basis_and_range(&self) -> Option<BasisAndRange<Self::Basis>>;
+    /// The basis and the restricting parameter range.
+    fn basis_and_range(&self) -> BasisAndRange<Self::Basis>;
 }
 
-macro_rules! basis_operand_2d {
-    ($($curve:ty),*) => {$(
+/// Makes each concrete elementary 2D curve its own basis.
+macro_rules! own_curve_basis_2d {
+    ([$($curve:ty),*]) => {$(
+        impl CurveBasis2D for $curve {}
+
         impl CurveOperand2D for $curve {
             type Basis = $curve;
 
             #[inline]
-            fn basis_and_range(&self) -> Option<BasisAndRange<$curve>> {
-                Some((self.clone(), None))
+            fn basis_and_range(&self) -> BasisAndRange<$curve> {
+                (self.clone(), None)
             }
         }
     )*};
 }
 
-basis_operand_2d!(
-    Line2D,
-    Circle2D,
-    Ellipse2D,
-    Parabola2D,
-    Hyperbola2D,
-    Curve2D
-);
+crate::curves::curve_2d_variants!(Elementary, shapes! { own_curve_basis_2d });
 
-impl CurveOperand2D for BSplineCurve2D {
-    /// Never built: a B-spline has no exact basis.
-    type Basis = Curve2D;
+impl CurveBasis2D for Curve2D {}
+
+impl CurveOperand2D for Curve2D {
+    type Basis = CurveKind2D;
 
     #[inline]
-    fn basis_and_range(&self) -> Option<BasisAndRange<Curve2D>> {
-        None
+    fn basis_and_range(&self) -> BasisAndRange<CurveKind2D> {
+        (CurveKind2D::from(self), None)
+    }
+}
+
+impl CurveOperand2D for BSplineCurve2D {
+    type Basis = CurveKind2D;
+
+    #[inline]
+    fn basis_and_range(&self) -> BasisAndRange<CurveKind2D> {
+        (CurveKind2D::Unlisted, None)
     }
 }
 
 impl CurveOperand2D for BezierCurve2D {
-    /// Never built: a Bézier curve has no exact basis.
-    type Basis = Curve2D;
+    type Basis = CurveKind2D;
 
     #[inline]
-    fn basis_and_range(&self) -> Option<BasisAndRange<Curve2D>> {
-        None
+    fn basis_and_range(&self) -> BasisAndRange<CurveKind2D> {
+        (CurveKind2D::Unlisted, None)
     }
 }
 
@@ -1052,17 +938,15 @@ impl<C: CurveOperand2D> CurveOperand2D for TrimmedCurve2D<C> {
     /// A trimmed curve of a trimmed curve keeps the inner basis and the
     /// outer range: the outer range lies within the inner one.
     #[inline]
-    fn basis_and_range(&self) -> Option<BasisAndRange<C::Basis>> {
-        self.basis()
-            .basis_and_range()
-            .map(|(basis, _)| (basis, Some((self.first(), self.last()))))
+    fn basis_and_range(&self) -> BasisAndRange<C::Basis> {
+        let (basis, _) = self.basis().basis_and_range();
+        (basis, Some((self.first(), self.last())))
     }
 }
 
-/// Intersects two 2D curves. Every pair with two elementary bases has a
-/// closed form, so the result is exact and complete; a pair with a
-/// [`BSplineCurve2D`](crate::BSplineCurve2D) operand is searched
-/// numerically, embedded in space.
+/// Intersects two 2D curves: in closed form when the table lists the
+/// pair, as it does every pair of elementary curves; a pair with a
+/// B-spline or Bézier operand is searched numerically, embedded in space.
 #[inline]
 pub(crate) fn route_curve_curve_2d<A: CurveOperand2D, B: CurveOperand2D>(
     a: &A,
@@ -1073,12 +957,9 @@ where
     A::Basis: ExactFamily<B::Basis, Family = CurveCurveIntersection2D>,
 {
     let numeric_search = || intersect_numeric_2d(a, b, tol);
-    match (a.basis_and_range(), b.basis_and_range()) {
-        (Some((first, first_range)), Some((second, second_range))) => {
-            first.exact_family(&second, (first_range, second_range), tol, numeric_search)
-        }
-        _ => numeric_search(),
-    }
+    let (first, first_range) = a.basis_and_range();
+    let (second, second_range) = b.basis_and_range();
+    first.exact_family(&second, (first_range, second_range), tol, numeric_search)
 }
 
 /// Implements [`Intersect`] for every 2D curve of the list with every one
@@ -1094,30 +975,21 @@ macro_rules! curve_curve_2d {
             }
         }
     )*};
-    ([$($first:ty),*]) => {
-        curve_curve_2d!(@all [$($first),*]; [$($first),*]);
-    };
-    (@all [$($first:ty),*]; $seconds:tt) => {$(
+    ([$($first:ty),*] $seconds:tt) => {$(
         curve_curve_2d!(@row $first; $seconds);
     )*};
 }
 
-curve_curve_2d!([
-    Line2D,
-    Circle2D,
-    Ellipse2D,
-    Parabola2D,
-    Hyperbola2D,
-    Curve2D,
-    BSplineCurve2D,
-    BezierCurve2D
-]);
+curve_operands_2d!(curve_operands_2d curve_curve_2d);
 
 /// Implements [`Intersect`] between a trimmed 2D curve over any operand and
 /// each 2D curve of the list, in both orders.
 macro_rules! trimmed_curve_curve_2d {
-    ($($curve:ty),*) => {$(
-        impl<X: CurveOperand2D> Intersect<$curve> for TrimmedCurve2D<X> {
+    ([$($curve:ty),*]) => {$(
+        impl<X: CurveOperand2D> Intersect<$curve> for TrimmedCurve2D<X>
+        where
+            X::Basis: ExactFamily<<$curve as CurveOperand2D>::Basis, Family = CurveCurveIntersection2D>,
+        {
             type Output = CurveCurveIntersection2D;
 
             #[inline]
@@ -1140,16 +1012,7 @@ macro_rules! trimmed_curve_curve_2d {
     )*};
 }
 
-trimmed_curve_curve_2d!(
-    Line2D,
-    Circle2D,
-    Ellipse2D,
-    Parabola2D,
-    Hyperbola2D,
-    Curve2D,
-    BSplineCurve2D,
-    BezierCurve2D
-);
+curve_operands_2d!(trimmed_curve_curve_2d);
 
 impl<X: CurveOperand2D, Y: CurveOperand2D> Intersect<TrimmedCurve2D<Y>> for TrimmedCurve2D<X>
 where

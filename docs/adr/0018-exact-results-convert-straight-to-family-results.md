@@ -6,6 +6,10 @@ The untyped exact results are removed: `ExactSurfaceIntersection`, `ExactCurveSu
 
 ADR 0011 already made `intersect` the answer for shapes whose type is only known at run time: it gives the whole result, exact when a closed form exists and numeric otherwise. The untyped results were what remained of ADR 0001's untyped path. They sat between the typed results and the family results, so every exact pair crossed two conversions and the router held four bridges, one per family, each shaped differently: a blanket impl for surfaces, a macro for curve–surface, a closure table for curve–curve, and hand-written impls for 2D. A change to a typed result had to be followed through the middle tier and its bridge. With one bridge, each typed result has one reading, next to the others, and adding a pair means adding one `into_family` and one line to a macro.
 
+## Amendment (2026-10-30): the bridge is the table's interface
+
+`ExactFamily<B>` now lives in `intersect/routing/closed_form.rs`, the closed-form pair table of ADR 0023, and is implemented for every pair of bases, not only the pairs with a closed form: an unlisted pair calls the numeric search it is handed. It gains `has_closed_form`, whether the table lists the pair. The `into_family` readers stay in `exact_family.rs`, one per typed result, and the table calls them; the plane cuts of the swept surfaces, which have no typed result, are table entries over `SurfaceKind` that call `swept_plane` directly. Adding a pair is one `into_family` and one table entry, as before.
+
 ## Considered options
 
 - **Keep the untyped results public**: rejected. They answer the question `intersect` already answers, with less: no numeric fallback, no method, no parameters of a coincidence. Two public answers for run-time shapes would leave callers to pick between them, and the middle tier would stay in every routed call.

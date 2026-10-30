@@ -10,9 +10,21 @@ use crate::projection::CurveProjection2D;
 use crate::{Point2D, Tolerance, Vector2D};
 
 /// Calls `worker!` on the variants of [`Curve2D`] (see
-/// [`crate::shape_enum`]).
+/// [`crate::shape_enum`]), or with `Elementary` first on its elementary
+/// variants only. The elementary variants are listed once: [`Curve2D`]
+/// holds them first, then its own.
 macro_rules! curve_2d_variants {
+    (Elementary, $($worker:ident)::+ ! $arguments:tt) => {
+        $crate::curves::curve_2d_variants! { @elementary $($worker)::+ ! $arguments, }
+    };
     ($($worker:ident)::+ ! $arguments:tt) => {
+        $crate::curves::curve_2d_variants! {
+            @elementary $($worker)::+ ! $arguments,
+            BSpline(BSplineCurve2D),
+            Bezier(BezierCurve2D)
+        }
+    };
+    (@elementary $($worker:ident)::+ ! $arguments:tt, $($others:tt)*) => {
         $crate::shape_enum::expand_variants! {
             curves::Curve2D,
             $($worker)::+! $arguments,
@@ -21,8 +33,7 @@ macro_rules! curve_2d_variants {
             Ellipse(Ellipse2D),
             Parabola(Parabola2D),
             Hyperbola(Hyperbola2D),
-            BSpline(BSplineCurve2D),
-            Bezier(BezierCurve2D),
+            $($others)*
         }
     };
 }
