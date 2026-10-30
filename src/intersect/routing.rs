@@ -282,9 +282,14 @@ impl SurfaceOperand for BezierSurface {
 impl SurfaceOperand for Surface {
     type Basis<'a> = SurfaceKind<'a>;
 
+    /// The kind of the surface the variant holds, built in one match.
+    #[allow(
+        clippy::useless_conversion,
+        reason = "a swept or unlisted variant's basis is its kind already"
+    )]
     #[inline]
     fn surface_basis(&self) -> SurfaceKind<'_> {
-        SurfaceKind::from(self)
+        crate::surfaces::surface_dispatch!(self, surface => surface.surface_basis().into())
     }
 }
 

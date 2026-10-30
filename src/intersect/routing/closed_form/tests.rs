@@ -3,7 +3,9 @@ use super::*;
 use crate::curves::{BSplineCurve2D, BezierCurve, BezierCurve2D};
 use crate::intersect::routing::{CurveOperand, CurveOperand2D, SurfaceOperand};
 use crate::intersect::{Intersect, IntersectionMethod};
-use crate::surfaces::{BezierSurface, ExtrusionSurface, RevolutionSurface};
+use crate::surfaces::{
+    BezierSurface, ExtrusionSurface, ParametricSurface, RevolutionSurface, Surface,
+};
 use crate::{Axis, Point, Point2D, Vector, Vector2D};
 
 const TOL: Tolerance = Tolerance::DEFAULT;

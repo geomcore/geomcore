@@ -31,9 +31,7 @@ use crate::intersect::{
     CurveCurveIntersection, CurveCurveIntersection2D, CurveSurfaceIntersection, IntersectExact,
     SurfaceSurfaceIntersection,
 };
-use crate::surfaces::{
-    Cone, Cylinder, ElementarySurface, ParametricSurface, Plane, Sphere, Surface, Torus,
-};
+use crate::surfaces::{Cone, Cylinder, ElementarySurface, Plane, Sphere, Torus};
 
 /// The parameter ranges restricting the two operands of a pair, `None`
 /// for an operand that is not restricted. A surface is never restricted.
@@ -145,19 +143,6 @@ pub(crate) enum SurfaceKind<'a> {
     Swept(Swept<'a>),
     /// A surface the table pairs with nothing.
     Unlisted,
-}
-
-impl<'a> From<&'a Surface> for SurfaceKind<'a> {
-    #[inline]
-    fn from(surface: &'a Surface) -> SurfaceKind<'a> {
-        match surface {
-            Surface::Extrusion(swept) => SurfaceKind::Swept(Swept::Extrusion(swept)),
-            Surface::Revolution(swept) => SurfaceKind::Swept(Swept::Revolution(swept)),
-            _ => surface
-                .as_elementary()
-                .map_or(SurfaceKind::Unlisted, SurfaceKind::Elementary),
-        }
-    }
 }
 
 impl From<ElementarySurface> for SurfaceKind<'_> {
