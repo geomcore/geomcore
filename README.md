@@ -18,8 +18,8 @@ changes are flagged in the changelog). Implemented:
 
 - **Evaluation** of lines, circles, ellipses, parabolas, hyperbolas and
   B-spline curves (rational and periodic) in 3D, plus 2D lines and
-  circles; and of planes, cylinders, cones, spheres, tori and B-spline
-  surfaces.
+  circles; and of planes, cylinders, cones, spheres, tori, B-spline
+  surfaces, and surfaces extruded or revolved from any curve.
 - **Transformations**: translation, rotation, mirroring and scaling via a
   single `Transform` type, applied to any curve or surface with
   `transformed`.
@@ -30,7 +30,8 @@ changes are flagged in the changelog). Implemented:
   either order and on shapes whose type is only known at run time. It
   solves the pair exactly when a closed form exists (plane, quadric and
   torus pairs; lines, circles and conics against each other and against
-  the elementary surfaces), with tangency and coincidence classification,
+  the elementary surfaces; a plane against an extruded or revolved
+  surface in the common positions), with tangency and coincidence classification,
   and runs a numeric search otherwise (curve–curve and curve–surface
   subdivision, marching surface–surface fitted with B-splines). Every
   result says which method ran and whether every hit was found. The
