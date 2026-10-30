@@ -125,7 +125,7 @@ fn test_clip_range_drops_a_touch_repeating_the_end_of_a_piece() {
 fn test_trimmed_operand_reports_basis_and_range() {
     let circle = crate::Circle::new(crate::Point::ORIGIN, crate::Vector::Z, 1.0).unwrap();
     let arc = crate::curves::TrimmedCurve::new(circle, -1.0, 1.0).unwrap();
-    let (basis, range) = arc.elementary_basis().unwrap();
+    let (basis, range) = arc.basis_and_range();
     // A trimmed circle routes through the typed circle solver.
     assert_eq!(basis, circle);
     assert_eq!(range, Some((-1.0, 1.0)));
@@ -135,7 +135,7 @@ fn test_trimmed_operand_reports_basis_and_range() {
 fn test_trimmed_of_trimmed_keeps_the_outer_range() {
     let line = crate::Line::new(crate::Point::ORIGIN, crate::Vector::X).unwrap();
     let outer = TrimmedCurve::new(TrimmedCurve::new(line, 0.0, 10.0).unwrap(), 2.0, 3.0).unwrap();
-    assert_eq!(outer.elementary_basis().unwrap().1, Some((2.0, 3.0)));
+    assert_eq!(outer.basis_and_range().1, Some((2.0, 3.0)));
     let spline_free: Curve = line.into();
-    assert_eq!(spline_free.elementary_basis().unwrap().1, None);
+    assert_eq!(spline_free.basis_and_range().1, None);
 }

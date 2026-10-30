@@ -1,21 +1,19 @@
 //! The bridge from each exact pair's typed result to its family result.
 //!
-//! [`ExactFamily`] is implemented once per pair of bases the router can
-//! solve in closed form: the concrete curves and surfaces, and the
-//! [`ElementaryCurve`], [`ElementarySurface`] and [`Curve2D`] enums. A
-//! concrete pair calls its typed solver ([`IntersectExact`]) and reads the
-//! typed result straight into the family result, applying the curves'
-//! parameter ranges on the way; an enum operand matches on its variant
-//! first. Where no closed form covers the configuration, the bridge calls
-//! the numeric search the router hands it. Each typed result reads itself
-//! through an `into_family` method that receives the operands: a lone hit
-//! of a line on a circle or conic needs them to decide its multiplicity,
-//! and a coincidence of two curves needs them to map its overlaps.
+//! Each typed result of [`IntersectExact`](crate::IntersectExact) reads
+//! itself straight into its family result through an `into_family`
+//! method, applying the curves' parameter ranges on the way (ADR 0018).
+//! The closed-form pair table (`closed_form`) calls it for every pair it
+//! solves through a typed solver. The method receives the operands: a
+//! lone hit of a line on a circle or conic needs them to decide its
+//! multiplicity, and a coincidence of two curves needs them to map its
+//! overlaps.
 
+use super::closed_form::Ranges;
 use super::{CurveBasis, CurveBasis2D, coincident_overlaps, in_range, kept_parameter};
 use crate::curves::{
-    Circle, Circle2D, Curve, Curve2D, ElementaryCurve, Ellipse, Ellipse2D, Hyperbola, Hyperbola2D,
-    Line, Line2D, Parabola, Parabola2D, ParametricCurve, ParametricCurve2D, PointExtrema,
+    Circle, Circle2D, Curve, Curve2D, ElementaryCurve, Line, Line2D, ParametricCurve,
+    ParametricCurve2D, PointExtrema,
 };
 use crate::intersect::results::{
     CurveCurveHitList, CurveCurveOverlapList, CurveSurfaceOverlapList,
@@ -24,7 +22,7 @@ use crate::intersect::{
     CircleCircle2DIntersection, CircleCircleIntersection, CircleSurfaceIntersection, Conic,
     Conic2DIntersection, ConicConicIntersection, ConicSurfaceHit, ConicSurfaceIntersection,
     CurveCurveHit, CurveCurveHit2D, CurveCurveIntersection, CurveCurveIntersection2D,
-    CurveSurfaceHit, CurveSurfaceIntersection, InlineList, IntersectExact, IntersectionCurve,
+    CurveSurfaceHit, CurveSurfaceIntersection, InlineList, IntersectionCurve,
     LineCircle2DIntersection, LineCircleIntersection, LineConicHit, LineConicIntersection,
     LineLine2DIntersection, LineLineIntersection, LinePlaneIntersection, LineQuadricIntersection,
     LineTorusIntersection, SurfaceSurfaceIntersection, intersect_conic_conic,
@@ -36,90 +34,7 @@ use crate::intersect::{
     SphereSphereIntersection, TorusConeIntersection, TorusCylinderIntersection,
     TorusPlaneIntersection, TorusSphereIntersection, TorusTorusIntersection,
 };
-use crate::surfaces::{Cone, Cylinder, ElementarySurface, Plane, Sphere, Torus};
 use crate::{Point, Point2D, Tolerance};
-
-/// The parameter ranges restricting the two operands of a pair, `None`
-/// for an operand that is not restricted. A surface is never restricted.
-pub(crate) type Ranges = (Option<(f64, f64)>, Option<(f64, f64)>);
-
-/// The exact intersection of a pair of bases, read as its family result.
-pub(crate) trait ExactFamily<B> {
-    /// The family result: [`CurveCurveIntersection`],
-    /// [`CurveCurveIntersection2D`], [`CurveSurfaceIntersection`] or
-    /// [`SurfaceSurfaceIntersection`].
-    type Family;
-
-    /// Intersects `self` with `other` in closed form, each restricted to
-    /// its range in `ranges`, deciding tangency and coincidence with
-    /// `tol`; where the configuration has no closed form, the result of
-    /// `numeric_search` instead.
-    // A fallback rather than an `Option`: a curve family result holds its
-    // hits inline, and moving it out of an `Option` costs a copy per call.
-    fn exact_family(
-        &self,
-        other: &B,
-        ranges: Ranges,
-        tol: Tolerance,
-        numeric_search: impl FnOnce() -> Self::Family,
-    ) -> Self::Family;
-}
-
-/// Implements [`ExactFamily`] between each listed type and an enum on
-/// the second side, by matching on the enum's variant. The variants
-/// listed after `none` have no closed form with any type.
-macro_rules! enum_second {
-    ($family:ty: $enum:ident $variants:tt none $none:tt for $($first:ty),*) => {$(
-        enum_second!(@one $family, $enum $variants $none, $first);
-    )*};
-    (@one $family:ty, $enum:ident [$($variant:ident),*] [$($none:ident),*], $first:ty) => {
-        impl ExactFamily<$enum> for $first {
-            type Family = $family;
-
-            #[inline]
-            fn exact_family(
-                &self,
-                other: &$enum,
-                ranges: Ranges,
-                tol: Tolerance,
-                numeric_search: impl FnOnce() -> $family,
-            ) -> $family {
-                match other {
-                    $($enum::$variant(b) => self.exact_family(b, ranges, tol, numeric_search),)*
-                    $($enum::$none(_) => numeric_search(),)*
-                }
-            }
-        }
-    };
-}
-
-/// Implements [`ExactFamily`] between an enum on the first side and each
-/// listed type, by matching on the enum's variant. The variants listed
-/// after `none` have no closed form with any type.
-macro_rules! enum_first {
-    ($family:ty: $enum:ident $variants:tt none $none:tt for $($second:ty),*) => {$(
-        enum_first!(@one $family, $enum $variants $none, $second);
-    )*};
-    (@one $family:ty, $enum:ident [$($variant:ident),*] [$($none:ident),*], $second:ty) => {
-        impl ExactFamily<$second> for $enum {
-            type Family = $family;
-
-            #[inline]
-            fn exact_family(
-                &self,
-                other: &$second,
-                ranges: Ranges,
-                tol: Tolerance,
-                numeric_search: impl FnOnce() -> $family,
-            ) -> $family {
-                match self {
-                    $($enum::$variant(a) => a.exact_family(other, ranges, tol, numeric_search),)*
-                    $($enum::$none(_) => numeric_search(),)*
-                }
-            }
-        }
-    };
-}
 
 // Surface–surface.
 
@@ -171,7 +86,7 @@ fn surfaces_coincide() -> Option<SurfaceSurfaceIntersection> {
 
 impl PlanePlaneIntersection {
     #[inline]
-    fn into_family(self) -> Option<SurfaceSurfaceIntersection> {
+    pub(super) fn into_family(self) -> Option<SurfaceSurfaceIntersection> {
         match self {
             PlanePlaneIntersection::Line(l) => surface_curves([(l, false)]),
             PlanePlaneIntersection::Parallel => surfaces_miss(),
@@ -182,7 +97,7 @@ impl PlanePlaneIntersection {
 
 impl PlaneSphereIntersection {
     #[inline]
-    fn into_family(self) -> Option<SurfaceSurfaceIntersection> {
+    pub(super) fn into_family(self) -> Option<SurfaceSurfaceIntersection> {
         match self {
             PlaneSphereIntersection::Circle(c) => surface_curves([(c, false)]),
             PlaneSphereIntersection::TangentPoint(p) => contact_point(p),
@@ -193,7 +108,7 @@ impl PlaneSphereIntersection {
 
 impl SphereSphereIntersection {
     #[inline]
-    fn into_family(self) -> Option<SurfaceSurfaceIntersection> {
+    pub(super) fn into_family(self) -> Option<SurfaceSurfaceIntersection> {
         match self {
             SphereSphereIntersection::Circle(c) => surface_curves([(c, false)]),
             SphereSphereIntersection::TangentPoint(p) => contact_point(p),
@@ -205,7 +120,7 @@ impl SphereSphereIntersection {
 
 impl PlaneCylinderIntersection {
     #[inline]
-    fn into_family(self) -> Option<SurfaceSurfaceIntersection> {
+    pub(super) fn into_family(self) -> Option<SurfaceSurfaceIntersection> {
         match self {
             PlaneCylinderIntersection::Circle(c) => surface_curves([(c, false)]),
             PlaneCylinderIntersection::Ellipse(e) => surface_curves([(e, false)]),
@@ -220,7 +135,7 @@ impl PlaneCylinderIntersection {
 
 impl PlaneConeIntersection {
     #[inline]
-    fn into_family(self) -> Option<SurfaceSurfaceIntersection> {
+    pub(super) fn into_family(self) -> Option<SurfaceSurfaceIntersection> {
         match self {
             PlaneConeIntersection::Circle(c) => surface_curves([(c, false)]),
             PlaneConeIntersection::Ellipse(e) => surface_curves([(e, false)]),
@@ -235,7 +150,7 @@ impl PlaneConeIntersection {
 
 impl SphereCylinderIntersection {
     #[inline]
-    fn into_family(self) -> Option<SurfaceSurfaceIntersection> {
+    pub(super) fn into_family(self) -> Option<SurfaceSurfaceIntersection> {
         match self {
             // A single ring is the equator of a tube as wide as the sphere.
             SphereCylinderIntersection::Circle(c) => surface_curves([(c, true)]),
@@ -250,7 +165,7 @@ impl SphereCylinderIntersection {
 
 impl SphereConeIntersection {
     #[inline]
-    fn into_family(self) -> Option<SurfaceSurfaceIntersection> {
+    pub(super) fn into_family(self) -> Option<SurfaceSurfaceIntersection> {
         match self {
             SphereConeIntersection::TwoCircles(c1, c2) => {
                 surface_curves([(c1, false), (c2, false)])
@@ -264,7 +179,7 @@ impl SphereConeIntersection {
 
 impl CylinderCylinderIntersection {
     #[inline]
-    fn into_family(self) -> Option<SurfaceSurfaceIntersection> {
+    pub(super) fn into_family(self) -> Option<SurfaceSurfaceIntersection> {
         match self {
             CylinderCylinderIntersection::TwoLines(l1, l2) => {
                 surface_curves([(l1, false), (l2, false)])
@@ -279,7 +194,7 @@ impl CylinderCylinderIntersection {
 
 impl ConeCylinderIntersection {
     #[inline]
-    fn into_family(self) -> Option<SurfaceSurfaceIntersection> {
+    pub(super) fn into_family(self) -> Option<SurfaceSurfaceIntersection> {
         match self {
             ConeCylinderIntersection::TwoCircles(c1, c2) => {
                 surface_curves([(c1, false), (c2, false)])
@@ -292,7 +207,7 @@ impl ConeCylinderIntersection {
 
 impl TorusPlaneIntersection {
     #[inline]
-    fn into_family(self) -> Option<SurfaceSurfaceIntersection> {
+    pub(super) fn into_family(self) -> Option<SurfaceSurfaceIntersection> {
         match self {
             TorusPlaneIntersection::TwoCircles(c1, c2) => {
                 surface_curves([(c1, false), (c2, false)])
@@ -307,7 +222,7 @@ impl TorusPlaneIntersection {
 
 impl TorusSphereIntersection {
     #[inline]
-    fn into_family(self) -> Option<SurfaceSurfaceIntersection> {
+    pub(super) fn into_family(self) -> Option<SurfaceSurfaceIntersection> {
         match self {
             TorusSphereIntersection::Circle(c) => surface_curves([(c, false)]),
             TorusSphereIntersection::TwoCircles(c1, c2) => {
@@ -322,7 +237,7 @@ impl TorusSphereIntersection {
 
 impl TorusCylinderIntersection {
     #[inline]
-    fn into_family(self) -> Option<SurfaceSurfaceIntersection> {
+    pub(super) fn into_family(self) -> Option<SurfaceSurfaceIntersection> {
         match self {
             TorusCylinderIntersection::TwoCircles(c1, c2) => {
                 surface_curves([(c1, false), (c2, false)])
@@ -336,7 +251,7 @@ impl TorusCylinderIntersection {
 
 impl TorusConeIntersection {
     #[inline]
-    fn into_family(self) -> Option<SurfaceSurfaceIntersection> {
+    pub(super) fn into_family(self) -> Option<SurfaceSurfaceIntersection> {
         match self {
             TorusConeIntersection::Rings(rings) => {
                 let curves = rings
@@ -356,7 +271,7 @@ impl TorusConeIntersection {
 
 impl TorusTorusIntersection {
     #[inline]
-    fn into_family(self) -> Option<SurfaceSurfaceIntersection> {
+    pub(super) fn into_family(self) -> Option<SurfaceSurfaceIntersection> {
         match self {
             TorusTorusIntersection::Circle(c) => surface_curves([(c, false)]),
             TorusTorusIntersection::TwoCircles(c1, c2) => {
@@ -372,7 +287,7 @@ impl TorusTorusIntersection {
 
 impl ConeConeIntersection {
     #[inline]
-    fn into_family(self) -> Option<SurfaceSurfaceIntersection> {
+    pub(super) fn into_family(self) -> Option<SurfaceSurfaceIntersection> {
         match self {
             ConeConeIntersection::Circle(c) => surface_curves([(c, false)]),
             ConeConeIntersection::TwoCircles(c1, c2) => surface_curves([(c1, false), (c2, false)]),
@@ -382,45 +297,6 @@ impl ConeConeIntersection {
         }
     }
 }
-
-/// Implements [`ExactFamily`] for each pair of concrete surfaces through
-/// its typed solver.
-macro_rules! surface_surface {
-    ($($first:ty => [$($second:ty),*]),*) => {$($(
-        impl ExactFamily<$second> for $first {
-            type Family = SurfaceSurfaceIntersection;
-
-            #[inline]
-            fn exact_family(
-                &self,
-                other: &$second,
-                _ranges: Ranges,
-                tol: Tolerance,
-                numeric_search: impl FnOnce() -> SurfaceSurfaceIntersection,
-            ) -> SurfaceSurfaceIntersection {
-                self.intersect_exact(other, tol).into_family().unwrap_or_else(numeric_search)
-            }
-        }
-    )*)*};
-}
-
-surface_surface!(
-    Plane => [Plane, Cylinder, Cone, Sphere, Torus],
-    Cylinder => [Plane, Cylinder, Cone, Sphere, Torus],
-    Cone => [Plane, Cylinder, Cone, Sphere, Torus],
-    Sphere => [Plane, Cylinder, Cone, Sphere, Torus],
-    Torus => [Plane, Cylinder, Cone, Sphere, Torus]
-);
-
-enum_second!(
-    SurfaceSurfaceIntersection: ElementarySurface [Plane, Cylinder, Cone, Sphere, Torus] none []
-    for Plane, Cylinder, Cone, Sphere, Torus
-);
-
-enum_first!(
-    SurfaceSurfaceIntersection: ElementarySurface [Plane, Cylinder, Cone, Sphere, Torus] none []
-    for Plane, Cylinder, Cone, Sphere, Torus, ElementarySurface
-);
 
 // Curve–surface.
 
@@ -485,7 +361,7 @@ fn curve_misses_surface() -> CurveSurfaceIntersection {
 
 impl LinePlaneIntersection {
     #[inline]
-    fn into_family(
+    pub(super) fn into_family(
         self,
         line: &impl ParametricCurve,
         range: Option<(f64, f64)>,
@@ -503,7 +379,7 @@ impl LinePlaneIntersection {
 
 impl LineQuadricIntersection {
     #[inline]
-    fn into_family(
+    pub(super) fn into_family(
         self,
         line: &impl ParametricCurve,
         range: Option<(f64, f64)>,
@@ -527,7 +403,7 @@ impl LineQuadricIntersection {
 
 impl LineTorusIntersection {
     #[inline]
-    fn into_family(
+    pub(super) fn into_family(
         self,
         line: &impl ParametricCurve,
         range: Option<(f64, f64)>,
@@ -548,7 +424,7 @@ impl LineTorusIntersection {
 
 impl CircleSurfaceIntersection {
     #[inline]
-    fn into_family(
+    pub(super) fn into_family(
         self,
         circle: &impl ParametricCurve,
         range: Option<(f64, f64)>,
@@ -564,7 +440,7 @@ impl CircleSurfaceIntersection {
 
 impl ConicSurfaceIntersection {
     #[inline]
-    fn into_family(
+    pub(super) fn into_family(
         self,
         conic: &impl ParametricCurve,
         range: Option<(f64, f64)>,
@@ -577,73 +453,6 @@ impl ConicSurfaceIntersection {
         }
     }
 }
-
-/// Implements [`ExactFamily`] for each pair of a concrete curve and a
-/// concrete surface with a closed form (`solved`) through its typed
-/// solver, and for each pair without one (`not_analytic`) through the
-/// numeric search.
-macro_rules! curve_surface {
-    (solved: $($curve:ty => [$($surface:ty),*]),*) => {$($(
-        impl ExactFamily<$surface> for $curve {
-            type Family = CurveSurfaceIntersection;
-
-            #[inline]
-            fn exact_family(
-                &self,
-                surface: &$surface,
-                (range, _): Ranges,
-                tol: Tolerance,
-                _numeric_search: impl FnOnce() -> CurveSurfaceIntersection,
-            ) -> CurveSurfaceIntersection {
-                self.intersect_exact(surface, tol).into_family(self, range, tol)
-            }
-        }
-    )*)*};
-    (not_analytic: $($curve:ty => $surface:ty),*) => {$(
-        impl ExactFamily<$surface> for $curve {
-            type Family = CurveSurfaceIntersection;
-
-            /// A circle or conic against a torus has no closed form.
-            #[inline]
-            fn exact_family(
-                &self,
-                _surface: &$surface,
-                _ranges: Ranges,
-                _tol: Tolerance,
-                numeric_search: impl FnOnce() -> CurveSurfaceIntersection,
-            ) -> CurveSurfaceIntersection {
-                numeric_search()
-            }
-        }
-    )*};
-}
-
-curve_surface!(
-    solved:
-    Line => [Plane, Cylinder, Cone, Sphere, Torus],
-    Circle => [Plane, Cylinder, Cone, Sphere],
-    Ellipse => [Plane, Cylinder, Cone, Sphere],
-    Parabola => [Plane, Cylinder, Cone, Sphere],
-    Hyperbola => [Plane, Cylinder, Cone, Sphere]
-);
-
-curve_surface!(
-    not_analytic:
-    Circle => Torus,
-    Ellipse => Torus,
-    Parabola => Torus,
-    Hyperbola => Torus
-);
-
-enum_second!(
-    CurveSurfaceIntersection: ElementarySurface [Plane, Cylinder, Cone, Sphere, Torus] none []
-    for Line, Circle, Ellipse, Parabola, Hyperbola
-);
-
-enum_first!(
-    CurveSurfaceIntersection: ElementaryCurve [Line, Circle, Ellipse, Parabola, Hyperbola] none []
-    for Plane, Cylinder, Cone, Sphere, Torus, ElementarySurface
-);
 
 // Curve–curve.
 
@@ -758,7 +567,7 @@ fn lone_hit_multiplicity(line: &Line, conic: &impl Conic, parameter: f64, tol: T
 
 impl LineLineIntersection {
     #[inline]
-    fn into_family(
+    pub(super) fn into_family(
         self,
         first: &Line,
         second: &Line,
@@ -777,7 +586,7 @@ impl LineLineIntersection {
 
 impl LineCircleIntersection {
     #[inline]
-    fn into_family(
+    pub(super) fn into_family(
         self,
         line: &Line,
         circle: &Circle,
@@ -803,7 +612,7 @@ impl LineCircleIntersection {
 
 impl LineConicIntersection {
     #[inline]
-    fn into_family<C: Conic + CurveBasis>(
+    pub(super) fn into_family<C: Conic + CurveBasis>(
         self,
         line: &Line,
         conic: &C,
@@ -827,7 +636,7 @@ impl LineConicIntersection {
 
 impl CircleCircleIntersection {
     #[inline]
-    fn into_family(
+    pub(super) fn into_family(
         self,
         a: &Circle,
         b: &Circle,
@@ -852,7 +661,7 @@ impl CircleCircleIntersection {
 
 impl ConicConicIntersection {
     #[inline]
-    fn into_family<A: CurveBasis, B: CurveBasis>(
+    pub(super) fn into_family<A: CurveBasis, B: CurveBasis>(
         self,
         first: &A,
         second: &B,
@@ -868,75 +677,6 @@ impl ConicConicIntersection {
         }
     }
 }
-
-/// Implements [`ExactFamily`] for each pair of concrete curves solved in
-/// this order (`solved`) through its typed solver, and for each pair
-/// solved in the other order (`reversed`) by swapping the operands and
-/// the result.
-macro_rules! curve_curve {
-    (solved: $($first:ty => [$($second:ty),*]),*) => {$($(
-        impl ExactFamily<$second> for $first {
-            type Family = CurveCurveIntersection;
-
-            #[inline]
-            fn exact_family(
-                &self,
-                other: &$second,
-                ranges: Ranges,
-                tol: Tolerance,
-                _numeric_search: impl FnOnce() -> CurveCurveIntersection,
-            ) -> CurveCurveIntersection {
-                self.intersect_exact(other, tol).into_family(self, other, ranges, tol)
-            }
-        }
-    )*)*};
-    (reversed: $($first:ty => $second:ty),*) => {$(
-        impl ExactFamily<$second> for $first {
-            type Family = CurveCurveIntersection;
-
-            #[inline]
-            fn exact_family(
-                &self,
-                other: &$second,
-                (first_range, second_range): Ranges,
-                tol: Tolerance,
-                numeric_search: impl FnOnce() -> CurveCurveIntersection,
-            ) -> CurveCurveIntersection {
-                let numeric_search = || numeric_search().swapped();
-                other
-                    .exact_family(self, (second_range, first_range), tol, numeric_search)
-                    .swapped()
-            }
-        }
-    )*};
-}
-
-curve_curve!(
-    solved:
-    Line => [Line, Circle, Ellipse, Parabola, Hyperbola],
-    Circle => [Circle, Ellipse, Parabola, Hyperbola],
-    Ellipse => [Circle, Ellipse, Parabola, Hyperbola],
-    Parabola => [Circle, Ellipse, Parabola, Hyperbola],
-    Hyperbola => [Circle, Ellipse, Parabola, Hyperbola]
-);
-
-curve_curve!(
-    reversed:
-    Circle => Line,
-    Ellipse => Line,
-    Parabola => Line,
-    Hyperbola => Line
-);
-
-enum_second!(
-    CurveCurveIntersection: ElementaryCurve [Line, Circle, Ellipse, Parabola, Hyperbola] none []
-    for Line, Circle, Ellipse, Parabola, Hyperbola
-);
-
-enum_first!(
-    CurveCurveIntersection: ElementaryCurve [Line, Circle, Ellipse, Parabola, Hyperbola] none []
-    for Line, Circle, Ellipse, Parabola, Hyperbola, ElementaryCurve
-);
 
 // 2D curve–curve.
 
@@ -1032,7 +772,7 @@ fn curves_miss_2d() -> CurveCurveIntersection2D {
 // `curve_curve_hits_2d`: the compiler keeps them out of line otherwise.
 impl LineLine2DIntersection {
     #[inline(always)]
-    fn into_family(
+    pub(super) fn into_family(
         self,
         first: &Line2D,
         second: &Line2D,
@@ -1052,7 +792,7 @@ impl LineLine2DIntersection {
 
 impl LineCircle2DIntersection {
     #[inline(always)]
-    fn into_family(
+    pub(super) fn into_family(
         self,
         line: &Line2D,
         circle: &Circle2D,
@@ -1073,7 +813,7 @@ impl LineCircle2DIntersection {
 
 impl CircleCircle2DIntersection {
     #[inline(always)]
-    fn into_family(
+    pub(super) fn into_family(
         self,
         a: &Circle2D,
         b: &Circle2D,
@@ -1093,7 +833,7 @@ impl CircleCircle2DIntersection {
 
 impl Conic2DIntersection {
     #[inline(always)]
-    fn into_family<A: CurveBasis2D, B: CurveBasis2D>(
+    pub(super) fn into_family<A: CurveBasis2D, B: CurveBasis2D>(
         self,
         first: &A,
         second: &B,
@@ -1109,66 +849,3 @@ impl Conic2DIntersection {
         }
     }
 }
-
-/// Implements [`ExactFamily`] for each pair of concrete 2D curves solved
-/// in this order (`solved`) through its typed solver, and for each pair
-/// solved in the other order (`reversed`) by swapping the operands and the
-/// result.
-macro_rules! curve_curve_2d {
-    (solved: $($first:ty => [$($second:ty),*]),*) => {$($(
-        impl ExactFamily<$second> for $first {
-            type Family = CurveCurveIntersection2D;
-
-            #[inline]
-            fn exact_family(
-                &self,
-                other: &$second,
-                ranges: Ranges,
-                tol: Tolerance,
-                _numeric_search: impl FnOnce() -> CurveCurveIntersection2D,
-            ) -> CurveCurveIntersection2D {
-                self.intersect_exact(other, tol).into_family(self, other, ranges, tol)
-            }
-        }
-    )*)*};
-    (reversed: $($first:ty => $second:ty),*) => {$(
-        impl ExactFamily<$second> for $first {
-            type Family = CurveCurveIntersection2D;
-
-            #[inline]
-            fn exact_family(
-                &self,
-                other: &$second,
-                (first_range, second_range): Ranges,
-                tol: Tolerance,
-                numeric_search: impl FnOnce() -> CurveCurveIntersection2D,
-            ) -> CurveCurveIntersection2D {
-                let numeric_search = || numeric_search().swapped();
-                other
-                    .exact_family(self, (second_range, first_range), tol, numeric_search)
-                    .swapped()
-            }
-        }
-    )*};
-}
-
-curve_curve_2d!(
-    solved:
-    Line2D => [Line2D, Circle2D, Ellipse2D, Parabola2D, Hyperbola2D],
-    Circle2D => [Circle2D, Ellipse2D, Parabola2D, Hyperbola2D],
-    Ellipse2D => [Line2D, Circle2D, Ellipse2D, Parabola2D, Hyperbola2D],
-    Parabola2D => [Line2D, Circle2D, Ellipse2D, Parabola2D, Hyperbola2D],
-    Hyperbola2D => [Line2D, Circle2D, Ellipse2D, Parabola2D, Hyperbola2D]
-);
-
-curve_curve_2d!(reversed: Circle2D => Line2D);
-
-enum_second!(
-    CurveCurveIntersection2D: Curve2D [Line, Circle, Ellipse, Parabola, Hyperbola] none [BSpline, Bezier]
-    for Line2D, Circle2D, Ellipse2D, Parabola2D, Hyperbola2D
-);
-
-enum_first!(
-    CurveCurveIntersection2D: Curve2D [Line, Circle, Ellipse, Parabola, Hyperbola] none [BSpline, Bezier]
-    for Line2D, Circle2D, Ellipse2D, Parabola2D, Hyperbola2D, Curve2D
-);

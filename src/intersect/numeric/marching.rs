@@ -5,9 +5,11 @@
 
 use crate::curves::PointExtrema;
 use crate::curves::fitting::CONFUSED_CHORD;
-use crate::curves::{BSplineCurve, Curve, ElementaryCurve, ParametricCurve, PointParametrization};
+use crate::curves::{
+    BSplineCurve, Circle, Curve, ElementaryCurve, ParametricCurve, PointParametrization,
+};
 use crate::intersect::numeric::{bezier_pieces, patch_pairs};
-use crate::intersect::routing::route_curve_surface;
+use crate::intersect::routing::{ExactFamily, route_curve_surface};
 use crate::intersect::{
     Completeness, CurveSurfaceIntersection, IncompleteReason, IntersectionCurve,
     SurfaceSurfaceIntersection, SurfaceSurfaceRegion,
@@ -16,7 +18,7 @@ use crate::math::boxtree::{Aabb, boxes_apart};
 use crate::math::{solve_2x2, solve_3x3, solve_4x4};
 use crate::surfaces::parametric_surface::{partials_span_a_plane, reference_widths};
 use crate::surfaces::{BSplineSurface, ElementarySurface, ParametricSurface, Surface};
-use crate::{BoundingBox, HasBoundingBox, Point, Tolerance, Vector};
+use crate::{BoundingBox, Frame, HasBoundingBox, Point, Tolerance, Vector};
 
 /// Marching surface-surface intersection for any two parametric surfaces.
 ///
@@ -569,6 +571,18 @@ impl<'a> SeedTarget<'a> {
         }
     }
 
+    /// Whether the closed-form pair table solves a circle meeting this
+    /// surface. It answers by kind, so any circle stands for the seeding
+    /// ones. A B-spline is met by the search whatever the iso-curve, so
+    /// circles seed against it as lines do.
+    fn meets_circles_exactly(self) -> bool {
+        match self {
+            SeedTarget::Elementary(surface) => Circle::from_frame(Frame::WORLD, 1.0)
+                .is_ok_and(|circle| circle.has_closed_form(&surface)),
+            SeedTarget::BSpline(_) => true,
+        }
+    }
+
     fn parameters_of(self, point: Point, tol: Tolerance) -> (f64, f64) {
         match self {
             SeedTarget::Elementary(surface) => surface.parameters_of(point, tol),
@@ -632,9 +646,10 @@ fn family_seeds(
 }
 
 /// The iso-curves `own` seeds from, as `(direction, fixed value)` (see
-/// [`marching_intersection`]). Circles are left out against a torus, where
-/// a circle meets it only through the sampled search: a sphere or torus
-/// then has none.
+/// [`marching_intersection`]). Circles are left out against an elementary
+/// surface the closed-form pair table does not pair them with (a torus),
+/// where a circle meets it only through the sampled search: a sphere or
+/// torus then has none.
 fn seeding_iso_values(
     own: ElementarySurface,
     other: SeedTarget,
@@ -643,8 +658,7 @@ fn seeding_iso_values(
     let periodic =
         |period: f64| (0..ISO_CURVE_COUNT).map(move |i| period * i as f64 / ISO_CURVE_COUNT as f64);
     let tau = std::f64::consts::TAU;
-    let circles_meet_exactly =
-        !matches!(other, SeedTarget::Elementary(ElementarySurface::Torus(_)));
+    let circles_meet_exactly = other.meets_circles_exactly();
     // The range of `own`'s parameters at the corners of the other surface's
     // box, grown by 10 %: `ISO_CURVE_COUNT` values across it, ends included
     // (one value when the range is flat).

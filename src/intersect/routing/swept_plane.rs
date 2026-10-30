@@ -1,7 +1,8 @@
 //! Plane cuts of swept surfaces with a closed form.
 //!
 //! In four positions a plane meets a swept surface along curves read off
-//! the profile, so the router answers without marching:
+//! the profile, so the closed-form pair table lists a plane with a swept
+//! surface, in either order, and the router answers without marching:
 //!
 //! - an extrusion and a plane holding its direction: one generator line
 //!   through each point where the profile crosses the plane;
@@ -26,7 +27,7 @@
 
 use std::f64::consts::PI;
 
-use super::{Intersect, SurfaceOperand};
+use super::Intersect;
 use crate::curves::{Circle, Curve, Line, ParametricCurve, PointExtrema};
 use crate::intersect::results::{IntersectionCurve, SurfaceSurfaceIntersection};
 use crate::intersect::{Completeness, CurveSurfaceHit, IntersectionMethod};
@@ -36,7 +37,7 @@ use crate::{Frame, Point, Tolerance};
 /// Samples compared to tell the two halves of a meridian cut apart.
 const MERIDIAN_SAMPLES: usize = 33;
 
-/// A swept surface, as the router sees it.
+/// A swept surface, as the closed-form pair table sees it.
 #[derive(Clone, Copy)]
 pub(crate) enum Swept<'a> {
     /// A profile swept along a direction.
@@ -45,20 +46,17 @@ pub(crate) enum Swept<'a> {
     Revolution(&'a RevolutionSurface),
 }
 
-/// The intersection of a plane and a swept surface, in either order, when
-/// their position has a closed form; `None` otherwise.
-pub(super) fn swept_plane_intersection<A: SurfaceOperand, B: SurfaceOperand>(
-    a: &A,
-    b: &B,
+/// The intersection of a plane and a swept surface when their position
+/// has a closed form; `None` otherwise. The result is the same in either
+/// order of the operands.
+pub(super) fn swept_plane_intersection(
+    plane: &Plane,
+    swept: Swept<'_>,
     tol: Tolerance,
 ) -> Option<SurfaceSurfaceIntersection> {
-    let (plane, swept) = match (a.as_plane(), b.as_swept()) {
-        (Some(plane), Some(swept)) => (plane, swept),
-        _ => (b.as_plane()?, a.as_swept()?),
-    };
     match swept {
-        Swept::Extrusion(surface) => extrusion_cut(surface, &plane, tol),
-        Swept::Revolution(surface) => revolution_cut(surface, &plane, tol),
+        Swept::Extrusion(surface) => extrusion_cut(surface, plane, tol),
+        Swept::Revolution(surface) => revolution_cut(surface, plane, tol),
     }
 }
 
