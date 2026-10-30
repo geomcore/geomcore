@@ -11,7 +11,7 @@ use geomcore::BSplineCurve;
 pub(crate) struct PyBSplineCurve(pub(crate) BSplineCurve);
 
 shape_methods! {
-    PyBSplineCurve: [curve, discretize, sided_evaluation, parametrize_on];
+    PyBSplineCurve: [curve, discretize, sided_evaluation];
 
     fn __repr__(&self) -> String {
         format!(

@@ -1,9 +1,10 @@
 # Curve on surface
 
 A curve that lies on a surface has an exact 2D image in the surface's
-parameter space — the *pcurve*. `parametrize_on` computes it in closed
-form where one exists (lines and circles on the five elementary
-surfaces); `parametrize_numeric` samples anywhere else. Adapted from
+parameter space — the *UV curve*, also called a pcurve.
+`surface.curve_3d_to_uv` computes it in closed form where one exists
+(lines and circles on the five elementary surfaces, any curve on a
+plane); `curve_3d_to_uv_numeric` samples anywhere else. Adapted from
 [Parametric domain](https://avenirgeometry.com/articles/parametric-domain/).
 
 ## Why the rectangle matters
@@ -21,7 +22,7 @@ what the parameters measure (see [Elementary](../geometry/elementary.md#what-the
 
 <iframe src="https://geomcore.github.io/geomcore-viewer/?scene=https://geomcore.github.io/geomcore/assets/scenes/param-grid.json" width="100%" height="480" style="border: 1px solid #333; border-radius: 8px;" allow="fullscreen" title="A uniform (u, v) grid on a sphere, one cell at the equator and one against the pole"></iframe>
 
-## Analytic pcurves
+## Analytic UV curves
 
 A circle coaxial with a cylinder is a horizontal line in $(u, v)$; a
 line in a plane is a line. The result is a `Line2D`/`Circle2D` (or a
@@ -32,13 +33,13 @@ means, and anything farther off is `CurveNotOnSurface`.
 === "Python"
 
     ```python
-    pc = circle.parametrize_on(cylinder)   # Line2D in (u, v)
+    uv_curve = cylinder.curve_3d_to_uv(circle)   # Line2D in (u, v)
     ```
 
 === "Rust"
 
     ```rust
-    let pc = circle.parametrize_on(cylinder, tol).unwrap();
+    let uv_curve = cylinder.curve_3d_to_uv(&circle.into(), tol).unwrap();
     ```
 
 A few images across the surfaces:
@@ -73,29 +74,29 @@ A few images across the surfaces:
 
 ## Numeric fallback
 
-Where no closed form exists, `parametrize_numeric` inverts uniform
+Where no closed form exists, `curve_3d_to_uv_numeric` inverts uniform
 curve samples through surface projection and is validated against
-every analytic pcurve.
+every analytic UV curve.
 
 === "Python"
 
     ```python
-    from geomcore import parametrize_numeric
+    from geomcore import curve_3d_to_uv_numeric
 
-    uv = parametrize_numeric(curve, surface, sample_count=64)   # [(u, v), ...]
+    uv = curve_3d_to_uv_numeric(curve, surface, sample_count=64)   # [(u, v), ...]
     ```
 
 === "Rust"
 
     ```rust
-    use geomcore::parametrize_numeric;
+    use geomcore::curve_3d_to_uv_numeric;
 
-    let uv = parametrize_numeric(&curve, &surface, 64, tol);
+    let uv = curve_3d_to_uv_numeric(&curve, &surface, 64, tol);
     ```
 
-## Viewing pcurves
+## Viewing UV curves
 
-The viewer draws a pcurve twice: on the surface in 3D and in its own
+The viewer draws a UV curve twice: on the surface in 3D and in its own
 $(u, v)$ pane. Pass the 2D curve with the already-added surface's
 handle.
 
@@ -104,7 +105,7 @@ handle.
     ```python
     s = view.add(cylinder, label="S")
     view.add(circle, label="C")
-    view.pcurve(circle.parametrize_on(cylinder), s, label="C in (u, v)")
+    view.pcurve(cylinder.curve_3d_to_uv(circle), s, label="C in (u, v)")
     ```
 
 === "Rust"
@@ -114,5 +115,5 @@ handle.
 
     let s = view.add(Geom::from(&cylinder), Opts::new().label("S"))?;
     view.add(&circle, Opts::new().label("C"))?;
-    view.pcurve(&circle.parametrize_on(cylinder, tol)?, &s, Opts::new().label("C in (u, v)"))?;
+    view.pcurve(&cylinder.curve_3d_to_uv(&circle.into(), tol)?, &s, Opts::new().label("C in (u, v)"))?;
     ```

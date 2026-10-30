@@ -32,8 +32,8 @@ class BSplineSplitError(GeomcoreError):
 class BSplineConversionError(GeomcoreError):
     """A curve or surface patch could not be converted to a B-spline."""
 
-class ParametrizeError(GeomcoreError):
-    """A curve could not be re-parametrized as requested."""
+class Curve3DToUvError(GeomcoreError):
+    """A 3D curve has no exact UV curve, a curve in a surface's parameter space, in the same parameter."""
 
 class UvCurveTo3DError(GeomcoreError):
     """A UV curve, a curve in a surface's parameter space, has no exact 3D curve in the same parameter."""
@@ -611,7 +611,7 @@ class CurveCurveExtrema:
     def second(self) -> _Curve: ...
     def is_complete(self) -> bool: ...
 
-def parametrize_numeric(
+def curve_3d_to_uv_numeric(
     curve: _Curve, surface: _Surface, sample_count: int = ..., tol: Optional[Tolerance] = ...
 ) -> List[Tuple[float, float]]: ...
 def curve_curve_extrema(
@@ -628,7 +628,7 @@ __all__ = [
     "DegreeElevationError",
     "BSplineSplitError",
     "BSplineConversionError",
-    "ParametrizeError",
+    "Curve3DToUvError",
     "UvCurveTo3DError",
     "SurfaceIsoError",
     "DiscretizationCriteriaError",
@@ -671,6 +671,6 @@ __all__ = [
     "Vector",
     "curve_curve_extrema",
     "curves",
-    "parametrize_numeric",
+    "curve_3d_to_uv_numeric",
     "surfaces",
 ]

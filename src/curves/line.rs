@@ -3,14 +3,11 @@
 
 use crate::curves::ReversibleCurve;
 use crate::curves::parametric_curve::only_minimum;
-use crate::curves::parametrize::ParametrizeError;
-use crate::curves::{Curve2D, parametrize};
 use crate::curves::{ElementaryCurve, ParametricCurve, ParametricCurve2D};
 use crate::curves::{PointExtrema, PointExtrema2D};
 use crate::elementary::curve as elementary;
 use crate::frame::frame_error;
 use crate::projection::CurveProjection;
-use crate::surfaces::Surface;
 use crate::tier::operations::{AxisOperations, VectorOperations};
 use crate::tier::{TierPoint, impl_for_both_tiers};
 use crate::transform::image_error;
@@ -195,49 +192,6 @@ impl<P: TierPoint> GenericLine<P> {
     /// ```
     pub fn axis(&self) -> P::Axis {
         self.axis
-    }
-}
-
-impl Line {
-    /// Computes the exact 2D representation of this line in a surface's
-    /// parameter space: a [`Curve2D`] `q(t)` such that
-    /// `surface.eval_point(q(t)) == self.eval_point(t)` for the same `t`.
-    ///
-    /// Only a few line/surface pairs admit a closed-form 2D image: a line on
-    /// a plane (projects to a 2D line), a line parallel to a cylinder or cone
-    /// axis / a cone generator (a vertical iso-`u` line in `(u, v)`). Every
-    /// other pair — including a line on a sphere or torus — returns
-    /// [`ParametrizeError::NotAnalytic`].
-    ///
-    /// The projection math assumes the line lies on the surface. As a
-    /// geomcore safeguard, the candidate 2D image is verified against the
-    /// surface at a few parameters; if `surface.eval_point(q(t))` is farther
-    /// than `tol.confusion` from `self.eval_point(t)`,
-    /// [`ParametrizeError::CurveNotOnSurface`] is returned. For periodic surfaces the result is normalized so `q(0)`
-    /// lies in the canonical parameter window.
-    ///
-    /// # Examples
-    ///
-    /// A vertical line on a cylinder maps to a vertical line in `(u, v)`:
-    ///
-    /// ```
-    /// use geomcore::prelude::*;
-    /// use geomcore::{Curve2D, Cylinder, Line, Point, Tolerance, Vector};
-    ///
-    /// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
-    /// let line = Line::new(Point::new(2.0, 0.0, 0.0), Vector::Z).unwrap();
-    /// let pcurve = line.parametrize_on(&cylinder, Tolerance::DEFAULT).unwrap();
-    /// // q(0) sits at u = 0 (angle of x-axis), v = 0 (height of the origin).
-    /// let q0 = pcurve.eval_point(0.0);
-    /// assert!(q0.x.abs() < 1e-9 && q0.y.abs() < 1e-9);
-    /// assert!(matches!(pcurve, Curve2D::Line(_)));
-    /// ```
-    pub fn parametrize_on(
-        &self,
-        surface: impl Into<Surface>,
-        tol: Tolerance,
-    ) -> Result<Curve2D, ParametrizeError> {
-        parametrize::line_on_surface(self, &surface.into(), tol)
     }
 }
 

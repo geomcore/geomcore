@@ -1,7 +1,7 @@
 //! `uv_curve_to_3d`: the exact 3D curve a UV curve traces on a surface.
 //! Every closed-form pair gives its expected kind of curve, every curve it
 //! gives evaluates as the surface over the UV curve with matching first
-//! derivatives, it undoes `parametrize_on`, and the other pairs are
+//! derivatives, it undoes `curve_3d_to_uv`, and the other pairs are
 //! refused.
 
 mod common;
@@ -352,21 +352,8 @@ fn every_curve_given_traces_the_surface_over_the_parameter_curve() {
     );
 }
 
-/// `parametrize_on` of a curve with one.
-fn parametrize(curve: &Curve, surface: &Surface) -> Option<Curve2D> {
-    match curve {
-        Curve::Line(c) => c.parametrize_on(surface.clone(), TOL).ok(),
-        Curve::Circle(c) => c.parametrize_on(surface.clone(), TOL).ok(),
-        Curve::Ellipse(c) => c.parametrize_on(surface.clone(), TOL).ok(),
-        Curve::Parabola(c) => c.parametrize_on(surface.clone(), TOL).ok(),
-        Curve::Hyperbola(c) => c.parametrize_on(surface.clone(), TOL).ok(),
-        Curve::BSpline(c) => c.parametrize_on(surface.clone(), TOL).ok(),
-        _ => None,
-    }
-}
-
 #[test]
-fn parametrizing_then_carrying_back_gives_the_curve() {
+fn mapping_to_uv_and_back_gives_the_curve() {
     let surfaces = surfaces();
     // The samples, plus an iso curve each way of every surface, which
     // lies on the surface.
@@ -378,7 +365,7 @@ fn parametrizing_then_carrying_back_gives_the_curve() {
     let mut round_trips = 0;
     for (i, surface) in surfaces.iter().enumerate() {
         for (j, curve) in curves_3d.iter().enumerate() {
-            let Some(uv_curve) = parametrize(curve, surface) else {
+            let Ok(uv_curve) = surface.curve_3d_to_uv(curve, TOL) else {
                 continue;
             };
             let image = surface

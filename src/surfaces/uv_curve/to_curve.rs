@@ -2,7 +2,7 @@
 //! in a surface's `(u, v)` parameter space, traces on the surface `S`, at
 //! the same parameter, so that `surface.uv_curve_to_3d(c)?.eval_point(t)`
 //! is `surface.eval_point(c(t))` for every `t`. It is the inverse of
-//! `parametrize_on` (`curves/parametrize.rs`).
+//! `curve_3d_to_uv` (`uv_curve/from_curve.rs`).
 //!
 //! Two kinds of pair have a closed form (ADR 0030):
 //!
@@ -222,7 +222,7 @@ impl AffineMap {
     /// The image of a 2D spline: its poles mapped, its knots and weights
     /// kept.
     fn spline(&self, spline: &Spline<Point2D>) -> Result<Spline<Point>, UvCurveTo3DError> {
-        let image = spline.mapped_to_space(|pole| self.point(pole));
+        let image = spline.mapped(|pole| self.point(pole));
         if image.poles().iter().all(|pole| pole.is_finite()) {
             Ok(image)
         } else {

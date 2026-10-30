@@ -8,9 +8,9 @@ use crate::surfaces::ElementarySurface;
 use crate::surfaces::ParametricSurface;
 use crate::surfaces::ReversibleSurface;
 use crate::surfaces::SurfaceIsoError;
-use crate::surfaces::UvCurveTo3DError;
 use crate::surfaces::iso::{check_iso_param, iso_circle};
-use crate::surfaces::uv_curve::to_curve;
+use crate::surfaces::uv_curve::{from_curve, to_curve};
+use crate::surfaces::{Curve3DToUvError, UvCurveTo3DError};
 use crate::transform::image_error;
 use crate::{Circle, Frame, Point, SurfaceProjection, Tolerance, Transform, Vector, projection};
 use crate::{TransformError, Transformable};
@@ -328,6 +328,10 @@ impl ParametricSurface for Torus {
         tol: Tolerance,
     ) -> Result<Curve, UvCurveTo3DError> {
         to_curve::uv_curve_to_3d(self, uv_curve, tol)
+    }
+
+    fn curve_3d_to_uv(&self, curve: &Curve, tol: Tolerance) -> Result<Curve2D, Curve3DToUvError> {
+        from_curve::curve_3d_to_uv(self, curve, tol)
     }
 }
 

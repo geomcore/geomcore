@@ -33,6 +33,7 @@ from geomcore.curves import (
     _Curve,
     _Curve2D,
     _WholeCurve,
+    _WholeCurve2D,
 )
 
 _Surface = Union[
@@ -203,6 +204,22 @@ class _SurfaceMethods(Generic[_UIsoCurveType, _VIsoCurveType]):
         along an iso curve that is a point (a sphere's pole, a cone's apex),
         or when the surface has no iso curve there. `tol` is
         `Tolerance.default()` when omitted.
+        """
+    def curve_3d_to_uv(
+        self, curve: _WholeCurve, tol: Optional[Tolerance] = ...
+    ) -> _WholeCurve2D:
+        """The exact UV curve of `curve`, a 3D curve lying on this surface: the
+        curve in the surface's (u, v) parameter space, in the same parameter,
+        whose point at `t` is the (u, v) of the curve's point at `t`.
+
+        Closed forms: any line, circle, ellipse, parabola, hyperbola, B-spline
+        or Bezier curve on a plane, as the 2D curve of the same kind; a line
+        along the axis of a cylinder or a generator of a cone, as a line along
+        v; and a circle about the axis of a cylinder or cone, a meridian or
+        parallel of a sphere, or a poloidal or toroidal circle of a torus, as a
+        line along u or v. Raises `Curve3DToUvError` for any other pair, or
+        when the curve does not lie on the surface within `tol`
+        (`Tolerance.default()` when omitted).
         """
     @overload
     def intersect(

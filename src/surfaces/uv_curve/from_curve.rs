@@ -1,17 +1,18 @@
-//! Analytic curve-on-surface parametrization: computing the exact 2D
-//! representation `q(t) = (u(t), v(t))` of a 3D curve in a surface's
-//! parameter space, such that `surface.eval_point(q(t)) == curve.eval_point(t)`
-//! for the same `t`.
+//! 3D curve to UV curve: the exact UV curve `c`, a curve in a surface's
+//! `(u, v)` parameter space, of a 3D curve `C` lying on the surface `S`, in
+//! the same parameter, so that `surface.eval_point(c(t))` is
+//! `curve.eval_point(t)` for every `t`: `S∘c = C`. It is the inverse of
+//! `uv_curve_to_3d` (`uv_curve/to_curve.rs`).
 //!
-//! Only a handful of curve/surface pairs admit a closed-form 2D image that
-//! [`Curve2D`] can hold: a line or a circle projects to a straight line or a
-//! circle in `(u, v)` on the elementary surfaces, and every curve in a plane
-//! maps to the same kind of curve in the plane's `(u, v)` (an ellipse,
-//! parabola or hyperbola to its 2D counterpart, a B-spline to the B-spline of
-//! its poles' plane coordinates). Every other pair reports
-//! [`ParametrizeError::NotAnalytic`]. The per-pair math and failure
-//! conditions are the classic elementary-surface projections; see the public
-//! `parametrize_on` methods for the user-facing contract.
+//! Only a handful of curve/surface pairs admit a closed-form UV curve that
+//! [`Curve2D`] can hold, all on the elementary surfaces: a line or a circle
+//! projects to a straight line or a circle in `(u, v)`, and every curve in a
+//! plane maps to the same kind of curve in the plane's `(u, v)` (an
+//! ellipse, parabola or hyperbola to its 2D counterpart, a B-spline or
+//! Bézier curve to the spline of its poles' plane coordinates). Every other
+//! pair reports [`Curve3DToUvError::NotAnalytic`]. The per-pair math and
+//! failure conditions are the classic elementary-surface projections; see
+//! [`ParametricSurface::curve_3d_to_uv`] for the user-facing contract.
 //!
 //! The pairs left without an image, and why (checked for #95):
 //!
@@ -19,66 +20,91 @@
 //!   a plane section of a cylinder is a sinusoid `v(u)`, of a cone a polar
 //!   conic `v(u) ~ 1 / (a + b cos(u - c))`, and the other sections are
 //!   quartic curves; none is a conic or a B-spline in `(u, v)`. (Circles are
-//!   the exception, with the images of [`Circle::parametrize_on`](crate::Circle::parametrize_on).)
-//! - A B-spline curve on a cylinder, cone, sphere or torus: the pcurve of a
-//!   rational curve is not rational in `(u, v)` (it involves `atan2`).
-//! - Any curve on a B-spline surface: it needs a numeric inversion; see
-//!   [`parametrize_numeric`].
+//!   the exception, with the images listed on
+//!   [`ParametricSurface::curve_3d_to_uv`].)
+//! - A B-spline or Bézier curve on a cylinder, cone, sphere or torus: the UV
+//!   curve of a rational curve is not rational in `(u, v)` (it involves
+//!   `atan2`).
+//! - Any curve on a B-spline or Bézier surface: it needs a numeric
+//!   inversion; see [`curve_3d_to_uv_numeric`].
 //! - Any curve on an extrusion or revolution surface: not attempted yet;
-//!   [`parametrize_numeric`] handles them.
+//!   [`curve_3d_to_uv_numeric`] handles them.
 
-use crate::curves::ParametricCurve;
-use crate::curves::ParametricCurve2D;
 use std::f64::consts::{FRAC_PI_2, PI, TAU};
 use std::fmt;
 
+use crate::curves::spline::Spline;
 use crate::curves::{
-    BSplineCurve, BSplineCurve2D, Circle, Circle2D, Curve2D, Ellipse, Ellipse2D, Hyperbola,
-    Hyperbola2D, Line, Line2D, Parabola, Parabola2D,
+    BSplineCurve, BSplineCurve2D, BezierCurve, BezierCurve2D, Circle, Circle2D, Curve, Curve2D,
+    Ellipse, Ellipse2D, Hyperbola, Hyperbola2D, Line, Line2D, Parabola, Parabola2D,
+    ParametricCurve, ParametricCurve2D,
 };
 use crate::elementary::curve::{in_period, wrap_to_turn};
-use crate::surfaces::{ParametricSurface, Surface};
+use crate::surfaces::{ElementarySurface, ParametricSurface};
 use crate::{Frame2D, Point, Point2D, Tolerance, Vector, Vector2D};
 
-/// Error returned when a 3D curve cannot be given an analytic 2D
-/// representation on a surface.
+/// Error returned when a 3D curve has no exact UV curve, a curve in a
+/// surface's parameter space, in the same parameter.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ParametrizeError {
+pub enum Curve3DToUvError {
     /// No closed-form 2D representation exists for this curve/surface pair.
     NotAnalytic,
     /// The curve does not lie on the surface (within tolerance).
     CurveNotOnSurface,
 }
 
-impl fmt::Display for ParametrizeError {
+impl fmt::Display for Curve3DToUvError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let message = match self {
-            ParametrizeError::NotAnalytic => {
+            Curve3DToUvError::NotAnalytic => {
                 "no closed-form 2D representation exists for this curve/surface pair"
             }
-            ParametrizeError::CurveNotOnSurface => "the curve does not lie on the surface",
+            Curve3DToUvError::CurveNotOnSurface => "the curve does not lie on the surface",
         };
         f.write_str(message)
     }
 }
 
-impl std::error::Error for ParametrizeError {}
+impl std::error::Error for Curve3DToUvError {}
 
 /// Parameters at which the on-surface consistency check is sampled.
 const CHECK_PARAMS: [f64; 3] = [0.0, 1.7, 4.1];
 
 // ---- dispatchers ----
 
-/// Computes the analytic 2D image of `line` on `surface`, or an error.
-pub(crate) fn line_on_surface(
-    line: &Line,
-    surface: &Surface,
+/// The exact UV curve of `curve` on `surface`, the body of
+/// [`ParametricSurface::curve_3d_to_uv`] for every crate surface: the
+/// closed forms live on the elementary surfaces, and every curve on any
+/// other surface is [`Curve3DToUvError::NotAnalytic`].
+pub(crate) fn curve_3d_to_uv(
+    surface: &impl ParametricSurface,
+    curve: &Curve,
     tol: Tolerance,
-) -> Result<Curve2D, ParametrizeError> {
-    let pcurve = match surface {
-        Surface::Plane(plane) => line_on_plane(line, plane.frame()),
-        Surface::Cylinder(cyl) => line_on_cylinder(line, cyl.frame(), tol),
-        Surface::Cone(cone) => line_on_cone(
+) -> Result<Curve2D, Curve3DToUvError> {
+    let Some(surface) = surface.as_elementary() else {
+        return Err(Curve3DToUvError::NotAnalytic);
+    };
+    match curve {
+        Curve::Line(line) => line_on_surface(line, &surface, tol),
+        Curve::Circle(circle) => circle_on_surface(circle, &surface, tol),
+        Curve::Ellipse(ellipse) => ellipse_on_surface(ellipse, &surface, tol),
+        Curve::Parabola(parabola) => parabola_on_surface(parabola, &surface, tol),
+        Curve::Hyperbola(hyperbola) => hyperbola_on_surface(hyperbola, &surface, tol),
+        Curve::BSpline(bspline) => bspline_on_surface(bspline, &surface, tol),
+        Curve::Bezier(bezier) => bezier_on_surface(bezier, &surface, tol),
+    }
+}
+
+/// Computes the analytic 2D image of `line` on `surface`, or an error.
+fn line_on_surface(
+    line: &Line,
+    surface: &ElementarySurface,
+    tol: Tolerance,
+) -> Result<Curve2D, Curve3DToUvError> {
+    let uv_curve = match surface {
+        ElementarySurface::Plane(plane) => line_on_plane(line, plane.frame()),
+        ElementarySurface::Cylinder(cyl) => line_on_cylinder(line, cyl.frame(), tol),
+        ElementarySurface::Cone(cone) => line_on_cone(
             line,
             cone.frame(),
             cone.ref_radius(),
@@ -86,27 +112,22 @@ pub(crate) fn line_on_surface(
             tol,
         ),
         // A line has no closed-form 2D image on these surfaces.
-        Surface::Sphere(_)
-        | Surface::Torus(_)
-        | Surface::Extrusion(_)
-        | Surface::Revolution(_)
-        | Surface::BSpline(_)
-        | Surface::Bezier(_) => {
-            return Err(ParametrizeError::NotAnalytic);
+        ElementarySurface::Sphere(_) | ElementarySurface::Torus(_) => {
+            return Err(Curve3DToUvError::NotAnalytic);
         }
     }?;
 
-    finish_line(surface, pcurve, |t| line.eval_point(t), tol)
+    finish_line(surface, uv_curve, |t| line.eval_point(t), tol)
 }
 
 /// Computes the analytic 2D image of `circle` on `surface`, or an error.
-pub(crate) fn circle_on_surface(
+fn circle_on_surface(
     circle: &Circle,
-    surface: &Surface,
+    surface: &ElementarySurface,
     tol: Tolerance,
-) -> Result<Curve2D, ParametrizeError> {
+) -> Result<Curve2D, Curve3DToUvError> {
     match surface {
-        Surface::Plane(plane) => {
+        ElementarySurface::Plane(plane) => {
             let circle2d = circle_on_plane(circle, plane.frame(), tol)?;
             verify_on_surface(
                 surface,
@@ -117,143 +138,155 @@ pub(crate) fn circle_on_surface(
             // A circle on a plane maps to a circle; no window normalization.
             Ok(Curve2D::Circle(circle2d))
         }
-        Surface::Cylinder(cyl) => {
-            let pcurve = circle_on_cylinder(circle, cyl.frame(), tol)?;
-            finish_line(surface, pcurve, |t| circle.eval_point(t), tol)
+        ElementarySurface::Cylinder(cyl) => {
+            let uv_curve = circle_on_cylinder(circle, cyl.frame(), tol)?;
+            finish_line(surface, uv_curve, |t| circle.eval_point(t), tol)
         }
-        Surface::Cone(cone) => {
-            let pcurve = circle_on_cone(
+        ElementarySurface::Cone(cone) => {
+            let uv_curve = circle_on_cone(
                 circle,
                 cone.frame(),
                 cone.ref_radius(),
                 cone.semi_angle(),
                 tol,
             )?;
-            finish_line(surface, pcurve, |t| circle.eval_point(t), tol)
+            finish_line(surface, uv_curve, |t| circle.eval_point(t), tol)
         }
-        Surface::Sphere(sphere) => {
-            let pcurve = circle_on_sphere(circle, sphere.frame(), tol)?;
-            finish_line(surface, pcurve, |t| circle.eval_point(t), tol)
+        ElementarySurface::Sphere(sphere) => {
+            let uv_curve = circle_on_sphere(circle, sphere.frame(), tol)?;
+            finish_line(surface, uv_curve, |t| circle.eval_point(t), tol)
         }
-        Surface::Torus(torus) => {
-            let pcurve = circle_on_torus(
+        ElementarySurface::Torus(torus) => {
+            let uv_curve = circle_on_torus(
                 circle,
                 torus.frame(),
                 torus.major_radius(),
                 torus.minor_radius(),
                 tol,
             )?;
-            finish_line(surface, pcurve, |t| circle.eval_point(t), tol)
+            finish_line(surface, uv_curve, |t| circle.eval_point(t), tol)
         }
-        Surface::Extrusion(_)
-        | Surface::Revolution(_)
-        | Surface::BSpline(_)
-        | Surface::Bezier(_) => Err(ParametrizeError::NotAnalytic),
     }
 }
 
 /// The frame of `surface` if it is a plane. Every other surface has no
-/// closed-form image for an ellipse, parabola, hyperbola or B-spline (see
+/// closed-form image for an ellipse, parabola, hyperbola or spline (see
 /// the module docs), so those pairs report
-/// [`ParametrizeError::NotAnalytic`].
-fn plane_frame(surface: &Surface) -> Result<crate::Frame, ParametrizeError> {
+/// [`Curve3DToUvError::NotAnalytic`].
+fn plane_frame(surface: &ElementarySurface) -> Result<crate::Frame, Curve3DToUvError> {
     match surface {
-        Surface::Plane(plane) => Ok(plane.frame()),
-        Surface::Cylinder(_)
-        | Surface::Cone(_)
-        | Surface::Sphere(_)
-        | Surface::Torus(_)
-        | Surface::Extrusion(_)
-        | Surface::Revolution(_)
-        | Surface::BSpline(_)
-        | Surface::Bezier(_) => Err(ParametrizeError::NotAnalytic),
+        ElementarySurface::Plane(plane) => Ok(plane.frame()),
+        ElementarySurface::Cylinder(_)
+        | ElementarySurface::Cone(_)
+        | ElementarySurface::Sphere(_)
+        | ElementarySurface::Torus(_) => Err(Curve3DToUvError::NotAnalytic),
     }
 }
 
 /// Computes the analytic 2D image of `ellipse` on `surface`, or an error.
-pub(crate) fn ellipse_on_surface(
+fn ellipse_on_surface(
     ellipse: &Ellipse,
-    surface: &Surface,
+    surface: &ElementarySurface,
     tol: Tolerance,
-) -> Result<Curve2D, ParametrizeError> {
+) -> Result<Curve2D, Curve3DToUvError> {
     let plane = plane_frame(surface)?;
     let frame = conic_frame_on_plane(ellipse.frame(), plane, ellipse.major_radius(), tol)?;
     let image = Ellipse2D::from_frame(frame, ellipse.major_radius(), ellipse.minor_radius())
         .expect("ellipse radii are valid by construction");
-    let pcurve = Curve2D::Ellipse(image);
-    verify_on_surface(surface, &pcurve, |t| ellipse.eval_point(t), tol)?;
-    Ok(pcurve)
+    let uv_curve = Curve2D::Ellipse(image);
+    verify_on_surface(surface, &uv_curve, |t| ellipse.eval_point(t), tol)?;
+    Ok(uv_curve)
 }
 
 /// Computes the analytic 2D image of `parabola` on `surface`, or an error.
-pub(crate) fn parabola_on_surface(
+fn parabola_on_surface(
     parabola: &Parabola,
-    surface: &Surface,
+    surface: &ElementarySurface,
     tol: Tolerance,
-) -> Result<Curve2D, ParametrizeError> {
+) -> Result<Curve2D, Curve3DToUvError> {
     let plane = plane_frame(surface)?;
     // A parabola is unbounded: it reaches across the model.
     let frame = conic_frame_on_plane(parabola.frame(), plane, f64::INFINITY, tol)?;
     let image = Parabola2D::from_frame(frame, parabola.focal())
         .expect("parabola focal distance is valid by construction");
-    let pcurve = Curve2D::Parabola(image);
-    verify_on_surface(surface, &pcurve, |t| parabola.eval_point(t), tol)?;
-    Ok(pcurve)
+    let uv_curve = Curve2D::Parabola(image);
+    verify_on_surface(surface, &uv_curve, |t| parabola.eval_point(t), tol)?;
+    Ok(uv_curve)
 }
 
 /// Computes the analytic 2D image of `hyperbola` on `surface`, or an error.
-pub(crate) fn hyperbola_on_surface(
+fn hyperbola_on_surface(
     hyperbola: &Hyperbola,
-    surface: &Surface,
+    surface: &ElementarySurface,
     tol: Tolerance,
-) -> Result<Curve2D, ParametrizeError> {
+) -> Result<Curve2D, Curve3DToUvError> {
     let plane = plane_frame(surface)?;
     // A hyperbola is unbounded: it reaches across the model.
     let frame = conic_frame_on_plane(hyperbola.frame(), plane, f64::INFINITY, tol)?;
     let image = Hyperbola2D::from_frame(frame, hyperbola.major_radius(), hyperbola.minor_radius())
         .expect("hyperbola radii are valid by construction");
-    let pcurve = Curve2D::Hyperbola(image);
-    verify_on_surface(surface, &pcurve, |t| hyperbola.eval_point(t), tol)?;
-    Ok(pcurve)
+    let uv_curve = Curve2D::Hyperbola(image);
+    verify_on_surface(surface, &uv_curve, |t| hyperbola.eval_point(t), tol)?;
+    Ok(uv_curve)
 }
 
 /// Computes the analytic 2D image of `curve` on `surface`, or an error.
-pub(crate) fn bspline_on_surface(
+fn bspline_on_surface(
     curve: &BSplineCurve,
-    surface: &Surface,
+    surface: &ElementarySurface,
     tol: Tolerance,
-) -> Result<Curve2D, ParametrizeError> {
-    let plane = plane_frame(surface)?;
-    let image = bspline_on_plane(curve, plane, tol)?;
-    let pcurve = Curve2D::BSpline(image);
+) -> Result<Curve2D, Curve3DToUvError> {
+    let image = spline_on_plane(curve.spline(), plane_frame(surface)?, tol)?;
+    let uv_curve = Curve2D::BSpline(BSplineCurve2D::from_spline(image));
+    verify_spline(surface, &uv_curve, curve, tol)?;
+    Ok(uv_curve)
+}
 
-    // The image has the curve's own knots, so it is checked across the
-    // curve's domain rather than at the fixed conic sample parameters.
+/// Computes the analytic 2D image of `curve` on `surface`, or an error.
+fn bezier_on_surface(
+    curve: &BezierCurve,
+    surface: &ElementarySurface,
+    tol: Tolerance,
+) -> Result<Curve2D, Curve3DToUvError> {
+    let image = spline_on_plane(curve.spline(), plane_frame(surface)?, tol)?;
+    let uv_curve = Curve2D::Bezier(BezierCurve2D::from_spline(image));
+    verify_spline(surface, &uv_curve, curve, tol)?;
+    Ok(uv_curve)
+}
+
+/// Verifies the UV curve of a spline across the spline's domain rather
+/// than at the fixed conic sample parameters, since the image has the
+/// curve's own knots.
+fn verify_spline(
+    surface: &ElementarySurface,
+    uv_curve: &Curve2D,
+    curve: &impl ParametricCurve,
+    tol: Tolerance,
+) -> Result<(), Curve3DToUvError> {
     let (first, last) = curve.bounds();
     let params: Vec<f64> = [0.0, 0.31, 0.77, 1.0]
         .iter()
         .map(|f| first + (last - first) * f)
         .collect();
-    verify_on_surface_at(surface, &pcurve, |t| curve.eval_point(t), &params, tol)?;
-    Ok(pcurve)
+    verify_on_surface_at(surface, uv_curve, |t| curve.eval_point(t), &params, tol)
 }
 
-/// Verifies on-surface consistency, then normalizes the pcurve's value at
+/// Verifies on-surface consistency, then normalizes the UV curve's value at
 /// `t = 0` into the surface's canonical parameter window.
 fn finish_line(
-    surface: &Surface,
-    pcurve: Line2D,
+    surface: &ElementarySurface,
+    uv_curve: Line2D,
     curve_point: impl Fn(f64) -> Point,
     tol: Tolerance,
-) -> Result<Curve2D, ParametrizeError> {
-    verify_on_surface(surface, &Curve2D::Line(pcurve), curve_point, tol)?;
-    Ok(Curve2D::Line(normalize_line2d_at_zero(pcurve, surface)))
+) -> Result<Curve2D, Curve3DToUvError> {
+    verify_on_surface(surface, &Curve2D::Line(uv_curve), curve_point, tol)?;
+    Ok(Curve2D::Line(normalize_line2d_at_zero(uv_curve, surface)))
 }
 
 // ---- on-surface verification ----
 
-/// Checks that `surface(pcurve(t))` is within `tol.confusion` of `curve(t)`
-/// at the sample parameters.
+/// Checks that `surface(uv_curve(t))` is within `tol.confusion` of
+/// `curve(t)` at the sample parameters.
 ///
 /// This is a geomcore addition on top of the raw projection: the projection
 /// math assumes the curve already lies on the surface, so an off-surface curve
@@ -261,24 +294,22 @@ fn finish_line(
 /// the origin the distance cannot be measured more finely than the
 /// coordinates' rounding, so the tolerance is at least a few ulps of them.
 fn verify_on_surface(
-    surface: &Surface,
-    pcurve: &Curve2D,
+    surface: &ElementarySurface,
+    uv_curve: &Curve2D,
     curve_point: impl Fn(f64) -> Point,
     tol: Tolerance,
-) -> Result<(), ParametrizeError> {
-    verify_on_surface_at(surface, pcurve, curve_point, &CHECK_PARAMS, tol)
+) -> Result<(), Curve3DToUvError> {
+    verify_on_surface_at(surface, uv_curve, curve_point, &CHECK_PARAMS, tol)
 }
 
 /// [`verify_on_surface`] at the given sample parameters.
 fn verify_on_surface_at(
-    surface: &Surface,
-    pcurve: &Curve2D,
+    surface: &ElementarySurface,
+    uv_curve: &Curve2D,
     curve_point: impl Fn(f64) -> Point,
     params: &[f64],
     tol: Tolerance,
-) -> Result<(), ParametrizeError> {
-    use crate::curves::ParametricCurve2D;
-
+) -> Result<(), Curve3DToUvError> {
     let mut coordinate: f64 = 0.0;
     for &t in params {
         let p = curve_point(t);
@@ -287,10 +318,10 @@ fn verify_on_surface_at(
     let tolerance = tol.confusion.max(16.0 * f64::EPSILON * coordinate);
 
     for &t in params {
-        let uv = pcurve.eval_point(t);
+        let uv = uv_curve.eval_point(t);
         let on_surface = surface.eval_point(uv.x, uv.y);
         if on_surface.distance(curve_point(t)) > tolerance {
-            return Err(ParametrizeError::CurveNotOnSurface);
+            return Err(Curve3DToUvError::CurveNotOnSurface);
         }
     }
     Ok(())
@@ -300,7 +331,7 @@ fn verify_on_surface_at(
 
 /// 2D image of a line lying in a plane: local x/y coordinates of the origin
 /// and the projected (renormalized) direction.
-fn line_on_plane(line: &Line, frame: crate::Frame) -> Result<Line2D, ParametrizeError> {
+fn line_on_plane(line: &Line, frame: crate::Frame) -> Result<Line2D, Curve3DToUvError> {
     let origin = eval_point2d_plane(frame, line.origin());
     let d = line.direction();
     let dir = Vector2D::new(d.dot(frame.x_direction()), d.dot(frame.y_direction()));
@@ -308,8 +339,8 @@ fn line_on_plane(line: &Line, frame: crate::Frame) -> Result<Line2D, Parametrize
     // i.e. it is not on the surface.
     let dir = dir
         .normalized()
-        .ok_or(ParametrizeError::CurveNotOnSurface)?;
-    Line2D::new(origin, dir).map_err(|_| ParametrizeError::CurveNotOnSurface)
+        .ok_or(Curve3DToUvError::CurveNotOnSurface)?;
+    Line2D::new(origin, dir).map_err(|_| Curve3DToUvError::CurveNotOnSurface)
 }
 
 /// 2D image of a circle lying in a plane: see [`conic_frame_on_plane`], with
@@ -319,7 +350,7 @@ fn circle_on_plane(
     circle: &Circle,
     frame: crate::Frame,
     tol: Tolerance,
-) -> Result<Circle2D, ParametrizeError> {
+) -> Result<Circle2D, Curve3DToUvError> {
     let frame2 = conic_frame_on_plane(circle.frame(), frame, circle.radius(), tol)?;
     Ok(Circle2D::from_frame(frame2, circle.radius())
         .expect("circle radius is non-negative by construction"))
@@ -340,9 +371,9 @@ fn conic_frame_on_plane(
     plane: crate::Frame,
     extent: f64,
     tol: Tolerance,
-) -> Result<Frame2D, ParametrizeError> {
+) -> Result<Frame2D, Curve3DToUvError> {
     if conic.z_direction().cross(plane.z_direction()).magnitude() > tol.angular_for_extent(extent) {
-        return Err(ParametrizeError::CurveNotOnSurface);
+        return Err(Curve3DToUvError::CurveNotOnSurface);
     }
     let origin = eval_point2d_plane(plane, conic.origin());
     let x_dir = eval_dir2d_plane(plane, conic.x_direction());
@@ -352,60 +383,36 @@ fn conic_frame_on_plane(
     } else {
         -x_dir.perp()
     };
-    Frame2D::new(origin, x_dir, y_dir).map_err(|_| ParametrizeError::CurveNotOnSurface)
+    Frame2D::new(origin, x_dir, y_dir).map_err(|_| Curve3DToUvError::CurveNotOnSurface)
 }
 
-/// 2D image of a B-spline curve lying in a plane: the same spline over the
-/// poles' local plane coordinates (an affine map, so exact), with knots,
-/// multiplicities, weights and periodicity unchanged. Every pole must lie on
-/// the plane: a curve lies in a plane exactly when its control polygon does.
-fn bspline_on_plane(
-    curve: &BSplineCurve,
+/// 2D image of a B-spline or Bézier curve lying in a plane: the same spline
+/// over the poles' local plane coordinates (an affine map, so exact), with
+/// knots, multiplicities, weights and periodicity unchanged. Every pole must
+/// lie on the plane: a curve lies in a plane exactly when its control
+/// polygon does.
+fn spline_on_plane(
+    spline: &Spline<Point>,
     frame: crate::Frame,
     tol: Tolerance,
-) -> Result<BSplineCurve2D, ParametrizeError> {
+) -> Result<Spline<Point2D>, Curve3DToUvError> {
     let normal = frame.z_direction();
     let mut coordinate: f64 = 0.0;
-    for pole in curve.poles() {
+    for pole in spline.poles() {
         coordinate = coordinate
             .max(pole.x.abs())
             .max(pole.y.abs())
             .max(pole.z.abs());
     }
     let tolerance = tol.confusion.max(16.0 * f64::EPSILON * coordinate);
-    if curve
+    if spline
         .poles()
         .iter()
         .any(|&pole| (pole - frame.origin()).dot(normal).abs() > tolerance)
     {
-        return Err(ParametrizeError::CurveNotOnSurface);
+        return Err(Curve3DToUvError::CurveNotOnSurface);
     }
-
-    let poles: Vec<Point2D> = curve
-        .poles()
-        .iter()
-        .map(|&pole| eval_point2d_plane(frame, pole))
-        .collect();
-    let knots = curve.knots().to_vec();
-    let multiplicities = curve.multiplicities().to_vec();
-    match curve.weights() {
-        Some(weights) => BSplineCurve2D::new_rational(
-            curve.degree(),
-            poles,
-            weights.to_vec(),
-            knots,
-            multiplicities,
-            curve.is_periodic(),
-        ),
-        None => BSplineCurve2D::new(
-            curve.degree(),
-            poles,
-            knots,
-            multiplicities,
-            curve.is_periodic(),
-        ),
-    }
-    .map_err(|_| ParametrizeError::NotAnalytic)
+    Ok(spline.mapped(|pole| eval_point2d_plane(frame, pole)))
 }
 
 /// Local (x, y) coordinates of `p` in the plane `frame`.
@@ -427,10 +434,10 @@ fn line_on_cylinder(
     line: &Line,
     frame: crate::Frame,
     tol: Tolerance,
-) -> Result<Line2D, ParametrizeError> {
+) -> Result<Line2D, Curve3DToUvError> {
     let axis = frame.z_direction();
     if line.direction().cross(axis).square_magnitude() > tol.angular * tol.angular {
-        return Err(ParametrizeError::NotAnalytic);
+        return Err(Curve3DToUvError::NotAnalytic);
     }
     let (x, y, z) = frame.local_coordinates(line.origin());
     let u = angle_or_zero(y, x);
@@ -441,7 +448,7 @@ fn line_on_cylinder(
         -1.0
     };
     Line2D::new(Point2D::new(u, v), Vector2D::new(0.0, sign))
-        .map_err(|_| ParametrizeError::NotAnalytic)
+        .map_err(|_| Curve3DToUvError::NotAnalytic)
 }
 
 /// 2D image of a circle on a cylinder: succeeds only when the circle's normal
@@ -450,11 +457,11 @@ fn circle_on_cylinder(
     circle: &Circle,
     frame: crate::Frame,
     tol: Tolerance,
-) -> Result<Line2D, ParametrizeError> {
+) -> Result<Line2D, Curve3DToUvError> {
     let axis = frame.z_direction();
     let normal = circle.normal();
     if axis.cross(normal).magnitude() > tol.angular_for_extent(circle.radius()) {
-        return Err(ParametrizeError::NotAnalytic);
+        return Err(Curve3DToUvError::NotAnalytic);
     }
     let u = frame_angle(frame, circle.frame().x_direction());
     let v = (circle.center() - frame.origin()).dot(axis);
@@ -464,7 +471,7 @@ fn circle_on_cylinder(
         -1.0
     };
     Line2D::new(Point2D::new(u, v), Vector2D::new(du, 0.0))
-        .map_err(|_| ParametrizeError::NotAnalytic)
+        .map_err(|_| Curve3DToUvError::NotAnalytic)
 }
 
 // ---- cone ----
@@ -477,7 +484,7 @@ fn line_on_cone(
     ref_r: f64,
     semi_angle: f64,
     tol: Tolerance,
-) -> Result<Line2D, ParametrizeError> {
+) -> Result<Line2D, Curve3DToUvError> {
     let apex = cone_apex(frame, ref_r, semi_angle);
     let mut foot = line.origin();
     let mut delta_v = 0.0;
@@ -490,7 +497,7 @@ fn line_on_cone(
     let (u, v) = crate::elementary::surface::cone_parameters(&frame, ref_r, semi_angle, foot);
     let sv = crate::elementary::surface::cone_derivative(&frame, ref_r, semi_angle, u, v, 0, 1);
     if line.direction().cross(sv).square_magnitude() > tol.angular * tol.angular {
-        return Err(ParametrizeError::NotAnalytic);
+        return Err(Curve3DToUvError::NotAnalytic);
     }
     let sign = if line.direction().dot(sv) >= 0.0 {
         1.0
@@ -501,7 +508,7 @@ fn line_on_cone(
         Point2D::new(u, v - delta_v * sign),
         Vector2D::new(0.0, sign),
     )
-    .map_err(|_| ParametrizeError::NotAnalytic)
+    .map_err(|_| Curve3DToUvError::NotAnalytic)
 }
 
 /// 2D image of a circle on a cone: succeeds only when the circle's normal is
@@ -512,11 +519,11 @@ fn circle_on_cone(
     ref_r: f64,
     semi_angle: f64,
     tol: Tolerance,
-) -> Result<Line2D, ParametrizeError> {
+) -> Result<Line2D, Curve3DToUvError> {
     let axis = frame.z_direction();
     let normal = circle.normal();
     if axis.cross(normal).magnitude() > tol.angular_for_extent(circle.radius()) {
-        return Err(ParametrizeError::NotAnalytic);
+        return Err(Curve3DToUvError::NotAnalytic);
     }
     let cf = circle.frame();
     let x = frame.x_direction().dot(cf.x_direction());
@@ -538,7 +545,7 @@ fn circle_on_cone(
         -1.0
     };
     Line2D::new(Point2D::new(u, v), Vector2D::new(du, 0.0))
-        .map_err(|_| ParametrizeError::NotAnalytic)
+        .map_err(|_| Curve3DToUvError::NotAnalytic)
 }
 
 /// The cone's apex point in world coordinates: the axis point where the
@@ -556,7 +563,7 @@ fn circle_on_sphere(
     circle: &Circle,
     frame: crate::Frame,
     tol: Tolerance,
-) -> Result<Line2D, ParametrizeError> {
+) -> Result<Line2D, Curve3DToUvError> {
     let z = frame.z_direction();
     let cf = circle.frame();
     let normal = circle.normal();
@@ -573,7 +580,7 @@ fn circle_on_sphere(
     } else if is_iso_v {
         sphere_parallel(circle, frame)
     } else {
-        Err(ParametrizeError::NotAnalytic)
+        Err(Curve3DToUvError::NotAnalytic)
     }
 }
 
@@ -605,7 +612,7 @@ fn sphere_meridian(circle: &Circle, frame: crate::Frame) -> Line2D {
 
 /// Parallel (iso-`v`) image: a horizontal line in `(u, v)` at constant
 /// latitude, running in `+u` or `-u` by the circle's orientation.
-fn sphere_parallel(circle: &Circle, frame: crate::Frame) -> Result<Line2D, ParametrizeError> {
+fn sphere_parallel(circle: &Circle, frame: crate::Frame) -> Result<Line2D, Curve3DToUvError> {
     let z = frame.z_direction();
     let cf = circle.frame();
     let u = frame_angle(frame, cf.x_direction());
@@ -620,7 +627,7 @@ fn sphere_parallel(circle: &Circle, frame: crate::Frame) -> Result<Line2D, Param
         -1.0
     };
     Line2D::new(Point2D::new(u, v), Vector2D::new(du, 0.0))
-        .map_err(|_| ParametrizeError::NotAnalytic)
+        .map_err(|_| Curve3DToUvError::NotAnalytic)
 }
 
 /// Local sphere `(u, v)` of a unit direction `dir` seen from the sphere frame.
@@ -633,7 +640,7 @@ fn eval_point2d_sphere(frame: crate::Frame, dir: Vector) -> Point2D {
     Point2D::new(u, v)
 }
 
-/// Canonicalizes a sphere pcurve's value at `t = 0` into the parameter window,
+/// Canonicalizes a sphere UV curve's value at `t = 0` into the parameter window,
 /// folding poles and the `v`/`u` seams (mirror about `v = ±π/2` with a `+π`
 /// `u` shift when the reference point spills past a pole).
 fn sphere_set_in_bounds(line: Line2D) -> Line2D {
@@ -688,7 +695,7 @@ fn circle_on_torus(
     maj: f64,
     min: f64,
     tol: Tolerance,
-) -> Result<Line2D, ParametrizeError> {
+) -> Result<Line2D, Curve3DToUvError> {
     let z = frame.z_direction();
     let oc = circle.center() - frame.origin();
     let normal = circle.normal();
@@ -712,7 +719,7 @@ fn torus_toroidal(
     frame: crate::Frame,
     maj: f64,
     min: f64,
-) -> Result<Line2D, ParametrizeError> {
+) -> Result<Line2D, Curve3DToUvError> {
     let z = frame.z_direction();
     let cf = circle.frame();
     let mut p1 = torus_eval_u(frame, cf.x_direction());
@@ -733,16 +740,16 @@ fn torus_toroidal(
     if (p1.x - p2.x).abs() > PI {
         v2d = -v2d;
     }
-    let dir = v2d.normalized().ok_or(ParametrizeError::NotAnalytic)?;
+    let dir = v2d.normalized().ok_or(Curve3DToUvError::NotAnalytic)?;
     if p1.x < 0.0 {
         p1.x += TAU;
     }
-    Line2D::new(p1, dir).map_err(|_| ParametrizeError::NotAnalytic)
+    Line2D::new(p1, dir).map_err(|_| Curve3DToUvError::NotAnalytic)
 }
 
 /// Poloidal image (meridian circle at fixed toroidal angle `u`): a vertical
 /// line in `(u, v)`.
-fn torus_poloidal(circle: &Circle, frame: crate::Frame) -> Result<Line2D, ParametrizeError> {
+fn torus_poloidal(circle: &Circle, frame: crate::Frame) -> Result<Line2D, Curve3DToUvError> {
     let z = frame.z_direction();
     let oc = circle.center() - frame.origin();
     let cf = circle.frame();
@@ -755,7 +762,7 @@ fn torus_poloidal(circle: &Circle, frame: crate::Frame) -> Result<Line2D, Parame
     if oc.cross(z).dot(cf.x_direction().cross(cf.y_direction())) < 0.0 {
         dir = -dir;
     }
-    Line2D::new(Point2D::new(u, v1), dir).map_err(|_| ParametrizeError::NotAnalytic)
+    Line2D::new(Point2D::new(u, v1), dir).map_err(|_| Curve3DToUvError::NotAnalytic)
 }
 
 /// Toroidal `u` of a unit direction: the angle of its projection into the
@@ -790,15 +797,13 @@ fn frame_angle(frame: crate::Frame, direction: Vector) -> f64 {
 /// Shifts `line`'s value at `t = 0` into `surface`'s canonical parameter
 /// window: `u` (and `v` for the torus) wrapped by period multiples; the sphere
 /// additionally folds poles/seams via [`sphere_set_in_bounds`].
-pub(crate) fn normalize_line2d_at_zero(line: Line2D, surface: &Surface) -> Line2D {
+fn normalize_line2d_at_zero(line: Line2D, surface: &ElementarySurface) -> Line2D {
     match surface {
         // A plane has no periodic direction: leave the line as-is.
-        Surface::Plane(_) | Surface::Extrusion(_) | Surface::BSpline(_) | Surface::Bezier(_) => {
-            line
-        }
-        Surface::Cylinder(_) | Surface::Cone(_) | Surface::Revolution(_) => wrap_u(line),
-        Surface::Sphere(_) => sphere_set_in_bounds(line),
-        Surface::Torus(_) => wrap_v(wrap_u(line)),
+        ElementarySurface::Plane(_) => line,
+        ElementarySurface::Cylinder(_) | ElementarySurface::Cone(_) => wrap_u(line),
+        ElementarySurface::Sphere(_) => sphere_set_in_bounds(line),
+        ElementarySurface::Torus(_) => wrap_v(wrap_u(line)),
     }
 }
 
@@ -835,35 +840,36 @@ fn angle_or_zero(y: f64, x: f64) -> f64 {
     }
 }
 
-/// Numeric curve-on-surface parametrization for pairs without closed form.
+/// The UV curve of a 3D curve on a surface, sampled, for the pairs without
+/// a closed form.
 ///
 /// Samples the curve at `sample_count` uniform parameters (at least 2)
 /// over its bounds (`[-10, 10]` for unbounded curves) and inverts each sample onto the surface with
 /// [`ParametricSurface::project_point`]. The returned `(u, v)` points
-/// approximate the exact pcurve; where a closed form exists, prefer the
-/// exact [`parametrize_on`](crate::Line::parametrize_on) methods.
+/// approximate the exact UV curve; where a closed form exists, prefer the
+/// exact [`ParametricSurface::curve_3d_to_uv`].
 ///
 /// # Examples
 ///
 /// ```
-/// use geomcore::{Circle, Cylinder, Point, Tolerance, Vector, parametrize_numeric};
+/// use geomcore::{Circle, Cylinder, Point, Tolerance, Vector, curve_3d_to_uv_numeric};
 /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
 /// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
-/// let pcurve = parametrize_numeric(&circle, &cylinder, 9, Tolerance::DEFAULT);
-/// assert_eq!(pcurve.len(), 9);
+/// let uv_points = curve_3d_to_uv_numeric(&circle, &cylinder, 9, Tolerance::DEFAULT);
+/// assert_eq!(uv_points.len(), 9);
 /// // Coaxial circle on a cylinder: the horizontal line v = 0.
-/// for p in &pcurve {
+/// for p in &uv_points {
 ///     assert!(p.y.abs() < 1e-9);
 /// }
 /// ```
-pub fn parametrize_numeric<C, S>(
+pub fn curve_3d_to_uv_numeric<C, S>(
     curve: &C,
     surface: &S,
     sample_count: usize,
     tol: Tolerance,
 ) -> Vec<Point2D>
 where
-    C: crate::curves::ParametricCurve,
+    C: ParametricCurve,
     S: ParametricSurface,
 {
     let (t0, t1) = curve.bounds();

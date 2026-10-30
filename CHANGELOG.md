@@ -13,7 +13,7 @@ the Python distribution are versioned in lockstep.
 
 - `ParametricSurface::uv_curve_to_3d(&Curve2D, tol)`, the exact 3D
   curve a UV curve (a curve of a surface's parameter space) traces on the
-  surface, in the same parameter: the inverse of `parametrize_on` (#152,
+  surface, in the same parameter: the inverse of `curve_3d_to_uv` (#152,
   ADR 0030). Any
   curve on a plane keeps its kind; on the extrusion of a line, the
   affine image where it keeps its kind in the same parameter; a line
@@ -29,6 +29,27 @@ the Python distribution are versioned in lockstep.
 - Python: `uv_curve_to_3d(uv_curve, tol=None)` on every surface
   class, taking any 2D curve, and the `UvCurveTo3DError`
   exception.
+- `ParametricSurface::curve_3d_to_uv(&Curve, tol)`, the exact UV curve
+  of a 3D curve lying on the surface, in the same parameter (ADR 0031).
+  It takes any `Curve`, so a Bézier curve in a plane now maps too, to
+  the `BezierCurve2D` over its poles' plane coordinates. Python:
+  `curve_3d_to_uv(curve, tol=None)` on every surface class, taking any
+  3D curve.
+
+### Breaking
+
+- `parametrize_on` is gone from `Line`, `Circle`, `Ellipse`, `Parabola`,
+  `Hyperbola` and `BSplineCurve`; the surface maps the curve instead,
+  with the same closed forms and results (ADR 0031). Migrate
+  `circle.parametrize_on(surface, tol)` to
+  `surface.curve_3d_to_uv(&circle.into(), tol)`, or pass a `&Curve`
+  directly. `ParametrizeError` is renamed `Curve3DToUvError`, with the
+  same variants, and `parametrize_numeric` is renamed
+  `curve_3d_to_uv_numeric`. Python: `curve.parametrize_on(surface, tol)`
+  becomes `surface.curve_3d_to_uv(curve, tol)`, the exception
+  `ParametrizeError` becomes `Curve3DToUvError`, and
+  `geomcore.parametrize_numeric` becomes
+  `geomcore.curve_3d_to_uv_numeric`.
 
 ## [0.41.0] - 2026-10-30
 

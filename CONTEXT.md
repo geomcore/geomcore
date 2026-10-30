@@ -43,7 +43,7 @@ The curve a swept surface moves.
 _Avoid_: generatrix, basis curve, directrix
 
 **UV curve**:
-A 2D curve in a surface's `(u, v)` parameter space; its 3D curve is the surface composed with it, `S∘c`, which `uv_curve_to_3d` gives exactly or refuses (ADR 0030).
+A 2D curve in a surface's `(u, v)` parameter space; its 3D curve is the surface composed with it, `S∘c`, which `uv_curve_to_3d` gives exactly or refuses (ADR 0030). `curve_3d_to_uv` goes the other way: the UV curve `c` of a 3D curve `C` on the surface, with `S∘c = C` (ADR 0031).
 Synonyms: pcurve (the ISO 10303-42 entity name), parameter-space curve.
 _Avoid_: `UV` in Rust names (the casing is `Uv`, one word), parametric curve (`ParametricCurve` already means any curve parametrized by `t`), curve on surface, lift, drop
 
