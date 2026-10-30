@@ -12,7 +12,8 @@ milliseconds is never hidden. Adapted from
 ## What an intersection returns
 
 One result per family: `CurveCurveIntersection` (and
-`CurveCurveIntersection2D`), `CurveSurfaceIntersection` and
+`CurveCurveIntersection2D`, the plane's instance of the same
+`GenericCurveCurveIntersection`), `CurveSurfaceIntersection` and
 `SurfaceSurfaceIntersection`. Each one carries:
 
 - the **hits**: the point, the multiplicity (1 for a crossing, 2+ for a

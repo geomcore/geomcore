@@ -107,7 +107,7 @@ _Avoid_: route, path, strategy
 The result `intersect_exact` returns for one pair of concrete types, such as `PlaneSphereIntersection`: an enum of the outcomes that pair can have, on the stack.
 
 **Family result**:
-The result `intersect` returns for a family of pairs: `CurveCurveIntersection`, `CurveCurveIntersection2D`, `CurveSurfaceIntersection` or `SurfaceSurfaceIntersection`. It holds hits or curves, overlaps or coincidence, the intersection method and the completeness, whatever the operands. The router reads an exact pair's typed result straight into it.
+The result `intersect` returns for a family of pairs: `CurveCurveIntersection`, `CurveCurveIntersection2D`, `CurveSurfaceIntersection` or `SurfaceSurfaceIntersection`. The two curve–curve results are the instances of one `GenericCurveCurveIntersection` over the tier (ADR 0014). It holds hits or curves, overlaps or coincidence, the intersection method and the completeness, whatever the operands. The router reads an exact pair's typed result straight into it.
 _Avoid_: general result, untyped result
 
 **Not analytic**:

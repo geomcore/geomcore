@@ -207,12 +207,16 @@ pub(crate) fn intersect_numeric_2d<A: Embed, B: Embed>(
         }
     }
     let result = intersect_curve_curve(&embed(a), &embed(b), tol);
-    let hits = result.hits().iter().map(|hit| CurveCurveHit2D {
-        first_parameter: hit.first_parameter,
-        second_parameter: hit.second_parameter,
-        point: Point2D::new(hit.point.x, hit.point.y),
-        multiplicity: hit.multiplicity,
-    });
+    let hits = result
+        .hits()
+        .iter()
+        .map(|hit| CurveCurveHit2D {
+            first_parameter: hit.first_parameter,
+            second_parameter: hit.second_parameter,
+            point: Point2D::new(hit.point.x, hit.point.y),
+            multiplicity: hit.multiplicity,
+        })
+        .collect();
     CurveCurveIntersection2D::numeric(
         hits,
         result.overlaps().to_vec(),

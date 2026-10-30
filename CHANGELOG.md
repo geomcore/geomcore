@@ -29,6 +29,10 @@ the Python distribution are versioned in lockstep.
   every curve gains `reversed()` and `reversed_parameter(u)`, through the
   shared method sets. A failed transform raises `ConstructionError`, as
   before.
+- `GenericCurveCurveIntersection<P>` and `GenericCurveCurveHit<P>`, the
+  curve–curve result and hit generic over the tier (ADR 0014, amended):
+  code that reads a curve–curve result can be written once for both
+  tiers.
 
 ### Changed
 
@@ -62,6 +66,13 @@ the Python distribution are versioned in lockstep.
   completeness is `Complete` or `Incomplete` instead of `Sampled`.
 - Internal: the property tests run over one sample list per shape enum,
   checked against the enum's variants (ADR 0027).
+- `CurveCurveIntersection` and `CurveCurveIntersection2D` are now the
+  aliases of `GenericCurveCurveIntersection<Point>` and
+  `GenericCurveCurveIntersection<Point2D>`, and
+  `CurveCurveHit`/`CurveCurveHit2D` those of `GenericCurveCurveHit`;
+  the fitting constructors `interpolate`,
+  `approximate` and `approximate_within` are written once on
+  `GenericBSplineCurve`. Every name, method and result is unchanged.
 
 ### Deprecated
 

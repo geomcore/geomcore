@@ -17,7 +17,6 @@
 //! come from the shape enums' variant lists, so a new shape type edits no
 //! list here.
 
-use crate::Tolerance;
 use crate::curves::PointExtrema;
 use crate::curves::PointExtrema2D;
 use crate::curves::{
@@ -29,12 +28,14 @@ use crate::intersect::numeric::marching::marching_intersection;
 use crate::intersect::results::{CurveCurveOverlapList, SurfaceSurfaceIntersection};
 use crate::intersect::{
     CurveCurveIntersection, CurveCurveIntersection2D, CurveCurveOverlap, CurveSurfaceIntersection,
-    InlineList, intersect_curve_curve, intersect_curve_surface,
+    GenericCurveCurveIntersection, InlineList, intersect_curve_curve, intersect_curve_surface,
 };
 use crate::surfaces::{
     BSplineSurface, BezierSurface, ElementarySurface, ExtrusionSurface, ParametricSurface,
     RevolutionSurface, Surface,
 };
+use crate::tier::operations::VectorOperations;
+use crate::{Point, Point2D, TierPoint, Tolerance};
 
 // The list macros come before the submodules, which use `shapes!` too.
 
@@ -128,13 +129,96 @@ pub trait Intersect<Rhs: ?Sized = Self> {
     fn intersect(&self, other: &Rhs, tol: Tolerance) -> Self::Output;
 }
 
-/// A concrete elementary curve, as the readers of `exact_family` take it.
+/// A curve in the tier of `P` as the readers of `exact_family` and the
+/// overlap mapping take it: a concrete elementary curve, or the tier's
+/// elementary enum ([`ElementaryCurve`] or [`Curve2D`]).
 ///
-/// [`parameter_of`](PointExtrema::parameter_of) gives the parameter of a
-/// hit's point when the curve is restricted to a range and the solver did
-/// not compute it: the range test needs it. A coincidence is mapped on
-/// the [`ElementaryCurve`] the curve converts into.
-pub(crate) trait CurveBasis: PointExtrema + Copy + Into<ElementaryCurve> {}
+/// [`parameter_of_point`](Self::parameter_of_point) gives the parameter of
+/// a hit's point when the curve is restricted to a range and the solver
+/// did not compute it: the range test needs it. A coincidence is mapped on
+/// the tier's enum, so the mapping is compiled once per tier.
+pub(crate) trait CurveBasis<P: CurveTier>: Clone {
+    /// The curve as the tier's elementary enum.
+    fn coincident(&self) -> P::Elementary;
+
+    /// The parameter bounds.
+    fn range(&self) -> (f64, f64);
+
+    /// The period, or `None` when the curve is not periodic.
+    fn cycle_length(&self) -> Option<f64>;
+
+    /// The point at `parameter`.
+    fn point_at(&self, parameter: f64) -> P;
+
+    /// The first derivative at `parameter`.
+    fn first_derivative(&self, parameter: f64) -> P::Vector;
+
+    /// The parameter of the curve's point closest to `point`.
+    fn parameter_of_point(&self, point: P, tol: Tolerance) -> f64;
+
+    /// The length of the first derivative at `parameter`: the line
+    /// direction's length, the circle's radius.
+    #[inline]
+    fn speed(&self, parameter: f64) -> f64 {
+        self.first_derivative(parameter).magnitude()
+    }
+}
+
+/// A tier as the curve router reads it: its point, and the enum of its
+/// elementary curves, on which a coincidence is mapped.
+pub(crate) trait CurveTier: TierPoint {
+    /// [`ElementaryCurve`] in space, [`Curve2D`] in the plane.
+    type Elementary: CurveBasis<Self>;
+}
+
+impl CurveTier for Point {
+    type Elementary = ElementaryCurve;
+}
+
+impl CurveTier for Point2D {
+    type Elementary = Curve2D;
+}
+
+/// Makes every curve of a tier that converts into the tier's elementary
+/// enum a [`CurveBasis`], from the tier's curve traits.
+macro_rules! tier_curve_basis {
+    ($point:ty, $extrema:ident, $parametric:ident, $enum:ty) => {
+        impl<C: $extrema + Clone + Into<$enum>> CurveBasis<$point> for C {
+            #[inline]
+            fn coincident(&self) -> $enum {
+                self.clone().into()
+            }
+
+            #[inline]
+            fn range(&self) -> (f64, f64) {
+                $parametric::bounds(self)
+            }
+
+            #[inline]
+            fn cycle_length(&self) -> Option<f64> {
+                $parametric::period(self)
+            }
+
+            #[inline]
+            fn point_at(&self, parameter: f64) -> $point {
+                $parametric::eval_point(self, parameter)
+            }
+
+            #[inline]
+            fn first_derivative(&self, parameter: f64) -> <$point as TierPoint>::Vector {
+                $parametric::eval_derivative(self, parameter, 1)
+            }
+
+            #[inline]
+            fn parameter_of_point(&self, point: $point, tol: Tolerance) -> f64 {
+                $extrema::parameter_of(self, point, tol)
+            }
+        }
+    };
+}
+
+tier_curve_basis!(Point, PointExtrema, ParametricCurve, ElementaryCurve);
+tier_curve_basis!(Point2D, PointExtrema2D, ParametricCurve2D, Curve2D);
 
 /// How a curve enters the router: its basis, the shape the closed-form
 /// pair table matches it on (see `closed_form`), and the parameter range
@@ -154,8 +238,6 @@ pub(crate) trait CurveOperand: ParametricCurve {
 /// basis.
 macro_rules! own_curve_basis {
     ([$($curve:ty),*]) => {$(
-        impl CurveBasis for $curve {}
-
         impl CurveOperand for $curve {
             type Basis = $curve;
 
@@ -577,21 +659,27 @@ macro_rules! surface_surface {
 
 surface_operands!(surface_operands surface_surface);
 
-/// Intersects two curves: in closed form when the table lists the pair,
-/// by the numeric search otherwise.
+/// Intersects two curves of one tier, each read as its basis and range:
+/// in closed form when the table lists the pair, by the tier's numeric
+/// search otherwise. A trimmed curve is searched over its own range only:
+/// no clipping.
+///
+/// The operands are read here, not by the caller: a basis read from an
+/// enum is as large as the enum, and moving two of them in measured 5 %
+/// slower on a line and a circle read through `Curve`.
 #[inline]
-pub(crate) fn route_curve_curve<A: CurveOperand, B: CurveOperand>(
-    a: &A,
-    b: &B,
+fn route_curve_curve<
+    P: CurveTier,
+    A: ExactFamily<B, Family = GenericCurveCurveIntersection<P>>,
+    B,
+>(
+    read_first: impl FnOnce() -> Operand<A>,
+    read_second: impl FnOnce() -> Operand<B>,
     tol: Tolerance,
-) -> CurveCurveIntersection
-where
-    A::Basis: ExactFamily<B::Basis, Family = CurveCurveIntersection>,
-{
-    // A trimmed curve is searched over its own range only: no clipping.
-    let numeric_search = || intersect_curve_curve(a, b, tol);
-    let (first, first_range) = a.basis_and_range();
-    let (second, second_range) = b.basis_and_range();
+    numeric_search: impl FnOnce() -> GenericCurveCurveIntersection<P>,
+) -> GenericCurveCurveIntersection<P> {
+    let (first, first_range) = read_first();
+    let (second, second_range) = read_second();
     first.exact_family(&second, (first_range, second_range), tol, numeric_search)
 }
 
@@ -611,7 +699,7 @@ type Operand<C> = (C, Option<(f64, f64)>);
 /// touch (two consecutive pieces of one line or circle), is not an overlap: it
 /// comes back in [`CoincidentPieces::touches`] as a parameter pair, each
 /// parameter the point's representative in its range.
-fn coincident_overlaps<C: CoincidentCurve>(
+fn coincident_overlaps<P: CurveTier, C: CurveBasis<P>>(
     (first, first_range): (&C, (f64, f64)),
     (second, second_range): (&C, (f64, f64)),
     tol: Tolerance,
@@ -632,7 +720,7 @@ fn coincident_overlaps<C: CoincidentCurve>(
     for &piece in first_pieces.iter() {
         if is_single_point(piece, &first_speed, tol) {
             let first_parameter = (0.5 * (piece.0 + piece.1)).clamp(first_range.0, first_range.1);
-            let found = second.parameter_of_image(first, first_parameter, tol);
+            let found = parameter_of_image(second, first, first_parameter, tol);
             let period = second.cycle_length();
             let second_parameter = in_range(found, second_range, period, |t| second.speed(t), tol)
                 .unwrap_or_else(|| nearest_end(found, second_range, period));
@@ -659,7 +747,7 @@ fn coincident_overlaps<C: CoincidentCurve>(
         // part of each side back from its end points.
         for &part in pieces_on_second.iter() {
             let end = |parameter: f64| {
-                let found = first.parameter_of_image(second, parameter, tol);
+                let found = parameter_of_image(first, second, parameter, tol);
                 let period = first.cycle_length();
                 in_range(found, piece, period, |t| first.speed(t), tol)
                     .unwrap_or_else(|| nearest_end(found, piece, period))
@@ -686,77 +774,36 @@ struct CoincidentPieces {
     touches: InlineList<(f64, f64), 3>,
 }
 
-/// What the overlap mapping needs from a curve, in 2D or 3D, to relate it
-/// to a coincident curve of the same kind.
-pub(crate) trait CoincidentCurve {
-    /// The period, or `None` when the curve is not periodic.
-    fn cycle_length(&self) -> Option<f64>;
-
-    /// The parameter, on this curve, of the point `other` has at
-    /// `parameter`; `other` coincides with this curve.
-    fn parameter_of_image(&self, other: &Self, parameter: f64, tol: Tolerance) -> f64;
-
-    /// Whether this curve at `parameter` and `other` at the same point
-    /// run the same way.
-    fn runs_with(&self, parameter: f64, other: &Self, tol: Tolerance) -> bool;
-
-    /// The length of the first derivative at `parameter`: the line
-    /// direction's length, the circle's radius.
-    fn speed(&self, parameter: f64) -> f64;
-}
-
-impl CoincidentCurve for ElementaryCurve {
-    fn cycle_length(&self) -> Option<f64> {
-        self.period()
-    }
-
-    fn parameter_of_image(&self, other: &Self, parameter: f64, tol: Tolerance) -> f64 {
-        self.parameter_of(other.eval_point(parameter), tol)
-    }
-
-    fn runs_with(&self, parameter: f64, other: &Self, tol: Tolerance) -> bool {
-        let image = other.parameter_of_image(self, parameter, tol);
-        self.eval_derivative(parameter, 1)
-            .dot(other.eval_derivative(image, 1))
-            >= 0.0
-    }
-
-    fn speed(&self, parameter: f64) -> f64 {
-        self.eval_derivative(parameter, 1).magnitude()
-    }
-}
-
-impl CoincidentCurve for Curve2D {
-    fn cycle_length(&self) -> Option<f64> {
-        self.period()
-    }
-
-    fn parameter_of_image(&self, other: &Self, parameter: f64, tol: Tolerance) -> f64 {
-        self.parameter_of(other.eval_point(parameter), tol)
-    }
-
-    fn runs_with(&self, parameter: f64, other: &Self, tol: Tolerance) -> bool {
-        let image = other.parameter_of_image(self, parameter, tol);
-        self.eval_derivative(parameter, 1)
-            .dot(other.eval_derivative(image, 1))
-            >= 0.0
-    }
-
-    fn speed(&self, parameter: f64) -> f64 {
-        self.eval_derivative(parameter, 1).magnitude()
-    }
-}
-
 /// Whether the coincident curves `from` and `to` run the same way: the
 /// sign of the tangents' dot product at a sample of `range`.
-fn runs_along<C: CoincidentCurve>(from: &C, range: (f64, f64), to: &C, tol: Tolerance) -> bool {
+fn runs_along<P: CurveTier, C: CurveBasis<P>>(
+    from: &C,
+    range: (f64, f64),
+    to: &C,
+    tol: Tolerance,
+) -> bool {
     let sample = match (range.0.is_finite(), range.1.is_finite()) {
         (true, true) => 0.5 * (range.0 + range.1),
         (true, false) => range.0,
         (false, true) => range.1,
         (false, false) => 0.0,
     };
-    from.runs_with(sample, to, tol)
+    let image = parameter_of_image(to, from, sample, tol);
+    from.first_derivative(sample)
+        .dot(to.first_derivative(image))
+        >= 0.0
+}
+
+/// The parameter, on `curve`, of the point `other` has at `parameter`;
+/// `other` coincides with `curve`.
+#[inline]
+fn parameter_of_image<P: CurveTier, C: CurveBasis<P>>(
+    curve: &C,
+    other: &C,
+    parameter: f64,
+    tol: Tolerance,
+) -> f64 {
+    curve.parameter_of_point(other.point_at(parameter), tol)
 }
 
 /// The image of `range` of curve `from` on the coincident curve `to`, as a
@@ -766,14 +813,14 @@ fn runs_along<C: CoincidentCurve>(from: &C, range: (f64, f64), to: &C, tol: Tole
 /// An infinite end maps to the infinity its direction gives on `to`. On a
 /// periodic curve the image starts at the image of the range's start in
 /// the direction of travel, and a full period maps to a full period.
-fn mapped_range<C: CoincidentCurve>(
+fn mapped_range<P: CurveTier, C: CurveBasis<P>>(
     from: &C,
     range: (f64, f64),
     to: &C,
     along: bool,
     tol: Tolerance,
 ) -> (f64, f64) {
-    let image = |parameter: f64| to.parameter_of_image(from, parameter, tol);
+    let image = |parameter: f64| parameter_of_image(to, from, parameter, tol);
     let Some(period) = to.cycle_length() else {
         let end = |parameter: f64| {
             if parameter.is_finite() {
@@ -800,77 +847,56 @@ fn mapped_range<C: CoincidentCurve>(
     (start, start + (finish - start).rem_euclid(period))
 }
 
-/// Implements [`Intersect`] for every curve of the list with every curve of
-/// the list, the receiver read first.
+/// Implements [`Intersect`] between the curves of one tier, described as
+/// `(operand trait, trimmed curve type, numeric search, result type)`:
+/// every curve of the list with every curve of the list, the receiver read
+/// first; a trimmed curve over any operand with each curve of the list, in
+/// both orders; and two trimmed curves.
 macro_rules! curve_curve {
-    (@row $first:ty; [$($second:ty),*]) => {$(
-        impl Intersect<$second> for $first {
-            type Output = CurveCurveIntersection;
-
-            #[inline]
-            fn intersect(&self, other: &$second, tol: Tolerance) -> CurveCurveIntersection {
-                route_curve_curve(self, other, tol)
-            }
-        }
+    (@row $tier:tt $first:ty; [$($second:ty),*]) => {$(
+        curve_curve!(@pair $tier [] $first, $second;);
     )*};
-    ([$($first:ty),*] $seconds:tt) => {$(
-        curve_curve!(@row $first; $seconds);
-    )*};
-}
-
-curve_operands!(curve_operands curve_curve);
-
-/// Implements [`Intersect`] between a trimmed curve over any curve operand
-/// and each curve of the list, in both orders.
-macro_rules! trimmed_curve_curve {
-    ([$($curve:ty),*]) => {$(
-        impl<X: CurveOperand> Intersect<$curve> for TrimmedCurve<X>
+    (
+        @pair ($operand:ident, $trimmed:ident, $search:ident, $output:ty)
+        [$($generics:tt)*] $first:ty, $second:ty; $($bounds:tt)*
+    ) => {
+        impl<$($generics)*> Intersect<$second> for $first
         where
-            X::Basis: ExactFamily<<$curve as CurveOperand>::Basis, Family = CurveCurveIntersection>,
+            $($bounds)*
         {
-            type Output = CurveCurveIntersection;
+            type Output = $output;
 
             #[inline]
-            fn intersect(&self, other: &$curve, tol: Tolerance) -> CurveCurveIntersection {
-                route_curve_curve(self, other, tol)
+            fn intersect(&self, other: &$second, tol: Tolerance) -> $output {
+                let numeric_search = || $search(self, other, tol);
+                let (read_first, read_second) = (|| self.basis_and_range(), || other.basis_and_range());
+                route_curve_curve(read_first, read_second, tol, numeric_search)
             }
         }
-
-        impl<X: CurveOperand> Intersect<TrimmedCurve<X>> for $curve
-        where
-            <$curve as CurveOperand>::Basis: ExactFamily<X::Basis, Family = CurveCurveIntersection>,
-        {
-            type Output = CurveCurveIntersection;
-
-            #[inline]
-            fn intersect(&self, other: &TrimmedCurve<X>, tol: Tolerance) -> CurveCurveIntersection {
-                route_curve_curve(self, other, tol)
-            }
-        }
-    )*};
+    };
+    (($operand:ident, $trimmed:ident, $search:ident, $output:ty) [$($curve:ty),*] $seconds:tt) => {
+        $(curve_curve!(@row ($operand, $trimmed, $search, $output) $curve; $seconds);)*
+        $(
+            curve_curve!(
+                @pair ($operand, $trimmed, $search, $output) [X: $operand] $trimmed<X>, $curve;
+                X::Basis: ExactFamily<<$curve as $operand>::Basis, Family = $output>,
+            );
+            curve_curve!(
+                @pair ($operand, $trimmed, $search, $output) [X: $operand] $curve, $trimmed<X>;
+                <$curve as $operand>::Basis: ExactFamily<X::Basis, Family = $output>,
+            );
+        )*
+        curve_curve!(
+            @pair ($operand, $trimmed, $search, $output)
+            [X: $operand, Y: $operand] $trimmed<X>, $trimmed<Y>;
+            X::Basis: ExactFamily<Y::Basis, Family = $output>,
+        );
+    };
 }
 
-curve_operands!(trimmed_curve_curve);
-
-impl<X: CurveOperand, Y: CurveOperand> Intersect<TrimmedCurve<Y>> for TrimmedCurve<X>
-where
-    X::Basis: ExactFamily<Y::Basis, Family = CurveCurveIntersection>,
-{
-    type Output = CurveCurveIntersection;
-
-    #[inline]
-    fn intersect(&self, other: &TrimmedCurve<Y>, tol: Tolerance) -> CurveCurveIntersection {
-        route_curve_curve(self, other, tol)
-    }
-}
-
-/// A concrete elementary 2D curve or a [`Curve2D`], as the readers of
-/// `exact_family` take it.
-pub(crate) trait CurveBasis2D: PointExtrema2D + Clone + Into<Curve2D> {}
-
-/// A 2D curve's basis and the parameter range it is restricted to
-/// (`None` = the basis's own bounds).
-type BasisAndRange<B> = (B, Option<(f64, f64)>);
+curve_operands!(curve_operands curve_curve (
+    CurveOperand, TrimmedCurve, intersect_curve_curve, CurveCurveIntersection
+));
 
 /// How a 2D curve enters the router: its basis, the shape the closed-form
 /// pair table matches it on (see `closed_form`), and the parameter range
@@ -882,19 +908,17 @@ pub(crate) trait CurveOperand2D: Embed {
     type Basis: Clone;
 
     /// The basis and the restricting parameter range.
-    fn basis_and_range(&self) -> BasisAndRange<Self::Basis>;
+    fn basis_and_range(&self) -> Operand<Self::Basis>;
 }
 
 /// Makes each concrete elementary 2D curve its own basis.
 macro_rules! own_curve_basis_2d {
     ([$($curve:ty),*]) => {$(
-        impl CurveBasis2D for $curve {}
-
         impl CurveOperand2D for $curve {
             type Basis = $curve;
 
             #[inline]
-            fn basis_and_range(&self) -> BasisAndRange<$curve> {
+            fn basis_and_range(&self) -> Operand<$curve> {
                 (self.clone(), None)
             }
         }
@@ -903,13 +927,11 @@ macro_rules! own_curve_basis_2d {
 
 crate::curves::curve_2d_variants!(Elementary, shapes! { own_curve_basis_2d });
 
-impl CurveBasis2D for Curve2D {}
-
 impl CurveOperand2D for Curve2D {
     type Basis = CurveKind2D;
 
     #[inline]
-    fn basis_and_range(&self) -> BasisAndRange<CurveKind2D> {
+    fn basis_and_range(&self) -> Operand<CurveKind2D> {
         (CurveKind2D::from(self), None)
     }
 }
@@ -918,7 +940,7 @@ impl CurveOperand2D for BSplineCurve2D {
     type Basis = CurveKind2D;
 
     #[inline]
-    fn basis_and_range(&self) -> BasisAndRange<CurveKind2D> {
+    fn basis_and_range(&self) -> Operand<CurveKind2D> {
         (CurveKind2D::Unlisted, None)
     }
 }
@@ -927,7 +949,7 @@ impl CurveOperand2D for BezierCurve2D {
     type Basis = CurveKind2D;
 
     #[inline]
-    fn basis_and_range(&self) -> BasisAndRange<CurveKind2D> {
+    fn basis_and_range(&self) -> Operand<CurveKind2D> {
         (CurveKind2D::Unlisted, None)
     }
 }
@@ -938,93 +960,15 @@ impl<C: CurveOperand2D> CurveOperand2D for TrimmedCurve2D<C> {
     /// A trimmed curve of a trimmed curve keeps the inner basis and the
     /// outer range: the outer range lies within the inner one.
     #[inline]
-    fn basis_and_range(&self) -> BasisAndRange<C::Basis> {
+    fn basis_and_range(&self) -> Operand<C::Basis> {
         let (basis, _) = self.basis().basis_and_range();
         (basis, Some((self.first(), self.last())))
     }
 }
 
-/// Intersects two 2D curves: in closed form when the table lists the
-/// pair, as it does every pair of elementary curves; a pair with a
-/// B-spline or Bézier operand is searched numerically, embedded in space.
-#[inline]
-pub(crate) fn route_curve_curve_2d<A: CurveOperand2D, B: CurveOperand2D>(
-    a: &A,
-    b: &B,
-    tol: Tolerance,
-) -> CurveCurveIntersection2D
-where
-    A::Basis: ExactFamily<B::Basis, Family = CurveCurveIntersection2D>,
-{
-    let numeric_search = || intersect_numeric_2d(a, b, tol);
-    let (first, first_range) = a.basis_and_range();
-    let (second, second_range) = b.basis_and_range();
-    first.exact_family(&second, (first_range, second_range), tol, numeric_search)
-}
-
-/// Implements [`Intersect`] for every 2D curve of the list with every one
-/// of the list, the receiver read first.
-macro_rules! curve_curve_2d {
-    (@row $first:ty; [$($second:ty),*]) => {$(
-        impl Intersect<$second> for $first {
-            type Output = CurveCurveIntersection2D;
-
-            #[inline]
-            fn intersect(&self, other: &$second, tol: Tolerance) -> CurveCurveIntersection2D {
-                route_curve_curve_2d(self, other, tol)
-            }
-        }
-    )*};
-    ([$($first:ty),*] $seconds:tt) => {$(
-        curve_curve_2d!(@row $first; $seconds);
-    )*};
-}
-
-curve_operands_2d!(curve_operands_2d curve_curve_2d);
-
-/// Implements [`Intersect`] between a trimmed 2D curve over any operand and
-/// each 2D curve of the list, in both orders.
-macro_rules! trimmed_curve_curve_2d {
-    ([$($curve:ty),*]) => {$(
-        impl<X: CurveOperand2D> Intersect<$curve> for TrimmedCurve2D<X>
-        where
-            X::Basis: ExactFamily<<$curve as CurveOperand2D>::Basis, Family = CurveCurveIntersection2D>,
-        {
-            type Output = CurveCurveIntersection2D;
-
-            #[inline]
-            fn intersect(&self, other: &$curve, tol: Tolerance) -> CurveCurveIntersection2D {
-                route_curve_curve_2d(self, other, tol)
-            }
-        }
-
-        impl<X: CurveOperand2D> Intersect<TrimmedCurve2D<X>> for $curve
-        where
-            <$curve as CurveOperand2D>::Basis: ExactFamily<X::Basis, Family = CurveCurveIntersection2D>,
-        {
-            type Output = CurveCurveIntersection2D;
-
-            #[inline]
-            fn intersect(&self, other: &TrimmedCurve2D<X>, tol: Tolerance) -> CurveCurveIntersection2D {
-                route_curve_curve_2d(self, other, tol)
-            }
-        }
-    )*};
-}
-
-curve_operands_2d!(trimmed_curve_curve_2d);
-
-impl<X: CurveOperand2D, Y: CurveOperand2D> Intersect<TrimmedCurve2D<Y>> for TrimmedCurve2D<X>
-where
-    X::Basis: ExactFamily<Y::Basis, Family = CurveCurveIntersection2D>,
-{
-    type Output = CurveCurveIntersection2D;
-
-    #[inline]
-    fn intersect(&self, other: &TrimmedCurve2D<Y>, tol: Tolerance) -> CurveCurveIntersection2D {
-        route_curve_curve_2d(self, other, tol)
-    }
-}
+curve_operands_2d!(curve_operands_2d curve_curve (
+    CurveOperand2D, TrimmedCurve2D, intersect_numeric_2d, CurveCurveIntersection2D
+));
 
 #[cfg(test)]
 mod tests;

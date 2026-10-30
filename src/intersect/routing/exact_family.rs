@@ -10,19 +10,16 @@
 //! overlaps.
 
 use super::closed_form::Ranges;
-use super::{CurveBasis, CurveBasis2D, coincident_overlaps, in_range, kept_parameter};
-use crate::curves::{
-    Circle, Circle2D, Curve, Curve2D, ElementaryCurve, Line, Line2D, ParametricCurve,
-    ParametricCurve2D, PointExtrema,
-};
+use super::{CurveBasis, CurveTier, coincident_overlaps, in_range, kept_parameter};
+use crate::curves::{Circle, Circle2D, Curve, Line, Line2D, ParametricCurve, PointExtrema};
 use crate::intersect::results::{
     CurveCurveHitList, CurveCurveOverlapList, CurveSurfaceOverlapList,
 };
 use crate::intersect::{
     CircleCircle2DIntersection, CircleCircleIntersection, CircleSurfaceIntersection, Conic,
     Conic2DIntersection, ConicConicIntersection, ConicSurfaceHit, ConicSurfaceIntersection,
-    CurveCurveHit, CurveCurveHit2D, CurveCurveIntersection, CurveCurveIntersection2D,
-    CurveSurfaceHit, CurveSurfaceIntersection, InlineList, IntersectionCurve,
+    CurveCurveIntersection, CurveCurveIntersection2D, CurveSurfaceHit, CurveSurfaceIntersection,
+    GenericCurveCurveHit, GenericCurveCurveIntersection, InlineList, IntersectionCurve,
     LineCircle2DIntersection, LineCircleIntersection, LineConicHit, LineConicIntersection,
     LineLine2DIntersection, LineLineIntersection, LinePlaneIntersection, LineQuadricIntersection,
     LineTorusIntersection, SurfaceSurfaceIntersection, intersect_conic_conic,
@@ -454,13 +451,18 @@ impl ConicSurfaceIntersection {
     }
 }
 
-// Curve–curve.
+// Curve–curve, in either tier.
 
 /// A hit at `first` on the first curve and `second` on the second, each
 /// `None` when the solver did not compute it.
 #[inline]
-fn pair(first: Option<f64>, point: Point, second: Option<f64>, multiplicity: u32) -> CurveCurveHit {
-    CurveCurveHit {
+fn pair<P: CurveTier>(
+    first: Option<f64>,
+    point: P,
+    second: Option<f64>,
+    multiplicity: u32,
+) -> GenericCurveCurveHit<P> {
+    GenericCurveCurveHit {
         first_parameter: first,
         point,
         second_parameter: second,
@@ -474,78 +476,78 @@ fn pair(first: Option<f64>, point: Point, second: Option<f64>, multiplicity: u32
 /// kept as they are, with no range test.
 // Always inlined: out of line, the result it builds is copied on return.
 #[inline(always)]
-fn curve_curve_hits<A: CurveBasis, B: CurveBasis>(
-    hits: impl IntoIterator<Item = CurveCurveHit>,
+fn curve_curve_hits<P: CurveTier, A: CurveBasis<P>, B: CurveBasis<P>>(
+    hits: impl IntoIterator<Item = GenericCurveCurveHit<P>>,
     first: &A,
     second: &B,
     (first_range, second_range): Ranges,
     tol: Tolerance,
-) -> CurveCurveIntersection {
+) -> GenericCurveCurveIntersection<P> {
     if first_range.is_none() && second_range.is_none() {
         let mut list = InlineList::new();
         for hit in hits {
             list.push(hit);
         }
-        return CurveCurveIntersection::exact(
+        return GenericCurveCurveIntersection::exact(
             CurveCurveHitList::Inline(list),
             CurveCurveOverlapList::new(),
         );
     }
-    let hits = hits.into_iter().filter_map(|hit| {
-        Some(CurveCurveHit {
+    let kept = hits.into_iter().filter_map(|hit| {
+        Some(GenericCurveCurveHit {
             first_parameter: kept_parameter(
                 hit.first_parameter,
                 first_range,
-                first.period(),
-                || first.parameter_of(hit.point, tol),
-                |parameter| first.eval_derivative(parameter, 1).magnitude(),
+                first.cycle_length(),
+                || first.parameter_of_point(hit.point, tol),
+                |parameter| first.speed(parameter),
                 tol,
             )?,
             second_parameter: kept_parameter(
                 hit.second_parameter,
                 second_range,
-                second.period(),
-                || second.parameter_of(hit.point, tol),
-                |parameter| second.eval_derivative(parameter, 1).magnitude(),
+                second.cycle_length(),
+                || second.parameter_of_point(hit.point, tol),
+                |parameter| second.speed(parameter),
                 tol,
             )?,
             ..hit
         })
     });
-    CurveCurveIntersection::exact(hits.collect(), CurveCurveOverlapList::new())
+    GenericCurveCurveIntersection::exact(kept.collect(), CurveCurveOverlapList::new())
 }
 
 /// The curves coincide: their overlaps within both ranges, and the points
-/// where the ranges only touch. Rare, so it is worked out on
-/// [`ElementaryCurve`] and the overlap mapping exists once.
+/// where the ranges only touch. Rare, so it is worked out on the tier's
+/// elementary enum and the overlap mapping exists once per tier.
 #[cold]
 #[inline(never)]
-fn curves_coincide<A: CurveBasis, B: CurveBasis>(
+fn curves_coincide<P: CurveTier, A: CurveBasis<P>, B: CurveBasis<P>>(
     first: &A,
     second: &B,
     (first_range, second_range): Ranges,
     tol: Tolerance,
-) -> CurveCurveIntersection {
-    let (first, second): (ElementaryCurve, ElementaryCurve) = ((*first).into(), (*second).into());
-    let first_range = first_range.unwrap_or(first.bounds());
-    let second_range = second_range.unwrap_or(second.bounds());
+) -> GenericCurveCurveIntersection<P> {
+    let (first, second) = (first.coincident(), second.coincident());
+    let first_range = first_range.unwrap_or(first.range());
+    let second_range = second_range.unwrap_or(second.range());
     let shared = coincident_overlaps((&first, first_range), (&second, second_range), tol);
-    let hits = shared
-        .touches
-        .iter()
-        .map(|&(first_parameter, second_parameter)| CurveCurveHit {
-            first_parameter: Some(first_parameter),
-            second_parameter: Some(second_parameter),
-            point: first.eval_point(first_parameter),
-            multiplicity: 1,
-        });
-    CurveCurveIntersection::exact(hits.collect(), shared.overlaps)
+    let hits =
+        shared.touches.iter().map(
+            |&(first_parameter, second_parameter)| GenericCurveCurveHit {
+                first_parameter: Some(first_parameter),
+                second_parameter: Some(second_parameter),
+                point: first.point_at(first_parameter),
+                multiplicity: 1,
+            },
+        );
+    GenericCurveCurveIntersection::exact(hits.collect(), shared.overlaps)
 }
 
 /// The curves do not meet.
 #[inline]
-fn curves_miss() -> CurveCurveIntersection {
-    CurveCurveIntersection::exact(CurveCurveHitList::new(), CurveCurveOverlapList::new())
+fn curves_miss<P: CurveTier>() -> GenericCurveCurveIntersection<P> {
+    GenericCurveCurveIntersection::exact(CurveCurveHitList::new(), CurveCurveOverlapList::new())
 }
 
 /// The multiplicity of a lone line hit: the line-circle and line-conic
@@ -612,7 +614,7 @@ impl LineCircleIntersection {
 
 impl LineConicIntersection {
     #[inline]
-    pub(super) fn into_family<C: Conic + CurveBasis>(
+    pub(super) fn into_family<C: Conic + CurveBasis<Point>>(
         self,
         line: &Line,
         conic: &C,
@@ -661,7 +663,7 @@ impl CircleCircleIntersection {
 
 impl ConicConicIntersection {
     #[inline]
-    pub(super) fn into_family<A: CurveBasis, B: CurveBasis>(
+    pub(super) fn into_family<A: CurveBasis<Point>, B: CurveBasis<Point>>(
         self,
         first: &A,
         second: &B,
@@ -680,96 +682,8 @@ impl ConicConicIntersection {
 
 // 2D curve–curve.
 
-/// A 2D hit with the parameters the solver computed.
-#[inline]
-fn pair_2d(
-    first_parameter: Option<f64>,
-    second_parameter: Option<f64>,
-    point: Point2D,
-    multiplicity: u32,
-) -> CurveCurveHit2D {
-    CurveCurveHit2D {
-        first_parameter,
-        second_parameter,
-        point,
-        multiplicity,
-    }
-}
-
-/// The 2D curves meet at `hits`: those outside either range dropped, the
-/// kept ones carrying their representative in each range (see
-/// [`kept_parameter`]). Neither curve restricted, the solver's hits are
-/// kept as they are, with no range test.
-// Always inlined: out of line, the result it builds is copied on return.
-#[inline(always)]
-fn curve_curve_hits_2d<A: CurveBasis2D, B: CurveBasis2D>(
-    hits: impl IntoIterator<Item = CurveCurveHit2D>,
-    first: &A,
-    second: &B,
-    (first_range, second_range): Ranges,
-    tol: Tolerance,
-) -> CurveCurveIntersection2D {
-    if first_range.is_none() && second_range.is_none() {
-        return CurveCurveIntersection2D::exact(hits, CurveCurveOverlapList::new());
-    }
-    let kept = hits.into_iter().filter_map(|hit| {
-        Some(CurveCurveHit2D {
-            first_parameter: kept_parameter(
-                hit.first_parameter,
-                first_range,
-                first.period(),
-                || first.parameter_of(hit.point, tol),
-                |parameter| first.eval_derivative(parameter, 1).magnitude(),
-                tol,
-            )?,
-            second_parameter: kept_parameter(
-                hit.second_parameter,
-                second_range,
-                second.period(),
-                || second.parameter_of(hit.point, tol),
-                |parameter| second.eval_derivative(parameter, 1).magnitude(),
-                tol,
-            )?,
-            ..hit
-        })
-    });
-    CurveCurveIntersection2D::exact(kept, CurveCurveOverlapList::new())
-}
-
-/// The 2D curves coincide: their overlaps within both ranges, and the
-/// points where the ranges only touch.
-#[cold]
-#[inline(never)]
-fn curves_coincide_2d<A: CurveBasis2D, B: CurveBasis2D>(
-    first: &A,
-    second: &B,
-    (first_range, second_range): Ranges,
-    tol: Tolerance,
-) -> CurveCurveIntersection2D {
-    let (first, second): (Curve2D, Curve2D) = (first.clone().into(), second.clone().into());
-    let first_range = first_range.unwrap_or(first.bounds());
-    let second_range = second_range.unwrap_or(second.bounds());
-    let shared = coincident_overlaps((&first, first_range), (&second, second_range), tol);
-    let hits = shared
-        .touches
-        .iter()
-        .map(|&(first_parameter, second_parameter)| CurveCurveHit2D {
-            first_parameter: Some(first_parameter),
-            second_parameter: Some(second_parameter),
-            point: first.eval_point(first_parameter),
-            multiplicity: 1,
-        });
-    CurveCurveIntersection2D::exact(hits, shared.overlaps)
-}
-
-/// The 2D curves do not meet.
-#[inline]
-fn curves_miss_2d() -> CurveCurveIntersection2D {
-    CurveCurveIntersection2D::exact([], CurveCurveOverlapList::new())
-}
-
 // The 2D readers are always inlined, for the same reason as
-// `curve_curve_hits_2d`: the compiler keeps them out of line otherwise.
+// `curve_curve_hits`: the compiler keeps them out of line otherwise.
 impl LineLine2DIntersection {
     #[inline(always)]
     pub(super) fn into_family(
@@ -781,11 +695,11 @@ impl LineLine2DIntersection {
     ) -> CurveCurveIntersection2D {
         match self {
             LineLine2DIntersection::Point(t, point, s) => {
-                let hit = pair_2d(Some(t), Some(s), point, 1);
-                curve_curve_hits_2d([hit], first, second, ranges, tol)
+                let hit = pair(Some(t), point, Some(s), 1);
+                curve_curve_hits([hit], first, second, ranges, tol)
             }
-            LineLine2DIntersection::Parallel => curves_miss_2d(),
-            LineLine2DIntersection::Coincident => curves_coincide_2d(first, second, ranges, tol),
+            LineLine2DIntersection::Parallel => curves_miss(),
+            LineLine2DIntersection::Coincident => curves_coincide(first, second, ranges, tol),
         }
     }
 }
@@ -799,7 +713,7 @@ impl LineCircle2DIntersection {
         ranges: Ranges,
         tol: Tolerance,
     ) -> CurveCurveIntersection2D {
-        let at = |t, point, multiplicity| pair_2d(Some(t), None, point, multiplicity);
+        let at = |t, point, multiplicity| pair(Some(t), point, None, multiplicity);
         let slots = match self {
             LineCircle2DIntersection::Points((t, p), (u, q)) => {
                 [Some(at(t, p, 1)), Some(at(u, q, 1))]
@@ -807,7 +721,7 @@ impl LineCircle2DIntersection {
             LineCircle2DIntersection::Tangent(t, p) => [Some(at(t, p, 2)), None],
             LineCircle2DIntersection::Empty => [None, None],
         };
-        curve_curve_hits_2d(slots.into_iter().flatten(), line, circle, ranges, tol)
+        curve_curve_hits(slots.into_iter().flatten(), line, circle, ranges, tol)
     }
 }
 
@@ -820,20 +734,20 @@ impl CircleCircle2DIntersection {
         ranges: Ranges,
         tol: Tolerance,
     ) -> CurveCurveIntersection2D {
-        let at = |point, multiplicity| pair_2d(None, None, point, multiplicity);
+        let at = |point, multiplicity| pair(None, point, None, multiplicity);
         let slots = match self {
             CircleCircle2DIntersection::Points(p, q) => [Some(at(p, 1)), Some(at(q, 1))],
             CircleCircle2DIntersection::Tangent(p) => [Some(at(p, 2)), None],
             CircleCircle2DIntersection::Empty => [None, None],
-            CircleCircle2DIntersection::Coincident => return curves_coincide_2d(a, b, ranges, tol),
+            CircleCircle2DIntersection::Coincident => return curves_coincide(a, b, ranges, tol),
         };
-        curve_curve_hits_2d(slots.into_iter().flatten(), a, b, ranges, tol)
+        curve_curve_hits(slots.into_iter().flatten(), a, b, ranges, tol)
     }
 }
 
 impl Conic2DIntersection {
     #[inline(always)]
-    pub(super) fn into_family<A: CurveBasis2D, B: CurveBasis2D>(
+    pub(super) fn into_family<A: CurveBasis<Point2D>, B: CurveBasis<Point2D>>(
         self,
         first: &A,
         second: &B,
@@ -842,10 +756,10 @@ impl Conic2DIntersection {
     ) -> CurveCurveIntersection2D {
         match self {
             Conic2DIntersection::Hits(hits) => {
-                curve_curve_hits_2d(hits.iter().copied(), first, second, ranges, tol)
+                curve_curve_hits(hits.iter().copied(), first, second, ranges, tol)
             }
-            Conic2DIntersection::Coincident => curves_coincide_2d(first, second, ranges, tol),
-            Conic2DIntersection::Empty => curves_miss_2d(),
+            Conic2DIntersection::Coincident => curves_coincide(first, second, ranges, tol),
+            Conic2DIntersection::Empty => curves_miss(),
         }
     }
 }
