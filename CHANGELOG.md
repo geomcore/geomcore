@@ -60,6 +60,8 @@ the Python distribution are versioned in lockstep.
 - A B-spline curve against an `ExtrusionSurface` or `RevolutionSurface`
   of a bounded profile goes through the proven hull search: its
   completeness is `Complete` or `Incomplete` instead of `Sampled`.
+- Internal: the property tests run over one sample list per shape enum,
+  checked against the enum's variants (ADR 0027).
 
 ### Deprecated
 

@@ -156,6 +156,9 @@ paths.
   bounded, add it to `box_over_bounds!` in `bounding_box/curves.rs` and
   to `discretize_bounded!` in `discretization/mod.rs`; otherwise its
   `bounding_box` is `None`.
+- Add a sample of it to `tests/common/samples.rs`; `cargo test` names
+  the variant until there is one, and every property test then covers it
+  (ADR 0027).
 - Bind it in Python: see [The Python bindings](#the-python-bindings).
 
 **A new exact intersection pair.**
@@ -244,6 +247,15 @@ checks.
 | Intersection | `routed_intersections.rs`, `routed_surface_surface.rs`, `bezier_intersections.rs`, `bezier_through_enums.rs` |
 | Bounding boxes | `bounding_box.rs`, `bounding_box_allocation.rs` |
 | Discretization | `discretization.rs`, `discretization_allocation.rs` |
+| Every variant | `shape_conformance.rs` |
+
+`tests/common/samples.rs` holds samples of every variant of every shape
+enum; the tests that check a property on every shape take their shapes
+from it. `src/shape_enum/tests.rs` expands each enum's variant list over
+it, so a new variant fails `cargo test`, naming itself, until it has a
+sample there (ADR 0027). `tests/common/shapes.rs` decodes a fixture's
+curve or surface from its `type` tag and replays its recorded samples,
+inversions and projections through the traits.
 
 ## Checks before a pull request
 

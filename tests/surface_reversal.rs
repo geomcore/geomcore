@@ -9,6 +9,9 @@
 //! frame changes handedness and the normal turns to the opposite of the
 //! mirrored normal, exactly as for a B-spline whose poles are mirrored.
 
+mod common;
+
+use common::samples::{curve_parameter_is_length, surface_parameters_are_lengths};
 use geomcore::prelude::*;
 use geomcore::{
     Axis, BSplineCurve, BSplineSurface, Circle, Cone, Curve, CurveCurveHit,
@@ -72,8 +75,8 @@ fn reversals(surface: &Surface) -> [Surface; 3] {
 }
 
 /// Every surface, as built and in its three reversals.
-fn all_orientations() -> Vec<Surface> {
-    surfaces()
+fn orientations(surfaces: Vec<Surface>) -> Vec<Surface> {
+    surfaces
         .iter()
         .flat_map(|surface| {
             let mut all = vec![surface.clone()];
@@ -81,6 +84,18 @@ fn all_orientations() -> Vec<Surface> {
             all
         })
         .collect()
+}
+
+/// The elementary surfaces and the B-spline, in every orientation: the
+/// ones the conversion, intersection and parametrization tests cover.
+fn all_orientations() -> Vec<Surface> {
+    orientations(surfaces())
+}
+
+/// Every sample surface (`tests/common/samples.rs`), in every
+/// orientation.
+fn sample_orientations() -> Vec<Surface> {
+    orientations(common::samples::surfaces())
 }
 
 fn unit_normal(surface: &Surface, u: f64, v: f64) -> Vector {
@@ -148,21 +163,11 @@ fn similarities() -> Vec<Similarity> {
     ]
 }
 
-/// Which of `(u, v)` are lengths, and so scale with the transform; the
-/// others are angles (or B-spline parameters) and are left unchanged.
-fn length_parameters(surface: &Surface) -> (bool, bool) {
-    match surface {
-        Surface::Plane(_) => (true, true),
-        Surface::Cylinder(_) | Surface::Cone(_) => (false, true),
-        _ => (false, false),
-    }
-}
-
 /// The parameters on the image under a scale `scale` of the point at
 /// `(u, v)`, and the factors relating the image's first derivatives to
 /// the transformed ones.
 fn image_parameters(surface: &Surface, scale: f64, (u, v): (f64, f64)) -> ((f64, f64), [f64; 2]) {
-    let (u_length, v_length) = length_parameters(surface);
+    let (u_length, v_length) = surface_parameters_are_lengths(surface);
     let factor = |is_length: bool| if is_length { scale } else { 1.0 };
     (
         (u * factor(u_length), v * factor(v_length)),
@@ -176,12 +181,22 @@ fn in_bounds(surface: &Surface, (u, v): (f64, f64)) -> (f64, f64) {
     (u.clamp(u0, u1), v.clamp(v0, v1))
 }
 
+/// `(u, v)` clamped into the bounds of each direction that has no
+/// period; a periodic direction is evaluated anywhere.
+fn in_domain(surface: &Surface, (u, v): (f64, f64)) -> (f64, f64) {
+    let (inside_u, inside_v) = in_bounds(surface, (u, v));
+    (
+        surface.u_period().map_or(inside_u, |_| u),
+        surface.v_period().map_or(inside_v, |_| v),
+    )
+}
+
 #[test]
 fn test_parameter_maps_land_on_the_same_point_and_invert_themselves() {
-    for surface in surfaces() {
+    for surface in common::samples::surfaces() {
         let (reversed_u, reversed_v) = (surface.reversed_u(), surface.reversed_v());
-        for (u, v) in PARAMETERS {
-            let (u, v) = (u.clamp(-1.0, 5.0), v.clamp(-1.0, 1.0));
+        for parameters in PARAMETERS {
+            let (u, v) = in_domain(&surface, parameters);
             let point = surface.eval_point(u, v);
             let on_u = reversed_u.eval_point(surface.u_reversed_parameter(u), v);
             let on_v = reversed_v.eval_point(u, surface.v_reversed_parameter(v));
@@ -196,16 +211,21 @@ fn test_parameter_maps_land_on_the_same_point_and_invert_themselves() {
 
 #[test]
 fn test_iso_curves_of_reversed_surfaces_follow_the_reversed_parametrization() {
-    for surface in surfaces() {
+    for surface in common::samples::surfaces() {
         for reversed in reversals(&surface) {
-            for (u, v) in PARAMETERS {
-                let (u, v) = (u.clamp(-1.0, 5.0), v.clamp(-1.0, 1.0));
+            for parameters in PARAMETERS {
+                let (u, v) = in_domain(&reversed, parameters);
                 let (u_iso, v_iso) = (reversed.u_iso(u).unwrap(), reversed.v_iso(v).unwrap());
                 for t in [-0.4, 0.0, 0.7] {
-                    let along_v = u_iso.eval_point(t).distance(reversed.eval_point(u, t));
-                    let along_u = v_iso.eval_point(t).distance(reversed.eval_point(t, v));
-                    assert!(along_v < 1e-12, "{reversed:?}: u_iso({u}) at {t}");
-                    assert!(along_u < 1e-12, "{reversed:?}: v_iso({v}) at {t}");
+                    let (along_u_at, along_v_at) = in_domain(&reversed, (t, t));
+                    let along_v = u_iso
+                        .eval_point(along_v_at)
+                        .distance(reversed.eval_point(u, along_v_at));
+                    let along_u = v_iso
+                        .eval_point(along_u_at)
+                        .distance(reversed.eval_point(along_u_at, v));
+                    assert!(along_v < 1e-12, "{reversed:?}: u_iso({u}) at {along_v_at}");
+                    assert!(along_u < 1e-12, "{reversed:?}: v_iso({v}) at {along_u_at}");
                 }
             }
         }
@@ -216,7 +236,7 @@ fn test_iso_curves_of_reversed_surfaces_follow_the_reversed_parametrization() {
 fn test_transform_commutes_with_surface_evaluation() {
     for similarity in similarities() {
         let t = similarity.transform;
-        for surface in all_orientations() {
+        for surface in sample_orientations() {
             let image = surface.transformed(t).unwrap();
             for parameters in PARAMETERS {
                 let (u, v) = in_bounds(&surface, parameters);
@@ -247,7 +267,7 @@ fn test_mirror_turns_the_normal_to_the_opposite_of_the_mirrored_normal() {
     for similarity in similarities() {
         let t = similarity.transform;
         let sign = if similarity.mirror { -1.0 } else { 1.0 };
-        for surface in all_orientations() {
+        for surface in sample_orientations() {
             let image = surface.transformed(t).unwrap();
             for parameters in PARAMETERS {
                 let (u, v) = in_bounds(&surface, parameters);
@@ -263,7 +283,7 @@ fn test_mirror_turns_the_normal_to_the_opposite_of_the_mirrored_normal() {
         }
         // The reversal undoes the mirror's flip of the normal.
         if similarity.mirror {
-            for surface in surfaces() {
+            for surface in common::samples::surfaces() {
                 let image = surface.transformed(t).unwrap().reversed_u();
                 let (u, v) = in_bounds(&surface, (0.3, 0.2));
                 let ((iu, iv), _) = image_parameters(&surface, similarity.scale, (u, v));
@@ -342,12 +362,13 @@ fn test_conversion_to_bspline_commutes_with_transforms() {
 fn test_projection_onto_reversed_and_mirrored_surfaces_finds_the_foot() {
     let tol = Tolerance::DEFAULT;
     let mirror = &similarities()[3];
-    for surface in all_orientations() {
+    for surface in sample_orientations() {
         for target in [
             surface.clone(),
             surface.transformed(mirror.transform).unwrap(),
         ] {
-            for (u, v) in [(0.3, 0.2), (2.0, -0.7)] {
+            for parameters in [(0.3, 0.2), (2.0, -0.7)] {
+                let (u, v) = in_domain(&target, parameters);
                 let foot = target.eval_point(u, v);
                 let off = foot + 0.1 * unit_normal(&target, u, v);
                 let projection = target.project_point(off, tol);
@@ -395,24 +416,24 @@ fn curves() -> Vec<Curve> {
     ]
 }
 
-/// Whether the curve parameter is a length, and so scales with the
-/// transform.
-fn is_length_parameter(curve: &Curve) -> bool {
-    matches!(curve, Curve::Line(_) | Curve::Parabola(_))
-}
-
 #[test]
 fn test_transform_commutes_with_curve_evaluation_and_parameter_recovery() {
     for similarity in similarities() {
         let t = similarity.transform;
-        for curve in curves() {
+        for curve in curves().into_iter().chain(common::samples::curves()) {
             let image = curve.transformed(t).unwrap();
-            let factor = if is_length_parameter(&curve) {
+            let factor = if curve_parameter_is_length(&curve) {
                 similarity.scale
             } else {
                 1.0
             };
+            let (first, last) = curve.bounds();
             for u in CURVE_PARAMETERS {
+                let u = if curve.is_periodic() {
+                    u
+                } else {
+                    u.clamp(first, last)
+                };
                 let (point, derivative) = curve.eval_d1(u);
                 let (image_point, image_derivative) = image.eval_d1(u * factor);
                 let context = format!("{} of {curve:?} at {u}", similarity.name);
@@ -512,7 +533,7 @@ fn test_curve_surface_intersection_commutes_with_mirrors() {
             }
             let image_surface = surface.transformed(t).unwrap();
             for curve in crossing_curves() {
-                if similarity.scale != 1.0 && is_length_parameter(&curve) {
+                if similarity.scale != 1.0 && curve_parameter_is_length(&curve) {
                     continue;
                 }
                 let image_curve = curve.transformed(t).unwrap();
@@ -610,12 +631,12 @@ fn test_curve_curve_intersection_commutes_with_mirrors() {
                 );
                 let (hits, image_hits) = (result.hits(), image_result.hits());
                 assert_eq!(hits.len(), image_hits.len(), "{context}");
-                let first_factor = if is_length_parameter(first) {
+                let first_factor = if curve_parameter_is_length(first) {
                     similarity.scale
                 } else {
                     1.0
                 };
-                let second_factor = if is_length_parameter(second) {
+                let second_factor = if curve_parameter_is_length(second) {
                     similarity.scale
                 } else {
                     1.0

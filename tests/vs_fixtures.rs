@@ -4,15 +4,20 @@
 
 mod common;
 
+use common::shapes::{
+    Curve2DJson, CurveCase, CurveJson, CurveSample, SurfaceCase, SurfaceJson,
+    assert_curve_2d_parameters, assert_curve_2d_projections, assert_curve_2d_samples,
+    assert_curve_parameters, assert_curve_samples, assert_surface_parameters,
+    assert_surface_samples, kind_tagged, tagged_cases,
+};
 use common::{
-    Frame2DJson, FrameJson, assert_close, assert_point2, assert_point3, assert_vector2,
-    assert_vector3, frame2, frame3, load, point2, point3, vector3,
+    FrameJson, assert_close, assert_point2, assert_point3, assert_vector3, frame3, load, point3,
+    vector3,
 };
 use geomcore::prelude::*;
 use geomcore::{
-    Axis, BSplineCurve, BSplineCurve2D, BSplineSurface, Circle, Cone, Curve2D, Cylinder, Ellipse,
-    Ellipse2D, Hyperbola, Hyperbola2D, Line, Parabola, Parabola2D, ParametrizeError, Plane, Sphere,
-    Tolerance, Torus, Transform,
+    Axis, BSplineCurve2D, Circle, Cone, Curve, Curve2D, Cylinder, Ellipse, Hyperbola,
+    ParametrizeError, Plane, Surface, Tolerance, Transform,
 };
 use serde::Deserialize;
 
@@ -136,52 +141,6 @@ fn transforms_match_golden_fixture() {
 }
 
 #[derive(Deserialize)]
-struct LineSample {
-    u: f64,
-    point: [f64; 3],
-    d1: [f64; 3],
-    d2: [f64; 3],
-    d3: [f64; 3],
-}
-
-#[derive(Deserialize)]
-struct LineParameterOf {
-    point: [f64; 3],
-    u: f64,
-}
-
-#[derive(Deserialize)]
-struct LineCase {
-    origin: [f64; 3],
-    direction: [f64; 3],
-    samples: Vec<LineSample>,
-    parameter_of: Vec<LineParameterOf>,
-}
-
-#[derive(Deserialize)]
-struct CircleSample {
-    u: f64,
-    point: [f64; 3],
-    d1: [f64; 3],
-    d2: [f64; 3],
-    d3: [f64; 3],
-}
-
-#[derive(Deserialize)]
-struct CircleParameterOf {
-    point: [f64; 3],
-    u: f64,
-}
-
-#[derive(Deserialize)]
-struct CircleCase {
-    frame: FrameJson,
-    radius: f64,
-    samples: Vec<CircleSample>,
-    parameter_of: Vec<CircleParameterOf>,
-}
-
-#[derive(Deserialize)]
 struct ThreePointCase {
     p1: [f64; 3],
     p2: [f64; 3],
@@ -191,204 +150,61 @@ struct ThreePointCase {
 }
 
 #[derive(Deserialize)]
-struct EllipseSample {
-    u: f64,
-    point: [f64; 3],
-    d1: [f64; 3],
-    d2: [f64; 3],
-    d3: [f64; 3],
-}
-
-#[derive(Deserialize)]
-struct EllipseParameterOf {
-    point: [f64; 3],
-    u: f64,
-}
-
-#[derive(Deserialize)]
-struct EllipseCase {
-    frame: FrameJson,
-    major_radius: f64,
-    minor_radius: f64,
-    samples: Vec<EllipseSample>,
-    parameter_of: Vec<EllipseParameterOf>,
-}
-
-#[derive(Deserialize)]
-struct ParabolaSample {
-    u: f64,
-    point: [f64; 3],
-    d1: [f64; 3],
-    d2: [f64; 3],
-    d3: [f64; 3],
-}
-
-#[derive(Deserialize)]
-struct ParabolaParameterOf {
-    point: [f64; 3],
-    u: f64,
-}
-
-#[derive(Deserialize)]
-struct ParabolaCase {
-    frame: FrameJson,
-    focal: f64,
-    samples: Vec<ParabolaSample>,
-    parameter_of: Vec<ParabolaParameterOf>,
-}
-
-#[derive(Deserialize)]
-struct HyperbolaSample {
-    u: f64,
-    point: [f64; 3],
-    d1: [f64; 3],
-    d2: [f64; 3],
-    d3: [f64; 3],
-}
-
-#[derive(Deserialize)]
-struct HyperbolaParameterOf {
-    point: [f64; 3],
-    u: f64,
-}
-
-#[derive(Deserialize)]
-struct HyperbolaCase {
-    frame: FrameJson,
-    major_radius: f64,
-    minor_radius: f64,
-    samples: Vec<HyperbolaSample>,
-    parameter_of: Vec<HyperbolaParameterOf>,
-}
-
-#[derive(Deserialize)]
 struct CurvesAnalyticFixture {
-    lines: Vec<LineCase>,
-    circles: Vec<CircleCase>,
     three_point_cases: Vec<ThreePointCase>,
-    ellipses: Vec<EllipseCase>,
-    parabolas: Vec<ParabolaCase>,
-    hyperbolas: Vec<HyperbolaCase>,
 }
 
-#[derive(Deserialize)]
-struct CurveSample2D {
-    u: f64,
-    point: [f64; 2],
-    d1: [f64; 2],
-    d2: [f64; 2],
-    d3: [f64; 2],
+/// Replays the `kind` curves listed under `key` in
+/// `curves_analytic.json`: their samples, third derivatives included, and
+/// inversions.
+fn replay_curves(key: &str, kind: &str) {
+    let cases: Vec<CurveCase<CurveJson, [f64; 3]>> =
+        tagged_cases(&load("curves_analytic.json"), key, kind);
+    assert!(!cases.is_empty(), "no {key}");
+    for case in &cases {
+        assert!(!case.samples.is_empty() && !case.parameter_of.is_empty());
+        assert!(case.samples.iter().all(|sample| sample.d3.is_some()));
+        let curve = case.curve.decode();
+        assert_curve_samples(&curve, &case.samples);
+        assert_curve_parameters(&curve, &case.parameter_of);
+    }
 }
 
-#[derive(Deserialize)]
-struct ParameterOf2D {
-    point: [f64; 2],
-    u: f64,
-}
-
-#[derive(Deserialize)]
-struct Projection2D {
-    point: [f64; 2],
-    u: f64,
-    closest: [f64; 2],
-    distance: f64,
-}
-
-#[derive(Deserialize)]
-struct Ellipse2DCase {
-    frame: Frame2DJson,
-    major_radius: f64,
-    minor_radius: f64,
-    area: f64,
-    samples: Vec<CurveSample2D>,
-    parameter_of: Vec<ParameterOf2D>,
-    projections: Vec<Projection2D>,
-}
-
-#[derive(Deserialize)]
-struct Parabola2DCase {
-    frame: Frame2DJson,
-    focal: f64,
-    samples: Vec<CurveSample2D>,
-    parameter_of: Vec<ParameterOf2D>,
-    projections: Vec<Projection2D>,
-}
-
-#[derive(Deserialize)]
-struct Hyperbola2DCase {
-    frame: Frame2DJson,
-    major_radius: f64,
-    minor_radius: f64,
-    samples: Vec<CurveSample2D>,
-    parameter_of: Vec<ParameterOf2D>,
-    projections: Vec<Projection2D>,
-}
-
-#[derive(Deserialize)]
-struct CurvesAnalytic2DFixture {
-    ellipses: Vec<Ellipse2DCase>,
-    parabolas: Vec<Parabola2DCase>,
-    hyperbolas: Vec<Hyperbola2DCase>,
+/// Replays the `kind` curves listed under `key` in
+/// `curves_analytic_2d.json`: their samples, third derivatives included,
+/// inversions and projections, closest parameters and points included.
+/// Returns the curves.
+fn replay_curves_2d(key: &str, kind: &str) -> Vec<Curve2D> {
+    let cases: Vec<CurveCase<Curve2DJson, [f64; 2]>> =
+        tagged_cases(&load("curves_analytic_2d.json"), key, kind);
+    assert!(!cases.is_empty(), "no {key}");
+    cases
+        .iter()
+        .map(|case| {
+            assert!(!case.samples.is_empty() && !case.projections.is_empty());
+            assert!(case.samples.iter().all(|sample| sample.d3.is_some()));
+            assert!(
+                case.projections
+                    .iter()
+                    .all(|projection| { projection.u.is_some() && projection.closest.is_some() })
+            );
+            let curve = case.curve.decode();
+            assert_curve_2d_samples(&curve, &case.samples);
+            assert_curve_2d_parameters(&curve, &case.parameter_of);
+            assert_curve_2d_projections(&curve, &case.projections);
+            curve
+        })
+        .collect()
 }
 
 #[test]
 fn lines_match_golden_fixture() {
-    let fixture: CurvesAnalyticFixture =
-        serde_json::from_value(load("curves_analytic.json")).unwrap();
-
-    for (i, case) in fixture.lines.iter().enumerate() {
-        let line = Line::new(point3(case.origin), vector3(case.direction))
-            .unwrap_or_else(|e| panic!("case {i}: failed to build Line: {e}"));
-
-        for sample in &case.samples {
-            let point = line.eval_point(sample.u);
-            assert_point3(point, sample.point);
-
-            let d1 = line.eval_derivative(sample.u, 1);
-            assert_vector3(d1, sample.d1);
-
-            let d2 = line.eval_derivative(sample.u, 2);
-            assert_vector3(d2, sample.d2);
-
-            let d3 = line.eval_derivative(sample.u, 3);
-            assert_vector3(d3, sample.d3);
-        }
-
-        for inversion in &case.parameter_of {
-            let u = line.parameter_of(point3(inversion.point), Tolerance::DEFAULT);
-            assert_close(u, inversion.u);
-        }
-    }
+    replay_curves("lines", "line");
 }
 
 #[test]
 fn circles_match_golden_fixture() {
-    let fixture: CurvesAnalyticFixture =
-        serde_json::from_value(load("curves_analytic.json")).unwrap();
-
-    for (i, case) in fixture.circles.iter().enumerate() {
-        let circle = Circle::from_frame(frame3(&case.frame), case.radius)
-            .unwrap_or_else(|e| panic!("case {i}: failed to build Circle: {e}"));
-
-        for sample in &case.samples {
-            let point = circle.eval_point(sample.u);
-            assert_point3(point, sample.point);
-
-            let d1 = circle.eval_derivative(sample.u, 1);
-            assert_vector3(d1, sample.d1);
-
-            let d2 = circle.eval_derivative(sample.u, 2);
-            assert_vector3(d2, sample.d2);
-
-            let d3 = circle.eval_derivative(sample.u, 3);
-            assert_vector3(d3, sample.d3);
-        }
-
-        for inversion in &case.parameter_of {
-            let u = circle.parameter_of(point3(inversion.point), Tolerance::DEFAULT);
-            assert_close(u, inversion.u);
-        }
-    }
+    replay_curves("circles", "circle");
 }
 
 #[test]
@@ -412,202 +228,41 @@ fn circle_three_point_cases_match_golden_fixture() {
 
 #[test]
 fn ellipses_match_golden_fixture() {
-    let fixture: CurvesAnalyticFixture =
-        serde_json::from_value(load("curves_analytic.json")).unwrap();
-
-    for (i, case) in fixture.ellipses.iter().enumerate() {
-        let ellipse =
-            Ellipse::from_frame(frame3(&case.frame), case.major_radius, case.minor_radius)
-                .unwrap_or_else(|e| panic!("case {i}: failed to build Ellipse: {e}"));
-
-        for sample in &case.samples {
-            let point = ellipse.eval_point(sample.u);
-            assert_point3(point, sample.point);
-
-            let d1 = ellipse.eval_derivative(sample.u, 1);
-            assert_vector3(d1, sample.d1);
-
-            let d2 = ellipse.eval_derivative(sample.u, 2);
-            assert_vector3(d2, sample.d2);
-
-            let d3 = ellipse.eval_derivative(sample.u, 3);
-            assert_vector3(d3, sample.d3);
-        }
-
-        for inversion in &case.parameter_of {
-            let u = ellipse.parameter_of(point3(inversion.point), Tolerance::DEFAULT);
-            assert_close(u, inversion.u);
-        }
-    }
+    replay_curves("ellipses", "ellipse");
 }
 
 #[test]
 fn ellipses_2d_match_golden_fixture() {
-    let fixture: CurvesAnalytic2DFixture =
-        serde_json::from_value(load("curves_analytic_2d.json")).unwrap();
-
-    for (i, case) in fixture.ellipses.iter().enumerate() {
-        let ellipse =
-            Ellipse2D::from_frame(frame2(&case.frame), case.major_radius, case.minor_radius)
-                .unwrap_or_else(|e| panic!("case {i}: failed to build Ellipse2D: {e}"));
-
-        assert_close(ellipse.area(), case.area);
-
-        for sample in &case.samples {
-            let point = ellipse.eval_point(sample.u);
-            assert_point2(point, sample.point);
-
-            let d1 = ellipse.eval_derivative(sample.u, 1);
-            assert_vector2(d1, sample.d1);
-
-            let d2 = ellipse.eval_derivative(sample.u, 2);
-            assert_vector2(d2, sample.d2);
-
-            let d3 = ellipse.eval_derivative(sample.u, 3);
-            assert_vector2(d3, sample.d3);
-        }
-
-        for inversion in &case.parameter_of {
-            let u = ellipse.parameter_of(point2(inversion.point), Tolerance::DEFAULT);
-            assert_close(u, inversion.u);
-        }
-
-        for projection in &case.projections {
-            let projected = ellipse.project_point(point2(projection.point), Tolerance::DEFAULT);
-            assert_close(projected.parameter, projection.u);
-            assert_point2(projected.point, projection.closest);
-            assert_close(projected.distance, projection.distance);
-        }
+    let ellipses = replay_curves_2d("ellipses", "ellipse");
+    let fixture = load("curves_analytic_2d.json");
+    let areas = fixture["ellipses"].as_array().unwrap();
+    assert_eq!(ellipses.len(), areas.len());
+    for (curve, case) in ellipses.iter().zip(areas) {
+        let Curve2D::Ellipse(ellipse) = curve else {
+            panic!("not an ellipse: {curve:?}");
+        };
+        assert_close(ellipse.area(), case["area"].as_f64().unwrap());
     }
 }
 
 #[test]
 fn parabolas_2d_match_golden_fixture() {
-    let fixture: CurvesAnalytic2DFixture =
-        serde_json::from_value(load("curves_analytic_2d.json")).unwrap();
-
-    for (i, case) in fixture.parabolas.iter().enumerate() {
-        let parabola = Parabola2D::from_frame(frame2(&case.frame), case.focal)
-            .unwrap_or_else(|e| panic!("case {i}: failed to build Parabola2D: {e}"));
-
-        for sample in &case.samples {
-            let point = parabola.eval_point(sample.u);
-            assert_point2(point, sample.point);
-
-            let d1 = parabola.eval_derivative(sample.u, 1);
-            assert_vector2(d1, sample.d1);
-
-            let d2 = parabola.eval_derivative(sample.u, 2);
-            assert_vector2(d2, sample.d2);
-
-            let d3 = parabola.eval_derivative(sample.u, 3);
-            assert_vector2(d3, sample.d3);
-        }
-
-        for inversion in &case.parameter_of {
-            let u = parabola.parameter_of(point2(inversion.point), Tolerance::DEFAULT);
-            assert_close(u, inversion.u);
-        }
-
-        for projection in &case.projections {
-            let projected = parabola.project_point(point2(projection.point), Tolerance::DEFAULT);
-            assert_close(projected.parameter, projection.u);
-            assert_point2(projected.point, projection.closest);
-            assert_close(projected.distance, projection.distance);
-        }
-    }
+    replay_curves_2d("parabolas", "parabola");
 }
 
 #[test]
 fn hyperbolas_2d_match_golden_fixture() {
-    let fixture: CurvesAnalytic2DFixture =
-        serde_json::from_value(load("curves_analytic_2d.json")).unwrap();
-
-    for (i, case) in fixture.hyperbolas.iter().enumerate() {
-        let hyperbola =
-            Hyperbola2D::from_frame(frame2(&case.frame), case.major_radius, case.minor_radius)
-                .unwrap_or_else(|e| panic!("case {i}: failed to build Hyperbola2D: {e}"));
-
-        for sample in &case.samples {
-            assert_point2(hyperbola.eval_point(sample.u), sample.point);
-            assert_vector2(hyperbola.eval_derivative(sample.u, 1), sample.d1);
-            assert_vector2(hyperbola.eval_derivative(sample.u, 2), sample.d2);
-            assert_vector2(hyperbola.eval_derivative(sample.u, 3), sample.d3);
-        }
-
-        for inversion in &case.parameter_of {
-            let u = hyperbola.parameter_of(point2(inversion.point), Tolerance::DEFAULT);
-            assert_close(u, inversion.u);
-        }
-
-        for projection in &case.projections {
-            let projected = hyperbola.project_point(point2(projection.point), Tolerance::DEFAULT);
-            assert_close(projected.parameter, projection.u);
-            assert_point2(projected.point, projection.closest);
-            assert_close(projected.distance, projection.distance);
-        }
-    }
+    replay_curves_2d("hyperbolas", "hyperbola");
 }
 
 #[test]
 fn parabolas_match_golden_fixture() {
-    let fixture: CurvesAnalyticFixture =
-        serde_json::from_value(load("curves_analytic.json")).unwrap();
-
-    for (i, case) in fixture.parabolas.iter().enumerate() {
-        let parabola = Parabola::from_frame(frame3(&case.frame), case.focal)
-            .unwrap_or_else(|e| panic!("case {i}: failed to build Parabola: {e}"));
-
-        for sample in &case.samples {
-            let point = parabola.eval_point(sample.u);
-            assert_point3(point, sample.point);
-
-            let d1 = parabola.eval_derivative(sample.u, 1);
-            assert_vector3(d1, sample.d1);
-
-            let d2 = parabola.eval_derivative(sample.u, 2);
-            assert_vector3(d2, sample.d2);
-
-            let d3 = parabola.eval_derivative(sample.u, 3);
-            assert_vector3(d3, sample.d3);
-        }
-
-        for inversion in &case.parameter_of {
-            let u = parabola.parameter_of(point3(inversion.point), Tolerance::DEFAULT);
-            assert_close(u, inversion.u);
-        }
-    }
+    replay_curves("parabolas", "parabola");
 }
 
 #[test]
 fn hyperbolas_match_golden_fixture() {
-    let fixture: CurvesAnalyticFixture =
-        serde_json::from_value(load("curves_analytic.json")).unwrap();
-
-    for (i, case) in fixture.hyperbolas.iter().enumerate() {
-        let hyperbola =
-            Hyperbola::from_frame(frame3(&case.frame), case.major_radius, case.minor_radius)
-                .unwrap_or_else(|e| panic!("case {i}: failed to build Hyperbola: {e}"));
-
-        for sample in &case.samples {
-            let point = hyperbola.eval_point(sample.u);
-            assert_point3(point, sample.point);
-
-            let d1 = hyperbola.eval_derivative(sample.u, 1);
-            assert_vector3(d1, sample.d1);
-
-            let d2 = hyperbola.eval_derivative(sample.u, 2);
-            assert_vector3(d2, sample.d2);
-
-            let d3 = hyperbola.eval_derivative(sample.u, 3);
-            assert_vector3(d3, sample.d3);
-        }
-
-        for inversion in &case.parameter_of {
-            let u = hyperbola.parameter_of(point3(inversion.point), Tolerance::DEFAULT);
-            assert_close(u, inversion.u);
-        }
-    }
+    replay_curves("hyperbolas", "hyperbola");
 }
 
 #[derive(Deserialize)]
@@ -679,310 +334,113 @@ fn hyperbolas_center_two_points_match_golden_fixture() {
     }
 }
 
-#[derive(Deserialize)]
-struct BSplineSample {
-    u: f64,
-    point: [f64; 3],
-    d1: [f64; 3],
-    d2: [f64; 3],
-}
-
-#[derive(Deserialize)]
-struct BSplineCase {
-    name: String,
-    degree: usize,
-    periodic: bool,
-    poles: Vec<[f64; 3]>,
-    weights: Option<Vec<f64>>,
-    knots: Vec<f64>,
-    mults: Vec<u32>,
-    samples: Vec<BSplineSample>,
-}
-
-#[derive(Deserialize)]
-struct BSplineFixture {
-    cases: Vec<BSplineCase>,
-}
-
-fn build_bspline(case: &BSplineCase) -> BSplineCurve {
-    let poles: Vec<geomcore::Point> = case.poles.iter().map(|&p| point3(p)).collect();
-    let result = match &case.weights {
-        Some(weights) => BSplineCurve::new_rational(
-            case.degree,
-            poles,
-            weights.clone(),
-            case.knots.clone(),
-            case.mults.clone(),
-            case.periodic,
-        ),
-        None => BSplineCurve::new(
-            case.degree,
-            poles,
-            case.knots.clone(),
-            case.mults.clone(),
-            case.periodic,
-        ),
-    };
-    result.unwrap_or_else(|e| panic!("{}: failed to build BSplineCurve: {e}", case.name))
+fn bspline_cases() -> Vec<CurveCase<CurveJson, [f64; 3]>> {
+    tagged_cases(&load("curves_bspline.json"), "cases", "bspline")
 }
 
 #[test]
 fn bsplines_match_golden_fixture() {
-    let fixture: BSplineFixture = serde_json::from_value(load("curves_bspline.json")).unwrap();
-
-    for case in &fixture.cases {
-        let curve = build_bspline(case);
-
-        for sample in &case.samples {
-            let point = curve.eval_point(sample.u);
-            assert_point3(point, sample.point);
-
-            let d1 = curve.eval_derivative(sample.u, 1);
-            assert_vector3(d1, sample.d1);
-
-            let d2 = curve.eval_derivative(sample.u, 2);
-            assert_vector3(d2, sample.d2);
-        }
+    for case in &bspline_cases() {
+        assert!(!case.samples.is_empty(), "{}", case.name);
+        assert_curve_samples(&case.curve.decode(), &case.samples);
     }
 }
 
-/// The planar shadow of a case: its poles with `z` dropped. Dropping a
-/// coordinate commutes with B-spline evaluation (each coordinate is the
-/// same weighted blend of its pole coordinates), so the case's samples
-/// with `z` dropped are the shadow's goldens.
-fn build_bspline_2d(case: &BSplineCase) -> BSplineCurve2D {
-    let poles: Vec<geomcore::Point2D> = case
-        .poles
+/// The planar shadow of a recorded B-spline: its poles with `z` dropped.
+/// Dropping a coordinate commutes with B-spline evaluation (each
+/// coordinate is the same weighted blend of its pole coordinates), so the
+/// case's samples with `z` dropped are the shadow's goldens.
+fn shadow(case: &CurveCase<CurveJson, [f64; 3]>) -> BSplineCurve2D {
+    let CurveJson::Bspline {
+        degree,
+        poles,
+        weights,
+        knots,
+        multiplicities,
+        periodic,
+    } = &case.curve
+    else {
+        panic!("{}: not a B-spline", case.name);
+    };
+    let poles: Vec<geomcore::Point2D> = poles
         .iter()
         .map(|&[x, y, _]| geomcore::Point2D::new(x, y))
         .collect();
-    let result = match &case.weights {
+    let (knots, multiplicities) = (knots.clone(), multiplicities.clone());
+    let result = match weights {
         Some(weights) => BSplineCurve2D::new_rational(
-            case.degree,
+            *degree,
             poles,
             weights.clone(),
-            case.knots.clone(),
-            case.mults.clone(),
-            case.periodic,
+            knots,
+            multiplicities,
+            *periodic,
         ),
-        None => BSplineCurve2D::new(
-            case.degree,
-            poles,
-            case.knots.clone(),
-            case.mults.clone(),
-            case.periodic,
-        ),
+        None => BSplineCurve2D::new(*degree, poles, knots, multiplicities, *periodic),
     };
     result.unwrap_or_else(|e| panic!("{}: failed to build BSplineCurve2D: {e}", case.name))
 }
 
 #[test]
 fn bspline_shadows_match_golden_fixture() {
-    let fixture: BSplineFixture = serde_json::from_value(load("curves_bspline.json")).unwrap();
-
-    for case in &fixture.cases {
-        let curve = build_bspline_2d(case);
-
-        for sample in &case.samples {
-            let point = curve.eval_point(sample.u);
-            assert_close(point.x, sample.point[0]);
-            assert_close(point.y, sample.point[1]);
-
-            let d1 = curve.eval_derivative(sample.u, 1);
-            assert_close(d1.x, sample.d1[0]);
-            assert_close(d1.y, sample.d1[1]);
-
-            let d2 = curve.eval_derivative(sample.u, 2);
-            assert_close(d2.x, sample.d2[0]);
-            assert_close(d2.y, sample.d2[1]);
-        }
+    for case in &bspline_cases() {
+        let curve = shadow(case);
+        let samples: Vec<CurveSample<[f64; 2]>> = case
+            .samples
+            .iter()
+            .map(|sample| {
+                let drop_z = |[x, y, _]: [f64; 3]| [x, y];
+                CurveSample {
+                    u: sample.u,
+                    point: drop_z(sample.point),
+                    d1: drop_z(sample.d1),
+                    d2: drop_z(sample.d2),
+                    d3: sample.d3.map(drop_z),
+                }
+            })
+            .collect();
+        assert_curve_2d_samples(&curve, &samples);
     }
 }
 
 // ---- surfaces_analytic.json: the five analytic surface types ----
 
-#[derive(Deserialize)]
-struct SurfaceSample {
-    u: f64,
-    v: f64,
-    point: [f64; 3],
-    d1u: [f64; 3],
-    d1v: [f64; 3],
-    d2u: [f64; 3],
-    d2v: [f64; 3],
-    d2uv: [f64; 3],
-}
-
-#[derive(Deserialize)]
-struct SurfaceParametersOf {
-    point: [f64; 3],
-    u: f64,
-    v: f64,
-}
-
-#[derive(Deserialize)]
-struct PlaneCase {
-    frame: FrameJson,
-    samples: Vec<SurfaceSample>,
-    parameters_of: Vec<SurfaceParametersOf>,
-}
-
-#[derive(Deserialize)]
-struct CylinderCase {
-    frame: FrameJson,
-    radius: f64,
-    samples: Vec<SurfaceSample>,
-    parameters_of: Vec<SurfaceParametersOf>,
-}
-
-#[derive(Deserialize)]
-struct ConeCase {
-    frame: FrameJson,
-    ref_radius: f64,
-    semi_angle: f64,
-    samples: Vec<SurfaceSample>,
-    parameters_of: Vec<SurfaceParametersOf>,
-}
-
-#[derive(Deserialize)]
-struct SphereCase {
-    frame: FrameJson,
-    radius: f64,
-    samples: Vec<SurfaceSample>,
-    parameters_of: Vec<SurfaceParametersOf>,
-}
-
-#[derive(Deserialize)]
-struct TorusCase {
-    frame: FrameJson,
-    major_radius: f64,
-    minor_radius: f64,
-    samples: Vec<SurfaceSample>,
-    parameters_of: Vec<SurfaceParametersOf>,
-}
-
-#[derive(Deserialize)]
-struct SurfacesAnalyticFixture {
-    planes: Vec<PlaneCase>,
-    cylinders: Vec<CylinderCase>,
-    cones: Vec<ConeCase>,
-    spheres: Vec<SphereCase>,
-    tori: Vec<TorusCase>,
-}
-
-fn assert_surface_samples_and_parameters<F>(
-    samples: &[SurfaceSample],
-    parameters_of: &[SurfaceParametersOf],
-    eval_point: impl Fn(f64, f64) -> geomcore::Point,
-    eval_derivative: impl Fn(f64, f64, u32, u32) -> geomcore::Vector,
-    parameters: F,
-) where
-    F: Fn(geomcore::Point) -> (f64, f64),
-{
-    for sample in samples {
-        let (u, v) = (sample.u, sample.v);
-        assert_point3(eval_point(u, v), sample.point);
-        assert_vector3(eval_derivative(u, v, 1, 0), sample.d1u);
-        assert_vector3(eval_derivative(u, v, 0, 1), sample.d1v);
-        assert_vector3(eval_derivative(u, v, 2, 0), sample.d2u);
-        assert_vector3(eval_derivative(u, v, 0, 2), sample.d2v);
-        assert_vector3(eval_derivative(u, v, 1, 1), sample.d2uv);
-    }
-
-    for inversion in parameters_of {
-        let (u, v) = parameters(point3(inversion.point));
-        assert_close(u, inversion.u);
-        assert_close(v, inversion.v);
+/// Replays the `kind` surfaces listed under `key` in
+/// `surfaces_analytic.json`: their samples and inversions.
+fn replay_surfaces(key: &str, kind: &str) {
+    let cases: Vec<SurfaceCase> = tagged_cases(&load("surfaces_analytic.json"), key, kind);
+    assert!(!cases.is_empty(), "no {key}");
+    for case in &cases {
+        assert!(!case.samples.is_empty() && !case.parameters_of.is_empty());
+        let surface = case.surface.decode();
+        assert_surface_samples(&surface, &case.samples);
+        assert_surface_parameters(&surface, &case.parameters_of);
     }
 }
 
 #[test]
 fn planes_match_golden_fixture() {
-    let fixture: SurfacesAnalyticFixture =
-        serde_json::from_value(load("surfaces_analytic.json")).unwrap();
-
-    for case in &fixture.planes {
-        let plane = Plane::from_frame(frame3(&case.frame));
-        assert_surface_samples_and_parameters(
-            &case.samples,
-            &case.parameters_of,
-            |u, v| plane.eval_point(u, v),
-            |u, v, du, dv| plane.eval_derivative(u, v, du, dv),
-            |p| plane.parameters_of(p, Tolerance::DEFAULT),
-        );
-    }
+    replay_surfaces("planes", "plane");
 }
 
 #[test]
 fn cylinders_match_golden_fixture() {
-    let fixture: SurfacesAnalyticFixture =
-        serde_json::from_value(load("surfaces_analytic.json")).unwrap();
-
-    for (i, case) in fixture.cylinders.iter().enumerate() {
-        let cylinder = Cylinder::from_frame(frame3(&case.frame), case.radius)
-            .unwrap_or_else(|e| panic!("case {i}: failed to build Cylinder: {e}"));
-        assert_surface_samples_and_parameters(
-            &case.samples,
-            &case.parameters_of,
-            |u, v| cylinder.eval_point(u, v),
-            |u, v, du, dv| cylinder.eval_derivative(u, v, du, dv),
-            |p| cylinder.parameters_of(p, Tolerance::DEFAULT),
-        );
-    }
+    replay_surfaces("cylinders", "cylinder");
 }
 
 #[test]
 fn cones_match_golden_fixture() {
-    let fixture: SurfacesAnalyticFixture =
-        serde_json::from_value(load("surfaces_analytic.json")).unwrap();
-
-    for (i, case) in fixture.cones.iter().enumerate() {
-        let cone = Cone::from_frame(frame3(&case.frame), case.semi_angle, case.ref_radius)
-            .unwrap_or_else(|e| panic!("case {i}: failed to build Cone: {e}"));
-        assert_surface_samples_and_parameters(
-            &case.samples,
-            &case.parameters_of,
-            |u, v| cone.eval_point(u, v),
-            |u, v, du, dv| cone.eval_derivative(u, v, du, dv),
-            |p| cone.parameters_of(p, Tolerance::DEFAULT),
-        );
-    }
+    replay_surfaces("cones", "cone");
 }
 
 #[test]
 fn spheres_match_golden_fixture() {
-    let fixture: SurfacesAnalyticFixture =
-        serde_json::from_value(load("surfaces_analytic.json")).unwrap();
-
-    for (i, case) in fixture.spheres.iter().enumerate() {
-        let sphere = Sphere::from_frame(frame3(&case.frame), case.radius)
-            .unwrap_or_else(|e| panic!("case {i}: failed to build Sphere: {e}"));
-        assert_surface_samples_and_parameters(
-            &case.samples,
-            &case.parameters_of,
-            |u, v| sphere.eval_point(u, v),
-            |u, v, du, dv| sphere.eval_derivative(u, v, du, dv),
-            |p| sphere.parameters_of(p, Tolerance::DEFAULT),
-        );
-    }
+    replay_surfaces("spheres", "sphere");
 }
 
 #[test]
 fn tori_match_golden_fixture() {
-    let fixture: SurfacesAnalyticFixture =
-        serde_json::from_value(load("surfaces_analytic.json")).unwrap();
-
-    for (i, case) in fixture.tori.iter().enumerate() {
-        let torus = Torus::from_frame(frame3(&case.frame), case.major_radius, case.minor_radius)
-            .unwrap_or_else(|e| panic!("case {i}: failed to build Torus: {e}"));
-        assert_surface_samples_and_parameters(
-            &case.samples,
-            &case.parameters_of,
-            |u, v| torus.eval_point(u, v),
-            |u, v, du, dv| torus.eval_derivative(u, v, du, dv),
-            |p| torus.parameters_of(p, Tolerance::DEFAULT),
-        );
-    }
+    replay_surfaces("tori", "torus");
 }
 
 // ---- construction.json: plane/cone/cylinder derived-construction goldens ----
@@ -1097,123 +555,17 @@ fn cylinders_from_circle_match_golden_fixture() {
 
 // ---- surfaces_bspline.json: tensor-product B-spline surfaces ----
 
-#[derive(Deserialize)]
-struct BSplineSurfaceSample {
-    u: f64,
-    v: f64,
-    point: [f64; 3],
-    d1u: [f64; 3],
-    d1v: [f64; 3],
-    d2u: [f64; 3],
-    d2v: [f64; 3],
-    d2uv: [f64; 3],
-}
-
-#[derive(Deserialize)]
-struct BSplineSurfaceCase {
-    name: String,
-    u_degree: usize,
-    v_degree: usize,
-    u_periodic: bool,
-    v_periodic: bool,
-    poles: Vec<Vec<[f64; 3]>>,
-    weights: Option<Vec<Vec<f64>>>,
-    u_knots: Vec<f64>,
-    u_mults: Vec<u32>,
-    v_knots: Vec<f64>,
-    v_mults: Vec<u32>,
-    samples: Vec<BSplineSurfaceSample>,
-}
-
-#[derive(Deserialize)]
-struct BSplineSurfaceFixture {
-    cases: Vec<BSplineSurfaceCase>,
-}
-
-fn build_bspline_surface(case: &BSplineSurfaceCase) -> BSplineSurface {
-    let poles: Vec<Vec<geomcore::Point>> = case
-        .poles
-        .iter()
-        .map(|row| row.iter().map(|&p| point3(p)).collect())
-        .collect();
-    let result = match &case.weights {
-        Some(weights) => BSplineSurface::new_rational(
-            case.u_degree,
-            case.v_degree,
-            poles,
-            weights.clone(),
-            case.u_knots.clone(),
-            case.u_mults.clone(),
-            case.v_knots.clone(),
-            case.v_mults.clone(),
-            case.u_periodic,
-            case.v_periodic,
-        ),
-        None => BSplineSurface::new(
-            case.u_degree,
-            case.v_degree,
-            poles,
-            case.u_knots.clone(),
-            case.u_mults.clone(),
-            case.v_knots.clone(),
-            case.v_mults.clone(),
-            case.u_periodic,
-            case.v_periodic,
-        ),
-    };
-    result.unwrap_or_else(|e| panic!("{}: failed to build BSplineSurface: {e}", case.name))
-}
-
 #[test]
 fn bspline_surfaces_match_golden_fixture() {
-    let fixture: BSplineSurfaceFixture =
-        serde_json::from_value(load("surfaces_bspline.json")).unwrap();
-
-    for case in &fixture.cases {
-        let surface = build_bspline_surface(case);
-
-        for sample in &case.samples {
-            let (u, v) = (sample.u, sample.v);
-            assert_point3(surface.eval_point(u, v), sample.point);
-            assert_vector3(surface.eval_derivative(u, v, 1, 0), sample.d1u);
-            assert_vector3(surface.eval_derivative(u, v, 0, 1), sample.d1v);
-            assert_vector3(surface.eval_derivative(u, v, 2, 0), sample.d2u);
-            assert_vector3(surface.eval_derivative(u, v, 1, 1), sample.d2uv);
-            assert_vector3(surface.eval_derivative(u, v, 0, 2), sample.d2v);
-        }
+    let cases: Vec<SurfaceCase> = tagged_cases(&load("surfaces_bspline.json"), "cases", "bspline");
+    assert!(!cases.is_empty());
+    for case in &cases {
+        assert!(!case.samples.is_empty(), "{}", case.name);
+        assert_surface_samples(&case.surface.decode(), &case.samples);
     }
 }
 
 // ---- parametrize.json: analytic curve-on-surface parametrization ----
-
-#[derive(Deserialize)]
-struct ParametrizeSurface {
-    kind: String,
-    frame: FrameJson,
-    radius: Option<f64>,
-    ref_radius: Option<f64>,
-    semi_angle: Option<f64>,
-    major_radius: Option<f64>,
-    minor_radius: Option<f64>,
-}
-
-#[derive(Deserialize)]
-struct ParametrizeCurve {
-    kind: String,
-    origin: Option<[f64; 3]>,
-    direction: Option<[f64; 3]>,
-    frame: Option<FrameJson>,
-    radius: Option<f64>,
-    major_radius: Option<f64>,
-    minor_radius: Option<f64>,
-    focal: Option<f64>,
-    degree: Option<usize>,
-    periodic: Option<bool>,
-    poles: Option<Vec<[f64; 3]>>,
-    weights: Option<Vec<f64>>,
-    knots: Option<Vec<f64>>,
-    mults: Option<Vec<u32>>,
-}
 
 #[derive(Deserialize)]
 struct ParametrizeExpect {
@@ -1244,8 +596,10 @@ struct ParametrizeNormalized {
 #[derive(Deserialize)]
 struct ParametrizeCase {
     name: String,
-    surface: ParametrizeSurface,
-    curve: ParametrizeCurve,
+    /// A `SurfaceJson` tagged under `kind`.
+    surface: serde_json::Value,
+    /// A `CurveJson` tagged under `kind`.
+    curve: serde_json::Value,
     expect: ParametrizeExpect,
     #[serde(default)]
     in_window: bool,
@@ -1261,97 +615,16 @@ struct ParametrizeFixture {
     cases: Vec<ParametrizeCase>,
 }
 
-enum ParamCurve {
-    Line(Line),
-    Circle(Circle),
-    Ellipse(Ellipse),
-    Parabola(Parabola),
-    Hyperbola(Hyperbola),
-    BSpline(BSplineCurve),
-}
-
-fn build_parametrize_surface(s: &ParametrizeSurface) -> geomcore::Surface {
-    let frame = frame3(&s.frame);
-    match s.kind.as_str() {
-        "plane" => Plane::from_frame(frame).into(),
-        "cylinder" => Cylinder::from_frame(frame, s.radius.unwrap())
-            .unwrap()
-            .into(),
-        "cone" => Cone::from_frame(frame, s.semi_angle.unwrap(), s.ref_radius.unwrap())
-            .unwrap()
-            .into(),
-        "sphere" => Sphere::from_frame(frame, s.radius.unwrap()).unwrap().into(),
-        "torus" => Torus::from_frame(frame, s.major_radius.unwrap(), s.minor_radius.unwrap())
-            .unwrap()
-            .into(),
-        other => panic!("unknown parametrize surface kind: {other}"),
-    }
-}
-
-fn build_parametrize_curve(c: &ParametrizeCurve) -> ParamCurve {
-    match c.kind.as_str() {
-        "line" => ParamCurve::Line(
-            Line::new(point3(c.origin.unwrap()), vector3(c.direction.unwrap())).unwrap(),
-        ),
-        "circle" => {
-            let frame = frame3(c.frame.as_ref().unwrap());
-            ParamCurve::Circle(Circle::from_frame(frame, c.radius.unwrap()).unwrap())
-        }
-        "ellipse" => {
-            let frame = frame3(c.frame.as_ref().unwrap());
-            ParamCurve::Ellipse(
-                Ellipse::from_frame(frame, c.major_radius.unwrap(), c.minor_radius.unwrap())
-                    .unwrap(),
-            )
-        }
-        "parabola" => {
-            let frame = frame3(c.frame.as_ref().unwrap());
-            ParamCurve::Parabola(Parabola::from_frame(frame, c.focal.unwrap()).unwrap())
-        }
-        "hyperbola" => {
-            let frame = frame3(c.frame.as_ref().unwrap());
-            ParamCurve::Hyperbola(
-                Hyperbola::from_frame(frame, c.major_radius.unwrap(), c.minor_radius.unwrap())
-                    .unwrap(),
-            )
-        }
-        "bspline" => {
-            let poles: Vec<geomcore::Point> = c
-                .poles
-                .as_ref()
-                .unwrap()
-                .iter()
-                .map(|&p| point3(p))
-                .collect();
-            let (degree, knots, mults, periodic) = (
-                c.degree.unwrap(),
-                c.knots.clone().unwrap(),
-                c.mults.clone().unwrap(),
-                c.periodic.unwrap_or(false),
-            );
-            let curve = match &c.weights {
-                Some(w) => {
-                    BSplineCurve::new_rational(degree, poles, w.clone(), knots, mults, periodic)
-                }
-                None => BSplineCurve::new(degree, poles, knots, mults, periodic),
-            };
-            ParamCurve::BSpline(curve.unwrap())
-        }
-        other => panic!("unknown parametrize curve kind: {other}"),
-    }
-}
-
-fn parametrize_curve(
-    curve: &ParamCurve,
-    surface: &geomcore::Surface,
-) -> Result<Curve2D, ParametrizeError> {
+fn parametrize_curve(curve: &Curve, surface: &Surface) -> Result<Curve2D, ParametrizeError> {
+    let (surface, tol) = (surface.clone(), Tolerance::DEFAULT);
     match curve {
-        ParamCurve::Line(l) => l.parametrize_on(surface.clone(), Tolerance::DEFAULT),
-        ParamCurve::Circle(c) => c.parametrize_on(surface.clone(), Tolerance::DEFAULT),
-        ParamCurve::Ellipse(e) => e.parametrize_on(surface.clone(), Tolerance::DEFAULT),
-        ParamCurve::Parabola(p) => p.parametrize_on(surface.clone(), Tolerance::DEFAULT),
-        ParamCurve::Hyperbola(h) => h.parametrize_on(surface.clone(), Tolerance::DEFAULT),
-        ParamCurve::BSpline(b) => b.parametrize_on(surface.clone(), Tolerance::DEFAULT),
+        Curve::Line(c) => c.parametrize_on(surface, tol),
+        Curve::Circle(c) => c.parametrize_on(surface, tol),
+        Curve::Ellipse(c) => c.parametrize_on(surface, tol),
+        Curve::Parabola(c) => c.parametrize_on(surface, tol),
+        Curve::Hyperbola(c) => c.parametrize_on(surface, tol),
+        Curve::BSpline(c) => c.parametrize_on(surface, tol),
+        other => panic!("no parametrization of {other:?}"),
     }
 }
 
@@ -1374,8 +647,8 @@ fn parametrize_matches_golden_fixture() {
     let fixture: ParametrizeFixture = serde_json::from_value(load("parametrize.json")).unwrap();
 
     for case in &fixture.cases {
-        let surface = build_parametrize_surface(&case.surface);
-        let curve = build_parametrize_curve(&case.curve);
+        let surface = kind_tagged::<SurfaceJson>(&case.surface).decode();
+        let curve = kind_tagged::<CurveJson>(&case.curve).decode();
         let result = parametrize_curve(&curve, &surface);
 
         // not_analytic cases: must report NotAnalytic and stop.
@@ -1423,7 +696,7 @@ fn parametrize_matches_golden_fixture() {
 
         // (c) q(0) lies inside the canonical parameter window.
         let q0 = pcurve.eval_point(0.0);
-        match case.surface.kind.as_str() {
+        match case.surface["kind"].as_str().unwrap() {
             "cylinder" | "cone" => {
                 assert!(
                     (-1e-9..=std::f64::consts::TAU + 1e-9).contains(&q0.x),
@@ -1466,7 +739,7 @@ fn parametrize_matches_golden_fixture() {
 
         // (d) literal comparison where the raw golden is already canonical.
         // Plane cases have no window, so compare literally always.
-        if case.surface.kind == "plane" {
+        if case.surface["kind"] == "plane" {
             match &pcurve {
                 Curve2D::Line(l) => {
                     let o = case.expect.origin.unwrap();

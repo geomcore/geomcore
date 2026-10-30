@@ -17,3 +17,5 @@ The list is what makes a new variant cheap. `BezierCurve`, `BezierCurve2D` and `
 ## Consequences
 
 Adding a curve or surface type means one variant in the enum, one line in its list, and the per-variant matches the compiler then points at. `BezierSurface` gains `u_iso`, `v_iso`, `u_reversed_parameter` and `v_reversed_parameter`, so `Surface` forwards those methods to every variant. A match on `Curve`, `Curve2D` or `Surface` outside the crate already needs a wildcard arm, since the enums are `#[non_exhaustive]`, and keeps compiling.
+
+*2026-10-30:* the variant lists also check the test samples (ADR 0027). A new variant needs a sample in `tests/common/samples.rs`, and `cargo test` names it until it has one.

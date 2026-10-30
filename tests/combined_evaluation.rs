@@ -2,10 +2,13 @@
 //! return one at a time, on every curve and surface type and through the
 //! run-time enums, trimmed curves and references.
 
+mod common;
+
+use common::samples::{parameters, surface_parameters, trimmed, trimmed_2d};
 use geomcore::prelude::*;
 use geomcore::{
     BSplineCurve, BSplineSurface, Circle, Cone, Curve, Cylinder, Ellipse, Hyperbola, Line,
-    Parabola, Plane, Point, Sphere, Surface, Torus, TrimmedCurve, Vector,
+    Parabola, Plane, Point, Point2D, Sphere, Surface, Torus, TrimmedCurve, Vector,
 };
 
 const X: Vector = Vector::X;
@@ -30,6 +33,23 @@ fn assert_curve<C: ParametricCurve>(curve: &C, params: &[f64]) {
         assert_close(p2 - Point::ORIGIN, p, "eval_d2 point");
         assert_close(c1, d1, "eval_d2 first derivative");
         assert_close(c2, d2, "eval_d2 second derivative");
+    }
+}
+
+fn assert_curve_2d<C: ParametricCurve2D>(curve: &C, params: &[f64]) {
+    let close = |a: geomcore::Vector2D, b: geomcore::Vector2D, what: &str| {
+        assert_close(Vector::new(a.x, a.y, 0.0), Vector::new(b.x, b.y, 0.0), what)
+    };
+    for &u in params {
+        let p = curve.eval_point(u) - Point2D::ORIGIN;
+        let (d1, d2) = (curve.eval_derivative(u, 1), curve.eval_derivative(u, 2));
+        let (p1, c1) = curve.eval_d1(u);
+        close(p1 - Point2D::ORIGIN, p, "eval_d1 point");
+        close(c1, d1, "eval_d1 first derivative");
+        let (p2, c1, c2) = curve.eval_d2(u);
+        close(p2 - Point2D::ORIGIN, p, "eval_d2 point");
+        close(c1, d1, "eval_d2 first derivative");
+        close(c2, d2, "eval_d2 second derivative");
     }
 }
 
@@ -182,4 +202,27 @@ fn test_bspline_surfaces_combined_evaluation() {
         &Surface::from(Sphere::new(Point::ORIGIN, 2.0).unwrap()),
         &[(0.3, 0.2)],
     );
+}
+
+#[test]
+fn test_every_sample_combined_evaluation() {
+    for curve in common::samples::curves() {
+        assert_curve(&curve, &parameters(curve.bounds()));
+        let piece = trimmed(&curve);
+        assert_curve(&piece, &parameters(piece.bounds()));
+        if let Some(elementary) = curve.as_elementary() {
+            assert_curve(&elementary, &parameters(curve.bounds()));
+        }
+    }
+    for curve in common::samples::curves_2d() {
+        assert_curve_2d(&curve, &parameters(curve.bounds()));
+        let piece = trimmed_2d(&curve);
+        assert_curve_2d(&piece, &parameters(piece.bounds()));
+    }
+    for surface in common::samples::surfaces() {
+        assert_surface(&surface, &surface_parameters(&surface));
+        if let Some(elementary) = surface.as_elementary() {
+            assert_surface(&elementary, &surface_parameters(&surface));
+        }
+    }
 }

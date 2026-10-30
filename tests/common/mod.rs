@@ -5,6 +5,9 @@
 
 use serde::Deserialize;
 
+pub mod samples;
+pub mod shapes;
+
 /// A 3D frame recorded in JSON fixtures: origin plus x/y/z unit directions.
 #[derive(Deserialize)]
 pub struct FrameJson {
