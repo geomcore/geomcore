@@ -708,3 +708,33 @@ Reproduce with:
 ```sh
 cargo bench --bench swept_plane_cut -- --warm-up-time 1 --measurement-time 3
 ```
+
+# UV curve composition
+
+`benches/uv_curve_composition.rs` times `uv_curve_to_3d` of a slanted
+line on a bicubic B-spline surface over `[0, 2] x [0, 1]` with three
+interior knots along `u` and two along `v` (ADR 0032): the line is
+clipped to the domain, split where it crosses the knot lines, put
+through each Bézier patch, and joined into one degree-6 B-spline, whose
+redundant knots are then removed.
+
+Machine: Linux 7.0, x86-64 desktop, single thread, `--warm-up-time 1
+--measurement-time 3`, load average 8 (2026-10-30).
+
+| workload | time | instructions |
+|---|---|---|
+| slanted line on a bicubic surface with interior knots | ~13.8 µs | ~224 000 |
+
+The instructions are counted with `valgrind --tool=callgrind` on a loop
+of 16 slanted lines through the same surface, repeated 20 times, minus
+the same program repeated 0 times, per line. About 72% of them go to
+the per-piece Bernstein products (41% to the powers of the two
+directions' factors), 12% to the knot removal, and the rest to the
+crossings, the splitting and the join; allocation is about a third of
+the total. This is the unoptimized first version.
+
+Reproduce with:
+
+```sh
+cargo bench --bench uv_curve_composition -- --warm-up-time 1 --measurement-time 3
+```

@@ -14,6 +14,10 @@
 //!   unit speed and a conic's axes perpendicular (see [`Expansion`]).
 //! - **A line along `u` or `v`** on any other surface is an iso curve run
 //!   from `c` at rate `±1`, the iso curve reparametrized by `t ↦ c ± t`.
+//! - **Any other line, parabola, B-spline or Bézier curve on a B-spline or
+//!   Bézier surface**, or on the extrusion of a B-spline or Bézier profile,
+//!   is composed exactly into a B-spline (`uv_curve/composition.rs`,
+//!   ADR 0032).
 //!
 //! Every other pair is refused with
 //! [`UvCurveTo3DError::NotAnalytic`], never approximated.
@@ -25,9 +29,10 @@ use crate::curves::{
     BSplineCurve, BezierCurve, Circle, Curve, Curve2D, Ellipse, Hyperbola, Line, Parabola,
     ParametricCurve, ParametricCurve2D,
 };
+use crate::surfaces::uv_curve::composition;
 use crate::surfaces::{
-    BSplineSurface, BezierSurface, Cone, Cylinder, ExtrusionSurface, Plane, RevolutionSurface,
-    Sphere, SurfaceIsoError, Torus,
+    BSplineSurface, BezierSurface, Cone, Cylinder, ExtrusionSurface, ParametricSurface, Plane,
+    RevolutionSurface, Sphere, SurfaceIsoError, Torus,
 };
 use crate::{Frame, Point, Point2D, Tolerance, Vector, Vector2D};
 
@@ -46,6 +51,18 @@ pub enum UvCurveTo3DError {
     /// The surface has no iso curve at the line's fixed parameter, which
     /// is outside the bounds of a non-periodic direction or not finite.
     IsoCurve(SurfaceIsoError),
+    /// The UV curve leaves the surface's parameter domain: a B-spline or
+    /// Bézier UV curve is not inside it within `tol.parametric`, or the
+    /// part of a line or parabola inside it is empty, a single point, or
+    /// not one piece.
+    OutsideSurfaceDomain,
+    /// The exact 3D curve's degree, `k (p + q)` for a UV curve of degree
+    /// `k` on a surface of degrees `(p, q)`, is above the largest B-spline
+    /// degree, 25.
+    DegreeAboveLimit {
+        /// The degree the 3D curve would have.
+        degree: usize,
+    },
 }
 
 impl fmt::Display for UvCurveTo3DError {
@@ -60,6 +77,13 @@ impl fmt::Display for UvCurveTo3DError {
             UvCurveTo3DError::IsoCurve(error) => {
                 write!(f, "the surface has no iso curve there: {error}")
             }
+            UvCurveTo3DError::OutsideSurfaceDomain => {
+                f.write_str("the UV curve leaves the surface's parameter domain")
+            }
+            UvCurveTo3DError::DegreeAboveLimit { degree } => write!(
+                f,
+                "the exact 3D curve would have degree {degree}, above the largest B-spline degree, 25"
+            ),
         }
     }
 }
@@ -73,6 +97,12 @@ pub(crate) trait IsoCurves {
     fn v_iso_curve(&self, v: f64) -> Result<Curve, SurfaceIsoError>;
     fn affine_map(&self) -> Option<AffineMap> {
         None
+    }
+    /// The exact composition of any other UV curve, on a spline surface
+    /// (ADR 0032); refused by default.
+    fn composed(&self, uv_curve: &Curve2D, tol: Tolerance) -> Result<Curve, UvCurveTo3DError> {
+        let _ = (uv_curve, tol);
+        Err(UvCurveTo3DError::NotAnalytic)
     }
 }
 
@@ -91,15 +121,34 @@ macro_rules! iso_curves {
     )*};
 }
 
-iso_curves!(
-    Cylinder,
-    Cone,
-    Sphere,
-    Torus,
-    RevolutionSurface,
-    BSplineSurface,
-    BezierSurface,
-);
+iso_curves!(Cylinder, Cone, Sphere, Torus, RevolutionSurface);
+
+impl IsoCurves for BSplineSurface {
+    fn u_iso_curve(&self, u: f64) -> Result<Curve, SurfaceIsoError> {
+        self.u_iso(u).map(Curve::from)
+    }
+    fn v_iso_curve(&self, v: f64) -> Result<Curve, SurfaceIsoError> {
+        self.v_iso(v).map(Curve::from)
+    }
+    fn composed(&self, uv_curve: &Curve2D, tol: Tolerance) -> Result<Curve, UvCurveTo3DError> {
+        composition::on_spline_surface(self, uv_curve, false, tol)
+    }
+}
+
+impl IsoCurves for BezierSurface {
+    fn u_iso_curve(&self, u: f64) -> Result<Curve, SurfaceIsoError> {
+        self.u_iso(u).map(Curve::from)
+    }
+    fn v_iso_curve(&self, v: f64) -> Result<Curve, SurfaceIsoError> {
+        self.v_iso(v).map(Curve::from)
+    }
+    /// A Bézier UV curve over the one patch is a Bézier curve.
+    fn composed(&self, uv_curve: &Curve2D, tol: Tolerance) -> Result<Curve, UvCurveTo3DError> {
+        let bspline = self.as_bspline().expect("a Bézier surface is a B-spline");
+        let bezier = matches!(uv_curve, Curve2D::Bezier(_));
+        composition::on_spline_surface(bspline, uv_curve, bezier, tol)
+    }
+}
 
 impl IsoCurves for Plane {
     fn u_iso_curve(&self, u: f64) -> Result<Curve, SurfaceIsoError> {
@@ -138,12 +187,15 @@ impl IsoCurves for ExtrusionSurface {
             _ => None,
         }
     }
+    fn composed(&self, uv_curve: &Curve2D, tol: Tolerance) -> Result<Curve, UvCurveTo3DError> {
+        composition::on_extrusion(self, uv_curve, tol)
+    }
 }
 
 /// [`ParametricSurface::uv_curve_to_3d`](crate::ParametricSurface::uv_curve_to_3d)
 /// of every crate surface: the affine image on an affine surface, the
 /// reparametrized iso curve for a straight UV curve along `u` or `v` on any
-/// other.
+/// other, and the composition of any other UV curve on a spline surface.
 pub(crate) fn uv_curve_to_3d(
     surface: &impl IsoCurves,
     uv_curve: &Curve2D,
@@ -152,7 +204,12 @@ pub(crate) fn uv_curve_to_3d(
     if let Some(map) = surface.affine_map() {
         return map.curve(uv_curve, tol);
     }
-    along_iso_curve(StraightUvCurve::of(uv_curve, tol)?, surface, tol)
+    let along_iso = StraightUvCurve::of(uv_curve, tol)
+        .and_then(|straight| along_iso_curve(straight, surface, tol));
+    match along_iso {
+        Err(UvCurveTo3DError::NotAnalytic) => surface.composed(uv_curve, tol),
+        given => given,
+    }
 }
 
 // ---- affine surfaces ----

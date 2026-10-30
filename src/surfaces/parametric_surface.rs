@@ -528,6 +528,7 @@ pub trait ParametricSurface {
     /// | line along `v`, `u = u0` | any other | `u_iso(u0)` run from `v0` at rate `±1` |
     /// | line along `u`, `v = v0` | any other | `v_iso(v0)` run from `u0` at rate `±1` |
     /// | straight spline along `u` or `v` | any other | the iso curve run at the spline's signed speed |
+    /// | any other line, parabola, B-spline or Bézier curve | B-spline or Bézier surface, extrusion of a B-spline or Bézier profile | the composed B-spline (below) |
     ///
     /// A straight spline is a degree-1 B-spline or Bézier curve with two
     /// poles and equal or no weights, as files exchanged between kernels
@@ -557,13 +558,40 @@ pub trait ParametricSurface {
     /// that always holds; on an oblique one it holds only for directions
     /// along the map's principal axes.
     ///
+    /// On a spline surface, a curve whose parameter is polynomial or
+    /// rational is composed exactly: split where it crosses the surface's
+    /// knot lines, each piece is put through its Bézier patch, and the
+    /// pieces are joined into a B-spline of degree `k * (p + q)`, for a
+    /// UV curve of degree `k` (a line 1, a parabola 2) on a surface of
+    /// degrees `(p, q)`, and rational when either is. A direction in which
+    /// the UV curve stays at one parameter does not count. The result is a
+    /// Bézier curve when a Bézier UV curve on a Bézier surface gives a
+    /// single piece. An unbounded line or parabola is composed over the
+    /// part inside the surface's domain.
+    ///
+    /// A circle, ellipse or hyperbola is refused there: its parameter is an
+    /// angle, which no rational function follows. Its `to_bspline` is the
+    /// same shape as a rational quadratic in a parameter of its own, and
+    /// composes exactly; that B-spline is then the UV curve the result
+    /// keeps the parameter of.
+    ///
     /// # Errors
     ///
     /// [`UvCurveTo3DError::NotAnalytic`] for every other pair, never
-    /// approximated: a slanted line on a curved surface, a conic or a
-    /// spline on any surface but an affine one, a pair above that leaves
-    /// its kind, a 2D curve whose image overflows, and every curve on a
-    /// surface type defined outside the crate, the default.
+    /// approximated: a slanted line on a curved analytic surface, a
+    /// circle, ellipse or hyperbola on any surface but an affine one, a
+    /// spline on an analytic surface but an affine one, a pair above that
+    /// leaves its kind, a slanted line or a parabola on a spline surface
+    /// periodic or unbounded in both directions (its image never ends), a
+    /// 2D curve whose image
+    /// overflows, and every curve on a surface type defined outside the
+    /// crate, the default.
+    /// [`UvCurveTo3DError::OutsideSurfaceDomain`] when a composed UV curve
+    /// leaves the surface's domain by more than `tol.parametric`, or an
+    /// unbounded one's part inside it is empty, a single point or not one
+    /// piece.
+    /// [`UvCurveTo3DError::DegreeAboveLimit`] when the composed degree is
+    /// above 25, the largest B-spline degree.
     /// [`UvCurveTo3DError::Collapsed`] when the line runs along an iso
     /// curve that is a point (a sphere's pole, a cone's apex), or for a
     /// straight spline whose two poles coincide.
