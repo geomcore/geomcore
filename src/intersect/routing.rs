@@ -34,7 +34,10 @@ use crate::surfaces::{
 };
 
 mod exact_family;
+mod swept_plane;
 pub(crate) use exact_family::ExactFamily;
+pub(crate) use swept_plane::Swept;
+use swept_plane::swept_plane_intersection;
 
 /// Routed intersection: exact when a closed form exists, numeric otherwise.
 ///
@@ -182,6 +185,18 @@ pub(crate) trait SurfaceOperand: ParametricSurface {
 
     /// The elementary basis, or `None` when the surface has none.
     fn surface_basis(&self) -> Option<Self::Basis>;
+
+    /// The surface as a plane, when it is one.
+    #[inline]
+    fn as_plane(&self) -> Option<Plane> {
+        None
+    }
+
+    /// The surface as a swept surface, when it is one.
+    #[inline]
+    fn as_swept(&self) -> Option<Swept<'_>> {
+        None
+    }
 }
 
 macro_rules! elementary_surface_operand {
@@ -197,7 +212,38 @@ macro_rules! elementary_surface_operand {
     )*};
 }
 
-elementary_surface_operand!(Plane, Cylinder, Cone, Sphere, Torus, ElementarySurface);
+elementary_surface_operand!(Cylinder, Cone, Sphere, Torus);
+
+impl SurfaceOperand for Plane {
+    type Basis = Plane;
+
+    #[inline]
+    fn surface_basis(&self) -> Option<Plane> {
+        Some(*self)
+    }
+
+    #[inline]
+    fn as_plane(&self) -> Option<Plane> {
+        Some(*self)
+    }
+}
+
+impl SurfaceOperand for ElementarySurface {
+    type Basis = ElementarySurface;
+
+    #[inline]
+    fn surface_basis(&self) -> Option<ElementarySurface> {
+        Some(*self)
+    }
+
+    #[inline]
+    fn as_plane(&self) -> Option<Plane> {
+        match self {
+            ElementarySurface::Plane(plane) => Some(*plane),
+            _ => None,
+        }
+    }
+}
 
 /// Implements [`SurfaceOperand`] for surfaces without an elementary
 /// basis: every pair with one takes the numeric search.
@@ -213,12 +259,33 @@ macro_rules! numeric_surface_operand {
     )*};
 }
 
-numeric_surface_operand!(
-    BSplineSurface,
-    BezierSurface,
-    ExtrusionSurface,
-    RevolutionSurface
-);
+numeric_surface_operand!(BSplineSurface, BezierSurface);
+
+impl SurfaceOperand for ExtrusionSurface {
+    type Basis = ElementarySurface;
+
+    fn surface_basis(&self) -> Option<ElementarySurface> {
+        None
+    }
+
+    #[inline]
+    fn as_swept(&self) -> Option<Swept<'_>> {
+        Some(Swept::Extrusion(self))
+    }
+}
+
+impl SurfaceOperand for RevolutionSurface {
+    type Basis = ElementarySurface;
+
+    fn surface_basis(&self) -> Option<ElementarySurface> {
+        None
+    }
+
+    #[inline]
+    fn as_swept(&self) -> Option<Swept<'_>> {
+        Some(Swept::Revolution(self))
+    }
+}
 
 impl SurfaceOperand for Surface {
     type Basis = ElementarySurface;
@@ -226,6 +293,23 @@ impl SurfaceOperand for Surface {
     #[inline]
     fn surface_basis(&self) -> Option<ElementarySurface> {
         self.as_elementary()
+    }
+
+    #[inline]
+    fn as_plane(&self) -> Option<Plane> {
+        match self {
+            Surface::Plane(plane) => Some(*plane),
+            _ => None,
+        }
+    }
+
+    #[inline]
+    fn as_swept(&self) -> Option<Swept<'_>> {
+        match self {
+            Surface::Extrusion(surface) => Some(Swept::Extrusion(surface)),
+            Surface::Revolution(surface) => Some(Swept::Revolution(surface)),
+            _ => None,
+        }
     }
 }
 
@@ -503,7 +587,9 @@ trimmed_curve_surface!(
 );
 
 /// Intersects two surfaces: the exact path when both have an elementary
-/// basis and the pair has a closed form; marching otherwise.
+/// basis and the pair has a closed form, or when a plane cuts a swept
+/// surface in a position with a closed form (see `swept_plane`);
+/// marching otherwise.
 #[inline]
 pub(crate) fn route_surface_surface<A: SurfaceOperand, B: SurfaceOperand>(
     a: &A,
@@ -518,7 +604,7 @@ where
         (Some(first), Some(second)) => {
             first.exact_family(&second, (None, None), tol, numeric_search)
         }
-        _ => numeric_search(),
+        _ => swept_plane_intersection(a, b, tol).unwrap_or_else(numeric_search),
     }
 }
 

@@ -5,12 +5,13 @@ import math
 
 import pytest
 
-from geomcore import Axis, Frame, Point, Transform, Vector
+from geomcore import Axis, Frame, IntersectionMethod, Point, Transform, Vector
 from geomcore.curves import BSplineCurve, Circle, Ellipse, Line
 from geomcore.surfaces import (
     BSplineSurface,
     Cylinder,
     ExtrusionSurface,
+    Plane,
     RevolutionSurface,
     Torus,
 )
@@ -126,3 +127,21 @@ def test_swept_surfaces_intersect_numerically():
     extrusion = ExtrusionSurface(Circle(_O, _Z, 2.0), _Z)
     hits = extrusion.intersect(Line(Point(-5.0, 0.0, 1.0), _X)).hits
     assert sorted(h.point.x for h in hits) == pytest.approx([-2.0, 2.0], abs=1e-7)
+
+
+def test_plane_cuts_of_swept_surfaces_are_exact():
+    surface = RevolutionSurface(_torus_profile(), Axis(_O, _Z))
+    cut = surface.intersect(Plane(Point(0.0, 0.0, 0.5), _Z))
+    assert cut.method == IntersectionMethod.EXACT
+    assert cut.is_complete()
+    radii = sorted(c.curve.radius() for c in cut.curves)
+    assert radii == pytest.approx([3.0 - math.sqrt(0.75), 3.0 + math.sqrt(0.75)])
+    top = Plane(Point(0.0, 0.0, 1.0), _Z).intersect(surface)
+    assert top.method == IntersectionMethod.EXACT
+    assert [c.tangent for c in top.curves] == [True]
+
+    extrusion = ExtrusionSurface(Circle(_O, _Z, 2.0), _Z)
+    lines = extrusion.intersect(Plane(Point(1.0, 0.0, 0.0), _X))
+    assert lines.method == IntersectionMethod.EXACT
+    assert all(isinstance(c.curve, Line) for c in lines.curves)
+    assert len(lines.curves) == 2

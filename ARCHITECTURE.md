@@ -44,6 +44,8 @@ src/
 │   ├── routing.rs       Intersect: exact when a closed form exists, numeric otherwise
 │   ├── routing/exact_family.rs  ExactFamily: each typed exact result read as its
 │   │                    family result (ADR 0018)
+│   ├── routing/swept_plane.rs  plane cuts of the swept surfaces in closed form,
+│   │                    tried before marching
 │   ├── exact/           IntersectExact and the closed-form solvers, by family:
 │   │                    curve_curve.rs, curve_surface.rs, surface_surface.rs
 │   ├── numeric/         the searches for pairs with no closed form. subdivision.rs is

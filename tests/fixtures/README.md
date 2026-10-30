@@ -16,6 +16,7 @@ conventions.
 | `surfaces_bspline.json` | Independent reference kernel | `vs_fixtures.rs` |
 | `transforms.json` | Independent reference kernel | `vs_fixtures.rs` |
 | `swept_surfaces.json` | Independent reference kernel | `swept_fixtures.rs` |
+| `swept_plane_cuts.json` | Independent reference kernel | `swept_fixtures.rs` |
 | `bezier.json` | Explicit Bernstein sums, computed outside geomcore | `bezier_fixtures.rs` |
 | `discretization.json` | geomcore's own output, frozen to catch regressions | `discretization_fixtures.rs` |
 | `intersect_2d.json` | Derived by hand; each case's `note` gives the derivation | `intersect_2d_fixtures.rs` |

@@ -2,7 +2,8 @@
 //! (`fixtures/swept_surfaces.json`), to 1e-7: evaluation, derivatives and
 //! point projections against the reference kernel. Each case is also
 //! checked against its exact B-spline patch, and the circle-swept cases
-//! against the `Cylinder` and `Torus` they sweep.
+//! against the `Cylinder` and `Torus` they sweep. The plane cuts
+//! (`fixtures/swept_plane_cuts.json`) are replayed through the router.
 
 mod common;
 
@@ -14,8 +15,8 @@ use common::{
 use geomcore::prelude::*;
 use geomcore::{
     Axis, BSplineCurve, BSplineSurface, BezierCurve, Circle, Curve, Cylinder, Ellipse,
-    ExtrusionSurface, Hyperbola, Line, Parabola, Point, RevolutionSurface, Surface, Tolerance,
-    Torus, Vector,
+    ExtrusionSurface, Hyperbola, IntersectionMethod, Line, Parabola, Plane, Point,
+    RevolutionSurface, Surface, SurfaceSurfaceIntersection, Tolerance, Torus, Vector,
 };
 use serde::Deserialize;
 
@@ -107,6 +108,37 @@ struct RevolutionCase {
 struct Fixture {
     extrusions: Vec<ExtrusionCase>,
     revolutions: Vec<RevolutionCase>,
+}
+
+#[derive(Deserialize)]
+struct PlaneJson {
+    origin: [f64; 3],
+    normal: [f64; 3],
+}
+
+#[derive(Deserialize)]
+struct ExtrusionCut {
+    name: String,
+    profile: ProfileJson,
+    direction: [f64; 3],
+    plane: PlaneJson,
+    /// Points on the cut; they need not cover it.
+    cut: Vec<[f64; 3]>,
+}
+
+#[derive(Deserialize)]
+struct RevolutionCut {
+    name: String,
+    profile: ProfileJson,
+    axis: AxisJson,
+    plane: PlaneJson,
+    cut: Vec<[f64; 3]>,
+}
+
+#[derive(Deserialize)]
+struct CutFixture {
+    extrusions: Vec<ExtrusionCut>,
+    revolutions: Vec<RevolutionCut>,
 }
 
 fn fixture() -> Fixture {
@@ -253,6 +285,100 @@ fn assert_patch(
             .project_point(point3(p.point), Tolerance::DEFAULT)
             .distance;
         assert_close(distance, p.distance);
+    }
+}
+
+fn cut_fixture() -> CutFixture {
+    serde_json::from_value(load("swept_plane_cuts.json")).unwrap()
+}
+
+fn plane(json: &PlaneJson) -> Plane {
+    Plane::new(point3(json.origin), vector3(json.normal)).unwrap()
+}
+
+/// Checks the routed cut of `swept` by `plane`: complete, exact unless the
+/// profile is a spline, through every reference point, on both surfaces,
+/// and the same in either order and through the `Surface` enum.
+fn assert_cut<S>(name: &str, swept: &S, plane: &Plane, spline_profile: bool, reference: &[[f64; 3]])
+where
+    S: ParametricSurface
+        + Clone
+        + Into<Surface>
+        + Intersect<Plane, Output = SurfaceSurfaceIntersection>,
+    Plane: Intersect<S, Output = SurfaceSurfaceIntersection>,
+{
+    let tol = Tolerance::DEFAULT;
+    let result = swept.intersect(plane, tol);
+    assert!(result.is_complete(), "{name}: incomplete");
+    if !spline_profile {
+        assert_eq!(result.method(), IntersectionMethod::Exact, "{name}");
+    }
+    for &point in reference {
+        let point = point3(point);
+        let nearest = result
+            .curves()
+            .iter()
+            .map(|cut| cut.curve.project_point(point, tol).distance)
+            .fold(f64::INFINITY, f64::min);
+        assert!(
+            nearest < 1e-7,
+            "{name}: reference point {point:?} is {nearest} off the cut"
+        );
+    }
+    for cut in result.curves() {
+        let (first, last) = cut.curve.bounds();
+        let (first, last) = (first.max(-5.0), last.min(5.0));
+        for index in 0..=16 {
+            let point = cut
+                .curve
+                .eval_point(first + (last - first) * f64::from(index) / 16.0);
+            let off = swept
+                .project_point(point, tol)
+                .distance
+                .max(plane.project_point(point, tol).distance);
+            assert!(
+                off < 1e-7,
+                "{name}: cut point {point:?} is {off} off the surfaces"
+            );
+        }
+    }
+    assert_eq!(
+        plane.intersect(swept, tol),
+        result,
+        "{name}: reversed order"
+    );
+    let (wrapped, wrapped_plane) = (swept.clone().into(), Surface::from(*plane));
+    assert_eq!(
+        wrapped.intersect(&wrapped_plane, tol),
+        result,
+        "{name}: through the enum"
+    );
+}
+
+fn is_spline(profile: &ProfileJson) -> bool {
+    matches!(
+        profile,
+        ProfileJson::Bspline { .. } | ProfileJson::Bezier { .. }
+    )
+}
+
+#[test]
+fn extrusion_plane_cuts_match_golden_fixture() {
+    for case in cut_fixture().extrusions {
+        let surface =
+            ExtrusionSurface::new(profile(&case.profile), vector3(case.direction)).unwrap();
+        let spline = is_spline(&case.profile);
+        assert_cut(&case.name, &surface, &plane(&case.plane), spline, &case.cut);
+    }
+}
+
+#[test]
+fn revolution_plane_cuts_match_golden_fixture() {
+    for case in cut_fixture().revolutions {
+        let axis = Axis::new(point3(case.axis.origin), vector3(case.axis.direction)).unwrap();
+        let surface = RevolutionSurface::new(profile(&case.profile), axis).unwrap();
+        let spline = is_spline(&case.profile);
+        assert_cut(&case.name, &surface, &plane(&case.plane), spline, &case.cut);
     }
 }
 

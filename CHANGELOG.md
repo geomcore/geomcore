@@ -24,8 +24,20 @@ the Python distribution are versioned in lockstep.
   for a line or a conic), onto the meridian for a revolution (in
   closed form for a conic in a plane through the axis, a one-parameter
   search otherwise), 4 to 80 times faster than onto the converted
-  B-spline patch. Intersections run the numeric search. In Python,
-  `geomcore.surfaces.ExtrusionSurface` and `RevolutionSurface`.
+  B-spline patch. Intersections run the numeric search, except the plane
+  cuts below. In Python, `geomcore.surfaces.ExtrusionSurface` and
+  `RevolutionSurface`.
+- `intersect` cuts a swept surface with a plane in closed form, in
+  either order and through the `Surface` enum: an extrusion with every
+  plane (generator lines through the profile's crossings when the plane
+  holds the direction, the profile carried onto the plane otherwise),
+  and a revolution with a plane perpendicular to its axis (a circle
+  through each crossing, a contact point on the axis) or through its
+  axis when the profile lies in a plane through it (the profile turned
+  into the plane). Tangent crossings give tangent curves. The result is
+  complete, and exact unless a spline profile's crossings came from the
+  numeric curve-plane search; other positions still march. A cut takes
+  under 5 µs where marching the converted patch takes 0.5 to 6 ms.
 
 ## [0.40.0] - 2026-10-30
 

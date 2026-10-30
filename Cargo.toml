@@ -50,6 +50,10 @@ harness = false
 name = "swept_projection"
 harness = false
 
+[[bench]]
+name = "swept_plane_cut"
+harness = false
+
 [workspace]
 members = [".", "geomcore-py"]
 

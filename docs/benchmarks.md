@@ -660,3 +660,31 @@ Reproduce with:
 ```sh
 cargo bench --bench swept_projection -- --warm-up-time 1 --measurement-time 3
 ```
+
+## Plane cuts of swept surfaces
+
+`benches/swept_plane_cut.rs` cuts each swept surface with a plane in a
+position with a closed form, the same surface converted with
+`to_bspline_patch` (which marches), and the elementary surface of the same
+shape where there is one.
+
+Machine: Linux 7.0, x86-64 desktop, single thread, `--warm-up-time 1
+--measurement-time 3` (2026-10-30).
+
+| surface and plane | swept | B-spline patch | elementary |
+|---|---|---|---|
+| revolved circle, plane perpendicular to the axis | ~450 ns | ~5.9 ms | ~230 ns (`Torus`) |
+| revolved circle, plane tangent at the top | ~290 ns | ~2.1 ms | ~130 ns (`Torus`) |
+| revolved circle, plane through the axis | ~320 ns | ~2.9 ms | ~230 ns (`Torus`) |
+| revolved cubic B-spline, plane perpendicular to the axis | ~4.4 µs | ~2.1 ms | — |
+| extruded circle, plane holding the direction | ~380 ns | ~630 µs | ~70 ns (`Cylinder`) |
+| extruded cubic B-spline, oblique plane | ~230 ns | ~950 µs | — |
+
+The revolved B-spline pays for the numeric curve-plane search of its
+crossings; every other row is closed form throughout.
+
+Reproduce with:
+
+```sh
+cargo bench --bench swept_plane_cut -- --warm-up-time 1 --measurement-time 3
+```
