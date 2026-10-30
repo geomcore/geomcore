@@ -9,6 +9,17 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+## [0.42.0] - 2026-10-30
+
+UV curves, both ways, on the surface. `uv_curve_to_3d` gives the exact
+3D curve a parameter-space curve traces on a surface, in the same
+parameter: any curve on a plane, the affine image on a line extrusion,
+the iso curve for a line along `u` or `v`, and on spline surfaces the
+exact composition of any line, parabola, B-spline or Bézier UV curve.
+Every other pair is refused, never approximated. `curve_3d_to_uv`, the
+inverse, replaces the curves' `parametrize_on`, so curves no longer
+depend on surfaces (see Breaking).
+
 ### Added
 
 - `ParametricSurface::uv_curve_to_3d(&Curve2D, tol)`, the exact 3D
@@ -2287,7 +2298,8 @@ Behaviour, in Rust and Python alike:
 - Golden-fixture validation of all numeric results at 1e-7 tolerance, and
   criterion throughput benchmarks (`docs/benchmarks.md`).
 
-[Unreleased]: https://github.com/geomcore/geomcore/compare/v0.41.0...HEAD
+[Unreleased]: https://github.com/geomcore/geomcore/compare/v0.42.0...HEAD
+[0.42.0]: https://github.com/geomcore/geomcore/compare/v0.41.0...v0.42.0
 [0.41.0]: https://github.com/geomcore/geomcore/compare/v0.40.1...v0.41.0
 [0.40.1]: https://github.com/geomcore/geomcore/compare/v0.40.0...v0.40.1
 [0.40.0]: https://github.com/geomcore/geomcore/compare/v0.39.1...v0.40.0
