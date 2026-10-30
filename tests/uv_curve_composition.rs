@@ -7,7 +7,8 @@ use geomcore::prelude::*;
 use geomcore::{
     BSplineCurve, BSplineCurve2D, BSplineSurface, BezierCurve, BezierCurve2D, BezierSurface,
     Circle2D, Curve, Curve2D, Ellipse2D, ExtrusionSurface, Frame2D, Hyperbola2D, Line2D,
-    Parabola2D, Point, Point2D, Surface, Tolerance, UvCurveTo3DError, Vector, Vector2D,
+    Parabola2D, Point, Point2D, Surface, Tolerance, TrimmedCurve2D, UvCurveTo3DError, Vector,
+    Vector2D,
 };
 
 const TOL: Tolerance = Tolerance::DEFAULT;
@@ -414,6 +415,38 @@ fn circles_ellipses_and_hyperbolas_are_refused() {
             bicubic(false).uv_curve_to_3d(&uv, TOL),
             Err(UvCurveTo3DError::NotAnalytic)
         );
+    }
+}
+
+/// Converted first, a circle, ellipse or hyperbola is a rational quadratic
+/// B-spline of the same shape in its own parameter, which composes exactly
+/// like any other: the B-spline becomes the UV curve the image keeps.
+#[test]
+fn circles_ellipses_and_hyperbolas_compose_once_converted_to_bsplines() {
+    let center = Point2D::new(1.0, 0.0);
+    let circle = Circle2D::new(center, 0.5).unwrap();
+    let hyperbola = Hyperbola2D::new(Point2D::new(0.2, 0.0), Vector2D::X, 0.5, 0.3).unwrap();
+    let uv_curves: [Curve2D; 4] = [
+        Curve2D::from(circle).to_bspline().unwrap().into(),
+        Curve2D::from(Ellipse2D::new(center, Vector2D::X, 0.6, 0.3).unwrap())
+            .to_bspline()
+            .unwrap()
+            .into(),
+        TrimmedCurve2D::new(circle, -2.0, 1.0)
+            .unwrap()
+            .to_bspline()
+            .unwrap()
+            .into(),
+        TrimmedCurve2D::new(hyperbola, -1.0, 1.2)
+            .unwrap()
+            .to_bspline()
+            .unwrap()
+            .into(),
+    ];
+    for rational in [false, true] {
+        for uv in &uv_curves {
+            assert_eq!(bspline(&composed(&bicubic(rational), uv)).degree(), 12);
+        }
     }
 }
 

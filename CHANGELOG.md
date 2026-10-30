@@ -32,7 +32,9 @@ the Python distribution are versioned in lockstep.
   `k (p + q)` in the UV curve's parameter (#155, ADR 0032). An unbounded
   line or parabola is composed over its part inside the surface's
   domain, and a periodic direction is unwrapped. Circle, ellipse and
-  hyperbola UV curves stay refused. New `UvCurveTo3DError` variants:
+  hyperbola UV curves stay refused, since their angle parameter is not
+  rational; their `to_bspline` composes exactly, in the B-spline's
+  parameter. New `UvCurveTo3DError` variants:
   `OutsideSurfaceDomain` and `DegreeAboveLimit { degree }`, above
   degree 25.
 - Python: `uv_curve_to_3d(uv_curve, tol=None)` on every surface

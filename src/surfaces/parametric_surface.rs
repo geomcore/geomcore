@@ -569,6 +569,12 @@ pub trait ParametricSurface {
     /// single piece. An unbounded line or parabola is composed over the
     /// part inside the surface's domain.
     ///
+    /// A circle, ellipse or hyperbola is refused there: its parameter is an
+    /// angle, which no rational function follows. Its `to_bspline` is the
+    /// same shape as a rational quadratic in a parameter of its own, and
+    /// composes exactly; that B-spline is then the UV curve the result
+    /// keeps the parameter of.
+    ///
     /// # Errors
     ///
     /// [`UvCurveTo3DError::NotAnalytic`] for every other pair, never
