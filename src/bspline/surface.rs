@@ -174,7 +174,61 @@ pub(crate) fn surface_derivatives<const ORDER: usize>(
     u: f64,
     v: f64,
 ) -> [Vector; 6] {
+    if ORDER == 1
+        && let (Some(u_basis), Some(v_basis)) = (
+            u_knots.low_degree_basis_first(u),
+            v_knots.low_degree_basis_first(v),
+        )
+    {
+        let sums = match poles.weights {
+            Some(weights) => {
+                first_sum::<true>(u_knots, v_knots, poles.points, weights, u_basis, v_basis)
+            }
+            None => first_sum::<false>(u_knots, v_knots, poles.points, &[], u_basis, v_basis),
+        };
+        return quotient(sums, poles.weights.is_some());
+    }
     surface_derivatives_from::<ORDER>(u_knots, v_knots, poles, u, v, None, None)
+}
+
+/// The homogeneous `[H, Hu, Hv]` (the second-order slots zero) from each
+/// non-periodic direction's first pole, basis functions and first
+/// derivatives of degree at most 3: the sums of [`tensor`] at order 1, in
+/// the same order, over unrolled bases.
+#[inline]
+fn first_sum<const RATIONAL: bool>(
+    u_knots: &KnotVector,
+    v_knots: &KnotVector,
+    points: &[Point],
+    weights: &[f64],
+    (first_u, [nu, du]): (usize, [[f64; 4]; 2]),
+    (first_v, [nv, dv]): (usize, [[f64; 4]; 2]),
+) -> [[f64; 4]; 6] {
+    let n_v = v_knots.pole_count();
+    let mut out = [[0.0f64; 4]; 6];
+    for i in 0..=u_knots.degree() {
+        let row = (first_u + i) * n_v + first_v;
+        let mut along = [[0.0f64; 4]; 2];
+        for j in 0..=v_knots.degree() {
+            let p = points[row + j];
+            let weight = if RATIONAL { weights[row + j] } else { 1.0 };
+            for (acc, basis) in along.iter_mut().zip([nv[j], dv[j]]) {
+                let b = basis * weight;
+                acc[0] += b * p.x;
+                acc[1] += b * p.y;
+                acc[2] += b * p.z;
+                acc[3] += b;
+            }
+        }
+        for c in 0..4 {
+            out[0][c] += nu[i] * along[0][c];
+        }
+        for c in 0..4 {
+            out[1][c] += du[i] * along[0][c];
+            out[2][c] += nu[i] * along[1][c];
+        }
+    }
+    out
 }
 
 /// [`surface_derivatives`] from one side per direction: [`Side::Below`]
@@ -206,8 +260,15 @@ fn surface_derivatives_from<const ORDER: usize>(
     v_side: Option<Side>,
 ) -> [Vector; 6] {
     let sums = tensor::<ORDER>(u_knots, v_knots, poles, u, v, u_side, v_side);
+    quotient(sums, poles.weights.is_some())
+}
+
+/// `[S, Su, Sv, Suu, Suv, Svv]` from the homogeneous sums of [`tensor`],
+/// by the quotient rule of [`surface_derivatives`] when `rational`.
+#[inline]
+fn quotient(sums: [[f64; 4]; 6], rational: bool) -> [Vector; 6] {
     let [s, su, sv, suu, suv, svv] = sums.map(|a| Vector::new(a[0], a[1], a[2]));
-    if poles.weights.is_none() {
+    if !rational {
         return [s, su, sv, suu, suv, svv];
     }
     let [w, wu, wv, wuu, wuv, wvv] = sums.map(|a| a[3]);

@@ -257,6 +257,46 @@ fn test_rational_quarter_circle_on_unit_circle() {
 // ---- derivatives of any order ----
 
 #[test]
+fn test_first_derivatives_of_low_degrees_match_general_path_bit_for_bit() {
+    // The unrolled order-1 path of degrees 1 to 3 sums in the order of the
+    // general one (which `Side::Above` still takes off a periodic seam),
+    // so the two agree exactly, inside spans, on knots and at the ends.
+    let poles = points(&[
+        [1.0, 0.0, 0.0],
+        [1.0, 1.0, 0.5],
+        [-1.0, 2.0, 0.0],
+        [-2.0, 0.0, 1.0],
+        [0.0, -1.0, 0.0],
+        [0.5, -2.0, 0.3],
+    ]);
+    let weights = [1.0, 0.7, 1.3, 0.9, 1.1, 0.8];
+    for degree in 1..=3usize {
+        let inner = 6 - degree - 1;
+        let mut knots = vec![0.0];
+        let mut mults = vec![degree as u32 + 1];
+        for k in 1..=inner {
+            knots.push(k as f64 * 0.7 + (k * k) as f64 * 0.05);
+            mults.push(1);
+        }
+        knots.push(5.0);
+        mults.push(degree as u32 + 1);
+        let knots = knot_vector(degree, &knots, &mults, false, 6);
+        for weights in [None, Some(&weights[..])] {
+            let view = Poles {
+                points: &poles,
+                weights,
+            };
+            for k in -2..=52 {
+                let u = k as f64 / 10.0;
+                let fast = derivatives::<1, Point>(&knots, view, u);
+                let general = derivatives_sided::<1, Point>(&knots, view, u, Side::Above);
+                assert_eq!(fast, general, "degree {degree}, u {u}");
+            }
+        }
+    }
+}
+
+#[test]
 fn test_derivative_of_order_matches_the_fixed_orders() {
     // A periodic rational cubic with a double knot: the general path agrees
     // with the unrolled one on both sides of every knot and inside spans.

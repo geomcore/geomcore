@@ -354,11 +354,44 @@ impl KnotVector {
         }
     }
 
+    /// [`low_degree_basis`](Self::low_degree_basis) with the first
+    /// derivatives: the first pole and `[values, first derivatives]`.
+    #[inline(always)]
+    pub(crate) fn low_degree_basis_first(&self, u: f64) -> Option<(usize, [[f64; 4]; 2])> {
+        if self.periodic {
+            return None;
+        }
+        match self.degree {
+            1 => Some(self.basis_first_of_degree::<1>(u)),
+            2 => Some(self.basis_first_of_degree::<2>(u)),
+            3 => Some(self.basis_first_of_degree::<3>(u)),
+            _ => None,
+        }
+    }
+
     /// [`KnotVector::basis`] of a non-periodic direction of the constant
     /// degree `P` (at most 3): the span's knots sliced once and every loop
     /// unrolled.
     #[inline(always)]
     fn basis_of_degree<const P: usize>(&self, u: f64) -> (usize, [f64; 4]) {
+        let (first, left, right) = self.differences_of_degree::<P>(u);
+        (first, basis_values_of::<P>(&left, &right))
+    }
+
+    /// [`basis_of_degree`](Self::basis_of_degree) with the first
+    /// derivatives, as [`basis_first`] computes them.
+    #[inline(always)]
+    fn basis_first_of_degree<const P: usize>(&self, u: f64) -> (usize, [[f64; 4]; 2]) {
+        let (first, left, right) = self.differences_of_degree::<P>(u);
+        (first, basis_first_of::<P>(&left, &right))
+    }
+
+    /// The first pole of the span holding `u` and the knot differences
+    /// `left[j] = u - U[span + 1 - j]`, `right[j] = U[span + j] - u` for
+    /// `j` in `1..=P`, in a non-periodic direction of the constant degree
+    /// `P` (at most 3).
+    #[inline(always)]
+    fn differences_of_degree<const P: usize>(&self, u: f64) -> (usize, [f64; 4], [f64; 4]) {
         let (span, u) = self.span(u);
         // The 2P knots around the span, `around[k] = flat[span + 1 - P + k]`.
         let around = &self.flat[span + 1 - P..span + 1 + P];
@@ -379,7 +412,7 @@ impl KnotVector {
                 0.0
             }
         });
-        (span - P, basis_values_of::<P>(&left, &right))
+        (span - P, left, right)
     }
 
     /// Index of the first of the `degree + 1` poles weighting the span
@@ -1058,6 +1091,38 @@ fn basis_values_of<const P: usize>(left: &[f64; 4], right: &[f64; 4]) -> [f64; 4
     out
 }
 
+/// The recurrence of [`basis_first`] for the constant degree `P` (at
+/// most 3): `[values, first derivatives]`.
+#[inline(always)]
+fn basis_first_of<const P: usize>(left: &[f64; 4], right: &[f64; 4]) -> [[f64; 4]; 2] {
+    let mut values = [1.0, 0.0, 0.0, 0.0];
+    for j in 1..P {
+        let mut saved = 0.0;
+        // Bounded by `P` rather than `j`, as in `basis_values_of`.
+        for r in 0..P {
+            if r < j {
+                let temp = values[r] * (1.0 / (right[r + 1] + left[j - r]));
+                values[r] = saved + right[r + 1] * temp;
+                saved = left[j - r] * temp;
+            }
+        }
+        values[j] = saved;
+    }
+    let mut firsts = [0.0; 4];
+    let mut saved = 0.0;
+    let mut previous = 0.0;
+    for r in 0..P {
+        let temp = values[r] * (1.0 / (right[r + 1] + left[P - r]));
+        values[r] = saved + right[r + 1] * temp;
+        saved = left[P - r] * temp;
+        firsts[r] = P as f64 * (previous - temp);
+        previous = temp;
+    }
+    values[P] = saved;
+    firsts[P] = P as f64 * previous;
+    [values, firsts]
+}
+
 #[inline]
 fn point_sized<const N: usize, G: PolePoint>(knots: &KnotVector, poles: Poles<G>, u: f64) -> G {
     let mut values = [0.0f64; N];
@@ -1105,6 +1170,14 @@ pub(crate) fn derivatives<const ORDER: usize, G: TierPoint>(
     poles: Poles<G>,
     u: f64,
 ) -> [G::Vector; 3] {
+    if ORDER == 1 && !knots.periodic {
+        match knots.degree {
+            1 => return first_of_degree::<1, G>(knots, poles, u),
+            2 => return first_of_degree::<2, G>(knots, poles, u),
+            3 => return first_of_degree::<3, G>(knots, poles, u),
+            _ => {}
+        }
+    }
     if knots.degree < SMALL {
         derivatives_sized::<SMALL, ORDER, G>(knots, poles, u, None)
     } else {
@@ -1167,6 +1240,52 @@ fn derivatives_sized<const N: usize, const ORDER: usize, G: TierPoint>(
         if ORDER >= 2 {
             out[2] = (out[2] - out[1] * (2.0 * w1) - out[0] * w2) * inverse;
         }
+    }
+    out
+}
+
+/// [`derivatives`] of order 1 in a non-periodic direction of degree `P`
+/// (at most 3): the span's poles sliced once and every loop unrolled, the
+/// sums and the quotient rule those of [`derivatives_sized`].
+#[inline(always)]
+#[allow(clippy::needless_range_loop)] // one coordinate index into two sums and the pole
+fn first_of_degree<const P: usize, G: TierPoint>(
+    knots: &KnotVector,
+    poles: Poles<G>,
+    u: f64,
+) -> [G::Vector; 3] {
+    let (first, [values, firsts]) = knots.basis_first_of_degree::<P>(u);
+    let points = &poles.points[first..=first + P];
+    let mut sums = [[0.0f64; 4]; MAX_DERIVATIVE + 1];
+    match poles.weights {
+        None => {
+            for j in 0..=P {
+                let p = points[j];
+                for c in 0..G::DIM {
+                    sums[0][c] += values[j] * G::coord(p, c);
+                    sums[1][c] += firsts[j] * G::coord(p, c);
+                }
+            }
+        }
+        Some(weights) => {
+            let weights = &weights[first..=first + P];
+            for j in 0..=P {
+                let p = points[j];
+                let (b, d) = (values[j] * weights[j], firsts[j] * weights[j]);
+                for c in 0..G::DIM {
+                    sums[0][c] += b * G::coord(p, c);
+                    sums[1][c] += d * G::coord(p, c);
+                }
+                sums[0][3] += b;
+                sums[1][3] += d;
+            }
+        }
+    }
+    let mut out = sums.map(vector_of::<G>);
+    if poles.weights.is_some() {
+        let inverse = 1.0 / sums[0][3];
+        out[0] = out[0] * inverse;
+        out[1] = (out[1] - out[0] * sums[1][3]) * inverse;
     }
     out
 }

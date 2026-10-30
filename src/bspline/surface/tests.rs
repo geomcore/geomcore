@@ -50,6 +50,55 @@ fn test_point_of_low_degrees_matches_general_path() {
     }
 }
 
+#[test]
+fn test_first_derivatives_of_low_degrees_match_general_path_bit_for_bit() {
+    // The unrolled order-1 path sums in the order of the general one, so
+    // they agree exactly; a degree-4 direction takes the general path.
+    for (p, q) in [(1, 3), (2, 2), (3, 1), (3, 3), (2, 4)] {
+        let direction = |degree: usize| {
+            KnotVector::new(
+                degree,
+                vec![0.0, 0.4, 0.55, 1.0],
+                vec![degree as u32 + 1, 1, 1, degree as u32 + 1],
+                false,
+                degree + 3,
+            )
+            .unwrap()
+        };
+        let (u_knots, v_knots) = (direction(p), direction(q));
+        let count = (p + 3) * (q + 3);
+        let poles: Vec<Point> = (0..count)
+            .map(|k| {
+                let (i, j) = ((k / (q + 3)) as f64, (k % (q + 3)) as f64);
+                Point::new(i, j, (0.7 * i + 1.3 * j).sin())
+            })
+            .collect();
+        let weights: Vec<f64> = (0..count).map(|k| 0.6 + 0.2 * (k % 4) as f64).collect();
+        for weights in [None, Some(weights.as_slice())] {
+            let view = Poles {
+                points: &poles,
+                weights,
+            };
+            for a in -1..=21 {
+                for b in -1..=21 {
+                    let (u, v) = (a as f64 / 20.0, b as f64 / 20.0);
+                    let fast = surface_derivatives::<1>(&u_knots, &v_knots, view, u, v);
+                    let general = surface_derivatives_sided::<1>(
+                        &u_knots,
+                        &v_knots,
+                        view,
+                        u,
+                        v,
+                        Side::Above,
+                        Side::Above,
+                    );
+                    assert_eq!(fast, general, "degrees {p} {q} at ({u}, {v})");
+                }
+            }
+        }
+    }
+}
+
 // ---- bilinear patch by hand: the smallest tensor product ----
 
 // Degree-1 x degree-1 patch over the unit square with corner poles
