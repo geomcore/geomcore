@@ -52,9 +52,10 @@ the Python distribution are versioned in lockstep.
   of a B-spline finer than its knot spans against a plane, cylinder or
   extrusion, and a small cap a plane cuts off a torus, were missed and
   are found. Two bounded elementary surfaces, and pairs whose seeds only
-  touch, are left as they were. The search costs up to twice the
-  seeding time of a plane cutting a torus, and 14 % to 30 % on a plane
-  or cylinder against a B-spline patch.
+  touch, are left as they were. The search runs once those seeds are
+  traced, and drops the pairs a traced curve already explains. It costs
+  60 % more seeding time on a plane cutting a torus, and up to 20 % on a
+  plane or cylinder against a B-spline patch.
 - A B-spline curve against an `ExtrusionSurface` or `RevolutionSurface`
   of a bounded profile goes through the proven hull search: its
   completeness is `Complete` or `Incomplete` instead of `Sampled`.

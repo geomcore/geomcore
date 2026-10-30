@@ -18,3 +18,7 @@ The surface pair stays generic over the two surface types, as the functions it r
 - **The touching mode on the pair, or passed by the caller**: rejected. Either way a mode change in the middle of a trace would cross a module seam. On the tracer it is one variable of the step loop.
 - **The pair over `&dyn ParametricSurface`**: rejected. Every evaluation in the correctors would become an indirect call that cannot be inlined, in the innermost loops of the search.
 - **Seeds as plain converged points**: rejected. A patch-pair seed is skipped when an earlier trace already crosses its patches, and is converged only when it is reached; converging every patch-pair seed up front would cost Newton runs the march skips today.
+
+## Amendment, 2026-10-30
+
+ADR 0026 adds a second round to the seeding policy: `seeds` returns the seeds traced first and whether `later_seeds` follows, and `later_seeds` runs the patch-pair search with the curves traced so far, so that it can drop the pairs they already cross. The policy still decides which sources run and in what order; `marching_intersection` traces the two rounds in turn.
