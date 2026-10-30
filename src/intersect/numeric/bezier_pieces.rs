@@ -419,22 +419,21 @@ pub(crate) fn derivative_cones(
         let (_, d) = bspline_surface::derivative_bounds(net, points, rows, cols, h, false);
         return Some([(a, box_spread(a, d[0])), (b, box_spread(b, d[1]))]);
     }
-    let at = |i: usize, j: usize| points[i * cols + j];
-    let s_spread = spread_of_all(
-        a,
-        (0..rows - 1).flat_map(|i| (0..cols).map(move |j| sub(at(i + 1, j), at(i, j)))),
-    )?;
-    let t_spread = spread_of_all(
-        b,
-        (0..rows).flat_map(|i| (0..cols - 1).map(move |j| sub(at(i, j + 1), at(i, j)))),
-    )?;
-    Some([(a, s_spread), (b, t_spread)])
-}
-
-/// The largest distance from `axis` (unit) to the unit `directions`, or
-/// `None` when one of them is zero.
-fn spread_of_all(axis: [f64; 3], mut directions: impl Iterator<Item = [f64; 3]>) -> Option<f64> {
-    directions.try_fold(0.0f64, |s, d| Some(s.max(norm(sub(unit(d)?, axis)))))
+    // The largest distance from `axis` (unit) to the unit differences of
+    // the points `(i + di, j + dj)` and `(i, j)`, or `None` when one of
+    // them is zero. Plain loops, so that they stay inlined whatever the
+    // module layout.
+    let spread = |axis: [f64; 3], (di, dj): (usize, usize)| -> Option<f64> {
+        let mut spread = 0.0f64;
+        for i in 0..rows - di {
+            for j in 0..cols - dj {
+                let d = sub(points[(i + di) * cols + j + dj], points[i * cols + j]);
+                spread = spread.max(norm(sub(unit(d)?, axis)));
+            }
+        }
+        Some(spread)
+    };
+    Some([(a, spread(a, (1, 0))?), (b, spread(b, (0, 1))?)])
 }
 
 /// Whether no tangent plane of one surface piece is parallel to a tangent

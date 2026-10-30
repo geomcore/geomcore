@@ -43,6 +43,8 @@ the Python distribution are versioned in lockstep.
   Results are unchanged.
 - Internal: the swept surfaces reverse and move their profile through
   the traits, so `swept.rs` keeps only the profile geometry.
+- The marching intersection is split into a surface pair, a tracer and a
+  seeding policy (ADR 0025). Its results are unchanged.
 
 ### Deprecated
 
