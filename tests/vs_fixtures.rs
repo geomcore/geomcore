@@ -9,11 +9,10 @@ use common::{
     assert_vector3, frame2, frame3, load, point2, point3, vector3,
 };
 use geomcore::prelude::*;
-use geomcore::surfaces::BSplineSurface;
 use geomcore::{
-    Axis, BSplineCurve, BSplineCurve2D, Circle, Cone, Curve2D, Cylinder, Ellipse, Ellipse2D,
-    Hyperbola, Hyperbola2D, Line, Parabola, Parabola2D, ParametrizeError, Plane, Sphere, Tolerance,
-    Torus, Transform,
+    Axis, BSplineCurve, BSplineCurve2D, BSplineSurface, Circle, Cone, Curve2D, Cylinder, Ellipse,
+    Ellipse2D, Hyperbola, Hyperbola2D, Line, Parabola, Parabola2D, ParametrizeError, Plane, Sphere,
+    Tolerance, Torus, Transform,
 };
 use serde::Deserialize;
 

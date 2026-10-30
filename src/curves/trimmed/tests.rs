@@ -1,5 +1,7 @@
 use super::*;
-use crate::intersect::{curve_curve_extrema, search_curve_curve, search_curve_surface};
+use crate::intersect::curve_curve_extrema;
+use crate::intersect::numeric::curve_curve::search_curve_curve;
+use crate::intersect::numeric::curve_surface::search_curve_surface;
 use crate::{Circle, Circle2D, Ellipse, Sphere};
 use std::f64::consts::{FRAC_PI_2, PI, TAU};
 

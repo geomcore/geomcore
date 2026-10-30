@@ -1,9 +1,9 @@
 //! The expansions of a shape enum's variant list.
 //!
-//! Each shape enum ([`Curve`](crate::curves::Curve) and
-//! [`ElementaryCurve`](crate::curves::ElementaryCurve),
-//! [`Curve2D`](crate::curves::Curve2D), [`Surface`](crate::surfaces::Surface)
-//! and [`ElementarySurface`](crate::surfaces::ElementarySurface)) writes
+//! Each shape enum ([`Curve`](crate::Curve) and
+//! [`ElementaryCurve`](crate::ElementaryCurve),
+//! [`Curve2D`](crate::Curve2D), [`Surface`](crate::Surface)
+//! and [`ElementarySurface`](crate::ElementarySurface)) writes
 //! its variant list once, in a `*_variants!` macro beside the enum, and
 //! every match that forwards a call to the shape a variant holds, and every
 //! `From` impl of a shape, is expanded from that list by the workers here.

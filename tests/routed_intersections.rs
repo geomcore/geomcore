@@ -1,9 +1,7 @@
 //! The routed intersection: exact when a closed form exists, numeric
 //! otherwise, and the result says which method ran.
 
-use geomcore::curves::{Curve, TrimmedCurve, TrimmedCurve2D};
-use geomcore::surfaces::Surface;
-use geomcore::*;
+use geomcore::{Curve, Surface, TrimmedCurve, TrimmedCurve2D, *};
 use std::f64::consts::{PI, TAU};
 
 const TOL: Tolerance = Tolerance::DEFAULT;

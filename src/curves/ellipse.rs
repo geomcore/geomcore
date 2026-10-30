@@ -225,7 +225,7 @@ impl<P: TierPoint> GenericEllipse<P> {
     }
 
     /// The parameter to report for a point found at parameter `u`: `u`
-    /// wrapped into [`bounds`](crate::curves::ParametricCurve::bounds),
+    /// wrapped into [`bounds`](crate::ParametricCurve::bounds),
     /// and the start of the bounds when within `tol.confusion` of the seam
     /// along the curve, so a point at the seam has one parameter.
     pub(crate) fn parameter_in_bounds(&self, u: f64, tol: Tolerance) -> f64 {
@@ -393,8 +393,7 @@ impl Ellipse {
     ///
     /// ```
     /// use geomcore::prelude::*;
-    /// use geomcore::curves::Curve2D;
-    /// use geomcore::{Ellipse, Plane, Point, Tolerance, Vector};
+    /// use geomcore::{Curve2D, Ellipse, Plane, Point, Tolerance, Vector};
     ///
     /// let plane = Plane::new(Point::new(0.0, 0.0, 1.0), Vector::Z).unwrap();
     /// let ellipse = Ellipse::new(Point::new(2.0, 1.0, 1.0), Vector::Z, Vector::X, 3.0, 1.5).unwrap();

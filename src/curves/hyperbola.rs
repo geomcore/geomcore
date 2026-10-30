@@ -361,8 +361,7 @@ impl Hyperbola {
     ///
     /// ```
     /// use geomcore::prelude::*;
-    /// use geomcore::curves::Curve2D;
-    /// use geomcore::{Hyperbola, Plane, Point, Tolerance, Vector};
+    /// use geomcore::{Curve2D, Hyperbola, Plane, Point, Tolerance, Vector};
     ///
     /// let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
     /// let hyperbola = Hyperbola::new(Point::new(1.0, 1.0, 0.0), Vector::Z, Vector::X, 2.0, 1.0).unwrap();

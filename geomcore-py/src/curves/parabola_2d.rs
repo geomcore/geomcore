@@ -2,7 +2,7 @@
 
 use crate::method_sets::*;
 use crate::values::{PyFrame2D, coordinates_2d, float_repr};
-use geomcore::curves::Parabola2D;
+use geomcore::Parabola2D;
 
 /// A parabola in 2D, parametrized so the apex is at parameter 0.
 #[pyclass(name = "Parabola2D", module = "geomcore.curves", eq)]

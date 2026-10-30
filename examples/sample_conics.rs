@@ -4,9 +4,8 @@
 //!
 //! Run with `cargo run --example sample_conics`.
 
-use geomcore::curves::{Circle, Curve2D, Ellipse};
 use geomcore::prelude::*;
-use geomcore::{Cylinder, Point, Tolerance, Vector};
+use geomcore::{Circle, Curve2D, Cylinder, Ellipse, Point, Tolerance, Vector};
 use std::f64::consts::TAU;
 
 const SAMPLE_COUNT: usize = 100;

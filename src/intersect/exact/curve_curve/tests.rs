@@ -1,11 +1,12 @@
 use crate::curves::ParametricCurve;
 use crate::curves::PointExtrema;
 use crate::curves::PointExtrema2D;
+use crate::intersect::numeric::curve_curve::search_curve_curve;
 use crate::{
     Circle, Circle2D, CircleCircle2DIntersection, CircleCircleIntersection, ConicConicIntersection,
     Ellipse, Frame, Hyperbola, IntersectExact, Line, Line2D, LineCircle2DIntersection,
     LineCircleIntersection, LineConicIntersection, LineLine2DIntersection, LineLineIntersection,
-    Parabola, Point, Point2D, Tolerance, Vector, Vector2D, search_curve_curve,
+    Parabola, Point, Point2D, Tolerance, Vector, Vector2D,
 };
 
 #[test]

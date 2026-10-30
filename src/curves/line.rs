@@ -243,8 +243,7 @@ impl Line {
     ///
     /// ```
     /// use geomcore::prelude::*;
-    /// use geomcore::curves::Curve2D;
-    /// use geomcore::{Cylinder, Line, Point, Tolerance, Vector};
+    /// use geomcore::{Curve2D, Cylinder, Line, Point, Tolerance, Vector};
     ///
     /// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
     /// let line = Line::new(Point::new(2.0, 0.0, 0.0), Vector::Z).unwrap();

@@ -3,7 +3,7 @@
 use crate::method_sets::*;
 use crate::parse_parametrization;
 use crate::surfaces::*;
-use geomcore::surfaces::BSplineSurface;
+use geomcore::BSplineSurface;
 
 /// A tensor-product B-spline (optionally rational, optionally periodic) surface.
 #[pyclass(name = "BSplineSurface", module = "geomcore.surfaces", eq)]

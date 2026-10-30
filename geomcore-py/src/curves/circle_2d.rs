@@ -3,7 +3,7 @@
 use crate::curves::*;
 use crate::method_sets::*;
 use crate::values::{PyFrame2D, coordinates_2d, float_repr};
-use geomcore::curves::Circle2D;
+use geomcore::Circle2D;
 
 /// A circle in a surface's 2D (u, v) parameter space.
 #[pyclass(name = "Circle2D", module = "geomcore.curves", eq)]

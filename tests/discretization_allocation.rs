@@ -2,11 +2,10 @@
 //! reuse its buffers across curves and threads (ADR 0004). A test binary
 //! of its own, as it replaces the global allocator.
 
-use geomcore::discretization::DiscretizationCriteria;
 use geomcore::prelude::*;
 use geomcore::{
-    BSplineCurve, Circle, Circle2D, Curve, Curve2D, Ellipse, Point, Point2D, TrimmedCurve,
-    TrimmedCurve2D, Vector,
+    BSplineCurve, Circle, Circle2D, Curve, Curve2D, DiscretizationCriteria, Ellipse, Point,
+    Point2D, TrimmedCurve, TrimmedCurve2D, Vector,
 };
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::cell::Cell;

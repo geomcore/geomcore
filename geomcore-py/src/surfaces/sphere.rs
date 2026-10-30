@@ -3,7 +3,7 @@
 use crate::method_sets::*;
 use crate::surfaces::*;
 use crate::values::{PyFrame, float_repr};
-use geomcore::surfaces::Sphere;
+use geomcore::Sphere;
 
 /// A sphere; u is the longitude in [0, 2*pi), v the latitude in [-pi/2, pi/2].
 #[pyclass(name = "Sphere", module = "geomcore.surfaces", eq)]

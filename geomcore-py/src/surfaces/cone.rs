@@ -3,7 +3,7 @@
 use crate::method_sets::*;
 use crate::surfaces::*;
 use crate::values::{PyFrame, float_repr};
-use geomcore::surfaces::Cone;
+use geomcore::Cone;
 
 /// An infinite cone; u is the angle around the axis, v the distance along a
 /// generator from the reference circle.

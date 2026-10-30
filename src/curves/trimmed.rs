@@ -123,8 +123,7 @@ fn restrict<P: TierPoint>(
 ///
 /// ```
 /// use geomcore::prelude::*;
-/// use geomcore::curves::TrimmedCurve;
-/// use geomcore::{Circle, Point, Tolerance, Vector};
+/// use geomcore::{Circle, Point, Tolerance, TrimmedCurve, Vector};
 /// use std::f64::consts::PI;
 ///
 /// // The upper half of the unit circle.
@@ -157,8 +156,7 @@ impl<C: ParametricCurve> TrimmedCurve<C> {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::curves::{TrimmedCurve, TrimmedCurveConstructionError};
-    /// use geomcore::{Circle, Point, Vector};
+    /// use geomcore::{Circle, Point, TrimmedCurve, TrimmedCurveConstructionError, Vector};
     ///
     /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
     /// // An arc across the seam at angle 0.
@@ -211,8 +209,7 @@ impl<C: ParametricCurve + Into<Curve>> TrimmedCurve<C> {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::curves::TrimmedCurve;
-    /// use geomcore::{Circle, Point, Vector};
+    /// use geomcore::{Circle, Point, TrimmedCurve, Vector};
     ///
     /// let segment = TrimmedCurve::segment(Point::ORIGIN, Point::new(1.0, 0.0, 0.0)).unwrap();
     /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
@@ -248,8 +245,7 @@ impl TrimmedCurve<Line> {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::curves::TrimmedCurve;
-    /// use geomcore::Point;
+    /// use geomcore::{Point, TrimmedCurve};
     ///
     /// let end = Point::new(3.0, 4.0, 0.0);
     /// let segment = TrimmedCurve::segment(Point::ORIGIN, end).unwrap();
@@ -380,8 +376,7 @@ impl<C: PointExtrema> PointExtrema for TrimmedCurve<C> {
 ///
 /// ```
 /// use geomcore::prelude::*;
-/// use geomcore::curves::TrimmedCurve2D;
-/// use geomcore::{Point2D, Tolerance};
+/// use geomcore::{Point2D, Tolerance, TrimmedCurve2D};
 ///
 /// let segment = TrimmedCurve2D::segment(Point2D::ORIGIN, Point2D::new(0.0, 2.0)).unwrap();
 /// assert_eq!(segment.bounds(), (0.0, 2.0));
@@ -402,8 +397,7 @@ impl<C: ParametricCurve2D> TrimmedCurve2D<C> {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::curves::{TrimmedCurve2D, TrimmedCurveConstructionError};
-    /// use geomcore::{Line2D, Point2D, Vector2D};
+    /// use geomcore::{Line2D, Point2D, TrimmedCurve2D, TrimmedCurveConstructionError, Vector2D};
     ///
     /// let line = Line2D::new(Point2D::ORIGIN, Vector2D::X).unwrap();
     /// assert!(TrimmedCurve2D::new(line, -1.0, 1.0).is_ok());

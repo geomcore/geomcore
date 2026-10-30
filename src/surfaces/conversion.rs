@@ -513,8 +513,7 @@ impl ElementarySurface {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::surfaces::ElementarySurface;
-    /// use geomcore::{BSplineConversionError, Plane, Point, Sphere, Vector};
+    /// use geomcore::{BSplineConversionError, ElementarySurface, Plane, Point, Sphere, Vector};
     ///
     /// let sphere = Sphere::new(Point::ORIGIN, 1.0).unwrap();
     /// assert!(ElementarySurface::Sphere(sphere).to_bspline().unwrap().is_u_periodic());
@@ -546,8 +545,7 @@ impl ElementarySurface {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::surfaces::ElementarySurface;
-    /// use geomcore::{Cylinder, Point, Vector};
+    /// use geomcore::{Cylinder, ElementarySurface, Point, Vector};
     ///
     /// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
     /// let surface = ElementarySurface::Cylinder(cylinder);

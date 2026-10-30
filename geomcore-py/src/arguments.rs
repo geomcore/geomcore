@@ -6,10 +6,10 @@
 
 use crate::curves::*;
 use crate::surfaces::*;
-use geomcore::curves::{BSplineCurve, Curve, Curve2D, ElementaryCurve, TrimmedCurve};
 use geomcore::prelude::*;
-use geomcore::surfaces::Surface;
-use geomcore::{Point, Vector};
+use geomcore::{
+    BSplineCurve, Curve, Curve2D, ElementaryCurve, Point, Surface, TrimmedCurve, Vector,
+};
 use pyo3::exceptions::{PyNotImplementedError, PyTypeError};
 use pyo3::prelude::*;
 use pyo3::type_object::PyTypeInfo;

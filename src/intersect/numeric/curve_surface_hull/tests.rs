@@ -1,8 +1,9 @@
 use super::*;
 use crate::Point;
 use crate::curves::{Curve, ParametricCurve, TrimmedCurve};
+use crate::intersect::IncompleteReason;
 use crate::intersect::numeric::curve_surface::sampled_curve_surface;
-use crate::intersect::{IncompleteReason, search_curve_surface};
+use crate::intersect::numeric::curve_surface::search_curve_surface;
 use crate::surfaces::Surface;
 
 const TOL: Tolerance = Tolerance::DEFAULT;

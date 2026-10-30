@@ -2,7 +2,7 @@
 
 use crate::method_sets::*;
 use crate::values::{PyFrame, float_repr};
-use geomcore::curves::Parabola;
+use geomcore::Parabola;
 
 /// A parabola in 3D, parametrized so the apex is at parameter 0.
 #[pyclass(name = "Parabola", module = "geomcore.curves", eq)]

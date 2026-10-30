@@ -278,8 +278,7 @@ impl CurveCurveIntersection {
     ///
     /// ```
     /// use geomcore::prelude::*;
-    /// use geomcore::curves::TrimmedCurve;
-    /// use geomcore::{Circle, Line, Point, Tolerance, Vector};
+    /// use geomcore::{Circle, Line, Point, Tolerance, TrimmedCurve, Vector};
     ///
     /// // An arc across the seam at angle 0 keeps only the hit at angle 0.
     /// let line = Line::new(Point::new(-5.0, 0.0, 0.0), Vector::X).unwrap();
@@ -320,8 +319,7 @@ impl CurveCurveIntersection {
     ///
     /// ```
     /// use geomcore::prelude::*;
-    /// use geomcore::curves::TrimmedCurve;
-    /// use geomcore::{CurveCurveOverlap, Line, Point, Tolerance, Vector};
+    /// use geomcore::{CurveCurveOverlap, Line, Point, Tolerance, TrimmedCurve, Vector};
     ///
     /// // Two segments of one line share x in [1, 2].
     /// let line = Line::new(Point::ORIGIN, Vector::X).unwrap();
@@ -520,8 +518,7 @@ impl CurveCurveIntersection2D {
     ///
     /// ```
     /// use geomcore::prelude::*;
-    /// use geomcore::curves::TrimmedCurve2D;
-    /// use geomcore::{Circle2D, Line2D, Point2D, Tolerance, Vector2D};
+    /// use geomcore::{Circle2D, Line2D, Point2D, Tolerance, TrimmedCurve2D, Vector2D};
     ///
     /// // The segment covers x in [-5, -1], so only the near side is met.
     /// let line = Line2D::new(Point2D::new(-5.0, 0.0), Vector2D::X).unwrap();
@@ -547,8 +544,7 @@ impl CurveCurveIntersection2D {
     ///
     /// ```
     /// use geomcore::prelude::*;
-    /// use geomcore::curves::TrimmedCurve2D;
-    /// use geomcore::{CurveCurveOverlap, Line2D, Point2D, Tolerance, Vector2D};
+    /// use geomcore::{CurveCurveOverlap, Line2D, Point2D, Tolerance, TrimmedCurve2D, Vector2D};
     ///
     /// // Two segments of one line share x in [1, 2]; the second runs backwards.
     /// let forward = Line2D::new(Point2D::ORIGIN, Vector2D::X).unwrap();

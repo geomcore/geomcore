@@ -2,7 +2,7 @@
 //! [`TierPoint`] that names one.
 //!
 //! Each curve type is one generic type over its tier
-//! ([`GenericCircle<P>`](crate::curves::GenericCircle)), and the public
+//! ([`GenericCircle<P>`](crate::GenericCircle)), and the public
 //! names are its two instances: `Circle = GenericCircle<Point>` in space
 //! and `Circle2D = GenericCircle<Point2D>` in the plane.
 

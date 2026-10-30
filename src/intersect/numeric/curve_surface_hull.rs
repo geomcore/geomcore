@@ -21,7 +21,7 @@ use std::ops::Deref;
 
 /// The hits of a numeric curve–surface intersection, ordered by curve
 /// parameter, and whether they are all of them (see
-/// [`search_curve_surface`](crate::search_curve_surface)).
+/// [`search_curve_surface`](super::curve_surface::search_curve_surface)).
 ///
 /// It reads as the slice of its hits.
 #[derive(Debug, Clone, PartialEq)]

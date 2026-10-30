@@ -1,9 +1,7 @@
 //! A Bézier curve or surface is a variant of the shape enums and an
 //! operand of the routed `intersect`, both read as the B-spline it is.
 
-use geomcore::curves::{Curve, Curve2D, TrimmedCurve, TrimmedCurve2D};
-use geomcore::surfaces::Surface;
-use geomcore::*;
+use geomcore::{Curve, Curve2D, Surface, TrimmedCurve, TrimmedCurve2D, *};
 
 const TOL: Tolerance = Tolerance::DEFAULT;
 

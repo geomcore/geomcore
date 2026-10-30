@@ -2,7 +2,7 @@
 
 use crate::method_sets::*;
 use crate::values::{PyAxis2D, coordinates_2d};
-use geomcore::curves::Line2D;
+use geomcore::Line2D;
 
 /// A straight line in a surface's 2D (u, v) parameter space.
 #[pyclass(name = "Line2D", module = "geomcore.curves", eq)]

@@ -2,11 +2,11 @@ use std::f64::consts::{FRAC_PI_4, PI};
 
 use super::*;
 use crate::curves::{Curve, Ellipse, Hyperbola, Line, Parabola};
+use crate::intersect::numeric::curve_curve::search_curve_curve;
 use crate::intersect::numeric::curve_curve::{curve_curve_minima, sampled_curve_curve};
 use crate::intersect::numeric::curve_surface::sampled_curve_surface;
-use crate::intersect::{
-    CurveCurveHit, CurveSurfaceHit, curve_curve_extrema, search_curve_curve, search_curve_surface,
-};
+use crate::intersect::numeric::curve_surface::search_curve_surface;
+use crate::intersect::{CurveCurveHit, CurveSurfaceHit, curve_curve_extrema};
 use crate::surfaces::{Cone, Cylinder, Plane, Sphere, Surface, Torus};
 
 const TOL: Tolerance = Tolerance::DEFAULT;

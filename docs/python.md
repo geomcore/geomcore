@@ -24,8 +24,7 @@ API.
 
     ```rust
     use geomcore::prelude::*;
-    use geomcore::{Point, Vector};
-    use geomcore::curves::Circle;
+    use geomcore::{Circle, Point, Vector};
 
     let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
     let point = circle.eval_point(std::f64::consts::FRAC_PI_4);

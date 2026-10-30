@@ -9,7 +9,7 @@ use crate::{Point2D, Tolerance, Vector2D};
 /// curve type that can be used generically (see [`Curve2D`](crate::Curve2D) for a
 /// heterogeneous-collection adaptor built on top of it).
 ///
-/// Mirrors [`crate::curves::ParametricCurve`] with [`Point2D`]/[`Vector2D`]
+/// Mirrors [`crate::ParametricCurve`] with [`Point2D`]/[`Vector2D`]
 /// in place of `Point`/`Vector`, and is likewise the only home of the
 /// shared vocabulary of 2D curves (ADR 0015). Bring it into scope with
 /// `use geomcore::prelude::*`.
@@ -49,7 +49,7 @@ pub trait ParametricCurve2D {
     /// Evaluates the derivative of the given `order` at parameter `u`.
     ///
     /// Every curve accepts any order from 1 up, as
-    /// [`ParametricCurve::eval_derivative`](crate::curves::ParametricCurve::eval_derivative)
+    /// [`ParametricCurve::eval_derivative`](crate::ParametricCurve::eval_derivative)
     /// does.
     ///
     /// # Panics
@@ -136,7 +136,7 @@ pub trait ParametricCurve2D {
     /// right, zero on a straight line. A [`Circle2D`](crate::Circle2D) with a direct frame
     /// has curvature `1/r`, one with an indirect frame `−1/r`.
     ///
-    /// The 3D [`curvature`](crate::curves::ParametricCurve::curvature) is
+    /// The 3D [`curvature`](crate::ParametricCurve::curvature) is
     /// unsigned: in space there is no side to turn toward.
     ///
     /// At an interior knot where a B-spline is only tangent-continuous,
@@ -311,26 +311,11 @@ pub trait ParametricCurve2D {
         Continuity::Smooth
     }
 
-    /// The B-spline this curve evaluates: the curve itself, or the basis
-    /// of a trimmed B-spline, of which the curve is the piece over
-    /// [`bounds`](Self::bounds). `None` for any other curve. Default
-    /// implementation: `None`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::curves::TrimmedCurve2D;
-    /// use geomcore::prelude::*;
-    /// use geomcore::{BSplineCurve2D, Line2D, Point2D, Vector2D};
-    ///
-    /// let poles = vec![Point2D::ORIGIN, Point2D::new(2.0, 0.0)];
-    /// let curve = BSplineCurve2D::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
-    /// let piece = TrimmedCurve2D::new(&curve, 0.25, 0.5).unwrap();
-    /// assert_eq!(piece.as_bspline(), Some(&curve));
-    ///
-    /// let line = Line2D::new(Point2D::ORIGIN, Vector2D::X).unwrap();
-    /// assert_eq!(line.as_bspline(), None);
-    /// ```
+    /// Routing hook of the numeric search, hidden from the documentation: the
+    /// B-spline this curve evaluates (the curve itself, or the basis of a
+    /// trimmed B-spline). `None` for any other curve, the default. A type that
+    /// wraps another curve forwards it, as `TrimmedCurve2D` does (ADR 0022).
+    #[doc(hidden)]
     fn as_bspline(&self) -> Option<&BSplineCurve2D> {
         None
     }
@@ -346,7 +331,7 @@ fn regular_speed(first_derivative: Vector2D, width: f64, tol: Tolerance) -> Opti
 
 /// Distance extrema from a point to a 2D curve, and the projection,
 /// containment and inversion queries built on them. Mirrors
-/// [`crate::curves::PointExtrema`].
+/// [`crate::PointExtrema`].
 ///
 /// # Examples
 ///
@@ -414,7 +399,7 @@ pub trait PointExtrema2D: ParametricCurve2D {
 
     /// The parameter of `point`, a point on the curve, under the contract
     /// of
-    /// [`PointExtrema::parameter_of`](crate::curves::PointExtrema::parameter_of):
+    /// [`PointExtrema::parameter_of`](crate::PointExtrema::parameter_of):
     /// the parameter of [`project_point`](Self::project_point) by
     /// default, a closed-form inversion that ignores `tol` on an
     /// elementary curve.
@@ -424,7 +409,7 @@ pub trait PointExtrema2D: ParametricCurve2D {
 }
 
 /// A reference to a curve is the curve, so a
-/// [`TrimmedCurve2D`](crate::curves::TrimmedCurve2D) can borrow its
+/// [`TrimmedCurve2D`](crate::TrimmedCurve2D) can borrow its
 /// basis instead of owning it.
 impl<C: ParametricCurve2D + ?Sized> ParametricCurve2D for &C {
     fn eval_point(&self, u: f64) -> Point2D {

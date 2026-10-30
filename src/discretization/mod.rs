@@ -1,23 +1,7 @@
 //! Discretization: points on a bounded curve, in order of parameter,
 //! joined by straight segments, each segment carrying a proven chord
-//! deviation and angle deviation (see `CONTEXT.md`).
-//!
-//! The work is done in two steps, so a caller controls memory and threads:
-//! [`Discretize::point_count`] counts the points for the given criteria,
-//! and [`Discretize::discretize_into`] writes exactly that many into
-//! slices the caller owns, without allocating. [`Discretize::discretize`]
-//! wraps both and allocates the result.
-//!
-//! Ranges are given by trimmed curves: an infinite line, parabola or
-//! hyperbola has no discretization until it is trimmed.
-//!
-//! ```compile_fail
-//! use geomcore::discretization::{DiscretizationCriteria, Discretize};
-//! use geomcore::{Line, Point, Vector};
-//!
-//! let line = Line::new(Point::ORIGIN, Vector::X).unwrap();
-//! line.discretize(DiscretizationCriteria::new(0.1).unwrap());
-//! ```
+//! deviation and angle deviation (see `CONTEXT.md`). The traits, their
+//! results and their criteria; the impls are grouped by family below.
 
 mod bspline;
 mod elementary;
@@ -69,12 +53,12 @@ impl std::error::Error for DiscretizationCriteriaError {}
 /// # Examples
 ///
 /// ```
-/// use geomcore::discretization::DiscretizationCriteria;
+/// use geomcore::DiscretizationCriteria;
 ///
 /// let criteria = DiscretizationCriteria::new(1e-3)?.with_max_angle_deviation(0.1)?;
 /// assert_eq!(criteria.max_chord_deviation(), 1e-3);
 /// assert_eq!(criteria.max_angle_deviation(), Some(0.1));
-/// # Ok::<(), geomcore::discretization::DiscretizationCriteriaError>(())
+/// # Ok::<(), geomcore::DiscretizationCriteriaError>(())
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct DiscretizationCriteria {
@@ -174,6 +158,23 @@ pub struct Discretization {
 /// three segments. The same curve and criteria always give the same
 /// points.
 ///
+/// The work is done in two steps, so a caller controls memory and threads:
+/// [`point_count`](Self::point_count) counts the points for the given
+/// criteria, and [`discretize_into`](Self::discretize_into) writes exactly
+/// that many into slices the caller owns, without allocating.
+/// [`discretize`](Self::discretize) wraps both and allocates the result.
+///
+/// Ranges are given by trimmed curves: an infinite line, parabola or
+/// hyperbola has no discretization until it is trimmed.
+///
+/// ```compile_fail
+/// use geomcore::prelude::*;
+/// use geomcore::{DiscretizationCriteria, Line, Point, Vector};
+///
+/// let line = Line::new(Point::ORIGIN, Vector::X).unwrap();
+/// line.discretize(DiscretizationCriteria::new(0.1).unwrap());
+/// ```
+///
 /// Elementary curves are split into equal parameter steps, the fewest the
 /// closed-form deviations allow. B-splines are split per knot span, on the
 /// span's Bézier control points: a piece is halved while that saves
@@ -190,8 +191,7 @@ pub struct Discretization {
 ///
 /// ```
 /// use geomcore::prelude::*;
-/// use geomcore::discretization::DiscretizationCriteria;
-/// use geomcore::{Circle, Point, Vector};
+/// use geomcore::{Circle, DiscretizationCriteria, Point, Vector};
 ///
 /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
 /// let criteria = DiscretizationCriteria::new(1e-3).unwrap();
@@ -276,8 +276,7 @@ pub struct Discretization2D {
 ///
 /// ```
 /// use geomcore::prelude::*;
-/// use geomcore::discretization::DiscretizationCriteria;
-/// use geomcore::{Circle2D, Line2D, Point2D, TrimmedCurve2D, Vector2D};
+/// use geomcore::{Circle2D, DiscretizationCriteria, Line2D, Point2D, TrimmedCurve2D, Vector2D};
 ///
 /// let criteria = DiscretizationCriteria::new(1e-3).unwrap();
 /// let circle = Circle2D::new(Point2D::ORIGIN, 1.0).unwrap();

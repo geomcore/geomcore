@@ -22,11 +22,11 @@
 use criterion::{Criterion, Throughput, criterion_group, criterion_main};
 use std::hint::black_box;
 
-use geomcore::curves::{TrimmedCurve, TrimmedCurve2D};
 use geomcore::prelude::*;
 use geomcore::{
     BSplineCurve, BSplineCurve2D, Circle, Circle2D, Ellipse, Ellipse2D, Hyperbola2D, Line, Line2D,
-    Parabola2D, Point, Point2D, Tolerance, Vector, Vector2D, curve_curve_extrema,
+    Parabola2D, Point, Point2D, Tolerance, TrimmedCurve, TrimmedCurve2D, Vector, Vector2D,
+    curve_curve_extrema,
 };
 
 const PAIRS: usize = 64;

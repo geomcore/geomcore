@@ -10,7 +10,7 @@ terms (elementary, exact, numeric, completeness, and so on) are defined in
 
 ```text
 src/
-├── lib.rs               crate docs and the flat re-exports (geomcore::Line, …)
+├── lib.rs               crate docs and the flat re-exports: each item's one public path
 ├── prelude.rs           the shape and operation traits, for `use geomcore::prelude::*`
 ├── point.rs vector.rs   Point/Point2D, Vector/Vector2D
 ├── frame.rs             Axis, Frame and their 2D forms: where a shape is placed
@@ -69,6 +69,13 @@ Outside `src/`:
 
 ## Placement rules
 
+Every public item has one path, at the crate root. The folders are
+private modules; `lib.rs` re-exports each public item (`geomcore::Line`,
+never `geomcore::curves::Line`), and `prelude` re-exports the traits.
+Moving a file between folders is therefore never a public change
+(ADR 0022). Doc examples, tests, benches and the bindings use the flat
+paths.
+
 1. **One public type per file, named after the type.** A curve type is one
    generic type over its tier (ADR 0014): `GenericEllipse`, with its aliases
    `Ellipse` and `Ellipse2D`, lives in `curves/ellipse.rs`, and its 2D unit
@@ -99,7 +106,7 @@ Outside `src/`:
    result type `LinePlaneIntersection`. The general results that `Intersect`
    returns live in `intersect/results/`.
 5. **Internal math sits under the shapes.** `elementary/`, `bspline/` and
-   `math/` are `pub(crate)`. They work on poles, knots and numbers,
+   `math/` re-export nothing from `lib.rs`. They work on poles, knots and numbers,
    not on the public shape types; a shape calls into them, never the
    other way round.
 6. **Unit tests live in a sibling `tests.rs`.** `curves/line.rs` ends with
@@ -114,7 +121,8 @@ Outside `src/`:
   constructor error and its shape-trait impls. A curve that exists in both
   tiers is one `Generic<Name><P: TierPoint>` with the aliases `<Name>` and
   `<Name>2D`.
-- Re-export it from the folder's `mod.rs` and from `lib.rs`.
+- Re-export it from the folder's `mod.rs` and from `lib.rs`, its one
+  public path.
 - Add it as a variant of the `Curve`/`ElementaryCurve` (or `Surface`) enum,
   and as one line in that enum's `*_variants!` list beside it: every
   forwarding method and `From` impl follows from the list (ADR 0017), and

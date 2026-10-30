@@ -486,7 +486,7 @@ pub trait ParametricSurface {
 
     /// The parameters `(u, v)` of `point`, a point on the surface, under
     /// the contract of
-    /// [`PointExtrema::parameter_of`](crate::curves::PointExtrema::parameter_of):
+    /// [`PointExtrema::parameter_of`](crate::PointExtrema::parameter_of):
     /// the parameters of [`project_point`](Self::project_point) by
     /// default, a closed-form inversion that ignores `tol` on an
     /// elementary surface.
@@ -507,59 +507,20 @@ pub trait ParametricSurface {
         (projection.u, projection.v)
     }
 
-    /// The surface as a B-spline, or `None` for any other surface.
-    ///
-    /// The numeric search behind
-    /// [`Intersect::intersect`](crate::Intersect::intersect) uses it
-    /// to work on the B-spline's polynomial patches. Default
-    /// implementation: `None`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::prelude::*;
-    /// use geomcore::surfaces::{BSplineSurface, Surface};
-    /// use geomcore::{Plane, Point, Vector};
-    ///
-    /// let poles = vec![
-    ///     vec![Point::new(0.0, 0.0, 0.0), Point::new(0.0, 1.0, 0.0)],
-    ///     vec![Point::new(1.0, 0.0, 0.0), Point::new(1.0, 1.0, 0.0)],
-    /// ];
-    /// let (knots, mults) = (vec![0.0, 1.0], vec![2, 2]);
-    /// let patch =
-    ///     BSplineSurface::new(1, 1, poles, knots.clone(), mults.clone(), knots, mults, false, false)
-    ///         .unwrap();
-    /// let surface = Surface::from(&patch);
-    /// assert_eq!(surface.as_bspline(), Some(&patch));
-    ///
-    /// let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
-    /// assert_eq!(plane.as_bspline(), None);
-    /// ```
+    /// Routing hook of the numeric search, hidden from the documentation: the
+    /// surface as a B-spline, so that the search works on its polynomial
+    /// patches. `None` for any other surface, the default. A type that wraps
+    /// another surface forwards it (ADR 0022).
+    #[doc(hidden)]
     fn as_bspline(&self) -> Option<&BSplineSurface> {
         None
     }
 
-    /// The surface as an elementary surface, or `None` for any other
-    /// surface.
-    ///
-    /// The numeric search behind
-    /// [`Intersect::intersect`](crate::Intersect::intersect) uses it
-    /// to convert the surface to an exact B-spline when the curve is one.
-    /// Default implementation: `None`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::prelude::*;
-    /// use geomcore::surfaces::ElementarySurface;
-    /// use geomcore::{Point, Sphere};
-    ///
-    /// let sphere = Sphere::new(Point::ORIGIN, 1.0).unwrap();
-    /// assert_eq!(
-    ///     sphere.as_elementary(),
-    ///     Some(ElementarySurface::Sphere(sphere))
-    /// );
-    /// ```
+    /// Routing hook of the numeric search, hidden from the documentation: the
+    /// surface as an elementary surface, so that the search can convert it to
+    /// an exact B-spline when the curve is one. `None` for any other surface,
+    /// the default. A type that wraps another surface forwards it (ADR 0022).
+    #[doc(hidden)]
     fn as_elementary(&self) -> Option<ElementarySurface> {
         None
     }

@@ -3,7 +3,7 @@
 use crate::curves::*;
 use crate::method_sets::*;
 use crate::parse_parametrization;
-use geomcore::curves::BSplineCurve2D;
+use geomcore::BSplineCurve2D;
 
 /// A B-spline (optionally rational, optionally periodic) curve in 2D: the
 /// planar counterpart of `BSplineCurve`.

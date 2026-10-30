@@ -13,10 +13,8 @@ use crate::intersect::{
 };
 use crate::math::boxtree::{Aabb, boxes_apart};
 use crate::math::{solve_2x2, solve_3x3, solve_4x4};
-use crate::surfaces::{
-    BSplineSurface, ElementarySurface, ParametricSurface, Surface, partials_span_a_plane,
-    reference_widths,
-};
+use crate::surfaces::parametric_surface::{partials_span_a_plane, reference_widths};
+use crate::surfaces::{BSplineSurface, ElementarySurface, ParametricSurface, Surface};
 use crate::{BoundingBox, HasBoundingBox, Point, Tolerance, Vector};
 
 /// Marching surface-surface intersection for any two parametric surfaces.

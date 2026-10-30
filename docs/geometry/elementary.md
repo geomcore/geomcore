@@ -59,8 +59,7 @@ space.
 
     ```rust
     use geomcore::prelude::*;
-    use geomcore::{Point, Tolerance, Vector};
-    use geomcore::curves::Line;
+    use geomcore::{Line, Point, Tolerance, Vector};
 
     let line = Line::new(Point::ORIGIN, Vector::Z).unwrap();
     let p = line.eval_point(2.0); // parameter -> 3D point
@@ -98,7 +97,7 @@ conic whose parameter is proportional to distance travelled.
 === "Rust"
 
     ```rust
-    use geomcore::curves::Circle;
+    use geomcore::Circle;
 
     let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
     let p = circle.eval_point(1.0); // parameter -> 3D point
@@ -138,7 +137,7 @@ of the major axis.
 === "Rust"
 
     ```rust
-    use geomcore::curves::Ellipse;
+    use geomcore::Ellipse;
 
     let ellipse = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 3.0, 1.0).unwrap();
     let p = ellipse.eval_point(1.0); // parameter -> 3D point
@@ -175,7 +174,7 @@ mirror branch is a second curve no value of $u$ reaches.
 === "Rust"
 
     ```rust
-    use geomcore::curves::Hyperbola;
+    use geomcore::Hyperbola;
 
     let hyp = Hyperbola::new(Point::ORIGIN, Vector::Z, Vector::X, 2.0, 1.0).unwrap();
     let p = hyp.eval_point(1.0); // parameter -> 3D point
@@ -213,7 +212,7 @@ $(f, 0)$, directrix $x = -f$.
 === "Rust"
 
     ```rust
-    use geomcore::curves::Parabola;
+    use geomcore::Parabola;
 
     let parab = Parabola::new(Point::ORIGIN, Vector::Z, Vector::X, 1.5).unwrap();
     let p = parab.eval_point(2.0); // parameter -> 3D point
@@ -258,7 +257,7 @@ periodicity, no degenerate point.
 === "Rust"
 
     ```rust
-    use geomcore::surfaces::Plane;
+    use geomcore::Plane;
 
     let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
     let p = plane.eval_point(1.0, 2.0); // parameters -> 3D point
@@ -296,7 +295,7 @@ not the same kind of quantity.
 === "Rust"
 
     ```rust
-    use geomcore::surfaces::Cylinder;
+    use geomcore::Cylinder;
 
     let cyl = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
     let p = cyl.eval_point(1.0, 2.0); // parameters -> 3D point
@@ -339,7 +338,7 @@ parameter plane instead; the article compares both.
 === "Rust"
 
     ```rust
-    use geomcore::surfaces::Cone;
+    use geomcore::Cone;
 
     let cone = Cone::new(Point::ORIGIN, Vector::Z, 0.4887, 4.0).unwrap();
     let p = cone.eval_point(1.0, 2.0); // parameters -> 3D point
@@ -386,7 +385,7 @@ circle of longitudes collapses onto the axis.
 === "Rust"
 
     ```rust
-    use geomcore::surfaces::Sphere;
+    use geomcore::Sphere;
 
     let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
     let p = sphere.eval_point(0.5, 0.3); // parameters -> 3D point
@@ -428,7 +427,7 @@ rectangle of the five.
 === "Rust"
 
     ```rust
-    use geomcore::surfaces::Torus;
+    use geomcore::Torus;
 
     let torus = Torus::new(Point::ORIGIN, Vector::Z, 5.0, 1.5).unwrap();
     let p = torus.eval_point(0.5, 1.0); // parameters -> 3D point

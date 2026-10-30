@@ -9,39 +9,37 @@
 //!
 //! # Namespace layout
 //!
-//! - The crate root re-exports the placement and value types shared by
-//!   everything else: [`Point`]/[`Point2D`], [`Vector`]/[`Vector2D`],
-//!   [`Axis`]/[`Axis2D`], [`Frame`]/[`Frame2D`], and [`Transform`].
-//! - [`curves`] holds the 3D and 2D curve types ([`curves::Line`],
-//!   [`curves::Circle`], [`curves::Ellipse`], [`curves::Parabola`],
-//!   [`curves::Hyperbola`], [`curves::BSplineCurve`], [`curves::BezierCurve`],
-//!   [`curves::Line2D`], [`curves::Circle2D`], [`curves::Ellipse2D`],
-//!   [`curves::Parabola2D`], [`curves::Hyperbola2D`], [`curves::BSplineCurve2D`],
-//!   [`curves::BezierCurve2D`]), the [`curves::Curve`]/[`curves::Curve2D`]
-//!   enum adaptors, the
-//!   [`curves::TrimmedCurve`]/[`curves::TrimmedCurve2D`] pieces of a
-//!   curve over a parameter range (segments, arcs), and the
-//!   [`curves::ParametricCurve`]/[`curves::ParametricCurve2D`] traits.
-//! - [`surfaces`] holds the five elementary surfaces
-//!   ([`surfaces::Plane`], [`surfaces::Cylinder`], [`surfaces::Cone`],
-//!   [`surfaces::Sphere`], [`surfaces::Torus`]) plus
-//!   [`surfaces::BSplineSurface`], [`surfaces::BezierSurface`], the
-//!   [`surfaces::Surface`] enum adaptor,
-//!   and the [`surfaces::ParametricSurface`] trait.
-//! - [`bounding_box`] holds [`BoundingBox`] and the [`HasBoundingBox`] trait,
-//!   through which curves and surfaces report the axis-aligned box
-//!   bounding them.
-//! - [`prelude`] re-exports the shape and operation traits. Every method
-//!   that more than one type answers is a trait method, documented once
-//!   on the trait, so `use geomcore::prelude::*` brings them all into
-//!   scope.
+//! Every type, trait and function has one path, at the crate root:
+//! `geomcore::Line`, `geomcore::BSplineSurface`,
+//! `geomcore::CurveSurfaceIntersection`. The folders of the source are
+//! private, so moving a file is never a breaking change.
+//!
+//! - The values and placements: [`Point`]/[`Point2D`],
+//!   [`Vector`]/[`Vector2D`], [`Axis`]/[`Axis2D`], [`Frame`]/[`Frame2D`],
+//!   [`Transform`] and [`Tolerance`].
+//! - The curves, in space and in the plane: [`Line`], [`Circle`],
+//!   [`Ellipse`], [`Parabola`], [`Hyperbola`], [`BSplineCurve`] and
+//!   [`BezierCurve`], their 2D forms ([`Line2D`], …, [`BezierCurve2D`]),
+//!   the [`Curve`]/[`Curve2D`] enums, and the
+//!   [`TrimmedCurve`]/[`TrimmedCurve2D`] pieces of a curve over a
+//!   parameter range (segments, arcs).
+//! - The surfaces: [`Plane`], [`Cylinder`], [`Cone`], [`Sphere`],
+//!   [`Torus`], [`BSplineSurface`], [`BezierSurface`] and the [`Surface`]
+//!   enum.
+//! - The results of the operations: [`BoundingBox`], [`Discretization`],
+//!   [`CurveProjection`], [`CurveCurveIntersection`] and the other
+//!   intersection results.
+//! - [`prelude`] re-exports the shape and operation traits
+//!   ([`ParametricCurve`], [`ParametricSurface`], [`HasBoundingBox`],
+//!   [`Discretize`], [`Intersect`], …). Every method that more than one
+//!   type answers is a trait method, documented once on the trait, so
+//!   `use geomcore::prelude::*` brings them all into scope.
 //!
 //! # Quick start
 //!
 //! ```
 //! use geomcore::prelude::*;
-//! use geomcore::{Cylinder, Point, Tolerance, Vector};
-//! use geomcore::curves::Circle;
+//! use geomcore::{Circle, Cylinder, Point, Tolerance, Vector};
 //!
 //! // Evaluate a circle at a single parameter, and over a batch of parameters.
 //! let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
@@ -62,12 +60,18 @@
 //! every supported pair of curves and surfaces, in either order: it solves
 //! the pair exactly when a closed form exists and runs a numeric search
 //! otherwise, and the result says which method ran and whether it found
-//! every hit.
+//! every hit. The curve results ([`CurveCurveIntersection`],
+//! [`CurveCurveIntersection2D`], [`CurveSurfaceIntersection`]) carry the
+//! hits, the overlaps, the method ([`IntersectionMethod`]) and the
+//! [`Completeness`]; [`SurfaceSurfaceIntersection`] carries the curves,
+//! the contact points and whether the surfaces coincide.
 //!
 //! ```
 //! use geomcore::prelude::*;
-//! use geomcore::curves::TrimmedCurve;
-//! use geomcore::{BSplineCurve, Completeness, IntersectionMethod, Line, Point, Sphere, Tolerance, Vector};
+//! use geomcore::{
+//!     BSplineCurve, Completeness, IntersectionMethod, Line, Point, Sphere, Tolerance,
+//!     TrimmedCurve, Vector,
+//! };
 //!
 //! let tol = Tolerance::DEFAULT;
 //! let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
@@ -103,8 +107,7 @@
 //!
 //! ```
 //! use geomcore::prelude::*;
-//! use geomcore::{PlaneSphereIntersection, Point, Vector};
-//! use geomcore::surfaces::{Plane, Sphere};
+//! use geomcore::{Plane, PlaneSphereIntersection, Point, Sphere, Vector};
 //!
 //! let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
 //! let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
@@ -115,17 +118,17 @@
 //! assert_eq!(sphere.intersect_exact(&plane, tol), PlaneSphereIntersection::Circle(circle));
 //! ```
 //!
-//! It takes concrete types only. Between [`surfaces::Surface`] or
-//! [`curves::Curve`] values, whose kind is only known at run time,
+//! It takes concrete types only. Between [`Surface`] or [`Curve`]
+//! values, whose kind is only known at run time,
 //! [`Intersect::intersect`] gives the answer: exact when a closed form
 //! exists, numeric otherwise.
 //!
 //! # Extending the kernel
 //!
 //! New curve or surface types are added by implementing
-//! [`curves::ParametricCurve`] (or [`curves::ParametricCurve2D`]) and
-//! [`surfaces::ParametricSurface`] respectively, without touching the
-//! existing dispatch code in [`curves::Curve`]/[`surfaces::Surface`].
+//! [`ParametricCurve`] (or [`ParametricCurve2D`]) and
+//! [`ParametricSurface`] respectively, without touching the existing
+//! dispatch code in [`Curve`]/[`Surface`].
 //! Such types are intersected by [`intersect_curve_curve`] and
 //! [`intersect_curve_surface`], which run the numeric search on any
 //! curve and surface and return the same result types as
@@ -133,42 +136,42 @@
 #![warn(missing_docs)]
 
 /// Axis-aligned bounding boxes of curves and surfaces.
-pub mod bounding_box;
+mod bounding_box;
 /// Internal B-spline engine: poles, evaluation, editing, surfaces.
-pub(crate) mod bspline;
-/// Public curve types: lines, conics, and B-spline curves.
-pub mod curves;
+mod bspline;
+/// The curve types: lines, conics, B-spline and Bézier curves.
+mod curves;
 /// Discretization of curves into points joined by straight segments, with
 /// proven chord and angle deviations.
-pub mod discretization;
+mod discretization;
 /// Internal closed-form formulas of the elementary curves and surfaces.
-pub(crate) mod elementary;
+mod elementary;
 /// Axis and frame placement types.
-pub mod frame;
+mod frame;
 /// Intersections of curves and surfaces: the routed [`Intersect`], the
 /// typed exact [`IntersectExact`], and their results.
-pub mod intersect;
+mod intersect;
 /// Internal numerical toolbox (polynomial roots, Newton, Brent).
-pub(crate) mod math;
+mod math;
 /// Points in 2D and 3D space.
-pub mod point;
+mod point;
 /// The shape and operation traits, for `use geomcore::prelude::*`.
 pub mod prelude;
 /// Point-projection result types.
-pub mod projection;
+mod projection;
 /// Internal macros that expand the variant list of each shape enum.
-pub(crate) mod shape_enum;
-/// Public surface types: planes, cylinders, cones, spheres, tori, and
-/// B-spline surfaces.
-pub mod surfaces;
+mod shape_enum;
+/// The surface types: planes, cylinders, cones, spheres, tori, B-spline
+/// and Bézier surfaces.
+mod surfaces;
 /// The two tiers of curves, space and the plane, and the trait naming one.
-pub mod tier;
+mod tier;
 /// Distance and angle tolerances shared by all geometric queries.
-pub mod tolerance;
+mod tolerance;
 /// Rigid and affine transformations.
-pub mod transform;
+mod transform;
 /// Vectors in 2D and 3D space.
-pub mod vector;
+mod vector;
 
 pub use bounding_box::{BoundingBox, BoundingBox2D, HasBoundingBox, HasBoundingBox2D};
 pub use curves::{
@@ -210,8 +213,6 @@ pub use intersect::{
 };
 pub use intersect::{InlineList, Intersect, IntersectExact};
 pub use intersect::{intersect_curve_curve, intersect_curve_surface};
-#[cfg(test)]
-pub(crate) use intersect::{search_curve_curve, search_curve_surface};
 pub use point::{Point, Point2D};
 pub use projection::{CurveProjection, CurveProjection2D, SurfaceProjection};
 pub use surfaces::{

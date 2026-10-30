@@ -412,8 +412,7 @@ impl Circle {
     ///
     /// ```
     /// use geomcore::prelude::*;
-    /// use geomcore::curves::Curve2D;
-    /// use geomcore::{Circle, Cylinder, Point, Tolerance, Vector};
+    /// use geomcore::{Circle, Curve2D, Cylinder, Point, Tolerance, Vector};
     ///
     /// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
     /// let circle = Circle::new(Point::new(0.0, 0.0, 3.0), Vector::Z, 2.0).unwrap();

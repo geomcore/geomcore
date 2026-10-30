@@ -54,8 +54,7 @@ pub(crate) use curve_2d_dispatch;
 ///
 /// ```
 /// use geomcore::prelude::*;
-/// use geomcore::curves::Curve2D;
-/// use geomcore::{BSplineCurve2D, Circle2D, Line2D, Point2D, Vector2D};
+/// use geomcore::{BSplineCurve2D, Circle2D, Curve2D, Line2D, Point2D, Vector2D};
 ///
 /// let curves: Vec<Curve2D> = vec![
 ///     Line2D::new(Point2D::ORIGIN, Vector2D::X).unwrap().into(),
@@ -71,7 +70,7 @@ pub(crate) use curve_2d_dispatch;
 /// let points: Vec<Point2D> = curves.iter().map(|c| c.eval_point(0.0)).collect();
 /// assert_eq!(points[0], Point2D::ORIGIN);
 /// assert_eq!(points[1], Point2D::new(1.0, 0.0));
-/// # Ok::<(), geomcore::curves::BSplineConstructionError>(())
+/// # Ok::<(), geomcore::BSplineConstructionError>(())
 /// ```
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]

@@ -2,7 +2,7 @@
 
 use crate::method_sets::*;
 use crate::values::PyAxis;
-use geomcore::curves::Line;
+use geomcore::Line;
 
 /// An infinite straight line in 3D, parametrized by arc length from its origin.
 #[pyclass(name = "Line", module = "geomcore.curves", eq)]

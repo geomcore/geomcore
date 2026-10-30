@@ -1,43 +1,10 @@
-//! Intersections of curves and surfaces, and their results.
-//!
-//! [`Intersect::intersect`] is the entry point: it solves a pair exactly
-//! when a closed form exists and runs a numeric search otherwise. Its
-//! family results ([`CurveCurveIntersection`],
-//! [`CurveCurveIntersection2D`], [`CurveSurfaceIntersection`]) carry the
-//! hits, the overlaps, the method that ran ([`IntersectionMethod`]) and
-//! whether every hit was found ([`Completeness`]); for two surfaces,
-//! [`SurfaceSurfaceIntersection`] carries the curves, the contact points
-//! and whether the surfaces coincide. A hit stores the
-//! parameters the solver computed on its way to the point and leaves the
-//! others `None`, for the caller to recover with the operand's
-//! `parameter_of` or `parameters_of` when it needs them.
-//!
-//! ```
-//! use geomcore::prelude::*;
-//! use geomcore::{Circle, Completeness, IntersectionMethod, Line, Point};
-//! use geomcore::{Tolerance, Vector};
-//!
-//! let line = Line::new(Point::new(-5.0, 0.0, 0.0), Vector::X).unwrap();
-//! let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
-//! let result = line.intersect(&circle, Tolerance::DEFAULT);
-//! assert_eq!(result.method(), IntersectionMethod::Exact);
-//! assert_eq!(result.completeness(), &Completeness::Complete);
-//! assert_eq!(result.hits().len(), 2);
-//! ```
-//!
-//! [`IntersectExact::intersect_exact`] is the typed fast path. On two
-//! elementary curves or surfaces it returns one of the pair's own enums:
-//! the intersecting geometry on success, or an explicit classification
-//! when the pair is tangent, disjoint, parallel, or coincident. Tangency
-//! and coincidence are decided with [`crate::Tolerance`], so
-//! near-degenerate configurations classify robustly instead of collapsing
-//! to noise. It recovers no parameters it does not need and never falls
-//! back to a numeric search. When the types are only known at run time,
-//! [`Intersect::intersect`] on [`crate::surfaces::Surface`],
-//! [`crate::curves::Curve`] or their elementary enums gives the answer.
+//! Intersections of curves and surfaces, by method (ADR 0011): the routed
+//! [`Intersect`] in `routing`, the typed exact [`IntersectExact`] and its
+//! solvers in `exact`, the numeric searches in `numeric`, and the results
+//! in `results`. The user-facing overview is in the crate documentation.
 
 mod exact;
-mod numeric;
+pub(crate) mod numeric;
 mod results;
 mod routing;
 pub use exact::IntersectExact;
@@ -63,12 +30,8 @@ pub use exact::surface_surface::{
 };
 pub use numeric::curve_curve::curve_curve_extrema;
 pub use numeric::curve_curve::intersect_curve_curve;
-#[cfg(test)]
-pub(crate) use numeric::curve_curve::search_curve_curve;
 pub use numeric::curve_curve_hull::{CurveCurveExtrema, CurveCurveRegion};
 pub use numeric::curve_surface::intersect_curve_surface;
-#[cfg(test)]
-pub(crate) use numeric::curve_surface::search_curve_surface;
 pub use numeric::curve_surface_hull::CurveSurfaceRegion;
 pub use results::completeness::{Completeness, IncompleteReason};
 pub(crate) use results::curve_surface_multiplicity;

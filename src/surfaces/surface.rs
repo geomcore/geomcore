@@ -74,8 +74,7 @@ pub(crate) use elementary_surface_dispatch;
 ///
 /// ```
 /// use geomcore::prelude::*;
-/// use geomcore::surfaces::Surface;
-/// use geomcore::{Plane, Point, Sphere, Vector};
+/// use geomcore::{Plane, Point, Sphere, Surface, Vector};
 ///
 /// let surfaces: Vec<Surface> = vec![
 ///     Plane::new(Point::ORIGIN, Vector::Z).unwrap().into(),
@@ -324,12 +323,11 @@ surface_variants!(Surface, crate::shape_enum::from_shapes! { & });
 ///
 /// ```
 /// use geomcore::prelude::*;
-/// use geomcore::surfaces::{ElementarySurface, Surface};
-/// use geomcore::{Plane, Point, Vector};
+/// use geomcore::{ElementarySurface, Plane, Point, Surface, Vector};
 ///
 /// let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
-/// let surface = Surface::from(plane);
-/// assert_eq!(surface.as_elementary(), Some(ElementarySurface::Plane(plane)));
+/// let elementary = ElementarySurface::from(plane);
+/// assert_eq!(Surface::from(elementary), Surface::Plane(plane));
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ElementarySurface {

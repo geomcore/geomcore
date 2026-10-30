@@ -12,10 +12,10 @@
 mod common;
 
 use common::{assert_close, load};
-use geomcore::discretization::DiscretizationCriteria;
 use geomcore::prelude::*;
 use geomcore::{
-    BSplineCurve, Circle, Circle2D, Ellipse, Parabola, Point, Point2D, TrimmedCurve, Vector,
+    BSplineCurve, Circle, Circle2D, DiscretizationCriteria, Ellipse, Parabola, Point, Point2D,
+    TrimmedCurve, Vector,
 };
 use serde_json::{Value, json};
 

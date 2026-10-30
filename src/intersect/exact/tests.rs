@@ -9,9 +9,9 @@ use crate::intersect::{
 };
 use crate::surfaces::{ElementarySurface, ParametricSurface, Surface};
 
-use crate::{
-    Frame, Point, TorusConeIntersection, Vector, search_curve_curve, search_curve_surface,
-};
+use crate::intersect::numeric::curve_curve::search_curve_curve;
+use crate::intersect::numeric::curve_surface::search_curve_surface;
+use crate::{Frame, Point, TorusConeIntersection, Vector};
 
 const TOL: Tolerance = Tolerance::DEFAULT;
 
