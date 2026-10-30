@@ -8,7 +8,7 @@ The method has the same shape as `uv_curve_to_3d`. It is a provided method whose
 
 **Taking `&Curve` adds `Curve::Bezier`.** A Bézier curve in a plane maps its poles exactly as a B-spline does, since both are the same spline underneath. Its image is a `BezierCurve2D` with the same weights, and a pole off the plane gives `CurveNotOnSurface`. On every other surface it is `NotAnalytic`, as a B-spline is.
 
-**Curves do not depend on surfaces.** With `parametrize_on` gone, no file under `src/curves/` names `crate::surfaces`. `tests/module_dependencies.rs` reads the sources and fails if one does, so the rule stays enforced.
+**Curves do not depend on surfaces.** With `parametrize_on` gone, no production file under `src/curves/` names `crate::surfaces`, or any name that `src/lib.rs` re-exports from `surfaces`, as a whole word. The second ban closes the way back through the root re-exports, such as `use crate::Plane;`. `tests/module_dependencies.rs` reads the sources and fails on either. It builds the name list by parsing the `pub use surfaces::` statements in `src/lib.rs`, so a new or renamed surface type is covered without editing the test. Test code, meaning `tests.rs` files and `tests/` directories, may still build surfaces.
 
 ## Considered options
 

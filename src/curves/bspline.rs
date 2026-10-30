@@ -85,7 +85,7 @@ impl fmt::Display for BSplineConstructionError {
 impl std::error::Error for BSplineConstructionError {}
 
 /// Error returned when knots cannot be inserted into a [`BSplineCurve`]
-/// or a direction of a [`crate::BSplineSurface`].
+/// or a direction of a B-spline surface.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum KnotInsertionError {
     /// A knot to insert is NaN or infinite.
@@ -118,7 +118,7 @@ impl fmt::Display for KnotInsertionError {
 impl std::error::Error for KnotInsertionError {}
 
 /// Error returned when the degree of a [`BSplineCurve`] or of a direction
-/// of a [`crate::BSplineSurface`] cannot be raised.
+/// of a B-spline surface cannot be raised.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DegreeElevationError {
     /// The raised degree would exceed 25, the largest supported.
@@ -136,7 +136,7 @@ impl fmt::Display for DegreeElevationError {
 impl std::error::Error for DegreeElevationError {}
 
 /// Error returned when knots cannot be removed from a [`BSplineCurve`]
-/// or a direction of a [`crate::BSplineSurface`].
+/// or a direction of a B-spline surface.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum KnotRemovalError {
     /// The largest deviation allowed is negative, NaN or infinite.
@@ -169,7 +169,7 @@ impl fmt::Display for KnotRemovalError {
 impl std::error::Error for KnotRemovalError {}
 
 /// Error returned when a [`BSplineCurve`], or a direction of a
-/// [`crate::BSplineSurface`], cannot be split at a parameter or have a
+/// B-spline surface, cannot be split at a parameter or have a
 /// piece extracted.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BSplineSplitError {
