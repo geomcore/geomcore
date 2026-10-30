@@ -367,23 +367,15 @@ fn test_projection_onto_reversed_and_mirrored_surfaces_finds_the_foot() {
             surface.clone(),
             surface.transformed(mirror.transform).unwrap(),
         ] {
-            // A profile out of every plane through the axis is searched
-            // numerically, and the search stops where the squared distance
-            // is flat to rounding: about 1e-8 short of the foot.
-            let reach = if matches!(target, Surface::Revolution(_)) {
-                1e-8
-            } else {
-                1e-9
-            };
             for parameters in [(0.3, 0.2), (2.0, -0.7)] {
                 let (u, v) = in_domain(&target, parameters);
                 let foot = target.eval_point(u, v);
                 let off = foot + 0.1 * unit_normal(&target, u, v);
                 let projection = target.project_point(off, tol);
                 let found = target.eval_point(projection.u, projection.v);
-                assert!(found.distance(foot) < reach, "{target:?} at ({u}, {v})");
+                assert!(found.distance(foot) < 1e-9, "{target:?} at ({u}, {v})");
                 assert!(
-                    projection.point.distance(foot) < reach,
+                    projection.point.distance(foot) < 1e-9,
                     "{target:?} at ({u}, {v})"
                 );
                 assert!(
