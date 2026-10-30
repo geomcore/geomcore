@@ -55,6 +55,8 @@ src/
 │   │                    the one driver of the searches on Bézier pieces (the queue of
 │   │                    pairs, the budget of halvings, the pairs left unsettled);
 │   │                    *_hull.rs and patch_pairs.rs bring their tests on a pair (ADR 0019).
+│   │                    surface_patches.rs turns any surface into Bézier patches with a
+│   │                    map back to its own parameters (ADR 0026).
 │   │                    marching.rs composes marching/: the surface pair (pair.rs), the
 │   │                    tracer's step loop (tracer.rs), the seeding policy (seeding.rs)
 │   │                    and the coincidence check (coincidence.rs) (ADR 0025)
@@ -169,7 +171,9 @@ paths.
 runs, goes in `intersect/numeric/marching/seeding.rs`; a change to the
 step loop, such as tracing through a point where the surfaces touch, in
 `tracer.rs`; a new question asked of the two surfaces at a point on
-both, in `pair.rs` (ADR 0025).
+both, in `pair.rs` (ADR 0025). A new surface kind joins the patch-pair
+searches of marching and the curve searches by converting to patches in
+`intersect/numeric/surface_patches.rs` (ADR 0026).
 
 **A new operation.**
 - Give it its own folder at the top of `src/`, like `bounding_box/` and

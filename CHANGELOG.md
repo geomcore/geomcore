@@ -45,6 +45,19 @@ the Python distribution are versioned in lockstep.
   the traits, so `swept.rs` keeps only the profile geometry.
 - The marching intersection is split into a surface pair, a tracer and a
   seeding policy (ADR 0025). Its results are unchanged.
+- Marching finds loops smaller than the spacing of its iso-curves and
+  grids on more pairs: every pair whose surfaces convert to exact
+  B-spline patches, an unbounded one over the other's box, adds the
+  seeds of the patch-pair search, as two B-splines did (ADR 0026). A bump
+  of a B-spline finer than its knot spans against a plane, cylinder or
+  extrusion, and a small cap a plane cuts off a torus, were missed and
+  are found. Two bounded elementary surfaces, and pairs whose seeds only
+  touch, are left as they were. The search costs up to twice the
+  seeding time of a plane cutting a torus, and 14 % to 30 % on a plane
+  or cylinder against a B-spline patch.
+- A B-spline curve against an `ExtrusionSurface` or `RevolutionSurface`
+  of a bounded profile goes through the proven hull search: its
+  completeness is `Complete` or `Incomplete` instead of `Sampled`.
 
 ### Deprecated
 
