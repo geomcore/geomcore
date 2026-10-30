@@ -22,4 +22,4 @@ The operand lists come from the shape enums' variant lists (ADR 0017), not from 
 - The public interface is unchanged: the same 522 `Intersect` impls. The impls for a trimmed curve over any operand now carry a `where` bound on the crate-private `ExactFamily`, which every crate operand meets.
 - `CurveBasis` and `CurveBasis2D` shrink to what the readers in `exact_family.rs` need (`PointExtrema`, `Copy`, conversion to the enum); they no longer list one `ExactFamily` bound per partner.
 - `SurfaceOperand::Basis` is a generic associated type, since a swept surface's kind borrows the surface; a trimmed curve's impls against a surface bound it for every lifetime.
-- Instruction counts on `intersect_dispatch`, `conic_quadric` and `swept_plane_cut` stay within 0.7 % of before.
+- Instructions counted inside the benchmarked routine: the typed paths and `conic_quadric` are unchanged, curve pairs through the enums are within 0.5 % (a 2D circle pair through `Curve2D` is 15.6 % cheaper), and surface pairs pay the one kind match: up to 1.4 % through `Surface`, and 1.6 to 2.8 % on a plane cut of a swept surface, a solver of a thousand to four thousand instructions.
