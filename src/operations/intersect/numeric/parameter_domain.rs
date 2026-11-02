@@ -1,10 +1,11 @@
-//! The parameter domain of a curve: its bounds or its period, with the wrapping and stepping the numeric searches share.
+//! The parameter domain of a curve: its bounds or its period, with the
+//! wrapping and stepping the numeric searches share.
 
 use crate::geometry::curves::ParametricCurve;
 use crate::operations::intersect::numeric::curve_surface_hull;
 
-/// Parameter domain of one curve in
-/// [`curve_curve_extrema`](crate::curve_curve_extrema).
+/// The parameter domain of one curve in a numeric search: a full period
+/// or an interval.
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum ParameterDomain {
     /// A full period from `start`: unconstrained, wrapped into

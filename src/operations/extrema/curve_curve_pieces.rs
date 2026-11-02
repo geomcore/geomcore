@@ -418,3 +418,6 @@ where
         .collect();
     Some((seeds, carried(completeness, &ha, &hb)))
 }
+
+#[cfg(test)]
+mod tests;

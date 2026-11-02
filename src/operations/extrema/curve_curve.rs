@@ -389,7 +389,9 @@ where
     sampled_minima(a, da, b, db, straight, tol)
 }
 
-/// [`curve_curve_extrema`] through the grid and the closed forms alone, never the piece-pair search: the sampled fallback of the intersection, and the reference the searches are tested against.
+/// [`curve_curve_extrema`] through the grid and the closed forms alone,
+/// never the piece-pair search: the sampled fallback of the intersection,
+/// and the reference the searches are tested against.
 pub(crate) fn sampled_curve_curve_extrema<A, B>(a: &A, b: &B, tol: Tolerance) -> CurveCurveExtrema
 where
     A: ParametricCurve,
@@ -400,7 +402,8 @@ where
     sampled_minima(a, da, b, db, straight, tol)
 }
 
-/// The minima on the grid and the closed forms, for the domains `da` and `db` and the straight parts of the two curves (see [`curve_curve_extrema`]).
+/// The minima on the grid and the closed forms, for the domains `da`
+/// and `db` and the straight curves among the two.
 fn sampled_minima<A, B>(
     a: &A,
     da: ParameterDomain,
