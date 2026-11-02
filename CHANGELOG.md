@@ -9,6 +9,17 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+### Added
+
+- `GenericTrimmedCurve<P, C>`: the trimmed curve of either tier, written
+  once (ADR 0014, amended). `TrimmedCurve<C>` and `TrimmedCurve2D<C>` are
+  now its aliases, with the same defaults, methods and paths.
+
+### Changed
+
+- The `Debug` output of a trimmed curve names `GenericTrimmedCurve` and
+  shows its tier, as the other generic curves' does.
+
 ## [0.42.2] - 2026-11-02
 
 Two internal moves. Nothing public changes: the types, aliases, methods
