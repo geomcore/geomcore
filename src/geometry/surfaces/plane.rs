@@ -13,8 +13,7 @@ use crate::geometry::surfaces::uv_curve::{from_curve, to_curve};
 use crate::geometry::surfaces::{Curve3DToUvError, UvCurveTo3DError};
 use crate::math::elementary::surface as elementary;
 use crate::{
-    Frame, Line, Point, SurfaceProjection, Tolerance, Transform, Vector,
-    operations::extrema::projection,
+    Frame, Line, Point, SurfaceProjection, Tolerance, Transform, Vector, operations::projection,
 };
 use crate::{TransformError, Transformable};
 use std::fmt;

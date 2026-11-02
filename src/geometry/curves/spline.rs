@@ -19,7 +19,7 @@ use crate::math::bspline::curve::SpanEnds;
 use crate::math::bspline::editing::{self, Elevation, Insertion, Lanes};
 use crate::math::numeric::boxtree::{BoxTree, Lazy};
 use crate::math::numeric::quadrature;
-use crate::operations::extrema::projection::{CurveProjection, snap_distance};
+use crate::operations::projection::{CurveProjection, snap_distance};
 use crate::{Continuity, Point, Tolerance, Transform, TransformError};
 
 /// A B-spline curve with poles of type `P`: the knot vector, the poles,

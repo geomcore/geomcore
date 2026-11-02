@@ -150,8 +150,8 @@ mod geometry;
 /// Internal math under the shapes: the B-spline engine, the closed-form
 /// formulas of the elementary shapes and the numerical toolbox.
 mod math;
-/// The operations on curves and surfaces: discretization, intersection and
-/// distance extrema.
+/// The operations on curves and surfaces: discretization, intersection, point
+/// projection and distance extrema.
 mod operations;
 /// The shape and operation traits, for `use geomcore::prelude::*`.
 pub mod prelude;
@@ -185,10 +185,7 @@ pub use operations::discretization::{
     Discretization, Discretization2D, DiscretizationCriteria, DiscretizationCriteriaError,
     Discretize, Discretize2D,
 };
-pub use operations::extrema::{
-    CurveCurveExtrema, CurveCurveExtremum, CurveProjection, CurveProjection2D, SurfaceProjection,
-    curve_curve_extrema,
-};
+pub use operations::extrema::{CurveCurveExtrema, CurveCurveExtremum, curve_curve_extrema};
 pub use operations::intersect::{
     CircleCircle2DIntersection, CircleCircleIntersection, CircleSurfaceIntersection,
     ConeConeIntersection, ConeCylinderIntersection, Conic2DIntersection, ConicConicIntersection,
@@ -211,3 +208,4 @@ pub use operations::intersect::{
 };
 pub use operations::intersect::{InlineList, Intersect, IntersectExact};
 pub use operations::intersect::{intersect_curve_curve, intersect_curve_surface};
+pub use operations::projection::{CurveProjection, CurveProjection2D, SurfaceProjection};

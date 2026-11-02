@@ -1,5 +1,4 @@
 use super::*;
-use crate::geometry::curves::PointExtrema;
 use crate::{Axis, Frame, PointParametrization, Vector};
 
 // ---- construction / accessors ----

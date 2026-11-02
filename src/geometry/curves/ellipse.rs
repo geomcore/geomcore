@@ -8,8 +8,13 @@ use crate::base::tier::{TierPoint, impl_for_both_tiers};
 use crate::base::transform::image_error;
 use crate::geometry::curves::ReversibleCurve;
 use crate::geometry::curves::{ElementaryCurve, ParametricCurve, ParametricCurve2D};
+use crate::geometry::curves::{PointExtrema, PointExtrema2D};
 use crate::math::elementary::curve as elementary;
-use crate::{Frame, Frame2D, Point, Point2D, Tolerance, Transform, Vector, Vector2D};
+use crate::math::numeric::{polish_root, real_roots};
+use crate::operations::projection::CurveProjection;
+use crate::{
+    Frame, Frame2D, Point, Point2D, Tolerance, Transform, Vector, Vector2D, operations::projection,
+};
 use crate::{TransformError, Transformable};
 use std::f64::consts::TAU;
 use std::fmt;
@@ -438,6 +443,108 @@ impl Ellipse2D {
             EllipseConstructionError::InvertedAxis,
         ))?;
         Ellipse2D::from_frame(frame, d1, d2)
+    }
+}
+
+impl_for_both_tiers! {
+    impl PointExtrema, PointExtrema2D for GenericEllipse {
+        fn extrema(&self, point: P, tol: Tolerance) -> Vec<CurveProjection<P>> {
+            if !point.is_finite() {
+                return Vec::new();
+            }
+            let rel = point - self.center();
+            let px = rel.dot(self.frame.x_direction());
+            let py = rel.dot(self.frame.y_direction());
+            let (a, b) = (self.major_radius, self.minor_radius);
+            let c2 = a * a - b * b;
+            // The stationarity condition g(t) = (E(t) - P).E'(t) in frame
+            // coordinates, and its derivative.
+            let g = |t: f64| {
+                let (sn, cs) = t.sin_cos();
+                -c2 * sn * cs + a * px * sn - b * py * cs
+            };
+            let dg = |t: f64| {
+                let (sn, cs) = t.sin_cos();
+                -c2 * (cs * cs - sn * sn) + a * px * cs + b * py * sn
+            };
+            let coeffs = [
+                -b * py,
+                2.0 * (a * px - c2),
+                0.0,
+                2.0 * (a * px + c2),
+                b * py,
+            ];
+            // s = -1/r maps the quartic to its reversal with alternating signs.
+            let reversed = [coeffs[4], -coeffs[3], coeffs[2], -coeffs[1], coeffs[0]];
+            let mut ts: Vec<(f64, P, f64)> = real_roots(&coeffs, tol.confusion)
+                .into_iter()
+                .map(|r| 2.0 * r.value.atan())
+                .chain(
+                    real_roots(&reversed, tol.confusion)
+                        .into_iter()
+                        .map(|r| std::f64::consts::PI + 2.0 * r.value.atan()),
+                )
+                .chain([0.0, std::f64::consts::PI])
+                .map(|t| {
+                    let t = polish_root(g, dg, t, 8);
+                    // Measured at the polished parameter, reported in bounds.
+                    let foot = self.eval_point(t);
+                    (self.parameter_in_bounds(t, tol), foot, foot.distance(point))
+                })
+                .collect();
+            ts.sort_by(|x, y| x.0.total_cmp(&y.0));
+            let mut out: Vec<CurveProjection<P>> = Vec::with_capacity(ts.len());
+            for (t, foot, distance) in ts {
+                let fresh = match out.last() {
+                    Some(last) => (t - last.parameter).abs() > tol.parametric * (1.0 + t.abs()),
+                    None => true,
+                };
+                if fresh {
+                    out.push(CurveProjection {
+                        parameter: t,
+                        point: foot,
+                        distance: projection::snap_distance(distance, tol.confusion),
+                    });
+                }
+            }
+            out.sort_by(|x, y| x.distance.total_cmp(&y.distance));
+            out
+        }
+
+        /// Recovers the angular parameter of a point on (or near) the ellipse,
+        /// wrapped into `[0, 2*PI)`.
+        fn parameter_of(&self, point: P, _tol: Tolerance) -> f64 {
+            elementary::ellipse_parameter(&self.frame, self.major_radius, self.minor_radius, point)
+        }
+
+        fn contains(&self, point: P, tol: Tolerance) -> bool {
+            let (a, b) = (self.major_radius, self.minor_radius);
+            // `(x/a)² + (y/b)² = 1`: on it `|∇f| ≥ 2/a`, as `b ≤ a`.
+            let near = elementary::conic_proximity(
+                &self.frame,
+                point,
+                tol.confusion,
+                2.0 / (b * b),
+                2.0 / a,
+                |x, y| {
+                    let (sx, sy) = (x / (a * a), y / (b * b));
+                    (x * sx + y * sy - 1.0, 2.0 * sx, 2.0 * sy)
+                },
+            );
+            if let Some(near) = near {
+                return near;
+            }
+            let u = self.parameter_of(point, tol);
+            self.eval_point(u).distance(point) <= tol.confusion
+                || self.project_point(point, tol).distance <= tol.confusion
+        }
+
+        fn project_point(&self, point: P, tol: Tolerance) -> CurveProjection<P> {
+            self.extrema(point, tol)
+                .into_iter()
+                .next()
+                .unwrap_or(CurveProjection::UNDEFINED)
+        }
     }
 }
 

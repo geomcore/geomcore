@@ -6,9 +6,12 @@ use crate::base::tier::operations::{AxisOperations, VectorOperations};
 use crate::base::tier::{TierPoint, impl_for_both_tiers};
 use crate::base::transform::image_error;
 use crate::geometry::curves::ReversibleCurve;
+use crate::geometry::curves::parametric_curve::only_minimum;
 use crate::geometry::curves::{ElementaryCurve, ParametricCurve, ParametricCurve2D};
+use crate::geometry::curves::{PointExtrema, PointExtrema2D};
 use crate::math::elementary::curve as elementary;
-use crate::{Point, Point2D, Transform};
+use crate::operations::projection::CurveProjection;
+use crate::{Point, Point2D, Tolerance, Transform, operations::projection};
 use crate::{TransformError, Transformable};
 use std::fmt;
 
@@ -189,6 +192,36 @@ impl<P: TierPoint> GenericLine<P> {
     /// ```
     pub fn axis(&self) -> P::Axis {
         self.axis
+    }
+}
+
+impl_for_both_tiers! {
+    impl PointExtrema, PointExtrema2D for GenericLine {
+        fn extrema(&self, point: P, tol: Tolerance) -> Vec<CurveProjection<P>> {
+            only_minimum(point, || self.project_point(point, tol))
+        }
+
+        /// Recovers the parameter `u` of a point on (or near) the line: the
+        /// signed projection `(point - origin) . direction`.
+        fn parameter_of(&self, point: P, _tol: Tolerance) -> f64 {
+            elementary::line_parameter(&self.axis, point)
+        }
+
+        fn contains(&self, point: P, tol: Tolerance) -> bool {
+            let u = self.parameter_of(point, tol);
+            self.eval_point(u).distance(point) <= tol.confusion
+        }
+
+        fn project_point(&self, point: P, tol: Tolerance) -> CurveProjection<P> {
+            let u = self.parameter_of(point, tol);
+            let foot = self.eval_point(u);
+            let distance = foot.distance(point);
+            CurveProjection {
+                point: foot,
+                parameter: u,
+                distance: projection::snap_distance(distance, tol.confusion),
+            }
+        }
     }
 }
 

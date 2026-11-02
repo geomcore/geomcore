@@ -13,7 +13,7 @@ pub(crate) mod fitting;
 mod hyperbola;
 mod line;
 mod parabola;
-pub(crate) mod parametric_curve;
+mod parametric_curve;
 mod parametric_curve_2d;
 mod range;
 pub(crate) mod spline;

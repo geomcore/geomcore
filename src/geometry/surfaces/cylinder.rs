@@ -15,7 +15,7 @@ use crate::geometry::surfaces::{Curve3DToUvError, UvCurveTo3DError};
 use crate::math::elementary::surface as elementary;
 use crate::{
     Axis, Circle, Frame, Line, Point, SurfaceProjection, Tolerance, Transform, Vector,
-    operations::extrema::projection,
+    operations::projection,
 };
 use crate::{TransformError, Transformable};
 use std::f64::consts::TAU;

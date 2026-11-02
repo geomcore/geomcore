@@ -13,7 +13,10 @@ use crate::base::tier::{TierPoint, impl_for_both_tiers};
 use crate::geometry::curves::ReversibleCurve;
 use crate::geometry::curves::bspline::{BSplineSplitError, DegreeElevationError};
 use crate::geometry::curves::spline::Spline;
-use crate::geometry::curves::{GenericBSplineCurve, ParametricCurve, ParametricCurve2D, Side};
+use crate::geometry::curves::{
+    GenericBSplineCurve, ParametricCurve, ParametricCurve2D, PointExtrema, PointExtrema2D, Side,
+};
+use crate::operations::projection::CurveProjection;
 use crate::{Continuity, Point, Point2D, Tolerance};
 use crate::{Transform, TransformError, Transformable};
 use std::fmt;
@@ -487,6 +490,18 @@ impl<P: TierPoint> GenericBezierCurve<P> {
     /// B-spline search.
     pub(crate) fn bspline(&self) -> &GenericBSplineCurve<P> {
         &self.0
+    }
+}
+
+impl_for_both_tiers! {
+    impl PointExtrema, PointExtrema2D for GenericBezierCurve {
+        fn extrema(&self, point: P, tol: Tolerance) -> Vec<CurveProjection<P>> {
+            self.spline().extrema(point, tol)
+        }
+
+        fn project_point(&self, point: P, tol: Tolerance) -> CurveProjection<P> {
+            self.spline().project_point(point, tol)
+        }
     }
 }
 

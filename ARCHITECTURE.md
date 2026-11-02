@@ -52,6 +52,10 @@ src/
 │
 ├── operations/          the operations on curves and surfaces, one folder each
 │   ├── discretization/      Discretize: proven point sequences on bounded curves
+│   ├── extrema/             distance extrema between two curves (ADR 0033)
+│   │   ├── curve_curve.rs   curve_curve_extrema: seeds, refinement and its results
+│   │   └── curve_curve_pieces.rs  the minima search on the Bézier pieces of two
+│   │                        B-splines
 │   ├── intersect/           intersections, by method (ADR 0011)
 │   │   ├── routing.rs       Intersect: exact when a closed form exists, numeric otherwise
 │   │   ├── routing/closed_form.rs  the closed-form pair table: which pairs have a closed
@@ -65,7 +69,8 @@ src/
 │   │   ├── numeric/         the searches for pairs with no closed form. subdivision.rs is
 │   │   │                    the one driver of the searches on Bézier pieces (the queue of
 │   │   │                    pairs, the budget of halvings, the pairs left unsettled);
-│   │   │                    *_hull.rs and patch_pairs.rs bring their tests on a pair (ADR 0019).
+│   │   │                    *_hull.rs and patch_pairs.rs bring their tests on a pair (ADR 0019);
+│   │   │                    curve_curve.rs reads its hits from the extrema at zero distance.
 │   │   │                    surface_patches.rs turns any surface into Bézier patches with a
 │   │   │                    map back to its own parameters (ADR 0026).
 │   │   │                    marching.rs composes marching/: the surface pair (pair.rs), the
@@ -116,6 +121,9 @@ paths.
    `PointExtrema2D`, `ParametricSurface`, `ReversibleCurve` and
    `ReversibleSurface` are defined in the `parametric_*.rs` files and
    `Transformable` in `base/transform.rs`, and each `impl` sits with its type.
+   `PointExtrema` is a curve's own inversion and projection, as
+   `parameters_of` and `project_point` are a surface's, not an operation
+   (ADR 0033).
    The enums forward them through their variant lists (ADR 0017), so no
    caller matches on a variant to move or reverse a shape (ADR 0024). A method
    that more than one type answers is a trait method, documented once on
@@ -191,6 +199,13 @@ step loop, such as tracing through a point where the surfaces touch, in
 both, in `pair.rs` (ADR 0025). A new surface kind joins the patch-pair
 searches of marching and the curve searches by converting to patches in
 `operations/intersect/numeric/surface_patches.rs` (ADR 0026).
+
+**A new extrema query.** A new pair (curve–surface, surface–surface)
+goes in its own file under `operations/extrema/`, next to its result
+type, re-exported from `extrema.rs` and `lib.rs`. A numeric search on
+B-spline pieces reuses the driver in
+`operations/intersect/numeric/subdivision.rs`, as `curve_curve_pieces.rs`
+does (ADR 0019, ADR 0033).
 
 **A new operation.**
 - Give it its own folder under `operations/`, like

@@ -1,5 +1,5 @@
 use super::*;
-use crate::geometry::curves::{ParametricCurve, PointExtrema};
+use crate::geometry::curves::ParametricCurve;
 use crate::operations::discretization::{DiscretizationCriteria, Discretize};
 use crate::{BSplineCurve, BSplineSplitError, DegreeElevationError, HasBoundingBox, Vector};
 

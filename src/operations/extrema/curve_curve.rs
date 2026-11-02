@@ -1132,3 +1132,6 @@ fn merge_valleys(
         })
         .collect()
 }
+
+#[cfg(test)]
+mod tests;
