@@ -9,6 +9,13 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+### Changed
+
+- The curve–curve distance extrema have their own module,
+  `operations/extrema/` (ADR 0033): the minima search used to live inside
+  the numeric intersection, which now reads its hits from it. Nothing
+  public changes.
+
 ## [0.42.1] - 2026-11-02
 
 The source tree, grouped by layer. Nothing public changes: every item
