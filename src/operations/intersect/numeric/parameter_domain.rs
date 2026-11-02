@@ -1,11 +1,17 @@
 //! The parameter domain of a curve: its bounds or its period, with the
 //! wrapping and stepping the numeric searches share.
 
+use std::f64::consts::TAU;
+
 use crate::geometry::curves::ParametricCurve;
-use crate::operations::intersect::numeric::curve_surface_hull;
+
+/// Parameters within this fraction of a domain's width outside it (or
+/// outside a subpiece pair) count as inside.
+const SLACK: f64 = 1e-10;
 
 /// The parameter domain of one curve in a numeric search: a full period
-/// or an interval.
+/// or an interval. `wrap` snaps at the minimiser's resolution while `admit`
+/// accepts within the piece searches' slack, two different rules on purpose.
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum ParameterDomain {
     /// A full period from `start`: unconstrained, wrapped into
@@ -16,6 +22,12 @@ pub(crate) enum ParameterDomain {
 }
 
 impl ParameterDomain {
+    /// The whole turn of an angle.
+    pub(crate) const TURN: ParameterDomain = ParameterDomain::Periodic {
+        start: 0.0,
+        period: TAU,
+    };
+
     /// The domain of `curve`; a periodic curve bounded to less than a
     /// period is an arc, so it is an interval.
     pub(crate) fn of<C: ParametricCurve>(curve: &C) -> ParameterDomain {
@@ -85,22 +97,6 @@ impl ParameterDomain {
         }
     }
 
-    /// A finite domain as the parameter range of a piece-pair search.
-    pub(crate) fn range(self) -> curve_surface_hull::Range {
-        match self {
-            ParameterDomain::Periodic { start, period } => curve_surface_hull::Range {
-                lo: start,
-                hi: start + period,
-                periodic: true,
-            },
-            ParameterDomain::Interval(lo, hi) => curve_surface_hull::Range {
-                lo,
-                hi,
-                periodic: false,
-            },
-        }
-    }
-
     /// The signed step from `u` to `v`, the shorter way round a period.
     pub(crate) fn step(self, u: f64, v: f64) -> f64 {
         match self {
@@ -111,4 +107,62 @@ impl ParameterDomain {
             ParameterDomain::Interval(..) => v - u,
         }
     }
+
+    /// The start of the domain: the start of a period, or the lower end of
+    /// an interval.
+    pub(crate) fn start(self) -> f64 {
+        match self {
+            ParameterDomain::Periodic { start, .. } => start,
+            ParameterDomain::Interval(lo, _) => lo,
+        }
+    }
+
+    /// The end of the domain: `start` plus the period, or the upper end of
+    /// an interval.
+    pub(crate) fn end(self) -> f64 {
+        match self {
+            ParameterDomain::Periodic { start, period } => start + period,
+            ParameterDomain::Interval(_, hi) => hi,
+        }
+    }
+
+    /// The slack around the domain: [`SLACK`] of its width.
+    pub(crate) fn slack(self) -> f64 {
+        SLACK * (self.end() - self.start())
+    }
+
+    /// `x` admitted into the domain, or `None` when it lies beyond the slack
+    /// of an interval. A period wraps `x` into its extent, reading a value
+    /// within the slack of its end as its start. An interval clamps `x` into
+    /// its ends.
+    pub(crate) fn admit(self, x: f64) -> Option<f64> {
+        let (start, end, slack) = (self.start(), self.end(), self.slack());
+        if self.is_periodic() {
+            let wrapped = start + (x - start).rem_euclid(end - start);
+            Some(if end - wrapped <= slack {
+                start
+            } else {
+                wrapped
+            })
+        } else if x < start - slack || x > end + slack {
+            None
+        } else {
+            Some(x.clamp(start, end))
+        }
+    }
+
+    /// `x` brought into the domain: admitted (see [`Self::admit`]) when it
+    /// lies within the slack, else clamped into the interval.
+    pub(crate) fn settle(self, x: f64) -> f64 {
+        self.admit(x).unwrap_or(x.clamp(self.start(), self.end()))
+    }
+
+    /// Whether `x` lies within `(low, high)` widened by the slack on both
+    /// sides.
+    pub(crate) fn within_slack_of(self, x: f64, (low, high): (f64, f64)) -> bool {
+        low - self.slack() <= x && x <= high + self.slack()
+    }
 }
+
+#[cfg(test)]
+mod tests;

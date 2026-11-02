@@ -13,8 +13,8 @@ use crate::operations::intersect::numeric::bezier_pieces::{
 use crate::operations::intersect::numeric::curve_curve_hull::{
     SPLITS_PER_PAIR, along_one_line, region, room, split_larger,
 };
-use crate::operations::intersect::numeric::curve_surface_hull::Range;
 use crate::operations::intersect::numeric::pairs_with_bspline::{Hull, carried, hull_pair};
+use crate::operations::intersect::numeric::parameter_domain::ParameterDomain;
 use crate::operations::intersect::numeric::subdivision::{
     Node, OnceExhausted, PairTests, Subdivision, Unsettled, Visit, interval,
 };
@@ -50,9 +50,9 @@ use crate::operations::intersect::{Completeness, CurveCurveRegion};
 /// halvings; a valley at a distance usually exhausts the budget first.
 pub(crate) fn bspline_minima(
     a: &BSplineCurve,
-    ra: Range,
+    ra: ParameterDomain,
     b: &BSplineCurve,
-    rb: Range,
+    rb: ParameterDomain,
     tol: Tolerance,
 ) -> (Vec<[f64; 2]>, Completeness<CurveCurveRegion>) {
     search_minima(a, ra, b, rb, tol, SPLITS_PER_PAIR)
@@ -62,17 +62,23 @@ pub(crate) fn bspline_minima(
 /// pair of pieces of each search.
 pub(crate) fn search_minima(
     a: &BSplineCurve,
-    ra: Range,
+    ra: ParameterDomain,
     b: &BSplineCurve,
-    rb: Range,
+    rb: ParameterDomain,
     tol: Tolerance,
     splits_per_pair: usize,
 ) -> (Vec<[f64; 2]>, Completeness<CurveCurveRegion>) {
     let pieces = [
-        CurvePieces::new(a, (ra.lo, ra.hi)),
-        CurvePieces::new(b, (rb.lo, rb.hi)),
+        CurvePieces::new(a, (ra.start(), ra.end())),
+        CurvePieces::new(b, (rb.start(), rb.end())),
     ];
-    let ends = |r: Range| if r.periodic { vec![] } else { vec![r.lo, r.hi] };
+    let ends = |r: ParameterDomain| {
+        if r.is_periodic() {
+            vec![]
+        } else {
+            vec![r.start(), r.end()]
+        }
+    };
     let (ends_a, ends_b) = (ends(ra), ends(rb));
     let seeds: Vec<[f64; 2]> = ends_a
         .iter()
@@ -95,9 +101,9 @@ pub(crate) fn search_minima(
     let mut seeds = minima.seeds;
     // The point at an end, and the direction in which the other curve's
     // point must lie for the distance to rise into the range there.
-    let end = |curve: &BSplineCurve, u: f64, r: Range| {
+    let end = |curve: &BSplineCurve, u: f64, r: ParameterDomain| {
         let (p, d) = curve.eval_d1(u);
-        let hold = if u == r.lo { d } else { -d };
+        let hold = if u == r.start() { d } else { -d };
         ([p.x, p.y, p.z], [hold.x, hold.y, hold.z])
     };
     for &s in &ends_a {
@@ -125,8 +131,8 @@ pub(crate) fn search_minima(
         let r = pa - pb;
         let (g, speed) = ([r.dot(a1), -r.dot(b1)], [a1.magnitude(), b1.magnitude()]);
         [ra, rb].into_iter().enumerate().all(|(i, r)| {
-            let held =
-                !r.periodic && ((x[i] <= r.lo && g[i] > 0.0) || (x[i] >= r.hi && g[i] < 0.0));
+            let held = !r.is_periodic()
+                && ((x[i] <= r.start() && g[i] > 0.0) || (x[i] >= r.end() && g[i] < 0.0));
             held || g[i].abs() <= tol.confusion * speed[i]
         })
     });

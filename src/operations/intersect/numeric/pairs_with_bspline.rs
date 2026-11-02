@@ -21,11 +21,11 @@ use crate::math::numeric::boxtree::Aabb;
 use crate::operations::extrema::CurveCurveExtremum;
 use crate::operations::intersect::numeric::curve_curve_hull::bspline_curve_curve;
 use crate::operations::intersect::numeric::curve_surface_hull::{
-    CurveSurfaceHits, Range, bspline_curve_surface,
+    CurveSurfaceHits, bspline_curve_surface,
 };
 use crate::operations::intersect::numeric::parameter_domain::ParameterDomain;
 use crate::operations::intersect::numeric::surface_patches::{
-    SurfacePatches, grown, nearest, reach, settle,
+    SurfacePatches, grown, nearest, reach,
 };
 use crate::operations::intersect::results::sort_by_known_parameter;
 use crate::operations::intersect::{Completeness, CurveCurveRegion};
@@ -75,7 +75,7 @@ fn clip(b: &Aabb, origin: Point, direction: Vector) -> (f64, f64) {
 /// B-spline, as it is, or an elementary curve converted.
 pub(crate) struct HullCurve<'a> {
     pub(crate) bspline: Cow<'a, BSplineCurve>,
-    pub(crate) range: Range,
+    pub(crate) range: ParameterDomain,
     /// The elementary curve converted, if any.
     source: Option<ElementaryCurve>,
 }
@@ -99,7 +99,7 @@ impl HullCurve<'_> {
     pub(crate) fn parameter(&self, t: f64) -> f64 {
         match self.source {
             None => t,
-            Some(_) => settle(self.range, self.carried(t)),
+            Some(_) => self.range.settle(self.carried(t)),
         }
     }
 
@@ -197,7 +197,7 @@ fn hull_curve<'a, C: ParametricCurve>(curve: &'a C, cover: Option<&Aabb>) -> Opt
     if let Some(bspline) = curve.as_bspline() {
         return Some(Hull::Curve(Box::new(HullCurve {
             bspline: Cow::Borrowed(bspline),
-            range: ParameterDomain::of(curve).range(),
+            range: ParameterDomain::of(curve),
             source: None,
         })));
     }
@@ -217,7 +217,14 @@ fn hull_curve<'a, C: ParametricCurve>(curve: &'a C, cover: Option<&Aabb>) -> Opt
     };
     Some(Hull::Curve(Box::new(HullCurve {
         bspline: Cow::Owned(bspline),
-        range: Range { lo, hi, periodic },
+        range: if periodic {
+            ParameterDomain::Periodic {
+                start: lo,
+                period: hi - lo,
+            }
+        } else {
+            ParameterDomain::Interval(lo, hi)
+        },
         source: Some(source),
     })))
 }
@@ -254,9 +261,9 @@ where
             let Hull::Curve(hull) = hull_curve(curve, Some(&cover))? else {
                 return Some(CurveSurfaceHits::complete(Vec::new()));
             };
-            let range = (hull.range.lo, hull.range.hi);
+            let range = (hull.range.start(), hull.range.end());
             let mut hits =
-                bspline_curve_surface(&hull.bspline, range, hull.range.periodic, patches, tol);
+                bspline_curve_surface(&hull.bspline, range, hull.range.is_periodic(), patches, tol);
             hull.carry_hits(curve, &mut hits);
             Some(hits)
         }
