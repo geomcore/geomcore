@@ -9,6 +9,24 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+## [0.42.1] - 2026-11-02
+
+The source tree, grouped by layer. Nothing public changes: every item
+keeps its one path at the crate root (ADR 0022), and the Python package
+is the same.
+
+### Changed
+
+- The private modules under `src/` are grouped into `base/` (points,
+  vectors, frames, transforms, tiers, tolerances), `geometry/` (curves,
+  surfaces and the shape enum macros, now `enum_variants`),
+  `operations/` (discretization, intersection, projection) and `math/`
+  (the B-spline engine, the closed forms of the elementary shapes and
+  the numerical toolbox, now `numeric`); `bounding_box/` stays at the
+  root. Every module with children uses the `foo.rs` + `foo/` layout,
+  with no `mod.rs`. `ARCHITECTURE.md` maps the new tree. Unit test
+  names now carry their folder (`base::frame::tests::…`).
+
 ## [0.42.0] - 2026-10-30
 
 UV curves, both ways, on the surface. `uv_curve_to_3d` gives the exact
@@ -2298,7 +2316,8 @@ Behaviour, in Rust and Python alike:
 - Golden-fixture validation of all numeric results at 1e-7 tolerance, and
   criterion throughput benchmarks (`docs/benchmarks.md`).
 
-[Unreleased]: https://github.com/geomcore/geomcore/compare/v0.42.0...HEAD
+[Unreleased]: https://github.com/geomcore/geomcore/compare/v0.42.1...HEAD
+[0.42.1]: https://github.com/geomcore/geomcore/compare/v0.42.0...v0.42.1
 [0.42.0]: https://github.com/geomcore/geomcore/compare/v0.41.0...v0.42.0
 [0.41.0]: https://github.com/geomcore/geomcore/compare/v0.40.1...v0.41.0
 [0.40.1]: https://github.com/geomcore/geomcore/compare/v0.40.0...v0.40.1
