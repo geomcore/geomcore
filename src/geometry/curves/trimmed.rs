@@ -12,7 +12,7 @@ use crate::geometry::curves::{
 };
 use crate::geometry::curves::{RangeOperations, ReversibleCurve};
 use crate::math::bspline::curve as bspline_math;
-use crate::operations::projection::{CurveProjection, CurveProjection2D};
+use crate::operations::extrema::projection::{CurveProjection, CurveProjection2D};
 use crate::{Continuity, Point, Point2D, Tolerance, Vector, Vector2D};
 use crate::{Transform, TransformError, Transformable};
 use std::fmt;
@@ -357,7 +357,7 @@ impl<C: PointExtrema> PointExtrema for TrimmedCurve<C> {
             CurveProjection {
                 parameter: t,
                 point: foot,
-                distance: crate::operations::projection::snap_distance(
+                distance: crate::operations::extrema::projection::snap_distance(
                     foot.distance(point),
                     tol.confusion,
                 ),
@@ -601,7 +601,7 @@ impl<C: PointExtrema2D> PointExtrema2D for TrimmedCurve2D<C> {
             CurveProjection2D {
                 parameter: t,
                 point: foot,
-                distance: crate::operations::projection::snap_distance(
+                distance: crate::operations::extrema::projection::snap_distance(
                     foot.distance(point),
                     tol.confusion,
                 ),

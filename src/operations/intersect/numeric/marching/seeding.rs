@@ -1,7 +1,7 @@
 //! Where marching starts its traces: which seed sources run on a pair of
 //! surfaces, in what order, and when one is left out (see [`seeds`]).
 
-use super::extrema::extremum_seeds;
+use super::level_extrema::extremum_seeds;
 use super::pair::{SurfacePair, swap};
 use super::tracer::first_step;
 use crate::geometry::curves::{Circle, ElementaryCurve, ParametricCurve, PointExtrema};

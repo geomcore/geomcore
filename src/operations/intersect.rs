@@ -31,14 +31,14 @@ pub use exact::surface_surface::{
 pub use numeric::curve_curve::curve_curve_extrema;
 pub use numeric::curve_curve::intersect_curve_curve;
 pub use numeric::curve_surface::intersect_curve_surface;
+pub use results::CurveCurveRegion;
 pub use results::CurveSurfaceRegion;
 pub use results::completeness::{Completeness, IncompleteReason};
 pub(crate) use results::curve_surface_multiplicity;
-pub use results::{CurveCurveExtrema, CurveCurveRegion};
 pub use results::{
-    CurveCurveExtremum, CurveCurveHit, CurveCurveHit2D, CurveCurveIntersection,
-    CurveCurveIntersection2D, CurveCurveOverlap, CurveSurfaceHit, CurveSurfaceIntersection,
-    GenericCurveCurveHit, GenericCurveCurveIntersection, InlineList, IntersectionCurve,
-    IntersectionMethod, SurfaceSurfaceIntersection, SurfaceSurfaceRegion,
+    CurveCurveHit, CurveCurveHit2D, CurveCurveIntersection, CurveCurveIntersection2D,
+    CurveCurveOverlap, CurveSurfaceHit, CurveSurfaceIntersection, GenericCurveCurveHit,
+    GenericCurveCurveIntersection, InlineList, IntersectionCurve, IntersectionMethod,
+    SurfaceSurfaceIntersection, SurfaceSurfaceRegion,
 };
 pub use routing::Intersect;

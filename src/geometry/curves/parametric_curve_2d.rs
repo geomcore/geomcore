@@ -2,7 +2,7 @@
 //! [`PointExtrema2D`] point-projection trait.
 
 use crate::geometry::curves::{BSplineCurve2D, Continuity};
-use crate::operations::projection::CurveProjection2D;
+use crate::operations::extrema::projection::CurveProjection2D;
 use crate::{Point2D, Tolerance, Vector2D};
 
 /// Common interface for 2D parametric curves. Implement this to add a new

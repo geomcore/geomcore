@@ -20,7 +20,7 @@ use crate::math::bspline::editing::{self, Edit, Elevation, Insertion, Lanes};
 use crate::math::bspline::surface as math;
 use crate::math::numeric::boxtree::{BoxTree, Lazy, box_distance};
 use crate::math::numeric::newton_min_2d;
-use crate::operations::projection::SurfaceProjection;
+use crate::operations::extrema::projection::SurfaceProjection;
 use crate::{BSplineCurve, Point, Tolerance, Transform, Vector};
 
 pub use crate::geometry::curves::BSplineConstructionError;
@@ -1664,7 +1664,7 @@ impl BSplineSurface {
     /// assert_eq!(extrema[0].distance, 1.0);
     /// ```
     pub fn extrema(&self, point: Point, tol: Tolerance) -> Vec<SurfaceProjection> {
-        use crate::operations::projection::snap_distance;
+        use crate::operations::extrema::projection::snap_distance;
         let global = self.project_point(point, tol);
         let patches = self.patch_tree();
         let mut search = PatchSearch::new(self, point, patches.resolution(point), true);
@@ -1939,7 +1939,7 @@ impl ParametricSurface for BSplineSurface {
     }
 
     fn project_point(&self, point: Point, tol: Tolerance) -> SurfaceProjection {
-        use crate::operations::projection::snap_distance;
+        use crate::operations::extrema::projection::snap_distance;
         let patches = self.patch_tree();
         let mut search = PatchSearch::new(self, point, patches.resolution(point), false);
         // Every patch that may hold the closest point, by their pole boxes

@@ -151,7 +151,7 @@ mod geometry;
 /// formulas of the elementary shapes and the numerical toolbox.
 mod math;
 /// The operations on curves and surfaces: discretization, intersection and
-/// point projection.
+/// distance extrema.
 mod operations;
 /// The shape and operation traits, for `use geomcore::prelude::*`.
 pub mod prelude;
@@ -185,11 +185,14 @@ pub use operations::discretization::{
     Discretization, Discretization2D, DiscretizationCriteria, DiscretizationCriteriaError,
     Discretize, Discretize2D,
 };
+pub use operations::extrema::{
+    CurveCurveExtrema, CurveCurveExtremum, CurveProjection, CurveProjection2D, SurfaceProjection,
+};
 pub use operations::intersect::curve_curve_extrema;
 pub use operations::intersect::{
     CircleCircle2DIntersection, CircleCircleIntersection, CircleSurfaceIntersection,
     ConeConeIntersection, ConeCylinderIntersection, Conic2DIntersection, ConicConicIntersection,
-    ConicSurfaceHit, ConicSurfaceIntersection, CurveCurveExtremum, CurveCurveHit, CurveSurfaceHit,
+    ConicSurfaceHit, ConicSurfaceIntersection, CurveCurveHit, CurveSurfaceHit,
     CylinderCylinderIntersection, LatitudeRing, LineCircle2DIntersection, LineCircleIntersection,
     LineConicHit, LineConicIntersection, LineLine2DIntersection, LineLineIntersection,
     LinePlaneIntersection, LineQuadricIntersection, LineTorusHit, LineTorusIntersection,
@@ -199,7 +202,7 @@ pub use operations::intersect::{
     TorusPlaneIntersection, TorusSphereIntersection, TorusTorusIntersection,
 };
 pub use operations::intersect::{
-    Completeness, CurveCurveExtrema, CurveCurveRegion, CurveSurfaceRegion, IncompleteReason,
+    Completeness, CurveCurveRegion, CurveSurfaceRegion, IncompleteReason,
 };
 pub use operations::intersect::{
     CurveCurveHit2D, CurveCurveIntersection, CurveCurveIntersection2D, CurveCurveOverlap,
@@ -208,4 +211,3 @@ pub use operations::intersect::{
 };
 pub use operations::intersect::{InlineList, Intersect, IntersectExact};
 pub use operations::intersect::{intersect_curve_curve, intersect_curve_surface};
-pub use operations::projection::{CurveProjection, CurveProjection2D, SurfaceProjection};

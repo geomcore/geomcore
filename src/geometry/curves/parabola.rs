@@ -10,9 +10,10 @@ use crate::geometry::curves::{ElementaryCurve, ParametricCurve, ParametricCurve2
 use crate::geometry::curves::{PointExtrema, PointExtrema2D};
 use crate::math::elementary::curve as elementary;
 use crate::math::numeric::real_roots;
-use crate::operations::projection::CurveProjection;
+use crate::operations::extrema::projection::CurveProjection;
 use crate::{
-    Frame, Frame2D, Point, Point2D, Tolerance, Transform, Vector, Vector2D, operations::projection,
+    Frame, Frame2D, Point, Point2D, Tolerance, Transform, Vector, Vector2D,
+    operations::extrema::projection,
 };
 use crate::{TransformError, Transformable};
 use std::fmt;

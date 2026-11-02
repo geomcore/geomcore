@@ -8,7 +8,7 @@ use crate::geometry::curves::ReversibleCurve;
 use crate::geometry::curves::{
     BSplineCurve, BezierCurve, Circle, Ellipse, Hyperbola, Line, Parabola,
 };
-use crate::operations::projection::CurveProjection;
+use crate::operations::extrema::projection::CurveProjection;
 use crate::{Point, Tolerance, Vector};
 use crate::{Transform, TransformError, Transformable};
 

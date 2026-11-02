@@ -16,7 +16,7 @@ use crate::geometry::curves::spline::Spline;
 use crate::geometry::curves::{
     GenericBSplineCurve, ParametricCurve, ParametricCurve2D, PointExtrema, PointExtrema2D, Side,
 };
-use crate::operations::projection::CurveProjection;
+use crate::operations::extrema::projection::CurveProjection;
 use crate::{Continuity, Point, Point2D, Tolerance};
 use crate::{Transform, TransformError, Transformable};
 use std::fmt;

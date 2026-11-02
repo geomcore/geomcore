@@ -12,7 +12,7 @@ use crate::geometry::curves::spline::Spline;
 use crate::geometry::curves::{
     GenericBezierCurve, ParametricCurve, ParametricCurve2D, PointExtrema, PointExtrema2D, Side,
 };
-use crate::operations::projection::CurveProjection;
+use crate::operations::extrema::projection::CurveProjection;
 use crate::{Continuity, Point, Point2D, Tolerance, Transform};
 use crate::{TransformError, Transformable};
 use std::fmt;

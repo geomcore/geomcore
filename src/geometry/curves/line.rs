@@ -10,8 +10,8 @@ use crate::geometry::curves::parametric_curve::only_minimum;
 use crate::geometry::curves::{ElementaryCurve, ParametricCurve, ParametricCurve2D};
 use crate::geometry::curves::{PointExtrema, PointExtrema2D};
 use crate::math::elementary::curve as elementary;
-use crate::operations::projection::CurveProjection;
-use crate::{Point, Point2D, Tolerance, Transform, operations::projection};
+use crate::operations::extrema::projection::CurveProjection;
+use crate::{Point, Point2D, Tolerance, Transform, operations::extrema::projection};
 use crate::{TransformError, Transformable};
 use std::fmt;
 

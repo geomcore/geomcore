@@ -9,6 +9,7 @@ use crate::math::bspline::curve::LARGE;
 use crate::math::bspline::surface::{Interval, derivative_bounds};
 use crate::math::numeric::boxtree::{Aabb, BoxTree, boxes_apart};
 use crate::math::numeric::{newton_min_1d, newton_min_2d, solve_2x2};
+use crate::operations::extrema::CurveCurveExtremum;
 use crate::operations::intersect::numeric::bezier_pieces::{
     CurvePieces, apart_along, bounding_box, box_size, cross, curves_meet_at_most_once, dot,
     euclidean, extent, norm, sub, tangent_sign,
@@ -19,9 +20,7 @@ use crate::operations::intersect::numeric::subdivision::{
 };
 use crate::operations::intersect::results::completeness::box_union;
 use crate::operations::intersect::results::sort_by_known_parameter;
-use crate::operations::intersect::{
-    Completeness, CurveCurveExtremum, CurveCurveHit, CurveCurveRegion,
-};
+use crate::operations::intersect::{Completeness, CurveCurveHit, CurveCurveRegion};
 use crate::{Point, Tolerance};
 use std::ops::Deref;
 

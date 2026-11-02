@@ -21,7 +21,7 @@ use crate::geometry::surfaces::ReversibleSurface;
 use crate::geometry::surfaces::swept::{ROUNDING, check_profile_parameter, wrap_profile_parameter};
 use crate::geometry::surfaces::{ParametricSurface, SurfaceIsoError};
 use crate::math::numeric::{brent_minimum, newton_min_1d};
-use crate::operations::projection::snap_distance;
+use crate::operations::extrema::projection::snap_distance;
 use crate::{Axis, Circle, Frame, Point, SurfaceProjection, Tolerance, Transform, Vector};
 use crate::{TransformError, Transformable};
 

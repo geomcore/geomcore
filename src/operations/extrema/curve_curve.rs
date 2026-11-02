@@ -1,8 +1,20 @@
 //! The local minima of the distance between two curves
 //! ([`CurveCurveExtrema`]).
 
-use crate::operations::intersect::{Completeness, CurveCurveExtremum, CurveCurveRegion};
+use crate::operations::intersect::{Completeness, CurveCurveRegion};
 use std::ops::Deref;
+
+/// One local minimum of the distance between two 3D curves (see
+/// [`curve_curve_extrema`](crate::curve_curve_extrema)).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct CurveCurveExtremum {
+    /// Parameter on the first curve.
+    pub first_parameter: f64,
+    /// Parameter on the second curve.
+    pub second_parameter: f64,
+    /// Distance between the two points.
+    pub distance: f64,
+}
 
 /// The local minima of the distance between two curves, closest first,
 /// and whether they are all of them (see

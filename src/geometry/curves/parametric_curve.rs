@@ -6,7 +6,7 @@
 use crate::base::tier::TierPoint;
 use crate::geometry::curves::BSplineCurve;
 use crate::geometry::curves::ElementaryCurve;
-use crate::operations::projection::CurveProjection;
+use crate::operations::extrema::projection::CurveProjection;
 use crate::{Point, Tolerance, Vector};
 
 /// Which side of a parameter to evaluate from, for one-sided limits at

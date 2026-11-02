@@ -3,12 +3,11 @@
 
 use crate::geometry::curves::ParametricCurve;
 use crate::math::numeric::{newton_min_1d, newton_min_2d};
+use crate::operations::extrema::{CurveCurveExtrema, CurveCurveExtremum};
 use crate::operations::intersect::numeric::curve_curve_hull::CurveCurveHits;
 use crate::operations::intersect::numeric::{curve_surface_hull, overlap_runs, pairs_with_bspline};
 use crate::operations::intersect::results::sort_by_known_parameter;
-use crate::operations::intersect::{
-    CurveCurveExtrema, CurveCurveExtremum, CurveCurveHit, CurveCurveIntersection,
-};
+use crate::operations::intersect::{CurveCurveHit, CurveCurveIntersection};
 use crate::{Point, Tolerance, Vector};
 
 /// Grid points per finite parameter domain in the 2D extrema search.

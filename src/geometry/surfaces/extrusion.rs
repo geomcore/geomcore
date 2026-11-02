@@ -23,7 +23,7 @@ use crate::geometry::surfaces::swept::{
     wrap_profile_parameter,
 };
 use crate::geometry::surfaces::{ParametricSurface, SurfaceIsoError};
-use crate::operations::projection::snap_distance;
+use crate::operations::extrema::projection::snap_distance;
 use crate::{
     Ellipse, Frame, Hyperbola, Line, Parabola, Plane, Point, SurfaceProjection, Tolerance,
     Transform, Vector,

@@ -18,6 +18,7 @@ use std::borrow::Cow;
 use crate::geometry::curves::{BSplineCurve, ElementaryCurve, ParametricCurve, TrimmedCurve};
 use crate::geometry::surfaces::ParametricSurface;
 use crate::math::numeric::boxtree::Aabb;
+use crate::operations::extrema::CurveCurveExtremum;
 use crate::operations::intersect::numeric::curve_curve::ParamDomain;
 use crate::operations::intersect::numeric::curve_curve_hull::{
     bspline_curve_curve, bspline_minima,
@@ -29,7 +30,7 @@ use crate::operations::intersect::numeric::surface_patches::{
     SurfacePatches, grown, nearest, reach, settle,
 };
 use crate::operations::intersect::results::sort_by_known_parameter;
-use crate::operations::intersect::{Completeness, CurveCurveExtremum, CurveCurveRegion};
+use crate::operations::intersect::{Completeness, CurveCurveRegion};
 use crate::{Point, Tolerance, Vector};
 
 /// The box of the control points of `curve`, which holds the curve.

@@ -5,9 +5,10 @@
 /// Discretization of curves into points joined by straight segments, with
 /// proven chord and angle deviations.
 pub(crate) mod discretization;
+/// Distance extrema: point projection onto curves and surfaces, and the
+/// distance minima between two curves.
+pub(crate) mod extrema;
 /// Intersections of curves and surfaces: the routed
 /// [`Intersect`](crate::Intersect), the typed exact
 /// [`IntersectExact`](crate::IntersectExact), and their results.
 pub(crate) mod intersect;
-/// Point-projection result types.
-pub(crate) mod projection;
