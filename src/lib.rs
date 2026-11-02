@@ -187,8 +187,8 @@ pub use operations::discretization::{
 };
 pub use operations::extrema::{
     CurveCurveExtrema, CurveCurveExtremum, CurveProjection, CurveProjection2D, SurfaceProjection,
+    curve_curve_extrema,
 };
-pub use operations::intersect::curve_curve_extrema;
 pub use operations::intersect::{
     CircleCircle2DIntersection, CircleCircleIntersection, CircleSurfaceIntersection,
     ConeConeIntersection, ConeCylinderIntersection, Conic2DIntersection, ConicConicIntersection,

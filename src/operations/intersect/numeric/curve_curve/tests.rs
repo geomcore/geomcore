@@ -1,6 +1,6 @@
 use super::*;
 use crate::geometry::curves::BSplineCurve;
-use crate::{IntersectExact, Line, LineCircleIntersection};
+use crate::{IntersectExact, Line, LineCircleIntersection, Point, Vector};
 
 #[test]
 fn test_curve_curve_extrema_skew_matches_exact() {

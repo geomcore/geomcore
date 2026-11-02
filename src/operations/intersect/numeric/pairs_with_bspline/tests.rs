@@ -6,11 +6,13 @@ use crate::geometry::surfaces::{
     BSplineSurface, Cone, Cylinder, ExtrusionSurface, Plane, RevolutionSurface, Sphere, Surface,
     Torus,
 };
+use crate::operations::extrema::curve_curve::curve_curve_minima;
+use crate::operations::extrema::curve_curve_extrema;
+use crate::operations::intersect::numeric::curve_curve::sampled_curve_curve;
 use crate::operations::intersect::numeric::curve_curve::search_curve_curve;
-use crate::operations::intersect::numeric::curve_curve::{curve_curve_minima, sampled_curve_curve};
 use crate::operations::intersect::numeric::curve_surface::sampled_curve_surface;
 use crate::operations::intersect::numeric::curve_surface::search_curve_surface;
-use crate::operations::intersect::{CurveCurveHit, CurveSurfaceHit, curve_curve_extrema};
+use crate::operations::intersect::{CurveCurveHit, CurveSurfaceHit};
 
 const TOL: Tolerance = Tolerance::DEFAULT;
 

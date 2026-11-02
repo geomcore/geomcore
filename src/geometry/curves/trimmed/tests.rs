@@ -1,5 +1,5 @@
 use super::*;
-use crate::operations::intersect::curve_curve_extrema;
+use crate::operations::extrema::curve_curve_extrema;
 use crate::operations::intersect::numeric::curve_curve::search_curve_curve;
 use crate::operations::intersect::numeric::curve_surface::search_curve_surface;
 use crate::{Circle, Circle2D, Ellipse, Sphere};

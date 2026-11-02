@@ -19,10 +19,9 @@ use crate::geometry::curves::{BSplineCurve, ElementaryCurve, ParametricCurve, Tr
 use crate::geometry::surfaces::ParametricSurface;
 use crate::math::numeric::boxtree::Aabb;
 use crate::operations::extrema::CurveCurveExtremum;
-use crate::operations::intersect::numeric::curve_curve::ParamDomain;
-use crate::operations::intersect::numeric::curve_curve_hull::{
-    bspline_curve_curve, bspline_minima,
-};
+use crate::operations::extrema::curve_curve::ParamDomain;
+use crate::operations::extrema::curve_curve_pieces::bspline_minima;
+use crate::operations::intersect::numeric::curve_curve_hull::bspline_curve_curve;
 use crate::operations::intersect::numeric::curve_surface_hull::{
     CurveSurfaceHits, Range, bspline_curve_surface,
 };
