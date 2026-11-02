@@ -11,8 +11,9 @@ use crate::geometry::curves::ParametricCurve;
 const SLACK: f64 = 1e-10;
 
 /// The parameter domain of a curve or of a surface direction in a numeric
-/// search: a full period or an interval. `wrap` snaps at the minimiser's resolution while `admit`
-/// accepts within the piece searches' slack, two different rules on purpose.
+/// search: a full period or an interval. Two rules bring a parameter into
+/// it, on purpose: `wrap` snaps at the minimiser's resolution, `admit`
+/// accepts within the piece searches' slack.
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum ParameterDomain {
     /// A full period from `start`: unconstrained, wrapped into
@@ -29,29 +30,21 @@ impl ParameterDomain {
         period: TAU,
     };
 
-    /// The domain over `(start, end)`: their period if `periodic`, else the
-    /// interval between them.
-    pub(crate) fn from_bounds((start, end): (f64, f64), periodic: bool) -> ParameterDomain {
-        if periodic {
-            ParameterDomain::Periodic {
-                start,
-                period: end - start,
-            }
-        } else {
-            ParameterDomain::Interval(start, end)
-        }
-    }
-
-    /// The domain of `curve`; a periodic curve bounded to less than a
-    /// period is an arc, so it is an interval.
-    pub(crate) fn of<C: ParametricCurve>(curve: &C) -> ParameterDomain {
-        let (lo, hi) = curve.bounds();
-        match curve.period() {
+    /// The domain of a parameter over `(lo, hi)` with period `period`, if
+    /// any: the period from `lo` when the bounds span it, else the interval
+    /// (a periodic curve bounded to less than a period is an arc).
+    pub(crate) fn from_bounds((lo, hi): (f64, f64), period: Option<f64>) -> ParameterDomain {
+        match period {
             Some(period) if lo.is_finite() && hi - lo >= period * (1.0 - 1e-12) => {
                 ParameterDomain::Periodic { start: lo, period }
             }
             _ => ParameterDomain::Interval(lo, hi),
         }
+    }
+
+    /// The domain of `curve`.
+    pub(crate) fn of<C: ParametricCurve>(curve: &C) -> ParameterDomain {
+        ParameterDomain::from_bounds(curve.bounds(), curve.period())
     }
 
     /// The box constraint of the minimiser (`None`: unconstrained).
@@ -140,9 +133,17 @@ impl ParameterDomain {
         }
     }
 
+    /// The width of the domain: the period, or the length of the interval.
+    pub(crate) fn width(self) -> f64 {
+        match self {
+            ParameterDomain::Periodic { period, .. } => period,
+            ParameterDomain::Interval(lo, hi) => hi - lo,
+        }
+    }
+
     /// The slack around the domain: [`SLACK`] of its width.
     pub(crate) fn slack(self) -> f64 {
-        SLACK * (self.end() - self.start())
+        SLACK * self.width()
     }
 
     /// `x` admitted into the domain, or `None` when it lies beyond the slack
@@ -150,31 +151,33 @@ impl ParameterDomain {
     /// within the slack of its end as its start. An interval clamps `x` into
     /// its ends.
     pub(crate) fn admit(self, x: f64) -> Option<f64> {
-        let (start, end, slack) = (self.start(), self.end(), self.slack());
-        if self.is_periodic() {
-            let wrapped = start + (x - start).rem_euclid(end - start);
-            Some(if end - wrapped <= slack {
-                start
-            } else {
-                wrapped
-            })
-        } else if x < start - slack || x > end + slack {
-            None
-        } else {
-            Some(x.clamp(start, end))
+        let slack = self.slack();
+        match self {
+            ParameterDomain::Periodic { start, period } => {
+                let wrapped = start + (x - start).rem_euclid(period);
+                Some(if start + period - wrapped <= slack {
+                    start
+                } else {
+                    wrapped
+                })
+            }
+            ParameterDomain::Interval(lo, hi) if x < lo - slack || x > hi + slack => None,
+            ParameterDomain::Interval(lo, hi) => Some(x.clamp(lo, hi)),
         }
     }
 
     /// `x` brought into the domain: admitted (see [`Self::admit`]) when it
     /// lies within the slack, else clamped into the interval.
     pub(crate) fn settle(self, x: f64) -> f64 {
-        self.admit(x).unwrap_or(x.clamp(self.start(), self.end()))
+        self.admit(x)
+            .unwrap_or_else(|| x.clamp(self.start(), self.end()))
     }
 
     /// Whether `x` lies within `(low, high)` widened by the slack on both
     /// sides.
     pub(crate) fn within_slack_of(self, x: f64, (low, high): (f64, f64)) -> bool {
-        low - self.slack() <= x && x <= high + self.slack()
+        let slack = self.slack();
+        low - slack <= x && x <= high + slack
     }
 }
 

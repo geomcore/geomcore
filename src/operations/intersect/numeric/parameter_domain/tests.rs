@@ -23,12 +23,16 @@ fn test_start_and_end_of_an_interval() {
 
 #[test]
 fn test_from_bounds_is_a_period_or_an_interval() {
-    let periodic = ParameterDomain::from_bounds((1.0, 3.0), true);
+    let periodic = ParameterDomain::from_bounds((1.0, 3.0), Some(2.0));
     assert!(periodic.is_periodic());
-    assert_eq!((periodic.start(), periodic.end()), (1.0, 3.0));
-    let interval = ParameterDomain::from_bounds((1.0, 3.0), false);
+    assert_eq!((periodic.start(), periodic.width()), (1.0, 2.0));
+    let interval = ParameterDomain::from_bounds((1.0, 3.0), None);
     assert!(!interval.is_periodic());
     assert_eq!((interval.start(), interval.end()), (1.0, 3.0));
+    // Less than a period of a periodic parameter is an arc.
+    let arc = ParameterDomain::from_bounds((1.0, 2.5), Some(2.0));
+    assert!(!arc.is_periodic());
+    assert_eq!((arc.start(), arc.end()), (1.0, 2.5));
 }
 
 #[test]

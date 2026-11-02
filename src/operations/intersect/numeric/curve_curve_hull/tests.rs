@@ -618,9 +618,8 @@ fn test_exhausted_budget_leaves_the_pending_pairs() {
     for k in 0..8 {
         let (a, b) = crossing(&mut rng, k % 2 == 1, 3.0);
         let (da, db) = (ParameterDomain::of(&a), ParameterDomain::of(&b));
-        let (ra, rb) = (da, db);
         let all = search(&a, &b);
-        let (meetings, completeness) = search_meetings(&a, ra, &b, rb, TOL, 0);
+        let (meetings, completeness) = search_meetings(&a, da, &b, db, TOL, 0);
         let found = hits_at_minima(&a, &b, meetings, TOL);
         let regions = exhausted(&completeness);
         count += usize::from(!regions.is_empty());
@@ -640,7 +639,7 @@ fn test_exhausted_budget_leaves_the_pending_pairs() {
         }
         // The same for the distance minima.
         let all = minima(&a, &b);
-        let (seeds, completeness) = search_minima(&a, ra, &b, rb, TOL, 0);
+        let (seeds, completeness) = search_minima(&a, da, &b, db, TOL, 0);
         let found = refine_minima(&a, da, &b, db, seeds, TOL);
         let regions = exhausted(&completeness);
         count += usize::from(!regions.is_empty());

@@ -209,15 +209,15 @@ fn hull_curve<'a, C: ParametricCurve>(curve: &'a C, cover: Option<&Aabb>) -> Opt
             return Some(Hull::Apart);
         }
     }
-    let periodic = curve.period().is_some();
-    let bspline = if periodic {
+    let range = ParameterDomain::from_bounds((lo, hi), curve.period());
+    let bspline = if range.is_periodic() {
         source.to_bspline().ok()?
     } else {
         TrimmedCurve::new(source, lo, hi).ok()?.to_bspline().ok()?
     };
     Some(Hull::Curve(Box::new(HullCurve {
         bspline: Cow::Owned(bspline),
-        range: ParameterDomain::from_bounds((lo, hi), periodic),
+        range,
         source: Some(source),
     })))
 }
@@ -237,14 +237,14 @@ where
     C: ParametricCurve,
     S: ParametricSurface,
 {
-    let (bounds, periodic) = (curve.bounds(), curve.period().is_some());
+    let domain = ParameterDomain::of(curve);
     match (curve.as_bspline(), surface.as_bspline()) {
         (Some(bspline), _) => {
             let cover = || Some(grown(&curve_box(bspline), tol));
             let patches = SurfacePatches::new(surface, cover)?;
             let mut hits = patches
                 .patches()
-                .map(|patch| bspline_curve_surface(bspline, bounds, periodic, patch, tol))
+                .map(|patch| bspline_curve_surface(bspline, domain, patch, tol))
                 .reduce(|a, b| a.join(b, tol))?;
             patches.carry_hits(&mut hits);
             Some(hits)
@@ -254,9 +254,7 @@ where
             let Hull::Curve(hull) = hull_curve(curve, Some(&cover))? else {
                 return Some(CurveSurfaceHits::complete(Vec::new()));
             };
-            let range = (hull.range.start(), hull.range.end());
-            let mut hits =
-                bspline_curve_surface(&hull.bspline, range, hull.range.is_periodic(), patches, tol);
+            let mut hits = bspline_curve_surface(&hull.bspline, hull.range, patches, tol);
             hull.carry_hits(curve, &mut hits);
             Some(hits)
         }

@@ -164,25 +164,23 @@ const NEWTON_STEPS: usize = 32;
 /// sampled search, keeping the one closest to the surface.
 pub(crate) fn bspline_curve_surface(
     curve: &BSplineCurve,
-    range: (f64, f64),
-    periodic: bool,
+    range: ParameterDomain,
     surface: &BSplineSurface,
     tol: Tolerance,
 ) -> CurveSurfaceHits {
-    search_pieces(curve, range, periodic, surface, tol, SPLITS_PER_PAIR)
+    search_pieces(curve, range, surface, tol, SPLITS_PER_PAIR)
 }
 
 /// [`bspline_curve_surface`] with `splits_per_pair` halvings allowed per
 /// initial pair of pieces.
 fn search_pieces(
     curve: &BSplineCurve,
-    range: (f64, f64),
-    periodic: bool,
+    range: ParameterDomain,
     surface: &BSplineSurface,
     tol: Tolerance,
     splits_per_pair: usize,
 ) -> CurveSurfaceHits {
-    let pieces = CurvePieces::new(curve, range);
+    let pieces = CurvePieces::new(curve, (range.start(), range.end()));
     let patch_shape = surface.patch_net_shape();
     let mut pairs = Subdivision::new([(pieces.width, 1, 4), patch_shape], 0);
     let tree = surface.patch_boxes();
@@ -197,17 +195,14 @@ fn search_pieces(
             pairs.push([pieces.piece(i), &net], [interval(pieces.ranges[i]), rect]);
         });
     }
-    let (lo, hi) = range;
-    let (u0, u1) = surface.u_bounds();
-    let (v0, v1) = surface.v_bounds();
     let mut tests = PieceTests {
         curve,
         surface,
         tol,
         ranges: [
-            ParameterDomain::from_bounds((lo, hi), periodic),
-            ParameterDomain::from_bounds((u0, u1), surface.u_period().is_some()),
-            ParameterDomain::from_bounds((v0, v1), surface.v_period().is_some()),
+            range,
+            ParameterDomain::from_bounds(surface.u_bounds(), surface.u_period()),
+            ParameterDomain::from_bounds(surface.v_bounds(), surface.v_period()),
         ],
         found: Vec::new(),
     };

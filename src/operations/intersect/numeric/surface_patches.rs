@@ -362,7 +362,7 @@ fn extrusion_patches(
         });
     let v = (c0 - p1, c1 - p0);
     let patch = surface.to_bspline_patch(u, v).ok()?;
-    let u_range = ParameterDomain::from_bounds(u, profile.period().is_some());
+    let u_range = ParameterDomain::from_bounds(u, profile.period());
     let map = ParameterMap {
         directions: [Direction::of_profile(profile, arc)?, Direction::Straight],
         ranges: [u_range, ParameterDomain::Interval(v.0, v.1)],
@@ -377,7 +377,7 @@ fn revolution_patches(surface: &RevolutionSurface) -> Option<(Vec<BSplineSurface
     let v = bounded(profile)?;
     let arc = profile_bspline(profile, v).ok()?;
     let patch = surface.to_bspline_patch((0.0, TAU), v).ok()?;
-    let v_range = ParameterDomain::from_bounds(v, profile.period().is_some());
+    let v_range = ParameterDomain::from_bounds(v, profile.period());
     let map = ParameterMap {
         directions: [
             Direction::circular((0.0, TAU))?,

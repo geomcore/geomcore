@@ -72,14 +72,8 @@ pub(crate) fn search_minima(
         CurvePieces::new(a, (ra.start(), ra.end())),
         CurvePieces::new(b, (rb.start(), rb.end())),
     ];
-    let ends = |r: ParameterDomain| {
-        if r.is_periodic() {
-            vec![]
-        } else {
-            vec![r.start(), r.end()]
-        }
-    };
-    let (ends_a, ends_b) = (ends(ra), ends(rb));
+    let (ends_a, ends_b): (Vec<f64>, Vec<f64>) =
+        (ra.finite_ends().collect(), rb.finite_ends().collect());
     let seeds: Vec<[f64; 2]> = ends_a
         .iter()
         .flat_map(|&s| ends_b.iter().map(move |&t| [s, t]))
