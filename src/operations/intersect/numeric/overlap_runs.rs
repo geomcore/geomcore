@@ -16,7 +16,7 @@
 
 use crate::geometry::curves::ParametricCurve;
 use crate::geometry::surfaces::ParametricSurface;
-use crate::operations::intersect::numeric::curve_curve::{contact_multiplicity, same_contact};
+use crate::operations::intersect::numeric::curve_curve::{grazing_multiplicity, same_contact};
 use crate::operations::intersect::results::completeness::{meet, merged};
 use crate::operations::intersect::results::sort_by_known_parameter;
 use crate::operations::intersect::{
@@ -347,9 +347,9 @@ impl<A: ParametricCurve, B: ParametricCurve> Follower<'_, A, B> {
     /// The contact over a stretch `run` where the curves stay within
     /// confusion but do not overlap: one hit at the closest approach,
     /// where the curves are within confusion and the second curve's
-    /// parameter of the foot. The multiplicity is 2 where the curves are
-    /// tangent there, else 1: a shallow crossing within the stretch keeps
-    /// its hit as a crossing. `None` if the closest approach lies beyond
+    /// parameter of the foot. The multiplicity is 2 where the curves touch
+    /// there (see [`grazing_multiplicity`]), else 1: a shallow crossing
+    /// within the stretch keeps its hit as a crossing. `None` if the closest approach lies beyond
     /// confusion.
     fn contact(&self, (low, high): (f64, f64)) -> Option<CurveCurveHit> {
         let distance_at = |t: f64| self.distance(t).unwrap_or(f64::INFINITY);
@@ -377,13 +377,11 @@ impl<A: ParametricCurve, B: ParametricCurve> Follower<'_, A, B> {
         if distance > self.tol.confusion {
             return None;
         }
-        let tangent_first = self.first.eval_derivative(t, 1);
-        let tangent_second = self.second.eval_derivative(s, 1);
         Some(CurveCurveHit {
             first_parameter: Some(t),
             point: self.first.eval_point(t),
             second_parameter: Some(s),
-            multiplicity: contact_multiplicity(tangent_first, tangent_second, self.tol),
+            multiplicity: grazing_multiplicity(self.first, t, self.second, s, self.tol),
         })
     }
 

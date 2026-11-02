@@ -418,6 +418,71 @@ fn test_numeric_near_tangent_line_keeps_its_two_hits() {
     }
 }
 
+#[test]
+fn test_near_tangent_line_matches_closed_form_with_two_crossings() {
+    // The line y = 1 - 1e-6 crosses the unit circle twice, 2.8e-3 apart:
+    // two crossings of multiplicity 1, as the closed form gives.
+    let tol = Tolerance::DEFAULT;
+    let circle = crate::Circle::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
+    let line = Line::new(Point::new(0.0, 1.0 - 1e-6, 0.0), Vector::X).unwrap();
+    let chord = segment(
+        Point::new(-2.0, 1.0 - 1e-6, 0.0),
+        Point::new(2.0, 1.0 - 1e-6, 0.0),
+    );
+    let closed = crate::Intersect::intersect(&circle, &line, tol);
+    assert_eq!(closed.hits().len(), 2, "{closed:?}");
+    assert!(closed.hits().iter().all(|hit| hit.multiplicity == 1));
+    let numeric = intersect_curve_curve(&circle.to_bspline(), &chord, tol);
+    assert_agrees_with_closed_form(&closed, &numeric);
+}
+
+#[test]
+fn test_shallow_crossing_of_two_lines_stays_one_crossing() {
+    // Two B-spline lines cross at the origin at 1e-4 rad. Moving either by
+    // confusion never makes them touch, so the hit is a crossing.
+    let tol = Tolerance::DEFAULT;
+    let first = segment(Point::new(-1.0, 0.0, 0.0), Point::new(1.0, 0.0, 0.0));
+    let second = segment(Point::new(-1.0, -1e-4, 0.0), Point::new(1.0, 1e-4, 0.0));
+    let result = intersect_curve_curve(&first, &second, tol);
+    assert!(result.is_complete(), "{result:?}");
+    assert_eq!(result.hits().len(), 1, "{result:?}");
+    assert_eq!(result.hits()[0].multiplicity, 1, "{result:?}");
+}
+
+#[test]
+fn test_circle_tangent_to_line_at_three_scales_is_one_contact() {
+    // A circle of radius r about the origin touches y = r at (0, r). The
+    // curvature 1 / r sets how far the two can part within confusion, so the
+    // contact is a touch at every scale: multiplicity 2, complete.
+    let tol = Tolerance::DEFAULT;
+    for radius in [1.0, 1e-3, 1e3] {
+        let circle = crate::Circle::new(Point::ORIGIN, Vector::Z, radius).unwrap();
+        let line = Line::new(Point::new(0.0, radius, 0.0), Vector::X).unwrap();
+        let chord = segment(
+            Point::new(-2.0 * radius, radius, 0.0),
+            Point::new(2.0 * radius, radius, 0.0),
+        );
+        let closed = crate::Intersect::intersect(&circle, &line, tol);
+        assert_eq!(closed.hits().len(), 1, "radius {radius}: {closed:?}");
+        assert_eq!(closed.hits()[0].multiplicity, 2, "radius {radius}");
+        let numeric = intersect_curve_curve(&nine_pole_circle(radius), &chord, tol);
+        assert_eq!(numeric.hits().len(), 1, "radius {radius}: {numeric:?}");
+        assert_eq!(
+            numeric.hits()[0].multiplicity,
+            2,
+            "radius {radius}: {numeric:?}"
+        );
+        assert!(numeric.is_complete(), "radius {radius}: {numeric:?}");
+        assert!(
+            numeric.hits()[0]
+                .point
+                .distance(Point::new(0.0, radius, 0.0))
+                <= 1e-6 * radius,
+            "radius {radius}: {numeric:?}"
+        );
+    }
+}
+
 /// The quadratic B-spline `y = x^2` over `x` in `[-1, 1]`, the Bézier
 /// through the control point `(0, -1)`.
 fn parabola_bspline() -> BSplineCurve {

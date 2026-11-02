@@ -102,7 +102,7 @@ where
 ///
 /// A stretch where the curves stay within `tol.confusion` of each other
 /// and then part (a tangent contact) is one contact: one hit at its
-/// closest approach, with multiplicity 2 where the curves are tangent,
+/// closest approach, with multiplicity 2 where the curves touch,
 /// and the result stays complete. A stretch where they run along each
 /// other (a straight or curved overlap) cannot be split into hits, so the
 /// result is [`Completeness::Incomplete`](crate::Completeness::Incomplete)
@@ -160,15 +160,11 @@ where
     let hits: Vec<CurveCurveHit> = extrema
         .into_iter()
         .filter(|e| e.distance <= tol.confusion)
-        .map(|e| {
-            let ta = a.eval_derivative(e.first_parameter, 1);
-            let tb = b.eval_derivative(e.second_parameter, 1);
-            CurveCurveHit {
-                first_parameter: Some(e.first_parameter),
-                point: a.eval_point(e.first_parameter),
-                second_parameter: Some(e.second_parameter),
-                multiplicity: contact_multiplicity(ta, tb, tol),
-            }
+        .map(|e| CurveCurveHit {
+            first_parameter: Some(e.first_parameter),
+            point: a.eval_point(e.first_parameter),
+            second_parameter: Some(e.second_parameter),
+            multiplicity: grazing_multiplicity(a, e.first_parameter, b, e.second_parameter, tol),
         })
         .collect();
     let mut merged: Vec<CurveCurveHit> = Vec::new();
@@ -181,19 +177,59 @@ where
     merged
 }
 
-/// The multiplicity of a hit where the first curve has tangent `ta` and
-/// the second `tb`: 2 where the tangents agree within `sqrt(tol.confusion)`,
-/// else 1.
+/// The multiplicity of a hit between `first` at `first_parameter` and
+/// `second` at `second_parameter`: 2 where the curves touch there, else 1.
 ///
-/// The square root is the scale of where a tangency can be located, not a
-/// merge radius. Two curves of unit curvature that touch stay within
-/// `tol.confusion` of each other over a stretch of half-length `h`, where
-/// `h^2 / 2` is about `tol.confusion`, so `h` is about `sqrt(tol.confusion)`.
-/// The search locates a tangency anywhere on that stretch, where the tangents
-/// differ by about `h`: a sine within `sqrt(tol.confusion)` marks it.
-pub(crate) fn contact_multiplicity(ta: Vector, tb: Vector, tol: Tolerance) -> u32 {
-    let sin = ta.cross(tb).magnitude() / (ta.magnitude() * tb.magnitude());
-    if sin <= tol.confusion.sqrt() { 2 } else { 1 }
+/// Across the hit, at the distance `w` along the first curve, the second
+/// lies `w sin(theta) + k w^2 / 2` away, `theta` being the angle between
+/// the tangents and `k` the magnitude of the difference of the two curvature
+/// vectors perpendicular to the common tangent. Moved by `g` perpendicular
+/// to the first curve, the second touches it (the separation has a double
+/// root) when `sin^2(theta) = 2 k g`, so the crossing is a touch within
+/// confusion when `sin^2(theta) <= 2 k tol.confusion`. This is the rule of
+/// the marching search's grazing test (`SurfacePair::grazes`). Exact
+/// tangency, `sin(theta) <= tol.angular`, is a touch whatever the
+/// curvatures. Lines have `k = 0`, so a shallow crossing of two lines stays
+/// a crossing. The curvatures are read only where the tangents are not
+/// exactly parallel. A gate on the sine alone would be wrong, since a
+/// highly curved pair touches at a sine well above any fixed bound.
+pub(crate) fn grazing_multiplicity<A, B>(
+    first: &A,
+    first_parameter: f64,
+    second: &B,
+    second_parameter: f64,
+    tol: Tolerance,
+) -> u32
+where
+    A: ParametricCurve,
+    B: ParametricCurve,
+{
+    let tangent_first = first.eval_derivative(first_parameter, 1);
+    let tangent_second = second.eval_derivative(second_parameter, 1);
+    let sine = tangent_first.cross(tangent_second).magnitude()
+        / (tangent_first.magnitude() * tangent_second.magnitude());
+    if sine <= tol.angular {
+        return 2;
+    }
+    let unit_tangent = tangent_first * (1.0 / tangent_first.magnitude());
+    let difference = curvature_vector(first, first_parameter, tangent_first)
+        - curvature_vector(second, second_parameter, tangent_second);
+    let curvature_difference =
+        (difference - unit_tangent * difference.dot(unit_tangent)).magnitude();
+    if sine * sine <= 2.0 * curvature_difference * tol.confusion {
+        2
+    } else {
+        1
+    }
+}
+
+/// The curvature vector of `curve` at `parameter`, given its first
+/// derivative `speed` there: the second derivative perpendicular to the
+/// tangent, over the squared speed.
+fn curvature_vector<C: ParametricCurve>(curve: &C, parameter: f64, speed: Vector) -> Vector {
+    let acceleration = curve.eval_derivative(parameter, 2);
+    let unit_tangent = speed * (1.0 / speed.magnitude());
+    (acceleration - unit_tangent * acceleration.dot(unit_tangent)) * (1.0 / speed.dot(speed))
 }
 
 /// Whether the hits `kept` and `hit` are one contact, so that only one of
