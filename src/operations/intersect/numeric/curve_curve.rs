@@ -190,9 +190,14 @@ where
 /// the marching search's grazing test (`SurfacePair::grazes`). Exact
 /// tangency, `sin(theta) <= tol.angular`, is a touch whatever the
 /// curvatures. Lines have `k = 0`, so a shallow crossing of two lines stays
-/// a crossing. The curvatures are read only where the tangents are not
-/// exactly parallel. A gate on the sine alone would be wrong, since a
-/// highly curved pair touches at a sine well above any fixed bound.
+/// a crossing.
+///
+/// A touch at the sine `s` needs the curvatures to differ by at least
+/// `s^2 / (2 tol.confusion)`, a radius of curvature of at most
+/// `2 tol.confusion / s^2`. The curvatures, which cost a second
+/// derivative on each curve, are read only where that radius is at least
+/// [`SHARPEST_TOUCH_RADIUS_IN_CONFUSIONS`] times the confusion: a clear
+/// crossing is told apart from its sine alone.
 pub(crate) fn grazing_multiplicity<A, B>(
     first: &A,
     first_parameter: f64,
@@ -211,6 +216,9 @@ where
     if sine <= tol.angular {
         return 2;
     }
+    if sine * sine > 2.0 / SHARPEST_TOUCH_RADIUS_IN_CONFUSIONS {
+        return 1;
+    }
     let unit_tangent = tangent_first * (1.0 / tangent_first.magnitude());
     let difference = curvature_vector(first, first_parameter, tangent_first)
         - curvature_vector(second, second_parameter, tangent_second);
@@ -222,6 +230,12 @@ where
         1
     }
 }
+
+/// The smallest radius of curvature, in multiples of `tol.confusion`, at
+/// which [`grazing_multiplicity`] still looks for a touch: a feature
+/// sharper than a hundred confusions is below what the tolerance resolves.
+/// It skips the curvatures of crossings at more than about 8 degrees.
+const SHARPEST_TOUCH_RADIUS_IN_CONFUSIONS: f64 = 100.0;
 
 /// The curvature vector of `curve` at `parameter`, given its first
 /// derivative `speed` there: the second derivative perpendicular to the
