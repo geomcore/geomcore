@@ -24,7 +24,8 @@ reported, instead of running to a fixed cube around the origin (#147).
 
 - The trace box of an unbounded pair is the box of the seeds, grown by the
   larger surface size: a cylinder's or cone's radius, a sweep profile's
-  diagonal, or the seeds' spread for two planes. It replaces the cube of
+  diagonal, or for two planes the larger of the seeds' spread and the
+  size of the seeding windows. It replaces the cube of
   side `Tolerance::MODEL_SIZE` (1e5) centred on the origin. A pair with a
   bounded side keeps its box of that side, grown by a tenth of its
   diagonal.

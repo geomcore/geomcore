@@ -208,23 +208,25 @@ fn test_the_trace_box_is_the_smaller_bounded_side_grown_by_a_tenth() {
 }
 
 #[test]
-fn test_the_seeded_trace_box_grows_the_seeds_by_the_spread_of_two_planes() {
-    // Two planes have no own size: the box of two seeds grows by their
-    // distance, which is the diagonal of their box.
+fn test_two_planes_grow_the_seeded_box_by_their_window_whatever_the_seeds() {
+    // Two planes have no own size: the box of the seeds grows by the size
+    // of the seeding window in space, here the fallback square of side 20
+    // (diagonal 20 sqrt(2)), however many seeds survived along the line.
     let first = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
     let second = Plane::new(Point::new(0.0, 0.0, 0.25), Vector::X).unwrap();
     let pair = SurfacePair::new(&first, &second);
-    let (a, b) = (first.eval_point(0.0, 0.0), first.eval_point(2.0, 0.0));
-    let seeds = [[0.0, 0.0, 0.0, 0.0], [2.0, 0.0, 2.0, 0.0]];
-    let limit = pair.trace_box(&seeds, TOL);
-    assert!(matches!(limit, TraceBox::Seeded(_)) && limit.cuts_branches());
-    let grown = a.distance(b);
-    let expected_low =
-        Point::new(a.x.min(b.x), a.y.min(b.y), a.z.min(b.z)) - Vector::new(grown, grown, grown);
-    let expected_high =
-        Point::new(a.x.max(b.x), a.y.max(b.y), a.z.max(b.z)) + Vector::new(grown, grown, grown);
-    assert!(limit.bounds().min().distance(expected_low) < 1e-9);
-    assert!(limit.bounds().max().distance(expected_high) < 1e-9);
+    let window = 20.0 * 2f64.sqrt();
+    let one = [[0.0, 0.0, 0.0, 0.0]];
+    let two = [[0.0, 0.0, 0.0, 0.0], [2.0, 0.0, 2.0, 0.0]];
+    for seeds in [&one[..], &two[..]] {
+        let limit = pair.trace_box(seeds, TOL);
+        assert!(matches!(limit, TraceBox::Seeded(_)) && limit.cuts_branches());
+        let (low, high) = (limit.bounds().min(), limit.bounds().max());
+        assert!((low.x + window).abs() < 1e-9, "{low:?}");
+        assert!((low.y + window).abs() < 1e-9 && (high.y - window).abs() < 1e-9);
+        let rightmost = if seeds.len() == 2 { 2.0 } else { 0.0 };
+        assert!((high.x - (rightmost + window)).abs() < 1e-9, "{high:?}");
+    }
 }
 
 #[test]
@@ -245,16 +247,13 @@ fn test_the_seeded_trace_box_takes_the_larger_radius_of_a_cone_and_a_cylinder() 
 }
 
 #[test]
-fn test_a_single_seed_of_two_planes_still_gets_a_box_to_trace_in() {
-    // No own size and no spread: the box grows by a first step, so the
-    // trace from the seed is not cut at once.
+fn test_a_single_seed_of_two_planes_traces_as_far_as_the_window() {
+    // A single seed, no spread: the box still spans the seeding window,
+    // so the line through it is traced well beyond a first step.
     let first = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
     let second = Plane::new(Point::ORIGIN, Vector::X).unwrap();
     let pair = SurfacePair::new(&first, &second);
-    let seed = [0.0, 0.0, 0.0, 0.0];
-    let limit = pair.trace_box(&[seed], TOL).bounds();
-    let step = super::super::tracer::first_step(TOL);
-    assert!(limit.encloses(Point::new(step * 0.9, 0.0, 0.0)));
-    assert!(limit.encloses(Point::new(0.0, -step * 0.9, 0.0)));
-    assert!(!limit.encloses(Point::new(2.0 * step, 0.0, 0.0)));
+    let limit = pair.trace_box(&[[0.0, 0.0, 0.0, 0.0]], TOL).bounds();
+    assert!(limit.encloses(Point::new(0.0, 20.0, 0.0)));
+    assert!(limit.encloses(Point::new(0.0, -20.0, 0.0)));
 }

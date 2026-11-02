@@ -6,6 +6,7 @@
 //! geometry: the direction of the intersection, and whether the surfaces
 //! touch or lie on each other there.
 
+use super::seeding::seed_window;
 use super::tracer::first_step;
 use crate::geometry::surfaces::parametric_surface::{partials_span_a_plane, reference_widths};
 use crate::geometry::surfaces::{ElementarySurface, ParametricSurface};
@@ -445,20 +446,29 @@ where
 
     /// The box of `seeds`, their points on the first surface, grown on
     /// every side by the larger of the two surfaces' own sizes (see
-    /// [`own_size`]); a surface without one takes the seeds' spread, the
-    /// diagonal of their box. Never grown by less than a first step, so
-    /// that seeds without spread (two planes meeting at one point) still
-    /// trace from it. Nothing in it is fixed in space, so a pair moved
-    /// away from the origin traces the same branches.
+    /// [`own_size`]), a surface without one counting as the seeds' spread
+    /// (the diagonal of their box). Where neither has one (two planes), the
+    /// size of the seeding windows in space counts too (see
+    /// [`window_size`]). The
+    /// windows keep the growth from hanging on how many seeds survive:
+    /// along the line where two planes meet, every grid sample is a tie at
+    /// distance zero, and rounding decides which of them count as minima,
+    /// so a single seed may be all that is left. Never grown by less than
+    /// a first step. Nothing in it is fixed in space (a plane's window is
+    /// measured from its own origin), so a pair moved away from the origin
+    /// traces the same branches.
     fn seeded_box(&self, seeds: &[[f64; 4]], tol: Tolerance) -> BoundingBox {
         let points = BoundingBox::from_points(seeds.iter().map(|&x| self.point(x)));
         let seed_box = points.unwrap_or_else(|| BoundingBox::new(Point::ORIGIN, Point::ORIGIN));
         let spread = seed_box.diagonal().magnitude();
-        let size = |own: Option<f64>| own.unwrap_or(spread);
-        let growth = size(own_size(self.first))
-            .max(size(own_size(self.second)))
-            .max(first_step(tol));
-        seed_box.enlarged(growth)
+        let growth = match (own_size(self.first), own_size(self.second)) {
+            (Some(first), Some(second)) => first.max(second),
+            (Some(size), None) | (None, Some(size)) => size.max(spread),
+            (None, None) => spread
+                .max(window_size(self.first, self.second, tol))
+                .max(window_size(self.second, self.first, tol)),
+        };
+        seed_box.enlarged(growth.max(first_step(tol)))
     }
 
     /// Whether the surfaces touch at parameters `x` (a point on both)
@@ -521,6 +531,21 @@ fn own_size<S: ParametricSurface>(s: &S) -> Option<f64> {
         (None, None) => return None,
     };
     profile.bounding_box().map(|b| b.diagonal().magnitude())
+}
+
+/// The size in space of the window of `surface`'s parameters that its
+/// grid seeds sample against `other` (see [`seed_window`]): the diagonal
+/// of the box of its points at the window's corners.
+fn window_size<S, T>(surface: &S, other: &T, tol: Tolerance) -> f64
+where
+    S: ParametricSurface,
+    T: ParametricSurface,
+{
+    let (u0, u1) = seed_window(surface, other, 0, tol);
+    let (v0, v1) = seed_window(surface, other, 1, tol);
+    let corners = [(u0, v0), (u1, v0), (u0, v1), (u1, v1)];
+    BoundingBox::from_points(corners.into_iter().map(|(u, v)| surface.eval_point(u, v)))
+        .map_or(0.0, |bounds| bounds.diagonal().magnitude())
 }
 
 /// The box where traces end, and what leaving it means.
