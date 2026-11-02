@@ -115,7 +115,7 @@ where
     if let Some((meetings, completeness)) = pairs_with_bspline::curve_curve_meetings(a, b, tol) {
         let mut hits = CurveCurveHits::new(hits_at_minima(a, b, meetings, tol), completeness);
         if !hits.is_complete() {
-            hits.add_sampled(sampled_curve_curve(a, b, tol), tol);
+            hits.add_sampled(a, b, sampled_curve_curve(a, b, tol), tol);
         }
         return hits;
     }
@@ -138,8 +138,8 @@ where
 }
 
 /// The hits among the distance minima `extrema` (closest first): those
-/// within `tol.confusion`, merged within `sqrt(tol.confusion)`, ordered
-/// by first-curve parameter.
+/// within `tol.confusion`, with one kept of each contact (see
+/// [`same_contact`]), ordered by first-curve parameter.
 pub(crate) fn hits_at_minima<A, B>(
     a: &A,
     b: &B,
@@ -165,19 +165,56 @@ where
             }
         })
         .collect();
-    // Contact-level dedupe (see search_curve_surface).
-    let merge_gap = tol.confusion.sqrt();
     let mut merged: Vec<CurveCurveHit> = Vec::new();
     for h in hits {
-        if merged
-            .iter()
-            .all(|m: &CurveCurveHit| m.point.distance(h.point) > merge_gap)
-        {
+        if merged.iter().all(|m| !same_contact(a, b, m, &h, tol)) {
             merged.push(h);
         }
     }
     sort_by_known_parameter(&mut merged, |hit| hit.first_parameter);
     merged
+}
+
+/// Whether the hits `kept` and `hit` are one contact, so that only one of
+/// them is reported.
+///
+/// They are when they lie within `tol.confusion` of each other, or when
+/// the curves stay within `tol.confusion` of each other between their
+/// parameters: checked at the quarter, half and three-quarter points of
+/// the way from one hit to the other. The distance between two hits is
+/// not the test. At a near-tangent contact the two roots of a near-double
+/// root sit about `sqrt(tol.confusion)` apart, yet the curves stay within
+/// confusion over that stretch, so they are one contact. Across a
+/// transversal lens the curves part by the lens' own thickness, which
+/// exceeds confusion once the crossings are far enough apart to be two
+/// hits. A hit without parameters is never merged by the stretch.
+pub(crate) fn same_contact<A, B>(
+    a: &A,
+    b: &B,
+    kept: &CurveCurveHit,
+    hit: &CurveCurveHit,
+    tol: Tolerance,
+) -> bool
+where
+    A: ParametricCurve,
+    B: ParametricCurve,
+{
+    if kept.point.distance(hit.point) <= tol.confusion {
+        return true;
+    }
+    let (Some(s0), Some(t0), Some(s1), Some(t1)) = (
+        kept.first_parameter,
+        kept.second_parameter,
+        hit.first_parameter,
+        hit.second_parameter,
+    ) else {
+        return false;
+    };
+    [0.25, 0.5, 0.75].into_iter().all(|fraction| {
+        let s = s0 + (s1 - s0) * fraction;
+        let t = t0 + (t1 - t0) * fraction;
+        a.eval_point(s).distance(b.eval_point(t)) <= tol.confusion
+    })
 }
 
 #[cfg(test)]

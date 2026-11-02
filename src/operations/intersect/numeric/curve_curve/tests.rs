@@ -1,5 +1,8 @@
 use super::*;
-use crate::{IntersectExact, Line, LineCircleIntersection, Point, Vector};
+use crate::{
+    BSplineCurve, Completeness, CurveCurveIntersection, IntersectExact, Line,
+    LineCircleIntersection, Point, Vector,
+};
 
 #[test]
 fn test_intersect_curve_curve_line_circle() {
@@ -264,6 +267,152 @@ fn test_intersect_curve_curve_finds_every_exact_conic_hit() {
             "{} failures, first: {}",
             failures.len(),
             failures[0]
+        );
+    }
+}
+
+/// The exact nine-pole rational B-spline circle of radius `radius` about
+/// the origin, in the XY plane.
+fn nine_pole_circle(radius: f64) -> BSplineCurve {
+    let corners = [
+        (1.0, 0.0),
+        (1.0, 1.0),
+        (0.0, 1.0),
+        (-1.0, 1.0),
+        (-1.0, 0.0),
+        (-1.0, -1.0),
+        (0.0, -1.0),
+        (1.0, -1.0),
+        (1.0, 0.0),
+    ];
+    let poles = corners
+        .into_iter()
+        .map(|(x, y)| Point::new(radius * x, radius * y, 0.0))
+        .collect();
+    let weights = (0..corners.len())
+        .map(|k| {
+            if k % 2 == 1 {
+                std::f64::consts::FRAC_1_SQRT_2
+            } else {
+                1.0
+            }
+        })
+        .collect();
+    BSplineCurve::new_rational(
+        2,
+        poles,
+        weights,
+        vec![0.0, 1.0, 2.0, 3.0, 4.0],
+        vec![3, 2, 2, 2, 3],
+        false,
+    )
+    .unwrap()
+}
+
+/// The B-spline segment from `from` to `to`.
+fn segment(from: Point, to: Point) -> BSplineCurve {
+    BSplineCurve::new(1, vec![from, to], vec![0.0, 1.0], vec![2, 2], false).unwrap()
+}
+
+/// Whether `result` shows `point` as a hit, or as lying in a region where
+/// hits may be missing.
+fn shows_point(result: &CurveCurveIntersection, point: Point, tol: Tolerance) -> bool {
+    result
+        .hits()
+        .iter()
+        .any(|hit| hit.point.distance(point) <= tol.confusion)
+        || match result.completeness() {
+            Completeness::Incomplete { regions, .. } => regions.iter().any(|region| {
+                let (lo, hi) = (region.min_corner, region.max_corner);
+                (lo.x..=hi.x).contains(&point.x)
+                    && (lo.y..=hi.y).contains(&point.y)
+                    && (lo.z..=hi.z).contains(&point.z)
+            }),
+            _ => false,
+        }
+}
+
+#[test]
+fn test_numeric_keeps_crossings_closer_than_sqrt_confusion() {
+    // The two crossings of a circle and the chord y = s / 2 are 1.73 s
+    // apart: from s = 1e-4 on they lie within sqrt(confusion) of each
+    // other, the merge radius that used to drop one of them.
+    let tol = Tolerance::DEFAULT;
+    for s in [1e-3, 1e-4, 1e-5, 1e-6] {
+        let circle = nine_pole_circle(s);
+        let chord = segment(
+            Point::new(-2.0 * s, 0.5 * s, 0.0),
+            Point::new(2.0 * s, 0.5 * s, 0.0),
+        );
+        let result = intersect_curve_curve(&circle, &chord, tol);
+        assert!(result.is_complete(), "s = {s}: {result:?}");
+        assert_eq!(result.hits().len(), 2, "s = {s}: {result:?}");
+        let half_chord = 3f64.sqrt() / 2.0 * s;
+        for x in [-half_chord, half_chord] {
+            let crossing = Point::new(x, 0.5 * s, 0.0);
+            assert!(
+                result
+                    .hits()
+                    .iter()
+                    .any(|hit| hit.point.distance(crossing) <= tol.confusion),
+                "s = {s}: no hit at {crossing:?} in {result:?}"
+            );
+        }
+        assert!(result.hits().iter().all(|hit| hit.multiplicity == 1));
+    }
+}
+
+#[test]
+fn test_numeric_keeps_crossings_closer_than_sqrt_confusion_at_small_confusion() {
+    // At confusion 1e-12 the merge radius is 1e-6: the crossings at scales
+    // 3e-7 and 1e-9, 5e-7 and 2e-9 apart, fell inside it.
+    let tol = Tolerance {
+        confusion: 1e-12,
+        ..Tolerance::DEFAULT
+    };
+    for s in [3e-7, 1e-9] {
+        let circle = nine_pole_circle(s);
+        let chord = segment(
+            Point::new(-2.0 * s, 0.5 * s, 0.0),
+            Point::new(2.0 * s, 0.5 * s, 0.0),
+        );
+        let result = intersect_curve_curve(&circle, &chord, tol);
+        let half_chord = 3f64.sqrt() / 2.0 * s;
+        for x in [-half_chord, half_chord] {
+            assert!(
+                shows_point(&result, Point::new(x, 0.5 * s, 0.0), tol),
+                "s = {s}: {result:?}"
+            );
+        }
+        if result.is_complete() {
+            assert_eq!(result.hits().len(), 2, "s = {s}: {result:?}");
+        }
+    }
+}
+
+#[test]
+fn test_numeric_near_tangent_line_keeps_its_two_hits() {
+    // The line y = 1 - 1e-6 meets the unit circle at x = +-1.414e-3, a
+    // near-tangent pair whose hits the merge rule must not change.
+    let tol = Tolerance::DEFAULT;
+    let circle = crate::Circle::new(Point::ORIGIN, Vector::Z, 1.0)
+        .unwrap()
+        .to_bspline();
+    let chord = segment(
+        Point::new(-2.0, 1.0 - 1e-6, 0.0),
+        Point::new(2.0, 1.0 - 1e-6, 0.0),
+    );
+    let result = intersect_curve_curve(&circle, &chord, tol);
+    assert_eq!(result.hits().len(), 2, "{result:?}");
+    for x in [-1.414_213_2e-3, 1.414_213_2e-3] {
+        assert!(
+            result
+                .hits()
+                .iter()
+                .any(|hit| (hit.point.x - x).abs() < 1e-8
+                    && (hit.point.y - (1.0 - 1e-6)).abs() < 1e-8
+                    && hit.multiplicity == 1),
+            "no hit at x = {x}: {result:?}"
         );
     }
 }

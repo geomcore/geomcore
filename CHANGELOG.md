@@ -9,6 +9,13 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+### Fixed
+
+- The numeric curve–curve intersection no longer drops one of two
+  crossings lying within `sqrt(tol.confusion)` of each other and reports
+  the result `Complete`. Two hits are merged only when the curves stay
+  within `tol.confusion` of each other between them.
+
 ## [0.42.2] - 2026-11-02
 
 Two internal moves. Nothing public changes: the types, aliases, methods
