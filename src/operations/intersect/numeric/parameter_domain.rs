@@ -1,5 +1,6 @@
-//! The parameter domain of a curve: its bounds or its period, with the
-//! wrapping and stepping the numeric searches share.
+//! The parameter domain of a curve or of a surface direction: its bounds
+//! or its period, with the wrapping, stepping and slack the numeric
+//! searches share.
 
 use std::f64::consts::TAU;
 
@@ -9,8 +10,8 @@ use crate::geometry::curves::ParametricCurve;
 /// outside a subpiece pair) count as inside.
 const SLACK: f64 = 1e-10;
 
-/// The parameter domain of one curve in a numeric search: a full period
-/// or an interval. `wrap` snaps at the minimiser's resolution while `admit`
+/// The parameter domain of a curve or of a surface direction in a numeric
+/// search: a full period or an interval. `wrap` snaps at the minimiser's resolution while `admit`
 /// accepts within the piece searches' slack, two different rules on purpose.
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum ParameterDomain {
@@ -27,6 +28,19 @@ impl ParameterDomain {
         start: 0.0,
         period: TAU,
     };
+
+    /// The domain over `(start, end)`: their period if `periodic`, else the
+    /// interval between them.
+    pub(crate) fn from_bounds((start, end): (f64, f64), periodic: bool) -> ParameterDomain {
+        if periodic {
+            ParameterDomain::Periodic {
+                start,
+                period: end - start,
+            }
+        } else {
+            ParameterDomain::Interval(start, end)
+        }
+    }
 
     /// The domain of `curve`; a periodic curve bounded to less than a
     /// period is an arc, so it is an interval.

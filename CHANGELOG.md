@@ -9,6 +9,13 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+### Changed
+
+- The piece searches' private parameter range is merged into the
+  parameter domain the numeric searches already shared: one value, a
+  period or an interval, owns the wrapping and the slack. Nothing public
+  changes, and no result moves.
+
 ## [0.42.2] - 2026-11-02
 
 Two internal moves. Nothing public changes: the types, aliases, methods

@@ -217,14 +217,7 @@ fn hull_curve<'a, C: ParametricCurve>(curve: &'a C, cover: Option<&Aabb>) -> Opt
     };
     Some(Hull::Curve(Box::new(HullCurve {
         bspline: Cow::Owned(bspline),
-        range: if periodic {
-            ParameterDomain::Periodic {
-                start: lo,
-                period: hi - lo,
-            }
-        } else {
-            ParameterDomain::Interval(lo, hi)
-        },
+        range: ParameterDomain::from_bounds((lo, hi), periodic),
         source: Some(source),
     })))
 }

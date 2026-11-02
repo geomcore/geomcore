@@ -205,30 +205,9 @@ fn search_pieces(
         surface,
         tol,
         ranges: [
-            if periodic {
-                ParameterDomain::Periodic {
-                    start: lo,
-                    period: hi - lo,
-                }
-            } else {
-                ParameterDomain::Interval(lo, hi)
-            },
-            if surface.u_period().is_some() {
-                ParameterDomain::Periodic {
-                    start: u0,
-                    period: u1 - u0,
-                }
-            } else {
-                ParameterDomain::Interval(u0, u1)
-            },
-            if surface.v_period().is_some() {
-                ParameterDomain::Periodic {
-                    start: v0,
-                    period: v1 - v0,
-                }
-            } else {
-                ParameterDomain::Interval(v0, v1)
-            },
+            ParameterDomain::from_bounds((lo, hi), periodic),
+            ParameterDomain::from_bounds((u0, u1), surface.u_period().is_some()),
+            ParameterDomain::from_bounds((v0, v1), surface.v_period().is_some()),
         ],
         found: Vec::new(),
     };

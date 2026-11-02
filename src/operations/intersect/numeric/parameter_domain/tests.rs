@@ -22,6 +22,16 @@ fn test_start_and_end_of_an_interval() {
 }
 
 #[test]
+fn test_from_bounds_is_a_period_or_an_interval() {
+    let periodic = ParameterDomain::from_bounds((1.0, 3.0), true);
+    assert!(periodic.is_periodic());
+    assert_eq!((periodic.start(), periodic.end()), (1.0, 3.0));
+    let interval = ParameterDomain::from_bounds((1.0, 3.0), false);
+    assert!(!interval.is_periodic());
+    assert_eq!((interval.start(), interval.end()), (1.0, 3.0));
+}
+
+#[test]
 fn test_turn_is_a_whole_period() {
     assert!(ParameterDomain::TURN.is_periodic());
     assert_eq!(ParameterDomain::TURN.start(), 0.0);
