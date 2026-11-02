@@ -1,8 +1,8 @@
 //! Samples of every variant of every shape enum, for the tests that check
-//! a property on every shape. `src/shape_enum/tests.rs` includes this file
-//! and fails, naming the variant, when a variant of `Curve`,
-//! `ElementaryCurve`, `Curve2D`, `Surface` or `ElementarySurface` has no
-//! sample here.
+//! a property on every shape. `src/geometry/enum_variants/tests.rs`
+//! includes this file and fails, naming the variant, when a variant of
+//! `Curve`, `ElementaryCurve`, `Curve2D`, `Surface` or `ElementarySurface`
+//! has no sample here.
 //!
 //! Every sample sits in a tilted placement and has a point with a
 //! coordinate of magnitude 2 or more, so its image under a scale of 1e308

@@ -4,11 +4,11 @@
 
 use super::{BoundingBox, HasBoundingBox, coordinates, point};
 use crate::Point;
-use crate::surfaces::{
+use crate::geometry::surfaces::{
     BSplineSurface, BezierSurface, Cone, Cylinder, ElementarySurface, ExtrusionSurface, Plane,
     RevolutionSurface, Sphere, Surface, Torus,
 };
-use crate::surfaces::{elementary_surface_dispatch, surface_dispatch};
+use crate::geometry::surfaces::{elementary_surface_dispatch, surface_dispatch};
 
 /// The box `center ± half` on each axis.
 fn centered(center: Point, half: [f64; 3]) -> BoundingBox {
