@@ -4,7 +4,7 @@ Every 3D curve type has a 2D counterpart with the same capabilities: `Line2D`, `
 
 Curve-on-surface parametrization is one of the crate's stated purposes, and its result is a 2D curve. Before this decision `Curve2D` held only lines and circles, so `parametrize_on` could not return the image of an ellipse in its own plane, the most common planar edge after lines and circles, and reported `NotAnalytic`, although that image is an ellipse in `(u, v)`. Parabolas and hyperbolas on a plane had the same gap, and a B-spline curve had no 2D curve to become: `parametrize_numeric` returned bare points. A kernel builds edges on faces from these images, so a 2D tier narrower than the 3D one leaves those edges without a curve.
 
-`BSplineCurve2D` reuses the B-spline engine that already serves 3D curves and surfaces: the engine is generic over its poles, so 2D poles are one more pole type, not a second implementation. Above the engine, both curve types wrap one private spline generic over its pole type, which holds the validation, editing, evaluation, length and projection.
+`BSplineCurve2D` reuses the B-spline engine that already serves 3D curves and surfaces: the engine is generic over its poles, so 2D poles are one more pole type, not a second implementation. Above the engine, both curve types first wrapped one private spline generic over its pole type, which held the validation, editing, evaluation, length and projection; that spline is now `GenericBSplineCurve<P>` itself (amendment of 2026-11-02).
 
 ## Amendment: the mirror is one generic type per curve
 
@@ -30,6 +30,10 @@ Two things stay per tier. The operand traits `CurveOperand` and `CurveOperand2D`
 
 - **One operand trait generic over the tier**: rejected. Its supertrait would depend on the tier, which a trait cannot say without one more trait per tier naming the search's bound; the two traits are a few lines each, and the routing they feed is the shared part.
 - **The 2D constructor for both, pushing the hits into the result**: rejected on the instruction counts. It cost 7 to 16 % on routed line–circle and circle–circle pairs in space, while the list form keeps every 2D pair within 2 % of its own former path.
+
+## Amendment (2026-11-02): the B-spline curve is the spline
+
+Once the curve became one generic type, `GenericBSplineCurve<P>` was a wrapper over the private `Spline<P>` with the same type parameter: every method forwarded to it, and a Bézier curve reached the spline through the B-spline. The two are folded. `GenericBSplineCurve<P>` holds the knot vector, the poles and the weights, and the crate-private constructors and helpers the spline had (`from_parts`, `new_bezier`, `knot_bounds`, `wrapped_bezier_pieces`, `map_poles`, `mapped`) are its own; `GenericBezierCurve<P>` wraps it as before. Nothing public changes.
 
 ## Considered options
 

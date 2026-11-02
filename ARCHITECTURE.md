@@ -27,7 +27,7 @@ src/
 │   │   ├── parametric_curve_2d.rs   ParametricCurve2D, PointExtrema2D
 │   │   ├── curve.rs curve_2d.rs     the Curve, ElementaryCurve, Curve2D enums
 │   │   ├── line.rs … hyperbola.rs   elementary curves, each one generic type for both tiers
-│   │   ├── bspline.rs spline.rs     B-spline curves of both tiers and the spline they wrap
+│   │   ├── bspline.rs               B-spline curves of both tiers
 │   │   ├── bezier.rs                Bézier curves of both tiers
 │   │   ├── trimmed.rs               TrimmedCurve and TrimmedCurve2D
 │   │   ├── range.rs                 internal: RangeOperations, the box, discretization and

@@ -312,7 +312,7 @@ impl_for_both_tiers! {
         type Point = P;
 
         fn range_box(&self, first: f64, last: f64) -> BoundingBoxOf<P> {
-            bounding_box::spline_box(self.spline(), (first, last))
+            bounding_box::spline_box(self, (first, last))
         }
 
         fn for_each_run<F>(
@@ -325,7 +325,7 @@ impl_for_both_tiers! {
         ) where
             F: FnMut(Run, &dyn Fn(f64) -> P),
         {
-            discretization::spline_runs(self.spline(), first, last, criteria, min_segments, visit);
+            discretization::spline_runs(self, first, last, criteria, min_segments, visit);
         }
 
         fn bspline_range(
@@ -347,7 +347,7 @@ impl_for_both_tiers! {
         type Point = P;
 
         fn range_box(&self, first: f64, last: f64) -> BoundingBoxOf<P> {
-            bounding_box::spline_box(self.spline(), (first, last))
+            bounding_box::spline_box(self.bspline(), (first, last))
         }
 
         fn for_each_run<F>(
@@ -360,7 +360,7 @@ impl_for_both_tiers! {
         ) where
             F: FnMut(Run, &dyn Fn(f64) -> P),
         {
-            discretization::spline_runs(self.spline(), first, last, criteria, min_segments, visit);
+            discretization::spline_runs(self.bspline(), first, last, criteria, min_segments, visit);
         }
 
         fn bspline_range(

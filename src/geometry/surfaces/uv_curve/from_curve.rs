@@ -33,7 +33,6 @@
 use std::f64::consts::{FRAC_PI_2, PI, TAU};
 use std::fmt;
 
-use crate::geometry::curves::spline::Spline;
 use crate::geometry::curves::{
     BSplineCurve, BSplineCurve2D, BezierCurve, BezierCurve2D, Circle, Circle2D, Curve, Curve2D,
     Ellipse, Ellipse2D, Hyperbola, Hyperbola2D, Line, Line2D, Parabola, Parabola2D,
@@ -236,8 +235,8 @@ fn bspline_on_surface(
     surface: &ElementarySurface,
     tol: Tolerance,
 ) -> Result<Curve2D, Curve3DToUvError> {
-    let image = spline_on_plane(curve.spline(), plane_frame(surface)?, tol)?;
-    let uv_curve = Curve2D::BSpline(BSplineCurve2D::from_spline(image));
+    let image = spline_on_plane(curve, plane_frame(surface)?, tol)?;
+    let uv_curve = Curve2D::BSpline(image);
     verify_spline(surface, &uv_curve, curve, tol)?;
     Ok(uv_curve)
 }
@@ -248,8 +247,8 @@ fn bezier_on_surface(
     surface: &ElementarySurface,
     tol: Tolerance,
 ) -> Result<Curve2D, Curve3DToUvError> {
-    let image = spline_on_plane(curve.spline(), plane_frame(surface)?, tol)?;
-    let uv_curve = Curve2D::Bezier(BezierCurve2D::from_spline(image));
+    let image = spline_on_plane(curve.bspline(), plane_frame(surface)?, tol)?;
+    let uv_curve = Curve2D::Bezier(BezierCurve2D::from_span(image));
     verify_spline(surface, &uv_curve, curve, tol)?;
     Ok(uv_curve)
 }
@@ -392,10 +391,10 @@ fn conic_frame_on_plane(
 /// lie on the plane: a curve lies in a plane exactly when its control
 /// polygon does.
 fn spline_on_plane(
-    spline: &Spline<Point>,
+    spline: &BSplineCurve,
     frame: crate::Frame,
     tol: Tolerance,
-) -> Result<Spline<Point2D>, Curve3DToUvError> {
+) -> Result<BSplineCurve2D, Curve3DToUvError> {
     let normal = frame.z_direction();
     let mut coordinate: f64 = 0.0;
     for pole in spline.poles() {

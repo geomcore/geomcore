@@ -24,10 +24,9 @@
 
 use std::fmt;
 
-use crate::geometry::curves::spline::Spline;
 use crate::geometry::curves::{
-    BSplineCurve, BezierCurve, Circle, Curve, Curve2D, Ellipse, Hyperbola, Line, Parabola,
-    ParametricCurve, ParametricCurve2D,
+    BSplineCurve, BSplineCurve2D, BezierCurve, Circle, Curve, Curve2D, Ellipse, Hyperbola, Line,
+    Parabola, ParametricCurve, ParametricCurve2D,
 };
 use crate::geometry::surfaces::uv_curve::composition;
 use crate::geometry::surfaces::{
@@ -239,11 +238,9 @@ impl AffineMap {
             Curve2D::Hyperbola(hyperbola) => {
                 self.elementary(hyperbola, Kind::Hyperbola, hyperbola.frame().origin(), tol)
             }
-            Curve2D::BSpline(bspline) => {
-                Ok(BSplineCurve::from_spline(self.spline(bspline.spline())?).into())
-            }
+            Curve2D::BSpline(bspline) => Ok(self.spline(bspline)?.into()),
             Curve2D::Bezier(bezier) => {
-                Ok(BezierCurve::from_spline(self.spline(bezier.spline())?).into())
+                Ok(BezierCurve::from_span(self.spline(bezier.bspline())?).into())
             }
         }
     }
@@ -278,7 +275,7 @@ impl AffineMap {
 
     /// The image of a 2D spline: its poles mapped, its knots and weights
     /// kept.
-    fn spline(&self, spline: &Spline<Point2D>) -> Result<Spline<Point>, UvCurveTo3DError> {
+    fn spline(&self, spline: &BSplineCurve2D) -> Result<BSplineCurve, UvCurveTo3DError> {
         let image = spline.mapped(|pole| self.point(pole));
         if image.poles().iter().all(|pole| pole.is_finite()) {
             Ok(image)
@@ -315,8 +312,8 @@ impl StraightUvCurve {
                     bounds: line.bounds(),
                 });
             }
-            Curve2D::BSpline(bspline) => bspline.spline(),
-            Curve2D::Bezier(bezier) => bezier.spline(),
+            Curve2D::BSpline(bspline) => bspline,
+            Curve2D::Bezier(bezier) => bezier.bspline(),
             _ => return Err(UvCurveTo3DError::NotAnalytic),
         };
         let poles = spline.poles();
@@ -405,12 +402,13 @@ fn reparametrized(
         Curve::Ellipse(ellipse) => elementary(Kind::Ellipse, ellipse.center()),
         Curve::Parabola(parabola) => elementary(Kind::Parabola, parabola.frame().origin()),
         Curve::Hyperbola(hyperbola) => elementary(Kind::Hyperbola, hyperbola.center()),
-        Curve::BSpline(bspline) => reparametrized_spline(bspline.spline(), shift, scale, tol)
-            .map(|spline| BSplineCurve::from_spline(spline).into()),
+        Curve::BSpline(bspline) => {
+            reparametrized_spline(bspline, shift, scale, tol).map(|spline| spline.into())
+        }
         // A Bézier curve keeps any bounds, so the mapped one is a Bézier
         // curve too.
-        Curve::Bezier(bezier) => reparametrized_spline(bezier.spline(), shift, scale, tol)
-            .map(|spline| BezierCurve::from_spline(spline).into()),
+        Curve::Bezier(bezier) => reparametrized_spline(bezier.bspline(), shift, scale, tol)
+            .map(|spline| BezierCurve::from_span(spline).into()),
     }
 }
 
@@ -435,11 +433,11 @@ fn segment(
 /// [`reparametrized`] for a B-spline or Bézier iso curve, refused when
 /// every pole coincides with the first: the iso curve is then a point.
 fn reparametrized_spline(
-    spline: &Spline<Point>,
+    spline: &BSplineCurve,
     shift: f64,
     scale: f64,
     tol: Tolerance,
-) -> Result<Spline<Point>, UvCurveTo3DError> {
+) -> Result<BSplineCurve, UvCurveTo3DError> {
     let poles = spline.poles();
     if poles
         .iter()

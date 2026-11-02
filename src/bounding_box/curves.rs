@@ -11,7 +11,6 @@ use crate::base::tier::operations::{
     BoxOperations, FrameOperations, PointOperations, VectorOperations,
 };
 use crate::base::tier::{TierPoint, impl_for_both_tiers};
-use crate::geometry::curves::spline::Spline;
 use crate::geometry::curves::{
     Curve, ElementaryCurve, GenericBSplineCurve, GenericBezierCurve, GenericCircle, GenericEllipse,
     GenericHyperbola, GenericLine, GenericParabola, ParametricCurve, ParametricCurve2D,
@@ -128,7 +127,7 @@ pub(crate) fn hyperbola_box<P: TierPoint>(
 /// the range, and `pole` the poles of the spans it covers. Each piece lies
 /// in the convex hull of either.
 fn fold_range_points<P: TierPoint, B: Copy>(
-    spline: &Spline<P>,
+    spline: &GenericBSplineCurve<P>,
     (first, last): (f64, f64),
     seed: B,
     mut bezier: impl FnMut(B, [f64; 4]) -> B,
@@ -165,8 +164,11 @@ fn fold_range_points<P: TierPoint, B: Copy>(
 /// covers and of the Bézier control points of the pieces of the spans it
 /// cuts, restricted to the range (whose ends are the range's ends). Over
 /// the whole bounds, the spans are all covered: the box of the poles.
-pub(crate) fn spline_box<P: TierPoint>(spline: &Spline<P>, range: (f64, f64)) -> BoundingBoxOf<P> {
-    let (start, end) = spline.bounds();
+pub(crate) fn spline_box<P: TierPoint>(
+    spline: &GenericBSplineCurve<P>,
+    range: (f64, f64),
+) -> BoundingBoxOf<P> {
+    let (start, end) = spline.knot_bounds();
     if range.0 <= start && end <= range.1 {
         let (&first_pole, poles) = spline.poles().split_first().expect("a spline has poles");
         let seed = BoundingBoxOf::<P>::new(first_pole, first_pole);
