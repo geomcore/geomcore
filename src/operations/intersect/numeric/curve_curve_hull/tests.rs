@@ -1,12 +1,13 @@
 use super::*;
 use crate::Point;
 use crate::geometry::curves::{Curve, ParametricCurve, TrimmedCurve};
+use crate::operations::extrema::curve_curve::{ParamDomain, curve_curve_minima, refine_minima};
+use crate::operations::extrema::curve_curve_extrema;
+use crate::operations::extrema::curve_curve_pieces::{bspline_minima, search_minima};
+use crate::operations::intersect::IncompleteReason;
 use crate::operations::intersect::numeric::curve_curve::search_curve_curve;
-use crate::operations::intersect::numeric::curve_curve::{
-    ParamDomain, curve_curve_minima, hits_at_minima, refine_minima, sampled_curve_curve,
-};
+use crate::operations::intersect::numeric::curve_curve::{hits_at_minima, sampled_curve_curve};
 use crate::operations::intersect::results::completeness::Region;
-use crate::operations::intersect::{IncompleteReason, curve_curve_extrema};
 
 const TOL: Tolerance = Tolerance::DEFAULT;
 

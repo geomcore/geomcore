@@ -28,7 +28,6 @@ pub use exact::surface_surface::{
     SphereSphereIntersection, TorusConeIntersection, TorusCylinderIntersection,
     TorusPlaneIntersection, TorusSphereIntersection, TorusTorusIntersection,
 };
-pub use numeric::curve_curve::curve_curve_extrema;
 pub use numeric::curve_curve::intersect_curve_curve;
 pub use numeric::curve_surface::intersect_curve_surface;
 pub use results::CurveCurveRegion;
