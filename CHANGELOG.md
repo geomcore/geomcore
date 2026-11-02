@@ -9,6 +9,12 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+### Changed
+
+- The private spline behind the B-spline curve is folded into
+  `GenericBSplineCurve`, which held it with the same type parameter and
+  forwarded every method to it (ADR 0014, amended). Nothing public changes.
+
 ## [0.42.1] - 2026-11-02
 
 The source tree, grouped by layer. Nothing public changes: every item

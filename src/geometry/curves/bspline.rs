@@ -404,7 +404,7 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
     ) -> GenericBSplineCurve<P> {
         let knots = math::KnotVector::from_validated(degree, knots, multiplicities, flat, periodic);
         debug_assert_eq!(knots.pole_count(), poles.len());
-        Self::of(knots, poles, weights)
+        Self::from_knot_vector(knots, poles, weights)
     }
 
     /// Returns the curve's degree.
@@ -604,7 +604,7 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
             self.weights.as_deref(),
             Lanes::CURVE,
         )?;
-        Ok(Self::of(direction, poles, weights))
+        Ok(Self::from_knot_vector(direction, poles, weights))
     }
 
     /// Returns the same curve with its degree raised by `amount`: it
@@ -665,7 +665,7 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
             self.weights.as_deref(),
             Lanes::CURVE,
         )?;
-        Ok(Self::of(direction, poles, weights))
+        Ok(Self::from_knot_vector(direction, poles, weights))
     }
 
     /// Returns the curve with the knot `u` removed up to `times` times,
@@ -792,7 +792,7 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
         );
         Ok(match removal {
             Some(removed) => (
-                Self::of(removed.knots, removed.points, removed.weights),
+                Self::from_knot_vector(removed.knots, removed.points, removed.weights),
                 removed.count,
             ),
             None => (self.clone(), 0),
@@ -838,7 +838,7 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
             &self.poles,
             self.weights.as_deref(),
             |x, y, poles, weights| {
-                pieces.push(wrap(Self::of(
+                pieces.push(wrap(Self::from_knot_vector(
                     math::KnotVector::bezier(p, x, y),
                     poles,
                     weights,
@@ -1100,7 +1100,7 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
             }
         }
         let knots = math::KnotVector::new(degree, knots, multiplicities, periodic, poles.len())?;
-        Ok(Self::of(knots, poles, weights))
+        Ok(Self::from_knot_vector(knots, poles, weights))
     }
 
     /// The Bézier curve of `degree` over `[0, 1]`: one clamped span of
@@ -1144,7 +1144,9 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
         !self.knots.is_periodic() && self.multiplicities() == [end, end]
     }
 
-    fn of(knots: math::KnotVector, poles: Vec<P>, weights: Option<Vec<f64>>) -> Self {
+    /// The curve of a knot vector already checked against the pole count,
+    /// its span tree not yet built.
+    fn from_knot_vector(knots: math::KnotVector, poles: Vec<P>, weights: Option<Vec<f64>>) -> Self {
         Self {
             knots,
             poles,
@@ -1156,7 +1158,7 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
     /// The curve with each pole mapped by `f`, the knots and weights kept.
     pub(crate) fn map_poles(&self, f: impl Fn(P) -> P) -> Self {
         let poles = self.poles.iter().map(|&p| f(p)).collect();
-        Self::of(self.knots.clone(), poles, self.weights.clone())
+        Self::from_knot_vector(self.knots.clone(), poles, self.weights.clone())
     }
 
     /// The curve with each pole mapped by the affine map `f`, into either
@@ -1164,7 +1166,7 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
     /// [`Transformable::transformed`].
     pub(crate) fn mapped<Q: TierPoint>(&self, f: impl Fn(P) -> Q) -> GenericBSplineCurve<Q> {
         let poles = self.poles.iter().map(|&p| f(p)).collect();
-        GenericBSplineCurve::of(self.knots.clone(), poles, self.weights.clone())
+        GenericBSplineCurve::from_knot_vector(self.knots.clone(), poles, self.weights.clone())
     }
 
     /// The curve whose point at `t` is this curve's at `shift + scale * t`,
@@ -1218,7 +1220,7 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
         );
         let pieces: Vec<Self> = pieces
             .into_iter()
-            .map(|piece| Self::of(piece.knots, piece.points, piece.weights))
+            .map(|piece| Self::from_knot_vector(piece.knots, piece.points, piece.weights))
             .collect();
         pieces
             .try_into()
@@ -1316,7 +1318,7 @@ impl BSplineCurve2D {
     /// The curve in space at `z = 0`, with the same parameters.
     pub(crate) fn embedded(&self) -> BSplineCurve {
         let poles = self.poles.iter().map(|&p| p.embedded()).collect();
-        GenericBSplineCurve::of(self.knots.clone(), poles, self.weights.clone())
+        GenericBSplineCurve::from_knot_vector(self.knots.clone(), poles, self.weights.clone())
     }
 }
 
@@ -1418,7 +1420,9 @@ impl_for_both_tiers! {
                 0 => panic!("eval_derivative: order must be >= 1 (use eval_point for order 0)"),
                 1 => math::derivatives::<1, P>(&self.knots, self.pole_view(), u)[1],
                 2 => math::derivatives::<2, P>(&self.knots, self.pole_view(), u)[2],
-                _ => math::derivative_of_order(&self.knots, self.pole_view(), u, order as usize, None),
+                _ => {
+                    math::derivative_of_order(&self.knots, self.pole_view(), u, order as usize, None)
+                }
             }
         }
 
@@ -1489,7 +1493,7 @@ impl<P: TierPoint> ReversibleCurve for GenericBSplineCurve<P> {
         let old: Vec<usize> = (0..self.poles.len())
             .map(|i| editing::reversed_slot(&self.knots, i))
             .collect();
-        Self::of(
+        Self::from_knot_vector(
             editing::reversed_knots(&self.knots),
             old.iter().map(|&i| self.poles[i]).collect(),
             self.weights
