@@ -77,6 +77,12 @@ create_exception!(
 );
 create_exception!(
     geomcore,
+    UvCurveApproximationError,
+    GeomcoreError,
+    "A UV curve, a curve in a surface's parameter space, has no 3D curve within the asked deviation."
+);
+create_exception!(
+    geomcore,
     SurfaceIsoError,
     GeomcoreError,
     "An iso-parametric curve of a surface could not be extracted."
@@ -114,6 +120,10 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     )?;
     m.add("Curve3DToUvError", py.get_type::<Curve3DToUvError>())?;
     m.add("UvCurveTo3DError", py.get_type::<UvCurveTo3DError>())?;
+    m.add(
+        "UvCurveApproximationError",
+        py.get_type::<UvCurveApproximationError>(),
+    )?;
     m.add("SurfaceIsoError", py.get_type::<SurfaceIsoError>())?;
     m.add(
         "DiscretizationCriteriaError",
@@ -175,5 +185,6 @@ map_error!(BSplineSplitError: geomcore::BSplineSplitError);
 map_error!(BSplineConversionError: geomcore::BSplineConversionError);
 map_error!(Curve3DToUvError: geomcore::Curve3DToUvError);
 map_error!(UvCurveTo3DError: geomcore::UvCurveTo3DError);
+map_error!(UvCurveApproximationError: geomcore::UvCurveApproximationError);
 map_error!(SurfaceIsoError: geomcore::SurfaceIsoError);
 map_error!(DiscretizationCriteriaError: geomcore::DiscretizationCriteriaError);

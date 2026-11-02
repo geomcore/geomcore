@@ -1,7 +1,7 @@
 //! The [`ParametricCurve2D`] trait every 2D curve implements and the
 //! [`PointExtrema2D`] point-projection trait.
 
-use crate::geometry::curves::{BSplineCurve2D, Continuity};
+use crate::geometry::curves::{BSplineCurve2D, Continuity, Line2D};
 use crate::operations::projection::CurveProjection2D;
 use crate::{Point2D, Tolerance, Vector2D};
 
@@ -319,6 +319,16 @@ pub trait ParametricCurve2D {
     fn as_bspline(&self) -> Option<&BSplineCurve2D> {
         None
     }
+
+    /// Routing hook of the UV curve mappings, hidden from the
+    /// documentation: the line this curve evaluates (the curve itself, or
+    /// the basis of a trimmed line). `None` for any other curve, the
+    /// default. A type that wraps another curve forwards it, as
+    /// `TrimmedCurve2D` does (ADR 0022).
+    #[doc(hidden)]
+    fn as_line(&self) -> Option<&Line2D> {
+        None
+    }
 }
 
 /// The speed `|C'|`, or `None` where it is negligible across the
@@ -466,6 +476,10 @@ impl<C: ParametricCurve2D + ?Sized> ParametricCurve2D for &C {
 
     fn as_bspline(&self) -> Option<&BSplineCurve2D> {
         (**self).as_bspline()
+    }
+
+    fn as_line(&self) -> Option<&Line2D> {
+        (**self).as_line()
     }
 }
 

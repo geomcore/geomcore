@@ -356,10 +356,7 @@ impl ParametricSurface for Plane {
             0 => panic!(
                 "eval_derivative: du + dv must be >= 1 (use eval_point for the (0, 0) order)"
             ),
-            1..=2 => elementary::plane_derivative(&self.frame, du, dv),
-            _ => panic!(
-                "eval_derivative: order du={du}, dv={dv} is not supported (du + dv must be <= 2)"
-            ),
+            _ => elementary::plane_derivative(&self.frame, du, dv),
         }
     }
 

@@ -87,7 +87,8 @@ class _SurfaceMethods(Generic[_UIsoCurveType, _VIsoCurveType]):
         """Evaluate many (u, v) pairs at once."""
     def eval_derivative(self, u: float, v: float, du: int, dv: int) -> Vector:
         """Evaluate the partial derivative of order (du, dv), with
-        1 <= du+dv <= 2.
+        du+dv >= 1: of every order on the plane, cylinder, cone,
+        sphere and torus, and du+dv <= 2 on the other surfaces.
         """
     def eval_d1(self, u: float, v: float) -> Tuple[Point, Tuple[Vector, Vector]]:
         """The point and the first partial derivatives `(du, dv)` at

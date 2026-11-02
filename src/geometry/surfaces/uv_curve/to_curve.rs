@@ -288,33 +288,34 @@ impl AffineMap {
 // ---- lines along u or v ----
 
 /// A straight UV curve, `point + (t - parameter) * velocity` over `bounds`:
-/// a line, or a degree-1 B-spline or Bézier curve with two poles and equal
-/// or no weights, as files exchanged between kernels store a straight
-/// UV curve.
-struct StraightUvCurve {
-    point: Point2D,
-    parameter: f64,
-    velocity: Vector2D,
-    bounds: (f64, f64),
+/// a line, trimmed or not, or a degree-1 B-spline or Bézier curve with two
+/// poles and equal or no weights, as files exchanged between kernels
+/// store a straight UV curve.
+pub(crate) struct StraightUvCurve {
+    pub(crate) point: Point2D,
+    pub(crate) parameter: f64,
+    pub(crate) velocity: Vector2D,
+    pub(crate) bounds: (f64, f64),
 }
 
 impl StraightUvCurve {
     /// `uv_curve` as a straight UV curve, [`UvCurveTo3DError::NotAnalytic`]
     /// if it is not one, [`UvCurveTo3DError::Collapsed`] for a spline
     /// whose two poles coincide within `tol.parametric`.
-    fn of(uv_curve: &Curve2D, tol: Tolerance) -> Result<StraightUvCurve, UvCurveTo3DError> {
-        let spline = match uv_curve {
-            Curve2D::Line(line) => {
-                return Ok(StraightUvCurve {
-                    point: line.origin(),
-                    parameter: 0.0,
-                    velocity: line.direction(),
-                    bounds: line.bounds(),
-                });
-            }
-            Curve2D::BSpline(bspline) => bspline,
-            Curve2D::Bezier(bezier) => bezier.bspline(),
-            _ => return Err(UvCurveTo3DError::NotAnalytic),
+    pub(crate) fn of(
+        uv_curve: &(impl ParametricCurve2D + ?Sized),
+        tol: Tolerance,
+    ) -> Result<StraightUvCurve, UvCurveTo3DError> {
+        if let Some(line) = uv_curve.as_line() {
+            return Ok(StraightUvCurve {
+                point: line.origin(),
+                parameter: 0.0,
+                velocity: line.direction(),
+                bounds: uv_curve.bounds(),
+            });
+        }
+        let Some(spline) = uv_curve.as_bspline() else {
+            return Err(UvCurveTo3DError::NotAnalytic);
         };
         let poles = spline.poles();
         // Unequal weights run the segment at a varying speed.
@@ -335,8 +336,13 @@ impl StraightUvCurve {
             point: poles[0],
             parameter: first,
             velocity: (1.0 / (last - first)) * (poles[1] - poles[0]),
-            bounds: (first, last),
+            bounds: uv_curve.bounds(),
         })
+    }
+
+    /// The UV point at `t`.
+    pub(crate) fn point_at(&self, t: f64) -> Point2D {
+        self.point + (t - self.parameter) * self.velocity
     }
 }
 

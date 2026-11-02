@@ -48,15 +48,43 @@ pub(crate) fn check_curve_order(order: u32) -> PyResult<()> {
     }
 }
 
-/// Checks a surface derivative order satisfies `1 <= du + dv <= 2`.
-pub(crate) fn check_surface_order(du: u32, dv: u32) -> PyResult<()> {
+/// The highest total order `du + dv` a core surface evaluates.
+pub(crate) trait HighestDerivativeOrder {
+    const HIGHEST_DERIVATIVE_ORDER: u32;
+}
+
+macro_rules! highest_derivative_order {
+    ($order:expr => $($surface:ty),+ $(,)?) => {
+        $(impl HighestDerivativeOrder for $surface {
+            const HIGHEST_DERIVATIVE_ORDER: u32 = $order;
+        })+
+    };
+}
+
+highest_derivative_order!(u32::MAX =>
+    geomcore::Plane, geomcore::Cylinder, geomcore::Cone, geomcore::Sphere, geomcore::Torus,
+);
+highest_derivative_order!(2 =>
+    geomcore::ExtrusionSurface, geomcore::RevolutionSurface, geomcore::BSplineSurface,
+    geomcore::BezierSurface,
+);
+
+/// Checks a surface derivative order satisfies
+/// `1 <= du + dv <= highest`: every order on the plane, cylinder, cone,
+/// sphere and torus, 2 on the other surfaces.
+pub(crate) fn check_surface_order<S: HighestDerivativeOrder>(
+    _surface: &S,
+    du: u32,
+    dv: u32,
+) -> PyResult<()> {
+    let highest = S::HIGHEST_DERIVATIVE_ORDER;
     match du.checked_add(dv) {
-        Some(1 | 2) => Ok(()),
         Some(0) => Err(invalid_argument(
             "du + dv must be >= 1 (use eval_point for the (0, 0) order)",
         )),
+        Some(order) if order <= highest => Ok(()),
         _ => Err(invalid_argument(format!(
-            "order du={du}, dv={dv} is not supported (du + dv must be <= 2)"
+            "order du={du}, dv={dv} is not supported (du + dv must be <= {highest} on this surface)"
         ))),
     }
 }
@@ -94,7 +122,7 @@ use results::{
     PyIntersectionCurve, PyIntersectionMethod, PySurfaceCurvatures, PySurfaceProjection,
     PySurfaceSurfaceIntersection, PySurfaceSurfaceRegion,
 };
-use surfaces::py_curve_3d_to_uv_numeric;
+use surfaces::{PyUvCurveApproximation, py_curve_3d_to_uv_numeric, py_uv_curve_to_3d_within};
 use values::{
     PyAxis, PyAxis2D, PyFrame, PyFrame2D, PyPoint, PyPoint2D, PySide, PyTolerance, PyTransform,
     PyVector, PyVector2D,
@@ -147,6 +175,7 @@ fn geomcore_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyCurveCurveExtremum>()?;
     m.add_class::<PyCurveCurveExtrema>()?;
     m.add_class::<PySurfaceCurvatures>()?;
+    m.add_class::<PyUvCurveApproximation>()?;
 
     let curves = PyModule::new(py, "curves")?;
     curve_classes::add_to(&curves)?;
@@ -166,6 +195,7 @@ fn geomcore_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     sys_modules.set_item("geomcore.surfaces", &surfaces)?;
 
     m.add_function(wrap_pyfunction!(py_curve_3d_to_uv_numeric, m)?)?;
+    m.add_function(wrap_pyfunction!(py_uv_curve_to_3d_within, m)?)?;
     m.add_function(wrap_pyfunction!(py_curve_curve_extrema, m)?)?;
 
     Ok(())

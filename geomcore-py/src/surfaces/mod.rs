@@ -21,4 +21,6 @@ pub(crate) use plane::PyPlane;
 pub(crate) use revolution::PyRevolutionSurface;
 pub(crate) use sphere::PySphere;
 pub(crate) use torus::PyTorus;
-pub(crate) use uv_curve::py_curve_3d_to_uv_numeric;
+pub(crate) use uv_curve::{
+    PyUvCurveApproximation, py_curve_3d_to_uv_numeric, py_uv_curve_to_3d_within,
+};

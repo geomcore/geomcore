@@ -44,8 +44,9 @@ changes are flagged in the changelog). Implemented:
   samples every other pair.
 - **UV curves to 3D curves**: the exact 3D curve a UV curve, a curve of a
   surface's `(u, v)` space, traces, for every pair with a closed form
-  (any curve on a plane, lines along `u` or `v` on any surface); every
-  other pair is refused, never approximated.
+  (any curve on a plane, lines along `u` or `v` on any surface), and
+  refuses every other pair; `uv_curve_to_3d_within` gives one B-spline
+  within a deviation for those, such as a helix on a cylinder.
 - **B-spline fitting**: interpolation and least-squares approximation.
 
 Not implemented: topology/B-rep and boolean operations.

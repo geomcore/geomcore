@@ -164,6 +164,10 @@ impl ParametricCurve2D for Curve2D {
     fn as_bspline(&self) -> Option<&BSplineCurve2D> {
         curve_2d_dispatch!(self, c => c.as_bspline())
     }
+
+    fn as_line(&self) -> Option<&Line2D> {
+        curve_2d_dispatch!(self, c => c.as_line())
+    }
 }
 
 impl PointExtrema2D for Curve2D {

@@ -9,6 +9,40 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+### Added
+
+- `uv_curve_to_3d_within(surface, uv_curve, max_deviation, tol)` gives the
+  3D curve of a UV curve within a deviation, for the pairs that
+  `uv_curve_to_3d` refuses: a slanted line on a cylinder or cone (a helix
+  or conical spiral), or a circle in the `(u, v)` plane of a sphere
+  (ADR 0035). It returns one B-spline for the one UV curve, over its
+  bounds and in its parameter. On an elementary surface along a UV curve
+  with no knot, the composition is analytic, and the curve is of degree 9
+  and C⁴, unless degree 5 takes no more poles. Everywhere else it is of
+  degree 5 and C² wherever the UV curve is. Every point at `t` lies within
+  the deviation of the surface's point at `c(t)`, the same-parameter
+  deviation an edge needs. The result, `UvCurveApproximation`, reports the
+  deviation reached and whether it is proven. It is proven by a Hermite
+  remainder bound for a straight UV curve on a plane, cylinder, cone,
+  sphere or torus, and sampled densely for every other pair. A deviation
+  that cannot be reached is refused with
+  `UvCurveApproximationError::DeviationNotReached`, not loosened. So is a
+  3D curve that collapses to a point, an unbounded UV curve, or one that
+  leaves the surface's domain. On a radius-10 cylinder at `1e-7`, a helix
+  takes 5 spans and about 23 poles per turn.
+- Python: `uv_curve_to_3d_within(surface, uv_curve, max_deviation,
+  tol=None)`, taking any 2D curve or `TrimmedCurve2D`, its result
+  `UvCurveApproximation` (`curve`, `deviation`, `is_proven()`), and the
+  `UvCurveApproximationError` exception.
+
+### Changed
+
+- `eval_derivative` on a plane, cylinder, cone, sphere or torus evaluates
+  every order `(du, dv)`, from the closed forms of the derivatives of
+  `cos` and `sin`. It panicked past `du + dv = 2`. The other surfaces
+  still evaluate up to second order. Python's `eval_derivative` follows,
+  and still raises `ValueError` past `du + dv = 2` on the others.
+
 ## [0.42.2] - 2026-11-02
 
 Two internal moves. Nothing public changes: the types, aliases, methods

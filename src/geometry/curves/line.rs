@@ -253,6 +253,11 @@ impl_for_both_tiers! {
             Some(ElementaryCurve::Line(*self))
         }
     }
+    planar {
+        fn as_line(&self) -> Option<&Line2D> {
+            Some(self)
+        }
+    }
 }
 
 impl Transformable for Line {

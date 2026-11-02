@@ -589,6 +589,10 @@ impl<C: ParametricCurve2D> ParametricCurve2D for TrimmedCurve2D<C> {
     fn as_bspline(&self) -> Option<&BSplineCurve2D> {
         self.basis.as_bspline()
     }
+
+    fn as_line(&self) -> Option<&Line2D> {
+        self.basis.as_line()
+    }
 }
 
 impl<C: PointExtrema2D> PointExtrema2D for TrimmedCurve2D<C> {

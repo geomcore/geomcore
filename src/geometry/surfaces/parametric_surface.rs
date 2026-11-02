@@ -59,14 +59,15 @@ pub trait ParametricSurface {
     fn eval_point(&self, u: f64, v: f64) -> Point;
 
     /// Evaluates the partial derivative of order `(du, dv)` at parameters
-    /// `(u, v)`, for `1 <= du + dv <= 2`: `(1, 0)` is `∂S/∂u`, `(1, 1)` is
-    /// `∂²S/∂u∂v`, and so on.
+    /// `(u, v)`: `(1, 0)` is `∂S/∂u`, `(1, 1)` is `∂²S/∂u∂v`, and so on.
+    /// The plane, cylinder, cone, sphere and torus evaluate every order;
+    /// the other surfaces evaluate `du + dv <= 2`.
     ///
     /// # Panics
     ///
     /// Panics if `du + dv == 0` (use [`eval_point`](Self::eval_point) for
-    /// the position itself), or if `du + dv > 2`: no surface evaluates
-    /// higher orders yet.
+    /// the position itself), or if `du + dv > 2` on a surface other than
+    /// the plane, cylinder, cone, sphere and torus.
     ///
     /// # Examples
     ///

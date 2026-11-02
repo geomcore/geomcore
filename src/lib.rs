@@ -172,15 +172,15 @@ pub use geometry::curves::{
     ParametricCurve2D, PointExtrema, PointExtrema2D, PointParametrization, ReversibleCurve, Side,
     TrimmedCurve, TrimmedCurve2D, TrimmedCurveConstructionError,
 };
-pub use geometry::surfaces::curve_3d_to_uv_numeric;
 pub use geometry::surfaces::{
     BSplineSurface, BezierSurface, Cone, ConeConstructionError, Curve3DToUvError, Cylinder,
     CylinderConstructionError, ElementarySurface, ExtrusionSurface,
     ExtrusionSurfaceConstructionError, ParametricSurface, Plane, PlaneConstructionError,
     ReversibleSurface, RevolutionSurface, RevolutionSurfaceConstructionError, Sphere,
     SphereConstructionError, Surface, SurfaceCurvatures, SurfaceIsoError, Torus,
-    TorusConstructionError, UvCurveTo3DError,
+    TorusConstructionError, UvCurveApproximation, UvCurveApproximationError, UvCurveTo3DError,
 };
+pub use geometry::surfaces::{curve_3d_to_uv_numeric, uv_curve_to_3d_within};
 pub use operations::discretization::{
     Discretization, Discretization2D, DiscretizationCriteria, DiscretizationCriteriaError,
     Discretize, Discretize2D,
