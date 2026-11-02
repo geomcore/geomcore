@@ -2,7 +2,7 @@ use super::*;
 use crate::operations::extrema::curve_curve_extrema;
 use crate::operations::intersect::numeric::curve_curve::search_curve_curve;
 use crate::operations::intersect::numeric::curve_surface::search_curve_surface;
-use crate::{Circle, Circle2D, Ellipse, Sphere};
+use crate::{BSplineCurve, Circle, Circle2D, Ellipse, Sphere, Vector};
 use std::f64::consts::{FRAC_PI_2, PI, TAU};
 
 const TOL: Tolerance = Tolerance::DEFAULT;
@@ -342,4 +342,27 @@ fn test_trimmed_2d_arc_has_the_signed_curvature_of_its_basis() {
             .map(|c| c.distance(Point2D::ORIGIN) < 1e-12),
         Some(true)
     );
+}
+
+// ---- both tiers answer the shared methods alike ----
+
+#[test]
+fn test_both_tiers_answer_the_shared_methods_alike() {
+    let space = TrimmedCurve::new(circle(), 0.0, FRAC_PI_2).unwrap();
+    let plane_circle = Circle2D::new(Point2D::ORIGIN, 1.0).unwrap();
+    let plane = TrimmedCurve2D::new(plane_circle, 0.0, FRAC_PI_2).unwrap();
+    assert_eq!((space.first(), space.last()), (plane.first(), plane.last()));
+    assert_eq!(space.bounds(), plane.bounds());
+    assert_eq!(space.period(), plane.period());
+    assert_eq!(space.is_periodic(), plane.is_periodic());
+    assert_eq!(space.is_closed(TOL), plane.is_closed(TOL));
+    assert_eq!(space.min_continuity(), plane.min_continuity());
+    assert!(close(space.start_point().x, plane.start_point().x));
+    assert!(close(space.start_point().y, plane.start_point().y));
+    assert!(close(space.end_point().x, plane.end_point().x));
+    assert!(close(space.end_point().y, plane.end_point().y));
+
+    fn assert_copy<T: Copy>(_: &T) {}
+    assert_copy(&space);
+    assert_copy(&plane);
 }
