@@ -2,7 +2,7 @@ use super::*;
 use crate::operations::extrema::curve_curve_extrema;
 use crate::operations::intersect::numeric::curve_curve::search_curve_curve;
 use crate::operations::intersect::numeric::curve_surface::search_curve_surface;
-use crate::{BSplineCurve, Circle, Circle2D, Ellipse, Sphere, Vector};
+use crate::{BSplineCurve, BSplineCurve2D, Circle, Circle2D, Ellipse, Sphere, Vector};
 use std::f64::consts::{FRAC_PI_2, PI, TAU};
 
 const TOL: Tolerance = Tolerance::DEFAULT;
@@ -31,6 +31,41 @@ fn test_new_rejects_empty_and_reversed_ranges() {
     let empty = Some(TrimmedCurveConstructionError::EmptyRange);
     assert_eq!(TrimmedCurve::new(circle(), 1.0, 1.0).err(), empty);
     assert_eq!(TrimmedCurve::new(circle(), 2.0, 1.0).err(), empty);
+}
+
+#[test]
+fn test_2d_new_rejects_what_the_space_new_rejects() {
+    let circle_2d = Circle2D::new(Point2D::ORIGIN, 1.0).unwrap();
+    let error = |kind| Some(kind);
+    for (first, last, expected) in [
+        (
+            f64::NAN,
+            1.0,
+            error(TrimmedCurveConstructionError::NonFinite),
+        ),
+        (
+            0.0,
+            f64::INFINITY,
+            error(TrimmedCurveConstructionError::NonFinite),
+        ),
+        (1.0, 1.0, error(TrimmedCurveConstructionError::EmptyRange)),
+        (2.0, 1.0, error(TrimmedCurveConstructionError::EmptyRange)),
+        (
+            0.0,
+            7.0,
+            error(TrimmedCurveConstructionError::ExceedsPeriod),
+        ),
+        (-1.0, 1.0, None),
+    ] {
+        assert_eq!(TrimmedCurve2D::new(circle_2d, first, last).err(), expected);
+        assert_eq!(TrimmedCurve::new(circle(), first, last).err(), expected);
+    }
+    let poles = vec![Point2D::ORIGIN, Point2D::new(1.0, 0.0)];
+    let bspline_2d = BSplineCurve2D::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
+    assert_eq!(
+        TrimmedCurve2D::new(bspline_2d, 0.5, 1.5).err(),
+        Some(TrimmedCurveConstructionError::OutsideBasis)
+    );
 }
 
 #[test]
@@ -361,6 +396,30 @@ fn test_both_tiers_answer_the_shared_methods_alike() {
     assert!(close(space.start_point().y, plane.start_point().y));
     assert!(close(space.end_point().x, plane.end_point().x));
     assert!(close(space.end_point().y, plane.end_point().y));
+
+    // Derivatives, continuity, projection, reversal and conversion.
+    let (u, inside) = (0.3, 0.7);
+    let ((_, space_d1), (_, plane_d1)) = (space.eval_d1(u), plane.eval_d1(u));
+    assert!(close(space_d1.x, plane_d1.x) && close(space_d1.y, plane_d1.y));
+    let ((_, _, space_d2), (_, _, plane_d2)) = (space.eval_d2(u), plane.eval_d2(u));
+    assert!(close(space_d2.x, plane_d2.x) && close(space_d2.y, plane_d2.y));
+    assert_eq!(space.continuity(inside, TOL), plane.continuity(inside, TOL));
+    for (x, y) in [(2.0, 2.0), (-1.0, -1.0), (0.5, -3.0)] {
+        let space_foot = space.project_point(Point::new(x, y, 0.0), TOL);
+        let plane_foot = plane.project_point(Point2D::new(x, y), TOL);
+        assert!(close(space_foot.parameter, plane_foot.parameter));
+        assert!(close(space_foot.distance, plane_foot.distance));
+        assert_eq!(
+            space.extrema(Point::new(x, y, 0.0), TOL).len(),
+            plane.extrema(Point2D::new(x, y), TOL).len()
+        );
+    }
+    let (space_reversed, plane_reversed) = (space.reversed(), plane.reversed());
+    assert_eq!(space_reversed.bounds(), plane_reversed.bounds());
+    assert_eq!(space.reversed_parameter(u), plane.reversed_parameter(u));
+    assert_eq!(space.as_bspline().is_none(), plane.as_bspline().is_none());
+    let (space_bspline, plane_bspline) = (space.to_bspline().unwrap(), plane.to_bspline().unwrap());
+    assert_eq!(space_bspline.knots(), plane_bspline.knots());
 
     fn assert_copy<T: Copy>(_: &T) {}
     assert_copy(&space);

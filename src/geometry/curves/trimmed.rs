@@ -222,28 +222,11 @@ impl_for_both_tiers_over_basis! {
         /// Restricts `basis` to the parameter range `[first, last]`.
         ///
         /// The ends must be finite with `first < last`. On a non-periodic basis
-        /// the range must lie within its [`bounds`](ParametricCurve::bounds)
+        /// the range must lie within its bounds
         /// ([`TrimmedCurveConstructionError::OutsideBasis`] otherwise). On a
         /// periodic basis any start is accepted, so an arc may cross the seam,
         /// but the range spans at most one period
         /// ([`TrimmedCurveConstructionError::ExceedsPeriod`] otherwise).
-        ///
-        /// # Examples
-        ///
-        /// ```
-        /// use geomcore::{Circle, Circle2D, Point, Point2D, TrimmedCurve, TrimmedCurve2D};
-        /// use geomcore::{TrimmedCurveConstructionError, Vector};
-        ///
-        /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
-        /// // An arc across the seam at angle 0.
-        /// assert!(TrimmedCurve::new(circle, -1.0, 1.0).is_ok());
-        /// assert_eq!(
-        ///     TrimmedCurve::new(circle, 0.0, 7.0).err(),
-        ///     Some(TrimmedCurveConstructionError::ExceedsPeriod)
-        /// );
-        /// let circle_2d = Circle2D::new(Point2D::ORIGIN, 1.0).unwrap();
-        /// assert!(TrimmedCurve2D::new(circle_2d, -1.0, 1.0).is_ok());
-        /// ```
         pub fn new(basis: C, first: f64, last: f64) -> Result<Self, TrimmedCurveConstructionError> {
             check_range(first, last, basis.bounds(), basis.period())?;
             Ok(Self::from_parts(basis, first, last))

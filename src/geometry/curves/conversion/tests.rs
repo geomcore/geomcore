@@ -3,6 +3,7 @@ use crate::geometry::curves::PointExtrema;
 use crate::geometry::curves::PointExtrema2D;
 use crate::geometry::curves::{BezierCurve, Circle, Ellipse, Hyperbola, Line, Parabola};
 use crate::geometry::curves::{Circle2D, Ellipse2D, Hyperbola2D, Line2D, Parabola2D};
+use crate::geometry::curves::{ParametricCurve2D, TrimmedCurve, TrimmedCurve2D};
 use crate::operations::discretization::{DiscretizationCriteria, Discretize};
 use crate::{Frame, Frame2D, Point, Point2D, Tolerance, Vector, Vector2D};
 use std::f64::consts::{FRAC_PI_2, FRAC_PI_4, PI};
