@@ -98,72 +98,72 @@ def test_init_constructs():
     assert not hasattr(Circle, "new")
 
 
-def test_parametrize_on_cylinder():
-    # Coaxial circle on a cylinder of the same radius: the pcurve is the
+def test_curve_3d_to_uv_cylinder():
+    # Coaxial circle on a cylinder of the same radius: the UV curve is the
     # horizontal line v = 0 in (u, v) space.
     cylinder = Cylinder(Point.origin(), Vector.unit_z(), 2.0)
     circle = Circle(Point.origin(), Vector.unit_z(), 2.0)
-    pcurve = circle.parametrize_on(cylinder)
-    assert isinstance(pcurve, Line2D)
-    origin = pcurve.origin()
-    direction = pcurve.direction()
+    uv_curve = cylinder.curve_3d_to_uv(circle)
+    assert isinstance(uv_curve, Line2D)
+    origin = uv_curve.origin()
+    direction = uv_curve.direction()
     assert origin.x == pytest.approx(0.0)
     assert origin.y == pytest.approx(0.0)
     assert direction.x == pytest.approx(1.0)
     assert direction.y == pytest.approx(0.0)
 
 
-def test_parametrize_on_takes_a_tolerance():
+def test_curve_3d_to_uv_takes_a_tolerance():
     # A radius 1e-4 too wide lies on the cylinder at confusion 1e-3 only.
     cylinder = Cylinder(Point.origin(), Vector.unit_z(), 1.0)
     circle = Circle(Point(0.0, 0.0, 2.0), Vector.unit_z(), 1.0 + 1e-4)
     loose = Tolerance(confusion=1e-3)
-    assert isinstance(circle.parametrize_on(cylinder, loose), Line2D)
-    assert isinstance(circle.parametrize_on(cylinder, tol=loose), Line2D)
+    assert isinstance(cylinder.curve_3d_to_uv(circle, loose), Line2D)
+    assert isinstance(cylinder.curve_3d_to_uv(circle, tol=loose), Line2D)
     with pytest.raises(ValueError):
-        circle.parametrize_on(cylinder)
+        cylinder.curve_3d_to_uv(circle)
 
 
-def test_parametrize_on_not_analytic_raises():
+def test_curve_3d_to_uv_not_analytic_raises():
     sphere = Sphere(Point.origin(), 2.0)
     line = geomcore.curves.Line(Point(2.0, 0.0, 0.0), Vector.unit_z())
     with pytest.raises(ValueError):
-        line.parametrize_on(sphere)
+        sphere.curve_3d_to_uv(line)
 
 
-def test_parametrize_on_plane_returns_the_new_2d_types():
+def test_curve_3d_to_uv_plane_returns_the_new_2d_types():
     plane = Plane(Point(0.0, 0.0, 1.0), Vector.unit_z())
     center = Point(2.0, 1.0, 1.0)
 
     ellipse = Ellipse(center, Vector.unit_z(), Vector.unit_x(), 3.0, 1.5)
-    pcurve = ellipse.parametrize_on(plane)
-    assert isinstance(pcurve, Ellipse2D)
-    assert pcurve.major_radius() == pytest.approx(3.0)
-    assert pcurve.minor_radius() == pytest.approx(1.5)
-    assert pcurve.center().x == pytest.approx(2.0)
-    assert pcurve.center().y == pytest.approx(1.0)
+    uv_curve = plane.curve_3d_to_uv(ellipse)
+    assert isinstance(uv_curve, Ellipse2D)
+    assert uv_curve.major_radius() == pytest.approx(3.0)
+    assert uv_curve.minor_radius() == pytest.approx(1.5)
+    assert uv_curve.center().x == pytest.approx(2.0)
+    assert uv_curve.center().y == pytest.approx(1.0)
 
     parabola = Parabola(center, Vector.unit_z(), Vector.unit_x(), 0.5)
-    pcurve = parabola.parametrize_on(plane)
-    assert isinstance(pcurve, Parabola2D)
-    assert pcurve.focal() == pytest.approx(0.5)
+    uv_curve = plane.curve_3d_to_uv(parabola)
+    assert isinstance(uv_curve, Parabola2D)
+    assert uv_curve.focal() == pytest.approx(0.5)
 
     hyperbola = Hyperbola(center, Vector.unit_z(), Vector.unit_x(), 2.0, 1.0)
-    pcurve = hyperbola.parametrize_on(plane)
-    assert isinstance(pcurve, Hyperbola2D)
-    assert pcurve.major_radius() == pytest.approx(2.0)
+    uv_curve = plane.curve_3d_to_uv(hyperbola)
+    assert isinstance(uv_curve, Hyperbola2D)
+    assert uv_curve.major_radius() == pytest.approx(2.0)
 
-    # Each pcurve maps back onto the 3D curve: surface(q(t)) == curve(t).
+    # Each uv_curve maps back onto the 3D curve: surface(q(t)) == curve(t).
     for curve in (ellipse, parabola, hyperbola):
-        pcurve = curve.parametrize_on(plane)
+        uv_curve = plane.curve_3d_to_uv(curve)
         for t in (0.0, 0.7, 1.9):
-            q = pcurve.eval_point(t)
+            q = uv_curve.eval_point(t)
             expected = curve.eval_point(t)
             assert q.x == pytest.approx(expected.x)
             assert q.y == pytest.approx(expected.y)
 
 
-def test_parametrize_on_plane_bspline_returns_bspline_2d():
+def test_curve_3d_to_uv_plane_bspline_returns_bspline_2d():
     plane = Plane(Point(0.0, 0.0, 1.0), Vector.unit_z())
     curve = BSplineCurve(
         2,
@@ -172,21 +172,40 @@ def test_parametrize_on_plane_bspline_returns_bspline_2d():
         [3, 3],
         False,
     )
-    pcurve = curve.parametrize_on(plane)
-    assert isinstance(pcurve, BSplineCurve2D)
-    assert [(p.x, p.y) for p in pcurve.poles()] == [(0.0, 0.0), (1.0, 2.0), (3.0, 0.0)]
-    assert pcurve.knots() == [0.0, 1.0]
+    uv_curve = plane.curve_3d_to_uv(curve)
+    assert isinstance(uv_curve, BSplineCurve2D)
+    assert [(p.x, p.y) for p in uv_curve.poles()] == [(0.0, 0.0), (1.0, 2.0), (3.0, 0.0)]
+    assert uv_curve.knots() == [0.0, 1.0]
 
 
-def test_parametrize_on_off_plane_and_curved_surfaces_raise():
+def test_curve_3d_to_uv_off_plane_and_curved_surfaces_raise():
     plane = Plane(Point.origin(), Vector.unit_z())
     raised = Ellipse(Point(0.0, 0.0, 1.0), Vector.unit_z(), Vector.unit_x(), 3.0, 1.5)
     with pytest.raises(ValueError):
-        raised.parametrize_on(plane)
+        plane.curve_3d_to_uv(raised)
     cylinder = Cylinder(Point.origin(), Vector.unit_z(), 2.0)
     flat = Ellipse(Point.origin(), Vector.unit_z(), Vector.unit_x(), 3.0, 1.5)
     with pytest.raises(ValueError):
-        flat.parametrize_on(cylinder)
+        cylinder.curve_3d_to_uv(flat)
+
+
+def test_curve_3d_to_uv_maps_a_bezier_curve_on_a_plane_and_back():
+    plane = Plane(Point(0.0, 0.0, 1.0), Vector.unit_z())
+    curve = geomcore.curves.BezierCurve(
+        2, [Point(0.0, 0.0, 1.0), Point(1.0, 2.0, 1.0), Point(3.0, 0.0, 1.0)]
+    )
+    uv_curve = plane.curve_3d_to_uv(curve)
+    assert isinstance(uv_curve, geomcore.curves.BezierCurve2D)
+    assert [(p.x, p.y) for p in uv_curve.poles()] == [(0.0, 0.0), (1.0, 2.0), (3.0, 0.0)]
+    traced = plane.uv_curve_to_3d(uv_curve)
+    for t in (0.0, 0.4, 1.0):
+        assert traced.eval_point(t).distance(curve.eval_point(t)) < 1e-12
+
+
+def test_curve_3d_to_uv_takes_a_3d_curve_only():
+    plane = Plane(Point.origin(), Vector.unit_z())
+    with pytest.raises(TypeError):
+        plane.curve_3d_to_uv(Line2D(geomcore.Point2D(0.0, 0.0), geomcore.Vector2D(1.0, 0.0)))
 
 
 def test_bspline_curve_degree_one_line():
@@ -780,20 +799,20 @@ def test_curve_curve_generic():
     assert [h.first_parameter for h in hits] == pytest.approx([-2.0, 2.0])
 
 
-def test_parametrize_numeric():
+def test_curve_3d_to_uv_numeric():
     import math
 
-    from geomcore import parametrize_numeric
+    from geomcore import curve_3d_to_uv_numeric
 
     circle = Circle(Point.origin(), Vector.unit_z(), 2.0)
     cylinder = Cylinder(Point.origin(), Vector.unit_z(), 2.0)
-    pcurve = parametrize_numeric(circle, cylinder, 9)
-    assert len(pcurve) == 9
-    assert parametrize_numeric(circle, cylinder, sample_count=9) == pcurve
-    for u, v in pcurve:
+    uv_curve = curve_3d_to_uv_numeric(circle, cylinder, 9)
+    assert len(uv_curve) == 9
+    assert curve_3d_to_uv_numeric(circle, cylinder, sample_count=9) == uv_curve
+    for u, v in uv_curve:
         assert v == pytest.approx(0.0)
     # Round-trip through the surface recovers the curve.
-    for i, (u, v) in enumerate(pcurve):
+    for i, (u, v) in enumerate(uv_curve):
         p = cylinder.eval_point(u, v)
         q = circle.eval_point(i / 8 * math.tau)
         assert p.x == pytest.approx(q.x)

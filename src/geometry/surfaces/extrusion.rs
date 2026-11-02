@@ -9,6 +9,9 @@
 //! carries onto a line, folded over itself: its parameter is then solved
 //! for in closed form.
 
+use crate::geometry::curves::Curve2D;
+use crate::geometry::surfaces::uv_curve::{from_curve, to_curve};
+use crate::geometry::surfaces::{Curve3DToUvError, UvCurveTo3DError};
 use std::fmt;
 
 use crate::base::transform::image_error;
@@ -182,6 +185,9 @@ impl ExtrusionSurface {
     /// The `u` isoparametric line at `u`: the line through the profile
     /// point at `u` along the direction, so `u_iso(u).eval_point(t)` is
     /// `eval_point(u, t)` for every `t`.
+    /// The axis-aligned special case of
+    /// [`uv_curve_to_3d`](crate::ParametricSurface::uv_curve_to_3d):
+    /// a line along `v`, run at rate `1` from `0`.
     ///
     /// Fails with [`SurfaceIsoError::NonFinite`] for a NaN or infinite
     /// `u`, and with [`SurfaceIsoError::OutOfRange`] for a `u` outside the
@@ -206,6 +212,9 @@ impl ExtrusionSurface {
     /// The `v` isoparametric curve at `v`: the profile moved by `v` along
     /// the direction, so `v_iso(v).eval_point(t)` is `eval_point(t, v)`
     /// for every `t`.
+    /// The axis-aligned special case of
+    /// [`uv_curve_to_3d`](crate::ParametricSurface::uv_curve_to_3d):
+    /// a line along `u`, run at rate `1` from `0`.
     ///
     /// Fails with [`SurfaceIsoError::NonFinite`] for a NaN or infinite
     /// `v`, or when the moved profile overflows `f64`.
@@ -315,6 +324,18 @@ impl ParametricSurface for ExtrusionSurface {
 
     fn as_extrusion(&self) -> Option<&ExtrusionSurface> {
         Some(self)
+    }
+
+    fn uv_curve_to_3d(
+        &self,
+        uv_curve: &Curve2D,
+        tol: Tolerance,
+    ) -> Result<Curve, UvCurveTo3DError> {
+        to_curve::uv_curve_to_3d(self, uv_curve, tol)
+    }
+
+    fn curve_3d_to_uv(&self, curve: &Curve, tol: Tolerance) -> Result<Curve2D, Curve3DToUvError> {
+        from_curve::curve_3d_to_uv(self, curve, tol)
     }
 }
 

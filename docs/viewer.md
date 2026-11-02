@@ -66,7 +66,7 @@ The embedded page above is static. From a script, a debugger or a notebook, `vie
     let ring = Circle::new(Point::new(0.0, 0.0, 1.0), Vector::Z, 2.0)?;
     let s = view.add(Geom::from(&cylinder).window(None, Some([-2.0, 2.0])), Opts::new().label("S"))?;
     view.add(&ring, Opts::new().label("C"))?;
-    view.pcurve(&ring.parametrize_on(cylinder, Tolerance::DEFAULT)?, &s, Opts::new().label("C in (u, v)"))?;
+    view.pcurve(&cylinder.curve_3d_to_uv(&ring.into(), Tolerance::DEFAULT)?, &s, Opts::new().label("C in (u, v)"))?;
     ```
 
 Protocol details: [protocol/SCENE.md](https://github.com/geomcore/geomcore-viewer/blob/main/protocol/SCENE.md).

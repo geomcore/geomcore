@@ -7,10 +7,10 @@
 use geomcore::prelude::*;
 use geomcore::{
     Circle, CircleCircleIntersection, CircleSurfaceIntersection, Cone, ConicConicIntersection,
-    Curve2D, Cylinder, Ellipse, Frame2D, FrameConstructionError, Line, Line2D,
+    Curve2D, Curve3DToUvError, Cylinder, Ellipse, Frame2D, FrameConstructionError, Line, Line2D,
     LineCircleIntersection, LineLine2DIntersection, LineLineIntersection, LineQuadricIntersection,
-    ParametrizeError, Plane, Point, Point2D, Tolerance, Torus, TorusConeIntersection,
-    TorusCylinderIntersection, TorusPlaneIntersection, TorusTorusIntersection, Vector, Vector2D,
+    Plane, Point, Point2D, Tolerance, Torus, TorusConeIntersection, TorusCylinderIntersection,
+    TorusPlaneIntersection, TorusTorusIntersection, Vector, Vector2D,
 };
 
 const TOL: Tolerance = Tolerance::DEFAULT;
@@ -167,8 +167,8 @@ fn test_a_circle_crossing_a_plane_is_not_on_it() {
     let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
     let circle = Circle::new(Point::ORIGIN, Vector::new(1.0, 1.0, 1.0), 1.0).unwrap();
     assert_eq!(
-        circle.parametrize_on(plane, TOL),
-        Err(ParametrizeError::CurveNotOnSurface)
+        plane.curve_3d_to_uv(&circle.into(), TOL),
+        Err(Curve3DToUvError::CurveNotOnSurface)
     );
 }
 
@@ -180,7 +180,7 @@ fn test_a_small_circle_tilted_below_the_confusion_angle_parametrizes_on_a_plane(
     let angle: f64 = 1e-5;
     let normal = Vector::new(angle.sin(), -angle.sin(), 2f64.sqrt() * angle.cos());
     let circle = Circle::new(Point::new(0.5, 0.25, 0.0), normal, 1e-3).unwrap();
-    match circle.parametrize_on(plane, TOL) {
+    match plane.curve_3d_to_uv(&circle.into(), TOL) {
         Ok(Curve2D::Circle(image)) => {
             assert_eq!(image.center(), Point2D::new(0.5, 0.25));
             assert_eq!(image.radius(), 1e-3);
@@ -194,10 +194,10 @@ fn test_a_circle_tilted_below_the_confusion_angle_parametrizes_on_a_cylinder() {
     let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
     let circle = Circle::new(Point::new(0.0, 0.0, 2.0), tilted_z(1e-10), 1.0).unwrap();
     assert!(matches!(
-        circle.parametrize_on(cylinder, TOL),
+        cylinder.curve_3d_to_uv(&circle.into(), TOL),
         Ok(Curve2D::Line(_))
     ));
-    let image = circle.parametrize_on(cylinder, TOL).unwrap();
+    let image = cylinder.curve_3d_to_uv(&circle.into(), TOL).unwrap();
     let Curve2D::Line(line) = image else {
         unreachable!()
     };

@@ -9,6 +9,70 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+## [0.42.0] - 2026-10-30
+
+UV curves, both ways, on the surface. `uv_curve_to_3d` gives the exact
+3D curve a parameter-space curve traces on a surface, in the same
+parameter: any curve on a plane, the affine image on a line extrusion,
+the iso curve for a line along `u` or `v`, and on spline surfaces the
+exact composition of any line, parabola, B-spline or Bézier UV curve.
+Every other pair is refused, never approximated. `curve_3d_to_uv`, the
+inverse, replaces the curves' `parametrize_on`, so curves no longer
+depend on surfaces (see Breaking).
+
+### Added
+
+- `ParametricSurface::uv_curve_to_3d(&Curve2D, tol)`, the exact 3D
+  curve a UV curve (a curve of a surface's parameter space) traces on the
+  surface, in the same parameter: the inverse of `curve_3d_to_uv` (#152,
+  ADR 0030). Any
+  curve on a plane keeps its kind; on the extrusion of a line, the
+  affine image where it keeps its kind in the same parameter; a line
+  along `u` or `v` on any surface gives the iso curve, reparametrized.
+  Every other pair is refused with the new `UvCurveTo3DError`
+  (`NotAnalytic`, `Collapsed` at a pole or apex, or `IsoCurve`), never
+  approximated. The trait's default refuses, so surface types defined
+  outside the crate keep compiling.
+- A straight UV curve stored as a degree-1 B-spline or Bézier curve with
+  two poles is read as a line: along `u` or `v` it gives the iso curve
+  run at the spline's speed, exact for a line or spline iso curve at any
+  speed and for a conic at speed 1, and refused otherwise.
+- `uv_curve_to_3d` composes any line, parabola, B-spline or Bézier UV
+  curve on a B-spline or Bézier surface, or on the extrusion of a
+  B-spline or Bézier profile, exactly into a B-spline of degree
+  `k (p + q)` in the UV curve's parameter (#155, ADR 0032). An unbounded
+  line or parabola is composed over its part inside the surface's
+  domain, and a periodic direction is unwrapped. Circle, ellipse and
+  hyperbola UV curves stay refused, since their angle parameter is not
+  rational; their `to_bspline` composes exactly, in the B-spline's
+  parameter. New `UvCurveTo3DError` variants:
+  `OutsideSurfaceDomain` and `DegreeAboveLimit { degree }`, above
+  degree 25.
+- Python: `uv_curve_to_3d(uv_curve, tol=None)` on every surface
+  class, taking any 2D curve, and the `UvCurveTo3DError`
+  exception.
+- `ParametricSurface::curve_3d_to_uv(&Curve, tol)`, the exact UV curve
+  of a 3D curve lying on the surface, in the same parameter (ADR 0031).
+  It takes any `Curve`, so a Bézier curve in a plane now maps too, to
+  the `BezierCurve2D` over its poles' plane coordinates. Python:
+  `curve_3d_to_uv(curve, tol=None)` on every surface class, taking any
+  3D curve.
+
+### Breaking
+
+- `parametrize_on` is gone from `Line`, `Circle`, `Ellipse`, `Parabola`,
+  `Hyperbola` and `BSplineCurve`; the surface maps the curve instead,
+  with the same closed forms and results (ADR 0031). Migrate
+  `circle.parametrize_on(surface, tol)` to
+  `surface.curve_3d_to_uv(&circle.into(), tol)`, or pass a `&Curve`
+  directly. `ParametrizeError` is renamed `Curve3DToUvError`, with the
+  same variants, and `parametrize_numeric` is renamed
+  `curve_3d_to_uv_numeric`. Python: `curve.parametrize_on(surface, tol)`
+  becomes `surface.curve_3d_to_uv(curve, tol)`, the exception
+  `ParametrizeError` becomes `Curve3DToUvError`, and
+  `geomcore.parametrize_numeric` becomes
+  `geomcore.curve_3d_to_uv_numeric`.
+
 ## [0.41.0] - 2026-10-30
 
 Deeper modules behind the same results. One closed-form table decides
@@ -2234,7 +2298,8 @@ Behaviour, in Rust and Python alike:
 - Golden-fixture validation of all numeric results at 1e-7 tolerance, and
   criterion throughput benchmarks (`docs/benchmarks.md`).
 
-[Unreleased]: https://github.com/geomcore/geomcore/compare/v0.41.0...HEAD
+[Unreleased]: https://github.com/geomcore/geomcore/compare/v0.42.0...HEAD
+[0.42.0]: https://github.com/geomcore/geomcore/compare/v0.41.0...v0.42.0
 [0.41.0]: https://github.com/geomcore/geomcore/compare/v0.40.1...v0.41.0
 [0.40.1]: https://github.com/geomcore/geomcore/compare/v0.40.0...v0.40.1
 [0.40.0]: https://github.com/geomcore/geomcore/compare/v0.39.1...v0.40.0

@@ -2,11 +2,14 @@
 //! wrappers over [`crate::math::elementary::surface`].
 
 use crate::base::transform::image_error;
+use crate::geometry::curves::{Curve, Curve2D};
 use crate::geometry::surfaces::ElementarySurface;
 use crate::geometry::surfaces::ParametricSurface;
 use crate::geometry::surfaces::ReversibleSurface;
 use crate::geometry::surfaces::SurfaceIsoError;
 use crate::geometry::surfaces::iso::{check_iso_param, iso_circle};
+use crate::geometry::surfaces::uv_curve::{from_curve, to_curve};
+use crate::geometry::surfaces::{Curve3DToUvError, UvCurveTo3DError};
 use crate::math::elementary::surface as elementary;
 use crate::{
     Circle, Frame, Point, SurfaceProjection, Tolerance, Transform, Vector, operations::projection,
@@ -153,6 +156,9 @@ impl Sphere {
     /// is `eval_point(u, t)` for every `t`. The sphere's own range
     /// `-PI/2 <= v <= PI/2` covers the half from pole to pole; the other
     /// half is the meridian at `u + PI`.
+    /// The axis-aligned special case of
+    /// [`uv_curve_to_3d`](crate::ParametricSurface::uv_curve_to_3d):
+    /// a line along `v`, run at rate `1` from `0`.
     ///
     /// Fails with [`SurfaceIsoError::NonFinite`] for a NaN or infinite
     /// `u`; any finite value is accepted.
@@ -182,6 +188,9 @@ impl Sphere {
     /// `|r * cos(v)|` at height `r * sin(v)` along the axis, so
     /// `v_iso(v).eval_point(t)` is `eval_point(t, v)` for every `t`. At a
     /// pole it is the circle of radius zero.
+    /// The axis-aligned special case of
+    /// [`uv_curve_to_3d`](crate::ParametricSurface::uv_curve_to_3d):
+    /// a line along `u`, run at rate `1` from `0`.
     ///
     /// Fails with [`SurfaceIsoError::NonFinite`] for a NaN or infinite
     /// `v`; any finite value is accepted.
@@ -295,6 +304,18 @@ impl ParametricSurface for Sphere {
     /// formula, including the pole handling.
     fn parameters_of(&self, point: Point, _tol: Tolerance) -> (f64, f64) {
         elementary::sphere_parameters(&self.frame, self.radius, point)
+    }
+
+    fn uv_curve_to_3d(
+        &self,
+        uv_curve: &Curve2D,
+        tol: Tolerance,
+    ) -> Result<Curve, UvCurveTo3DError> {
+        to_curve::uv_curve_to_3d(self, uv_curve, tol)
+    }
+
+    fn curve_3d_to_uv(&self, curve: &Curve, tol: Tolerance) -> Result<Curve2D, Curve3DToUvError> {
+        from_curve::curve_3d_to_uv(self, curve, tol)
     }
 }
 

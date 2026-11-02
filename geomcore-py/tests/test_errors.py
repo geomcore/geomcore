@@ -12,7 +12,8 @@ SUBCLASS_PARENTS = {
     "DegreeElevationError": "GeomcoreError",
     "BSplineSplitError": "GeomcoreError",
     "BSplineConversionError": "GeomcoreError",
-    "ParametrizeError": "GeomcoreError",
+    "Curve3DToUvError": "GeomcoreError",
+    "UvCurveTo3DError": "GeomcoreError",
     "SurfaceIsoError": "GeomcoreError",
     "DiscretizationCriteriaError": "GeomcoreError",
 }
@@ -146,13 +147,20 @@ def test_bspline_conversion_error():
         plane.to_bspline_patch((1.0, 0.0), (0.0, 1.0))
 
 
-def test_parametrize_error():
+def test_curve_3d_to_uv_error():
     sphere = surfaces.Sphere(geomcore.Point(0, 0, 0), 1.0)
     far_line = curves.Line.from_two_points(
         geomcore.Point(5, 0, 0), geomcore.Point(5, 1, 0)
     )
-    with pytest.raises(geomcore.ParametrizeError):
-        far_line.parametrize_on(sphere)
+    with pytest.raises(geomcore.Curve3DToUvError):
+        sphere.curve_3d_to_uv(far_line)
+
+
+def test_uv_curve_to_3d_error():
+    cylinder = surfaces.Cylinder(geomcore.Point(0, 0, 0), geomcore.Vector(0, 0, 1), 2.0)
+    helix = curves.Line2D(geomcore.Point2D(0, 0), geomcore.Vector2D(0.6, 0.8))
+    with pytest.raises(geomcore.UvCurveTo3DError):
+        cylinder.uv_curve_to_3d(helix)
 
 
 def test_surface_iso_error():

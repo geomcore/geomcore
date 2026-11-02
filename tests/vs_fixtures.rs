@@ -16,8 +16,8 @@ use common::{
 };
 use geomcore::prelude::*;
 use geomcore::{
-    Axis, BSplineCurve2D, Circle, Cone, Curve, Curve2D, Cylinder, Ellipse, Hyperbola,
-    ParametrizeError, Plane, Surface, Tolerance, Transform,
+    Axis, BSplineCurve2D, Circle, Cone, Curve2D, Curve3DToUvError, Cylinder, Ellipse, Hyperbola,
+    Plane, Tolerance, Transform,
 };
 use serde::Deserialize;
 
@@ -615,19 +615,6 @@ struct ParametrizeFixture {
     cases: Vec<ParametrizeCase>,
 }
 
-fn parametrize_curve(curve: &Curve, surface: &Surface) -> Result<Curve2D, ParametrizeError> {
-    let (surface, tol) = (surface.clone(), Tolerance::DEFAULT);
-    match curve {
-        Curve::Line(c) => c.parametrize_on(surface, tol),
-        Curve::Circle(c) => c.parametrize_on(surface, tol),
-        Curve::Ellipse(c) => c.parametrize_on(surface, tol),
-        Curve::Parabola(c) => c.parametrize_on(surface, tol),
-        Curve::Hyperbola(c) => c.parametrize_on(surface, tol),
-        Curve::BSpline(c) => c.parametrize_on(surface, tol),
-        other => panic!("no parametrization of {other:?}"),
-    }
-}
-
 /// Asserts a 2D frame against the golden `center`, `x_dir` and `y_dir`.
 #[track_caller]
 fn assert_expected_frame2(frame: geomcore::Frame2D, expect: &ParametrizeExpect) {
@@ -649,13 +636,13 @@ fn parametrize_matches_golden_fixture() {
     for case in &fixture.cases {
         let surface = kind_tagged::<SurfaceJson>(&case.surface).decode();
         let curve = kind_tagged::<CurveJson>(&case.curve).decode();
-        let result = parametrize_curve(&curve, &surface);
+        let result = surface.curve_3d_to_uv(&curve, Tolerance::DEFAULT);
 
         // not_analytic cases: must report NotAnalytic and stop.
         if case.expect.kind == "not_analytic" {
             assert_eq!(
                 result,
-                Err(ParametrizeError::NotAnalytic),
+                Err(Curve3DToUvError::NotAnalytic),
                 "case {}: expected NotAnalytic",
                 case.name
             );
@@ -666,7 +653,7 @@ fn parametrize_matches_golden_fixture() {
         if case.expect.kind == "curve_not_on_surface" {
             assert_eq!(
                 result,
-                Err(ParametrizeError::CurveNotOnSurface),
+                Err(Curve3DToUvError::CurveNotOnSurface),
                 "case {}: expected CurveNotOnSurface",
                 case.name
             );

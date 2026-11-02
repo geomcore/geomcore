@@ -5,7 +5,7 @@
 //!
 //! ```ignore
 //! shape_methods! {
-//!     PyLine: [curve, parametrize_on];
+//!     PyLine: [curve];
 //!
 //!     /// The unit direction of the line.
 //!     fn direction(&self) -> PyVector {
@@ -23,8 +23,7 @@
 //! | `curve`, `curve_2d` | `ParametricCurve(2D)`, `PointExtrema(2D)`, `ReversibleCurve`, `HasBoundingBox(2D)`, `Intersect`, and `Transformable` in 3D | every curve |
 //! | `discretize`, `discretize_2d` | `Discretize(2D)` | the bounded curves |
 //! | `sided_evaluation`, `sided_evaluation_2d` | the `*_sided` evaluations | B-spline and Bézier curves |
-//! | `parametrize_on` | `parametrize_on` | the 3D curves with a closed-form parametrization |
-//! | `surface` | `ParametricSurface`, `ReversibleSurface`, `Transformable`, `HasBoundingBox`, `Intersect`, isoparametric curves | every surface |
+//! | `surface` | `ParametricSurface` (with `uv_curve_to_3d` and `curve_3d_to_uv`), `ReversibleSurface`, `Transformable`, `HasBoundingBox`, `Intersect`, isoparametric curves | every surface |
 //! | `surface_normal` | `ParametricSurface::normal` | every surface but `Plane`, whose `normal()` is its constant normal |
 //! | `sided_surface_evaluation` | the `*_sided` evaluations | B-spline and Bézier surfaces |
 //! | `surface_extrema` | `extrema` | B-spline and Bézier surfaces |
@@ -40,7 +39,7 @@
 //! `surfaces.pyi`, which the class stubs inherit (ADR 0029). A method added
 //! to a set goes into that class too, with the same docstring.
 
-pub(crate) use crate::arguments::{curve_2d_classes, curve_classes, surface_classes};
+pub(crate) use crate::arguments::{curve_2d_classes, curve_classes};
 pub(crate) use crate::bounding_box::{PyBoundingBox, PyBoundingBox2D};
 pub(crate) use crate::discretization::{PyDiscretization, PyDiscretization2D};
 pub(crate) use crate::errors::python_error;
@@ -445,38 +444,6 @@ macro_rules! sided_evaluation_methods {
 }
 pub(crate) use sided_evaluation_methods;
 
-/// `parametrize_on` of a 3D curve with a closed-form curve-on-surface
-/// parametrization.
-macro_rules! parametrize_on {
-    ($class:ident $sets:tt { $($methods:tt)* }) => {
-        $crate::method_sets::shape_methods! { @next $class $sets {
-            $($methods)*
-
-            /// Compute this curve's 2D representation in a surface's
-            /// (u, v) space.
-            ///
-            /// Raises `ValueError` if no closed-form representation exists
-            /// for the pair, or if the curve does not lie on the surface
-            /// within `tol` (`Tolerance.default()` when omitted).
-            #[pyo3(signature = (surface, tol = None))]
-            fn parametrize_on(
-                &self,
-                py: Python<'_>,
-                surface: &Bound<'_, PyAny>,
-                tol: Option<PyTolerance>,
-            ) -> PyResult<Py<PyAny>> {
-                let surface = surface_classes::extract(surface)?;
-                let curve = self
-                    .0
-                    .parametrize_on(surface, tolerance(tol))
-                    .map_err(python_error)?;
-                curve_2d_classes::to_py(py, curve)
-            }
-        }}
-    };
-}
-pub(crate) use parametrize_on;
-
 /// The methods of every surface.
 macro_rules! surface {
     ($class:ident $sets:tt { $($methods:tt)* }) => {
@@ -674,6 +641,64 @@ macro_rules! surface {
             fn v_iso(&self, py: Python<'_>, v: f64) -> PyResult<Py<PyAny>> {
                 let curve = self.0.v_iso(v).map_err(python_error)?;
                 curve_classes::to_py(py, Curve::from(curve))
+            }
+
+            /// The exact 3D curve that `uv_curve`, a curve in this surface's (u, v)
+            /// parameter space, traces on the surface, in the same parameter: its
+            /// point at `t` is the surface's point at the UV curve's (u, v) at `t`.
+            ///
+            /// Closed forms: any curve on a plane, as the same kind of curve; any
+            /// curve on the extrusion of a line, where the affine image keeps its
+            /// kind in the same parameter; a line along u or v on any surface, as
+            /// the iso curve run from the line's origin, as is a degree-1 B-spline
+            /// or Bezier curve with two poles; and any other line, parabola,
+            /// B-spline or Bezier curve on a B-spline or Bezier surface, or on the
+            /// extrusion of a B-spline or Bezier profile, composed exactly into a
+            /// B-spline. Raises `UvCurveTo3DError` for any other pair, when the
+            /// line runs along an iso curve that is a point (a sphere's pole, a
+            /// cone's apex), when the surface has no iso curve there, when a
+            /// composed curve leaves the surface's domain, or when its degree would
+            /// be above 25. `tol` is `Tolerance.default()` when omitted.
+            #[pyo3(signature = (uv_curve, tol = None))]
+            fn uv_curve_to_3d(
+                &self,
+                py: Python<'_>,
+                uv_curve: &Bound<'_, PyAny>,
+                tol: Option<PyTolerance>,
+            ) -> PyResult<Py<PyAny>> {
+                let uv_curve = curve_2d_classes::extract(uv_curve)?;
+                let traced = self
+                    .0
+                    .uv_curve_to_3d(&uv_curve, tolerance(tol))
+                    .map_err(python_error)?;
+                curve_classes::to_py(py, traced)
+            }
+
+            /// The exact UV curve of `curve`, a 3D curve lying on this surface: the
+            /// curve in the surface's (u, v) parameter space, in the same parameter,
+            /// whose point at `t` is the (u, v) of the curve's point at `t`.
+            ///
+            /// Closed forms: any line, circle, ellipse, parabola, hyperbola, B-spline
+            /// or Bezier curve on a plane, as the 2D curve of the same kind; a line
+            /// along the axis of a cylinder or a generator of a cone, as a line along
+            /// v; and a circle about the axis of a cylinder or cone, a meridian or
+            /// parallel of a sphere, or a poloidal or toroidal circle of a torus, as a
+            /// line along u or v. Raises `Curve3DToUvError` for any other pair, or
+            /// when the curve does not lie on the surface within `tol`
+            /// (`Tolerance.default()` when omitted).
+            #[pyo3(signature = (curve, tol = None))]
+            fn curve_3d_to_uv(
+                &self,
+                py: Python<'_>,
+                curve: &Bound<'_, PyAny>,
+                tol: Option<PyTolerance>,
+            ) -> PyResult<Py<PyAny>> {
+                let curve = curve_classes::extract(curve)?;
+                let uv_curve = self
+                    .0
+                    .curve_3d_to_uv(&curve, tolerance(tol))
+                    .map_err(python_error)?;
+                curve_2d_classes::to_py(py, uv_curve)
             }
 
             /// The image of the surface under `transform`, parametrized by

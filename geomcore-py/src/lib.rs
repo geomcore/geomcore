@@ -83,7 +83,6 @@ mod values;
 
 use arguments::{curve_2d_classes, curve_classes, surface_classes};
 use bounding_box::{PyBoundingBox, PyBoundingBox2D};
-use curves::py_parametrize_numeric;
 use curves::{PyTrimmedCurve, PyTrimmedCurve2D};
 use discretization::{PyDiscretization, PyDiscretization2D};
 use intersect::py_curve_curve_extrema;
@@ -95,6 +94,7 @@ use results::{
     PyIntersectionCurve, PyIntersectionMethod, PySurfaceCurvatures, PySurfaceProjection,
     PySurfaceSurfaceIntersection, PySurfaceSurfaceRegion,
 };
+use surfaces::py_curve_3d_to_uv_numeric;
 use values::{
     PyAxis, PyAxis2D, PyFrame, PyFrame2D, PyPoint, PyPoint2D, PySide, PyTolerance, PyTransform,
     PyVector, PyVector2D,
@@ -165,7 +165,7 @@ fn geomcore_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     sys_modules.set_item("geomcore.curves", &curves)?;
     sys_modules.set_item("geomcore.surfaces", &surfaces)?;
 
-    m.add_function(wrap_pyfunction!(py_parametrize_numeric, m)?)?;
+    m.add_function(wrap_pyfunction!(py_curve_3d_to_uv_numeric, m)?)?;
     m.add_function(wrap_pyfunction!(py_curve_curve_extrema, m)?)?;
 
     Ok(())

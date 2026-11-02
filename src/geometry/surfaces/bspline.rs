@@ -6,6 +6,9 @@
 //! pole if rational, and each direction's knot vector with its flattened
 //! knot sequence, so evaluation never re-derives them.
 
+use crate::geometry::curves::{Curve, Curve2D};
+use crate::geometry::surfaces::uv_curve::{from_curve, to_curve};
+use crate::geometry::surfaces::{Curve3DToUvError, UvCurveTo3DError};
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 
@@ -1265,6 +1268,9 @@ impl BSplineSurface {
     /// The `u` isoparametric curve at `u`: `u` fixed, running along `v`
     /// with the `v` degree, knots and periodicity, so
     /// `u_iso(u).eval_point(t)` is `eval_point(u, t)` for every `t`.
+    /// The axis-aligned special case of
+    /// [`uv_curve_to_3d`](crate::ParametricSurface::uv_curve_to_3d):
+    /// a line along `v`, run at rate `1` from `0`.
     ///
     /// Each pole is a column of the net blended by the `u` basis functions
     /// at `u`, in homogeneous coordinates if rational. The curve is
@@ -1305,6 +1311,9 @@ impl BSplineSurface {
     /// with the `u` degree, knots and periodicity, so
     /// `v_iso(v).eval_point(t)` is `eval_point(t, v)` for every `t`. See
     /// [`BSplineSurface::u_iso`].
+    /// The axis-aligned special case of
+    /// [`uv_curve_to_3d`](crate::ParametricSurface::uv_curve_to_3d):
+    /// a line along `u`, run at rate `1` from `0`.
     ///
     /// # Errors
     ///
@@ -1722,6 +1731,14 @@ impl BSplineSurface {
         patches.patch(k).0
     }
 
+    /// The knot-span boundaries of each direction, `(u, v)`, one period of
+    /// a periodic one: patch `i_u * (v.len() - 1) + i_v` of
+    /// [`Self::patch_net`] spans `[u[i_u], u[i_u + 1]] x [v[i_v], v[i_v + 1]]`.
+    pub(crate) fn patch_breaks(&self) -> (&[f64], &[f64]) {
+        let patches = self.patch_tree();
+        (&patches.u_breaks, &patches.v_breaks)
+    }
+
     fn write_patch_net(&self, patches: &PatchTree, k: usize, scratch: &mut [f64], out: &mut [f64]) {
         let n_vspans = patches.v_breaks.len() - 1;
         let (a, b) = (k / n_vspans, k % n_vspans);
@@ -2082,6 +2099,18 @@ impl ParametricSurface for BSplineSurface {
 
     fn as_bspline(&self) -> Option<&BSplineSurface> {
         Some(self)
+    }
+
+    fn uv_curve_to_3d(
+        &self,
+        uv_curve: &Curve2D,
+        tol: Tolerance,
+    ) -> Result<Curve, UvCurveTo3DError> {
+        to_curve::uv_curve_to_3d(self, uv_curve, tol)
+    }
+
+    fn curve_3d_to_uv(&self, curve: &Curve, tol: Tolerance) -> Result<Curve2D, Curve3DToUvError> {
+        from_curve::curve_3d_to_uv(self, curve, tol)
     }
 }
 

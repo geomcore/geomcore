@@ -975,13 +975,9 @@ fn test_parametrization_on_reversed_and_mirrored_surfaces() {
             surface.transformed(mirror.transform).unwrap(),
         ] {
             for curve in curves_on(&target) {
-                let pcurve = match &curve {
-                    Curve::Circle(c) => c.parametrize_on(target.clone(), tol),
-                    Curve::Line(c) => c.parametrize_on(target.clone(), tol),
-                    _ => unreachable!(),
-                };
-                let pcurve =
-                    pcurve.unwrap_or_else(|error| panic!("{error:?}: {curve:?} on {target:?}"));
+                let pcurve = target
+                    .curve_3d_to_uv(&curve, tol)
+                    .unwrap_or_else(|error| panic!("{error:?}: {curve:?} on {target:?}"));
                 for parameter in [0.0, 0.9, 2.5, 5.0] {
                     let uv = pcurve.eval_point(parameter);
                     let on_surface = target.eval_point(uv.x, uv.y);

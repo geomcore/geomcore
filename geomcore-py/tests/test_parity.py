@@ -285,7 +285,7 @@ def test_type_checkers_see_every_method_of_every_class(tmp_path):
         "    assert_type(line.intersect(line), geomcore.CurveCurveIntersection)",
         "    assert_type(line.intersect(plane), geomcore.CurveSurfaceIntersection)",
         "    assert_type(line_2d.intersect(spline_2d), geomcore.CurveCurveIntersection2D)",
-        "    assert_type(ellipse.parametrize_on(plane), curves.Ellipse2D)",
+        "    assert_type(plane.curve_3d_to_uv(ellipse), curves._WholeCurve2D)",
         "    assert_type(ellipse.discretize(0.1), geomcore.Discretization)",
         "    assert_type(spline_2d.discretize(0.1), geomcore.Discretization2D)",
         "    assert_type(spline_2d.eval_d1_sided(0.0, geomcore.Side.BELOW)[1], geomcore.Vector2D)",
@@ -399,7 +399,7 @@ def test_every_surface_is_accepted_where_a_surface_is_expected():
     line = curves.Line(Point(0.0, 0.0, -2.0), Vector.unit_z())
     for surface in _surfaces():
         try:
-            line.parametrize_on(surface)
+            surface.curve_3d_to_uv(line)
         except geomcore.GeomcoreError:
             pass  # accepted, but the line does not lie on the surface
 

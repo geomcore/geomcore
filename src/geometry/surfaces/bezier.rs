@@ -14,8 +14,11 @@
 use crate::geometry::curves::{
     BSplineSplitError, BezierConstructionError, BezierCurve, DegreeElevationError, Side,
 };
+use crate::geometry::curves::{Curve, Curve2D};
 use crate::geometry::surfaces::ReversibleSurface;
+use crate::geometry::surfaces::uv_curve::{from_curve, to_curve};
 use crate::geometry::surfaces::{BSplineSurface, ParametricSurface, SurfaceIsoError};
+use crate::geometry::surfaces::{Curve3DToUvError, UvCurveTo3DError};
 use crate::math::bspline::curve::MAX_DEGREE;
 use crate::{Continuity, Point, SurfaceProjection, Tolerance, Vector};
 use crate::{Transform, TransformError, Transformable};
@@ -488,6 +491,9 @@ impl BezierSurface {
     /// with the `v` degree, so `u_iso(u).eval_point(t)` is
     /// `eval_point(u, t)` for every `t`. It is a Bézier curve over the `v`
     /// bounds, rational when the surface is (see [`BSplineSurface::u_iso`]).
+    /// The axis-aligned special case of
+    /// [`uv_curve_to_3d`](crate::ParametricSurface::uv_curve_to_3d):
+    /// a line along `v`, run at rate `1` from `0`.
     ///
     /// # Errors
     ///
@@ -515,6 +521,9 @@ impl BezierSurface {
 
     /// The `v` isoparametric curve at `v`: `v` fixed, running along `u`
     /// with the `u` degree, as [`u_iso`](Self::u_iso) for `u`.
+    /// The axis-aligned special case of
+    /// [`uv_curve_to_3d`](crate::ParametricSurface::uv_curve_to_3d):
+    /// a line along `u`, run at rate `1` from `0`.
     ///
     /// # Errors
     ///
@@ -706,6 +715,18 @@ impl ParametricSurface for BezierSurface {
 
     fn as_bspline(&self) -> Option<&BSplineSurface> {
         Some(&self.0)
+    }
+
+    fn uv_curve_to_3d(
+        &self,
+        uv_curve: &Curve2D,
+        tol: Tolerance,
+    ) -> Result<Curve, UvCurveTo3DError> {
+        to_curve::uv_curve_to_3d(self, uv_curve, tol)
+    }
+
+    fn curve_3d_to_uv(&self, curve: &Curve, tol: Tolerance) -> Result<Curve2D, Curve3DToUvError> {
+        from_curve::curve_3d_to_uv(self, curve, tol)
     }
 }
 

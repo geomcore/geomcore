@@ -10,7 +10,7 @@ use geomcore::Hyperbola;
 pub(crate) struct PyHyperbola(pub(crate) Hyperbola);
 
 shape_methods! {
-    PyHyperbola: [curve, parametrize_on];
+    PyHyperbola: [curve];
 
     /// The placement frame of the hyperbola.
     fn frame(&self) -> PyFrame {

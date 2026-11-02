@@ -8,11 +8,8 @@ use crate::base::tier::{TierPoint, impl_for_both_tiers};
 use crate::base::transform::image_error;
 use crate::geometry::curves::ReversibleCurve;
 use crate::geometry::curves::parametric_curve::only_minimum;
-use crate::geometry::curves::parametrize::ParametrizeError;
-use crate::geometry::curves::{Curve2D, parametrize};
 use crate::geometry::curves::{ElementaryCurve, ParametricCurve, ParametricCurve2D};
 use crate::geometry::curves::{PointExtrema, PointExtrema2D};
-use crate::geometry::surfaces::Surface;
 use crate::math::elementary::curve as elementary;
 use crate::operations::projection;
 use crate::operations::projection::CurveProjection;
@@ -359,51 +356,6 @@ impl Circle {
         } else {
             -self.frame.z_direction()
         }
-    }
-
-    /// Computes the exact 2D representation of this circle in a surface's
-    /// parameter space: a [`Curve2D`] `q(t)` such that
-    /// `surface.eval_point(q(t)) == self.eval_point(t)` for the same `t`.
-    ///
-    /// The closed-form cases are: a circle in a plane (maps to a 2D circle);
-    /// a circle whose axis matches a cylinder or cone axis (a horizontal
-    /// iso-`v` line in `(u, v)`); a meridian or parallel of a sphere; and a
-    /// poloidal or toroidal circle of a torus (each a straight line in
-    /// `(u, v)`). Every other pair returns
-    /// [`ParametrizeError::NotAnalytic`].
-    ///
-    /// The projection math assumes the circle lies on the surface. As a
-    /// geomcore safeguard, the candidate 2D image is verified against the
-    /// surface at a few parameters; if `surface.eval_point(q(t))` is farther
-    /// than `tol.confusion` from `self.eval_point(t)`,
-    /// [`ParametrizeError::CurveNotOnSurface`] is returned (this also rejects, for example, a circle whose radius does
-    /// not match the cylinder). For periodic surfaces the result is
-    /// normalized so `q(0)` lies in the canonical parameter window.
-    ///
-    /// # Examples
-    ///
-    /// A cross-section circle of a cylinder maps to a horizontal line in
-    /// `(u, v)` at the section height:
-    ///
-    /// ```
-    /// use geomcore::prelude::*;
-    /// use geomcore::{Circle, Curve2D, Cylinder, Point, Tolerance, Vector};
-    ///
-    /// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
-    /// let circle = Circle::new(Point::new(0.0, 0.0, 3.0), Vector::Z, 2.0).unwrap();
-    /// let pcurve = circle.parametrize_on(&cylinder, Tolerance::DEFAULT).unwrap();
-    /// // q(t) = (t, 3): the angular parameter runs in u, the height v is fixed.
-    /// let q = pcurve.eval_point(1.0);
-    /// assert!((q.x - 1.0).abs() < 1e-9);
-    /// assert!((q.y - 3.0).abs() < 1e-9);
-    /// assert!(matches!(pcurve, Curve2D::Line(_)));
-    /// ```
-    pub fn parametrize_on(
-        &self,
-        surface: impl Into<Surface>,
-        tol: Tolerance,
-    ) -> Result<Curve2D, ParametrizeError> {
-        parametrize::circle_on_surface(self, &surface.into(), tol)
     }
 }
 

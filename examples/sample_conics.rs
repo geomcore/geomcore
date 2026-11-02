@@ -30,16 +30,16 @@ fn main() {
     print_head_and_tail(&params, &ellipse_points);
 
     // Curve-on-surface parametrization: a circle coaxial with a cylinder
-    // has an exact 2D image, a horizontal line at v = height in (u, v).
+    // has an exact UV curve, a horizontal line at v = height in (u, v).
     let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
     let section = Circle::new(Point::new(0.0, 0.0, 3.0), Vector::Z, 2.0).unwrap();
-    let pcurve = section
-        .parametrize_on(cylinder, Tolerance::DEFAULT)
+    let uv_curve = cylinder
+        .curve_3d_to_uv(&section.into(), Tolerance::DEFAULT)
         .unwrap();
-    match &pcurve {
+    match &uv_curve {
         Curve2D::Line(line) => {
             println!(
-                "\nCircle-on-cylinder pcurve: (u, v) = ({:.3}, {:.3}) + t * ({:.3}, {:.3})",
+                "\nCircle-on-cylinder UV curve: (u, v) = ({:.3}, {:.3}) + t * ({:.3}, {:.3})",
                 line.origin().x,
                 line.origin().y,
                 line.direction().x,
@@ -48,8 +48,8 @@ fn main() {
         }
         _ => unreachable!("a coaxial circle on a cylinder always maps to a line"),
     }
-    let q = pcurve.eval_point(1.0);
-    println!("pcurve(1.0) = ({:.6}, {:.6})", q.x, q.y);
+    let q = uv_curve.eval_point(1.0);
+    println!("uv_curve(1.0) = ({:.6}, {:.6})", q.x, q.y);
 }
 
 fn print_head_and_tail(params: &[f64], points: &[Point]) {

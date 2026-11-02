@@ -54,8 +54,12 @@ harness = false
 name = "swept_plane_cut"
 harness = false
 
+[[bench]]
+name = "uv_curve_composition"
+harness = false
+
 [workspace]
 members = [".", "geomcore-py"]
 
 [workspace.package]
-version = "0.41.0"
+version = "0.42.0"

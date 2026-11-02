@@ -10,7 +10,8 @@ __all__ = [
     "DegreeElevationError",
     "BSplineSplitError",
     "BSplineConversionError",
-    "ParametrizeError",
+    "Curve3DToUvError",
+    "UvCurveTo3DError",
     "SurfaceIsoError",
     "DiscretizationCriteriaError",
     "Axis2D",
@@ -52,6 +53,6 @@ __all__ = [
     "Vector",
     "curve_curve_extrema",
     "curves",
-    "parametrize_numeric",
+    "curve_3d_to_uv_numeric",
     "surfaces",
 ]
