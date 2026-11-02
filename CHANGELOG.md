@@ -9,6 +9,13 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+### Changed
+
+- CI gates the benchmarks on an instruction budget: a pull request that
+  makes a budgeted benchmark more than 1% heavier fails, and the log names
+  the functions that got heavier (`docs/benchmarks.md`). The intersection
+  results are fingerprinted, so a change in them shows up in review.
+
 ## [0.42.2] - 2026-11-02
 
 Two internal moves. Nothing public changes: the types, aliases, methods
