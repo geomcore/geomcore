@@ -9,6 +9,11 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+## [0.42.2] - 2026-11-02
+
+Two internal moves. Nothing public changes: the types, aliases, methods
+and paths are the same, and so is the Python package.
+
 ### Changed
 
 - The curve–curve distance extrema have their own module,
@@ -2326,7 +2331,8 @@ Behaviour, in Rust and Python alike:
 - Golden-fixture validation of all numeric results at 1e-7 tolerance, and
   criterion throughput benchmarks (`docs/benchmarks.md`).
 
-[Unreleased]: https://github.com/geomcore/geomcore/compare/v0.42.1...HEAD
+[Unreleased]: https://github.com/geomcore/geomcore/compare/v0.42.2...HEAD
+[0.42.2]: https://github.com/geomcore/geomcore/compare/v0.42.1...v0.42.2
 [0.42.1]: https://github.com/geomcore/geomcore/compare/v0.42.0...v0.42.1
 [0.42.0]: https://github.com/geomcore/geomcore/compare/v0.41.0...v0.42.0
 [0.41.0]: https://github.com/geomcore/geomcore/compare/v0.40.1...v0.41.0
