@@ -28,7 +28,8 @@ fn test_a_crossing_closes_its_loop_on_the_seed() {
         tangents,
         stalls,
         touching,
-    } = Tracer::new(pair, TOL).trace(seed)
+        ..
+    } = Tracer::new(pair, TOL, &[seed]).trace(seed)
     else {
         panic!("no curve traced");
     };
@@ -74,7 +75,7 @@ fn test_a_trace_ends_on_the_parameter_bounds() {
     let seed = seed_at(&pair, Point::new(0.5, 0.5, 0.0));
     let Trace::Curve {
         points, touching, ..
-    } = Tracer::new(pair, TOL).trace(seed)
+    } = Tracer::new(pair, TOL, &[seed]).trace(seed)
     else {
         panic!("no curve traced");
     };
@@ -91,14 +92,19 @@ fn test_a_trace_ends_on_the_parameter_bounds() {
 }
 
 #[test]
-fn test_a_touch_along_unbounded_surfaces_is_traced_to_the_model_cube() {
+fn test_a_touch_along_unbounded_surfaces_is_cut_at_the_seeded_box() {
+    // The seed box is the seed grown by the cylinder's radius, 1, so the
+    // touch line along `z` is cut at `z = +-1`, both ways.
     let plane = Plane::new(Point::new(1.0, 0.0, 0.0), Vector::X).unwrap();
     let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
     let pair = SurfacePair::new(&plane, &cylinder);
     let seed = seed_at(&pair, Point::new(1.0, 0.0, 0.0));
     let Trace::Curve {
-        points, touching, ..
-    } = Tracer::new(pair, TOL).trace(seed)
+        points,
+        touching,
+        cuts,
+        ..
+    } = Tracer::new(pair, TOL, &[seed]).trace(seed)
     else {
         panic!("no curve traced");
     };
@@ -111,8 +117,9 @@ fn test_a_touch_along_unbounded_surfaces_is_traced_to_the_model_cube() {
     }
     let ends = [points[0], points[points.len() - 1]].map(|p| p.z.abs());
     for end in ends {
-        assert!((end - 0.5 * Tolerance::MODEL_SIZE).abs() < 1e-6, "{ends:?}");
+        assert!((end - 1.0).abs() < 1e-6, "{ends:?}");
     }
+    assert_eq!(cuts.len(), 2);
 }
 
 #[test]
@@ -123,7 +130,10 @@ fn test_a_touch_at_a_point_is_a_touch() {
     let torus = Torus::new(Point::ORIGIN, Vector::Z, 2.0, 1.0).unwrap();
     let pair = SurfacePair::new(&plane, &torus);
     let seed = seed_at(&pair, Point::new(3.0, 0.0, 0.0));
-    assert!(matches!(Tracer::new(pair, TOL).trace(seed), Trace::Touch));
+    assert!(matches!(
+        Tracer::new(pair, TOL, &[seed]).trace(seed),
+        Trace::Touch
+    ));
 }
 
 #[test]
@@ -135,7 +145,10 @@ fn test_a_crossing_without_a_direction_is_lost() {
     let sphere = Sphere::new(Point::ORIGIN, 1.0).unwrap();
     let pair = SurfacePair::new(&plane, &sphere);
     let seed = seed_at(&pair, Point::new(0.0, 0.0, 1.0));
-    assert!(matches!(Tracer::new(pair, TOL).trace(seed), Trace::Lost));
+    assert!(matches!(
+        Tracer::new(pair, TOL, &[seed]).trace(seed),
+        Trace::Lost
+    ));
 }
 
 #[test]

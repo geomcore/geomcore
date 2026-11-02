@@ -9,6 +9,36 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+Unbounded branches are cut where their trace leaves the seeds' box, and
+reported, instead of running to a fixed cube around the origin (#147).
+
+### Added
+
+- `IncompleteReason::Unbounded` (Python `IncompleteReason.UNBOUNDED`): a
+  branch of two unbounded surfaces runs beyond the box where its trace was
+  cut. The regions of the result hold where each branch was cut. When
+  results merge, `Unbounded` ranks below `BudgetExhausted` and above
+  `Unseparated`.
+
+### Changed
+
+- The trace box of an unbounded pair is the box of the seeds, grown by the
+  larger surface size: a cylinder's or cone's radius, a sweep profile's
+  diagonal, or the seeds' spread for two planes. It replaces the cube of
+  side `Tolerance::MODEL_SIZE` (1e5) centred on the origin. A pair with a
+  bounded side keeps its box of that side, grown by a tenth of its
+  diagonal.
+- Seeds of an unbounded side whose other side has a bounding box are read
+  from that box's corners, with a margin, instead of the window `[-10, 10]`.
+
+### Fixed
+
+- A cone against a cylinder whose intersection has an unbounded branch ran
+  to the cube and was reported as `Sampled`, as if the branch were whole.
+  It is cut at its box and reported as `Incomplete` with `Unbounded`.
+- An unbounded pair lying beyond the cube lost every branch beyond it. The
+  same pair translated far from the origin now traces the same branches.
+
 ## [0.42.2] - 2026-11-02
 
 Two internal moves. Nothing public changes: the types, aliases, methods

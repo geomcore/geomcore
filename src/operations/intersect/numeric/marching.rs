@@ -20,13 +20,15 @@ use crate::geometry::curves::{BSplineCurve, Curve, PointParametrization};
 use crate::geometry::surfaces::ParametricSurface;
 use crate::math::numeric::boxtree::{Aabb, boxes_apart};
 use crate::operations::intersect::numeric::bezier_pieces;
+use crate::operations::intersect::results::completeness::{box_union, of_reason, stronger};
 use crate::operations::intersect::{
     Completeness, IncompleteReason, IntersectionCurve, SurfaceSurfaceIntersection,
+    SurfaceSurfaceRegion,
 };
 use crate::{Point, Tolerance};
 use pair::SurfacePair;
 use seeding::Seed;
-use tracer::{CHORD_DEVIATION, Trace, Tracer};
+use tracer::{CHORD_DEVIATION, Cut, Trace, Tracer};
 
 /// Marching surface-surface intersection for any two parametric surfaces.
 ///
@@ -71,7 +73,8 @@ use tracer::{CHORD_DEVIATION, Trace, Tracer};
 ///
 /// Otherwise (a torus against a torus, or a surface defined outside the
 /// crate) seeds come from both parameter grids (unbounded
-/// directions sampled over `[-10, 10]`): the samples where the distance to
+/// directions sampled over a window read from the other surface, see
+/// [`seed_window`](seeding::seed_window)): the samples where the distance to
 /// the other surface is a local minimum are converged onto the
 /// intersection by Newton's method on `S1(u1, v1) = S2(u2, v2)`, so curves
 /// running between grid lines are found too.
@@ -97,7 +100,12 @@ use tracer::{CHORD_DEVIATION, Trace, Tracer};
 /// power of the step, which sizes the next step. A trace ends
 /// when it closes a loop, stalls, reaches a parameter bound, or leaves
 /// the trace box (see [`trace_box`](SurfacePair::trace_box)), its last
-/// point then lying on the bound or the box. Where branches cross,
+/// point then lying on the bound or the box. The box of a bounded side
+/// holds the whole intersection, so leaving it stops a runaway trace
+/// only. Where both surfaces are unbounded the box is grown from the
+/// seeds, and leaving it cuts a branch: the result is then
+/// [`Completeness::Incomplete`] with reason
+/// [`IncompleteReason::Unbounded`] and a region at each cut. Where branches cross,
 /// the surfaces touch and a trace stalls, no smooth step turning onto
 /// another branch: the branches crossing there are seeded a first step
 /// along each way (see [`branch_seeds`](seeding::branch_seeds)), since
@@ -176,13 +184,11 @@ where
         return coincident;
     }
     let traced = traced_intersection(pair, tol);
-    let completeness = match coincidence::coincident_region(pair, &traced.coincident_seeds) {
-        Some(region) => Completeness::Incomplete {
-            reason: IncompleteReason::Unseparated,
-            regions: vec![region],
-        },
-        None => Completeness::Sampled,
-    };
+    let coincident = coincidence::coincident_region(pair, &traced.coincident_seeds, tol);
+    let completeness = completeness_of(
+        coincident,
+        traced.cuts.into_iter().map(cut_region).collect(),
+    );
     let curves = traced
         .curves
         .into_iter()
@@ -194,23 +200,69 @@ where
     SurfaceSurfaceIntersection::numeric(curves, traced.contact_points, completeness)
 }
 
+/// The completeness of a marching result. Sampled, unless a branch of
+/// unbounded surfaces was cut at the trace box (`cuts`, reason
+/// [`Unbounded`](IncompleteReason::Unbounded)), or the surfaces lie on
+/// each other around `coincident` (reason
+/// [`Unseparated`](IncompleteReason::Unseparated)). With both, the reason
+/// is the stronger one (see [`stronger`]) and both kinds of region are
+/// kept.
+fn completeness_of(
+    coincident: Option<SurfaceSurfaceRegion>,
+    cuts: Vec<SurfaceSurfaceRegion>,
+) -> Completeness<SurfaceSurfaceRegion> {
+    let cut = (!cuts.is_empty()).then_some(IncompleteReason::Unbounded);
+    let overlap = coincident
+        .is_some()
+        .then_some(IncompleteReason::Unseparated);
+    let reason = match (cut, overlap) {
+        (Some(cut), Some(overlap)) => stronger(cut, overlap),
+        (Some(reason), None) | (None, Some(reason)) => reason,
+        (None, None) => return Completeness::Sampled,
+    };
+    of_reason(coincident.into_iter().chain(cuts).collect(), reason)
+}
+
+/// The region of a branch cut at the trace box (see [`Cut`]): the
+/// parameter ranges spanned by the last point inside the box and the
+/// exit, and the box around the two points. The branch continues beyond
+/// the exit, so a missed hit or further branch lies beyond that range.
+fn cut_region(cut: Cut) -> SurfaceSurfaceRegion {
+    let ((inside, p), (exit, q)) = (cut.inside, cut.exit);
+    let span = |k: usize| (inside[k].min(exit[k]), inside[k].max(exit[k]));
+    let (min_corner, max_corner) = box_union((p, p), (q, q));
+    SurfaceSurfaceRegion {
+        first_u_range: span(0),
+        first_v_range: span(1),
+        second_u_range: span(2),
+        second_v_range: span(3),
+        min_corner,
+        max_corner,
+    }
+}
+
 /// The curves traced from every seed of the seeding policy, in order:
 /// those of [`seeding::seeds`], then those of [`seeding::later_seeds`]
 /// when the policy says so and the first seeds traced more than touches:
 /// along a touch the patch-pair search would halve every pair down to its
 /// smallest pieces.
+///
+/// The trace box is grown from the seeds it is traced from (see
+/// [`Tracer::new`]), so the seeds of the second round, which may lie
+/// beyond the first box, get a box grown to hold them too.
 fn traced_intersection<A, B>(pair: SurfacePair<A, B>, tol: Tolerance) -> Traced
 where
     A: ParametricSurface,
     B: ParametricSurface,
 {
-    let tracer = Tracer::new(pair, tol);
     let mut traced = Traced::default();
     let (seeds, later) = seeding::seeds(pair, tol);
-    traced.follow_seeds(&tracer, seeds, tol);
+    let mut reached: Vec<[f64; 4]> = seeds.iter().map(|seed| seed.parameters()).collect();
+    traced.follow_seeds(&Tracer::new(pair, tol, &reached), seeds, tol);
     if later && !traced.only_touches() {
         let seeds = seeding::later_seeds(pair, &|b| traced.crosses(b, tol), tol);
-        traced.follow_seeds(&tracer, seeds, tol);
+        reached.extend(seeds.iter().map(|seed| seed.parameters()));
+        traced.follow_seeds(&Tracer::new(pair, tol, &reached), seeds, tol);
     }
     traced
 }
@@ -223,9 +275,10 @@ where
     B: ParametricSurface,
 {
     let pair = SurfacePair::new(a, b);
-    let tracer = Tracer::new(pair, tol);
+    let seeds = seeding::both_grid_seeds(pair, tol);
+    let tracer = Tracer::new(pair, tol, &seeds);
     let mut traced = Traced::default();
-    for seed in seeding::both_grid_seeds(pair, tol) {
+    for seed in seeds {
         traced.follow(&tracer, seed, tol);
     }
     traced.curves.into_iter().map(|(curve, _)| curve).collect()
@@ -251,13 +304,16 @@ where
 /// The curves traced so far, fitted, with whether the surfaces touch
 /// along each (see [`SurfacePair::grazes`]); the points where they touch
 /// without a curve to trace; the seeds where they lie on each other (see
-/// [`SurfacePair::osculates`]); and the traced polylines: the box around
-/// each, the boxes around its runs of `RUN` segments, and its points.
+/// [`SurfacePair::osculates`]); the branches cut at the trace box of
+/// unbounded surfaces (see [`Cut`]); and the traced polylines: the box
+/// around each, the boxes around its runs of `RUN` segments, and its
+/// points.
 #[derive(Default)]
 struct Traced {
     curves: Vec<(BSplineCurve, bool)>,
     contact_points: Vec<Point>,
     coincident_seeds: Vec<[f64; 4]>,
+    cuts: Vec<Cut>,
     traces: Vec<(Aabb, Vec<Aabb>, Vec<Point>)>,
 }
 
@@ -315,13 +371,14 @@ impl Traced {
         if !tracer.encloses(p) || self.crosses(&[p.x, p.y, p.z, p.x, p.y, p.z], tol) {
             return Vec::new();
         }
-        let (points, tangents, stalls, touching) = match tracer.trace(seed) {
+        let (points, tangents, stalls, touching, cuts) = match tracer.trace(seed) {
             Trace::Curve {
                 points,
                 tangents,
                 stalls,
                 touching,
-            } => (points, tangents, stalls, touching),
+                cuts,
+            } => (points, tangents, stalls, touching, cuts),
             Trace::Touch => {
                 let gap = 8.0 * CHORD_DEVIATION * tol.confusion;
                 if pair.osculates(seed, tol) {
@@ -335,6 +392,11 @@ impl Traced {
             }
             Trace::Lost => return Vec::new(),
         };
+        // Only the box of unbounded surfaces cuts a branch: the box of a
+        // bounded side catches runaway steps alone.
+        if tracer.reports_cuts() {
+            self.cuts.extend(cuts);
+        }
         let (points, tangents) = without_confused(points, tangents);
         // Where the surfaces touch the tangents followed are directions of
         // contact, which the curve need not take, and its points are found

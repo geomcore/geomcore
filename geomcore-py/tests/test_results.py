@@ -430,6 +430,7 @@ def test_enums_are_hashable_and_named():
     assert IntersectionMethod.EXACT.name == "EXACT"
     assert CompletenessStatus.SAMPLED.name == "SAMPLED"
     assert IncompleteReason.UNSEPARATED.name == "UNSEPARATED"
+    assert IncompleteReason.UNBOUNDED.name == "UNBOUNDED"
     counts = {IntersectionMethod.EXACT: 1, IntersectionMethod.NUMERIC: 2}
     assert counts[IntersectionMethod.NUMERIC] == 2
     assert len({CompletenessStatus.COMPLETE, CompletenessStatus.COMPLETE}) == 1

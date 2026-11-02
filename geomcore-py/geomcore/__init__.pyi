@@ -348,6 +348,7 @@ class CompletenessStatus:
 class IncompleteReason:
     BUDGET_EXHAUSTED: ClassVar[IncompleteReason]
     UNSEPARATED: ClassVar[IncompleteReason]
+    UNBOUNDED: ClassVar[IncompleteReason]
     @property
     def name(self) -> str: ...
     def __int__(self) -> int: ...

@@ -20,7 +20,7 @@ const SEED_GRID_CELLS: f64 = 24.0;
 
 /// The region around `seeds`, where the surfaces lie on each other: the
 /// ranges of their parameters, each grown by a cell of a 24-cell grid
-/// over its (finite) window and kept within its bounds, and the box
+/// over its window (see [`seed_window`]) and kept within its bounds, and the box
 /// around the first surface over its grown ranges. `None` without seeds.
 ///
 /// The seeds sample the stretch where the surfaces lie on each other, as
@@ -29,6 +29,7 @@ const SEED_GRID_CELLS: f64 = 24.0;
 pub(super) fn coincident_region<A, B>(
     pair: SurfacePair<A, B>,
     seeds: &[[f64; 4]],
+    tol: Tolerance,
 ) -> Option<SurfaceSurfaceRegion>
 where
     A: ParametricSurface,
@@ -38,14 +39,20 @@ where
         return None;
     }
     let (a, b) = (pair.first, pair.second);
-    let range = |k: usize, bounds: (f64, f64)| {
+    let range = |k: usize, bounds: (f64, f64), window: (f64, f64)| {
         let low = seeds.iter().map(|x| x[k]).fold(f64::INFINITY, f64::min);
         let high = seeds.iter().map(|x| x[k]).fold(f64::NEG_INFINITY, f64::max);
-        let (window_low, window_high) = seed_window(bounds);
-        let cell = (window_high - window_low) / SEED_GRID_CELLS;
+        let cell = (window.1 - window.0) / SEED_GRID_CELLS;
         ((low - cell).max(bounds.0), (high + cell).min(bounds.1))
     };
-    let (first_u_range, first_v_range) = (range(0, a.u_bounds()), range(1, a.v_bounds()));
+    let first_u_window = seed_window(a, b, 0, tol);
+    let first_v_window = seed_window(a, b, 1, tol);
+    let second_u_window = seed_window(b, a, 0, tol);
+    let second_v_window = seed_window(b, a, 1, tol);
+    let (first_u_range, first_v_range) = (
+        range(0, a.u_bounds(), first_u_window),
+        range(1, a.v_bounds(), first_v_window),
+    );
     let last = (COINCIDENCE_SAMPLES - 1) as f64;
     let at = |(low, high): (f64, f64), i: usize| low + (high - low) * i as f64 / last;
     let bounds = BoundingBox::from_points((0..COINCIDENCE_SAMPLES).flat_map(|i| {
@@ -55,8 +62,8 @@ where
     Some(SurfaceSurfaceRegion {
         first_u_range,
         first_v_range,
-        second_u_range: range(2, b.u_bounds()),
-        second_v_range: range(3, b.v_bounds()),
+        second_u_range: range(2, b.u_bounds(), second_u_window),
+        second_v_range: range(3, b.v_bounds(), second_v_window),
         min_corner: bounds.min(),
         max_corner: bounds.max(),
     })
