@@ -16,6 +16,15 @@ the Python distribution are versioned in lockstep.
   the result `Complete`. Two hits are merged only when the curves stay
   within `tol.confusion` of each other between them.
 
+### Changed
+
+- A tangent contact between two curves, where they stay within
+  `tol.confusion` of each other and then part, is one hit at its closest
+  approach, with multiplicity 2, and the numeric curve–curve intersection
+  reports the result `Complete`, as the closed forms do. Before, it was
+  `Incomplete` with an `Unseparated` region. Overlaps and searches that
+  run out of budget stay `Incomplete`.
+
 ## [0.42.2] - 2026-11-02
 
 Two internal moves. Nothing public changes: the types, aliases, methods

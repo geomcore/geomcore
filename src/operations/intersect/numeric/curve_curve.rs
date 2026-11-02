@@ -2,7 +2,6 @@
 //! distance minima at zero distance become hits (see
 //! [`curve_curve_extrema`](crate::curve_curve_extrema)).
 
-use crate::Tolerance;
 use crate::geometry::curves::ParametricCurve;
 use crate::operations::extrema::CurveCurveExtremum;
 use crate::operations::extrema::curve_curve::{curve_curve_extrema, sampled_curve_curve_extrema};
@@ -10,6 +9,7 @@ use crate::operations::intersect::numeric::curve_curve_hull::CurveCurveHits;
 use crate::operations::intersect::numeric::{overlap_runs, pairs_with_bspline};
 use crate::operations::intersect::results::sort_by_known_parameter;
 use crate::operations::intersect::{CurveCurveHit, CurveCurveIntersection};
+use crate::{Tolerance, Vector};
 
 /// Intersects two parametric curves of any type by the numeric search:
 /// the entry point for curve types defined outside this crate.
@@ -24,8 +24,10 @@ use crate::operations::intersect::{CurveCurveHit, CurveCurveIntersection};
 /// unseparated along a stretch on which they coincide, its hits and
 /// regions are joined into an overlap, and the result stays
 /// [`Incomplete`](crate::Completeness::Incomplete) with an `Unseparated`
-/// region over it (see [`CurveCurveIntersection::overlaps`]); sampled
-/// coincident curves yield a representative hit.
+/// region over it (see [`CurveCurveIntersection::overlaps`]). A tangent
+/// contact, where the curves touch within confusion and part, is one hit
+/// and the result stays complete; sampled coincident curves yield a
+/// representative hit.
 ///
 /// # Examples
 ///
@@ -94,18 +96,23 @@ where
 /// its range inside the box of the other curve's control points, which
 /// holds every hit, grown by a margin. The pairs of their Bézier pieces
 /// whose control points' boxes overlap are halved until each is proven
-/// apart or
-/// provably holds at most one hit, which Gauss-Newton steps from the
-/// pair's centre then reach. When every pair settles, the hits are
-/// [`Completeness::Complete`](crate::Completeness::Complete). A pair that
-/// never separates (a tangent contact or a straight overlap, where the
-/// pieces run along one line within `tol.confusion`), or a search that
-/// runs out of its budget of halvings (an overlap along a curved
-/// stretch), leaves them
-/// [`Completeness::Incomplete`](crate::Completeness::Incomplete), with the
-/// reason and the regions where hits may be missing; the hits are then
-/// those found, together with the hits of the grid-seeded extrema that do
-/// not merge into them.
+/// apart or provably holds at most one hit, which Gauss-Newton steps from
+/// the pair's centre then reach. When every pair settles, the hits are
+/// [`Completeness::Complete`](crate::Completeness::Complete).
+///
+/// A stretch where the curves stay within `tol.confusion` of each other
+/// and then part (a tangent contact) is one contact: one hit at its
+/// closest approach, with multiplicity 2 where the curves are tangent,
+/// and the result stays complete. A stretch where they run along each
+/// other (a straight or curved overlap) cannot be split into hits, so the
+/// result is [`Completeness::Incomplete`](crate::Completeness::Incomplete)
+/// with the reason [`Unseparated`](crate::IncompleteReason::Unseparated)
+/// and the overlap's regions. A search that runs out of its budget of
+/// halvings leaves the result incomplete with
+/// [`BudgetExhausted`](crate::IncompleteReason::BudgetExhausted) and the
+/// regions where hits may be missing. In either case the hits are those
+/// found, together with the hits of the grid-seeded extrema that do not
+/// merge into them.
 /// Parameters are reported on the curves themselves.
 pub(crate) fn search_curve_curve<A, B>(a: &A, b: &B, tol: Tolerance) -> CurveCurveHits
 where
@@ -156,12 +163,11 @@ where
         .map(|e| {
             let ta = a.eval_derivative(e.first_parameter, 1);
             let tb = b.eval_derivative(e.second_parameter, 1);
-            let sin = ta.cross(tb).magnitude() / (ta.magnitude() * tb.magnitude());
             CurveCurveHit {
                 first_parameter: Some(e.first_parameter),
                 point: a.eval_point(e.first_parameter),
                 second_parameter: Some(e.second_parameter),
-                multiplicity: if sin <= tol.angular { 2 } else { 1 },
+                multiplicity: contact_multiplicity(ta, tb, tol),
             }
         })
         .collect();
@@ -173,6 +179,21 @@ where
     }
     sort_by_known_parameter(&mut merged, |hit| hit.first_parameter);
     merged
+}
+
+/// The multiplicity of a hit where the first curve has tangent `ta` and
+/// the second `tb`: 2 where the tangents agree within `sqrt(tol.confusion)`,
+/// else 1.
+///
+/// The square root is the scale of where a tangency can be located, not a
+/// merge radius. Two curves of unit curvature that touch stay within
+/// `tol.confusion` of each other over a stretch of half-length `h`, where
+/// `h^2 / 2` is about `tol.confusion`, so `h` is about `sqrt(tol.confusion)`.
+/// The search locates a tangency anywhere on that stretch, where the tangents
+/// differ by about `h`: a sine within `sqrt(tol.confusion)` marks it.
+pub(crate) fn contact_multiplicity(ta: Vector, tb: Vector, tol: Tolerance) -> u32 {
+    let sin = ta.cross(tb).magnitude() / (ta.magnitude() * tb.magnitude());
+    if sin <= tol.confusion.sqrt() { 2 } else { 1 }
 }
 
 /// Whether the hits `kept` and `hit` are one contact, so that only one of

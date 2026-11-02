@@ -1,0 +1,18 @@
+# A tangent contact within tolerance is one complete hit
+
+Two curves that touch, staying within `tol.confusion` of each other over a stretch and then parting, have one contact. The numeric curve–curve search reports it as one hit at the closest approach, with multiplicity 2 where the curves are tangent there, and the result stays `Complete`. The closed forms already report a tangent contact as a complete hit with multiplicity 2, so the numeric route and the closed form now agree on the same configuration (issue #163).
+
+A stretch where the curves run along one another, an overlap, is unchanged: it is joined into an overlap, and the result stays `Incomplete` with an `Unseparated` region over it, because a stretch of coincidence cannot be split into hits. A search that runs out of its budget of halvings also stays `Incomplete` with `BudgetExhausted`, because pieces it did not settle may hide further hits, and a contact found there is not proven to be the only one.
+
+The contact is found after the subdivision, on the stretches the subdivision left unseparated. Those stretches are tested against the closest approach of the sampled distance, refined by golden-section search, so the hit sits where the distance is least. A stretch counts as a contact only when that closest approach lies within `tol.confusion`, and its regions are dropped from the result once a contact accounts for them.
+
+Multiplicity follows the tangent angle, not the tolerance on angles. The sine of the angle between the two tangents is compared with `sqrt(tol.confusion)`: a tangency is located only to about that scale, since two curves of unit curvature that touch stay within confusion over a stretch whose half-length is about `sqrt(tol.confusion)`. The tolerance on angles, `tol.angular`, is far finer than the located tangent direction, so comparing against it reported a circle tangent to a line as a crossing.
+
+## Considered options
+
+- **Make the closed forms `Incomplete` at a tangent, so that both routes agree on the weaker status**: rejected. The closed forms are exact, so a tangent there is a complete answer; downgrading it would make every tangent a non-result, and a caller could no longer use the completeness flag to tell a tangent apart from an unfinished search. The numeric route was the one that disagreed, so it moves.
+- **Keep the merge radius of `sqrt(tol.confusion)` for hits**: rejected. It dropped distinct crossings closer than that radius and reported the result `Complete` (issue #162). Hits now merge only when the curves stay within confusion between them.
+- **Compare the multiplicity's tangent angle with `tol.angular`**: rejected. The located tangent direction is about `sqrt(tol.confusion)` away from the true one, which is far coarser than `tol.angular` (1e-12 at the default tolerance), so a circle tangent to a line came back with multiplicity 1.
+- **Run the contact stage on the `BudgetExhausted` regions too**: rejected. A budget that ran out has not settled its pairs, so a closest approach found there is not proven to be the only contact. Those results stay incomplete, as they were.
+- **Report a contact as `Unseparated` with its hit**: rejected. `Unseparated` names a stretch the search could not settle, and a contact is settled: its hit is one point and the curves part on both sides. Keeping it complete lets a caller trust the result without checking the reason.
+- **One hit per side of the tangency**: rejected. The two roots of a near-double root sit about `sqrt(tol.confusion)` apart, and each side of a circle tangent to a circle yields one. Those are one contact, so they are merged by the stretch test in `same_contact`, which checks that the curves stay within confusion between the two hits.

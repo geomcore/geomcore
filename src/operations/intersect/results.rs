@@ -395,6 +395,11 @@ impl<P: TierPoint> GenericCurveCurveIntersection<P> {
 
     /// Whether every hit was found, and where hits may be missing if not.
     ///
+    /// On the numeric path a tangent contact, where the curves touch within
+    /// `tol.confusion` and part, is one hit and keeps the result complete.
+    /// An overlap, or a search that ran out of its budget, leaves it
+    /// incomplete, with the regions where hits may be missing.
+    ///
     /// # Examples
     ///
     /// ```

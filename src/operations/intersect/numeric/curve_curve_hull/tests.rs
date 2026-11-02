@@ -455,16 +455,29 @@ fn test_close_hits_near_a_tangency_are_separated() {
             [4.0, 1.0 - depth, 0.0],
         );
         // The subdivision finds both crossings. The stretch around each,
-        // within confusion of the line, may stay unseparated.
+        // within confusion of the line, may stay unseparated: the routed
+        // result settles it as a contact stretch that holds crossings only.
         let (hits, completeness) = raw_search(&dip, &line);
         assert_eq!(hits.len(), 2, "{hits:#?}");
         if let Completeness::Incomplete { reason, .. } = &completeness {
             assert_eq!(*reason, IncompleteReason::Unseparated, "{completeness:?}");
         }
+        let routed = crate::operations::intersect::numeric::curve_curve::intersect_curve_curve(
+            &dip, &line, TOL,
+        );
+        assert!(routed.is_complete(), "{routed:?}");
+        let routed = routed.hits();
+        assert_eq!(routed.len(), 2, "{routed:#?}");
         let half = (4.0 * depth).sqrt();
-        assert!((hits[0].point.x - (2.0 - half)).abs() < 1e-9, "{hits:#?}");
-        assert!((hits[1].point.x - (2.0 + half)).abs() < 1e-9, "{hits:#?}");
-        assert!(hits.iter().all(|h| h.multiplicity == 1));
+        assert!(
+            (routed[0].point.x - (2.0 - half)).abs() < 1e-9,
+            "{routed:#?}"
+        );
+        assert!(
+            (routed[1].point.x - (2.0 + half)).abs() < 1e-9,
+            "{routed:#?}"
+        );
+        assert!(routed.iter().all(|h| h.multiplicity == 1));
     }
 }
 

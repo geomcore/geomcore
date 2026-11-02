@@ -16,10 +16,12 @@
 
 use crate::geometry::curves::ParametricCurve;
 use crate::geometry::surfaces::ParametricSurface;
-use crate::operations::intersect::results::completeness::merged;
+use crate::operations::intersect::numeric::curve_curve::{contact_multiplicity, same_contact};
+use crate::operations::intersect::results::completeness::{meet, merged};
+use crate::operations::intersect::results::sort_by_known_parameter;
 use crate::operations::intersect::{
     Completeness, CurveCurveHit, CurveCurveOverlap, CurveCurveRegion, CurveSurfaceHit,
-    CurveSurfaceRegion,
+    CurveSurfaceRegion, IncompleteReason,
 };
 use crate::{BoundingBox, Point, Tolerance, Vector};
 
@@ -38,6 +40,9 @@ const UNBOUNDED_DOUBLINGS: usize = 64;
 /// Newton iterations following a point of the first curve onto the
 /// second.
 const FOOT_ITERATIONS: usize = 30;
+
+/// Golden-section steps locating the closest approach within a contact.
+const CLOSEST_APPROACH_STEPS: usize = 60;
 
 /// Joins the hits and regions of a numeric curve-surface search into the
 /// curve's runs lying on the surface (see the module documentation).
@@ -183,28 +188,58 @@ where
         follower.lies(t, spacing)
     });
     let mut overlaps = Vec::new();
+    let mut contact_runs = Vec::new();
     for run in runs {
-        if !(longer_than_confusion(first, run, tol) && settled(run, tol, |t| follower.distance(t)))
-        {
+        if !longer_than_confusion(first, run, tol) {
             continue;
         }
-        if let Some(overlap) = follower.overlap(run) {
-            overlaps.push(overlap);
+        if settled(run, tol, |t| follower.distance(t)) {
+            if let Some(overlap) = follower.overlap(run) {
+                overlaps.push(overlap);
+            }
+        } else if reason == IncompleteReason::Unseparated {
+            contact_runs.push(run);
         }
     }
-    if overlaps.is_empty() {
+    let contacts: Vec<((f64, f64), CurveCurveHit)> = contact_runs
+        .into_iter()
+        .filter_map(|run| follower.contact(run).map(|hit| (run, hit)))
+        .collect();
+    if overlaps.is_empty() && contacts.is_empty() {
         return (hits, overlaps, Completeness::Incomplete { reason, regions });
     }
     let inside = |t: f64| {
         overlaps
             .iter()
             .any(|overlap| covers(first, overlap.first_range, t, tol))
+            || contacts.iter().any(|&(run, _)| covers(first, run, t, tol))
     };
-    let hits = hits
+    let mut hits: Vec<CurveCurveHit> = hits
         .into_iter()
         .filter(|hit| !hit.first_parameter.is_some_and(inside))
         .collect();
-    let mut regions = regions;
+    hits.extend(contacts.iter().map(|&(_, hit)| hit));
+    sort_by_known_parameter(&mut hits, |hit| hit.first_parameter);
+    // Two contacts on either side of one tangency are one contact.
+    let mut distinct: Vec<CurveCurveHit> = Vec::new();
+    for hit in hits {
+        if distinct
+            .iter()
+            .all(|kept| !same_contact(first, second, kept, &hit, tol))
+        {
+            distinct.push(hit);
+        }
+    }
+    let hits = distinct;
+    let accounted_by_contact = |region: &CurveCurveRegion| {
+        contacts
+            .iter()
+            .any(|&(run, _)| meet(region.first_range, run))
+    };
+    let mut regions: Vec<CurveCurveRegion> = regions
+        .into_iter()
+        .filter(|region| !accounted_by_contact(region))
+        .collect();
     for overlap in &overlaps {
         let (min_corner, max_corner) = corners(&run_points(first, overlap.first_range));
         regions.push(CurveCurveRegion {
@@ -215,7 +250,12 @@ where
         });
     }
     let regions = merged(regions);
-    (hits, overlaps, Completeness::Incomplete { reason, regions })
+    let completeness = if regions.is_empty() {
+        Completeness::Complete
+    } else {
+        Completeness::Incomplete { reason, regions }
+    };
+    (hits, overlaps, completeness)
 }
 
 /// Follows points of the first curve onto the second: the second curve's
@@ -302,6 +342,49 @@ impl<A: ParametricCurve, B: ParametricCurve> Follower<'_, A, B> {
         let d_second = self.second.eval_derivative(s, 1);
         let across = d_first.cross(unit(d_second)).magnitude();
         across * spacing <= 2.0 * self.tol.confusion
+    }
+
+    /// The contact over a stretch `run` where the curves stay within
+    /// confusion but do not overlap: one hit at the closest approach,
+    /// where the curves are within confusion and the second curve's
+    /// parameter of the foot. The multiplicity is 2 where the curves are
+    /// tangent there, else 1: a shallow crossing within the stretch keeps
+    /// its hit as a crossing. `None` if the closest approach lies beyond
+    /// confusion.
+    fn contact(&self, (low, high): (f64, f64)) -> Option<CurveCurveHit> {
+        let distance_at = |t: f64| self.distance(t).unwrap_or(f64::INFINITY);
+        let samples: Vec<f64> = (0..=RUN_SAMPLES)
+            .map(|k| low + (high - low) * k as f64 / RUN_SAMPLES as f64)
+            .collect();
+        let best = (0..=RUN_SAMPLES)
+            .min_by(|&i, &j| distance_at(samples[i]).total_cmp(&distance_at(samples[j])))?;
+        let (mut lo, mut hi) = (
+            samples[best.saturating_sub(1)],
+            samples[(best + 1).min(RUN_SAMPLES)],
+        );
+        let golden = (5f64.sqrt() - 1.0) / 2.0;
+        for _ in 0..CLOSEST_APPROACH_STEPS {
+            let inner_low = hi - golden * (hi - lo);
+            let inner_high = lo + golden * (hi - lo);
+            if distance_at(inner_low) < distance_at(inner_high) {
+                hi = inner_high;
+            } else {
+                lo = inner_low;
+            }
+        }
+        let t = 0.5 * (lo + hi);
+        let (s, distance) = self.nearest_foot(t)?;
+        if distance > self.tol.confusion {
+            return None;
+        }
+        let tangent_first = self.first.eval_derivative(t, 1);
+        let tangent_second = self.second.eval_derivative(s, 1);
+        Some(CurveCurveHit {
+            first_parameter: Some(t),
+            point: self.first.eval_point(t),
+            second_parameter: Some(s),
+            multiplicity: contact_multiplicity(tangent_first, tangent_second, self.tol),
+        })
     }
 
     /// The overlap over the first curve's `run`: the second curve's

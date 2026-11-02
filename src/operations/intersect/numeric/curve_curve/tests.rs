@@ -403,6 +403,7 @@ fn test_numeric_near_tangent_line_keeps_its_two_hits() {
         Point::new(2.0, 1.0 - 1e-6, 0.0),
     );
     let result = intersect_curve_curve(&circle, &chord, tol);
+    assert!(result.is_complete(), "{result:?}");
     assert_eq!(result.hits().len(), 2, "{result:?}");
     for x in [-1.414_213_2e-3, 1.414_213_2e-3] {
         assert!(
@@ -415,4 +416,145 @@ fn test_numeric_near_tangent_line_keeps_its_two_hits() {
             "no hit at x = {x}: {result:?}"
         );
     }
+}
+
+/// The quadratic B-spline `y = x^2` over `x` in `[-1, 1]`, the Bézier
+/// through the control point `(0, -1)`.
+fn parabola_bspline() -> BSplineCurve {
+    BSplineCurve::new(
+        2,
+        vec![
+            Point::new(-1.0, 1.0, 0.0),
+            Point::new(0.0, -1.0, 0.0),
+            Point::new(1.0, 1.0, 0.0),
+        ],
+        vec![0.0, 1.0],
+        vec![3, 3],
+        false,
+    )
+    .unwrap()
+}
+
+/// Asserts that the numeric result on B-splines gives the closed form's
+/// hits: the same points and multiplicities, and complete.
+#[track_caller]
+fn assert_agrees_with_closed_form(
+    closed: &CurveCurveIntersection,
+    numeric: &CurveCurveIntersection,
+) {
+    assert_eq!(
+        closed.hits().len(),
+        numeric.hits().len(),
+        "{closed:?} vs {numeric:?}"
+    );
+    for hit in closed.hits() {
+        assert!(
+            numeric.hits().iter().any(|n| {
+                n.point.distance(hit.point) < 1e-7 && n.multiplicity == hit.multiplicity
+            }),
+            "closed {hit:?} missing from {numeric:?}"
+        );
+    }
+    assert!(numeric.is_complete(), "{numeric:?}");
+}
+
+#[test]
+fn test_parabola_contact_with_flat_line_matches_closed_form() {
+    // The parabola y = x^2 touches y = -1e-9 at the origin: its distance
+    // there is within the default confusion (1e-7), so one contact.
+    let tol = Tolerance::DEFAULT;
+    let parabola = crate::Parabola::new(Point::ORIGIN, Vector::Z, Vector::Y, 0.25).unwrap();
+    let line = Line::new(Point::new(-2.0, -1e-9, 0.0), Vector::X).unwrap();
+    let flat = segment(Point::new(-2.0, -1e-9, 0.0), Point::new(2.0, -1e-9, 0.0));
+    let closed = crate::Intersect::intersect(&parabola, &line, tol);
+    assert_eq!(closed.hits().len(), 1, "{closed:?}");
+    assert_eq!(closed.hits()[0].multiplicity, 2);
+    let numeric = intersect_curve_curve(&parabola_bspline(), &flat, tol);
+    assert_eq!(numeric.hits().len(), 1, "{numeric:?}");
+    assert_eq!(numeric.hits()[0].multiplicity, 2, "{numeric:?}");
+    assert!(
+        numeric.hits()[0].point.distance(Point::ORIGIN) < 1e-7,
+        "{numeric:?}"
+    );
+    assert!(numeric.is_complete(), "{numeric:?}");
+}
+
+#[test]
+fn test_parabola_contact_vanishes_at_confusion_1e_12() {
+    // At confusion 1e-12 the gap 1e-9 is a separation: no hit, complete.
+    let tol = Tolerance {
+        confusion: 1e-12,
+        ..Tolerance::DEFAULT
+    };
+    let flat = segment(Point::new(-2.0, -1e-9, 0.0), Point::new(2.0, -1e-9, 0.0));
+    let numeric = intersect_curve_curve(&parabola_bspline(), &flat, tol);
+    assert!(numeric.hits().is_empty(), "{numeric:?}");
+    assert!(numeric.is_complete(), "{numeric:?}");
+}
+
+#[test]
+fn test_circle_tangent_to_line_matches_closed_form() {
+    let tol = Tolerance::DEFAULT;
+    let circle = crate::Circle::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
+    let line = Line::new(Point::new(0.0, 1.0, 0.0), Vector::X).unwrap();
+    let chord = segment(Point::new(-2.0, 1.0, 0.0), Point::new(2.0, 1.0, 0.0));
+    let closed = crate::Intersect::intersect(&circle, &line, tol);
+    let numeric = intersect_curve_curve(&circle.to_bspline(), &chord, tol);
+    assert_agrees_with_closed_form(&closed, &numeric);
+}
+
+#[test]
+fn test_circles_tangent_externally_and_internally_match_closed_form() {
+    let tol = Tolerance::DEFAULT;
+    let external = (
+        crate::Circle::new(Point::ORIGIN, Vector::Z, 1.0).unwrap(),
+        crate::Circle::new(Point::new(2.0, 0.0, 0.0), Vector::Z, 1.0).unwrap(),
+    );
+    let internal = (
+        crate::Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap(),
+        crate::Circle::new(Point::new(1.0, 0.0, 0.0), Vector::Z, 1.0).unwrap(),
+    );
+    for (first, second) in [external, internal] {
+        let closed = crate::Intersect::intersect(&first, &second, tol);
+        let numeric = intersect_curve_curve(&first.to_bspline(), &second.to_bspline(), tol);
+        assert_agrees_with_closed_form(&closed, &numeric);
+    }
+}
+
+#[test]
+fn test_ellipse_tangent_to_line_matches_closed_form() {
+    let tol = Tolerance::DEFAULT;
+    // The ellipse with semi-axes 2 and 1 touches y = 1 at (0, 1).
+    let ellipse = crate::Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 2.0, 1.0).unwrap();
+    let line = Line::new(Point::new(0.0, 1.0, 0.0), Vector::X).unwrap();
+    let chord = segment(Point::new(-3.0, 1.0, 0.0), Point::new(3.0, 1.0, 0.0));
+    let closed = crate::Intersect::intersect(&ellipse, &line, tol);
+    let numeric = intersect_curve_curve(&ellipse.to_bspline(), &chord, tol);
+    assert_agrees_with_closed_form(&closed, &numeric);
+}
+
+#[test]
+fn test_ellipse_and_circle_touching_at_two_points_give_both_points() {
+    // The ellipse with semi-axes 2 and 1 and the unit circle touch at
+    // (0, 1) and (0, -1).
+    let tol = Tolerance::DEFAULT;
+    let ellipse = crate::Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 2.0, 1.0).unwrap();
+    let circle = crate::Circle::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
+    let closed = crate::Intersect::intersect(&circle, &ellipse, tol);
+    let numeric = intersect_curve_curve(&circle.to_bspline(), &ellipse.to_bspline(), tol);
+    for y in [1.0, -1.0] {
+        let contact = Point::new(0.0, y, 0.0);
+        assert!(
+            numeric
+                .hits()
+                .iter()
+                .any(|hit| hit.point.distance(contact) < 1e-7 && hit.multiplicity == 2),
+            "no contact at {contact:?}: {numeric:?}"
+        );
+    }
+    assert_eq!(numeric.hits().len(), 2, "{numeric:?}");
+    assert!(
+        numeric.is_complete(),
+        "closed {closed:?}, numeric {numeric:?}"
+    );
 }
