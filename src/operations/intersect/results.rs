@@ -7,12 +7,10 @@
 //! so the storage can change without breaking callers.
 
 pub(crate) mod completeness;
-mod extrema;
 mod inline_list;
 pub(crate) mod inline_or_heap_list;
 mod regions;
 
-pub use extrema::CurveCurveExtrema;
 pub use inline_list::InlineList;
 pub use regions::{CurveCurveRegion, CurveSurfaceRegion, SurfaceSurfaceRegion};
 
@@ -871,18 +869,6 @@ impl SurfaceSurfaceIntersection {
     pub fn is_empty(&self) -> bool {
         self.curves.is_empty() && self.contact_points.is_empty() && !self.coincident
     }
-}
-
-/// One local minimum of the distance between two 3D curves (see
-/// [`curve_curve_extrema`](crate::curve_curve_extrema)).
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct CurveCurveExtremum {
-    /// Parameter on the first curve.
-    pub first_parameter: f64,
-    /// Parameter on the second curve.
-    pub second_parameter: f64,
-    /// Distance between the two points.
-    pub distance: f64,
 }
 
 /// One meeting of two curves of one tier: [`CurveCurveHit`] in space,

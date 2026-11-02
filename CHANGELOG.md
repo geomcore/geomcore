@@ -11,6 +11,10 @@ the Python distribution are versioned in lockstep.
 
 ### Changed
 
+- The curve–curve distance extrema have their own module,
+  `operations/extrema/` (ADR 0033): the minima search used to live inside
+  the numeric intersection, which now reads its hits from it. Nothing
+  public changes.
 - The private spline behind the B-spline curve is folded into
   `GenericBSplineCurve`, which held it with the same type parameter and
   forwarded every method to it (ADR 0014, amended). Nothing public changes.

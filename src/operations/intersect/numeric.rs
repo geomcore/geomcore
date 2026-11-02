@@ -11,6 +11,7 @@ pub(crate) mod embedding_2d;
 pub(crate) mod marching;
 pub(crate) mod overlap_runs;
 pub(crate) mod pairs_with_bspline;
+pub(crate) mod parameter_domain;
 pub(crate) mod patch_pairs;
 pub(crate) mod subdivision;
 pub(crate) mod surface_patches;

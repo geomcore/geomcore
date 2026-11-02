@@ -136,6 +136,16 @@ _Avoid_: intersection point, contact (reserved for surfaces)
 A parameter range where a curve lies on another curve or on a surface, instead of meeting it at isolated hits. Between two curves it is a range on each curve, each increasing in its own curve's parameter (so a coincidence across a seam is split there), plus whether the two curves run the same way along it (`same_direction`); with opposite directions the start of one range meets the end of the other. On a surface it is a range on the curve.
 _Avoid_: coincidence (reserved for two shapes that overlap entirely), segment
 
+## Projection and extrema
+
+**Projection**:
+The closest point of a curve or surface to a point: its parameter, the point itself and the distance, as a `CurveProjection` or `SurfaceProjection` from `project_point`. On a curve, `extrema` lists the local minima of the distance from the point, closest first; the projection is the first of them, or a search for that point alone where it is faster (a line in closed form, a B-spline searching its spans closest first). On an elementary surface it is the closed-form inversion `parameters_of` and one evaluation. `contains` agrees with the projection's distance being `0.0`.
+_Avoid_: foot (in names), closest point as a type name
+
+**Extrema**:
+The local minima of the distance between two curves, closest first, each with the parameters on both curves and the distance: `curve_curve_extrema`. A valley of equal minima (parallel lines, concentric arcs) is represented by one of its points. The result carries its **completeness**, as a numeric intersection does: the curve–curve intersection is read from the minima at zero distance. Distances within the confusion tolerance snap to `0.0`.
+_Avoid_: extremum for the level-function extrema that seed marching (those are level extrema), distance for the whole result
+
 ## Discretization
 
 **Discretization**:

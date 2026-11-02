@@ -10,7 +10,7 @@
 //! ([`coincidence`]) runs first.
 
 mod coincidence;
-mod extrema;
+mod level_extrema;
 mod pair;
 mod seeding;
 mod tracer;
