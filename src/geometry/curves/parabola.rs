@@ -7,14 +7,8 @@ use crate::base::tier::{TierPoint, impl_for_both_tiers};
 use crate::base::transform::image_error;
 use crate::geometry::curves::ReversibleCurve;
 use crate::geometry::curves::{ElementaryCurve, ParametricCurve, ParametricCurve2D};
-use crate::geometry::curves::{PointExtrema, PointExtrema2D};
 use crate::math::elementary::curve as elementary;
-use crate::math::numeric::real_roots;
-use crate::operations::extrema::projection::CurveProjection;
-use crate::{
-    Frame, Frame2D, Point, Point2D, Tolerance, Transform, Vector, Vector2D,
-    operations::extrema::projection,
-};
+use crate::{Frame, Frame2D, Point, Point2D, Transform, Vector, Vector2D};
 use crate::{TransformError, Transformable};
 use std::fmt;
 
@@ -235,67 +229,6 @@ impl Parabola2D {
             ParabolaConstructionError::NullNormal,
         ))?;
         Parabola2D::from_frame(frame, focal)
-    }
-}
-
-impl_for_both_tiers! {
-    impl PointExtrema, PointExtrema2D for GenericParabola {
-        fn extrema(&self, point: P, tol: Tolerance) -> Vec<CurveProjection<P>> {
-            if !point.is_finite() {
-                return Vec::new();
-            }
-            let rel = point - self.apex();
-            let px = rel.dot(self.frame.x_direction());
-            let py = rel.dot(self.frame.y_direction());
-            let f = self.focal();
-            let coeffs = [-2.0 * f * py, 2.0 * f - px, 0.0, 0.25 / f];
-            let mut out: Vec<CurveProjection<P>> = real_roots(&coeffs, tol.confusion)
-                .into_iter()
-                .map(|r| {
-                    let foot = self.eval_point(r.value);
-                    let distance = foot.distance(point);
-                    CurveProjection {
-                        parameter: r.value,
-                        point: foot,
-                        distance: projection::snap_distance(distance, tol.confusion),
-                    }
-                })
-                .collect();
-            out.sort_by(|x, y| x.distance.total_cmp(&y.distance));
-            out
-        }
-
-        /// Recovers the parameter of a point on (or near) the parabola: the
-        /// projection `(point - apex) . y_dir`. Unbounded (no wrapping).
-        fn parameter_of(&self, point: P, _tol: Tolerance) -> f64 {
-            elementary::parabola_parameter(&self.frame, point)
-        }
-
-        fn contains(&self, point: P, tol: Tolerance) -> bool {
-            let f = self.focal;
-            // `y² = 4fx`: on it `|∇f| ≥ 4f`.
-            let near = elementary::conic_proximity(
-                &self.frame,
-                point,
-                tol.confusion,
-                2.0,
-                4.0 * f,
-                |x, y| (y * y - 4.0 * f * x, -4.0 * f, 2.0 * y),
-            );
-            if let Some(near) = near {
-                return near;
-            }
-            let u = self.parameter_of(point, tol);
-            self.eval_point(u).distance(point) <= tol.confusion
-                || self.project_point(point, tol).distance <= tol.confusion
-        }
-
-        fn project_point(&self, point: P, tol: Tolerance) -> CurveProjection<P> {
-            self.extrema(point, tol)
-                .into_iter()
-                .next()
-                .unwrap_or(CurveProjection::UNDEFINED)
-        }
     }
 }
 

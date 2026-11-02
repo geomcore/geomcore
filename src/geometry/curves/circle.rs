@@ -7,12 +7,8 @@ use crate::base::tier::operations::FrameOperations;
 use crate::base::tier::{TierPoint, impl_for_both_tiers};
 use crate::base::transform::image_error;
 use crate::geometry::curves::ReversibleCurve;
-use crate::geometry::curves::parametric_curve::only_minimum;
 use crate::geometry::curves::{ElementaryCurve, ParametricCurve, ParametricCurve2D};
-use crate::geometry::curves::{PointExtrema, PointExtrema2D};
 use crate::math::elementary::curve as elementary;
-use crate::operations::extrema::projection;
-use crate::operations::extrema::projection::CurveProjection;
 use crate::{Axis, Frame, Frame2D, Point, Point2D, Tolerance, Transform, Vector, Vector2D};
 use crate::{TransformError, Transformable};
 use std::f64::consts::TAU;
@@ -380,36 +376,6 @@ impl Circle2D {
         let frame = Frame2D::new(center, Vector2D::X, Vector2D::Y)
             .map_err(|_| CircleConstructionError::NonFinite)?;
         Circle2D::from_frame(frame, radius)
-    }
-}
-
-impl_for_both_tiers! {
-    impl PointExtrema, PointExtrema2D for GenericCircle {
-        fn extrema(&self, point: P, tol: Tolerance) -> Vec<CurveProjection<P>> {
-            only_minimum(point, || self.project_point(point, tol))
-        }
-
-        /// Recovers the angular parameter of a point on (or near) the circle,
-        /// wrapped into `[0, 2*PI)`.
-        fn parameter_of(&self, point: P, _tol: Tolerance) -> f64 {
-            elementary::circle_parameter(&self.frame, point)
-        }
-
-        fn contains(&self, point: P, tol: Tolerance) -> bool {
-            let u = self.parameter_of(point, tol);
-            self.eval_point(u).distance(point) <= tol.confusion
-        }
-
-        fn project_point(&self, point: P, tol: Tolerance) -> CurveProjection<P> {
-            let u = self.parameter_of(point, tol);
-            let foot = self.eval_point(u);
-            let distance = foot.distance(point);
-            CurveProjection {
-                point: foot,
-                parameter: self.parameter_in_bounds(u, tol),
-                distance: projection::snap_distance(distance, tol.confusion),
-            }
-        }
     }
 }
 

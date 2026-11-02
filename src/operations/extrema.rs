@@ -3,6 +3,8 @@
 
 /// The local minima of the distance between two curves.
 pub(crate) mod curve_curve;
+/// The extrema from a point to each curve family.
+mod point_curve;
 /// Point-projection result types.
 pub(crate) mod projection;
 

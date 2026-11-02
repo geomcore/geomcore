@@ -8,14 +8,8 @@ use crate::base::tier::{TierPoint, impl_for_both_tiers};
 use crate::base::transform::image_error;
 use crate::geometry::curves::ReversibleCurve;
 use crate::geometry::curves::{ElementaryCurve, ParametricCurve, ParametricCurve2D};
-use crate::geometry::curves::{PointExtrema, PointExtrema2D};
 use crate::math::elementary::curve as elementary;
-use crate::math::numeric::{polish_root, real_roots};
-use crate::operations::extrema::projection::CurveProjection;
-use crate::{
-    Frame, Frame2D, Point, Point2D, Tolerance, Transform, Vector, Vector2D,
-    operations::extrema::projection,
-};
+use crate::{Frame, Frame2D, Point, Point2D, Tolerance, Transform, Vector, Vector2D};
 use crate::{TransformError, Transformable};
 use std::fmt;
 
@@ -408,103 +402,6 @@ impl Hyperbola2D {
             HyperbolaConstructionError::CollinearPoints,
         ))?;
         Hyperbola2D::from_frame(frame, d1, d2)
-    }
-}
-
-impl_for_both_tiers! {
-    impl PointExtrema, PointExtrema2D for GenericHyperbola {
-        fn extrema(&self, point: P, tol: Tolerance) -> Vec<CurveProjection<P>> {
-            if !point.is_finite() {
-                return Vec::new();
-            }
-            let rel = point - self.center();
-            let px = rel.dot(self.frame.x_direction());
-            let py = rel.dot(self.frame.y_direction());
-            let (a, b) = (self.major_radius, self.minor_radius);
-            let s2 = a * a + b * b;
-            if s2 == 0.0 {
-                // Both radii zero: the branch is its centre, every parameter
-                // equally close.
-                let centre = self.center();
-                let distance = centre.distance(point);
-                return vec![CurveProjection {
-                    parameter: 0.0,
-                    point: centre,
-                    distance: projection::snap_distance(distance, tol.confusion),
-                }];
-            }
-            let coeffs = [
-                -s2,
-                2.0 * (a * px - b * py),
-                0.0,
-                -2.0 * (a * px + b * py),
-                s2,
-            ];
-            // The stationarity condition (H(t) - P).H'(t) in frame coordinates,
-            // and its derivative: candidates from the quartic are polished on
-            // it, since near the vertex a complex root pair crowds the real
-            // root and the polynomial alone resolves it only to ~sqrt(eps).
-            let g = |t: f64| s2 * t.sinh() * t.cosh() - a * px * t.sinh() - b * py * t.cosh();
-            let dg = |t: f64| s2 * (2.0 * t).cosh() - a * px * t.cosh() - b * py * t.sinh();
-            let mut out: Vec<CurveProjection<P>> = real_roots(&coeffs, tol.confusion)
-                .into_iter()
-                .filter(|r| r.value > 0.0)
-                .map(|r| {
-                    let t = polish_root(g, dg, r.value.ln(), 8);
-                    let foot = self.eval_point(t);
-                    let distance = foot.distance(point);
-                    CurveProjection {
-                        parameter: t,
-                        point: foot,
-                        distance: projection::snap_distance(distance, tol.confusion),
-                    }
-                })
-                .collect();
-            out.sort_by(|x, y| x.distance.total_cmp(&y.distance));
-            out
-        }
-
-        /// Recovers the parameter of a point on (or near) the hyperbola:
-        /// `asinh(((point - center) . y_dir) / minor_radius)`. Unbounded (no
-        /// wrapping).
-        fn parameter_of(&self, point: P, _tol: Tolerance) -> f64 {
-            elementary::hyperbola_parameter(&self.frame, self.minor_radius, point)
-        }
-
-        fn contains(&self, point: P, tol: Tolerance) -> bool {
-            let (a, b) = (self.major_radius, self.minor_radius);
-            // `(x/a)² - (y/b)² = 1`: on it `|∇f| ≥ 2/a`. Whenever the bounds
-            // apply, `a ≥ 2 tol`, so the branch (`x ≥ a`) is the only part of
-            // the curve within `2 tol` of a point with `x ≥ a - tol`, and points
-            // short of that are far from it.
-            let near = elementary::conic_proximity(
-                &self.frame,
-                point,
-                tol.confusion,
-                2.0 / (a.min(b) * a.min(b)),
-                2.0 / a,
-                |x, y| {
-                    if x < a - tol.confusion {
-                        return (f64::INFINITY, 1.0, 0.0);
-                    }
-                    let (sx, sy) = (x / (a * a), y / (b * b));
-                    (x * sx - y * sy - 1.0, 2.0 * sx, -2.0 * sy)
-                },
-            );
-            if let Some(near) = near {
-                return near;
-            }
-            let u = self.parameter_of(point, tol);
-            self.eval_point(u).distance(point) <= tol.confusion
-                || self.project_point(point, tol).distance <= tol.confusion
-        }
-
-        fn project_point(&self, point: P, tol: Tolerance) -> CurveProjection<P> {
-            self.extrema(point, tol)
-                .into_iter()
-                .next()
-                .unwrap_or(CurveProjection::UNDEFINED)
-        }
     }
 }
 

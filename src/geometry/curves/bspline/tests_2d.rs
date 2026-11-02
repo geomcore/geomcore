@@ -1,5 +1,6 @@
 use super::*;
 use crate::Vector2D;
+use crate::geometry::curves::PointExtrema2D;
 
 // ---- construction / accessors ----
 
