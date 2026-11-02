@@ -5,7 +5,7 @@
 use crate::Tolerance;
 use crate::geometry::curves::ParametricCurve;
 use crate::operations::extrema::CurveCurveExtremum;
-use crate::operations::extrema::curve_curve::{curve_curve_extrema, curve_curve_minima};
+use crate::operations::extrema::curve_curve::{curve_curve_extrema, sampled_curve_curve_extrema};
 use crate::operations::intersect::numeric::curve_curve_hull::CurveCurveHits;
 use crate::operations::intersect::numeric::{overlap_runs, pairs_with_bspline};
 use crate::operations::intersect::results::sort_by_known_parameter;
@@ -132,7 +132,7 @@ where
     hits_at_minima(
         a,
         b,
-        curve_curve_minima(a, b, tol, false).into_minima(),
+        sampled_curve_curve_extrema(a, b, tol).into_minima(),
         tol,
     )
 }

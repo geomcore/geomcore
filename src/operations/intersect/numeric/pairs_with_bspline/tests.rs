@@ -6,7 +6,7 @@ use crate::geometry::surfaces::{
     BSplineSurface, Cone, Cylinder, ExtrusionSurface, Plane, RevolutionSurface, Sphere, Surface,
     Torus,
 };
-use crate::operations::extrema::curve_curve::curve_curve_minima;
+use crate::operations::extrema::curve_curve::sampled_curve_curve_extrema;
 use crate::operations::extrema::curve_curve_extrema;
 use crate::operations::intersect::numeric::curve_curve::sampled_curve_curve;
 use crate::operations::intersect::numeric::curve_curve::search_curve_curve;
@@ -264,7 +264,7 @@ fn assert_extrema<A: ParametricCurve, B: ParametricCurve>(a: &A, b: &B) -> Vec<C
             }
         }
     }
-    for want in curve_curve_minima(a, b, TOL, false).into_minima() {
+    for want in sampled_curve_curve_extrema(a, b, TOL).into_minima() {
         let (pa, pb) = (
             a.eval_point(want.first_parameter),
             b.eval_point(want.second_parameter),
@@ -719,7 +719,7 @@ fn test_extrema_of_segments_and_bspline_curve() {
 fn assert_sampled_extrema<A: ParametricCurve, B: ParametricCurve>(a: &A, b: &B) {
     let extrema = curve_curve_extrema(a, b, TOL);
     assert_eq!(extrema.completeness(), &Completeness::Sampled);
-    let grid = curve_curve_minima(a, b, TOL, false);
+    let grid = sampled_curve_curve_extrema(a, b, TOL);
     assert!(!grid.is_empty());
     assert_eq!(extrema.into_minima(), grid.into_minima());
 }

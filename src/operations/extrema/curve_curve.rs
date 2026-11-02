@@ -3,7 +3,8 @@
 
 use crate::geometry::curves::ParametricCurve;
 use crate::math::numeric::{newton_min_1d, newton_min_2d};
-use crate::operations::intersect::numeric::{curve_surface_hull, pairs_with_bspline};
+use crate::operations::extrema::curve_curve_pieces::curve_curve_seeds;
+use crate::operations::intersect::numeric::parameter_domain::ParameterDomain;
 use crate::operations::intersect::{Completeness, CurveCurveRegion};
 use crate::{Point, Tolerance, Vector};
 use std::ops::Deref;
@@ -175,113 +176,7 @@ const MAX_MEETING_HALVINGS: usize = 256;
 /// configuration scales from its reference point.
 const SEED_REACH: f64 = 64.0;
 
-/// Parameter domain of one curve in [`curve_curve_extrema`].
-#[derive(Debug, Clone, Copy)]
-pub(crate) enum ParamDomain {
-    /// A full period from `start`: unconstrained, wrapped into
-    /// `[start, start + period)` on output.
-    Periodic { start: f64, period: f64 },
-    /// `[lo, hi]`; either end may be infinite.
-    Interval(f64, f64),
-}
-
-impl ParamDomain {
-    /// The domain of `curve`; a periodic curve bounded to less than a
-    /// period is an arc, so it is an interval.
-    pub(crate) fn of<C: ParametricCurve>(curve: &C) -> ParamDomain {
-        let (lo, hi) = curve.bounds();
-        match curve.period() {
-            Some(period) if lo.is_finite() && hi - lo >= period * (1.0 - 1e-12) => {
-                ParamDomain::Periodic { start: lo, period }
-            }
-            _ => ParamDomain::Interval(lo, hi),
-        }
-    }
-
-    /// The box constraint of the minimiser (`None`: unconstrained).
-    fn bounds(self) -> Option<(f64, f64)> {
-        match self {
-            ParamDomain::Interval(lo, hi) if lo.is_finite() || hi.is_finite() => Some((lo, hi)),
-            _ => None,
-        }
-    }
-
-    pub(crate) fn is_periodic(self) -> bool {
-        matches!(self, ParamDomain::Periodic { .. })
-    }
-
-    /// Whether the domain is the whole real line.
-    fn is_unbounded(self) -> bool {
-        matches!(self, ParamDomain::Interval(lo, hi) if lo.is_infinite() && hi.is_infinite())
-    }
-
-    /// Whether the domain has finite extent (a period counts).
-    fn is_finite(self) -> bool {
-        match self {
-            ParamDomain::Periodic { .. } => true,
-            ParamDomain::Interval(lo, hi) => lo.is_finite() && hi.is_finite(),
-        }
-    }
-
-    /// The finite ends of an interval (none for a period).
-    fn finite_ends(self) -> impl Iterator<Item = f64> {
-        let ends = match self {
-            ParamDomain::Periodic { .. } => [f64::NAN; 2],
-            ParamDomain::Interval(lo, hi) => [lo, hi],
-        };
-        ends.into_iter().filter(|u| u.is_finite())
-    }
-
-    /// The reference parameter: the start of the domain, else `0` (or
-    /// the upper end when that is below `0`).
-    fn reference(self) -> f64 {
-        match self {
-            ParamDomain::Periodic { start, .. } => start,
-            ParamDomain::Interval(lo, _) if lo.is_finite() => lo,
-            ParamDomain::Interval(_, hi) => hi.min(0.0),
-        }
-    }
-
-    /// `u` brought into the domain: wrapped into the period, or clamped
-    /// and snapped onto an end it is within the minimiser's resolution of
-    /// (where a step would be too small to move it).
-    fn wrap(self, u: f64) -> f64 {
-        let near = |end: f64| end.is_finite() && (u - end).abs() <= 2e-14 * (1.0 + end.abs());
-        match self {
-            ParamDomain::Periodic { start, period } => start + (u - start).rem_euclid(period),
-            ParamDomain::Interval(lo, _) if near(lo) => lo,
-            ParamDomain::Interval(_, hi) if near(hi) => hi,
-            ParamDomain::Interval(lo, hi) => u.clamp(lo, hi),
-        }
-    }
-
-    /// A finite domain as the parameter range of a piece-pair search.
-    pub(crate) fn range(self) -> curve_surface_hull::Range {
-        match self {
-            ParamDomain::Periodic { start, period } => curve_surface_hull::Range {
-                lo: start,
-                hi: start + period,
-                periodic: true,
-            },
-            ParamDomain::Interval(lo, hi) => curve_surface_hull::Range {
-                lo,
-                hi,
-                periodic: false,
-            },
-        }
-    }
-
-    /// The signed step from `u` to `v`, the shorter way round a period.
-    fn step(self, u: f64, v: f64) -> f64 {
-        match self {
-            ParamDomain::Periodic { period, .. } => {
-                let d = (v - u).rem_euclid(period);
-                if d > 0.5 * period { d - period } else { d }
-            }
-            ParamDomain::Interval(..) => v - u,
-        }
-    }
-
+impl ParameterDomain {
     /// Seed parameters, ascending. A finite domain gets `count` uniform
     /// samples. An unbounded direction gets a geometric progression away
     /// from the reference parameter, starting at a step that moves the
@@ -290,18 +185,18 @@ impl ParamDomain {
     /// where the curves interact, sparse far out, at any absolute size.
     fn seeds<C: ParametricCurve>(self, curve: &C, scale: f64, count: usize) -> Vec<f64> {
         match self {
-            ParamDomain::Periodic { start, period } => (0..count)
+            ParameterDomain::Periodic { start, period } => (0..count)
                 .map(|i| start + period * i as f64 / count as f64)
                 .collect(),
             // The ends exactly, so a minimum held there is seeded on it.
-            ParamDomain::Interval(lo, hi) if self.is_finite() => (0..count)
+            ParameterDomain::Interval(lo, hi) if self.is_finite() => (0..count)
                 .map(|i| match i {
                     0 => lo,
                     _ if i == count - 1 => hi,
                     _ => lo + (hi - lo) * i as f64 / (count - 1) as f64,
                 })
                 .collect(),
-            ParamDomain::Interval(lo, hi) => {
+            ParameterDomain::Interval(lo, hi) => {
                 let u0 = self.reference();
                 let (p0, d1) = curve.eval_d1(u0);
                 let speed = d1.magnitude();
@@ -347,21 +242,21 @@ impl Straight {
     /// `curve` as a straight curve, if it is one over its whole domain
     /// (lines, straight segments): checked against the affine extension
     /// of its reference point and tangent at a spread of parameters.
-    fn of<C: ParametricCurve>(curve: &C, dom: ParamDomain) -> Option<Straight> {
+    fn of<C: ParametricCurve>(curve: &C, dom: ParameterDomain) -> Option<Straight> {
         const SPREAD: [f64; 6] = [0.137, 0.382, 0.5, 0.731, 0.919, 1.0];
         const REACH: [f64; 4] = [0.7, 3.1, 17.3, 101.9];
         let probes: Vec<f64> = match dom {
-            ParamDomain::Periodic { .. } => return None,
-            ParamDomain::Interval(lo, hi) if dom.is_finite() => {
+            ParameterDomain::Periodic { .. } => return None,
+            ParameterDomain::Interval(lo, hi) if dom.is_finite() => {
                 SPREAD.iter().map(|f| lo + (hi - lo) * f).collect()
             }
-            ParamDomain::Interval(lo, _) if lo.is_finite() => {
+            ParameterDomain::Interval(lo, _) if lo.is_finite() => {
                 REACH.iter().map(|r| lo + r).collect()
             }
-            ParamDomain::Interval(_, hi) if hi.is_finite() => {
+            ParameterDomain::Interval(_, hi) if hi.is_finite() => {
                 REACH.iter().map(|r| hi - r).collect()
             }
-            ParamDomain::Interval(..) => REACH.iter().flat_map(|&r| [-r, r]).collect(),
+            ParameterDomain::Interval(..) => REACH.iter().flat_map(|&r| [-r, r]).collect(),
         };
         let u0 = dom.reference();
         let (origin, dir) = curve.eval_d1(u0);
@@ -480,26 +375,10 @@ where
     A: ParametricCurve,
     B: ParametricCurve,
 {
-    curve_curve_minima(a, b, tol, true)
-}
-
-/// [`curve_curve_extrema`], through the piece-pair search on B-splines if
-/// `pieces`, else always through the grid.
-pub(crate) fn curve_curve_minima<A, B>(
-    a: &A,
-    b: &B,
-    tol: Tolerance,
-    pieces: bool,
-) -> CurveCurveExtrema
-where
-    A: ParametricCurve,
-    B: ParametricCurve,
-{
-    let (da, db) = (ParamDomain::of(a), ParamDomain::of(b));
+    let (da, db) = (ParameterDomain::of(a), ParameterDomain::of(b));
     let straight = (Straight::of(a, da), Straight::of(b, db));
-    if pieces
-        && !matches!(straight, (Some(_), Some(_)))
-        && let Some((mut seeds, completeness)) = pairs_with_bspline::curve_curve_seeds(a, b, tol)
+    if !matches!(straight, (Some(_), Some(_)))
+        && let Some((mut seeds, completeness)) = curve_curve_seeds(a, b, tol)
     {
         if !completeness.is_complete() {
             seeds.extend(box_seeds(a, da, b, db));
@@ -507,6 +386,33 @@ where
         let minima = refine_minima(a, da, b, db, seeds, tol);
         return CurveCurveExtrema::new(minima, completeness);
     }
+    sampled_minima(a, da, b, db, straight, tol)
+}
+
+/// [`curve_curve_extrema`] through the grid and the closed forms alone, never the piece-pair search: the sampled fallback of the intersection, and the reference the searches are tested against.
+pub(crate) fn sampled_curve_curve_extrema<A, B>(a: &A, b: &B, tol: Tolerance) -> CurveCurveExtrema
+where
+    A: ParametricCurve,
+    B: ParametricCurve,
+{
+    let (da, db) = (ParameterDomain::of(a), ParameterDomain::of(b));
+    let straight = (Straight::of(a, da), Straight::of(b, db));
+    sampled_minima(a, da, b, db, straight, tol)
+}
+
+/// The minima on the grid and the closed forms, for the domains `da` and `db` and the straight parts of the two curves (see [`curve_curve_extrema`]).
+fn sampled_minima<A, B>(
+    a: &A,
+    da: ParameterDomain,
+    b: &B,
+    db: ParameterDomain,
+    straight: (Option<Straight>, Option<Straight>),
+    tol: Tolerance,
+) -> CurveCurveExtrema
+where
+    A: ParametricCurve,
+    B: ParametricCurve,
+{
     let minima = match straight {
         (Some(la), Some(lb)) => vec![straight_pair_minimum(a, la, da, b, lb, db, tol)],
         (Some(la), None) if da.is_unbounded() => line_curve_minima(a, la, b, db, tol),
@@ -533,10 +439,10 @@ where
 fn straight_pair_minimum<A, B>(
     a: &A,
     la: Straight,
-    da: ParamDomain,
+    da: ParameterDomain,
     b: &B,
     lb: Straight,
-    db: ParamDomain,
+    db: ParameterDomain,
     tol: Tolerance,
 ) -> CurveCurveExtremum
 where
@@ -585,7 +491,7 @@ fn line_curve_minima<L, C>(
     line_curve: &L,
     line: Straight,
     curve: &C,
-    dom: ParamDomain,
+    dom: ParameterDomain,
     tol: Tolerance,
 ) -> Vec<CurveCurveExtremum>
 where
@@ -649,7 +555,7 @@ where
 /// their parameter box, for [`refine_minima`]: the discrete local minima
 /// of a parameter grid and of dense samples along each finite edge, and
 /// the points where the curves may meet (see [`meeting_seeds`]).
-fn box_seeds<A, B>(a: &A, da: ParamDomain, b: &B, db: ParamDomain) -> Vec<[f64; 2]>
+fn box_seeds<A, B>(a: &A, da: ParameterDomain, b: &B, db: ParameterDomain) -> Vec<[f64; 2]>
 where
     A: ParametricCurve,
     B: ParametricCurve,
@@ -682,7 +588,7 @@ where
     ));
     // A minimum on an edge of the box can have a basin narrower than the
     // grid: seed each finite edge at the discrete minima of dense samples.
-    let edge = |p: Point, curve: &dyn Fn(f64) -> Point, us: &[f64], dom: ParamDomain| {
+    let edge = |p: Point, curve: &dyn Fn(f64) -> Point, us: &[f64], dom: ParameterDomain| {
         let values: Vec<f64> = us.iter().map(|&u| p.distance(curve(u))).collect();
         grid_minima(&values, [us.len(), 1], [dom.is_periodic(), false])
             .into_iter()
@@ -753,13 +659,13 @@ impl Span {
     /// periodic curve's last span closes the period.
     fn chain<C: ParametricCurve>(
         curve: &C,
-        dom: ParamDomain,
+        dom: ParameterDomain,
         parameters: &[f64],
         points: &[Point],
     ) -> Vec<Span> {
         let closing = match dom {
-            ParamDomain::Periodic { start, period } => Some((start + period, points[0])),
-            ParamDomain::Interval(..) => None,
+            ParameterDomain::Periodic { start, period } => Some((start + period, points[0])),
+            ParameterDomain::Interval(..) => None,
         };
         let nodes: Vec<(f64, Point)> = parameters
             .iter()
@@ -912,9 +818,9 @@ fn closest_on_segments(p: Point, along_p: Vector, q: Point, along_q: Vector) -> 
 /// valley of equal distance.
 pub(crate) fn refine_minima<A, B>(
     a: &A,
-    da: ParamDomain,
+    da: ParameterDomain,
     b: &B,
-    db: ParamDomain,
+    db: ParameterDomain,
     seeds: Vec<[f64; 2]>,
     tol: Tolerance,
 ) -> Vec<CurveCurveExtremum>
@@ -994,7 +900,7 @@ fn configuration_scale(gap: f64, size_a: f64, size_b: f64) -> f64 {
 /// Size of a curve for [`configuration_scale`]: the reach of a finite
 /// domain's grid points from its reference point, or for an unbounded
 /// domain the radius of curvature at the reference (`0` when straight).
-fn curve_size<C: ParametricCurve>(curve: &C, dom: ParamDomain) -> f64 {
+fn curve_size<C: ParametricCurve>(curve: &C, dom: ParameterDomain) -> f64 {
     let u0 = dom.reference();
     if dom.is_finite() {
         let p0 = curve.eval_point(u0);

@@ -1,7 +1,7 @@
 //! The hull-pruned searches on pairs holding a B-spline: two B-splines as
 //! they are, and an elementary or swept shape against a B-spline once
-//! converted to its exact rational B-spline (see [`curve_surface`],
-//! [`curve_curve_meetings`] and [`curve_curve_seeds`]).
+//! converted to its exact rational B-spline (see [`curve_surface`] and
+//! [`curve_curve_meetings`]).
 //!
 //! A hit lies on the B-spline, so within the box of its control points.
 //! An unbounded shape (a line, parabola, hyperbola, plane, cylinder, cone
@@ -19,12 +19,11 @@ use crate::geometry::curves::{BSplineCurve, ElementaryCurve, ParametricCurve, Tr
 use crate::geometry::surfaces::ParametricSurface;
 use crate::math::numeric::boxtree::Aabb;
 use crate::operations::extrema::CurveCurveExtremum;
-use crate::operations::extrema::curve_curve::ParamDomain;
-use crate::operations::extrema::curve_curve_pieces::bspline_minima;
 use crate::operations::intersect::numeric::curve_curve_hull::bspline_curve_curve;
 use crate::operations::intersect::numeric::curve_surface_hull::{
     CurveSurfaceHits, Range, bspline_curve_surface,
 };
+use crate::operations::intersect::numeric::parameter_domain::ParameterDomain;
 use crate::operations::intersect::numeric::surface_patches::{
     SurfacePatches, grown, nearest, reach, settle,
 };
@@ -74,9 +73,9 @@ fn clip(b: &Aabb, origin: Point, direction: Vector) -> (f64, f64) {
 
 /// A curve as a B-spline over a parameter range: a B-spline, or trimmed
 /// B-spline, as it is, or an elementary curve converted.
-struct HullCurve<'a> {
-    bspline: Cow<'a, BSplineCurve>,
-    range: Range,
+pub(crate) struct HullCurve<'a> {
+    pub(crate) bspline: Cow<'a, BSplineCurve>,
+    pub(crate) range: Range,
     /// The elementary curve converted, if any.
     source: Option<ElementaryCurve>,
 }
@@ -97,7 +96,7 @@ impl HullCurve<'_> {
     }
 
     /// The curve's own parameter at the B-spline's `t`, within the range.
-    fn parameter(&self, t: f64) -> f64 {
+    pub(crate) fn parameter(&self, t: f64) -> f64 {
         match self.source {
             None => t,
             Some(_) => settle(self.range, self.carried(t)),
@@ -130,7 +129,7 @@ impl HullCurve<'_> {
 
 /// A curve ready for the searches, or a restricted elementary curve
 /// whose range holds no point of the box it was restricted to.
-enum Hull<'a> {
+pub(crate) enum Hull<'a> {
     Curve(Box<HullCurve<'a>>),
     Apart,
 }
@@ -198,7 +197,7 @@ fn hull_curve<'a, C: ParametricCurve>(curve: &'a C, cover: Option<&Aabb>) -> Opt
     if let Some(bspline) = curve.as_bspline() {
         return Some(Hull::Curve(Box::new(HullCurve {
             bspline: Cow::Borrowed(bspline),
-            range: ParamDomain::of(curve).range(),
+            range: ParameterDomain::of(curve).range(),
             source: None,
         })));
     }
@@ -279,7 +278,7 @@ fn restricted<'a, C: ParametricCurve>(
 /// `a` and `b` as [`Hull`]s when one is a B-spline (or a trimmed one) and
 /// the other a B-spline or an elementary curve, the elementary one
 /// [`restricted`] if `restrict`.
-fn hull_pair<'a, A, B>(
+pub(crate) fn hull_pair<'a, A, B>(
     a: &'a A,
     b: &'a B,
     restrict: bool,
@@ -300,7 +299,7 @@ where
 
 /// `completeness` with the ranges of its regions carried from the
 /// B-splines to the curves `ha` and `hb` were made of.
-fn carried(
+pub(crate) fn carried(
     completeness: Completeness<CurveCurveRegion>,
     ha: &HullCurve,
     hb: &HullCurve,
@@ -357,47 +356,6 @@ where
         .collect();
     found.sort_by(|p, q| p.distance.total_cmp(&q.distance));
     Some((found, carried(completeness, &ha, &hb)))
-}
-
-/// Whether the minima search beats the grid on `curve`: a B-spline or a
-/// segment does. The loose bounds of the rational pieces of a curved
-/// elementary curve slow the search down (a closed one adds a maximum of
-/// the distance for every point of the other curve), and a full line
-/// reduces exactly to the other curve alone.
-fn searched<C: ParametricCurve>(curve: &C) -> bool {
-    match curve.as_elementary() {
-        None => true,
-        Some(ElementaryCurve::Line(_)) => curve.bounds().0.is_finite(),
-        Some(_) => false,
-    }
-}
-
-/// Seeds for the local minima of the distance between `a` and `b` from
-/// the hull-pruned search (see [`bspline_minima`]) when one is a B-spline
-/// (or a trimmed one) and the other a B-spline or a segment, as
-/// parameters on the curves themselves, with their completeness; `None`
-/// for any other pair (see [`searched`]).
-pub(crate) fn curve_curve_seeds<A, B>(
-    a: &A,
-    b: &B,
-    tol: Tolerance,
-) -> Option<(Vec<[f64; 2]>, Completeness<CurveCurveRegion>)>
-where
-    A: ParametricCurve,
-    B: ParametricCurve,
-{
-    if !(searched(a) && searched(b)) {
-        return None;
-    }
-    let (Hull::Curve(ha), Hull::Curve(hb)) = hull_pair(a, b, false, tol)? else {
-        return None;
-    };
-    let (seeds, completeness) = bspline_minima(&ha.bspline, ha.range, &hb.bspline, hb.range, tol);
-    let seeds = seeds
-        .into_iter()
-        .map(|[s, t]| [ha.parameter(s), hb.parameter(t)])
-        .collect();
-    Some((seeds, carried(completeness, &ha, &hb)))
 }
 
 #[cfg(test)]

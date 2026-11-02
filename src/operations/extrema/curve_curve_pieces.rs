@@ -2,8 +2,8 @@
 //! subdivision of their Bézier pieces (see [`bspline_minima`]).
 
 use crate::Tolerance;
-use crate::geometry::curves::BSplineCurve;
 use crate::geometry::curves::ParametricCurve;
+use crate::geometry::curves::{BSplineCurve, ElementaryCurve};
 use crate::math::bspline::curve::LARGE;
 use crate::math::bspline::surface::{Interval, derivative_bounds};
 use crate::math::numeric::{newton_min_1d, newton_min_2d};
@@ -14,6 +14,7 @@ use crate::operations::intersect::numeric::curve_curve_hull::{
     SPLITS_PER_PAIR, along_one_line, region, room, split_larger,
 };
 use crate::operations::intersect::numeric::curve_surface_hull::Range;
+use crate::operations::intersect::numeric::pairs_with_bspline::{Hull, carried, hull_pair};
 use crate::operations::intersect::numeric::subdivision::{
     Node, OnceExhausted, PairTests, Subdivision, Unsettled, Visit, interval,
 };
@@ -375,4 +376,45 @@ fn curve_bounds(net: &[f64], points: &[[f64; 3]]) -> ([Interval; 3], [[Interval;
     }
     let settle = |i: Interval| if i.lo > i.hi { Interval::ZERO } else { i };
     (value, [first.map(settle), second.map(settle)])
+}
+
+/// Whether the minima search beats the grid on `curve`: a B-spline or a
+/// segment does. The loose bounds of the rational pieces of a curved
+/// elementary curve slow the search down (a closed one adds a maximum of
+/// the distance for every point of the other curve), and a full line
+/// reduces exactly to the other curve alone.
+fn searched<C: ParametricCurve>(curve: &C) -> bool {
+    match curve.as_elementary() {
+        None => true,
+        Some(ElementaryCurve::Line(_)) => curve.bounds().0.is_finite(),
+        Some(_) => false,
+    }
+}
+
+/// Seeds for the local minima of the distance between `a` and `b` from
+/// the hull-pruned search (see [`bspline_minima`]) when one is a B-spline
+/// (or a trimmed one) and the other a B-spline or a segment, as
+/// parameters on the curves themselves, with their completeness; `None`
+/// for any other pair (see [`searched`]).
+pub(crate) fn curve_curve_seeds<A, B>(
+    a: &A,
+    b: &B,
+    tol: Tolerance,
+) -> Option<(Vec<[f64; 2]>, Completeness<CurveCurveRegion>)>
+where
+    A: ParametricCurve,
+    B: ParametricCurve,
+{
+    if !(searched(a) && searched(b)) {
+        return None;
+    }
+    let (Hull::Curve(ha), Hull::Curve(hb)) = hull_pair(a, b, false, tol)? else {
+        return None;
+    };
+    let (seeds, completeness) = bspline_minima(&ha.bspline, ha.range, &hb.bspline, hb.range, tol);
+    let seeds = seeds
+        .into_iter()
+        .map(|[s, t]| [ha.parameter(s), hb.parameter(t)])
+        .collect();
+    Some((seeds, carried(completeness, &ha, &hb)))
 }
