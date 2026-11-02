@@ -7,24 +7,26 @@
 
 use super::{BoundingBox, HasBoundingBox, HasBoundingBox2D};
 use crate::Point;
-use crate::bspline::curve as math;
-use crate::curves::spline::Spline;
-use crate::curves::{
+use crate::base::tier::operations::{
+    BoxOperations, FrameOperations, PointOperations, VectorOperations,
+};
+use crate::base::tier::{TierPoint, impl_for_both_tiers};
+use crate::geometry::curves::spline::Spline;
+use crate::geometry::curves::{
     Curve, ElementaryCurve, GenericBSplineCurve, GenericBezierCurve, GenericCircle, GenericEllipse,
     GenericHyperbola, GenericLine, GenericParabola, ParametricCurve, ParametricCurve2D,
     RangeOperations, TrimmedCurve,
 };
-use crate::curves::{curve_dispatch, elementary_curve_dispatch};
-use crate::math::bernstein;
-use crate::tier::operations::{BoxOperations, FrameOperations, PointOperations, VectorOperations};
-use crate::tier::{TierPoint, impl_for_both_tiers};
+use crate::geometry::curves::{curve_dispatch, elementary_curve_dispatch};
+use crate::math::bspline::curve as math;
+use crate::math::numeric::bernstein;
 use std::f64::consts::{PI, TAU};
 
 /// The axis-aligned box of tier `P`.
 pub(crate) type BoundingBoxOf<P> = <P as PointOperations>::BoundingBox;
 
 /// The coordinates of `p` in the first lanes of a four-wide array, the
-/// layout [`PolePoint::point_of`](crate::bspline::poles::PolePoint::point_of)
+/// layout [`PolePoint::point_of`](crate::math::bspline::poles::PolePoint::point_of)
 /// reads back.
 fn lanes<P: TierPoint>(p: P) -> [f64; 4] {
     std::array::from_fn(|k| if k < P::DIM { p.coord(k) } else { 0.0 })

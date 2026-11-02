@@ -136,50 +136,32 @@
 #![warn(missing_docs)]
 
 // The test samples in `tests/common/samples.rs` name the crate `geomcore`,
-// as integration tests do; the coverage check in `shape_enum` includes them.
+// as integration tests do; the coverage check in `geometry::enum_variants`
+// includes them.
 #[cfg(test)]
 extern crate self as geomcore;
 
+/// Points, vectors, placements, transformations and tolerances.
+mod base;
 /// Axis-aligned bounding boxes of curves and surfaces.
 mod bounding_box;
-/// Internal B-spline engine: poles, evaluation, editing, surfaces.
-mod bspline;
-/// The curve types: lines, conics, B-spline and Bézier curves.
-mod curves;
-/// Discretization of curves into points joined by straight segments, with
-/// proven chord and angle deviations.
-mod discretization;
-/// Internal closed-form formulas of the elementary curves and surfaces.
-mod elementary;
-/// Axis and frame placement types.
-mod frame;
-/// Intersections of curves and surfaces: the routed [`Intersect`], the
-/// typed exact [`IntersectExact`], and their results.
-mod intersect;
-/// Internal numerical toolbox (polynomial roots, Newton, Brent).
+/// The curve and surface types, and their shape enums.
+mod geometry;
+/// Internal math under the shapes: the B-spline engine, the closed-form
+/// formulas of the elementary shapes and the numerical toolbox.
 mod math;
-/// Points in 2D and 3D space.
-mod point;
+/// The operations on curves and surfaces: discretization, intersection and
+/// point projection.
+mod operations;
 /// The shape and operation traits, for `use geomcore::prelude::*`.
 pub mod prelude;
-/// Point-projection result types.
-mod projection;
-/// Internal macros that expand the variant list of each shape enum.
-mod shape_enum;
-/// The surface types: planes, cylinders, cones, spheres, tori, B-spline
-/// and Bézier surfaces.
-mod surfaces;
-/// The two tiers of curves, space and the plane, and the trait naming one.
-mod tier;
-/// Distance and angle tolerances shared by all geometric queries.
-mod tolerance;
-/// Rigid and affine transformations.
-mod transform;
-/// Vectors in 2D and 3D space.
-mod vector;
 
+pub use base::{
+    Axis, Axis2D, Frame, Frame2D, FrameConstructionError, Point, Point2D, TierPoint, Tolerance,
+    Transform, TransformError, Transformable, Vector, Vector2D,
+};
 pub use bounding_box::{BoundingBox, BoundingBox2D, HasBoundingBox, HasBoundingBox2D};
-pub use curves::{
+pub use geometry::curves::{
     BSplineConstructionError, BSplineConversionError, BSplineCurve, BSplineCurve2D,
     BSplineSplitError, BezierConstructionError, BezierCurve, BezierCurve2D, Circle, Circle2D,
     CircleConstructionError, Continuity, Curve, Curve2D, DegreeElevationError, ElementaryCurve,
@@ -191,13 +173,20 @@ pub use curves::{
     ReversibleCurve, Side, TrimmedCurve, TrimmedCurve2D, TrimmedCurveConstructionError,
     parametrize_numeric,
 };
-pub use discretization::{
+pub use geometry::surfaces::{
+    BSplineSurface, BezierSurface, Cone, ConeConstructionError, Cylinder,
+    CylinderConstructionError, ElementarySurface, ExtrusionSurface,
+    ExtrusionSurfaceConstructionError, ParametricSurface, Plane, PlaneConstructionError,
+    ReversibleSurface, RevolutionSurface, RevolutionSurfaceConstructionError, Sphere,
+    SphereConstructionError, Surface, SurfaceCurvatures, SurfaceIsoError, Torus,
+    TorusConstructionError,
+};
+pub use operations::discretization::{
     Discretization, Discretization2D, DiscretizationCriteria, DiscretizationCriteriaError,
     Discretize, Discretize2D,
 };
-pub use frame::{Axis, Axis2D, Frame, Frame2D, FrameConstructionError};
-pub use intersect::curve_curve_extrema;
-pub use intersect::{
+pub use operations::intersect::curve_curve_extrema;
+pub use operations::intersect::{
     CircleCircle2DIntersection, CircleCircleIntersection, CircleSurfaceIntersection,
     ConeConeIntersection, ConeCylinderIntersection, Conic2DIntersection, ConicConicIntersection,
     ConicSurfaceHit, ConicSurfaceIntersection, CurveCurveExtremum, CurveCurveHit, CurveSurfaceHit,
@@ -209,27 +198,14 @@ pub use intersect::{
     SphereSphereIntersection, TorusConeIntersection, TorusCylinderIntersection,
     TorusPlaneIntersection, TorusSphereIntersection, TorusTorusIntersection,
 };
-pub use intersect::{
+pub use operations::intersect::{
     Completeness, CurveCurveExtrema, CurveCurveRegion, CurveSurfaceRegion, IncompleteReason,
 };
-pub use intersect::{
+pub use operations::intersect::{
     CurveCurveHit2D, CurveCurveIntersection, CurveCurveIntersection2D, CurveCurveOverlap,
     CurveSurfaceIntersection, GenericCurveCurveHit, GenericCurveCurveIntersection,
     IntersectionCurve, IntersectionMethod, SurfaceSurfaceIntersection, SurfaceSurfaceRegion,
 };
-pub use intersect::{InlineList, Intersect, IntersectExact};
-pub use intersect::{intersect_curve_curve, intersect_curve_surface};
-pub use point::{Point, Point2D};
-pub use projection::{CurveProjection, CurveProjection2D, SurfaceProjection};
-pub use surfaces::{
-    BSplineSurface, BezierSurface, Cone, ConeConstructionError, Cylinder,
-    CylinderConstructionError, ElementarySurface, ExtrusionSurface,
-    ExtrusionSurfaceConstructionError, ParametricSurface, Plane, PlaneConstructionError,
-    ReversibleSurface, RevolutionSurface, RevolutionSurfaceConstructionError, Sphere,
-    SphereConstructionError, Surface, SurfaceCurvatures, SurfaceIsoError, Torus,
-    TorusConstructionError,
-};
-pub use tier::TierPoint;
-pub use tolerance::Tolerance;
-pub use transform::{Transform, TransformError, Transformable};
-pub use vector::{Vector, Vector2D};
+pub use operations::intersect::{InlineList, Intersect, IntersectExact};
+pub use operations::intersect::{intersect_curve_curve, intersect_curve_surface};
+pub use operations::projection::{CurveProjection, CurveProjection2D, SurfaceProjection};

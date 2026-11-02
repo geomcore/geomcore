@@ -3,8 +3,8 @@
 
 use super::{BoundingBox2D, HasBoundingBox2D};
 use crate::Point2D;
-use crate::curves::curve_2d_dispatch;
-use crate::curves::{Curve2D, ParametricCurve2D, RangeOperations, TrimmedCurve2D};
+use crate::geometry::curves::curve_2d_dispatch;
+use crate::geometry::curves::{Curve2D, ParametricCurve2D, RangeOperations, TrimmedCurve2D};
 
 impl HasBoundingBox2D for Curve2D {
     fn bounding_box(&self) -> Option<BoundingBox2D> {

@@ -12,63 +12,72 @@ terms (elementary, exact, numeric, completeness, and so on) are defined in
 src/
 ├── lib.rs               crate docs and the flat re-exports: each item's one public path
 ├── prelude.rs           the shape and operation traits, for `use geomcore::prelude::*`
-├── point.rs vector.rs   Point/Point2D, Vector/Vector2D
-├── frame.rs             Axis, Frame and their 2D forms: where a shape is placed
-├── transform.rs         Transform, and the Transformable trait of the shapes it moves
-├── tolerance.rs         Tolerance: every geometric decision takes one
-├── projection.rs        results of point projection (CurveProjection, …)
-├── tier.rs              TierPoint: the two tiers (space, plane) the curve types are generic over
-├── shape_enum.rs        the macros that expand a shape enum's variant list (ADR 0017)
 │
-├── curves/              the public curve types, one file per type
-│   ├── parametric_curve.rs      ParametricCurve, PointExtrema, ReversibleCurve, Side, Continuity
-│   ├── parametric_curve_2d.rs   ParametricCurve2D, PointExtrema2D
-│   ├── curve.rs curve_2d.rs     the Curve, ElementaryCurve, Curve2D enums
-│   ├── line.rs … hyperbola.rs   elementary curves, each one generic type for both tiers
-│   ├── bspline.rs spline.rs     B-spline curves of both tiers and the spline they wrap
-│   ├── bezier.rs                Bézier curves of both tiers
-│   ├── trimmed.rs               TrimmedCurve and TrimmedCurve2D
-│   ├── range.rs                 internal: RangeOperations, the box, discretization and
-│   │                            B-spline of a range of each curve (ADR 0005)
-│   ├── conversion.rs fitting.rs parametrize.rs   to B-spline, from points, onto a surface
-├── surfaces/            the public surface types, one file per type
-│   ├── parametric_surface.rs    ParametricSurface, ReversibleSurface, SurfaceCurvatures,
-│   │                            normal recovery
-│   ├── surface.rs               the Surface and ElementarySurface enums
-│   ├── plane.rs … torus.rs bspline.rs bezier.rs
-│   ├── extrusion.rs revolution.rs   the swept surfaces; swept.rs holds the
-│   │                            profile geometry they share (ADR 0016)
-│   ├── iso.rs                   helpers shared by the iso curves (u_iso, v_iso)
-│   └── conversion.rs fitting.rs
+├── base/                the values every shape is built from
+│   ├── point.rs vector.rs   Point/Point2D, Vector/Vector2D
+│   ├── frame.rs             Axis, Frame and their 2D forms: where a shape is placed
+│   ├── transform.rs         Transform, and the Transformable trait of the shapes it moves
+│   ├── tolerance.rs         Tolerance: every geometric decision takes one
+│   └── tier.rs              TierPoint: the two tiers (space, plane) the curve types are
+│                            generic over
 │
-├── intersect/           intersections, by method (ADR 0011)
-│   ├── routing.rs       Intersect: exact when a closed form exists, numeric otherwise
-│   ├── routing/closed_form.rs  the closed-form pair table: which pairs have a closed
-│   │                    form and which solver answers each (ADR 0023)
-│   ├── routing/exact_family.rs  each typed exact result read as its family
-│   │                    result (ADR 0018)
-│   ├── routing/swept_plane.rs  plane cuts of the swept surfaces in closed form,
-│   │                    entries of the table
-│   ├── exact/           IntersectExact and the closed-form solvers, by family:
-│   │                    curve_curve.rs, curve_surface.rs, surface_surface.rs
-│   ├── numeric/         the searches for pairs with no closed form. subdivision.rs is
-│   │                    the one driver of the searches on Bézier pieces (the queue of
-│   │                    pairs, the budget of halvings, the pairs left unsettled);
-│   │                    *_hull.rs and patch_pairs.rs bring their tests on a pair (ADR 0019).
-│   │                    surface_patches.rs turns any surface into Bézier patches with a
-│   │                    map back to its own parameters (ADR 0026).
-│   │                    marching.rs composes marching/: the surface pair (pair.rs), the
-│   │                    tracer's step loop (tracer.rs), the seeding policy (seeding.rs)
-│   │                    and the coincidence check (coincidence.rs) (ADR 0025)
-│   └── results/         the results Intersect returns, their regions (regions.rs),
-│                        Completeness, InlineList
-├── bounding_box/        HasBoundingBox: the box type and one file per family
-├── discretization/      Discretize: proven point sequences on bounded curves
+├── geometry/            the curve and surface types
+│   ├── curves/              the public curve types, one file per type
+│   │   ├── parametric_curve.rs      ParametricCurve, PointExtrema, ReversibleCurve, Side, Continuity
+│   │   ├── parametric_curve_2d.rs   ParametricCurve2D, PointExtrema2D
+│   │   ├── curve.rs curve_2d.rs     the Curve, ElementaryCurve, Curve2D enums
+│   │   ├── line.rs … hyperbola.rs   elementary curves, each one generic type for both tiers
+│   │   ├── bspline.rs spline.rs     B-spline curves of both tiers and the spline they wrap
+│   │   ├── bezier.rs                Bézier curves of both tiers
+│   │   ├── trimmed.rs               TrimmedCurve and TrimmedCurve2D
+│   │   ├── range.rs                 internal: RangeOperations, the box, discretization and
+│   │   │                            B-spline of a range of each curve (ADR 0005)
+│   │   ├── conversion.rs fitting.rs parametrize.rs   to B-spline, from points, onto a surface
+│   ├── surfaces/            the public surface types, one file per type
+│   │   ├── parametric_surface.rs    ParametricSurface, ReversibleSurface, SurfaceCurvatures,
+│   │   │                            normal recovery
+│   │   ├── surface.rs               the Surface and ElementarySurface enums
+│   │   ├── plane.rs … torus.rs bspline.rs bezier.rs
+│   │   ├── extrusion.rs revolution.rs   the swept surfaces; swept.rs holds the
+│   │   │                            profile geometry they share (ADR 0016)
+│   │   ├── iso.rs                   helpers shared by the iso curves (u_iso, v_iso)
+│   │   └── conversion.rs fitting.rs
+│   └── enum_variants.rs         the macros that expand a shape enum's variant list
+│                                (ADR 0017)
 │
-├── elementary/          internal: closed-form formulas of the elementary curves and surfaces
-├── bspline/             internal: the B-spline engine (poles, curve evaluation, editing,
-│                        tensor-product surfaces, exact conic nets)
-└── math/                internal: polynomial roots, Bernstein form, solvers, quadrature
+├── operations/          the operations on curves and surfaces, one folder each
+│   ├── discretization/      Discretize: proven point sequences on bounded curves
+│   ├── intersect/           intersections, by method (ADR 0011)
+│   │   ├── routing.rs       Intersect: exact when a closed form exists, numeric otherwise
+│   │   ├── routing/closed_form.rs  the closed-form pair table: which pairs have a closed
+│   │   │                    form and which solver answers each (ADR 0023)
+│   │   ├── routing/exact_family.rs  each typed exact result read as its family
+│   │   │                    result (ADR 0018)
+│   │   ├── routing/swept_plane.rs  plane cuts of the swept surfaces in closed form,
+│   │   │                    entries of the table
+│   │   ├── exact/           IntersectExact and the closed-form solvers, by family:
+│   │   │                    curve_curve.rs, curve_surface.rs, surface_surface.rs
+│   │   ├── numeric/         the searches for pairs with no closed form. subdivision.rs is
+│   │   │                    the one driver of the searches on Bézier pieces (the queue of
+│   │   │                    pairs, the budget of halvings, the pairs left unsettled);
+│   │   │                    *_hull.rs and patch_pairs.rs bring their tests on a pair (ADR 0019).
+│   │   │                    surface_patches.rs turns any surface into Bézier patches with a
+│   │   │                    map back to its own parameters (ADR 0026).
+│   │   │                    marching.rs composes marching/: the surface pair (pair.rs), the
+│   │   │                    tracer's step loop (tracer.rs), the seeding policy (seeding.rs)
+│   │   │                    and the coincidence check (coincidence.rs) (ADR 0025)
+│   │   └── results/         the results Intersect returns, their regions (regions.rs),
+│   │                        Completeness, InlineList
+│   └── projection.rs    results of point projection (CurveProjection, …)
+│
+├── bounding_box/        HasBoundingBox: the box type and one file per family; also the
+│                        culling box of the numeric searches and the tiers
+│
+└── math/                internal math under the curves and surfaces
+    ├── elementary/      closed-form formulas of the elementary curves and surfaces
+    ├── bspline/         the B-spline engine (poles, curve evaluation, editing,
+    │                    tensor-product surfaces, exact conic nets)
+    └── numeric/         polynomial roots, Bernstein form, solvers, quadrature
 ```
 
 Outside `src/`:
@@ -94,14 +103,14 @@ paths.
 
 1. **One public type per file, named after the type.** A curve type is one
    generic type over its tier (ADR 0014): `GenericEllipse`, with its aliases
-   `Ellipse` and `Ellipse2D`, lives in `curves/ellipse.rs`, and its 2D unit
-   tests in `curves/ellipse/tests_2d.rs`. Only 2D types carry a dimension
+   `Ellipse` and `Ellipse2D`, lives in `geometry/curves/ellipse.rs`, and its 2D unit
+   tests in `geometry/curves/ellipse/tests_2d.rs`. Only 2D types carry a dimension
    suffix (ADR 0013). A type's construction error lives beside it.
 2. **Shared behaviour lives on the traits, implemented in the type's
    file.** `ParametricCurve`, `PointExtrema`, `ParametricCurve2D`,
    `PointExtrema2D`, `ParametricSurface`, `ReversibleCurve` and
    `ReversibleSurface` are defined in the `parametric_*.rs` files and
-   `Transformable` in `transform.rs`, and each `impl` sits with its type.
+   `Transformable` in `base/transform.rs`, and each `impl` sits with its type.
    The enums forward them through their variant lists (ADR 0017), so no
    caller matches on a variant to move or reverse a shape (ADR 0024). A method
    that more than one type answers is a trait method, documented once on
@@ -110,51 +119,51 @@ paths.
    (`Circle::radius`, `BSplineCurve::insert_knot`). Callers bring the
    traits in with `use geomcore::prelude::*` (ADR 0015). A generic curve
    type implements the space and plane traits from one body, with the
-   crate-private `impl_for_both_tiers!` of `tier.rs`.
+   crate-private `impl_for_both_tiers!` of `base/tier.rs`.
 3. **Operation traits are implemented in their operation's folder.**
    `HasBoundingBox` impls live in `bounding_box/`, `Discretize` impls in
-   `discretization/`, and `IntersectExact` impls in `intersect/exact/`, all
+   `operations/discretization/`, and `IntersectExact` impls in `operations/intersect/exact/`, all
    grouped by family. To see everything an operation does, open one folder.
    The one exception is the table of the crate-private `RangeOperations`
-   in `curves/range.rs`: each curve's box, discretization and B-spline
+   in `geometry/curves/range.rs`: each curve's box, discretization and B-spline
    over a range, in one impl per type that calls the formulas of those
    folders. Trimmed curves and the whole bounded curves read their
    operations from it (ADR 0005).
 4. **Exact intersection solvers are grouped by pair family.**
-   `Line`–`Plane` is in `intersect/exact/curve_surface.rs`, next to its
+   `Line`–`Plane` is in `operations/intersect/exact/curve_surface.rs`, next to its
    result type `LinePlaneIntersection`. The general results that `Intersect`
-   returns live in `intersect/results/`.
-5. **Internal math sits under the shapes.** `elementary/`, `bspline/` and
-   `math/` re-export nothing from `lib.rs`. They work on poles, knots and numbers,
+   returns live in `operations/intersect/results/`.
+5. **Internal math sits under the shapes.** `math/` (`elementary/`,
+   `bspline/` and `numeric/`) re-exports nothing from `lib.rs`. They work on poles, knots and numbers,
    not on the public shape types; a shape calls into them, never the
    other way round.
-6. **Unit tests live in a sibling `tests.rs`.** `curves/line.rs` ends with
-   `#[cfg(test)] mod tests;` and its tests are in `curves/line/tests.rs`
-   (for a `mod.rs`, the tests are in `tests.rs` beside it). Tests that only
+6. **Unit tests live in a sibling `tests.rs`.** `geometry/curves/line.rs` ends with
+   `#[cfg(test)] mod tests;` and its tests are in `geometry/curves/line/tests.rs`.
+   Tests that only
    use the public API go in `tests/` instead.
 
 ## Where to start
 
 **A new curve or surface type.**
-- Add `curves/<name>.rs` (or `surfaces/<name>.rs`) holding the type, its
+- Add `geometry/curves/<name>.rs` (or `geometry/surfaces/<name>.rs`) holding the type, its
   constructor error and its shape-trait impls. A curve that exists in both
   tiers is one `Generic<Name><P: TierPoint>` with the aliases `<Name>` and
   `<Name>2D`.
-- Re-export it from the folder's `mod.rs` and from `lib.rs`, its one
+- Re-export it from the folder's module file (`curves.rs`, `surfaces.rs`) and from `lib.rs`, its one
   public path.
 - Add it as a variant of the `Curve`/`ElementaryCurve` (or `Surface`) enum,
   and as one line in that enum's `*_variants!` list beside it: every
   forwarding method and `From` impl follows from the list (ADR 0017), and
   the compiler points at the matches that do real per-variant work.
 - Make it an operand of `Intersect`: a `CurveOperand`/`SurfaceOperand`
-  impl in `intersect/routing.rs` saying which basis it is read as. The
+  impl in `operations/intersect/routing.rs` saying which basis it is read as. The
   `Intersect` pair lists follow the variant list, so they need no entry
   (ADR 0023).
-- Implement `RangeOperations` for it in `curves/range.rs`, calling a box
-  formula from `bounding_box/`, a discretization from `discretization/`
-  and a B-spline conversion from `curves/conversion.rs`. If it is
+- Implement `RangeOperations` for it in `geometry/curves/range.rs`, calling a box
+  formula from `bounding_box/`, a discretization from `operations/discretization/`
+  and a B-spline conversion from `geometry/curves/conversion.rs`. If it is
   bounded, add it to `box_over_bounds!` in `bounding_box/curves.rs` and
-  to `discretize_bounded!` in `discretization/mod.rs`; otherwise its
+  to `discretize_bounded!` in `operations/discretization.rs`; otherwise its
   `bounding_box` is `None`.
 - Add a sample of it to `tests/common/samples.rs`; `cargo test` names
   the variant until there is one, and every property test then covers it
@@ -163,24 +172,26 @@ paths.
 
 **A new exact intersection pair.**
 - Write the solver as `impl IntersectExact<B> for A` in the family file
-  under `intersect/exact/`, with its result type, in both argument orders.
+  under `operations/intersect/exact/`, with its result type, in both argument orders.
 - Read its result into the family result with an `into_family` method
-  in `intersect/routing/exact_family.rs`, and list the pair in its
+  in `operations/intersect/routing/exact_family.rs`, and list the pair in its
   family's entry of the closed-form pair table,
-  `intersect/routing/closed_form.rs`, so that `Intersect` routes the pair
+  `operations/intersect/routing/closed_form.rs`, so that `Intersect` routes the pair
   there instead of to the numeric search.
 
 **A change to marching.** A new seed source, or a change to when one
-runs, goes in `intersect/numeric/marching/seeding.rs`; a change to the
+runs, goes in `operations/intersect/numeric/marching/seeding.rs`; a change to the
 step loop, such as tracing through a point where the surfaces touch, in
 `tracer.rs`; a new question asked of the two surfaces at a point on
 both, in `pair.rs` (ADR 0025). A new surface kind joins the patch-pair
 searches of marching and the curve searches by converting to patches in
-`intersect/numeric/surface_patches.rs` (ADR 0026).
+`operations/intersect/numeric/surface_patches.rs` (ADR 0026).
 
 **A new operation.**
-- Give it its own folder at the top of `src/`, like `bounding_box/` and
-  `discretization/`: the trait in `mod.rs`, the impls by family.
+- Give it its own folder under `operations/`, like
+  `operations/discretization/`: the trait in the module file beside the
+  folder (`operations/discretization.rs`), the impls by family in the
+  folder.
 - Record the term in `CONTEXT.md`.
 
 ## The Python bindings
@@ -262,7 +273,7 @@ checks.
 
 `tests/common/samples.rs` holds samples of every variant of every shape
 enum; the tests that check a property on every shape take their shapes
-from it. `src/shape_enum/tests.rs` expands each enum's variant list over
+from it. `src/geometry/enum_variants/tests.rs` expands each enum's variant list over
 it, so a new variant fails `cargo test`, naming itself, until it has a
 sample there (ADR 0027). `tests/common/shapes.rs` decodes a fixture's
 curve or surface from its `type` tag and replays its recorded samples,

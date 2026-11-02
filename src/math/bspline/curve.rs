@@ -1,0 +1,1768 @@
+//! Internal B-spline curve evaluation: basis functions with derivatives,
+//! rational (NURBS) support, and periodic curves.
+//!
+//! A [`KnotVector`] holds one parametric direction: its degree, the flat
+//! knot sequence (its distinct knots and multiplicities derived from it on
+//! first use), and its pole count. Poles are
+//! read through a [`Poles`] view: Cartesian points and, for a rational
+//! curve, a separate weight per pole.
+//!
+//! Evaluation computes the `degree + 1` non-zero basis functions and their
+//! derivatives at the parameter (The NURBS Book, A2.2) and sums the poles
+//! they weight, so its cost depends on the degree only, never on the pole
+//! count, and nothing is allocated. A rational curve folds each weight into
+//! its basis function, summing the homogeneous point and the weight
+//! together, then applies the quotient rule. Periodic curves see one
+//! period's flat knots tiled endlessly, each copy shifted by the period,
+//! with pole indices wrapping modulo the pole count; tiled knots are
+//! computed on demand.
+
+use std::sync::OnceLock;
+
+pub(crate) use super::poles::{HomogeneousPole, Pole, PolePoint, Poles};
+use crate::base::tier::TierPoint;
+use crate::base::tier::operations::VectorOperations;
+use crate::geometry::curves::Side;
+use crate::math::elementary::curve::in_period;
+use crate::math::numeric::bernstein::{CAPACITY, add_product, rising_roots, scale, unscale};
+use crate::math::numeric::newton_min_1d;
+use crate::{Continuity, Tolerance};
+
+/// Maximum supported B-spline degree.
+pub(crate) const MAX_DEGREE: usize = 25;
+
+/// Error type re-exported here for use by [`validate_direction`]; the
+/// canonical definition (and its docs) live on [`crate::geometry::curves`], next to
+/// [`crate::BSplineCurve`], the type that actually constructs and
+/// reports these errors.
+pub(crate) use crate::geometry::curves::BSplineConstructionError;
+
+/// Builds the flattened knot sequence: knot `i` repeated `mults[i]` times.
+///
+/// This is plain repetition with no padding; e.g. `flat_knots(&[0, 1, 2],
+/// &[3, 1, 3]) == [0, 0, 0, 1, 2, 2, 2]`.
+pub(crate) fn flat_knots(knots: &[f64], mults: &[u32]) -> Vec<f64> {
+    let mut out = Vec::with_capacity(mults.iter().map(|&m| m as usize).sum());
+    for (&k, &m) in knots.iter().zip(mults.iter()) {
+        out.extend(std::iter::repeat_n(k, m as usize));
+    }
+    out
+}
+
+/// The distinct knots of a flat knot sequence, increasing, and their
+/// multiplicities.
+pub(crate) fn distinct_knots(flat: &[f64]) -> (Vec<f64>, Vec<u32>) {
+    flat.chunk_by(|a, b| a == b)
+        .map(|run| (run[0], run.len() as u32))
+        .unzip()
+}
+
+/// One parametric direction of a B-spline: its degree, the flat knot
+/// sequence (each distinct knot repeated by its multiplicity), and the
+/// pole count they imply.
+#[derive(Debug, Clone)]
+pub(crate) struct KnotVector {
+    degree: usize,
+    periodic: bool,
+    flat: Vec<f64>,
+    /// The distinct knots and their multiplicities, derived from `flat`
+    /// when first asked for: editing results seldom need them. Boxed, so
+    /// a direction that never derives them stays small.
+    distinct: OnceLock<Box<(Vec<f64>, Vec<u32>)>>,
+    pole_count: usize,
+    /// Multiplicity of the first knot: in a periodic direction, the seam's.
+    seam_multiplicity: usize,
+}
+
+/// Directions are equal when their degrees, periodicity and flat knots
+/// are, whether or not their distinct knots were derived yet.
+impl PartialEq for KnotVector {
+    fn eq(&self, other: &KnotVector) -> bool {
+        (self.degree, self.periodic) == (other.degree, other.periodic) && self.flat == other.flat
+    }
+}
+
+impl KnotVector {
+    /// A direction for `pole_count` poles, validated by
+    /// [`validate_direction`].
+    pub(crate) fn new(
+        degree: usize,
+        knots: Vec<f64>,
+        multiplicities: Vec<u32>,
+        periodic: bool,
+        pole_count: usize,
+    ) -> Result<KnotVector, BSplineConstructionError> {
+        validate_direction(degree, pole_count, &knots, &multiplicities, periodic)?;
+        let flat = flat_knots(&knots, &multiplicities);
+        Ok(KnotVector::from_validated(
+            degree,
+            knots,
+            multiplicities,
+            flat,
+            periodic,
+        ))
+    }
+
+    /// A direction from parts known to be consistent (as
+    /// [`validate_direction`] would find them), `flat` being the flat knots
+    /// of `knots` and `multiplicities`: fitting and editing results skip
+    /// revalidation.
+    pub(crate) fn from_validated(
+        degree: usize,
+        knots: Vec<f64>,
+        multiplicities: Vec<u32>,
+        flat: Vec<f64>,
+        periodic: bool,
+    ) -> KnotVector {
+        debug_assert_eq!(flat, flat_knots(&knots, &multiplicities));
+        let last = multiplicities[multiplicities.len() - 1] as usize;
+        let pole_count = if periodic {
+            flat.len() - last
+        } else {
+            flat.len() - degree - 1
+        };
+        debug_assert!(
+            validate_direction(degree, pole_count, &knots, &multiplicities, periodic).is_ok()
+        );
+        KnotVector {
+            degree,
+            periodic,
+            seam_multiplicity: multiplicities[0] as usize,
+            flat,
+            distinct: OnceLock::from(Box::new((knots, multiplicities))),
+            pole_count,
+        }
+    }
+
+    /// A direction from its flat knots, known to be consistent (as
+    /// [`validate_direction`] would find their distinct knots and
+    /// multiplicities): editing results skip revalidation.
+    pub(crate) fn from_flat(degree: usize, flat: Vec<f64>, periodic: bool) -> KnotVector {
+        let (first, last) = (flat[0], flat[flat.len() - 1]);
+        let seam_multiplicity = flat.iter().take_while(|&&k| k == first).count();
+        let last = flat.iter().rev().take_while(|&&k| k == last).count();
+        let pole_count = if periodic {
+            flat.len() - last
+        } else {
+            flat.len() - degree - 1
+        };
+        let direction = KnotVector {
+            degree,
+            periodic,
+            seam_multiplicity,
+            flat,
+            distinct: OnceLock::new(),
+            pole_count,
+        };
+        debug_assert!(
+            validate_direction(
+                degree,
+                pole_count,
+                direction.knots(),
+                direction.multiplicities(),
+                periodic
+            )
+            .is_ok()
+        );
+        direction
+    }
+
+    /// The single span `[first, last]` of a Bézier piece of `degree`, both
+    /// end knots of multiplicity `degree + 1`.
+    pub(crate) fn bezier(degree: usize, first: f64, last: f64) -> KnotVector {
+        let mut flat = vec![first; 2 * degree + 2];
+        flat[degree + 1..].fill(last);
+        KnotVector::from_flat(degree, flat, false)
+    }
+
+    /// The degree.
+    pub(crate) fn degree(&self) -> usize {
+        self.degree
+    }
+
+    /// Whether the direction is periodic.
+    pub(crate) fn is_periodic(&self) -> bool {
+        self.periodic
+    }
+
+    /// The distinct knots, increasing.
+    pub(crate) fn knots(&self) -> &[f64] {
+        &self.distinct().0
+    }
+
+    /// The multiplicity of each distinct knot.
+    pub(crate) fn multiplicities(&self) -> &[u32] {
+        &self.distinct().1
+    }
+
+    fn distinct(&self) -> &(Vec<f64>, Vec<u32>) {
+        self.distinct
+            .get_or_init(|| Box::new(distinct_knots(&self.flat)))
+    }
+
+    /// The flat knots: each knot repeated by its multiplicity.
+    pub(crate) fn flat(&self) -> &[f64] {
+        &self.flat
+    }
+
+    /// The number of poles along the direction.
+    pub(crate) fn pole_count(&self) -> usize {
+        self.pole_count
+    }
+
+    /// The parameter range `(first, last)`: the clamped span
+    /// `[flat[degree], flat[len - 1 - degree]]`, or a periodic direction's
+    /// whole period `[knots[0], knots[last]]`.
+    pub(crate) fn bounds(&self) -> (f64, f64) {
+        let flat = &self.flat;
+        if self.periodic {
+            (flat[0], flat[flat.len() - 1])
+        } else {
+            (flat[self.degree], flat[flat.len() - 1 - self.degree])
+        }
+    }
+
+    /// The period of a periodic direction.
+    pub(crate) fn period(&self) -> Option<f64> {
+        let (first, last) = self.bounds();
+        self.periodic.then_some(last - first)
+    }
+
+    /// Locates `u` and writes the knots around its span relative to it,
+    /// `left[j] = u - U[span + 1 - j]` and `right[j] = U[span + j] - u` for
+    /// `j` in `1..=degree`; returns the index of the span's first pole.
+    ///
+    /// A non-periodic direction clamps `u` into its range. A periodic one
+    /// wraps it into the period and behaves as if one period's flat knots
+    /// (all but the trailing seam run) were tiled endlessly, each copy
+    /// shifted by the period; the tiled knot at any index is computed on
+    /// demand, so nothing is allocated. A `u` exactly on an interior knot
+    /// belongs to the span on its right, and the range end to the last
+    /// nonzero-width span; this only matters for derivatives across a knot,
+    /// where they are discontinuous.
+    #[inline]
+    pub(crate) fn span_knots<const N: usize>(
+        &self,
+        u: f64,
+        left: &mut [f64; N],
+        right: &mut [f64; N],
+    ) -> usize {
+        let degree = self.degree;
+        debug_assert!(degree < N, "basis table too narrow for degree {degree}");
+        if self.periodic {
+            return self.periodic_span_knots(u, left, right);
+        }
+        let (span, u) = self.span(u);
+        let flat = &self.flat;
+        for j in 1..=degree {
+            left[j] = u - flat[span + 1 - j];
+            right[j] = flat[span + j] - u;
+        }
+        span - degree
+    }
+
+    /// The index `s` of the flat knot opening the nonzero-width span that
+    /// holds `u` in a non-periodic direction, `flat[s] <= u < flat[s + 1]`
+    /// (`<=` at the range end), and `u` clamped into the range.
+    #[inline(always)]
+    fn span(&self, u: f64) -> (usize, f64) {
+        let flat = &self.flat;
+        let lo = self.degree;
+        let hi = flat.len() - 1 - self.degree;
+        let u = u.clamp(flat[lo], flat[hi]);
+        // Binary search for the rightmost lo <= s < hi with flat[s] <= u
+        // (flat[lo] <= u always holds), without data-dependent branches.
+        let mut span = lo;
+        let mut length = hi - lo;
+        while length > 1 {
+            let half = length / 2;
+            if flat[span + half] <= u {
+                span += half;
+            }
+            length -= half;
+        }
+        // The rightmost such `s` already opens a nonzero-width span, except
+        // at the range end (`u == last`), which steps back to the last real
+        // span.
+        while span > lo && flat[span] >= flat[span + 1] {
+            span -= 1;
+        }
+        (span, u)
+    }
+
+    /// Mirror of [`span`](Self::span) approaching from below, in a
+    /// non-periodic direction: the nonzero-width span ending at `u` where
+    /// `u` sits exactly on a knot, the holding span otherwise (both sides
+    /// agree strictly inside a span, and at the range start nothing lies
+    /// below).
+    fn span_below(&self, u: f64) -> (usize, f64) {
+        let (s, u) = self.span(u);
+        let flat = &self.flat;
+        let lo = self.degree;
+        if u != flat[s] || s == lo {
+            return (s, u);
+        }
+        let mut t = s - 1;
+        while t > lo && flat[t] >= flat[t + 1] {
+            t -= 1;
+        }
+        if flat[t] < u { (t, u) } else { (s, u) }
+    }
+
+    /// [`span_knots`](Self::span_knots) with a side selector:
+    /// [`Side::Below`] locates the span ending at `u`, [`Side::Above`] the
+    /// span starting there. Both match `span_knots` except at a periodic
+    /// seam given as the upper bound, where `span_knots` closes the last
+    /// span and [`Side::Above`] takes the first one.
+    pub(crate) fn span_knots_sided<const N: usize>(
+        &self,
+        u: f64,
+        side: Side,
+        left: &mut [f64; N],
+        right: &mut [f64; N],
+    ) -> usize {
+        if self.periodic {
+            return self.periodic_span_knots_sided(u, side, left, right);
+        }
+        if side == Side::Above {
+            return self.span_knots(u, left, right);
+        }
+        let degree = self.degree;
+        debug_assert!(degree < N, "basis table too narrow for degree {degree}");
+        let (span, u) = self.span_below(u);
+        let flat = &self.flat;
+        for j in 1..=degree {
+            left[j] = u - flat[span + 1 - j];
+            right[j] = flat[span + j] - u;
+        }
+        span - degree
+    }
+
+    /// The first pole and the non-zero basis functions at `u` of a
+    /// non-periodic direction of degree 1 to 3, unrolled, or `None` for
+    /// another direction.
+    #[inline(always)]
+    pub(crate) fn low_degree_basis(&self, u: f64) -> Option<(usize, [f64; 4])> {
+        if self.periodic {
+            return None;
+        }
+        match self.degree {
+            1 => Some(self.basis_of_degree::<1>(u)),
+            2 => Some(self.basis_of_degree::<2>(u)),
+            3 => Some(self.basis_of_degree::<3>(u)),
+            _ => None,
+        }
+    }
+
+    /// [`low_degree_basis`](Self::low_degree_basis) with the first
+    /// derivatives: the first pole and `[values, first derivatives]`.
+    #[inline(always)]
+    pub(crate) fn low_degree_basis_first(&self, u: f64) -> Option<(usize, [[f64; 4]; 2])> {
+        if self.periodic {
+            return None;
+        }
+        match self.degree {
+            1 => Some(self.basis_first_of_degree::<1>(u)),
+            2 => Some(self.basis_first_of_degree::<2>(u)),
+            3 => Some(self.basis_first_of_degree::<3>(u)),
+            _ => None,
+        }
+    }
+
+    /// [`KnotVector::basis`] of a non-periodic direction of the constant
+    /// degree `P` (at most 3): the span's knots sliced once and every loop
+    /// unrolled.
+    #[inline(always)]
+    fn basis_of_degree<const P: usize>(&self, u: f64) -> (usize, [f64; 4]) {
+        let (first, left, right) = self.differences_of_degree::<P>(u);
+        (first, basis_values_of::<P>(&left, &right))
+    }
+
+    /// [`basis_of_degree`](Self::basis_of_degree) with the first
+    /// derivatives, as [`basis_first`] computes them.
+    #[inline(always)]
+    fn basis_first_of_degree<const P: usize>(&self, u: f64) -> (usize, [[f64; 4]; 2]) {
+        let (first, left, right) = self.differences_of_degree::<P>(u);
+        (first, basis_first_of::<P>(&left, &right))
+    }
+
+    /// The first pole of the span holding `u` and the knot differences
+    /// `left[j] = u - U[span + 1 - j]`, `right[j] = U[span + j] - u` for
+    /// `j` in `1..=P`, in a non-periodic direction of the constant degree
+    /// `P` (at most 3).
+    #[inline(always)]
+    fn differences_of_degree<const P: usize>(&self, u: f64) -> (usize, [f64; 4], [f64; 4]) {
+        let (span, u) = self.span(u);
+        // The 2P knots around the span, `around[k] = flat[span + 1 - P + k]`.
+        let around = &self.flat[span + 1 - P..span + 1 + P];
+        // Built as values rather than written in a loop, so that they stay
+        // in registers: stored one by one, the unrolled recurrence would
+        // reload them in pairs, which waits on the stores.
+        let left: [f64; 4] = std::array::from_fn(|j| {
+            if (1..=P).contains(&j) {
+                u - around[P - j]
+            } else {
+                0.0
+            }
+        });
+        let right: [f64; 4] = std::array::from_fn(|j| {
+            if (1..=P).contains(&j) {
+                around[P - 1 + j] - u
+            } else {
+                0.0
+            }
+        });
+        (span - P, left, right)
+    }
+
+    /// Index of the first of the `degree + 1` poles weighting the span
+    /// containing `u`, wrapping modulo the pole count in a periodic
+    /// direction (see [`KnotVector::span_knots`]).
+    pub(crate) fn span_first_pole(&self, u: f64) -> usize {
+        let (mut left, mut right) = ([0.0; LARGE], [0.0; LARGE]);
+        self.span_knots(u, &mut left, &mut right)
+    }
+
+    /// [`KnotVector::span_knots`] on a periodic direction.
+    fn periodic_span_knots<const N: usize>(
+        &self,
+        u: f64,
+        left: &mut [f64; N],
+        right: &mut [f64; N],
+    ) -> usize {
+        let (first, last) = self.bounds();
+        // Exactly `last` closes the last span instead of wrapping to the
+        // first (they differ only in derivatives across the seam).
+        let u = if u == last {
+            last
+        } else {
+            in_period(u, first, last)
+        };
+        // One period's flat knots: all but the trailing seam run, as many
+        // as the poles.
+        let block = &self.flat[..self.pole_count];
+        // Rightmost knot of the period block at or below `u`; the next tiled
+        // knot is then strictly above it, so the span has nonzero width.
+        let local = block
+            .partition_point(|&k| k <= u)
+            .saturating_sub(1)
+            .min(block.len() - 1);
+        self.periodic_span_at(u, local, left, right)
+    }
+
+    /// [`KnotVector::periodic_span_knots`] from one side: `u` is wrapped
+    /// into `[first, last)` so that the seam is a knot like any other,
+    /// then [`Side::Above`] takes the span starting at `u` and
+    /// [`Side::Below`] the span ending at it (at the seam, the last span
+    /// of the period).
+    fn periodic_span_knots_sided<const N: usize>(
+        &self,
+        u: f64,
+        side: Side,
+        left: &mut [f64; N],
+        right: &mut [f64; N],
+    ) -> usize {
+        let (first, last) = self.bounds();
+        let mut u = in_period(u, first, last);
+        if u >= last {
+            u = first;
+        }
+        let block = &self.flat[..self.pole_count];
+        let local = match side {
+            Side::Above => block.partition_point(|&k| k <= u),
+            Side::Below if u == first => {
+                u = last;
+                block.len()
+            }
+            Side::Below => block.partition_point(|&k| k < u),
+        }
+        .saturating_sub(1)
+        .min(block.len() - 1);
+        self.periodic_span_at(u, local, left, right)
+    }
+
+    /// Writes the knots around the periodic span opening at block knot
+    /// `local` relative to `u` (see [`KnotVector::span_knots`]) and
+    /// returns the index of the span's first pole.
+    #[inline(always)]
+    fn periodic_span_at<const N: usize>(
+        &self,
+        u: f64,
+        local: usize,
+        left: &mut [f64; N],
+        right: &mut [f64; N],
+    ) -> usize {
+        let (first, last) = self.bounds();
+        let period = last - first;
+        let block = &self.flat[..self.pole_count];
+        let len = block.len() as isize;
+        let knot = |offset: isize| {
+            let k = local as isize + offset;
+            block[k.rem_euclid(len) as usize] + period * k.div_euclid(len) as f64
+        };
+        for j in 1..=self.degree {
+            left[j] = u - knot(1 - j as isize);
+            right[j] = knot(j as isize) - u;
+        }
+        // Periodic convention: pole 0 starts the span opening at the *last*
+        // copy of the first knot, so a seam multiplicity `m` shifts the pole
+        // index back by `m - 1`.
+        (local + self.pole_count + 1 - self.seam_multiplicity) % self.pole_count
+    }
+
+    /// Locates `u` and evaluates into `w` the non-zero basis functions
+    /// there, with derivatives up to `order`, touching only the
+    /// `2 * degree` knots around the span.
+    pub(crate) fn window<const N: usize>(&self, u: f64, order: usize, w: &mut Window<N>) {
+        let mut left = [0.0f64; N];
+        let mut right = [0.0f64; N];
+        w.pole_count = self.pole_count;
+        w.periodic = self.periodic;
+        w.first = self.span_knots(u, &mut left, &mut right);
+        match order {
+            0 => basis_values(self.degree, &left, &right, &mut w.ders[0]),
+            1 => basis_first(self.degree, &left, &right, &mut w.ders),
+            _ => basis_second(self.degree, &left, &right, &mut w.ders),
+        }
+    }
+
+    /// [`window`](Self::window) from one side of `u`, the span located
+    /// by [`span_knots_sided`](Self::span_knots_sided); `None` is plain
+    /// [`window`](Self::window).
+    #[inline]
+    pub(crate) fn window_sided<const N: usize>(
+        &self,
+        u: f64,
+        order: usize,
+        side: Option<Side>,
+        w: &mut Window<N>,
+    ) {
+        let side = match side {
+            None => return self.window(u, order, w),
+            Some(Side::Above) if !self.periodic => return self.window(u, order, w),
+            Some(side) => side,
+        };
+        let mut left = [0.0f64; N];
+        let mut right = [0.0f64; N];
+        w.pole_count = self.pole_count;
+        w.periodic = self.periodic;
+        w.first = self.span_knots_sided(u, side, &mut left, &mut right);
+        match order {
+            0 => basis_values(self.degree, &left, &right, &mut w.ders[0]),
+            1 => basis_first(self.degree, &left, &right, &mut w.ders),
+            _ => basis_second(self.degree, &left, &right, &mut w.ders),
+        }
+    }
+
+    /// Locates `u` and writes into `values[..=degree]` the non-zero basis
+    /// functions there, without derivatives; returns the index of the pole
+    /// the first one weights (see [`KnotVector::pole_index`]).
+    #[inline]
+    pub(crate) fn basis<const N: usize>(&self, u: f64, values: &mut [f64; N]) -> usize {
+        let mut left = [0.0f64; N];
+        let mut right = [0.0f64; N];
+        let first = self.span_knots(u, &mut left, &mut right);
+        basis_values(self.degree, &left, &right, values);
+        first
+    }
+
+    /// Index of the pole weighted by the `j`-th non-zero basis function of
+    /// a span whose first pole is `first`, wrapped in a periodic direction.
+    #[inline]
+    pub(crate) fn pole_index(&self, first: usize, j: usize) -> usize {
+        wrap(first + j, self.pole_count, self.periodic)
+    }
+
+    /// Whether the poles of a span whose first pole is `first` run past the
+    /// last pole, wrapping to the first ones (periodic directions only).
+    #[inline]
+    pub(crate) fn wraps(&self, first: usize) -> bool {
+        first + self.degree >= self.pole_count
+    }
+
+    /// The bounds, then the knots strictly inside them, then the upper
+    /// bound: the boundaries of the knot spans (polynomial pieces).
+    pub(crate) fn breaks(&self) -> Vec<f64> {
+        let (lo, hi) = self.bounds();
+        let mut breaks = vec![lo];
+        breaks.extend(self.knots().iter().copied().filter(|&k| k > lo && k < hi));
+        breaks.push(hi);
+        breaks
+    }
+
+    /// Whether the direction fails to be C1 at each of `breaks` (from
+    /// [`KnotVector::breaks`]): an end of a non-periodic direction, a crease
+    /// (a knot of multiplicity `>= degree`), or a periodic seam that is a
+    /// crease. A minimum of a smooth function there need not be a critical
+    /// point.
+    pub(crate) fn crease_breaks(&self, breaks: &[f64]) -> Vec<bool> {
+        let last = breaks.len() - 1;
+        let creased = |m: u32| m as usize >= self.degree;
+        breaks
+            .iter()
+            .enumerate()
+            .map(|(i, &x)| {
+                if i == 0 || i == last {
+                    !self.periodic || creased(self.multiplicities()[0])
+                } else {
+                    self.knots()
+                        .iter()
+                        .position(|&k| k == x)
+                        .is_some_and(|k| creased(self.multiplicities()[k]))
+                }
+            })
+            .collect()
+    }
+
+    /// The parameter intervals on which the direction is at least C1, so
+    /// that a local refinement bounded to one of them minimises a smooth
+    /// function: the range cut at every knot of multiplicity `>= degree` (a
+    /// C0 crease). `None` for a periodic direction smooth everywhere, where
+    /// refinement may run unbounded. On a periodic direction with a smooth
+    /// seam, the interval across the seam runs from the last crease past the
+    /// upper bound to the first crease plus the period.
+    pub(crate) fn smooth_regions(&self) -> Option<Vec<(f64, f64)>> {
+        let (lo, hi) = self.bounds();
+        let creases: Vec<f64> = self
+            .knots()
+            .iter()
+            .zip(self.multiplicities())
+            .filter(|&(&k, &m)| k > lo && k < hi && m as usize >= self.degree)
+            .map(|(&k, _)| k)
+            .collect();
+        let smooth_seam = self.periodic && self.seam_multiplicity < self.degree;
+        if smooth_seam {
+            if creases.is_empty() {
+                return None;
+            }
+            let mut regions: Vec<(f64, f64)> = creases.windows(2).map(|w| (w[0], w[1])).collect();
+            regions.push((creases[creases.len() - 1], creases[0] + (hi - lo)));
+            return Some(regions);
+        }
+        let mut cuts = vec![lo];
+        cuts.extend(creases);
+        cuts.push(hi);
+        Some(cuts.windows(2).map(|w| (w[0], w[1])).collect())
+    }
+
+    /// The [`KnotVector::bezier_matrix`] of every span between consecutive
+    /// `breaks` (from [`KnotVector::breaks`]): the first pole index of each
+    /// span, and the matrices row-major, `(degree + 1)^2` values per span.
+    pub(crate) fn span_bezier_matrices(&self, breaks: &[f64]) -> (Vec<usize>, Vec<f64>) {
+        fn fill<const N: usize>(knots: &KnotVector, breaks: &[f64]) -> (Vec<usize>, Vec<f64>) {
+            let n = knots.degree + 1;
+            let mut firsts = Vec::with_capacity(breaks.len() - 1);
+            let mut matrices = Vec::with_capacity((breaks.len() - 1) * n * n);
+            let mut matrix = [[0.0f64; N]; N];
+            for w in breaks.windows(2) {
+                firsts.push(knots.bezier_matrix(0.5 * (w[0] + w[1]), &mut matrix));
+                for row in &matrix[..n] {
+                    matrices.extend_from_slice(&row[..n]);
+                }
+            }
+            (firsts, matrices)
+        }
+        if self.degree < SMALL {
+            fill::<SMALL>(self, breaks)
+        } else {
+            fill::<LARGE>(self, breaks)
+        }
+    }
+
+    /// The matrix taking the `degree + 1` poles of the span containing `u`
+    /// (pass a parameter inside the span) to its Bernstein control points
+    /// over its own interval: point `k` is `sum_j matrix[k][j] * P[first +
+    /// j]`, the pole index wrapping modulo the pole count in a periodic
+    /// direction. Returns `first`. Rows are convex weights, so the map is
+    /// stable.
+    ///
+    /// Point `k` is the blossom of the piece at `k` copies of the span end
+    /// and `degree - k` of its start, by de Boor's recurrence with the
+    /// argument varying by level, carried out on the poles' coefficients.
+    #[allow(clippy::needless_range_loop)] // index arithmetic on the triangular recurrence
+    pub(crate) fn bezier_matrix<const N: usize>(
+        &self,
+        u: f64,
+        matrix: &mut [[f64; N]; N],
+    ) -> usize {
+        let p = self.degree;
+        let mut left = [0.0f64; N];
+        let mut right = [0.0f64; N];
+        let first = self.span_knots(u, &mut left, &mut right);
+        // The span's `2p` surrounding knots relative to `u`, the span itself
+        // being `[knot(p - 1), knot(p)]`.
+        let knot = |m: usize| {
+            if m < p {
+                -left[p - m]
+            } else {
+                right[m + 1 - p]
+            }
+        };
+        let (a, b) = (knot(p - 1), knot(p));
+        // Level `r`, index `j` blends between `knot(j - 1)` and
+        // `knot(p + j - r)`.
+        let mut inverse = [[0.0f64; N]; N];
+        for r in 1..=p {
+            for j in r..=p {
+                inverse[r][j] = 1.0 / (knot(p + j - r) - knot(j - 1));
+            }
+        }
+        // `d[j][i]`: coefficient of pole `i` in the level's point `j`,
+        // nonzero for `i` in `j - r..=j` at level `r`.
+        let mut d = [[0.0f64; N]; N];
+        for k in 0..=p {
+            for (j, dj) in d.iter_mut().enumerate().take(p + 1) {
+                dj[..=p].fill(0.0);
+                dj[j] = 1.0;
+            }
+            for r in 1..=p {
+                let x = if r <= k { b } else { a };
+                for j in (r..=p).rev() {
+                    let alpha = (x - knot(j - 1)) * inverse[r][j];
+                    for i in j - r..=j {
+                        d[j][i] = (1.0 - alpha) * d[j - 1][i] + alpha * d[j][i];
+                    }
+                }
+            }
+            matrix[k][..=p].copy_from_slice(&d[p][..=p]);
+        }
+        first
+    }
+}
+
+/// Highest derivative order of the fixed-size evaluator, [`derivatives`];
+/// higher orders take [`derivative_of_order`].
+pub(crate) const MAX_DERIVATIVE: usize = 2;
+
+/// Basis-table width for degrees below 8: covers every curve and surface
+/// seen in practice, and zeroing an 8-wide table is far cheaper than a
+/// `MAX_DEGREE + 1`-wide one.
+pub(crate) const SMALL: usize = 8;
+
+/// Basis-table width for every supported degree.
+pub(crate) const LARGE: usize = MAX_DEGREE + 1;
+
+/// The `degree + 1` basis functions that are non-zero at a parameter, with
+/// their derivatives, and the poles they weight.
+pub(crate) struct Window<const N: usize> {
+    /// `ders[k][j]`: `k`-th derivative of the `j`-th non-zero basis function.
+    pub(crate) ders: [[f64; N]; MAX_DERIVATIVE + 1],
+    /// Index of the pole weighted by the first non-zero basis function.
+    first: usize,
+    /// Pole count, by which indices wrap in a periodic direction.
+    pole_count: usize,
+    /// Whether pole indices wrap.
+    periodic: bool,
+}
+
+impl<const N: usize> Window<N> {
+    /// An empty window, filled by [`KnotVector::window`].
+    pub(crate) fn new() -> Self {
+        Window {
+            ders: [[0.0; N]; MAX_DERIVATIVE + 1],
+            first: 0,
+            pole_count: 0,
+            periodic: false,
+        }
+    }
+
+    /// Index of the pole weighted by the `j`-th non-zero basis function,
+    /// wrapped modulo the pole count in a periodic direction.
+    #[inline]
+    pub(crate) fn pole(&self, j: usize) -> usize {
+        wrap(self.first + j, self.pole_count, self.periodic)
+    }
+}
+
+/// Pole `index` of a direction with `pole_count` poles, wrapped if periodic.
+#[inline]
+fn wrap(index: usize, pole_count: usize, periodic: bool) -> usize {
+    if periodic && index >= pole_count {
+        index % pole_count
+    } else {
+        index
+    }
+}
+
+/// The non-zero basis functions at `u` on the non-periodic span `span`
+/// (`flat[span] <= u <= flat[span + 1]`, a nonzero-width span), into
+/// `values[..=degree]`; `left` and `right` are scratch.
+pub(crate) fn basis_at<const N: usize>(
+    u: f64,
+    degree: usize,
+    span: usize,
+    flat: &[f64],
+    left: &mut [f64; N],
+    right: &mut [f64; N],
+    values: &mut [f64; N],
+) {
+    for j in 1..=degree {
+        left[j] = u - flat[span + 1 - j];
+        right[j] = flat[span + j] - u;
+    }
+    basis_values(degree, left, right, values);
+}
+
+/// Non-zero basis functions alone (The NURBS Book, A2.2): the value-only
+/// fast path of `basis_derivatives` (the tests' reference), without its
+/// triangular table.
+fn basis_values<const N: usize>(
+    degree: usize,
+    left: &[f64; N],
+    right: &[f64; N],
+    out: &mut [f64; N],
+) {
+    out[0] = 1.0;
+    for j in 1..=degree {
+        let mut saved = 0.0;
+        for r in 0..j {
+            // The reciprocal does not depend on the recurrence, so its
+            // division runs ahead of it.
+            let temp = out[r] * (1.0 / (right[r + 1] + left[j - r]));
+            out[r] = saved + right[r + 1] * temp;
+            saved = left[j - r] * temp;
+        }
+        out[j] = saved;
+    }
+}
+
+/// Non-zero basis functions and their first derivatives: A2.2, whose last
+/// step divides each degree-`(p - 1)` function by exactly the knot span its
+/// derivative needs, `N'_j = p * (temp_{j-1} - temp_j)`.
+fn basis_first<const N: usize>(
+    degree: usize,
+    left: &[f64; N],
+    right: &[f64; N],
+    ders: &mut [[f64; N]; MAX_DERIVATIVE + 1],
+) {
+    let p = degree;
+    let [values, firsts, _] = ders;
+    values[0] = 1.0;
+    for j in 1..p {
+        let mut saved = 0.0;
+        for r in 0..j {
+            let temp = values[r] * (1.0 / (right[r + 1] + left[j - r]));
+            values[r] = saved + right[r + 1] * temp;
+            saved = left[j - r] * temp;
+        }
+        values[j] = saved;
+    }
+    let mut saved = 0.0;
+    let mut previous = 0.0;
+    for r in 0..p {
+        let temp = values[r] * (1.0 / (right[r + 1] + left[p - r]));
+        values[r] = saved + right[r + 1] * temp;
+        saved = left[p - r] * temp;
+        firsts[r] = p as f64 * (previous - temp);
+        previous = temp;
+    }
+    values[p] = saved;
+    firsts[p] = p as f64 * previous;
+}
+
+/// Non-zero basis functions with their first and second derivatives: the
+/// recurrence of [`basis_first`] carried one level further. The level
+/// building degree `p - 1` gives that degree's first derivatives, and the
+/// level building degree `p` divides them by the same knot spans as the
+/// values, `N''_j = p * (D_{j-1} / s_{j-1} - D_j / s_j)` with `D` the
+/// first derivatives of degree `p - 1` and `s` the level's spans.
+fn basis_second<const N: usize>(
+    degree: usize,
+    left: &[f64; N],
+    right: &[f64; N],
+    ders: &mut [[f64; N]; MAX_DERIVATIVE + 1],
+) {
+    let p = degree;
+    let [values, firsts, seconds] = ders;
+    // First derivatives of degree p - 1 (zero for degree 0).
+    let mut lower = [0.0f64; N];
+    values[0] = 1.0;
+    for j in 1..p.saturating_sub(1) {
+        let mut saved = 0.0;
+        for r in 0..j {
+            let temp = values[r] * (1.0 / (right[r + 1] + left[j - r]));
+            values[r] = saved + right[r + 1] * temp;
+            saved = left[j - r] * temp;
+        }
+        values[j] = saved;
+    }
+    if p >= 2 {
+        let q = p - 1;
+        let mut saved = 0.0;
+        let mut previous = 0.0;
+        for r in 0..q {
+            let temp = values[r] * (1.0 / (right[r + 1] + left[q - r]));
+            values[r] = saved + right[r + 1] * temp;
+            saved = left[q - r] * temp;
+            lower[r] = q as f64 * (previous - temp);
+            previous = temp;
+        }
+        values[q] = saved;
+        lower[q] = q as f64 * previous;
+    }
+    let mut saved = 0.0;
+    let mut previous = 0.0;
+    let mut previous_lower = 0.0;
+    for r in 0..p {
+        let inverse = 1.0 / (right[r + 1] + left[p - r]);
+        let temp = values[r] * inverse;
+        values[r] = saved + right[r + 1] * temp;
+        saved = left[p - r] * temp;
+        firsts[r] = p as f64 * (previous - temp);
+        previous = temp;
+        let lower_temp = lower[r] * inverse;
+        seconds[r] = p as f64 * (previous_lower - lower_temp);
+        previous_lower = lower_temp;
+    }
+    values[p] = saved;
+    firsts[p] = p as f64 * previous;
+    seconds[p] = p as f64 * previous_lower;
+}
+
+/// Non-zero basis functions and their derivatives (The NURBS Book, A2.3),
+/// `ders[k]` the `k`-th derivatives, from `left[j] = u - U[span + 1 - j]`
+/// and `right[j] = U[span + j] - u` for `j` in `1..=degree`: the general
+/// path behind [`derivative_of_order`], and the tests' reference for the
+/// unrolled [`basis_first`] and [`basis_second`].
+///
+/// Every divisor is a difference of two knots on either side of a
+/// nonzero-width span, so none is zero. Derivatives above the degree vanish
+/// and their rows are left untouched.
+fn basis_derivatives<const N: usize>(
+    degree: usize,
+    left: &[f64; N],
+    right: &[f64; N],
+    ders: &mut [[f64; N]],
+) {
+    let p = degree;
+    // ndu: basis functions in the upper triangle, knot differences in the
+    // lower one.
+    let mut ndu = [[0.0f64; N]; N];
+    ndu[0][0] = 1.0;
+    for j in 1..=p {
+        let mut saved = 0.0;
+        for r in 0..j {
+            ndu[j][r] = right[r + 1] + left[j - r];
+            let temp = ndu[r][j - 1] / ndu[j][r];
+            ndu[r][j] = saved + right[r + 1] * temp;
+            saved = left[j - r] * temp;
+        }
+        ndu[j][j] = saved;
+    }
+    for j in 0..=p {
+        ders[0][j] = ndu[j][p];
+    }
+    let order = (ders.len() - 1).min(p);
+    if order == 0 {
+        return;
+    }
+    let mut a = [[0.0f64; N]; 2];
+    for r in 0..=p {
+        let (mut s1, mut s2) = (0, 1);
+        a[0][0] = 1.0;
+        for k in 1..=order {
+            let mut d = 0.0;
+            let pk = p - k;
+            if r >= k {
+                let rk = r - k;
+                a[s2][0] = a[s1][0] / ndu[pk + 1][rk];
+                d = a[s2][0] * ndu[rk][pk];
+            }
+            let j1 = if r + 1 >= k { 1 } else { k - r };
+            let j2 = if r <= pk + 1 { k - 1 } else { p - r };
+            for j in j1..=j2 {
+                // r + j >= k holds for every j in j1..=j2.
+                let rkj = r + j - k;
+                a[s2][j] = (a[s1][j] - a[s1][j - 1]) / ndu[pk + 1][rkj];
+                d += a[s2][j] * ndu[rkj][pk];
+            }
+            if r <= pk {
+                a[s2][k] = -a[s1][k - 1] / ndu[pk + 1][r];
+                d += a[s2][k] * ndu[r][pk];
+            }
+            ders[k][r] = d;
+            std::mem::swap(&mut s1, &mut s2);
+        }
+    }
+    let mut factor = p as f64;
+    for (k, row) in ders.iter_mut().enumerate().take(order + 1).skip(1) {
+        for value in row.iter_mut().take(p + 1) {
+            *value *= factor;
+        }
+        factor *= (p - k) as f64;
+    }
+}
+
+/// The point at `u`: the value-only path of [`derivatives`].
+#[inline]
+pub(crate) fn point<G: PolePoint>(knots: &KnotVector, poles: Poles<G>, u: f64) -> G {
+    if !knots.periodic {
+        match knots.degree {
+            1 => return point_of_degree::<1, G>(knots, poles, u),
+            2 => return point_of_degree::<2, G>(knots, poles, u),
+            3 => return point_of_degree::<3, G>(knots, poles, u),
+            _ => {}
+        }
+    }
+    if knots.degree < SMALL {
+        point_sized::<SMALL, G>(knots, poles, u)
+    } else {
+        point_sized::<LARGE, G>(knots, poles, u)
+    }
+}
+
+/// [`point`] of a non-periodic direction of degree `P` (at most 3): the
+/// span's poles sliced once and every loop over constant bounds, so
+/// unrolled.
+#[inline(always)]
+fn point_of_degree<const P: usize, G: PolePoint>(knots: &KnotVector, poles: Poles<G>, u: f64) -> G {
+    let (first, values) = knots.basis_of_degree::<P>(u);
+    let points = &poles.points[first..=first + P];
+    // Each sum starts from its first term, sparing additions of zero.
+    match poles.weights {
+        None => {
+            let mut sum = [0.0f64; 4];
+            {
+                let b = values[0];
+                let p = points[0];
+                for (c, s) in sum.iter_mut().enumerate().take(G::DIM) {
+                    *s = b * G::coord(p, c);
+                }
+            }
+            for j in 1..=P {
+                let b = values[j];
+                let p = points[j];
+                for (c, s) in sum.iter_mut().enumerate().take(G::DIM) {
+                    *s += b * G::coord(p, c);
+                }
+            }
+            G::point_of(sum)
+        }
+        Some(weights) => {
+            let weights = &weights[first..=first + P];
+            let b = values[0] * weights[0];
+            let mut sum = [0.0f64; 4];
+            {
+                let p = points[0];
+                for (c, s) in sum.iter_mut().enumerate().take(G::DIM) {
+                    *s = b * G::coord(p, c);
+                }
+            }
+            sum[3] = b;
+            for j in 1..=P {
+                let b = values[j] * weights[j];
+                let p = points[j];
+                for (c, s) in sum.iter_mut().enumerate().take(G::DIM) {
+                    *s += b * G::coord(p, c);
+                }
+                sum[3] += b;
+            }
+            let inverse = 1.0 / sum[3];
+            for s in sum.iter_mut().take(G::DIM) {
+                *s *= inverse;
+            }
+            G::point_of(sum)
+        }
+    }
+}
+
+/// The recurrence of [`basis_values`] for the constant degree `P` (at
+/// most 3).
+#[inline(always)]
+fn basis_values_of<const P: usize>(left: &[f64; 4], right: &[f64; 4]) -> [f64; 4] {
+    let mut out = [1.0, 0.0, 0.0, 0.0];
+    for j in 1..=P {
+        let mut saved = 0.0;
+        // Bounded by `P` rather than `j`, so that the loop's bounds are
+        // constant and it unrolls.
+        for r in 0..P {
+            if r < j {
+                let temp = out[r] * (1.0 / (right[r + 1] + left[j - r]));
+                out[r] = if r == 0 {
+                    right[1] * temp
+                } else {
+                    saved + right[r + 1] * temp
+                };
+                saved = left[j - r] * temp;
+            }
+        }
+        out[j] = saved;
+    }
+    out
+}
+
+/// The recurrence of [`basis_first`] for the constant degree `P` (at
+/// most 3): `[values, first derivatives]`.
+#[inline(always)]
+fn basis_first_of<const P: usize>(left: &[f64; 4], right: &[f64; 4]) -> [[f64; 4]; 2] {
+    let mut values = [1.0, 0.0, 0.0, 0.0];
+    for j in 1..P {
+        let mut saved = 0.0;
+        // Bounded by `P` rather than `j`, as in `basis_values_of`.
+        for r in 0..P {
+            if r < j {
+                let temp = values[r] * (1.0 / (right[r + 1] + left[j - r]));
+                values[r] = saved + right[r + 1] * temp;
+                saved = left[j - r] * temp;
+            }
+        }
+        values[j] = saved;
+    }
+    let mut firsts = [0.0; 4];
+    let mut saved = 0.0;
+    let mut previous = 0.0;
+    for r in 0..P {
+        let temp = values[r] * (1.0 / (right[r + 1] + left[P - r]));
+        values[r] = saved + right[r + 1] * temp;
+        saved = left[P - r] * temp;
+        firsts[r] = P as f64 * (previous - temp);
+        previous = temp;
+    }
+    values[P] = saved;
+    firsts[P] = P as f64 * previous;
+    [values, firsts]
+}
+
+#[inline]
+fn point_sized<const N: usize, G: PolePoint>(knots: &KnotVector, poles: Poles<G>, u: f64) -> G {
+    let mut values = [0.0f64; N];
+    let first = knots.basis(u, &mut values);
+    let degree = knots.degree;
+    let mut sum = [0.0f64; 4];
+    match poles.weights {
+        None => {
+            for (j, &b) in values.iter().enumerate().take(degree + 1) {
+                let p = poles.points[knots.pole_index(first, j)];
+                for (c, s) in sum.iter_mut().enumerate().take(G::DIM) {
+                    *s += b * G::coord(p, c);
+                }
+            }
+        }
+        Some(weights) => {
+            for (j, &b) in values.iter().enumerate().take(degree + 1) {
+                let i = knots.pole_index(first, j);
+                let p = poles.points[i];
+                let b = b * weights[i];
+                for (c, s) in sum.iter_mut().enumerate().take(G::DIM) {
+                    *s += b * G::coord(p, c);
+                }
+                sum[3] += b;
+            }
+            let inverse = 1.0 / sum[3];
+            for s in sum.iter_mut().take(G::DIM) {
+                *s *= inverse;
+            }
+        }
+    }
+    G::point_of(sum)
+}
+
+/// The point (as a vector from the origin) and its derivatives up to
+/// `ORDER` (`<=` [`MAX_DERIVATIVE`]) at `u`, `[C, C', C'']`, those beyond
+/// `ORDER` zero.
+///
+/// A rational curve sums the homogeneous point `H = (x w, y w, z w, w)` and
+/// its derivatives, then applies the quotient rule: `C = H / w`,
+/// `C' = (H' - C w') / w`, `C'' = (H'' - 2 C' w' - C w'') / w`.
+#[inline]
+pub(crate) fn derivatives<const ORDER: usize, G: TierPoint>(
+    knots: &KnotVector,
+    poles: Poles<G>,
+    u: f64,
+) -> [G::Vector; 3] {
+    if ORDER == 1 && !knots.periodic {
+        match knots.degree {
+            1 => return first_of_degree::<1, G>(knots, poles, u),
+            2 => return first_of_degree::<2, G>(knots, poles, u),
+            3 => return first_of_degree::<3, G>(knots, poles, u),
+            _ => {}
+        }
+    }
+    if knots.degree < SMALL {
+        derivatives_sized::<SMALL, ORDER, G>(knots, poles, u, None)
+    } else {
+        derivatives_sized::<LARGE, ORDER, G>(knots, poles, u, None)
+    }
+}
+
+/// [`derivatives`] from one side of `u`: [`Side::Below`] evaluates the
+/// span ending at `u`, [`Side::Above`] the span starting there (across
+/// the seam of a periodic direction too); both agree strictly inside a
+/// span.
+#[inline]
+pub(crate) fn derivatives_sided<const ORDER: usize, G: TierPoint>(
+    knots: &KnotVector,
+    poles: Poles<G>,
+    u: f64,
+    side: Side,
+) -> [G::Vector; 3] {
+    if knots.degree < SMALL {
+        derivatives_sized::<SMALL, ORDER, G>(knots, poles, u, Some(side))
+    } else {
+        derivatives_sized::<LARGE, ORDER, G>(knots, poles, u, Some(side))
+    }
+}
+
+#[inline]
+fn derivatives_sized<const N: usize, const ORDER: usize, G: TierPoint>(
+    knots: &KnotVector,
+    poles: Poles<G>,
+    u: f64,
+    side: Option<Side>,
+) -> [G::Vector; 3] {
+    debug_assert!(
+        ORDER <= MAX_DERIVATIVE,
+        "derivative order {ORDER} not supported"
+    );
+    let mut w = Window::<N>::new();
+    knots.window_sided(u, ORDER, side, &mut w);
+    let mut sums = [[0.0f64; 4]; MAX_DERIVATIVE + 1];
+    for j in 0..=knots.degree {
+        let i = w.pole(j);
+        let p = poles.points[i];
+        let weight = poles.weights.map_or(1.0, |weights| weights[i]);
+        for (k, sum) in sums.iter_mut().enumerate().take(ORDER + 1) {
+            let b = w.ders[k][j] * weight;
+            for (c, s) in sum.iter_mut().enumerate().take(G::DIM) {
+                *s += b * G::coord(p, c);
+            }
+            sum[3] += b;
+        }
+    }
+    let mut out = sums.map(vector_of::<G>);
+    if poles.weights.is_some() {
+        let [w0, w1, w2] = sums.map(|s| s[3]);
+        let inverse = 1.0 / w0;
+        out[0] = out[0] * inverse;
+        if ORDER >= 1 {
+            out[1] = (out[1] - out[0] * w1) * inverse;
+        }
+        if ORDER >= 2 {
+            out[2] = (out[2] - out[1] * (2.0 * w1) - out[0] * w2) * inverse;
+        }
+    }
+    out
+}
+
+/// [`derivatives`] of order 1 in a non-periodic direction of degree `P`
+/// (at most 3): the span's poles sliced once and every loop unrolled, the
+/// sums and the quotient rule those of [`derivatives_sized`].
+#[inline(always)]
+#[allow(clippy::needless_range_loop)] // one coordinate index into two sums and the pole
+fn first_of_degree<const P: usize, G: TierPoint>(
+    knots: &KnotVector,
+    poles: Poles<G>,
+    u: f64,
+) -> [G::Vector; 3] {
+    let (first, [values, firsts]) = knots.basis_first_of_degree::<P>(u);
+    let points = &poles.points[first..=first + P];
+    let mut sums = [[0.0f64; 4]; MAX_DERIVATIVE + 1];
+    match poles.weights {
+        None => {
+            for j in 0..=P {
+                let p = points[j];
+                for c in 0..G::DIM {
+                    sums[0][c] += values[j] * G::coord(p, c);
+                    sums[1][c] += firsts[j] * G::coord(p, c);
+                }
+            }
+        }
+        Some(weights) => {
+            let weights = &weights[first..=first + P];
+            for j in 0..=P {
+                let p = points[j];
+                let (b, d) = (values[j] * weights[j], firsts[j] * weights[j]);
+                for c in 0..G::DIM {
+                    sums[0][c] += b * G::coord(p, c);
+                    sums[1][c] += d * G::coord(p, c);
+                }
+                sums[0][3] += b;
+                sums[1][3] += d;
+            }
+        }
+    }
+    let mut out = sums.map(vector_of::<G>);
+    if poles.weights.is_some() {
+        let inverse = 1.0 / sums[0][3];
+        out[0] = out[0] * inverse;
+        out[1] = (out[1] - out[0] * sums[1][3]) * inverse;
+    }
+    out
+}
+
+/// The vector of homogeneous sums `s` (see [`PolePoint::point_of`]),
+/// seen from the origin: a derivative before the quotient rule.
+#[inline]
+fn vector_of<G: TierPoint>(s: [f64; 4]) -> G::Vector {
+    G::point_of(s) - G::ORIGIN
+}
+
+/// The derivative of order `order >= 1` at `u`, from one side of `u` when
+/// `side` is given: the general path for the orders above
+/// [`MAX_DERIVATIVE`], which [`derivatives`] stops at.
+///
+/// The basis derivatives above the degree vanish, so a non-rational
+/// curve's derivative is zero there. A rational curve keeps every order
+/// through the quotient rule on the homogeneous sums `A` and their weight
+/// `w` (The NURBS Book, A4.2):
+/// `C⁽ᵏ⁾ = (A⁽ᵏ⁾ - Σ_{i=1..k} binomial(k, i) w⁽ⁱ⁾ C⁽ᵏ⁻ⁱ⁾) / w`.
+pub(crate) fn derivative_of_order<G: TierPoint>(
+    knots: &KnotVector,
+    poles: Poles<G>,
+    u: f64,
+    order: usize,
+    side: Option<Side>,
+) -> G::Vector {
+    debug_assert!(order >= 1, "derivative order must be at least 1");
+    let degree = knots.degree;
+    let mut left = [0.0f64; LARGE];
+    let mut right = [0.0f64; LARGE];
+    let first = match side {
+        Some(side) => knots.span_knots_sided(u, side, &mut left, &mut right),
+        None => knots.span_knots(u, &mut left, &mut right),
+    };
+    let basis_order = order.min(degree);
+    let mut ders = vec![[0.0f64; LARGE]; basis_order + 1];
+    basis_derivatives(degree, &left, &right, &mut ders);
+    let mut sums = vec![[0.0f64; 4]; basis_order + 1];
+    for j in 0..=degree {
+        let i = knots.pole_index(first, j);
+        let p = poles.points[i];
+        let weight = poles.weights.map_or(1.0, |weights| weights[i]);
+        for (row, sum) in ders.iter().zip(sums.iter_mut()) {
+            let b = row[j] * weight;
+            for (c, s) in sum.iter_mut().enumerate().take(G::DIM) {
+                *s += b * G::coord(p, c);
+            }
+            sum[3] += b;
+        }
+    }
+    let homogeneous = |k: usize| vector_of::<G>(sums.get(k).copied().unwrap_or([0.0; 4]));
+    if poles.weights.is_none() {
+        return homogeneous(order);
+    }
+    let inverse = 1.0 / sums[0][3];
+    let mut curve: Vec<G::Vector> = Vec::with_capacity(order + 1);
+    for k in 0..=order {
+        let mut value = homogeneous(k);
+        let mut binomial = 1.0;
+        for i in 1..=k.min(degree) {
+            binomial = binomial * (k + 1 - i) as f64 / i as f64;
+            value = value - curve[k - i] * (binomial * sums[i][3]);
+        }
+        curve.push(value * inverse);
+    }
+    curve[order]
+}
+
+/// The bounds for refining from `t` (within `[lo, lo + period]`): each
+/// region of [`KnotVector::smooth_regions`] containing `t` (two at a
+/// crease), with `t` shifted by the period into those crossing a periodic
+/// seam; a single unbounded entry when `regions` is `None`.
+pub(crate) fn regions_at(
+    regions: &Option<Vec<(f64, f64)>>,
+    t: f64,
+    period: Option<f64>,
+) -> Vec<(Option<(f64, f64)>, f64)> {
+    let Some(regions) = regions else {
+        return vec![(None, t)];
+    };
+    let mut out = Vec::new();
+    for &(a, b) in regions {
+        let shifted = std::iter::once(t).chain(period.map(|p| t + p));
+        if let Some(x) = shifted.into_iter().find(|&x| a <= x && x <= b) {
+            out.push((Some((a, b)), x));
+        }
+    }
+    out
+}
+
+/// The parameter at which to evaluate derivatives for a refinement
+/// bounded to `bounds`: `x` itself, except exactly at the upper bound,
+/// where the next float down selects the span on the left (evaluation
+/// takes the span on the right of a knot, which beyond a crease is not
+/// the region being refined).
+pub(crate) fn inward(x: f64, bounds: Option<(f64, f64)>) -> f64 {
+    match bounds {
+        Some((_, hi)) if x >= hi => x.next_down(),
+        _ => x,
+    }
+}
+
+/// Bounding box `[min.., max..]` of the `degree + 1` poles of every span
+/// between consecutive `breaks` (each span lies in it, by the convex hull
+/// property; weights are positive). A 2D shape's boxes span the plane's
+/// coordinates alone, `z` being zero.
+pub(crate) fn span_boxes<G: PolePoint>(
+    knots: &KnotVector,
+    poles: Poles<G>,
+    breaks: &[f64],
+) -> Vec<[f64; 6]> {
+    fn boxes<const N: usize, G: PolePoint>(
+        knots: &KnotVector,
+        poles: Poles<G>,
+        breaks: &[f64],
+    ) -> Vec<[f64; 6]> {
+        let (mut left, mut right) = ([0.0f64; N], [0.0f64; N]);
+        breaks
+            .windows(2)
+            .map(|span| {
+                // The midpoint's span is exactly this one.
+                let first = knots.span_knots(0.5 * (span[0] + span[1]), &mut left, &mut right);
+                let (mut lo, mut hi) = ([f64::INFINITY; 3], [f64::NEG_INFINITY; 3]);
+                for j in 0..=knots.degree {
+                    let p = poles.points[wrap(first + j, knots.pole_count, knots.periodic)];
+                    for (c, (lo, hi)) in lo.iter_mut().zip(hi.iter_mut()).enumerate().take(G::DIM) {
+                        let x = G::coord(p, c);
+                        *lo = lo.min(x);
+                        *hi = hi.max(x);
+                    }
+                }
+                std::array::from_fn(|c| match c {
+                    // A plane shape lies in `z = 0`, its boxes there too.
+                    c if c < G::DIM => lo[c],
+                    c if (3..3 + G::DIM).contains(&c) => hi[c - 3],
+                    _ => 0.0,
+                })
+            })
+            .collect()
+    }
+    if knots.degree < SMALL {
+        boxes::<SMALL, G>(knots, poles, breaks)
+    } else {
+        boxes::<LARGE, G>(knots, poles, breaks)
+    }
+}
+
+/// Homogeneous Bernstein control points `(x w, y w, z w, w)` (`w = 1` if
+/// nonrational), over its own parameter interval, of the polynomial piece
+/// on the span containing `u` (pass a parameter inside the span), into
+/// `out[..=degree]`: the span's poles mapped by
+/// [`KnotVector::bezier_matrix`]. A 2D piece lies at `z = 0`: one layout
+/// for the algorithms that run on either tier.
+pub(crate) fn span_bezier<G: PolePoint>(
+    knots: &KnotVector,
+    poles: Poles<G>,
+    u: f64,
+    out: &mut [[f64; 4]],
+) {
+    fn bezier<const N: usize, G: PolePoint>(
+        knots: &KnotVector,
+        poles: Poles<G>,
+        u: f64,
+        out: &mut [[f64; 4]],
+    ) {
+        let degree = knots.degree;
+        let mut matrix = [[0.0f64; N]; N];
+        let first = knots.bezier_matrix(u, &mut matrix);
+        let mut local = [[0.0f64; 4]; N];
+        for (j, pole) in local.iter_mut().enumerate().take(degree + 1) {
+            *pole = poles
+                .homogeneous(wrap(first + j, knots.pole_count, knots.periodic))
+                .lanes();
+        }
+        for (point, row) in out.iter_mut().zip(&matrix).take(degree + 1) {
+            *point = [0.0; 4];
+            for (&m, pole) in row.iter().zip(&local).take(degree + 1) {
+                for c in 0..4 {
+                    point[c] += m * pole[c];
+                }
+            }
+        }
+    }
+    if knots.degree < SMALL {
+        bezier::<SMALL, G>(knots, poles, u, out);
+    } else {
+        bezier::<LARGE, G>(knots, poles, u, out);
+    }
+}
+
+/// How the distance to a point behaves at the ends of one knot span.
+pub(crate) struct SpanEnds {
+    /// Distances at the span start and end.
+    pub(crate) distance: [f64; 2],
+    /// Whether the distance does not fall moving into the span from its
+    /// start.
+    pub(crate) start_rising: bool,
+    /// Whether the distance does not rise moving to the span end.
+    pub(crate) end_falling: bool,
+}
+
+/// Scans the knot span `[a, b]` for minima of the distance to `point`:
+/// pushes every interior local minimum (refined) to `minima` and returns
+/// how the distance behaves at the span ends.
+///
+/// With the span's Bernstein control points, the homogeneous offset
+/// `A = P_w - point * w` and the weight `w` are polynomials of the
+/// degree `p`, and `d/dt |A / w|^2` has the sign of `G = (A' . A) w -
+/// |A|^2 w'` (`A' . A` if nonrational), of degree `3p - 1` (`2p - 1`).
+/// Interior minima are the roots where `G` rises through zero. A 2D
+/// shape scans as embedded at `z = 0`: the query's spare coordinate
+/// zero, so its lanes are the coordinate sums and the weight, no `A`
+/// lane ever reaching the spare.
+pub(crate) fn scan_span<G: TierPoint>(
+    knots: &KnotVector,
+    poles: Poles<G>,
+    point: G,
+    a: f64,
+    b: f64,
+    minima: &mut Vec<f64>,
+) -> SpanEnds {
+    // `G` has up to `3 * degree` coefficients.
+    const WIDE: usize = 3 * SMALL;
+    if knots.degree < SMALL {
+        scan_span_sized::<WIDE, G>(knots, poles, point, a, b, minima)
+    } else {
+        scan_span_sized::<CAPACITY, G>(knots, poles, point, a, b, minima)
+    }
+}
+
+fn scan_span_sized<const N: usize, G: TierPoint>(
+    knots: &KnotVector,
+    poles: Poles<G>,
+    point: G,
+    a: f64,
+    b: f64,
+    minima: &mut Vec<f64>,
+) -> SpanEnds {
+    let p = knots.degree();
+    let rational = poles.weights.is_some();
+    let mut points = [[0.0; 4]; LARGE];
+    span_bezier(knots, poles, 0.5 * (a + b), &mut points);
+    let mut bezier = [[0.0; N]; 3];
+    let mut weight = [1.0; N];
+    for (k, lanes) in points.iter().enumerate().take(p + 1) {
+        for c in 0..3 {
+            bezier[c][k] = lanes[c];
+        }
+        weight[k] = lanes[3];
+    }
+    let q: [f64; 3] = std::array::from_fn(|c| if c < G::DIM { point.coord(c) } else { 0.0 });
+    // Offsets `A` per coordinate and their differences (`A'` up to the
+    // factor `p`, as `w'`), scaled; `magnitude` bounds their rounding.
+    let mut offset = [[0.0; N]; 3];
+    let mut slope = [[0.0; N]; 3];
+    let mut magnitude: f64 = 0.0;
+    for c in 0..3 {
+        for k in 0..=p {
+            offset[c][k] = bezier[c][k] - q[c] * weight[k];
+            magnitude = magnitude.max(bezier[c][k].abs() + q[c].abs() * weight[k]);
+        }
+        for k in 0..p {
+            slope[c][k] = offset[c][k + 1] - offset[c][k];
+        }
+        scale(&mut offset[c][..=p]);
+        scale(&mut slope[c][..p]);
+    }
+    // `A' . A` (degree `2p - 1`) and, if rational, `|A|^2` (`2p`).
+    let mut g = [0.0; N];
+    let degree_g = if rational { 3 * p - 1 } else { 2 * p - 1 };
+    if rational {
+        let mut dot = [0.0; N];
+        let mut square = [0.0; N];
+        for c in 0..3 {
+            add_product(&slope[c][..p], &offset[c][..=p], 1.0, &mut dot);
+            add_product(&offset[c][..=p], &offset[c][..=p], 1.0, &mut square);
+        }
+        let mut weight_slope = [0.0; N];
+        for k in 0..p {
+            weight_slope[k] = weight[k + 1] - weight[k];
+        }
+        let mut scaled_weight = weight;
+        scale(&mut scaled_weight[..=p]);
+        scale(&mut weight_slope[..p]);
+        add_product(&dot[..2 * p], &scaled_weight[..=p], 1.0, &mut g);
+        add_product(&square[..=2 * p], &weight_slope[..p], -1.0, &mut g);
+    } else {
+        for c in 0..3 {
+            add_product(&slope[c][..p], &offset[c][..=p], 1.0, &mut g);
+        }
+    }
+    let g = &mut g[..=degree_g];
+    unscale(g);
+    let max_weight = weight[..=p].iter().fold(0.0f64, |m, &w| m.max(w));
+    let tiny = 1e3 * f64::EPSILON * magnitude * magnitude * max_weight;
+    let h = b - a;
+    rising_roots::<N>(g, tiny, |s0, s1, s| {
+        let bounds = (a + s0 * h, if s1 == 1.0 { b } else { a + s1 * h });
+        minima.push(refine_projection(
+            knots,
+            poles,
+            point,
+            a + s * h,
+            Some(bounds),
+        ));
+    });
+    // The curve passes through the end control points (whose scaled
+    // offsets are unscaled: `C(p, 0) = C(p, p) = 1`).
+    let end_distance = |k: usize| {
+        (0..3)
+            .map(|c| (offset[c][k] / weight[k]).powi(2))
+            .sum::<f64>()
+            .sqrt()
+    };
+    SpanEnds {
+        distance: [end_distance(0), end_distance(p)],
+        start_rising: g[0] >= -tiny,
+        end_falling: g[degree_g] <= tiny,
+    }
+}
+
+/// Bounded Newton minimisation of `|C(t) - point|^2` from `t` with exact
+/// second derivatives, within `bounds` (`None`: unbounded, for a smooth
+/// periodic curve).
+pub(crate) fn refine_projection<G: TierPoint>(
+    knots: &KnotVector,
+    poles: Poles<G>,
+    point: G,
+    t: f64,
+    bounds: Option<(f64, f64)>,
+) -> f64 {
+    let objective = |t: f64| {
+        let [c, d1, d2] = derivatives::<2, G>(knots, poles, inward(t, bounds));
+        let r = c - (point - G::ORIGIN);
+        (0.5 * r.dot(r), d1.dot(r), d1.dot(d1) + d2.dot(r))
+    };
+    newton_min_1d(objective, t, bounds, 1e-14, 100)
+}
+
+/// Validates a B-spline direction (shared by curves and surface directions).
+///
+/// Checks degree bounds, distinct knot count, strict monotonicity,
+/// multiplicity bounds, periodic end-multiplicity match, and the pole-count
+/// relation. Does *not* validate weights (see [`BSplineConstructionError`]).
+pub(crate) fn validate_direction(
+    degree: usize,
+    n_poles: usize,
+    knots: &[f64],
+    mults: &[u32],
+    periodic: bool,
+) -> Result<(), BSplineConstructionError> {
+    if !(1..=MAX_DEGREE).contains(&degree) {
+        return Err(BSplineConstructionError::InvalidDegree);
+    }
+    if knots.len() < 2 || mults.len() < 2 || knots.len() != mults.len() {
+        return Err(BSplineConstructionError::TooFewKnots);
+    }
+    for pair in knots.windows(2) {
+        if pair[1] <= pair[0] {
+            return Err(BSplineConstructionError::KnotsNotIncreasing);
+        }
+    }
+
+    let last = mults.len() - 1;
+    let deg = degree as u32;
+    if periodic {
+        if mults[0] != mults[last] {
+            return Err(BSplineConstructionError::PeriodicEndMultiplicityMismatch);
+        }
+        if mults.iter().any(|&m| m > deg) {
+            return Err(BSplineConstructionError::MultiplicityTooLarge);
+        }
+    } else {
+        if mults[0] > deg + 1 || mults[last] > deg + 1 {
+            return Err(BSplineConstructionError::MultiplicityTooLarge);
+        }
+        if mults[1..last].iter().any(|&m| m > deg) {
+            return Err(BSplineConstructionError::MultiplicityTooLarge);
+        }
+    }
+
+    let sum_mults: u32 = mults.iter().sum();
+    let expected = if periodic {
+        sum_mults as i64 - mults[last] as i64
+    } else {
+        sum_mults as i64 - degree as i64 - 1
+    };
+    if expected < 0 || n_poles as i64 != expected {
+        return Err(BSplineConstructionError::PoleCountMismatch);
+    }
+    Ok(())
+}
+
+/// The continuity order a knot of `multiplicity` guarantees in a
+/// direction of `degree`: `degree − multiplicity`. Validation caps every
+/// knot inside the range at `degree`, so this never underflows there.
+fn knot_continuity(degree: usize, multiplicity: u32) -> Continuity {
+    Continuity::Order((degree as u32).saturating_sub(multiplicity))
+}
+
+/// Continuity order `C^n` at parameter `u` for one knot direction:
+/// `degree − multiplicity` at a knot within `tol.parametric` (relative to
+/// the knot's magnitude), smooth anywhere else. A periodic
+/// direction wraps `u` into its period first, so its seam is a knot like
+/// any other. A non-periodic direction reports smooth at and beyond its
+/// bounds, where the shape is seen from the inside only.
+pub(crate) fn continuity_at(
+    degree: usize,
+    knots: &[f64],
+    multiplicities: &[u32],
+    bounds: (f64, f64),
+    periodic: bool,
+    u: f64,
+    tol: Tolerance,
+) -> Continuity {
+    let (first, last) = bounds;
+    let u = if periodic {
+        in_period(u, first, last)
+    } else {
+        u
+    };
+    let on_knot = knots
+        .iter()
+        .zip(multiplicities)
+        .find(|(knot, _)| (u - **knot).abs() <= tol.parametric * (1.0 + knot.abs()));
+    match on_knot {
+        Some((&knot, _)) if !periodic && (knot <= first || knot >= last) => Continuity::Smooth,
+        Some((_, &multiplicity)) => knot_continuity(degree, multiplicity),
+        None => Continuity::Smooth,
+    }
+}
+
+/// Minimum continuity order over a whole direction: the worst knot a
+/// periodic direction holds (its seam included), or the worst knot
+/// strictly inside a non-periodic direction's bounds (smooth when
+/// there is none).
+pub(crate) fn min_continuity(
+    degree: usize,
+    knots: &[f64],
+    multiplicities: &[u32],
+    bounds: (f64, f64),
+    periodic: bool,
+) -> Continuity {
+    if periodic {
+        let period = bounds.1 - bounds.0;
+        return min_continuity_within(degree, knots, multiplicities, Some(period), bounds)
+            .min(knot_continuity(degree, multiplicities[0]));
+    }
+    min_continuity_within(degree, knots, multiplicities, None, bounds)
+}
+
+/// Minimum continuity order over the open range `(first, last)` of a
+/// direction: the worst knot strictly inside it, a periodic direction's
+/// knots shifted by whole periods into the range (which spans at most one
+/// period). Smooth when no knot falls inside.
+pub(crate) fn min_continuity_within(
+    degree: usize,
+    knots: &[f64],
+    multiplicities: &[u32],
+    period: Option<f64>,
+    (first, last): (f64, f64),
+) -> Continuity {
+    knots
+        .iter()
+        .zip(multiplicities)
+        .filter(|(knot, _)| {
+            let shifted = match period {
+                Some(period) => first + (**knot - first).rem_euclid(period),
+                None => **knot,
+            };
+            first < shifted && shifted < last
+        })
+        .map(|(_, &multiplicity)| knot_continuity(degree, multiplicity))
+        .min()
+        .unwrap_or(Continuity::Smooth)
+}
+
+#[cfg(test)]
+mod tests;
