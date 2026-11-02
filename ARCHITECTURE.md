@@ -70,7 +70,8 @@ src/
 │   │   │                    the one driver of the searches on Bézier pieces (the queue of
 │   │   │                    pairs, the budget of halvings, the pairs left unsettled);
 │   │   │                    *_hull.rs and patch_pairs.rs bring their tests on a pair (ADR 0019);
-│   │   │                    curve_curve.rs reads its hits from the extrema at zero distance.
+│   │   │                    curve_curve.rs reads its hits from the extrema at zero distance;
+│   │   │                    parameter_domain.rs is a curve's bounds or period for the searches.
 │   │   │                    surface_patches.rs turns any surface into Bézier patches with a
 │   │   │                    map back to its own parameters (ADR 0026).
 │   │   │                    marching.rs composes marching/: the surface pair (pair.rs), the
