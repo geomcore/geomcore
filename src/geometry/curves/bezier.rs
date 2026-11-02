@@ -4,7 +4,7 @@
 //! A [`BezierCurve`] is a clamped, non-periodic B-spline of a single knot
 //! span, held by the engine of [`BSplineCurve`](crate::BSplineCurve) (ADR
 //! 0014): evaluation, projection, length, editing and discretization are
-//! those of the shared spline, so the two cannot disagree. What a Bézier
+//! those of the shared B-spline engine, so the two cannot disagree. What a Bézier
 //! curve does not expose is the knot vector: it has no interior knots, no
 //! periodicity and no knot editing. [`GenericBezierCurve::to_bspline`]
 //! gives the B-spline when those are wanted.
@@ -12,7 +12,6 @@
 use crate::base::tier::{TierPoint, impl_for_both_tiers};
 use crate::geometry::curves::ReversibleCurve;
 use crate::geometry::curves::bspline::{BSplineSplitError, DegreeElevationError};
-use crate::geometry::curves::spline::Spline;
 use crate::geometry::curves::{
     GenericBSplineCurve, ParametricCurve, ParametricCurve2D, PointExtrema, PointExtrema2D, Side,
 };
@@ -154,7 +153,7 @@ impl<P: TierPoint> GenericBezierCurve<P> {
         degree: usize,
         poles: Vec<P>,
     ) -> Result<GenericBezierCurve<P>, BezierConstructionError> {
-        Spline::bezier(degree, poles, None).map(GenericBezierCurve::from_spline)
+        GenericBSplineCurve::new_bezier(degree, poles, None).map(GenericBezierCurve::from_span)
     }
 
     /// Creates a rational Bézier curve of the given `degree` over `[0, 1]`
@@ -188,7 +187,8 @@ impl<P: TierPoint> GenericBezierCurve<P> {
         poles: Vec<P>,
         weights: Vec<f64>,
     ) -> Result<GenericBezierCurve<P>, BezierConstructionError> {
-        Spline::bezier(degree, poles, Some(weights)).map(GenericBezierCurve::from_spline)
+        GenericBSplineCurve::new_bezier(degree, poles, Some(weights))
+            .map(GenericBezierCurve::from_span)
     }
 
     /// The Bézier curve a B-spline is: one clamped, non-periodic span,
@@ -224,7 +224,7 @@ impl<P: TierPoint> GenericBezierCurve<P> {
     pub fn from_bspline(
         curve: &GenericBSplineCurve<P>,
     ) -> Result<GenericBezierCurve<P>, BezierConstructionError> {
-        if curve.spline().is_bezier() {
+        if curve.is_bezier() {
             Ok(GenericBezierCurve(curve.clone()))
         } else {
             Err(BezierConstructionError::NotABezier)
@@ -258,7 +258,7 @@ impl<P: TierPoint> GenericBezierCurve<P> {
     /// assert_eq!(BezierCurve::new(1, poles).unwrap().degree(), 1);
     /// ```
     pub fn degree(&self) -> usize {
-        self.spline().degree()
+        self.0.degree()
     }
 
     /// Returns whether the curve is rational (has per-pole weights).
@@ -271,7 +271,7 @@ impl<P: TierPoint> GenericBezierCurve<P> {
     /// assert!(!BezierCurve::new(1, poles).unwrap().is_rational());
     /// ```
     pub fn is_rational(&self) -> bool {
-        self.spline().is_rational()
+        self.0.is_rational()
     }
 
     /// Returns the `degree + 1` control poles.
@@ -285,7 +285,7 @@ impl<P: TierPoint> GenericBezierCurve<P> {
     /// assert_eq!(curve.poles(), poles.as_slice());
     /// ```
     pub fn poles(&self) -> &[P] {
-        self.spline().poles()
+        self.0.poles()
     }
 
     /// Returns the per-pole weights, or `None` if the curve is not rational.
@@ -298,7 +298,7 @@ impl<P: TierPoint> GenericBezierCurve<P> {
     /// assert_eq!(BezierCurve::new(1, poles).unwrap().weights(), None);
     /// ```
     pub fn weights(&self) -> Option<&[f64]> {
-        self.spline().weights()
+        self.0.weights()
     }
 
     /// Returns the piece of the curve either side of `u`, over
@@ -335,10 +335,10 @@ impl<P: TierPoint> GenericBezierCurve<P> {
         &self,
         u: f64,
     ) -> Result<(GenericBezierCurve<P>, GenericBezierCurve<P>), BSplineSplitError> {
-        self.spline().split_at(u).map(|(left, right)| {
+        self.0.split_at(u).map(|(left, right)| {
             (
-                GenericBezierCurve::from_spline(left),
-                GenericBezierCurve::from_spline(right),
+                GenericBezierCurve::from_span(left),
+                GenericBezierCurve::from_span(right),
             )
         })
     }
@@ -374,9 +374,9 @@ impl<P: TierPoint> GenericBezierCurve<P> {
         &self,
         amount: usize,
     ) -> Result<GenericBezierCurve<P>, DegreeElevationError> {
-        self.spline()
+        self.0
             .elevate_degree(amount)
-            .map(GenericBezierCurve::from_spline)
+            .map(GenericBezierCurve::from_span)
     }
 
     /// Evaluates the point and the first derivative at parameter `u` from one
@@ -396,7 +396,7 @@ impl<P: TierPoint> GenericBezierCurve<P> {
     /// );
     /// ```
     pub fn eval_d1_sided(&self, u: f64, side: Side) -> (P, P::Vector) {
-        self.spline().eval_d1_sided(u, side)
+        self.0.eval_d1_sided(u, side)
     }
 
     /// Evaluates the derivative of the given `order` at parameter `u` from
@@ -420,7 +420,7 @@ impl<P: TierPoint> GenericBezierCurve<P> {
     /// assert_eq!(curve.eval_derivative_sided(0.5, 2, Side::Below), Vector::new(0.0, -4.0, 0.0));
     /// ```
     pub fn eval_derivative_sided(&self, u: f64, order: u32, side: Side) -> P::Vector {
-        self.spline().eval_derivative_sided(u, order, side)
+        self.0.eval_derivative_sided(u, order, side)
     }
 
     /// Evaluates the point and the first and second derivatives at
@@ -441,7 +441,7 @@ impl<P: TierPoint> GenericBezierCurve<P> {
     /// assert_eq!(curve.eval_d2_sided(0.5, Side::Above), curve.eval_d2(0.5));
     /// ```
     pub fn eval_d2_sided(&self, u: f64, side: Side) -> (P, P::Vector, P::Vector) {
-        self.spline().eval_d2_sided(u, side)
+        self.0.eval_d2_sided(u, side)
     }
 
     /// The length of the curve over its bounds, within `max_error` as far
@@ -464,26 +464,14 @@ impl<P: TierPoint> GenericBezierCurve<P> {
     /// assert!((curve.length(1e-12) - exact).abs() <= 1e-12);
     /// ```
     pub fn length(&self, max_error: f64) -> f64 {
-        self.spline().length(max_error)
-    }
-
-    /// The curve wrapping `spline`, a single clamped span (as
-    /// [`Spline::to_bezier_pieces`] makes).
-    pub(crate) fn from_spline(spline: Spline<P>) -> GenericBezierCurve<P> {
-        debug_assert!(spline.is_bezier());
-        GenericBezierCurve(GenericBSplineCurve::from_spline(spline))
+        self.0.length(max_error)
     }
 
     /// The curve wrapping `curve`, a B-spline of a single clamped span
     /// (an iso-curve of a Bézier surface).
     pub(crate) fn from_span(curve: GenericBSplineCurve<P>) -> GenericBezierCurve<P> {
-        debug_assert!(curve.spline().is_bezier());
+        debug_assert!(curve.is_bezier());
         GenericBezierCurve(curve)
-    }
-
-    /// The curve as the implementation shared by both tiers.
-    pub(crate) fn spline(&self) -> &Spline<P> {
-        self.0.spline()
     }
 
     /// The curve as the B-spline it is, borrowed so intersections take the
@@ -496,11 +484,11 @@ impl<P: TierPoint> GenericBezierCurve<P> {
 impl_for_both_tiers! {
     impl PointExtrema, PointExtrema2D for GenericBezierCurve {
         fn extrema(&self, point: P, tol: Tolerance) -> Vec<CurveProjection<P>> {
-            self.spline().extrema(point, tol)
+            self.0.extrema(point, tol)
         }
 
         fn project_point(&self, point: P, tol: Tolerance) -> CurveProjection<P> {
-            self.spline().project_point(point, tol)
+            self.0.project_point(point, tol)
         }
     }
 }
@@ -509,23 +497,23 @@ impl_for_both_tiers! {
     impl ParametricCurve, ParametricCurve2D for GenericBezierCurve {
         #[inline]
         fn eval_point(&self, u: f64) -> P {
-            self.spline().eval_point(u)
+            self.0.eval_point(u)
         }
 
         fn eval_derivative(&self, u: f64, order: u32) -> V {
-            self.spline().eval_derivative(u, order)
+            self.0.eval_derivative(u, order)
         }
 
         fn eval_d1(&self, u: f64) -> (P, V) {
-            self.spline().eval_d1(u)
+            self.0.eval_d1(u)
         }
 
         fn eval_d2(&self, u: f64) -> (P, V, V) {
-            self.spline().eval_d2(u)
+            self.0.eval_d2(u)
         }
 
         fn bounds(&self) -> (f64, f64) {
-            self.spline().bounds()
+            self.0.bounds()
         }
 
         fn period(&self) -> Option<f64> {
@@ -533,15 +521,15 @@ impl_for_both_tiers! {
         }
 
         fn is_closed(&self, tol: Tolerance) -> bool {
-            self.spline().is_closed(tol)
+            self.0.is_closed(tol)
         }
 
         fn continuity(&self, u: f64, tol: Tolerance) -> Continuity {
-            self.spline().continuity(u, tol)
+            self.0.continuity(u, tol)
         }
 
         fn min_continuity(&self) -> Continuity {
-            self.spline().min_continuity()
+            self.0.min_continuity()
         }
 
         fn as_bspline(&self) -> Option<&GenericBSplineCurve<P>> {
@@ -553,12 +541,12 @@ impl_for_both_tiers! {
 impl<P: TierPoint> ReversibleCurve for GenericBezierCurve<P> {
     /// The poles (and weights) are listed in reverse order.
     fn reversed(&self) -> GenericBezierCurve<P> {
-        GenericBezierCurve::from_spline(self.spline().reversed())
+        GenericBezierCurve::from_span(self.0.reversed())
     }
 
     /// `first + last - u` over the bounds.
     fn reversed_parameter(&self, u: f64) -> f64 {
-        let (first, last) = self.spline().bounds();
+        let (first, last) = self.0.knot_bounds();
         first + last - u
     }
 }
@@ -567,9 +555,9 @@ impl Transformable for BezierCurve {
     /// Every pole maps point-wise; the degree and weights are kept, and so
     /// is the parameter.
     fn transformed(&self, transform: Transform) -> Result<BezierCurve, TransformError> {
-        self.spline()
+        self.0
             .transformed(transform)
-            .map(GenericBezierCurve::from_spline)
+            .map(GenericBezierCurve::from_span)
     }
 }
 

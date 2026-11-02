@@ -1,18 +1,26 @@
 //! B-spline (NURBS) curves of both tiers: de Boor evaluation with
-//! derivatives, rational (weighted) poles, and periodic curves, a thin
-//! wrapper over [`crate::math::bspline::curve`].
+//! derivatives, rational (weighted) poles, and periodic curves, built on
+//! [`crate::math::bspline::curve`].
 //!
 //! The poles are stored once, with a separate weight per pole if rational;
 //! the knot vector is expanded into its flat knot sequence at construction,
-//! so evaluation never re-derives it.
+//! so evaluation never re-derives it. The curve is generic over its tier's
+//! point, so validation, editing, evaluation, length, projection and
+//! discretization exist once for both tiers (ADR 0014).
 
 use crate::base::tier::{TierPoint, impl_for_both_tiers};
 use crate::geometry::curves::ReversibleCurve;
-use crate::geometry::curves::spline::Spline;
+use crate::geometry::curves::bezier::BezierConstructionError;
 use crate::geometry::curves::{
     GenericBezierCurve, ParametricCurve, ParametricCurve2D, PointExtrema, PointExtrema2D, Side,
 };
-use crate::operations::projection::CurveProjection;
+use crate::math::bspline::curve as math;
+use crate::math::bspline::curve::SpanEnds;
+use crate::math::bspline::editing::{self, Elevation, Insertion, Lanes};
+use crate::math::bspline::poles::PolePoint;
+use crate::math::numeric::boxtree::{BoxTree, Lazy};
+use crate::math::numeric::quadrature;
+use crate::operations::projection::{CurveProjection, snap_distance};
 use crate::{Continuity, Point, Point2D, Tolerance, Transform};
 use crate::{TransformError, Transformable};
 use std::fmt;
@@ -210,7 +218,15 @@ impl std::error::Error for BSplineSplitError {}
 /// `weight` per pole and is evaluated in homogeneous coordinates, then
 /// projected back to Euclidean space via the quotient rule.
 #[derive(Debug, Clone, PartialEq)]
-pub struct GenericBSplineCurve<P: TierPoint>(Spline<P>);
+pub struct GenericBSplineCurve<P: TierPoint> {
+    knots: math::KnotVector,
+    poles: Vec<P>,
+    /// One weight per pole if rational.
+    weights: Option<Vec<f64>>,
+    /// Bounding-box hierarchy of the knot spans, built on the first
+    /// projection.
+    spans: Lazy<SpanTree>,
+}
 
 /// A B-spline (optionally rational, optionally periodic) curve in space,
 /// evaluated by de Boor's algorithm.
@@ -284,6 +300,13 @@ pub type BSplineCurve = GenericBSplineCurve<Point>;
 /// ```
 pub type BSplineCurve2D = GenericBSplineCurve<Point2D>;
 
+/// The knot-span boundaries of a curve and the box hierarchy over its spans.
+#[derive(Clone)]
+struct SpanTree {
+    breaks: Vec<f64>,
+    tree: BoxTree,
+}
+
 impl<P: TierPoint> GenericBSplineCurve<P> {
     /// Creates a non-rational (polynomial) B-spline curve.
     ///
@@ -310,7 +333,7 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
         multiplicities: Vec<u32>,
         periodic: bool,
     ) -> Result<GenericBSplineCurve<P>, BSplineConstructionError> {
-        Spline::new(degree, poles, None, knots, multiplicities, periodic).map(GenericBSplineCurve)
+        Self::from_parts(degree, poles, None, knots, multiplicities, periodic)
     }
 
     /// Creates a rational (NURBS) B-spline curve with one weight per pole.
@@ -356,7 +379,7 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
         multiplicities: Vec<u32>,
         periodic: bool,
     ) -> Result<GenericBSplineCurve<P>, BSplineConstructionError> {
-        Spline::new(
+        Self::from_parts(
             degree,
             poles,
             Some(weights),
@@ -364,7 +387,6 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
             multiplicities,
             periodic,
         )
-        .map(GenericBSplineCurve)
     }
 
     /// A curve from parts already known to be consistent (as
@@ -380,15 +402,9 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
         flat: Vec<f64>,
         periodic: bool,
     ) -> GenericBSplineCurve<P> {
-        GenericBSplineCurve(Spline::from_validated_parts(
-            degree,
-            poles,
-            weights,
-            knots,
-            multiplicities,
-            flat,
-            periodic,
-        ))
+        let knots = math::KnotVector::from_validated(degree, knots, multiplicities, flat, periodic);
+        debug_assert_eq!(knots.pole_count(), poles.len());
+        Self::of(knots, poles, weights)
     }
 
     /// Returns the curve's degree.
@@ -402,7 +418,7 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
     /// assert_eq!(curve.degree(), 1);
     /// ```
     pub fn degree(&self) -> usize {
-        self.0.degree()
+        self.knots.degree()
     }
 
     /// Returns whether the curve is rational (has per-pole weights).
@@ -416,7 +432,7 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
     /// assert!(!curve.is_rational());
     /// ```
     pub fn is_rational(&self) -> bool {
-        self.0.is_rational()
+        self.weights.is_some()
     }
 
     /// Returns the control poles.
@@ -430,7 +446,7 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
     /// assert_eq!(curve.poles(), poles.as_slice());
     /// ```
     pub fn poles(&self) -> &[P] {
-        self.0.poles()
+        &self.poles
     }
 
     /// Returns the per-pole weights, or `None` if the curve is not rational.
@@ -444,7 +460,7 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
     /// assert_eq!(curve.weights(), None);
     /// ```
     pub fn weights(&self) -> Option<&[f64]> {
-        self.0.weights()
+        self.weights.as_deref()
     }
 
     /// Returns the (non-flattened) knot values.
@@ -458,7 +474,7 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
     /// assert_eq!(curve.knots(), &[0.0, 1.0]);
     /// ```
     pub fn knots(&self) -> &[f64] {
-        self.0.knots()
+        self.knots.knots()
     }
 
     /// Returns the knot multiplicities.
@@ -472,7 +488,7 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
     /// assert_eq!(curve.multiplicities(), &[2, 2]);
     /// ```
     pub fn multiplicities(&self) -> &[u32] {
-        self.0.multiplicities()
+        self.knots.multiplicities()
     }
 
     /// Returns the same curve with the knot `u` inserted `times` times:
@@ -526,7 +542,9 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
         u: f64,
         times: u32,
     ) -> Result<GenericBSplineCurve<P>, KnotInsertionError> {
-        self.0.insert_knot(u, times).map(GenericBSplineCurve)
+        let copies = [u; math::MAX_DEGREE + 1];
+        // More copies than any multiplicity allows fail the same way.
+        self.refine_knots(&copies[..(times as usize).min(copies.len())])
     }
 
     /// Returns the same curve with all of `knots` inserted in one pass:
@@ -576,7 +594,17 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
         &self,
         knots: &[f64],
     ) -> Result<GenericBSplineCurve<P>, KnotInsertionError> {
-        self.0.refine_knots(knots).map(GenericBSplineCurve)
+        if knots.is_empty() {
+            return Ok(self.clone());
+        }
+        let (direction, poles, weights) = editing::edit(
+            &Insertion(knots),
+            &self.knots,
+            &self.poles,
+            self.weights.as_deref(),
+            Lanes::CURVE,
+        )?;
+        Ok(Self::of(direction, poles, weights))
     }
 
     /// Returns the same curve with its degree raised by `amount`: it
@@ -630,7 +658,14 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
         &self,
         amount: usize,
     ) -> Result<GenericBSplineCurve<P>, DegreeElevationError> {
-        self.0.elevate_degree(amount).map(GenericBSplineCurve)
+        let (direction, poles, weights) = editing::edit(
+            &Elevation(amount),
+            &self.knots,
+            &self.poles,
+            self.weights.as_deref(),
+            Lanes::CURVE,
+        )?;
+        Ok(Self::of(direction, poles, weights))
     }
 
     /// Returns the curve with the knot `u` removed up to `times` times,
@@ -695,9 +730,13 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
         times: u32,
         max_deviation: f64,
     ) -> Result<(GenericBSplineCurve<P>, u32), KnotRemovalError> {
-        self.0
-            .remove_knot(u, times, max_deviation)
-            .map(|(curve, removed)| (GenericBSplineCurve(curve), removed))
+        let copies = [u; math::MAX_DEGREE + 1];
+        let copies = &copies[..(times as usize).min(copies.len())];
+        if copies.is_empty() {
+            editing::check_removal(&self.knots, &[u], max_deviation)?;
+        }
+        let (curve, removed) = self.remove_knots(copies, max_deviation)?;
+        Ok((curve, removed as u32))
     }
 
     /// Returns the curve with each of `knots` removed once, in order, a
@@ -742,9 +781,22 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
         knots: &[f64],
         max_deviation: f64,
     ) -> Result<(GenericBSplineCurve<P>, usize), KnotRemovalError> {
-        self.0
-            .remove_knots(knots, max_deviation)
-            .map(|(curve, removed)| (GenericBSplineCurve(curve), removed))
+        editing::check_removal(&self.knots, knots, max_deviation)?;
+        let removal = editing::remove_knots(
+            &self.knots,
+            &self.poles,
+            self.weights.as_deref(),
+            Lanes::CURVE,
+            knots,
+            max_deviation,
+        );
+        Ok(match removal {
+            Some(removed) => (
+                Self::of(removed.knots, removed.points, removed.weights),
+                removed.count,
+            ),
+            None => (self.clone(), 0),
+        })
     }
 
     /// Returns the polynomial (or rational) piece of each knot span within
@@ -773,7 +825,27 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
     /// assert!(pieces[1].eval_point(1.5).distance(curve.eval_point(1.5)) < 1e-12);
     /// ```
     pub fn to_bezier_pieces(&self) -> Vec<GenericBezierCurve<P>> {
-        self.0.to_bezier_pieces(GenericBezierCurve::from_spline)
+        self.wrapped_bezier_pieces(GenericBezierCurve::from_span)
+    }
+
+    /// The Bézier pieces, each built straight into its public type by
+    /// `wrap`, sparing a second pass that would move every piece.
+    pub(crate) fn wrapped_bezier_pieces<C>(&self, wrap: impl Fn(Self) -> C) -> Vec<C> {
+        let p = self.degree();
+        let mut pieces = Vec::with_capacity(self.knots.knots().len() - 1);
+        editing::curve_pieces(
+            &self.knots,
+            &self.poles,
+            self.weights.as_deref(),
+            |x, y, poles, weights| {
+                pieces.push(wrap(Self::of(
+                    math::KnotVector::bezier(p, x, y),
+                    poles,
+                    weights,
+                )));
+            },
+        );
+        pieces
     }
 
     /// Returns the piece of the curve over `[first, last]` as a clamped,
@@ -828,7 +900,12 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
         first: f64,
         last: f64,
     ) -> Result<GenericBSplineCurve<P>, BSplineSplitError> {
-        self.0.extract(first, last).map(GenericBSplineCurve)
+        editing::check_piece(&self.knots, first, last)?;
+        if editing::is_clamped_to(&self.knots, first, last) {
+            return Ok(self.clone());
+        }
+        let [piece] = self.cut(&[first, last]);
+        Ok(piece)
     }
 
     /// Splits the curve at `u` into the pieces over `[first, u]` and
@@ -872,9 +949,10 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
         &self,
         u: f64,
     ) -> Result<(GenericBSplineCurve<P>, GenericBSplineCurve<P>), BSplineSplitError> {
-        self.0
-            .split_at(u)
-            .map(|(left, right)| (GenericBSplineCurve(left), GenericBSplineCurve(right)))
+        editing::check_split(&self.knots, u)?;
+        let (first, last) = self.knots.bounds();
+        let [left, right] = self.cut(&[first, u, last]);
+        Ok((left, right))
     }
 
     /// Evaluates the point and the first derivative at parameter `u` from
@@ -903,7 +981,8 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
     /// assert_eq!(curve.eval_d1_sided(1.0, Side::Above).1, Vector::new(0.0, 1.0, 0.0));
     /// ```
     pub fn eval_d1_sided(&self, u: f64, side: Side) -> (P, P::Vector) {
-        self.0.eval_d1_sided(u, side)
+        let [c, d1, _] = math::derivatives_sided::<1, P>(&self.knots, self.pole_view(), u, side);
+        (P::ORIGIN + c, d1)
     }
 
     /// Evaluates the derivative of the given `order` at parameter `u`
@@ -932,14 +1011,26 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
     /// assert_eq!(curve.eval_derivative_sided(1.0, 1, Side::Above), Vector::new(2.0, -2.0, 0.0));
     /// ```
     pub fn eval_derivative_sided(&self, u: f64, order: u32, side: Side) -> P::Vector {
-        self.0.eval_derivative_sided(u, order, side)
+        match order {
+            0 => panic!("eval_derivative: order must be >= 1 (use eval_point for order 0)"),
+            1 => math::derivatives_sided::<1, P>(&self.knots, self.pole_view(), u, side)[1],
+            2 => math::derivatives_sided::<2, P>(&self.knots, self.pole_view(), u, side)[2],
+            _ => math::derivative_of_order(
+                &self.knots,
+                self.pole_view(),
+                u,
+                order as usize,
+                Some(side),
+            ),
+        }
     }
 
     /// Evaluates the point and the first and second derivatives at
     /// parameter `u` from one side, as
     /// [`eval_d1_sided`](Self::eval_d1_sided).
     pub fn eval_d2_sided(&self, u: f64, side: Side) -> (P, P::Vector, P::Vector) {
-        self.0.eval_d2_sided(u, side)
+        let [c, d1, d2] = math::derivatives_sided::<2, P>(&self.knots, self.pole_view(), u, side);
+        (P::ORIGIN + c, d1, d2)
     }
 
     /// The length of the curve over its bounds, within `max_error` as far
@@ -968,35 +1059,349 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
     /// assert!((curve.length(1e-12) - exact).abs() <= 1e-12);
     /// ```
     pub fn length(&self, max_error: f64) -> f64 {
-        self.0.length(max_error)
+        let (first, last) = self.knots.bounds();
+        let breaks = self.knots.breaks();
+        let degree = self.degree();
+        let mut net = [[0.0; 4]; math::LARGE];
+        breaks
+            .windows(2)
+            .map(|span| {
+                let (a, b) = (span[0], span[1]);
+                self.span_bezier_points(0.5 * (a + b), &mut net);
+                let net = &net[..=degree];
+                let share = max_error * (b - a) / (last - first);
+                quadrature::integrate(&|t| bezier_speed(net, t), 0.0, 1.0, share)
+            })
+            .sum()
     }
 
-    /// The curve wrapping `spline`.
-    pub(crate) fn from_spline(spline: Spline<P>) -> GenericBSplineCurve<P> {
-        GenericBSplineCurve(spline)
+    /// The parameter bounds of the curve, for the tier-generic code that
+    /// cannot reach the per-tier [`ParametricCurve::bounds`].
+    pub(crate) fn knot_bounds(&self) -> (f64, f64) {
+        self.knots.bounds()
     }
 
-    /// The curve as the implementation shared by both tiers.
-    pub(crate) fn spline(&self) -> &Spline<P> {
-        &self.0
+    /// Validates the parts: the weights (one positive weight per pole),
+    /// then the degree, knots and multiplicities against the pole count.
+    pub(crate) fn from_parts(
+        degree: usize,
+        poles: Vec<P>,
+        weights: Option<Vec<f64>>,
+        knots: Vec<f64>,
+        multiplicities: Vec<u32>,
+        periodic: bool,
+    ) -> Result<Self, BSplineConstructionError> {
+        if let Some(ws) = &weights {
+            if ws.len() != poles.len() {
+                return Err(BSplineConstructionError::WeightCountMismatch);
+            }
+            if ws.iter().any(|&w| w <= 0.0) {
+                return Err(BSplineConstructionError::NonPositiveWeight);
+            }
+        }
+        let knots = math::KnotVector::new(degree, knots, multiplicities, periodic, poles.len())?;
+        Ok(Self::of(knots, poles, weights))
+    }
+
+    /// The Bézier curve of `degree` over `[0, 1]`: one clamped span of
+    /// `degree + 1` poles. The weights, if any, are checked before the
+    /// degree and the pole count.
+    pub(crate) fn new_bezier(
+        degree: usize,
+        poles: Vec<P>,
+        weights: Option<Vec<f64>>,
+    ) -> Result<Self, BezierConstructionError> {
+        if let Some(ws) = &weights {
+            if ws.len() != poles.len() {
+                return Err(BezierConstructionError::WeightCountMismatch);
+            }
+            if ws.iter().any(|&w| w <= 0.0) {
+                return Err(BezierConstructionError::NonPositiveWeight);
+            }
+        }
+        if !(1..=math::MAX_DEGREE).contains(&degree) {
+            return Err(BezierConstructionError::InvalidDegree);
+        }
+        if poles.len() != degree + 1 {
+            return Err(BezierConstructionError::PoleCountMismatch);
+        }
+        let end = degree as u32 + 1;
+        Self::from_parts(
+            degree,
+            poles,
+            weights,
+            vec![0.0, 1.0],
+            vec![end, end],
+            false,
+        )
+        .map_err(|_| unreachable!("a Bézier span of degree + 1 poles is consistent"))
+    }
+
+    /// Whether the curve is one clamped, non-periodic span: its poles are
+    /// the Bézier control points of the whole curve.
+    pub(crate) fn is_bezier(&self) -> bool {
+        let end = self.degree() as u32 + 1;
+        !self.knots.is_periodic() && self.multiplicities() == [end, end]
+    }
+
+    fn of(knots: math::KnotVector, poles: Vec<P>, weights: Option<Vec<f64>>) -> Self {
+        Self {
+            knots,
+            poles,
+            weights,
+            spans: Lazy::default(),
+        }
+    }
+
+    /// The curve with each pole mapped by `f`, the knots and weights kept.
+    pub(crate) fn map_poles(&self, f: impl Fn(P) -> P) -> Self {
+        let poles = self.poles.iter().map(|&p| f(p)).collect();
+        Self::of(self.knots.clone(), poles, self.weights.clone())
+    }
+
+    /// The curve with each pole mapped by the affine map `f`, into either
+    /// tier, the knots and weights kept. Exact, as for
+    /// [`Transformable::transformed`].
+    pub(crate) fn mapped<Q: TierPoint>(&self, f: impl Fn(P) -> Q) -> GenericBSplineCurve<Q> {
+        let poles = self.poles.iter().map(|&p| f(p)).collect();
+        GenericBSplineCurve::of(self.knots.clone(), poles, self.weights.clone())
+    }
+
+    /// The curve whose point at `t` is this curve's at `shift + scale * t`,
+    /// `scale` being nonzero: the knots `k` mapped to `(k - shift) / scale`,
+    /// after reversing the curve for a negative `scale`. Exact for any
+    /// shift and scale.
+    ///
+    /// # Errors
+    ///
+    /// The construction error when shifting rounds two distinct knots
+    /// together.
+    pub(crate) fn reparametrized(
+        &self,
+        shift: f64,
+        scale: f64,
+    ) -> Result<Self, BSplineConstructionError> {
+        let (curve, shift) = if scale < 0.0 {
+            // The reversed curve at `first + last - shift + |scale| t` is
+            // this curve at `shift - |scale| t`.
+            let (first, last) = self.knots.bounds();
+            (self.reversed(), first + last - shift)
+        } else {
+            (self.clone(), shift)
+        };
+        let knots = curve
+            .knots()
+            .iter()
+            .map(|&knot| (knot - shift) / scale.abs())
+            .collect();
+        let (degree, periodic) = (curve.degree(), curve.knots.is_periodic());
+        let multiplicities = curve.multiplicities().to_vec();
+        Self::from_parts(
+            degree,
+            curve.poles,
+            curve.weights,
+            knots,
+            multiplicities,
+            periodic,
+        )
+    }
+
+    /// The pieces between consecutive `cuts`, `N` of them.
+    #[inline]
+    fn cut<const N: usize>(&self, cuts: &[f64]) -> [Self; N] {
+        let pieces = editing::cut(
+            &self.knots,
+            &self.poles,
+            self.weights.as_deref(),
+            Lanes::CURVE,
+            cuts,
+        );
+        let pieces: Vec<Self> = pieces
+            .into_iter()
+            .map(|piece| Self::of(piece.knots, piece.points, piece.weights))
+            .collect();
+        pieces
+            .try_into()
+            .unwrap_or_else(|_| unreachable!("a piece between each two cuts"))
+    }
+
+    /// The poles as read by evaluation.
+    fn pole_view(&self) -> math::Poles<'_, P> {
+        math::Poles {
+            points: &self.poles,
+            weights: self.weights.as_deref(),
+        }
+    }
+
+    /// The poles weighting the knot spans from the one containing `u0` to
+    /// the one containing `u1`, `u0 <= u1` at most a period apart.
+    pub(crate) fn run_poles(&self, u0: f64, u1: f64) -> impl Iterator<Item = P> + '_ {
+        let n = self.poles.len();
+        let (first, last) = (
+            self.knots.span_first_pole(u0),
+            self.knots.span_first_pole(u1),
+        );
+        // Periodic pole indices wrap, so the run may end below its start.
+        let count = ((last + n - first) % n + self.degree() + 1).min(n);
+        (first..first + count).map(move |i| self.poles[i % n])
+    }
+
+    /// Calls `visit(span, piece)` in order for every knot span
+    /// `span = (start, end)` meeting `[first, last]`, `piece` being the
+    /// part of `[first, last]` inside it. A periodic curve repeats its
+    /// spans every period, so a range across the seam takes them from
+    /// consecutive periods.
+    pub(crate) fn for_each_span_in(
+        &self,
+        first: f64,
+        last: f64,
+        mut visit: impl FnMut((f64, f64), (f64, f64)),
+    ) {
+        let (start, end) = self.knots.bounds();
+        let interior = self
+            .knots()
+            .iter()
+            .copied()
+            .filter(|&k| k > start && k < end);
+        let (shifts, period) = match self.knots.period() {
+            Some(period) => {
+                let shift = |u: f64| ((u - start) / period).floor() as i64;
+                (shift(first)..=shift(last), period)
+            }
+            None => (0..=0, 0.0),
+        };
+        let mut span_start = start + *shifts.start() as f64 * period;
+        for shift in shifts {
+            let offset = shift as f64 * period;
+            for knot in interior.clone().chain([end]) {
+                let span_end = knot + offset;
+                let (a, b) = (span_start.max(first), span_end.min(last));
+                if a < b {
+                    visit((span_start, span_end), (a, b));
+                }
+                span_start = span_end;
+            }
+        }
+    }
+
+    /// The knot-span box hierarchy, built on first use.
+    fn span_tree(&self) -> &SpanTree {
+        self.spans.get_or_init(|| {
+            let breaks = self.knots.breaks();
+            let boxes = math::span_boxes(&self.knots, self.pole_view(), &breaks);
+            SpanTree {
+                tree: BoxTree::new(&boxes, 1),
+                breaks,
+            }
+        })
+    }
+
+    /// Scans the knot span `[a, b]` for minima of the distance to `point`,
+    /// see [`math::scan_span`].
+    fn scan_span(&self, point: P, a: f64, b: f64, minima: &mut Vec<f64>) -> SpanEnds {
+        math::scan_span(&self.knots, self.pole_view(), point, a, b, minima)
+    }
+
+    /// The homogeneous Bernstein control points of the polynomial piece on
+    /// the span containing `u` (pass a parameter inside the span), over
+    /// the span's own interval, into `points[..=degree]`, as four-wide
+    /// lanes `(x w, y w, z w, w)` (`w = 1` if nonrational, `z = 0` in the
+    /// plane).
+    pub(crate) fn span_bezier_points(&self, u: f64, points: &mut [[f64; 4]]) {
+        math::span_bezier(&self.knots, self.pole_view(), u, points);
     }
 }
 
 impl BSplineCurve2D {
     /// The curve in space at `z = 0`, with the same parameters.
     pub(crate) fn embedded(&self) -> BSplineCurve {
-        BSplineCurve::from_spline(self.0.embedded())
+        let poles = self.poles.iter().map(|&p| p.embedded()).collect();
+        GenericBSplineCurve::of(self.knots.clone(), poles, self.weights.clone())
     }
 }
 
 impl_for_both_tiers! {
     impl PointExtrema, PointExtrema2D for GenericBSplineCurve {
         fn extrema(&self, point: P, tol: Tolerance) -> Vec<CurveProjection<P>> {
-            self.0.extrema(point, tol)
+            if !point.is_finite() {
+                return Vec::new();
+            }
+            let (first, last) = self.bounds();
+            let breaks = &self.span_tree().breaks;
+            let n = breaks.len() - 1;
+            let mut params = vec![self.project_point(point, tol).parameter];
+            let ends: Vec<SpanEnds> = (0..n)
+                .map(|k| self.scan_span(point, breaks[k], breaks[k + 1], &mut params))
+                .collect();
+            for k in 1..n {
+                if ends[k - 1].end_falling && ends[k].start_rising {
+                    params.push(breaks[k]);
+                }
+            }
+            if !self.is_periodic() {
+                params.push(first);
+                params.push(last);
+            } else if ends[n - 1].end_falling && ends[0].start_rising {
+                params.push(first);
+            }
+            let mut out: Vec<CurveProjection<P>> = Vec::new();
+            for t in params {
+                let p = self.eval_point(t);
+                if out.iter().any(|q| q.point.distance(p) <= tol.confusion) {
+                    continue;
+                }
+                out.push(CurveProjection {
+                    parameter: t,
+                    point: p,
+                    distance: snap_distance(p.distance(point), tol.confusion),
+                });
+            }
+            out.sort_by(|x, y| x.distance.total_cmp(&y.distance));
+            out
         }
 
         fn project_point(&self, point: P, tol: Tolerance) -> CurveProjection<P> {
-            self.0.project_point(point, tol)
+            if !point.is_finite() {
+                return CurveProjection {
+                    parameter: f64::NAN,
+                    point: P::point_of([f64::NAN; 4]),
+                    distance: f64::NAN,
+                };
+            }
+            let spans = self.span_tree();
+            let breaks = &spans.breaks;
+            // (distance, parameter) of the closest point so far.
+            let mut best = (f64::INFINITY, breaks[0]);
+            let mut minima = Vec::new();
+            spans.tree.nearest_first(point.embedded(), |k| {
+                let (a, b) = (breaks[k], breaks[k + 1]);
+                minima.clear();
+                let ends = self.scan_span(point, a, b, &mut minima);
+                let interior = minima
+                    .iter()
+                    .map(|&t| (self.eval_point(t).distance(point), t));
+                for (d, t) in [(ends.distance[0], a), (ends.distance[1], b)]
+                    .into_iter()
+                    .chain(interior)
+                {
+                    if d < best.0 {
+                        best = (d, t);
+                    }
+                }
+                best.0
+            });
+            let (first, last) = self.bounds();
+            let t = if self.is_periodic() && best.1 == last {
+                first
+            } else {
+                best.1
+            };
+            let foot = self.eval_point(t);
+            CurveProjection {
+                parameter: t,
+                point: foot,
+                distance: snap_distance(foot.distance(point), tol.confusion),
+            }
         }
     }
 }
@@ -1005,39 +1410,64 @@ impl_for_both_tiers! {
     impl ParametricCurve, ParametricCurve2D for GenericBSplineCurve {
         #[inline]
         fn eval_point(&self, u: f64) -> P {
-            self.0.eval_point(u)
+            math::point(&self.knots, self.pole_view(), u)
         }
 
         fn eval_derivative(&self, u: f64, order: u32) -> V {
-            self.0.eval_derivative(u, order)
+            match order {
+                0 => panic!("eval_derivative: order must be >= 1 (use eval_point for order 0)"),
+                1 => math::derivatives::<1, P>(&self.knots, self.pole_view(), u)[1],
+                2 => math::derivatives::<2, P>(&self.knots, self.pole_view(), u)[2],
+                _ => math::derivative_of_order(&self.knots, self.pole_view(), u, order as usize, None),
+            }
         }
 
         fn eval_d1(&self, u: f64) -> (P, V) {
-            self.0.eval_d1(u)
+            let [c, d1, _] = math::derivatives::<1, P>(&self.knots, self.pole_view(), u);
+            (P::ORIGIN + c, d1)
         }
 
         fn eval_d2(&self, u: f64) -> (P, V, V) {
-            self.0.eval_d2(u)
+            let [c, d1, d2] = math::derivatives::<2, P>(&self.knots, self.pole_view(), u);
+            (P::ORIGIN + c, d1, d2)
         }
 
         fn bounds(&self) -> (f64, f64) {
-            self.0.bounds()
+            self.knots.bounds()
         }
 
         fn period(&self) -> Option<f64> {
-            self.0.period()
+            self.knots.period()
         }
 
         fn is_closed(&self, tol: Tolerance) -> bool {
-            self.0.is_closed(tol)
+            if self.is_periodic() {
+                return true;
+            }
+            let (lo, hi) = self.bounds();
+            self.eval_point(lo).distance(self.eval_point(hi)) <= tol.confusion
         }
 
         fn continuity(&self, u: f64, tol: Tolerance) -> Continuity {
-            self.0.continuity(u, tol)
+            math::continuity_at(
+                self.degree(),
+                self.knots(),
+                self.multiplicities(),
+                self.bounds(),
+                self.is_periodic(),
+                u,
+                tol,
+            )
         }
 
         fn min_continuity(&self) -> Continuity {
-            self.0.min_continuity()
+            math::min_continuity(
+                self.degree(),
+                self.knots(),
+                self.multiplicities(),
+                self.bounds(),
+                self.is_periodic(),
+            )
         }
 
         fn as_bspline(&self) -> Option<&GenericBSplineCurve<P>> {
@@ -1045,7 +1475,7 @@ impl_for_both_tiers! {
         }
 
         fn is_periodic(&self) -> bool {
-            self.0.is_periodic()
+            self.knots.is_periodic()
         }
     }
 }
@@ -1056,12 +1486,21 @@ impl<P: TierPoint> ReversibleCurve for GenericBSplineCurve<P> {
     /// poles also rotated to keep the seam. Reversing twice gives the
     /// curve back, the interior knots within rounding of the mirroring.
     fn reversed(&self) -> GenericBSplineCurve<P> {
-        GenericBSplineCurve(self.0.reversed())
+        let old: Vec<usize> = (0..self.poles.len())
+            .map(|i| editing::reversed_slot(&self.knots, i))
+            .collect();
+        Self::of(
+            editing::reversed_knots(&self.knots),
+            old.iter().map(|&i| self.poles[i]).collect(),
+            self.weights
+                .as_ref()
+                .map(|w| old.iter().map(|&i| w[i]).collect()),
+        )
     }
 
     /// `first + last - u` over the bounds.
     fn reversed_parameter(&self, u: f64) -> f64 {
-        let (first, last) = self.0.bounds();
+        let (first, last) = self.knot_bounds();
         first + last - u
     }
 }
@@ -1070,8 +1509,41 @@ impl Transformable for BSplineCurve {
     /// Every pole maps point-wise; the degree, knots, multiplicities,
     /// weights and periodicity are kept, and so is the parameter.
     fn transformed(&self, transform: Transform) -> Result<BSplineCurve, TransformError> {
-        self.0.transformed(transform).map(GenericBSplineCurve)
+        if transform.scale_factor() == 0.0 {
+            return Err(TransformError::Collapsed);
+        }
+        let image = self.map_poles(|p| transform.apply_point(p));
+        if image.poles.iter().all(|p| p.is_finite()) {
+            Ok(image)
+        } else {
+            Err(TransformError::NonFinite)
+        }
     }
+}
+
+/// The speed at `t` of the Bézier piece with the homogeneous control
+/// points `net` (four-wide lanes): de Casteljau down to the last two
+/// points, then the quotient rule.
+fn bezier_speed(net: &[[f64; 4]], t: f64) -> f64 {
+    let degree = net.len() - 1;
+    let mut points = [[0.0; 4]; math::LARGE];
+    points[..=degree].copy_from_slice(net);
+    for level in (1..degree).rev() {
+        for i in 0..=level {
+            let next = points[i + 1];
+            for (x, y) in points[i].iter_mut().zip(next) {
+                *x += t * (y - *x);
+            }
+        }
+    }
+    let ([a, b], s) = ([points[0], points[1]], degree as f64);
+    let h: [f64; 4] = std::array::from_fn(|c| a[c] + t * (b[c] - a[c]));
+    let d: [f64; 4] = std::array::from_fn(|c| s * (b[c] - a[c]));
+    // The quotient rule on `C = H / w`.
+    let w = h[3];
+    let tangent: [f64; 3] = std::array::from_fn(|c| d[c] * w - h[c] * d[3]);
+    let [x, y, z] = tangent;
+    (x * x + y * y + z * z).sqrt() / (w * w)
 }
 
 #[cfg(test)]

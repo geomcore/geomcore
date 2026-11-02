@@ -16,7 +16,6 @@ mod parabola;
 mod parametric_curve;
 mod parametric_curve_2d;
 mod range;
-pub(crate) mod spline;
 mod trimmed;
 pub use bezier::{BezierConstructionError, BezierCurve, BezierCurve2D, GenericBezierCurve};
 pub use bspline::{

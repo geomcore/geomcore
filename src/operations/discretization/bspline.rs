@@ -21,8 +21,8 @@
 
 use super::{DiscretizationCriteria, smallest_count};
 use crate::base::tier::TierPoint;
+use crate::geometry::curves::GenericBSplineCurve;
 use crate::geometry::curves::Run;
-use crate::geometry::curves::spline::Spline;
 use std::f64::consts::{FRAC_PI_2, PI};
 
 /// Control points of the highest supported degree, 25.
@@ -459,7 +459,7 @@ fn chord_segments(constant: f64, max: f64) -> usize {
 /// Visits the runs of `spline` over `[first, last]`: each knot span's
 /// Bézier piece, restricted to the range and halved while that pays.
 pub(crate) fn spline_runs<P: TierPoint, F>(
-    spline: &Spline<P>,
+    spline: &GenericBSplineCurve<P>,
     first: f64,
     last: f64,
     criteria: &DiscretizationCriteria,

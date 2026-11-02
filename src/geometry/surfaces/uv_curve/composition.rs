@@ -19,8 +19,9 @@
 //! pieces are joined into one B-spline with full-multiplicity knots, and
 //! the knots the curve is smoother across are removed at rounding level.
 
-use crate::geometry::curves::spline::Spline;
-use crate::geometry::curves::{BSplineCurve, BezierCurve, Curve, Curve2D, ParametricCurve2D};
+use crate::geometry::curves::{
+    BSplineCurve, BSplineCurve2D, BezierCurve, Curve, Curve2D, ParametricCurve2D,
+};
 use crate::geometry::surfaces::{
     BSplineSurface, ExtrusionSurface, ParametricSurface, UvCurveTo3DError,
 };
@@ -111,10 +112,10 @@ fn uv_spline(
     uv_curve: &Curve2D,
     limits: [Option<(f64, f64)>; 2],
     tol: Tolerance,
-) -> Result<Spline<Point2D>, UvCurveTo3DError> {
+) -> Result<BSplineCurve2D, UvCurveTo3DError> {
     let degree = match uv_curve {
-        Curve2D::BSpline(curve) => return Ok(curve.spline().clone()),
-        Curve2D::Bezier(curve) => return Ok(curve.spline().clone()),
+        Curve2D::BSpline(curve) => return Ok(curve.clone()),
+        Curve2D::Bezier(curve) => return Ok(curve.bspline().clone()),
         Curve2D::Line(_) => 1,
         Curve2D::Parabola(_) => 2,
         _ => return Err(UvCurveTo3DError::NotAnalytic),
@@ -138,7 +139,7 @@ fn uv_spline(
         vec![from, from + (0.5 * (end - start)) * velocity, to]
     };
     let end_multiplicity = degree as u32 + 1;
-    Spline::new(
+    BSplineCurve2D::from_parts(
         degree,
         poles,
         None,
@@ -323,7 +324,7 @@ impl Grid<'_> {
 fn compose(
     surface: &BSplineSurface,
     bounded: [bool; 2],
-    uv: &Spline<Point2D>,
+    uv: &BSplineCurve2D,
     bezier: bool,
     tol: Tolerance,
 ) -> Result<Curve, UvCurveTo3DError> {
@@ -357,26 +358,26 @@ fn compose(
     let refined = split_at_knot_lines(uv, &grid)?;
     let rational = uv.is_rational() || surface.is_rational();
     let mut pieces = Vec::new();
-    for piece in refined.to_bezier_pieces(|piece| piece) {
+    for piece in refined.wrapped_bezier_pieces(|piece| piece) {
         compose_piece(&piece, &grid, constant, rational, tol, 0, &mut pieces)?;
     }
     let spline = joined(pieces, degree, rational)?;
     Ok(if bezier && spline.is_bezier() {
-        BezierCurve::from_spline(spline).into()
+        BezierCurve::from_span(spline).into()
     } else {
-        BSplineCurve::from_spline(spline).into()
+        spline.into()
     })
 }
 
 /// `uv` with a knot wherever it crosses a knot line of `grid`, so that each
 /// of its Bézier pieces lies in one patch.
 fn split_at_knot_lines(
-    uv: &Spline<Point2D>,
+    uv: &BSplineCurve2D,
     grid: &Grid,
-) -> Result<Spline<Point2D>, UvCurveTo3DError> {
+) -> Result<BSplineCurve2D, UvCurveTo3DError> {
     let lines = [0, 1].map(|d| grid.lines(d, extent(uv.poles(), d)));
     let mut crossings = Vec::new();
-    for piece in uv.to_bezier_pieces(|piece| piece) {
+    for piece in uv.wrapped_bezier_pieces(|piece| piece) {
         let (start, end) = piece.bounds();
         let homogeneous = homogeneous(&piece);
         for (d, lines) in lines.iter().enumerate() {
@@ -418,7 +419,7 @@ fn split_at_knot_lines(
 }
 
 /// The homogeneous poles `(x w, y w, w)` of a spline.
-fn homogeneous(spline: &Spline<Point2D>) -> Vec<[f64; 3]> {
+fn homogeneous(spline: &BSplineCurve2D) -> Vec<[f64; 3]> {
     let weights = spline.weights();
     spline
         .poles()
@@ -492,7 +493,7 @@ struct Piece {
 /// non-positive weight, as a piece whose control polygon leaves the patch
 /// can.
 fn compose_piece(
-    uv: &Spline<Point2D>,
+    uv: &BSplineCurve2D,
     grid: &Grid,
     constant: [Option<f64>; 2],
     rational: bool,
@@ -682,7 +683,7 @@ fn joined(
     pieces: Vec<Piece>,
     degree: usize,
     rational: bool,
-) -> Result<Spline<Point>, UvCurveTo3DError> {
+) -> Result<BSplineCurve, UvCurveTo3DError> {
     let mut knots = vec![pieces[0].bounds.0];
     let mut homogeneous: Vec<[f64; 4]> = Vec::with_capacity(pieces.len() * degree + 1);
     for piece in pieces {
@@ -721,7 +722,7 @@ fn joined(
         .iter()
         .flat_map(|&knot| std::iter::repeat_n(knot, degree))
         .collect();
-    let spline = Spline::new(degree, poles, weights, knots, multiplicities, false)
+    let spline = BSplineCurve::from_parts(degree, poles, weights, knots, multiplicities, false)
         .map_err(|_| UvCurveTo3DError::NotAnalytic)?;
     if interior.is_empty() {
         return Ok(spline);
