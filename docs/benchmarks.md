@@ -325,8 +325,8 @@ Two cylinders whose axes cross used to be marched; their quartic is now
 classified in closed form and each loop fitted from it (ADR 0036). One
 pair per id, `intersect_routed/crossing_cylinders/*`: the typed call
 classifies in 1008–1255 instructions (85–170 ns), and the routed call
-fits the loops in 1.04M (bite: a thin pipe biting a thick one, one
-loop), 1.65M (oblique, one loop) and 2.08M instructions (through: a thin
+fits the loops in 1.08M (bite: a thin pipe biting a thick one, one
+loop), 1.81M (oblique, one loop) and 2.18M instructions (through: a thin
 pipe through a thick one, two loops). Against the marcher on the same
 pairs, timed in one test run on a loaded machine (load average 17–20),
 the fit took 100 against 210 µs (bite), 175 against 500 µs (through) and
@@ -334,6 +334,25 @@ the fit took 100 against 210 µs (bite), 175 against 500 µs (through) and
 because cubic Hermite spans within a quarter of confusion need about as
 many points as the march takes. About half of the fit is `sin_cos`, for
 the generator angle and the second cylinder's angle at each sample.
+
+A sphere against a cylinder or a cone whose axis misses its centre went
+the same way (#232, #233): the same walk along the generators, read
+against the sphere. One pair per id, `intersect_routed/sphere_quadric/*`:
+the typed call classifies in 800–1850 instructions, and the routed call
+fits the loops in 1.25M (Viviani's curve), 2.40M (a sphere through the
+cylinder's wall, one loop), 2.45M (around a cone's apex, a loop on each
+nappe) and 1.47M instructions (beside a cone, one loop over an arc).
+Against the marcher on the same pairs, timed in one test run on a loaded
+machine (load average 16–20), the fit took 133 against 1740 µs
+(Viviani), 248 against 722 µs (wall), 236 against 930 µs (apex) and 143
+against 511 µs (beside). The wall loop passes 0.1 from a pole of the
+sphere, where its longitude turns fast: it takes 786 poles against the
+march's 570. Sharing the walk among the three pairs costs the two
+cylinders 1.3–1.4% on the routed call and 50–85 instructions on the
+typed one, whose result now holds the point where the surfaces touch.
+Measuring each span against the curve rather than the two surfaces,
+which near a tangency let a fit stray 4 µm from the closed form, adds
+2–8% to every routed id here.
 
 Reproduce with:
 

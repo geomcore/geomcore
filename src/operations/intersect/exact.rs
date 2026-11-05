@@ -16,11 +16,11 @@
 //! [`ConicConicIntersection`](crate::ConicConicIntersection) hold a `Vec`. The router reads each typed
 //! result straight into its family result (`routing/exact_family.rs`).
 
-pub(crate) mod bicylindric;
 pub(crate) mod conic;
 pub(crate) mod conic_2d;
 pub(crate) mod curve_curve;
 pub(crate) mod curve_surface;
+pub(crate) mod quartic;
 pub(crate) mod surface_surface;
 
 use crate::{
@@ -68,8 +68,6 @@ reversed!(
     Cylinder => Plane,
     Cone => Plane,
     Plane => Torus,
-    Cylinder => Sphere,
-    Cone => Sphere,
     Sphere => Torus,
     Cylinder => Cone,
     Cylinder => Torus,

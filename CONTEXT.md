@@ -97,16 +97,20 @@ Two directions are parallel for a configuration when turning one onto the other 
 ## Intersection
 
 **Exact intersection**:
-An intersection computed in closed form, for a pair the closed-form pair table lists: elementary shapes, or a plane with a swept surface. Its result is itself made of elementary curves and points, or of curves read off a swept surface's profile, except a bicylindric curve, which is fitted within confusion from its closed form (ADR 0036).
+An intersection computed in closed form, for a pair the closed-form pair table lists: elementary shapes, or a plane with a swept surface. Its result is itself made of elementary curves and points, or of curves read off a swept surface's profile, except a quartic curve, which is fitted within confusion from its closed form (ADR 0036).
 _Avoid_: analytic intersection
 
 **Closed-form pair table**:
 The one place that says which pairs of shapes `intersect` solves in closed form, and which solver answers each. Every other pair, and every pair with a B-spline or Bézier shape, goes to the numeric intersection.
 _Avoid_: exact routes, analytic pairs
 
-**Bicylindric curve**:
-The quartic where two cylinders with non-parallel axes meet: one or two closed loops, each around the first cylinder or over an arc of its generators. Its closed form gives each point exactly; `intersect` fits it within confusion and reports it exact (ADR 0036).
-_Avoid_: cylinder–cylinder quartic, Steinmetz curve (the case of equal radii and meeting axes only)
+**Quartic curve**:
+The quartic where a cylinder or a cone meets another quadric away from the configurations that split it into conics and lines: two cylinders whose axes cross (the bicylindric curve), or a sphere and a cylinder or a cone whose axis misses its centre. One or two closed loops, read along the generators of the cylinder or cone: each loop runs around it, over an arc of its generators, twice around through the point where the surfaces touch and the loop crosses itself, or through the apex of a cone that lies on the sphere. Its closed form gives each point exactly; `intersect` fits it within confusion and reports it exact (ADR 0036).
+_Avoid_: bicylindric curve for anything but two cylinders, Steinmetz curve (the case of equal radii and meeting axes only)
+
+**Viviani's curve**:
+The quartic curve of a sphere and a cylinder that touches it from inside, the cylinder's axis and its far side as far from the centre as the sphere's radius: one loop crossing itself where they touch. Classically the sphere of radius `2r` and the cylinder of radius `r` through its centre.
+_Avoid_: hippopede (its projection), Viviani's window (the surface it bounds)
 
 **Numeric intersection**:
 An intersection traced or refined iteratively, whose curves are fitted approximations. `intersect` runs it only for a pair or configuration without a closed form, and the result says so (its intersection method).

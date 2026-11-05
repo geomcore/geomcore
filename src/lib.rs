@@ -193,17 +193,16 @@ pub use operations::discretization::{
 };
 pub use operations::extrema::{CurveCurveExtrema, CurveCurveExtremum, curve_curve_extrema};
 pub use operations::intersect::{
-    BicylindricCurve, CircleCircle2DIntersection, CircleCircleIntersection,
-    CircleSurfaceIntersection, ConeConeIntersection, ConeCylinderIntersection, Conic2DIntersection,
-    ConicConicIntersection, ConicSurfaceHit, ConicSurfaceIntersection, CurveCurveHit,
-    CurveSurfaceHit, CylinderCylinderIntersection, LatitudeRing, LineCircle2DIntersection,
-    LineCircleIntersection, LineConicHit, LineConicIntersection, LineLine2DIntersection,
-    LineLineIntersection, LinePlaneIntersection, LineQuadricIntersection, LineTorusHit,
-    LineTorusIntersection, PlaneConeIntersection, PlaneCylinderIntersection,
-    PlanePlaneIntersection, PlaneSphereIntersection, SphereConeIntersection,
-    SphereCylinderIntersection, SphereSphereIntersection, TorusConeIntersection,
-    TorusCylinderIntersection, TorusPlaneIntersection, TorusSphereIntersection,
-    TorusTorusIntersection,
+    CircleCircle2DIntersection, CircleCircleIntersection, CircleSurfaceIntersection,
+    ConeConeIntersection, ConeCylinderIntersection, Conic2DIntersection, ConicConicIntersection,
+    ConicSurfaceHit, ConicSurfaceIntersection, CurveCurveHit, CurveSurfaceHit,
+    CylinderCylinderIntersection, LatitudeRing, LineCircle2DIntersection, LineCircleIntersection,
+    LineConicHit, LineConicIntersection, LineLine2DIntersection, LineLineIntersection,
+    LinePlaneIntersection, LineQuadricIntersection, LineTorusHit, LineTorusIntersection,
+    PlaneConeIntersection, PlaneCylinderIntersection, PlanePlaneIntersection,
+    PlaneSphereIntersection, QuarticCurve, SphereConeIntersection, SphereCylinderIntersection,
+    SphereSphereIntersection, TorusConeIntersection, TorusCylinderIntersection,
+    TorusPlaneIntersection, TorusSphereIntersection, TorusTorusIntersection,
 };
 pub use operations::intersect::{
     Completeness, CurveCurveRegion, CurveSurfaceRegion, IncompleteReason,

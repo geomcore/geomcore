@@ -33,7 +33,7 @@ use crate::operations::intersect::{
     SphereSphereIntersection, TorusConeIntersection, TorusCylinderIntersection,
     TorusPlaneIntersection, TorusSphereIntersection, TorusTorusIntersection,
 };
-use crate::{Point, Point2D, Tolerance};
+use crate::{Point, Point2D, QuarticCurve, Tolerance};
 
 // Surface–surface.
 
@@ -56,6 +56,16 @@ fn contact_point(point: Point) -> Option<SurfaceSurfaceIntersection> {
     Some(SurfaceSurfaceIntersection::exact(
         Vec::new(),
         vec![point],
+        false,
+    ))
+}
+
+/// The fitted loops of a quartic and the point where its surfaces touch,
+/// if any; `None` when a fit fails.
+fn quartic(curve: QuarticCurve, tol: Tolerance) -> Option<SurfaceSurfaceIntersection> {
+    Some(SurfaceSurfaceIntersection::exact(
+        curve.fitted(tol)?,
+        curve.contact_point().into_iter().collect(),
         false,
     ))
 }
@@ -145,37 +155,48 @@ impl PlaneConeIntersection {
 }
 
 impl SphereCylinderIntersection {
+    /// The family result; the quartic is fitted within `tol` (see
+    /// [`QuarticCurve::fitted`](crate::QuarticCurve)), and a fit
+    /// that fails hands the pair to the numeric search.
     #[inline]
-    pub(super) fn into_family(self, _tol: Tolerance) -> Option<SurfaceSurfaceIntersection> {
+    pub(super) fn into_family(self, tol: Tolerance) -> Option<SurfaceSurfaceIntersection> {
         match self {
             // A single ring is the equator of a tube as wide as the sphere.
             SphereCylinderIntersection::Circle(c) => surface_curves([(c, true)]),
             SphereCylinderIntersection::TwoCircles(c1, c2) => {
                 surface_curves([(c1, false), (c2, false)])
             }
+            SphereCylinderIntersection::Quartic(curve) => quartic(curve, tol),
+            SphereCylinderIntersection::TangentPoint(p) => contact_point(p),
             SphereCylinderIntersection::Empty => surfaces_miss(),
-            SphereCylinderIntersection::NotAnalytic => None,
         }
     }
 }
 
 impl SphereConeIntersection {
+    /// The family result; the quartic is fitted within `tol` (see
+    /// [`QuarticCurve::fitted`](crate::QuarticCurve)), and a fit
+    /// that fails hands the pair to the numeric search.
     #[inline]
-    pub(super) fn into_family(self, _tol: Tolerance) -> Option<SurfaceSurfaceIntersection> {
+    pub(super) fn into_family(self, tol: Tolerance) -> Option<SurfaceSurfaceIntersection> {
         match self {
             SphereConeIntersection::TwoCircles(c1, c2) => {
                 surface_curves([(c1, false), (c2, false)])
             }
             SphereConeIntersection::TangentCircle(c) => surface_curves([(c, true)]),
+            SphereConeIntersection::Quartic(curve) => quartic(curve, tol),
+            SphereConeIntersection::TangentPoint(p) => contact_point(p),
+            SphereConeIntersection::TwoTangentPoints(p, q) => Some(
+                SurfaceSurfaceIntersection::exact(Vec::new(), vec![p, q], false),
+            ),
             SphereConeIntersection::Empty => surfaces_miss(),
-            SphereConeIntersection::NotAnalytic => None,
         }
     }
 }
 
 impl CylinderCylinderIntersection {
     /// The family result; the quartic is fitted within `tol` (see
-    /// [`BicylindricCurve::fitted`](crate::BicylindricCurve)), and a fit
+    /// [`QuarticCurve::fitted`](crate::QuarticCurve)), and a fit
     /// that fails hands the pair to the numeric search.
     #[inline]
     pub(super) fn into_family(self, tol: Tolerance) -> Option<SurfaceSurfaceIntersection> {
@@ -195,9 +216,7 @@ impl CylinderCylinderIntersection {
                     .collect();
                 Some(SurfaceSurfaceIntersection::exact(curves, touching, false))
             }
-            CylinderCylinderIntersection::Quartic(curve) => Some(
-                SurfaceSurfaceIntersection::exact(curve.fitted(tol)?, Vec::new(), false),
-            ),
+            CylinderCylinderIntersection::Quartic(curve) => quartic(curve, tol),
             CylinderCylinderIntersection::TangentPoint(p) => contact_point(p),
             CylinderCylinderIntersection::Empty => surfaces_miss(),
             CylinderCylinderIntersection::Coincident => surfaces_coincide(),
