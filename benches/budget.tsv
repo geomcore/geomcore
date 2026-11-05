@@ -99,7 +99,7 @@ intersect_dispatch	intersect/torus_cone/typed	1353062
 intersect_dispatch	intersect_routed/circle_circle/exact	443702
 intersect_dispatch	intersect_routed/circle_circle/routed	792885
 intersect_dispatch	intersect_routed/circle_circle_2d/exact	80171
-intersect_dispatch	intersect_routed/circle_circle_2d/routed	319799
+intersect_dispatch	intersect_routed/circle_circle_2d/routed	366905
 intersect_dispatch	intersect_routed/line_cylinder/exact	733966
 intersect_dispatch	intersect_routed/line_cylinder/routed	1236749
 intersect_dispatch	intersect_routed/plane_sphere/exact	447798
