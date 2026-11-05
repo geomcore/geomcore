@@ -9,8 +9,21 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+### Added
+
+- `PointParametrization` in Python (#202): `CHORDAL` or `CENTRIPETAL`,
+  taken by `interpolate`, `approximate` and `fit_within` on B-spline
+  curves and surfaces. A member equals its lowercase name, and the strings
+  `"chordal"` and `"centripetal"` are still accepted; the stubs type them
+  as literals, so a typo is caught before the call.
+
 ### Breaking
 
+- The Python enumerations are real enums (#202): `Side`,
+  `IntersectionMethod`, `CompletenessStatus` and `IncompleteReason` are
+  `enum.IntEnum` classes, so `list(IncompleteReason)` lists the members.
+  Members keep their names, values and comparison with integers; their
+  `repr` is now the standard `<Side.ABOVE: 1>`.
 - Evaluation reads in plain words (#202), in Rust and Python, on every
   curve and surface: `eval_point` and `eval_points` become `point_at` and
   `points_at` (as `Frame::point_at` already was), `eval_derivative`

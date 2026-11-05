@@ -13,7 +13,7 @@ use errors::invalid_argument;
 use pyo3::prelude::*;
 use pyo3::types::PyModule;
 
-use geomcore::{Continuity, PointParametrization, Tolerance};
+use geomcore::{Continuity, Tolerance};
 
 /// The tolerance given, or the default.
 pub(crate) fn tolerance(tolerance: Option<PyTolerance>) -> Tolerance {
@@ -89,20 +89,11 @@ pub(crate) fn check_surface_order<S: HighestDerivativeOrder>(
     }
 }
 
-pub(crate) fn parse_parametrization(s: &str) -> PyResult<PointParametrization> {
-    match s {
-        "chordal" => Ok(PointParametrization::Chordal),
-        "centripetal" => Ok(PointParametrization::Centripetal),
-        _ => Err(invalid_argument(
-            "parametrization must be 'chordal' or 'centripetal'",
-        )),
-    }
-}
-
 mod arguments;
 mod bounding_box;
 mod curves;
 mod discretization;
+mod enums;
 mod intersect;
 mod method_sets;
 mod results;
@@ -115,17 +106,16 @@ use curves::{PyTrimmedCurve, PyTrimmedCurve2D};
 use discretization::{PyDiscretization, PyDiscretization2D};
 use intersect::py_curve_curve_extrema;
 use results::{
-    PyCompleteness, PyCompletenessStatus, PyCurveCurveExtrema, PyCurveCurveExtremum,
-    PyCurveCurveHit, PyCurveCurveHit2D, PyCurveCurveIntersection, PyCurveCurveIntersection2D,
-    PyCurveCurveOverlap, PyCurveCurveRegion, PyCurveProjection, PyCurveProjection2D,
-    PyCurveSurfaceHit, PyCurveSurfaceIntersection, PyCurveSurfaceRegion, PyIncompleteReason,
-    PyIntersectionCurve, PyIntersectionMethod, PySurfaceCurvatures, PySurfaceProjection,
+    PyCompleteness, PyCurveCurveExtrema, PyCurveCurveExtremum, PyCurveCurveHit, PyCurveCurveHit2D,
+    PyCurveCurveIntersection, PyCurveCurveIntersection2D, PyCurveCurveOverlap, PyCurveCurveRegion,
+    PyCurveProjection, PyCurveProjection2D, PyCurveSurfaceHit, PyCurveSurfaceIntersection,
+    PyCurveSurfaceRegion, PyIntersectionCurve, PySurfaceCurvatures, PySurfaceProjection,
     PySurfaceSurfaceIntersection, PySurfaceSurfaceRegion,
 };
 use surfaces::{PyUvCurveApproximation, py_curve_3d_to_uv_numeric, py_uv_curve_to_3d_within};
 use values::{
-    PyAxis, PyAxis2D, PyFrame, PyFrame2D, PyPoint, PyPoint2D, PySide, PyTolerance, PyTransform,
-    PyVector, PyVector2D,
+    PyAxis, PyAxis2D, PyFrame, PyFrame2D, PyPoint, PyPoint2D, PyTolerance, PyTransform, PyVector,
+    PyVector2D,
 };
 
 // ---------------------------------------------------------------------------
@@ -151,11 +141,7 @@ fn geomcore_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyBoundingBox2D>()?;
     m.add_class::<PyDiscretization2D>()?;
     m.add_class::<PyDiscretization>()?;
-    m.add_class::<PySide>()?;
-
-    m.add_class::<PyIntersectionMethod>()?;
-    m.add_class::<PyCompletenessStatus>()?;
-    m.add_class::<PyIncompleteReason>()?;
+    enums::register(m)?;
     m.add_class::<PyCompleteness>()?;
     m.add_class::<PyCurveCurveRegion>()?;
     m.add_class::<PyCurveSurfaceRegion>()?;

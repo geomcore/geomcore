@@ -1,7 +1,7 @@
 //! The Python class `geomcore.surfaces.BSplineSurface`, wrapping `geomcore::BSplineSurface`.
 
+use crate::enums::PyPointParametrization;
 use crate::method_sets::*;
-use crate::parse_parametrization;
 use crate::surfaces::*;
 use geomcore::BSplineSurface;
 
@@ -170,19 +170,20 @@ shape_methods! {
 
     /// Least-squares B-spline fit through the grid `points[i][j]`.
     ///
-    /// `parametrization` is `"centripetal"` (default) or `"chordal"`.
+    /// `parametrization` is a `PointParametrization` or its string value,
+    /// `"centripetal"` (the default) or `"chordal"`.
     #[staticmethod]
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (points, u_degree, v_degree, u_pole_count, v_pole_count, parametrization = "centripetal"))]
+    #[pyo3(signature = (points, u_degree, v_degree, u_pole_count, v_pole_count, parametrization = PyPointParametrization::Centripetal))]
     fn approximate(
         points: Vec<Vec<PyPoint>>,
         u_degree: usize,
         v_degree: usize,
         u_pole_count: usize,
         v_pole_count: usize,
-        parametrization: &str,
+        parametrization: PyPointParametrization,
     ) -> PyResult<Self> {
-        let param = parse_parametrization(parametrization)?;
+        let param = geomcore::PointParametrization::from(parametrization);
         let points = points
             .into_iter()
             .map(|row| row.into_iter().map(|p| p.0).collect())
@@ -204,18 +205,19 @@ shape_methods! {
     /// few poles as keep every point within `max_deviation` of the
     /// surface.
     ///
-    /// `parametrization` is `"centripetal"` (default) or `"chordal"`.
+    /// `parametrization` is a `PointParametrization` or its string value,
+    /// `"centripetal"` (the default) or `"chordal"`.
     #[staticmethod]
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (points, u_degree, v_degree, max_deviation, parametrization = "centripetal"))]
+    #[pyo3(signature = (points, u_degree, v_degree, max_deviation, parametrization = PyPointParametrization::Centripetal))]
     fn approximate_within(
         points: Vec<Vec<PyPoint>>,
         u_degree: usize,
         v_degree: usize,
         max_deviation: f64,
-        parametrization: &str,
+        parametrization: PyPointParametrization,
     ) -> PyResult<Self> {
-        let param = parse_parametrization(parametrization)?;
+        let param = geomcore::PointParametrization::from(parametrization);
         let points = points
             .into_iter()
             .map(|row| row.into_iter().map(|p| p.0).collect())

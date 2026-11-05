@@ -13,8 +13,8 @@ use geomcore::{
     Completeness, CurveCurveExtrema, CurveCurveExtremum, CurveCurveHit, CurveCurveHit2D,
     CurveCurveIntersection, CurveCurveIntersection2D, CurveCurveOverlap, CurveCurveRegion,
     CurveProjection, CurveProjection2D, CurveSurfaceHit, CurveSurfaceIntersection,
-    CurveSurfaceRegion, IncompleteReason, IntersectionCurve, IntersectionMethod, Point, Point2D,
-    SurfaceCurvatures, SurfaceProjection, SurfaceSurfaceIntersection, SurfaceSurfaceRegion,
+    CurveSurfaceRegion, IntersectionCurve, Point, Point2D, SurfaceCurvatures, SurfaceProjection,
+    SurfaceSurfaceIntersection, SurfaceSurfaceRegion,
 };
 use pyo3::prelude::*;
 use pyo3::type_object::PyTypeInfo;
@@ -57,154 +57,7 @@ fn same_operand(py: Python<'_>, a: &Py<PyAny>, b: &Py<PyAny>) -> PyResult<bool> 
     a.bind(py).eq(b.bind(py))
 }
 
-// ---------------------------------------------------------------------------
-// Enumerations
-// ---------------------------------------------------------------------------
-
-/// How an intersection was computed.
-///
-/// `EXACT` is a closed form, always complete. `NUMERIC` is a search, whose
-/// `completeness` tells whether it proved that nothing was missed.
-#[pyclass(
-    name = "IntersectionMethod",
-    module = "geomcore",
-    eq,
-    eq_int,
-    frozen,
-    hash
-)]
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
-pub(crate) enum PyIntersectionMethod {
-    #[pyo3(name = "EXACT")]
-    Exact,
-    #[pyo3(name = "NUMERIC")]
-    Numeric,
-}
-
-impl From<IntersectionMethod> for PyIntersectionMethod {
-    fn from(method: IntersectionMethod) -> Self {
-        match method {
-            IntersectionMethod::Exact => PyIntersectionMethod::Exact,
-            IntersectionMethod::Numeric => PyIntersectionMethod::Numeric,
-        }
-    }
-}
-
-#[pymethods]
-impl PyIntersectionMethod {
-    /// The member's name, as written after the dot.
-    #[getter]
-    fn name(&self) -> &'static str {
-        self.repr().split_once('.').map_or("", |(_, name)| name)
-    }
-}
-
-impl PyIntersectionMethod {
-    fn repr(self) -> &'static str {
-        match self {
-            PyIntersectionMethod::Exact => "IntersectionMethod.EXACT",
-            PyIntersectionMethod::Numeric => "IntersectionMethod.NUMERIC",
-        }
-    }
-}
-
-/// Whether a numeric search proved that it found everything.
-///
-/// - `COMPLETE`: nothing was missed (always the case for an exact result).
-/// - `INCOMPLETE`: the search may have missed something inside its
-///   `regions`, and found everything outside them.
-/// - `SAMPLED`: the result comes from samples; nothing is proved.
-#[pyclass(
-    name = "CompletenessStatus",
-    module = "geomcore",
-    eq,
-    eq_int,
-    frozen,
-    hash
-)]
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
-pub(crate) enum PyCompletenessStatus {
-    #[pyo3(name = "COMPLETE")]
-    Complete,
-    #[pyo3(name = "INCOMPLETE")]
-    Incomplete,
-    #[pyo3(name = "SAMPLED")]
-    Sampled,
-}
-
-#[pymethods]
-impl PyCompletenessStatus {
-    /// The member's name, as written after the dot.
-    #[getter]
-    fn name(&self) -> &'static str {
-        self.repr().split_once('.').map_or("", |(_, name)| name)
-    }
-}
-
-impl PyCompletenessStatus {
-    fn repr(self) -> &'static str {
-        match self {
-            PyCompletenessStatus::Complete => "CompletenessStatus.COMPLETE",
-            PyCompletenessStatus::Incomplete => "CompletenessStatus.INCOMPLETE",
-            PyCompletenessStatus::Sampled => "CompletenessStatus.SAMPLED",
-        }
-    }
-}
-
-/// Why an incomplete search stopped.
-///
-/// - `BUDGET_EXHAUSTED`: it ran out of subdivisions.
-/// - `UNSEPARATED`: pieces of the operands stayed within tolerance of each
-///   other down to the smallest piece, as along an overlap or at a tangent
-///   contact of a curve with a surface.
-/// - `UNBOUNDED`: a branch of two unbounded surfaces runs beyond the box
-///   it was traced in, and continues past the regions reported.
-#[pyclass(
-    name = "IncompleteReason",
-    module = "geomcore",
-    eq,
-    eq_int,
-    frozen,
-    hash
-)]
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
-pub(crate) enum PyIncompleteReason {
-    #[pyo3(name = "BUDGET_EXHAUSTED")]
-    BudgetExhausted,
-    #[pyo3(name = "UNSEPARATED")]
-    Unseparated,
-    #[pyo3(name = "UNBOUNDED")]
-    Unbounded,
-}
-
-impl From<IncompleteReason> for PyIncompleteReason {
-    fn from(reason: IncompleteReason) -> Self {
-        match reason {
-            IncompleteReason::BudgetExhausted => PyIncompleteReason::BudgetExhausted,
-            IncompleteReason::Unseparated => PyIncompleteReason::Unseparated,
-            IncompleteReason::Unbounded => PyIncompleteReason::Unbounded,
-        }
-    }
-}
-
-#[pymethods]
-impl PyIncompleteReason {
-    /// The member's name, as written after the dot.
-    #[getter]
-    fn name(&self) -> &'static str {
-        self.repr().split_once('.').map_or("", |(_, name)| name)
-    }
-}
-
-impl PyIncompleteReason {
-    fn repr(self) -> &'static str {
-        match self {
-            PyIncompleteReason::BudgetExhausted => "IncompleteReason.BUDGET_EXHAUSTED",
-            PyIncompleteReason::Unseparated => "IncompleteReason.UNSEPARATED",
-            PyIncompleteReason::Unbounded => "IncompleteReason.UNBOUNDED",
-        }
-    }
-}
+pub(crate) use crate::enums::{PyCompletenessStatus, PyIncompleteReason, PyIntersectionMethod};
 
 // ---------------------------------------------------------------------------
 // Regions

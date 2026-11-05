@@ -409,7 +409,7 @@ def test_mirrored_surface_maps_its_parametrization_and_flips_its_normal():
 def test_side_is_a_hashable_named_enum():
     assert Side.BELOW != Side.ABOVE
     assert Side.BELOW.name == "BELOW" and Side.ABOVE.name == "ABOVE"
-    assert repr(Side.ABOVE) == "Side.ABOVE"
+    assert list(Side) == [Side.BELOW, Side.ABOVE]
     assert {Side.BELOW: 1, Side.ABOVE: 2}[Side.ABOVE] == 2
     assert geomcore.Side is Side
 

@@ -1,4 +1,5 @@
-from typing import ClassVar, List, Optional, Tuple, Union, final, overload
+import enum
+from typing import ClassVar, List, Literal, Optional, Tuple, Union, final, overload
 
 from geomcore.curves import BSplineCurve, _Curve, _Curve2D, _WholeCurve
 from geomcore.surfaces import _Surface
@@ -303,14 +304,15 @@ class Discretization:
     def __repr__(self) -> str: ...
 
 
-@final
-class Side:
-    BELOW: ClassVar[Side]
-    ABOVE: ClassVar[Side]
-    @property
-    def name(self) -> str: ...
-    def __int__(self) -> int: ...
-    def __hash__(self) -> int: ...
+class Side(enum.IntEnum):
+    BELOW = 0
+    ABOVE = 1
+
+class PointParametrization(str, enum.Enum):
+    CHORDAL = "chordal"
+    CENTRIPETAL = "centripetal"
+
+_Parametrization = Union[PointParametrization, Literal["chordal", "centripetal"]]
 
 @final
 class SurfaceCurvatures:
@@ -337,34 +339,19 @@ class UvCurveApproximation:
     def deviation(self) -> float: ...
     def is_proven(self) -> bool: ...
 
-@final
-class IntersectionMethod:
-    EXACT: ClassVar[IntersectionMethod]
-    NUMERIC: ClassVar[IntersectionMethod]
-    @property
-    def name(self) -> str: ...
-    def __int__(self) -> int: ...
-    def __hash__(self) -> int: ...
+class IntersectionMethod(enum.IntEnum):
+    EXACT = 0
+    NUMERIC = 1
 
-@final
-class CompletenessStatus:
-    COMPLETE: ClassVar[CompletenessStatus]
-    INCOMPLETE: ClassVar[CompletenessStatus]
-    SAMPLED: ClassVar[CompletenessStatus]
-    @property
-    def name(self) -> str: ...
-    def __int__(self) -> int: ...
-    def __hash__(self) -> int: ...
+class CompletenessStatus(enum.IntEnum):
+    COMPLETE = 0
+    INCOMPLETE = 1
+    SAMPLED = 2
 
-@final
-class IncompleteReason:
-    BUDGET_EXHAUSTED: ClassVar[IncompleteReason]
-    UNSEPARATED: ClassVar[IncompleteReason]
-    UNBOUNDED: ClassVar[IncompleteReason]
-    @property
-    def name(self) -> str: ...
-    def __int__(self) -> int: ...
-    def __hash__(self) -> int: ...
+class IncompleteReason(enum.IntEnum):
+    BUDGET_EXHAUSTED = 0
+    UNSEPARATED = 1
+    UNBOUNDED = 2
 
 @final
 class CurveCurveRegion:
@@ -680,6 +667,7 @@ __all__ = [
     "IntersectionMethod",
     "Point2D",
     "Point",
+    "PointParametrization",
     "Side",
     "SurfaceCurvatures",
     "SurfaceProjection",

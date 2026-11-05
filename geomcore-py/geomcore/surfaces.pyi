@@ -12,6 +12,7 @@ from typing import (
 )
 
 from geomcore import (
+    _Parametrization,
     Axis,
     BoundingBox,
     CurveSurfaceIntersection,
@@ -465,7 +466,7 @@ class BSplineSurface(
         v_degree: int,
         u_pole_count: int,
         v_pole_count: int,
-        parametrization: str = ...,
+        parametrization: _Parametrization = ...,
     ) -> BSplineSurface: ...
     @staticmethod
     def approximate_within(
@@ -473,7 +474,7 @@ class BSplineSurface(
         u_degree: int,
         v_degree: int,
         max_deviation: float,
-        parametrization: str = ...,
+        parametrization: _Parametrization = ...,
     ) -> BSplineSurface: ...
     def insert_u_knot(self, u: float, times: int) -> BSplineSurface: ...
     def insert_v_knot(self, v: float, times: int) -> BSplineSurface: ...

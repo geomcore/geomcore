@@ -5,7 +5,7 @@
 use crate::errors::python_error;
 use crate::tolerance;
 use geomcore::{
-    Axis, Axis2D, Frame, Frame2D, Point, Point2D, Side, Tolerance, Transform, Vector, Vector2D,
+    Axis, Axis2D, Frame, Frame2D, Point, Point2D, Tolerance, Transform, Vector, Vector2D,
 };
 use pyo3::prelude::*;
 
@@ -871,38 +871,4 @@ pub(crate) fn py_bool(value: bool) -> &'static str {
     if value { "True" } else { "False" }
 }
 
-/// Which side of a parameter to evaluate from, for one-sided limits at
-/// B-spline knots and periodic seams.
-///
-/// `BELOW` approaches from the span ending at the parameter, `ABOVE` from
-/// the span starting there (the side plain evaluation takes, except at
-/// the upper bound). Away from knots and seams both sides agree.
-#[pyclass(name = "Side", module = "geomcore", eq, eq_int, frozen, hash)]
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
-pub(crate) enum PySide {
-    #[pyo3(name = "BELOW")]
-    Below,
-    #[pyo3(name = "ABOVE")]
-    Above,
-}
-
-impl From<PySide> for Side {
-    fn from(side: PySide) -> Self {
-        match side {
-            PySide::Below => Side::Below,
-            PySide::Above => Side::Above,
-        }
-    }
-}
-
-#[pymethods]
-impl PySide {
-    /// The member's name, as written after the dot.
-    #[getter]
-    fn name(&self) -> &'static str {
-        match self {
-            PySide::Below => "BELOW",
-            PySide::Above => "ABOVE",
-        }
-    }
-}
+pub(crate) use crate::enums::PySide;

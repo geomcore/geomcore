@@ -43,6 +43,7 @@ __all__ = [
     "IntersectionMethod",
     "Point2D",
     "Point",
+    "PointParametrization",
     "Side",
     "SurfaceCurvatures",
     "SurfaceProjection",
