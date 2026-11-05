@@ -23,6 +23,7 @@ from geomcore import (
     BoundingBox2D,
     CurveApproximation,
     CurveApproximation2D,
+    CurveCurveExtrema,
     CurveCurveIntersection,
     CurveCurveIntersection2D,
     CurveProjection,
@@ -138,13 +139,6 @@ class _CurveMethodsInEitherDimension(
         """The lowest `continuity` anywhere inside the bounds, ends
         excluded (`math.inf` when smooth everywhere).
         """
-    def extrema(
-        self, point: _PointType, tol: Optional[_ToleranceLike] = ...
-    ) -> List[_ProjectionType]:
-        """The stationary points of the distance from `point` to the
-        curve (local minima plus the ends of a bounded curve), as
-        projection objects ordered by ascending distance.
-        """
     def project_point(
         self, point: _PointType, tol: Optional[_ToleranceLike] = ...
     ) -> _ProjectionType:
@@ -236,6 +230,30 @@ class _CurveMethods(
     def intersect(
         self, other: _Surface, tol: Optional[_ToleranceLike] = ...
     ) -> CurveSurfaceIntersection: ...
+    @overload
+    def extrema(
+        self, other: Point, tol: Optional[_ToleranceLike] = ...
+    ) -> List[CurveProjection]:
+        """The extrema of the distance to `other`, a point or a curve.
+
+        From a point: its stationary points on the curve (local
+        minima plus the ends of a bounded curve), as
+        `CurveProjection` objects ordered by ascending distance.
+
+        From a curve or `TrimmedCurve`: a `CurveCurveExtrema` of the
+        local minima of the distance between the two curves, closest
+        first, with whether the search proved there is no other.
+        Parallel lines, concentric circles and other continuous
+        families of equal minima report the distance once, with a
+        representative pair. The result holds this curve as `first`
+        and `other` as `second`. Other Python threads run during the
+        search. Raises `TypeError` for anything else, a 2D curve
+        included.
+        """
+    @overload
+    def extrema(
+        self, other: _Curve, tol: Optional[_ToleranceLike] = ...
+    ) -> CurveCurveExtrema: ...
 
 class _Curve2DMethods(
     _CurveMethodsInEitherDimension[Point2D, Vector2D, BoundingBox2D, CurveProjection2D]
@@ -254,6 +272,13 @@ class _Curve2DMethods(
         nothing was missed. Raises `TypeError` for a 2D curve against
         a 3D curve or a surface, and for an object that is not a
         geomcore curve or surface. Other Python threads run meanwhile.
+        """
+    def extrema(
+        self, point: Point2D, tol: Optional[_ToleranceLike] = ...
+    ) -> List[CurveProjection2D]:
+        """The stationary points of the distance from `point` to the
+        curve (local minima plus the ends of a bounded curve), as
+        `CurveProjection2D` objects ordered by ascending distance.
         """
 
 class _DiscretizeMethods(Generic[_DiscretizationType]):

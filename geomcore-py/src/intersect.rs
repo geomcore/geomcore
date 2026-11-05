@@ -1,5 +1,5 @@
 //! The routed `intersect` shared by every curve and surface class, the
-//! reading of Python operands it relies on, and
+//! reading of Python operands it relies on, and the deprecated
 //! `geomcore.curve_curve_extrema`.
 
 use crate::arguments::{
@@ -7,15 +7,13 @@ use crate::arguments::{
 };
 use crate::curves::PyTrimmedCurve2D;
 use crate::results::{
-    PyCurveCurveExtrema, PyCurveCurveIntersection, PyCurveCurveIntersection2D,
-    PyCurveSurfaceIntersection, PySurfaceSurfaceIntersection,
+    PyCurveCurveIntersection, PyCurveCurveIntersection2D, PyCurveSurfaceIntersection,
+    PySurfaceSurfaceIntersection,
 };
-use crate::tolerance;
-use crate::values::*;
 use geomcore::prelude::*;
 use geomcore::{
     Curve2D, CurveCurveIntersection, CurveCurveIntersection2D, CurveSurfaceIntersection, Surface,
-    Tolerance, TrimmedCurve2D, curve_curve_extrema,
+    Tolerance, TrimmedCurve2D,
 };
 use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
@@ -133,31 +131,24 @@ pub(crate) fn intersect(
     Ok(object.unbind())
 }
 
-/// Closest-point enumeration between any two 3D curves.
-///
-/// Returns a `CurveCurveExtrema`: every local minimum of the distance over
-/// the curves' parameter domains, including minima at the ends of bounded
-/// curves, closest first, with whether the search proved there is no
-/// other. Parallel lines, concentric circles and other continuous
-/// families of equal minima report the distance once, with a
-/// representative pair. The result holds the curves as `first` and
-/// `second`. Other Python threads run during the search.
+/// Deprecated: use `first.extrema(second, tol)`.
 #[pyfunction]
 #[pyo3(name = "curve_curve_extrema", signature = (first, second, tol = None))]
-pub(crate) fn py_curve_curve_extrema(
-    py: Python<'_>,
-    first: &Bound<'_, PyAny>,
-    second: &Bound<'_, PyAny>,
-    tol: Option<ToleranceArgument>,
-) -> PyResult<PyCurveCurveExtrema> {
-    let tol = tolerance(tol);
-    let a = extract_curve_arg(first)?;
-    let b = extract_curve_arg(second)?;
-    Ok(PyCurveCurveExtrema {
-        result: py.detach(|| curve_curve_extrema(&a, &b, tol)),
-        first: first.clone().unbind(),
-        second: second.clone().unbind(),
-    })
+pub(crate) fn py_curve_curve_extrema<'py>(
+    first: &Bound<'py, PyAny>,
+    second: &Bound<'py, PyAny>,
+    tol: Option<Bound<'py, PyAny>>,
+) -> PyResult<Bound<'py, PyAny>> {
+    PyErr::warn(
+        first.py(),
+        &first
+            .py()
+            .get_type::<pyo3::exceptions::PyDeprecationWarning>(),
+        c"geomcore.curve_curve_extrema(first, second) is deprecated: use first.extrema(second)",
+        1,
+    )?;
+    extract_curve_arg(first)?;
+    first.call_method1("extrema", (second, tol))
 }
 
 /// The routed intersection of two curves passed from Python.

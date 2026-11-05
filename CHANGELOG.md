@@ -11,6 +11,11 @@ the Python distribution are versioned in lockstep.
 
 ### Added
 
+- Python 3D curves take a curve in `extrema(other, tol)` (#201), as
+  well as a point. A curve or `TrimmedCurve` gives the
+  `CurveCurveExtrema` of the pair, holding this curve as `first`. A
+  point gives its projections as before. Rust keeps the free function
+  `curve_curve_extrema` (ADR 0033).
 - Python surfaces have `curve_3d_to_uv_within(curve, max_deviation, tol)`
   and `uv_curve_to_3d_within(uv_curve, max_deviation, tol)` methods
   (#185), beside the exact `curve_3d_to_uv` and `uv_curve_to_3d`. The
@@ -146,6 +151,9 @@ the Python distribution are versioned in lockstep.
 
 ### Deprecated
 
+- Python: `geomcore.curve_curve_extrema(first, second)` (#201). Call
+  `first.extrema(second)` instead. It warns with a `DeprecationWarning`
+  and goes in the next release.
 - Python: the module functions `geomcore.curve_3d_to_uv_within(surface,
   curve, ...)` and `geomcore.uv_curve_to_3d_within(surface, uv_curve,
   ...)` (#185). Call the surface methods of the same names instead. The
@@ -153,6 +161,9 @@ the Python distribution are versioned in lockstep.
 
 ### Changed
 
+- Python: the argument of a 3D curve's `extrema` is named `other`, not
+  `point`, since it takes a curve too (#201). A call that passes
+  `point=` by keyword needs `other=` or a positional argument.
 - An axis, frame or extrusion direction that is already of unit length
   keeps its bits (#182): normalizing it again only moved its rounding, so
   a frame rebuilt from its own directions was a different frame in about

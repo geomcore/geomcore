@@ -25,7 +25,6 @@ from geomcore import (
     SurfaceSurfaceIntersection,
     Vector2D,
     Vector,
-    curve_curve_extrema,
 )
 from geomcore.curves import (
     BSplineCurve,
@@ -318,7 +317,7 @@ def test_curve_curve_extrema_is_an_object():
         False,
     )
     rail = _segment(Point(1.0, 0.0, 1.0), Point(1.0, 2.0, 1.0))
-    extrema = curve_curve_extrema(arch, rail)
+    extrema = arch.extrema(rail)
     assert isinstance(extrema, CurveCurveExtrema)
     assert extrema.first is arch and extrema.second is rail
     assert extrema.is_complete()
@@ -327,7 +326,7 @@ def test_curve_curve_extrema_is_an_object():
     assert minimum.distance == pytest.approx(1.0)
     assert minimum.first_parameter == pytest.approx(0.5)
     assert 0.0 <= minimum.second_parameter <= 1.0
-    assert curve_curve_extrema(first=arch, second=rail) == extrema
+    assert arch.extrema(other=rail) == extrema
 
 
 # ------------------------------------------------------- repr and equality
@@ -449,7 +448,7 @@ def test_empty_results_are_falsy():
 def test_extrema_length_is_the_number_of_minima():
     a = _segment(Point.origin(), Point(1.0, 0.0, 0.0))
     b = _segment(Point(0.0, 1.0, 0.0), Point(1.0, 2.0, 0.0))
-    extrema = curve_curve_extrema(a, b)
+    extrema = a.extrema(b)
     assert len(extrema) == len(extrema.minima) >= 1
     assert extrema
 

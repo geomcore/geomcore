@@ -868,12 +868,12 @@ def test_intersect_plane_sphere_off_grid(height: float) -> None:
 
 
 def test_curve_curve_generic():
-    from geomcore import curve_curve_extrema
     from geomcore.curves import Circle, Line
 
     l1 = Line(Point.origin(), Vector.unit_x())
     l2 = Line(Point(0.0, 0.0, 1.0), Vector.unit_y())
-    extrema = curve_curve_extrema(l1, l2)
+    extrema = l1.extrema(l2)
+    assert extrema.first is l1 and extrema.second is l2
     assert len(extrema.minima) == 1
     assert extrema.minima[0].distance == pytest.approx(1.0)
 
@@ -1339,7 +1339,6 @@ def test_trimmed_curve_rejects_bad_ranges():
 
 
 def test_intersect_searches_only_the_range():
-    from geomcore import curve_curve_extrema
     from geomcore.curves import TrimmedCurve
 
     segment = TrimmedCurve.segment(Point(-2.0, 0.5, 0.0), Point(2.0, 0.5, 0.0))
@@ -1351,7 +1350,7 @@ def test_intersect_searches_only_the_range():
 
     a = TrimmedCurve.segment(Point.origin(), Point(1.0, 0.0, 0.0))
     b = TrimmedCurve.segment(Point(3.0, -1.0, 1.0), Point(3.0, 1.0, 1.0))
-    assert curve_curve_extrema(a, b).minima[0].distance == pytest.approx(math.sqrt(5.0))
+    assert a.extrema(b).minima[0].distance == pytest.approx(math.sqrt(5.0))
 
     sphere = Sphere(Point.origin(), 1.0)
     half = TrimmedCurve.segment(Point.origin(), Point(2.0, 0.0, 0.0))
