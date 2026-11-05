@@ -11,6 +11,14 @@ the Python distribution are versioned in lockstep.
 
 ### Added
 
+- A numpy bridge for bulk queries in Python (#181): every curve and
+  surface gains `points_at_array` and `project_points_array`, which take an
+  array-like and return float64 arrays (`(N, 3)` or `(N, 2)` points, and
+  the parameters and distances of the projections) with the interpreter
+  lock released during the computation. The B-spline fitting methods take
+  an `(N, 3)`, `(N, 2)` or `(n, m, 3)` array in place of point objects.
+  numpy stays optional: it is imported when one of these is called, and
+  `pip install geomcore[numpy]` installs it.
 - `PointParametrization` in Python (#202): `CHORDAL` or `CENTRIPETAL`,
   taken by `interpolate`, `approximate` and `fit_within` on B-spline
   curves and surfaces. A member equals its lowercase name, and the strings

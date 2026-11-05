@@ -117,6 +117,23 @@ confusion of the seam reports 0 whichever side it was found from, so
 callers can test results against `bounds()` and trimmed ranges without
 losing hits.
 
+## Many points at once
+
+In Python, `project_points_array` takes an `(N, 3)` array-like (`(N, 2)`
+for a planar curve) and returns numpy arrays instead of one projection
+object per point; `points_at_array` does the same for evaluation. The
+computation runs with the interpreter lock released, and numpy is
+imported only when these are called (`pip install geomcore[numpy]`).
+
+```python
+import numpy
+
+queries = numpy.random.default_rng(0).normal(size=(100_000, 3))
+parameters, points, distances = circle.project_points_array(queries)
+# parameters (N,), points (N, 3), distances (N,); a surface gives (N, 2) parameters
+grid = sphere.points_at_array(numpy.column_stack([us, vs]))   # (N, 3)
+```
+
 ## Curves against curves
 
 `curve_curve_extrema` reports the local minima of the distance between

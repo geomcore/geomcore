@@ -1,3 +1,6 @@
+import numpy
+import numpy.typing
+
 from typing import (
     Any,
     ClassVar,
@@ -46,6 +49,8 @@ _WholeCurve2D = Union[
 ]
 _Curve2D = Union[_WholeCurve2D, TrimmedCurve2D]
 
+_FloatArray = numpy.typing.NDArray[numpy.float64]
+
 _PointType = TypeVar("_PointType")
 _VectorType = TypeVar("_VectorType")
 _BoundingBoxType = TypeVar("_BoundingBoxType")
@@ -65,6 +70,10 @@ class _CurveMethodsInEitherDimension(
         """Evaluate the point at parameter `u`."""
     def points_at(self, us: List[float]) -> List[_PointType]:
         """Evaluate many parameters at once."""
+    def points_at_array(self, us: numpy.typing.ArrayLike) -> _FloatArray:
+        """The points at each parameter of the array-like `us`, as a
+        numpy array with one row of coordinates per parameter.
+        """
     def derivative(self, u: float, order: int) -> _VectorType:
         """Evaluate the derivative of the given order (>= 1) at `u`."""
     def first_derivatives(self, u: float) -> Tuple[_PointType, _VectorType]:
@@ -135,6 +144,13 @@ class _CurveMethodsInEitherDimension(
     ) -> List[_ProjectionType]:
         """Projects each point in `points` onto the curve, returning a
         projection object per point.
+        """
+    def project_points_array(
+        self, points: numpy.typing.ArrayLike, tol: Optional[Tolerance] = ...
+    ) -> Tuple[_FloatArray, _FloatArray, _FloatArray]:
+        """Projects each row of the array-like `points` onto the curve,
+        returning numpy arrays `(parameters, points, distances)`:
+        the parameter, the closest point and its distance per row.
         """
     def contains(self, point: _PointType, tol: Optional[Tolerance] = ...) -> bool:
         """Returns whether `point` lies on the curve within `tol`
@@ -372,15 +388,20 @@ class BSplineCurve(
     ) -> BSplineCurve: ...
     @staticmethod
     def interpolate(
-        points: List[Point], degree: int, parametrization: _Parametrization = ...
+        points: Union[List[Point], numpy.typing.ArrayLike],
+        degree: int,
+        parametrization: _Parametrization = ...,
     ) -> BSplineCurve: ...
     @staticmethod
     def approximate(
-        points: List[Point], degree: int, num_poles: int, parametrization: _Parametrization = ...
+        points: Union[List[Point], numpy.typing.ArrayLike],
+        degree: int,
+        num_poles: int,
+        parametrization: _Parametrization = ...,
     ) -> BSplineCurve: ...
     @staticmethod
     def approximate_within(
-        points: List[Point],
+        points: Union[List[Point], numpy.typing.ArrayLike],
         degree: int,
         max_deviation: float,
         parametrization: _Parametrization = ...,
@@ -432,15 +453,20 @@ class BSplineCurve2D(
     ) -> BSplineCurve2D: ...
     @staticmethod
     def interpolate(
-        points: List[Point2D], degree: int, parametrization: _Parametrization = ...
+        points: Union[List[Point2D], numpy.typing.ArrayLike],
+        degree: int,
+        parametrization: _Parametrization = ...,
     ) -> BSplineCurve2D: ...
     @staticmethod
     def approximate(
-        points: List[Point2D], degree: int, num_poles: int, parametrization: _Parametrization = ...
+        points: Union[List[Point2D], numpy.typing.ArrayLike],
+        degree: int,
+        num_poles: int,
+        parametrization: _Parametrization = ...,
     ) -> BSplineCurve2D: ...
     @staticmethod
     def approximate_within(
-        points: List[Point2D],
+        points: Union[List[Point2D], numpy.typing.ArrayLike],
         degree: int,
         max_deviation: float,
         parametrization: _Parametrization = ...,

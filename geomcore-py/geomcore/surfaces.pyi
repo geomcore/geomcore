@@ -1,3 +1,6 @@
+import numpy
+import numpy.typing
+
 from typing import (
     Any,
     ClassVar,
@@ -49,6 +52,8 @@ _Surface = Union[
     BezierSurface,
 ]
 
+_FloatArray = numpy.typing.NDArray[numpy.float64]
+
 _UIsoCurveType = TypeVar("_UIsoCurveType")
 _VIsoCurveType = TypeVar("_VIsoCurveType")
 _Self = TypeVar("_Self")
@@ -86,6 +91,10 @@ class _SurfaceMethods(Generic[_UIsoCurveType, _VIsoCurveType]):
         """Evaluate the point at surface parameters (u, v)."""
     def points_at(self, uvs: List[Tuple[float, float]]) -> List[Point]:
         """Evaluate many (u, v) pairs at once."""
+    def points_at_array(self, uvs: numpy.typing.ArrayLike) -> _FloatArray:
+        """The points at each `(u, v)` row of the `(N, 2)` array-like
+        `uvs`, as an `(N, 3)` numpy array.
+        """
     def derivative(self, u: float, v: float, du: int, dv: int) -> Vector:
         """Evaluate the partial derivative of order (du, dv), with
         du+dv >= 1: of every order on the plane, cylinder, cone,
@@ -164,6 +173,14 @@ class _SurfaceMethods(Generic[_UIsoCurveType, _VIsoCurveType]):
     ) -> List[SurfaceProjection]:
         """Projects each point in `points` onto the surface, returning a
         `SurfaceProjection` per point.
+        """
+    def project_points_array(
+        self, points: numpy.typing.ArrayLike, tol: Optional[Tolerance] = ...
+    ) -> Tuple[_FloatArray, _FloatArray, _FloatArray]:
+        """Projects each row of the `(N, 3)` array-like `points` onto
+        the surface, returning numpy arrays `(parameters, points,
+        distances)`: the `(u, v)` row, the closest point and its
+        distance per row.
         """
     def contains(self, point: Point, tol: Optional[Tolerance] = ...) -> bool:
         """Returns whether `point` lies on the surface within `tol`
@@ -461,7 +478,7 @@ class BSplineSurface(
     def v_multiplicities(self) -> List[int]: ...
     @staticmethod
     def approximate(
-        points: List[List[Point]],
+        points: Union[List[List[Point]], numpy.typing.ArrayLike],
         u_degree: int,
         v_degree: int,
         u_pole_count: int,
@@ -470,7 +487,7 @@ class BSplineSurface(
     ) -> BSplineSurface: ...
     @staticmethod
     def approximate_within(
-        points: List[List[Point]],
+        points: Union[List[List[Point]], numpy.typing.ArrayLike],
         u_degree: int,
         v_degree: int,
         max_deviation: float,

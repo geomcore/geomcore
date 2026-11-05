@@ -1,9 +1,10 @@
 //! The Python class `geomcore.curves.BSplineCurve2D`, wrapping `geomcore::BSplineCurve2D`.
 
+use crate::arrays::Points;
 use crate::curves::*;
 use crate::enums::PyPointParametrization;
 use crate::method_sets::*;
-use geomcore::BSplineCurve2D;
+use geomcore::{BSplineCurve2D, Point2D};
 
 /// A B-spline (optionally rational, optionally periodic) curve in 2D: the
 /// planar counterpart of `BSplineCurve`.
@@ -49,13 +50,15 @@ shape_methods! {
 
     /// Interpolate a clamped 2D B-spline through `points`.
     ///
+    /// `points` is a list of points or an `(N, 2)` array-like.
+    ///
     /// `parametrization` is a `PointParametrization` or its string value,
     /// `"centripetal"` (the default, tamer at sharp turns) or `"chordal"`.
     #[staticmethod]
     #[pyo3(signature = (points, degree, parametrization = PyPointParametrization::Centripetal))]
-    fn interpolate(points: Vec<PyPoint2D>, degree: usize, parametrization: PyPointParametrization) -> PyResult<Self> {
+    fn interpolate(points: Points<Point2D>, degree: usize, parametrization: PyPointParametrization) -> PyResult<Self> {
         let param = geomcore::PointParametrization::from(parametrization);
-        let points = points.into_iter().map(|p| p.0).collect::<Vec<_>>();
+        let points = points.0;
         Ok(PyBSplineCurve2D(
             BSplineCurve2D::interpolate(&points, degree, param).map_err(python_error)?,
         ))
@@ -64,18 +67,20 @@ shape_methods! {
     /// Least-squares 2D B-spline fit through `points` with `num_poles`
     /// poles.
     ///
+    /// `points` is a list of points or an `(N, 2)` array-like.
+    ///
     /// `parametrization` is a `PointParametrization` or its string value,
     /// `"centripetal"` (the default) or `"chordal"`.
     #[staticmethod]
     #[pyo3(signature = (points, degree, num_poles, parametrization = PyPointParametrization::Centripetal))]
     fn approximate(
-        points: Vec<PyPoint2D>,
+        points: Points<Point2D>,
         degree: usize,
         num_poles: usize,
         parametrization: PyPointParametrization,
     ) -> PyResult<Self> {
         let param = geomcore::PointParametrization::from(parametrization);
-        let points = points.into_iter().map(|p| p.0).collect::<Vec<_>>();
+        let points = points.0;
         Ok(PyBSplineCurve2D(
             BSplineCurve2D::approximate(&points, degree, num_poles, param).map_err(python_error)?,
         ))
@@ -85,18 +90,20 @@ shape_methods! {
     /// keep every point within `max_deviation` of the curve at its
     /// parameter.
     ///
+    /// `points` is a list of points or an `(N, 2)` array-like.
+    ///
     /// `parametrization` is a `PointParametrization` or its string value,
     /// `"centripetal"` (the default) or `"chordal"`.
     #[staticmethod]
     #[pyo3(signature = (points, degree, max_deviation, parametrization = PyPointParametrization::Centripetal))]
     fn approximate_within(
-        points: Vec<PyPoint2D>,
+        points: Points<Point2D>,
         degree: usize,
         max_deviation: f64,
         parametrization: PyPointParametrization,
     ) -> PyResult<Self> {
         let param = geomcore::PointParametrization::from(parametrization);
-        let points = points.into_iter().map(|p| p.0).collect::<Vec<_>>();
+        let points = points.0;
         Ok(PyBSplineCurve2D(
             BSplineCurve2D::approximate_within(&points, degree, max_deviation, param)
                 .map_err(python_error)?,

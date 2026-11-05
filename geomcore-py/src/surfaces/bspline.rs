@@ -1,5 +1,6 @@
 //! The Python class `geomcore.surfaces.BSplineSurface`, wrapping `geomcore::BSplineSurface`.
 
+use crate::arrays::PointGrid;
 use crate::enums::PyPointParametrization;
 use crate::method_sets::*;
 use crate::surfaces::*;
@@ -170,13 +171,15 @@ shape_methods! {
 
     /// Least-squares B-spline fit through the grid `points[i][j]`.
     ///
+    /// `points` is rows of `Point` objects or an `(n, m, 3)` array-like.
+    ///
     /// `parametrization` is a `PointParametrization` or its string value,
     /// `"centripetal"` (the default) or `"chordal"`.
     #[staticmethod]
     #[allow(clippy::too_many_arguments)]
     #[pyo3(signature = (points, u_degree, v_degree, u_pole_count, v_pole_count, parametrization = PyPointParametrization::Centripetal))]
     fn approximate(
-        points: Vec<Vec<PyPoint>>,
+        points: PointGrid,
         u_degree: usize,
         v_degree: usize,
         u_pole_count: usize,
@@ -184,10 +187,7 @@ shape_methods! {
         parametrization: PyPointParametrization,
     ) -> PyResult<Self> {
         let param = geomcore::PointParametrization::from(parametrization);
-        let points = points
-            .into_iter()
-            .map(|row| row.into_iter().map(|p| p.0).collect())
-            .collect::<Vec<Vec<_>>>();
+        let points = points.0;
         Ok(PyBSplineSurface(
             BSplineSurface::approximate(
                 &points,
@@ -205,23 +205,22 @@ shape_methods! {
     /// few poles as keep every point within `max_deviation` of the
     /// surface.
     ///
+    /// `points` is rows of `Point` objects or an `(n, m, 3)` array-like.
+    ///
     /// `parametrization` is a `PointParametrization` or its string value,
     /// `"centripetal"` (the default) or `"chordal"`.
     #[staticmethod]
     #[allow(clippy::too_many_arguments)]
     #[pyo3(signature = (points, u_degree, v_degree, max_deviation, parametrization = PyPointParametrization::Centripetal))]
     fn approximate_within(
-        points: Vec<Vec<PyPoint>>,
+        points: PointGrid,
         u_degree: usize,
         v_degree: usize,
         max_deviation: f64,
         parametrization: PyPointParametrization,
     ) -> PyResult<Self> {
         let param = geomcore::PointParametrization::from(parametrization);
-        let points = points
-            .into_iter()
-            .map(|row| row.into_iter().map(|p| p.0).collect())
-            .collect::<Vec<Vec<_>>>();
+        let points = points.0;
         Ok(PyBSplineSurface(
             BSplineSurface::approximate_within(&points, u_degree, v_degree, max_deviation, param)
                 .map_err(python_error)?,

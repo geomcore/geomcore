@@ -40,6 +40,7 @@
 //! to a set goes into that class too, with the same docstring.
 
 pub(crate) use crate::arguments::{curve_2d_classes, curve_classes};
+pub(crate) use crate::arrays;
 pub(crate) use crate::bounding_box::{PyBoundingBox, PyBoundingBox2D};
 pub(crate) use crate::discretization::{PyDiscretization, PyDiscretization2D};
 pub(crate) use crate::errors::python_error;
@@ -124,6 +125,18 @@ macro_rules! curve_methods {
             /// Evaluate many parameters at once.
             fn points_at(&self, us: Vec<f64>) -> Vec<$point> {
                 self.0.points_at(&us).into_iter().map($point).collect()
+            }
+
+            /// The points at each parameter of the array-like `us`, as a
+            /// numpy array with one row of coordinates per parameter.
+            fn points_at_array<'py>(
+                &self,
+                py: Python<'py>,
+                us: &Bound<'py, PyAny>,
+            ) -> PyResult<Bound<'py, PyAny>> {
+                let us = arrays::read_floats(us, "us")?;
+                let points = py.detach(|| self.0.points_at(&us));
+                arrays::point_array(py, points.into_iter())
             }
 
             /// Evaluate the derivative of the given order (>= 1) at `u`.
@@ -256,6 +269,29 @@ macro_rules! curve_methods {
                     .zip(points)
                     .map(|(projection, point)| $projection::new(projection, slf, point))
                     .collect()
+            }
+
+            /// Projects each row of the array-like `points` onto the curve,
+            /// returning numpy arrays `(parameters, points, distances)`:
+            /// the parameter, the closest point and its distance per row.
+            #[pyo3(signature = (points, tol = None))]
+            fn project_points_array<'py>(
+                &self,
+                py: Python<'py>,
+                points: &Bound<'py, PyAny>,
+                tol: Option<PyTolerance>,
+            ) -> PyResult<(Bound<'py, PyAny>, Bound<'py, PyAny>, Bound<'py, PyAny>)> {
+                let points = arrays::read_points(points, "points")?;
+                let tol = tolerance(tol);
+                let projections = py.detach(|| self.0.project_points(&points, tol));
+                let count = projections.len();
+                let parameters: Vec<f64> = projections.iter().map(|p| p.parameter).collect();
+                let distances: Vec<f64> = projections.iter().map(|p| p.distance).collect();
+                Ok((
+                    arrays::array(py, &parameters, &[count])?,
+                    arrays::point_array(py, projections.iter().map(|p| p.point))?,
+                    arrays::array(py, &distances, &[count])?,
+                ))
             }
 
             /// Returns whether `point` lies on the curve within `tol`
@@ -460,6 +496,18 @@ macro_rules! surface {
                 self.0.points_at(&uvs).into_iter().map(PyPoint).collect()
             }
 
+            /// The points at each `(u, v)` row of the `(N, 2)` array-like
+            /// `uvs`, as an `(N, 3)` numpy array.
+            fn points_at_array<'py>(
+                &self,
+                py: Python<'py>,
+                uvs: &Bound<'py, PyAny>,
+            ) -> PyResult<Bound<'py, PyAny>> {
+                let uvs = arrays::read_pairs(uvs, "uvs")?;
+                let points = py.detach(|| self.0.points_at(&uvs));
+                arrays::point_array(py, points.into_iter())
+            }
+
             /// Evaluate the partial derivative of order (du, dv), with
             /// du+dv >= 1: of every order on the plane, cylinder, cone,
             /// sphere and torus, and du+dv <= 2 on the other surfaces.
@@ -604,6 +652,30 @@ macro_rules! surface {
                     .zip(points)
                     .map(|(projection, point)| PySurfaceProjection::new(projection, slf, point))
                     .collect()
+            }
+
+            /// Projects each row of the `(N, 3)` array-like `points` onto
+            /// the surface, returning numpy arrays `(parameters, points,
+            /// distances)`: the `(u, v)` row, the closest point and its
+            /// distance per row.
+            #[pyo3(signature = (points, tol = None))]
+            fn project_points_array<'py>(
+                &self,
+                py: Python<'py>,
+                points: &Bound<'py, PyAny>,
+                tol: Option<PyTolerance>,
+            ) -> PyResult<(Bound<'py, PyAny>, Bound<'py, PyAny>, Bound<'py, PyAny>)> {
+                let points: Vec<geomcore::Point> = arrays::read_points(points, "points")?;
+                let tol = tolerance(tol);
+                let projections = py.detach(|| self.0.project_points(&points, tol));
+                let count = projections.len();
+                let parameters: Vec<f64> = projections.iter().flat_map(|p| [p.u, p.v]).collect();
+                let distances: Vec<f64> = projections.iter().map(|p| p.distance).collect();
+                Ok((
+                    arrays::array(py, &parameters, &[count, 2])?,
+                    arrays::point_array(py, projections.iter().map(|p| p.point))?,
+                    arrays::array(py, &distances, &[count])?,
+                ))
             }
 
             /// Returns whether `point` lies on the surface within `tol`

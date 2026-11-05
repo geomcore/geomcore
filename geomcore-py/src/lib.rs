@@ -90,6 +90,7 @@ pub(crate) fn check_surface_order<S: HighestDerivativeOrder>(
 }
 
 mod arguments;
+mod arrays;
 mod bounding_box;
 mod curves;
 mod discretization;

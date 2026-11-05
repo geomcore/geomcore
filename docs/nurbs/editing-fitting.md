@@ -125,6 +125,9 @@ is largest until every point is within `max_deviation`.
     let within = BSplineCurve::approximate_within(&points, 2, 1e-6, PointParametrization::Centripetal).unwrap();
     ```
 
+In Python the points can also be an `(N, 3)` numpy array (`(N, 2)`
+for `BSplineCurve2D`, `(n, m, 3)` for a surface grid).
+
 `BSplineSurface::approximate` fits a grid by separating rows and
 columns (one factored system per direction); `approximate_within`
 does the same within a deviation.
