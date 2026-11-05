@@ -513,6 +513,16 @@ macro_rules! surface {
                 self.0.v_period()
             }
 
+            /// Whether the surface is periodic in u.
+            fn is_u_periodic(&self) -> bool {
+                self.0.is_u_periodic()
+            }
+
+            /// Whether the surface is periodic in v.
+            fn is_v_periodic(&self) -> bool {
+                self.0.is_v_periodic()
+            }
+
             /// Whether travelling in `u` returns to its start: the boundary
             /// curves at the two `u` bounds coincide (`Tolerance.default()`
             /// when omitted). Periodic in `u` implies closed in `u`, not

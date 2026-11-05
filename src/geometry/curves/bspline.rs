@@ -848,6 +848,22 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
         pieces
     }
 
+    /// The curve itself, as the other curve kinds give their exact
+    /// B-spline with `to_bspline`, so code converting any curve needs no
+    /// special case for a B-spline.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{BSplineCurve, Point};
+    /// let poles = vec![Point::ORIGIN, Point::new(1.0, 1.0, 0.0)];
+    /// let curve = BSplineCurve::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
+    /// assert_eq!(curve.to_bspline(), curve);
+    /// ```
+    pub fn to_bspline(&self) -> Self {
+        self.clone()
+    }
+
     /// Returns the piece of the curve over `[first, last]` as a clamped,
     /// non-periodic B-spline of the same degree, whose bounds are exactly
     /// `(first, last)` and which evaluates as this curve there, points and

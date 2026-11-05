@@ -195,6 +195,12 @@ shape_methods! {
             .collect()
     }
 
+    /// The curve itself, as the other curves give their exact B-spline
+    /// with `to_bspline()`.
+    fn to_bspline(&self) -> Self {
+        Self(self.0.to_bspline())
+    }
+
     /// The piece over `[first, last]` as a clamped, non-periodic B-spline
     /// (the range may cross the seam of a periodic curve, up to one
     /// period).

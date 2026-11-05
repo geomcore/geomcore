@@ -262,6 +262,36 @@ pub trait ParametricSurface {
     /// not periodic in `v`.
     fn v_period(&self) -> Option<f64>;
 
+    /// Returns whether the surface is periodic in `u`, i.e. whether
+    /// [`u_period`](Self::u_period) is `Some`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::prelude::*;
+    /// use geomcore::{Cylinder, Point, Vector};
+    /// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
+    /// assert!(cylinder.is_u_periodic() && !cylinder.is_v_periodic());
+    /// ```
+    fn is_u_periodic(&self) -> bool {
+        self.u_period().is_some()
+    }
+
+    /// Returns whether the surface is periodic in `v`, i.e. whether
+    /// [`v_period`](Self::v_period) is `Some`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::prelude::*;
+    /// use geomcore::{Point, Sphere};
+    /// let sphere = Sphere::new(Point::ORIGIN, 1.0).unwrap();
+    /// assert!(sphere.is_u_periodic() && !sphere.is_v_periodic());
+    /// ```
+    fn is_v_periodic(&self) -> bool {
+        self.v_period().is_some()
+    }
+
     /// Returns whether travelling in `u` returns to its start, i.e.
     /// whether the surface's boundary curves at the two `u` bounds
     /// coincide.

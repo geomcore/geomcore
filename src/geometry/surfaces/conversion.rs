@@ -518,6 +518,7 @@ impl ElementarySurface {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{BSplineConversionError, ElementarySurface, Plane, Point, Sphere, Vector};
     ///
     /// let sphere = Sphere::new(Point::ORIGIN, 1.0).unwrap();

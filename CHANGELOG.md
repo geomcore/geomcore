@@ -9,6 +9,18 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+### Added
+
+- `is_u_periodic()` and `is_v_periodic()` are methods of every surface,
+  on the `ParametricSurface` trait (Python: the shared surface methods),
+  where `u_period()` and `v_period()` already were. They were
+  `BSplineSurface` methods only; in Rust, calling them now needs the trait
+  in scope (`use geomcore::prelude::*`).
+- `BSplineCurve`, `BSplineCurve2D` and `BSplineSurface` gain
+  `to_bspline()`, returning the shape itself, as the other curves and
+  surfaces with an exact B-spline form give theirs, so converting code
+  needs no special case for a B-spline (#197).
+
 ## [0.43.0] - 2026-11-05
 
 A UV curve without an exact 3D curve, such as a helix on a cylinder, now

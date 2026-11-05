@@ -445,3 +445,23 @@ def test_every_curve_reversed_meets_itself_at_the_reversed_parameter():
         there = reversed_curve.eval_point(curve.reversed_parameter(u))
         assert there.distance(curve.eval_point(u)) < 1e-9, type(curve).__name__
         assert reversed_curve.reversed() == curve
+
+
+def test_every_surface_says_whether_it_is_periodic_in_each_direction():
+    # #197: `is_u_periodic` was a B-spline surface method; `u_period` was shared.
+    for surface in _surfaces():
+        assert surface.is_u_periodic() == (surface.u_period() is not None), surface
+        assert surface.is_v_periodic() == (surface.v_period() is not None), surface
+
+
+def test_every_spline_converts_to_a_bspline_like_its_siblings():
+    # #197: generic code special-cased the B-spline classes, which had no
+    # `to_bspline`, when converting a curve or surface.
+    shapes = _curves_3d() + _curves_2d() + _surfaces()
+    for shape in shapes:
+        bspline = (curves.BSplineCurve, curves.BSplineCurve2D, surfaces.BSplineSurface)
+        if isinstance(shape, bspline):
+            assert shape.to_bspline() == shape
+    splines = ("BSplineCurve", "BSplineCurve2D", "BezierCurve", "BezierCurve2D")
+    for name in splines + ("BSplineSurface", "BezierSurface"):
+        assert "to_bspline" in dir(_shape_classes()[name]), name
