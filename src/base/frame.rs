@@ -906,6 +906,7 @@ impl Frame2D {
     /// assert_eq!(f.x_direction(), Vector2D::X);
     /// assert_eq!(f.y_direction(), Vector2D::Y);
     /// ```
+    #[inline]
     pub fn new(
         origin: Point2D,
         x_direction: Vector2D,

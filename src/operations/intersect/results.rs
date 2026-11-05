@@ -138,8 +138,10 @@ pub struct IntersectionCurve {
     /// parameter as `curve`: the surface's point at its `(u, v)` at `t` is
     /// `curve`'s point at `t`. A marched curve always has one, fitted on
     /// `curve`'s knots from the parameters the march walked, within the
-    /// fit's error. An exact curve has the exact one where a closed form
-    /// exists (see [`ParametricSurface::curve_3d_to_uv`](crate::ParametricSurface::curve_3d_to_uv)),
+    /// fit's error. A curve fitted from a closed form, as a loop where two
+    /// cylinders cross, has one fitted on the same knots. Another exact
+    /// curve has the exact one where a closed form exists (see
+    /// [`ParametricSurface::curve_3d_to_uv`](crate::ParametricSurface::curve_3d_to_uv)),
     /// and `None` otherwise, as an ellipse on a cylinder:
     /// [`curve_3d_to_uv_within`](crate::curve_3d_to_uv_within) maps it
     /// within a deviation.
@@ -157,8 +159,9 @@ pub struct IntersectionCurve {
     /// each surface's point at its UV curve's point at `t`, the tolerance
     /// an edge along the curve needs. A marched curve samples it at the
     /// middle of each knot span, where its fits stray furthest from the
-    /// traced points, so it can miss a larger distance elsewhere; an exact
-    /// curve is `0.0`.
+    /// traced points, so it can miss a larger distance elsewhere. A curve
+    /// fitted from a closed form (ADR 0036) samples it at the quarters of
+    /// each span; an exact curve is `0.0`.
     pub deviation: f64,
 }
 
@@ -797,8 +800,9 @@ impl SurfaceSurfaceIntersection {
     /// `first` and `second` found, where a closed form exists (see
     /// [`IntersectionCurve::first_uv_curve`]). A marched curve has both
     /// already, and a swept surface's plane cut has the one on the swept
-    /// surface; a curve through crossings found numerically, as a plane
-    /// cutting a spline profile's extrusion, gets them like an exact one.
+    /// surface; a curve fitted from a closed form has them already too. A
+    /// curve through crossings found numerically, as a plane cutting a
+    /// spline profile's extrusion, gets them like an exact one.
     /// The solvers built the curves on both surfaces, so the closed forms
     /// skip their on-surface check: it tripled the cost of a plane cutting
     /// a cylinder.

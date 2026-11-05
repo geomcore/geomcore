@@ -1,6 +1,7 @@
 //! Exact intersections of two elementary surfaces: one result type per
 //! pair, solved in closed form.
 
+use super::bicylindric::{BicylindricCurve, crossing_cylinders};
 use crate::geometry::surfaces::ParametricSurface;
 use crate::math::numeric::{QuadraticSolution, solve_quadratic};
 use crate::{
@@ -119,9 +120,10 @@ pub enum SphereConeIntersection {
 
 /// Result of intersecting two cylinders.
 ///
-/// The closed form requires parallel axes (within `tol.angular`), or
-/// equal radii and axes that meet (within `tol.confusion`); other skew or
-/// crossing axes give a space quartic and report
+/// Every configuration is closed-form but one: axes that are not parallel
+/// (against `tol.angular`) at the distance `|r1 − r2|` apart (within
+/// `tol.confusion`), radii unequal or axes apart, where the curve crosses
+/// itself at a point where the cylinders touch. That one reports
 /// [`CylinderCylinderIntersection::NotAnalytic`], reserved for the
 /// numeric surface-surface path.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -134,6 +136,12 @@ pub enum CylinderCylinderIntersection {
     /// both axes, and the two cross at its ends, `point_at(π/2)` and
     /// `point_at(3π/2)`, where the cylinders touch.
     TwoEllipses(Ellipse, Ellipse),
+    /// The space quartic of axes that are not parallel, in one or two
+    /// loops (see [`BicylindricCurve`]).
+    Quartic(BicylindricCurve),
+    /// Axes that are not parallel, `r1 + r2` apart: the cylinders touch at
+    /// one point.
+    TangentPoint(Point),
     /// One shared grazing generator.
     TangentLine(Line),
     /// Separate, nested without contact, or concentric with different radii.
@@ -637,8 +645,13 @@ impl IntersectExact<Cylinder> for Cylinder {
     /// pipes) give two ellipses: a point on both is as far from either
     /// axis, so `(X − O)·a1 = ±(X − O)·a2`, two planes through `O`, and each
     /// cuts the cylinders in one ellipse of minor radius `r` across both
-    /// axes. Any other skew or crossing axes give a space quartic and
-    /// report [`CylinderCylinderIntersection::NotAnalytic`].
+    /// axes. Any other axes that are not parallel give the bicylindric
+    /// quartic (see [`BicylindricCurve`]): from `d`, the distance between
+    /// the axes, the cylinders miss (`d` beyond `r1 + r2`), touch at a
+    /// point (`d = r1 + r2`) or meet in one loop (`d` between `|r1 − r2|`
+    /// and `r1 + r2`) or two (`d` below `|r1 − r2|`). At `d = |r1 − r2|`
+    /// the loops meet where the cylinders touch, and the result is
+    /// [`CylinderCylinderIntersection::NotAnalytic`].
     ///
     /// # Examples
     ///
@@ -663,6 +676,7 @@ impl IntersectExact<Cylinder> for Cylinder {
             > tol.angular
         {
             return crossing_equal_cylinders(self, other, tol)
+                .or_else(|| crossing_cylinders(self, other, tol))
                 .unwrap_or(CylinderCylinderIntersection::NotAnalytic);
         }
         let w = other.axis().origin() - self.axis().origin();
