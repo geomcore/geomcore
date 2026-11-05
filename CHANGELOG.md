@@ -9,6 +9,17 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+### Breaking
+
+- One accuracy argument, one name (#194). The bound on a length's error is
+  `length(max_length_error)` (was `max_error`) on the B-spline and Bézier
+  curves, and the fixed size of a least-squares fit is
+  `approximate(points, degree, pole_count)` (was `num_poles`), as the
+  getters and the surface fit already say `pole_count`. A bound on the
+  distance to the true geometry stays `max_deviation`, and `discretize`
+  keeps `max_chord_deviation` and `max_angle_deviation`. Only Python
+  callers passing these by keyword need to change.
+
 ## [0.43.0] - 2026-11-05
 
 A UV curve without an exact 3D curve, such as a helix on a cylinder, now

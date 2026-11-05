@@ -91,8 +91,8 @@ shape_methods! {
         ))
     }
 
-    /// The arc length, integrating the speed to within `max_error`.
-    fn length(&self, max_error: f64) -> f64 {
-        self.0.length(max_error)
+    /// The arc length, integrating the speed to within `max_length_error`.
+    fn length(&self, max_length_error: f64) -> f64 {
+        self.0.length(max_length_error)
     }
 }

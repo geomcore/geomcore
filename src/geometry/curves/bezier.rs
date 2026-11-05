@@ -444,7 +444,7 @@ impl<P: TierPoint> GenericBezierCurve<P> {
         self.0.eval_d2_sided(u, side)
     }
 
-    /// The length of the curve over its bounds, within `max_error` as far
+    /// The length of the curve over its bounds, within `max_length_error` as far
     /// as the quadrature's own error estimate tells (see
     /// [`BSplineCurve::length`](crate::BSplineCurve::length)).
     ///
@@ -463,8 +463,8 @@ impl<P: TierPoint> GenericBezierCurve<P> {
     /// let exact = 0.5 * 5f64.sqrt() + 0.25 * (2.0 + 5f64.sqrt()).ln();
     /// assert!((curve.length(1e-12) - exact).abs() <= 1e-12);
     /// ```
-    pub fn length(&self, max_error: f64) -> f64 {
-        self.0.length(max_error)
+    pub fn length(&self, max_length_error: f64) -> f64 {
+        self.0.length(max_length_error)
     }
 
     /// The curve wrapping `curve`, a B-spline of a single clamped span

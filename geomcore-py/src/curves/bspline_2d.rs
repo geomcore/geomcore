@@ -61,22 +61,22 @@ shape_methods! {
         ))
     }
 
-    /// Least-squares 2D B-spline fit through `points` with `num_poles`
+    /// Least-squares 2D B-spline fit through `points` with `pole_count`
     /// poles.
     ///
     /// `parametrization` is `"centripetal"` (default) or `"chordal"`.
     #[staticmethod]
-    #[pyo3(signature = (points, degree, num_poles, parametrization = "centripetal"))]
+    #[pyo3(signature = (points, degree, pole_count, parametrization = "centripetal"))]
     fn approximate(
         points: Vec<PyPoint2D>,
         degree: usize,
-        num_poles: usize,
+        pole_count: usize,
         parametrization: &str,
     ) -> PyResult<Self> {
         let param = parse_parametrization(parametrization)?;
         let points = points.into_iter().map(|p| p.0).collect::<Vec<_>>();
         Ok(PyBSplineCurve2D(
-            BSplineCurve2D::approximate(&points, degree, num_poles, param).map_err(python_error)?,
+            BSplineCurve2D::approximate(&points, degree, pole_count, param).map_err(python_error)?,
         ))
     }
 
@@ -210,8 +210,8 @@ shape_methods! {
         Ok((PyBSplineCurve2D(a), PyBSplineCurve2D(b)))
     }
 
-    /// The arc length, integrating the speed to within `max_error`.
-    fn length(&self, max_error: f64) -> f64 {
-        self.0.length(max_error)
+    /// The arc length, integrating the speed to within `max_length_error`.
+    fn length(&self, max_length_error: f64) -> f64 {
+        self.0.length(max_length_error)
     }
 }

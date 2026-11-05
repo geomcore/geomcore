@@ -735,7 +735,7 @@ def test_approximate_curve():
     import math
 
     pts = [Point(2.0 * math.cos(i / 12 * math.tau), 2.0 * math.sin(i / 12 * math.tau), 0.0) for i in range(12)]
-    curve = BSplineCurve.approximate(pts, 3, 7)
+    curve = BSplineCurve.approximate(pts, degree=3, pole_count=7)
     assert curve.degree() == 3
     with pytest.raises(ValueError):
         BSplineCurve.approximate(pts, 3, 20)
@@ -1534,7 +1534,7 @@ def test_bspline_curve_bezier_pieces_and_length():
     segment = BSplineCurve(
         1, [Point.origin(), Point(2.0, 0.0, 0.0)], [0.0, 1.0], [2, 2], False
     )
-    assert segment.length(1e-9) == pytest.approx(2.0)
+    assert segment.length(max_length_error=1e-9) == pytest.approx(2.0)
     assert _cubic_curve().length(1e-9) == pytest.approx(5.39065, abs=1e-4)
 
 

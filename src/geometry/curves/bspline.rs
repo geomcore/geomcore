@@ -1033,11 +1033,11 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
         (P::ORIGIN + c, d1, d2)
     }
 
-    /// The length of the curve over its bounds, within `max_error` as far
+    /// The length of the curve over its bounds, within `max_length_error` as far
     /// as the quadrature's own error estimate tells: the speed `|C'|` is
     /// integrated over each knot span by adaptive Gauss–Kronrod quadrature
     /// on the span's Bernstein form, each span getting a share of
-    /// `max_error` in proportion to its width. A `max_error` below what
+    /// `max_length_error` in proportion to its width. A `max_length_error` below what
     /// rounding allows gets as close as rounding does.
     ///
     /// The length over `[first, last]` is that of
@@ -1058,7 +1058,7 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
     /// let exact = 0.5 * 5f64.sqrt() + 0.25 * (2.0 + 5f64.sqrt()).ln();
     /// assert!((curve.length(1e-12) - exact).abs() <= 1e-12);
     /// ```
-    pub fn length(&self, max_error: f64) -> f64 {
+    pub fn length(&self, max_length_error: f64) -> f64 {
         let (first, last) = self.knots.bounds();
         let breaks = self.knots.breaks();
         let degree = self.degree();
@@ -1069,7 +1069,7 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
                 let (a, b) = (span[0], span[1]);
                 self.span_bezier_points(0.5 * (a + b), &mut net);
                 let net = &net[..=degree];
-                let share = max_error * (b - a) / (last - first);
+                let share = max_length_error * (b - a) / (last - first);
                 quadrature::integrate(&|t| bezier_speed(net, t), 0.0, 1.0, share)
             })
             .sum()
