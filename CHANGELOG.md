@@ -15,9 +15,9 @@ the Python distribution are versioned in lockstep.
   Rust and Python: `IntersectionCurve.deviation`, the largest distance
   between the curve's point and each surface's point at its UV curve,
   in the same parameter. That is the tolerance an edge along the curve
-  needs. A marched curve samples it at each knot and the middle of
-  each span (about 1e-8 at the default tolerance); an exact curve is
-  `0.0`.
+  needs. A marched curve samples it at the middle of each knot span,
+  where its fits stray furthest (about 1e-8 at the default tolerance);
+  an exact curve is `0.0`.
 - Edges as trimmed curves (#187), in Rust and Python:
   - arcs from points: `TrimmedCurve::arc_through(start, middle, end)`
     and `TrimmedCurve::arc(center, start, end, normal, tol)`, with

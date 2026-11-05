@@ -542,8 +542,9 @@ impl PyIntersectionCurve {
     /// How far `curve` strays from the surfaces through its curves in
     /// parameters: the largest distance between `curve`'s point at `t` and
     /// each surface's point at its UV curve's point at `t`, the tolerance an
-    /// edge along the curve needs. A marched curve samples it at each knot
-    /// and the middle of each span; an exact curve is `0.0`.
+    /// edge along the curve needs. A marched curve samples it at the middle
+    /// of each knot span, where its fits stray furthest from the traced
+    /// points; an exact curve is `0.0`.
     #[getter]
     fn deviation(&self) -> f64 {
         self.0.deviation

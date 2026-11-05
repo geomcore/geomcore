@@ -532,9 +532,9 @@ impl Fitted {
     }
 
     /// The largest distance between the curve's point and each surface's
-    /// point at its curve in parameters, at every knot and the middle of
-    /// every span: where the fits meet the traced points, and where they
-    /// stray furthest between them.
+    /// point at its curve in parameters, at the middle of every span: where
+    /// the fits stray furthest between the traced points they pass
+    /// through, which the trace converged onto both surfaces.
     fn deviation<A, B>(&self, pair: SurfacePair<A, B>) -> f64
     where
         A: ParametricSurface,
@@ -548,13 +548,11 @@ impl Fitted {
             let to_second = pair.second.point_at(second.x, second.y).distance(point);
             to_first.max(to_second)
         };
-        let knots = self.curve.knots();
-        knots
+        self.curve
+            .knots()
             .windows(2)
-            .fold(distance_at(knots[0]), |deviation, span| {
-                let middle = 0.5 * (span[0] + span[1]);
-                deviation.max(distance_at(middle)).max(distance_at(span[1]))
-            })
+            .map(|span| distance_at(0.5 * (span[0] + span[1])))
+            .fold(0.0, f64::max)
     }
 }
 

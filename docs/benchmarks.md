@@ -325,6 +325,24 @@ line–cylinder pair two `(u, v)` pairs. The typed exact calls are unchanged,
 except conic–conic, which now fills both parameters too (ellipse–ellipse
 typed +5% instructions).
 
+### Every marched curve's deviation (#188)
+
+A marched curve now measures its `deviation` at the middle of each knot
+span: one point on the curve, one on each UV curve, and one on each
+surface. Callgrind instructions against the parent commit:
+
+| benchmark | before | after |
+|---|---|---|
+| marching torus–plane oblique | 9,065,899 | 9,681,029 (+6.8%) |
+| marching cone–cylinder unbounded | 8,456,356 | 8,935,573 (+5.7%) |
+| marching sphere–torus | 13,727,998 | 14,277,464 (+4.0%) |
+| marching B-spline surface pair | 46,848,975 | 48,193,749 (+2.9%) |
+| swept plane cuts, B-spline patch | | +2.3% to +3.9% |
+
+Sampling every knot too doubled the cost (up to +14%) for nothing: there
+the fits pass through the traced points, which the trace converged far
+below confusion.
+
 ### Surface–surface
 
 A plane at heights up to 0.9 across a unit sphere, one circle each. The
