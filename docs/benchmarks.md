@@ -739,3 +739,98 @@ Reproduce with:
 ```sh
 cargo bench --bench uv_curve_composition -- --warm-up-time 1 --measurement-time 3
 ```
+
+## Instruction budget
+
+CI fails a pull request that makes a benchmark heavier than its budget, and
+prints which functions got heavier. The budget is `benches/budget.tsv`: one row
+per benchmark id, with the binary, the id and its instruction count.
+
+### What is counted
+
+Each id runs once under callgrind, with collection switched on only while
+criterion's `Bencher::iter` and its callees run:
+
+```sh
+valgrind --tool=callgrind --collect-atstart=no \
+  '--toggle-collect=criterion::bencher::Bencher<M>::iter*' \
+  <bench binary> --bench --test --exact <id>
+```
+
+The count leaves out the harness's fixed cost (argument parsing, reports,
+gnuplot probing), so a change of 1% in the routine is visible. The counts
+are deterministic: repeated runs give identical numbers. They depend on the
+code, the toolchain and the codegen settings, so the bench profile pins
+`codegen-units`, `lto` and `incremental` in `Cargo.toml`, and CI pins the
+toolchain to 1.96.1 and criterion to 0.7.0 (its `Cargo.lock` is not
+committed).
+
+The count also depends on where the binary lives: the heap layout shifts the
+malloc work inside the routine, so the script copies each binary to
+`/tmp/geomcore-benchmark-budget/<bench>` and runs it from there with a fixed
+environment. Budgets and checks always use that path.
+
+### Running the check locally
+
+Needs `valgrind` and `callgrind_annotate` on the path (Debian and Ubuntu:
+`sudo apt install valgrind`).
+
+```sh
+python3 scripts/benchmark_budget.py check
+python3 scripts/benchmark_budget.py check --base main   # per-function diff on failure
+python3 scripts/benchmark_budget.py measure eval_throughput/circle_eval_points_100k
+```
+
+`check` exits 1 when an id is more than 1% above its budget. With `--base`
+it builds the base ref in a temporary worktree and prints, for each failing
+id, the functions whose counts changed most, base against PR.
+
+### The ratchet
+
+A count below its budget passes, and `check` says so: the PR should lower the
+budget in the same change. A count more than 1% above fails. To accept a
+deliberate cost, raise the budget with `update` in the PR and give the reason
+in the PR body. Do not raise a budget to make a failure go away without that
+reason.
+
+### Updating the budget
+
+```sh
+python3 scripts/benchmark_budget.py update              # re-measure the budgeted ids
+python3 scripts/benchmark_budget.py update <id> ...     # add or re-measure ids
+python3 scripts/benchmark_budget.py update --all        # budget every id
+```
+
+### Subset
+
+All 142 ids are budgeted. Measured serially on the machine that recorded the
+budget, the full list takes about 2 minutes under valgrind (the limit set in
+the issue is about 8 minutes). The CI job runs the ids in parallel.
+
+### Result fingerprints
+
+`tests/intersection_fingerprints.rs` prints the results of a fixed set of
+pairs: the method, completeness, hits or curves, and sampled coordinates
+rounded to six decimals. Each group's dump is hashed with FNV-1a (64 bit,
+written out in the test so the hash does not change with the standard
+library). The hashes are committed in
+`tests/fixtures/intersection_fingerprints.txt`.
+
+- `marching`: the ten surface pairs of the `marching_intersection` bench.
+- `curve_curve`: crossing B-splines, a circle against a B-spline, and two
+  coplanar circles.
+- `curve_surface`: a B-spline and a circle against the footprint surface,
+  and a B-spline against a cylinder.
+
+The pairs follow the benches' constructors, so the fingerprints cover the
+same workloads. (The issue mentions an 18-pair marching dump; no such list
+exists in the repository, so the test uses the bench's ten pairs.)
+
+When a result changes on purpose, accept it with
+
+```sh
+GEOMCORE_UPDATE_FINGERPRINTS=1 cargo test --test intersection_fingerprints
+```
+
+and commit the rewritten fixture. A failing run prints the new fingerprints
+and the dumps.

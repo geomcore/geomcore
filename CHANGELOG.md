@@ -48,6 +48,10 @@ reported, instead of running to a fixed cube around the origin (#147).
 
 ### Changed
 
+- CI gates the benchmarks on an instruction budget: a pull request that
+  makes a budgeted benchmark more than 1% heavier fails, and the log names
+  the functions that got heavier (`docs/benchmarks.md`). The intersection
+  results are fingerprinted, so a change in them shows up in review.
 - `eval_derivative` on a plane, cylinder, cone, sphere or torus evaluates
   every order `(du, dv)`, from the closed forms of the derivatives of
   `cos` and `sin`. It panicked past `du + dv = 2`. The other surfaces

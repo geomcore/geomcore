@@ -62,6 +62,14 @@ harness = false
 name = "uv_curve_to_3d_within"
 harness = false
 
+# The instruction budget in benches/budget.tsv depends on codegen. These
+# settings are cargo's defaults for release, written out so that a change to
+# the defaults cannot move the counts.
+[profile.bench]
+codegen-units = 16
+lto = false
+incremental = false
+
 [workspace]
 members = [".", "geomcore-py"]
 
