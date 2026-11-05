@@ -13,7 +13,6 @@ from geomcore import (
     CurveCurveIntersection,
     CurveCurveIntersection2D,
     CurveCurveOverlap,
-    CurveCurveRegion,
     CurveSurfaceHit,
     CurveSurfaceIntersection,
     CurveSurfaceRegion,
@@ -120,7 +119,9 @@ def test_tangent_curve_surface_contact_is_incomplete_with_a_region():
     assert region.min_corner.x <= 1.0 <= region.max_corner.x
 
 
-def test_tangent_curve_curve_contact_is_incomplete_with_a_region():
+def test_tangent_curve_curve_contact_is_one_complete_hit():
+    # A tangent contact within tolerance is one hit of multiplicity 2 at
+    # the closest approach, and the result is complete (ADR 0034).
     parabola = BSplineCurve(
         2,
         [Point(0.0, 1.0, 0.0), Point(2.0, -1.0, 0.0), Point(4.0, 1.0, 0.0)],
@@ -131,15 +132,10 @@ def test_tangent_curve_curve_contact_is_incomplete_with_a_region():
     segment = _segment(Point.origin(), Point(4.0, 0.0, 0.0))
     result = parabola.intersect(segment)
     assert isinstance(result, CurveCurveIntersection)
-    assert result.completeness.status == CompletenessStatus.INCOMPLETE
-    (region,) = result.completeness.regions
-    assert isinstance(region, CurveCurveRegion)
-    s0, s1 = region.first_range
-    assert s0 <= 0.5 <= s1 and s1 - s0 < 1e-2
-    assert len(region.second_range) == 2
-    assert region.min_corner.x <= 2.0 <= region.max_corner.x
-    # The sampled search, run as well, finds the contact.
-    assert len(result.hits) == 1
+    assert result.completeness.status == CompletenessStatus.COMPLETE
+    (hit,) = result.hits
+    assert hit.multiplicity == 2
+    assert abs(hit.point.x - 2.0) < 1e-3 and abs(hit.point.y) < 1e-7
 
 
 # -------------------------------------------------------------- operands

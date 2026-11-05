@@ -11,10 +11,23 @@ the Python distribution are versioned in lockstep.
 
 ### Changed
 
+- A tangent contact between two curves, where they stay within
+  `tol.confusion` of each other and then part, is one hit at its closest
+  approach, with multiplicity 2, and the numeric curve–curve intersection
+  reports the result `Complete`, as the closed forms do. Before, it was
+  `Incomplete` with an `Unseparated` region. Overlaps and searches that
+  run out of budget stay `Incomplete`.
 - The piece searches' private parameter range is merged into the
   parameter domain the numeric searches already shared: one value, a
   period or an interval, owns the wrapping and the slack. Nothing public
   changes, and no result moves.
+
+### Fixed
+
+- The numeric curve–curve intersection no longer drops one of two
+  crossings lying within `sqrt(tol.confusion)` of each other and reports
+  the result `Complete`. Two hits are merged only when the curves stay
+  within `tol.confusion` of each other between them.
 
 ## [0.42.2] - 2026-11-02
 

@@ -426,6 +426,18 @@ fn assert_search_hits(a: &BSplineCurve, b: &BSplineCurve) -> Vec<CurveCurveHit> 
     hits
 }
 
+/// The hits of the piece-pair search (ordered, closest first at the same
+/// point) and its completeness, without asserting it.
+fn raw_search<A: ParametricCurve, B: ParametricCurve>(
+    a: &A,
+    b: &B,
+) -> (Vec<CurveCurveHit>, Completeness<CurveCurveRegion>) {
+    let (ra, rb) = (ParameterDomain::of(a), ParameterDomain::of(b));
+    let (sa, sb) = (a.as_bspline().unwrap(), b.as_bspline().unwrap());
+    let (meetings, completeness) = bspline_curve_curve(sa, ra, sb, rb, TOL);
+    (hits_at_minima(a, b, meetings, TOL), completeness)
+}
+
 #[test]
 fn test_close_hits_near_a_tangency_are_separated() {
     let line = segment([0.0, 0.0, 0.0], [4.0, 0.0, 0.0]);
@@ -436,12 +448,30 @@ fn test_close_hits_near_a_tangency_are_separated() {
             [2.0, -1.0 - depth, 0.0],
             [4.0, 1.0 - depth, 0.0],
         );
-        let hits = assert_search_hits(&dip, &line);
+        // The subdivision finds both crossings. The stretch around each,
+        // within confusion of the line, may stay unseparated: the routed
+        // result settles it as a contact stretch that holds crossings only.
+        let (hits, completeness) = raw_search(&dip, &line);
         assert_eq!(hits.len(), 2, "{hits:#?}");
+        if let Completeness::Incomplete { reason, .. } = &completeness {
+            assert_eq!(*reason, IncompleteReason::Unseparated, "{completeness:?}");
+        }
+        let routed = crate::operations::intersect::numeric::curve_curve::intersect_curve_curve(
+            &dip, &line, TOL,
+        );
+        assert!(routed.is_complete(), "{routed:?}");
+        let routed = routed.hits();
+        assert_eq!(routed.len(), 2, "{routed:#?}");
         let half = (4.0 * depth).sqrt();
-        assert!((hits[0].point.x - (2.0 - half)).abs() < 1e-9, "{hits:#?}");
-        assert!((hits[1].point.x - (2.0 + half)).abs() < 1e-9, "{hits:#?}");
-        assert!(hits.iter().all(|h| h.multiplicity == 1));
+        assert!(
+            (routed[0].point.x - (2.0 - half)).abs() < 1e-9,
+            "{routed:#?}"
+        );
+        assert!(
+            (routed[1].point.x - (2.0 + half)).abs() < 1e-9,
+            "{routed:#?}"
+        );
+        assert!(routed.iter().all(|h| h.multiplicity == 1));
     }
 }
 

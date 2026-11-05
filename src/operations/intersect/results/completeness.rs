@@ -193,8 +193,9 @@ pub enum IncompleteReason {
     /// allows.
     BudgetExhausted,
     /// Some pairs of pieces never separated, however small they were
-    /// halved: a tangent contact, an overlap (a curve lying on the
-    /// surface or along the other curve), or a hit at a singular point.
-    /// Its regions hold them.
+    /// halved: a tangent contact of a curve with a surface, an overlap (a
+    /// curve lying on the surface or along the other curve), or a hit at a
+    /// singular point. Its regions hold them. A tangent contact between two
+    /// curves is instead one hit, and the result stays complete.
     Unseparated,
 }
