@@ -13,6 +13,7 @@ from geomcore import (
     Point2D,
     Point,
     SurfaceApproximation,
+    SurfaceSurfaceIntersection,
     Tolerance,
     Transform,
     Vector2D,
@@ -31,7 +32,7 @@ from geomcore.curves import (
     Parabola,
     Parabola2D,
 )
-from geomcore.surfaces import BezierSurface, Cylinder, Plane, Sphere
+from geomcore.surfaces import BSplineSurface, BezierSurface, Cylinder, Plane, Sphere
 
 
 def test_readme_snippet():
@@ -305,6 +306,37 @@ def test_points_coincide_within_confusion():
     q = Point2D(1.0, 2.0)
     assert q.coincides(Point2D(1.0 + 5e-8, 2.0))
     assert not q.coincides(Point2D(1.0 + 5e-7, 2.0))
+
+
+def test_a_number_as_tol_is_its_confusion():
+    p = Point(1.0, 2.0, 3.0)
+    near = Point(1.0, 2.0005, 3.0)
+    assert p.coincides(near, 1e-3)
+    assert p.coincides(near, tol=1)
+    assert not p.coincides(near, 1e-4)
+    with pytest.raises(TypeError, match="tol must be a Tolerance or a number"):
+        p.coincides(near, "1e-3")  # type: ignore[arg-type]
+
+
+def test_confusion_steers_the_size_of_a_fitted_intersection_curve():
+    def wave(phase: float, height: float) -> BSplineSurface:
+        rows = [
+            [Point(x / 2, y / 2, height + math.sin(x / 2 + phase) * math.cos(y / 2)) for y in range(9)]
+            for x in range(9)
+        ]
+        return BSplineSurface.approximate(rows, 3, 3, 6, 6)
+
+    first, second = wave(0.0, 0.0), wave(1.0, 0.2)
+    loose = first.intersect(second, 1e-3)
+    assert loose == first.intersect(second, Tolerance(confusion=1e-3))
+    fine = first.intersect(second)
+
+    def poles(result: SurfaceSurfaceIntersection) -> int:
+        curves = [piece.curve for piece in result.curves]
+        assert all(isinstance(curve, BSplineCurve) for curve in curves)
+        return sum(len(curve.poles()) for curve in curves if isinstance(curve, BSplineCurve))
+
+    assert poles(loose) < poles(fine) / 5
 
 
 def _bspline_curve(end):

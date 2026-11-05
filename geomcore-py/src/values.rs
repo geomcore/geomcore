@@ -8,7 +8,7 @@ use crate::tolerance;
 use geomcore::{
     Axis, Axis2D, Frame, Frame2D, Point, Point2D, Tolerance, Transform, Vector, Vector2D,
 };
-use pyo3::exceptions::PyZeroDivisionError;
+use pyo3::exceptions::{PyTypeError, PyZeroDivisionError};
 use pyo3::prelude::*;
 use pyo3::types::{PyIterator, PyTuple};
 
@@ -79,7 +79,7 @@ impl PyPoint {
     /// (`Tolerance.default()` when omitted). `==` compares coordinates
     /// exactly instead.
     #[pyo3(signature = (other, tol = None))]
-    fn coincides(&self, other: &PyPoint, tol: Option<PyTolerance>) -> bool {
+    fn coincides(&self, other: &PyPoint, tol: Option<ToleranceArgument>) -> bool {
         self.0.coincides(other.0, tolerance(tol))
     }
 
@@ -353,7 +353,7 @@ impl PyPoint2D {
     /// (`Tolerance.default()` when omitted). `==` compares coordinates
     /// exactly instead.
     #[pyo3(signature = (other, tol = None))]
-    fn coincides(&self, other: &PyPoint2D, tol: Option<PyTolerance>) -> bool {
+    fn coincides(&self, other: &PyPoint2D, tol: Option<ToleranceArgument>) -> bool {
         self.0.coincides(other.0, tolerance(tol))
     }
 
@@ -839,10 +839,13 @@ impl PyFrame {
     }
 }
 
-/// Distance and angle tolerances shared by all geometric queries
-/// (`contains`, and later projection and intersection).
+/// Distance and angle tolerances shared by all geometric queries:
+/// containment, projection, intersection and fitting.
 ///
-/// `Tolerance()` with no arguments equals `Tolerance.default()`.
+/// `Tolerance()` with no arguments equals `Tolerance.default()`. Every
+/// `tol=` argument also takes a number, read as
+/// `Tolerance(confusion=number)`, so `tol=1e-3` loosens the distance
+/// tolerance alone.
 #[pyclass(name = "Tolerance", module = "geomcore", eq)]
 #[derive(Clone, PartialEq)]
 pub(crate) struct PyTolerance(pub(crate) Tolerance);
@@ -913,6 +916,29 @@ impl PyTolerance {
         let tol = slf.borrow().0;
         let arguments = (tol.confusion, tol.angular, tol.parametric);
         pickling::reduce(slf.as_any(), None, arguments)
+    }
+}
+
+/// A `tol` argument: a `Tolerance`, or a number taken as
+/// `Tolerance(confusion=number)`, with the default angular and parametric
+/// tolerances.
+pub(crate) struct ToleranceArgument(pub(crate) Tolerance);
+
+impl<'py> FromPyObject<'py> for ToleranceArgument {
+    fn extract_bound(object: &Bound<'py, PyAny>) -> PyResult<Self> {
+        if let Ok(given) = object.cast::<PyTolerance>() {
+            return Ok(ToleranceArgument(given.borrow().0));
+        }
+        match object.extract::<f64>() {
+            Ok(confusion) => Ok(ToleranceArgument(Tolerance {
+                confusion,
+                ..Tolerance::DEFAULT
+            })),
+            Err(_) => Err(PyTypeError::new_err(format!(
+                "tol must be a Tolerance or a number (its confusion), not {}",
+                object.get_type().name()?
+            ))),
+        }
     }
 }
 

@@ -11,6 +11,11 @@ the Python distribution are versioned in lockstep.
 
 ### Added
 
+- Every Python `tol=` takes a number as well as a `Tolerance` (#183):
+  `tol=1e-3` is `Tolerance(confusion=1e-3)`, with the default angular and
+  parametric tolerances. Any other type raises a `TypeError` naming what
+  `tol` accepts. The intersection guide says how the confusion sets the
+  size of a fitted intersection curve.
 - Value protocols in Python (#182). Points and vectors unpack, index and
   convert to numpy (`x, y, z = p`, `p[-1]`, `numpy.array(points)` of shape
   `(N, 3)`); vectors divide by a number and give their length to `abs`.

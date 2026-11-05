@@ -8,7 +8,7 @@ use crate::arguments::{curve_2d_classes, extract_curve_arg, surface_classes};
 use crate::curves::PyTrimmedCurve2D;
 use crate::errors::python_error;
 use crate::tolerance;
-use crate::values::PyTolerance;
+use crate::values::ToleranceArgument;
 use geomcore::{curve_3d_to_uv_within, uv_curve_to_3d_within};
 use pyo3::prelude::*;
 
@@ -44,7 +44,7 @@ pub(crate) fn py_curve_3d_to_uv_within(
     surface: &Bound<'_, PyAny>,
     curve: &Bound<'_, PyAny>,
     max_deviation: f64,
-    tol: Option<PyTolerance>,
+    tol: Option<ToleranceArgument>,
 ) -> PyResult<PyCurveApproximation2D> {
     let tol = tolerance(tol);
     let s = surface_classes::extract(surface)?;
@@ -82,7 +82,7 @@ pub(crate) fn py_uv_curve_to_3d_within(
     surface: &Bound<'_, PyAny>,
     uv_curve: &Bound<'_, PyAny>,
     max_deviation: f64,
-    tol: Option<PyTolerance>,
+    tol: Option<ToleranceArgument>,
 ) -> PyResult<PyCurveApproximation> {
     let tol = tolerance(tol);
     let s = surface_classes::extract(surface)?;

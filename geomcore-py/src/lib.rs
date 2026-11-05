@@ -14,9 +14,10 @@ use pyo3::prelude::*;
 use pyo3::types::PyModule;
 
 use geomcore::{Continuity, Tolerance};
+use values::ToleranceArgument;
 
 /// The tolerance given, or the default.
-pub(crate) fn tolerance(tolerance: Option<PyTolerance>) -> Tolerance {
+pub(crate) fn tolerance(tolerance: Option<ToleranceArgument>) -> Tolerance {
     tolerance.map_or(Tolerance::DEFAULT, |given| given.0)
 }
 

@@ -16,6 +16,7 @@ from typing import (
 
 from geomcore import (
     _Parametrization,
+    _ToleranceLike,
     Axis2D,
     Axis,
     BoundingBox,
@@ -91,20 +92,20 @@ class _CurveMethodsInEitherDimension(
         """The point and the first derivative at parameter `u`."""
     def second_derivatives(self, u: float) -> Tuple[_PointType, _VectorType, _VectorType]:
         """The point and the first two derivatives at parameter `u`."""
-    def tangent(self, u: float, tol: Optional[Tolerance] = ...) -> Optional[_VectorType]:
+    def tangent(self, u: float, tol: Optional[_ToleranceLike] = ...) -> Optional[_VectorType]:
         """Unit tangent at parameter `u` (`Tolerance.default()` when
         omitted), or `None` where the speed vanishes, as at a cusp.
         The speed counts as zero when the distance it would cover
         across the parameter range is within `tol.confusion`, so
         rescaling the parameter does not change the answer.
         """
-    def curvature(self, u: float, tol: Optional[Tolerance] = ...) -> Optional[float]:
+    def curvature(self, u: float, tol: Optional[_ToleranceLike] = ...) -> Optional[float]:
         """Curvature at parameter `u`: the turn rate of the unit tangent
         per unit arc length, zero on a straight run. `None` where the
         speed vanishes, by the test of `tangent`.
         """
     def curvature_center(
-        self, u: float, tol: Optional[Tolerance] = ...
+        self, u: float, tol: Optional[_ToleranceLike] = ...
     ) -> Optional[_PointType]:
         """Centre of the osculating circle at parameter `u`, or `None`
         where the speed vanishes or the curve runs straight (the
@@ -118,13 +119,13 @@ class _CurveMethodsInEitherDimension(
         """
     def is_periodic(self) -> bool:
         """Whether the curve is periodic."""
-    def is_closed(self, tol: Optional[Tolerance] = ...) -> bool:
+    def is_closed(self, tol: Optional[_ToleranceLike] = ...) -> bool:
         """Whether travelling along the curve returns to its start
         (`Tolerance.default()` when omitted). A periodic curve is
         closed; a clamped B-spline whose ends coincide is closed
         without being periodic.
         """
-    def continuity(self, u: float, tol: Optional[Tolerance] = ...) -> Union[int, float]:
+    def continuity(self, u: float, tol: Optional[_ToleranceLike] = ...) -> Union[int, float]:
         """Continuity order `n` of `C^n` at parameter `u` as an `int`,
         or `math.inf` where no knot constrains the curve. A B-spline
         reports `degree - multiplicity` at a knot (within
@@ -138,14 +139,14 @@ class _CurveMethodsInEitherDimension(
         excluded (`math.inf` when smooth everywhere).
         """
     def extrema(
-        self, point: _PointType, tol: Optional[Tolerance] = ...
+        self, point: _PointType, tol: Optional[_ToleranceLike] = ...
     ) -> List[_ProjectionType]:
         """The stationary points of the distance from `point` to the
         curve (local minima plus the ends of a bounded curve), as
         projection objects ordered by ascending distance.
         """
     def project_point(
-        self, point: _PointType, tol: Optional[Tolerance] = ...
+        self, point: _PointType, tol: Optional[_ToleranceLike] = ...
     ) -> _ProjectionType:
         """Projects `point` onto the curve: the closest point, as a
         projection object.
@@ -155,23 +156,23 @@ class _CurveMethodsInEitherDimension(
         smaller `Tolerance` to read a smaller distance.
         """
     def project_points(
-        self, points: List[_PointType], tol: Optional[Tolerance] = ...
+        self, points: List[_PointType], tol: Optional[_ToleranceLike] = ...
     ) -> List[_ProjectionType]:
         """Projects each point in `points` onto the curve, returning a
         projection object per point.
         """
     def project_points_array(
-        self, points: numpy.typing.ArrayLike, tol: Optional[Tolerance] = ...
+        self, points: numpy.typing.ArrayLike, tol: Optional[_ToleranceLike] = ...
     ) -> Tuple[_FloatArray, _FloatArray, _FloatArray]:
         """Projects each row of the array-like `points` onto the curve,
         returning numpy arrays `(parameters, points, distances)`:
         the parameter, the closest point and its distance per row.
         """
-    def contains(self, point: _PointType, tol: Optional[Tolerance] = ...) -> bool:
+    def contains(self, point: _PointType, tol: Optional[_ToleranceLike] = ...) -> bool:
         """Returns whether `point` lies on the curve within `tol`
         (`Tolerance.default()` when omitted).
         """
-    def parameter_of(self, point: _PointType, tol: Optional[Tolerance] = ...) -> float:
+    def parameter_of(self, point: _PointType, tol: Optional[_ToleranceLike] = ...) -> float:
         """The parameter of `point`, a point on the curve, within `tol`
         (`Tolerance.default()` when omitted). Off the curve, a
         B-spline or Bézier curve gives the parameter of the closest
@@ -196,7 +197,7 @@ class _CurveMethodsInEitherDimension(
         control points, which may be wider than the shape, as
         `tight_bounding_box` is not."""
     def tight_bounding_box(
-        self, tol: Optional[Tolerance] = ...
+        self, tol: Optional[_ToleranceLike] = ...
     ) -> Optional[_BoundingBoxType]:
         """The axis-aligned box around the shape as tightly as
         `tol.confusion` (`None` when unbounded): it holds the shape, and each
@@ -217,7 +218,7 @@ class _CurveMethods(
         """
     @overload
     def intersect(
-        self, other: _Curve, tol: Optional[Tolerance] = ...
+        self, other: _Curve, tol: Optional[_ToleranceLike] = ...
     ) -> CurveCurveIntersection:
         """Intersects with any curve or surface, in either order.
 
@@ -233,14 +234,14 @@ class _CurveMethods(
         """
     @overload
     def intersect(
-        self, other: _Surface, tol: Optional[Tolerance] = ...
+        self, other: _Surface, tol: Optional[_ToleranceLike] = ...
     ) -> CurveSurfaceIntersection: ...
 
 class _Curve2DMethods(
     _CurveMethodsInEitherDimension[Point2D, Vector2D, BoundingBox2D, CurveProjection2D]
 ):
     def intersect(
-        self, other: _Curve2D, tol: Optional[Tolerance] = ...
+        self, other: _Curve2D, tol: Optional[_ToleranceLike] = ...
     ) -> CurveCurveIntersection2D:
         """Intersects with any curve or surface, in either order.
 
@@ -694,7 +695,7 @@ class TrimmedCurve(_CurveMethods, _DiscretizeMethods[Discretization]):
         start: Point,
         end: Point,
         normal: Vector,
-        tol: Optional[Tolerance] = ...,
+        tol: Optional[_ToleranceLike] = ...,
     ) -> TrimmedCurve: ...
     def sweep_angle(self) -> float: ...
     def length(self, max_error: float) -> float: ...
@@ -720,7 +721,7 @@ class TrimmedCurve2D(_Curve2DMethods, _DiscretizeMethods[Discretization2D]):
         start: Point2D,
         end: Point2D,
         counterclockwise: bool = ...,
-        tol: Optional[Tolerance] = ...,
+        tol: Optional[_ToleranceLike] = ...,
     ) -> TrimmedCurve2D: ...
     def sweep_angle(self) -> float: ...
     def length(self, max_error: float) -> float: ...

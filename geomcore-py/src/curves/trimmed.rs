@@ -4,7 +4,7 @@
 use crate::curves::*;
 use crate::method_sets::*;
 use crate::tolerance;
-use crate::values::PyTolerance;
+use crate::values::ToleranceArgument;
 use crate::values::{coordinates, coordinates_2d, float_repr};
 use geomcore::{Curve, Curve2D, TrimmedCurve, TrimmedCurve2D};
 use pyo3::exceptions::PyTypeError;
@@ -69,7 +69,7 @@ shape_methods! {
         start: PyPoint,
         end: PyPoint,
         normal: PyVector,
-        tol: Option<PyTolerance>,
+        tol: Option<ToleranceArgument>,
     ) -> PyResult<Self> {
         let arc = TrimmedCurve::arc(center.0, start.0, end.0, normal.0, tolerance(tol))
             .map_err(python_error)?;
@@ -193,7 +193,7 @@ shape_methods! {
         start: PyPoint2D,
         end: PyPoint2D,
         counterclockwise: bool,
-        tol: Option<PyTolerance>,
+        tol: Option<ToleranceArgument>,
     ) -> PyResult<Self> {
         let arc = TrimmedCurve2D::arc(center.0, start.0, end.0, counterclockwise, tolerance(tol))
             .map_err(python_error)?;

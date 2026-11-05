@@ -33,7 +33,9 @@ API, with the documentation of the methods every curve or surface shares.
 ## Local properties and one-sided evaluation
 
 Curves and surfaces answer the same differential queries as in Rust,
-with the tolerance as the keyword `tol=None` (`Tolerance.default()`):
+with the tolerance as the keyword `tol=None` (`Tolerance.default()`).
+Every `tol` also takes a number, read as `Tolerance(confusion=number)`,
+so `p.coincides(q, 1e-3)` loosens the distance tolerance alone:
 
 - 3D curves: `tangent(u)`, `curvature(u)` and `curvature_center(u)`,
   `is_closed()`, `continuity(u)` and `min_continuity()`, `reversed()`

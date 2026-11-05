@@ -16,6 +16,7 @@ from typing import (
 
 from geomcore import (
     _Parametrization,
+    _ToleranceLike,
     Axis,
     BoundingBox,
     CurveSurfaceIntersection,
@@ -136,17 +137,17 @@ class _SurfaceMethods(Generic[_UIsoCurveType, _VIsoCurveType]):
         """The period of the v parameter, or `None` when the surface is
         not periodic in v.
         """
-    def is_u_closed(self, tol: Optional[Tolerance] = ...) -> bool:
+    def is_u_closed(self, tol: Optional[_ToleranceLike] = ...) -> bool:
         """Whether travelling in `u` returns to its start: the boundary
         curves at the two `u` bounds coincide (`Tolerance.default()`
         when omitted). Periodic in `u` implies closed in `u`, not
         conversely.
         """
-    def is_v_closed(self, tol: Optional[Tolerance] = ...) -> bool:
+    def is_v_closed(self, tol: Optional[_ToleranceLike] = ...) -> bool:
         """Whether travelling in `v` returns to its start, as
         `is_u_closed`.
         """
-    def continuity_u(self, u: float, tol: Optional[Tolerance] = ...) -> Union[int, float]:
+    def continuity_u(self, u: float, tol: Optional[_ToleranceLike] = ...) -> Union[int, float]:
         """Continuity order `n` of `C^n` in `u` at parameter `u` as an
         `int`, or `math.inf` where smooth. A B-spline reports
         `u_degree - multiplicity` at a `u` knot (within
@@ -155,7 +156,7 @@ class _SurfaceMethods(Generic[_UIsoCurveType, _VIsoCurveType]):
         knot. Use `BSplineSurface.first_derivatives_sided` and its siblings to
         evaluate each side of a knot reporting a low order.
         """
-    def continuity_v(self, v: float, tol: Optional[Tolerance] = ...) -> Union[int, float]:
+    def continuity_v(self, v: float, tol: Optional[_ToleranceLike] = ...) -> Union[int, float]:
         """Continuity order in `v` at parameter `v`, as `continuity_u`."""
     def min_continuity_u(self) -> Union[int, float]:
         """The lowest `continuity_u` anywhere inside the `u` range, ends
@@ -166,7 +167,7 @@ class _SurfaceMethods(Generic[_UIsoCurveType, _VIsoCurveType]):
         excluded (`math.inf` when smooth everywhere).
         """
     def curvatures(
-        self, u: float, v: float, tol: Optional[Tolerance] = ...
+        self, u: float, v: float, tol: Optional[_ToleranceLike] = ...
     ) -> Optional[SurfaceCurvatures]:
         """Principal curvatures with their directions, and the mean and
         Gaussian curvatures, at `(u, v)` (`Tolerance.default()` when
@@ -176,7 +177,7 @@ class _SurfaceMethods(Generic[_UIsoCurveType, _VIsoCurveType]):
         the unit normal: negative bends away from it.
         """
     def project_point(
-        self, point: Point, tol: Optional[Tolerance] = ...
+        self, point: Point, tol: Optional[_ToleranceLike] = ...
     ) -> SurfaceProjection:
         """Projects `point` onto the surface: the closest point, as a
         `SurfaceProjection`.
@@ -186,25 +187,25 @@ class _SurfaceMethods(Generic[_UIsoCurveType, _VIsoCurveType]):
         smaller `Tolerance` to read a smaller distance.
         """
     def project_points(
-        self, points: List[Point], tol: Optional[Tolerance] = ...
+        self, points: List[Point], tol: Optional[_ToleranceLike] = ...
     ) -> List[SurfaceProjection]:
         """Projects each point in `points` onto the surface, returning a
         `SurfaceProjection` per point.
         """
     def project_points_array(
-        self, points: numpy.typing.ArrayLike, tol: Optional[Tolerance] = ...
+        self, points: numpy.typing.ArrayLike, tol: Optional[_ToleranceLike] = ...
     ) -> Tuple[_FloatArray, _FloatArray, _FloatArray]:
         """Projects each row of the `(N, 3)` array-like `points` onto
         the surface, returning numpy arrays `(parameters, points,
         distances)`: the `(u, v)` row, the closest point and its
         distance per row.
         """
-    def contains(self, point: Point, tol: Optional[Tolerance] = ...) -> bool:
+    def contains(self, point: Point, tol: Optional[_ToleranceLike] = ...) -> bool:
         """Returns whether `point` lies on the surface within `tol`
         (`Tolerance.default()` when omitted).
         """
     def parameters_of(
-        self, point: Point, tol: Optional[Tolerance] = ...
+        self, point: Point, tol: Optional[_ToleranceLike] = ...
     ) -> Tuple[float, float]:
         """The `(u, v)` parameters of `point`, a point on the surface,
         within `tol` (`Tolerance.default()` when omitted). Off the
@@ -217,7 +218,7 @@ class _SurfaceMethods(Generic[_UIsoCurveType, _VIsoCurveType]):
         It touches an elementary shape; for a B-spline it is the box of the
         control points, which may be wider than the shape, as
         `tight_bounding_box` is not."""
-    def tight_bounding_box(self, tol: Optional[Tolerance] = ...) -> Optional[BoundingBox]:
+    def tight_bounding_box(self, tol: Optional[_ToleranceLike] = ...) -> Optional[BoundingBox]:
         """The axis-aligned box around the shape as tightly as
         `tol.confusion` (`None` when unbounded): it holds the shape, and each
         of its sides is within `tol.confusion` of a point of it. The same as
@@ -235,7 +236,7 @@ class _SurfaceMethods(Generic[_UIsoCurveType, _VIsoCurveType]):
         the surface, as `u_iso`.
         """
     def uv_curve_to_3d(
-        self, uv_curve: _Curve2D, tol: Optional[Tolerance] = ...
+        self, uv_curve: _Curve2D, tol: Optional[_ToleranceLike] = ...
     ) -> _WholeCurve:
         """The exact 3D curve that `uv_curve`, a curve in this surface's (u, v)
         parameter space, traces on the surface, in the same parameter: its
@@ -256,7 +257,7 @@ class _SurfaceMethods(Generic[_UIsoCurveType, _VIsoCurveType]):
         """
     @overload
     def curve_3d_to_uv(
-        self, curve: _WholeCurve, tol: Optional[Tolerance] = ...
+        self, curve: _WholeCurve, tol: Optional[_ToleranceLike] = ...
     ) -> _WholeCurve2D:
         """The exact UV curve of `curve`, a 3D curve lying on this surface: the
         curve in the surface's (u, v) parameter space, in the same parameter,
@@ -277,11 +278,11 @@ class _SurfaceMethods(Generic[_UIsoCurveType, _VIsoCurveType]):
         """
     @overload
     def curve_3d_to_uv(
-        self, curve: TrimmedCurve, tol: Optional[Tolerance] = ...
+        self, curve: TrimmedCurve, tol: Optional[_ToleranceLike] = ...
     ) -> TrimmedCurve2D: ...
     @overload
     def intersect(
-        self, other: _Curve, tol: Optional[Tolerance] = ...
+        self, other: _Curve, tol: Optional[_ToleranceLike] = ...
     ) -> CurveSurfaceIntersection:
         """Intersects with any curve or surface, in either order.
 
@@ -297,12 +298,12 @@ class _SurfaceMethods(Generic[_UIsoCurveType, _VIsoCurveType]):
         """
     @overload
     def intersect(
-        self, other: _Surface, tol: Optional[Tolerance] = ...
+        self, other: _Surface, tol: Optional[_ToleranceLike] = ...
     ) -> SurfaceSurfaceIntersection: ...
 
 class _SurfaceNormalMethods:
     def normal(
-        self, u: float, v: float, tol: Optional[Tolerance] = ...
+        self, u: float, v: float, tol: Optional[_ToleranceLike] = ...
     ) -> Optional[Vector]:
         """Unit normal at surface parameters `(u, v)`
         (`Tolerance.default()` when omitted). Singular points such as
@@ -343,7 +344,7 @@ class _SidedSurfaceEvaluationMethods:
 
 class _SurfaceExtremaMethods:
     def extrema(
-        self, point: Point, tol: Optional[Tolerance] = ...
+        self, point: Point, tol: Optional[_ToleranceLike] = ...
     ) -> List[SurfaceProjection]:
         """The local minima of the distance from `point` to the
         surface, as `SurfaceProjection` objects ordered by ascending

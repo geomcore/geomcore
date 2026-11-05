@@ -148,7 +148,7 @@ pub(crate) fn py_curve_curve_extrema(
     py: Python<'_>,
     first: &Bound<'_, PyAny>,
     second: &Bound<'_, PyAny>,
-    tol: Option<PyTolerance>,
+    tol: Option<ToleranceArgument>,
 ) -> PyResult<PyCurveCurveExtrema> {
     let tol = tolerance(tol);
     let a = extract_curve_arg(first)?;
