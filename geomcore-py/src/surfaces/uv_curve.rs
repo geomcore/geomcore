@@ -31,8 +31,10 @@ use pyo3::prelude::*;
 /// line must be trimmed. Raises `Curve3DToUvApproximationError` when
 /// `max_deviation` is not a positive finite number, when the curve is
 /// unbounded or a point, when it is farther from the surface than half
-/// `max_deviation`, when it starts, ends or has a knot at a sphere's pole
-/// or a cone's apex, or when the deviation is not reached. `tol` is
+/// `max_deviation`, when it lingers at a sphere's pole or a cone's apex,
+/// or when the deviation is not reached. A curve that starts or ends at
+/// such a point takes the limit of the UV curve from inside: a meridian
+/// keeps its own `u` up to the pole. `tol` is
 /// `Tolerance.default()` when omitted. Other Python threads run during the
 /// approximation.
 #[pyfunction]

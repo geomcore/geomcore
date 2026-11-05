@@ -11,6 +11,13 @@ the Python distribution are versioned in lockstep.
 
 ### Added
 
+- `curve_3d_to_uv_within` maps a curve that starts or ends at a sphere's
+  pole or a cone's apex (#220), in Rust and Python: the UV curve takes the
+  limit of its point and derivatives from inside the curve, so a meridian
+  keeps its own `u` up to the pole and a B-rep edge to a pole vertex gets
+  its pcurve. `SingularParametrization` now only refuses a curve that
+  lingers at the point.
+
 - `curve_3d_to_uv` maps the iso-curves of swept surfaces in closed form
   (#221), in Rust and Python. On an extrusion, a generator line maps to a
   line along `v` and the profile translated along the direction to a

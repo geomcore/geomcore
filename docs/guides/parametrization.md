@@ -83,9 +83,9 @@ a degree-5 B-spline in the 3D curve's own parameter, whose image on the
 surface lies within the asked deviation of the 3D curve at the same
 parameter. It does not jump at a seam: a curve that goes once around a
 cylinder ends one period of `u` from where it starts. It mirrors
-`uv_curve_to_3d_within`, and refuses a curve that starts, ends or has a
-knot at a sphere's pole or a cone's apex, where the UV curve has no
-derivative.
+`uv_curve_to_3d_within`. A curve that starts or ends at a sphere's pole
+or a cone's apex, where every `u` is the same point, takes the limit of
+`u` from inside the curve: a meridian keeps its own `u` up to the pole.
 
 === "Python"
 

@@ -888,6 +888,16 @@ def test_curve_3d_to_uv_within():
         wider = Circle(Point.origin(), Vector.unit_z(), 3.0)
         curve_3d_to_uv_within(cylinder, wider, 1e-7)
 
+    # A quarter of a meridian, ending at the sphere's south pole: the UV
+    # curve keeps the meridian's u up to the pole.
+    sphere = Sphere(Point.origin(), 1.0)
+    meridian = Circle(Point.origin(), Vector.unit_y(), 1.0)
+    to_pole = TrimmedCurve(meridian, 0.0, math.pi / 2)
+    uv_curve = curve_3d_to_uv_within(sphere, to_pole, 1e-6).curve
+    start, end = uv_curve.point_at(0.0), uv_curve.point_at(math.pi / 2)
+    assert end.x == pytest.approx(start.x, abs=1e-9)
+    assert end.y == pytest.approx(-math.pi / 2, abs=1e-12)
+
 
 def test_intersect_curves_2d_and_lines():
     from geomcore.curves import Circle2D, Line2D, Line
