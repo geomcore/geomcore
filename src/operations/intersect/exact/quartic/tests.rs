@@ -99,6 +99,49 @@ fn assert_fitted_within<A: ParametricSurface, B: ParametricSurface>(
     }
 }
 
+/// The distance from `point` to the component `component` of `curve`: the
+/// nearest of its points, found by a scan and then golden sections around
+/// the three nearest scanned.
+fn to_closed_form(curve: &QuarticCurve, component: usize, point: Point) -> f64 {
+    const SCAN: usize = 4096;
+    let step = TAU / SCAN as f64;
+    let distance = |t: f64| curve.point_at(component, t).distance(point);
+    let mut scanned: Vec<(f64, usize)> =
+        (0..SCAN).map(|k| (distance(k as f64 * step), k)).collect();
+    scanned.sort_by(|a, b| a.0.total_cmp(&b.0));
+    let ratio = 0.5 * (5.0_f64.sqrt() - 1.0);
+    scanned[..3]
+        .iter()
+        .map(|&(_, k)| {
+            let (mut low, mut high) = ((k as f64 - 1.0) * step, (k as f64 + 1.0) * step);
+            for _ in 0..80 {
+                let (left, right) = (high - ratio * (high - low), low + ratio * (high - low));
+                if distance(left) < distance(right) {
+                    high = right;
+                } else {
+                    low = left;
+                }
+            }
+            distance(0.5 * (low + high))
+        })
+        .fold(f64::INFINITY, f64::min)
+}
+
+/// Each fitted component of `curve` lies within `within` of its closed
+/// form, and covers it: its points are within `within` of the fit.
+fn assert_fitted_on_closed_form(curve: &QuarticCurve, within: f64) {
+    let fitted = curve.fitted(TOL).unwrap();
+    assert_eq!(fitted.len(), curve.component_count());
+    for (component, piece) in fitted.iter().enumerate() {
+        let (t0, t1) = piece.curve.bounds();
+        for k in 0..=400 {
+            let p = piece.curve.point_at(t0 + (t1 - t0) * k as f64 / 400.0);
+            let distance = to_closed_form(curve, component, p);
+            assert!(distance <= within, "{distance:e} from the closed form");
+        }
+    }
+}
+
 /// The routed result of the pair: exact, complete, with `count` fitted
 /// loops, as many as the marcher traces.
 fn assert_routed(first: &Cylinder, second: &Cylinder, count: usize) {
@@ -209,4 +252,14 @@ fn test_either_order_meets_in_the_same_loops() {
     let ba = second.intersect(&first, TOL);
     assert_eq!(ab.curves().len(), ba.curves().len());
     assert_fitted(&second, &first, ba.curves());
+}
+
+#[test]
+fn test_a_fit_where_the_cylinders_nearly_touch_stays_on_the_curve() {
+    // The axes 1e-5 past `r1 − r2`: the loop nearly crosses itself where
+    // the cylinders nearly touch, and a point within confusion of both
+    // can be microns off the curve.
+    let first = Cylinder::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
+    let second = Cylinder::new(Point::new(0.0, 0.50001, 0.0), Vector::X, 0.5).unwrap();
+    assert_fitted_on_closed_form(&quartic(&first, &second), 0.3 * TOL.confusion);
 }
