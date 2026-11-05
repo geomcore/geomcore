@@ -799,24 +799,42 @@ def test_curve_curve_generic():
     assert [h.first_parameter for h in hits] == pytest.approx([-2.0, 2.0])
 
 
-def test_curve_3d_to_uv_numeric():
+def test_curve_3d_to_uv_within():
     import math
 
-    from geomcore import curve_3d_to_uv_numeric
+    from geomcore import (
+        Curve3DToUvApproximation,
+        Curve3DToUvApproximationError,
+        curve_3d_to_uv_within,
+    )
+    from geomcore.curves import BSplineCurve2D, Line, TrimmedCurve
 
+    # A turn of a circle around a cylinder, starting at u = pi / 2, so it
+    # crosses the seam.
     circle = Circle(Point.origin(), Vector.unit_z(), 2.0)
+    turn = TrimmedCurve(circle, math.pi / 2, math.pi / 2 + math.tau)
     cylinder = Cylinder(Point.origin(), Vector.unit_z(), 2.0)
-    uv_curve = curve_3d_to_uv_numeric(circle, cylinder, 9)
-    assert len(uv_curve) == 9
-    assert curve_3d_to_uv_numeric(circle, cylinder, sample_count=9) == uv_curve
-    for u, v in uv_curve:
-        assert v == pytest.approx(0.0)
-    # Round-trip through the surface recovers the curve.
-    for i, (u, v) in enumerate(uv_curve):
-        p = cylinder.point_at(u, v)
-        q = circle.point_at(i / 8 * math.tau)
-        assert p.x == pytest.approx(q.x)
-        assert p.y == pytest.approx(q.y)
+    approximation = curve_3d_to_uv_within(cylinder, turn, 1e-7)
+    assert isinstance(approximation, Curve3DToUvApproximation)
+    assert approximation.deviation <= 1e-7
+    uv_curve = approximation.curve
+    assert isinstance(uv_curve, BSplineCurve2D)
+    assert uv_curve.bounds() == turn.bounds()
+    previous = uv_curve.point_at(math.pi / 2).x
+    for k in range(1, 101):
+        t = math.pi / 2 + math.tau * k / 100
+        u, v = uv_curve.point_at(t).x, uv_curve.point_at(t).y
+        assert previous < u < previous + 0.1
+        assert v == pytest.approx(0.0, abs=1e-9)
+        assert cylinder.point_at(u, v).distance(turn.point_at(t)) <= 1e-7
+        previous = u
+    assert repr(approximation).startswith("Curve3DToUvApproximation(degree=5, pole_count=")
+
+    with pytest.raises(Curve3DToUvApproximationError, match="unbounded"):
+        curve_3d_to_uv_within(cylinder, Line(Point.origin(), Vector.unit_z()), 1e-7)
+    with pytest.raises(Curve3DToUvApproximationError, match="from the surface"):
+        wider = Circle(Point.origin(), Vector.unit_z(), 3.0)
+        curve_3d_to_uv_within(cylinder, wider, 1e-7)
 
 
 def test_intersect_curves_2d_and_lines():

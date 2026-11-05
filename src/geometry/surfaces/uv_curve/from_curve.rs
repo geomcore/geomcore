@@ -26,9 +26,9 @@
 //!   curve of a rational curve is not rational in `(u, v)` (it involves
 //!   `atan2`).
 //! - Any curve on a B-spline or Bézier surface: it needs a numeric
-//!   inversion; see [`curve_3d_to_uv_numeric`].
+//!   inversion; see [`curve_3d_to_uv_within`](crate::curve_3d_to_uv_within).
 //! - Any curve on an extrusion or revolution surface: not attempted yet;
-//!   [`curve_3d_to_uv_numeric`] handles them.
+//!   [`curve_3d_to_uv_within`](crate::curve_3d_to_uv_within) handles them.
 
 use std::f64::consts::{FRAC_PI_2, PI, TAU};
 use std::fmt;
@@ -838,55 +838,6 @@ fn angle_or_zero(y: f64, x: f64) -> f64 {
     } else {
         wrap_to_turn(y.atan2(x))
     }
-}
-
-/// The UV curve of a 3D curve on a surface, sampled, for the pairs without
-/// a closed form.
-///
-/// Samples the curve at `sample_count` uniform parameters (at least 2)
-/// over its bounds (`[-10, 10]` for unbounded curves) and inverts each sample onto the surface with
-/// [`ParametricSurface::project_point`]. The returned `(u, v)` points
-/// approximate the exact UV curve; where a closed form exists, prefer the
-/// exact [`ParametricSurface::curve_3d_to_uv`].
-///
-/// # Examples
-///
-/// ```
-/// use geomcore::{Circle, Cylinder, Point, Tolerance, Vector, curve_3d_to_uv_numeric};
-/// let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
-/// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
-/// let uv_points = curve_3d_to_uv_numeric(&circle, &cylinder, 9, Tolerance::DEFAULT);
-/// assert_eq!(uv_points.len(), 9);
-/// // Coaxial circle on a cylinder: the horizontal line v = 0.
-/// for p in &uv_points {
-///     assert!(p.y.abs() < 1e-9);
-/// }
-/// ```
-pub fn curve_3d_to_uv_numeric<C, S>(
-    curve: &C,
-    surface: &S,
-    sample_count: usize,
-    tol: Tolerance,
-) -> Vec<Point2D>
-where
-    C: ParametricCurve,
-    S: ParametricSurface,
-{
-    let (t0, t1) = curve.bounds();
-    // Unbounded curves sample a documented default window.
-    const WINDOW: f64 = 10.0;
-    let (lo, hi) = (
-        if t0.is_finite() { t0 } else { -WINDOW },
-        if t1.is_finite() { t1 } else { WINDOW },
-    );
-    let sample_count = sample_count.max(2);
-    (0..sample_count)
-        .map(|i| {
-            let t = lo + (hi - lo) * i as f64 / (sample_count - 1) as f64;
-            let p = surface.project_point(curve.point_at(t), tol);
-            Point2D::new(p.u, p.v)
-        })
-        .collect()
 }
 
 #[cfg(test)]

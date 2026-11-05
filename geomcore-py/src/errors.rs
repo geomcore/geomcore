@@ -71,6 +71,12 @@ create_exception!(
 );
 create_exception!(
     geomcore,
+    Curve3DToUvApproximationError,
+    GeomcoreError,
+    "A 3D curve has no UV curve, a curve in a surface's parameter space, within the asked deviation."
+);
+create_exception!(
+    geomcore,
     UvCurveTo3DError,
     GeomcoreError,
     "A UV curve, a curve in a surface's parameter space, has no exact 3D curve in the same parameter."
@@ -119,6 +125,10 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
         py.get_type::<BSplineConversionError>(),
     )?;
     m.add("Curve3DToUvError", py.get_type::<Curve3DToUvError>())?;
+    m.add(
+        "Curve3DToUvApproximationError",
+        py.get_type::<Curve3DToUvApproximationError>(),
+    )?;
     m.add("UvCurveTo3DError", py.get_type::<UvCurveTo3DError>())?;
     m.add(
         "UvCurveApproximationError",
@@ -184,6 +194,7 @@ map_error!(DegreeElevationError: geomcore::DegreeElevationError);
 map_error!(BSplineSplitError: geomcore::BSplineSplitError);
 map_error!(BSplineConversionError: geomcore::BSplineConversionError);
 map_error!(Curve3DToUvError: geomcore::Curve3DToUvError);
+map_error!(Curve3DToUvApproximationError: geomcore::Curve3DToUvApproximationError);
 map_error!(UvCurveTo3DError: geomcore::UvCurveTo3DError);
 map_error!(UvCurveApproximationError: geomcore::UvCurveApproximationError);
 map_error!(SurfaceIsoError: geomcore::SurfaceIsoError);

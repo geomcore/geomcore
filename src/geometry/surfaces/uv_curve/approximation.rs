@@ -33,7 +33,7 @@ use crate::{Point, Point2D, Tolerance, Vector, Vector2D};
 /// The order of the derivatives a span matches at each end where only
 /// second derivatives are available: degree 5, the lowest whose spans join
 /// C².
-const LOW_ORDER: usize = 2;
+pub(super) const LOW_ORDER: usize = 2;
 
 /// The order of the derivatives a span matches at each end where `f` is
 /// analytic: degree 9, whose spans join C⁴. Past it, each order of
@@ -47,12 +47,12 @@ const HIGHEST_DEGREE: usize = degree(HIGH_ORDER);
 /// A sampled span is accepted when its sampled deviation is within the
 /// Hermite budget divided by this margin, for the deviation between the
 /// samples.
-const SAMPLING_MARGIN: f64 = 2.0;
+pub(super) const SAMPLING_MARGIN: f64 = 2.0;
 
 /// The interior samples of a span in the sampled check, evenly spaced. The
 /// Hermite error is about `((t - a) (t - b))ⁿ⁺¹`, widest at the midpoint,
 /// which the samples include.
-const SAMPLES_PER_SPAN: usize = 9;
+pub(super) const SAMPLES_PER_SPAN: usize = 9;
 
 /// A sampled span above the deviation asks for the pieces its Hermite
 /// error predicts within it, times this margin, up to `MAXIMUM_SPLIT`.
@@ -67,10 +67,10 @@ const MAXIMUM_SPLIT: usize = 64;
 const MINIMUM_SAMPLED_SPAN_COUNT: usize = 4;
 
 /// The most spans a 3D curve gets before it is refused.
-const MAXIMUM_SPAN_COUNT: usize = 100_000;
+pub(super) const MAXIMUM_SPAN_COUNT: usize = 100_000;
 
 /// The degree of the Hermite spans that match derivatives up to `order`.
-const fn degree(order: usize) -> usize {
+pub(super) const fn degree(order: usize) -> usize {
     2 * order + 1
 }
 
@@ -311,8 +311,17 @@ where
             (low, breakpoints, deviation, false)
         }
     };
+    let curve = joined(&breakpoints, composition.order());
+    let start = curve.poles()[0];
+    if curve
+        .poles()
+        .iter()
+        .all(|pole| pole.distance(start) <= tol.confusion)
+    {
+        return Err(UvCurveApproximationError::Collapsed);
+    }
     Ok(UvCurveApproximation {
-        curve: joined(&breakpoints, composition.order(), tol)?,
+        curve,
         deviation,
         proven,
     })
@@ -322,11 +331,11 @@ where
 
 /// The point of `f = S∘c` and its derivatives at a parameter.
 #[derive(Clone, Copy)]
-struct Jet {
-    point: Point,
+pub(super) struct Jet {
+    pub(super) point: Point,
     /// `derivatives[k - 1]` is `f⁽ᵏ⁾`, up to the order of the composition
     /// that read it; the others are zero.
-    derivatives: [Vector; HIGH_ORDER],
+    pub(super) derivatives: [Vector; HIGH_ORDER],
 }
 
 /// `f = S∘c` and its derivatives, read from the surface and the UV curve.
@@ -563,23 +572,23 @@ fn binomial(n: usize, k: usize) -> f64 {
 /// share one jet of order `n`, so that they meet `Cⁿ`, and more at a knot
 /// where the UV curve is less smooth, whose jets differ.
 #[derive(Clone, Copy)]
-struct Breakpoint {
-    parameter: f64,
-    below: Jet,
-    above: Jet,
-    multiplicity: u32,
+pub(super) struct Breakpoint {
+    pub(super) parameter: f64,
+    pub(super) below: Jet,
+    pub(super) above: Jet,
+    pub(super) multiplicity: u32,
 }
 
 /// The Bézier poles of a span: room for the highest degree, of which the
 /// first `degree + 1` are used.
-type SpanPoles = [Point; HIGHEST_DEGREE + 1];
+pub(super) type SpanPoles = [Point; HIGHEST_DEGREE + 1];
 
 /// The Bézier poles of the Hermite interpolant of degree `p = 2n + 1` from
 /// `start` to `end`, with `n = order`. On `[a, b]`, `h = b - a`, the pole
 /// `k ≤ n` is `Σⱼ C(k, j) (p - j)! / p! hʲ f⁽ʲ⁾(a)`, and the pole `p - k`
 /// the same from `b` with `-h`: at degree 5, `f(a)`, `f(a) + h f'(a) / 5`
 /// and `f(a) + 2 h f'(a) / 5 + h² f''(a) / 20`.
-fn hermite_poles(start: &Breakpoint, end: &Breakpoint, order: usize) -> SpanPoles {
+pub(super) fn hermite_poles(start: &Breakpoint, end: &Breakpoint, order: usize) -> SpanPoles {
     let degree = degree(order);
     let h = end.parameter - start.parameter;
     let mut poles = [start.above.point; HIGHEST_DEGREE + 1];
@@ -602,7 +611,7 @@ fn hermite_poles(start: &Breakpoint, end: &Breakpoint, order: usize) -> SpanPole
 
 /// The Bézier curve of degree `degree` of `poles` at `s` in `[0, 1]`, by
 /// de Casteljau.
-fn bezier_point(poles: &SpanPoles, degree: usize, s: f64) -> Point {
+pub(super) fn bezier_point(poles: &SpanPoles, degree: usize, s: f64) -> Point {
     let mut points = *poles;
     for level in (1..=degree).rev() {
         for k in 0..level {
@@ -729,32 +738,120 @@ where
         .collect()
 }
 
+/// What sampled spans are built from: the breakpoints, with their jets,
+/// of the curve being approximated, and the deviation of a span between
+/// two of them. `uv_curve_to_3d_within` approximates `S∘c` in 3D, and
+/// `curve_3d_to_uv_within` the UV curve of a 3D curve, whose deviation it
+/// measures through the surface.
+pub(super) trait SpanSource {
+    /// The error a span or breakpoint can fail with.
+    type Error;
+
+    /// The order of the jets.
+    fn order(&self) -> usize;
+
+    /// The shortest span that may still be split.
+    fn shortest_span(&self) -> f64;
+
+    /// Each knot of the curve strictly between `first` and `last`, with
+    /// its continuity there; the spans start from them.
+    fn knots(&self, first: f64, last: f64) -> Vec<(f64, u32)>;
+
+    /// The breakpoint at `t`, where the curve is smooth.
+    fn breakpoint(&self, t: f64) -> Result<Breakpoint, Self::Error>;
+
+    /// The breakpoint at a knot where the curve is `C^continuity`.
+    fn knot_breakpoint(&self, t: f64, continuity: u32) -> Result<Breakpoint, Self::Error>;
+
+    /// The largest deviation of the span from `start` to `end`, sampled at
+    /// `SAMPLES_PER_SPAN` evenly spaced interior parameters.
+    fn span_deviation(&self, start: &Breakpoint, end: &Breakpoint) -> Result<f64, Self::Error>;
+
+    /// The error of a deviation not reached, having reached `reached`.
+    fn not_reached(reached: f64) -> Self::Error;
+}
+
+impl<S: ParametricSurface + ?Sized, C: ParametricCurve2D + ?Sized> SpanSource
+    for Composition<'_, S, C>
+{
+    type Error = UvCurveApproximationError;
+
+    fn order(&self) -> usize {
+        Composition::order(self)
+    }
+
+    fn shortest_span(&self) -> f64 {
+        self.tol.parametric
+    }
+
+    fn knots(&self, first: f64, last: f64) -> Vec<(f64, u32)> {
+        self.spline.map_or_else(Vec::new, |spline| {
+            knots_between(
+                spline.degree(),
+                spline.knots(),
+                spline.multiplicities(),
+                first,
+                last,
+            )
+        })
+    }
+
+    fn breakpoint(&self, t: f64) -> Result<Breakpoint, Self::Error> {
+        Composition::breakpoint(self, t)
+    }
+
+    fn knot_breakpoint(&self, t: f64, continuity: u32) -> Result<Breakpoint, Self::Error> {
+        Composition::knot_breakpoint(self, t, continuity)
+    }
+
+    /// The largest distance between the Hermite span and `f`.
+    fn span_deviation(&self, start: &Breakpoint, end: &Breakpoint) -> Result<f64, Self::Error> {
+        let order = Composition::order(self);
+        let poles = hermite_poles(start, end, order);
+        let h = end.parameter - start.parameter;
+        let mut deviation: f64 = 0.0;
+        for sample in 1..=SAMPLES_PER_SPAN {
+            let s = sample as f64 / (SAMPLES_PER_SPAN + 1) as f64;
+            let target = self.point(start.parameter + s * h)?;
+            deviation = deviation.max(bezier_point(&poles, degree(order), s).distance(target));
+        }
+        Ok(deviation)
+    }
+
+    fn not_reached(reached: f64) -> Self::Error {
+        UvCurveApproximationError::DeviationNotReached { reached }
+    }
+}
+
+/// Each knot of a spline of `degree` strictly between `first` and `last`,
+/// with the spline's continuity there.
+pub(super) fn knots_between(
+    degree: usize,
+    knots: &[f64],
+    multiplicities: &[u32],
+    first: f64,
+    last: f64,
+) -> Vec<(f64, u32)> {
+    knots
+        .iter()
+        .zip(multiplicities)
+        .filter(|&(&knot, _)| knot > first && knot < last)
+        .map(|(&knot, &multiplicity)| (knot, (degree as u32).saturating_sub(multiplicity)))
+        .collect()
+}
+
 /// The spans from the UV curve's knots, each sampled and split until
 /// within `budget / SAMPLING_MARGIN`, and their largest sampled deviation;
 /// refused past `span_limit` spans.
-fn sampled_spans<S, C>(
-    composition: &Composition<'_, S, C>,
+pub(super) fn sampled_spans<T: SpanSource>(
+    composition: &T,
     (first, last): (f64, f64),
     budget: f64,
     span_limit: usize,
-) -> Result<(Vec<Breakpoint>, f64), UvCurveApproximationError>
-where
-    S: ParametricSurface + ?Sized,
-    C: ParametricCurve2D + ?Sized,
-{
+) -> Result<(Vec<Breakpoint>, f64), T::Error> {
     let order = composition.order();
-    // Each interior knot of a spline UV curve, with the UV curve's
-    // continuity there.
-    let knots: Vec<(f64, u32)> = composition.spline.map_or_else(Vec::new, |spline| {
-        let degree = spline.degree() as u32;
-        spline
-            .knots()
-            .iter()
-            .zip(spline.multiplicities())
-            .filter(|&(&knot, _)| knot > first && knot < last)
-            .map(|(&knot, &multiplicity)| (knot, degree.saturating_sub(multiplicity)))
-            .collect()
-    });
+    // Each interior knot of the curve, with its continuity there.
+    let knots = composition.knots(first, last);
     let knot_parameters: Vec<f64> = knots.iter().map(|&(knot, _)| knot).collect();
     let pieces = MINIMUM_SAMPLED_SPAN_COUNT.div_ceil(knots.len() + 1);
     let mut breakpoints = vec![composition.breakpoint(first)?];
@@ -769,7 +866,7 @@ where
     }
     let mut deviations = breakpoints
         .windows(2)
-        .map(|pair| sampled_deviation(composition, &pair[0], &pair[1]))
+        .map(|pair| composition.span_deviation(&pair[0], &pair[1]))
         .collect::<Result<Vec<_>, _>>()?;
     let accepted = budget / SAMPLING_MARGIN;
     // The pieces a failing span asks for, as a real number: the Hermite
@@ -811,7 +908,7 @@ where
                 .map(|&(start, end, _)| end - start)
                 .sum::<usize>();
         if kept + runs.iter().map(|&(_, _, pieces)| pieces).sum::<usize>() > span_limit {
-            return Err(UvCurveApproximationError::DeviationNotReached { reached });
+            return Err(T::not_reached(reached));
         }
         let mut split_breakpoints = vec![breakpoints[0]];
         let mut split_deviations = Vec::with_capacity(2 * deviations.len());
@@ -825,9 +922,9 @@ where
             let spans = run_start..run_end;
             if spans.clone().any(|span| {
                 breakpoints[span + 1].parameter - breakpoints[span].parameter
-                    < composition.tol.parametric
+                    < composition.shortest_span()
             }) {
-                return Err(UvCurveApproximationError::DeviationNotReached { reached });
+                return Err(T::not_reached(reached));
             }
             // The new breakpoints spread the pieces asked evenly, each span
             // asking for its pieces evenly over its length.
@@ -855,7 +952,7 @@ where
                     let share = (target - asked_before) / asked[asked_span - run_start];
                     composition.breakpoint(low + share * (high - low))?
                 };
-                split_deviations.push(sampled_deviation(composition, &piece_start, &piece_end)?);
+                split_deviations.push(composition.span_deviation(&piece_start, &piece_end)?);
                 split_breakpoints.push(piece_end);
                 piece_start = piece_end;
             }
@@ -870,29 +967,6 @@ where
     }
     let deviation = deviations.iter().copied().fold(0.0, f64::max);
     Ok((breakpoints, deviation))
-}
-
-/// The largest distance between the Hermite span from `start` to `end` and
-/// `f`, at `SAMPLES_PER_SPAN` evenly spaced interior parameters.
-fn sampled_deviation<S, C>(
-    composition: &Composition<'_, S, C>,
-    start: &Breakpoint,
-    end: &Breakpoint,
-) -> Result<f64, UvCurveApproximationError>
-where
-    S: ParametricSurface + ?Sized,
-    C: ParametricCurve2D + ?Sized,
-{
-    let order = composition.order();
-    let poles = hermite_poles(start, end, order);
-    let h = end.parameter - start.parameter;
-    let mut deviation: f64 = 0.0;
-    for sample in 1..=SAMPLES_PER_SPAN {
-        let s = sample as f64 / (SAMPLES_PER_SPAN + 1) as f64;
-        let target = composition.point(start.parameter + s * h)?;
-        deviation = deviation.max(bezier_point(&poles, degree(order), s).distance(target));
-    }
-    Ok(deviation)
 }
 
 /// The spans between `breakpoints`, Hermite interpolants matching
@@ -912,25 +986,13 @@ where
 /// `k = α + β`. So that blossom is `Σₖ f⁽ᵏ⁾(t_i) e_k / (k! C(p, k))`; at
 /// degree 5 around a knot of multiplicity 3,
 /// `f + (h_r - h_l) f' / 5 - h_l h_r f'' / 20`.
-fn joined(
-    breakpoints: &[Breakpoint],
-    order: usize,
-    tol: Tolerance,
-) -> Result<BSplineCurve, UvCurveApproximationError> {
+pub(super) fn joined(breakpoints: &[Breakpoint], order: usize) -> BSplineCurve {
     let degree = degree(order);
     let span_count = breakpoints.len() - 1;
     let spans: Vec<SpanPoles> = breakpoints
         .windows(2)
         .map(|pair| hermite_poles(&pair[0], &pair[1], order))
         .collect();
-    let start = spans[0][0];
-    if spans
-        .iter()
-        .flat_map(|poles| &poles[..=degree])
-        .all(|pole| pole.distance(start) <= tol.confusion)
-    {
-        return Err(UvCurveApproximationError::Collapsed);
-    }
     let end_multiplicity = degree as u32 + 1;
     let multiplicities: Vec<u32> = (0..=span_count)
         .map(|k| match k {
@@ -985,8 +1047,6 @@ fn joined(
         })
         .collect();
     let knots = breakpoints.iter().map(|b| b.parameter).collect();
-    Ok(
-        BSplineCurve::new(degree, poles, knots, multiplicities, false)
-            .expect("the breakpoints increase and every pole is finite"),
-    )
+    BSplineCurve::new(degree, poles, knots, multiplicities, false)
+        .expect("the breakpoints increase and every pole is finite")
 }

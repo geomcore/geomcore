@@ -44,10 +44,11 @@ src/
 │   │   ├── uv_curve.rs              UV curves to and from 3D curves (ADR 0030,
 │   │   │                            0031); uv_curve/to_curve.rs is the pair table
 │   │   │                            of uv_curve_to_3d, uv_curve/from_curve.rs the
-│   │   │                            closed forms of curve_3d_to_uv and the
-│   │   │                            sampled curve_3d_to_uv_numeric,
+│   │   │                            closed forms of curve_3d_to_uv,
 │   │   │                            uv_curve/approximation.rs
-│   │   │                            uv_curve_to_3d_within (ADR 0035)
+│   │   │                            uv_curve_to_3d_within (ADR 0035) and
+│   │   │                            uv_curve/from_curve_within.rs its mirror
+│   │   │                            curve_3d_to_uv_within
 │   │   └── conversion.rs fitting.rs
 │   └── enum_variants.rs         the macros that expand a shape enum's variant list
 │                                (ADR 0017)

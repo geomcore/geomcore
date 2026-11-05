@@ -19,3 +19,5 @@ The method has the same shape as `uv_curve_to_3d`. It is a provided method whose
 ## Consequences
 
 Rust callers write `surface.curve_3d_to_uv(&circle.into(), tol)` for `circle.parametrize_on(surface, tol)`, and match on `Curve3DToUvError`. A caller holding a `Curve` no longer dispatches on its variant. Python moves the method from the 3D curve classes to every surface class: `surface.curve_3d_to_uv(curve, tol=None)` accepts any 3D curve class, raises `Curve3DToUvError`, and `geomcore.parametrize_numeric` becomes `geomcore.curve_3d_to_uv_numeric`. The stub-only `_ParametrizeOnMethods` class is gone. The method is now part of `_SurfaceMethods`.
+
+Amended (#186): `curve_3d_to_uv_numeric` is replaced by `curve_3d_to_uv_within`, one UV curve within a deviation; see the amendment to ADR 0035.

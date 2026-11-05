@@ -1,37 +1,87 @@
-//! `geomcore.curve_3d_to_uv_numeric`: the UV curve of a 3D curve on a
-//! surface, sampled, for the pairs without a closed form; and
+//! `geomcore.curve_3d_to_uv_within`: the UV curve of a 3D curve on a
+//! surface within a deviation, for the pairs without an exact one; and
 //! `geomcore.uv_curve_to_3d_within`: the 3D curve of a UV curve within a
 //! deviation, for the pairs without an exact one.
 
 use crate::arguments::{curve_2d_classes, extract_curve_arg, surface_classes};
-use crate::curves::{PyBSplineCurve, PyTrimmedCurve2D};
+use crate::curves::{PyBSplineCurve, PyBSplineCurve2D, PyTrimmedCurve2D};
 use crate::errors::python_error;
 use crate::tolerance;
 use crate::values::{PyTolerance, float_repr, py_bool};
-use geomcore::{UvCurveApproximation, curve_3d_to_uv_numeric, uv_curve_to_3d_within};
+use geomcore::{
+    Curve3DToUvApproximation, UvCurveApproximation, curve_3d_to_uv_within, uv_curve_to_3d_within,
+};
 use pyo3::prelude::*;
 
-/// The UV curve of a 3D curve on a surface, sampled, for the pairs without
-/// a closed form.
+/// The UV curve of `curve` on `surface`, within `max_deviation` at the
+/// same parameter, over the curve's bounds: one B-spline whose image
+/// `surface.point_at(u, v)` at every `t` lies within `max_deviation` of
+/// `curve.point_at(t)`, continuous across the surface's seams.
 ///
-/// Samples the curve at `sample_count` uniform parameters and inverts each
-/// sample onto the surface. Returns `(u, v)` tuples; surface evaluation at
-/// them recovers the samples where the curve lies on the surface. Other
-/// Python threads run during the projections.
+/// The counterpart of `surface.curve_3d_to_uv`, which gives the exact UV
+/// curve and refuses the pairs that have none, such as an ellipse on a
+/// cylinder or any curve on a spline surface, and the mirror of
+/// `uv_curve_to_3d_within`. `curve` is any 3D curve or `TrimmedCurve`; a
+/// line must be trimmed. Raises `Curve3DToUvApproximationError` when
+/// `max_deviation` is not a positive finite number, when the curve is
+/// unbounded or a point, when it is farther from the surface than half
+/// `max_deviation`, when it starts, ends or has a knot at a sphere's pole
+/// or a cone's apex, or when the deviation is not reached. `tol` is
+/// `Tolerance.default()` when omitted. Other Python threads run during the
+/// approximation.
 #[pyfunction]
-#[pyo3(name = "curve_3d_to_uv_numeric", signature = (curve, surface, sample_count = 64, tol = None))]
-pub(crate) fn py_curve_3d_to_uv_numeric(
+#[pyo3(name = "curve_3d_to_uv_within", signature = (surface, curve, max_deviation, tol = None))]
+pub(crate) fn py_curve_3d_to_uv_within(
     py: Python<'_>,
-    curve: &Bound<'_, PyAny>,
     surface: &Bound<'_, PyAny>,
-    sample_count: usize,
+    curve: &Bound<'_, PyAny>,
+    max_deviation: f64,
     tol: Option<PyTolerance>,
-) -> PyResult<Vec<(f64, f64)>> {
+) -> PyResult<PyCurve3DToUvApproximation> {
     let tol = tolerance(tol);
-    let c = extract_curve_arg(curve)?;
     let s = surface_classes::extract(surface)?;
-    let points = py.detach(|| curve_3d_to_uv_numeric(&c, &s, sample_count, tol));
-    Ok(points.iter().map(|p| (p.x, p.y)).collect())
+    let c = extract_curve_arg(curve)?;
+    let approximation = py.detach(|| curve_3d_to_uv_within(&s, &c, max_deviation, tol));
+    Ok(PyCurve3DToUvApproximation(
+        approximation.map_err(python_error)?,
+    ))
+}
+
+/// The UV curve of a 3D curve within a deviation, from
+/// `curve_3d_to_uv_within`.
+#[pyclass(name = "Curve3DToUvApproximation", module = "geomcore", eq, frozen)]
+#[derive(Clone, PartialEq)]
+pub(crate) struct PyCurve3DToUvApproximation(pub(crate) Curve3DToUvApproximation);
+
+#[pymethods]
+impl PyCurve3DToUvApproximation {
+    /// The UV curve: one non-rational, non-periodic `BSplineCurve2D` of
+    /// degree 5 over the 3D curve's bounds, in its parameter, C2 except at
+    /// a knot where the 3D curve is less smooth, and continuous across the
+    /// surface's seams.
+    #[getter]
+    fn curve(&self) -> PyBSplineCurve2D {
+        PyBSplineCurve2D(self.0.curve().clone())
+    }
+
+    /// The largest sampled distance between the surface's point at the UV
+    /// curve's point at `t` and the 3D curve's point at `t`: each span is
+    /// checked at nine points against half the asked deviation. It is
+    /// never above the asked deviation.
+    #[getter]
+    fn deviation(&self) -> f64 {
+        self.0.deviation()
+    }
+
+    fn __repr__(&self) -> String {
+        let curve = self.0.curve();
+        format!(
+            "Curve3DToUvApproximation(degree={}, pole_count={}, deviation={})",
+            curve.degree(),
+            curve.poles().len(),
+            float_repr(self.0.deviation()),
+        )
+    }
 }
 
 /// The 3D curve that `uv_curve` traces on `surface`, within

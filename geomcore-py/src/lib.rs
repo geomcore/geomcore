@@ -113,7 +113,10 @@ use results::{
     PyCurveSurfaceRegion, PyIntersectionCurve, PySurfaceCurvatures, PySurfaceProjection,
     PySurfaceSurfaceIntersection, PySurfaceSurfaceRegion,
 };
-use surfaces::{PyUvCurveApproximation, py_curve_3d_to_uv_numeric, py_uv_curve_to_3d_within};
+use surfaces::{
+    PyCurve3DToUvApproximation, PyUvCurveApproximation, py_curve_3d_to_uv_within,
+    py_uv_curve_to_3d_within,
+};
 use values::{
     PyAxis, PyAxis2D, PyFrame, PyFrame2D, PyPoint, PyPoint2D, PyTolerance, PyTransform, PyVector,
     PyVector2D,
@@ -163,6 +166,7 @@ fn geomcore_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyCurveCurveExtrema>()?;
     m.add_class::<PySurfaceCurvatures>()?;
     m.add_class::<PyUvCurveApproximation>()?;
+    m.add_class::<PyCurve3DToUvApproximation>()?;
 
     let curves = PyModule::new(py, "curves")?;
     curve_classes::add_to(&curves)?;
@@ -181,7 +185,7 @@ fn geomcore_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     sys_modules.set_item("geomcore.curves", &curves)?;
     sys_modules.set_item("geomcore.surfaces", &surfaces)?;
 
-    m.add_function(wrap_pyfunction!(py_curve_3d_to_uv_numeric, m)?)?;
+    m.add_function(wrap_pyfunction!(py_curve_3d_to_uv_within, m)?)?;
     m.add_function(wrap_pyfunction!(py_uv_curve_to_3d_within, m)?)?;
     m.add_function(wrap_pyfunction!(py_curve_curve_extrema, m)?)?;
 

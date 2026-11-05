@@ -1,6 +1,6 @@
 use super::{
-    Curve3DToUvError, FRAC_PI_2, PI, TAU, curve_3d_to_uv_numeric, mirror_about_horizontal,
-    sphere_meridian, sphere_set_in_bounds,
+    Curve3DToUvError, FRAC_PI_2, PI, TAU, mirror_about_horizontal, sphere_meridian,
+    sphere_set_in_bounds,
 };
 use crate::geometry::curves::{Curve2D, ParametricCurve, ParametricCurve2D};
 use crate::geometry::surfaces::ParametricSurface;
@@ -619,90 +619,4 @@ fn test_bspline_leaving_the_plane_is_not_on_surface() {
 
 fn assert_close(a: f64, b: f64) {
     assert!((a - b).abs() < 1e-9, "expected {b}, got {a}");
-}
-
-/// Round-trip: surface evaluation at numeric UV curve points recovers
-/// the curve points (the defining property of a parametrization).
-fn assert_roundtrip<C, S>(curve: &C, surface: &S, n: usize, eps: f64)
-where
-    C: ParametricCurve,
-    S: ParametricSurface,
-{
-    let tol = Tolerance::DEFAULT;
-    let (t0, t1) = curve.bounds();
-    let (lo, hi) = (
-        if t0.is_finite() { t0 } else { -10.0 },
-        if t1.is_finite() { t1 } else { 10.0 },
-    );
-    for (i, uv) in curve_3d_to_uv_numeric(curve, surface, n, tol)
-        .iter()
-        .enumerate()
-    {
-        let t = lo + (hi - lo) * i as f64 / (n - 1) as f64;
-        let back = surface.point_at(uv.x, uv.y);
-        let fwd = curve.point_at(t);
-        assert!(
-            back.distance(fwd) < eps,
-            "t={t}: round-trip gap {}",
-            back.distance(fwd)
-        );
-    }
-}
-
-#[test]
-fn test_numeric_circle_on_cylinder_matches_analytic() {
-    let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
-    let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
-    // Analytic image is the horizontal line v = 0.
-    let analytic = cylinder
-        .curve_3d_to_uv(&circle.into(), Tolerance::DEFAULT)
-        .unwrap();
-    let numeric = curve_3d_to_uv_numeric(&circle, &cylinder, 17, Tolerance::DEFAULT);
-    assert_eq!(numeric.len(), 17);
-    for (i, uv) in numeric.iter().enumerate() {
-        assert!(uv.y.abs() < 1e-9, "{uv:?}");
-        if let Curve2D::Line(l) = &analytic {
-            let q = l.point_at(i as f64 / 16.0 * TAU);
-            let du = (uv.x - q.x).abs();
-            let wrapped = du.min((TAU - du).abs());
-            assert!(wrapped < 1e-9, "{uv:?} vs {q:?}");
-        } else {
-            panic!("expected analytic line");
-        }
-    }
-    assert_roundtrip(&circle, &cylinder, 17, 1e-9);
-}
-
-#[test]
-fn test_numeric_line_on_plane_roundtrip() {
-    let line = Line::new(Point::ORIGIN, Vector::new(1.0, 1.0, 0.0)).unwrap();
-    let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
-    assert_roundtrip(&line, &plane, 9, 1e-9);
-}
-
-#[test]
-fn test_numeric_ellipse_on_sphere_roundtrip() {
-    // No closed form exists here: numeric path only. The ellipse lies
-    // inside the sphere, so samples validate as on-surface projections
-    // (idempotent), not as round-trips to the curve.
-    let ellipse = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 3.0, 1.5).unwrap();
-    let sphere = Sphere::new(Point::ORIGIN, 3.0).unwrap();
-    let tol = Tolerance::DEFAULT;
-    let uv_curve = curve_3d_to_uv_numeric(&ellipse, &sphere, 33, tol);
-    assert_eq!(uv_curve.len(), 33);
-    for uv in &uv_curve {
-        let back = sphere.point_at(uv.x, uv.y);
-        assert!(sphere.contains(back, tol), "{back:?}");
-        let again = sphere.project_point(back, tol);
-        let there = sphere.point_at(again.u, again.v);
-        assert!(there.distance(back) < 1e-12, "{there:?} vs {back:?}");
-    }
-}
-
-#[test]
-fn test_numeric_bspline_on_plane_roundtrip() {
-    let poles = vec![Point::new(0.0, 0.0, 0.0), Point::new(2.0, 1.0, 0.0)];
-    let curve = BSplineCurve::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
-    let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
-    assert_roundtrip(&curve, &plane, 9, 1e-9);
 }

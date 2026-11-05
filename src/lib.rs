@@ -181,7 +181,10 @@ pub use geometry::surfaces::{
     SphereConstructionError, Surface, SurfaceCurvatures, SurfaceIsoError, Torus,
     TorusConstructionError, UvCurveApproximation, UvCurveApproximationError, UvCurveTo3DError,
 };
-pub use geometry::surfaces::{curve_3d_to_uv_numeric, uv_curve_to_3d_within};
+pub use geometry::surfaces::{
+    Curve3DToUvApproximation, Curve3DToUvApproximationError, curve_3d_to_uv_within,
+    uv_curve_to_3d_within,
+};
 pub use operations::discretization::{
     Discretization, Discretization2D, DiscretizationCriteria, DiscretizationCriteriaError,
     Discretize, Discretize2D,

@@ -8,7 +8,7 @@ pub fn uv_curve_to_3d_within<S, C>(surface: &S, uv_curve: &C, max_deviation: f64
 where S: ParametricSurface + ?Sized, C: ParametricCurve2D + ?Sized
 ```
 
-It is a generic free function, like `curve_3d_to_uv_numeric`. It works over the UV curve's own bounds (ADR 0005), so a line is trimmed first. The two operations stay separate. A caller that wants the exact curve where there is one calls `uv_curve_to_3d` first and this one on `NotAnalytic`, which keeps the choice visible (ADR 0030).
+It is a generic free function, as its mirror `curve_3d_to_uv_within` is. It works over the UV curve's own bounds (ADR 0005), so a line is trimmed first. The two operations stay separate. A caller that wants the exact curve where there is one calls `uv_curve_to_3d` first and this one on `NotAnalytic`, which keeps the choice visible (ADR 0030).
 
 ## The result
 
@@ -74,4 +74,12 @@ A new hidden routing hook, `ParametricCurve2D::as_line`, tells a straight UV cur
 
 A crate surface gets proven spans and degree 9 as soon as `as_elementary` returns it. Any other surface, including a user's, gets sampled spans at degree 5 with no further code. An extrusion or revolution with an elementary profile is analytic too, but stays at degree 5 until its derivatives go past second order and a consumer asks for it.
 
-The Python bindings do not expose the operation yet; it waits for a caller.
+The Python bindings expose it as `geomcore.uv_curve_to_3d_within`.
+
+## Amendment: the mirror, 3D curve to UV curve (#186)
+
+`curve_3d_to_uv_within(surface, curve, max_deviation, tol) -> Result<Curve3DToUvApproximation, Curve3DToUvApproximationError>` replaces the sampled `curve_3d_to_uv_numeric`, which returned raw `(u, v)` samples that wrapped at the seam, for a sample count instead of a deviation. It shares this operation's spans through a `SpanSource` trait: the jets come from inverting the 3D curve's points, and the UV curve's derivatives from the surface's Jacobian, `c' = (JᵀJ)⁻¹ Jᵀ C'` and the same for `C''` less the surface's curvature terms. The UV coordinates ride in the `x` and `y` of the 3D jets, so the Hermite poles and the join are unchanged. A span's deviation is measured in 3D, `|S(c(t)) − C(t)|`, the same-parameter deviation.
+
+- **Degree 5 only.** Order-4 jets would need third and fourth derivatives of the inverse, and the deviation is always sampled: no closed-form bound exists for an inversion.
+- **The seam.** Each inversion is moved by whole periods to the value nearest a lift: 129 samples of the UV curve along the curve, each predicted from the one before and its derivative. The UV curve is continuous, and a closed curve around a cylinder ends one period from its start.
+- **Refusals.** As here, plus `CurveNotOnSurface { distance }` when an inversion is farther than half the deviation from the curve, and `SingularParametrization` when a breakpoint falls where `JᵀJ` is singular, as a curve that starts or ends at a sphere's pole. A curve through a pole between its breakpoints is still within the deviation: every `u` is the same point there, so the UV curve turns steeply in `u`. Splitting at the pole, which a B-rep does for its vertex, is the caller's.

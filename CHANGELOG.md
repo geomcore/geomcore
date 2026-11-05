@@ -11,6 +11,13 @@ the Python distribution are versioned in lockstep.
 
 ### Added
 
+- `curve_3d_to_uv_within(surface, curve, max_deviation, tol)` (#186), in
+  Rust and Python: the UV curve of a 3D curve with no exact one, as one
+  degree-5 `BSplineCurve2D` in the curve's parameter, continuous across the
+  surface's seams, whose image on the surface is within the deviation of
+  the curve at the same parameter. The mirror of `uv_curve_to_3d_within`,
+  it returns a `Curve3DToUvApproximation` (its `curve` and sampled
+  `deviation`) or a `Curve3DToUvApproximationError`.
 - A numpy bridge for bulk queries in Python (#181): every curve and
   surface gains `points_at_array` and `project_points_array`, which take an
   array-like and return float64 arrays (`(N, 3)` or `(N, 2)` points, and
@@ -27,6 +34,10 @@ the Python distribution are versioned in lockstep.
 
 ### Breaking
 
+- `curve_3d_to_uv_numeric` is removed (#186): use
+  `curve_3d_to_uv_within`, which takes a deviation instead of a sample
+  count and returns one continuous UV curve instead of `(u, v)` samples
+  that wrapped at the seam.
 - The Python enumerations are real enums (#202): `Side`,
   `IntersectionMethod`, `CompletenessStatus` and `IncompleteReason` are
   `enum.IntEnum` classes, so `list(IncompleteReason)` lists the members.

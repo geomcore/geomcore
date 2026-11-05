@@ -1,7 +1,7 @@
 import enum
 from typing import ClassVar, List, Literal, Optional, Tuple, Union, final, overload
 
-from geomcore.curves import BSplineCurve, _Curve, _Curve2D, _WholeCurve
+from geomcore.curves import BSplineCurve, BSplineCurve2D, _Curve, _Curve2D, _WholeCurve
 from geomcore.surfaces import _Surface
 
 from . import curves, surfaces
@@ -35,6 +35,9 @@ class BSplineConversionError(GeomcoreError):
 
 class Curve3DToUvError(GeomcoreError):
     """A 3D curve has no exact UV curve, a curve in a surface's parameter space, in the same parameter."""
+
+class Curve3DToUvApproximationError(GeomcoreError):
+    """A 3D curve has no UV curve, a curve in a surface's parameter space, within the asked deviation."""
 
 class UvCurveTo3DError(GeomcoreError):
     """A UV curve, a curve in a surface's parameter space, has no exact 3D curve in the same parameter."""
@@ -339,6 +342,14 @@ class UvCurveApproximation:
     def deviation(self) -> float: ...
     def is_proven(self) -> bool: ...
 
+@final
+class Curve3DToUvApproximation:
+    __hash__: ClassVar[None]  # type: ignore[assignment]
+    @property
+    def curve(self) -> BSplineCurve2D: ...
+    @property
+    def deviation(self) -> float: ...
+
 class IntersectionMethod(enum.IntEnum):
     EXACT = 0
     NUMERIC = 1
@@ -611,9 +622,12 @@ class CurveCurveExtrema:
     def second(self) -> _Curve: ...
     def is_complete(self) -> bool: ...
 
-def curve_3d_to_uv_numeric(
-    curve: _Curve, surface: _Surface, sample_count: int = ..., tol: Optional[Tolerance] = ...
-) -> List[Tuple[float, float]]: ...
+def curve_3d_to_uv_within(
+    surface: _Surface,
+    curve: _Curve,
+    max_deviation: float,
+    tol: Optional[Tolerance] = ...,
+) -> Curve3DToUvApproximation: ...
 def uv_curve_to_3d_within(
     surface: _Surface,
     uv_curve: _Curve2D,
@@ -635,6 +649,7 @@ __all__ = [
     "BSplineSplitError",
     "BSplineConversionError",
     "Curve3DToUvError",
+    "Curve3DToUvApproximationError",
     "UvCurveTo3DError",
     "UvCurveApproximationError",
     "SurfaceIsoError",
@@ -676,11 +691,12 @@ __all__ = [
     "Tolerance",
     "Transform",
     "UvCurveApproximation",
+    "Curve3DToUvApproximation",
     "Vector2D",
     "Vector",
     "curve_curve_extrema",
     "curves",
-    "curve_3d_to_uv_numeric",
+    "curve_3d_to_uv_within",
     "surfaces",
     "uv_curve_to_3d_within",
 ]

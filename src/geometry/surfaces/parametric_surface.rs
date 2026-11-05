@@ -681,8 +681,8 @@ pub trait ParametricSurface {
     /// or a spline on any surface but a plane, every curve on an
     /// extrusion, revolution, B-spline or Bézier surface, and every curve
     /// on a surface type defined outside the crate, the default.
-    /// [`curve_3d_to_uv_numeric`](crate::curve_3d_to_uv_numeric) samples
-    /// those. [`Curve3DToUvError::CurveNotOnSurface`] when the curve does
+    /// [`curve_3d_to_uv_within`](crate::curve_3d_to_uv_within) gives
+    /// those within a deviation. [`Curve3DToUvError::CurveNotOnSurface`] when the curve does
     /// not lie on the surface, as for a circle whose radius does not match
     /// the cylinder.
     ///
