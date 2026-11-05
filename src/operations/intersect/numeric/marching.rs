@@ -15,8 +15,12 @@ mod pair;
 mod seeding;
 mod tracer;
 
-use crate::geometry::curves::fitting::{hermite_curve, without_confused};
-use crate::geometry::curves::{BSplineCurve, Curve, PointParametrization};
+use crate::geometry::curves::fitting::{
+    hermite_knots, hermite_spline, interpolate_with_companions, without_confused,
+};
+use crate::geometry::curves::{
+    BSplineConstructionError, BSplineCurve, BSplineCurve2D, Curve, Curve2D,
+};
 use crate::geometry::surfaces::ParametricSurface;
 use crate::math::numeric::boxtree::{Aabb, boxes_apart};
 use crate::operations::intersect::numeric::bezier_pieces;
@@ -25,7 +29,7 @@ use crate::operations::intersect::{
     Completeness, IncompleteReason, IntersectionCurve, SurfaceSurfaceIntersection,
     SurfaceSurfaceRegion,
 };
-use crate::{Point, Tolerance};
+use crate::{Point, Point2D, Tolerance, Vector, Vector2D};
 use pair::SurfacePair;
 use seeding::Seed;
 use tracer::{CHORD_DEVIATION, Cut, Trace, Tracer};
@@ -112,12 +116,14 @@ use tracer::{CHORD_DEVIATION, Cut, Trace, Tracer};
 /// the grids seed a stretch between two crossings only where the surfaces
 /// are closest. Where the surfaces cross, traces fit cubic Hermite curves
 /// through the traced points and their exact tangents (see
-/// [`hermite_curve`]), so the curve between the points stays within
+/// [`hermite_spline`]), so the curve between the points stays within
 /// confusion of both surfaces, not only the points. Where they touch, the
 /// tangents are found only to within confusion, and traces fit
 /// [`BSplineCurve`] interpolants (degree 3, closed loops by repeated end
 /// points). Both leave out the points closer than the fit can separate
-/// (see [`without_confused`]).
+/// (see [`without_confused`]). Each curve comes with its curves in the
+/// parameters of both surfaces, fitted on its knots from the parameters
+/// the trace walked (see [`Fitted::new`]).
 ///
 /// A seed where the surfaces touch (their normals parallel, or so nearly
 /// that moving one surface by confusion makes them touch; see
@@ -192,9 +198,14 @@ where
     let curves = traced
         .curves
         .into_iter()
-        .map(|(curve, tangent)| IntersectionCurve {
-            curve: Curve::BSpline(curve),
-            tangent,
+        .map(|fitted| {
+            let [first, second] = fitted.uv_curves;
+            IntersectionCurve {
+                curve: Curve::BSpline(fitted.curve),
+                first_uv_curve: Some(Curve2D::BSpline(first)),
+                second_uv_curve: Some(Curve2D::BSpline(second)),
+                tangent: fitted.touching,
+            }
         })
         .collect();
     SurfaceSurfaceIntersection::numeric(curves, traced.contact_points, completeness)
@@ -281,7 +292,11 @@ where
     for seed in seeds {
         traced.follow(&tracer, seed, tol);
     }
-    traced.curves.into_iter().map(|(curve, _)| curve).collect()
+    traced
+        .curves
+        .into_iter()
+        .map(|fitted| fitted.curve)
+        .collect()
 }
 
 /// The curves of [`marching_intersection`], fitted.
@@ -301,8 +316,7 @@ where
         .collect()
 }
 
-/// The curves traced so far, fitted, with whether the surfaces touch
-/// along each (see [`SurfacePair::grazes`]); the points where they touch
+/// The curves traced so far, fitted (see [`Fitted`]); the points where they touch
 /// without a curve to trace; the seeds where they lie on each other (see
 /// [`SurfacePair::osculates`]); the branches cut at the trace box of
 /// unbounded surfaces (see [`Cut`]); and the traced polylines: the box
@@ -310,7 +324,7 @@ where
 /// points.
 #[derive(Default)]
 struct Traced {
-    curves: Vec<(BSplineCurve, bool)>,
+    curves: Vec<Fitted>,
     contact_points: Vec<Point>,
     coincident_seeds: Vec<[f64; 4]>,
     cuts: Vec<Cut>,
@@ -371,14 +385,15 @@ impl Traced {
         if !tracer.encloses(p) || self.crosses(&[p.x, p.y, p.z, p.x, p.y, p.z], tol) {
             return Vec::new();
         }
-        let (points, tangents, stalls, touching, cuts) = match tracer.trace(seed) {
+        let (points, tangents, parameters, stalls, touching, cuts) = match tracer.trace(seed) {
             Trace::Curve {
                 points,
                 tangents,
+                parameters,
                 stalls,
                 touching,
                 cuts,
-            } => (points, tangents, stalls, touching, cuts),
+            } => (points, tangents, parameters, stalls, touching, cuts),
             Trace::Touch => {
                 let gap = 8.0 * CHORD_DEVIATION * tol.confusion;
                 if pair.osculates(seed, tol) {
@@ -397,18 +412,11 @@ impl Traced {
         if tracer.reports_cuts() {
             self.cuts.extend(cuts);
         }
-        let (points, tangents) = without_confused(points, tangents);
-        // Where the surfaces touch the tangents followed are directions of
-        // contact, which the curve need not take, and its points are found
-        // only to within confusion: an interpolant fits them instead.
-        let fit = if touching {
-            let degree = 3.min(points.len() - 1);
-            BSplineCurve::interpolate(&points, degree, PointParametrization::Centripetal)
-        } else {
-            hermite_curve(&points, &tangents)
-        };
+        let along = tangents.into_iter().zip(parameters).collect();
+        let (points, along) = without_confused(points, along);
+        let fit = Fitted::new(&pair, &points, &along, touching);
         debug_assert!(fit.is_ok(), "a trace of {} points fits", points.len());
-        if let Ok(fit) = fit {
+        if let Ok(fitted) = fit {
             let coords: Vec<[f64; 3]> = points.iter().map(|p| [p.x, p.y, p.z]).collect();
             let runs = (1..coords.len())
                 .step_by(RUN)
@@ -416,7 +424,7 @@ impl Traced {
                 .collect();
             self.traces
                 .push((bezier_pieces::bounding_box(&coords), runs, points));
-            self.curves.push((fit, touching));
+            self.curves.push(fitted);
         }
         stalls
     }
@@ -425,7 +433,7 @@ impl Traced {
     /// only touch: contact points and touching curves.
     fn only_touches(&self) -> bool {
         (!self.curves.is_empty() || !self.contact_points.is_empty())
-            && self.curves.iter().all(|&(_, touching)| touching)
+            && self.curves.iter().all(|fitted| fitted.touching)
     }
 
     /// Whether a traced polyline passes through the box `b`, grown by the
@@ -446,6 +454,99 @@ impl Traced {
                 })
         })
     }
+}
+
+/// A traced curve, fitted: in space, and in the parameters of each
+/// surface in the same parameter, with whether the surfaces touch along
+/// it (see [`SurfacePair::grazes`]).
+struct Fitted {
+    curve: BSplineCurve,
+    uv_curves: [BSplineCurve2D; 2],
+    touching: bool,
+}
+
+impl Fitted {
+    /// The fit of the traced `points`, each with its unit tangent and its
+    /// parameters on both surfaces (`along`).
+    ///
+    /// Where the surfaces cross, the curve in space is the Hermite curve
+    /// through the points and tangents (see [`hermite_spline`]), and each
+    /// curve in parameters the Hermite curve on the same knots through the
+    /// points' parameters, with the parameters' derivatives along it: the
+    /// tangent carried back through the surface's partial derivatives (see
+    /// [`SurfacePair::parameter_shifts`]). The curve on a surface then
+    /// meets the curve in space to the same order between the points.
+    /// Where the tangent plane degenerates, at a pole or an apex, the
+    /// derivative is the one of the chords to the neighbouring points.
+    ///
+    /// Where the surfaces touch, the tangents followed are directions of
+    /// contact, which the curve need not take, and its points are found
+    /// only to within confusion: interpolants fit the points and their
+    /// parameters instead, on shared knots (see
+    /// [`interpolate_with_companions`]).
+    fn new<A, B>(
+        pair: &SurfacePair<A, B>,
+        points: &[Point],
+        along: &[(Vector, [f64; 4])],
+        touching: bool,
+    ) -> Result<Fitted, BSplineConstructionError>
+    where
+        A: ParametricSurface,
+        B: ParametricSurface,
+    {
+        let uv = |side: usize| -> Vec<Point2D> {
+            along
+                .iter()
+                .map(|(_, x)| Point2D::new(x[2 * side], x[2 * side + 1]))
+                .collect()
+        };
+        let uv_points = [uv(0), uv(1)];
+        let (curve, uv_curves) = if touching {
+            let degree = 3.min(points.len() - 1);
+            interpolate_with_companions(points, [&uv_points[0], &uv_points[1]], degree)?
+        } else {
+            let tangents: Vec<Vector> = along.iter().map(|&(t, _)| t).collect();
+            let knots = hermite_knots(points, &tangents);
+            let mut derivatives: [Vec<Option<Vector2D>>; 2] = [Vec::new(), Vec::new()];
+            for &(t, x) in along {
+                for (side, shift) in pair.parameter_shifts(x, t).into_iter().enumerate() {
+                    derivatives[side].push(shift.map(|[du, dv]| Vector2D::new(du, dv)));
+                }
+            }
+            let curve_on = |side: usize| {
+                let derivatives = chord_derivatives(&uv_points[side], &derivatives[side], &knots);
+                hermite_spline(&uv_points[side], &derivatives, &knots)
+            };
+            let curve = hermite_spline(points, &tangents, &knots)?;
+            (curve, [curve_on(0)?, curve_on(1)?])
+        };
+        Ok(Fitted {
+            curve,
+            uv_curves,
+            touching,
+        })
+    }
+}
+
+/// The `derivatives` of the `values` at the `knots`, each missing one
+/// taken from the chords to its neighbours: the chord between them
+/// inside, the one chord to its neighbour at an end.
+fn chord_derivatives(
+    values: &[Point2D],
+    derivatives: &[Option<Vector2D>],
+    knots: &[f64],
+) -> Vec<Vector2D> {
+    let last = values.len() - 1;
+    derivatives
+        .iter()
+        .enumerate()
+        .map(|(k, derivative)| {
+            derivative.unwrap_or_else(|| {
+                let (before, after) = (k.saturating_sub(1), (k + 1).min(last));
+                (values[after] - values[before]) * (1.0 / (knots[after] - knots[before]))
+            })
+        })
+        .collect()
 }
 
 /// Segments of a traced polyline per box in [`Traced`].

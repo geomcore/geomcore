@@ -45,10 +45,7 @@ fn surface_curves<C: Into<Curve>, const K: usize>(
 ) -> Option<SurfaceSurfaceIntersection> {
     let curves = curves
         .into_iter()
-        .map(|(curve, tangent)| IntersectionCurve {
-            curve: curve.into(),
-            tangent,
-        })
+        .map(|(curve, tangent)| IntersectionCurve::in_space(curve, tangent))
         .collect();
     Some(SurfaceSurfaceIntersection::exact(curves, Vec::new(), false))
 }
@@ -255,10 +252,7 @@ impl TorusConeIntersection {
             TorusConeIntersection::Rings(rings) => {
                 let curves = rings
                     .into_iter()
-                    .map(|ring| IntersectionCurve {
-                        curve: ring.circle.into(),
-                        tangent: ring.tangent,
-                    })
+                    .map(|ring| IntersectionCurve::in_space(ring.circle, ring.tangent))
                     .collect();
                 Some(SurfaceSurfaceIntersection::exact(curves, Vec::new(), false))
             }

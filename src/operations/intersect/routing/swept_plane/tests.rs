@@ -221,15 +221,30 @@ fn test_other_positions_march() {
     assert_eq!(off_axis.method(), IntersectionMethod::Numeric);
 }
 
+/// Asserts that `swapped` is `result` read in the other order of the
+/// surfaces: the same curves, each with its curves in parameters
+/// exchanged.
+fn assert_swapped(swapped: &SurfaceSurfaceIntersection, result: &SurfaceSurfaceIntersection) {
+    assert_eq!(swapped.method(), result.method());
+    assert_eq!(swapped.contact_points(), result.contact_points());
+    assert_eq!(swapped.curves().len(), result.curves().len());
+    for (other, piece) in swapped.curves().iter().zip(result.curves()) {
+        assert_eq!(other.curve, piece.curve);
+        assert_eq!(other.tangent, piece.tangent);
+        assert_eq!(other.first_uv_curve, piece.second_uv_curve);
+        assert_eq!(other.second_uv_curve, piece.first_uv_curve);
+    }
+}
+
 #[test]
 fn test_either_order_and_the_enums_agree() {
     let surface = torus();
     let cutter = plane((0.0, 0.0, 0.5), Vector::Z);
     let expected = surface.intersect(&cutter, TOL);
-    assert_eq!(cutter.intersect(&surface, TOL), expected);
+    assert_swapped(&cutter.intersect(&surface, TOL), &expected);
     let (wrapped, wrapped_plane) = (Surface::from(surface.clone()), Surface::from(cutter));
     assert_eq!(wrapped.intersect(&wrapped_plane, TOL), expected);
-    assert_eq!(wrapped_plane.intersect(&wrapped, TOL), expected);
+    assert_swapped(&wrapped_plane.intersect(&wrapped, TOL), &expected);
     let elementary = crate::geometry::surfaces::ElementarySurface::Plane(cutter);
-    assert_eq!(elementary.intersect(&surface, TOL), expected);
+    assert_swapped(&elementary.intersect(&surface, TOL), &expected);
 }

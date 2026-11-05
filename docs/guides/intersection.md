@@ -24,8 +24,9 @@ One result per family: `CurveCurveIntersection` (and
 - the **overlaps**, where a curve lies on the other shape: a parameter
   range on each curve plus `same_direction`, or the curve's ranges on a
   surface;
-- for two surfaces, the **curves** (each with a `tangent` flag), the
-  **contact points** and whether the surfaces are **coincident**;
+- for two surfaces, the **curves** (each with a `tangent` flag and its
+  curve in the parameters of each surface, see below), the **contact
+  points** and whether the surfaces are **coincident**;
 - the **method** (`Exact` or `Numeric`) and the **completeness**: an
   exact result is always complete; a numeric one is complete, incomplete
   (with the regions where hits may be missing) or sampled.
@@ -206,6 +207,47 @@ unbounded surfaces was cut at its box, the result is `Incomplete` with
 
     let result = a.intersect(&b, tol);
     let curves = result.curves();   // BSpline curves where marched
+    ```
+
+### The curves in each surface's parameters
+
+Each curve also comes as `first_uv_curve` and `second_uv_curve`: the
+curve in the `(u, v)` parameters of each surface, in the same parameter
+as `curve`, so the surface's point at the `(u, v)` of `t` is the curve's
+point at `t`. A marched curve always has both: the march walked the
+parameters of every point it traced, and they are fitted on the curve's
+own knots, continuous across the seams (a loop around a cylinder ends a
+period away in `u`). An exact curve has the exact one where a closed
+form exists (a circle in a plane's parameters, a ruling or a parallel
+circle as a line in a cylinder's) and `None` otherwise, as an ellipse
+on a cylinder: [`curve_3d_to_uv_within`](parametrization.md) maps those
+within a deviation.
+
+=== "Python"
+
+    ```python
+    from geomcore import Point, Vector
+    from geomcore.surfaces import Cylinder, Plane
+
+    cylinder = Cylinder(Point.origin(), Vector.unit_z(), 1.0)
+    (piece,) = Plane(Point(0.0, 0.0, 2.0), Vector.unit_z()).intersect(cylinder).curves
+    on_plane = piece.first_uv_curve       # Circle2D
+    on_cylinder = piece.second_uv_curve   # Line2D: the iso-line v = 2
+    uv = on_cylinder.point_at(0.7)
+    assert cylinder.point_at(uv.x, uv.y).distance(piece.curve.point_at(0.7)) < 1e-12
+    ```
+
+=== "Rust"
+
+    ```rust
+    use geomcore::prelude::*;
+    use geomcore::{Cylinder, Plane, Point, Tolerance, Vector};
+
+    let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
+    let plane = Plane::new(Point::new(0.0, 0.0, 2.0), Vector::Z).unwrap();
+    let result = plane.intersect(&cylinder, Tolerance::DEFAULT);
+    let piece = &result.curves()[0];
+    let on_cylinder = piece.second_uv_curve.as_ref().unwrap(); // the line v = 2
     ```
 
 Before seeding, a surface with bounded parameters is checked for lying

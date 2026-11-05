@@ -69,10 +69,7 @@ fn extrusion_cut(
     if plane.normal().dot(direction).abs() > tol.angular {
         // Every generator line crosses the plane once, and transversally.
         let curve = surface.carried_onto(plane)?;
-        let cut = IntersectionCurve {
-            curve,
-            tangent: false,
-        };
+        let cut = IntersectionCurve::in_space(curve, false);
         return Some(SurfaceSurfaceIntersection::exact(
             vec![cut],
             Vec::new(),
@@ -93,10 +90,7 @@ fn extrusion_cut(
         }
         let line = Line::new(hit.point, direction).ok()?;
         through.push(hit.point);
-        curves.push(IntersectionCurve {
-            curve: line.into(),
-            tangent,
-        });
+        curves.push(IntersectionCurve::in_space(line, tangent));
     }
     Some(finished(curves, Vec::new(), method))
 }
@@ -158,10 +152,7 @@ fn parallel_cut(
         let frame = Frame::new(center, along, radial).ok()?;
         let circle = Circle::from_frame(frame, radius).ok()?;
         circles.push((center, radius));
-        curves.push(IntersectionCurve {
-            curve: circle.into(),
-            tangent,
-        });
+        curves.push(IntersectionCurve::in_space(circle, tangent));
     }
     Some(finished(curves, contacts, method))
 }
@@ -180,17 +171,11 @@ fn meridian_cut(
     let angle = reference.angle_with_reference(plane.normal().cross(along), along);
     let first = surface.u_iso(angle).ok()?;
     let second = surface.u_iso(angle + PI).ok()?;
-    let mut curves = vec![IntersectionCurve {
-        curve: first.clone(),
-        tangent: false,
-    }];
+    let mut curves = vec![IntersectionCurve::in_space(first.clone(), false)];
     // A profile symmetric about the axis (a sphere's circle, a paraboloid's
     // parabola) turns onto itself: one curve.
     if !lies_on(&second, &first, tol) {
-        curves.push(IntersectionCurve {
-            curve: second,
-            tangent: false,
-        });
+        curves.push(IntersectionCurve::in_space(second, false));
     }
     Some(SurfaceSurfaceIntersection::exact(curves, Vec::new(), false))
 }

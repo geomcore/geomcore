@@ -1,7 +1,14 @@
 import enum
 from typing import ClassVar, List, Literal, Optional, Tuple, Union, final, overload
 
-from geomcore.curves import BSplineCurve, BSplineCurve2D, _Curve, _Curve2D, _WholeCurve
+from geomcore.curves import (
+    BSplineCurve,
+    BSplineCurve2D,
+    _Curve,
+    _Curve2D,
+    _WholeCurve,
+    _WholeCurve2D,
+)
 from geomcore.surfaces import _Surface
 
 from . import curves, surfaces
@@ -470,6 +477,10 @@ class IntersectionCurve:
     __hash__: ClassVar[None]  # type: ignore[assignment]
     @property
     def curve(self) -> _WholeCurve: ...
+    @property
+    def first_uv_curve(self) -> Optional[_WholeCurve2D]: ...
+    @property
+    def second_uv_curve(self) -> Optional[_WholeCurve2D]: ...
     @property
     def tangent(self) -> bool: ...
 

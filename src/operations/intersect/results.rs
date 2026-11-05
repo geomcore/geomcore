@@ -14,8 +14,10 @@ mod regions;
 pub use inline_list::InlineList;
 pub use regions::{CurveCurveRegion, CurveSurfaceRegion, SurfaceSurfaceRegion};
 
+use crate::geometry::surfaces::ParametricSurface;
+use crate::geometry::surfaces::uv_curve::from_curve::{OnSurfaceCheck, checked_curve_3d_to_uv};
 use crate::operations::intersect::Completeness;
-use crate::{Curve, Point, Point2D, TierPoint, Tolerance, Vector};
+use crate::{Curve, Curve2D, Point, Point2D, TierPoint, Tolerance, Vector};
 use inline_or_heap_list::InlineOrHeapList;
 
 /// The hits of a curve-curve result in the tier of `P`. The inline
@@ -81,25 +83,68 @@ pub struct CurveCurveOverlap {
     pub same_direction: bool,
 }
 
-/// One curve along which two surfaces meet.
+/// One curve along which two surfaces meet, in space and in the
+/// parameters of each surface.
 ///
 /// # Examples
 ///
 /// ```
-/// use geomcore::{Curve, IntersectionCurve, Line, Point, Vector};
-/// let line = Line::new(Point::ORIGIN, Vector::X).unwrap();
-/// let piece = IntersectionCurve { curve: Curve::Line(line), tangent: false };
+/// use geomcore::prelude::*;
+/// use geomcore::{Curve, Curve2D, Cylinder, Plane, Point, Point2D, Tolerance, Vector};
+///
+/// // A plane across a cylinder's axis cuts its circle at height 2.
+/// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
+/// let plane = Plane::new(Point::new(0.0, 0.0, 2.0), Vector::Z).unwrap();
+/// let result = plane.intersect(&cylinder, Tolerance::DEFAULT);
+/// let piece = &result.curves()[0];
 /// assert!(!piece.tangent);
+///
+/// // On the cylinder, the circle is the iso-curve at v = 2, in the
+/// // circle's parameter: the point at t is the surface's at uv(t).
+/// let Some(Curve2D::Line(on_cylinder)) = &piece.second_uv_curve else {
+///     panic!("a circle of the cylinder is a line in its parameters")
+/// };
+/// let t = 0.7;
+/// let uv = on_cylinder.point_at(t);
+/// assert!((uv.y - 2.0).abs() < 1e-12);
+/// assert!(cylinder.point_at(uv.x, uv.y).distance(piece.curve.point_at(t)) < 1e-12);
 /// ```
 #[derive(Debug, Clone, PartialEq)]
 pub struct IntersectionCurve {
     /// The curve of contact.
     pub curve: Curve,
+    /// The curve in the parameters of the first surface, in the same
+    /// parameter as `curve`: the surface's point at its `(u, v)` at `t` is
+    /// `curve`'s point at `t`. A marched curve always has one, fitted on
+    /// `curve`'s knots from the parameters the march walked, within the
+    /// fit's error. An exact curve has the exact one where a closed form
+    /// exists (see [`ParametricSurface::curve_3d_to_uv`](crate::ParametricSurface::curve_3d_to_uv)),
+    /// and `None` otherwise, as an ellipse on a cylinder:
+    /// [`curve_3d_to_uv_within`](crate::curve_3d_to_uv_within) maps it
+    /// within a deviation.
+    pub first_uv_curve: Option<Curve2D>,
+    /// The curve in the parameters of the second surface, as
+    /// `first_uv_curve` is on the first.
+    pub second_uv_curve: Option<Curve2D>,
     /// `true` where the surfaces touch along the curve instead of crossing
     /// it. A numeric curve is `true` where the surfaces' normals are
     /// parallel along it, or so nearly that moving one surface by the
     /// confusion distance makes them touch.
     pub tangent: bool,
+}
+
+impl IntersectionCurve {
+    /// The curve of an exact result, before its curves in parameters are
+    /// found (see [`SurfaceSurfaceIntersection::with_exact_uv_curves`]).
+    #[inline]
+    pub(crate) fn in_space(curve: impl Into<Curve>, tangent: bool) -> Self {
+        IntersectionCurve {
+            curve: curve.into(),
+            first_uv_curve: None,
+            second_uv_curve: None,
+            tangent,
+        }
+    }
 }
 
 /// Sorts `items` by `parameter` when every item has one, and leaves them
@@ -731,6 +776,30 @@ impl SurfaceSurfaceIntersection {
             method: IntersectionMethod::Numeric,
             completeness,
         }
+    }
+
+    /// The result with each exact curve's curves in parameters on `first`
+    /// and `second`, where a closed form exists (see
+    /// [`IntersectionCurve::first_uv_curve`]). A marched result has them
+    /// already. The solvers built the curves on both surfaces, so the
+    /// closed forms skip their on-surface check: it tripled the cost of a
+    /// plane cutting a cylinder.
+    pub(crate) fn with_exact_uv_curves(
+        mut self,
+        first: &impl ParametricSurface,
+        second: &impl ParametricSurface,
+        tol: Tolerance,
+    ) -> Self {
+        if self.method == IntersectionMethod::Exact {
+            for piece in &mut self.curves {
+                let uv_curve = |surface: &dyn ParametricSurface| {
+                    checked_curve_3d_to_uv(surface, &piece.curve, tol, OnSurfaceCheck::Skipped).ok()
+                };
+                piece.first_uv_curve = uv_curve(first);
+                piece.second_uv_curve = uv_curve(second);
+            }
+        }
+        self
     }
 
     /// A numeric result for two surfaces found to be the same surface.

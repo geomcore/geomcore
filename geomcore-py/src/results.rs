@@ -7,7 +7,7 @@
 //! `second`, and the projections hold the object they project onto, as
 //! `target`: the exact objects passed, shared rather than copied.
 
-use crate::arguments::{curve_classes, surface_classes};
+use crate::arguments::{curve_2d_classes, curve_classes, surface_classes};
 use crate::values::{PyPoint, PyPoint2D, PyVector, coordinates, coordinates_2d, float_repr};
 use geomcore::{
     Completeness, CurveCurveExtrema, CurveCurveExtremum, CurveCurveHit, CurveCurveHit2D,
@@ -526,6 +526,32 @@ impl PyIntersectionCurve {
         curve_classes::to_py(py, self.0.curve.clone())
     }
 
+    /// The curve in the first surface's `(u, v)` parameters, in the same
+    /// parameter as `curve`: the surface's point at its `(u, v)` at `t` is
+    /// `curve`'s point at `t`. A marched curve always has one, fitted from
+    /// the parameters the march walked. An exact curve has the exact one
+    /// where a closed form exists, and `None` otherwise (an ellipse on a
+    /// cylinder): `curve_3d_to_uv_within` maps it within a deviation.
+    #[getter]
+    fn first_uv_curve(&self, py: Python<'_>) -> PyResult<Option<Py<PyAny>>> {
+        self.0
+            .first_uv_curve
+            .clone()
+            .map(|curve| curve_2d_classes::to_py(py, curve))
+            .transpose()
+    }
+
+    /// The curve in the second surface's parameters, as `first_uv_curve`
+    /// is on the first.
+    #[getter]
+    fn second_uv_curve(&self, py: Python<'_>) -> PyResult<Option<Py<PyAny>>> {
+        self.0
+            .second_uv_curve
+            .clone()
+            .map(|curve| curve_2d_classes::to_py(py, curve))
+            .transpose()
+    }
+
     /// Whether the surfaces graze along the curve. Always `False` for a
     /// marched curve.
     #[getter]
@@ -535,8 +561,15 @@ impl PyIntersectionCurve {
 
     fn __repr__(&self, py: Python<'_>) -> PyResult<String> {
         let curve = self.curve(py)?.bind(py).repr()?.to_string();
+        let repr = |uv_curve: Option<Py<PyAny>>| -> PyResult<String> {
+            uv_curve.map_or(Ok("None".to_owned()), |curve| {
+                Ok(curve.bind(py).repr()?.to_string())
+            })
+        };
         Ok(format!(
-            "IntersectionCurve(curve={curve}, tangent={})",
+            "IntersectionCurve(curve={curve}, first_uv_curve={}, second_uv_curve={}, tangent={})",
+            repr(self.first_uv_curve(py)?)?,
+            repr(self.second_uv_curve(py)?)?,
             bool_repr(self.0.tangent)
         ))
     }

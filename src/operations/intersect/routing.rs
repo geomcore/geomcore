@@ -636,7 +636,9 @@ pub(crate) fn route_surface_surface<A: SurfaceOperand, B: SurfaceOperand>(
     let numeric_search = || marching_intersection(a, b, tol);
     let first: SurfaceKind<'_> = a.surface_basis().into();
     let second: SurfaceKind<'_> = b.surface_basis().into();
-    first.exact_family(&second, (None, None), tol, numeric_search)
+    first
+        .exact_family(&second, (None, None), tol, numeric_search)
+        .with_exact_uv_curves(a, b, tol)
 }
 
 /// Implements [`Intersect`] for every surface of the list with every

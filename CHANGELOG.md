@@ -11,6 +11,13 @@ the Python distribution are versioned in lockstep.
 
 ### Added
 
+- Surface intersection curves carry their curves in parameters (#193), in
+  Rust and Python: `IntersectionCurve.first_uv_curve` and
+  `second_uv_curve`, the curve in each surface's `(u, v)` in the same
+  parameter as `curve`. A marched curve always has both, fitted on its
+  knots from the parameters the march walked, continuous across seams;
+  an exact curve has the closed form where one exists, and `None`
+  otherwise (map it with `curve_3d_to_uv_within`).
 - `curve_3d_to_uv_within(surface, curve, max_deviation, tol)` (#186), in
   Rust and Python: the UV curve of a 3D curve with no exact one, as one
   degree-5 `BSplineCurve2D` in the curve's parameter, continuous across the
@@ -34,6 +41,10 @@ the Python distribution are versioned in lockstep.
 
 ### Breaking
 
+- `IntersectionCurve` gains the public fields `first_uv_curve` and
+  `second_uv_curve` (#193): a struct literal building one needs them. A
+  surface intersection read in the other order of the surfaces now
+  differs in them, so it no longer compares equal.
 - `curve_3d_to_uv_numeric` is removed (#186): use
   `curve_3d_to_uv_within`, which takes a deviation instead of a sample
   count and returns one continuous UV curve instead of `(u, v)` samples

@@ -5,7 +5,10 @@ parameter space — the *UV curve*, also called a pcurve.
 `surface.curve_3d_to_uv` computes it in closed form where one exists
 (lines and circles on the five elementary surfaces, any curve on a
 plane); `curve_3d_to_uv_within` gives one B-spline within a deviation
-anywhere else. Adapted from
+anywhere else. A surface intersection hands over the UV curves of its
+curves on both surfaces already (see
+[Intersection](intersection.md#the-curves-in-each-surfaces-parameters)).
+Adapted from
 [Parametric domain](https://avenirgeometry.com/articles/parametric-domain/).
 
 ## Why the rectangle matters

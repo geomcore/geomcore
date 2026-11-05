@@ -1416,3 +1416,94 @@ fn test_a_plane_cutting_a_small_cap_off_a_torus_finds_the_loop() {
     let result = marching_intersection(&torus, &plane, tol);
     assert_one_small_loop(&result, &torus, &plane, touch, 0.05);
 }
+
+/// The largest distance, over samples of every curve of `result`, between
+/// the curve and each surface's point at its curve in parameters.
+fn uv_curve_deviation<A, B>(result: &SurfaceSurfaceIntersection, a: &A, b: &B) -> f64
+where
+    A: ParametricSurface,
+    B: ParametricSurface,
+{
+    use crate::geometry::curves::ParametricCurve2D;
+    let mut worst: f64 = 0.0;
+    for piece in result.curves() {
+        let (Some(first), Some(second)) = (&piece.first_uv_curve, &piece.second_uv_curve) else {
+            panic!("a marched curve has both curves in parameters");
+        };
+        let (t0, t1) = piece.curve.bounds();
+        assert_eq!(first.bounds(), (t0, t1));
+        assert_eq!(second.bounds(), (t0, t1));
+        for k in 0..=2000 {
+            let t = t0 + (t1 - t0) * k as f64 / 2000.0;
+            let p = piece.curve.point_at(t);
+            let (uv1, uv2) = (first.point_at(t), second.point_at(t));
+            worst = worst
+                .max(a.point_at(uv1.x, uv1.y).distance(p))
+                .max(b.point_at(uv2.x, uv2.y).distance(p));
+        }
+    }
+    worst
+}
+
+#[test]
+fn test_marched_curves_carry_their_curves_in_parameters() {
+    use crate::{Cylinder, Frame, Plane, Sphere, Torus};
+    let tol = Tolerance::DEFAULT;
+    // A cylinder around a sphere's axis, off it: two loops around the
+    // seams of both, each closing a period away in u on both surfaces.
+    let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
+    let cylinder = Cylinder::new(Point::new(0.3, 0.0, 0.0), Vector::Z, 1.0).unwrap();
+    let loops = marching_intersection(&sphere, &cylinder, tol);
+    assert_eq!(loops.curves().len(), 2);
+    // Two tori in general position.
+    let first = Torus::from_frame(
+        Frame::new(Point::ORIGIN, Vector::Z, Vector::X).unwrap(),
+        3.0,
+        1.0,
+    )
+    .unwrap();
+    let axis = Vector::new(1.0, 0.4, 0.3);
+    let second = Torus::from_frame(
+        Frame::new(Point::new(2.0, 0.5, 0.2), axis, axis.cross(Vector::Z)).unwrap(),
+        2.5,
+        0.8,
+    )
+    .unwrap();
+    let tori = marching_intersection(&first, &second, tol);
+    // A plane through a bump of a B-spline sheet.
+    let sheet = bumped_sheet(0.3);
+    let plane = Plane::new(Point::new(0.0, 0.0, 0.1), Vector::Z).unwrap();
+    let bump = marching_intersection(&plane, &sheet, tol);
+    // A plane touching a cylinder patch along a ruling: an interpolant.
+    let patch = cylinder_patch((0.0, std::f64::consts::TAU));
+    let touching_plane = Plane::new(Point::new(1.0, 0.0, 0.0), Vector::X).unwrap();
+    let touch = marching_intersection(&touching_plane, &patch, tol);
+    assert!(touch.curves()[0].tangent);
+    for (label, deviation, curves) in [
+        (
+            "sphere and cylinder",
+            uv_curve_deviation(&loops, &sphere, &cylinder),
+            loops.curves().len(),
+        ),
+        (
+            "two tori",
+            uv_curve_deviation(&tori, &first, &second),
+            tori.curves().len(),
+        ),
+        (
+            "plane and bump",
+            uv_curve_deviation(&bump, &plane, &sheet),
+            bump.curves().len(),
+        ),
+        (
+            "touching plane",
+            uv_curve_deviation(&touch, &touching_plane, &patch),
+            touch.curves().len(),
+        ),
+    ] {
+        assert!(curves > 0, "{label}");
+        // Within the marched curve's own distance to the surfaces, which
+        // the steep bump grows along the parameters.
+        assert!(deviation < 10.0 * tol.confusion, "{label}: {deviation:e}");
+    }
+}

@@ -636,6 +636,41 @@ def test_intersect_cone_cone():
     assert c1.intersect(tilted).method == IntersectionMethod.NUMERIC
 
 
+def test_intersection_curves_carry_their_uv_curves():
+    from geomcore.curves import BSplineCurve2D, Circle2D, Line2D
+    from geomcore.surfaces import Cylinder, Plane, Sphere
+
+    cylinder = Cylinder(Point.origin(), Vector.unit_z(), 1.0)
+
+    # Exact: a circle in the plane's parameters, the iso-line v = 2 in the
+    # cylinder's, both in the circle's parameter.
+    (piece,) = Plane(Point(0.0, 0.0, 2.0), Vector.unit_z()).intersect(cylinder).curves
+    assert isinstance(piece.first_uv_curve, Circle2D)
+    assert isinstance(piece.second_uv_curve, Line2D)
+    uv = piece.second_uv_curve.point_at(0.7)
+    assert cylinder.point_at(uv.x, uv.y).distance(piece.curve.point_at(0.7)) < 1e-12
+
+    # Exact with no closed form on the cylinder: an ellipse.
+    oblique = Plane(Point.origin(), Vector(0.0, 1.0, 1.0))
+    (piece,) = oblique.intersect(cylinder).curves
+    assert piece.second_uv_curve is None
+
+    # Marched: fitted on both surfaces, in the curve's parameter.
+    sphere = Sphere(Point.origin(), 2.0)
+    around = Cylinder(Point(0.3, 0.0, 0.0), Vector.unit_z(), 1.0)
+    for piece in sphere.intersect(around).curves:
+        first, second = piece.first_uv_curve, piece.second_uv_curve
+        assert isinstance(first, BSplineCurve2D) and isinstance(second, BSplineCurve2D)
+        start, end = piece.curve.bounds()
+        for k in range(11):
+            t = start + (end - start) * k / 10
+            p = piece.curve.point_at(t)
+            u, v = first.point_at(t).x, first.point_at(t).y
+            assert sphere.point_at(u, v).distance(p) < 1e-6
+            u, v = second.point_at(t).x, second.point_at(t).y
+            assert around.point_at(u, v).distance(p) < 1e-6
+
+
 def test_intersect_torus_symmetric():
     from geomcore import IntersectionMethod
     from geomcore.surfaces import Cone, Cylinder, Plane, Torus
