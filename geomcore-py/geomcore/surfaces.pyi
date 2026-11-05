@@ -19,6 +19,8 @@ from geomcore import (
     _ToleranceLike,
     Axis,
     BoundingBox,
+    CurveApproximation,
+    CurveApproximation2D,
     CurveSurfaceIntersection,
     Frame,
     Point,
@@ -280,6 +282,72 @@ class _SurfaceMethods(Generic[_UIsoCurveType, _VIsoCurveType]):
     def curve_3d_to_uv(
         self, curve: TrimmedCurve, tol: Optional[_ToleranceLike] = ...
     ) -> TrimmedCurve2D: ...
+    def curve_3d_to_uv_within(
+        self,
+        curve: _Curve,
+        max_deviation: float,
+        tol: Optional[_ToleranceLike] = ...,
+    ) -> CurveApproximation2D:
+        """The UV curve of `curve` on this surface, within `max_deviation`
+        at the same parameter, over the curve's bounds: one B-spline
+        whose image `point_at(u, v)` at every `t` lies within
+        `max_deviation` of `curve.point_at(t)`, continuous across the
+        surface's seams.
+
+        The UV curve is one non-rational, non-periodic `BSplineCurve2D`
+        of degree 5 in the 3D curve's parameter, C2 except at a knot
+        where the 3D curve is less smooth. Its deviation is the largest
+        sampled distance between the surface's point at its point at `t`
+        and `curve.point_at(t)`: each span is checked at nine points
+        against half `max_deviation`, so it is never proven.
+
+        The counterpart of `curve_3d_to_uv`, which gives the exact UV
+        curve and refuses the pairs that have none, such as an ellipse
+        on a cylinder or any curve on a spline surface, and the mirror
+        of `uv_curve_to_3d_within`. `curve` is any 3D curve or
+        `TrimmedCurve`; a line must be trimmed. Raises
+        `Curve3DToUvApproximationError` when `max_deviation` is not a
+        positive finite number, when the curve is unbounded or a point,
+        when it is farther from the surface than half `max_deviation`,
+        when it lingers at a sphere's pole or a cone's apex, or when the
+        deviation is not reached. A curve that starts or ends at such a
+        point takes the limit of the UV curve from inside: a meridian
+        keeps its own `u` up to the pole. `tol` is `Tolerance.default()`
+        when omitted. Other Python threads run during the
+        approximation.
+        """
+    def uv_curve_to_3d_within(
+        self,
+        uv_curve: _Curve2D,
+        max_deviation: float,
+        tol: Optional[_ToleranceLike] = ...,
+    ) -> CurveApproximation:
+        """The 3D curve that `uv_curve` traces on this surface, within
+        `max_deviation` at the same parameter, over the UV curve's
+        bounds: one B-spline whose point at every `t` lies within
+        `max_deviation` of the surface's point at the UV curve's (u, v)
+        at `t`.
+
+        The 3D curve is one non-rational, non-periodic `BSplineCurve` in
+        the UV curve's parameter. It is of degree 9 and C4 on an
+        elementary surface along a UV curve with no knot, unless degree
+        5 takes no more poles, and of degree 5 and C2 wherever the UV
+        curve is otherwise. Its deviation is a proven bound for a
+        straight UV curve on a plane, cylinder, cone, sphere or torus;
+        for every other pair it is sampled, each span checked at nine
+        points against half `max_deviation`.
+
+        The counterpart of `uv_curve_to_3d`, which gives the exact 3D
+        curve and refuses the pairs that have none, such as a slanted
+        line on a cylinder. `uv_curve` is any 2D curve or
+        `TrimmedCurve2D`; a line must be trimmed. Raises
+        `UvCurveTo3DApproximationError` when `max_deviation` is not a
+        positive finite number, when the UV curve is unbounded, when the
+        3D curve collapses to a point, when the UV curve leaves the
+        surface's domain, or when the deviation is not reached. `tol` is
+        `Tolerance.default()` when omitted. Other Python threads run
+        during the approximation.
+        """
     @overload
     def intersect(
         self, other: _Curve, tol: Optional[_ToleranceLike] = ...

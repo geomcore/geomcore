@@ -11,6 +11,10 @@ the Python distribution are versioned in lockstep.
 
 ### Added
 
+- Python surfaces have `curve_3d_to_uv_within(curve, max_deviation, tol)`
+  and `uv_curve_to_3d_within(uv_curve, max_deviation, tol)` methods
+  (#185), beside the exact `curve_3d_to_uv` and `uv_curve_to_3d`. The
+  Rust free functions are unchanged (ADR 0035, amended).
 - B-spline curves built and read the textbook way (#184), in Rust and
   Python, on both tiers. `from_flat_knots` takes the flat knot vector and
   `flat_knots()` gives it back. `clamped_uniform(degree, poles)` spaces
@@ -139,6 +143,13 @@ the Python distribution are versioned in lockstep.
   curves and surfaces. A member equals its lowercase name, and the strings
   `"chordal"` and `"centripetal"` are still accepted; the stubs type them
   as literals, so a typo is caught before the call.
+
+### Deprecated
+
+- Python: the module functions `geomcore.curve_3d_to_uv_within(surface,
+  curve, ...)` and `geomcore.uv_curve_to_3d_within(surface, uv_curve,
+  ...)` (#185). Call the surface methods of the same names instead. The
+  functions warn with a `DeprecationWarning` and go in the next release.
 
 ### Changed
 

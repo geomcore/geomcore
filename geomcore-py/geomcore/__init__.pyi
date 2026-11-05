@@ -14,6 +14,7 @@ from typing import (
 )
 
 import numpy.typing
+from typing_extensions import deprecated
 
 from geomcore.curves import (
     BSplineCurve,
@@ -698,12 +699,14 @@ class CurveCurveExtrema:
     def second(self) -> _Curve: ...
     def is_complete(self) -> bool: ...
 
+@deprecated("use surface.curve_3d_to_uv_within(curve, max_deviation, tol)")
 def curve_3d_to_uv_within(
     surface: _Surface,
     curve: _Curve,
     max_deviation: float,
     tol: Optional[_ToleranceLike] = ...,
 ) -> CurveApproximation2D: ...
+@deprecated("use surface.uv_curve_to_3d_within(uv_curve, max_deviation, tol)")
 def uv_curve_to_3d_within(
     surface: _Surface,
     uv_curve: _Curve2D,

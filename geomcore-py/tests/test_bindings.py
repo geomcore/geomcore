@@ -885,11 +885,7 @@ def test_curve_curve_generic():
 def test_curve_3d_to_uv_within():
     import math
 
-    from geomcore import (
-        CurveApproximation2D,
-        Curve3DToUvApproximationError,
-        curve_3d_to_uv_within,
-    )
+    from geomcore import CurveApproximation2D, Curve3DToUvApproximationError
     from geomcore.curves import BSplineCurve2D, Line, TrimmedCurve
 
     # A turn of a circle around a cylinder, starting at u = pi / 2, so it
@@ -897,7 +893,7 @@ def test_curve_3d_to_uv_within():
     circle = Circle(Point.origin(), Vector.unit_z(), 2.0)
     turn = TrimmedCurve(circle, math.pi / 2, math.pi / 2 + math.tau)
     cylinder = Cylinder(Point.origin(), Vector.unit_z(), 2.0)
-    approximation = curve_3d_to_uv_within(cylinder, turn, 1e-7)
+    approximation = cylinder.curve_3d_to_uv_within(turn, 1e-7)
     assert isinstance(approximation, CurveApproximation2D)
     assert approximation.deviation <= 1e-7
     assert not approximation.is_proven()
@@ -915,17 +911,17 @@ def test_curve_3d_to_uv_within():
     assert repr(approximation).startswith("CurveApproximation2D(degree=5, pole_count=")
 
     with pytest.raises(Curve3DToUvApproximationError, match="unbounded"):
-        curve_3d_to_uv_within(cylinder, Line(Point.origin(), Vector.unit_z()), 1e-7)
+        cylinder.curve_3d_to_uv_within(Line(Point.origin(), Vector.unit_z()), 1e-7)
     with pytest.raises(Curve3DToUvApproximationError, match="from the surface"):
         wider = Circle(Point.origin(), Vector.unit_z(), 3.0)
-        curve_3d_to_uv_within(cylinder, wider, 1e-7)
+        cylinder.curve_3d_to_uv_within(wider, 1e-7)
 
     # A quarter of a meridian, ending at the sphere's south pole: the UV
     # curve keeps the meridian's u up to the pole.
     sphere = Sphere(Point.origin(), 1.0)
     meridian = Circle(Point.origin(), Vector.unit_y(), 1.0)
     to_pole = TrimmedCurve(meridian, 0.0, math.pi / 2)
-    uv_curve = curve_3d_to_uv_within(sphere, to_pole, 1e-6).curve
+    uv_curve = sphere.curve_3d_to_uv_within(to_pole, 1e-6).curve
     start, end = uv_curve.point_at(0.0), uv_curve.point_at(math.pi / 2)
     assert end.x == pytest.approx(start.x, abs=1e-9)
     assert end.y == pytest.approx(-math.pi / 2, abs=1e-12)
