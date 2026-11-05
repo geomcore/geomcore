@@ -14,6 +14,9 @@ reported, instead of running to a fixed cube around the origin (#147).
 
 ### Added
 
+- `GenericTrimmedCurve<P, C>`: the trimmed curve of either tier, written
+  once (ADR 0014, amended). `TrimmedCurve<C>` and `TrimmedCurve2D<C>` are
+  now its aliases, with the same defaults, methods and paths.
 - `IncompleteReason::Unbounded` (Python `IncompleteReason.UNBOUNDED`): a
   branch of two unbounded surfaces runs beyond the box where its trace was
   cut. The regions of the result hold where each branch was cut. When
@@ -22,6 +25,8 @@ reported, instead of running to a fixed cube around the origin (#147).
 
 ### Changed
 
+- The `Debug` output of a trimmed curve names `GenericTrimmedCurve` and
+  shows its tier, as the other generic curves' does.
 - The trace box of an unbounded pair is the box of the seeds, grown by the
   larger surface size: a cylinder's or cone's radius, a sweep profile's
   diagonal, or for two planes the larger of the seeds' spread and the

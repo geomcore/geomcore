@@ -17,15 +17,12 @@ use std::fmt;
 
 use crate::base::tier::TierPoint;
 use crate::base::tier::operations::FrameOperations;
+use crate::geometry::curves::{BSplineCurve, Curve, ElementaryCurve, ParametricCurve};
+use crate::geometry::curves::{BSplineCurve2D, Curve2D};
 use crate::geometry::curves::{
-    BSplineCurve, Curve, ElementaryCurve, ParametricCurve, TrimmedCurve,
-};
-use crate::geometry::curves::{BSplineCurve2D, Curve2D, ParametricCurve2D, TrimmedCurve2D};
-use crate::geometry::curves::{
-    GenericBSplineCurve, GenericCircle, GenericEllipse, RangeOperations,
+    GenericBSplineCurve, GenericCircle, GenericEllipse, GenericTrimmedCurve, RangeOperations,
 };
 use crate::math::bspline::conic::{self, PlaneNet};
-use crate::{Point, Point2D};
 
 /// Error returned when a curve or surface cannot be converted to a
 /// B-spline.
@@ -264,16 +261,17 @@ pub(crate) fn bspline_piece<P: TierPoint>(
         .map_err(|_| BSplineConversionError::NotRepresentable)
 }
 
-impl<C: RangeOperations<Point = Point> + ParametricCurve> TrimmedCurve<C> {
+impl<P: TierPoint, C: RangeOperations<Point = P>> GenericTrimmedCurve<P, C> {
     /// The piece of the basis as an exact B-spline over the same range
     /// `[first, last]`, starting and ending on the same points.
     ///
-    /// The basis is any curve: a [`Line`](crate::Line),
+    /// The basis is any curve of the tier: a [`Line`](crate::Line),
     /// [`Circle`](crate::Circle), [`Ellipse`](crate::Ellipse),
     /// [`Parabola`](crate::Parabola), [`Hyperbola`](crate::Hyperbola),
     /// [`BSplineCurve`], [`BezierCurve`](crate::BezierCurve),
-    /// [`ElementaryCurve`] or [`Curve`], owned or borrowed. A B-spline's or
-    /// Bézier curve's piece is [extracted](BSplineCurve::extract). A
+    /// [`ElementaryCurve`] or [`Curve`] in space, their 2D counterparts or
+    /// [`Curve2D`] in the plane, owned or borrowed. A B-spline's or Bézier
+    /// curve's piece is [extracted](GenericBSplineCurve::extract). A
     /// segment becomes a B-spline of degree 1 and a parabola one polynomial
     /// quadratic piece, both with the curve's own parameter. A hyperbola
     /// becomes one rational quadratic piece, and a circle or ellipse arc
@@ -295,7 +293,8 @@ impl<C: RangeOperations<Point = Point> + ParametricCurve> TrimmedCurve<C> {
     ///
     /// ```
     /// use geomcore::prelude::*;
-    /// use geomcore::{Circle, Point, Tolerance, TrimmedCurve, Vector};
+    /// use geomcore::{Circle, Circle2D, Point, Point2D, Tolerance, TrimmedCurve, TrimmedCurve2D};
+    /// use geomcore::Vector;
     /// use std::f64::consts::PI;
     ///
     /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
@@ -306,10 +305,14 @@ impl<C: RangeOperations<Point = Point> + ParametricCurve> TrimmedCurve<C> {
     /// assert_eq!(bspline.knots().len(), 4);
     /// assert!(bspline.eval_point(0.0).distance(Point::new(1.0, 0.0, 0.0)) < 1e-15);
     /// assert!(circle.contains(bspline.eval_point(1.0), Tolerance::DEFAULT));
+    ///
+    /// // The same arc in the plane.
+    /// let circle_2d = Circle2D::new(Point2D::ORIGIN, 1.0).unwrap();
+    /// let arc_2d = TrimmedCurve2D::new(circle_2d, -PI / 2.0, PI).unwrap();
+    /// assert_eq!(arc_2d.to_bspline().unwrap().knots(), bspline.knots());
     /// ```
-    pub fn to_bspline(&self) -> Result<BSplineCurve, BSplineConversionError> {
-        let (first, last) = self.bounds();
-        self.basis().bspline_range(first, last)
+    pub fn to_bspline(&self) -> Result<GenericBSplineCurve<P>, BSplineConversionError> {
+        self.basis().bspline_range(self.first(), self.last())
     }
 }
 
@@ -321,7 +324,7 @@ impl ElementaryCurve {
     /// # Errors
     ///
     /// Returns [`BSplineConversionError::Unbounded`] for a line, parabola
-    /// or hyperbola; trim it first and use [`TrimmedCurve::to_bspline`].
+    /// or hyperbola; trim it first and use [`TrimmedCurve::to_bspline`](crate::GenericTrimmedCurve::to_bspline).
     /// Returns [`BSplineConversionError::NotRepresentable`] when a pole of
     /// a circle or ellipse overflows `f64`.
     ///
@@ -386,56 +389,6 @@ impl Curve {
     }
 }
 
-impl<C: RangeOperations<Point = Point2D> + ParametricCurve2D> TrimmedCurve2D<C> {
-    /// The piece of the basis as an exact B-spline over the same range
-    /// `[first, last]`, starting and ending on the same points.
-    ///
-    /// The basis is a [`Line2D`](crate::Line2D), a
-    /// [`Circle2D`](crate::Circle2D), an [`Ellipse2D`](crate::Ellipse2D), a
-    /// [`Parabola2D`](crate::Parabola2D), a
-    /// [`Hyperbola2D`](crate::Hyperbola2D), a [`BSplineCurve2D`], a
-    /// [`BezierCurve2D`](crate::BezierCurve2D) or a [`Curve2D`], owned or
-    /// borrowed. A B-spline's or Bézier curve's piece is
-    /// [extracted](BSplineCurve2D::extract). A segment becomes a B-spline of
-    /// degree 1 and a parabola piece one polynomial piece of degree 2, both
-    /// with the curve's own parameter. A circle or ellipse
-    /// arc becomes rational quadratic pieces of equal sweep, at most a quarter
-    /// turn each, joined at knots placed at the angles of the piece boundaries;
-    /// a hyperbola piece is one rational quadratic piece. The B-spline
-    /// parameter agrees with the curve's at the range ends, those knots and the
-    /// middle of each piece, and differs in between (by at most `0.0161` rad on
-    /// a circle). A range spanning a whole turn gives a clamped B-spline ending
-    /// exactly on its first point, never a periodic one, as a trimmed curve is
-    /// never periodic.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`BSplineConversionError::NotRepresentable`] when a pole
-    /// overflows `f64` or the range ends are so large that knots round
-    /// onto each other.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use geomcore::prelude::*;
-    /// use geomcore::{Circle2D, Point2D, Tolerance, TrimmedCurve2D};
-    /// use std::f64::consts::PI;
-    ///
-    /// let circle = Circle2D::new(Point2D::ORIGIN, 1.0).unwrap();
-    /// // Three quarters of the circle, across the seam at angle 0.
-    /// let arc = TrimmedCurve2D::new(circle, -PI / 2.0, PI).unwrap();
-    /// let bspline = arc.to_bspline().unwrap();
-    /// assert_eq!(bspline.bounds(), (-PI / 2.0, PI));
-    /// assert_eq!(bspline.knots().len(), 4);
-    /// assert!(bspline.eval_point(0.0).distance(Point2D::new(1.0, 0.0)) < 1e-15);
-    /// assert!(circle.contains(bspline.eval_point(1.0), Tolerance::DEFAULT));
-    /// ```
-    pub fn to_bspline(&self) -> Result<BSplineCurve2D, BSplineConversionError> {
-        let (first, last) = self.bounds();
-        self.basis().bspline_range(first, last)
-    }
-}
-
 impl Curve2D {
     /// The whole curve as a B-spline: a B-spline is cloned, a Bézier curve,
     /// circle or ellipse converted by
@@ -448,7 +401,7 @@ impl Curve2D {
     ///
     /// Returns [`BSplineConversionError::Unbounded`] for a [`Line2D`](crate::Line2D):
     /// trim it first and use
-    /// [`TrimmedCurve2D::to_bspline`](TrimmedCurve2D::to_bspline).
+    /// [`TrimmedCurve2D::to_bspline`](crate::GenericTrimmedCurve::to_bspline).
     /// Returns [`BSplineConversionError::NotRepresentable`] when a pole of
     /// a circle or ellipse overflows `f64`.
     ///

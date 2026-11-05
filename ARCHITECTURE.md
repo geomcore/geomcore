@@ -29,7 +29,7 @@ src/
 │   │   ├── line.rs … hyperbola.rs   elementary curves, each one generic type for both tiers
 │   │   ├── bspline.rs               B-spline curves of both tiers
 │   │   ├── bezier.rs                Bézier curves of both tiers
-│   │   ├── trimmed.rs               TrimmedCurve and TrimmedCurve2D
+│   │   ├── trimmed.rs               GenericTrimmedCurve: TrimmedCurve and TrimmedCurve2D
 │   │   ├── range.rs                 internal: RangeOperations, the box, discretization and
 │   │   │                            B-spline of a range of each curve (ADR 0005)
 │   │   ├── conversion.rs fitting.rs   to B-spline, from points
