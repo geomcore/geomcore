@@ -8,6 +8,7 @@ pub(crate) mod numeric;
 mod results;
 mod routing;
 pub use exact::IntersectExact;
+pub use exact::bicylindric::BicylindricCurve;
 pub(crate) use exact::conic::{
     Conic, ImplicitConic, PlacedConic, intersect_conic_conic, intersect_conic_quadric,
 };
