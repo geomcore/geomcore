@@ -11,6 +11,17 @@ the Python distribution are versioned in lockstep.
 
 ### Added
 
+- B-spline curves built and read the textbook way (#184), in Rust and
+  Python, on both tiers. `from_flat_knots` takes the flat knot vector and
+  `flat_knots()` gives it back. `clamped_uniform(degree, poles)` spaces
+  clamped knots evenly over `[0, 1]`. `with_pole(index, point)` and
+  `with_weight(index, weight)` return the curve with one pole moved or
+  reweighted (Python indexes like a list and raises `IndexError`; in Rust
+  the new `PoleEditError`). `geometric_continuity(u, tol)` compares the
+  unit tangents and curvature vectors on each side of a knot, so a knot
+  of multiplicity `degree` between poles in line reports G1 or G2 where
+  `continuity` reports C0. The Python repr shows the knots and
+  multiplicities of a curve with at most 8 knots.
 - Every Python `tol=` takes a number as well as a `Tolerance` (#183):
   `tol=1e-3` is `Tolerance(confusion=1e-3)`, with the default angular and
   parametric tolerances. Any other type raises a `TypeError` naming what

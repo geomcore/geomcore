@@ -40,6 +40,35 @@ Rational (NURBS) curves take one weight per pole via
 `BSplineCurve.new_rational` / `new_rational`; periodic ones pass
 `periodic=True` with a cyclic knot vector.
 
+Textbooks write the knots flat, each repeated by its multiplicity:
+`from_flat_knots` takes that form and `flat_knots()` gives it back.
+`clamped_uniform(degree, poles)` spaces the knots evenly over `[0, 1]`,
+clamped at both ends. `with_pole(index, point)` and
+`with_weight(index, weight)` return the curve with one pole moved or
+reweighted, so a pole can be dragged without rebuilding the curve.
+A weight on a non-rational curve makes it rational, every other pole
+weighing 1.
+
+=== "Python"
+
+    ```python
+    flat = BSplineCurve.from_flat_knots(2, poles, [0, 0, 0, 1, 1, 1])
+    assert flat == curve and curve.flat_knots() == [0.0, 0.0, 0.0, 1.0, 1.0, 1.0]
+    uniform = BSplineCurve.clamped_uniform(2, poles)    # the same curve again
+    arc = curve.with_weight(1, 2 ** -0.5)               # a quarter circle
+    dragged = curve.with_pole(-1, Point(0, 2, 0))
+    ```
+
+=== "Rust"
+
+    ```rust
+    let flat = vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0];
+    let same = BSplineCurve::from_flat_knots(2, curve.poles().to_vec(), flat, None, false).unwrap();
+    assert_eq!(same, curve);
+    let arc = curve.with_weight(1, std::f64::consts::FRAC_1_SQRT_2).unwrap();
+    let dragged = curve.with_pole(2, Point::new(0.0, 2.0, 0.0)).unwrap();
+    ```
+
 ## Evaluate
 
 === "Python"
@@ -61,6 +90,13 @@ Rational (NURBS) curves take one weight per pole via
 Derivatives come from `derivative` (order 1–2); `first_derivatives`/`second_derivatives`
 return the point with its derivatives from a single basis pass.
 `bounds()` gives the parameter range.
+
+`continuity(u)` reads the representation: a knot of multiplicity `m`
+gives `C^(degree - m)`, whatever the poles around it. Where a knot of
+multiplicity `degree` lies between poles in line, the curve is still
+smooth, and `geometric_continuity(u)` says so. It compares the two
+sides' unit tangents (`G1`) and curvature vectors (`G2`), and never
+reports less than `continuity`.
 
 ## Sampling density
 

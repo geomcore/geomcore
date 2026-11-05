@@ -447,12 +447,68 @@ class BSplineCurve(
         max_deviation: float,
         parametrization: _Parametrization = ...,
     ) -> CurveApproximation: ...
+    @staticmethod
+    def from_flat_knots(
+        degree: int,
+        poles: Union[List[Point], numpy.typing.ArrayLike],
+        flat_knots: List[float],
+        weights: Optional[List[float]] = ...,
+        periodic: bool = ...,
+    ) -> BSplineCurve:
+        """Build a curve from its flat knot vector, the form textbooks use:
+        each distinct knot repeated by its multiplicity, so a non-periodic
+        curve of `n` poles takes `n + degree + 1` knots. `weights`, one per
+        pole, make it rational. The flat knots of a periodic curve are as
+        `flat_knots()` gives them, with no padding beyond the period.
+        """
+    @staticmethod
+    def clamped_uniform(
+        degree: int, poles: Union[List[Point], numpy.typing.ArrayLike]
+    ) -> BSplineCurve:
+        """Build the clamped curve of `degree` with uniform knots over
+        `[0, 1]`: both end knots of multiplicity `degree + 1`, and
+        `len(poles) - degree - 1` simple knots between them, evenly spaced.
+        The curve starts at the first pole and ends at the last.
+        """
     def degree(self) -> int: ...
     def is_rational(self) -> bool: ...
     def poles(self) -> List[Point]: ...
     def weights(self) -> Optional[List[float]]: ...
     def knots(self) -> List[float]: ...
     def multiplicities(self) -> List[int]: ...
+    def flat_knots(self) -> List[float]:
+        """The flat knot vector: each distinct knot repeated by its
+        multiplicity, `len(poles) + degree + 1` knots for a non-periodic
+        curve.
+        """
+    def with_pole(self, index: int, pole: Point) -> BSplineCurve:
+        """The curve with pole `index` (negative counting from the end) moved
+        to `pole`, its degree, knots and weights kept.
+        """
+    def with_weight(self, index: int, weight: float) -> BSplineCurve:
+        """The curve with the weight of pole `index` (negative counting from
+        the end) set to `weight`, a positive finite number. A non-rational
+        curve becomes rational, every other pole weighing 1.
+        """
+    def geometric_continuity(
+        self, u: float, tol: Optional[_ToleranceLike] = ...
+    ) -> Union[int, float]:
+        """The geometric continuity order at parameter `u` (`math.inf` where
+        no knot constrains the shape): the shape's own smoothness,
+        whatever the parametrization. `continuity` reads the knot's
+        multiplicity, so a knot of multiplicity `degree` reports 0 even
+        where the poles around it keep the curve smooth.
+
+        At a knot where `continuity` is below 2, the two sides are
+        compared: 1 when their unit tangents agree within `tol.angular`, 2
+        when their curvature vectors also agree, the osculating circles
+        parting by no more than `tol.confusion` across the control
+        polygon's size (the largest distance from the first pole). Where
+        the speed of a side vanishes, there is no tangent to compare and
+        `continuity` is returned; anywhere else too, and the geometric
+        order never falls below it. `tol` is `Tolerance.default()` when
+        omitted.
+        """
     def insert_knot(self, u: float, times: int) -> BSplineCurve: ...
     def refine_knots(self, knots: List[float]) -> BSplineCurve: ...
     def elevate_degree(self, amount: int) -> BSplineCurve: ...
@@ -512,12 +568,68 @@ class BSplineCurve2D(
         max_deviation: float,
         parametrization: _Parametrization = ...,
     ) -> CurveApproximation2D: ...
+    @staticmethod
+    def from_flat_knots(
+        degree: int,
+        poles: Union[List[Point2D], numpy.typing.ArrayLike],
+        flat_knots: List[float],
+        weights: Optional[List[float]] = ...,
+        periodic: bool = ...,
+    ) -> BSplineCurve2D:
+        """Build a curve from its flat knot vector, the form textbooks use:
+        each distinct knot repeated by its multiplicity, so a non-periodic
+        curve of `n` poles takes `n + degree + 1` knots. `weights`, one per
+        pole, make it rational. The flat knots of a periodic curve are as
+        `flat_knots()` gives them, with no padding beyond the period.
+        """
+    @staticmethod
+    def clamped_uniform(
+        degree: int, poles: Union[List[Point2D], numpy.typing.ArrayLike]
+    ) -> BSplineCurve2D:
+        """Build the clamped curve of `degree` with uniform knots over
+        `[0, 1]`: both end knots of multiplicity `degree + 1`, and
+        `len(poles) - degree - 1` simple knots between them, evenly spaced.
+        The curve starts at the first pole and ends at the last.
+        """
     def degree(self) -> int: ...
     def is_rational(self) -> bool: ...
     def poles(self) -> List[Point2D]: ...
     def weights(self) -> Optional[List[float]]: ...
     def knots(self) -> List[float]: ...
     def multiplicities(self) -> List[int]: ...
+    def flat_knots(self) -> List[float]:
+        """The flat knot vector: each distinct knot repeated by its
+        multiplicity, `len(poles) + degree + 1` knots for a non-periodic
+        curve.
+        """
+    def with_pole(self, index: int, pole: Point2D) -> BSplineCurve2D:
+        """The curve with pole `index` (negative counting from the end) moved
+        to `pole`, its degree, knots and weights kept.
+        """
+    def with_weight(self, index: int, weight: float) -> BSplineCurve2D:
+        """The curve with the weight of pole `index` (negative counting from
+        the end) set to `weight`, a positive finite number. A non-rational
+        curve becomes rational, every other pole weighing 1.
+        """
+    def geometric_continuity(
+        self, u: float, tol: Optional[_ToleranceLike] = ...
+    ) -> Union[int, float]:
+        """The geometric continuity order at parameter `u` (`math.inf` where
+        no knot constrains the shape): the shape's own smoothness,
+        whatever the parametrization. `continuity` reads the knot's
+        multiplicity, so a knot of multiplicity `degree` reports 0 even
+        where the poles around it keep the curve smooth.
+
+        At a knot where `continuity` is below 2, the two sides are
+        compared: 1 when their unit tangents agree within `tol.angular`, 2
+        when their curvature vectors also agree, the osculating circles
+        parting by no more than `tol.confusion` across the control
+        polygon's size (the largest distance from the first pole). Where
+        the speed of a side vanishes, there is no tangent to compare and
+        `continuity` is returned; anywhere else too, and the geometric
+        order never falls below it. `tol` is `Tolerance.default()` when
+        omitted.
+        """
     def insert_knot(self, u: float, times: int) -> BSplineCurve2D: ...
     def refine_knots(self, knots: List[float]) -> BSplineCurve2D: ...
     def elevate_degree(self, amount: int) -> BSplineCurve2D: ...
