@@ -170,6 +170,7 @@ macro_rules! map_error {
 }
 
 map_error!(ConstructionError:
+    geomcore::ArcConstructionError,
     geomcore::BSplineConstructionError,
     geomcore::BezierConstructionError,
     geomcore::CircleConstructionError,

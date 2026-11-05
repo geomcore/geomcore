@@ -11,6 +11,22 @@ the Python distribution are versioned in lockstep.
 
 ### Added
 
+- Edges as trimmed curves (#187), in Rust and Python:
+  - arcs from points: `TrimmedCurve::arc_through(start, middle, end)`
+    and `TrimmedCurve::arc(center, start, end, normal, tol)`, with
+    `TrimmedCurve2D` twins that take a `counterclockwise` flag in place of
+    the normal. They fail with the new `ArcConstructionError`
+    (`ConstructionError` in Python), and an `end` confused with `start`
+    makes the full turn;
+  - an arc's `sweep_angle()` and turning sense: the circle's `normal()`,
+    and the new `Circle2D::is_counterclockwise()`;
+  - `length(max_error)` on every trimmed curve, exact on segments and
+    circular arcs, and on `Ellipse` and `Ellipse2D`; `Circle2D.length()` in
+    Python;
+  - `ParametricSurface::trimmed_curve_3d_to_uv`: the UV curve of an edge,
+    its basis's image over the same range. Python's `curve_3d_to_uv` takes
+    a `TrimmedCurve` and returns a `TrimmedCurve2D`, and
+    `TrimmedCurve.basis()` is typed as a whole curve rather than `Any`.
 - Two equal cylinders whose axes meet, the tee of two equal pipes, meet
   in two exact ellipses (#175), in Rust and Python, instead of four
   marched B-splines of some 560 poles each: one in each plane through the

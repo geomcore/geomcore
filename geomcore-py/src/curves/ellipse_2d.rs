@@ -70,6 +70,12 @@ shape_methods! {
         self.0.enclosed_area()
     }
 
+    /// The perimeter, integrating the speed to within `max_error`: it has
+    /// no closed form.
+    fn length(&self, max_error: f64) -> f64 {
+        self.0.length(max_error)
+    }
+
     /// The ellipse as an exact rational B-spline of degree 2, periodic over
     /// `[0, 2*pi]`; its parameter agrees with the angle at the knots and
     /// the middle of each quarter turn.

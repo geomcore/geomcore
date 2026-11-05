@@ -756,9 +756,11 @@ macro_rules! surface {
             /// along the axis of a cylinder or a generator of a cone, as a line along
             /// v; and a circle about the axis of a cylinder or cone, a meridian or
             /// parallel of a sphere, or a poloidal or toroidal circle of a torus, as a
-            /// line along u or v. Raises `Curve3DToUvError` for any other pair, or
-            /// when the curve does not lie on the surface within `tol`
-            /// (`Tolerance.default()` when omitted).
+            /// line along u or v. A `TrimmedCurve` maps to the `TrimmedCurve2D`
+            /// of its basis's image over the same range. Raises
+            /// `Curve3DToUvError` for any other pair, or when the curve does not
+            /// lie on the surface within `tol` (`Tolerance.default()` when
+            /// omitted).
             #[pyo3(signature = (curve, tol = None))]
             fn curve_3d_to_uv(
                 &self,
@@ -766,12 +768,21 @@ macro_rules! surface {
                 curve: &Bound<'_, PyAny>,
                 tol: Option<PyTolerance>,
             ) -> PyResult<Py<PyAny>> {
-                let curve = curve_classes::extract(curve)?;
-                let uv_curve = self
-                    .0
-                    .curve_3d_to_uv(&curve, tolerance(tol))
-                    .map_err(python_error)?;
-                curve_2d_classes::to_py(py, uv_curve)
+                let tol = tolerance(tol);
+                match $crate::arguments::extract_curve_arg(curve)? {
+                    $crate::arguments::CurveArg::Whole(curve) => {
+                        let uv_curve = self.0.curve_3d_to_uv(&curve, tol).map_err(python_error)?;
+                        curve_2d_classes::to_py(py, uv_curve)
+                    }
+                    $crate::arguments::CurveArg::Trimmed(curve) => {
+                        let uv_curve = self
+                            .0
+                            .trimmed_curve_3d_to_uv(&curve, tol)
+                            .map_err(python_error)?;
+                        let uv_curve = $crate::curves::PyTrimmedCurve2D(uv_curve);
+                        Ok(Py::new(py, uv_curve)?.into_any())
+                    }
+                }
             }
 
             /// The image of the surface under `transform`, parametrized by

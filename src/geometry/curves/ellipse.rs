@@ -10,7 +10,7 @@ use crate::geometry::curves::ReversibleCurve;
 use crate::geometry::curves::{ElementaryCurve, ParametricCurve, ParametricCurve2D};
 use crate::geometry::curves::{PointExtrema, PointExtrema2D};
 use crate::math::elementary::curve as elementary;
-use crate::math::numeric::{polish_root, real_roots};
+use crate::math::numeric::{polish_root, quadrature, real_roots};
 use crate::operations::projection::CurveProjection;
 use crate::{
     Frame, Frame2D, Point, Point2D, Tolerance, Transform, Vector, Vector2D, operations::projection,
@@ -224,6 +224,36 @@ impl<P: TierPoint> GenericEllipse<P> {
     /// ```
     pub fn enclosed_area(&self) -> f64 {
         std::f64::consts::PI * self.major_radius * self.minor_radius
+    }
+
+    /// The length of the ellipse, its perimeter, within `max_error` as far
+    /// as the quadrature's own error estimate tells: it has no closed form.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Ellipse, Point, Vector};
+    /// use std::f64::consts::TAU;
+    /// let ellipse = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 2.0, 1.0).unwrap();
+    /// assert!((ellipse.length(1e-12) - 9.688_448_220_547_675).abs() < 1e-11);
+    /// // Equal radii make a circle.
+    /// let round = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 1.0, 1.0).unwrap();
+    /// assert!((round.length(1e-12) - TAU).abs() < 1e-12);
+    /// ```
+    pub fn length(&self, max_error: f64) -> f64 {
+        // The four quarters have one length.
+        4.0 * self.arc_length(0.0, 0.5 * std::f64::consts::PI, 0.25 * max_error)
+    }
+
+    /// The length of the arc from parameter `first` to `last`: the
+    /// integral of the speed `|(-a sin u, b cos u)|`.
+    pub(crate) fn arc_length(&self, first: f64, last: f64, max_error: f64) -> f64 {
+        let (a, b) = (self.major_radius, self.minor_radius);
+        let speed = |u: f64| {
+            let (sine, cosine) = u.sin_cos();
+            (a * sine).hypot(b * cosine)
+        };
+        quadrature::integrate(&speed, first, last, max_error)
     }
 
     /// The parameter to report for a point found at parameter `u`: `u`

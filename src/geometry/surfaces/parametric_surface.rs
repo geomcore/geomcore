@@ -3,7 +3,7 @@
 //! normal-recovery helpers it falls back on where the partial derivatives
 //! degenerate.
 
-use crate::geometry::curves::{Continuity, Curve, Curve2D};
+use crate::geometry::curves::{Continuity, Curve, Curve2D, TrimmedCurve, TrimmedCurve2D};
 use crate::geometry::surfaces::{
     BSplineSurface, Curve3DToUvError, ElementarySurface, ExtrusionSurface, RevolutionSurface,
     UvCurveTo3DError,
@@ -721,6 +721,45 @@ pub trait ParametricSurface {
     fn curve_3d_to_uv(&self, curve: &Curve, tol: Tolerance) -> Result<Curve2D, Curve3DToUvError> {
         let _ = (curve, tol);
         Err(Curve3DToUvError::NotAnalytic)
+    }
+
+    /// The trimmed curve in the surface's parameters: the
+    /// [`curve_3d_to_uv`](Self::curve_3d_to_uv) image of its basis, over the
+    /// same range, since that image keeps the curve's parameter. An edge of
+    /// a face is a piece of its curve, and this is its curve on the face.
+    ///
+    /// # Errors
+    ///
+    /// Those of [`curve_3d_to_uv`](Self::curve_3d_to_uv) for the basis.
+    ///
+    /// # Examples
+    ///
+    /// A quarter of a cross-section circle of a cylinder maps to a piece of
+    /// the line along `u`:
+    ///
+    /// ```
+    /// use geomcore::prelude::*;
+    /// use geomcore::{Circle, Cylinder, Point, Tolerance, TrimmedCurve, Vector};
+    /// use std::f64::consts::FRAC_PI_2;
+    ///
+    /// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
+    /// let circle = Circle::new(Point::new(0.0, 0.0, 3.0), Vector::Z, 2.0).unwrap();
+    /// let edge = TrimmedCurve::new(circle, 0.0, FRAC_PI_2).unwrap().into_curve();
+    /// let uv_edge = cylinder.trimmed_curve_3d_to_uv(&edge, Tolerance::DEFAULT).unwrap();
+    /// let end = uv_edge.end_point();
+    /// assert!((end.x - FRAC_PI_2).abs() < 1e-9 && (end.y - 3.0).abs() < 1e-9);
+    /// ```
+    fn trimmed_curve_3d_to_uv(
+        &self,
+        curve: &TrimmedCurve,
+        tol: Tolerance,
+    ) -> Result<TrimmedCurve2D, Curve3DToUvError> {
+        let basis = self.curve_3d_to_uv(curve.basis(), tol)?;
+        Ok(TrimmedCurve2D::from_parts(
+            basis,
+            curve.first(),
+            curve.last(),
+        ))
     }
 
     /// Routing hook of the numeric search, hidden from the documentation: the

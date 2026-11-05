@@ -92,4 +92,10 @@ shape_methods! {
     fn enclosed_area(&self) -> f64 {
         self.0.enclosed_area()
     }
+
+    /// The perimeter, integrating the speed to within `max_error`: it has
+    /// no closed form.
+    fn length(&self, max_error: f64) -> f64 {
+        self.0.length(max_error)
+    }
 }

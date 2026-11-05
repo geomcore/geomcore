@@ -1337,6 +1337,75 @@ def test_trimmed_curve_2d():
         TrimmedCurve2D(Circle(Point.origin(), Vector.unit_z(), 1.0), 0.0, 1.0)
 
 
+def test_trimmed_curve_arcs():
+    from geomcore import ConstructionError
+    from geomcore.curves import TrimmedCurve
+
+    # Three quarters of the unit circle, clockwise seen from +z.
+    start, middle, end = Point(1.0, 0.0, 0.0), Point(-1.0, 0.0, 0.0), Point(0.0, 1.0, 0.0)
+    arc = TrimmedCurve.arc_through(start, middle, end)
+    assert arc.sweep_angle() == pytest.approx(1.5 * math.pi)
+    assert arc.basis().normal().z == pytest.approx(-1.0)
+    assert arc.end_point().distance(end) == pytest.approx(0.0, abs=1e-12)
+    assert arc.length(1e-9) == pytest.approx(1.5 * math.pi)
+
+    quarter = TrimmedCurve.arc(Point.origin(), Point(2.0, 0.0, 0.0), Point(0.0, 2.0, 0.0), Vector.unit_z())
+    assert quarter.sweep_angle() == pytest.approx(math.pi / 2)
+    rest = TrimmedCurve.arc(Point.origin(), Point(2.0, 0.0, 0.0), Point(0.0, 2.0, 0.0), -Vector.unit_z())
+    assert rest.sweep_angle() == pytest.approx(1.5 * math.pi)
+    full = TrimmedCurve.arc(Point.origin(), start, start, Vector.unit_z())
+    assert full.sweep_angle() == pytest.approx(math.tau)
+
+    with pytest.raises(ConstructionError):
+        TrimmedCurve.arc_through(start, start, end)
+    with pytest.raises(ConstructionError):
+        TrimmedCurve.arc(Point.origin(), start, Point(0.0, 1.5, 0.0), Vector.unit_z())
+    with pytest.raises(TypeError):
+        TrimmedCurve.segment(Point.origin(), start).sweep_angle()
+
+
+def test_trimmed_curve_2d_arcs():
+    from geomcore.curves import Circle2D, TrimmedCurve2D
+
+    start, middle, end = Point2D(1.0, 0.0), Point2D(0.0, 1.0), Point2D(-1.0, 0.0)
+    left = TrimmedCurve2D.arc_through(start, middle, end)
+    right = TrimmedCurve2D.arc_through(end, middle, start)
+    assert left.basis().is_counterclockwise()
+    assert not right.basis().is_counterclockwise()
+    assert left.sweep_angle() == pytest.approx(math.pi)
+
+    clockwise = TrimmedCurve2D.arc(Point2D.origin(), Point2D(2.0, 0.0), Point2D(0.0, 2.0), False)
+    assert clockwise.sweep_angle() == pytest.approx(1.5 * math.pi)
+    assert clockwise.length(1e-9) == pytest.approx(3.0 * math.pi)
+    assert Circle2D(Point2D.origin(), 2.0).length() == pytest.approx(4.0 * math.pi)
+
+
+def test_lengths_of_bounded_curves():
+    from geomcore.curves import TrimmedCurve
+
+    assert TrimmedCurve.segment(Point.origin(), Point(1.0, 2.0, 2.0)).length(1e-9) == 3.0
+    ellipse = Ellipse(Point.origin(), Vector.unit_z(), Vector.unit_x(), 2.0, 1.0)
+    assert ellipse.length(1e-12) == pytest.approx(9.688448220547675, abs=1e-11)
+    quarter = TrimmedCurve(ellipse, 0.0, math.pi / 2)
+    assert quarter.length(1e-12) == pytest.approx(ellipse.length(1e-12) / 4.0, abs=1e-11)
+    ellipse_2d = Ellipse2D(Point2D.origin(), Vector2D.unit_x(), 2.0, 1.0)
+    assert ellipse_2d.length(1e-12) == pytest.approx(ellipse.length(1e-12), abs=1e-11)
+
+
+def test_curve_3d_to_uv_maps_a_trimmed_curve_to_a_trimmed_uv_curve():
+    from geomcore.curves import Line2D, TrimmedCurve, TrimmedCurve2D
+
+    cylinder = Cylinder(Point.origin(), Vector.unit_z(), 2.0)
+    circle = Circle(Point(0.0, 0.0, 3.0), Vector.unit_z(), 2.0)
+    edge = TrimmedCurve(circle, 0.5, 2.0)
+    uv_edge = cylinder.curve_3d_to_uv(edge)
+    assert isinstance(uv_edge, TrimmedCurve2D)
+    assert isinstance(uv_edge.basis(), Line2D)
+    assert (uv_edge.first(), uv_edge.last()) == (0.5, 2.0)
+    end = uv_edge.end_point()
+    assert (end.x, end.y) == (pytest.approx(2.0), pytest.approx(3.0))
+
+
 def _intersect_shapes():
     from geomcore.curves import Circle2D, Ellipse, Hyperbola, Line, Parabola
     from geomcore.surfaces import Cone, Plane, Torus

@@ -39,6 +39,8 @@ from geomcore.curves import (
     _Curve2D,
     _WholeCurve,
     _WholeCurve2D,
+    TrimmedCurve,
+    TrimmedCurve2D,
 )
 
 _Surface = Union[
@@ -228,6 +230,7 @@ class _SurfaceMethods(Generic[_UIsoCurveType, _VIsoCurveType]):
         composed curve leaves the surface's domain, or when its degree would
         be above 25. `tol` is `Tolerance.default()` when omitted.
         """
+    @overload
     def curve_3d_to_uv(
         self, curve: _WholeCurve, tol: Optional[Tolerance] = ...
     ) -> _WholeCurve2D:
@@ -240,10 +243,16 @@ class _SurfaceMethods(Generic[_UIsoCurveType, _VIsoCurveType]):
         along the axis of a cylinder or a generator of a cone, as a line along
         v; and a circle about the axis of a cylinder or cone, a meridian or
         parallel of a sphere, or a poloidal or toroidal circle of a torus, as a
-        line along u or v. Raises `Curve3DToUvError` for any other pair, or
-        when the curve does not lie on the surface within `tol`
-        (`Tolerance.default()` when omitted).
+        line along u or v. A `TrimmedCurve` maps to the `TrimmedCurve2D`
+        of its basis's image over the same range. Raises
+        `Curve3DToUvError` for any other pair, or when the curve does not
+        lie on the surface within `tol` (`Tolerance.default()` when
+        omitted).
         """
+    @overload
+    def curve_3d_to_uv(
+        self, curve: TrimmedCurve, tol: Optional[Tolerance] = ...
+    ) -> TrimmedCurve2D: ...
     @overload
     def intersect(
         self, other: _Curve, tol: Optional[Tolerance] = ...

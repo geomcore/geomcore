@@ -36,6 +36,17 @@ shape_methods! {
         self.0.radius()
     }
 
+    /// The length of the circle, its circumference (`2*PI*radius`).
+    fn length(&self) -> f64 {
+        self.0.length()
+    }
+
+    /// Whether the circle turns counterclockwise as its parameter grows:
+    /// whether its frame is direct.
+    fn is_counterclockwise(&self) -> bool {
+        self.0.is_counterclockwise()
+    }
+
     /// The circle as an exact rational B-spline of degree 2, periodic over
     /// `[0, 2*pi]`; its parameter agrees with the angle at the knots and
     /// the middle of each quarter turn.

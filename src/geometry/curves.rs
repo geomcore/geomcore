@@ -37,5 +37,6 @@ pub use parametric_curve::{Continuity, ParametricCurve, PointExtrema, Reversible
 pub use parametric_curve_2d::{ParametricCurve2D, PointExtrema2D};
 pub(crate) use range::{RangeOperations, Run};
 pub use trimmed::{
-    GenericTrimmedCurve, TrimmedCurve, TrimmedCurve2D, TrimmedCurveConstructionError,
+    ArcConstructionError, GenericTrimmedCurve, TrimmedCurve, TrimmedCurve2D,
+    TrimmedCurveConstructionError,
 };
