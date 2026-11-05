@@ -263,3 +263,37 @@ fn test_from_axes_accepts_either_handedness_rejects_skew() {
     );
     assert_eq!(skewed, Err(FrameConstructionError::NotOrthogonal));
 }
+
+#[test]
+fn test_axis_queries_measure_from_the_line() {
+    use crate::Tolerance;
+    let tol = Tolerance::DEFAULT;
+    let axis = Axis::new(Point::new(1.0, 0.0, 0.0), Vector::new(0.0, 0.0, 2.0)).unwrap();
+    let p = Point::new(4.0, 4.0, -2.0);
+    assert_eq!(axis.parameter_of(p), -2.0);
+    assert_eq!(axis.closest_point(p), Point::new(1.0, 0.0, -2.0));
+    assert_eq!(axis.distance(p), 5.0);
+    assert!(axis.contains(axis.point_at(7.0), tol));
+    assert!(!axis.contains(Point::new(1.0, 1e-6, 0.0), tol));
+    // Coaxial: either orientation, any origin along the line.
+    assert!(axis.is_coaxial(Axis::new(axis.point_at(-3.0), -Vector::Z).unwrap(), tol));
+    assert!(axis.is_coaxial(axis.reversed(), tol));
+    let beside = Axis::new(Point::new(1.0, 1e-6, 0.0), Vector::Z).unwrap();
+    assert!(axis.is_parallel(beside, tol.angular) && !axis.is_coaxial(beside, tol));
+    let tilted = Axis::new(axis.origin(), Vector::new(1e-9, 0.0, 1.0)).unwrap();
+    assert!(!axis.is_coaxial(tilted, tol));
+    // A looser angular bound, such as one taken over a shape's size, admits it.
+    let loose = Tolerance {
+        angular: 1e-8,
+        ..tol
+    };
+    assert!(axis.is_coaxial(tilted, loose));
+    let flat = Axis2D::new(Point2D::new(0.0, 1.0), Vector2D::X).unwrap();
+    assert_eq!(flat.distance(Point2D::new(5.0, -2.0)), 3.0);
+    assert_eq!(
+        flat.closest_point(Point2D::new(5.0, -2.0)),
+        Point2D::new(5.0, 1.0)
+    );
+    assert!(flat.contains(Point2D::new(-4.0, 1.0), tol));
+    assert_eq!(flat.reversed().direction(), -Vector2D::X);
+}

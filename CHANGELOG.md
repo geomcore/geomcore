@@ -9,6 +9,31 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+### Added
+
+- The value classes answer the geometric questions callers wrote out by
+  hand (#198, first part). The caller gives the tolerance: an `angular`
+  bound (Python: the default tolerance's when omitted) or a `Tolerance`.
+  - `Vector` and `Vector2D`: `angle(other)`, the unsigned angle in
+    `[0, π]`; `is_parallel(other, angular)` (either orientation) and
+    `is_perpendicular(other, angular)`, which bound the sine and the cosine
+    of the angle for vectors of any length and are false for a zero vector;
+    `component_along(direction)` and `component_perpendicular_to(direction)`.
+    `Vector2D` also gets `signed_angle(other)` and `rotated(angle)`.
+  - `Axis` and `Axis2D`: `point_at(t)`, `parameter_of(point)`,
+    `closest_point(point)`, `distance(point)`, `contains(point, tol)`,
+    `is_parallel(other, angular)` and `reversed()`, which was crate-private.
+    `Axis` also gets `is_coaxial(other, tol)`: the same line, in either
+    orientation.
+  - `Plane::signed_distance(point)`: positive on the side the normal points
+    to.
+
+### Fixed
+
+- Python: the docstring of `Vector.angle_with_reference` said a zero
+  reference gives the unsigned angle; it gives 0 or π. `angle(other)` is
+  the unsigned angle.
+
 ## [0.43.0] - 2026-11-05
 
 A UV curve without an exact 3D curve, such as a helix on a cylinder, now

@@ -192,10 +192,46 @@ impl PyVector {
     }
 
     /// The signed angle from this vector to `other` around `reference`
-    /// (right-hand rule), in (-pi, pi]. A zero `reference` gives the unsigned
-    /// angle in [0, pi].
+    /// (right-hand rule), in (-pi, pi]. A zero `reference` leaves the sign
+    /// unknown: the result is then 0 or pi; `angle(other)` is the unsigned
+    /// angle.
     fn angle_with_reference(&self, other: &PyVector, reference: &PyVector) -> f64 {
         self.0.angle_with_reference(other.0, reference.0)
+    }
+
+    /// The unsigned angle between the two vectors, in [0, pi]; 0 when
+    /// either is zero.
+    fn angle(&self, other: &PyVector) -> f64 {
+        self.0.angle(other.0)
+    }
+
+    /// Whether the vectors are parallel, in either orientation: the sine
+    /// of the angle between them is at most `angular`
+    /// (`Tolerance.default().angular` when omitted). A zero vector is
+    /// parallel to nothing.
+    #[pyo3(signature = (other, angular = None))]
+    fn is_parallel(&self, other: &PyVector, angular: Option<f64>) -> bool {
+        self.0.is_parallel(other.0, angular_bound(angular))
+    }
+
+    /// Whether the vectors are perpendicular: the cosine of the angle
+    /// between them is at most `angular` (`Tolerance.default().angular`
+    /// when omitted). A zero vector is perpendicular to nothing.
+    #[pyo3(signature = (other, angular = None))]
+    fn is_perpendicular(&self, other: &PyVector, angular: Option<f64>) -> bool {
+        self.0.is_perpendicular(other.0, angular_bound(angular))
+    }
+
+    /// The part of this vector along `direction`, of any length; the zero
+    /// vector when `direction` is zero.
+    fn component_along(&self, direction: &PyVector) -> PyVector {
+        PyVector(self.0.component_along(direction.0))
+    }
+
+    /// The part of this vector across `direction`: the vector less its
+    /// component along `direction`.
+    fn component_perpendicular_to(&self, direction: &PyVector) -> PyVector {
+        PyVector(self.0.component_perpendicular_to(direction.0))
     }
 
     fn __add__(&self, other: &PyVector) -> PyVector {
@@ -354,6 +390,52 @@ impl PyVector2D {
         PyVector2D(self.0.perp())
     }
 
+    /// The unsigned angle between the two vectors, in [0, pi]; 0 when
+    /// either is zero.
+    fn angle(&self, other: &PyVector2D) -> f64 {
+        self.0.angle(other.0)
+    }
+
+    /// The signed angle from this vector to `other`, in (-pi, pi]:
+    /// positive when `other` is counter-clockwise from this one.
+    fn signed_angle(&self, other: &PyVector2D) -> f64 {
+        self.0.signed_angle(other.0)
+    }
+
+    /// This vector turned counter-clockwise by `angle` radians.
+    fn rotated(&self, angle: f64) -> PyVector2D {
+        PyVector2D(self.0.rotated(angle))
+    }
+
+    /// Whether the vectors are parallel, in either orientation: the sine
+    /// of the angle between them is at most `angular`
+    /// (`Tolerance.default().angular` when omitted). A zero vector is
+    /// parallel to nothing.
+    #[pyo3(signature = (other, angular = None))]
+    fn is_parallel(&self, other: &PyVector2D, angular: Option<f64>) -> bool {
+        self.0.is_parallel(other.0, angular_bound(angular))
+    }
+
+    /// Whether the vectors are perpendicular: the cosine of the angle
+    /// between them is at most `angular` (`Tolerance.default().angular`
+    /// when omitted). A zero vector is perpendicular to nothing.
+    #[pyo3(signature = (other, angular = None))]
+    fn is_perpendicular(&self, other: &PyVector2D, angular: Option<f64>) -> bool {
+        self.0.is_perpendicular(other.0, angular_bound(angular))
+    }
+
+    /// The part of this vector along `direction`, of any length; the zero
+    /// vector when `direction` is zero.
+    fn component_along(&self, direction: &PyVector2D) -> PyVector2D {
+        PyVector2D(self.0.component_along(direction.0))
+    }
+
+    /// The part of this vector across `direction`: the vector less its
+    /// component along `direction`.
+    fn component_perpendicular_to(&self, direction: &PyVector2D) -> PyVector2D {
+        PyVector2D(self.0.component_perpendicular_to(direction.0))
+    }
+
     /// Euclidean length of the vector.
     fn magnitude(&self) -> f64 {
         self.0.magnitude()
@@ -424,6 +506,54 @@ impl PyAxis {
     fn direction(&self) -> PyVector {
         PyVector(self.0.direction())
     }
+
+    /// The point at `t` along the axis, `origin + t * direction`.
+    fn point_at(&self, t: f64) -> PyPoint {
+        PyPoint(self.0.point_at(t))
+    }
+
+    /// The parameter of the foot of `point` on the axis, so that
+    /// `point_at` gives the `closest_point`.
+    fn parameter_of(&self, point: &PyPoint) -> f64 {
+        self.0.parameter_of(point.0)
+    }
+
+    /// The point of the axis closest to `point`.
+    fn closest_point(&self, point: &PyPoint) -> PyPoint {
+        PyPoint(self.0.closest_point(point.0))
+    }
+
+    /// The distance from `point` to the axis.
+    fn distance(&self, point: &PyPoint) -> f64 {
+        self.0.distance(point.0)
+    }
+
+    /// Whether `point` lies on the axis, within `tol.confusion`
+    /// (`Tolerance.default()` when omitted).
+    #[pyo3(signature = (point, tol = None))]
+    fn contains(&self, point: &PyPoint, tol: Option<PyTolerance>) -> bool {
+        self.0.contains(point.0, crate::tolerance(tol))
+    }
+
+    /// Whether the axes have parallel directions, in either orientation,
+    /// within `angular` (`Tolerance.default().angular` when omitted).
+    #[pyo3(signature = (other, angular = None))]
+    fn is_parallel(&self, other: &PyAxis, angular: Option<f64>) -> bool {
+        self.0.is_parallel(other.0, angular_bound(angular))
+    }
+
+    /// Whether the axes are the same line, in either orientation: parallel
+    /// within `tol.angular`, the other origin on this axis within
+    /// `tol.confusion` (`Tolerance.default()` when omitted).
+    #[pyo3(signature = (other, tol = None))]
+    fn is_coaxial(&self, other: &PyAxis, tol: Option<PyTolerance>) -> bool {
+        self.0.is_coaxial(other.0, crate::tolerance(tol))
+    }
+
+    /// The axis with its direction negated, through the same origin.
+    fn reversed(&self) -> PyAxis {
+        PyAxis(self.0.reversed())
+    }
 }
 
 /// An axis in the plane: a point plus a unit direction.
@@ -449,6 +579,46 @@ impl PyAxis2D {
     /// The unit direction of the axis.
     fn direction(&self) -> PyVector2D {
         PyVector2D(self.0.direction())
+    }
+
+    /// The point at `t` along the axis, `origin + t * direction`.
+    fn point_at(&self, t: f64) -> PyPoint2D {
+        PyPoint2D(self.0.point_at(t))
+    }
+
+    /// The parameter of the foot of `point` on the axis, so that
+    /// `point_at` gives the `closest_point`.
+    fn parameter_of(&self, point: &PyPoint2D) -> f64 {
+        self.0.parameter_of(point.0)
+    }
+
+    /// The point of the axis closest to `point`.
+    fn closest_point(&self, point: &PyPoint2D) -> PyPoint2D {
+        PyPoint2D(self.0.closest_point(point.0))
+    }
+
+    /// The distance from `point` to the axis.
+    fn distance(&self, point: &PyPoint2D) -> f64 {
+        self.0.distance(point.0)
+    }
+
+    /// Whether `point` lies on the axis, within `tol.confusion`
+    /// (`Tolerance.default()` when omitted).
+    #[pyo3(signature = (point, tol = None))]
+    fn contains(&self, point: &PyPoint2D, tol: Option<PyTolerance>) -> bool {
+        self.0.contains(point.0, crate::tolerance(tol))
+    }
+
+    /// Whether the axes have parallel directions, in either orientation,
+    /// within `angular` (`Tolerance.default().angular` when omitted).
+    #[pyo3(signature = (other, angular = None))]
+    fn is_parallel(&self, other: &PyAxis2D, angular: Option<f64>) -> bool {
+        self.0.is_parallel(other.0, angular_bound(angular))
+    }
+
+    /// The axis with its direction negated, through the same origin.
+    fn reversed(&self) -> PyAxis2D {
+        PyAxis2D(self.0.reversed())
     }
 
     fn __repr__(&self) -> String {
@@ -905,4 +1075,9 @@ impl PySide {
             PySide::Above => "ABOVE",
         }
     }
+}
+
+/// The angular bound of a predicate: `angular`, or the default tolerance's.
+fn angular_bound(angular: Option<f64>) -> f64 {
+    angular.unwrap_or(geomcore::Tolerance::DEFAULT.angular)
 }
