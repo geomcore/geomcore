@@ -328,8 +328,22 @@ macro_rules! curve_methods {
             }
 
             /// The axis-aligned box around the shape (`None` when unbounded).
+            /// It touches an elementary shape; for a B-spline it is the box of the
+            /// control points, which may be wider than the shape, as
+            /// `tight_bounding_box` is not.
             fn bounding_box(&self) -> Option<$bounding_box> {
                 self.0.bounding_box().map($bounding_box)
+            }
+
+            /// The axis-aligned box around the shape as tightly as
+            /// `tol.confusion` (`None` when unbounded): it holds the shape, and each
+            /// of its sides is within `tol.confusion` of a point of it. The same as
+            /// `bounding_box` on an elementary shape; a B-spline's comes from halving
+            /// its Bézier pieces, a revolution surface's from its profile's.
+            /// `tol` is `Tolerance.default()` when omitted.
+            #[pyo3(signature = (tol = None))]
+            fn tight_bounding_box(&self, tol: Option<PyTolerance>) -> Option<$bounding_box> {
+                self.0.tight_bounding_box(tolerance(tol)).map($bounding_box)
             }
 
             /// Intersects with any curve or surface, in either order.
@@ -696,8 +710,22 @@ macro_rules! surface {
             }
 
             /// The axis-aligned box around the shape (`None` when unbounded).
+            /// It touches an elementary shape; for a B-spline it is the box of the
+            /// control points, which may be wider than the shape, as
+            /// `tight_bounding_box` is not.
             fn bounding_box(&self) -> Option<PyBoundingBox> {
                 self.0.bounding_box().map(PyBoundingBox)
+            }
+
+            /// The axis-aligned box around the shape as tightly as
+            /// `tol.confusion` (`None` when unbounded): it holds the shape, and each
+            /// of its sides is within `tol.confusion` of a point of it. The same as
+            /// `bounding_box` on an elementary shape; a B-spline's comes from halving
+            /// its Bézier pieces, a revolution surface's from its profile's.
+            /// `tol` is `Tolerance.default()` when omitted.
+            #[pyo3(signature = (tol = None))]
+            fn tight_bounding_box(&self, tol: Option<PyTolerance>) -> Option<PyBoundingBox> {
+                self.0.tight_bounding_box(tolerance(tol)).map(PyBoundingBox)
             }
 
             /// The `u` isoparametric curve at `u`, parametrized by `v` like

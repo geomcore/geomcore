@@ -199,7 +199,17 @@ class _SurfaceMethods(Generic[_UIsoCurveType, _VIsoCurveType]):
         closed-form inversion.
         """
     def bounding_box(self) -> Optional[BoundingBox]:
-        """The axis-aligned box around the shape (`None` when unbounded)."""
+        """The axis-aligned box around the shape (`None` when unbounded).
+        It touches an elementary shape; for a B-spline it is the box of the
+        control points, which may be wider than the shape, as
+        `tight_bounding_box` is not."""
+    def tight_bounding_box(self, tol: Optional[Tolerance] = ...) -> Optional[BoundingBox]:
+        """The axis-aligned box around the shape as tightly as
+        `tol.confusion` (`None` when unbounded): it holds the shape, and each
+        of its sides is within `tol.confusion` of a point of it. The same as
+        `bounding_box` on an elementary shape; a B-spline's comes from halving
+        its Bézier pieces, a revolution surface's from its profile's.
+        `tol` is `Tolerance.default()` when omitted."""
     def u_iso(self, u: float) -> _UIsoCurveType:
         """The `u` isoparametric curve at `u`, parametrized by `v` like
         the surface: `u_iso(u).point_at(t)` is `point_at(u, t)`.

@@ -11,6 +11,15 @@ the Python distribution are versioned in lockstep.
 
 ### Added
 
+- `tight_bounding_box(tol)` on every curve and surface (#178), in Rust
+  (`HasBoundingBox`, `HasBoundingBox2D`) and Python: the box that holds
+  the shape with each side within `tol.confusion` of it, for collision
+  pre-checks. `bounding_box()` stays the box of a B-spline's control
+  points, which may be several times wider; the tight box halves the
+  Bézier pieces until their control points come that close, in a few
+  microseconds for a curve. Elementary shapes' boxes already touch them;
+  a revolution surface's tight box comes from its profile's.
+
 - `curve_3d_to_uv_within` maps a curve that starts or ends at a sphere's
   pole or a cone's apex (#220), in Rust and Python: the UV curve takes the
   limit of its point and derivatives from inside the curve, so a meridian

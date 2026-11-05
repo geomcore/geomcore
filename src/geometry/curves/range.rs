@@ -30,7 +30,7 @@ use crate::geometry::curves::{
 use crate::geometry::curves::{curve_2d_dispatch, curve_dispatch, elementary_curve_dispatch};
 use crate::math::numeric::quadrature;
 use crate::operations::discretization::{self, DiscretizationCriteria};
-use crate::{Point, Point2D};
+use crate::{Point, Point2D, Tolerance};
 
 /// Equal parameter steps over `[first, last]`, each segment with the same
 /// deviations: what [`RangeOperations::for_each_run`] visits.
@@ -53,6 +53,14 @@ pub trait RangeOperations {
 
     /// The box bounding the curve over `[first, last]`.
     fn range_box(&self, first: f64, last: f64) -> BoundingBoxOf<Self::Point>;
+
+    /// The box bounding the curve over `[first, last]`, each side within
+    /// `tol.confusion` of the curve: [`range_box`](Self::range_box) where it
+    /// has a closed form, which touches the curve.
+    fn tight_range_box(&self, first: f64, last: f64, tol: Tolerance) -> BoundingBoxOf<Self::Point> {
+        let _ = tol;
+        self.range_box(first, last)
+    }
 
     /// Calls `visit` with the runs covering `[first, last]` in order, each
     /// with a function evaluating the point at a fraction of the run. Every
@@ -348,6 +356,10 @@ impl_for_both_tiers! {
             bounding_box::spline_box(self, (first, last))
         }
 
+        fn tight_range_box(&self, first: f64, last: f64, tol: Tolerance) -> BoundingBoxOf<P> {
+            bounding_box::tight_spline_box(self, (first, last), tol)
+        }
+
         fn for_each_run<F>(
             &self,
             first: f64,
@@ -389,6 +401,10 @@ impl_for_both_tiers! {
 
         fn range_box(&self, first: f64, last: f64) -> BoundingBoxOf<P> {
             bounding_box::spline_box(self.bspline(), (first, last))
+        }
+
+        fn tight_range_box(&self, first: f64, last: f64, tol: Tolerance) -> BoundingBoxOf<P> {
+            bounding_box::tight_spline_box(self.bspline(), (first, last), tol)
         }
 
         fn for_each_run<F>(
@@ -437,6 +453,15 @@ macro_rules! range_operations_by_dispatch {
                 $dispatch!(self, c => c.range_box(first, last))
             }
 
+            fn tight_range_box(
+                &self,
+                first: f64,
+                last: f64,
+                tol: Tolerance,
+            ) -> BoundingBoxOf<$point> {
+                $dispatch!(self, c => c.tight_range_box(first, last, tol))
+            }
+
             fn for_each_run<F>(
                 &self,
                 first: f64,
@@ -480,6 +505,10 @@ impl<C: RangeOperations + ?Sized> RangeOperations for &C {
 
     fn range_box(&self, first: f64, last: f64) -> BoundingBoxOf<C::Point> {
         (**self).range_box(first, last)
+    }
+
+    fn tight_range_box(&self, first: f64, last: f64, tol: Tolerance) -> BoundingBoxOf<C::Point> {
+        (**self).tight_range_box(first, last, tol)
     }
 
     fn for_each_run<F>(

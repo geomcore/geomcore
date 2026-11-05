@@ -40,8 +40,9 @@ with the tolerance as the keyword `tol=None` (`Tolerance.default()`):
   with `reversed_parameter(u)` mapping a parameter onto the reversed
   curve, and `transformed(transform)`.
 - 2D curves: the same queries but `transformed`; `curvature(u)` is
-  signed (positive where the tangent turns left). `bounding_box()`
-  returns a `BoundingBox2D`, or `None` when the curve is unbounded.
+  signed (positive where the tangent turns left). `bounding_box()` and
+  `tight_bounding_box()` return a `BoundingBox2D`, or `None` when the
+  curve is unbounded.
 - Surfaces: `normal(u, v)` (`Plane.normal()` takes no parameters),
   `curvatures(u, v)` returning a `SurfaceCurvatures`, `is_u_closed()` /
   `is_v_closed()`, `continuity_u(u)` / `continuity_v(v)` and their

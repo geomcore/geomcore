@@ -112,6 +112,13 @@ def test_bounding_boxes():
     box = arch().bounding_box()
     assert xy(box.min()) == (0.0, 0.0)
     assert xy(box.max()) == (2.0, 1.0)
+    # The arch peaks at y = 0.5, halfway to its middle control point.
+    tol = Tolerance.default()
+    box = arch().tight_bounding_box()
+    assert xy(box.min()) == pytest.approx((0.0, 0.0), abs=1e-15)
+    assert box.max().x == pytest.approx(2.0, abs=1e-15)
+    assert 0.5 <= box.max().y <= 0.5 + tol.confusion
+    assert Line2D(ORIGIN, X).tight_bounding_box(tol) is None
 
 
 def test_bounding_box2d_value():

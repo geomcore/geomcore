@@ -204,6 +204,10 @@ def test_surface_accessors_and_eval():
     assert surface.first_derivatives_sided(0.3, 0.7, Side.BELOW, Side.ABOVE) == surface.first_derivatives(0.3, 0.7)
     box = surface.bounding_box()
     assert box is not None and box.max() == Point(2.0, 2.0, 4.0)
+    # The corner (2, 2, 4) is on the surface: the tight box reaches it too.
+    tight = surface.tight_bounding_box()
+    assert tight is not None and box.encloses(tight.min()) and box.encloses(tight.max())
+    assert close(tight.max(), Point(2.0, 2.0, 4.0), 1e-12)
     assert repr(surface) == (
         "BezierSurface(u_degree=2, v_degree=2, pole_count=(3, 3), rational=False)"
     )
