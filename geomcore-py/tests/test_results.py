@@ -187,7 +187,7 @@ def test_trimmed_arc_across_the_seam_keeps_both_hits():
     assert len(result.hits) == 2
     for hit in result.hits:
         assert hit.point.x == pytest.approx(0.5)
-    parameters = [hit.curve_parameter for hit in result.hits if hit.curve_parameter is not None]
+    parameters = [hit.curve_parameter for hit in result.hits]
     for t in parameters:
         assert 1.5 * math.pi <= t <= 2.5 * math.pi
     # Half the circle is outside the arc: a plane there misses it.
@@ -382,7 +382,6 @@ def test_swapped_numeric_curve_curve_order_swaps_both_parameters():
     assert forward.method == backward.method == IntersectionMethod.NUMERIC
     assert len(forward.hits) == len(backward.hits) == 2
     for hit in forward.hits:
-        assert hit.first_parameter is not None and hit.second_parameter is not None
         match = [h for h in backward.hits if h.point.distance(hit.point) < 1e-9]
         assert len(match) == 1
         assert match[0].first_parameter == pytest.approx(hit.second_parameter)

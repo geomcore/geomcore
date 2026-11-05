@@ -1017,7 +1017,7 @@ def test_line_conic_intersections():
         Line(Point.origin(), Vector.unit_x()).intersect(ellipse)
     )
     assert (t1, t2) == pytest.approx((-3.0, 3.0))
-    assert (_or_recovered(u1, ellipse, p1), _or_recovered(u2, ellipse, p2)) == pytest.approx(
+    assert (u1, u2) == pytest.approx(
         (math.pi, 0.0)
     )
 
@@ -1025,7 +1025,7 @@ def test_line_conic_intersections():
     # The axis crosses the parabola once, at its vertex.
     [(t, p, u, mult)] = _hit_tuples(Line(Point.origin(), Vector.unit_x()).intersect(parabola))
     assert mult == 1
-    assert t == pytest.approx(0.0) and _or_recovered(u, parabola, p) == pytest.approx(0.0)
+    assert t == pytest.approx(0.0) and u == pytest.approx(0.0)
 
     hyperbola = Hyperbola(Point.origin(), Vector.unit_z(), Vector.unit_x(), 2.0, 1.0)
     [(t, p, u, mult)] = _hit_tuples(
@@ -1051,11 +1051,8 @@ def test_circle_conic_intersections():
         assert mult == 1
         assert circle.contains(p)
         assert ellipse.contains(p)
-        # Only the circle is solved for: the ellipse's parameter is left to
-        # the caller.
-        assert u is None
         _assert_same_point(circle.point_at(s), p)
-        _assert_same_point(ellipse.point_at(ellipse.parameter_of(p)), p)
+        _assert_same_point(ellipse.point_at(u), p)
 
     same = circle.intersect(Ellipse(Point.origin(), Vector.unit_z(), Vector.unit_x(), 2.0, 2.0))
     assert len(same.overlaps) == 1 and same.hits == []
@@ -1087,8 +1084,7 @@ def test_line_torus_intersections():
         assert torus.contains(hit.point)
         projection = torus.project_point(hit.point)
         assert projection.distance == pytest.approx(0.0)
-        if hit.surface_parameters is not None:
-            assert hit.surface_parameters == pytest.approx((projection.u, projection.v))
+        assert hit.surface_parameters == pytest.approx((projection.u, projection.v))
 
     (hit,) = Line(Point(0.0, 5.0, 0.0), Vector.unit_x()).intersect(torus).hits
     assert hit.curve_parameter == pytest.approx(0.0)
@@ -1149,14 +1145,14 @@ def test_conic_conic_intersections():
         for s, p, t, _ in hits:
             # One conic is solved for; a parameter not computed is None.
             assert s is not None or t is not None
-            _assert_same_point(a.point_at(_or_recovered(s, a, p)), p)
-            _assert_same_point(b.point_at(_or_recovered(t, b, p)), p)
+            _assert_same_point(a.point_at(s), p)
+            _assert_same_point(b.point_at(t), p)
         # The receiver's parameter comes first.
         back = _hit_tuples(b.intersect(a))
-        on_b = sorted(_or_recovered(t, b, p) for _, p, t, _ in hits)
-        assert on_b == pytest.approx(sorted(_or_recovered(t, b, p) for t, p, _, _ in back))
-        on_a = sorted(_or_recovered(s, a, p) for s, p, _, _ in hits)
-        assert on_a == pytest.approx(sorted(_or_recovered(s, a, p) for _, p, s, _ in back))
+        on_b = sorted(t for _, p, t, _ in hits)
+        assert on_b == pytest.approx(sorted(t for t, p, _, _ in back))
+        on_a = sorted(s for s, p, _, _ in hits)
+        assert on_a == pytest.approx(sorted(s for _, p, s, _ in back))
     assert len(parabola.intersect(parabola).overlaps) == 1
     lifted = Parabola(Point(0.0, 0.0, 1.0), z, x, 1.0)
     assert parabola.intersect(lifted).is_empty()
@@ -1165,12 +1161,6 @@ def test_conic_conic_intersections():
 def _rigid_motion():
     axis = Axis(Point(0.5, -1.0, 0.0), Vector(1.0, 2.0, 2.0))
     return Transform.translation(Vector(3.0, -1.0, 2.0)).then(Transform.rotation(axis, 0.7))
-
-
-def _or_recovered(parameter, curve, point):
-    """The stored parameter, or the curve's parameter of the point when the
-    solver did not compute it."""
-    return curve.parameter_of(point) if parameter is None else parameter
 
 
 def _assert_same_point(a, b):

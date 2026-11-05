@@ -17,10 +17,10 @@ One result per family: `CurveCurveIntersection` (and
 `SurfaceSurfaceIntersection`. Each one carries:
 
 - the **hits**: the point, the multiplicity (1 for a crossing, 2+ for a
-  tangency) and the parameters on both operands. A parameter is stored
-  when the solver computed it on its way to the point, and is `None`
-  otherwise; `operand.parameter_of(hit.point, tol)` (or `parameters_of` on a
-  surface) recovers it in one call;
+  tangency) and the parameters on both operands, always filled: where a
+  closed form solves for one operand's parameter only, the other's is
+  recovered in closed form from the point. Hits are sorted by the first
+  operand's parameter;
 - the **overlaps**, where a curve lies on the other shape: a parameter
   range on each curve plus `same_direction`, or the curve's ranges on a
   surface;

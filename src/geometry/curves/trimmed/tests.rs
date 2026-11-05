@@ -240,7 +240,7 @@ fn test_intersect_curve_surface_ignores_hits_outside_the_range() {
     let half = TrimmedCurve::segment(Point::ORIGIN, Point::new(2.0, 0.0, 0.0)).unwrap();
     let hits = search_curve_surface(&half, &sphere, TOL);
     assert_eq!(hits.len(), 1);
-    assert!(close(hits[0].curve_parameter.unwrap(), 1.0));
+    assert!(close(hits[0].curve_parameter, 1.0));
 }
 
 #[test]

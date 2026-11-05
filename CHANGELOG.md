@@ -54,6 +54,15 @@ the Python distribution are versioned in lockstep.
 
 ### Breaking
 
+- Every intersection hit carries all its parameters (#177), in Rust and
+  Python: `first_parameter` and `second_parameter` on `CurveCurveHit` and
+  `CurveCurveHit2D`, `curve_parameter` and `surface_parameters` on
+  `CurveSurfaceHit`, are now `f64` and `(f64, f64)` (Python `float` and
+  `tuple[float, float]`) instead of optional. Where a closed form solves
+  for one operand's parameter only, the other is recovered in closed form
+  from the point, so a caller no longer calls `parameter_of(hit.point)`
+  after the intersection. The hits are always sorted by the first
+  operand's parameter.
 - `CylinderCylinderIntersection` gains the variant `TwoEllipses` (#175):
   a `match` on it needs the arm.
 - The approximation results are one type per tier (#199):

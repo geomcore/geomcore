@@ -299,6 +299,32 @@ as the 3D one already did: 2D circle–circle routed 321 → 247
 instructions per pair, 35 → 25 ns. The other two pairs did not move
 (1161 and 759 instructions).
 
+### Every parameter filled (#177)
+
+Hit parameters are no longer optional: the router recovers in closed
+form every parameter the solver did not compute (an `atan2` or more each),
+and the fields shrink back to plain `f64`. Against the parent commit,
+criterion medians of two runs, batches of 1000:
+
+| pair | exact | routed before | routed after |
+|---|---|---|---|
+| line–cylinder | 77–86 µs | 147 µs | 229–233 µs |
+| circle–circle (coplanar) | 42–47 µs | 88–90 µs | 201–215 µs |
+| 2D circle–circle | 7.7–8.6 µs | 55–56 µs | 111–125 µs |
+
+Callgrind instructions per batch item:
+
+| pair | routed before | routed after |
+|---|---|---|
+| line–cylinder | 1237 | 1755 |
+| circle–circle (coplanar) | 793 | 1635 |
+| 2D circle–circle | 366 | 1099 |
+
+A circle–circle pair recovers four angles (two hits on two circles), a
+line–cylinder pair two `(u, v)` pairs. The typed exact calls are unchanged,
+except conic–conic, which now fills both parameters too (ellipse–ellipse
+typed +5% instructions).
+
 ### Surface–surface
 
 A plane at heights up to 0.9 across a unit sphere, one circle each. The

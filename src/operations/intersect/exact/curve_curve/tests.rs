@@ -398,10 +398,11 @@ fn test_circle3d_intersect_ellipse() {
             for h in &hits {
                 assert!(circle.contains(h.point, tol));
                 assert!(ellipse.contains(h.point, tol));
-                // The circle substitutes into the ellipse: only its angle is solved for.
-                let angle = h.first_parameter.unwrap();
+                // The circle substitutes into the ellipse: its angle is
+                // solved for, the ellipse's recovered from the point.
+                let angle = h.first_parameter;
                 assert!(circle.point_at(angle).distance(h.point) < 1e-9);
-                assert_eq!(h.second_parameter, None);
+                assert!(ellipse.point_at(h.second_parameter).distance(h.point) < 1e-9);
             }
         }
         _ => panic!("expected four points"),
@@ -447,12 +448,7 @@ fn test_circle3d_intersect_ellipse_rotated_frames() {
             for h in &hits {
                 assert!(circle.contains(h.point, tol));
                 assert!(ellipse.contains(h.point, tol));
-                assert!(
-                    circle
-                        .point_at(h.first_parameter.unwrap())
-                        .distance(h.point)
-                        < 1e-12
-                );
+                assert!(circle.point_at(h.first_parameter).distance(h.point) < 1e-12);
             }
         }
         other => panic!("expected four points, got {other:?}"),
@@ -620,11 +616,11 @@ fn test_ellipse3d_intersect_ellipse() {
             for h in &hits {
                 assert!(e1.contains(h.point, tol));
                 assert!(e2.contains(h.point, tol));
-                let angle = h.first_parameter.unwrap();
+                let angle = h.first_parameter;
                 assert!(e1.point_at(angle).distance(h.point) < 1e-9);
-                assert_eq!(h.second_parameter, None);
+                assert!(e2.point_at(h.second_parameter).distance(h.point) < 1e-9);
             }
-            let mut ordered: Vec<Option<f64>> = hits.iter().map(|h| h.first_parameter).collect();
+            let mut ordered: Vec<f64> = hits.iter().map(|h| h.first_parameter).collect();
             ordered.sort_by(|a, b| a.partial_cmp(b).unwrap());
             assert_eq!(
                 hits.iter().map(|h| h.first_parameter).collect::<Vec<_>>(),
@@ -641,9 +637,9 @@ fn test_ellipse3d_intersect_ellipse() {
             let hit = hits[0];
             assert_eq!(hit.multiplicity, 2);
             assert!(hit.point.distance(Point::new(3.0, 0.0, 0.0)) < 1e-12);
-            let angle = hit.first_parameter.unwrap();
+            let angle = hit.first_parameter;
             assert!(e1.point_at(angle).distance(hit.point) < 1e-9);
-            assert_eq!(hit.second_parameter, None);
+            assert!(grazing.point_at(hit.second_parameter).distance(hit.point) < 1e-9);
         }
         other => panic!("expected a tangent, got {other:?}"),
     }
@@ -664,9 +660,7 @@ fn test_ellipse3d_intersect_ellipse() {
             for (h, y) in hits.iter().zip([1.5, -1.5]) {
                 assert!(h.point.distance(Point::new(0.0, y, 0.0)) < 1e-12);
                 assert_eq!(h.multiplicity, 1);
-                let angle = h
-                    .second_parameter
-                    .unwrap_or_else(|| tilted.parameter_of(h.point, tol));
+                let angle = h.second_parameter;
                 assert!(tilted.point_at(angle).distance(h.point) < 1e-12);
             }
         }

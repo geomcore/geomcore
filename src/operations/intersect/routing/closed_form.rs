@@ -407,7 +407,7 @@ macro_rules! curve_surface {
                 tol: Tolerance,
                 _numeric_search: impl FnOnce() -> CurveSurfaceIntersection,
             ) -> CurveSurfaceIntersection {
-                self.intersect_exact(surface, tol).into_family(self, range, tol)
+                self.intersect_exact(surface, tol).into_family(self, surface, range, tol)
             }
         }
     )*)*};
