@@ -82,7 +82,7 @@ fn surfaces_coincide() -> Option<SurfaceSurfaceIntersection> {
 
 impl PlanePlaneIntersection {
     #[inline]
-    pub(super) fn into_family(self) -> Option<SurfaceSurfaceIntersection> {
+    pub(super) fn into_family(self, _tol: Tolerance) -> Option<SurfaceSurfaceIntersection> {
         match self {
             PlanePlaneIntersection::Line(l) => surface_curves([(l, false)]),
             PlanePlaneIntersection::Parallel => surfaces_miss(),
@@ -93,7 +93,7 @@ impl PlanePlaneIntersection {
 
 impl PlaneSphereIntersection {
     #[inline]
-    pub(super) fn into_family(self) -> Option<SurfaceSurfaceIntersection> {
+    pub(super) fn into_family(self, _tol: Tolerance) -> Option<SurfaceSurfaceIntersection> {
         match self {
             PlaneSphereIntersection::Circle(c) => surface_curves([(c, false)]),
             PlaneSphereIntersection::TangentPoint(p) => contact_point(p),
@@ -104,7 +104,7 @@ impl PlaneSphereIntersection {
 
 impl SphereSphereIntersection {
     #[inline]
-    pub(super) fn into_family(self) -> Option<SurfaceSurfaceIntersection> {
+    pub(super) fn into_family(self, _tol: Tolerance) -> Option<SurfaceSurfaceIntersection> {
         match self {
             SphereSphereIntersection::Circle(c) => surface_curves([(c, false)]),
             SphereSphereIntersection::TangentPoint(p) => contact_point(p),
@@ -116,7 +116,7 @@ impl SphereSphereIntersection {
 
 impl PlaneCylinderIntersection {
     #[inline]
-    pub(super) fn into_family(self) -> Option<SurfaceSurfaceIntersection> {
+    pub(super) fn into_family(self, _tol: Tolerance) -> Option<SurfaceSurfaceIntersection> {
         match self {
             PlaneCylinderIntersection::Circle(c) => surface_curves([(c, false)]),
             PlaneCylinderIntersection::Ellipse(e) => surface_curves([(e, false)]),
@@ -131,7 +131,7 @@ impl PlaneCylinderIntersection {
 
 impl PlaneConeIntersection {
     #[inline]
-    pub(super) fn into_family(self) -> Option<SurfaceSurfaceIntersection> {
+    pub(super) fn into_family(self, _tol: Tolerance) -> Option<SurfaceSurfaceIntersection> {
         match self {
             PlaneConeIntersection::Circle(c) => surface_curves([(c, false)]),
             PlaneConeIntersection::Ellipse(e) => surface_curves([(e, false)]),
@@ -146,7 +146,7 @@ impl PlaneConeIntersection {
 
 impl SphereCylinderIntersection {
     #[inline]
-    pub(super) fn into_family(self) -> Option<SurfaceSurfaceIntersection> {
+    pub(super) fn into_family(self, _tol: Tolerance) -> Option<SurfaceSurfaceIntersection> {
         match self {
             // A single ring is the equator of a tube as wide as the sphere.
             SphereCylinderIntersection::Circle(c) => surface_curves([(c, true)]),
@@ -161,7 +161,7 @@ impl SphereCylinderIntersection {
 
 impl SphereConeIntersection {
     #[inline]
-    pub(super) fn into_family(self) -> Option<SurfaceSurfaceIntersection> {
+    pub(super) fn into_family(self, _tol: Tolerance) -> Option<SurfaceSurfaceIntersection> {
         match self {
             SphereConeIntersection::TwoCircles(c1, c2) => {
                 surface_curves([(c1, false), (c2, false)])
@@ -174,8 +174,11 @@ impl SphereConeIntersection {
 }
 
 impl CylinderCylinderIntersection {
+    /// The family result; the quartic is fitted within `tol` (see
+    /// [`BicylindricCurve::fitted`](crate::BicylindricCurve)), and a fit
+    /// that fails hands the pair to the numeric search.
     #[inline]
-    pub(super) fn into_family(self) -> Option<SurfaceSurfaceIntersection> {
+    pub(super) fn into_family(self, tol: Tolerance) -> Option<SurfaceSurfaceIntersection> {
         match self {
             CylinderCylinderIntersection::TwoLines(l1, l2) => {
                 surface_curves([(l1, false), (l2, false)])
@@ -192,6 +195,10 @@ impl CylinderCylinderIntersection {
                     .collect();
                 Some(SurfaceSurfaceIntersection::exact(curves, touching, false))
             }
+            CylinderCylinderIntersection::Quartic(curve) => Some(
+                SurfaceSurfaceIntersection::exact(curve.fitted(tol)?, Vec::new(), false),
+            ),
+            CylinderCylinderIntersection::TangentPoint(p) => contact_point(p),
             CylinderCylinderIntersection::Empty => surfaces_miss(),
             CylinderCylinderIntersection::Coincident => surfaces_coincide(),
             CylinderCylinderIntersection::NotAnalytic => None,
@@ -201,7 +208,7 @@ impl CylinderCylinderIntersection {
 
 impl ConeCylinderIntersection {
     #[inline]
-    pub(super) fn into_family(self) -> Option<SurfaceSurfaceIntersection> {
+    pub(super) fn into_family(self, _tol: Tolerance) -> Option<SurfaceSurfaceIntersection> {
         match self {
             ConeCylinderIntersection::TwoCircles(c1, c2) => {
                 surface_curves([(c1, false), (c2, false)])
@@ -214,7 +221,7 @@ impl ConeCylinderIntersection {
 
 impl TorusPlaneIntersection {
     #[inline]
-    pub(super) fn into_family(self) -> Option<SurfaceSurfaceIntersection> {
+    pub(super) fn into_family(self, _tol: Tolerance) -> Option<SurfaceSurfaceIntersection> {
         match self {
             TorusPlaneIntersection::TwoCircles(c1, c2) => {
                 surface_curves([(c1, false), (c2, false)])
@@ -229,7 +236,7 @@ impl TorusPlaneIntersection {
 
 impl TorusSphereIntersection {
     #[inline]
-    pub(super) fn into_family(self) -> Option<SurfaceSurfaceIntersection> {
+    pub(super) fn into_family(self, _tol: Tolerance) -> Option<SurfaceSurfaceIntersection> {
         match self {
             TorusSphereIntersection::Circle(c) => surface_curves([(c, false)]),
             TorusSphereIntersection::TwoCircles(c1, c2) => {
@@ -244,7 +251,7 @@ impl TorusSphereIntersection {
 
 impl TorusCylinderIntersection {
     #[inline]
-    pub(super) fn into_family(self) -> Option<SurfaceSurfaceIntersection> {
+    pub(super) fn into_family(self, _tol: Tolerance) -> Option<SurfaceSurfaceIntersection> {
         match self {
             TorusCylinderIntersection::TwoCircles(c1, c2) => {
                 surface_curves([(c1, false), (c2, false)])
@@ -258,7 +265,7 @@ impl TorusCylinderIntersection {
 
 impl TorusConeIntersection {
     #[inline]
-    pub(super) fn into_family(self) -> Option<SurfaceSurfaceIntersection> {
+    pub(super) fn into_family(self, _tol: Tolerance) -> Option<SurfaceSurfaceIntersection> {
         match self {
             TorusConeIntersection::Rings(rings) => {
                 let curves = rings
@@ -275,7 +282,7 @@ impl TorusConeIntersection {
 
 impl TorusTorusIntersection {
     #[inline]
-    pub(super) fn into_family(self) -> Option<SurfaceSurfaceIntersection> {
+    pub(super) fn into_family(self, _tol: Tolerance) -> Option<SurfaceSurfaceIntersection> {
         match self {
             TorusTorusIntersection::Circle(c) => surface_curves([(c, false)]),
             TorusTorusIntersection::TwoCircles(c1, c2) => {
@@ -291,7 +298,7 @@ impl TorusTorusIntersection {
 
 impl ConeConeIntersection {
     #[inline]
-    pub(super) fn into_family(self) -> Option<SurfaceSurfaceIntersection> {
+    pub(super) fn into_family(self, _tol: Tolerance) -> Option<SurfaceSurfaceIntersection> {
         match self {
             ConeConeIntersection::Circle(c) => surface_curves([(c, false)]),
             ConeConeIntersection::TwoCircles(c1, c2) => surface_curves([(c1, false), (c2, false)]),

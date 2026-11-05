@@ -4,7 +4,8 @@
 //! four ways: the typed `intersect_exact`, and the routed `intersect` on
 //! the concrete types, on `ElementaryCurve` / `ElementarySurface`, and on
 //! `Curve` / `Surface`. The routed calls build the family result; the
-//! enum operands add a `match`.
+//! enum operands add a `match`. Two cylinders whose axes cross are timed
+//! alone: their routed result fits each loop of the quartic they meet in.
 //!
 //! Informational only, like `eval_throughput`; not a correctness gate.
 
@@ -275,5 +276,38 @@ fn bench_intersect_routed(c: &mut Criterion) {
     bench_routed!(c, "plane_sphere", plane_sphere);
 }
 
-criterion_group!(benches, bench_intersect_dispatch, bench_intersect_routed);
+/// Two cylinders whose axes cross: the closed form, then the routed call
+/// that fits each loop of the quartic within confusion. One pair, not a
+/// batch: a fit costs about as much as a batch of conics.
+fn bench_crossing_cylinders(c: &mut Criterion) {
+    let tol = Tolerance::default();
+    let mut group = c.benchmark_group("intersect_routed/crossing_cylinders");
+    let direction = Vector::new(1.1_f64.sin(), 0.0, 1.1_f64.cos());
+    let pairs = [
+        // A thin pipe biting into the side of a thick one: one loop.
+        ("bite", 1.0, 0.5, Vector::X, 1.2),
+        // A thin pipe through a thick one, off-centre: two loops.
+        ("through", 2.0, 1.0, Vector::X, 0.3),
+        // Oblique axes, the pipes biting: one loop.
+        ("oblique", 1.3, 0.9, direction, 0.6),
+    ];
+    for (name, first_radius, second_radius, axis, offset) in pairs {
+        let first = Cylinder::new(Point::ORIGIN, Vector::Z, first_radius).unwrap();
+        let second = Cylinder::new(Point::new(0.0, offset, 0.0), axis, second_radius).unwrap();
+        group.bench_function(format!("{name}_exact"), |b| {
+            b.iter(|| black_box(black_box(&first).intersect_exact(&second, tol)))
+        });
+        group.bench_function(format!("{name}_routed"), |b| {
+            b.iter(|| black_box(black_box(&first).intersect(&second, tol)))
+        });
+    }
+    group.finish();
+}
+
+criterion_group!(
+    benches,
+    bench_intersect_dispatch,
+    bench_intersect_routed,
+    bench_crossing_cylinders
+);
 criterion_main!(benches);

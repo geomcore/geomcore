@@ -117,8 +117,10 @@ pub struct IntersectionCurve {
     /// parameter as `curve`: the surface's point at its `(u, v)` at `t` is
     /// `curve`'s point at `t`. A marched curve always has one, fitted on
     /// `curve`'s knots from the parameters the march walked, within the
-    /// fit's error. An exact curve has the exact one where a closed form
-    /// exists (see [`ParametricSurface::curve_3d_to_uv`](crate::ParametricSurface::curve_3d_to_uv)),
+    /// fit's error. A curve fitted from a closed form, as a loop where two
+    /// cylinders cross, has one fitted on the same knots. Another exact
+    /// curve has the exact one where a closed form exists (see
+    /// [`ParametricSurface::curve_3d_to_uv`](crate::ParametricSurface::curve_3d_to_uv)),
     /// and `None` otherwise, as an ellipse on a cylinder:
     /// [`curve_3d_to_uv_within`](crate::curve_3d_to_uv_within) maps it
     /// within a deviation.
@@ -780,10 +782,11 @@ impl SurfaceSurfaceIntersection {
 
     /// The result with each exact curve's curves in parameters on `first`
     /// and `second`, where a closed form exists (see
-    /// [`IntersectionCurve::first_uv_curve`]). A marched result has them
-    /// already. The solvers built the curves on both surfaces, so the
-    /// closed forms skip their on-surface check: it tripled the cost of a
-    /// plane cutting a cylinder.
+    /// [`IntersectionCurve::first_uv_curve`]). A marched curve, or one
+    /// fitted from a closed form, has them already and keeps them. The
+    /// solvers built the curves on both surfaces, so the closed forms skip
+    /// their on-surface check: it tripled the cost of a plane cutting a
+    /// cylinder.
     pub(crate) fn with_exact_uv_curves(
         mut self,
         first: &impl ParametricSurface,
@@ -795,8 +798,12 @@ impl SurfaceSurfaceIntersection {
                 let uv_curve = |surface: &dyn ParametricSurface| {
                     checked_curve_3d_to_uv(surface, &piece.curve, tol, OnSurfaceCheck::Skipped).ok()
                 };
-                piece.first_uv_curve = uv_curve(first);
-                piece.second_uv_curve = uv_curve(second);
+                if piece.first_uv_curve.is_none() {
+                    piece.first_uv_curve = uv_curve(first);
+                }
+                if piece.second_uv_curve.is_none() {
+                    piece.second_uv_curve = uv_curve(second);
+                }
             }
         }
         self
