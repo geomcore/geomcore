@@ -186,6 +186,7 @@ map_error!(ConstructionError:
     geomcore::SphereConstructionError,
     geomcore::TorusConstructionError,
     geomcore::TransformError,
+    geomcore::TransformMatrixError,
 );
 map_error!(FrameConstructionError: geomcore::FrameConstructionError);
 map_error!(TrimmedCurveConstructionError: geomcore::TrimmedCurveConstructionError);

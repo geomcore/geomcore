@@ -61,6 +61,19 @@ shape_methods! {
         PyBSplineSurface(self.0.to_bspline())
     }
 
+    fn __reduce__<'py>(slf: &pyo3::Bound<'py, Self>) -> pyo3::PyResult<pyo3::Bound<'py, pyo3::types::PyTuple>> {
+        let this = slf.borrow();
+        let (u_degree, v_degree, poles) = (this.u_degree(), this.v_degree(), this.poles());
+        match this.weights() {
+            Some(weights) => crate::pickling::reduce(
+                slf.as_any(),
+                Some("new_rational"),
+                (u_degree, v_degree, poles, weights),
+            ),
+            None => crate::pickling::reduce(slf.as_any(), None, (u_degree, v_degree, poles)),
+        }
+    }
+
     fn __repr__(&self) -> String {
         format!(
             "BezierSurface(u_degree={}, v_degree={}, pole_count=({}, {}), rational={})",

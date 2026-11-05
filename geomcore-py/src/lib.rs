@@ -98,6 +98,7 @@ mod discretization;
 mod enums;
 mod intersect;
 mod method_sets;
+mod pickling;
 mod results;
 mod surfaces;
 mod values;

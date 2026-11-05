@@ -14,6 +14,24 @@ pub(crate) struct PyBSplineCurve(pub(crate) BSplineCurve);
 shape_methods! {
     PyBSplineCurve: [curve, discretize, sided_evaluation];
 
+    fn __reduce__<'py>(slf: &pyo3::Bound<'py, Self>) -> pyo3::PyResult<pyo3::Bound<'py, pyo3::types::PyTuple>> {
+        let this = slf.borrow();
+        let (degree, poles, knots) = (this.degree(), this.poles(), this.knots());
+        let (multiplicities, periodic) = (this.multiplicities(), this.0.is_periodic());
+        match this.weights() {
+            Some(weights) => crate::pickling::reduce(
+                slf.as_any(),
+                Some("new_rational"),
+                (degree, poles, weights, knots, multiplicities, periodic),
+            ),
+            None => crate::pickling::reduce(
+                slf.as_any(),
+                None,
+                (degree, poles, knots, multiplicities, periodic),
+            ),
+        }
+    }
+
     fn __repr__(&self) -> String {
         format!(
             "BSplineCurve(degree={}, pole_count={}, rational={}, periodic={})",

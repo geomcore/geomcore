@@ -93,6 +93,39 @@ order as an `int`, or `math.inf` where the shape is smooth (Rust's
     let (_, outgoing) = kinked.first_derivatives_sided(1.0, Side::Above); // (0, 1, 0)
     ```
 
+## Values, numpy and pickling
+
+Points and vectors are sequences of their coordinates. They unpack
+(`x, y, z = p`), index (`p[0]`, `p[-1]`) and convert to numpy, so
+`numpy.array(p)` is a float array of shape `(3,)` and
+`numpy.array(points)` one of shape `(N, 3)`. Vectors also divide by a
+number (`v / 2`) and give their length to `abs(v)`.
+
+A `Transform` reads and writes 4×4 homogeneous matrices, so a robot pose
+or a placement from another tool comes in and goes out directly.
+`a @ b` composes like the matrix product, `b` first, so `a @ b` is
+`b.then(a)`:
+
+```python
+from geomcore import Transform
+import numpy
+
+pose = Transform.from_matrix(matrix)   # four rows of four numbers
+back = pose.inverse()                  # pose @ back is the identity, within rounding
+numpy.array((pose @ back).to_matrix())
+```
+
+`from_matrix` raises `ConstructionError` for a matrix that shears or
+scales the directions unequally, since a curve or surface keeps its shape
+only under a uniform scale of a rotation or a mirror.
+
+Every value and every curve and surface pickles, and copies with `copy` and
+`copy.deepcopy`, so shapes cross to `multiprocessing` workers and into
+caches. The copy is equal to the original, bit for bit. The intersection,
+projection and approximation results do not pickle, because they keep a
+reference to the shapes they were computed on. Values stay unhashable
+(ADR 0009): `==` compares coordinates exactly.
+
 ## Reprs
 
 Reprs print floats as Python does and show coordinates below `1e-15` as

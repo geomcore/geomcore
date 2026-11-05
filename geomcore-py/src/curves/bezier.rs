@@ -48,6 +48,18 @@ shape_methods! {
         PyBSplineCurve(self.0.to_bspline())
     }
 
+    fn __reduce__<'py>(slf: &pyo3::Bound<'py, Self>) -> pyo3::PyResult<pyo3::Bound<'py, pyo3::types::PyTuple>> {
+        let this = slf.borrow();
+        match this.weights() {
+            Some(weights) => crate::pickling::reduce(
+                slf.as_any(),
+                Some("new_rational"),
+                (this.degree(), this.poles(), weights),
+            ),
+            None => crate::pickling::reduce(slf.as_any(), None, (this.degree(), this.poles())),
+        }
+    }
+
     fn __repr__(&self) -> String {
         format!(
             "BezierCurve(degree={}, pole_count={}, rational={})",

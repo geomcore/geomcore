@@ -25,6 +25,11 @@ shape_methods! {
         PyFrame(self.0.frame())
     }
 
+    fn __reduce__<'py>(slf: &pyo3::Bound<'py, Self>) -> pyo3::PyResult<pyo3::Bound<'py, pyo3::types::PyTuple>> {
+        let this = slf.borrow();
+        crate::pickling::reduce(slf.as_any(), Some("from_frame"), (this.frame(), this.radius(),))
+    }
+
     fn __repr__(&self) -> String {
         format!(
             "Cylinder(origin={}, axis={}, radius={})",

@@ -20,6 +20,12 @@ pub(crate) struct PyExtrusionSurface(pub(crate) ExtrusionSurface);
 shape_methods! {
     PyExtrusionSurface: [surface, surface_normal];
 
+    fn __reduce__<'py>(slf: &pyo3::Bound<'py, Self>) -> pyo3::PyResult<pyo3::Bound<'py, pyo3::types::PyTuple>> {
+        let this = slf.borrow();
+        let profile = this.profile(slf.py())?;
+        crate::pickling::reduce(slf.as_any(), None, (profile, this.direction()))
+    }
+
     fn __repr__(&self, py: Python<'_>) -> PyResult<String> {
         let profile = curve_classes::to_py(py, self.0.profile().clone())?;
         Ok(format!(

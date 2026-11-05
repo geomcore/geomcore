@@ -17,6 +17,11 @@ shape_methods! {
         PyAxis(self.0.axis())
     }
 
+    fn __reduce__<'py>(slf: &pyo3::Bound<'py, Self>) -> pyo3::PyResult<pyo3::Bound<'py, pyo3::types::PyTuple>> {
+        let this = slf.borrow();
+        crate::pickling::reduce(slf.as_any(), None, (this.origin(), this.direction(),))
+    }
+
     fn __repr__(&self) -> String {
         format!(
             "Line(origin={}, direction={})",

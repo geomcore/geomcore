@@ -14,6 +14,47 @@ pub(crate) struct PyBSplineSurface(pub(crate) BSplineSurface);
 shape_methods! {
     PyBSplineSurface: [surface, surface_normal, sided_surface_evaluation, surface_extrema];
 
+    fn __reduce__<'py>(slf: &pyo3::Bound<'py, Self>) -> pyo3::PyResult<pyo3::Bound<'py, pyo3::types::PyTuple>> {
+        let this = slf.borrow();
+        let (u_degree, v_degree, poles) = (this.u_degree(), this.v_degree(), this.poles());
+        let (u_knots, u_multiplicities) = (this.u_knots(), this.u_multiplicities());
+        let (v_knots, v_multiplicities) = (this.v_knots(), this.v_multiplicities());
+        let (u_periodic, v_periodic) = (this.is_u_periodic(), this.is_v_periodic());
+        match this.weights() {
+            Some(weights) => crate::pickling::reduce(
+                slf.as_any(),
+                Some("new_rational"),
+                (
+                    u_degree,
+                    v_degree,
+                    poles,
+                    weights,
+                    u_knots,
+                    u_multiplicities,
+                    v_knots,
+                    v_multiplicities,
+                    u_periodic,
+                    v_periodic,
+                ),
+            ),
+            None => crate::pickling::reduce(
+                slf.as_any(),
+                None,
+                (
+                    u_degree,
+                    v_degree,
+                    poles,
+                    u_knots,
+                    u_multiplicities,
+                    v_knots,
+                    v_multiplicities,
+                    u_periodic,
+                    v_periodic,
+                ),
+            ),
+        }
+    }
+
     fn __repr__(&self) -> String {
         format!(
             "BSplineSurface(u_degree={}, v_degree={}, pole_count=({}, {}), rational={})",

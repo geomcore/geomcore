@@ -113,7 +113,7 @@ impl ExtrusionSurface {
             return Err(ExtrusionSurfaceConstructionError::NonFinite);
         }
         let direction = direction
-            .normalized()
+            .normalized_unless_unit()
             .ok_or(ExtrusionSurfaceConstructionError::NullDirection)?;
         let section = Section::new(&profile, direction)?;
         Ok(ExtrusionSurface {

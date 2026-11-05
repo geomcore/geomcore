@@ -53,6 +53,11 @@ shape_methods! {
         self.0.focal_distance()
     }
 
+    fn __reduce__<'py>(slf: &pyo3::Bound<'py, Self>) -> pyo3::PyResult<pyo3::Bound<'py, pyo3::types::PyTuple>> {
+        let this = slf.borrow();
+        crate::pickling::reduce(slf.as_any(), Some("from_frame"), (this.frame(), this.focal_distance(),))
+    }
+
     fn __repr__(&self) -> String {
         format!(
             "Parabola2D(apex={}, x_direction={}, focal_distance={})",

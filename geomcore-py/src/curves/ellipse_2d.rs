@@ -83,6 +83,11 @@ shape_methods! {
         PyBSplineCurve2D(self.0.to_bspline())
     }
 
+    fn __reduce__<'py>(slf: &pyo3::Bound<'py, Self>) -> pyo3::PyResult<pyo3::Bound<'py, pyo3::types::PyTuple>> {
+        let this = slf.borrow();
+        crate::pickling::reduce(slf.as_any(), Some("from_frame"), (this.frame(), this.major_radius(), this.minor_radius(),))
+    }
+
     fn __repr__(&self) -> String {
         format!(
             "Ellipse2D(center={}, x_direction={}, major_radius={}, minor_radius={})",

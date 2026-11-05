@@ -11,6 +11,16 @@ the Python distribution are versioned in lockstep.
 
 ### Added
 
+- Value protocols in Python (#182). Points and vectors unpack, index and
+  convert to numpy (`x, y, z = p`, `p[-1]`, `numpy.array(points)` of shape
+  `(N, 3)`); vectors divide by a number and give their length to `abs`.
+  Every value, curve and surface pickles and deep-copies to an equal
+  object, so shapes reach `multiprocessing` workers. `Transform` has
+  `from_matrix` and `to_matrix` for 4×4 homogeneous matrices, `inverse()`,
+  a `repr`, and `a @ b` for `b.then(a)`, the matrix product's order.
+  `Circle2D.from_frame` builds a clockwise circle. In Rust:
+  `Transform::from_matrix`, `to_matrix` and `inverse`, the new
+  `TransformMatrixError`, and `Vector / f64` and `Vector2D / f64`.
 - `tight_bounding_box(tol)` on every curve and surface (#178), in Rust
   (`HasBoundingBox`, `HasBoundingBox2D`) and Python: the box that holds
   the shape with each side within `tol.confusion` of it, for collision
@@ -116,6 +126,13 @@ the Python distribution are versioned in lockstep.
 
 ### Changed
 
+- An axis, frame or extrusion direction that is already of unit length
+  keeps its bits (#182): normalizing it again only moved its rounding, so
+  a frame rebuilt from its own directions was a different frame in about
+  half the cases. Rebuilding a shape from its parts now gives an equal
+  shape. A closed form fed a unit direction can move by an ulp: the
+  contact points of the tee of two equal cylinders are now 1 ulp off
+  `±5` instead of exactly on it.
 - `point_at` documents what a shape gives past its bounds (#179), in
   Rust and Python: a non-periodic B-spline or Bézier
   direction clamps to the nearer bound, point and derivatives alike;

@@ -125,6 +125,12 @@ shape_methods! {
         PyPoint(self.0.end_point())
     }
 
+    fn __reduce__<'py>(slf: &pyo3::Bound<'py, Self>) -> pyo3::PyResult<pyo3::Bound<'py, pyo3::types::PyTuple>> {
+        let this = slf.borrow();
+        let basis = this.basis(slf.py())?;
+        crate::pickling::reduce(slf.as_any(), None, (basis, this.first(), this.last()))
+    }
+
     fn __repr__(&self) -> String {
         let (s, e) = (self.0.start_point(), self.0.end_point());
         format!(
@@ -241,6 +247,12 @@ shape_methods! {
     /// The point at the end of the range.
     fn end_point(&self) -> PyPoint2D {
         PyPoint2D(self.0.end_point())
+    }
+
+    fn __reduce__<'py>(slf: &pyo3::Bound<'py, Self>) -> pyo3::PyResult<pyo3::Bound<'py, pyo3::types::PyTuple>> {
+        let this = slf.borrow();
+        let basis = this.basis(slf.py())?;
+        crate::pickling::reduce(slf.as_any(), None, (basis, this.first(), this.last()))
     }
 
     fn __repr__(&self) -> String {
