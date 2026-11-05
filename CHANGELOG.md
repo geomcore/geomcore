@@ -11,6 +11,12 @@ the Python distribution are versioned in lockstep.
 
 ### Added
 
+- Two equal cylinders whose axes meet, the tee of two equal pipes, meet
+  in two exact ellipses (#175), in Rust and Python, instead of four
+  marched B-splines of some 560 poles each: one in each plane through the
+  meeting point that bisects the axes, at any angle between them. Both
+  points where the cylinders touch, where the ellipses cross, are in
+  `contact_points`; the march found only one.
 - Every operation within a deviation reports the deviation it reached
   (#199), in Rust and Python. One result, `CurveApproximation` (3D) or
   `CurveApproximation2D`, comes back from `uv_curve_to_3d_within`,
@@ -48,6 +54,8 @@ the Python distribution are versioned in lockstep.
 
 ### Breaking
 
+- `CylinderCylinderIntersection` gains the variant `TwoEllipses` (#175):
+  a `match` on it needs the arm.
 - The approximation results are one type per tier (#199):
   `UvCurveApproximation` becomes `CurveApproximation`, and its error
   `UvCurveApproximationError` becomes `UvCurveTo3DApproximationError`,

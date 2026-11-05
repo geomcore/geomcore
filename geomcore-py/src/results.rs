@@ -850,7 +850,9 @@ intersection_result! {
         )
     }
 
-    /// The isolated points where the surfaces touch.
+    /// The points where the surfaces touch, their normals parallel, with
+    /// no curve of contact through them: isolated points, and the points
+    /// where curves cross.
     #[getter]
     fn contact_points(&self) -> Vec<PyPoint> {
         self.result

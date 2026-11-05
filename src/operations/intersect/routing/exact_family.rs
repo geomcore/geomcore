@@ -181,6 +181,17 @@ impl CylinderCylinderIntersection {
                 surface_curves([(l1, false), (l2, false)])
             }
             CylinderCylinderIntersection::TangentLine(l) => surface_curves([(l, true)]),
+            CylinderCylinderIntersection::TwoEllipses(e1, e2) => {
+                // The cylinders touch where the ellipses cross, at the ends
+                // of their shared minor axis.
+                let minor_axis = e1.frame().y_direction() * e1.minor_radius();
+                let touching = vec![e1.center() + minor_axis, e1.center() - minor_axis];
+                let curves = [e1, e2]
+                    .into_iter()
+                    .map(|ellipse| IntersectionCurve::in_space(ellipse, false))
+                    .collect();
+                Some(SurfaceSurfaceIntersection::exact(curves, touching, false))
+            }
             CylinderCylinderIntersection::Empty => surfaces_miss(),
             CylinderCylinderIntersection::Coincident => surfaces_coincide(),
             CylinderCylinderIntersection::NotAnalytic => None,

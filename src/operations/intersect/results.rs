@@ -829,9 +829,12 @@ impl SurfaceSurfaceIntersection {
         &self.curves
     }
 
-    /// The isolated points where the surfaces touch. On the numeric path,
-    /// the points where marching found them touching without a curve of
-    /// contact running on.
+    /// The points where the surfaces touch, their normals parallel, with
+    /// no curve of contact through them: isolated points, and the points
+    /// where curves cross, as the two where the ellipses of two equal
+    /// cylinders whose axes meet cross. On the numeric path, the points
+    /// where marching found them touching without a curve of contact
+    /// running on.
     ///
     /// # Examples
     ///

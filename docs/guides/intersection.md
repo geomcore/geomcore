@@ -70,7 +70,9 @@ on the stack, recovers no parameter it does not need, and reports
 `NotAnalytic` where no closed form exists instead of searching.
 
 Covered pairs include plane/quadric/torus surfaces against each other
-in their symmetric configurations, lines/circles/conics against each
+in their symmetric configurations — among them the tee of two equal
+cylinders whose axes meet, two ellipses that cross at the two points
+where the cylinders touch, both listed in `contact_points` — lines/circles/conics against each
 other and against the elementary surfaces, and any two conics —
 coplanar (up to four hits) or in crossing planes (met on the shared
 line). The 2D pairs are exact too: any two of `Line2D`, `Circle2D`,

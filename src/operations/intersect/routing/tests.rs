@@ -175,3 +175,22 @@ fn test_exact_surface_curves_carry_their_closed_form_curves_in_parameters() {
         }
     }
 }
+
+#[test]
+fn test_the_tee_of_two_equal_cylinders_is_two_exact_ellipses() {
+    use crate::{Curve, Cylinder, IntersectionMethod, Vector};
+    let along_x = Cylinder::new(Point::ORIGIN, Vector::X, 5.0).unwrap();
+    let along_z = Cylinder::new(Point::ORIGIN, Vector::Z, 5.0).unwrap();
+    let result = along_x.intersect(&along_z, TOL);
+    assert_eq!(result.method(), IntersectionMethod::Exact);
+    assert!(result.is_complete());
+    assert_eq!(result.curves().len(), 2);
+    for piece in result.curves() {
+        assert!(matches!(piece.curve, Curve::Ellipse(_)) && !piece.tangent);
+    }
+    // Both points where the cylinders touch, where the ellipses cross.
+    assert_eq!(
+        result.contact_points(),
+        [Point::new(0.0, -5.0, 0.0), Point::new(0.0, 5.0, 0.0)]
+    );
+}

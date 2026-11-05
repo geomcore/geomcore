@@ -604,8 +604,19 @@ def test_intersect_symmetric_quadrics():
     l1, _ = _curves(c1.intersect(c2))
     assert l1.origin().x == pytest.approx(1.5)
     assert c1.intersect(c1).is_coincident()
-    crossed = Cylinder(Point.origin(), Vector.unit_x(), 2.0)
+    crossed = Cylinder(Point.origin(), Vector.unit_x(), 1.5)
     assert c1.intersect(crossed).method == IntersectionMethod.NUMERIC
+    # The tee of two equal pipes: two ellipses, crossing where they touch.
+    from geomcore.curves import Ellipse
+
+    tee = c1.intersect(Cylinder(Point.origin(), Vector.unit_x(), 2.0))
+    assert tee.method == IntersectionMethod.EXACT
+    ellipses = _curves(tee)
+    assert len(ellipses) == 2 and all(isinstance(e, Ellipse) for e in ellipses)
+    assert [e.major_radius() for e in ellipses] == pytest.approx([2.0 * math.sqrt(2.0)] * 2)
+    touching = sorted(tee.contact_points, key=lambda p: p.y)
+    assert touching[0].distance(Point(0.0, -2.0, 0.0)) < 1e-12
+    assert touching[1].distance(Point(0.0, 2.0, 0.0)) < 1e-12
 
 
 def test_intersect_cone_cylinder():
