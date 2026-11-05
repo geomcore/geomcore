@@ -754,10 +754,12 @@ macro_rules! surface {
             /// Closed forms: any line, circle, ellipse, parabola, hyperbola, B-spline
             /// or Bezier curve on a plane, as the 2D curve of the same kind; a line
             /// along the axis of a cylinder or a generator of a cone, as a line along
-            /// v; and a circle about the axis of a cylinder or cone, a meridian or
+            /// v; a circle about the axis of a cylinder or cone, a meridian or
             /// parallel of a sphere, or a poloidal or toroidal circle of a torus, as a
-            /// line along u or v. A `TrimmedCurve` maps to the `TrimmedCurve2D`
-            /// of its basis's image over the same range. Raises
+            /// line along u or v; and on an extrusion or revolution, a generator line,
+            /// a parallel circle, or the profile translated or turned in its own
+            /// parameter, as a line along u or v. A `TrimmedCurve` maps to the
+            /// `TrimmedCurve2D` of its basis's image over the same range. Raises
             /// `Curve3DToUvError` for any other pair, or when the curve does not
             /// lie on the surface within `tol` (`Tolerance.default()` when
             /// omitted).

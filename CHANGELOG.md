@@ -11,6 +11,15 @@ the Python distribution are versioned in lockstep.
 
 ### Added
 
+- `curve_3d_to_uv` maps the iso-curves of swept surfaces in closed form
+  (#221), in Rust and Python. On an extrusion, a generator line maps to a
+  line along `v` and the profile translated along the direction to a
+  line along `u`; on a revolution, a parallel circle maps to a line along
+  `u` and the profile turned about the axis to a line along `v`. The
+  plane cuts of swept surfaces now carry both `first_uv_curve` and
+  `second_uv_curve`, the generator lines through a spline profile's
+  numeric crossings included. The carried profile on an oblique plane
+  still has none on the swept side: it climbs the surface as it runs.
 - Conic and cone conveniences for teaching and drafting (#189), in Rust
   and Python:
   - `eccentricity()` on every ellipse, hyperbola and parabola; `foci()` and

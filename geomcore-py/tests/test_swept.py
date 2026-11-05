@@ -145,3 +145,35 @@ def test_plane_cuts_of_swept_surfaces_are_exact():
     assert lines.method == IntersectionMethod.EXACT
     assert all(isinstance(c.curve, Line) for c in lines.curves)
     assert len(lines.curves) == 2
+
+
+def test_plane_cuts_of_swept_surfaces_carry_both_uv_curves():
+    from geomcore.curves import Line2D
+
+    extrusion = ExtrusionSurface(Circle(_O, _Z, 2.0), _Z)
+    torus = RevolutionSurface(_torus_profile(), Axis(_O, _Z))
+    cuts = [
+        (extrusion, Plane(Point(1.0, 0.0, 0.0), _X)),  # generator lines
+        (extrusion, Plane(Point(0.0, 0.0, 3.0), _Z)),  # the profile, carried up
+        (torus, Plane(Point(0.0, 0.0, 0.5), _Z)),  # parallel circles
+        (torus, Plane(_O, Vector(1.0, 1.0, 0.0))),  # meridians
+    ]
+    for swept, plane in cuts:
+        pieces = swept.intersect(plane).curves
+        assert pieces
+        for piece in pieces:
+            assert isinstance(piece.first_uv_curve, Line2D)
+            assert piece.second_uv_curve is not None
+            for t in (0.0, 0.8, 2.0):
+                uv = piece.first_uv_curve.point_at(t)
+                assert _close(swept.point_at(uv.x, uv.y), piece.curve.point_at(t))
+    # The profile carried onto a tilted plane climbs the surface as it
+    # turns: no iso-line.
+    tilted = Plane(Point(0.0, 0.0, 3.0), Vector(0.0, 0.3, 1.0))
+    (piece,) = extrusion.intersect(tilted).curves
+    assert piece.first_uv_curve is None
+    # The curve on the swept surface maps directly too.
+    meridian = torus.u_iso(1.0)
+    uv_curve = torus.curve_3d_to_uv(meridian)
+    assert isinstance(uv_curve, Line2D)
+    assert uv_curve.point_at(0.0).x == pytest.approx(1.0)
