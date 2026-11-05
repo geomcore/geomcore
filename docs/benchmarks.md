@@ -824,6 +824,13 @@ malloc work inside the routine, so the script copies each binary to
 `/tmp/geomcore-benchmark-budget/<bench>` and runs it from there with a fixed
 environment. Budgets and checks always use that path.
 
+The script links the binaries without RELRO (`-z norelro`), in their own
+`target/benchmark-budget` directory. LLD, rust's default linker, can lay
+the writable segment out as all RELRO, and valgrind 3.22 then reads no
+symbols from the binary, so the toggle on `Bencher::iter` collects
+nothing. The `#221` build of `marching_intersection` was the first to hit
+this; every count was re-measured with the flag.
+
 ### Running the check locally
 
 Needs `valgrind` and `callgrind_annotate` on the path (Debian and Ubuntu:
