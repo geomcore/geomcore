@@ -7,6 +7,12 @@ use geomcore::ExtrusionSurface;
 
 /// A profile curve swept along a direction: `profile(u) + v * direction`,
 /// `v` the signed distance travelled.
+///
+/// `ExtrusionSurface(profile, direction)` normalizes `direction`, so its
+/// length is dropped: `Vector(0, 0, 2)` sweeps the same surface as
+/// `Vector(0, 0, 1)`, and `v` stays the distance along it. Raises
+/// `ValueError` for a zero direction and for a profile lying on one line
+/// along it.
 #[pyclass(name = "ExtrusionSurface", module = "geomcore.surfaces", eq)]
 #[derive(Clone, PartialEq)]
 pub(crate) struct PyExtrusionSurface(pub(crate) ExtrusionSurface);

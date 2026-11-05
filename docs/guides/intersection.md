@@ -29,7 +29,10 @@ One result per family: `CurveCurveIntersection` (and
   points** and whether the surfaces are **coincident**;
 - the **method** (`Exact` or `Numeric`) and the **completeness**: an
   exact result is always complete; a numeric one is complete, incomplete
-  (with the regions where hits may be missing) or sampled.
+  (with the regions where hits may be missing) or sampled. The method
+  says how the result was found, not what type its curves are: an exact
+  `Circle` can come out of a numeric search, as on the swept surfaces
+  below.
 
 Hits on circles and ellipses keep their parameters inside `bounds()`,
 and a tangency is decided by distance, not by root separation:
@@ -80,7 +83,18 @@ line). The 2D pairs are exact too: any two of `Line2D`, `Circle2D`,
 by the coplanar solvers with the same tangency multiplicities and
 overlaps; only a pair holding a `BSplineCurve2D` or a `BezierCurve2D`
 runs the numeric search. A Bézier curve or surface is searched as the
-B-spline it is. A sphere cut by a coaxial cylinder, computed live below —
+B-spline it is.
+
+A plane meets an extrusion or a revolution in closed form in four
+positions: generator lines where it holds the extrusion's direction, the
+profile carried onto it otherwise, circles where it is perpendicular to
+the revolution's axis, and the profile turned into it where it holds the
+axis. The curves are exact types, a `Line`, a `Circle` or a curve of the
+profile's kind. They sit where the profile crosses the plane, though,
+and that crossing is exact only for an elementary profile. On a
+B-spline or Bézier profile it comes from the numeric curve–plane search,
+so a horizontal cut of a spline revolution is a list of `Circle`s with
+`method` `Numeric` and completeness `Complete`. A sphere cut by a coaxial cylinder, computed live below —
 two exact rings in ~0.4 µs on a Linux x86-64 desktop, single thread:
 
 <iframe src="https://geomcore.github.io/geomcore-viewer/?scene=https://geomcore.github.io/geomcore/assets/scenes/intersect-exact.json" width="100%" height="480" style="border: 1px solid #333; border-radius: 8px;" allow="fullscreen" title="Sphere and cylinder with their two exact intersection rings"></iframe>

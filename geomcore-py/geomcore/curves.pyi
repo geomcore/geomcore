@@ -149,6 +149,10 @@ class _CurveMethodsInEitherDimension(
     ) -> _ProjectionType:
         """Projects `point` onto the curve: the closest point, as a
         projection object.
+
+        A distance within `tol.confusion` (`1e-7` by default) snaps
+        to `0.0`, so projection agrees with `contains`; pass a
+        smaller `Tolerance` to read a smaller distance.
         """
     def project_points(
         self, points: List[_PointType], tol: Optional[Tolerance] = ...

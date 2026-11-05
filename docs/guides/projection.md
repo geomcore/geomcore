@@ -69,8 +69,11 @@ pointer or topology.
 ## project_point
 
 Returns the closest point: its parameter(s), the point itself and the
-distance; sub-tolerance distances snap to `0.0`, so projection agrees
-with `contains`. In Python the result is a `CurveProjection`,
+distance. A distance within `tol.confusion` snaps to `0.0`, so projection
+agrees with `contains`: with the default tolerance (`confusion` `1e-7`) a
+point `1e-8` off a cylinder projects at distance `0.0`, and one `1e-7` off
+at its measured distance. Pass a smaller `Tolerance` to read smaller
+distances. In Python the result is a `CurveProjection`,
 `CurveProjection2D` or `SurfaceProjection` that also holds the `target`
 it was computed on and the `query_point`. Batch variants
 (`project_points`) share the setup and return a list.

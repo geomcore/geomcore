@@ -82,7 +82,8 @@ pub struct ExtrusionSurface {
 
 impl ExtrusionSurface {
     /// Creates the surface sweeping `profile` along `direction`, which is
-    /// normalized.
+    /// normalized: its length is dropped, so `v` stays the distance
+    /// travelled along it.
     ///
     /// # Errors
     ///

@@ -10,6 +10,7 @@ from geomcore import (
     Point2D,
     Point,
     SurfaceProjection,
+    Tolerance,
     Vector2D,
     Vector,
 )
@@ -21,7 +22,7 @@ from geomcore.curves import (
     TrimmedCurve2D,
     TrimmedCurve,
 )
-from geomcore.surfaces import BSplineSurface, Plane, Sphere
+from geomcore.surfaces import BSplineSurface, Cylinder, Plane, Sphere
 
 
 def _assert_points_close(a, b):
@@ -170,3 +171,11 @@ def test_equality_and_repr():
         "parameter=0.0, point=Point(2.0, 0.0, 0.0), distance=1.0)"
     )
     assert repr(projection) == repr(circle.project_point(query))
+
+
+def test_a_distance_within_confusion_snaps_to_zero():
+    cylinder = Cylinder(Point(0, 0, 0), Vector(0, 0, 1), 1.0)
+    assert cylinder.project_point(Point(1 + 1e-8, 0, 0)).distance == 0.0
+    assert cylinder.project_point(Point(1 + 2e-7, 0, 0)).distance > 1e-7
+    fine = Tolerance(confusion=1e-12)
+    assert cylinder.project_point(Point(1 + 1e-8, 0, 0), fine).distance > 0.0

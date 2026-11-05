@@ -180,6 +180,10 @@ class _SurfaceMethods(Generic[_UIsoCurveType, _VIsoCurveType]):
     ) -> SurfaceProjection:
         """Projects `point` onto the surface: the closest point, as a
         `SurfaceProjection`.
+
+        A distance within `tol.confusion` (`1e-7` by default) snaps
+        to `0.0`, so projection agrees with `contains`; pass a
+        smaller `Tolerance` to read a smaller distance.
         """
     def project_points(
         self, points: List[Point], tol: Optional[Tolerance] = ...

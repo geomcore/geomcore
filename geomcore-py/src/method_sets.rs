@@ -252,6 +252,10 @@ macro_rules! curve_methods {
 
             /// Projects `point` onto the curve: the closest point, as a
             /// projection object.
+            ///
+            /// A distance within `tol.confusion` (`1e-7` by default) snaps
+            /// to `0.0`, so projection agrees with `contains`; pass a
+            /// smaller `Tolerance` to read a smaller distance.
             #[pyo3(signature = (point, tol = None))]
             fn project_point(
                 slf: &Bound<'_, Self>,
@@ -658,6 +662,10 @@ macro_rules! surface {
 
             /// Projects `point` onto the surface: the closest point, as a
             /// `SurfaceProjection`.
+            ///
+            /// A distance within `tol.confusion` (`1e-7` by default) snaps
+            /// to `0.0`, so projection agrees with `contains`; pass a
+            /// smaller `Tolerance` to read a smaller distance.
             #[pyo3(signature = (point, tol = None))]
             fn project_point(
                 slf: &Bound<'_, Self>,

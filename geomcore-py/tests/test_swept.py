@@ -177,3 +177,21 @@ def test_plane_cuts_of_swept_surfaces_carry_both_uv_curves():
     uv_curve = torus.curve_3d_to_uv(meridian)
     assert isinstance(uv_curve, Line2D)
     assert uv_curve.point_at(0.0).x == pytest.approx(1.0)
+
+
+def test_a_spline_revolution_cut_is_exact_circles_found_numerically():
+    # The circles are exact; the profile crossing they sit on is numeric.
+    profile = BSplineCurve(
+        2, [Point(1, 0, 0), Point(3, 0, 1.5), Point(1, 0, 3)], [0.0, 1.0], [3, 3], False
+    )
+    revolution = RevolutionSurface(profile, Axis(_O, _Z))
+    cut = revolution.intersect(Plane(Point(0, 0, 1.5), _Z))
+    assert cut.method == IntersectionMethod.NUMERIC
+    assert cut.completeness.is_complete()
+    assert [type(piece.curve) for piece in cut.curves] == [Circle]
+
+
+def test_an_extrusion_drops_the_length_of_its_direction():
+    long = ExtrusionSurface(Line(_O, _X), Vector(0, 0, 2))
+    assert long.direction() == _Z
+    assert long == ExtrusionSurface(Line(_O, _X), _Z)

@@ -123,6 +123,13 @@ the Python distribution are versioned in lockstep.
   evaluates its basis. Operations that build from a parameter, such as
   `split_at` and `u_iso`, raise on one outside the bounds. ADR 0037
   records why evaluation clamps rather than extrapolates.
+- Where a result is numeric, snapped or normalized is documented (#180):
+  a plane cut of a swept surface with a spline profile is made of exact
+  `Circle`s or `Line`s but reports `method` `Numeric`, because the
+  profile's crossings are numeric; `project_point` snaps a distance
+  within `tol.confusion` to `0.0`, now said in the Python docstrings
+  with the default value; and `ExtrusionSurface` drops the length of
+  its direction, now said in the Python class docstring.
 
 ### Breaking
 
