@@ -458,9 +458,9 @@ fn test_marching_against_a_torus_finds_what_the_grid_finds() {
             &torus,
             case,
         );
-        let (semi_angle, reference) = (0.1 + 0.5 * next(), 0.1 + 0.6 * next());
+        let (half_angle, reference) = (0.1 + 0.5 * next(), 0.1 + 0.6 * next());
         check(
-            &Cone::new(centre, axis, semi_angle, reference).unwrap(),
+            &Cone::new(centre, axis, half_angle, reference).unwrap(),
             &torus,
             case,
         );
@@ -672,7 +672,7 @@ fn test_marching_does_not_skip_a_tent_in_a_knot_cluster() {
     }
 }
 
-/// The cone of semi-angle 0.3 about `z` and the cylinder of radius 0.5
+/// The cone of half-angle 0.3 about `z` and the cylinder of radius 0.5
 /// whose axis is parallel to one of its generators, off the apex, both
 /// moved by `offset`: the intersection runs to infinity.
 fn cone_and_generator_cylinder(offset: Vector) -> (crate::Cone, crate::Cylinder) {

@@ -14,7 +14,7 @@ use crate::geometry::surfaces::uv_curve::{from_curve, to_curve};
 use crate::geometry::surfaces::{Curve3DToUvError, UvCurveTo3DError};
 use crate::math::elementary::surface as elementary;
 use crate::{
-    Circle, Frame, Line, Point, SurfaceProjection, Tolerance, Transform, Vector,
+    Axis, Circle, Frame, Line, Point, SurfaceProjection, Tolerance, Transform, Vector,
     operations::projection,
 };
 use crate::{TransformError, Transformable};
@@ -27,13 +27,13 @@ use std::fmt;
 pub enum ConeConstructionError {
     /// The requested reference radius is negative.
     NegativeRadius,
-    /// The semi-angle is out of the accepted range (see
+    /// The half-angle is out of the accepted range (see
     /// [`Cone::from_frame`]).
     BadAngle,
     /// The two points used to derive the axis are coincident (or too close
     /// to distinguish).
     NullAxis,
-    /// The derived semi-angle is (numerically) zero or a right angle.
+    /// The derived half-angle is (numerically) zero or a right angle.
     NullAngle,
     /// The axis direction has zero length.
     NullNormal,
@@ -45,9 +45,9 @@ impl fmt::Display for ConeConstructionError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let message = match self {
             ConeConstructionError::NegativeRadius => "radius is negative",
-            ConeConstructionError::BadAngle => "semi-angle is out of range",
+            ConeConstructionError::BadAngle => "half-angle is out of range",
             ConeConstructionError::NullAxis => "the two points are confused",
-            ConeConstructionError::NullAngle => "semi-angle is null or a right angle",
+            ConeConstructionError::NullAngle => "half-angle is null or a right angle",
             ConeConstructionError::NullNormal => "axis direction has zero length",
             ConeConstructionError::NonFinite => "an input is NaN or infinite",
         };
@@ -58,10 +58,10 @@ impl fmt::Display for ConeConstructionError {
 impl std::error::Error for ConeConstructionError {}
 
 /// A cone in 3D: a [`Frame`] (origin plus local x/y/z directions, `z`
-/// being the axis), a semi-angle, and a reference radius (the radius of the
+/// being the axis), a half-angle, and a reference radius (the radius of the
 /// circular section through the origin), evaluated as
-/// `R = ref_radius + v*sin(semi_angle)`,
-/// `origin + R*cos(u)*x_dir + R*sin(u)*y_dir + v*cos(semi_angle)*z_dir`.
+/// `R = reference_radius + v*sin(half_angle)`,
+/// `origin + R*cos(u)*x_dir + R*sin(u)*y_dir + v*cos(half_angle)*z_dir`.
 ///
 /// The cone is double: `v` is unbounded, and past the apex (where `R`
 /// changes sign) it continues onto the opposite nappe. Containment,
@@ -78,52 +78,52 @@ impl std::error::Error for ConeConstructionError {}
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Cone {
     frame: Frame,
-    semi_angle: f64,
-    ref_radius: f64,
+    half_angle: f64,
+    reference_radius: f64,
 }
 
 impl Cone {
-    /// Creates a cone from a frame, a semi-angle, and a reference radius.
+    /// Creates a cone from a frame, a half-angle, and a reference radius.
     ///
-    /// The semi-angle must satisfy `0 < |semi_angle| < PI/2` (both bounds
+    /// The half-angle must satisfy `0 < |half_angle| < PI/2` (both bounds
     /// excluded with `Tolerance::DEFAULT.angular` tolerance); a negative
-    /// semi-angle flips the direction the cone opens in along `z`.
+    /// half-angle flips the direction the cone opens in along `z`.
     ///
     /// # Errors
     ///
-    /// Returns [`ConeConstructionError::BadAngle`] if `semi_angle` is
+    /// Returns [`ConeConstructionError::BadAngle`] if `half_angle` is
     /// outside the accepted range, or
-    /// [`ConeConstructionError::NegativeRadius`] if `ref_radius < 0`.
+    /// [`ConeConstructionError::NegativeRadius`] if `reference_radius < 0`.
     ///
     /// # Examples
     ///
     /// ```
     /// use geomcore::{Cone, Frame};
     /// let cone = Cone::from_frame(Frame::WORLD, 0.4, 2.0).unwrap();
-    /// assert_eq!(cone.ref_radius(), 2.0);
+    /// assert_eq!(cone.reference_radius(), 2.0);
     /// ```
     pub fn from_frame(
         frame: Frame,
-        semi_angle: f64,
-        ref_radius: f64,
+        half_angle: f64,
+        reference_radius: f64,
     ) -> Result<Cone, ConeConstructionError> {
-        if !(semi_angle.is_finite() && ref_radius.is_finite()) {
+        if !(half_angle.is_finite() && reference_radius.is_finite()) {
             return Err(ConeConstructionError::NonFinite);
         }
-        if !is_valid_semi_angle(semi_angle) {
+        if !is_valid_semi_angle(half_angle) {
             return Err(ConeConstructionError::BadAngle);
         }
-        if ref_radius < 0.0 {
+        if reference_radius < 0.0 {
             return Err(ConeConstructionError::NegativeRadius);
         }
         Ok(Cone {
             frame,
-            semi_angle,
-            ref_radius,
+            half_angle,
+            reference_radius,
         })
     }
 
-    /// Creates a cone from a center, an axis direction, a semi-angle, and a
+    /// Creates a cone from a center, an axis direction, a half-angle, and a
     /// reference radius.
     ///
     /// The frame is derived from `axis_direction` via [`Frame::from_z`].
@@ -139,26 +139,26 @@ impl Cone {
     /// ```
     /// use geomcore::{Cone, Point, Vector};
     /// let cone = Cone::new(Point::ORIGIN, Vector::Z, 0.4, 2.0).unwrap();
-    /// assert_eq!(cone.semi_angle(), 0.4);
+    /// assert_eq!(cone.half_angle(), 0.4);
     /// ```
     pub fn new(
         center: Point,
         axis_direction: Vector,
-        semi_angle: f64,
-        ref_radius: f64,
+        half_angle: f64,
+        reference_radius: f64,
     ) -> Result<Cone, ConeConstructionError> {
         let frame = Frame::from_z(center, axis_direction).map_err(frame_error(
             ConeConstructionError::NonFinite,
             ConeConstructionError::NullNormal,
         ))?;
-        Cone::from_frame(frame, semi_angle, ref_radius)
+        Cone::from_frame(frame, half_angle, reference_radius)
     }
 
     /// Creates a cone through two circular sections: `p1` with radius `r1`
     /// and `p2` with radius `r2`.
     ///
     /// The axis runs from `p1` to `p2`; the reference radius is `r1`
-    /// (the section at `p1`) and the semi-angle is
+    /// (the section at `p1`) and the half-angle is
     /// `atan((r2 - r1) / dist(p1, p2))` (negative when the cone narrows
     /// from `p1` to `p2`). The frame's origin is `p1`, its z direction is
     /// `normalize(p2 - p1)`, and its x direction is an arbitrary vector
@@ -170,7 +170,7 @@ impl Cone {
     /// Returns [`ConeConstructionError::NullAxis`] if `p1` and `p2` are
     /// coincident (or too close to distinguish),
     /// [`ConeConstructionError::NegativeRadius`] if `r1 < 0 || r2 < 0`, or
-    /// [`ConeConstructionError::NullAngle`] if the derived semi-angle is
+    /// [`ConeConstructionError::NullAngle`] if the derived half-angle is
     /// (numerically) zero or a right angle.
     ///
     /// # Examples
@@ -184,7 +184,7 @@ impl Cone {
     ///     1.0,
     /// )
     /// .unwrap();
-    /// assert_eq!(cone.ref_radius(), 2.0);
+    /// assert_eq!(cone.reference_radius(), 2.0);
     /// ```
     pub fn from_two_points_and_radii(
         p1: Point,
@@ -204,8 +204,8 @@ impl Cone {
             return Err(ConeConstructionError::NegativeRadius);
         }
 
-        let semi_angle = ((r2 - r1) / dist).atan();
-        if !is_valid_semi_angle(semi_angle) {
+        let half_angle = ((r2 - r1) / dist).atan();
+        if !is_valid_semi_angle(half_angle) {
             return Err(ConeConstructionError::NullAngle);
         }
 
@@ -213,8 +213,8 @@ impl Cone {
         let frame = arbitrary_perpendicular_frame(p1, z_dir);
         Ok(Cone {
             frame,
-            semi_angle,
-            ref_radius: r1,
+            half_angle,
+            reference_radius: r1,
         })
     }
 
@@ -231,17 +231,32 @@ impl Cone {
         self.frame
     }
 
-    /// Returns the cone's semi-angle.
+    /// Returns the cone's axis: through the center of the reference
+    /// section along the frame's z direction, the way the cone opens for a
+    /// positive half-angle.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Cone, Frame, Vector};
+    /// let cone = Cone::from_frame(Frame::WORLD, 0.4, 2.0).unwrap();
+    /// assert_eq!(cone.axis().direction(), Vector::Z);
+    /// ```
+    pub fn axis(&self) -> Axis {
+        self.frame.axis()
+    }
+
+    /// Returns the cone's half-angle.
     ///
     /// # Examples
     ///
     /// ```
     /// use geomcore::{Cone, Frame};
     /// let cone = Cone::from_frame(Frame::WORLD, 0.4, 2.0).unwrap();
-    /// assert_eq!(cone.semi_angle(), 0.4);
+    /// assert_eq!(cone.half_angle(), 0.4);
     /// ```
-    pub fn semi_angle(&self) -> f64 {
-        self.semi_angle
+    pub fn half_angle(&self) -> f64 {
+        self.half_angle
     }
 
     /// Returns the cone's reference radius (the radius of the circular
@@ -252,14 +267,14 @@ impl Cone {
     /// ```
     /// use geomcore::{Cone, Frame};
     /// let cone = Cone::from_frame(Frame::WORLD, 0.4, 2.0).unwrap();
-    /// assert_eq!(cone.ref_radius(), 2.0);
+    /// assert_eq!(cone.reference_radius(), 2.0);
     /// ```
-    pub fn ref_radius(&self) -> f64 {
-        self.ref_radius
+    pub fn reference_radius(&self) -> f64 {
+        self.reference_radius
     }
 
-    /// Returns the apex of the cone: `origin + (-ref_radius /
-    /// tan(semi_angle)) * z_dir`.
+    /// Returns the apex of the cone: `origin + (-reference_radius /
+    /// tan(half_angle)) * z_dir`.
     ///
     /// # Examples
     ///
@@ -270,7 +285,7 @@ impl Cone {
     /// assert!((apex.z + 1.0).abs() < 1e-9);
     /// ```
     pub fn apex(&self) -> Point {
-        let v = -self.ref_radius / self.semi_angle.tan();
+        let v = -self.reference_radius / self.half_angle.tan();
         self.frame.point_at(0.0, 0.0, v)
     }
 
@@ -300,8 +315,8 @@ impl Cone {
     }
 
     /// The `v` isoparametric circle at `v`: the section of radius
-    /// `|ref_radius + v * sin(semi_angle)|` at height
-    /// `v * cos(semi_angle)` along the axis, so `v_iso(v).eval_point(t)`
+    /// `|reference_radius + v * sin(half_angle)|` at height
+    /// `v * cos(half_angle)` along the axis, so `v_iso(v).eval_point(t)`
     /// is `eval_point(t, v)` for every `t`, on either nappe. At the apex
     /// it is the circle of radius zero.
     /// The axis-aligned special case of
@@ -325,19 +340,19 @@ impl Cone {
         let v = check_iso_param(v, None)?;
         let frame = self.frame;
         iso_circle(
-            frame.point_at(0.0, 0.0, v * self.semi_angle.cos()),
+            frame.point_at(0.0, 0.0, v * self.half_angle.cos()),
             frame.x_direction().cross(frame.y_direction()),
             frame.x_direction(),
-            self.ref_radius + v * self.semi_angle.sin(),
+            self.reference_radius + v * self.half_angle.sin(),
         )
     }
 }
 
-/// Checks that `semi_angle` is within the accepted range for a cone:
-/// `0 < |semi_angle| < PI/2`, both bounds excluded with
+/// Checks that `half_angle` is within the accepted range for a cone:
+/// `0 < |half_angle| < PI/2`, both bounds excluded with
 /// [`Tolerance::DEFAULT.angular`] tolerance.
-fn is_valid_semi_angle(semi_angle: f64) -> bool {
-    let angle = semi_angle.abs();
+fn is_valid_semi_angle(half_angle: f64) -> bool {
+    let angle = half_angle.abs();
     angle >= Tolerance::DEFAULT.angular
         && (std::f64::consts::FRAC_PI_2 - angle) >= Tolerance::DEFAULT.angular
 }
@@ -370,7 +385,7 @@ fn arbitrary_perpendicular_frame(origin: Point, axis_direction: Vector) -> Frame
 impl ParametricSurface for Cone {
     #[inline]
     fn eval_point(&self, u: f64, v: f64) -> Point {
-        elementary::cone_d0(&self.frame, self.ref_radius, self.semi_angle, u, v)
+        elementary::cone_d0(&self.frame, self.reference_radius, self.half_angle, u, v)
     }
 
     fn project_point(&self, point: Point, tol: Tolerance) -> SurfaceProjection {
@@ -397,8 +412,8 @@ impl ParametricSurface for Cone {
             ),
             _ => elementary::cone_derivative(
                 &self.frame,
-                self.ref_radius,
-                self.semi_angle,
+                self.reference_radius,
+                self.half_angle,
                 u,
                 v,
                 du,
@@ -431,7 +446,7 @@ impl ParametricSurface for Cone {
     /// `crate::math::elementary::surface::cone_parameters` for the formula,
     /// including the opposite-nappe handling below the apex.
     fn parameters_of(&self, point: Point, _tol: Tolerance) -> (f64, f64) {
-        elementary::cone_parameters(&self.frame, self.ref_radius, self.semi_angle, point)
+        elementary::cone_parameters(&self.frame, self.reference_radius, self.half_angle, point)
     }
 
     fn uv_curve_to_3d(
@@ -455,19 +470,19 @@ impl ReversibleSurface for Cone {
     fn reversed_u(&self) -> Cone {
         Cone {
             frame: self.frame.flipped_y(),
-            semi_angle: self.semi_angle,
-            ref_radius: self.ref_radius,
+            half_angle: self.half_angle,
+            reference_radius: self.reference_radius,
         }
     }
 
     /// Returns the cone running in the opposite axial direction: the same
-    /// point set with a negated semi-angle and the frame's z direction
+    /// point set with a negated half-angle and the frame's z direction
     /// negated. `reversed_v().eval_point(u, v)` is `eval_point(u, -v)`.
     fn reversed_v(&self) -> Cone {
         Cone {
             frame: self.frame.flipped_z(),
-            semi_angle: -self.semi_angle,
-            ref_radius: self.ref_radius,
+            half_angle: -self.half_angle,
+            reference_radius: self.reference_radius,
         }
     }
 
@@ -485,12 +500,12 @@ impl ReversibleSurface for Cone {
 }
 
 impl Transformable for Cone {
-    /// The frame maps through the transform, the semi-angle is kept and
+    /// The frame maps through the transform, the half-angle is kept and
     /// the reference radius scales by its scale factor, so does the
     /// generator parameter `v`.
     fn transformed(&self, transform: Transform) -> Result<Cone, TransformError> {
         let (frame, scale) = transform.apply_frame(self.frame())?;
-        Cone::from_frame(frame, self.semi_angle(), self.ref_radius() * scale)
+        Cone::from_frame(frame, self.half_angle(), self.reference_radius() * scale)
             .map_err(image_error(ConeConstructionError::NonFinite))
     }
 }

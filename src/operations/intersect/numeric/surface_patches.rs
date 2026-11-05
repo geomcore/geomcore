@@ -289,10 +289,10 @@ fn elementary_patches(
         ElementarySurface::Cone(c) => {
             let frame = c.frame();
             let (h0, h1) = reach(&cover()?, frame.origin(), frame.z_direction());
-            let (sin, cos) = c.semi_angle().sin_cos();
+            let (sin, cos) = c.half_angle().sin_cos();
             let (v0, v1) = (h0 / cos, h1 / cos);
             // Each nappe ends on the apex as a collapsed boundary.
-            let apex = -c.ref_radius() / sin;
+            let apex = -c.reference_radius() / sin;
             let nappes = if v0 < apex && apex < v1 {
                 vec![(v0, apex), (apex, v1)]
             } else {

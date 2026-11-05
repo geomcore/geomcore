@@ -20,7 +20,7 @@ shape_methods! {
 
     fn __repr__(&self) -> String {
         format!(
-            "Plane(origin={}, normal={})",
+            "Plane(point={}, normal={})",
             crate::values::coordinates(self.0.frame().origin()),
             crate::values::coordinates(self.0.normal())
         )

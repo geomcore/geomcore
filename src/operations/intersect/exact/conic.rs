@@ -275,11 +275,11 @@ impl Quadric for Cylinder {
 
 impl Quadric for Cone {
     /// `((p - apex)·d)² - cos²φ |p - apex|²` for the axis direction `d`
-    /// and the semi-angle `φ`: both nappes.
+    /// and the half-angle `φ`: both nappes.
     #[inline]
     fn section(&self, origin: Point, x: Vector, y: Vector) -> ImplicitConic {
         let d = self.frame().z_direction();
-        let cos = self.semi_angle().cos();
+        let cos = self.half_angle().cos();
         let c2 = cos * cos;
         let w = origin - self.apex();
         let (xd, yd, wd) = (x.dot(d), y.dot(d), w.dot(d));

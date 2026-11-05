@@ -309,7 +309,7 @@ impl IntersectExact<Cone> for Line {
     fn intersect_exact(&self, cone: &Cone, tol: Tolerance) -> LineQuadricIntersection {
         let d = self.direction();
         let a = cone.frame().z_direction();
-        let cos_phi = cone.semi_angle().cos();
+        let cos_phi = cone.half_angle().cos();
         let da = d.dot(a);
         let qa = da * da - cos_phi * cos_phi;
         // Coefficients about the line point at parameter t0.

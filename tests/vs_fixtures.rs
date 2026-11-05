@@ -534,8 +534,8 @@ fn cones_from_two_points_and_radii_match_golden_fixture() {
         let cone =
             Cone::from_two_points_and_radii(point3(case.p1), point3(case.p2), case.r1, case.r2)
                 .unwrap_or_else(|e| panic!("case {i}: failed to build Cone: {e}"));
-        assert_close(cone.ref_radius(), case.ref_radius);
-        assert_close(cone.semi_angle(), case.semi_angle);
+        assert_close(cone.reference_radius(), case.ref_radius);
+        assert_close(cone.half_angle(), case.semi_angle);
         assert_frame_matches(cone.frame(), &case.frame);
     }
 }

@@ -265,13 +265,13 @@ pub enum TorusTorusIntersection {
 /// [`ConeConeIntersection::NotAnalytic`].
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ConeConeIntersection {
-    /// One latitude ring (equal semi-angles, distinct apexes).
+    /// One latitude ring (equal half-angles, distinct apexes).
     Circle(Circle),
     /// Two latitude rings, ordered along the first cone's axis.
     TwoCircles(Circle, Circle),
     /// The rings collapse to the shared apex.
     ApexPoint(Point),
-    /// Same apex, axis, and semi-angle within tolerance.
+    /// Same apex, axis, and half-angle within tolerance.
     Coincident,
     /// No closed form for this configuration.
     NotAnalytic,
@@ -488,7 +488,7 @@ impl IntersectExact<Cone> for Plane {
     ///
     /// The cone is double: both nappes, on either side of the apex,
     /// belong to it. With the apex distance `sigma`, the axis/normal
-    /// cosine `s`, and the critical angle `PI/2 - |semi_angle|`: a plane
+    /// cosine `s`, and the critical angle `PI/2 - |half_angle|`: a plane
     /// through the apex (`|sigma|` within tolerance) meets just the apex,
     /// one generator, or two generators; a perpendicular plane cuts a
     /// circle; otherwise the section is an ellipse, a parabola (plane
@@ -519,8 +519,8 @@ impl IntersectExact<Cone> for Plane {
     fn intersect_exact(&self, cone: &Cone, tol: Tolerance) -> PlaneConeIntersection {
         let n = self.normal();
         let a = cone.frame().z_direction();
-        // The double cone about `a` with half-angle |semi_angle|.
-        let phi = cone.semi_angle().abs();
+        // The double cone about `a` with half-angle |half_angle|.
+        let phi = cone.half_angle().abs();
         let apex = cone.apex();
         let o = self.frame().origin();
         let sigma = (o - apex).dot(n);
@@ -723,7 +723,7 @@ impl IntersectExact<Cone> for Cone {
             return ConeConeIntersection::NotAnalytic;
         }
         let d = w.dot(a1);
-        let (phi1, phi2) = (self.semi_angle().abs(), other.semi_angle().abs());
+        let (phi1, phi2) = (self.half_angle().abs(), other.half_angle().abs());
         let same_angle = (phi1 - phi2).abs() <= tol.angular;
         if d.abs() <= tol.confusion {
             return if same_angle {
@@ -761,7 +761,7 @@ impl IntersectExact<Cylinder> for Cone {
     /// The analytic path needs coaxial axes: with the axis lines
     /// coincident (direction against `tol.angular`, separation against
     /// `tol.confusion`), the tube of radius `r` meets each nappe at axial
-    /// distance `r/|tan(semi_angle)|` from the apex, two latitude circles
+    /// distance `r/|tan(half_angle)|` from the apex, two latitude circles
     /// — or just the apex for a degenerate (zero-radius) tube. Anything
     /// else is a space quartic and reports
     /// [`ConeCylinderIntersection::NotAnalytic`].
@@ -797,7 +797,7 @@ impl IntersectExact<Cylinder> for Cone {
             return ConeCylinderIntersection::ApexPoint(self.apex());
         }
         // One latitude ring on each nappe.
-        let alpha = r / self.semi_angle().tan().abs();
+        let alpha = r / self.half_angle().tan().abs();
         let ring = |alpha: f64| {
             Circle::new(self.apex() + a * alpha, a, r)
                 .expect("tube radius is positive by construction")
@@ -896,14 +896,14 @@ impl IntersectExact<Cone> for Sphere {
             return SphereConeIntersection::NotAnalytic;
         }
         let r = self.radius();
-        let cos_phi = cone.semi_angle().cos();
+        let cos_phi = cone.half_angle().cos();
         // disc = R^2 - tc^2*sin^2(phi), in length-squared units.
         let disc = r * r - tc * tc * (1.0 - cos_phi * cos_phi);
         let band = tol.confusion * (r * r + tc * tc).max(1.0);
         if disc < -band {
             return SphereConeIntersection::Empty;
         }
-        let tan_phi = cone.semi_angle().tan().abs();
+        let tan_phi = cone.half_angle().tan().abs();
         let mk = |alpha: f64| {
             Circle::new(cone.apex() + a * alpha, a, alpha.abs() * tan_phi)
                 .expect("latitude radius is non-negative by construction")
@@ -1249,7 +1249,7 @@ impl IntersectExact<Cone> for Torus {
             return TorusConeIntersection::NotAnalytic;
         }
         let za = w.dot(a);
-        let k = cone.semi_angle().tan().abs();
+        let k = cone.half_angle().tan().abs();
         let mut rings: Vec<LatitudeRing> = Vec::new();
         for m in [k, -k] {
             // (m*(z - za) - R)^2 + z^2 = r^2, kept where m*(z - za) >= 0.

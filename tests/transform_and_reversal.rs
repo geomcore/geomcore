@@ -376,5 +376,5 @@ fn test_reversing_an_elementary_surface_turns_its_frame_indirect() {
         }
     }
     let cone = Cone::from_frame(tilted_frame(), 0.4, 2.0).unwrap();
-    assert_eq!(cone.reversed_v().semi_angle(), -0.4);
+    assert_eq!(cone.reversed_v().half_angle(), -0.4);
 }

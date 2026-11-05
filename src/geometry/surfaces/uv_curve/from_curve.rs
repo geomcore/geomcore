@@ -106,8 +106,8 @@ fn line_on_surface(
         ElementarySurface::Cone(cone) => line_on_cone(
             line,
             cone.frame(),
-            cone.ref_radius(),
-            cone.semi_angle(),
+            cone.reference_radius(),
+            cone.half_angle(),
             tol,
         ),
         // A line has no closed-form 2D image on these surfaces.
@@ -145,8 +145,8 @@ fn circle_on_surface(
             let uv_curve = circle_on_cone(
                 circle,
                 cone.frame(),
-                cone.ref_radius(),
-                cone.semi_angle(),
+                cone.reference_radius(),
+                cone.half_angle(),
                 tol,
             )?;
             finish_line(surface, uv_curve, |t| circle.eval_point(t), tol)
@@ -481,10 +481,10 @@ fn line_on_cone(
     line: &Line,
     frame: crate::Frame,
     ref_r: f64,
-    semi_angle: f64,
+    half_angle: f64,
     tol: Tolerance,
 ) -> Result<Line2D, Curve3DToUvError> {
-    let apex = cone_apex(frame, ref_r, semi_angle);
+    let apex = cone_apex(frame, ref_r, half_angle);
     let mut foot = line.origin();
     let mut delta_v = 0.0;
     if foot.distance(apex) < tol.confusion {
@@ -493,9 +493,9 @@ fn line_on_cone(
         foot = foot + line.direction();
         delta_v = 1.0;
     }
-    let (u, v) = crate::math::elementary::surface::cone_parameters(&frame, ref_r, semi_angle, foot);
+    let (u, v) = crate::math::elementary::surface::cone_parameters(&frame, ref_r, half_angle, foot);
     let sv =
-        crate::math::elementary::surface::cone_derivative(&frame, ref_r, semi_angle, u, v, 0, 1);
+        crate::math::elementary::surface::cone_derivative(&frame, ref_r, half_angle, u, v, 0, 1);
     if line.direction().cross(sv).square_magnitude() > tol.angular * tol.angular {
         return Err(Curve3DToUvError::NotAnalytic);
     }
@@ -517,7 +517,7 @@ fn circle_on_cone(
     circle: &Circle,
     frame: crate::Frame,
     ref_r: f64,
-    semi_angle: f64,
+    half_angle: f64,
     tol: Tolerance,
 ) -> Result<Line2D, Curve3DToUvError> {
     let axis = frame.z_direction();
@@ -531,14 +531,14 @@ fn circle_on_cone(
     let z = (circle.center() - frame.origin()).dot(axis);
     let u = if x.abs() <= tol.angular && y.abs() <= tol.angular {
         0.0
-    } else if -ref_r > z * semi_angle.tan() {
+    } else if -ref_r > z * half_angle.tan() {
         // Below the apex the point lies on the opposite nappe, so `u` is
         // measured from the mirrored branch.
         wrap_to_turn((-y).atan2(-x))
     } else {
         wrap_to_turn(y.atan2(x))
     };
-    let v = z / semi_angle.cos();
+    let v = z / half_angle.cos();
     let du = if normal.dot(angular_axis(frame)) > 0.0 {
         1.0
     } else {
@@ -550,9 +550,9 @@ fn circle_on_cone(
 
 /// The cone's apex point in world coordinates: the axis point where the
 /// section radius shrinks to zero.
-fn cone_apex(frame: crate::Frame, ref_r: f64, semi_angle: f64) -> Point {
-    let v_apex = -ref_r / semi_angle.sin();
-    frame.origin() + (v_apex * semi_angle.cos()) * frame.z_direction()
+fn cone_apex(frame: crate::Frame, ref_r: f64, half_angle: f64) -> Point {
+    let v_apex = -ref_r / half_angle.sin();
+    frame.origin() + (v_apex * half_angle.cos()) * frame.z_direction()
 }
 
 // ---- sphere ----

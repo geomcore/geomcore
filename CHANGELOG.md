@@ -9,6 +9,24 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+### Added
+
+- `axis()` on `Circle`, `Cone` and `Torus`, as `Cylinder` and
+  `RevolutionSurface` have it, so the axis of any rotational shape is one
+  `Axis` (#196). A circle's axis runs along its `normal`.
+
+### Breaking
+
+- A shape's axis has one spelling (#196). `Cone::semi_angle()` and
+  `ref_radius()` become `half_angle()` and `reference_radius()`, in Rust
+  and Python, as do the Python keywords of `Cone(center, axis_direction,
+  half_angle, reference_radius)` and `Cone.from_frame`. The Python `Torus`
+  takes `axis_direction` (was `normal`), as `Cylinder` and `Cone` do; the
+  circle keeps `normal`, its own word. Every elementary shape's `repr`
+  now uses its constructor's keyword names (`Cone(center=…,
+  axis_direction=…, …)`, `Plane(point=…, normal=…)`), which a parity test
+  checks.
+
 ## [0.43.0] - 2026-11-05
 
 A UV curve without an exact 3D curve, such as a helix on a cylinder, now

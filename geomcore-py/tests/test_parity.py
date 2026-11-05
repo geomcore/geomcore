@@ -13,6 +13,7 @@ The method sets are read from the stubs, where each is a stub-only class
 
 import ast
 import inspect
+import re
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -445,3 +446,28 @@ def test_every_curve_reversed_meets_itself_at_the_reversed_parameter():
         there = reversed_curve.eval_point(curve.reversed_parameter(u))
         assert there.distance(curve.eval_point(u)) < 1e-9, type(curve).__name__
         assert reversed_curve.reversed() == curve
+
+
+# The classes whose repr lists the values that define the shape, so its
+# keywords are the constructor's. The spline, trimmed and swept reprs are
+# summaries (pole counts, the basis, the profile) and are not checked.
+_ELEMENTARY = {
+    "Line", "Circle", "Ellipse", "Parabola", "Hyperbola",
+    "Plane", "Cylinder", "Cone", "Sphere", "Torus",
+    "Line2D", "Circle2D", "Ellipse2D", "Parabola2D", "Hyperbola2D",
+}
+
+
+def test_elementary_reprs_use_the_constructor_keywords():
+    seen = set()
+    for shape in _operands_3d() + _operands_2d():
+        name = type(shape).__name__
+        if name not in _ELEMENTARY:
+            continue
+        seen.add(name)
+        keywords = re.findall(r"(\w+)=", repr(shape))
+        parameters = list(inspect.signature(type(shape)).parameters)
+        # In the constructor's order; a repr may leave out a direction
+        # (the x direction of a conic) that the frame derives.
+        assert keywords == [p for p in parameters if p in keywords], (repr(shape), parameters)
+    assert seen == _ELEMENTARY

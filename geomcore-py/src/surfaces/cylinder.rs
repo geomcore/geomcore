@@ -27,7 +27,7 @@ shape_methods! {
 
     fn __repr__(&self) -> String {
         format!(
-            "Cylinder(origin={}, axis={}, radius={})",
+            "Cylinder(center={}, axis_direction={}, radius={})",
             crate::values::coordinates(self.0.frame().origin()),
             crate::values::coordinates(self.0.frame().z_direction()),
             float_repr(self.0.radius())
