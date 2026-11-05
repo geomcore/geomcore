@@ -146,7 +146,7 @@ impl Conic for Parabola {
     #[inline]
     fn shape(&self) -> ConicShape {
         ConicShape::Parabola {
-            focal: self.focal(),
+            focal: self.focal_distance(),
         }
     }
 }

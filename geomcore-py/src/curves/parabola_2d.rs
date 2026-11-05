@@ -24,31 +24,31 @@ shape_methods! {
 
     #[new]
     /// Build a 2D parabola from its apex, axis direction and focal distance.
-    fn py_new(apex: PyPoint2D, x_direction: PyVector2D, focal: f64) -> PyResult<Self> {
+    fn py_new(apex: PyPoint2D, x_direction: PyVector2D, focal_distance: f64) -> PyResult<Self> {
         Ok(PyParabola2D(
-            Parabola2D::new(apex.0, x_direction.0, focal).map_err(python_error)?,
+            Parabola2D::new(apex.0, x_direction.0, focal_distance).map_err(python_error)?,
         ))
     }
 
     /// Build a 2D parabola from a placement frame and focal distance.
     #[staticmethod]
-    fn from_frame(frame: PyFrame2D, focal: f64) -> PyResult<Self> {
+    fn from_frame(frame: PyFrame2D, focal_distance: f64) -> PyResult<Self> {
         Ok(PyParabola2D(
-            Parabola2D::from_frame(frame.0, focal).map_err(python_error)?,
+            Parabola2D::from_frame(frame.0, focal_distance).map_err(python_error)?,
         ))
     }
 
     /// The focal distance.
-    fn focal(&self) -> f64 {
-        self.0.focal()
+    fn focal_distance(&self) -> f64 {
+        self.0.focal_distance()
     }
 
     fn __repr__(&self) -> String {
         format!(
-            "Parabola2D(apex={}, x_direction={}, focal={})",
+            "Parabola2D(apex={}, x_direction={}, focal_distance={})",
             coordinates_2d(self.0.apex()),
             coordinates_2d(self.0.frame().x_direction()),
-            float_repr(self.0.focal())
+            float_repr(self.0.focal_distance())
         )
     }
 }

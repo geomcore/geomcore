@@ -91,7 +91,7 @@ impl ToSpace for Parabola2D {
     type Space = Parabola;
 
     fn to_space(&self) -> Parabola {
-        Parabola::from_frame(frame_in_space(self.frame()), self.focal())
+        Parabola::from_frame(frame_in_space(self.frame()), self.focal_distance())
             .expect("a 2D parabola embeds as a parabola")
     }
 }

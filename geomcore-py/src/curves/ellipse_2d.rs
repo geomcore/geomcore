@@ -66,8 +66,8 @@ shape_methods! {
     }
 
     /// The enclosed area (`PI*major*minor`).
-    fn area(&self) -> f64 {
-        self.0.area()
+    fn enclosed_area(&self) -> f64 {
+        self.0.enclosed_area()
     }
 
     /// The ellipse as an exact rational B-spline of degree 2, periodic over

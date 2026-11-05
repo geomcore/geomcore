@@ -375,7 +375,7 @@ def test_vector_2d_members():
     assert v.components() == (3.0, 4.0)
     assert v.square_magnitude() == 25.0
     assert v.cross(Vector2D(0.0, 1.0)) == 3.0
-    assert v.perp() == Vector2D(-4.0, 3.0)
+    assert v.perpendicular() == Vector2D(-4.0, 3.0)
     assert v.normalized() == Vector2D(0.6, 0.8)
     assert Vector2D.zero().normalized() is None
     assert v.is_finite()

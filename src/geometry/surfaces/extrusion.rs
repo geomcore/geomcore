@@ -442,7 +442,7 @@ impl Section {
                 parabolic(
                     point(frame.origin()),
                     linear(frame.y_direction()),
-                    axis * (0.25 / parabola.focal()),
+                    axis * (0.25 / parabola.focal_distance()),
                     axis.magnitude() <= ROUNDING,
                 )
             }

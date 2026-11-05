@@ -8,7 +8,7 @@ use crate::{
 fn test_parabola2d_new_ok() {
     let p = Parabola2D::new(Point2D::new(1.0, -2.0), Vector2D::X, 1.7).unwrap();
     assert_eq!(p.apex(), Point2D::new(1.0, -2.0));
-    assert_eq!(p.focal(), 1.7);
+    assert_eq!(p.focal_distance(), 1.7);
     assert_eq!(p.frame().y_direction(), Vector2D::Y);
 }
 
@@ -52,7 +52,7 @@ fn test_parabola2d_new_null_direction_errors() {
 fn test_parabola2d_from_frame_ok() {
     let p = Parabola2D::from_frame(Frame2D::WORLD, 2.5).unwrap();
     assert_eq!(p.frame(), Frame2D::WORLD);
-    assert_eq!(p.focal(), 2.5);
+    assert_eq!(p.focal_distance(), 2.5);
 }
 
 #[test]

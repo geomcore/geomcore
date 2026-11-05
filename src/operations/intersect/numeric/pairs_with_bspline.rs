@@ -149,7 +149,7 @@ pub(crate) fn inside(curve: ElementaryCurve, b: &Aabb) -> Option<(f64, f64)> {
                 return Some((f64::INFINITY, f64::NEG_INFINITY));
             }
             // p(t) = origin + t²/(4 focal) x + t y.
-            let scale = 4.0 * p.focal();
+            let scale = 4.0 * p.focal_distance();
             let (near, far) = ((x0.max(0.0) * scale).sqrt(), (x1 * scale).sqrt());
             Some(between_absolute((y0, y1), (near, far)))
         }

@@ -379,7 +379,7 @@ impl IntersectExact<Parabola> for Line {
             x: frame.x_direction(),
             y: frame.y_direction(),
             origin: parabola.apex(),
-            implicit: ImplicitConic::parabola(parabola.focal()),
+            implicit: ImplicitConic::parabola(parabola.focal_distance()),
             extent: f64::INFINITY,
         };
         line_meets_placed_conic(
@@ -650,7 +650,7 @@ impl IntersectExact<Circle2D> for Circle2D {
             CircleCircle2DIntersection::Tangent(base)
         } else {
             let h = (r1 * r1 - a * a).max(0.0).sqrt();
-            let perp = n.perp();
+            let perp = n.perpendicular();
             CircleCircle2DIntersection::Points(base + perp * h, base - perp * h)
         }
     }

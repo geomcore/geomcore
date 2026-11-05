@@ -25,10 +25,10 @@ shape_methods! {
 
     fn __repr__(&self) -> String {
         format!(
-            "Parabola(apex={}, normal={}, focal={})",
+            "Parabola(apex={}, normal={}, focal_distance={})",
             crate::values::coordinates(self.0.apex()),
             crate::values::coordinates(self.0.frame().z_direction()),
-            float_repr(self.0.focal())
+            float_repr(self.0.focal_distance())
         )
     }
 
@@ -38,23 +38,23 @@ shape_methods! {
         apex: PyPoint,
         normal: PyVector,
         x_direction: PyVector,
-        focal: f64,
+        focal_distance: f64,
     ) -> PyResult<Self> {
         Ok(PyParabola(
-            Parabola::new(apex.0, normal.0, x_direction.0, focal).map_err(python_error)?,
+            Parabola::new(apex.0, normal.0, x_direction.0, focal_distance).map_err(python_error)?,
         ))
     }
 
     /// Build a parabola from a placement frame and focal distance.
     #[staticmethod]
-    fn from_frame(frame: PyFrame, focal: f64) -> PyResult<Self> {
+    fn from_frame(frame: PyFrame, focal_distance: f64) -> PyResult<Self> {
         Ok(PyParabola(
-            Parabola::from_frame(frame.0, focal).map_err(python_error)?,
+            Parabola::from_frame(frame.0, focal_distance).map_err(python_error)?,
         ))
     }
 
     /// The focal distance.
-    fn focal(&self) -> f64 {
-        self.0.focal()
+    fn focal_distance(&self) -> f64 {
+        self.0.focal_distance()
     }
 }

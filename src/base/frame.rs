@@ -695,7 +695,7 @@ impl Frame2D {
         Ok(Frame2D {
             origin,
             x_dir,
-            y_dir: x_dir.perp(),
+            y_dir: x_dir.perpendicular(),
         })
     }
 

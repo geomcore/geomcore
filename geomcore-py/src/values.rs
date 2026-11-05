@@ -350,8 +350,8 @@ impl PyVector2D {
     }
 
     /// This vector turned a quarter turn counter-clockwise.
-    fn perp(&self) -> PyVector2D {
-        PyVector2D(self.0.perp())
+    fn perpendicular(&self) -> PyVector2D {
+        PyVector2D(self.0.perpendicular())
     }
 
     /// Euclidean length of the vector.
@@ -755,9 +755,9 @@ impl PyTransform {
         PyTransform(Transform::mirror_plane(frame.0))
     }
 
-    /// Compose transformations: `self` is applied first, then `next`.
-    fn then(&self, next: &PyTransform) -> PyTransform {
-        PyTransform(self.0.then(next.0))
+    /// Compose transformations: `self` is applied first, then `other`.
+    fn then(&self, other: &PyTransform) -> PyTransform {
+        PyTransform(self.0.then(other.0))
     }
 
     /// Apply the transformation to a point.

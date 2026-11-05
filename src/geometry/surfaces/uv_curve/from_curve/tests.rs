@@ -367,7 +367,7 @@ fn test_parabola_and_hyperbola_on_plane_map_to_their_2d_types() {
     let Curve2D::Parabola(image) = uv_curve else {
         panic!("expected a Parabola2D, got {uv_curve:?}");
     };
-    assert_close(image.focal(), 0.75);
+    assert_close(image.focal_distance(), 0.75);
     assert_close(image.apex().x, -2.0);
     assert_close(image.apex().y, 1.0);
     assert_consistent(

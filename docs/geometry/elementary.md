@@ -89,7 +89,7 @@ conic whose parameter is proportional to distance travelled.
     from geomcore.curves import Circle
 
     circle = Circle(Point.origin(), Vector.unit_z(), 2.0)
-    assert abs(circle.circumference() - 4.0 * 3.141592653589793) < 1e-12
+    assert abs(circle.length() - 4.0 * 3.141592653589793) < 1e-12
     p = circle.eval_point(1.0)  # parameter -> 3D point
     assert abs(circle.parameter_of(p) - 1.0) < 1e-12  # 3D point -> parameter
     ```

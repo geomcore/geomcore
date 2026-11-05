@@ -70,14 +70,14 @@ shape_methods! {
         self.0.radius()
     }
 
-    /// The circumference (`2*PI*radius`).
-    fn circumference(&self) -> f64 {
-        self.0.circumference()
+    /// The length of the circle, its circumference (`2*PI*radius`).
+    fn length(&self) -> f64 {
+        self.0.length()
     }
 
-    /// The enclosed disk area (`PI*radius^2`).
-    fn disk_area(&self) -> f64 {
-        self.0.disk_area()
+    /// The area the circle encloses: its disk's (`PI*radius^2`).
+    fn enclosed_area(&self) -> f64 {
+        self.0.enclosed_area()
     }
 
     /// The circle as an exact periodic rational quadratic B-spline over

@@ -459,7 +459,7 @@ fn test_circle2d_parameter_round_trip_skewed() {
 fn test_circle2d_parameter_round_trip_indirect_frame() {
     // Left-handed (indirect) frame: y_dir is the clockwise perpendicular.
     let x_dir = Vector2D::new(1.0, 0.0);
-    let frame = Frame2D::new(Point2D::new(0.5, -1.0), x_dir, -x_dir.perp()).unwrap();
+    let frame = Frame2D::new(Point2D::new(0.5, -1.0), x_dir, -x_dir.perpendicular()).unwrap();
     assert!(!frame.is_direct());
     for u in [0.3, 2.0, 5.5] {
         let p = circle_d0(&frame, 1.7, u);

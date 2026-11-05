@@ -179,7 +179,7 @@ impl<P: TierPoint> GenericCircle<P> {
         elementary::seam_wrapped(u, 0.0, TAU, self.radius, tol.confusion)
     }
 
-    /// Circumference (`2*PI*radius`).
+    /// The length of the circle, its circumference (`2*PI*radius`).
     ///
     /// # Examples
     ///
@@ -187,13 +187,13 @@ impl<P: TierPoint> GenericCircle<P> {
     /// use geomcore::{Circle, Point, Vector};
     /// use std::f64::consts::TAU;
     /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
-    /// assert_eq!(circle.circumference(), TAU * 2.0);
+    /// assert_eq!(circle.length(), TAU * 2.0);
     /// ```
-    pub fn circumference(&self) -> f64 {
+    pub fn length(&self) -> f64 {
         TAU * self.radius
     }
 
-    /// Area of the enclosed disk (`PI*radius^2`).
+    /// The area the circle encloses: its disk's (`PI*radius^2`).
     ///
     /// # Examples
     ///
@@ -201,9 +201,9 @@ impl<P: TierPoint> GenericCircle<P> {
     /// use geomcore::{Circle, Point, Vector};
     /// use std::f64::consts::PI;
     /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
-    /// assert!((circle.disk_area() - PI * 4.0).abs() < 1e-12);
+    /// assert!((circle.enclosed_area() - PI * 4.0).abs() < 1e-12);
     /// ```
-    pub fn disk_area(&self) -> f64 {
+    pub fn enclosed_area(&self) -> f64 {
         std::f64::consts::PI * self.radius * self.radius
     }
 }

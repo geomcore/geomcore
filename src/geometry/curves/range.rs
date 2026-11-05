@@ -225,7 +225,7 @@ impl_for_both_tiers! {
 
         fn range_box(&self, first: f64, last: f64) -> BoundingBoxOf<P> {
             let point_at = |u| self.eval_point(u);
-            bounding_box::parabola_box(point_at, self.frame(), self.focal(), (first, last))
+            bounding_box::parabola_box(point_at, self.frame(), self.focal_distance(), (first, last))
         }
 
         fn for_each_run<F>(
@@ -239,7 +239,7 @@ impl_for_both_tiers! {
             F: FnMut(Run, &dyn Fn(f64) -> P),
         {
             discretization::parabola_steps(
-                self.focal(),
+                self.focal_distance(),
                 |u| self.eval_point(u),
                 (first, last),
                 criteria,
@@ -253,7 +253,7 @@ impl_for_both_tiers! {
             first: f64,
             last: f64,
         ) -> Result<GenericBSplineCurve<P>, BSplineConversionError> {
-            conversion::parabola_arc_bspline(self.frame(), self.focal(), (first, last))
+            conversion::parabola_arc_bspline(self.frame(), self.focal_distance(), (first, last))
         }
 
         fn parameter_is_length(&self) -> bool {

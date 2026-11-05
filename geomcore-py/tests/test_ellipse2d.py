@@ -26,7 +26,7 @@ def test_construction_and_accessors():
     assert xy(e.frame().y_direction()) == (0.0, 1.0)
     assert e.major_radius() == 3.0
     assert e.minor_radius() == 1.5
-    assert e.area() == pytest.approx(math.pi * 4.5)
+    assert e.enclosed_area() == pytest.approx(math.pi * 4.5)
     assert e.bounds() == (0.0, math.tau)
     assert e.period() == math.tau
     assert e.is_periodic()

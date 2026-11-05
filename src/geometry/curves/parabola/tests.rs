@@ -11,7 +11,7 @@ use crate::{
 fn test_parabola3d_new_ok() {
     let p = Parabola::new(Point::ORIGIN, Vector::Z, Vector::X, 1.7).unwrap();
     assert_eq!(p.apex(), Point::ORIGIN);
-    assert_eq!(p.focal(), 1.7);
+    assert_eq!(p.focal_distance(), 1.7);
 }
 
 #[test]
@@ -73,7 +73,7 @@ fn test_parabola3d_new_parallel_x_direction_errors() {
 fn test_parabola3d_from_frame_ok() {
     let p = Parabola::from_frame(Frame::WORLD, 1.7).unwrap();
     assert_eq!(p.frame(), Frame::WORLD);
-    assert_eq!(p.focal(), 1.7);
+    assert_eq!(p.focal_distance(), 1.7);
 }
 
 #[test]
@@ -224,7 +224,7 @@ fn test_parabola3d_transformed_translation_spot_check() {
     let t = Transform::translation(Vector::new(1.0, -2.0, 3.0));
     let moved = parabola.transformed(t).unwrap();
     assert_eq!(moved.apex(), Point::new(1.0, -2.0, 3.0));
-    assert_eq!(moved.focal(), 1.0);
+    assert_eq!(moved.focal_distance(), 1.0);
     // Hand-computed: apex + (u^2 / 4) * X + u * Y, shifted.
     assert_eq!(moved.eval_point(2.0), Point::new(2.0, 0.0, 3.0));
 }
@@ -236,7 +236,7 @@ fn test_parabola3d_transformed_round_trip_and_mirror() {
     let axis = Axis::new(Point::ORIGIN, Vector::Z).unwrap();
     let t = Transform::rotation(axis, PI / 2.0).then(Transform::scaling(Point::ORIGIN, 3.0));
     let moved = parabola.transformed(t).unwrap();
-    assert_eq!(moved.focal(), 6.0);
+    assert_eq!(moved.focal_distance(), 6.0);
     let tol = Tolerance::DEFAULT;
     for u in [0.0, 1.0, -2.5] {
         assert!(moved.contains(t.apply_point(parabola.eval_point(u)), tol));

@@ -9,6 +9,17 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+### Breaking
+
+- Methods say what they compute in plain words (#202), in Rust and
+  Python: `Vector2D::perp()` becomes `perpendicular()`; `Parabola::focal()`
+  and `Parabola2D::focal()` become `focal_distance()`, as do the Python
+  keywords of their constructors and `from_frame`, and their `repr`;
+  `Circle::circumference()` becomes `length()`; `Circle::disk_area()` and
+  `Ellipse::area()` (and the Python `Ellipse2D.area()`) become
+  `enclosed_area()`. `Transform::then` takes `other`, which no longer
+  shadows Python's `next`.
+
 ## [0.43.0] - 2026-11-05
 
 A UV curve without an exact 3D curve, such as a helix on a cylinder, now

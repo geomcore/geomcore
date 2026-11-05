@@ -398,9 +398,9 @@ impl Hyperbola2D {
             return Err(HyperbolaConstructionError::CollinearPoints);
         }
         let y_axis = if cross < 0.0 {
-            -x_axis.perp()
+            -x_axis.perpendicular()
         } else {
-            x_axis.perp()
+            x_axis.perpendicular()
         };
         let frame = Frame2D::new(center, x_axis, y_axis).map_err(frame_error(
             HyperbolaConstructionError::NonFinite,

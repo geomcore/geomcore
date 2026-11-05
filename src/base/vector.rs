@@ -84,10 +84,10 @@ impl Vector2D {
     ///
     /// ```
     /// use geomcore::Vector2D;
-    /// assert_eq!(Vector2D::X.perp(), Vector2D::Y);
-    /// assert_eq!(Vector2D::Y.perp(), Vector2D::new(-1.0, 0.0));
+    /// assert_eq!(Vector2D::X.perpendicular(), Vector2D::Y);
+    /// assert_eq!(Vector2D::Y.perpendicular(), Vector2D::new(-1.0, 0.0));
     /// ```
-    pub fn perp(self) -> Vector2D {
+    pub fn perpendicular(self) -> Vector2D {
         Vector2D {
             x: -self.y,
             y: self.x,

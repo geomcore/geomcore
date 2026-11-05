@@ -220,9 +220,9 @@ impl<P: TierPoint> GenericEllipse<P> {
     /// use geomcore::{Ellipse, Point, Vector};
     /// use std::f64::consts::PI;
     /// let ellipse = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 3.0, 1.5).unwrap();
-    /// assert!((ellipse.area() - PI * 4.5).abs() < 1e-12);
+    /// assert!((ellipse.enclosed_area() - PI * 4.5).abs() < 1e-12);
     /// ```
-    pub fn area(&self) -> f64 {
+    pub fn enclosed_area(&self) -> f64 {
         std::f64::consts::PI * self.major_radius * self.minor_radius
     }
 
@@ -434,9 +434,9 @@ impl Ellipse2D {
             return Err(EllipseConstructionError::InvertedAxis);
         }
         let y_axis = if cross < 0.0 {
-            -x_axis.perp()
+            -x_axis.perpendicular()
         } else {
-            x_axis.perp()
+            x_axis.perpendicular()
         };
         let frame = Frame2D::new(center, x_axis, y_axis).map_err(frame_error(
             EllipseConstructionError::NonFinite,

@@ -204,7 +204,7 @@ pub trait ParametricCurve2D {
             && turn.abs() > tol.angular * speed * second_derivative.magnitude();
         // perp(C') has length |C'| and points left; scaling it by
         // |C'|² / (x'y'' − y'x'') gives the signed radius N/κ.
-        curved.then(|| point + first_derivative.perp() * (speed * speed / turn))
+        curved.then(|| point + first_derivative.perpendicular() * (speed * speed / turn))
     }
 
     /// Returns the curve's parameter bounds as `(first, last)`. Unbounded

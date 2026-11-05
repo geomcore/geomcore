@@ -206,7 +206,7 @@ fn parabola_on_surface(
     let plane = plane_frame(surface)?;
     // A parabola is unbounded: it reaches across the model.
     let frame = conic_frame_on_plane(parabola.frame(), plane, f64::INFINITY, tol)?;
-    let image = Parabola2D::from_frame(frame, parabola.focal())
+    let image = Parabola2D::from_frame(frame, parabola.focal_distance())
         .expect("parabola focal distance is valid by construction");
     let uv_curve = Curve2D::Parabola(image);
     verify_on_surface(surface, &uv_curve, |t| parabola.eval_point(t), tol)?;
@@ -377,10 +377,10 @@ fn conic_frame_on_plane(
     let origin = eval_point2d_plane(plane, conic.origin());
     let x_dir = eval_dir2d_plane(plane, conic.x_direction());
     let mapped_y = eval_dir2d_plane(plane, conic.y_direction());
-    let y_dir = if mapped_y.dot(x_dir.perp()) > 0.0 {
-        x_dir.perp()
+    let y_dir = if mapped_y.dot(x_dir.perpendicular()) > 0.0 {
+        x_dir.perpendicular()
     } else {
-        -x_dir.perp()
+        -x_dir.perpendicular()
     };
     Frame2D::new(origin, x_dir, y_dir).map_err(|_| Curve3DToUvError::CurveNotOnSurface)
 }

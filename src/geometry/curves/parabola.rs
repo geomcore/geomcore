@@ -46,7 +46,7 @@ impl std::error::Error for ParabolaConstructionError {}
 
 /// A parabola of either tier: a frame (origin at the apex, the x
 /// direction along the axis of symmetry and y across it) and a focal
-/// distance, evaluated as `apex + (u^2 / (4*focal))*x_dir + u*y_dir`. Use
+/// distance, evaluated as `apex + (u^2 / (4*focal_distance))*x_dir + u*y_dir`. Use
 /// it through [`Parabola`] in space and [`Parabola2D`] in the plane
 /// (ADR 0014).
 ///
@@ -63,12 +63,12 @@ impl std::error::Error for ParabolaConstructionError {}
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct GenericParabola<P: TierPoint> {
     frame: P::Frame,
-    focal: f64,
+    focal_distance: f64,
 }
 
 /// A parabola in space: a plane [`Frame`] (origin at the apex, plus local
 /// x/y directions defining the plane and the axis of symmetry) and a focal
-/// distance, evaluated as `apex + (u^2 / (4*focal))*x_dir + u*y_dir`. Its
+/// distance, evaluated as `apex + (u^2 / (4*focal_distance))*x_dir + u*y_dir`. Its
 /// methods are those of [`GenericParabola`].
 ///
 /// # Examples
@@ -83,7 +83,7 @@ pub type Parabola = GenericParabola<Point>;
 
 /// A parabola in the plane: a [`Frame2D`] (origin at the apex, the x
 /// direction along the axis of symmetry and y across it) and a focal
-/// distance, evaluated as `apex + (u^2 / (4*focal))*x_dir + u*y_dir`. Its
+/// distance, evaluated as `apex + (u^2 / (4*focal_distance))*x_dir + u*y_dir`. Its
 /// methods are those of [`GenericParabola`].
 ///
 /// # Examples
@@ -101,7 +101,7 @@ impl<P: TierPoint> GenericParabola<P> {
     ///
     /// # Errors
     ///
-    /// Returns [`ParabolaConstructionError::NonPositiveFocal`] if `focal <= 0`,
+    /// Returns [`ParabolaConstructionError::NonPositiveFocal`] if `focal_distance <= 0`,
     /// or [`ParabolaConstructionError::NonFinite`] if it is NaN or infinite.
     ///
     /// # Examples
@@ -115,15 +115,18 @@ impl<P: TierPoint> GenericParabola<P> {
     /// ```
     pub fn from_frame(
         frame: P::Frame,
-        focal: f64,
+        focal_distance: f64,
     ) -> Result<GenericParabola<P>, ParabolaConstructionError> {
-        if !(focal.is_finite()) {
+        if !(focal_distance.is_finite()) {
             return Err(ParabolaConstructionError::NonFinite);
         }
-        if focal <= 0.0 {
+        if focal_distance <= 0.0 {
             return Err(ParabolaConstructionError::NonPositiveFocal);
         }
-        Ok(GenericParabola { frame, focal })
+        Ok(GenericParabola {
+            frame,
+            focal_distance,
+        })
     }
 
     /// Returns the apex of the parabola.
@@ -159,10 +162,10 @@ impl<P: TierPoint> GenericParabola<P> {
     /// ```
     /// use geomcore::{Parabola, Frame};
     /// let parabola = Parabola::from_frame(Frame::WORLD, 1.7).unwrap();
-    /// assert_eq!(parabola.focal(), 1.7);
+    /// assert_eq!(parabola.focal_distance(), 1.7);
     /// ```
-    pub fn focal(&self) -> f64 {
-        self.focal
+    pub fn focal_distance(&self) -> f64 {
+        self.focal_distance
     }
 }
 
@@ -178,7 +181,7 @@ impl Parabola {
     /// Returns [`ParabolaConstructionError::NullNormal`] if `normal` cannot
     /// be normalized, if `x_direction` cannot be normalized, or if
     /// `x_direction` is parallel to `normal`;
-    /// [`ParabolaConstructionError::NonPositiveFocal`] if `focal <= 0`; or
+    /// [`ParabolaConstructionError::NonPositiveFocal`] if `focal_distance <= 0`; or
     /// [`ParabolaConstructionError::NonFinite`] if any input is NaN or
     /// infinite.
     ///
@@ -187,19 +190,19 @@ impl Parabola {
     /// ```
     /// use geomcore::{Parabola, Point, Vector};
     /// let parabola = Parabola::new(Point::ORIGIN, Vector::Z, Vector::X, 1.0).unwrap();
-    /// assert_eq!(parabola.focal(), 1.0);
+    /// assert_eq!(parabola.focal_distance(), 1.0);
     /// ```
     pub fn new(
         apex: Point,
         normal: Vector,
         x_direction: Vector,
-        focal: f64,
+        focal_distance: f64,
     ) -> Result<Parabola, ParabolaConstructionError> {
         let frame = Frame::new(apex, normal, x_direction).map_err(frame_error(
             ParabolaConstructionError::NonFinite,
             ParabolaConstructionError::NullNormal,
         ))?;
-        Parabola::from_frame(frame, focal)
+        Parabola::from_frame(frame, focal_distance)
     }
 }
 
@@ -214,7 +217,7 @@ impl Parabola2D {
     ///
     /// Returns [`ParabolaConstructionError::NullNormal`] if `x_direction`
     /// cannot be normalized; [`ParabolaConstructionError::NonPositiveFocal`]
-    /// if `focal <= 0`; or [`ParabolaConstructionError::NonFinite`] if any
+    /// if `focal_distance <= 0`; or [`ParabolaConstructionError::NonFinite`] if any
     /// input is NaN or infinite.
     ///
     /// # Examples
@@ -222,18 +225,18 @@ impl Parabola2D {
     /// ```
     /// use geomcore::{Parabola2D, Point2D, Vector2D};
     /// let parabola = Parabola2D::new(Point2D::ORIGIN, Vector2D::X, 1.0).unwrap();
-    /// assert_eq!(parabola.focal(), 1.0);
+    /// assert_eq!(parabola.focal_distance(), 1.0);
     /// ```
     pub fn new(
         apex: Point2D,
         x_direction: Vector2D,
-        focal: f64,
+        focal_distance: f64,
     ) -> Result<Parabola2D, ParabolaConstructionError> {
         let frame = Frame2D::from_x(apex, x_direction).map_err(frame_error(
             ParabolaConstructionError::NonFinite,
             ParabolaConstructionError::NullNormal,
         ))?;
-        Parabola2D::from_frame(frame, focal)
+        Parabola2D::from_frame(frame, focal_distance)
     }
 }
 
@@ -246,7 +249,7 @@ impl_for_both_tiers! {
             let rel = point - self.apex();
             let px = rel.dot(self.frame.x_direction());
             let py = rel.dot(self.frame.y_direction());
-            let f = self.focal();
+            let f = self.focal_distance();
             let coeffs = [-2.0 * f * py, 2.0 * f - px, 0.0, 0.25 / f];
             let mut out: Vec<CurveProjection<P>> = real_roots(&coeffs, tol.confusion)
                 .into_iter()
@@ -271,7 +274,7 @@ impl_for_both_tiers! {
         }
 
         fn contains(&self, point: P, tol: Tolerance) -> bool {
-            let f = self.focal;
+            let f = self.focal_distance;
             // `y² = 4fx`: on it `|∇f| ≥ 4f`.
             let near = elementary::conic_proximity(
                 &self.frame,
@@ -302,13 +305,13 @@ impl_for_both_tiers! {
     impl ParametricCurve, ParametricCurve2D for GenericParabola {
         #[inline]
         fn eval_point(&self, u: f64) -> P {
-            elementary::parabola_d0(&self.frame, self.focal, u)
+            elementary::parabola_d0(&self.frame, self.focal_distance, u)
         }
 
         fn eval_derivative(&self, u: f64, order: u32) -> V {
             match order {
                 0 => panic!("eval_derivative: order must be >= 1 (use eval_point for order 0)"),
-                _ => elementary::parabola_dn(&self.frame, self.focal, u, order),
+                _ => elementary::parabola_dn(&self.frame, self.focal_distance, u, order),
             }
         }
 
@@ -332,7 +335,7 @@ impl Transformable for Parabola {
     /// by its scale factor, so the parameter, a length, scales too.
     fn transformed(&self, transform: Transform) -> Result<Parabola, TransformError> {
         let (frame, scale) = transform.apply_frame(self.frame())?;
-        Parabola::from_frame(frame, self.focal() * scale)
+        Parabola::from_frame(frame, self.focal_distance() * scale)
             .map_err(image_error(ParabolaConstructionError::NonFinite))
     }
 }
@@ -342,7 +345,7 @@ impl<P: TierPoint> ReversibleCurve for GenericParabola<P> {
     fn reversed(&self) -> GenericParabola<P> {
         GenericParabola {
             frame: self.frame.flipped_y(),
-            focal: self.focal,
+            focal_distance: self.focal_distance,
         }
     }
 

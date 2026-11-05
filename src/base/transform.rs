@@ -244,7 +244,7 @@ impl Transform {
         }
     }
 
-    /// Composes `self` with `next`: `self` is applied first, then `next`.
+    /// Composes `self` with `other`: `self` is applied first, then `other`.
     ///
     /// # Examples
     ///
@@ -259,9 +259,9 @@ impl Transform {
     /// assert!((p.x - 0.0).abs() < 1e-10);
     /// assert!((p.y - 1.0).abs() < 1e-10);
     /// ```
-    pub fn then(self, next: Transform) -> Transform {
-        let linear = mat_mul(next.linear, self.linear);
-        let translation = mat_vec(next.linear, self.translation) + next.translation;
+    pub fn then(self, other: Transform) -> Transform {
+        let linear = mat_mul(other.linear, self.linear);
+        let translation = mat_vec(other.linear, self.translation) + other.translation;
         Transform {
             linear,
             translation,

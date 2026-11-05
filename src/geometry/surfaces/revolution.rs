@@ -444,7 +444,9 @@ impl Meridian {
                         c.major_radius(),
                         c.major_radius() == c.minor_radius(),
                     ),
-                    Curve::Parabola(c) => (c.frame(), c.frame().origin(), c.focal(), false),
+                    Curve::Parabola(c) => {
+                        (c.frame(), c.frame().origin(), c.focal_distance(), false)
+                    }
                     Curve::Hyperbola(c) => (c.frame(), c.center(), c.major_radius(), false),
                     _ => unreachable!("the conics are matched above"),
                 };

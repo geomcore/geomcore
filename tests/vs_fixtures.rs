@@ -241,7 +241,7 @@ fn ellipses_2d_match_golden_fixture() {
         let Curve2D::Ellipse(ellipse) = curve else {
             panic!("not an ellipse: {curve:?}");
         };
-        assert_close(ellipse.area(), case["area"].as_f64().unwrap());
+        assert_close(ellipse.enclosed_area(), case["area"].as_f64().unwrap());
     }
 }
 
@@ -747,7 +747,7 @@ fn parametrize_matches_golden_fixture() {
                 }
                 Curve2D::Parabola(p) => {
                     assert_expected_frame2(p.frame(), &case.expect);
-                    assert_close(p.focal(), case.expect.focal.unwrap());
+                    assert_close(p.focal_distance(), case.expect.focal.unwrap());
                 }
                 Curve2D::Hyperbola(h) => {
                     assert_expected_frame2(h.frame(), &case.expect);

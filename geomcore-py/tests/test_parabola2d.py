@@ -24,7 +24,7 @@ def test_construction_and_accessors():
     assert xy(p.apex()) == (0.0, 0.0)
     assert xy(p.frame().x_direction()) == (1.0, 0.0)
     assert xy(p.frame().y_direction()) == (0.0, 1.0)
-    assert p.focal() == 1.0
+    assert p.focal_distance() == 1.0
     assert p.bounds() == (-math.inf, math.inf)
     assert p.period() is None
     assert not p.is_periodic()
@@ -32,7 +32,7 @@ def test_construction_and_accessors():
 
     from_frame = Parabola2D.from_frame(Frame2D(Point2D(1.0, 2.0), X, Y), 2.5)
     assert xy(from_frame.apex()) == (1.0, 2.0)
-    assert from_frame.focal() == 2.5
+    assert from_frame.focal_distance() == 2.5
 
 
 def test_construction_validation():
@@ -134,4 +134,4 @@ def test_intersect_and_repr():
     p = parabola()
     hits = p.intersect(Line2D(Point2D(1.0, 0.0), Y))
     assert sorted(hit.point.y for hit in hits.hits) == pytest.approx([-2.0, 2.0])
-    assert repr(p) == "Parabola2D(apex=(0.0, 0.0), x_direction=(1.0, 0.0), focal=1.0)"
+    assert repr(p) == "Parabola2D(apex=(0.0, 0.0), x_direction=(1.0, 0.0), focal_distance=1.0)"

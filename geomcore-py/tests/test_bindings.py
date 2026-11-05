@@ -146,7 +146,7 @@ def test_curve_3d_to_uv_plane_returns_the_new_2d_types():
     parabola = Parabola(center, Vector.unit_z(), Vector.unit_x(), 0.5)
     uv_curve = plane.curve_3d_to_uv(parabola)
     assert isinstance(uv_curve, Parabola2D)
-    assert uv_curve.focal() == pytest.approx(0.5)
+    assert uv_curve.focal_distance() == pytest.approx(0.5)
 
     hyperbola = Hyperbola(center, Vector.unit_z(), Vector.unit_x(), 2.0, 1.0)
     uv_curve = plane.curve_3d_to_uv(hyperbola)
@@ -697,8 +697,8 @@ def test_circle_surface_and_measures():
     from geomcore.surfaces import Cone, Cylinder, Plane
 
     circle = Circle(Point.origin(), Vector.unit_z(), 2.0)
-    assert circle.circumference() == pytest.approx(math.tau * 2.0)
-    assert circle.disk_area() == pytest.approx(math.pi * 4.0)
+    assert circle.length() == pytest.approx(math.tau * 2.0)
+    assert circle.enclosed_area() == pytest.approx(math.pi * 4.0)
 
     hits = circle.intersect(Plane(Point.origin(), Vector.unit_x())).hits
     assert len(hits) == 2
@@ -714,7 +714,7 @@ def test_circle_surface_and_measures():
     from geomcore.curves import Ellipse
 
     ellipse = Ellipse(Point.origin(), Vector.unit_z(), Vector.unit_x(), 3.0, 1.5)
-    assert ellipse.area() == pytest.approx(math.pi * 4.5)
+    assert ellipse.enclosed_area() == pytest.approx(math.pi * 4.5)
 
     sphere = Sphere(Point.origin(), 3.0)
     assert sphere.area() == pytest.approx(4.0 * math.pi * 9.0)
