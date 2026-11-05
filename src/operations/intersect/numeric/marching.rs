@@ -19,7 +19,8 @@ use crate::geometry::curves::fitting::{
     hermite_knots, hermite_spline, interpolate_with_companions, without_confused,
 };
 use crate::geometry::curves::{
-    BSplineConstructionError, BSplineCurve, BSplineCurve2D, Curve, Curve2D,
+    BSplineConstructionError, BSplineCurve, BSplineCurve2D, Curve, Curve2D, ParametricCurve,
+    ParametricCurve2D,
 };
 use crate::geometry::surfaces::ParametricSurface;
 use crate::math::numeric::boxtree::{Aabb, boxes_apart};
@@ -163,7 +164,8 @@ use tracer::{CHORD_DEVIATION, Cut, Trace, Tracer};
 /// the whole touch).
 ///
 /// The fits are APPROXIMATIONS (interpolation error, typically ~1e-4 at
-/// default tolerance — assert residuals, not containment): exact
+/// default tolerance — assert residuals, not containment; each curve's
+/// [`deviation`](IntersectionCurve::deviation) reports its own): exact
 /// classification stays with the exact intersection
 /// ([`IntersectExact::intersect_exact`](crate::IntersectExact::intersect_exact)). Likewise
 /// no marching through singular points (poles, apexes; a touch there is
@@ -199,12 +201,14 @@ where
         .curves
         .into_iter()
         .map(|fitted| {
+            let deviation = fitted.deviation(pair);
             let [first, second] = fitted.uv_curves;
             IntersectionCurve {
                 curve: Curve::BSpline(fitted.curve),
                 first_uv_curve: Some(Curve2D::BSpline(first)),
                 second_uv_curve: Some(Curve2D::BSpline(second)),
                 tangent: fitted.touching,
+                deviation,
             }
         })
         .collect();
@@ -525,6 +529,32 @@ impl Fitted {
             uv_curves,
             touching,
         })
+    }
+
+    /// The largest distance between the curve's point and each surface's
+    /// point at its curve in parameters, at every knot and the middle of
+    /// every span: where the fits meet the traced points, and where they
+    /// stray furthest between them.
+    fn deviation<A, B>(&self, pair: SurfacePair<A, B>) -> f64
+    where
+        A: ParametricSurface,
+        B: ParametricSurface,
+    {
+        let [on_first, on_second] = &self.uv_curves;
+        let distance_at = |t: f64| {
+            let point = self.curve.point_at(t);
+            let (first, second) = (on_first.point_at(t), on_second.point_at(t));
+            let to_first = pair.first.point_at(first.x, first.y).distance(point);
+            let to_second = pair.second.point_at(second.x, second.y).distance(point);
+            to_first.max(to_second)
+        };
+        let knots = self.curve.knots();
+        knots
+            .windows(2)
+            .fold(distance_at(knots[0]), |deviation, span| {
+                let middle = 0.5 * (span[0] + span[1]);
+                deviation.max(distance_at(middle)).max(distance_at(span[1]))
+            })
     }
 }
 

@@ -11,6 +11,13 @@ the Python distribution are versioned in lockstep.
 
 ### Added
 
+- Every surface intersection curve reports how far it strays (#188), in
+  Rust and Python: `IntersectionCurve.deviation`, the largest distance
+  between the curve's point and each surface's point at its UV curve,
+  in the same parameter. That is the tolerance an edge along the curve
+  needs. A marched curve samples it at each knot and the middle of
+  each span (about 1e-8 at the default tolerance); an exact curve is
+  `0.0`.
 - Edges as trimmed curves (#187), in Rust and Python:
   - arcs from points: `TrimmedCurve::arc_through(start, middle, end)`
     and `TrimmedCurve::arc(center, start, end, normal, tol)`, with
@@ -70,6 +77,8 @@ the Python distribution are versioned in lockstep.
 
 ### Breaking
 
+- `IntersectionCurve` has a new public field, `deviation` (#188), so a
+  struct literal must set it (`..piece.clone()` keeps working).
 - Every intersection hit carries all its parameters (#177), in Rust and
   Python: `first_parameter` and `second_parameter` on `CurveCurveHit` and
   `CurveCurveHit2D`, `curve_parameter` and `surface_parameters` on

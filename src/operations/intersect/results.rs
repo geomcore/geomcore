@@ -98,6 +98,7 @@ pub struct CurveCurveOverlap {
 /// let result = plane.intersect(&cylinder, Tolerance::DEFAULT);
 /// let piece = &result.curves()[0];
 /// assert!(!piece.tangent);
+/// assert_eq!(piece.deviation, 0.0); // an exact circle
 ///
 /// // On the cylinder, the circle is the iso-curve at v = 2, in the
 /// // circle's parameter: the point at t is the surface's at uv(t).
@@ -131,6 +132,13 @@ pub struct IntersectionCurve {
     /// parallel along it, or so nearly that moving one surface by the
     /// confusion distance makes them touch.
     pub tangent: bool,
+    /// How far `curve` strays from the surfaces through its curves in
+    /// parameters: the largest distance between `curve`'s point at `t` and
+    /// each surface's point at its UV curve's point at `t`, the tolerance
+    /// an edge along the curve needs. A marched curve samples it at each
+    /// knot and the middle of each span, so it can miss a larger distance
+    /// between them; an exact curve is `0.0`.
+    pub deviation: f64,
 }
 
 impl IntersectionCurve {
@@ -143,6 +151,7 @@ impl IntersectionCurve {
             first_uv_curve: None,
             second_uv_curve: None,
             tangent,
+            deviation: 0.0,
         }
     }
 }

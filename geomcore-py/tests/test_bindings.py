@@ -662,6 +662,8 @@ def test_intersection_curves_carry_their_uv_curves():
     assert isinstance(piece.second_uv_curve, Line2D)
     uv = piece.second_uv_curve.point_at(0.7)
     assert cylinder.point_at(uv.x, uv.y).distance(piece.curve.point_at(0.7)) < 1e-12
+    assert piece.deviation == 0.0
+    assert "deviation=0.0" in repr(piece)
 
     # Exact with no closed form on the cylinder: an ellipse.
     oblique = Plane(Point.origin(), Vector(0.0, 1.0, 1.0))
@@ -674,14 +676,15 @@ def test_intersection_curves_carry_their_uv_curves():
     for piece in sphere.intersect(around).curves:
         first, second = piece.first_uv_curve, piece.second_uv_curve
         assert isinstance(first, BSplineCurve2D) and isinstance(second, BSplineCurve2D)
+        assert 0.0 < piece.deviation < 1e-6
         start, end = piece.curve.bounds()
         for k in range(11):
             t = start + (end - start) * k / 10
             p = piece.curve.point_at(t)
             u, v = first.point_at(t).x, first.point_at(t).y
-            assert sphere.point_at(u, v).distance(p) < 1e-6
+            assert sphere.point_at(u, v).distance(p) <= 1.1 * piece.deviation
             u, v = second.point_at(t).x, second.point_at(t).y
-            assert around.point_at(u, v).distance(p) < 1e-6
+            assert around.point_at(u, v).distance(p) <= 1.1 * piece.deviation
 
 
 def test_intersect_torus_symmetric():
