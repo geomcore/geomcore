@@ -11,7 +11,7 @@ from geomcore.curves import Circle
 import math
 
 circle = Circle(Point.origin(), Vector.unit_z(), 2.0)
-point = circle.eval_point(math.pi / 4)
+point = circle.point_at(math.pi / 4)
 ```
 
 ## Install
@@ -27,7 +27,7 @@ Windows, for Python 3.9+ (abi3 — one wheel covers all versions).
 
 - Evaluation of lines, circles, ellipses, parabolas, hyperbolas and
   B-spline curves (rational and periodic), plus planes, cylinders, cones,
-  spheres, tori and B-spline surfaces, with bulk `eval_points` in a single
+  spheres, tori and B-spline surfaces, with bulk `points_at` in a single
   native call per batch.
 - Rigid transformations via a single `Transform` type, applied with
   `transformed`.

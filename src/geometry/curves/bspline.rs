@@ -259,7 +259,7 @@ pub struct GenericBSplineCurve<P: TierPoint> {
 /// let mults = vec![4, 1, 1, 4];
 /// let curve = BSplineCurve::new(3, poles, knots, mults, false).unwrap();
 ///
-/// assert_eq!(curve.eval_point(0.0), Point::new(0.0, 0.0, 0.0));
+/// assert_eq!(curve.point_at(0.0), Point::new(0.0, 0.0, 0.0));
 /// assert_eq!(curve.bounds(), (0.0, 3.0));
 /// ```
 pub type BSplineCurve = GenericBSplineCurve<Point>;
@@ -295,7 +295,7 @@ pub type BSplineCurve = GenericBSplineCurve<Point>;
 /// let mults = vec![4, 1, 1, 4];
 /// let curve = BSplineCurve2D::new(3, poles, knots, mults, false).unwrap();
 ///
-/// assert_eq!(curve.eval_point(0.0), Point2D::new(0.0, 0.0));
+/// assert_eq!(curve.point_at(0.0), Point2D::new(0.0, 0.0));
 /// assert_eq!(curve.bounds(), (0.0, 3.0));
 /// ```
 pub type BSplineCurve2D = GenericBSplineCurve<Point2D>;
@@ -324,7 +324,7 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
     ///
     /// let poles = vec![Point::new(0.0, 0.0, 0.0), Point::new(2.0, 0.0, 0.0)];
     /// let curve = BSplineCurve::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
-    /// assert_eq!(curve.eval_point(0.5), Point::new(1.0, 0.0, 0.0));
+    /// assert_eq!(curve.point_at(0.5), Point::new(1.0, 0.0, 0.0));
     /// ```
     pub fn new(
         degree: usize,
@@ -368,7 +368,7 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
     ///     false,
     /// )
     /// .unwrap();
-    /// let p = curve.eval_point(1.0);
+    /// let p = curve.point_at(1.0);
     /// assert!((p.x - 0.0).abs() < 1e-9 && (p.y - 1.0).abs() < 1e-9);
     /// ```
     pub fn new_rational(
@@ -530,7 +530,7 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
     /// assert_eq!(refined.multiplicities(), &[4, 2, 4]);
     /// assert_eq!(refined.poles().len(), 6);
     /// for u in [0.0, 0.1, 0.25, 0.6, 1.0] {
-    ///     assert!(refined.eval_point(u).distance(curve.eval_point(u)) < 1e-12);
+    ///     assert!(refined.point_at(u).distance(curve.point_at(u)) < 1e-12);
     /// }
     /// assert_eq!(
     ///     curve.insert_knot(0.25, 4),
@@ -583,7 +583,7 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
     /// assert_eq!(refined.knots(), &[0.0, 0.25, 0.5, 0.75, 1.0]);
     /// assert_eq!(refined.multiplicities(), &[4, 1, 2, 1, 4]);
     /// for u in [0.0, 0.3, 0.5, 0.9, 1.0] {
-    ///     assert!(refined.eval_point(u).distance(curve.eval_point(u)) < 1e-12);
+    ///     assert!(refined.point_at(u).distance(curve.point_at(u)) < 1e-12);
     /// }
     /// assert_eq!(
     ///     curve.refine_knots(&[0.5, 0.25]),
@@ -651,7 +651,7 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
     /// assert_eq!(cubic.poles().len(), 4);
     /// for i in 0..=10 {
     ///     let u = i as f64 / 10.0;
-    ///     assert!(cubic.eval_point(u).distance(arc.eval_point(u)) < 1e-12);
+    ///     assert!(cubic.point_at(u).distance(arc.point_at(u)) < 1e-12);
     /// }
     /// ```
     pub fn elevate_degree(
@@ -822,7 +822,7 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
     /// assert_eq!(pieces.len(), 3);
     /// assert_eq!(pieces[1].bounds(), (1.0, 2.0));
     /// assert_eq!(pieces[1].poles().len(), 4);
-    /// assert!(pieces[1].eval_point(1.5).distance(curve.eval_point(1.5)) < 1e-12);
+    /// assert!(pieces[1].point_at(1.5).distance(curve.point_at(1.5)) < 1e-12);
     /// ```
     pub fn to_bezier_pieces(&self) -> Vec<GenericBezierCurve<P>> {
         self.wrapped_bezier_pieces(GenericBezierCurve::from_span)
@@ -891,7 +891,7 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
     /// assert_eq!(piece.bounds(), (0.5, 1.5));
     /// assert_eq!(piece.multiplicities(), &[4, 1, 4]);
     /// for u in [0.5, 0.8, 1.2, 1.5] {
-    ///     assert!(piece.eval_point(u).distance(curve.eval_point(u)) < 1e-12);
+    ///     assert!(piece.point_at(u).distance(curve.point_at(u)) < 1e-12);
     /// }
     /// assert_eq!(curve.extract(1.5, 0.5), Err(BSplineSplitError::EmptyRange));
     /// ```
@@ -941,8 +941,8 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
     /// let (left, right) = curve.split_at(0.25).unwrap();
     /// assert_eq!((left.bounds(), right.bounds()), ((0.0, 0.25), (0.25, 1.0)));
     /// assert_eq!(left.poles()[3], right.poles()[0]);
-    /// assert!(left.eval_point(0.1).distance(curve.eval_point(0.1)) < 1e-12);
-    /// assert!(right.eval_point(0.7).distance(curve.eval_point(0.7)) < 1e-12);
+    /// assert!(left.point_at(0.1).distance(curve.point_at(0.1)) < 1e-12);
+    /// assert!(right.point_at(0.7).distance(curve.point_at(0.7)) < 1e-12);
     /// assert_eq!(curve.split_at(1.0), Err(BSplineSplitError::EmptyRange));
     /// ```
     pub fn split_at(
@@ -977,21 +977,21 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
     ///     Point::new(1.0, 1.0, 0.0),
     /// ];
     /// let curve = BSplineCurve::new(1, poles, vec![0.0, 1.0, 2.0], vec![2, 1, 2], false).unwrap();
-    /// assert_eq!(curve.eval_d1_sided(1.0, Side::Below).1, Vector::new(1.0, 0.0, 0.0));
-    /// assert_eq!(curve.eval_d1_sided(1.0, Side::Above).1, Vector::new(0.0, 1.0, 0.0));
+    /// assert_eq!(curve.first_derivatives_sided(1.0, Side::Below).1, Vector::new(1.0, 0.0, 0.0));
+    /// assert_eq!(curve.first_derivatives_sided(1.0, Side::Above).1, Vector::new(0.0, 1.0, 0.0));
     /// ```
-    pub fn eval_d1_sided(&self, u: f64, side: Side) -> (P, P::Vector) {
+    pub fn first_derivatives_sided(&self, u: f64, side: Side) -> (P, P::Vector) {
         let [c, d1, _] = math::derivatives_sided::<1, P>(&self.knots, self.pole_view(), u, side);
         (P::ORIGIN + c, d1)
     }
 
     /// Evaluates the derivative of the given `order` at parameter `u`
-    /// from one side, as [`eval_d1_sided`](Self::eval_d1_sided).
+    /// from one side, as [`first_derivatives_sided`](Self::first_derivatives_sided).
     ///
     /// # Panics
     ///
     /// Panics if `order == 0`, as
-    /// [`eval_derivative`](Self::eval_derivative).
+    /// [`derivative`](Self::derivative).
     ///
     /// # Examples
     ///
@@ -1007,12 +1007,12 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
     ///     Point::new(4.0, 2.0, 0.0),
     /// ];
     /// let curve = BSplineCurve::new(2, poles, vec![0.0, 1.0, 2.0], vec![3, 2, 3], false).unwrap();
-    /// assert_eq!(curve.eval_derivative_sided(1.0, 1, Side::Below), Vector::new(2.0, 2.0, 0.0));
-    /// assert_eq!(curve.eval_derivative_sided(1.0, 1, Side::Above), Vector::new(2.0, -2.0, 0.0));
+    /// assert_eq!(curve.derivative_sided(1.0, 1, Side::Below), Vector::new(2.0, 2.0, 0.0));
+    /// assert_eq!(curve.derivative_sided(1.0, 1, Side::Above), Vector::new(2.0, -2.0, 0.0));
     /// ```
-    pub fn eval_derivative_sided(&self, u: f64, order: u32, side: Side) -> P::Vector {
+    pub fn derivative_sided(&self, u: f64, order: u32, side: Side) -> P::Vector {
         match order {
-            0 => panic!("eval_derivative: order must be >= 1 (use eval_point for order 0)"),
+            0 => panic!("derivative: order must be >= 1 (use point_at for order 0)"),
             1 => math::derivatives_sided::<1, P>(&self.knots, self.pole_view(), u, side)[1],
             2 => math::derivatives_sided::<2, P>(&self.knots, self.pole_view(), u, side)[2],
             _ => math::derivative_of_order(
@@ -1027,8 +1027,8 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
 
     /// Evaluates the point and the first and second derivatives at
     /// parameter `u` from one side, as
-    /// [`eval_d1_sided`](Self::eval_d1_sided).
-    pub fn eval_d2_sided(&self, u: f64, side: Side) -> (P, P::Vector, P::Vector) {
+    /// [`first_derivatives_sided`](Self::first_derivatives_sided).
+    pub fn second_derivatives_sided(&self, u: f64, side: Side) -> (P, P::Vector, P::Vector) {
         let [c, d1, d2] = math::derivatives_sided::<2, P>(&self.knots, self.pole_view(), u, side);
         (P::ORIGIN + c, d1, d2)
     }
@@ -1348,7 +1348,7 @@ impl_for_both_tiers! {
             }
             let mut out: Vec<CurveProjection<P>> = Vec::new();
             for t in params {
-                let p = self.eval_point(t);
+                let p = self.point_at(t);
                 if out.iter().any(|q| q.point.distance(p) <= tol.confusion) {
                     continue;
                 }
@@ -1381,7 +1381,7 @@ impl_for_both_tiers! {
                 let ends = self.scan_span(point, a, b, &mut minima);
                 let interior = minima
                     .iter()
-                    .map(|&t| (self.eval_point(t).distance(point), t));
+                    .map(|&t| (self.point_at(t).distance(point), t));
                 for (d, t) in [(ends.distance[0], a), (ends.distance[1], b)]
                     .into_iter()
                     .chain(interior)
@@ -1398,7 +1398,7 @@ impl_for_both_tiers! {
             } else {
                 best.1
             };
-            let foot = self.eval_point(t);
+            let foot = self.point_at(t);
             CurveProjection {
                 parameter: t,
                 point: foot,
@@ -1411,13 +1411,13 @@ impl_for_both_tiers! {
 impl_for_both_tiers! {
     impl ParametricCurve, ParametricCurve2D for GenericBSplineCurve {
         #[inline]
-        fn eval_point(&self, u: f64) -> P {
+        fn point_at(&self, u: f64) -> P {
             math::point(&self.knots, self.pole_view(), u)
         }
 
-        fn eval_derivative(&self, u: f64, order: u32) -> V {
+        fn derivative(&self, u: f64, order: u32) -> V {
             match order {
-                0 => panic!("eval_derivative: order must be >= 1 (use eval_point for order 0)"),
+                0 => panic!("derivative: order must be >= 1 (use point_at for order 0)"),
                 1 => math::derivatives::<1, P>(&self.knots, self.pole_view(), u)[1],
                 2 => math::derivatives::<2, P>(&self.knots, self.pole_view(), u)[2],
                 _ => {
@@ -1426,12 +1426,12 @@ impl_for_both_tiers! {
             }
         }
 
-        fn eval_d1(&self, u: f64) -> (P, V) {
+        fn first_derivatives(&self, u: f64) -> (P, V) {
             let [c, d1, _] = math::derivatives::<1, P>(&self.knots, self.pole_view(), u);
             (P::ORIGIN + c, d1)
         }
 
-        fn eval_d2(&self, u: f64) -> (P, V, V) {
+        fn second_derivatives(&self, u: f64) -> (P, V, V) {
             let [c, d1, d2] = math::derivatives::<2, P>(&self.knots, self.pole_view(), u);
             (P::ORIGIN + c, d1, d2)
         }
@@ -1449,7 +1449,7 @@ impl_for_both_tiers! {
                 return true;
             }
             let (lo, hi) = self.bounds();
-            self.eval_point(lo).distance(self.eval_point(hi)) <= tol.confusion
+            self.point_at(lo).distance(self.point_at(hi)) <= tol.confusion
         }
 
         fn continuity(&self, u: f64, tol: Tolerance) -> Continuity {

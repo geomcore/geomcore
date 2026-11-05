@@ -236,7 +236,7 @@ def point_resolved_scene(
         TrimmedCurve(surface.u_iso(u), *u_iso_v), label="u = const", color=A, width=3
     )
     view.add(surface.v_iso(v), label="v = const", color=B, width=3)
-    view.add(surface.eval_point(u, v), label="P(u, v)", color=POINT)
+    view.add(surface.point_at(u, v), label="P(u, v)", color=POINT)
     return view
 
 

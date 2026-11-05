@@ -382,7 +382,7 @@ pub(crate) fn image_error<E: PartialEq>(non_finite: E) -> impl FnOnce(E) -> Tran
 ///
 /// The image is parametrized by the image of the shape's parametrization:
 /// under a rotation, a translation or a mirror,
-/// `shape.transformed(t)?.eval_point(u)` is `t.apply_point(shape.eval_point(u))`
+/// `shape.transformed(t)?.point_at(u)` is `t.apply_point(shape.point_at(u))`
 /// at every parameter. Under a scale `s`, a parameter that is a length
 /// (along a line, a parabola, the generators of a plane, cylinder or cone,
 /// the sweep of an extrusion) scales by `s` too; angles and B-spline
@@ -406,7 +406,7 @@ pub(crate) fn image_error<E: PartialEq>(non_finite: E) -> impl FnOnce(E) -> Tran
 /// let circle = Curve::from(Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap());
 /// let shift = Transform::translation(Vector::new(0.0, 0.0, 5.0));
 /// let moved = circle.transformed(shift).unwrap();
-/// assert_eq!(moved.eval_point(0.0), Point::new(2.0, 0.0, 5.0));
+/// assert_eq!(moved.point_at(0.0), Point::new(2.0, 0.0, 5.0));
 ///
 /// let collapse = Transform::scaling(Point::ORIGIN, 0.0);
 /// assert_eq!(circle.transformed(collapse), Err(TransformError::Collapsed));

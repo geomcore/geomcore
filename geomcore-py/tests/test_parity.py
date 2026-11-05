@@ -280,15 +280,15 @@ def test_type_checkers_see_every_method_of_every_class(tmp_path):
         "    plane: surfaces.Plane,",
         "    torus: surfaces.Torus,",
         ") -> None:",
-        "    assert_type(line.eval_point(0.0), geomcore.Point)",
-        "    assert_type(line_2d.eval_point(0.0), geomcore.Point2D)",
+        "    assert_type(line.point_at(0.0), geomcore.Point)",
+        "    assert_type(line_2d.point_at(0.0), geomcore.Point2D)",
         "    assert_type(line.intersect(line), geomcore.CurveCurveIntersection)",
         "    assert_type(line.intersect(plane), geomcore.CurveSurfaceIntersection)",
         "    assert_type(line_2d.intersect(spline_2d), geomcore.CurveCurveIntersection2D)",
         "    assert_type(plane.curve_3d_to_uv(ellipse), curves._WholeCurve2D)",
         "    assert_type(ellipse.discretize(0.1), geomcore.Discretization)",
         "    assert_type(spline_2d.discretize(0.1), geomcore.Discretization2D)",
-        "    assert_type(spline_2d.eval_d1_sided(0.0, geomcore.Side.BELOW)[1], geomcore.Vector2D)",
+        "    assert_type(spline_2d.first_derivatives_sided(0.0, geomcore.Side.BELOW)[1], geomcore.Vector2D)",
         "    assert_type(plane.u_iso(0.0), curves.Line)",
         "    assert_type(torus.v_iso(0.0), curves.Circle)",
         "    assert_type(torus.intersect(plane), geomcore.SurfaceSurfaceIntersection)",
@@ -389,10 +389,10 @@ def _middle(bounds):
 def test_every_surface_gives_its_isoparametric_curves():
     for surface in _surfaces():
         u, v = _middle(surface.u_bounds()), _middle(surface.v_bounds())
-        on_surface = surface.eval_point(u, v)
+        on_surface = surface.point_at(u, v)
         for curve, parameter in ((surface.u_iso(u), v), (surface.v_iso(v), u)):
             assert type(curve).__name__ in _classes(curves), type(surface).__name__
-            assert curve.eval_point(parameter).distance(on_surface) < 1e-9
+            assert curve.point_at(parameter).distance(on_surface) < 1e-9
 
 
 def test_every_surface_is_accepted_where_a_surface_is_expected():
@@ -418,13 +418,13 @@ def test_every_shape_is_transformed_into_its_class_and_commutes_with_evaluation(
         moved = curve.transformed(t)
         assert type(moved) is type(curve)
         u = _middle(curve.bounds())
-        assert moved.eval_point(u).distance(t.apply_point(curve.eval_point(u))) < 1e-9
+        assert moved.point_at(u).distance(t.apply_point(curve.point_at(u))) < 1e-9
     for surface in _surfaces():
         moved = surface.transformed(t)
         assert type(moved) is type(surface)
         u, v = _middle(surface.u_bounds()), _middle(surface.v_bounds())
-        image = t.apply_point(surface.eval_point(u, v))
-        assert moved.eval_point(u, v).distance(image) < 1e-9, type(surface).__name__
+        image = t.apply_point(surface.point_at(u, v))
+        assert moved.point_at(u, v).distance(image) < 1e-9, type(surface).__name__
 
 
 def test_every_shape_rejects_a_collapsing_transform():
@@ -442,6 +442,6 @@ def test_every_curve_reversed_meets_itself_at_the_reversed_parameter():
         assert reversed_curve.bounds() == tuple(ends)
         first, last = (max(end, -1.0) if end < 0 else min(end, 1.0) for end in curve.bounds())
         u = first + 0.3 * (last - first)
-        there = reversed_curve.eval_point(curve.reversed_parameter(u))
-        assert there.distance(curve.eval_point(u)) < 1e-9, type(curve).__name__
+        there = reversed_curve.point_at(curve.reversed_parameter(u))
+        assert there.distance(curve.point_at(u)) < 1e-9, type(curve).__name__
         assert reversed_curve.reversed() == curve

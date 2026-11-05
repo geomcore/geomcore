@@ -107,7 +107,7 @@ fn test_interpolation_matches_dense_solve() {
         let expected = dense_solve(a, points.clone());
         assert_points_close(curve.poles(), &expected, 1e-11);
         for (q, &t) in points.iter().zip(&params) {
-            assert!(curve.eval_point(t).distance(*q) < 1e-11);
+            assert!(curve.point_at(t).distance(*q) < 1e-11);
         }
     }
 }
@@ -168,7 +168,7 @@ fn test_approximation_within_keeps_points_close_with_few_poles() {
             .unwrap();
             let params = point_parameters(&points, PointParametrization::Chordal).unwrap();
             for (q, &t) in points.iter().zip(&params) {
-                assert!(curve.eval_point(t).distance(*q) <= tolerance, "degree {p}");
+                assert!(curve.point_at(t).distance(*q) <= tolerance, "degree {p}");
             }
             assert!(curve.poles().len() < points.len(), "degree {p}");
         }

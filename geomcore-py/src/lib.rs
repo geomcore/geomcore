@@ -41,7 +41,7 @@ impl<'py> IntoPyObject<'py> for ContinuityNumber {
 pub(crate) fn check_curve_order(order: u32) -> PyResult<()> {
     if order == 0 {
         Err(invalid_argument(
-            "order must be >= 1 (use eval_point for order 0)",
+            "order must be >= 1 (use point_at for order 0)",
         ))
     } else {
         Ok(())
@@ -80,7 +80,7 @@ pub(crate) fn check_surface_order<S: HighestDerivativeOrder>(
     let highest = S::HIGHEST_DERIVATIVE_ORDER;
     match du.checked_add(dv) {
         Some(0) => Err(invalid_argument(
-            "du + dv must be >= 1 (use eval_point for the (0, 0) order)",
+            "du + dv must be >= 1 (use point_at for the (0, 0) order)",
         )),
         Some(order) if order <= highest => Ok(()),
         _ => Err(invalid_argument(format!(

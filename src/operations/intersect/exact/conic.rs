@@ -377,7 +377,7 @@ pub(crate) fn intersect_conic_quadric<C: Conic, S: Quadric>(
     let frame = conic.frame();
     let origin = frame.origin();
     let section = quadric.section(origin, frame.x_direction(), frame.y_direction());
-    let touches = |t: f64| quadric.contains(conic.eval_point(t), tol);
+    let touches = |t: f64| quadric.contains(conic.point_at(t), tol);
     let candidates = section_candidates(
         conic,
         section,
@@ -471,7 +471,7 @@ fn conic_conic_hits<A: Conic, B: Conic>(
                         let second =
                             other.parameter_in_bounds(other.parameter_of(h.point, tol), tol);
                         found.second_parameter = Some(second);
-                        let along = other.eval_derivative(second, 1);
+                        let along = other.derivative(second, 1);
                         if along.dot(normal).abs() <= along_tolerance * along.magnitude() {
                             found.multiplicity = h.multiplicity;
                         }
@@ -494,10 +494,10 @@ fn conic_conic_hits<A: Conic, B: Conic>(
         (w.dot(ox), x.dot(ox), y.dot(ox)),
         (w.dot(oy), x.dot(oy), y.dot(oy)),
     );
-    let touches = |t: f64| other.contains(conic.eval_point(t), tol);
+    let touches = |t: f64| other.contains(conic.point_at(t), tol);
     let candidates = section_candidates(conic, section, false, |_, _| None, touches, tol);
     for &(t, multiplicity) in &candidates {
-        let p = conic.eval_point(t);
+        let p = conic.point_at(t);
         if other.contains(p, point_tolerance(p, tol)) {
             hits.push(hit(t, p, multiplicity));
         }
@@ -673,7 +673,7 @@ where
     candidates
         .iter()
         .filter_map(|&(t, multiplicity)| {
-            let p = curve.eval_point(t);
+            let p = curve.point_at(t);
             if surface.contains(p, point_tolerance(p, tol)) {
                 Some(ConicSurfaceHit {
                     parameter: t,
@@ -713,7 +713,7 @@ where
 {
     params
         .iter()
-        .all(|&t| surface.contains(curve.eval_point(t), tol))
+        .all(|&t| surface.contains(curve.point_at(t), tol))
 }
 
 /// Implicit quadratic `A*x^2 + B*y^2 + C*x*y + D*x + E*y + F = 0` of a

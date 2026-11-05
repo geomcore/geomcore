@@ -98,7 +98,7 @@ def test_bspline_surfaces_march_and_are_sampled():
     piece = result.curves[0]
     assert isinstance(piece, IntersectionCurve)
     assert piece.tangent is False
-    assert piece.curve.eval_point(sum(piece.curve.bounds()) / 2).x == pytest.approx(1.0)
+    assert piece.curve.point_at(sum(piece.curve.bounds()) / 2).x == pytest.approx(1.0)
 
 
 # ------------------------------------------------------------ completeness

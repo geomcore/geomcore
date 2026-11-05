@@ -49,7 +49,7 @@ enum Direction {
 /// then projected back to Euclidean space via the quotient rule.
 ///
 /// Derivatives up to second order are supported; see
-/// [`BSplineSurface::eval_derivative`].
+/// [`BSplineSurface::derivative`].
 ///
 /// # Examples
 ///
@@ -76,7 +76,7 @@ enum Direction {
 /// )
 /// .unwrap();
 ///
-/// assert_eq!(surface.eval_point(0.5, 0.5), Point::new(0.5, 0.5, 0.25));
+/// assert_eq!(surface.point_at(0.5, 0.5), Point::new(0.5, 0.5, 0.25));
 /// ```
 #[derive(Debug, Clone, PartialEq)]
 pub struct BSplineSurface {
@@ -177,7 +177,7 @@ impl BSplineSurface {
     ///     false, false,
     /// )
     /// .unwrap();
-    /// assert_eq!(surface.eval_point(0.0, 0.0), Point::new(0.0, 0.0, 0.0));
+    /// assert_eq!(surface.point_at(0.0, 0.0), Point::new(0.0, 0.0, 0.0));
     /// ```
     #[allow(clippy::too_many_arguments)] // mirrors the two-direction knot/degree data model
     pub fn new(
@@ -235,7 +235,7 @@ impl BSplineSurface {
     /// )
     /// .unwrap();
     /// // All-unit weights reproduce the polynomial patch.
-    /// assert_eq!(surface.eval_point(0.5, 0.5), Point::new(0.5, 0.5, 0.25));
+    /// assert_eq!(surface.point_at(0.5, 0.5), Point::new(0.5, 0.5, 0.25));
     /// ```
     #[allow(clippy::too_many_arguments)] // mirrors the two-direction knot/degree data model
     pub fn new_rational(
@@ -627,7 +627,7 @@ impl BSplineSurface {
     /// let refined = surface.insert_u_knot(0.5, 2).unwrap();
     /// assert_eq!(refined.u_multiplicities(), &[3, 2, 3]);
     /// assert_eq!(refined.u_pole_count(), 5);
-    /// let (p, q) = (surface.eval_point(0.3, 0.6), refined.eval_point(0.3, 0.6));
+    /// let (p, q) = (surface.point_at(0.3, 0.6), refined.point_at(0.3, 0.6));
     /// assert!(p.distance(q) < 1e-12);
     /// ```
     pub fn insert_u_knot(&self, u: f64, times: u32) -> Result<BSplineSurface, KnotInsertionError> {
@@ -664,7 +664,7 @@ impl BSplineSurface {
     /// let refined = surface.insert_v_knot(0.25, 1).unwrap();
     /// assert_eq!(refined.v_knots(), &[0.0, 0.25, 1.0]);
     /// assert_eq!(refined.v_pole_count(), 4);
-    /// let (p, q) = (surface.eval_point(0.3, 0.6), refined.eval_point(0.3, 0.6));
+    /// let (p, q) = (surface.point_at(0.3, 0.6), refined.point_at(0.3, 0.6));
     /// assert!(p.distance(q) < 1e-12);
     /// ```
     pub fn insert_v_knot(&self, v: f64, times: u32) -> Result<BSplineSurface, KnotInsertionError> {
@@ -734,7 +734,7 @@ impl BSplineSurface {
     /// .unwrap();
     /// let refined = surface.refine_v_knots(&[0.2, 0.4, 0.6, 0.8]).unwrap();
     /// assert_eq!(refined.v_pole_count(), 7);
-    /// let (p, q) = (surface.eval_point(0.5, 0.45), refined.eval_point(0.5, 0.45));
+    /// let (p, q) = (surface.point_at(0.5, 0.45), refined.point_at(0.5, 0.45));
     /// assert!(p.distance(q) < 1e-12);
     /// ```
     pub fn refine_v_knots(&self, knots: &[f64]) -> Result<BSplineSurface, KnotInsertionError> {
@@ -776,7 +776,7 @@ impl BSplineSurface {
     /// .unwrap();
     /// let raised = surface.elevate_u_degree(2).unwrap();
     /// assert_eq!((raised.u_degree(), raised.v_degree()), (3, 1));
-    /// let (p, q) = (raised.eval_point(0.3, 0.7), surface.eval_point(0.3, 0.7));
+    /// let (p, q) = (raised.point_at(0.3, 0.7), surface.point_at(0.3, 0.7));
     /// assert!(p.distance(q) < 1e-12);
     /// ```
     pub fn elevate_u_degree(&self, amount: usize) -> Result<BSplineSurface, DegreeElevationError> {
@@ -808,7 +808,7 @@ impl BSplineSurface {
     /// .unwrap();
     /// let raised = surface.elevate_v_degree(1).unwrap();
     /// assert_eq!((raised.u_degree(), raised.v_degree()), (1, 2));
-    /// let (p, q) = (raised.eval_point(0.3, 0.7), surface.eval_point(0.3, 0.7));
+    /// let (p, q) = (raised.point_at(0.3, 0.7), surface.point_at(0.3, 0.7));
     /// assert!(p.distance(q) < 1e-12);
     /// ```
     pub fn elevate_v_degree(&self, amount: usize) -> Result<BSplineSurface, DegreeElevationError> {
@@ -1031,7 +1031,7 @@ impl BSplineSurface {
     /// let patches = surface.to_bezier_patches();
     /// assert_eq!((patches.len(), patches[0].len()), (2, 1));
     /// assert_eq!(patches[1][0].u_bounds(), (1.0, 2.0));
-    /// let (p, q) = (surface.eval_point(1.5, 0.5), patches[1][0].eval_point(1.5, 0.5));
+    /// let (p, q) = (surface.point_at(1.5, 0.5), patches[1][0].point_at(1.5, 0.5));
     /// assert!(p.distance(q) < 1e-12);
     /// ```
     pub fn to_bezier_patches(&self) -> Vec<Vec<BezierSurface>> {
@@ -1119,7 +1119,7 @@ impl BSplineSurface {
     /// let patch = surface.extract((0.25, 0.5), (0.0, 0.75)).unwrap();
     /// assert_eq!(patch.u_knots(), &[0.25, 0.5]);
     /// assert_eq!(patch.v_knots(), &[0.0, 0.75]);
-    /// let (p, q) = (surface.eval_point(0.3, 0.6), patch.eval_point(0.3, 0.6));
+    /// let (p, q) = (surface.point_at(0.3, 0.6), patch.point_at(0.3, 0.6));
     /// assert!(p.distance(q) < 1e-12);
     /// assert_eq!(
     ///     surface.extract((0.5, 0.25), (0.0, 1.0)),
@@ -1185,7 +1185,7 @@ impl BSplineSurface {
     /// .unwrap();
     /// let piece = surface.extract_v(0.0, 0.4).unwrap();
     /// assert_eq!(piece.v_knots(), &[0.0, 0.4]);
-    /// let (p, q) = (surface.eval_point(0.5, 0.2), piece.eval_point(0.5, 0.2));
+    /// let (p, q) = (surface.point_at(0.5, 0.2), piece.point_at(0.5, 0.2));
     /// assert!(p.distance(q) < 1e-12);
     /// ```
     pub fn extract_v(&self, first: f64, last: f64) -> Result<BSplineSurface, BSplineSplitError> {
@@ -1218,7 +1218,7 @@ impl BSplineSurface {
     /// let (low, high) = surface.split_u_at(0.5).unwrap();
     /// // The last row of `low` is the first of `high`.
     /// assert_eq!(&low.poles()[low.poles().len() - 2..], &high.poles()[..2]);
-    /// let (p, q) = (surface.eval_point(0.7, 0.3), high.eval_point(0.7, 0.3));
+    /// let (p, q) = (surface.point_at(0.7, 0.3), high.point_at(0.7, 0.3));
     /// assert!(p.distance(q) < 1e-12);
     /// ```
     pub fn split_u_at(
@@ -1267,7 +1267,7 @@ impl BSplineSurface {
 
     /// The `u` isoparametric curve at `u`: `u` fixed, running along `v`
     /// with the `v` degree, knots and periodicity, so
-    /// `u_iso(u).eval_point(t)` is `eval_point(u, t)` for every `t`.
+    /// `u_iso(u).point_at(t)` is `point_at(u, t)` for every `t`.
     /// The axis-aligned special case of
     /// [`uv_curve_to_3d`](crate::ParametricSurface::uv_curve_to_3d):
     /// a line along `v`, run at rate `1` from `0`.
@@ -1300,7 +1300,7 @@ impl BSplineSurface {
     /// .unwrap();
     /// let iso = surface.u_iso(0.25).unwrap();
     /// assert_eq!(iso.degree(), 1);
-    /// assert!(iso.eval_point(0.5).distance(surface.eval_point(0.25, 0.5)) < 1e-12);
+    /// assert!(iso.point_at(0.5).distance(surface.point_at(0.25, 0.5)) < 1e-12);
     /// ```
     pub fn u_iso(&self, u: f64) -> Result<BSplineCurve, SurfaceIsoError> {
         let u = check_iso_param(u, Some(&self.u_knots))?;
@@ -1309,7 +1309,7 @@ impl BSplineSurface {
 
     /// The `v` isoparametric curve at `v`: `v` fixed, running along `u`
     /// with the `u` degree, knots and periodicity, so
-    /// `v_iso(v).eval_point(t)` is `eval_point(t, v)` for every `t`. See
+    /// `v_iso(v).point_at(t)` is `point_at(t, v)` for every `t`. See
     /// [`BSplineSurface::u_iso`].
     /// The axis-aligned special case of
     /// [`uv_curve_to_3d`](crate::ParametricSurface::uv_curve_to_3d):
@@ -1337,7 +1337,7 @@ impl BSplineSurface {
     /// .unwrap();
     /// let iso = surface.v_iso(0.5).unwrap();
     /// assert_eq!(iso.degree(), 2);
-    /// assert!(iso.eval_point(0.25).distance(surface.eval_point(0.25, 0.5)) < 1e-12);
+    /// assert!(iso.point_at(0.25).distance(surface.point_at(0.25, 0.5)) < 1e-12);
     /// ```
     pub fn v_iso(&self, v: f64) -> Result<BSplineCurve, SurfaceIsoError> {
         let v = check_iso_param(v, Some(&self.v_knots))?;
@@ -1542,32 +1542,32 @@ impl BSplineSurface {
     ///     vec![0.0, 1.0, 2.0], vec![2, 1, 2], vec![0.0, 1.0], vec![2, 2], false, false,
     /// )
     /// .unwrap();
-    /// let below = surface.eval_d1_sided(1.0, 0.5, Side::Below, Side::Above);
-    /// let above = surface.eval_d1_sided(1.0, 0.5, Side::Above, Side::Above);
+    /// let below = surface.first_derivatives_sided(1.0, 0.5, Side::Below, Side::Above);
+    /// let above = surface.first_derivatives_sided(1.0, 0.5, Side::Above, Side::Above);
     /// assert_eq!(below.1[0], Vector::new(1.0, 0.0, 0.0));
     /// assert_eq!(above.1[0], Vector::new(1.0, 0.0, 0.5));
     /// ```
-    pub fn eval_d1_sided(
+    pub fn first_derivatives_sided(
         &self,
         u: f64,
         v: f64,
         u_side: Side,
         v_side: Side,
     ) -> (Point, [Vector; 2]) {
-        let (s, su, sv) = self.eval_surface_d1_sided(u, v, u_side, v_side);
+        let (s, su, sv) = self.surface_first_derivatives_sided(u, v, u_side, v_side);
         (s, [su, sv])
     }
 
     /// Evaluates the derivative of order `(du, dv)` at `(u, v)`, each
     /// direction from its own side, as
-    /// [`eval_d1_sided`](Self::eval_d1_sided).
+    /// [`first_derivatives_sided`](Self::first_derivatives_sided).
     ///
     /// Only orders with `du + dv` of 1 or 2 are supported.
     ///
     /// # Panics
     ///
     /// Panics if `du + dv == 0` or `du + dv > 2`, as
-    /// [`eval_derivative`](Self::eval_derivative).
+    /// [`derivative`](Self::derivative).
     ///
     /// # Examples
     ///
@@ -1583,12 +1583,12 @@ impl BSplineSurface {
     /// )
     /// .unwrap();
     /// // The cross derivative is zero on the flat patch, (0, 0, 1) on the tilted one.
-    /// let below = surface.eval_derivative_sided(1.0, 0.5, 1, 1, Side::Below, Side::Above);
-    /// let above = surface.eval_derivative_sided(1.0, 0.5, 1, 1, Side::Above, Side::Above);
+    /// let below = surface.derivative_sided(1.0, 0.5, 1, 1, Side::Below, Side::Above);
+    /// let above = surface.derivative_sided(1.0, 0.5, 1, 1, Side::Above, Side::Above);
     /// assert_eq!(below, Vector::new(0.0, 0.0, 0.0));
     /// assert_eq!(above, Vector::new(0.0, 0.0, 1.0));
     /// ```
-    pub fn eval_derivative_sided(
+    pub fn derivative_sided(
         &self,
         u: f64,
         v: f64,
@@ -1598,38 +1598,40 @@ impl BSplineSurface {
         v_side: Side,
     ) -> Vector {
         match (du, dv) {
-            (0, 0) => panic!(
-                "eval_derivative: du + dv must be >= 1 (use eval_point for the (0, 0) order)"
-            ),
+            (0, 0) => {
+                panic!("derivative: du + dv must be >= 1 (use point_at for the (0, 0) order)")
+            }
             (1, 0) | (0, 1) => {
-                let (_s, su, sv) = self.eval_surface_d1_sided(u, v, u_side, v_side);
+                let (_s, su, sv) = self.surface_first_derivatives_sided(u, v, u_side, v_side);
                 if du == 1 { su } else { sv }
             }
             (2, 0) | (1, 1) | (0, 2) => {
-                let [_, _, _, suu, suv, svv] = self.eval_surface_d2_sided(u, v, u_side, v_side);
+                let [_, _, _, suu, suv, svv] =
+                    self.surface_second_derivatives_sided(u, v, u_side, v_side);
                 match du {
                     2 => suu,
                     1 => suv,
                     _ => svv,
                 }
             }
-            _ => panic!(
-                "eval_derivative: order du={du}, dv={dv} is not supported (du + dv must be <= 2)"
-            ),
+            _ => {
+                panic!("derivative: order du={du}, dv={dv} is not supported (du + dv must be <= 2)")
+            }
         }
     }
 
     /// Evaluates the point, the first and the second derivatives at
     /// `(u, v)`, each direction from its own side, as
-    /// [`eval_d1_sided`](Self::eval_d1_sided).
-    pub fn eval_d2_sided(
+    /// [`first_derivatives_sided`](Self::first_derivatives_sided).
+    pub fn second_derivatives_sided(
         &self,
         u: f64,
         v: f64,
         u_side: Side,
         v_side: Side,
     ) -> (Point, [Vector; 2], [Vector; 3]) {
-        let [s, su, sv, suu, suv, svv] = self.eval_surface_d2_sided(u, v, u_side, v_side);
+        let [s, su, sv, suu, suv, svv] =
+            self.surface_second_derivatives_sided(u, v, u_side, v_side);
         (Point::ORIGIN + s, [su, sv], [suu, suv, svv])
     }
 
@@ -1691,7 +1693,7 @@ impl BSplineSurface {
         let mut out: Vec<SurfaceProjection> = Vec::new();
         let mut kept: Vec<Point> = Vec::new();
         for (u, v) in candidates {
-            let p = self.eval_point(u, v);
+            let p = self.point_at(u, v);
             if kept.iter().any(|q| q.distance(p) <= tol.confusion) {
                 continue;
             }
@@ -1788,7 +1790,7 @@ impl BSplineSurface {
     }
 
     /// Shared first-derivative evaluation, returning `(S, Su, Sv)`.
-    fn eval_surface_d1(&self, u: f64, v: f64) -> (Point, Vector, Vector) {
+    fn surface_first_derivatives(&self, u: f64, v: f64) -> (Point, Vector, Vector) {
         let [s, su, sv, ..] =
             math::surface_derivatives::<1>(&self.u_knots, &self.v_knots, self.pole_view(), u, v);
         (Point::ORIGIN + s, su, sv)
@@ -1796,7 +1798,7 @@ impl BSplineSurface {
 
     /// Shared sided first-derivative evaluation: `u_side` selects the `u`
     /// span, `v_side` the `v` span.
-    fn eval_surface_d1_sided(
+    fn surface_first_derivatives_sided(
         &self,
         u: f64,
         v: f64,
@@ -1817,13 +1819,19 @@ impl BSplineSurface {
 
     /// Shared second-derivative evaluation, returning
     /// `[S, Su, Sv, Suu, Suv, Svv]` (the point as a vector).
-    fn eval_surface_d2(&self, u: f64, v: f64) -> [Vector; 6] {
+    fn surface_second_derivatives(&self, u: f64, v: f64) -> [Vector; 6] {
         math::surface_derivatives::<2>(&self.u_knots, &self.v_knots, self.pole_view(), u, v)
     }
 
     /// Shared sided second-derivative evaluation, as
-    /// [`eval_surface_d1_sided`](Self::eval_surface_d1_sided).
-    fn eval_surface_d2_sided(&self, u: f64, v: f64, u_side: Side, v_side: Side) -> [Vector; 6] {
+    /// [`surface_first_derivatives_sided`](Self::surface_first_derivatives_sided).
+    fn surface_second_derivatives_sided(
+        &self,
+        u: f64,
+        v: f64,
+        u_side: Side,
+        v_side: Side,
+    ) -> [Vector; 6] {
         math::surface_derivatives_sided::<2>(
             &self.u_knots,
             &self.v_knots,
@@ -1883,8 +1891,10 @@ impl BSplineSurface {
         let objective = |s: f64, t: f64| {
             let (du, dv) = (span[0].unwrap_or(1.0), span[1].unwrap_or(1.0));
             let (u, v) = (to_global(s, 0), to_global(t, 1));
-            let [p, su, sv, suu, suv, svv] =
-                self.eval_surface_d2(curve::inward(u, bounds[0]), curve::inward(v, bounds[1]));
+            let [p, su, sv, suu, suv, svv] = self.surface_second_derivatives(
+                curve::inward(u, bounds[0]),
+                curve::inward(v, bounds[1]),
+            );
             let (su, sv) = (su * du, sv * dv);
             let (suu, suv, svv) = (suu * du * du, suv * du * dv, svv * dv * dv);
             let r = p - target;
@@ -1934,7 +1944,7 @@ impl BSplineSurface {
 
 impl ParametricSurface for BSplineSurface {
     #[inline]
-    fn eval_point(&self, u: f64, v: f64) -> Point {
+    fn point_at(&self, u: f64, v: f64) -> Point {
         math::surface_point(&self.u_knots, &self.v_knots, self.pole_view(), u, v)
     }
 
@@ -1991,41 +2001,41 @@ impl ParametricSurface for BSplineSurface {
         SurfaceProjection {
             u,
             v,
-            point: self.eval_point(u, v),
+            point: self.point_at(u, v),
             distance: snap_distance(distance, tol.confusion),
         }
     }
 
-    fn eval_derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> Vector {
+    fn derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> Vector {
         match (du, dv) {
-            (0, 0) => panic!(
-                "eval_derivative: du + dv must be >= 1 (use eval_point for the (0, 0) order)"
-            ),
+            (0, 0) => {
+                panic!("derivative: du + dv must be >= 1 (use point_at for the (0, 0) order)")
+            }
             (1, 0) | (0, 1) => {
-                let (_s, su, sv) = self.eval_surface_d1(u, v);
+                let (_s, su, sv) = self.surface_first_derivatives(u, v);
                 if du == 1 { su } else { sv }
             }
             (2, 0) | (1, 1) | (0, 2) => {
-                let [_, _, _, suu, suv, svv] = self.eval_surface_d2(u, v);
+                let [_, _, _, suu, suv, svv] = self.surface_second_derivatives(u, v);
                 match du {
                     2 => suu,
                     1 => suv,
                     _ => svv,
                 }
             }
-            _ => panic!(
-                "eval_derivative: order du={du}, dv={dv} is not supported (du + dv must be <= 2)"
-            ),
+            _ => {
+                panic!("derivative: order du={du}, dv={dv} is not supported (du + dv must be <= 2)")
+            }
         }
     }
 
-    fn eval_d1(&self, u: f64, v: f64) -> (Point, [Vector; 2]) {
-        let (s, su, sv) = self.eval_surface_d1(u, v);
+    fn first_derivatives(&self, u: f64, v: f64) -> (Point, [Vector; 2]) {
+        let (s, su, sv) = self.surface_first_derivatives(u, v);
         (s, [su, sv])
     }
 
-    fn eval_d2(&self, u: f64, v: f64) -> (Point, [Vector; 2], [Vector; 3]) {
-        let [s, su, sv, suu, suv, svv] = self.eval_surface_d2(u, v);
+    fn second_derivatives(&self, u: f64, v: f64) -> (Point, [Vector; 2], [Vector; 3]) {
+        let [s, su, sv, suu, suv, svv] = self.surface_second_derivatives(u, v);
         (Point::ORIGIN + s, [su, sv], [suu, suv, svv])
     }
 
@@ -2507,7 +2517,7 @@ impl<'a> PatchSearch<'a> {
             r[2] + t * (r[3] - r[2]),
             [Some((r[0], r[1])), Some((r[2], r[3]))],
         );
-        let distance = self.surface.eval_point(u, v).distance(self.point);
+        let distance = self.surface.point_at(u, v).distance(self.point);
         self.found(distance, u, v);
     }
 

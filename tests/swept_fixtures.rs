@@ -89,7 +89,7 @@ fn assert_patch(
                 u0 + (u1 - u0) * f64::from(i) / 6.0,
                 v0 + (v1 - v0) * f64::from(j) / 6.0,
             );
-            let on_patch = patch.eval_point(u, v);
+            let on_patch = patch.point_at(u, v);
             let scale = (on_patch - Point::ORIGIN).magnitude().max(1.0);
             let distance = surface.project_point(on_patch, Tolerance::DEFAULT).distance;
             assert!(
@@ -149,7 +149,7 @@ where
         for index in 0..=16 {
             let point = cut
                 .curve
-                .eval_point(first + (last - first) * f64::from(index) / 16.0);
+                .point_at(first + (last - first) * f64::from(index) / 16.0);
             let off = swept
                 .project_point(point, tol)
                 .distance

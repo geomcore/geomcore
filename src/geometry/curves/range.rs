@@ -87,7 +87,7 @@ impl_for_both_tiers! {
 
         /// A line's coordinates have no stationary points.
         fn range_box(&self, first: f64, last: f64) -> BoundingBoxOf<P> {
-            bounding_box::box_through(|u| self.eval_point(u), (first, last), [])
+            bounding_box::box_through(|u| self.point_at(u), (first, last), [])
         }
 
         fn for_each_run<F>(
@@ -100,7 +100,7 @@ impl_for_both_tiers! {
         ) where
             F: FnMut(Run, &dyn Fn(f64) -> P),
         {
-            let point_at = |u| self.eval_point(u);
+            let point_at = |u| self.point_at(u);
             discretization::line_steps(point_at, (first, last), criteria, min_segments, visit);
         }
 
@@ -109,7 +109,7 @@ impl_for_both_tiers! {
             first: f64,
             last: f64,
         ) -> Result<GenericBSplineCurve<P>, BSplineConversionError> {
-            let (start, end) = (self.eval_point(first), self.eval_point(last));
+            let (start, end) = (self.point_at(first), self.point_at(last));
             conversion::segment_bspline(start, end, (first, last))
         }
 
@@ -126,7 +126,7 @@ impl_for_both_tiers! {
         fn range_box(&self, first: f64, last: f64) -> BoundingBoxOf<P> {
             let (frame, r) = (self.frame(), self.radius());
             bounding_box::trigonometric_box(
-                |u| self.eval_point(u),
+                |u| self.point_at(u),
                 frame.origin(),
                 frame.x_direction() * r,
                 frame.y_direction() * r,
@@ -146,7 +146,7 @@ impl_for_both_tiers! {
         {
             discretization::circle_steps(
                 self.radius(),
-                |u| self.eval_point(u),
+                |u| self.point_at(u),
                 (first, last),
                 criteria,
                 min_segments,
@@ -176,7 +176,7 @@ impl_for_both_tiers! {
         fn range_box(&self, first: f64, last: f64) -> BoundingBoxOf<P> {
             let frame = self.frame();
             bounding_box::trigonometric_box(
-                |u| self.eval_point(u),
+                |u| self.point_at(u),
                 frame.origin(),
                 frame.x_direction() * self.major_radius(),
                 frame.y_direction() * self.minor_radius(),
@@ -196,7 +196,7 @@ impl_for_both_tiers! {
         {
             discretization::ellipse_steps(
                 (self.major_radius(), self.minor_radius()),
-                |u| self.eval_point(u),
+                |u| self.point_at(u),
                 (first, last),
                 criteria,
                 min_segments,
@@ -224,7 +224,7 @@ impl_for_both_tiers! {
         type Point = P;
 
         fn range_box(&self, first: f64, last: f64) -> BoundingBoxOf<P> {
-            let point_at = |u| self.eval_point(u);
+            let point_at = |u| self.point_at(u);
             bounding_box::parabola_box(point_at, self.frame(), self.focal_distance(), (first, last))
         }
 
@@ -240,7 +240,7 @@ impl_for_both_tiers! {
         {
             discretization::parabola_steps(
                 self.focal_distance(),
-                |u| self.eval_point(u),
+                |u| self.point_at(u),
                 (first, last),
                 criteria,
                 min_segments,
@@ -268,7 +268,7 @@ impl_for_both_tiers! {
 
         fn range_box(&self, first: f64, last: f64) -> BoundingBoxOf<P> {
             let radii = (self.major_radius(), self.minor_radius());
-            let point_at = |u| self.eval_point(u);
+            let point_at = |u| self.point_at(u);
             bounding_box::hyperbola_box(point_at, self.frame(), radii, (first, last))
         }
 
@@ -284,7 +284,7 @@ impl_for_both_tiers! {
         {
             discretization::hyperbola_steps(
                 (self.major_radius(), self.minor_radius()),
-                |u| self.eval_point(u),
+                |u| self.point_at(u),
                 (first, last),
                 criteria,
                 min_segments,

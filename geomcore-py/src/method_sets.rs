@@ -117,30 +117,30 @@ macro_rules! curve_methods {
             $($methods)*
 
             /// Evaluate the point at parameter `u`.
-            fn eval_point(&self, u: f64) -> $point {
-                $point(self.0.eval_point(u))
+            fn point_at(&self, u: f64) -> $point {
+                $point(self.0.point_at(u))
             }
 
             /// Evaluate many parameters at once.
-            fn eval_points(&self, us: Vec<f64>) -> Vec<$point> {
-                self.0.eval_points(&us).into_iter().map($point).collect()
+            fn points_at(&self, us: Vec<f64>) -> Vec<$point> {
+                self.0.points_at(&us).into_iter().map($point).collect()
             }
 
             /// Evaluate the derivative of the given order (>= 1) at `u`.
-            fn eval_derivative(&self, u: f64, order: u32) -> PyResult<$vector> {
+            fn derivative(&self, u: f64, order: u32) -> PyResult<$vector> {
                 check_curve_order(order)?;
-                Ok($vector(self.0.eval_derivative(u, order)))
+                Ok($vector(self.0.derivative(u, order)))
             }
 
             /// The point and the first derivative at parameter `u`.
-            fn eval_d1(&self, u: f64) -> ($point, $vector) {
-                let (point, first) = self.0.eval_d1(u);
+            fn first_derivatives(&self, u: f64) -> ($point, $vector) {
+                let (point, first) = self.0.first_derivatives(u);
                 ($point(point), $vector(first))
             }
 
             /// The point and the first two derivatives at parameter `u`.
-            fn eval_d2(&self, u: f64) -> ($point, $vector, $vector) {
-                let (point, first, second) = self.0.eval_d2(u);
+            fn second_derivatives(&self, u: f64) -> ($point, $vector, $vector) {
+                let (point, first, second) = self.0.second_derivatives(u);
                 ($point(point), $vector(first), $vector(second))
             }
 
@@ -276,8 +276,8 @@ macro_rules! curve_methods {
             }
 
             /// The same curve traversed the other way:
-            /// `reversed().eval_point(reversed_parameter(u))` is
-            /// `eval_point(u)`.
+            /// `reversed().point_at(reversed_parameter(u))` is
+            /// `point_at(u)`.
             fn reversed(&self) -> Self {
                 Self(self.0.reversed())
             }
@@ -421,23 +421,23 @@ macro_rules! sided_evaluation_methods {
             /// bound of a non-periodic curve. A periodic curve's seam is a
             /// knot like any other: at either bound, `BELOW` takes the last
             /// span of the period and `ABOVE` the first.
-            fn eval_d1_sided(&self, u: f64, side: PySide) -> ($point, $vector) {
-                let (point, first) = self.0.eval_d1_sided(u, side.into());
+            fn first_derivatives_sided(&self, u: f64, side: PySide) -> ($point, $vector) {
+                let (point, first) = self.0.first_derivatives_sided(u, side.into());
                 ($point(point), $vector(first))
             }
 
             /// The point and the first two derivatives at parameter `u`,
-            /// from one `side`, as `eval_d1_sided`.
-            fn eval_d2_sided(&self, u: f64, side: PySide) -> ($point, $vector, $vector) {
-                let (point, first, second) = self.0.eval_d2_sided(u, side.into());
+            /// from one `side`, as `first_derivatives_sided`.
+            fn second_derivatives_sided(&self, u: f64, side: PySide) -> ($point, $vector, $vector) {
+                let (point, first, second) = self.0.second_derivatives_sided(u, side.into());
                 ($point(point), $vector(first), $vector(second))
             }
 
             /// The derivative of the given order (>= 1) at parameter `u`,
-            /// from one `side`, as `eval_d1_sided`.
-            fn eval_derivative_sided(&self, u: f64, order: u32, side: PySide) -> PyResult<$vector> {
+            /// from one `side`, as `first_derivatives_sided`.
+            fn derivative_sided(&self, u: f64, order: u32, side: PySide) -> PyResult<$vector> {
                 check_curve_order(order)?;
-                Ok($vector(self.0.eval_derivative_sided(u, order, side.into())))
+                Ok($vector(self.0.derivative_sided(u, order, side.into())))
             }
         }}
     };
@@ -451,39 +451,39 @@ macro_rules! surface {
             $($methods)*
 
             /// Evaluate the point at surface parameters (u, v).
-            fn eval_point(&self, u: f64, v: f64) -> PyPoint {
-                PyPoint(self.0.eval_point(u, v))
+            fn point_at(&self, u: f64, v: f64) -> PyPoint {
+                PyPoint(self.0.point_at(u, v))
             }
 
             /// Evaluate many (u, v) pairs at once.
-            fn eval_points(&self, uvs: Vec<(f64, f64)>) -> Vec<PyPoint> {
-                self.0.eval_points(&uvs).into_iter().map(PyPoint).collect()
+            fn points_at(&self, uvs: Vec<(f64, f64)>) -> Vec<PyPoint> {
+                self.0.points_at(&uvs).into_iter().map(PyPoint).collect()
             }
 
             /// Evaluate the partial derivative of order (du, dv), with
             /// du+dv >= 1: of every order on the plane, cylinder, cone,
             /// sphere and torus, and du+dv <= 2 on the other surfaces.
-            fn eval_derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> PyResult<PyVector> {
+            fn derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> PyResult<PyVector> {
                 check_surface_order(&self.0, du, dv)?;
-                Ok(PyVector(self.0.eval_derivative(u, v, du, dv)))
+                Ok(PyVector(self.0.derivative(u, v, du, dv)))
             }
 
             /// The point and the first partial derivatives `(du, dv)` at
             /// `(u, v)`.
-            fn eval_d1(&self, u: f64, v: f64) -> (PyPoint, (PyVector, PyVector)) {
-                let (point, [du, dv]) = self.0.eval_d1(u, v);
+            fn first_derivatives(&self, u: f64, v: f64) -> (PyPoint, (PyVector, PyVector)) {
+                let (point, [du, dv]) = self.0.first_derivatives(u, v);
                 (PyPoint(point), (PyVector(du), PyVector(dv)))
             }
 
             /// The point, the first partial derivatives `(du, dv)` and the
             /// second partial derivatives `(du du, du dv, dv dv)` at
             /// `(u, v)`.
-            fn eval_d2(
+            fn second_derivatives(
                 &self,
                 u: f64,
                 v: f64,
             ) -> (PyPoint, (PyVector, PyVector), (PyVector, PyVector, PyVector)) {
-                let (point, [du, dv], [duu, duv, dvv]) = self.0.eval_d2(u, v);
+                let (point, [du, dv], [duu, duv, dvv]) = self.0.second_derivatives(u, v);
                 (
                     PyPoint(point),
                     (PyVector(du), PyVector(dv)),
@@ -534,7 +534,7 @@ macro_rules! surface {
             /// `u_degree - multiplicity` at a `u` knot (within
             /// `tol.parametric`); the ends of a non-periodic direction
             /// report smooth, and a periodic direction's seam counts as a
-            /// knot. Use `BSplineSurface.eval_d1_sided` and its siblings to
+            /// knot. Use `BSplineSurface.first_derivatives_sided` and its siblings to
             /// evaluate each side of a knot reporting a low order.
             #[pyo3(signature = (u, tol = None))]
             fn continuity_u(&self, u: f64, tol: Option<PyTolerance>) -> ContinuityNumber {
@@ -629,7 +629,7 @@ macro_rules! surface {
             }
 
             /// The `u` isoparametric curve at `u`, parametrized by `v` like
-            /// the surface: `u_iso(u).eval_point(t)` is `eval_point(u, t)`.
+            /// the surface: `u_iso(u).point_at(t)` is `point_at(u, t)`.
             /// Raises `SurfaceIsoError` for a non-finite parameter or one
             /// outside a non-periodic direction (a periodic one wraps).
             fn u_iso(&self, py: Python<'_>, u: f64) -> PyResult<Py<PyAny>> {
@@ -713,8 +713,8 @@ macro_rules! surface {
             }
 
             /// The same surface with the `u` direction reversed:
-            /// `reversed_u().eval_point(u_reversed_parameter(u), v)` is
-            /// `eval_point(u, v)`.
+            /// `reversed_u().point_at(u_reversed_parameter(u), v)` is
+            /// `point_at(u, v)`.
             fn reversed_u(&self) -> Self {
                 Self(self.0.reversed_u())
             }
@@ -796,22 +796,22 @@ macro_rules! sided_surface_evaluation {
             /// direction. A periodic direction's seam is a knot like any
             /// other: at either bound, `BELOW` takes the last span of the
             /// period and `ABOVE` the first.
-            fn eval_d1_sided(
+            fn first_derivatives_sided(
                 &self,
                 u: f64,
                 v: f64,
                 u_side: PySide,
                 v_side: PySide,
             ) -> (PyPoint, (PyVector, PyVector)) {
-                let (point, [du, dv]) = self.0.eval_d1_sided(u, v, u_side.into(), v_side.into());
+                let (point, [du, dv]) = self.0.first_derivatives_sided(u, v, u_side.into(), v_side.into());
                 (PyPoint(point), (PyVector(du), PyVector(dv)))
             }
 
             /// The point, the first partial derivatives `(du, dv)` and the
             /// second partial derivatives `(du du, du dv, dv dv)` at
             /// `(u, v)`, each direction from its own side, as
-            /// `eval_d1_sided`.
-            fn eval_d2_sided(
+            /// `first_derivatives_sided`.
+            fn second_derivatives_sided(
                 &self,
                 u: f64,
                 v: f64,
@@ -819,7 +819,7 @@ macro_rules! sided_surface_evaluation {
                 v_side: PySide,
             ) -> (PyPoint, (PyVector, PyVector), (PyVector, PyVector, PyVector)) {
                 let (point, [du, dv], [duu, duv, dvv]) =
-                    self.0.eval_d2_sided(u, v, u_side.into(), v_side.into());
+                    self.0.second_derivatives_sided(u, v, u_side.into(), v_side.into());
                 (
                     PyPoint(point),
                     (PyVector(du), PyVector(dv)),
@@ -829,8 +829,8 @@ macro_rules! sided_surface_evaluation {
 
             /// The partial derivative of order `(du, dv)`, with
             /// `1 <= du + dv <= 2`, at `(u, v)`, each direction from its own
-            /// side, as `eval_d1_sided`.
-            fn eval_derivative_sided(
+            /// side, as `first_derivatives_sided`.
+            fn derivative_sided(
                 &self,
                 u: f64,
                 v: f64,
@@ -841,7 +841,7 @@ macro_rules! sided_surface_evaluation {
             ) -> PyResult<PyVector> {
                 check_surface_order(&self.0, du, dv)?;
                 let (u_side, v_side) = (u_side.into(), v_side.into());
-                Ok(PyVector(self.0.eval_derivative_sided(u, v, du, dv, u_side, v_side)))
+                Ok(PyVector(self.0.derivative_sided(u, v, du, dv, u_side, v_side)))
             }
         }}
     };

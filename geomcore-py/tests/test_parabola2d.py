@@ -51,24 +51,24 @@ def test_construction_validation():
 def test_evaluation_derivatives_and_parameter_inversion():
     p = parabola()
     for u in [0.0, 0.7, 2.3, -1.2]:
-        point = p.eval_point(u)
+        point = p.point_at(u)
         assert xy(point) == pytest.approx((u * u / 4.0, u))
-        assert xy(p.eval_derivative(u, 1)) == pytest.approx((u / 2.0, 1.0))
-        assert xy(p.eval_derivative(u, 2)) == pytest.approx((0.5, 0.0))
-        assert xy(p.eval_derivative(u, 3)) == (0.0, 0.0)
-        d1, v1 = p.eval_d1(u)
+        assert xy(p.derivative(u, 1)) == pytest.approx((u / 2.0, 1.0))
+        assert xy(p.derivative(u, 2)) == pytest.approx((0.5, 0.0))
+        assert xy(p.derivative(u, 3)) == (0.0, 0.0)
+        d1, v1 = p.first_derivatives(u)
         assert xy(d1) == xy(point)
-        assert xy(v1) == xy(p.eval_derivative(u, 1))
-        d2, v2, a2 = p.eval_d2(u)
+        assert xy(v1) == xy(p.derivative(u, 1))
+        d2, v2, a2 = p.second_derivatives(u)
         assert xy(d2) == xy(point)
         assert xy(v2) == xy(v1)
-        assert xy(a2) == xy(p.eval_derivative(u, 2))
+        assert xy(a2) == xy(p.derivative(u, 2))
         assert p.parameter_of(point) == pytest.approx(u)
-    points = p.eval_points([0.0, 2.0])
+    points = p.points_at([0.0, 2.0])
     assert xy(points[0]) == (0.0, 0.0)
     assert xy(points[1]) == pytest.approx((1.0, 2.0))
     with pytest.raises(ValueError):
-        p.eval_derivative(0.0, 0)
+        p.derivative(0.0, 0)
 
 
 def test_contains_and_projection():

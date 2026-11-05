@@ -198,8 +198,8 @@ fn build(spec: &CurveSpec) -> Operand {
 impl Operand {
     fn point_at(&self, parameter: f64) -> Point2D {
         match self {
-            Operand::Whole(c) => c.eval_point(parameter),
-            Operand::Trimmed(c) => c.eval_point(parameter),
+            Operand::Whole(c) => c.point_at(parameter),
+            Operand::Trimmed(c) => c.point_at(parameter),
         }
     }
 

@@ -34,8 +34,8 @@ fn measured_deviation(
     (0..=2000)
         .map(|k| {
             let t = first + (last - first) * (k as f64 / 2000.0);
-            let uv = uv_curve.eval_point(t);
-            curve.eval_point(t).distance(surface.eval_point(uv.x, uv.y))
+            let uv = uv_curve.point_at(t);
+            curve.point_at(t).distance(surface.point_at(uv.x, uv.y))
         })
         .fold(0.0, f64::max)
 }

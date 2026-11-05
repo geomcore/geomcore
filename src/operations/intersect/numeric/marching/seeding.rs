@@ -235,7 +235,7 @@ fn distinct_seeds<A: ParametricSurface>(
     let mut points: Vec<Point> = Vec::with_capacity(seeds.len());
     let mut kept = Vec::with_capacity(seeds.len());
     for seed in seeds {
-        let p = a.eval_point(seed[0], seed[1]);
+        let p = a.point_at(seed[0], seed[1]);
         if points.iter().all(|q| q.distance(p) > tol.confusion) {
             points.push(p);
             kept.push(seed);
@@ -375,7 +375,7 @@ fn family_seeds(
         });
         let overlaps = result.overlaps().iter().map(|&range| {
             let parameter = point_of_range(range);
-            (parameter, curve.eval_point(parameter), None)
+            (parameter, curve.point_at(parameter), None)
         });
         for (parameter, point, other_parameters) in hits.chain(overlaps) {
             let (u, v) = own_parameters(own, direction, value, parameter, point, tol);
@@ -527,7 +527,7 @@ where
                 u0 + (u1 - u0) * i as f64 / N as f64,
                 v0 + (v1 - v0) * j as f64 / N as f64,
             );
-            let q = other.project_point(s.eval_point(u, v), tol);
+            let q = other.project_point(s.point_at(u, v), tol);
             samples.push(([u, v, q.u, q.v], q.distance));
         }
     }

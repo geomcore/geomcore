@@ -39,7 +39,7 @@ fn assert_on_both(
         for index in 0..=16 {
             let point = cut
                 .curve
-                .eval_point(start + (end - start) * index as f64 / 16.0);
+                .point_at(start + (end - start) * index as f64 / 16.0);
             assert!(
                 first.project_point(point, TOL).distance < 1e-9,
                 "{point:?} off the first surface"
@@ -127,7 +127,7 @@ fn test_planar_extrusion_of_a_conic_cuts_a_segment() {
     let result = surface.intersect(&cutter, TOL);
     assert_eq!(result.method(), IntersectionMethod::Exact);
     let segment = &result.curves()[0].curve;
-    let ends = [segment.eval_point(0.0), segment.eval_point(1.0)];
+    let ends = [segment.point_at(0.0), segment.point_at(1.0)];
     assert!(ends[0].distance(Point::new(-2.0, 0.0, 5.0)) < 1e-12);
     assert!(ends[1].distance(Point::new(2.0, 0.0, 5.0)) < 1e-12);
     // A parabola's strip is a half-plane: no whole curve, so it marches.

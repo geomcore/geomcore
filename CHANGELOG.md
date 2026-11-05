@@ -11,6 +11,12 @@ the Python distribution are versioned in lockstep.
 
 ### Breaking
 
+- Evaluation reads in plain words (#202), in Rust and Python, on every
+  curve and surface: `eval_point` and `eval_points` become `point_at` and
+  `points_at` (as `Frame::point_at` already was), `eval_derivative`
+  becomes `derivative`, and `eval_d1` and `eval_d2` become
+  `first_derivatives` and `second_derivatives`; the `_sided` variants
+  follow. Benchmark ids keep their names.
 - Methods say what they compute in plain words (#202), in Rust and
   Python: `Vector2D::perp()` becomes `perpendicular()`; `Parabola::focal()`
   and `Parabola2D::focal()` become `focal_distance()`, as do the Python

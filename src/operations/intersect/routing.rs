@@ -201,12 +201,12 @@ macro_rules! tier_curve_basis {
 
             #[inline]
             fn point_at(&self, parameter: f64) -> $point {
-                $parametric::eval_point(self, parameter)
+                $parametric::point_at(self, parameter)
             }
 
             #[inline]
             fn first_derivative(&self, parameter: f64) -> <$point as TierPoint>::Vector {
-                $parametric::eval_derivative(self, parameter, 1)
+                $parametric::derivative(self, parameter, 1)
             }
 
             #[inline]

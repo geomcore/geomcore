@@ -169,7 +169,7 @@ impl UvCurveApproximation {
 /// The 3D curve that `uv_curve` traces on `surface`, within `max_deviation`
 /// at the same parameter, over the UV curve's bounds: one B-spline whose
 /// point at every `t` lies within `max_deviation` of
-/// `surface.eval_point(c(t))`.
+/// `surface.point_at(c(t))`.
 ///
 /// It is the counterpart of
 /// [`uv_curve_to_3d`](ParametricSurface::uv_curve_to_3d), which gives the
@@ -203,8 +203,8 @@ impl UvCurveApproximation {
 /// let curve = approximation.curve();
 /// assert_eq!(curve.degree(), 9);
 /// assert_eq!(curve.bounds(), (0.0, length));
-/// let uv = turn.eval_point(1.0);
-/// assert!(curve.eval_point(1.0).distance(cylinder.eval_point(uv.x, uv.y)) <= 1e-7);
+/// let uv = turn.point_at(1.0);
+/// assert!(curve.point_at(1.0).distance(cylinder.point_at(uv.x, uv.y)) <= 1e-7);
 /// ```
 ///
 /// For a straight UV curve on a plane, cylinder, cone, sphere or torus the
@@ -361,27 +361,28 @@ impl<S: ParametricSurface + ?Sized, C: ParametricCurve2D + ?Sized> Composition<'
         let mut uv_derivatives = [Vector2D::ZERO; HIGH_ORDER];
         let uv = match (self.high_order_surface, self.spline) {
             (None, Some(spline)) => {
-                let (uv, d1, d2) = spline.eval_d2_sided(t, side);
+                let (uv, d1, d2) = spline.second_derivatives_sided(t, side);
                 uv_derivatives[..2].copy_from_slice(&[d1, d2]);
                 uv
             }
             (None, None) => {
-                let (uv, d1, d2) = self.uv_curve.eval_d2(t);
+                let (uv, d1, d2) = self.uv_curve.second_derivatives(t);
                 uv_derivatives[..2].copy_from_slice(&[d1, d2]);
                 uv
             }
             (Some(_), _) => {
                 for (k, derivative) in uv_derivatives.iter_mut().enumerate() {
-                    *derivative = self.uv_curve.eval_derivative(t, k as u32 + 1);
+                    *derivative = self.uv_curve.derivative(t, k as u32 + 1);
                 }
-                self.uv_curve.eval_point(t)
+                self.uv_curve.point_at(t)
             }
         };
         self.check_domain(uv)?;
         // `partials[i][j]` is `∂ⁱ⁺ʲS / ∂uⁱ ∂vʲ`.
         let (point, partials) = match self.high_order_surface {
             None => {
-                let (point, [su, sv], [suu, suv, svv]) = self.surface.eval_d2(uv.x, uv.y);
+                let (point, [su, sv], [suu, suv, svv]) =
+                    self.surface.second_derivatives(uv.x, uv.y);
                 let mut partials = [[Vector::ZERO; HIGH_ORDER + 1]; HIGH_ORDER + 1];
                 partials[1][0] = su;
                 partials[0][1] = sv;
@@ -405,9 +406,9 @@ impl<S: ParametricSurface + ?Sized, C: ParametricCurve2D + ?Sized> Composition<'
 
     /// The point of `f` at `t`.
     fn point(&self, t: f64) -> Result<Point, UvCurveApproximationError> {
-        let uv = self.uv_curve.eval_point(t);
+        let uv = self.uv_curve.point_at(t);
         self.check_domain(uv)?;
-        let point = self.surface.eval_point(uv.x, uv.y);
+        let point = self.surface.point_at(uv.x, uv.y);
         if !point.is_finite() {
             return Err(UvCurveApproximationError::OutsideSurfaceDomain);
         }

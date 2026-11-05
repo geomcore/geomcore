@@ -838,7 +838,7 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
     /// assert_eq!(curve.degree(), 3);
     /// // Near-circular fit: radius stays within a few percent of 2.
     /// for i in 0..=40 {
-    ///     let p = curve.eval_point(i as f64 / 40.0);
+    ///     let p = curve.point_at(i as f64 / 40.0);
     ///     let r = (p.x * p.x + p.y * p.y).sqrt();
     ///     assert!((r - 2.0).abs() < 0.1, "{p:?}");
     /// }
@@ -855,7 +855,7 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
     /// assert_eq!(curve.degree(), 3);
     /// // Near-circular fit: radius stays within a few percent of 2.
     /// for i in 0..=40 {
-    ///     let p = curve.eval_point(i as f64 / 40.0);
+    ///     let p = curve.point_at(i as f64 / 40.0);
     ///     let r = p.distance(Point2D::ORIGIN);
     ///     assert!((r - 2.0).abs() < 0.1, "{p:?}");
     /// }

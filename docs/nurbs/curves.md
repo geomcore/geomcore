@@ -45,20 +45,20 @@ Rational (NURBS) curves take one weight per pole via
 === "Python"
 
     ```python
-    p = curve.eval_point(0.5)
+    p = curve.point_at(0.5)
     assert (p.x, p.y, p.z) == (0.75, 0.75, 0.0)
-    pts = curve.eval_points([0.0, 0.25, 0.5, 0.75, 1.0])
+    pts = curve.points_at([0.0, 0.25, 0.5, 0.75, 1.0])
     ```
 
 === "Rust"
 
     ```rust
-    let p = curve.eval_point(0.5);
+    let p = curve.point_at(0.5);
     assert_eq!(p, Point::new(0.75, 0.75, 0.0));
-    let pts = curve.eval_points(&[0.0, 0.25, 0.5, 0.75, 1.0]);
+    let pts = curve.points_at(&[0.0, 0.25, 0.5, 0.75, 1.0]);
     ```
 
-Derivatives come from `eval_derivative` (order 1–2); `eval_d1`/`eval_d2`
+Derivatives come from `derivative` (order 1–2); `first_derivatives`/`second_derivatives`
 return the point with its derivatives from a single basis pass.
 `bounds()` gives the parameter range.
 
@@ -73,7 +73,7 @@ carrying a proven chord-deviation and angle-deviation bound — see
 
     ```python
     d = curve.discretize(0.01)
-    assert d.points[0] == curve.eval_point(0.0)
+    assert d.points[0] == curve.point_at(0.0)
     ```
 
 === "Rust"
@@ -82,7 +82,7 @@ carrying a proven chord-deviation and angle-deviation bound — see
     use geomcore::DiscretizationCriteria;
 
     let d = curve.discretize(DiscretizationCriteria::new(0.01).unwrap());
-    assert_eq!(d.points[0], curve.eval_point(0.0));
+    assert_eq!(d.points[0], curve.point_at(0.0));
     ```
 
 ## View it

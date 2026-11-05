@@ -18,13 +18,13 @@ fn assert_hits_lie_on<C: ParametricCurve, S: ParametricSurface>(
         }
         if let Some(t) = h.curve_parameter {
             assert!(
-                c.eval_point(t).distance(h.point) <= 1e-7,
+                c.point_at(t).distance(h.point) <= 1e-7,
                 "curve parameter does not give the point"
             );
         }
         if let Some((u, v)) = h.surface_parameters {
             assert!(
-                s.eval_point(u, v).distance(h.point) <= 1e-7,
+                s.point_at(u, v).distance(h.point) <= 1e-7,
                 "surface parameters do not give the point"
             );
         }
@@ -45,7 +45,7 @@ fn test_line_sphere_routes_exact_and_leaves_surface_parameters_to_the_caller() {
         assert!(h.curve_parameter.is_some());
         assert_eq!(h.surface_parameters, None);
         let (u, v) = sphere.parameters_of(h.point, Tolerance::DEFAULT);
-        assert!(sphere.eval_point(u, v).distance(h.point) <= 1e-7);
+        assert!(sphere.point_at(u, v).distance(h.point) <= 1e-7);
     }
 }
 
@@ -144,10 +144,10 @@ fn assert_curve_hits_lie_on<A: ParametricCurve, B: ParametricCurve>(
 ) {
     for h in r.hits() {
         if let Some(t) = h.first_parameter {
-            assert!(a.eval_point(t).distance(h.point) <= 1e-7);
+            assert!(a.point_at(t).distance(h.point) <= 1e-7);
         }
         if let Some(t) = h.second_parameter {
-            assert!(b.eval_point(t).distance(h.point) <= 1e-7);
+            assert!(b.point_at(t).distance(h.point) <= 1e-7);
         }
     }
 }
@@ -376,10 +376,10 @@ fn assert_hits_2d_lie_on<A: ParametricCurve2D, B: ParametricCurve2D>(
 ) {
     for h in r.hits() {
         if let Some(t) = h.first_parameter {
-            assert!(first.eval_point(t).distance(h.point) <= 1e-7);
+            assert!(first.point_at(t).distance(h.point) <= 1e-7);
         }
         if let Some(t) = h.second_parameter {
-            assert!(second.eval_point(t).distance(h.point) <= 1e-7);
+            assert!(second.point_at(t).distance(h.point) <= 1e-7);
         }
     }
 }
@@ -688,10 +688,10 @@ fn test_concrete_pairs_route_like_their_enums_bit_for_bit() {
 struct Helix;
 
 impl ParametricCurve for Helix {
-    fn eval_point(&self, u: f64) -> Point {
+    fn point_at(&self, u: f64) -> Point {
         Point::new(2.0 * u.cos(), 2.0 * u.sin(), u / TAU)
     }
-    fn eval_derivative(&self, u: f64, order: u32) -> Vector {
+    fn derivative(&self, u: f64, order: u32) -> Vector {
         match order % 4 {
             1 => Vector::new(-2.0 * u.sin(), 2.0 * u.cos(), 1.0 / TAU),
             2 => Vector::new(-2.0 * u.cos(), -2.0 * u.sin(), 0.0),
@@ -838,8 +838,8 @@ fn test_routed_circle_circle_leaves_both_angles_to_the_caller() {
             first.parameter_of(h.point, Tolerance::DEFAULT),
             second.parameter_of(h.point, Tolerance::DEFAULT),
         );
-        assert!(first.eval_point(a).distance(h.point) < 1e-12);
-        assert!(second.eval_point(b).distance(h.point) < 1e-12);
+        assert!(first.point_at(a).distance(h.point) < 1e-12);
+        assert!(second.point_at(b).distance(h.point) < 1e-12);
     }
 }
 
@@ -935,7 +935,7 @@ fn test_hit_a_hair_past_the_seam_end_of_an_arc_is_kept_in_3d() {
     let circle = Circle::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
     for case in &SEAM_CASES {
         let arc = TrimmedCurve::new(circle, case.range.0, case.range.1).unwrap();
-        let hit = circle.eval_point(case.angle);
+        let hit = circle.point_at(case.angle);
         let (sin, cos) = case.line_angle.sin_cos();
         let line = Line::new(hit, Vector::new(cos, sin, 0.0)).unwrap();
         let (sin, cos) = (case.crossing_angle + case.angle).sin_cos();
@@ -966,7 +966,7 @@ fn test_hit_a_hair_past_the_seam_end_of_an_arc_is_kept_in_2d() {
     let circle = Circle2D::new(Point2D::ORIGIN, 1.0).unwrap();
     for case in &SEAM_CASES {
         let arc = TrimmedCurve2D::new(circle, case.range.0, case.range.1).unwrap();
-        let hit = circle.eval_point(case.angle);
+        let hit = circle.point_at(case.angle);
         let (sin, cos) = case.line_angle.sin_cos();
         let line = Line2D::new(hit, Vector2D::new(cos, sin)).unwrap();
         let (sin, cos) = (case.crossing_angle + case.angle).sin_cos();
@@ -991,7 +991,7 @@ fn test_hit_a_hair_past_the_seam_end_of_an_arc_is_kept_in_2d() {
 fn test_hit_farther_than_the_confusion_past_the_seam_is_dropped() {
     let circle = Circle::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
     let arc = TrimmedCurve::new(circle, 0.0, PI).unwrap();
-    let hit = circle.eval_point(-1e-6);
+    let hit = circle.point_at(-1e-6);
     let (sin, cos) = (PI / 3.0).sin_cos();
     let line = Line::new(hit, Vector::new(cos, sin, 0.0)).unwrap();
     assert!(arc.intersect(&line, TOL).hits().is_empty());
@@ -1056,8 +1056,8 @@ fn test_arcs_touching_across_the_seam_store_the_near_ends() {
                         h.first_parameter,
                         h.second_parameter,
                         (
-                            circle.eval_point(h.first_parameter.unwrap()),
-                            circle.eval_point(h.second_parameter.unwrap()),
+                            circle.point_at(h.first_parameter.unwrap()),
+                            circle.point_at(h.second_parameter.unwrap()),
                         ),
                         h.point,
                         ranges,
@@ -1078,8 +1078,8 @@ fn test_arcs_touching_across_the_seam_store_the_near_ends() {
                         h.first_parameter,
                         h.second_parameter,
                         (
-                            lift(circle.eval_point(h.first_parameter.unwrap())),
-                            lift(circle.eval_point(h.second_parameter.unwrap())),
+                            lift(circle.point_at(h.first_parameter.unwrap())),
+                            lift(circle.point_at(h.second_parameter.unwrap())),
                         ),
                         lift(h.point),
                         ranges,
@@ -1104,11 +1104,11 @@ fn test_reviewer_seam_touch_stores_two_pi_on_the_second_arc() {
 struct Floor(Plane);
 
 impl ParametricSurface for Floor {
-    fn eval_point(&self, u: f64, v: f64) -> Point {
-        self.0.eval_point(u, v)
+    fn point_at(&self, u: f64, v: f64) -> Point {
+        self.0.point_at(u, v)
     }
-    fn eval_derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> Vector {
-        self.0.eval_derivative(u, v, du, dv)
+    fn derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> Vector {
+        self.0.derivative(u, v, du, dv)
     }
     fn u_bounds(&self) -> (f64, f64) {
         self.0.u_bounds()
@@ -1152,7 +1152,7 @@ fn test_caller_defined_surface_intersects_through_the_public_numeric_function() 
 fn hits_past_the_end_of_an_arc(radius: f64, excess: f64) -> Vec<Option<f64>> {
     let circle = Circle::new(Point::ORIGIN, Vector::Z, radius).unwrap();
     let arc = TrimmedCurve::new(circle, 0.0, PI).unwrap();
-    let hit = circle.eval_point(PI + excess);
+    let hit = circle.point_at(PI + excess);
     let (sin, cos) = (-PI / 3.0).sin_cos();
     let line = Line::new(hit, Vector::new(cos, sin, 0.0)).unwrap();
     let plane = Plane::new(hit, Vector::new(-sin, cos, 0.0)).unwrap();
@@ -1260,8 +1260,8 @@ fn assert_hits_lie_on_2d<A: ParametricCurve2D, B: ParametricCurve2D>(
 ) {
     for h in r.hits() {
         let (s, t) = (h.first_parameter.unwrap(), h.second_parameter.unwrap());
-        assert!(a.eval_point(s).distance(h.point) <= 1e-7);
-        assert!(b.eval_point(t).distance(h.point) <= 1e-7);
+        assert!(a.point_at(s).distance(h.point) <= 1e-7);
+        assert!(b.point_at(t).distance(h.point) <= 1e-7);
     }
 }
 

@@ -123,10 +123,10 @@ fn assert_on_both<C: ParametricCurve>(
         assert!((u0..=u1).contains(&u) && (v0..=v1).contains(&v), "{hit:?}");
         assert!(
             hit.point
-                .distance(curve.eval_point(hit.curve_parameter.unwrap()))
+                .distance(curve.point_at(hit.curve_parameter.unwrap()))
                 < 1e-12
         );
-        assert!(hit.point.distance(surface.eval_point(u, v)) <= TOL.confusion);
+        assert!(hit.point.distance(surface.point_at(u, v)) <= TOL.confusion);
     }
     for pair in hits.windows(2) {
         assert!(pair[0].curve_parameter < pair[1].curve_parameter);
@@ -308,7 +308,7 @@ fn test_periodic_surface_matches_sampled() {
         assert!((0.0..6.0).contains(&u));
     }
     // Through the seam, slanting either way across it.
-    let seam = tube.eval_point(0.0, 0.5);
+    let seam = tube.point_at(0.0, 0.5);
     for slant in [0.3, -0.3] {
         let line = segment(
             Point::new(0.3 * seam.x, 0.3 * seam.y + slant, 0.5),
@@ -406,7 +406,7 @@ fn test_hits_at_curve_ends_and_surface_edges() {
 #[test]
 fn test_hit_on_knots_of_both_is_reported_once() {
     let surface = wavy(false);
-    let corner = surface.eval_point(1.0, 2.0);
+    let corner = surface.point_at(1.0, 2.0);
     let poles = vec![
         Point::new(corner.x - 0.3, corner.y - 0.2, corner.z - 1.0),
         corner,
@@ -474,7 +474,7 @@ fn assert_sampled_hits_kept(hits: &CurveSurfaceHits, curve: &BSplineCurve, plane
     for hit in hits {
         assert!(
             hit.point
-                .distance(curve.eval_point(hit.curve_parameter.unwrap()))
+                .distance(curve.point_at(hit.curve_parameter.unwrap()))
                 < 1e-12
         );
         assert!(plane.project_point(hit.point, TOL).distance <= TOL.confusion);
@@ -497,7 +497,7 @@ fn test_curve_lying_on_the_surface_is_unseparated_along_it() {
     assert_eq!(regions[0].curve_range, (0.0, 1.0));
     for k in 0..=16 {
         let t = k as f64 / 16.0;
-        let p = lying.eval_point(t);
+        let p = lying.point_at(t);
         let foot = plane.project_point(p, TOL);
         assert!(
             holds(&regions[0], t, (foot.u, foot.v), p),
@@ -515,7 +515,7 @@ fn test_tangent_contact_is_unseparated_around_it() {
     let plane = flat();
     let tangent = dip(0.0);
     let contact = Point::new(2.5, 2.5, 0.0);
-    assert_eq!(tangent.eval_point(0.5), contact);
+    assert_eq!(tangent.point_at(0.5), contact);
     let foot = plane.project_point(contact, TOL);
     let found = bspline_curve_surface(&tangent, ParameterDomain::of(&tangent), &plane, TOL);
     let (reason, regions) = incomplete(&found);
@@ -542,7 +542,7 @@ fn test_contact_with_a_curved_surface_is_incomplete_around_it() {
     let cylinder = quarter_cylinder();
     for u in [0.2, 0.5, 0.77] {
         let foot = (u, 0.4);
-        let on = cylinder.eval_point(u, 0.4);
+        let on = cylinder.point_at(u, 0.4);
         // Tangent to the cylinder at `on`, and lying on it.
         let side = crate::Vector::new(on.y, -on.x, 0.0) * 0.125;
         let across = segment(on + side, on - side);
@@ -554,15 +554,15 @@ fn test_contact_with_a_curved_surface_is_incomplete_around_it() {
             "{regions:#?}"
         );
         let lying = segment(
-            cylinder.eval_point(foot.0, 0.1),
-            cylinder.eval_point(foot.0, 0.9),
+            cylinder.point_at(foot.0, 0.1),
+            cylinder.point_at(foot.0, 0.9),
         );
         let found = bspline_curve_surface(&lying, ParameterDomain::of(&lying), &cylinder, TOL);
         let (_, regions) = incomplete(&found);
         for k in 0..=8 {
             let t = k as f64 / 8.0;
             let v = 0.1 + 0.8 * t;
-            let p = lying.eval_point(t);
+            let p = lying.point_at(t);
             assert!(regions.iter().any(|r| holds(r, t, (foot.0, v), p)), "{t}");
         }
     }

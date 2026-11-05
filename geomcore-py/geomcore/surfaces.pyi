@@ -66,8 +66,8 @@ class _SurfaceMethods(Generic[_UIsoCurveType, _VIsoCurveType]):
         """
     def reversed_u(self: _Self) -> _Self:
         """The same surface with the `u` direction reversed:
-        `reversed_u().eval_point(u_reversed_parameter(u), v)` is
-        `eval_point(u, v)`.
+        `reversed_u().point_at(u_reversed_parameter(u), v)` is
+        `point_at(u, v)`.
         """
     def reversed_v(self: _Self) -> _Self:
         """The same surface with the `v` direction reversed, as
@@ -81,20 +81,20 @@ class _SurfaceMethods(Generic[_UIsoCurveType, _VIsoCurveType]):
         """Maps `v` onto the `reversed_v()` surface: the `v` parameter
         of the same point there.
         """
-    def eval_point(self, u: float, v: float) -> Point:
+    def point_at(self, u: float, v: float) -> Point:
         """Evaluate the point at surface parameters (u, v)."""
-    def eval_points(self, uvs: List[Tuple[float, float]]) -> List[Point]:
+    def points_at(self, uvs: List[Tuple[float, float]]) -> List[Point]:
         """Evaluate many (u, v) pairs at once."""
-    def eval_derivative(self, u: float, v: float, du: int, dv: int) -> Vector:
+    def derivative(self, u: float, v: float, du: int, dv: int) -> Vector:
         """Evaluate the partial derivative of order (du, dv), with
         du+dv >= 1: of every order on the plane, cylinder, cone,
         sphere and torus, and du+dv <= 2 on the other surfaces.
         """
-    def eval_d1(self, u: float, v: float) -> Tuple[Point, Tuple[Vector, Vector]]:
+    def first_derivatives(self, u: float, v: float) -> Tuple[Point, Tuple[Vector, Vector]]:
         """The point and the first partial derivatives `(du, dv)` at
         `(u, v)`.
         """
-    def eval_d2(
+    def second_derivatives(
         self, u: float, v: float
     ) -> Tuple[Point, Tuple[Vector, Vector], Tuple[Vector, Vector, Vector]]:
         """The point, the first partial derivatives `(du, dv)` and the
@@ -129,7 +129,7 @@ class _SurfaceMethods(Generic[_UIsoCurveType, _VIsoCurveType]):
         `u_degree - multiplicity` at a `u` knot (within
         `tol.parametric`); the ends of a non-periodic direction
         report smooth, and a periodic direction's seam counts as a
-        knot. Use `BSplineSurface.eval_d1_sided` and its siblings to
+        knot. Use `BSplineSurface.first_derivatives_sided` and its siblings to
         evaluate each side of a knot reporting a low order.
         """
     def continuity_v(self, v: float, tol: Optional[Tolerance] = ...) -> Union[int, float]:
@@ -181,7 +181,7 @@ class _SurfaceMethods(Generic[_UIsoCurveType, _VIsoCurveType]):
         """The axis-aligned box around the shape (`None` when unbounded)."""
     def u_iso(self, u: float) -> _UIsoCurveType:
         """The `u` isoparametric curve at `u`, parametrized by `v` like
-        the surface: `u_iso(u).eval_point(t)` is `eval_point(u, t)`.
+        the surface: `u_iso(u).point_at(t)` is `point_at(u, t)`.
         Raises `SurfaceIsoError` for a non-finite parameter or one
         outside a non-periodic direction (a periodic one wraps).
         """
@@ -258,7 +258,7 @@ class _SurfaceNormalMethods:
         """
 
 class _SidedSurfaceEvaluationMethods:
-    def eval_d1_sided(
+    def first_derivatives_sided(
         self, u: float, v: float, u_side: Side, v_side: Side
     ) -> Tuple[Point, Tuple[Vector, Vector]]:
         """The point and the first partial derivatives `(du, dv)` at
@@ -271,20 +271,20 @@ class _SidedSurfaceEvaluationMethods:
         other: at either bound, `BELOW` takes the last span of the
         period and `ABOVE` the first.
         """
-    def eval_d2_sided(
+    def second_derivatives_sided(
         self, u: float, v: float, u_side: Side, v_side: Side
     ) -> Tuple[Point, Tuple[Vector, Vector], Tuple[Vector, Vector, Vector]]:
         """The point, the first partial derivatives `(du, dv)` and the
         second partial derivatives `(du du, du dv, dv dv)` at
         `(u, v)`, each direction from its own side, as
-        `eval_d1_sided`.
+        `first_derivatives_sided`.
         """
-    def eval_derivative_sided(
+    def derivative_sided(
         self, u: float, v: float, du: int, dv: int, u_side: Side, v_side: Side
     ) -> Vector:
         """The partial derivative of order `(du, dv)`, with
         `1 <= du + dv <= 2`, at `(u, v)`, each direction from its own
-        side, as `eval_d1_sided`.
+        side, as `first_derivatives_sided`.
         """
 
 class _SurfaceExtremaMethods:

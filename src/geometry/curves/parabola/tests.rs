@@ -89,7 +89,7 @@ fn test_parabola3d_from_frame_negative_focal_errors() {
 #[test]
 fn test_parabola3d_eval_point_zero() {
     let p = Parabola::new(Point::ORIGIN, Vector::Z, Vector::X, 1.0).unwrap();
-    let pt = p.eval_point(0.0);
+    let pt = p.point_at(0.0);
     assert!(pt.x.abs() < 1e-9);
     assert!(pt.y.abs() < 1e-9);
     assert!(pt.z.abs() < 1e-9);
@@ -99,14 +99,14 @@ fn test_parabola3d_eval_point_zero() {
 fn test_parabola3d_eval_points_matches_loop() {
     let p = Parabola::new(Point::ORIGIN, Vector::Z, Vector::X, 1.7).unwrap();
     let us = [0.0, 0.5, 1.5];
-    let expected: Vec<Point> = us.iter().map(|&u| p.eval_point(u)).collect();
-    assert_eq!(p.eval_points(&us), expected);
+    let expected: Vec<Point> = us.iter().map(|&u| p.point_at(u)).collect();
+    assert_eq!(p.points_at(&us), expected);
 }
 
 #[test]
 fn test_parabola3d_eval_derivative_order1() {
     let p = Parabola::new(Point::ORIGIN, Vector::Z, Vector::X, 1.0).unwrap();
-    let d1 = p.eval_derivative(0.0, 1);
+    let d1 = p.derivative(0.0, 1);
     assert!(d1.x.abs() < 1e-9);
     assert!((d1.y - 1.0).abs() < 1e-9);
 }
@@ -114,7 +114,7 @@ fn test_parabola3d_eval_derivative_order1() {
 #[test]
 fn test_parabola3d_eval_derivative_order3_is_zero() {
     let p = Parabola::new(Point::ORIGIN, Vector::Z, Vector::X, 1.0).unwrap();
-    let d3 = p.eval_derivative(0.5, 3);
+    let d3 = p.derivative(0.5, 3);
     assert_eq!(d3, Vector::ZERO);
 }
 
@@ -122,14 +122,14 @@ fn test_parabola3d_eval_derivative_order3_is_zero() {
 #[should_panic]
 fn test_parabola3d_eval_derivative_order0_panics() {
     let p = Parabola::new(Point::ORIGIN, Vector::Z, Vector::X, 1.0).unwrap();
-    p.eval_derivative(0.0, 0);
+    p.derivative(0.0, 0);
 }
 
 #[test]
 fn test_parabola3d_parameter_of_round_trip() {
     let p = Parabola::new(Point::ORIGIN, Vector::Z, Vector::X, 1.7).unwrap();
     for u in [0.3, 2.0, -5.5] {
-        let pt = p.eval_point(u);
+        let pt = p.point_at(u);
         assert!((p.parameter_of(pt, Tolerance::DEFAULT) - u).abs() < 1e-9);
     }
 }
@@ -137,7 +137,7 @@ fn test_parabola3d_parameter_of_round_trip() {
 #[test]
 fn test_parabola3d_parameter_of_is_unbounded() {
     let p = Parabola::new(Point::ORIGIN, Vector::Z, Vector::X, 1.7).unwrap();
-    let pt = p.eval_point(100.0);
+    let pt = p.point_at(100.0);
     assert!((p.parameter_of(pt, Tolerance::DEFAULT) - 100.0).abs() < 1e-6);
 }
 
@@ -165,18 +165,14 @@ fn test_parabola_construction_error_is_std_error() {
 fn test_parabola3d_contains() {
     let p = Parabola::new(Point::ORIGIN, Vector::Z, Vector::X, 1.0).unwrap();
     let tol = Tolerance::DEFAULT;
-    assert!(p.contains(p.eval_point(2.0), tol));
-    assert!(p.contains(p.eval_point(-1.5), tol));
+    assert!(p.contains(p.point_at(2.0), tol));
+    assert!(p.contains(p.point_at(-1.5), tol));
     assert!(!p.contains(Point::new(0.0, 2.0, 5.0), tol));
     // Within tolerance along the normal far out on the arm: the
     // inverse parameter misses, but the closest point is 3e-8 away, so
     // `contains` must agree with `project_point`.
-    let normal = p
-        .eval_derivative(49.0, 1)
-        .cross(Vector::Z)
-        .normalized()
-        .unwrap();
-    let near = p.eval_point(49.0) + normal * 3e-8;
+    let normal = p.derivative(49.0, 1).cross(Vector::Z).normalized().unwrap();
+    let near = p.point_at(49.0) + normal * 3e-8;
     assert_eq!(p.project_point(near, tol).distance, 0.0);
     assert!(p.contains(near, tol));
 }
@@ -195,12 +191,12 @@ fn test_parabola3d_project_point() {
     let proj = p.project_point(query, tol);
     let mut best = f64::INFINITY;
     for i in -1000..=1000 {
-        let d = p.eval_point(i as f64 * 0.01).distance(query);
+        let d = p.point_at(i as f64 * 0.01).distance(query);
         best = best.min(d);
     }
     assert!(proj.distance <= best);
     assert!(best - proj.distance < 1e-3);
-    assert!(p.contains(p.eval_point(proj.parameter), tol));
+    assert!(p.contains(p.point_at(proj.parameter), tol));
 }
 
 #[test]
@@ -226,7 +222,7 @@ fn test_parabola3d_transformed_translation_spot_check() {
     assert_eq!(moved.apex(), Point::new(1.0, -2.0, 3.0));
     assert_eq!(moved.focal_distance(), 1.0);
     // Hand-computed: apex + (u^2 / 4) * X + u * Y, shifted.
-    assert_eq!(moved.eval_point(2.0), Point::new(2.0, 0.0, 3.0));
+    assert_eq!(moved.point_at(2.0), Point::new(2.0, 0.0, 3.0));
 }
 
 #[test]
@@ -239,19 +235,19 @@ fn test_parabola3d_transformed_round_trip_and_mirror() {
     assert_eq!(moved.focal_distance(), 6.0);
     let tol = Tolerance::DEFAULT;
     for u in [0.0, 1.0, -2.5] {
-        assert!(moved.contains(t.apply_point(parabola.eval_point(u)), tol));
+        assert!(moved.contains(t.apply_point(parabola.point_at(u)), tol));
     }
     let inv =
         Transform::scaling(Point::ORIGIN, 1.0 / 3.0).then(Transform::rotation(axis, -PI / 2.0));
     let back = moved.transformed(inv).unwrap();
     for u in [0.0, 1.0, -2.5] {
-        assert!(back.eval_point(u).distance(parabola.eval_point(u)) < 1e-9);
+        assert!(back.point_at(u).distance(parabola.point_at(u)) < 1e-9);
     }
     // Mirror across the xy-plane preserves the point set.
     let m = Transform::mirror_plane(Frame::WORLD);
     let mirrored = parabola.transformed(m).unwrap();
     for u in [0.0, 1.0, -2.5] {
-        assert!(mirrored.contains(m.apply_point(parabola.eval_point(u)), tol));
+        assert!(mirrored.contains(m.apply_point(parabola.point_at(u)), tol));
     }
     assert_eq!(mirrored.transformed(m).unwrap(), parabola);
 }

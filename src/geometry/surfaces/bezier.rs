@@ -49,8 +49,8 @@ use crate::{Transform, TransformError, Transformable};
 ///     .collect();
 /// let surface = BezierSurface::new(2, 2, poles).unwrap();
 ///
-/// assert_eq!(surface.eval_point(1.0, 1.0), Point::new(2.0, 2.0, 4.0));
-/// let p = surface.eval_point(0.25, 0.5);
+/// assert_eq!(surface.point_at(1.0, 1.0), Point::new(2.0, 2.0, 4.0));
+/// let p = surface.point_at(0.25, 0.5);
 /// assert!(p.distance(Point::new(0.5, 1.0, 0.5)) < 1e-14);
 /// assert_eq!(surface.u_bounds(), (0.0, 1.0));
 /// ```
@@ -82,7 +82,7 @@ impl BezierSurface {
     ///     vec![Point::new(1.0, 0.0, 0.0), Point::new(1.0, 1.0, 1.0)],
     /// ];
     /// let surface = BezierSurface::new(1, 1, poles.clone()).unwrap();
-    /// assert_eq!(surface.eval_point(0.5, 0.5), Point::new(0.5, 0.5, 0.25));
+    /// assert_eq!(surface.point_at(0.5, 0.5), Point::new(0.5, 0.5, 0.25));
     /// assert_eq!(
     ///     BezierSurface::new(2, 1, poles),
     ///     Err(BezierConstructionError::PoleCountMismatch)
@@ -123,7 +123,7 @@ impl BezierSurface {
     /// ];
     /// let weights = vec![vec![1.0; 2], vec![w; 2], vec![1.0; 2]];
     /// let surface = BezierSurface::new_rational(2, 1, poles, weights).unwrap();
-    /// let p = surface.eval_point(1.0, 0.5);
+    /// let p = surface.point_at(1.0, 0.5);
     /// assert!(p.distance(Point::new(0.0, 1.0, 0.5)) < 1e-12);
     /// ```
     pub fn new_rational(
@@ -397,7 +397,7 @@ impl BezierSurface {
     /// let (low, high) = surface.split_u_at(0.5).unwrap();
     /// assert_eq!((low.u_bounds(), high.u_bounds()), ((0.0, 0.5), (0.5, 1.0)));
     /// assert_eq!(&low.poles()[4..], &high.poles()[..2]);
-    /// assert!(high.eval_point(0.7, 0.3).distance(surface.eval_point(0.7, 0.3)) < 1e-12);
+    /// assert!(high.point_at(0.7, 0.3).distance(surface.point_at(0.7, 0.3)) < 1e-12);
     /// ```
     pub fn split_u_at(&self, u: f64) -> Result<(BezierSurface, BezierSurface), BSplineSplitError> {
         self.0
@@ -454,7 +454,7 @@ impl BezierSurface {
     /// let linear = BezierSurface::new(1, 1, poles).unwrap();
     /// let quadratic = linear.elevate_u_degree(1).unwrap();
     /// assert_eq!((quadratic.u_degree(), quadratic.u_pole_count()), (2, 3));
-    /// assert!(quadratic.eval_point(0.3, 0.6).distance(linear.eval_point(0.3, 0.6)) < 1e-12);
+    /// assert!(quadratic.point_at(0.3, 0.6).distance(linear.point_at(0.3, 0.6)) < 1e-12);
     /// ```
     pub fn elevate_u_degree(&self, amount: usize) -> Result<BezierSurface, DegreeElevationError> {
         self.0.elevate_u_degree(amount).map(Self::from_surface)
@@ -481,15 +481,15 @@ impl BezierSurface {
     /// let surface = BezierSurface::new(1, 1, poles).unwrap();
     /// let quadratic = surface.elevate_v_degree(1).unwrap();
     /// assert_eq!((quadratic.v_degree(), quadratic.v_pole_count()), (2, 3));
-    /// assert!(quadratic.eval_point(0.3, 0.6).distance(surface.eval_point(0.3, 0.6)) < 1e-12);
+    /// assert!(quadratic.point_at(0.3, 0.6).distance(surface.point_at(0.3, 0.6)) < 1e-12);
     /// ```
     pub fn elevate_v_degree(&self, amount: usize) -> Result<BezierSurface, DegreeElevationError> {
         self.0.elevate_v_degree(amount).map(Self::from_surface)
     }
 
     /// The `u` isoparametric curve at `u`: `u` fixed, running along `v`
-    /// with the `v` degree, so `u_iso(u).eval_point(t)` is
-    /// `eval_point(u, t)` for every `t`. It is a Bézier curve over the `v`
+    /// with the `v` degree, so `u_iso(u).point_at(t)` is
+    /// `point_at(u, t)` for every `t`. It is a Bézier curve over the `v`
     /// bounds, rational when the surface is (see [`BSplineSurface::u_iso`]).
     /// The axis-aligned special case of
     /// [`uv_curve_to_3d`](crate::ParametricSurface::uv_curve_to_3d):
@@ -513,7 +513,7 @@ impl BezierSurface {
     /// let surface = BezierSurface::new(2, 1, poles).unwrap();
     /// let iso = surface.u_iso(0.25).unwrap();
     /// assert_eq!(iso.degree(), 1);
-    /// assert!(iso.eval_point(0.5).distance(surface.eval_point(0.25, 0.5)) < 1e-12);
+    /// assert!(iso.point_at(0.5).distance(surface.point_at(0.25, 0.5)) < 1e-12);
     /// ```
     pub fn u_iso(&self, u: f64) -> Result<BezierCurve, SurfaceIsoError> {
         self.0.u_iso(u).map(BezierCurve::from_span)
@@ -535,7 +535,7 @@ impl BezierSurface {
     }
 
     /// Evaluates the point and the first derivatives at `(u, v)`, each
-    /// direction from its own side, as [`BSplineSurface::eval_d1_sided`].
+    /// direction from its own side, as [`BSplineSurface::first_derivatives_sided`].
     /// A Bézier surface is one polynomial piece, so both sides agree
     /// everywhere.
     ///
@@ -551,26 +551,26 @@ impl BezierSurface {
     /// // The surface is (u, v, uv).
     /// let surface = BezierSurface::new(1, 1, poles).unwrap();
     /// assert_eq!(
-    ///     surface.eval_d1_sided(0.5, 0.5, Side::Below, Side::Below),
-    ///     surface.eval_d1_sided(0.5, 0.5, Side::Above, Side::Above)
+    ///     surface.first_derivatives_sided(0.5, 0.5, Side::Below, Side::Below),
+    ///     surface.first_derivatives_sided(0.5, 0.5, Side::Above, Side::Above)
     /// );
     /// ```
-    pub fn eval_d1_sided(
+    pub fn first_derivatives_sided(
         &self,
         u: f64,
         v: f64,
         u_side: Side,
         v_side: Side,
     ) -> (Point, [Vector; 2]) {
-        self.0.eval_d1_sided(u, v, u_side, v_side)
+        self.0.first_derivatives_sided(u, v, u_side, v_side)
     }
 
     /// Evaluates the derivative of order `(du, dv)` at `(u, v)` from the
-    /// given sides, as [`eval_d1_sided`](Self::eval_d1_sided).
+    /// given sides, as [`first_derivatives_sided`](Self::first_derivatives_sided).
     ///
     /// # Panics
     ///
-    /// As [`eval_derivative`](Self::eval_derivative).
+    /// As [`derivative`](Self::derivative).
     ///
     /// # Examples
     ///
@@ -583,10 +583,10 @@ impl BezierSurface {
     /// ];
     /// // The surface is (u, v, uv).
     /// let surface = BezierSurface::new(1, 1, poles).unwrap();
-    /// let suv = surface.eval_derivative_sided(0.5, 0.5, 1, 1, Side::Above, Side::Below);
+    /// let suv = surface.derivative_sided(0.5, 0.5, 1, 1, Side::Above, Side::Below);
     /// assert_eq!(suv, Vector::new(0.0, 0.0, 1.0));
     /// ```
-    pub fn eval_derivative_sided(
+    pub fn derivative_sided(
         &self,
         u: f64,
         v: f64,
@@ -595,12 +595,12 @@ impl BezierSurface {
         u_side: Side,
         v_side: Side,
     ) -> Vector {
-        self.0.eval_derivative_sided(u, v, du, dv, u_side, v_side)
+        self.0.derivative_sided(u, v, du, dv, u_side, v_side)
     }
 
     /// Evaluates the point, the first and the second derivatives at
     /// `(u, v)` from the given sides, as
-    /// [`eval_d1_sided`](Self::eval_d1_sided).
+    /// [`first_derivatives_sided`](Self::first_derivatives_sided).
     ///
     /// # Examples
     ///
@@ -615,18 +615,18 @@ impl BezierSurface {
     /// // The surface is (u, v, uv).
     /// let surface = BezierSurface::new(1, 1, poles).unwrap();
     /// assert_eq!(
-    ///     surface.eval_d2_sided(0.5, 0.5, Side::Below, Side::Above),
-    ///     surface.eval_d2(0.5, 0.5)
+    ///     surface.second_derivatives_sided(0.5, 0.5, Side::Below, Side::Above),
+    ///     surface.second_derivatives(0.5, 0.5)
     /// );
     /// ```
-    pub fn eval_d2_sided(
+    pub fn second_derivatives_sided(
         &self,
         u: f64,
         v: f64,
         u_side: Side,
         v_side: Side,
     ) -> (Point, [Vector; 2], [Vector; 3]) {
-        self.0.eval_d2_sided(u, v, u_side, v_side)
+        self.0.second_derivatives_sided(u, v, u_side, v_side)
     }
 
     /// The local minima of the distance from `point` to the surface,
@@ -661,24 +661,24 @@ impl BezierSurface {
 
 impl ParametricSurface for BezierSurface {
     #[inline]
-    fn eval_point(&self, u: f64, v: f64) -> Point {
-        self.0.eval_point(u, v)
+    fn point_at(&self, u: f64, v: f64) -> Point {
+        self.0.point_at(u, v)
     }
 
     fn project_point(&self, point: Point, tol: Tolerance) -> SurfaceProjection {
         self.0.project_point(point, tol)
     }
 
-    fn eval_derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> Vector {
-        self.0.eval_derivative(u, v, du, dv)
+    fn derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> Vector {
+        self.0.derivative(u, v, du, dv)
     }
 
-    fn eval_d1(&self, u: f64, v: f64) -> (Point, [Vector; 2]) {
-        self.0.eval_d1(u, v)
+    fn first_derivatives(&self, u: f64, v: f64) -> (Point, [Vector; 2]) {
+        self.0.first_derivatives(u, v)
     }
 
-    fn eval_d2(&self, u: f64, v: f64) -> (Point, [Vector; 2], [Vector; 3]) {
-        self.0.eval_d2(u, v)
+    fn second_derivatives(&self, u: f64, v: f64) -> (Point, [Vector; 2], [Vector; 3]) {
+        self.0.second_derivatives(u, v)
     }
 
     fn u_bounds(&self) -> (f64, f64) {

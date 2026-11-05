@@ -56,9 +56,9 @@ impl std::error::Error for ParabolaConstructionError {}
 /// use geomcore::prelude::*;
 /// use geomcore::{Parabola, Parabola2D, Point, Point2D, Vector, Vector2D};
 /// let parabola = Parabola::new(Point::ORIGIN, Vector::Z, Vector::X, 1.0).unwrap();
-/// assert_eq!(parabola.eval_point(2.0), Point::new(1.0, 2.0, 0.0));
+/// assert_eq!(parabola.point_at(2.0), Point::new(1.0, 2.0, 0.0));
 /// let parabola_2d = Parabola2D::new(Point2D::ORIGIN, Vector2D::X, 1.0).unwrap();
-/// assert_eq!(parabola_2d.eval_point(2.0), Point2D::new(1.0, 2.0));
+/// assert_eq!(parabola_2d.point_at(2.0), Point2D::new(1.0, 2.0));
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct GenericParabola<P: TierPoint> {
@@ -77,7 +77,7 @@ pub struct GenericParabola<P: TierPoint> {
 /// use geomcore::prelude::*;
 /// use geomcore::{Parabola, Point, Vector};
 /// let parabola = Parabola::new(Point::ORIGIN, Vector::Z, Vector::X, 1.0).unwrap();
-/// assert_eq!(parabola.eval_point(2.0), Point::new(1.0, 2.0, 0.0));
+/// assert_eq!(parabola.point_at(2.0), Point::new(1.0, 2.0, 0.0));
 /// ```
 pub type Parabola = GenericParabola<Point>;
 
@@ -92,7 +92,7 @@ pub type Parabola = GenericParabola<Point>;
 /// use geomcore::prelude::*;
 /// use geomcore::{Parabola2D, Point2D, Vector2D};
 /// let parabola = Parabola2D::new(Point2D::ORIGIN, Vector2D::X, 1.0).unwrap();
-/// assert_eq!(parabola.eval_point(2.0), Point2D::new(1.0, 2.0));
+/// assert_eq!(parabola.point_at(2.0), Point2D::new(1.0, 2.0));
 /// ```
 pub type Parabola2D = GenericParabola<Point2D>;
 
@@ -254,7 +254,7 @@ impl_for_both_tiers! {
             let mut out: Vec<CurveProjection<P>> = real_roots(&coeffs, tol.confusion)
                 .into_iter()
                 .map(|r| {
-                    let foot = self.eval_point(r.value);
+                    let foot = self.point_at(r.value);
                     let distance = foot.distance(point);
                     CurveProjection {
                         parameter: r.value,
@@ -288,7 +288,7 @@ impl_for_both_tiers! {
                 return near;
             }
             let u = self.parameter_of(point, tol);
-            self.eval_point(u).distance(point) <= tol.confusion
+            self.point_at(u).distance(point) <= tol.confusion
                 || self.project_point(point, tol).distance <= tol.confusion
         }
 
@@ -304,13 +304,13 @@ impl_for_both_tiers! {
 impl_for_both_tiers! {
     impl ParametricCurve, ParametricCurve2D for GenericParabola {
         #[inline]
-        fn eval_point(&self, u: f64) -> P {
+        fn point_at(&self, u: f64) -> P {
             elementary::parabola_d0(&self.frame, self.focal_distance, u)
         }
 
-        fn eval_derivative(&self, u: f64, order: u32) -> V {
+        fn derivative(&self, u: f64, order: u32) -> V {
             match order {
-                0 => panic!("eval_derivative: order must be >= 1 (use eval_point for order 0)"),
+                0 => panic!("derivative: order must be >= 1 (use point_at for order 0)"),
                 _ => elementary::parabola_dn(&self.frame, self.focal_distance, u, order),
             }
         }

@@ -158,15 +158,15 @@ fn assert_vector3_close(actual: Vector, expected: Vector) {
 #[test]
 fn test_eval_point() {
     let c = Cone::new(Point::ORIGIN, Vector::Z, 0.4, 2.0).unwrap();
-    assert_eq!(c.eval_point(0.0, 0.0), Point::new(2.0, 0.0, 0.0));
+    assert_eq!(c.point_at(0.0, 0.0), Point::new(2.0, 0.0, 0.0));
 }
 
 #[test]
 fn test_eval_points_matches_loop() {
     let c = Cone::new(Point::ORIGIN, Vector::Z, 0.4, 2.0).unwrap();
     let uvs = [(0.0, 0.0), (0.5, 1.0)];
-    let expected: Vec<Point> = uvs.iter().map(|&(u, v)| c.eval_point(u, v)).collect();
-    assert_eq!(c.eval_points(&uvs), expected);
+    let expected: Vec<Point> = uvs.iter().map(|&(u, v)| c.point_at(u, v)).collect();
+    assert_eq!(c.points_at(&uvs), expected);
 }
 
 #[test]
@@ -182,7 +182,7 @@ fn test_apex() {
 #[should_panic(expected = "du + dv must be >= 1")]
 fn test_eval_derivative_zero_order_panics() {
     let c = Cone::new(Point::ORIGIN, Vector::Z, 0.4, 2.0).unwrap();
-    c.eval_derivative(0.0, 0.0, 0, 0);
+    c.derivative(0.0, 0.0, 0, 0);
 }
 
 #[test]
@@ -228,8 +228,8 @@ fn test_error_is_std_error() {
 fn test_cone_contains() {
     let cone = Cone::from_frame(Frame::WORLD, 0.4, 2.0).unwrap();
     let tol = Tolerance::DEFAULT;
-    assert!(cone.contains(cone.eval_point(0.0, 0.0), tol));
-    assert!(cone.contains(cone.eval_point(1.0, 2.0), tol));
+    assert!(cone.contains(cone.point_at(0.0, 0.0), tol));
+    assert!(cone.contains(cone.point_at(1.0, 2.0), tol));
     assert!(!cone.contains(Point::ORIGIN, tol));
     assert!(!cone.contains(Point::new(0.0, 0.0, 10.0), tol));
 }
@@ -238,7 +238,7 @@ fn test_cone_contains() {
 fn test_cone_project_point() {
     let cone = Cone::from_frame(Frame::WORLD, 0.4, 2.0).unwrap();
     let tol = Tolerance::DEFAULT;
-    let p = cone.eval_point(1.0, 2.0);
+    let p = cone.point_at(1.0, 2.0);
     let proj = cone.project_point(p, tol);
     assert!((proj.u - 1.0).abs() < 1e-9);
     assert!((proj.v - 2.0).abs() < 1e-9);
@@ -255,7 +255,7 @@ fn test_cone_transformed_translation_spot_check() {
     assert_eq!(moved.semi_angle(), 0.4);
     assert_eq!(moved.ref_radius(), 2.0);
     // Hand-computed evaluation, shifted; the apex shifts identically.
-    assert_eq!(moved.eval_point(0.0, 0.0), Point::new(2.0, 3.0, 0.0));
+    assert_eq!(moved.point_at(0.0, 0.0), Point::new(2.0, 3.0, 0.0));
     assert_eq!(moved.apex(), t.apply_point(cone.apex()));
 }
 
@@ -269,7 +269,7 @@ fn test_cone_transformed_round_trip_and_mirror() {
     assert_eq!(moved.ref_radius(), 4.0);
     let tol = Tolerance::DEFAULT;
     for (u, v) in [(0.0, 0.0), (1.0, -2.0), (4.0, 0.5)] {
-        assert!(moved.contains(t.apply_point(cone.eval_point(u, v)), tol));
+        assert!(moved.contains(t.apply_point(cone.point_at(u, v)), tol));
     }
     let inv = Transform::scaling(Point::ORIGIN, 0.5)
         .then(Transform::translation(Vector::new(-1.0, 1.0, -2.0)));
@@ -280,7 +280,7 @@ fn test_cone_transformed_round_trip_and_mirror() {
     let m = Transform::mirror_plane(Frame::WORLD);
     let mirrored = cone.transformed(m).unwrap();
     for (u, v) in [(0.0, 0.0), (1.0, -2.0)] {
-        assert!(mirrored.contains(m.apply_point(cone.eval_point(u, v)), tol));
+        assert!(mirrored.contains(m.apply_point(cone.point_at(u, v)), tol));
     }
     assert_eq!(mirrored.transformed(m).unwrap(), cone);
 }
@@ -291,15 +291,15 @@ fn test_reversed_cones_share_point_set() {
     for (u, v) in [(0.0, 0.0), (1.0, -2.0), (5.0, 3.0)] {
         let ru = cone.reversed_u();
         assert!(!ru.frame().is_direct());
-        assert!((ru.eval_point(u, v) - cone.eval_point(-u, v)).magnitude() < 1e-12);
+        assert!((ru.point_at(u, v) - cone.point_at(-u, v)).magnitude() < 1e-12);
         assert!((ru.u_reversed_parameter(cone.u_reversed_parameter(u)) - u).abs() < 1e-12);
-        let (_, [su, sv]) = cone.eval_d1(-u, v);
-        let (_, [rsu, rsv]) = ru.eval_d1(u, v);
+        let (_, [su, sv]) = cone.first_derivatives(-u, v);
+        let (_, [rsu, rsv]) = ru.first_derivatives(u, v);
         assert!((rsu.cross(rsv) + su.cross(sv)).magnitude() < 1e-9);
         let rv = cone.reversed_v();
         assert!(!rv.frame().is_direct());
         assert_eq!(rv.semi_angle(), -0.4);
-        assert!((rv.eval_point(u, v) - cone.eval_point(u, -v)).magnitude() < 1e-12);
+        assert!((rv.point_at(u, v) - cone.point_at(u, -v)).magnitude() < 1e-12);
         assert_eq!(rv.v_reversed_parameter(cone.v_reversed_parameter(v)), v);
     }
     assert_eq!(cone.reversed_u().reversed_u(), cone);

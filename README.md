@@ -65,7 +65,7 @@ use geomcore::prelude::*;
 use geomcore::{Circle, Point, Vector};
 
 let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
-let point = circle.eval_point(std::f64::consts::PI / 4.0);
+let point = circle.point_at(std::f64::consts::PI / 4.0);
 ```
 
     cargo add geomcore
@@ -78,7 +78,7 @@ from geomcore.curves import Circle
 import math
 
 circle = Circle(Point.origin(), Vector.unit_z(), 2.0)
-point = circle.eval_point(math.pi / 4)
+point = circle.point_at(math.pi / 4)
 ```
 
     pip install geomcore

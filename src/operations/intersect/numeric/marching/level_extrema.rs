@@ -436,7 +436,7 @@ impl Sample {
         at: (f64, f64),
         tol: Tolerance,
     ) -> Sample {
-        let (p, [su, sv], [suu, suv, svv]) = patch.eval_d2(at.0, at.1);
+        let (p, [su, sv], [suu, suv, svv]) = patch.second_derivatives(at.0, at.1);
         let (value, gradient) = function.value_and_gradient(p);
         let slope = gradient.magnitude();
         let along = [gradient.dot(su), gradient.dot(sv)];

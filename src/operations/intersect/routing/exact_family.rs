@@ -326,7 +326,7 @@ fn curve_surface_hits(
                 hit.parameter,
                 range,
                 curve.period(),
-                |parameter| curve.eval_derivative(parameter, 1).magnitude(),
+                |parameter| curve.derivative(parameter, 1).magnitude(),
                 tol,
             )?,
             None => hit.parameter,
@@ -560,7 +560,7 @@ fn curves_miss<P: CurveTier>() -> GenericCurveCurveIntersection<P> {
 /// parallel.
 fn lone_hit_multiplicity(line: &Line, conic: &impl Conic, parameter: f64, tol: Tolerance) -> u32 {
     let a = line.direction();
-    let b = conic.eval_derivative(parameter, 1);
+    let b = conic.derivative(parameter, 1);
     let angular = tol.angular_for_extent(conic.shape().extent());
     if a.cross(b).magnitude() <= angular * b.magnitude() {
         2

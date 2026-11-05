@@ -572,30 +572,30 @@ fn test_conic_contains_matches_projection() {
     for (a, b) in [(2.0, 2.0), (3.0, 1.5), (3.0, 0.1), (1.0, 0.01)] {
         let e = Ellipse::from_frame(frame, a, b).unwrap();
         check(
-            &|t| (e.eval_point(t), e.eval_derivative(t, 1)),
+            &|t| (e.point_at(t), e.derivative(t, 1)),
             &|p, tol| e.contains(p, tol),
             &|p, tol| {
-                e.eval_point(e.parameter_of(p, tol)).distance(p) <= tol.confusion
+                e.point_at(e.parameter_of(p, tol)).distance(p) <= tol.confusion
                     || e.project_point(p, tol).distance == 0.0
             },
             b * b / (2.0 * a),
         );
         let h = Hyperbola::from_frame(frame, a, b).unwrap();
         check(
-            &|t| (h.eval_point(t), h.eval_derivative(t, 1)),
+            &|t| (h.point_at(t), h.derivative(t, 1)),
             &|p, tol| h.contains(p, tol),
             &|p, tol| {
-                h.eval_point(h.parameter_of(p, tol)).distance(p) <= tol.confusion
+                h.point_at(h.parameter_of(p, tol)).distance(p) <= tol.confusion
                     || h.project_point(p, tol).distance == 0.0
             },
             a.min(b).powi(2) / (2.0 * a),
         );
         let h = Hyperbola::from_frame(frame, b, a).unwrap();
         check(
-            &|t| (h.eval_point(t), h.eval_derivative(t, 1)),
+            &|t| (h.point_at(t), h.derivative(t, 1)),
             &|p, tol| h.contains(p, tol),
             &|p, tol| {
-                h.eval_point(h.parameter_of(p, tol)).distance(p) <= tol.confusion
+                h.point_at(h.parameter_of(p, tol)).distance(p) <= tol.confusion
                     || h.project_point(p, tol).distance == 0.0
             },
             b.min(a).powi(2) / (2.0 * b),
@@ -604,10 +604,10 @@ fn test_conic_contains_matches_projection() {
     for focal in [1.0, 0.05, 0.002] {
         let par = Parabola::from_frame(frame, focal).unwrap();
         check(
-            &|t| (par.eval_point(t), par.eval_derivative(t, 1)),
+            &|t| (par.point_at(t), par.derivative(t, 1)),
             &|p, tol| par.contains(p, tol),
             &|p, tol| {
-                par.eval_point(par.parameter_of(p, tol)).distance(p) <= tol.confusion
+                par.point_at(par.parameter_of(p, tol)).distance(p) <= tol.confusion
                     || par.project_point(p, tol).distance == 0.0
             },
             focal,

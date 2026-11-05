@@ -322,8 +322,8 @@ impl PieceTests<'_> {
     /// singular or the steps do not settle.
     fn newton(&self, mut x: [f64; 3]) -> Option<[f64; 3]> {
         let eval = |x: [f64; 3]| {
-            let (c, ct) = self.curve.eval_d1(x[0]);
-            let (s, [su, sv]) = self.surface.eval_d1(x[1], x[2]);
+            let (c, ct) = self.curve.first_derivatives(x[0]);
+            let (s, [su, sv]) = self.surface.first_derivatives(x[1], x[2]);
             (c - s, [ct, su, sv])
         };
         let (mut f, mut d) = eval(x);
@@ -364,8 +364,8 @@ impl PieceTests<'_> {
     fn record(&mut self, x: [f64; 3]) -> Option<Point> {
         let [t, u, v] = [0, 1, 2].map(|i| self.ranges[i].admit(x[i]));
         let (t, u, v) = (t?, u?, v?);
-        let point = self.curve.eval_point(t);
-        let distance = point.distance(self.surface.eval_point(u, v));
+        let point = self.curve.point_at(t);
+        let distance = point.distance(self.surface.point_at(u, v));
         if distance > self.tol.confusion {
             return None;
         }
@@ -374,8 +374,8 @@ impl PieceTests<'_> {
             surface_parameters: Some((u, v)),
             point,
             multiplicity: {
-                let (_, tangent) = self.curve.eval_d1(t);
-                let (_, [su, sv]) = self.surface.eval_d1(u, v);
+                let (_, tangent) = self.curve.first_derivatives(t);
+                let (_, [su, sv]) = self.surface.first_derivatives(u, v);
                 curve_surface_multiplicity(tangent, su.cross(sv), point, self.tol)
             },
         };

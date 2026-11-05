@@ -17,7 +17,7 @@ fn assert_curves_lie_on<A: ParametricSurface, B: ParametricSurface>(
         let (start, end) = piece.curve.bounds();
         for i in 0..50 {
             let parameter = start + (end - start) * i as f64 / 49.0;
-            let point = piece.curve.eval_point(parameter);
+            let point = piece.curve.point_at(parameter);
             assert!(a.project_point(point, TOL).distance <= limit);
             assert!(b.project_point(point, TOL).distance <= limit);
         }

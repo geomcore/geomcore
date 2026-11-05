@@ -10,7 +10,7 @@ In Rust the curve queries are methods of the `PointExtrema` and
 `PointExtrema2D` traits, built on `extrema`, and the surface queries
 methods of `ParametricSurface`; `use geomcore::prelude::*` brings them
 all into scope. `parameter_of(point, tol)` (`parameters_of` on a
-surface) is the inverse of `eval_point` for a point on the shape: the
+surface) is the inverse of `point_at` for a point on the shape: the
 projection's parameter by default, a closed form on the elementary
 geometries.
 

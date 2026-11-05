@@ -68,36 +68,36 @@ def test_construction_validation():
 def test_evaluation_derivatives_and_parameter_inversion():
     h = hyperbola()
     for u in [0.0, 0.7, 2.3, -1.2]:
-        point = h.eval_point(u)
+        point = h.point_at(u)
         assert xy(point) == pytest.approx((2.0 * math.cosh(u), math.sinh(u)))
-        assert xy(h.eval_derivative(u, 1)) == pytest.approx(
+        assert xy(h.derivative(u, 1)) == pytest.approx(
             (2.0 * math.sinh(u), math.cosh(u))
         )
-        assert xy(h.eval_derivative(u, 2)) == pytest.approx(
+        assert xy(h.derivative(u, 2)) == pytest.approx(
             (2.0 * math.cosh(u), math.sinh(u))
         )
-        assert xy(h.eval_derivative(u, 3)) == pytest.approx(
+        assert xy(h.derivative(u, 3)) == pytest.approx(
             (2.0 * math.sinh(u), math.cosh(u))
         )
-        d1, v1 = h.eval_d1(u)
+        d1, v1 = h.first_derivatives(u)
         assert xy(d1) == xy(point)
-        assert xy(v1) == xy(h.eval_derivative(u, 1))
-        d2, v2, a2 = h.eval_d2(u)
+        assert xy(v1) == xy(h.derivative(u, 1))
+        d2, v2, a2 = h.second_derivatives(u)
         assert xy(d2) == xy(point)
         assert xy(v2) == xy(v1)
-        assert xy(a2) == xy(h.eval_derivative(u, 2))
+        assert xy(a2) == xy(h.derivative(u, 2))
         assert h.parameter_of(point) == pytest.approx(u)
-    points = h.eval_points([0.0, 1.0])
+    points = h.points_at([0.0, 1.0])
     assert xy(points[0]) == (2.0, 0.0)
     assert xy(points[1]) == pytest.approx((2.0 * math.cosh(1.0), math.sinh(1.0)))
     with pytest.raises(ValueError):
-        h.eval_derivative(0.0, 0)
+        h.derivative(0.0, 0)
 
 
 def test_contains_and_projection():
     h = hyperbola()
     assert h.contains(Point2D(2.0, 0.0))
-    assert h.contains(h.eval_point(1.5))
+    assert h.contains(h.point_at(1.5))
     assert not h.contains(Point2D(0.0, 0.0))
     assert not h.contains(Point2D(-2.0, 0.0))
 
@@ -105,7 +105,7 @@ def test_contains_and_projection():
     assert abs(projection.parameter) == pytest.approx(0.6223625, abs=1e-6)
     assert projection.distance == pytest.approx(math.sqrt(0.8))
 
-    batch = h.project_points([Point2D(3.0, 0.0), h.eval_point(0.7)])
+    batch = h.project_points([Point2D(3.0, 0.0), h.point_at(0.7)])
     assert len(batch) == 2
     assert batch[0].distance == pytest.approx(math.sqrt(0.8))
     assert batch[1].parameter == pytest.approx(0.7)
@@ -133,11 +133,11 @@ def test_trimmed_curve():
     h = hyperbola()
     arc = TrimmedCurve2D(h, -1.0, 1.0)
     assert arc.bounds() == (-1.0, 1.0)
-    assert xy(arc.start_point()) == pytest.approx(xy(h.eval_point(-1.0)))
-    assert xy(arc.end_point()) == pytest.approx(xy(h.eval_point(1.0)))
-    assert arc.contains(h.eval_point(0.25))
-    assert not arc.contains(h.eval_point(3.0))
-    projection = arc.project_point(h.eval_point(3.0))
+    assert xy(arc.start_point()) == pytest.approx(xy(h.point_at(-1.0)))
+    assert xy(arc.end_point()) == pytest.approx(xy(h.point_at(1.0)))
+    assert arc.contains(h.point_at(0.25))
+    assert not arc.contains(h.point_at(3.0))
+    projection = arc.project_point(h.point_at(3.0))
     assert projection.parameter == pytest.approx(1.0)
     assert isinstance(arc.basis(), Hyperbola2D)
 

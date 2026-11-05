@@ -116,7 +116,7 @@ fn restrict<P: TierPoint>(
 /// plane, which are its two instances (ADR 0014). Its methods are the same
 /// for both tiers, so they are written once here.
 ///
-/// The parametrisation is the basis's own, so `eval_point(u)` is the basis
+/// The parametrisation is the basis's own, so `point_at(u)` is the basis
 /// point at `u` and [`bounds`](ParametricCurve::bounds) is
 /// `(first, last)`. A trimmed curve is never periodic, even when it spans
 /// a whole period of its basis. Evaluation outside the range is not
@@ -234,12 +234,12 @@ impl_for_both_tiers_over_basis! {
 
         /// Returns the point at the start of the range.
         pub fn start_point(&self) -> P {
-            self.basis.eval_point(self.first)
+            self.basis.point_at(self.first)
         }
 
         /// Returns the point at the end of the range.
         pub fn end_point(&self) -> P {
-            self.basis.eval_point(self.last)
+            self.basis.point_at(self.last)
         }
     }
 }
@@ -327,20 +327,20 @@ impl TrimmedCurve2D<Line2D> {
 impl_for_both_tiers_over_basis! {
     impl ParametricCurve, ParametricCurve2D for GenericTrimmedCurve {
         #[inline]
-        fn eval_point(&self, u: f64) -> P {
-            self.basis.eval_point(u)
+        fn point_at(&self, u: f64) -> P {
+            self.basis.point_at(u)
         }
 
-        fn eval_derivative(&self, u: f64, order: u32) -> V {
-            self.basis.eval_derivative(u, order)
+        fn derivative(&self, u: f64, order: u32) -> V {
+            self.basis.derivative(u, order)
         }
 
-        fn eval_d1(&self, u: f64) -> (P, V) {
-            self.basis.eval_d1(u)
+        fn first_derivatives(&self, u: f64) -> (P, V) {
+            self.basis.first_derivatives(u)
         }
 
-        fn eval_d2(&self, u: f64) -> (P, V, V) {
-            self.basis.eval_d2(u)
+        fn second_derivatives(&self, u: f64) -> (P, V, V) {
+            self.basis.second_derivatives(u)
         }
 
         fn bounds(&self) -> (f64, f64) {
@@ -351,8 +351,8 @@ impl_for_both_tiers_over_basis! {
             None
         }
 
-        fn eval_points(&self, us: &[f64]) -> Vec<P> {
-            self.basis.eval_points(us)
+        fn points_at(&self, us: &[f64]) -> Vec<P> {
+            self.basis.points_at(us)
         }
 
         /// Returns whether the piece's ends meet: a piece spanning a full
@@ -419,7 +419,7 @@ impl_for_both_tiers_over_basis! {
                 return Vec::new();
             }
             let end_projection = |t: f64| {
-                let foot = self.basis.eval_point(t);
+                let foot = self.basis.point_at(t);
                 CurveProjection {
                     parameter: t,
                     point: foot,

@@ -16,8 +16,8 @@ use crate::{Point2D, Tolerance, Vector2D};
 ///
 /// # Examples
 ///
-/// The default [`eval_points`](ParametricCurve2D::eval_points) maps
-/// [`eval_point`](ParametricCurve2D::eval_point) over each parameter:
+/// The default [`points_at`](ParametricCurve2D::points_at) maps
+/// [`point_at`](ParametricCurve2D::point_at) over each parameter:
 ///
 /// ```
 /// use geomcore::prelude::*;
@@ -25,8 +25,8 @@ use crate::{Point2D, Tolerance, Vector2D};
 ///
 /// let line = Line2D::new(Point2D::ORIGIN, Vector2D::X).unwrap();
 /// let us = [0.0, 1.0, 2.0];
-/// let expected: Vec<Point2D> = us.iter().map(|&u| line.eval_point(u)).collect();
-/// assert_eq!(line.eval_points(&us), expected);
+/// let expected: Vec<Point2D> = us.iter().map(|&u| line.point_at(u)).collect();
+/// assert_eq!(line.points_at(&us), expected);
 /// ```
 ///
 /// The default [`is_periodic`](ParametricCurve2D::is_periodic) reports
@@ -44,24 +44,24 @@ use crate::{Point2D, Tolerance, Vector2D};
 /// ```
 pub trait ParametricCurve2D {
     /// Evaluates the point on the curve at parameter `u`.
-    fn eval_point(&self, u: f64) -> Point2D;
+    fn point_at(&self, u: f64) -> Point2D;
 
     /// Evaluates the derivative of the given `order` at parameter `u`.
     ///
     /// Every curve accepts any order from 1 up, as
-    /// [`ParametricCurve::eval_derivative`](crate::ParametricCurve::eval_derivative)
+    /// [`ParametricCurve::derivative`](crate::ParametricCurve::derivative)
     /// does.
     ///
     /// # Panics
     ///
-    /// Panics if `order == 0`; use [`eval_point`](Self::eval_point) to
+    /// Panics if `order == 0`; use [`point_at`](Self::point_at) to
     /// evaluate the position itself.
-    fn eval_derivative(&self, u: f64, order: u32) -> Vector2D;
+    fn derivative(&self, u: f64, order: u32) -> Vector2D;
 
     /// Evaluates the point and the first derivative at parameter `u`.
     ///
-    /// Default implementation: [`eval_point`](Self::eval_point) and
-    /// [`eval_derivative`](Self::eval_derivative) of order 1.
+    /// Default implementation: [`point_at`](Self::point_at) and
+    /// [`derivative`](Self::derivative) of order 1.
     ///
     /// # Examples
     ///
@@ -70,18 +70,18 @@ pub trait ParametricCurve2D {
     /// use geomcore::{Circle2D, Point2D, Vector2D};
     ///
     /// let circle = Circle2D::new(Point2D::ORIGIN, 2.0).unwrap();
-    /// let (point, tangent) = circle.eval_d1(0.0);
+    /// let (point, tangent) = circle.first_derivatives(0.0);
     /// assert_eq!(point, Point2D::new(2.0, 0.0));
     /// assert!((tangent - Vector2D::new(0.0, 2.0)).magnitude() < 1e-15);
     /// ```
-    fn eval_d1(&self, u: f64) -> (Point2D, Vector2D) {
-        (self.eval_point(u), self.eval_derivative(u, 1))
+    fn first_derivatives(&self, u: f64) -> (Point2D, Vector2D) {
+        (self.point_at(u), self.derivative(u, 1))
     }
 
     /// Evaluates the point and the first two derivatives at parameter `u`.
     ///
-    /// Default implementation: [`eval_point`](Self::eval_point) and
-    /// [`eval_derivative`](Self::eval_derivative) of orders 1 and 2.
+    /// Default implementation: [`point_at`](Self::point_at) and
+    /// [`derivative`](Self::derivative) of orders 1 and 2.
     ///
     /// # Examples
     ///
@@ -90,15 +90,15 @@ pub trait ParametricCurve2D {
     /// use geomcore::{Circle2D, Point2D, Vector2D};
     ///
     /// let circle = Circle2D::new(Point2D::ORIGIN, 2.0).unwrap();
-    /// let (point, _, acceleration) = circle.eval_d2(0.0);
+    /// let (point, _, acceleration) = circle.second_derivatives(0.0);
     /// assert_eq!(point, Point2D::new(2.0, 0.0));
     /// assert!((acceleration - Vector2D::new(-2.0, 0.0)).magnitude() < 1e-15);
     /// ```
-    fn eval_d2(&self, u: f64) -> (Point2D, Vector2D, Vector2D) {
+    fn second_derivatives(&self, u: f64) -> (Point2D, Vector2D, Vector2D) {
         (
-            self.eval_point(u),
-            self.eval_derivative(u, 1),
-            self.eval_derivative(u, 2),
+            self.point_at(u),
+            self.derivative(u, 1),
+            self.derivative(u, 2),
         )
     }
 
@@ -123,7 +123,7 @@ pub trait ParametricCurve2D {
     /// assert_eq!(circle.tangent(0.0, Tolerance::DEFAULT), Some(Vector2D::Y));
     /// ```
     fn tangent(&self, u: f64, tol: Tolerance) -> Option<Vector2D> {
-        let (_, first_derivative) = self.eval_d1(u);
+        let (_, first_derivative) = self.first_derivatives(u);
         let speed = regular_speed(first_derivative, tol.reference_width(self.bounds()), tol)?;
         Some(first_derivative * (1.0 / speed))
     }
@@ -161,7 +161,7 @@ pub trait ParametricCurve2D {
     /// assert_eq!(clockwise.curvature(0.0, Tolerance::DEFAULT), Some(-0.5));
     /// ```
     fn curvature(&self, u: f64, tol: Tolerance) -> Option<f64> {
-        let (_, first_derivative, second_derivative) = self.eval_d2(u);
+        let (_, first_derivative, second_derivative) = self.second_derivatives(u);
         let speed = regular_speed(first_derivative, tol.reference_width(self.bounds()), tol)?;
         Some(first_derivative.cross(second_derivative) / (speed * speed * speed))
     }
@@ -194,7 +194,7 @@ pub trait ParametricCurve2D {
     /// assert_eq!(line.curvature_center(5.0, Tolerance::DEFAULT), None);
     /// ```
     fn curvature_center(&self, u: f64, tol: Tolerance) -> Option<Point2D> {
-        let (point, first_derivative, second_derivative) = self.eval_d2(u);
+        let (point, first_derivative, second_derivative) = self.second_derivatives(u);
         let width = tol.reference_width(self.bounds());
         let speed = regular_speed(first_derivative, width, tol)?;
         let turn = first_derivative.cross(second_derivative);
@@ -216,10 +216,10 @@ pub trait ParametricCurve2D {
 
     /// Evaluates the points on the curve at each parameter in `us`.
     ///
-    /// Default implementation: maps [`eval_point`](Self::eval_point) over
+    /// Default implementation: maps [`point_at`](Self::point_at) over
     /// `us`.
-    fn eval_points(&self, us: &[f64]) -> Vec<Point2D> {
-        us.iter().map(|&u| self.eval_point(u)).collect()
+    fn points_at(&self, us: &[f64]) -> Vec<Point2D> {
+        us.iter().map(|&u| self.point_at(u)).collect()
     }
 
     /// Returns whether the curve is periodic, i.e. whether
@@ -422,20 +422,20 @@ pub trait PointExtrema2D: ParametricCurve2D {
 /// [`TrimmedCurve2D`](crate::TrimmedCurve2D) can borrow its
 /// basis instead of owning it.
 impl<C: ParametricCurve2D + ?Sized> ParametricCurve2D for &C {
-    fn eval_point(&self, u: f64) -> Point2D {
-        (**self).eval_point(u)
+    fn point_at(&self, u: f64) -> Point2D {
+        (**self).point_at(u)
     }
 
-    fn eval_derivative(&self, u: f64, order: u32) -> Vector2D {
-        (**self).eval_derivative(u, order)
+    fn derivative(&self, u: f64, order: u32) -> Vector2D {
+        (**self).derivative(u, order)
     }
 
-    fn eval_d1(&self, u: f64) -> (Point2D, Vector2D) {
-        (**self).eval_d1(u)
+    fn first_derivatives(&self, u: f64) -> (Point2D, Vector2D) {
+        (**self).first_derivatives(u)
     }
 
-    fn eval_d2(&self, u: f64) -> (Point2D, Vector2D, Vector2D) {
-        (**self).eval_d2(u)
+    fn second_derivatives(&self, u: f64) -> (Point2D, Vector2D, Vector2D) {
+        (**self).second_derivatives(u)
     }
 
     fn bounds(&self) -> (f64, f64) {
@@ -446,8 +446,8 @@ impl<C: ParametricCurve2D + ?Sized> ParametricCurve2D for &C {
         (**self).period()
     }
 
-    fn eval_points(&self, us: &[f64]) -> Vec<Point2D> {
-        (**self).eval_points(us)
+    fn points_at(&self, us: &[f64]) -> Vec<Point2D> {
+        (**self).points_at(us)
     }
 
     fn tangent(&self, u: f64, tol: Tolerance) -> Option<Vector2D> {

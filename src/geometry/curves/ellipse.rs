@@ -72,9 +72,9 @@ impl std::error::Error for EllipseConstructionError {}
 /// use geomcore::prelude::*;
 /// use geomcore::{Ellipse, Ellipse2D, Point, Point2D, Vector, Vector2D};
 /// let ellipse = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 3.0, 1.5).unwrap();
-/// assert_eq!(ellipse.eval_point(0.0), Point::new(3.0, 0.0, 0.0));
+/// assert_eq!(ellipse.point_at(0.0), Point::new(3.0, 0.0, 0.0));
 /// let ellipse_2d = Ellipse2D::new(Point2D::ORIGIN, Vector2D::X, 3.0, 1.5).unwrap();
-/// assert_eq!(ellipse_2d.eval_point(0.0), Point2D::new(3.0, 0.0));
+/// assert_eq!(ellipse_2d.point_at(0.0), Point2D::new(3.0, 0.0));
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct GenericEllipse<P: TierPoint> {
@@ -95,7 +95,7 @@ pub struct GenericEllipse<P: TierPoint> {
 /// use geomcore::prelude::*;
 /// use geomcore::{Ellipse, Point, Vector};
 /// let ellipse = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 3.0, 1.5).unwrap();
-/// assert_eq!(ellipse.eval_point(0.0), Point::new(3.0, 0.0, 0.0));
+/// assert_eq!(ellipse.point_at(0.0), Point::new(3.0, 0.0, 0.0));
 /// ```
 pub type Ellipse = GenericEllipse<Point>;
 
@@ -111,7 +111,7 @@ pub type Ellipse = GenericEllipse<Point>;
 /// use geomcore::prelude::*;
 /// use geomcore::{Ellipse2D, Point2D, Vector2D};
 /// let ellipse = Ellipse2D::new(Point2D::ORIGIN, Vector2D::X, 3.0, 1.5).unwrap();
-/// assert_eq!(ellipse.eval_point(0.0), Point2D::new(3.0, 0.0));
+/// assert_eq!(ellipse.point_at(0.0), Point2D::new(3.0, 0.0));
 /// ```
 pub type Ellipse2D = GenericEllipse<Point2D>;
 
@@ -488,7 +488,7 @@ impl_for_both_tiers! {
                 .map(|t| {
                     let t = polish_root(g, dg, t, 8);
                     // Measured at the polished parameter, reported in bounds.
-                    let foot = self.eval_point(t);
+                    let foot = self.point_at(t);
                     (self.parameter_in_bounds(t, tol), foot, foot.distance(point))
                 })
                 .collect();
@@ -535,7 +535,7 @@ impl_for_both_tiers! {
                 return near;
             }
             let u = self.parameter_of(point, tol);
-            self.eval_point(u).distance(point) <= tol.confusion
+            self.point_at(u).distance(point) <= tol.confusion
                 || self.project_point(point, tol).distance <= tol.confusion
         }
 
@@ -551,13 +551,13 @@ impl_for_both_tiers! {
 impl_for_both_tiers! {
     impl ParametricCurve, ParametricCurve2D for GenericEllipse {
         #[inline]
-        fn eval_point(&self, u: f64) -> P {
+        fn point_at(&self, u: f64) -> P {
             elementary::ellipse_d0(&self.frame, self.major_radius, self.minor_radius, u)
         }
 
-        fn eval_derivative(&self, u: f64, order: u32) -> V {
+        fn derivative(&self, u: f64, order: u32) -> V {
             match order {
-                0 => panic!("eval_derivative: order must be >= 1 (use eval_point for order 0)"),
+                0 => panic!("derivative: order must be >= 1 (use point_at for order 0)"),
                 _ => elementary::ellipse_dn(
                     &self.frame,
                     self.major_radius,

@@ -25,8 +25,8 @@ from geomcore.surfaces import BezierSurface, Cylinder, Plane, Sphere
 
 def assert_traces(traced, curve, surface, parameters=(-1.2, 0.0, 0.4, 2.5)):
     for t in parameters:
-        q = curve.eval_point(t)
-        assert traced.eval_point(t).distance(surface.eval_point(q.x, q.y)) < 1e-12
+        q = curve.point_at(t)
+        assert traced.point_at(t).distance(surface.point_at(q.x, q.y)) < 1e-12
 
 
 def test_lines_along_u_and_v_on_a_cylinder():
@@ -124,8 +124,8 @@ def test_a_slanted_line_on_a_cylinder_maps_within_a_deviation():
     assert curve.degree() == 9
     assert curve.bounds() == (0.0, slope.magnitude())
     for t in (0.0, 1.0, 3.3, slope.magnitude()):
-        uv = turn.eval_point(t)
-        assert curve.eval_point(t).distance(cylinder.eval_point(uv.x, uv.y)) <= 1e-7
+        uv = turn.point_at(t)
+        assert curve.point_at(t).distance(cylinder.point_at(uv.x, uv.y)) <= 1e-7
     assert "degree=9" in repr(approximation)
 
 

@@ -171,7 +171,7 @@ impl BSplineSurface {
     ///     BSplineSurface::approximate(&points, 2, 2, 3, 3, PointParametrization::Chordal)
     ///         .unwrap();
     /// // A quadratic Bézier patch holds `x² - y²` exactly.
-    /// let p = surface.eval_point(0.5, 0.5);
+    /// let p = surface.point_at(0.5, 0.5);
     /// assert!((p.z - (p.x * p.x - p.y * p.y)).abs() < 1e-12);
     /// ```
     pub fn approximate(

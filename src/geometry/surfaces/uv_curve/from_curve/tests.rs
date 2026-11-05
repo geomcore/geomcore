@@ -185,12 +185,12 @@ fn test_sphere_meridian_pole_mirror_north() {
         .unwrap();
     assert_eq!(uv_curve, Curve2D::Line(normalized));
     for t in [0.0_f64, 0.5, 1.7, 3.0, 4.5] {
-        let uv = uv_curve.eval_point(t);
-        let on_surface = sphere.eval_point(uv.x, uv.y);
-        let expected = circle.eval_point(t);
+        let uv = uv_curve.point_at(t);
+        let on_surface = sphere.point_at(uv.x, uv.y);
+        let expected = circle.point_at(t);
         assert!(
             on_surface.distance(expected) < 1e-9,
-            "t={t}: sphere.eval_point(u,v)={on_surface:?} != circle.eval_point(t)={expected:?}"
+            "t={t}: sphere.point_at(u,v)={on_surface:?} != circle.point_at(t)={expected:?}"
         );
     }
 }
@@ -230,12 +230,12 @@ fn test_sphere_meridian_pole_mirror_south() {
         .unwrap();
     assert_eq!(uv_curve, Curve2D::Line(normalized));
     for t in [0.0_f64, 0.5, 1.7, 3.0, 4.5] {
-        let uv = uv_curve.eval_point(t);
-        let on_surface = sphere.eval_point(uv.x, uv.y);
-        let expected = circle.eval_point(t);
+        let uv = uv_curve.point_at(t);
+        let on_surface = sphere.point_at(uv.x, uv.y);
+        let expected = circle.point_at(t);
         assert!(
             on_surface.distance(expected) < 1e-9,
-            "t={t}: sphere.eval_point(u,v)={on_surface:?} != circle.eval_point(t)={expected:?}"
+            "t={t}: sphere.point_at(u,v)={on_surface:?} != circle.point_at(t)={expected:?}"
         );
     }
 }
@@ -290,8 +290,8 @@ fn assert_consistent(
     params: &[f64],
 ) {
     for &t in params {
-        let uv = uv_curve.eval_point(t);
-        let on_surface = plane.eval_point(uv.x, uv.y);
+        let uv = uv_curve.point_at(t);
+        let on_surface = plane.point_at(uv.x, uv.y);
         assert!(
             on_surface.distance(curve(t)) < 1e-9,
             "t={t}: {on_surface:?} != {:?}",
@@ -322,7 +322,7 @@ fn test_ellipse_on_tilted_plane_maps_to_ellipse2d() {
     assert_consistent(
         &uv_curve,
         &plane,
-        |t| ellipse.eval_point(t),
+        |t| ellipse.point_at(t),
         &[0.0, 1.0, 2.5, 5.0],
     );
 }
@@ -340,7 +340,7 @@ fn test_conics_on_plane_follow_an_indirect_frame() {
     assert_consistent(
         &uv_curve,
         &plane,
-        |t| ellipse.eval_point(t),
+        |t| ellipse.point_at(t),
         &[0.0, 1.0, 2.5, 5.0],
     );
     let parabola = Parabola::from_frame(mirrored, 0.8).unwrap();
@@ -350,7 +350,7 @@ fn test_conics_on_plane_follow_an_indirect_frame() {
     assert_consistent(
         &uv_curve,
         &plane,
-        |t| parabola.eval_point(t),
+        |t| parabola.point_at(t),
         &[-2.0, 0.0, 1.7],
     );
 }
@@ -373,7 +373,7 @@ fn test_parabola_and_hyperbola_on_plane_map_to_their_2d_types() {
     assert_consistent(
         &uv_curve,
         &plane,
-        |t| parabola.eval_point(t),
+        |t| parabola.point_at(t),
         &[-3.0, 0.0, 1.7, 4.1],
     );
 
@@ -389,7 +389,7 @@ fn test_parabola_and_hyperbola_on_plane_map_to_their_2d_types() {
     assert_consistent(
         &uv_curve,
         &plane,
-        |t| hyperbola.eval_point(t),
+        |t| hyperbola.point_at(t),
         &[-1.5, 0.0, 1.7, 4.1],
     );
 }
@@ -506,7 +506,7 @@ fn test_bspline_on_plane_maps_poles_and_keeps_weights_and_knots() {
     assert_consistent(
         &uv_curve,
         &plane,
-        |t| curve.eval_point(t),
+        |t| curve.point_at(t),
         &[0.0, 0.3, 1.0, 1.9, 2.5],
     );
 }
@@ -533,7 +533,7 @@ fn test_bezier_on_plane_maps_poles_and_keeps_weights() {
     assert_consistent(
         &uv_curve,
         &plane,
-        |t| curve.eval_point(t),
+        |t| curve.point_at(t),
         &[0.0, 0.3, 0.5, 0.8, 1.0],
     );
 }
@@ -589,7 +589,7 @@ fn test_periodic_bspline_on_plane_stays_periodic() {
     assert_consistent(
         &uv_curve,
         &plane,
-        |t| curve.eval_point(t),
+        |t| curve.point_at(t),
         &[0.0, 0.5, 2.2, 3.9, 5.0],
     );
 }
@@ -639,8 +639,8 @@ where
         .enumerate()
     {
         let t = lo + (hi - lo) * i as f64 / (n - 1) as f64;
-        let back = surface.eval_point(uv.x, uv.y);
-        let fwd = curve.eval_point(t);
+        let back = surface.point_at(uv.x, uv.y);
+        let fwd = curve.point_at(t);
         assert!(
             back.distance(fwd) < eps,
             "t={t}: round-trip gap {}",
@@ -662,7 +662,7 @@ fn test_numeric_circle_on_cylinder_matches_analytic() {
     for (i, uv) in numeric.iter().enumerate() {
         assert!(uv.y.abs() < 1e-9, "{uv:?}");
         if let Curve2D::Line(l) = &analytic {
-            let q = l.eval_point(i as f64 / 16.0 * TAU);
+            let q = l.point_at(i as f64 / 16.0 * TAU);
             let du = (uv.x - q.x).abs();
             let wrapped = du.min((TAU - du).abs());
             assert!(wrapped < 1e-9, "{uv:?} vs {q:?}");
@@ -691,10 +691,10 @@ fn test_numeric_ellipse_on_sphere_roundtrip() {
     let uv_curve = curve_3d_to_uv_numeric(&ellipse, &sphere, 33, tol);
     assert_eq!(uv_curve.len(), 33);
     for uv in &uv_curve {
-        let back = sphere.eval_point(uv.x, uv.y);
+        let back = sphere.point_at(uv.x, uv.y);
         assert!(sphere.contains(back, tol), "{back:?}");
         let again = sphere.project_point(back, tol);
-        let there = sphere.eval_point(again.u, again.v);
+        let there = sphere.point_at(again.u, again.v);
         assert!(there.distance(back) < 1e-12, "{there:?} vs {back:?}");
     }
 }

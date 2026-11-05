@@ -50,7 +50,7 @@ space.
     from geomcore.curves import Line
 
     line = Line(Point.origin(), Vector.unit_z())
-    p = line.eval_point(2.0)  # parameter -> 3D point
+    p = line.point_at(2.0)  # parameter -> 3D point
     assert (p.x, p.y, p.z) == (0.0, 0.0, 2.0)
     assert line.parameter_of(p) == 2.0  # 3D point -> parameter
     ```
@@ -62,7 +62,7 @@ space.
     use geomcore::{Line, Point, Tolerance, Vector};
 
     let line = Line::new(Point::ORIGIN, Vector::Z).unwrap();
-    let p = line.eval_point(2.0); // parameter -> 3D point
+    let p = line.point_at(2.0); // parameter -> 3D point
     assert_eq!(p, Point::new(0.0, 0.0, 2.0));
     assert_eq!(line.parameter_of(p, Tolerance::DEFAULT), 2.0); // 3D point -> parameter
     ```
@@ -90,7 +90,7 @@ conic whose parameter is proportional to distance travelled.
 
     circle = Circle(Point.origin(), Vector.unit_z(), 2.0)
     assert abs(circle.length() - 4.0 * 3.141592653589793) < 1e-12
-    p = circle.eval_point(1.0)  # parameter -> 3D point
+    p = circle.point_at(1.0)  # parameter -> 3D point
     assert abs(circle.parameter_of(p) - 1.0) < 1e-12  # 3D point -> parameter
     ```
 
@@ -100,7 +100,7 @@ conic whose parameter is proportional to distance travelled.
     use geomcore::Circle;
 
     let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
-    let p = circle.eval_point(1.0); // parameter -> 3D point
+    let p = circle.point_at(1.0); // parameter -> 3D point
     assert!((circle.parameter_of(p, Tolerance::DEFAULT) - 1.0).abs() < 1e-12); // 3D point -> parameter
     ```
 
@@ -130,7 +130,7 @@ of the major axis.
     from geomcore.curves import Ellipse
 
     ellipse = Ellipse(Point.origin(), Vector.unit_z(), Vector.unit_x(), 3.0, 1.0)
-    p = ellipse.eval_point(1.0)  # parameter -> 3D point
+    p = ellipse.point_at(1.0)  # parameter -> 3D point
     assert abs(ellipse.parameter_of(p) - 1.0) < 1e-12  # 3D point -> parameter
     ```
 
@@ -140,7 +140,7 @@ of the major axis.
     use geomcore::Ellipse;
 
     let ellipse = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 3.0, 1.0).unwrap();
-    let p = ellipse.eval_point(1.0); // parameter -> 3D point
+    let p = ellipse.point_at(1.0); // parameter -> 3D point
     assert!((ellipse.parameter_of(p, Tolerance::DEFAULT) - 1.0).abs() < 1e-12); // 3D point -> parameter
     ```
 
@@ -167,7 +167,7 @@ mirror branch is a second curve no value of $u$ reaches.
     from geomcore.curves import Hyperbola
 
     hyp = Hyperbola(Point.origin(), Vector.unit_z(), Vector.unit_x(), 2.0, 1.0)
-    p = hyp.eval_point(1.0)  # parameter -> 3D point
+    p = hyp.point_at(1.0)  # parameter -> 3D point
     assert abs(hyp.parameter_of(p) - 1.0) < 1e-12  # 3D point -> parameter
     ```
 
@@ -177,7 +177,7 @@ mirror branch is a second curve no value of $u$ reaches.
     use geomcore::Hyperbola;
 
     let hyp = Hyperbola::new(Point::ORIGIN, Vector::Z, Vector::X, 2.0, 1.0).unwrap();
-    let p = hyp.eval_point(1.0); // parameter -> 3D point
+    let p = hyp.point_at(1.0); // parameter -> 3D point
     assert!((hyp.parameter_of(p, Tolerance::DEFAULT) - 1.0).abs() < 1e-12); // 3D point -> parameter
     ```
 
@@ -205,7 +205,7 @@ $(f, 0)$, directrix $x = -f$.
     from geomcore.curves import Parabola
 
     parab = Parabola(Point.origin(), Vector.unit_z(), Vector.unit_x(), 1.5)
-    p = parab.eval_point(2.0)  # parameter -> 3D point
+    p = parab.point_at(2.0)  # parameter -> 3D point
     assert abs(parab.parameter_of(p) - 2.0) < 1e-12  # 3D point -> parameter
     ```
 
@@ -215,7 +215,7 @@ $(f, 0)$, directrix $x = -f$.
     use geomcore::Parabola;
 
     let parab = Parabola::new(Point::ORIGIN, Vector::Z, Vector::X, 1.5).unwrap();
-    let p = parab.eval_point(2.0); // parameter -> 3D point
+    let p = parab.point_at(2.0); // parameter -> 3D point
     assert!((parab.parameter_of(p, Tolerance::DEFAULT) - 2.0).abs() < 1e-12); // 3D point -> parameter
     ```
 
@@ -249,7 +249,7 @@ periodicity, no degenerate point.
     from geomcore.surfaces import Plane
 
     plane = Plane(Point.origin(), Vector.unit_z())
-    p = plane.eval_point(1.0, 2.0)  # parameters -> 3D point
+    p = plane.point_at(1.0, 2.0)  # parameters -> 3D point
     assert (p.x, p.y, p.z) == (1.0, 2.0, 0.0)
     assert plane.parameters_of(p) == (1.0, 2.0)  # 3D point -> parameters
     ```
@@ -260,7 +260,7 @@ periodicity, no degenerate point.
     use geomcore::Plane;
 
     let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
-    let p = plane.eval_point(1.0, 2.0); // parameters -> 3D point
+    let p = plane.point_at(1.0, 2.0); // parameters -> 3D point
     assert_eq!(p, Point::new(1.0, 2.0, 0.0));
     assert_eq!(plane.parameters_of(p, Tolerance::DEFAULT), (1.0, 2.0)); // 3D point -> parameters
     ```
@@ -287,7 +287,7 @@ not the same kind of quantity.
     from geomcore.surfaces import Cylinder
 
     cyl = Cylinder(Point.origin(), Vector.unit_z(), 2.0)
-    p = cyl.eval_point(1.0, 2.0)  # parameters -> 3D point
+    p = cyl.point_at(1.0, 2.0)  # parameters -> 3D point
     u, v = cyl.parameters_of(p)  # 3D point -> parameters
     assert abs(u - 1.0) < 1e-12 and abs(v - 2.0) < 1e-12
     ```
@@ -298,7 +298,7 @@ not the same kind of quantity.
     use geomcore::Cylinder;
 
     let cyl = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
-    let p = cyl.eval_point(1.0, 2.0); // parameters -> 3D point
+    let p = cyl.point_at(1.0, 2.0); // parameters -> 3D point
     let (u, v) = cyl.parameters_of(p, Tolerance::DEFAULT); // 3D point -> parameters
     assert!((u - 1.0).abs() < 1e-12 && (v - 2.0).abs() < 1e-12);
     ```
@@ -330,7 +330,7 @@ parameter plane instead; the article compares both.
     import math
 
     cone = Cone(Point.origin(), Vector.unit_z(), math.radians(28), 4.0)
-    p = cone.eval_point(1.0, 2.0)  # parameters -> 3D point
+    p = cone.point_at(1.0, 2.0)  # parameters -> 3D point
     u, v = cone.parameters_of(p)  # 3D point -> parameters
     assert abs(u - 1.0) < 1e-9 and abs(v - 2.0) < 1e-9
     ```
@@ -341,7 +341,7 @@ parameter plane instead; the article compares both.
     use geomcore::Cone;
 
     let cone = Cone::new(Point::ORIGIN, Vector::Z, 0.4887, 4.0).unwrap();
-    let p = cone.eval_point(1.0, 2.0); // parameters -> 3D point
+    let p = cone.point_at(1.0, 2.0); // parameters -> 3D point
     let (u, v) = cone.parameters_of(p, Tolerance::DEFAULT); // 3D point -> parameters
     assert!((u - 1.0).abs() < 1e-9 && (v - 2.0).abs() < 1e-9);
     ```
@@ -377,7 +377,7 @@ circle of longitudes collapses onto the axis.
 
     sphere = Sphere(Point.origin(), 2.0)
     assert abs(sphere.volume() - 4.0 / 3.0 * 3.141592653589793 * 8.0) < 1e-9
-    p = sphere.eval_point(0.5, 0.3)  # parameters -> 3D point
+    p = sphere.point_at(0.5, 0.3)  # parameters -> 3D point
     u, v = sphere.parameters_of(p)  # 3D point -> parameters
     assert abs(u - 0.5) < 1e-12 and abs(v - 0.3) < 1e-12
     ```
@@ -388,7 +388,7 @@ circle of longitudes collapses onto the axis.
     use geomcore::Sphere;
 
     let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
-    let p = sphere.eval_point(0.5, 0.3); // parameters -> 3D point
+    let p = sphere.point_at(0.5, 0.3); // parameters -> 3D point
     let (u, v) = sphere.parameters_of(p, Tolerance::DEFAULT); // 3D point -> parameters
     assert!((u - 0.5).abs() < 1e-12 && (v - 0.3).abs() < 1e-12);
     ```
@@ -419,7 +419,7 @@ rectangle of the five.
     from geomcore.surfaces import Torus
 
     torus = Torus(Point.origin(), Vector.unit_z(), 5.0, 1.5)
-    p = torus.eval_point(0.5, 1.0)  # parameters -> 3D point
+    p = torus.point_at(0.5, 1.0)  # parameters -> 3D point
     u, v = torus.parameters_of(p)  # 3D point -> parameters
     assert abs(u - 0.5) < 1e-12 and abs(v - 1.0) < 1e-12
     ```
@@ -430,7 +430,7 @@ rectangle of the five.
     use geomcore::Torus;
 
     let torus = Torus::new(Point::ORIGIN, Vector::Z, 5.0, 1.5).unwrap();
-    let p = torus.eval_point(0.5, 1.0); // parameters -> 3D point
+    let p = torus.point_at(0.5, 1.0); // parameters -> 3D point
     let (u, v) = torus.parameters_of(p, Tolerance::DEFAULT); // 3D point -> parameters
     assert!((u - 0.5).abs() < 1e-12 && (v - 1.0).abs() < 1e-12);
     ```

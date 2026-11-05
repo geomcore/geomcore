@@ -206,9 +206,9 @@ fn assert_same_parameter(image: &Curve, uv_curve: &Curve2D, surface: &Surface) {
             .fold(1.0_f64, |size, pole| size.max(pole.distance(Point::ORIGIN)))
     });
     for (t, at_knot) in checked_parameters(image) {
-        let (c, dc, ddc) = uv_curve.eval_d2(t);
-        let (point, [su, sv], [suu, suv, svv]) = surface.eval_d2(c.x, c.y);
-        let (image_point, image_first, image_second) = image.eval_d2(t);
+        let (c, dc, ddc) = uv_curve.second_derivatives(t);
+        let (point, [su, sv], [suu, suv, svv]) = surface.second_derivatives(c.x, c.y);
+        let (image_point, image_first, image_second) = image.second_derivatives(t);
         assert!(
             image_point.distance(point) <= 64.0 * f64::EPSILON * size,
             "at {t}: {image_point:?} is not {point:?}, {:e} apart",
@@ -322,7 +322,7 @@ fn a_uv_curve_wraps_around_a_periodic_direction() {
     let uv = line((0.5, 0.0), (15.0, 1.0));
     let image = composed(&surface, &uv);
     let (first, last) = image.bounds();
-    let end = uv.eval_point(last);
+    let end = uv.point_at(last);
     assert!(first.abs() <= 1e-12 && (end.y - 1.0).abs() <= 1e-12);
     assert!(end.x > 15.0);
     // A spline crossing the seam both ways.
@@ -535,7 +535,7 @@ fn the_bspline_form_of_an_extruded_spline_keeps_both_parameters() {
         for i in 0..=10 {
             let u = first + (last - first) * i as f64 / 10.0;
             for v in [-3.0, -0.4, 1.1, 2.0] {
-                let (got, expected) = (patch.eval_point(u, v), extrusion.eval_point(u, v));
+                let (got, expected) = (patch.point_at(u, v), extrusion.point_at(u, v));
                 assert!(got.distance(expected) <= 1e-14, "at ({u}, {v})");
             }
         }

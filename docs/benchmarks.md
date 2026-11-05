@@ -9,11 +9,11 @@ Machine: Linux 6.17, x86-64 desktop, single thread, `cargo bench` defaults
 
 | workload | input size | time / batch | throughput |
 |---|---|---|---|
-| `Circle::eval_points` | 100 000 params | ~1.13 ms | ~88 M evals/s |
-| `BSplineCurve::eval_points` (degree 3, 20 poles, clamped) | 100 000 params | ~10.5 ms | ~9.5 M evals/s |
-| `BSplineSurface::eval_points` (bicubic, 6×6 poles) | 100 000 (u, v) pairs | ~26.1 ms | ~3.8 M evals/s |
+| `Circle::points_at` | 100 000 params | ~1.13 ms | ~88 M evals/s |
+| `BSplineCurve::points_at` (degree 3, 20 poles, clamped) | 100 000 params | ~10.5 ms | ~9.5 M evals/s |
+| `BSplineSurface::points_at` (bicubic, 6×6 poles) | 100 000 (u, v) pairs | ~26.1 ms | ~3.8 M evals/s |
 
-The internals behind `eval_points` are deliberately plain scalar loops in this
+The internals behind `points_at` are deliberately plain scalar loops in this
 proof-of-concept; the array-in/array-out API shape exists so that future bulk
 optimizations (SoA layouts, SIMD, parallel evaluation) can land behind the same
 signatures without breaking callers.
@@ -27,21 +27,21 @@ cargo bench --bench eval_throughput
 ## Points with derivatives
 
 The same bench times the point and its derivatives up to second order on
-the curve and the surface above, from separate `eval_point` and
-`eval_derivative` calls and from one `eval_d2` call, which evaluates the
+the curve and the surface above, from separate `point_at` and
+`derivative` calls and from one `second_derivatives` call, which evaluates the
 basis functions once.
 
 Machine: Linux 7.0, x86-64 desktop, single thread, `--warm-up-time 1
 --measurement-time 3` (2026-10-12). Times are per parameter.
 
-| workload | separate calls | `eval_d2` |
+| workload | separate calls | `second_derivatives` |
 |---|---|---|
 | `BSplineCurve`: point, first and second derivatives | ~172 ns | ~95 ns |
 | `BSplineSurface`: point, `Su`, `Sv`, `Suu`, `Suv`, `Svv` | ~856 ns | ~208 ns |
 
 ### First derivatives
 
-`eval_d1` on the same curve and surface, and on rational copies of them
+`first_derivatives` on the same curve and surface, and on rational copies of them
 (weights `1 + 0.5 sin i` on the curve, `1 + 0.3 sin(i + j)` on the
 surface). Non-periodic B-splines of degree 1 to 3 in every direction take
 an unrolled path that computes the basis functions and their first
@@ -54,13 +54,13 @@ Machine: Linux 7.0, x86-64 desktop, single thread, `--warm-up-time 1
 
 | workload | 0.40.1 | unrolled |
 |---|---|---|
-| `BSplineCurve::eval_d1` | ~41 ns | ~22 ns |
-| `BSplineCurve::eval_d1`, rational | ~47 ns | ~38 ns |
-| `BSplineSurface::eval_d1` | ~89 ns | ~61 ns |
-| `BSplineSurface::eval_d1`, rational | ~99 ns | ~81 ns |
+| `BSplineCurve::first_derivatives` | ~41 ns | ~22 ns |
+| `BSplineCurve::first_derivatives`, rational | ~47 ns | ~38 ns |
+| `BSplineSurface::first_derivatives` | ~89 ns | ~61 ns |
+| `BSplineSurface::first_derivatives`, rational | ~99 ns | ~81 ns |
 
 The numeric curve–curve extrema and intersection and the marching
-intersection evaluate through `eval_d1` and `eval_d2`, which made them
+intersection evaluate through `first_derivatives` and `second_derivatives`, which made them
 12–17% faster on B-splines; the numeric curve–surface intersection spent
 its time projecting seeds onto the surface and was unchanged (see
 [below](#curvesurface-intersection-on-b-splines) for its B-spline path).

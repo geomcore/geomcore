@@ -152,14 +152,10 @@ fn assert_hits_match<A: ParametricCurve, B: ParametricCurve>(a: &A, b: &B) -> Ve
             (b0..=b1).contains(&hit.second_parameter.unwrap()),
             "{hit:?}"
         );
+        assert!(hit.point.distance(a.point_at(hit.first_parameter.unwrap())) < 1e-12);
         assert!(
             hit.point
-                .distance(a.eval_point(hit.first_parameter.unwrap()))
-                < 1e-12
-        );
-        assert!(
-            hit.point
-                .distance(b.eval_point(hit.second_parameter.unwrap()))
+                .distance(b.point_at(hit.second_parameter.unwrap()))
                 <= TOL.confusion
         );
     }
@@ -210,7 +206,7 @@ fn assert_minima_match<A: ParametricCurve, B: ParametricCurve>(
                 let (s, t) = (e.first_parameter + h * ds, e.second_parameter + h * dt);
                 let s = if da.is_periodic() { s } else { s.clamp(a0, a1) };
                 let t = if db.is_periodic() { t } else { t.clamp(b0, b1) };
-                let d = a.eval_point(s).distance(b.eval_point(t));
+                let d = a.point_at(s).distance(b.point_at(t));
                 assert!(
                     d >= e.distance - 1e-12,
                     "{e:?} is no minimum: {d} at ({s}, {t})"
@@ -418,7 +414,7 @@ fn assert_search_hits(a: &BSplineCurve, b: &BSplineCurve) -> Vec<CurveCurveHit> 
         assert!((b.bounds().0..=b.bounds().1).contains(&hit.second_parameter.unwrap()));
         assert!(
             hit.point
-                .distance(b.eval_point(hit.second_parameter.unwrap()))
+                .distance(b.point_at(hit.second_parameter.unwrap()))
                 <= TOL.confusion
         );
     }
@@ -500,8 +496,8 @@ fn holds<A: ParametricCurve, B: ParametricCurve>(
     };
     within(s, region.first_range)
         && within(t, region.second_range)
-        && in_box(a.eval_point(s))
-        && in_box(b.eval_point(t))
+        && in_box(a.point_at(s))
+        && in_box(b.point_at(t))
 }
 
 /// Asserts every hit lies on both curves within their ranges, and that
@@ -521,7 +517,7 @@ fn assert_sampled_hits_kept<A: ParametricCurve, B: ParametricCurve>(
         );
         assert!(
             hit.point
-                .distance(b.eval_point(hit.second_parameter.unwrap()))
+                .distance(b.point_at(hit.second_parameter.unwrap()))
                 <= TOL.confusion
         );
     }
@@ -539,7 +535,7 @@ fn test_tangent_contact_is_unseparated_around_it() {
     let line = segment([0.0, 0.0, 0.0], [4.0, 0.0, 0.0]);
     let touching = quadratic([0.0, 1.0, 0.0], [2.0, -1.0, 0.0], [4.0, 1.0, 0.0]);
     let contact = Point::new(2.0, 0.0, 0.0);
-    assert_eq!(touching.eval_point(0.5), contact);
+    assert_eq!(touching.point_at(0.5), contact);
     for (a, b, at) in [
         (&touching, &line, (0.5, 0.5)),
         (&line, &touching, (0.5, 0.5)),
@@ -733,11 +729,11 @@ fn test_elementary_pairs_are_sampled_and_mixed_pairs_are_not() {
 #[test]
 fn test_hits_at_curve_ends_and_knots() {
     let bend = quadratic([0.0, 0.0, 0.0], [1.0, 2.0, 0.5], [2.0, 0.0, 1.0]);
-    let end = bend.eval_point(1.0);
-    let middle = bend.eval_point(0.3);
+    let end = bend.point_at(1.0);
+    let middle = bend.point_at(0.3);
     let cases = [
         // End to end, end to start, end on the interior.
-        (bend.eval_point(1.0), [3.0, 1.0, 0.0], end),
+        (bend.point_at(1.0), [3.0, 1.0, 0.0], end),
         (Point::new(-1.0, 1.0, 0.5), [0.0, 0.0, 0.0], Point::ORIGIN),
         (
             Point::new(middle.x, middle.y - 1.0, middle.z),

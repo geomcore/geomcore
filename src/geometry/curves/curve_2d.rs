@@ -41,7 +41,7 @@ macro_rules! curve_2d_variants {
 pub(crate) use curve_2d_variants;
 
 /// The match forwarding a call to the curve a [`Curve2D`] holds:
-/// `curve_2d_dispatch!(self, c => c.eval_point(u))`.
+/// `curve_2d_dispatch!(self, c => c.point_at(u))`.
 macro_rules! curve_2d_dispatch {
     ($value:expr, $binding:ident => $body:expr) => {
         $crate::geometry::curves::curve_2d_variants! {
@@ -79,7 +79,7 @@ pub(crate) use curve_2d_dispatch;
 ///         false,
 ///     )?),
 /// ];
-/// let points: Vec<Point2D> = curves.iter().map(|c| c.eval_point(0.0)).collect();
+/// let points: Vec<Point2D> = curves.iter().map(|c| c.point_at(0.0)).collect();
 /// assert_eq!(points[0], Point2D::ORIGIN);
 /// assert_eq!(points[1], Point2D::new(1.0, 0.0));
 /// # Ok::<(), geomcore::BSplineConstructionError>(())
@@ -105,20 +105,20 @@ pub enum Curve2D {
 
 impl ParametricCurve2D for Curve2D {
     #[inline]
-    fn eval_point(&self, u: f64) -> Point2D {
-        curve_2d_dispatch!(self, c => c.eval_point(u))
+    fn point_at(&self, u: f64) -> Point2D {
+        curve_2d_dispatch!(self, c => c.point_at(u))
     }
 
-    fn eval_derivative(&self, u: f64, order: u32) -> Vector2D {
-        curve_2d_dispatch!(self, c => c.eval_derivative(u, order))
+    fn derivative(&self, u: f64, order: u32) -> Vector2D {
+        curve_2d_dispatch!(self, c => c.derivative(u, order))
     }
 
-    fn eval_d1(&self, u: f64) -> (Point2D, Vector2D) {
-        curve_2d_dispatch!(self, c => c.eval_d1(u))
+    fn first_derivatives(&self, u: f64) -> (Point2D, Vector2D) {
+        curve_2d_dispatch!(self, c => c.first_derivatives(u))
     }
 
-    fn eval_d2(&self, u: f64) -> (Point2D, Vector2D, Vector2D) {
-        curve_2d_dispatch!(self, c => c.eval_d2(u))
+    fn second_derivatives(&self, u: f64) -> (Point2D, Vector2D, Vector2D) {
+        curve_2d_dispatch!(self, c => c.second_derivatives(u))
     }
 
     fn tangent(&self, u: f64, tol: Tolerance) -> Option<Vector2D> {
@@ -141,8 +141,8 @@ impl ParametricCurve2D for Curve2D {
         curve_2d_dispatch!(self, c => c.period())
     }
 
-    fn eval_points(&self, us: &[f64]) -> Vec<Point2D> {
-        curve_2d_dispatch!(self, c => c.eval_points(us))
+    fn points_at(&self, us: &[f64]) -> Vec<Point2D> {
+        curve_2d_dispatch!(self, c => c.points_at(us))
     }
 
     fn is_periodic(&self) -> bool {

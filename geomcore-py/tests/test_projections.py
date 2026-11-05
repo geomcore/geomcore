@@ -36,7 +36,7 @@ def test_curve_projection():
     query = Point(3.0, 0.0, 1.0)
     projection = circle.project_point(query)
     assert isinstance(projection, CurveProjection)
-    _assert_points_close(projection.point, circle.eval_point(projection.parameter))
+    _assert_points_close(projection.point, circle.point_at(projection.parameter))
     assert projection.distance == pytest.approx(2.0**0.5)
     assert projection.target is circle
     assert projection.query_point == query
@@ -48,7 +48,7 @@ def test_curve_projection_2d():
     projection = line.project_point(query)
     assert isinstance(projection, CurveProjection2D)
     assert projection.parameter == pytest.approx(2.0)
-    _assert_points_close(projection.point, line.eval_point(projection.parameter))
+    _assert_points_close(projection.point, line.point_at(projection.parameter))
     assert projection.distance == pytest.approx(1.0)
     assert projection.target is line
     assert projection.query_point == query
@@ -78,7 +78,7 @@ def test_project_points_on_2d_curves():
             assert projection == curve.project_point(query)
             assert projection.target is curve
             assert projection.query_point == query
-            _assert_points_close(projection.point, curve.eval_point(projection.parameter))
+            _assert_points_close(projection.point, curve.point_at(projection.parameter))
     # The arc ends at angle 0: the point below the circle projects there.
     assert arc.project_point(Point2D(0.0, -1.0)).parameter == 0.0
 
@@ -96,7 +96,7 @@ def test_surface_projection():
     query = Point(0.0, 0.0, 5.0)
     projection = sphere.project_point(query)
     assert isinstance(projection, SurfaceProjection)
-    _assert_points_close(projection.point, sphere.eval_point(projection.u, projection.v))
+    _assert_points_close(projection.point, sphere.point_at(projection.u, projection.v))
     assert projection.distance == pytest.approx(3.0)
     assert projection.target is sphere
     assert projection.query_point == query
@@ -107,7 +107,7 @@ def test_bspline_curve_projection():
         1, [Point(0.0, 0.0, 0.0), Point(2.0, 0.0, 0.0)], [0.0, 1.0], [2, 2], False
     )
     projection = curve.project_point(Point(1.0, 1.0, 0.0))
-    _assert_points_close(projection.point, curve.eval_point(projection.parameter))
+    _assert_points_close(projection.point, curve.point_at(projection.parameter))
     assert projection.target is curve
     extrema = curve.extrema(Point(1.0, 1.0, 0.0))
     assert all(isinstance(e, CurveProjection) for e in extrema)
@@ -130,7 +130,7 @@ def test_bspline_surface_projection():
         False,
     )
     projection = surface.project_point(Point(1.0, 1.0, 1.0))
-    _assert_points_close(projection.point, surface.eval_point(projection.u, projection.v))
+    _assert_points_close(projection.point, surface.point_at(projection.u, projection.v))
     assert projection.target is surface
     extrema = surface.extrema(Point(1.0, 1.0, 1.0))
     assert all(isinstance(e, SurfaceProjection) and e.target is surface for e in extrema)

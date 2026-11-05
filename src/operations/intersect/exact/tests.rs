@@ -71,7 +71,7 @@ fn samples(curve: &impl ParametricCurve) -> Vec<Point> {
     let (lo, hi) = curve.bounds();
     let (lo, hi) = (lo.max(-3.0), hi.min(3.0));
     (0..=8)
-        .map(|i| curve.eval_point(lo + (hi - lo) * f64::from(i) / 8.0))
+        .map(|i| curve.point_at(lo + (hi - lo) * f64::from(i) / 8.0))
         .collect()
 }
 
@@ -121,7 +121,7 @@ fn assert_same(ab: &SurfaceSurfaceIntersection, ba: &SurfaceSurfaceIntersection)
         }
         let twin = c2
             .iter()
-            .find(|c| distance_to(&c.curve, curve.curve.eval_point(0.1)) <= TOL.confusion);
+            .find(|c| distance_to(&c.curve, curve.curve.point_at(0.1)) <= TOL.confusion);
         assert_eq!(
             twin.map(|c| c.tangent),
             Some(curve.tangent),
@@ -189,7 +189,7 @@ fn test_surface_intersection_matches_marching() {
             for curve in &traced {
                 let (lo, hi) = curve.bounds();
                 for k in 0..=16 {
-                    let p = curve.eval_point(lo + (hi - lo) * f64::from(k) / 16.0);
+                    let p = curve.point_at(lo + (hi - lo) * f64::from(k) / 16.0);
                     assert!(
                         on_some_curve(curves, p, 1e-4),
                         "{p:?} off the exact curves of {a:?} and {b:?}"
@@ -339,7 +339,7 @@ fn assert_curve_surface_valid(
             .curve_parameter
             .expect("an exact hit stores its curve parameter");
         let scale = 1.0 + hit.point.distance(Point::ORIGIN);
-        let on_curve = curve.eval_point(parameter);
+        let on_curve = curve.point_at(parameter);
         assert!(
             (on_curve - hit.point).magnitude() <= 1e-9 * scale,
             "{hit:?} of {curve:?}"
@@ -481,19 +481,13 @@ fn assert_curve_curve_valid(
     }
     for hit in hits {
         if let Some(t) = hit.first_parameter {
-            assert!(near(a.eval_point(t), hit.point), "{hit:?} off {a:?}");
+            assert!(near(a.point_at(t), hit.point), "{hit:?} off {a:?}");
         }
         if let Some(t) = hit.second_parameter {
-            assert!(near(b.eval_point(t), hit.point), "{hit:?} off {b:?}");
+            assert!(near(b.point_at(t), hit.point), "{hit:?} off {b:?}");
         }
-        assert!(near(
-            a.eval_point(a.parameter_of(hit.point, TOL)),
-            hit.point
-        ));
-        assert!(near(
-            b.eval_point(b.parameter_of(hit.point, TOL)),
-            hit.point
-        ));
+        assert!(near(a.point_at(a.parameter_of(hit.point, TOL)), hit.point));
+        assert!(near(b.point_at(b.parameter_of(hit.point, TOL)), hit.point));
         assert!(hit.multiplicity >= 1);
     }
 }

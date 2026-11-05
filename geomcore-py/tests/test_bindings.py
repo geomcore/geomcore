@@ -34,7 +34,7 @@ from geomcore.surfaces import BezierSurface, Cylinder, Plane, Sphere
 
 def test_readme_snippet():
     circle = Circle(Point.origin(), Vector.unit_z(), 2.0)
-    point = circle.eval_point(math.pi / 4)
+    point = circle.point_at(math.pi / 4)
     assert point.x == pytest.approx(2.0 * math.cos(math.pi / 4))
     assert point.y == pytest.approx(2.0 * math.sin(math.pi / 4))
     assert point.z == pytest.approx(0.0)
@@ -51,7 +51,7 @@ def test_submodule_import_forms():
 def test_eval_points_bulk():
     circle = Circle(Point.origin(), Vector.unit_z(), 2.0)
     params = [i / 100 * math.tau for i in range(100)]
-    points = circle.eval_points(params)
+    points = circle.points_at(params)
     assert len(points) == 100
     for u, p in zip(params, points):
         assert p.x == pytest.approx(2.0 * math.cos(u))
@@ -157,8 +157,8 @@ def test_curve_3d_to_uv_plane_returns_the_new_2d_types():
     for curve in (ellipse, parabola, hyperbola):
         uv_curve = plane.curve_3d_to_uv(curve)
         for t in (0.0, 0.7, 1.9):
-            q = uv_curve.eval_point(t)
-            expected = curve.eval_point(t)
+            q = uv_curve.point_at(t)
+            expected = curve.point_at(t)
             assert q.x == pytest.approx(expected.x)
             assert q.y == pytest.approx(expected.y)
 
@@ -199,7 +199,7 @@ def test_curve_3d_to_uv_maps_a_bezier_curve_on_a_plane_and_back():
     assert [(p.x, p.y) for p in uv_curve.poles()] == [(0.0, 0.0), (1.0, 2.0), (3.0, 0.0)]
     traced = plane.uv_curve_to_3d(uv_curve)
     for t in (0.0, 0.4, 1.0):
-        assert traced.eval_point(t).distance(curve.eval_point(t)) < 1e-12
+        assert traced.point_at(t).distance(curve.point_at(t)) < 1e-12
 
 
 def test_curve_3d_to_uv_takes_a_3d_curve_only():
@@ -216,7 +216,7 @@ def test_bspline_curve_degree_one_line():
         [2, 2],
         False,
     )
-    mid = curve.eval_point(0.5)
+    mid = curve.point_at(0.5)
     assert mid.x == pytest.approx(1.0)
     assert mid.y == pytest.approx(0.0)
     assert curve.degree() == 1
@@ -242,7 +242,7 @@ def test_transform_composition():
 
 def test_sphere_parameters_round_trip():
     sphere = Sphere(Point.origin(), 3.0)
-    p = sphere.eval_point(0.7, 0.4)
+    p = sphere.point_at(0.7, 0.4)
     u, v = sphere.parameters_of(p)
     assert u == pytest.approx(0.7)
     assert v == pytest.approx(0.4)
@@ -274,7 +274,7 @@ def test_frame3_accessors():
 
 def test_docstrings_present():
     assert Circle.__doc__
-    assert Circle.eval_point.__doc__
+    assert Circle.point_at.__doc__
 
 
 def test_tolerance_defaults():
@@ -397,14 +397,14 @@ def test_value_types_are_unhashable(make, different):
 
 def test_equal_points_from_different_computations():
     curve = _bspline_curve(Point(2.0, 0.0, 0.0))
-    assert curve.eval_point(0.5) == Point(1.0, 0.0, 0.0)
-    assert curve.eval_point(0.0) == Point.origin()
+    assert curve.point_at(0.5) == Point(1.0, 0.0, 0.0)
+    assert curve.point_at(0.0) == Point.origin()
 
 
 def test_contains_curve():
     circle = Circle(Point.origin(), Vector.unit_z(), 2.0)
     assert circle.contains(Point(2.0, 0.0, 0.0))
-    assert circle.contains(circle.eval_point(1.0))
+    assert circle.contains(circle.point_at(1.0))
     assert not circle.contains(Point(3.0, 0.0, 0.0))
     assert not circle.contains(Point.origin())
     # Explicit tolerance widens the acceptance band.
@@ -780,7 +780,7 @@ def test_intersect_plane_sphere_off_grid(height: float) -> None:
 
     plane = Plane(Point(0.0, 0.0, height), Vector.unit_z())
     (piece,) = plane.intersect(Sphere(Point.origin(), 1.0)).curves
-    p = piece.curve.eval_point(0.5)
+    p = piece.curve.point_at(0.5)
     assert math.hypot(p.x, p.y) == pytest.approx(math.sqrt(1.0 - height**2), abs=1e-3)
 
 
@@ -813,8 +813,8 @@ def test_curve_3d_to_uv_numeric():
         assert v == pytest.approx(0.0)
     # Round-trip through the surface recovers the curve.
     for i, (u, v) in enumerate(uv_curve):
-        p = cylinder.eval_point(u, v)
-        q = circle.eval_point(i / 8 * math.tau)
+        p = cylinder.point_at(u, v)
+        q = circle.point_at(i / 8 * math.tau)
         assert p.x == pytest.approx(q.x)
         assert p.y == pytest.approx(q.y)
 
@@ -987,8 +987,8 @@ def test_circle_conic_intersections():
         # Only the circle is solved for: the ellipse's parameter is left to
         # the caller.
         assert u is None
-        _assert_same_point(circle.eval_point(s), p)
-        _assert_same_point(ellipse.eval_point(ellipse.parameter_of(p)), p)
+        _assert_same_point(circle.point_at(s), p)
+        _assert_same_point(ellipse.point_at(ellipse.parameter_of(p)), p)
 
     same = circle.intersect(Ellipse(Point.origin(), Vector.unit_z(), Vector.unit_x(), 2.0, 2.0))
     assert len(same.overlaps) == 1 and same.hits == []
@@ -1082,8 +1082,8 @@ def test_conic_conic_intersections():
         for s, p, t, _ in hits:
             # One conic is solved for; a parameter not computed is None.
             assert s is not None or t is not None
-            _assert_same_point(a.eval_point(_or_recovered(s, a, p)), p)
-            _assert_same_point(b.eval_point(_or_recovered(t, b, p)), p)
+            _assert_same_point(a.point_at(_or_recovered(s, a, p)), p)
+            _assert_same_point(b.point_at(_or_recovered(t, b, p)), p)
         # The receiver's parameter comes first.
         back = _hit_tuples(b.intersect(a))
         on_b = sorted(_or_recovered(t, b, p) for _, p, t, _ in hits)
@@ -1132,7 +1132,7 @@ def test_curves_transformed_commute_with_eval():
         moved = curve.transformed(t)
         assert type(moved) is type(curve)
         for u in (0.0, 0.3, 0.9):
-            _assert_same_point(moved.eval_point(u), t.apply_point(curve.eval_point(u)))
+            _assert_same_point(moved.point_at(u), t.apply_point(curve.point_at(u)))
 
 
 def test_surfaces_transformed_commute_with_eval():
@@ -1151,7 +1151,7 @@ def test_surfaces_transformed_commute_with_eval():
         moved = surface.transformed(t)
         assert type(moved) is type(surface)
         for u, v in ((0.0, 0.0), (0.3, 0.6), (0.9, 0.2)):
-            _assert_same_point(moved.eval_point(u, v), t.apply_point(surface.eval_point(u, v)))
+            _assert_same_point(moved.point_at(u, v), t.apply_point(surface.point_at(u, v)))
 
 
 def test_transformed_scales_radius_and_rejects_collapse():
@@ -1164,24 +1164,24 @@ def test_transformed_scales_radius_and_rejects_collapse():
 def test_eval_derivative_rejects_unsupported_orders():
     circle = Circle(Point.origin(), Vector.unit_z(), 2.0)
     with pytest.raises(ValueError):
-        circle.eval_derivative(0.0, 0)
-    assert circle.eval_derivative(0.0, 5).components()[1] == pytest.approx(2.0)
+        circle.derivative(0.0, 0)
+    assert circle.derivative(0.0, 5).components()[1] == pytest.approx(2.0)
     curve = BSplineCurve.interpolate(
         [Point(0.0, 0.0, 0.0), Point(1.0, 1.0, 0.0), Point(2.0, 0.0, 0.0)], 2
     )
     with pytest.raises(ValueError):
-        curve.eval_derivative(0.5, 0)
-    assert curve.eval_derivative(0.5, 3).components() == (0.0, 0.0, 0.0)
+        curve.derivative(0.5, 0)
+    assert curve.derivative(0.5, 3).components() == (0.0, 0.0, 0.0)
     cylinder = Cylinder(Point.origin(), Vector.unit_z(), 1.0)
     with pytest.raises(ValueError):
-        cylinder.eval_derivative(0.0, 0.0, 0, 0)
-    third = cylinder.eval_derivative(0.0, 0.0, 3, 0).components()
+        cylinder.derivative(0.0, 0.0, 0, 0)
+    third = cylinder.derivative(0.0, 0.0, 3, 0).components()
     assert third == pytest.approx((0.0, -1.0, 0.0))
-    assert cylinder.eval_derivative(0.0, 0.0, 2, 1).components() == (0.0, 0.0, 0.0)
+    assert cylinder.derivative(0.0, 0.0, 2, 1).components() == (0.0, 0.0, 0.0)
     saddle = BezierSurface(1, 1, [[Point(0, 0, 0), Point(0, 1, 0)], [Point(1, 0, 0), Point(1, 1, 1)]])
     for du, dv in [(3, 0), (2, 1)]:
         with pytest.raises(ValueError, match="<= 2"):
-            saddle.eval_derivative(0.5, 0.5, du, dv)
+            saddle.derivative(0.5, 0.5, du, dv)
 
 
 def test_conic_projection_of_non_finite_point_is_nan():
@@ -1237,7 +1237,7 @@ def test_trimmed_curve_rejects_bad_ranges():
     with pytest.raises(ValueError):
         TrimmedCurve(curve, -0.5, 0.5)
     with pytest.raises(ValueError):
-        TrimmedCurve(curve, 0.0, 1.0).eval_derivative(0.5, 0)
+        TrimmedCurve(curve, 0.0, 1.0).derivative(0.5, 0)
 
 
 def test_intersect_searches_only_the_range():
@@ -1386,7 +1386,7 @@ def test_discretize_circle_and_bspline():
     assert _xyz(d.points[-1]) == (2.0, 0.0, 0.0)
     assert all(dev <= 1e-3 for dev in d.chord_deviations)
     for u, p in zip(d.parameters, d.points):
-        assert curve.eval_point(u).distance(p) < 1e-12
+        assert curve.point_at(u).distance(p) < 1e-12
 
     with pytest.raises(ValueError, match="chord deviation"):
         circle.discretize(0.0)
@@ -1480,7 +1480,7 @@ def test_bspline_curve_editing_round_trip():
     refined = curve.refine_knots([0.25, 0.5, 0.5, 0.75])
     assert len(refined.poles()) == 8
     for u in (0.0, 0.3, 0.7, 1.0):
-        assert refined.eval_point(u).distance(curve.eval_point(u)) < 1e-12
+        assert refined.point_at(u).distance(curve.point_at(u)) < 1e-12
     simpler, removed = refined.remove_knots([0.25, 0.5, 0.5, 0.75], 1e-9)
     assert removed == 4
     assert simpler.knots() == curve.knots()
@@ -1491,7 +1491,7 @@ def test_bspline_curve_editing_round_trip():
     assert back.knots() == curve.knots()
     raised = curve.elevate_degree(1)
     assert raised.degree() == 4
-    assert raised.eval_point(0.4).distance(curve.eval_point(0.4)) < 1e-12
+    assert raised.point_at(0.4).distance(curve.point_at(0.4)) < 1e-12
     with pytest.raises(ValueError):
         curve.insert_knot(2.0, 1)
     with pytest.raises(ValueError):
@@ -1503,13 +1503,13 @@ def test_bspline_curve_split_extract_reverse():
     first, second = curve.split_at(0.4)
     assert first.bounds() == pytest.approx((0.0, 0.4))
     assert second.bounds() == pytest.approx((0.4, 1.0))
-    assert first.eval_point(0.4).distance(curve.eval_point(0.4)) < 1e-12
-    assert second.eval_point(0.4).distance(curve.eval_point(0.4)) < 1e-12
+    assert first.point_at(0.4).distance(curve.point_at(0.4)) < 1e-12
+    assert second.point_at(0.4).distance(curve.point_at(0.4)) < 1e-12
     piece = curve.extract(0.2, 0.8)
     assert piece.bounds() == pytest.approx((0.2, 0.8))
-    assert piece.eval_point(0.5).distance(curve.eval_point(0.5)) < 1e-12
+    assert piece.point_at(0.5).distance(curve.point_at(0.5)) < 1e-12
     rev = curve.reversed()
-    assert rev.eval_point(0.3).distance(curve.eval_point(0.7)) < 1e-12
+    assert rev.point_at(0.3).distance(curve.point_at(0.7)) < 1e-12
     with pytest.raises(ValueError):
         curve.split_at(0.0)
     with pytest.raises(ValueError):
@@ -1529,7 +1529,7 @@ def test_bspline_curve_bezier_pieces_and_length():
     assert all(isinstance(piece, BezierCurve) for piece in pieces)
     assert pieces[1].bounds() == pytest.approx((1.0, 2.0))
     assert len(pieces[1].poles()) == 4
-    assert pieces[1].eval_point(1.5).distance(curve.eval_point(1.5)) < 1e-12
+    assert pieces[1].point_at(1.5).distance(curve.point_at(1.5)) < 1e-12
     assert pieces[1].to_bspline().multiplicities() == [4, 4]
     segment = BSplineCurve(
         1, [Point.origin(), Point(2.0, 0.0, 0.0)], [0.0, 1.0], [2, 2], False
@@ -1551,21 +1551,21 @@ def test_conic_to_bspline():
     circle = Circle(Point.origin(), Vector.unit_z(), 2.0)
     spline = circle.to_bspline()
     assert spline.is_periodic()
-    assert spline.eval_point(math.pi / 2).distance(circle.eval_point(math.pi / 2)) < 1e-12
+    assert spline.point_at(math.pi / 2).distance(circle.point_at(math.pi / 2)) < 1e-12
     ellipse = Ellipse(Point.origin(), Vector.unit_z(), Vector.unit_x(), 3.0, 1.0)
     e_spline = ellipse.to_bspline()
-    assert e_spline.eval_point(0.0).distance(ellipse.eval_point(0.0)) < 1e-12
+    assert e_spline.point_at(0.0).distance(ellipse.point_at(0.0)) < 1e-12
     arc = TrimmedCurve(circle, 0.0, math.pi)
     arc_spline = arc.to_bspline()
     assert arc_spline.bounds() == pytest.approx((0.0, math.pi))
     # The B-spline parameter matches the angle at the knots and each
     # piece's middle, not in between — but every point lies on the circle.
-    assert arc_spline.eval_point(math.pi / 2).distance(circle.eval_point(math.pi / 2)) < 1e-12
+    assert arc_spline.point_at(math.pi / 2).distance(circle.point_at(math.pi / 2)) < 1e-12
     for u in (0.0, 0.3, 1.0, 2.0, math.pi):
-        assert circle.contains(arc_spline.eval_point(u))
+        assert circle.contains(arc_spline.point_at(u))
     segment = TrimmedCurve.segment(Point.origin(), Point(1.0, 0.0, 0.0))
     seg_spline = segment.to_bspline()
-    assert seg_spline.eval_point(0.5).distance(Point(0.5, 0.0, 0.0)) < 1e-12
+    assert seg_spline.point_at(0.5).distance(Point(0.5, 0.0, 0.0)) < 1e-12
 
 
 def test_curve_bounds_and_boxes():
@@ -1638,7 +1638,7 @@ def test_surface_editing_round_trip():
     surface = _bilinear_patch()
     refined = surface.refine_u_knots([0.25, 0.5])
     assert refined.u_pole_count() == 4
-    assert refined.eval_point(0.3, 0.7).distance(surface.eval_point(0.3, 0.7)) < 1e-12
+    assert refined.point_at(0.3, 0.7).distance(surface.point_at(0.3, 0.7)) < 1e-12
     simpler, removed = refined.remove_u_knots([0.25, 0.5], 1e-9)
     assert removed == 2
     assert simpler.u_knots() == surface.u_knots()
@@ -1646,7 +1646,7 @@ def test_surface_editing_round_trip():
     assert n == 1 and one.v_knots() == surface.v_knots()
     raised = surface.elevate_u_degree(1)
     assert raised.u_degree() == 2
-    assert raised.eval_point(0.4, 0.6).distance(surface.eval_point(0.4, 0.6)) < 1e-12
+    assert raised.point_at(0.4, 0.6).distance(surface.point_at(0.4, 0.6)) < 1e-12
     raised_v = surface.elevate_v_degree(2)
     assert raised_v.v_degree() == 3
     with pytest.raises(ValueError):
@@ -1657,17 +1657,17 @@ def test_surface_split_extract_reverse_and_patches():
     surface = _bilinear_patch()
     left, right = surface.split_u_at(0.5)
     assert left.u_bounds() == pytest.approx((0.0, 0.5))
-    assert right.eval_point(0.75, 0.25).distance(surface.eval_point(0.75, 0.25)) < 1e-12
+    assert right.point_at(0.75, 0.25).distance(surface.point_at(0.75, 0.25)) < 1e-12
     bottom, _top = surface.split_v_at(0.5)
     assert bottom.v_bounds() == pytest.approx((0.0, 0.5))
     piece = surface.extract((0.25, 0.75), (0.25, 0.75))
-    assert piece.eval_point(0.5, 0.5).distance(surface.eval_point(0.5, 0.5)) < 1e-12
+    assert piece.point_at(0.5, 0.5).distance(surface.point_at(0.5, 0.5)) < 1e-12
     assert surface.extract_u(0.25, 0.75).u_knots() == pytest.approx([0.25, 0.75])
     assert surface.extract_v(0.25, 0.75).v_knots() == pytest.approx([0.25, 0.75])
-    assert surface.reversed_u().eval_point(0.25, 0.5).distance(
-        surface.eval_point(0.75, 0.5)) < 1e-12
-    assert surface.reversed_v().eval_point(0.5, 0.25).distance(
-        surface.eval_point(0.5, 0.75)) < 1e-12
+    assert surface.reversed_u().point_at(0.25, 0.5).distance(
+        surface.point_at(0.75, 0.5)) < 1e-12
+    assert surface.reversed_v().point_at(0.5, 0.25).distance(
+        surface.point_at(0.5, 0.75)) < 1e-12
     from geomcore.surfaces import BSplineSurface
 
     net = BSplineSurface(
@@ -1679,7 +1679,7 @@ def test_surface_split_extract_reverse_and_patches():
     assert (len(patches), len(patches[0])) == (2, 1)
     assert isinstance(patches[1][0], BezierSurface)
     assert patches[1][0].u_bounds() == pytest.approx((1.0, 2.0))
-    assert patches[1][0].eval_point(1.5, 0.5).distance(net.eval_point(1.5, 0.5)) < 1e-12
+    assert patches[1][0].point_at(1.5, 0.5).distance(net.point_at(1.5, 0.5)) < 1e-12
     assert patches[1][0].to_bspline().u_multiplicities() == [3, 3]
     with pytest.raises(ValueError):
         surface.split_u_at(0.0)
@@ -1696,7 +1696,7 @@ def test_surface_approximate():
     assert (fit.u_pole_count(), fit.v_pole_count()) == (5, 5)
     loose = BSplineSurface.approximate_within(grid, 3, 3, 0.05)
     assert loose.u_pole_count() <= 8 and loose.v_pole_count() <= 8
-    assert loose.eval_point(0.5, 0.5).distance(fit.eval_point(0.5, 0.5)) < 0.2
+    assert loose.point_at(0.5, 0.5).distance(fit.point_at(0.5, 0.5)) < 0.2
 
 
 def test_surface_to_bspline_conversions():
@@ -1705,21 +1705,21 @@ def test_surface_to_bspline_conversions():
     plane = Plane(Point.origin(), Vector.unit_z())
     patch = plane.to_bspline_patch((0.0, 1.0), (0.0, 2.0))
     assert isinstance(patch, BSplineSurface)
-    assert patch.eval_point(0.5, 1.0).distance(plane.eval_point(0.5, 1.0)) < 1e-12
+    assert patch.point_at(0.5, 1.0).distance(plane.point_at(0.5, 1.0)) < 1e-12
     cylinder = Cylinder(Point.origin(), Vector.unit_z(), 2.0)
     tube = cylinder.to_bspline_patch((0.0, math.tau), (-1.0, 4.0))
     assert tube.is_u_periodic() and not tube.is_v_periodic()
-    assert tube.eval_point(math.pi / 2, 3.0).distance(
-        cylinder.eval_point(math.pi / 2, 3.0)) < 1e-12
+    assert tube.point_at(math.pi / 2, 3.0).distance(
+        cylinder.point_at(math.pi / 2, 3.0)) < 1e-12
     sphere = Sphere(Point.origin(), 2.0)
     ball = sphere.to_bspline()
-    assert ball.eval_point(0.0, 0.0).distance(sphere.eval_point(0.0, 0.0)) < 1e-9
+    assert ball.point_at(0.0, 0.0).distance(sphere.point_at(0.0, 0.0)) < 1e-9
     torus = Torus(Point.origin(), Vector.unit_z(), 3.0, 1.0)
     donut = torus.to_bspline()
-    assert donut.eval_point(0.0, 0.0).distance(torus.eval_point(0.0, 0.0)) < 1e-9
+    assert donut.point_at(0.0, 0.0).distance(torus.point_at(0.0, 0.0)) < 1e-9
     cone = Cone(Point.origin(), Vector.unit_z(), 0.5, 1.0)
-    assert cone.to_bspline_patch((0.0, 1.0), (0.0, 2.0)).eval_point(
-        0.5, 1.0).distance(cone.eval_point(0.5, 1.0)) < 1e-9
+    assert cone.to_bspline_patch((0.0, 1.0), (0.0, 2.0)).point_at(
+        0.5, 1.0).distance(cone.point_at(0.5, 1.0)) < 1e-9
     with pytest.raises(ValueError):
         plane.to_bspline_patch((0.0, 0.0), (0.0, 1.0))
 
@@ -1751,8 +1751,8 @@ def test_iso_curves_are_the_surface_with_one_parameter_fixed(index):
         for t in (0.1, 0.6):
             tv, tu = v0 + t * (v1 - v0), u0 + t * (u1 - u0)
             for got, want in (
-                (s.u_iso(u).eval_point(tv), s.eval_point(u, tv)),
-                (s.v_iso(v).eval_point(tu), s.eval_point(tu, v)),
+                (s.u_iso(u).point_at(tv), s.point_at(u, tv)),
+                (s.v_iso(v).point_at(tu), s.point_at(tu, v)),
             ):
                 assert (got.x, got.y, got.z) == pytest.approx((want.x, want.y, want.z), abs=1e-9)
 
@@ -1806,27 +1806,27 @@ def test_bspline_curve_2d_matches_its_3d_twin():
     assert planar.degree() == 3 and not planar.is_rational()
     assert planar.bounds() == (0.0, 1.0) and planar.period() is None
     for u in [0.0, 0.25, 0.5, 0.9, 1.0]:
-        p, q = planar.eval_point(u), spatial.eval_point(u)
+        p, q = planar.point_at(u), spatial.point_at(u)
         assert (p.x, p.y) == pytest.approx((q.x, q.y), abs=1e-14)
-        _, d1 = planar.eval_d1(u)
-        _, e1 = spatial.eval_d1(u)
+        _, d1 = planar.first_derivatives(u)
+        _, e1 = spatial.first_derivatives(u)
         assert (d1.x, d1.y) == pytest.approx((e1.x, e1.y), abs=1e-14)
     assert planar.length(1e-9) == pytest.approx(spatial.length(1e-9), rel=1e-12)
     left, right = planar.split_at(0.5)
     assert left.bounds() == (0.0, 0.5) and right.bounds() == (0.5, 1.0)
-    assert planar.reversed().eval_point(0.0).x == pytest.approx(4.0)
+    assert planar.reversed().point_at(0.0).x == pytest.approx(4.0)
     assert len(planar.insert_knot(0.5, 1).poles()) == 5
 
 
 def test_bspline_curve_2d_projection_and_discretization():
     curve = _cubic_curve_2d()
-    on = curve.eval_point(0.3)
+    on = curve.point_at(0.3)
     assert curve.contains(on)
     assert curve.parameter_of(on) == pytest.approx(0.3)
     assert curve.parameter_of(on, Tolerance.default()) == pytest.approx(0.3)
     projection = curve.project_point(Point2D(2.0, 3.0))
     assert projection.point.x == pytest.approx(2.0)
-    assert projection.distance == pytest.approx(3.0 - curve.eval_point(0.5).y)
+    assert projection.distance == pytest.approx(3.0 - curve.point_at(0.5).y)
     nan = curve.project_point(Point2D(math.nan, 0.0))
     assert math.isnan(nan.parameter) and math.isnan(nan.distance)
     d = curve.discretize(1e-3)
@@ -1847,7 +1847,7 @@ def test_bspline_curve_2d_intersections_are_numeric_and_complete():
     assert len(result.hits) == 2
     for hit in result.hits:
         assert hit.point.y == pytest.approx(1.0)
-        assert curve.eval_point(hit.first_parameter).x == pytest.approx(hit.point.x)
+        assert curve.point_at(hit.first_parameter).x == pytest.approx(hit.point.x)
     # The same crossings, seen from the line.
     assert len(line.intersect(curve).hits) == 2
 
@@ -1860,4 +1860,4 @@ def test_bspline_curve_2d_intersections_are_numeric_and_complete():
 
     arc = TrimmedCurve2D(circle, 0.0, math.pi)
     half = arc.to_bspline()
-    assert half.eval_point(half.bounds()[1]).x == pytest.approx(-2.0)
+    assert half.point_at(half.bounds()[1]).x == pytest.approx(-2.0)

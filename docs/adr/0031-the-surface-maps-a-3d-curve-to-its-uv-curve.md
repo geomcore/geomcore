@@ -1,6 +1,6 @@
 # The surface maps a 3D curve to its UV curve, and curves do not depend on surfaces
 
-`ParametricSurface::curve_3d_to_uv(&self, curve: &Curve, tol) -> Result<Curve2D, Curve3DToUvError>` gives the exact UV curve `c` of a 3D curve `C` lying on the surface `S`, in the same parameter: `S∘c = C`, so `self.eval_point(c(t))` is `curve.eval_point(t)` for every `t`. It is the mirror of `uv_curve_to_3d` (ADR 0030), and it replaces the six inherent `parametrize_on` methods of `Line`, `Circle`, `Ellipse`, `Parabola`, `Hyperbola` and `BSplineCurve`. `Curve3DToUvError` replaces `ParametrizeError`, with the same variants: `NotAnalytic` and `CurveNotOnSurface`. The free sampled fallback `parametrize_numeric` becomes `curve_3d_to_uv_numeric`, re-exported at the crate root next to `intersect_curve_surface`.
+`ParametricSurface::curve_3d_to_uv(&self, curve: &Curve, tol) -> Result<Curve2D, Curve3DToUvError>` gives the exact UV curve `c` of a 3D curve `C` lying on the surface `S`, in the same parameter: `S∘c = C`, so `self.point_at(c(t))` is `curve.point_at(t)` for every `t`. It is the mirror of `uv_curve_to_3d` (ADR 0030), and it replaces the six inherent `parametrize_on` methods of `Line`, `Circle`, `Ellipse`, `Parabola`, `Hyperbola` and `BSplineCurve`. `Curve3DToUvError` replaces `ParametrizeError`, with the same variants: `NotAnalytic` and `CurveNotOnSurface`. The free sampled fallback `parametrize_numeric` becomes `curve_3d_to_uv_numeric`, re-exported at the crate root next to `intersect_curve_surface`.
 
 The method has the same shape as `uv_curve_to_3d`. It is a provided method whose default refuses with `NotAnalytic`, so a surface type defined outside the crate keeps compiling. Each crate surface overrides it with a one-line forward to `surfaces/uv_curve/from_curve.rs`, and `Surface` and `ElementarySurface` forward through their variant lists (ADR 0017). It takes `&Curve`, so the trait stays dyn-compatible.
 
@@ -13,7 +13,7 @@ The method has the same shape as `uv_curve_to_3d`. It is a provided method whose
 ## Considered options
 
 - **Keep `parametrize_on` as a deprecated shim**: rejected. The crate is pre-1.0, and the shim would keep the curves importing surfaces until it is removed. The migration is one line, given in the changelog.
-- **A free function `curve_3d_to_uv(curve, surface, tol)`**: rejected. The surface owns both directions, as it owns `eval_point` and `parameters_of` at point level.
+- **A free function `curve_3d_to_uv(curve, surface, tol)`**: rejected. The surface owns both directions, as it owns `point_at` and `parameters_of` at point level.
 - **Closed forms on the swept surfaces now**: deferred until a consumer needs them. The numeric fallback answers in the meantime.
 
 ## Consequences

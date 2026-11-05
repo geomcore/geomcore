@@ -84,7 +84,7 @@ impl HullCurve<'_> {
     /// The curve's own parameter at the B-spline's `t`; an angle is taken
     /// at its representative nearest `t`, not wrapped into the range.
     fn carried(&self, t: f64) -> f64 {
-        let point = || self.bspline.eval_point(t);
+        let point = || self.bspline.point_at(t);
         // The conics invert in closed form, which takes no tolerance.
         let tol = Tolerance::DEFAULT;
         match self.source {
@@ -115,7 +115,7 @@ impl HullCurve<'_> {
             if let Some(parameter) = hit.curve_parameter {
                 let parameter = self.parameter(parameter);
                 hit.curve_parameter = Some(parameter);
-                hit.point = curve.eval_point(parameter);
+                hit.point = curve.point_at(parameter);
             }
         }
         sort_by_known_parameter(&mut hits.hits, |hit| hit.curve_parameter);
@@ -348,7 +348,7 @@ where
             CurveCurveExtremum {
                 first_parameter: s,
                 second_parameter: t,
-                distance: a.eval_point(s).distance(b.eval_point(t)),
+                distance: a.point_at(s).distance(b.point_at(t)),
             }
         })
         .collect();

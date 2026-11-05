@@ -1,6 +1,6 @@
 //! UV curves, the curves of a surface's `(u, v)` parameter space, and their
 //! mapping to and from 3D curves, which the surface owns as it owns
-//! `eval_point` and `parameters_of` at point level (ADR 0030). Curves do
+//! `point_at` and `parameters_of` at point level (ADR 0030). Curves do
 //! not depend on surfaces. Where no exact 3D curve exists,
 //! `uv_curve_to_3d_within` gives one within a deviation (ADR 0035).
 

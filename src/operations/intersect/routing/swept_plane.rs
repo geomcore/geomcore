@@ -206,7 +206,7 @@ fn lies_on(curve: &Curve, other: &Curve, tol: Tolerance) -> bool {
     };
     (0..MERIDIAN_SAMPLES).all(|index| {
         let parameter = first + (last - first) * index as f64 / (MERIDIAN_SAMPLES - 1) as f64;
-        other.contains(curve.eval_point(parameter), tol)
+        other.contains(curve.point_at(parameter), tol)
     })
 }
 

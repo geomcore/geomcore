@@ -1,7 +1,7 @@
 //! 3D curve to UV curve: the exact UV curve `c`, a curve in a surface's
 //! `(u, v)` parameter space, of a 3D curve `C` lying on the surface `S`, in
-//! the same parameter, so that `surface.eval_point(c(t))` is
-//! `curve.eval_point(t)` for every `t`: `S∘c = C`. It is the inverse of
+//! the same parameter, so that `surface.point_at(c(t))` is
+//! `curve.point_at(t)` for every `t`: `S∘c = C`. It is the inverse of
 //! `uv_curve_to_3d` (`uv_curve/to_curve.rs`).
 //!
 //! Only a handful of curve/surface pairs admit a closed-form UV curve that
@@ -116,7 +116,7 @@ fn line_on_surface(
         }
     }?;
 
-    finish_line(surface, uv_curve, |t| line.eval_point(t), tol)
+    finish_line(surface, uv_curve, |t| line.point_at(t), tol)
 }
 
 /// Computes the analytic 2D image of `circle` on `surface`, or an error.
@@ -131,7 +131,7 @@ fn circle_on_surface(
             verify_on_surface(
                 surface,
                 &Curve2D::Circle(circle2d),
-                |t| circle.eval_point(t),
+                |t| circle.point_at(t),
                 tol,
             )?;
             // A circle on a plane maps to a circle; no window normalization.
@@ -139,7 +139,7 @@ fn circle_on_surface(
         }
         ElementarySurface::Cylinder(cyl) => {
             let uv_curve = circle_on_cylinder(circle, cyl.frame(), tol)?;
-            finish_line(surface, uv_curve, |t| circle.eval_point(t), tol)
+            finish_line(surface, uv_curve, |t| circle.point_at(t), tol)
         }
         ElementarySurface::Cone(cone) => {
             let uv_curve = circle_on_cone(
@@ -149,11 +149,11 @@ fn circle_on_surface(
                 cone.semi_angle(),
                 tol,
             )?;
-            finish_line(surface, uv_curve, |t| circle.eval_point(t), tol)
+            finish_line(surface, uv_curve, |t| circle.point_at(t), tol)
         }
         ElementarySurface::Sphere(sphere) => {
             let uv_curve = circle_on_sphere(circle, sphere.frame(), tol)?;
-            finish_line(surface, uv_curve, |t| circle.eval_point(t), tol)
+            finish_line(surface, uv_curve, |t| circle.point_at(t), tol)
         }
         ElementarySurface::Torus(torus) => {
             let uv_curve = circle_on_torus(
@@ -163,7 +163,7 @@ fn circle_on_surface(
                 torus.minor_radius(),
                 tol,
             )?;
-            finish_line(surface, uv_curve, |t| circle.eval_point(t), tol)
+            finish_line(surface, uv_curve, |t| circle.point_at(t), tol)
         }
     }
 }
@@ -193,7 +193,7 @@ fn ellipse_on_surface(
     let image = Ellipse2D::from_frame(frame, ellipse.major_radius(), ellipse.minor_radius())
         .expect("ellipse radii are valid by construction");
     let uv_curve = Curve2D::Ellipse(image);
-    verify_on_surface(surface, &uv_curve, |t| ellipse.eval_point(t), tol)?;
+    verify_on_surface(surface, &uv_curve, |t| ellipse.point_at(t), tol)?;
     Ok(uv_curve)
 }
 
@@ -209,7 +209,7 @@ fn parabola_on_surface(
     let image = Parabola2D::from_frame(frame, parabola.focal_distance())
         .expect("parabola focal distance is valid by construction");
     let uv_curve = Curve2D::Parabola(image);
-    verify_on_surface(surface, &uv_curve, |t| parabola.eval_point(t), tol)?;
+    verify_on_surface(surface, &uv_curve, |t| parabola.point_at(t), tol)?;
     Ok(uv_curve)
 }
 
@@ -225,7 +225,7 @@ fn hyperbola_on_surface(
     let image = Hyperbola2D::from_frame(frame, hyperbola.major_radius(), hyperbola.minor_radius())
         .expect("hyperbola radii are valid by construction");
     let uv_curve = Curve2D::Hyperbola(image);
-    verify_on_surface(surface, &uv_curve, |t| hyperbola.eval_point(t), tol)?;
+    verify_on_surface(surface, &uv_curve, |t| hyperbola.point_at(t), tol)?;
     Ok(uv_curve)
 }
 
@@ -267,7 +267,7 @@ fn verify_spline(
         .iter()
         .map(|f| first + (last - first) * f)
         .collect();
-    verify_on_surface_at(surface, uv_curve, |t| curve.eval_point(t), &params, tol)
+    verify_on_surface_at(surface, uv_curve, |t| curve.point_at(t), &params, tol)
 }
 
 /// Verifies on-surface consistency, then normalizes the UV curve's value at
@@ -317,8 +317,8 @@ fn verify_on_surface_at(
     let tolerance = tol.confusion.max(16.0 * f64::EPSILON * coordinate);
 
     for &t in params {
-        let uv = uv_curve.eval_point(t);
-        let on_surface = surface.eval_point(uv.x, uv.y);
+        let uv = uv_curve.point_at(t);
+        let on_surface = surface.point_at(uv.x, uv.y);
         if on_surface.distance(curve_point(t)) > tolerance {
             return Err(Curve3DToUvError::CurveNotOnSurface);
         }
@@ -331,7 +331,7 @@ fn verify_on_surface_at(
 /// 2D image of a line lying in a plane: local x/y coordinates of the origin
 /// and the projected (renormalized) direction.
 fn line_on_plane(line: &Line, frame: crate::Frame) -> Result<Line2D, Curve3DToUvError> {
-    let origin = eval_point2d_plane(frame, line.origin());
+    let origin = plane_coordinates(frame, line.origin());
     let d = line.direction();
     let dir = Vector2D::new(d.dot(frame.x_direction()), d.dot(frame.y_direction()));
     // A near-zero projected direction means the line points out of the plane,
@@ -374,9 +374,9 @@ fn conic_frame_on_plane(
     if conic.z_direction().cross(plane.z_direction()).magnitude() > tol.angular_for_extent(extent) {
         return Err(Curve3DToUvError::CurveNotOnSurface);
     }
-    let origin = eval_point2d_plane(plane, conic.origin());
-    let x_dir = eval_dir2d_plane(plane, conic.x_direction());
-    let mapped_y = eval_dir2d_plane(plane, conic.y_direction());
+    let origin = plane_coordinates(plane, conic.origin());
+    let x_dir = plane_components(plane, conic.x_direction());
+    let mapped_y = plane_components(plane, conic.y_direction());
     let y_dir = if mapped_y.dot(x_dir.perpendicular()) > 0.0 {
         x_dir.perpendicular()
     } else {
@@ -411,17 +411,17 @@ fn spline_on_plane(
     {
         return Err(Curve3DToUvError::CurveNotOnSurface);
     }
-    Ok(spline.mapped(|pole| eval_point2d_plane(frame, pole)))
+    Ok(spline.mapped(|pole| plane_coordinates(frame, pole)))
 }
 
 /// Local (x, y) coordinates of `p` in the plane `frame`.
-fn eval_point2d_plane(frame: crate::Frame, p: Point) -> Point2D {
+fn plane_coordinates(frame: crate::Frame, p: Point) -> Point2D {
     let d = p - frame.origin();
     Point2D::new(d.dot(frame.x_direction()), d.dot(frame.y_direction()))
 }
 
 /// Local (x, y) components of the direction `d` in the plane `frame`.
-fn eval_dir2d_plane(frame: crate::Frame, d: Vector) -> Vector2D {
+fn plane_components(frame: crate::Frame, d: Vector) -> Vector2D {
     Vector2D::new(d.dot(frame.x_direction()), d.dot(frame.y_direction()))
 }
 
@@ -588,8 +588,8 @@ fn circle_on_sphere(
 /// images of the circle's x and y axis endpoints, with seam/pole handling.
 fn sphere_meridian(circle: &Circle, frame: crate::Frame) -> Line2D {
     let cf = circle.frame();
-    let mut p1 = eval_point2d_sphere(frame, cf.x_direction());
-    let mut p2 = eval_point2d_sphere(frame, cf.y_direction());
+    let mut p1 = sphere_parameters(frame, cf.x_direction());
+    let mut p2 = sphere_parameters(frame, cf.y_direction());
 
     if (p1.y - FRAC_PI_2).abs() < Tolerance::DEFAULT.parametric
         || (p1.y + FRAC_PI_2).abs() < Tolerance::DEFAULT.parametric
@@ -618,7 +618,7 @@ fn sphere_parallel(circle: &Circle, frame: crate::Frame) -> Result<Line2D, Curve
     let u = frame_angle(frame, cf.x_direction());
     // Recover the sphere radius from an actual on-surface point (the circle's
     // own radius is the parallel's radius, not the sphere's).
-    let r = circle.eval_point(0.0).distance(frame.origin());
+    let r = circle.point_at(0.0).distance(frame.origin());
     let height = (circle.center() - frame.origin()).dot(z);
     let v = (height / r).clamp(-1.0, 1.0).asin();
     let du = if circle.normal().dot(angular_axis(frame)) >= 0.0 {
@@ -631,7 +631,7 @@ fn sphere_parallel(circle: &Circle, frame: crate::Frame) -> Result<Line2D, Curve
 }
 
 /// Local sphere `(u, v)` of a unit direction `dir` seen from the sphere frame.
-fn eval_point2d_sphere(frame: crate::Frame, dir: Vector) -> Point2D {
+fn sphere_parameters(frame: crate::Frame, dir: Vector) -> Point2D {
     let x = dir.dot(frame.x_direction());
     let y = dir.dot(frame.y_direction());
     let z = dir.dot(frame.z_direction());
@@ -647,12 +647,12 @@ fn sphere_set_in_bounds(line: Line2D) -> Line2D {
     let mut line = line;
 
     // 1. Bring v(0) into [-π, π].
-    let y0 = line.eval_point(0.0).y;
+    let y0 = line.point_at(0.0).y;
     let new_y = in_period(y0, -PI, PI);
     line = translate_line(line, 0.0, new_y - y0);
 
     // 2. Pole mirroring if v(0) still overshoots ±π/2.
-    let p = line.eval_point(0.0);
+    let p = line.point_at(0.0);
     let dir = line.direction();
     let north = p.y - FRAC_PI_2 > Tolerance::DEFAULT.confusion
         || ((p.y - FRAC_PI_2).abs() < Tolerance::DEFAULT.confusion && dir.y > 0.0);
@@ -669,7 +669,7 @@ fn sphere_set_in_bounds(line: Line2D) -> Line2D {
     }
 
     // 3. Bring u(0) into [0, 2π).
-    let x0 = line.eval_point(0.0).x;
+    let x0 = line.point_at(0.0).x;
     let new_x = in_period(x0, 0.0, TAU);
     translate_line(line, new_x - x0, 0.0)
 }
@@ -809,14 +809,14 @@ fn normalize_line2d_at_zero(line: Line2D, surface: &ElementarySurface) -> Line2D
 
 /// Wraps `line`'s `u` at `t = 0` into `[0, 2π)`.
 fn wrap_u(line: Line2D) -> Line2D {
-    let u0 = line.eval_point(0.0).x;
+    let u0 = line.point_at(0.0).x;
     let new_u = in_period(u0, 0.0, TAU);
     translate_line(line, new_u - u0, 0.0)
 }
 
 /// Wraps `line`'s `v` at `t = 0` into `[0, 2π)`.
 fn wrap_v(line: Line2D) -> Line2D {
-    let v0 = line.eval_point(0.0).y;
+    let v0 = line.point_at(0.0).y;
     let new_v = in_period(v0, 0.0, TAU);
     translate_line(line, 0.0, new_v - v0)
 }
@@ -883,7 +883,7 @@ where
     (0..sample_count)
         .map(|i| {
             let t = lo + (hi - lo) * i as f64 / (sample_count - 1) as f64;
-            let p = surface.project_point(curve.eval_point(t), tol);
+            let p = surface.project_point(curve.point_at(t), tol);
             Point2D::new(p.u, p.v)
         })
         .collect()

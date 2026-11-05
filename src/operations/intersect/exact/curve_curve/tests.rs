@@ -400,7 +400,7 @@ fn test_circle3d_intersect_ellipse() {
                 assert!(ellipse.contains(h.point, tol));
                 // The circle substitutes into the ellipse: only its angle is solved for.
                 let angle = h.first_parameter.unwrap();
-                assert!(circle.eval_point(angle).distance(h.point) < 1e-9);
+                assert!(circle.point_at(angle).distance(h.point) < 1e-9);
                 assert_eq!(h.second_parameter, None);
             }
         }
@@ -449,7 +449,7 @@ fn test_circle3d_intersect_ellipse_rotated_frames() {
                 assert!(ellipse.contains(h.point, tol));
                 assert!(
                     circle
-                        .eval_point(h.first_parameter.unwrap())
+                        .point_at(h.first_parameter.unwrap())
                         .distance(h.point)
                         < 1e-12
                 );
@@ -529,17 +529,17 @@ fn test_circle3d_conic_tangency_near_s_pi() {
             (
                 "ellipse",
                 circle_touching(&ellipse, t, 1.0),
-                ellipse.eval_point(t),
+                ellipse.point_at(t),
             ),
             (
                 "parabola",
                 circle_touching(&parabola, t, 1.5),
-                parabola.eval_point(t),
+                parabola.point_at(t),
             ),
             (
                 "hyperbola",
                 circle_touching(&hyperbola, t, 0.4),
-                hyperbola.eval_point(t),
+                hyperbola.point_at(t),
             ),
         ];
         for (name, circle, contact) in cases {
@@ -591,9 +591,9 @@ fn test_circle3d_ellipse_random_external_tangency() {
         let t = std::f64::consts::TAU * next();
         let radius = 0.1 + 3.0 * next();
         // The outward normal in the ellipse's plane.
-        let tangent = ellipse.eval_derivative(t, 1);
+        let tangent = ellipse.derivative(t, 1);
         let outward = tangent.cross(frame.z_direction()).normalized().unwrap();
-        let contact = ellipse.eval_point(t);
+        let contact = ellipse.point_at(t);
         let circle = Circle::new(contact + outward * radius, frame.z_direction(), radius).unwrap();
         let result = circle.intersect_exact(&ellipse, tol);
         let ConicConicIntersection::Hits(hits) = &result else {
@@ -621,7 +621,7 @@ fn test_ellipse3d_intersect_ellipse() {
                 assert!(e1.contains(h.point, tol));
                 assert!(e2.contains(h.point, tol));
                 let angle = h.first_parameter.unwrap();
-                assert!(e1.eval_point(angle).distance(h.point) < 1e-9);
+                assert!(e1.point_at(angle).distance(h.point) < 1e-9);
                 assert_eq!(h.second_parameter, None);
             }
             let mut ordered: Vec<Option<f64>> = hits.iter().map(|h| h.first_parameter).collect();
@@ -642,7 +642,7 @@ fn test_ellipse3d_intersect_ellipse() {
             assert_eq!(hit.multiplicity, 2);
             assert!(hit.point.distance(Point::new(3.0, 0.0, 0.0)) < 1e-12);
             let angle = hit.first_parameter.unwrap();
-            assert!(e1.eval_point(angle).distance(hit.point) < 1e-9);
+            assert!(e1.point_at(angle).distance(hit.point) < 1e-9);
             assert_eq!(hit.second_parameter, None);
         }
         other => panic!("expected a tangent, got {other:?}"),
@@ -667,7 +667,7 @@ fn test_ellipse3d_intersect_ellipse() {
                 let angle = h
                     .second_parameter
                     .unwrap_or_else(|| tilted.parameter_of(h.point, tol));
-                assert!(tilted.eval_point(angle).distance(h.point) < 1e-12);
+                assert!(tilted.point_at(angle).distance(h.point) < 1e-12);
             }
         }
         other => panic!("expected two crossings, got {other:?}"),
@@ -741,9 +741,9 @@ fn test_ellipse3d_intersect_ellipse_matches_generic() {
 /// on the side `(T.y, -T.x)` of the tangent `T` in the XY plane: outside
 /// an ellipse, inside a parabola or hyperbola branch.
 fn circle_touching(curve: &impl crate::ParametricCurve, t: f64, radius: f64) -> Circle {
-    let tangent = curve.eval_derivative(t, 1);
+    let tangent = curve.derivative(t, 1);
     let side = Vector::new(tangent.y, -tangent.x, 0.0)
         .normalized()
         .unwrap();
-    Circle::new(curve.eval_point(t) + side * radius, Vector::Z, radius).unwrap()
+    Circle::new(curve.point_at(t) + side * radius, Vector::Z, radius).unwrap()
 }

@@ -68,7 +68,7 @@ Degree 5 is also kept where it takes no more poles than degree 9, as on a short 
 
 ## Consequences
 
-`eval_derivative` on the plane, cylinder, cone, sphere and torus evaluates every order; it panicked past second order. `ElementarySurface` gives all partials up to an order at once, from one sine and cosine per angle, for the order-4 jets.
+`derivative` on the plane, cylinder, cone, sphere and torus evaluates every order; it panicked past second order. `ElementarySurface` gives all partials up to an order at once, from one sine and cosine per angle, for the order-4 jets.
 
 A new hidden routing hook, `ParametricCurve2D::as_line`, tells a straight UV curve from any other through a generic `C`. `Line2D` returns itself; `Curve2D`, `&C` and `TrimmedCurve2D` forward it (ADR 0022). `uv_curve_to_3d` reads straight UV curves through the same detection, `StraightUvCurve::of`, now generic.
 

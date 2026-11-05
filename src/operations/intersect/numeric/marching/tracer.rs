@@ -503,7 +503,7 @@ fn crossed_knots_fit(
         } else {
             (interpolated, crossed)
         };
-        surface.eval_point(u, v)
+        surface.point_at(u, v)
     };
     let mut length = 0.0;
     let mut previous = point_over_knot(first);

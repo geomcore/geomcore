@@ -43,9 +43,9 @@
 //!
 //! // Evaluate a circle at a single parameter, and over a batch of parameters.
 //! let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
-//! let point = circle.eval_point(std::f64::consts::PI / 4.0);
-//! let points = circle.eval_points(&[0.0, 1.0, 2.0]);
-//! assert_eq!(points[0], circle.eval_point(0.0));
+//! let point = circle.point_at(std::f64::consts::PI / 4.0);
+//! let points = circle.points_at(&[0.0, 1.0, 2.0]);
+//! assert_eq!(points[0], circle.point_at(0.0));
 //!
 //! // Curve-on-surface parametrization: this circle is coaxial with the
 //! // cylinder, so it has an exact UV curve, a horizontal line in (u, v).

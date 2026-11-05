@@ -250,7 +250,7 @@ impl Direction {
             Direction::Angle { curve, arc } => {
                 // A circle or ellipse inverts in closed form, which takes no
                 // tolerance.
-                let parameter = curve.parameter_of(arc.eval_point(x), Tolerance::DEFAULT);
+                let parameter = curve.parameter_of(arc.point_at(x), Tolerance::DEFAULT);
                 nearest(parameter, x)
             }
         }

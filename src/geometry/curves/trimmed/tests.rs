@@ -115,7 +115,7 @@ fn test_segment_is_parametrised_by_arc_length() {
     assert_eq!(s.bounds(), (0.0, 5.0));
     assert_eq!(s.start_point(), a);
     assert!(s.end_point().distance(b) < 1e-12);
-    assert!(s.eval_point(2.5).distance(Point::new(1.0, 2.5, 3.0)) < 1e-12);
+    assert!(s.point_at(2.5).distance(Point::new(1.0, 2.5, 3.0)) < 1e-12);
 }
 
 #[test]
@@ -128,13 +128,10 @@ fn test_trimmed_is_never_periodic() {
 #[test]
 fn test_evaluation_delegates_to_basis() {
     let arc = TrimmedCurve::new(circle(), 0.5, 2.0).unwrap();
-    assert_eq!(arc.eval_point(1.0), circle().eval_point(1.0));
+    assert_eq!(arc.point_at(1.0), circle().point_at(1.0));
+    assert_eq!(arc.derivative(1.0, 2), circle().derivative(1.0, 2));
     assert_eq!(
-        arc.eval_derivative(1.0, 2),
-        circle().eval_derivative(1.0, 2)
-    );
-    assert_eq!(
-        arc.eval_points(&[0.5, 2.0]),
+        arc.points_at(&[0.5, 2.0]),
         vec![arc.start_point(), arc.end_point()]
     );
 }
@@ -399,9 +396,10 @@ fn test_both_tiers_answer_the_shared_methods_alike() {
 
     // Derivatives, continuity, projection, reversal and conversion.
     let (u, inside) = (0.3, 0.7);
-    let ((_, space_d1), (_, plane_d1)) = (space.eval_d1(u), plane.eval_d1(u));
+    let ((_, space_d1), (_, plane_d1)) = (space.first_derivatives(u), plane.first_derivatives(u));
     assert!(close(space_d1.x, plane_d1.x) && close(space_d1.y, plane_d1.y));
-    let ((_, _, space_d2), (_, _, plane_d2)) = (space.eval_d2(u), plane.eval_d2(u));
+    let ((_, _, space_d2), (_, _, plane_d2)) =
+        (space.second_derivatives(u), plane.second_derivatives(u));
     assert!(close(space_d2.x, plane_d2.x) && close(space_d2.y, plane_d2.y));
     assert_eq!(space.continuity(inside, TOL), plane.continuity(inside, TOL));
     for (x, y) in [(2.0, 2.0), (-1.0, -1.0), (0.5, -3.0)] {

@@ -37,7 +37,7 @@ fn test_generic_curve_surface_hits_at_singular_points() {
     let on_both = |hit: &CurveSurfaceHit, surface: &dyn ParametricSurface| {
         surface.contains(hit.point, tol)
             && surface
-                .eval_point(
+                .point_at(
                     hit.surface_parameters.unwrap().0,
                     hit.surface_parameters.unwrap().1,
                 )
@@ -78,7 +78,7 @@ fn test_generic_curve_surface_hits_at_singular_points() {
         Point::new(1.0, 0.0, 1.0),
     ];
     let curve = BSplineCurve::new(2, poles, vec![0.0, 1.0], vec![3, 3], false).unwrap();
-    assert_eq!(curve.eval_point(0.5), Point::new(0.0, 0.0, 1.0));
+    assert_eq!(curve.point_at(0.5), Point::new(0.0, 0.0, 1.0));
     let hits = search_curve_surface(&curve, &sphere, tol);
     assert_eq!(hits.len(), 2, "{hits:?}");
     assert!(
@@ -98,13 +98,13 @@ fn test_unbounded_curve_seeds_follow_the_surface_box() {
     use crate::{Parabola, Torus};
     let tol = Tolerance::DEFAULT;
     let parabola = Parabola::new(Point::ORIGIN, Vector::Z, Vector::X, 1.0).unwrap();
-    let torus = Torus::new(parabola.eval_point(15.0), Vector::Z, 2.0, 1.0).unwrap();
+    let torus = Torus::new(parabola.point_at(15.0), Vector::Z, 2.0, 1.0).unwrap();
     let hits = search_curve_surface(&parabola, &torus, tol);
     assert_eq!(hits.len(), 4, "{hits:?}");
     for hit in &hits {
         let t = hit.curve_parameter.unwrap();
         assert!((12.0..=18.0).contains(&t), "{hit:?}");
-        assert_eq!(parabola.eval_point(t), hit.point);
+        assert_eq!(parabola.point_at(t), hit.point);
         assert!(torus.contains(hit.point, tol), "{hit:?}");
     }
 }

@@ -676,13 +676,13 @@ fn parametrize_matches_golden_fixture() {
 
         // (b) consistency invariant: surface(q(t)) ~= consistency_points[i].
         for (t, expected) in case.consistency_params.iter().zip(&case.consistency_points) {
-            let uv = pcurve.eval_point(*t);
-            let on_surface = surface.eval_point(uv.x, uv.y);
+            let uv = pcurve.point_at(*t);
+            let on_surface = surface.point_at(uv.x, uv.y);
             assert_point3(on_surface, *expected);
         }
 
         // (c) q(0) lies inside the canonical parameter window.
-        let q0 = pcurve.eval_point(0.0);
+        let q0 = pcurve.point_at(0.0);
         match case.surface["kind"].as_str().unwrap() {
             "cylinder" | "cone" => {
                 assert!(

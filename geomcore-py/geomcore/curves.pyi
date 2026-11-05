@@ -60,15 +60,15 @@ _Self = TypeVar("_Self")
 class _CurveMethodsInEitherDimension(
     Generic[_PointType, _VectorType, _BoundingBoxType, _ProjectionType]
 ):
-    def eval_point(self, u: float) -> _PointType:
+    def point_at(self, u: float) -> _PointType:
         """Evaluate the point at parameter `u`."""
-    def eval_points(self, us: List[float]) -> List[_PointType]:
+    def points_at(self, us: List[float]) -> List[_PointType]:
         """Evaluate many parameters at once."""
-    def eval_derivative(self, u: float, order: int) -> _VectorType:
+    def derivative(self, u: float, order: int) -> _VectorType:
         """Evaluate the derivative of the given order (>= 1) at `u`."""
-    def eval_d1(self, u: float) -> Tuple[_PointType, _VectorType]:
+    def first_derivatives(self, u: float) -> Tuple[_PointType, _VectorType]:
         """The point and the first derivative at parameter `u`."""
-    def eval_d2(self, u: float) -> Tuple[_PointType, _VectorType, _VectorType]:
+    def second_derivatives(self, u: float) -> Tuple[_PointType, _VectorType, _VectorType]:
         """The point and the first two derivatives at parameter `u`."""
     def tangent(self, u: float, tol: Optional[Tolerance] = ...) -> Optional[_VectorType]:
         """Unit tangent at parameter `u` (`Tolerance.default()` when
@@ -148,8 +148,8 @@ class _CurveMethodsInEitherDimension(
         """
     def reversed(self: _Self) -> _Self:
         """The same curve traversed the other way:
-        `reversed().eval_point(reversed_parameter(u))` is
-        `eval_point(u)`.
+        `reversed().point_at(reversed_parameter(u))` is
+        `point_at(u)`.
         """
     def reversed_parameter(self, u: float) -> float:
         """Maps `u` onto the `reversed()` curve: the parameter of the
@@ -228,7 +228,7 @@ class _DiscretizeMethods(Generic[_DiscretizationType]):
         """
 
 class _SidedEvaluationMethods(Generic[_PointType, _VectorType]):
-    def eval_d1_sided(self, u: float, side: Side) -> Tuple[_PointType, _VectorType]:
+    def first_derivatives_sided(self, u: float, side: Side) -> Tuple[_PointType, _VectorType]:
         """The point and the first derivative at parameter `u`, from
         one `side`: `Side.BELOW` takes the span ending at `u`,
         `Side.ABOVE` the span starting there. Both sides agree
@@ -238,15 +238,15 @@ class _SidedEvaluationMethods(Generic[_PointType, _VectorType]):
         knot like any other: at either bound, `BELOW` takes the last
         span of the period and `ABOVE` the first.
         """
-    def eval_d2_sided(
+    def second_derivatives_sided(
         self, u: float, side: Side
     ) -> Tuple[_PointType, _VectorType, _VectorType]:
         """The point and the first two derivatives at parameter `u`,
-        from one `side`, as `eval_d1_sided`.
+        from one `side`, as `first_derivatives_sided`.
         """
-    def eval_derivative_sided(self, u: float, order: int, side: Side) -> _VectorType:
+    def derivative_sided(self, u: float, order: int, side: Side) -> _VectorType:
         """The derivative of the given order (>= 1) at parameter `u`,
-        from one `side`, as `eval_d1_sided`.
+        from one `side`, as `first_derivatives_sided`.
         """
 
 @final

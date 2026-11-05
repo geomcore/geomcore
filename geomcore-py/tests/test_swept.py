@@ -34,7 +34,7 @@ def test_extruded_circle_is_a_cylinder():
     assert surface.direction() == _Z
     assert isinstance(surface.profile(), Circle)
     for u, v in [(0.0, 0.0), (1.0, -2.0), (4.0, 3.5)]:
-        assert _close(surface.eval_point(u, v), cylinder.eval_point(u, v))
+        assert _close(surface.point_at(u, v), cylinder.point_at(u, v))
     assert surface.u_period() == pytest.approx(2.0 * math.pi)
     assert surface.v_bounds() == (-math.inf, math.inf)
     assert surface.bounding_box() is None
@@ -48,14 +48,14 @@ def test_extrusion_iso_curves_and_reversal():
     surface = ExtrusionSurface(profile, Vector(0.0, 1.0, 1.0))
     line = surface.u_iso(0.5)
     assert isinstance(line, Line)
-    assert _close(line.eval_point(2.0), surface.eval_point(0.5, 2.0))
+    assert _close(line.point_at(2.0), surface.point_at(0.5, 2.0))
     ellipse = surface.v_iso(2.0)
     assert isinstance(ellipse, Ellipse)
-    assert _close(ellipse.eval_point(0.5), surface.eval_point(0.5, 2.0))
+    assert _close(ellipse.point_at(0.5), surface.point_at(0.5, 2.0))
     reversed_u = surface.reversed_u()
-    assert _close(reversed_u.eval_point(surface.u_reversed_parameter(0.5), 1.0), surface.eval_point(0.5, 1.0))
+    assert _close(reversed_u.point_at(surface.u_reversed_parameter(0.5), 1.0), surface.point_at(0.5, 1.0))
     reversed_v = surface.reversed_v()
-    assert _close(reversed_v.eval_point(0.5, surface.v_reversed_parameter(1.0)), surface.eval_point(0.5, 1.0))
+    assert _close(reversed_v.point_at(0.5, surface.v_reversed_parameter(1.0)), surface.point_at(0.5, 1.0))
 
 
 def test_extrusion_patch_lies_on_the_surface():
@@ -63,7 +63,7 @@ def test_extrusion_patch_lies_on_the_surface():
     patch = surface.to_bspline_patch((0.0, 2.0), (-1.0, 1.0))
     assert isinstance(patch, BSplineSurface)
     for u, v in [(0.0, -1.0), (0.7, 0.3), (2.0, 1.0)]:
-        on = patch.eval_point(u, v)
+        on = patch.point_at(u, v)
         assert surface.project_point(on).distance < 1e-9
 
 
@@ -81,7 +81,7 @@ def test_revolved_circle_is_a_torus():
     torus = Torus(_O, _Z, 3.0, 1.0)
     assert surface.axis() == Axis(_O, _Z)
     for u, v in [(0.0, 0.0), (1.0, 2.0), (4.0, 5.5)]:
-        assert _close(surface.eval_point(u, v), torus.eval_point(u, v))
+        assert _close(surface.point_at(u, v), torus.point_at(u, v))
     box = surface.bounding_box()
     assert box is not None
     assert box.min().z == pytest.approx(-1.0) and box.max().x == pytest.approx(4.0)
@@ -90,7 +90,7 @@ def test_revolved_circle_is_a_torus():
     # A rational circle does not keep the angle as its parameter, so the
     # patch reaches the same points at other parameters.
     whole = surface.to_bspline()
-    assert torus.project_point(whole.eval_point(1.0, 2.0)).distance < 1e-9
+    assert torus.project_point(whole.point_at(1.0, 2.0)).distance < 1e-9
 
 
 def test_revolution_iso_curves_and_transform():
@@ -104,13 +104,13 @@ def test_revolution_iso_curves_and_transform():
     surface = RevolutionSurface(profile, Axis(_O, _Z))
     meridian = surface.u_iso(1.0)
     assert isinstance(meridian, BSplineCurve)
-    assert _close(meridian.eval_point(0.4), surface.eval_point(1.0, 0.4))
+    assert _close(meridian.point_at(0.4), surface.point_at(1.0, 0.4))
     parallel = surface.v_iso(0.4)
     assert isinstance(parallel, Circle)
-    assert _close(parallel.eval_point(1.0), surface.eval_point(1.0, 0.4))
+    assert _close(parallel.point_at(1.0), surface.point_at(1.0, 0.4))
     moved = surface.transformed(Transform.translation(Vector(0.0, 0.0, 2.0)))
-    assert _close(moved.eval_point(1.0, 0.4), surface.eval_point(1.0, 0.4) + Vector(0.0, 0.0, 2.0))
-    assert surface.parameters_of(surface.eval_point(1.0, 0.4)) == pytest.approx((1.0, 0.4))
+    assert _close(moved.point_at(1.0, 0.4), surface.point_at(1.0, 0.4) + Vector(0.0, 0.0, 2.0))
+    assert surface.parameters_of(surface.point_at(1.0, 0.4)) == pytest.approx((1.0, 0.4))
 
 
 def test_revolution_construction_errors():

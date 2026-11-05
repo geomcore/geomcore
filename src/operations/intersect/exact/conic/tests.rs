@@ -108,10 +108,10 @@ where
             })
             .unwrap();
         if let Some(t) = h.first_parameter {
-            assert!(first.eval_point(t).distance(h.point) < 1e-9);
+            assert!(first.point_at(t).distance(h.point) < 1e-9);
         }
         if let Some(t) = h.second_parameter {
-            assert!(second.eval_point(t).distance(h.point) < 1e-9);
+            assert!(second.point_at(t).distance(h.point) < 1e-9);
         }
         assert!(h.point.distance(b.point) < 1e-9);
         // Equal ranks substitute the receiver, so each order may

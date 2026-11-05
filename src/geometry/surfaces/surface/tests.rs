@@ -3,7 +3,7 @@ use super::*;
 use crate::Point;
 
 fn sample<S: ParametricSurface>(s: &S) -> Point {
-    s.eval_point(0.3, 0.4)
+    s.point_at(0.3, 0.4)
 }
 
 fn plane() -> Plane {
@@ -52,7 +52,7 @@ fn bspline() -> BSplineSurface {
 fn test_sample_surface_enum_agrees_with_inherent() {
     let p = plane();
     let wrapped: Surface = p.into();
-    assert_eq!(sample(&wrapped), p.eval_point(0.3, 0.4));
+    assert_eq!(sample(&wrapped), p.point_at(0.3, 0.4));
 }
 
 // ---- heterogeneous Vec<Surface> eval ----
@@ -67,13 +67,13 @@ fn test_heterogeneous_vec_eval() {
     let surfaces: Vec<Surface> = vec![p.into(), c.into(), cn.into(), s.into(), t.into()];
     let points: Vec<Point> = surfaces
         .iter()
-        .map(|surf| surf.eval_point(0.2, 0.1))
+        .map(|surf| surf.point_at(0.2, 0.1))
         .collect();
-    assert_eq!(points[0], p.eval_point(0.2, 0.1));
-    assert_eq!(points[1], c.eval_point(0.2, 0.1));
-    assert_eq!(points[2], cn.eval_point(0.2, 0.1));
-    assert_eq!(points[3], s.eval_point(0.2, 0.1));
-    assert_eq!(points[4], t.eval_point(0.2, 0.1));
+    assert_eq!(points[0], p.point_at(0.2, 0.1));
+    assert_eq!(points[1], c.point_at(0.2, 0.1));
+    assert_eq!(points[2], cn.point_at(0.2, 0.1));
+    assert_eq!(points[3], s.point_at(0.2, 0.1));
+    assert_eq!(points[4], t.point_at(0.2, 0.1));
 }
 
 // ---- From round-trips: owned and by-reference (copying) ----
@@ -209,18 +209,18 @@ fn test_into_from_reference_accepts_a_borrowed_surface() {
 fn test_bspline_enum_dispatch_agrees_with_inherent() {
     let b = bspline();
     let wrapped: Surface = b.clone().into();
-    assert_eq!(wrapped.eval_point(0.3, 0.4), b.eval_point(0.3, 0.4));
+    assert_eq!(wrapped.point_at(0.3, 0.4), b.point_at(0.3, 0.4));
     assert_eq!(
-        wrapped.eval_derivative(0.3, 0.4, 1, 0),
-        b.eval_derivative(0.3, 0.4, 1, 0)
+        wrapped.derivative(0.3, 0.4, 1, 0),
+        b.derivative(0.3, 0.4, 1, 0)
     );
     assert_eq!(
-        wrapped.eval_derivative(0.3, 0.4, 0, 1),
-        b.eval_derivative(0.3, 0.4, 0, 1)
+        wrapped.derivative(0.3, 0.4, 0, 1),
+        b.derivative(0.3, 0.4, 0, 1)
     );
 }
 
-// ---- default eval_points == mapped eval_point ----
+// ---- default points_at == mapped point_at ----
 
 #[test]
 fn test_surface_enum_eval_points_matches_mapped_eval_point() {
@@ -233,8 +233,8 @@ fn test_surface_enum_eval_points_matches_mapped_eval_point() {
         torus().into(),
     ];
     for surface in &surfaces {
-        let expected: Vec<Point> = uvs.iter().map(|&(u, v)| surface.eval_point(u, v)).collect();
-        assert_eq!(surface.eval_points(&uvs), expected);
+        let expected: Vec<Point> = uvs.iter().map(|&(u, v)| surface.point_at(u, v)).collect();
+        assert_eq!(surface.points_at(&uvs), expected);
     }
 }
 
@@ -258,10 +258,10 @@ fn test_elementary_surface_agrees_with_surface() {
     for surface in surfaces {
         let wrapped = Surface::from(surface);
         assert_eq!(wrapped.as_elementary(), Some(surface));
-        assert_eq!(surface.eval_point(0.3, 0.4), wrapped.eval_point(0.3, 0.4));
+        assert_eq!(surface.point_at(0.3, 0.4), wrapped.point_at(0.3, 0.4));
         assert_eq!(
-            surface.eval_derivative(0.3, 0.4, 1, 1),
-            wrapped.eval_derivative(0.3, 0.4, 1, 1)
+            surface.derivative(0.3, 0.4, 1, 1),
+            wrapped.derivative(0.3, 0.4, 1, 1)
         );
         assert_eq!(surface.u_bounds(), wrapped.u_bounds());
         assert_eq!(surface.v_bounds(), wrapped.v_bounds());

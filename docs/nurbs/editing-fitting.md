@@ -17,7 +17,7 @@ curve past `max_deviation` is kept.
 
     ```python
     refined = curve.insert_knot(0.5, 1)
-    assert refined.eval_point(0.5) == curve.eval_point(0.5)
+    assert refined.point_at(0.5) == curve.point_at(0.5)
 
     dense = curve.refine_knots([0.25, 0.5, 0.75])
 
@@ -32,7 +32,7 @@ curve past `max_deviation` is kept.
 
     ```rust
     let refined = curve.insert_knot(0.5, 1).unwrap();
-    assert_eq!(refined.eval_point(0.5), curve.eval_point(0.5));
+    assert_eq!(refined.point_at(0.5), curve.point_at(0.5));
 
     let dense = curve.refine_knots(&[0.25, 0.5, 0.75]).unwrap();
 
@@ -74,7 +74,7 @@ seam (up to one period) on periodic directions.
     left, right = curve.split_at(0.5)
     piece = curve.extract(0.0, 0.5)
     rev = curve.reversed()
-    assert rev.eval_point(0.0) == curve.eval_point(1.0)
+    assert rev.point_at(0.0) == curve.point_at(1.0)
     assert len(curve.to_bezier_pieces()) == 1  # single span
     ```
 
@@ -84,7 +84,7 @@ seam (up to one period) on periodic directions.
     let (left, right) = curve.split_at(0.5).unwrap();
     let piece = curve.extract(0.0, 0.5).unwrap();
     let rev = curve.reversed();
-    assert_eq!(rev.eval_point(0.0), curve.eval_point(1.0));
+    assert_eq!(rev.point_at(0.0), curve.point_at(1.0));
     assert_eq!(curve.to_bezier_pieces().len(), 1); // single span
     ```
 
@@ -108,7 +108,7 @@ is largest until every point is within `max_deviation`.
 === "Python"
 
     ```python
-    points = curve.eval_points([0.0, 0.25, 0.5, 0.75, 1.0])
+    points = curve.points_at([0.0, 0.25, 0.5, 0.75, 1.0])
     interp = BSplineCurve.interpolate(points, 3)
     approx = BSplineCurve.approximate(points, 2, 3)
     within = BSplineCurve.approximate_within(points, 2, 1e-6)
@@ -119,7 +119,7 @@ is largest until every point is within `max_deviation`.
     ```rust
     use geomcore::PointParametrization;
 
-    let points = curve.eval_points(&[0.0, 0.25, 0.5, 0.75, 1.0]);
+    let points = curve.points_at(&[0.0, 0.25, 0.5, 0.75, 1.0]);
     let interp = BSplineCurve::interpolate(&points, 3, PointParametrization::Centripetal).unwrap();
     let approx = BSplineCurve::approximate(&points, 2, 3, PointParametrization::Centripetal).unwrap();
     let within = BSplineCurve::approximate_within(&points, 2, 1e-6, PointParametrization::Centripetal).unwrap();

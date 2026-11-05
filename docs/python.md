@@ -17,7 +17,7 @@ API, with the documentation of the methods every curve or surface shares.
     import math
 
     circle = Circle(Point.origin(), Vector.unit_z(), 2.0)
-    point = circle.eval_point(math.pi / 4)
+    point = circle.point_at(math.pi / 4)
     ```
 
 === "Rust"
@@ -27,7 +27,7 @@ API, with the documentation of the methods every curve or surface shares.
     use geomcore::{Circle, Point, Vector};
 
     let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
-    let point = circle.eval_point(std::f64::consts::FRAC_PI_4);
+    let point = circle.point_at(std::f64::consts::FRAC_PI_4);
     ```
 
 ## Local properties and one-sided evaluation
@@ -49,8 +49,8 @@ with the tolerance as the keyword `tol=None` (`Tolerance.default()`):
   `reversed_v()` with `u_reversed_parameter(u)` /
   `v_reversed_parameter(v)` mapping a parameter onto the reversed
   surface, and `transformed(transform)`.
-- B-splines: `eval_d1_sided`, `eval_d2_sided` and
-  `eval_derivative_sided`, taking a `Side` (`Side.BELOW` or `Side.ABOVE`)
+- B-splines: `first_derivatives_sided`, `second_derivatives_sided` and
+  `derivative_sided`, taking a `Side` (`Side.BELOW` or `Side.ABOVE`)
   per direction, to read each side of a knot or periodic seam.
 
 Where Rust returns `None` (no tangent at a cusp, no normal or curvatures
@@ -71,8 +71,8 @@ order as an `int`, or `math.inf` where the shape is smooth (Rust's
     kinked = BSplineCurve(1, poles, [0.0, 1.0, 2.0], [2, 1, 2], False)
     assert kinked.continuity(1.0) == 0
     assert kinked.continuity(0.5) == math.inf
-    _, incoming = kinked.eval_d1_sided(1.0, Side.BELOW)  # (1, 0, 0)
-    _, outgoing = kinked.eval_d1_sided(1.0, Side.ABOVE)  # (0, 1, 0)
+    _, incoming = kinked.first_derivatives_sided(1.0, Side.BELOW)  # (1, 0, 0)
+    _, outgoing = kinked.first_derivatives_sided(1.0, Side.ABOVE)  # (0, 1, 0)
     ```
 
 === "Rust"
@@ -88,8 +88,8 @@ order as an `int`, or `math.inf` where the shape is smooth (Rust's
     let kinked = BSplineCurve::new(1, poles, vec![0.0, 1.0, 2.0], vec![2, 1, 2], false).unwrap();
     assert_eq!(kinked.continuity(1.0, Tolerance::DEFAULT), Continuity::Order(0));
     assert_eq!(kinked.continuity(0.5, Tolerance::DEFAULT), Continuity::Smooth);
-    let (_, incoming) = kinked.eval_d1_sided(1.0, Side::Below); // (1, 0, 0)
-    let (_, outgoing) = kinked.eval_d1_sided(1.0, Side::Above); // (0, 1, 0)
+    let (_, incoming) = kinked.first_derivatives_sided(1.0, Side::Below); // (1, 0, 0)
+    let (_, outgoing) = kinked.first_derivatives_sided(1.0, Side::Above); // (0, 1, 0)
     ```
 
 ## Reprs

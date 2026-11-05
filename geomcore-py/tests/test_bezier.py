@@ -52,14 +52,14 @@ def test_curve_accessors_and_eval():
     assert (curve.degree(), len(curve.poles()), curve.is_rational()) == (3, 4, False)
     assert curve.weights() is None
     assert curve.bounds() == (0.0, 1.0)
-    assert curve.eval_point(0.0) == Point(0.0, 0.0, 0.0)
-    assert curve.eval_point(0.5) == Point(2.0, 1.5, 0.5)
-    assert curve.eval_derivative(0.5, 1) == Vector(4.5, 0.0, 1.5)
-    point, d1, d2 = curve.eval_d2(0.5)
+    assert curve.point_at(0.0) == Point(0.0, 0.0, 0.0)
+    assert curve.point_at(0.5) == Point(2.0, 1.5, 0.5)
+    assert curve.derivative(0.5, 1) == Vector(4.5, 0.0, 1.5)
+    point, d1, d2 = curve.second_derivatives(0.5)
     assert (point, d1) == (Point(2.0, 1.5, 0.5), Vector(4.5, 0.0, 1.5))
     assert d2 == Vector(0.0, -12.0, 0.0)
-    assert curve.eval_points([0.5])[0] == point
-    assert curve.eval_d1_sided(0.5, Side.BELOW) == curve.eval_d1_sided(0.5, Side.ABOVE)
+    assert curve.points_at([0.5])[0] == point
+    assert curve.first_derivatives_sided(0.5, Side.BELOW) == curve.first_derivatives_sided(0.5, Side.ABOVE)
     assert curve.continuity(0.5) == math.inf
     assert curve.min_continuity() == math.inf
     box = curve.bounding_box()
@@ -72,7 +72,7 @@ def test_curve_rational_quarter_circle():
         2, [Point(1.0, 0.0, 0.0), Point(1.0, 1.0, 0.0), Point(0.0, 1.0, 0.0)], [1.0, W, 1.0]
     )
     assert arc.is_rational() and arc.weights() == [1.0, W, 1.0]
-    mid = arc.eval_point(0.5)
+    mid = arc.point_at(0.5)
     assert mid.x == pytest.approx(W) and mid.y == pytest.approx(W)
     assert arc.length(1e-12) == pytest.approx(math.pi / 2, abs=1e-9)
 
@@ -85,14 +85,14 @@ def test_curve_errors():
     with pytest.raises(ConstructionError):
         BezierCurve.new_rational(1, [Point.origin()] * 2, [1.0, 0.0])
     with pytest.raises(ValueError):
-        cubic().eval_derivative(0.5, 0)
+        cubic().derivative(0.5, 0)
 
 
 def test_curve_derivatives_of_every_order():
     # The third derivative of a cubic is the constant 6 (P3 - 3 P2 + 3 P1 - P0).
-    third = cubic().eval_derivative(0.5, 3)
+    third = cubic().derivative(0.5, 3)
     assert (third.x, third.y, third.z) == pytest.approx((-12.0, 0.0, -12.0))
-    fourth = cubic().eval_derivative(0.5, 4)
+    fourth = cubic().derivative(0.5, 4)
     assert (fourth.x, fourth.y, fourth.z) == (0.0, 0.0, 0.0)
 
 
@@ -101,10 +101,10 @@ def test_curve_editing_keeps_the_shape():
     left, right = curve.split_at(0.25)
     assert (left.bounds(), right.bounds()) == ((0.0, 0.25), (0.25, 1.0))
     assert left.poles()[-1] == right.poles()[0]
-    assert close(right.eval_point(0.6), curve.eval_point(0.6))
-    assert close(curve.elevate_degree(2).eval_point(0.3), curve.eval_point(0.3))
+    assert close(right.point_at(0.6), curve.point_at(0.6))
+    assert close(curve.elevate_degree(2).point_at(0.3), curve.point_at(0.3))
     assert curve.elevate_degree(2).degree() == 5
-    assert curve.reversed().eval_point(0.0) == curve.eval_point(1.0)
+    assert curve.reversed().point_at(0.0) == curve.point_at(1.0)
     with pytest.raises(geomcore.BSplineSplitError):
         curve.split_at(1.0)
 
@@ -148,8 +148,8 @@ def test_curve_projection_and_discretization():
 def test_curve_2d():
     curve = BezierCurve2D(2, [Point2D(0.0, 0.0), Point2D(1.0, 1.0), Point2D(2.0, 0.0)])
     assert (curve.degree(), curve.bounds()) == (2, (0.0, 1.0))
-    assert curve.eval_point(0.5) == Point2D(1.0, 0.5)
-    assert curve.eval_d2(0.5)[2].y == pytest.approx(-4.0)
+    assert curve.point_at(0.5) == Point2D(1.0, 0.5)
+    assert curve.second_derivatives(0.5)[2].y == pytest.approx(-4.0)
     left, right = curve.split_at(0.5)
     assert left.poles()[-1] == right.poles()[0]
     assert curve.to_bspline().multiplicities() == [3, 3]
@@ -177,7 +177,7 @@ def test_bspline_2d_bezier_pieces():
     pieces = spline.to_bezier_pieces()
     assert len(pieces) == 3 and all(isinstance(p, BezierCurve2D) for p in pieces)
     assert pieces[1].bounds() == (1.0, 2.0)
-    assert pieces[1].eval_point(1.5).distance(spline.eval_point(1.5)) < 1e-12
+    assert pieces[1].point_at(1.5).distance(spline.point_at(1.5)) < 1e-12
 
 
 # ---- BezierSurface ----
@@ -191,17 +191,17 @@ def test_surface_accessors_and_eval():
     assert surface.weights() is None and not surface.is_rational()
     assert (surface.u_bounds(), surface.v_bounds()) == ((0.0, 1.0), (0.0, 1.0))
     assert (surface.u_period(), surface.v_period()) == (None, None)
-    assert surface.eval_point(1.0, 1.0) == Point(2.0, 2.0, 4.0)
-    assert close(surface.eval_point(0.25, 0.5), Point(0.5, 1.0, 0.5), 1e-14)
-    point, (su, sv), (suu, suv, svv) = surface.eval_d2(0.25, 0.5)
+    assert surface.point_at(1.0, 1.0) == Point(2.0, 2.0, 4.0)
+    assert close(surface.point_at(0.25, 0.5), Point(0.5, 1.0, 0.5), 1e-14)
+    point, (su, sv), (suu, suv, svv) = surface.second_derivatives(0.25, 0.5)
     assert close(point, Point(0.5, 1.0, 0.5), 1e-14)
     assert (su - Vector(2.0, 0.0, 2.0)).magnitude() < 1e-12
     assert (sv - Vector(0.0, 2.0, 1.0)).magnitude() < 1e-12
     assert (suv - Vector(0.0, 0.0, 4.0)).magnitude() < 1e-12
     assert suu.magnitude() < 1e-12 and svv.magnitude() < 1e-12
-    assert surface.eval_derivative(0.25, 0.5, 1, 1) == suv
-    assert surface.eval_points([(0.25, 0.5)])[0] == point
-    assert surface.eval_d1_sided(0.3, 0.7, Side.BELOW, Side.ABOVE) == surface.eval_d1(0.3, 0.7)
+    assert surface.derivative(0.25, 0.5, 1, 1) == suv
+    assert surface.points_at([(0.25, 0.5)])[0] == point
+    assert surface.first_derivatives_sided(0.3, 0.7, Side.BELOW, Side.ABOVE) == surface.first_derivatives(0.3, 0.7)
     box = surface.bounding_box()
     assert box is not None and box.max() == Point(2.0, 2.0, 4.0)
     assert repr(surface) == (
@@ -210,7 +210,7 @@ def test_surface_accessors_and_eval():
     normal = surface.normal(0.0, 0.0)
     assert normal is not None and (normal - Vector.unit_z()).magnitude() < 1e-12
     with pytest.raises(ValueError):
-        surface.eval_derivative(0.5, 0.5, 0, 0)
+        surface.derivative(0.5, 0.5, 0, 0)
 
 
 def test_surface_rational_stays_on_the_cylinder():
@@ -218,7 +218,7 @@ def test_surface_rational_stays_on_the_cylinder():
     assert surface.is_rational()
     assert surface.weights() == [[1.0, 1.0], [W, W], [1.0, 1.0]]
     for i in range(11):
-        p = surface.eval_point(i / 10, 0.5)
+        p = surface.point_at(i / 10, 0.5)
         assert math.hypot(p.x, p.y) == pytest.approx(1.0)
         assert p.z == pytest.approx(0.5)
 
@@ -239,16 +239,16 @@ def test_surface_editing_keeps_the_shape():
     surface = saddle()
     low, high = surface.split_u_at(0.25)
     assert (low.u_bounds(), high.u_bounds()) == ((0.0, 0.25), (0.25, 1.0))
-    assert close(low.eval_point(0.1, 0.3), surface.eval_point(0.1, 0.3))
-    assert close(high.eval_point(0.6, 0.3), surface.eval_point(0.6, 0.3))
+    assert close(low.point_at(0.1, 0.3), surface.point_at(0.1, 0.3))
+    assert close(high.point_at(0.6, 0.3), surface.point_at(0.6, 0.3))
     low, high = quarter_cylinder().split_v_at(0.4)
     assert (low.v_bounds(), high.v_bounds()) == ((0.0, 0.4), (0.4, 1.0))
     up = surface.elevate_u_degree(1)
     assert (up.u_degree(), up.u_pole_count()) == (3, 4)
-    assert close(up.eval_point(0.3, 0.6), surface.eval_point(0.3, 0.6))
+    assert close(up.point_at(0.3, 0.6), surface.point_at(0.3, 0.6))
     assert surface.elevate_v_degree(2).v_degree() == 4
-    assert close(surface.reversed_u().eval_point(0.2, 0.7), surface.eval_point(0.8, 0.7))
-    assert close(surface.reversed_v().eval_point(0.2, 0.7), surface.eval_point(0.2, 0.3))
+    assert close(surface.reversed_u().point_at(0.2, 0.7), surface.point_at(0.8, 0.7))
+    assert close(surface.reversed_v().point_at(0.2, 0.7), surface.point_at(0.2, 0.3))
     with pytest.raises(geomcore.BSplineSplitError):
         surface.split_u_at(0.0)
 
@@ -265,7 +265,7 @@ def test_surface_round_trip_with_bspline():
 
 def test_surface_projection_and_closedness():
     surface = saddle()
-    on = surface.eval_point(0.4, 0.6)
+    on = surface.point_at(0.4, 0.6)
     assert surface.contains(on)
     projection = surface.project_point(on)
     assert projection.distance == 0.0

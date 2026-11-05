@@ -917,7 +917,7 @@ pub struct GenericCurveCurveHit<P: TierPoint> {
 /// let hit = result.hits()[0];
 /// assert_eq!(hit.first_parameter, None);
 /// let angle = first.parameter_of(hit.point, Tolerance::DEFAULT);
-/// assert!(first.eval_point(angle).distance(hit.point) < 1e-12);
+/// assert!(first.point_at(angle).distance(hit.point) < 1e-12);
 /// ```
 pub type CurveCurveHit = GenericCurveCurveHit<Point>;
 
