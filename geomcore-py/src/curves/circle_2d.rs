@@ -11,7 +11,7 @@ use geomcore::Circle2D;
 pub(crate) struct PyCircle2D(pub(crate) Circle2D);
 
 shape_methods! {
-    PyCircle2D: [curve_2d, discretize_2d];
+    PyCircle2D: [curve_2d, bounded_curve_2d];
 
     /// The placement frame of the circle.
     fn frame(&self) -> PyFrame2D {

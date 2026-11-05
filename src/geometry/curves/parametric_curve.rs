@@ -1,5 +1,6 @@
 //! The [`ParametricCurve`] trait every 3D curve implements, the
-//! [`PointExtrema`] point-projection trait, the [`ReversibleCurve`] trait
+//! [`PointExtrema`] point-projection trait, the [`BoundedCurve`] trait of
+//! the curves with ends, the [`ReversibleCurve`] trait
 //! of the curves of both tiers, and the [`Side`] and [`Continuity`] values
 //! their queries take and return.
 
@@ -606,6 +607,43 @@ pub trait ReversibleCurve: Sized {
     /// the parameter of the same point there.
     fn reversed_parameter(&self, u: f64) -> f64;
 }
+
+/// A curve with finite [`bounds`](ParametricCurve::bounds): its ends are
+/// points. Implemented by the curves that
+/// [`Discretize`](crate::Discretize) too: the circle and the ellipse,
+/// whose ends meet at the seam, the B-spline and Bézier curves, and every
+/// [`TrimmedCurve`](crate::TrimmedCurve). The lines, parabolas, hyperbolas
+/// and the [`Curve`](crate::Curve) enum, which may hold one of them, have
+/// no ends.
+///
+/// # Examples
+///
+/// ```
+/// use geomcore::prelude::*;
+/// use geomcore::{Line, Point, TrimmedCurve, Vector};
+///
+/// let line = Line::new(Point::ORIGIN, Vector::X).unwrap();
+/// let segment = TrimmedCurve::new(line, 1.0, 3.0).unwrap();
+/// assert_eq!(segment.start_point(), Point::new(1.0, 0.0, 0.0));
+/// assert_eq!(segment.end_point(), Point::new(3.0, 0.0, 0.0));
+/// ```
+pub trait BoundedCurve: ParametricCurve {
+    /// Returns the point at the first bound.
+    fn start_point(&self) -> Point {
+        self.eval_point(self.bounds().0)
+    }
+
+    /// Returns the point at the last bound.
+    fn end_point(&self) -> Point {
+        self.eval_point(self.bounds().1)
+    }
+}
+
+impl BoundedCurve for crate::Circle {}
+impl BoundedCurve for crate::Ellipse {}
+impl BoundedCurve for BSplineCurve {}
+impl BoundedCurve for crate::BezierCurve {}
+impl<C: ParametricCurve> BoundedCurve for crate::TrimmedCurve<C> {}
 
 /// A reference to a curve is the curve, so a
 /// [`TrimmedCurve`](crate::TrimmedCurve) can borrow its

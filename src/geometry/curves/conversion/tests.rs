@@ -2,6 +2,7 @@ use super::*;
 use crate::geometry::curves::PointExtrema;
 use crate::geometry::curves::PointExtrema2D;
 use crate::geometry::curves::{BezierCurve, Circle, Ellipse, Hyperbola, Line, Parabola};
+use crate::geometry::curves::{BoundedCurve, BoundedCurve2D};
 use crate::geometry::curves::{Circle2D, Ellipse2D, Hyperbola2D, Line2D, Parabola2D};
 use crate::geometry::curves::{ParametricCurve2D, TrimmedCurve, TrimmedCurve2D};
 use crate::operations::discretization::{DiscretizationCriteria, Discretize};

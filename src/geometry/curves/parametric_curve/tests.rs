@@ -734,3 +734,25 @@ fn test_reported_order_matches_the_derivative_jumps() {
     assert_eq!(curve.continuity(2.0, tol), Order(0));
     assert_eq!(curve.min_continuity(), Order(0));
 }
+
+#[test]
+fn test_bounded_curves_end_at_their_bounds() {
+    fn ends<C: BoundedCurve>(curve: &C) -> (Point, Point) {
+        (curve.start_point(), curve.end_point())
+    }
+    let poles = [
+        Point::ORIGIN,
+        Point::new(1.0, 2.0, 0.0),
+        Point::new(3.0, 0.0, 1.0),
+    ];
+    let bezier = crate::BezierCurve::new(2, poles.to_vec()).unwrap();
+    assert_eq!(ends(&bezier), (poles[0], poles[2]));
+    let spline = bezier.to_bspline();
+    assert_eq!(ends(&spline), (poles[0], poles[2]));
+    let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
+    let (start, end) = ends(&circle);
+    assert_eq!(start, circle.eval_point(0.0));
+    assert!(start.distance(end) < 1e-12);
+    let arc = crate::TrimmedCurve::new(circle, 0.0, std::f64::consts::FRAC_PI_2).unwrap();
+    assert!(ends(&arc).1.distance(Point::new(0.0, 2.0, 0.0)) < 1e-12);
+}

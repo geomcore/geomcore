@@ -16,7 +16,7 @@
 
 #[doc(no_inline)]
 pub use crate::{
-    Discretize, Discretize2D, HasBoundingBox, HasBoundingBox2D, Intersect, IntersectExact,
-    ParametricCurve, ParametricCurve2D, ParametricSurface, PointExtrema, PointExtrema2D,
-    ReversibleCurve, ReversibleSurface, Transformable,
+    BoundedCurve, BoundedCurve2D, Discretize, Discretize2D, HasBoundingBox, HasBoundingBox2D,
+    Intersect, IntersectExact, ParametricCurve, ParametricCurve2D, ParametricSurface, PointExtrema,
+    PointExtrema2D, ReversibleCurve, ReversibleSurface, Transformable,
 };

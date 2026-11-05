@@ -21,7 +21,7 @@ use geomcore::{TrimmedCurve, TrimmedCurve2D};
 pub(crate) struct PyTrimmedCurve(pub(crate) TrimmedCurve);
 
 shape_methods! {
-    PyTrimmedCurve: [curve, discretize];
+    PyTrimmedCurve: [curve, bounded_curve];
 
     #[new]
     /// Restrict `basis` (any 3D curve) to the parameter range
@@ -66,16 +66,6 @@ shape_methods! {
         Ok(PyBSplineCurve(self.0.to_bspline().map_err(python_error)?))
     }
 
-    /// The point at the start of the range.
-    fn start_point(&self) -> PyPoint {
-        PyPoint(self.0.start_point())
-    }
-
-    /// The point at the end of the range.
-    fn end_point(&self) -> PyPoint {
-        PyPoint(self.0.end_point())
-    }
-
     fn __repr__(&self) -> String {
         let (s, e) = (self.0.start_point(), self.0.end_point());
         format!(
@@ -96,7 +86,7 @@ shape_methods! {
 pub(crate) struct PyTrimmedCurve2D(pub(crate) TrimmedCurve2D);
 
 shape_methods! {
-    PyTrimmedCurve2D: [curve_2d, discretize_2d];
+    PyTrimmedCurve2D: [curve_2d, bounded_curve_2d];
 
     #[new]
     /// Restrict `basis` (a Line2D, Circle2D, Ellipse2D or BSplineCurve2D) to the parameter range
@@ -137,16 +127,6 @@ shape_methods! {
     /// The end of the parameter range.
     fn last(&self) -> f64 {
         self.0.last()
-    }
-
-    /// The point at the start of the range.
-    fn start_point(&self) -> PyPoint2D {
-        PyPoint2D(self.0.start_point())
-    }
-
-    /// The point at the end of the range.
-    fn end_point(&self) -> PyPoint2D {
-        PyPoint2D(self.0.end_point())
     }
 
     fn __repr__(&self) -> String {

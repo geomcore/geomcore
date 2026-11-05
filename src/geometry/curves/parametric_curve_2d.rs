@@ -1,5 +1,6 @@
-//! The [`ParametricCurve2D`] trait every 2D curve implements and the
-//! [`PointExtrema2D`] point-projection trait.
+//! The [`ParametricCurve2D`] trait every 2D curve implements, the
+//! [`PointExtrema2D`] point-projection trait and the [`BoundedCurve2D`]
+//! trait of the 2D curves with ends.
 
 use crate::geometry::curves::{BSplineCurve2D, Continuity, Line2D};
 use crate::operations::projection::CurveProjection2D;
@@ -338,6 +339,36 @@ fn regular_speed(first_derivative: Vector2D, width: f64, tol: Tolerance) -> Opti
     let speed = first_derivative.magnitude();
     (!tol.is_negligible_derivative(speed, width)).then_some(speed)
 }
+
+/// A 2D curve with finite [`bounds`](ParametricCurve2D::bounds): its ends
+/// are points. Mirrors [`crate::BoundedCurve`], with the same implementors.
+///
+/// # Examples
+///
+/// ```
+/// use geomcore::prelude::*;
+/// use geomcore::{Point2D, TrimmedCurve2D};
+///
+/// let segment = TrimmedCurve2D::segment(Point2D::ORIGIN, Point2D::new(0.0, 2.0)).unwrap();
+/// assert_eq!(segment.end_point(), Point2D::new(0.0, 2.0));
+/// ```
+pub trait BoundedCurve2D: ParametricCurve2D {
+    /// Returns the point at the first bound.
+    fn start_point(&self) -> Point2D {
+        self.eval_point(self.bounds().0)
+    }
+
+    /// Returns the point at the last bound.
+    fn end_point(&self) -> Point2D {
+        self.eval_point(self.bounds().1)
+    }
+}
+
+impl BoundedCurve2D for crate::Circle2D {}
+impl BoundedCurve2D for crate::Ellipse2D {}
+impl BoundedCurve2D for BSplineCurve2D {}
+impl BoundedCurve2D for crate::BezierCurve2D {}
+impl<C: ParametricCurve2D> BoundedCurve2D for crate::TrimmedCurve2D<C> {}
 
 /// Distance extrema from a point to a 2D curve, and the projection,
 /// containment and inversion queries built on them. Mirrors

@@ -138,3 +138,17 @@ def test_boxes_grow_intersect_and_measure():
         Point2D(2.0, 0.0), Point2D(2.0, 1.0)
     )
     assert square.including(Point2D(-1.0, 0.5)).min() == Point2D(-1.0, 0.0)
+
+
+def test_bounded_curves_have_ends():
+    from geomcore.curves import BSplineCurve, Circle, Line, TrimmedCurve
+
+    poles = [Point(0.0, 0.0, 0.0), Point(1.0, 2.0, 0.0), Point(3.0, 0.0, 1.0)]
+    spline = BSplineCurve(2, poles, [0.0, 2.0], [3, 3], False)
+    assert spline.start_point() == Point(0.0, 0.0, 0.0)
+    assert spline.end_point() == Point(3.0, 0.0, 1.0)
+    circle = Circle(Point.origin(), Vector.unit_z(), 2.0)
+    assert circle.start_point().coincides(circle.end_point())
+    segment = TrimmedCurve(Line(Point.origin(), Vector.unit_x()), 1.0, 3.0)
+    assert segment.end_point() == Point(3.0, 0.0, 0.0)
+    assert not hasattr(Line(Point.origin(), Vector.unit_x()), "start_point")

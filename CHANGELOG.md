@@ -43,6 +43,19 @@ the Python distribution are versioned in lockstep.
   - `BoundingBox` and `BoundingBox2D`: `including(point)`, which was
     crate-private; `intersection(other)`, `None` for boxes apart; and
     `distance(point)`. In Python, `point in box` is `box.encloses(point)`.
+- `start_point()` and `end_point()` on every bounded curve, through the new
+  traits `BoundedCurve` and `BoundedCurve2D` (in the prelude): the circle
+  and the ellipse (whose ends meet at the seam), the B-spline and Bézier
+  curves, and the trimmed curves, which had them alone (#198, third part).
+  In Python the `discretize` method set becomes the bounded-curve set,
+  with the ends added.
+
+### Breaking
+
+- Rust: `TrimmedCurve::start_point` and `end_point` are now methods of
+  `BoundedCurve` (`BoundedCurve2D` in the plane), so a caller brings them
+  into scope with `use geomcore::prelude::*`, like every shared method
+  (ADR 0015).
 
 ### Fixed
 

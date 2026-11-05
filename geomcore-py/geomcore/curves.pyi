@@ -211,7 +211,13 @@ class _Curve2DMethods(
         geomcore curve or surface. Other Python threads run meanwhile.
         """
 
-class _DiscretizeMethods(Generic[_DiscretizationType]):
+class _BoundedCurveMethods(Generic[_PointType, _DiscretizationType]):
+    def start_point(self) -> _PointType:
+        """The point at the first bound: on a circle or an ellipse, the
+        seam, where the end point is too.
+        """
+    def end_point(self) -> _PointType:
+        """The point at the last bound."""
     def discretize(
         self, max_chord_deviation: float, max_angle_deviation: Optional[float] = ...
     ) -> _DiscretizationType:
@@ -265,7 +271,7 @@ class Line(_CurveMethods):
 @final
 class Circle(
     _CurveMethods,
-    _DiscretizeMethods[Discretization],
+    _BoundedCurveMethods[Point, Discretization],
 ):
     def __repr__(self) -> str: ...
     __hash__: ClassVar[None]  # type: ignore[assignment]
@@ -287,7 +293,7 @@ class Circle(
 @final
 class Ellipse(
     _CurveMethods,
-    _DiscretizeMethods[Discretization],
+    _BoundedCurveMethods[Point, Discretization],
 ):
     def __repr__(self) -> str: ...
     __hash__: ClassVar[None]  # type: ignore[assignment]
@@ -347,7 +353,7 @@ class Hyperbola(_CurveMethods):
 @final
 class BSplineCurve(
     _CurveMethods,
-    _DiscretizeMethods[Discretization],
+    _BoundedCurveMethods[Point, Discretization],
     _SidedEvaluationMethods[Point, Vector],
 ):
     def __repr__(self) -> str: ...
@@ -407,7 +413,7 @@ class BSplineCurve(
 @final
 class BSplineCurve2D(
     _Curve2DMethods,
-    _DiscretizeMethods[Discretization2D],
+    _BoundedCurveMethods[Point2D, Discretization2D],
     _SidedEvaluationMethods[Point2D, Vector2D],
 ):
     def __repr__(self) -> str: ...
@@ -467,7 +473,7 @@ class BSplineCurve2D(
 @final
 class BezierCurve(
     _CurveMethods,
-    _DiscretizeMethods[Discretization],
+    _BoundedCurveMethods[Point, Discretization],
     _SidedEvaluationMethods[Point, Vector],
 ):
     def __repr__(self) -> str: ...
@@ -491,7 +497,7 @@ class BezierCurve(
 @final
 class BezierCurve2D(
     _Curve2DMethods,
-    _DiscretizeMethods[Discretization2D],
+    _BoundedCurveMethods[Point2D, Discretization2D],
     _SidedEvaluationMethods[Point2D, Vector2D],
 ):
     def __repr__(self) -> str: ...
@@ -526,7 +532,7 @@ class Line2D(_Curve2DMethods):
     def from_two_points(p1: Point2D, p2: Point2D) -> Line2D: ...
 
 @final
-class Circle2D(_Curve2DMethods, _DiscretizeMethods[Discretization2D]):
+class Circle2D(_Curve2DMethods, _BoundedCurveMethods[Point2D, Discretization2D]):
     __hash__: ClassVar[None]  # type: ignore[assignment]
     def __new__(cls, center: Point2D, radius: float) -> Circle2D: ...
     def center(self) -> Point2D: ...
@@ -536,7 +542,7 @@ class Circle2D(_Curve2DMethods, _DiscretizeMethods[Discretization2D]):
     def frame(self) -> Frame2D: ...
 
 @final
-class Ellipse2D(_Curve2DMethods, _DiscretizeMethods[Discretization2D]):
+class Ellipse2D(_Curve2DMethods, _BoundedCurveMethods[Point2D, Discretization2D]):
     __hash__: ClassVar[None]  # type: ignore[assignment]
     def __new__(
         cls,
@@ -597,7 +603,7 @@ class Hyperbola2D(_Curve2DMethods):
     def __repr__(self) -> str: ...
 
 @final
-class TrimmedCurve(_CurveMethods, _DiscretizeMethods[Discretization]):
+class TrimmedCurve(_CurveMethods, _BoundedCurveMethods[Point, Discretization]):
     __hash__: ClassVar[None]  # type: ignore[assignment]
     def __new__(cls, basis: Any, first: float, last: float) -> TrimmedCurve: ...
     @staticmethod
@@ -606,12 +612,10 @@ class TrimmedCurve(_CurveMethods, _DiscretizeMethods[Discretization]):
     def first(self) -> float: ...
     def last(self) -> float: ...
     def to_bspline(self) -> BSplineCurve: ...
-    def start_point(self) -> Point: ...
-    def end_point(self) -> Point: ...
     def __repr__(self) -> str: ...
 
 @final
-class TrimmedCurve2D(_Curve2DMethods, _DiscretizeMethods[Discretization2D]):
+class TrimmedCurve2D(_Curve2DMethods, _BoundedCurveMethods[Point2D, Discretization2D]):
     __hash__: ClassVar[None]  # type: ignore[assignment]
     def __new__(cls, basis: Any, first: float, last: float) -> TrimmedCurve2D: ...
     @staticmethod
@@ -620,8 +624,6 @@ class TrimmedCurve2D(_Curve2DMethods, _DiscretizeMethods[Discretization2D]):
     def to_bspline(self) -> BSplineCurve2D: ...
     def first(self) -> float: ...
     def last(self) -> float: ...
-    def start_point(self) -> Point2D: ...
-    def end_point(self) -> Point2D: ...
     def __repr__(self) -> str: ...
 
 __all__ = [

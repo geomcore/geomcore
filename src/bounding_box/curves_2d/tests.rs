@@ -1,3 +1,4 @@
+use crate::geometry::curves::BoundedCurve2D;
 use crate::geometry::curves::ParametricCurve2D;
 use crate::geometry::curves::{Curve2D, TrimmedCurve2D};
 use crate::{

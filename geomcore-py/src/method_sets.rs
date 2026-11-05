@@ -21,7 +21,7 @@
 //! | Set | Core | Classes |
 //! |---|---|---|
 //! | `curve`, `curve_2d` | `ParametricCurve(2D)`, `PointExtrema(2D)`, `ReversibleCurve`, `HasBoundingBox(2D)`, `Intersect`, and `Transformable` in 3D | every curve |
-//! | `discretize`, `discretize_2d` | `Discretize(2D)` | the bounded curves |
+//! | `bounded_curve`, `bounded_curve_2d` | `BoundedCurve(2D)`, `Discretize(2D)` | the bounded curves |
 //! | `sided_evaluation`, `sided_evaluation_2d` | the `*_sided` evaluations | B-spline and Bézier curves |
 //! | `surface` | `ParametricSurface` (with `uv_curve_to_3d` and `curve_3d_to_uv`), `ReversibleSurface`, `Transformable`, `HasBoundingBox`, `Intersect`, isoparametric curves | every surface |
 //! | `surface_normal` | `ParametricSurface::normal` | every surface but `Plane`, whose `normal()` is its constant normal |
@@ -320,11 +320,13 @@ macro_rules! curve_methods {
 }
 pub(crate) use curve_methods;
 
-/// `discretize` and `point_count` of a bounded 3D curve.
-macro_rules! discretize {
+/// The methods of a bounded 3D curve: its ends, `discretize` and
+/// `point_count`.
+macro_rules! bounded_curve {
     ($class:ident $sets:tt { $($methods:tt)* }) => {
-        $crate::method_sets::discretize_methods! {
+        $crate::method_sets::bounded_curve_methods! {
             [
+                PyPoint,
                 PyDiscretization,
                 $crate::discretization::discretize_3d,
                 $crate::discretization::point_count_3d
@@ -333,13 +335,15 @@ macro_rules! discretize {
         }
     };
 }
-pub(crate) use discretize;
+pub(crate) use bounded_curve;
 
-/// `discretize` and `point_count` of a bounded 2D curve.
-macro_rules! discretize_2d {
+/// The methods of a bounded 2D curve: its ends, `discretize` and
+/// `point_count`.
+macro_rules! bounded_curve_2d {
     ($class:ident $sets:tt { $($methods:tt)* }) => {
-        $crate::method_sets::discretize_methods! {
+        $crate::method_sets::bounded_curve_methods! {
             [
+                PyPoint2D,
                 PyDiscretization2D,
                 $crate::discretization::discretize_2d,
                 $crate::discretization::point_count_2d
@@ -348,16 +352,27 @@ macro_rules! discretize_2d {
         }
     };
 }
-pub(crate) use discretize_2d;
+pub(crate) use bounded_curve_2d;
 
-/// `discretize` and `point_count` in either dimension.
-macro_rules! discretize_methods {
+/// The bounded-curve methods in either dimension.
+macro_rules! bounded_curve_methods {
     (
-        [$discretization:ident, $discretize:path, $point_count:path]
+        [$point:ident, $discretization:ident, $discretize:path, $point_count:path]
         $class:ident $sets:tt { $($methods:tt)* }
     ) => {
         $crate::method_sets::shape_methods! { @next $class $sets {
             $($methods)*
+
+            /// The point at the first bound: on a circle or an ellipse, the
+            /// seam, where the end point is too.
+            fn start_point(&self) -> $point {
+                $point(self.0.start_point())
+            }
+
+            /// The point at the last bound.
+            fn end_point(&self) -> $point {
+                $point(self.0.end_point())
+            }
 
             /// Discretize the curve into points joined by straight
             /// segments, each segment's chord deviation at most
@@ -385,7 +400,7 @@ macro_rules! discretize_methods {
         }}
     };
 }
-pub(crate) use discretize_methods;
+pub(crate) use bounded_curve_methods;
 
 /// The one-sided evaluations of a 3D B-spline or Bézier curve.
 macro_rules! sided_evaluation {

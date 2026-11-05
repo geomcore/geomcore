@@ -8,7 +8,7 @@ accepts every class on either side, and that each class survives the
 conversions through the core enums.
 
 The method sets are read from the stubs, where each is a stub-only class
-(`_CurveMethods`, `_DiscretizeMethods`, ...) that a class inherits.
+(`_CurveMethods`, `_BoundedCurveMethods`, ...) that a class inherits.
 """
 
 import ast
@@ -218,11 +218,11 @@ def test_3d_curves_are_transformed_and_2d_curves_are_not():
         assert ("transformed" in dir(cls)) == (not name.endswith("2D")), name
 
 
-def test_bounded_curves_discretize_and_unbounded_ones_do_not():
-    discretize = _stub_methods("_DiscretizeMethods")
+def test_bounded_curves_have_ends_and_discretize_and_unbounded_ones_do_not():
+    bounded_methods = _stub_methods("_BoundedCurveMethods")
     for curve in _operands_3d()[:9] + _operands_2d():
         bounded = all(abs(end) != float("inf") for end in curve.bounds())
-        has = discretize <= set(dir(curve))
+        has = bounded_methods <= set(dir(curve))
         assert has == bounded, type(curve).__name__
 
 
