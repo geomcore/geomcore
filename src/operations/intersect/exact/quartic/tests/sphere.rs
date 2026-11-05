@@ -402,3 +402,19 @@ fn test_spheres_anywhere_meet_a_turned_cylinder_or_cone_on_both() {
     }
     assert!(quartics > 100);
 }
+
+#[test]
+fn test_a_fit_where_the_quadrics_nearly_touch_stays_on_the_curve() {
+    // A hair off Viviani's curve either way, and a small loop where the
+    // sphere nearly touches the cylinder from inside: a point within
+    // confusion of both surfaces can be microns off the curve there.
+    for (across, radius) in [(1.0, 2.00001), (1.0, 1.99999), (2.5, 1.501)] {
+        let (sphere, cylinder) = sphere_by_cylinder(across, 0.0, radius);
+        let curve = cylinder_quartic(&sphere, &cylinder, 1e-12);
+        assert_fitted_on_closed_form(&curve, 0.3 * TOL.confusion);
+    }
+    // Through the apex, where the loop crosses itself.
+    let (sphere, cone) = sphere_by_cone(1.0, 0.5, 1.25_f64.sqrt());
+    let curve = cone_quartic(&sphere, &cone, 1e-12);
+    assert_fitted_on_closed_form(&curve, 0.3 * TOL.confusion);
+}

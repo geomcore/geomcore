@@ -206,7 +206,7 @@ impl QuarticCurve {
     }
 
     /// Each component fitted as cubic Hermite segments through exact points
-    /// and tangents, within a quarter of `tol.confusion` of both surfaces,
+    /// and tangents, within a quarter of `tol.confusion` of the curve,
     /// with its curves in the parameters of both, on the same knots (but
     /// on a sphere through whose pole it passes); `None` when a fit fails.
     pub(crate) fn fitted(&self, tol: Tolerance) -> Option<Vec<IntersectionCurve>> {
@@ -607,8 +607,9 @@ trait Ruled: Copy {
     /// The point at the parameters `uv`.
     fn point(&self, uv: Point2D) -> Point;
 
-    /// How far `point` is from the quadric (from the double cone, near it).
-    fn gap(&self, point: Point) -> f64;
+    /// The signed distance from `point` to the quadric (to the double
+    /// cone, near it), and the unit normal along which it grows.
+    fn offset(&self, point: Point) -> (f64, Vector);
 }
 
 /// A cylinder as the ruled quadric: the generator at `t` from
@@ -676,9 +677,11 @@ impl Ruled for RuledCylinder {
     }
 
     #[inline]
-    fn gap(&self, point: Point) -> f64 {
+    fn offset(&self, point: Point) -> (f64, Vector) {
         let w = point - self.origin;
-        ((w - self.axis * w.dot(self.axis)).magnitude() - self.radius).abs()
+        let radial = w - self.axis * w.dot(self.axis);
+        let distance = radial.magnitude();
+        (distance - self.radius, radial * (1.0 / distance))
     }
 }
 
@@ -754,11 +757,16 @@ impl Ruled for RuledCone {
     }
 
     #[inline]
-    fn gap(&self, point: Point) -> f64 {
+    fn offset(&self, point: Point) -> (f64, Vector) {
         let w = point - self.apex;
         let height = w.dot(self.axis);
-        let across = (w - self.axis * height).magnitude();
-        (across * self.cos.abs() - height.abs() * self.sin.abs()).abs()
+        let radial = w - self.axis * height;
+        let across = radial.magnitude();
+        let (cos, sin) = (self.cos.abs(), self.sin.abs().copysign(height));
+        (
+            across * cos - height * sin,
+            radial * (cos / across) - self.axis * sin,
+        )
     }
 }
 
@@ -784,8 +792,9 @@ trait Other: Copy {
     /// The point at the parameters `uv`.
     fn point(&self, uv: Point2D) -> Point;
 
-    /// How far `point` is from the quadric.
-    fn gap(&self, point: Point) -> f64;
+    /// The signed distance from `point` to the quadric, and the unit
+    /// normal along which it grows.
+    fn offset(&self, point: Point) -> (f64, Vector);
 
     /// Whether the curve in these parameters can be fitted, the curve on
     /// `ruled`: not on a sphere through whose pole it passes.
@@ -845,6 +854,13 @@ impl Other for OtherCylinder {
     }
 
     #[inline]
+    fn offset(&self, point: Point) -> (f64, Vector) {
+        let radial = self.normal(point);
+        let distance = radial.magnitude();
+        (distance - self.radius, radial * (1.0 / distance))
+    }
+
+    #[inline]
     fn uv(&self, point: Point, tangent: Vector) -> (Point2D, Vector2D) {
         let w = point - self.origin;
         let (a, b) = (w.dot(self.x), w.dot(self.y));
@@ -860,11 +876,6 @@ impl Other for OtherCylinder {
     fn point(&self, uv: Point2D) -> Point {
         let (sin, cos) = uv.x.sin_cos();
         self.origin + (self.x * cos + self.y * sin) * self.radius + self.axis * uv.y
-    }
-
-    #[inline]
-    fn gap(&self, point: Point) -> f64 {
-        (self.normal(point).magnitude() - self.radius).abs()
     }
 }
 
@@ -910,6 +921,13 @@ impl Other for OtherSphere {
     }
 
     #[inline]
+    fn offset(&self, point: Point) -> (f64, Vector) {
+        let outward = point - self.center;
+        let distance = outward.magnitude();
+        (distance - self.radius, outward * (1.0 / distance))
+    }
+
+    #[inline]
     fn uv(&self, point: Point, tangent: Vector) -> (Point2D, Vector2D) {
         // `∂S/∂u = a y − b x` and `∂S/∂v = l z − c ρ`, `ρ` the unit radial
         // direction and `l` the distance from the polar axis.
@@ -933,16 +951,15 @@ impl Other for OtherSphere {
         self.center + ((self.x * cos_u + self.y * sin_u) * cos_v + self.z * sin_v) * self.radius
     }
 
-    #[inline]
-    fn gap(&self, point: Point) -> f64 {
-        (point.distance(self.center) - self.radius).abs()
-    }
-
     /// Not through a pole, where the longitude jumps by `π`.
     fn parameters_fit(&self, ruled: &impl Ruled, confusion: f64) -> bool {
-        [1.0, -1.0]
-            .into_iter()
-            .all(|side| ruled.gap(self.center + self.z * (side * self.radius)) > confusion)
+        [1.0, -1.0].into_iter().all(|side| {
+            ruled
+                .offset(self.center + self.z * (side * self.radius))
+                .0
+                .abs()
+                > confusion
+        })
     }
 }
 
@@ -1035,9 +1052,19 @@ fn hermite_weights(s: f64) -> [f64; 4] {
     ]
 }
 
-/// How far the segments may stray from either quadric, in units of
-/// confusion: the marcher's bound.
+/// How far the segments may stray from the curve, in units of confusion:
+/// the marcher's bound.
 const SEGMENT_DEVIATION: f64 = 0.25;
+
+/// The most points of the component tried when measuring a point's
+/// distance to it.
+const PROJECTION_STEPS: usize = 8;
+
+/// The sine of the smallest angle between the quadrics' normals at which a
+/// point's distance to the curve is read from its distances to them. Their
+/// curvature errs in that by about `κ d² / sin`, nothing at `d` within
+/// confusion; nearer parallel, the point slides along the component.
+const SMALLEST_CROSSING_SINE: f64 = 0.01;
 
 /// Samples a component starts from before the segments are split.
 const FIRST_SEGMENTS: usize = 12;
@@ -1290,20 +1317,112 @@ impl<R: Ruled, O: Other> Rulings<R, O> {
         }
     }
 
-    /// The larger of the distances from `point` to the two quadrics.
+    /// The unit tangent of `component` at `on`, the point at `parameter`,
+    /// up to its sign.
     #[inline]
-    fn gap(&self, point: Point) -> f64 {
-        self.ruled.gap(point).max(self.other.gap(point))
+    fn unit_tangent(&self, component: Component, parameter: f64, on: &OnGenerator) -> Vector {
+        match component {
+            Component::Node { .. } | Component::Apex => {
+                let velocity = self.velocity(component, parameter, on).0;
+                velocity * (1.0 / velocity.magnitude())
+            }
+            Component::Around { .. } | Component::Between { .. } => self.crossing(on),
+        }
     }
 
-    /// How far the cubic Hermite segment from `a` to `b` strays from the
-    /// quadrics, or the segments in their parameters from it, checked at
-    /// its quarters; infinite when the tangents turn by more than 60°.
-    fn segment_error(&self, a: &Sample, b: &Sample) -> f64 {
+    /// The distance from `point` to the curve to first order, from its
+    /// signed distances `g₁`, `g₂` to the quadrics along their unit normals
+    /// at a cosine `c`: `√((g₁² + g₂² − 2c g₁ g₂) / (1 − c²))`, the distance
+    /// to the line where their tangent planes meet. `None` where the
+    /// normals are too near parallel for it.
+    #[inline]
+    fn first_order_distance(&self, point: Point) -> Option<f64> {
+        let (first, first_normal) = self.ruled.offset(point);
+        let (second, second_normal) = self.other.offset(point);
+        let cosine = first_normal.dot(second_normal);
+        let sine_squared = 1.0 - cosine * cosine;
+        (sine_squared >= SMALLEST_CROSSING_SINE * SMALLEST_CROSSING_SINE).then(|| {
+            ((first * first + second * second - 2.0 * cosine * first * second) / sine_squared)
+                .max(0.0)
+                .sqrt()
+        })
+    }
+
+    /// The distance from `point` to `component`, near the point at
+    /// `parameter` between the samples `a` and `b`. The point of the
+    /// component slides along it until `point` is within `ahead` of its
+    /// normal plane, then the distance is the offset across the tangent,
+    /// off by about half the curvature times `ahead²`. Where the quadrics
+    /// nearly touch, a point within confusion of both can still be far
+    /// from the curve, so their distances alone do not bound it.
+    fn distance_to_component(
+        &self,
+        component: Component,
+        point: Point,
+        mut parameter: f64,
+        (a, b): (&Sample, &Sample),
+        ahead: f64,
+    ) -> f64 {
+        // The parameter per unit length, at first that of the chord.
+        let mut rate = (b.parameter - a.parameter) / a.point.distance(b.point);
+        let mut previous: Option<(f64, f64)> = None;
+        let mut offset = Vector::ZERO;
+        for _ in 0..PROJECTION_STEPS {
+            let on = self.at(component, parameter);
+            let mut tangent = self.unit_tangent(component, parameter, &on);
+            if tangent.dot(a.tangent) < 0.0 {
+                tangent = -tangent;
+            }
+            offset = point - on.point;
+            let along = offset.dot(tangent);
+            if along.abs() <= ahead {
+                return (offset - tangent * along).magnitude();
+            }
+            if let Some((before, along_before)) = previous
+                && along != along_before
+            {
+                rate = (parameter - before) / (along_before - along);
+            }
+            previous = Some((parameter, along));
+            parameter += along * rate;
+        }
+        offset.magnitude()
+    }
+
+    /// The distance from `point` to `component`: to first order where the
+    /// quadrics cross at an angle, otherwise along the component (see
+    /// [`Self::distance_to_component`]). The cone curves too fast near its
+    /// apex for the first order, so a component through it always slides.
+    #[inline]
+    fn distance(
+        &self,
+        component: Component,
+        point: Point,
+        parameter: f64,
+        samples: (&Sample, &Sample),
+        ahead: f64,
+    ) -> f64 {
+        match component {
+            Component::Apex => None,
+            _ => self.first_order_distance(point),
+        }
+        .unwrap_or_else(|| self.distance_to_component(component, point, parameter, samples, ahead))
+    }
+
+    /// How far the cubic Hermite segment from `a` to `b` strays from
+    /// `component`, or the segments in the quadrics' parameters from it,
+    /// checked at its quarters; infinite when the tangents turn by more
+    /// than 60°.
+    fn segment_error(&self, component: Component, a: &Sample, b: &Sample, deviation: f64) -> f64 {
         if a.tangent.dot(b.tangent) < 0.5 {
             return f64::INFINITY;
         }
         let length = segment_length(a.point, b.point, a.tangent, b.tangent);
+        // How far ahead of the normal plane a distance across the tangent
+        // is within a tenth of `deviation`, from twice the curvature of
+        // the turn between the samples' tangents.
+        let curvature = 2.0 * (b.tangent - a.tangent).magnitude() / a.point.distance(b.point);
+        let ahead = (0.2 * deviation / curvature).sqrt();
         // The angles of `b` on the turn of `a`'s.
         let mut b_uv = b.uv;
         for (b, a) in b_uv.iter_mut().zip(a.uv) {
@@ -1325,8 +1444,9 @@ impl<R: Ruled, O: Other> Rulings<R, O> {
                         + (b_uv[side] - Point2D::ORIGIN) * h2
                         + b.uv_derivatives[side] * (length * h3)
                 };
+                let parameter = a.parameter + (b.parameter - a.parameter) * s;
                 let worst = worst
-                    .max(self.gap(point))
+                    .max(self.distance(component, point, parameter, (a, b), ahead))
                     .max(self.ruled.point(uv(0)).distance(point));
                 if self.other_parameters_fit {
                     worst.max(self.other.point(uv(1)).distance(point))
@@ -1349,7 +1469,7 @@ impl<R: Ruled, O: Other> Rulings<R, O> {
         deviation: f64,
         out: &mut Vec<Sample>,
     ) {
-        let error = self.segment_error(&a, &b);
+        let error = self.segment_error(component, &a, &b, deviation);
         if depth >= DEEPEST_SPLIT || error <= deviation {
             out.push(b);
             return;
