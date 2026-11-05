@@ -17,8 +17,42 @@ pub struct CurveCurveExtremum {
     pub first_parameter: f64,
     /// Parameter on the second curve.
     pub second_parameter: f64,
+    /// The point of the first curve at `first_parameter`.
+    pub first_point: Point,
+    /// The point of the second curve at `second_parameter`.
+    pub second_point: Point,
     /// Distance between the two points.
     pub distance: f64,
+}
+
+impl CurveCurveExtremum {
+    /// The extremum between `first_point`, at `first_parameter` on the
+    /// first curve, and `second_point`, at `second_parameter` on the
+    /// second.
+    pub(crate) fn new(
+        first_parameter: f64,
+        first_point: Point,
+        second_parameter: f64,
+        second_point: Point,
+    ) -> Self {
+        CurveCurveExtremum {
+            first_parameter,
+            second_parameter,
+            first_point,
+            second_point,
+            distance: first_point.distance(second_point),
+        }
+    }
+
+    /// The same extremum with the curves' roles exchanged.
+    pub(crate) fn swapped(self) -> Self {
+        CurveCurveExtremum::new(
+            self.second_parameter,
+            self.second_point,
+            self.first_parameter,
+            self.first_point,
+        )
+    }
 }
 
 /// The local minima of the distance between two curves, closest first,
@@ -86,6 +120,24 @@ impl CurveCurveExtrema {
     /// ```
     pub fn minima(&self) -> &[CurveCurveExtremum] {
         &self.minima
+    }
+
+    /// The closest minimum, the first of [`minima`](Self::minima), or
+    /// `None` when there is none.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Line, Point, Tolerance, Vector, curve_curve_extrema};
+    /// let l1 = Line::new(Point::ORIGIN, Vector::X).unwrap();
+    /// let l2 = Line::new(Point::new(0.0, 0.0, 1.0), Vector::Y).unwrap();
+    /// let closest = curve_curve_extrema(&l1, &l2, Tolerance::DEFAULT).closest().copied().unwrap();
+    /// assert_eq!(closest.first_point, Point::ORIGIN);
+    /// assert_eq!(closest.second_point, Point::new(0.0, 0.0, 1.0));
+    /// assert_eq!(closest.distance, 1.0);
+    /// ```
+    pub fn closest(&self) -> Option<&CurveCurveExtremum> {
+        self.minima.first()
     }
 
     /// The minima, closest first, without the completeness.
@@ -290,11 +342,7 @@ where
     A: ParametricCurve,
     B: ParametricCurve,
 {
-    CurveCurveExtremum {
-        first_parameter: s,
-        second_parameter: t,
-        distance: a.eval_point(s).distance(b.eval_point(t)),
-    }
+    CurveCurveExtremum::new(s, a.eval_point(s), t, b.eval_point(t))
 }
 
 /// Generic closest-point enumeration between two 3D curves: every local
@@ -421,11 +469,7 @@ where
         (Some(la), None) if da.is_unbounded() => line_curve_minima(a, la, b, db, tol),
         (None, Some(lb)) if db.is_unbounded() => line_curve_minima(b, lb, a, da, tol)
             .into_iter()
-            .map(|e| CurveCurveExtremum {
-                first_parameter: e.second_parameter,
-                second_parameter: e.first_parameter,
-                distance: e.distance,
-            })
+            .map(CurveCurveExtremum::swapped)
             .collect(),
         _ => refine_minima(a, da, b, db, box_seeds(a, da, b, db), tol),
     };

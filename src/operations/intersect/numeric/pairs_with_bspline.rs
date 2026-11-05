@@ -345,11 +345,7 @@ where
                 ha.parameter(e.first_parameter),
                 hb.parameter(e.second_parameter),
             );
-            CurveCurveExtremum {
-                first_parameter: s,
-                second_parameter: t,
-                distance: a.eval_point(s).distance(b.eval_point(t)),
-            }
+            CurveCurveExtremum::new(s, a.eval_point(s), t, b.eval_point(t))
         })
         .collect();
     found.sort_by(|p, q| p.distance.total_cmp(&q.distance));

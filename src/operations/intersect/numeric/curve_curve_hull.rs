@@ -263,8 +263,8 @@ fn meeting(
     let x = closest_pair(a, b, [0.5 * (s0 + s1), 0.5 * (t0 + t1)])?;
     let (s, t) = (ra.admit(x[0])?, rb.admit(x[1])?);
     let point = a.eval_point(s);
-    let distance = point.distance(b.eval_point(t));
-    if distance > tol.confusion {
+    let hit = CurveCurveExtremum::new(s, point, t, b.eval_point(t));
+    if hit.distance > tol.confusion {
         return None;
     }
     let inside = ra.within_slack_of(x[0], (s0, s1)) && rb.within_slack_of(x[1], (t0, t1));
@@ -272,11 +272,6 @@ fn meeting(
         || pa
             .iter()
             .all(|p| norm(sub(*p, [point.x, point.y, point.z])) <= tol.confusion);
-    let hit = CurveCurveExtremum {
-        first_parameter: s,
-        second_parameter: t,
-        distance,
-    };
     Some((hit, settles))
 }
 

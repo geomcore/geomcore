@@ -9,6 +9,16 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+### Added
+
+- `CurveCurveExtremum` carries its two points, `first_point` and
+  `second_point`, next to its parameters and distance (Python too), so
+  drawing or reporting the closest approach no longer evaluates both
+  curves again. `CurveCurveExtrema::closest()` (Python `closest()`) gives
+  the closest minimum, or `None`. Breaking in Rust only for code that
+  builds a `CurveCurveExtremum` literal, which now needs the two points
+  (#192).
+
 ## [0.43.0] - 2026-11-05
 
 A UV curve without an exact 3D curve, such as a helix on a cylinder, now
