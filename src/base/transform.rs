@@ -297,6 +297,25 @@ impl Transform {
         mat_vec(self.linear, v)
     }
 
+    /// The rigid motion taking `frame` onto the world frame: the image of a
+    /// point has, as its coordinates, the point's local coordinates in
+    /// `frame` (see [`Frame::local_coordinates`]). Lengths, and so the
+    /// parameters of curves, are kept.
+    pub(crate) fn world_to_local(frame: Frame) -> Transform {
+        let rows = [
+            frame.x_direction(),
+            frame.y_direction(),
+            frame.z_direction(),
+        ];
+        let linear = rows.map(|r| [r.x, r.y, r.z]);
+        let o = frame.origin();
+        let translation = -mat_vec(linear, Vector::new(o.x, o.y, o.z));
+        Transform {
+            linear,
+            translation,
+        }
+    }
+
     /// The uniform factor by which this transformation scales lengths:
     /// the magnitude of the transformed x direction. Zero for a
     /// transformation that collapses space onto a point.

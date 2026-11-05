@@ -9,6 +9,16 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+### Fixed
+
+- An unbounded line, parabola or hyperbola against a revolution or
+  extrusion surface missed every hit more than 10 parameter units from
+  its origin (#174). A line along x from x = -10 found the near wall of
+  a revolved vase and not the far one, and a revolved circle gave 2 of
+  the 4 crossings that the equal torus gives. The search now seeds the
+  parameters whose points lie in the revolution surface's box, or in the
+  prism that an extrusion's profile box sweeps along its direction.
+
 ## [0.43.0] - 2026-11-05
 
 A UV curve without an exact 3D curve, such as a helix on a cylinder, now
