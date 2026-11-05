@@ -1,5 +1,6 @@
 //! The Python class `geomcore.curves.Parabola2D`, wrapping `geomcore::Parabola2D`.
 
+use crate::curves::*;
 use crate::method_sets::*;
 use crate::values::{PyFrame2D, coordinates_2d, float_repr};
 use geomcore::Parabola2D;
@@ -38,6 +39,15 @@ shape_methods! {
         ))
     }
 
+    /// Build the parabola of every point as far from `focus` as from
+    /// `directrix`; the parameter runs along the directrix's direction.
+    #[staticmethod]
+    fn from_focus_and_directrix(focus: PyPoint2D, directrix: PyLine2D) -> PyResult<Self> {
+        Ok(Self(
+            Parabola2D::from_focus_and_directrix(focus.0, &directrix.0).map_err(python_error)?,
+        ))
+    }
+
     /// The focal distance.
     fn focal_distance(&self) -> f64 {
         self.0.focal_distance()
@@ -50,5 +60,22 @@ shape_methods! {
             coordinates_2d(self.0.frame().x_direction()),
             float_repr(self.0.focal_distance())
         )
+    }
+
+    /// The eccentricity: the ratio of a point's distance to a focus over
+    /// its distance to that focus's directrix.
+    fn eccentricity(&self) -> f64 {
+        self.0.eccentricity()
+    }
+
+    /// The focus, `focal_distance` from the apex along the axis.
+    fn focus(&self) -> PyPoint2D {
+        PyPoint2D(self.0.focus())
+    }
+
+    /// The directrix, across the axis `focal_distance` behind the apex:
+    /// every point of the curve is as far from it as from the focus.
+    fn directrix(&self) -> PyLine2D {
+        PyLine2D(self.0.directrix())
     }
 }

@@ -58,6 +58,15 @@ shape_methods! {
         ))
     }
 
+    /// Build the cone of apex `apex` opening along `axis_direction` at
+    /// half-angle `semi_angle`; its reference circle shrinks to the apex.
+    #[staticmethod]
+    fn from_apex(apex: PyPoint, axis_direction: PyVector, semi_angle: f64) -> PyResult<Self> {
+        Ok(PyCone(
+            Cone::from_apex(apex.0, axis_direction.0, semi_angle).map_err(python_error)?,
+        ))
+    }
+
     /// The cone apex.
     fn apex(&self) -> PyPoint {
         PyPoint(self.0.apex())

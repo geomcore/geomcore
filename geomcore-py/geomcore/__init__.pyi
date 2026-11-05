@@ -13,6 +13,8 @@ from geomcore.surfaces import BSplineSurface, _Surface
 
 from . import curves, surfaces
 
+__version__: str
+
 class GeomcoreError(ValueError):
     """Base class of every error raised by geomcore. Subclasses `ValueError`."""
 

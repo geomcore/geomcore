@@ -129,6 +129,7 @@ use values::{
 fn geomcore_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     let py = m.py();
 
+    m.setattr("__version__", env!("CARGO_PKG_VERSION"))?;
     errors::register(m)?;
     m.add_class::<PyPoint>()?;
     m.add_class::<PyPoint2D>()?;

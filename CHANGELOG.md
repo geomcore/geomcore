@@ -11,6 +11,20 @@ the Python distribution are versioned in lockstep.
 
 ### Added
 
+- Conic and cone conveniences for teaching and drafting (#189), in Rust
+  and Python:
+  - `eccentricity()` on every ellipse, hyperbola and parabola; `foci()` and
+    `directrices()` on ellipses (no directrices for a circle) and
+    hyperbolas, ordered so each directrix goes with its focus; `focus()`
+    and `directrix()` on parabolas;
+  - `Hyperbola::other_branch()` and `Hyperbola2D::other_branch()`, the
+    branch through the center that no parameter of the first one reaches;
+  - `Parabola::from_focus_and_directrix(focus, &directrix)` and its 2D
+    twin, the parameter running along the directrix;
+  - `Cone::from_apex(apex, axis_direction, semi_angle)`;
+  - `geomcore.__version__` in Python;
+  - the elementary geometry chapter shows how `Plane.uv_curve_to_3d`
+    places a 2D curve in space.
 - Every surface intersection curve reports how far it strays (#188), in
   Rust and Python: `IntersectionCurve.deviation`, the largest distance
   between the curve's point and each surface's point at its UV curve,

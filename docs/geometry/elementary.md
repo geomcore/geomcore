@@ -151,6 +151,13 @@ $$
 The way back: $u = \mathrm{atan2}(y/b,\; x/a)$ — divide out the radii
 and the ellipse becomes the circle whose angle is $u$.
 
+The foci sit at $O \pm c\,\vec{X}$ with $c = \sqrt{a^2 - b^2}$, and
+the eccentricity is $e = c/a$: `foci()`, `eccentricity()` and
+`directrices()` give them, the directrices being the lines across the
+major axis at $a/e$ from the centre. A point of the curve is $e$ times
+as far from a focus as from that focus's directrix. A circle has
+$e = 0$, both foci at its centre and no directrices.
+
 <figure class="geom-fig">
 <img src="../../assets/figures/elementary-geometry/08-an-ellipse-with-a-point-resolved.svg" alt="An ellipse with a point resolved into its coordinates">
 <figcaption>An ellipse. u is the eccentric angle, not the polar angle.</figcaption>
@@ -159,7 +166,8 @@ and the ellipse becomes the circle whose angle is $u$.
 ### Hyperbola
 
 $\cosh$ is never below 1, so this map reaches **one branch** only; the
-mirror branch is a second curve no value of $u$ reaches.
+mirror branch is a second curve no value of $u$ reaches, which
+`other_branch()` builds.
 
 === "Python"
 
@@ -187,6 +195,10 @@ $$
 
 The way back: $u = \mathrm{arsinh}(y/b)$. Implicit form:
 $\frac{x^2}{a^2} - \frac{y^2}{b^2} = 1$.
+
+The foci sit at $O \pm c\,\vec{X}$ with $c = \sqrt{a^2 + b^2}$, this
+branch's own focus first in `foci()`; `eccentricity()` is $c/a > 1$ and
+`directrices()` are across the axis at $a/e$ from the centre.
 
 <figure class="geom-fig">
 <img src="../../assets/figures/elementary-geometry/09-one-branch-of-a-hyperbola-with.svg" alt="One branch of a hyperbola">
@@ -224,6 +236,11 @@ C(u) = O + \frac{u^2}{4f}\,\vec{X} + u\,\vec{Y}, \qquad u \in (-\infty, +\infty)
 $$
 
 The way back: $u = y$.
+
+`focus()` and `directrix()` return those two, and
+`Parabola.from_focus_and_directrix(focus, directrix)` builds the
+parabola from them; its parameter then runs along the directrix's
+direction. The eccentricity is always 1.
 
 <figure class="geom-fig">
 <img src="../../assets/figures/elementary-geometry/10-a-parabola-with-focus-directrix-and.svg" alt="A parabola with focus and directrix">
@@ -270,6 +287,19 @@ S(u, v) = O + u\,\vec{X} + v\,\vec{Y}, \qquad (u, v) \in (-\infty, +\infty)^2
 $$
 
 The way back: $u = x,\; v = y$.
+
+The plane is also how a 2D curve is placed in space: `uv_curve_to_3d`
+maps any 2D curve through the plane's frame, so a `Circle2D` drawn in
+the plane's $(u, v)$ coordinates comes back as the 3D `Circle`.
+
+```python
+from geomcore import Point2D
+from geomcore.curves import Circle2D
+
+plane = Plane(Point(0.0, 0.0, 5.0), Vector.unit_z())
+circle = plane.uv_curve_to_3d(Circle2D(Point2D(1.0, 2.0), 0.5))
+# Circle(center=(1.0, 2.0, 5.0), normal=(0.0, 0.0, 1.0), radius=0.5)
+```
 
 <figure class="geom-fig">
 <img src="../../assets/figures/elementary-geometry/11-a-plane-with-a-point-resolved.svg" alt="A plane with a point resolved into its coordinates">
@@ -358,6 +388,9 @@ it $\rho$ goes negative into the opposite nappe. The frame sits on the
 reference circle ($v = 0$), not at the apex — the only point with no
 normal is a bad datum, it is often hundreds of radii from the part, and
 anchoring there would break the cone→cylinder limit as $\alpha \to 0$.
+When the apex is the datum at hand anyway, `Cone.from_apex(apex,
+axis_direction, semi_angle)` builds the cone whose reference circle is
+the apex itself ($R = 0$).
 
 <figure class="geom-fig">
 <img src="../../assets/figures/elementary-geometry/13-a-cone-with-a-point-resolved.svg" alt="A cone with a point resolved into its coordinates">

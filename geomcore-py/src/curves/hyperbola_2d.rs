@@ -1,5 +1,6 @@
 //! The Python class `geomcore.curves.Hyperbola2D`, wrapping `geomcore::Hyperbola2D`.
 
+use crate::curves::*;
 use crate::method_sets::*;
 use crate::values::{PyFrame2D, coordinates_2d, float_repr};
 use geomcore::Hyperbola2D;
@@ -75,5 +76,30 @@ shape_methods! {
             float_repr(self.0.major_radius()),
             float_repr(self.0.minor_radius())
         )
+    }
+
+    /// The eccentricity: the ratio of a point's distance to a focus over
+    /// its distance to that focus's directrix.
+    fn eccentricity(&self) -> f64 {
+        self.0.eccentricity()
+    }
+
+    /// The two foci on the major axis, the one toward the frame's x
+    /// direction first.
+    fn foci(&self) -> (PyPoint2D, PyPoint2D) {
+        let [first, second] = self.0.foci();
+        (PyPoint2D(first), PyPoint2D(second))
+    }
+
+    /// The two directrices across the major axis, in the order of `foci`.
+    fn directrices(&self) -> (PyLine2D, PyLine2D) {
+        let [first, second] = self.0.directrices();
+        (PyLine2D(first), PyLine2D(second))
+    }
+
+    /// The other branch: the same hyperbola mirrored through its center,
+    /// with the same parametrization direction around the center.
+    fn other_branch(&self) -> Self {
+        Self(self.0.other_branch())
     }
 }

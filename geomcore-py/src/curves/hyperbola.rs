@@ -1,5 +1,6 @@
 //! The Python class `geomcore.curves.Hyperbola`, wrapping `geomcore::Hyperbola`.
 
+use crate::curves::*;
 use crate::method_sets::*;
 use crate::values::{PyFrame, float_repr};
 use geomcore::Hyperbola;
@@ -78,5 +79,30 @@ shape_methods! {
     /// The semi-minor (conjugate) radius.
     fn minor_radius(&self) -> f64 {
         self.0.minor_radius()
+    }
+
+    /// The eccentricity: the ratio of a point's distance to a focus over
+    /// its distance to that focus's directrix.
+    fn eccentricity(&self) -> f64 {
+        self.0.eccentricity()
+    }
+
+    /// The two foci on the major axis, the one toward the frame's x
+    /// direction first.
+    fn foci(&self) -> (PyPoint, PyPoint) {
+        let [first, second] = self.0.foci();
+        (PyPoint(first), PyPoint(second))
+    }
+
+    /// The two directrices across the major axis, in the order of `foci`.
+    fn directrices(&self) -> (PyLine, PyLine) {
+        let [first, second] = self.0.directrices();
+        (PyLine(first), PyLine(second))
+    }
+
+    /// The other branch: the same hyperbola mirrored through its center,
+    /// with the same parametrization direction around the center.
+    fn other_branch(&self) -> Self {
+        Self(self.0.other_branch())
     }
 }

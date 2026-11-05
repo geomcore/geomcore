@@ -98,4 +98,25 @@ shape_methods! {
     fn length(&self, max_error: f64) -> f64 {
         self.0.length(max_error)
     }
+
+    /// The eccentricity: the ratio of a point's distance to a focus over
+    /// its distance to that focus's directrix.
+    fn eccentricity(&self) -> f64 {
+        self.0.eccentricity()
+    }
+
+    /// The two foci on the major axis, the one toward the frame's x
+    /// direction first.
+    fn foci(&self) -> (PyPoint, PyPoint) {
+        let [first, second] = self.0.foci();
+        (PyPoint(first), PyPoint(second))
+    }
+
+    /// The two directrices across the major axis, in the order of `foci`,
+    /// or None for a circle, whose directrices are at infinity.
+    fn directrices(&self) -> Option<(PyLine, PyLine)> {
+        self.0
+            .directrices()
+            .map(|[first, second]| (PyLine(first), PyLine(second)))
+    }
 }

@@ -1,5 +1,7 @@
 from geomcore import *
 
+__version__: str
+
 __all__ = [
     "GeomcoreError",
     "ConstructionError",

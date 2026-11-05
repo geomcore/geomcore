@@ -201,3 +201,18 @@ fn test_parabola2d_project_non_finite_point_is_nan() {
         assert!(proj.parameter.is_nan() && proj.distance.is_nan());
     }
 }
+
+#[test]
+fn test_parabola2d_from_focus_and_directrix() {
+    let tol = crate::Tolerance::DEFAULT;
+    let directrix = crate::Line2D::new(Point2D::new(1.0, 2.0), Vector2D::new(-1.0, 2.0)).unwrap();
+    let focus = Point2D::new(4.0, 1.0);
+    let parabola = Parabola2D::from_focus_and_directrix(focus, &directrix).unwrap();
+    assert!(parabola.focus().distance(focus) < 1e-12);
+    for k in -5..=5 {
+        let p = parabola.point_at(f64::from(k) * 0.7);
+        let to_directrix = directrix.project_point(p, tol).distance;
+        assert!((p.distance(focus) - to_directrix).abs() < 1e-12);
+    }
+    assert!(parabola.derivative(0.0, 1).dot(directrix.direction()) > 0.0);
+}

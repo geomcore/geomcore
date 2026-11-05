@@ -294,3 +294,59 @@ fn test_hyperbola3d_transformed_round_trip_and_mirror() {
     }
     assert_eq!(mirrored.transformed(m).unwrap(), hyperbola);
 }
+
+// ---- foci, directrices and branches ----
+
+#[test]
+fn test_hyperbola_points_keep_the_focal_ratios() {
+    // On this branch the far focus is farther by the major axis, and each
+    // focus is the eccentricity times farther than its directrix.
+    let tol = Tolerance::DEFAULT;
+    let hyperbola = Hyperbola::new(
+        Point::new(1.0, -2.0, 0.5),
+        Vector::new(0.2, 0.3, 1.0),
+        Vector::X,
+        2.0,
+        1.5,
+    )
+    .unwrap();
+    let [own, far] = hyperbola.foci();
+    let directrices = hyperbola.directrices();
+    let e = hyperbola.eccentricity();
+    for k in -5..=5 {
+        let p = hyperbola.point_at(f64::from(k) * 0.4);
+        assert!((p.distance(far) - p.distance(own) - 4.0).abs() < 1e-11);
+        for (focus, directrix) in [own, far].into_iter().zip(&directrices) {
+            let to_directrix = directrix.project_point(p, tol).distance;
+            assert!((p.distance(focus) - e * to_directrix).abs() < 1e-11);
+        }
+    }
+}
+
+#[test]
+fn test_other_branch_mirrors_the_hyperbola_through_its_center() {
+    let hyperbola = Hyperbola::new(
+        Point::new(1.0, -2.0, 0.5),
+        Vector::new(0.2, 0.3, 1.0),
+        Vector::X,
+        2.0,
+        1.5,
+    )
+    .unwrap();
+    let other = hyperbola.other_branch();
+    let center = hyperbola.center();
+    for k in -3..=3 {
+        let u = f64::from(k) * 0.5;
+        let mirrored = center + (center - hyperbola.point_at(u));
+        assert!(other.point_at(u).distance(mirrored) < 1e-12);
+    }
+    let ([own, far], [other_own, other_far]) = (hyperbola.foci(), other.foci());
+    assert!(other_own.distance(far) < 1e-12 && other_far.distance(own) < 1e-12);
+    assert!(
+        other
+            .other_branch()
+            .point_at(0.7)
+            .distance(hyperbola.point_at(0.7))
+            < 1e-12
+    );
+}
