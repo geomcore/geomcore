@@ -9,6 +9,17 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+### Breaking
+
+- A trimmed curve names its range by its ends, as it names its points
+  (#195): `TrimmedCurve.first()` / `last()` become `start_parameter()` /
+  `end_parameter()`, beside `start_point()` / `end_point()`, in Rust and
+  Python. The Python constructor keywords follow
+  (`TrimmedCurve(basis, start_parameter, end_parameter)`), as does the
+  `repr`, and `extract`, `extract_u` and `extract_v` take `start` and
+  `end`. `first` and `second` now only ever mean the two operands of a
+  result.
+
 ## [0.43.0] - 2026-11-05
 
 A UV curve without an exact 3D curve, such as a helix on a cylinder, now

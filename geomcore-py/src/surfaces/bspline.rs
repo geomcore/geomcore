@@ -334,19 +334,19 @@ shape_methods! {
         ))
     }
 
-    /// The piece over `[first, last]` in `u`, the `v` direction
+    /// The piece over `[start, end]` in `u`, the `v` direction
     /// unchanged.
-    fn extract_u(&self, first: f64, last: f64) -> PyResult<Self> {
+    fn extract_u(&self, start: f64, end: f64) -> PyResult<Self> {
         Ok(PyBSplineSurface(
-            self.0.extract_u(first, last).map_err(python_error)?,
+            self.0.extract_u(start, end).map_err(python_error)?,
         ))
     }
 
-    /// The piece over `[first, last]` in `v`, the `u` direction
+    /// The piece over `[start, end]` in `v`, the `u` direction
     /// unchanged.
-    fn extract_v(&self, first: f64, last: f64) -> PyResult<Self> {
+    fn extract_v(&self, start: f64, end: f64) -> PyResult<Self> {
         Ok(PyBSplineSurface(
-            self.0.extract_v(first, last).map_err(python_error)?,
+            self.0.extract_v(start, end).map_err(python_error)?,
         ))
     }
 

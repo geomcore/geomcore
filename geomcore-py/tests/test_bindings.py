@@ -1222,6 +1222,19 @@ def test_trimmed_curve_segment_and_arc():
     assert arc.extrema(Point(3.0, 0.0, 0.0))[0].parameter == pytest.approx(2.0 * math.pi)
 
 
+def test_trimmed_curves_name_their_range_by_its_ends():
+    from geomcore.curves import Line, TrimmedCurve
+
+    line = Line(Point.origin(), Vector.unit_x())
+    piece = TrimmedCurve(line, start_parameter=1.0, end_parameter=3.0)
+    assert (piece.start_parameter(), piece.end_parameter()) == piece.bounds() == (1.0, 3.0)
+    assert piece.eval_point(piece.start_parameter()) == piece.start_point()
+    assert repr(piece) == (
+        "TrimmedCurve(start_parameter=1.0, end_parameter=3.0, "
+        "start_point=(1.0, 0.0, 0.0), end_point=(3.0, 0.0, 0.0))"
+    )
+
+
 def test_trimmed_curve_rejects_bad_ranges():
     from geomcore.curves import Line, TrimmedCurve
 

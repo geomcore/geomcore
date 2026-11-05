@@ -312,7 +312,8 @@ impl<P: TierPoint, C: RangeOperations<Point = P>> GenericTrimmedCurve<P, C> {
     /// assert_eq!(arc_2d.to_bspline().unwrap().knots(), bspline.knots());
     /// ```
     pub fn to_bspline(&self) -> Result<GenericBSplineCurve<P>, BSplineConversionError> {
-        self.basis().bspline_range(self.first(), self.last())
+        self.basis()
+            .bspline_range(self.start_parameter(), self.end_parameter())
     }
 }
 

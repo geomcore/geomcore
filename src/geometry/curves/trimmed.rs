@@ -162,7 +162,7 @@ pub struct GenericTrimmedCurve<P: TierPoint, C> {
 ///
 /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
 /// let quarter = TrimmedCurve::new(circle, 0.0, std::f64::consts::FRAC_PI_2).unwrap();
-/// assert_eq!(quarter.last(), std::f64::consts::FRAC_PI_2);
+/// assert_eq!(quarter.end_parameter(), std::f64::consts::FRAC_PI_2);
 /// ```
 pub type TrimmedCurve<C = Curve> = GenericTrimmedCurve<Point, C>;
 
@@ -195,13 +195,15 @@ impl<P: TierPoint, C> GenericTrimmedCurve<P, C> {
         self.basis
     }
 
-    /// Returns the start of the parameter range.
-    pub fn first(&self) -> f64 {
+    /// Returns the start of the parameter range, the parameter of
+    /// `start_point`.
+    pub fn start_parameter(&self) -> f64 {
         self.first
     }
 
-    /// Returns the end of the parameter range.
-    pub fn last(&self) -> f64 {
+    /// Returns the end of the parameter range, the parameter of
+    /// `end_point`.
+    pub fn end_parameter(&self) -> f64 {
         self.last
     }
 
@@ -287,7 +289,7 @@ impl TrimmedCurve<Line> {
     ///
     /// let end = Point::new(3.0, 4.0, 0.0);
     /// let segment = TrimmedCurve::segment(Point::ORIGIN, end).unwrap();
-    /// assert_eq!(segment.last(), 5.0);
+    /// assert_eq!(segment.end_parameter(), 5.0);
     /// assert_eq!(segment.end_point(), end);
     /// ```
     pub fn segment(start: Point, end: Point) -> Result<Self, LineConstructionError> {

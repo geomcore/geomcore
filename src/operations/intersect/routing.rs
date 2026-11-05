@@ -287,7 +287,7 @@ impl<C: CurveOperand> CurveOperand for TrimmedCurve<C> {
     #[inline]
     fn basis_and_range(&self) -> Operand<C::Basis> {
         let (basis, _) = self.basis().basis_and_range();
-        (basis, Some((self.first(), self.last())))
+        (basis, Some((self.start_parameter(), self.end_parameter())))
     }
 }
 
@@ -962,7 +962,7 @@ impl<C: CurveOperand2D> CurveOperand2D for TrimmedCurve2D<C> {
     #[inline]
     fn basis_and_range(&self) -> Operand<C::Basis> {
         let (basis, _) = self.basis().basis_and_range();
-        (basis, Some((self.first(), self.last())))
+        (basis, Some((self.start_parameter(), self.end_parameter())))
     }
 }
 

@@ -195,12 +195,12 @@ shape_methods! {
             .collect()
     }
 
-    /// The piece over `[first, last]` as a clamped, non-periodic B-spline
+    /// The piece over `[start, end]` as a clamped, non-periodic B-spline
     /// (the range may cross the seam of a periodic curve, up to one
     /// period).
-    fn extract(&self, first: f64, last: f64) -> PyResult<Self> {
+    fn extract(&self, start: f64, end: f64) -> PyResult<Self> {
         Ok(PyBSplineCurve2D(
-            self.0.extract(first, last).map_err(python_error)?,
+            self.0.extract(start, end).map_err(python_error)?,
         ))
     }
 

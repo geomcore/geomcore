@@ -386,7 +386,10 @@ fn test_both_tiers_answer_the_shared_methods_alike() {
     let space = TrimmedCurve::new(circle(), 0.0, FRAC_PI_2).unwrap();
     let plane_circle = Circle2D::new(Point2D::ORIGIN, 1.0).unwrap();
     let plane = TrimmedCurve2D::new(plane_circle, 0.0, FRAC_PI_2).unwrap();
-    assert_eq!((space.first(), space.last()), (plane.first(), plane.last()));
+    assert_eq!(
+        (space.start_parameter(), space.end_parameter()),
+        (plane.start_parameter(), plane.end_parameter())
+    );
     assert_eq!(space.bounds(), plane.bounds());
     assert_eq!(space.period(), plane.period());
     assert_eq!(space.is_periodic(), plane.is_periodic());
