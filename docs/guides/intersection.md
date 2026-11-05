@@ -76,11 +76,15 @@ Covered pairs include plane/quadric/torus surfaces against each other
 in their symmetric configurations — among them the tee of two equal
 cylinders whose axes meet, two ellipses that cross at the two points
 where the cylinders touch, both listed in `contact_points` — and any two
-cylinders whose axes cross. Those meet in a quartic, the bicylindric
-curve, in one loop or two: `intersect_exact` returns its closed form
-(`BicylindricCurve`, exact points on both cylinders), and `intersect`
-fits each loop within confusion and reports the result exact and
-complete. Only the nodal case, axes `|r1 − r2|` apart, is marched.
+cylinders whose axes cross, or a sphere and a cylinder or a cone whose
+axis misses its centre. Those meet in a quartic, in one loop or two:
+the bicylindric curve of two cylinders, or, for a sphere, Viviani's
+curve among others. `intersect_exact` returns its closed form
+(`QuarticCurve`, exact points on both surfaces), and `intersect` fits
+each loop within confusion and reports the result exact and complete,
+with the point where the surfaces touch, if any, in `contact_points`.
+Only two cylinders with axes `|r1 − r2|` apart, where the curve crosses
+itself, are marched.
 Lines/circles/conics against each
 other and against the elementary surfaces, and any two conics —
 coplanar (up to four hits) or in crossing planes (met on the shared

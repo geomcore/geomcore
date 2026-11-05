@@ -8,7 +8,6 @@ pub(crate) mod numeric;
 mod results;
 mod routing;
 pub use exact::IntersectExact;
-pub use exact::bicylindric::BicylindricCurve;
 pub(crate) use exact::conic::{
     Conic, ImplicitConic, PlacedConic, intersect_conic_conic, intersect_conic_quadric,
 };
@@ -22,6 +21,7 @@ pub use exact::curve_surface::{
     CircleSurfaceIntersection, ConicSurfaceHit, ConicSurfaceIntersection, LinePlaneIntersection,
     LineQuadricIntersection, LineTorusHit, LineTorusIntersection,
 };
+pub use exact::quartic::QuarticCurve;
 pub use exact::surface_surface::{
     ConeConeIntersection, ConeCylinderIntersection, CylinderCylinderIntersection, LatitudeRing,
     PlaneConeIntersection, PlaneCylinderIntersection, PlanePlaneIntersection,
