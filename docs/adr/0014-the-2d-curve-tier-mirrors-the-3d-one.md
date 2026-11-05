@@ -24,7 +24,7 @@ rustdoc shows each curve as its generic struct, with the two aliases as separate
 
 The curve–curve intersection still had two copies of everything above the curve types: two result types and two hit types that kept the same methods by hand, two sets of readers turning each exact solver's result into them, two descriptions of a routed curve, two copies of the overlap mapping's curve interface and two macro families stamping the `Intersect` impls, while `BSplineCurve` and `BSplineCurve2D` repeated the three fitting constructors. They now follow the rule of this ADR. `GenericCurveCurveIntersection<P>` and `GenericCurveCurveHit<P>` are the result and the hit, and `CurveCurveIntersection`/`CurveCurveIntersection2D`, `CurveCurveHit`/`CurveCurveHit2D` are their aliases, so callers name them as before. `interpolate`, `approximate` and `approximate_within` sit on `GenericBSplineCurve<P>`. Inside the router, one crate-private `CurveBasis<P>`, implemented for every curve that converts into its tier's elementary enum (`ElementaryCurve` or `Curve2D`), carries what the readers and the overlap mapping ask of a curve, so each reader is written once and a coincidence is mapped on the tier's enum. One macro stamps the curve–curve `Intersect` impls of both tiers, and the 2D numeric path maps the hits of the search in space into plane hits and hands them to the same constructor.
 
-Two things stay per tier. The operand traits `CurveOperand` and `CurveOperand2D` differ in what the tier's numeric search needs, `ParametricCurve` in space and an embedding in space in the plane, and `TrimmedCurve`/`TrimmedCurve2D`, outside this change, are two types. One exact constructor serves both tiers, the 3D form: the readers, inlined where the solver's hits are read, build the list, and the constructor takes it whole.
+Two things stay per tier. The operand traits `CurveOperand` and `CurveOperand2D` differ in what the tier's numeric search needs, `ParametricCurve` in space and an embedding in space in the plane, and `TrimmedCurve`/`TrimmedCurve2D`, outside this change, were two types until the amendment below on the trimmed curve. One exact constructor serves both tiers, the 3D form: the readers, inlined where the solver's hits are read, build the list, and the constructor takes it whole.
 
 ### Considered options
 
@@ -34,6 +34,15 @@ Two things stay per tier. The operand traits `CurveOperand` and `CurveOperand2D`
 ## Amendment (2026-11-02): the B-spline curve is the spline
 
 Once the curve became one generic type, `GenericBSplineCurve<P>` was a wrapper over the private `Spline<P>` with the same type parameter: every method forwarded to it, and a Bézier curve reached the spline through the B-spline. The two are folded. `GenericBSplineCurve<P>` holds the knot vector, the poles and the weights, and the crate-private constructors and helpers the spline had (`from_parts`, `new_bezier`, `knot_bounds`, `wrapped_bezier_pieces`, `map_poles`, `mapped`) are its own; `GenericBezierCurve<P>` wraps it as before. Nothing public changes.
+
+## Amendment (2026-11-02): the trimmed curve is written once
+
+`TrimmedCurve` and `TrimmedCurve2D` were the last curves mirrored by hand. They are now `GenericTrimmedCurve<P, C>`, with the aliases `TrimmedCurve<C = Curve> = GenericTrimmedCurve<Point, C>` and `TrimmedCurve2D<C = Curve2D> = GenericTrimmedCurve<Point2D, C>`, so callers name them as before. Unlike the other curves, the trimmed curve is generic over its basis `C`, and the basis's trait names the tier. The tier is therefore a parameter of its own, `P`, held as a phantom. The accessors are written once on `GenericTrimmedCurve<P, C>`; `new`, the end points and the impls of the tier traits are stamped for both tiers from one body each, over `C` bounded by that tier's trait, by a basis form of the crate-private macro. What one tier alone has stays in an `impl` of one alias: `segment`, `into_curve` and `into_curve2d`, and `Transformable` in space.
+
+### Considered options
+
+- **One `TrimmedCurve<C>` for both tiers, without the tier parameter**: rejected. Its constructor needs `C: ParametricCurve` in space and `C: ParametricCurve2D` in the plane; two inherent impls that differ only in those bounds overlap, so `new` cannot be defined in both.
+- **A crate-private trait naming a curve's tier**: rejected for the reason of ADR 0022. A caller's own curve could not implement it, so it could no longer be trimmed.
 
 ## Considered options
 
