@@ -139,7 +139,7 @@ crossings closer together than the grid spacing are each found.
     ```python
     result = spline_curve.intersect(spline_surface)  # CurveSurfaceIntersection
     for hit in result.hits:
-        hit.curve_parameter, hit.surface_parameters, hit.point
+        hit.curve_parameter, hit.u, hit.v, hit.point
     complete = result.is_complete()
     meetings = curve_a.intersect(curve_b)            # CurveCurveIntersection
     ```

@@ -321,7 +321,7 @@ fn closedness_continuity_and_boxes_agree() {
             planar.bounding_box().unwrap(),
             spatial.bounding_box().unwrap(),
         );
-        assert_same_point(flat.min(), boxed.min(), &name);
-        assert_same_point(flat.max(), boxed.max(), &name);
+        assert_same_point(flat.min_corner(), boxed.min_corner(), &name);
+        assert_same_point(flat.max_corner(), boxed.max_corner(), &name);
     }
 }

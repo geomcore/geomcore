@@ -21,10 +21,11 @@ use crate::operations::intersect::{
     CircleCircle2DIntersection, CircleCircleIntersection, CircleSurfaceIntersection, Conic,
     Conic2DIntersection, ConicConicIntersection, ConicSurfaceHit, ConicSurfaceIntersection,
     CurveCurveIntersection, CurveCurveIntersection2D, CurveSurfaceHit, CurveSurfaceIntersection,
-    GenericCurveCurveHit, GenericCurveCurveIntersection, InlineList, IntersectionCurve,
-    LineCircle2DIntersection, LineCircleIntersection, LineConicHit, LineConicIntersection,
-    LineLine2DIntersection, LineLineIntersection, LinePlaneIntersection, LineQuadricIntersection,
-    LineTorusIntersection, SurfaceSurfaceIntersection, intersect_conic_conic,
+    CurveSurfaceOverlap, GenericCurveCurveHit, GenericCurveCurveIntersection, InlineList,
+    IntersectionCurve, LineCircle2DIntersection, LineCircleIntersection, LineConicHit,
+    LineConicIntersection, LineLine2DIntersection, LineLineIntersection, LinePlaneIntersection,
+    LineQuadricIntersection, LineTorusIntersection, SurfaceSurfaceIntersection,
+    intersect_conic_conic,
 };
 use crate::operations::intersect::{
     ConeConeIntersection, ConeCylinderIntersection, CylinderCylinderIntersection,
@@ -348,8 +349,8 @@ fn curve_on_surface(
     curve: &impl ParametricCurve,
     range: Option<(f64, f64)>,
 ) -> CurveSurfaceIntersection {
-    let overlap = range.unwrap_or(curve.bounds());
-    CurveSurfaceIntersection::exact([], [overlap].into_iter().collect())
+    let curve_range = range.unwrap_or(curve.bounds());
+    CurveSurfaceIntersection::exact([], vec![CurveSurfaceOverlap { curve_range }])
 }
 
 /// The curve misses the surface.

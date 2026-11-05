@@ -63,7 +63,7 @@ def test_curve_accessors_and_eval():
     assert curve.continuity(0.5) == math.inf
     assert curve.min_continuity() == math.inf
     box = curve.bounding_box()
-    assert box is not None and box.max() == Point(4.0, 2.0, 1.0)
+    assert box is not None and box.max_corner() == Point(4.0, 2.0, 1.0)
     assert repr(curve) == "BezierCurve(degree=3, pole_count=4, rational=False)"
 
 
@@ -156,7 +156,7 @@ def test_curve_2d():
     assert BezierCurve2D.from_bspline(curve.to_bspline()) == curve
     assert curve.project_point(Point2D(1.0, 2.0)).target is curve
     box = curve.bounding_box()
-    assert box is not None and box.max() == Point2D(2.0, 1.0)
+    assert box is not None and box.max_corner() == Point2D(2.0, 1.0)
     rational = BezierCurve2D.new_rational(
         2, [Point2D(1.0, 0.0), Point2D(1.0, 1.0), Point2D(0.0, 1.0)], [1.0, W, 1.0]
     )
@@ -203,7 +203,7 @@ def test_surface_accessors_and_eval():
     assert surface.eval_points([(0.25, 0.5)])[0] == point
     assert surface.eval_d1_sided(0.3, 0.7, Side.BELOW, Side.ABOVE) == surface.eval_d1(0.3, 0.7)
     box = surface.bounding_box()
-    assert box is not None and box.max() == Point(2.0, 2.0, 4.0)
+    assert box is not None and box.max_corner() == Point(2.0, 2.0, 4.0)
     assert repr(surface) == (
         "BezierSurface(u_degree=2, v_degree=2, pole_count=(3, 3), rational=False)"
     )

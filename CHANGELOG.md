@@ -9,6 +9,26 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+### Added
+
+- `CurveSurfaceOverlap`, in Rust and Python: a curve–surface overlap is a
+  typed item with a `curve_range`, as a curve–curve overlap is a
+  `CurveCurveOverlap`, so it can gain a field later without breaking
+  callers (#200).
+
+### Breaking
+
+- Results name the same thing one way (#200).
+  `CurveSurfaceIntersection::overlaps()` returns `CurveSurfaceOverlap`
+  items instead of bare `(start, end)` tuples; read the range as
+  `overlap.curve_range`. In Python, `CurveSurfaceHit.surface_parameters`
+  becomes `u` and `v`, each `None` when the solver did not compute them,
+  as on `SurfaceProjection`; the Rust field stays one
+  `Option<(f64, f64)>`, since both parameters are computed or neither is.
+  `BoundingBox` and `BoundingBox2D` name their corners `min_corner()` and
+  `max_corner()` (were `min()` and `max()`), in Rust and Python, as every
+  intersection region does.
+
 ## [0.43.0] - 2026-11-05
 
 A UV curve without an exact 3D curve, such as a helix on a cylinder, now

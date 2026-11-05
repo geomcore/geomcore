@@ -16,8 +16,8 @@ use crate::base::tier::operations::BoxOperations;
 use crate::{Point, Point2D, Vector};
 
 /// An axis-aligned box: the points whose coordinates all lie between
-/// those of its [`min`](BoundingBox::min) and
-/// [`max`](BoundingBox::max) corners, faces included.
+/// those of its [`min_corner`](BoundingBox::min_corner) and
+/// [`max_corner`](BoundingBox::max_corner), faces included.
 ///
 /// A box is never empty: `min` is at most `max` on every axis. A box of a
 /// single point is flat on every axis.
@@ -32,7 +32,7 @@ use crate::{Point, Point2D, Vector};
 /// assert!(!a.overlaps(b));
 /// // Within a distance of 1 of each other: the boxes enlarged by half of it touch.
 /// assert!(a.enlarged(0.5).overlaps(b.enlarged(0.5)));
-/// assert_eq!(a.union(b).max(), Point::new(4.0, 1.0, 1.0));
+/// assert_eq!(a.union(b).max_corner(), Point::new(4.0, 1.0, 1.0));
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct BoundingBox {
@@ -57,8 +57,8 @@ impl BoundingBox {
     /// use geomcore::{BoundingBox, Point};
     ///
     /// let b = BoundingBox::new(Point::new(1.0, 0.0, 5.0), Point::new(0.0, 2.0, 3.0));
-    /// assert_eq!(b.min(), Point::new(0.0, 0.0, 3.0));
-    /// assert_eq!(b.max(), Point::new(1.0, 2.0, 5.0));
+    /// assert_eq!(b.min_corner(), Point::new(0.0, 0.0, 3.0));
+    /// assert_eq!(b.max_corner(), Point::new(1.0, 2.0, 5.0));
     /// ```
     pub fn new(a: Point, b: Point) -> BoundingBox {
         BoundingBox {
@@ -77,8 +77,8 @@ impl BoundingBox {
     ///
     /// let points = [Point::new(1.0, 0.0, 0.0), Point::new(-1.0, 2.0, 0.5)];
     /// let b = BoundingBox::from_points(points).unwrap();
-    /// assert_eq!(b.min(), Point::new(-1.0, 0.0, 0.0));
-    /// assert_eq!(b.max(), Point::new(1.0, 2.0, 0.5));
+    /// assert_eq!(b.min_corner(), Point::new(-1.0, 0.0, 0.0));
+    /// assert_eq!(b.max_corner(), Point::new(1.0, 2.0, 0.5));
     /// assert_eq!(BoundingBox::from_points([]), None);
     /// ```
     pub fn from_points(points: impl IntoIterator<Item = Point>) -> Option<BoundingBox> {
@@ -95,9 +95,9 @@ impl BoundingBox {
     /// use geomcore::{BoundingBox, Point};
     ///
     /// let b = BoundingBox::new(Point::new(1.0, 2.0, 3.0), Point::ORIGIN);
-    /// assert_eq!(b.min(), Point::ORIGIN);
+    /// assert_eq!(b.min_corner(), Point::ORIGIN);
     /// ```
-    pub fn min(self) -> Point {
+    pub fn min_corner(self) -> Point {
         self.min
     }
 
@@ -109,9 +109,9 @@ impl BoundingBox {
     /// use geomcore::{BoundingBox, Point};
     ///
     /// let b = BoundingBox::new(Point::new(1.0, 2.0, 3.0), Point::ORIGIN);
-    /// assert_eq!(b.max(), Point::new(1.0, 2.0, 3.0));
+    /// assert_eq!(b.max_corner(), Point::new(1.0, 2.0, 3.0));
     /// ```
-    pub fn max(self) -> Point {
+    pub fn max_corner(self) -> Point {
         self.max
     }
 
@@ -129,8 +129,8 @@ impl BoundingBox {
         self.min + 0.5 * (self.max - self.min)
     }
 
-    /// The vector from the [`min`](Self::min) corner to the
-    /// [`max`](Self::max) corner: the box's size along each axis.
+    /// The vector from [`min_corner`](Self::min_corner) to
+    /// [`max_corner`](Self::max_corner): the box's size along each axis.
     ///
     /// # Examples
     ///
@@ -155,8 +155,8 @@ impl BoundingBox {
     /// let a = BoundingBox::new(Point::ORIGIN, Point::new(1.0, 1.0, 1.0));
     /// let b = BoundingBox::new(Point::new(2.0, -1.0, 0.0), Point::new(3.0, 0.0, 0.5));
     /// let both = a.union(b);
-    /// assert_eq!(both.min(), Point::new(0.0, -1.0, 0.0));
-    /// assert_eq!(both.max(), Point::new(3.0, 1.0, 1.0));
+    /// assert_eq!(both.min_corner(), Point::new(0.0, -1.0, 0.0));
+    /// assert_eq!(both.max_corner(), Point::new(3.0, 1.0, 1.0));
     /// ```
     pub fn union(self, other: BoundingBox) -> BoundingBox {
         self.including(other.min).including(other.max)
@@ -173,12 +173,12 @@ impl BoundingBox {
     ///
     /// let b = BoundingBox::new(Point::ORIGIN, Point::new(4.0, 1.0, 1.0));
     /// let grown = b.enlarged(0.5);
-    /// assert_eq!(grown.min(), Point::new(-0.5, -0.5, -0.5));
-    /// assert_eq!(grown.max(), Point::new(4.5, 1.5, 1.5));
+    /// assert_eq!(grown.min_corner(), Point::new(-0.5, -0.5, -0.5));
+    /// assert_eq!(grown.max_corner(), Point::new(4.5, 1.5, 1.5));
     ///
     /// let shrunk = b.enlarged(-1.0);
-    /// assert_eq!(shrunk.min(), Point::new(1.0, 0.5, 0.5));
-    /// assert_eq!(shrunk.max(), Point::new(3.0, 0.5, 0.5));
+    /// assert_eq!(shrunk.min_corner(), Point::new(1.0, 0.5, 0.5));
+    /// assert_eq!(shrunk.max_corner(), Point::new(3.0, 0.5, 0.5));
     /// ```
     pub fn enlarged(self, distance: f64) -> BoundingBox {
         let (min, max) = (coordinates(self.min), coordinates(self.max));
@@ -282,9 +282,9 @@ impl BoundingBox {
 /// let quarter = TrimmedCurve::new(circle, 0.0, std::f64::consts::FRAC_PI_2).unwrap();
 /// let b = quarter.bounding_box().unwrap();
 /// // From (2, 0, 0) to (0, 2, 0): the arc's own extreme points, not the circle's.
-/// assert_eq!((b.min().y, b.max().y), (0.0, 2.0));
-/// assert_eq!(b.max().x, 2.0);
-/// assert!(b.min().x.abs() < 1e-15);
+/// assert_eq!((b.min_corner().y, b.max_corner().y), (0.0, 2.0));
+/// assert_eq!(b.max_corner().x, 2.0);
+/// assert!(b.min_corner().x.abs() < 1e-15);
 /// ```
 ///
 /// ```
@@ -293,8 +293,8 @@ impl BoundingBox {
 ///
 /// let sphere = Sphere::new(Point::new(1.0, 0.0, 0.0), 2.0).unwrap();
 /// let b = sphere.bounding_box().unwrap();
-/// assert_eq!(b.min(), Point::new(-1.0, -2.0, -2.0));
-/// assert_eq!(b.max(), Point::new(3.0, 2.0, 2.0));
+/// assert_eq!(b.min_corner(), Point::new(-1.0, -2.0, -2.0));
+/// assert_eq!(b.max_corner(), Point::new(3.0, 2.0, 2.0));
 ///
 /// let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
 /// assert_eq!(plane.bounding_box(), None);
@@ -333,13 +333,13 @@ macro_rules! box_operations {
             }
 
             #[inline]
-            fn min(self) -> $point {
-                $box::min(self)
+            fn min_corner(self) -> $point {
+                $box::min_corner(self)
             }
 
             #[inline]
-            fn max(self) -> $point {
-                $box::max(self)
+            fn max_corner(self) -> $point {
+                $box::max_corner(self)
             }
         }
     )*};

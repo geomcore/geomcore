@@ -419,7 +419,7 @@ where
     fn box_exit(&self, (x, p): ([f64; 4], Point), (y, q): ([f64; 4], Point)) -> (Point, [f64; 4]) {
         let (from, to) = ([p.x, p.y, p.z], [q.x, q.y, q.z]);
         let limit = self.limit.bounds();
-        let (low, high) = (limit.min(), limit.max());
+        let (low, high) = (limit.min_corner(), limit.max_corner());
         let (low, high) = ([low.x, low.y, low.z], [high.x, high.y, high.z]);
         let mut first: Option<(usize, f64, f64)> = None;
         for k in 0..3 {

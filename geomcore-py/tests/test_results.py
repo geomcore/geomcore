@@ -216,7 +216,7 @@ def test_curve_lying_on_a_surface_is_an_overlap():
     equator = Circle(Point.origin(), Vector.unit_z(), 2.0)
     result = equator.intersect(sphere)
     assert result.hits == []
-    assert result.overlaps == [pytest.approx((0.0, TAU))]
+    assert [overlap.curve_range for overlap in result.overlaps] == [pytest.approx((0.0, TAU))]
     assert not result.is_empty()
 
 
@@ -475,7 +475,7 @@ def test_numeric_curve_lying_on_a_surface_is_an_overlap():
     result = segment.intersect(_square())
     assert result.method == IntersectionMethod.NUMERIC
     assert result.hits == []
-    assert result.overlaps == [(0.0, 1.0)]
+    assert [overlap.curve_range for overlap in result.overlaps] == [(0.0, 1.0)]
     assert result.completeness.status == CompletenessStatus.INCOMPLETE
     assert result.completeness.reason == IncompleteReason.UNSEPARATED
 

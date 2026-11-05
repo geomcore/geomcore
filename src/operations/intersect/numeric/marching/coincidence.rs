@@ -64,8 +64,8 @@ where
         first_v_range,
         second_u_range: range(2, b.u_bounds(), second_u_window),
         second_v_range: range(3, b.v_bounds(), second_v_window),
-        min_corner: bounds.min(),
-        max_corner: bounds.max(),
+        min_corner: bounds.min_corner(),
+        max_corner: bounds.max_corner(),
     })
 }
 
@@ -246,5 +246,7 @@ fn surface_corners<S: ParametricSurface>(s: &S) -> (Point, Point) {
             })
         }))
     });
-    bounds.map_or((Point::ORIGIN, Point::ORIGIN), |b| (b.min(), b.max()))
+    bounds.map_or((Point::ORIGIN, Point::ORIGIN), |b| {
+        (b.min_corner(), b.max_corner())
+    })
 }

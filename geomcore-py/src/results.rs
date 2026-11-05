@@ -13,8 +13,9 @@ use geomcore::{
     Completeness, CurveCurveExtrema, CurveCurveExtremum, CurveCurveHit, CurveCurveHit2D,
     CurveCurveIntersection, CurveCurveIntersection2D, CurveCurveOverlap, CurveCurveRegion,
     CurveProjection, CurveProjection2D, CurveSurfaceHit, CurveSurfaceIntersection,
-    CurveSurfaceRegion, IncompleteReason, IntersectionCurve, IntersectionMethod, Point, Point2D,
-    SurfaceCurvatures, SurfaceProjection, SurfaceSurfaceIntersection, SurfaceSurfaceRegion,
+    CurveSurfaceOverlap, CurveSurfaceRegion, IncompleteReason, IntersectionCurve,
+    IntersectionMethod, Point, Point2D, SurfaceCurvatures, SurfaceProjection,
+    SurfaceSurfaceIntersection, SurfaceSurfaceRegion,
 };
 use pyo3::prelude::*;
 use pyo3::type_object::PyTypeInfo;
@@ -588,10 +589,16 @@ impl PyCurveSurfaceHit {
         self.0.curve_parameter
     }
 
-    /// The `(u, v)` parameters on the surface, or `None` when not computed.
+    /// The `u` parameter on the surface, or `None` when not computed.
     #[getter]
-    fn surface_parameters(&self) -> Option<(f64, f64)> {
-        self.0.surface_parameters
+    fn u(&self) -> Option<f64> {
+        self.0.surface_parameters.map(|(u, _)| u)
+    }
+
+    /// The `v` parameter on the surface, or `None` when not computed.
+    #[getter]
+    fn v(&self) -> Option<f64> {
+        self.0.surface_parameters.map(|(_, v)| v)
     }
 
     /// The meeting point.
@@ -608,13 +615,11 @@ impl PyCurveSurfaceHit {
     }
 
     fn __repr__(&self) -> String {
-        let surface_parameters = self
-            .0
-            .surface_parameters
-            .map_or_else(|| "None".to_string(), range_repr);
         format!(
-            "CurveSurfaceHit(curve_parameter={}, surface_parameters={surface_parameters}, point={}, multiplicity={})",
+            "CurveSurfaceHit(curve_parameter={}, u={}, v={}, point={}, multiplicity={})",
             optional_repr(self.0.curve_parameter),
+            optional_repr(self.u()),
+            optional_repr(self.v()),
             point3_repr(self.0.point),
             self.0.multiplicity,
         )
@@ -655,6 +660,29 @@ impl PyCurveCurveOverlap {
             range_repr(self.0.first_range),
             range_repr(self.0.second_range),
             bool_repr(self.0.same_direction),
+        )
+    }
+}
+
+/// A stretch of a curve that lies on a surface: a parameter interval on
+/// the curve. "The circle lies on the sphere" is one overlap over
+/// `(0, 2π)`; a line lying in a plane is one over `(-inf, inf)`.
+#[pyclass(name = "CurveSurfaceOverlap", module = "geomcore", eq, frozen)]
+#[derive(Clone, PartialEq)]
+pub(crate) struct PyCurveSurfaceOverlap(pub(crate) CurveSurfaceOverlap);
+
+#[pymethods]
+impl PyCurveSurfaceOverlap {
+    /// The curve's parameter interval.
+    #[getter]
+    fn curve_range(&self) -> (f64, f64) {
+        self.0.curve_range
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "CurveSurfaceOverlap(curve_range={})",
+            range_repr(self.0.curve_range)
         )
     }
 }
@@ -879,7 +907,8 @@ impl PyCurveSurfaceIntersection {
         Ok(format!(
             "hits={}, overlaps={}",
             list_repr(self.result.hits(), |h| PyCurveSurfaceHit(*h).__repr__()),
-            list_repr(self.result.overlaps(), |o| range_repr(*o)),
+            list_repr(self.result.overlaps(), |o| PyCurveSurfaceOverlap(*o)
+                .__repr__()),
         ))
     }
 }
@@ -894,12 +923,13 @@ intersection_result! {
         PyList::new(py, self.result.hits().iter().map(|h| PyCurveSurfaceHit(*h)))
     }
 
-    /// The curve's `(start, end)` parameter ranges that lie on the
-    /// surface. "The circle lies on the sphere" is one range over
-    /// `(0, 2π)`.
+    /// The stretches of the curve that lie on the surface.
     #[getter]
-    fn overlaps(&self) -> Vec<(f64, f64)> {
-        self.result.overlaps().to_vec()
+    fn overlaps<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyList>> {
+        PyList::new(
+            py,
+            self.result.overlaps().iter().map(|o| PyCurveSurfaceOverlap(*o)),
+        )
     }
 
     /// The curve operand, whichever of `first` and `second` it is.

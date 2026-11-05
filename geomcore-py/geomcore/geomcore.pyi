@@ -33,6 +33,7 @@ __all__ = [
     "CurveProjection2D",
     "CurveSurfaceHit",
     "CurveSurfaceIntersection",
+    "CurveSurfaceOverlap",
     "CurveSurfaceRegion",
     "Discretization2D",
     "Discretization",

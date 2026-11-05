@@ -204,8 +204,9 @@ pub use operations::intersect::{
 };
 pub use operations::intersect::{
     CurveCurveHit2D, CurveCurveIntersection, CurveCurveIntersection2D, CurveCurveOverlap,
-    CurveSurfaceIntersection, GenericCurveCurveHit, GenericCurveCurveIntersection,
-    IntersectionCurve, IntersectionMethod, SurfaceSurfaceIntersection, SurfaceSurfaceRegion,
+    CurveSurfaceIntersection, CurveSurfaceOverlap, GenericCurveCurveHit,
+    GenericCurveCurveIntersection, IntersectionCurve, IntersectionMethod,
+    SurfaceSurfaceIntersection, SurfaceSurfaceRegion,
 };
 pub use operations::intersect::{InlineList, Intersect, IntersectExact};
 pub use operations::intersect::{intersect_curve_curve, intersect_curve_surface};

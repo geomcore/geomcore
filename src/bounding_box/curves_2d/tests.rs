@@ -11,8 +11,18 @@ fn near(a: Point2D, b: Point2D) -> bool {
 }
 
 fn assert_box(b: BoundingBox2D, min: Point2D, max: Point2D) {
-    assert!(near(b.min(), min), "min {:?} != {:?}", b.min(), min);
-    assert!(near(b.max(), max), "max {:?} != {:?}", b.max(), max);
+    assert!(
+        near(b.min_corner(), min),
+        "min {:?} != {:?}",
+        b.min_corner(),
+        min
+    );
+    assert!(
+        near(b.max_corner(), max),
+        "max {:?} != {:?}",
+        b.max_corner(),
+        max
+    );
 }
 
 fn circle() -> Circle2D {
@@ -73,11 +83,11 @@ fn test_quarter_arc_box_is_its_own_extent() {
 fn test_arc_across_the_seam_reaches_the_rightmost_point() {
     let arc = TrimmedCurve2D::new(circle(), -1.0, 1.0).unwrap();
     let b = arc.bounding_box().unwrap();
-    assert!((b.max().x - 3.0).abs() < 1e-12);
+    assert!((b.max_corner().x - 3.0).abs() < 1e-12);
     let (start, end) = (arc.start_point(), arc.end_point());
-    assert!((b.min().y - start.y).abs() < 1e-12);
-    assert!((b.max().y - end.y).abs() < 1e-12);
-    assert!((b.min().x - start.x.min(end.x)).abs() < 1e-12);
+    assert!((b.min_corner().y - start.y).abs() < 1e-12);
+    assert!((b.max_corner().y - end.y).abs() < 1e-12);
+    assert!((b.min_corner().x - start.x.min(end.x)).abs() < 1e-12);
 }
 
 #[test]

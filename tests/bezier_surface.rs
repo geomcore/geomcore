@@ -457,6 +457,6 @@ fn test_reversed_mirrors_the_parameters() {
 #[test]
 fn test_bounding_box_is_the_pole_hull() {
     let b: BoundingBox = saddle().bounding_box().unwrap();
-    assert_eq!(b.min(), Point::new(0.0, 0.0, 0.0));
-    assert_eq!(b.max(), Point::new(2.0, 2.0, 4.0));
+    assert_eq!(b.min_corner(), Point::new(0.0, 0.0, 0.0));
+    assert_eq!(b.max_corner(), Point::new(2.0, 2.0, 4.0));
 }

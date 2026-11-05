@@ -161,7 +161,7 @@ fn surface_box<S: ParametricSurface>(surface: &S, tol: Tolerance) -> Option<Aabb
         (None, Some(bspline)) => bspline.bounding_box()?,
         (None, None) => return None,
     };
-    let (min, max, margin) = (box_.min(), box_.max(), tol.confusion);
+    let (min, max, margin) = (box_.min_corner(), box_.max_corner(), tol.confusion);
     Some([
         min.x - margin,
         min.y - margin,

@@ -142,8 +142,8 @@ def test_trimmed_curve():
     assert isinstance(arc.basis(), Hyperbola2D)
 
     box = arc.bounding_box()
-    assert xy(box.min()) == pytest.approx((2.0, -math.sinh(1.0)))
-    assert xy(box.max()) == pytest.approx((2.0 * math.cosh(1.0), math.sinh(1.0)))
+    assert xy(box.min_corner()) == pytest.approx((2.0, -math.sinh(1.0)))
+    assert xy(box.max_corner()) == pytest.approx((2.0 * math.cosh(1.0), math.sinh(1.0)))
 
     criteria = (1e-3, 0.2)
     d = arc.discretize(*criteria)
