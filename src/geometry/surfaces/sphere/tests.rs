@@ -68,13 +68,6 @@ fn test_eval_derivative_zero_order_panics() {
 }
 
 #[test]
-#[should_panic(expected = "du + dv must be <= 2")]
-fn test_eval_derivative_order_too_high_panics() {
-    let s = Sphere::new(Point::ORIGIN, 3.0).unwrap();
-    s.eval_derivative(0.0, 0.0, 2, 1);
-}
-
-#[test]
 fn test_parameters_of_round_trip() {
     let s = Sphere::new(Point::ORIGIN, 3.0).unwrap();
     let (u, v) = s.parameters_of(Point::new(3.0, 0.0, 0.0), Tolerance::DEFAULT);

@@ -36,4 +36,6 @@ pub use parabola::{GenericParabola, Parabola, Parabola2D, ParabolaConstructionEr
 pub use parametric_curve::{Continuity, ParametricCurve, PointExtrema, ReversibleCurve, Side};
 pub use parametric_curve_2d::{ParametricCurve2D, PointExtrema2D};
 pub(crate) use range::{RangeOperations, Run};
-pub use trimmed::{TrimmedCurve, TrimmedCurve2D, TrimmedCurveConstructionError};
+pub use trimmed::{
+    GenericTrimmedCurve, TrimmedCurve, TrimmedCurve2D, TrimmedCurveConstructionError,
+};

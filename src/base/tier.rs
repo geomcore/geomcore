@@ -73,6 +73,7 @@ macro_rules! impl_for_both_tiers {
     (
         impl $spatial:ident, $planar:ident for $type:ident { $($shared:tt)* }
         $(spatial { $($spatial_only:tt)* })?
+        $(planar { $($planar_only:tt)* })?
     ) => {
         const _: () = {
             type P = $crate::Point;
@@ -89,11 +90,63 @@ macro_rules! impl_for_both_tiers {
             type V = $crate::Vector2D;
             impl $planar for $type<P> {
                 $($shared)*
+                $($($planar_only)*)?
             }
         };
     };
 }
 pub(crate) use impl_for_both_tiers;
+
+/// The basis form of [`impl_for_both_tiers!`], for a tier-generic type over
+/// a basis, `$type<P, C>`: `C` is bounded by the tier's trait of the same
+/// name, `$spatial` for `$type<Point, C>` and `$planar` for
+/// `$type<Point2D, C>`. The body names the tier's point `P` and its vector
+/// `V`. `impl` stamps the trait impls, with the `spatial { .. }` block as
+/// there; `inherent` stamps one inherent impl per tier, whose items are the
+/// ones only the basis trait supports.
+macro_rules! impl_for_both_tiers_over_basis {
+    (
+        impl $spatial:ident, $planar:ident for $type:ident { $($shared:tt)* }
+        $(spatial { $($spatial_only:tt)* })?
+        $(planar { $($planar_only:tt)* })?
+    ) => {
+        const _: () = {
+            type P = $crate::Point;
+            #[allow(dead_code, reason = "not every body names the vector")]
+            type V = $crate::Vector;
+            impl<C: $spatial> $spatial for $type<P, C> {
+                $($shared)*
+                $($($spatial_only)*)?
+            }
+        };
+        const _: () = {
+            type P = $crate::Point2D;
+            #[allow(dead_code, reason = "not every body names the vector")]
+            type V = $crate::Vector2D;
+            impl<C: $planar> $planar for $type<P, C> {
+                $($shared)*
+                $($($planar_only)*)?
+            }
+        };
+    };
+    (
+        inherent $spatial:ident, $planar:ident for $type:ident { $($shared:tt)* }
+    ) => {
+        const _: () = {
+            type P = $crate::Point;
+            impl<C: $spatial> $type<P, C> {
+                $($shared)*
+            }
+        };
+        const _: () = {
+            type P = $crate::Point2D;
+            impl<C: $planar> $type<P, C> {
+                $($shared)*
+            }
+        };
+    };
+}
+pub(crate) use impl_for_both_tiers_over_basis;
 
 /// What tier-generic code needs from a tier's points, vectors, placements
 /// and boxes. The traits are public in a private module, which seals

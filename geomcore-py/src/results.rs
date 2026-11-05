@@ -155,7 +155,10 @@ impl PyCompletenessStatus {
 ///
 /// - `BUDGET_EXHAUSTED`: it ran out of subdivisions.
 /// - `UNSEPARATED`: pieces of the operands stayed within tolerance of each
-///   other down to the smallest piece, as at a tangent contact.
+///   other down to the smallest piece, as along an overlap or at a tangent
+///   contact of a curve with a surface.
+/// - `UNBOUNDED`: a branch of two unbounded surfaces runs beyond the box
+///   it was traced in, and continues past the regions reported.
 #[pyclass(
     name = "IncompleteReason",
     module = "geomcore",
@@ -170,6 +173,8 @@ pub(crate) enum PyIncompleteReason {
     BudgetExhausted,
     #[pyo3(name = "UNSEPARATED")]
     Unseparated,
+    #[pyo3(name = "UNBOUNDED")]
+    Unbounded,
 }
 
 impl From<IncompleteReason> for PyIncompleteReason {
@@ -177,6 +182,7 @@ impl From<IncompleteReason> for PyIncompleteReason {
         match reason {
             IncompleteReason::BudgetExhausted => PyIncompleteReason::BudgetExhausted,
             IncompleteReason::Unseparated => PyIncompleteReason::Unseparated,
+            IncompleteReason::Unbounded => PyIncompleteReason::Unbounded,
         }
     }
 }
@@ -195,6 +201,7 @@ impl PyIncompleteReason {
         match self {
             PyIncompleteReason::BudgetExhausted => "IncompleteReason.BUDGET_EXHAUSTED",
             PyIncompleteReason::Unseparated => "IncompleteReason.UNSEPARATED",
+            PyIncompleteReason::Unbounded => "IncompleteReason.UNBOUNDED",
         }
     }
 }

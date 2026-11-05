@@ -9,12 +9,92 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+Unbounded branches are cut where their trace leaves the seeds' box, and
+reported, instead of running to a fixed cube around the origin (#147).
+
+### Added
+
+- `uv_curve_to_3d_within(surface, uv_curve, max_deviation, tol)` gives the
+  3D curve of a UV curve within a deviation, for the pairs that
+  `uv_curve_to_3d` refuses: a slanted line on a cylinder or cone (a helix
+  or conical spiral), or a circle in the `(u, v)` plane of a sphere
+  (ADR 0035). It returns one B-spline for the one UV curve, over its
+  bounds and in its parameter. On an elementary surface along a UV curve
+  with no knot, the composition is analytic, and the curve is of degree 9
+  and C⁴, unless degree 5 takes no more poles. Everywhere else it is of
+  degree 5 and C² wherever the UV curve is. Every point at `t` lies within
+  the deviation of the surface's point at `c(t)`, the same-parameter
+  deviation an edge needs. The result, `UvCurveApproximation`, reports the
+  deviation reached and whether it is proven. It is proven by a Hermite
+  remainder bound for a straight UV curve on a plane, cylinder, cone,
+  sphere or torus, and sampled densely for every other pair. A deviation
+  that cannot be reached is refused with
+  `UvCurveApproximationError::DeviationNotReached`, not loosened. So is a
+  3D curve that collapses to a point, an unbounded UV curve, or one that
+  leaves the surface's domain. On a radius-10 cylinder at `1e-7`, a helix
+  takes 5 spans and about 23 poles per turn.
+- Python: `uv_curve_to_3d_within(surface, uv_curve, max_deviation,
+  tol=None)`, taking any 2D curve or `TrimmedCurve2D`, its result
+  `UvCurveApproximation` (`curve`, `deviation`, `is_proven()`), and the
+  `UvCurveApproximationError` exception.
+- `GenericTrimmedCurve<P, C>`: the trimmed curve of either tier, written
+  once (ADR 0014, amended). `TrimmedCurve<C>` and `TrimmedCurve2D<C>` are
+  now its aliases, with the same defaults, methods and paths.
+- `IncompleteReason::Unbounded` (Python `IncompleteReason.UNBOUNDED`): a
+  branch of two unbounded surfaces runs beyond the box where its trace was
+  cut. The regions of the result hold where each branch was cut. When
+  results merge, `Unbounded` ranks below `BudgetExhausted` and above
+  `Unseparated`.
+
 ### Changed
 
 - CI gates the benchmarks on an instruction budget: a pull request that
   makes a budgeted benchmark more than 1% heavier fails, and the log names
   the functions that got heavier (`docs/benchmarks.md`). The intersection
   results are fingerprinted, so a change in them shows up in review.
+- `eval_derivative` on a plane, cylinder, cone, sphere or torus evaluates
+  every order `(du, dv)`, from the closed forms of the derivatives of
+  `cos` and `sin`. It panicked past `du + dv = 2`. The other surfaces
+  still evaluate up to second order. Python's `eval_derivative` follows,
+  and still raises `ValueError` past `du + dv = 2` on the others.
+- The `Debug` output of a trimmed curve names `GenericTrimmedCurve` and
+  shows its tier, as the other generic curves' does.
+- The trace box of an unbounded pair is the box of the seeds, grown by the
+  larger surface size: a cylinder's or cone's radius, a sweep profile's
+  diagonal, or for two planes the larger of the seeds' spread and the
+  size of the seeding windows. It replaces the cube of
+  side `Tolerance::MODEL_SIZE` (1e5) centred on the origin. A pair with a
+  bounded side keeps its box of that side, grown by a tenth of its
+  diagonal.
+- Seeds of an unbounded side whose other side has a bounding box are read
+  from that box's corners, with a margin, instead of the window `[-10, 10]`.
+- A tangent contact between two curves, where they stay within
+  `tol.confusion` of each other and then part, is one hit at its closest
+  approach, with multiplicity 2, and the numeric curve–curve intersection
+  reports the result `Complete`, as the closed forms do. Before, it was
+  `Incomplete` with an `Unseparated` region. Overlaps and searches that
+  run out of budget stay `Incomplete`.
+- The piece searches' private parameter range is merged into the
+  parameter domain the numeric searches already shared: one value, a
+  period or an interval, owns the wrapping and the slack. Nothing public
+  changes, and no result moves.
+
+### Breaking
+
+- `IncompleteReason` gains the variant `Unbounded`. The enum is not
+  `#[non_exhaustive]`, so an exhaustive `match` on it needs a new arm.
+
+### Fixed
+
+- A cone against a cylinder whose intersection has an unbounded branch ran
+  to the cube and was reported as `Sampled`, as if the branch were whole.
+  It is cut at its box and reported as `Incomplete` with `Unbounded`.
+- An unbounded pair lying beyond the cube lost every branch beyond it. The
+  same pair translated far from the origin now traces the same branches.
+- The numeric curve–curve intersection no longer drops one of two
+  crossings lying within `sqrt(tol.confusion)` of each other and reports
+  the result `Complete`. Two hits are merged only when the curves stay
+  within `tol.confusion` of each other between them.
 
 ## [0.42.2] - 2026-11-02
 

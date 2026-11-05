@@ -1173,9 +1173,15 @@ def test_eval_derivative_rejects_unsupported_orders():
         curve.eval_derivative(0.5, 0)
     assert curve.eval_derivative(0.5, 3).components() == (0.0, 0.0, 0.0)
     cylinder = Cylinder(Point.origin(), Vector.unit_z(), 1.0)
-    for du, dv in [(0, 0), (3, 0), (2, 1)]:
-        with pytest.raises(ValueError):
-            cylinder.eval_derivative(0.0, 0.0, du, dv)
+    with pytest.raises(ValueError):
+        cylinder.eval_derivative(0.0, 0.0, 0, 0)
+    third = cylinder.eval_derivative(0.0, 0.0, 3, 0).components()
+    assert third == pytest.approx((0.0, -1.0, 0.0))
+    assert cylinder.eval_derivative(0.0, 0.0, 2, 1).components() == (0.0, 0.0, 0.0)
+    saddle = BezierSurface(1, 1, [[Point(0, 0, 0), Point(0, 1, 0)], [Point(1, 0, 0), Point(1, 1, 1)]])
+    for du, dv in [(3, 0), (2, 1)]:
+        with pytest.raises(ValueError, match="<= 2"):
+            saddle.eval_derivative(0.5, 0.5, du, dv)
 
 
 def test_conic_projection_of_non_finite_point_is_nan():

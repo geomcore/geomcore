@@ -29,7 +29,7 @@ src/
 │   │   ├── line.rs … hyperbola.rs   elementary curves, each one generic type for both tiers
 │   │   ├── bspline.rs               B-spline curves of both tiers
 │   │   ├── bezier.rs                Bézier curves of both tiers
-│   │   ├── trimmed.rs               TrimmedCurve and TrimmedCurve2D
+│   │   ├── trimmed.rs               GenericTrimmedCurve: TrimmedCurve and TrimmedCurve2D
 │   │   ├── range.rs                 internal: RangeOperations, the box, discretization and
 │   │   │                            B-spline of a range of each curve (ADR 0005)
 │   │   ├── conversion.rs fitting.rs   to B-spline, from points
@@ -45,7 +45,9 @@ src/
 │   │   │                            0031); uv_curve/to_curve.rs is the pair table
 │   │   │                            of uv_curve_to_3d, uv_curve/from_curve.rs the
 │   │   │                            closed forms of curve_3d_to_uv and the
-│   │   │                            sampled curve_3d_to_uv_numeric
+│   │   │                            sampled curve_3d_to_uv_numeric,
+│   │   │                            uv_curve/approximation.rs
+│   │   │                            uv_curve_to_3d_within (ADR 0035)
 │   │   └── conversion.rs fitting.rs
 │   └── enum_variants.rs         the macros that expand a shape enum's variant list
 │                                (ADR 0017)
@@ -71,7 +73,8 @@ src/
 │   │   │                    pairs, the budget of halvings, the pairs left unsettled);
 │   │   │                    *_hull.rs and patch_pairs.rs bring their tests on a pair (ADR 0019);
 │   │   │                    curve_curve.rs reads its hits from the extrema at zero distance;
-│   │   │                    parameter_domain.rs is a curve's bounds or period for the searches.
+│   │   │                    parameter_domain.rs is the bounds or period of a curve or a
+│   │   │                    surface direction, with the searches' wrapping and slack.
 │   │   │                    surface_patches.rs turns any surface into Bézier patches with a
 │   │   │                    map back to its own parameters (ADR 0026).
 │   │   │                    marching.rs composes marching/: the surface pair (pair.rs), the

@@ -3,10 +3,19 @@
 //! intersection, corrected onto both surfaces, and halved until it keeps
 //! to the curve (see [`Tracer::trace`]).
 
-use super::pair::SurfacePair;
+use super::pair::{SurfacePair, TraceBox};
 use crate::geometry::curves::fitting::segment_length;
 use crate::geometry::surfaces::{BSplineSurface, ParametricSurface};
-use crate::{BoundingBox, Point, Tolerance, Vector};
+use crate::{Point, Tolerance, Vector};
+
+/// Where a trace left the trace box: the last point inside it, and the
+/// point where the trace leaves it, each with its parameters on both
+/// surfaces. The branch continues beyond the exit.
+#[derive(Clone, Copy, Debug)]
+pub(super) struct Cut {
+    pub(super) inside: ([f64; 4], Point),
+    pub(super) exit: ([f64; 4], Point),
+}
 
 /// Chord deviation allowed per traced step, in multiples of
 /// `tol.confusion`.
@@ -38,12 +47,14 @@ pub(super) enum Trace {
     /// point), the unit tangent at each along that order, the parameters
     /// where it stalled, finding no acceptable step even shorter than
     /// confusion (next to a point where the surfaces touch, as where
-    /// branches cross), and whether the surfaces touch along it.
+    /// branches cross), whether the surfaces touch along it, and where it
+    /// left the trace box (see [`Cut`]).
     Curve {
         points: Vec<Point>,
         tangents: Vec<Vector>,
         stalls: Vec<[f64; 4]>,
         touching: bool,
+        cuts: Vec<Cut>,
     },
     /// The surfaces touch at the seed and no curve runs from it: the
     /// trace stays within a first step of it.
@@ -52,12 +63,14 @@ pub(super) enum Trace {
     Lost,
 }
 
-/// The points traced through a seed, the unit tangent at each and the
-/// parameters where the trace stalled (see [`Trace::Curve`]).
+/// The points traced through a seed, the unit tangent at each, the
+/// parameters where the trace stalled and where it left the trace box
+/// (see [`Trace::Curve`]).
 struct Polyline {
     points: Vec<Point>,
     tangents: Vec<Vector>,
     stalls: Vec<[f64; 4]>,
+    cuts: Vec<Cut>,
 }
 
 /// Traces the intersection of a pair of surfaces from seeds on both.
@@ -65,7 +78,7 @@ pub(super) struct Tracer<'s, A, B> {
     pair: SurfacePair<'s, A, B>,
     tol: Tolerance,
     /// The box where traces end (see [`SurfacePair::trace_box`]).
-    limit: BoundingBox,
+    limit: TraceBox,
 }
 
 impl<'s, A, B> Tracer<'s, A, B>
@@ -73,11 +86,13 @@ where
     A: ParametricSurface,
     B: ParametricSurface,
 {
-    pub(super) fn new(pair: SurfacePair<'s, A, B>, tol: Tolerance) -> Self {
+    /// A tracer whose box is grown from `seeds` (see
+    /// [`SurfacePair::trace_box`]).
+    pub(super) fn new(pair: SurfacePair<'s, A, B>, tol: Tolerance, seeds: &[[f64; 4]]) -> Self {
         Tracer {
             pair,
             tol,
-            limit: pair.trace_box(),
+            limit: pair.trace_box(seeds, tol),
         }
     }
 
@@ -87,7 +102,13 @@ where
 
     /// Whether `p` lies in the box where traces end.
     pub(super) fn encloses(&self, p: Point) -> bool {
-        self.limit.encloses(p)
+        self.limit.bounds().encloses(p)
+    }
+
+    /// Whether a trace leaving the box cuts a branch (see [`Cut`]): the
+    /// box is grown from the seeds, the surfaces being unbounded.
+    pub(super) fn reports_cuts(&self) -> bool {
+        self.limit.cuts_branches()
     }
 
     /// The intersection through `seed`, traced both ways.
@@ -110,11 +131,13 @@ where
                 points,
                 tangents,
                 stalls,
+                cuts,
             }) if !touching || length(&points) >= first_step(self.tol) => Trace::Curve {
                 points,
                 tangents,
                 stalls,
                 touching,
+                cuts,
             },
             _ if touching => Trace::Touch,
             _ => Trace::Lost,
@@ -162,6 +185,7 @@ where
         // traced.
         let mut halves: [Vec<(Point, Vector)>; 2] = [Vec::new(), Vec::new()];
         let mut stalls = Vec::new();
+        let mut cuts = Vec::new();
         let mut closed = false;
         for (half, dir) in halves.iter_mut().zip([1.0, -1.0]) {
             if closed {
@@ -257,9 +281,13 @@ where
                     closed = true;
                     break;
                 }
-                if !self.limit.encloses(q) {
+                if !self.limit.bounds().encloses(q) {
                     let (exit, z) = self.box_exit((x, p), (y, q));
                     half.push((exit, oriented(z, ty)));
+                    cuts.push(Cut {
+                        inside: (x, p),
+                        exit: (z, exit),
+                    });
                     break;
                 }
                 half.push((q, ty));
@@ -286,6 +314,7 @@ where
             points,
             tangents,
             stalls,
+            cuts,
         })
     }
 
@@ -389,7 +418,8 @@ where
     /// face the chord crosses, or `q` when that does not converge.
     fn box_exit(&self, (x, p): ([f64; 4], Point), (y, q): ([f64; 4], Point)) -> (Point, [f64; 4]) {
         let (from, to) = ([p.x, p.y, p.z], [q.x, q.y, q.z]);
-        let (low, high) = (self.limit.min(), self.limit.max());
+        let limit = self.limit.bounds();
+        let (low, high) = (limit.min(), limit.max());
         let (low, high) = ([low.x, low.y, low.z], [high.x, high.y, high.z]);
         let mut first: Option<(usize, f64, f64)> = None;
         for k in 0..3 {

@@ -395,7 +395,7 @@ impl ParametricSurface for Cone {
             0 => panic!(
                 "eval_derivative: du + dv must be >= 1 (use eval_point for the (0, 0) order)"
             ),
-            1..=2 => elementary::cone_derivative(
+            _ => elementary::cone_derivative(
                 &self.frame,
                 self.ref_radius,
                 self.semi_angle,
@@ -403,9 +403,6 @@ impl ParametricSurface for Cone {
                 v,
                 du,
                 dv,
-            ),
-            _ => panic!(
-                "eval_derivative: order du={du}, dv={dv} is not supported (du + dv must be <= 2)"
             ),
         }
     }

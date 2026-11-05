@@ -11,7 +11,8 @@ use crate::operations::intersect::numeric::bezier_pieces::{
     CurvePieces, apart_along, bounding_box, box_size, cross, curves_meet_at_most_once, dot,
     euclidean, norm, sub,
 };
-use crate::operations::intersect::numeric::curve_surface_hull::Range;
+use crate::operations::intersect::numeric::curve_curve::same_contact;
+use crate::operations::intersect::numeric::parameter_domain::ParameterDomain;
 use crate::operations::intersect::numeric::subdivision::{
     Node, OnceExhausted, PairTests, Subdivision, Visit, interval,
 };
@@ -46,17 +47,22 @@ impl CurveCurveHits {
         Self::new(hits, Completeness::Sampled)
     }
 
-    /// Adds the `sampled` hits farther than `sqrt(tol.confusion)` from
-    /// every hit already found, keeping the order by first-curve
-    /// parameter.
-    pub(crate) fn add_sampled(&mut self, sampled: Vec<CurveCurveHit>, tol: Tolerance) {
-        let merge_gap = tol.confusion.sqrt();
+    /// Adds the `sampled` hits of the curves `a` and `b` that are not one
+    /// contact with a hit already found (see
+    /// [`same_contact`](super::curve_curve::same_contact)), keeping the
+    /// order by first-curve parameter.
+    pub(crate) fn add_sampled<A, B>(
+        &mut self,
+        a: &A,
+        b: &B,
+        sampled: Vec<CurveCurveHit>,
+        tol: Tolerance,
+    ) where
+        A: ParametricCurve,
+        B: ParametricCurve,
+    {
         for hit in sampled {
-            if self
-                .hits
-                .iter()
-                .all(|h| h.point.distance(hit.point) > merge_gap)
-            {
+            if self.hits.iter().all(|h| !same_contact(a, b, h, &hit, tol)) {
                 self.hits.push(hit);
             }
         }
@@ -130,9 +136,10 @@ const NEWTON_STEPS: usize = 32;
 ///   [`curves_meet_at_most_once`]), solved from the pair's centre by
 ///   Gauss-Newton steps minimising `|A(s) - B(t)|^2` on the B-splines
 ///   themselves (3D curves need not meet exactly). A hit within the pair
-///   settles it, and so does one within `sqrt(tol.confusion)` of the
-///   whole first piece, as the pair's hit would merge into it; any other
-///   hit is still kept.
+///   settles it, and so does one within `tol.confusion` of the whole
+///   first piece. Any other hit is kept, and the pair is split on: the
+///   crossing it found may be another one than the pair holds, and a
+///   hit outside the pair does not stand for the pair's own.
 ///
 /// A tangency or an overlap never separates into such pairs. A pair is
 /// left as never separating once both its pieces lie within
@@ -143,9 +150,9 @@ const NEWTON_STEPS: usize = 32;
 /// incomplete, with the unsettled pairs as its regions.
 pub(crate) fn bspline_curve_curve(
     a: &BSplineCurve,
-    ra: Range,
+    ra: ParameterDomain,
     b: &BSplineCurve,
-    rb: Range,
+    rb: ParameterDomain,
     tol: Tolerance,
 ) -> (Vec<CurveCurveExtremum>, Completeness<CurveCurveRegion>) {
     search_meetings(a, ra, b, rb, tol, SPLITS_PER_PAIR)
@@ -155,15 +162,15 @@ pub(crate) fn bspline_curve_curve(
 /// initial pair of pieces.
 fn search_meetings(
     a: &BSplineCurve,
-    ra: Range,
+    ra: ParameterDomain,
     b: &BSplineCurve,
-    rb: Range,
+    rb: ParameterDomain,
     tol: Tolerance,
     splits_per_pair: usize,
 ) -> (Vec<CurveCurveExtremum>, Completeness<CurveCurveRegion>) {
     let (pieces_a, pieces_b) = (
-        CurvePieces::new(a, (ra.lo, ra.hi)),
-        CurvePieces::new(b, (rb.lo, rb.hi)),
+        CurvePieces::new(a, (ra.start(), ra.end())),
+        CurvePieces::new(b, (rb.start(), rb.end())),
     );
     let mut pairs = Subdivision::new(
         [pieces_a.width, pieces_b.width].map(|w| (w, 1, 4)),
@@ -200,7 +207,7 @@ fn search_meetings(
 /// The tests of [`bspline_curve_curve`] on a pair of pieces of its
 /// `curves` over their ranges, and the meetings `found`.
 struct Meetings<'a> {
-    curves: [(&'a BSplineCurve, Range); 2],
+    curves: [(&'a BSplineCurve, ParameterDomain); 2],
     tol: Tolerance,
     found: Vec<CurveCurveExtremum>,
 }
@@ -241,13 +248,13 @@ impl PairTests for Meetings<'_> {
 /// most once, the first one with the Euclidean control points `pa`,
 /// solved from the pair's centre (see [`closest_pair`]): the hit, if one
 /// lies within `tol.confusion` of both curves, and whether it settles the
-/// pair, lying within it or within `sqrt(tol.confusion)` of the whole
-/// first piece.
+/// pair, lying within it or within `tol.confusion` of the whole first
+/// piece.
 fn meeting(
     a: &BSplineCurve,
-    ra: Range,
+    ra: ParameterDomain,
     b: &BSplineCurve,
-    rb: Range,
+    rb: ParameterDomain,
     pa: &[[f64; 3]],
     ranges: [(f64, f64); 2],
     tol: Tolerance,
@@ -260,15 +267,11 @@ fn meeting(
     if distance > tol.confusion {
         return None;
     }
-    let within = |x: f64, (lo, hi): (f64, f64), range: Range| {
-        lo - range.slack() <= x && x <= hi + range.slack()
-    };
-    let inside = within(x[0], (s0, s1), ra) && within(x[1], (t0, t1), rb);
-    let merge_gap = tol.confusion.sqrt();
+    let inside = ra.within_slack_of(x[0], (s0, s1)) && rb.within_slack_of(x[1], (t0, t1));
     let settles = inside
         || pa
             .iter()
-            .all(|p| norm(sub(*p, [point.x, point.y, point.z])) <= merge_gap);
+            .all(|p| norm(sub(*p, [point.x, point.y, point.z])) <= tol.confusion);
     let hit = CurveCurveExtremum {
         first_parameter: s,
         second_parameter: t,

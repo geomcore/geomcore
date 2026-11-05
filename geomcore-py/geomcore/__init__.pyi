@@ -38,6 +38,9 @@ class Curve3DToUvError(GeomcoreError):
 class UvCurveTo3DError(GeomcoreError):
     """A UV curve, a curve in a surface's parameter space, has no exact 3D curve in the same parameter."""
 
+class UvCurveApproximationError(GeomcoreError):
+    """A UV curve, a curve in a surface's parameter space, has no 3D curve within the asked deviation."""
+
 class SurfaceIsoError(GeomcoreError):
     """An iso-parametric curve of a surface could not be extracted."""
 
@@ -326,6 +329,15 @@ class SurfaceCurvatures:
     def gaussian(self) -> float: ...
 
 @final
+class UvCurveApproximation:
+    __hash__: ClassVar[None]  # type: ignore[assignment]
+    @property
+    def curve(self) -> BSplineCurve: ...
+    @property
+    def deviation(self) -> float: ...
+    def is_proven(self) -> bool: ...
+
+@final
 class IntersectionMethod:
     EXACT: ClassVar[IntersectionMethod]
     NUMERIC: ClassVar[IntersectionMethod]
@@ -348,6 +360,7 @@ class CompletenessStatus:
 class IncompleteReason:
     BUDGET_EXHAUSTED: ClassVar[IncompleteReason]
     UNSEPARATED: ClassVar[IncompleteReason]
+    UNBOUNDED: ClassVar[IncompleteReason]
     @property
     def name(self) -> str: ...
     def __int__(self) -> int: ...
@@ -614,6 +627,12 @@ class CurveCurveExtrema:
 def curve_3d_to_uv_numeric(
     curve: _Curve, surface: _Surface, sample_count: int = ..., tol: Optional[Tolerance] = ...
 ) -> List[Tuple[float, float]]: ...
+def uv_curve_to_3d_within(
+    surface: _Surface,
+    uv_curve: _Curve2D,
+    max_deviation: float,
+    tol: Optional[Tolerance] = ...,
+) -> UvCurveApproximation: ...
 def curve_curve_extrema(
     first: _Curve, second: _Curve, tol: Optional[Tolerance] = ...
 ) -> CurveCurveExtrema: ...
@@ -630,6 +649,7 @@ __all__ = [
     "BSplineConversionError",
     "Curve3DToUvError",
     "UvCurveTo3DError",
+    "UvCurveApproximationError",
     "SurfaceIsoError",
     "DiscretizationCriteriaError",
     "Axis2D",
@@ -667,10 +687,12 @@ __all__ = [
     "SurfaceSurfaceRegion",
     "Tolerance",
     "Transform",
+    "UvCurveApproximation",
     "Vector2D",
     "Vector",
     "curve_curve_extrema",
     "curves",
     "curve_3d_to_uv_numeric",
     "surfaces",
+    "uv_curve_to_3d_within",
 ]

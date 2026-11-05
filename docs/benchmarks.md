@@ -503,7 +503,8 @@ versions:
   the distance from the seed;
 - the current one. Steps follow the curvature with no fixed cap, are
   halved when the midpoint strays from the chord or the step crosses more
-  than one knot of a B-spline side, and stop on the model-size cube.
+  than one knot of a B-spline side, and stop on the trace box (the
+  model-size cube before 2026-11-02, the seeded box after it).
   Bounded pairs add both grids.
 
 | case | grid | first round | current |

@@ -20,7 +20,8 @@ use crate::geometry::surfaces::{
 };
 use crate::math::numeric::boxtree::Aabb;
 use crate::operations::intersect::Completeness;
-use crate::operations::intersect::numeric::curve_surface_hull::{CurveSurfaceHits, Range};
+use crate::operations::intersect::numeric::curve_surface_hull::CurveSurfaceHits;
+use crate::operations::intersect::numeric::parameter_domain::ParameterDomain;
 use crate::{Point, Tolerance, Vector};
 
 /// A surface as B-spline patches holding the part of it a search can
@@ -36,7 +37,7 @@ pub(crate) struct SurfacePatches<'a> {
 struct ParameterMap {
     directions: [Direction; 2],
     /// The surface's parameter ranges the patches cover.
-    ranges: [Range; 2],
+    ranges: [ParameterDomain; 2],
 }
 
 impl<'a> SurfacePatches<'a> {
@@ -103,8 +104,8 @@ impl<'a> SurfacePatches<'a> {
         match &self.map {
             None => uv,
             Some(map) => (
-                settle(map.ranges[0], map.directions[0].carried(uv.0)),
-                settle(map.ranges[1], map.directions[1].carried(uv.1)),
+                map.ranges[0].settle(map.directions[0].carried(uv.0)),
+                map.ranges[1].settle(map.directions[1].carried(uv.1)),
             ),
         }
     }
@@ -199,27 +200,6 @@ pub(crate) fn nearest(angle: f64, x: f64) -> f64 {
     x + d - TAU * (d / TAU).round()
 }
 
-/// `x` brought into `range`: wrapped into a periodic one, else clamped.
-pub(crate) fn settle(range: Range, x: f64) -> f64 {
-    range.admit(x).unwrap_or(x.clamp(range.lo, range.hi))
-}
-
-/// The whole turn of an angle.
-const TURN: Range = Range {
-    lo: 0.0,
-    hi: TAU,
-    periodic: true,
-};
-
-/// The interval `(lo, hi)` of a parameter that is not periodic.
-fn interval((lo, hi): (f64, f64)) -> Range {
-    Range {
-        lo,
-        hi,
-        periodic: false,
-    }
-}
-
 /// How the parameter of a B-spline patch along one direction maps to the
 /// surface's.
 enum Direction {
@@ -291,7 +271,10 @@ fn elementary_patches(
             (
                 vec![p.to_bspline_patch(u, v).ok()?],
                 [Direction::Straight, Direction::Straight],
-                [interval(u), interval(v)],
+                [
+                    ParameterDomain::Interval(u.0, u.1),
+                    ParameterDomain::Interval(v.0, v.1),
+                ],
             )
         }
         ElementarySurface::Cylinder(c) => {
@@ -300,7 +283,7 @@ fn elementary_patches(
             (
                 vec![c.to_bspline_patch((0.0, TAU), v).ok()?],
                 [Direction::circular((0.0, TAU))?, Direction::Straight],
-                [TURN, interval(v)],
+                [ParameterDomain::TURN, ParameterDomain::Interval(v.0, v.1)],
             )
         }
         ElementarySurface::Cone(c) => {
@@ -322,7 +305,7 @@ fn elementary_patches(
             (
                 patches,
                 [Direction::circular((0.0, TAU))?, Direction::Straight],
-                [TURN, interval((v0, v1))],
+                [ParameterDomain::TURN, ParameterDomain::Interval(v0, v1)],
             )
         }
         ElementarySurface::Sphere(s) => {
@@ -333,7 +316,10 @@ fn elementary_patches(
                     Direction::circular((0.0, TAU))?,
                     Direction::circular(latitudes)?,
                 ],
-                [TURN, interval(latitudes)],
+                [
+                    ParameterDomain::TURN,
+                    ParameterDomain::Interval(latitudes.0, latitudes.1),
+                ],
             )
         }
         ElementarySurface::Torus(t) => (
@@ -342,7 +328,7 @@ fn elementary_patches(
                 Direction::circular((0.0, TAU))?,
                 Direction::circular((0.0, TAU))?,
             ],
-            [TURN, TURN],
+            [ParameterDomain::TURN, ParameterDomain::TURN],
         ),
     };
     Some((patches, ParameterMap { directions, ranges }))
@@ -376,14 +362,10 @@ fn extrusion_patches(
         });
     let v = (c0 - p1, c1 - p0);
     let patch = surface.to_bspline_patch(u, v).ok()?;
-    let u_range = Range {
-        lo: u.0,
-        hi: u.1,
-        periodic: profile.period().is_some(),
-    };
+    let u_range = ParameterDomain::from_bounds(u, profile.period());
     let map = ParameterMap {
         directions: [Direction::of_profile(profile, arc)?, Direction::Straight],
-        ranges: [u_range, interval(v)],
+        ranges: [u_range, ParameterDomain::Interval(v.0, v.1)],
     };
     Some((vec![patch], map))
 }
@@ -395,17 +377,13 @@ fn revolution_patches(surface: &RevolutionSurface) -> Option<(Vec<BSplineSurface
     let v = bounded(profile)?;
     let arc = profile_bspline(profile, v).ok()?;
     let patch = surface.to_bspline_patch((0.0, TAU), v).ok()?;
-    let v_range = Range {
-        lo: v.0,
-        hi: v.1,
-        periodic: profile.period().is_some(),
-    };
+    let v_range = ParameterDomain::from_bounds(v, profile.period());
     let map = ParameterMap {
         directions: [
             Direction::circular((0.0, TAU))?,
             Direction::of_profile(profile, arc)?,
         ],
-        ranges: [TURN, v_range],
+        ranges: [ParameterDomain::TURN, v_range],
     };
     Some((vec![patch], map))
 }

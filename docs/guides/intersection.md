@@ -120,7 +120,8 @@ curve leaves it, within `tol.confusion` in space of the true end. The
 hits inside drop out, and the result stays `Incomplete`, with an
 `Unseparated` region over the overlap: samples found it, not a proof. A
 stretch where the operands only touch (they part as the square of the
-distance from the contact) stays a hit; an overlap between curves whose
+distance from the contact) is one hit at the closest approach, with
+multiplicity 2, and the result stays `Complete`; an overlap between curves whose
 range on the second curve would cross that curve's seam is not joined,
 and keeps its hits and region.
 
@@ -165,15 +166,19 @@ torus, lines of a plane) meet the other surface exactly, so an
 unbounded surface is searched whole. A B-spline side adds its own
 seeds, and two bounded surfaces add a parameter grid. It then traces
 with curvature-following steps corrected by Newton on both surfaces,
-until the trace closes or leaves the box of the smaller bounded side
-(the model-size cube when neither is bounded), and fits each
+until the trace closes or leaves its box: the smaller bounded side's
+box, or, when neither side is bounded, the box of the seeds grown by
+the larger surface size. A branch that leaves that seeded box is cut
+there and reported as unbounded. The trace fits each
 loop or arc as a `BSplineCurve`: where the surfaces cross, cubic
 Hermite segments through the traced points and their exact tangents,
 each checked at its midpoint, so the whole curve stays within
 confusion of both surfaces. Two B-spline surfaces additionally
 seed from overlapping patch pairs, so isolated loops smaller than the
 seed spacing are found there. A marched result is `Sampled`: a loop
-smaller than the iso-curve spacing can be missed.
+smaller than the iso-curve spacing can be missed. Where a branch of two
+unbounded surfaces was cut at its box, the result is `Incomplete` with
+`Unbounded` as its reason, and its regions mark where the cuts are.
 
 <figure class="geom-fig">
 <img src="../../assets/figures/intersection/31-marching-round-a-cylinder-and-a-sphere.svg" alt="Marching round a cylinder and a sphere">
