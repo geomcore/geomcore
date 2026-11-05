@@ -62,22 +62,32 @@ impl<R> Completeness<R> {
 /// incomplete with the merged `regions` of the pairs it left: out of
 /// budget if `exhausted`, else never separating.
 pub(crate) fn of_unsettled<R: Region>(regions: Vec<R>, exhausted: bool) -> Completeness<R> {
-    if regions.is_empty() {
-        return Completeness::Complete;
-    }
-    Completeness::Incomplete {
-        reason: if exhausted {
+    of_reason(
+        regions,
+        if exhausted {
             IncompleteReason::BudgetExhausted
         } else {
             IncompleteReason::Unseparated
         },
+    )
+}
+
+/// Complete when `regions` is empty, else incomplete for `reason` with
+/// the merged regions (see [`IncompleteReason`]).
+pub(crate) fn of_reason<R: Region>(regions: Vec<R>, reason: IncompleteReason) -> Completeness<R> {
+    if regions.is_empty() {
+        return Completeness::Complete;
+    }
+    Completeness::Incomplete {
+        reason,
         regions: merged(regions),
     }
 }
 
 /// The completeness of the hits of two searches taken together: complete
-/// when both are, else incomplete with the regions of both, out of budget
-/// if either ran out; sampled if either is.
+/// when both are, else incomplete with the regions of both, for the
+/// stronger of their reasons (see [`IncompleteReason`]); sampled if either
+/// is.
 pub(crate) fn both<R: Region>(a: Completeness<R>, b: Completeness<R>) -> Completeness<R> {
     use Completeness::{Complete, Incomplete, Sampled};
     match (a, b) {
@@ -94,9 +104,21 @@ pub(crate) fn both<R: Region>(a: Completeness<R>, b: Completeness<R>) -> Complet
             },
         ) => {
             regions.extend(more);
-            let exhausted = [ra, rb].contains(&IncompleteReason::BudgetExhausted);
-            of_unsettled(regions, exhausted)
+            of_reason(regions, stronger(ra, rb))
         }
+    }
+}
+
+/// The stronger of two reasons: out of budget over an unbounded branch
+/// over a pair that never separates.
+pub(crate) fn stronger(a: IncompleteReason, b: IncompleteReason) -> IncompleteReason {
+    let reasons = [a, b];
+    if reasons.contains(&IncompleteReason::BudgetExhausted) {
+        IncompleteReason::BudgetExhausted
+    } else if reasons.contains(&IncompleteReason::Unbounded) {
+        IncompleteReason::Unbounded
+    } else {
+        IncompleteReason::Unseparated
     }
 }
 
@@ -155,6 +177,15 @@ pub(crate) fn merged<R: Region>(mut regions: Vec<R>) -> Vec<R> {
 
 /// Why a numeric intersection is [`Completeness::Incomplete`].
 ///
+/// Where a result has more than one kind of trouble, its reason is the
+/// strongest of them, in this order: [`BudgetExhausted`](Self::BudgetExhausted)
+/// over [`Unbounded`](Self::Unbounded) over [`Unseparated`](Self::Unseparated).
+/// A larger budget would settle the first; the second needs the branches
+/// followed beyond their box, which the search does not do; the third
+/// is where the search cannot separate the pieces at all. Every region
+/// of every kind is kept, so the reason names the strongest cause, never
+/// hiding a region.
+///
 /// # Examples
 ///
 /// ```
@@ -193,8 +224,17 @@ pub enum IncompleteReason {
     /// allows.
     BudgetExhausted,
     /// Some pairs of pieces never separated, however small they were
-    /// halved: a tangent contact, an overlap (a curve lying on the
-    /// surface or along the other curve), or a hit at a singular point.
-    /// Its regions hold them.
+    /// halved: a tangent contact of a curve with a surface, an overlap (a
+    /// curve lying on the surface or along the other curve), or a hit at a
+    /// singular point. Its regions hold them. A tangent contact between two
+    /// curves is instead one hit, and the result stays complete.
     Unseparated,
+    /// A branch of the intersection of two unbounded surfaces, a cone and
+    /// a cylinder say, runs beyond the box its trace was cut at: the box
+    /// grown from the seeds, which the search does not follow past. The
+    /// curve continues there, and the regions hold where each branch was
+    /// cut, so the caller knows where it goes on. Outside the regions the
+    /// marching search is as sampled as before, so hits may still be
+    /// missing there.
+    Unbounded,
 }

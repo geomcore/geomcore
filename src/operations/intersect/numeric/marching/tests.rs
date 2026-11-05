@@ -672,39 +672,99 @@ fn test_marching_does_not_skip_a_tent_in_a_knot_cluster() {
     }
 }
 
-#[test]
-fn test_marching_stops_on_the_model_size_cube() {
-    // A cylinder whose axis is parallel to a generator of the cone, off
-    // the apex: the intersection runs to infinity.
+/// The cone of semi-angle 0.3 about `z` and the cylinder of radius 0.5
+/// whose axis is parallel to one of its generators, off the apex, both
+/// moved by `offset`: the intersection runs to infinity.
+fn cone_and_generator_cylinder(offset: Vector) -> (crate::Cone, crate::Cylinder) {
     use crate::{Cone, Cylinder};
-    let tol = Tolerance::DEFAULT;
-    let cone = Cone::new(Point::ORIGIN, Vector::Z, 0.3, 1.0).unwrap();
+    let cone = Cone::new(Point::ORIGIN + offset, Vector::Z, 0.3, 1.0).unwrap();
     let generator = Vector::new(0.3f64.sin(), 0.0, 0.3f64.cos());
-    let cylinder = Cylinder::new(Point::new(1.0, 0.0, 0.0), generator, 0.5).unwrap();
-    let curves = marched_curves(&cone, &cylinder, tol);
-    assert!(!curves.is_empty());
-    let half = 0.5 * Tolerance::MODEL_SIZE;
-    let on_cube = |p: Point| {
-        [p.x, p.y, p.z]
-            .iter()
-            .any(|c| (c.abs() - half).abs() < 1e-3)
+    let cylinder = Cylinder::new(Point::new(1.0, 0.0, 0.0) + offset, generator, 0.5).unwrap();
+    (cone, cylinder)
+}
+
+#[test]
+fn test_marching_cuts_an_unbounded_branch_and_reports_it() {
+    let tol = Tolerance::DEFAULT;
+    let (cone, cylinder) = cone_and_generator_cylinder(Vector::ZERO);
+    let result = marching_intersection(&cone, &cylinder, tol);
+    let Completeness::Incomplete { reason, regions } = result.completeness() else {
+        panic!(
+            "expected an incomplete result, got {:?}",
+            result.completeness()
+        );
     };
-    for curve in &curves {
-        let (t0, t1) = curve.bounds();
-        let ends = [curve.eval_point(t0), curve.eval_point(t1)];
-        // Both branches of each curve run to infinity: every trace ends
-        // on the cube, so none ran out of steps.
-        assert!(ends.iter().all(|&p| on_cube(p)), "{ends:?}");
-        assert!(curve.poles().len() < 2000, "{} poles", curve.poles().len());
+    assert_eq!(*reason, IncompleteReason::Unbounded);
+    assert!(!result.curves().is_empty());
+    // Each branch ends where the trace left the box, and that point lies
+    // in the region reported for the cut.
+    for piece in result.curves() {
+        let (t0, t1) = piece.curve.bounds();
+        for end in [piece.curve.eval_point(t0), piece.curve.eval_point(t1)] {
+            let inside = |r: &SurfaceSurfaceRegion| {
+                let (lo, hi) = (r.min_corner, r.max_corner);
+                let tol = 1e-6;
+                (lo.x - tol..=hi.x + tol).contains(&end.x)
+                    && (lo.y - tol..=hi.y + tol).contains(&end.y)
+                    && (lo.z - tol..=hi.z + tol).contains(&end.z)
+            };
+            assert!(regions.iter().any(inside), "{end:?} lies in no cut region");
+        }
+        if let Curve::BSpline(fit) = &piece.curve {
+            assert!(fit.poles().len() < 2000, "{} poles", fit.poles().len());
+        }
     }
+    let curves = marched_curves(&cone, &cylinder, tol);
     assert_on_both(&curves, &cone, &cylinder);
 }
 
 #[test]
-fn test_marching_finds_bounded_curves_beyond_the_model_size_cube() {
+fn test_marching_unbounded_branches_do_not_depend_on_where_the_pair_lies() {
+    // Moved 1e6 away from the origin, along the diagonal, the pair has the
+    // same branches: nothing in marching is fixed in space.
+    let tol = Tolerance::DEFAULT;
+    let (cone, cylinder) = cone_and_generator_cylinder(Vector::ZERO);
+    let near = marching_intersection(&cone, &cylinder, tol);
+    let offset = Vector::new(1.0, 1.0, 1.0) * (1e6 / 3f64.sqrt());
+    let (far_cone, far_cylinder) = cone_and_generator_cylinder(offset);
+    let far = marching_intersection(&far_cone, &far_cylinder, tol);
+    assert_eq!(far.curves().len(), near.curves().len());
+    assert!(matches!(
+        far.completeness(),
+        Completeness::Incomplete {
+            reason: IncompleteReason::Unbounded,
+            ..
+        }
+    ));
+    let curves = marched_curves(&far_cone, &far_cylinder, tol);
+    assert_on_both(&curves, &far_cone, &far_cylinder);
+}
+
+#[test]
+fn test_marching_with_a_bounded_side_stays_sampled() {
+    // A bounded side holds the whole intersection: its box catches only
+    // runaway steps, so nothing is cut and the result stays sampled.
+    use crate::{Plane, Sphere, Torus};
+    let tol = Tolerance::DEFAULT;
+    let plane = Plane::new(Point::new(0.0, 0.0, 0.5), Vector::Z).unwrap();
+    let sphere = Sphere::new(Point::ORIGIN, 1.0).unwrap();
+    assert_eq!(
+        marching_intersection(&plane, &sphere, tol).completeness(),
+        &Completeness::Sampled
+    );
+    let torus = Torus::new(Point::ORIGIN, Vector::Z, 3.0, 1.0).unwrap();
+    let plane = Plane::new(Point::ORIGIN, Vector::new(0.3, 0.0, 1.0)).unwrap();
+    assert_eq!(
+        marching_intersection(&plane, &torus, tol).completeness(),
+        &Completeness::Sampled
+    );
+}
+
+#[test]
+fn test_marching_finds_bounded_curves_far_from_the_origin() {
     // Two tori in general position cross in two loops, wherever they lie:
     // a bounded surface bounds the curves, so traces end on its box, not
-    // on the cube around the origin (#138).
+    // on a box fixed around the origin (#138).
     use crate::Torus;
     let tol = Tolerance::DEFAULT;
     let pair = |offset: Vector| {

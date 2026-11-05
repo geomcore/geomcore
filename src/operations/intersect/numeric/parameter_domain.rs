@@ -1,11 +1,19 @@
-//! The parameter domain of a curve: its bounds or its period, with the
-//! wrapping and stepping the numeric searches share.
+//! The parameter domain of a curve or of a surface direction: its bounds
+//! or its period, with the wrapping, stepping and slack the numeric
+//! searches share.
+
+use std::f64::consts::TAU;
 
 use crate::geometry::curves::ParametricCurve;
-use crate::operations::intersect::numeric::curve_surface_hull;
 
-/// The parameter domain of one curve in a numeric search: a full period
-/// or an interval.
+/// Parameters within this fraction of a domain's width outside it (or
+/// outside a subpiece pair) count as inside.
+const SLACK: f64 = 1e-10;
+
+/// The parameter domain of a curve or of a surface direction in a numeric
+/// search: a full period or an interval. Two rules bring a parameter into
+/// it, on purpose: `wrap` snaps at the minimiser's resolution, `admit`
+/// accepts within the piece searches' slack.
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum ParameterDomain {
     /// A full period from `start`: unconstrained, wrapped into
@@ -16,16 +24,27 @@ pub(crate) enum ParameterDomain {
 }
 
 impl ParameterDomain {
-    /// The domain of `curve`; a periodic curve bounded to less than a
-    /// period is an arc, so it is an interval.
-    pub(crate) fn of<C: ParametricCurve>(curve: &C) -> ParameterDomain {
-        let (lo, hi) = curve.bounds();
-        match curve.period() {
+    /// The whole turn of an angle.
+    pub(crate) const TURN: ParameterDomain = ParameterDomain::Periodic {
+        start: 0.0,
+        period: TAU,
+    };
+
+    /// The domain of a parameter over `(lo, hi)` with period `period`, if
+    /// any: the period from `lo` when the bounds span it, else the interval
+    /// (a periodic curve bounded to less than a period is an arc).
+    pub(crate) fn from_bounds((lo, hi): (f64, f64), period: Option<f64>) -> ParameterDomain {
+        match period {
             Some(period) if lo.is_finite() && hi - lo >= period * (1.0 - 1e-12) => {
                 ParameterDomain::Periodic { start: lo, period }
             }
             _ => ParameterDomain::Interval(lo, hi),
         }
+    }
+
+    /// The domain of `curve`.
+    pub(crate) fn of<C: ParametricCurve>(curve: &C) -> ParameterDomain {
+        ParameterDomain::from_bounds(curve.bounds(), curve.period())
     }
 
     /// The box constraint of the minimiser (`None`: unconstrained).
@@ -85,22 +104,6 @@ impl ParameterDomain {
         }
     }
 
-    /// A finite domain as the parameter range of a piece-pair search.
-    pub(crate) fn range(self) -> curve_surface_hull::Range {
-        match self {
-            ParameterDomain::Periodic { start, period } => curve_surface_hull::Range {
-                lo: start,
-                hi: start + period,
-                periodic: true,
-            },
-            ParameterDomain::Interval(lo, hi) => curve_surface_hull::Range {
-                lo,
-                hi,
-                periodic: false,
-            },
-        }
-    }
-
     /// The signed step from `u` to `v`, the shorter way round a period.
     pub(crate) fn step(self, u: f64, v: f64) -> f64 {
         match self {
@@ -111,4 +114,72 @@ impl ParameterDomain {
             ParameterDomain::Interval(..) => v - u,
         }
     }
+
+    /// The start of the domain: the start of a period, or the lower end of
+    /// an interval.
+    pub(crate) fn start(self) -> f64 {
+        match self {
+            ParameterDomain::Periodic { start, .. } => start,
+            ParameterDomain::Interval(lo, _) => lo,
+        }
+    }
+
+    /// The end of the domain: `start` plus the period, or the upper end of
+    /// an interval.
+    pub(crate) fn end(self) -> f64 {
+        match self {
+            ParameterDomain::Periodic { start, period } => start + period,
+            ParameterDomain::Interval(_, hi) => hi,
+        }
+    }
+
+    /// The width of the domain: the period, or the length of the interval.
+    pub(crate) fn width(self) -> f64 {
+        match self {
+            ParameterDomain::Periodic { period, .. } => period,
+            ParameterDomain::Interval(lo, hi) => hi - lo,
+        }
+    }
+
+    /// The slack around the domain: [`SLACK`] of its width.
+    pub(crate) fn slack(self) -> f64 {
+        SLACK * self.width()
+    }
+
+    /// `x` admitted into the domain, or `None` when it lies beyond the slack
+    /// of an interval. A period wraps `x` into its extent, reading a value
+    /// within the slack of its end as its start. An interval clamps `x` into
+    /// its ends.
+    pub(crate) fn admit(self, x: f64) -> Option<f64> {
+        let slack = self.slack();
+        match self {
+            ParameterDomain::Periodic { start, period } => {
+                let wrapped = start + (x - start).rem_euclid(period);
+                Some(if start + period - wrapped <= slack {
+                    start
+                } else {
+                    wrapped
+                })
+            }
+            ParameterDomain::Interval(lo, hi) if x < lo - slack || x > hi + slack => None,
+            ParameterDomain::Interval(lo, hi) => Some(x.clamp(lo, hi)),
+        }
+    }
+
+    /// `x` brought into the domain: admitted (see [`Self::admit`]) when it
+    /// lies within the slack, else clamped into the interval.
+    pub(crate) fn settle(self, x: f64) -> f64 {
+        self.admit(x)
+            .unwrap_or_else(|| x.clamp(self.start(), self.end()))
+    }
+
+    /// Whether `x` lies within `(low, high)` widened by the slack on both
+    /// sides.
+    pub(crate) fn within_slack_of(self, x: f64, (low, high): (f64, f64)) -> bool {
+        let slack = self.slack();
+        low - slack <= x && x <= high + slack
+    }
 }
+
+#[cfg(test)]
+mod tests;

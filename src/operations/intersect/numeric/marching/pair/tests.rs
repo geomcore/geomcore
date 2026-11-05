@@ -1,5 +1,5 @@
 use super::*;
-use crate::{Cylinder, Plane, Sphere};
+use crate::{Cone, Cylinder, Plane, Sphere};
 use std::f64::consts::FRAC_PI_2;
 
 const TOL: Tolerance = Tolerance::DEFAULT;
@@ -196,17 +196,64 @@ fn test_the_trace_box_is_the_smaller_bounded_side_grown_by_a_tenth() {
     // tenth of it on every side, whichever side it is.
     let grown = 1.0 + 0.2 * 3f64.sqrt();
     for limit in [
-        SurfacePair::new(&plane, &near).trace_box(),
-        SurfacePair::new(&near, &large).trace_box(),
-        SurfacePair::new(&large, &near).trace_box(),
+        SurfacePair::new(&plane, &near).trace_box(&[], TOL),
+        SurfacePair::new(&near, &large).trace_box(&[], TOL),
+        SurfacePair::new(&large, &near).trace_box(&[], TOL),
     ] {
-        let (low, high) = (limit.min(), limit.max());
+        assert!(matches!(limit, TraceBox::Bounded(_)));
+        let (low, high) = (limit.bounds().min(), limit.bounds().max());
         assert!((high.x - (1e5 + grown)).abs() < 1e-9, "{high:?}");
         assert!((low.y + grown).abs() < 1e-9 && (high.z - grown).abs() < 1e-9);
     }
-    // Two unbounded sides: the model-size cube about the origin.
-    let other = Plane::new(Point::ORIGIN, Vector::X).unwrap();
-    let cube = SurfacePair::new(&plane, &other).trace_box();
-    let half = 0.5 * Tolerance::MODEL_SIZE;
-    assert_eq!(cube.max(), Point::new(half, half, half));
+}
+
+#[test]
+fn test_two_planes_grow_the_seeded_box_by_their_window_whatever_the_seeds() {
+    // Two planes have no own size: the box of the seeds grows by the size
+    // of the seeding window in space, here the fallback square of side 20
+    // (diagonal 20 sqrt(2)), however many seeds survived along the line.
+    let first = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
+    let second = Plane::new(Point::new(0.0, 0.0, 0.25), Vector::X).unwrap();
+    let pair = SurfacePair::new(&first, &second);
+    let window = 20.0 * 2f64.sqrt();
+    let one = [[0.0, 0.0, 0.0, 0.0]];
+    let two = [[0.0, 0.0, 0.0, 0.0], [2.0, 0.0, 2.0, 0.0]];
+    for seeds in [&one[..], &two[..]] {
+        let limit = pair.trace_box(seeds, TOL);
+        assert!(matches!(limit, TraceBox::Seeded(_)) && limit.cuts_branches());
+        let (low, high) = (limit.bounds().min(), limit.bounds().max());
+        assert!((low.x + window).abs() < 1e-9, "{low:?}");
+        assert!((low.y + window).abs() < 1e-9 && (high.y - window).abs() < 1e-9);
+        let rightmost = if seeds.len() == 2 { 2.0 } else { 0.0 };
+        assert!((high.x - (rightmost + window)).abs() < 1e-9, "{high:?}");
+    }
+}
+
+#[test]
+fn test_the_seeded_trace_box_takes_the_larger_radius_of_a_cone_and_a_cylinder() {
+    // The cone's reference radius, 1, beats the cylinder's, 0.5.
+    let cone = Cone::new(Point::ORIGIN, Vector::Z, 0.3, 1.0).unwrap();
+    let generator = Vector::new(0.3f64.sin(), 0.0, 0.3f64.cos());
+    let cylinder = Cylinder::new(Point::new(1.0, 0.0, 0.0), generator, 0.5).unwrap();
+    let pair = SurfacePair::new(&cone, &cylinder);
+    let seed = [0.0, 0.0, 0.0, 0.0];
+    let at = cone.eval_point(0.0, 0.0);
+    let limit = pair.trace_box(&[seed], TOL).bounds();
+    let grown = limit.max() - at;
+    assert!(
+        (grown - Vector::new(1.0, 1.0, 1.0)).magnitude() < 1e-9,
+        "{grown:?}"
+    );
+}
+
+#[test]
+fn test_a_single_seed_of_two_planes_traces_as_far_as_the_window() {
+    // A single seed, no spread: the box still spans the seeding window,
+    // so the line through it is traced well beyond a first step.
+    let first = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
+    let second = Plane::new(Point::ORIGIN, Vector::X).unwrap();
+    let pair = SurfacePair::new(&first, &second);
+    let limit = pair.trace_box(&[[0.0, 0.0, 0.0, 0.0]], TOL).bounds();
+    assert!(limit.encloses(Point::new(0.0, 20.0, 0.0)));
+    assert!(limit.encloses(Point::new(0.0, -20.0, 0.0)));
 }

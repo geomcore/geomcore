@@ -16,25 +16,20 @@ use crate::operations::intersect::results::completeness::{Region, box_union, mee
 /// ```
 /// use geomcore::prelude::*;
 /// use geomcore::{BSplineCurve, Completeness, Point, Tolerance};
-/// // A parabola touching the segment at (2, 0, 0), at s = 0.5.
-/// let poles = vec![
-///     Point::new(0.0, 1.0, 0.0),
-///     Point::new(2.0, -1.0, 0.0),
-///     Point::new(4.0, 1.0, 0.0),
-/// ];
-/// let parabola = BSplineCurve::new(2, poles, vec![0.0, 1.0], vec![3, 3], false).unwrap();
-/// let ends = vec![Point::new(0.0, 0.0, 0.0), Point::new(4.0, 0.0, 0.0)];
-/// let segment = BSplineCurve::new(1, ends, vec![0.0, 1.0], vec![2, 2], false).unwrap();
-/// let result = parabola.intersect(&segment, Tolerance::DEFAULT);
+/// // A segment from x = 0 to x = 4, and a segment lying on it from x = 1 to x = 3.
+/// let outer = vec![Point::new(0.0, 0.0, 0.0), Point::new(4.0, 0.0, 0.0)];
+/// let outer = BSplineCurve::new(1, outer, vec![0.0, 1.0], vec![2, 2], false).unwrap();
+/// let inner = vec![Point::new(1.0, 0.0, 0.0), Point::new(3.0, 0.0, 0.0)];
+/// let inner = BSplineCurve::new(1, inner, vec![0.0, 1.0], vec![2, 2], false).unwrap();
+/// let result = outer.intersect(&inner, Tolerance::DEFAULT);
+/// assert_eq!(result.overlaps().len(), 1);
 /// let Completeness::Incomplete { regions, .. } = result.completeness() else {
-///     panic!("a tangent contact never separates");
+///     panic!("an overlap never separates");
 /// };
 /// assert_eq!(regions.len(), 1);
 /// let (s0, s1) = regions[0].first_range;
-/// assert!(s0 <= 0.5 && 0.5 <= s1 && s1 - s0 < 1e-2);
+/// assert!(s0 <= 0.5 && 0.5 <= s1);
 /// assert!(regions[0].min_corner.x <= 2.0 && 2.0 <= regions[0].max_corner.x);
-/// // The sampled search, run as well, finds the contact.
-/// assert_eq!(result.hits().len(), 1);
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CurveCurveRegion {
@@ -46,6 +41,34 @@ pub struct CurveCurveRegion {
     pub min_corner: Point,
     /// The corner of the box with the largest coordinates.
     pub max_corner: Point,
+}
+
+impl Region for SurfaceSurfaceRegion {
+    fn touches(&self, other: &SurfaceSurfaceRegion) -> bool {
+        meet(self.first_u_range, other.first_u_range)
+            && meet(self.first_v_range, other.first_v_range)
+            && meet(self.second_u_range, other.second_u_range)
+            && meet(self.second_v_range, other.second_v_range)
+    }
+
+    fn union(&self, other: &SurfaceSurfaceRegion) -> SurfaceSurfaceRegion {
+        let (min_corner, max_corner) = box_union(
+            (self.min_corner, self.max_corner),
+            (other.min_corner, other.max_corner),
+        );
+        SurfaceSurfaceRegion {
+            first_u_range: span(self.first_u_range, other.first_u_range),
+            first_v_range: span(self.first_v_range, other.first_v_range),
+            second_u_range: span(self.second_u_range, other.second_u_range),
+            second_v_range: span(self.second_v_range, other.second_v_range),
+            min_corner,
+            max_corner,
+        }
+    }
+
+    fn start(&self) -> f64 {
+        self.first_u_range.0
+    }
 }
 
 impl Region for CurveCurveRegion {
