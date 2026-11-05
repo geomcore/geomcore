@@ -120,10 +120,7 @@ fn skew(rng: &mut Lcg, rational: bool) -> (BSplineCurve, BSplineCurve) {
 
 /// The hits of the piece-pair search, which must be complete.
 fn search<A: ParametricCurve, B: ParametricCurve>(a: &A, b: &B) -> Vec<CurveCurveHit> {
-    let (ra, rb) = (
-        ParameterDomain::of(a).range(),
-        ParameterDomain::of(b).range(),
-    );
+    let (ra, rb) = (ParameterDomain::of(a), ParameterDomain::of(b));
     let (sa, sb) = (a.as_bspline().unwrap(), b.as_bspline().unwrap());
     let (meetings, completeness) = bspline_curve_curve(sa, ra, sb, rb, TOL);
     assert!(completeness.is_complete(), "{completeness:?}");
@@ -134,7 +131,7 @@ fn search<A: ParametricCurve, B: ParametricCurve>(a: &A, b: &B) -> Vec<CurveCurv
 fn minima<A: ParametricCurve, B: ParametricCurve>(a: &A, b: &B) -> Vec<CurveCurveExtremum> {
     let (da, db) = (ParameterDomain::of(a), ParameterDomain::of(b));
     let (sa, sb) = (a.as_bspline().unwrap(), b.as_bspline().unwrap());
-    let (seeds, completeness) = bspline_minima(sa, da.range(), sb, db.range(), TOL);
+    let (seeds, completeness) = bspline_minima(sa, da, sb, db, TOL);
     assert!(completeness.is_complete(), "{completeness:?}");
     let mut out = refine_minima(a, da, b, db, seeds, TOL);
     out.sort_by(|x, y| x.distance.total_cmp(&y.distance));
@@ -435,10 +432,7 @@ fn raw_search<A: ParametricCurve, B: ParametricCurve>(
     a: &A,
     b: &B,
 ) -> (Vec<CurveCurveHit>, Completeness<CurveCurveRegion>) {
-    let (ra, rb) = (
-        ParameterDomain::of(a).range(),
-        ParameterDomain::of(b).range(),
-    );
+    let (ra, rb) = (ParameterDomain::of(a), ParameterDomain::of(b));
     let (sa, sb) = (a.as_bspline().unwrap(), b.as_bspline().unwrap());
     let (meetings, completeness) = bspline_curve_curve(sa, ra, sb, rb, TOL);
     (hits_at_minima(a, b, meetings, TOL), completeness)
@@ -654,9 +648,8 @@ fn test_exhausted_budget_leaves_the_pending_pairs() {
     for k in 0..8 {
         let (a, b) = crossing(&mut rng, k % 2 == 1, 3.0);
         let (da, db) = (ParameterDomain::of(&a), ParameterDomain::of(&b));
-        let (ra, rb) = (da.range(), db.range());
         let all = search(&a, &b);
-        let (meetings, completeness) = search_meetings(&a, ra, &b, rb, TOL, 0);
+        let (meetings, completeness) = search_meetings(&a, da, &b, db, TOL, 0);
         let found = hits_at_minima(&a, &b, meetings, TOL);
         let regions = exhausted(&completeness);
         count += usize::from(!regions.is_empty());
@@ -676,7 +669,7 @@ fn test_exhausted_budget_leaves_the_pending_pairs() {
         }
         // The same for the distance minima.
         let all = minima(&a, &b);
-        let (seeds, completeness) = search_minima(&a, ra, &b, rb, TOL, 0);
+        let (seeds, completeness) = search_minima(&a, da, &b, db, TOL, 0);
         let found = refine_minima(&a, da, &b, db, seeds, TOL);
         let regions = exhausted(&completeness);
         count += usize::from(!regions.is_empty());

@@ -12,7 +12,7 @@ use crate::operations::intersect::numeric::bezier_pieces::{
     euclidean, norm, sub,
 };
 use crate::operations::intersect::numeric::curve_curve::same_contact;
-use crate::operations::intersect::numeric::curve_surface_hull::Range;
+use crate::operations::intersect::numeric::parameter_domain::ParameterDomain;
 use crate::operations::intersect::numeric::subdivision::{
     Node, OnceExhausted, PairTests, Subdivision, Visit, interval,
 };
@@ -150,9 +150,9 @@ const NEWTON_STEPS: usize = 32;
 /// incomplete, with the unsettled pairs as its regions.
 pub(crate) fn bspline_curve_curve(
     a: &BSplineCurve,
-    ra: Range,
+    ra: ParameterDomain,
     b: &BSplineCurve,
-    rb: Range,
+    rb: ParameterDomain,
     tol: Tolerance,
 ) -> (Vec<CurveCurveExtremum>, Completeness<CurveCurveRegion>) {
     search_meetings(a, ra, b, rb, tol, SPLITS_PER_PAIR)
@@ -162,15 +162,15 @@ pub(crate) fn bspline_curve_curve(
 /// initial pair of pieces.
 fn search_meetings(
     a: &BSplineCurve,
-    ra: Range,
+    ra: ParameterDomain,
     b: &BSplineCurve,
-    rb: Range,
+    rb: ParameterDomain,
     tol: Tolerance,
     splits_per_pair: usize,
 ) -> (Vec<CurveCurveExtremum>, Completeness<CurveCurveRegion>) {
     let (pieces_a, pieces_b) = (
-        CurvePieces::new(a, (ra.lo, ra.hi)),
-        CurvePieces::new(b, (rb.lo, rb.hi)),
+        CurvePieces::new(a, (ra.start(), ra.end())),
+        CurvePieces::new(b, (rb.start(), rb.end())),
     );
     let mut pairs = Subdivision::new(
         [pieces_a.width, pieces_b.width].map(|w| (w, 1, 4)),
@@ -207,7 +207,7 @@ fn search_meetings(
 /// The tests of [`bspline_curve_curve`] on a pair of pieces of its
 /// `curves` over their ranges, and the meetings `found`.
 struct Meetings<'a> {
-    curves: [(&'a BSplineCurve, Range); 2],
+    curves: [(&'a BSplineCurve, ParameterDomain); 2],
     tol: Tolerance,
     found: Vec<CurveCurveExtremum>,
 }
@@ -252,9 +252,9 @@ impl PairTests for Meetings<'_> {
 /// piece.
 fn meeting(
     a: &BSplineCurve,
-    ra: Range,
+    ra: ParameterDomain,
     b: &BSplineCurve,
-    rb: Range,
+    rb: ParameterDomain,
     pa: &[[f64; 3]],
     ranges: [(f64, f64); 2],
     tol: Tolerance,
@@ -267,10 +267,7 @@ fn meeting(
     if distance > tol.confusion {
         return None;
     }
-    let within = |x: f64, (lo, hi): (f64, f64), range: Range| {
-        lo - range.slack() <= x && x <= hi + range.slack()
-    };
-    let inside = within(x[0], (s0, s1), ra) && within(x[1], (t0, t1), rb);
+    let inside = ra.within_slack_of(x[0], (s0, s1)) && rb.within_slack_of(x[1], (t0, t1));
     let settles = inside
         || pa
             .iter()
