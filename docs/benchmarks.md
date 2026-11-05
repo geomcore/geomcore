@@ -311,6 +311,16 @@ machine (load average 5–8), batches of 1024:
 |---|---|---|
 | plane–sphere | 77–82 ns | 113–120 ns |
 
+Since #193 the routed result also carries each curve in the parameters of
+both surfaces, found in closed form for an exact curve (a circle in the
+plane, a parallel line on the sphere). That doubled the routed call:
+plane–sphere about 235 ns per pair, callgrind 698 → 1729 instructions per
+batch item, of which `circle_on_surface` (the two UV curves) is 43%;
+torus–cone 1715 → 4317. A marched curve fits both UV curves on its knots
+from the parameters the march walked: 4–12% more instructions per march.
+The typed exact calls are unchanged and stay the fast path for a caller
+who needs only the curves in space.
+
 Reproduce with:
 
 ```sh
