@@ -6,9 +6,10 @@
 //! geometry: the direction of the intersection, and whether the surfaces
 //! touch or lie on each other there.
 
+use super::seeding::seed_window;
 use super::tracer::first_step;
-use crate::geometry::surfaces::ParametricSurface;
 use crate::geometry::surfaces::parametric_surface::{partials_span_a_plane, reference_widths};
+use crate::geometry::surfaces::{ElementarySurface, ParametricSurface};
 use crate::math::numeric::{solve_2x2, solve_3x3, solve_4x4};
 use crate::{BoundingBox, HasBoundingBox, Point, Tolerance, Vector};
 
@@ -426,13 +427,11 @@ where
         ])
     }
 
-    /// The box where traces end, grown by a tenth of its diagonal so that
-    /// no curve ends on it by rounding: the smaller box around a bounded
-    /// elementary or B-spline side (see [`own_box`]), which holds the whole
-    /// intersection; else the cube of side [`Tolerance::MODEL_SIZE`]
-    /// centred on the origin, the model where unbounded curves are
-    /// followed.
-    pub(super) fn trace_box(&self) -> BoundingBox {
+    /// The box where traces end (see [`TraceBox`]): the smaller box around
+    /// a bounded elementary or B-spline side (see [`own_box`]), which holds
+    /// the whole intersection; else the box of `seeds`, grown from their
+    /// spread and the surfaces' sizes (see [`seeded_box`](Self::seeded_box)).
+    pub(super) fn trace_box(&self, seeds: &[[f64; 4]], tol: Tolerance) -> TraceBox {
         let size = |b: &BoundingBox| b.diagonal().magnitude();
         match (own_box(self.first), own_box(self.second)) {
             (Some(first), Some(second)) if size(&second) < size(&first) => Some(second),
@@ -440,15 +439,36 @@ where
             (None, second) => second,
         }
         .map_or_else(
-            || {
-                let half = 0.5 * Tolerance::MODEL_SIZE;
-                BoundingBox::new(
-                    Point::new(-half, -half, -half),
-                    Point::new(half, half, half),
-                )
-            },
-            |bounds| bounds.enlarged(0.1 * size(&bounds)),
+            || TraceBox::Seeded(self.seeded_box(seeds, tol)),
+            |bounds| TraceBox::Bounded(bounds.enlarged(0.1 * size(&bounds))),
         )
+    }
+
+    /// The box of `seeds`, their points on the first surface, grown on
+    /// every side by the larger of the two surfaces' own sizes (see
+    /// [`own_size`]), a surface without one counting as the seeds' spread
+    /// (the diagonal of their box). Where neither has one (two planes), the
+    /// size of the seeding windows in space counts too (see
+    /// [`window_size`]). The
+    /// windows keep the growth from hanging on how many seeds survive:
+    /// along the line where two planes meet, every grid sample is a tie at
+    /// distance zero, and rounding decides which of them count as minima,
+    /// so a single seed may be all that is left. Never grown by less than
+    /// a first step. Nothing in it is fixed in space (a plane's window is
+    /// measured from its own origin), so a pair moved away from the origin
+    /// traces the same branches.
+    fn seeded_box(&self, seeds: &[[f64; 4]], tol: Tolerance) -> BoundingBox {
+        let points = BoundingBox::from_points(seeds.iter().map(|&x| self.point(x)));
+        let seed_box = points.unwrap_or_else(|| BoundingBox::new(Point::ORIGIN, Point::ORIGIN));
+        let spread = seed_box.diagonal().magnitude();
+        let growth = match (own_size(self.first), own_size(self.second)) {
+            (Some(first), Some(second)) => first.max(second),
+            (Some(size), None) | (None, Some(size)) => size.max(spread),
+            (None, None) => spread
+                .max(window_size(self.first, self.second, tol))
+                .max(window_size(self.second, self.first, tol)),
+        };
+        seed_box.enlarged(growth.max(first_step(tol)))
     }
 
     /// Whether the surfaces touch at parameters `x` (a point on both)
@@ -489,6 +509,71 @@ pub(super) fn own_box<S: ParametricSurface>(s: &S) -> Option<BoundingBox> {
         (Some(elementary), _) => elementary.bounding_box(),
         (None, Some(bspline)) => bspline.bounding_box(),
         (None, None) => None,
+    }
+}
+
+/// The length a surface's unbounded branches are grown from in the
+/// seeded trace box (see [`SurfacePair::seeded_box`]): a cylinder's or
+/// cone's radius, or the diagonal of a revolution's or extrusion's
+/// profile box. `None` where there is none: a plane, or a sweep whose
+/// profile is itself unbounded.
+fn own_size<S: ParametricSurface>(s: &S) -> Option<f64> {
+    if let Some(elementary) = s.as_elementary() {
+        return match elementary {
+            ElementarySurface::Cylinder(cylinder) => Some(cylinder.radius()),
+            ElementarySurface::Cone(cone) => Some(cone.ref_radius()),
+            _ => None,
+        };
+    }
+    let profile = match (s.as_extrusion(), s.as_revolution()) {
+        (Some(extrusion), _) => extrusion.profile(),
+        (None, Some(revolution)) => revolution.profile(),
+        (None, None) => return None,
+    };
+    profile.bounding_box().map(|b| b.diagonal().magnitude())
+}
+
+/// The size in space of the window of `surface`'s parameters that its
+/// grid seeds sample against `other` (see [`seed_window`]): the diagonal
+/// of the box of its points at the window's corners.
+fn window_size<S, T>(surface: &S, other: &T, tol: Tolerance) -> f64
+where
+    S: ParametricSurface,
+    T: ParametricSurface,
+{
+    let (u0, u1) = seed_window(surface, other, 0, tol);
+    let (v0, v1) = seed_window(surface, other, 1, tol);
+    let corners = [(u0, v0), (u1, v0), (u0, v1), (u1, v1)];
+    BoundingBox::from_points(corners.into_iter().map(|(u, v)| surface.eval_point(u, v)))
+        .map_or(0.0, |bounds| bounds.diagonal().magnitude())
+}
+
+/// The box where traces end, and what leaving it means.
+#[derive(Clone, Copy)]
+pub(super) enum TraceBox {
+    /// The own box of a bounded side, grown by a tenth of its diagonal so
+    /// that no curve ends on it by rounding. The intersection lies within
+    /// it, so a trace leaving it only catches a runaway step, and no
+    /// branch is cut there.
+    Bounded(BoundingBox),
+    /// The box of the seeds, where both surfaces are unbounded. A branch
+    /// leaving it runs on beyond it, so the trace reports the branch cut
+    /// there (see [`Cut`](super::tracer::Cut)).
+    Seeded(BoundingBox),
+}
+
+impl TraceBox {
+    /// The box itself.
+    pub(super) fn bounds(self) -> BoundingBox {
+        match self {
+            TraceBox::Bounded(bounds) | TraceBox::Seeded(bounds) => bounds,
+        }
+    }
+
+    /// Whether leaving the box cuts a branch, rather than only catching a
+    /// runaway step.
+    pub(super) fn cuts_branches(self) -> bool {
+        matches!(self, TraceBox::Seeded(_))
     }
 }
 

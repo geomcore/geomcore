@@ -2,7 +2,7 @@
 //! surfaces, in what order, and when one is left out (see [`seeds`]).
 
 use super::level_extrema::extremum_seeds;
-use super::pair::{SurfacePair, swap};
+use super::pair::{SurfacePair, own_box, swap};
 use super::tracer::first_step;
 use crate::geometry::curves::{Circle, ElementaryCurve, ParametricCurve, PointExtrema};
 use crate::geometry::surfaces::{BSplineSurface, ElementarySurface, ParametricSurface, Surface};
@@ -30,6 +30,15 @@ pub(super) enum Seed {
 }
 
 impl Seed {
+    /// The parameters the seed starts from: those of a point on both
+    /// surfaces, or the centre of its patch pair before it is converged.
+    pub(super) fn parameters(self) -> [f64; 4] {
+        match self {
+            Seed::On(x) => x,
+            Seed::PatchPair { centre, .. } => centre,
+        }
+    }
+
     /// The parameters to trace from, or `None` when the seed is skipped
     /// (`crossed` answers whether a curve traced so far crosses a box) or
     /// does not converge.
@@ -396,17 +405,9 @@ fn seeding_iso_values(
     // box, grown by 10 %: `ISO_CURVE_COUNT` values across it, ends included
     // (one value when the range is flat).
     let across_box = |bounds: BoundingBox| {
-        let (min, max) = (bounds.min(), bounds.max());
         let (mut low, mut high) = ([f64::INFINITY; 2], [f64::NEG_INFINITY; 2]);
-        for k in 0..8 {
-            let (u, v) = own.parameters_of(
-                Point::new(
-                    if k & 1 == 0 { min.x } else { max.x },
-                    if k & 2 == 0 { min.y } else { max.y },
-                    if k & 4 == 0 { min.z } else { max.z },
-                ),
-                tol,
-            );
+        for corner in box_corners(bounds) {
+            let (u, v) = own.parameters_of(corner, tol);
             (low[0], high[0]) = (low[0].min(u), high[0].max(u));
             (low[1], high[1]) = (low[1].min(v), high[1].max(v));
         }
@@ -508,8 +509,8 @@ where
 
 /// Parameters of intersection points converged from the samples of a
 /// grid on the first surface of `pair` where the distance to the second
-/// is a local minimum. Unbounded directions sample a documented default
-/// window (see [`seed_window`]).
+/// is a local minimum. Unbounded directions sample a window sized from
+/// the second surface (see [`seed_window`]).
 fn grid_seeds<S, T>(pair: SurfacePair<S, T>, tol: Tolerance) -> Vec<[f64; 4]>
 where
     S: ParametricSurface,
@@ -517,8 +518,8 @@ where
 {
     const N: usize = 24;
     let (s, other) = (pair.first, pair.second);
-    let (u0, u1) = seed_window(s.u_bounds());
-    let (v0, v1) = seed_window(s.v_bounds());
+    let (u0, u1) = seed_window(s, other, 0, tol);
+    let (v0, v1) = seed_window(s, other, 1, tol);
     let mut samples: Vec<([f64; 4], f64)> = Vec::with_capacity((N + 1) * (N + 1));
     for j in 0..=N {
         for i in 0..=N {
@@ -551,11 +552,61 @@ where
     seeds
 }
 
-/// Clamp a parameter bound pair to a finite seed window.
-pub(super) fn seed_window((lo, hi): (f64, f64)) -> (f64, f64) {
-    const WINDOW: f64 = 10.0;
+/// The window of parameter `direction` of `s` (0 for `u`, 1 for `v`) that
+/// the grid of its seeds samples. A finite bound is the window's own end.
+/// An unbounded end is read from the box of `other`: the parameters of
+/// the box's corners projected onto `s`, spanned with a margin of a
+/// twentieth of their width, as the iso-curve seeds span the box. Where
+/// `other` has no box (it is neither elementary nor a B-spline), the end
+/// falls back to `-10` or `10`, the window that was used before any box
+/// sized it. That fallback is the only fixed window left, and only for a
+/// surface meeting an unbounded surface with no box.
+pub(super) fn seed_window<S, T>(s: &S, other: &T, direction: usize, tol: Tolerance) -> (f64, f64)
+where
+    S: ParametricSurface,
+    T: ParametricSurface,
+{
+    const FALLBACK: f64 = 10.0;
+    let (lo, hi) = if direction == 0 {
+        s.u_bounds()
+    } else {
+        s.v_bounds()
+    };
+    if lo.is_finite() && hi.is_finite() {
+        return (lo, hi);
+    }
+    let (spanned_low, spanned_high) = match own_box(other) {
+        Some(bounds) => {
+            let parameter = |corner: Point| {
+                let projection = s.project_point(corner, tol);
+                if direction == 0 {
+                    projection.u
+                } else {
+                    projection.v
+                }
+            };
+            let values = box_corners(bounds).map(parameter);
+            let low = values.iter().copied().fold(f64::INFINITY, f64::min);
+            let high = values.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+            let margin = 0.05 * (high - low);
+            (low - margin, high + margin)
+        }
+        None => (-FALLBACK, FALLBACK),
+    };
     (
-        if lo.is_finite() { lo } else { -WINDOW },
-        if hi.is_finite() { hi } else { WINDOW },
+        if lo.is_finite() { lo } else { spanned_low },
+        if hi.is_finite() { hi } else { spanned_high },
     )
+}
+
+/// The eight corners of `bounds`.
+fn box_corners(bounds: BoundingBox) -> [Point; 8] {
+    let (min, max) = (bounds.min(), bounds.max());
+    std::array::from_fn(|k| {
+        Point::new(
+            if k & 1 == 0 { min.x } else { max.x },
+            if k & 2 == 0 { min.y } else { max.y },
+            if k & 4 == 0 { min.z } else { max.z },
+        )
+    })
 }

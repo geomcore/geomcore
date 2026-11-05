@@ -9,8 +9,28 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+Unbounded branches are cut where their trace leaves the seeds' box, and
+reported, instead of running to a fixed cube around the origin (#147).
+
+### Added
+
+- `IncompleteReason::Unbounded` (Python `IncompleteReason.UNBOUNDED`): a
+  branch of two unbounded surfaces runs beyond the box where its trace was
+  cut. The regions of the result hold where each branch was cut. When
+  results merge, `Unbounded` ranks below `BudgetExhausted` and above
+  `Unseparated`.
+
 ### Changed
 
+- The trace box of an unbounded pair is the box of the seeds, grown by the
+  larger surface size: a cylinder's or cone's radius, a sweep profile's
+  diagonal, or for two planes the larger of the seeds' spread and the
+  size of the seeding windows. It replaces the cube of
+  side `Tolerance::MODEL_SIZE` (1e5) centred on the origin. A pair with a
+  bounded side keeps its box of that side, grown by a tenth of its
+  diagonal.
+- Seeds of an unbounded side whose other side has a bounding box are read
+  from that box's corners, with a margin, instead of the window `[-10, 10]`.
 - A tangent contact between two curves, where they stay within
   `tol.confusion` of each other and then part, is one hit at its closest
   approach, with multiplicity 2, and the numeric curve–curve intersection
@@ -22,8 +42,18 @@ the Python distribution are versioned in lockstep.
   period or an interval, owns the wrapping and the slack. Nothing public
   changes, and no result moves.
 
+### Breaking
+
+- `IncompleteReason` gains the variant `Unbounded`. The enum is not
+  `#[non_exhaustive]`, so an exhaustive `match` on it needs a new arm.
+
 ### Fixed
 
+- A cone against a cylinder whose intersection has an unbounded branch ran
+  to the cube and was reported as `Sampled`, as if the branch were whole.
+  It is cut at its box and reported as `Incomplete` with `Unbounded`.
+- An unbounded pair lying beyond the cube lost every branch beyond it. The
+  same pair translated far from the origin now traces the same branches.
 - The numeric curve–curve intersection no longer drops one of two
   crossings lying within `sqrt(tol.confusion)` of each other and reports
   the result `Complete`. Two hits are merged only when the curves stay

@@ -43,6 +43,34 @@ pub struct CurveCurveRegion {
     pub max_corner: Point,
 }
 
+impl Region for SurfaceSurfaceRegion {
+    fn touches(&self, other: &SurfaceSurfaceRegion) -> bool {
+        meet(self.first_u_range, other.first_u_range)
+            && meet(self.first_v_range, other.first_v_range)
+            && meet(self.second_u_range, other.second_u_range)
+            && meet(self.second_v_range, other.second_v_range)
+    }
+
+    fn union(&self, other: &SurfaceSurfaceRegion) -> SurfaceSurfaceRegion {
+        let (min_corner, max_corner) = box_union(
+            (self.min_corner, self.max_corner),
+            (other.min_corner, other.max_corner),
+        );
+        SurfaceSurfaceRegion {
+            first_u_range: span(self.first_u_range, other.first_u_range),
+            first_v_range: span(self.first_v_range, other.first_v_range),
+            second_u_range: span(self.second_u_range, other.second_u_range),
+            second_v_range: span(self.second_v_range, other.second_v_range),
+            min_corner,
+            max_corner,
+        }
+    }
+
+    fn start(&self) -> f64 {
+        self.first_u_range.0
+    }
+}
+
 impl Region for CurveCurveRegion {
     fn touches(&self, other: &CurveCurveRegion) -> bool {
         meet(self.first_range, other.first_range) && meet(self.second_range, other.second_range)

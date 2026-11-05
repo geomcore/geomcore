@@ -119,7 +119,7 @@ _Avoid_: general result, untyped result
 An outcome of `intersect_exact` only: the typed solver for the pair has no closed form for this configuration. `intersect` never reports it: it runs a numeric intersection instead, or a closed form the typed solver lacks (two circles in crossing planes are solved exactly as conics, on the line the planes share).
 
 **Completeness**:
-Whether a numeric intersection's hits, or the distance minima of numeric curve–curve extrema, are all of them. Complete: the search proved that no other hit exists. Incomplete: it did not settle everywhere, and says why (its budget ran out, or pieces never separated along an overlap or at a tangent contact of a curve with a surface) and the regions where hits may be missing. Sampled: the hits were found from samples, so nothing is proven. A tangent contact between two curves, where they stay within confusion of each other and then part, is one hit at its closest approach and stays Complete.
+Whether a numeric intersection's hits, or the distance minima of numeric curve–curve extrema, are all of them. Complete: the search proved that no other hit exists. Incomplete: it did not settle everywhere, and says why (its budget ran out, pieces never separated along an overlap or at a tangent contact of a curve with a surface, or a branch of two unbounded surfaces runs beyond the box where its trace was cut) and the regions where hits may be missing. Sampled: the hits were found from samples, so nothing is proven. A tangent contact between two curves, where they stay within confusion of each other and then part, is one hit at its closest approach and stays Complete.
 _Avoid_: converged, exact (reserved for exact intersections), fallback
 
 **Coincident**:
