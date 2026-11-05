@@ -10,7 +10,7 @@ mod plane;
 mod revolution;
 mod sphere;
 mod torus;
-mod uv_curve;
+pub(crate) mod uv_curve;
 
 pub(crate) use bezier::PyBezierSurface;
 pub(crate) use bspline::PyBSplineSurface;

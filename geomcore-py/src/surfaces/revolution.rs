@@ -26,7 +26,9 @@ shape_methods! {
     }
 
     #[new]
-    /// Build the surface turning `profile` (any 3D curve) about `axis`.
+    /// Build the surface turning `profile`, a whole 3D curve (a
+    /// `TrimmedCurve` is refused: the surface spans its profile's bounds,
+    /// and `piece.to_bspline()` is a whole curve for a bounded profile), about `axis`.
     /// Raises `ValueError` for a profile on the axis, a single point, or a
     /// circle about the axis.
     fn py_new(profile: &Bound<'_, PyAny>, axis: PyAxis) -> PyResult<Self> {

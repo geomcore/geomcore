@@ -9,6 +9,18 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+### Fixed
+
+- Python: `surface.uv_curve_to_3d(uv_curve)` accepts a `TrimmedCurve2D`, as
+  its stub and `uv_curve_to_3d_within` already did, and returns the
+  `TrimmedCurve` over the same range of its basis's trace. A B-spline or
+  Bézier basis is cut to the piece first, so only the piece has to lie in
+  the surface's domain. The stubs of `ExtrusionSurface` and
+  `RevolutionSurface` no longer promise a `TrimmedCurve` profile: the
+  surface spans its profile's bounds, and `piece.to_bspline()` gives a
+  whole curve for a bounded profile. A new test passes every class of
+  every curve and surface `Union` in the stubs to the runtime (#176).
+
 ## [0.43.0] - 2026-11-05
 
 A UV curve without an exact 3D curve, such as a helix on a cylinder, now

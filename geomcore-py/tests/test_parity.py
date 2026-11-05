@@ -260,6 +260,139 @@ def test_stub_docstrings_are_the_runtime_ones(name):
         assert docstring == inspect.getdoc(getattr(runtime, method)), (name, method)
 
 
+def _stub_trees():
+    stub_directory = Path(geomcore.__file__).parent
+    return {
+        module: ast.parse((stub_directory / f"{module}.pyi").read_text(encoding="utf-8"))
+        for module in ("__init__", "curves", "surfaces")
+    }
+
+
+def _union_aliases(trees):
+    """Each `_Name = Union[...]` alias of the stubs, as its class names."""
+    members = {}
+    for tree in trees.values():
+        for node in tree.body:
+            value = getattr(node, "value", None)
+            if (
+                isinstance(node, ast.Assign)
+                and isinstance(value, ast.Subscript)
+                and isinstance(value.value, ast.Name)
+                and value.value.id == "Union"
+            ):
+                elements = value.slice.elts if isinstance(value.slice, ast.Tuple) else [value.slice]
+                members[node.targets[0].id] = [element.id for element in elements]
+
+    def expand(name):
+        return [
+            leaf
+            for member in members[name]
+            for leaf in (expand(member) if member in members else [member])
+        ]
+
+    return {name: expand(name) for name in members}
+
+
+def _union_parameters():
+    """Every stub parameter typed with a union alias: (owner, function, the
+    function's required parameters as (name, annotation), the union one)."""
+    trees = _stub_trees()
+    aliases = _union_aliases(trees)
+    found = []
+
+    def scan(owner, function):
+        arguments = function.args.args
+        required = arguments[: len(arguments) - len(function.args.defaults)]
+        if owner is not None and not _is_static(function):
+            required = required[1:]  # self or cls
+        typed = [(argument.arg, getattr(argument.annotation, "id", None)) for argument in required]
+        for index, (_, annotation) in enumerate(typed):
+            if annotation in aliases:
+                found.append((owner, function.name, typed, index))
+
+    for module, tree in trees.items():
+        for node in tree.body:
+            if isinstance(node, ast.FunctionDef) and module == "__init__":
+                scan(None, node)
+            elif isinstance(node, ast.ClassDef) and module != "__init__":
+                for item in node.body:
+                    if isinstance(item, ast.FunctionDef):
+                        scan(node.name, item)
+    return aliases, found
+
+
+def _is_static(function):
+    names = [getattr(decorator, "id", None) for decorator in function.decorator_list]
+    return "staticmethod" in names
+
+
+UNION_ALIASES, UNION_PARAMETERS = _union_parameters()
+
+
+def _fixtures():
+    """One instance per curve and surface class, by class name."""
+    fixtures = {}
+    for shape in _operands_3d() + _operands_2d():
+        fixtures.setdefault(type(shape).__name__, shape)
+    return fixtures
+
+
+def _receiver(owner, fixtures):
+    """An instance the methods of stub class `owner` run on: its own
+    fixture, or that of the first class inheriting a method set."""
+    if owner in fixtures:
+        return fixtures[owner]
+    return next(
+        shape
+        for name, shape in fixtures.items()
+        if any(stub is STUB_CLASSES[owner] for stub in _stub_bases(name))
+    )
+
+
+_OTHER_ARGUMENTS = {
+    "Vector": Vector(0.1, 0.0, 1.0),
+    "Axis": Axis(Point(0.0, 0.0, 5.0), Vector.unit_x()),
+    "float": 0.1,
+    "int": 8,
+}
+
+
+@pytest.mark.parametrize(
+    "owner, function, typed, index",
+    UNION_PARAMETERS,
+    ids=[
+        f"{owner or 'geomcore'}.{function}({typed[index][0]})"
+        for owner, function, typed, index in UNION_PARAMETERS
+    ],
+)
+def test_every_member_of_a_stub_union_is_accepted(owner, function, typed, index):
+    # stubtest checks that a parameter exists with a compatible annotation,
+    # not that the runtime takes each class of a `Union`: #176 found three
+    # parameters typed `_Curve` that raised TypeError on a `TrimmedCurve`.
+    fixtures = _fixtures()
+    if owner is None:
+        call = getattr(geomcore, function)
+    elif function == "__new__":
+        call = _shape_classes()[owner]
+    else:
+        call = getattr(_receiver(owner, fixtures), function)
+
+    def argument(annotation):
+        if annotation in UNION_ALIASES:
+            return fixtures[UNION_ALIASES[annotation][0]]
+        return _OTHER_ARGUMENTS[annotation]
+
+    for member in UNION_ALIASES[typed[index][1]]:
+        arguments = [argument(annotation) for _, annotation in typed]
+        arguments[index] = fixtures[member]
+        try:
+            call(*arguments)
+        except TypeError as error:
+            pytest.fail(f"{member}: {error}")
+        except geomcore.GeomcoreError:
+            pass  # accepted, but these operands have no answer
+
+
 def test_type_checkers_see_every_method_of_every_class(tmp_path):
     mypy = pytest.importorskip("mypy.api")
     lines = [

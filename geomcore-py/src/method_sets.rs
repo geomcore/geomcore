@@ -660,6 +660,11 @@ macro_rules! surface {
             /// cone's apex), when the surface has no iso curve there, when a
             /// composed curve leaves the surface's domain, or when its degree would
             /// be above 25. `tol` is `Tolerance.default()` when omitted.
+            ///
+            /// A `TrimmedCurve2D` traces the `TrimmedCurve` over the same range
+            /// of its basis's 3D curve. Raises `UvCurveTo3DError` when the piece
+            /// leaves the surface's domain, and `TrimmedCurveConstructionError`
+            /// when it wraps more than once around a periodic direction.
             #[pyo3(signature = (uv_curve, tol = None))]
             fn uv_curve_to_3d(
                 &self,
@@ -667,12 +672,7 @@ macro_rules! surface {
                 uv_curve: &Bound<'_, PyAny>,
                 tol: Option<PyTolerance>,
             ) -> PyResult<Py<PyAny>> {
-                let uv_curve = curve_2d_classes::extract(uv_curve)?;
-                let traced = self
-                    .0
-                    .uv_curve_to_3d(&uv_curve, tolerance(tol))
-                    .map_err(python_error)?;
-                curve_classes::to_py(py, traced)
+                $crate::surfaces::uv_curve::trace_uv_curve(py, &self.0, uv_curve, tolerance(tol))
             }
 
             /// The exact UV curve of `curve`, a 3D curve lying on this surface: the
