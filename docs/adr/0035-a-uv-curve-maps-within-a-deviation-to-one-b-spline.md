@@ -4,7 +4,7 @@
 
 ```rust
 pub fn uv_curve_to_3d_within<S, C>(surface: &S, uv_curve: &C, max_deviation: f64, tol: Tolerance)
-    -> Result<UvCurveApproximation, UvCurveApproximationError>
+    -> Result<CurveApproximation, UvCurveTo3DApproximationError>
 where S: ParametricSurface + ?Sized, C: ParametricCurve2D + ?Sized
 ```
 
@@ -21,7 +21,7 @@ Its degree is one of two:
 
 Degree 5 is also kept where it takes no more poles than degree 9, as on a short arc that one span covers at either degree. The degree is read from the curve.
 
-`UvCurveApproximation` (ADR 0012) gives the curve, its deviation, and whether that deviation is proven. `max_deviation` is a contract. When it cannot be met the call is refused with `DeviationNotReached { reached }`, never answered with a looser curve. The reported deviation is the bound or the measured value; it is never replaced by the asked one.
+`CurveApproximation` (ADR 0012) gives the curve, its deviation, and whether that deviation is proven. `max_deviation` is a contract. When it cannot be met the call is refused with `DeviationNotReached { reached }`, never answered with a looser curve. The reported deviation is the bound or the measured value; it is never replaced by the asked one.
 
 ## The algorithm
 
@@ -78,8 +78,15 @@ The Python bindings expose it as `geomcore.uv_curve_to_3d_within`.
 
 ## Amendment: the mirror, 3D curve to UV curve (#186)
 
-`curve_3d_to_uv_within(surface, curve, max_deviation, tol) -> Result<Curve3DToUvApproximation, Curve3DToUvApproximationError>` replaces the sampled `curve_3d_to_uv_numeric`, which returned raw `(u, v)` samples that wrapped at the seam, for a sample count instead of a deviation. It shares this operation's spans through a `SpanSource` trait: the jets come from inverting the 3D curve's points, and the UV curve's derivatives from the surface's Jacobian, `c' = (JᵀJ)⁻¹ Jᵀ C'` and the same for `C''` less the surface's curvature terms. The UV coordinates ride in the `x` and `y` of the 3D jets, so the Hermite poles and the join are unchanged. A span's deviation is measured in 3D, `|S(c(t)) − C(t)|`, the same-parameter deviation.
+`curve_3d_to_uv_within(surface, curve, max_deviation, tol) -> Result<CurveApproximation2D, Curve3DToUvApproximationError>` replaces the sampled `curve_3d_to_uv_numeric`, which returned raw `(u, v)` samples that wrapped at the seam, for a sample count instead of a deviation. It shares this operation's spans through a `SpanSource` trait: the jets come from inverting the 3D curve's points, and the UV curve's derivatives from the surface's Jacobian, `c' = (JᵀJ)⁻¹ Jᵀ C'` and the same for `C''` less the surface's curvature terms. The UV coordinates ride in the `x` and `y` of the 3D jets, so the Hermite poles and the join are unchanged. A span's deviation is measured in 3D, `|S(c(t)) − C(t)|`, the same-parameter deviation.
 
 - **Degree 5 only.** Order-4 jets would need third and fourth derivatives of the inverse, and the deviation is always sampled: no closed-form bound exists for an inversion.
 - **The seam.** Each inversion is moved by whole periods to the value nearest a lift: 129 samples of the UV curve along the curve, each predicted from the one before and its derivative. The UV curve is continuous, and a closed curve around a cylinder ends one period from its start.
 - **Refusals.** As here, plus `CurveNotOnSurface { distance }` when an inversion is farther than half the deviation from the curve, and `SingularParametrization` when a breakpoint falls where `JᵀJ` is singular, as a curve that starts or ends at a sphere's pole. A curve through a pole between its breakpoints is still within the deviation: every `u` is the same point there, so the UV curve turns steeply in `u`. Splitting at the pole, which a B-rep does for its vertex, is the caller's.
+
+## Amendment: one result for every approximation (#199)
+
+The two operations had a result type each, `UvCurveApproximation` and `Curve3DToUvApproximation`, and the B-spline fits within a deviation returned the bare spline, so a caller could not tell how close a fit came. They now share one result per tier, `GenericCurveApproximation<P>` with the aliases `CurveApproximation` and `CurveApproximation2D` (ADR 0014), and `SurfaceApproximation` for `BSplineSurface::approximate_within`. Each holds the spline, its deviation and whether that deviation is proven. What the curve is and how its deviation is measured stays in each operation's documentation: the result type is the same, the contract is the operation's.
+
+- **Errors stay per operation.** Their variants differ (a fit fails to construct, a mapping leaves the domain or is not on the surface), so one error type would carry variants most calls cannot return. `UvCurveApproximationError` becomes `UvCurveTo3DApproximationError`, which names the operation as its mirror's error does.
+- **A fit is proven.** A fit is measured at every point it was given, which is the whole of what it promises, so its deviation is exact and `is_proven()` holds. `curve_3d_to_uv_within` is always sampled; `uv_curve_to_3d_within` is proven where the closed-form bound above applies.

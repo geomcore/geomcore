@@ -90,6 +90,9 @@ shape_methods! {
     /// keep every point within `max_deviation` of the curve at its
     /// parameter.
     ///
+    /// Returns the curve with its `deviation`, the largest distance
+    /// between a point and the curve at its parameter, proven.
+    ///
     /// `points` is a list of points or an `(N, 2)` array-like.
     ///
     /// `parametrization` is a `PointParametrization` or its string value,
@@ -101,10 +104,10 @@ shape_methods! {
         degree: usize,
         max_deviation: f64,
         parametrization: PyPointParametrization,
-    ) -> PyResult<Self> {
+    ) -> PyResult<crate::approximation::PyCurveApproximation2D> {
         let param = geomcore::PointParametrization::from(parametrization);
         let points = points.0;
-        Ok(PyBSplineCurve2D(
+        Ok(crate::approximation::PyCurveApproximation2D(
             BSplineCurve2D::approximate_within(&points, degree, max_deviation, param)
                 .map_err(python_error)?,
         ))

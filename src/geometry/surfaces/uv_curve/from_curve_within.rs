@@ -27,6 +27,7 @@ use super::approximation::{
     Breakpoint, Jet, LOW_ORDER, MAXIMUM_SPAN_COUNT, SAMPLES_PER_SPAN, SAMPLING_MARGIN, SpanSource,
     bezier_point, degree, hermite_poles, joined, knots_between, sampled_spans,
 };
+use crate::geometry::approximation::CurveApproximation2D;
 use crate::geometry::curves::{BSplineCurve, BSplineCurve2D, ParametricCurve, Side};
 use crate::geometry::surfaces::ParametricSurface;
 use crate::{Point, Point2D, Tolerance, Vector, Vector2D};
@@ -99,37 +100,6 @@ impl fmt::Display for Curve3DToUvApproximationError {
 
 impl std::error::Error for Curve3DToUvApproximationError {}
 
-/// The UV curve of a 3D curve within a deviation, from
-/// [`curve_3d_to_uv_within`].
-#[derive(Debug, Clone, PartialEq)]
-pub struct Curve3DToUvApproximation {
-    curve: BSplineCurve2D,
-    deviation: f64,
-}
-
-impl Curve3DToUvApproximation {
-    /// The UV curve: one non-rational, non-periodic B-spline of degree 5
-    /// over the 3D curve's bounds, in its parameter, C² except at a knot
-    /// where the 3D curve is less smooth, and continuous across the
-    /// surface's seams.
-    pub fn curve(&self) -> &BSplineCurve2D {
-        &self.curve
-    }
-
-    /// The UV curve, taken out of the result.
-    pub fn into_curve(self) -> BSplineCurve2D {
-        self.curve
-    }
-
-    /// The largest sampled distance between the surface's point at the UV
-    /// curve's point at `t` and the 3D curve's point at `t`: each span is
-    /// checked at nine points against half the asked deviation. It is never
-    /// above the asked deviation.
-    pub fn deviation(&self) -> f64 {
-        self.deviation
-    }
-}
-
 /// The UV curve of `curve` on `surface`, within `max_deviation` at the
 /// same parameter, over the curve's bounds: one B-spline `c` whose image
 /// `surface.point_at(c(t))` lies within `max_deviation` of
@@ -143,6 +113,14 @@ impl Curve3DToUvApproximation {
 /// seam, crosses it and ends one period from where it starts. A curve that
 /// runs through a sphere's pole between its ends, where every `u` is the
 /// same point, gets a steep turn of `u` there that holds the deviation.
+///
+/// The UV curve is one non-rational, non-periodic B-spline of degree 5
+/// over the 3D curve's bounds, in its parameter, C² except at a knot where
+/// the 3D curve is less smooth. Its
+/// [`deviation`](CurveApproximation2D::deviation) is the largest sampled
+/// distance between the surface's point at the UV curve's point at `t`
+/// and the 3D curve's point at `t`: each span is checked at nine points
+/// against half the asked deviation, so it is never proven.
 ///
 /// ```
 /// use geomcore::{
@@ -189,7 +167,7 @@ pub fn curve_3d_to_uv_within<S, C>(
     curve: &C,
     max_deviation: f64,
     tol: Tolerance,
-) -> Result<Curve3DToUvApproximation, Curve3DToUvApproximationError>
+) -> Result<CurveApproximation2D, Curve3DToUvApproximationError>
 where
     S: ParametricSurface + ?Sized,
     C: ParametricCurve + ?Sized,
@@ -221,7 +199,7 @@ where
         false,
     )
     .expect("the joined spline's knots and poles are valid in 2D");
-    Ok(Curve3DToUvApproximation { curve, deviation })
+    Ok(CurveApproximation2D::new(curve, deviation, false))
 }
 
 /// A sample of the lift: the UV curve at `parameter`, and its derivative

@@ -8,9 +8,11 @@ import geomcore
 from geomcore import (
     Axis,
     BoundingBox,
+    CurveApproximation,
     Frame,
     Point2D,
     Point,
+    SurfaceApproximation,
     Tolerance,
     Transform,
     Vector2D,
@@ -838,7 +840,7 @@ def test_curve_3d_to_uv_within():
     import math
 
     from geomcore import (
-        Curve3DToUvApproximation,
+        CurveApproximation2D,
         Curve3DToUvApproximationError,
         curve_3d_to_uv_within,
     )
@@ -850,8 +852,9 @@ def test_curve_3d_to_uv_within():
     turn = TrimmedCurve(circle, math.pi / 2, math.pi / 2 + math.tau)
     cylinder = Cylinder(Point.origin(), Vector.unit_z(), 2.0)
     approximation = curve_3d_to_uv_within(cylinder, turn, 1e-7)
-    assert isinstance(approximation, Curve3DToUvApproximation)
+    assert isinstance(approximation, CurveApproximation2D)
     assert approximation.deviation <= 1e-7
+    assert not approximation.is_proven()
     uv_curve = approximation.curve
     assert isinstance(uv_curve, BSplineCurve2D)
     assert uv_curve.bounds() == turn.bounds()
@@ -863,7 +866,7 @@ def test_curve_3d_to_uv_within():
         assert v == pytest.approx(0.0, abs=1e-9)
         assert cylinder.point_at(u, v).distance(turn.point_at(t)) <= 1e-7
         previous = u
-    assert repr(approximation).startswith("Curve3DToUvApproximation(degree=5, pole_count=")
+    assert repr(approximation).startswith("CurveApproximation2D(degree=5, pole_count=")
 
     with pytest.raises(Curve3DToUvApproximationError, match="unbounded"):
         curve_3d_to_uv_within(cylinder, Line(Point.origin(), Vector.unit_z()), 1e-7)
@@ -1594,8 +1597,11 @@ def test_bspline_curve_bezier_pieces_and_length():
 def test_bspline_curve_approximate_within():
     points = [Point(float(i), 0.1 * float(i), 0.0) for i in range(6)]
     fit = BSplineCurve.approximate_within(points, 2, 1e-6)
+    assert isinstance(fit, CurveApproximation)
+    assert fit.deviation <= 1e-6 and fit.is_proven()
     for p in points:
-        assert fit.contains(p, Tolerance(1e-3, 1e-9, 1e-9))
+        assert fit.curve.contains(p, Tolerance(1e-3, 1e-9, 1e-9))
+    assert repr(fit).startswith("CurveApproximation(degree=2, pole_count=")
 
 
 def test_conic_to_bspline():
@@ -1747,7 +1753,11 @@ def test_surface_approximate():
     ]
     fit = BSplineSurface.approximate(grid, 3, 3, 5, 5)
     assert (fit.u_pole_count(), fit.v_pole_count()) == (5, 5)
-    loose = BSplineSurface.approximate_within(grid, 3, 3, 0.05)
+    loose_fit = BSplineSurface.approximate_within(grid, 3, 3, 0.05)
+    assert isinstance(loose_fit, SurfaceApproximation)
+    assert loose_fit.deviation <= 0.05 and loose_fit.is_proven()
+    assert repr(loose_fit).startswith("SurfaceApproximation(u_degree=3, v_degree=3, pole_count=")
+    loose = loose_fit.surface
     assert loose.u_pole_count() <= 8 and loose.v_pole_count() <= 8
     assert loose.point_at(0.5, 0.5).distance(fit.point_at(0.5, 0.5)) < 0.2
 

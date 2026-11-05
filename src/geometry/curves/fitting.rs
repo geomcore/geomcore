@@ -13,6 +13,7 @@ use crate::Point2D;
 use crate::Tolerance;
 use crate::Vector;
 use crate::base::tier::TierPoint;
+use crate::geometry::approximation::GenericCurveApproximation;
 use crate::geometry::curves::{
     BSplineConstructionError, BSplineCurve, BSplineCurve2D, GenericBSplineCurve,
 };
@@ -963,6 +964,11 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
     /// interpolation of [`interpolate`](Self::interpolate), one pole per
     /// point.
     ///
+    /// The result holds the curve and its
+    /// [`deviation`](GenericCurveApproximation::deviation): the largest
+    /// distance from a point to the curve at the point's parameter,
+    /// measured at every point, so it is proven.
+    ///
     /// # Errors
     ///
     /// [`BSplineConstructionError::TooFewPoints`] for fewer than two
@@ -984,9 +990,11 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
     ///         Point::new(u.cos(), u.sin(), 0.0)
     ///     })
     ///     .collect();
-    /// let curve =
+    /// let fit =
     ///     BSplineCurve::approximate_within(&points, 3, 1e-4, PointParametrization::Chordal)
     ///         .unwrap();
+    /// assert!(fit.deviation() <= 1e-4 && fit.is_proven());
+    /// let curve = fit.curve();
     /// // 50 points, 11 poles.
     /// assert_eq!(curve.poles().len(), 11);
     /// let tol = Tolerance::DEFAULT;
@@ -1003,7 +1011,8 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
     ///     .collect();
     /// let curve =
     ///     BSplineCurve2D::approximate_within(&points, 3, 1e-4, PointParametrization::Chordal)
-    ///         .unwrap();
+    ///         .unwrap()
+    ///         .into_curve();
     /// // 50 points, 11 poles.
     /// assert_eq!(curve.poles().len(), 11);
     /// let tol = Tolerance::DEFAULT;
@@ -1016,7 +1025,7 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
         degree: usize,
         max_deviation: f64,
         parametrization: PointParametrization,
-    ) -> Result<GenericBSplineCurve<P>, BSplineConstructionError> {
+    ) -> Result<GenericCurveApproximation<P>, BSplineConstructionError> {
         let n = points.len();
         if n < 2 {
             return Err(BSplineConstructionError::TooFewPoints);
@@ -1026,18 +1035,29 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
             return Err(BSplineConstructionError::DegreeTooHigh);
         }
         let params = point_parameters(points, parametrization)?;
+        // The largest distance from a point to the curve at its parameter.
+        let largest = |basis: &BasisTable, poles: &[P], deviations: &mut [f64]| {
+            for (k, deviation) in deviations.iter_mut().enumerate() {
+                *deviation = basis.point(k, poles).distance(points[k]);
+            }
+            deviations.iter().fold(0.0f64, |a, &d| a.max(d))
+        };
         let fit = fit_within(&params, degree, max_deviation, |flat, basis, deviations| {
             let poles = least_squares(basis, flat.len() - degree - 1, 1, |_, k| points[k])?;
-            for (k, deviation) in deviations.iter_mut().enumerate() {
-                *deviation = basis.point(k, &poles).distance(points[k]);
-            }
-            Some(poles)
+            let deviation = largest(basis, &poles, deviations);
+            Some((poles, deviation))
         });
-        let (flat, poles) = fit.unwrap_or_else(|| interpolated(points, &params, degree));
+        let (flat, (poles, deviation)) = fit.unwrap_or_else(|| {
+            let (flat, poles) = interpolated(points, &params, degree);
+            let basis = BasisTable::new(&flat, degree, &params);
+            let deviation = largest(&basis, &poles, &mut vec![0.0; n]);
+            (flat, (poles, deviation))
+        });
         let (knots, mults) = compress_knots(&flat);
-        Ok(GenericBSplineCurve::from_validated_parts(
+        let curve = GenericBSplineCurve::from_validated_parts(
             degree, poles, None, knots, mults, flat, false,
-        ))
+        );
+        Ok(GenericCurveApproximation::new(curve, deviation, true))
     }
 }
 

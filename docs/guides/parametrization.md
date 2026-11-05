@@ -94,7 +94,8 @@ derivative.
 
     approximation = curve_3d_to_uv_within(surface, curve, 1e-6)
     uv_curve = approximation.curve        # BSplineCurve2D
-    approximation.deviation               # <= 1e-6, sampled
+    approximation.deviation               # <= 1e-6
+    approximation.is_proven()             # False: sampled
     ```
 
 === "Rust"

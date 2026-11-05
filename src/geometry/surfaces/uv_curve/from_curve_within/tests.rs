@@ -1,6 +1,7 @@
 use std::f64::consts::{FRAC_PI_2, TAU};
 
-use super::{Curve3DToUvApproximation, Curve3DToUvApproximationError, curve_3d_to_uv_within};
+use super::{Curve3DToUvApproximationError, curve_3d_to_uv_within};
+use crate::CurveApproximation2D;
 use crate::geometry::curves::{
     BSplineCurve, Circle, Ellipse, Line, Line2D, ParametricCurve, ParametricCurve2D, TrimmedCurve,
     TrimmedCurve2D,
@@ -15,7 +16,7 @@ const TOL: Tolerance = Tolerance::DEFAULT;
 fn measured_deviation(
     surface: &impl ParametricSurface,
     curve: &impl ParametricCurve,
-    approximation: &Curve3DToUvApproximation,
+    approximation: &CurveApproximation2D,
 ) -> f64 {
     let (first, last) = curve.bounds();
     let uv_curve = approximation.curve();
@@ -34,7 +35,7 @@ fn approximated(
     surface: &impl ParametricSurface,
     curve: &impl ParametricCurve,
     max_deviation: f64,
-) -> Curve3DToUvApproximation {
+) -> CurveApproximation2D {
     let approximation = curve_3d_to_uv_within(surface, curve, max_deviation, TOL).unwrap();
     let uv_curve = approximation.curve();
     assert_eq!(uv_curve.degree(), 5);

@@ -11,6 +11,13 @@ the Python distribution are versioned in lockstep.
 
 ### Added
 
+- Every operation within a deviation reports the deviation it reached
+  (#199), in Rust and Python. One result, `CurveApproximation` (3D) or
+  `CurveApproximation2D`, comes back from `uv_curve_to_3d_within`,
+  `curve_3d_to_uv_within` and `approximate_within` on B-spline curves;
+  `SurfaceApproximation` from `BSplineSurface::approximate_within`. Each
+  gives its `curve` (or `surface`), its `deviation`, and `is_proven()`. A
+  fit measures its deviation at every point, so it is proven.
 - Surface intersection curves carry their curves in parameters (#193), in
   Rust and Python: `IntersectionCurve.first_uv_curve` and
   `second_uv_curve`, the curve in each surface's `(u, v)` in the same
@@ -23,7 +30,7 @@ the Python distribution are versioned in lockstep.
   degree-5 `BSplineCurve2D` in the curve's parameter, continuous across the
   surface's seams, whose image on the surface is within the deviation of
   the curve at the same parameter. The mirror of `uv_curve_to_3d_within`,
-  it returns a `Curve3DToUvApproximation` (its `curve` and sampled
+  it returns a `CurveApproximation2D` (its `curve` and sampled
   `deviation`) or a `Curve3DToUvApproximationError`.
 - A numpy bridge for bulk queries in Python (#181): every curve and
   surface gains `points_at_array` and `project_points_array`, which take an
@@ -41,6 +48,15 @@ the Python distribution are versioned in lockstep.
 
 ### Breaking
 
+- The approximation results are one type per tier (#199):
+  `UvCurveApproximation` becomes `CurveApproximation`, and its error
+  `UvCurveApproximationError` becomes `UvCurveTo3DApproximationError`,
+  which mirrors `Curve3DToUvApproximationError`. `approximate_within` on
+  `BSplineCurve`, `BSplineCurve2D` and `BSplineSurface` returns a
+  `CurveApproximation`, `CurveApproximation2D` or `SurfaceApproximation`
+  instead of the spline: read it with `.curve()` or `.into_curve()` in
+  Rust, `.curve` in Python (`.surface()`, `.into_surface()` and
+  `.surface` for a surface).
 - `IntersectionCurve` gains the public fields `first_uv_curve` and
   `second_uv_curve` (#193): a struct literal building one needs them. A
   surface intersection read in the other order of the surfaces now

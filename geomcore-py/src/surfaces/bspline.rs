@@ -205,6 +205,9 @@ shape_methods! {
     /// few poles as keep every point within `max_deviation` of the
     /// surface.
     ///
+    /// Returns the surface with its `deviation`, the largest distance
+    /// between a point and the surface at its parameters, proven.
+    ///
     /// `points` is rows of `Point` objects or an `(n, m, 3)` array-like.
     ///
     /// `parametrization` is a `PointParametrization` or its string value,
@@ -218,10 +221,10 @@ shape_methods! {
         v_degree: usize,
         max_deviation: f64,
         parametrization: PyPointParametrization,
-    ) -> PyResult<Self> {
+    ) -> PyResult<crate::approximation::PySurfaceApproximation> {
         let param = geomcore::PointParametrization::from(parametrization);
         let points = points.0;
-        Ok(PyBSplineSurface(
+        Ok(crate::approximation::PySurfaceApproximation(
             BSplineSurface::approximate_within(&points, u_degree, v_degree, max_deviation, param)
                 .map_err(python_error)?,
         ))

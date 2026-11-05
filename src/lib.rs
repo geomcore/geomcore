@@ -161,6 +161,9 @@ pub use base::{
     Transform, TransformError, Transformable, Vector, Vector2D,
 };
 pub use bounding_box::{BoundingBox, BoundingBox2D, HasBoundingBox, HasBoundingBox2D};
+pub use geometry::approximation::{
+    CurveApproximation, CurveApproximation2D, GenericCurveApproximation, SurfaceApproximation,
+};
 pub use geometry::curves::{
     BSplineConstructionError, BSplineConversionError, BSplineCurve, BSplineCurve2D,
     BSplineSplitError, BezierConstructionError, BezierCurve, BezierCurve2D, Circle, Circle2D,
@@ -179,11 +182,10 @@ pub use geometry::surfaces::{
     ExtrusionSurfaceConstructionError, ParametricSurface, Plane, PlaneConstructionError,
     ReversibleSurface, RevolutionSurface, RevolutionSurfaceConstructionError, Sphere,
     SphereConstructionError, Surface, SurfaceCurvatures, SurfaceIsoError, Torus,
-    TorusConstructionError, UvCurveApproximation, UvCurveApproximationError, UvCurveTo3DError,
+    TorusConstructionError, UvCurveTo3DApproximationError, UvCurveTo3DError,
 };
 pub use geometry::surfaces::{
-    Curve3DToUvApproximation, Curve3DToUvApproximationError, curve_3d_to_uv_within,
-    uv_curve_to_3d_within,
+    Curve3DToUvApproximationError, curve_3d_to_uv_within, uv_curve_to_3d_within,
 };
 pub use operations::discretization::{
     Discretization, Discretization2D, DiscretizationCriteria, DiscretizationCriteriaError,

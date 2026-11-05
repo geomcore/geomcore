@@ -9,7 +9,7 @@ from geomcore.curves import (
     _WholeCurve,
     _WholeCurve2D,
 )
-from geomcore.surfaces import _Surface
+from geomcore.surfaces import BSplineSurface, _Surface
 
 from . import curves, surfaces
 
@@ -49,7 +49,7 @@ class Curve3DToUvApproximationError(GeomcoreError):
 class UvCurveTo3DError(GeomcoreError):
     """A UV curve, a curve in a surface's parameter space, has no exact 3D curve in the same parameter."""
 
-class UvCurveApproximationError(GeomcoreError):
+class UvCurveTo3DApproximationError(GeomcoreError):
     """A UV curve, a curve in a surface's parameter space, has no 3D curve within the asked deviation."""
 
 class SurfaceIsoError(GeomcoreError):
@@ -341,7 +341,7 @@ class SurfaceCurvatures:
     def gaussian(self) -> float: ...
 
 @final
-class UvCurveApproximation:
+class CurveApproximation:
     __hash__: ClassVar[None]  # type: ignore[assignment]
     @property
     def curve(self) -> BSplineCurve: ...
@@ -350,12 +350,22 @@ class UvCurveApproximation:
     def is_proven(self) -> bool: ...
 
 @final
-class Curve3DToUvApproximation:
+class CurveApproximation2D:
     __hash__: ClassVar[None]  # type: ignore[assignment]
     @property
     def curve(self) -> BSplineCurve2D: ...
     @property
     def deviation(self) -> float: ...
+    def is_proven(self) -> bool: ...
+
+@final
+class SurfaceApproximation:
+    __hash__: ClassVar[None]  # type: ignore[assignment]
+    @property
+    def surface(self) -> BSplineSurface: ...
+    @property
+    def deviation(self) -> float: ...
+    def is_proven(self) -> bool: ...
 
 class IntersectionMethod(enum.IntEnum):
     EXACT = 0
@@ -638,13 +648,13 @@ def curve_3d_to_uv_within(
     curve: _Curve,
     max_deviation: float,
     tol: Optional[Tolerance] = ...,
-) -> Curve3DToUvApproximation: ...
+) -> CurveApproximation2D: ...
 def uv_curve_to_3d_within(
     surface: _Surface,
     uv_curve: _Curve2D,
     max_deviation: float,
     tol: Optional[Tolerance] = ...,
-) -> UvCurveApproximation: ...
+) -> CurveApproximation: ...
 def curve_curve_extrema(
     first: _Curve, second: _Curve, tol: Optional[Tolerance] = ...
 ) -> CurveCurveExtrema: ...
@@ -662,7 +672,7 @@ __all__ = [
     "Curve3DToUvError",
     "Curve3DToUvApproximationError",
     "UvCurveTo3DError",
-    "UvCurveApproximationError",
+    "UvCurveTo3DApproximationError",
     "SurfaceIsoError",
     "DiscretizationCriteriaError",
     "Axis2D",
@@ -671,6 +681,8 @@ __all__ = [
     "BoundingBox2D",
     "Completeness",
     "CompletenessStatus",
+    "CurveApproximation",
+    "CurveApproximation2D",
     "CurveCurveExtrema",
     "CurveCurveExtremum",
     "CurveCurveHit",
@@ -695,14 +707,13 @@ __all__ = [
     "Point",
     "PointParametrization",
     "Side",
+    "SurfaceApproximation",
     "SurfaceCurvatures",
     "SurfaceProjection",
     "SurfaceSurfaceIntersection",
     "SurfaceSurfaceRegion",
     "Tolerance",
     "Transform",
-    "UvCurveApproximation",
-    "Curve3DToUvApproximation",
     "Vector2D",
     "Vector",
     "curve_curve_extrema",

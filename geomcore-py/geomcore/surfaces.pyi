@@ -22,6 +22,7 @@ from geomcore import (
     Frame,
     Point,
     Side,
+    SurfaceApproximation,
     SurfaceCurvatures,
     SurfaceProjection,
     SurfaceSurfaceIntersection,
@@ -492,7 +493,7 @@ class BSplineSurface(
         v_degree: int,
         max_deviation: float,
         parametrization: _Parametrization = ...,
-    ) -> BSplineSurface: ...
+    ) -> SurfaceApproximation: ...
     def insert_u_knot(self, u: float, times: int) -> BSplineSurface: ...
     def insert_v_knot(self, v: float, times: int) -> BSplineSurface: ...
     def refine_u_knots(self, knots: List[float]) -> BSplineSurface: ...

@@ -103,7 +103,10 @@ so sample them to polylines for display.
 
 Interpolation passes through the points; `approximate` fits with a
 fixed pole count; `approximate_within` adds knots where the deviation
-is largest until every point is within `max_deviation`.
+is largest until every point is within `max_deviation`. It returns the
+curve with its `deviation`, the largest distance it measured between a
+point and the curve, which is a proven bound (`is_proven()`): the same
+result every operation within a deviation hands back.
 
 === "Python"
 
@@ -112,6 +115,8 @@ is largest until every point is within `max_deviation`.
     interp = BSplineCurve.interpolate(points, 3)
     approx = BSplineCurve.approximate(points, 2, 3)
     within = BSplineCurve.approximate_within(points, 2, 1e-6)
+    fitted = within.curve                 # BSplineCurve
+    within.deviation                      # <= 1e-6, measured at every point
     ```
 
 === "Rust"
@@ -123,6 +128,7 @@ is largest until every point is within `max_deviation`.
     let interp = BSplineCurve::interpolate(&points, 3, PointParametrization::Centripetal).unwrap();
     let approx = BSplineCurve::approximate(&points, 2, 3, PointParametrization::Centripetal).unwrap();
     let within = BSplineCurve::approximate_within(&points, 2, 1e-6, PointParametrization::Centripetal).unwrap();
+    let fitted = within.curve();
     ```
 
 In Python the points can also be an `(N, 3)` numpy array (`(N, 2)`
@@ -130,7 +136,8 @@ for `BSplineCurve2D`, `(n, m, 3)` for a surface grid).
 
 `BSplineSurface::approximate` fits a grid by separating rows and
 columns (one factored system per direction); `approximate_within`
-does the same within a deviation.
+does the same within a deviation, and returns the surface with its
+deviation.
 
 ## Exact conversions
 

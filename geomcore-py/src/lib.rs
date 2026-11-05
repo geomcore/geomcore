@@ -89,6 +89,7 @@ pub(crate) fn check_surface_order<S: HighestDerivativeOrder>(
     }
 }
 
+mod approximation;
 mod arguments;
 mod arrays;
 mod bounding_box;
@@ -101,6 +102,7 @@ mod results;
 mod surfaces;
 mod values;
 
+use approximation::{PyCurveApproximation, PyCurveApproximation2D, PySurfaceApproximation};
 use arguments::{curve_2d_classes, curve_classes, surface_classes};
 use bounding_box::{PyBoundingBox, PyBoundingBox2D};
 use curves::{PyTrimmedCurve, PyTrimmedCurve2D};
@@ -113,10 +115,7 @@ use results::{
     PyCurveSurfaceRegion, PyIntersectionCurve, PySurfaceCurvatures, PySurfaceProjection,
     PySurfaceSurfaceIntersection, PySurfaceSurfaceRegion,
 };
-use surfaces::{
-    PyCurve3DToUvApproximation, PyUvCurveApproximation, py_curve_3d_to_uv_within,
-    py_uv_curve_to_3d_within,
-};
+use surfaces::{py_curve_3d_to_uv_within, py_uv_curve_to_3d_within};
 use values::{
     PyAxis, PyAxis2D, PyFrame, PyFrame2D, PyPoint, PyPoint2D, PyTolerance, PyTransform, PyVector,
     PyVector2D,
@@ -165,8 +164,9 @@ fn geomcore_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyCurveCurveExtremum>()?;
     m.add_class::<PyCurveCurveExtrema>()?;
     m.add_class::<PySurfaceCurvatures>()?;
-    m.add_class::<PyUvCurveApproximation>()?;
-    m.add_class::<PyCurve3DToUvApproximation>()?;
+    m.add_class::<PyCurveApproximation>()?;
+    m.add_class::<PyCurveApproximation2D>()?;
+    m.add_class::<PySurfaceApproximation>()?;
 
     let curves = PyModule::new(py, "curves")?;
     curve_classes::add_to(&curves)?;

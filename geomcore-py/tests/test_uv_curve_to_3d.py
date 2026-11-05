@@ -144,9 +144,9 @@ def test_a_circle_on_a_sphere_maps_within_a_sampled_deviation():
 def test_uv_curve_to_3d_within_refuses_with_its_own_error():
     cylinder = Cylinder(Point(0, 0, 0), Vector(0, 0, 1), 10.0)
     line = Line2D(Point2D(0.0, 0.0), Vector2D(1.0, 1.0))
-    with pytest.raises(geomcore.UvCurveApproximationError, match="unbounded"):
+    with pytest.raises(geomcore.UvCurveTo3DApproximationError, match="unbounded"):
         geomcore.uv_curve_to_3d_within(cylinder, line, 1e-7)
     turn = TrimmedCurve2D(line, 0.0, 1.0)
-    with pytest.raises(geomcore.UvCurveApproximationError, match="deviation"):
+    with pytest.raises(geomcore.UvCurveTo3DApproximationError, match="deviation"):
         geomcore.uv_curve_to_3d_within(cylinder, turn, -1.0)
 
