@@ -7,20 +7,26 @@ import math
 import pytest
 
 import geomcore
-from geomcore import Point, Point2D, Vector, Vector2D
-from geomcore.curves import (
-    BezierCurve2D,
+from geomcore import (
     BSplineCurve,
     BSplineCurve2D,
+    BezierCurve2D,
+    BezierSurface,
     Circle,
     Circle2D,
+    Cylinder,
     Ellipse,
     Ellipse2D,
     Line,
     Line2D,
+    Plane,
+    Point,
+    Point2D,
+    Sphere,
     TrimmedCurve2D,
+    Vector,
+    Vector2D,
 )
-from geomcore.surfaces import BezierSurface, Cylinder, Plane, Sphere
 
 
 def assert_traces(traced, curve, surface, parameters=(-1.2, 0.0, 0.4, 2.5)):

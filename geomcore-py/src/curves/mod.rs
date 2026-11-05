@@ -1,4 +1,4 @@
-//! The `geomcore.curves` classes, one file per class as in the core crate's
+//! The curve classes, one file per class as in the core crate's
 //! `curves/`.
 
 mod bezier;

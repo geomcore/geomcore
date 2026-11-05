@@ -5,8 +5,16 @@ import math
 
 import pytest
 
-from geomcore import BoundingBox2D, Point2D, Tolerance, Vector2D
-from geomcore.curves import BSplineCurve2D, Circle2D, Line2D, TrimmedCurve2D
+from geomcore import (
+    BSplineCurve2D,
+    BoundingBox2D,
+    Circle2D,
+    Line2D,
+    Point2D,
+    Tolerance,
+    TrimmedCurve2D,
+    Vector2D,
+)
 
 ORIGIN = Point2D.origin()
 X, Y = Vector2D.unit_x(), Vector2D.unit_y()

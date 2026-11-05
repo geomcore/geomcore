@@ -1,8 +1,8 @@
 //! Python bindings for the `geomcore` geometric kernel.
 //!
-//! The extension module mirrors the Rust crate's namespaces: value types live
-//! at the package root (`geomcore`), curves under `geomcore.curves`, and
-//! surfaces under `geomcore.surfaces`. Fallible operations raise
+//! The extension module `geomcore._native` holds every class and function
+//! flat, as the Rust crate root does (ADR 0022); the `geomcore` package
+//! re-exports it (ADR 0038). Fallible operations raise
 //! the `GeomcoreError` subclass matching the Rust error type (see `errors`);
 //! `GeomcoreError` is a `ValueError`.
 
@@ -127,10 +127,8 @@ use values::{
 // Module wiring
 // ---------------------------------------------------------------------------
 
-#[pymodule(name = "geomcore")]
+#[pymodule(name = "_native")]
 fn geomcore_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    let py = m.py();
-
     m.setattr("__version__", env!("CARGO_PKG_VERSION"))?;
     errors::register(m)?;
     m.add_class::<PyPoint>()?;
@@ -171,22 +169,11 @@ fn geomcore_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyCurveApproximation2D>()?;
     m.add_class::<PySurfaceApproximation>()?;
 
-    let curves = PyModule::new(py, "curves")?;
-    curve_classes::add_to(&curves)?;
-    curve_2d_classes::add_to(&curves)?;
-    curves.add_class::<PyTrimmedCurve>()?;
-    curves.add_class::<PyTrimmedCurve2D>()?;
-    m.add_submodule(&curves)?;
-
-    let surfaces = PyModule::new(py, "surfaces")?;
-    surface_classes::add_to(&surfaces)?;
-    m.add_submodule(&surfaces)?;
-
-    // Register the submodules in sys.modules so that
-    // `from geomcore.curves import Circle` works.
-    let sys_modules = py.import("sys")?.getattr("modules")?;
-    sys_modules.set_item("geomcore.curves", &curves)?;
-    sys_modules.set_item("geomcore.surfaces", &surfaces)?;
+    curve_classes::add_to(m)?;
+    curve_2d_classes::add_to(m)?;
+    m.add_class::<PyTrimmedCurve>()?;
+    m.add_class::<PyTrimmedCurve2D>()?;
+    surface_classes::add_to(m)?;
 
     m.add_function(wrap_pyfunction!(py_curve_3d_to_uv_within, m)?)?;
     m.add_function(wrap_pyfunction!(py_uv_curve_to_3d_within, m)?)?;

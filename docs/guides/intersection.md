@@ -251,8 +251,7 @@ within a deviation.
 === "Python"
 
     ```python
-    from geomcore import Point, Vector
-    from geomcore.surfaces import Cylinder, Plane
+    from geomcore import Cylinder, Plane, Point, Vector
 
     cylinder = Cylinder(Point.origin(), Vector.unit_z(), 1.0)
     (piece,) = Plane(Point(0.0, 0.0, 2.0), Vector.unit_z()).intersect(cylinder).curves

@@ -5,24 +5,25 @@ import math
 import pytest
 
 from geomcore import (
+    BSplineCurve,
+    BSplineSurface,
+    Circle,
+    Circle2D,
     CurveProjection,
     CurveProjection2D,
-    Point2D,
+    Cylinder,
+    Line2D,
+    Plane,
     Point,
+    Point2D,
+    Sphere,
     SurfaceProjection,
     Tolerance,
-    Vector2D,
-    Vector,
-)
-from geomcore.curves import (
-    BSplineCurve,
-    Circle2D,
-    Circle,
-    Line2D,
-    TrimmedCurve2D,
     TrimmedCurve,
+    TrimmedCurve2D,
+    Vector,
+    Vector2D,
 )
-from geomcore.surfaces import BSplineSurface, Cylinder, Plane, Sphere
 
 
 def _assert_points_close(a, b):

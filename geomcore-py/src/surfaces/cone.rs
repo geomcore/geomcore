@@ -1,4 +1,4 @@
-//! The Python class `geomcore.surfaces.Cone`, wrapping `geomcore::Cone`.
+//! The Python class `geomcore.Cone`, wrapping `geomcore::Cone`.
 
 use crate::method_sets::*;
 use crate::surfaces::*;
@@ -7,7 +7,7 @@ use geomcore::Cone;
 
 /// An infinite cone; u is the angle around the axis, v the distance along a
 /// generator from the reference circle.
-#[pyclass(name = "Cone", module = "geomcore.surfaces", eq)]
+#[pyclass(name = "Cone", module = "geomcore", eq)]
 #[derive(Clone, PartialEq)]
 pub(crate) struct PyCone(pub(crate) Cone);
 
