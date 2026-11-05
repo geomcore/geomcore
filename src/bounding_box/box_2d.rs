@@ -226,8 +226,72 @@ impl BoundingBox2D {
         (0..2).all(|k| a_min[k] <= b_max[k] && b_min[k] <= a_max[k])
     }
 
+    /// The box of the points the two boxes share, or `None` when they are
+    /// apart. Boxes that only touch share a flat box.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{BoundingBox2D, Point2D};
+    ///
+    /// let a = BoundingBox2D::new(Point2D::ORIGIN, Point2D::new(2.0, 2.0));
+    /// let b = BoundingBox2D::new(Point2D::new(1.0, 1.0), Point2D::new(3.0, 3.0));
+    /// assert_eq!(a.intersection(b), Some(BoundingBox2D::new(Point2D::new(1.0, 1.0), Point2D::new(2.0, 2.0))));
+    /// assert_eq!(a.intersection(BoundingBox2D::new(Point2D::new(4.0, 0.0), Point2D::new(4.0, 1.0))), None);
+    /// ```
+    pub fn intersection(self, other: BoundingBox2D) -> Option<BoundingBox2D> {
+        if !self.overlaps(other) {
+            return None;
+        }
+        let (a_min, a_max) = (coordinates(self.min), coordinates(self.max));
+        let (b_min, b_max) = (coordinates(other.min), coordinates(other.max));
+        let lo: [f64; 2] = std::array::from_fn(|k| a_min[k].max(b_min[k]));
+        let hi: [f64; 2] = std::array::from_fn(|k| a_max[k].min(b_max[k]));
+        Some(BoundingBox2D {
+            min: point(lo),
+            max: point(hi),
+        })
+    }
+
+    /// The distance from `point` to the box: zero for a point in it,
+    /// edges included, the distance to the nearest point of the box
+    /// otherwise.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{BoundingBox2D, Point2D};
+    ///
+    /// let b = BoundingBox2D::new(Point2D::ORIGIN, Point2D::new(2.0, 2.0));
+    /// assert_eq!(b.distance(Point2D::new(1.0, 1.0)), 0.0);
+    /// assert_eq!(b.distance(Point2D::new(5.0, 1.0)), 3.0);
+    /// ```
+    pub fn distance(self, point: Point2D) -> f64 {
+        let (p, min, max) = (
+            coordinates(point),
+            coordinates(self.min),
+            coordinates(self.max),
+        );
+        (0..2)
+            .map(|k| {
+                let gap = (min[k] - p[k]).max(p[k] - max[k]).max(0.0);
+                gap * gap
+            })
+            .sum::<f64>()
+            .sqrt()
+    }
+
     /// The smallest box holding this box and `point`.
-    pub(crate) fn including(self, p: Point2D) -> BoundingBox2D {
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{BoundingBox2D, Point2D};
+    ///
+    /// let b = BoundingBox2D::new(Point2D::ORIGIN, Point2D::new(2.0, 2.0)).including(Point2D::new(5.0, 1.0));
+    /// assert_eq!(b.max(), Point2D::new(5.0, 2.0));
+    /// ```
+    pub fn including(self, p: Point2D) -> BoundingBox2D {
         BoundingBox2D {
             min: Point2D::new(self.min.x.min(p.x), self.min.y.min(p.y)),
             max: Point2D::new(self.max.x.max(p.x), self.max.y.max(p.y)),

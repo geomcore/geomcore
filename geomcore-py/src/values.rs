@@ -71,6 +71,22 @@ impl PyPoint {
         self.0.coincides(other.0, tolerance(tol))
     }
 
+    /// The coordinates as a tuple `(x, y, z)`.
+    fn components(&self) -> (f64, f64, f64) {
+        (self.0.x, self.0.y, self.0.z)
+    }
+
+    /// The point halfway between this point and `other`.
+    fn midpoint(&self, other: &PyPoint) -> PyPoint {
+        PyPoint(self.0.midpoint(other.0))
+    }
+
+    /// The image of this point under `transform`, the same as
+    /// `transform.apply_point(point)`.
+    fn transformed(&self, transform: &PyTransform) -> PyPoint {
+        PyPoint(self.0.transformed(transform.0))
+    }
+
     /// Whether every coordinate is finite.
     fn is_finite(&self) -> bool {
         self.0.is_finite()
@@ -299,6 +315,16 @@ impl PyPoint2D {
     #[pyo3(signature = (other, tol = None))]
     fn coincides(&self, other: &PyPoint2D, tol: Option<PyTolerance>) -> bool {
         self.0.coincides(other.0, tolerance(tol))
+    }
+
+    /// The coordinates as a tuple `(x, y)`.
+    fn components(&self) -> (f64, f64) {
+        (self.0.x, self.0.y)
+    }
+
+    /// The point halfway between this point and `other`.
+    fn midpoint(&self, other: &PyPoint2D) -> PyPoint2D {
+        PyPoint2D(self.0.midpoint(other.0))
     }
 
     /// Whether every coordinate is finite.
@@ -685,6 +711,39 @@ impl PyFrame2D {
         self.0.is_direct()
     }
 
+    /// The axis through the origin along the x direction.
+    fn x_axis(&self) -> PyAxis2D {
+        PyAxis2D(self.0.x_axis())
+    }
+
+    /// The axis through the origin along the y direction.
+    fn y_axis(&self) -> PyAxis2D {
+        PyAxis2D(self.0.y_axis())
+    }
+
+    /// The coordinates `(u, v)` of `point` along the x and y directions,
+    /// measured from the origin.
+    fn local_coordinates(&self, point: PyPoint2D) -> (f64, f64) {
+        self.0.local_coordinates(point.0)
+    }
+
+    /// The point at `u` along x and `v` along y from the origin.
+    fn point_at(&self, u: f64, v: f64) -> PyPoint2D {
+        PyPoint2D(self.0.point_at(u, v))
+    }
+
+    /// The vector `u * x_direction + v * y_direction`: `point_at` for a
+    /// direction, which ignores the origin.
+    fn vector_at(&self, u: f64, v: f64) -> PyVector2D {
+        PyVector2D(self.0.vector_at(u, v))
+    }
+
+    /// The components `(u, v)` of `vector` along the x and y directions:
+    /// `local_coordinates` for a direction, which ignores the origin.
+    fn local_components(&self, vector: PyVector2D) -> (f64, f64) {
+        self.0.local_components(vector.0)
+    }
+
     fn __repr__(&self) -> String {
         format!(
             "Frame2D(origin={}, x_direction={}, y_direction={})",
@@ -801,6 +860,30 @@ impl PyFrame {
     /// The point at `u` along x, `v` along y and `w` along z from the origin.
     fn point_at(&self, u: f64, v: f64, w: f64) -> PyPoint {
         PyPoint(self.0.point_at(u, v, w))
+    }
+
+    /// The vector `u * x_direction + v * y_direction + w * z_direction`:
+    /// `point_at` for a direction, which ignores the origin.
+    fn vector_at(&self, u: f64, v: f64, w: f64) -> PyVector {
+        PyVector(self.0.vector_at(u, v, w))
+    }
+
+    /// The components `(u, v, w)` of `vector` along the x, y and z
+    /// directions: `local_coordinates` for a direction, which ignores the
+    /// origin.
+    fn local_components(&self, vector: PyVector) -> (f64, f64, f64) {
+        self.0.local_components(vector.0)
+    }
+
+    /// The image of the frame under `transform`: a point at local
+    /// coordinates `(u, v, w)` maps to the point at the same coordinates,
+    /// scaled by `transform.scale_factor()`, in the image. A mirror
+    /// changes the handedness. Raises `ConstructionError` when the
+    /// transform collapses space or the image overflows.
+    fn transformed(&self, transform: &PyTransform) -> PyResult<PyFrame> {
+        Ok(PyFrame(
+            self.0.transformed(transform.0).map_err(python_error)?,
+        ))
     }
 }
 
@@ -923,6 +1006,37 @@ impl PyTransform {
     #[staticmethod]
     fn mirror_plane(frame: PyFrame) -> Self {
         PyTransform(Transform::mirror_plane(frame.0))
+    }
+
+    /// The rigid motion taking the `source` placement to the `target` one:
+    /// the point at local coordinates `(u, v, w)` in `source` maps to the
+    /// point at the same coordinates in `target`. It includes a mirror when
+    /// the frames have opposite handedness.
+    #[staticmethod]
+    fn between_frames(source: &PyFrame, target: &PyFrame) -> Self {
+        PyTransform(Transform::between_frames(source.0, target.0))
+    }
+
+    /// The factor by which the transformation scales lengths: 1 for a
+    /// rotation, a translation or a mirror, 0 for a collapse onto a point.
+    fn scale_factor(&self) -> f64 {
+        self.0.scale_factor()
+    }
+
+    /// Whether the transformation keeps the handedness of space: false for
+    /// mirrors (whose images of surfaces have their normals flipped) and
+    /// for a collapse onto a point.
+    fn preserves_orientation(&self) -> bool {
+        self.0.preserves_orientation()
+    }
+
+    /// Whether the transformation leaves space unchanged within `tol`
+    /// (`Tolerance.default()` when omitted): its linear part within
+    /// `tol.angular` of the identity's, entry by entry, and its translation
+    /// shorter than `tol.confusion`.
+    #[pyo3(signature = (tol = None))]
+    fn is_identity(&self, tol: Option<PyTolerance>) -> bool {
+        self.0.is_identity(tolerance(tol))
     }
 
     /// Compose transformations: `self` is applied first, then `next`.

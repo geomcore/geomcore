@@ -297,3 +297,47 @@ fn test_axis_queries_measure_from_the_line() {
     assert!(flat.contains(Point2D::new(-4.0, 1.0), tol));
     assert_eq!(flat.reversed().direction(), -Vector2D::X);
 }
+
+#[test]
+fn test_frame_directions_round_trip_through_local_components() {
+    let frame = Frame::new(
+        Point::new(1.0, -2.0, 0.5),
+        Vector::new(0.3, -0.4, 0.86),
+        Vector::new(1.0, 0.2, 0.0),
+    )
+    .unwrap();
+    let v = Vector::new(0.7, -1.1, 2.3);
+    let (u, w1, w2) = frame.local_components(v);
+    assert!((frame.vector_at(u, w1, w2) - v).magnitude() < 1e-14);
+    // Unlike points, directions ignore the origin.
+    let placed = frame.point_at(1.0, 2.0, 3.0) - frame.origin();
+    assert!((frame.vector_at(1.0, 2.0, 3.0) - placed).magnitude() < 1e-14);
+}
+
+#[test]
+fn test_frame_2d_places_points_and_directions() {
+    let frame = Frame2D::from_x(Point2D::new(1.0, -2.0), Vector2D::new(3.0, 4.0)).unwrap();
+    let p = Point2D::new(0.5, 7.0);
+    let (u, v) = frame.local_coordinates(p);
+    assert!(frame.point_at(u, v).distance(p) < 1e-14);
+    let d = Vector2D::new(-2.0, 0.25);
+    let (a, b) = frame.local_components(d);
+    assert!((frame.vector_at(a, b) - d).magnitude() < 1e-14);
+    assert_eq!(frame.x_axis().direction(), frame.x_direction());
+    assert_eq!(frame.y_axis().direction(), frame.y_direction());
+    assert_eq!(frame.y_axis().origin(), frame.origin());
+}
+
+#[test]
+fn test_frame_transformed_carries_local_coordinates() {
+    let frame = Frame::from_z(Point::new(1.0, 2.0, 3.0), Vector::new(0.0, 1.0, 1.0)).unwrap();
+    let axis = Axis::new(Point::new(0.0, 1.0, 0.0), Vector::new(1.0, 1.0, 0.2)).unwrap();
+    let t = crate::Transform::rotation(axis, 0.9);
+    let image = frame.transformed(t).unwrap();
+    let mapped = t.apply_point(frame.point_at(0.4, -1.5, 2.0));
+    assert!(mapped.distance(image.point_at(0.4, -1.5, 2.0)) < 1e-13);
+    assert_eq!(
+        frame.transformed(crate::Transform::scaling(Point::ORIGIN, 0.0)),
+        Err(crate::TransformError::Collapsed)
+    );
+}

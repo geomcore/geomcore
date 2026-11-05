@@ -27,6 +27,22 @@ the Python distribution are versioned in lockstep.
     orientation.
   - `Plane::signed_distance(point)`: positive on the side the normal points
     to.
+- The placement and container classes get the methods the same callers
+  were missing (#198, second part).
+  - `Point` and `Point2D`: `midpoint(other)`, and in Python `components()`,
+    which `Vector` has. `Point` also gets `transformed(transform)`, so a
+    point moves with the same spelling as a curve or a surface.
+  - `Frame`: `vector_at(u, v, w)` and `local_components(vector)`, the
+    direction counterparts of `point_at` and `local_coordinates`, and
+    `transformed(transform)`, which keeps local coordinates.
+  - `Frame2D`: `point_at`, `local_coordinates`, `vector_at`,
+    `local_components`, and `x_axis()` and `y_axis()`.
+  - `Transform`: `between_frames(source, target)`, the rigid motion from one
+    placement to another; `scale_factor()`, which was crate-private;
+    `preserves_orientation()`, false for mirrors; and `is_identity(tol)`.
+  - `BoundingBox` and `BoundingBox2D`: `including(point)`, which was
+    crate-private; `intersection(other)`, `None` for boxes apart; and
+    `distance(point)`. In Python, `point in box` is `box.encloses(point)`.
 
 ### Fixed
 

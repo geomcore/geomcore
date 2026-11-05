@@ -130,3 +130,55 @@ fn test_then_applies_self_before_next() {
     assert!((result.y - 1.0).abs() < 1e-10, "y = {}", result.y);
     assert!((result.z - 0.0).abs() < 1e-10, "z = {}", result.z);
 }
+
+#[test]
+fn test_between_frames_takes_the_source_onto_the_target() {
+    let source = Frame::new(
+        Point::new(1.0, -2.0, 0.5),
+        Vector::new(0.3, -0.4, 0.86),
+        Vector::new(1.0, 0.2, 0.0),
+    )
+    .unwrap();
+    let direct = Frame::new(Point::new(-3.0, 0.0, 2.0), Vector::Y, Vector::Z).unwrap();
+    for target in [direct, direct.flipped_x()] {
+        let t = Transform::between_frames(source, target);
+        let image = source.transformed(t).unwrap();
+        assert!(image.origin().distance(target.origin()) < 1e-13);
+        for (a, b) in [
+            (image.x_direction(), target.x_direction()),
+            (image.y_direction(), target.y_direction()),
+            (image.z_direction(), target.z_direction()),
+        ] {
+            assert!((a - b).magnitude() < 1e-13);
+        }
+        assert_eq!(t.preserves_orientation(), target.is_direct());
+        assert!((t.scale_factor() - 1.0).abs() < 1e-14);
+    }
+    let round_trip =
+        Transform::between_frames(source, direct).then(Transform::between_frames(direct, source));
+    assert!(round_trip.is_identity(crate::Tolerance::DEFAULT));
+}
+
+#[test]
+fn test_preserves_orientation_is_false_for_mirrors_and_collapses() {
+    let axis = Axis::new(Point::ORIGIN, Vector::new(1.0, 2.0, 3.0)).unwrap();
+    assert!(Transform::IDENTITY.preserves_orientation());
+    assert!(Transform::rotation(axis, 2.0).preserves_orientation());
+    // A half turn about a line, despite its name.
+    assert!(Transform::mirror_axis(axis).preserves_orientation());
+    assert!(!Transform::mirror_point(Point::ORIGIN).preserves_orientation());
+    assert!(!Transform::mirror_plane(Frame::WORLD).preserves_orientation());
+    assert!(!Transform::scaling(Point::ORIGIN, -1.0).preserves_orientation());
+    assert!(!Transform::scaling(Point::ORIGIN, 0.0).preserves_orientation());
+}
+
+#[test]
+fn test_is_identity_bounds_the_turn_and_the_shift() {
+    let tol = crate::Tolerance::DEFAULT;
+    assert!(Transform::IDENTITY.is_identity(tol));
+    assert!(Transform::translation(Vector::new(0.0, 0.0, 0.5 * tol.confusion)).is_identity(tol));
+    assert!(!Transform::translation(Vector::new(0.0, 0.0, 2.0 * tol.confusion)).is_identity(tol));
+    assert!(!Transform::scaling(Point::ORIGIN, 1.0 + 1e-9).is_identity(tol));
+    let axis = Axis::new(Point::ORIGIN, Vector::Z).unwrap();
+    assert!(!Transform::rotation(axis, PI).is_identity(tol));
+}

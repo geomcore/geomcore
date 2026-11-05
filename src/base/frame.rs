@@ -2,7 +2,7 @@
 //! surfaces are positioned in.
 
 use crate::Tolerance;
-use crate::{Point, Point2D, Vector, Vector2D};
+use crate::{Point, Point2D, Transform, TransformError, Vector, Vector2D};
 use std::fmt;
 
 /// Error returned when an axis or frame cannot be constructed from the
@@ -615,6 +615,64 @@ impl Frame {
     pub fn point_at(self, u: f64, v: f64, w: f64) -> Point {
         self.origin + u * self.x_dir + v * self.y_dir + w * self.z_dir
     }
+
+    /// Returns the vector `u*x + v*y + w*z`: the direction counterpart of
+    /// [`Frame::point_at`], which ignores the origin.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Frame, Point, Vector};
+    /// let frame = Frame::from_z(Point::new(5.0, 5.0, 5.0), Vector::Z).unwrap();
+    /// assert_eq!(frame.vector_at(0.0, 0.0, 2.0), Vector::new(0.0, 0.0, 2.0));
+    /// ```
+    pub fn vector_at(self, u: f64, v: f64, w: f64) -> Vector {
+        u * self.x_dir + v * self.y_dir + w * self.z_dir
+    }
+
+    /// Returns the components of `vector` along the frame's directions,
+    /// `(vector·x, vector·y, vector·z)`: the direction counterpart of
+    /// [`Frame::local_coordinates`], which ignores the origin.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Frame, Point, Vector};
+    /// let frame = Frame::from_z(Point::new(5.0, 5.0, 5.0), Vector::Z).unwrap();
+    /// let (_, _, w) = frame.local_components(Vector::new(0.0, 0.0, 2.0));
+    /// assert_eq!(w, 2.0);
+    /// ```
+    pub fn local_components(self, vector: Vector) -> (f64, f64, f64) {
+        (
+            vector.dot(self.x_dir),
+            vector.dot(self.y_dir),
+            vector.dot(self.z_dir),
+        )
+    }
+
+    /// Returns the image of the frame under `transform`: a point at local
+    /// coordinates `(u, v, w)` in this frame maps to the point at the same
+    /// local coordinates, scaled by [`Transform::scale_factor`], in the
+    /// image. A mirror changes the handedness (see [`Frame::is_direct`]).
+    ///
+    /// # Errors
+    ///
+    /// [`TransformError::Collapsed`] when the transform has a zero scale
+    /// factor and [`TransformError::NonFinite`] when the image overflows
+    /// `f64`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Frame, Point, Transform, Vector};
+    /// let shift = Transform::translation(Vector::new(1.0, 2.0, 3.0));
+    /// let moved = Frame::WORLD.transformed(shift).unwrap();
+    /// assert_eq!(moved.origin(), Point::new(1.0, 2.0, 3.0));
+    /// assert_eq!(moved.z_direction(), Vector::Z);
+    /// ```
+    pub fn transformed(self, transform: Transform) -> Result<Frame, TransformError> {
+        transform.apply_frame(self).map(|(image, _)| image)
+    }
 }
 
 /// A 2D axis: an origin point and a unit direction.
@@ -953,6 +1011,95 @@ impl Frame2D {
     /// ```
     pub fn is_direct(self) -> bool {
         self.x_dir.cross(self.y_dir) > 0.0
+    }
+
+    /// Returns the axis through the origin along the x direction.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Frame2D, Point2D, Vector2D};
+    /// let axis = Frame2D::WORLD.x_axis();
+    /// assert_eq!(axis.origin(), Point2D::ORIGIN);
+    /// assert_eq!(axis.direction(), Vector2D::X);
+    /// ```
+    pub fn x_axis(self) -> Axis2D {
+        Axis2D {
+            origin: self.origin,
+            direction: self.x_dir,
+        }
+    }
+
+    /// Returns the axis through the origin along the y direction.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Frame2D, Vector2D};
+    /// assert_eq!(Frame2D::WORLD.y_axis().direction(), Vector2D::Y);
+    /// ```
+    pub fn y_axis(self) -> Axis2D {
+        Axis2D {
+            origin: self.origin,
+            direction: self.y_dir,
+        }
+    }
+
+    /// Returns the coordinates of `p` expressed in this frame, as
+    /// `((p - origin)·x, (p - origin)·y)`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Frame2D, Point2D, Vector2D};
+    /// let frame = Frame2D::from_x(Point2D::new(1.0, 1.0), Vector2D::Y).unwrap();
+    /// assert_eq!(frame.local_coordinates(Point2D::new(1.0, 3.0)), (2.0, 0.0));
+    /// ```
+    pub fn local_coordinates(self, p: Point2D) -> (f64, f64) {
+        let d = p - self.origin;
+        (d.dot(self.x_dir), d.dot(self.y_dir))
+    }
+
+    /// Returns the point at `origin + u*x + v*y`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Frame2D, Point2D, Vector2D};
+    /// let frame = Frame2D::from_x(Point2D::new(1.0, 1.0), Vector2D::Y).unwrap();
+    /// assert_eq!(frame.point_at(2.0, 0.0), Point2D::new(1.0, 3.0));
+    /// ```
+    pub fn point_at(self, u: f64, v: f64) -> Point2D {
+        self.origin + u * self.x_dir + v * self.y_dir
+    }
+
+    /// Returns the vector `u*x + v*y`: the direction counterpart of
+    /// [`Frame2D::point_at`], which ignores the origin.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Frame2D, Point2D, Vector2D};
+    /// let frame = Frame2D::from_x(Point2D::new(1.0, 1.0), Vector2D::Y).unwrap();
+    /// assert_eq!(frame.vector_at(1.0, 0.0), Vector2D::Y);
+    /// ```
+    pub fn vector_at(self, u: f64, v: f64) -> Vector2D {
+        u * self.x_dir + v * self.y_dir
+    }
+
+    /// Returns the components of `vector` along the frame's directions,
+    /// `(vector·x, vector·y)`: the direction counterpart of
+    /// [`Frame2D::local_coordinates`], which ignores the origin.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Frame2D, Point2D, Vector2D};
+    /// let frame = Frame2D::from_x(Point2D::new(1.0, 1.0), Vector2D::Y).unwrap();
+    /// assert_eq!(frame.local_components(Vector2D::Y), (1.0, 0.0));
+    /// ```
+    pub fn local_components(self, vector: Vector2D) -> (f64, f64) {
+        (vector.dot(self.x_dir), vector.dot(self.y_dir))
     }
 
     /// The frame with the y direction negated: orthonormality is kept and
