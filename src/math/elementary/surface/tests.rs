@@ -395,3 +395,53 @@ fn replay_case(
         );
     }
 }
+
+// ---- derivatives of any order ----
+
+/// Checks every partial derivative of order 3 to 6 of `partial`, the
+/// `(du, dv)` derivative at `(u, v)` with `(0, 0)` the point from the
+/// origin, against the central difference of the one below it.
+fn assert_matches_differences(partial: impl Fn(u32, u32, f64, f64) -> Vector) {
+    let (u, v, step) = (0.7, 0.4, 1e-5);
+    for order in 3..=6 {
+        for du in 0..=order {
+            let dv = order - du;
+            let difference = if du >= 1 {
+                partial(du - 1, dv, u + step, v) - partial(du - 1, dv, u - step, v)
+            } else {
+                partial(du, dv - 1, u, v + step) - partial(du, dv - 1, u, v - step)
+            };
+            let expected = (0.5 / step) * difference;
+            let actual = partial(du, dv, u, v);
+            assert!(
+                (actual - expected).magnitude() < 1e-7,
+                "({du}, {dv}): {actual:?} vs {expected:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn test_derivatives_of_any_order_match_differences() {
+    let frame = skewed_frame();
+    assert_matches_differences(|du, dv, u, v| match du + dv {
+        0 => plane_d0(&frame, u, v) - Point::ORIGIN,
+        _ => plane_derivative(&frame, du, dv),
+    });
+    assert_matches_differences(|du, dv, u, v| match du + dv {
+        0 => cylinder_d0(&frame, 2.0, u, v) - Point::ORIGIN,
+        _ => cylinder_derivative(&frame, 2.0, u, v, du, dv),
+    });
+    assert_matches_differences(|du, dv, u, v| match du + dv {
+        0 => cone_d0(&frame, 1.5, 0.4, u, v) - Point::ORIGIN,
+        _ => cone_derivative(&frame, 1.5, 0.4, u, v, du, dv),
+    });
+    assert_matches_differences(|du, dv, u, v| match du + dv {
+        0 => sphere_d0(&frame, 3.0, u, v) - Point::ORIGIN,
+        _ => sphere_derivative(&frame, 3.0, u, v, du, dv),
+    });
+    assert_matches_differences(|du, dv, u, v| match du + dv {
+        0 => torus_d0(&frame, 5.0, 1.5, u, v) - Point::ORIGIN,
+        _ => torus_derivative(&frame, 5.0, 1.5, u, v, du, dv),
+    });
+}

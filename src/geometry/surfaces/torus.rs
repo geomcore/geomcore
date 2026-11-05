@@ -281,7 +281,7 @@ impl ParametricSurface for Torus {
             0 => panic!(
                 "eval_derivative: du + dv must be >= 1 (use eval_point for the (0, 0) order)"
             ),
-            1..=2 => elementary::torus_derivative(
+            _ => elementary::torus_derivative(
                 &self.frame,
                 self.major_radius,
                 self.minor_radius,
@@ -289,9 +289,6 @@ impl ParametricSurface for Torus {
                 v,
                 du,
                 dv,
-            ),
-            _ => panic!(
-                "eval_derivative: order du={du}, dv={dv} is not supported (du + dv must be <= 2)"
             ),
         }
     }

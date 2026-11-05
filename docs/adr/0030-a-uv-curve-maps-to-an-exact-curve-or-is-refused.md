@@ -40,7 +40,7 @@ On a plane, or an extrusion perpendicular to its line, every kind is kept.
 
 - **A method on every 2D curve type, as issue #152 asked**: rejected. The curves would depend on surfaces. The pair table reads iso curves and affine maps, which are surface knowledge. On the surface, the pair of point-level mappings (`eval_point`, `parameters_of`) gets its curve-level pair in one place.
 - **A composed curve type that evaluates any curve through any surface**: deferred. It answers every pair, but with a curve that is neither elementary nor a B-spline, which no operation reads yet. It would be added when a consumer needs it, and the exact table stays its fast path.
-- **Approximating the refused pairs**: rejected. A tolerance-dependent fit under a name that promises exactness would hide the choice from the caller.
+- **Approximating the refused pairs**: rejected. A tolerance-dependent fit under a name that promises exactness would hide the choice from the caller. ADR 0035 adds that fit as its own operation, `uv_curve_to_3d_within`.
 - **`impl Into<Curve2D>`**: rejected, as it would make the trait not dyn-compatible.
 - **`TrimmedCurve2D`**: not accepted, since it is not a `Curve2D` variant. A caller maps its basis and trims the result in the same parameter.
 

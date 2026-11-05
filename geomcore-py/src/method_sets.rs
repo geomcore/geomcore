@@ -461,9 +461,10 @@ macro_rules! surface {
             }
 
             /// Evaluate the partial derivative of order (du, dv), with
-            /// 1 <= du+dv <= 2.
+            /// du+dv >= 1: of every order on the plane, cylinder, cone,
+            /// sphere and torus, and du+dv <= 2 on the other surfaces.
             fn eval_derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> PyResult<PyVector> {
-                check_surface_order(du, dv)?;
+                check_surface_order(&self.0, du, dv)?;
                 Ok(PyVector(self.0.eval_derivative(u, v, du, dv)))
             }
 
@@ -838,7 +839,7 @@ macro_rules! sided_surface_evaluation {
                 u_side: PySide,
                 v_side: PySide,
             ) -> PyResult<PyVector> {
-                check_surface_order(du, dv)?;
+                check_surface_order(&self.0, du, dv)?;
                 let (u_side, v_side) = (u_side.into(), v_side.into());
                 Ok(PyVector(self.0.eval_derivative_sided(u, v, du, dv, u_side, v_side)))
             }

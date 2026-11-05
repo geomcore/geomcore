@@ -48,7 +48,9 @@ Windows, for Python 3.9+ (abi3 — one wheel covers all versions).
   evaluation at knots and seams (`Side`).
 - Curve-on-surface parametrization: `surface.curve_3d_to_uv(curve)`
   (exact) and `curve_3d_to_uv_numeric` (sampled), and the inverse
-  `surface.uv_curve_to_3d(uv_curve)`.
+  `surface.uv_curve_to_3d(uv_curve)` (exact) and
+  `uv_curve_to_3d_within(surface, uv_curve, max_deviation)` (one
+  B-spline within a deviation).
 - B-spline `interpolate` and least-squares `approximate`.
 - Type stubs (PEP 561) for IDEs and type checkers.
 

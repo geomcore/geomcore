@@ -18,6 +18,7 @@ from geomcore.curves import (
     Ellipse2D,
     Line,
     Line2D,
+    TrimmedCurve2D,
 )
 from geomcore.surfaces import BezierSurface, Cylinder, Plane, Sphere
 
@@ -106,3 +107,46 @@ def test_a_composition_outside_the_domain_or_above_degree_25_raises():
     cubic = BezierCurve2D(3, poles)
     with pytest.raises(geomcore.UvCurveTo3DError, match="degree 30"):
         bezier_surface(5).uv_curve_to_3d(cubic)
+
+
+def test_a_slanted_line_on_a_cylinder_maps_within_a_deviation():
+    cylinder = Cylinder(Point(0, 0, 0), Vector(0, 0, 1), 10.0)
+    slope = Vector2D(2.0 * math.pi, 5.0)
+    line = Line2D(Point2D(0.0, 0.0), slope)
+    with pytest.raises(geomcore.UvCurveTo3DError):
+        cylinder.uv_curve_to_3d(line)
+    turn = TrimmedCurve2D(line, 0.0, slope.magnitude())
+    approximation = geomcore.uv_curve_to_3d_within(cylinder, turn, 1e-7)
+    assert approximation.is_proven()
+    assert approximation.deviation <= 1e-7
+    curve = approximation.curve
+    assert isinstance(curve, BSplineCurve)
+    assert curve.degree() == 9
+    assert curve.bounds() == (0.0, slope.magnitude())
+    for t in (0.0, 1.0, 3.3, slope.magnitude()):
+        uv = turn.eval_point(t)
+        assert curve.eval_point(t).distance(cylinder.eval_point(uv.x, uv.y)) <= 1e-7
+    assert "degree=9" in repr(approximation)
+
+
+def test_a_circle_on_a_sphere_maps_within_a_sampled_deviation():
+    sphere = Sphere(Point(0, 0, 0), 2.0)
+    circle = Circle2D(Point2D(1.0, 0.0), 0.5)
+    approximation = geomcore.uv_curve_to_3d_within(
+        sphere, circle, 1e-6, geomcore.Tolerance.default()
+    )
+    assert not approximation.is_proven()
+    assert approximation.deviation <= 1e-6
+    first, last = approximation.curve.bounds()
+    assert (first, last) == pytest.approx(circle.bounds())
+
+
+def test_uv_curve_to_3d_within_refuses_with_its_own_error():
+    cylinder = Cylinder(Point(0, 0, 0), Vector(0, 0, 1), 10.0)
+    line = Line2D(Point2D(0.0, 0.0), Vector2D(1.0, 1.0))
+    with pytest.raises(geomcore.UvCurveApproximationError, match="unbounded"):
+        geomcore.uv_curve_to_3d_within(cylinder, line, 1e-7)
+    turn = TrimmedCurve2D(line, 0.0, 1.0)
+    with pytest.raises(geomcore.UvCurveApproximationError, match="deviation"):
+        geomcore.uv_curve_to_3d_within(cylinder, turn, -1.0)
+

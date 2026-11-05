@@ -284,10 +284,7 @@ impl ParametricSurface for Cylinder {
             0 => panic!(
                 "eval_derivative: du + dv must be >= 1 (use eval_point for the (0, 0) order)"
             ),
-            1..=2 => elementary::cylinder_derivative(&self.frame, self.radius, u, v, du, dv),
-            _ => panic!(
-                "eval_derivative: order du={du}, dv={dv} is not supported (du + dv must be <= 2)"
-            ),
+            _ => elementary::cylinder_derivative(&self.frame, self.radius, u, v, du, dv),
         }
     }
 

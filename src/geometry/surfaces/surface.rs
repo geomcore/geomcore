@@ -9,6 +9,7 @@ use crate::geometry::surfaces::{
     BSplineSurface, BezierSurface, Cone, Curve3DToUvError, Cylinder, ExtrusionSurface, Plane,
     RevolutionSurface, Sphere, SurfaceIsoError, Torus, UvCurveTo3DError,
 };
+use crate::math::elementary::surface::{self as elementary, Turn};
 use crate::{Point, SurfaceProjection, Tolerance, Vector};
 use crate::{Transform, TransformError, Transformable};
 
@@ -348,6 +349,59 @@ pub enum ElementarySurface {
     Sphere(Sphere),
     /// A [`Torus`] surface.
     Torus(Torus),
+}
+
+impl ElementarySurface {
+    /// The point at `(u, v)` and every partial derivative of total order
+    /// below `N`: `partials[i][j]` is `∂ⁱ⁺ʲS / ∂uⁱ ∂vʲ`, zero at `(0, 0)`
+    /// and past the order. The sine and cosine of each angle are read once,
+    /// where [`eval_derivative`](ParametricSurface::eval_derivative) reads
+    /// them for each derivative.
+    pub(crate) fn partials<const N: usize>(&self, u: f64, v: f64) -> (Point, [[Vector; N]; N]) {
+        fn table<const N: usize>(partial: impl Fn(u32, u32) -> Vector) -> [[Vector; N]; N] {
+            let mut partials = [[Vector::ZERO; N]; N];
+            for (i, row) in partials.iter_mut().enumerate() {
+                for (j, entry) in row.iter_mut().enumerate().take(N - i) {
+                    if i + j > 0 {
+                        *entry = partial(i as u32, j as u32);
+                    }
+                }
+            }
+            partials
+        }
+        let (u_turn, v_turn) = (Turn::of(u), Turn::of(v));
+        let partials = match self {
+            ElementarySurface::Plane(plane) => {
+                let frame = plane.frame();
+                table(|du, dv| elementary::plane_derivative(&frame, du, dv))
+            }
+            ElementarySurface::Cylinder(cylinder) => {
+                let frame = cylinder.frame();
+                let radius = cylinder.radius();
+                table(|du, dv| elementary::cylinder_partial(&frame, radius, u_turn, du, dv))
+            }
+            ElementarySurface::Cone(cone) => {
+                let frame = cone.frame();
+                let (radius, semi_angle) = (cone.ref_radius(), Turn::of(cone.semi_angle()));
+                table(|du, dv| {
+                    elementary::cone_partial(&frame, radius, semi_angle, u_turn, v, du, dv)
+                })
+            }
+            ElementarySurface::Sphere(sphere) => {
+                let frame = sphere.frame();
+                let radius = sphere.radius();
+                table(|du, dv| elementary::sphere_partial(&frame, radius, u_turn, v_turn, du, dv))
+            }
+            ElementarySurface::Torus(torus) => {
+                let frame = torus.frame();
+                let (major, minor) = (torus.major_radius(), torus.minor_radius());
+                table(|du, dv| {
+                    elementary::torus_partial(&frame, major, minor, u_turn, v_turn, du, dv)
+                })
+            }
+        };
+        (self.eval_point(u, v), partials)
+    }
 }
 
 impl ParametricSurface for ElementarySurface {

@@ -58,6 +58,10 @@ harness = false
 name = "uv_curve_composition"
 harness = false
 
+[[bench]]
+name = "uv_curve_to_3d_within"
+harness = false
+
 [workspace]
 members = [".", "geomcore-py"]
 

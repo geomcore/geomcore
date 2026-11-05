@@ -186,13 +186,6 @@ fn test_eval_derivative_zero_order_panics() {
 }
 
 #[test]
-#[should_panic(expected = "du + dv must be <= 2")]
-fn test_eval_derivative_order_too_high_panics() {
-    let c = Cone::new(Point::ORIGIN, Vector::Z, 0.4, 2.0).unwrap();
-    c.eval_derivative(0.0, 0.0, 2, 1);
-}
-
-#[test]
 fn test_parameters_of_round_trip() {
     let c = Cone::new(Point::ORIGIN, Vector::Z, 0.4, 2.0).unwrap();
     let (u, v) = c.parameters_of(Point::new(2.0, 0.0, 0.0), Tolerance::DEFAULT);

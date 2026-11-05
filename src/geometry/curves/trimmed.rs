@@ -405,6 +405,11 @@ impl_for_both_tiers_over_basis! {
             self.basis.as_elementary()
         }
     }
+    planar {
+        fn as_line(&self) -> Option<&Line2D> {
+            self.basis.as_line()
+        }
+    }
 }
 
 impl_for_both_tiers_over_basis! {

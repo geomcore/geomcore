@@ -73,6 +73,7 @@ macro_rules! impl_for_both_tiers {
     (
         impl $spatial:ident, $planar:ident for $type:ident { $($shared:tt)* }
         $(spatial { $($spatial_only:tt)* })?
+        $(planar { $($planar_only:tt)* })?
     ) => {
         const _: () = {
             type P = $crate::Point;
@@ -89,6 +90,7 @@ macro_rules! impl_for_both_tiers {
             type V = $crate::Vector2D;
             impl $planar for $type<P> {
                 $($shared)*
+                $($($planar_only)*)?
             }
         };
     };
@@ -106,6 +108,7 @@ macro_rules! impl_for_both_tiers_over_basis {
     (
         impl $spatial:ident, $planar:ident for $type:ident { $($shared:tt)* }
         $(spatial { $($spatial_only:tt)* })?
+        $(planar { $($planar_only:tt)* })?
     ) => {
         const _: () = {
             type P = $crate::Point;
@@ -122,6 +125,7 @@ macro_rules! impl_for_both_tiers_over_basis {
             type V = $crate::Vector2D;
             impl<C: $planar> $planar for $type<P, C> {
                 $($shared)*
+                $($($planar_only)*)?
             }
         };
     };
