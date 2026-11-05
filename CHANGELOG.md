@@ -9,6 +9,18 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+### Added
+
+- Python: the results are sequences of their primary items. `len()`,
+  iteration and indexing (slices included) run over the hits of
+  `CurveCurveIntersection`, `CurveCurveIntersection2D` and
+  `CurveSurfaceIntersection`, the curves of `SurfaceSurfaceIntersection`,
+  the minima of `CurveCurveExtrema` (which had only `len()`) and the points
+  of `Discretization` and `Discretization2D`. The hit-based intersections
+  gain `points`, the hit points in the order of `hits`. Truth is
+  unchanged: an intersection is true when it holds anything, so one with
+  only an overlap or a contact point is true with length 0 (#191).
+
 ## [0.43.0] - 2026-11-05
 
 A UV curve without an exact 3D curve, such as a helix on a cylinder, now
