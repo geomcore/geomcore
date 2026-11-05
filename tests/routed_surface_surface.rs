@@ -83,15 +83,17 @@ fn test_both_argument_orders_give_the_same_curves() {
 }
 
 #[test]
-fn test_sphere_cylinder_off_axis_routes_numeric() {
+fn test_sphere_cylinder_off_axis_routes_exact() {
+    // The sphere reaches past the cylinder (2 > 1 + 0.7): two loops of
+    // the quartic, fitted from its closed form.
     let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
     let cylinder = Cylinder::new(Point::new(0.7, 0.0, 0.0), Vector::Z, 1.0).unwrap();
     let result = sphere.intersect(&cylinder, TOL);
-    assert_eq!(result.method(), IntersectionMethod::Numeric);
-    assert_eq!(result.completeness(), &Completeness::Sampled);
-    assert!(!result.curves().is_empty());
+    assert_eq!(result.method(), IntersectionMethod::Exact);
+    assert!(result.is_complete());
+    assert_eq!(result.curves().len(), 2);
     assert!(result.curves().iter().all(|piece| !piece.tangent));
-    assert_curves_lie_on(&result, &sphere, &cylinder, 1e-4);
+    assert_curves_lie_on(&result, &sphere, &cylinder, TOL.confusion);
 }
 
 #[test]

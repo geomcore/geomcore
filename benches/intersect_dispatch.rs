@@ -304,10 +304,44 @@ fn bench_crossing_cylinders(c: &mut Criterion) {
     group.finish();
 }
 
+fn bench_sphere_quadrics(c: &mut Criterion) {
+    let tol = Tolerance::default();
+    let mut group = c.benchmark_group("intersect_routed/sphere_quadric");
+    let cylinder = Cylinder::new(Point::new(1.0, 0.0, 0.0), Vector::Z, 1.0).unwrap();
+    let cone = Cone::new(Point::ORIGIN, Vector::Z, std::f64::consts::FRAC_PI_6, 0.0).unwrap();
+    let sphere = |x: f64, z: f64, radius: f64| Sphere::new(Point::new(x, 0.0, z), radius).unwrap();
+    // The sphere of radius 2 through the cylinder's axis: Viviani's curve.
+    let viviani = sphere(0.0, 0.0, 2.0);
+    // Through the cylinder's wall: one loop over an arc.
+    let wall = sphere(1.9, 0.0, 1.2);
+    // Around the cone's apex: a loop on each nappe.
+    let apex = sphere(1.0, 0.5, 2.0);
+    // Beside the upper nappe: one loop over an arc.
+    let beside = sphere(3.0, 1.0, 2.5);
+    for (name, sphere) in [("viviani", &viviani), ("cylinder_wall", &wall)] {
+        group.bench_function(format!("{name}_exact"), |b| {
+            b.iter(|| black_box(black_box(sphere).intersect_exact(&cylinder, tol)))
+        });
+        group.bench_function(format!("{name}_routed"), |b| {
+            b.iter(|| black_box(black_box(sphere).intersect(&cylinder, tol)))
+        });
+    }
+    for (name, sphere) in [("cone_apex", &apex), ("cone_beside", &beside)] {
+        group.bench_function(format!("{name}_exact"), |b| {
+            b.iter(|| black_box(black_box(sphere).intersect_exact(&cone, tol)))
+        });
+        group.bench_function(format!("{name}_routed"), |b| {
+            b.iter(|| black_box(black_box(sphere).intersect(&cone, tol)))
+        });
+    }
+    group.finish();
+}
+
 criterion_group!(
     benches,
     bench_intersect_dispatch,
     bench_intersect_routed,
-    bench_crossing_cylinders
+    bench_crossing_cylinders,
+    bench_sphere_quadrics
 );
 criterion_main!(benches);
