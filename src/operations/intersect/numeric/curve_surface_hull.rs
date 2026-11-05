@@ -12,6 +12,7 @@ use crate::operations::intersect::numeric::bezier_pieces::{
     CurvePieces, apart_along, bounding_box, box_size, dot, euclidean, meets_at_most_once,
     net_normal, norm, stretches_along_rows, sub,
 };
+use crate::operations::intersect::numeric::parameter_domain::ParameterDomain;
 use crate::operations::intersect::numeric::subdivision::{
     Node, OnceExhausted, PairTests, Subdivision, Visit, interval,
 };
@@ -127,9 +128,6 @@ impl<'a> IntoIterator for &'a CurveSurfaceHits {
 const SPLITS_PER_PAIR: usize = 1024;
 /// Newton steps from the centre of a subpiece pair.
 const NEWTON_STEPS: usize = 32;
-/// Parameters within this fraction of a domain's width outside it (or
-/// outside a subpiece pair) count as inside.
-const SLACK: f64 = 1e-10;
 
 /// The hits of `curve` over `range` (the curve's own bounds if `periodic`,
 /// a trimmed range otherwise) with `surface`, complete unless some pair
@@ -166,25 +164,23 @@ const SLACK: f64 = 1e-10;
 /// sampled search, keeping the one closest to the surface.
 pub(crate) fn bspline_curve_surface(
     curve: &BSplineCurve,
-    range: (f64, f64),
-    periodic: bool,
+    range: ParameterDomain,
     surface: &BSplineSurface,
     tol: Tolerance,
 ) -> CurveSurfaceHits {
-    search_pieces(curve, range, periodic, surface, tol, SPLITS_PER_PAIR)
+    search_pieces(curve, range, surface, tol, SPLITS_PER_PAIR)
 }
 
 /// [`bspline_curve_surface`] with `splits_per_pair` halvings allowed per
 /// initial pair of pieces.
 fn search_pieces(
     curve: &BSplineCurve,
-    range: (f64, f64),
-    periodic: bool,
+    range: ParameterDomain,
     surface: &BSplineSurface,
     tol: Tolerance,
     splits_per_pair: usize,
 ) -> CurveSurfaceHits {
-    let pieces = CurvePieces::new(curve, range);
+    let pieces = CurvePieces::new(curve, (range.start(), range.end()));
     let patch_shape = surface.patch_net_shape();
     let mut pairs = Subdivision::new([(pieces.width, 1, 4), patch_shape], 0);
     let tree = surface.patch_boxes();
@@ -199,25 +195,14 @@ fn search_pieces(
             pairs.push([pieces.piece(i), &net], [interval(pieces.ranges[i]), rect]);
         });
     }
-    let (lo, hi) = range;
-    let (u0, u1) = surface.u_bounds();
-    let (v0, v1) = surface.v_bounds();
     let mut tests = PieceTests {
         curve,
         surface,
         tol,
         ranges: [
-            Range { lo, hi, periodic },
-            Range {
-                lo: u0,
-                hi: u1,
-                periodic: surface.u_period().is_some(),
-            },
-            Range {
-                lo: v0,
-                hi: v1,
-                periodic: surface.v_period().is_some(),
-            },
+            range,
+            ParameterDomain::from_bounds(surface.u_bounds(), surface.u_period()),
+            ParameterDomain::from_bounds(surface.v_bounds(), surface.v_period()),
         ],
         found: Vec::new(),
     };
@@ -249,34 +234,6 @@ fn flat_against(normal: [f64; 3], curve: &[[f64; 3]], patch: &[[f64; 3]], gap: f
     p1 - p0 <= gap && c0 >= p0 - gap && c1 <= p1 + gap
 }
 
-/// A parameter interval of the curve or one direction of the surface.
-#[derive(Clone, Copy)]
-pub(crate) struct Range {
-    pub(crate) lo: f64,
-    pub(crate) hi: f64,
-    pub(crate) periodic: bool,
-}
-
-impl Range {
-    pub(crate) fn slack(self) -> f64 {
-        SLACK * (self.hi - self.lo)
-    }
-
-    /// `x` wrapped into a periodic range (its end reading as its start),
-    /// or clamped into the range from within its slack; `None` beyond.
-    pub(crate) fn admit(self, x: f64) -> Option<f64> {
-        let (lo, hi, slack) = (self.lo, self.hi, self.slack());
-        if self.periodic {
-            let wrapped = lo + (x - lo).rem_euclid(hi - lo);
-            Some(if hi - wrapped <= slack { lo } else { wrapped })
-        } else if x < lo - slack || x > hi + slack {
-            None
-        } else {
-            Some(x.clamp(lo, hi))
-        }
-    }
-}
-
 /// The tests of [`bspline_curve_surface`] on a pair of a curve piece and
 /// a patch, and the hits found.
 struct PieceTests<'a> {
@@ -284,7 +241,7 @@ struct PieceTests<'a> {
     surface: &'a BSplineSurface,
     tol: Tolerance,
     /// The ranges of the curve parameter and of the surface's `u` and `v`.
-    ranges: [Range; 3],
+    ranges: [ParameterDomain; 3],
     /// Hits found, with their distance to the surface.
     found: Vec<(CurveSurfaceHit, f64)>,
 }
@@ -313,9 +270,6 @@ impl PairTests for PieceTests<'_> {
         if once {
             let (t, r) = (node.range(0), node.rects[1]);
             let centre = [0.5 * (t.0 + t.1), 0.5 * (r[0] + r[1]), 0.5 * (r[2] + r[3])];
-            let within = |x: f64, (a, b): (f64, f64), range: Range| {
-                a - range.slack() <= x && x <= b + range.slack()
-            };
             if let Some(x) = self.newton(centre)
                 && let Some(hit) = self.record(x)
             {
@@ -325,9 +279,9 @@ impl PairTests for PieceTests<'_> {
                         .iter()
                         .all(|p| norm(sub(*p, [hit.x, hit.y, hit.z])) <= gap)
                 };
-                let inside = within(x[0], t, self.ranges[0])
-                    && within(x[1], (r[0], r[1]), self.ranges[1])
-                    && within(x[2], (r[2], r[3]), self.ranges[2]);
+                let inside = self.ranges[0].within_slack_of(x[0], t)
+                    && self.ranges[1].within_slack_of(x[1], (r[0], r[1]))
+                    && self.ranges[2].within_slack_of(x[2], (r[2], r[3]));
                 if inside || merges() {
                     return Visit::Settled;
                 }

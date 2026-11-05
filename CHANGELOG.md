@@ -31,6 +31,21 @@ reported, instead of running to a fixed cube around the origin (#147).
   diagonal.
 - Seeds of an unbounded side whose other side has a bounding box are read
   from that box's corners, with a margin, instead of the window `[-10, 10]`.
+- A tangent contact between two curves, where they stay within
+  `tol.confusion` of each other and then part, is one hit at its closest
+  approach, with multiplicity 2, and the numeric curve–curve intersection
+  reports the result `Complete`, as the closed forms do. Before, it was
+  `Incomplete` with an `Unseparated` region. Overlaps and searches that
+  run out of budget stay `Incomplete`.
+- The piece searches' private parameter range is merged into the
+  parameter domain the numeric searches already shared: one value, a
+  period or an interval, owns the wrapping and the slack. Nothing public
+  changes, and no result moves.
+
+### Breaking
+
+- `IncompleteReason` gains the variant `Unbounded`. The enum is not
+  `#[non_exhaustive]`, so an exhaustive `match` on it needs a new arm.
 
 ### Fixed
 
@@ -39,6 +54,10 @@ reported, instead of running to a fixed cube around the origin (#147).
   It is cut at its box and reported as `Incomplete` with `Unbounded`.
 - An unbounded pair lying beyond the cube lost every branch beyond it. The
   same pair translated far from the origin now traces the same branches.
+- The numeric curve–curve intersection no longer drops one of two
+  crossings lying within `sqrt(tol.confusion)` of each other and reports
+  the result `Complete`. Two hits are merged only when the curves stay
+  within `tol.confusion` of each other between them.
 
 ## [0.42.2] - 2026-11-02
 

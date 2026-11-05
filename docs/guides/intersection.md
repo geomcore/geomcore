@@ -120,7 +120,8 @@ curve leaves it, within `tol.confusion` in space of the true end. The
 hits inside drop out, and the result stays `Incomplete`, with an
 `Unseparated` region over the overlap: samples found it, not a proof. A
 stretch where the operands only touch (they part as the square of the
-distance from the contact) stays a hit; an overlap between curves whose
+distance from the contact) is one hit at the closest approach, with
+multiplicity 2, and the result stays `Complete`; an overlap between curves whose
 range on the second curve would cross that curve's seam is not joined,
 and keeps its hits and region.
 

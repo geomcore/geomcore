@@ -501,7 +501,7 @@ fn test_restriction_keeps_every_hit() {
         let Some(Hull::Curve(hull)) = hull_curve(&line, Some(&cover)) else {
             panic!("{line:?} misses the box of {target:?}");
         };
-        assert!((hull.range.lo..=hull.range.hi).contains(&reach));
+        assert!((hull.range.start()..=hull.range.end()).contains(&reach));
         let hits = search_curve_surface(&line, &surface, TOL);
         assert_eq!(hits.completeness(), &Completeness::Complete);
         assert_on_both(&hits, &line, &surface);
