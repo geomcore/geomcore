@@ -9,8 +9,14 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
-Unbounded branches are cut where their trace leaves the seeds' box, and
-reported, instead of running to a fixed cube around the origin (#147).
+## [0.43.0] - 2026-11-05
+
+A UV curve without an exact 3D curve, such as a helix on a cylinder, now
+maps to one B-spline within a deviation. Unbounded marching branches are
+cut where their trace leaves the seeds' box, and reported, instead of
+running to a fixed cube around the origin (#147). Curve–curve tangent
+contacts are complete, and close crossings stay apart (#162, #163). One
+breaking change: `IncompleteReason` gains the variant `Unbounded`.
 
 ### Added
 
@@ -48,10 +54,6 @@ reported, instead of running to a fixed cube around the origin (#147).
 
 ### Changed
 
-- CI gates the benchmarks on an instruction budget: a pull request that
-  makes a budgeted benchmark more than 1% heavier fails, and the log names
-  the functions that got heavier (`docs/benchmarks.md`). The intersection
-  results are fingerprinted, so a change in them shows up in review.
 - `eval_derivative` on a plane, cylinder, cone, sphere or torus evaluates
   every order `(du, dv)`, from the closed forms of the derivatives of
   `cos` and `sin`. It panicked past `du + dv = 2`. The other surfaces
@@ -78,6 +80,10 @@ reported, instead of running to a fixed cube around the origin (#147).
   parameter domain the numeric searches already shared: one value, a
   period or an interval, owns the wrapping and the slack. Nothing public
   changes, and no result moves.
+- CI gates the benchmarks on an instruction budget: a pull request that
+  makes a budgeted benchmark more than 1% heavier fails, and the log names
+  the functions that got heavier (`docs/benchmarks.md`). The intersection
+  results are fingerprinted, so a change in them shows up in review.
 
 ### Breaking
 
@@ -2418,7 +2424,8 @@ Behaviour, in Rust and Python alike:
 - Golden-fixture validation of all numeric results at 1e-7 tolerance, and
   criterion throughput benchmarks (`docs/benchmarks.md`).
 
-[Unreleased]: https://github.com/geomcore/geomcore/compare/v0.42.2...HEAD
+[Unreleased]: https://github.com/geomcore/geomcore/compare/v0.43.0...HEAD
+[0.43.0]: https://github.com/geomcore/geomcore/compare/v0.42.2...v0.43.0
 [0.42.2]: https://github.com/geomcore/geomcore/compare/v0.42.1...v0.42.2
 [0.42.1]: https://github.com/geomcore/geomcore/compare/v0.42.0...v0.42.1
 [0.42.0]: https://github.com/geomcore/geomcore/compare/v0.41.0...v0.42.0
