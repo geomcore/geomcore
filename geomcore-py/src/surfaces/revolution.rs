@@ -13,7 +13,7 @@ use geomcore::RevolutionSurface;
 pub(crate) struct PyRevolutionSurface(pub(crate) RevolutionSurface);
 
 shape_methods! {
-    PyRevolutionSurface: [surface, surface_normal];
+    PyRevolutionSurface: [surface];
 
     fn __repr__(&self, py: Python<'_>) -> PyResult<String> {
         let profile = curve_classes::to_py(py, self.0.profile().clone())?;

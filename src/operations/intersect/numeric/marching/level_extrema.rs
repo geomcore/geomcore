@@ -164,7 +164,7 @@ fn level_seeds<S: ParametricSurface>(
 /// and so all of it, which no disc on the torus does. There is then no
 /// such loop.
 fn plane_torus_seeds(plane: &Plane, torus: &Torus, tol: Tolerance) -> Vec<[f64; 4]> {
-    let normal = plane.normal();
+    let normal = plane.axis().direction();
     let axis = torus.frame().z_direction();
     let Some(radial) = (normal - axis * normal.dot(axis)).normalized() else {
         return Vec::new();
@@ -230,7 +230,7 @@ impl Level {
         match surface {
             ElementarySurface::Plane(s) => Level::Plane {
                 origin: s.frame().origin(),
-                normal: s.normal(),
+                normal: s.axis().direction(),
             },
             ElementarySurface::Sphere(s) => Level::Sphere {
                 center: s.center(),

@@ -12,7 +12,7 @@ use geomcore::ExtrusionSurface;
 pub(crate) struct PyExtrusionSurface(pub(crate) ExtrusionSurface);
 
 shape_methods! {
-    PyExtrusionSurface: [surface, surface_normal];
+    PyExtrusionSurface: [surface];
 
     fn __repr__(&self, py: Python<'_>) -> PyResult<String> {
         let profile = curve_classes::to_py(py, self.0.profile().clone())?;

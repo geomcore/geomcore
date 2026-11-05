@@ -13,7 +13,7 @@ use geomcore::Cylinder;
 pub(crate) struct PyCylinder(pub(crate) Cylinder);
 
 shape_methods! {
-    PyCylinder: [surface, surface_normal];
+    PyCylinder: [surface];
 
     /// The axis of the cylinder: its origin and unit direction.
     fn axis(&self) -> PyAxis {

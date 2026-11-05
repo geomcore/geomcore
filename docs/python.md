@@ -42,7 +42,8 @@ with the tolerance as the keyword `tol=None` (`Tolerance.default()`):
 - 2D curves: the same queries but `transformed`; `curvature(u)` is
   signed (positive where the tangent turns left). `bounding_box()`
   returns a `BoundingBox2D`, or `None` when the curve is unbounded.
-- Surfaces: `normal(u, v)` (`Plane.normal()` takes no parameters),
+- Surfaces: `normal(u, v)` (on a `Plane` the same at every point,
+  with the normal axis also as `Plane.axis()`),
   `curvatures(u, v)` returning a `SurfaceCurvatures`, `is_u_closed()` /
   `is_v_closed()`, `continuity_u(u)` / `continuity_v(v)` and their
   `min_continuity_u()` / `min_continuity_v()`, `reversed_u()` /

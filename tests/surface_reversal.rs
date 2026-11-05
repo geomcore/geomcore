@@ -951,7 +951,7 @@ fn curves_on(surface: &Surface) -> Vec<Curve> {
     if let Surface::Plane(plane) = surface {
         let frame = Frame::new(
             plane.eval_point(0.4, -0.3),
-            plane.normal(),
+            plane.axis().direction(),
             plane.frame().x_direction() + plane.frame().y_direction(),
         )
         .unwrap();

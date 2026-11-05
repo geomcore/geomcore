@@ -20,7 +20,7 @@ fn point_grid(poles: Vec<Vec<PyPoint>>) -> Vec<Vec<geomcore::Point>> {
 }
 
 shape_methods! {
-    PyBezierSurface: [surface, surface_normal, sided_surface_evaluation, surface_extrema];
+    PyBezierSurface: [surface, sided_surface_evaluation, surface_extrema];
 
     /// Build a non-rational Bézier surface from `u_degree + 1` rows of
     /// `v_degree + 1` poles, `poles[i_u][i_v]`, over `[0, 1] x [0, 1]`.

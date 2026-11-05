@@ -139,7 +139,7 @@ impl IntersectExact<Plane> for Line {
     /// }
     /// ```
     fn intersect_exact(&self, plane: &Plane, tol: Tolerance) -> LinePlaneIntersection {
-        let n = plane.normal();
+        let n = plane.axis().direction();
         let b = n.dot(self.direction());
         let c = n.dot(self.origin() - plane.frame().origin());
         if b.abs() <= tol.angular {

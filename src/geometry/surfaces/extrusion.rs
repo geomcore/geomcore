@@ -129,7 +129,11 @@ impl ExtrusionSurface {
     /// parabola or hyperbola lands on a ray, which no whole curve is, or
     /// where the image is not finite.
     pub(crate) fn carried_onto(&self, plane: &Plane) -> Option<Curve> {
-        let (origin, normal, direction) = (plane.frame().origin(), plane.normal(), self.direction);
+        let (origin, normal, direction) = (
+            plane.frame().origin(),
+            plane.axis().direction(),
+            self.direction,
+        );
         let crossing = normal.dot(direction);
         let section = Section::carried(
             &self.profile,

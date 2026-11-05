@@ -802,7 +802,7 @@ fn test_torus_plane_villarceau_circles() {
             }
             // Centers on either side of the center, along the line
             // where the plane meets the equatorial plane.
-            let line = plane.normal().cross(torus.frame().z_direction());
+            let line = plane.axis().direction().cross(torus.frame().z_direction());
             let offsets = [c1.center() - torus.center(), c2.center() - torus.center()];
             assert!((offsets[0] + offsets[1]).magnitude() < 1e-12);
             assert!(offsets[0].cross(line).magnitude() < 1e-12);
@@ -827,7 +827,11 @@ fn test_torus_plane_near_villarceau_is_not_analytic() {
         TorusPlaneIntersection::NotAnalytic
     );
     let (torus, plane, _) = tilted_torus_and_plane(0.0);
-    let shifted = Plane::new(torus.center() + plane.normal() * 1e-4, plane.normal()).unwrap();
+    let shifted = Plane::new(
+        torus.center() + plane.axis().direction() * 1e-4,
+        plane.axis().direction(),
+    )
+    .unwrap();
     assert_eq!(
         torus.intersect_exact(&shifted, tol),
         TorusPlaneIntersection::NotAnalytic

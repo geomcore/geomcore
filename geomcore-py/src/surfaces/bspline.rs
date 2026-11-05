@@ -11,7 +11,7 @@ use geomcore::BSplineSurface;
 pub(crate) struct PyBSplineSurface(pub(crate) BSplineSurface);
 
 shape_methods! {
-    PyBSplineSurface: [surface, surface_normal, sided_surface_evaluation, surface_extrema];
+    PyBSplineSurface: [surface, sided_surface_evaluation, surface_extrema];
 
     fn __repr__(&self) -> String {
         format!(

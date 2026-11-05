@@ -9,6 +9,17 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking:** `Plane::normal()` (Python `Plane.normal()`), the plane's
+  zero-argument normal, is replaced by `Plane::axis()` (Python
+  `Plane.axis()`): the axis through the frame's origin along the oriented
+  normal. Write `plane.axis().direction()` where you wrote
+  `plane.normal()`. The old method hid the `normal(u, v, tol)` that every
+  surface has, so in Python a loop over surfaces raised `TypeError` on a
+  plane, and in Rust `plane.normal(u, v, tol)` did not compile. Both now
+  work on a plane and return the same direction at every point (#190).
+
 ## [0.43.0] - 2026-11-05
 
 A UV curve without an exact 3D curve, such as a helix on a cylinder, now

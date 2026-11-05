@@ -266,6 +266,24 @@ def test_surface_normal_is_unit_and_recovers_at_singular_points():
     assert sphere.normal(float("nan"), 0.0) is None
 
 
+
+def test_plane_normal_takes_the_parameters_every_surface_takes():
+    # #190: the plane's own zero-argument `normal()` hid the shared
+    # `normal(u, v, tol)`, so a loop over surfaces raised on the plane.
+    plane = Plane(Point(0.0, 0.0, 1.0), Vector(0.0, 0.0, 2.0))
+    surfaces = [plane, Cylinder(Point.origin(), Vector.unit_z(), 1.0), Sphere(Point.origin(), 3.0)]
+    for surface in surfaces:
+        assert surface.normal(0.3, 0.2) is not None
+        assert surface.normal(0.3, 0.2, Tolerance.default()) is not None
+    # The normal is the same at every point; the plane's axis carries it.
+    assert plane.normal(5.0, -7.0) == Vector.unit_z()
+    assert plane.axis().origin() == Point(0.0, 0.0, 1.0)
+    assert plane.axis().direction() == Vector.unit_z()
+    reversed_plane = plane.reversed_u()
+    assert reversed_plane.axis().direction() == -Vector.unit_z()
+    assert reversed_plane.normal(0.3, 0.2) == -Vector.unit_z()
+
+
 def test_frame3_accessors():
     frame = Frame(Point.origin(), Vector.unit_z(), Vector.unit_x())
     assert frame.z_direction().components() == pytest.approx((0.0, 0.0, 1.0))

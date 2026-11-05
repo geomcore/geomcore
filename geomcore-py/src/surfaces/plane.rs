@@ -2,7 +2,7 @@
 
 use crate::method_sets::*;
 use crate::surfaces::*;
-use crate::values::PyFrame;
+use crate::values::{PyAxis, PyFrame};
 use geomcore::Plane;
 
 /// An infinite plane, parametrized by in-plane coordinates (u, v).
@@ -22,7 +22,7 @@ shape_methods! {
         format!(
             "Plane(origin={}, normal={})",
             crate::values::coordinates(self.0.frame().origin()),
-            crate::values::coordinates(self.0.normal())
+            crate::values::coordinates(self.0.axis().direction())
         )
     }
 
@@ -56,9 +56,12 @@ shape_methods! {
         ))
     }
 
-    /// The unit normal of the plane.
-    fn normal(&self) -> PyVector {
-        PyVector(self.0.normal())
+    /// The normal axis of the plane: through the frame's origin, along
+    /// the unit normal, which reverses with `reversed_u()` or
+    /// `reversed_v()`. `normal(u, v)` gives the same direction at
+    /// every point.
+    fn axis(&self) -> PyAxis {
+        PyAxis(self.0.axis())
     }
 
     /// The patch `u_range × v_range` as an exact bilinear B-spline

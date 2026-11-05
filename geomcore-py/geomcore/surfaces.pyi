@@ -142,6 +142,15 @@ class _SurfaceMethods(Generic[_UIsoCurveType, _VIsoCurveType]):
         """The lowest `continuity_v` anywhere inside the `v` range, ends
         excluded (`math.inf` when smooth everywhere).
         """
+    def normal(
+        self, u: float, v: float, tol: Optional[Tolerance] = ...
+    ) -> Optional[Vector]:
+        """Unit normal at surface parameters `(u, v)`
+        (`Tolerance.default()` when omitted). Singular points such as
+        poles give their limiting normal; returns `None` at an apex,
+        whose meridians each have their own, and where no normal can
+        be recovered.
+        """
     def curvatures(
         self, u: float, v: float, tol: Optional[Tolerance] = ...
     ) -> Optional[SurfaceCurvatures]:
@@ -246,17 +255,6 @@ class _SurfaceMethods(Generic[_UIsoCurveType, _VIsoCurveType]):
         self, other: _Surface, tol: Optional[Tolerance] = ...
     ) -> SurfaceSurfaceIntersection: ...
 
-class _SurfaceNormalMethods:
-    def normal(
-        self, u: float, v: float, tol: Optional[Tolerance] = ...
-    ) -> Optional[Vector]:
-        """Unit normal at surface parameters `(u, v)`
-        (`Tolerance.default()` when omitted). Singular points such as
-        poles give their limiting normal; returns `None` at an apex,
-        whose meridians each have their own, and where no normal can
-        be recovered.
-        """
-
 class _SidedSurfaceEvaluationMethods:
     def eval_d1_sided(
         self, u: float, v: float, u_side: Side, v_side: Side
@@ -308,14 +306,14 @@ class Plane(_SurfaceMethods[Line, Line]):
     def from_three_points(p1: Point, p2: Point, p3: Point) -> Plane: ...
     @staticmethod
     def from_coefficients(a: float, b: float, c: float, d: float) -> Plane: ...
-    def normal(self) -> Vector: ...
+    def axis(self) -> Axis: ...
     def to_bspline_patch(
         self, u_range: Tuple[float, float], v_range: Tuple[float, float]
     ) -> BSplineSurface: ...
     def frame(self) -> Frame: ...
 
 @final
-class Cylinder(_SurfaceMethods[Line, Circle], _SurfaceNormalMethods):
+class Cylinder(_SurfaceMethods[Line, Circle]):
     def __repr__(self) -> str: ...
     __hash__: ClassVar[None]  # type: ignore[assignment]
     def __new__(cls, center: Point, axis_direction: Vector, radius: float) -> Cylinder: ...
@@ -333,7 +331,7 @@ class Cylinder(_SurfaceMethods[Line, Circle], _SurfaceNormalMethods):
     def axis(self) -> Axis: ...
 
 @final
-class Cone(_SurfaceMethods[Line, Circle], _SurfaceNormalMethods):
+class Cone(_SurfaceMethods[Line, Circle]):
     def __repr__(self) -> str: ...
     __hash__: ClassVar[None]  # type: ignore[assignment]
     def __new__(
@@ -354,7 +352,7 @@ class Cone(_SurfaceMethods[Line, Circle], _SurfaceNormalMethods):
     def frame(self) -> Frame: ...
 
 @final
-class Sphere(_SurfaceMethods[Circle, Circle], _SurfaceNormalMethods):
+class Sphere(_SurfaceMethods[Circle, Circle]):
     def __repr__(self) -> str: ...
     __hash__: ClassVar[None]  # type: ignore[assignment]
     def __new__(cls, center: Point, radius: float) -> Sphere: ...
@@ -371,7 +369,7 @@ class Sphere(_SurfaceMethods[Circle, Circle], _SurfaceNormalMethods):
     def frame(self) -> Frame: ...
 
 @final
-class Torus(_SurfaceMethods[Circle, Circle], _SurfaceNormalMethods):
+class Torus(_SurfaceMethods[Circle, Circle]):
     def __repr__(self) -> str: ...
     __hash__: ClassVar[None]  # type: ignore[assignment]
     def __new__(
@@ -389,7 +387,7 @@ class Torus(_SurfaceMethods[Circle, Circle], _SurfaceNormalMethods):
     def center(self) -> Point: ...
 
 @final
-class ExtrusionSurface(_SurfaceMethods[Line, _Curve], _SurfaceNormalMethods):
+class ExtrusionSurface(_SurfaceMethods[Line, _Curve]):
     def __repr__(self) -> str: ...
     __hash__: ClassVar[None]  # type: ignore[assignment]
     def __new__(cls, profile: _Curve, direction: Vector) -> ExtrusionSurface: ...
@@ -400,7 +398,7 @@ class ExtrusionSurface(_SurfaceMethods[Line, _Curve], _SurfaceNormalMethods):
     ) -> BSplineSurface: ...
 
 @final
-class RevolutionSurface(_SurfaceMethods[_Curve, Circle], _SurfaceNormalMethods):
+class RevolutionSurface(_SurfaceMethods[_Curve, Circle]):
     def __repr__(self) -> str: ...
     __hash__: ClassVar[None]  # type: ignore[assignment]
     def __new__(cls, profile: _Curve, axis: Axis) -> RevolutionSurface: ...
@@ -414,7 +412,6 @@ class RevolutionSurface(_SurfaceMethods[_Curve, Circle], _SurfaceNormalMethods):
 @final
 class BSplineSurface(
     _SurfaceMethods[BSplineCurve, BSplineCurve],
-    _SurfaceNormalMethods,
     _SidedSurfaceEvaluationMethods,
     _SurfaceExtremaMethods,
 ):
@@ -505,7 +502,6 @@ class BSplineSurface(
 @final
 class BezierSurface(
     _SurfaceMethods[BezierCurve, BezierCurve],
-    _SurfaceNormalMethods,
     _SidedSurfaceEvaluationMethods,
     _SurfaceExtremaMethods,
 ):

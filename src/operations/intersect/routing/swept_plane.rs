@@ -66,7 +66,7 @@ fn extrusion_cut(
     tol: Tolerance,
 ) -> Option<SurfaceSurfaceIntersection> {
     let direction = surface.direction();
-    if plane.normal().dot(direction).abs() > tol.angular {
+    if plane.axis().direction().dot(direction).abs() > tol.angular {
         // Every generator line crosses the plane once, and transversally.
         let curve = surface.carried_onto(plane)?;
         let cut = IntersectionCurve {
@@ -106,7 +106,7 @@ fn revolution_cut(
     plane: &Plane,
     tol: Tolerance,
 ) -> Option<SurfaceSurfaceIntersection> {
-    let (axis, normal) = (surface.axis(), plane.normal());
+    let (axis, normal) = (surface.axis(), plane.axis().direction());
     if normal.cross(axis.direction()).magnitude() <= tol.angular {
         return parallel_cut(surface, plane, tol);
     }
@@ -177,7 +177,7 @@ fn meridian_cut(
 ) -> Option<SurfaceSurfaceIntersection> {
     let reference = surface.meridian_reference()?;
     let along = surface.axis().direction();
-    let angle = reference.angle_with_reference(plane.normal().cross(along), along);
+    let angle = reference.angle_with_reference(plane.axis().direction().cross(along), along);
     let first = surface.u_iso(angle).ok()?;
     let second = surface.u_iso(angle + PI).ok()?;
     let mut curves = vec![IntersectionCurve {

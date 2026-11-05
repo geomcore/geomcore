@@ -248,7 +248,7 @@ fn test_normal_plane_is_constant_z() {
     );
     assert_eq!(
         ParametricSurface::normal(&p, 0.0, 0.0, tol),
-        Some(p.normal())
+        Some(p.axis().direction())
     );
 }
 

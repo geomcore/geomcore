@@ -24,7 +24,6 @@
 //! | `discretize`, `discretize_2d` | `Discretize(2D)` | the bounded curves |
 //! | `sided_evaluation`, `sided_evaluation_2d` | the `*_sided` evaluations | B-spline and Bézier curves |
 //! | `surface` | `ParametricSurface` (with `uv_curve_to_3d` and `curve_3d_to_uv`), `ReversibleSurface`, `Transformable`, `HasBoundingBox`, `Intersect`, isoparametric curves | every surface |
-//! | `surface_normal` | `ParametricSurface::normal` | every surface but `Plane`, whose `normal()` is its constant normal |
 //! | `sided_surface_evaluation` | the `*_sided` evaluations | B-spline and Bézier surfaces |
 //! | `surface_extrema` | `extrema` | B-spline and Bézier surfaces |
 //!
@@ -35,7 +34,7 @@
 //! re-exported below, so a class file imports `crate::method_sets::*`.
 //!
 //! The stubs mirror each set as a stub-only class (`_CurveMethods`,
-//! `_SurfaceNormalMethods`, ...) in `geomcore/curves.pyi` or
+//! `_SurfaceMethods`, ...) in `geomcore/curves.pyi` or
 //! `surfaces.pyi`, which the class stubs inherit (ADR 0029). A method added
 //! to a set goes into that class too, with the same docstring.
 
@@ -559,6 +558,16 @@ macro_rules! surface {
                 ContinuityNumber(self.0.min_continuity_v())
             }
 
+            /// Unit normal at surface parameters `(u, v)`
+            /// (`Tolerance.default()` when omitted). Singular points such as
+            /// poles give their limiting normal; returns `None` at an apex,
+            /// whose meridians each have their own, and where no normal can
+            /// be recovered.
+            #[pyo3(signature = (u, v, tol = None))]
+            fn normal(&self, u: f64, v: f64, tol: Option<PyTolerance>) -> Option<PyVector> {
+                self.0.normal(u, v, tolerance(tol)).map(PyVector)
+            }
+
             /// Principal curvatures with their directions, and the mean and
             /// Gaussian curvatures, at `(u, v)` (`Tolerance.default()` when
             /// omitted), as a `SurfaceCurvatures`. `None` where the unit
@@ -760,26 +769,6 @@ macro_rules! surface {
     };
 }
 pub(crate) use surface;
-
-/// `normal(u, v, tol)` of a surface whose normal varies.
-macro_rules! surface_normal {
-    ($class:ident $sets:tt { $($methods:tt)* }) => {
-        $crate::method_sets::shape_methods! { @next $class $sets {
-            $($methods)*
-
-            /// Unit normal at surface parameters `(u, v)`
-            /// (`Tolerance.default()` when omitted). Singular points such as
-            /// poles give their limiting normal; returns `None` at an apex,
-            /// whose meridians each have their own, and where no normal can
-            /// be recovered.
-            #[pyo3(signature = (u, v, tol = None))]
-            fn normal(&self, u: f64, v: f64, tol: Option<PyTolerance>) -> Option<PyVector> {
-                self.0.normal(u, v, tolerance(tol)).map(PyVector)
-            }
-        }}
-    };
-}
-pub(crate) use surface_normal;
 
 /// The one-sided evaluations of a B-spline or Bézier surface.
 macro_rules! sided_surface_evaluation {

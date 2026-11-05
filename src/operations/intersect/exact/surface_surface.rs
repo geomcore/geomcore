@@ -308,8 +308,8 @@ impl IntersectExact<Plane> for Plane {
     /// }
     /// ```
     fn intersect_exact(&self, other: &Plane, tol: Tolerance) -> PlanePlaneIntersection {
-        let n1 = self.normal();
-        let n2 = other.normal();
+        let n1 = self.axis().direction();
+        let n2 = other.axis().direction();
         let d = n1.cross(n2);
         let sin = d.magnitude();
         if sin <= tol.angular {
@@ -383,7 +383,7 @@ impl IntersectExact<Sphere> for Plane {
     /// }
     /// ```
     fn intersect_exact(&self, sphere: &Sphere, tol: Tolerance) -> PlaneSphereIntersection {
-        let n = self.normal();
+        let n = self.axis().direction();
         let h = n.dot(sphere.center() - self.frame().origin());
         let h_abs = h.abs();
         let r = sphere.radius();
@@ -432,7 +432,7 @@ impl IntersectExact<Cylinder> for Plane {
     /// }
     /// ```
     fn intersect_exact(&self, cylinder: &Cylinder, tol: Tolerance) -> PlaneCylinderIntersection {
-        let n = self.normal();
+        let n = self.axis().direction();
         let a = cylinder.axis().direction();
         let r = cylinder.radius();
         let s = n.dot(a);
@@ -517,7 +517,7 @@ impl IntersectExact<Cone> for Plane {
     /// }
     /// ```
     fn intersect_exact(&self, cone: &Cone, tol: Tolerance) -> PlaneConeIntersection {
-        let n = self.normal();
+        let n = self.axis().direction();
         let a = cone.frame().z_direction();
         // The double cone about `a` with half-angle |semi_angle|.
         let phi = cone.semi_angle().abs();
@@ -1012,7 +1012,7 @@ impl IntersectExact<Plane> for Torus {
         if !torus_is_analytic(self, tol) {
             return TorusPlaneIntersection::NotAnalytic;
         }
-        let n = plane.normal();
+        let n = plane.axis().direction();
         let a = self.frame().z_direction();
         let o = self.center();
         let s = n.dot(a);
