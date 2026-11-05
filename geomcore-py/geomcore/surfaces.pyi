@@ -91,7 +91,17 @@ class _SurfaceMethods(Generic[_UIsoCurveType, _VIsoCurveType]):
         of the same point there.
         """
     def point_at(self, u: float, v: float) -> Point:
-        """Evaluate the point at surface parameters (u, v)."""
+        """Evaluate the point at surface parameters (u, v).
+
+        Every `(u, v)` evaluates. Past the bounds, an elementary
+        surface continues along its own equation, and a swept surface
+        along its sweep, with its profile evaluated as that curve is
+        past its own bounds. A non-periodic direction of
+        a B-spline or Bézier surface clamps its parameter to the
+        nearer bound, so the point and every partial are those at the
+        bound. An operation that builds from a parameter, such as
+        `u_iso`, raises on one outside the bounds instead.
+        """
     def points_at(self, uvs: List[Tuple[float, float]]) -> List[Point]:
         """Evaluate many (u, v) pairs at once."""
     def points_at_array(self, uvs: numpy.typing.ArrayLike) -> _FloatArray:

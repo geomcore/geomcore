@@ -118,6 +118,14 @@ macro_rules! curve_methods {
             $($methods)*
 
             /// Evaluate the point at parameter `u`.
+            ///
+            /// Every `u` evaluates. Past the bounds, a line, conic or
+            /// periodic curve continues along its own equation, and a
+            /// trimmed curve evaluates its basis curve. A non-periodic
+            /// B-spline or Bézier curve clamps `u` to the nearer bound, so
+            /// the point and every derivative are those at the bound. An
+            /// operation that builds from a parameter, such as a B-spline's
+            /// `split_at`, raises on one outside the bounds instead.
             fn point_at(&self, u: f64) -> $point {
                 $point(self.0.point_at(u))
             }
@@ -501,6 +509,15 @@ macro_rules! surface {
             $($methods)*
 
             /// Evaluate the point at surface parameters (u, v).
+            ///
+            /// Every `(u, v)` evaluates. Past the bounds, an elementary
+            /// surface continues along its own equation, and a swept surface
+            /// along its sweep, with its profile evaluated as that curve is
+            /// past its own bounds. A non-periodic direction of
+            /// a B-spline or Bézier surface clamps its parameter to the
+            /// nearer bound, so the point and every partial are those at the
+            /// bound. An operation that builds from a parameter, such as
+            /// `u_iso`, raises on one outside the bounds instead.
             fn point_at(&self, u: f64, v: f64) -> PyPoint {
                 PyPoint(self.0.point_at(u, v))
             }

@@ -114,6 +114,16 @@ the Python distribution are versioned in lockstep.
   `"chordal"` and `"centripetal"` are still accepted; the stubs type them
   as literals, so a typo is caught before the call.
 
+### Changed
+
+- `point_at` documents what a shape gives past its bounds (#179), in
+  Rust and Python: a non-periodic B-spline or Bézier
+  direction clamps to the nearer bound, point and derivatives alike;
+  elementary shapes continue along their equation, and a trimmed curve
+  evaluates its basis. Operations that build from a parameter, such as
+  `split_at` and `u_iso`, raise on one outside the bounds. ADR 0037
+  records why evaluation clamps rather than extrapolates.
+
 ### Breaking
 
 - `IntersectionCurve` has a new public field, `deviation` (#188), so a

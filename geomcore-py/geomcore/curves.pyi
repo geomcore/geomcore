@@ -69,7 +69,16 @@ class _CurveMethodsInEitherDimension(
     Generic[_PointType, _VectorType, _BoundingBoxType, _ProjectionType]
 ):
     def point_at(self, u: float) -> _PointType:
-        """Evaluate the point at parameter `u`."""
+        """Evaluate the point at parameter `u`.
+
+        Every `u` evaluates. Past the bounds, a line, conic or
+        periodic curve continues along its own equation, and a
+        trimmed curve evaluates its basis curve. A non-periodic
+        B-spline or Bézier curve clamps `u` to the nearer bound, so
+        the point and every derivative are those at the bound. An
+        operation that builds from a parameter, such as a B-spline's
+        `split_at`, raises on one outside the bounds instead.
+        """
     def points_at(self, us: List[float]) -> List[_PointType]:
         """Evaluate many parameters at once."""
     def points_at_array(self, us: numpy.typing.ArrayLike) -> _FloatArray:

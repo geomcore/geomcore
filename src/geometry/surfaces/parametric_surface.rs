@@ -56,6 +56,15 @@ pub struct SurfaceCurvatures {
 /// ```
 pub trait ParametricSurface {
     /// Evaluates the point on the surface at parameters `(u, v)`.
+    ///
+    /// Every `(u, v)` evaluates, inside the bounds or not. Past them, an
+    /// elementary surface continues along its own equation, and a swept
+    /// surface along its sweep, with its profile evaluated as that curve is
+    /// past its own bounds. A non-periodic direction of
+    /// a B-spline or Bézier surface clamps its parameter to the nearer
+    /// bound, so the point and every partial are those at the bound. An
+    /// operation that builds from a parameter, such as an iso-curve or a
+    /// split, refuses one outside the bounds instead (ADR 0037).
     fn point_at(&self, u: f64, v: f64) -> Point;
 
     /// Evaluates the partial derivative of order `(du, dv)` at parameters
