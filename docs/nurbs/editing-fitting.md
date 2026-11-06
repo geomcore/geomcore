@@ -186,7 +186,7 @@ every curve and surface.
     ```python
     assert round(curve.length(1e-9), 6) == 1.623225
     bb = curve.bounding_box()
-    assert (bb.min(), bb.max()) == (Point(0, 0, 0), Point(1, 1, 0))
+    assert (bb.min_corner(), bb.max_corner()) == (Point(0, 0, 0), Point(1, 1, 0))
     ```
 
 === "Rust"
@@ -194,7 +194,7 @@ every curve and surface.
     ```rust
     let len = curve.length(1e-9);
     let bb = curve.bounding_box().unwrap();
-    assert_eq!((bb.min(), bb.max()), (Point::new(0.0, 0.0, 0.0), Point::new(1.0, 1.0, 0.0)));
+    assert_eq!((bb.min_corner(), bb.max_corner()), (Point::new(0.0, 0.0, 0.0), Point::new(1.0, 1.0, 0.0)));
     ```
 
 Boxes have no viewer mapping yet

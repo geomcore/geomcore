@@ -371,8 +371,8 @@ fn family_seeds(
             .hits()
             .iter()
             .map(|hit| (hit.curve_parameter, hit.point, hit.surface_parameters));
-        let overlaps = result.overlaps().iter().map(|&range| {
-            let parameter = point_of_range(range);
+        let overlaps = result.overlaps().iter().map(|overlap| {
+            let parameter = point_of_range(overlap.curve_range);
             let point = curve.point_at(parameter);
             (parameter, point, other.parameters_of(point, tol))
         });
@@ -598,7 +598,7 @@ where
 
 /// The eight corners of `bounds`.
 fn box_corners(bounds: BoundingBox) -> [Point; 8] {
-    let (min, max) = (bounds.min(), bounds.max());
+    let (min, max) = (bounds.min_corner(), bounds.max_corner());
     std::array::from_fn(|k| {
         Point::new(
             if k & 1 == 0 { min.x } else { max.x },

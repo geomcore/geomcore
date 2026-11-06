@@ -550,7 +550,7 @@ fn own_size<S: ParametricSurface>(s: &S) -> Option<f64> {
     if let Some(elementary) = s.as_elementary() {
         return match elementary {
             ElementarySurface::Cylinder(cylinder) => Some(cylinder.radius()),
-            ElementarySurface::Cone(cone) => Some(cone.ref_radius()),
+            ElementarySurface::Cone(cone) => Some(cone.reference_radius()),
             _ => None,
         };
     }

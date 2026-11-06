@@ -18,7 +18,7 @@ use geomcore::ExtrusionSurface;
 pub(crate) struct PyExtrusionSurface(pub(crate) ExtrusionSurface);
 
 shape_methods! {
-    PyExtrusionSurface: [surface, surface_normal];
+    PyExtrusionSurface: [surface];
 
     fn __reduce__<'py>(slf: &pyo3::Bound<'py, Self>) -> pyo3::PyResult<pyo3::Bound<'py, pyo3::types::PyTuple>> {
         let this = slf.borrow();
@@ -36,7 +36,9 @@ shape_methods! {
     }
 
     #[new]
-    /// Build the surface sweeping `profile` (any 3D curve) along
+    /// Build the surface sweeping `profile`, a whole 3D curve (a
+    /// `TrimmedCurve` is refused: the surface spans its profile's bounds,
+    /// and `piece.to_bspline()` is a whole curve for a bounded profile), along
     /// `direction`, which is normalized. Raises `ValueError` for a zero
     /// direction and for a profile lying on one line along it.
     fn py_new(profile: &Bound<'_, PyAny>, direction: PyVector) -> PyResult<Self> {

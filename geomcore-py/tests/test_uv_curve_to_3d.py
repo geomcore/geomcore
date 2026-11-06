@@ -23,6 +23,7 @@ from geomcore import (
     Point,
     Point2D,
     Sphere,
+    TrimmedCurve,
     TrimmedCurve2D,
     Vector,
     Vector2D,
@@ -113,6 +114,43 @@ def test_a_composition_outside_the_domain_or_above_degree_25_raises():
     cubic = BezierCurve2D(3, poles)
     with pytest.raises(geomcore.UvCurveTo3DError, match="degree 30"):
         bezier_surface(5).uv_curve_to_3d(cubic)
+
+
+def test_a_piece_traces_the_piece_of_its_basis_trace():
+    # #176: the stubs took any 2D curve, the runtime refused a piece.
+    cylinder = Cylinder(Point(0, 0, 0), Vector(0, 0, 1), 2.0)
+    piece = TrimmedCurve2D(Line2D(Point2D(0.5, 1.0), Vector2D(-1.0, 0.0)), 0.2, 1.5)
+    arc = cylinder.uv_curve_to_3d(piece)
+    assert isinstance(arc, TrimmedCurve)
+    assert isinstance(arc.basis(), Circle)
+    assert arc.bounds() == piece.bounds()
+    assert_traces(arc, piece, cylinder, (0.2, 0.9, 1.5))
+    segment = TrimmedCurve2D.segment(Point2D(0.1, 0.1), Point2D(0.8, 0.6))
+    on_patch = bezier_surface(3).uv_curve_to_3d(segment)
+    assert on_patch.bounds() == segment.bounds()
+    assert_traces(on_patch, segment, bezier_surface(3), segment.bounds())
+
+
+def test_a_spline_piece_needs_only_the_piece_in_the_domain():
+    surface = bezier_surface(2)
+    poles = [Point2D(-1.0, 0.5), Point2D(0.5, 0.5), Point2D(2.0, 0.5)]
+    leaving = BSplineCurve2D(1, poles, [0.0, 1.0, 2.0], [2, 1, 2], False)
+    with pytest.raises(geomcore.UvCurveTo3DError, match="domain"):
+        surface.uv_curve_to_3d(leaving)
+    inside = TrimmedCurve2D(leaving, 0.8, 1.2)
+    traced = surface.uv_curve_to_3d(inside)
+    assert traced.bounds() == (0.8, 1.2)
+    assert_traces(traced, inside, surface, (0.8, 1.0, 1.2))
+
+
+def test_a_piece_off_the_domain_or_around_twice_raises():
+    line = Line2D(Point2D(0.5, 0.5), Vector2D(0.6, 0.8))
+    with pytest.raises(geomcore.UvCurveTo3DError, match="domain"):
+        bezier_surface(3).uv_curve_to_3d(TrimmedCurve2D(line, 0.0, 3.0))
+    cylinder = Cylinder(Point(0, 0, 0), Vector(0, 0, 1), 2.0)
+    around_twice = TrimmedCurve2D(Line2D(Point2D(0.0, 0.0), Vector2D.unit_x()), 0.0, 13.0)
+    with pytest.raises(geomcore.TrimmedCurveConstructionError, match="period"):
+        cylinder.uv_curve_to_3d(around_twice)
 
 
 def test_a_slanted_line_on_a_cylinder_maps_within_a_deviation():

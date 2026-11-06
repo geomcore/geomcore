@@ -6,7 +6,7 @@ use crate::Vector;
 #[test]
 fn test_new_ok() {
     let p = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
-    assert_eq!(p.normal(), Vector::Z);
+    assert_eq!(p.axis().direction(), Vector::Z);
     assert_eq!(p.frame().origin(), Point::ORIGIN);
 }
 
@@ -32,7 +32,7 @@ fn test_from_three_points_ok() {
         Point::new(0.0, 1.0, 0.0),
     )
     .unwrap();
-    assert_eq!(p.normal(), Vector::Z);
+    assert_eq!(p.axis().direction(), Vector::Z);
     assert_eq!(p.frame().origin(), Point::ORIGIN);
 }
 
@@ -60,7 +60,7 @@ fn test_from_three_points_collinear_errors() {
 fn test_from_coefficients_ok_axis_aligned() {
     let p = Plane::from_coefficients(0.0, 0.0, 1.0, -2.0).unwrap();
     assert_eq!(p.frame().origin(), Point::new(0.0, 0.0, 2.0));
-    assert_eq!(p.normal(), Vector::Z);
+    assert_eq!(p.axis().direction(), Vector::Z);
 }
 
 #[test]
@@ -219,7 +219,7 @@ fn test_plane_transformed_translation_spot_check() {
     let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
     let t = Transform::translation(Vector::new(1.0, -1.0, 2.0));
     let moved = plane.transformed(t).unwrap();
-    assert_eq!(moved.normal(), Vector::Z);
+    assert_eq!(moved.axis().direction(), Vector::Z);
     // Hand-computed evaluation, shifted.
     assert_eq!(moved.point_at(2.0, 3.0), Point::new(3.0, 2.0, 2.0));
 }
@@ -232,7 +232,7 @@ fn test_plane_transformed_round_trip_and_mirror() {
     let axis = Axis::new(Point::ORIGIN, Vector::X).unwrap();
     let t = Transform::rotation(axis, PI / 2.0);
     let moved = plane.transformed(t).unwrap();
-    assert!((moved.normal() - -Vector::Y).magnitude() < 1e-9);
+    assert!((moved.axis().direction() - -Vector::Y).magnitude() < 1e-9);
     let tol = Tolerance::DEFAULT;
     for (u, v) in [(0.0, 0.0), (1.0, -2.0), (-3.0, 0.5)] {
         assert!(moved.contains(t.apply_point(plane.point_at(u, v)), tol));
@@ -241,7 +241,7 @@ fn test_plane_transformed_round_trip_and_mirror() {
         .transformed(Transform::rotation(axis, -PI / 2.0))
         .unwrap();
     assert!(back.frame().origin().distance(plane.frame().origin()) < 1e-9);
-    assert!((back.normal() - plane.normal()).magnitude() < 1e-9);
+    assert!((back.axis().direction() - plane.axis().direction()).magnitude() < 1e-9);
     // Mirror across the xy-plane preserves the point set.
     let m = Transform::mirror_plane(Frame::WORLD);
     let mirrored = plane.transformed(m).unwrap();
@@ -262,7 +262,7 @@ fn test_reversed_planes_share_point_set_with_flipped_normal() {
         assert_eq!(rv.point_at(u, v), plane.point_at(u, -v));
         assert_eq!(rv.v_reversed_parameter(plane.v_reversed_parameter(v)), v);
     }
-    assert_eq!(plane.reversed_u().normal(), -Vector::Z);
+    assert_eq!(plane.reversed_u().axis().direction(), -Vector::Z);
     assert_eq!(plane.reversed_u().reversed_u(), plane);
     assert_eq!(plane.reversed_v().reversed_v(), plane);
 }

@@ -2,7 +2,7 @@
 
 use crate::method_sets::*;
 use crate::surfaces::*;
-use crate::values::{PyFrame, float_repr};
+use crate::values::{PyAxis, PyFrame, float_repr};
 use geomcore::Torus;
 
 /// A torus; u is the angle around the main axis, v the angle around the tube.
@@ -11,11 +11,17 @@ use geomcore::Torus;
 pub(crate) struct PyTorus(pub(crate) Torus);
 
 shape_methods! {
-    PyTorus: [surface, surface_normal];
+    PyTorus: [surface];
 
     /// The center of the torus.
     fn center(&self) -> PyPoint {
         PyPoint(self.0.center())
+    }
+
+    /// The axis the tube turns about: through the center along the
+    /// frame's z direction.
+    fn axis(&self) -> PyAxis {
+        PyAxis(self.0.axis())
     }
 
     /// The placement frame of the torus.
@@ -30,7 +36,7 @@ shape_methods! {
 
     fn __repr__(&self) -> String {
         format!(
-            "Torus(center={}, axis={}, major_radius={}, minor_radius={})",
+            "Torus(center={}, axis_direction={}, major_radius={}, minor_radius={})",
             crate::values::coordinates(self.0.center()),
             crate::values::coordinates(self.0.frame().z_direction()),
             float_repr(self.0.major_radius()),
@@ -42,12 +48,13 @@ shape_methods! {
     /// Build a torus from its center, main-axis direction and the two radii.
     fn py_new(
         center: PyPoint,
-        normal: PyVector,
+        axis_direction: PyVector,
         major_radius: f64,
         minor_radius: f64,
     ) -> PyResult<Self> {
         Ok(PyTorus(
-            Torus::new(center.0, normal.0, major_radius, minor_radius).map_err(python_error)?,
+            Torus::new(center.0, axis_direction.0, major_radius, minor_radius)
+                .map_err(python_error)?,
         ))
     }
 

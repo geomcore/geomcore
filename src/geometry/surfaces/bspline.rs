@@ -368,42 +368,6 @@ impl BSplineSurface {
         self.v_knots.degree()
     }
 
-    /// Returns whether the surface is periodic in the `u` direction.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use geomcore::BSplineSurface;
-    /// # use geomcore::Point;
-    /// # let poles = vec![
-    /// #     vec![Point::new(0.0, 0.0, 0.0), Point::new(0.0, 1.0, 0.0)],
-    /// #     vec![Point::new(1.0, 0.0, 0.0), Point::new(1.0, 1.0, 1.0)],
-    /// # ];
-    /// # let surface = BSplineSurface::new(1, 1, poles, vec![0.0, 1.0], vec![2, 2], vec![0.0, 1.0], vec![2, 2], false, false).unwrap();
-    /// assert!(!surface.is_u_periodic());
-    /// ```
-    pub fn is_u_periodic(&self) -> bool {
-        self.u_knots.is_periodic()
-    }
-
-    /// Returns whether the surface is periodic in the `v` direction.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use geomcore::BSplineSurface;
-    /// # use geomcore::Point;
-    /// # let poles = vec![
-    /// #     vec![Point::new(0.0, 0.0, 0.0), Point::new(0.0, 1.0, 0.0)],
-    /// #     vec![Point::new(1.0, 0.0, 0.0), Point::new(1.0, 1.0, 1.0)],
-    /// # ];
-    /// # let surface = BSplineSurface::new(1, 1, poles, vec![0.0, 1.0], vec![2, 2], vec![0.0, 1.0], vec![2, 2], false, false).unwrap();
-    /// assert!(!surface.is_v_periodic());
-    /// ```
-    pub fn is_v_periodic(&self) -> bool {
-        self.v_knots.is_periodic()
-    }
-
     /// Whether the isoparametric curves at the two bounds of `direction`
     /// coincide. Both share the knot vector across `direction`, so they
     /// are the same curve exactly when their poles match and their weights
@@ -1086,6 +1050,29 @@ impl BSplineSurface {
             let end = knots.degree() as u32 + 1;
             !knots.is_periodic() && knots.multiplicities() == [end, end]
         })
+    }
+
+    /// The surface itself, as the other surface kinds give their exact
+    /// B-spline with `to_bspline`, so code converting any surface needs no
+    /// special case for a B-spline.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{BSplineSurface, Point};
+    /// let poles = vec![
+    ///     vec![Point::new(0.0, 0.0, 0.0), Point::new(0.0, 1.0, 0.0)],
+    ///     vec![Point::new(1.0, 0.0, 0.0), Point::new(1.0, 1.0, 1.0)],
+    /// ];
+    /// let knots = (vec![0.0, 1.0], vec![2, 2]);
+    /// let surface = BSplineSurface::new(
+    ///     1, 1, poles, knots.0.clone(), knots.1.clone(), knots.0, knots.1, false, false,
+    /// )
+    /// .unwrap();
+    /// assert_eq!(surface.to_bspline(), surface);
+    /// ```
+    pub fn to_bspline(&self) -> Self {
+        self.clone()
     }
 
     /// Returns the sub-patch of the surface over `u_range` and `v_range`,

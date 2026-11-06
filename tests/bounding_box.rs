@@ -71,7 +71,7 @@ fn surface_extremes<S: ParametricSurface>(
 }
 
 fn scale(b: BoundingBox) -> f64 {
-    1.0 + b.min().distance(Point::ORIGIN) + b.max().distance(Point::ORIGIN)
+    1.0 + b.min_corner().distance(Point::ORIGIN) + b.max_corner().distance(Point::ORIGIN)
 }
 
 /// Asserts that the box holds every extreme and, if `tight`, that the
@@ -79,7 +79,7 @@ fn scale(b: BoundingBox) -> f64 {
 fn check(b: BoundingBox, extremes: [(f64, f64); 3], tight: bool, what: &str) {
     let rounding = 1e-12 * scale(b);
     for (k, (low, high)) in extremes.into_iter().enumerate() {
-        let (min, max) = (coordinate(b.min(), k), coordinate(b.max(), k));
+        let (min, max) = (coordinate(b.min_corner(), k), coordinate(b.max_corner(), k));
         assert!(min <= low + rounding, "{what}: axis {k}, {min} > {low}");
         assert!(high <= max + rounding, "{what}: axis {k}, {high} > {max}");
         if tight {
@@ -156,10 +156,10 @@ fn test_quarter_arc_box_is_its_extreme_points() {
     let arc = TrimmedCurve::new(circle, 0.25, FRAC_PI_2 + 0.25).unwrap();
     let b = arc.bounding_box().unwrap();
     // The arc passes through the top of the circle but not its sides.
-    assert_eq!(b.max().y, 1.0);
-    assert_eq!(b.min().x, arc.end_point().x);
-    assert_eq!(b.max().x, arc.start_point().x);
-    assert_eq!(b.min().y, arc.start_point().y);
+    assert_eq!(b.max_corner().y, 1.0);
+    assert_eq!(b.min_corner().x, arc.end_point().x);
+    assert_eq!(b.max_corner().x, arc.start_point().x);
+    assert_eq!(b.min_corner().y, arc.start_point().y);
 }
 
 #[test]
@@ -375,8 +375,8 @@ fn test_trimmed_bspline_boxes_hold_the_piece_and_reach_its_ends() {
             let b = piece.bounding_box().unwrap();
             let rounding = 1e-12 * scale(b);
             assert!(
-                whole.enlarged(rounding).encloses(b.min())
-                    && whole.enlarged(rounding).encloses(b.max()),
+                whole.enlarged(rounding).encloses(b.min_corner())
+                    && whole.enlarged(rounding).encloses(b.max_corner()),
                 "{what}: beyond the pole box"
             );
             for end_point in [piece.start_point(), piece.end_point()] {
@@ -397,7 +397,7 @@ fn test_trimmed_bspline_box_is_tighter_than_the_pole_box() {
     let curve = rational_circle();
     let piece = TrimmedCurve::new(&curve, 0.2, 0.8).unwrap();
     let b = piece.bounding_box().unwrap();
-    assert!(b.max().y < 1.0 && b.min().x > 0.0, "{b:?}");
+    assert!(b.max_corner().y < 1.0 && b.min_corner().x > 0.0, "{b:?}");
 }
 
 #[test]
@@ -619,7 +619,10 @@ mod planar {
     /// `slack` of every side.
     #[track_caller]
     fn check(b: BoundingBox2D, samples: [(f64, f64); 2], tight: bool) {
-        let (min, max) = ([b.min().x, b.min().y], [b.max().x, b.max().y]);
+        let (min, max) = (
+            [b.min_corner().x, b.min_corner().y],
+            [b.max_corner().x, b.max_corner().y],
+        );
         for k in 0..2 {
             assert!(min[k] <= samples[k].0 + 1e-12, "axis {k} low side");
             assert!(max[k] >= samples[k].1 - 1e-12, "axis {k} high side");
@@ -817,7 +820,7 @@ mod planar {
         let piece = TrimmedCurve2D::new(&curve, 0.2, 0.6).unwrap();
         let b = piece.bounding_box().unwrap();
         check(b, sampled(0.2, 0.6, |t| curve.point_at(t)), false);
-        assert!(whole.encloses(b.min()) && whole.encloses(b.max()));
+        assert!(whole.encloses(b.min_corner()) && whole.encloses(b.max_corner()));
     }
 
     #[test]

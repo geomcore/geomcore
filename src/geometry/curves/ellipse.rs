@@ -294,7 +294,7 @@ impl<P: TierPoint> GenericEllipse<P> {
         ((a - b) * (a + b)).sqrt()
     }
 
-    /// The length of the ellipse, its perimeter, within `max_error` as far
+    /// The length of the ellipse, its perimeter, within `max_length_error` as far
     /// as the quadrature's own error estimate tells: it has no closed form.
     ///
     /// # Examples
@@ -308,9 +308,9 @@ impl<P: TierPoint> GenericEllipse<P> {
     /// let round = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 1.0, 1.0).unwrap();
     /// assert!((round.length(1e-12) - TAU).abs() < 1e-12);
     /// ```
-    pub fn length(&self, max_error: f64) -> f64 {
+    pub fn length(&self, max_length_error: f64) -> f64 {
         // The four quarters have one length.
-        4.0 * self.arc_length(0.0, 0.5 * std::f64::consts::PI, 0.25 * max_error)
+        4.0 * self.arc_length(0.0, 0.5 * std::f64::consts::PI, 0.25 * max_length_error)
     }
 
     /// The length of the arc from parameter `first` to `last`: the

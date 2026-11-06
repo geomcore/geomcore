@@ -611,8 +611,8 @@ fn derivative_bound(
         ElementarySurface::Plane(_) => (0.0, 0.0),
         ElementarySurface::Cylinder(cylinder) => (cylinder.radius() * a.powi(exponent), 0.0),
         ElementarySurface::Cone(cone) => {
-            let sine = cone.semi_angle().sin();
-            let radius = |v: f64| (cone.ref_radius() + v * sine).abs();
+            let sine = cone.half_angle().sin();
+            let radius = |v: f64| (cone.reference_radius() + v * sine).abs();
             let largest_radius = radius(start.y).max(radius(end.y));
             (
                 largest_radius * a.powi(exponent)

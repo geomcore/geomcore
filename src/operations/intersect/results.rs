@@ -38,7 +38,7 @@ pub(crate) type CurveSurfaceHitList = InlineOrHeapList<CurveSurfaceHit, 4>;
 
 /// The overlaps of a curve-surface result: a plain `Vec`, for the same
 /// reason as [`CurveCurveOverlapList`].
-pub(crate) type CurveSurfaceOverlapList = Vec<(f64, f64)>;
+pub(crate) type CurveSurfaceOverlapList = Vec<CurveSurfaceOverlap>;
 
 /// How an intersection was computed.
 ///
@@ -81,6 +81,26 @@ pub struct CurveCurveOverlap {
     /// Whether both curves run the same way along the overlap. With
     /// opposite directions, `first_range.0` pairs with `second_range.1`.
     pub same_direction: bool,
+}
+
+/// A stretch of a curve that lies on a surface.
+///
+/// The range is on the curve, and may be infinite: a line lying in a plane
+/// overlaps it from `-inf` to `inf`. The matching region of the surface is
+/// left to the caller; recover it with the surface's `parameters_of` at
+/// points of the range.
+///
+/// # Examples
+///
+/// ```
+/// use geomcore::CurveSurfaceOverlap;
+/// let overlap = CurveSurfaceOverlap { curve_range: (0.0, 2.0) };
+/// assert_eq!(overlap.curve_range.1 - overlap.curve_range.0, 2.0);
+/// ```
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct CurveSurfaceOverlap {
+    /// The parameter range on the curve.
+    pub curve_range: (f64, f64),
 }
 
 /// One curve along which two surfaces meet, in space and in the
@@ -624,9 +644,9 @@ impl CurveSurfaceIntersection {
     /// let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
     /// let result = line.intersect(&plane, Tolerance::DEFAULT);
     /// assert!(result.hits().is_empty());
-    /// assert_eq!(result.overlaps(), &[(f64::NEG_INFINITY, f64::INFINITY)]);
+    /// assert_eq!(result.overlaps()[0].curve_range, (f64::NEG_INFINITY, f64::INFINITY));
     /// ```
-    pub fn overlaps(&self) -> &[(f64, f64)] {
+    pub fn overlaps(&self) -> &[CurveSurfaceOverlap] {
         &self.overlaps
     }
 

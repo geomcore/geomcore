@@ -2,7 +2,7 @@
 
 use crate::method_sets::*;
 use crate::surfaces::*;
-use crate::values::{PyFrame, float_repr};
+use crate::values::{PyAxis, PyFrame, float_repr};
 use geomcore::Cone;
 
 /// An infinite cone; u is the angle around the axis, v the distance along a
@@ -12,7 +12,7 @@ use geomcore::Cone;
 pub(crate) struct PyCone(pub(crate) Cone);
 
 shape_methods! {
-    PyCone: [surface, surface_normal];
+    PyCone: [surface];
 
     /// The placement frame of the cone.
     fn frame(&self) -> PyFrame {
@@ -21,16 +21,16 @@ shape_methods! {
 
     fn __reduce__<'py>(slf: &pyo3::Bound<'py, Self>) -> pyo3::PyResult<pyo3::Bound<'py, pyo3::types::PyTuple>> {
         let this = slf.borrow();
-        crate::pickling::reduce(slf.as_any(), Some("from_frame"), (this.frame(), this.semi_angle(), this.ref_radius(),))
+        crate::pickling::reduce(slf.as_any(), Some("from_frame"), (this.frame(), this.half_angle(), this.reference_radius(),))
     }
 
     fn __repr__(&self) -> String {
         format!(
-            "Cone(origin={}, axis={}, reference_radius={}, semi_angle={})",
+            "Cone(center={}, axis_direction={}, half_angle={}, reference_radius={})",
             crate::values::coordinates(self.0.frame().origin()),
             crate::values::coordinates(self.0.frame().z_direction()),
-            float_repr(self.0.ref_radius()),
-            float_repr(self.0.semi_angle())
+            float_repr(self.0.half_angle()),
+            float_repr(self.0.reference_radius())
         )
     }
 
@@ -39,19 +39,19 @@ shape_methods! {
     fn py_new(
         center: PyPoint,
         axis_direction: PyVector,
-        semi_angle: f64,
-        ref_radius: f64,
+        half_angle: f64,
+        reference_radius: f64,
     ) -> PyResult<Self> {
         Ok(PyCone(
-            Cone::new(center.0, axis_direction.0, semi_angle, ref_radius).map_err(python_error)?,
+            Cone::new(center.0, axis_direction.0, half_angle, reference_radius).map_err(python_error)?,
         ))
     }
 
     /// Build a cone from a placement frame, half-angle and reference radius.
     #[staticmethod]
-    fn from_frame(frame: PyFrame, semi_angle: f64, ref_radius: f64) -> PyResult<Self> {
+    fn from_frame(frame: PyFrame, half_angle: f64, reference_radius: f64) -> PyResult<Self> {
         Ok(PyCone(
-            Cone::from_frame(frame.0, semi_angle, ref_radius).map_err(python_error)?,
+            Cone::from_frame(frame.0, half_angle, reference_radius).map_err(python_error)?,
         ))
     }
 
@@ -63,12 +63,18 @@ shape_methods! {
         ))
     }
 
+    /// The axis of the cone: through the center of the reference section
+    /// along the frame's z direction.
+    fn axis(&self) -> PyAxis {
+        PyAxis(self.0.axis())
+    }
+
     /// Build the cone of apex `apex` opening along `axis_direction` at
-    /// half-angle `semi_angle`; its reference circle shrinks to the apex.
+    /// half-angle `half_angle`; its reference circle shrinks to the apex.
     #[staticmethod]
-    fn from_apex(apex: PyPoint, axis_direction: PyVector, semi_angle: f64) -> PyResult<Self> {
+    fn from_apex(apex: PyPoint, axis_direction: PyVector, half_angle: f64) -> PyResult<Self> {
         Ok(PyCone(
-            Cone::from_apex(apex.0, axis_direction.0, semi_angle).map_err(python_error)?,
+            Cone::from_apex(apex.0, axis_direction.0, half_angle).map_err(python_error)?,
         ))
     }
 
@@ -78,13 +84,13 @@ shape_methods! {
     }
 
     /// The half-angle in radians.
-    fn semi_angle(&self) -> f64 {
-        self.0.semi_angle()
+    fn half_angle(&self) -> f64 {
+        self.0.half_angle()
     }
 
     /// The radius of the reference section at v = 0.
-    fn ref_radius(&self) -> f64 {
-        self.0.ref_radius()
+    fn reference_radius(&self) -> f64 {
+        self.0.reference_radius()
     }
 
     /// The patch `u_range × v_range` as an exact rational B-spline

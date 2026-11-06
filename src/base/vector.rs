@@ -161,6 +161,120 @@ impl Vector2D {
         }
     }
 
+    /// The unsigned angle between the two vectors, in `[0, π]`, from
+    /// `atan2(|a × b|, a · b)`, accurate for nearly parallel vectors too.
+    /// It is `0` when either vector is zero.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::f64::consts::PI;
+    /// use geomcore::Vector2D;
+    /// assert!((Vector2D::X.angle(Vector2D::new(-1.0, -1.0)) - 3.0 * PI / 4.0).abs() < 1e-15);
+    /// ```
+    pub fn angle(self, other: Vector2D) -> f64 {
+        self.cross(other).abs().atan2(self.dot(other))
+    }
+
+    /// The signed angle from this vector to `other`, in `(-π, π]`:
+    /// positive when `other` is counterclockwise from this one. It is `0`
+    /// when either vector is zero.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::f64::consts::PI;
+    /// use geomcore::Vector2D;
+    /// assert!((Vector2D::X.signed_angle(Vector2D::new(0.0, -1.0)) + PI / 2.0).abs() < 1e-15);
+    /// ```
+    pub fn signed_angle(self, other: Vector2D) -> f64 {
+        self.cross(other).atan2(self.dot(other))
+    }
+
+    /// The vector turned counterclockwise by `angle` radians.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::f64::consts::PI;
+    /// use geomcore::Vector2D;
+    /// let turned = Vector2D::new(2.0, 0.0).rotated(PI / 2.0);
+    /// assert!((turned - Vector2D::new(0.0, 2.0)).magnitude() < 1e-15);
+    /// ```
+    pub fn rotated(self, angle: f64) -> Vector2D {
+        let (sin, cos) = angle.sin_cos();
+        Vector2D::new(cos * self.x - sin * self.y, sin * self.x + cos * self.y)
+    }
+
+    /// Whether the vectors are parallel, in either orientation: the sine of
+    /// the angle between them, `|a × b| / (|a| |b|)`, is at most
+    /// `angular`. Pass `tol.angular`, or `tol.angular_for_extent(size)`
+    /// where a direction error matters as a distance over `size`. A zero
+    /// vector is parallel to nothing.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Tolerance, Vector2D};
+    /// let angular = Tolerance::DEFAULT.angular;
+    /// assert!(Vector2D::new(2.0, 0.0).is_parallel(Vector2D::new(-5.0, 0.0), angular));
+    /// assert!(!Vector2D::X.is_parallel(Vector2D::new(1.0, 1e-6), angular));
+    /// assert!(!Vector2D::ZERO.is_parallel(Vector2D::X, angular));
+    /// ```
+    pub fn is_parallel(self, other: Vector2D, angular: f64) -> bool {
+        let scale = self.magnitude() * other.magnitude();
+        scale > 0.0 && self.cross(other).abs() <= angular * scale
+    }
+
+    /// Whether the vectors are perpendicular: the cosine of the angle
+    /// between them, `|a · b| / (|a| |b|)`, is at most `angular`. A zero
+    /// vector is perpendicular to nothing.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Tolerance, Vector2D};
+    /// let angular = Tolerance::DEFAULT.angular;
+    /// assert!(Vector2D::new(0.0, 3.0).is_perpendicular(Vector2D::new(2.0, 0.0), angular));
+    /// assert!(!Vector2D::ZERO.is_perpendicular(Vector2D::X, angular));
+    /// ```
+    pub fn is_perpendicular(self, other: Vector2D, angular: f64) -> bool {
+        let scale = self.magnitude() * other.magnitude();
+        scale > 0.0 && self.dot(other).abs() <= angular * scale
+    }
+
+    /// The part of this vector along `direction`, `d (v · d) / |d|²`, of
+    /// any length; the zero vector when `direction` is zero.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::Vector2D;
+    /// let v = Vector2D::new(3.0, 4.0);
+    /// assert_eq!(v.component_along(Vector2D::new(2.0, 0.0)), Vector2D::new(3.0, 0.0));
+    /// ```
+    pub fn component_along(self, direction: Vector2D) -> Vector2D {
+        let square = direction.square_magnitude();
+        if square <= f64::MIN_POSITIVE {
+            return Vector2D::ZERO;
+        }
+        direction * (self.dot(direction) / square)
+    }
+
+    /// The part of this vector across `direction`: the vector less its
+    /// [`component_along`](Self::component_along) `direction`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::Vector2D;
+    /// let v = Vector2D::new(3.0, 4.0);
+    /// assert_eq!(v.component_perpendicular_to(Vector2D::X), Vector2D::new(0.0, 4.0));
+    /// ```
+    pub fn component_perpendicular_to(self, direction: Vector2D) -> Vector2D {
+        self - self.component_along(direction)
+    }
+
     /// The vector normalized, or itself when it is already of unit length
     /// within rounding, so that normalizing a normalized vector changes
     /// nothing: a frame or axis rebuilt from its own directions is the
@@ -400,6 +514,93 @@ impl Vector {
                 f64::atan2(0.0, dot_product)
             }
         }
+    }
+
+    /// The unsigned angle between the two vectors, in `[0, π]`, from
+    /// `atan2(|a × b|, a · b)`, accurate for nearly parallel vectors too.
+    /// It is `0` when either vector is zero. For a signed angle about an
+    /// axis, see [`angle_with_reference`](Self::angle_with_reference).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::f64::consts::PI;
+    /// use geomcore::Vector;
+    /// assert!((Vector::X.angle(Vector::new(0.0, -2.0, 0.0)) - PI / 2.0).abs() < 1e-15);
+    /// ```
+    pub fn angle(self, other: Vector) -> f64 {
+        self.cross(other).magnitude().atan2(self.dot(other))
+    }
+
+    /// Whether the vectors are parallel, in either orientation: the sine of
+    /// the angle between them, `|a × b| / (|a| |b|)`, is at most
+    /// `angular`. Pass `tol.angular`, or `tol.angular_for_extent(size)`
+    /// where a direction error matters as a distance over `size`. A zero
+    /// vector is parallel to nothing.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Tolerance, Vector};
+    /// let angular = Tolerance::DEFAULT.angular;
+    /// assert!(Vector::new(0.0, 0.0, 2.0).is_parallel(-Vector::Z, angular));
+    /// assert!(!Vector::Z.is_parallel(Vector::new(1e-6, 0.0, 1.0), angular));
+    /// assert!(!Vector::ZERO.is_parallel(Vector::Z, angular));
+    /// ```
+    pub fn is_parallel(self, other: Vector, angular: f64) -> bool {
+        let scale = self.magnitude() * other.magnitude();
+        scale > 0.0 && self.cross(other).magnitude() <= angular * scale
+    }
+
+    /// Whether the vectors are perpendicular: the cosine of the angle
+    /// between them, `|a · b| / (|a| |b|)`, is at most `angular`. A zero
+    /// vector is perpendicular to nothing.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Tolerance, Vector};
+    /// let angular = Tolerance::DEFAULT.angular;
+    /// assert!(Vector::new(3.0, 0.0, 0.0).is_perpendicular(Vector::Z, angular));
+    /// assert!(!Vector::ZERO.is_perpendicular(Vector::Z, angular));
+    /// ```
+    pub fn is_perpendicular(self, other: Vector, angular: f64) -> bool {
+        let scale = self.magnitude() * other.magnitude();
+        scale > 0.0 && self.dot(other).abs() <= angular * scale
+    }
+
+    /// The part of this vector along `direction`, `d (v · d) / |d|²`, of
+    /// any length; the zero vector when `direction` is zero.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::Vector;
+    /// let v = Vector::new(1.0, 2.0, 3.0);
+    /// assert_eq!(v.component_along(Vector::new(0.0, 0.0, 5.0)), Vector::new(0.0, 0.0, 3.0));
+    /// ```
+    pub fn component_along(self, direction: Vector) -> Vector {
+        let square = direction.square_magnitude();
+        if square <= f64::MIN_POSITIVE {
+            return Vector::ZERO;
+        }
+        direction * (self.dot(direction) / square)
+    }
+
+    /// The part of this vector across `direction`: the vector less its
+    /// [`component_along`](Self::component_along) `direction`. Its length
+    /// is the distance from the tip of the vector to the line along
+    /// `direction`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::Vector;
+    /// let v = Vector::new(1.0, 2.0, 3.0);
+    /// assert_eq!(v.component_perpendicular_to(Vector::Z), Vector::new(1.0, 2.0, 0.0));
+    /// ```
+    pub fn component_perpendicular_to(self, direction: Vector) -> Vector {
+        self - self.component_along(direction)
     }
 }
 

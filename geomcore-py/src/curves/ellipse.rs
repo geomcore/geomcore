@@ -11,7 +11,7 @@ use geomcore::Ellipse;
 pub(crate) struct PyEllipse(pub(crate) Ellipse);
 
 shape_methods! {
-    PyEllipse: [curve, discretize];
+    PyEllipse: [curve, bounded_curve];
 
     /// The placement frame of the ellipse.
     fn frame(&self) -> PyFrame {
@@ -98,10 +98,10 @@ shape_methods! {
         self.0.enclosed_area()
     }
 
-    /// The perimeter, integrating the speed to within `max_error`: it has
+    /// The perimeter, integrating the speed to within `max_length_error`: it has
     /// no closed form.
-    fn length(&self, max_error: f64) -> f64 {
-        self.0.length(max_error)
+    fn length(&self, max_length_error: f64) -> f64 {
+        self.0.length(max_length_error)
     }
 
     /// The eccentricity: the ratio of a point's distance to a focus over

@@ -268,3 +268,43 @@ fn test_curve_curve_extrema_random_arcs_beat_grid() {
         assert_local_minima(&a, &b, &ext);
     }
 }
+
+/// Each minimum carries the two points at its parameters, on every path
+/// of the search, with the roles kept when the line is the second curve.
+#[test]
+fn test_every_minimum_carries_its_two_points() {
+    let tol = Tolerance::DEFAULT;
+    let line = Line::new(Point::new(0.0, 0.0, 3.0), Vector::Y).unwrap();
+    let skew = Line::new(Point::ORIGIN, Vector::X).unwrap();
+    let left = arc(Point::ORIGIN, 1.0, 0.2, 2.0);
+    let right = arc(Point::new(3.0, 0.0, 0.0), 1.0, 2.0, 4.0);
+    let arch = BSplineCurve::new(
+        2,
+        vec![
+            Point::ORIGIN,
+            Point::new(1.0, 2.0, 0.0),
+            Point::new(2.0, 0.0, 0.0),
+        ],
+        vec![0.0, 1.0],
+        vec![3, 3],
+        false,
+    )
+    .unwrap();
+    let rail = segment(Point::new(1.0, 0.0, 1.0), Point::new(1.0, 2.0, 1.0));
+    fn check<A: ParametricCurve, B: ParametricCurve>(a: &A, b: &B, tol: Tolerance) {
+        let found = curve_curve_extrema(a, b, tol);
+        assert!(!found.is_empty());
+        assert_eq!(found.closest(), found.first());
+        for m in found.iter() {
+            assert_eq!(m.first_point, a.point_at(m.first_parameter));
+            assert_eq!(m.second_point, b.point_at(m.second_parameter));
+            assert_eq!(m.distance, m.first_point.distance(m.second_point));
+        }
+    }
+    check(&skew, &line, tol);
+    check(&left, &line, tol);
+    check(&line, &left, tol);
+    check(&left, &right, tol);
+    check(&arch, &rail, tol);
+    check(&rail, &arch, tol);
+}

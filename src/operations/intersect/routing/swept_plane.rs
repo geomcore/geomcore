@@ -106,7 +106,7 @@ fn extrusion_cut(
     tol: Tolerance,
 ) -> Option<SurfaceSurfaceIntersection> {
     let direction = surface.direction();
-    if plane.normal().dot(direction).abs() > tol.angular {
+    if plane.normal_direction().dot(direction).abs() > tol.angular {
         // Every generator line crosses the plane once, and transversally.
         // The curve climbs the surface unless the profile lies in a plane
         // parallel to the cut; `curve_3d_to_uv` tells the two apart.
@@ -145,7 +145,7 @@ fn revolution_cut(
     side: SweptSide,
     tol: Tolerance,
 ) -> Option<SurfaceSurfaceIntersection> {
-    let (axis, normal) = (surface.axis(), plane.normal());
+    let (axis, normal) = (surface.axis(), plane.normal_direction());
     if normal.cross(axis.direction()).magnitude() <= tol.angular {
         return parallel_cut(surface, plane, side, tol);
     }
@@ -218,7 +218,7 @@ fn meridian_cut(
 ) -> Option<SurfaceSurfaceIntersection> {
     let reference = surface.meridian_reference()?;
     let along = surface.axis().direction();
-    let angle = reference.angle_with_reference(plane.normal().cross(along), along);
+    let angle = reference.angle_with_reference(plane.normal_direction().cross(along), along);
     let first = surface.u_iso(angle).ok()?;
     let second = surface.u_iso(angle + PI).ok()?;
     let meridian = |turn: f64| iso_line(in_period(turn, 0.0, TAU), 0.0, Vector2D::new(0.0, 1.0));
