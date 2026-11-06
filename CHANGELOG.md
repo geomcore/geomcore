@@ -9,6 +9,22 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+## [0.44.0] - 2026-11-06
+
+The API reads the way a newcomer guesses it. Every Python name is at the
+package root, as in the crate, and `Curve` is the Python counterpart of
+the Rust enum. Methods and arguments say what they compute in plain
+words (`point_at`, `first_derivatives`, `max_length_error`,
+`half_angle`, `start_parameter`, `min_corner`), and a plane takes the
+`normal(u, v, tol)` every surface has. Results are sequences of their
+items. The value classes gain the predicates callers wrote by hand
+(`is_parallel`, `angle`, `signed_distance`, `between_frames`). Python
+also gets a numpy bridge for bulk queries, and every `tol=` takes a
+number. Many changes are breaking; each entry under Breaking says what
+to write instead. The modules `geomcore.curves` and `geomcore.surfaces`
+and the module functions `curve_curve_extrema` and
+`curve_3d_to_uv_within` still work, with a `DeprecationWarning`.
+
 ### Added
 
 - Every Python shape is importable from the package root (#203):
@@ -278,7 +294,9 @@ the Python distribution are versioned in lockstep.
   with the default value; and `ExtrusionSurface` drops the length of
   its direction, now said in the Python class docstring.
 
-- **Breaking:** `Plane::normal()` (Python `Plane.normal()`), the plane's
+### Breaking
+
+- `Plane::normal()` (Python `Plane.normal()`), the plane's
   zero-argument normal, is replaced by `Plane::axis()` (Python
   `Plane.axis()`): the axis through the frame's origin along the oriented
   normal. Write `plane.axis().direction()` where you wrote
@@ -286,8 +304,6 @@ the Python distribution are versioned in lockstep.
   surface has, so in Python a loop over surfaces raised `TypeError` on a
   plane, and in Rust `plane.normal(u, v, tol)` did not compile. Both now
   work on a plane and return the same direction at every point (#190).
-
-### Breaking
 
 - `IntersectionCurve` has a new public field, `deviation` (#188), so a
   struct literal must set it (`..piece.clone()` keeps working).
@@ -2821,7 +2837,8 @@ Behaviour, in Rust and Python alike:
 - Golden-fixture validation of all numeric results at 1e-7 tolerance, and
   criterion throughput benchmarks (`docs/benchmarks.md`).
 
-[Unreleased]: https://github.com/geomcore/geomcore/compare/v0.43.0...HEAD
+[Unreleased]: https://github.com/geomcore/geomcore/compare/v0.44.0...HEAD
+[0.44.0]: https://github.com/geomcore/geomcore/compare/v0.43.0...v0.44.0
 [0.43.0]: https://github.com/geomcore/geomcore/compare/v0.42.2...v0.43.0
 [0.42.2]: https://github.com/geomcore/geomcore/compare/v0.42.1...v0.42.2
 [0.42.1]: https://github.com/geomcore/geomcore/compare/v0.42.0...v0.42.1
