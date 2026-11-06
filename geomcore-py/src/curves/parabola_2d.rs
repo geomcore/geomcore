@@ -1,4 +1,4 @@
-//! The Python class `geomcore.curves.Parabola2D`, wrapping `geomcore::Parabola2D`.
+//! The Python class `geomcore.Parabola2D`, wrapping `geomcore::Parabola2D`.
 
 use crate::curves::*;
 use crate::method_sets::*;
@@ -6,7 +6,7 @@ use crate::values::{PyFrame2D, coordinates_2d, float_repr};
 use geomcore::Parabola2D;
 
 /// A parabola in 2D, parametrized so the apex is at parameter 0.
-#[pyclass(name = "Parabola2D", module = "geomcore.curves", eq)]
+#[pyclass(name = "Parabola2D", module = "geomcore", eq)]
 #[derive(Clone, PartialEq)]
 pub(crate) struct PyParabola2D(pub(crate) Parabola2D);
 
@@ -51,6 +51,11 @@ shape_methods! {
     /// The focal distance.
     fn focal_distance(&self) -> f64 {
         self.0.focal_distance()
+    }
+
+    fn __reduce__<'py>(slf: &pyo3::Bound<'py, Self>) -> pyo3::PyResult<pyo3::Bound<'py, pyo3::types::PyTuple>> {
+        let this = slf.borrow();
+        crate::pickling::reduce(slf.as_any(), Some("from_frame"), (this.frame(), this.focal_distance(),))
     }
 
     fn __repr__(&self) -> String {

@@ -8,25 +8,28 @@ import pytest
 import geomcore
 from geomcore import (
     Axis,
+    BSplineCurve,
+    BSplineSurface,
+    Circle,
+    Cone,
+    Cylinder,
+    Ellipse,
     Frame,
     FrameConstructionError,
-    Point,
-    Side,
-    SurfaceCurvatures,
-    Tolerance,
-    Transform,
-    Vector,
-)
-from geomcore.curves import (
-    BSplineCurve,
-    Circle,
-    Ellipse,
     Hyperbola,
     Line,
     Parabola,
+    Plane,
+    Point,
+    Side,
+    Sphere,
+    SurfaceCurvatures,
+    Tolerance,
+    Torus,
+    Transform,
     TrimmedCurve,
+    Vector,
 )
-from geomcore.surfaces import BSplineSurface, Cone, Cylinder, Plane, Sphere, Torus
 
 ORIGIN = Point.origin()
 X, Y, Z = Vector.unit_x(), Vector.unit_y(), Vector.unit_z()

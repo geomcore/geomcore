@@ -56,6 +56,15 @@ pub struct SurfaceCurvatures {
 /// ```
 pub trait ParametricSurface {
     /// Evaluates the point on the surface at parameters `(u, v)`.
+    ///
+    /// Every `(u, v)` evaluates, inside the bounds or not. Past them, an
+    /// elementary surface continues along its own equation, and a swept
+    /// surface along its sweep, with its profile evaluated as that curve is
+    /// past its own bounds. A non-periodic direction of
+    /// a B-spline or Bézier surface clamps its parameter to the nearer
+    /// bound, so the point and every partial are those at the bound. An
+    /// operation that builds from a parameter, such as an iso-curve or a
+    /// split, refuses one outside the bounds instead (ADR 0037).
     fn point_at(&self, u: f64, v: f64) -> Point;
 
     /// Evaluates the partial derivative of order `(du, dv)` at parameters
@@ -661,6 +670,14 @@ pub trait ParametricSurface {
     /// | poloidal or toroidal circle | torus | a line along `v` or `u` |
     /// | ellipse, parabola, hyperbola | plane | the 2D conic of the same radii or focal distance |
     /// | B-spline or Bézier curve | plane | the same spline over its poles' plane coordinates |
+    /// | generator line | extrusion | a line along `v` |
+    /// | the profile translated along the direction | extrusion | a line along `u` |
+    /// | parallel circle | revolution | a line along `u` |
+    /// | the profile turned about the axis | revolution | a line along `v` |
+    ///
+    /// A translated or turned profile is recognized in the profile's own
+    /// parameter only, as [`ExtrusionSurface`] and [`RevolutionSurface`]
+    /// carry and turn it.
     ///
     /// The plane map is affine, so a spline keeps its degree, knots,
     /// multiplicities, weights and periodicity. On a periodic surface a
@@ -679,8 +696,9 @@ pub trait ParametricSurface {
     /// [`Curve3DToUvError::NotAnalytic`] for every other pair, never
     /// approximated: a slanted line or circle on a curved surface, a conic
     /// or a spline on any surface but a plane, every curve on an
-    /// extrusion, revolution, B-spline or Bézier surface, and every curve
-    /// on a surface type defined outside the crate, the default.
+    /// extrusion or revolution but its iso-curves, every curve on a
+    /// B-spline or Bézier surface, and every curve on a surface type
+    /// defined outside the crate, the default.
     /// [`curve_3d_to_uv_within`](crate::curve_3d_to_uv_within) gives
     /// those within a deviation. [`Curve3DToUvError::CurveNotOnSurface`] when the curve does
     /// not lie on the surface, as for a circle whose radius does not match

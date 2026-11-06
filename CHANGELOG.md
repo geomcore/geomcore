@@ -11,6 +11,72 @@ the Python distribution are versioned in lockstep.
 
 ### Added
 
+- Every Python shape is importable from the package root (#203):
+  `from geomcore import Circle, Plane, Point`, as every Rust item is at
+  the crate root. `geomcore.Curve`, `geomcore.Curve2D` and
+  `geomcore.Surface` name the union of each kind's classes, to annotate
+  with and, from Python 3.10, to pass to `isinstance` (`typing.get_args`
+  gives the tuple on 3.9). The stubs are one file. ADR 0038.
+- Python 3D curves take a curve in `extrema(other, tol)` (#201), as
+  well as a point. A curve or `TrimmedCurve` gives the
+  `CurveCurveExtrema` of the pair, holding this curve as `first`. A
+  point gives its projections as before. Rust keeps the free function
+  `curve_curve_extrema` (ADR 0033).
+- Python surfaces have `curve_3d_to_uv_within(curve, max_deviation, tol)`
+  and `uv_curve_to_3d_within(uv_curve, max_deviation, tol)` methods
+  (#185), beside the exact `curve_3d_to_uv` and `uv_curve_to_3d`. The
+  Rust free functions are unchanged (ADR 0035, amended).
+- B-spline curves built and read the textbook way (#184), in Rust and
+  Python, on both tiers. `from_flat_knots` takes the flat knot vector and
+  `flat_knots()` gives it back. `clamped_uniform(degree, poles)` spaces
+  clamped knots evenly over `[0, 1]`. `with_pole(index, point)` and
+  `with_weight(index, weight)` return the curve with one pole moved or
+  reweighted (Python indexes like a list and raises `IndexError`; in Rust
+  the new `PoleEditError`). `geometric_continuity(u, tol)` compares the
+  unit tangents and curvature vectors on each side of a knot, so a knot
+  of multiplicity `degree` between poles in line reports G1 or G2 where
+  `continuity` reports C0. The Python repr shows the knots and
+  multiplicities of a curve with at most 8 knots.
+- Every Python `tol=` takes a number as well as a `Tolerance` (#183):
+  `tol=1e-3` is `Tolerance(confusion=1e-3)`, with the default angular and
+  parametric tolerances. Any other type raises a `TypeError` naming what
+  `tol` accepts. The intersection guide says how the confusion sets the
+  size of a fitted intersection curve.
+- Value protocols in Python (#182). Points and vectors unpack, index and
+  convert to numpy (`x, y, z = p`, `p[-1]`, `numpy.array(points)` of shape
+  `(N, 3)`); vectors divide by a number and give their length to `abs`.
+  Every value, curve and surface pickles and deep-copies to an equal
+  object, so shapes reach `multiprocessing` workers. `Transform` has
+  `from_matrix` and `to_matrix` for 4×4 homogeneous matrices, `inverse()`,
+  a `repr`, and `a @ b` for `b.then(a)`, the matrix product's order.
+  `Circle2D.from_frame` builds a clockwise circle. In Rust:
+  `Transform::from_matrix`, `to_matrix` and `inverse`, the new
+  `TransformMatrixError`, and `Vector / f64` and `Vector2D / f64`.
+- `tight_bounding_box(tol)` on every curve and surface (#178), in Rust
+  (`HasBoundingBox`, `HasBoundingBox2D`) and Python: the box that holds
+  the shape with each side within `tol.confusion` of it, for collision
+  pre-checks. `bounding_box()` stays the box of a B-spline's control
+  points, which may be several times wider; the tight box halves the
+  Bézier pieces until their control points come that close, in a few
+  microseconds for a curve. Elementary shapes' boxes already touch them;
+  a revolution surface's tight box comes from its profile's.
+
+- `curve_3d_to_uv_within` maps a curve that starts or ends at a sphere's
+  pole or a cone's apex (#220), in Rust and Python: the UV curve takes the
+  limit of its point and derivatives from inside the curve, so a meridian
+  keeps its own `u` up to the pole and a B-rep edge to a pole vertex gets
+  its pcurve. `SingularParametrization` now only refuses a curve that
+  lingers at the point.
+
+- `curve_3d_to_uv` maps the iso-curves of swept surfaces in closed form
+  (#221), in Rust and Python. On an extrusion, a generator line maps to a
+  line along `v` and the profile translated along the direction to a
+  line along `u`; on a revolution, a parallel circle maps to a line along
+  `u` and the profile turned about the axis to a line along `v`. The
+  plane cuts of swept surfaces now carry both `first_uv_curve` and
+  `second_uv_curve`, the generator lines through a spline profile's
+  numeric crossings included. The carried profile on an oblique plane
+  still has none on the swept side: it climbs the surface as it runs.
 - Conic and cone conveniences for teaching and drafting (#189), in Rust
   and Python:
   - `eccentricity()` on every ellipse, hyperbola and parabola; `foci()` and
@@ -88,6 +154,50 @@ the Python distribution are versioned in lockstep.
   curves and surfaces. A member equals its lowercase name, and the strings
   `"chordal"` and `"centripetal"` are still accepted; the stubs type them
   as literals, so a typo is caught before the call.
+
+### Deprecated
+
+- Python: the modules `geomcore.curves` and `geomcore.surfaces` (#203).
+  Import each shape from `geomcore` instead. Every name still resolves
+  there with a `DeprecationWarning`, and the modules go in the next
+  release.
+- Python: `geomcore.curve_curve_extrema(first, second)` (#201). Call
+  `first.extrema(second)` instead. It warns with a `DeprecationWarning`
+  and goes in the next release.
+- Python: the module functions `geomcore.curve_3d_to_uv_within(surface,
+  curve, ...)` and `geomcore.uv_curve_to_3d_within(surface, uv_curve,
+  ...)` (#185). Call the surface methods of the same names instead. The
+  functions warn with a `DeprecationWarning` and go in the next release.
+
+### Changed
+
+- Python: the native extension module is `geomcore._native` (#203). The
+  undocumented `geomcore.geomcore`, a second path to every name, is gone.
+  Every class's `__module__` is `geomcore`.
+- Python: the argument of a 3D curve's `extrema` is named `other`, not
+  `point`, since it takes a curve too (#201). A call that passes
+  `point=` by keyword needs `other=` or a positional argument.
+- An axis, frame or extrusion direction that is already of unit length
+  keeps its bits (#182): normalizing it again only moved its rounding, so
+  a frame rebuilt from its own directions was a different frame in about
+  half the cases. Rebuilding a shape from its parts now gives an equal
+  shape. A closed form fed a unit direction can move by an ulp: the
+  contact points of the tee of two equal cylinders are now 1 ulp off
+  `±5` instead of exactly on it.
+- `point_at` documents what a shape gives past its bounds (#179), in
+  Rust and Python: a non-periodic B-spline or Bézier
+  direction clamps to the nearer bound, point and derivatives alike;
+  elementary shapes continue along their equation, and a trimmed curve
+  evaluates its basis. Operations that build from a parameter, such as
+  `split_at` and `u_iso`, raise on one outside the bounds. ADR 0037
+  records why evaluation clamps rather than extrapolates.
+- Where a result is numeric, snapped or normalized is documented (#180):
+  a plane cut of a swept surface with a spline profile is made of exact
+  `Circle`s or `Line`s but reports `method` `Numeric`, because the
+  profile's crossings are numeric; `project_point` snaps a distance
+  within `tol.confusion` to `0.0`, now said in the Python docstrings
+  with the default value; and `ExtrusionSurface` drops the length of
+  its direction, now said in the Python class docstring.
 
 ### Breaking
 

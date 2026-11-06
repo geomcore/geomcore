@@ -74,7 +74,9 @@ A new hidden routing hook, `ParametricCurve2D::as_line`, tells a straight UV cur
 
 A crate surface gets proven spans and degree 9 as soon as `as_elementary` returns it. Any other surface, including a user's, gets sampled spans at degree 5 with no further code. An extrusion or revolution with an elementary profile is analytic too, but stays at degree 5 until its derivatives go past second order and a consumer asks for it.
 
-The Python bindings expose it as `geomcore.uv_curve_to_3d_within`.
+The Python bindings expose it as the surface method `surface.uv_curve_to_3d_within(uv_curve, max_deviation, tol)`, and its mirror as `surface.curve_3d_to_uv_within(curve, max_deviation, tol)`.
+
+Amended (#185): in Python both operations were first module functions, `geomcore.uv_curve_to_3d_within(surface, …)`, mirroring Rust. Users looked for them on the surface, beside `uv_curve_to_3d` and `curve_3d_to_uv`, in IDE completion. The reason for a free function in Rust is genericity over any `ParametricSurface`, including a caller's own. That reason does not hold in Python, where every surface is a concrete class. The methods replace the functions, which warn with a `DeprecationWarning` for one release. The Rust free functions stay.
 
 ## Amendment: the mirror, 3D curve to UV curve (#186)
 
@@ -82,7 +84,15 @@ The Python bindings expose it as `geomcore.uv_curve_to_3d_within`.
 
 - **Degree 5 only.** Order-4 jets would need third and fourth derivatives of the inverse, and the deviation is always sampled: no closed-form bound exists for an inversion.
 - **The seam.** Each inversion is moved by whole periods to the value nearest a lift: 129 samples of the UV curve along the curve, each predicted from the one before and its derivative. The UV curve is continuous, and a closed curve around a cylinder ends one period from its start.
-- **Refusals.** As here, plus `CurveNotOnSurface { distance }` when an inversion is farther than half the deviation from the curve, and `SingularParametrization` when a breakpoint falls where `JᵀJ` is singular, as a curve that starts or ends at a sphere's pole. A curve through a pole between its breakpoints is still within the deviation: every `u` is the same point there, so the UV curve turns steeply in `u`. Splitting at the pole, which a B-rep does for its vertex, is the caller's.
+- **Refusals.** As here, plus `CurveNotOnSurface { distance }` when an inversion is farther than half the deviation from the curve, and `SingularParametrization` when a breakpoint falls where `JᵀJ` is singular, as a curve that starts or ends at a sphere's pole (amended below, #220). A curve through a pole between its breakpoints is still within the deviation: every `u` is the same point there, so the UV curve turns steeply in `u`. Splitting at the pole, which a B-rep does for its vertex, is the caller's.
+
+## Amendment: a curve to a pole takes the limit from inside (#220)
+
+A B-rep edge that ends at a sphere's pole or a cone's apex is a curve whose breakpoint falls where `JᵀJ` is singular, and its pcurve is what a kernel builder needs, so refusing it with `SingularParametrization` left the case to the caller. At such a breakpoint the UV curve's jet is now its limit from the side of the span it bounds: the point and its first two derivatives are read a short step inside, `1e-4` of the curve's range and at most half the way to the curve's next knot, and carried back along their Taylor series. The error is of the order of the step's cube; the inversion's own error does not grow as the step shrinks, as the step's powers balance its conditioning. A meridian keeps its own `u` up to the pole, and a small circle through a pole leaves it at the angle of its tangent there.
+
+- **Singular means at the point.** The parametrization is taken as singular where `det(JᵀJ)` is within `1e-24` of the square of its largest diagonal term, a point within `1e-12 r` of a sphere's pole, instead of `1e-12`, within `1e-6 r`. A breakpoint just beside the pole, which the span search lands on as it shrinks the spans around a curve that crosses it, was read as a limit from its lower side, across the pole, and got the other side's `u`. Nearer than `1e-6 r` the derivatives lose precision as the inverse of the distance and its square, which the span's length and the distance multiply away in the surface's point.
+- **The lift.** A lift sample at a singular point has any `u` and predicts nothing, so a point after it is moved by periods toward the next sample instead.
+- **What is still refused.** `SingularParametrization` remains for a curve that lingers at the point, nearing it as the fourth power of its parameter or slower, where the step inside is still singular. A curve through a pole at an interior breakpoint takes the limit from below on both sides, and the spans above turn steeply in `u`, as between breakpoints.
 
 ## Amendment: one result for every approximation (#199)
 

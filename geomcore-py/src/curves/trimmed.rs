@@ -1,10 +1,10 @@
-//! The Python classes `geomcore.curves.TrimmedCurve` and `TrimmedCurve2D`,
+//! The Python classes `geomcore.TrimmedCurve` and `TrimmedCurve2D`,
 //! wrapping a `geomcore::TrimmedCurve` over the `Curve` or `Curve2D` enum.
 
 use crate::curves::*;
 use crate::method_sets::*;
 use crate::tolerance;
-use crate::values::PyTolerance;
+use crate::values::ToleranceArgument;
 use crate::values::{coordinates, coordinates_2d, float_repr};
 use geomcore::{Curve, Curve2D, TrimmedCurve, TrimmedCurve2D};
 use pyo3::exceptions::PyTypeError;
@@ -19,7 +19,7 @@ use pyo3::exceptions::PyTypeError;
 /// B-spline) the range may cross the seam, up to one period. Pass it to
 /// `intersect`, `curve_curve_extrema` or `curve_3d_to_uv_within` to search
 /// only the range.
-#[pyclass(name = "TrimmedCurve", module = "geomcore.curves", eq)]
+#[pyclass(name = "TrimmedCurve", module = "geomcore", eq)]
 #[derive(Clone, PartialEq)]
 pub(crate) struct PyTrimmedCurve(pub(crate) TrimmedCurve);
 
@@ -69,7 +69,7 @@ shape_methods! {
         start: PyPoint,
         end: PyPoint,
         normal: PyVector,
-        tol: Option<PyTolerance>,
+        tol: Option<ToleranceArgument>,
     ) -> PyResult<Self> {
         let arc = TrimmedCurve::arc(center.0, start.0, end.0, normal.0, tolerance(tol))
             .map_err(python_error)?;
@@ -125,6 +125,12 @@ shape_methods! {
         PyPoint(self.0.end_point())
     }
 
+    fn __reduce__<'py>(slf: &pyo3::Bound<'py, Self>) -> pyo3::PyResult<pyo3::Bound<'py, pyo3::types::PyTuple>> {
+        let this = slf.borrow();
+        let basis = this.basis(slf.py())?;
+        crate::pickling::reduce(slf.as_any(), None, (basis, this.first(), this.last()))
+    }
+
     fn __repr__(&self) -> String {
         let (s, e) = (self.0.start_point(), self.0.end_point());
         format!(
@@ -140,7 +146,7 @@ shape_methods! {
 /// A 2D curve restricted to the parameter range `[first, last]` of a
 /// basis curve: a line segment, a circular arc or a B-spline piece,
 /// typically a trimmed pcurve in a surface's (u, v) parameter space. Mirrors `TrimmedCurve`.
-#[pyclass(name = "TrimmedCurve2D", module = "geomcore.curves", eq)]
+#[pyclass(name = "TrimmedCurve2D", module = "geomcore", eq)]
 #[derive(Clone, PartialEq)]
 pub(crate) struct PyTrimmedCurve2D(pub(crate) TrimmedCurve2D);
 
@@ -187,7 +193,7 @@ shape_methods! {
         start: PyPoint2D,
         end: PyPoint2D,
         counterclockwise: bool,
-        tol: Option<PyTolerance>,
+        tol: Option<ToleranceArgument>,
     ) -> PyResult<Self> {
         let arc = TrimmedCurve2D::arc(center.0, start.0, end.0, counterclockwise, tolerance(tol))
             .map_err(python_error)?;
@@ -241,6 +247,12 @@ shape_methods! {
     /// The point at the end of the range.
     fn end_point(&self) -> PyPoint2D {
         PyPoint2D(self.0.end_point())
+    }
+
+    fn __reduce__<'py>(slf: &pyo3::Bound<'py, Self>) -> pyo3::PyResult<pyo3::Bound<'py, pyo3::types::PyTuple>> {
+        let this = slf.borrow();
+        let basis = this.basis(slf.py())?;
+        crate::pickling::reduce(slf.as_any(), None, (basis, this.first(), this.last()))
     }
 
     fn __repr__(&self) -> String {
