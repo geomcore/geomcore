@@ -40,8 +40,8 @@ changes are flagged in the changelog). Implemented:
 - **Curve–curve extrema**: the local distance minima between two curves.
 - **Curve-on-surface parametrization**: `curve_3d_to_uv`, the exact UV
   curve of a 3D curve on a surface, for lines and circles on the five
-  elementary surfaces and any curve on a plane; `curve_3d_to_uv_numeric`
-  samples every other pair.
+  elementary surfaces and any curve on a plane; `curve_3d_to_uv_within`
+  gives one B-spline within a deviation for every other pair.
 - **UV curves to 3D curves**: the exact 3D curve a UV curve, a curve of a
   surface's `(u, v)` space, traces, for every pair with a closed form
   (any curve on a plane, lines along `u` or `v` on any surface), and
@@ -65,7 +65,7 @@ use geomcore::prelude::*;
 use geomcore::{Circle, Point, Vector};
 
 let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
-let point = circle.eval_point(std::f64::consts::PI / 4.0);
+let point = circle.point_at(std::f64::consts::PI / 4.0);
 ```
 
     cargo add geomcore
@@ -73,12 +73,11 @@ let point = circle.eval_point(std::f64::consts::PI / 4.0);
 ## Python
 
 ```python
-from geomcore import Point, Vector
-from geomcore.curves import Circle
+from geomcore import Circle, Point, Vector
 import math
 
 circle = Circle(Point.origin(), Vector.unit_z(), 2.0)
-point = circle.eval_point(math.pi / 4)
+point = circle.point_at(math.pi / 4)
 ```
 
     pip install geomcore

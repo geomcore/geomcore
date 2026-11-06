@@ -91,7 +91,7 @@ impl ToSpace for Parabola2D {
     type Space = Parabola;
 
     fn to_space(&self) -> Parabola {
-        Parabola::from_frame(frame_in_space(self.frame()), self.focal())
+        Parabola::from_frame(frame_in_space(self.frame()), self.focal_distance())
             .expect("a 2D parabola embeds as a parabola")
     }
 }
@@ -152,21 +152,21 @@ struct Embedded<'a, C> {
 }
 
 impl<C: Embed> ParametricCurve for Embedded<'_, C> {
-    fn eval_point(&self, u: f64) -> Point {
-        point(self.curve.eval_point(u))
+    fn point_at(&self, u: f64) -> Point {
+        point(self.curve.point_at(u))
     }
 
-    fn eval_derivative(&self, u: f64, order: u32) -> Vector {
-        vector(self.curve.eval_derivative(u, order))
+    fn derivative(&self, u: f64, order: u32) -> Vector {
+        vector(self.curve.derivative(u, order))
     }
 
-    fn eval_d1(&self, u: f64) -> (Point, Vector) {
-        let (p, d1) = self.curve.eval_d1(u);
+    fn first_derivatives(&self, u: f64) -> (Point, Vector) {
+        let (p, d1) = self.curve.first_derivatives(u);
         (point(p), vector(d1))
     }
 
-    fn eval_d2(&self, u: f64) -> (Point, Vector, Vector) {
-        let (p, d1, d2) = self.curve.eval_d2(u);
+    fn second_derivatives(&self, u: f64) -> (Point, Vector, Vector) {
+        let (p, d1, d2) = self.curve.second_derivatives(u);
         (point(p), vector(d1), vector(d2))
     }
 

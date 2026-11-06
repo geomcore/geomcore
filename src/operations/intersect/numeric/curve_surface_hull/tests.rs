@@ -118,15 +118,11 @@ fn assert_on_both<C: ParametricCurve>(
     let (lo, hi) = curve.bounds();
     let ((u0, u1), (v0, v1)) = (surface.u_bounds(), surface.v_bounds());
     for hit in hits {
-        let (u, v) = hit.surface_parameters.unwrap();
-        assert!((lo..=hi).contains(&hit.curve_parameter.unwrap()), "{hit:?}");
+        let (u, v) = hit.surface_parameters;
+        assert!((lo..=hi).contains(&hit.curve_parameter), "{hit:?}");
         assert!((u0..=u1).contains(&u) && (v0..=v1).contains(&v), "{hit:?}");
-        assert!(
-            hit.point
-                .distance(curve.eval_point(hit.curve_parameter.unwrap()))
-                < 1e-12
-        );
-        assert!(hit.point.distance(surface.eval_point(u, v)) <= TOL.confusion);
+        assert!(hit.point.distance(curve.point_at(hit.curve_parameter)) < 1e-12);
+        assert!(hit.point.distance(surface.point_at(u, v)) <= TOL.confusion);
     }
     for pair in hits.windows(2) {
         assert!(pair[0].curve_parameter < pair[1].curve_parameter);
@@ -147,7 +143,7 @@ fn assert_matches_sampled<C: ParametricCurve>(
     let periodic = curve.period().is_some();
     let sampled: Vec<_> = sampled_curve_surface(curve, surface, TOL)
         .into_iter()
-        .filter(|h| periodic || (lo - 1e-9..=hi + 1e-9).contains(&h.curve_parameter.unwrap()))
+        .filter(|h| periodic || (lo - 1e-9..=hi + 1e-9).contains(&h.curve_parameter))
         .collect();
     assert_eq!(found.len(), sampled.len(), "{found:#?}\n{sampled:#?}");
     for hit in &sampled {
@@ -215,7 +211,7 @@ fn test_rational_cylinder_is_hit_at_its_radius() {
         let ray = BSplineCurve::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
         let hits = assert_matches_sampled(&ray, &cylinder);
         assert_eq!(hits.len(), 1);
-        assert!((hits[0].curve_parameter.unwrap() - 0.5).abs() < 1e-12);
+        assert!((hits[0].curve_parameter - 0.5).abs() < 1e-12);
         assert!((hits[0].point.z - 0.5).abs() < 1e-12);
     }
 }
@@ -240,7 +236,7 @@ fn test_periodic_curve_matches_sampled() {
     let ring = periodic_loop();
     let hits = assert_matches_sampled(&ring, &surface);
     assert!(hits.len() >= 8);
-    assert!(hits.iter().all(|h| h.curve_parameter.unwrap() < 8.0));
+    assert!(hits.iter().all(|h| h.curve_parameter < 8.0));
 }
 
 #[test]
@@ -253,7 +249,7 @@ fn test_trimmed_periodic_curve_across_the_seam() {
     let wrapped = |t: f64| if t < 6.5 { t + 8.0 } else { t };
     let expected: Vec<f64> = all
         .iter()
-        .map(|h| wrapped(h.curve_parameter.unwrap()))
+        .map(|h| wrapped(h.curve_parameter))
         .filter(|&t| t <= 9.5)
         .collect();
     assert!(expected.iter().any(|&t| t < 8.0) && expected.iter().any(|&t| t > 8.0));
@@ -262,7 +258,7 @@ fn test_trimmed_periodic_curve_across_the_seam() {
         assert!(
             expected
                 .iter()
-                .any(|&t| (t - hit.curve_parameter.unwrap()).abs() < 1e-9)
+                .any(|&t| (t - hit.curve_parameter).abs() < 1e-9)
         );
     }
 }
@@ -304,11 +300,11 @@ fn test_periodic_surface_matches_sampled() {
         let ray = BSplineCurve::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
         let hits = assert_matches_sampled(&ray, &tube);
         assert_eq!(hits.len(), 1);
-        let (u, _) = hits[0].surface_parameters.unwrap();
+        let (u, _) = hits[0].surface_parameters;
         assert!((0.0..6.0).contains(&u));
     }
     // Through the seam, slanting either way across it.
-    let seam = tube.eval_point(0.0, 0.5);
+    let seam = tube.point_at(0.0, 0.5);
     for slant in [0.3, -0.3] {
         let line = segment(
             Point::new(0.3 * seam.x, 0.3 * seam.y + slant, 0.5),
@@ -317,7 +313,7 @@ fn test_periodic_surface_matches_sampled() {
         let hits = assert_matches_sampled(&line, &tube);
         assert_eq!(hits.len(), 1, "{hits:#?}");
         assert!(hits[0].point.distance(seam) < 1e-12);
-        let (u, v) = hits[0].surface_parameters.unwrap();
+        let (u, v) = hits[0].surface_parameters;
         assert!(u.min(6.0 - u) < 1e-9 && (v - 0.5).abs() < 1e-9, "{u} {v}");
     }
 }
@@ -340,14 +336,10 @@ fn test_trimmed_curves_search_only_their_range() {
     let curve = zigzag();
     let all = assert_matches_sampled(&curve, &surface);
     assert!(all.len() >= 6);
-    for (first, last) in [
-        (0.7, 2.9),
-        (1.0, 5.0),
-        (all[2].curve_parameter.unwrap(), 6.0),
-    ] {
+    for (first, last) in [(0.7, 2.9), (1.0, 5.0), (all[2].curve_parameter, 6.0)] {
         let expected: Vec<_> = all
             .iter()
-            .filter(|h| (first - 1e-9..=last + 1e-9).contains(&h.curve_parameter.unwrap()))
+            .filter(|h| (first - 1e-9..=last + 1e-9).contains(&h.curve_parameter))
             .collect();
         let borrowed = TrimmedCurve::new(&curve, first, last).unwrap();
         let owned = TrimmedCurve::new(curve.clone(), first, last).unwrap();
@@ -358,9 +350,7 @@ fn test_trimmed_curves_search_only_their_range() {
         ] {
             assert_eq!(hits.len(), expected.len());
             for (hit, want) in hits.iter().zip(&expected) {
-                assert!(
-                    (hit.curve_parameter.unwrap() - want.curve_parameter.unwrap()).abs() < 1e-9
-                );
+                assert!((hit.curve_parameter - want.curve_parameter).abs() < 1e-9);
             }
         }
     }
@@ -406,7 +396,7 @@ fn test_hits_at_curve_ends_and_surface_edges() {
 #[test]
 fn test_hit_on_knots_of_both_is_reported_once() {
     let surface = wavy(false);
-    let corner = surface.eval_point(1.0, 2.0);
+    let corner = surface.point_at(1.0, 2.0);
     let poles = vec![
         Point::new(corner.x - 0.3, corner.y - 0.2, corner.z - 1.0),
         corner,
@@ -415,8 +405,8 @@ fn test_hit_on_knots_of_both_is_reported_once() {
     let curve = BSplineCurve::new(1, poles, vec![0.0, 1.0, 2.0], vec![2, 1, 2], false).unwrap();
     let hits = assert_matches_sampled(&curve, &surface);
     assert_eq!(hits.len(), 1);
-    assert!((hits[0].curve_parameter.unwrap() - 1.0).abs() < 1e-12);
-    let (u, v) = hits[0].surface_parameters.unwrap();
+    assert!((hits[0].curve_parameter - 1.0).abs() < 1e-12);
+    let (u, v) = hits[0].surface_parameters;
     assert!((u - 1.0).abs() < 1e-12 && (v - 2.0).abs() < 1e-12);
 }
 
@@ -440,8 +430,8 @@ fn test_close_hits_near_a_tangency_are_separated() {
         assert_on_both(&hits, &curve, &plane);
         let half = 0.5 * (depth / (1.0 + depth)).sqrt();
         assert_eq!(hits.len(), 2, "{hits:?}");
-        assert!((hits[0].curve_parameter.unwrap() - (0.5 - half)).abs() < 1e-9);
-        assert!((hits[1].curve_parameter.unwrap() - (0.5 + half)).abs() < 1e-9);
+        assert!((hits[0].curve_parameter - (0.5 - half)).abs() < 1e-9);
+        assert!((hits[1].curve_parameter - (0.5 + half)).abs() < 1e-9);
     }
 }
 
@@ -472,11 +462,7 @@ fn holds(region: &CurveSurfaceRegion, t: f64, (u, v): (f64, f64), p: Point) -> b
 #[track_caller]
 fn assert_sampled_hits_kept(hits: &CurveSurfaceHits, curve: &BSplineCurve, plane: &BSplineSurface) {
     for hit in hits {
-        assert!(
-            hit.point
-                .distance(curve.eval_point(hit.curve_parameter.unwrap()))
-                < 1e-12
-        );
+        assert!(hit.point.distance(curve.point_at(hit.curve_parameter)) < 1e-12);
         assert!(plane.project_point(hit.point, TOL).distance <= TOL.confusion);
     }
     for hit in sampled_curve_surface(curve, plane, TOL) {
@@ -497,7 +483,7 @@ fn test_curve_lying_on_the_surface_is_unseparated_along_it() {
     assert_eq!(regions[0].curve_range, (0.0, 1.0));
     for k in 0..=16 {
         let t = k as f64 / 16.0;
-        let p = lying.eval_point(t);
+        let p = lying.point_at(t);
         let foot = plane.project_point(p, TOL);
         assert!(
             holds(&regions[0], t, (foot.u, foot.v), p),
@@ -515,7 +501,7 @@ fn test_tangent_contact_is_unseparated_around_it() {
     let plane = flat();
     let tangent = dip(0.0);
     let contact = Point::new(2.5, 2.5, 0.0);
-    assert_eq!(tangent.eval_point(0.5), contact);
+    assert_eq!(tangent.point_at(0.5), contact);
     let foot = plane.project_point(contact, TOL);
     let found = bspline_curve_surface(&tangent, ParameterDomain::of(&tangent), &plane, TOL);
     let (reason, regions) = incomplete(&found);
@@ -542,7 +528,7 @@ fn test_contact_with_a_curved_surface_is_incomplete_around_it() {
     let cylinder = quarter_cylinder();
     for u in [0.2, 0.5, 0.77] {
         let foot = (u, 0.4);
-        let on = cylinder.eval_point(u, 0.4);
+        let on = cylinder.point_at(u, 0.4);
         // Tangent to the cylinder at `on`, and lying on it.
         let side = crate::Vector::new(on.y, -on.x, 0.0) * 0.125;
         let across = segment(on + side, on - side);
@@ -554,15 +540,15 @@ fn test_contact_with_a_curved_surface_is_incomplete_around_it() {
             "{regions:#?}"
         );
         let lying = segment(
-            cylinder.eval_point(foot.0, 0.1),
-            cylinder.eval_point(foot.0, 0.9),
+            cylinder.point_at(foot.0, 0.1),
+            cylinder.point_at(foot.0, 0.9),
         );
         let found = bspline_curve_surface(&lying, ParameterDomain::of(&lying), &cylinder, TOL);
         let (_, regions) = incomplete(&found);
         for k in 0..=8 {
             let t = k as f64 / 8.0;
             let v = 0.1 + 0.8 * t;
-            let p = lying.eval_point(t);
+            let p = lying.point_at(t);
             assert!(regions.iter().any(|r| holds(r, t, (foot.0, v), p)), "{t}");
         }
     }
@@ -582,8 +568,8 @@ fn test_exhausted_budget_leaves_the_pending_pairs() {
         // Every hit is either found or within a region.
         for hit in &all {
             let held = regions.iter().any(|r| {
-                let curve_parameter = hit.curve_parameter.unwrap();
-                let surface_parameters = hit.surface_parameters.unwrap();
+                let curve_parameter = hit.curve_parameter;
+                let surface_parameters = hit.surface_parameters;
                 holds(r, curve_parameter, surface_parameters, hit.point)
             });
             let near = |h: &CurveSurfaceHit| h.point.distance(hit.point) < 1e-9;

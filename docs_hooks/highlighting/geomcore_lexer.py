@@ -1,7 +1,7 @@
 """Pygments lexer that colours geomcore API names in docs snippets.
 
 Stock Python highlighting leaves almost every identifier as a plain Name,
-so Material paints `Point`, `Circle` and `eval_point` the same as local
+so Material paints `Point`, `Circle` and `point_at` the same as local
 variables. This lexer reads the package stubs (no compiled wheel needed)
 and retags public types and callables the way build123d's docs lexer does.
 """

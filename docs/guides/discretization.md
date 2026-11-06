@@ -58,7 +58,7 @@ allocating.
     let criteria = DiscretizationCriteria::new(0.01).unwrap();
     let n = curve.point_count(criteria);
     let d = curve.discretize(criteria);
-    assert_eq!(d.points[0], curve.eval_point(curve.bounds().0));
+    assert_eq!(d.points[0], curve.point_at(curve.bounds().0));
     ```
 
 In the plane, `Discretize2D` gives a `Discretization2D` of a

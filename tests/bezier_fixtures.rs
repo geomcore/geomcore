@@ -70,12 +70,12 @@ fn bezier_curves_match_golden_fixture() {
         let spline = curve.to_bspline();
         for sample in &case.samples {
             let t = sample.t;
-            assert_point3(curve.eval_point(t), sample.point);
-            assert_vector3(curve.eval_derivative(t, 1), sample.d1);
-            assert_vector3(curve.eval_derivative(t, 2), sample.d2);
-            assert_point3(spline.eval_point(t), sample.point);
-            assert_vector3(spline.eval_derivative(t, 1), sample.d1);
-            assert_vector3(spline.eval_derivative(t, 2), sample.d2);
+            assert_point3(curve.point_at(t), sample.point);
+            assert_vector3(curve.derivative(t, 1), sample.d1);
+            assert_vector3(curve.derivative(t, 2), sample.d2);
+            assert_point3(spline.point_at(t), sample.point);
+            assert_vector3(spline.derivative(t, 1), sample.d1);
+            assert_vector3(spline.derivative(t, 2), sample.d2);
         }
     }
 }
@@ -98,8 +98,8 @@ fn bezier_surfaces_match_golden_fixture() {
         let spline = surface.to_bspline();
         for sample in &case.samples {
             let (u, v) = (sample.u, sample.v);
-            assert_point3(surface.eval_point(u, v), sample.point);
-            assert_point3(spline.eval_point(u, v), sample.point);
+            assert_point3(surface.point_at(u, v), sample.point);
+            assert_point3(spline.point_at(u, v), sample.point);
             for (du, dv, expected) in [
                 (1, 0, sample.d1u),
                 (0, 1, sample.d1v),
@@ -107,8 +107,8 @@ fn bezier_surfaces_match_golden_fixture() {
                 (1, 1, sample.d2uv),
                 (0, 2, sample.d2v),
             ] {
-                assert_vector3(surface.eval_derivative(u, v, du, dv), expected);
-                assert_vector3(spline.eval_derivative(u, v, du, dv), expected);
+                assert_vector3(surface.derivative(u, v, du, dv), expected);
+                assert_vector3(spline.derivative(u, v, du, dv), expected);
             }
         }
     }

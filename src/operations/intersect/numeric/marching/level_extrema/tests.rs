@@ -66,12 +66,12 @@ fn test_a_loop_beside_a_saddle_is_found() {
         (54, 55, -0.03),
         (56, 55, -0.03),
     ]);
-    let peak = sheet.eval_point(38.0 / 96.0, 38.0 / 96.0);
+    let peak = sheet.point_at(38.0 / 96.0, 38.0 / 96.0);
     let plane = tilted_plane(Point::new(peak.x, peak.y, peak.z - 0.002));
     let seeds = level_seeds(ElementarySurface::Plane(plane), &sheet, tol).unwrap();
     assert!(!seeds.is_empty());
     for seed in &seeds {
-        assert!(sheet.eval_point(seed[2], seed[3]).distance(peak) < 0.05);
+        assert!(sheet.point_at(seed[2], seed[3]).distance(peak) < 0.05);
     }
     assert_one_small_loop(
         &marching_intersection(&plane, &sheet, tol),
@@ -86,7 +86,7 @@ fn test_a_loop_beside_a_saddle_is_found() {
 fn test_a_plane_through_a_dent_finds_the_loop() {
     let tol = Tolerance::DEFAULT;
     let sheet = sheet_with_bumps(&[(39, 39, -0.04)]);
-    let bottom = sheet.eval_point(38.0 / 96.0, 38.0 / 96.0);
+    let bottom = sheet.point_at(38.0 / 96.0, 38.0 / 96.0);
     let plane = tilted_plane(Point::new(bottom.x, bottom.y, bottom.z + 0.002));
     assert_one_small_loop(
         &marching_intersection(&plane, &sheet, tol),
@@ -102,7 +102,7 @@ fn test_a_dent_above_the_plane_gives_no_seeds() {
     let tol = Tolerance::DEFAULT;
     // The level is lowest at the bottom of the dent, but positive there.
     let sheet = sheet_with_bumps(&[(39, 39, -0.04)]);
-    let bottom = sheet.eval_point(38.0 / 96.0, 38.0 / 96.0);
+    let bottom = sheet.point_at(38.0 / 96.0, 38.0 / 96.0);
     let plane = tilted_plane(Point::new(bottom.x, bottom.y, bottom.z - 0.002));
     let seeds = level_seeds(ElementarySurface::Plane(plane), &sheet, tol);
     assert_eq!(seeds, Some(Vec::new()));
@@ -156,8 +156,8 @@ fn test_a_plane_cutting_a_cap_off_a_torus_seeds_on_both() {
     let seeds = plane_torus_seeds(&plane, &torus, tol);
     assert_eq!(seeds.len(), 2);
     for seed in seeds {
-        let on_plane = plane.eval_point(seed[0], seed[1]);
-        let on_torus = torus.eval_point(seed[2], seed[3]);
+        let on_plane = plane.point_at(seed[0], seed[1]);
+        let on_torus = torus.point_at(seed[2], seed[3]);
         assert!(on_plane.distance(on_torus) < 1e-9);
         assert!(on_torus.distance(top) < 0.2);
     }

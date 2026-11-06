@@ -116,8 +116,8 @@ use swept_plane::Swept;
 /// let result = line.intersect(&sphere, Tolerance::DEFAULT);
 /// assert_eq!(result.method(), IntersectionMethod::Exact);
 /// assert!(result.is_complete());
-/// let parameters: Vec<Option<f64>> = result.hits().iter().map(|h| h.curve_parameter).collect();
-/// assert_eq!(parameters, [Some(3.0), Some(7.0)]);
+/// let parameters: Vec<f64> = result.hits().iter().map(|h| h.curve_parameter).collect();
+/// assert_eq!(parameters, [3.0, 7.0]);
 /// assert_eq!(sphere.intersect(&line, Tolerance::DEFAULT), result);
 /// ```
 pub trait Intersect<Rhs: ?Sized = Self> {
@@ -201,12 +201,12 @@ macro_rules! tier_curve_basis {
 
             #[inline]
             fn point_at(&self, parameter: f64) -> $point {
-                $parametric::eval_point(self, parameter)
+                $parametric::point_at(self, parameter)
             }
 
             #[inline]
             fn first_derivative(&self, parameter: f64) -> <$point as TierPoint>::Vector {
-                $parametric::eval_derivative(self, parameter, 1)
+                $parametric::derivative(self, parameter, 1)
             }
 
             #[inline]
@@ -438,13 +438,10 @@ fn nearest_end(parameter: f64, range: (f64, f64), period: Option<f64>) -> f64 {
 }
 
 /// The parameter a hit keeps on one curve, or `None` when the hit lies
-/// outside the curve's range.
-///
-/// On a curve restricted to `range` the range test needs the parameter:
-/// the `stored` one, or the one `recover` computes from the point when the
-/// solver did not, and the hit keeps its representative in the range (see
-/// [`in_range`]). On an unrestricted curve the hit keeps what the solver
-/// stored, computed or not.
+/// outside the curve's range: the `stored` one, or the one `recover`
+/// computes from the point when the solver did not. On a curve restricted
+/// to `range` the hit keeps its representative in the range (see
+/// [`in_range`]).
 #[inline]
 fn kept_parameter(
     stored: Option<f64>,
@@ -453,12 +450,11 @@ fn kept_parameter(
     recover: impl FnOnce() -> f64,
     speed: impl FnOnce(f64) -> f64,
     tol: Tolerance,
-) -> Option<Option<f64>> {
+) -> Option<f64> {
+    let parameter = stored.unwrap_or_else(recover);
     match range {
-        Some(range) => {
-            in_range(stored.unwrap_or_else(recover), range, period, speed, tol).map(Some)
-        }
-        None => Some(stored),
+        Some(range) => in_range(parameter, range, period, speed, tol),
+        None => Some(parameter),
     }
 }
 
@@ -636,7 +632,9 @@ pub(crate) fn route_surface_surface<A: SurfaceOperand, B: SurfaceOperand>(
     let numeric_search = || marching_intersection(a, b, tol);
     let first: SurfaceKind<'_> = a.surface_basis().into();
     let second: SurfaceKind<'_> = b.surface_basis().into();
-    first.exact_family(&second, (None, None), tol, numeric_search)
+    first
+        .exact_family(&second, (None, None), tol, numeric_search)
+        .with_exact_uv_curves(a, b, tol)
 }
 
 /// Implements [`Intersect`] for every surface of the list with every

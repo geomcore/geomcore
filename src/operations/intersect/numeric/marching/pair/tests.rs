@@ -43,17 +43,17 @@ fn assert_on_circle(p: Point) {
 fn test_meet_converges_onto_both_surfaces() {
     let (plane, sphere) = plane_and_sphere();
     let pair = SurfacePair::new(&plane, &sphere);
-    let guess = parameters_of(&pair, sphere.eval_point(0.3, 0.4));
+    let guess = parameters_of(&pair, sphere.point_at(0.3, 0.4));
     let x = pair.meet(guess, None, TOL).unwrap();
     assert_on_circle(pair.point(x));
-    assert!(pair.point(x).distance(sphere.eval_point(x[2], x[3])) < TOL.confusion);
+    assert!(pair.point(x).distance(sphere.point_at(x[2], x[3])) < TOL.confusion);
 }
 
 #[test]
 fn test_meet_in_a_plane_lands_where_the_plane_cuts_the_curve() {
     let (plane, sphere) = plane_and_sphere();
     let pair = SurfacePair::new(&plane, &sphere);
-    let guess = parameters_of(&pair, sphere.eval_point(0.3, 0.4));
+    let guess = parameters_of(&pair, sphere.point_at(0.3, 0.4));
     let x = pair
         .meet(guess, Some((Point::ORIGIN, Vector::Y)), TOL)
         .unwrap();
@@ -67,7 +67,7 @@ fn test_meet_from_surfaces_that_miss_is_none() {
     let plane = Plane::new(Point::new(0.0, 0.0, 2.0), Vector::Z).unwrap();
     let sphere = Sphere::new(Point::ORIGIN, 1.0).unwrap();
     let pair = SurfacePair::new(&plane, &sphere);
-    let guess = parameters_of(&pair, sphere.eval_point(0.3, 0.4));
+    let guess = parameters_of(&pair, sphere.point_at(0.3, 0.4));
     assert!(pair.meet(guess, None, TOL).is_none());
 }
 
@@ -75,7 +75,7 @@ fn test_meet_from_surfaces_that_miss_is_none() {
 fn test_land_holds_the_pinned_parameter() {
     let (plane, sphere) = plane_and_sphere();
     let pair = SurfacePair::new(&plane, &sphere);
-    let guess = parameters_of(&pair, sphere.eval_point(0.3, 0.4));
+    let guess = parameters_of(&pair, sphere.point_at(0.3, 0.4));
     // The sphere's longitude held at zero: the circle's point on +x.
     let x = pair.land(guess, 2, 0.0, TOL).unwrap();
     assert_eq!(x[2], 0.0);
@@ -111,7 +111,7 @@ fn test_predict_follows_a_displacement_on_both_planes() {
     let y = pair.predict(x, d);
     let expected = Point::new(0.0, 1.75, 0.0);
     assert!(pair.point(y).distance(expected) < 1e-12);
-    assert!(zy.eval_point(y[2], y[3]).distance(expected) < 1e-12);
+    assert!(zy.point_at(y[2], y[3]).distance(expected) < 1e-12);
 }
 
 #[test]
@@ -130,7 +130,7 @@ fn test_swapped_pair_reads_swapped_parameters() {
     let pair = SurfacePair::new(&plane, &sphere);
     let x = [0.1, 0.2, 0.3, 0.4];
     assert_eq!(swap(x), [0.3, 0.4, 0.1, 0.2]);
-    assert_eq!(pair.swapped().point(swap(x)), sphere.eval_point(0.3, 0.4));
+    assert_eq!(pair.swapped().point(swap(x)), sphere.point_at(0.3, 0.4));
 }
 
 #[test]
@@ -158,7 +158,7 @@ fn test_grazing_follows_the_confusion_distance() {
         let (plane, cylinder) = plane_and_cylinder(gap);
         let pair = SurfacePair::new(&plane, &cylinder);
         let u = (1.0 - gap).acos();
-        let x = parameters_of(&pair, cylinder.eval_point(u, 0.0));
+        let x = parameters_of(&pair, cylinder.point_at(u, 0.0));
         assert_eq!(pair.grazes(x, TOL), grazes, "gap {gap}");
     }
 }
@@ -167,12 +167,12 @@ fn test_grazing_follows_the_confusion_distance() {
 fn test_meet_touching_converges_onto_the_touching_ruling() {
     let (plane, cylinder) = plane_and_cylinder(0.0);
     let pair = SurfacePair::new(&plane, &cylinder);
-    let guess = parameters_of(&pair, cylinder.eval_point(0.01, 0.3));
+    let guess = parameters_of(&pair, cylinder.point_at(0.01, 0.3));
     let x = pair
         .meet_touching(guess, (Point::new(1.0, 0.0, 0.3), Vector::Z), TOL)
         .unwrap();
     let p = pair.point(x);
-    assert!(p.distance(cylinder.eval_point(x[2], x[3])) <= TOL.confusion);
+    assert!(p.distance(cylinder.point_at(x[2], x[3])) <= TOL.confusion);
     assert!((p.z - 0.3).abs() <= TOL.confusion, "{p:?}");
     assert!((p.x - 1.0).abs() <= TOL.confusion, "{p:?}");
 }
@@ -237,7 +237,7 @@ fn test_the_seeded_trace_box_takes_the_larger_radius_of_a_cone_and_a_cylinder() 
     let cylinder = Cylinder::new(Point::new(1.0, 0.0, 0.0), generator, 0.5).unwrap();
     let pair = SurfacePair::new(&cone, &cylinder);
     let seed = [0.0, 0.0, 0.0, 0.0];
-    let at = cone.eval_point(0.0, 0.0);
+    let at = cone.point_at(0.0, 0.0);
     let limit = pair.trace_box(&[seed], TOL).bounds();
     let grown = limit.max() - at;
     assert!(

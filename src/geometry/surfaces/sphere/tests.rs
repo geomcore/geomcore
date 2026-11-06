@@ -40,13 +40,13 @@ fn test_from_frame_negative_radius_errors() {
 #[test]
 fn test_eval_point() {
     let s = Sphere::new(Point::ORIGIN, 3.0).unwrap();
-    assert_eq!(s.eval_point(0.0, 0.0), Point::new(3.0, 0.0, 0.0));
+    assert_eq!(s.point_at(0.0, 0.0), Point::new(3.0, 0.0, 0.0));
 }
 
 #[test]
 fn test_eval_point_pole() {
     let s = Sphere::new(Point::ORIGIN, 3.0).unwrap();
-    let p = s.eval_point(0.0, FRAC_PI_2);
+    let p = s.point_at(0.0, FRAC_PI_2);
     assert!(p.x.abs() < 1e-9);
     assert!(p.y.abs() < 1e-9);
     assert!((p.z - 3.0).abs() < 1e-9);
@@ -56,15 +56,15 @@ fn test_eval_point_pole() {
 fn test_eval_points_matches_loop() {
     let s = Sphere::new(Point::ORIGIN, 3.0).unwrap();
     let uvs = [(0.0, 0.0), (0.5, 1.0)];
-    let expected: Vec<Point> = uvs.iter().map(|&(u, v)| s.eval_point(u, v)).collect();
-    assert_eq!(s.eval_points(&uvs), expected);
+    let expected: Vec<Point> = uvs.iter().map(|&(u, v)| s.point_at(u, v)).collect();
+    assert_eq!(s.points_at(&uvs), expected);
 }
 
 #[test]
 #[should_panic(expected = "du + dv must be >= 1")]
 fn test_eval_derivative_zero_order_panics() {
     let s = Sphere::new(Point::ORIGIN, 3.0).unwrap();
-    s.eval_derivative(0.0, 0.0, 0, 0);
+    s.derivative(0.0, 0.0, 0, 0);
 }
 
 #[test]
@@ -99,7 +99,7 @@ fn test_sphere_contains() {
     let sphere = Sphere::new(Point::ORIGIN, 3.0).unwrap();
     let tol = Tolerance::DEFAULT;
     assert!(sphere.contains(Point::new(3.0, 0.0, 0.0), tol));
-    assert!(sphere.contains(sphere.eval_point(0.7, 0.4), tol));
+    assert!(sphere.contains(sphere.point_at(0.7, 0.4), tol));
     assert!(!sphere.contains(Point::ORIGIN, tol));
     assert!(!sphere.contains(Point::new(4.0, 0.0, 0.0), tol));
 }
@@ -126,7 +126,7 @@ fn test_sphere_transformed_translation_spot_check() {
     assert_eq!(moved.center(), Point::new(1.0, 2.0, 3.0));
     assert_eq!(moved.radius(), 3.0);
     // Hand-computed evaluation at the equator origin, shifted.
-    assert_eq!(moved.eval_point(0.0, 0.0), Point::new(4.0, 2.0, 3.0));
+    assert_eq!(moved.point_at(0.0, 0.0), Point::new(4.0, 2.0, 3.0));
 }
 
 #[test]
@@ -140,7 +140,7 @@ fn test_sphere_transformed_round_trip_and_mirror() {
     assert!(moved.center().distance(Point::new(0.0, 2.0, 0.0)) < 1e-9);
     let tol = Tolerance::DEFAULT;
     for (u, v) in [(0.0, 0.0), (1.0, 0.3), (4.0, -0.5)] {
-        assert!(moved.contains(t.apply_point(sphere.eval_point(u, v)), tol));
+        assert!(moved.contains(t.apply_point(sphere.point_at(u, v)), tol));
     }
     let inv = Transform::scaling(Point::ORIGIN, 0.5).then(Transform::rotation(axis, -FRAC_PI_2));
     let back = moved.transformed(inv).unwrap();
@@ -150,7 +150,7 @@ fn test_sphere_transformed_round_trip_and_mirror() {
     let m = Transform::mirror_plane(Frame::WORLD);
     let mirrored = sphere.transformed(m).unwrap();
     for (u, v) in [(0.0, 0.0), (1.0, 0.3)] {
-        assert!(mirrored.contains(m.apply_point(sphere.eval_point(u, v)), tol));
+        assert!(mirrored.contains(m.apply_point(sphere.point_at(u, v)), tol));
     }
     assert_eq!(mirrored.transformed(m).unwrap(), sphere);
 }
@@ -161,11 +161,11 @@ fn test_reversed_spheres_share_point_set() {
     for (u, v) in [(0.0, 0.0), (1.0, 0.3), (5.0, -0.5)] {
         let ru = sphere.reversed_u();
         assert!(!ru.frame().is_direct());
-        assert!((ru.eval_point(u, v) - sphere.eval_point(-u, v)).magnitude() < 1e-12);
+        assert!((ru.point_at(u, v) - sphere.point_at(-u, v)).magnitude() < 1e-12);
         assert!((ru.u_reversed_parameter(sphere.u_reversed_parameter(u)) - u).abs() < 1e-12);
         let rv = sphere.reversed_v();
         assert!(!rv.frame().is_direct());
-        assert!((rv.eval_point(u, v) - sphere.eval_point(u, -v)).magnitude() < 1e-12);
+        assert!((rv.point_at(u, v) - sphere.point_at(u, -v)).magnitude() < 1e-12);
         assert_eq!(rv.v_reversed_parameter(sphere.v_reversed_parameter(v)), v);
     }
     assert_eq!(sphere.reversed_u().reversed_u(), sphere);

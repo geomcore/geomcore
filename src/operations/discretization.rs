@@ -524,7 +524,7 @@ macro_rules! discretize_bounded {
                     self.bounds(),
                     self.is_periodic(),
                     &criteria,
-                    |u| self.eval_point(u),
+                    |u| self.point_at(u),
                 );
                 $discretization {
                     parameters,
@@ -551,7 +551,7 @@ macro_rules! discretize_bounded {
                     self.bounds(),
                     self.is_periodic(),
                     &criteria,
-                    |u| self.eval_point(u),
+                    |u| self.point_at(u),
                     Slices {
                         parameters,
                         points,
@@ -578,7 +578,7 @@ macro_rules! discretize_trimmed {
                     self.bounds(),
                     spans_period(self.bounds(), self.basis().period()),
                     &criteria,
-                    |u| self.basis().eval_point(u),
+                    |u| self.basis().point_at(u),
                 );
                 $discretization {
                     parameters,
@@ -606,7 +606,7 @@ macro_rules! discretize_trimmed {
                     self.bounds(),
                     spans_period(self.bounds(), self.basis().period()),
                     &criteria,
-                    |u| self.basis().eval_point(u),
+                    |u| self.basis().point_at(u),
                     Slices {
                         parameters,
                         points,

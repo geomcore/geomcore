@@ -132,15 +132,10 @@ fn level_seeds<S: ParametricSurface>(
                     continue;
                 }
                 for hit in route_curve_surface(&curve, &level, tol).hits() {
-                    let on_patch = match hit.curve_parameter {
-                        Some(t) if along_u => (t, fixed),
-                        Some(t) => (fixed, t),
-                        None => patch.parameters_of(hit.point, tol),
-                    };
+                    let t = hit.curve_parameter;
+                    let on_patch = if along_u { (t, fixed) } else { (fixed, t) };
                     let (other_u, other_v) = patches.parameters(on_patch);
-                    let (level_u, level_v) = hit
-                        .surface_parameters
-                        .unwrap_or_else(|| level.parameters_of(hit.point, tol));
+                    let (level_u, level_v) = hit.surface_parameters;
                     seeds.push([level_u, level_v, other_u, other_v]);
                 }
             }
@@ -164,7 +159,7 @@ fn level_seeds<S: ParametricSurface>(
 /// and so all of it, which no disc on the torus does. There is then no
 /// such loop.
 fn plane_torus_seeds(plane: &Plane, torus: &Torus, tol: Tolerance) -> Vec<[f64; 4]> {
-    let normal = plane.normal();
+    let normal = plane.normal_direction();
     let axis = torus.frame().z_direction();
     let Some(radial) = (normal - axis * normal.dot(axis)).normalized() else {
         return Vec::new();
@@ -184,9 +179,7 @@ fn plane_torus_seeds(plane: &Plane, torus: &Torus, tol: Tolerance) -> Vec<[f64; 
         };
         let result = route_curve_surface(&meridian, plane, tol);
         for hit in result.hits() {
-            let (plane_u, plane_v) = hit
-                .surface_parameters
-                .unwrap_or_else(|| plane.parameters_of(hit.point, tol));
+            let (plane_u, plane_v) = hit.surface_parameters;
             let (torus_u, torus_v) = torus.parameters_of(hit.point, tol);
             seeds.push([plane_u, plane_v, torus_u, torus_v]);
         }
@@ -230,7 +223,7 @@ impl Level {
         match surface {
             ElementarySurface::Plane(s) => Level::Plane {
                 origin: s.frame().origin(),
-                normal: s.normal(),
+                normal: s.axis().direction(),
             },
             ElementarySurface::Sphere(s) => Level::Sphere {
                 center: s.center(),
@@ -436,7 +429,7 @@ impl Sample {
         at: (f64, f64),
         tol: Tolerance,
     ) -> Sample {
-        let (p, [su, sv], [suu, suv, svv]) = patch.eval_d2(at.0, at.1);
+        let (p, [su, sv], [suu, suv, svv]) = patch.second_derivatives(at.0, at.1);
         let (value, gradient) = function.value_and_gradient(p);
         let slope = gradient.magnitude();
         let along = [gradient.dot(su), gradient.dot(sv)];

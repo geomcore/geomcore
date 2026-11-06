@@ -1,3 +1,7 @@
+/// How far the squared length of a normalized vector strays from 1 by
+/// rounding: at most three ulps of 1, with room to spare.
+const UNIT_ROUNDING: f64 = 8.0 * f64::EPSILON;
+
 /// Two-dimensional vector.
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct Vector2D {
@@ -84,10 +88,10 @@ impl Vector2D {
     ///
     /// ```
     /// use geomcore::Vector2D;
-    /// assert_eq!(Vector2D::X.perp(), Vector2D::Y);
-    /// assert_eq!(Vector2D::Y.perp(), Vector2D::new(-1.0, 0.0));
+    /// assert_eq!(Vector2D::X.perpendicular(), Vector2D::Y);
+    /// assert_eq!(Vector2D::Y.perpendicular(), Vector2D::new(-1.0, 0.0));
     /// ```
-    pub fn perp(self) -> Vector2D {
+    pub fn perpendicular(self) -> Vector2D {
         Vector2D {
             x: -self.y,
             y: self.x,
@@ -154,6 +158,19 @@ impl Vector2D {
                 x: self.x / mag,
                 y: self.y / mag,
             })
+        }
+    }
+
+    /// The vector normalized, or itself when it is already of unit length
+    /// within rounding, so that normalizing a normalized vector changes
+    /// nothing: a frame or axis rebuilt from its own directions is the
+    /// same frame or axis, bit for bit.
+    #[inline(always)]
+    pub(crate) fn normalized_unless_unit(self) -> Option<Vector2D> {
+        if (self.square_magnitude() - 1.0).abs() <= UNIT_ROUNDING {
+            Some(self)
+        } else {
+            self.normalized()
         }
     }
 }
@@ -337,6 +354,19 @@ impl Vector {
         }
     }
 
+    /// The vector normalized, or itself when it is already of unit length
+    /// within rounding, so that normalizing a normalized vector changes
+    /// nothing: a frame or axis rebuilt from its own directions is the
+    /// same frame or axis, bit for bit.
+    #[inline(always)]
+    pub(crate) fn normalized_unless_unit(self) -> Option<Vector> {
+        if (self.square_magnitude() - 1.0).abs() <= UNIT_ROUNDING {
+            Some(self)
+        } else {
+            self.normalized()
+        }
+    }
+
     /// Signed angle from self to other around reference (right-hand rule), in (-π, π].
     ///
     /// Uses `atan2(reference.normalized · (self × other), self · other)`.
@@ -434,6 +464,25 @@ impl std::ops::Mul<Vector> for f64 {
     }
 }
 
+/// Each component divided by `scalar`, as IEEE division does it: a zero
+/// `scalar` gives infinite or NaN components.
+///
+/// ```
+/// use geomcore::Vector;
+/// assert_eq!(Vector::new(2.0, 4.0, 6.0) / 2.0, Vector::new(1.0, 2.0, 3.0));
+/// ```
+impl std::ops::Div<f64> for Vector {
+    type Output = Vector;
+
+    fn div(self, scalar: f64) -> Vector {
+        Vector {
+            x: self.x / scalar,
+            y: self.y / scalar,
+            z: self.z / scalar,
+        }
+    }
+}
+
 // Implement arithmetic operations for Vector2D
 impl std::ops::Add for Vector2D {
     type Output = Vector2D;
@@ -492,3 +541,20 @@ impl std::ops::Mul<Vector2D> for f64 {
 
 #[cfg(test)]
 mod tests;
+
+/// Each component divided by `scalar`, as IEEE division does it.
+///
+/// ```
+/// use geomcore::Vector2D;
+/// assert_eq!(Vector2D::new(2.0, 4.0) / 2.0, Vector2D::new(1.0, 2.0));
+/// ```
+impl std::ops::Div<f64> for Vector2D {
+    type Output = Vector2D;
+
+    fn div(self, scalar: f64) -> Vector2D {
+        Vector2D {
+            x: self.x / scalar,
+            y: self.y / scalar,
+        }
+    }
+}
