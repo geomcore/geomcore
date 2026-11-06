@@ -14,6 +14,7 @@ The method sets are read from the stubs, where each is a stub-only class
 import ast
 import inspect
 import re
+import sys
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import get_args
@@ -659,15 +660,9 @@ _ELEMENTARY = {
 }
 
 
-def _constructor_parameters(cls):
-    """The constructor's parameter names, read from pyo3's
-    `__text_signature__`: `inspect.signature` cannot read a native class
-    before Python 3.10."""
-    text = cls.__text_signature__.strip()[1:-1]
-    names = [part.split("=")[0].strip() for part in text.split(",")]
-    return [name for name in names if name and name not in ("/", "*")]
-
-
+@pytest.mark.skipif(
+    sys.version_info < (3, 10), reason="a native class has no signature before Python 3.10"
+)
 def test_elementary_reprs_use_the_constructor_keywords():
     seen = set()
     for shape in _operands_3d() + _operands_2d():
@@ -676,7 +671,7 @@ def test_elementary_reprs_use_the_constructor_keywords():
             continue
         seen.add(name)
         keywords = re.findall(r"(\w+)=", repr(shape))
-        parameters = _constructor_parameters(type(shape))
+        parameters = list(inspect.signature(type(shape)).parameters)
         # In the constructor's order; a repr may leave out a direction
         # (the x direction of a conic) that the frame derives.
         assert keywords == [p for p in parameters if p in keywords], (repr(shape), parameters)
