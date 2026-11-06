@@ -29,4 +29,4 @@ Changelog = "https://github.com/geomcore/geomcore/blob/main/CHANGELOG.md"
 Roadmap = "https://github.com/geomcore/geomcore/blob/main/ROADMAP.md"
 
 [tool.maturin]
-module-name = "geomcore"
+module-name = "geomcore._native"

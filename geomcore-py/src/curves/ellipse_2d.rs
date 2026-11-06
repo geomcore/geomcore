@@ -1,4 +1,4 @@
-//! The Python class `geomcore.curves.Ellipse2D`, wrapping `geomcore::Ellipse2D`.
+//! The Python class `geomcore.Ellipse2D`, wrapping `geomcore::Ellipse2D`.
 
 use crate::curves::*;
 use crate::method_sets::*;
@@ -6,7 +6,7 @@ use crate::values::{PyFrame2D, coordinates_2d, float_repr};
 use geomcore::Ellipse2D;
 
 /// An ellipse in 2D.
-#[pyclass(name = "Ellipse2D", module = "geomcore.curves", eq)]
+#[pyclass(name = "Ellipse2D", module = "geomcore", eq)]
 #[derive(Clone, PartialEq)]
 pub(crate) struct PyEllipse2D(pub(crate) Ellipse2D);
 
@@ -81,6 +81,11 @@ shape_methods! {
     /// the middle of each quarter turn.
     fn to_bspline(&self) -> PyBSplineCurve2D {
         PyBSplineCurve2D(self.0.to_bspline())
+    }
+
+    fn __reduce__<'py>(slf: &pyo3::Bound<'py, Self>) -> pyo3::PyResult<pyo3::Bound<'py, pyo3::types::PyTuple>> {
+        let this = slf.borrow();
+        crate::pickling::reduce(slf.as_any(), Some("from_frame"), (this.frame(), this.major_radius(), this.minor_radius(),))
     }
 
     fn __repr__(&self) -> String {

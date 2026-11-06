@@ -5,9 +5,21 @@ import math
 
 import pytest
 
-from geomcore import Axis, Point, Point2D, Transform, Vector, Vector2D
-from geomcore.curves import Circle, Ellipse, Ellipse2D, Line, Parabola, Parabola2D
-from geomcore.surfaces import Plane
+from geomcore import (
+    Axis,
+    Circle,
+    Ellipse,
+    Ellipse2D,
+    Line,
+    Parabola,
+    Parabola2D,
+    Plane,
+    Point,
+    Point2D,
+    Transform,
+    Vector,
+    Vector2D,
+)
 
 
 def test_a_quarter_turn_of_a_planar_vector_is_its_perpendicular():
@@ -69,8 +81,7 @@ def test_enumerations_are_real_enums_that_list_their_members():
 
 
 def test_a_parametrization_is_an_enum_member_or_its_string():
-    from geomcore import PointParametrization
-    from geomcore.curves import BSplineCurve
+    from geomcore import BSplineCurve, PointParametrization
 
     points = [Point(0.0, 0.0, 0.0), Point(1.0, 2.0, 0.0), Point(3.0, 2.0, 0.0), Point(4.0, 0.0, 0.0)]
     by_member = BSplineCurve.interpolate(points, 3, PointParametrization.CHORDAL)

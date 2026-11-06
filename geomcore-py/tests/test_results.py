@@ -5,6 +5,10 @@ import math
 import pytest
 
 from geomcore import (
+    BSplineCurve,
+    BSplineSurface,
+    Circle,
+    Circle2D,
     Completeness,
     CompletenessStatus,
     CurveCurveExtrema,
@@ -16,27 +20,23 @@ from geomcore import (
     CurveSurfaceHit,
     CurveSurfaceIntersection,
     CurveSurfaceRegion,
+    Cylinder,
     Frame,
     IncompleteReason,
     IntersectionCurve,
     IntersectionMethod,
-    Point2D,
-    Point,
-    SurfaceSurfaceIntersection,
-    Vector2D,
-    Vector,
-    curve_curve_extrema,
-)
-from geomcore.curves import (
-    BSplineCurve,
-    Circle2D,
-    Circle,
-    Line2D,
     Line,
-    TrimmedCurve2D,
+    Line2D,
+    Plane,
+    Point,
+    Point2D,
+    Sphere,
+    SurfaceSurfaceIntersection,
     TrimmedCurve,
+    TrimmedCurve2D,
+    Vector,
+    Vector2D,
 )
-from geomcore.surfaces import BSplineSurface, Cylinder, Plane, Sphere
 
 TAU = 2.0 * math.pi
 
@@ -318,7 +318,7 @@ def test_curve_curve_extrema_is_an_object():
         False,
     )
     rail = _segment(Point(1.0, 0.0, 1.0), Point(1.0, 2.0, 1.0))
-    extrema = curve_curve_extrema(arch, rail)
+    extrema = arch.extrema(rail)
     assert isinstance(extrema, CurveCurveExtrema)
     assert extrema.first is arch and extrema.second is rail
     assert extrema.is_complete()
@@ -327,7 +327,7 @@ def test_curve_curve_extrema_is_an_object():
     assert minimum.distance == pytest.approx(1.0)
     assert minimum.first_parameter == pytest.approx(0.5)
     assert 0.0 <= minimum.second_parameter <= 1.0
-    assert curve_curve_extrema(first=arch, second=rail) == extrema
+    assert arch.extrema(other=rail) == extrema
 
 
 # ------------------------------------------------------- repr and equality
@@ -449,7 +449,7 @@ def test_empty_results_are_falsy():
 def test_extrema_length_is_the_number_of_minima():
     a = _segment(Point.origin(), Point(1.0, 0.0, 0.0))
     b = _segment(Point(0.0, 1.0, 0.0), Point(1.0, 2.0, 0.0))
-    extrema = curve_curve_extrema(a, b)
+    extrema = a.extrema(b)
     assert len(extrema) == len(extrema.minima) >= 1
     assert extrema
 

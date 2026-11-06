@@ -5,17 +5,25 @@ import math
 import pytest
 
 import geomcore
-from geomcore import ConstructionError, Point2D, Point, Side, Tolerance, Vector, Vector2D
-from geomcore.curves import (
+from geomcore import (
     BSplineCurve,
     BSplineCurve2D,
+    BSplineSurface,
     BezierCurve,
     BezierCurve2D,
+    BezierSurface,
+    ConstructionError,
     Line,
     Line2D,
+    Plane,
+    Point,
+    Point2D,
+    Side,
+    Tolerance,
     TrimmedCurve,
+    Vector,
+    Vector2D,
 )
-from geomcore.surfaces import BSplineSurface, BezierSurface, Plane
 
 W = math.sqrt(0.5)
 
@@ -204,6 +212,10 @@ def test_surface_accessors_and_eval():
     assert surface.first_derivatives_sided(0.3, 0.7, Side.BELOW, Side.ABOVE) == surface.first_derivatives(0.3, 0.7)
     box = surface.bounding_box()
     assert box is not None and box.max() == Point(2.0, 2.0, 4.0)
+    # The corner (2, 2, 4) is on the surface: the tight box reaches it too.
+    tight = surface.tight_bounding_box()
+    assert tight is not None and box.encloses(tight.min()) and box.encloses(tight.max())
+    assert close(tight.max(), Point(2.0, 2.0, 4.0), 1e-12)
     assert repr(surface) == (
         "BezierSurface(u_degree=2, v_degree=2, pole_count=(3, 3), rational=False)"
     )
@@ -304,3 +316,19 @@ def test_bezier_operands_intersect_as_their_bspline():
     arch_2d = BezierCurve2D(2, [Point2D(0.0, 0.0), Point2D(1.0, 2.0), Point2D(2.0, 0.0)])
     line_2d = Line2D(Point2D(0.0, 0.5), Vector2D(1.0, 0.0))
     assert len(line_2d.intersect(arch_2d).hits) == 2
+
+
+def test_evaluation_past_the_bounds_clamps_and_construction_raises():
+    # ADR 0037: a spline direction clamps, point and derivatives alike.
+    curve = cubic()
+    assert curve.point_at(5.0) == curve.point_at(1.0)
+    assert curve.derivative(-3.0, 2) == curve.derivative(0.0, 2)
+    surface = saddle()
+    assert surface.point_at(99.0, 99.0) == surface.point_at(1.0, 1.0)
+    with pytest.raises(geomcore.SurfaceIsoError):
+        surface.u_iso(99.0)
+    with pytest.raises(geomcore.BSplineSplitError):
+        curve.to_bspline().split_at(5.0)
+    # A trimmed line goes on along its basis.
+    line = TrimmedCurve(Line(Point.origin(), Vector(1.0, 0.0, 0.0)), 0.0, 1.0)
+    assert line.point_at(5.0) == Point(5.0, 0.0, 0.0)

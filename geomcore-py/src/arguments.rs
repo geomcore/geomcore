@@ -37,6 +37,7 @@ macro_rules! shape_classes {
             use super::*;
 
             /// The Python class names, in registry order.
+            #[allow(dead_code, reason = "no binding takes any surface as a plain argument")]
             pub(crate) const NAMES: &[&str] = &[$(<$class as PyTypeInfo>::NAME),+];
 
             /// The shape `object` holds, if it is one of the classes.
@@ -51,6 +52,7 @@ macro_rules! shape_classes {
 
             /// The shape `object` holds, or a `TypeError` naming the
             /// classes.
+            #[allow(dead_code, reason = "no binding takes any surface as a plain argument")]
             pub(crate) fn extract(object: &Bound<'_, PyAny>) -> PyResult<$enum> {
                 of(object).ok_or_else(|| expected($description, NAMES))
             }
