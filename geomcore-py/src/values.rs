@@ -83,6 +83,22 @@ impl PyPoint {
         self.0.coincides(other.0, tolerance(tol))
     }
 
+    /// The coordinates as a tuple `(x, y, z)`.
+    fn components(&self) -> (f64, f64, f64) {
+        (self.0.x, self.0.y, self.0.z)
+    }
+
+    /// The point halfway between this point and `other`.
+    fn midpoint(&self, other: &PyPoint) -> PyPoint {
+        PyPoint(self.0.midpoint(other.0))
+    }
+
+    /// The image of this point under `transform`, the same as
+    /// `transform.apply_point(point)`.
+    fn transformed(&self, transform: &PyTransform) -> PyPoint {
+        PyPoint(self.0.transformed(transform.0))
+    }
+
     /// Whether every coordinate is finite.
     fn is_finite(&self) -> bool {
         self.0.is_finite()
@@ -238,10 +254,46 @@ impl PyVector {
     }
 
     /// The signed angle from this vector to `other` around `reference`
-    /// (right-hand rule), in (-pi, pi]. A zero `reference` gives the unsigned
-    /// angle in [0, pi].
+    /// (right-hand rule), in (-pi, pi]. A zero `reference` leaves the sign
+    /// unknown: the result is then 0 or pi; `angle(other)` is the unsigned
+    /// angle.
     fn angle_with_reference(&self, other: &PyVector, reference: &PyVector) -> f64 {
         self.0.angle_with_reference(other.0, reference.0)
+    }
+
+    /// The unsigned angle between the two vectors, in [0, pi]; 0 when
+    /// either is zero.
+    fn angle(&self, other: &PyVector) -> f64 {
+        self.0.angle(other.0)
+    }
+
+    /// Whether the vectors are parallel, in either orientation: the sine
+    /// of the angle between them is at most `angular`
+    /// (`Tolerance.default().angular` when omitted). A zero vector is
+    /// parallel to nothing.
+    #[pyo3(signature = (other, angular = None))]
+    fn is_parallel(&self, other: &PyVector, angular: Option<f64>) -> bool {
+        self.0.is_parallel(other.0, angular_bound(angular))
+    }
+
+    /// Whether the vectors are perpendicular: the cosine of the angle
+    /// between them is at most `angular` (`Tolerance.default().angular`
+    /// when omitted). A zero vector is perpendicular to nothing.
+    #[pyo3(signature = (other, angular = None))]
+    fn is_perpendicular(&self, other: &PyVector, angular: Option<f64>) -> bool {
+        self.0.is_perpendicular(other.0, angular_bound(angular))
+    }
+
+    /// The part of this vector along `direction`, of any length; the zero
+    /// vector when `direction` is zero.
+    fn component_along(&self, direction: &PyVector) -> PyVector {
+        PyVector(self.0.component_along(direction.0))
+    }
+
+    /// The part of this vector across `direction`: the vector less its
+    /// component along `direction`.
+    fn component_perpendicular_to(&self, direction: &PyVector) -> PyVector {
+        PyVector(self.0.component_perpendicular_to(direction.0))
     }
 
     fn __add__(&self, other: &PyVector) -> PyVector {
@@ -355,6 +407,16 @@ impl PyPoint2D {
     #[pyo3(signature = (other, tol = None))]
     fn coincides(&self, other: &PyPoint2D, tol: Option<ToleranceArgument>) -> bool {
         self.0.coincides(other.0, tolerance(tol))
+    }
+
+    /// The coordinates as a tuple `(x, y)`.
+    fn components(&self) -> (f64, f64) {
+        (self.0.x, self.0.y)
+    }
+
+    /// The point halfway between this point and `other`.
+    fn midpoint(&self, other: &PyPoint2D) -> PyPoint2D {
+        PyPoint2D(self.0.midpoint(other.0))
     }
 
     /// Whether every coordinate is finite.
@@ -480,6 +542,52 @@ impl PyVector2D {
         PyVector2D(self.0.perpendicular())
     }
 
+    /// The unsigned angle between the two vectors, in [0, pi]; 0 when
+    /// either is zero.
+    fn angle(&self, other: &PyVector2D) -> f64 {
+        self.0.angle(other.0)
+    }
+
+    /// The signed angle from this vector to `other`, in (-pi, pi]:
+    /// positive when `other` is counter-clockwise from this one.
+    fn signed_angle(&self, other: &PyVector2D) -> f64 {
+        self.0.signed_angle(other.0)
+    }
+
+    /// This vector turned counter-clockwise by `angle` radians.
+    fn rotated(&self, angle: f64) -> PyVector2D {
+        PyVector2D(self.0.rotated(angle))
+    }
+
+    /// Whether the vectors are parallel, in either orientation: the sine
+    /// of the angle between them is at most `angular`
+    /// (`Tolerance.default().angular` when omitted). A zero vector is
+    /// parallel to nothing.
+    #[pyo3(signature = (other, angular = None))]
+    fn is_parallel(&self, other: &PyVector2D, angular: Option<f64>) -> bool {
+        self.0.is_parallel(other.0, angular_bound(angular))
+    }
+
+    /// Whether the vectors are perpendicular: the cosine of the angle
+    /// between them is at most `angular` (`Tolerance.default().angular`
+    /// when omitted). A zero vector is perpendicular to nothing.
+    #[pyo3(signature = (other, angular = None))]
+    fn is_perpendicular(&self, other: &PyVector2D, angular: Option<f64>) -> bool {
+        self.0.is_perpendicular(other.0, angular_bound(angular))
+    }
+
+    /// The part of this vector along `direction`, of any length; the zero
+    /// vector when `direction` is zero.
+    fn component_along(&self, direction: &PyVector2D) -> PyVector2D {
+        PyVector2D(self.0.component_along(direction.0))
+    }
+
+    /// The part of this vector across `direction`: the vector less its
+    /// component along `direction`.
+    fn component_perpendicular_to(&self, direction: &PyVector2D) -> PyVector2D {
+        PyVector2D(self.0.component_perpendicular_to(direction.0))
+    }
+
     /// Euclidean length of the vector.
     fn magnitude(&self) -> f64 {
         self.0.magnitude()
@@ -597,6 +705,54 @@ impl PyAxis {
         PyVector(self.0.direction())
     }
 
+    /// The point at `t` along the axis, `origin + t * direction`.
+    fn point_at(&self, t: f64) -> PyPoint {
+        PyPoint(self.0.point_at(t))
+    }
+
+    /// The parameter of the foot of `point` on the axis, so that
+    /// `point_at` gives the `closest_point`.
+    fn parameter_of(&self, point: &PyPoint) -> f64 {
+        self.0.parameter_of(point.0)
+    }
+
+    /// The point of the axis closest to `point`.
+    fn closest_point(&self, point: &PyPoint) -> PyPoint {
+        PyPoint(self.0.closest_point(point.0))
+    }
+
+    /// The distance from `point` to the axis.
+    fn distance(&self, point: &PyPoint) -> f64 {
+        self.0.distance(point.0)
+    }
+
+    /// Whether `point` lies on the axis, within `tol.confusion`
+    /// (`Tolerance.default()` when omitted).
+    #[pyo3(signature = (point, tol = None))]
+    fn contains(&self, point: &PyPoint, tol: Option<ToleranceArgument>) -> bool {
+        self.0.contains(point.0, crate::tolerance(tol))
+    }
+
+    /// Whether the axes have parallel directions, in either orientation,
+    /// within `angular` (`Tolerance.default().angular` when omitted).
+    #[pyo3(signature = (other, angular = None))]
+    fn is_parallel(&self, other: &PyAxis, angular: Option<f64>) -> bool {
+        self.0.is_parallel(other.0, angular_bound(angular))
+    }
+
+    /// Whether the axes are the same line, in either orientation: parallel
+    /// within `tol.angular`, the other origin on this axis within
+    /// `tol.confusion` (`Tolerance.default()` when omitted).
+    #[pyo3(signature = (other, tol = None))]
+    fn is_coaxial(&self, other: &PyAxis, tol: Option<ToleranceArgument>) -> bool {
+        self.0.is_coaxial(other.0, crate::tolerance(tol))
+    }
+
+    /// The axis with its direction negated, through the same origin.
+    fn reversed(&self) -> PyAxis {
+        PyAxis(self.0.reversed())
+    }
+
     fn __reduce__<'py>(slf: &Bound<'py, Self>) -> PyResult<Bound<'py, PyTuple>> {
         let axis = slf.borrow().0;
         let arguments = (PyPoint(axis.origin()), PyVector(axis.direction()));
@@ -627,6 +783,46 @@ impl PyAxis2D {
     /// The unit direction of the axis.
     fn direction(&self) -> PyVector2D {
         PyVector2D(self.0.direction())
+    }
+
+    /// The point at `t` along the axis, `origin + t * direction`.
+    fn point_at(&self, t: f64) -> PyPoint2D {
+        PyPoint2D(self.0.point_at(t))
+    }
+
+    /// The parameter of the foot of `point` on the axis, so that
+    /// `point_at` gives the `closest_point`.
+    fn parameter_of(&self, point: &PyPoint2D) -> f64 {
+        self.0.parameter_of(point.0)
+    }
+
+    /// The point of the axis closest to `point`.
+    fn closest_point(&self, point: &PyPoint2D) -> PyPoint2D {
+        PyPoint2D(self.0.closest_point(point.0))
+    }
+
+    /// The distance from `point` to the axis.
+    fn distance(&self, point: &PyPoint2D) -> f64 {
+        self.0.distance(point.0)
+    }
+
+    /// Whether `point` lies on the axis, within `tol.confusion`
+    /// (`Tolerance.default()` when omitted).
+    #[pyo3(signature = (point, tol = None))]
+    fn contains(&self, point: &PyPoint2D, tol: Option<ToleranceArgument>) -> bool {
+        self.0.contains(point.0, crate::tolerance(tol))
+    }
+
+    /// Whether the axes have parallel directions, in either orientation,
+    /// within `angular` (`Tolerance.default().angular` when omitted).
+    #[pyo3(signature = (other, angular = None))]
+    fn is_parallel(&self, other: &PyAxis2D, angular: Option<f64>) -> bool {
+        self.0.is_parallel(other.0, angular_bound(angular))
+    }
+
+    /// The axis with its direction negated, through the same origin.
+    fn reversed(&self) -> PyAxis2D {
+        PyAxis2D(self.0.reversed())
     }
 
     fn __repr__(&self) -> String {
@@ -697,6 +893,39 @@ impl PyFrame2D {
     /// Whether y is x turned a quarter turn counter-clockwise.
     fn is_direct(&self) -> bool {
         self.0.is_direct()
+    }
+
+    /// The axis through the origin along the x direction.
+    fn x_axis(&self) -> PyAxis2D {
+        PyAxis2D(self.0.x_axis())
+    }
+
+    /// The axis through the origin along the y direction.
+    fn y_axis(&self) -> PyAxis2D {
+        PyAxis2D(self.0.y_axis())
+    }
+
+    /// The coordinates `(u, v)` of `point` along the x and y directions,
+    /// measured from the origin.
+    fn local_coordinates(&self, point: PyPoint2D) -> (f64, f64) {
+        self.0.local_coordinates(point.0)
+    }
+
+    /// The point at `u` along x and `v` along y from the origin.
+    fn point_at(&self, u: f64, v: f64) -> PyPoint2D {
+        PyPoint2D(self.0.point_at(u, v))
+    }
+
+    /// The vector `u * x_direction + v * y_direction`: `point_at` for a
+    /// direction, which ignores the origin.
+    fn vector_at(&self, u: f64, v: f64) -> PyVector2D {
+        PyVector2D(self.0.vector_at(u, v))
+    }
+
+    /// The components `(u, v)` of `vector` along the x and y directions:
+    /// `local_coordinates` for a direction, which ignores the origin.
+    fn local_components(&self, vector: PyVector2D) -> (f64, f64) {
+        self.0.local_components(vector.0)
     }
 
     fn __repr__(&self) -> String {
@@ -825,6 +1054,30 @@ impl PyFrame {
     /// The point at `u` along x, `v` along y and `w` along z from the origin.
     fn point_at(&self, u: f64, v: f64, w: f64) -> PyPoint {
         PyPoint(self.0.point_at(u, v, w))
+    }
+
+    /// The vector `u * x_direction + v * y_direction + w * z_direction`:
+    /// `point_at` for a direction, which ignores the origin.
+    fn vector_at(&self, u: f64, v: f64, w: f64) -> PyVector {
+        PyVector(self.0.vector_at(u, v, w))
+    }
+
+    /// The components `(u, v, w)` of `vector` along the x, y and z
+    /// directions: `local_coordinates` for a direction, which ignores the
+    /// origin.
+    fn local_components(&self, vector: PyVector) -> (f64, f64, f64) {
+        self.0.local_components(vector.0)
+    }
+
+    /// The image of the frame under `transform`: a point at local
+    /// coordinates `(u, v, w)` maps to the point at the same coordinates,
+    /// scaled by `transform.scale_factor()`, in the image. A mirror
+    /// changes the handedness. Raises `ConstructionError` when the
+    /// transform collapses space or the image overflows.
+    fn transformed(&self, transform: &PyTransform) -> PyResult<PyFrame> {
+        Ok(PyFrame(
+            self.0.transformed(transform.0).map_err(python_error)?,
+        ))
     }
 
     fn __reduce__<'py>(slf: &Bound<'py, Self>) -> PyResult<Bound<'py, PyTuple>> {
@@ -990,6 +1243,37 @@ impl PyTransform {
     #[staticmethod]
     fn mirror_plane(frame: PyFrame) -> Self {
         PyTransform(Transform::mirror_plane(frame.0))
+    }
+
+    /// The rigid motion taking the `source` placement to the `target` one:
+    /// the point at local coordinates `(u, v, w)` in `source` maps to the
+    /// point at the same coordinates in `target`. It includes a mirror when
+    /// the frames have opposite handedness.
+    #[staticmethod]
+    fn between_frames(source: &PyFrame, target: &PyFrame) -> Self {
+        PyTransform(Transform::between_frames(source.0, target.0))
+    }
+
+    /// The factor by which the transformation scales lengths: 1 for a
+    /// rotation, a translation or a mirror, 0 for a collapse onto a point.
+    fn scale_factor(&self) -> f64 {
+        self.0.scale_factor()
+    }
+
+    /// Whether the transformation keeps the handedness of space: false for
+    /// mirrors (whose images of surfaces have their normals flipped) and
+    /// for a collapse onto a point.
+    fn preserves_orientation(&self) -> bool {
+        self.0.preserves_orientation()
+    }
+
+    /// Whether the transformation leaves space unchanged within `tol`
+    /// (`Tolerance.default()` when omitted): its linear part within
+    /// `tol.angular` of the identity's, entry by entry, and its translation
+    /// shorter than `tol.confusion`.
+    #[pyo3(signature = (tol = None))]
+    fn is_identity(&self, tol: Option<ToleranceArgument>) -> bool {
+        self.0.is_identity(tolerance(tol))
     }
 
     /// Compose transformations: `self` is applied first, then `other`.
@@ -1171,3 +1455,8 @@ pub(crate) fn py_bool(value: bool) -> &'static str {
 }
 
 pub(crate) use crate::enums::PySide;
+
+/// The angular bound of a predicate: `angular`, or the default tolerance's.
+fn angular_bound(angular: Option<f64>) -> f64 {
+    angular.unwrap_or(geomcore::Tolerance::DEFAULT.angular)
+}

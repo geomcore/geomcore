@@ -8,12 +8,13 @@ accepts every class on either side, and that each class survives the
 conversions through the core enums.
 
 The method sets are read from the stubs, where each is a stub-only class
-(`_CurveMethods`, `_DiscretizeMethods`, ...) that a class inherits.
+(`_CurveMethods`, `_BoundedCurveMethods`, ...) that a class inherits.
 """
 
 import ast
 import inspect
 import re
+import sys
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import get_args
@@ -123,7 +124,13 @@ def _operands_2d():
 
 
 _CURVE_CLASSES = {
-    cls.__name__: cls for cls in (*get_args(geomcore.Curve), *get_args(geomcore.Curve2D))
+    cls.__name__: cls
+    for cls in (
+        *get_args(geomcore.Curve),
+        geomcore.TrimmedCurve,
+        *get_args(geomcore.Curve2D),
+        geomcore.TrimmedCurve2D,
+    )
 }
 _SURFACE_CLASSES = {cls.__name__: cls for cls in get_args(geomcore.Surface)}
 
@@ -218,11 +225,11 @@ def test_3d_curves_are_transformed_and_2d_curves_are_not():
         assert ("transformed" in dir(cls)) == (not name.endswith("2D")), name
 
 
-def test_bounded_curves_discretize_and_unbounded_ones_do_not():
-    discretize = _stub_methods("_DiscretizeMethods")
+def test_bounded_curves_have_ends_and_discretize_and_unbounded_ones_do_not():
+    bounded_methods = _stub_methods("_BoundedCurveMethods")
     for curve in _operands_3d()[:9] + _operands_2d():
         bounded = all(abs(end) != float("inf") for end in curve.bounds())
-        has = discretize <= set(dir(curve))
+        has = bounded_methods <= set(dir(curve))
         assert has == bounded, type(curve).__name__
 
 
@@ -292,7 +299,7 @@ def _union_members(value):
 
 def _union_aliases(trees):
     """Each union alias of the stubs whose members are all curve or surface
-    classes, such as `Curve` or `_WholeCurve`, as its class names."""
+    classes, such as `Curve` or `Surface`, as its class names."""
     members = {}
     for tree in trees.values():
         for node in tree.body:
@@ -326,14 +333,30 @@ def _union_parameters():
     function's required parameters as (name, annotation), the union one)."""
     trees = _stub_trees()
     aliases = _union_aliases(trees)
+    shapes = _shape_classes()
     found = []
+
+    def annotation_key(annotation):
+        # A plain name, or an inline union of shapes such as
+        # `Curve | TrimmedCurve`, registered as an alias of its own.
+        names = None if annotation is None else _union_members(annotation)
+        if names is None:
+            return None
+        if len(names) == 1:
+            return names[0]
+        leaves = [leaf for name in names for leaf in aliases.get(name, [name])]
+        if not all(leaf in shapes for leaf in leaves):
+            return None
+        key = " | ".join(names)
+        aliases[key] = leaves
+        return key
 
     def scan(owner, function):
         arguments = function.args.args
         required = arguments[: len(arguments) - len(function.args.defaults)]
         if owner is not None and not _is_static(function):
             required = required[1:]  # self or cls
-        typed = [(argument.arg, getattr(argument.annotation, "id", None)) for argument in required]
+        typed = [(argument.arg, annotation_key(argument.annotation)) for argument in required]
         for index, (_, annotation) in enumerate(typed):
             if annotation in aliases:
                 found.append((owner, function.name, typed, index))
@@ -396,7 +419,8 @@ _OTHER_ARGUMENTS = {
 def test_every_member_of_a_stub_union_is_accepted(owner, function, typed, index):
     # stubtest checks that a parameter exists with a compatible annotation,
     # not that the runtime takes each class of a `Union`: #176 found three
-    # parameters typed `_Curve` that raised TypeError on a `TrimmedCurve`.
+    # parameters typed for any curve that raised TypeError on a
+    # `TrimmedCurve`.
     fixtures = _fixtures()
     if owner is None:
         call = getattr(geomcore, function)
@@ -444,7 +468,7 @@ def test_type_checkers_see_every_method_of_every_class(tmp_path):
         "    assert_type(line.intersect(line), geomcore.CurveCurveIntersection)",
         "    assert_type(line.intersect(plane), geomcore.CurveSurfaceIntersection)",
         "    assert_type(line_2d.intersect(spline_2d), geomcore.CurveCurveIntersection2D)",
-        "    assert_type(plane.curve_3d_to_uv(ellipse), geomcore._WholeCurve2D)",
+        "    assert_type(plane.curve_3d_to_uv(ellipse), geomcore.Curve2D)",
         "    assert_type(ellipse.discretize(0.1), geomcore.Discretization)",
         "    assert_type(spline_2d.discretize(0.1), geomcore.Discretization2D)",
         "    assert_type(spline_2d.first_derivatives_sided(0.0, geomcore.Side.BELOW)[1], geomcore.Vector2D)",
@@ -636,15 +660,9 @@ _ELEMENTARY = {
 }
 
 
-def _constructor_parameters(cls):
-    """The constructor's parameter names, read from pyo3's
-    `__text_signature__`: `inspect.signature` cannot read a native class
-    before Python 3.10."""
-    text = cls.__text_signature__.strip()[1:-1]
-    names = [part.split("=")[0].strip() for part in text.split(",")]
-    return [name for name in names if name and name not in ("/", "*")]
-
-
+@pytest.mark.skipif(
+    sys.version_info < (3, 10), reason="a native class has no signature before Python 3.10"
+)
 def test_elementary_reprs_use_the_constructor_keywords():
     seen = set()
     for shape in _operands_3d() + _operands_2d():
@@ -653,7 +671,7 @@ def test_elementary_reprs_use_the_constructor_keywords():
             continue
         seen.add(name)
         keywords = re.findall(r"(\w+)=", repr(shape))
-        parameters = _constructor_parameters(type(shape))
+        parameters = list(inspect.signature(type(shape)).parameters)
         # In the constructor's order; a repr may leave out a direction
         # (the x direction of a conic) that the frame derives.
         assert keywords == [p for p in parameters if p in keywords], (repr(shape), parameters)

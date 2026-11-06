@@ -69,6 +69,12 @@ shape_methods! {
         PyAxis(self.0.axis())
     }
 
+    /// The signed distance from the plane to `point`: positive on the side
+    /// the normal points to, negative on the other.
+    fn signed_distance(&self, point: PyPoint) -> f64 {
+        self.0.signed_distance(point.0)
+    }
+
     /// The patch `u_range × v_range` as an exact bilinear B-spline
     /// surface (raises `ValueError` for a bad range).
     fn to_bspline_patch(
