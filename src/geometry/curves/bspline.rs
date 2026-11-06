@@ -8,6 +8,7 @@
 //! point, so validation, editing, evaluation, length, projection and
 //! discretization exist once for both tiers (ADR 0014).
 
+use crate::base::tier::operations::VectorOperations;
 use crate::base::tier::{TierPoint, impl_for_both_tiers};
 use crate::geometry::curves::ReversibleCurve;
 use crate::geometry::curves::bezier::BezierConstructionError;
@@ -206,6 +207,53 @@ impl fmt::Display for BSplineSplitError {
 }
 
 impl std::error::Error for BSplineSplitError {}
+
+/// Error returned by [`BSplineCurve::with_pole`] and
+/// [`BSplineCurve::with_weight`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PoleEditError {
+    /// There is no pole at the index.
+    IndexOutOfRange,
+    /// The weight is zero, negative or not finite.
+    InvalidWeight,
+}
+
+impl fmt::Display for PoleEditError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let message = match self {
+            PoleEditError::IndexOutOfRange => "there is no pole at the index",
+            PoleEditError::InvalidWeight => "a weight must be positive and finite",
+        };
+        f.write_str(message)
+    }
+}
+
+impl std::error::Error for PoleEditError {}
+
+/// One side's unit tangent and curvature vector at a knot.
+struct UnitTangent<V> {
+    tangent: V,
+    /// `(C'' - (C''·T) T) / |C'|²`: along the principal normal, of length
+    /// the curvature.
+    curvature: V,
+}
+
+impl<V: VectorOperations> UnitTangent<V> {
+    /// The unit tangent and curvature vector from the first two
+    /// derivatives, or `None` where the speed is negligible over `width`.
+    fn of(speed: V, acceleration: V, width: f64, tol: Tolerance) -> Option<UnitTangent<V>> {
+        let length = speed.magnitude();
+        if tol.is_negligible_derivative(length, width) {
+            return None;
+        }
+        let tangent = speed * (1.0 / length);
+        let normal_acceleration = acceleration - tangent * acceleration.dot(tangent);
+        Some(UnitTangent {
+            tangent,
+            curvature: normal_acceleration * (1.0 / (length * length)),
+        })
+    }
+}
 
 /// A B-spline (optionally rational, optionally periodic) curve of either
 /// tier, evaluated by de Boor's algorithm. Use it through
@@ -489,6 +537,280 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
     /// ```
     pub fn multiplicities(&self) -> &[u32] {
         self.knots.multiplicities()
+    }
+
+    /// Returns the flat knot vector, the form textbooks use: each distinct
+    /// knot repeated by its multiplicity, `poles.len() + degree + 1` knots
+    /// for a non-periodic curve. [`from_flat_knots`](Self::from_flat_knots)
+    /// builds the curve back from it.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{BSplineCurve, Point};
+    /// let poles = vec![Point::new(0.0, 0.0, 0.0), Point::new(2.0, 0.0, 0.0)];
+    /// let curve = BSplineCurve::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
+    /// assert_eq!(curve.flat_knots(), &[0.0, 0.0, 1.0, 1.0]);
+    /// ```
+    pub fn flat_knots(&self) -> &[f64] {
+        self.knots.flat()
+    }
+
+    /// Creates a curve from its flat knot vector, the form textbooks use:
+    /// each distinct knot repeated by its multiplicity, so a non-periodic
+    /// curve of `n` poles takes `n + degree + 1` knots. `weights`, one per
+    /// pole, make the curve rational. The flat knots of a periodic curve
+    /// are as [`flat_knots`](Self::flat_knots) gives them, with no
+    /// padding beyond the period.
+    ///
+    /// # Errors
+    ///
+    /// [`BSplineConstructionError::KnotsNotIncreasing`] if the knots
+    /// decrease, otherwise the errors of [`BSplineCurve::new`] and
+    /// [`BSplineCurve::new_rational`] for the distinct knots and their
+    /// multiplicities.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::prelude::*;
+    /// use geomcore::{BSplineCurve, Point};
+    ///
+    /// let poles = vec![
+    ///     Point::new(0.0, 0.0, 0.0),
+    ///     Point::new(1.0, 2.0, 0.0),
+    ///     Point::new(3.0, 2.0, 0.0),
+    ///     Point::new(4.0, 0.0, 0.0),
+    /// ];
+    /// let flat = vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0];
+    /// let curve = BSplineCurve::from_flat_knots(2, poles, flat, None, false).unwrap();
+    /// assert_eq!(curve.knots(), &[0.0, 0.5, 1.0]);
+    /// assert_eq!(curve.multiplicities(), &[3, 1, 3]);
+    /// ```
+    pub fn from_flat_knots(
+        degree: usize,
+        poles: Vec<P>,
+        flat_knots: Vec<f64>,
+        weights: Option<Vec<f64>>,
+        periodic: bool,
+    ) -> Result<GenericBSplineCurve<P>, BSplineConstructionError> {
+        let (knots, multiplicities) = math::distinct_knots(&flat_knots);
+        Self::from_parts(degree, poles, weights, knots, multiplicities, periodic)
+    }
+
+    /// Creates the clamped curve of `degree` with uniform knots over
+    /// `[0, 1]`: both end knots of multiplicity `degree + 1`, and
+    /// `poles.len() - degree - 1` simple knots between them, evenly
+    /// spaced. The curve starts at the first pole and ends at the last.
+    ///
+    /// # Errors
+    ///
+    /// [`BSplineConstructionError::InvalidDegree`] for a degree below 1 or
+    /// above 25, and [`BSplineConstructionError::PoleCountMismatch`] for
+    /// `degree` poles or fewer.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::prelude::*;
+    /// use geomcore::{BSplineCurve, Point};
+    ///
+    /// let poles = vec![
+    ///     Point::new(0.0, 0.0, 0.0),
+    ///     Point::new(1.0, 2.0, 0.0),
+    ///     Point::new(3.0, 2.0, 0.0),
+    ///     Point::new(4.0, 0.0, 0.0),
+    ///     Point::new(5.0, 1.0, 0.0),
+    /// ];
+    /// let curve = BSplineCurve::clamped_uniform(2, poles).unwrap();
+    /// assert_eq!(curve.knots(), &[0.0, 1.0 / 3.0, 2.0 / 3.0, 1.0]);
+    /// assert_eq!(curve.multiplicities(), &[3, 1, 1, 3]);
+    /// assert_eq!(curve.point_at(1.0), Point::new(5.0, 1.0, 0.0));
+    /// ```
+    pub fn clamped_uniform(
+        degree: usize,
+        poles: Vec<P>,
+    ) -> Result<GenericBSplineCurve<P>, BSplineConstructionError> {
+        let spans = poles.len().saturating_sub(degree).max(1);
+        let knots = (0..=spans).map(|i| i as f64 / spans as f64).collect();
+        let end = degree as u32 + 1;
+        let mut multiplicities = vec![1; spans + 1];
+        multiplicities[0] = end;
+        multiplicities[spans] = end;
+        Self::new(degree, poles, knots, multiplicities, false)
+    }
+
+    /// Returns the curve with pole `index` moved to `pole`, its degree,
+    /// knots and weights kept.
+    ///
+    /// # Errors
+    ///
+    /// [`PoleEditError::IndexOutOfRange`] if there is no pole `index`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::prelude::*;
+    /// use geomcore::{BSplineCurve, Point};
+    ///
+    /// let poles = vec![Point::new(0.0, 0.0, 0.0), Point::new(2.0, 0.0, 0.0)];
+    /// let curve = BSplineCurve::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
+    /// let moved = curve.with_pole(1, Point::new(2.0, 2.0, 0.0)).unwrap();
+    /// assert_eq!(moved.point_at(0.5), Point::new(1.0, 1.0, 0.0));
+    /// ```
+    pub fn with_pole(
+        &self,
+        index: usize,
+        pole: P,
+    ) -> Result<GenericBSplineCurve<P>, PoleEditError> {
+        if index >= self.poles.len() {
+            return Err(PoleEditError::IndexOutOfRange);
+        }
+        let mut poles = self.poles.clone();
+        poles[index] = pole;
+        Ok(Self::from_knot_vector(
+            self.knots.clone(),
+            poles,
+            self.weights.clone(),
+        ))
+    }
+
+    /// Returns the curve with the weight of pole `index` set to `weight`,
+    /// its poles, degree and knots kept. A non-rational curve becomes
+    /// rational, every other pole weighing 1.
+    ///
+    /// # Errors
+    ///
+    /// [`PoleEditError::IndexOutOfRange`] if there is no pole `index`, and
+    /// [`PoleEditError::InvalidWeight`] if `weight` is not a positive
+    /// finite number.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::prelude::*;
+    /// use geomcore::{BSplineCurve, Point};
+    ///
+    /// // The quarter circle: the corner pole weighs cos(45°).
+    /// let poles = vec![
+    ///     Point::new(1.0, 0.0, 0.0),
+    ///     Point::new(1.0, 1.0, 0.0),
+    ///     Point::new(0.0, 1.0, 0.0),
+    /// ];
+    /// let corner = BSplineCurve::new(2, poles, vec![0.0, 1.0], vec![3, 3], false).unwrap();
+    /// let arc = corner.with_weight(1, std::f64::consts::FRAC_1_SQRT_2).unwrap();
+    /// assert!((arc.point_at(0.5).distance(Point::ORIGIN) - 1.0).abs() < 1e-15);
+    /// ```
+    pub fn with_weight(
+        &self,
+        index: usize,
+        weight: f64,
+    ) -> Result<GenericBSplineCurve<P>, PoleEditError> {
+        if index >= self.poles.len() {
+            return Err(PoleEditError::IndexOutOfRange);
+        }
+        if !(weight.is_finite() && weight > 0.0) {
+            return Err(PoleEditError::InvalidWeight);
+        }
+        let mut weights = self
+            .weights
+            .clone()
+            .unwrap_or_else(|| vec![1.0; self.poles.len()]);
+        weights[index] = weight;
+        Ok(Self::from_knot_vector(
+            self.knots.clone(),
+            self.poles.clone(),
+            Some(weights),
+        ))
+    }
+
+    /// The geometric continuity `G^k` at parameter `u`: the shape's own
+    /// smoothness there, whatever the parametrization.
+    /// [`continuity`](ParametricCurve::continuity) reports the
+    /// representation's `C^k`, read from the knot's multiplicity, so a
+    /// knot of multiplicity `degree` reports `C0` even where the poles
+    /// around it keep the curve smooth.
+    ///
+    /// At a knot where `continuity` is below `C2`, the two sides are
+    /// compared: `G1` when their unit tangents agree within
+    /// `tol.angular`, `G2` when their curvature vectors also agree, the
+    /// osculating circles parting by no more than `tol.confusion` across
+    /// the control polygon's size (the largest distance from the first
+    /// pole). Where the speed of a side vanishes, there is no tangent to
+    /// compare and the parametric order is returned. Anywhere else, the
+    /// result is `continuity`'s, which `G^k` never falls below.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::prelude::*;
+    /// use geomcore::{BSplineCurve, Continuity, Point, Tolerance};
+    ///
+    /// // A quadratic with a double knot at 0.5, the poles around it in line
+    /// // but unevenly spaced: C0 by the knot, G1 by the shape.
+    /// let poles = vec![
+    ///     Point::new(0.0, 0.0, 0.0),
+    ///     Point::new(1.0, 1.0, 0.0),
+    ///     Point::new(2.0, 1.0, 0.0),
+    ///     Point::new(4.0, 1.0, 0.0),
+    ///     Point::new(5.0, 0.0, 0.0),
+    /// ];
+    /// let curve =
+    ///     BSplineCurve::new(2, poles, vec![0.0, 0.5, 1.0], vec![3, 2, 3], false).unwrap();
+    /// let tol = Tolerance::DEFAULT;
+    /// assert_eq!(curve.continuity(0.5, tol), Continuity::Order(0));
+    /// assert_eq!(curve.geometric_continuity(0.5, tol), Continuity::Order(1));
+    /// ```
+    pub fn geometric_continuity(&self, u: f64, tol: Tolerance) -> Continuity {
+        let parametric = math::continuity_at(
+            self.degree(),
+            self.knots(),
+            self.multiplicities(),
+            self.knots.bounds(),
+            self.knots.is_periodic(),
+            u,
+            tol,
+        );
+        if parametric.is_at_least(2) {
+            return parametric;
+        }
+        let knot = self.nearest_knot(u);
+        let (_, below_speed, below_acceleration) = self.second_derivatives_sided(knot, Side::Below);
+        let (_, above_speed, above_acceleration) = self.second_derivatives_sided(knot, Side::Above);
+        let width = tol.reference_width(self.knots.bounds());
+        let (Some(below), Some(above)) = (
+            UnitTangent::of(below_speed, below_acceleration, width, tol),
+            UnitTangent::of(above_speed, above_acceleration, width, tol),
+        ) else {
+            return parametric;
+        };
+        let geometric = if (below.tangent - above.tangent).magnitude() > tol.angular {
+            0
+        } else {
+            let size = self
+                .poles
+                .iter()
+                .map(|&pole| pole.distance(self.poles[0]))
+                .fold(0.0, f64::max);
+            let parting = 0.5 * (below.curvature - above.curvature).magnitude() * size * size;
+            if parting <= tol.confusion { 2 } else { 1 }
+        };
+        parametric.max(Continuity::Order(geometric))
+    }
+
+    /// The knot nearest `u`, wrapped into the period of a periodic curve.
+    fn nearest_knot(&self, u: f64) -> f64 {
+        let (first, last) = self.knots.bounds();
+        let u = if self.knots.is_periodic() {
+            crate::math::elementary::curve::in_period(u, first, last)
+        } else {
+            u
+        };
+        self.knots()
+            .iter()
+            .copied()
+            .min_by(|a, b| (a - u).abs().total_cmp(&(b - u).abs()))
+            .unwrap_or(u)
     }
 
     /// Returns the same curve with the knot `u` inserted `times` times:

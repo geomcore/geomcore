@@ -35,9 +35,9 @@
 //! re-exported below, so a class file imports `crate::method_sets::*`.
 //!
 //! The stubs mirror each set as a stub-only class (`_CurveMethods`,
-//! `_SurfaceNormalMethods`, ...) in `geomcore/curves.pyi` or
-//! `surfaces.pyi`, which the class stubs inherit (ADR 0029). A method added
-//! to a set goes into that class too, with the same docstring.
+//! `_SurfaceNormalMethods`, ...) in `geomcore/__init__.pyi`, which the
+//! class stubs inherit (ADR 0029). A method added to a set goes into that
+//! class too, with the same docstring.
 
 pub(crate) use crate::arguments::{curve_2d_classes, curve_classes};
 pub(crate) use crate::arrays;
@@ -48,7 +48,7 @@ pub(crate) use crate::results::{
     PyCurveProjection, PyCurveProjection2D, PySurfaceCurvatures, PySurfaceProjection,
 };
 pub(crate) use crate::values::{
-    PyPoint, PyPoint2D, PySide, PyTolerance, PyTransform, PyVector, PyVector2D,
+    PyPoint, PyPoint2D, PySide, PyTransform, PyVector, PyVector2D, ToleranceArgument,
 };
 pub(crate) use crate::{ContinuityNumber, check_curve_order, check_surface_order, tolerance};
 pub(crate) use geomcore::Curve;
@@ -90,6 +90,56 @@ macro_rules! curve {
                 fn transformed(&self, transform: &PyTransform) -> PyResult<Self> {
                     Ok(Self(self.0.transformed(transform.0).map_err(python_error)?))
                 }
+
+                /// The extrema of the distance to `other`, a point or a curve.
+                ///
+                /// From a point: its stationary points on the curve (local
+                /// minima plus the ends of a bounded curve), as
+                /// `CurveProjection` objects ordered by ascending distance.
+                ///
+                /// From a curve or `TrimmedCurve`: a `CurveCurveExtrema` of the
+                /// local minima of the distance between the two curves, closest
+                /// first, with whether the search proved there is no other.
+                /// Parallel lines, concentric circles and other continuous
+                /// families of equal minima report the distance once, with a
+                /// representative pair. The result holds this curve as `first`
+                /// and `other` as `second`. Other Python threads run during the
+                /// search. Raises `TypeError` for anything else, a 2D curve
+                /// included.
+                #[pyo3(signature = (other, tol = None))]
+                fn extrema(
+                    slf: &Bound<'_, Self>,
+                    other: &Bound<'_, PyAny>,
+                    tol: Option<ToleranceArgument>,
+                ) -> PyResult<Py<PyAny>> {
+                    let py = slf.py();
+                    let tol = tolerance(tol);
+                    if let Ok(point) = other.cast::<PyPoint>() {
+                        let point = point.borrow().0;
+                        let projections: Vec<PyCurveProjection> = slf
+                            .borrow()
+                            .0
+                            .extrema(point, tol)
+                            .into_iter()
+                            .map(|projection| PyCurveProjection::new(projection, slf, point))
+                            .collect();
+                        return Ok(projections.into_pyobject(py)?.into_any().unbind());
+                    }
+                    let Ok(second) = $crate::arguments::extract_curve_arg(other) else {
+                        return Err(pyo3::exceptions::PyTypeError::new_err(format!(
+                            "extrema takes a Point or a 3D curve, not {}",
+                            other.get_type().name()?
+                        )));
+                    };
+                    let first = $crate::arguments::extract_curve_arg(slf.as_any())?;
+                    let result = py.detach(|| geomcore::curve_curve_extrema(&first, &second, tol));
+                    let extrema = $crate::results::PyCurveCurveExtrema {
+                        result,
+                        first: slf.clone().into_any().unbind(),
+                        second: other.clone().unbind(),
+                    };
+                    Ok(Py::new(py, extrema)?.into_any())
+                }
             }
         }
     };
@@ -101,7 +151,25 @@ macro_rules! curve_2d {
     ($class:ident $sets:tt { $($methods:tt)* }) => {
         $crate::method_sets::curve_methods! {
             [PyPoint2D, PyVector2D, PyBoundingBox2D, PyCurveProjection2D]
-            $class $sets { $($methods)* }
+            $class $sets {
+                $($methods)*
+
+                /// The stationary points of the distance from `point` to the
+                /// curve (local minima plus the ends of a bounded curve), as
+                /// `CurveProjection2D` objects ordered by ascending distance.
+                #[pyo3(signature = (point, tol = None))]
+                fn extrema(
+                    slf: &Bound<'_, Self>,
+                    point: PyPoint2D,
+                    tol: Option<ToleranceArgument>,
+                ) -> Vec<PyCurveProjection2D> {
+                    let projections = slf.borrow().0.extrema(point.0, tolerance(tol));
+                    projections
+                        .into_iter()
+                        .map(|projection| PyCurveProjection2D::new(projection, slf, point.0))
+                        .collect()
+                }
+            }
         }
     };
 }
@@ -171,7 +239,7 @@ macro_rules! curve_methods {
             /// across the parameter range is within `tol.confusion`, so
             /// rescaling the parameter does not change the answer.
             #[pyo3(signature = (u, tol = None))]
-            fn tangent(&self, u: f64, tol: Option<PyTolerance>) -> Option<$vector> {
+            fn tangent(&self, u: f64, tol: Option<ToleranceArgument>) -> Option<$vector> {
                 self.0.tangent(u, tolerance(tol)).map($vector)
             }
 
@@ -179,7 +247,7 @@ macro_rules! curve_methods {
             /// per unit arc length, zero on a straight run. `None` where the
             /// speed vanishes, by the test of `tangent`.
             #[pyo3(signature = (u, tol = None))]
-            fn curvature(&self, u: f64, tol: Option<PyTolerance>) -> Option<f64> {
+            fn curvature(&self, u: f64, tol: Option<ToleranceArgument>) -> Option<f64> {
                 self.0.curvature(u, tolerance(tol))
             }
 
@@ -187,7 +255,7 @@ macro_rules! curve_methods {
             /// where the speed vanishes or the curve runs straight (the
             /// centre is then at infinity).
             #[pyo3(signature = (u, tol = None))]
-            fn curvature_center(&self, u: f64, tol: Option<PyTolerance>) -> Option<$point> {
+            fn curvature_center(&self, u: f64, tol: Option<ToleranceArgument>) -> Option<$point> {
                 self.0.curvature_center(u, tolerance(tol)).map($point)
             }
 
@@ -212,7 +280,7 @@ macro_rules! curve_methods {
             /// closed; a clamped B-spline whose ends coincide is closed
             /// without being periodic.
             #[pyo3(signature = (tol = None))]
-            fn is_closed(&self, tol: Option<PyTolerance>) -> bool {
+            fn is_closed(&self, tol: Option<ToleranceArgument>) -> bool {
                 self.0.is_closed(tolerance(tol))
             }
 
@@ -224,7 +292,7 @@ macro_rules! curve_methods {
             /// the `*_sided` evaluations of a B-spline to evaluate each
             /// side of a knot reporting a low order.
             #[pyo3(signature = (u, tol = None))]
-            fn continuity(&self, u: f64, tol: Option<PyTolerance>) -> ContinuityNumber {
+            fn continuity(&self, u: f64, tol: Option<ToleranceArgument>) -> ContinuityNumber {
                 ContinuityNumber(self.0.continuity(u, tolerance(tol)))
             }
 
@@ -232,22 +300,6 @@ macro_rules! curve_methods {
             /// excluded (`math.inf` when smooth everywhere).
             fn min_continuity(&self) -> ContinuityNumber {
                 ContinuityNumber(self.0.min_continuity())
-            }
-
-            /// The stationary points of the distance from `point` to the
-            /// curve (local minima plus the ends of a bounded curve), as
-            /// projection objects ordered by ascending distance.
-            #[pyo3(signature = (point, tol = None))]
-            fn extrema(
-                slf: &Bound<'_, Self>,
-                point: $point,
-                tol: Option<PyTolerance>,
-            ) -> Vec<$projection> {
-                let projections = slf.borrow().0.extrema(point.0, tolerance(tol));
-                projections
-                    .into_iter()
-                    .map(|projection| $projection::new(projection, slf, point.0))
-                    .collect()
             }
 
             /// Projects `point` onto the curve: the closest point, as a
@@ -260,7 +312,7 @@ macro_rules! curve_methods {
             fn project_point(
                 slf: &Bound<'_, Self>,
                 point: $point,
-                tol: Option<PyTolerance>,
+                tol: Option<ToleranceArgument>,
             ) -> $projection {
                 let projection = slf.borrow().0.project_point(point.0, tolerance(tol));
                 $projection::new(projection, slf, point.0)
@@ -272,7 +324,7 @@ macro_rules! curve_methods {
             fn project_points(
                 slf: &Bound<'_, Self>,
                 points: Vec<$point>,
-                tol: Option<PyTolerance>,
+                tol: Option<ToleranceArgument>,
             ) -> Vec<$projection> {
                 let points = points.into_iter().map(|p| p.0).collect::<Vec<_>>();
                 let projections = slf.borrow().0.project_points(&points, tolerance(tol));
@@ -291,7 +343,7 @@ macro_rules! curve_methods {
                 &self,
                 py: Python<'py>,
                 points: &Bound<'py, PyAny>,
-                tol: Option<PyTolerance>,
+                tol: Option<ToleranceArgument>,
             ) -> PyResult<(Bound<'py, PyAny>, Bound<'py, PyAny>, Bound<'py, PyAny>)> {
                 let points = arrays::read_points(points, "points")?;
                 let tol = tolerance(tol);
@@ -309,7 +361,7 @@ macro_rules! curve_methods {
             /// Returns whether `point` lies on the curve within `tol`
             /// (`Tolerance.default()` when omitted).
             #[pyo3(signature = (point, tol = None))]
-            fn contains(&self, point: $point, tol: Option<PyTolerance>) -> bool {
+            fn contains(&self, point: $point, tol: Option<ToleranceArgument>) -> bool {
                 self.0.contains(point.0, tolerance(tol))
             }
 
@@ -319,7 +371,7 @@ macro_rules! curve_methods {
             /// point, and a line or conic that of its closed-form
             /// inversion.
             #[pyo3(signature = (point, tol = None))]
-            fn parameter_of(&self, point: $point, tol: Option<PyTolerance>) -> f64 {
+            fn parameter_of(&self, point: $point, tol: Option<ToleranceArgument>) -> f64 {
                 self.0.parameter_of(point.0, tolerance(tol))
             }
 
@@ -354,7 +406,7 @@ macro_rules! curve_methods {
             /// its Bézier pieces, a revolution surface's from its profile's.
             /// `tol` is `Tolerance.default()` when omitted.
             #[pyo3(signature = (tol = None))]
-            fn tight_bounding_box(&self, tol: Option<PyTolerance>) -> Option<$bounding_box> {
+            fn tight_bounding_box(&self, tol: Option<ToleranceArgument>) -> Option<$bounding_box> {
                 self.0.tight_bounding_box(tolerance(tol)).map($bounding_box)
             }
 
@@ -373,7 +425,7 @@ macro_rules! curve_methods {
             fn intersect(
                 slf: &Bound<'_, Self>,
                 other: &Bound<'_, PyAny>,
-                tol: Option<PyTolerance>,
+                tol: Option<ToleranceArgument>,
             ) -> PyResult<Py<PyAny>> {
                 $crate::intersect::intersect(slf.as_any(), other, tolerance(tol))
             }
@@ -601,14 +653,14 @@ macro_rules! surface {
             /// when omitted). Periodic in `u` implies closed in `u`, not
             /// conversely.
             #[pyo3(signature = (tol = None))]
-            fn is_u_closed(&self, tol: Option<PyTolerance>) -> bool {
+            fn is_u_closed(&self, tol: Option<ToleranceArgument>) -> bool {
                 self.0.is_u_closed(tolerance(tol))
             }
 
             /// Whether travelling in `v` returns to its start, as
             /// `is_u_closed`.
             #[pyo3(signature = (tol = None))]
-            fn is_v_closed(&self, tol: Option<PyTolerance>) -> bool {
+            fn is_v_closed(&self, tol: Option<ToleranceArgument>) -> bool {
                 self.0.is_v_closed(tolerance(tol))
             }
 
@@ -620,13 +672,13 @@ macro_rules! surface {
             /// knot. Use `BSplineSurface.first_derivatives_sided` and its siblings to
             /// evaluate each side of a knot reporting a low order.
             #[pyo3(signature = (u, tol = None))]
-            fn continuity_u(&self, u: f64, tol: Option<PyTolerance>) -> ContinuityNumber {
+            fn continuity_u(&self, u: f64, tol: Option<ToleranceArgument>) -> ContinuityNumber {
                 ContinuityNumber(self.0.continuity_u(u, tolerance(tol)))
             }
 
             /// Continuity order in `v` at parameter `v`, as `continuity_u`.
             #[pyo3(signature = (v, tol = None))]
-            fn continuity_v(&self, v: f64, tol: Option<PyTolerance>) -> ContinuityNumber {
+            fn continuity_v(&self, v: f64, tol: Option<ToleranceArgument>) -> ContinuityNumber {
                 ContinuityNumber(self.0.continuity_v(v, tolerance(tol)))
             }
 
@@ -653,7 +705,7 @@ macro_rules! surface {
                 &self,
                 u: f64,
                 v: f64,
-                tol: Option<PyTolerance>,
+                tol: Option<ToleranceArgument>,
             ) -> Option<PySurfaceCurvatures> {
                 self.0
                     .curvatures(u, v, tolerance(tol))
@@ -670,7 +722,7 @@ macro_rules! surface {
             fn project_point(
                 slf: &Bound<'_, Self>,
                 point: PyPoint,
-                tol: Option<PyTolerance>,
+                tol: Option<ToleranceArgument>,
             ) -> PySurfaceProjection {
                 let projection = slf.borrow().0.project_point(point.0, tolerance(tol));
                 PySurfaceProjection::new(projection, slf, point.0)
@@ -682,7 +734,7 @@ macro_rules! surface {
             fn project_points(
                 slf: &Bound<'_, Self>,
                 points: Vec<PyPoint>,
-                tol: Option<PyTolerance>,
+                tol: Option<ToleranceArgument>,
             ) -> Vec<PySurfaceProjection> {
                 let points = points.into_iter().map(|p| p.0).collect::<Vec<_>>();
                 let projections = slf.borrow().0.project_points(&points, tolerance(tol));
@@ -702,7 +754,7 @@ macro_rules! surface {
                 &self,
                 py: Python<'py>,
                 points: &Bound<'py, PyAny>,
-                tol: Option<PyTolerance>,
+                tol: Option<ToleranceArgument>,
             ) -> PyResult<(Bound<'py, PyAny>, Bound<'py, PyAny>, Bound<'py, PyAny>)> {
                 let points: Vec<geomcore::Point> = arrays::read_points(points, "points")?;
                 let tol = tolerance(tol);
@@ -720,7 +772,7 @@ macro_rules! surface {
             /// Returns whether `point` lies on the surface within `tol`
             /// (`Tolerance.default()` when omitted).
             #[pyo3(signature = (point, tol = None))]
-            fn contains(&self, point: PyPoint, tol: Option<PyTolerance>) -> bool {
+            fn contains(&self, point: PyPoint, tol: Option<ToleranceArgument>) -> bool {
                 self.0.contains(point.0, tolerance(tol))
             }
 
@@ -730,7 +782,7 @@ macro_rules! surface {
             /// the closest point, and an elementary surface those of its
             /// closed-form inversion.
             #[pyo3(signature = (point, tol = None))]
-            fn parameters_of(&self, point: PyPoint, tol: Option<PyTolerance>) -> (f64, f64) {
+            fn parameters_of(&self, point: PyPoint, tol: Option<ToleranceArgument>) -> (f64, f64) {
                 self.0.parameters_of(point.0, tolerance(tol))
             }
 
@@ -749,7 +801,7 @@ macro_rules! surface {
             /// its Bézier pieces, a revolution surface's from its profile's.
             /// `tol` is `Tolerance.default()` when omitted.
             #[pyo3(signature = (tol = None))]
-            fn tight_bounding_box(&self, tol: Option<PyTolerance>) -> Option<PyBoundingBox> {
+            fn tight_bounding_box(&self, tol: Option<ToleranceArgument>) -> Option<PyBoundingBox> {
                 self.0.tight_bounding_box(tolerance(tol)).map(PyBoundingBox)
             }
 
@@ -790,7 +842,7 @@ macro_rules! surface {
                 &self,
                 py: Python<'_>,
                 uv_curve: &Bound<'_, PyAny>,
-                tol: Option<PyTolerance>,
+                tol: Option<ToleranceArgument>,
             ) -> PyResult<Py<PyAny>> {
                 let uv_curve = curve_2d_classes::extract(uv_curve)?;
                 let traced = self
@@ -821,7 +873,7 @@ macro_rules! surface {
                 &self,
                 py: Python<'_>,
                 curve: &Bound<'_, PyAny>,
-                tol: Option<PyTolerance>,
+                tol: Option<ToleranceArgument>,
             ) -> PyResult<Py<PyAny>> {
                 let tol = tolerance(tol);
                 match $crate::arguments::extract_curve_arg(curve)? {
@@ -838,6 +890,99 @@ macro_rules! surface {
                         Ok(Py::new(py, uv_curve)?.into_any())
                     }
                 }
+            }
+
+            /// The UV curve of `curve` on this surface, within `max_deviation`
+            /// at the same parameter, over the curve's bounds: one B-spline
+            /// whose image `point_at(u, v)` at every `t` lies within
+            /// `max_deviation` of `curve.point_at(t)`, continuous across the
+            /// surface's seams.
+            ///
+            /// The UV curve is one non-rational, non-periodic `BSplineCurve2D`
+            /// of degree 5 in the 3D curve's parameter, C2 except at a knot
+            /// where the 3D curve is less smooth. Its deviation is the largest
+            /// sampled distance between the surface's point at its point at `t`
+            /// and `curve.point_at(t)`: each span is checked at nine points
+            /// against half `max_deviation`, so it is never proven.
+            ///
+            /// The counterpart of `curve_3d_to_uv`, which gives the exact UV
+            /// curve and refuses the pairs that have none, such as an ellipse
+            /// on a cylinder or any curve on a spline surface, and the mirror
+            /// of `uv_curve_to_3d_within`. `curve` is any 3D curve or
+            /// `TrimmedCurve`; a line must be trimmed. Raises
+            /// `Curve3DToUvApproximationError` when `max_deviation` is not a
+            /// positive finite number, when the curve is unbounded or a point,
+            /// when it is farther from the surface than half `max_deviation`,
+            /// when it lingers at a sphere's pole or a cone's apex, or when the
+            /// deviation is not reached. A curve that starts or ends at such a
+            /// point takes the limit of the UV curve from inside: a meridian
+            /// keeps its own `u` up to the pole. `tol` is `Tolerance.default()`
+            /// when omitted. Other Python threads run during the
+            /// approximation.
+            #[pyo3(signature = (curve, max_deviation, tol = None))]
+            fn curve_3d_to_uv_within(
+                &self,
+                py: Python<'_>,
+                curve: &Bound<'_, PyAny>,
+                max_deviation: f64,
+                tol: Option<ToleranceArgument>,
+            ) -> PyResult<$crate::approximation::PyCurveApproximation2D> {
+                let tol = tolerance(tol);
+                let curve = $crate::arguments::extract_curve_arg(curve)?;
+                let surface = &self.0;
+                let approximation = py.detach(|| {
+                    geomcore::curve_3d_to_uv_within(surface, &curve, max_deviation, tol)
+                });
+                Ok($crate::approximation::PyCurveApproximation2D(
+                    approximation.map_err(python_error)?,
+                ))
+            }
+
+            /// The 3D curve that `uv_curve` traces on this surface, within
+            /// `max_deviation` at the same parameter, over the UV curve's
+            /// bounds: one B-spline whose point at every `t` lies within
+            /// `max_deviation` of the surface's point at the UV curve's (u, v)
+            /// at `t`.
+            ///
+            /// The 3D curve is one non-rational, non-periodic `BSplineCurve` in
+            /// the UV curve's parameter. It is of degree 9 and C4 on an
+            /// elementary surface along a UV curve with no knot, unless degree
+            /// 5 takes no more poles, and of degree 5 and C2 wherever the UV
+            /// curve is otherwise. Its deviation is a proven bound for a
+            /// straight UV curve on a plane, cylinder, cone, sphere or torus;
+            /// for every other pair it is sampled, each span checked at nine
+            /// points against half `max_deviation`.
+            ///
+            /// The counterpart of `uv_curve_to_3d`, which gives the exact 3D
+            /// curve and refuses the pairs that have none, such as a slanted
+            /// line on a cylinder. `uv_curve` is any 2D curve or
+            /// `TrimmedCurve2D`; a line must be trimmed. Raises
+            /// `UvCurveTo3DApproximationError` when `max_deviation` is not a
+            /// positive finite number, when the UV curve is unbounded, when the
+            /// 3D curve collapses to a point, when the UV curve leaves the
+            /// surface's domain, or when the deviation is not reached. `tol` is
+            /// `Tolerance.default()` when omitted. Other Python threads run
+            /// during the approximation.
+            #[pyo3(signature = (uv_curve, max_deviation, tol = None))]
+            fn uv_curve_to_3d_within(
+                &self,
+                py: Python<'_>,
+                uv_curve: &Bound<'_, PyAny>,
+                max_deviation: f64,
+                tol: Option<ToleranceArgument>,
+            ) -> PyResult<$crate::approximation::PyCurveApproximation> {
+                let tol = tolerance(tol);
+                let surface = &self.0;
+                let approximation = if let Ok(trimmed) = uv_curve.cast::<$crate::curves::PyTrimmedCurve2D>() {
+                    let uv_curve = trimmed.borrow().0.clone();
+                    py.detach(|| geomcore::uv_curve_to_3d_within(surface, &uv_curve, max_deviation, tol))
+                } else {
+                    let uv_curve = curve_2d_classes::extract(uv_curve)?;
+                    py.detach(|| geomcore::uv_curve_to_3d_within(surface, &uv_curve, max_deviation, tol))
+                };
+                Ok($crate::approximation::PyCurveApproximation(
+                    approximation.map_err(python_error)?,
+                ))
             }
 
             /// The image of the surface under `transform`, parametrized by
@@ -890,7 +1035,7 @@ macro_rules! surface {
             fn intersect(
                 slf: &Bound<'_, Self>,
                 other: &Bound<'_, PyAny>,
-                tol: Option<PyTolerance>,
+                tol: Option<ToleranceArgument>,
             ) -> PyResult<Py<PyAny>> {
                 $crate::intersect::intersect(slf.as_any(), other, tolerance(tol))
             }
@@ -911,7 +1056,7 @@ macro_rules! surface_normal {
             /// whose meridians each have their own, and where no normal can
             /// be recovered.
             #[pyo3(signature = (u, v, tol = None))]
-            fn normal(&self, u: f64, v: f64, tol: Option<PyTolerance>) -> Option<PyVector> {
+            fn normal(&self, u: f64, v: f64, tol: Option<ToleranceArgument>) -> Option<PyVector> {
                 self.0.normal(u, v, tolerance(tol)).map(PyVector)
             }
         }}
@@ -999,7 +1144,7 @@ macro_rules! surface_extrema {
             fn extrema(
                 slf: &Bound<'_, Self>,
                 point: PyPoint,
-                tol: Option<PyTolerance>,
+                tol: Option<ToleranceArgument>,
             ) -> Vec<PySurfaceProjection> {
                 let projections = slf.borrow().0.extrema(point.0, tolerance(tol));
                 projections

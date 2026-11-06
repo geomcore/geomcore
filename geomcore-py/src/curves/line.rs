@@ -1,11 +1,11 @@
-//! The Python class `geomcore.curves.Line`, wrapping `geomcore::Line`.
+//! The Python class `geomcore.Line`, wrapping `geomcore::Line`.
 
 use crate::method_sets::*;
 use crate::values::PyAxis;
 use geomcore::Line;
 
 /// An infinite straight line in 3D, parametrized by arc length from its origin.
-#[pyclass(name = "Line", module = "geomcore.curves", eq)]
+#[pyclass(name = "Line", module = "geomcore", eq)]
 #[derive(Clone, PartialEq)]
 pub(crate) struct PyLine(pub(crate) Line);
 
@@ -15,6 +15,11 @@ shape_methods! {
     /// The axis of the line: its origin and unit direction.
     fn axis(&self) -> PyAxis {
         PyAxis(self.0.axis())
+    }
+
+    fn __reduce__<'py>(slf: &pyo3::Bound<'py, Self>) -> pyo3::PyResult<pyo3::Bound<'py, pyo3::types::PyTuple>> {
+        let this = slf.borrow();
+        crate::pickling::reduce(slf.as_any(), None, (this.origin(), this.direction(),))
     }
 
     fn __repr__(&self) -> String {

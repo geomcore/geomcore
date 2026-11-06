@@ -5,17 +5,25 @@ import math
 import pytest
 
 import geomcore
-from geomcore import ConstructionError, Point2D, Point, Side, Tolerance, Vector, Vector2D
-from geomcore.curves import (
+from geomcore import (
     BSplineCurve,
     BSplineCurve2D,
+    BSplineSurface,
     BezierCurve,
     BezierCurve2D,
+    BezierSurface,
+    ConstructionError,
     Line,
     Line2D,
+    Plane,
+    Point,
+    Point2D,
+    Side,
+    Tolerance,
     TrimmedCurve,
+    Vector,
+    Vector2D,
 )
-from geomcore.surfaces import BSplineSurface, BezierSurface, Plane
 
 W = math.sqrt(0.5)
 

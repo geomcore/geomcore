@@ -139,16 +139,16 @@ grid = sphere.points_at_array(numpy.column_stack([us, vs]))   # (N, 3)
 
 ## Curves against curves
 
-`curve_curve_extrema` reports the local minima of the distance between
-two curves over their domains — the primitive behind closest-approach
-queries and trimmed-arc handling.
+`curve.extrema(other)` with another curve reports the local minima of
+the distance between the two curves over their domains: the primitive
+behind closest-approach queries and trimmed-arc handling. With a point,
+the same method gives that point's projections, as above. In Rust the
+curve pair is the free function `curve_curve_extrema` (ADR 0033).
 
 === "Python"
 
     ```python
-    from geomcore import curve_curve_extrema
-
-    minima = curve_curve_extrema(line, circle).minima
+    minima = line.extrema(circle).minima
     distances = [m.distance for m in minima]
     ```
 

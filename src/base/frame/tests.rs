@@ -263,3 +263,40 @@ fn test_from_axes_accepts_either_handedness_rejects_skew() {
     );
     assert_eq!(skewed, Err(FrameConstructionError::NotOrthogonal));
 }
+
+/// Directions in every octant and at every scale, none of unit length.
+fn assorted_directions() -> Vec<Vector> {
+    let mut directions = Vec::new();
+    for k in 1..400 {
+        let t = k as f64;
+        let scale = 10f64.powf((t * 0.37).sin() * 4.0);
+        directions.push(Vector::new((t * 1.3).sin(), (t * 0.7).cos(), (t * 2.9).sin()) * scale);
+    }
+    directions
+}
+
+#[test]
+fn an_axis_or_frame_rebuilt_from_its_own_parts_is_the_same_bit_for_bit() {
+    let origin = Point::new(1.0, -2.0, 3.0);
+    for (k, direction) in assorted_directions().into_iter().enumerate() {
+        let axis = Axis::new(origin, direction).unwrap();
+        assert_eq!(Axis::new(axis.origin(), axis.direction()), Ok(axis));
+        let hint = Vector::new(1.0, k as f64, -2.0);
+        let Ok(frame) = Frame::new(origin, direction, hint) else {
+            continue;
+        };
+        let rebuilt = Frame::from_axes(
+            frame.origin(),
+            frame.x_direction(),
+            frame.y_direction(),
+            frame.z_direction(),
+        );
+        assert_eq!(rebuilt, Ok(frame));
+        let planar = Vector2D::new(direction.x, direction.y);
+        let axis = Axis2D::new(Point2D::ORIGIN, planar).unwrap();
+        assert_eq!(Axis2D::new(axis.origin(), axis.direction()), Ok(axis));
+        let frame = Frame2D::from_x(Point2D::ORIGIN, planar).unwrap();
+        let rebuilt = Frame2D::new(frame.origin(), frame.x_direction(), frame.y_direction());
+        assert_eq!(rebuilt, Ok(frame));
+    }
+}

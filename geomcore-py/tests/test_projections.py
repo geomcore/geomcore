@@ -5,24 +5,25 @@ import math
 import pytest
 
 from geomcore import (
+    BSplineCurve,
+    BSplineSurface,
+    Circle,
+    Circle2D,
     CurveProjection,
     CurveProjection2D,
-    Point2D,
+    Cylinder,
+    Line2D,
+    Plane,
     Point,
+    Point2D,
+    Sphere,
     SurfaceProjection,
     Tolerance,
-    Vector2D,
-    Vector,
-)
-from geomcore.curves import (
-    BSplineCurve,
-    Circle2D,
-    Circle,
-    Line2D,
-    TrimmedCurve2D,
     TrimmedCurve,
+    TrimmedCurve2D,
+    Vector,
+    Vector2D,
 )
-from geomcore.surfaces import BSplineSurface, Cylinder, Plane, Sphere
 
 
 def _assert_points_close(a, b):
@@ -179,3 +180,22 @@ def test_a_distance_within_confusion_snaps_to_zero():
     assert cylinder.project_point(Point(1 + 2e-7, 0, 0)).distance > 1e-7
     fine = Tolerance(confusion=1e-12)
     assert cylinder.project_point(Point(1 + 1e-8, 0, 0), fine).distance > 0.0
+
+
+def test_extrema_from_a_curve_is_the_curve_pair_operation():
+    import geomcore
+    from geomcore import CurveCurveExtrema, Point2D
+
+    line = Line2D(Point2D(0, 0), Vector2D(1, 0))
+    segment = TrimmedCurve.segment(Point(-1.0, 3.0, 0.0), Point(1.0, 3.0, 0.0))
+    circle = Circle(Point.origin(), Vector.unit_z(), 2.0)
+    extrema = circle.extrema(segment)
+    assert isinstance(extrema, CurveCurveExtrema)
+    assert extrema.first is circle and extrema.second is segment
+    assert extrema.minima[0].distance == pytest.approx(1.0)
+    with pytest.warns(DeprecationWarning, match="first.extrema"):
+        old = geomcore.curve_curve_extrema(circle, segment)  # type: ignore[deprecated]
+    assert old.minima == extrema.minima
+    with pytest.raises(TypeError, match="a Point or a 3D curve, not Line2D"):
+        circle.extrema(line)  # type: ignore[call-overload]
+    assert [type(e) for e in circle.extrema(Point(3, 0, 0))] == [CurveProjection]
