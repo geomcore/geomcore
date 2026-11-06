@@ -74,7 +74,9 @@ A new hidden routing hook, `ParametricCurve2D::as_line`, tells a straight UV cur
 
 A crate surface gets proven spans and degree 9 as soon as `as_elementary` returns it. Any other surface, including a user's, gets sampled spans at degree 5 with no further code. An extrusion or revolution with an elementary profile is analytic too, but stays at degree 5 until its derivatives go past second order and a consumer asks for it.
 
-The Python bindings expose it as `geomcore.uv_curve_to_3d_within`.
+The Python bindings expose it as the surface method `surface.uv_curve_to_3d_within(uv_curve, max_deviation, tol)`, and its mirror as `surface.curve_3d_to_uv_within(curve, max_deviation, tol)`.
+
+Amended (#185): in Python both operations were first module functions, `geomcore.uv_curve_to_3d_within(surface, …)`, mirroring Rust. Users looked for them on the surface, beside `uv_curve_to_3d` and `curve_3d_to_uv`, in IDE completion. The reason for a free function in Rust is genericity over any `ParametricSurface`, including a caller's own. That reason does not hold in Python, where every surface is a concrete class. The methods replace the functions, which warn with a `DeprecationWarning` for one release. The Rust free functions stay.
 
 ## Amendment: the mirror, 3D curve to UV curve (#186)
 

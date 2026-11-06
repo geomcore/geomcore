@@ -175,8 +175,11 @@ patches.
 ## Measure and bound
 
 Arc length integrates the speed to a requested error; `bounding_box`
-gives the tight pole box (elementary shapes get closed-form boxes) —
-available on every 3D curve and surface.
+gives the box of the poles, which holds the curve but may be wider than
+it (elementary shapes get closed-form boxes, which touch them), and
+`tight_bounding_box(tol)` the box whose every side is within
+`tol.confusion` of the shape, for a collision pre-check — available on
+every curve and surface.
 
 === "Python"
 

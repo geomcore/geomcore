@@ -73,8 +73,7 @@ let point = circle.point_at(std::f64::consts::PI / 4.0);
 ## Python
 
 ```python
-from geomcore import Point, Vector
-from geomcore.curves import Circle
+from geomcore import Circle, Point, Vector
 import math
 
 circle = Circle(Point.origin(), Vector.unit_z(), 2.0)

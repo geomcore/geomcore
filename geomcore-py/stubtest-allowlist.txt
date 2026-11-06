@@ -3,6 +3,8 @@
 # a separate API: the stubs type the forward operators only.
 geomcore\.(Point2D|Point|Vector2D|Vector)\.__radd__
 geomcore\.(Point2D|Point|Vector2D|Vector)\.__rsub__
+geomcore\.(Vector2D|Vector)\.__rtruediv__
+geomcore\.Transform\.__rmatmul__
 
 # A str-mixin enum inherits str.__new__'s signature in the stubs, while the
 # runtime class takes Enum's (cls, value): the members and the call

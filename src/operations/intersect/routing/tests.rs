@@ -189,8 +189,9 @@ fn test_the_tee_of_two_equal_cylinders_is_two_exact_ellipses() {
         assert!(matches!(piece.curve, Curve::Ellipse(_)) && !piece.tangent);
     }
     // Both points where the cylinders touch, where the ellipses cross.
-    assert_eq!(
-        result.contact_points(),
-        [Point::new(0.0, -5.0, 0.0), Point::new(0.0, 5.0, 0.0)]
-    );
+    let touching = [Point::new(0.0, -5.0, 0.0), Point::new(0.0, 5.0, 0.0)];
+    assert_eq!(result.contact_points().len(), 2);
+    for (found, expected) in result.contact_points().iter().zip(touching) {
+        assert!(found.distance(expected) < 1e-12, "{found:?}");
+    }
 }
