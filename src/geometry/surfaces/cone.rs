@@ -73,7 +73,7 @@ impl std::error::Error for ConeConstructionError {}
 /// use geomcore::prelude::*;
 /// use geomcore::{Cone, Point, Vector};
 /// let cone = Cone::new(Point::ORIGIN, Vector::Z, 0.4, 2.0).unwrap();
-/// assert_eq!(cone.eval_point(0.0, 0.0), Point::new(2.0, 0.0, 0.0));
+/// assert_eq!(cone.point_at(0.0, 0.0), Point::new(2.0, 0.0, 0.0));
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Cone {
@@ -110,7 +110,7 @@ impl Cone {
         if !(half_angle.is_finite() && reference_radius.is_finite()) {
             return Err(ConeConstructionError::NonFinite);
         }
-        if !is_valid_semi_angle(half_angle) {
+        if !is_valid_half_angle(half_angle) {
             return Err(ConeConstructionError::BadAngle);
         }
         if reference_radius < 0.0 {
@@ -152,6 +152,30 @@ impl Cone {
             ConeConstructionError::NullNormal,
         ))?;
         Cone::from_frame(frame, half_angle, reference_radius)
+    }
+
+    /// The cone with its apex at `apex`, opening along `axis_direction` at
+    /// `half_angle` from the axis: a cone of reference radius 0, its frame
+    /// at the apex. A negative angle opens it the other way.
+    ///
+    /// # Errors
+    ///
+    /// Those of [`Cone::new`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Cone, Point, Vector};
+    /// let cone = Cone::from_apex(Point::new(0.0, 0.0, 2.0), Vector::Z, 0.5).unwrap();
+    /// assert_eq!(cone.apex(), Point::new(0.0, 0.0, 2.0));
+    /// assert_eq!(cone.reference_radius(), 0.0);
+    /// ```
+    pub fn from_apex(
+        apex: Point,
+        axis_direction: Vector,
+        half_angle: f64,
+    ) -> Result<Cone, ConeConstructionError> {
+        Cone::new(apex, axis_direction, half_angle, 0.0)
     }
 
     /// Creates a cone through two circular sections: `p1` with radius `r1`
@@ -205,7 +229,7 @@ impl Cone {
         }
 
         let half_angle = ((r2 - r1) / dist).atan();
-        if !is_valid_semi_angle(half_angle) {
+        if !is_valid_half_angle(half_angle) {
             return Err(ConeConstructionError::NullAngle);
         }
 
@@ -291,7 +315,7 @@ impl Cone {
 
     /// The `u` isoparametric line at `u`: the generator through the point
     /// at `(u, 0)` and the apex, running on through it onto the opposite
-    /// nappe, so `u_iso(u).eval_point(t)` is `eval_point(u, t)` for every
+    /// nappe, so `u_iso(u).point_at(t)` is `point_at(u, t)` for every
     /// `t`.
     /// The axis-aligned special case of
     /// [`uv_curve_to_3d`](crate::ParametricSurface::uv_curve_to_3d):
@@ -307,17 +331,17 @@ impl Cone {
     /// use geomcore::{Cone, Point, Vector};
     /// let cone = Cone::new(Point::ORIGIN, Vector::Z, 0.4, 2.0).unwrap();
     /// let iso = cone.u_iso(1.0).unwrap();
-    /// assert!(iso.eval_point(-2.0).distance(cone.eval_point(1.0, -2.0)) < 1e-12);
+    /// assert!(iso.point_at(-2.0).distance(cone.point_at(1.0, -2.0)) < 1e-12);
     /// ```
     pub fn u_iso(&self, u: f64) -> Result<Line, SurfaceIsoError> {
         let u = check_iso_param(u, None)?;
-        iso_line(self.eval_point(u, 0.0), self.eval_derivative(u, 0.0, 0, 1))
+        iso_line(self.point_at(u, 0.0), self.derivative(u, 0.0, 0, 1))
     }
 
     /// The `v` isoparametric circle at `v`: the section of radius
     /// `|reference_radius + v * sin(half_angle)|` at height
-    /// `v * cos(half_angle)` along the axis, so `v_iso(v).eval_point(t)`
-    /// is `eval_point(t, v)` for every `t`, on either nappe. At the apex
+    /// `v * cos(half_angle)` along the axis, so `v_iso(v).point_at(t)`
+    /// is `point_at(t, v)` for every `t`, on either nappe. At the apex
     /// it is the circle of radius zero.
     /// The axis-aligned special case of
     /// [`uv_curve_to_3d`](crate::ParametricSurface::uv_curve_to_3d):
@@ -351,7 +375,7 @@ impl Cone {
 /// Checks that `half_angle` is within the accepted range for a cone:
 /// `0 < |half_angle| < PI/2`, both bounds excluded with
 /// [`Tolerance::DEFAULT.angular`] tolerance.
-fn is_valid_semi_angle(half_angle: f64) -> bool {
+fn is_valid_half_angle(half_angle: f64) -> bool {
     let angle = half_angle.abs();
     angle >= Tolerance::DEFAULT.angular
         && (std::f64::consts::FRAC_PI_2 - angle) >= Tolerance::DEFAULT.angular
@@ -384,13 +408,13 @@ fn arbitrary_perpendicular_frame(origin: Point, axis_direction: Vector) -> Frame
 
 impl ParametricSurface for Cone {
     #[inline]
-    fn eval_point(&self, u: f64, v: f64) -> Point {
+    fn point_at(&self, u: f64, v: f64) -> Point {
         elementary::cone_d0(&self.frame, self.reference_radius, self.half_angle, u, v)
     }
 
     fn project_point(&self, point: Point, tol: Tolerance) -> SurfaceProjection {
         let (u, v) = self.parameters_of(point, tol);
-        let foot = self.eval_point(u, v);
+        let foot = self.point_at(u, v);
         let distance = foot.distance(point);
         SurfaceProjection {
             u,
@@ -402,14 +426,12 @@ impl ParametricSurface for Cone {
 
     fn contains(&self, point: Point, tol: Tolerance) -> bool {
         let (u, v) = self.parameters_of(point, tol);
-        self.eval_point(u, v).distance(point) <= tol.confusion
+        self.point_at(u, v).distance(point) <= tol.confusion
     }
 
-    fn eval_derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> Vector {
+    fn derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> Vector {
         match du + dv {
-            0 => panic!(
-                "eval_derivative: du + dv must be >= 1 (use eval_point for the (0, 0) order)"
-            ),
+            0 => panic!("derivative: du + dv must be >= 1 (use point_at for the (0, 0) order)"),
             _ => elementary::cone_derivative(
                 &self.frame,
                 self.reference_radius,
@@ -466,7 +488,7 @@ impl ReversibleSurface for Cone {
     /// Returns the cone running in the opposite angular direction: the
     /// same point set with the frame's y direction negated, so the frame
     /// turns indirect and the normal reverses.
-    /// `reversed_u().eval_point(u, v)` is `eval_point(-u, v)`.
+    /// `reversed_u().point_at(u, v)` is `point_at(-u, v)`.
     fn reversed_u(&self) -> Cone {
         Cone {
             frame: self.frame.flipped_y(),
@@ -477,7 +499,7 @@ impl ReversibleSurface for Cone {
 
     /// Returns the cone running in the opposite axial direction: the same
     /// point set with a negated half-angle and the frame's z direction
-    /// negated. `reversed_v().eval_point(u, v)` is `eval_point(u, -v)`.
+    /// negated. `reversed_v().point_at(u, v)` is `point_at(u, -v)`.
     fn reversed_v(&self) -> Cone {
         Cone {
             frame: self.frame.flipped_z(),

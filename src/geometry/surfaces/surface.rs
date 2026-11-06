@@ -46,7 +46,7 @@ macro_rules! surface_variants {
 pub(crate) use surface_variants;
 
 /// The match forwarding a call to the surface a [`Surface`] holds:
-/// `surface_dispatch!(self, s => s.eval_point(u, v))`.
+/// `surface_dispatch!(self, s => s.point_at(u, v))`.
 macro_rules! surface_dispatch {
     ($value:expr, $binding:ident => $body:expr) => {
         $crate::geometry::surfaces::surface_variants! {
@@ -91,7 +91,7 @@ pub(crate) use elementary_surface_dispatch;
 ///     Plane::new(Point::ORIGIN, Vector::Z).unwrap().into(),
 ///     Sphere::new(Point::ORIGIN, 2.0).unwrap().into(),
 /// ];
-/// let points: Vec<Point> = surfaces.iter().map(|s| s.eval_point(0.0, 0.0)).collect();
+/// let points: Vec<Point> = surfaces.iter().map(|s| s.point_at(0.0, 0.0)).collect();
 /// assert_eq!(points[0], Point::ORIGIN);
 /// assert_eq!(points[1], Point::new(2.0, 0.0, 0.0));
 /// ```
@@ -120,7 +120,7 @@ pub enum Surface {
 
 impl Surface {
     /// The `u` isoparametric curve at `u`: `u` fixed, running along `v`,
-    /// so `u_iso(u).eval_point(t)` is `eval_point(u, t)` for every `t`.
+    /// so `u_iso(u).point_at(t)` is `point_at(u, t)` for every `t`.
     /// A line on a plane, cylinder, cone or extrusion surface, a circle on
     /// a sphere or torus, the turned profile on a revolution surface, a
     /// B-spline curve on a B-spline surface, a Bézier curve on a Bézier
@@ -149,7 +149,7 @@ impl Surface {
     }
 
     /// The `v` isoparametric curve at `v`: `v` fixed, running along `u`,
-    /// so `v_iso(v).eval_point(t)` is `eval_point(t, v)` for every `t`.
+    /// so `v_iso(v).point_at(t)` is `point_at(t, v)` for every `t`.
     /// A line on a plane, a circle on a cylinder, cone, sphere, torus or
     /// revolution surface, the moved profile on an extrusion surface, a
     /// B-spline curve on a B-spline surface, a Bézier curve on a Bézier
@@ -182,20 +182,20 @@ fn into_curve(iso: impl Into<Curve>) -> Curve {
 
 impl ParametricSurface for Surface {
     #[inline]
-    fn eval_point(&self, u: f64, v: f64) -> Point {
-        surface_dispatch!(self, s => s.eval_point(u, v))
+    fn point_at(&self, u: f64, v: f64) -> Point {
+        surface_dispatch!(self, s => s.point_at(u, v))
     }
 
-    fn eval_derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> Vector {
-        surface_dispatch!(self, s => s.eval_derivative(u, v, du, dv))
+    fn derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> Vector {
+        surface_dispatch!(self, s => s.derivative(u, v, du, dv))
     }
 
-    fn eval_d1(&self, u: f64, v: f64) -> (Point, [Vector; 2]) {
-        surface_dispatch!(self, s => s.eval_d1(u, v))
+    fn first_derivatives(&self, u: f64, v: f64) -> (Point, [Vector; 2]) {
+        surface_dispatch!(self, s => s.first_derivatives(u, v))
     }
 
-    fn eval_d2(&self, u: f64, v: f64) -> (Point, [Vector; 2], [Vector; 3]) {
-        surface_dispatch!(self, s => s.eval_d2(u, v))
+    fn second_derivatives(&self, u: f64, v: f64) -> (Point, [Vector; 2], [Vector; 3]) {
+        surface_dispatch!(self, s => s.second_derivatives(u, v))
     }
 
     fn normal(&self, u: f64, v: f64, tol: Tolerance) -> Option<Vector> {
@@ -246,8 +246,8 @@ impl ParametricSurface for Surface {
         surface_dispatch!(self, s => s.curvatures(u, v, tol))
     }
 
-    fn eval_points(&self, uvs: &[(f64, f64)]) -> Vec<Point> {
-        surface_dispatch!(self, s => s.eval_points(uvs))
+    fn points_at(&self, uvs: &[(f64, f64)]) -> Vec<Point> {
+        surface_dispatch!(self, s => s.points_at(uvs))
     }
 
     fn project_point(&self, point: Point, tol: Tolerance) -> SurfaceProjection {
@@ -355,7 +355,7 @@ impl ElementarySurface {
     /// The point at `(u, v)` and every partial derivative of total order
     /// below `N`: `partials[i][j]` is `∂ⁱ⁺ʲS / ∂uⁱ ∂vʲ`, zero at `(0, 0)`
     /// and past the order. The sine and cosine of each angle are read once,
-    /// where [`eval_derivative`](ParametricSurface::eval_derivative) reads
+    /// where [`derivative`](ParametricSurface::derivative) reads
     /// them for each derivative.
     pub(crate) fn partials<const N: usize>(&self, u: f64, v: f64) -> (Point, [[Vector; N]; N]) {
         fn table<const N: usize>(partial: impl Fn(u32, u32) -> Vector) -> [[Vector; N]; N] {
@@ -400,26 +400,26 @@ impl ElementarySurface {
                 })
             }
         };
-        (self.eval_point(u, v), partials)
+        (self.point_at(u, v), partials)
     }
 }
 
 impl ParametricSurface for ElementarySurface {
     #[inline]
-    fn eval_point(&self, u: f64, v: f64) -> Point {
-        elementary_surface_dispatch!(self, s => s.eval_point(u, v))
+    fn point_at(&self, u: f64, v: f64) -> Point {
+        elementary_surface_dispatch!(self, s => s.point_at(u, v))
     }
 
-    fn eval_derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> Vector {
-        elementary_surface_dispatch!(self, s => s.eval_derivative(u, v, du, dv))
+    fn derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> Vector {
+        elementary_surface_dispatch!(self, s => s.derivative(u, v, du, dv))
     }
 
-    fn eval_d1(&self, u: f64, v: f64) -> (Point, [Vector; 2]) {
-        elementary_surface_dispatch!(self, s => s.eval_d1(u, v))
+    fn first_derivatives(&self, u: f64, v: f64) -> (Point, [Vector; 2]) {
+        elementary_surface_dispatch!(self, s => s.first_derivatives(u, v))
     }
 
-    fn eval_d2(&self, u: f64, v: f64) -> (Point, [Vector; 2], [Vector; 3]) {
-        elementary_surface_dispatch!(self, s => s.eval_d2(u, v))
+    fn second_derivatives(&self, u: f64, v: f64) -> (Point, [Vector; 2], [Vector; 3]) {
+        elementary_surface_dispatch!(self, s => s.second_derivatives(u, v))
     }
 
     fn normal(&self, u: f64, v: f64, tol: Tolerance) -> Option<Vector> {
@@ -470,8 +470,8 @@ impl ParametricSurface for ElementarySurface {
         elementary_surface_dispatch!(self, s => s.curvatures(u, v, tol))
     }
 
-    fn eval_points(&self, uvs: &[(f64, f64)]) -> Vec<Point> {
-        elementary_surface_dispatch!(self, s => s.eval_points(uvs))
+    fn points_at(&self, uvs: &[(f64, f64)]) -> Vec<Point> {
+        elementary_surface_dispatch!(self, s => s.points_at(uvs))
     }
 
     fn project_point(&self, point: Point, tol: Tolerance) -> SurfaceProjection {

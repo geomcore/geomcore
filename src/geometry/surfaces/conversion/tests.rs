@@ -54,7 +54,7 @@ impl Direction {
         move |t| match &circle {
             None => t,
             Some(c) => {
-                let p = c.eval_point(t);
+                let p = c.point_at(t);
                 let angle = p.y.atan2(p.x);
                 angle + TAU * ((t - angle) / TAU).round()
             }
@@ -100,17 +100,17 @@ fn check_patch<S: ParametricSurface>(
     let vs: Vec<f64> = dense(v).chain(match_v.iter().copied()).collect();
     for &t in &us {
         for &s in &vs {
-            let p = b.eval_point(t, s);
+            let p = b.point_at(t, s);
             let d = distance(p);
             assert!(d <= RELATIVE * scale, "({t}, {s}) off the surface by {d}");
-            let q = surface.eval_point(map_u(t), map_v(s));
+            let q = surface.point_at(map_u(t), map_v(s));
             let d = p.distance(q);
             assert!(d <= RELATIVE * scale, "({t}, {s}) moved by {d}");
         }
     }
     for &t in &match_u {
         for &s in &match_v {
-            let d = b.eval_point(t, s).distance(surface.eval_point(t, s));
+            let d = b.point_at(t, s).distance(surface.point_at(t, s));
             assert!(d <= 1e-14 * scale, "parameters differ at ({t}, {s}): {d}");
         }
     }
@@ -169,7 +169,7 @@ fn test_cylinder_patches_are_exact() {
                 let scale = 4.0 * radius;
                 let directions = (Direction::Circular, Direction::Straight);
                 check_patch(&b, &c, u, v, directions, scale, distance);
-                assert_eq!(b.eval_point(u.0, v.0), c.eval_point(u.0, v.0));
+                assert_eq!(b.point_at(u.0, v.0), c.point_at(u.0, v.0));
             }
         }
     }
@@ -184,11 +184,11 @@ fn test_whole_turn_cylinder_is_periodic_from_any_start() {
             .unwrap();
         assert!(b.is_u_periodic() && !b.is_v_periodic());
         assert_eq!(b.u_period(), Some(TAU));
-        let p = b.eval_point(first + 0.3, 0.5);
-        assert!(b.eval_point(first + 0.3 + TAU, 0.5).distance(p) <= 1e-14);
+        let p = b.point_at(first + 0.3, 0.5);
+        assert!(b.point_at(first + 0.3 + TAU, 0.5).distance(p) <= 1e-14);
         assert!(
-            b.eval_point(first, 0.5)
-                .distance(b.eval_point(first + TAU, 0.5))
+            b.point_at(first, 0.5)
+                .distance(b.point_at(first + TAU, 0.5))
                 <= 1e-15
         );
     }
@@ -252,7 +252,7 @@ fn test_cone_patch_collapses_at_the_apex() {
         let b = c.to_bspline_patch((-1.0, 4.0), v).unwrap();
         let v_apex = if j == 0 { v.0 } else { v.1 };
         for t in [-1.0, 0.0, 1.3, 4.0] {
-            assert!(b.eval_point(t, v_apex).distance(c.apex()) <= 1e-14);
+            assert!(b.point_at(t, v_apex).distance(c.apex()) <= 1e-14);
         }
     }
     let away = c.profile((apex + 1e-6, 3.0));
@@ -294,7 +294,7 @@ fn test_whole_sphere_is_periodic_with_collapsed_poles() {
         let poles = revolved_poles(s.frame(), &angle_net(0.0, TAU), &profile);
         assert_collapsed(&poles, 0);
         assert_collapsed(&poles, 4);
-        let north = s.eval_point(0.0, FRAC_PI_2);
+        let north = s.point_at(0.0, FRAC_PI_2);
         assert!(poles[0][4].distance(north) <= 1e-15 * radius);
     }
 }
@@ -472,13 +472,13 @@ fn test_converted_sphere_projects_like_the_sphere() {
     let s = sphere(2.0);
     let b = s.to_bspline();
     for (u, v) in [(0.3, 0.2), (4.0, -1.2), (1.0, 1.5)] {
-        let q = s.eval_point(u, v) + 0.7 * (s.eval_point(u, v) - s.center());
+        let q = s.point_at(u, v) + 0.7 * (s.point_at(u, v) - s.center());
         let expected = s.project_point(q, tol).distance;
         assert!((b.project_point(q, tol).distance - expected).abs() < 1e-9);
-        assert!(b.contains(s.eval_point(u + 0.1, v), tol));
+        assert!(b.contains(s.point_at(u + 0.1, v), tol));
     }
     let k = cone(0.4);
     let patch = k.to_bspline_patch((0.0, PI), (-1.0, 2.0)).unwrap();
-    assert!(patch.contains(k.eval_point(2.0, 1.5), tol));
-    assert!(!patch.contains(k.eval_point(4.0, 1.5), tol));
+    assert!(patch.contains(k.point_at(2.0, 1.5), tol));
+    assert!(!patch.contains(k.point_at(4.0, 1.5), tol));
 }

@@ -95,12 +95,12 @@ fn crossing_wavy() -> Vec<BSplineSurface> {
 
 fn samples(curve: &BSplineCurve, n: usize) -> impl Iterator<Item = Point> + '_ {
     let (t0, t1) = curve.bounds();
-    (0..=n).map(move |k| curve.eval_point(t0 + (t1 - t0) * k as f64 / n as f64))
+    (0..=n).map(move |k| curve.point_at(t0 + (t1 - t0) * k as f64 / n as f64))
 }
 
 fn is_closed(curve: &BSplineCurve) -> bool {
     let (t0, t1) = curve.bounds();
-    curve.eval_point(t0).distance(curve.eval_point(t1)) < 1e-9
+    curve.point_at(t0).distance(curve.point_at(t1)) < 1e-9
 }
 
 fn distance_to(curves: &[BSplineCurve], p: Point) -> f64 {
@@ -135,7 +135,7 @@ fn assert_on_both_once(curves: &[BSplineCurve], a: &BSplineSurface, b: &BSplineS
 fn assert_every_crossing(curves: &[BSplineCurve], a: &BSplineSurface, b: &BSplineSurface) {
     let m = 120;
     let at = |k: usize| 5.0 * k as f64 / m as f64;
-    let d = |u: f64, v: f64| a.eval_point(u, v).z - b.eval_point(u, v).z;
+    let d = |u: f64, v: f64| a.point_at(u, v).z - b.point_at(u, v).z;
     let mut crossings = 0;
     for i in 0..m {
         for j in 0..=m {
@@ -147,7 +147,7 @@ fn assert_every_crossing(curves: &[BSplineCurve], a: &BSplineSurface, b: &BSplin
                 if d0 * d1 < 0.0 {
                     crossings += 1;
                     let f = d0 / (d0 - d1);
-                    let p = a.eval_point(u0 + f * (u1 - u0), v0 + f * (v1 - v0));
+                    let p = a.point_at(u0 + f * (u1 - u0), v0 + f * (v1 - v0));
                     assert!(distance_to(curves, p) < 0.01, "{p:?} missed");
                 }
             }
@@ -252,7 +252,7 @@ fn test_open_curves_end_on_the_domain_bounds() {
         assert_on_both_once(&curves, &sheet, &flat);
         assert_eq!(curves.len(), 1);
         let (t0, t1) = curves[0].bounds();
-        let mut ends = [curves[0].eval_point(t0).y, curves[0].eval_point(t1).y];
+        let mut ends = [curves[0].point_at(t0).y, curves[0].point_at(t1).y];
         ends.sort_by(f64::total_cmp);
         assert!(
             ends[0].abs() < 1e-7 && (ends[1] - 5.0).abs() < 1e-7,

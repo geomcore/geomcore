@@ -121,7 +121,7 @@ fn test_bspline_box_comes_from_its_poles() {
     let b = arch().bounding_box().unwrap();
     assert_box(b, Point2D::new(0.0, 0.0), Point2D::new(2.0, 2.0));
     // The arch peaks at y = 1: the box holds it but is loose.
-    assert!(b.encloses(arch().eval_point(0.5)));
+    assert!(b.encloses(arch().point_at(0.5)));
     assert_eq!(Curve2D::from(arch()).bounding_box(), Some(b));
 }
 
@@ -139,7 +139,7 @@ fn test_trimmed_bspline_box_is_tighter_than_the_poles() {
     // Poles of the left half of the arch: (0,0), (0.5,1), (1,1).
     assert_box(b, Point2D::new(0.0, 0.0), Point2D::new(1.0, 1.0));
     for u in [0.0, 0.1, 0.25, 0.4, 0.5] {
-        assert!(b.enlarged(1e-12).encloses(curve.eval_point(u)));
+        assert!(b.enlarged(1e-12).encloses(curve.point_at(u)));
     }
 }
 

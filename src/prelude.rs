@@ -6,7 +6,7 @@
 //! use geomcore::{Circle, Point, Tolerance, Vector};
 //!
 //! let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
-//! assert_eq!(circle.eval_point(0.0), Point::new(2.0, 0.0, 0.0));
+//! assert_eq!(circle.point_at(0.0), Point::new(2.0, 0.0, 0.0));
 //! assert!(circle.contains(Point::new(0.0, 2.0, 0.0), Tolerance::DEFAULT));
 //! ```
 //!

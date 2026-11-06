@@ -1,4 +1,4 @@
-//! The Python class `geomcore.surfaces.Torus`, wrapping `geomcore::Torus`.
+//! The Python class `geomcore.Torus`, wrapping `geomcore::Torus`.
 
 use crate::method_sets::*;
 use crate::surfaces::*;
@@ -6,12 +6,12 @@ use crate::values::{PyAxis, PyFrame, float_repr};
 use geomcore::Torus;
 
 /// A torus; u is the angle around the main axis, v the angle around the tube.
-#[pyclass(name = "Torus", module = "geomcore.surfaces", eq)]
+#[pyclass(name = "Torus", module = "geomcore", eq)]
 #[derive(Clone, PartialEq)]
 pub(crate) struct PyTorus(pub(crate) Torus);
 
 shape_methods! {
-    PyTorus: [surface, surface_normal];
+    PyTorus: [surface];
 
     /// The center of the torus.
     fn center(&self) -> PyPoint {
@@ -27,6 +27,11 @@ shape_methods! {
     /// The placement frame of the torus.
     fn frame(&self) -> PyFrame {
         PyFrame(self.0.frame())
+    }
+
+    fn __reduce__<'py>(slf: &pyo3::Bound<'py, Self>) -> pyo3::PyResult<pyo3::Bound<'py, pyo3::types::PyTuple>> {
+        let this = slf.borrow();
+        crate::pickling::reduce(slf.as_any(), Some("from_frame"), (this.frame(), this.major_radius(), this.minor_radius(),))
     }
 
     fn __repr__(&self) -> String {

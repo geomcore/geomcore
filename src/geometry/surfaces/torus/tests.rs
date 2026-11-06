@@ -57,22 +57,22 @@ fn test_from_frame_negative_radius_errors() {
 #[test]
 fn test_eval_point() {
     let t = Torus::new(Point::ORIGIN, Vector::Z, 5.0, 1.5).unwrap();
-    assert_eq!(t.eval_point(0.0, 0.0), Point::new(6.5, 0.0, 0.0));
+    assert_eq!(t.point_at(0.0, 0.0), Point::new(6.5, 0.0, 0.0));
 }
 
 #[test]
 fn test_eval_points_matches_loop() {
     let t = Torus::new(Point::ORIGIN, Vector::Z, 5.0, 1.5).unwrap();
     let uvs = [(0.0, 0.0), (0.5, 1.0)];
-    let expected: Vec<Point> = uvs.iter().map(|&(u, v)| t.eval_point(u, v)).collect();
-    assert_eq!(t.eval_points(&uvs), expected);
+    let expected: Vec<Point> = uvs.iter().map(|&(u, v)| t.point_at(u, v)).collect();
+    assert_eq!(t.points_at(&uvs), expected);
 }
 
 #[test]
 #[should_panic(expected = "du + dv must be >= 1")]
 fn test_eval_derivative_zero_order_panics() {
     let t = Torus::new(Point::ORIGIN, Vector::Z, 5.0, 1.5).unwrap();
-    t.eval_derivative(0.0, 0.0, 0, 0);
+    t.derivative(0.0, 0.0, 0, 0);
 }
 
 #[test]
@@ -107,7 +107,7 @@ fn test_torus_contains() {
     let torus = Torus::new(Point::ORIGIN, Vector::Z, 4.0, 1.0).unwrap();
     let tol = Tolerance::DEFAULT;
     assert!(torus.contains(Point::new(5.0, 0.0, 0.0), tol));
-    assert!(torus.contains(torus.eval_point(1.0, 2.0), tol));
+    assert!(torus.contains(torus.point_at(1.0, 2.0), tol));
     assert!(!torus.contains(Point::ORIGIN, tol));
     assert!(!torus.contains(Point::new(4.0, 0.0, 0.0), tol));
 }
@@ -119,7 +119,7 @@ fn test_torus_project_point() {
     let proj = torus.project_point(Point::new(6.0, 0.0, 0.0), tol);
     assert_eq!((proj.u, proj.v), (0.0, 0.0));
     assert_eq!(proj.distance, 1.0);
-    let on = torus.project_point(torus.eval_point(1.0, 2.0), tol);
+    let on = torus.project_point(torus.point_at(1.0, 2.0), tol);
     assert_eq!(on.distance, 0.0);
 }
 
@@ -134,7 +134,7 @@ fn test_torus_transformed_translation_spot_check() {
     assert_eq!(moved.major_radius(), 5.0);
     assert_eq!(moved.minor_radius(), 1.5);
     // Hand-computed evaluation at (0, 0), shifted.
-    assert_eq!(moved.eval_point(0.0, 0.0), Point::new(6.5, 0.0, 2.0));
+    assert_eq!(moved.point_at(0.0, 0.0), Point::new(6.5, 0.0, 2.0));
 }
 
 #[test]
@@ -150,7 +150,7 @@ fn test_torus_transformed_round_trip_and_mirror() {
     assert!(moved.center().distance(Point::new(0.0, 4.0, 0.0)) < 1e-9);
     let tol = Tolerance::DEFAULT;
     for (u, v) in [(0.0, 0.0), (1.0, 0.3), (4.0, -0.5)] {
-        assert!(moved.contains(t.apply_point(torus.eval_point(u, v)), tol));
+        assert!(moved.contains(t.apply_point(torus.point_at(u, v)), tol));
     }
     let inv = Transform::scaling(Point::ORIGIN, 0.5).then(Transform::rotation(axis, -PI / 2.0));
     let back = moved.transformed(inv).unwrap();
@@ -161,7 +161,7 @@ fn test_torus_transformed_round_trip_and_mirror() {
     let m = Transform::mirror_plane(Frame::WORLD);
     let mirrored = torus.transformed(m).unwrap();
     for (u, v) in [(0.0, 0.0), (1.0, 0.3)] {
-        assert!(mirrored.contains(m.apply_point(torus.eval_point(u, v)), tol));
+        assert!(mirrored.contains(m.apply_point(torus.point_at(u, v)), tol));
     }
     assert_eq!(mirrored.transformed(m).unwrap(), torus);
 }
@@ -172,11 +172,11 @@ fn test_reversed_tori_share_point_set() {
     for (u, v) in [(0.0, 0.0), (1.0, 0.3), (5.0, 2.0)] {
         let ru = torus.reversed_u();
         assert!(!ru.frame().is_direct());
-        assert!((ru.eval_point(u, v) - torus.eval_point(-u, v)).magnitude() < 1e-11);
+        assert!((ru.point_at(u, v) - torus.point_at(-u, v)).magnitude() < 1e-11);
         assert!((ru.u_reversed_parameter(torus.u_reversed_parameter(u)) - u).abs() < 1e-12);
         let rv = torus.reversed_v();
         assert!(!rv.frame().is_direct());
-        assert!((rv.eval_point(u, v) - torus.eval_point(u, -v)).magnitude() < 1e-11);
+        assert!((rv.point_at(u, v) - torus.point_at(u, -v)).magnitude() < 1e-11);
         assert!((rv.v_reversed_parameter(torus.v_reversed_parameter(v)) - v).abs() < 1e-12);
     }
     assert_eq!(torus.reversed_u().reversed_u(), torus);

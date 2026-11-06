@@ -48,7 +48,7 @@ where
 
     /// The point at parameters `x` on the first surface.
     pub(super) fn point(&self, x: [f64; 4]) -> Point {
-        self.first.eval_point(x[0], x[1])
+        self.first.point_at(x[0], x[1])
     }
 
     /// Newton's method for a point on both surfaces from parameters `x`:
@@ -66,8 +66,8 @@ where
     ) -> Option<[f64; 4]> {
         let (a, b) = (self.first, self.second);
         let residual = |x: [f64; 4]| {
-            let pa = a.eval_point(x[0], x[1]);
-            let f = pa - b.eval_point(x[2], x[3]);
+            let pa = a.point_at(x[0], x[1]);
+            let f = pa - b.point_at(x[2], x[3]);
             let r = plane.map_or(0.0, |(origin, normal)| (pa - origin).dot(normal));
             (f, r, f.dot(f) + r * r)
         };
@@ -77,8 +77,8 @@ where
             if f.magnitude() <= 0.1 * tol.confusion && r.abs() <= 0.1 * tol.confusion {
                 return Some(x);
             }
-            let (_, [au, av]) = a.eval_d1(x[0], x[1]);
-            let (_, [bu, bv]) = b.eval_d1(x[2], x[3]);
+            let (_, [au, av]) = a.first_derivatives(x[0], x[1]);
+            let (_, [bu, bv]) = b.first_derivatives(x[2], x[3]);
             let cols = [au, av, -bu, -bv];
             let delta = match plane {
                 Some((_, normal)) => {
@@ -133,8 +133,8 @@ where
     ) -> Option<[f64; 4]> {
         let (a, b) = (self.first, self.second);
         let residual = |x: [f64; 4]| {
-            let pa = a.eval_point(x[0], x[1]);
-            let f = pa - b.eval_point(x[2], x[3]);
+            let pa = a.point_at(x[0], x[1]);
+            let f = pa - b.point_at(x[2], x[3]);
             let r = (pa - origin).dot(normal);
             ([f.x, f.y, f.z, r], f.dot(f) + r * r)
         };
@@ -145,8 +145,8 @@ where
             if merit <= (0.1 * tol.confusion).powi(2) {
                 return Some(x);
             }
-            let (_, [au, av]) = a.eval_d1(x[0], x[1]);
-            let (_, [bu, bv]) = b.eval_d1(x[2], x[3]);
+            let (_, [au, av]) = a.first_derivatives(x[0], x[1]);
+            let (_, [bu, bv]) = b.first_derivatives(x[2], x[3]);
             let cols = [au, av, -bu, -bv];
             let rows = [
                 cols.map(|c| c.x),
@@ -197,7 +197,7 @@ where
     ) -> Option<[f64; 4]> {
         let (a, b) = (self.first, self.second);
         let free: [usize; 3] = std::array::from_fn(|i| if i < pin { i } else { i + 1 });
-        let residual = |x: [f64; 4]| a.eval_point(x[0], x[1]) - b.eval_point(x[2], x[3]);
+        let residual = |x: [f64; 4]| a.point_at(x[0], x[1]) - b.point_at(x[2], x[3]);
         let mut x = self.clamp(x);
         x[pin] = value;
         let mut f = residual(x);
@@ -205,8 +205,8 @@ where
             if f.magnitude() <= 0.1 * tol.confusion {
                 return Some(x);
             }
-            let (_, [au, av]) = a.eval_d1(x[0], x[1]);
-            let (_, [bu, bv]) = b.eval_d1(x[2], x[3]);
+            let (_, [au, av]) = a.first_derivatives(x[0], x[1]);
+            let (_, [bu, bv]) = b.first_derivatives(x[2], x[3]);
             let cols = [au, av, -bu, -bv].map(|c| [c.x, c.y, c.z]);
             let m = std::array::from_fn(|r| free.map(|k| cols[k][r]));
             let delta = solve_3x3(m, [-f.x, -f.y, -f.z], 1e-12)?;
@@ -244,6 +244,23 @@ where
         }
     }
 
+    /// Parameters `x` with each periodic one moved by whole periods to the
+    /// nearest of `near`: where a trace closes a loop, its seed's
+    /// parameters continued from the last point.
+    pub(super) fn nearest_turn(&self, x: [f64; 4], near: [f64; 4]) -> [f64; 4] {
+        std::array::from_fn(|k| {
+            let s: &dyn ParametricSurface = if k < 2 { self.first } else { self.second };
+            let period = if k.is_multiple_of(2) {
+                s.u_period()
+            } else {
+                s.v_period()
+            };
+            period.map_or(x[k], |period| {
+                x[k] + ((near[k] - x[k]) / period).round() * period
+            })
+        })
+    }
+
     /// Parameters `x` with each non-periodic one clamped into its bounds.
     pub(super) fn clamp(&self, x: [f64; 4]) -> [f64; 4] {
         std::array::from_fn(|k| self.bounds(k).map_or(x[k], |(lo, hi)| x[k].clamp(lo, hi)))
@@ -275,14 +292,26 @@ where
     /// Parameters `x` moved to first order by the displacement `d` on both
     /// surfaces (unchanged on a surface whose tangent plane degenerates).
     pub(super) fn predict(&self, x: [f64; 4], d: Vector) -> [f64; 4] {
-        let shift = |s: &dyn ParametricSurface, u: f64, v: f64| {
-            let (_, [su, sv]) = s.eval_d1(u, v);
-            let m = [[su.dot(su), su.dot(sv)], [su.dot(sv), sv.dot(sv)]];
-            solve_2x2(m, [su.dot(d), sv.dot(d)], 1e-12).unwrap_or([0.0, 0.0])
-        };
-        let [du1, dv1] = shift(self.first, x[0], x[1]);
-        let [du2, dv2] = shift(self.second, x[2], x[3]);
+        let [first, second] = self.parameter_shifts(x, d);
+        let [du1, dv1] = first.unwrap_or([0.0, 0.0]);
+        let [du2, dv2] = second.unwrap_or([0.0, 0.0]);
         [x[0] + du1, x[1] + dv1, x[2] + du2, x[3] + dv2]
+    }
+
+    /// The change of parameters on each surface that moves its point at
+    /// `x` by `d` to first order: the least-squares solution through the
+    /// surface's partial derivatives, `None` on a surface whose tangent
+    /// plane degenerates there.
+    pub(super) fn parameter_shifts(&self, x: [f64; 4], d: Vector) -> [Option<[f64; 2]>; 2] {
+        let shift = |s: &dyn ParametricSurface, u: f64, v: f64| {
+            let (_, [su, sv]) = s.first_derivatives(u, v);
+            let m = [[su.dot(su), su.dot(sv)], [su.dot(sv), sv.dot(sv)]];
+            solve_2x2(m, [su.dot(d), sv.dot(d)], 1e-12)
+        };
+        [
+            shift(self.first, x[0], x[1]),
+            shift(self.second, x[2], x[3]),
+        ]
     }
 
     /// Unit tangent `N1 x N2` of the intersection at parameters `x`, or
@@ -309,8 +338,8 @@ where
         x: [f64; 4],
         tol: Tolerance,
     ) -> Option<([[f64; 3]; 2], (Vector, Vector), (Vector, Vector))> {
-        let (_, [au, av], a2) = self.first.eval_d2(x[0], x[1]);
-        let (_, [bu, bv], b2) = self.second.eval_d2(x[2], x[3]);
+        let (_, [au, av], a2) = self.first.second_derivatives(x[0], x[1]);
+        let (_, [bu, bv], b2) = self.second.second_derivatives(x[2], x[3]);
         let na = unit_normal(self.first, au, av, tol)?;
         let mut nb = unit_normal(self.second, bu, bv, tol)?;
         if na.dot(nb) < 0.0 {
@@ -544,7 +573,7 @@ where
     let (u0, u1) = seed_window(surface, other, 0, tol);
     let (v0, v1) = seed_window(surface, other, 1, tol);
     let corners = [(u0, v0), (u1, v0), (u0, v1), (u1, v1)];
-    BoundingBox::from_points(corners.into_iter().map(|(u, v)| surface.eval_point(u, v)))
+    BoundingBox::from_points(corners.into_iter().map(|(u, v)| surface.point_at(u, v)))
         .map_or(0.0, |bounds| bounds.diagonal().magnitude())
 }
 

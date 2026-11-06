@@ -62,9 +62,9 @@ impl std::error::Error for CircleConstructionError {}
 /// use geomcore::prelude::*;
 /// use geomcore::{Circle, Circle2D, Point, Point2D, Vector};
 /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
-/// assert_eq!(circle.eval_point(0.0), Point::new(2.0, 0.0, 0.0));
+/// assert_eq!(circle.point_at(0.0), Point::new(2.0, 0.0, 0.0));
 /// let circle_2d = Circle2D::new(Point2D::ORIGIN, 2.0).unwrap();
-/// assert_eq!(circle_2d.eval_point(0.0), Point2D::new(2.0, 0.0));
+/// assert_eq!(circle_2d.point_at(0.0), Point2D::new(2.0, 0.0));
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct GenericCircle<P: TierPoint> {
@@ -83,7 +83,7 @@ pub struct GenericCircle<P: TierPoint> {
 /// use geomcore::prelude::*;
 /// use geomcore::{Circle, Point, Vector};
 /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
-/// assert_eq!(circle.eval_point(0.0), Point::new(2.0, 0.0, 0.0));
+/// assert_eq!(circle.point_at(0.0), Point::new(2.0, 0.0, 0.0));
 /// ```
 pub type Circle = GenericCircle<Point>;
 
@@ -98,7 +98,7 @@ pub type Circle = GenericCircle<Point>;
 /// use geomcore::prelude::*;
 /// use geomcore::{Circle2D, Point2D};
 /// let circle = Circle2D::new(Point2D::ORIGIN, 2.0).unwrap();
-/// assert_eq!(circle.eval_point(0.0), Point2D::new(2.0, 0.0));
+/// assert_eq!(circle.point_at(0.0), Point2D::new(2.0, 0.0));
 /// ```
 pub type Circle2D = GenericCircle<Point2D>;
 
@@ -179,7 +179,7 @@ impl<P: TierPoint> GenericCircle<P> {
         elementary::seam_wrapped(u, 0.0, TAU, self.radius, tol.confusion)
     }
 
-    /// Circumference (`2*PI*radius`).
+    /// The length of the circle, its circumference (`2*PI*radius`).
     ///
     /// # Examples
     ///
@@ -187,13 +187,13 @@ impl<P: TierPoint> GenericCircle<P> {
     /// use geomcore::{Circle, Point, Vector};
     /// use std::f64::consts::TAU;
     /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
-    /// assert_eq!(circle.circumference(), TAU * 2.0);
+    /// assert_eq!(circle.length(), TAU * 2.0);
     /// ```
-    pub fn circumference(&self) -> f64 {
+    pub fn length(&self) -> f64 {
         TAU * self.radius
     }
 
-    /// Area of the enclosed disk (`PI*radius^2`).
+    /// The area the circle encloses: its disk's (`PI*radius^2`).
     ///
     /// # Examples
     ///
@@ -201,9 +201,9 @@ impl<P: TierPoint> GenericCircle<P> {
     /// use geomcore::{Circle, Point, Vector};
     /// use std::f64::consts::PI;
     /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
-    /// assert!((circle.disk_area() - PI * 4.0).abs() < 1e-12);
+    /// assert!((circle.enclosed_area() - PI * 4.0).abs() < 1e-12);
     /// ```
-    pub fn disk_area(&self) -> f64 {
+    pub fn enclosed_area(&self) -> f64 {
         std::f64::consts::PI * self.radius * self.radius
     }
 }
@@ -380,6 +380,21 @@ impl Circle {
 }
 
 impl Circle2D {
+    /// Whether the circle turns counterclockwise as its parameter grows:
+    /// whether its frame is direct.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Circle2D, Frame2D, Point2D, Vector2D};
+    /// assert!(Circle2D::new(Point2D::ORIGIN, 1.0).unwrap().is_counterclockwise());
+    /// let indirect = Frame2D::new(Point2D::ORIGIN, Vector2D::X, -Vector2D::Y).unwrap();
+    /// assert!(!Circle2D::from_frame(indirect, 1.0).unwrap().is_counterclockwise());
+    /// ```
+    pub fn is_counterclockwise(&self) -> bool {
+        self.frame().is_direct()
+    }
+
     /// Creates a circle from a center and a radius, using a world-aligned
     /// frame (x/y directions matching [`Vector2D::X`]/[`Vector2D::Y`]) at
     /// `center`.
@@ -417,12 +432,12 @@ impl_for_both_tiers! {
 
         fn contains(&self, point: P, tol: Tolerance) -> bool {
             let u = self.parameter_of(point, tol);
-            self.eval_point(u).distance(point) <= tol.confusion
+            self.point_at(u).distance(point) <= tol.confusion
         }
 
         fn project_point(&self, point: P, tol: Tolerance) -> CurveProjection<P> {
             let u = self.parameter_of(point, tol);
-            let foot = self.eval_point(u);
+            let foot = self.point_at(u);
             let distance = foot.distance(point);
             CurveProjection {
                 point: foot,
@@ -436,13 +451,13 @@ impl_for_both_tiers! {
 impl_for_both_tiers! {
     impl ParametricCurve, ParametricCurve2D for GenericCircle {
         #[inline]
-        fn eval_point(&self, u: f64) -> P {
+        fn point_at(&self, u: f64) -> P {
             elementary::circle_d0(&self.frame, self.radius, u)
         }
 
-        fn eval_derivative(&self, u: f64, order: u32) -> V {
+        fn derivative(&self, u: f64, order: u32) -> V {
             match order {
-                0 => panic!("eval_derivative: order must be >= 1 (use eval_point for order 0)"),
+                0 => panic!("derivative: order must be >= 1 (use point_at for order 0)"),
                 _ => elementary::circle_dn(&self.frame, self.radius, u, order),
             }
         }

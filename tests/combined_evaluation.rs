@@ -1,4 +1,4 @@
-//! `eval_d1` and `eval_d2` return what `eval_point` and `eval_derivative`
+//! `first_derivatives` and `second_derivatives` return what `point_at` and `derivative`
 //! return one at a time, on every curve and surface type and through the
 //! run-time enums, trimmed curves and references.
 
@@ -24,15 +24,15 @@ fn assert_close(a: Vector, b: Vector, what: &str) {
 
 fn assert_curve<C: ParametricCurve>(curve: &C, params: &[f64]) {
     for &u in params {
-        let p = curve.eval_point(u) - Point::ORIGIN;
-        let (d1, d2) = (curve.eval_derivative(u, 1), curve.eval_derivative(u, 2));
-        let (p1, c1) = curve.eval_d1(u);
-        assert_close(p1 - Point::ORIGIN, p, "eval_d1 point");
-        assert_close(c1, d1, "eval_d1 first derivative");
-        let (p2, c1, c2) = curve.eval_d2(u);
-        assert_close(p2 - Point::ORIGIN, p, "eval_d2 point");
-        assert_close(c1, d1, "eval_d2 first derivative");
-        assert_close(c2, d2, "eval_d2 second derivative");
+        let p = curve.point_at(u) - Point::ORIGIN;
+        let (d1, d2) = (curve.derivative(u, 1), curve.derivative(u, 2));
+        let (p1, c1) = curve.first_derivatives(u);
+        assert_close(p1 - Point::ORIGIN, p, "first_derivatives point");
+        assert_close(c1, d1, "first_derivatives first derivative");
+        let (p2, c1, c2) = curve.second_derivatives(u);
+        assert_close(p2 - Point::ORIGIN, p, "second_derivatives point");
+        assert_close(c1, d1, "second_derivatives first derivative");
+        assert_close(c2, d2, "second_derivatives second derivative");
     }
 }
 
@@ -41,33 +41,33 @@ fn assert_curve_2d<C: ParametricCurve2D>(curve: &C, params: &[f64]) {
         assert_close(Vector::new(a.x, a.y, 0.0), Vector::new(b.x, b.y, 0.0), what)
     };
     for &u in params {
-        let p = curve.eval_point(u) - Point2D::ORIGIN;
-        let (d1, d2) = (curve.eval_derivative(u, 1), curve.eval_derivative(u, 2));
-        let (p1, c1) = curve.eval_d1(u);
-        close(p1 - Point2D::ORIGIN, p, "eval_d1 point");
-        close(c1, d1, "eval_d1 first derivative");
-        let (p2, c1, c2) = curve.eval_d2(u);
-        close(p2 - Point2D::ORIGIN, p, "eval_d2 point");
-        close(c1, d1, "eval_d2 first derivative");
-        close(c2, d2, "eval_d2 second derivative");
+        let p = curve.point_at(u) - Point2D::ORIGIN;
+        let (d1, d2) = (curve.derivative(u, 1), curve.derivative(u, 2));
+        let (p1, c1) = curve.first_derivatives(u);
+        close(p1 - Point2D::ORIGIN, p, "first_derivatives point");
+        close(c1, d1, "first_derivatives first derivative");
+        let (p2, c1, c2) = curve.second_derivatives(u);
+        close(p2 - Point2D::ORIGIN, p, "second_derivatives point");
+        close(c1, d1, "second_derivatives first derivative");
+        close(c2, d2, "second_derivatives second derivative");
     }
 }
 
 fn assert_surface<S: ParametricSurface>(surface: &S, params: &[(f64, f64)]) {
     for &(u, v) in params {
-        let p = surface.eval_point(u, v) - Point::ORIGIN;
-        let d = |du, dv| surface.eval_derivative(u, v, du, dv);
-        let (p1, [su, sv]) = surface.eval_d1(u, v);
-        assert_close(p1 - Point::ORIGIN, p, "eval_d1 point");
-        assert_close(su, d(1, 0), "eval_d1 Su");
-        assert_close(sv, d(0, 1), "eval_d1 Sv");
-        let (p2, [su, sv], [suu, suv, svv]) = surface.eval_d2(u, v);
-        assert_close(p2 - Point::ORIGIN, p, "eval_d2 point");
-        assert_close(su, d(1, 0), "eval_d2 Su");
-        assert_close(sv, d(0, 1), "eval_d2 Sv");
-        assert_close(suu, d(2, 0), "eval_d2 Suu");
-        assert_close(suv, d(1, 1), "eval_d2 Suv");
-        assert_close(svv, d(0, 2), "eval_d2 Svv");
+        let p = surface.point_at(u, v) - Point::ORIGIN;
+        let d = |du, dv| surface.derivative(u, v, du, dv);
+        let (p1, [su, sv]) = surface.first_derivatives(u, v);
+        assert_close(p1 - Point::ORIGIN, p, "first_derivatives point");
+        assert_close(su, d(1, 0), "first_derivatives Su");
+        assert_close(sv, d(0, 1), "first_derivatives Sv");
+        let (p2, [su, sv], [suu, suv, svv]) = surface.second_derivatives(u, v);
+        assert_close(p2 - Point::ORIGIN, p, "second_derivatives point");
+        assert_close(su, d(1, 0), "second_derivatives Su");
+        assert_close(sv, d(0, 1), "second_derivatives Sv");
+        assert_close(suu, d(2, 0), "second_derivatives Suu");
+        assert_close(suv, d(1, 1), "second_derivatives Suv");
+        assert_close(svv, d(0, 2), "second_derivatives Svv");
     }
 }
 

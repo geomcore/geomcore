@@ -60,7 +60,7 @@ impl std::error::Error for TorusConstructionError {}
 /// use geomcore::prelude::*;
 /// use geomcore::{Point, Torus, Vector};
 /// let torus = Torus::new(Point::ORIGIN, Vector::Z, 5.0, 1.5).unwrap();
-/// assert_eq!(torus.eval_point(0.0, 0.0), Point::new(6.5, 0.0, 0.0));
+/// assert_eq!(torus.point_at(0.0, 0.0), Point::new(6.5, 0.0, 0.0));
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Torus {
@@ -205,8 +205,8 @@ impl Torus {
 
     /// The `u` isoparametric circle at `u`: the meridian, a section of the
     /// tube of the minor radius centred `major_radius` from the center in
-    /// the half-plane at angle `u`, so `u_iso(u).eval_point(t)` is
-    /// `eval_point(u, t)` for every `t`.
+    /// the half-plane at angle `u`, so `u_iso(u).point_at(t)` is
+    /// `point_at(u, t)` for every `t`.
     /// The axis-aligned special case of
     /// [`uv_curve_to_3d`](crate::ParametricSurface::uv_curve_to_3d):
     /// a line along `v`, run at rate `1` from `0`.
@@ -237,7 +237,7 @@ impl Torus {
 
     /// The `v` isoparametric circle at `v`: the parallel of radius
     /// `|major + minor * cos(v)|` at height `minor * sin(v)` along the
-    /// axis, so `v_iso(v).eval_point(t)` is `eval_point(t, v)` for every
+    /// axis, so `v_iso(v).point_at(t)` is `point_at(t, v)` for every
     /// `t`. Where a horn or spindle torus pinches on its axis it is the
     /// circle of radius zero.
     /// The axis-aligned special case of
@@ -270,13 +270,13 @@ impl Torus {
 
 impl ParametricSurface for Torus {
     #[inline]
-    fn eval_point(&self, u: f64, v: f64) -> Point {
+    fn point_at(&self, u: f64, v: f64) -> Point {
         elementary::torus_d0(&self.frame, self.major_radius, self.minor_radius, u, v)
     }
 
     fn project_point(&self, point: Point, tol: Tolerance) -> SurfaceProjection {
         let (u, v) = self.parameters_of(point, tol);
-        let foot = self.eval_point(u, v);
+        let foot = self.point_at(u, v);
         let distance = foot.distance(point);
         SurfaceProjection {
             u,
@@ -288,14 +288,12 @@ impl ParametricSurface for Torus {
 
     fn contains(&self, point: Point, tol: Tolerance) -> bool {
         let (u, v) = self.parameters_of(point, tol);
-        self.eval_point(u, v).distance(point) <= tol.confusion
+        self.point_at(u, v).distance(point) <= tol.confusion
     }
 
-    fn eval_derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> Vector {
+    fn derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> Vector {
         match du + dv {
-            0 => panic!(
-                "eval_derivative: du + dv must be >= 1 (use eval_point for the (0, 0) order)"
-            ),
+            0 => panic!("derivative: du + dv must be >= 1 (use point_at for the (0, 0) order)"),
             _ => elementary::torus_derivative(
                 &self.frame,
                 self.major_radius,
@@ -353,7 +351,7 @@ impl ReversibleSurface for Torus {
     /// Returns the torus running in the opposite angular direction: the
     /// same point set with the frame's y direction negated, so the frame
     /// turns indirect and the normal reverses.
-    /// `reversed_u().eval_point(u, v)` is `eval_point(-u, v)`.
+    /// `reversed_u().point_at(u, v)` is `point_at(-u, v)`.
     fn reversed_u(&self) -> Torus {
         Torus {
             frame: self.frame.flipped_y(),
@@ -364,7 +362,7 @@ impl ReversibleSurface for Torus {
 
     /// Returns the torus running in the opposite tube direction: the same
     /// point set with the frame's z direction negated.
-    /// `reversed_v().eval_point(u, v)` is `eval_point(u, -v)`.
+    /// `reversed_v().point_at(u, v)` is `point_at(u, -v)`.
     fn reversed_v(&self) -> Torus {
         Torus {
             frame: self.frame.flipped_z(),

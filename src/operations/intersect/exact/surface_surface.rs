@@ -119,14 +119,21 @@ pub enum SphereConeIntersection {
 
 /// Result of intersecting two cylinders.
 ///
-/// The closed form requires parallel axes (within `tol.angular`);
-/// skew or crossing axes give a space quartic and report
+/// The closed form requires parallel axes (within `tol.angular`), or
+/// equal radii and axes that meet (within `tol.confusion`); other skew or
+/// crossing axes give a space quartic and report
 /// [`CylinderCylinderIntersection::NotAnalytic`], reserved for the
 /// numeric surface-surface path.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum CylinderCylinderIntersection {
     /// Two shared generators.
     TwoLines(Line, Line),
+    /// Two ellipses, for equal radii and axes that meet: one in each plane
+    /// through the meeting point that bisects the axes, the first across
+    /// the sum of the axis directions. Each ellipse's minor axis is across
+    /// both axes, and the two cross at its ends, `point_at(π/2)` and
+    /// `point_at(3π/2)`, where the cylinders touch.
+    TwoEllipses(Ellipse, Ellipse),
     /// One shared grazing generator.
     TangentLine(Line),
     /// Separate, nested without contact, or concentric with different radii.
@@ -308,8 +315,8 @@ impl IntersectExact<Plane> for Plane {
     /// }
     /// ```
     fn intersect_exact(&self, other: &Plane, tol: Tolerance) -> PlanePlaneIntersection {
-        let n1 = self.normal();
-        let n2 = other.normal();
+        let n1 = self.normal_direction();
+        let n2 = other.normal_direction();
         let d = n1.cross(n2);
         let sin = d.magnitude();
         if sin <= tol.angular {
@@ -383,7 +390,7 @@ impl IntersectExact<Sphere> for Plane {
     /// }
     /// ```
     fn intersect_exact(&self, sphere: &Sphere, tol: Tolerance) -> PlaneSphereIntersection {
-        let n = self.normal();
+        let n = self.normal_direction();
         let h = n.dot(sphere.center() - self.frame().origin());
         let h_abs = h.abs();
         let r = sphere.radius();
@@ -432,7 +439,7 @@ impl IntersectExact<Cylinder> for Plane {
     /// }
     /// ```
     fn intersect_exact(&self, cylinder: &Cylinder, tol: Tolerance) -> PlaneCylinderIntersection {
-        let n = self.normal();
+        let n = self.normal_direction();
         let a = cylinder.axis().direction();
         let r = cylinder.radius();
         let s = n.dot(a);
@@ -517,7 +524,7 @@ impl IntersectExact<Cone> for Plane {
     /// }
     /// ```
     fn intersect_exact(&self, cone: &Cone, tol: Tolerance) -> PlaneConeIntersection {
-        let n = self.normal();
+        let n = self.normal_direction();
         let a = cone.frame().z_direction();
         // The double cone about `a` with half-angle |half_angle|.
         let phi = cone.half_angle().abs();
@@ -625,8 +632,13 @@ impl IntersectExact<Cylinder> for Cylinder {
     /// follow the planar two-circle logic, positioned by the radical
     /// formula `s = (r1^2 - r2^2 + d^2) / (2d)`. Coaxial cylinders of
     /// equal radius coincide; concentric ones of different radii miss.
-    /// Skew or crossing axes give a space quartic and report
-    /// [`CylinderCylinderIntersection::NotAnalytic`].
+    ///
+    /// Equal radii whose axes meet at a point `O` (the "tee" of two equal
+    /// pipes) give two ellipses: a point on both is as far from either
+    /// axis, so `(X − O)·a1 = ±(X − O)·a2`, two planes through `O`, and each
+    /// cuts the cylinders in one ellipse of minor radius `r` across both
+    /// axes. Any other skew or crossing axes give a space quartic and
+    /// report [`CylinderCylinderIntersection::NotAnalytic`].
     ///
     /// # Examples
     ///
@@ -650,7 +662,8 @@ impl IntersectExact<Cylinder> for Cylinder {
             .magnitude()
             > tol.angular
         {
-            return CylinderCylinderIntersection::NotAnalytic;
+            return crossing_equal_cylinders(self, other, tol)
+                .unwrap_or(CylinderCylinderIntersection::NotAnalytic);
         }
         let w = other.axis().origin() - self.axis().origin();
         let m = w - a1 * w.dot(a1);
@@ -683,6 +696,48 @@ impl IntersectExact<Cylinder> for Cylinder {
             )
         }
     }
+}
+
+/// The two ellipses of two cylinders of equal radius whose axes, not
+/// parallel, meet; `None` when the radii differ or the axes miss by more
+/// than `tol.confusion`. The ellipses are centred on the middle of the
+/// axes' closest points, at the mean radius, so they are as close to
+/// both cylinders.
+fn crossing_equal_cylinders(
+    first: &Cylinder,
+    second: &Cylinder,
+    tol: Tolerance,
+) -> Option<CylinderCylinderIntersection> {
+    let (r1, r2) = (first.radius(), second.radius());
+    if (r1 - r2).abs() > tol.confusion {
+        return None;
+    }
+    let (a1, a2) = (first.axis().direction(), second.axis().direction());
+    let (p1, p2) = (first.axis().origin(), second.axis().origin());
+    // The closest points p1 + s a1 and p2 + t a2 of the two axes.
+    let w = p1 - p2;
+    let c = a1.dot(a2);
+    let (d, e) = (a1.dot(w), a2.dot(w));
+    let denominator = 1.0 - c * c;
+    let s = (c * e - d) / denominator;
+    let t = (e - c * d) / denominator;
+    let (q1, q2) = (p1 + a1 * s, p2 + a2 * t);
+    if q1.distance(q2) > tol.confusion {
+        return None;
+    }
+    let center = q1 + (q2 - q1) * 0.5;
+    let radius = 0.5 * (r1 + r2);
+    // The plane normal to `normal` holds the ellipse whose major axis is
+    // along `major`, as far from the axis `a1` as `radius`.
+    let ellipse = |major: Vector, normal: Vector| {
+        let major = major.normalized()?;
+        let major_radius = (radius / major.cross(a1).magnitude()).max(radius);
+        Ellipse::new(center, normal, major, major_radius, radius).ok()
+    };
+    Some(CylinderCylinderIntersection::TwoEllipses(
+        ellipse(a1 + a2, a1 - a2)?,
+        ellipse(a1 - a2, a1 + a2)?,
+    ))
 }
 
 impl IntersectExact<Cone> for Cone {
@@ -1012,7 +1067,7 @@ impl IntersectExact<Plane> for Torus {
         if !torus_is_analytic(self, tol) {
             return TorusPlaneIntersection::NotAnalytic;
         }
-        let n = plane.normal();
+        let n = plane.normal_direction();
         let a = self.frame().z_direction();
         let o = self.center();
         let s = n.dot(a);

@@ -34,27 +34,27 @@ fn assert_extrema<A: ParametricCurve, B: ParametricCurve>(a: &A, b: &B) -> Vec<C
     for e in &found {
         let (s, t) = (e.first_parameter, e.second_parameter);
         assert!((a0..=a1).contains(&s) && (b0..=b1).contains(&t), "{e:?}");
-        assert!((a.eval_point(s).distance(b.eval_point(t)) - e.distance).abs() < 1e-12);
+        assert!((a.point_at(s).distance(b.point_at(t)) - e.distance).abs() < 1e-12);
         for (ds, dt) in [(1.0, 0.0), (0.0, 1.0), (1.0, 1.0), (1.0, -1.0)] {
             for h in [-1e-4, 1e-4] {
                 let s = (s + h * ds).clamp(a0, a1);
                 let t = (t + h * dt).clamp(b0, b1);
-                let d = a.eval_point(s).distance(b.eval_point(t));
+                let d = a.point_at(s).distance(b.point_at(t));
                 assert!(d >= e.distance - 1e-12, "{e:?} not a minimum");
             }
         }
     }
     for want in sampled_curve_curve_extrema(a, b, TOL).into_minima() {
         let (pa, pb) = (
-            a.eval_point(want.first_parameter),
-            b.eval_point(want.second_parameter),
+            a.point_at(want.first_parameter),
+            b.point_at(want.second_parameter),
         );
         assert!(
             found
                 .iter()
                 .any(|e| (e.distance - want.distance).abs() < 1e-9
-                    && a.eval_point(e.first_parameter).distance(pa) < 1e-6
-                    && b.eval_point(e.second_parameter).distance(pb) < 1e-6),
+                    && a.point_at(e.first_parameter).distance(pa) < 1e-6
+                    && b.point_at(e.second_parameter).distance(pb) < 1e-6),
             "{want:?} missing from {found:#?}"
         );
     }
@@ -65,7 +65,7 @@ fn assert_extrema<A: ParametricCurve, B: ParametricCurve>(a: &A, b: &B) -> Vec<C
 fn test_extrema_of_segments_and_bspline_curve() {
     let curve = skew();
     let line = Line::new(Point::new(0.0, 0.0, -1.0), Vector::new(1.0, 0.3, 0.2)).unwrap();
-    let far = Line::new(line.eval_point(-5e3), line.direction()).unwrap();
+    let far = Line::new(line.point_at(-5e3), line.direction()).unwrap();
     let segment = TrimmedCurve::new(line, -3.0, 3.0).unwrap();
     assert_extrema(&curve, &segment);
     let near = assert_extrema(&segment, &curve);

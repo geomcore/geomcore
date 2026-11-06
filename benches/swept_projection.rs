@@ -41,7 +41,7 @@ fn points_near(
             let u = u0 + (u1 - u0) * 0.5 * (1.0 + jitter(i, 1));
             let v = v0 + (v1 - v0) * 0.5 * (1.0 + jitter(i, 2));
             let offset = Vector::new(jitter(i, 3), jitter(i, 4), jitter(i, 5));
-            surface.eval_point(u, v) + offset * spread
+            surface.point_at(u, v) + offset * spread
         })
         .collect()
 }
