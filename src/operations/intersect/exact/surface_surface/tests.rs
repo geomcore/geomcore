@@ -1214,6 +1214,25 @@ fn assert_common_sphere_result<A, B>(
     A: ParametricSurface + Intersect<B, Output = crate::SurfaceSurfaceIntersection>,
     B: ParametricSurface,
 {
+    let result = assert_exact_curves_on_both(first, second, curves);
+    assert_eq!(result.contact_points().len(), touching);
+    for &p in result.contact_points() {
+        assert!((p.distance(centre) - radius).abs() < 1e-12);
+        assert!(normal_sine(first, second, p) < 1e-9);
+    }
+}
+
+/// The routed result is exact and complete with `curves` curves, each
+/// sampled on both surfaces, their normals parallel along a tangent one.
+fn assert_exact_curves_on_both<A, B>(
+    first: &A,
+    second: &B,
+    curves: usize,
+) -> crate::SurfaceSurfaceIntersection
+where
+    A: ParametricSurface + Intersect<B, Output = crate::SurfaceSurfaceIntersection>,
+    B: ParametricSurface,
+{
     let tol = Tolerance::DEFAULT;
     let result = first.intersect(second, tol);
     assert_eq!(result.method(), IntersectionMethod::Exact);
@@ -1240,11 +1259,7 @@ fn assert_common_sphere_result<A, B>(
             }
         }
     }
-    assert_eq!(result.contact_points().len(), touching);
-    for &p in result.contact_points() {
-        assert!((p.distance(centre) - radius).abs() < 1e-12);
-        assert!(normal_sine(first, second, p) < 1e-9);
-    }
+    result
 }
 
 /// The sine of the angle between the normals of two surfaces at `p`.
@@ -1406,4 +1421,54 @@ fn test_surfaces_around_spheres_that_differ_are_not_conics() {
         missing.intersect_exact(&cylinder, tol),
         ConeCylinderIntersection::NotAnalytic
     );
+}
+
+#[test]
+fn test_parallel_cones_with_equal_half_angles_meet_in_one_plane_conic() {
+    // The second cone is the first moved by `across * p + axis * h`, its
+    // axis either way: a hyperbola when the apex lands outside the first
+    // cone (`p > tan φ |h|`), an ellipse inside, and the line through both
+    // apexes, along which they touch, on it.
+    let tol = Tolerance::DEFAULT;
+    let axis = Vector::new(0.3, -0.5, 0.8).normalized().unwrap();
+    let across = axis.cross(Vector::X).normalized().unwrap();
+    let apex = Point::new(0.5, 1.0, -2.0);
+    for phi in [20f64, 45.0, 70.0] {
+        let phi = phi.to_radians();
+        let first = cone_at(apex, axis, phi, 1.0);
+        for (p, h, expected) in [
+            (1.5, 0.0, "hyperbola"),
+            (1.0, 0.1, "hyperbola"),
+            (2.0, -0.3, "hyperbola"),
+            (0.2, 2.0, "ellipse"),
+            (0.1, -1.5, "ellipse"),
+            (phi.tan(), 1.0, "tangent line"),
+            (2.0 * phi.tan(), -2.0, "tangent line"),
+        ] {
+            for direction in [1.0, -1.0] {
+                let moved = apex + across * p + axis * h;
+                let second = cone_at(moved, axis * direction, phi, 0.7);
+                let ConeConeIntersection::ParallelSection(section) =
+                    first.intersect_exact(&second, tol)
+                else {
+                    panic!("φ {phi}, p {p}, h {h}: not a parallel section");
+                };
+                let (kind, curves) = match section {
+                    PlaneConeIntersection::Hyperbola(..) => ("hyperbola", 2),
+                    PlaneConeIntersection::Ellipse(_) => ("ellipse", 1),
+                    PlaneConeIntersection::TangentLine(_) => ("tangent line", 1),
+                    other => panic!("φ {phi}, p {p}, h {h}: {other:?}"),
+                };
+                assert_eq!(kind, expected, "φ {phi}, p {p}, h {h}");
+                assert_exact_curves_on_both(&first, &second, curves);
+                assert_exact_curves_on_both(&second, &first, curves);
+            }
+        }
+        // Unequal half-angles: a space quartic.
+        let wider = cone_at(apex + across * 1.5, axis, phi + 0.05, 1.0);
+        assert_eq!(
+            first.intersect_exact(&wider, tol),
+            ConeConeIntersection::NotAnalytic
+        );
+    }
 }

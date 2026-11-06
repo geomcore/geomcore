@@ -668,6 +668,19 @@ def test_intersect_cone_cone():
     tilted = Cone(Point.origin(), Vector.unit_x(), 0.4, 1.5)
     assert c1.intersect(tilted).method == IntersectionMethod.NUMERIC
 
+    # Parallel axes, equal half-angles: the 90° chamfers of two holes 3
+    # apart meet in one hyperbola, in the plane x = 1.5 halfway between.
+    from geomcore.curves import Hyperbola
+
+    left = Cone(Point.origin(), Vector.unit_z(), math.pi / 4.0, 0.0)
+    right = Cone(Point(3.0, 0.0, 0.0), Vector.unit_z(), math.pi / 4.0, 0.0)
+    chamfers = left.intersect(right)
+    assert chamfers.method == IntersectionMethod.EXACT and chamfers.is_complete()
+    assert [type(piece.curve) for piece in chamfers.curves] == [Hyperbola, Hyperbola]
+    for piece in chamfers.curves:
+        for t in (-1.0, 0.0, 2.0):
+            assert piece.curve.point_at(t).x == pytest.approx(1.5)
+
     # Axes meeting at the origin, both cones as far from it: two conics
     # through the two points where the cones touch the sphere of radius 2·cos 0.4.
     around = Cone(Point.origin(), Vector.unit_x(), 0.4, 2.0)

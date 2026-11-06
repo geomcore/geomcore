@@ -296,18 +296,26 @@ pub enum TorusTorusIntersection {
 
 /// Result of intersecting two cones.
 ///
-/// The closed form needs coaxial axes, one apex, or axes that meet with
-/// both cones touching one sphere centred there: coaxial cones meet in up
-/// to two latitude rings (or apex/coincident degenerates), cones with one
-/// apex but axes apart in up to four lines through it, and cones around
-/// one sphere in two plane conics. Anything else is a space quartic and
-/// reports [`ConeConeIntersection::NotAnalytic`].
+/// The closed form needs coaxial axes, parallel axes with equal
+/// half-angles, one apex, or axes that meet with both cones touching one
+/// sphere centred there: coaxial cones meet in up to two latitude rings
+/// (or apex/coincident degenerates), parallel cones with equal half-angles
+/// in one plane conic, cones with one apex but axes apart in up to four
+/// lines through it, and cones around one sphere in two plane conics.
+/// Anything else is a space quartic and reports
+/// [`ConeConeIntersection::NotAnalytic`].
 #[derive(Debug, Clone, PartialEq)]
 pub enum ConeConeIntersection {
     /// One latitude ring (equal semi-angles, distinct apexes).
     Circle(Circle),
     /// Two latitude rings, ordered along the first cone's axis.
     TwoCircles(Circle, Circle),
+    /// Parallel axes apart and equal half-angles, each cone the other
+    /// moved sideways: the first cone's section by the one plane they meet
+    /// in. A hyperbola when each apex is outside the other cone, an
+    /// ellipse when inside, and the line through both apexes, along which
+    /// the cones touch, when each apex is on the other cone.
+    ParallelSection(PlaneConeIntersection),
     /// One apex, axes apart: one to four lines through it.
     Generators(SharedGenerators),
     /// Axes that meet, both cones touching one sphere centred there: two
@@ -1029,13 +1037,15 @@ impl IntersectExact<Cone> for Cone {
 
     /// Intersects this cone with another cone.
     ///
-    /// The analytic path needs coaxial axes. Along this cone's axis, with
+    /// For coaxial cones, along this cone's axis, with
     /// `alpha` measured from its apex and `d` the other apex's position,
     /// the ring radii `k1*|alpha|` and `k2*|alpha - d|` (`k = |tan(phi)|`)
     /// agree at `alpha = k2*d / (k2 + k1)` and, for unequal angles, at
     /// `alpha = k2*d / (k2 - k1)`: two rings, one (equal angles), or the
     /// shared apex (`d = 0`). Same apex, axis line, and half-angle
-    /// coincide (the axes may point either way). Apexes within
+    /// coincide (the axes may point either way). Parallel axes apart with
+    /// equal half-angles meet in one plane conic: each cone is the other
+    /// moved sideways, so their equations differ by a plane. Apexes within
     /// `tol.confusion` and axes apart meet in the lines through the apex
     /// that lie on both, from the circles their directions trace on a
     /// sphere around it. Axes that meet at a point as far from both cones
@@ -1070,12 +1080,19 @@ impl IntersectExact<Cone> for Cone {
                 });
         }
         let w = other.apex() - self.apex();
-        if (w - a1 * w.dot(a1)).magnitude() > tol.confusion {
-            return ConeConeIntersection::NotAnalytic;
-        }
-        let d = w.dot(a1);
         let (phi1, phi2) = (self.semi_angle().abs(), other.semi_angle().abs());
         let same_angle = (phi1 - phi2).abs() <= tol.angular;
+        if (w - a1 * w.dot(a1)).magnitude() > tol.confusion {
+            return if same_angle {
+                parallel_cones_section(self, other, tol).map_or(
+                    ConeConeIntersection::NotAnalytic,
+                    ConeConeIntersection::ParallelSection,
+                )
+            } else {
+                ConeConeIntersection::NotAnalytic
+            };
+        }
+        let d = w.dot(a1);
         if d.abs() <= tol.confusion {
             return if same_angle {
                 ConeConeIntersection::Coincident
@@ -1102,6 +1119,31 @@ impl IntersectExact<Cone> for Cone {
         };
         ConeConeIntersection::TwoCircles(ring(first), ring(second))
     }
+}
+
+/// The plane section where two cones with parallel axes apart and equal
+/// half-angles meet.
+///
+/// With `y = x − V`, each cone is `|y|² − sec² φ (y·a)² = 0`, the same
+/// equation for both (`−a` gives the same double cone). Around the
+/// midpoint of the apexes, with `w = V₁ − V₂`, the difference of the two is
+/// `−2 y·(w − sec² φ (w·a) a) = 0`: the squared terms cancel and leave a
+/// plane, on which both cones have the same equation. The whole
+/// intersection is then the plane's section of either cone. The normal
+/// `w⊥ − tan² φ (w·a) a` vanishes only for coaxial cones, which the caller
+/// has ruled out.
+fn parallel_cones_section(
+    first: &Cone,
+    second: &Cone,
+    tol: Tolerance,
+) -> Option<PlaneConeIntersection> {
+    let axis = first.frame().z_direction();
+    let apart = first.apex() - second.apex();
+    let tangent = first.semi_angle().tan();
+    let normal = apart - axis * (apart.dot(axis) * (1.0 + tangent * tangent));
+    let midpoint = second.apex() + apart * 0.5;
+    let plane = Plane::new(midpoint, normal).ok()?;
+    Some(plane.intersect_exact(first, tol))
 }
 
 /// The lines through the shared apex of two cones whose axes are apart.

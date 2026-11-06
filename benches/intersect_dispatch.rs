@@ -145,6 +145,26 @@ fn bench_intersect_dispatch(c: &mut Criterion) {
         Surface
     );
 
+    // The 90° chamfers of two neighbouring parallel holes: one hyperbola.
+    let parallel_cones: Vec<(Cone, Cone)> = (0..BATCH)
+        .map(|i| {
+            let half_angle = 45f64.to_radians();
+            let next = Point::new(3.0 + 0.5 * jitter(i, 11), 0.0, 0.2 * jitter(i, 12));
+            let first = Cone::new(Point::ORIGIN, Vector::Z, half_angle, 0.0);
+            let second = Cone::new(next, Vector::Z, half_angle, 0.0);
+            (first.unwrap(), second.unwrap())
+        })
+        .collect();
+    bench_pair!(
+        c,
+        "parallel_cones",
+        parallel_cones,
+        ElementarySurface,
+        ElementarySurface,
+        Surface,
+        Surface
+    );
+
     // A cone and a cylinder touching one sphere, the cone's axis 40°–80°
     // from the cylinder's: the two ellipses of a reducer.
     let reducer: Vec<(Cone, Cylinder)> = (0..BATCH)
