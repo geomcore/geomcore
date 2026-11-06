@@ -108,6 +108,10 @@ _Avoid_: exact routes, analytic pairs
 The quartic where a cylinder or a cone meets another quadric away from the configurations that split it into conics and lines: two cylinders whose axes cross (the bicylindric curve), or a sphere and a cylinder or a cone whose axis misses its centre. One or two closed loops, read along the generators of the cylinder or cone: each loop runs around it, over an arc of its generators, twice around through the point where the surfaces touch and the loop crosses itself, or through the apex of a cone that lies on the sphere. Its closed form gives each point exactly; `intersect` fits it within confusion and reports it exact (ADR 0036).
 _Avoid_: bicylindric curve for anything but two cylinders, Steinmetz curve (the case of equal radii and meeting axes only)
 
+**Common sphere conics**:
+The two plane conics where a cone and a cylinder, or two cones, meet when their axes meet at a point as far from both surfaces, so that both touch one sphere centred there (Monge's theorem on quadrics sharing an inscribed sphere). Each conic is a plane section of either surface; the planes share the line through the points where the surfaces touch along the sphere, two of them, one or none.
+_Avoid_: reducer curves (one application), degenerate quartic
+
 **Shared generator**:
 A line through the common apex of two cones with axes apart that lies on both. There are up to four: on the unit sphere around the apex, each cone's directions are two circles, and each line is where they meet. The cones touch along a line where their circles touch, and cross along the others.
 _Avoid_: common ruling

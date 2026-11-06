@@ -23,12 +23,12 @@ pub use exact::curve_surface::{
 };
 pub use exact::quartic::QuarticCurve;
 pub use exact::surface_surface::{
-    ConeConeIntersection, ConeCylinderIntersection, CylinderCylinderIntersection, LatitudeRing,
-    PlaneConeIntersection, PlaneCylinderIntersection, PlanePlaneIntersection,
-    PlaneSphereIntersection, SharedGenerator, SharedGenerators, SphereConeIntersection,
-    SphereCylinderIntersection, SphereSphereIntersection, TorusConeIntersection,
-    TorusCylinderIntersection, TorusPlaneIntersection, TorusSphereIntersection,
-    TorusTorusIntersection,
+    CommonSphereConics, ConeConeIntersection, ConeCylinderIntersection,
+    CylinderCylinderIntersection, LatitudeRing, PlaneConeIntersection, PlaneCylinderIntersection,
+    PlanePlaneIntersection, PlaneSphereIntersection, SharedGenerator, SharedGenerators,
+    SphereConeIntersection, SphereCylinderIntersection, SphereSphereIntersection,
+    TorusConeIntersection, TorusCylinderIntersection, TorusPlaneIntersection,
+    TorusSphereIntersection, TorusTorusIntersection,
 };
 pub use numeric::curve_curve::intersect_curve_curve;
 pub use numeric::curve_surface::intersect_curve_surface;

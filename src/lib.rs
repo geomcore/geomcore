@@ -194,14 +194,14 @@ pub use operations::discretization::{
 pub use operations::extrema::{CurveCurveExtrema, CurveCurveExtremum, curve_curve_extrema};
 pub use operations::intersect::{
     CircleCircle2DIntersection, CircleCircleIntersection, CircleSurfaceIntersection,
-    ConeConeIntersection, ConeCylinderIntersection, Conic2DIntersection, ConicConicIntersection,
-    ConicSurfaceHit, ConicSurfaceIntersection, CurveCurveHit, CurveSurfaceHit,
-    CylinderCylinderIntersection, LatitudeRing, LineCircle2DIntersection, LineCircleIntersection,
-    LineConicHit, LineConicIntersection, LineLine2DIntersection, LineLineIntersection,
-    LinePlaneIntersection, LineQuadricIntersection, LineTorusHit, LineTorusIntersection,
-    PlaneConeIntersection, PlaneCylinderIntersection, PlanePlaneIntersection,
-    PlaneSphereIntersection, QuarticCurve, SharedGenerator, SharedGenerators,
-    SphereConeIntersection, SphereCylinderIntersection, SphereSphereIntersection,
+    CommonSphereConics, ConeConeIntersection, ConeCylinderIntersection, Conic2DIntersection,
+    ConicConicIntersection, ConicSurfaceHit, ConicSurfaceIntersection, CurveCurveHit,
+    CurveSurfaceHit, CylinderCylinderIntersection, LatitudeRing, LineCircle2DIntersection,
+    LineCircleIntersection, LineConicHit, LineConicIntersection, LineLine2DIntersection,
+    LineLineIntersection, LinePlaneIntersection, LineQuadricIntersection, LineTorusHit,
+    LineTorusIntersection, PlaneConeIntersection, PlaneCylinderIntersection,
+    PlanePlaneIntersection, PlaneSphereIntersection, QuarticCurve, SharedGenerator,
+    SharedGenerators, SphereConeIntersection, SphereCylinderIntersection, SphereSphereIntersection,
     TorusConeIntersection, TorusCylinderIntersection, TorusPlaneIntersection,
     TorusSphereIntersection, TorusTorusIntersection,
 };

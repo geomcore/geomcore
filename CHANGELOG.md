@@ -11,6 +11,18 @@ the Python distribution are versioned in lockstep.
 
 ### Added
 
+- A cone and a cylinder, or two cones, whose axes meet at a point as far
+  from both surfaces, so that both touch one sphere centred there, meet
+  in two plane conics instead of being marched (#236): the ellipses of a
+  reducer, or ellipses, parabolas and hyperbolas between two cones.
+  `intersect`, in Rust and Python, reports them exact and complete,
+  each with its curves in both surfaces' parameters, and the points
+  where the surfaces touch along the sphere in `contact_points`. In Rust,
+  `ConeCylinderIntersection` and `ConeConeIntersection` gain
+  `TwoConics(CommonSphereConics)`, the plane section of the cylinder or
+  of the first cone in each of the two planes. The cone–cone conics are
+  boxed so the result of every other cone pair stays small, so
+  `ConeConeIntersection` is no longer `Copy`.
 - Two cones with one apex but different axes meet in the lines through
   it that lie on both, up to four, instead of being marched, which
   found none of them (#235). `intersect`, in Rust and Python, reports

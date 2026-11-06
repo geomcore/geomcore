@@ -145,6 +145,29 @@ fn bench_intersect_dispatch(c: &mut Criterion) {
         Surface
     );
 
+    // A cone and a cylinder touching one sphere, the cone's axis 40°–80°
+    // from the cylinder's: the two ellipses of a reducer.
+    let reducer: Vec<(Cone, Cylinder)> = (0..BATCH)
+        .map(|i| {
+            let tilt = (60.0 + 20.0 * jitter(i, 10)).to_radians();
+            let axis = Vector::new(tilt.sin(), 0.0, tilt.cos());
+            let half_angle = 30f64.to_radians();
+            let apex = Point::ORIGIN + axis * (1.0 / half_angle.sin());
+            let cone = Cone::new(apex, axis, half_angle, 0.0);
+            let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 1.0);
+            (cone.unwrap(), cylinder.unwrap())
+        })
+        .collect();
+    bench_pair!(
+        c,
+        "cone_cylinder_around_a_sphere",
+        reducer,
+        ElementarySurface,
+        ElementarySurface,
+        Surface,
+        Surface
+    );
+
     // Random lines against a torus: up to four hits.
     let line_torus: Vec<(Line, Torus)> = (0..BATCH)
         .map(|i| {
