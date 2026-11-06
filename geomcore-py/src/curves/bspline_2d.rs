@@ -13,7 +13,7 @@ use geomcore::{BSplineCurve2D, Point2D};
 pub(crate) struct PyBSplineCurve2D(pub(crate) BSplineCurve2D);
 
 shape_methods! {
-    PyBSplineCurve2D: [curve_2d, discretize_2d, sided_evaluation_2d];
+    PyBSplineCurve2D: [curve_2d, bounded_curve_2d, sided_evaluation_2d];
 
     #[new]
     /// Build a non-rational 2D B-spline curve.
@@ -296,6 +296,12 @@ shape_methods! {
             .into_iter()
             .map(PyBezierCurve2D)
             .collect()
+    }
+
+    /// The curve itself, as the other curves give their exact B-spline
+    /// with `to_bspline()`.
+    fn to_bspline(&self) -> Self {
+        Self(self.0.to_bspline())
     }
 
     /// The piece over `[start, end]` as a clamped, non-periodic B-spline

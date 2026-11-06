@@ -330,6 +330,30 @@ def test_curve_curve_extrema_is_an_object():
     assert arch.extrema(other=rail) == extrema
 
 
+def test_an_extremum_gives_its_two_points_and_the_closest_comes_first():
+    # #192: callers evaluated both curves again to draw the closest approach.
+    arch = BSplineCurve(
+        2,
+        [Point(0.0, 0.0, 0.0), Point(1.0, 2.0, 0.0), Point(2.0, 0.0, 0.0)],
+        [0.0, 1.0],
+        [3, 3],
+        False,
+    )
+    rail = _segment(Point(1.0, 0.0, 1.0), Point(1.0, 2.0, 1.0))
+    closest = arch.extrema(rail).closest()
+    assert closest.first_point.distance(Point(1.0, 1.0, 0.0)) < 1e-9
+    assert closest.second_point.distance(Point(1.0, 1.0, 1.0)) < 1e-9
+    assert closest.first_point == arch.point_at(closest.first_parameter)
+    assert closest.second_point == rail.point_at(closest.second_parameter)
+    assert closest.distance == closest.first_point.distance(closest.second_point)
+    assert "first_point=Point(" in repr(closest)
+    left = TrimmedCurve(Circle(Point.origin(), Vector.unit_z(), 1.0), 0.2, 2.0)
+    right = TrimmedCurve(Circle(Point(3.0, 0.0, 0.0), Vector.unit_z(), 1.0), 2.0, 4.0)
+    extrema = left.extrema(right)
+    assert extrema.closest() == extrema.minima[0]
+    assert [m.distance for m in extrema.minima] == sorted(m.distance for m in extrema.minima)
+
+
 # ------------------------------------------------------- repr and equality
 
 

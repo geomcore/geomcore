@@ -1188,7 +1188,19 @@ impl PyCurveCurveExtremum {
         self.0.second_parameter
     }
 
-    /// The distance between the curves' points at the two parameters.
+    /// The point of the first curve at `first_parameter`.
+    #[getter]
+    fn first_point(&self) -> PyPoint {
+        PyPoint(self.0.first_point)
+    }
+
+    /// The point of the second curve at `second_parameter`.
+    #[getter]
+    fn second_point(&self) -> PyPoint {
+        PyPoint(self.0.second_point)
+    }
+
+    /// The distance between `first_point` and `second_point`.
     #[getter]
     fn distance(&self) -> f64 {
         self.0.distance
@@ -1196,9 +1208,12 @@ impl PyCurveCurveExtremum {
 
     fn __repr__(&self) -> String {
         format!(
-            "CurveCurveExtremum(first_parameter={}, second_parameter={}, distance={})",
+            "CurveCurveExtremum(first_parameter={}, second_parameter={}, first_point={}, \
+             second_point={}, distance={})",
             float_repr(self.0.first_parameter),
             float_repr(self.0.second_parameter),
+            point3_repr(self.0.first_point),
+            point3_repr(self.0.second_point),
             float_repr(self.0.distance),
         )
     }
@@ -1220,6 +1235,12 @@ impl PyCurveCurveExtrema {
     /// The number of minima; an extrema result is falsy when there is none.
     fn __len__(&self) -> usize {
         self.result.minima().len()
+    }
+
+    /// The closest minimum, the first of `minima`, or `None` when there
+    /// is none.
+    fn closest(&self) -> Option<PyCurveCurveExtremum> {
+        self.result.closest().copied().map(PyCurveCurveExtremum)
     }
 
     /// Iterates over the minima, closest first.
