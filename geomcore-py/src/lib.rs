@@ -114,8 +114,8 @@ use results::{
     PyCompleteness, PyCurveCurveExtrema, PyCurveCurveExtremum, PyCurveCurveHit, PyCurveCurveHit2D,
     PyCurveCurveIntersection, PyCurveCurveIntersection2D, PyCurveCurveOverlap, PyCurveCurveRegion,
     PyCurveProjection, PyCurveProjection2D, PyCurveSurfaceHit, PyCurveSurfaceIntersection,
-    PyCurveSurfaceRegion, PyIntersectionCurve, PySurfaceCurvatures, PySurfaceProjection,
-    PySurfaceSurfaceIntersection, PySurfaceSurfaceRegion,
+    PyCurveSurfaceOverlap, PyCurveSurfaceRegion, PyIntersectionCurve, PySurfaceCurvatures,
+    PySurfaceProjection, PySurfaceSurfaceIntersection, PySurfaceSurfaceRegion,
 };
 use surfaces::{py_curve_3d_to_uv_within, py_uv_curve_to_3d_within};
 use values::{
@@ -154,6 +154,7 @@ fn geomcore_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyCurveCurveHit2D>()?;
     m.add_class::<PyCurveSurfaceHit>()?;
     m.add_class::<PyCurveCurveOverlap>()?;
+    m.add_class::<PyCurveSurfaceOverlap>()?;
     m.add_class::<PyIntersectionCurve>()?;
     m.add_class::<PyCurveCurveIntersection>()?;
     m.add_class::<PyCurveCurveIntersection2D>()?;

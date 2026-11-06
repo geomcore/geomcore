@@ -21,10 +21,9 @@
 //! | Set | Core | Classes |
 //! |---|---|---|
 //! | `curve`, `curve_2d` | `ParametricCurve(2D)`, `PointExtrema(2D)`, `ReversibleCurve`, `HasBoundingBox(2D)`, `Intersect`, and `Transformable` in 3D | every curve |
-//! | `discretize`, `discretize_2d` | `Discretize(2D)` | the bounded curves |
+//! | `bounded_curve`, `bounded_curve_2d` | `BoundedCurve(2D)`, `Discretize(2D)` | the bounded curves |
 //! | `sided_evaluation`, `sided_evaluation_2d` | the `*_sided` evaluations | B-spline and Bézier curves |
 //! | `surface` | `ParametricSurface` (with `uv_curve_to_3d` and `curve_3d_to_uv`), `ReversibleSurface`, `Transformable`, `HasBoundingBox`, `Intersect`, isoparametric curves | every surface |
-//! | `surface_normal` | `ParametricSurface::normal` | every surface but `Plane`, whose `normal()` is its constant normal |
 //! | `sided_surface_evaluation` | the `*_sided` evaluations | B-spline and Bézier surfaces |
 //! | `surface_extrema` | `extrema` | B-spline and Bézier surfaces |
 //!
@@ -35,9 +34,9 @@
 //! re-exported below, so a class file imports `crate::method_sets::*`.
 //!
 //! The stubs mirror each set as a stub-only class (`_CurveMethods`,
-//! `_SurfaceNormalMethods`, ...) in `geomcore/__init__.pyi`, which the
-//! class stubs inherit (ADR 0029). A method added to a set goes into that
-//! class too, with the same docstring.
+//! `_SurfaceMethods`, ...) in `geomcore/__init__.pyi`, which the class
+//! stubs inherit (ADR 0029). A method added to a set goes into that class
+//! too, with the same docstring.
 
 pub(crate) use crate::arguments::{curve_2d_classes, curve_classes};
 pub(crate) use crate::arrays;
@@ -434,11 +433,13 @@ macro_rules! curve_methods {
 }
 pub(crate) use curve_methods;
 
-/// `discretize` and `point_count` of a bounded 3D curve.
-macro_rules! discretize {
+/// The methods of a bounded 3D curve: its ends, `discretize` and
+/// `point_count`.
+macro_rules! bounded_curve {
     ($class:ident $sets:tt { $($methods:tt)* }) => {
-        $crate::method_sets::discretize_methods! {
+        $crate::method_sets::bounded_curve_methods! {
             [
+                PyPoint,
                 PyDiscretization,
                 $crate::discretization::discretize_3d,
                 $crate::discretization::point_count_3d
@@ -447,13 +448,15 @@ macro_rules! discretize {
         }
     };
 }
-pub(crate) use discretize;
+pub(crate) use bounded_curve;
 
-/// `discretize` and `point_count` of a bounded 2D curve.
-macro_rules! discretize_2d {
+/// The methods of a bounded 2D curve: its ends, `discretize` and
+/// `point_count`.
+macro_rules! bounded_curve_2d {
     ($class:ident $sets:tt { $($methods:tt)* }) => {
-        $crate::method_sets::discretize_methods! {
+        $crate::method_sets::bounded_curve_methods! {
             [
+                PyPoint2D,
                 PyDiscretization2D,
                 $crate::discretization::discretize_2d,
                 $crate::discretization::point_count_2d
@@ -462,16 +465,27 @@ macro_rules! discretize_2d {
         }
     };
 }
-pub(crate) use discretize_2d;
+pub(crate) use bounded_curve_2d;
 
-/// `discretize` and `point_count` in either dimension.
-macro_rules! discretize_methods {
+/// The bounded-curve methods in either dimension.
+macro_rules! bounded_curve_methods {
     (
-        [$discretization:ident, $discretize:path, $point_count:path]
+        [$point:ident, $discretization:ident, $discretize:path, $point_count:path]
         $class:ident $sets:tt { $($methods:tt)* }
     ) => {
         $crate::method_sets::shape_methods! { @next $class $sets {
             $($methods)*
+
+            /// The point at the first bound: on a circle or an ellipse, the
+            /// seam, where the end point is too.
+            fn start_point(&self) -> $point {
+                $point(self.0.start_point())
+            }
+
+            /// The point at the last bound.
+            fn end_point(&self) -> $point {
+                $point(self.0.end_point())
+            }
 
             /// Discretize the curve into points joined by straight
             /// segments, each segment's chord deviation at most
@@ -499,7 +513,7 @@ macro_rules! discretize_methods {
         }}
     };
 }
-pub(crate) use discretize_methods;
+pub(crate) use bounded_curve_methods;
 
 /// The one-sided evaluations of a 3D B-spline or Bézier curve.
 macro_rules! sided_evaluation {
@@ -648,6 +662,16 @@ macro_rules! surface {
                 self.0.v_period()
             }
 
+            /// Whether the surface is periodic in u.
+            fn is_u_periodic(&self) -> bool {
+                self.0.is_u_periodic()
+            }
+
+            /// Whether the surface is periodic in v.
+            fn is_v_periodic(&self) -> bool {
+                self.0.is_v_periodic()
+            }
+
             /// Whether travelling in `u` returns to its start: the boundary
             /// curves at the two `u` bounds coincide (`Tolerance.default()`
             /// when omitted). Periodic in `u` implies closed in `u`, not
@@ -692,6 +716,16 @@ macro_rules! surface {
             /// excluded (`math.inf` when smooth everywhere).
             fn min_continuity_v(&self) -> ContinuityNumber {
                 ContinuityNumber(self.0.min_continuity_v())
+            }
+
+            /// Unit normal at surface parameters `(u, v)`
+            /// (`Tolerance.default()` when omitted). Singular points such as
+            /// poles give their limiting normal; returns `None` at an apex,
+            /// whose meridians each have their own, and where no normal can
+            /// be recovered.
+            #[pyo3(signature = (u, v, tol = None))]
+            fn normal(&self, u: f64, v: f64, tol: Option<ToleranceArgument>) -> Option<PyVector> {
+                self.0.normal(u, v, tolerance(tol)).map(PyVector)
             }
 
             /// Principal curvatures with their directions, and the mean and
@@ -1043,26 +1077,6 @@ macro_rules! surface {
     };
 }
 pub(crate) use surface;
-
-/// `normal(u, v, tol)` of a surface whose normal varies.
-macro_rules! surface_normal {
-    ($class:ident $sets:tt { $($methods:tt)* }) => {
-        $crate::method_sets::shape_methods! { @next $class $sets {
-            $($methods)*
-
-            /// Unit normal at surface parameters `(u, v)`
-            /// (`Tolerance.default()` when omitted). Singular points such as
-            /// poles give their limiting normal; returns `None` at an apex,
-            /// whose meridians each have their own, and where no normal can
-            /// be recovered.
-            #[pyo3(signature = (u, v, tol = None))]
-            fn normal(&self, u: f64, v: f64, tol: Option<ToleranceArgument>) -> Option<PyVector> {
-                self.0.normal(u, v, tolerance(tol)).map(PyVector)
-            }
-        }}
-    };
-}
-pub(crate) use surface_normal;
 
 /// The one-sided evaluations of a B-spline or Bézier surface.
 macro_rules! sided_surface_evaluation {

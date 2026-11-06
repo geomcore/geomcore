@@ -13,7 +13,7 @@ use geomcore::RevolutionSurface;
 pub(crate) struct PyRevolutionSurface(pub(crate) RevolutionSurface);
 
 shape_methods! {
-    PyRevolutionSurface: [surface, surface_normal];
+    PyRevolutionSurface: [surface];
 
     fn __reduce__<'py>(slf: &pyo3::Bound<'py, Self>) -> pyo3::PyResult<pyo3::Bound<'py, pyo3::types::PyTuple>> {
         let this = slf.borrow();

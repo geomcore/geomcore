@@ -37,8 +37,11 @@ Windows, for Python 3.9+ (abi3 — one wheel covers all versions).
   (B-splines and trimmed curves included), in either order. The result is
   an object: hits with their parameters, point and multiplicity, overlaps,
   curves and contact points, the `method` that ran (`EXACT` closed form or
-  `NUMERIC` search) and its `completeness`. Numeric `curve_curve_extrema`
-  returns its distance minima and completeness.
+  `NUMERIC` search) and its `completeness`. The numeric `a.extrema(b)` of two curves
+  returns its distance minima and completeness. Each result is also a
+  sequence of its primary items: `len`, iteration and indexing run over
+  the hits, the surface–surface curves, the minima or a discretization's
+  points, and `points` lists the hit points.
 - Local properties: curve `tangent`, `curvature` and
   `curvature_center` (signed in 2D); surface `normal` and `curvatures`
   (principal, mean and Gaussian, with principal directions), each `None`

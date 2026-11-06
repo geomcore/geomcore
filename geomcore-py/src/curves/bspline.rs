@@ -12,7 +12,7 @@ use geomcore::{BSplineCurve, Point};
 pub(crate) struct PyBSplineCurve(pub(crate) BSplineCurve);
 
 shape_methods! {
-    PyBSplineCurve: [curve, discretize, sided_evaluation];
+    PyBSplineCurve: [curve, bounded_curve, sided_evaluation];
 
     fn __reduce__<'py>(slf: &pyo3::Bound<'py, Self>) -> pyo3::PyResult<pyo3::Bound<'py, pyo3::types::PyTuple>> {
         let this = slf.borrow();
@@ -91,24 +91,24 @@ shape_methods! {
         ))
     }
 
-    /// Least-squares B-spline fit through `points` with `num_poles` poles.
+    /// Least-squares B-spline fit through `points` with `pole_count` poles.
     ///
     /// `points` is a list of points or an `(N, 3)` array-like.
     ///
     /// `parametrization` is a `PointParametrization` or its string value,
     /// `"centripetal"` (the default) or `"chordal"`.
     #[staticmethod]
-    #[pyo3(signature = (points, degree, num_poles, parametrization = PyPointParametrization::Centripetal))]
+    #[pyo3(signature = (points, degree, pole_count, parametrization = PyPointParametrization::Centripetal))]
     fn approximate(
         points: Points<Point>,
         degree: usize,
-        num_poles: usize,
+        pole_count: usize,
         parametrization: PyPointParametrization,
     ) -> PyResult<Self> {
         let param = geomcore::PointParametrization::from(parametrization);
         let points = points.0;
         Ok(PyBSplineCurve(
-            BSplineCurve::approximate(&points, degree, num_poles, param).map_err(python_error)?,
+            BSplineCurve::approximate(&points, degree, pole_count, param).map_err(python_error)?,
         ))
     }
 
@@ -296,12 +296,18 @@ shape_methods! {
             .collect()
     }
 
-    /// The piece over `[first, last]` as a clamped, non-periodic B-spline
+    /// The curve itself, as the other curves give their exact B-spline
+    /// with `to_bspline()`.
+    fn to_bspline(&self) -> Self {
+        Self(self.0.to_bspline())
+    }
+
+    /// The piece over `[start, end]` as a clamped, non-periodic B-spline
     /// (the range may cross the seam of a periodic curve, up to one
     /// period).
-    fn extract(&self, first: f64, last: f64) -> PyResult<Self> {
+    fn extract(&self, start: f64, end: f64) -> PyResult<Self> {
         Ok(PyBSplineCurve(
-            self.0.extract(first, last).map_err(python_error)?,
+            self.0.extract(start, end).map_err(python_error)?,
         ))
     }
 
@@ -311,8 +317,8 @@ shape_methods! {
         Ok((PyBSplineCurve(a), PyBSplineCurve(b)))
     }
 
-    /// The arc length, integrating the speed to within `max_error`.
-    fn length(&self, max_error: f64) -> f64 {
-        self.0.length(max_error)
+    /// The arc length, integrating the speed to within `max_length_error`.
+    fn length(&self, max_length_error: f64) -> f64 {
+        self.0.length(max_length_error)
     }
 }

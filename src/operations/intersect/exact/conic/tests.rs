@@ -38,7 +38,7 @@ fn check_substitution<S: Quadric>(quadric: &S, implicit: &dyn Fn(Point) -> f64) 
 #[test]
 fn test_substitutions_match_the_implicit_equations() {
     let plane = Plane::new(Point::new(0.1, 0.2, -0.3), Vector::new(0.3, -0.2, 1.0)).unwrap();
-    let (po, n) = (plane.frame().origin(), plane.normal());
+    let (po, n) = (plane.frame().origin(), plane.axis().direction());
     check_substitution(&plane, &|p| (p - po).dot(n));
 
     let sphere = Sphere::new(Point::new(-0.2, 0.5, 0.1), 1.3).unwrap();

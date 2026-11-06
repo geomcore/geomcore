@@ -1,7 +1,7 @@
 //! Rigid and affine transformations of points and vectors, and the
 //! [`Transformable`] shapes they move.
 
-use crate::{Axis, Frame, FrameConstructionError, Point, Vector};
+use crate::{Axis, Frame, FrameConstructionError, Point, Tolerance, Vector};
 use std::fmt;
 
 /// An affine transformation of 3D space: a linear map plus a translation.
@@ -415,6 +415,55 @@ impl Transform {
         mat_vec(self.linear, v)
     }
 
+    /// The rigid motion that takes the `source` placement to the `target`
+    /// one: the point at local coordinates `(u, v, w)` in `source` maps to
+    /// the point at the same local coordinates in `target`, and
+    /// `source.transformed(t)` is `target`. When the two frames have
+    /// opposite handedness the motion includes a mirror.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Frame, Point, Transform, Vector};
+    /// let source = Frame::from_z(Point::new(1.0, 0.0, 0.0), Vector::Z).unwrap();
+    /// let target = Frame::new(Point::new(0.0, 2.0, 0.0), Vector::X, Vector::Y).unwrap();
+    /// let t = Transform::between_frames(source, target);
+    /// let p = t.apply_point(source.point_at(1.0, 2.0, 3.0));
+    /// assert!(p.distance(target.point_at(1.0, 2.0, 3.0)) < 1e-12);
+    /// ```
+    pub fn between_frames(source: Frame, target: Frame) -> Transform {
+        let (s, t) = (
+            [
+                source.x_direction(),
+                source.y_direction(),
+                source.z_direction(),
+            ],
+            [
+                target.x_direction(),
+                target.y_direction(),
+                target.z_direction(),
+            ],
+        );
+        // The source directions are orthonormal, so the inverse of the
+        // matrix whose columns they are is its transpose: the linear part
+        // is the sum of the outer products t_k ⊗ s_k.
+        let mut linear = [[0.0; 3]; 3];
+        for (sk, tk) in s.iter().zip(t.iter()) {
+            let (sk, tk) = ([sk.x, sk.y, sk.z], [tk.x, tk.y, tk.z]);
+            for (i, row) in linear.iter_mut().enumerate() {
+                for (j, entry) in row.iter_mut().enumerate() {
+                    *entry += tk[i] * sk[j];
+                }
+            }
+        }
+        let origin = source.origin();
+        let translation = target.origin() - Point::ORIGIN - mat_vec(linear, origin - Point::ORIGIN);
+        Transform {
+            linear,
+            translation,
+        }
+    }
+
     /// The rigid motion taking `frame` onto the world frame: the image of a
     /// point has, as its coordinates, the point's local coordinates in
     /// `frame` (see [`Frame::local_coordinates`]). Lengths, and so the
@@ -435,10 +484,64 @@ impl Transform {
     }
 
     /// The uniform factor by which this transformation scales lengths:
-    /// the magnitude of the transformed x direction. Zero for a
-    /// transformation that collapses space onto a point.
-    pub(crate) fn scale_factor(self) -> f64 {
+    /// the magnitude of the transformed x direction. One for a rotation, a
+    /// translation or a mirror; zero for a transformation that collapses
+    /// space onto a point.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Point, Transform};
+    /// assert_eq!(Transform::scaling(Point::ORIGIN, -2.0).scale_factor(), 2.0);
+    /// ```
+    pub fn scale_factor(self) -> f64 {
         self.apply_vector(Vector::X).magnitude()
+    }
+
+    /// Whether the transformation keeps the handedness of space: true for
+    /// rotations, translations and positive scalings, false for mirrors
+    /// (the determinant of the linear part is negative). The image of a
+    /// surface under a transformation that does not preserve orientation
+    /// has its normal on the opposite side of the mirrored normal (see
+    /// [`Transformable`]). False as well for a collapsing transformation.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Frame, Point, Transform};
+    /// assert!(Transform::scaling(Point::ORIGIN, 2.0).preserves_orientation());
+    /// assert!(!Transform::mirror_plane(Frame::WORLD).preserves_orientation());
+    /// ```
+    pub fn preserves_orientation(self) -> bool {
+        let m = self.linear;
+        let determinant = m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1])
+            - m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0])
+            + m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0]);
+        determinant > 0.0
+    }
+
+    /// Whether the transformation leaves space unchanged within `tol`:
+    /// every entry of the linear part is within `tol.angular` of the
+    /// identity's (a turn or a scale change that small) and the translation
+    /// is shorter than `tol.confusion`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Axis, Point, Tolerance, Transform, Vector};
+    /// let axis = Axis::new(Point::ORIGIN, Vector::Z).unwrap();
+    /// let full_turn = Transform::rotation(axis, std::f64::consts::TAU);
+    /// assert!(full_turn.is_identity(Tolerance::DEFAULT));
+    /// assert!(!Transform::rotation(axis, 1e-3).is_identity(Tolerance::DEFAULT));
+    /// ```
+    pub fn is_identity(self, tol: Tolerance) -> bool {
+        let linear_is_identity = self
+            .linear
+            .iter()
+            .flatten()
+            .zip(IDENTITY_LINEAR.iter().flatten())
+            .all(|(entry, identity)| (entry - identity).abs() <= tol.angular);
+        linear_is_identity && self.translation.magnitude() <= tol.confusion
     }
 
     /// Applies this transformation to a placement frame, returning the

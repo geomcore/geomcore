@@ -37,7 +37,7 @@ pub(crate) fn trace_uv_curve<S: ParametricSurface + ?Sized>(
         return curve_classes::to_py(py, traced);
     };
     let piece = piece.borrow().0.clone();
-    let (first, last) = (piece.first(), piece.last());
+    let (first, last) = (piece.start_parameter(), piece.end_parameter());
     let basis = piece.into_basis();
     let cut = match &basis {
         Curve2D::BSpline(spline) => spline.extract(first, last).ok(),

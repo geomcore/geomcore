@@ -14,9 +14,12 @@ the Python distribution are versioned in lockstep.
 - Every Python shape is importable from the package root (#203):
   `from geomcore import Circle, Plane, Point`, as every Rust item is at
   the crate root. `geomcore.Curve`, `geomcore.Curve2D` and
-  `geomcore.Surface` name the union of each kind's classes, to annotate
-  with and, from Python 3.10, to pass to `isinstance` (`typing.get_args`
-  gives the tuple on 3.9). The stubs are one file. ADR 0038.
+  `geomcore.Surface` name the union of the classes of the Rust enum of
+  the same name, to annotate with and, from Python 3.10, to pass to
+  `isinstance` (`typing.get_args` gives the tuple on 3.9). As in Rust, a
+  `TrimmedCurve` is a piece of a curve, not one of them: a method that
+  takes either is typed `Curve | TrimmedCurve`. The stubs are one file.
+  ADR 0038.
 - Python 3D curves take a curve in `extrema(other, tol)` (#201), as
   well as a point. A curve or `TrimmedCurve` gives the
   `CurveCurveExtrema` of the pair, holding this curve as `first`. A
@@ -87,7 +90,7 @@ the Python distribution are versioned in lockstep.
     branch through the center that no parameter of the first one reaches;
   - `Parabola::from_focus_and_directrix(focus, &directrix)` and its 2D
     twin, the parameter running along the directrix;
-  - `Cone::from_apex(apex, axis_direction, semi_angle)`;
+  - `Cone::from_apex(apex, axis_direction, half_angle)`;
   - `geomcore.__version__` in Python;
   - the elementary geometry chapter shows how `Plane.uv_curve_to_3d`
     places a 2D curve in space.
@@ -107,7 +110,7 @@ the Python distribution are versioned in lockstep.
     makes the full turn;
   - an arc's `sweep_angle()` and turning sense: the circle's `normal()`,
     and the new `Circle2D::is_counterclockwise()`;
-  - `length(max_error)` on every trimmed curve, exact on segments and
+  - `length(max_length_error)` on every trimmed curve, exact on segments and
     circular arcs, and on `Ellipse` and `Ellipse2D`; `Circle2D.length()` in
     Python;
   - `ParametricSurface::trimmed_curve_3d_to_uv`: the UV curve of an edge,
@@ -155,6 +158,82 @@ the Python distribution are versioned in lockstep.
   `"chordal"` and `"centripetal"` are still accepted; the stubs type them
   as literals, so a typo is caught before the call.
 
+- `axis()` on `Circle`, `Cone` and `Torus`, as `Cylinder` and
+  `RevolutionSurface` have it, so the axis of any rotational shape is one
+  `Axis` (#196). A circle's axis runs along its `normal`.
+
+- `CurveSurfaceOverlap`, in Rust and Python: a curve–surface overlap is a
+  typed item with a `curve_range`, as a curve–curve overlap is a
+  `CurveCurveOverlap`, so it can gain a field later without breaking
+  callers (#200).
+
+- Python: the results are sequences of their primary items. `len()`,
+  iteration and indexing (slices included) run over the hits of
+  `CurveCurveIntersection`, `CurveCurveIntersection2D` and
+  `CurveSurfaceIntersection`, the curves of `SurfaceSurfaceIntersection`,
+  the minima of `CurveCurveExtrema` (which had only `len()`) and the points
+  of `Discretization` and `Discretization2D`. The hit-based intersections
+  gain `points`, the hit points in the order of `hits`. Truth is
+  unchanged: an intersection is true when it holds anything, so one with
+  only an overlap or a contact point is true with length 0 (#191).
+
+- `CurveCurveExtremum` carries its two points, `first_point` and
+  `second_point`, next to its parameters and distance (Python too), so
+  drawing or reporting the closest approach no longer evaluates both
+  curves again. `CurveCurveExtrema::closest()` (Python `closest()`) gives
+  the closest minimum, or `None`. Breaking in Rust only for code that
+  builds a `CurveCurveExtremum` literal, which now needs the two points
+  (#192).
+
+- `is_u_periodic()` and `is_v_periodic()` are methods of every surface,
+  on the `ParametricSurface` trait (Python: the shared surface methods),
+  where `u_period()` and `v_period()` already were. They were
+  `BSplineSurface` methods only; in Rust, calling them now needs the trait
+  in scope (`use geomcore::prelude::*`).
+- `BSplineCurve`, `BSplineCurve2D` and `BSplineSurface` gain
+  `to_bspline()`, returning the shape itself, as the other curves and
+  surfaces with an exact B-spline form give theirs, so converting code
+  needs no special case for a B-spline (#197).
+
+- The value classes answer the geometric questions callers wrote out by
+  hand (#198, first part). The caller gives the tolerance: an `angular`
+  bound (Python: the default tolerance's when omitted) or a `Tolerance`.
+  - `Vector` and `Vector2D`: `angle(other)`, the unsigned angle in
+    `[0, π]`; `is_parallel(other, angular)` (either orientation) and
+    `is_perpendicular(other, angular)`, which bound the sine and the cosine
+    of the angle for vectors of any length and are false for a zero vector;
+    `component_along(direction)` and `component_perpendicular_to(direction)`.
+    `Vector2D` also gets `signed_angle(other)` and `rotated(angle)`.
+  - `Axis` and `Axis2D`: `point_at(t)`, `parameter_of(point)`,
+    `closest_point(point)`, `distance(point)`, `contains(point, tol)`,
+    `is_parallel(other, angular)` and `reversed()`, which was crate-private.
+    `Axis` also gets `is_coaxial(other, tol)`: the same line, in either
+    orientation.
+  - `Plane::signed_distance(point)`: positive on the side the normal points
+    to.
+- The placement and container classes get the methods the same callers
+  were missing (#198, second part).
+  - `Point` and `Point2D`: `midpoint(other)`, and in Python `components()`,
+    which `Vector` has. `Point` also gets `transformed(transform)`, so a
+    point moves with the same spelling as a curve or a surface.
+  - `Frame`: `vector_at(u, v, w)` and `local_components(vector)`, the
+    direction counterparts of `point_at` and `local_coordinates`, and
+    `transformed(transform)`, which keeps local coordinates.
+  - `Frame2D`: `point_at`, `local_coordinates`, `vector_at`,
+    `local_components`, and `x_axis()` and `y_axis()`.
+  - `Transform`: `between_frames(source, target)`, the rigid motion from one
+    placement to another; `scale_factor()`, which was crate-private;
+    `preserves_orientation()`, false for mirrors; and `is_identity(tol)`.
+  - `BoundingBox` and `BoundingBox2D`: `including(point)`, which was
+    crate-private; `intersection(other)`, `None` for boxes apart; and
+    `distance(point)`. In Python, `point in box` is `box.encloses(point)`.
+- `start_point()` and `end_point()` on every bounded curve, through the new
+  traits `BoundedCurve` and `BoundedCurve2D` (in the prelude): the circle
+  and the ellipse (whose ends meet at the seam), the B-spline and Bézier
+  curves, and the trimmed curves, which had them alone (#198, third part).
+  In Python the `discretize` method set becomes the bounded-curve set,
+  with the ends added.
+
 ### Deprecated
 
 - Python: the modules `geomcore.curves` and `geomcore.surfaces` (#203).
@@ -198,6 +277,15 @@ the Python distribution are versioned in lockstep.
   within `tol.confusion` to `0.0`, now said in the Python docstrings
   with the default value; and `ExtrusionSurface` drops the length of
   its direction, now said in the Python class docstring.
+
+- **Breaking:** `Plane::normal()` (Python `Plane.normal()`), the plane's
+  zero-argument normal, is replaced by `Plane::axis()` (Python
+  `Plane.axis()`): the axis through the frame's origin along the oriented
+  normal. Write `plane.axis().direction()` where you wrote
+  `plane.normal()`. The old method hid the `normal(u, v, tol)` that every
+  surface has, so in Python a loop over surfaces raised `TypeError` on a
+  plane, and in Rust `plane.normal(u, v, tol)` did not compile. Both now
+  work on a plane and return the same direction at every point (#190).
 
 ### Breaking
 
@@ -251,6 +339,49 @@ the Python distribution are versioned in lockstep.
   `enclosed_area()`. `Transform::then` takes `other`, which no longer
   shadows Python's `next`.
 
+- One accuracy argument, one name (#194). The bound on a length's error is
+  `length(max_length_error)` (was `max_error`) on the B-spline and Bézier
+  curves, and the fixed size of a least-squares fit is
+  `approximate(points, degree, pole_count)` (was `num_poles`), as the
+  getters and the surface fit already say `pole_count`. A bound on the
+  distance to the true geometry stays `max_deviation`, and `discretize`
+  keeps `max_chord_deviation` and `max_angle_deviation`. Only Python
+  callers passing these by keyword need to change.
+
+- A trimmed curve names its range by its ends, as it names its points
+  (#195): `TrimmedCurve.first()` / `last()` become `start_parameter()` /
+  `end_parameter()`, beside `start_point()` / `end_point()`, in Rust and
+  Python. The Python constructor keywords follow
+  (`TrimmedCurve(basis, start_parameter, end_parameter)`), as does the
+  `repr`, and `extract`, `extract_u` and `extract_v` take `start` and
+  `end`. `first` and `second` now only ever mean the two operands of a
+  result.
+
+- A shape's axis has one spelling (#196). `Cone::semi_angle()` and
+  `ref_radius()` become `half_angle()` and `reference_radius()`, in Rust
+  and Python, as do the Python keywords of `Cone(center, axis_direction,
+  half_angle, reference_radius)` and `Cone.from_frame`. The Python `Torus`
+  takes `axis_direction` (was `normal`), as `Cylinder` and `Cone` do; the
+  circle keeps `normal`, its own word. Every elementary shape's `repr`
+  now uses its constructor's keyword names (`Cone(center=…,
+  axis_direction=…, …)`, `Plane(point=…, normal=…)`), which a parity test
+  checks.
+
+- Results name the same thing one way (#200).
+  `CurveSurfaceIntersection::overlaps()` returns `CurveSurfaceOverlap`
+  items instead of bare `(start, end)` tuples; read the range as
+  `overlap.curve_range`. In Python, `CurveSurfaceHit.surface_parameters`
+  becomes `u` and `v`, as on `SurfaceProjection`; the Rust field stays
+  the pair `surface_parameters`.
+  `BoundingBox` and `BoundingBox2D` name their corners `min_corner()` and
+  `max_corner()` (were `min()` and `max()`), in Rust and Python, as every
+  intersection region does.
+
+- Rust: `TrimmedCurve::start_point` and `end_point` are now methods of
+  `BoundedCurve` (`BoundedCurve2D` in the plane), so a caller brings them
+  into scope with `use geomcore::prelude::*`, like every shared method
+  (ADR 0015).
+
 ### Fixed
 
 - An unbounded line, parabola or hyperbola against a revolution or
@@ -270,6 +401,10 @@ the Python distribution are versioned in lockstep.
   surface spans its profile's bounds, and `piece.to_bspline()` gives a
   whole curve for a bounded profile. A new test passes every class of
   every curve and surface `Union` in the stubs to the runtime (#176).
+
+- Python: the docstring of `Vector.angle_with_reference` said a zero
+  reference gives the unsigned angle; it gives 0 or π. `angle(other)` is
+  the unsigned angle.
 
 ## [0.43.0] - 2026-11-05
 

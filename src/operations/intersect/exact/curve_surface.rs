@@ -139,7 +139,7 @@ impl IntersectExact<Plane> for Line {
     /// }
     /// ```
     fn intersect_exact(&self, plane: &Plane, tol: Tolerance) -> LinePlaneIntersection {
-        let n = plane.normal();
+        let n = plane.normal_direction();
         let b = n.dot(self.direction());
         let c = n.dot(self.origin() - plane.frame().origin());
         if b.abs() <= tol.angular {
@@ -305,7 +305,7 @@ impl IntersectExact<Cone> for Line {
     fn intersect_exact(&self, cone: &Cone, tol: Tolerance) -> LineQuadricIntersection {
         let d = self.direction();
         let a = cone.frame().z_direction();
-        let cos_phi = cone.semi_angle().cos();
+        let cos_phi = cone.half_angle().cos();
         let da = d.dot(a);
         let qa = da * da - cos_phi * cos_phi;
         // Coefficients about the line point at parameter t0.

@@ -13,7 +13,8 @@ use crate::geometry::surfaces::uv_curve::{from_curve, to_curve};
 use crate::geometry::surfaces::{Curve3DToUvError, UvCurveTo3DError};
 use crate::math::elementary::surface as elementary;
 use crate::{
-    Frame, Line, Point, SurfaceProjection, Tolerance, Transform, Vector, operations::projection,
+    Axis, Frame, Line, Point, SurfaceProjection, Tolerance, Transform, Vector,
+    operations::projection,
 };
 use crate::{TransformError, Transformable};
 use std::fmt;
@@ -84,7 +85,7 @@ impl Plane {
     /// use geomcore::prelude::*;
     /// use geomcore::{Plane, Point, Vector};
     /// let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
-    /// assert_eq!(plane.normal(), Vector::Z);
+    /// assert_eq!(plane.axis().direction(), Vector::Z);
     /// ```
     pub fn new(point: Point, normal: Vector) -> Result<Plane, PlaneConstructionError> {
         let frame = Frame::from_z(point, normal).map_err(frame_error(
@@ -136,7 +137,7 @@ impl Plane {
     ///     Point::new(0.0, 1.0, 0.0),
     /// )
     /// .unwrap();
-    /// assert_eq!(plane.normal(), Vector::Z);
+    /// assert_eq!(plane.axis().direction(), Vector::Z);
     /// ```
     pub fn from_three_points(
         p1: Point,
@@ -234,27 +235,60 @@ impl Plane {
         self.frame
     }
 
-    /// Returns the unit normal of the plane: the frame's z direction on
-    /// a direct frame, its negation on an indirect one (see
-    /// [`Frame::is_direct`]), so the normal follows the orientation
-    /// and reverses with [`reversed_u`](Self::reversed_u) or
+    /// Returns the normal axis of the plane: through the frame's origin,
+    /// along the frame's z direction on a direct frame and its negation
+    /// on an indirect one (see [`Frame::is_direct`]). The direction is
+    /// the unit normal, so it follows the orientation and reverses with
+    /// [`reversed_u`](Self::reversed_u) or
     /// [`reversed_v`](Self::reversed_v).
+    ///
+    /// The normal at a point is also the shared
+    /// [`normal`](crate::ParametricSurface::normal), which takes
+    /// parameters like on every other surface and returns this same
+    /// direction at all of them.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::prelude::*;
+    /// use geomcore::{Plane, Point, Tolerance, Vector};
+    /// let plane = Plane::new(Point::new(0.0, 0.0, 1.0), Vector::Z).unwrap();
+    /// assert_eq!(plane.axis().origin(), Point::new(0.0, 0.0, 1.0));
+    /// assert_eq!(plane.axis().direction(), Vector::Z);
+    /// assert_eq!(plane.reversed_u().axis().direction(), -Vector::Z);
+    /// assert_eq!(plane.normal(2.0, 3.0, Tolerance::default()), Some(Vector::Z));
+    /// ```
+    pub fn axis(&self) -> Axis {
+        if self.frame.is_direct() {
+            self.frame.axis()
+        } else {
+            self.frame.axis().reversed()
+        }
+    }
+
+    /// The signed distance from the plane to `point`: positive on the side
+    /// the [`axis`](Self::axis) points to, so it follows the plane's
+    /// orientation, negative on the other side.
     ///
     /// # Examples
     ///
     /// ```
     /// use geomcore::prelude::*;
     /// use geomcore::{Plane, Point, Vector};
-    /// let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
-    /// assert_eq!(plane.normal(), Vector::Z);
-    /// assert_eq!(plane.reversed_u().normal(), -Vector::Z);
+    /// let plane = Plane::new(Point::new(0.0, 0.0, 1.0), Vector::Z).unwrap();
+    /// assert_eq!(plane.signed_distance(Point::new(4.0, 5.0, 3.0)), 2.0);
+    /// assert_eq!(plane.reversed_u().signed_distance(Point::new(4.0, 5.0, 3.0)), -2.0);
     /// ```
-    pub fn normal(&self) -> Vector {
-        if self.frame.is_direct() {
-            self.frame.z_direction()
-        } else {
-            -self.frame.z_direction()
-        }
+    pub fn signed_distance(&self, point: Point) -> f64 {
+        (point - self.frame.origin()).dot(self.normal_direction())
+    }
+
+    /// The direction of [`axis`](Self::axis) alone, the unit normal, for
+    /// the intersections that need no origin: it skips copying one.
+    #[inline]
+    pub(crate) fn normal_direction(&self) -> Vector {
+        let z = self.frame.z_direction();
+        if self.frame.is_direct() { z } else { -z }
     }
 
     /// The `u` isoparametric line at `u`: `u` fixed, running along `v`.

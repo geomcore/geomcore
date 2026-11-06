@@ -2,7 +2,7 @@
 //! surfaces are positioned in.
 
 use crate::Tolerance;
-use crate::{Point, Point2D, Vector, Vector2D};
+use crate::{Point, Point2D, Transform, TransformError, Vector, Vector2D};
 use std::fmt;
 
 /// Error returned when an axis or frame cannot be constructed from the
@@ -110,8 +110,121 @@ impl Axis {
         self.direction
     }
 
+    /// The point at `t` along the axis, `origin + t direction`; `t` is a
+    /// length, since the direction is unit.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Axis, Point, Vector};
+    /// let axis = Axis::new(Point::ORIGIN, Vector::Z).unwrap();
+    /// assert_eq!(axis.point_at(5.0), Point::new(0.0, 0.0, 5.0));
+    /// ```
+    pub fn point_at(self, t: f64) -> Point {
+        self.origin + self.direction * t
+    }
+
+    /// The parameter of the foot of `point` on the axis, `(point - origin)
+    /// · direction`, so that [`point_at`](Self::point_at) gives the
+    /// [`closest_point`](Self::closest_point).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Axis, Point, Vector};
+    /// let axis = Axis::new(Point::ORIGIN, Vector::Z).unwrap();
+    /// assert_eq!(axis.parameter_of(Point::new(3.0, 4.0, 5.0)), 5.0);
+    /// ```
+    pub fn parameter_of(self, point: Point) -> f64 {
+        (point - self.origin).dot(self.direction)
+    }
+
+    /// The point of the axis closest to `point`: the foot of the
+    /// perpendicular from `point`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Axis, Point, Vector};
+    /// let axis = Axis::new(Point::ORIGIN, Vector::Z).unwrap();
+    /// assert_eq!(axis.closest_point(Point::new(3.0, 4.0, 5.0)), Point::new(0.0, 0.0, 5.0));
+    /// ```
+    pub fn closest_point(self, point: Point) -> Point {
+        self.point_at(self.parameter_of(point))
+    }
+
+    /// The distance from `point` to the axis, the radius of the circle it turns on about the axis.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Axis, Point, Vector};
+    /// let axis = Axis::new(Point::ORIGIN, Vector::Z).unwrap();
+    /// assert_eq!(axis.distance(Point::new(3.0, 4.0, 5.0)), 5.0);
+    /// ```
+    pub fn distance(self, point: Point) -> f64 {
+        (point - self.origin)
+            .component_perpendicular_to(self.direction)
+            .magnitude()
+    }
+
+    /// Whether `point` lies on the axis, within `tol.confusion`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Axis, Point, Tolerance, Vector};
+    /// let axis = Axis::new(Point::ORIGIN, Vector::Z).unwrap();
+    /// assert!(axis.contains(Point::new(0.0, 0.0, 5.0), Tolerance::DEFAULT));
+    /// assert!(!axis.contains(Point::new(3.0, 4.0, 5.0), Tolerance::DEFAULT));
+    /// ```
+    pub fn contains(self, point: Point, tol: Tolerance) -> bool {
+        self.distance(point) <= tol.confusion
+    }
+
+    /// Whether the axes have parallel directions, in either orientation,
+    /// within `angular` (see [`Vector::is_parallel`]).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Axis, Point, Tolerance, Vector};
+    /// let axis = Axis::new(Point::ORIGIN, Vector::Z).unwrap();
+    /// let other = Axis::new(Point::new(3.0, 4.0, 5.0), -Vector::Z).unwrap();
+    /// assert!(axis.is_parallel(other, Tolerance::DEFAULT.angular));
+    /// ```
+    pub fn is_parallel(self, other: Axis, angular: f64) -> bool {
+        self.direction.is_parallel(other.direction, angular)
+    }
+
+    /// Whether the axes are the same line, in either orientation: their
+    /// directions are parallel within `tol.angular` and the other origin
+    /// lies on this axis within `tol.confusion`. Where the direction error
+    /// matters as a distance over a shape's size, pass a tolerance whose
+    /// `angular` is `tol.angular_for_extent(size)`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Axis, Point, Tolerance, Vector};
+    /// let axis = Axis::new(Point::ORIGIN, Vector::Z).unwrap();
+    /// assert!(axis.is_coaxial(Axis::new(Point::new(0.0, 0.0, 5.0), -Vector::Z).unwrap(), Tolerance::DEFAULT));
+    /// assert!(!axis.is_coaxial(Axis::new(Point::new(3.0, 4.0, 5.0), Vector::Z).unwrap(), Tolerance::DEFAULT));
+    /// ```
+    pub fn is_coaxial(self, other: Axis, tol: Tolerance) -> bool {
+        self.is_parallel(other, tol.angular) && self.contains(other.origin, tol)
+    }
+
     /// The axis with its direction negated, through the same origin.
-    pub(crate) fn reversed(self) -> Axis {
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Axis, Point, Vector};
+    /// let axis = Axis::new(Point::ORIGIN, Vector::Z).unwrap();
+    /// assert_eq!(axis.reversed().direction(), -Vector::Z);
+    /// ```
+    pub fn reversed(self) -> Axis {
         Axis {
             direction: -self.direction,
             ..self
@@ -502,6 +615,64 @@ impl Frame {
     pub fn point_at(self, u: f64, v: f64, w: f64) -> Point {
         self.origin + u * self.x_dir + v * self.y_dir + w * self.z_dir
     }
+
+    /// Returns the vector `u*x + v*y + w*z`: the direction counterpart of
+    /// [`Frame::point_at`], which ignores the origin.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Frame, Point, Vector};
+    /// let frame = Frame::from_z(Point::new(5.0, 5.0, 5.0), Vector::Z).unwrap();
+    /// assert_eq!(frame.vector_at(0.0, 0.0, 2.0), Vector::new(0.0, 0.0, 2.0));
+    /// ```
+    pub fn vector_at(self, u: f64, v: f64, w: f64) -> Vector {
+        u * self.x_dir + v * self.y_dir + w * self.z_dir
+    }
+
+    /// Returns the components of `vector` along the frame's directions,
+    /// `(vector·x, vector·y, vector·z)`: the direction counterpart of
+    /// [`Frame::local_coordinates`], which ignores the origin.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Frame, Point, Vector};
+    /// let frame = Frame::from_z(Point::new(5.0, 5.0, 5.0), Vector::Z).unwrap();
+    /// let (_, _, w) = frame.local_components(Vector::new(0.0, 0.0, 2.0));
+    /// assert_eq!(w, 2.0);
+    /// ```
+    pub fn local_components(self, vector: Vector) -> (f64, f64, f64) {
+        (
+            vector.dot(self.x_dir),
+            vector.dot(self.y_dir),
+            vector.dot(self.z_dir),
+        )
+    }
+
+    /// Returns the image of the frame under `transform`: a point at local
+    /// coordinates `(u, v, w)` in this frame maps to the point at the same
+    /// local coordinates, scaled by [`Transform::scale_factor`], in the
+    /// image. A mirror changes the handedness (see [`Frame::is_direct`]).
+    ///
+    /// # Errors
+    ///
+    /// [`TransformError::Collapsed`] when the transform has a zero scale
+    /// factor and [`TransformError::NonFinite`] when the image overflows
+    /// `f64`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Frame, Point, Transform, Vector};
+    /// let shift = Transform::translation(Vector::new(1.0, 2.0, 3.0));
+    /// let moved = Frame::WORLD.transformed(shift).unwrap();
+    /// assert_eq!(moved.origin(), Point::new(1.0, 2.0, 3.0));
+    /// assert_eq!(moved.z_direction(), Vector::Z);
+    /// ```
+    pub fn transformed(self, transform: Transform) -> Result<Frame, TransformError> {
+        transform.apply_frame(self).map(|(image, _)| image)
+    }
 }
 
 /// A 2D axis: an origin point and a unit direction.
@@ -572,8 +743,103 @@ impl Axis2D {
         self.direction
     }
 
+    /// The point at `t` along the axis, `origin + t direction`; `t` is a
+    /// length, since the direction is unit.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Axis2D, Point2D, Vector2D};
+    /// let axis = Axis2D::new(Point2D::ORIGIN, Vector2D::Y).unwrap();
+    /// assert_eq!(axis.point_at(5.0), Point2D::new(0.0, 5.0));
+    /// ```
+    pub fn point_at(self, t: f64) -> Point2D {
+        self.origin + self.direction * t
+    }
+
+    /// The parameter of the foot of `point` on the axis, `(point - origin)
+    /// · direction`, so that [`point_at`](Self::point_at) gives the
+    /// [`closest_point`](Self::closest_point).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Axis2D, Point2D, Vector2D};
+    /// let axis = Axis2D::new(Point2D::ORIGIN, Vector2D::Y).unwrap();
+    /// assert_eq!(axis.parameter_of(Point2D::new(3.0, 5.0)), 5.0);
+    /// ```
+    pub fn parameter_of(self, point: Point2D) -> f64 {
+        (point - self.origin).dot(self.direction)
+    }
+
+    /// The point of the axis closest to `point`: the foot of the
+    /// perpendicular from `point`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Axis2D, Point2D, Vector2D};
+    /// let axis = Axis2D::new(Point2D::ORIGIN, Vector2D::Y).unwrap();
+    /// assert_eq!(axis.closest_point(Point2D::new(3.0, 5.0)), Point2D::new(0.0, 5.0));
+    /// ```
+    pub fn closest_point(self, point: Point2D) -> Point2D {
+        self.point_at(self.parameter_of(point))
+    }
+
+    /// The distance from `point` to the axis.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Axis2D, Point2D, Vector2D};
+    /// let axis = Axis2D::new(Point2D::ORIGIN, Vector2D::Y).unwrap();
+    /// assert_eq!(axis.distance(Point2D::new(3.0, 5.0)), 3.0);
+    /// ```
+    pub fn distance(self, point: Point2D) -> f64 {
+        (point - self.origin)
+            .component_perpendicular_to(self.direction)
+            .magnitude()
+    }
+
+    /// Whether `point` lies on the axis, within `tol.confusion`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Axis2D, Point2D, Tolerance, Vector2D};
+    /// let axis = Axis2D::new(Point2D::ORIGIN, Vector2D::Y).unwrap();
+    /// assert!(axis.contains(Point2D::new(0.0, 5.0), Tolerance::DEFAULT));
+    /// assert!(!axis.contains(Point2D::new(3.0, 5.0), Tolerance::DEFAULT));
+    /// ```
+    pub fn contains(self, point: Point2D, tol: Tolerance) -> bool {
+        self.distance(point) <= tol.confusion
+    }
+
+    /// Whether the axes have parallel directions, in either orientation,
+    /// within `angular` (see [`Vector2D::is_parallel`]).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Axis2D, Point2D, Tolerance, Vector2D};
+    /// let axis = Axis2D::new(Point2D::ORIGIN, Vector2D::Y).unwrap();
+    /// let other = Axis2D::new(Point2D::new(3.0, 5.0), -Vector2D::Y).unwrap();
+    /// assert!(axis.is_parallel(other, Tolerance::DEFAULT.angular));
+    /// ```
+    pub fn is_parallel(self, other: Axis2D, angular: f64) -> bool {
+        self.direction.is_parallel(other.direction, angular)
+    }
+
     /// The axis with its direction negated, through the same origin.
-    pub(crate) fn reversed(self) -> Axis2D {
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Axis2D, Point2D, Vector2D};
+    /// let axis = Axis2D::new(Point2D::ORIGIN, Vector2D::Y).unwrap();
+    /// assert_eq!(axis.reversed().direction(), -Vector2D::Y);
+    /// ```
+    pub fn reversed(self) -> Axis2D {
         Axis2D {
             direction: -self.direction,
             ..self
@@ -745,6 +1011,95 @@ impl Frame2D {
     /// ```
     pub fn is_direct(self) -> bool {
         self.x_dir.cross(self.y_dir) > 0.0
+    }
+
+    /// Returns the axis through the origin along the x direction.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Frame2D, Point2D, Vector2D};
+    /// let axis = Frame2D::WORLD.x_axis();
+    /// assert_eq!(axis.origin(), Point2D::ORIGIN);
+    /// assert_eq!(axis.direction(), Vector2D::X);
+    /// ```
+    pub fn x_axis(self) -> Axis2D {
+        Axis2D {
+            origin: self.origin,
+            direction: self.x_dir,
+        }
+    }
+
+    /// Returns the axis through the origin along the y direction.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Frame2D, Vector2D};
+    /// assert_eq!(Frame2D::WORLD.y_axis().direction(), Vector2D::Y);
+    /// ```
+    pub fn y_axis(self) -> Axis2D {
+        Axis2D {
+            origin: self.origin,
+            direction: self.y_dir,
+        }
+    }
+
+    /// Returns the coordinates of `p` expressed in this frame, as
+    /// `((p - origin)·x, (p - origin)·y)`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Frame2D, Point2D, Vector2D};
+    /// let frame = Frame2D::from_x(Point2D::new(1.0, 1.0), Vector2D::Y).unwrap();
+    /// assert_eq!(frame.local_coordinates(Point2D::new(1.0, 3.0)), (2.0, 0.0));
+    /// ```
+    pub fn local_coordinates(self, p: Point2D) -> (f64, f64) {
+        let d = p - self.origin;
+        (d.dot(self.x_dir), d.dot(self.y_dir))
+    }
+
+    /// Returns the point at `origin + u*x + v*y`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Frame2D, Point2D, Vector2D};
+    /// let frame = Frame2D::from_x(Point2D::new(1.0, 1.0), Vector2D::Y).unwrap();
+    /// assert_eq!(frame.point_at(2.0, 0.0), Point2D::new(1.0, 3.0));
+    /// ```
+    pub fn point_at(self, u: f64, v: f64) -> Point2D {
+        self.origin + u * self.x_dir + v * self.y_dir
+    }
+
+    /// Returns the vector `u*x + v*y`: the direction counterpart of
+    /// [`Frame2D::point_at`], which ignores the origin.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Frame2D, Point2D, Vector2D};
+    /// let frame = Frame2D::from_x(Point2D::new(1.0, 1.0), Vector2D::Y).unwrap();
+    /// assert_eq!(frame.vector_at(1.0, 0.0), Vector2D::Y);
+    /// ```
+    pub fn vector_at(self, u: f64, v: f64) -> Vector2D {
+        u * self.x_dir + v * self.y_dir
+    }
+
+    /// Returns the components of `vector` along the frame's directions,
+    /// `(vector·x, vector·y)`: the direction counterpart of
+    /// [`Frame2D::local_coordinates`], which ignores the origin.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Frame2D, Point2D, Vector2D};
+    /// let frame = Frame2D::from_x(Point2D::new(1.0, 1.0), Vector2D::Y).unwrap();
+    /// assert_eq!(frame.local_components(Vector2D::Y), (1.0, 0.0));
+    /// ```
+    pub fn local_components(self, vector: Vector2D) -> (f64, f64) {
+        (vector.dot(self.x_dir), vector.dot(self.y_dir))
     }
 
     /// The frame with the y direction negated: orthonormality is kept and

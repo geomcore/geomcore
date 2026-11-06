@@ -311,10 +311,6 @@ ELEMENTARY = [
 ]
 
 
-def normal_at(surface, u, v):
-    return surface.normal() if isinstance(surface, Plane) else surface.normal(u, v)
-
-
 @pytest.mark.parametrize("surface", ELEMENTARY, ids=lambda s: type(s).__name__)
 def test_reversal_keeps_the_points_and_flips_the_normal(surface):
     u, v = 0.3, 0.2
@@ -327,8 +323,8 @@ def test_reversal_keeps_the_points_and_flips_the_normal(surface):
     assert reversed_u.point_at(u_there, v).distance(point) < 1e-12
     assert reversed_v.point_at(u, v_there).distance(point) < 1e-12
     assert not reversed_u.frame().is_direct()
-    assert close(normal_at(reversed_u, u_there, v), -normal_at(surface, u, v))
-    assert close(normal_at(reversed_v, u, v_there), -normal_at(surface, u, v))
+    assert close(reversed_u.normal(u_there, v), -surface.normal(u, v))
+    assert close(reversed_v.normal(u, v_there), -surface.normal(u, v))
     # Reversing twice gives back the surface.
     assert reversed_u.reversed_u() == surface
 
@@ -384,9 +380,9 @@ def test_frame_from_axes_rejects_bad_directions(axes):
 
 def test_plane_and_circle_normals_follow_orientation():
     left = Frame.from_axes(ORIGIN, X, -Y, Z)
-    assert close(Plane.from_frame(left).normal(), -Z)
+    assert close(Plane.from_frame(left).axis().direction(), -Z)
     assert close(Circle.from_frame(left, 1.0).normal(), -Z)
-    assert close(Plane(ORIGIN, Z).normal(), Z)
+    assert close(Plane(ORIGIN, Z).axis().direction(), Z)
 
 
 def test_mirrored_surface_maps_its_parametrization_and_flips_its_normal():

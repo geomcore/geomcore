@@ -31,8 +31,8 @@ fn sampled_box(
 /// the samples, and that each side is within the confusion distance and
 /// `slack` of it, the sampling's own shortfall.
 fn assert_tight(tight: BoundingBox, sampled: BoundingBox, slack: f64) {
-    let (low, high) = (tight.min(), tight.max());
-    let (sampled_low, sampled_high) = (sampled.min(), sampled.max());
+    let (low, high) = (tight.min_corner(), tight.max_corner());
+    let (sampled_low, sampled_high) = (sampled.min_corner(), sampled.max_corner());
     for (side, sampled_side) in [
         (low.x, sampled_low.x),
         (low.y, sampled_low.y),
@@ -107,8 +107,8 @@ fn a_plane_curve_is_boxed_in_the_plane() {
     .unwrap();
     let embedded = |b: BoundingBox2D| {
         BoundingBox::new(
-            Point::new(b.min().x, b.min().y, 0.0),
-            Point::new(b.max().x, b.max().y, 0.0),
+            Point::new(b.min_corner().x, b.min_corner().y, 0.0),
+            Point::new(b.max_corner().x, b.max_corner().y, 0.0),
         )
     };
     assert_tight(embedded(tight), embedded(sampled), 1e-9);
@@ -155,7 +155,7 @@ fn a_spline_surface_is_boxed_to_its_extremes() {
     )
     .unwrap();
     assert_tight(tight, sampled, 1e-5);
-    assert!(surface.bounding_box().unwrap().max().z > tight.max().z + 1.0);
+    assert!(surface.bounding_box().unwrap().max_corner().z > tight.max_corner().z + 1.0);
 }
 
 #[test]

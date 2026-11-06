@@ -247,10 +247,10 @@ which trait.
 
 The stubs mirror the sets (ADR 0029). Each set is a stub-only private
 class in `geomcore/__init__.pyi` (`_CurveMethods`,
-`_DiscretizeMethods`, `_SurfaceMethods`, ...) holding the set's typed
+`_BoundedCurveMethods`, `_SurfaceMethods`, ...) holding the set's typed
 signatures and its docstrings. A class stub inherits the sets its
 `shape_methods!` line names and lists only its own methods. What differs
-by class is a type argument: `_DiscretizeMethods[Discretization2D]`,
+by class is a type argument: `_BoundedCurveMethods[Point2D, Discretization2D]`,
 `_SurfaceMethods[Line, Circle]` (the classes of the `u` and `v` iso
 curves).
 

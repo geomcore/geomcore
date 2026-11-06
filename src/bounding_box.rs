@@ -18,8 +18,8 @@ use crate::base::tier::operations::BoxOperations;
 use crate::{Point, Point2D, Tolerance, Vector};
 
 /// An axis-aligned box: the points whose coordinates all lie between
-/// those of its [`min`](BoundingBox::min) and
-/// [`max`](BoundingBox::max) corners, faces included.
+/// those of its [`min_corner`](BoundingBox::min_corner) and
+/// [`max_corner`](BoundingBox::max_corner), faces included.
 ///
 /// A box is never empty: `min` is at most `max` on every axis. A box of a
 /// single point is flat on every axis.
@@ -34,7 +34,7 @@ use crate::{Point, Point2D, Tolerance, Vector};
 /// assert!(!a.overlaps(b));
 /// // Within a distance of 1 of each other: the boxes enlarged by half of it touch.
 /// assert!(a.enlarged(0.5).overlaps(b.enlarged(0.5)));
-/// assert_eq!(a.union(b).max(), Point::new(4.0, 1.0, 1.0));
+/// assert_eq!(a.union(b).max_corner(), Point::new(4.0, 1.0, 1.0));
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct BoundingBox {
@@ -59,8 +59,8 @@ impl BoundingBox {
     /// use geomcore::{BoundingBox, Point};
     ///
     /// let b = BoundingBox::new(Point::new(1.0, 0.0, 5.0), Point::new(0.0, 2.0, 3.0));
-    /// assert_eq!(b.min(), Point::new(0.0, 0.0, 3.0));
-    /// assert_eq!(b.max(), Point::new(1.0, 2.0, 5.0));
+    /// assert_eq!(b.min_corner(), Point::new(0.0, 0.0, 3.0));
+    /// assert_eq!(b.max_corner(), Point::new(1.0, 2.0, 5.0));
     /// ```
     pub fn new(a: Point, b: Point) -> BoundingBox {
         BoundingBox {
@@ -79,8 +79,8 @@ impl BoundingBox {
     ///
     /// let points = [Point::new(1.0, 0.0, 0.0), Point::new(-1.0, 2.0, 0.5)];
     /// let b = BoundingBox::from_points(points).unwrap();
-    /// assert_eq!(b.min(), Point::new(-1.0, 0.0, 0.0));
-    /// assert_eq!(b.max(), Point::new(1.0, 2.0, 0.5));
+    /// assert_eq!(b.min_corner(), Point::new(-1.0, 0.0, 0.0));
+    /// assert_eq!(b.max_corner(), Point::new(1.0, 2.0, 0.5));
     /// assert_eq!(BoundingBox::from_points([]), None);
     /// ```
     pub fn from_points(points: impl IntoIterator<Item = Point>) -> Option<BoundingBox> {
@@ -97,9 +97,9 @@ impl BoundingBox {
     /// use geomcore::{BoundingBox, Point};
     ///
     /// let b = BoundingBox::new(Point::new(1.0, 2.0, 3.0), Point::ORIGIN);
-    /// assert_eq!(b.min(), Point::ORIGIN);
+    /// assert_eq!(b.min_corner(), Point::ORIGIN);
     /// ```
-    pub fn min(self) -> Point {
+    pub fn min_corner(self) -> Point {
         self.min
     }
 
@@ -111,9 +111,9 @@ impl BoundingBox {
     /// use geomcore::{BoundingBox, Point};
     ///
     /// let b = BoundingBox::new(Point::new(1.0, 2.0, 3.0), Point::ORIGIN);
-    /// assert_eq!(b.max(), Point::new(1.0, 2.0, 3.0));
+    /// assert_eq!(b.max_corner(), Point::new(1.0, 2.0, 3.0));
     /// ```
-    pub fn max(self) -> Point {
+    pub fn max_corner(self) -> Point {
         self.max
     }
 
@@ -131,8 +131,8 @@ impl BoundingBox {
         self.min + 0.5 * (self.max - self.min)
     }
 
-    /// The vector from the [`min`](Self::min) corner to the
-    /// [`max`](Self::max) corner: the box's size along each axis.
+    /// The vector from [`min_corner`](Self::min_corner) to
+    /// [`max_corner`](Self::max_corner): the box's size along each axis.
     ///
     /// # Examples
     ///
@@ -157,8 +157,8 @@ impl BoundingBox {
     /// let a = BoundingBox::new(Point::ORIGIN, Point::new(1.0, 1.0, 1.0));
     /// let b = BoundingBox::new(Point::new(2.0, -1.0, 0.0), Point::new(3.0, 0.0, 0.5));
     /// let both = a.union(b);
-    /// assert_eq!(both.min(), Point::new(0.0, -1.0, 0.0));
-    /// assert_eq!(both.max(), Point::new(3.0, 1.0, 1.0));
+    /// assert_eq!(both.min_corner(), Point::new(0.0, -1.0, 0.0));
+    /// assert_eq!(both.max_corner(), Point::new(3.0, 1.0, 1.0));
     /// ```
     pub fn union(self, other: BoundingBox) -> BoundingBox {
         self.including(other.min).including(other.max)
@@ -175,12 +175,12 @@ impl BoundingBox {
     ///
     /// let b = BoundingBox::new(Point::ORIGIN, Point::new(4.0, 1.0, 1.0));
     /// let grown = b.enlarged(0.5);
-    /// assert_eq!(grown.min(), Point::new(-0.5, -0.5, -0.5));
-    /// assert_eq!(grown.max(), Point::new(4.5, 1.5, 1.5));
+    /// assert_eq!(grown.min_corner(), Point::new(-0.5, -0.5, -0.5));
+    /// assert_eq!(grown.max_corner(), Point::new(4.5, 1.5, 1.5));
     ///
     /// let shrunk = b.enlarged(-1.0);
-    /// assert_eq!(shrunk.min(), Point::new(1.0, 0.5, 0.5));
-    /// assert_eq!(shrunk.max(), Point::new(3.0, 0.5, 0.5));
+    /// assert_eq!(shrunk.min_corner(), Point::new(1.0, 0.5, 0.5));
+    /// assert_eq!(shrunk.max_corner(), Point::new(3.0, 0.5, 0.5));
     /// ```
     pub fn enlarged(self, distance: f64) -> BoundingBox {
         let (min, max) = (coordinates(self.min), coordinates(self.max));
@@ -240,8 +240,72 @@ impl BoundingBox {
         (0..3).all(|k| a_min[k] <= b_max[k] && b_min[k] <= a_max[k])
     }
 
+    /// The box of the points the two boxes share, or `None` when they are
+    /// apart. Boxes that only touch share a flat box.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{BoundingBox, Point};
+    ///
+    /// let a = BoundingBox::new(Point::ORIGIN, Point::new(2.0, 2.0, 2.0));
+    /// let b = BoundingBox::new(Point::new(1.0, 1.0, 1.0), Point::new(3.0, 3.0, 3.0));
+    /// assert_eq!(a.intersection(b), Some(BoundingBox::new(Point::new(1.0, 1.0, 1.0), Point::new(2.0, 2.0, 2.0))));
+    /// assert_eq!(a.intersection(BoundingBox::new(Point::new(4.0, 0.0, 0.0), Point::new(4.0, 1.0, 1.0))), None);
+    /// ```
+    pub fn intersection(self, other: BoundingBox) -> Option<BoundingBox> {
+        if !self.overlaps(other) {
+            return None;
+        }
+        let (a_min, a_max) = (coordinates(self.min), coordinates(self.max));
+        let (b_min, b_max) = (coordinates(other.min), coordinates(other.max));
+        let lo: [f64; 3] = std::array::from_fn(|k| a_min[k].max(b_min[k]));
+        let hi: [f64; 3] = std::array::from_fn(|k| a_max[k].min(b_max[k]));
+        Some(BoundingBox {
+            min: point(lo),
+            max: point(hi),
+        })
+    }
+
+    /// The distance from `point` to the box: zero for a point in it,
+    /// faces included, the distance to the nearest point of the box
+    /// otherwise.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{BoundingBox, Point};
+    ///
+    /// let b = BoundingBox::new(Point::ORIGIN, Point::new(2.0, 2.0, 2.0));
+    /// assert_eq!(b.distance(Point::new(1.0, 1.0, 1.0)), 0.0);
+    /// assert_eq!(b.distance(Point::new(5.0, 1.0, 1.0)), 3.0);
+    /// ```
+    pub fn distance(self, point: Point) -> f64 {
+        let (p, min, max) = (
+            coordinates(point),
+            coordinates(self.min),
+            coordinates(self.max),
+        );
+        (0..3)
+            .map(|k| {
+                let gap = (min[k] - p[k]).max(p[k] - max[k]).max(0.0);
+                gap * gap
+            })
+            .sum::<f64>()
+            .sqrt()
+    }
+
     /// The smallest box holding this box and `point`.
-    pub(crate) fn including(self, p: Point) -> BoundingBox {
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{BoundingBox, Point};
+    ///
+    /// let b = BoundingBox::new(Point::ORIGIN, Point::new(2.0, 2.0, 2.0)).including(Point::new(5.0, 1.0, 1.0));
+    /// assert_eq!(b.max_corner(), Point::new(5.0, 2.0, 2.0));
+    /// ```
+    pub fn including(self, p: Point) -> BoundingBox {
         BoundingBox {
             min: Point::new(
                 self.min.x.min(p.x),
@@ -285,9 +349,9 @@ impl BoundingBox {
 /// let quarter = TrimmedCurve::new(circle, 0.0, std::f64::consts::FRAC_PI_2).unwrap();
 /// let b = quarter.bounding_box().unwrap();
 /// // From (2, 0, 0) to (0, 2, 0): the arc's own extreme points, not the circle's.
-/// assert_eq!((b.min().y, b.max().y), (0.0, 2.0));
-/// assert_eq!(b.max().x, 2.0);
-/// assert!(b.min().x.abs() < 1e-15);
+/// assert_eq!((b.min_corner().y, b.max_corner().y), (0.0, 2.0));
+/// assert_eq!(b.max_corner().x, 2.0);
+/// assert!(b.min_corner().x.abs() < 1e-15);
 /// ```
 ///
 /// ```
@@ -296,8 +360,8 @@ impl BoundingBox {
 ///
 /// let sphere = Sphere::new(Point::new(1.0, 0.0, 0.0), 2.0).unwrap();
 /// let b = sphere.bounding_box().unwrap();
-/// assert_eq!(b.min(), Point::new(-1.0, -2.0, -2.0));
-/// assert_eq!(b.max(), Point::new(3.0, 2.0, 2.0));
+/// assert_eq!(b.min_corner(), Point::new(-1.0, -2.0, -2.0));
+/// assert_eq!(b.max_corner(), Point::new(3.0, 2.0, 2.0));
 ///
 /// let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
 /// assert_eq!(plane.bounding_box(), None);
@@ -327,10 +391,10 @@ pub trait HasBoundingBox {
     /// let poles = vec![Point::ORIGIN, Point::new(1.0, 2.0, 0.0), Point::new(2.0, 0.0, 0.0)];
     /// let arch = BSplineCurve::new(2, poles, vec![0.0, 1.0], vec![3, 3], false).unwrap();
     /// // The control points reach y = 2; the curve, 1.
-    /// assert_eq!(arch.bounding_box().unwrap().max().y, 2.0);
+    /// assert_eq!(arch.bounding_box().unwrap().max_corner().y, 2.0);
     /// let tol = Tolerance::DEFAULT;
     /// let tight = arch.tight_bounding_box(tol).unwrap();
-    /// assert!(tight.max().y >= 1.0 && tight.max().y - 1.0 <= tol.confusion);
+    /// assert!(tight.max_corner().y >= 1.0 && tight.max_corner().y - 1.0 <= tol.confusion);
     /// ```
     fn tight_bounding_box(&self, tol: Tolerance) -> Option<BoundingBox> {
         let _ = tol;
@@ -370,13 +434,13 @@ macro_rules! box_operations {
             }
 
             #[inline]
-            fn min(self) -> $point {
-                $box::min(self)
+            fn min_corner(self) -> $point {
+                $box::min_corner(self)
             }
 
             #[inline]
-            fn max(self) -> $point {
-                $box::max(self)
+            fn max_corner(self) -> $point {
+                $box::max_corner(self)
             }
         }
     )*};

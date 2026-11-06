@@ -33,8 +33,10 @@ pub use fitting::PointParametrization;
 pub use hyperbola::{GenericHyperbola, Hyperbola, Hyperbola2D, HyperbolaConstructionError};
 pub use line::{GenericLine, Line, Line2D, LineConstructionError};
 pub use parabola::{GenericParabola, Parabola, Parabola2D, ParabolaConstructionError};
-pub use parametric_curve::{Continuity, ParametricCurve, PointExtrema, ReversibleCurve, Side};
-pub use parametric_curve_2d::{ParametricCurve2D, PointExtrema2D};
+pub use parametric_curve::{
+    BoundedCurve, Continuity, ParametricCurve, PointExtrema, ReversibleCurve, Side,
+};
+pub use parametric_curve_2d::{BoundedCurve2D, ParametricCurve2D, PointExtrema2D};
 pub(crate) use range::{RangeOperations, Run};
 pub use trimmed::{
     ArcConstructionError, GenericTrimmedCurve, TrimmedCurve, TrimmedCurve2D,

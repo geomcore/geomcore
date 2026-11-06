@@ -11,7 +11,7 @@ use geomcore::Ellipse2D;
 pub(crate) struct PyEllipse2D(pub(crate) Ellipse2D);
 
 shape_methods! {
-    PyEllipse2D: [curve_2d, discretize_2d];
+    PyEllipse2D: [curve_2d, bounded_curve_2d];
 
     /// The placement frame of the ellipse.
     fn frame(&self) -> PyFrame2D {
@@ -70,10 +70,10 @@ shape_methods! {
         self.0.enclosed_area()
     }
 
-    /// The perimeter, integrating the speed to within `max_error`: it has
+    /// The perimeter, integrating the speed to within `max_length_error`: it has
     /// no closed form.
-    fn length(&self, max_error: f64) -> f64 {
-        self.0.length(max_error)
+    fn length(&self, max_length_error: f64) -> f64 {
+        self.0.length(max_length_error)
     }
 
     /// The ellipse as an exact rational B-spline of degree 2, periodic over
