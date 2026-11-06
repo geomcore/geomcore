@@ -8,14 +8,14 @@ use std::f64::consts::{FRAC_PI_2, FRAC_PI_4};
 #[test]
 fn test_from_frame_ok() {
     let c = Cone::from_frame(Frame::WORLD, 0.4, 2.0).unwrap();
-    assert_eq!(c.semi_angle(), 0.4);
-    assert_eq!(c.ref_radius(), 2.0);
+    assert_eq!(c.half_angle(), 0.4);
+    assert_eq!(c.reference_radius(), 2.0);
 }
 
 #[test]
 fn test_from_frame_negative_angle_ok() {
     let c = Cone::from_frame(Frame::WORLD, -0.4, 2.0).unwrap();
-    assert_eq!(c.semi_angle(), -0.4);
+    assert_eq!(c.half_angle(), -0.4);
 }
 
 #[test]
@@ -92,7 +92,7 @@ fn test_from_two_points_and_radii_negative_radius_errors() {
 
 #[test]
 fn test_from_two_points_and_radii_null_angle_errors_when_radii_equal() {
-    // r1 == r2 gives a zero semi-angle: no valid cone (it's a cylinder).
+    // r1 == r2 gives a zero half-angle: no valid cone (it's a cylinder).
     assert_eq!(
         Cone::from_two_points_and_radii(Point::ORIGIN, Point::new(0.0, 0.0, 1.0), 2.0, 2.0),
         Err(ConeConstructionError::NullAngle)
@@ -104,8 +104,8 @@ fn test_from_two_points_and_radii_matches_golden_case_shrinking() {
     // From tests/fixtures/construction.json: cones_two_points_radii[0].
     let c = Cone::from_two_points_and_radii(Point::ORIGIN, Point::new(0.0, 0.0, 4.0), 2.0, 1.0)
         .unwrap();
-    assert!((c.semi_angle() - (-0.24497866312686414)).abs() < 1e-9);
-    assert_eq!(c.ref_radius(), 2.0);
+    assert!((c.half_angle() - (-0.24497866312686414)).abs() < 1e-9);
+    assert_eq!(c.reference_radius(), 2.0);
     let frame = c.frame();
     assert_eq!(frame.origin(), Point::ORIGIN);
     assert_vector3_close(frame.x_direction(), Vector::new(0.0, -1.0, 0.0));
@@ -123,8 +123,8 @@ fn test_from_two_points_and_radii_matches_golden_case_growing() {
         2.5,
     )
     .unwrap();
-    assert!((c.semi_angle() - 0.5908727501454191).abs() < 1e-9);
-    assert_eq!(c.ref_radius(), 1.0);
+    assert!((c.half_angle() - 0.5908727501454191).abs() < 1e-9);
+    assert_eq!(c.reference_radius(), 1.0);
     let frame = c.frame();
     assert_eq!(frame.origin(), Point::new(1.0, 1.0, 1.0));
     assert_vector3_close(
@@ -158,15 +158,15 @@ fn assert_vector3_close(actual: Vector, expected: Vector) {
 #[test]
 fn test_eval_point() {
     let c = Cone::new(Point::ORIGIN, Vector::Z, 0.4, 2.0).unwrap();
-    assert_eq!(c.eval_point(0.0, 0.0), Point::new(2.0, 0.0, 0.0));
+    assert_eq!(c.point_at(0.0, 0.0), Point::new(2.0, 0.0, 0.0));
 }
 
 #[test]
 fn test_eval_points_matches_loop() {
     let c = Cone::new(Point::ORIGIN, Vector::Z, 0.4, 2.0).unwrap();
     let uvs = [(0.0, 0.0), (0.5, 1.0)];
-    let expected: Vec<Point> = uvs.iter().map(|&(u, v)| c.eval_point(u, v)).collect();
-    assert_eq!(c.eval_points(&uvs), expected);
+    let expected: Vec<Point> = uvs.iter().map(|&(u, v)| c.point_at(u, v)).collect();
+    assert_eq!(c.points_at(&uvs), expected);
 }
 
 #[test]
@@ -182,7 +182,7 @@ fn test_apex() {
 #[should_panic(expected = "du + dv must be >= 1")]
 fn test_eval_derivative_zero_order_panics() {
     let c = Cone::new(Point::ORIGIN, Vector::Z, 0.4, 2.0).unwrap();
-    c.eval_derivative(0.0, 0.0, 0, 0);
+    c.derivative(0.0, 0.0, 0, 0);
 }
 
 #[test]
@@ -202,7 +202,7 @@ fn test_error_display() {
     );
     assert_eq!(
         ConeConstructionError::BadAngle.to_string(),
-        "semi-angle is out of range"
+        "half-angle is out of range"
     );
     assert_eq!(
         ConeConstructionError::NullAxis.to_string(),
@@ -210,7 +210,7 @@ fn test_error_display() {
     );
     assert_eq!(
         ConeConstructionError::NullAngle.to_string(),
-        "semi-angle is null or a right angle"
+        "half-angle is null or a right angle"
     );
     assert_eq!(
         ConeConstructionError::NullNormal.to_string(),
@@ -228,8 +228,8 @@ fn test_error_is_std_error() {
 fn test_cone_contains() {
     let cone = Cone::from_frame(Frame::WORLD, 0.4, 2.0).unwrap();
     let tol = Tolerance::DEFAULT;
-    assert!(cone.contains(cone.eval_point(0.0, 0.0), tol));
-    assert!(cone.contains(cone.eval_point(1.0, 2.0), tol));
+    assert!(cone.contains(cone.point_at(0.0, 0.0), tol));
+    assert!(cone.contains(cone.point_at(1.0, 2.0), tol));
     assert!(!cone.contains(Point::ORIGIN, tol));
     assert!(!cone.contains(Point::new(0.0, 0.0, 10.0), tol));
 }
@@ -238,7 +238,7 @@ fn test_cone_contains() {
 fn test_cone_project_point() {
     let cone = Cone::from_frame(Frame::WORLD, 0.4, 2.0).unwrap();
     let tol = Tolerance::DEFAULT;
-    let p = cone.eval_point(1.0, 2.0);
+    let p = cone.point_at(1.0, 2.0);
     let proj = cone.project_point(p, tol);
     assert!((proj.u - 1.0).abs() < 1e-9);
     assert!((proj.v - 2.0).abs() < 1e-9);
@@ -252,10 +252,10 @@ fn test_cone_transformed_translation_spot_check() {
     let cone = Cone::new(Point::ORIGIN, Vector::Z, 0.4, 2.0).unwrap();
     let t = Transform::translation(Vector::new(0.0, 3.0, 0.0));
     let moved = cone.transformed(t).unwrap();
-    assert_eq!(moved.semi_angle(), 0.4);
-    assert_eq!(moved.ref_radius(), 2.0);
+    assert_eq!(moved.half_angle(), 0.4);
+    assert_eq!(moved.reference_radius(), 2.0);
     // Hand-computed evaluation, shifted; the apex shifts identically.
-    assert_eq!(moved.eval_point(0.0, 0.0), Point::new(2.0, 3.0, 0.0));
+    assert_eq!(moved.point_at(0.0, 0.0), Point::new(2.0, 3.0, 0.0));
     assert_eq!(moved.apex(), t.apply_point(cone.apex()));
 }
 
@@ -265,22 +265,22 @@ fn test_cone_transformed_round_trip_and_mirror() {
     let t = Transform::translation(Vector::new(1.0, -1.0, 2.0))
         .then(Transform::scaling(Point::ORIGIN, 2.0));
     let moved = cone.transformed(t).unwrap();
-    assert_eq!(moved.semi_angle(), 0.4);
-    assert_eq!(moved.ref_radius(), 4.0);
+    assert_eq!(moved.half_angle(), 0.4);
+    assert_eq!(moved.reference_radius(), 4.0);
     let tol = Tolerance::DEFAULT;
     for (u, v) in [(0.0, 0.0), (1.0, -2.0), (4.0, 0.5)] {
-        assert!(moved.contains(t.apply_point(cone.eval_point(u, v)), tol));
+        assert!(moved.contains(t.apply_point(cone.point_at(u, v)), tol));
     }
     let inv = Transform::scaling(Point::ORIGIN, 0.5)
         .then(Transform::translation(Vector::new(-1.0, 1.0, -2.0)));
     let back = moved.transformed(inv).unwrap();
-    assert!((back.ref_radius() - cone.ref_radius()).abs() < 1e-9);
+    assert!((back.reference_radius() - cone.reference_radius()).abs() < 1e-9);
     assert!(back.apex().distance(cone.apex()) < 1e-9);
     // Mirror across the xy-plane preserves the point set.
     let m = Transform::mirror_plane(Frame::WORLD);
     let mirrored = cone.transformed(m).unwrap();
     for (u, v) in [(0.0, 0.0), (1.0, -2.0)] {
-        assert!(mirrored.contains(m.apply_point(cone.eval_point(u, v)), tol));
+        assert!(mirrored.contains(m.apply_point(cone.point_at(u, v)), tol));
     }
     assert_eq!(mirrored.transformed(m).unwrap(), cone);
 }
@@ -291,17 +291,32 @@ fn test_reversed_cones_share_point_set() {
     for (u, v) in [(0.0, 0.0), (1.0, -2.0), (5.0, 3.0)] {
         let ru = cone.reversed_u();
         assert!(!ru.frame().is_direct());
-        assert!((ru.eval_point(u, v) - cone.eval_point(-u, v)).magnitude() < 1e-12);
+        assert!((ru.point_at(u, v) - cone.point_at(-u, v)).magnitude() < 1e-12);
         assert!((ru.u_reversed_parameter(cone.u_reversed_parameter(u)) - u).abs() < 1e-12);
-        let (_, [su, sv]) = cone.eval_d1(-u, v);
-        let (_, [rsu, rsv]) = ru.eval_d1(u, v);
+        let (_, [su, sv]) = cone.first_derivatives(-u, v);
+        let (_, [rsu, rsv]) = ru.first_derivatives(u, v);
         assert!((rsu.cross(rsv) + su.cross(sv)).magnitude() < 1e-9);
         let rv = cone.reversed_v();
         assert!(!rv.frame().is_direct());
-        assert_eq!(rv.semi_angle(), -0.4);
-        assert!((rv.eval_point(u, v) - cone.eval_point(u, -v)).magnitude() < 1e-12);
+        assert_eq!(rv.half_angle(), -0.4);
+        assert!((rv.point_at(u, v) - cone.point_at(u, -v)).magnitude() < 1e-12);
         assert_eq!(rv.v_reversed_parameter(cone.v_reversed_parameter(v)), v);
     }
     assert_eq!(cone.reversed_u().reversed_u(), cone);
     assert_eq!(cone.reversed_v().reversed_v(), cone);
+}
+
+#[test]
+fn test_cone_from_apex_opens_at_its_angle() {
+    let apex = Point::new(1.0, 2.0, 3.0);
+    let axis = Vector::new(0.0, 1.0, 1.0);
+    let cone = Cone::from_apex(apex, axis, 0.3).unwrap();
+    assert!(cone.apex().distance(apex) < 1e-12);
+    let unit = axis.normalized().unwrap();
+    for (u, v) in [(0.0, 1.0), (1.0, 2.5), (4.0, 0.5)] {
+        let to_point = cone.point_at(u, v) - apex;
+        let angle = (to_point.dot(unit) / to_point.magnitude()).acos();
+        assert!((angle - 0.3).abs() < 1e-12);
+    }
+    assert!(Cone::from_apex(apex, Vector::ZERO, 0.3).is_err());
 }

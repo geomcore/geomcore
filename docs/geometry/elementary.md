@@ -46,11 +46,10 @@ space.
 === "Python"
 
     ```python
-    from geomcore import Point, Vector
-    from geomcore.curves import Line
+    from geomcore import Line, Point, Vector
 
     line = Line(Point.origin(), Vector.unit_z())
-    p = line.eval_point(2.0)  # parameter -> 3D point
+    p = line.point_at(2.0)  # parameter -> 3D point
     assert (p.x, p.y, p.z) == (0.0, 0.0, 2.0)
     assert line.parameter_of(p) == 2.0  # 3D point -> parameter
     ```
@@ -62,7 +61,7 @@ space.
     use geomcore::{Line, Point, Tolerance, Vector};
 
     let line = Line::new(Point::ORIGIN, Vector::Z).unwrap();
-    let p = line.eval_point(2.0); // parameter -> 3D point
+    let p = line.point_at(2.0); // parameter -> 3D point
     assert_eq!(p, Point::new(0.0, 0.0, 2.0));
     assert_eq!(line.parameter_of(p, Tolerance::DEFAULT), 2.0); // 3D point -> parameter
     ```
@@ -86,11 +85,11 @@ conic whose parameter is proportional to distance travelled.
 === "Python"
 
     ```python
-    from geomcore.curves import Circle
+    from geomcore import Circle
 
     circle = Circle(Point.origin(), Vector.unit_z(), 2.0)
-    assert abs(circle.circumference() - 4.0 * 3.141592653589793) < 1e-12
-    p = circle.eval_point(1.0)  # parameter -> 3D point
+    assert abs(circle.length() - 4.0 * 3.141592653589793) < 1e-12
+    p = circle.point_at(1.0)  # parameter -> 3D point
     assert abs(circle.parameter_of(p) - 1.0) < 1e-12  # 3D point -> parameter
     ```
 
@@ -100,7 +99,7 @@ conic whose parameter is proportional to distance travelled.
     use geomcore::Circle;
 
     let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
-    let p = circle.eval_point(1.0); // parameter -> 3D point
+    let p = circle.point_at(1.0); // parameter -> 3D point
     assert!((circle.parameter_of(p, Tolerance::DEFAULT) - 1.0).abs() < 1e-12); // 3D point -> parameter
     ```
 
@@ -127,10 +126,10 @@ of the major axis.
 === "Python"
 
     ```python
-    from geomcore.curves import Ellipse
+    from geomcore import Ellipse
 
     ellipse = Ellipse(Point.origin(), Vector.unit_z(), Vector.unit_x(), 3.0, 1.0)
-    p = ellipse.eval_point(1.0)  # parameter -> 3D point
+    p = ellipse.point_at(1.0)  # parameter -> 3D point
     assert abs(ellipse.parameter_of(p) - 1.0) < 1e-12  # 3D point -> parameter
     ```
 
@@ -140,7 +139,7 @@ of the major axis.
     use geomcore::Ellipse;
 
     let ellipse = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 3.0, 1.0).unwrap();
-    let p = ellipse.eval_point(1.0); // parameter -> 3D point
+    let p = ellipse.point_at(1.0); // parameter -> 3D point
     assert!((ellipse.parameter_of(p, Tolerance::DEFAULT) - 1.0).abs() < 1e-12); // 3D point -> parameter
     ```
 
@@ -151,6 +150,13 @@ $$
 The way back: $u = \mathrm{atan2}(y/b,\; x/a)$ — divide out the radii
 and the ellipse becomes the circle whose angle is $u$.
 
+The foci sit at $O \pm c\,\vec{X}$ with $c = \sqrt{a^2 - b^2}$, and
+the eccentricity is $e = c/a$: `foci()`, `eccentricity()` and
+`directrices()` give them, the directrices being the lines across the
+major axis at $a/e$ from the centre. A point of the curve is $e$ times
+as far from a focus as from that focus's directrix. A circle has
+$e = 0$, both foci at its centre and no directrices.
+
 <figure class="geom-fig">
 <img src="../../assets/figures/elementary-geometry/08-an-ellipse-with-a-point-resolved.svg" alt="An ellipse with a point resolved into its coordinates">
 <figcaption>An ellipse. u is the eccentric angle, not the polar angle.</figcaption>
@@ -159,15 +165,16 @@ and the ellipse becomes the circle whose angle is $u$.
 ### Hyperbola
 
 $\cosh$ is never below 1, so this map reaches **one branch** only; the
-mirror branch is a second curve no value of $u$ reaches.
+mirror branch is a second curve no value of $u$ reaches, which
+`other_branch()` builds.
 
 === "Python"
 
     ```python
-    from geomcore.curves import Hyperbola
+    from geomcore import Hyperbola
 
     hyp = Hyperbola(Point.origin(), Vector.unit_z(), Vector.unit_x(), 2.0, 1.0)
-    p = hyp.eval_point(1.0)  # parameter -> 3D point
+    p = hyp.point_at(1.0)  # parameter -> 3D point
     assert abs(hyp.parameter_of(p) - 1.0) < 1e-12  # 3D point -> parameter
     ```
 
@@ -177,7 +184,7 @@ mirror branch is a second curve no value of $u$ reaches.
     use geomcore::Hyperbola;
 
     let hyp = Hyperbola::new(Point::ORIGIN, Vector::Z, Vector::X, 2.0, 1.0).unwrap();
-    let p = hyp.eval_point(1.0); // parameter -> 3D point
+    let p = hyp.point_at(1.0); // parameter -> 3D point
     assert!((hyp.parameter_of(p, Tolerance::DEFAULT) - 1.0).abs() < 1e-12); // 3D point -> parameter
     ```
 
@@ -187,6 +194,10 @@ $$
 
 The way back: $u = \mathrm{arsinh}(y/b)$. Implicit form:
 $\frac{x^2}{a^2} - \frac{y^2}{b^2} = 1$.
+
+The foci sit at $O \pm c\,\vec{X}$ with $c = \sqrt{a^2 + b^2}$, this
+branch's own focus first in `foci()`; `eccentricity()` is $c/a > 1$ and
+`directrices()` are across the axis at $a/e$ from the centre.
 
 <figure class="geom-fig">
 <img src="../../assets/figures/elementary-geometry/09-one-branch-of-a-hyperbola-with.svg" alt="One branch of a hyperbola">
@@ -202,10 +213,10 @@ $(f, 0)$, directrix $x = -f$.
 === "Python"
 
     ```python
-    from geomcore.curves import Parabola
+    from geomcore import Parabola
 
     parab = Parabola(Point.origin(), Vector.unit_z(), Vector.unit_x(), 1.5)
-    p = parab.eval_point(2.0)  # parameter -> 3D point
+    p = parab.point_at(2.0)  # parameter -> 3D point
     assert abs(parab.parameter_of(p) - 2.0) < 1e-12  # 3D point -> parameter
     ```
 
@@ -215,7 +226,7 @@ $(f, 0)$, directrix $x = -f$.
     use geomcore::Parabola;
 
     let parab = Parabola::new(Point::ORIGIN, Vector::Z, Vector::X, 1.5).unwrap();
-    let p = parab.eval_point(2.0); // parameter -> 3D point
+    let p = parab.point_at(2.0); // parameter -> 3D point
     assert!((parab.parameter_of(p, Tolerance::DEFAULT) - 2.0).abs() < 1e-12); // 3D point -> parameter
     ```
 
@@ -224,6 +235,11 @@ C(u) = O + \frac{u^2}{4f}\,\vec{X} + u\,\vec{Y}, \qquad u \in (-\infty, +\infty)
 $$
 
 The way back: $u = y$.
+
+`focus()` and `directrix()` return those two, and
+`Parabola.from_focus_and_directrix(focus, directrix)` builds the
+parabola from them; its parameter then runs along the directrix's
+direction. The eccentricity is always 1.
 
 <figure class="geom-fig">
 <img src="../../assets/figures/elementary-geometry/10-a-parabola-with-focus-directrix-and.svg" alt="A parabola with focus and directrix">
@@ -246,10 +262,10 @@ periodicity, no degenerate point.
 === "Python"
 
     ```python
-    from geomcore.surfaces import Plane
+    from geomcore import Plane
 
     plane = Plane(Point.origin(), Vector.unit_z())
-    p = plane.eval_point(1.0, 2.0)  # parameters -> 3D point
+    p = plane.point_at(1.0, 2.0)  # parameters -> 3D point
     assert (p.x, p.y, p.z) == (1.0, 2.0, 0.0)
     assert plane.parameters_of(p) == (1.0, 2.0)  # 3D point -> parameters
     ```
@@ -260,7 +276,7 @@ periodicity, no degenerate point.
     use geomcore::Plane;
 
     let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
-    let p = plane.eval_point(1.0, 2.0); // parameters -> 3D point
+    let p = plane.point_at(1.0, 2.0); // parameters -> 3D point
     assert_eq!(p, Point::new(1.0, 2.0, 0.0));
     assert_eq!(plane.parameters_of(p, Tolerance::DEFAULT), (1.0, 2.0)); // 3D point -> parameters
     ```
@@ -270,6 +286,18 @@ S(u, v) = O + u\,\vec{X} + v\,\vec{Y}, \qquad (u, v) \in (-\infty, +\infty)^2
 $$
 
 The way back: $u = x,\; v = y$.
+
+The plane is also how a 2D curve is placed in space: `uv_curve_to_3d`
+maps any 2D curve through the plane's frame, so a `Circle2D` drawn in
+the plane's $(u, v)$ coordinates comes back as the 3D `Circle`.
+
+```python
+from geomcore import Circle2D, Point2D
+
+plane = Plane(Point(0.0, 0.0, 5.0), Vector.unit_z())
+circle = plane.uv_curve_to_3d(Circle2D(Point2D(1.0, 2.0), 0.5))
+# Circle(center=(1.0, 2.0, 5.0), normal=(0.0, 0.0, 1.0), radius=0.5)
+```
 
 <figure class="geom-fig">
 <img src="../../assets/figures/elementary-geometry/11-a-plane-with-a-point-resolved.svg" alt="A plane with a point resolved into its coordinates">
@@ -284,10 +312,10 @@ not the same kind of quantity.
 === "Python"
 
     ```python
-    from geomcore.surfaces import Cylinder
+    from geomcore import Cylinder
 
     cyl = Cylinder(Point.origin(), Vector.unit_z(), 2.0)
-    p = cyl.eval_point(1.0, 2.0)  # parameters -> 3D point
+    p = cyl.point_at(1.0, 2.0)  # parameters -> 3D point
     u, v = cyl.parameters_of(p)  # 3D point -> parameters
     assert abs(u - 1.0) < 1e-12 and abs(v - 2.0) < 1e-12
     ```
@@ -298,7 +326,7 @@ not the same kind of quantity.
     use geomcore::Cylinder;
 
     let cyl = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
-    let p = cyl.eval_point(1.0, 2.0); // parameters -> 3D point
+    let p = cyl.point_at(1.0, 2.0); // parameters -> 3D point
     let (u, v) = cyl.parameters_of(p, Tolerance::DEFAULT); // 3D point -> parameters
     assert!((u - 1.0).abs() < 1e-12 && (v - 2.0).abs() < 1e-12);
     ```
@@ -326,11 +354,11 @@ parameter plane instead; the article compares both.
 === "Python"
 
     ```python
-    from geomcore.surfaces import Cone
+    from geomcore import Cone
     import math
 
     cone = Cone(Point.origin(), Vector.unit_z(), math.radians(28), 4.0)
-    p = cone.eval_point(1.0, 2.0)  # parameters -> 3D point
+    p = cone.point_at(1.0, 2.0)  # parameters -> 3D point
     u, v = cone.parameters_of(p)  # 3D point -> parameters
     assert abs(u - 1.0) < 1e-9 and abs(v - 2.0) < 1e-9
     ```
@@ -341,7 +369,7 @@ parameter plane instead; the article compares both.
     use geomcore::Cone;
 
     let cone = Cone::new(Point::ORIGIN, Vector::Z, 0.4887, 4.0).unwrap();
-    let p = cone.eval_point(1.0, 2.0); // parameters -> 3D point
+    let p = cone.point_at(1.0, 2.0); // parameters -> 3D point
     let (u, v) = cone.parameters_of(p, Tolerance::DEFAULT); // 3D point -> parameters
     assert!((u - 1.0).abs() < 1e-9 && (v - 2.0).abs() < 1e-9);
     ```
@@ -358,6 +386,9 @@ it $\rho$ goes negative into the opposite nappe. The frame sits on the
 reference circle ($v = 0$), not at the apex — the only point with no
 normal is a bad datum, it is often hundreds of radii from the part, and
 anchoring there would break the cone→cylinder limit as $\alpha \to 0$.
+When the apex is the datum at hand anyway, `Cone.from_apex(apex,
+axis_direction, half_angle)` builds the cone whose reference circle is
+the apex itself ($R = 0$).
 
 <figure class="geom-fig">
 <img src="../../assets/figures/elementary-geometry/13-a-cone-with-a-point-resolved.svg" alt="A cone with a point resolved into its coordinates">
@@ -373,11 +404,11 @@ circle of longitudes collapses onto the axis.
 === "Python"
 
     ```python
-    from geomcore.surfaces import Sphere
+    from geomcore import Sphere
 
     sphere = Sphere(Point.origin(), 2.0)
     assert abs(sphere.volume() - 4.0 / 3.0 * 3.141592653589793 * 8.0) < 1e-9
-    p = sphere.eval_point(0.5, 0.3)  # parameters -> 3D point
+    p = sphere.point_at(0.5, 0.3)  # parameters -> 3D point
     u, v = sphere.parameters_of(p)  # 3D point -> parameters
     assert abs(u - 0.5) < 1e-12 and abs(v - 0.3) < 1e-12
     ```
@@ -388,7 +419,7 @@ circle of longitudes collapses onto the axis.
     use geomcore::Sphere;
 
     let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
-    let p = sphere.eval_point(0.5, 0.3); // parameters -> 3D point
+    let p = sphere.point_at(0.5, 0.3); // parameters -> 3D point
     let (u, v) = sphere.parameters_of(p, Tolerance::DEFAULT); // 3D point -> parameters
     assert!((u - 0.5).abs() < 1e-12 && (v - 0.3).abs() < 1e-12);
     ```
@@ -416,10 +447,10 @@ rectangle of the five.
 === "Python"
 
     ```python
-    from geomcore.surfaces import Torus
+    from geomcore import Torus
 
     torus = Torus(Point.origin(), Vector.unit_z(), 5.0, 1.5)
-    p = torus.eval_point(0.5, 1.0)  # parameters -> 3D point
+    p = torus.point_at(0.5, 1.0)  # parameters -> 3D point
     u, v = torus.parameters_of(p)  # 3D point -> parameters
     assert abs(u - 0.5) < 1e-12 and abs(v - 1.0) < 1e-12
     ```
@@ -430,7 +461,7 @@ rectangle of the five.
     use geomcore::Torus;
 
     let torus = Torus::new(Point::ORIGIN, Vector::Z, 5.0, 1.5).unwrap();
-    let p = torus.eval_point(0.5, 1.0); // parameters -> 3D point
+    let p = torus.point_at(0.5, 1.0); // parameters -> 3D point
     let (u, v) = torus.parameters_of(p, Tolerance::DEFAULT); // 3D point -> parameters
     assert!((u - 0.5).abs() < 1e-12 && (v - 1.0).abs() < 1e-12);
     ```

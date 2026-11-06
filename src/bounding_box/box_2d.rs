@@ -1,6 +1,6 @@
 //! The 2D axis-aligned box and the query that asks a 2D curve for it.
 
-use crate::{Point2D, Vector2D};
+use crate::{Point2D, Tolerance, Vector2D};
 
 /// An axis-aligned box in the plane: the points whose coordinates all lie
 /// between those of its [`min_corner`](BoundingBox2D::min_corner) and
@@ -264,11 +264,25 @@ pub trait HasBoundingBox2D {
     /// The axis-aligned box bounding the curve, or `None` if the curve is
     /// unbounded.
     fn bounding_box(&self) -> Option<BoundingBox2D>;
+
+    /// The axis-aligned box bounding the curve as tightly as
+    /// `tol.confusion`: it holds the curve, and each of its sides is within
+    /// `tol.confusion` of a point of the curve. `None` if the curve is
+    /// unbounded. As [`HasBoundingBox::tight_bounding_box`](crate::HasBoundingBox::tight_bounding_box)
+    /// in the plane.
+    fn tight_bounding_box(&self, tol: Tolerance) -> Option<BoundingBox2D> {
+        let _ = tol;
+        self.bounding_box()
+    }
 }
 
 impl<T: HasBoundingBox2D + ?Sized> HasBoundingBox2D for &T {
     fn bounding_box(&self) -> Option<BoundingBox2D> {
         (**self).bounding_box()
+    }
+
+    fn tight_bounding_box(&self, tol: Tolerance) -> Option<BoundingBox2D> {
+        (**self).tight_bounding_box(tol)
     }
 }
 

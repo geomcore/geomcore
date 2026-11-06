@@ -50,7 +50,7 @@ fn assert_same_shape(a: &BezierSurface, b: &BezierSurface) {
         for j in 0..=6 {
             let u = a.u_bounds().0 + (a.u_bounds().1 - a.u_bounds().0) * i as f64 / 6.0;
             let v = a.v_bounds().0 + (a.v_bounds().1 - a.v_bounds().0) * j as f64 / 6.0;
-            assert_close(a.eval_point(u, v), b.eval_point(u, v), 1e-12);
+            assert_close(a.point_at(u, v), b.point_at(u, v), 1e-12);
         }
     }
 }
@@ -153,18 +153,18 @@ fn test_new_rational_errors() {
 #[test]
 fn test_eval_point_by_hand() {
     let surface = saddle();
-    assert_eq!(surface.eval_point(0.0, 0.0), Point::new(0.0, 0.0, 0.0));
-    assert_eq!(surface.eval_point(1.0, 1.0), Point::new(2.0, 2.0, 4.0));
-    assert_eq!(surface.eval_point(1.0, 0.0), Point::new(2.0, 0.0, 0.0));
+    assert_eq!(surface.point_at(0.0, 0.0), Point::new(0.0, 0.0, 0.0));
+    assert_eq!(surface.point_at(1.0, 1.0), Point::new(2.0, 2.0, 4.0));
+    assert_eq!(surface.point_at(1.0, 0.0), Point::new(2.0, 0.0, 0.0));
     // (2u, 2v, 4uv)
     assert_close(
-        surface.eval_point(0.25, 0.5),
+        surface.point_at(0.25, 0.5),
         Point::new(0.5, 1.0, 0.5),
         1e-14,
     );
     assert_eq!(
-        surface.eval_points(&[(0.25, 0.5), (1.0, 1.0)]),
-        vec![surface.eval_point(0.25, 0.5), Point::new(2.0, 2.0, 4.0)]
+        surface.points_at(&[(0.25, 0.5), (1.0, 1.0)]),
+        vec![surface.point_at(0.25, 0.5), Point::new(2.0, 2.0, 4.0)]
     );
 }
 
@@ -172,7 +172,7 @@ fn test_eval_point_by_hand() {
 fn test_eval_derivatives_by_hand() {
     let surface = saddle();
     let (u, v) = (0.25, 0.5);
-    let (point, [su, sv], [suu, suv, svv]) = surface.eval_d2(u, v);
+    let (point, [su, sv], [suu, suv, svv]) = surface.second_derivatives(u, v);
     assert_close(point, Point::new(0.5, 1.0, 0.5), 1e-14);
     // Su = (2, 0, 4v), Sv = (0, 2, 4u), Suv = (0, 0, 4).
     assert!((su - Vector::new(2.0, 0.0, 2.0)).magnitude() < 1e-12);
@@ -180,8 +180,8 @@ fn test_eval_derivatives_by_hand() {
     assert!(suu.magnitude() < 1e-12);
     assert!((suv - Vector::new(0.0, 0.0, 4.0)).magnitude() < 1e-12);
     assert!(svv.magnitude() < 1e-12);
-    assert_eq!(surface.eval_d1(u, v).1, [su, sv]);
-    assert_eq!(surface.eval_derivative(u, v, 1, 1), suv);
+    assert_eq!(surface.first_derivatives(u, v).1, [su, sv]);
+    assert_eq!(surface.derivative(u, v, 1, 1), suv);
 }
 
 #[test]
@@ -193,11 +193,17 @@ fn test_sided_evaluation_agrees_with_plain() {
         (Side::Above, Side::Above),
         (Side::Below, Side::Above),
     ] {
-        assert_eq!(surface.eval_d1_sided(u, v, us, vs), surface.eval_d1(u, v));
-        assert_eq!(surface.eval_d2_sided(u, v, us, vs), surface.eval_d2(u, v));
         assert_eq!(
-            surface.eval_derivative_sided(u, v, 1, 1, us, vs),
-            surface.eval_derivative(u, v, 1, 1)
+            surface.first_derivatives_sided(u, v, us, vs),
+            surface.first_derivatives(u, v)
+        );
+        assert_eq!(
+            surface.second_derivatives_sided(u, v, us, vs),
+            surface.second_derivatives(u, v)
+        );
+        assert_eq!(
+            surface.derivative_sided(u, v, 1, 1, us, vs),
+            surface.derivative(u, v, 1, 1)
         );
     }
 }
@@ -208,12 +214,12 @@ fn test_rational_quarter_cylinder_stays_on_the_cylinder() {
     for i in 0..=10 {
         for j in 0..=4 {
             let (u, v) = (i as f64 / 10.0, j as f64 / 4.0);
-            let p = surface.eval_point(u, v);
+            let p = surface.point_at(u, v);
             assert!((p.x.hypot(p.y) - 1.0).abs() < 1e-12, "{p:?}");
             assert!((p.z - v).abs() < 1e-12, "{p:?}");
         }
     }
-    let end = surface.eval_point(1.0, 0.5);
+    let end = surface.point_at(1.0, 0.5);
     assert_close(end, Point::new(0.0, 1.0, 0.5), 1e-12);
 }
 
@@ -225,8 +231,11 @@ fn test_parametric_surface_trait_delegates() {
     assert_eq!(surface.u_period(), None);
     assert_eq!(surface.v_period(), None);
     assert!(!surface.is_u_closed(Tolerance::DEFAULT));
-    assert_eq!(surface.eval_point(0.25, 0.5), surface.eval_point(0.25, 0.5));
-    assert_eq!(surface.eval_d2(0.25, 0.5), surface.eval_d2(0.25, 0.5));
+    assert_eq!(surface.point_at(0.25, 0.5), surface.point_at(0.25, 0.5));
+    assert_eq!(
+        surface.second_derivatives(0.25, 0.5),
+        surface.second_derivatives(0.25, 0.5)
+    );
     let normal = surface.normal(0.0, 0.0, Tolerance::DEFAULT).unwrap();
     assert!((normal - Vector::Z).magnitude() < 1e-12);
 }
@@ -234,7 +243,7 @@ fn test_parametric_surface_trait_delegates() {
 #[test]
 fn test_project_point_and_contains() {
     let surface = saddle();
-    let on = surface.eval_point(0.4, 0.6);
+    let on = surface.point_at(0.4, 0.6);
     assert!(surface.contains(on, Tolerance::DEFAULT));
     let projection = surface.project_point(on, Tolerance::DEFAULT);
     assert_eq!(projection.distance, 0.0);
@@ -254,8 +263,8 @@ fn test_to_bspline_is_one_clamped_span_each_way() {
     assert!(!spline.is_u_periodic() && !spline.is_v_periodic());
     assert_eq!(spline.poles(), saddle().poles());
     assert_close(
-        spline.eval_point(0.25, 0.5),
-        saddle().eval_point(0.25, 0.5),
+        spline.point_at(0.25, 0.5),
+        saddle().point_at(0.25, 0.5),
         1e-15,
     );
 }
@@ -351,7 +360,7 @@ fn test_to_bezier_patches_returns_bezier_surfaces() {
     assert_eq!(patch.v_bounds(), (0.0, 1.0));
     assert_eq!((patch.u_pole_count(), patch.v_pole_count()), (3, 3));
     for (u, v) in [(1.0, 0.0), (1.5, 0.5), (2.0, 1.0), (1.2, 0.9)] {
-        assert_close(patch.eval_point(u, v), spline.eval_point(u, v), 1e-12);
+        assert_close(patch.point_at(u, v), spline.point_at(u, v), 1e-12);
     }
     assert_eq!(
         BezierSurface::from_bspline(&patch.to_bspline()).as_ref(),
@@ -374,10 +383,10 @@ fn test_split_u_at() {
     // The last row of `low` is the first of `high`: the iso-curve at `u`.
     assert_eq!(&low.poles()[6..9], &high.poles()[0..3]);
     for (u, v) in [(0.1, 0.3), (0.2, 0.9)] {
-        assert_close(low.eval_point(u, v), surface.eval_point(u, v), 1e-12);
+        assert_close(low.point_at(u, v), surface.point_at(u, v), 1e-12);
     }
     for (u, v) in [(0.5, 0.3), (1.0, 1.0)] {
-        assert_close(high.eval_point(u, v), surface.eval_point(u, v), 1e-12);
+        assert_close(high.point_at(u, v), surface.point_at(u, v), 1e-12);
     }
 }
 
@@ -389,10 +398,10 @@ fn test_split_v_at() {
     assert_eq!(low.u_bounds(), (0.0, 1.0));
     assert!(low.is_rational() && high.is_rational());
     for (u, v) in [(0.3, 0.2), (0.9, 0.4)] {
-        assert_close(low.eval_point(u, v), surface.eval_point(u, v), 1e-12);
+        assert_close(low.point_at(u, v), surface.point_at(u, v), 1e-12);
     }
     for (u, v) in [(0.3, 0.7), (0.9, 1.0)] {
-        assert_close(high.eval_point(u, v), surface.eval_point(u, v), 1e-12);
+        assert_close(high.point_at(u, v), surface.point_at(u, v), 1e-12);
     }
 }
 
@@ -444,8 +453,8 @@ fn test_reversed_mirrors_the_parameters() {
         let ru = surface.reversed_u();
         let rv = surface.reversed_v();
         for (u, v) in [(0.0, 0.0), (0.2, 0.7), (1.0, 0.4)] {
-            assert_close(ru.eval_point(u, v), surface.eval_point(1.0 - u, v), 1e-12);
-            assert_close(rv.eval_point(u, v), surface.eval_point(u, 1.0 - v), 1e-12);
+            assert_close(ru.point_at(u, v), surface.point_at(1.0 - u, v), 1e-12);
+            assert_close(rv.point_at(u, v), surface.point_at(u, 1.0 - v), 1e-12);
         }
         assert_eq!(ru.reversed_u(), surface);
         assert_eq!(rv.reversed_v(), surface);

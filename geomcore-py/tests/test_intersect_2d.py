@@ -6,15 +6,17 @@ import math
 
 import pytest
 
-from geomcore import IntersectionMethod, Point2D, Vector2D
-from geomcore.curves import (
+from geomcore import (
     BSplineCurve2D,
     Circle2D,
     Ellipse2D,
     Hyperbola2D,
+    IntersectionMethod,
     Line2D,
     Parabola2D,
+    Point2D,
     TrimmedCurve2D,
+    Vector2D,
 )
 
 ORIGIN = Point2D.origin()

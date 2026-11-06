@@ -121,48 +121,62 @@ pub(crate) fn cylinder_parameters(frame: &Frame, p: Point) -> (f64, f64) {
 
 // ---- cone ----
 
-/// Evaluates the cone of reference radius `ref_r` and semi-angle
-/// `semi_angle` in `frame` at `(u, v)`: `R = ref_r + v*sin(semi_angle)`,
-/// `origin + R*cos(u)*x_dir + R*sin(u)*y_dir + v*cos(semi_angle)*z_dir`.
-pub(crate) fn cone_d0(frame: &Frame, ref_r: f64, semi_angle: f64, u: f64, v: f64) -> Point {
-    let r = ref_r + v * semi_angle.sin();
-    let a3 = v * semi_angle.cos();
+/// Evaluates the cone of reference radius `reference_radius` and half-angle
+/// `half_angle` in `frame` at `(u, v)`: `R = reference_radius + v*sin(half_angle)`,
+/// `origin + R*cos(u)*x_dir + R*sin(u)*y_dir + v*cos(half_angle)*z_dir`.
+pub(crate) fn cone_d0(
+    frame: &Frame,
+    reference_radius: f64,
+    half_angle: f64,
+    u: f64,
+    v: f64,
+) -> Point {
+    let r = reference_radius + v * half_angle.sin();
+    let a3 = v * half_angle.cos();
     frame.point_at(r * u.cos(), r * u.sin(), a3)
 }
 
 /// Derivative of the cone at order `(du, dv)`, `du + dv >= 1`.
 ///
-/// With `R = ref_r + v sin(semi_angle)` and `ρ` the radial direction
+/// With `R = reference_radius + v sin(half_angle)` and `ρ` the radial direction
 /// `cos(u) x_dir + sin(u) y_dir`: `∂^du S/∂u^du = R ρ⁽ᵈᵘ⁾`,
-/// `∂^(du+1) S/∂u^du ∂v = sin(semi_angle) ρ⁽ᵈᵘ⁾`, plus
-/// `cos(semi_angle) z_dir` when `du = 0`; every derivative of order 2 or
+/// `∂^(du+1) S/∂u^du ∂v = sin(half_angle) ρ⁽ᵈᵘ⁾`, plus
+/// `cos(half_angle) z_dir` when `du = 0`; every derivative of order 2 or
 /// more in `v` is identically zero (`R` is linear in `v`).
 pub(crate) fn cone_derivative(
     frame: &Frame,
-    ref_r: f64,
-    semi_angle: f64,
+    reference_radius: f64,
+    half_angle: f64,
     u: f64,
     v: f64,
     du: u32,
     dv: u32,
 ) -> Vector {
-    cone_partial(frame, ref_r, Turn::of(semi_angle), Turn::of(u), v, du, dv)
+    cone_partial(
+        frame,
+        reference_radius,
+        Turn::of(half_angle),
+        Turn::of(u),
+        v,
+        du,
+        dv,
+    )
 }
 
-/// [`cone_derivative`] from the turns of `semi_angle` and `u`.
+/// [`cone_derivative`] from the turns of `half_angle` and `u`.
 pub(crate) fn cone_partial(
     frame: &Frame,
-    ref_r: f64,
-    semi_angle: Turn,
+    reference_radius: f64,
+    half_angle: Turn,
     u: Turn,
     v: f64,
     du: u32,
     dv: u32,
 ) -> Vector {
     debug_assert!(du + dv >= 1);
-    let Turn { cosine, sine } = semi_angle;
+    let Turn { cosine, sine } = half_angle;
     match (du, dv) {
-        (_, 0) => (ref_r + v * sine) * radial_derivative(frame, u, du),
+        (_, 0) => (reference_radius + v * sine) * radial_derivative(frame, u, du),
         (0, 1) => sine * radial_derivative(frame, u, 0) + cosine * frame.z_direction(),
         (_, 1) => sine * radial_derivative(frame, u, du),
         _ => Vector::ZERO,
@@ -172,20 +186,26 @@ pub(crate) fn cone_partial(
 /// Recovers `(u, v)` of a point on (or near) the cone.
 ///
 /// `u` is `0` exactly on the axis (`x, y` both `~0`); below the apex
-/// (`-ref_r > z*tan(semi_angle)`) the point lies on the opposite nappe, so
+/// (`-reference_radius > z*tan(half_angle)`) the point lies on the opposite nappe, so
 /// `u` is measured from the branch `atan2(-y, -x)` instead of the usual
 /// `atan2(y, x)`; both are wrapped into `[0, 2*PI)`.
-/// `v = sin(semi_angle)*(x*cos(u) + y*sin(u) - ref_r) + cos(semi_angle)*z`.
-pub(crate) fn cone_parameters(frame: &Frame, ref_r: f64, semi_angle: f64, p: Point) -> (f64, f64) {
+/// `v = sin(half_angle)*(x*cos(u) + y*sin(u) - reference_radius) + cos(half_angle)*z`.
+pub(crate) fn cone_parameters(
+    frame: &Frame,
+    reference_radius: f64,
+    half_angle: f64,
+    p: Point,
+) -> (f64, f64) {
     let (x, y, z) = frame.local_coordinates(p);
     let u = if x.abs() < 1e-9 && y.abs() < 1e-9 {
         0.0
-    } else if -ref_r > z * semi_angle.tan() {
+    } else if -reference_radius > z * half_angle.tan() {
         wrap_to_turn((-y).atan2(-x))
     } else {
         wrap_to_turn(y.atan2(x))
     };
-    let v = semi_angle.sin() * (x * u.cos() + y * u.sin() - ref_r) + semi_angle.cos() * z;
+    let v =
+        half_angle.sin() * (x * u.cos() + y * u.sin() - reference_radius) + half_angle.cos() * z;
     (u, v)
 }
 

@@ -63,7 +63,7 @@ fn surface_extremes<S: ParametricSurface>(
     std::array::from_fn(|k| {
         let value = |sign: f64| {
             maximum(u0, u1, |u| {
-                maximum(v0, v1, |v| sign * coordinate(surface.eval_point(u, v), k))
+                maximum(v0, v1, |v| sign * coordinate(surface.point_at(u, v), k))
             })
         };
         (-value(-1.0), value(1.0))
@@ -98,12 +98,7 @@ fn through_reference<T: HasBoundingBox>(shape: &T) -> Option<BoundingBox> {
 fn check_curve<C: ParametricCurve + HasBoundingBox>(curve: &C, tight: bool, what: &str) {
     let (first, last) = curve.bounds();
     let b = curve.bounding_box().expect("bounded curve");
-    check(
-        b,
-        extremes(first, last, |t| curve.eval_point(t)),
-        tight,
-        what,
-    );
+    check(b, extremes(first, last, |t| curve.point_at(t)), tight, what);
 }
 
 /// Tilted directions: none along an axis, one along each.
@@ -521,9 +516,9 @@ fn test_bspline_surface_boxes_hold_the_surface() {
             "B-spline surface",
         );
         let corners = [
-            surface.eval_point(u.0, v.0),
-            surface.eval_point(u.1, v.1),
-            surface.eval_point(u.0, v.1),
+            surface.point_at(u.0, v.0),
+            surface.point_at(u.1, v.1),
+            surface.point_at(u.0, v.1),
         ];
         assert!(corners.iter().all(|&p| b.encloses(p)));
         assert_eq!(Surface::from(surface.clone()).bounding_box(), Some(b));
@@ -656,7 +651,7 @@ mod planar {
         for circle in frames {
             check(
                 circle.bounding_box().unwrap(),
-                sampled(0.0, TAU, |t| circle.eval_point(t)),
+                sampled(0.0, TAU, |t| circle.point_at(t)),
                 true,
             );
             for (first, last) in [
@@ -668,7 +663,7 @@ mod planar {
                 let arc = TrimmedCurve2D::new(circle, first, last).unwrap();
                 check(
                     arc.bounding_box().unwrap(),
-                    sampled(first, last, |t| circle.eval_point(t)),
+                    sampled(first, last, |t| circle.point_at(t)),
                     true,
                 );
             }
@@ -705,7 +700,7 @@ mod planar {
         for ellipse in frames {
             check(
                 ellipse.bounding_box().unwrap(),
-                sampled(0.0, TAU, |t| ellipse.eval_point(t)),
+                sampled(0.0, TAU, |t| ellipse.point_at(t)),
                 true,
             );
             for (first, last) in [
@@ -717,7 +712,7 @@ mod planar {
                 let arc = TrimmedCurve2D::new(ellipse, first, last).unwrap();
                 check(
                     arc.bounding_box().unwrap(),
-                    sampled(first, last, |t| ellipse.eval_point(t)),
+                    sampled(first, last, |t| ellipse.point_at(t)),
                     true,
                 );
             }
@@ -753,7 +748,7 @@ mod planar {
                 let piece = TrimmedCurve2D::new(parabola, first, last).unwrap();
                 check(
                     piece.bounding_box().unwrap(),
-                    sampled(first, last, |t| parabola.eval_point(t)),
+                    sampled(first, last, |t| parabola.point_at(t)),
                     true,
                 );
                 let boxed = TrimmedCurve2D::new(Curve2D::from(parabola), first, last).unwrap();
@@ -787,7 +782,7 @@ mod planar {
                 let piece = TrimmedCurve2D::new(hyperbola, first, last).unwrap();
                 check(
                     piece.bounding_box().unwrap(),
-                    sampled(first, last, |t| hyperbola.eval_point(t)),
+                    sampled(first, last, |t| hyperbola.point_at(t)),
                     true,
                 );
                 let boxed = TrimmedCurve2D::new(Curve2D::from(hyperbola), first, last).unwrap();
@@ -821,10 +816,10 @@ mod planar {
             BSplineCurve2D::new(3, poles.clone(), vec![0.0, 1.0], vec![4, 4], false).unwrap();
         let whole = curve.bounding_box().unwrap();
         assert_eq!(whole, BoundingBox2D::from_points(poles).unwrap());
-        check(whole, sampled(0.0, 1.0, |t| curve.eval_point(t)), false);
+        check(whole, sampled(0.0, 1.0, |t| curve.point_at(t)), false);
         let piece = TrimmedCurve2D::new(&curve, 0.2, 0.6).unwrap();
         let b = piece.bounding_box().unwrap();
-        check(b, sampled(0.2, 0.6, |t| curve.eval_point(t)), false);
+        check(b, sampled(0.2, 0.6, |t| curve.point_at(t)), false);
         assert!(whole.encloses(b.min_corner()) && whole.encloses(b.max_corner()));
     }
 
@@ -845,13 +840,13 @@ mod planar {
             let bounded = first.is_finite() && last.is_finite();
             assert_eq!(curve.bounding_box().is_some(), bounded, "{curve:?}");
             if let Some(b) = curve.bounding_box() {
-                check(b, sampled(first, last, |t| curve.eval_point(t)), false);
+                check(b, sampled(first, last, |t| curve.point_at(t)), false);
             }
             let piece = crate::common::samples::trimmed_2d(&curve);
             let (first, last) = piece.bounds();
             check(
                 piece.bounding_box().unwrap(),
-                sampled(first, last, |t| curve.eval_point(t)),
+                sampled(first, last, |t| curve.point_at(t)),
                 false,
             );
         }

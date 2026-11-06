@@ -136,15 +136,15 @@ fn parameters(curve: &BSplineCurve2D) -> Vec<f64> {
 fn evaluation_agrees() {
     for (name, planar, spatial) in pairs() {
         for u in parameters(&planar) {
-            assert_same_point(planar.eval_point(u), spatial.eval_point(u), &name);
-            let (p, d1, d2) = planar.eval_d2(u);
-            let (q, e1, e2) = spatial.eval_d2(u);
+            assert_same_point(planar.point_at(u), spatial.point_at(u), &name);
+            let (p, d1, d2) = planar.second_derivatives(u);
+            let (q, e1, e2) = spatial.second_derivatives(u);
             assert_same_point(p, q, &name);
             assert_same_vector(d1, e1, &name);
             assert_same_vector(d2, e2, &name);
             for side in [Side::Below, Side::Above] {
-                let (p, d1, d2) = planar.eval_d2_sided(u, side);
-                let (q, e1, e2) = spatial.eval_d2_sided(u, side);
+                let (p, d1, d2) = planar.second_derivatives_sided(u, side);
+                let (q, e1, e2) = spatial.second_derivatives_sided(u, side);
                 assert_same_point(p, q, &name);
                 assert_same_vector(d1, e1, &name);
                 assert_same_vector(d2, e2, &name);
@@ -166,7 +166,7 @@ fn projection_agrees() {
     for (name, planar, spatial) in pairs() {
         for (i, u) in parameters(&planar).into_iter().enumerate() {
             // Points off the curve, on both sides, at varying distances.
-            let p = planar.eval_point(u);
+            let p = planar.point_at(u);
             let offset = 0.05 * (i as f64 - 20.0);
             let query = Point2D::new(p.x + offset, p.y - 0.5 * offset);
             let lifted = Point::new(query.x, query.y, 0.0);

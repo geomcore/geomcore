@@ -56,7 +56,7 @@ impl std::error::Error for SphereConstructionError {}
 /// use geomcore::prelude::*;
 /// use geomcore::{Sphere, Point};
 /// let sphere = Sphere::new(Point::ORIGIN, 3.0).unwrap();
-/// assert_eq!(sphere.eval_point(0.0, 0.0), Point::new(3.0, 0.0, 0.0));
+/// assert_eq!(sphere.point_at(0.0, 0.0), Point::new(3.0, 0.0, 0.0));
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Sphere {
@@ -152,8 +152,8 @@ impl Sphere {
     }
 
     /// The `u` isoparametric circle at `u`: the meridian through both
-    /// poles in the half-plane at angle `u`, so `u_iso(u).eval_point(t)`
-    /// is `eval_point(u, t)` for every `t`. The sphere's own range
+    /// poles in the half-plane at angle `u`, so `u_iso(u).point_at(t)`
+    /// is `point_at(u, t)` for every `t`. The sphere's own range
     /// `-PI/2 <= v <= PI/2` covers the half from pole to pole; the other
     /// half is the meridian at `u + PI`.
     /// The axis-aligned special case of
@@ -170,7 +170,7 @@ impl Sphere {
     /// use geomcore::{Point, Sphere};
     /// let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
     /// let iso = sphere.u_iso(0.0).unwrap();
-    /// assert!(iso.eval_point(1.0).distance(sphere.eval_point(0.0, 1.0)) < 1e-12);
+    /// assert!(iso.point_at(1.0).distance(sphere.point_at(0.0, 1.0)) < 1e-12);
     /// ```
     pub fn u_iso(&self, u: f64) -> Result<Circle, SurfaceIsoError> {
         let u = check_iso_param(u, None)?;
@@ -186,7 +186,7 @@ impl Sphere {
 
     /// The `v` isoparametric circle at `v`: the parallel of radius
     /// `|r * cos(v)|` at height `r * sin(v)` along the axis, so
-    /// `v_iso(v).eval_point(t)` is `eval_point(t, v)` for every `t`. At a
+    /// `v_iso(v).point_at(t)` is `point_at(t, v)` for every `t`. At a
     /// pole it is the circle of radius zero.
     /// The axis-aligned special case of
     /// [`uv_curve_to_3d`](crate::ParametricSurface::uv_curve_to_3d):
@@ -246,13 +246,13 @@ impl Sphere {
 
 impl ParametricSurface for Sphere {
     #[inline]
-    fn eval_point(&self, u: f64, v: f64) -> Point {
+    fn point_at(&self, u: f64, v: f64) -> Point {
         elementary::sphere_d0(&self.frame, self.radius, u, v)
     }
 
     fn project_point(&self, point: Point, tol: Tolerance) -> SurfaceProjection {
         let (u, v) = self.parameters_of(point, tol);
-        let foot = self.eval_point(u, v);
+        let foot = self.point_at(u, v);
         let distance = foot.distance(point);
         SurfaceProjection {
             u,
@@ -264,14 +264,12 @@ impl ParametricSurface for Sphere {
 
     fn contains(&self, point: Point, tol: Tolerance) -> bool {
         let (u, v) = self.parameters_of(point, tol);
-        self.eval_point(u, v).distance(point) <= tol.confusion
+        self.point_at(u, v).distance(point) <= tol.confusion
     }
 
-    fn eval_derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> Vector {
+    fn derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> Vector {
         match du + dv {
-            0 => panic!(
-                "eval_derivative: du + dv must be >= 1 (use eval_point for the (0, 0) order)"
-            ),
+            0 => panic!("derivative: du + dv must be >= 1 (use point_at for the (0, 0) order)"),
             _ => elementary::sphere_derivative(&self.frame, self.radius, u, v, du, dv),
         }
     }
@@ -320,7 +318,7 @@ impl ReversibleSurface for Sphere {
     /// Returns the sphere running in the opposite angular direction: the
     /// same point set with the frame's y direction negated, so the frame
     /// turns indirect and the normal reverses.
-    /// `reversed_u().eval_point(u, v)` is `eval_point(-u, v)`.
+    /// `reversed_u().point_at(u, v)` is `point_at(-u, v)`.
     fn reversed_u(&self) -> Sphere {
         Sphere {
             frame: self.frame.flipped_y(),
@@ -330,7 +328,7 @@ impl ReversibleSurface for Sphere {
 
     /// Returns the sphere running from the opposite pole: the same point
     /// set with the frame's z direction negated.
-    /// `reversed_v().eval_point(u, v)` is `eval_point(u, -v)`.
+    /// `reversed_v().point_at(u, v)` is `point_at(u, -v)`.
     fn reversed_v(&self) -> Sphere {
         Sphere {
             frame: self.frame.flipped_z(),

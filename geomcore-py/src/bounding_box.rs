@@ -70,6 +70,13 @@ impl PyBoundingBox {
         self.0.overlaps(other.0)
     }
 
+    fn __reduce__<'py>(
+        slf: &pyo3::Bound<'py, Self>,
+    ) -> PyResult<pyo3::Bound<'py, pyo3::types::PyTuple>> {
+        let this = slf.borrow();
+        crate::pickling::reduce(slf.as_any(), None, (this.min_corner(), this.max_corner()))
+    }
+
     fn __repr__(&self) -> String {
         let (lo, hi) = (self.0.min_corner(), self.0.max_corner());
         format!(
@@ -143,6 +150,13 @@ impl PyBoundingBox2D {
     /// Whether the boxes touch or overlap on both axes.
     fn overlaps(&self, other: &PyBoundingBox2D) -> bool {
         self.0.overlaps(other.0)
+    }
+
+    fn __reduce__<'py>(
+        slf: &pyo3::Bound<'py, Self>,
+    ) -> PyResult<pyo3::Bound<'py, pyo3::types::PyTuple>> {
+        let this = slf.borrow();
+        crate::pickling::reduce(slf.as_any(), None, (this.min_corner(), this.max_corner()))
     }
 
     fn __repr__(&self) -> String {

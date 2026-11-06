@@ -7,15 +7,14 @@
 //! `second`, and the projections hold the object they project onto, as
 //! `target`: the exact objects passed, shared rather than copied.
 
-use crate::arguments::{curve_classes, surface_classes};
+use crate::arguments::{curve_2d_classes, curve_classes, surface_classes};
 use crate::values::{PyPoint, PyPoint2D, PyVector, coordinates, coordinates_2d, float_repr};
 use geomcore::{
     Completeness, CurveCurveExtrema, CurveCurveExtremum, CurveCurveHit, CurveCurveHit2D,
     CurveCurveIntersection, CurveCurveIntersection2D, CurveCurveOverlap, CurveCurveRegion,
     CurveProjection, CurveProjection2D, CurveSurfaceHit, CurveSurfaceIntersection,
-    CurveSurfaceOverlap, CurveSurfaceRegion, IncompleteReason, IntersectionCurve,
-    IntersectionMethod, Point, Point2D, SurfaceCurvatures, SurfaceProjection,
-    SurfaceSurfaceIntersection, SurfaceSurfaceRegion,
+    CurveSurfaceOverlap, CurveSurfaceRegion, IntersectionCurve, Point, Point2D, SurfaceCurvatures,
+    SurfaceProjection, SurfaceSurfaceIntersection, SurfaceSurfaceRegion,
 };
 use pyo3::prelude::*;
 use pyo3::type_object::PyTypeInfo;
@@ -31,10 +30,6 @@ fn point3_repr(p: Point) -> String {
 
 fn point2_repr(p: Point2D) -> String {
     format!("Point2D{}", coordinates_2d(p))
-}
-
-fn optional_repr(value: Option<f64>) -> String {
-    value.map_or_else(|| "None".to_string(), float_repr)
 }
 
 fn range_repr((start, end): (f64, f64)) -> String {
@@ -58,154 +53,7 @@ fn same_operand(py: Python<'_>, a: &Py<PyAny>, b: &Py<PyAny>) -> PyResult<bool> 
     a.bind(py).eq(b.bind(py))
 }
 
-// ---------------------------------------------------------------------------
-// Enumerations
-// ---------------------------------------------------------------------------
-
-/// How an intersection was computed.
-///
-/// `EXACT` is a closed form, always complete. `NUMERIC` is a search, whose
-/// `completeness` tells whether it proved that nothing was missed.
-#[pyclass(
-    name = "IntersectionMethod",
-    module = "geomcore",
-    eq,
-    eq_int,
-    frozen,
-    hash
-)]
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
-pub(crate) enum PyIntersectionMethod {
-    #[pyo3(name = "EXACT")]
-    Exact,
-    #[pyo3(name = "NUMERIC")]
-    Numeric,
-}
-
-impl From<IntersectionMethod> for PyIntersectionMethod {
-    fn from(method: IntersectionMethod) -> Self {
-        match method {
-            IntersectionMethod::Exact => PyIntersectionMethod::Exact,
-            IntersectionMethod::Numeric => PyIntersectionMethod::Numeric,
-        }
-    }
-}
-
-#[pymethods]
-impl PyIntersectionMethod {
-    /// The member's name, as written after the dot.
-    #[getter]
-    fn name(&self) -> &'static str {
-        self.repr().split_once('.').map_or("", |(_, name)| name)
-    }
-}
-
-impl PyIntersectionMethod {
-    fn repr(self) -> &'static str {
-        match self {
-            PyIntersectionMethod::Exact => "IntersectionMethod.EXACT",
-            PyIntersectionMethod::Numeric => "IntersectionMethod.NUMERIC",
-        }
-    }
-}
-
-/// Whether a numeric search proved that it found everything.
-///
-/// - `COMPLETE`: nothing was missed (always the case for an exact result).
-/// - `INCOMPLETE`: the search may have missed something inside its
-///   `regions`, and found everything outside them.
-/// - `SAMPLED`: the result comes from samples; nothing is proved.
-#[pyclass(
-    name = "CompletenessStatus",
-    module = "geomcore",
-    eq,
-    eq_int,
-    frozen,
-    hash
-)]
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
-pub(crate) enum PyCompletenessStatus {
-    #[pyo3(name = "COMPLETE")]
-    Complete,
-    #[pyo3(name = "INCOMPLETE")]
-    Incomplete,
-    #[pyo3(name = "SAMPLED")]
-    Sampled,
-}
-
-#[pymethods]
-impl PyCompletenessStatus {
-    /// The member's name, as written after the dot.
-    #[getter]
-    fn name(&self) -> &'static str {
-        self.repr().split_once('.').map_or("", |(_, name)| name)
-    }
-}
-
-impl PyCompletenessStatus {
-    fn repr(self) -> &'static str {
-        match self {
-            PyCompletenessStatus::Complete => "CompletenessStatus.COMPLETE",
-            PyCompletenessStatus::Incomplete => "CompletenessStatus.INCOMPLETE",
-            PyCompletenessStatus::Sampled => "CompletenessStatus.SAMPLED",
-        }
-    }
-}
-
-/// Why an incomplete search stopped.
-///
-/// - `BUDGET_EXHAUSTED`: it ran out of subdivisions.
-/// - `UNSEPARATED`: pieces of the operands stayed within tolerance of each
-///   other down to the smallest piece, as along an overlap or at a tangent
-///   contact of a curve with a surface.
-/// - `UNBOUNDED`: a branch of two unbounded surfaces runs beyond the box
-///   it was traced in, and continues past the regions reported.
-#[pyclass(
-    name = "IncompleteReason",
-    module = "geomcore",
-    eq,
-    eq_int,
-    frozen,
-    hash
-)]
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
-pub(crate) enum PyIncompleteReason {
-    #[pyo3(name = "BUDGET_EXHAUSTED")]
-    BudgetExhausted,
-    #[pyo3(name = "UNSEPARATED")]
-    Unseparated,
-    #[pyo3(name = "UNBOUNDED")]
-    Unbounded,
-}
-
-impl From<IncompleteReason> for PyIncompleteReason {
-    fn from(reason: IncompleteReason) -> Self {
-        match reason {
-            IncompleteReason::BudgetExhausted => PyIncompleteReason::BudgetExhausted,
-            IncompleteReason::Unseparated => PyIncompleteReason::Unseparated,
-            IncompleteReason::Unbounded => PyIncompleteReason::Unbounded,
-        }
-    }
-}
-
-#[pymethods]
-impl PyIncompleteReason {
-    /// The member's name, as written after the dot.
-    #[getter]
-    fn name(&self) -> &'static str {
-        self.repr().split_once('.').map_or("", |(_, name)| name)
-    }
-}
-
-impl PyIncompleteReason {
-    fn repr(self) -> &'static str {
-        match self {
-            PyIncompleteReason::BudgetExhausted => "IncompleteReason.BUDGET_EXHAUSTED",
-            PyIncompleteReason::Unseparated => "IncompleteReason.UNSEPARATED",
-            PyIncompleteReason::Unbounded => "IncompleteReason.UNBOUNDED",
-        }
-    }
-}
+pub(crate) use crate::enums::{PyCompletenessStatus, PyIncompleteReason, PyIntersectionMethod};
 
 // ---------------------------------------------------------------------------
 // Regions
@@ -479,26 +327,22 @@ impl PyCompleteness {
 // Hits and pieces
 // ---------------------------------------------------------------------------
 
-/// Where two 3D curves meet.
-///
-/// A parameter is `None` when the solver did not compute it. Recover it
-/// from `point` with the curve's `parameter_of` when it has one, or with
-/// its `project_point` otherwise.
+/// Where two 3D curves meet, with the parameter of the point on each curve.
 #[pyclass(name = "CurveCurveHit", module = "geomcore", eq, frozen)]
 #[derive(Clone, PartialEq)]
 pub(crate) struct PyCurveCurveHit(pub(crate) CurveCurveHit);
 
 #[pymethods]
 impl PyCurveCurveHit {
-    /// The parameter on the first curve, or `None` when not computed.
+    /// The parameter on the first curve.
     #[getter]
-    fn first_parameter(&self) -> Option<f64> {
+    fn first_parameter(&self) -> f64 {
         self.0.first_parameter
     }
 
-    /// The parameter on the second curve, or `None` when not computed.
+    /// The parameter on the second curve.
     #[getter]
-    fn second_parameter(&self) -> Option<f64> {
+    fn second_parameter(&self) -> f64 {
         self.0.second_parameter
     }
 
@@ -517,34 +361,30 @@ impl PyCurveCurveHit {
     fn __repr__(&self) -> String {
         format!(
             "CurveCurveHit(first_parameter={}, second_parameter={}, point={}, multiplicity={})",
-            optional_repr(self.0.first_parameter),
-            optional_repr(self.0.second_parameter),
+            float_repr(self.0.first_parameter),
+            float_repr(self.0.second_parameter),
             point3_repr(self.0.point),
             self.0.multiplicity,
         )
     }
 }
 
-/// Where two 2D curves meet.
-///
-/// A parameter is `None` when the solver did not compute it. Recover it
-/// from `point` with the curve's `parameter_of` when it has one, or with
-/// its `project_point` otherwise.
+/// Where two 2D curves meet, with the parameter of the point on each curve.
 #[pyclass(name = "CurveCurveHit2D", module = "geomcore", eq, frozen)]
 #[derive(Clone, PartialEq)]
 pub(crate) struct PyCurveCurveHit2D(pub(crate) CurveCurveHit2D);
 
 #[pymethods]
 impl PyCurveCurveHit2D {
-    /// The parameter on the first curve, or `None` when not computed.
+    /// The parameter on the first curve.
     #[getter]
-    fn first_parameter(&self) -> Option<f64> {
+    fn first_parameter(&self) -> f64 {
         self.0.first_parameter
     }
 
-    /// The parameter on the second curve, or `None` when not computed.
+    /// The parameter on the second curve.
     #[getter]
-    fn second_parameter(&self) -> Option<f64> {
+    fn second_parameter(&self) -> f64 {
         self.0.second_parameter
     }
 
@@ -563,42 +403,38 @@ impl PyCurveCurveHit2D {
     fn __repr__(&self) -> String {
         format!(
             "CurveCurveHit2D(first_parameter={}, second_parameter={}, point={}, multiplicity={})",
-            optional_repr(self.0.first_parameter),
-            optional_repr(self.0.second_parameter),
+            float_repr(self.0.first_parameter),
+            float_repr(self.0.second_parameter),
             point2_repr(self.0.point),
             self.0.multiplicity,
         )
     }
 }
 
-/// Where a curve meets a surface.
-///
-/// A parameter is `None` when the solver did not compute it. Recover the
-/// curve parameter with the curve's `parameter_of` and the surface
-/// parameters with the surface's `parameters_of` when they have them, or
-/// with their `project_point` otherwise.
+/// Where a curve meets a surface, with the parameter of the point on the
+/// curve and its `(u, v)` parameters on the surface.
 #[pyclass(name = "CurveSurfaceHit", module = "geomcore", eq, frozen)]
 #[derive(Clone, PartialEq)]
 pub(crate) struct PyCurveSurfaceHit(pub(crate) CurveSurfaceHit);
 
 #[pymethods]
 impl PyCurveSurfaceHit {
-    /// The parameter on the curve, or `None` when not computed.
+    /// The parameter on the curve.
     #[getter]
-    fn curve_parameter(&self) -> Option<f64> {
+    fn curve_parameter(&self) -> f64 {
         self.0.curve_parameter
     }
 
-    /// The `u` parameter on the surface, or `None` when not computed.
+    /// The `u` parameter on the surface.
     #[getter]
-    fn u(&self) -> Option<f64> {
-        self.0.surface_parameters.map(|(u, _)| u)
+    fn u(&self) -> f64 {
+        self.0.surface_parameters.0
     }
 
-    /// The `v` parameter on the surface, or `None` when not computed.
+    /// The `v` parameter on the surface.
     #[getter]
-    fn v(&self) -> Option<f64> {
-        self.0.surface_parameters.map(|(_, v)| v)
+    fn v(&self) -> f64 {
+        self.0.surface_parameters.1
     }
 
     /// The meeting point.
@@ -617,9 +453,9 @@ impl PyCurveSurfaceHit {
     fn __repr__(&self) -> String {
         format!(
             "CurveSurfaceHit(curve_parameter={}, u={}, v={}, point={}, multiplicity={})",
-            optional_repr(self.0.curve_parameter),
-            optional_repr(self.u()),
-            optional_repr(self.v()),
+            float_repr(self.0.curve_parameter),
+            float_repr(self.u()),
+            float_repr(self.v()),
             point3_repr(self.0.point),
             self.0.multiplicity,
         )
@@ -701,18 +537,63 @@ impl PyIntersectionCurve {
         curve_classes::to_py(py, self.0.curve.clone())
     }
 
-    /// Whether the surfaces graze along the curve. Always `False` for a
-    /// marched curve.
+    /// The curve in the first surface's `(u, v)` parameters, in the same
+    /// parameter as `curve`: the surface's point at its `(u, v)` at `t` is
+    /// `curve`'s point at `t`. A marched curve always has one, fitted from
+    /// the parameters the march walked. An exact curve has the exact one
+    /// where a closed form exists, and `None` otherwise (an ellipse on a
+    /// cylinder): `curve_3d_to_uv_within` maps it within a deviation.
+    #[getter]
+    fn first_uv_curve(&self, py: Python<'_>) -> PyResult<Option<Py<PyAny>>> {
+        self.0
+            .first_uv_curve
+            .clone()
+            .map(|curve| curve_2d_classes::to_py(py, curve))
+            .transpose()
+    }
+
+    /// The curve in the second surface's parameters, as `first_uv_curve`
+    /// is on the first.
+    #[getter]
+    fn second_uv_curve(&self, py: Python<'_>) -> PyResult<Option<Py<PyAny>>> {
+        self.0
+            .second_uv_curve
+            .clone()
+            .map(|curve| curve_2d_classes::to_py(py, curve))
+            .transpose()
+    }
+
+    /// Whether the surfaces touch along the curve instead of crossing it.
     #[getter]
     fn tangent(&self) -> bool {
         self.0.tangent
     }
 
+    /// How far `curve` strays from the surfaces through its curves in
+    /// parameters: the largest distance between `curve`'s point at `t` and
+    /// each surface's point at its UV curve's point at `t`, the tolerance an
+    /// edge along the curve needs. A marched curve samples it at the middle
+    /// of each knot span, where its fits stray furthest from the traced
+    /// points; an exact curve is `0.0`.
+    #[getter]
+    fn deviation(&self) -> f64 {
+        self.0.deviation
+    }
+
     fn __repr__(&self, py: Python<'_>) -> PyResult<String> {
         let curve = self.curve(py)?.bind(py).repr()?.to_string();
+        let repr = |uv_curve: Option<Py<PyAny>>| -> PyResult<String> {
+            uv_curve.map_or(Ok("None".to_owned()), |curve| {
+                Ok(curve.bind(py).repr()?.to_string())
+            })
+        };
         Ok(format!(
-            "IntersectionCurve(curve={curve}, tangent={})",
-            bool_repr(self.0.tangent)
+            "IntersectionCurve(curve={curve}, first_uv_curve={}, second_uv_curve={}, tangent={}, \
+             deviation={})",
+            repr(self.first_uv_curve(py)?)?,
+            repr(self.second_uv_curve(py)?)?,
+            bool_repr(self.0.tangent),
+            float_repr(self.0.deviation)
         ))
     }
 }
@@ -819,8 +700,7 @@ impl PyCurveCurveIntersection {
 intersection_result! {
     PyCurveCurveIntersection, curve_curve;
 
-    /// The points where the curves meet, by first-curve parameter when
-    /// every hit has one.
+    /// The points where the curves meet, by first-curve parameter.
     #[getter]
     fn hits<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyList>> {
         PyList::new(py, self.result.hits().iter().map(|h| PyCurveCurveHit(*h)))
@@ -864,8 +744,7 @@ impl PyCurveCurveIntersection2D {
 intersection_result! {
     PyCurveCurveIntersection2D, curve_curve;
 
-    /// The points where the curves meet, by first-curve parameter when
-    /// every hit has one.
+    /// The points where the curves meet, by first-curve parameter.
     #[getter]
     fn hits<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyList>> {
         PyList::new(py, self.result.hits().iter().map(|h| PyCurveCurveHit2D(*h)))
@@ -916,8 +795,7 @@ impl PyCurveSurfaceIntersection {
 intersection_result! {
     PyCurveSurfaceIntersection, curve_surface;
 
-    /// The points where the curve meets the surface, by curve parameter
-    /// when every hit has one.
+    /// The points where the curve meets the surface, by curve parameter.
     #[getter]
     fn hits<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyList>> {
         PyList::new(py, self.result.hits().iter().map(|h| PyCurveSurfaceHit(*h)))
@@ -994,7 +872,9 @@ intersection_result! {
         )
     }
 
-    /// The isolated points where the surfaces touch.
+    /// The points where the surfaces touch, their normals parallel, with
+    /// no curve of contact through them: isolated points, and the points
+    /// where curves cross.
     #[getter]
     fn contact_points(&self) -> Vec<PyPoint> {
         self.result

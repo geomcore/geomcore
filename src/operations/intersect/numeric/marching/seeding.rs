@@ -4,7 +4,7 @@
 use super::level_extrema::extremum_seeds;
 use super::pair::{SurfacePair, own_box, swap};
 use super::tracer::first_step;
-use crate::geometry::curves::{Circle, ElementaryCurve, ParametricCurve, PointExtrema};
+use crate::geometry::curves::{Circle, ElementaryCurve, ParametricCurve};
 use crate::geometry::surfaces::{BSplineSurface, ElementarySurface, ParametricSurface, Surface};
 use crate::math::numeric::boxtree::Aabb;
 use crate::operations::intersect::CurveSurfaceIntersection;
@@ -235,7 +235,7 @@ fn distinct_seeds<A: ParametricSurface>(
     let mut points: Vec<Point> = Vec::with_capacity(seeds.len());
     let mut kept = Vec::with_capacity(seeds.len());
     for seed in seeds {
-        let p = a.eval_point(seed[0], seed[1]);
+        let p = a.point_at(seed[0], seed[1]);
         if points.iter().all(|q| q.distance(p) > tol.confusion) {
             points.push(p);
             kept.push(seed);
@@ -367,20 +367,17 @@ fn family_seeds(
             continue;
         };
         let result = other.intersect(&curve, tol);
-        let hits = result.hits().iter().map(|hit| {
-            let parameter = hit
-                .curve_parameter
-                .unwrap_or_else(|| curve.parameter_of(hit.point, tol));
-            (parameter, hit.point, hit.surface_parameters)
-        });
+        let hits = result
+            .hits()
+            .iter()
+            .map(|hit| (hit.curve_parameter, hit.point, hit.surface_parameters));
         let overlaps = result.overlaps().iter().map(|overlap| {
             let parameter = point_of_range(overlap.curve_range);
-            (parameter, curve.eval_point(parameter), None)
+            let point = curve.point_at(parameter);
+            (parameter, point, other.parameters_of(point, tol))
         });
-        for (parameter, point, other_parameters) in hits.chain(overlaps) {
+        for (parameter, point, (other_u, other_v)) in hits.chain(overlaps) {
             let (u, v) = own_parameters(own, direction, value, parameter, point, tol);
-            let (other_u, other_v) =
-                other_parameters.unwrap_or_else(|| other.parameters_of(point, tol));
             seeds.push([u, v, other_u, other_v]);
         }
     }
@@ -527,7 +524,7 @@ where
                 u0 + (u1 - u0) * i as f64 / N as f64,
                 v0 + (v1 - v0) * j as f64 / N as f64,
             );
-            let q = other.project_point(s.eval_point(u, v), tol);
+            let q = other.project_point(s.point_at(u, v), tol);
             samples.push(([u, v, q.u, q.v], q.distance));
         }
     }

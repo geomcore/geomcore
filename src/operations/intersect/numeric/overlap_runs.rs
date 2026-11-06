@@ -18,7 +18,7 @@ use crate::geometry::curves::ParametricCurve;
 use crate::geometry::surfaces::ParametricSurface;
 use crate::operations::intersect::numeric::curve_curve::{grazing_multiplicity, same_contact};
 use crate::operations::intersect::results::completeness::{meet, merged};
-use crate::operations::intersect::results::sort_by_known_parameter;
+use crate::operations::intersect::results::sort_by_parameter;
 use crate::operations::intersect::{
     Completeness, CurveCurveHit, CurveCurveOverlap, CurveCurveRegion, CurveSurfaceHit,
     CurveSurfaceOverlap, CurveSurfaceRegion, IncompleteReason,
@@ -67,12 +67,12 @@ where
         return (hits, Vec::new(), completeness);
     };
     let mut on = |t: f64, spacing: f64| {
-        let (p, d) = curve.eval_d1(t);
+        let (p, d) = curve.first_derivatives(t);
         let foot = surface.project_point(p, tol);
         if foot.distance > tol.confusion {
             return false;
         }
-        let (_, [su, sv]) = surface.eval_d1(foot.u, foot.v);
+        let (_, [su, sv]) = surface.first_derivatives(foot.u, foot.v);
         let normal = su.cross(sv);
         // A degenerate normal (a pole) leaves the distance to decide.
         let across = d.dot(normal).abs() / normal.magnitude().max(f64::MIN_POSITIVE);
@@ -81,7 +81,7 @@ where
     };
     let anchors = hits
         .iter()
-        .filter_map(|hit| hit.curve_parameter.map(|t| (t, t)))
+        .map(|hit| (hit.curve_parameter, hit.curve_parameter))
         .chain(regions.iter().map(|region| region.curve_range))
         .collect();
     let runs = lying_runs(anchors, curve.bounds(), &mut on);
@@ -92,7 +92,7 @@ where
                 && settled(run, tol, |t| {
                     // The projection's own distance snaps to zero within
                     // confusion: measure to its point.
-                    let p = curve.eval_point(t);
+                    let p = curve.point_at(t);
                     Some(p.distance(surface.project_point(p, tol).point))
                 })
         })
@@ -107,7 +107,7 @@ where
     let inside = |t: f64| runs.iter().any(|&run| covers(curve, run, t, tol));
     let hits = hits
         .into_iter()
-        .filter(|hit| !hit.curve_parameter.is_some_and(inside))
+        .filter(|hit| !inside(hit.curve_parameter))
         .collect();
     let mut regions = regions;
     for &run in &runs {
@@ -165,7 +165,7 @@ where
         second,
         known: hits
             .iter()
-            .filter_map(|hit| hit.first_parameter.zip(hit.second_parameter))
+            .map(|hit| (hit.first_parameter, hit.second_parameter))
             .collect(),
         tol,
     };
@@ -185,7 +185,7 @@ where
     }
     let anchors = hits
         .iter()
-        .filter_map(|hit| hit.first_parameter.map(|t| (t, t)))
+        .map(|hit| (hit.first_parameter, hit.first_parameter))
         .chain(regions.iter().map(|region| region.first_range))
         .collect();
     let runs = lying_runs(anchors, first.bounds(), &mut |t, spacing| {
@@ -220,10 +220,10 @@ where
     };
     let mut hits: Vec<CurveCurveHit> = hits
         .into_iter()
-        .filter(|hit| !hit.first_parameter.is_some_and(inside))
+        .filter(|hit| !inside(hit.first_parameter))
         .collect();
     hits.extend(contacts.iter().map(|&(_, hit)| hit));
-    sort_by_known_parameter(&mut hits, |hit| hit.first_parameter);
+    sort_by_parameter(&mut hits, |hit| hit.first_parameter);
     // Two contacts on either side of one tangency are one contact.
     let mut distinct: Vec<CurveCurveHit> = Vec::new();
     for hit in hits {
@@ -278,12 +278,12 @@ impl<A: ParametricCurve, B: ParametricCurve> Follower<'_, A, B> {
     /// at `t`, with its distance, by Newton iteration from `s`; `None`
     /// where the iteration breaks down.
     fn newton(&self, t: f64, s: f64) -> Option<(f64, f64)> {
-        let p = self.first.eval_point(t);
+        let p = self.first.point_at(t);
         let (low, high) = self.second.bounds();
         let periodic = self.second.period().is_some();
         let mut s = s;
         for _ in 0..FOOT_ITERATIONS {
-            let (q, d1, d2) = self.second.eval_d2(s);
+            let (q, d1, d2) = self.second.second_derivatives(s);
             let offset = q - p;
             let slope = d1.dot(d1) + offset.dot(d2);
             if slope <= 0.0 || !slope.is_finite() {
@@ -301,7 +301,7 @@ impl<A: ParametricCurve, B: ParametricCurve> Follower<'_, A, B> {
                 break;
             }
         }
-        let distance = self.second.eval_point(s).distance(p);
+        let distance = self.second.point_at(s).distance(p);
         distance.is_finite().then_some((s, distance))
     }
 
@@ -313,8 +313,8 @@ impl<A: ParametricCurve, B: ParametricCurve> Follower<'_, A, B> {
             .known
             .iter()
             .min_by(|x, y| (x.0 - t).abs().total_cmp(&(y.0 - t).abs()))?;
-        let d_first = self.first.eval_derivative(near_t, 1);
-        let d_second = self.second.eval_derivative(near_s, 1);
+        let d_first = self.first.derivative(near_t, 1);
+        let d_second = self.second.derivative(near_s, 1);
         let ratio = d_first.dot(d_second) / d_second.dot(d_second).max(f64::MIN_POSITIVE);
         self.newton(t, near_s + (t - near_t) * ratio)
     }
@@ -342,8 +342,8 @@ impl<A: ParametricCurve, B: ParametricCurve> Follower<'_, A, B> {
         let Some(s) = self.foot(t) else {
             return false;
         };
-        let d_first = self.first.eval_derivative(t, 1);
-        let d_second = self.second.eval_derivative(s, 1);
+        let d_first = self.first.derivative(t, 1);
+        let d_second = self.second.derivative(s, 1);
         let across = d_first.cross(unit(d_second)).magnitude();
         across * spacing <= 2.0 * self.tol.confusion
     }
@@ -382,9 +382,9 @@ impl<A: ParametricCurve, B: ParametricCurve> Follower<'_, A, B> {
             return None;
         }
         Some(CurveCurveHit {
-            first_parameter: Some(t),
-            point: self.first.eval_point(t),
-            second_parameter: Some(s),
+            first_parameter: t,
+            point: self.first.point_at(t),
+            second_parameter: s,
             multiplicity: grazing_multiplicity(self.first, t, self.second, s, self.tol),
         })
     }
@@ -597,7 +597,7 @@ fn longer_than_confusion<C: ParametricCurve>(curve: &C, run: (f64, f64), tol: To
 fn covers<C: ParametricCurve>(curve: &C, (low, high): (f64, f64), t: f64, tol: Tolerance) -> bool {
     let near = |end: f64| {
         let speed = if end.is_finite() {
-            curve.eval_derivative(end, 1).magnitude()
+            curve.derivative(end, 1).magnitude()
         } else {
             0.0
         };
@@ -613,11 +613,11 @@ fn run_points<C: ParametricCurve>(curve: &C, (low, high): (f64, f64)) -> Vec<Poi
         return [low, high]
             .into_iter()
             .filter(|t| t.is_finite())
-            .map(|t| curve.eval_point(t))
+            .map(|t| curve.point_at(t))
             .collect();
     }
     (0..=RUN_SAMPLES)
-        .map(|k| curve.eval_point(low + (high - low) * k as f64 / RUN_SAMPLES as f64))
+        .map(|k| curve.point_at(low + (high - low) * k as f64 / RUN_SAMPLES as f64))
         .collect()
 }
 

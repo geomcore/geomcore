@@ -4,9 +4,17 @@ import math
 
 import pytest
 
-from geomcore import BoundingBox, CurveSurfaceOverlap, Point, Vector
-from geomcore.curves import Circle, Line
-from geomcore.surfaces import BezierSurface, Plane, Sphere
+from geomcore import (
+    BezierSurface,
+    BoundingBox,
+    Circle,
+    CurveSurfaceOverlap,
+    Line,
+    Plane,
+    Point,
+    Sphere,
+    Vector,
+)
 
 
 def test_a_curve_surface_overlap_is_typed_and_names_its_range():
@@ -32,9 +40,10 @@ def test_a_curve_surface_hit_names_its_surface_parameters_u_and_v():
         "point=Point(0.25, 0.5, 0.0), multiplicity=1)"
     )
 
+    # A closed-form hit carries its surface parameters too (#177).
     plane = Plane(Point(0.0, 0.0, 2.0), Vector.unit_z())
     (on_plane,) = Line(Point.origin(), Vector.unit_z()).intersect(plane).hits
-    assert on_plane.u is None and on_plane.v is None
+    assert (on_plane.u, on_plane.v) == (0.0, 0.0)
 
 
 def test_a_bounding_box_names_its_corners_like_a_region():

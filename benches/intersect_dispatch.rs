@@ -203,9 +203,9 @@ fn bench_intersect_dispatch(c: &mut Criterion) {
     );
 }
 
-/// Times the routed call against the typed exact call over one batch. The
-/// routed result stores only the parameters the solver computed, so the
-/// typed call is the fair baseline: the gap is building the result.
+/// Times the routed call against the typed exact call over one batch: the
+/// gap is building the result, recovering every parameter the solver did
+/// not compute.
 macro_rules! bench_routed {
     ($c:expr, $name:literal, $pairs:expr) => {{
         let pairs = $pairs;

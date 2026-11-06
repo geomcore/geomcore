@@ -4,8 +4,7 @@ import math
 
 import pytest
 
-from geomcore import Frame2D, Point2D, Vector2D
-from geomcore.curves import BSplineCurve2D, Ellipse2D, TrimmedCurve2D
+from geomcore import BSplineCurve2D, Ellipse2D, Frame2D, Point2D, TrimmedCurve2D, Vector2D
 
 ORIGIN = Point2D.origin()
 X, Y = Vector2D.unit_x(), Vector2D.unit_y()
@@ -26,7 +25,7 @@ def test_construction_and_accessors():
     assert xy(e.frame().y_direction()) == (0.0, 1.0)
     assert e.major_radius() == 3.0
     assert e.minor_radius() == 1.5
-    assert e.area() == pytest.approx(math.pi * 4.5)
+    assert e.enclosed_area() == pytest.approx(math.pi * 4.5)
     assert e.bounds() == (0.0, math.tau)
     assert e.period() == math.tau
     assert e.is_periodic()
@@ -62,23 +61,23 @@ def test_construction_validation():
 def test_evaluation_derivatives_and_parameter_inversion():
     e = ellipse()
     for u in [0.0, 0.7, 2.3, 5.9, -1.2]:
-        p = e.eval_point(u)
+        p = e.point_at(u)
         assert xy(p) == pytest.approx((3.0 * math.cos(u), 1.5 * math.sin(u)))
-        assert xy(e.eval_derivative(u, 1)) == pytest.approx(
+        assert xy(e.derivative(u, 1)) == pytest.approx(
             (-3.0 * math.sin(u), 1.5 * math.cos(u))
         )
-        assert xy(e.eval_derivative(u, 2)) == pytest.approx(
+        assert xy(e.derivative(u, 2)) == pytest.approx(
             (-3.0 * math.cos(u), -1.5 * math.sin(u))
         )
-        d1, v1 = e.eval_d1(u)
+        d1, v1 = e.first_derivatives(u)
         assert xy(d1) == xy(p)
-        assert xy(v1) == xy(e.eval_derivative(u, 1))
-        d2, v2, a2 = e.eval_d2(u)
+        assert xy(v1) == xy(e.derivative(u, 1))
+        d2, v2, a2 = e.second_derivatives(u)
         assert xy(d2) == xy(p)
         assert xy(v2) == xy(v1)
-        assert xy(a2) == xy(e.eval_derivative(u, 2))
+        assert xy(a2) == xy(e.derivative(u, 2))
         assert e.parameter_of(p) == pytest.approx(u % math.tau)
-    points = e.eval_points([0.0, math.pi / 2])
+    points = e.points_at([0.0, math.pi / 2])
     assert xy(points[0]) == pytest.approx((3.0, 0.0))
     assert xy(points[1]) == pytest.approx((0.0, 1.5))
 
@@ -136,7 +135,7 @@ def test_trimmed_curve():
     assert arc.bounds() == (0.0, math.pi / 2)
     assert xy(arc.start_point()) == pytest.approx((3.0, 0.0))
     assert xy(arc.end_point()) == pytest.approx((0.0, 1.5))
-    assert xy(arc.eval_point(0.0)) == pytest.approx((3.0, 0.0))
+    assert xy(arc.point_at(0.0)) == pytest.approx((3.0, 0.0))
     assert arc.contains(Point2D(3.0, 0.0))
     projection = arc.project_point(Point2D(0.0, 3.0))
     assert projection.parameter == pytest.approx(math.pi / 2)
@@ -151,7 +150,7 @@ def test_to_bspline_and_repr():
     assert bspline.is_periodic()
     assert bspline.is_rational()
     assert bspline.bounds() == (0.0, math.tau)
-    assert xy(bspline.eval_point(math.pi / 2)) == pytest.approx((0.0, 1.5))
+    assert xy(bspline.point_at(math.pi / 2)) == pytest.approx((0.0, 1.5))
     assert repr(e) == (
         "Ellipse2D(center=(0.0, 0.0), x_direction=(1.0, 0.0), "
         "major_radius=3.0, minor_radius=1.5)"
