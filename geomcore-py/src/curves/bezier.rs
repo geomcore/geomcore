@@ -1,4 +1,4 @@
-//! The Python class `geomcore.curves.BezierCurve`, wrapping `geomcore::BezierCurve`.
+//! The Python class `geomcore.BezierCurve`, wrapping `geomcore::BezierCurve`.
 
 use crate::curves::*;
 use crate::method_sets::*;
@@ -7,7 +7,7 @@ use geomcore::BezierCurve;
 /// A Bézier curve (optionally rational) in 3D: `degree + 1` control
 /// poles over one parameter span, `[0, 1]` when built from poles. It has
 /// no knot vector: `to_bspline` gives the `BSplineCurve`.
-#[pyclass(name = "BezierCurve", module = "geomcore.curves", eq)]
+#[pyclass(name = "BezierCurve", module = "geomcore", eq)]
 #[derive(Clone, PartialEq)]
 pub(crate) struct PyBezierCurve(pub(crate) BezierCurve);
 

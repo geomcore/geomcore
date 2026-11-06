@@ -11,6 +11,21 @@ the Python distribution are versioned in lockstep.
 
 ### Added
 
+- Every Python shape is importable from the package root (#203):
+  `from geomcore import Circle, Plane, Point`, as every Rust item is at
+  the crate root. `geomcore.Curve`, `geomcore.Curve2D` and
+  `geomcore.Surface` name the union of each kind's classes, to annotate
+  with and, from Python 3.10, to pass to `isinstance` (`typing.get_args`
+  gives the tuple on 3.9). The stubs are one file. ADR 0038.
+- Python 3D curves take a curve in `extrema(other, tol)` (#201), as
+  well as a point. A curve or `TrimmedCurve` gives the
+  `CurveCurveExtrema` of the pair, holding this curve as `first`. A
+  point gives its projections as before. Rust keeps the free function
+  `curve_curve_extrema` (ADR 0033).
+- Python surfaces have `curve_3d_to_uv_within(curve, max_deviation, tol)`
+  and `uv_curve_to_3d_within(uv_curve, max_deviation, tol)` methods
+  (#185), beside the exact `curve_3d_to_uv` and `uv_curve_to_3d`. The
+  Rust free functions are unchanged (ADR 0035, amended).
 - B-spline curves built and read the textbook way (#184), in Rust and
   Python, on both tiers. `from_flat_knots` takes the flat knot vector and
   `flat_knots()` gives it back. `clamped_uniform(degree, poles)` spaces
@@ -140,8 +155,28 @@ the Python distribution are versioned in lockstep.
   `"chordal"` and `"centripetal"` are still accepted; the stubs type them
   as literals, so a typo is caught before the call.
 
+### Deprecated
+
+- Python: the modules `geomcore.curves` and `geomcore.surfaces` (#203).
+  Import each shape from `geomcore` instead. Every name still resolves
+  there with a `DeprecationWarning`, and the modules go in the next
+  release.
+- Python: `geomcore.curve_curve_extrema(first, second)` (#201). Call
+  `first.extrema(second)` instead. It warns with a `DeprecationWarning`
+  and goes in the next release.
+- Python: the module functions `geomcore.curve_3d_to_uv_within(surface,
+  curve, ...)` and `geomcore.uv_curve_to_3d_within(surface, uv_curve,
+  ...)` (#185). Call the surface methods of the same names instead. The
+  functions warn with a `DeprecationWarning` and go in the next release.
+
 ### Changed
 
+- Python: the native extension module is `geomcore._native` (#203). The
+  undocumented `geomcore.geomcore`, a second path to every name, is gone.
+  Every class's `__module__` is `geomcore`.
+- Python: the argument of a 3D curve's `extrema` is named `other`, not
+  `point`, since it takes a curve too (#201). A call that passes
+  `point=` by keyword needs `other=` or a positional argument.
 - An axis, frame or extrusion direction that is already of unit length
   keeps its bits (#182): normalizing it again only moved its rounding, so
   a frame rebuilt from its own directions was a different frame in about

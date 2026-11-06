@@ -1,4 +1,4 @@
-//! The Python class `geomcore.curves.BSplineCurve2D`, wrapping `geomcore::BSplineCurve2D`.
+//! The Python class `geomcore.BSplineCurve2D`, wrapping `geomcore::BSplineCurve2D`.
 
 use crate::arrays::Points;
 use crate::curves::*;
@@ -8,7 +8,7 @@ use geomcore::{BSplineCurve2D, Point2D};
 
 /// A B-spline (optionally rational, optionally periodic) curve in 2D: the
 /// planar counterpart of `BSplineCurve`.
-#[pyclass(name = "BSplineCurve2D", module = "geomcore.curves", eq)]
+#[pyclass(name = "BSplineCurve2D", module = "geomcore", eq)]
 #[derive(Clone, PartialEq)]
 pub(crate) struct PyBSplineCurve2D(pub(crate) BSplineCurve2D);
 

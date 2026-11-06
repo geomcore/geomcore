@@ -87,12 +87,16 @@ cylinder ends one period of `u` from where it starts. It mirrors
 or a cone's apex, where every `u` is the same point, takes the limit of
 `u` from inside the curve: a meridian keeps its own `u` up to the pole.
 
+In Python both are surface methods, beside the exact `curve_3d_to_uv`
+and `uv_curve_to_3d`: `surface.curve_3d_to_uv_within(curve, d)` and
+`surface.uv_curve_to_3d_within(uv_curve, d)`. In Rust they are the
+generic free functions `curve_3d_to_uv_within(&surface, &curve, d, tol)`
+and `uv_curve_to_3d_within(&surface, &uv_curve, d, tol)`.
+
 === "Python"
 
     ```python
-    from geomcore import curve_3d_to_uv_within
-
-    approximation = curve_3d_to_uv_within(surface, curve, 1e-6)
+    approximation = surface.curve_3d_to_uv_within(curve, 1e-6)
     uv_curve = approximation.curve        # BSplineCurve2D
     approximation.deviation               # <= 1e-6
     approximation.is_proven()             # False: sampled

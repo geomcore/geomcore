@@ -1,4 +1,4 @@
-//! The Python class `geomcore.surfaces.BSplineSurface`, wrapping `geomcore::BSplineSurface`.
+//! The Python class `geomcore.BSplineSurface`, wrapping `geomcore::BSplineSurface`.
 
 use crate::arrays::PointGrid;
 use crate::enums::PyPointParametrization;
@@ -7,7 +7,7 @@ use crate::surfaces::*;
 use geomcore::BSplineSurface;
 
 /// A tensor-product B-spline (optionally rational, optionally periodic) surface.
-#[pyclass(name = "BSplineSurface", module = "geomcore.surfaces", eq)]
+#[pyclass(name = "BSplineSurface", module = "geomcore", eq)]
 #[derive(Clone, PartialEq)]
 pub(crate) struct PyBSplineSurface(pub(crate) BSplineSurface);
 

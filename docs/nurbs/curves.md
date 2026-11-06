@@ -13,8 +13,7 @@ start from.
 === "Python"
 
     ```python
-    from geomcore import Point
-    from geomcore.curves import BSplineCurve
+    from geomcore import BSplineCurve, Point
 
     poles = [Point(1, 0, 0), Point(1, 1, 0), Point(0, 1, 0)]
     curve = BSplineCurve(2, poles, [0.0, 1.0], [3, 3], False)

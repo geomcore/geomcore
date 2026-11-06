@@ -1,4 +1,4 @@
-//! The Python classes `geomcore.curves.TrimmedCurve` and `TrimmedCurve2D`,
+//! The Python classes `geomcore.TrimmedCurve` and `TrimmedCurve2D`,
 //! wrapping a `geomcore::TrimmedCurve` over the `Curve` or `Curve2D` enum.
 
 use crate::curves::*;
@@ -19,7 +19,7 @@ use pyo3::exceptions::PyTypeError;
 /// B-spline) the range may cross the seam, up to one period. Pass it to
 /// `intersect`, `curve_curve_extrema` or `curve_3d_to_uv_within` to search
 /// only the range.
-#[pyclass(name = "TrimmedCurve", module = "geomcore.curves", eq)]
+#[pyclass(name = "TrimmedCurve", module = "geomcore", eq)]
 #[derive(Clone, PartialEq)]
 pub(crate) struct PyTrimmedCurve(pub(crate) TrimmedCurve);
 
@@ -146,7 +146,7 @@ shape_methods! {
 /// A 2D curve restricted to the parameter range `[first, last]` of a
 /// basis curve: a line segment, a circular arc or a B-spline piece,
 /// typically a trimmed pcurve in a surface's (u, v) parameter space. Mirrors `TrimmedCurve`.
-#[pyclass(name = "TrimmedCurve2D", module = "geomcore.curves", eq)]
+#[pyclass(name = "TrimmedCurve2D", module = "geomcore", eq)]
 #[derive(Clone, PartialEq)]
 pub(crate) struct PyTrimmedCurve2D(pub(crate) TrimmedCurve2D);
 
