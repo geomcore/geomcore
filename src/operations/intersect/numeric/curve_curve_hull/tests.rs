@@ -147,17 +147,10 @@ fn assert_hits_match<A: ParametricCurve, B: ParametricCurve>(a: &A, b: &B) -> Ve
     let found = search(a, b);
     let ((a0, a1), (b0, b1)) = (a.bounds(), b.bounds());
     for hit in &found {
-        assert!((a0..=a1).contains(&hit.first_parameter.unwrap()), "{hit:?}");
-        assert!(
-            (b0..=b1).contains(&hit.second_parameter.unwrap()),
-            "{hit:?}"
-        );
-        assert!(hit.point.distance(a.point_at(hit.first_parameter.unwrap())) < 1e-12);
-        assert!(
-            hit.point
-                .distance(b.point_at(hit.second_parameter.unwrap()))
-                <= TOL.confusion
-        );
+        assert!((a0..=a1).contains(&hit.first_parameter), "{hit:?}");
+        assert!((b0..=b1).contains(&hit.second_parameter), "{hit:?}");
+        assert!(hit.point.distance(a.point_at(hit.first_parameter)) < 1e-12);
+        assert!(hit.point.distance(b.point_at(hit.second_parameter)) <= TOL.confusion);
     }
     for pair in found.windows(2) {
         assert!(pair[0].first_parameter < pair[1].first_parameter);
@@ -166,8 +159,8 @@ fn assert_hits_match<A: ParametricCurve, B: ParametricCurve>(a: &A, b: &B) -> Ve
     for want in &sampled {
         assert!(
             found.iter().any(|hit| hit.point.distance(want.point) < 1e-9
-                && (hit.first_parameter.unwrap() - want.first_parameter.unwrap()).abs() < 1e-9
-                && (hit.second_parameter.unwrap() - want.second_parameter.unwrap()).abs() < 1e-9
+                && (hit.first_parameter - want.first_parameter).abs() < 1e-9
+                && (hit.second_parameter - want.second_parameter).abs() < 1e-9
                 && hit.multiplicity == want.multiplicity),
             "{want:?} missing from {found:#?}"
         );
@@ -290,13 +283,10 @@ fn test_periodic_curves_match_sampled() {
     let loop_b = ring([3.5, 2.0, 0.0], 1.5, 0.0);
     let hits = assert_hits_match(&loop_a, &loop_b);
     assert_eq!(hits.len(), 2);
+    assert!(hits.iter().all(|h| (0.0..8.0).contains(&h.first_parameter)));
     assert!(
         hits.iter()
-            .all(|h| (0.0..8.0).contains(&h.first_parameter.unwrap()))
-    );
-    assert!(
-        hits.iter()
-            .all(|h| (0.0..8.0).contains(&h.second_parameter.unwrap()))
+            .all(|h| (0.0..8.0).contains(&h.second_parameter))
     );
     assert_minima_match(&loop_a, &loop_b);
     let mut rng = Lcg(5);
@@ -355,7 +345,7 @@ fn test_trimmed_curves_search_only_their_range() {
     let wrapped = |t: f64| if t < 6.5 { t + 8.0 } else { t };
     let expected: Vec<f64> = all
         .iter()
-        .map(|h| wrapped(h.first_parameter.unwrap()))
+        .map(|h| wrapped(h.first_parameter))
         .filter(|&t| t <= 9.5)
         .collect();
     assert!(expected.iter().any(|&t| t < 8.0) && expected.iter().any(|&t| t > 8.0));
@@ -370,22 +360,16 @@ fn test_trimmed_curves_search_only_their_range() {
             assert!(
                 expected
                     .iter()
-                    .any(|&t| (t - hit.first_parameter.unwrap()).abs() < 1e-9)
+                    .any(|&t| (t - hit.first_parameter).abs() < 1e-9)
             );
         }
     }
-    let (first, last) = (
-        all[1]
-            .second_parameter
-            .unwrap()
-            .min(all[2].second_parameter.unwrap()),
-        4.2,
-    );
+    let (first, last) = (all[1].second_parameter.min(all[2].second_parameter), 4.2);
     let middle = TrimmedCurve::new(&wavy, first, last).unwrap();
     let hits = assert_hits_match(&ring, &middle);
     let inside = all
         .iter()
-        .filter(|h| (first - 1e-9..=last + 1e-9).contains(&h.second_parameter.unwrap()))
+        .filter(|h| (first - 1e-9..=last + 1e-9).contains(&h.second_parameter))
         .count();
     assert_eq!(hits.len(), inside);
     assert_minima_match(&borrowed, &wavy);
@@ -410,13 +394,9 @@ fn segment(from: [f64; 3], to: [f64; 3]) -> BSplineCurve {
 fn assert_search_hits(a: &BSplineCurve, b: &BSplineCurve) -> Vec<CurveCurveHit> {
     let hits = search(a, b);
     for hit in &hits {
-        assert!((a.bounds().0..=a.bounds().1).contains(&hit.first_parameter.unwrap()));
-        assert!((b.bounds().0..=b.bounds().1).contains(&hit.second_parameter.unwrap()));
-        assert!(
-            hit.point
-                .distance(b.point_at(hit.second_parameter.unwrap()))
-                <= TOL.confusion
-        );
+        assert!((a.bounds().0..=a.bounds().1).contains(&hit.first_parameter));
+        assert!((b.bounds().0..=b.bounds().1).contains(&hit.second_parameter));
+        assert!(hit.point.distance(b.point_at(hit.second_parameter)) <= TOL.confusion);
     }
     assert_eq!(search_curve_curve(a, b, TOL).into_hits(), hits);
     hits
@@ -510,16 +490,9 @@ fn assert_sampled_hits_kept<A: ParametricCurve, B: ParametricCurve>(
 ) {
     let ((a0, a1), (b0, b1)) = (a.bounds(), b.bounds());
     for hit in hits {
-        assert!((a0..=a1).contains(&hit.first_parameter.unwrap()), "{hit:?}");
-        assert!(
-            (b0..=b1).contains(&hit.second_parameter.unwrap()),
-            "{hit:?}"
-        );
-        assert!(
-            hit.point
-                .distance(b.point_at(hit.second_parameter.unwrap()))
-                <= TOL.confusion
-        );
+        assert!((a0..=a1).contains(&hit.first_parameter), "{hit:?}");
+        assert!((b0..=b1).contains(&hit.second_parameter), "{hit:?}");
+        assert!(hit.point.distance(b.point_at(hit.second_parameter)) <= TOL.confusion);
     }
     for pair in hits.windows(2) {
         assert!(pair[0].first_parameter <= pair[1].first_parameter);
@@ -650,13 +623,9 @@ fn test_exhausted_budget_leaves_the_pending_pairs() {
         let regions = exhausted(&completeness);
         count += usize::from(!regions.is_empty());
         for hit in &all {
-            let held = regions.iter().any(|r| {
-                holds(
-                    r,
-                    (&a, hit.first_parameter.unwrap()),
-                    (&b, hit.second_parameter.unwrap()),
-                )
-            });
+            let held = regions
+                .iter()
+                .any(|r| holds(r, (&a, hit.first_parameter), (&b, hit.second_parameter)));
             let near = |h: &CurveCurveHit| h.point.distance(hit.point) < 1e-9;
             assert!(held || found.iter().any(near), "{hit:?}: {regions:#?}");
         }
@@ -762,7 +731,7 @@ fn test_hits_at_curve_ends_and_knots() {
     assert_eq!(hits.len(), 1, "{hits:#?}");
     assert_eq!(
         (hits[0].first_parameter, hits[0].second_parameter),
-        (Some(1.0), Some(1.0))
+        (1.0, 1.0)
     );
 }
 

@@ -165,9 +165,8 @@ pub enum LineConicIntersection {
 /// ```
 #[derive(Debug, Clone, PartialEq)]
 pub enum ConicConicIntersection {
-    /// The hits, ordered by parameter on the first conic when every hit
-    /// stores one; a multiplicity of 2 or more marks a tangency. Only the
-    /// parameter of the conic that was solved for is stored.
+    /// The hits, ordered by parameter on the first conic; a multiplicity
+    /// of 2 or more marks a tangency.
     Hits(Vec<CurveCurveHit>),
     /// The two conics are the same curve.
     Coincident,

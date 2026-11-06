@@ -113,8 +113,9 @@ fn test_approximation_within_keeps_grid_points_close() {
     let grid = Grid::new(&points, par).unwrap();
     for (p, q) in [(1, 1), (2, 3), (3, 3)] {
         for tolerance in [1e-1, 1e-3, 1e-5, 0.0] {
-            let surface =
-                BSplineSurface::approximate_within(&points, p, q, tolerance, par).unwrap();
+            let fit = BSplineSurface::approximate_within(&points, p, q, tolerance, par).unwrap();
+            let surface = fit.surface();
+            assert!(fit.deviation() <= tolerance.max(1e-12) && fit.is_proven());
             for (i, row) in points.iter().enumerate() {
                 for (j, x) in row.iter().enumerate() {
                     let at = surface.point_at(grid.u_params[i], grid.v_params[j]);

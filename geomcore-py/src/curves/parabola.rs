@@ -1,11 +1,12 @@
-//! The Python class `geomcore.curves.Parabola`, wrapping `geomcore::Parabola`.
+//! The Python class `geomcore.Parabola`, wrapping `geomcore::Parabola`.
 
+use crate::curves::*;
 use crate::method_sets::*;
 use crate::values::{PyFrame, float_repr};
 use geomcore::Parabola;
 
 /// A parabola in 3D, parametrized so the apex is at parameter 0.
-#[pyclass(name = "Parabola", module = "geomcore.curves", eq)]
+#[pyclass(name = "Parabola", module = "geomcore", eq)]
 #[derive(Clone, PartialEq)]
 pub(crate) struct PyParabola(pub(crate) Parabola);
 
@@ -21,6 +22,11 @@ shape_methods! {
     /// The placement frame of the parabola.
     fn frame(&self) -> PyFrame {
         PyFrame(self.0.frame())
+    }
+
+    fn __reduce__<'py>(slf: &pyo3::Bound<'py, Self>) -> pyo3::PyResult<pyo3::Bound<'py, pyo3::types::PyTuple>> {
+        let this = slf.borrow();
+        crate::pickling::reduce(slf.as_any(), Some("from_frame"), (this.frame(), this.focal_distance(),))
     }
 
     fn __repr__(&self) -> String {
@@ -53,8 +59,34 @@ shape_methods! {
         ))
     }
 
+    /// Build the parabola of every point as far from `focus` as from
+    /// `directrix`; the parameter runs along the directrix's direction.
+    #[staticmethod]
+    fn from_focus_and_directrix(focus: PyPoint, directrix: PyLine) -> PyResult<Self> {
+        Ok(Self(
+            Parabola::from_focus_and_directrix(focus.0, &directrix.0).map_err(python_error)?,
+        ))
+    }
+
     /// The focal distance.
     fn focal_distance(&self) -> f64 {
         self.0.focal_distance()
+    }
+
+    /// The eccentricity: the ratio of a point's distance to a focus over
+    /// its distance to that focus's directrix.
+    fn eccentricity(&self) -> f64 {
+        self.0.eccentricity()
+    }
+
+    /// The focus, `focal_distance` from the apex along the axis.
+    fn focus(&self) -> PyPoint {
+        PyPoint(self.0.focus())
+    }
+
+    /// The directrix, across the axis `focal_distance` behind the apex:
+    /// every point of the curve is as far from it as from the focus.
+    fn directrix(&self) -> PyLine {
+        PyLine(self.0.directrix())
     }
 }

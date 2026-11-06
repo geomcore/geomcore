@@ -305,3 +305,18 @@ fn test_reversed_cones_share_point_set() {
     assert_eq!(cone.reversed_u().reversed_u(), cone);
     assert_eq!(cone.reversed_v().reversed_v(), cone);
 }
+
+#[test]
+fn test_cone_from_apex_opens_at_its_angle() {
+    let apex = Point::new(1.0, 2.0, 3.0);
+    let axis = Vector::new(0.0, 1.0, 1.0);
+    let cone = Cone::from_apex(apex, axis, 0.3).unwrap();
+    assert!(cone.apex().distance(apex) < 1e-12);
+    let unit = axis.normalized().unwrap();
+    for (u, v) in [(0.0, 1.0), (1.0, 2.5), (4.0, 0.5)] {
+        let to_point = cone.point_at(u, v) - apex;
+        let angle = (to_point.dot(unit) / to_point.magnitude()).acos();
+        assert!((angle - 0.3).abs() < 1e-12);
+    }
+    assert!(Cone::from_apex(apex, Vector::ZERO, 0.3).is_err());
+}

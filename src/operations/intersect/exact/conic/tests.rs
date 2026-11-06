@@ -93,11 +93,6 @@ where
         panic!("expected hits the other way round");
     };
     assert_eq!(hits.len(), back.len());
-    // The substituted conic's parameter is always computed.
-    assert!(
-        hits.iter()
-            .all(|h| h.first_parameter.is_some() || h.second_parameter.is_some())
-    );
     for h in &hits {
         let b = back
             .iter()
@@ -107,22 +102,19 @@ where
                     .total_cmp(&q.point.distance(h.point))
             })
             .unwrap();
-        if let Some(t) = h.first_parameter {
-            assert!(first.point_at(t).distance(h.point) < 1e-9);
-        }
-        if let Some(t) = h.second_parameter {
-            assert!(second.point_at(t).distance(h.point) < 1e-9);
-        }
+        let t = h.first_parameter;
+        assert!(first.point_at(t).distance(h.point) < 1e-9);
+        let t = h.second_parameter;
+        assert!(second.point_at(t).distance(h.point) < 1e-9);
         assert!(h.point.distance(b.point) < 1e-9);
-        // Equal ranks substitute the receiver, so each order may
-        // compute a different conic's parameter; stored ones agree.
+        // Equal ranks substitute the receiver, so each order solves for
+        // a different conic's parameter and recovers the other's; they
+        // agree.
         for (x, y) in [
             (h.first_parameter, b.second_parameter),
             (h.second_parameter, b.first_parameter),
         ] {
-            if let (Some(x), Some(y)) = (x, y) {
-                assert!((x - y).abs() < 1e-9);
-            }
+            assert!((x - y).abs() < 1e-9);
         }
         assert_eq!(h.multiplicity, b.multiplicity);
     }

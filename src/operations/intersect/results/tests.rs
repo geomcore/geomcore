@@ -3,8 +3,8 @@ use crate::{Completeness, Point};
 
 fn hit(first: f64, second: f64) -> CurveCurveHit {
     CurveCurveHit {
-        first_parameter: Some(first),
-        second_parameter: Some(second),
+        first_parameter: first,
+        second_parameter: second,
         point: Point::ORIGIN,
         multiplicity: 1,
     }
@@ -18,7 +18,7 @@ fn test_exact_curve_curve_is_complete_and_sorted() {
     );
     assert_eq!(r.method(), IntersectionMethod::Exact);
     assert!(r.is_complete());
-    assert_eq!(r.hits()[0].first_parameter, Some(1.0));
+    assert_eq!(r.hits()[0].first_parameter, 1.0);
     assert!(!r.is_empty());
 }
 

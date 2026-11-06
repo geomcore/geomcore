@@ -16,3 +16,9 @@ That machinery serves four searches (curve–curve hits and minima, curve–surf
 **Not done here.** Curve–surface and surface–surface extrema, and a local search refining one starting parameter next to the global one, have no caller yet. They go in `extrema/` when one appears (`curve_surface.rs`, `surface_surface.rs`).
 
 The level-function extrema that seed marching are a different notion; their module is `marching/level_extrema.rs`, so that "extrema" in a path means distance extrema between shapes only.
+
+## Amendment: one Python method for both extrema (#201)
+
+In Python, a 3D curve's `extrema(other)` takes a point or a curve. A point gives its projections, a list of `CurveProjection`. A curve gives the `CurveCurveExtrema` of the pair, which `geomcore.curve_curve_extrema(first, second)` returned before; that function now warns and goes in the next release. Users tried `curve.extrema(other_curve)` first and got a type error about `Point`. The Rust split stays: `PointExtrema::extrema` with each shape, and the free function `curve_curve_extrema` in `operations/extrema/`. A 2D curve's `extrema` still takes a point alone, since there is no 2D curve-pair extrema.
+
+The point case keeps its plain list. A list has `len` and iteration, and a point's projections have no completeness to report, so a result class would only wrap them. Point extrema on the elementary and swept surfaces, which only B-spline and Bézier surfaces have today, are a separate issue.

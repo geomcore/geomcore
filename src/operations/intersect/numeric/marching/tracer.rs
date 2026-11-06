@@ -45,13 +45,16 @@ enum Contact {
 pub(super) enum Trace {
     /// A curve: its points in order (a closed loop ends on its first
     /// point), the unit tangent at each along that order, the parameters
-    /// where it stalled, finding no acceptable step even shorter than
+    /// of each on both surfaces (continuous along the curve, so a loop
+    /// around a periodic direction ends a period away from where it
+    /// started), the parameters where it stalled, finding no acceptable step even shorter than
     /// confusion (next to a point where the surfaces touch, as where
     /// branches cross), whether the surfaces touch along it, and where it
     /// left the trace box (see [`Cut`]).
     Curve {
         points: Vec<Point>,
         tangents: Vec<Vector>,
+        parameters: Vec<[f64; 4]>,
         stalls: Vec<[f64; 4]>,
         touching: bool,
         cuts: Vec<Cut>,
@@ -63,12 +66,13 @@ pub(super) enum Trace {
     Lost,
 }
 
-/// The points traced through a seed, the unit tangent at each, the
-/// parameters where the trace stalled and where it left the trace box
-/// (see [`Trace::Curve`]).
+/// The points traced through a seed, the unit tangent and the parameters
+/// at each, the parameters where the trace stalled and where it left the
+/// trace box (see [`Trace::Curve`]).
 struct Polyline {
     points: Vec<Point>,
     tangents: Vec<Vector>,
+    parameters: Vec<[f64; 4]>,
     stalls: Vec<[f64; 4]>,
     cuts: Vec<Cut>,
 }
@@ -130,11 +134,13 @@ where
             Some(Polyline {
                 points,
                 tangents,
+                parameters,
                 stalls,
                 cuts,
             }) if !touching || length(&points) >= first_step(self.tol) => Trace::Curve {
                 points,
                 tangents,
+                parameters,
                 stalls,
                 touching,
                 cuts,
@@ -182,8 +188,8 @@ where
         let start = pair.point(seed);
         let t0 = self.direction(seed, contact)?;
         // Each traced point with the unit tangent along the way it was
-        // traced.
-        let mut halves: [Vec<(Point, Vector)>; 2] = [Vec::new(), Vec::new()];
+        // traced and its parameters.
+        let mut halves: [Vec<(Point, Vector, [f64; 4])>; 2] = [Vec::new(), Vec::new()];
         let mut stalls = Vec::new();
         let mut cuts = Vec::new();
         let mut closed = false;
@@ -221,7 +227,7 @@ where
                                 && self.crosses_one_knot_at_most(x, y)
                                 && self.step_error((x, p, t), (y, q, tq), contact).is_some()
                             {
-                                boundary_point = Some((q, tq));
+                                boundary_point = Some((q, tq, y));
                                 break;
                             }
                         }
@@ -250,7 +256,7 @@ where
                     }
                     h *= 0.5;
                 }
-                if let Some((q, tq)) = boundary_point {
+                if let Some((q, tq, y)) = boundary_point {
                     if q.distance(p) > tol.confusion.max(Tolerance::DEFAULT.confusion) {
                         // A last step much shorter than the one before makes
                         // the fitted curve overshoot the boundary: the
@@ -259,7 +265,7 @@ where
                         if !half.is_empty() && q.distance(p) < 0.25 * p.distance(before) {
                             half.pop();
                         }
-                        half.push((q, tq));
+                        half.push((q, tq, y));
                     }
                     break;
                 }
@@ -277,20 +283,20 @@ where
                     if p.distance(start) < 0.1 * h {
                         half.pop();
                     }
-                    half.push((start, t0 * dir));
+                    half.push((start, t0 * dir, pair.nearest_turn(seed, x)));
                     closed = true;
                     break;
                 }
                 if !self.limit.bounds().encloses(q) {
                     let (exit, z) = self.box_exit((x, p), (y, q));
-                    half.push((exit, oriented(z, ty)));
+                    half.push((exit, oriented(z, ty), z));
                     cuts.push(Cut {
                         inside: (x, p),
                         exit: (z, exit),
                     });
                     break;
                 }
-                half.push((q, ty));
+                half.push((q, ty, y));
                 (x, p, t) = (y, q, ty);
                 last_curvature = curvature;
                 // The Hermite error grows as the fourth power of the step:
@@ -302,17 +308,27 @@ where
             }
         }
         let [forward, backward] = halves;
-        let (mut points, mut tangents): (Vec<Point>, Vec<Vector>) =
-            backward.into_iter().rev().map(|(p, t)| (p, -t)).unzip();
-        points.push(start);
-        tangents.push(t0);
-        for (p, t) in forward {
+        let count = forward.len() + backward.len() + 1;
+        let (mut points, mut tangents, mut parameters) = (
+            Vec::with_capacity(count),
+            Vec::with_capacity(count),
+            Vec::with_capacity(count),
+        );
+        let ordered = backward
+            .into_iter()
+            .rev()
+            .map(|(p, t, y)| (p, -t, y))
+            .chain([(start, t0, seed)])
+            .chain(forward);
+        for (p, t, y) in ordered {
             points.push(p);
             tangents.push(t);
+            parameters.push(y);
         }
         (points.len() >= 4).then_some(Polyline {
             points,
             tangents,
+            parameters,
             stalls,
             cuts,
         })
@@ -347,7 +363,7 @@ where
     /// [`MIDPOINT_SLACK`] chord deviations. Where the surfaces cross, the
     /// error is the distance to either surface there, along its normal, of
     /// the cubic Hermite segment the fit passes between the points (see
-    /// [`hermite_curve`](crate::geometry::curves::fitting::hermite_curve)), across
+    /// [`hermite_spline`](crate::geometry::curves::fitting::hermite_spline)), across
     /// [`HERMITE_SLACK`] times confusion. Where they touch, the points of
     /// contact are found only to within confusion, which the chord bound
     /// alone covers: the error is zero. The midpoint is the midpoint of
@@ -459,7 +475,7 @@ const MIDPOINT_SLACK: f64 = 2.0;
 
 /// Share of `tol.confusion` a step's midpoint may stray from the cubic
 /// Hermite segment of the fitted curve (see [`Tracer::step_error`] and
-/// [`hermite_curve`](crate::geometry::curves::fitting::hermite_curve)): the
+/// [`hermite_spline`](crate::geometry::curves::fitting::hermite_spline)): the
 /// segment's error peaks about its middle, so the curve keeps within
 /// confusion of the intersection.
 const HERMITE_SLACK: f64 = 0.25;
