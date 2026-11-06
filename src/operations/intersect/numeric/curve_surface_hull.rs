@@ -17,7 +17,7 @@ use crate::operations::intersect::numeric::subdivision::{
     Node, OnceExhausted, PairTests, Subdivision, Visit, interval,
 };
 use crate::operations::intersect::results::completeness::both;
-use crate::operations::intersect::results::sort_by_known_parameter;
+use crate::operations::intersect::results::sort_by_parameter;
 use crate::operations::intersect::{
     Completeness, CurveSurfaceHit, CurveSurfaceRegion, curve_surface_multiplicity,
 };
@@ -77,7 +77,7 @@ impl CurveSurfaceHits {
                 self.hits.push(hit);
             }
         }
-        sort_by_known_parameter(&mut self.hits, |hit| hit.curve_parameter);
+        sort_by_parameter(&mut self.hits, |hit| hit.curve_parameter);
     }
 
     /// The hits, ordered by curve parameter, without the completeness.
@@ -370,8 +370,8 @@ impl PieceTests<'_> {
             return None;
         }
         let hit = CurveSurfaceHit {
-            curve_parameter: Some(t),
-            surface_parameters: Some((u, v)),
+            curve_parameter: t,
+            surface_parameters: (u, v),
             point,
             multiplicity: {
                 let (_, tangent) = self.curve.first_derivatives(t);
@@ -399,7 +399,7 @@ impl PieceTests<'_> {
                 hits.push(hit);
             }
         }
-        sort_by_known_parameter(&mut hits, |hit| hit.curve_parameter);
+        sort_by_parameter(&mut hits, |hit| hit.curve_parameter);
         hits
     }
 }

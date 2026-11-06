@@ -170,6 +170,7 @@ macro_rules! map_error {
 }
 
 map_error!(ConstructionError:
+    geomcore::ArcConstructionError,
     geomcore::BSplineConstructionError,
     geomcore::BezierConstructionError,
     geomcore::CircleConstructionError,
@@ -185,6 +186,7 @@ map_error!(ConstructionError:
     geomcore::SphereConstructionError,
     geomcore::TorusConstructionError,
     geomcore::TransformError,
+    geomcore::TransformMatrixError,
 );
 map_error!(FrameConstructionError: geomcore::FrameConstructionError);
 map_error!(TrimmedCurveConstructionError: geomcore::TrimmedCurveConstructionError);
@@ -199,3 +201,16 @@ map_error!(UvCurveTo3DError: geomcore::UvCurveTo3DError);
 map_error!(UvCurveTo3DApproximationError: geomcore::UvCurveTo3DApproximationError);
 map_error!(SurfaceIsoError: geomcore::SurfaceIsoError);
 map_error!(DiscretizationCriteriaError: geomcore::DiscretizationCriteriaError);
+
+/// A pole index past the end is an `IndexError`, as for a list; a weight
+/// that is not positive and finite cannot build the curve.
+impl IntoPythonError for geomcore::PoleEditError {
+    fn into_python_error(self) -> PyErr {
+        match self {
+            geomcore::PoleEditError::IndexOutOfRange => {
+                pyo3::exceptions::PyIndexError::new_err(self.to_string())
+            }
+            geomcore::PoleEditError::InvalidWeight => ConstructionError::new_err(self.to_string()),
+        }
+    }
+}

@@ -2,12 +2,24 @@
 //! `Frame` with their 2D forms, `Tolerance`, `Transform` and `Side`, and the
 //! `repr` helpers every class shares.
 
-use crate::errors::python_error;
+use crate::errors::{invalid_argument, python_error};
+use crate::pickling;
 use crate::tolerance;
 use geomcore::{
     Axis, Axis2D, Frame, Frame2D, Point, Point2D, Tolerance, Transform, Vector, Vector2D,
 };
+use pyo3::exceptions::{PyTypeError, PyZeroDivisionError};
 use pyo3::prelude::*;
+use pyo3::types::{PyIterator, PyTuple};
+
+/// Raises `ZeroDivisionError` for a zero divisor, as float division does.
+fn nonzero_divisor(scalar: f64) -> PyResult<()> {
+    if scalar == 0.0 {
+        Err(PyZeroDivisionError::new_err("vector division by zero"))
+    } else {
+        Ok(())
+    }
+}
 
 /// What `Point.__sub__` accepts: a point (giving the vector between the
 /// two) or a vector (giving the moved point).
@@ -67,7 +79,7 @@ impl PyPoint {
     /// (`Tolerance.default()` when omitted). `==` compares coordinates
     /// exactly instead.
     #[pyo3(signature = (other, tol = None))]
-    fn coincides(&self, other: &PyPoint, tol: Option<PyTolerance>) -> bool {
+    fn coincides(&self, other: &PyPoint, tol: Option<ToleranceArgument>) -> bool {
         self.0.coincides(other.0, tolerance(tol))
     }
 
@@ -91,6 +103,40 @@ impl PyPoint {
                 .into_any()
                 .unbind()),
         }
+    }
+
+    /// The number of coordinates, 3, so `len(p)` and unpacking work.
+    fn __len__(&self) -> usize {
+        3
+    }
+
+    /// The coordinate at `index`: 0 is `x`, 1 is `y`, 2 is `z`, and a
+    /// negative index counts from the end.
+    fn __getitem__(&self, index: isize) -> PyResult<f64> {
+        pickling::coordinate_at(&[self.0.x, self.0.y, self.0.z], index)
+    }
+
+    /// The coordinates in order, so `x, y, z = p` unpacks them.
+    fn __iter__<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyIterator>> {
+        pickling::coordinate_iterator(py, &[self.0.x, self.0.y, self.0.z])
+    }
+
+    /// The coordinates as a numpy array of shape `(3,)`, so
+    /// `numpy.array(p)` and `numpy.array(list_of_points)` give floats.
+    #[pyo3(signature = (dtype = None, copy = None))]
+    fn __array__<'py>(
+        &self,
+        py: Python<'py>,
+        dtype: Option<&Bound<'py, PyAny>>,
+        copy: Option<bool>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let _ = copy;
+        pickling::coordinate_array(py, &[self.0.x, self.0.y, self.0.z], dtype)
+    }
+
+    fn __reduce__<'py>(slf: &Bound<'py, Self>) -> PyResult<Bound<'py, PyTuple>> {
+        let this = slf.borrow();
+        pickling::reduce(slf.as_any(), None, (this.0.x, this.0.y, this.0.z))
     }
 
     fn __repr__(&self) -> String {
@@ -218,6 +264,52 @@ impl PyVector {
         PyVector(scalar * self.0)
     }
 
+    /// The number of coordinates, 3, so `len(p)` and unpacking work.
+    fn __len__(&self) -> usize {
+        3
+    }
+
+    /// The coordinate at `index`: 0 is `x`, 1 is `y`, 2 is `z`, and a
+    /// negative index counts from the end.
+    fn __getitem__(&self, index: isize) -> PyResult<f64> {
+        pickling::coordinate_at(&[self.0.x, self.0.y, self.0.z], index)
+    }
+
+    /// The coordinates in order, so `x, y, z = p` unpacks them.
+    fn __iter__<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyIterator>> {
+        pickling::coordinate_iterator(py, &[self.0.x, self.0.y, self.0.z])
+    }
+
+    /// The coordinates as a numpy array of shape `(3,)`, so
+    /// `numpy.array(p)` and `numpy.array(list_of_points)` give floats.
+    #[pyo3(signature = (dtype = None, copy = None))]
+    fn __array__<'py>(
+        &self,
+        py: Python<'py>,
+        dtype: Option<&Bound<'py, PyAny>>,
+        copy: Option<bool>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let _ = copy;
+        pickling::coordinate_array(py, &[self.0.x, self.0.y, self.0.z], dtype)
+    }
+
+    fn __reduce__<'py>(slf: &Bound<'py, Self>) -> PyResult<Bound<'py, PyTuple>> {
+        let this = slf.borrow();
+        pickling::reduce(slf.as_any(), None, (this.0.x, this.0.y, this.0.z))
+    }
+
+    /// Each component divided by `scalar`; raises `ZeroDivisionError` for
+    /// a zero one, as Python's float division does.
+    fn __truediv__(&self, scalar: f64) -> PyResult<PyVector> {
+        nonzero_divisor(scalar)?;
+        Ok(PyVector(self.0 / scalar))
+    }
+
+    /// The length of the vector, as `magnitude()`.
+    fn __abs__(&self) -> f64 {
+        self.0.magnitude()
+    }
+
     fn __repr__(&self) -> String {
         format!("Vector{}", coordinates(self.0))
     }
@@ -261,7 +353,7 @@ impl PyPoint2D {
     /// (`Tolerance.default()` when omitted). `==` compares coordinates
     /// exactly instead.
     #[pyo3(signature = (other, tol = None))]
-    fn coincides(&self, other: &PyPoint2D, tol: Option<PyTolerance>) -> bool {
+    fn coincides(&self, other: &PyPoint2D, tol: Option<ToleranceArgument>) -> bool {
         self.0.coincides(other.0, tolerance(tol))
     }
 
@@ -285,6 +377,40 @@ impl PyPoint2D {
                 .into_any()
                 .unbind()),
         }
+    }
+
+    /// The number of coordinates, 2, so `len(p)` and unpacking work.
+    fn __len__(&self) -> usize {
+        2
+    }
+
+    /// The coordinate at `index`: 0 is `x`, 1 is `y`, and a
+    /// negative index counts from the end.
+    fn __getitem__(&self, index: isize) -> PyResult<f64> {
+        pickling::coordinate_at(&[self.0.x, self.0.y], index)
+    }
+
+    /// The coordinates in order, so `x, y = p` unpacks them.
+    fn __iter__<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyIterator>> {
+        pickling::coordinate_iterator(py, &[self.0.x, self.0.y])
+    }
+
+    /// The coordinates as a numpy array of shape `(2,)`, so
+    /// `numpy.array(p)` and `numpy.array(list_of_points)` give floats.
+    #[pyo3(signature = (dtype = None, copy = None))]
+    fn __array__<'py>(
+        &self,
+        py: Python<'py>,
+        dtype: Option<&Bound<'py, PyAny>>,
+        copy: Option<bool>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let _ = copy;
+        pickling::coordinate_array(py, &[self.0.x, self.0.y], dtype)
+    }
+
+    fn __reduce__<'py>(slf: &Bound<'py, Self>) -> PyResult<Bound<'py, PyTuple>> {
+        let this = slf.borrow();
+        pickling::reduce(slf.as_any(), None, (this.0.x, this.0.y))
     }
 
     fn __repr__(&self) -> String {
@@ -395,6 +521,52 @@ impl PyVector2D {
         PyVector2D(scalar * self.0)
     }
 
+    /// The number of coordinates, 2, so `len(p)` and unpacking work.
+    fn __len__(&self) -> usize {
+        2
+    }
+
+    /// The coordinate at `index`: 0 is `x`, 1 is `y`, and a
+    /// negative index counts from the end.
+    fn __getitem__(&self, index: isize) -> PyResult<f64> {
+        pickling::coordinate_at(&[self.0.x, self.0.y], index)
+    }
+
+    /// The coordinates in order, so `x, y = p` unpacks them.
+    fn __iter__<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyIterator>> {
+        pickling::coordinate_iterator(py, &[self.0.x, self.0.y])
+    }
+
+    /// The coordinates as a numpy array of shape `(2,)`, so
+    /// `numpy.array(p)` and `numpy.array(list_of_points)` give floats.
+    #[pyo3(signature = (dtype = None, copy = None))]
+    fn __array__<'py>(
+        &self,
+        py: Python<'py>,
+        dtype: Option<&Bound<'py, PyAny>>,
+        copy: Option<bool>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let _ = copy;
+        pickling::coordinate_array(py, &[self.0.x, self.0.y], dtype)
+    }
+
+    fn __reduce__<'py>(slf: &Bound<'py, Self>) -> PyResult<Bound<'py, PyTuple>> {
+        let this = slf.borrow();
+        pickling::reduce(slf.as_any(), None, (this.0.x, this.0.y))
+    }
+
+    /// Each component divided by `scalar`; raises `ZeroDivisionError` for
+    /// a zero one, as Python's float division does.
+    fn __truediv__(&self, scalar: f64) -> PyResult<PyVector2D> {
+        nonzero_divisor(scalar)?;
+        Ok(PyVector2D(self.0 / scalar))
+    }
+
+    /// The length of the vector, as `magnitude()`.
+    fn __abs__(&self) -> f64 {
+        self.0.magnitude()
+    }
+
     fn __repr__(&self) -> String {
         format!("Vector2D{}", coordinates_2d(self.0))
     }
@@ -423,6 +595,12 @@ impl PyAxis {
     /// The unit direction of the axis.
     fn direction(&self) -> PyVector {
         PyVector(self.0.direction())
+    }
+
+    fn __reduce__<'py>(slf: &Bound<'py, Self>) -> PyResult<Bound<'py, PyTuple>> {
+        let axis = slf.borrow().0;
+        let arguments = (PyPoint(axis.origin()), PyVector(axis.direction()));
+        pickling::reduce(slf.as_any(), None, arguments)
     }
 }
 
@@ -457,6 +635,12 @@ impl PyAxis2D {
             coordinates_2d(self.0.origin()),
             coordinates_2d(self.0.direction())
         )
+    }
+
+    fn __reduce__<'py>(slf: &Bound<'py, Self>) -> PyResult<Bound<'py, PyTuple>> {
+        let axis = slf.borrow().0;
+        let arguments = (PyPoint2D(axis.origin()), PyVector2D(axis.direction()));
+        pickling::reduce(slf.as_any(), None, arguments)
     }
 }
 
@@ -522,6 +706,16 @@ impl PyFrame2D {
             coordinates_2d(self.0.x_direction()),
             coordinates_2d(self.0.y_direction())
         )
+    }
+
+    fn __reduce__<'py>(slf: &Bound<'py, Self>) -> PyResult<Bound<'py, PyTuple>> {
+        let frame = slf.borrow().0;
+        let arguments = (
+            PyPoint2D(frame.origin()),
+            PyVector2D(frame.x_direction()),
+            PyVector2D(frame.y_direction()),
+        );
+        pickling::reduce(slf.as_any(), None, arguments)
     }
 }
 
@@ -632,12 +826,26 @@ impl PyFrame {
     fn point_at(&self, u: f64, v: f64, w: f64) -> PyPoint {
         PyPoint(self.0.point_at(u, v, w))
     }
+
+    fn __reduce__<'py>(slf: &Bound<'py, Self>) -> PyResult<Bound<'py, PyTuple>> {
+        let frame = slf.borrow().0;
+        let arguments = (
+            PyPoint(frame.origin()),
+            PyVector(frame.x_direction()),
+            PyVector(frame.y_direction()),
+            PyVector(frame.z_direction()),
+        );
+        pickling::reduce(slf.as_any(), Some("from_axes"), arguments)
+    }
 }
 
-/// Distance and angle tolerances shared by all geometric queries
-/// (`contains`, and later projection and intersection).
+/// Distance and angle tolerances shared by all geometric queries:
+/// containment, projection, intersection and fitting.
 ///
-/// `Tolerance()` with no arguments equals `Tolerance.default()`.
+/// `Tolerance()` with no arguments equals `Tolerance.default()`. Every
+/// `tol=` argument also takes a number, read as
+/// `Tolerance(confusion=number)`, so `tol=1e-3` loosens the distance
+/// tolerance alone.
 #[pyclass(name = "Tolerance", module = "geomcore", eq)]
 #[derive(Clone, PartialEq)]
 pub(crate) struct PyTolerance(pub(crate) Tolerance);
@@ -702,6 +910,35 @@ impl PyTolerance {
             python_float(self.0.angular),
             python_float(self.0.parametric)
         )
+    }
+
+    fn __reduce__<'py>(slf: &Bound<'py, Self>) -> PyResult<Bound<'py, PyTuple>> {
+        let tol = slf.borrow().0;
+        let arguments = (tol.confusion, tol.angular, tol.parametric);
+        pickling::reduce(slf.as_any(), None, arguments)
+    }
+}
+
+/// A `tol` argument: a `Tolerance`, or a number taken as
+/// `Tolerance(confusion=number)`, with the default angular and parametric
+/// tolerances.
+pub(crate) struct ToleranceArgument(pub(crate) Tolerance);
+
+impl<'py> FromPyObject<'py> for ToleranceArgument {
+    fn extract_bound(object: &Bound<'py, PyAny>) -> PyResult<Self> {
+        if let Ok(given) = object.cast::<PyTolerance>() {
+            return Ok(ToleranceArgument(given.borrow().0));
+        }
+        match object.extract::<f64>() {
+            Ok(confusion) => Ok(ToleranceArgument(Tolerance {
+                confusion,
+                ..Tolerance::DEFAULT
+            })),
+            Err(_) => Err(PyTypeError::new_err(format!(
+                "tol must be a Tolerance or a number (its confusion), not {}",
+                object.get_type().name()?
+            ))),
+        }
     }
 }
 
@@ -768,6 +1005,68 @@ impl PyTransform {
     /// Apply the transformation to a vector (ignores the translation part).
     fn apply_vector(&self, v: PyVector) -> PyVector {
         PyVector(self.0.apply_vector(v.0))
+    }
+
+    /// The transformation of a 4×4 homogeneous `matrix`, four rows of
+    /// four numbers (nested lists, or a numpy array): a point `p` maps to
+    /// the upper 3×3 block times `p` plus the last column. Raises
+    /// `ConstructionError` unless the last row is `[0, 0, 0, 1]` and the
+    /// 3×3 block is a uniform scale of a rotation or a mirror, its columns
+    /// of one length and orthogonal within `1e-12`. `to_matrix()` gives
+    /// the matrix back unchanged.
+    #[staticmethod]
+    fn from_matrix(matrix: Vec<Vec<f64>>) -> PyResult<Self> {
+        let four_by_four = matrix.len() == 4 && matrix.iter().all(|row| row.len() == 4);
+        if !four_by_four {
+            return Err(invalid_argument(
+                "matrix must have four rows of four numbers",
+            ));
+        }
+        let rows = [0, 1, 2, 3].map(|i| [0, 1, 2, 3].map(|j| matrix[i][j]));
+        Ok(PyTransform(
+            Transform::from_matrix(rows).map_err(python_error)?,
+        ))
+    }
+
+    /// The 4×4 homogeneous matrix, as four rows of four floats: the linear
+    /// part in the upper 3×3 block, the translation in the last column,
+    /// and `[0, 0, 0, 1]` below. `numpy.array(t.to_matrix())` makes it an
+    /// array.
+    fn to_matrix(&self) -> Vec<Vec<f64>> {
+        self.0.to_matrix().iter().map(|row| row.to_vec()).collect()
+    }
+
+    /// The transformation that undoes this one: `t.then(t.inverse())`
+    /// maps every point back to itself, within rounding. Raises
+    /// `ConstructionError` for a transformation that collapses space onto
+    /// a point (a scaling by 0).
+    fn inverse(&self) -> PyResult<PyTransform> {
+        Ok(PyTransform(self.0.inverse().map_err(python_error)?))
+    }
+
+    /// `a @ b` is the transformation of the matrix product `a.to_matrix()
+    /// @ b.to_matrix()`: `b` is applied first, then `a`, so `a @ b` is
+    /// `b.then(a)`.
+    fn __matmul__(&self, other: &PyTransform) -> PyTransform {
+        PyTransform(other.0.then(self.0))
+    }
+
+    fn __repr__(&self) -> String {
+        let rows: Vec<String> = self
+            .0
+            .to_matrix()
+            .iter()
+            .map(|row| {
+                let entries: Vec<String> = row.iter().map(|&entry| python_float(entry)).collect();
+                format!("[{}]", entries.join(", "))
+            })
+            .collect();
+        format!("Transform.from_matrix([{}])", rows.join(", "))
+    }
+
+    fn __reduce__<'py>(slf: &Bound<'py, Self>) -> PyResult<Bound<'py, PyTuple>> {
+        let rows = slf.borrow().to_matrix();
+        pickling::reduce(slf.as_any(), Some("from_matrix"), (rows,))
     }
 }
 
