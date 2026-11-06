@@ -35,8 +35,8 @@ use crate::{Point2D, Tolerance};
 /// let Conic2DIntersection::Hits(hits) = line.intersect_exact(&ellipse, Tolerance::DEFAULT) else {
 ///     panic!("expected hits");
 /// };
-/// let on_line: Vec<Option<f64>> = hits.iter().map(|hit| hit.first_parameter).collect();
-/// assert!((on_line[0].unwrap() + 3.0).abs() < 1e-9 && (on_line[1].unwrap() - 3.0).abs() < 1e-9);
+/// let on_line: Vec<f64> = hits.iter().map(|hit| hit.first_parameter).collect();
+/// assert!((on_line[0] + 3.0).abs() < 1e-9 && (on_line[1] - 3.0).abs() < 1e-9);
 /// ```
 // The hits are stored inline so an exact result never allocates.
 #[allow(clippy::large_enum_variant)]
@@ -46,9 +46,8 @@ pub enum Conic2DIntersection {
     Empty,
     /// The curves are the same curve.
     Coincident,
-    /// The hits, at most four, ordered by parameter on the first curve
-    /// when every hit stores one; a multiplicity of 2 or more marks a
-    /// tangency. A parameter the solver did not compute is `None`.
+    /// The hits, at most four, ordered by parameter on the first curve; a
+    /// multiplicity of 2 or more marks a tangency.
     Hits(InlineList<CurveCurveHit2D, 4>),
 }
 

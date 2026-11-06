@@ -128,7 +128,7 @@ impl<'a> SurfacePatches<'a> {
             return;
         }
         for hit in &mut hits.hits {
-            hit.surface_parameters = hit.surface_parameters.map(|uv| self.parameters(uv));
+            hit.surface_parameters = self.parameters(hit.surface_parameters);
         }
         if let Completeness::Incomplete { regions, .. } = &mut hits.completeness {
             for region in regions {

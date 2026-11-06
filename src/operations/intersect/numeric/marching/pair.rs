@@ -244,6 +244,23 @@ where
         }
     }
 
+    /// Parameters `x` with each periodic one moved by whole periods to the
+    /// nearest of `near`: where a trace closes a loop, its seed's
+    /// parameters continued from the last point.
+    pub(super) fn nearest_turn(&self, x: [f64; 4], near: [f64; 4]) -> [f64; 4] {
+        std::array::from_fn(|k| {
+            let s: &dyn ParametricSurface = if k < 2 { self.first } else { self.second };
+            let period = if k.is_multiple_of(2) {
+                s.u_period()
+            } else {
+                s.v_period()
+            };
+            period.map_or(x[k], |period| {
+                x[k] + ((near[k] - x[k]) / period).round() * period
+            })
+        })
+    }
+
     /// Parameters `x` with each non-periodic one clamped into its bounds.
     pub(super) fn clamp(&self, x: [f64; 4]) -> [f64; 4] {
         std::array::from_fn(|k| self.bounds(k).map_or(x[k], |(lo, hi)| x[k].clamp(lo, hi)))
@@ -275,14 +292,26 @@ where
     /// Parameters `x` moved to first order by the displacement `d` on both
     /// surfaces (unchanged on a surface whose tangent plane degenerates).
     pub(super) fn predict(&self, x: [f64; 4], d: Vector) -> [f64; 4] {
+        let [first, second] = self.parameter_shifts(x, d);
+        let [du1, dv1] = first.unwrap_or([0.0, 0.0]);
+        let [du2, dv2] = second.unwrap_or([0.0, 0.0]);
+        [x[0] + du1, x[1] + dv1, x[2] + du2, x[3] + dv2]
+    }
+
+    /// The change of parameters on each surface that moves its point at
+    /// `x` by `d` to first order: the least-squares solution through the
+    /// surface's partial derivatives, `None` on a surface whose tangent
+    /// plane degenerates there.
+    pub(super) fn parameter_shifts(&self, x: [f64; 4], d: Vector) -> [Option<[f64; 2]>; 2] {
         let shift = |s: &dyn ParametricSurface, u: f64, v: f64| {
             let (_, [su, sv]) = s.first_derivatives(u, v);
             let m = [[su.dot(su), su.dot(sv)], [su.dot(sv), sv.dot(sv)]];
-            solve_2x2(m, [su.dot(d), sv.dot(d)], 1e-12).unwrap_or([0.0, 0.0])
+            solve_2x2(m, [su.dot(d), sv.dot(d)], 1e-12)
         };
-        let [du1, dv1] = shift(self.first, x[0], x[1]);
-        let [du2, dv2] = shift(self.second, x[2], x[3]);
-        [x[0] + du1, x[1] + dv1, x[2] + du2, x[3] + dv2]
+        [
+            shift(self.first, x[0], x[1]),
+            shift(self.second, x[2], x[3]),
+        ]
     }
 
     /// Unit tangent `N1 x N2` of the intersection at parameters `x`, or

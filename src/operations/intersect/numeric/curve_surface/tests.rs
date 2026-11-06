@@ -8,13 +8,13 @@ fn test_generic_line_sphere_matches_exact() {
     let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
     let hits = search_curve_surface(&line, &sphere, tol);
     assert_eq!(hits.len(), 2);
-    assert!((hits[0].curve_parameter.unwrap() + 2.0).abs() < 1e-9);
-    assert!((hits[1].curve_parameter.unwrap() - 2.0).abs() < 1e-9);
+    assert!((hits[0].curve_parameter + 2.0).abs() < 1e-9);
+    assert!((hits[1].curve_parameter - 2.0).abs() < 1e-9);
     // Cross-check against the exact intersection.
     match line.intersect_exact(&sphere, tol) {
         LineQuadricIntersection::TwoPoints((t1, _), (t2, _)) => {
-            assert!((hits[0].curve_parameter.unwrap() - t1).abs() < 1e-9);
-            assert!((hits[1].curve_parameter.unwrap() - t2).abs() < 1e-9);
+            assert!((hits[0].curve_parameter - t1).abs() < 1e-9);
+            assert!((hits[1].curve_parameter - t2).abs() < 1e-9);
         }
         _ => panic!("exact intersection expected two points"),
     }
@@ -37,10 +37,7 @@ fn test_generic_curve_surface_hits_at_singular_points() {
     let on_both = |hit: &CurveSurfaceHit, surface: &dyn ParametricSurface| {
         surface.contains(hit.point, tol)
             && surface
-                .point_at(
-                    hit.surface_parameters.unwrap().0,
-                    hit.surface_parameters.unwrap().1,
-                )
+                .point_at(hit.surface_parameters.0, hit.surface_parameters.1)
                 .distance(hit.point)
                 <= 1e-6
     };
@@ -50,14 +47,8 @@ fn test_generic_curve_surface_hits_at_singular_points() {
     let line = Line::new(Point::new(0.0, 0.0, -3.0), Vector::Z).unwrap();
     let hits = search_curve_surface(&line, &sphere, tol);
     assert_eq!(hits.len(), 2, "{hits:?}");
-    assert!(
-        (hits[0].curve_parameter.unwrap() - 2.0).abs() < 1e-9,
-        "{hits:?}"
-    );
-    assert!(
-        (hits[1].curve_parameter.unwrap() - 4.0).abs() < 1e-9,
-        "{hits:?}"
-    );
+    assert!((hits[0].curve_parameter - 2.0).abs() < 1e-9, "{hits:?}");
+    assert!((hits[1].curve_parameter - 4.0).abs() < 1e-9, "{hits:?}");
     assert!(hits.iter().all(|h| on_both(h, &sphere)));
 
     // A line through a cone's apex, square to the axis, meets it there
@@ -81,10 +72,7 @@ fn test_generic_curve_surface_hits_at_singular_points() {
     assert_eq!(curve.point_at(0.5), Point::new(0.0, 0.0, 1.0));
     let hits = search_curve_surface(&curve, &sphere, tol);
     assert_eq!(hits.len(), 2, "{hits:?}");
-    assert!(
-        (hits[0].curve_parameter.unwrap() - 0.5).abs() < 1e-9,
-        "{hits:?}"
-    );
+    assert!((hits[0].curve_parameter - 0.5).abs() < 1e-9, "{hits:?}");
     assert!(hits.iter().all(|h| on_both(h, &sphere)));
 }
 
@@ -102,7 +90,7 @@ fn test_unbounded_curve_seeds_follow_the_surface_box() {
     let hits = search_curve_surface(&parabola, &torus, tol);
     assert_eq!(hits.len(), 4, "{hits:?}");
     for hit in &hits {
-        let t = hit.curve_parameter.unwrap();
+        let t = hit.curve_parameter;
         assert!((12.0..=18.0).contains(&t), "{hit:?}");
         assert_eq!(parabola.point_at(t), hit.point);
         assert!(torus.contains(hit.point, tol), "{hit:?}");
@@ -118,6 +106,6 @@ fn test_generic_segment_plane_hit() {
     let plane = Plane::new(Point::new(1.0, 0.0, 0.0), Vector::X).unwrap();
     let hits = search_curve_surface(&curve, &plane, tol);
     assert_eq!(hits.len(), 1);
-    assert!((hits[0].curve_parameter.unwrap() - 0.5).abs() < 1e-9);
+    assert!((hits[0].curve_parameter - 0.5).abs() < 1e-9);
     assert_eq!(hits[0].point, Point::new(1.0, 0.0, 0.0));
 }

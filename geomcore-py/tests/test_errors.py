@@ -1,7 +1,6 @@
 import pytest
 
 import geomcore
-from geomcore import curves, surfaces
 
 SUBCLASS_PARENTS = {
     "ConstructionError": "GeomcoreError",
@@ -37,16 +36,16 @@ def test_hierarchy(name, parent):
 )
 def test_negative_radius_circle(catch):
     with pytest.raises(catch):
-        curves.Circle(geomcore.Point(0, 0, 0), geomcore.Vector(0, 0, 1), -1.0)
+        geomcore.Circle(geomcore.Point(0, 0, 0), geomcore.Vector(0, 0, 1), -1.0)
 
 
 def test_negative_radius_sphere_is_construction_error():
     with pytest.raises(geomcore.ConstructionError):
-        surfaces.Sphere(geomcore.Point(0, 0, 0), -1.0)
+        geomcore.Sphere(geomcore.Point(0, 0, 0), -1.0)
 
 
 def test_discretization_criteria_error():
-    circle = curves.Circle(geomcore.Point(0, 0, 0), geomcore.Vector(0, 0, 1), 1.0)
+    circle = geomcore.Circle(geomcore.Point(0, 0, 0), geomcore.Vector(0, 0, 1), 1.0)
     with pytest.raises(geomcore.DiscretizationCriteriaError):
         circle.discretize(-1.0)
 
@@ -61,17 +60,17 @@ def test_frame_construction_error():
 
 
 def test_trimmed_curve_construction_error():
-    line = curves.Line.from_two_points(
+    line = geomcore.Line.from_two_points(
         geomcore.Point(0, 0, 0), geomcore.Point(1, 0, 0)
     )
     with pytest.raises(geomcore.TrimmedCurveConstructionError):
-        curves.TrimmedCurve(line, 1.0, 0.0)
+        geomcore.TrimmedCurve(line, 1.0, 0.0)
     with pytest.raises(geomcore.ConstructionError):
-        curves.TrimmedCurve(line, 1.0, 0.0)
+        geomcore.TrimmedCurve(line, 1.0, 0.0)
 
 
 def _straight_bspline():
-    return curves.BSplineCurve.interpolate(
+    return geomcore.BSplineCurve.interpolate(
         [
             geomcore.Point(0, 0, 0),
             geomcore.Point(1, 1, 0),
@@ -94,7 +93,7 @@ def test_bspline_split_error():
 
 
 def _cubic_spline():
-    return curves.BSplineCurve.interpolate(
+    return geomcore.BSplineCurve.interpolate(
         [
             geomcore.Point(0, 0, 0),
             geomcore.Point(1, 1, 0),
@@ -110,7 +109,7 @@ def _bilinear_surface():
         [geomcore.Point(0, 0, 0), geomcore.Point(0, 1, 0)],
         [geomcore.Point(1, 0, 0), geomcore.Point(1, 1, 0)],
     ]
-    return surfaces.BSplineSurface(
+    return geomcore.BSplineSurface(
         1, 1, poles, [0.0, 1.0], [2, 2], [0.0, 1.0], [2, 2], False, False
     )
 
@@ -132,24 +131,24 @@ def test_degree_elevation_error():
 
 
 def test_bspline_conversion_error():
-    hyperbola = curves.Hyperbola(
+    hyperbola = geomcore.Hyperbola(
         geomcore.Point(0, 0, 0),
         geomcore.Vector(0, 0, 1),
         geomcore.Vector(1, 0, 0),
         1.0,
         1.0,
     )
-    far = curves.TrimmedCurve(hyperbola, -800.0, 800.0)
+    far = geomcore.TrimmedCurve(hyperbola, -800.0, 800.0)
     with pytest.raises(geomcore.BSplineConversionError):
         far.to_bspline()
-    plane = surfaces.Plane(geomcore.Point(0, 0, 0), geomcore.Vector(0, 0, 1))
+    plane = geomcore.Plane(geomcore.Point(0, 0, 0), geomcore.Vector(0, 0, 1))
     with pytest.raises(geomcore.BSplineConversionError):
         plane.to_bspline_patch((1.0, 0.0), (0.0, 1.0))
 
 
 def test_curve_3d_to_uv_error():
-    sphere = surfaces.Sphere(geomcore.Point(0, 0, 0), 1.0)
-    far_line = curves.Line.from_two_points(
+    sphere = geomcore.Sphere(geomcore.Point(0, 0, 0), 1.0)
+    far_line = geomcore.Line.from_two_points(
         geomcore.Point(5, 0, 0), geomcore.Point(5, 1, 0)
     )
     with pytest.raises(geomcore.Curve3DToUvError):
@@ -157,8 +156,8 @@ def test_curve_3d_to_uv_error():
 
 
 def test_uv_curve_to_3d_error():
-    cylinder = surfaces.Cylinder(geomcore.Point(0, 0, 0), geomcore.Vector(0, 0, 1), 2.0)
-    helix = curves.Line2D(geomcore.Point2D(0, 0), geomcore.Vector2D(0.6, 0.8))
+    cylinder = geomcore.Cylinder(geomcore.Point(0, 0, 0), geomcore.Vector(0, 0, 1), 2.0)
+    helix = geomcore.Line2D(geomcore.Point2D(0, 0), geomcore.Vector2D(0.6, 0.8))
     with pytest.raises(geomcore.UvCurveTo3DError):
         cylinder.uv_curve_to_3d(helix)
 

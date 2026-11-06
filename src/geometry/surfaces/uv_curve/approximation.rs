@@ -25,6 +25,7 @@
 
 use std::fmt;
 
+use crate::geometry::approximation::CurveApproximation;
 use crate::geometry::curves::{BSplineCurve, BSplineCurve2D, Continuity, ParametricCurve2D, Side};
 use crate::geometry::surfaces::uv_curve::to_curve::{StraightUvCurve, UvCurveTo3DError};
 use crate::geometry::surfaces::{ElementarySurface, ParametricSurface};
@@ -77,7 +78,7 @@ pub(super) const fn degree(order: usize) -> usize {
 /// Error returned when a UV curve has no 3D curve within the asked
 /// deviation.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum UvCurveApproximationError {
+pub enum UvCurveTo3DApproximationError {
     /// The asked deviation is not a positive finite number.
     InvalidDeviation,
     /// The UV curve has an infinite bound, as a line has: trim it first
@@ -100,22 +101,22 @@ pub enum UvCurveApproximationError {
     },
 }
 
-impl fmt::Display for UvCurveApproximationError {
+impl fmt::Display for UvCurveTo3DApproximationError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            UvCurveApproximationError::InvalidDeviation => {
+            UvCurveTo3DApproximationError::InvalidDeviation => {
                 f.write_str("the asked deviation is not a positive finite number")
             }
-            UvCurveApproximationError::Unbounded => {
+            UvCurveTo3DApproximationError::Unbounded => {
                 f.write_str("the UV curve is unbounded; trim it first")
             }
-            UvCurveApproximationError::Collapsed => {
+            UvCurveTo3DApproximationError::Collapsed => {
                 f.write_str("the 3D curve collapses to a point of the surface")
             }
-            UvCurveApproximationError::OutsideSurfaceDomain => {
+            UvCurveTo3DApproximationError::OutsideSurfaceDomain => {
                 f.write_str("the UV curve leaves the surface's parameter domain")
             }
-            UvCurveApproximationError::DeviationNotReached { reached } => write!(
+            UvCurveTo3DApproximationError::DeviationNotReached { reached } => write!(
                 f,
                 "the asked deviation was not reached; the approximation stopped at {reached}"
             ),
@@ -123,48 +124,7 @@ impl fmt::Display for UvCurveApproximationError {
     }
 }
 
-impl std::error::Error for UvCurveApproximationError {}
-
-/// The 3D curve of a UV curve within a deviation, from
-/// [`uv_curve_to_3d_within`].
-#[derive(Debug, Clone, PartialEq)]
-pub struct UvCurveApproximation {
-    curve: BSplineCurve,
-    deviation: f64,
-    proven: bool,
-}
-
-impl UvCurveApproximation {
-    /// The 3D curve: one non-rational, non-periodic B-spline over the UV
-    /// curve's bounds, in its parameter. It is of degree 9 and C⁴ on an
-    /// elementary surface along a UV curve with no knot, unless degree 5
-    /// takes no more poles, and of degree 5 and C² wherever the UV curve
-    /// is otherwise.
-    pub fn curve(&self) -> &BSplineCurve {
-        &self.curve
-    }
-
-    /// The 3D curve, taken out of the result.
-    pub fn into_curve(self) -> BSplineCurve {
-        self.curve
-    }
-
-    /// The largest distance between the 3D curve's point at `t` and the
-    /// surface's point at the UV curve's point at `t`, over the bounds: a
-    /// bound when [`is_proven`](Self::is_proven), the largest sampled
-    /// distance otherwise. It is never above the asked deviation.
-    pub fn deviation(&self) -> f64 {
-        self.deviation
-    }
-
-    /// Whether [`deviation`](Self::deviation) is a proven bound, up to
-    /// rounding: for a straight UV curve on a plane, cylinder, cone, sphere
-    /// or torus. For every other pair it is sampled, each span checked at
-    /// nine points against half the asked deviation.
-    pub fn is_proven(&self) -> bool {
-        self.proven
-    }
-}
+impl std::error::Error for UvCurveTo3DApproximationError {}
 
 /// The 3D curve that `uv_curve` traces on `surface`, within `max_deviation`
 /// at the same parameter, over the UV curve's bounds: one B-spline whose
@@ -207,39 +167,46 @@ impl UvCurveApproximation {
 /// assert!(curve.point_at(1.0).distance(cylinder.point_at(uv.x, uv.y)) <= 1e-7);
 /// ```
 ///
-/// For a straight UV curve on a plane, cylinder, cone, sphere or torus the
-/// deviation is proven; for every other pair it is sampled densely and
-/// held to half `max_deviation` (see [`UvCurveApproximation::is_proven`]).
+/// The 3D curve is one non-rational, non-periodic B-spline over the UV
+/// curve's bounds, in its parameter. It is of degree 9 and C⁴ on an
+/// elementary surface along a UV curve with no knot, unless degree 5 takes
+/// no more poles, and of degree 5 and C² wherever the UV curve is
+/// otherwise. Its [`deviation`](CurveApproximation::deviation) is the
+/// largest distance between its point at `t` and the surface's point at
+/// the UV curve's point at `t`. For a straight UV curve on a plane,
+/// cylinder, cone, sphere or torus it is proven, up to rounding; for every
+/// other pair it is sampled, each span checked at nine points against
+/// half `max_deviation` (see [`CurveApproximation::is_proven`]).
 ///
 /// # Errors
 ///
-/// [`UvCurveApproximationError::InvalidDeviation`] if `max_deviation` is
-/// not a positive finite number, [`UvCurveApproximationError::Unbounded`]
+/// [`UvCurveTo3DApproximationError::InvalidDeviation`] if `max_deviation` is
+/// not a positive finite number, [`UvCurveTo3DApproximationError::Unbounded`]
 /// for a UV curve with an infinite bound,
-/// [`UvCurveApproximationError::Collapsed`] when the 3D curve is a point,
-/// [`UvCurveApproximationError::OutsideSurfaceDomain`] when the UV curve
+/// [`UvCurveTo3DApproximationError::Collapsed`] when the 3D curve is a point,
+/// [`UvCurveTo3DApproximationError::OutsideSurfaceDomain`] when the UV curve
 /// leaves the surface's domain, and
-/// [`UvCurveApproximationError::DeviationNotReached`] when the deviation
+/// [`UvCurveTo3DApproximationError::DeviationNotReached`] when the deviation
 /// takes more than 100 000 spans or a span shorter than `tol.parametric`.
 pub fn uv_curve_to_3d_within<S, C>(
     surface: &S,
     uv_curve: &C,
     max_deviation: f64,
     tol: Tolerance,
-) -> Result<UvCurveApproximation, UvCurveApproximationError>
+) -> Result<CurveApproximation, UvCurveTo3DApproximationError>
 where
     S: ParametricSurface + ?Sized,
     C: ParametricCurve2D + ?Sized,
 {
     if !(max_deviation.is_finite() && max_deviation > 0.0) {
-        return Err(UvCurveApproximationError::InvalidDeviation);
+        return Err(UvCurveTo3DApproximationError::InvalidDeviation);
     }
     let (first, last) = uv_curve.bounds();
     if !(first.is_finite() && last.is_finite()) {
-        return Err(UvCurveApproximationError::Unbounded);
+        return Err(UvCurveTo3DApproximationError::Unbounded);
     }
     if last - first <= tol.parametric {
-        return Err(UvCurveApproximationError::Collapsed);
+        return Err(UvCurveTo3DApproximationError::Collapsed);
     }
     let low = Composition {
         surface,
@@ -251,7 +218,7 @@ where
     };
     let straight = match StraightUvCurve::of(uv_curve, tol) {
         Ok(straight) => Some(straight),
-        Err(UvCurveTo3DError::Collapsed) => return Err(UvCurveApproximationError::Collapsed),
+        Err(UvCurveTo3DError::Collapsed) => return Err(UvCurveTo3DApproximationError::Collapsed),
         Err(_) => None,
     };
     let elementary = surface.as_elementary();
@@ -285,7 +252,7 @@ where
                 (Ok(low_plan), _) => (low, low_plan),
                 (Err(_), Ok(high_plan)) => (high, high_plan),
                 (Err(_), Err(reached)) => {
-                    return Err(UvCurveApproximationError::DeviationNotReached { reached });
+                    return Err(UvCurveTo3DApproximationError::DeviationNotReached { reached });
                 }
             };
             let breakpoints = proven_breakpoints(&composition, (first, last), plan.span_count)?;
@@ -318,13 +285,9 @@ where
         .iter()
         .all(|pole| pole.distance(start) <= tol.confusion)
     {
-        return Err(UvCurveApproximationError::Collapsed);
+        return Err(UvCurveTo3DApproximationError::Collapsed);
     }
-    Ok(UvCurveApproximation {
-        curve,
-        deviation,
-        proven,
-    })
+    Ok(CurveApproximation::new(curve, deviation, proven))
 }
 
 // ---- the composed curve ----
@@ -365,7 +328,7 @@ impl<S: ParametricSurface + ?Sized, C: ParametricCurve2D + ?Sized> Composition<'
 
     /// The jet of `f` at `t`, from the side `side` at a knot of a spline
     /// UV curve at the low order.
-    fn jet(&self, t: f64, side: Side) -> Result<Jet, UvCurveApproximationError> {
+    fn jet(&self, t: f64, side: Side) -> Result<Jet, UvCurveTo3DApproximationError> {
         let order = self.order();
         let mut uv_derivatives = [Vector2D::ZERO; HIGH_ORDER];
         let uv = match (self.high_order_surface, self.spline) {
@@ -408,25 +371,25 @@ impl<S: ParametricSurface + ?Sized, C: ParametricCurve2D + ?Sized> Composition<'
             _ => composed_derivatives::<HIGH_ORDER>(&partials, &uv_derivatives),
         };
         if !(point.is_finite() && derivatives.iter().all(|derivative| derivative.is_finite())) {
-            return Err(UvCurveApproximationError::OutsideSurfaceDomain);
+            return Err(UvCurveTo3DApproximationError::OutsideSurfaceDomain);
         }
         Ok(Jet { point, derivatives })
     }
 
     /// The point of `f` at `t`.
-    fn point(&self, t: f64) -> Result<Point, UvCurveApproximationError> {
+    fn point(&self, t: f64) -> Result<Point, UvCurveTo3DApproximationError> {
         let uv = self.uv_curve.point_at(t);
         self.check_domain(uv)?;
         let point = self.surface.point_at(uv.x, uv.y);
         if !point.is_finite() {
-            return Err(UvCurveApproximationError::OutsideSurfaceDomain);
+            return Err(UvCurveTo3DApproximationError::OutsideSurfaceDomain);
         }
         Ok(point)
     }
 
     /// Refuses a UV point outside the surface's bounds, by more than
     /// `tol.parametric`, in a direction that is not periodic.
-    fn check_domain(&self, uv: Point2D) -> Result<(), UvCurveApproximationError> {
+    fn check_domain(&self, uv: Point2D) -> Result<(), UvCurveTo3DApproximationError> {
         let parametric = self.tol.parametric;
         let inside = |value: f64, (low, high): (f64, f64), period: Option<f64>| {
             period.is_some() || (value >= low - parametric && value <= high + parametric)
@@ -437,12 +400,12 @@ impl<S: ParametricSurface + ?Sized, C: ParametricCurve2D + ?Sized> Composition<'
         {
             Ok(())
         } else {
-            Err(UvCurveApproximationError::OutsideSurfaceDomain)
+            Err(UvCurveTo3DApproximationError::OutsideSurfaceDomain)
         }
     }
 
     /// The breakpoint at `t`, where the UV curve is smooth.
-    fn breakpoint(&self, t: f64) -> Result<Breakpoint, UvCurveApproximationError> {
+    fn breakpoint(&self, t: f64) -> Result<Breakpoint, UvCurveTo3DApproximationError> {
         self.knot_breakpoint(t, u32::MAX)
     }
 
@@ -452,7 +415,7 @@ impl<S: ParametricSurface + ?Sized, C: ParametricCurve2D + ?Sized> Composition<'
         &self,
         t: f64,
         continuity: u32,
-    ) -> Result<Breakpoint, UvCurveApproximationError> {
+    ) -> Result<Breakpoint, UvCurveTo3DApproximationError> {
         let order = self.order();
         // The first bound has no span below it.
         let side = if t == self.first {
@@ -720,7 +683,7 @@ fn proven_breakpoints<S, C>(
     composition: &Composition<'_, S, C>,
     (first, last): (f64, f64),
     span_count: usize,
-) -> Result<Vec<Breakpoint>, UvCurveApproximationError>
+) -> Result<Vec<Breakpoint>, UvCurveTo3DApproximationError>
 where
     S: ParametricSurface + ?Sized,
     C: ParametricCurve2D + ?Sized,
@@ -774,7 +737,7 @@ pub(super) trait SpanSource {
 impl<S: ParametricSurface + ?Sized, C: ParametricCurve2D + ?Sized> SpanSource
     for Composition<'_, S, C>
 {
-    type Error = UvCurveApproximationError;
+    type Error = UvCurveTo3DApproximationError;
 
     fn order(&self) -> usize {
         Composition::order(self)
@@ -819,7 +782,7 @@ impl<S: ParametricSurface + ?Sized, C: ParametricCurve2D + ?Sized> SpanSource
     }
 
     fn not_reached(reached: f64) -> Self::Error {
-        UvCurveApproximationError::DeviationNotReached { reached }
+        UvCurveTo3DApproximationError::DeviationNotReached { reached }
     }
 }
 
