@@ -50,9 +50,9 @@ def run(command, cwd, environment=None):
     return completed.stdout
 
 
-def all_ids(tree):
+def all_ids(tree, environment=None):
     """Maps every benchmark id of `tree` to (bench target, binary path)."""
-    output = run(["cargo", "bench", "--no-run", "--message-format=json"], tree)
+    output = run(["cargo", "bench", "--no-run", "--message-format=json"], tree, environment)
     ids = {}
     for line in output.splitlines():
         message = json.loads(line)
@@ -222,7 +222,10 @@ def print_base_diff(base_ref, failures, pr_counts):
             # Cargo.lock is not tracked; the base gets the PR's dependency versions.
             if (REPO_ROOT / "Cargo.lock").exists():
                 shutil.copy2(REPO_ROOT / "Cargo.lock", tree / "Cargo.lock")
-            base_known = all_ids(tree)
+            # Its own target directory: a CARGO_TARGET_DIR pinned to the PR
+            # tree would get the base's binaries, and cargo would then take
+            # them as fresh for the PR.
+            base_known = all_ids(tree, {**os.environ, "CARGO_TARGET_DIR": str(tree / "target")})
             pr_known = all_ids(REPO_ROOT)
             for bench_id in failures:
                 print(f"\n=== {bench_id}")

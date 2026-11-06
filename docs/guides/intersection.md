@@ -79,9 +79,11 @@ the bicylindric curve of two cylinders, or, for a sphere, Viviani's
 curve among others. `intersect_exact` returns its closed form
 (`QuarticCurve`, exact points on both surfaces), and `intersect` fits
 each loop within confusion and reports the result exact and complete,
-with the point where the surfaces touch, if any, in `contact_points`.
-Only two cylinders with axes `|r1 − r2|` apart, where the curve crosses
-itself, are marched.
+with the point where the surfaces touch, if any, in `contact_points`:
+two cylinders with axes `|r1 − r2|` apart meet in one loop that crosses
+itself there. Two cones with one apex and axes apart split into lines
+instead: up to four through the apex, the generators they share, with the apex in
+`contact_points`.
 Lines/circles/conics against each
 other and against the elementary surfaces, and any two conics —
 coplanar (up to four hits) or in crossing planes (met on the shared

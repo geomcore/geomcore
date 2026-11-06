@@ -4,6 +4,8 @@
 use super::quartic::{
     QuarticCurve, crossing_cylinders, sphere_off_cone_axis, sphere_off_cylinder_axis,
 };
+use std::f64::consts::PI;
+
 use crate::geometry::surfaces::ParametricSurface;
 use crate::math::numeric::{QuadraticSolution, solve_quadratic};
 use crate::{
@@ -290,8 +292,9 @@ pub enum TorusTorusIntersection {
 
 /// Result of intersecting two cones.
 ///
-/// The closed form needs coaxial axes: equal latitude-ring radii give
-/// up to two axial positions (or apex/coincident degenerates). Anything
+/// The closed form needs coaxial axes, or one apex: coaxial cones meet in
+/// up to two latitude rings (or apex/coincident degenerates), and cones
+/// with one apex but axes apart in up to four lines through it. Anything
 /// else is a space quartic and reports
 /// [`ConeConeIntersection::NotAnalytic`].
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -300,12 +303,88 @@ pub enum ConeConeIntersection {
     Circle(Circle),
     /// Two latitude rings, ordered along the first cone's axis.
     TwoCircles(Circle, Circle),
-    /// The rings collapse to the shared apex.
+    /// One apex, axes apart: one to four lines through it.
+    Generators(SharedGenerators),
+    /// The cones meet only at their shared apex: coaxial with different
+    /// semi-angles, or axes apart with no generator in common.
     ApexPoint(Point),
     /// Same apex, axis, and semi-angle within tolerance.
     Coincident,
     /// No closed form for this configuration.
     NotAnalytic,
+}
+
+/// A generator shared by two cones with one apex.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SharedGenerator {
+    /// The line through the apex, unbounded like the cones.
+    pub line: Line,
+    /// Whether the cones touch along it instead of crossing.
+    pub tangent: bool,
+}
+
+/// The generators shared by two cones with one apex and axes apart: one to
+/// four lines through the apex.
+///
+/// # Examples
+///
+/// ```
+/// use geomcore::prelude::*;
+/// use geomcore::{Cone, ConeConeIntersection, Point, Tolerance, Vector};
+/// use std::f64::consts::{FRAC_PI_3, FRAC_PI_4};
+/// // A cone of 45° around Z and one of 60° around X: four lines, along
+/// // (±1/2, ±1/2, ±1/√2).
+/// let first = Cone::new(Point::ORIGIN, Vector::Z, FRAC_PI_4, 0.0).unwrap();
+/// let second = Cone::new(Point::ORIGIN, Vector::X, FRAC_PI_3, 0.0).unwrap();
+/// let ConeConeIntersection::Generators(shared) = first.intersect_exact(&second, Tolerance::DEFAULT)
+/// else {
+///     panic!("expected the shared generators")
+/// };
+/// assert_eq!(shared.apex(), Point::ORIGIN);
+/// assert_eq!(shared.generators().len(), 4);
+/// for generator in shared.generators() {
+///     let d = generator.line.direction();
+///     assert!((d.x.abs() - 0.5).abs() < 1e-15 && (d.y.abs() - 0.5).abs() < 1e-15);
+///     assert!(!generator.tangent);
+/// }
+/// ```
+#[derive(Debug, Clone, Copy)]
+pub struct SharedGenerators {
+    // The apex once and each line's direction: four whole lines would grow
+    // `ConeConeIntersection`, which slowed the routing of every other pair.
+    apex: Point,
+    directions: [Vector; 4],
+    tangent: [bool; 4],
+    count: u8,
+}
+
+impl SharedGenerators {
+    /// The shared apex, the midpoint of the two cones' apexes.
+    pub fn apex(&self) -> Point {
+        self.apex
+    }
+
+    /// The shared generators, one to four.
+    pub fn generators(&self) -> impl ExactSizeIterator<Item = SharedGenerator> + '_ {
+        let count = usize::from(self.count);
+        self.directions[..count]
+            .iter()
+            .zip(&self.tangent[..count])
+            .map(|(&direction, &tangent)| SharedGenerator {
+                line: Line::new(self.apex, direction).expect("a unit direction"),
+                tangent,
+            })
+    }
+}
+
+impl PartialEq for SharedGenerators {
+    fn eq(&self, other: &Self) -> bool {
+        let count = usize::from(self.count);
+        self.apex == other.apex
+            && self.count == other.count
+            && self.directions[..count] == other.directions[..count]
+            && self.tangent[..count] == other.tangent[..count]
+    }
 }
 
 impl IntersectExact<Plane> for Plane {
@@ -781,8 +860,11 @@ impl IntersectExact<Cone> for Cone {
     /// agree at `alpha = k2*d / (k2 + k1)` and, for unequal angles, at
     /// `alpha = k2*d / (k2 - k1)`: two rings, one (equal angles), or the
     /// shared apex (`d = 0`). Same apex, axis line, and half-angle
-    /// coincide (the axes may point either way). Anything else is a space
-    /// quartic and reports [`ConeConeIntersection::NotAnalytic`].
+    /// coincide (the axes may point either way). Apexes within
+    /// `tol.confusion` and axes apart meet in the lines through the apex
+    /// that lie on both, from the circles their directions trace on a
+    /// sphere around it. Anything else is
+    /// a space quartic and reports [`ConeConeIntersection::NotAnalytic`].
     ///
     /// # Examples
     ///
@@ -801,6 +883,9 @@ impl IntersectExact<Cone> for Cone {
         let a1 = self.frame().z_direction();
         let a2 = other.frame().z_direction();
         if a1.cross(a2).magnitude() > tol.angular {
+            if self.apex().distance(other.apex()) <= tol.confusion {
+                return cones_sharing_an_apex(self, other, tol);
+            }
             return ConeConeIntersection::NotAnalytic;
         }
         let w = other.apex() - self.apex();
@@ -836,6 +921,65 @@ impl IntersectExact<Cone> for Cone {
         };
         ConeConeIntersection::TwoCircles(ring(first), ring(second))
     }
+}
+
+/// The lines through the shared apex of two cones whose axes are apart.
+///
+/// On the unit sphere around the apex, a cone's directions are two circles
+/// of radius its half-angle `φ`, around `a` and `−a`. A line lies on both
+/// cones when its direction is on a circle of each, and every line has one
+/// direction on the first cone's circle around `a₁`. That circle meets the
+/// second cone's circle around `a₂` (centres `β` apart) and around `−a₂`
+/// (`π − β` apart) in two points each when `|φ₁ − φ₂| < centres < φ₁ + φ₂`,
+/// one where the circles touch (within `tol.angular`): there the cones
+/// touch along the line. The direction at the angle `ψ` around `a₁`, from
+/// `e`, the direction towards `a₂` across it, is
+/// `d = cos φ₁ a₁ + sin φ₁ (cos ψ e + sin ψ n)`, at `φ₂` from `±a₂` when
+/// `cos ψ = (±cos φ₂ − cos β cos φ₁) / (sin β sin φ₁)`.
+#[inline(never)]
+fn cones_sharing_an_apex(first: &Cone, second: &Cone, tol: Tolerance) -> ConeConeIntersection {
+    let (a1, a2) = (first.frame().z_direction(), second.frame().z_direction());
+    let apex = first.apex() + (second.apex() - first.apex()) * 0.5;
+    let across = a1.cross(a2);
+    let (sin_beta, cos_beta) = (across.magnitude(), a1.dot(a2));
+    let normal = across * (1.0 / sin_beta);
+    let towards = normal.cross(a1);
+    let beta = sin_beta.atan2(cos_beta);
+    let (phi1, phi2) = (first.semi_angle().abs(), second.semi_angle().abs());
+    let (sin1, cos1) = phi1.sin_cos();
+    let nearest = (phi1 - phi2).abs();
+    let farthest = phi1 + phi2;
+    let mut directions = [a1; 4];
+    let mut tangents = [false; 4];
+    let mut count = 0;
+    for (centres, cos2) in [(beta, phi2.cos()), (PI - beta, -phi2.cos())] {
+        if centres < nearest - tol.angular || centres > farthest + tol.angular {
+            continue;
+        }
+        let tangent =
+            (centres - nearest).abs() <= tol.angular || (centres - farthest).abs() <= tol.angular;
+        let mut cos_psi = ((cos2 - cos_beta * cos1) / (sin_beta * sin1)).clamp(-1.0, 1.0);
+        if tangent {
+            cos_psi = cos_psi.signum();
+        }
+        let sin_psi = (1.0 - cos_psi * cos_psi).sqrt();
+        let sides: &[f64] = if tangent { &[0.0] } else { &[1.0, -1.0] };
+        for side in sides {
+            let around = towards * cos_psi + normal * (side * sin_psi);
+            directions[count] = a1 * cos1 + around * sin1;
+            tangents[count] = tangent;
+            count += 1;
+        }
+    }
+    if count == 0 {
+        return ConeConeIntersection::ApexPoint(apex);
+    }
+    ConeConeIntersection::Generators(SharedGenerators {
+        apex,
+        directions,
+        tangent: tangents,
+        count: count as u8,
+    })
 }
 
 impl IntersectExact<Cylinder> for Cone {

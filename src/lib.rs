@@ -200,9 +200,10 @@ pub use operations::intersect::{
     LineConicHit, LineConicIntersection, LineLine2DIntersection, LineLineIntersection,
     LinePlaneIntersection, LineQuadricIntersection, LineTorusHit, LineTorusIntersection,
     PlaneConeIntersection, PlaneCylinderIntersection, PlanePlaneIntersection,
-    PlaneSphereIntersection, QuarticCurve, SphereConeIntersection, SphereCylinderIntersection,
-    SphereSphereIntersection, TorusConeIntersection, TorusCylinderIntersection,
-    TorusPlaneIntersection, TorusSphereIntersection, TorusTorusIntersection,
+    PlaneSphereIntersection, QuarticCurve, SharedGenerator, SharedGenerators,
+    SphereConeIntersection, SphereCylinderIntersection, SphereSphereIntersection,
+    TorusConeIntersection, TorusCylinderIntersection, TorusPlaneIntersection,
+    TorusSphereIntersection, TorusTorusIntersection,
 };
 pub use operations::intersect::{
     Completeness, CurveCurveRegion, CurveSurfaceRegion, IncompleteReason,
