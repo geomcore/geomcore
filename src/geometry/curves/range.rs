@@ -28,8 +28,9 @@ use crate::geometry::curves::{
     ParametricCurve2D,
 };
 use crate::geometry::curves::{curve_2d_dispatch, curve_dispatch, elementary_curve_dispatch};
+use crate::math::numeric::quadrature;
 use crate::operations::discretization::{self, DiscretizationCriteria};
-use crate::{Point, Point2D};
+use crate::{Point, Point2D, Tolerance};
 
 /// Equal parameter steps over `[first, last]`, each segment with the same
 /// deviations: what [`RangeOperations::for_each_run`] visits.
@@ -52,6 +53,14 @@ pub trait RangeOperations {
 
     /// The box bounding the curve over `[first, last]`.
     fn range_box(&self, first: f64, last: f64) -> BoundingBoxOf<Self::Point>;
+
+    /// The box bounding the curve over `[first, last]`, each side within
+    /// `tol.confusion` of the curve: [`range_box`](Self::range_box) where it
+    /// has a closed form, which touches the curve.
+    fn tight_range_box(&self, first: f64, last: f64, tol: Tolerance) -> BoundingBoxOf<Self::Point> {
+        let _ = tol;
+        self.range_box(first, last)
+    }
 
     /// Calls `visit` with the runs covering `[first, last]` in order, each
     /// with a function evaluating the point at a fraction of the run. Every
@@ -79,6 +88,11 @@ pub trait RangeOperations {
     /// B-spline parameter, which it keeps. A transformed trimmed curve
     /// maps its range by it.
     fn parameter_is_length(&self) -> bool;
+
+    /// The length of the curve over `[first, last]`: exact where it has a
+    /// closed form (a line, a circle), within `max_error` otherwise, as far
+    /// as the quadrature's own error estimate tells.
+    fn range_length(&self, first: f64, last: f64, max_error: f64) -> f64;
 }
 
 impl_for_both_tiers! {
@@ -87,7 +101,7 @@ impl_for_both_tiers! {
 
         /// A line's coordinates have no stationary points.
         fn range_box(&self, first: f64, last: f64) -> BoundingBoxOf<P> {
-            bounding_box::box_through(|u| self.eval_point(u), (first, last), [])
+            bounding_box::box_through(|u| self.point_at(u), (first, last), [])
         }
 
         fn for_each_run<F>(
@@ -100,7 +114,7 @@ impl_for_both_tiers! {
         ) where
             F: FnMut(Run, &dyn Fn(f64) -> P),
         {
-            let point_at = |u| self.eval_point(u);
+            let point_at = |u| self.point_at(u);
             discretization::line_steps(point_at, (first, last), criteria, min_segments, visit);
         }
 
@@ -109,12 +123,17 @@ impl_for_both_tiers! {
             first: f64,
             last: f64,
         ) -> Result<GenericBSplineCurve<P>, BSplineConversionError> {
-            let (start, end) = (self.eval_point(first), self.eval_point(last));
+            let (start, end) = (self.point_at(first), self.point_at(last));
             conversion::segment_bspline(start, end, (first, last))
         }
 
         fn parameter_is_length(&self) -> bool {
             true
+        }
+
+        /// The parameter is the arc length: exact.
+        fn range_length(&self, first: f64, last: f64, _max_error: f64) -> f64 {
+            last - first
         }
     }
 }
@@ -126,7 +145,7 @@ impl_for_both_tiers! {
         fn range_box(&self, first: f64, last: f64) -> BoundingBoxOf<P> {
             let (frame, r) = (self.frame(), self.radius());
             bounding_box::trigonometric_box(
-                |u| self.eval_point(u),
+                |u| self.point_at(u),
                 frame.origin(),
                 frame.x_direction() * r,
                 frame.y_direction() * r,
@@ -146,7 +165,7 @@ impl_for_both_tiers! {
         {
             discretization::circle_steps(
                 self.radius(),
-                |u| self.eval_point(u),
+                |u| self.point_at(u),
                 (first, last),
                 criteria,
                 min_segments,
@@ -166,6 +185,11 @@ impl_for_both_tiers! {
         fn parameter_is_length(&self) -> bool {
             false
         }
+
+        /// The radius times the angle swept: exact.
+        fn range_length(&self, first: f64, last: f64, _max_error: f64) -> f64 {
+            self.radius() * (last - first)
+        }
     }
 }
 
@@ -176,7 +200,7 @@ impl_for_both_tiers! {
         fn range_box(&self, first: f64, last: f64) -> BoundingBoxOf<P> {
             let frame = self.frame();
             bounding_box::trigonometric_box(
-                |u| self.eval_point(u),
+                |u| self.point_at(u),
                 frame.origin(),
                 frame.x_direction() * self.major_radius(),
                 frame.y_direction() * self.minor_radius(),
@@ -196,7 +220,7 @@ impl_for_both_tiers! {
         {
             discretization::ellipse_steps(
                 (self.major_radius(), self.minor_radius()),
-                |u| self.eval_point(u),
+                |u| self.point_at(u),
                 (first, last),
                 criteria,
                 min_segments,
@@ -216,6 +240,11 @@ impl_for_both_tiers! {
         fn parameter_is_length(&self) -> bool {
             false
         }
+
+        /// No closed form: the speed integrated by quadrature.
+        fn range_length(&self, first: f64, last: f64, max_error: f64) -> f64 {
+            self.arc_length(first, last, max_error)
+        }
     }
 }
 
@@ -224,8 +253,8 @@ impl_for_both_tiers! {
         type Point = P;
 
         fn range_box(&self, first: f64, last: f64) -> BoundingBoxOf<P> {
-            let point_at = |u| self.eval_point(u);
-            bounding_box::parabola_box(point_at, self.frame(), self.focal(), (first, last))
+            let point_at = |u| self.point_at(u);
+            bounding_box::parabola_box(point_at, self.frame(), self.focal_distance(), (first, last))
         }
 
         fn for_each_run<F>(
@@ -239,8 +268,8 @@ impl_for_both_tiers! {
             F: FnMut(Run, &dyn Fn(f64) -> P),
         {
             discretization::parabola_steps(
-                self.focal(),
-                |u| self.eval_point(u),
+                self.focal_distance(),
+                |u| self.point_at(u),
                 (first, last),
                 criteria,
                 min_segments,
@@ -253,11 +282,17 @@ impl_for_both_tiers! {
             first: f64,
             last: f64,
         ) -> Result<GenericBSplineCurve<P>, BSplineConversionError> {
-            conversion::parabola_arc_bspline(self.frame(), self.focal(), (first, last))
+            conversion::parabola_arc_bspline(self.frame(), self.focal_distance(), (first, last))
         }
 
         fn parameter_is_length(&self) -> bool {
             true
+        }
+
+        /// No closed form: the speed integrated by quadrature.
+        fn range_length(&self, first: f64, last: f64, max_error: f64) -> f64 {
+            let speed = |u: f64| self.derivative(u, 1).magnitude();
+            quadrature::integrate(&speed, first, last, max_error)
         }
     }
 }
@@ -268,7 +303,7 @@ impl_for_both_tiers! {
 
         fn range_box(&self, first: f64, last: f64) -> BoundingBoxOf<P> {
             let radii = (self.major_radius(), self.minor_radius());
-            let point_at = |u| self.eval_point(u);
+            let point_at = |u| self.point_at(u);
             bounding_box::hyperbola_box(point_at, self.frame(), radii, (first, last))
         }
 
@@ -284,7 +319,7 @@ impl_for_both_tiers! {
         {
             discretization::hyperbola_steps(
                 (self.major_radius(), self.minor_radius()),
-                |u| self.eval_point(u),
+                |u| self.point_at(u),
                 (first, last),
                 criteria,
                 min_segments,
@@ -304,6 +339,12 @@ impl_for_both_tiers! {
         fn parameter_is_length(&self) -> bool {
             false
         }
+
+        /// No closed form: the speed integrated by quadrature.
+        fn range_length(&self, first: f64, last: f64, max_error: f64) -> f64 {
+            let speed = |u: f64| self.derivative(u, 1).magnitude();
+            quadrature::integrate(&speed, first, last, max_error)
+        }
     }
 }
 
@@ -313,6 +354,10 @@ impl_for_both_tiers! {
 
         fn range_box(&self, first: f64, last: f64) -> BoundingBoxOf<P> {
             bounding_box::spline_box(self, (first, last))
+        }
+
+        fn tight_range_box(&self, first: f64, last: f64, tol: Tolerance) -> BoundingBoxOf<P> {
+            bounding_box::tight_spline_box(self, (first, last), tol)
         }
 
         fn for_each_run<F>(
@@ -339,6 +384,14 @@ impl_for_both_tiers! {
         fn parameter_is_length(&self) -> bool {
             false
         }
+
+        /// The length of the exact piece over the range, by the B-spline's
+        /// own span-by-span quadrature.
+        fn range_length(&self, first: f64, last: f64, max_error: f64) -> f64 {
+            conversion::bspline_piece(self, (first, last))
+                .expect("a range a trimmed curve accepts converts")
+                .length(max_error)
+        }
     }
 }
 
@@ -348,6 +401,10 @@ impl_for_both_tiers! {
 
         fn range_box(&self, first: f64, last: f64) -> BoundingBoxOf<P> {
             bounding_box::spline_box(self.bspline(), (first, last))
+        }
+
+        fn tight_range_box(&self, first: f64, last: f64, tol: Tolerance) -> BoundingBoxOf<P> {
+            bounding_box::tight_spline_box(self.bspline(), (first, last), tol)
         }
 
         fn for_each_run<F>(
@@ -374,6 +431,14 @@ impl_for_both_tiers! {
         fn parameter_is_length(&self) -> bool {
             false
         }
+
+        /// The length of the exact piece over the range, by the B-spline's
+        /// own span-by-span quadrature.
+        fn range_length(&self, first: f64, last: f64, max_error: f64) -> f64 {
+            conversion::bspline_piece(self.bspline(), (first, last))
+                .expect("a range a trimmed curve accepts converts")
+                .length(max_error)
+        }
     }
 }
 
@@ -386,6 +451,15 @@ macro_rules! range_operations_by_dispatch {
 
             fn range_box(&self, first: f64, last: f64) -> BoundingBoxOf<$point> {
                 $dispatch!(self, c => c.range_box(first, last))
+            }
+
+            fn tight_range_box(
+                &self,
+                first: f64,
+                last: f64,
+                tol: Tolerance,
+            ) -> BoundingBoxOf<$point> {
+                $dispatch!(self, c => c.tight_range_box(first, last, tol))
             }
 
             fn for_each_run<F>(
@@ -412,6 +486,10 @@ macro_rules! range_operations_by_dispatch {
             fn parameter_is_length(&self) -> bool {
                 $dispatch!(self, c => c.parameter_is_length())
             }
+
+            fn range_length(&self, first: f64, last: f64, max_error: f64) -> f64 {
+                $dispatch!(self, c => c.range_length(first, last, max_error))
+            }
         }
     )*};
 }
@@ -427,6 +505,10 @@ impl<C: RangeOperations + ?Sized> RangeOperations for &C {
 
     fn range_box(&self, first: f64, last: f64) -> BoundingBoxOf<C::Point> {
         (**self).range_box(first, last)
+    }
+
+    fn tight_range_box(&self, first: f64, last: f64, tol: Tolerance) -> BoundingBoxOf<C::Point> {
+        (**self).tight_range_box(first, last, tol)
     }
 
     fn for_each_run<F>(
@@ -452,5 +534,9 @@ impl<C: RangeOperations + ?Sized> RangeOperations for &C {
 
     fn parameter_is_length(&self) -> bool {
         (**self).parameter_is_length()
+    }
+
+    fn range_length(&self, first: f64, last: f64, max_error: f64) -> f64 {
+        (**self).range_length(first, last, max_error)
     }
 }

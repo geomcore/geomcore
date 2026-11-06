@@ -128,7 +128,7 @@ impl<'a> SurfacePatches<'a> {
             return;
         }
         for hit in &mut hits.hits {
-            hit.surface_parameters = hit.surface_parameters.map(|uv| self.parameters(uv));
+            hit.surface_parameters = self.parameters(hit.surface_parameters);
         }
         if let Completeness::Incomplete { regions, .. } = &mut hits.completeness {
             for region in regions {
@@ -250,7 +250,7 @@ impl Direction {
             Direction::Angle { curve, arc } => {
                 // A circle or ellipse inverts in closed form, which takes no
                 // tolerance.
-                let parameter = curve.parameter_of(arc.eval_point(x), Tolerance::DEFAULT);
+                let parameter = curve.parameter_of(arc.point_at(x), Tolerance::DEFAULT);
                 nearest(parameter, x)
             }
         }
@@ -289,10 +289,10 @@ fn elementary_patches(
         ElementarySurface::Cone(c) => {
             let frame = c.frame();
             let (h0, h1) = reach(&cover()?, frame.origin(), frame.z_direction());
-            let (sin, cos) = c.semi_angle().sin_cos();
+            let (sin, cos) = c.half_angle().sin_cos();
             let (v0, v1) = (h0 / cos, h1 / cos);
             // Each nappe ends on the apex as a collapsed boundary.
-            let apex = -c.ref_radius() / sin;
+            let apex = -c.reference_radius() / sin;
             let nappes = if v0 < apex && apex < v1 {
                 vec![(v0, apex), (apex, v1)]
             } else {

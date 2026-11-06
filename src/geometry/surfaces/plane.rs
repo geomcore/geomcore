@@ -13,7 +13,8 @@ use crate::geometry::surfaces::uv_curve::{from_curve, to_curve};
 use crate::geometry::surfaces::{Curve3DToUvError, UvCurveTo3DError};
 use crate::math::elementary::surface as elementary;
 use crate::{
-    Frame, Line, Point, SurfaceProjection, Tolerance, Transform, Vector, operations::projection,
+    Axis, Frame, Line, Point, SurfaceProjection, Tolerance, Transform, Vector,
+    operations::projection,
 };
 use crate::{TransformError, Transformable};
 use std::fmt;
@@ -61,7 +62,7 @@ impl std::error::Error for PlaneConstructionError {}
 /// use geomcore::prelude::*;
 /// use geomcore::{Plane, Point, Vector};
 /// let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
-/// assert_eq!(plane.eval_point(2.0, 3.0), Point::new(2.0, 3.0, 0.0));
+/// assert_eq!(plane.point_at(2.0, 3.0), Point::new(2.0, 3.0, 0.0));
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Plane {
@@ -84,7 +85,7 @@ impl Plane {
     /// use geomcore::prelude::*;
     /// use geomcore::{Plane, Point, Vector};
     /// let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
-    /// assert_eq!(plane.normal(), Vector::Z);
+    /// assert_eq!(plane.axis().direction(), Vector::Z);
     /// ```
     pub fn new(point: Point, normal: Vector) -> Result<Plane, PlaneConstructionError> {
         let frame = Frame::from_z(point, normal).map_err(frame_error(
@@ -136,7 +137,7 @@ impl Plane {
     ///     Point::new(0.0, 1.0, 0.0),
     /// )
     /// .unwrap();
-    /// assert_eq!(plane.normal(), Vector::Z);
+    /// assert_eq!(plane.axis().direction(), Vector::Z);
     /// ```
     pub fn from_three_points(
         p1: Point,
@@ -234,32 +235,48 @@ impl Plane {
         self.frame
     }
 
-    /// Returns the unit normal of the plane: the frame's z direction on
-    /// a direct frame, its negation on an indirect one (see
-    /// [`Frame::is_direct`]), so the normal follows the orientation
-    /// and reverses with [`reversed_u`](Self::reversed_u) or
+    /// Returns the normal axis of the plane: through the frame's origin,
+    /// along the frame's z direction on a direct frame and its negation
+    /// on an indirect one (see [`Frame::is_direct`]). The direction is
+    /// the unit normal, so it follows the orientation and reverses with
+    /// [`reversed_u`](Self::reversed_u) or
     /// [`reversed_v`](Self::reversed_v).
+    ///
+    /// The normal at a point is also the shared
+    /// [`normal`](crate::ParametricSurface::normal), which takes
+    /// parameters like on every other surface and returns this same
+    /// direction at all of them.
     ///
     /// # Examples
     ///
     /// ```
     /// use geomcore::prelude::*;
-    /// use geomcore::{Plane, Point, Vector};
-    /// let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
-    /// assert_eq!(plane.normal(), Vector::Z);
-    /// assert_eq!(plane.reversed_u().normal(), -Vector::Z);
+    /// use geomcore::{Plane, Point, Tolerance, Vector};
+    /// let plane = Plane::new(Point::new(0.0, 0.0, 1.0), Vector::Z).unwrap();
+    /// assert_eq!(plane.axis().origin(), Point::new(0.0, 0.0, 1.0));
+    /// assert_eq!(plane.axis().direction(), Vector::Z);
+    /// assert_eq!(plane.reversed_u().axis().direction(), -Vector::Z);
+    /// assert_eq!(plane.normal(2.0, 3.0, Tolerance::default()), Some(Vector::Z));
     /// ```
-    pub fn normal(&self) -> Vector {
+    pub fn axis(&self) -> Axis {
         if self.frame.is_direct() {
-            self.frame.z_direction()
+            self.frame.axis()
         } else {
-            -self.frame.z_direction()
+            self.frame.axis().reversed()
         }
+    }
+
+    /// The direction of [`axis`](Self::axis) alone, the unit normal, for
+    /// the intersections that need no origin: it skips copying one.
+    #[inline]
+    pub(crate) fn normal_direction(&self) -> Vector {
+        let z = self.frame.z_direction();
+        if self.frame.is_direct() { z } else { -z }
     }
 
     /// The `u` isoparametric line at `u`: `u` fixed, running along `v`.
     /// A line through `origin + u * x_direction` in the `y` direction,
-    /// so `u_iso(u).eval_point(t)` is `eval_point(u, t)` for every `t`.
+    /// so `u_iso(u).point_at(t)` is `point_at(u, t)` for every `t`.
     /// The axis-aligned special case of
     /// [`uv_curve_to_3d`](crate::ParametricSurface::uv_curve_to_3d):
     /// a line along `v`, run at rate `1` from `0`.
@@ -274,16 +291,16 @@ impl Plane {
     /// use geomcore::{Plane, Point, Vector};
     /// let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
     /// let iso = plane.u_iso(2.0).unwrap();
-    /// assert_eq!(iso.eval_point(3.0), plane.eval_point(2.0, 3.0));
+    /// assert_eq!(iso.point_at(3.0), plane.point_at(2.0, 3.0));
     /// ```
     pub fn u_iso(&self, u: f64) -> Result<Line, SurfaceIsoError> {
         let u = check_iso_param(u, None)?;
-        iso_line(self.eval_point(u, 0.0), self.frame.y_direction())
+        iso_line(self.point_at(u, 0.0), self.frame.y_direction())
     }
 
     /// The `v` isoparametric line at `v`: `v` fixed, running along `u`.
     /// A line through `origin + v * y_direction` in the `x` direction,
-    /// so `v_iso(v).eval_point(t)` is `eval_point(t, v)` for every `t`.
+    /// so `v_iso(v).point_at(t)` is `point_at(t, v)` for every `t`.
     /// The axis-aligned special case of
     /// [`uv_curve_to_3d`](crate::ParametricSurface::uv_curve_to_3d):
     /// a line along `u`, run at rate `1` from `0`.
@@ -298,11 +315,11 @@ impl Plane {
     /// use geomcore::{Plane, Point, Vector};
     /// let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
     /// let iso = plane.v_iso(2.0).unwrap();
-    /// assert_eq!(iso.eval_point(3.0), plane.eval_point(3.0, 2.0));
+    /// assert_eq!(iso.point_at(3.0), plane.point_at(3.0, 2.0));
     /// ```
     pub fn v_iso(&self, v: f64) -> Result<Line, SurfaceIsoError> {
         let v = check_iso_param(v, None)?;
-        iso_line(self.eval_point(0.0, v), self.frame.x_direction())
+        iso_line(self.point_at(0.0, v), self.frame.x_direction())
     }
 }
 
@@ -330,13 +347,13 @@ fn arbitrary_perpendicular_frame(origin: Point, normal: Vector) -> Frame {
 
 impl ParametricSurface for Plane {
     #[inline]
-    fn eval_point(&self, u: f64, v: f64) -> Point {
+    fn point_at(&self, u: f64, v: f64) -> Point {
         elementary::plane_d0(&self.frame, u, v)
     }
 
     fn project_point(&self, point: Point, tol: Tolerance) -> SurfaceProjection {
         let (u, v) = self.parameters_of(point, tol);
-        let foot = self.eval_point(u, v);
+        let foot = self.point_at(u, v);
         let distance = foot.distance(point);
         SurfaceProjection {
             u,
@@ -348,14 +365,12 @@ impl ParametricSurface for Plane {
 
     fn contains(&self, point: Point, tol: Tolerance) -> bool {
         let (u, v) = self.parameters_of(point, tol);
-        self.eval_point(u, v).distance(point) <= tol.confusion
+        self.point_at(u, v).distance(point) <= tol.confusion
     }
 
-    fn eval_derivative(&self, _u: f64, _v: f64, du: u32, dv: u32) -> Vector {
+    fn derivative(&self, _u: f64, _v: f64, du: u32, dv: u32) -> Vector {
         match du + dv {
-            0 => panic!(
-                "eval_derivative: du + dv must be >= 1 (use eval_point for the (0, 0) order)"
-            ),
+            0 => panic!("derivative: du + dv must be >= 1 (use point_at for the (0, 0) order)"),
             _ => elementary::plane_derivative(&self.frame, du, dv),
         }
     }
@@ -403,7 +418,7 @@ impl ReversibleSurface for Plane {
     /// Returns the plane running in the opposite `u` direction: the same
     /// point set with the frame's x direction negated, so the frame turns
     /// indirect (see [`Frame::is_direct`]) and the normal reverses.
-    /// `reversed_u().eval_point(u, v)` is `eval_point(-u, v)`.
+    /// `reversed_u().point_at(u, v)` is `point_at(-u, v)`.
     fn reversed_u(&self) -> Plane {
         Plane {
             frame: self.frame.flipped_x(),
@@ -412,7 +427,7 @@ impl ReversibleSurface for Plane {
 
     /// Returns the plane running in the opposite `v` direction: the same
     /// point set with the frame's y direction negated.
-    /// `reversed_v().eval_point(u, v)` is `eval_point(u, -v)`.
+    /// `reversed_v().point_at(u, v)` is `point_at(u, -v)`.
     fn reversed_v(&self) -> Plane {
         Plane {
             frame: self.frame.flipped_y(),

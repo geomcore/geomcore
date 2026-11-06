@@ -71,7 +71,7 @@ impl std::error::Error for ExtrusionSurfaceConstructionError {}
 /// use geomcore::{Ellipse, ExtrusionSurface, Point, Vector};
 /// let ellipse = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 3.0, 1.0).unwrap();
 /// let surface = ExtrusionSurface::new(ellipse.into(), Vector::Z).unwrap();
-/// assert_eq!(surface.eval_point(0.0, 2.0), Point::new(3.0, 0.0, 2.0));
+/// assert_eq!(surface.point_at(0.0, 2.0), Point::new(3.0, 0.0, 2.0));
 /// ```
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExtrusionSurface {
@@ -82,7 +82,8 @@ pub struct ExtrusionSurface {
 
 impl ExtrusionSurface {
     /// Creates the surface sweeping `profile` along `direction`, which is
-    /// normalized.
+    /// normalized: its length is dropped, so `v` stays the distance
+    /// travelled along it.
     ///
     /// # Errors
     ///
@@ -112,7 +113,7 @@ impl ExtrusionSurface {
             return Err(ExtrusionSurfaceConstructionError::NonFinite);
         }
         let direction = direction
-            .normalized()
+            .normalized_unless_unit()
             .ok_or(ExtrusionSurfaceConstructionError::NullDirection)?;
         let section = Section::new(&profile, direction)?;
         Ok(ExtrusionSurface {
@@ -129,7 +130,11 @@ impl ExtrusionSurface {
     /// parabola or hyperbola lands on a ray, which no whole curve is, or
     /// where the image is not finite.
     pub(crate) fn carried_onto(&self, plane: &Plane) -> Option<Curve> {
-        let (origin, normal, direction) = (plane.frame().origin(), plane.normal(), self.direction);
+        let (origin, normal, direction) = (
+            plane.frame().origin(),
+            plane.normal_direction(),
+            self.direction,
+        );
         let crossing = normal.dot(direction);
         let section = Section::carried(
             &self.profile,
@@ -183,8 +188,8 @@ impl ExtrusionSurface {
     }
 
     /// The `u` isoparametric line at `u`: the line through the profile
-    /// point at `u` along the direction, so `u_iso(u).eval_point(t)` is
-    /// `eval_point(u, t)` for every `t`.
+    /// point at `u` along the direction, so `u_iso(u).point_at(t)` is
+    /// `point_at(u, t)` for every `t`.
     /// The axis-aligned special case of
     /// [`uv_curve_to_3d`](crate::ParametricSurface::uv_curve_to_3d):
     /// a line along `v`, run at rate `1` from `0`.
@@ -201,16 +206,15 @@ impl ExtrusionSurface {
     /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
     /// let surface = ExtrusionSurface::new(circle.into(), Vector::Z).unwrap();
     /// let iso = surface.u_iso(0.0).unwrap();
-    /// assert_eq!(iso.eval_point(3.0), Point::new(2.0, 0.0, 3.0));
+    /// assert_eq!(iso.point_at(3.0), Point::new(2.0, 0.0, 3.0));
     /// ```
     pub fn u_iso(&self, u: f64) -> Result<Line, SurfaceIsoError> {
         let u = check_profile_parameter(&self.profile, u)?;
-        Line::new(self.profile.eval_point(u), self.direction)
-            .map_err(|_| SurfaceIsoError::NonFinite)
+        Line::new(self.profile.point_at(u), self.direction).map_err(|_| SurfaceIsoError::NonFinite)
     }
 
     /// The `v` isoparametric curve at `v`: the profile moved by `v` along
-    /// the direction, so `v_iso(v).eval_point(t)` is `eval_point(t, v)`
+    /// the direction, so `v_iso(v).point_at(t)` is `point_at(t, v)`
     /// for every `t`.
     /// The axis-aligned special case of
     /// [`uv_curve_to_3d`](crate::ParametricSurface::uv_curve_to_3d):
@@ -227,7 +231,7 @@ impl ExtrusionSurface {
     /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
     /// let surface = ExtrusionSurface::new(circle.into(), Vector::Z).unwrap();
     /// let iso = surface.v_iso(3.0).unwrap();
-    /// assert_eq!(iso.eval_point(0.0), Point::new(2.0, 0.0, 3.0));
+    /// assert_eq!(iso.point_at(0.0), Point::new(2.0, 0.0, 3.0));
     /// ```
     pub fn v_iso(&self, v: f64) -> Result<Curve, SurfaceIsoError> {
         if !v.is_finite() {
@@ -259,22 +263,22 @@ impl ExtrusionSurface {
 
 impl ParametricSurface for ExtrusionSurface {
     #[inline]
-    fn eval_point(&self, u: f64, v: f64) -> Point {
-        self.profile.eval_point(u) + v * self.direction
+    fn point_at(&self, u: f64, v: f64) -> Point {
+        self.profile.point_at(u) + v * self.direction
     }
 
-    fn eval_derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> Vector {
+    fn derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> Vector {
         let _ = v;
         match (du, dv) {
-            (0, 0) => panic!(
-                "eval_derivative: du + dv must be >= 1 (use eval_point for the (0, 0) order)"
-            ),
-            (1, 0) | (2, 0) => self.profile.eval_derivative(u, du),
+            (0, 0) => {
+                panic!("derivative: du + dv must be >= 1 (use point_at for the (0, 0) order)")
+            }
+            (1, 0) | (2, 0) => self.profile.derivative(u, du),
             (0, 1) => self.direction,
             (1, 1) | (0, 2) => Vector::ZERO,
-            _ => panic!(
-                "eval_derivative: order du={du}, dv={dv} is not supported (du + dv must be <= 2)"
-            ),
+            _ => {
+                panic!("derivative: order du={du}, dv={dv} is not supported (du + dv must be <= 2)")
+            }
         }
     }
 
@@ -311,7 +315,7 @@ impl ParametricSurface for ExtrusionSurface {
             return SurfaceProjection::UNDEFINED;
         }
         let u = self.profile_parameter(point, tol);
-        let base = self.profile.eval_point(u);
+        let base = self.profile.point_at(u);
         let v = (point - base).dot(self.direction);
         let foot = base + v * self.direction;
         SurfaceProjection {
@@ -442,7 +446,7 @@ impl Section {
                 parabolic(
                     point(frame.origin()),
                     linear(frame.y_direction()),
-                    axis * (0.25 / parabola.focal()),
+                    axis * (0.25 / parabola.focal_distance()),
                     axis.magnitude() <= ROUNDING,
                 )
             }
@@ -730,8 +734,8 @@ impl ReversibleSurface for ExtrusionSurface {
     }
 
     /// Returns the surface swept the other way: the same point set with
-    /// the direction negated, so `reversed_v().eval_point(u, v)` is
-    /// `eval_point(u, -v)` and the normal is reversed.
+    /// the direction negated, so `reversed_v().point_at(u, v)` is
+    /// `point_at(u, -v)` and the normal is reversed.
     fn reversed_v(&self) -> ExtrusionSurface {
         ExtrusionSurface {
             profile: self.profile.clone(),

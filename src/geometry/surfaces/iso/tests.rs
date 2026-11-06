@@ -22,22 +22,22 @@ fn assert_isos_match(surface: &Surface, us: &[f64], vs: &[f64], ts: &[f64]) {
         .iter()
         .flat_map(|&t| {
             us.iter()
-                .map(move |&u| surface.eval_point(u, t))
-                .chain(vs.iter().map(move |&v| surface.eval_point(t, v)))
+                .map(move |&u| surface.point_at(u, t))
+                .chain(vs.iter().map(move |&v| surface.point_at(t, v)))
         })
         .map(|p| (p - Point::ORIGIN).magnitude())
         .fold(1.0, f64::max);
     for &u in us {
         let iso = surface.u_iso(u).unwrap();
         for &t in ts {
-            let d = iso.eval_point(t).distance(surface.eval_point(u, t));
+            let d = iso.point_at(t).distance(surface.point_at(u, t));
             assert!(d <= 1e-12 * scale, "u_iso({u}) at {t}: off by {d}");
         }
     }
     for &v in vs {
         let iso = surface.v_iso(v).unwrap();
         for &t in ts {
-            let d = iso.eval_point(t).distance(surface.eval_point(t, v));
+            let d = iso.point_at(t).distance(surface.point_at(t, v));
             assert!(d <= 1e-12 * scale, "v_iso({v}) at {t}: off by {d}");
         }
     }
@@ -84,7 +84,7 @@ fn degenerate_isos_are_circles_of_radius_zero() {
     for pole in [FRAC_PI_2, -FRAC_PI_2] {
         let iso = sphere.v_iso(pole).unwrap();
         assert!(iso.radius() < 1e-12);
-        assert!(iso.center().distance(sphere.eval_point(0.0, pole)) < 1e-12);
+        assert!(iso.center().distance(sphere.point_at(0.0, pole)) < 1e-12);
     }
 
     let horn = Torus::new(Point::ORIGIN, Vector::Z, 2.0, 2.0).unwrap();
@@ -260,7 +260,7 @@ fn periodic_rational_isos_reproduce_the_surface_and_wrap() {
     assert_eq!(tube.u_iso(1.5).unwrap(), tube.u_iso(7.5).unwrap());
     let (start, end) = (tube.u_iso(0.0).unwrap(), tube.u_iso(6.0).unwrap());
     for t in vs {
-        assert!(start.eval_point(t).distance(end.eval_point(t)) < 1e-12);
+        assert!(start.point_at(t).distance(end.point_at(t)) < 1e-12);
     }
 }
 
@@ -311,7 +311,7 @@ fn a_collapsed_bspline_edge_gives_a_point_curve() {
         let iso = sphere.v_iso(v).unwrap();
         let pole = iso.poles()[0];
         assert!(iso.poles().iter().all(|p| p.distance(pole) < 1e-12));
-        assert!(pole.distance(sphere.eval_point(u_bounds.0, v)) < 1e-12);
+        assert!(pole.distance(sphere.point_at(u_bounds.0, v)) < 1e-12);
     }
     let (us, vs) = (samples(u_bounds), samples(v_bounds));
     let surface = Surface::from(sphere);

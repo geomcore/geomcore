@@ -1,7 +1,7 @@
 use super::*;
 
 fn sample<C: ParametricCurve>(c: &C) -> Point {
-    c.eval_point(0.5)
+    c.point_at(0.5)
 }
 
 fn line() -> Line {
@@ -47,7 +47,7 @@ fn bspline() -> BSplineCurve {
 fn test_sample_curve3d_enum_agrees_with_inherent() {
     let l = line();
     let wrapped: Curve = l.into();
-    assert_eq!(sample(&wrapped), l.eval_point(0.5));
+    assert_eq!(sample(&wrapped), l.point_at(0.5));
 }
 
 // ---- heterogeneous Vec<Curve> eval ----
@@ -68,13 +68,13 @@ fn test_heterogeneous_vec_eval() {
         h.into(),
         b.clone().into(),
     ];
-    let points: Vec<Point> = curves.iter().map(|curve| curve.eval_point(0.25)).collect();
-    assert_eq!(points[0], l.eval_point(0.25));
-    assert_eq!(points[1], c.eval_point(0.25));
-    assert_eq!(points[2], e.eval_point(0.25));
-    assert_eq!(points[3], p.eval_point(0.25));
-    assert_eq!(points[4], h.eval_point(0.25));
-    assert_eq!(points[5], b.eval_point(0.25));
+    let points: Vec<Point> = curves.iter().map(|curve| curve.point_at(0.25)).collect();
+    assert_eq!(points[0], l.point_at(0.25));
+    assert_eq!(points[1], c.point_at(0.25));
+    assert_eq!(points[2], e.point_at(0.25));
+    assert_eq!(points[3], p.point_at(0.25));
+    assert_eq!(points[4], h.point_at(0.25));
+    assert_eq!(points[5], b.point_at(0.25));
 }
 
 // ---- From round-trips ----
@@ -135,7 +135,7 @@ fn test_from_bspline_round_trips() {
 
 // ---- bounds/period table, per type (inherent trait impl + enum dispatch) ----
 
-// ---- default eval_points == mapped eval_point ----
+// ---- default points_at == mapped point_at ----
 
 #[test]
 fn test_curve3d_enum_eval_points_matches_mapped_eval_point() {
@@ -149,8 +149,8 @@ fn test_curve3d_enum_eval_points_matches_mapped_eval_point() {
         bspline().into(),
     ];
     for curve in &curves {
-        let expected: Vec<Point> = us.iter().map(|&u| curve.eval_point(u)).collect();
-        assert_eq!(curve.eval_points(&us), expected);
+        let expected: Vec<Point> = us.iter().map(|&u| curve.point_at(u)).collect();
+        assert_eq!(curve.points_at(&us), expected);
     }
 }
 
@@ -168,17 +168,11 @@ fn test_elementary_curve_agrees_with_curve3d() {
     for curve in curves {
         let wrapped = Curve::from(curve);
         assert_eq!(wrapped.as_elementary(), Some(curve));
-        assert_eq!(curve.eval_point(0.5), wrapped.eval_point(0.5));
-        assert_eq!(
-            curve.eval_derivative(0.5, 2),
-            wrapped.eval_derivative(0.5, 2)
-        );
+        assert_eq!(curve.point_at(0.5), wrapped.point_at(0.5));
+        assert_eq!(curve.derivative(0.5, 2), wrapped.derivative(0.5, 2));
         assert_eq!(curve.bounds(), wrapped.bounds());
         assert_eq!(curve.period(), wrapped.period());
-        assert_eq!(
-            curve.eval_points(&[0.0, 0.5]),
-            wrapped.eval_points(&[0.0, 0.5])
-        );
+        assert_eq!(curve.points_at(&[0.0, 0.5]), wrapped.points_at(&[0.0, 0.5]));
     }
 }
 
@@ -209,7 +203,7 @@ fn test_curve3d_enum_dispatch_agrees_with_concrete() {
     ];
     for curve in &curves {
         let t = curve.tangent(0.5, tol).unwrap();
-        let expected = curve.eval_d1(0.5).1.normalized().unwrap();
+        let expected = curve.first_derivatives(0.5).1.normalized().unwrap();
         assert!((t - expected).magnitude() < 1e-15);
         assert!(curve.curvature(0.5, tol).is_some());
     }

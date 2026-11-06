@@ -6,18 +6,20 @@ mod box_2d;
 mod curves;
 mod curves_2d;
 mod surfaces;
+mod tight;
 
 pub use box_2d::{BoundingBox2D, HasBoundingBox2D};
 pub(crate) use curves::{
-    BoundingBoxOf, box_through, hyperbola_box, parabola_box, spline_box, trigonometric_box,
+    BoundingBoxOf, box_through, hyperbola_box, parabola_box, spline_box, tight_spline_box,
+    trigonometric_box,
 };
 
 use crate::base::tier::operations::BoxOperations;
-use crate::{Point, Point2D, Vector};
+use crate::{Point, Point2D, Tolerance, Vector};
 
 /// An axis-aligned box: the points whose coordinates all lie between
-/// those of its [`min`](BoundingBox::min) and
-/// [`max`](BoundingBox::max) corners, faces included.
+/// those of its [`min_corner`](BoundingBox::min_corner) and
+/// [`max_corner`](BoundingBox::max_corner), faces included.
 ///
 /// A box is never empty: `min` is at most `max` on every axis. A box of a
 /// single point is flat on every axis.
@@ -32,7 +34,7 @@ use crate::{Point, Point2D, Vector};
 /// assert!(!a.overlaps(b));
 /// // Within a distance of 1 of each other: the boxes enlarged by half of it touch.
 /// assert!(a.enlarged(0.5).overlaps(b.enlarged(0.5)));
-/// assert_eq!(a.union(b).max(), Point::new(4.0, 1.0, 1.0));
+/// assert_eq!(a.union(b).max_corner(), Point::new(4.0, 1.0, 1.0));
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct BoundingBox {
@@ -57,8 +59,8 @@ impl BoundingBox {
     /// use geomcore::{BoundingBox, Point};
     ///
     /// let b = BoundingBox::new(Point::new(1.0, 0.0, 5.0), Point::new(0.0, 2.0, 3.0));
-    /// assert_eq!(b.min(), Point::new(0.0, 0.0, 3.0));
-    /// assert_eq!(b.max(), Point::new(1.0, 2.0, 5.0));
+    /// assert_eq!(b.min_corner(), Point::new(0.0, 0.0, 3.0));
+    /// assert_eq!(b.max_corner(), Point::new(1.0, 2.0, 5.0));
     /// ```
     pub fn new(a: Point, b: Point) -> BoundingBox {
         BoundingBox {
@@ -77,8 +79,8 @@ impl BoundingBox {
     ///
     /// let points = [Point::new(1.0, 0.0, 0.0), Point::new(-1.0, 2.0, 0.5)];
     /// let b = BoundingBox::from_points(points).unwrap();
-    /// assert_eq!(b.min(), Point::new(-1.0, 0.0, 0.0));
-    /// assert_eq!(b.max(), Point::new(1.0, 2.0, 0.5));
+    /// assert_eq!(b.min_corner(), Point::new(-1.0, 0.0, 0.0));
+    /// assert_eq!(b.max_corner(), Point::new(1.0, 2.0, 0.5));
     /// assert_eq!(BoundingBox::from_points([]), None);
     /// ```
     pub fn from_points(points: impl IntoIterator<Item = Point>) -> Option<BoundingBox> {
@@ -95,9 +97,9 @@ impl BoundingBox {
     /// use geomcore::{BoundingBox, Point};
     ///
     /// let b = BoundingBox::new(Point::new(1.0, 2.0, 3.0), Point::ORIGIN);
-    /// assert_eq!(b.min(), Point::ORIGIN);
+    /// assert_eq!(b.min_corner(), Point::ORIGIN);
     /// ```
-    pub fn min(self) -> Point {
+    pub fn min_corner(self) -> Point {
         self.min
     }
 
@@ -109,9 +111,9 @@ impl BoundingBox {
     /// use geomcore::{BoundingBox, Point};
     ///
     /// let b = BoundingBox::new(Point::new(1.0, 2.0, 3.0), Point::ORIGIN);
-    /// assert_eq!(b.max(), Point::new(1.0, 2.0, 3.0));
+    /// assert_eq!(b.max_corner(), Point::new(1.0, 2.0, 3.0));
     /// ```
-    pub fn max(self) -> Point {
+    pub fn max_corner(self) -> Point {
         self.max
     }
 
@@ -129,8 +131,8 @@ impl BoundingBox {
         self.min + 0.5 * (self.max - self.min)
     }
 
-    /// The vector from the [`min`](Self::min) corner to the
-    /// [`max`](Self::max) corner: the box's size along each axis.
+    /// The vector from [`min_corner`](Self::min_corner) to
+    /// [`max_corner`](Self::max_corner): the box's size along each axis.
     ///
     /// # Examples
     ///
@@ -155,8 +157,8 @@ impl BoundingBox {
     /// let a = BoundingBox::new(Point::ORIGIN, Point::new(1.0, 1.0, 1.0));
     /// let b = BoundingBox::new(Point::new(2.0, -1.0, 0.0), Point::new(3.0, 0.0, 0.5));
     /// let both = a.union(b);
-    /// assert_eq!(both.min(), Point::new(0.0, -1.0, 0.0));
-    /// assert_eq!(both.max(), Point::new(3.0, 1.0, 1.0));
+    /// assert_eq!(both.min_corner(), Point::new(0.0, -1.0, 0.0));
+    /// assert_eq!(both.max_corner(), Point::new(3.0, 1.0, 1.0));
     /// ```
     pub fn union(self, other: BoundingBox) -> BoundingBox {
         self.including(other.min).including(other.max)
@@ -173,12 +175,12 @@ impl BoundingBox {
     ///
     /// let b = BoundingBox::new(Point::ORIGIN, Point::new(4.0, 1.0, 1.0));
     /// let grown = b.enlarged(0.5);
-    /// assert_eq!(grown.min(), Point::new(-0.5, -0.5, -0.5));
-    /// assert_eq!(grown.max(), Point::new(4.5, 1.5, 1.5));
+    /// assert_eq!(grown.min_corner(), Point::new(-0.5, -0.5, -0.5));
+    /// assert_eq!(grown.max_corner(), Point::new(4.5, 1.5, 1.5));
     ///
     /// let shrunk = b.enlarged(-1.0);
-    /// assert_eq!(shrunk.min(), Point::new(1.0, 0.5, 0.5));
-    /// assert_eq!(shrunk.max(), Point::new(3.0, 0.5, 0.5));
+    /// assert_eq!(shrunk.min_corner(), Point::new(1.0, 0.5, 0.5));
+    /// assert_eq!(shrunk.max_corner(), Point::new(3.0, 0.5, 0.5));
     /// ```
     pub fn enlarged(self, distance: f64) -> BoundingBox {
         let (min, max) = (coordinates(self.min), coordinates(self.max));
@@ -268,9 +270,10 @@ impl BoundingBox {
 /// tightest (weights are positive, so the shape lies in the convex hull of
 /// its poles); a trimmed B-spline reports the box of the poles of the knot
 /// spans its range covers and of the Bézier control points of its pieces
-/// of the spans it cuts. Lines, parabolas, hyperbolas, planes, cylinders
-/// and cones are unbounded and report `None`; a trimmed curve always has a
-/// box, over its range.
+/// of the spans it cuts. [`tight_bounding_box`](Self::tight_bounding_box)
+/// touches every shape, within `tol.confusion`. Lines, parabolas,
+/// hyperbolas, planes, cylinders and cones are unbounded and report
+/// `None`; a trimmed curve always has a box, over its range.
 ///
 /// # Examples
 ///
@@ -282,9 +285,9 @@ impl BoundingBox {
 /// let quarter = TrimmedCurve::new(circle, 0.0, std::f64::consts::FRAC_PI_2).unwrap();
 /// let b = quarter.bounding_box().unwrap();
 /// // From (2, 0, 0) to (0, 2, 0): the arc's own extreme points, not the circle's.
-/// assert_eq!((b.min().y, b.max().y), (0.0, 2.0));
-/// assert_eq!(b.max().x, 2.0);
-/// assert!(b.min().x.abs() < 1e-15);
+/// assert_eq!((b.min_corner().y, b.max_corner().y), (0.0, 2.0));
+/// assert_eq!(b.max_corner().x, 2.0);
+/// assert!(b.min_corner().x.abs() < 1e-15);
 /// ```
 ///
 /// ```
@@ -293,8 +296,8 @@ impl BoundingBox {
 ///
 /// let sphere = Sphere::new(Point::new(1.0, 0.0, 0.0), 2.0).unwrap();
 /// let b = sphere.bounding_box().unwrap();
-/// assert_eq!(b.min(), Point::new(-1.0, -2.0, -2.0));
-/// assert_eq!(b.max(), Point::new(3.0, 2.0, 2.0));
+/// assert_eq!(b.min_corner(), Point::new(-1.0, -2.0, -2.0));
+/// assert_eq!(b.max_corner(), Point::new(3.0, 2.0, 2.0));
 ///
 /// let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
 /// assert_eq!(plane.bounding_box(), None);
@@ -303,11 +306,45 @@ pub trait HasBoundingBox {
     /// The axis-aligned box bounding the shape, or `None` if the shape is
     /// unbounded.
     fn bounding_box(&self) -> Option<BoundingBox>;
+
+    /// The axis-aligned box bounding the shape as tightly as
+    /// `tol.confusion`: it holds the shape, and each of its sides is within
+    /// `tol.confusion` of a point of the shape. `None` if the shape is
+    /// unbounded.
+    ///
+    /// The box of an elementary shape is [`bounding_box`](Self::bounding_box),
+    /// which already touches it. A B-spline's is found by halving its
+    /// Bézier pieces until their control points come that close, and a
+    /// revolution surface's from its profile's, at the cost of a few
+    /// hundred evaluations of the pieces' control points: for a collision
+    /// pre-check, against `bounding_box`, which holds the control points.
+    ///
+    /// ```
+    /// use geomcore::prelude::*;
+    /// use geomcore::{BSplineCurve, Point, Tolerance};
+    ///
+    /// // A quadratic arch, from (0, 0) to (2, 0), peaking at y = 1.
+    /// let poles = vec![Point::ORIGIN, Point::new(1.0, 2.0, 0.0), Point::new(2.0, 0.0, 0.0)];
+    /// let arch = BSplineCurve::new(2, poles, vec![0.0, 1.0], vec![3, 3], false).unwrap();
+    /// // The control points reach y = 2; the curve, 1.
+    /// assert_eq!(arch.bounding_box().unwrap().max().y, 2.0);
+    /// let tol = Tolerance::DEFAULT;
+    /// let tight = arch.tight_bounding_box(tol).unwrap();
+    /// assert!(tight.max().y >= 1.0 && tight.max().y - 1.0 <= tol.confusion);
+    /// ```
+    fn tight_bounding_box(&self, tol: Tolerance) -> Option<BoundingBox> {
+        let _ = tol;
+        self.bounding_box()
+    }
 }
 
 impl<T: HasBoundingBox + ?Sized> HasBoundingBox for &T {
     fn bounding_box(&self) -> Option<BoundingBox> {
         (**self).bounding_box()
+    }
+
+    fn tight_bounding_box(&self, tol: Tolerance) -> Option<BoundingBox> {
+        (**self).tight_bounding_box(tol)
     }
 }
 
@@ -333,13 +370,13 @@ macro_rules! box_operations {
             }
 
             #[inline]
-            fn min(self) -> $point {
-                $box::min(self)
+            fn min_corner(self) -> $point {
+                $box::min_corner(self)
             }
 
             #[inline]
-            fn max(self) -> $point {
-                $box::max(self)
+            fn max_corner(self) -> $point {
+                $box::max_corner(self)
             }
         }
     )*};

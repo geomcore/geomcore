@@ -17,7 +17,7 @@ curve past `max_deviation` is kept.
 
     ```python
     refined = curve.insert_knot(0.5, 1)
-    assert refined.eval_point(0.5) == curve.eval_point(0.5)
+    assert refined.point_at(0.5) == curve.point_at(0.5)
 
     dense = curve.refine_knots([0.25, 0.5, 0.75])
 
@@ -32,7 +32,7 @@ curve past `max_deviation` is kept.
 
     ```rust
     let refined = curve.insert_knot(0.5, 1).unwrap();
-    assert_eq!(refined.eval_point(0.5), curve.eval_point(0.5));
+    assert_eq!(refined.point_at(0.5), curve.point_at(0.5));
 
     let dense = curve.refine_knots(&[0.25, 0.5, 0.75]).unwrap();
 
@@ -74,7 +74,7 @@ seam (up to one period) on periodic directions.
     left, right = curve.split_at(0.5)
     piece = curve.extract(0.0, 0.5)
     rev = curve.reversed()
-    assert rev.eval_point(0.0) == curve.eval_point(1.0)
+    assert rev.point_at(0.0) == curve.point_at(1.0)
     assert len(curve.to_bezier_pieces()) == 1  # single span
     ```
 
@@ -84,7 +84,7 @@ seam (up to one period) on periodic directions.
     let (left, right) = curve.split_at(0.5).unwrap();
     let piece = curve.extract(0.0, 0.5).unwrap();
     let rev = curve.reversed();
-    assert_eq!(rev.eval_point(0.0), curve.eval_point(1.0));
+    assert_eq!(rev.point_at(0.0), curve.point_at(1.0));
     assert_eq!(curve.to_bezier_pieces().len(), 1); // single span
     ```
 
@@ -103,15 +103,20 @@ so sample them to polylines for display.
 
 Interpolation passes through the points; `approximate` fits with a
 fixed pole count; `approximate_within` adds knots where the deviation
-is largest until every point is within `max_deviation`.
+is largest until every point is within `max_deviation`. It returns the
+curve with its `deviation`, the largest distance it measured between a
+point and the curve, which is a proven bound (`is_proven()`): the same
+result every operation within a deviation hands back.
 
 === "Python"
 
     ```python
-    points = curve.eval_points([0.0, 0.25, 0.5, 0.75, 1.0])
+    points = curve.points_at([0.0, 0.25, 0.5, 0.75, 1.0])
     interp = BSplineCurve.interpolate(points, 3)
     approx = BSplineCurve.approximate(points, 2, 3)
     within = BSplineCurve.approximate_within(points, 2, 1e-6)
+    fitted = within.curve                 # BSplineCurve
+    within.deviation                      # <= 1e-6, measured at every point
     ```
 
 === "Rust"
@@ -119,15 +124,20 @@ is largest until every point is within `max_deviation`.
     ```rust
     use geomcore::PointParametrization;
 
-    let points = curve.eval_points(&[0.0, 0.25, 0.5, 0.75, 1.0]);
+    let points = curve.points_at(&[0.0, 0.25, 0.5, 0.75, 1.0]);
     let interp = BSplineCurve::interpolate(&points, 3, PointParametrization::Centripetal).unwrap();
     let approx = BSplineCurve::approximate(&points, 2, 3, PointParametrization::Centripetal).unwrap();
     let within = BSplineCurve::approximate_within(&points, 2, 1e-6, PointParametrization::Centripetal).unwrap();
+    let fitted = within.curve();
     ```
+
+In Python the points can also be an `(N, 3)` numpy array (`(N, 2)`
+for `BSplineCurve2D`, `(n, m, 3)` for a surface grid).
 
 `BSplineSurface::approximate` fits a grid by separating rows and
 columns (one factored system per direction); `approximate_within`
-does the same within a deviation.
+does the same within a deviation, and returns the surface with its
+deviation.
 
 ## Exact conversions
 
@@ -165,15 +175,18 @@ patches.
 ## Measure and bound
 
 Arc length integrates the speed to a requested error; `bounding_box`
-gives the tight pole box (elementary shapes get closed-form boxes) —
-available on every 3D curve and surface.
+gives the box of the poles, which holds the curve but may be wider than
+it (elementary shapes get closed-form boxes, which touch them), and
+`tight_bounding_box(tol)` the box whose every side is within
+`tol.confusion` of the shape, for a collision pre-check — available on
+every curve and surface.
 
 === "Python"
 
     ```python
     assert round(curve.length(1e-9), 6) == 1.623225
     bb = curve.bounding_box()
-    assert (bb.min(), bb.max()) == (Point(0, 0, 0), Point(1, 1, 0))
+    assert (bb.min_corner(), bb.max_corner()) == (Point(0, 0, 0), Point(1, 1, 0))
     ```
 
 === "Rust"
@@ -181,7 +194,7 @@ available on every 3D curve and surface.
     ```rust
     let len = curve.length(1e-9);
     let bb = curve.bounding_box().unwrap();
-    assert_eq!((bb.min(), bb.max()), (Point::new(0.0, 0.0, 0.0), Point::new(1.0, 1.0, 0.0)));
+    assert_eq!((bb.min_corner(), bb.max_corner()), (Point::new(0.0, 0.0, 0.0), Point::new(1.0, 1.0, 0.0)));
     ```
 
 Boxes have no viewer mapping yet
