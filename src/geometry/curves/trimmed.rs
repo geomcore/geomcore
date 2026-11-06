@@ -542,6 +542,7 @@ impl TrimmedCurve2D<Circle2D> {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{Point2D, Tolerance, TrimmedCurve2D};
     /// use std::f64::consts::FRAC_PI_2;
     ///

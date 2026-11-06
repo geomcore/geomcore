@@ -391,10 +391,10 @@ pub trait HasBoundingBox {
     /// let poles = vec![Point::ORIGIN, Point::new(1.0, 2.0, 0.0), Point::new(2.0, 0.0, 0.0)];
     /// let arch = BSplineCurve::new(2, poles, vec![0.0, 1.0], vec![3, 3], false).unwrap();
     /// // The control points reach y = 2; the curve, 1.
-    /// assert_eq!(arch.bounding_box().unwrap().max().y, 2.0);
+    /// assert_eq!(arch.bounding_box().unwrap().max_corner().y, 2.0);
     /// let tol = Tolerance::DEFAULT;
     /// let tight = arch.tight_bounding_box(tol).unwrap();
-    /// assert!(tight.max().y >= 1.0 && tight.max().y - 1.0 <= tol.confusion);
+    /// assert!(tight.max_corner().y >= 1.0 && tight.max_corner().y - 1.0 <= tol.confusion);
     /// ```
     fn tight_bounding_box(&self, tol: Tolerance) -> Option<BoundingBox> {
         let _ = tol;
