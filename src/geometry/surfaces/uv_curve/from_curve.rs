@@ -5,12 +5,13 @@
 //! `uv_curve_to_3d` (`uv_curve/to_curve.rs`).
 //!
 //! Only a handful of curve/surface pairs admit a closed-form UV curve that
-//! [`Curve2D`] can hold, all on the elementary surfaces: a line or a circle
+//! [`Curve2D`] can hold. On the elementary surfaces, a line or a circle
 //! projects to a straight line or a circle in `(u, v)`, and every curve in a
 //! plane maps to the same kind of curve in the plane's `(u, v)` (an
 //! ellipse, parabola or hyperbola to its 2D counterpart, a B-spline or
-//! Bézier curve to the spline of its poles' plane coordinates). Every other
-//! pair reports [`Curve3DToUvError::NotAnalytic`]. The per-pair math and
+//! Bézier curve to the spline of its poles' plane coordinates). On the
+//! swept surfaces, an iso-curve maps to an iso-line (`swept.rs`). Every
+//! other pair reports [`Curve3DToUvError::NotAnalytic`]. The per-pair math and
 //! failure conditions are the classic elementary-surface projections; see
 //! [`ParametricSurface::curve_3d_to_uv`] for the user-facing contract.
 //!
@@ -27,7 +28,10 @@
 //!   `atan2`).
 //! - Any curve on a B-spline or Bézier surface: it needs a numeric
 //!   inversion; see [`curve_3d_to_uv_within`](crate::curve_3d_to_uv_within).
-//! - Any curve on an extrusion or revolution surface: not attempted yet;
+//! - A curve on an extrusion or revolution surface other than its
+//!   iso-curves (`swept.rs`): a plane cut of an extrusion across its
+//!   direction runs `v` along the profile's height over the plane, and
+//!   other curves need a numeric inversion;
 //!   [`curve_3d_to_uv_within`](crate::curve_3d_to_uv_within) handles them.
 
 use std::f64::consts::{FRAC_PI_2, PI, TAU};
@@ -73,8 +77,9 @@ const CHECK_PARAMS: [f64; 3] = [0.0, 1.7, 4.1];
 
 /// The exact UV curve of `curve` on `surface`, the body of
 /// [`ParametricSurface::curve_3d_to_uv`] for every crate surface: the
-/// closed forms live on the elementary surfaces, and every curve on any
-/// other surface is [`Curve3DToUvError::NotAnalytic`].
+/// closed forms live on the elementary surfaces and on the iso-curves of
+/// the swept ones, and every other curve is
+/// [`Curve3DToUvError::NotAnalytic`].
 pub(crate) fn curve_3d_to_uv(
     surface: &impl ParametricSurface,
     curve: &Curve,
@@ -101,7 +106,7 @@ pub(crate) fn checked_curve_3d_to_uv(
     check: OnSurfaceCheck,
 ) -> Result<Curve2D, Curve3DToUvError> {
     let Some(surface) = surface.as_elementary() else {
-        return Err(Curve3DToUvError::NotAnalytic);
+        return swept::curve_on_swept(surface, curve, tol, check);
     };
     match curve {
         Curve::Line(line) => line_on_surface(line, &surface, tol, check),
@@ -341,7 +346,7 @@ fn verify_on_surface(
 
 /// [`verify_on_surface`] at the given sample parameters.
 fn verify_on_surface_at(
-    surface: &ElementarySurface,
+    surface: &(impl ParametricSurface + ?Sized),
     uv_curve: &Curve2D,
     curve_point: impl Fn(f64) -> Point,
     params: &[f64],
@@ -881,6 +886,8 @@ fn angle_or_zero(y: f64, x: f64) -> f64 {
         wrap_to_turn(y.atan2(x))
     }
 }
+
+mod swept;
 
 #[cfg(test)]
 mod tests;

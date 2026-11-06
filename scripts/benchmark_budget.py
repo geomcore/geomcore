@@ -37,6 +37,12 @@ DIFF_ROWS = 15
 # stage_target). The environment is fixed too.
 STAGING_DIRECTORY = Path("/tmp/geomcore-benchmark-budget")
 CLEAN_ENVIRONMENT = {"PATH": "/usr/bin:/bin"}
+# The bench binaries are linked without RELRO. LLD, rust's default linker,
+# can make the writable segment all RELRO, and valgrind 3.22 then reads no
+# symbols of the binary, so the toggle collects nothing. They build in their
+# own target directory, so the flag does not rebuild the normal one.
+BUILD_FLAGS = "-C link-arg=-Wl,-z,norelro"
+BUILD_DIRECTORY = Path("target") / "benchmark-budget"
 
 
 def run(command, cwd, environment=None):
@@ -52,7 +58,12 @@ def run(command, cwd, environment=None):
 
 def all_ids(tree):
     """Maps every benchmark id of `tree` to (bench target, binary path)."""
-    output = run(["cargo", "bench", "--no-run", "--message-format=json"], tree)
+    environment = dict(os.environ)
+    environment["RUSTFLAGS"] = f"{environment.get('RUSTFLAGS', '')} {BUILD_FLAGS}".strip()
+    environment["CARGO_TARGET_DIR"] = str(Path(tree) / BUILD_DIRECTORY)
+    output = run(
+        ["cargo", "bench", "--no-run", "--message-format=json"], tree, environment
+    )
     ids = {}
     for line in output.splitlines():
         message = json.loads(line)

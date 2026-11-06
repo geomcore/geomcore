@@ -1,4 +1,4 @@
-use std::f64::consts::{FRAC_PI_2, TAU};
+use std::f64::consts::{FRAC_1_SQRT_2, FRAC_PI_2, PI, TAU};
 
 use super::{Curve3DToUvApproximationError, curve_3d_to_uv_within};
 use crate::CurveApproximation2D;
@@ -6,8 +6,8 @@ use crate::geometry::curves::{
     BSplineCurve, Circle, Ellipse, Line, Line2D, ParametricCurve, ParametricCurve2D, TrimmedCurve,
     TrimmedCurve2D,
 };
-use crate::geometry::surfaces::{BSplineSurface, Cylinder, ParametricSurface, Plane, Sphere};
-use crate::{Point, Point2D, Tolerance, Vector, Vector2D, uv_curve_to_3d_within};
+use crate::geometry::surfaces::{BSplineSurface, Cone, Cylinder, ParametricSurface, Plane, Sphere};
+use crate::{Frame, Point, Point2D, Tolerance, Vector, Vector2D, uv_curve_to_3d_within};
 
 const TOL: Tolerance = Tolerance::DEFAULT;
 
@@ -15,7 +15,7 @@ const TOL: Tolerance = Tolerance::DEFAULT;
 /// UV curve and the 3D curve, at 2 000 parameters.
 fn measured_deviation(
     surface: &impl ParametricSurface,
-    curve: &impl ParametricCurve,
+    curve: &(impl ParametricCurve + ?Sized),
     approximation: &CurveApproximation2D,
 ) -> f64 {
     let (first, last) = curve.bounds();
@@ -33,7 +33,7 @@ fn measured_deviation(
 /// returns it.
 fn approximated(
     surface: &impl ParametricSurface,
-    curve: &impl ParametricCurve,
+    curve: &(impl ParametricCurve + ?Sized),
     max_deviation: f64,
 ) -> CurveApproximation2D {
     let approximation = curve_3d_to_uv_within(surface, curve, max_deviation, TOL).unwrap();
@@ -179,21 +179,108 @@ fn the_degenerate_pairs_are_refused() {
         curve_3d_to_uv_within(&cylinder, &wider, 1e-6, TOL),
         Err(Curve3DToUvApproximationError::CurveNotOnSurface { distance: 0.5 })
     );
-    // A quarter of a meridian of a sphere, ending at its south pole.
-    let sphere = Sphere::new(Point::ORIGIN, 1.0).unwrap();
-    let meridian = Circle::new(Point::ORIGIN, Vector::Y, 1.0).unwrap();
-    let to_pole = TrimmedCurve::new(meridian, 0.0, FRAC_PI_2).unwrap();
-    assert!(
-        meridian
-            .point_at(FRAC_PI_2)
-            .distance(Point::new(0.0, 0.0, -1.0))
-            < 1e-15
-    );
+    // A ruling of a cone that lingers at its apex, as the fourth power of
+    // the parameter: the UV curve has no one-sided limit there to read.
+    let cone = Cone::from_apex(Point::ORIGIN, Vector::Z, 0.5).unwrap();
+    let start = cone.point_at(1.0, 2.0);
+    let mut poles = vec![Point::ORIGIN; 5];
+    poles[0] = start;
+    let lingering = BSplineCurve::new(4, poles, vec![0.0, 1.0], vec![5, 5], false).unwrap();
     assert_eq!(
-        curve_3d_to_uv_within(&sphere, &to_pole, 1e-6, TOL),
+        curve_3d_to_uv_within(&cone, &lingering, 1e-6, TOL),
         Err(Curve3DToUvApproximationError::SingularParametrization)
     );
-    // Short of the pole, it maps.
-    let short = TrimmedCurve::new(meridian, 0.0, FRAC_PI_2 - 0.1).unwrap();
-    approximated(&sphere, &short, 1e-7);
+}
+
+/// The UV curve's point at `t` on a sphere centered at the origin, its `u`
+/// brought into `[0, 2π)`.
+fn uv_in_period(approximation: &CurveApproximation2D, t: f64) -> Point2D {
+    let uv = approximation.curve().point_at(t);
+    Point2D::new(uv.x.rem_euclid(TAU), uv.y)
+}
+
+#[test]
+fn a_meridian_maps_up_to_the_pole_at_its_own_u() {
+    // A meridian of a sphere in the plane `y = 0`, through its south pole
+    // at `π/2`: its `u` is constant, the angle of its start.
+    let sphere = Sphere::new(Point::ORIGIN, 1.0).unwrap();
+    let meridian = Circle::new(Point::ORIGIN, Vector::Y, 1.0).unwrap();
+    let pole = Point::new(0.0, 0.0, -1.0);
+    assert!(meridian.point_at(FRAC_PI_2).distance(pole) < 1e-15);
+    let ending = TrimmedCurve::new(meridian, 0.0, FRAC_PI_2).unwrap();
+    let starting = TrimmedCurve::new(meridian, FRAC_PI_2, PI).unwrap();
+    let across = TrimmedCurve::new(meridian, 0.0, PI).unwrap();
+    for (curve, deviation) in [(ending, 1e-6), (starting, 1e-6), (across, 1e-6)] {
+        let approximation = approximated(&sphere, &curve, deviation);
+        let (first, last) = curve.bounds();
+        let (u, _) = sphere.parameters_of(curve.point_at(first + 0.3), TOL);
+        if curve != across {
+            for t in [first, 0.5 * (first + last), last] {
+                let uv = uv_in_period(&approximation, t);
+                assert!((uv.x - u.rem_euclid(TAU)).abs() < 1e-9, "{uv:?} {u}");
+            }
+        }
+        let at_pole = approximation.curve().point_at(FRAC_PI_2);
+        assert!((at_pole.y + FRAC_PI_2).abs() < 1e-12);
+        assert!(sphere.point_at(at_pole.x, at_pole.y).distance(pole) < 1e-12);
+    }
+}
+
+#[test]
+fn a_circle_through_a_pole_takes_the_limit_of_u_there() {
+    // A small circle on a sphere through its south pole, whose tangent there
+    // is the y direction: leaving the pole, `u` starts at `π/2`; reaching
+    // it, `u` ends at `3π/2`.
+    let sphere = Sphere::new(Point::ORIGIN, 1.0).unwrap();
+    let frame = Frame::new(
+        Point::new(-0.5, 0.0, -0.5),
+        Vector::new(1.0, 0.0, 1.0),
+        Vector::new(1.0, 0.0, -1.0),
+    )
+    .unwrap();
+    let circle = Circle::from_frame(frame, FRAC_1_SQRT_2).unwrap();
+    assert!(circle.point_at(0.0).distance(Point::new(0.0, 0.0, -1.0)) < 1e-15);
+    let leaving = TrimmedCurve::new(circle, 0.0, PI).unwrap();
+    let approximation = approximated(&sphere, &leaving, 1e-6);
+    let start = uv_in_period(&approximation, 0.0);
+    assert!(
+        start.distance(Point2D::new(FRAC_PI_2, -FRAC_PI_2)) < 1e-9,
+        "{start:?}"
+    );
+    let reaching = TrimmedCurve::new(circle, PI, TAU).unwrap();
+    let approximation = approximated(&sphere, &reaching, 1e-6);
+    let end = uv_in_period(&approximation, TAU);
+    assert!(
+        end.distance(Point2D::new(3.0 * FRAC_PI_2, -FRAC_PI_2)) < 1e-9,
+        "{end:?}"
+    );
+}
+
+#[test]
+fn a_ruling_maps_up_to_the_apex_at_its_own_u() {
+    // A ruling of a cone at `u = 1`, run to its apex at constant speed, and
+    // as a quadratic that slows to a stop there.
+    let cone = Cone::from_apex(Point::ORIGIN, Vector::Z, 0.5).unwrap();
+    let start = cone.point_at(1.0, 2.0);
+    let line = Line::new(start, Point::ORIGIN - start).unwrap();
+    let to_apex = TrimmedCurve::new(line, 0.0, start.distance(Point::ORIGIN)).unwrap();
+    let slowing = BSplineCurve::new(
+        2,
+        vec![start, Point::ORIGIN, Point::ORIGIN],
+        vec![0.0, 1.0],
+        vec![3, 3],
+        false,
+    )
+    .unwrap();
+    let curves: [&dyn ParametricCurve; 2] = [&to_apex, &slowing];
+    for curve in curves {
+        let approximation = approximated(&cone, curve, 1e-6);
+        let (first, last) = curve.bounds();
+        for t in [first, 0.5 * (first + last), last] {
+            let uv = approximation.curve().point_at(t);
+            assert!((uv.x - 1.0).abs() < 1e-9, "{uv:?}");
+        }
+        let end = approximation.curve().point_at(last);
+        assert!(cone.point_at(end.x, end.y).distance(Point::ORIGIN) < 1e-12);
+    }
 }

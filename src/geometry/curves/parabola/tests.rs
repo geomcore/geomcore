@@ -267,3 +267,39 @@ fn test_parabola3d_project_non_finite_point_is_nan() {
         assert!(proj.parameter.is_nan() && proj.distance.is_nan());
     }
 }
+
+// ---- focus and directrix ----
+
+#[test]
+fn test_parabola_points_are_as_far_from_focus_as_from_directrix() {
+    let tol = Tolerance::DEFAULT;
+    let directrix =
+        crate::Line::new(Point::new(1.0, 2.0, -1.0), Vector::new(1.0, 1.0, 0.0)).unwrap();
+    let focus = Point::new(0.0, 3.0, 2.0);
+    let parabola = Parabola::from_focus_and_directrix(focus, &directrix).unwrap();
+    assert!(parabola.focus().distance(focus) < 1e-12);
+    let rebuilt = parabola.directrix();
+    for k in -5..=5 {
+        let p = parabola.point_at(f64::from(k) * 0.7);
+        let to_directrix = directrix.project_point(p, tol).distance;
+        assert!((p.distance(focus) - to_directrix).abs() < 1e-12);
+        assert!((rebuilt.project_point(p, tol).distance - to_directrix).abs() < 1e-12);
+    }
+    // The parameter runs along the directrix.
+    assert!(parabola.derivative(0.0, 1).dot(directrix.direction()) > 0.0);
+}
+
+#[test]
+fn test_parabola_from_a_focus_on_its_directrix_is_refused() {
+    let directrix = crate::Line::new(Point::ORIGIN, Vector::X).unwrap();
+    let on = Point::new(3.0, 0.0, 0.0);
+    assert_eq!(
+        Parabola::from_focus_and_directrix(on, &directrix).err(),
+        Some(ParabolaConstructionError::NonPositiveFocal)
+    );
+    let nan = Point::new(f64::NAN, 0.0, 0.0);
+    assert_eq!(
+        Parabola::from_focus_and_directrix(nan, &directrix).err(),
+        Some(ParabolaConstructionError::NonFinite)
+    );
+}

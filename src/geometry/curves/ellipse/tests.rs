@@ -327,3 +327,41 @@ fn test_ellipse3d_project_non_finite_point_is_nan() {
         assert!(proj.parameter.is_nan() && proj.distance.is_nan());
     }
 }
+
+// ---- foci and directrices ----
+
+#[test]
+fn test_ellipse_points_keep_the_focal_ratios() {
+    // A tilted ellipse: the distances to the two foci sum to the major
+    // axis, and each is the eccentricity times the distance to its
+    // directrix.
+    let tol = Tolerance::DEFAULT;
+    let ellipse = Ellipse::new(
+        Point::new(1.0, -2.0, 0.5),
+        Vector::new(0.2, 0.3, 1.0),
+        Vector::X,
+        3.0,
+        1.2,
+    )
+    .unwrap();
+    let foci = ellipse.foci();
+    let directrices = ellipse.directrices().unwrap();
+    let e = ellipse.eccentricity();
+    for k in 0..12 {
+        let p = ellipse.point_at(f64::from(k) * 0.5);
+        let to_foci = [p.distance(foci[0]), p.distance(foci[1])];
+        assert!((to_foci[0] + to_foci[1] - 6.0).abs() < 1e-12);
+        for side in 0..2 {
+            let to_directrix = directrices[side].project_point(p, tol).distance;
+            assert!((to_foci[side] - e * to_directrix).abs() < 1e-12);
+        }
+    }
+}
+
+#[test]
+fn test_ellipse_of_equal_radii_has_its_foci_at_the_center() {
+    let round = Ellipse::new(Point::new(1.0, 2.0, 3.0), Vector::Z, Vector::X, 2.0, 2.0).unwrap();
+    assert_eq!(round.eccentricity(), 0.0);
+    assert_eq!(round.foci(), [round.center(); 2]);
+    assert!(round.directrices().is_none());
+}

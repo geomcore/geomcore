@@ -1,4 +1,4 @@
-//! The Python class `geomcore.curves.Ellipse`, wrapping `geomcore::Ellipse`.
+//! The Python class `geomcore.Ellipse`, wrapping `geomcore::Ellipse`.
 
 use crate::curves::*;
 use crate::method_sets::*;
@@ -6,7 +6,7 @@ use crate::values::{PyFrame, float_repr};
 use geomcore::Ellipse;
 
 /// An ellipse in 3D.
-#[pyclass(name = "Ellipse", module = "geomcore.curves", eq)]
+#[pyclass(name = "Ellipse", module = "geomcore", eq)]
 #[derive(Clone, PartialEq)]
 pub(crate) struct PyEllipse(pub(crate) Ellipse);
 
@@ -16,6 +16,11 @@ shape_methods! {
     /// The placement frame of the ellipse.
     fn frame(&self) -> PyFrame {
         PyFrame(self.0.frame())
+    }
+
+    fn __reduce__<'py>(slf: &pyo3::Bound<'py, Self>) -> pyo3::PyResult<pyo3::Bound<'py, pyo3::types::PyTuple>> {
+        let this = slf.borrow();
+        crate::pickling::reduce(slf.as_any(), Some("from_frame"), (this.frame(), this.major_radius(), this.minor_radius(),))
     }
 
     fn __repr__(&self) -> String {
@@ -97,5 +102,26 @@ shape_methods! {
     /// no closed form.
     fn length(&self, max_error: f64) -> f64 {
         self.0.length(max_error)
+    }
+
+    /// The eccentricity: the ratio of a point's distance to a focus over
+    /// its distance to that focus's directrix.
+    fn eccentricity(&self) -> f64 {
+        self.0.eccentricity()
+    }
+
+    /// The two foci on the major axis, the one toward the frame's x
+    /// direction first.
+    fn foci(&self) -> (PyPoint, PyPoint) {
+        let [first, second] = self.0.foci();
+        (PyPoint(first), PyPoint(second))
+    }
+
+    /// The two directrices across the major axis, in the order of `foci`,
+    /// or None for a circle, whose directrices are at infinity.
+    fn directrices(&self) -> Option<(PyLine, PyLine)> {
+        self.0
+            .directrices()
+            .map(|[first, second]| (PyLine(first), PyLine(second)))
     }
 }
