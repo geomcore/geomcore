@@ -29,8 +29,11 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 BUDGET_PATH = REPO_ROOT / "benches" / "budget.tsv"
-# Collect only while criterion's Bencher::iter (and its callees) run.
-COLLECT_TOGGLE = "criterion::bencher::Bencher<M>::iter*"
+# Collect only while criterion's Bencher::iter (and its callees) run. The
+# leading wildcard matches both symbol manglings: the legacy one demangles
+# to `criterion::bencher::Bencher<M>::iter`, the v0 one (rustc's default
+# since 1.99.1) to `<criterion::bencher::Bencher>::iter::<..>`.
+COLLECT_TOGGLE = "*criterion::bencher::Bencher*::iter*"
 TOLERANCE_PERCENT = 1
 DIFF_ROWS = 15
 # The count depends on the binary's path, so every run uses this one (see
