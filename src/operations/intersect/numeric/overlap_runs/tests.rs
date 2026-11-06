@@ -1,6 +1,6 @@
 use crate::{
-    BSplineCurve, Circle, Completeness, Cylinder, IncompleteReason, Intersect, Line, Plane, Point,
-    Tolerance, Vector,
+    BSplineCurve, Circle, Completeness, CurveSurfaceOverlap, Cylinder, IncompleteReason, Intersect,
+    Line, Plane, Point, Tolerance, Vector,
 };
 
 const TOL: Tolerance = Tolerance::DEFAULT;
@@ -64,9 +64,19 @@ fn test_planar_bspline_lying_in_a_plane_is_one_overlap() {
     let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
     let result = curve.intersect(&plane, TOL);
     assert!(result.hits().is_empty(), "{:?}", result.hits());
-    assert_eq!(result.overlaps(), &[(0.0, 1.0)]);
+    assert_eq!(
+        result.overlaps(),
+        &[CurveSurfaceOverlap {
+            curve_range: (0.0, 1.0)
+        }]
+    );
     assert_unseparated_over(result.completeness(), (0.0, 1.0), |r| r.curve_range);
-    assert_eq!(plane.intersect(&curve, TOL).overlaps(), &[(0.0, 1.0)]);
+    assert_eq!(
+        plane.intersect(&curve, TOL).overlaps(),
+        &[CurveSurfaceOverlap {
+            curve_range: (0.0, 1.0)
+        }]
+    );
 }
 
 #[test]
@@ -84,7 +94,7 @@ fn test_curve_leaving_a_plane_overlaps_only_where_it_lies() {
     let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
     let result = curve.intersect(&plane, TOL);
     assert_eq!(result.overlaps().len(), 1);
-    assert_range(result.overlaps()[0], (0.0, 2.0));
+    assert_range(result.overlaps()[0].curve_range, (0.0, 2.0));
     assert!(result.hits().is_empty(), "{:?}", result.hits());
 }
 

@@ -605,11 +605,11 @@ def test_intersect_line_surface():
     ).hits
     assert hit.curve_parameter == pytest.approx(0.0)
     on_plane = line.intersect(Plane(Point.origin(), Vector.unit_z()))
-    assert on_plane.hits == [] and on_plane.overlaps == [(-math.inf, math.inf)]
+    assert on_plane.hits == [] and [overlap.curve_range for overlap in on_plane.overlaps] == [(-math.inf, math.inf)]
 
     generator = Line(Point(2.0, 0.0, 0.0), Vector.unit_z())
     cylinder = Cylinder(Point.origin(), Vector.unit_z(), 2.0)
-    assert generator.intersect(cylinder).overlaps == [(-math.inf, math.inf)]
+    assert [overlap.curve_range for overlap in generator.intersect(cylinder).overlaps] == [(-math.inf, math.inf)]
 
 
 def test_intersect_symmetric_quadrics():
@@ -765,7 +765,7 @@ def test_conic_surface_intersections():
 
     parabola = Parabola(Point.origin(), Vector.unit_z(), Vector.unit_x(), 1.0)
     on_plane = parabola.intersect(Plane(Point.origin(), Vector.unit_z()))
-    assert on_plane.overlaps == [(-math.inf, math.inf)]
+    assert [overlap.curve_range for overlap in on_plane.overlaps] == [(-math.inf, math.inf)]
 
     hyperbola = Hyperbola(Point.origin(), Vector.unit_z(), Vector.unit_x(), 2.0, 1.0)
     cylinder = Cylinder(Point.origin(), Vector.unit_z(), 2.0)
@@ -790,10 +790,10 @@ def test_circle_surface_and_measures():
     assert circle.intersect(Sphere(Point.origin(), 3.0)).is_empty()
 
     on_cylinder = circle.intersect(Cylinder(Point.origin(), Vector.unit_z(), 2.0))
-    assert on_cylinder.overlaps == [pytest.approx((0.0, math.tau))]
+    assert [overlap.curve_range for overlap in on_cylinder.overlaps] == [pytest.approx((0.0, math.tau))]
 
     cone = Cone.from_frame(Frame.world(), 0.4, 2.0)
-    assert circle.intersect(cone).overlaps == [pytest.approx((0.0, math.tau))]
+    assert [overlap.curve_range for overlap in circle.intersect(cone).overlaps] == [pytest.approx((0.0, math.tau))]
 
 
     ellipse = Ellipse(Point.origin(), Vector.unit_z(), Vector.unit_x(), 3.0, 1.5)
@@ -1127,7 +1127,7 @@ def test_line_torus_intersections():
         assert torus.contains(hit.point)
         projection = torus.project_point(hit.point)
         assert projection.distance == pytest.approx(0.0)
-        assert hit.surface_parameters == pytest.approx((projection.u, projection.v))
+        assert (hit.u, hit.v) == pytest.approx((projection.u, projection.v))
 
     (hit,) = Line(Point(0.0, 5.0, 0.0), Vector.unit_x()).intersect(torus).hits
     assert hit.curve_parameter == pytest.approx(0.0)
@@ -1759,8 +1759,8 @@ def test_curve_bounds_and_boxes():
     circle = Circle(Point.origin(), Vector.unit_z(), 2.0)
     assert circle.bounds() == pytest.approx((0.0, math.tau))
     box = circle.bounding_box()
-    assert (box.min().x, box.max().x) == pytest.approx((-2.0, 2.0))
-    assert (box.min().y, box.max().y) == pytest.approx((-2.0, 2.0))
+    assert (box.min_corner().x, box.max_corner().x) == pytest.approx((-2.0, 2.0))
+    assert (box.min_corner().y, box.max_corner().y) == pytest.approx((-2.0, 2.0))
     assert box.encloses(Point(1.0, 1.0, 0.0))
     assert not box.encloses(Point(3.0, 0.0, 0.0))
     assert Parabola(Point.origin(), Vector.unit_z(), Vector.unit_x(), 1.0).bounding_box() is None
@@ -1772,7 +1772,7 @@ def test_curve_bounds_and_boxes():
     ).bounding_box() is not None
     curve = _cubic_curve()
     cbox = curve.bounding_box()
-    assert (cbox.min().x, cbox.max().x) == pytest.approx((0.0, 4.0))
+    assert (cbox.min_corner().x, cbox.max_corner().x) == pytest.approx((0.0, 4.0))
     trimmed = TrimmedCurve(circle, 0.0, math.pi / 2)
     tbox = trimmed.bounding_box()
     assert tbox is not None and tbox.encloses(Point(2.0, 0.0, 0.0))
@@ -1780,18 +1780,18 @@ def test_curve_bounds_and_boxes():
 
 def test_bounding_box_ops():
     box = BoundingBox(Point(1.0, 0.0, 5.0), Point(0.0, 2.0, 3.0))
-    assert (box.min().x, box.min().y, box.min().z) == (0.0, 0.0, 3.0)
-    assert (box.max().x, box.max().y, box.max().z) == (1.0, 2.0, 5.0)
+    assert (box.min_corner().x, box.min_corner().y, box.min_corner().z) == (0.0, 0.0, 3.0)
+    assert (box.max_corner().x, box.max_corner().y, box.max_corner().z) == (1.0, 2.0, 5.0)
     assert (box.center().x, box.center().y, box.center().z) == (0.5, 1.0, 4.0)
     assert box.diagonal().components() == (1.0, 2.0, 2.0)
     other = BoundingBox(Point(2.0, -1.0, 0.0), Point(3.0, 0.0, 0.5))
     both = box.union(other)
-    assert (both.min().x, both.max().x) == (0.0, 3.0)
+    assert (both.min_corner().x, both.max_corner().x) == (0.0, 3.0)
     grown = box.enlarged(0.5)
-    assert grown.min().x == pytest.approx(-0.5)
+    assert grown.min_corner().x == pytest.approx(-0.5)
     assert box.overlaps(other) or not box.overlaps(other)
     assert not box.overlaps(BoundingBox(Point(5.0, 5.0, 5.0), Point(6.0, 6.0, 6.0)))
-    assert BoundingBox.from_points([Point(1.0, 2.0, 3.0)]).min().x == 1.0
+    assert BoundingBox.from_points([Point(1.0, 2.0, 3.0)]).min_corner().x == 1.0
     with pytest.raises(ValueError):
         BoundingBox.from_points([])
 
@@ -1807,8 +1807,8 @@ def test_surface_getters_and_uv_bounds():
     assert surface.u_bounds() == (0.0, 1.0) and surface.v_bounds() == (0.0, 1.0)
     sphere = Sphere(Point.origin(), 2.0)
     assert sphere.u_bounds() == pytest.approx((0.0, math.tau))
-    assert sphere.bounding_box().max().x == pytest.approx(2.0)
-    assert sphere.bounding_box().min().x == pytest.approx(-2.0)
+    assert sphere.bounding_box().max_corner().x == pytest.approx(2.0)
+    assert sphere.bounding_box().min_corner().x == pytest.approx(-2.0)
     from geomcore import Plane
 
     plane = Plane(Point.origin(), Vector.unit_z())

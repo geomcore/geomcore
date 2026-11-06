@@ -91,7 +91,7 @@ fn level_seeds<S: ParametricSurface>(
     }
     let cover = || {
         let bounds = level.bounding_box()?;
-        let (min, max) = (bounds.min(), bounds.max());
+        let (min, max) = (bounds.min_corner(), bounds.max_corner());
         Some(grown(&[min.x, min.y, min.z, max.x, max.y, max.z], tol))
     };
     let patches = SurfacePatches::new(other, cover)?;

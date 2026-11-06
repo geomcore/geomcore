@@ -92,7 +92,7 @@ def test_revolved_circle_is_a_torus():
         assert _close(surface.point_at(u, v), torus.point_at(u, v))
     box = surface.bounding_box()
     assert box is not None
-    assert box.min().z == pytest.approx(-1.0) and box.max().x == pytest.approx(4.0)
+    assert box.min_corner().z == pytest.approx(-1.0) and box.max_corner().x == pytest.approx(4.0)
     query = Point(0.0, 5.0, 0.5)
     assert surface.project_point(query).distance == pytest.approx(torus.project_point(query).distance)
     # A rational circle does not keep the angle as its parameter, so the
