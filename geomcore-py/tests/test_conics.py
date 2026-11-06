@@ -78,7 +78,7 @@ def test_parabola_from_focus_and_directrix_keeps_equal_distances():
 def test_cone_from_apex_starts_at_its_apex():
     cone = Cone.from_apex(Point(1.0, 2.0, 3.0), Vector.unit_z(), 0.3)
     assert cone.apex().distance(Point(1.0, 2.0, 3.0)) == pytest.approx(0.0)
-    assert cone.ref_radius() == 0.0
+    assert cone.reference_radius() == 0.0
 
 
 def test_the_package_reports_its_version():

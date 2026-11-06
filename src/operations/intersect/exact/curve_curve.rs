@@ -665,7 +665,7 @@ fn line_meets_plane_near(
     extent: f64,
     tol: Tolerance,
 ) -> LinePlaneIntersection {
-    let n = plane.normal();
+    let n = plane.normal_direction();
     let b = n.dot(line.direction());
     let foot = line.parameter_of(centre, tol);
     let c = n.dot(line.point_at(foot) - plane.frame().origin());

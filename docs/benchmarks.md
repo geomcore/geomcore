@@ -546,7 +546,7 @@ The same bench times elementary pairs:
   circle (two loops);
 - `cylinder_extruded_wall`: a cylinder of radius 1 about z against a cubic
   B-spline wall extruded along z (two open curves);
-- `cone_cylinder_unbounded`: a cone of semi-angle 0.3 against a cylinder
+- `cone_cylinder_unbounded`: a cone of half-angle 0.3 against a cylinder
   whose axis is parallel to a generator (two curves to infinity).
 
 Fastest of three runs, same settings (2026-10-15, machine loaded). Three

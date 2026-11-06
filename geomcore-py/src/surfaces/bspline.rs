@@ -12,7 +12,7 @@ use geomcore::BSplineSurface;
 pub(crate) struct PyBSplineSurface(pub(crate) BSplineSurface);
 
 shape_methods! {
-    PyBSplineSurface: [surface, surface_normal, sided_surface_evaluation, surface_extrema];
+    PyBSplineSurface: [surface, sided_surface_evaluation, surface_extrema];
 
     fn __reduce__<'py>(slf: &pyo3::Bound<'py, Self>) -> pyo3::PyResult<pyo3::Bound<'py, pyo3::types::PyTuple>> {
         let this = slf.borrow();
@@ -144,16 +144,6 @@ shape_methods! {
     /// Polynomial degree in the v direction.
     fn v_degree(&self) -> usize {
         self.0.v_degree()
-    }
-
-    /// Whether the surface is periodic in u.
-    fn is_u_periodic(&self) -> bool {
-        self.0.is_u_periodic()
-    }
-
-    /// Whether the surface is periodic in v.
-    fn is_v_periodic(&self) -> bool {
-        self.0.is_v_periodic()
     }
 
     /// Whether the surface carries rational weights.
@@ -370,6 +360,12 @@ shape_methods! {
             .collect()
     }
 
+    /// The surface itself, as the other surfaces give their exact
+    /// B-spline with `to_bspline()`.
+    fn to_bspline(&self) -> Self {
+        Self(self.0.to_bspline())
+    }
+
     /// The piece over `u_range × v_range` as a clamped, non-periodic
     /// B-spline (a range may cross the seam of a periodic direction, up
     /// to one period).
@@ -379,19 +375,19 @@ shape_methods! {
         ))
     }
 
-    /// The piece over `[first, last]` in `u`, the `v` direction
+    /// The piece over `[start, end]` in `u`, the `v` direction
     /// unchanged.
-    fn extract_u(&self, first: f64, last: f64) -> PyResult<Self> {
+    fn extract_u(&self, start: f64, end: f64) -> PyResult<Self> {
         Ok(PyBSplineSurface(
-            self.0.extract_u(first, last).map_err(python_error)?,
+            self.0.extract_u(start, end).map_err(python_error)?,
         ))
     }
 
-    /// The piece over `[first, last]` in `v`, the `u` direction
+    /// The piece over `[start, end]` in `v`, the `u` direction
     /// unchanged.
-    fn extract_v(&self, first: f64, last: f64) -> PyResult<Self> {
+    fn extract_v(&self, start: f64, end: f64) -> PyResult<Self> {
         Ok(PyBSplineSurface(
-            self.0.extract_v(first, last).map_err(python_error)?,
+            self.0.extract_v(start, end).map_err(python_error)?,
         ))
     }
 

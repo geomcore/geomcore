@@ -21,7 +21,7 @@ use crate::operations::intersect::results::completeness::{meet, merged};
 use crate::operations::intersect::results::sort_by_parameter;
 use crate::operations::intersect::{
     Completeness, CurveCurveHit, CurveCurveOverlap, CurveCurveRegion, CurveSurfaceHit,
-    CurveSurfaceRegion, IncompleteReason,
+    CurveSurfaceOverlap, CurveSurfaceRegion, IncompleteReason,
 };
 use crate::{BoundingBox, Point, Tolerance, Vector};
 
@@ -56,7 +56,7 @@ pub(crate) fn curve_surface_overlaps<C, S>(
     tol: Tolerance,
 ) -> (
     Vec<CurveSurfaceHit>,
-    Vec<(f64, f64)>,
+    Vec<CurveSurfaceOverlap>,
     Completeness<CurveSurfaceRegion>,
 )
 where
@@ -129,7 +129,11 @@ where
         });
     }
     let regions = merged(regions);
-    (hits, runs, Completeness::Incomplete { reason, regions })
+    let overlaps = runs
+        .into_iter()
+        .map(|curve_range| CurveSurfaceOverlap { curve_range })
+        .collect();
+    (hits, overlaps, Completeness::Incomplete { reason, regions })
 }
 
 /// Joins the hits and regions of a numeric curve-curve search into the
@@ -621,7 +625,7 @@ fn run_points<C: ParametricCurve>(curve: &C, (low, high): (f64, f64)) -> Vec<Poi
 /// there are none (an overlap unbounded at both ends).
 fn corners(points: &[Point]) -> (Point, Point) {
     match BoundingBox::from_points(points.iter().copied()) {
-        Some(bounds) => (bounds.min(), bounds.max()),
+        Some(bounds) => (bounds.min_corner(), bounds.max_corner()),
         None => (
             Point::new(f64::NEG_INFINITY, f64::NEG_INFINITY, f64::NEG_INFINITY),
             Point::new(f64::INFINITY, f64::INFINITY, f64::INFINITY),

@@ -91,7 +91,7 @@ fn level_seeds<S: ParametricSurface>(
     }
     let cover = || {
         let bounds = level.bounding_box()?;
-        let (min, max) = (bounds.min(), bounds.max());
+        let (min, max) = (bounds.min_corner(), bounds.max_corner());
         Some(grown(&[min.x, min.y, min.z, max.x, max.y, max.z], tol))
     };
     let patches = SurfacePatches::new(other, cover)?;
@@ -159,7 +159,7 @@ fn level_seeds<S: ParametricSurface>(
 /// and so all of it, which no disc on the torus does. There is then no
 /// such loop.
 fn plane_torus_seeds(plane: &Plane, torus: &Torus, tol: Tolerance) -> Vec<[f64; 4]> {
-    let normal = plane.normal();
+    let normal = plane.normal_direction();
     let axis = torus.frame().z_direction();
     let Some(radial) = (normal - axis * normal.dot(axis)).normalized() else {
         return Vec::new();
@@ -202,7 +202,7 @@ enum Level {
         radius: f64,
     },
     /// `|q|^2 - (1 + slope) (q . axis)^2`, `q = p - apex`, `slope` the
-    /// squared tangent of the semi-angle: both nappes.
+    /// squared tangent of the half-angle: both nappes.
     Cone {
         apex: Point,
         axis: Vector,
@@ -223,7 +223,7 @@ impl Level {
         match surface {
             ElementarySurface::Plane(s) => Level::Plane {
                 origin: s.frame().origin(),
-                normal: s.normal(),
+                normal: s.axis().direction(),
             },
             ElementarySurface::Sphere(s) => Level::Sphere {
                 center: s.center(),
@@ -237,7 +237,7 @@ impl Level {
             ElementarySurface::Cone(s) => Level::Cone {
                 apex: s.apex(),
                 axis: s.frame().z_direction(),
-                slope: s.semi_angle().tan().powi(2),
+                slope: s.half_angle().tan().powi(2),
             },
             ElementarySurface::Torus(s) => Level::Torus {
                 center: s.center(),

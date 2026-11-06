@@ -72,7 +72,12 @@ fn test_line_in_plane_is_an_unbounded_overlap() {
     let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
     let r = line.intersect(&plane, TOL);
     assert!(r.hits().is_empty());
-    assert_eq!(r.overlaps(), &[(f64::NEG_INFINITY, f64::INFINITY)]);
+    assert_eq!(
+        r.overlaps(),
+        &[CurveSurfaceOverlap {
+            curve_range: (f64::NEG_INFINITY, f64::INFINITY)
+        }]
+    );
     assert!(!r.is_empty());
 }
 
@@ -81,7 +86,12 @@ fn test_circle_on_sphere_is_a_full_period_overlap() {
     let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
     let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
     let r = circle.intersect(&sphere, TOL);
-    assert_eq!(r.overlaps(), &[(0.0, TAU)]);
+    assert_eq!(
+        r.overlaps(),
+        &[CurveSurfaceOverlap {
+            curve_range: (0.0, TAU)
+        }]
+    );
 }
 
 #[test]
@@ -1470,4 +1480,98 @@ fn test_2d_bspline_against_a_conic_is_numeric() {
         );
     }
     assert_hits_lie_on_2d(&spline.intersect(&ellipse, TOL), &spline, &ellipse);
+}
+
+/// The x coordinates of the hits, sorted.
+fn hit_xs(r: &CurveSurfaceIntersection) -> Vec<f64> {
+    let mut xs: Vec<f64> = r.hits().iter().map(|h| h.point.x).collect();
+    xs.sort_by(f64::total_cmp);
+    xs
+}
+
+/// A vase: an interpolated profile turned about the z axis.
+fn vase() -> RevolutionSurface {
+    let points = [
+        Point::new(3.0, 0.0, 0.0),
+        Point::new(4.0, 0.0, 3.0),
+        Point::new(2.0, 0.0, 6.0),
+        Point::new(2.5, 0.0, 9.0),
+        Point::new(3.2, 0.0, 10.0),
+    ];
+    let profile = BSplineCurve::interpolate(&points, 3, PointParametrization::Centripetal).unwrap();
+    RevolutionSurface::new(profile.into(), Axis::new(Point::ORIGIN, Vector::Z).unwrap()).unwrap()
+}
+
+#[test]
+fn test_unbounded_line_meets_a_revolution_surface_on_both_sides_of_its_origin() {
+    // #174: the line was seeded over a fixed window of its parameter
+    // around its origin, so the crossing more than 10 away was missed.
+    let vase = vase();
+    let reference = TrimmedCurve::segment(Point::new(-30.0, 0.5, 2.0), Point::new(30.0, 0.5, 2.0))
+        .unwrap()
+        .intersect(&vase, TOL);
+    assert_eq!(reference.hits().len(), 2);
+    let expected = hit_xs(&reference);
+    for x0 in [-30.0, -10.0, 0.0, 10.0, 30.0] {
+        let line = Line::new(Point::new(x0, 0.5, 2.0), Vector::X).unwrap();
+        for r in [line.intersect(&vase, TOL), vase.intersect(&line, TOL)] {
+            let xs = hit_xs(&r);
+            assert_eq!(xs.len(), 2, "origin x = {x0}: {xs:?}");
+            for (x, e) in xs.iter().zip(&expected) {
+                assert!(
+                    (x - e).abs() <= 1e-7,
+                    "origin x = {x0}: {xs:?}, expected {expected:?}"
+                );
+            }
+            assert_hits_lie_on(&r, &line, &vase);
+        }
+    }
+}
+
+#[test]
+fn test_unbounded_line_meets_a_revolved_circle_like_the_equal_torus() {
+    let axis = Axis::new(Point::ORIGIN, Vector::Z).unwrap();
+    let tube = Circle::new(Point::new(3.0, 0.0, 0.0), Vector::Y, 1.0).unwrap();
+    let ring = RevolutionSurface::new(tube.into(), axis).unwrap();
+    let torus = Torus::new(Point::ORIGIN, Vector::Z, 3.0, 1.0).unwrap();
+    let line = Line::new(Point::new(-10.0, 0.3, 0.2), Vector::X).unwrap();
+    let expected = hit_xs(&line.intersect(&torus, TOL));
+    assert_eq!(expected.len(), 4);
+    let xs = hit_xs(&line.intersect(&ring, TOL));
+    assert_eq!(xs.len(), 4, "{xs:?}");
+    for (x, e) in xs.iter().zip(&expected) {
+        assert!((x - e).abs() <= 1e-7, "{xs:?}, expected {expected:?}");
+    }
+}
+
+#[test]
+fn test_unbounded_line_meets_an_extrusion_far_from_its_origin() {
+    // An extrusion is unbounded along its direction, so its box is
+    // unknown, yet a line across it meets it only near its profile.
+    let ellipse = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 4.5, 3.5).unwrap();
+    let wall = ExtrusionSurface::new(ellipse.into(), Vector::Z).unwrap();
+    let crossing = |p: Point, d: Vector| {
+        let line = Line::new(p, d).unwrap();
+        let r = line.intersect(&wall, TOL);
+        assert_hits_lie_on(&r, &line, &wall);
+        hit_xs(&r)
+    };
+    // y = 0.5 on the ellipse x²/4.5² + y²/3.5² = 1.
+    let x = 4.5 * (1.0 - (0.5f64 / 3.5).powi(2)).sqrt();
+    for (p, d) in [
+        (Point::new(-30.0, 0.5, 1.0), Vector::X),
+        (Point::new(30.0, 0.5, 50.0), Vector::X),
+        (Point::new(-30.0, 0.5, -20.0), Vector::new(1.0, 0.0, 1.0)),
+    ] {
+        let xs = crossing(p, d);
+        assert_eq!(xs.len(), 2, "{p:?} along {d:?}: {xs:?}");
+        assert!(
+            (xs[0] + x).abs() <= 1e-7 && (xs[1] - x).abs() <= 1e-7,
+            "{xs:?}"
+        );
+    }
+    // A line along the direction, beside the wall, never meets it.
+    assert!(crossing(Point::new(9.0, 0.0, 0.0), Vector::Z).is_empty());
+    // A line that passes beside the prism holding the wall never meets it.
+    assert!(crossing(Point::new(-30.0, 9.0, 0.0), Vector::X).is_empty());
 }

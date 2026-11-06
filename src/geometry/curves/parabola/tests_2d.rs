@@ -1,3 +1,4 @@
+use crate::geometry::curves::BoundedCurve2D;
 use crate::geometry::curves::PointExtrema2D;
 use crate::{
     Frame2D, Parabola2D, ParabolaConstructionError, ParametricCurve2D, Point2D, Tolerance,

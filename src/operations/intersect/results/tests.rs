@@ -41,7 +41,9 @@ fn test_coincident_surfaces_are_not_empty() {
 fn test_unbounded_overlap_is_not_empty() {
     let r = CurveSurfaceIntersection::exact(
         [],
-        [(f64::NEG_INFINITY, f64::INFINITY)].into_iter().collect(),
+        vec![CurveSurfaceOverlap {
+            curve_range: (f64::NEG_INFINITY, f64::INFINITY),
+        }],
     );
     assert!(!r.is_empty());
     assert_eq!(r.overlaps().len(), 1);

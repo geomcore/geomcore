@@ -2,8 +2,8 @@
 //! surface: sampled seeds refined by Newton iteration, or Bézier piece
 //! pairs on B-splines.
 
-use crate::geometry::curves::ParametricCurve;
-use crate::geometry::surfaces::ParametricSurface;
+use crate::geometry::curves::{ElementaryCurve, ParametricCurve};
+use crate::geometry::surfaces::{ExtrusionSurface, ParametricSurface};
 use crate::math::numeric::boxtree::Aabb;
 use crate::math::numeric::{brent_minimum, newton_3d};
 use crate::operations::intersect::numeric::curve_surface_hull::CurveSurfaceHits;
@@ -12,7 +12,7 @@ use crate::operations::intersect::results::sort_by_parameter;
 use crate::operations::intersect::{
     CurveSurfaceHit, CurveSurfaceIntersection, curve_surface_multiplicity,
 };
-use crate::{HasBoundingBox, Point, Tolerance};
+use crate::{Frame, HasBoundingBox, Point, Tolerance, Transform, Transformable};
 
 /// The window an unbounded curve is seeded over when nothing bounds the
 /// search: no box is known for the surface, or the curve is not one whose
@@ -102,9 +102,12 @@ where
 /// pole, a cone apex, a collapsed B-spline boundary), where the Newton system
 /// is singular; their `surface_parameters` are the projection's.
 /// An unbounded curve seeds the range of its parameters whose points can
-/// lie in the surface's box, when the surface is a sphere, torus or
-/// B-spline (whose box is known) and the curve is elementary (whose reach
-/// is); an unbounded curve without such a box seeds `[-10, 10]`. Overlapping
+/// lie in the surface's box, when the surface is a sphere, torus,
+/// B-spline or surface of revolution of a bounded profile (whose box is
+/// known) and the curve is elementary (whose reach is). Against an
+/// extrusion of a bounded profile, it seeds the range whose points lie in
+/// the prism the profile's box sweeps. An unbounded curve without such a
+/// bound seeds `[-10, 10]`. Overlapping
 /// pairs yield dense hit sets along the overlap; the routed
 /// [`Intersect`](crate::Intersect) calls this search only for pairs
 /// without a closed form, and solves the others exactly, tangency and
@@ -152,24 +155,27 @@ where
 }
 
 /// The box of the surface, when its type knows one: a sphere or torus's
-/// tightest box, or a B-spline surface's pole box, grown by `tol.confusion`
-/// so a hit on its face stays inside. Planes, cylinders and cones are
-/// unbounded, and a surface defined outside the crate has no known box.
+/// tightest box, a B-spline surface's pole box, or the box of a
+/// revolution surface's profile turned about its axis, grown by
+/// `tol.confusion` so a hit on its face stays inside. Planes, cylinders,
+/// cones and extrusions are unbounded, and a surface defined outside the
+/// crate has no known box.
 fn surface_box<S: ParametricSurface>(surface: &S, tol: Tolerance) -> Option<Aabb> {
-    let box_ = match (surface.as_elementary(), surface.as_bspline()) {
-        (Some(elementary), _) => elementary.bounding_box()?,
-        (None, Some(bspline)) => bspline.bounding_box()?,
-        (None, None) => return None,
+    let box_ = if let Some(elementary) = surface.as_elementary() {
+        elementary.bounding_box()?
+    } else if let Some(bspline) = surface.as_bspline() {
+        bspline.bounding_box()?
+    } else {
+        surface.as_revolution()?.bounding_box()?
     };
-    let (min, max, margin) = (box_.min(), box_.max(), tol.confusion);
-    Some([
-        min.x - margin,
-        min.y - margin,
-        min.z - margin,
-        max.x + margin,
-        max.y + margin,
-        max.z + margin,
-    ])
+    let (min, max) = (box_.min_corner(), box_.max_corner());
+    Some(grown([min.x, min.y, min.z, max.x, max.y, max.z], tol))
+}
+
+/// `b` grown by `tol.confusion` on every side.
+fn grown(b: Aabb, tol: Tolerance) -> Aabb {
+    let margin = tol.confusion;
+    std::array::from_fn(|k| if k < 3 { b[k] - margin } else { b[k] + margin })
 }
 
 /// The range of parameters of the elementary `curve` holding its points
@@ -182,7 +188,48 @@ where
     S: ParametricSurface,
 {
     let elementary = curve.as_elementary()?;
+    if let Some(extrusion) = surface.as_extrusion() {
+        return range_reaching_extrusion(elementary, extrusion, tol);
+    }
     pairs_with_bspline::inside(elementary, &surface_box(surface, tol)?)
+}
+
+/// [`range_reaching`] for an extrusion. It is unbounded along its
+/// direction, but it lies in the prism swept by its profile's box: in a
+/// frame whose z axis is the direction, the box of the profile's box
+/// corners across the direction, unbounded along it. The curve is moved
+/// into that frame by a rigid motion, which keeps its parameter. `None`
+/// for an unbounded profile.
+fn range_reaching_extrusion(
+    curve: ElementaryCurve,
+    extrusion: &ExtrusionSurface,
+    tol: Tolerance,
+) -> Option<(f64, f64)> {
+    let profile_box = extrusion.profile().bounding_box()?;
+    let frame = Frame::from_z(Point::ORIGIN, extrusion.direction()).ok()?;
+    let local = Transform::world_to_local(frame);
+    let (low, high) = (profile_box.min_corner(), profile_box.max_corner());
+    let mut prism = [
+        f64::INFINITY,
+        f64::INFINITY,
+        f64::NEG_INFINITY,
+        f64::NEG_INFINITY,
+        f64::NEG_INFINITY,
+        f64::INFINITY,
+    ];
+    for corner in 0..8 {
+        let pick = |bit: u32, a: f64, b: f64| if corner & (1 << bit) == 0 { a } else { b };
+        let p = local.apply_point(Point::new(
+            pick(0, low.x, high.x),
+            pick(1, low.y, high.y),
+            pick(2, low.z, high.z),
+        ));
+        prism[0] = prism[0].min(p.x);
+        prism[1] = prism[1].min(p.y);
+        prism[3] = prism[3].max(p.x);
+        prism[4] = prism[4].max(p.y);
+    }
+    pairs_with_bspline::inside(curve.transformed(local).ok()?, &grown(prism, tol))
 }
 
 /// The sampled search of [`search_curve_surface`].
@@ -201,8 +248,11 @@ where
     } else {
         let within = |a: f64, b: f64| (t0.max(a), t1.min(b));
         match range_reaching(curve, surface, tol) {
-            Some((a, b)) => within(a, b),
-            None => within(-WINDOW, WINDOW),
+            // A missed box, or a finite range: a curve along an
+            // extrusion's direction and inside its prism stays in it for
+            // every parameter, so its range says nothing.
+            Some((a, b)) if a > b || (a.is_finite() && b.is_finite()) => within(a, b),
+            _ => within(-WINDOW, WINDOW),
         }
     };
     // The curve cannot reach the surface's box: no hit exists.
