@@ -172,8 +172,8 @@ pub use geometry::curves::{
     GenericParabola, GenericTrimmedCurve, Hyperbola, Hyperbola2D, HyperbolaConstructionError,
     KnotInsertionError, KnotRemovalError, Line, Line2D, LineConstructionError, Parabola,
     Parabola2D, ParabolaConstructionError, ParametricCurve, ParametricCurve2D, PointExtrema,
-    PointExtrema2D, PointParametrization, ReversibleCurve, Side, TrimmedCurve, TrimmedCurve2D,
-    TrimmedCurveConstructionError,
+    PointExtrema2D, PointParametrization, PoleEditError, ReversibleCurve, Side, TrimmedCurve,
+    TrimmedCurve2D, TrimmedCurveConstructionError,
 };
 pub use geometry::surfaces::{
     BSplineSurface, BezierSurface, Cone, ConeConstructionError, Curve3DToUvError, Cylinder,

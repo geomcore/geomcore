@@ -1,4 +1,4 @@
-//! The Python class `geomcore.curves.Hyperbola`, wrapping `geomcore::Hyperbola`.
+//! The Python class `geomcore.Hyperbola`, wrapping `geomcore::Hyperbola`.
 
 use crate::curves::*;
 use crate::method_sets::*;
@@ -6,7 +6,7 @@ use crate::values::{PyFrame, float_repr};
 use geomcore::Hyperbola;
 
 /// One branch of a hyperbola in 3D.
-#[pyclass(name = "Hyperbola", module = "geomcore.curves", eq)]
+#[pyclass(name = "Hyperbola", module = "geomcore", eq)]
 #[derive(Clone, PartialEq)]
 pub(crate) struct PyHyperbola(pub(crate) Hyperbola);
 

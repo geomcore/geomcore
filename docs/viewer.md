@@ -42,8 +42,7 @@ The embedded page above is static. From a script, a debugger or a notebook, `vie
 === "Python"
 
     ```python
-    from geomcore import Frame, Point, Vector
-    from geomcore.curves import Circle, Ellipse
+    from geomcore import Circle, Ellipse, Frame, Point, Vector
     import geomcore_viewer as gv
 
     view = gv.Viewer("Ellipse ∩ circle")          # starts the local viewer and opens a tab

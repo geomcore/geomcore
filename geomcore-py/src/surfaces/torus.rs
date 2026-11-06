@@ -1,4 +1,4 @@
-//! The Python class `geomcore.surfaces.Torus`, wrapping `geomcore::Torus`.
+//! The Python class `geomcore.Torus`, wrapping `geomcore::Torus`.
 
 use crate::method_sets::*;
 use crate::surfaces::*;
@@ -6,7 +6,7 @@ use crate::values::{PyFrame, float_repr};
 use geomcore::Torus;
 
 /// A torus; u is the angle around the main axis, v the angle around the tube.
-#[pyclass(name = "Torus", module = "geomcore.surfaces", eq)]
+#[pyclass(name = "Torus", module = "geomcore", eq)]
 #[derive(Clone, PartialEq)]
 pub(crate) struct PyTorus(pub(crate) Torus);
 

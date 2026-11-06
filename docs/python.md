@@ -9,11 +9,29 @@ Windows, for Python 3.9+ (abi3: one wheel covers every version). The
 package ships type stubs (PEP 561), so IDEs and type checkers see the full
 API, with the documentation of the methods every curve or surface shares.
 
+Every name is at the package root, as in the Rust crate: the shapes
+(`Circle`, `Plane`, `BSplineSurface`), the values (`Point`, `Frame`,
+`Tolerance`), the results (`CurveCurveIntersection`), the enums and the
+errors. Three more names stand for a whole kind of shape: `Curve`,
+`Curve2D` and `Surface` are the unions of their classes, both for
+annotations and, from Python 3.10, for `isinstance`. `typing.get_args`
+gives the tuple of classes on any version:
+
+```python
+from geomcore import Curve, Surface
+
+def clearance(curve: Curve, surface: Surface) -> float: ...
+
+isinstance(shape, Curve)  # Python 3.10+
+```
+
+`geomcore.curves` and `geomcore.surfaces` still resolve each shape, with a
+`DeprecationWarning`, until the next release.
+
 === "Python"
 
     ```python
-    from geomcore import Point, Vector
-    from geomcore.curves import Circle
+    from geomcore import Circle, Point, Vector
     import math
 
     circle = Circle(Point.origin(), Vector.unit_z(), 2.0)
@@ -67,8 +85,7 @@ order as an `int`, or `math.inf` where the shape is smooth (Rust's
     ```python
     import math
 
-    from geomcore import Point, Side
-    from geomcore.curves import BSplineCurve
+    from geomcore import BSplineCurve, Point, Side
 
     poles = [Point(0.0, 0.0, 0.0), Point(1.0, 0.0, 0.0), Point(1.0, 1.0, 0.0)]
     kinked = BSplineCurve(1, poles, [0.0, 1.0, 2.0], [2, 1, 2], False)
