@@ -7,15 +7,15 @@ fn unit() -> BoundingBox2D {
 #[test]
 fn test_new_orders_the_corners() {
     let b = BoundingBox2D::new(Point2D::new(1.0, -1.0), Point2D::new(-3.0, 4.0));
-    assert_eq!(b.min(), Point2D::new(-3.0, -1.0));
-    assert_eq!(b.max(), Point2D::new(1.0, 4.0));
+    assert_eq!(b.min_corner(), Point2D::new(-3.0, -1.0));
+    assert_eq!(b.max_corner(), Point2D::new(1.0, 4.0));
 }
 
 #[test]
 fn test_from_points_of_one_point_is_flat() {
     let p = Point2D::new(1.0, 2.0);
     let b = BoundingBox2D::from_points([p]).unwrap();
-    assert_eq!((b.min(), b.max()), (p, p));
+    assert_eq!((b.min_corner(), b.max_corner()), (p, p));
     assert_eq!(b.diagonal(), Vector2D::ZERO);
     assert!(b.encloses(p));
 }
@@ -26,7 +26,12 @@ fn test_union_is_symmetric_and_holds_both() {
     let b = BoundingBox2D::new(Point2D::new(-2.0, 0.5), Point2D::new(-1.0, 3.0));
     assert_eq!(a.union(b), b.union(a));
     let both = a.union(b);
-    for corner in [a.min(), a.max(), b.min(), b.max()] {
+    for corner in [
+        a.min_corner(),
+        a.max_corner(),
+        b.min_corner(),
+        b.max_corner(),
+    ] {
         assert!(both.encloses(corner));
     }
     assert_eq!(a.union(a), a);
@@ -35,12 +40,12 @@ fn test_union_is_symmetric_and_holds_both() {
 #[test]
 fn test_enlarged_grows_and_shrinks() {
     let b = unit().enlarged(0.25);
-    assert_eq!(b.min(), Point2D::new(-0.25, -0.25));
-    assert_eq!(b.max(), Point2D::new(1.25, 1.25));
+    assert_eq!(b.min_corner(), Point2D::new(-0.25, -0.25));
+    assert_eq!(b.max_corner(), Point2D::new(1.25, 1.25));
     assert_eq!(b.enlarged(-0.25), unit());
     let collapsed = unit().enlarged(-2.0);
-    assert_eq!(collapsed.min(), Point2D::new(0.5, 0.5));
-    assert_eq!(collapsed.max(), Point2D::new(0.5, 0.5));
+    assert_eq!(collapsed.min_corner(), Point2D::new(0.5, 0.5));
+    assert_eq!(collapsed.max_corner(), Point2D::new(0.5, 0.5));
 }
 
 #[test]

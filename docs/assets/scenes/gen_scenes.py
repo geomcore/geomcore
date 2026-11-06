@@ -15,9 +15,21 @@ import math
 import time
 from pathlib import Path
 
-from geomcore import Frame, Point2D, Point, Vector
-from geomcore.curves import Ellipse, TrimmedCurve2D, TrimmedCurve
-from geomcore.surfaces import BSplineSurface, Cone, Cylinder, Plane, Sphere, Torus
+from geomcore import (
+    BSplineSurface,
+    Cone,
+    Cylinder,
+    Ellipse,
+    Frame,
+    Plane,
+    Point,
+    Point2D,
+    Sphere,
+    Torus,
+    TrimmedCurve,
+    TrimmedCurve2D,
+    Vector,
+)
 
 import geomcore_viewer as gv
 
@@ -236,7 +248,7 @@ def point_resolved_scene(
         TrimmedCurve(surface.u_iso(u), *u_iso_v), label="u = const", color=A, width=3
     )
     view.add(surface.v_iso(v), label="v = const", color=B, width=3)
-    view.add(surface.eval_point(u, v), label="P(u, v)", color=POINT)
+    view.add(surface.point_at(u, v), label="P(u, v)", color=POINT)
     return view
 
 

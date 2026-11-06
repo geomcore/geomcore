@@ -17,7 +17,7 @@ use crate::operations::intersect::numeric::subdivision::{
     Node, OnceExhausted, PairTests, Subdivision, Visit, interval,
 };
 use crate::operations::intersect::results::completeness::both;
-use crate::operations::intersect::results::sort_by_known_parameter;
+use crate::operations::intersect::results::sort_by_parameter;
 use crate::operations::intersect::{
     Completeness, CurveSurfaceHit, CurveSurfaceRegion, curve_surface_multiplicity,
 };
@@ -77,7 +77,7 @@ impl CurveSurfaceHits {
                 self.hits.push(hit);
             }
         }
-        sort_by_known_parameter(&mut self.hits, |hit| hit.curve_parameter);
+        sort_by_parameter(&mut self.hits, |hit| hit.curve_parameter);
     }
 
     /// The hits, ordered by curve parameter, without the completeness.
@@ -322,8 +322,8 @@ impl PieceTests<'_> {
     /// singular or the steps do not settle.
     fn newton(&self, mut x: [f64; 3]) -> Option<[f64; 3]> {
         let eval = |x: [f64; 3]| {
-            let (c, ct) = self.curve.eval_d1(x[0]);
-            let (s, [su, sv]) = self.surface.eval_d1(x[1], x[2]);
+            let (c, ct) = self.curve.first_derivatives(x[0]);
+            let (s, [su, sv]) = self.surface.first_derivatives(x[1], x[2]);
             (c - s, [ct, su, sv])
         };
         let (mut f, mut d) = eval(x);
@@ -364,18 +364,18 @@ impl PieceTests<'_> {
     fn record(&mut self, x: [f64; 3]) -> Option<Point> {
         let [t, u, v] = [0, 1, 2].map(|i| self.ranges[i].admit(x[i]));
         let (t, u, v) = (t?, u?, v?);
-        let point = self.curve.eval_point(t);
-        let distance = point.distance(self.surface.eval_point(u, v));
+        let point = self.curve.point_at(t);
+        let distance = point.distance(self.surface.point_at(u, v));
         if distance > self.tol.confusion {
             return None;
         }
         let hit = CurveSurfaceHit {
-            curve_parameter: Some(t),
-            surface_parameters: Some((u, v)),
+            curve_parameter: t,
+            surface_parameters: (u, v),
             point,
             multiplicity: {
-                let (_, tangent) = self.curve.eval_d1(t);
-                let (_, [su, sv]) = self.surface.eval_d1(u, v);
+                let (_, tangent) = self.curve.first_derivatives(t);
+                let (_, [su, sv]) = self.surface.first_derivatives(u, v);
                 curve_surface_multiplicity(tangent, su.cross(sv), point, self.tol)
             },
         };
@@ -399,7 +399,7 @@ impl PieceTests<'_> {
                 hits.push(hit);
             }
         }
-        sort_by_known_parameter(&mut hits, |hit| hit.curve_parameter);
+        sort_by_parameter(&mut hits, |hit| hit.curve_parameter);
         hits
     }
 }

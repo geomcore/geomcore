@@ -5,8 +5,16 @@ import math
 
 import pytest
 
-from geomcore import BoundingBox2D, Point2D, Tolerance, Vector2D
-from geomcore.curves import BSplineCurve2D, Circle2D, Line2D, TrimmedCurve2D
+from geomcore import (
+    BSplineCurve2D,
+    BoundingBox2D,
+    Circle2D,
+    Line2D,
+    Point2D,
+    Tolerance,
+    TrimmedCurve2D,
+    Vector2D,
+)
 
 ORIGIN = Point2D.origin()
 X, Y = Vector2D.unit_x(), Vector2D.unit_y()
@@ -101,17 +109,24 @@ def test_continuity():
 def test_bounding_boxes():
     assert Line2D(ORIGIN, X).bounding_box() is None
     box = Circle2D(Point2D(1.0, 2.0), 2.0).bounding_box()
-    assert xy(box.min()) == (-1.0, 0.0)
-    assert xy(box.max()) == (3.0, 4.0)
+    assert xy(box.min_corner()) == (-1.0, 0.0)
+    assert xy(box.max_corner()) == (3.0, 4.0)
 
     quarter = TrimmedCurve2D(Circle2D(Point2D(1.0, 2.0), 2.0), 0.0, math.pi / 2)
     box = quarter.bounding_box()
-    assert xy(box.min()) == pytest.approx((1.0, 2.0), abs=1e-12)
-    assert xy(box.max()) == pytest.approx((3.0, 4.0), abs=1e-12)
+    assert xy(box.min_corner()) == pytest.approx((1.0, 2.0), abs=1e-12)
+    assert xy(box.max_corner()) == pytest.approx((3.0, 4.0), abs=1e-12)
 
     box = arch().bounding_box()
-    assert xy(box.min()) == (0.0, 0.0)
-    assert xy(box.max()) == (2.0, 1.0)
+    assert xy(box.min_corner()) == (0.0, 0.0)
+    assert xy(box.max_corner()) == (2.0, 1.0)
+    # The arch peaks at y = 0.5, halfway to its middle control point.
+    tol = Tolerance.default()
+    box = arch().tight_bounding_box()
+    assert xy(box.min_corner()) == pytest.approx((0.0, 0.0), abs=1e-15)
+    assert box.max_corner().x == pytest.approx(2.0, abs=1e-15)
+    assert 0.5 <= box.max_corner().y <= 0.5 + tol.confusion
+    assert Line2D(ORIGIN, X).tight_bounding_box(tol) is None
 
 
 def test_bounding_box2d_value():
@@ -119,7 +134,7 @@ def test_bounding_box2d_value():
     b = BoundingBox2D(Point2D(3.0, 0.0), Point2D(4.0, 1.0))
     assert not a.overlaps(b)
     assert a.enlarged(0.5).overlaps(b.enlarged(0.5))
-    assert xy(a.union(b).max()) == (4.0, 1.0)
+    assert xy(a.union(b).max_corner()) == (4.0, 1.0)
     assert a.encloses(Point2D(1.0, 0.5))
     assert xy(a.center()) == (1.0, 0.5)
     assert xy(a.diagonal()) == (2.0, 1.0)

@@ -9,10 +9,14 @@
 //! matrix has half-bandwidth `degree`, by banded Cholesky.
 
 use crate::Point;
+use crate::Point2D;
 use crate::Tolerance;
 use crate::Vector;
 use crate::base::tier::TierPoint;
-use crate::geometry::curves::{BSplineConstructionError, BSplineCurve, GenericBSplineCurve};
+use crate::geometry::approximation::GenericCurveApproximation;
+use crate::geometry::curves::{
+    BSplineConstructionError, BSplineCurve, BSplineCurve2D, GenericBSplineCurve,
+};
 use crate::math::bspline::curve as math;
 use crate::math::bspline::curve::Pole;
 
@@ -38,33 +42,30 @@ impl PointParametrization {
 /// coincident: the fit has no parameter between them.
 pub(crate) const CONFUSED_CHORD: f64 = Tolerance::DEFAULT.confusion;
 
-/// The `points`, with their `tangents`, without those the fit cannot tell
-/// from the point kept before them (see [`CONFUSED_CHORD`]): a trace's
-/// steps may shrink that far towards a point where its surfaces touch.
-/// The last point is kept, in place of the one before it when those two
-/// are confused.
-pub(crate) fn without_confused(
-    points: Vec<Point>,
-    tangents: Vec<Vector>,
-) -> (Vec<Point>, Vec<Vector>) {
+/// The `points`, with what goes with each of them (`along`), without
+/// those the fit cannot tell from the point kept before them (see
+/// [`CONFUSED_CHORD`]): a trace's steps may shrink that far towards a
+/// point where its surfaces touch. The last point is kept, in place of
+/// the one before it when those two are confused.
+pub(crate) fn without_confused<E: Copy>(points: Vec<Point>, along: Vec<E>) -> (Vec<Point>, Vec<E>) {
     let Some(&last) = points.last() else {
-        return (points, tangents);
+        return (points, along);
     };
-    let last_tangent = tangents[tangents.len() - 1];
-    let mut kept: Vec<(Point, Vector)> = Vec::with_capacity(points.len());
-    for (p, t) in points.into_iter().zip(tangents) {
+    let last_along = along[along.len() - 1];
+    let mut kept: Vec<(Point, E)> = Vec::with_capacity(points.len());
+    for (p, e) in points.into_iter().zip(along) {
         if kept
             .last()
             .is_none_or(|(q, _)| q.distance(p) > CONFUSED_CHORD)
         {
-            kept.push((p, t));
+            kept.push((p, e));
         }
     }
     if kept.last().map(|(p, _)| *p) != Some(last) {
         if kept.len() > 1 {
             kept.pop();
         }
-        kept.push((last, last_tangent));
+        kept.push((last, last_along));
     }
     kept.into_iter().unzip()
 }
@@ -82,31 +83,90 @@ pub(crate) fn segment_length(p: Point, q: Point, tp: Vector, tq: Vector) -> f64 
     }
 }
 
-/// The C1 cubic B-spline through `points` with the unit tangents
-/// `tangents` there: on each segment the cubic Hermite interpolant of its
-/// ends and tangents, over a parameter span of its length (see
-/// [`segment_length`]), so that the parameter follows arc length. Its
-/// interior knots are double, its poles the ends and the points a third
-/// of the span along the tangents.
-pub(crate) fn hermite_curve(
-    points: &[Point],
-    tangents: &[Vector],
-) -> Result<BSplineCurve, BSplineConstructionError> {
-    let mut knots = vec![0.0];
-    let mut poles = vec![points[0]];
+/// The knots of a Hermite curve through `points` with the unit tangents
+/// `tangents` (see [`hermite_spline`]): from 0, each segment's length
+/// (see [`segment_length`]) after the one before, so that the parameter
+/// follows arc length.
+pub(crate) fn hermite_knots(points: &[Point], tangents: &[Vector]) -> Vec<f64> {
+    let mut knots = Vec::with_capacity(points.len());
+    knots.push(0.0);
     for k in 1..points.len() {
-        let (p, q) = (points[k - 1], points[k]);
-        let (tp, tq) = (tangents[k - 1], tangents[k]);
-        let span = segment_length(p, q, tp, tq);
-        poles.push(p + tp * (span / 3.0));
-        poles.push(q - tq * (span / 3.0));
+        let span = segment_length(points[k - 1], points[k], tangents[k - 1], tangents[k]);
         knots.push(knots[k - 1] + span);
     }
-    poles.push(points[points.len() - 1]);
+    knots
+}
+
+/// The C1 cubic B-spline taking the `values` at the `knots` with the
+/// `derivatives` there: on each knot span the cubic Hermite interpolant
+/// of its ends. Its interior knots are double, its poles the values and
+/// the points a third of the span along the derivatives.
+pub(crate) fn hermite_spline<P: TierPoint>(
+    values: &[P],
+    derivatives: &[P::Vector],
+    knots: &[f64],
+) -> Result<GenericBSplineCurve<P>, BSplineConstructionError> {
+    let mut poles = Vec::with_capacity(3 * values.len() - 2);
+    poles.push(values[0]);
+    for k in 1..values.len() {
+        let third = (knots[k] - knots[k - 1]) / 3.0;
+        poles.push(values[k - 1] + derivatives[k - 1] * third);
+        poles.push(values[k] + derivatives[k] * -third);
+    }
+    poles.push(values[values.len() - 1]);
     let mut multiplicities = vec![2u32; knots.len()];
     multiplicities[0] = 4;
     multiplicities[knots.len() - 1] = 4;
-    BSplineCurve::new(3, poles, knots, multiplicities, false)
+    GenericBSplineCurve::new(3, poles, knots.to_vec(), multiplicities, false)
+}
+
+/// The interpolant of `points` by [`interpolate`](GenericBSplineCurve::interpolate)
+/// with centripetal parameters, and on its knots and parameters the
+/// interpolant of each line of `companions`, as many points each: the
+/// parameter curves of a traced intersection, in the same parameter.
+pub(crate) fn interpolate_with_companions(
+    points: &[Point],
+    companions: [&[Point2D]; 2],
+    degree: usize,
+) -> Result<(BSplineCurve, [BSplineCurve2D; 2]), BSplineConstructionError> {
+    let n = points.len();
+    if n < 2 {
+        return Err(BSplineConstructionError::TooFewPoints);
+    }
+    check_degree(degree)?;
+    if degree > n - 1 {
+        return Err(BSplineConstructionError::DegreeTooHigh);
+    }
+    let params = point_parameters(points, PointParametrization::Centripetal)?;
+    let flat = averaged_knots(&params, degree);
+    let basis = BasisTable::new(&flat, degree, &params);
+    let (knots, multiplicities) = compress_knots(&flat);
+    fn on_knots<P: TierPoint>(
+        degree: usize,
+        poles: Vec<P>,
+        (knots, multiplicities, flat): (&[f64], &[u32], &[f64]),
+    ) -> GenericBSplineCurve<P> {
+        GenericBSplineCurve::from_validated_parts(
+            degree,
+            poles,
+            None,
+            knots.to_vec(),
+            multiplicities.to_vec(),
+            flat.to_vec(),
+            false,
+        )
+    }
+    let shared = (&knots[..], &multiplicities[..], &flat[..]);
+    let fitted = on_knots(degree, interpolation(&basis, 1, |_, k| points[k]), shared);
+    let mut first = interpolation(&basis, 2, |r, k| companions[r][k]);
+    let second = first.split_off(n);
+    Ok((
+        fitted,
+        [
+            on_knots(degree, first, shared),
+            on_knots(degree, second, shared),
+        ],
+    ))
 }
 
 /// Increasing parameters of `points` in `[0, 1]` (`exponent` 1 chordal, 0.5
@@ -798,7 +858,7 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
         ))
     }
 
-    /// Least-squares B-spline fit through `points` with `num_poles` poles.
+    /// Least-squares B-spline fit through `points` with `pole_count` poles.
     ///
     /// Same chord-like parametrization as
     /// [`interpolate`](Self::interpolate), but an overdetermined system:
@@ -838,7 +898,7 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
     /// assert_eq!(curve.degree(), 3);
     /// // Near-circular fit: radius stays within a few percent of 2.
     /// for i in 0..=40 {
-    ///     let p = curve.eval_point(i as f64 / 40.0);
+    ///     let p = curve.point_at(i as f64 / 40.0);
     ///     let r = (p.x * p.x + p.y * p.y).sqrt();
     ///     assert!((r - 2.0).abs() < 0.1, "{p:?}");
     /// }
@@ -855,7 +915,7 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
     /// assert_eq!(curve.degree(), 3);
     /// // Near-circular fit: radius stays within a few percent of 2.
     /// for i in 0..=40 {
-    ///     let p = curve.eval_point(i as f64 / 40.0);
+    ///     let p = curve.point_at(i as f64 / 40.0);
     ///     let r = p.distance(Point2D::ORIGIN);
     ///     assert!((r - 2.0).abs() < 0.1, "{p:?}");
     /// }
@@ -863,7 +923,7 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
     pub fn approximate(
         points: &[P],
         degree: usize,
-        num_poles: usize,
+        pole_count: usize,
         parametrization: PointParametrization,
     ) -> Result<GenericBSplineCurve<P>, BSplineConstructionError> {
         let n = points.len();
@@ -871,16 +931,16 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
             return Err(BSplineConstructionError::TooFewPoints);
         }
         check_degree(degree)?;
-        if degree > num_poles.saturating_sub(1) {
+        if degree > pole_count.saturating_sub(1) {
             return Err(BSplineConstructionError::DegreeTooHigh);
         }
-        if num_poles > n {
+        if pole_count > n {
             return Err(BSplineConstructionError::TooManyPoles);
         }
         let params = point_parameters(points, parametrization)?;
-        let flat = approximation_knots(&params, num_poles, degree);
+        let flat = approximation_knots(&params, pole_count, degree);
         let basis = BasisTable::new(&flat, degree, &params);
-        let poles = least_squares(&basis, num_poles, 1, |_, k| points[k])
+        let poles = least_squares(&basis, pole_count, 1, |_, k| points[k])
             .ok_or(BSplineConstructionError::PoleCountMismatch)?;
         let (knots, mults) = compress_knots(&flat);
         Ok(GenericBSplineCurve::from_validated_parts(
@@ -904,6 +964,11 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
     /// interpolation of [`interpolate`](Self::interpolate), one pole per
     /// point.
     ///
+    /// The result holds the curve and its
+    /// [`deviation`](GenericCurveApproximation::deviation): the largest
+    /// distance from a point to the curve at the point's parameter,
+    /// measured at every point, so it is proven.
+    ///
     /// # Errors
     ///
     /// [`BSplineConstructionError::TooFewPoints`] for fewer than two
@@ -925,9 +990,11 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
     ///         Point::new(u.cos(), u.sin(), 0.0)
     ///     })
     ///     .collect();
-    /// let curve =
+    /// let fit =
     ///     BSplineCurve::approximate_within(&points, 3, 1e-4, PointParametrization::Chordal)
     ///         .unwrap();
+    /// assert!(fit.deviation() <= 1e-4 && fit.is_proven());
+    /// let curve = fit.curve();
     /// // 50 points, 11 poles.
     /// assert_eq!(curve.poles().len(), 11);
     /// let tol = Tolerance::DEFAULT;
@@ -944,7 +1011,8 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
     ///     .collect();
     /// let curve =
     ///     BSplineCurve2D::approximate_within(&points, 3, 1e-4, PointParametrization::Chordal)
-    ///         .unwrap();
+    ///         .unwrap()
+    ///         .into_curve();
     /// // 50 points, 11 poles.
     /// assert_eq!(curve.poles().len(), 11);
     /// let tol = Tolerance::DEFAULT;
@@ -957,7 +1025,7 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
         degree: usize,
         max_deviation: f64,
         parametrization: PointParametrization,
-    ) -> Result<GenericBSplineCurve<P>, BSplineConstructionError> {
+    ) -> Result<GenericCurveApproximation<P>, BSplineConstructionError> {
         let n = points.len();
         if n < 2 {
             return Err(BSplineConstructionError::TooFewPoints);
@@ -967,18 +1035,29 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
             return Err(BSplineConstructionError::DegreeTooHigh);
         }
         let params = point_parameters(points, parametrization)?;
+        // The largest distance from a point to the curve at its parameter.
+        let largest = |basis: &BasisTable, poles: &[P], deviations: &mut [f64]| {
+            for (k, deviation) in deviations.iter_mut().enumerate() {
+                *deviation = basis.point(k, poles).distance(points[k]);
+            }
+            deviations.iter().fold(0.0f64, |a, &d| a.max(d))
+        };
         let fit = fit_within(&params, degree, max_deviation, |flat, basis, deviations| {
             let poles = least_squares(basis, flat.len() - degree - 1, 1, |_, k| points[k])?;
-            for (k, deviation) in deviations.iter_mut().enumerate() {
-                *deviation = basis.point(k, &poles).distance(points[k]);
-            }
-            Some(poles)
+            let deviation = largest(basis, &poles, deviations);
+            Some((poles, deviation))
         });
-        let (flat, poles) = fit.unwrap_or_else(|| interpolated(points, &params, degree));
+        let (flat, (poles, deviation)) = fit.unwrap_or_else(|| {
+            let (flat, poles) = interpolated(points, &params, degree);
+            let basis = BasisTable::new(&flat, degree, &params);
+            let deviation = largest(&basis, &poles, &mut vec![0.0; n]);
+            (flat, (poles, deviation))
+        });
         let (knots, mults) = compress_knots(&flat);
-        Ok(GenericBSplineCurve::from_validated_parts(
+        let curve = GenericBSplineCurve::from_validated_parts(
             degree, poles, None, knots, mults, flat, false,
-        ))
+        );
+        Ok(GenericCurveApproximation::new(curve, deviation, true))
     }
 }
 

@@ -123,14 +123,14 @@ impl<P: TierPoint> GenericCircle<P> {
     /// let bspline = circle.to_bspline();
     /// assert!(bspline.is_periodic());
     /// assert_eq!(bspline.bounds(), (0.0, TAU));
-    /// let p = bspline.eval_point(FRAC_PI_2);
-    /// assert!(p.distance(circle.eval_point(FRAC_PI_2)) < 1e-15);
-    /// let q = bspline.eval_point(0.3);
+    /// let p = bspline.point_at(FRAC_PI_2);
+    /// assert!(p.distance(circle.point_at(FRAC_PI_2)) < 1e-15);
+    /// let q = bspline.point_at(0.3);
     /// assert!((q.distance(Point::ORIGIN) - 2.0).abs() < 1e-15);
     ///
     /// // The same in the plane.
     /// let circle_2d = Circle2D::new(Point2D::ORIGIN, 2.0).unwrap();
-    /// let q = circle_2d.to_bspline().eval_point(0.3);
+    /// let q = circle_2d.to_bspline().point_at(0.3);
     /// assert!((q.distance(Point2D::ORIGIN) - 2.0).abs() < 1e-15);
     /// ```
     ///
@@ -172,12 +172,12 @@ impl<P: TierPoint> GenericEllipse<P> {
     /// let ellipse = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 3.0, 1.0).unwrap();
     /// let bspline = ellipse.to_bspline();
     /// assert!(bspline.is_periodic());
-    /// let p = bspline.eval_point(1.0);
+    /// let p = bspline.point_at(1.0);
     /// assert!(((p.x / 3.0).powi(2) + p.y.powi(2) - 1.0).abs() < 1e-15);
     ///
     /// // The same in the plane.
     /// let ellipse_2d = Ellipse2D::new(Point2D::ORIGIN, Vector2D::X, 3.0, 1.0).unwrap();
-    /// let p = ellipse_2d.to_bspline().eval_point(1.0);
+    /// let p = ellipse_2d.to_bspline().point_at(1.0);
     /// assert!(((p.x / 3.0).powi(2) + p.y.powi(2) - 1.0).abs() < 1e-15);
     /// ```
     ///
@@ -303,8 +303,8 @@ impl<P: TierPoint, C: RangeOperations<Point = P>> GenericTrimmedCurve<P, C> {
     /// let bspline = arc.to_bspline().unwrap();
     /// assert_eq!(bspline.bounds(), (-PI / 2.0, PI));
     /// assert_eq!(bspline.knots().len(), 4);
-    /// assert!(bspline.eval_point(0.0).distance(Point::new(1.0, 0.0, 0.0)) < 1e-15);
-    /// assert!(circle.contains(bspline.eval_point(1.0), Tolerance::DEFAULT));
+    /// assert!(bspline.point_at(0.0).distance(Point::new(1.0, 0.0, 0.0)) < 1e-15);
+    /// assert!(circle.contains(bspline.point_at(1.0), Tolerance::DEFAULT));
     ///
     /// // The same arc in the plane.
     /// let circle_2d = Circle2D::new(Point2D::ORIGIN, 1.0).unwrap();
@@ -312,7 +312,8 @@ impl<P: TierPoint, C: RangeOperations<Point = P>> GenericTrimmedCurve<P, C> {
     /// assert_eq!(arc_2d.to_bspline().unwrap().knots(), bspline.knots());
     /// ```
     pub fn to_bspline(&self) -> Result<GenericBSplineCurve<P>, BSplineConversionError> {
-        self.basis().bspline_range(self.first(), self.last())
+        self.basis()
+            .bspline_range(self.start_parameter(), self.end_parameter())
     }
 }
 

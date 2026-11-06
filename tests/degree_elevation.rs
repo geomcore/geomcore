@@ -66,8 +66,8 @@ fn assert_same_curve(raised: &BSplineCurve, original: &BSplineCurve) {
     assert_eq!(raised.is_rational(), original.is_rational());
     let scale = size(original.poles());
     for u in curve_params(original) {
-        let (p, d1, d2) = original.eval_d2(u);
-        let (q, e1, e2) = raised.eval_d2(u);
+        let (p, d1, d2) = original.second_derivatives(u);
+        let (q, e1, e2) = raised.second_derivatives(u);
         assert_close(
             p - Point::ORIGIN,
             q - Point::ORIGIN,
@@ -190,7 +190,7 @@ fn test_rational_curves() {
     assert_elevates(&circle, &[1, 2, 4]);
     let raised = circle.elevate_degree(3).unwrap();
     for i in 0..=200 {
-        let p = raised.eval_point(4.0 * i as f64 / 200.0);
+        let p = raised.point_at(4.0 * i as f64 / 200.0);
         assert!((p.x.hypot(p.y) - 2.0).abs() < 1e-12, "{p:?}");
     }
 
@@ -372,7 +372,7 @@ fn test_zero_amount_returns_a_copy_and_degree_25_is_the_limit() {
     let scale = size(curve.poles());
     for i in 0..=50 {
         let u = first + (last - first) * i as f64 / 50.0;
-        assert!(top.eval_point(u).distance(curve.eval_point(u)) < 1e-12 * scale);
+        assert!(top.point_at(u).distance(curve.point_at(u)) < 1e-12 * scale);
     }
 }
 
@@ -400,8 +400,8 @@ fn assert_same_surface(raised: &BSplineSurface, original: &BSplineSurface, scale
     assert_eq!(raised.v_period(), original.v_period());
     assert_eq!(raised.is_rational(), original.is_rational());
     for (u, v) in surface_params(original) {
-        let (p, d1, d2) = original.eval_d2(u, v);
-        let (q, e1, e2) = raised.eval_d2(u, v);
+        let (p, d1, d2) = original.second_derivatives(u, v);
+        let (q, e1, e2) = raised.second_derivatives(u, v);
         let at = format!("at ({u}, {v})");
         assert_close(p - Point::ORIGIN, q - Point::ORIGIN, scale, &at);
         for (a, b) in d1.into_iter().zip(e1).chain(d2.into_iter().zip(e2)) {

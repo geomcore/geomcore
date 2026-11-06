@@ -20,10 +20,13 @@ classifiers = [
 ]
 dynamic = ["version"]
 
+[project.optional-dependencies]
+numpy = ["numpy"]
+
 [project.urls]
 Repository = "https://github.com/geomcore/geomcore"
 Changelog = "https://github.com/geomcore/geomcore/blob/main/CHANGELOG.md"
 Roadmap = "https://github.com/geomcore/geomcore/blob/main/ROADMAP.md"
 
 [tool.maturin]
-module-name = "geomcore"
+module-name = "geomcore._native"

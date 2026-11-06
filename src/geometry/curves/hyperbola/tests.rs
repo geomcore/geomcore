@@ -115,7 +115,7 @@ fn test_hyperbola3d_from_center_and_points_collinear_points_errors() {
 #[test]
 fn test_hyperbola3d_eval_point_zero() {
     let h = Hyperbola::new(Point::ORIGIN, Vector::Z, Vector::X, 2.0, 1.0).unwrap();
-    let p = h.eval_point(0.0);
+    let p = h.point_at(0.0);
     assert!((p.x - 2.0).abs() < 1e-9);
     assert!(p.y.abs() < 1e-9);
     assert!(p.z.abs() < 1e-9);
@@ -125,14 +125,14 @@ fn test_hyperbola3d_eval_point_zero() {
 fn test_hyperbola3d_eval_points_matches_loop() {
     let h = Hyperbola::new(Point::ORIGIN, Vector::Z, Vector::X, 2.0, 1.0).unwrap();
     let us = [0.0, 0.5, 1.5];
-    let expected: Vec<Point> = us.iter().map(|&u| h.eval_point(u)).collect();
-    assert_eq!(h.eval_points(&us), expected);
+    let expected: Vec<Point> = us.iter().map(|&u| h.point_at(u)).collect();
+    assert_eq!(h.points_at(&us), expected);
 }
 
 #[test]
 fn test_hyperbola3d_eval_derivative_order1() {
     let h = Hyperbola::new(Point::ORIGIN, Vector::Z, Vector::X, 2.0, 1.0).unwrap();
-    let d1 = h.eval_derivative(0.0, 1);
+    let d1 = h.derivative(0.0, 1);
     assert!(d1.x.abs() < 1e-9);
     assert!((d1.y - 1.0).abs() < 1e-9);
 }
@@ -141,14 +141,14 @@ fn test_hyperbola3d_eval_derivative_order1() {
 #[should_panic]
 fn test_hyperbola3d_eval_derivative_order0_panics() {
     let h = Hyperbola::new(Point::ORIGIN, Vector::Z, Vector::X, 2.0, 1.0).unwrap();
-    h.eval_derivative(0.0, 0);
+    h.derivative(0.0, 0);
 }
 
 #[test]
 fn test_hyperbola3d_parameter_of_round_trip() {
     let h = Hyperbola::new(Point::ORIGIN, Vector::Z, Vector::X, 2.0, 1.0).unwrap();
     for u in [0.3, 2.0, -1.5] {
-        let p = h.eval_point(u);
+        let p = h.point_at(u);
         assert!((h.parameter_of(p, Tolerance::DEFAULT) - u).abs() < 1e-9);
     }
 }
@@ -156,7 +156,7 @@ fn test_hyperbola3d_parameter_of_round_trip() {
 #[test]
 fn test_hyperbola3d_parameter_of_is_unbounded() {
     let h = Hyperbola::new(Point::ORIGIN, Vector::Z, Vector::X, 2.0, 1.0).unwrap();
-    let p = h.eval_point(5.0);
+    let p = h.point_at(5.0);
     assert!((h.parameter_of(p, Tolerance::DEFAULT) - 5.0).abs() < 1e-6);
 }
 
@@ -193,7 +193,7 @@ fn test_hyperbola3d_contains() {
     let h = Hyperbola::new(Point::ORIGIN, Vector::Z, Vector::X, 2.0, 1.0).unwrap();
     let tol = Tolerance::DEFAULT;
     assert!(h.contains(Point::new(2.0, 0.0, 0.0), tol));
-    assert!(h.contains(h.eval_point(1.0), tol));
+    assert!(h.contains(h.point_at(1.0), tol));
     assert!(!h.contains(Point::ORIGIN, tol));
     assert!(!h.contains(Point::new(2.0, 0.0, 5.0), tol));
 }
@@ -213,7 +213,7 @@ fn test_hyperbola3d_project_point() {
     let off = h.project_point(query, tol);
     let mut best = f64::INFINITY;
     for i in -1000..=1000 {
-        let d = h.eval_point(i as f64 * 0.01).distance(query);
+        let d = h.point_at(i as f64 * 0.01).distance(query);
         best = best.min(d);
     }
     assert!(off.distance <= best);
@@ -225,7 +225,7 @@ fn test_hyperbola3d_project_point_polished() {
     // Thin hyperbola: the raw e^t quartic root left on-curve points
     // 3.4e-6 away before Newton polishing.
     let h = Hyperbola::new(Point::ORIGIN, Vector::Z, Vector::X, 0.15, 5.7).unwrap();
-    let proj = h.project_point(h.eval_point(0.0007), Tolerance::DEFAULT);
+    let proj = h.project_point(h.point_at(0.0007), Tolerance::DEFAULT);
     assert!(proj.distance < 1e-12, "{}", proj.distance);
 }
 
@@ -265,7 +265,7 @@ fn test_hyperbola3d_transformed_translation_spot_check() {
     assert_eq!(moved.major_radius(), 2.0);
     assert_eq!(moved.minor_radius(), 1.0);
     // Hand-computed: center + 2*cosh(0)*X + sinh(0)*Y, shifted.
-    assert_eq!(moved.eval_point(0.0), Point::new(2.0, 0.0, 7.0));
+    assert_eq!(moved.point_at(0.0), Point::new(2.0, 0.0, 7.0));
 }
 
 #[test]
@@ -278,19 +278,75 @@ fn test_hyperbola3d_transformed_round_trip_and_mirror() {
     let moved = hyperbola.transformed(t).unwrap();
     let tol = Tolerance::DEFAULT;
     for u in [0.0, 0.5, -1.0] {
-        assert!(moved.contains(t.apply_point(hyperbola.eval_point(u)), tol));
+        assert!(moved.contains(t.apply_point(hyperbola.point_at(u)), tol));
     }
     let inv = Transform::rotation(axis, -std::f64::consts::FRAC_PI_2)
         .then(Transform::translation(Vector::new(0.0, -4.0, 0.0)));
     let back = moved.transformed(inv).unwrap();
     for u in [0.0, 0.5, -1.0] {
-        assert!(back.eval_point(u).distance(hyperbola.eval_point(u)) < 1e-9);
+        assert!(back.point_at(u).distance(hyperbola.point_at(u)) < 1e-9);
     }
     // Mirror across the xy-plane preserves the point set.
     let m = Transform::mirror_plane(Frame::WORLD);
     let mirrored = hyperbola.transformed(m).unwrap();
     for u in [0.0, 0.5, -1.0] {
-        assert!(mirrored.contains(m.apply_point(hyperbola.eval_point(u)), tol));
+        assert!(mirrored.contains(m.apply_point(hyperbola.point_at(u)), tol));
     }
     assert_eq!(mirrored.transformed(m).unwrap(), hyperbola);
+}
+
+// ---- foci, directrices and branches ----
+
+#[test]
+fn test_hyperbola_points_keep_the_focal_ratios() {
+    // On this branch the far focus is farther by the major axis, and each
+    // focus is the eccentricity times farther than its directrix.
+    let tol = Tolerance::DEFAULT;
+    let hyperbola = Hyperbola::new(
+        Point::new(1.0, -2.0, 0.5),
+        Vector::new(0.2, 0.3, 1.0),
+        Vector::X,
+        2.0,
+        1.5,
+    )
+    .unwrap();
+    let [own, far] = hyperbola.foci();
+    let directrices = hyperbola.directrices();
+    let e = hyperbola.eccentricity();
+    for k in -5..=5 {
+        let p = hyperbola.point_at(f64::from(k) * 0.4);
+        assert!((p.distance(far) - p.distance(own) - 4.0).abs() < 1e-11);
+        for (focus, directrix) in [own, far].into_iter().zip(&directrices) {
+            let to_directrix = directrix.project_point(p, tol).distance;
+            assert!((p.distance(focus) - e * to_directrix).abs() < 1e-11);
+        }
+    }
+}
+
+#[test]
+fn test_other_branch_mirrors_the_hyperbola_through_its_center() {
+    let hyperbola = Hyperbola::new(
+        Point::new(1.0, -2.0, 0.5),
+        Vector::new(0.2, 0.3, 1.0),
+        Vector::X,
+        2.0,
+        1.5,
+    )
+    .unwrap();
+    let other = hyperbola.other_branch();
+    let center = hyperbola.center();
+    for k in -3..=3 {
+        let u = f64::from(k) * 0.5;
+        let mirrored = center + (center - hyperbola.point_at(u));
+        assert!(other.point_at(u).distance(mirrored) < 1e-12);
+    }
+    let ([own, far], [other_own, other_far]) = (hyperbola.foci(), other.foci());
+    assert!(other_own.distance(far) < 1e-12 && other_far.distance(own) < 1e-12);
+    assert!(
+        other
+            .other_branch()
+            .point_at(0.7)
+            .distance(hyperbola.point_at(0.7))
+            < 1e-12
+    );
 }

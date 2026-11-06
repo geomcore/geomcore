@@ -3,7 +3,7 @@
 //! normal-recovery helpers it falls back on where the partial derivatives
 //! degenerate.
 
-use crate::geometry::curves::{Continuity, Curve, Curve2D};
+use crate::geometry::curves::{Continuity, Curve, Curve2D, TrimmedCurve, TrimmedCurve2D};
 use crate::geometry::surfaces::{
     BSplineSurface, Curve3DToUvError, ElementarySurface, ExtrusionSurface, RevolutionSurface,
     UvCurveTo3DError,
@@ -42,8 +42,8 @@ pub struct SurfaceCurvatures {
 ///
 /// # Examples
 ///
-/// The default [`eval_points`](ParametricSurface::eval_points) maps
-/// [`eval_point`](ParametricSurface::eval_point) over each parameter pair:
+/// The default [`points_at`](ParametricSurface::points_at) maps
+/// [`point_at`](ParametricSurface::point_at) over each parameter pair:
 ///
 /// ```
 /// use geomcore::prelude::*;
@@ -51,12 +51,21 @@ pub struct SurfaceCurvatures {
 ///
 /// let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
 /// let uvs = [(0.0, 0.0), (1.0, 2.0)];
-/// let expected: Vec<Point> = uvs.iter().map(|&(u, v)| plane.eval_point(u, v)).collect();
-/// assert_eq!(plane.eval_points(&uvs), expected);
+/// let expected: Vec<Point> = uvs.iter().map(|&(u, v)| plane.point_at(u, v)).collect();
+/// assert_eq!(plane.points_at(&uvs), expected);
 /// ```
 pub trait ParametricSurface {
     /// Evaluates the point on the surface at parameters `(u, v)`.
-    fn eval_point(&self, u: f64, v: f64) -> Point;
+    ///
+    /// Every `(u, v)` evaluates, inside the bounds or not. Past them, an
+    /// elementary surface continues along its own equation, and a swept
+    /// surface along its sweep, with its profile evaluated as that curve is
+    /// past its own bounds. A non-periodic direction of
+    /// a B-spline or Bézier surface clamps its parameter to the nearer
+    /// bound, so the point and every partial are those at the bound. An
+    /// operation that builds from a parameter, such as an iso-curve or a
+    /// split, refuses one outside the bounds instead (ADR 0037).
+    fn point_at(&self, u: f64, v: f64) -> Point;
 
     /// Evaluates the partial derivative of order `(du, dv)` at parameters
     /// `(u, v)`: `(1, 0)` is `∂S/∂u`, `(1, 1)` is `∂²S/∂u∂v`, and so on.
@@ -65,7 +74,7 @@ pub trait ParametricSurface {
     ///
     /// # Panics
     ///
-    /// Panics if `du + dv == 0` (use [`eval_point`](Self::eval_point) for
+    /// Panics if `du + dv == 0` (use [`point_at`](Self::point_at) for
     /// the position itself), or if `du + dv > 2` on a surface other than
     /// the plane, cylinder, cone, sphere and torus.
     ///
@@ -76,15 +85,15 @@ pub trait ParametricSurface {
     /// use geomcore::{Point, Sphere, Vector};
     ///
     /// let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
-    /// assert!((sphere.eval_derivative(0.0, 0.0, 1, 0) - Vector::new(0.0, 2.0, 0.0)).magnitude() < 1e-15);
+    /// assert!((sphere.derivative(0.0, 0.0, 1, 0) - Vector::new(0.0, 2.0, 0.0)).magnitude() < 1e-15);
     /// ```
-    fn eval_derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> Vector;
+    fn derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> Vector;
 
     /// Evaluates the point and the first derivatives `[Su, Sv]` at
     /// parameters `(u, v)`.
     ///
-    /// Default implementation: [`eval_point`](Self::eval_point) and
-    /// [`eval_derivative`](Self::eval_derivative). B-spline surfaces
+    /// Default implementation: [`point_at`](Self::point_at) and
+    /// [`derivative`](Self::derivative). B-spline surfaces
     /// override it to evaluate their basis functions once.
     ///
     /// # Examples
@@ -94,25 +103,22 @@ pub trait ParametricSurface {
     /// use geomcore::{Plane, Point, Vector};
     ///
     /// let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
-    /// let (point, [su, sv]) = plane.eval_d1(1.0, 2.0);
+    /// let (point, [su, sv]) = plane.first_derivatives(1.0, 2.0);
     /// assert_eq!(point, Point::new(1.0, 2.0, 0.0));
     /// assert_eq!(su.cross(sv), Vector::Z);
     /// ```
-    fn eval_d1(&self, u: f64, v: f64) -> (Point, [Vector; 2]) {
+    fn first_derivatives(&self, u: f64, v: f64) -> (Point, [Vector; 2]) {
         (
-            self.eval_point(u, v),
-            [
-                self.eval_derivative(u, v, 1, 0),
-                self.eval_derivative(u, v, 0, 1),
-            ],
+            self.point_at(u, v),
+            [self.derivative(u, v, 1, 0), self.derivative(u, v, 0, 1)],
         )
     }
 
     /// Evaluates the point, the first derivatives `[Su, Sv]` and the second
     /// derivatives `[Suu, Suv, Svv]` at parameters `(u, v)`.
     ///
-    /// Default implementation: [`eval_point`](Self::eval_point) and
-    /// [`eval_derivative`](Self::eval_derivative). B-spline surfaces
+    /// Default implementation: [`point_at`](Self::point_at) and
+    /// [`derivative`](Self::derivative). B-spline surfaces
     /// override it to evaluate their basis functions once.
     ///
     /// # Examples
@@ -122,22 +128,19 @@ pub trait ParametricSurface {
     /// use geomcore::{Point, Sphere};
     ///
     /// let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
-    /// let (point, _, [suu, _, svv]) = sphere.eval_d2(0.0, 0.0);
+    /// let (point, _, [suu, _, svv]) = sphere.second_derivatives(0.0, 0.0);
     /// assert_eq!(point, Point::new(2.0, 0.0, 0.0));
     /// assert!((suu + (point - Point::ORIGIN)).magnitude() < 1e-15);
     /// assert!((svv + (point - Point::ORIGIN)).magnitude() < 1e-15);
     /// ```
-    fn eval_d2(&self, u: f64, v: f64) -> (Point, [Vector; 2], [Vector; 3]) {
+    fn second_derivatives(&self, u: f64, v: f64) -> (Point, [Vector; 2], [Vector; 3]) {
         (
-            self.eval_point(u, v),
+            self.point_at(u, v),
+            [self.derivative(u, v, 1, 0), self.derivative(u, v, 0, 1)],
             [
-                self.eval_derivative(u, v, 1, 0),
-                self.eval_derivative(u, v, 0, 1),
-            ],
-            [
-                self.eval_derivative(u, v, 2, 0),
-                self.eval_derivative(u, v, 1, 1),
-                self.eval_derivative(u, v, 0, 2),
+                self.derivative(u, v, 2, 0),
+                self.derivative(u, v, 1, 1),
+                self.derivative(u, v, 0, 2),
             ],
         )
     }
@@ -185,7 +188,7 @@ pub trait ParametricSurface {
     /// sub-confusion geometry reports `None` everywhere.
     ///
     /// Raw partials stay available through
-    /// [`eval_d1`](Self::eval_d1); there is no `tangent` method.
+    /// [`first_derivatives`](Self::first_derivatives); there is no `tangent` method.
     ///
     /// Note: [`Plane`](crate::Plane) has an inherent zero-argument `normal()` returning
     /// its constant normal, which shadows this method on that type; call
@@ -339,7 +342,7 @@ pub trait ParametricSurface {
     /// surface being seen from the inside only; a periodic direction wraps
     /// `u` into its period, so its seam counts as a knot. Derivatives in
     /// `u` of higher order than the one reported may differ on the two
-    /// sides of `u`; [`BSplineSurface::eval_d1_sided`] and its siblings
+    /// sides of `u`; [`BSplineSurface::first_derivatives_sided`] and its siblings
     /// evaluate each side. Default implementation: smooth.
     ///
     /// # Examples
@@ -411,7 +414,7 @@ pub trait ParametricSurface {
     /// assert_eq!(c.max_direction, Vector::Z);
     /// ```
     fn curvatures(&self, u: f64, v: f64, tol: Tolerance) -> Option<SurfaceCurvatures> {
-        let (_, [su, sv], [suu, suv, svv]) = self.eval_d2(u, v);
+        let (_, [su, sv], [suu, suv, svv]) = self.second_derivatives(u, v);
         let (su_length, sv_length) = (su.magnitude(), sv.magnitude());
         let cross = su.cross(sv);
         let cross_length = cross.magnitude();
@@ -467,10 +470,10 @@ pub trait ParametricSurface {
 
     /// Evaluates the points on the surface at each `(u, v)` in `uvs`.
     ///
-    /// Default implementation: maps [`eval_point`](Self::eval_point) over
+    /// Default implementation: maps [`point_at`](Self::point_at) over
     /// `uvs`.
-    fn eval_points(&self, uvs: &[(f64, f64)]) -> Vec<Point> {
-        uvs.iter().map(|&(u, v)| self.eval_point(u, v)).collect()
+    fn points_at(&self, uvs: &[(f64, f64)]) -> Vec<Point> {
+        uvs.iter().map(|&(u, v)| self.point_at(u, v)).collect()
     }
 
     /// Projects `point` onto the surface, returning the `(u, v)` parameters
@@ -545,9 +548,9 @@ pub trait ParametricSurface {
     /// The exact 3D curve that `uv_curve`, a curve `c` in this surface's
     /// `(u, v)` parameter space, traces on the surface, in the same
     /// parameter: the surface composed with it, `S∘c`, whose point at `t`
-    /// is `self.eval_point(c(t))` for every `t` (every `t` of its bounds
+    /// is `self.point_at(c(t))` for every `t` (every `t` of its bounds
     /// when the surface is bounded). It is
-    /// [`eval_point`](Self::eval_point) at curve level, and the inverse of
+    /// [`point_at`](Self::point_at) at curve level, and the inverse of
     /// [`curve_3d_to_uv`](Self::curve_3d_to_uv).
     ///
     /// The pairs with a closed form, on the crate's surfaces:
@@ -649,8 +652,8 @@ pub trait ParametricSurface {
     /// let parallel = cylinder.uv_curve_to_3d(&along_u.into(), tol).unwrap();
     /// assert!(matches!(parallel, Curve::Circle(_)));
     /// for t in [-1.0, 0.0, 2.5] {
-    ///     let expected = cylinder.eval_point(0.5 - t, 1.0);
-    ///     assert!(parallel.eval_point(t).distance(expected) < 1e-12);
+    ///     let expected = cylinder.point_at(0.5 - t, 1.0);
+    ///     assert!(parallel.point_at(t).distance(expected) < 1e-12);
     /// }
     /// ```
     ///
@@ -665,8 +668,8 @@ pub trait ParametricSurface {
     /// let curve = Curve2D::from(ellipse);
     /// let traced = plane.uv_curve_to_3d(&curve, Tolerance::DEFAULT).unwrap();
     /// assert!(matches!(traced, Curve::Ellipse(_)));
-    /// let q = curve.eval_point(0.7);
-    /// assert!(traced.eval_point(0.7).distance(plane.eval_point(q.x, q.y)) < 1e-12);
+    /// let q = curve.point_at(0.7);
+    /// assert!(traced.point_at(0.7).distance(plane.point_at(q.x, q.y)) < 1e-12);
     /// ```
     fn uv_curve_to_3d(
         &self,
@@ -679,7 +682,7 @@ pub trait ParametricSurface {
 
     /// The exact UV curve of `curve`, a 3D curve `C` lying on this surface:
     /// the curve `c` in the surface's `(u, v)` parameter space, in the same
-    /// parameter, such that `self.eval_point(c(t))` is `curve.eval_point(t)`
+    /// parameter, such that `self.point_at(c(t))` is `curve.point_at(t)`
     /// for every `t`, so `S∘c = C`. It is
     /// [`parameters_of`](Self::parameters_of) at curve level, and the
     /// inverse of [`uv_curve_to_3d`](Self::uv_curve_to_3d).
@@ -697,6 +700,14 @@ pub trait ParametricSurface {
     /// | poloidal or toroidal circle | torus | a line along `v` or `u` |
     /// | ellipse, parabola, hyperbola | plane | the 2D conic of the same radii or focal distance |
     /// | B-spline or Bézier curve | plane | the same spline over its poles' plane coordinates |
+    /// | generator line | extrusion | a line along `v` |
+    /// | the profile translated along the direction | extrusion | a line along `u` |
+    /// | parallel circle | revolution | a line along `u` |
+    /// | the profile turned about the axis | revolution | a line along `v` |
+    ///
+    /// A translated or turned profile is recognized in the profile's own
+    /// parameter only, as [`ExtrusionSurface`] and [`RevolutionSurface`]
+    /// carry and turn it.
     ///
     /// The plane map is affine, so a spline keeps its degree, knots,
     /// multiplicities, weights and periodicity. On a periodic surface a
@@ -705,8 +716,8 @@ pub trait ParametricSurface {
     ///
     /// The projection math assumes the curve lies on the surface. As a
     /// safeguard, the UV curve found is checked against the surface at a
-    /// few parameters, and refused when `self.eval_point(c(t))` is farther
-    /// than `tol.confusion` from `curve.eval_point(t)`. A conic must lie in
+    /// few parameters, and refused when `self.point_at(c(t))` is farther
+    /// than `tol.confusion` from `curve.point_at(t)`. A conic must lie in
     /// a plane to within `tol.angular_for_extent` of its reach, and a
     /// spline lies in a plane exactly when its poles do.
     ///
@@ -715,10 +726,11 @@ pub trait ParametricSurface {
     /// [`Curve3DToUvError::NotAnalytic`] for every other pair, never
     /// approximated: a slanted line or circle on a curved surface, a conic
     /// or a spline on any surface but a plane, every curve on an
-    /// extrusion, revolution, B-spline or Bézier surface, and every curve
-    /// on a surface type defined outside the crate, the default.
-    /// [`curve_3d_to_uv_numeric`](crate::curve_3d_to_uv_numeric) samples
-    /// those. [`Curve3DToUvError::CurveNotOnSurface`] when the curve does
+    /// extrusion or revolution but its iso-curves, every curve on a
+    /// B-spline or Bézier surface, and every curve on a surface type
+    /// defined outside the crate, the default.
+    /// [`curve_3d_to_uv_within`](crate::curve_3d_to_uv_within) gives
+    /// those within a deviation. [`Curve3DToUvError::CurveNotOnSurface`] when the curve does
     /// not lie on the surface, as for a circle whose radius does not match
     /// the cylinder.
     ///
@@ -736,7 +748,7 @@ pub trait ParametricSurface {
     /// let uv_curve = cylinder.curve_3d_to_uv(&circle.into(), Tolerance::DEFAULT).unwrap();
     /// assert!(matches!(uv_curve, Curve2D::Line(_)));
     /// // c(t) = (t, 3): the angle runs in u, the height v is fixed.
-    /// let q = uv_curve.eval_point(1.0);
+    /// let q = uv_curve.point_at(1.0);
     /// assert!((q.x - 1.0).abs() < 1e-9 && (q.y - 3.0).abs() < 1e-9);
     /// ```
     ///
@@ -751,12 +763,51 @@ pub trait ParametricSurface {
     /// let curve = BSplineCurve::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
     /// let uv_curve = plane.curve_3d_to_uv(&curve.into(), Tolerance::DEFAULT).unwrap();
     /// assert!(matches!(uv_curve, Curve2D::BSpline(_)));
-    /// let q = uv_curve.eval_point(0.5);
+    /// let q = uv_curve.point_at(0.5);
     /// assert!((q.x - 1.0).abs() < 1e-9 && (q.y - 0.5).abs() < 1e-9);
     /// ```
     fn curve_3d_to_uv(&self, curve: &Curve, tol: Tolerance) -> Result<Curve2D, Curve3DToUvError> {
         let _ = (curve, tol);
         Err(Curve3DToUvError::NotAnalytic)
+    }
+
+    /// The trimmed curve in the surface's parameters: the
+    /// [`curve_3d_to_uv`](Self::curve_3d_to_uv) image of its basis, over the
+    /// same range, since that image keeps the curve's parameter. An edge of
+    /// a face is a piece of its curve, and this is its curve on the face.
+    ///
+    /// # Errors
+    ///
+    /// Those of [`curve_3d_to_uv`](Self::curve_3d_to_uv) for the basis.
+    ///
+    /// # Examples
+    ///
+    /// A quarter of a cross-section circle of a cylinder maps to a piece of
+    /// the line along `u`:
+    ///
+    /// ```
+    /// use geomcore::prelude::*;
+    /// use geomcore::{Circle, Cylinder, Point, Tolerance, TrimmedCurve, Vector};
+    /// use std::f64::consts::FRAC_PI_2;
+    ///
+    /// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
+    /// let circle = Circle::new(Point::new(0.0, 0.0, 3.0), Vector::Z, 2.0).unwrap();
+    /// let edge = TrimmedCurve::new(circle, 0.0, FRAC_PI_2).unwrap().into_curve();
+    /// let uv_edge = cylinder.trimmed_curve_3d_to_uv(&edge, Tolerance::DEFAULT).unwrap();
+    /// let end = uv_edge.end_point();
+    /// assert!((end.x - FRAC_PI_2).abs() < 1e-9 && (end.y - 3.0).abs() < 1e-9);
+    /// ```
+    fn trimmed_curve_3d_to_uv(
+        &self,
+        curve: &TrimmedCurve,
+        tol: Tolerance,
+    ) -> Result<TrimmedCurve2D, Curve3DToUvError> {
+        let basis = self.curve_3d_to_uv(curve.basis(), tol)?;
+        Ok(TrimmedCurve2D::from_parts(
+            basis,
+            curve.start_parameter(),
+            curve.end_parameter(),
+        ))
     }
 
     /// Routing hook of the numeric search, hidden from the documentation: the
@@ -801,8 +852,8 @@ pub trait ParametricSurface {
 ///
 /// The reversed surface keeps the bounds of the surface, and
 /// [`u_reversed_parameter`](ReversibleSurface::u_reversed_parameter) maps
-/// a parameter onto it: `reversed_u().eval_point(u_reversed_parameter(u), v)`
-/// is `eval_point(u, v)`, and likewise in `v`. Each map is its own
+/// a parameter onto it: `reversed_u().point_at(u_reversed_parameter(u), v)`
+/// is `point_at(u, v)`, and likewise in `v`. Each map is its own
 /// inverse, and reversing a direction twice gives the surface back.
 ///
 /// The map is `period - u` on a periodic elementary direction, `-u` on an
@@ -821,7 +872,7 @@ pub trait ParametricSurface {
 /// let cylinder = Surface::from(Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap());
 /// let reversed = cylinder.reversed_u();
 /// let u = cylinder.u_reversed_parameter(1.0);
-/// assert!(reversed.eval_point(u, 3.0).distance(cylinder.eval_point(1.0, 3.0)) < 1e-12);
+/// assert!(reversed.point_at(u, 3.0).distance(cylinder.point_at(1.0, 3.0)) < 1e-12);
 /// assert_eq!(cylinder.v_reversed_parameter(0.5), -0.5);
 /// ```
 pub trait ReversibleSurface: Sized {
@@ -878,14 +929,14 @@ fn normal_recovery<S: ParametricSurface + ?Sized>(
 ) -> Recovery {
     let [u_width, v_width] = bounds.map(|range| tol.reference_width(range));
     // Rung 1: direct unit normal.
-    let (point, [su, sv]) = surface.eval_d1(u, v);
+    let (point, [su, sv]) = surface.first_derivatives(u, v);
     if let Some(normal) = direct_normal(su, sv, u_width, v_width, tol) {
         return Recovery::Unique(normal);
     }
     // Rung 2: stand a second derivative in for the degenerate direction.
     // `Su` vanishing along all of `u` collapses the row at this `v`, so
     // `u` is the meaningless coordinate there; likewise `Sv` and `v`.
-    let (_, _, [suu, suv, svv]) = surface.eval_d2(u, v);
+    let (_, _, [suu, suv, svv]) = surface.second_derivatives(u, v);
     let su_vanishes = tol.is_negligible_derivative(su.magnitude(), u_width);
     let sv_vanishes = tol.is_negligible_derivative(sv.magnitude(), v_width);
     let su_on_line = su_vanishes && lies_on_collapsed_line(point, su, suv, u_width, v, bounds[1]);
@@ -1122,11 +1173,11 @@ fn transverse_agreement<S: ParametricSurface + ?Sized>(
             Direction::U => (other, v),
             Direction::V => (u, other),
         };
-        let (_, [su, sv]) = surface.eval_d1(other_u, other_v);
+        let (_, [su, sv]) = surface.first_derivatives(other_u, other_v);
         if direct_normal(su, sv, u_width, v_width, tol).is_some() {
             return true;
         }
-        let (_, _, [suu, suv, svv]) = surface.eval_d2(other_u, other_v);
+        let (_, _, [suu, suv, svv]) = surface.second_derivatives(other_u, other_v);
         if let Some(recovered) = substituted_normal(
             su,
             sv,

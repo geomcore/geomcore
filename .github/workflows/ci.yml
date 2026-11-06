@@ -30,7 +30,7 @@ jobs:
       - run: cargo check -p geomcore-py
       - uses: actions/setup-python@v5
         with: { python-version: "${{ matrix.python-version }}" }
-      - run: pip install maturin pytest mypy
+      - run: pip install maturin pytest mypy numpy
       - run: maturin build --manifest-path geomcore-py/Cargo.toml --out dist
       - run: pip install --no-index --find-links dist geomcore
       - run: pytest geomcore-py/tests

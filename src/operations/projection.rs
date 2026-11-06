@@ -4,7 +4,7 @@
 //! returned by the `project_point` / `project_points` methods on curves and
 //! surfaces: the closest parameter(s), the closest point itself (the curve or
 //! surface evaluated there) and the distance from the query point.
-//! Distances at or below the query tolerance are snapped to exactly `0.0`,
+//! Distances at or below `tol.confusion` are snapped to exactly `0.0`,
 //! so `contains(point, tol)` agrees with
 //! `project_point(point, tol).distance == 0.0`.
 
@@ -34,8 +34,8 @@ pub struct CurveProjection<P = Point> {
     /// point within tolerance of the curve this is still the point on the
     /// curve, not the query point.
     pub point: P,
-    /// Distance from the query point to the curve (`0.0` when the query
-    /// point is within tolerance of the curve).
+    /// Distance from the query point to the curve, `0.0` when it is
+    /// within `tol.confusion` of the curve.
     pub distance: f64,
 }
 
@@ -89,8 +89,8 @@ pub struct SurfaceProjection {
     /// point within tolerance of the surface this is still the point on the
     /// surface, not the query point.
     pub point: Point,
-    /// Distance from the query point to the surface (`0.0` when the query
-    /// point is within tolerance of the surface).
+    /// Distance from the query point to the surface, `0.0` when it is
+    /// within `tol.confusion` of the surface.
     pub distance: f64,
 }
 

@@ -66,35 +66,35 @@ fn test_from_circle_matches_circle() {
 #[test]
 fn test_eval_point() {
     let c = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
-    assert_eq!(c.eval_point(0.0, 5.0), Point::new(2.0, 0.0, 5.0));
+    assert_eq!(c.point_at(0.0, 5.0), Point::new(2.0, 0.0, 5.0));
 }
 
 #[test]
 fn test_eval_points_matches_loop() {
     let c = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
     let uvs = [(0.0, 0.0), (PI / 2.0, 1.0)];
-    let expected: Vec<Point> = uvs.iter().map(|&(u, v)| c.eval_point(u, v)).collect();
-    assert_eq!(c.eval_points(&uvs), expected);
+    let expected: Vec<Point> = uvs.iter().map(|&(u, v)| c.point_at(u, v)).collect();
+    assert_eq!(c.points_at(&uvs), expected);
 }
 
 #[test]
 fn test_eval_derivative_first_orders() {
     let c = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
-    assert_eq!(c.eval_derivative(0.0, 5.0, 0, 1), Vector::Z);
+    assert_eq!(c.derivative(0.0, 5.0, 0, 1), Vector::Z);
 }
 
 #[test]
 fn test_eval_derivative_second_orders_zero_for_sv() {
     let c = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
-    assert_eq!(c.eval_derivative(0.7, 5.0, 0, 2), Vector::ZERO);
-    assert_eq!(c.eval_derivative(0.7, 5.0, 1, 1), Vector::ZERO);
+    assert_eq!(c.derivative(0.7, 5.0, 0, 2), Vector::ZERO);
+    assert_eq!(c.derivative(0.7, 5.0, 1, 1), Vector::ZERO);
 }
 
 #[test]
 #[should_panic(expected = "du + dv must be >= 1")]
 fn test_eval_derivative_zero_order_panics() {
     let c = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
-    c.eval_derivative(0.0, 0.0, 0, 0);
+    c.derivative(0.0, 0.0, 0, 0);
 }
 
 #[test]
@@ -129,7 +129,7 @@ fn test_cylinder_contains() {
     let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
     let tol = Tolerance::DEFAULT;
     assert!(cylinder.contains(Point::new(2.0, 0.0, 0.0), tol));
-    assert!(cylinder.contains(cylinder.eval_point(1.0, 3.0), tol));
+    assert!(cylinder.contains(cylinder.point_at(1.0, 3.0), tol));
     assert!(!cylinder.contains(Point::ORIGIN, tol));
     assert!(!cylinder.contains(Point::new(3.0, 0.0, 0.0), tol));
 }
@@ -157,7 +157,7 @@ fn test_cylinder_transformed_translation_spot_check() {
     assert_eq!(moved.radius(), 2.0);
     assert_eq!(moved.axis().direction(), Vector::Z);
     // Hand-computed evaluation, shifted.
-    assert_eq!(moved.eval_point(0.0, 5.0), Point::new(3.0, 0.0, 5.0));
+    assert_eq!(moved.point_at(0.0, 5.0), Point::new(3.0, 0.0, 5.0));
 }
 
 #[test]
@@ -171,7 +171,7 @@ fn test_cylinder_transformed_round_trip_and_mirror() {
     assert!((moved.axis().direction() - Vector::Z).magnitude() < 1e-9);
     let tol = Tolerance::DEFAULT;
     for (u, v) in [(0.0, 0.0), (1.0, -2.0), (4.0, 0.5)] {
-        assert!(moved.contains(t.apply_point(cylinder.eval_point(u, v)), tol));
+        assert!(moved.contains(t.apply_point(cylinder.point_at(u, v)), tol));
     }
     let inv = Transform::scaling(Point::ORIGIN, 0.5).then(Transform::rotation(axis, -PI / 2.0));
     let back = moved.transformed(inv).unwrap();
@@ -181,7 +181,7 @@ fn test_cylinder_transformed_round_trip_and_mirror() {
     let m = Transform::mirror_plane(Frame::WORLD);
     let mirrored = cylinder.transformed(m).unwrap();
     for (u, v) in [(0.0, 0.0), (1.0, -2.0)] {
-        assert!(mirrored.contains(m.apply_point(cylinder.eval_point(u, v)), tol));
+        assert!(mirrored.contains(m.apply_point(cylinder.point_at(u, v)), tol));
     }
     assert_eq!(mirrored.transformed(m).unwrap(), cylinder);
 }
@@ -192,14 +192,14 @@ fn test_reversed_cylinders_share_point_set_with_flipped_normal() {
     for (u, v) in [(0.0, 0.0), (1.0, -2.0), (5.0, 0.5)] {
         let ru = cylinder.reversed_u();
         assert!(!ru.frame().is_direct());
-        assert!((ru.eval_point(u, v) - cylinder.eval_point(-u, v)).magnitude() < 1e-12);
+        assert!((ru.point_at(u, v) - cylinder.point_at(-u, v)).magnitude() < 1e-12);
         assert!((ru.u_reversed_parameter(cylinder.u_reversed_parameter(u)) - u).abs() < 1e-12);
-        let (_, [su, sv]) = cylinder.eval_d1(-u, v);
-        let (_, [rsu, rsv]) = ru.eval_d1(u, v);
+        let (_, [su, sv]) = cylinder.first_derivatives(-u, v);
+        let (_, [rsu, rsv]) = ru.first_derivatives(u, v);
         assert!((rsu.cross(rsv) + su.cross(sv)).magnitude() < 1e-12);
         let rv = cylinder.reversed_v();
         assert!(!rv.frame().is_direct());
-        assert!((rv.eval_point(u, v) - cylinder.eval_point(u, -v)).magnitude() < 1e-12);
+        assert!((rv.point_at(u, v) - cylinder.point_at(u, -v)).magnitude() < 1e-12);
         assert_eq!(rv.v_reversed_parameter(cylinder.v_reversed_parameter(v)), v);
     }
     assert_eq!(cylinder.reversed_u().reversed_u(), cylinder);

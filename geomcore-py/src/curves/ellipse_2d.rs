@@ -1,4 +1,4 @@
-//! The Python class `geomcore.curves.Ellipse2D`, wrapping `geomcore::Ellipse2D`.
+//! The Python class `geomcore.Ellipse2D`, wrapping `geomcore::Ellipse2D`.
 
 use crate::curves::*;
 use crate::method_sets::*;
@@ -6,7 +6,7 @@ use crate::values::{PyFrame2D, coordinates_2d, float_repr};
 use geomcore::Ellipse2D;
 
 /// An ellipse in 2D.
-#[pyclass(name = "Ellipse2D", module = "geomcore.curves", eq)]
+#[pyclass(name = "Ellipse2D", module = "geomcore", eq)]
 #[derive(Clone, PartialEq)]
 pub(crate) struct PyEllipse2D(pub(crate) Ellipse2D);
 
@@ -66,8 +66,14 @@ shape_methods! {
     }
 
     /// The enclosed area (`PI*major*minor`).
-    fn area(&self) -> f64 {
-        self.0.area()
+    fn enclosed_area(&self) -> f64 {
+        self.0.enclosed_area()
+    }
+
+    /// The perimeter, integrating the speed to within `max_length_error`: it has
+    /// no closed form.
+    fn length(&self, max_length_error: f64) -> f64 {
+        self.0.length(max_length_error)
     }
 
     /// The ellipse as an exact rational B-spline of degree 2, periodic over
@@ -75,6 +81,11 @@ shape_methods! {
     /// the middle of each quarter turn.
     fn to_bspline(&self) -> PyBSplineCurve2D {
         PyBSplineCurve2D(self.0.to_bspline())
+    }
+
+    fn __reduce__<'py>(slf: &pyo3::Bound<'py, Self>) -> pyo3::PyResult<pyo3::Bound<'py, pyo3::types::PyTuple>> {
+        let this = slf.borrow();
+        crate::pickling::reduce(slf.as_any(), Some("from_frame"), (this.frame(), this.major_radius(), this.minor_radius(),))
     }
 
     fn __repr__(&self) -> String {
@@ -85,5 +96,26 @@ shape_methods! {
             float_repr(self.0.major_radius()),
             float_repr(self.0.minor_radius())
         )
+    }
+
+    /// The eccentricity: the ratio of a point's distance to a focus over
+    /// its distance to that focus's directrix.
+    fn eccentricity(&self) -> f64 {
+        self.0.eccentricity()
+    }
+
+    /// The two foci on the major axis, the one toward the frame's x
+    /// direction first.
+    fn foci(&self) -> (PyPoint2D, PyPoint2D) {
+        let [first, second] = self.0.foci();
+        (PyPoint2D(first), PyPoint2D(second))
+    }
+
+    /// The two directrices across the major axis, in the order of `foci`,
+    /// or None for a circle, whose directrices are at infinity.
+    fn directrices(&self) -> Option<(PyLine2D, PyLine2D)> {
+        self.0
+            .directrices()
+            .map(|[first, second]| (PyLine2D(first), PyLine2D(second)))
     }
 }

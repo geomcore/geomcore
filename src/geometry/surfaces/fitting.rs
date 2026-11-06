@@ -7,6 +7,7 @@
 //! factored system per direction serves them all (see
 //! [`crate::BSplineCurve::approximate`] for the curve fit).
 
+use crate::geometry::approximation::SurfaceApproximation;
 use crate::geometry::curves::BSplineConstructionError;
 use crate::geometry::curves::fitting::{
     BasisTable, approximation_knots, averaged_knots, check_degree, fit_within_fewest,
@@ -171,7 +172,7 @@ impl BSplineSurface {
     ///     BSplineSurface::approximate(&points, 2, 2, 3, 3, PointParametrization::Chordal)
     ///         .unwrap();
     /// // A quadratic Bézier patch holds `x² - y²` exactly.
-    /// let p = surface.eval_point(0.5, 0.5);
+    /// let p = surface.point_at(0.5, 0.5);
     /// assert!((p.z - (p.x * p.x - p.y * p.y)).abs() < 1e-12);
     /// ```
     pub fn approximate(
@@ -227,6 +228,11 @@ impl BSplineSurface {
     /// interpolates its lines of points instead, one pole per point, as
     /// with a `max_deviation` of zero.
     ///
+    /// The result holds the surface and its
+    /// [`deviation`](SurfaceApproximation::deviation): the largest distance
+    /// from a point to the surface at the point's parameters, measured at
+    /// every point, so it is proven.
+    ///
     /// # Errors
     ///
     /// As [`BSplineSurface::approximate`], a degree exceeding its
@@ -247,10 +253,12 @@ impl BSplineSurface {
     ///             .collect()
     ///     })
     ///     .collect();
-    /// let surface = BSplineSurface::approximate_within(
+    /// let fit = BSplineSurface::approximate_within(
     ///     &points, 3, 3, 1e-3, PointParametrization::Chordal,
     /// )
     /// .unwrap();
+    /// assert!(fit.deviation() <= 1e-3);
+    /// let surface = fit.surface();
     /// assert!(surface.u_pole_count() < 20 && surface.v_pole_count() < 20);
     /// ```
     pub fn approximate_within(
@@ -259,7 +267,7 @@ impl BSplineSurface {
         v_degree: usize,
         max_deviation: f64,
         parametrization: PointParametrization,
-    ) -> Result<BSplineSurface, BSplineConstructionError> {
+    ) -> Result<SurfaceApproximation, BSplineConstructionError> {
         check_degree(u_degree)?;
         check_degree(v_degree)?;
         let grid = Grid::new(points, parametrization)?;
@@ -290,22 +298,28 @@ impl BSplineSurface {
         // Along `u`: the whole grid within the deviation. Interpolating
         // the rows' poles leaves only the rows' deviation, within it.
         let (p, u_params) = (u_degree, &grid.u_params);
+        // The largest distance from a grid point to the surface at its
+        // parameters.
+        let largest = |basis: &BasisTable, poles: &[Point], deviations: &mut [f64]| {
+            grid.deviations((basis, &v_basis), poles, columns, deviations);
+            deviations.iter().fold(0.0f64, |a, &d| a.max(d))
+        };
         let fitted = fit_within_fewest(u_params, p, max_deviation, |flat, basis, deviations| {
             let poles = grid.fit_columns(basis, flat.len() - p - 1, &row_poles, columns)?;
-            grid.deviations((basis, &v_basis), &poles, columns, deviations);
-            Some(poles)
+            let deviation = largest(basis, &poles, deviations);
+            Some((poles, deviation))
         });
-        let (u_flat, poles) = fitted.unwrap_or_else(|| {
+        let (u_flat, (poles, deviation)) = fitted.unwrap_or_else(|| {
             let flat = averaged_knots(u_params, p);
             let basis = BasisTable::new(&flat, p, u_params);
             let by_column = interpolation(&basis, columns, |l, i| row_poles[i * columns + l]);
-            (flat, transposed(&by_column, columns, grid.rows))
+            let poles = transposed(&by_column, columns, grid.rows);
+            let deviation = largest(&basis, &poles, &mut vec![0.0; grid.rows]);
+            (flat, (poles, deviation))
         });
-        Ok(BSplineSurface::from_flat_knots(
-            (u_degree, u_flat),
-            (v_degree, v_flat),
-            poles,
-        ))
+        let surface =
+            BSplineSurface::from_flat_knots((u_degree, u_flat), (v_degree, v_flat), poles);
+        Ok(SurfaceApproximation::new(surface, deviation, true))
     }
 }
 

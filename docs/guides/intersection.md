@@ -17,18 +17,22 @@ One result per family: `CurveCurveIntersection` (and
 `SurfaceSurfaceIntersection`. Each one carries:
 
 - the **hits**: the point, the multiplicity (1 for a crossing, 2+ for a
-  tangency) and the parameters on both operands. A parameter is stored
-  when the solver computed it on its way to the point, and is `None`
-  otherwise; `operand.parameter_of(hit.point, tol)` (or `parameters_of` on a
-  surface) recovers it in one call;
+  tangency) and the parameters on both operands, always filled: where a
+  closed form solves for one operand's parameter only, the other's is
+  recovered in closed form from the point. Hits are sorted by the first
+  operand's parameter;
 - the **overlaps**, where a curve lies on the other shape: a parameter
   range on each curve plus `same_direction`, or the curve's ranges on a
   surface;
-- for two surfaces, the **curves** (each with a `tangent` flag), the
-  **contact points** and whether the surfaces are **coincident**;
+- for two surfaces, the **curves** (each with a `tangent` flag and its
+  curve in the parameters of each surface, see below), the **contact
+  points** and whether the surfaces are **coincident**;
 - the **method** (`Exact` or `Numeric`) and the **completeness**: an
   exact result is always complete; a numeric one is complete, incomplete
-  (with the regions where hits may be missing) or sampled.
+  (with the regions where hits may be missing) or sampled. The method
+  says how the result was found, not what type its curves are: an exact
+  `Circle` can come out of a numeric search, as on the swept surfaces
+  below.
 
 Hits on circles and ellipses keep their parameters inside `bounds()`,
 and a tangency is decided by distance, not by root separation:
@@ -69,7 +73,9 @@ on the stack, recovers no parameter it does not need, and reports
 `NotAnalytic` where no closed form exists instead of searching.
 
 Covered pairs include plane/quadric/torus surfaces against each other
-in their symmetric configurations, lines/circles/conics against each
+in their symmetric configurations — among them the tee of two equal
+cylinders whose axes meet, two ellipses that cross at the two points
+where the cylinders touch, both listed in `contact_points` — lines/circles/conics against each
 other and against the elementary surfaces, and any two conics —
 coplanar (up to four hits) or in crossing planes (met on the shared
 line). The 2D pairs are exact too: any two of `Line2D`, `Circle2D`,
@@ -77,7 +83,18 @@ line). The 2D pairs are exact too: any two of `Line2D`, `Circle2D`,
 by the coplanar solvers with the same tangency multiplicities and
 overlaps; only a pair holding a `BSplineCurve2D` or a `BezierCurve2D`
 runs the numeric search. A Bézier curve or surface is searched as the
-B-spline it is. A sphere cut by a coaxial cylinder, computed live below —
+B-spline it is.
+
+A plane meets an extrusion or a revolution in closed form in four
+positions: generator lines where it holds the extrusion's direction, the
+profile carried onto it otherwise, circles where it is perpendicular to
+the revolution's axis, and the profile turned into it where it holds the
+axis. The curves are exact types, a `Line`, a `Circle` or a curve of the
+profile's kind. They sit where the profile crosses the plane, though,
+and that crossing is exact only for an elementary profile. On a
+B-spline or Bézier profile it comes from the numeric curve–plane search,
+so a horizontal cut of a spline revolution is a list of `Circle`s with
+`method` `Numeric` and completeness `Complete`. A sphere cut by a coaxial cylinder, computed live below —
 two exact rings in ~0.4 µs on a Linux x86-64 desktop, single thread:
 
 <iframe src="https://geomcore.github.io/geomcore-viewer/?scene=https://geomcore.github.io/geomcore/assets/scenes/intersect-exact.json" width="100%" height="480" style="border: 1px solid #333; border-radius: 8px;" allow="fullscreen" title="Sphere and cylinder with their two exact intersection rings"></iframe>
@@ -139,7 +156,7 @@ crossings closer together than the grid spacing are each found.
     ```python
     result = spline_curve.intersect(spline_surface)  # CurveSurfaceIntersection
     for hit in result.hits:
-        hit.curve_parameter, hit.surface_parameters, hit.point
+        hit.curve_parameter, hit.u, hit.v, hit.point
     complete = result.is_complete()
     meetings = curve_a.intersect(curve_b)            # CurveCurveIntersection
     ```
@@ -180,6 +197,15 @@ smaller than the iso-curve spacing can be missed. Where a branch of two
 unbounded surfaces was cut at its box, the result is `Incomplete` with
 `Unbounded` as its reason, and its regions mark where the cuts are.
 
+The confusion also sets the size of a fitted curve: each segment must
+stay within it of both surfaces, so a looser confusion takes fewer,
+longer segments. Two wavy B-spline patches cut at the default `1e-7`
+give curves of 296 and 194 poles; at `1e-3` they give one curve of 42
+poles. The same value decides what counts as a hit or a tangency, so
+loosen it for a lighter fit only where a point within it of both
+surfaces is on both. In Python, `tol=1e-3` is short for
+`Tolerance(confusion=1e-3)`.
+
 <figure class="geom-fig">
 <img src="../../assets/figures/intersection/31-marching-round-a-cylinder-and-a-sphere.svg" alt="Marching round a cylinder and a sphere">
 <figcaption>Marching: seed, trace along the tangent, correct back onto both surfaces, fit the trail.</figcaption>
@@ -206,6 +232,46 @@ unbounded surfaces was cut at its box, the result is `Incomplete` with
 
     let result = a.intersect(&b, tol);
     let curves = result.curves();   // BSpline curves where marched
+    ```
+
+### The curves in each surface's parameters
+
+Each curve also comes as `first_uv_curve` and `second_uv_curve`: the
+curve in the `(u, v)` parameters of each surface, in the same parameter
+as `curve`, so the surface's point at the `(u, v)` of `t` is the curve's
+point at `t`. A marched curve always has both: the march walked the
+parameters of every point it traced, and they are fitted on the curve's
+own knots, continuous across the seams (a loop around a cylinder ends a
+period away in `u`). An exact curve has the exact one where a closed
+form exists (a circle in a plane's parameters, a ruling or a parallel
+circle as a line in a cylinder's) and `None` otherwise, as an ellipse
+on a cylinder: [`curve_3d_to_uv_within`](parametrization.md) maps those
+within a deviation.
+
+=== "Python"
+
+    ```python
+    from geomcore import Cylinder, Plane, Point, Vector
+
+    cylinder = Cylinder(Point.origin(), Vector.unit_z(), 1.0)
+    (piece,) = Plane(Point(0.0, 0.0, 2.0), Vector.unit_z()).intersect(cylinder).curves
+    on_plane = piece.first_uv_curve       # Circle2D
+    on_cylinder = piece.second_uv_curve   # Line2D: the iso-line v = 2
+    uv = on_cylinder.point_at(0.7)
+    assert cylinder.point_at(uv.x, uv.y).distance(piece.curve.point_at(0.7)) < 1e-12
+    ```
+
+=== "Rust"
+
+    ```rust
+    use geomcore::prelude::*;
+    use geomcore::{Cylinder, Plane, Point, Tolerance, Vector};
+
+    let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
+    let plane = Plane::new(Point::new(0.0, 0.0, 2.0), Vector::Z).unwrap();
+    let result = plane.intersect(&cylinder, Tolerance::DEFAULT);
+    let piece = &result.curves()[0];
+    let on_cylinder = piece.second_uv_curve.as_ref().unwrap(); // the line v = 2
     ```
 
 Before seeding, a surface with bounded parameters is checked for lying

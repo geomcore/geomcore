@@ -34,6 +34,6 @@ pub use surface::{ElementarySurface, Surface};
 pub(crate) use surface::{elementary_surface_dispatch, surface_dispatch, surface_variants};
 pub use torus::{Torus, TorusConstructionError};
 pub use uv_curve::{
-    Curve3DToUvError, UvCurveApproximation, UvCurveApproximationError, UvCurveTo3DError,
-    curve_3d_to_uv_numeric, uv_curve_to_3d_within,
+    Curve3DToUvApproximationError, Curve3DToUvError, UvCurveTo3DApproximationError,
+    UvCurveTo3DError, curve_3d_to_uv_within, uv_curve_to_3d_within,
 };

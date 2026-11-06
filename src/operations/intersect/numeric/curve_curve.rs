@@ -7,7 +7,7 @@ use crate::operations::extrema::CurveCurveExtremum;
 use crate::operations::extrema::curve_curve::{curve_curve_extrema, sampled_curve_curve_extrema};
 use crate::operations::intersect::numeric::curve_curve_hull::CurveCurveHits;
 use crate::operations::intersect::numeric::{overlap_runs, pairs_with_bspline};
-use crate::operations::intersect::results::sort_by_known_parameter;
+use crate::operations::intersect::results::sort_by_parameter;
 use crate::operations::intersect::{CurveCurveHit, CurveCurveIntersection};
 use crate::{Tolerance, Vector};
 
@@ -42,11 +42,11 @@ use crate::{Tolerance, Vector};
 /// struct Helix;
 ///
 /// impl ParametricCurve for Helix {
-///     fn eval_point(&self, u: f64) -> Point {
+///     fn point_at(&self, u: f64) -> Point {
 ///         let turn = std::f64::consts::TAU;
 ///         Point::new(u.cos(), u.sin(), u / turn)
 ///     }
-///     fn eval_derivative(&self, u: f64, order: u32) -> Vector {
+///     fn derivative(&self, u: f64, order: u32) -> Vector {
 ///         let turn = std::f64::consts::TAU;
 ///         match order {
 ///             1 => Vector::new(-u.sin(), u.cos(), 1.0 / turn),
@@ -161,9 +161,9 @@ where
         .into_iter()
         .filter(|e| e.distance <= tol.confusion)
         .map(|e| CurveCurveHit {
-            first_parameter: Some(e.first_parameter),
-            point: a.eval_point(e.first_parameter),
-            second_parameter: Some(e.second_parameter),
+            first_parameter: e.first_parameter,
+            point: a.point_at(e.first_parameter),
+            second_parameter: e.second_parameter,
             multiplicity: grazing_multiplicity(a, e.first_parameter, b, e.second_parameter, tol),
         })
         .collect();
@@ -173,7 +173,7 @@ where
             merged.push(h);
         }
     }
-    sort_by_known_parameter(&mut merged, |hit| hit.first_parameter);
+    sort_by_parameter(&mut merged, |hit| hit.first_parameter);
     merged
 }
 
@@ -209,8 +209,8 @@ where
     A: ParametricCurve,
     B: ParametricCurve,
 {
-    let tangent_first = first.eval_derivative(first_parameter, 1);
-    let tangent_second = second.eval_derivative(second_parameter, 1);
+    let tangent_first = first.derivative(first_parameter, 1);
+    let tangent_second = second.derivative(second_parameter, 1);
     let sine = tangent_first.cross(tangent_second).magnitude()
         / (tangent_first.magnitude() * tangent_second.magnitude());
     if sine <= tol.angular {
@@ -241,7 +241,7 @@ const SHARPEST_TOUCH_RADIUS_IN_CONFUSIONS: f64 = 100.0;
 /// derivative `speed` there: the second derivative perpendicular to the
 /// tangent, over the squared speed.
 fn curvature_vector<C: ParametricCurve>(curve: &C, parameter: f64, speed: Vector) -> Vector {
-    let acceleration = curve.eval_derivative(parameter, 2);
+    let acceleration = curve.derivative(parameter, 2);
     let unit_tangent = speed * (1.0 / speed.magnitude());
     (acceleration - unit_tangent * acceleration.dot(unit_tangent)) * (1.0 / speed.dot(speed))
 }
@@ -273,18 +273,16 @@ where
     if kept.point.distance(hit.point) <= tol.confusion {
         return true;
     }
-    let (Some(s0), Some(t0), Some(s1), Some(t1)) = (
+    let (s0, t0, s1, t1) = (
         kept.first_parameter,
         kept.second_parameter,
         hit.first_parameter,
         hit.second_parameter,
-    ) else {
-        return false;
-    };
+    );
     [0.25, 0.5, 0.75].into_iter().all(|fraction| {
         let s = s0 + (s1 - s0) * fraction;
         let t = t0 + (t1 - t0) * fraction;
-        a.eval_point(s).distance(b.eval_point(t)) <= tol.confusion
+        a.point_at(s).distance(b.point_at(t)) <= tol.confusion
     })
 }
 

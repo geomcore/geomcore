@@ -77,7 +77,7 @@ fn curve_samples(curve: &Curve) -> String {
     (0..SAMPLES_PER_CURVE)
         .map(|index| {
             let fraction = index as f64 / (SAMPLES_PER_CURVE - 1) as f64;
-            coordinates(curve.eval_point(low + (high - low) * fraction))
+            coordinates(curve.point_at(low + (high - low) * fraction))
         })
         .collect::<Vec<_>>()
         .join(" ")

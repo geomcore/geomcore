@@ -1,10 +1,10 @@
 //! The 2D axis-aligned box and the query that asks a 2D curve for it.
 
-use crate::{Point2D, Vector2D};
+use crate::{Point2D, Tolerance, Vector2D};
 
 /// An axis-aligned box in the plane: the points whose coordinates all lie
-/// between those of its [`min`](BoundingBox2D::min) and
-/// [`max`](BoundingBox2D::max) corners, edges included. The planar
+/// between those of its [`min_corner`](BoundingBox2D::min_corner) and
+/// [`max_corner`](BoundingBox2D::max_corner), edges included. The planar
 /// counterpart of [`BoundingBox`](crate::BoundingBox).
 ///
 /// A box is never empty: `min` is at most `max` on both axes. A box of a
@@ -20,7 +20,7 @@ use crate::{Point2D, Vector2D};
 /// assert!(!a.overlaps(b));
 /// // Within a distance of 1 of each other: the boxes enlarged by half of it touch.
 /// assert!(a.enlarged(0.5).overlaps(b.enlarged(0.5)));
-/// assert_eq!(a.union(b).max(), Point2D::new(4.0, 1.0));
+/// assert_eq!(a.union(b).max_corner(), Point2D::new(4.0, 1.0));
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct BoundingBox2D {
@@ -45,8 +45,8 @@ impl BoundingBox2D {
     /// use geomcore::{BoundingBox2D, Point2D};
     ///
     /// let b = BoundingBox2D::new(Point2D::new(1.0, 0.0), Point2D::new(0.0, 2.0));
-    /// assert_eq!(b.min(), Point2D::new(0.0, 0.0));
-    /// assert_eq!(b.max(), Point2D::new(1.0, 2.0));
+    /// assert_eq!(b.min_corner(), Point2D::new(0.0, 0.0));
+    /// assert_eq!(b.max_corner(), Point2D::new(1.0, 2.0));
     /// ```
     pub fn new(a: Point2D, b: Point2D) -> BoundingBox2D {
         BoundingBox2D {
@@ -65,8 +65,8 @@ impl BoundingBox2D {
     ///
     /// let points = [Point2D::new(1.0, 0.0), Point2D::new(-1.0, 2.0)];
     /// let b = BoundingBox2D::from_points(points).unwrap();
-    /// assert_eq!(b.min(), Point2D::new(-1.0, 0.0));
-    /// assert_eq!(b.max(), Point2D::new(1.0, 2.0));
+    /// assert_eq!(b.min_corner(), Point2D::new(-1.0, 0.0));
+    /// assert_eq!(b.max_corner(), Point2D::new(1.0, 2.0));
     /// assert_eq!(BoundingBox2D::from_points([]), None);
     /// ```
     pub fn from_points(points: impl IntoIterator<Item = Point2D>) -> Option<BoundingBox2D> {
@@ -83,9 +83,9 @@ impl BoundingBox2D {
     /// use geomcore::{BoundingBox2D, Point2D};
     ///
     /// let b = BoundingBox2D::new(Point2D::new(1.0, 2.0), Point2D::ORIGIN);
-    /// assert_eq!(b.min(), Point2D::ORIGIN);
+    /// assert_eq!(b.min_corner(), Point2D::ORIGIN);
     /// ```
-    pub fn min(self) -> Point2D {
+    pub fn min_corner(self) -> Point2D {
         self.min
     }
 
@@ -97,9 +97,9 @@ impl BoundingBox2D {
     /// use geomcore::{BoundingBox2D, Point2D};
     ///
     /// let b = BoundingBox2D::new(Point2D::new(1.0, 2.0), Point2D::ORIGIN);
-    /// assert_eq!(b.max(), Point2D::new(1.0, 2.0));
+    /// assert_eq!(b.max_corner(), Point2D::new(1.0, 2.0));
     /// ```
-    pub fn max(self) -> Point2D {
+    pub fn max_corner(self) -> Point2D {
         self.max
     }
 
@@ -117,8 +117,8 @@ impl BoundingBox2D {
         self.min + 0.5 * (self.max - self.min)
     }
 
-    /// The vector from the [`min`](Self::min) corner to the
-    /// [`max`](Self::max) corner: the box's size along each axis.
+    /// The vector from [`min_corner`](Self::min_corner) to
+    /// [`max_corner`](Self::max_corner): the box's size along each axis.
     ///
     /// # Examples
     ///
@@ -143,8 +143,8 @@ impl BoundingBox2D {
     /// let a = BoundingBox2D::new(Point2D::ORIGIN, Point2D::new(1.0, 1.0));
     /// let b = BoundingBox2D::new(Point2D::new(2.0, -1.0), Point2D::new(3.0, 0.0));
     /// let both = a.union(b);
-    /// assert_eq!(both.min(), Point2D::new(0.0, -1.0));
-    /// assert_eq!(both.max(), Point2D::new(3.0, 1.0));
+    /// assert_eq!(both.min_corner(), Point2D::new(0.0, -1.0));
+    /// assert_eq!(both.max_corner(), Point2D::new(3.0, 1.0));
     /// ```
     pub fn union(self, other: BoundingBox2D) -> BoundingBox2D {
         self.including(other.min).including(other.max)
@@ -161,12 +161,12 @@ impl BoundingBox2D {
     ///
     /// let b = BoundingBox2D::new(Point2D::ORIGIN, Point2D::new(4.0, 1.0));
     /// let grown = b.enlarged(0.5);
-    /// assert_eq!(grown.min(), Point2D::new(-0.5, -0.5));
-    /// assert_eq!(grown.max(), Point2D::new(4.5, 1.5));
+    /// assert_eq!(grown.min_corner(), Point2D::new(-0.5, -0.5));
+    /// assert_eq!(grown.max_corner(), Point2D::new(4.5, 1.5));
     ///
     /// let shrunk = b.enlarged(-1.0);
-    /// assert_eq!(shrunk.min(), Point2D::new(1.0, 0.5));
-    /// assert_eq!(shrunk.max(), Point2D::new(3.0, 0.5));
+    /// assert_eq!(shrunk.min_corner(), Point2D::new(1.0, 0.5));
+    /// assert_eq!(shrunk.max_corner(), Point2D::new(3.0, 0.5));
     /// ```
     pub fn enlarged(self, distance: f64) -> BoundingBox2D {
         let (min, max) = (coordinates(self.min), coordinates(self.max));
@@ -254,8 +254,8 @@ impl BoundingBox2D {
 ///
 /// let circle = Circle2D::new(Point2D::new(1.0, 0.0), 2.0).unwrap();
 /// let b = circle.bounding_box().unwrap();
-/// assert_eq!(b.min(), Point2D::new(-1.0, -2.0));
-/// assert_eq!(b.max(), Point2D::new(3.0, 2.0));
+/// assert_eq!(b.min_corner(), Point2D::new(-1.0, -2.0));
+/// assert_eq!(b.max_corner(), Point2D::new(3.0, 2.0));
 ///
 /// let line = Line2D::new(Point2D::ORIGIN, Vector2D::X).unwrap();
 /// assert_eq!(line.bounding_box(), None);
@@ -264,11 +264,25 @@ pub trait HasBoundingBox2D {
     /// The axis-aligned box bounding the curve, or `None` if the curve is
     /// unbounded.
     fn bounding_box(&self) -> Option<BoundingBox2D>;
+
+    /// The axis-aligned box bounding the curve as tightly as
+    /// `tol.confusion`: it holds the curve, and each of its sides is within
+    /// `tol.confusion` of a point of the curve. `None` if the curve is
+    /// unbounded. As [`HasBoundingBox::tight_bounding_box`](crate::HasBoundingBox::tight_bounding_box)
+    /// in the plane.
+    fn tight_bounding_box(&self, tol: Tolerance) -> Option<BoundingBox2D> {
+        let _ = tol;
+        self.bounding_box()
+    }
 }
 
 impl<T: HasBoundingBox2D + ?Sized> HasBoundingBox2D for &T {
     fn bounding_box(&self) -> Option<BoundingBox2D> {
         (**self).bounding_box()
+    }
+
+    fn tight_bounding_box(&self, tol: Tolerance) -> Option<BoundingBox2D> {
+        (**self).tight_bounding_box(tol)
     }
 }
 

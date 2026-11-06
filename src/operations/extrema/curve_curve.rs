@@ -17,8 +17,42 @@ pub struct CurveCurveExtremum {
     pub first_parameter: f64,
     /// Parameter on the second curve.
     pub second_parameter: f64,
+    /// The point of the first curve at `first_parameter`.
+    pub first_point: Point,
+    /// The point of the second curve at `second_parameter`.
+    pub second_point: Point,
     /// Distance between the two points.
     pub distance: f64,
+}
+
+impl CurveCurveExtremum {
+    /// The extremum between `first_point`, at `first_parameter` on the
+    /// first curve, and `second_point`, at `second_parameter` on the
+    /// second.
+    pub(crate) fn new(
+        first_parameter: f64,
+        first_point: Point,
+        second_parameter: f64,
+        second_point: Point,
+    ) -> Self {
+        CurveCurveExtremum {
+            first_parameter,
+            second_parameter,
+            first_point,
+            second_point,
+            distance: first_point.distance(second_point),
+        }
+    }
+
+    /// The same extremum with the curves' roles exchanged.
+    pub(crate) fn swapped(self) -> Self {
+        CurveCurveExtremum::new(
+            self.second_parameter,
+            self.second_point,
+            self.first_parameter,
+            self.first_point,
+        )
+    }
 }
 
 /// The local minima of the distance between two curves, closest first,
@@ -86,6 +120,24 @@ impl CurveCurveExtrema {
     /// ```
     pub fn minima(&self) -> &[CurveCurveExtremum] {
         &self.minima
+    }
+
+    /// The closest minimum, the first of [`minima`](Self::minima), or
+    /// `None` when there is none.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Line, Point, Tolerance, Vector, curve_curve_extrema};
+    /// let l1 = Line::new(Point::ORIGIN, Vector::X).unwrap();
+    /// let l2 = Line::new(Point::new(0.0, 0.0, 1.0), Vector::Y).unwrap();
+    /// let closest = curve_curve_extrema(&l1, &l2, Tolerance::DEFAULT).closest().copied().unwrap();
+    /// assert_eq!(closest.first_point, Point::ORIGIN);
+    /// assert_eq!(closest.second_point, Point::new(0.0, 0.0, 1.0));
+    /// assert_eq!(closest.distance, 1.0);
+    /// ```
+    pub fn closest(&self) -> Option<&CurveCurveExtremum> {
+        self.minima.first()
     }
 
     /// The minima, closest first, without the completeness.
@@ -198,7 +250,7 @@ impl ParameterDomain {
                 .collect(),
             ParameterDomain::Interval(lo, hi) => {
                 let u0 = self.reference();
-                let (p0, d1) = curve.eval_d1(u0);
+                let (p0, d1) = curve.first_derivatives(u0);
                 let speed = d1.magnitude();
                 let first = scale / (16.0 * speed);
                 let first = if first.is_finite() && first > 0.0 {
@@ -216,7 +268,7 @@ impl ParameterDomain {
                             break;
                         }
                         seeds.push(u);
-                        if curve.eval_point(u).distance(p0) >= SEED_REACH * scale {
+                        if curve.point_at(u).distance(p0) >= SEED_REACH * scale {
                             break;
                         }
                         step *= 1.25;
@@ -259,7 +311,7 @@ impl Straight {
             ParameterDomain::Interval(..) => REACH.iter().flat_map(|&r| [-r, r]).collect(),
         };
         let u0 = dom.reference();
-        let (origin, dir) = curve.eval_d1(u0);
+        let (origin, dir) = curve.first_derivatives(u0);
         let line = Straight { u0, origin, dir };
         if line.dir.magnitude() <= 0.0 {
             return None;
@@ -268,7 +320,7 @@ impl Straight {
         probes
             .into_iter()
             .all(|u| {
-                let (p, q) = (curve.eval_point(u), line.point(u));
+                let (p, q) = (curve.point_at(u), line.point(u));
                 p.distance(q) <= 1e-12 * (size(p) + size(line.origin) + p.distance(line.origin))
             })
             .then_some(line)
@@ -290,11 +342,7 @@ where
     A: ParametricCurve,
     B: ParametricCurve,
 {
-    CurveCurveExtremum {
-        first_parameter: s,
-        second_parameter: t,
-        distance: a.eval_point(s).distance(b.eval_point(t)),
-    }
+    CurveCurveExtremum::new(s, a.point_at(s), t, b.point_at(t))
 }
 
 /// Generic closest-point enumeration between two 3D curves: every local
@@ -421,11 +469,7 @@ where
         (Some(la), None) if da.is_unbounded() => line_curve_minima(a, la, b, db, tol),
         (None, Some(lb)) if db.is_unbounded() => line_curve_minima(b, lb, a, da, tol)
             .into_iter()
-            .map(|e| CurveCurveExtremum {
-                first_parameter: e.second_parameter,
-                second_parameter: e.first_parameter,
-                distance: e.distance,
-            })
+            .map(CurveCurveExtremum::swapped)
             .collect(),
         _ => refine_minima(a, da, b, db, box_seeds(a, da, b, db), tol),
     };
@@ -506,7 +550,7 @@ where
     // Half the squared distance to the line, its first two derivatives
     // along the curve, and the curve's speed.
     let local = |t: f64| {
-        let (p, c1, c2) = curve.eval_d2(t);
+        let (p, c1, c2) = curve.second_derivatives(t);
         let r = perp(p - line.origin);
         let c1p = perp(c1);
         (
@@ -514,9 +558,8 @@ where
             c1.magnitude(),
         )
     };
-    let extremum =
-        |t: f64| curve_pair_extremum(line_curve, curve, line.foot(curve.eval_point(t)), t);
-    let gap = perp(curve.eval_point(dom.reference()) - line.origin).magnitude();
+    let extremum = |t: f64| curve_pair_extremum(line_curve, curve, line.foot(curve.point_at(t)), t);
+    let gap = perp(curve.point_at(dom.reference()) - line.origin).magnitude();
     let scale = configuration_scale(gap, 0.0, curve_size(curve, dom));
     let seeds = dom.seeds(curve, scale, SEED_GRID_1D);
     let values: Vec<f64> = seeds.iter().map(|&t| local(t).0.0).collect();
@@ -539,8 +582,8 @@ where
     }
     let distance = |t: f64| {
         line_curve
-            .eval_point(line.foot(curve.eval_point(t)))
-            .distance(curve.eval_point(t))
+            .point_at(line.foot(curve.point_at(t)))
+            .distance(curve.point_at(t))
     };
     let same_valley = |p: &CurveCurveExtremum, q: &CurveCurveExtremum| {
         let dt = dom.step(p.second_parameter, q.second_parameter);
@@ -564,12 +607,12 @@ where
     B: ParametricCurve,
 {
     let gap = a
-        .eval_point(da.reference())
-        .distance(b.eval_point(db.reference()));
+        .point_at(da.reference())
+        .distance(b.point_at(db.reference()));
     let scale = configuration_scale(gap, curve_size(a, da), curve_size(b, db));
     let (ss, ts) = (da.seeds(a, scale, SEED_GRID), db.seeds(b, scale, SEED_GRID));
-    let pa: Vec<Point> = ss.iter().map(|&s| a.eval_point(s)).collect();
-    let pb: Vec<Point> = ts.iter().map(|&t| b.eval_point(t)).collect();
+    let pa: Vec<Point> = ss.iter().map(|&s| a.point_at(s)).collect();
+    let pb: Vec<Point> = ts.iter().map(|&t| b.point_at(t)).collect();
     let values: Vec<f64> = pa
         .iter()
         .flat_map(|p| pb.iter().map(move |q| p.distance(*q)))
@@ -603,11 +646,11 @@ where
         db.seeds(b, scale, SEED_GRID_1D),
     );
     for s in da.finite_ends() {
-        let on_b = edge(a.eval_point(s), &|t| b.eval_point(t), &dense_t, db);
+        let on_b = edge(a.point_at(s), &|t| b.point_at(t), &dense_t, db);
         seeds.extend(on_b.into_iter().map(|t| [s, t]));
     }
     for t in db.finite_ends() {
-        let on_a = edge(b.eval_point(t), &|s| a.eval_point(s), &dense_s, da);
+        let on_a = edge(b.point_at(t), &|s| a.point_at(s), &dense_s, da);
         seeds.extend(on_a.into_iter().map(|s| [s, t]));
     }
     // A span's closest point may sit on the end of a period.
@@ -640,7 +683,7 @@ struct Span {
 impl Span {
     fn new<C: ParametricCurve>(curve: &C, lo: f64, hi: f64, start: Point, end: Point) -> Span {
         let step = hi - lo;
-        let (middle, _, second) = curve.eval_d2(lo + 0.5 * step);
+        let (middle, _, second) = curve.second_derivatives(lo + 0.5 * step);
         let centre = start + (end - start) * 0.5;
         let deviation = 2.0
             * middle
@@ -834,8 +877,8 @@ where
     // Half the squared distance with its gradient and Hessian, and the
     // two curves' speeds.
     let local = |s: f64, t: f64| {
-        let (pa, a1, a2) = a.eval_d2(s);
-        let (pb, b1, b2) = b.eval_d2(t);
+        let (pa, a1, a2) = a.second_derivatives(s);
+        let (pb, b1, b2) = b.second_derivatives(t);
         let r = pa - pb;
         let cross = -a1.dot(b1);
         (
@@ -867,8 +910,8 @@ where
             p.distance,
             q.distance,
             |f| {
-                a.eval_point(p.first_parameter + f * ds)
-                    .distance(b.eval_point(p.second_parameter + f * dt))
+                a.point_at(p.first_parameter + f * ds)
+                    .distance(b.point_at(p.second_parameter + f * dt))
             },
             tol,
         )
@@ -877,9 +920,9 @@ where
     // parameter and its closest point on the second.
     let representative = |e: &CurveCurveExtremum| {
         let s = da.reference();
-        let p = a.eval_point(s);
+        let p = a.point_at(s);
         let objective = |t: f64| {
-            let (q, b1, b2) = b.eval_d2(t);
+            let (q, b1, b2) = b.second_derivatives(t);
             let r = p - q;
             (0.5 * r.dot(r), -r.dot(b1), b1.dot(b1) - r.dot(b2))
         };
@@ -906,13 +949,13 @@ fn configuration_scale(gap: f64, size_a: f64, size_b: f64) -> f64 {
 fn curve_size<C: ParametricCurve>(curve: &C, dom: ParameterDomain) -> f64 {
     let u0 = dom.reference();
     if dom.is_finite() {
-        let p0 = curve.eval_point(u0);
+        let p0 = curve.point_at(u0);
         dom.seeds(curve, 1.0, SEED_GRID)
             .into_iter()
-            .map(|u| curve.eval_point(u).distance(p0))
+            .map(|u| curve.point_at(u).distance(p0))
             .fold(0.0, f64::max)
     } else {
-        let (_, d1, d2) = curve.eval_d2(u0);
+        let (_, d1, d2) = curve.second_derivatives(u0);
         let bend = d1.cross(d2).magnitude();
         if bend > 0.0 {
             d1.magnitude().powi(3) / bend
