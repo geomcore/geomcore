@@ -165,10 +165,8 @@ fn surface_box<S: ParametricSurface>(surface: &S, tol: Tolerance) -> Option<Aabb
         elementary.bounding_box()?
     } else if let Some(bspline) = surface.as_bspline() {
         bspline.bounding_box()?
-    } else if let Some(revolution) = surface.as_revolution() {
-        revolution.bounding_box()?
     } else {
-        return None;
+        surface.as_revolution()?.bounding_box()?
     };
     let (min, max) = (box_.min(), box_.max());
     Some(grown([min.x, min.y, min.z, max.x, max.y, max.z], tol))
