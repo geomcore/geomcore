@@ -174,14 +174,18 @@ pub enum CylinderCylinderIntersection {
 ///
 /// The closed form needs coaxial axes (within tolerance): the tube of
 /// radius `r` meets each nappe at axial distance `r/|tan(phi)|` from the
-/// apex, two latitude circles (or the apex for a degenerate tube).
-/// Anything else is a space quartic and reports
+/// apex, two latitude circles (or the apex for a degenerate tube); or
+/// axes that meet, the cone and the cylinder touching one sphere centred
+/// there: two plane conics. Anything else is a space quartic and reports
 /// [`ConeCylinderIntersection::NotAnalytic`], reserved for the numeric
 /// surface-surface path.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ConeCylinderIntersection {
     /// One latitude circle on each nappe, the first along the cone axis.
     TwoCircles(Circle, Circle),
+    /// Axes that meet, both surfaces touching one sphere centred there:
+    /// two plane conics, each the plane's section of the cylinder.
+    TwoConics(CommonSphereConics<PlaneCylinderIntersection>),
     /// Degenerate tube (its axis) meeting the cone at the apex.
     ApexPoint(Point),
     /// No closed form for this configuration.
@@ -292,12 +296,13 @@ pub enum TorusTorusIntersection {
 
 /// Result of intersecting two cones.
 ///
-/// The closed form needs coaxial axes, or one apex: coaxial cones meet in
-/// up to two latitude rings (or apex/coincident degenerates), and cones
-/// with one apex but axes apart in up to four lines through it. Anything
-/// else is a space quartic and reports
-/// [`ConeConeIntersection::NotAnalytic`].
-#[derive(Debug, Clone, Copy, PartialEq)]
+/// The closed form needs coaxial axes, one apex, or axes that meet with
+/// both cones touching one sphere centred there: coaxial cones meet in up
+/// to two latitude rings (or apex/coincident degenerates), cones with one
+/// apex but axes apart in up to four lines through it, and cones around
+/// one sphere in two plane conics. Anything else is a space quartic and
+/// reports [`ConeConeIntersection::NotAnalytic`].
+#[derive(Debug, Clone, PartialEq)]
 pub enum ConeConeIntersection {
     /// One latitude ring (equal semi-angles, distinct apexes).
     Circle(Circle),
@@ -305,6 +310,9 @@ pub enum ConeConeIntersection {
     TwoCircles(Circle, Circle),
     /// One apex, axes apart: one to four lines through it.
     Generators(SharedGenerators),
+    /// Axes that meet, both cones touching one sphere centred there: two
+    /// plane conics, each the plane's section of the first cone.
+    TwoConics(Box<CommonSphereConics<PlaneConeIntersection>>),
     /// The cones meet only at their shared apex: coaxial with different
     /// semi-angles, or axes apart with no generator in common.
     ApexPoint(Point),
@@ -384,6 +392,65 @@ impl PartialEq for SharedGenerators {
             && self.count == other.count
             && self.directions[..count] == other.directions[..count]
             && self.tangent[..count] == other.tangent[..count]
+    }
+}
+
+/// The two plane conics where a cone meets a cylinder or another cone
+/// when their axes meet and both touch one sphere centred there, and the
+/// points where the conics cross, where the surfaces touch.
+///
+/// Each conic is a plane's section of one of the surfaces (`S`, the
+/// section type: the cylinder's for a cone and a cylinder, the first
+/// cone's for two cones). It lies on the other surface too: around a
+/// common sphere, the two surfaces' equations differ by a product of two
+/// planes. This is the geometry of pipe fittings: a cone reducing onto a
+/// cylinder, or two cones meeting at a branch.
+///
+/// # Examples
+///
+/// ```
+/// use geomcore::prelude::*;
+/// use geomcore::{
+///     Cone, ConeCylinderIntersection, Cylinder, PlaneCylinderIntersection, Point, Tolerance,
+///     Vector,
+/// };
+/// // A cylinder of radius 1 around Z, and a 30° cone around X with its
+/// // apex 2 from the origin: both touch the unit sphere at the origin.
+/// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
+/// let cone = Cone::new(Point::ORIGIN, Vector::X, 30f64.to_radians(), 2.0 * 30f64.to_radians().tan())
+///     .unwrap();
+/// let ConeCylinderIntersection::TwoConics(conics) = cone.intersect_exact(&cylinder, Tolerance::DEFAULT)
+/// else {
+///     panic!("expected two conics")
+/// };
+/// for section in conics.sections() {
+///     assert!(matches!(section, PlaneCylinderIntersection::Ellipse(_)));
+/// }
+/// // The conics cross where the surfaces touch, on the unit sphere.
+/// assert_eq!(conics.touching_points().len(), 2);
+/// for point in conics.touching_points() {
+///     assert!((point.distance(Point::ORIGIN) - 1.0).abs() < 1e-12);
+/// }
+/// ```
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct CommonSphereConics<S> {
+    sections: [S; 2],
+    touching_points: [Point; 2],
+    touching_count: u8,
+}
+
+impl<S> CommonSphereConics<S> {
+    /// The two plane sections. The first plane is the one whose normal
+    /// leans along the first axis minus the second, as for two equal
+    /// cylinders.
+    pub fn sections(&self) -> &[S; 2] {
+        &self.sections
+    }
+
+    /// The points where the conics cross and the surfaces touch: two, one
+    /// where the conics only touch, or none.
+    pub fn touching_points(&self) -> &[Point] {
+        &self.touching_points[..usize::from(self.touching_count)]
     }
 }
 
@@ -822,19 +889,11 @@ fn crossing_equal_cylinders(
         return None;
     }
     let (a1, a2) = (first.axis().direction(), second.axis().direction());
-    let (p1, p2) = (first.axis().origin(), second.axis().origin());
-    // The closest points p1 + s a1 and p2 + t a2 of the two axes.
-    let w = p1 - p2;
-    let c = a1.dot(a2);
-    let (d, e) = (a1.dot(w), a2.dot(w));
-    let denominator = 1.0 - c * c;
-    let s = (c * e - d) / denominator;
-    let t = (e - c * d) / denominator;
-    let (q1, q2) = (p1 + a1 * s, p2 + a2 * t);
-    if q1.distance(q2) > tol.confusion {
-        return None;
-    }
-    let center = q1 + (q2 - q1) * 0.5;
+    let center = axes_meeting_point(
+        (first.axis().origin(), a1),
+        (second.axis().origin(), a2),
+        tol,
+    )?;
     let radius = 0.5 * (r1 + r2);
     // The plane normal to `normal` holds the ellipse whose major axis is
     // along `major`, as far from the axis `a1` as `radius`.
@@ -847,6 +906,122 @@ fn crossing_equal_cylinders(
         ellipse(a1 + a2, a1 - a2)?,
         ellipse(a1 - a2, a1 + a2)?,
     ))
+}
+
+/// A cylinder or a cone around a sphere centred on its axis at `M`:
+/// with `x = X − M`, its points are those where `|x|² − ρ² = L(x)²`, with
+/// `L(x) = (x·a − offset) / cosine`. The sphere of radius `ρ` touches it
+/// along the circle where `L = 0`.
+///
+/// A cylinder of radius `r` has `L = x·a` and `ρ = r`. A cone of
+/// half-angle `φ` whose apex is at `t a` from `M` has
+/// `L = (x·a − t sin²φ) / cos φ` and `ρ = |t| sin φ`: expanding its
+/// equation `|x|² − (x·a)² = (x·a − t)² tan²φ` gives
+/// `|x|² − t² sin²φ = (x·a − t sin²φ)² / cos²φ`.
+#[derive(Clone, Copy)]
+struct AroundSphere {
+    axis: Vector,
+    offset: f64,
+    cosine: f64,
+    sphere_radius: f64,
+}
+
+impl AroundSphere {
+    fn cylinder(cylinder: &Cylinder) -> AroundSphere {
+        AroundSphere {
+            axis: cylinder.axis().direction(),
+            offset: 0.0,
+            cosine: 1.0,
+            sphere_radius: cylinder.radius(),
+        }
+    }
+
+    fn cone(cone: &Cone, centre: Point) -> AroundSphere {
+        let axis = cone.frame().z_direction();
+        let (sine, cosine) = cone.semi_angle().abs().sin_cos();
+        let apex = (cone.apex() - centre).dot(axis);
+        AroundSphere {
+            axis,
+            offset: apex * sine * sine,
+            cosine,
+            sphere_radius: apex.abs() * sine,
+        }
+    }
+}
+
+/// The point where two axes that are not parallel meet: the middle of
+/// their closest points, or `None` when those are more than
+/// `tol.confusion` apart.
+fn axes_meeting_point(
+    (p1, a1): (Point, Vector),
+    (p2, a2): (Point, Vector),
+    tol: Tolerance,
+) -> Option<Point> {
+    let w = p1 - p2;
+    let c = a1.dot(a2);
+    let (d, e) = (a1.dot(w), a2.dot(w));
+    let denominator = 1.0 - c * c;
+    let q1 = p1 + a1 * ((c * e - d) / denominator);
+    let q2 = p2 + a2 * ((e - c * d) / denominator);
+    (q1.distance(q2) <= tol.confusion).then(|| q1 + (q2 - q1) * 0.5)
+}
+
+/// The conics of two surfaces around the sphere centred at `centre`,
+/// each cut from one of them by `section`; `None` when the spheres they
+/// touch differ by more than `tol.confusion`, or the sphere is a point.
+///
+/// On both surfaces `|x|² − ρ² = L₁(x)² = L₂(x)²`, so the points lie on
+/// the plane `L₁ = L₂` or `L₁ = −L₂`; on either plane, a point of one
+/// surface is on the other. The planes meet on the line `L₁ = L₂ = 0`,
+/// where `|x| = ρ`: the conics cross where it meets the sphere, at the
+/// points where both surfaces touch it.
+fn common_sphere_conics<S>(
+    first: AroundSphere,
+    second: AroundSphere,
+    centre: Point,
+    section: impl Fn(&Plane) -> S,
+    tol: Tolerance,
+) -> Option<CommonSphereConics<S>> {
+    if (first.sphere_radius - second.sphere_radius).abs() > tol.confusion
+        || first.sphere_radius <= tol.confusion
+    {
+        return None;
+    }
+    let (a1, a2) = (first.axis, second.axis);
+    let plane = |sign: f64| {
+        let normal = a1 * (1.0 / first.cosine) - a2 * (sign / second.cosine);
+        let offset = first.offset / first.cosine - sign * second.offset / second.cosine;
+        let foot = centre + normal * (offset / normal.dot(normal));
+        Plane::new(foot, normal).ok().map(|plane| section(&plane))
+    };
+    let sections = [plane(1.0)?, plane(-1.0)?];
+    // The line where `x·a₁ = offset₁` and `x·a₂ = offset₂`, from its
+    // point nearest the centre along the direction across both axes.
+    let c = a1.dot(a2);
+    let denominator = 1.0 - c * c;
+    let nearest = a1 * ((first.offset - c * second.offset) / denominator)
+        + a2 * ((second.offset - c * first.offset) / denominator);
+    let across = a1.cross(a2).normalized()?;
+    let radius = 0.5 * (first.sphere_radius + second.sphere_radius);
+    let distance = nearest.magnitude();
+    let mut touching_points = [centre + nearest; 2];
+    let touching_count = if distance > radius + tol.confusion {
+        0
+    } else if distance >= radius - tol.confusion {
+        1
+    } else {
+        let half_chord = (radius * radius - distance * distance).sqrt();
+        touching_points = [
+            centre + nearest + across * half_chord,
+            centre + nearest - across * half_chord,
+        ];
+        2
+    };
+    Some(CommonSphereConics {
+        sections,
+        touching_points,
+        touching_count,
+    })
 }
 
 impl IntersectExact<Cone> for Cone {
@@ -863,8 +1038,11 @@ impl IntersectExact<Cone> for Cone {
     /// coincide (the axes may point either way). Apexes within
     /// `tol.confusion` and axes apart meet in the lines through the apex
     /// that lie on both, from the circles their directions trace on a
-    /// sphere around it. Anything else is
-    /// a space quartic and reports [`ConeConeIntersection::NotAnalytic`].
+    /// sphere around it. Axes that meet at a point as far from both cones
+    /// (within `tol.confusion`), and not at an apex, give two plane conics,
+    /// each the first cone's section by a plane through that point (see
+    /// [`CommonSphereConics`]). Anything else is a space quartic and
+    /// reports [`ConeConeIntersection::NotAnalytic`].
     ///
     /// # Examples
     ///
@@ -886,7 +1064,10 @@ impl IntersectExact<Cone> for Cone {
             if self.apex().distance(other.apex()) <= tol.confusion {
                 return cones_sharing_an_apex(self, other, tol);
             }
-            return ConeConeIntersection::NotAnalytic;
+            return cones_around_a_sphere(self, other, tol)
+                .map_or(ConeConeIntersection::NotAnalytic, |conics| {
+                    ConeConeIntersection::TwoConics(Box::new(conics))
+                });
         }
         let w = other.apex() - self.apex();
         if (w - a1 * w.dot(a1)).magnitude() > tol.confusion {
@@ -991,9 +1172,12 @@ impl IntersectExact<Cylinder> for Cone {
     /// coincident (direction against `tol.angular`, separation against
     /// `tol.confusion`), the tube of radius `r` meets each nappe at axial
     /// distance `r/|tan(semi_angle)|` from the apex, two latitude circles
-    /// — or just the apex for a degenerate (zero-radius) tube. Anything
-    /// else is a space quartic and reports
-    /// [`ConeCylinderIntersection::NotAnalytic`].
+    /// — or just the apex for a degenerate (zero-radius) tube. Axes that
+    /// meet at a point as far from the cone as the cylinder's radius
+    /// (within `tol.confusion`) give two plane conics, each the cylinder's
+    /// section by a plane through that point (see [`CommonSphereConics`]):
+    /// ellipses, the curves of a reducer. Anything else is a space quartic
+    /// and reports [`ConeCylinderIntersection::NotAnalytic`].
     ///
     /// # Examples
     ///
@@ -1015,7 +1199,10 @@ impl IntersectExact<Cylinder> for Cone {
         let a = self.frame().z_direction();
         let axis = cylinder.axis();
         if a.cross(axis.direction()).magnitude() > tol.angular {
-            return ConeCylinderIntersection::NotAnalytic;
+            return cone_and_cylinder_around_a_sphere(self, cylinder, tol).map_or(
+                ConeCylinderIntersection::NotAnalytic,
+                ConeCylinderIntersection::TwoConics,
+            );
         }
         let w = axis.origin() - self.apex();
         if (w - a * w.dot(a)).magnitude() > tol.confusion {
@@ -1033,6 +1220,49 @@ impl IntersectExact<Cylinder> for Cone {
         };
         ConeCylinderIntersection::TwoCircles(ring(-alpha), ring(alpha))
     }
+}
+
+/// The conics of a cone and a cylinder whose axes meet at a point as far
+/// from both, cut from the cylinder; `None` otherwise.
+fn cone_and_cylinder_around_a_sphere(
+    cone: &Cone,
+    cylinder: &Cylinder,
+    tol: Tolerance,
+) -> Option<CommonSphereConics<PlaneCylinderIntersection>> {
+    let axis = cylinder.axis();
+    let centre = axes_meeting_point(
+        (cone.apex(), cone.frame().z_direction()),
+        (axis.origin(), axis.direction()),
+        tol,
+    )?;
+    common_sphere_conics(
+        AroundSphere::cone(cone, centre),
+        AroundSphere::cylinder(cylinder),
+        centre,
+        |plane| plane.intersect_exact(cylinder, tol),
+        tol,
+    )
+}
+
+/// The conics of two cones whose axes meet at a point as far from both,
+/// not at an apex, cut from the first; `None` otherwise.
+fn cones_around_a_sphere(
+    first: &Cone,
+    second: &Cone,
+    tol: Tolerance,
+) -> Option<CommonSphereConics<PlaneConeIntersection>> {
+    let centre = axes_meeting_point(
+        (first.apex(), first.frame().z_direction()),
+        (second.apex(), second.frame().z_direction()),
+        tol,
+    )?;
+    common_sphere_conics(
+        AroundSphere::cone(first, centre),
+        AroundSphere::cone(second, centre),
+        centre,
+        |plane| plane.intersect_exact(first, tol),
+        tol,
+    )
 }
 
 impl IntersectExact<Cylinder> for Sphere {

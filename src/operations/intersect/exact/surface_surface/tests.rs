@@ -1,6 +1,7 @@
 use super::*;
 use crate::geometry::curves::ParametricCurve;
 use crate::geometry::curves::ParametricCurve2D;
+use crate::geometry::surfaces::ParametricSurface;
 use crate::{
     Circle, Cone, Curve, Cylinder, Frame, Intersect, IntersectExact, IntersectionMethod, Plane,
     Point, Sphere, Tolerance, Torus, Vector,
@@ -630,8 +631,10 @@ fn test_cone_cone_intersection() {
         c1.intersect_exact(&wide, tol),
         ConeConeIntersection::ApexPoint(c1.apex())
     );
-    // Tilted axis: space quartic, no closed form.
-    let tilted = Cone::new(Point::ORIGIN, Vector::X, 0.4, 2.0).unwrap();
+    // Tilted axis: space quartic, no closed form. (With a reference radius
+    // of 2, both cones would be as far from the origin, where the axes
+    // meet: two conics.)
+    let tilted = Cone::new(Point::ORIGIN, Vector::X, 0.4, 1.5).unwrap();
     assert_eq!(
         c1.intersect_exact(&tilted, tol),
         ConeConeIntersection::NotAnalytic
@@ -1195,4 +1198,212 @@ fn tilted_torus_and_plane(extra: f64) -> (Torus, Plane, Vector) {
 /// A plane through the origin tilted `tilt` from the z axis, about y.
 fn tilted(origin: Point, tilt: f64) -> Plane {
     Plane::new(origin, Vector::new(tilt.sin(), 0.0, tilt.cos())).unwrap()
+}
+
+/// The routed result of two surfaces around the sphere at `centre` of
+/// radius `radius`: exact and complete, `curves` curves on both surfaces,
+/// and `touching` contact points, on the sphere with the surfaces' normals
+/// parallel there.
+fn assert_common_sphere_result<A, B>(
+    first: &A,
+    second: &B,
+    (centre, radius): (Point, f64),
+    curves: usize,
+    touching: usize,
+) where
+    A: ParametricSurface + Intersect<B, Output = crate::SurfaceSurfaceIntersection>,
+    B: ParametricSurface,
+{
+    let tol = Tolerance::DEFAULT;
+    let result = first.intersect(second, tol);
+    assert_eq!(result.method(), IntersectionMethod::Exact);
+    assert!(result.is_complete());
+    assert_eq!(result.curves().len(), curves);
+    for piece in result.curves() {
+        let parameters: Vec<f64> = match piece.curve {
+            Curve::Ellipse(_) | Curve::Circle(_) => {
+                (0..16).map(|k| k as f64 * TAU / 16.0).collect()
+            }
+            _ => vec![-3.0, -1.0, 0.0, 0.5, 2.0],
+        };
+        for t in parameters {
+            let p = piece.curve.point_at(t);
+            assert!(first.contains(p, tol), "{:?} at {t}", piece.curve);
+            assert!(second.contains(p, tol), "{:?} at {t}", piece.curve);
+            // Along a tangent line, away from the apex it runs through.
+            if piece.tangent && t != 0.0 {
+                assert!(
+                    normal_sine(first, second, p) < 1e-9,
+                    "{:?} at {t}",
+                    piece.curve
+                );
+            }
+        }
+    }
+    assert_eq!(result.contact_points().len(), touching);
+    for &p in result.contact_points() {
+        assert!((p.distance(centre) - radius).abs() < 1e-12);
+        assert!(normal_sine(first, second, p) < 1e-9);
+    }
+}
+
+/// The sine of the angle between the normals of two surfaces at `p`.
+fn normal_sine(first: &dyn ParametricSurface, second: &dyn ParametricSurface, p: Point) -> f64 {
+    let tol = Tolerance::DEFAULT;
+    let normal = |surface: &dyn ParametricSurface| {
+        let (u, v) = surface.parameters_of(p, tol);
+        surface.normal(u, v, tol).unwrap()
+    };
+    normal(first).cross(normal(second)).magnitude()
+}
+
+/// A cone of half-angle `phi` whose axis, along `axis`, passes through
+/// `centre` and whose apex is `side * radius / sin(phi)` from it: as far
+/// from `centre` as `radius`.
+fn cone_around(centre: Point, radius: f64, axis: Vector, phi: f64, side: f64) -> Cone {
+    let axis = axis.normalized().unwrap();
+    cone_at(centre + axis * (side * radius / phi.sin()), axis, phi, 1.0)
+}
+
+#[test]
+fn test_cone_and_cylinder_around_one_sphere_meet_in_two_ellipses() {
+    // A cylinder of radius 1 around Z and a cone around an axis `tilt`
+    // from Z, both touching the unit sphere at the origin. The cylinder
+    // touches it along the equator and the cone along a circle `90° − φ`
+    // around its axis: they cross, and so do the ellipses, for `tilt`
+    // between `φ` and `180° − φ`.
+    let centre = Point::ORIGIN;
+    let cylinder = Cylinder::new(centre, Vector::Z, 1.0).unwrap();
+    for phi in [15.0, 30.0, 50.0] {
+        for tilt in [10.0, 40.0, 60.0, 90.0, 135.0, 160.0] {
+            if f64::abs(tilt - phi) < 1.0 || f64::abs(180.0 - tilt - phi) < 1.0 {
+                continue;
+            }
+            let touching = if tilt > phi && tilt < 180.0 - phi {
+                2
+            } else {
+                0
+            };
+            for side in [1.0, -1.0] {
+                let axis = Vector::new(
+                    f64::to_radians(tilt).sin(),
+                    0.0,
+                    f64::to_radians(tilt).cos(),
+                );
+                let cone = cone_around(centre, 1.0, axis, f64::to_radians(phi), side);
+                let tol = Tolerance::DEFAULT;
+                let ConeCylinderIntersection::TwoConics(conics) =
+                    cone.intersect_exact(&cylinder, tol)
+                else {
+                    panic!("expected two conics at φ {phi}, tilt {tilt}");
+                };
+                assert!(
+                    conics
+                        .sections()
+                        .iter()
+                        .all(|s| matches!(s, PlaneCylinderIntersection::Ellipse(_)))
+                );
+                assert_eq!(
+                    conics.touching_points().len(),
+                    touching,
+                    "φ {phi}, tilt {tilt}"
+                );
+                assert_common_sphere_result(&cone, &cylinder, (centre, 1.0), 2, touching);
+                assert_common_sphere_result(&cylinder, &cone, (centre, 1.0), 2, touching);
+            }
+        }
+    }
+}
+
+#[test]
+fn test_cones_around_one_sphere_meet_in_two_conics() {
+    // Cones of 20°..70° around Z and around axes 40°..150° from it, both
+    // touching the sphere of radius 1.5 at a point away from the origin,
+    // with their apexes on either side: ellipses, parabolas and
+    // hyperbolas, as many curves as the sections hold. Equal cones with
+    // axes `2φ` apart share a generator's direction, and the plane
+    // parallel to it cuts a parabola.
+    let centre = Point::new(1.0, -2.0, 0.5);
+    let radius = 1.5;
+    let tol = Tolerance::DEFAULT;
+    let mut kinds = std::collections::BTreeSet::new();
+    for (phi1, phi2, tilt) in [
+        (30.0, 30.0, 90.0),
+        (20.0, 45.0, 60.0),
+        (45.0, 60.0, 120.0),
+        (70.0, 25.0, 40.0),
+        (35.0, 50.0, 150.0),
+        (30.0, 30.0, 60.0),
+    ] {
+        for (side1, side2) in [(1.0, 1.0), (1.0, -1.0), (-1.0, 1.0)] {
+            let tilt = f64::to_radians(tilt);
+            let first = cone_around(centre, radius, Vector::Z, f64::to_radians(phi1), side1);
+            let axis = Vector::new(tilt.sin() * 0.6, tilt.sin() * 0.8, tilt.cos());
+            let second = cone_around(centre, radius, axis, f64::to_radians(phi2), side2);
+            let ConeConeIntersection::TwoConics(conics) = first.intersect_exact(&second, tol)
+            else {
+                panic!("expected two conics");
+            };
+            let mut curves = 0;
+            for section in conics.sections() {
+                curves += match section {
+                    PlaneConeIntersection::Ellipse(_) => 1,
+                    PlaneConeIntersection::Parabola(_) => 1,
+                    PlaneConeIntersection::Hyperbola(_, _) => 2,
+                    // The plane through the first apex: the cones touch
+                    // along the line through both apexes.
+                    PlaneConeIntersection::TangentLine(_) => 1,
+                    other => panic!("expected a conic, got {other:?}"),
+                };
+                kinds.insert(format!("{section:?}").split('(').next().unwrap().to_owned());
+            }
+            let touching = conics.touching_points().len();
+            assert_common_sphere_result(&first, &second, (centre, radius), curves, touching);
+        }
+    }
+    for kind in ["Ellipse", "Parabola", "Hyperbola", "TangentLine"] {
+        assert!(kinds.contains(kind), "{kind} missing from {kinds:?}");
+    }
+}
+
+#[test]
+fn test_surfaces_around_spheres_that_differ_are_not_conics() {
+    // The cone's sphere 2 × confusion larger than the cylinder's: the
+    // general quartic, not two conics.
+    let tol = Tolerance::DEFAULT;
+    let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
+    let off = 1.0 + 2.0 * tol.confusion;
+    let cone = cone_around(Point::ORIGIN, off, Vector::X, 0.5, 1.0);
+    assert_eq!(
+        cone.intersect_exact(&cylinder, tol),
+        ConeCylinderIntersection::NotAnalytic
+    );
+    let other = cone_around(Point::ORIGIN, 1.0, Vector::Y, 0.4, -1.0);
+    assert_eq!(
+        cone.intersect_exact(&other, tol),
+        ConeConeIntersection::NotAnalytic
+    );
+    // Within confusion: conics.
+    let near = cone_around(
+        Point::ORIGIN,
+        1.0 + 0.4 * tol.confusion,
+        Vector::X,
+        0.5,
+        1.0,
+    );
+    assert!(matches!(
+        near.intersect_exact(&cylinder, tol),
+        ConeCylinderIntersection::TwoConics(_)
+    ));
+    // Axes 2 × confusion apart: no meeting point.
+    let missing = cone_at(
+        Point::new(-2.0, 2.0 * tol.confusion, 0.0),
+        Vector::X,
+        FRAC_PI_2 / 3.0,
+        1.0,
+    );
+    assert_eq!(
+        missing.intersect_exact(&cylinder, tol),
+        ConeCylinderIntersection::NotAnalytic
+    );
 }
