@@ -11,9 +11,11 @@
 
 use super::closed_form::Ranges;
 use super::{CurveBasis, CurveTier, coincident_overlaps, in_range, kept_parameter};
+use crate::base::tier::TierPoint;
 use crate::geometry::curves::{
     Circle, Circle2D, Curve, Line, Line2D, ParametricCurve, PointExtrema,
 };
+use crate::geometry::surfaces::ParametricSurface;
 use crate::operations::intersect::results::{
     CurveCurveHitList, CurveCurveOverlapList, CurveSurfaceOverlapList,
 };
@@ -181,6 +183,17 @@ impl CylinderCylinderIntersection {
                 surface_curves([(l1, false), (l2, false)])
             }
             CylinderCylinderIntersection::TangentLine(l) => surface_curves([(l, true)]),
+            CylinderCylinderIntersection::TwoEllipses(e1, e2) => {
+                // The cylinders touch where the ellipses cross, at the ends
+                // of their shared minor axis.
+                let minor_axis = e1.frame().y_direction() * e1.minor_radius();
+                let touching = vec![e1.center() + minor_axis, e1.center() - minor_axis];
+                let curves = [e1, e2]
+                    .into_iter()
+                    .map(|ellipse| IntersectionCurve::in_space(ellipse, false))
+                    .collect();
+                Some(SurfaceSurfaceIntersection::exact(curves, touching, false))
+            }
             CylinderCylinderIntersection::Empty => surfaces_miss(),
             CylinderCylinderIntersection::Coincident => surfaces_coincide(),
             CylinderCylinderIntersection::NotAnalytic => None,
@@ -304,13 +317,13 @@ fn hit(parameter: f64, point: Point, multiplicity: u32) -> ConicSurfaceHit {
 }
 
 /// The curve meets the surface at `hits`: those outside the curve's
-/// `range` dropped, the kept ones carrying their representative in it.
-/// The surface parameters are not computed: the caller recovers them from
-/// the point if needed.
+/// `range` dropped, the kept ones carrying their representative in it and
+/// their parameters on the surface, recovered from the point.
 #[inline]
 fn curve_surface_hits(
     hits: impl IntoIterator<Item = ConicSurfaceHit>,
     curve: &impl ParametricCurve,
+    surface: &impl ParametricSurface,
     range: Option<(f64, f64)>,
     tol: Tolerance,
 ) -> CurveSurfaceIntersection {
@@ -326,8 +339,8 @@ fn curve_surface_hits(
             None => hit.parameter,
         };
         Some(CurveSurfaceHit {
-            curve_parameter: Some(curve_parameter),
-            surface_parameters: None,
+            curve_parameter,
+            surface_parameters: surface.parameters_of(hit.point, tol),
             point: hit.point,
             multiplicity: hit.multiplicity,
         })
@@ -357,12 +370,13 @@ impl LinePlaneIntersection {
     pub(super) fn into_family(
         self,
         line: &impl ParametricCurve,
+        surface: &impl ParametricSurface,
         range: Option<(f64, f64)>,
         tol: Tolerance,
     ) -> CurveSurfaceIntersection {
         match self {
             LinePlaneIntersection::Point(t, p) => {
-                curve_surface_hits([hit(t, p, 1)], line, range, tol)
+                curve_surface_hits([hit(t, p, 1)], line, surface, range, tol)
             }
             LinePlaneIntersection::Parallel => curve_misses_surface(),
             LinePlaneIntersection::Coincident => curve_on_surface(line, range),
@@ -375,18 +389,19 @@ impl LineQuadricIntersection {
     pub(super) fn into_family(
         self,
         line: &impl ParametricCurve,
+        surface: &impl ParametricSurface,
         range: Option<(f64, f64)>,
         tol: Tolerance,
     ) -> CurveSurfaceIntersection {
         match self {
             LineQuadricIntersection::TwoPoints((t1, p1), (t2, p2)) => {
-                curve_surface_hits([hit(t1, p1, 1), hit(t2, p2, 1)], line, range, tol)
+                curve_surface_hits([hit(t1, p1, 1), hit(t2, p2, 1)], line, surface, range, tol)
             }
             LineQuadricIntersection::OnePoint(t, p) => {
-                curve_surface_hits([hit(t, p, 1)], line, range, tol)
+                curve_surface_hits([hit(t, p, 1)], line, surface, range, tol)
             }
             LineQuadricIntersection::Tangent(t, p) => {
-                curve_surface_hits([hit(t, p, 2)], line, range, tol)
+                curve_surface_hits([hit(t, p, 2)], line, surface, range, tol)
             }
             LineQuadricIntersection::Empty => curve_misses_surface(),
             LineQuadricIntersection::Coincident => curve_on_surface(line, range),
@@ -399,6 +414,7 @@ impl LineTorusIntersection {
     pub(super) fn into_family(
         self,
         line: &impl ParametricCurve,
+        surface: &impl ParametricSurface,
         range: Option<(f64, f64)>,
         tol: Tolerance,
     ) -> CurveSurfaceIntersection {
@@ -407,6 +423,7 @@ impl LineTorusIntersection {
                 hits.into_iter()
                     .map(|h| hit(h.line_parameter, h.point, h.multiplicity)),
                 line,
+                surface,
                 range,
                 tol,
             ),
@@ -420,12 +437,15 @@ impl CircleSurfaceIntersection {
     pub(super) fn into_family(
         self,
         circle: &impl ParametricCurve,
+        surface: &impl ParametricSurface,
         range: Option<(f64, f64)>,
         tol: Tolerance,
     ) -> CurveSurfaceIntersection {
         match self {
             CircleSurfaceIntersection::Circle(_) => curve_on_surface(circle, range),
-            CircleSurfaceIntersection::Hits(hits) => curve_surface_hits(hits, circle, range, tol),
+            CircleSurfaceIntersection::Hits(hits) => {
+                curve_surface_hits(hits, circle, surface, range, tol)
+            }
             CircleSurfaceIntersection::Empty => curve_misses_surface(),
         }
     }
@@ -436,11 +456,14 @@ impl ConicSurfaceIntersection {
     pub(super) fn into_family(
         self,
         conic: &impl ParametricCurve,
+        surface: &impl ParametricSurface,
         range: Option<(f64, f64)>,
         tol: Tolerance,
     ) -> CurveSurfaceIntersection {
         match self {
-            ConicSurfaceIntersection::Hits(hits) => curve_surface_hits(hits, conic, range, tol),
+            ConicSurfaceIntersection::Hits(hits) => {
+                curve_surface_hits(hits, conic, surface, range, tol)
+            }
             ConicSurfaceIntersection::Coincident => curve_on_surface(conic, range),
             ConicSurfaceIntersection::Empty => curve_misses_surface(),
         }
@@ -449,31 +472,49 @@ impl ConicSurfaceIntersection {
 
 // Curve–curve, in either tier.
 
-/// A hit at `first` on the first curve and `second` on the second, each
-/// `None` when the solver did not compute it.
-#[inline]
-fn pair<P: CurveTier>(
+/// A hit as a solver finds it: its parameter on each curve, `None` where
+/// the solver found the point without it.
+#[derive(Clone, Copy)]
+struct SolvedHit<P> {
     first: Option<f64>,
     point: P,
     second: Option<f64>,
     multiplicity: u32,
-) -> GenericCurveCurveHit<P> {
-    GenericCurveCurveHit {
-        first_parameter: first,
+}
+
+impl<P: TierPoint> From<GenericCurveCurveHit<P>> for SolvedHit<P> {
+    #[inline]
+    fn from(hit: GenericCurveCurveHit<P>) -> Self {
+        pair(
+            Some(hit.first_parameter),
+            hit.point,
+            Some(hit.second_parameter),
+            hit.multiplicity,
+        )
+    }
+}
+
+/// A hit at `first` on the first curve and `second` on the second, each
+/// `None` when the solver did not compute it.
+#[inline]
+fn pair<P>(first: Option<f64>, point: P, second: Option<f64>, multiplicity: u32) -> SolvedHit<P> {
+    SolvedHit {
+        first,
         point,
-        second_parameter: second,
+        second,
         multiplicity,
     }
 }
 
 /// The curves meet at `hits`: those outside either range dropped, the
 /// kept ones carrying their representative in each range (see
-/// [`kept_parameter`]). Neither curve restricted, the solver's hits are
-/// kept as they are, with no range test.
+/// [`kept_parameter`]), and a parameter the solver did not compute
+/// recovered from the point. Neither curve restricted, every hit is kept,
+/// with no range test.
 // Always inlined: out of line, the result it builds is copied on return.
 #[inline(always)]
-fn curve_curve_hits<P: CurveTier, A: CurveBasis<P>, B: CurveBasis<P>>(
-    hits: impl IntoIterator<Item = GenericCurveCurveHit<P>>,
+fn curve_curve_hits<P: CurveTier, A: CurveBasis<P>, B: CurveBasis<P>, H: Into<SolvedHit<P>>>(
+    hits: impl IntoIterator<Item = H>,
     first: &A,
     second: &B,
     (first_range, second_range): Ranges,
@@ -482,7 +523,17 @@ fn curve_curve_hits<P: CurveTier, A: CurveBasis<P>, B: CurveBasis<P>>(
     if first_range.is_none() && second_range.is_none() {
         let mut list = InlineList::new();
         for hit in hits {
-            list.push(hit);
+            let hit: SolvedHit<P> = hit.into();
+            list.push(GenericCurveCurveHit {
+                first_parameter: hit
+                    .first
+                    .unwrap_or_else(|| first.parameter_of_point(hit.point, tol)),
+                point: hit.point,
+                second_parameter: hit
+                    .second
+                    .unwrap_or_else(|| second.parameter_of_point(hit.point, tol)),
+                multiplicity: hit.multiplicity,
+            });
         }
         return GenericCurveCurveIntersection::exact(
             CurveCurveHitList::Inline(list),
@@ -490,9 +541,10 @@ fn curve_curve_hits<P: CurveTier, A: CurveBasis<P>, B: CurveBasis<P>>(
         );
     }
     let kept = hits.into_iter().filter_map(|hit| {
+        let hit: SolvedHit<P> = hit.into();
         Some(GenericCurveCurveHit {
             first_parameter: kept_parameter(
-                hit.first_parameter,
+                hit.first,
                 first_range,
                 first.cycle_length(),
                 || first.parameter_of_point(hit.point, tol),
@@ -500,14 +552,15 @@ fn curve_curve_hits<P: CurveTier, A: CurveBasis<P>, B: CurveBasis<P>>(
                 tol,
             )?,
             second_parameter: kept_parameter(
-                hit.second_parameter,
+                hit.second,
                 second_range,
                 second.cycle_length(),
                 || second.parameter_of_point(hit.point, tol),
                 |parameter| second.speed(parameter),
                 tol,
             )?,
-            ..hit
+            point: hit.point,
+            multiplicity: hit.multiplicity,
         })
     });
     GenericCurveCurveIntersection::exact(kept.collect(), CurveCurveOverlapList::new())
@@ -531,8 +584,8 @@ fn curves_coincide<P: CurveTier, A: CurveBasis<P>, B: CurveBasis<P>>(
     let hits =
         shared.touches.iter().map(
             |&(first_parameter, second_parameter)| GenericCurveCurveHit {
-                first_parameter: Some(first_parameter),
-                second_parameter: Some(second_parameter),
+                first_parameter,
+                second_parameter,
                 point: first.point_at(first_parameter),
                 multiplicity: 1,
             },

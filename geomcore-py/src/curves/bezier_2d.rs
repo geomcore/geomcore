@@ -1,4 +1,4 @@
-//! The Python class `geomcore.curves.BezierCurve2D`, wrapping `geomcore::BezierCurve2D`.
+//! The Python class `geomcore.BezierCurve2D`, wrapping `geomcore::BezierCurve2D`.
 
 use crate::curves::*;
 use crate::method_sets::*;
@@ -7,7 +7,7 @@ use geomcore::BezierCurve2D;
 /// A Bézier curve (optionally rational) in 2D: `degree + 1` control
 /// poles over one parameter span, `[0, 1]` when built from poles. It has
 /// no knot vector: `to_bspline` gives the `BSplineCurve2D`.
-#[pyclass(name = "BezierCurve2D", module = "geomcore.curves", eq)]
+#[pyclass(name = "BezierCurve2D", module = "geomcore", eq)]
 #[derive(Clone, PartialEq)]
 pub(crate) struct PyBezierCurve2D(pub(crate) BezierCurve2D);
 
@@ -46,6 +46,18 @@ shape_methods! {
     /// The curve as a `BSplineCurve2D` over the same bounds.
     fn to_bspline(&self) -> PyBSplineCurve2D {
         PyBSplineCurve2D(self.0.to_bspline())
+    }
+
+    fn __reduce__<'py>(slf: &pyo3::Bound<'py, Self>) -> pyo3::PyResult<pyo3::Bound<'py, pyo3::types::PyTuple>> {
+        let this = slf.borrow();
+        match this.weights() {
+            Some(weights) => crate::pickling::reduce(
+                slf.as_any(),
+                Some("new_rational"),
+                (this.degree(), this.poles(), weights),
+            ),
+            None => crate::pickling::reduce(slf.as_any(), None, (this.degree(), this.poles())),
+        }
     }
 
     fn __repr__(&self) -> String {

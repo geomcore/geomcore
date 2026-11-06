@@ -225,7 +225,7 @@ fn test_line3d_intersect_torus_matches_generic() {
                 );
                 for (h, g) in hits.iter().zip(generic.iter()) {
                     assert!(
-                        (h.line_parameter - g.curve_parameter.unwrap()).abs() < 1e-6,
+                        (h.line_parameter - g.curve_parameter).abs() < 1e-6,
                         "param mismatch for line {origin:?} {dir:?}"
                     );
                     assert!(h.point.distance(g.point) < 1e-6);

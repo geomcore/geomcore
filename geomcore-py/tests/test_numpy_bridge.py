@@ -6,9 +6,17 @@ from typing import List, Sequence, Union
 import numpy
 import pytest
 
-from geomcore import Point, Point2D, Vector
-from geomcore.curves import BSplineCurve, BSplineCurve2D, Circle, Circle2D
-from geomcore.surfaces import BSplineSurface, Sphere
+from geomcore import (
+    BSplineCurve,
+    BSplineCurve2D,
+    BSplineSurface,
+    Circle,
+    Circle2D,
+    Point,
+    Point2D,
+    Sphere,
+    Vector,
+)
 
 
 def _rows(points: Sequence[Union[Point, Point2D]]) -> List[List[float]]:
@@ -100,7 +108,7 @@ def test_fitting_a_2d_curve_from_an_array_equals_fitting_from_points() -> None:
     from_points = BSplineCurve2D.approximate_within(
         [Point2D(*row) for row in samples], 3, 1e-3
     )
-    assert from_array.poles() == from_points.poles()
+    assert from_array.curve.poles() == from_points.curve.poles()
 
 
 def test_fitting_a_surface_from_a_grid_equals_fitting_from_rows() -> None:

@@ -11,9 +11,7 @@ pub(crate) mod from_curve;
 pub(crate) mod from_curve_within;
 pub(crate) mod to_curve;
 
-pub use approximation::{UvCurveApproximation, UvCurveApproximationError, uv_curve_to_3d_within};
+pub use approximation::{UvCurveTo3DApproximationError, uv_curve_to_3d_within};
 pub use from_curve::Curve3DToUvError;
-pub use from_curve_within::{
-    Curve3DToUvApproximation, Curve3DToUvApproximationError, curve_3d_to_uv_within,
-};
+pub use from_curve_within::{Curve3DToUvApproximationError, curve_3d_to_uv_within};
 pub use to_curve::UvCurveTo3DError;

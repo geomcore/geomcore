@@ -490,12 +490,10 @@ type Hit = (f64, Point, u32);
 /// searched numerically.
 fn curve_surface_hits(result: CurveSurfaceIntersection) -> Option<(bool, Vec<Hit>)> {
     (result.method() == IntersectionMethod::Exact).then(|| {
-        let hits = result.hits().iter().map(|hit| {
-            let parameter = hit
-                .curve_parameter
-                .expect("an exact hit stores its curve parameter");
-            (parameter, hit.point, hit.multiplicity)
-        });
+        let hits = result
+            .hits()
+            .iter()
+            .map(|hit| (hit.curve_parameter, hit.point, hit.multiplicity));
         (!result.overlaps().is_empty(), hits.collect())
     })
 }
@@ -569,15 +567,9 @@ fn test_curve_surface_intersection_commutes_with_mirrors() {
     assert!(checked_hits > 300, "only {checked_hits} hits checked");
 }
 
-/// A hit's parameters on both curves, recovered from its point where the
-/// exact solver did not store them.
-fn hit_parameters(hit: &CurveCurveHit, first: &Curve, second: &Curve) -> (f64, f64) {
-    (
-        hit.first_parameter
-            .unwrap_or_else(|| first.parameter_of(hit.point, Tolerance::DEFAULT)),
-        hit.second_parameter
-            .unwrap_or_else(|| second.parameter_of(hit.point, Tolerance::DEFAULT)),
-    )
+/// A hit's parameters on both curves.
+fn hit_parameters(hit: &CurveCurveHit) -> (f64, f64) {
+    (hit.first_parameter, hit.second_parameter)
 }
 
 #[test]
@@ -638,9 +630,8 @@ fn test_curve_curve_intersection_commutes_with_mirrors() {
                 };
                 checked_hits += hits.len();
                 for (hit, image_hit) in hits.iter().zip(image_hits.iter()) {
-                    let (first_parameter, second_parameter) = hit_parameters(hit, first, second);
-                    let (image_first_parameter, image_second_parameter) =
-                        hit_parameters(image_hit, &first_image, &second_image);
+                    let (first_parameter, second_parameter) = hit_parameters(hit);
+                    let (image_first_parameter, image_second_parameter) = hit_parameters(image_hit);
                     assert!(
                         (image_first_parameter - first_factor * first_parameter).abs() < 1e-8,
                         "{context}"
@@ -820,18 +811,16 @@ fn test_routed_curve_surface_intersection_commutes_with_mirrors() {
                         image_surface.project_point(hit.point, tol).distance < 1e-7,
                         "{context}"
                     );
-                    if let Some(parameter) = hit.curve_parameter {
-                        assert!(
-                            image_curve.point_at(parameter).distance(hit.point) < 1e-7,
-                            "{context}"
-                        );
-                    }
-                    if let Some((u, v)) = hit.surface_parameters {
-                        assert!(
-                            image_surface.point_at(u, v).distance(hit.point) < 1e-7,
-                            "{context}"
-                        );
-                    }
+                    let parameter = hit.curve_parameter;
+                    assert!(
+                        image_curve.point_at(parameter).distance(hit.point) < 1e-7,
+                        "{context}"
+                    );
+                    let (u, v) = hit.surface_parameters;
+                    assert!(
+                        image_surface.point_at(u, v).distance(hit.point) < 1e-7,
+                        "{context}"
+                    );
                     checked_hits += 1;
                 }
             }

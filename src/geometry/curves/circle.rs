@@ -360,6 +360,21 @@ impl Circle {
 }
 
 impl Circle2D {
+    /// Whether the circle turns counterclockwise as its parameter grows:
+    /// whether its frame is direct.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Circle2D, Frame2D, Point2D, Vector2D};
+    /// assert!(Circle2D::new(Point2D::ORIGIN, 1.0).unwrap().is_counterclockwise());
+    /// let indirect = Frame2D::new(Point2D::ORIGIN, Vector2D::X, -Vector2D::Y).unwrap();
+    /// assert!(!Circle2D::from_frame(indirect, 1.0).unwrap().is_counterclockwise());
+    /// ```
+    pub fn is_counterclockwise(&self) -> bool {
+        self.frame().is_direct()
+    }
+
     /// Creates a circle from a center and a radius, using a world-aligned
     /// frame (x/y directions matching [`Vector2D::X`]/[`Vector2D::Y`]) at
     /// `center`.

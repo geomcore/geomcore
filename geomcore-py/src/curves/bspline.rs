@@ -1,4 +1,4 @@
-//! The Python class `geomcore.curves.BSplineCurve`, wrapping `geomcore::BSplineCurve`.
+//! The Python class `geomcore.BSplineCurve`, wrapping `geomcore::BSplineCurve`.
 
 use crate::arrays::Points;
 use crate::curves::*;
@@ -7,20 +7,38 @@ use crate::method_sets::*;
 use geomcore::{BSplineCurve, Point};
 
 /// A B-spline (optionally rational, optionally periodic) curve in 3D.
-#[pyclass(name = "BSplineCurve", module = "geomcore.curves", eq)]
+#[pyclass(name = "BSplineCurve", module = "geomcore", eq)]
 #[derive(Clone, PartialEq)]
 pub(crate) struct PyBSplineCurve(pub(crate) BSplineCurve);
 
 shape_methods! {
     PyBSplineCurve: [curve, discretize, sided_evaluation];
 
+    fn __reduce__<'py>(slf: &pyo3::Bound<'py, Self>) -> pyo3::PyResult<pyo3::Bound<'py, pyo3::types::PyTuple>> {
+        let this = slf.borrow();
+        let (degree, poles, knots) = (this.degree(), this.poles(), this.knots());
+        let (multiplicities, periodic) = (this.multiplicities(), this.0.is_periodic());
+        match this.weights() {
+            Some(weights) => crate::pickling::reduce(
+                slf.as_any(),
+                Some("new_rational"),
+                (degree, poles, weights, knots, multiplicities, periodic),
+            ),
+            None => crate::pickling::reduce(
+                slf.as_any(),
+                None,
+                (degree, poles, knots, multiplicities, periodic),
+            ),
+        }
+    }
+
     fn __repr__(&self) -> String {
-        format!(
-            "BSplineCurve(degree={}, pole_count={}, rational={}, periodic={})",
-            self.0.degree(),
-            self.0.poles().len(),
-            crate::values::py_bool(self.0.is_rational()),
-            crate::values::py_bool(self.0.is_periodic())
+        bspline_repr(
+            "BSplineCurve",
+            (self.0.degree(), self.0.poles().len()),
+            (self.0.is_rational(), self.0.is_periodic()),
+            self.0.knots(),
+            self.0.multiplicities(),
         )
     }
 
@@ -124,9 +142,85 @@ shape_methods! {
         self.0.multiplicities().to_vec()
     }
 
+    /// Build a curve from its flat knot vector, the form textbooks use:
+    /// each distinct knot repeated by its multiplicity, so a non-periodic
+    /// curve of `n` poles takes `n + degree + 1` knots. `weights`, one per
+    /// pole, make it rational. The flat knots of a periodic curve are as
+    /// `flat_knots()` gives them, with no padding beyond the period.
+    #[staticmethod]
+    #[pyo3(signature = (degree, poles, flat_knots, weights = None, periodic = false))]
+    fn from_flat_knots(
+        degree: usize,
+        poles: Points<Point>,
+        flat_knots: Vec<f64>,
+        weights: Option<Vec<f64>>,
+        periodic: bool,
+    ) -> PyResult<Self> {
+        Ok(PyBSplineCurve(
+            BSplineCurve::from_flat_knots(degree, poles.0, flat_knots, weights, periodic)
+                .map_err(python_error)?,
+        ))
+    }
+
+    /// Build the clamped curve of `degree` with uniform knots over
+    /// `[0, 1]`: both end knots of multiplicity `degree + 1`, and
+    /// `len(poles) - degree - 1` simple knots between them, evenly spaced.
+    /// The curve starts at the first pole and ends at the last.
+    #[staticmethod]
+    fn clamped_uniform(degree: usize, poles: Points<Point>) -> PyResult<Self> {
+        Ok(PyBSplineCurve(
+            BSplineCurve::clamped_uniform(degree, poles.0).map_err(python_error)?,
+        ))
+    }
+
+    /// The flat knot vector: each distinct knot repeated by its
+    /// multiplicity, `len(poles) + degree + 1` knots for a non-periodic
+    /// curve.
+    fn flat_knots(&self) -> Vec<f64> {
+        self.0.flat_knots().to_vec()
+    }
+
+    /// The curve with pole `index` (negative counting from the end) moved
+    /// to `pole`, its degree, knots and weights kept.
+    fn with_pole(&self, index: isize, pole: PyPoint) -> PyResult<Self> {
+        let index = pole_index(index, self.0.poles().len())?;
+        Ok(PyBSplineCurve(self.0.with_pole(index, pole.0).map_err(python_error)?))
+    }
+
+    /// The curve with the weight of pole `index` (negative counting from
+    /// the end) set to `weight`, a positive finite number. A non-rational
+    /// curve becomes rational, every other pole weighing 1.
+    fn with_weight(&self, index: isize, weight: f64) -> PyResult<Self> {
+        let index = pole_index(index, self.0.poles().len())?;
+        Ok(PyBSplineCurve(self.0.with_weight(index, weight).map_err(python_error)?))
+    }
+
+    /// The geometric continuity order at parameter `u` (`math.inf` where
+    /// no knot constrains the shape): the shape's own smoothness,
+    /// whatever the parametrization. `continuity` reads the knot's
+    /// multiplicity, so a knot of multiplicity `degree` reports 0 even
+    /// where the poles around it keep the curve smooth.
+    ///
+    /// At a knot where `continuity` is below 2, the two sides are
+    /// compared: 1 when their unit tangents agree within `tol.angular`, 2
+    /// when their curvature vectors also agree, the osculating circles
+    /// parting by no more than `tol.confusion` across the control
+    /// polygon's size (the largest distance from the first pole). Where
+    /// the speed of a side vanishes, there is no tangent to compare and
+    /// `continuity` is returned; anywhere else too, and the geometric
+    /// order never falls below it. `tol` is `Tolerance.default()` when
+    /// omitted.
+    #[pyo3(signature = (u, tol = None))]
+    fn geometric_continuity(&self, u: f64, tol: Option<ToleranceArgument>) -> ContinuityNumber {
+        ContinuityNumber(self.0.geometric_continuity(u, tolerance(tol)))
+    }
+
     /// Least-squares B-spline fit through `points` with as few poles as
     /// keep every point within `max_deviation` of the curve at its
     /// parameter.
+    ///
+    /// Returns the curve with its `deviation`, the largest distance
+    /// between a point and the curve at its parameter, proven.
     ///
     /// `points` is a list of points or an `(N, 3)` array-like.
     ///
@@ -139,10 +233,10 @@ shape_methods! {
         degree: usize,
         max_deviation: f64,
         parametrization: PyPointParametrization,
-    ) -> PyResult<Self> {
+    ) -> PyResult<crate::approximation::PyCurveApproximation> {
         let param = geomcore::PointParametrization::from(parametrization);
         let points = points.0;
-        Ok(PyBSplineCurve(
+        Ok(crate::approximation::PyCurveApproximation(
             BSplineCurve::approximate_within(&points, degree, max_deviation, param)
                 .map_err(python_error)?,
         ))

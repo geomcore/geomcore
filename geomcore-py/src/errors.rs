@@ -83,7 +83,7 @@ create_exception!(
 );
 create_exception!(
     geomcore,
-    UvCurveApproximationError,
+    UvCurveTo3DApproximationError,
     GeomcoreError,
     "A UV curve, a curve in a surface's parameter space, has no 3D curve within the asked deviation."
 );
@@ -131,8 +131,8 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     )?;
     m.add("UvCurveTo3DError", py.get_type::<UvCurveTo3DError>())?;
     m.add(
-        "UvCurveApproximationError",
-        py.get_type::<UvCurveApproximationError>(),
+        "UvCurveTo3DApproximationError",
+        py.get_type::<UvCurveTo3DApproximationError>(),
     )?;
     m.add("SurfaceIsoError", py.get_type::<SurfaceIsoError>())?;
     m.add(
@@ -170,6 +170,7 @@ macro_rules! map_error {
 }
 
 map_error!(ConstructionError:
+    geomcore::ArcConstructionError,
     geomcore::BSplineConstructionError,
     geomcore::BezierConstructionError,
     geomcore::CircleConstructionError,
@@ -185,6 +186,7 @@ map_error!(ConstructionError:
     geomcore::SphereConstructionError,
     geomcore::TorusConstructionError,
     geomcore::TransformError,
+    geomcore::TransformMatrixError,
 );
 map_error!(FrameConstructionError: geomcore::FrameConstructionError);
 map_error!(TrimmedCurveConstructionError: geomcore::TrimmedCurveConstructionError);
@@ -196,6 +198,19 @@ map_error!(BSplineConversionError: geomcore::BSplineConversionError);
 map_error!(Curve3DToUvError: geomcore::Curve3DToUvError);
 map_error!(Curve3DToUvApproximationError: geomcore::Curve3DToUvApproximationError);
 map_error!(UvCurveTo3DError: geomcore::UvCurveTo3DError);
-map_error!(UvCurveApproximationError: geomcore::UvCurveApproximationError);
+map_error!(UvCurveTo3DApproximationError: geomcore::UvCurveTo3DApproximationError);
 map_error!(SurfaceIsoError: geomcore::SurfaceIsoError);
 map_error!(DiscretizationCriteriaError: geomcore::DiscretizationCriteriaError);
+
+/// A pole index past the end is an `IndexError`, as for a list; a weight
+/// that is not positive and finite cannot build the curve.
+impl IntoPythonError for geomcore::PoleEditError {
+    fn into_python_error(self) -> PyErr {
+        match self {
+            geomcore::PoleEditError::IndexOutOfRange => {
+                pyo3::exceptions::PyIndexError::new_err(self.to_string())
+            }
+            geomcore::PoleEditError::InvalidWeight => ConstructionError::new_err(self.to_string()),
+        }
+    }
+}

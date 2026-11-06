@@ -260,14 +260,13 @@ fn check(
     let (first, second) = operands;
     for hit in hits {
         for (parameter, curve) in [(hit.first_parameter, first), (hit.second_parameter, second)] {
-            if let Some(t) = parameter {
-                let at = curve.point_at(t);
-                assert!(
-                    at.distance(hit.point) <= 1e-7,
-                    "{label}: parameter {t} is at {at:?}, not {:?}",
-                    hit.point
-                );
-            }
+            let t = parameter;
+            let at = curve.point_at(t);
+            assert!(
+                at.distance(hit.point) <= 1e-7,
+                "{label}: parameter {t} is at {at:?}, not {:?}",
+                hit.point
+            );
         }
     }
 

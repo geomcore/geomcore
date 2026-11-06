@@ -1507,3 +1507,54 @@ fn test_marched_curves_carry_their_curves_in_parameters() {
         assert!(deviation < 10.0 * tol.confusion, "{label}: {deviation:e}");
     }
 }
+
+#[test]
+fn test_marched_curves_report_how_far_they_stray_from_the_surfaces() {
+    // A sphere cut by a slanted plane and a cylinder across a torus, at
+    // the default tolerance and a coarse one.
+    use crate::{Cylinder, Plane, Sphere, Torus};
+    let plane = Plane::new(Point::new(0.0, 0.0, 0.5), Vector::new(0.3, 0.0, 1.0)).unwrap();
+    let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
+    let torus = Torus::new(Point::ORIGIN, Vector::Z, 3.0, 1.0).unwrap();
+    let cylinder = Cylinder::new(Point::new(3.0, 0.0, 0.0), Vector::X, 0.7).unwrap();
+    for tol in [Tolerance::DEFAULT, Tolerance::new(1e-4, 1e-9, 1e-9)] {
+        assert_deviation_bounds_a_dense_sample(&plane, &sphere, tol);
+        assert_deviation_bounds_a_dense_sample(&torus, &cylinder, tol);
+    }
+}
+
+/// Asserts that every curve marched between `first` and `second` strays
+/// from them, through its curves in parameters, by no more than its
+/// deviation at 401 parameters, or than confusion where the traced points
+/// themselves are the farthest.
+fn assert_deviation_bounds_a_dense_sample<A, B>(first: &A, second: &B, tol: Tolerance)
+where
+    A: ParametricSurface,
+    B: ParametricSurface,
+{
+    use crate::geometry::curves::ParametricCurve2D;
+    let result = marching_intersection(first, second, tol);
+    assert!(!result.curves().is_empty());
+    for piece in result.curves() {
+        let (Some(on_first), Some(on_second)) = (&piece.first_uv_curve, &piece.second_uv_curve)
+        else {
+            panic!("a marched curve has both curves in parameters")
+        };
+        let (t0, t1) = piece.curve.bounds();
+        let dense = (0..=400)
+            .map(|k| {
+                let t = t0 + (t1 - t0) * f64::from(k) / 400.0;
+                let point = piece.curve.point_at(t);
+                let (a, b) = (on_first.point_at(t), on_second.point_at(t));
+                let to_first = first.point_at(a.x, a.y).distance(point);
+                to_first.max(second.point_at(b.x, b.y).distance(point))
+            })
+            .fold(0.0, f64::max);
+        assert!(0.0 < piece.deviation && piece.deviation < 1e-3);
+        assert!(
+            dense <= (1.1 * piece.deviation).max(tol.confusion),
+            "{dense} {}",
+            piece.deviation
+        );
+    }
+}

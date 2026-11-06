@@ -4,7 +4,7 @@
 use super::level_extrema::extremum_seeds;
 use super::pair::{SurfacePair, own_box, swap};
 use super::tracer::first_step;
-use crate::geometry::curves::{Circle, ElementaryCurve, ParametricCurve, PointExtrema};
+use crate::geometry::curves::{Circle, ElementaryCurve, ParametricCurve};
 use crate::geometry::surfaces::{BSplineSurface, ElementarySurface, ParametricSurface, Surface};
 use crate::math::numeric::boxtree::Aabb;
 use crate::operations::intersect::CurveSurfaceIntersection;
@@ -367,20 +367,17 @@ fn family_seeds(
             continue;
         };
         let result = other.intersect(&curve, tol);
-        let hits = result.hits().iter().map(|hit| {
-            let parameter = hit
-                .curve_parameter
-                .unwrap_or_else(|| curve.parameter_of(hit.point, tol));
-            (parameter, hit.point, hit.surface_parameters)
-        });
+        let hits = result
+            .hits()
+            .iter()
+            .map(|hit| (hit.curve_parameter, hit.point, hit.surface_parameters));
         let overlaps = result.overlaps().iter().map(|&range| {
             let parameter = point_of_range(range);
-            (parameter, curve.point_at(parameter), None)
+            let point = curve.point_at(parameter);
+            (parameter, point, other.parameters_of(point, tol))
         });
-        for (parameter, point, other_parameters) in hits.chain(overlaps) {
+        for (parameter, point, (other_u, other_v)) in hits.chain(overlaps) {
             let (u, v) = own_parameters(own, direction, value, parameter, point, tol);
-            let (other_u, other_v) =
-                other_parameters.unwrap_or_else(|| other.parameters_of(point, tol));
             seeds.push([u, v, other_u, other_v]);
         }
     }

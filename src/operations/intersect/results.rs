@@ -98,6 +98,7 @@ pub struct CurveCurveOverlap {
 /// let result = plane.intersect(&cylinder, Tolerance::DEFAULT);
 /// let piece = &result.curves()[0];
 /// assert!(!piece.tangent);
+/// assert_eq!(piece.deviation, 0.0); // an exact circle
 ///
 /// // On the cylinder, the circle is the iso-curve at v = 2, in the
 /// // circle's parameter: the point at t is the surface's at uv(t).
@@ -131,6 +132,14 @@ pub struct IntersectionCurve {
     /// parallel along it, or so nearly that moving one surface by the
     /// confusion distance makes them touch.
     pub tangent: bool,
+    /// How far `curve` strays from the surfaces through its curves in
+    /// parameters: the largest distance between `curve`'s point at `t` and
+    /// each surface's point at its UV curve's point at `t`, the tolerance
+    /// an edge along the curve needs. A marched curve samples it at the
+    /// middle of each knot span, where its fits stray furthest from the
+    /// traced points, so it can miss a larger distance elsewhere; an exact
+    /// curve is `0.0`.
+    pub deviation: f64,
 }
 
 impl IntersectionCurve {
@@ -143,23 +152,15 @@ impl IntersectionCurve {
             first_uv_curve: None,
             second_uv_curve: None,
             tangent,
+            deviation: 0.0,
         }
     }
 }
 
-/// Sorts `items` by `parameter` when every item has one, and leaves them
-/// in their order otherwise: a solver that does not compute a parameter
-/// reports its hits in its own order, and recovering the parameters only
-/// to sort would cost the work the solver skipped.
+/// Sorts `items` by `parameter`.
 #[inline]
-pub(crate) fn sort_by_known_parameter<T>(items: &mut [T], parameter: impl Fn(&T) -> Option<f64>) {
-    if items.iter().all(|item| parameter(item).is_some()) {
-        items.sort_by(|a, b| {
-            parameter(a)
-                .zip(parameter(b))
-                .map_or(std::cmp::Ordering::Equal, |(x, y)| x.total_cmp(&y))
-        });
-    }
+pub(crate) fn sort_by_parameter<T>(items: &mut [T], parameter: impl Fn(&T) -> f64) {
+    items.sort_by(|a, b| parameter(a).total_cmp(&parameter(b)));
 }
 
 /// Exchanges the two ranges of every overlap, ordered again by start on
@@ -236,10 +237,11 @@ pub struct GenericCurveCurveIntersection<P: TierPoint> {
 /// let result = line.intersect(&circle, Tolerance::DEFAULT);
 /// assert_eq!(result.method(), IntersectionMethod::Exact);
 /// assert!(result.is_complete());
-/// // The line's parameters come out of the solve; the circle's angles do not.
-/// let on_line: Vec<Option<f64>> = result.hits().iter().map(|h| h.first_parameter).collect();
-/// assert_eq!(on_line, [Some(3.0), Some(7.0)]);
-/// assert_eq!(result.hits()[0].second_parameter, None);
+/// // Each hit carries both parameters: along the line, and the circle's
+/// // angle (π at x = -2, 0 at x = 2).
+/// let on_line: Vec<f64> = result.hits().iter().map(|h| h.first_parameter).collect();
+/// assert_eq!(on_line, [3.0, 7.0]);
+/// assert!((result.hits()[0].second_parameter - std::f64::consts::PI).abs() < 1e-12);
 /// ```
 pub type CurveCurveIntersection = GenericCurveCurveIntersection<Point>;
 
@@ -257,26 +259,25 @@ pub type CurveCurveIntersection = GenericCurveCurveIntersection<Point>;
 /// let line = Line2D::new(Point2D::new(-5.0, 0.0), Vector2D::X).unwrap();
 /// let circle = Circle2D::new(Point2D::ORIGIN, 2.0).unwrap();
 /// let result = circle.intersect(&line, Tolerance::DEFAULT);
-/// // The circle's angles are not computed, so the hits keep the solver's
-/// // order, along the line: x = -2 first, then x = 2.
-/// let along_line: Vec<f64> = result.hits().iter().filter_map(|hit| hit.second_parameter).collect();
-/// assert!((along_line[0] - 3.0).abs() < 1e-9 && (along_line[1] - 7.0).abs() < 1e-9);
-/// let angle = circle.parameter_of(result.hits()[1].point, Tolerance::DEFAULT);
-/// assert!(angle.abs() < 1e-9);
+/// // The hits are sorted by the circle's angle: x = 2 at angle 0 first,
+/// // then x = -2 at angle π; the second parameter is along the line.
+/// let angles: Vec<f64> = result.hits().iter().map(|hit| hit.first_parameter).collect();
+/// assert!(angles[0].abs() < 1e-9 && (angles[1] - std::f64::consts::PI).abs() < 1e-9);
+/// let along_line: Vec<f64> = result.hits().iter().map(|hit| hit.second_parameter).collect();
+/// assert!((along_line[0] - 7.0).abs() < 1e-9 && (along_line[1] - 3.0).abs() < 1e-9);
 /// assert_eq!(result.method(), IntersectionMethod::Exact);
 /// assert!(result.is_complete());
 /// ```
 pub type CurveCurveIntersection2D = GenericCurveCurveIntersection<Point2D>;
 
 impl<P: TierPoint> GenericCurveCurveIntersection<P> {
-    /// An exact, complete result; the hits are sorted by first parameter
-    /// when every hit has one.
+    /// An exact, complete result; the hits are sorted by first parameter.
     ///
     /// It takes a whole list: the router builds it where the solver's hits
     /// are read, inlined there, and this constructor stays out of line,
     /// which measured faster than pushing the hits into the result.
     pub(crate) fn exact(mut hits: CurveCurveHitList<P>, overlaps: CurveCurveOverlapList) -> Self {
-        sort_by_known_parameter(&mut hits, |hit| hit.first_parameter);
+        sort_by_parameter(&mut hits, |hit| hit.first_parameter);
         GenericCurveCurveIntersection {
             hits,
             overlaps,
@@ -292,7 +293,7 @@ impl<P: TierPoint> GenericCurveCurveIntersection<P> {
         completeness: Completeness<CurveCurveRegion>,
     ) -> Self {
         let mut hits: CurveCurveHitList<P> = hits.into();
-        sort_by_known_parameter(&mut hits, |hit| hit.first_parameter);
+        sort_by_parameter(&mut hits, |hit| hit.first_parameter);
         GenericCurveCurveIntersection {
             hits,
             overlaps,
@@ -303,25 +304,22 @@ impl<P: TierPoint> GenericCurveCurveIntersection<P> {
 
     /// The same intersection read from the second curve: the parameters of
     /// every hit and overlap exchanged, and the hits sorted again by first
-    /// parameter when every hit has one.
+    /// parameter.
     #[inline]
     pub(crate) fn swapped(mut self) -> Self {
         for hit in self.hits.iter_mut() {
             std::mem::swap(&mut hit.first_parameter, &mut hit.second_parameter);
         }
-        sort_by_known_parameter(&mut self.hits, |hit| hit.first_parameter);
+        sort_by_parameter(&mut self.hits, |hit| hit.first_parameter);
         swap_overlaps(&mut self.overlaps);
         self
     }
 
     /// The isolated hits. A hit outside a trimmed curve's range is dropped.
     ///
-    /// A parameter is stored only where the solver computed it: always on
-    /// the numeric path, on a line against a conic for the line, and on a
-    /// trimmed curve, whose range test needs it. A missing one is `None`;
-    /// recover it with the curve's `parameter_of(hit.point)`. The hits are
-    /// sorted by first parameter when every hit has one, and come in the
-    /// solver's order otherwise.
+    /// Every hit carries its parameter on both curves: where a closed form
+    /// solves for one curve's parameter only, the other is recovered in
+    /// closed form from the point. The hits are sorted by first parameter.
     ///
     /// # Examples
     ///
@@ -337,9 +335,8 @@ impl<P: TierPoint> GenericCurveCurveIntersection<P> {
     /// let result = arc.intersect(&line, Tolerance::DEFAULT);
     /// let hit = result.hits()[0];
     /// assert_eq!(result.hits().len(), 1);
-    /// // The arc's range test computed its angle; the line's comes from the solve.
-    /// assert_eq!(hit.first_parameter, Some(0.0));
-    /// assert_eq!(hit.second_parameter, Some(7.0));
+    /// assert!(hit.first_parameter.abs() < 1e-12);
+    /// assert!((hit.second_parameter - 7.0).abs() < 1e-12);
     /// assert!(hit.point.distance(Point::new(2.0, 0.0, 0.0)) < 1e-12);
     ///
     /// // In the plane, a segment covering x in [-5, -1] meets the near side only.
@@ -348,7 +345,7 @@ impl<P: TierPoint> GenericCurveCurveIntersection<P> {
     /// let circle = Circle2D::new(Point2D::ORIGIN, 2.0).unwrap();
     /// let result = segment.intersect(&circle, Tolerance::DEFAULT);
     /// assert_eq!(result.hits().len(), 1);
-    /// let on_segment = result.hits()[0].first_parameter.unwrap();
+    /// let on_segment = result.hits()[0].first_parameter;
     /// assert!((on_segment - 3.0).abs() < 1e-9);
     /// ```
     pub fn hits(&self) -> &[GenericCurveCurveHit<P>] {
@@ -532,10 +529,10 @@ impl<P: TierPoint> GenericCurveCurveIntersection<P> {
 /// let result = line.intersect(&cylinder, Tolerance::DEFAULT);
 /// assert_eq!(result.method(), IntersectionMethod::Exact);
 /// assert!(result.is_complete());
-/// let parameters: Vec<Option<f64>> = result.hits().iter().map(|h| h.curve_parameter).collect();
-/// assert_eq!(parameters, [Some(4.0), Some(6.0)]);
-/// // The surface parameters are left to the caller.
-/// let (angle, height) = cylinder.parameters_of(result.hits()[0].point, Tolerance::DEFAULT);
+/// let parameters: Vec<f64> = result.hits().iter().map(|h| h.curve_parameter).collect();
+/// assert_eq!(parameters, [4.0, 6.0]);
+/// // Each hit carries the cylinder's angle and height too.
+/// let (angle, height) = result.hits()[0].surface_parameters;
 /// assert!((angle - std::f64::consts::PI).abs() < 1e-12 && height.abs() < 1e-12);
 /// ```
 #[derive(Debug, Clone, PartialEq)]
@@ -547,8 +544,7 @@ pub struct CurveSurfaceIntersection {
 }
 
 impl CurveSurfaceIntersection {
-    /// An exact, complete result; the hits are sorted by curve parameter
-    /// when every hit has one.
+    /// An exact, complete result; the hits are sorted by curve parameter.
     ///
     /// It pushes the hits into the result itself.
     #[inline]
@@ -565,7 +561,7 @@ impl CurveSurfaceIntersection {
         for hit in hits {
             result.hits.push(hit);
         }
-        sort_by_known_parameter(&mut result.hits, |hit| hit.curve_parameter);
+        sort_by_parameter(&mut result.hits, |hit| hit.curve_parameter);
         result
     }
 
@@ -585,12 +581,10 @@ impl CurveSurfaceIntersection {
 
     /// The isolated hits. A hit outside a trimmed curve's range is dropped.
     ///
-    /// The curve parameter is stored where the solver computed it: always
-    /// on the numeric path and for every exact pair. The surface parameters
-    /// are stored on the numeric path only, and are `None` on the exact
-    /// one; recover them with the surface's `parameters_of(hit.point)`. The
-    /// hits are sorted by curve parameter when every hit has one, and come
-    /// in the solver's order otherwise.
+    /// Every hit carries its curve parameter and the surface's parameters:
+    /// where a closed form solves along the curve only, the surface's are
+    /// recovered in closed form from the point. The hits are sorted by curve
+    /// parameter.
     ///
     /// # Examples
     ///
@@ -602,8 +596,9 @@ impl CurveSurfaceIntersection {
     /// let plane = Plane::new(Point::new(0.0, 0.0, 2.0), Vector::Z).unwrap();
     /// let result = line.intersect(&plane, Tolerance::DEFAULT);
     /// let hit = result.hits()[0];
-    /// assert_eq!(hit.curve_parameter, Some(2.0));
-    /// assert_eq!(hit.surface_parameters, None);
+    /// assert_eq!(hit.curve_parameter, 2.0);
+    /// let (u, v) = hit.surface_parameters;
+    /// assert!(u.abs() < 1e-12 && v.abs() < 1e-12);
     /// assert_eq!(hit.point, Point::new(0.0, 0.0, 2.0));
     /// assert_eq!(hit.multiplicity, 1);
     /// ```
@@ -708,7 +703,7 @@ impl CurveSurfaceIntersection {
 
 #[inline]
 fn sorted_by_curve_parameter(mut hits: CurveSurfaceHitList) -> CurveSurfaceHitList {
-    sort_by_known_parameter(&mut hits, |hit| hit.curve_parameter);
+    sort_by_parameter(&mut hits, |hit| hit.curve_parameter);
     hits
 }
 
@@ -778,24 +773,30 @@ impl SurfaceSurfaceIntersection {
         }
     }
 
-    /// The result with each exact curve's curves in parameters on `first`
-    /// and `second`, where a closed form exists (see
-    /// [`IntersectionCurve::first_uv_curve`]). A marched result has them
-    /// already. The solvers built the curves on both surfaces, so the
-    /// closed forms skip their on-surface check: it tripled the cost of a
-    /// plane cutting a cylinder.
+    /// The result with each curve's missing curves in parameters on
+    /// `first` and `second` found, where a closed form exists (see
+    /// [`IntersectionCurve::first_uv_curve`]). A marched curve has both
+    /// already, and a swept surface's plane cut has the one on the swept
+    /// surface; a curve through crossings found numerically, as a plane
+    /// cutting a spline profile's extrusion, gets them like an exact one.
+    /// The solvers built the curves on both surfaces, so the closed forms
+    /// skip their on-surface check: it tripled the cost of a plane cutting
+    /// a cylinder.
     pub(crate) fn with_exact_uv_curves(
         mut self,
         first: &impl ParametricSurface,
         second: &impl ParametricSurface,
         tol: Tolerance,
     ) -> Self {
-        if self.method == IntersectionMethod::Exact {
-            for piece in &mut self.curves {
-                let uv_curve = |surface: &dyn ParametricSurface| {
-                    checked_curve_3d_to_uv(surface, &piece.curve, tol, OnSurfaceCheck::Skipped).ok()
-                };
+        for piece in &mut self.curves {
+            let curve = &piece.curve;
+            let uv_curve = |surface: &dyn ParametricSurface| {
+                checked_curve_3d_to_uv(surface, curve, tol, OnSurfaceCheck::Skipped).ok()
+            };
+            if piece.first_uv_curve.is_none() {
                 piece.first_uv_curve = uv_curve(first);
+            }
+            if piece.second_uv_curve.is_none() {
                 piece.second_uv_curve = uv_curve(second);
             }
         }
@@ -829,9 +830,12 @@ impl SurfaceSurfaceIntersection {
         &self.curves
     }
 
-    /// The isolated points where the surfaces touch. On the numeric path,
-    /// the points where marching found them touching without a curve of
-    /// contact running on.
+    /// The points where the surfaces touch, their normals parallel, with
+    /// no curve of contact through them: isolated points, and the points
+    /// where curves cross, as the two where the ellipses of two equal
+    /// cylinders whose axes meet cross. On the numeric path, the points
+    /// where marching found them touching without a curve of contact
+    /// running on.
     ///
     /// # Examples
     ///
@@ -948,23 +952,18 @@ impl SurfaceSurfaceIntersection {
 /// One meeting of two curves of one tier: [`CurveCurveHit`] in space,
 /// [`CurveCurveHit2D`] in the plane (ADR 0014).
 ///
-/// A parameter is stored only when the solver computed it on its way to
-/// the point (a line's, or a trimmed curve's for its range test); the
-/// others are `None`, and the caller recovers one with the curve's
-/// `parameter_of(hit.point)` when it needs it.
+/// Every hit carries its parameter on both curves: an exact solver that
+/// finds the point first recovers the parameters in closed form.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct GenericCurveCurveHit<P: TierPoint> {
     /// Parameter on the first curve, in its bounds or the trimmed curve's
     /// range: the hit lies within `tol.confusion` in space of the range,
     /// and a hit just beyond an end (the seam included) reports that end.
-    /// `None` when the solver did not compute it; recover it with the
-    /// curve's `parameter_of(hit.point)`.
-    pub first_parameter: Option<f64>,
+    pub first_parameter: f64,
     /// Parameter on the second curve, in its bounds or the trimmed curve's
     /// range, within `tol.confusion` in space of the range (a hit just
-    /// beyond an end reports that end). `None` when the solver did not
-    /// compute it; recover it with the curve's `parameter_of(hit.point)`.
-    pub second_parameter: Option<f64>,
+    /// beyond an end reports that end).
+    pub second_parameter: f64,
     /// The meeting point, within tolerance of both curves.
     pub point: P,
     /// 1 where the curves cross, 2 or more where they are tangent.
@@ -979,14 +978,13 @@ pub struct GenericCurveCurveHit<P: TierPoint> {
 /// use geomcore::prelude::*;
 /// use geomcore::{Circle, Point, Tolerance, Vector};
 ///
-/// // Two coplanar circles: the solver finds the points, not the angles.
+/// // Two coplanar circles: each hit has its angle on both.
 /// let first = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
 /// let second = Circle::new(Point::new(2.0, 0.0, 0.0), Vector::Z, 2.0).unwrap();
 /// let result = first.intersect(&second, Tolerance::DEFAULT);
 /// let hit = result.hits()[0];
-/// assert_eq!(hit.first_parameter, None);
-/// let angle = first.parameter_of(hit.point, Tolerance::DEFAULT);
-/// assert!(first.point_at(angle).distance(hit.point) < 1e-12);
+/// assert!(first.point_at(hit.first_parameter).distance(hit.point) < 1e-12);
+/// assert!(second.point_at(hit.second_parameter).distance(hit.point) < 1e-12);
 /// ```
 pub type CurveCurveHit = GenericCurveCurveHit<Point>;
 
@@ -997,8 +995,8 @@ pub type CurveCurveHit = GenericCurveCurveHit<Point>;
 /// ```
 /// use geomcore::{CurveCurveHit2D, Point2D};
 /// let hit = CurveCurveHit2D {
-///     first_parameter: Some(1.0),
-///     second_parameter: None,
+///     first_parameter: 1.0,
+///     second_parameter: 0.5,
 ///     point: Point2D::new(1.0, 0.0),
 ///     multiplicity: 1,
 /// };
@@ -1008,33 +1006,31 @@ pub type CurveCurveHit2D = GenericCurveCurveHit<Point2D>;
 
 /// One meeting of a curve and a surface.
 ///
-/// The numeric search stores every parameter. An exact solver stores the
-/// curve parameter, which it solves for, and leaves the surface
-/// parameters `None`, for the caller to recover with the surface's
-/// `parameters_of(hit.point)` when it needs them.
+/// Every hit carries its parameter on the curve and its parameters on the
+/// surface: an exact solver solves for the curve's and recovers the
+/// surface's in closed form.
 ///
 /// # Examples
 ///
 /// ```
 /// use geomcore::{CurveSurfaceHit, Point};
 /// let hit = CurveSurfaceHit {
-///     curve_parameter: Some(2.0),
-///     surface_parameters: None,
+///     curve_parameter: 2.0,
+///     surface_parameters: (0.0, 1.0),
 ///     point: Point::new(2.0, 0.0, 0.0),
 ///     multiplicity: 1,
 /// };
-/// assert_eq!(hit.curve_parameter, Some(2.0));
+/// assert_eq!(hit.curve_parameter, 2.0);
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CurveSurfaceHit {
     /// Parameter on the curve, in its bounds or the trimmed curve's range,
     /// within `tol.confusion` in space of the range (a hit just beyond an
-    /// end reports that end). `None` when the solver did not compute it;
-    /// recover it with the curve's `parameter_of(hit.point)`.
-    pub curve_parameter: Option<f64>,
-    /// Parameters on the surface. `None` when the solver did not compute
-    /// them; recover them with the surface's `parameters_of(hit.point)`.
-    pub surface_parameters: Option<(f64, f64)>,
+    /// end reports that end).
+    pub curve_parameter: f64,
+    /// Parameters on the surface, `(u, v)`: at a pole or an apex, where
+    /// every `u` is the same point, the one `parameters_of` gives.
+    pub surface_parameters: (f64, f64),
     /// The meeting point (on the curve; within tolerance of the surface).
     pub point: Point,
     /// 1 where the curve crosses the surface, 2 or more where the curve is

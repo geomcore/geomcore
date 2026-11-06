@@ -12,13 +12,13 @@ fn test_intersect_curve_curve_line_circle() {
     let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
     let hits = search_curve_curve(&line, &circle, tol);
     assert_eq!(hits.len(), 2);
-    assert!((hits[0].first_parameter.unwrap() + 2.0).abs() < 1e-9);
-    assert!((hits[1].first_parameter.unwrap() - 2.0).abs() < 1e-9);
+    assert!((hits[0].first_parameter + 2.0).abs() < 1e-9);
+    assert!((hits[1].first_parameter - 2.0).abs() < 1e-9);
     // Cross-check against the exact intersection.
     match line.intersect_exact(&circle, tol) {
         LineCircleIntersection::Points((t1, _), (t2, _)) => {
-            assert!((hits[0].first_parameter.unwrap() - t1).abs() < 1e-9);
-            assert!((hits[1].first_parameter.unwrap() - t2).abs() < 1e-9);
+            assert!((hits[0].first_parameter - t1).abs() < 1e-9);
+            assert!((hits[1].first_parameter - t2).abs() < 1e-9);
         }
         _ => panic!("exact intersection expected two points"),
     }
@@ -160,7 +160,7 @@ fn finds_exact_hits<A: ParametricCurve>(
     let inside = |u: f64| u > window.0 + 1e-6 && u < window.1 - 1e-6;
     let transversal: Vec<_> = exact
         .iter()
-        .filter(|h| h.multiplicity == 1 && h.first_parameter.is_some_and(inside))
+        .filter(|h| h.multiplicity == 1 && inside(h.first_parameter))
         .collect();
     for hit in &transversal {
         if !numeric
