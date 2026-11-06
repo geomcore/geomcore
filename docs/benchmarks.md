@@ -9,11 +9,11 @@ Machine: Linux 6.17, x86-64 desktop, single thread, `cargo bench` defaults
 
 | workload | input size | time / batch | throughput |
 |---|---|---|---|
-| `Circle::eval_points` | 100 000 params | ~1.13 ms | ~88 M evals/s |
-| `BSplineCurve::eval_points` (degree 3, 20 poles, clamped) | 100 000 params | ~10.5 ms | ~9.5 M evals/s |
-| `BSplineSurface::eval_points` (bicubic, 6×6 poles) | 100 000 (u, v) pairs | ~26.1 ms | ~3.8 M evals/s |
+| `Circle::points_at` | 100 000 params | ~1.13 ms | ~88 M evals/s |
+| `BSplineCurve::points_at` (degree 3, 20 poles, clamped) | 100 000 params | ~10.5 ms | ~9.5 M evals/s |
+| `BSplineSurface::points_at` (bicubic, 6×6 poles) | 100 000 (u, v) pairs | ~26.1 ms | ~3.8 M evals/s |
 
-The internals behind `eval_points` are deliberately plain scalar loops in this
+The internals behind `points_at` are deliberately plain scalar loops in this
 proof-of-concept; the array-in/array-out API shape exists so that future bulk
 optimizations (SoA layouts, SIMD, parallel evaluation) can land behind the same
 signatures without breaking callers.
@@ -27,21 +27,21 @@ cargo bench --bench eval_throughput
 ## Points with derivatives
 
 The same bench times the point and its derivatives up to second order on
-the curve and the surface above, from separate `eval_point` and
-`eval_derivative` calls and from one `eval_d2` call, which evaluates the
+the curve and the surface above, from separate `point_at` and
+`derivative` calls and from one `second_derivatives` call, which evaluates the
 basis functions once.
 
 Machine: Linux 7.0, x86-64 desktop, single thread, `--warm-up-time 1
 --measurement-time 3` (2026-10-12). Times are per parameter.
 
-| workload | separate calls | `eval_d2` |
+| workload | separate calls | `second_derivatives` |
 |---|---|---|
 | `BSplineCurve`: point, first and second derivatives | ~172 ns | ~95 ns |
 | `BSplineSurface`: point, `Su`, `Sv`, `Suu`, `Suv`, `Svv` | ~856 ns | ~208 ns |
 
 ### First derivatives
 
-`eval_d1` on the same curve and surface, and on rational copies of them
+`first_derivatives` on the same curve and surface, and on rational copies of them
 (weights `1 + 0.5 sin i` on the curve, `1 + 0.3 sin(i + j)` on the
 surface). Non-periodic B-splines of degree 1 to 3 in every direction take
 an unrolled path that computes the basis functions and their first
@@ -54,13 +54,13 @@ Machine: Linux 7.0, x86-64 desktop, single thread, `--warm-up-time 1
 
 | workload | 0.40.1 | unrolled |
 |---|---|---|
-| `BSplineCurve::eval_d1` | ~41 ns | ~22 ns |
-| `BSplineCurve::eval_d1`, rational | ~47 ns | ~38 ns |
-| `BSplineSurface::eval_d1` | ~89 ns | ~61 ns |
-| `BSplineSurface::eval_d1`, rational | ~99 ns | ~81 ns |
+| `BSplineCurve::first_derivatives` | ~41 ns | ~22 ns |
+| `BSplineCurve::first_derivatives`, rational | ~47 ns | ~38 ns |
+| `BSplineSurface::first_derivatives` | ~89 ns | ~61 ns |
+| `BSplineSurface::first_derivatives`, rational | ~99 ns | ~81 ns |
 
 The numeric curve–curve extrema and intersection and the marching
-intersection evaluate through `eval_d1` and `eval_d2`, which made them
+intersection evaluate through `first_derivatives` and `second_derivatives`, which made them
 12–17% faster on B-splines; the numeric curve–surface intersection spent
 its time projecting seeds onto the surface and was unchanged (see
 [below](#curvesurface-intersection-on-b-splines) for its B-spline path).
@@ -299,6 +299,50 @@ as the 3D one already did: 2D circle–circle routed 321 → 247
 instructions per pair, 35 → 25 ns. The other two pairs did not move
 (1161 and 759 instructions).
 
+### Every parameter filled (#177)
+
+Hit parameters are no longer optional: the router recovers in closed
+form every parameter the solver did not compute (an `atan2` or more each),
+and the fields shrink back to plain `f64`. Against the parent commit,
+criterion medians of two runs, batches of 1000:
+
+| pair | exact | routed before | routed after |
+|---|---|---|---|
+| line–cylinder | 77–86 µs | 147 µs | 229–233 µs |
+| circle–circle (coplanar) | 42–47 µs | 88–90 µs | 201–215 µs |
+| 2D circle–circle | 7.7–8.6 µs | 55–56 µs | 111–125 µs |
+
+Callgrind instructions per batch item:
+
+| pair | routed before | routed after |
+|---|---|---|
+| line–cylinder | 1237 | 1755 |
+| circle–circle (coplanar) | 793 | 1635 |
+| 2D circle–circle | 366 | 1099 |
+
+A circle–circle pair recovers four angles (two hits on two circles), a
+line–cylinder pair two `(u, v)` pairs. The typed exact calls are unchanged,
+except conic–conic, which now fills both parameters too (ellipse–ellipse
+typed +5% instructions).
+
+### Every marched curve's deviation (#188)
+
+A marched curve now measures its `deviation` at the middle of each knot
+span: one point on the curve, one on each UV curve, and one on each
+surface. Callgrind instructions against the parent commit:
+
+| benchmark | before | after |
+|---|---|---|
+| marching torus–plane oblique | 9,065,899 | 9,681,029 (+6.8%) |
+| marching cone–cylinder unbounded | 8,456,356 | 8,935,573 (+5.7%) |
+| marching sphere–torus | 13,727,998 | 14,277,464 (+4.0%) |
+| marching B-spline surface pair | 46,848,975 | 48,193,749 (+2.9%) |
+| swept plane cuts, B-spline patch | | +2.3% to +3.9% |
+
+Sampling every knot too doubled the cost (up to +14%) for nothing: there
+the fits pass through the traced points, which the trace converged far
+below confusion.
+
 ### Surface–surface
 
 A plane at heights up to 0.9 across a unit sphere, one circle each. The
@@ -310,6 +354,16 @@ machine (load average 5–8), batches of 1024:
 | pair | exact | routed |
 |---|---|---|
 | plane–sphere | 77–82 ns | 113–120 ns |
+
+Since #193 the routed result also carries each curve in the parameters of
+both surfaces, found in closed form for an exact curve (a circle in the
+plane, a parallel line on the sphere). That doubled the routed call:
+plane–sphere about 235 ns per pair, callgrind 698 → 1729 instructions per
+batch item, of which `circle_on_surface` (the two UV curves) is 43%;
+torus–cone 1715 → 4317. A marched curve fits both UV curves on its knots
+from the parameters the march walked: 4–12% more instructions per march.
+The typed exact calls are unchanged and stay the fast path for a caller
+who needs only the curves in space.
 
 Reproduce with:
 
@@ -769,6 +823,13 @@ The count also depends on where the binary lives: the heap layout shifts the
 malloc work inside the routine, so the script copies each binary to
 `/tmp/geomcore-benchmark-budget/<bench>` and runs it from there with a fixed
 environment. Budgets and checks always use that path.
+
+The script links the binaries without RELRO (`-z norelro`), in their own
+`target/benchmark-budget` directory. LLD, rust's default linker, can lay
+the writable segment out as all RELRO, and valgrind 3.22 then reads no
+symbols from the binary, so the toggle on `Bencher::iter` collects
+nothing. The `#221` build of `marching_intersection` was the first to hit
+this; every count was re-measured with the flag.
 
 ### Running the check locally
 

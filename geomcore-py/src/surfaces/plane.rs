@@ -1,4 +1,4 @@
-//! The Python class `geomcore.surfaces.Plane`, wrapping `geomcore::Plane`.
+//! The Python class `geomcore.Plane`, wrapping `geomcore::Plane`.
 
 use crate::method_sets::*;
 use crate::surfaces::*;
@@ -6,7 +6,7 @@ use crate::values::{PyAxis, PyFrame};
 use geomcore::Plane;
 
 /// An infinite plane, parametrized by in-plane coordinates (u, v).
-#[pyclass(name = "Plane", module = "geomcore.surfaces", eq)]
+#[pyclass(name = "Plane", module = "geomcore", eq)]
 #[derive(Clone, PartialEq)]
 pub(crate) struct PyPlane(pub(crate) Plane);
 
@@ -16,6 +16,11 @@ shape_methods! {
     /// The placement frame of the plane.
     fn frame(&self) -> PyFrame {
         PyFrame(self.0.frame())
+    }
+
+    fn __reduce__<'py>(slf: &pyo3::Bound<'py, Self>) -> pyo3::PyResult<pyo3::Bound<'py, pyo3::types::PyTuple>> {
+        let this = slf.borrow();
+        crate::pickling::reduce(slf.as_any(), Some("from_frame"), (this.frame(),))
     }
 
     fn __repr__(&self) -> String {

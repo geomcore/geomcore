@@ -277,10 +277,10 @@ fn an_oblique_extrusion_keeps_a_kind_along_its_principal_axes_only() {
 fn assert_traces(image: &Curve, curve: &Curve2D, surface: &Surface, label: &str) {
     let ((image_first, image_last), (first, last)) = (image.bounds(), curve.bounds());
     for t in parameters((image_first.max(first), image_last.min(last))) {
-        let (q, dq) = curve.eval_d1(t);
-        let (expected, [su, sv]) = surface.eval_d1(q.x, q.y);
+        let (q, dq) = curve.first_derivatives(t);
+        let (expected, [su, sv]) = surface.first_derivatives(q.x, q.y);
         let expected_derivative = su * dq.x + sv * dq.y;
-        let (point, derivative) = image.eval_d1(t);
+        let (point, derivative) = image.first_derivatives(t);
         let scale = 1.0_f64.max(expected.distance(Point::ORIGIN));
         assert!(
             point.distance(expected) <= 1e-9 * scale,
@@ -372,7 +372,7 @@ fn mapping_to_uv_and_back_gives_the_curve() {
                 .uv_curve_to_3d(&uv_curve, TOL)
                 .unwrap_or_else(|error| panic!("curve {j} on surface {i}: {error}"));
             for t in parameters(curve.bounds()) {
-                let (point, expected) = (image.eval_point(t), curve.eval_point(t));
+                let (point, expected) = (image.point_at(t), curve.point_at(t));
                 assert!(
                     point.distance(expected) <= 1e-9,
                     "curve {j} on surface {i} at {t}"
@@ -577,12 +577,12 @@ fn a_bspline_on_a_plane_keeps_its_poles_weights_and_knots() {
 struct OwnPlane(Plane);
 
 impl ParametricSurface for OwnPlane {
-    fn eval_point(&self, u: f64, v: f64) -> Point {
-        self.0.eval_point(u, v)
+    fn point_at(&self, u: f64, v: f64) -> Point {
+        self.0.point_at(u, v)
     }
 
-    fn eval_derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> Vector {
-        self.0.eval_derivative(u, v, du, dv)
+    fn derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> Vector {
+        self.0.derivative(u, v, du, dv)
     }
 
     fn u_bounds(&self) -> (f64, f64) {

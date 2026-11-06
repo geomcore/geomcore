@@ -26,7 +26,7 @@ fn test_ellipse2d_from_center_and_points_orients_y_toward_s2() {
     assert_eq!(e.frame().x_direction(), Vector2D::X);
     assert_eq!(e.frame().y_direction(), -Vector2D::Y);
     assert!(
-        e.eval_point(std::f64::consts::FRAC_PI_2)
+        e.point_at(std::f64::consts::FRAC_PI_2)
             .distance(Point2D::new(0.0, -1.5))
             < 1e-12
     );
@@ -43,7 +43,7 @@ fn test_ellipse2d_projection_and_contains_agree() {
         Point2D::new(1.0, -2.0),
     ] {
         let p = e.project_point(q, tol);
-        assert!(p.point.distance(e.eval_point(p.parameter)) <= 1e-12);
+        assert!(p.point.distance(e.point_at(p.parameter)) <= 1e-12);
         assert_eq!(e.contains(q, tol), p.distance == 0.0);
     }
 }
@@ -63,7 +63,7 @@ fn test_ellipse2d_extrema_are_ordered_and_start_at_the_projection() {
 fn test_ellipse2d_seam_parameter_is_zero() {
     let tol = Tolerance::DEFAULT;
     let e = Ellipse2D::new(Point2D::ORIGIN, Vector2D::X, 3.0, 1.5).unwrap();
-    let just_before = e.eval_point(-1e-16);
+    let just_before = e.point_at(-1e-16);
     assert!(e.contains(just_before, tol));
     assert_eq!(e.project_point(just_before, tol).parameter, 0.0);
 }

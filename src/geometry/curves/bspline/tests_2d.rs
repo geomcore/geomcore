@@ -117,7 +117,7 @@ fn test_linear_eval_matches_middles() {
     };
     for i in 0..=10 {
         let u = i as f64 / 10.0;
-        let p = curve.eval_point(u);
+        let p = curve.point_at(u);
         let q = bez(u);
         assert!(p.distance(q) < 1e-12, "u={u}: {p:?} vs {q:?}");
     }
@@ -142,12 +142,12 @@ fn test_rational_quarter_circle() {
     .unwrap();
     for i in 0..=10 {
         let u = 0.5 * i as f64 / 10.0;
-        let p = curve.eval_point(u);
+        let p = curve.point_at(u);
         let r = (p.x * p.x + p.y * p.y).sqrt();
         assert!((r - 1.0).abs() < 1e-12, "u={u}: {p:?} radius {r}");
     }
     // By symmetry the middle of the span sits at 45 degrees.
-    let mid = curve.eval_point(0.5);
+    let mid = curve.point_at(0.5);
     assert!((mid.y - mid.x).abs() < 1e-12, "{mid:?}");
 }
 
@@ -155,8 +155,8 @@ fn test_rational_quarter_circle() {
 fn test_derivatives_of_linear() {
     let poles = vec![Point2D::new(0.0, 0.0), Point2D::new(2.0, 0.0)];
     let curve = BSplineCurve2D::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
-    assert_eq!(curve.eval_derivative(0.5, 1), Vector2D::new(2.0, 0.0));
-    let (point, d1) = curve.eval_d1(0.5);
+    assert_eq!(curve.derivative(0.5, 1), Vector2D::new(2.0, 0.0));
+    let (point, d1) = curve.first_derivatives(0.5);
     assert_eq!(point, Point2D::new(1.0, 0.0));
     assert_eq!(d1, Vector2D::new(2.0, 0.0));
 }
@@ -170,11 +170,11 @@ fn test_sided_at_kink() {
     ];
     let curve = BSplineCurve2D::new(1, poles, vec![0.0, 1.0, 2.0], vec![2, 1, 2], false).unwrap();
     assert_eq!(
-        curve.eval_d1_sided(1.0, Side::Below).1,
+        curve.first_derivatives_sided(1.0, Side::Below).1,
         Vector2D::new(1.0, 0.0)
     );
     assert_eq!(
-        curve.eval_d1_sided(1.0, Side::Above).1,
+        curve.first_derivatives_sided(1.0, Side::Above).1,
         Vector2D::new(0.0, 1.0)
     );
 }
@@ -196,7 +196,7 @@ fn test_insert_knot_keeps_shape() {
     assert_eq!(refined.poles().len(), 6);
     for i in 0..=20 {
         let u = i as f64 / 20.0;
-        assert!(refined.eval_point(u).distance(curve.eval_point(u)) < 1e-12);
+        assert!(refined.point_at(u).distance(curve.point_at(u)) < 1e-12);
     }
 }
 
@@ -241,7 +241,7 @@ fn test_elevate_degree_keeps_shape() {
     assert_eq!(cubic.multiplicities(), &[4, 4]);
     for i in 0..=10 {
         let u = i as f64 / 10.0;
-        assert!(cubic.eval_point(u).distance(arc.eval_point(u)) < 1e-12);
+        assert!(cubic.point_at(u).distance(arc.point_at(u)) < 1e-12);
     }
 }
 
@@ -261,7 +261,7 @@ fn test_extract_and_split() {
     assert_eq!(piece.bounds(), (0.5, 1.5));
     assert_eq!(piece.multiplicities(), &[4, 1, 4]);
     for u in [0.5, 0.8, 1.2, 1.5] {
-        assert!(piece.eval_point(u).distance(curve.eval_point(u)) < 1e-12);
+        assert!(piece.point_at(u).distance(curve.point_at(u)) < 1e-12);
     }
     let (left, right) = curve.split_at(1.0).unwrap();
     assert_eq!((left.bounds(), right.bounds()), ((0.0, 1.0), (1.0, 2.0)));
@@ -280,7 +280,7 @@ fn test_to_bezier_pieces() {
     assert_eq!(pieces.len(), 3);
     assert_eq!(pieces[1].bounds(), (1.0, 2.0));
     assert_eq!(pieces[1].poles().len(), 4);
-    assert!(pieces[1].eval_point(1.5).distance(curve.eval_point(1.5)) < 1e-12);
+    assert!(pieces[1].point_at(1.5).distance(curve.point_at(1.5)) < 1e-12);
 }
 
 #[test]
@@ -293,11 +293,8 @@ fn test_reversed_twice_is_self() {
     ];
     let curve = BSplineCurve2D::new(3, poles, vec![0.0, 1.0], vec![4, 4], false).unwrap();
     let reversed = curve.reversed();
-    assert_eq!(reversed.eval_point(0.0), curve.eval_point(1.0));
-    let (d, e) = (
-        curve.eval_derivative(0.3, 1),
-        reversed.eval_derivative(0.7, 1),
-    );
+    assert_eq!(reversed.point_at(0.0), curve.point_at(1.0));
+    let (d, e) = (curve.derivative(0.3, 1), reversed.derivative(0.7, 1));
     assert!((d + e).magnitude() < 1e-12);
     assert_eq!(reversed.reversed(), curve);
 }
@@ -318,11 +315,11 @@ fn test_periodic_axial_curve() {
     assert!(curve.is_periodic());
     assert!(curve.is_closed(Tolerance::DEFAULT));
     let (first, last) = curve.bounds();
-    assert_eq!(curve.eval_point(last), curve.eval_point(first));
+    assert_eq!(curve.point_at(last), curve.point_at(first));
     assert!(
         curve
-            .eval_point(last + 2.0)
-            .distance(curve.eval_point(first + 2.0))
+            .point_at(last + 2.0)
+            .distance(curve.point_at(first + 2.0))
             < 1e-15
     );
 }
@@ -380,11 +377,11 @@ fn test_project_non_finite_defaults() {
 fn test_parametric_curve_2d_trait_delegates() {
     let poles = vec![Point2D::new(0.0, 0.0), Point2D::new(2.0, 0.0)];
     let curve = BSplineCurve2D::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
-    let trait_point = curve.eval_point(0.25);
+    let trait_point = curve.point_at(0.25);
     assert_eq!(trait_point, Point2D::new(0.5, 0.0));
     assert_eq!(curve.period(), None);
     assert_eq!(curve.bounds(), (0.0, 1.0));
-    assert_eq!(curve.eval_points(&[0.0, 0.5])[1], Point2D::new(1.0, 0.0));
+    assert_eq!(curve.points_at(&[0.0, 0.5])[1], Point2D::new(1.0, 0.0));
     let extrema = curve.extrema(Point2D::new(1.0, 1.0), Tolerance::DEFAULT);
     assert!(!extrema.is_empty());
     assert!(!curve.is_periodic());

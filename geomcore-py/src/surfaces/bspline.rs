@@ -1,17 +1,59 @@
-//! The Python class `geomcore.surfaces.BSplineSurface`, wrapping `geomcore::BSplineSurface`.
+//! The Python class `geomcore.BSplineSurface`, wrapping `geomcore::BSplineSurface`.
 
+use crate::arrays::PointGrid;
+use crate::enums::PyPointParametrization;
 use crate::method_sets::*;
-use crate::parse_parametrization;
 use crate::surfaces::*;
 use geomcore::BSplineSurface;
 
 /// A tensor-product B-spline (optionally rational, optionally periodic) surface.
-#[pyclass(name = "BSplineSurface", module = "geomcore.surfaces", eq)]
+#[pyclass(name = "BSplineSurface", module = "geomcore", eq)]
 #[derive(Clone, PartialEq)]
 pub(crate) struct PyBSplineSurface(pub(crate) BSplineSurface);
 
 shape_methods! {
     PyBSplineSurface: [surface, sided_surface_evaluation, surface_extrema];
+
+    fn __reduce__<'py>(slf: &pyo3::Bound<'py, Self>) -> pyo3::PyResult<pyo3::Bound<'py, pyo3::types::PyTuple>> {
+        let this = slf.borrow();
+        let (u_degree, v_degree, poles) = (this.u_degree(), this.v_degree(), this.poles());
+        let (u_knots, u_multiplicities) = (this.u_knots(), this.u_multiplicities());
+        let (v_knots, v_multiplicities) = (this.v_knots(), this.v_multiplicities());
+        let (u_periodic, v_periodic) = (this.is_u_periodic(), this.is_v_periodic());
+        match this.weights() {
+            Some(weights) => crate::pickling::reduce(
+                slf.as_any(),
+                Some("new_rational"),
+                (
+                    u_degree,
+                    v_degree,
+                    poles,
+                    weights,
+                    u_knots,
+                    u_multiplicities,
+                    v_knots,
+                    v_multiplicities,
+                    u_periodic,
+                    v_periodic,
+                ),
+            ),
+            None => crate::pickling::reduce(
+                slf.as_any(),
+                None,
+                (
+                    u_degree,
+                    v_degree,
+                    poles,
+                    u_knots,
+                    u_multiplicities,
+                    v_knots,
+                    v_multiplicities,
+                    u_periodic,
+                    v_periodic,
+                ),
+            ),
+        }
+    }
 
     fn __repr__(&self) -> String {
         format!(
@@ -170,23 +212,23 @@ shape_methods! {
 
     /// Least-squares B-spline fit through the grid `points[i][j]`.
     ///
-    /// `parametrization` is `"centripetal"` (default) or `"chordal"`.
+    /// `points` is rows of `Point` objects or an `(n, m, 3)` array-like.
+    ///
+    /// `parametrization` is a `PointParametrization` or its string value,
+    /// `"centripetal"` (the default) or `"chordal"`.
     #[staticmethod]
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (points, u_degree, v_degree, u_pole_count, v_pole_count, parametrization = "centripetal"))]
+    #[pyo3(signature = (points, u_degree, v_degree, u_pole_count, v_pole_count, parametrization = PyPointParametrization::Centripetal))]
     fn approximate(
-        points: Vec<Vec<PyPoint>>,
+        points: PointGrid,
         u_degree: usize,
         v_degree: usize,
         u_pole_count: usize,
         v_pole_count: usize,
-        parametrization: &str,
+        parametrization: PyPointParametrization,
     ) -> PyResult<Self> {
-        let param = parse_parametrization(parametrization)?;
-        let points = points
-            .into_iter()
-            .map(|row| row.into_iter().map(|p| p.0).collect())
-            .collect::<Vec<Vec<_>>>();
+        let param = geomcore::PointParametrization::from(parametrization);
+        let points = points.0;
         Ok(PyBSplineSurface(
             BSplineSurface::approximate(
                 &points,
@@ -204,23 +246,26 @@ shape_methods! {
     /// few poles as keep every point within `max_deviation` of the
     /// surface.
     ///
-    /// `parametrization` is `"centripetal"` (default) or `"chordal"`.
+    /// Returns the surface with its `deviation`, the largest distance
+    /// between a point and the surface at its parameters, proven.
+    ///
+    /// `points` is rows of `Point` objects or an `(n, m, 3)` array-like.
+    ///
+    /// `parametrization` is a `PointParametrization` or its string value,
+    /// `"centripetal"` (the default) or `"chordal"`.
     #[staticmethod]
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (points, u_degree, v_degree, max_deviation, parametrization = "centripetal"))]
+    #[pyo3(signature = (points, u_degree, v_degree, max_deviation, parametrization = PyPointParametrization::Centripetal))]
     fn approximate_within(
-        points: Vec<Vec<PyPoint>>,
+        points: PointGrid,
         u_degree: usize,
         v_degree: usize,
         max_deviation: f64,
-        parametrization: &str,
-    ) -> PyResult<Self> {
-        let param = parse_parametrization(parametrization)?;
-        let points = points
-            .into_iter()
-            .map(|row| row.into_iter().map(|p| p.0).collect())
-            .collect::<Vec<Vec<_>>>();
-        Ok(PyBSplineSurface(
+        parametrization: PyPointParametrization,
+    ) -> PyResult<crate::approximation::PySurfaceApproximation> {
+        let param = geomcore::PointParametrization::from(parametrization);
+        let points = points.0;
+        Ok(crate::approximation::PySurfaceApproximation(
             BSplineSurface::approximate_within(&points, u_degree, v_degree, max_deviation, param)
                 .map_err(python_error)?,
         ))

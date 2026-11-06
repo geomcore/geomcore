@@ -37,7 +37,7 @@ fn test_circle2d_from_frame_negative_radius_errors() {
 #[test]
 fn test_circle2d_eval_point_zero() {
     let c = Circle2D::new(Point2D::ORIGIN, 2.0).unwrap();
-    let p = c.eval_point(0.0);
+    let p = c.point_at(0.0);
     assert!((p.x - 2.0).abs() < 1e-9);
     assert!(p.y.abs() < 1e-9);
 }
@@ -46,14 +46,14 @@ fn test_circle2d_eval_point_zero() {
 fn test_circle2d_eval_points_matches_loop() {
     let c = Circle2D::new(Point2D::ORIGIN, 2.0).unwrap();
     let us = [0.0, 0.5, 1.5];
-    let expected: Vec<Point2D> = us.iter().map(|&u| c.eval_point(u)).collect();
-    assert_eq!(c.eval_points(&us), expected);
+    let expected: Vec<Point2D> = us.iter().map(|&u| c.point_at(u)).collect();
+    assert_eq!(c.points_at(&us), expected);
 }
 
 #[test]
 fn test_circle2d_eval_derivative_order1() {
     let c = Circle2D::new(Point2D::ORIGIN, 2.0).unwrap();
-    let d1 = c.eval_derivative(0.0, 1);
+    let d1 = c.derivative(0.0, 1);
     assert!(d1.x.abs() < 1e-9);
     assert!((d1.y - 2.0).abs() < 1e-9);
 }
@@ -62,14 +62,14 @@ fn test_circle2d_eval_derivative_order1() {
 #[should_panic]
 fn test_circle2d_eval_derivative_order0_panics() {
     let c = Circle2D::new(Point2D::ORIGIN, 2.0).unwrap();
-    c.eval_derivative(0.0, 0);
+    c.derivative(0.0, 0);
 }
 
 #[test]
 fn test_circle2d_parameter_of_round_trip() {
     let c = Circle2D::new(Point2D::ORIGIN, 2.0).unwrap();
     for u in [0.3, 2.0, 5.5] {
-        let p = c.eval_point(u);
+        let p = c.point_at(u);
         assert!((c.parameter_of(p, Tolerance::DEFAULT) - u).abs() < 1e-9);
     }
 }
@@ -79,7 +79,7 @@ fn test_circle2d_from_frame_arbitrary() {
     let frame = Frame2D::from_x(Point2D::new(1.0, -2.0), Vector2D::new(3.0, 4.0)).unwrap();
     let c = Circle2D::from_frame(frame, 2.5).unwrap();
     for u in [0.3, 2.0, 5.5] {
-        let p = c.eval_point(u);
+        let p = c.point_at(u);
         assert!((c.parameter_of(p, Tolerance::DEFAULT) - u).abs() < 1e-9);
     }
 }
@@ -89,7 +89,7 @@ fn test_circle2d_contains() {
     let circle = Circle2D::new(Point2D::ORIGIN, 2.0).unwrap();
     let tol = Tolerance::DEFAULT;
     assert!(circle.contains(Point2D::new(2.0, 0.0), tol));
-    assert!(circle.contains(circle.eval_point(1.0), tol));
+    assert!(circle.contains(circle.point_at(1.0), tol));
     assert!(!circle.contains(Point2D::ORIGIN, tol));
     assert!(!circle.contains(Point2D::new(3.0, 0.0), tol));
 }

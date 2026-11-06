@@ -25,14 +25,17 @@
 //! result: that path never runs numeric work, and a spline profile's
 //! crossings need it.
 
-use std::f64::consts::PI;
+use std::f64::consts::{PI, TAU};
 
 use super::Intersect;
-use crate::geometry::curves::{Circle, Curve, Line, ParametricCurve, PointExtrema};
+use crate::geometry::curves::{
+    Circle, Curve, Curve2D, Line, Line2D, ParametricCurve, PointExtrema,
+};
 use crate::geometry::surfaces::{ExtrusionSurface, Plane, RevolutionSurface};
+use crate::math::elementary::curve::in_period;
 use crate::operations::intersect::results::{IntersectionCurve, SurfaceSurfaceIntersection};
 use crate::operations::intersect::{Completeness, CurveSurfaceHit, IntersectionMethod};
-use crate::{Frame, Point, Tolerance};
+use crate::{Frame, Point, Point2D, Tolerance, Vector2D};
 
 /// Samples compared to tell the two halves of a meridian cut apart.
 const MERIDIAN_SAMPLES: usize = 33;
@@ -46,35 +49,71 @@ pub(crate) enum Swept<'a> {
     Revolution(&'a RevolutionSurface),
 }
 
+/// Which operand the swept surface is, so each cut puts the curve in the
+/// swept surface's parameters, known from the cut, in its slot.
+#[derive(Clone, Copy)]
+pub(crate) enum SweptSide {
+    /// The swept surface is the first operand.
+    First,
+    /// The swept surface is the second operand.
+    Second,
+}
+
 /// The intersection of a plane and a swept surface when their position
-/// has a closed form; `None` otherwise. The result is the same in either
-/// order of the operands.
+/// has a closed form; `None` otherwise. The curves are the same in either
+/// order of the operands; the curve in the swept surface's parameters is
+/// set where the cut knows it, on the `side` the swept surface is, and
+/// the plane's is found after (see
+/// [`SurfaceSurfaceIntersection::with_exact_uv_curves`]).
 pub(super) fn swept_plane_intersection(
     plane: &Plane,
     swept: Swept<'_>,
+    side: SweptSide,
     tol: Tolerance,
 ) -> Option<SurfaceSurfaceIntersection> {
     match swept {
-        Swept::Extrusion(surface) => extrusion_cut(surface, plane, tol),
-        Swept::Revolution(surface) => revolution_cut(surface, plane, tol),
+        Swept::Extrusion(surface) => extrusion_cut(surface, plane, side, tol),
+        Swept::Revolution(surface) => revolution_cut(surface, plane, side, tol),
     }
+}
+
+/// The cut along `curve`, with `on_swept`, its curve in the swept
+/// surface's parameters, on `side`.
+fn cut(
+    curve: impl Into<Curve>,
+    tangent: bool,
+    on_swept: Option<Line2D>,
+    side: SweptSide,
+) -> IntersectionCurve {
+    let mut piece = IntersectionCurve::in_space(curve, tangent);
+    let slot = match side {
+        SweptSide::First => &mut piece.first_uv_curve,
+        SweptSide::Second => &mut piece.second_uv_curve,
+    };
+    *slot = on_swept.map(Curve2D::Line);
+    piece
+}
+
+/// The iso-line through `(u, v)` running along `direction` at rate 1.
+fn iso_line(u: f64, v: f64, direction: Vector2D) -> Option<Line2D> {
+    Line2D::new(Point2D::new(u, v), direction).ok()
 }
 
 fn extrusion_cut(
     surface: &ExtrusionSurface,
     plane: &Plane,
+    side: SweptSide,
     tol: Tolerance,
 ) -> Option<SurfaceSurfaceIntersection> {
     let direction = surface.direction();
     if plane.axis().direction().dot(direction).abs() > tol.angular {
         // Every generator line crosses the plane once, and transversally.
+        // The curve climbs the surface unless the profile lies in a plane
+        // parallel to the cut; `curve_3d_to_uv` tells the two apart.
         let curve = surface.carried_onto(plane)?;
-        let cut = IntersectionCurve {
-            curve,
-            tangent: false,
-        };
+        let carried = IntersectionCurve::in_space(curve, false);
         return Some(SurfaceSurfaceIntersection::exact(
-            vec![cut],
+            vec![carried],
             Vec::new(),
             false,
         ));
@@ -92,11 +131,10 @@ fn extrusion_cut(
             continue;
         }
         let line = Line::new(hit.point, direction).ok()?;
+        // The line starts on the profile, at its crossing parameter.
+        let on_swept = iso_line(hit.curve_parameter, 0.0, Vector2D::new(0.0, 1.0));
         through.push(hit.point);
-        curves.push(IntersectionCurve {
-            curve: line.into(),
-            tangent,
-        });
+        curves.push(cut(line, tangent, on_swept, side));
     }
     Some(finished(curves, Vec::new(), method))
 }
@@ -104,16 +142,17 @@ fn extrusion_cut(
 fn revolution_cut(
     surface: &RevolutionSurface,
     plane: &Plane,
+    side: SweptSide,
     tol: Tolerance,
 ) -> Option<SurfaceSurfaceIntersection> {
     let (axis, normal) = (surface.axis(), plane.axis().direction());
     if normal.cross(axis.direction()).magnitude() <= tol.angular {
-        return parallel_cut(surface, plane, tol);
+        return parallel_cut(surface, plane, side, tol);
     }
     let through_axis = normal.dot(axis.direction()).abs() <= tol.angular
         && (axis.origin() - plane.frame().origin()).dot(normal).abs() <= tol.confusion;
     if through_axis {
-        meridian_cut(surface, plane, tol)
+        meridian_cut(surface, plane, side, tol)
     } else {
         None
     }
@@ -124,6 +163,7 @@ fn revolution_cut(
 fn parallel_cut(
     surface: &RevolutionSurface,
     plane: &Plane,
+    side: SweptSide,
     tol: Tolerance,
 ) -> Option<SurfaceSurfaceIntersection> {
     let (hits, method) = crossings(surface.profile(), plane, tol)?;
@@ -157,11 +197,11 @@ fn parallel_cut(
         }
         let frame = Frame::new(center, along, radial).ok()?;
         let circle = Circle::from_frame(frame, radius).ok()?;
+        // The circle starts at the crossing, the profile's point at `v`,
+        // and turns with the axis: `u` runs from 0 at rate 1.
+        let on_swept = iso_line(0.0, hit.curve_parameter, Vector2D::new(1.0, 0.0));
         circles.push((center, radius));
-        curves.push(IntersectionCurve {
-            curve: circle.into(),
-            tangent,
-        });
+        curves.push(cut(circle, tangent, on_swept, side));
     }
     Some(finished(curves, contacts, method))
 }
@@ -173,6 +213,7 @@ fn parallel_cut(
 fn meridian_cut(
     surface: &RevolutionSurface,
     plane: &Plane,
+    side: SweptSide,
     tol: Tolerance,
 ) -> Option<SurfaceSurfaceIntersection> {
     let reference = surface.meridian_reference()?;
@@ -180,17 +221,12 @@ fn meridian_cut(
     let angle = reference.angle_with_reference(plane.axis().direction().cross(along), along);
     let first = surface.u_iso(angle).ok()?;
     let second = surface.u_iso(angle + PI).ok()?;
-    let mut curves = vec![IntersectionCurve {
-        curve: first.clone(),
-        tangent: false,
-    }];
+    let meridian = |turn: f64| iso_line(in_period(turn, 0.0, TAU), 0.0, Vector2D::new(0.0, 1.0));
+    let mut curves = vec![cut(first.clone(), false, meridian(angle), side)];
     // A profile symmetric about the axis (a sphere's circle, a paraboloid's
     // parabola) turns onto itself: one curve.
     if !lies_on(&second, &first, tol) {
-        curves.push(IntersectionCurve {
-            curve: second,
-            tangent: false,
-        });
+        curves.push(cut(second, false, meridian(angle + PI), side));
     }
     Some(SurfaceSurfaceIntersection::exact(curves, Vec::new(), false))
 }
@@ -206,7 +242,7 @@ fn lies_on(curve: &Curve, other: &Curve, tol: Tolerance) -> bool {
     };
     (0..MERIDIAN_SAMPLES).all(|index| {
         let parameter = first + (last - first) * index as f64 / (MERIDIAN_SAMPLES - 1) as f64;
-        other.contains(curve.eval_point(parameter), tol)
+        other.contains(curve.point_at(parameter), tol)
     })
 }
 

@@ -5,8 +5,8 @@
 //! operations ([`RangeOperations`]) call them, and the box of a whole
 //! bounded curve is the box of its range over its bounds.
 
+use super::tight::Nets;
 use super::{BoundingBox, HasBoundingBox, HasBoundingBox2D};
-use crate::Point;
 use crate::base::tier::operations::{
     BoxOperations, FrameOperations, PointOperations, VectorOperations,
 };
@@ -19,6 +19,7 @@ use crate::geometry::curves::{
 use crate::geometry::curves::{curve_dispatch, elementary_curve_dispatch};
 use crate::math::bspline::curve as math;
 use crate::math::numeric::bernstein;
+use crate::{Point, Tolerance};
 use std::f64::consts::{PI, TAU};
 
 /// The axis-aligned box of tier `P`.
@@ -187,6 +188,17 @@ pub(crate) fn spline_box<P: TierPoint>(
     .expect("a range meets at least one knot span")
 }
 
+/// The box of `spline` over `[first, last]`, each side within
+/// `tol.confusion` of the curve: the extremes of each coordinate over its
+/// Bézier pieces, by branch and bound.
+pub(crate) fn tight_spline_box<P: TierPoint>(
+    spline: &GenericBSplineCurve<P>,
+    range: (f64, f64),
+    tol: Tolerance,
+) -> BoundingBoxOf<P> {
+    Nets::of_curve(spline, range).coordinate_box::<P>(tol.confusion)
+}
+
 impl_for_both_tiers! {
     impl HasBoundingBox, HasBoundingBox2D for GenericLine {
         fn bounding_box(&self) -> Option<BoundingBoxOf<P>> {
@@ -221,6 +233,11 @@ macro_rules! box_over_bounds {
                     let (first, last) = self.bounds();
                     Some(self.range_box(first, last))
                 }
+
+                fn tight_bounding_box(&self, tol: Tolerance) -> Option<BoundingBoxOf<P>> {
+                    let (first, last) = self.bounds();
+                    Some(self.tight_range_box(first, last, tol))
+                }
             }
         }
     )*};
@@ -237,6 +254,10 @@ impl HasBoundingBox for Curve {
     fn bounding_box(&self) -> Option<BoundingBox> {
         curve_dispatch!(self, c => c.bounding_box())
     }
+
+    fn tight_bounding_box(&self, tol: Tolerance) -> Option<BoundingBox> {
+        curve_dispatch!(self, c => c.tight_bounding_box(tol))
+    }
 }
 
 impl HasBoundingBox for ElementaryCurve {
@@ -249,5 +270,10 @@ impl<C: RangeOperations<Point = Point> + ParametricCurve> HasBoundingBox for Tri
     fn bounding_box(&self) -> Option<BoundingBox> {
         let (first, last) = self.bounds();
         Some(self.basis().range_box(first, last))
+    }
+
+    fn tight_bounding_box(&self, tol: Tolerance) -> Option<BoundingBox> {
+        let (first, last) = self.bounds();
+        Some(self.basis().tight_range_box(first, last, tol))
     }
 }

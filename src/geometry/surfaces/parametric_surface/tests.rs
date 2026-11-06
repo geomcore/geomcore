@@ -11,7 +11,7 @@ use std::f64::consts::FRAC_PI_2;
 use std::f64::consts::TAU;
 
 fn sample<S: ParametricSurface>(s: &S) -> Point {
-    s.eval_point(0.3, 0.4)
+    s.point_at(0.3, 0.4)
 }
 
 fn plane() -> Plane {
@@ -59,37 +59,37 @@ fn bspline() -> BSplineSurface {
 #[test]
 fn test_sample_plane_agrees_with_inherent() {
     let p = plane();
-    assert_eq!(sample(&p), p.eval_point(0.3, 0.4));
+    assert_eq!(sample(&p), p.point_at(0.3, 0.4));
 }
 
 #[test]
 fn test_sample_cylinder_agrees_with_inherent() {
     let c = cylinder();
-    assert_eq!(sample(&c), c.eval_point(0.3, 0.4));
+    assert_eq!(sample(&c), c.point_at(0.3, 0.4));
 }
 
 #[test]
 fn test_sample_cone_agrees_with_inherent() {
     let c = cone();
-    assert_eq!(sample(&c), c.eval_point(0.3, 0.4));
+    assert_eq!(sample(&c), c.point_at(0.3, 0.4));
 }
 
 #[test]
 fn test_sample_sphere_agrees_with_inherent() {
     let s = sphere();
-    assert_eq!(sample(&s), s.eval_point(0.3, 0.4));
+    assert_eq!(sample(&s), s.point_at(0.3, 0.4));
 }
 
 #[test]
 fn test_sample_torus_agrees_with_inherent() {
     let t = torus();
-    assert_eq!(sample(&t), t.eval_point(0.3, 0.4));
+    assert_eq!(sample(&t), t.point_at(0.3, 0.4));
 }
 
 #[test]
 fn test_sample_bspline_agrees_with_inherent() {
     let b = bspline();
-    assert_eq!(sample(&b), b.eval_point(0.3, 0.4));
+    assert_eq!(sample(&b), b.point_at(0.3, 0.4));
 }
 
 // ---- heterogeneous Vec<Surface> eval ----
@@ -188,51 +188,45 @@ fn test_bspline_bounds_and_periods() {
     assert_eq!(wrapped.v_period(), None);
 }
 
-// ---- default eval_points == mapped eval_point ----
+// ---- default points_at == mapped point_at ----
 
 #[test]
 fn test_default_eval_points_matches_mapped_eval_point_for_each_type() {
     let uvs = [(0.0, 0.0), (0.5, 0.2), (1.0, -0.3), (-2.0, 1.1)];
 
     let p = plane();
-    let expected: Vec<Point> = uvs.iter().map(|&(u, v)| p.eval_point(u, v)).collect();
-    assert_eq!(p.eval_points(&uvs), expected);
+    let expected: Vec<Point> = uvs.iter().map(|&(u, v)| p.point_at(u, v)).collect();
+    assert_eq!(p.points_at(&uvs), expected);
 
     let c = cylinder();
-    let expected: Vec<Point> = uvs.iter().map(|&(u, v)| c.eval_point(u, v)).collect();
-    assert_eq!(c.eval_points(&uvs), expected);
+    let expected: Vec<Point> = uvs.iter().map(|&(u, v)| c.point_at(u, v)).collect();
+    assert_eq!(c.points_at(&uvs), expected);
 
     let cn = cone();
-    let expected: Vec<Point> = uvs.iter().map(|&(u, v)| cn.eval_point(u, v)).collect();
-    assert_eq!(cn.eval_points(&uvs), expected);
+    let expected: Vec<Point> = uvs.iter().map(|&(u, v)| cn.point_at(u, v)).collect();
+    assert_eq!(cn.points_at(&uvs), expected);
 
     let s = sphere();
-    let expected: Vec<Point> = uvs.iter().map(|&(u, v)| s.eval_point(u, v)).collect();
-    assert_eq!(s.eval_points(&uvs), expected);
+    let expected: Vec<Point> = uvs.iter().map(|&(u, v)| s.point_at(u, v)).collect();
+    assert_eq!(s.points_at(&uvs), expected);
 
     let t = torus();
-    let expected: Vec<Point> = uvs.iter().map(|&(u, v)| t.eval_point(u, v)).collect();
-    assert_eq!(t.eval_points(&uvs), expected);
+    let expected: Vec<Point> = uvs.iter().map(|&(u, v)| t.point_at(u, v)).collect();
+    assert_eq!(t.points_at(&uvs), expected);
 }
 
 #[test]
 fn test_eval_derivative_delegates_to_inherent() {
     let p = plane();
-    assert_eq!(
-        p.eval_derivative(0.3, 0.4, 1, 0),
-        p.eval_derivative(0.3, 0.4, 1, 0)
-    );
+    assert_eq!(p.derivative(0.3, 0.4, 1, 0), p.derivative(0.3, 0.4, 1, 0));
 
     let s = sphere();
-    assert_eq!(
-        s.eval_derivative(0.3, 0.4, 1, 0),
-        s.eval_derivative(0.3, 0.4, 1, 0)
-    );
+    assert_eq!(s.derivative(0.3, 0.4, 1, 0), s.derivative(0.3, 0.4, 1, 0));
 
     let wrapped: Surface = torus().into();
     assert_eq!(
-        wrapped.eval_derivative(0.3, 0.4, 0, 1),
-        torus().eval_derivative(0.3, 0.4, 0, 1)
+        wrapped.derivative(0.3, 0.4, 0, 1),
+        torus().derivative(0.3, 0.4, 0, 1)
     );
 }
 
@@ -317,7 +311,7 @@ fn test_normal_pole_recovery_is_independent_of_meridian() {
 fn test_normal_bspline_agrees_with_cross_of_partials() {
     let b = bspline();
     let tol = Tolerance::DEFAULT;
-    let (_, [su, sv]) = b.eval_d1(0.3, 0.4);
+    let (_, [su, sv]) = b.first_derivatives(0.3, 0.4);
     let expected = su.cross(sv) * (1.0 / su.cross(sv).magnitude());
     assert_eq!(b.normal(0.3, 0.4, tol), Some(expected));
 }
@@ -344,11 +338,11 @@ struct DeadZone {
 }
 
 impl ParametricSurface for DeadZone {
-    fn eval_point(&self, _u: f64, _v: f64) -> Point {
+    fn point_at(&self, _u: f64, _v: f64) -> Point {
         Point::ORIGIN
     }
 
-    fn eval_derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> Vector {
+    fn derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> Vector {
         let reach = self.dead * self.scale;
         let dead = u.abs() < reach && v.abs() < reach;
         match (du, dv) {
@@ -526,7 +520,7 @@ fn test_normal_beside_a_cone_apex_is_the_flank_normal() {
         for offset in [1e-9, -1e-9, 1e-8, -1e-8, 1e-6, -1e-3] {
             for u in [0.0, 1.0, 4.0] {
                 let v = v_apex + offset;
-                let (_, [su, sv]) = c.eval_d1(u, v);
+                let (_, [su, sv]) = c.first_derivatives(u, v);
                 let exact = su.cross(sv) * (1.0 / su.cross(sv).magnitude());
                 let normal = c.normal(u, v, tol).unwrap();
                 assert!(
@@ -633,7 +627,7 @@ fn test_normal_next_to_a_pole_is_the_true_normal_within_its_distance() {
     for polar_angle in [1e-9, 1e-6, 1e-3] {
         let v = FRAC_PI_2 - polar_angle;
         let normal = s.normal(0.7, v, tol).unwrap();
-        let exact = (s.eval_point(0.7, v) - Point::ORIGIN) * (1.0 / 3.0);
+        let exact = (s.point_at(0.7, v) - Point::ORIGIN) * (1.0 / 3.0);
         assert!(
             (normal - exact).magnitude() <= 1.01 * polar_angle,
             "polar angle {polar_angle}: {normal:?}"
@@ -756,7 +750,7 @@ fn test_bspline_unclamped_patch_with_wrapped_rows_is_closed() {
     assert!(s.is_u_closed(tol));
     assert!(!s.is_v_closed(tol));
     let (first, last) = s.u_bounds();
-    assert!(s.eval_point(first, 0.3).distance(s.eval_point(last, 0.3)) <= tol.confusion);
+    assert!(s.point_at(first, 0.3).distance(s.point_at(last, 0.3)) <= tol.confusion);
 }
 
 #[test]
@@ -965,7 +959,7 @@ fn normal_curvature_along<S: ParametricSurface>(
     v: f64,
     direction: Vector,
 ) -> f64 {
-    let (_, [su, sv], [suu, suv, svv]) = surface.eval_d2(u, v);
+    let (_, [su, sv], [suu, suv, svv]) = surface.second_derivatives(u, v);
     let normal = su.cross(sv) * (1.0 / su.cross(sv).magnitude());
     let (e, f, g) = (su.dot(su), su.dot(sv), sv.dot(sv));
     let (along_u, along_v) = (direction.dot(su), direction.dot(sv));
@@ -1006,7 +1000,7 @@ fn test_curvatures_sphere_everywhere_umbilic_with_orthonormal_directions() {
         let c = sphere.curvatures(u, v, tol).unwrap();
         assert!((c.min_curvature + 1.0 / 3.0).abs() < 1e-14, "{u}, {v}");
         assert!((c.max_curvature + 1.0 / 3.0).abs() < 1e-14, "{u}, {v}");
-        let (_, [su, sv]) = sphere.eval_d1(u, v);
+        let (_, [su, sv]) = sphere.first_derivatives(u, v);
         assert_frame(&c, su.cross(sv) * (1.0 / su.cross(sv).magnitude()));
     }
 }

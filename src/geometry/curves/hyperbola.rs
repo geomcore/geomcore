@@ -6,8 +6,8 @@ use crate::base::frame::frame_error;
 use crate::base::tier::operations::FrameOperations;
 use crate::base::tier::{TierPoint, impl_for_both_tiers};
 use crate::base::transform::image_error;
-use crate::geometry::curves::ReversibleCurve;
 use crate::geometry::curves::{ElementaryCurve, ParametricCurve, ParametricCurve2D};
+use crate::geometry::curves::{GenericLine, ReversibleCurve};
 use crate::geometry::curves::{PointExtrema, PointExtrema2D};
 use crate::math::elementary::curve as elementary;
 use crate::math::numeric::{polish_root, real_roots};
@@ -66,9 +66,9 @@ impl std::error::Error for HyperbolaConstructionError {}
 /// use geomcore::prelude::*;
 /// use geomcore::{Hyperbola, Hyperbola2D, Point, Point2D, Vector, Vector2D};
 /// let hyperbola = Hyperbola::new(Point::ORIGIN, Vector::Z, Vector::X, 2.0, 1.0).unwrap();
-/// assert_eq!(hyperbola.eval_point(0.0), Point::new(2.0, 0.0, 0.0));
+/// assert_eq!(hyperbola.point_at(0.0), Point::new(2.0, 0.0, 0.0));
 /// let hyperbola_2d = Hyperbola2D::new(Point2D::ORIGIN, Vector2D::X, 2.0, 1.0).unwrap();
-/// assert_eq!(hyperbola_2d.eval_point(0.0), Point2D::new(2.0, 0.0));
+/// assert_eq!(hyperbola_2d.point_at(0.0), Point2D::new(2.0, 0.0));
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct GenericHyperbola<P: TierPoint> {
@@ -89,7 +89,7 @@ pub struct GenericHyperbola<P: TierPoint> {
 /// use geomcore::prelude::*;
 /// use geomcore::{Hyperbola, Point, Vector};
 /// let hyperbola = Hyperbola::new(Point::ORIGIN, Vector::Z, Vector::X, 2.0, 1.0).unwrap();
-/// assert_eq!(hyperbola.eval_point(0.0), Point::new(2.0, 0.0, 0.0));
+/// assert_eq!(hyperbola.point_at(0.0), Point::new(2.0, 0.0, 0.0));
 /// ```
 pub type Hyperbola = GenericHyperbola<Point>;
 
@@ -105,7 +105,7 @@ pub type Hyperbola = GenericHyperbola<Point>;
 /// use geomcore::prelude::*;
 /// use geomcore::{Hyperbola2D, Point2D, Vector2D};
 /// let hyperbola = Hyperbola2D::new(Point2D::ORIGIN, Vector2D::X, 2.0, 1.0).unwrap();
-/// assert_eq!(hyperbola.eval_point(0.0), Point2D::new(2.0, 0.0));
+/// assert_eq!(hyperbola.point_at(0.0), Point2D::new(2.0, 0.0));
 /// ```
 pub type Hyperbola2D = GenericHyperbola<Point2D>;
 
@@ -201,9 +201,91 @@ impl<P: TierPoint> GenericHyperbola<P> {
     pub fn minor_radius(&self) -> f64 {
         self.minor_radius
     }
+
+    /// The eccentricity, `sqrt(1 + (minor/major)^2)`: above 1, the ratio of
+    /// a point's distance to a focus over its distance to that focus's
+    /// directrix.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Frame, Hyperbola};
+    /// let hyperbola = Hyperbola::from_frame(Frame::WORLD, 1.0, 1.0).unwrap();
+    /// assert!((hyperbola.eccentricity() - 2f64.sqrt()).abs() < 1e-15);
+    /// ```
+    pub fn eccentricity(&self) -> f64 {
+        (self.minor_radius / self.major_radius).hypot(1.0)
+    }
+
+    /// The two foci, on the major axis at `sqrt(major^2 + minor^2)` from
+    /// the center: first the one inside this branch, then the other
+    /// branch's.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Frame, Hyperbola, Point};
+    /// let hyperbola = Hyperbola::from_frame(Frame::WORLD, 4.0, 3.0).unwrap();
+    /// assert_eq!(hyperbola.foci(), [Point::new(5.0, 0.0, 0.0), Point::new(-5.0, 0.0, 0.0)]);
+    /// ```
+    pub fn foci(&self) -> [P; 2] {
+        let reach = self.major_radius.hypot(self.minor_radius);
+        let x = self.frame.x_direction();
+        let center = self.center();
+        [center + x * reach, center + x * -reach]
+    }
+
+    /// The two directrices, across the major axis at `major^2 / reach` from
+    /// the center (`reach` the foci's distance), in the order of
+    /// [`foci`](Self::foci): a point of the curve is
+    /// [`eccentricity`](Self::eccentricity) times farther from a focus than
+    /// from its directrix.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Frame, Hyperbola, Point};
+    /// let hyperbola = Hyperbola::from_frame(Frame::WORLD, 4.0, 3.0).unwrap();
+    /// let [own, _] = hyperbola.directrices();
+    /// assert_eq!(own.origin(), Point::new(3.2, 0.0, 0.0));
+    /// ```
+    pub fn directrices(&self) -> [GenericLine<P>; 2] {
+        let reach = self.major_radius.hypot(self.minor_radius);
+        let offset = self.major_radius * (self.major_radius / reach);
+        let (x, y) = (self.frame.x_direction(), self.frame.y_direction());
+        let center = self.center();
+        [offset, -offset].map(|offset| {
+            GenericLine::new(center + x * offset, y).expect("a frame direction is a unit vector")
+        })
+    }
 }
 
 impl Hyperbola {
+    /// The other branch of the same hyperbola: the mirror of this one
+    /// through its center, whose points satisfy the same equation. A
+    /// hyperbola is one branch (`cosh` is never below 1), so intersecting
+    /// the full curve takes both.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::prelude::*;
+    /// use geomcore::{Frame, Hyperbola, Point};
+    /// let hyperbola = Hyperbola::from_frame(Frame::WORLD, 2.0, 1.0).unwrap();
+    /// let other = hyperbola.other_branch();
+    /// assert_eq!(other.point_at(0.0), Point::new(-2.0, 0.0, 0.0));
+    /// assert_eq!(other.frame().z_direction(), hyperbola.frame().z_direction());
+    /// ```
+    pub fn other_branch(&self) -> Hyperbola {
+        let frame = Frame::new(
+            self.center(),
+            self.frame.z_direction(),
+            -self.frame.x_direction(),
+        )
+        .expect("the frame's own directions are orthonormal");
+        GenericHyperbola { frame, ..*self }
+    }
+
     /// Creates a hyperbola from a center, a normal, an x-axis hint, a
     /// semi-major radius, and a semi-minor radius.
     ///
@@ -311,6 +393,28 @@ impl Hyperbola {
 }
 
 impl Hyperbola2D {
+    /// The other branch of the same hyperbola: the mirror of this one
+    /// through its center, turning the same way. See
+    /// [`Hyperbola::other_branch`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::prelude::*;
+    /// use geomcore::{Frame2D, Hyperbola2D, Point2D};
+    /// let hyperbola = Hyperbola2D::from_frame(Frame2D::WORLD, 2.0, 1.0).unwrap();
+    /// assert_eq!(hyperbola.other_branch().point_at(0.0), Point2D::new(-2.0, 0.0));
+    /// ```
+    pub fn other_branch(&self) -> Hyperbola2D {
+        let frame = Frame2D::new(
+            self.center(),
+            -self.frame.x_direction(),
+            -self.frame.y_direction(),
+        )
+        .expect("the frame's own directions are orthonormal");
+        GenericHyperbola { frame, ..*self }
+    }
+
     /// Creates a hyperbola from a center, a major-axis direction, a
     /// semi-major radius, and a semi-minor radius.
     ///
@@ -398,9 +502,9 @@ impl Hyperbola2D {
             return Err(HyperbolaConstructionError::CollinearPoints);
         }
         let y_axis = if cross < 0.0 {
-            -x_axis.perp()
+            -x_axis.perpendicular()
         } else {
-            x_axis.perp()
+            x_axis.perpendicular()
         };
         let frame = Frame2D::new(center, x_axis, y_axis).map_err(frame_error(
             HyperbolaConstructionError::NonFinite,
@@ -450,7 +554,7 @@ impl_for_both_tiers! {
                 .filter(|r| r.value > 0.0)
                 .map(|r| {
                     let t = polish_root(g, dg, r.value.ln(), 8);
-                    let foot = self.eval_point(t);
+                    let foot = self.point_at(t);
                     let distance = foot.distance(point);
                     CurveProjection {
                         parameter: t,
@@ -494,7 +598,7 @@ impl_for_both_tiers! {
                 return near;
             }
             let u = self.parameter_of(point, tol);
-            self.eval_point(u).distance(point) <= tol.confusion
+            self.point_at(u).distance(point) <= tol.confusion
                 || self.project_point(point, tol).distance <= tol.confusion
         }
 
@@ -510,13 +614,13 @@ impl_for_both_tiers! {
 impl_for_both_tiers! {
     impl ParametricCurve, ParametricCurve2D for GenericHyperbola {
         #[inline]
-        fn eval_point(&self, u: f64) -> P {
+        fn point_at(&self, u: f64) -> P {
             elementary::hyperbola_d0(&self.frame, self.major_radius, self.minor_radius, u)
         }
 
-        fn eval_derivative(&self, u: f64, order: u32) -> V {
+        fn derivative(&self, u: f64, order: u32) -> V {
             match order {
-                0 => panic!("eval_derivative: order must be >= 1 (use eval_point for order 0)"),
+                0 => panic!("derivative: order must be >= 1 (use point_at for order 0)"),
                 _ => elementary::hyperbola_dn(
                     &self.frame,
                     self.major_radius,

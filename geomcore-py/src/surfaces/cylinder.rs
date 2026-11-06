@@ -1,4 +1,4 @@
-//! The Python class `geomcore.surfaces.Cylinder`, wrapping `geomcore::Cylinder`.
+//! The Python class `geomcore.Cylinder`, wrapping `geomcore::Cylinder`.
 
 use crate::curves::*;
 use crate::method_sets::*;
@@ -8,7 +8,7 @@ use geomcore::Cylinder;
 
 /// An infinite circular cylinder; u is the angle around the axis, v the
 /// height along it.
-#[pyclass(name = "Cylinder", module = "geomcore.surfaces", eq)]
+#[pyclass(name = "Cylinder", module = "geomcore", eq)]
 #[derive(Clone, PartialEq)]
 pub(crate) struct PyCylinder(pub(crate) Cylinder);
 
@@ -23,6 +23,11 @@ shape_methods! {
     /// The placement frame of the cylinder.
     fn frame(&self) -> PyFrame {
         PyFrame(self.0.frame())
+    }
+
+    fn __reduce__<'py>(slf: &pyo3::Bound<'py, Self>) -> pyo3::PyResult<pyo3::Bound<'py, pyo3::types::PyTuple>> {
+        let this = slf.borrow();
+        crate::pickling::reduce(slf.as_any(), Some("from_frame"), (this.frame(), this.radius(),))
     }
 
     fn __repr__(&self) -> String {

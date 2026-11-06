@@ -94,37 +94,37 @@ fn test_from_coefficients_matches_golden_case() {
 #[test]
 fn test_eval_point() {
     let p = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
-    assert_eq!(p.eval_point(2.0, 3.0), Point::new(2.0, 3.0, 0.0));
+    assert_eq!(p.point_at(2.0, 3.0), Point::new(2.0, 3.0, 0.0));
 }
 
 #[test]
 fn test_eval_points_matches_loop() {
     let p = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
     let uvs = [(0.0, 0.0), (1.0, 2.0), (-1.0, 3.0)];
-    let expected: Vec<Point> = uvs.iter().map(|&(u, v)| p.eval_point(u, v)).collect();
-    assert_eq!(p.eval_points(&uvs), expected);
+    let expected: Vec<Point> = uvs.iter().map(|&(u, v)| p.point_at(u, v)).collect();
+    assert_eq!(p.points_at(&uvs), expected);
 }
 
 #[test]
 fn test_eval_derivative_first_orders() {
     let p = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
-    assert_eq!(p.eval_derivative(0.0, 0.0, 1, 0), Vector::X);
-    assert_eq!(p.eval_derivative(0.0, 0.0, 0, 1), Vector::Y);
+    assert_eq!(p.derivative(0.0, 0.0, 1, 0), Vector::X);
+    assert_eq!(p.derivative(0.0, 0.0, 0, 1), Vector::Y);
 }
 
 #[test]
 fn test_eval_derivative_second_orders_are_zero() {
     let p = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
-    assert_eq!(p.eval_derivative(0.0, 0.0, 2, 0), Vector::ZERO);
-    assert_eq!(p.eval_derivative(0.0, 0.0, 0, 2), Vector::ZERO);
-    assert_eq!(p.eval_derivative(0.0, 0.0, 1, 1), Vector::ZERO);
+    assert_eq!(p.derivative(0.0, 0.0, 2, 0), Vector::ZERO);
+    assert_eq!(p.derivative(0.0, 0.0, 0, 2), Vector::ZERO);
+    assert_eq!(p.derivative(0.0, 0.0, 1, 1), Vector::ZERO);
 }
 
 #[test]
 #[should_panic(expected = "du + dv must be >= 1")]
 fn test_eval_derivative_zero_order_panics() {
     let p = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
-    p.eval_derivative(0.0, 0.0, 0, 0);
+    p.derivative(0.0, 0.0, 0, 0);
 }
 
 #[test]
@@ -170,7 +170,7 @@ fn test_plane_contains() {
     let tol = Tolerance::DEFAULT;
     assert!(plane.contains(Point::ORIGIN, tol));
     assert!(plane.contains(Point::new(1.0, 2.0, 0.0), tol));
-    assert!(plane.contains(plane.eval_point(1.0, -2.0), tol));
+    assert!(plane.contains(plane.point_at(1.0, -2.0), tol));
     assert!(!plane.contains(Point::new(0.0, 0.0, 1.0), tol));
     // Tolerance boundary: 1e-6 off the plane fails at default, passes loose.
     let near = Point::new(0.0, 0.0, 1e-6);
@@ -221,7 +221,7 @@ fn test_plane_transformed_translation_spot_check() {
     let moved = plane.transformed(t).unwrap();
     assert_eq!(moved.axis().direction(), Vector::Z);
     // Hand-computed evaluation, shifted.
-    assert_eq!(moved.eval_point(2.0, 3.0), Point::new(3.0, 2.0, 2.0));
+    assert_eq!(moved.point_at(2.0, 3.0), Point::new(3.0, 2.0, 2.0));
 }
 
 #[test]
@@ -235,7 +235,7 @@ fn test_plane_transformed_round_trip_and_mirror() {
     assert!((moved.axis().direction() - -Vector::Y).magnitude() < 1e-9);
     let tol = Tolerance::DEFAULT;
     for (u, v) in [(0.0, 0.0), (1.0, -2.0), (-3.0, 0.5)] {
-        assert!(moved.contains(t.apply_point(plane.eval_point(u, v)), tol));
+        assert!(moved.contains(t.apply_point(plane.point_at(u, v)), tol));
     }
     let back = moved
         .transformed(Transform::rotation(axis, -PI / 2.0))
@@ -255,11 +255,11 @@ fn test_reversed_planes_share_point_set_with_flipped_normal() {
     for (u, v) in [(0.0, 0.0), (1.0, -2.0), (-3.0, 0.5)] {
         let ru = plane.reversed_u();
         assert!(!ru.frame().is_direct());
-        assert_eq!(ru.eval_point(u, v), plane.eval_point(-u, v));
+        assert_eq!(ru.point_at(u, v), plane.point_at(-u, v));
         assert_eq!(ru.u_reversed_parameter(plane.u_reversed_parameter(u)), u);
         let rv = plane.reversed_v();
         assert!(!rv.frame().is_direct());
-        assert_eq!(rv.eval_point(u, v), plane.eval_point(u, -v));
+        assert_eq!(rv.point_at(u, v), plane.point_at(u, -v));
         assert_eq!(rv.v_reversed_parameter(plane.v_reversed_parameter(v)), v);
     }
     assert_eq!(plane.reversed_u().axis().direction(), -Vector::Z);

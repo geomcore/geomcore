@@ -165,9 +165,8 @@ pub enum LineConicIntersection {
 /// ```
 #[derive(Debug, Clone, PartialEq)]
 pub enum ConicConicIntersection {
-    /// The hits, ordered by parameter on the first conic when every hit
-    /// stores one; a multiplicity of 2 or more marks a tangency. Only the
-    /// parameter of the conic that was solved for is stored.
+    /// The hits, ordered by parameter on the first conic; a multiplicity
+    /// of 2 or more marks a tangency.
     Hits(Vec<CurveCurveHit>),
     /// The two conics are the same curve.
     Coincident,
@@ -219,7 +218,7 @@ impl IntersectExact<Line> for Line {
             let e = d2.dot(w0);
             let s = (b * e - d) / denom;
             let t = (e - b * d) / denom;
-            let (p1, p2) = (self.eval_point(s), other.eval_point(t));
+            let (p1, p2) = (self.point_at(s), other.point_at(t));
             let distance = p1.distance(p2);
             if distance <= tol.confusion {
                 LineLineIntersection::Point(s, p1, t)
@@ -273,7 +272,7 @@ impl IntersectExact<Circle> for Line {
                 let (x, y) = (plane.frame().x_direction(), plane.frame().y_direction());
                 let (d, w) = (
                     self.direction(),
-                    self.eval_point(self.parameter_of(circle.center(), tol)) - circle.center(),
+                    self.point_at(self.parameter_of(circle.center(), tol)) - circle.center(),
                 );
                 let Ok(l2) = Line2D::new(
                     Point2D::new(w.dot(x), w.dot(y)),
@@ -285,14 +284,14 @@ impl IntersectExact<Circle> for Line {
                     .expect("radius is non-negative by construction");
                 match l2.intersect_exact(&c2, tol) {
                     LineCircle2DIntersection::Points((_, p1), (_, p2)) => {
-                        let (q1, q2) = (plane.eval_point(p1.x, p1.y), plane.eval_point(p2.x, p2.y));
+                        let (q1, q2) = (plane.point_at(p1.x, p1.y), plane.point_at(p2.x, p2.y));
                         LineCircleIntersection::Points(
                             (self.parameter_of(q1, tol), q1),
                             (self.parameter_of(q2, tol), q2),
                         )
                     }
                     LineCircle2DIntersection::Tangent(_, p) => {
-                        let q = plane.eval_point(p.x, p.y);
+                        let q = plane.point_at(p.x, p.y);
                         LineCircleIntersection::Tangent(self.parameter_of(q, tol), q)
                     }
                     LineCircle2DIntersection::Empty => LineCircleIntersection::Empty,
@@ -379,7 +378,7 @@ impl IntersectExact<Parabola> for Line {
             x: frame.x_direction(),
             y: frame.y_direction(),
             origin: parabola.apex(),
-            implicit: ImplicitConic::parabola(parabola.focal()),
+            implicit: ImplicitConic::parabola(parabola.focal_distance()),
             extent: f64::INFINITY,
         };
         line_meets_placed_conic(
@@ -475,7 +474,7 @@ impl IntersectExact<Line2D> for Line2D {
         }
         let s = (w.x * d2.y - w.y * d2.x) / cross;
         let t = (w.x * d1.y - w.y * d1.x) / cross;
-        LineLine2DIntersection::Point(s, self.eval_point(s), t)
+        LineLine2DIntersection::Point(s, self.point_at(s), t)
     }
 }
 
@@ -508,17 +507,16 @@ impl IntersectExact<Circle2D> for Line2D {
     fn intersect_exact(&self, circle: &Circle2D, tol: Tolerance) -> LineCircle2DIntersection {
         let d = self.direction();
         let t0 = -d.dot(self.origin() - circle.center());
-        let w = self.eval_point(t0) - circle.center();
+        let w = self.point_at(t0) - circle.center();
         // A is exactly 1: the direction is unit by construction.
         let qb = 2.0 * d.dot(w);
         let sol = solve_quadratic(1.0, qb, w.dot(w) - circle.radius().powi(2), tol)
-            .touching_at(-0.5 * qb, |s| circle.contains(self.eval_point(t0 + s), tol));
+            .touching_at(-0.5 * qb, |s| circle.contains(self.point_at(t0 + s), tol));
         match sol.shifted(t0) {
-            QuadraticSolution::Two(t1, t2) => LineCircle2DIntersection::Points(
-                (t1, self.eval_point(t1)),
-                (t2, self.eval_point(t2)),
-            ),
-            QuadraticSolution::One(t) => LineCircle2DIntersection::Tangent(t, self.eval_point(t)),
+            QuadraticSolution::Two(t1, t2) => {
+                LineCircle2DIntersection::Points((t1, self.point_at(t1)), (t2, self.point_at(t2)))
+            }
+            QuadraticSolution::One(t) => LineCircle2DIntersection::Tangent(t, self.point_at(t)),
             QuadraticSolution::Empty => LineCircle2DIntersection::Empty,
             QuadraticSolution::Linear(_) | QuadraticSolution::Degenerate => {
                 unreachable!("unit direction gives a leading coefficient of 1")
@@ -585,11 +583,11 @@ impl IntersectExact<Circle> for Circle {
         };
         match image(self).intersect_exact(&image(other), tol) {
             CircleCircle2DIntersection::Points(p1, p2) => CircleCircleIntersection::Points(
-                plane.eval_point(p1.x, p1.y),
-                plane.eval_point(p2.x, p2.y),
+                plane.point_at(p1.x, p1.y),
+                plane.point_at(p2.x, p2.y),
             ),
             CircleCircle2DIntersection::Tangent(p) => {
-                CircleCircleIntersection::Tangent(plane.eval_point(p.x, p.y))
+                CircleCircleIntersection::Tangent(plane.point_at(p.x, p.y))
             }
             CircleCircle2DIntersection::Empty => CircleCircleIntersection::Empty,
             CircleCircle2DIntersection::Coincident => CircleCircleIntersection::Coincident,
@@ -650,7 +648,7 @@ impl IntersectExact<Circle2D> for Circle2D {
             CircleCircle2DIntersection::Tangent(base)
         } else {
             let h = (r1 * r1 - a * a).max(0.0).sqrt();
-            let perp = n.perp();
+            let perp = n.perpendicular();
             CircleCircle2DIntersection::Points(base + perp * h, base - perp * h)
         }
     }
@@ -670,7 +668,7 @@ fn line_meets_plane_near(
     let n = plane.axis().direction();
     let b = n.dot(line.direction());
     let foot = line.parameter_of(centre, tol);
-    let c = n.dot(line.eval_point(foot) - plane.frame().origin());
+    let c = n.dot(line.point_at(foot) - plane.frame().origin());
     if b.abs() <= tol.angular_for_extent(extent) {
         if c.abs() <= tol.confusion {
             LinePlaneIntersection::Coincident
@@ -679,7 +677,7 @@ fn line_meets_plane_near(
         }
     } else {
         let t = foot - c / b;
-        LinePlaneIntersection::Point(t, line.eval_point(t))
+        LinePlaneIntersection::Point(t, line.point_at(t))
     }
 }
 
@@ -715,7 +713,7 @@ fn line_meets_placed_conic(
             // Coefficients about the line point at parameter t0,
             // centred at the midpoint of the two roots.
             let coeffs = |t0: f64| {
-                let w = line.eval_point(t0) - conic.origin;
+                let w = line.point_at(t0) - conic.origin;
                 conic.implicit.line_substitute(
                     w.dot(conic.x),
                     w.dot(conic.y),
@@ -728,7 +726,7 @@ fn line_meets_placed_conic(
             let (qa, qb, qc) = coeffs(t0);
             let mut hits = Vec::new();
             let mut push = |t: f64| {
-                let p = line.eval_point(t);
+                let p = line.point_at(t);
                 if contains(p) {
                     hits.push(LineConicHit {
                         line_parameter: t,
@@ -738,7 +736,7 @@ fn line_meets_placed_conic(
                 }
             };
             let sol = solve_quadratic(qa, qb, qc, tol)
-                .touching_at(-qb / (2.0 * qa), |s| contains(line.eval_point(t0 + s)));
+                .touching_at(-qb / (2.0 * qa), |s| contains(line.point_at(t0 + s)));
             match sol.shifted(t0) {
                 QuadraticSolution::Two(t1, t2) => {
                     push(t1);

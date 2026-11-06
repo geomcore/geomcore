@@ -2,17 +2,17 @@
 //! surface: sampled seeds refined by Newton iteration, or Bézier piece
 //! pairs on B-splines.
 
-use crate::geometry::curves::ParametricCurve;
-use crate::geometry::surfaces::ParametricSurface;
+use crate::geometry::curves::{ElementaryCurve, ParametricCurve};
+use crate::geometry::surfaces::{ExtrusionSurface, ParametricSurface};
 use crate::math::numeric::boxtree::Aabb;
 use crate::math::numeric::{brent_minimum, newton_3d};
 use crate::operations::intersect::numeric::curve_surface_hull::CurveSurfaceHits;
 use crate::operations::intersect::numeric::{overlap_runs, pairs_with_bspline};
-use crate::operations::intersect::results::sort_by_known_parameter;
+use crate::operations::intersect::results::sort_by_parameter;
 use crate::operations::intersect::{
     CurveSurfaceHit, CurveSurfaceIntersection, curve_surface_multiplicity,
 };
-use crate::{HasBoundingBox, Point, Tolerance};
+use crate::{Frame, HasBoundingBox, Point, Tolerance, Transform, Transformable};
 
 /// The window an unbounded curve is seeded over when nothing bounds the
 /// search: no box is known for the surface, or the curve is not one whose
@@ -49,11 +49,11 @@ const WINDOW: f64 = 10.0;
 /// struct Helix;
 ///
 /// impl ParametricCurve for Helix {
-///     fn eval_point(&self, u: f64) -> Point {
+///     fn point_at(&self, u: f64) -> Point {
 ///         let turn = std::f64::consts::TAU;
 ///         Point::new(u.cos(), u.sin(), u / turn)
 ///     }
-///     fn eval_derivative(&self, u: f64, order: u32) -> Vector {
+///     fn derivative(&self, u: f64, order: u32) -> Vector {
 ///         let turn = std::f64::consts::TAU;
 ///         match order {
 ///             1 => Vector::new(-u.sin(), u.cos(), 1.0 / turn),
@@ -72,7 +72,7 @@ const WINDOW: f64 = 10.0;
 /// let result = intersect_curve_surface(&Helix, &plane, Tolerance::DEFAULT);
 /// assert_eq!(result.method(), IntersectionMethod::Numeric);
 /// assert_eq!(result.hits().len(), 1);
-/// assert!((result.hits()[0].curve_parameter.unwrap() - 3.0 * std::f64::consts::PI).abs() < 1e-9);
+/// assert!((result.hits()[0].curve_parameter - 3.0 * std::f64::consts::PI).abs() < 1e-9);
 /// ```
 pub fn intersect_curve_surface<C, S>(
     curve: &C,
@@ -102,9 +102,12 @@ where
 /// pole, a cone apex, a collapsed B-spline boundary), where the Newton system
 /// is singular; their `surface_parameters` are the projection's.
 /// An unbounded curve seeds the range of its parameters whose points can
-/// lie in the surface's box, when the surface is a sphere, torus or
-/// B-spline (whose box is known) and the curve is elementary (whose reach
-/// is); an unbounded curve without such a box seeds `[-10, 10]`. Overlapping
+/// lie in the surface's box, when the surface is a sphere, torus,
+/// B-spline or surface of revolution of a bounded profile (whose box is
+/// known) and the curve is elementary (whose reach is). Against an
+/// extrusion of a bounded profile, it seeds the range whose points lie in
+/// the prism the profile's box sweeps. An unbounded curve without such a
+/// bound seeds `[-10, 10]`. Overlapping
 /// pairs yield dense hit sets along the overlap; the routed
 /// [`Intersect`](crate::Intersect) calls this search only for pairs
 /// without a closed form, and solves the others exactly, tangency and
@@ -152,24 +155,27 @@ where
 }
 
 /// The box of the surface, when its type knows one: a sphere or torus's
-/// tightest box, or a B-spline surface's pole box, grown by `tol.confusion`
-/// so a hit on its face stays inside. Planes, cylinders and cones are
-/// unbounded, and a surface defined outside the crate has no known box.
+/// tightest box, a B-spline surface's pole box, or the box of a
+/// revolution surface's profile turned about its axis, grown by
+/// `tol.confusion` so a hit on its face stays inside. Planes, cylinders,
+/// cones and extrusions are unbounded, and a surface defined outside the
+/// crate has no known box.
 fn surface_box<S: ParametricSurface>(surface: &S, tol: Tolerance) -> Option<Aabb> {
-    let box_ = match (surface.as_elementary(), surface.as_bspline()) {
-        (Some(elementary), _) => elementary.bounding_box()?,
-        (None, Some(bspline)) => bspline.bounding_box()?,
-        (None, None) => return None,
+    let box_ = if let Some(elementary) = surface.as_elementary() {
+        elementary.bounding_box()?
+    } else if let Some(bspline) = surface.as_bspline() {
+        bspline.bounding_box()?
+    } else {
+        surface.as_revolution()?.bounding_box()?
     };
-    let (min, max, margin) = (box_.min(), box_.max(), tol.confusion);
-    Some([
-        min.x - margin,
-        min.y - margin,
-        min.z - margin,
-        max.x + margin,
-        max.y + margin,
-        max.z + margin,
-    ])
+    let (min, max) = (box_.min(), box_.max());
+    Some(grown([min.x, min.y, min.z, max.x, max.y, max.z], tol))
+}
+
+/// `b` grown by `tol.confusion` on every side.
+fn grown(b: Aabb, tol: Tolerance) -> Aabb {
+    let margin = tol.confusion;
+    std::array::from_fn(|k| if k < 3 { b[k] - margin } else { b[k] + margin })
 }
 
 /// The range of parameters of the elementary `curve` holding its points
@@ -182,7 +188,48 @@ where
     S: ParametricSurface,
 {
     let elementary = curve.as_elementary()?;
+    if let Some(extrusion) = surface.as_extrusion() {
+        return range_reaching_extrusion(elementary, extrusion, tol);
+    }
     pairs_with_bspline::inside(elementary, &surface_box(surface, tol)?)
+}
+
+/// [`range_reaching`] for an extrusion. It is unbounded along its
+/// direction, but it lies in the prism swept by its profile's box: in a
+/// frame whose z axis is the direction, the box of the profile's box
+/// corners across the direction, unbounded along it. The curve is moved
+/// into that frame by a rigid motion, which keeps its parameter. `None`
+/// for an unbounded profile.
+fn range_reaching_extrusion(
+    curve: ElementaryCurve,
+    extrusion: &ExtrusionSurface,
+    tol: Tolerance,
+) -> Option<(f64, f64)> {
+    let profile_box = extrusion.profile().bounding_box()?;
+    let frame = Frame::from_z(Point::ORIGIN, extrusion.direction()).ok()?;
+    let local = Transform::world_to_local(frame);
+    let (low, high) = (profile_box.min(), profile_box.max());
+    let mut prism = [
+        f64::INFINITY,
+        f64::INFINITY,
+        f64::NEG_INFINITY,
+        f64::NEG_INFINITY,
+        f64::NEG_INFINITY,
+        f64::INFINITY,
+    ];
+    for corner in 0..8 {
+        let pick = |bit: u32, a: f64, b: f64| if corner & (1 << bit) == 0 { a } else { b };
+        let p = local.apply_point(Point::new(
+            pick(0, low.x, high.x),
+            pick(1, low.y, high.y),
+            pick(2, low.z, high.z),
+        ));
+        prism[0] = prism[0].min(p.x);
+        prism[1] = prism[1].min(p.y);
+        prism[3] = prism[3].max(p.x);
+        prism[4] = prism[4].max(p.y);
+    }
+    pairs_with_bspline::inside(curve.transformed(local).ok()?, &grown(prism, tol))
 }
 
 /// The sampled search of [`search_curve_surface`].
@@ -201,8 +248,11 @@ where
     } else {
         let within = |a: f64, b: f64| (t0.max(a), t1.min(b));
         match range_reaching(curve, surface, tol) {
-            Some((a, b)) => within(a, b),
-            None => within(-WINDOW, WINDOW),
+            // A missed box, or a finite range: a curve along an
+            // extrusion's direction and inside its prism stays in it for
+            // every parameter, so its range says nothing.
+            Some((a, b)) if a > b || (a.is_finite() && b.is_finite()) => within(a, b),
+            _ => within(-WINDOW, WINDOW),
         }
     };
     // The curve cannot reach the surface's box: no hit exists.
@@ -215,7 +265,7 @@ where
     let samples: Vec<(f64, f64)> = (0..SEEDS)
         .map(|i| {
             let t = lo + step * i as f64;
-            (t, surface.project_point(curve.eval_point(t), tol).distance)
+            (t, surface.project_point(curve.point_at(t), tol).distance)
         })
         .collect();
     let local_min = |i: usize| {
@@ -239,20 +289,20 @@ where
         }
     };
     let multiplicity_at = |t: f64, u: f64, v: f64, point: Point| {
-        let (_, tangent) = curve.eval_d1(t);
-        let (_, [su, sv]) = surface.eval_d1(u, v);
+        let (_, tangent) = curve.first_derivatives(t);
+        let (_, [su, sv]) = surface.first_derivatives(u, v);
         curve_surface_multiplicity(tangent, su.cross(sv), point, tol)
     };
     for i in order.into_iter().take(KEEP) {
         let t = samples[i].0;
-        let proj = surface.project_point(curve.eval_point(t), tol);
+        let proj = surface.project_point(curve.point_at(t), tol);
         let f = |x: [f64; 3]| {
-            let d = curve.eval_point(x[0]) - surface.eval_point(x[1], x[2]);
+            let d = curve.point_at(x[0]) - surface.point_at(x[1], x[2]);
             [d.x, d.y, d.z]
         };
         let jac = |x: [f64; 3]| {
-            let (_, ct) = curve.eval_d1(x[0]);
-            let (_, [su, sv]) = surface.eval_d1(x[1], x[2]);
+            let (_, ct) = curve.first_derivatives(x[0]);
+            let (_, [su, sv]) = surface.first_derivatives(x[1], x[2]);
             [
                 [ct.x, -su.x, -sv.x],
                 [ct.y, -su.y, -sv.y],
@@ -260,13 +310,13 @@ where
             ]
         };
         if let Some([rt, ru, rv]) = newton_3d(f, jac, [t, proj.u, proj.v], tol.confusion, 50) {
-            let p = curve.eval_point(rt);
-            if p.distance(surface.eval_point(ru, rv)) <= tol.confusion {
+            let p = curve.point_at(rt);
+            if p.distance(surface.point_at(ru, rv)) <= tol.confusion {
                 push(
                     &mut hits,
                     CurveSurfaceHit {
-                        curve_parameter: Some(rt),
-                        surface_parameters: Some((ru, rv)),
+                        curve_parameter: rt,
+                        surface_parameters: (ru, rv),
                         point: p,
                         multiplicity: multiplicity_at(rt, ru, rv, p),
                     },
@@ -279,20 +329,20 @@ where
             // own, which snaps to zero within `tol.confusion` and would
             // leave the minimum anywhere in that band.
             let distance = |t: f64| {
-                let p = curve.eval_point(t);
+                let p = curve.point_at(t);
                 let proj = surface.project_point(p, tol);
-                p.distance(surface.eval_point(proj.u, proj.v))
+                p.distance(surface.point_at(proj.u, proj.v))
             };
             let (a, b) = ((t - step).max(lo), (t + step).min(hi));
             let rt = brent_minimum(distance, a, b, 1e-13);
-            let p = curve.eval_point(rt);
+            let p = curve.point_at(rt);
             let proj = surface.project_point(p, tol);
             if proj.distance <= tol.confusion {
                 push(
                     &mut hits,
                     CurveSurfaceHit {
-                        curve_parameter: Some(rt),
-                        surface_parameters: Some((proj.u, proj.v)),
+                        curve_parameter: rt,
+                        surface_parameters: (proj.u, proj.v),
                         point: p,
                         multiplicity: multiplicity_at(rt, proj.u, proj.v, p),
                     },
@@ -300,7 +350,7 @@ where
             }
         }
     }
-    sort_by_known_parameter(&mut hits, |hit| hit.curve_parameter);
+    sort_by_parameter(&mut hits, |hit| hit.curve_parameter);
     hits
 }
 

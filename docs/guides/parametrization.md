@@ -4,7 +4,11 @@ A curve that lies on a surface has an exact 2D image in the surface's
 parameter space — the *UV curve*, also called a pcurve.
 `surface.curve_3d_to_uv` computes it in closed form where one exists
 (lines and circles on the five elementary surfaces, any curve on a
-plane); `curve_3d_to_uv_numeric` samples anywhere else. Adapted from
+plane); `curve_3d_to_uv_within` gives one B-spline within a deviation
+anywhere else. A surface intersection hands over the UV curves of its
+curves on both surfaces already (see
+[Intersection](intersection.md#the-curves-in-each-surfaces-parameters)).
+Adapted from
 [Parametric domain](https://avenirgeometry.com/articles/parametric-domain/).
 
 ## Why the rectangle matters
@@ -72,26 +76,39 @@ A few images across the surfaces:
 
 <iframe src="https://geomcore.github.io/geomcore-viewer/?scene=https://geomcore.github.io/geomcore/assets/scenes/param-torus.json" width="100%" height="480" style="border: 1px solid #333; border-radius: 8px;" allow="fullscreen" title="Three curves on a torus and their images in (u, v)"></iframe>
 
-## Numeric fallback
+## Within a deviation
 
-Where no closed form exists, `curve_3d_to_uv_numeric` inverts uniform
-curve samples through surface projection and is validated against
-every analytic UV curve.
+Where no closed form exists, `curve_3d_to_uv_within` gives one UV curve:
+a degree-5 B-spline in the 3D curve's own parameter, whose image on the
+surface lies within the asked deviation of the 3D curve at the same
+parameter. It does not jump at a seam: a curve that goes once around a
+cylinder ends one period of `u` from where it starts. It mirrors
+`uv_curve_to_3d_within`. A curve that starts or ends at a sphere's pole
+or a cone's apex, where every `u` is the same point, takes the limit of
+`u` from inside the curve: a meridian keeps its own `u` up to the pole.
+
+In Python both are surface methods, beside the exact `curve_3d_to_uv`
+and `uv_curve_to_3d`: `surface.curve_3d_to_uv_within(curve, d)` and
+`surface.uv_curve_to_3d_within(uv_curve, d)`. In Rust they are the
+generic free functions `curve_3d_to_uv_within(&surface, &curve, d, tol)`
+and `uv_curve_to_3d_within(&surface, &uv_curve, d, tol)`.
 
 === "Python"
 
     ```python
-    from geomcore import curve_3d_to_uv_numeric
-
-    uv = curve_3d_to_uv_numeric(curve, surface, sample_count=64)   # [(u, v), ...]
+    approximation = surface.curve_3d_to_uv_within(curve, 1e-6)
+    uv_curve = approximation.curve        # BSplineCurve2D
+    approximation.deviation               # <= 1e-6
+    approximation.is_proven()             # False: sampled
     ```
 
 === "Rust"
 
     ```rust
-    use geomcore::curve_3d_to_uv_numeric;
+    use geomcore::curve_3d_to_uv_within;
 
-    let uv = curve_3d_to_uv_numeric(&curve, &surface, 64, tol);
+    let approximation = curve_3d_to_uv_within(&surface, &curve, 1e-6, tol)?;
+    let uv_curve = approximation.curve();
     ```
 
 ## Viewing UV curves
