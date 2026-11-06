@@ -233,14 +233,60 @@ fn test_the_distance_between_the_axes_decides_the_outcome() {
     assert!(p.distance(Point::new(0.0, 1.0, 0.0)) < TOL.confusion);
     assert_eq!(first.intersect(&second, TOL).contact_points(), [p]);
     let (first, second) = pair(1.0, 0.5, 0.9, -0.5);
-    assert_eq!(
+    assert!(matches!(
         first.intersect_exact(&second, TOL),
-        CylinderCylinderIntersection::NotAnalytic
-    );
+        CylinderCylinderIntersection::Quartic(_)
+    ));
     assert_eq!(
         first.intersect(&second, TOL).method(),
-        IntersectionMethod::Numeric
+        IntersectionMethod::Exact
     );
+}
+
+#[test]
+fn test_a_thin_cylinder_touching_a_thick_one_from_inside_crosses_itself_there() {
+    // Either one thicker, on either side, the axes `r1 − r2` apart and a
+    // fraction of confusion either way.
+    for (r1, r2) in [(1.0, 0.5), (0.5, 1.0), (1.3, 0.4)] {
+        for (angle, side) in [(0.9, 1.0), (FRAC_PI_2, -1.0), (2.3, 1.0), (0.4, -1.0)] {
+            for offset in [0.0, 0.5, -0.5] {
+                let d = side * f64::abs(r1 - r2) + offset * TOL.confusion;
+                let (first, second) = pair(r1, r2, angle, d);
+                let CylinderCylinderIntersection::Quartic(curve) =
+                    first.intersect_exact(&second, TOL)
+                else {
+                    panic!("expected the loop through the node");
+                };
+                assert_eq!(curve.component_count(), 1);
+                assert!(matches!(curve.components[0], Component::Node { .. }));
+                // The thin one's generator farthest from the thick axis,
+                // the axes at `y = 0` and `y = d`.
+                let (thin_axis, thin_radius, away) = if r1 < r2 {
+                    (0.0, r1, -side)
+                } else {
+                    (d, r2, side)
+                };
+                let node = Point::new(0.0, thin_axis + away * thin_radius, 0.0);
+                let contact = curve.contact_point().unwrap();
+                assert!(contact.distance(node) < TOL.confusion);
+                // Both ways through the node, at `π/2` and `3π/2`.
+                for parameter in [FRAC_PI_2, 3.0 * FRAC_PI_2] {
+                    assert!(curve.point_at(0, parameter).distance(contact) < 1e-12);
+                }
+                let within = 0.5 * offset.abs() * TOL.confusion + 1e-12;
+                assert_exact(&curve, &first, &second, within);
+                let result = first.intersect(&second, TOL);
+                assert_eq!(result.method(), IntersectionMethod::Exact);
+                assert!(result.is_complete());
+                assert_eq!(result.curves().len(), 1);
+                assert_eq!(result.contact_points(), [contact]);
+                assert_fitted(&first, &second, result.curves());
+                if angle == 0.9 {
+                    assert_fitted_on_closed_form(&curve, 0.3 * TOL.confusion);
+                }
+            }
+        }
+    }
 }
 
 #[test]

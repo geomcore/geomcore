@@ -137,10 +137,9 @@ pub enum SphereConeIntersection {
 
 /// Result of intersecting two cylinders.
 ///
-/// Every configuration is closed-form but one: axes that are not parallel
-/// (against `tol.angular`) at the distance `|r1 − r2|` apart (within
-/// `tol.confusion`), radii unequal or axes apart, where the curve crosses
-/// itself at a point where the cylinders touch. That one reports
+/// Every configuration is closed-form but a hair from the two ellipses:
+/// radii between one and two `tol.confusion` apart whose axes meet within
+/// `tol.confusion`, too near equal for the node to have a side. Those report
 /// [`CylinderCylinderIntersection::NotAnalytic`], reserved for the
 /// numeric surface-surface path.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -667,8 +666,8 @@ impl IntersectExact<Cylinder> for Cylinder {
     /// the axes, the cylinders miss (`d` beyond `r1 + r2`), touch at a
     /// point (`d = r1 + r2`) or meet in one loop (`d` between `|r1 − r2|`
     /// and `r1 + r2`) or two (`d` below `|r1 − r2|`). At `d = |r1 − r2|`
-    /// the loops meet where the cylinders touch, and the result is
-    /// [`CylinderCylinderIntersection::NotAnalytic`].
+    /// the thin cylinder touches the thick one from inside, and one loop
+    /// crosses itself there.
     ///
     /// # Examples
     ///
