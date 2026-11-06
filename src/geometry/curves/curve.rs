@@ -40,7 +40,7 @@ macro_rules! curve_variants {
 pub(crate) use curve_variants;
 
 /// The match forwarding a call to the curve a [`Curve`] holds:
-/// `curve_dispatch!(self, c => c.eval_point(u))`.
+/// `curve_dispatch!(self, c => c.point_at(u))`.
 macro_rules! curve_dispatch {
     ($value:expr, $binding:ident => $body:expr) => {
         $crate::geometry::curves::curve_variants! {
@@ -83,7 +83,7 @@ pub(crate) use elementary_curve_dispatch;
 ///     Line::new(Point::ORIGIN, Vector::X).unwrap().into(),
 ///     Circle::new(Point::ORIGIN, Vector::Z, 1.0).unwrap().into(),
 /// ];
-/// let points: Vec<Point> = curves.iter().map(|c| c.eval_point(0.0)).collect();
+/// let points: Vec<Point> = curves.iter().map(|c| c.point_at(0.0)).collect();
 /// assert_eq!(points[0], Point::ORIGIN);
 /// assert_eq!(points[1], Point::new(1.0, 0.0, 0.0));
 /// ```
@@ -108,20 +108,20 @@ pub enum Curve {
 
 impl ParametricCurve for Curve {
     #[inline]
-    fn eval_point(&self, u: f64) -> Point {
-        curve_dispatch!(self, c => c.eval_point(u))
+    fn point_at(&self, u: f64) -> Point {
+        curve_dispatch!(self, c => c.point_at(u))
     }
 
-    fn eval_derivative(&self, u: f64, order: u32) -> Vector {
-        curve_dispatch!(self, c => c.eval_derivative(u, order))
+    fn derivative(&self, u: f64, order: u32) -> Vector {
+        curve_dispatch!(self, c => c.derivative(u, order))
     }
 
-    fn eval_d1(&self, u: f64) -> (Point, Vector) {
-        curve_dispatch!(self, c => c.eval_d1(u))
+    fn first_derivatives(&self, u: f64) -> (Point, Vector) {
+        curve_dispatch!(self, c => c.first_derivatives(u))
     }
 
-    fn eval_d2(&self, u: f64) -> (Point, Vector, Vector) {
-        curve_dispatch!(self, c => c.eval_d2(u))
+    fn second_derivatives(&self, u: f64) -> (Point, Vector, Vector) {
+        curve_dispatch!(self, c => c.second_derivatives(u))
     }
 
     fn tangent(&self, u: f64, tol: Tolerance) -> Option<Vector> {
@@ -144,8 +144,8 @@ impl ParametricCurve for Curve {
         curve_dispatch!(self, c => c.period())
     }
 
-    fn eval_points(&self, us: &[f64]) -> Vec<Point> {
-        curve_dispatch!(self, c => c.eval_points(us))
+    fn points_at(&self, us: &[f64]) -> Vec<Point> {
+        curve_dispatch!(self, c => c.points_at(us))
     }
 
     fn is_periodic(&self) -> bool {
@@ -245,20 +245,20 @@ pub enum ElementaryCurve {
 
 impl ParametricCurve for ElementaryCurve {
     #[inline]
-    fn eval_point(&self, u: f64) -> Point {
-        elementary_curve_dispatch!(self, c => c.eval_point(u))
+    fn point_at(&self, u: f64) -> Point {
+        elementary_curve_dispatch!(self, c => c.point_at(u))
     }
 
-    fn eval_derivative(&self, u: f64, order: u32) -> Vector {
-        elementary_curve_dispatch!(self, c => c.eval_derivative(u, order))
+    fn derivative(&self, u: f64, order: u32) -> Vector {
+        elementary_curve_dispatch!(self, c => c.derivative(u, order))
     }
 
-    fn eval_d1(&self, u: f64) -> (Point, Vector) {
-        elementary_curve_dispatch!(self, c => c.eval_d1(u))
+    fn first_derivatives(&self, u: f64) -> (Point, Vector) {
+        elementary_curve_dispatch!(self, c => c.first_derivatives(u))
     }
 
-    fn eval_d2(&self, u: f64) -> (Point, Vector, Vector) {
-        elementary_curve_dispatch!(self, c => c.eval_d2(u))
+    fn second_derivatives(&self, u: f64) -> (Point, Vector, Vector) {
+        elementary_curve_dispatch!(self, c => c.second_derivatives(u))
     }
 
     fn tangent(&self, u: f64, tol: Tolerance) -> Option<Vector> {
@@ -281,8 +281,8 @@ impl ParametricCurve for ElementaryCurve {
         elementary_curve_dispatch!(self, c => c.period())
     }
 
-    fn eval_points(&self, us: &[f64]) -> Vec<Point> {
-        elementary_curve_dispatch!(self, c => c.eval_points(us))
+    fn points_at(&self, us: &[f64]) -> Vec<Point> {
+        elementary_curve_dispatch!(self, c => c.points_at(us))
     }
 
     fn is_periodic(&self) -> bool {

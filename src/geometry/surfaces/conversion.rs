@@ -186,7 +186,7 @@ impl Plane {
     /// let plane = Plane::new(Point::new(0.0, 0.0, 1.0), Vector::Z).unwrap();
     /// let patch = plane.to_bspline_patch((-1.0, 2.0), (0.0, 3.0)).unwrap();
     /// assert_eq!((patch.u_degree(), patch.v_degree()), (1, 1));
-    /// assert_eq!(patch.eval_point(0.5, 2.0), plane.eval_point(0.5, 2.0));
+    /// assert_eq!(patch.point_at(0.5, 2.0), plane.point_at(0.5, 2.0));
     /// ```
     pub fn to_bspline_patch(
         &self,
@@ -196,8 +196,8 @@ impl Plane {
         check_ranges(self, u_range, v_range)?;
         let ((u0, u1), (v0, v1)) = (u_range, v_range);
         let poles = vec![
-            vec![self.eval_point(u0, v0), self.eval_point(u0, v1)],
-            vec![self.eval_point(u1, v0), self.eval_point(u1, v1)],
+            vec![self.point_at(u0, v0), self.point_at(u0, v1)],
+            vec![self.point_at(u1, v0), self.point_at(u1, v1)],
         ];
         if !poles.iter().flatten().all(|p| p.is_finite()) {
             return Err(BSplineConversionError::NotRepresentable);
@@ -255,8 +255,8 @@ impl Cylinder {
     /// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
     /// let tube = cylinder.to_bspline_patch((0.0, TAU), (-1.0, 4.0)).unwrap();
     /// assert!(tube.is_u_periodic() && !tube.is_v_periodic());
-    /// let p = tube.eval_point(FRAC_PI_2, 3.0);
-    /// assert!(p.distance(cylinder.eval_point(FRAC_PI_2, 3.0)) < 1e-15);
+    /// let p = tube.point_at(FRAC_PI_2, 3.0);
+    /// assert!(p.distance(cylinder.point_at(FRAC_PI_2, 3.0)) < 1e-15);
     /// assert_eq!(
     ///     cylinder.to_bspline_patch((0.0, 1.0), (0.0, f64::INFINITY)).err(),
     ///     Some(BSplineConversionError::Unbounded)
@@ -276,7 +276,7 @@ impl Cone {
     /// The straight generatrix over `v_range`, ending exactly on the axis
     /// at the apex.
     fn profile(&self, (first, last): (f64, f64)) -> PlaneNet {
-        let (ref_r, alpha) = (self.ref_radius(), self.semi_angle());
+        let (ref_r, alpha) = (self.reference_radius(), self.half_angle());
         let pole = |v: f64| {
             let radial = v * alpha.sin();
             [
@@ -315,11 +315,11 @@ impl Cone {
     /// use std::f64::consts::PI;
     ///
     /// let cone = Cone::new(Point::ORIGIN, Vector::Z, PI / 6.0, 1.0).unwrap();
-    /// // From the apex (v = -ref_radius / sin(semi_angle) = -2) up to v = 1.
+    /// // From the apex (v = -reference_radius / sin(half_angle) = -2) up to v = 1.
     /// let patch = cone.to_bspline_patch((0.0, PI), (-2.0, 1.0)).unwrap();
-    /// let apex = cone.eval_point(0.0, -2.0);
-    /// assert!(patch.eval_point(1.0, -2.0).distance(apex) < 1e-15);
-    /// assert!(patch.eval_point(2.5, -2.0).distance(apex) < 1e-15);
+    /// let apex = cone.point_at(0.0, -2.0);
+    /// assert!(patch.point_at(1.0, -2.0).distance(apex) < 1e-15);
+    /// assert!(patch.point_at(2.5, -2.0).distance(apex) < 1e-15);
     /// ```
     pub fn to_bspline_patch(
         &self,
@@ -364,9 +364,9 @@ impl Sphere {
     /// let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
     /// let bspline = sphere.to_bspline();
     /// assert!(bspline.is_u_periodic() && !bspline.is_v_periodic());
-    /// let north = bspline.eval_point(1.0, FRAC_PI_2);
+    /// let north = bspline.point_at(1.0, FRAC_PI_2);
     /// assert!(north.distance(Point::new(0.0, 0.0, 2.0)) < 1e-15);
-    /// let p = bspline.eval_point(0.3, 0.7);
+    /// let p = bspline.point_at(0.3, 0.7);
     /// assert!((p.distance(Point::ORIGIN) - 2.0).abs() < 1e-15);
     /// ```
     pub fn to_bspline(&self) -> BSplineSurface {
@@ -406,8 +406,8 @@ impl Sphere {
     /// // The northern half of the sphere's eastern half.
     /// let patch = sphere.to_bspline_patch((-FRAC_PI_2, FRAC_PI_2), (0.0, FRAC_PI_2)).unwrap();
     /// assert!(!patch.is_u_periodic());
-    /// assert!(patch.eval_point(0.0, 0.0).distance(Point::new(1.0, 0.0, 0.0)) < 1e-15);
-    /// assert!((patch.eval_point(0.4, 1.1).distance(Point::ORIGIN) - 1.0).abs() < 1e-15);
+    /// assert!(patch.point_at(0.0, 0.0).distance(Point::new(1.0, 0.0, 0.0)) < 1e-15);
+    /// assert!((patch.point_at(0.4, 1.1).distance(Point::ORIGIN) - 1.0).abs() < 1e-15);
     /// assert!(sphere.to_bspline_patch((0.0, PI), (0.0, 2.0)).is_err());
     /// ```
     pub fn to_bspline_patch(
@@ -454,7 +454,7 @@ impl Torus {
     /// let torus = Torus::new(Point::ORIGIN, Vector::Z, 3.0, 1.0).unwrap();
     /// let bspline = torus.to_bspline();
     /// assert!(bspline.is_u_periodic() && bspline.is_v_periodic());
-    /// assert!(bspline.eval_point(0.0, 0.0).distance(Point::new(4.0, 0.0, 0.0)) < 1e-15);
+    /// assert!(bspline.point_at(0.0, 0.0).distance(Point::new(4.0, 0.0, 0.0)) < 1e-15);
     /// ```
     pub fn to_bspline(&self) -> BSplineSurface {
         self.to_bspline_patch(self.u_bounds(), self.v_bounds())
@@ -490,7 +490,7 @@ impl Torus {
     /// // The outer half of the tube, all the way round.
     /// let band = torus.to_bspline_patch((0.0, TAU), (-PI / 2.0, PI / 2.0)).unwrap();
     /// assert!(band.is_u_periodic() && !band.is_v_periodic());
-    /// let p = band.eval_point(PI, 0.0);
+    /// let p = band.point_at(PI, 0.0);
     /// assert!(p.distance(Point::new(-4.0, 0.0, 0.0)) < 1e-15);
     /// ```
     pub fn to_bspline_patch(
@@ -518,6 +518,7 @@ impl ElementarySurface {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{BSplineConversionError, ElementarySurface, Plane, Point, Sphere, Vector};
     ///
     /// let sphere = Sphere::new(Point::ORIGIN, 1.0).unwrap();
@@ -592,7 +593,7 @@ impl ExtrusionSurface {
     /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
     /// let surface = ExtrusionSurface::new(circle.into(), Vector::Z).unwrap();
     /// let patch = surface.to_bspline_patch((0.0, 1.0), (0.0, 2.0)).unwrap();
-    /// assert!(patch.eval_point(0.5, 1.0).distance(Point::ORIGIN) > 0.99);
+    /// assert!(patch.point_at(0.5, 1.0).distance(Point::ORIGIN) > 0.99);
     /// assert_eq!(patch.v_bounds(), (0.0, 2.0));
     /// ```
     pub fn to_bspline_patch(
@@ -651,7 +652,7 @@ impl RevolutionSurface {
     /// let surface = RevolutionSurface::new(line.into(), axis).unwrap();
     /// let patch = surface.to_bspline_patch((0.0, std::f64::consts::TAU), (0.0, 2.0)).unwrap();
     /// assert!(patch.is_u_periodic());
-    /// let p = patch.eval_point(1.0, 0.5);
+    /// let p = patch.point_at(1.0, 0.5);
     /// assert!((p.x.hypot(p.y) - 1.0).abs() < 1e-12);
     /// ```
     pub fn to_bspline_patch(

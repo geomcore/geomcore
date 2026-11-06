@@ -274,13 +274,15 @@ fn replay_fixture() {
         );
     }
     for case in json["cones"].as_array().unwrap() {
-        let ref_r = case["ref_radius"].as_f64().unwrap();
-        let semi_angle = case["semi_angle"].as_f64().unwrap();
+        let reference_radius = case["ref_radius"].as_f64().unwrap();
+        let half_angle = case["semi_angle"].as_f64().unwrap();
         replay_case(
             case,
-            move |frame, u, v| cone_d0(frame, ref_r, semi_angle, u, v),
-            move |frame, du, dv, u, v| cone_derivative(frame, ref_r, semi_angle, u, v, du, dv),
-            move |frame, p| cone_parameters(frame, ref_r, semi_angle, p),
+            move |frame, u, v| cone_d0(frame, reference_radius, half_angle, u, v),
+            move |frame, du, dv, u, v| {
+                cone_derivative(frame, reference_radius, half_angle, u, v, du, dv)
+            },
+            move |frame, p| cone_parameters(frame, reference_radius, half_angle, p),
         );
     }
     for case in json["spheres"].as_array().unwrap() {

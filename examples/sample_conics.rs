@@ -16,10 +16,10 @@ fn main() {
         .collect();
 
     let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
-    let circle_points = circle.eval_points(&params);
+    let circle_points = circle.points_at(&params);
 
     let ellipse = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 3.0, 1.5).unwrap();
-    let ellipse_points = ellipse.eval_points(&params);
+    let ellipse_points = ellipse.points_at(&params);
 
     println!("Circle (radius 2.0), first/last 3 of {SAMPLE_COUNT} points over [0, TAU):");
     print_head_and_tail(&params, &circle_points);
@@ -48,7 +48,7 @@ fn main() {
         }
         _ => unreachable!("a coaxial circle on a cylinder always maps to a line"),
     }
-    let q = uv_curve.eval_point(1.0);
+    let q = uv_curve.point_at(1.0);
     println!("uv_curve(1.0) = ({:.6}, {:.6})", q.x, q.y);
 }
 

@@ -10,7 +10,7 @@
 //!   (two closed curves);
 //! - a cylinder of radius 1 about z against a cubic wall extruded along z
 //!   (two open curves);
-//! - a cone of semi-angle 0.3 against a cylinder whose axis is parallel to
+//! - a cone of half-angle 0.3 against a cylinder whose axis is parallel to
 //!   one of its generators (two curves cut at their seeded trace box).
 //!
 //! And pairs where the surfaces lie on each other or touch, which the

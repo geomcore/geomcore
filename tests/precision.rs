@@ -201,7 +201,7 @@ fn test_a_circle_tilted_below_the_confusion_angle_parametrizes_on_a_cylinder() {
     let Curve2D::Line(line) = image else {
         unreachable!()
     };
-    assert!((cylinder.eval_point(line.origin().x, line.origin().y).z - 2.0).abs() <= 1e-9);
+    assert!((cylinder.point_at(line.origin().x, line.origin().y).z - 2.0).abs() <= 1e-9);
 }
 
 #[test]

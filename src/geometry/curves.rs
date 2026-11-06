@@ -20,7 +20,7 @@ mod trimmed;
 pub use bezier::{BezierConstructionError, BezierCurve, BezierCurve2D, GenericBezierCurve};
 pub use bspline::{
     BSplineConstructionError, BSplineCurve, BSplineCurve2D, BSplineSplitError,
-    DegreeElevationError, GenericBSplineCurve, KnotInsertionError, KnotRemovalError,
+    DegreeElevationError, GenericBSplineCurve, KnotInsertionError, KnotRemovalError, PoleEditError,
 };
 pub use circle::{Circle, Circle2D, CircleConstructionError, GenericCircle};
 pub use conversion::BSplineConversionError;
@@ -39,5 +39,6 @@ pub use parametric_curve::{
 pub use parametric_curve_2d::{BoundedCurve2D, ParametricCurve2D, PointExtrema2D};
 pub(crate) use range::{RangeOperations, Run};
 pub use trimmed::{
-    GenericTrimmedCurve, TrimmedCurve, TrimmedCurve2D, TrimmedCurveConstructionError,
+    ArcConstructionError, GenericTrimmedCurve, TrimmedCurve, TrimmedCurve2D,
+    TrimmedCurveConstructionError,
 };

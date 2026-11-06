@@ -114,8 +114,8 @@ impl Continuity {
 ///
 /// # Examples
 ///
-/// The default [`eval_points`](ParametricCurve::eval_points) maps
-/// [`eval_point`](ParametricCurve::eval_point) over each parameter:
+/// The default [`points_at`](ParametricCurve::points_at) maps
+/// [`point_at`](ParametricCurve::point_at) over each parameter:
 ///
 /// ```
 /// use geomcore::prelude::*;
@@ -123,8 +123,8 @@ impl Continuity {
 ///
 /// let line = Line::new(Point::ORIGIN, Vector::X).unwrap();
 /// let us = [0.0, 1.0, 2.0];
-/// let expected: Vec<Point> = us.iter().map(|&u| line.eval_point(u)).collect();
-/// assert_eq!(line.eval_points(&us), expected);
+/// let expected: Vec<Point> = us.iter().map(|&u| line.point_at(u)).collect();
+/// assert_eq!(line.points_at(&us), expected);
 /// ```
 ///
 /// The default [`is_periodic`](ParametricCurve::is_periodic) reports
@@ -142,7 +142,15 @@ impl Continuity {
 /// ```
 pub trait ParametricCurve {
     /// Evaluates the point on the curve at parameter `u`.
-    fn eval_point(&self, u: f64) -> Point;
+    ///
+    /// Every `u` evaluates, inside the bounds or not. Past them, a line,
+    /// conic or periodic curve continues along its own equation, and a
+    /// trimmed curve evaluates its basis curve there. A non-periodic
+    /// B-spline or Bézier curve clamps `u` to the nearer bound, so the
+    /// point and every derivative are those at the bound. An operation that
+    /// builds from a parameter, such as a split or a knot insertion, refuses
+    /// one outside the bounds instead (ADR 0037).
+    fn point_at(&self, u: f64) -> Point;
 
     /// Evaluates the derivative of the given `order` at parameter `u`.
     ///
@@ -153,7 +161,7 @@ pub trait ParametricCurve {
     ///
     /// # Panics
     ///
-    /// Panics if `order == 0`; use [`eval_point`](Self::eval_point) to
+    /// Panics if `order == 0`; use [`point_at`](Self::point_at) to
     /// evaluate the position itself.
     ///
     /// # Examples
@@ -163,19 +171,19 @@ pub trait ParametricCurve {
     /// use geomcore::{Circle, Line, Point, Vector};
     ///
     /// let line = Line::new(Point::ORIGIN, Vector::new(0.0, 3.0, 0.0)).unwrap();
-    /// assert_eq!(line.eval_derivative(1.5, 1), Vector::Y);
-    /// assert_eq!(line.eval_derivative(1.5, 2), Vector::ZERO);
+    /// assert_eq!(line.derivative(1.5, 1), Vector::Y);
+    /// assert_eq!(line.derivative(1.5, 2), Vector::ZERO);
     ///
     /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
-    /// let third = circle.eval_derivative(0.0, 3);
+    /// let third = circle.derivative(0.0, 3);
     /// assert!((third - Vector::new(0.0, -2.0, 0.0)).magnitude() < 1e-15);
     /// ```
-    fn eval_derivative(&self, u: f64, order: u32) -> Vector;
+    fn derivative(&self, u: f64, order: u32) -> Vector;
 
     /// Evaluates the point and the first derivative at parameter `u`.
     ///
-    /// Default implementation: [`eval_point`](Self::eval_point) and
-    /// [`eval_derivative`](Self::eval_derivative). B-spline curves override
+    /// Default implementation: [`point_at`](Self::point_at) and
+    /// [`derivative`](Self::derivative). B-spline curves override
     /// it to evaluate their basis functions once.
     ///
     /// # Examples
@@ -185,19 +193,19 @@ pub trait ParametricCurve {
     /// use geomcore::{Circle, Point, Vector};
     ///
     /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
-    /// let (point, tangent) = circle.eval_d1(0.0);
+    /// let (point, tangent) = circle.first_derivatives(0.0);
     /// assert_eq!(point, Point::new(2.0, 0.0, 0.0));
     /// assert!((tangent - Vector::new(0.0, 2.0, 0.0)).magnitude() < 1e-15);
     /// ```
-    fn eval_d1(&self, u: f64) -> (Point, Vector) {
-        (self.eval_point(u), self.eval_derivative(u, 1))
+    fn first_derivatives(&self, u: f64) -> (Point, Vector) {
+        (self.point_at(u), self.derivative(u, 1))
     }
 
     /// Evaluates the point and the first and second derivatives at
     /// parameter `u`.
     ///
-    /// Default implementation: [`eval_point`](Self::eval_point) and
-    /// [`eval_derivative`](Self::eval_derivative). B-spline curves override
+    /// Default implementation: [`point_at`](Self::point_at) and
+    /// [`derivative`](Self::derivative). B-spline curves override
     /// it to evaluate their basis functions once.
     ///
     /// # Examples
@@ -212,16 +220,16 @@ pub trait ParametricCurve {
     ///     Point::new(2.0, 0.0, 0.0),
     /// ];
     /// let curve = BSplineCurve::new(2, poles, vec![0.0, 1.0], vec![3, 3], false).unwrap();
-    /// let (point, d1, d2) = curve.eval_d2(0.5);
+    /// let (point, d1, d2) = curve.second_derivatives(0.5);
     /// assert_eq!(point, Point::new(1.0, 0.5, 0.0));
     /// assert_eq!(d1, Vector::new(2.0, 0.0, 0.0));
     /// assert_eq!(d2, Vector::new(0.0, -4.0, 0.0));
     /// ```
-    fn eval_d2(&self, u: f64) -> (Point, Vector, Vector) {
+    fn second_derivatives(&self, u: f64) -> (Point, Vector, Vector) {
         (
-            self.eval_point(u),
-            self.eval_derivative(u, 1),
-            self.eval_derivative(u, 2),
+            self.point_at(u),
+            self.derivative(u, 1),
+            self.derivative(u, 2),
         )
     }
 
@@ -246,7 +254,7 @@ pub trait ParametricCurve {
     /// assert_eq!(circle.tangent(0.0, Tolerance::DEFAULT), Some(Vector::Y));
     /// ```
     fn tangent(&self, u: f64, tol: Tolerance) -> Option<Vector> {
-        let (_, first_derivative) = self.eval_d1(u);
+        let (_, first_derivative) = self.first_derivatives(u);
         let speed = regular_speed(first_derivative, tol.reference_width(self.bounds()), tol)?;
         Some(first_derivative * (1.0 / speed))
     }
@@ -273,7 +281,7 @@ pub trait ParametricCurve {
     /// assert_eq!(circle.curvature(0.0, Tolerance::DEFAULT), Some(0.5));
     /// ```
     fn curvature(&self, u: f64, tol: Tolerance) -> Option<f64> {
-        let (_, first_derivative, second_derivative) = self.eval_d2(u);
+        let (_, first_derivative, second_derivative) = self.second_derivatives(u);
         let speed = regular_speed(first_derivative, tol.reference_width(self.bounds()), tol)?;
         let derivatives_cross = first_derivative.cross(second_derivative);
         Some(derivatives_cross.magnitude() / (speed * speed * speed))
@@ -308,7 +316,7 @@ pub trait ParametricCurve {
     /// assert_eq!(line.curvature_center(5.0, Tolerance::DEFAULT), None);
     /// ```
     fn curvature_center(&self, u: f64, tol: Tolerance) -> Option<Point> {
-        let (point, first_derivative, second_derivative) = self.eval_d2(u);
+        let (point, first_derivative, second_derivative) = self.second_derivatives(u);
         let width = tol.reference_width(self.bounds());
         let speed = regular_speed(first_derivative, width, tol)?;
         let derivatives_cross = first_derivative.cross(second_derivative);
@@ -335,10 +343,10 @@ pub trait ParametricCurve {
 
     /// Evaluates the points on the curve at each parameter in `us`.
     ///
-    /// Default implementation: maps [`eval_point`](Self::eval_point) over
+    /// Default implementation: maps [`point_at`](Self::point_at) over
     /// `us`.
-    fn eval_points(&self, us: &[f64]) -> Vec<Point> {
-        us.iter().map(|&u| self.eval_point(u)).collect()
+    fn points_at(&self, us: &[f64]) -> Vec<Point> {
+        us.iter().map(|&u| self.point_at(u)).collect()
     }
 
     /// Returns whether the curve is periodic, i.e. whether
@@ -384,7 +392,7 @@ pub trait ParametricCurve {
     /// only; a periodic curve wraps `u` into its period, so its seam
     /// counts as a knot. Derivatives of higher order than the one reported
     /// may differ on the two sides of `u`;
-    /// [`BSplineCurve::eval_d1_sided`] and its siblings evaluate each
+    /// [`BSplineCurve::first_derivatives_sided`] and its siblings evaluate each
     /// side. Default implementation: smooth.
     ///
     /// # Examples
@@ -570,7 +578,7 @@ pub trait PointExtrema: ParametricCurve {
 ///
 /// [`reversed_parameter`](ReversibleCurve::reversed_parameter) maps a
 /// parameter onto the reversed curve:
-/// `reversed().eval_point(reversed_parameter(u))` is `eval_point(u)`, and
+/// `reversed().point_at(reversed_parameter(u))` is `point_at(u)`, and
 /// the derivatives of odd order change sign there. The map is its own
 /// inverse and takes the bounds to the reversed curve's bounds, and
 /// reversing twice gives the curve back.
@@ -596,7 +604,7 @@ pub trait PointExtrema: ParametricCurve {
 /// let circle = Curve::from(Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap());
 /// let reversed = circle.reversed();
 /// let u = circle.reversed_parameter(0.5);
-/// assert!(reversed.eval_point(u).distance(circle.eval_point(0.5)) < 1e-12);
+/// assert!(reversed.point_at(u).distance(circle.point_at(0.5)) < 1e-12);
 /// assert_eq!(reversed.bounds(), circle.bounds());
 /// ```
 pub trait ReversibleCurve: Sized {
@@ -630,12 +638,12 @@ pub trait ReversibleCurve: Sized {
 pub trait BoundedCurve: ParametricCurve {
     /// Returns the point at the first bound.
     fn start_point(&self) -> Point {
-        self.eval_point(self.bounds().0)
+        self.point_at(self.bounds().0)
     }
 
     /// Returns the point at the last bound.
     fn end_point(&self) -> Point {
-        self.eval_point(self.bounds().1)
+        self.point_at(self.bounds().1)
     }
 }
 
@@ -649,20 +657,20 @@ impl<C: ParametricCurve> BoundedCurve for crate::TrimmedCurve<C> {}
 /// [`TrimmedCurve`](crate::TrimmedCurve) can borrow its
 /// basis instead of owning it.
 impl<C: ParametricCurve + ?Sized> ParametricCurve for &C {
-    fn eval_point(&self, u: f64) -> Point {
-        (**self).eval_point(u)
+    fn point_at(&self, u: f64) -> Point {
+        (**self).point_at(u)
     }
 
-    fn eval_derivative(&self, u: f64, order: u32) -> Vector {
-        (**self).eval_derivative(u, order)
+    fn derivative(&self, u: f64, order: u32) -> Vector {
+        (**self).derivative(u, order)
     }
 
-    fn eval_d1(&self, u: f64) -> (Point, Vector) {
-        (**self).eval_d1(u)
+    fn first_derivatives(&self, u: f64) -> (Point, Vector) {
+        (**self).first_derivatives(u)
     }
 
-    fn eval_d2(&self, u: f64) -> (Point, Vector, Vector) {
-        (**self).eval_d2(u)
+    fn second_derivatives(&self, u: f64) -> (Point, Vector, Vector) {
+        (**self).second_derivatives(u)
     }
 
     fn bounds(&self) -> (f64, f64) {
@@ -677,8 +685,8 @@ impl<C: ParametricCurve + ?Sized> ParametricCurve for &C {
         (**self).is_closed(tol)
     }
 
-    fn eval_points(&self, us: &[f64]) -> Vec<Point> {
-        (**self).eval_points(us)
+    fn points_at(&self, us: &[f64]) -> Vec<Point> {
+        (**self).points_at(us)
     }
 
     fn continuity(&self, u: f64, tol: Tolerance) -> Continuity {

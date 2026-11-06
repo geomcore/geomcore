@@ -25,7 +25,7 @@ fn sampled_distance(surface: &ExtrusionSurface, point: Point, (first, last): (f6
     (0..=20_000)
         .map(|i| {
             let t = first + (last - first) * i as f64 / 20_000.0;
-            let offset = point - surface.profile().eval_point(t);
+            let offset = point - surface.profile().point_at(t);
             (offset - offset.dot(d) * d).magnitude()
         })
         .fold(f64::INFINITY, f64::min)
@@ -161,11 +161,8 @@ fn test_new_rejects_profiles_sweeping_no_area() {
 fn test_eval_point_moves_the_profile_along_the_direction() {
     for (name, surface, _) in cases() {
         let (u, v) = (0.3, -1.7);
-        let expected = surface.profile().eval_point(u) + v * surface.direction();
-        assert!(
-            surface.eval_point(u, v).distance(expected) < 1e-14,
-            "{name}"
-        );
+        let expected = surface.profile().point_at(u) + v * surface.direction();
+        assert!(surface.point_at(u, v).distance(expected) < 1e-14, "{name}");
     }
 }
 
@@ -174,12 +171,11 @@ fn test_derivatives_match_finite_differences() {
     let h = 1e-5;
     for (name, surface, _) in cases() {
         let (u, v) = (0.4, 0.9);
-        let (_, [su, sv], [suu, suv, svv]) = surface.eval_d2(u, v);
-        let fd_u = (surface.eval_point(u + h, v) - surface.eval_point(u - h, v)) * (0.5 / h);
-        let fd_v = (surface.eval_point(u, v + h) - surface.eval_point(u, v - h)) * (0.5 / h);
-        let fd_uu = (surface.eval_derivative(u + h, v, 1, 0)
-            - surface.eval_derivative(u - h, v, 1, 0))
-            * (0.5 / h);
+        let (_, [su, sv], [suu, suv, svv]) = surface.second_derivatives(u, v);
+        let fd_u = (surface.point_at(u + h, v) - surface.point_at(u - h, v)) * (0.5 / h);
+        let fd_v = (surface.point_at(u, v + h) - surface.point_at(u, v - h)) * (0.5 / h);
+        let fd_uu =
+            (surface.derivative(u + h, v, 1, 0) - surface.derivative(u - h, v, 1, 0)) * (0.5 / h);
         assert!((su - fd_u).magnitude() < 1e-6, "{name} su");
         assert!((sv - fd_v).magnitude() < 1e-6, "{name} sv");
         assert!((suu - fd_uu).magnitude() < 1e-5, "{name} suu");
@@ -192,7 +188,7 @@ fn test_derivatives_match_finite_differences() {
 #[should_panic(expected = "du + dv must be <= 2")]
 fn test_eval_derivative_third_order_panics() {
     let (_, surface, _) = cases().remove(0);
-    surface.eval_derivative(0.0, 0.0, 2, 1);
+    surface.derivative(0.0, 0.0, 2, 1);
 }
 
 #[test]
@@ -221,7 +217,7 @@ fn test_project_point_matches_sampling() {
     for (name, surface, window) in cases() {
         for point in query_points() {
             let projection = surface.project_point(point, tol);
-            let on_surface = surface.eval_point(projection.u, projection.v);
+            let on_surface = surface.point_at(projection.u, projection.v);
             assert!(on_surface.distance(projection.point) < 1e-12, "{name}");
             assert!(
                 (projection.point.distance(point) - projection.distance).abs() < 1e-12,
@@ -256,7 +252,7 @@ fn test_project_point_on_a_circle_extrusion_matches_the_cylinder() {
 fn test_project_point_of_a_surface_point_returns_its_parameters() {
     let tol = Tolerance::DEFAULT;
     for (name, surface, _) in cases() {
-        let point = surface.eval_point(0.7, 1.3);
+        let point = surface.point_at(0.7, 1.3);
         let projection = surface.project_point(point, tol);
         assert_eq!(projection.distance, 0.0, "{name}");
         assert!(surface.contains(point, tol), "{name}");
@@ -276,12 +272,12 @@ fn test_project_point_non_finite_is_undefined() {
 fn test_reversed_surfaces_map_their_parameters() {
     for (name, surface, _) in cases() {
         let (u, v) = (0.6, 1.1);
-        let point = surface.eval_point(u, v);
+        let point = surface.point_at(u, v);
         let reversed_u = surface.reversed_u();
-        let there = reversed_u.eval_point(surface.u_reversed_parameter(u), v);
+        let there = reversed_u.point_at(surface.u_reversed_parameter(u), v);
         assert!(there.distance(point) < 1e-12, "{name} u");
         let reversed_v = surface.reversed_v();
-        let there = reversed_v.eval_point(u, surface.v_reversed_parameter(v));
+        let there = reversed_v.point_at(u, surface.v_reversed_parameter(v));
         assert!(there.distance(point) < 1e-12, "{name} v");
     }
 }
@@ -294,12 +290,12 @@ fn test_iso_curves_follow_the_surface() {
         for t in [-1.0_f64, 0.25, 0.9] {
             let t_profile = t.clamp(surface.u_bounds().0, surface.u_bounds().1);
             assert!(
-                u_iso.eval_point(t).distance(surface.eval_point(0.4, t)) < 1e-12,
+                u_iso.point_at(t).distance(surface.point_at(0.4, t)) < 1e-12,
                 "{name}"
             );
-            let expected = surface.eval_point(t_profile, -0.8);
+            let expected = surface.point_at(t_profile, -0.8);
             assert!(
-                v_iso.eval_point(t_profile).distance(expected) < 1e-12,
+                v_iso.point_at(t_profile).distance(expected) < 1e-12,
                 "{name}"
             );
         }
@@ -321,8 +317,8 @@ fn test_transformed_maps_every_point() {
         for transform in transforms {
             let image = surface.transformed(transform).unwrap();
             let (u, v) = (0.3, 0.8);
-            let expected = transform.apply_point(surface.eval_point(u, v));
-            assert!(image.eval_point(u, v).distance(expected) < 1e-12, "{name}");
+            let expected = transform.apply_point(surface.point_at(u, v));
+            assert!(image.point_at(u, v).distance(expected) < 1e-12, "{name}");
         }
     }
     let (_, surface, _) = cases().remove(0);
@@ -346,12 +342,12 @@ fn test_bspline_patch_lies_on_the_surface() {
         for (s, t) in [(0.0, 0.0), (0.3, 0.7), (1.0, 1.0), (0.5, 0.2)] {
             let (u0, u1) = patch.u_bounds();
             let (v0, v1) = patch.v_bounds();
-            let p = patch.eval_point(u0 + s * (u1 - u0), v0 + t * (v1 - v0));
+            let p = patch.point_at(u0 + s * (u1 - u0), v0 + t * (v1 - v0));
             assert!(surface.project_point(p, tol).distance < 1e-9, "{name}");
         }
-        let corner = surface.eval_point(u_range.0, -1.0);
+        let corner = surface.point_at(u_range.0, -1.0);
         assert!(
-            patch.eval_point(patch.u_bounds().0, -1.0).distance(corner) < 1e-12,
+            patch.point_at(patch.u_bounds().0, -1.0).distance(corner) < 1e-12,
             "{name}"
         );
     }

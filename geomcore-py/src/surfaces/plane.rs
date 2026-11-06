@@ -1,12 +1,12 @@
-//! The Python class `geomcore.surfaces.Plane`, wrapping `geomcore::Plane`.
+//! The Python class `geomcore.Plane`, wrapping `geomcore::Plane`.
 
 use crate::method_sets::*;
 use crate::surfaces::*;
-use crate::values::PyFrame;
+use crate::values::{PyAxis, PyFrame};
 use geomcore::Plane;
 
 /// An infinite plane, parametrized by in-plane coordinates (u, v).
-#[pyclass(name = "Plane", module = "geomcore.surfaces", eq)]
+#[pyclass(name = "Plane", module = "geomcore", eq)]
 #[derive(Clone, PartialEq)]
 pub(crate) struct PyPlane(pub(crate) Plane);
 
@@ -18,11 +18,16 @@ shape_methods! {
         PyFrame(self.0.frame())
     }
 
+    fn __reduce__<'py>(slf: &pyo3::Bound<'py, Self>) -> pyo3::PyResult<pyo3::Bound<'py, pyo3::types::PyTuple>> {
+        let this = slf.borrow();
+        crate::pickling::reduce(slf.as_any(), Some("from_frame"), (this.frame(),))
+    }
+
     fn __repr__(&self) -> String {
         format!(
-            "Plane(origin={}, normal={})",
+            "Plane(point={}, normal={})",
             crate::values::coordinates(self.0.frame().origin()),
-            crate::values::coordinates(self.0.normal())
+            crate::values::coordinates(self.0.axis().direction())
         )
     }
 
@@ -56,9 +61,12 @@ shape_methods! {
         ))
     }
 
-    /// The unit normal of the plane.
-    fn normal(&self) -> PyVector {
-        PyVector(self.0.normal())
+    /// The normal axis of the plane: through the frame's origin, along
+    /// the unit normal, which reverses with `reversed_u()` or
+    /// `reversed_v()`. `normal(u, v)` gives the same direction at
+    /// every point.
+    fn axis(&self) -> PyAxis {
+        PyAxis(self.0.axis())
     }
 
     /// The signed distance from the plane to `point`: positive on the side

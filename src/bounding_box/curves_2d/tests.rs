@@ -12,8 +12,18 @@ fn near(a: Point2D, b: Point2D) -> bool {
 }
 
 fn assert_box(b: BoundingBox2D, min: Point2D, max: Point2D) {
-    assert!(near(b.min(), min), "min {:?} != {:?}", b.min(), min);
-    assert!(near(b.max(), max), "max {:?} != {:?}", b.max(), max);
+    assert!(
+        near(b.min_corner(), min),
+        "min {:?} != {:?}",
+        b.min_corner(),
+        min
+    );
+    assert!(
+        near(b.max_corner(), max),
+        "max {:?} != {:?}",
+        b.max_corner(),
+        max
+    );
 }
 
 fn circle() -> Circle2D {
@@ -74,11 +84,11 @@ fn test_quarter_arc_box_is_its_own_extent() {
 fn test_arc_across_the_seam_reaches_the_rightmost_point() {
     let arc = TrimmedCurve2D::new(circle(), -1.0, 1.0).unwrap();
     let b = arc.bounding_box().unwrap();
-    assert!((b.max().x - 3.0).abs() < 1e-12);
+    assert!((b.max_corner().x - 3.0).abs() < 1e-12);
     let (start, end) = (arc.start_point(), arc.end_point());
-    assert!((b.min().y - start.y).abs() < 1e-12);
-    assert!((b.max().y - end.y).abs() < 1e-12);
-    assert!((b.min().x - start.x.min(end.x)).abs() < 1e-12);
+    assert!((b.min_corner().y - start.y).abs() < 1e-12);
+    assert!((b.max_corner().y - end.y).abs() < 1e-12);
+    assert!((b.min_corner().x - start.x.min(end.x)).abs() < 1e-12);
 }
 
 #[test]
@@ -122,7 +132,7 @@ fn test_bspline_box_comes_from_its_poles() {
     let b = arch().bounding_box().unwrap();
     assert_box(b, Point2D::new(0.0, 0.0), Point2D::new(2.0, 2.0));
     // The arch peaks at y = 1: the box holds it but is loose.
-    assert!(b.encloses(arch().eval_point(0.5)));
+    assert!(b.encloses(arch().point_at(0.5)));
     assert_eq!(Curve2D::from(arch()).bounding_box(), Some(b));
 }
 
@@ -140,7 +150,7 @@ fn test_trimmed_bspline_box_is_tighter_than_the_poles() {
     // Poles of the left half of the arch: (0,0), (0.5,1), (1,1).
     assert_box(b, Point2D::new(0.0, 0.0), Point2D::new(1.0, 1.0));
     for u in [0.0, 0.1, 0.25, 0.4, 0.5] {
-        assert!(b.enlarged(1e-12).encloses(curve.eval_point(u)));
+        assert!(b.enlarged(1e-12).encloses(curve.point_at(u)));
     }
 }
 

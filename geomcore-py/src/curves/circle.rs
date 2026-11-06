@@ -1,4 +1,4 @@
-//! The Python class `geomcore.curves.Circle`, wrapping `geomcore::Circle`.
+//! The Python class `geomcore.Circle`, wrapping `geomcore::Circle`.
 
 use crate::curves::*;
 use crate::method_sets::*;
@@ -6,16 +6,26 @@ use crate::values::{PyAxis, PyFrame, float_repr};
 use geomcore::Circle;
 
 /// A circle in 3D, parametrized by the angle from its frame's x direction.
-#[pyclass(name = "Circle", module = "geomcore.curves", eq)]
+#[pyclass(name = "Circle", module = "geomcore", eq)]
 #[derive(Clone, PartialEq)]
 pub(crate) struct PyCircle(pub(crate) Circle);
 
 shape_methods! {
     PyCircle: [curve, bounded_curve];
 
+    /// The axis of the circle: through the center along the normal.
+    fn axis(&self) -> PyAxis {
+        PyAxis(self.0.axis())
+    }
+
     /// The placement frame of the circle.
     fn frame(&self) -> PyFrame {
         PyFrame(self.0.frame())
+    }
+
+    fn __reduce__<'py>(slf: &pyo3::Bound<'py, Self>) -> pyo3::PyResult<pyo3::Bound<'py, pyo3::types::PyTuple>> {
+        let this = slf.borrow();
+        crate::pickling::reduce(slf.as_any(), Some("from_frame"), (this.frame(), this.radius(),))
     }
 
     fn __repr__(&self) -> String {
@@ -70,14 +80,14 @@ shape_methods! {
         self.0.radius()
     }
 
-    /// The circumference (`2*PI*radius`).
-    fn circumference(&self) -> f64 {
-        self.0.circumference()
+    /// The length of the circle, its circumference (`2*PI*radius`).
+    fn length(&self) -> f64 {
+        self.0.length()
     }
 
-    /// The enclosed disk area (`PI*radius^2`).
-    fn disk_area(&self) -> f64 {
-        self.0.disk_area()
+    /// The area the circle encloses: its disk's (`PI*radius^2`).
+    fn enclosed_area(&self) -> f64 {
+        self.0.enclosed_area()
     }
 
     /// The circle as an exact periodic rational quadratic B-spline over

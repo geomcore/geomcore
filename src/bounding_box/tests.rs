@@ -7,15 +7,15 @@ fn unit() -> BoundingBox {
 #[test]
 fn test_new_orders_the_corners() {
     let b = BoundingBox::new(Point::new(1.0, -1.0, 2.0), Point::new(-3.0, 4.0, 2.0));
-    assert_eq!(b.min(), Point::new(-3.0, -1.0, 2.0));
-    assert_eq!(b.max(), Point::new(1.0, 4.0, 2.0));
+    assert_eq!(b.min_corner(), Point::new(-3.0, -1.0, 2.0));
+    assert_eq!(b.max_corner(), Point::new(1.0, 4.0, 2.0));
 }
 
 #[test]
 fn test_from_points_of_one_point_is_flat() {
     let p = Point::new(1.0, 2.0, 3.0);
     let b = BoundingBox::from_points([p]).unwrap();
-    assert_eq!((b.min(), b.max()), (p, p));
+    assert_eq!((b.min_corner(), b.max_corner()), (p, p));
     assert_eq!(b.diagonal(), Vector::ZERO);
     assert!(b.encloses(p));
 }
@@ -26,7 +26,12 @@ fn test_union_is_symmetric_and_holds_both() {
     let b = BoundingBox::new(Point::new(-2.0, 0.5, 0.5), Point::new(-1.0, 3.0, 0.7));
     assert_eq!(a.union(b), b.union(a));
     let both = a.union(b);
-    for corner in [a.min(), a.max(), b.min(), b.max()] {
+    for corner in [
+        a.min_corner(),
+        a.max_corner(),
+        b.min_corner(),
+        b.max_corner(),
+    ] {
         assert!(both.encloses(corner));
     }
     assert_eq!(a.union(a), a);
@@ -35,12 +40,12 @@ fn test_union_is_symmetric_and_holds_both() {
 #[test]
 fn test_enlarged_grows_and_shrinks() {
     let b = unit().enlarged(0.25);
-    assert_eq!(b.min(), Point::new(-0.25, -0.25, -0.25));
-    assert_eq!(b.max(), Point::new(1.25, 1.25, 1.25));
+    assert_eq!(b.min_corner(), Point::new(-0.25, -0.25, -0.25));
+    assert_eq!(b.max_corner(), Point::new(1.25, 1.25, 1.25));
     assert_eq!(b.enlarged(-0.25), unit());
     let collapsed = unit().enlarged(-2.0);
-    assert_eq!(collapsed.min(), Point::new(0.5, 0.5, 0.5));
-    assert_eq!(collapsed.max(), Point::new(0.5, 0.5, 0.5));
+    assert_eq!(collapsed.min_corner(), Point::new(0.5, 0.5, 0.5));
+    assert_eq!(collapsed.max_corner(), Point::new(0.5, 0.5, 0.5));
 }
 
 #[test]
@@ -81,8 +86,8 @@ fn test_center_and_diagonal() {
 fn test_intersection_of_touching_boxes_is_flat() {
     let right = BoundingBox::new(Point::new(1.0, 0.5, 0.0), Point::new(2.0, 2.0, 1.0));
     let shared = unit().intersection(right).unwrap();
-    assert_eq!(shared.min(), Point::new(1.0, 0.5, 0.0));
-    assert_eq!(shared.max(), Point::new(1.0, 1.0, 1.0));
+    assert_eq!(shared.min_corner(), Point::new(1.0, 0.5, 0.0));
+    assert_eq!(shared.max_corner(), Point::new(1.0, 1.0, 1.0));
     assert_eq!(unit().intersection(unit()), Some(unit()));
 }
 

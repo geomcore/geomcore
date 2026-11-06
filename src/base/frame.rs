@@ -79,7 +79,7 @@ impl Axis {
             return Err(FrameConstructionError::NonFinite);
         }
         let direction = direction
-            .normalized()
+            .normalized_unless_unit()
             .ok_or(FrameConstructionError::NullDirection)?;
         Ok(Axis { origin, direction })
     }
@@ -313,10 +313,10 @@ impl Frame {
             return Err(FrameConstructionError::NonFinite);
         }
         let z_dir = z_direction
-            .normalized()
+            .normalized_unless_unit()
             .ok_or(FrameConstructionError::NullDirection)?;
         let x_hint = x_hint
-            .normalized()
+            .normalized_unless_unit()
             .ok_or(FrameConstructionError::NullDirection)?;
         let x_dir = z_dir
             .cross(x_hint)
@@ -361,7 +361,7 @@ impl Frame {
             return Err(FrameConstructionError::NonFinite);
         }
         let z_dir = z_direction
-            .normalized()
+            .normalized_unless_unit()
             .ok_or(FrameConstructionError::NullDirection)?;
         let candidates = [Vector::X, Vector::Y, Vector::Z];
         let hint = candidates
@@ -431,13 +431,13 @@ impl Frame {
         }
         let (x_dir, y_dir, z_dir) = (
             x_direction
-                .normalized()
+                .normalized_unless_unit()
                 .ok_or(FrameConstructionError::NullDirection)?,
             y_direction
-                .normalized()
+                .normalized_unless_unit()
                 .ok_or(FrameConstructionError::NullDirection)?,
             z_direction
-                .normalized()
+                .normalized_unless_unit()
                 .ok_or(FrameConstructionError::NullDirection)?,
         );
         if x_dir.dot(y_dir).abs() > Tolerance::DEFAULT.angular
@@ -712,7 +712,7 @@ impl Axis2D {
             return Err(FrameConstructionError::NonFinite);
         }
         let direction = direction
-            .normalized()
+            .normalized_unless_unit()
             .ok_or(FrameConstructionError::NullDirection)?;
         Ok(Axis2D { origin, direction })
     }
@@ -915,10 +915,10 @@ impl Frame2D {
             return Err(FrameConstructionError::NonFinite);
         }
         let x_dir = x_direction
-            .normalized()
+            .normalized_unless_unit()
             .ok_or(FrameConstructionError::NullDirection)?;
         let y_dir = y_direction
-            .normalized()
+            .normalized_unless_unit()
             .ok_or(FrameConstructionError::NullDirection)?;
         if x_dir.dot(y_dir).abs() > Tolerance::DEFAULT.angular {
             return Err(FrameConstructionError::NotOrthogonal);
@@ -956,12 +956,12 @@ impl Frame2D {
             return Err(FrameConstructionError::NonFinite);
         }
         let x_dir = x_direction
-            .normalized()
+            .normalized_unless_unit()
             .ok_or(FrameConstructionError::NullDirection)?;
         Ok(Frame2D {
             origin,
             x_dir,
-            y_dir: x_dir.perp(),
+            y_dir: x_dir.perpendicular(),
         })
     }
 

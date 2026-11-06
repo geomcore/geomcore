@@ -120,16 +120,16 @@ fn test_hyperbola2d_from_center_and_points_errors() {
 #[test]
 fn test_hyperbola2d_eval_point_and_derivatives() {
     let h = Hyperbola2D::new(Point2D::ORIGIN, Vector2D::X, 2.0, 1.0).unwrap();
-    assert_eq!(h.eval_point(0.0), Point2D::new(2.0, 0.0));
-    assert_eq!(h.eval_derivative(0.0, 1), Vector2D::new(0.0, 1.0));
-    assert_eq!(h.eval_derivative(0.0, 2), Vector2D::new(2.0, 0.0));
+    assert_eq!(h.point_at(0.0), Point2D::new(2.0, 0.0));
+    assert_eq!(h.derivative(0.0, 1), Vector2D::new(0.0, 1.0));
+    assert_eq!(h.derivative(0.0, 2), Vector2D::new(2.0, 0.0));
     let u: f64 = 0.8;
-    let d3 = h.eval_derivative(u, 3);
+    let d3 = h.derivative(u, 3);
     assert!((d3.x - 2.0 * u.sinh()).abs() < 1e-12 && (d3.y - u.cosh()).abs() < 1e-12);
-    let d4 = h.eval_derivative(u, 4);
+    let d4 = h.derivative(u, 4);
     assert!((d4.x - 2.0 * u.cosh()).abs() < 1e-12 && (d4.y - u.sinh()).abs() < 1e-12);
     assert_eq!(
-        h.eval_points(&[0.0, 0.0]),
+        h.points_at(&[0.0, 0.0]),
         [Point2D::new(2.0, 0.0), Point2D::new(2.0, 0.0)]
     );
 }
@@ -138,14 +138,14 @@ fn test_hyperbola2d_eval_point_and_derivatives() {
 #[should_panic]
 fn test_hyperbola2d_eval_derivative_order0_panics() {
     let h = Hyperbola2D::new(Point2D::ORIGIN, Vector2D::X, 2.0, 1.0).unwrap();
-    h.eval_derivative(0.0, 0);
+    h.derivative(0.0, 0);
 }
 
 #[test]
 fn test_hyperbola2d_parameter_of_round_trip() {
     let h = Hyperbola2D::new(Point2D::new(3.0, -1.0), Vector2D::new(0.6, 0.8), 2.0, 1.5).unwrap();
     for u in [0.3, 2.0, -1.5] {
-        assert!((h.parameter_of(h.eval_point(u), Tolerance::DEFAULT) - u).abs() < 1e-9);
+        assert!((h.parameter_of(h.point_at(u), Tolerance::DEFAULT) - u).abs() < 1e-9);
     }
 }
 
@@ -162,7 +162,7 @@ fn test_hyperbola2d_bounds_and_period() {
 fn test_hyperbola2d_projection_and_contains_agree() {
     let tol = Tolerance::DEFAULT;
     let h = Hyperbola2D::new(Point2D::new(1.0, -2.0), Vector2D::new(0.6, 0.8), 2.0, 1.5).unwrap();
-    let on_curve = h.eval_point(0.7);
+    let on_curve = h.point_at(0.7);
     for q in [
         Point2D::new(4.0, 1.0),
         Point2D::new(-3.0, 2.0),
@@ -172,12 +172,7 @@ fn test_hyperbola2d_projection_and_contains_agree() {
         on_curve + Vector2D::new(0.0, 5e-6),
     ] {
         let projection = h.project_point(q, tol);
-        assert!(
-            projection
-                .point
-                .distance(h.eval_point(projection.parameter))
-                <= 1e-12
-        );
+        assert!(projection.point.distance(h.point_at(projection.parameter)) <= 1e-12);
         assert_eq!(h.contains(q, tol), projection.distance == 0.0, "{q:?}");
     }
     assert!(h.contains(on_curve, tol));
@@ -233,21 +228,32 @@ fn test_hyperbola2d_trimmed_evaluates_and_projects_within_its_range() {
     let h = Hyperbola2D::new(Point2D::ORIGIN, Vector2D::X, 2.0, 1.0).unwrap();
     let piece = TrimmedCurve2D::new(h, -1.0, 1.0).unwrap();
     assert_eq!(piece.bounds(), (-1.0, 1.0));
-    assert_eq!(piece.start_point(), h.eval_point(-1.0));
-    assert_eq!(piece.eval_point(0.5), h.eval_point(0.5));
+    assert_eq!(piece.start_point(), h.point_at(-1.0));
+    assert_eq!(piece.point_at(0.5), h.point_at(0.5));
     // The basis foot of the far point lies outside the range: the end wins.
-    let far = h.eval_point(3.0);
+    let far = h.point_at(3.0);
     assert_eq!(piece.project_point(far, tol).parameter, 1.0);
     assert!(!piece.contains(far, tol));
-    assert!(piece.contains(h.eval_point(0.25), tol));
+    assert!(piece.contains(h.point_at(0.25), tol));
 }
 
 #[test]
 fn test_hyperbola2d_indirect_frame_matches_mirrored_parametrization() {
     let h = Hyperbola2D::new(Point2D::ORIGIN, Vector2D::Y, 2.0, 1.0).unwrap();
     assert_eq!(h.frame().y_direction(), -Vector2D::X);
-    let p = h.eval_point(1.0);
+    let p = h.point_at(1.0);
     assert!((p.x + 1.0f64.sinh()).abs() < 1e-12);
     assert!((p.y - 2.0 * 1.0f64.cosh()).abs() < 1e-12);
     assert!(h.contains(p, Tolerance::DEFAULT));
+}
+
+#[test]
+fn test_hyperbola2d_other_branch_turns_the_same_way() {
+    let hyperbola =
+        Hyperbola2D::new(Point2D::new(1.0, -2.0), Vector2D::new(1.0, 1.0), 2.0, 1.0).unwrap();
+    let other = hyperbola.other_branch();
+    assert_eq!(other.frame().is_direct(), hyperbola.frame().is_direct());
+    let center = hyperbola.center();
+    let mirrored = center + (center - hyperbola.point_at(0.3));
+    assert!(other.point_at(0.3).distance(mirrored) < 1e-12);
 }

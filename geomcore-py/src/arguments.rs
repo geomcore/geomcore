@@ -37,6 +37,7 @@ macro_rules! shape_classes {
             use super::*;
 
             /// The Python class names, in registry order.
+            #[allow(dead_code, reason = "no binding takes any surface as a plain argument")]
             pub(crate) const NAMES: &[&str] = &[$(<$class as PyTypeInfo>::NAME),+];
 
             /// The shape `object` holds, if it is one of the classes.
@@ -51,6 +52,7 @@ macro_rules! shape_classes {
 
             /// The shape `object` holds, or a `TypeError` naming the
             /// classes.
+            #[allow(dead_code, reason = "no binding takes any surface as a plain argument")]
             pub(crate) fn extract(object: &Bound<'_, PyAny>) -> PyResult<$enum> {
                 of(object).ok_or_else(|| expected($description, NAMES))
             }
@@ -134,17 +136,17 @@ pub(crate) enum CurveArg {
 }
 
 impl ParametricCurve for CurveArg {
-    fn eval_point(&self, u: f64) -> Point {
+    fn point_at(&self, u: f64) -> Point {
         match self {
-            CurveArg::Whole(c) => c.eval_point(u),
-            CurveArg::Trimmed(c) => c.eval_point(u),
+            CurveArg::Whole(c) => c.point_at(u),
+            CurveArg::Trimmed(c) => c.point_at(u),
         }
     }
 
-    fn eval_derivative(&self, u: f64, order: u32) -> Vector {
+    fn derivative(&self, u: f64, order: u32) -> Vector {
         match self {
-            CurveArg::Whole(c) => c.eval_derivative(u, order),
-            CurveArg::Trimmed(c) => c.eval_derivative(u, order),
+            CurveArg::Whole(c) => c.derivative(u, order),
+            CurveArg::Trimmed(c) => c.derivative(u, order),
         }
     }
 
@@ -162,10 +164,10 @@ impl ParametricCurve for CurveArg {
         }
     }
 
-    fn eval_points(&self, us: &[f64]) -> Vec<Point> {
+    fn points_at(&self, us: &[f64]) -> Vec<Point> {
         match self {
-            CurveArg::Whole(c) => c.eval_points(us),
-            CurveArg::Trimmed(c) => c.eval_points(us),
+            CurveArg::Whole(c) => c.points_at(us),
+            CurveArg::Trimmed(c) => c.points_at(us),
         }
     }
 

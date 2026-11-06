@@ -9,7 +9,7 @@ use crate::geometry::curves::Curve;
 use std::f64::consts::TAU;
 
 fn sample<C: ParametricCurve>(c: &C) -> Point {
-    c.eval_point(0.5)
+    c.point_at(0.5)
 }
 
 fn line() -> Line {
@@ -53,37 +53,37 @@ fn bspline_periodic() -> BSplineCurve {
 #[test]
 fn test_sample_line_agrees_with_inherent() {
     let l = line();
-    assert_eq!(sample(&l), l.eval_point(0.5));
+    assert_eq!(sample(&l), l.point_at(0.5));
 }
 
 #[test]
 fn test_sample_circle_agrees_with_inherent() {
     let c = circle();
-    assert_eq!(sample(&c), c.eval_point(0.5));
+    assert_eq!(sample(&c), c.point_at(0.5));
 }
 
 #[test]
 fn test_sample_ellipse_agrees_with_inherent() {
     let e = ellipse();
-    assert_eq!(sample(&e), e.eval_point(0.5));
+    assert_eq!(sample(&e), e.point_at(0.5));
 }
 
 #[test]
 fn test_sample_parabola_agrees_with_inherent() {
     let p = parabola();
-    assert_eq!(sample(&p), p.eval_point(0.5));
+    assert_eq!(sample(&p), p.point_at(0.5));
 }
 
 #[test]
 fn test_sample_hyperbola_agrees_with_inherent() {
     let h = hyperbola();
-    assert_eq!(sample(&h), h.eval_point(0.5));
+    assert_eq!(sample(&h), h.point_at(0.5));
 }
 
 #[test]
 fn test_sample_bspline_agrees_with_inherent() {
     let b = bspline();
-    assert_eq!(sample(&b), b.eval_point(0.5));
+    assert_eq!(sample(&b), b.point_at(0.5));
 }
 
 // ---- heterogeneous Vec<Curve> eval ----
@@ -183,47 +183,47 @@ fn test_bspline_periodic_bounds_and_period() {
     assert!(wrapped.is_periodic());
 }
 
-// ---- default eval_points == mapped eval_point ----
+// ---- default points_at == mapped point_at ----
 
 #[test]
 fn test_default_eval_points_matches_mapped_eval_point_for_each_type() {
     let us = [0.0, 0.5, 1.0, -2.0];
 
     let l = line();
-    let expected: Vec<Point> = us.iter().map(|&u| l.eval_point(u)).collect();
-    assert_eq!(l.eval_points(&us), expected);
+    let expected: Vec<Point> = us.iter().map(|&u| l.point_at(u)).collect();
+    assert_eq!(l.points_at(&us), expected);
 
     let c = circle();
-    let expected: Vec<Point> = us.iter().map(|&u| c.eval_point(u)).collect();
-    assert_eq!(c.eval_points(&us), expected);
+    let expected: Vec<Point> = us.iter().map(|&u| c.point_at(u)).collect();
+    assert_eq!(c.points_at(&us), expected);
 
     let e = ellipse();
-    let expected: Vec<Point> = us.iter().map(|&u| e.eval_point(u)).collect();
-    assert_eq!(e.eval_points(&us), expected);
+    let expected: Vec<Point> = us.iter().map(|&u| e.point_at(u)).collect();
+    assert_eq!(e.points_at(&us), expected);
 
     let p = parabola();
-    let expected: Vec<Point> = us.iter().map(|&u| p.eval_point(u)).collect();
-    assert_eq!(p.eval_points(&us), expected);
+    let expected: Vec<Point> = us.iter().map(|&u| p.point_at(u)).collect();
+    assert_eq!(p.points_at(&us), expected);
 
     let h = hyperbola();
-    let expected: Vec<Point> = us.iter().map(|&u| h.eval_point(u)).collect();
-    assert_eq!(h.eval_points(&us), expected);
+    let expected: Vec<Point> = us.iter().map(|&u| h.point_at(u)).collect();
+    assert_eq!(h.points_at(&us), expected);
 
     let b = bspline();
-    let expected: Vec<Point> = us.iter().map(|&u| b.eval_point(u)).collect();
-    assert_eq!(b.eval_points(&us), expected);
+    let expected: Vec<Point> = us.iter().map(|&u| b.point_at(u)).collect();
+    assert_eq!(b.points_at(&us), expected);
 }
 
 #[test]
 fn test_eval_derivative_delegates_to_inherent() {
     let l = line();
-    assert_eq!(l.eval_derivative(0.5, 1), l.eval_derivative(0.5, 1));
+    assert_eq!(l.derivative(0.5, 1), l.derivative(0.5, 1));
 
     let c = circle();
-    assert_eq!(c.eval_derivative(0.5, 1), c.eval_derivative(0.5, 1));
+    assert_eq!(c.derivative(0.5, 1), c.derivative(0.5, 1));
 
     let b = bspline();
-    assert_eq!(b.eval_derivative(0.5, 1), b.eval_derivative(0.5, 1));
+    assert_eq!(b.derivative(0.5, 1), b.derivative(0.5, 1));
 }
 
 // ---- elementary curves ----
@@ -241,9 +241,9 @@ fn cusp() -> BSplineCurve {
 /// parameters, divided by the arc length between them.
 fn finite_difference_curvature<C: ParametricCurve>(curve: &C, u: f64) -> f64 {
     let step = 1e-6;
-    let before = curve.eval_derivative(u - step, 1).normalized().unwrap();
-    let after = curve.eval_derivative(u + step, 1).normalized().unwrap();
-    let speed = curve.eval_derivative(u, 1).magnitude();
+    let before = curve.derivative(u - step, 1).normalized().unwrap();
+    let after = curve.derivative(u + step, 1).normalized().unwrap();
+    let speed = curve.derivative(u, 1).magnitude();
     (after - before).magnitude() / (2.0 * step * speed)
 }
 
@@ -368,7 +368,7 @@ fn test_curvature_center_is_one_radius_along_the_principal_normal() {
     let tol = Tolerance::DEFAULT;
     let curve = twisted_cubic();
     for u in [0.2, 0.5, 0.9] {
-        let (point, first, second) = curve.eval_d2(u);
+        let (point, first, second) = curve.second_derivatives(u);
         let k = curve.curvature(u, tol).unwrap();
         let to_centre = curve.curvature_center(u, tol).unwrap() - point;
         assert!((to_centre.magnitude() - 1.0 / k).abs() < 1e-12 / k);
@@ -714,8 +714,8 @@ fn test_reported_order_matches_the_derivative_jumps() {
     for knot in [1.0, 2.0] {
         let order = curve.continuity(knot, tol).order().unwrap();
         for derivative in 1..=2 {
-            let left = curve.eval_derivative(knot - h, derivative);
-            let right = curve.eval_derivative(knot + h, derivative);
+            let left = curve.derivative(knot - h, derivative);
+            let right = curve.derivative(knot + h, derivative);
             let jump = (right - left).magnitude();
             if derivative <= order {
                 assert!(
@@ -751,7 +751,7 @@ fn test_bounded_curves_end_at_their_bounds() {
     assert_eq!(ends(&spline), (poles[0], poles[2]));
     let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
     let (start, end) = ends(&circle);
-    assert_eq!(start, circle.eval_point(0.0));
+    assert_eq!(start, circle.point_at(0.0));
     assert!(start.distance(end) < 1e-12);
     let arc = crate::TrimmedCurve::new(circle, 0.0, std::f64::consts::FRAC_PI_2).unwrap();
     assert!(ends(&arc).1.distance(Point::new(0.0, 2.0, 0.0)) < 1e-12);

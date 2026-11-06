@@ -54,7 +54,7 @@ fn max_deviation(b: &BSplineCurve, distance: impl Fn(Point) -> f64) -> f64 {
     dense
         .chain(knots)
         .chain(middles)
-        .map(|u| distance(b.eval_point(u)))
+        .map(|u| distance(b.point_at(u)))
         .fold(0.0, f64::max)
 }
 
@@ -68,7 +68,7 @@ fn assert_matches_at_knots_and_middles<C: ParametricCurve>(
     let knots = b.knots();
     let middles = knots.windows(2).map(|k| 0.5 * (k[0] + k[1]));
     for u in knots.iter().copied().chain(middles) {
-        let d = b.eval_point(u).distance(curve.eval_point(u));
+        let d = b.point_at(u).distance(curve.point_at(u));
         assert!(d <= 1e-15 * scale, "u = {u}: {d}");
     }
 }
@@ -100,10 +100,10 @@ fn test_full_circle_is_periodic_and_exact() {
         let dev = max_deviation(&b, |p| circle_distance(&c, p));
         assert!(dev <= RELATIVE * radius, "radius {radius}: {dev}");
         assert_matches_at_knots_and_middles(&b, &c, radius);
-        assert_eq!(b.eval_point(0.0), c.eval_point(0.0));
-        let p = b.eval_point(1.0);
-        assert!(b.eval_point(1.0 + TAU).distance(p) <= 1e-15 * radius);
-        assert!(b.eval_point(1.0 - TAU).distance(p) <= 1e-15 * radius);
+        assert_eq!(b.point_at(0.0), c.point_at(0.0));
+        let p = b.point_at(1.0);
+        assert!(b.point_at(1.0 + TAU).distance(p) <= 1e-15 * radius);
+        assert!(b.point_at(1.0 - TAU).distance(p) <= 1e-15 * radius);
     }
 }
 
@@ -113,7 +113,7 @@ fn test_full_circle_parameter_stays_near_the_angle() {
     let b = c.to_bspline();
     let worst = (0..=1000)
         .map(|i| TAU * i as f64 / 1000.0)
-        .map(|u| b.eval_point(u).distance(c.eval_point(u)))
+        .map(|u| b.point_at(u).distance(c.point_at(u)))
         .fold(0.0, f64::max);
     // A chord of 0.0161 rad, the largest gap between parameter and angle.
     assert!(worst > 0.01 && worst < 0.0162, "{worst}");
@@ -126,7 +126,7 @@ fn test_full_ellipse_is_periodic_and_exact() {
     assert!(b.is_periodic());
     assert_eq!(b.bounds(), (0.0, TAU));
     let dev = max_deviation(&b, |p| {
-        p.distance(e.eval_point(e.parameter_of(p, Tolerance::DEFAULT)))
+        p.distance(e.point_at(e.parameter_of(p, Tolerance::DEFAULT)))
     });
     assert!(dev <= RELATIVE * 5.0, "{dev}");
     assert_matches_at_knots_and_middles(&b, &e, 5.0);
@@ -149,8 +149,8 @@ fn test_circle_arcs_are_exact_over_their_range() {
                 "{radius} [{first}, {last}]: {dev}"
             );
             assert_matches_at_knots_and_middles(&b, &c, radius);
-            assert_eq!(b.eval_point(first), arc.start_point());
-            assert!(b.eval_point(last).distance(arc.end_point()) <= 1e-16 * radius);
+            assert_eq!(b.point_at(first), arc.start_point());
+            assert!(b.point_at(last).distance(arc.end_point()) <= 1e-16 * radius);
         }
     }
 }
@@ -163,12 +163,12 @@ fn test_ellipse_arcs_are_exact_over_their_range() {
         let b = arc.to_bspline().unwrap();
         assert_eq!(b.bounds(), (first, last));
         let dev = max_deviation(&b, |p| {
-            p.distance(e.eval_point(e.parameter_of(p, Tolerance::DEFAULT)))
+            p.distance(e.point_at(e.parameter_of(p, Tolerance::DEFAULT)))
         });
         assert!(dev <= RELATIVE * 5.0, "[{first}, {last}]: {dev}");
         assert_matches_at_knots_and_middles(&b, &e, 5.0);
-        assert_eq!(b.eval_point(first), arc.start_point());
-        assert!(b.eval_point(last).distance(arc.end_point()) <= 1e-15);
+        assert_eq!(b.point_at(first), arc.start_point());
+        assert!(b.point_at(last).distance(arc.end_point()) <= 1e-15);
     }
 }
 
@@ -182,7 +182,7 @@ fn test_whole_turn_arc_is_clamped_and_closed() {
         assert_eq!(b.bounds(), (first, first + TAU));
         assert_eq!(b.knots().len(), 5);
         assert_eq!(b.poles().first(), b.poles().last());
-        assert_eq!(b.eval_point(first), b.eval_point(first + TAU));
+        assert_eq!(b.point_at(first), b.point_at(first + TAU));
         assert!(max_deviation(&b, |p| circle_distance(&c, p)) <= RELATIVE * 2.0);
     }
     let e = TrimmedCurve::new(ellipse(), 1.0, 1.0 + TAU).unwrap();
@@ -210,11 +210,11 @@ fn test_segment_keeps_the_line_parameter() {
     let b = segment.to_bspline().unwrap();
     assert_eq!((b.degree(), b.is_rational()), (1, false));
     assert_eq!(b.bounds(), (-2.0, 3.5));
-    assert_eq!(b.eval_point(-2.0), segment.start_point());
-    assert_eq!(b.eval_point(3.5), segment.end_point());
+    assert_eq!(b.point_at(-2.0), segment.start_point());
+    assert_eq!(b.point_at(3.5), segment.end_point());
     for i in 0..=50 {
         let u = -2.0 + 5.5 * i as f64 / 50.0;
-        assert!(b.eval_point(u).distance(line.eval_point(u)) <= 1e-14);
+        assert!(b.point_at(u).distance(line.point_at(u)) <= 1e-14);
     }
 }
 
@@ -227,14 +227,14 @@ fn test_parabola_is_one_polynomial_piece_with_its_parameter() {
         assert_eq!((b.degree(), b.is_rational()), (2, false));
         assert_eq!(b.poles().len(), 3);
         assert_eq!(b.bounds(), (first, last));
-        assert_eq!(b.eval_point(first), arc.start_point());
+        assert_eq!(b.point_at(first), arc.start_point());
         let scale = (last * last / 3.0)
             .max(last.abs())
             .max(first.abs())
             .max(1.0);
         for i in 0..=200 {
             let u = first + (last - first) * i as f64 / 200.0;
-            let d = b.eval_point(u).distance(p.eval_point(u));
+            let d = b.point_at(u).distance(p.point_at(u));
             assert!(d <= RELATIVE * scale, "[{first}, {last}] at {u}: {d}");
         }
     }
@@ -250,11 +250,11 @@ fn test_hyperbola_is_one_rational_piece_on_the_branch() {
         assert_eq!(b.bounds(), (first, last));
         let scale = 1.5 * first.abs().max(last.abs()).cosh();
         let dev = max_deviation(&b, |p| {
-            p.distance(h.eval_point(h.parameter_of(p, Tolerance::DEFAULT)))
+            p.distance(h.point_at(h.parameter_of(p, Tolerance::DEFAULT)))
         });
         assert!(dev <= RELATIVE * scale, "[{first}, {last}]: {dev}");
         assert_matches_at_knots_and_middles(&b, &h, scale);
-        assert_eq!(b.eval_point(first), arc.start_point());
+        assert_eq!(b.point_at(first), arc.start_point());
     }
 }
 
@@ -384,10 +384,10 @@ fn test_converted_circle_projects_and_discretizes_like_the_circle() {
     let tol = Tolerance::DEFAULT;
     let c = circle(2.0);
     let b = c.to_bspline();
-    let q = c.eval_point(2.0) + 0.5 * c.frame().z_direction();
+    let q = c.point_at(2.0) + 0.5 * c.frame().z_direction();
     let expected = c.project_point(q, tol).distance;
     assert!((b.project_point(q, tol).distance - expected).abs() < 1e-9);
-    assert!(b.contains(c.eval_point(4.0), tol));
+    assert!(b.contains(c.point_at(4.0), tol));
 
     let criteria = DiscretizationCriteria::new(1e-3).unwrap();
     let d = b.discretize(criteria);
@@ -396,7 +396,7 @@ fn test_converted_circle_projects_and_discretizes_like_the_circle() {
     assert!(d.points.iter().all(|&p| circle_distance(&c, p) <= 1e-12));
 
     let arc = TrimmedCurve::new(b, 5.0, 7.5).unwrap();
-    assert!(arc.contains(c.eval_point(0.0), tol));
+    assert!(arc.contains(c.point_at(0.0), tol));
 }
 
 // ---- 2D: circles, arcs and lines ----
@@ -440,7 +440,7 @@ fn max_deviation_2d(b: &BSplineCurve2D, distance: impl Fn(Point2D) -> f64) -> f6
     dense
         .chain(knots)
         .chain(middles)
-        .map(|u| distance(b.eval_point(u)))
+        .map(|u| distance(b.point_at(u)))
         .fold(0.0, f64::max)
 }
 
@@ -452,7 +452,7 @@ fn assert_matches_at_knots_and_middles_2d<C: ParametricCurve2D>(
     let knots = b.knots();
     let middles = knots.windows(2).map(|k| 0.5 * (k[0] + k[1]));
     for u in knots.iter().copied().chain(middles) {
-        let d = b.eval_point(u).distance(curve.eval_point(u));
+        let d = b.point_at(u).distance(curve.point_at(u));
         assert!(d <= 1e-15 * scale, "u = {u}: {d}");
     }
 }
@@ -470,10 +470,10 @@ fn test_full_circle2d_is_periodic_and_exact() {
         let dev = max_deviation_2d(&b, |p| circle2d_distance(&c, p));
         assert!(dev <= RELATIVE * radius, "radius {radius}: {dev}");
         assert_matches_at_knots_and_middles_2d(&b, &c, radius);
-        assert_eq!(b.eval_point(0.0), c.eval_point(0.0));
-        let p = b.eval_point(1.0);
-        assert!(b.eval_point(1.0 + TAU).distance(p) <= 1e-15 * radius);
-        assert!(b.eval_point(1.0 - TAU).distance(p) <= 1e-15 * radius);
+        assert_eq!(b.point_at(0.0), c.point_at(0.0));
+        let p = b.point_at(1.0);
+        assert!(b.point_at(1.0 + TAU).distance(p) <= 1e-15 * radius);
+        assert!(b.point_at(1.0 - TAU).distance(p) <= 1e-15 * radius);
     }
 }
 
@@ -483,7 +483,7 @@ fn test_full_circle2d_parameter_stays_near_the_angle() {
     let b = c.to_bspline();
     let worst = (0..=1000)
         .map(|i| TAU * i as f64 / 1000.0)
-        .map(|u| b.eval_point(u).distance(c.eval_point(u)))
+        .map(|u| b.point_at(u).distance(c.point_at(u)))
         .fold(0.0, f64::max);
     // A chord of 0.0161 rad, the largest gap between parameter and angle.
     assert!(worst > 0.01 && worst < 0.0162, "{worst}");
@@ -506,8 +506,8 @@ fn test_circle2d_arcs_are_exact_over_their_range() {
                 "{radius} [{first}, {last}]: {dev}"
             );
             assert_matches_at_knots_and_middles_2d(&b, &c, radius);
-            assert_eq!(b.eval_point(first), arc.start_point());
-            assert!(b.eval_point(last).distance(arc.end_point()) <= 1e-16 * radius);
+            assert_eq!(b.point_at(first), arc.start_point());
+            assert!(b.point_at(last).distance(arc.end_point()) <= 1e-16 * radius);
         }
     }
 }
@@ -542,8 +542,8 @@ fn test_ellipse2d_arcs_are_exact_over_their_range() {
         let dev = max_deviation_2d(&b, |p| e.project_point(p, tol).distance);
         assert!(dev <= RELATIVE * 5.0, "[{first}, {last}]: {dev}");
         assert_matches_at_knots_and_middles_2d(&b, &e, 5.0);
-        assert_eq!(b.eval_point(first), arc.start_point());
-        assert!(b.eval_point(last).distance(arc.end_point()) <= 1e-15 * 5.0);
+        assert_eq!(b.point_at(first), arc.start_point());
+        assert!(b.point_at(last).distance(arc.end_point()) <= 1e-15 * 5.0);
     }
 }
 
@@ -556,14 +556,14 @@ fn test_parabola2d_is_one_polynomial_piece_with_its_parameter() {
         assert_eq!((b.degree(), b.is_rational()), (2, false));
         assert_eq!(b.poles().len(), 3);
         assert_eq!(b.bounds(), (first, last));
-        assert_eq!(b.eval_point(first), arc.start_point());
+        assert_eq!(b.point_at(first), arc.start_point());
         let scale = (last * last / 6.0)
             .max(last.abs())
             .max(first.abs())
             .max(1.0);
         for i in 0..=200 {
             let u = first + (last - first) * i as f64 / 200.0;
-            let d = b.eval_point(u).distance(p.eval_point(u));
+            let d = b.point_at(u).distance(p.point_at(u));
             assert!(d <= RELATIVE * scale, "[{first}, {last}] at {u}: {d}");
         }
     }
@@ -582,11 +582,11 @@ fn test_trimmed_line2d_is_exact_over_its_range() {
     assert!(b.poles().iter().all(|p| p.is_finite()));
     for i in 0..=1000 {
         let u = first + (last - first) * (i as f64 / 1000.0);
-        let d = b.eval_point(u).distance(line.eval_point(u));
+        let d = b.point_at(u).distance(line.point_at(u));
         assert!(d <= 1e-14, "u = {u}: {d}");
     }
-    assert_eq!(b.eval_point(first), arc.start_point());
-    assert!(b.eval_point(last).distance(arc.end_point()) <= 1e-15);
+    assert_eq!(b.point_at(first), arc.start_point());
+    assert!(b.point_at(last).distance(arc.end_point()) <= 1e-15);
 }
 
 #[test]
@@ -599,11 +599,11 @@ fn test_hyperbola2d_is_one_rational_piece_on_the_branch() {
         assert_eq!(b.bounds(), (first, last));
         let scale = 1.5 * first.abs().max(last.abs()).cosh();
         let dev = max_deviation_2d(&b, |p| {
-            p.distance(h.eval_point(h.parameter_of(p, Tolerance::DEFAULT)))
+            p.distance(h.point_at(h.parameter_of(p, Tolerance::DEFAULT)))
         });
         assert!(dev <= RELATIVE * scale, "[{first}, {last}]: {dev}");
         assert_matches_at_knots_and_middles_2d(&b, &h, scale);
-        assert_eq!(b.eval_point(first), arc.start_point());
+        assert_eq!(b.point_at(first), arc.start_point());
     }
 }
 

@@ -14,6 +14,7 @@ from geomcore import (
     ConstructionError,
     Frame,
     Frame2D,
+    Plane,
     Point,
     Point2D,
     Tolerance,
@@ -21,7 +22,6 @@ from geomcore import (
     Vector,
     Vector2D,
 )
-from geomcore.surfaces import Plane
 
 
 def test_vectors_answer_parallel_and_perpendicular_for_any_length():
@@ -124,7 +124,7 @@ def test_boxes_grow_intersect_and_measure():
     box = BoundingBox(Point.origin(), Point(2.0, 2.0, 2.0))
     assert Point(1.0, 1.0, 1.0) in box
     assert Point(3.0, 1.0, 1.0) not in box
-    assert box.including(Point(5.0, 1.0, 1.0)).max() == Point(5.0, 2.0, 2.0)
+    assert box.including(Point(5.0, 1.0, 1.0)).max_corner() == Point(5.0, 2.0, 2.0)
     other = BoundingBox(Point(1.0, 1.0, 1.0), Point(3.0, 3.0, 3.0))
     assert box.intersection(other) == BoundingBox(Point(1.0, 1.0, 1.0), Point(2.0, 2.0, 2.0))
     assert box.intersection(BoundingBox(Point(4.0, 0.0, 0.0), Point(5.0, 1.0, 1.0))) is None
@@ -137,11 +137,11 @@ def test_boxes_grow_intersect_and_measure():
     assert square.intersection(BoundingBox2D(Point2D(2.0, 0.0), Point2D(3.0, 1.0))) == BoundingBox2D(
         Point2D(2.0, 0.0), Point2D(2.0, 1.0)
     )
-    assert square.including(Point2D(-1.0, 0.5)).min() == Point2D(-1.0, 0.0)
+    assert square.including(Point2D(-1.0, 0.5)).min_corner() == Point2D(-1.0, 0.0)
 
 
 def test_bounded_curves_have_ends():
-    from geomcore.curves import BSplineCurve, Circle, Line, TrimmedCurve
+    from geomcore import BSplineCurve, Circle, Line, TrimmedCurve
 
     poles = [Point(0.0, 0.0, 0.0), Point(1.0, 2.0, 0.0), Point(3.0, 0.0, 1.0)]
     spline = BSplineCurve(2, poles, [0.0, 2.0], [3, 3], False)

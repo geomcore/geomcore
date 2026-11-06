@@ -51,8 +51,8 @@ fn test_curve_enum_reads_the_bezier_curve() {
     let curve = Curve::from(arch.clone());
     assert_eq!(curve, Curve::Bezier(arch.clone()));
     for u in [0.0, 0.3, 0.5, 1.0] {
-        assert_eq!(curve.eval_point(u), arch.eval_point(u));
-        assert_eq!(curve.eval_d2(u), arch.eval_d2(u));
+        assert_eq!(curve.point_at(u), arch.point_at(u));
+        assert_eq!(curve.second_derivatives(u), arch.second_derivatives(u));
     }
     assert_eq!(curve.bounds(), arch.bounds());
     assert_eq!(curve.as_elementary(), None);
@@ -83,7 +83,7 @@ fn test_curve_2d_enum_reads_the_bezier_curve() {
     let arch = arch_2d();
     let curve = Curve2D::from(arch.clone());
     for u in [0.0, 0.3, 1.0] {
-        assert_eq!(curve.eval_point(u), arch.eval_point(u));
+        assert_eq!(curve.point_at(u), arch.point_at(u));
     }
     assert_eq!(curve.as_bspline(), Some(&arch.to_bspline()));
     assert_eq!(curve.to_bspline(), Ok(arch.to_bspline()));
@@ -104,8 +104,11 @@ fn test_surface_enum_reads_the_bezier_surface() {
     let saddle = saddle();
     let surface = Surface::from(&saddle);
     assert_eq!(surface, Surface::Bezier(saddle.clone()));
-    assert_eq!(surface.eval_point(0.3, 0.4), saddle.eval_point(0.3, 0.4));
-    assert_eq!(surface.eval_d1(0.3, 0.4), saddle.eval_d1(0.3, 0.4));
+    assert_eq!(surface.point_at(0.3, 0.4), saddle.point_at(0.3, 0.4));
+    assert_eq!(
+        surface.first_derivatives(0.3, 0.4),
+        saddle.first_derivatives(0.3, 0.4)
+    );
     assert_eq!(surface.as_elementary(), None);
     assert_eq!(surface.as_bspline(), Some(&saddle.to_bspline()));
     assert_eq!(surface.to_bspline(), Ok(saddle.to_bspline()));
@@ -131,8 +134,8 @@ fn test_bezier_iso_curves_lie_on_the_surface() {
     let saddle = saddle();
     let (u_iso, v_iso) = (saddle.u_iso(0.5).unwrap(), saddle.v_iso(0.25).unwrap());
     for t in [0.0, 0.4, 1.0] {
-        assert!(u_iso.eval_point(t).distance(saddle.eval_point(0.5, t)) < 1e-15);
-        assert!(v_iso.eval_point(t).distance(saddle.eval_point(t, 0.25)) < 1e-15);
+        assert!(u_iso.point_at(t).distance(saddle.point_at(0.5, t)) < 1e-15);
+        assert!(v_iso.point_at(t).distance(saddle.point_at(t, 0.25)) < 1e-15);
     }
     assert!(saddle.u_iso(2.0).is_err());
 }

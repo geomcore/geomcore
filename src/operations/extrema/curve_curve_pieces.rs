@@ -96,7 +96,7 @@ pub(crate) fn search_minima(
     // The point at an end, and the direction in which the other curve's
     // point must lie for the distance to rise into the range there.
     let end = |curve: &BSplineCurve, u: f64, r: ParameterDomain| {
-        let (p, d) = curve.eval_d1(u);
+        let (p, d) = curve.first_derivatives(u);
         let hold = if u == r.start() { d } else { -d };
         ([p.x, p.y, p.z], [hold.x, hold.y, hold.z])
     };
@@ -121,7 +121,7 @@ pub(crate) fn search_minima(
     }
     // A seed on an end the distance falls away from is no minimum there.
     seeds.retain(|x| {
-        let ((pa, a1), (pb, b1)) = (a.eval_d1(x[0]), b.eval_d1(x[1]));
+        let ((pa, a1), (pb, b1)) = (a.first_derivatives(x[0]), b.first_derivatives(x[1]));
         let r = pa - pb;
         let (g, speed) = ([r.dot(a1), -r.dot(b1)], [a1.magnitude(), b1.magnitude()]);
         [ra, rb].into_iter().enumerate().all(|(i, r)| {

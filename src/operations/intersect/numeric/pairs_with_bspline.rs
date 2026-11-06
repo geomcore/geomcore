@@ -27,7 +27,7 @@ use crate::operations::intersect::numeric::parameter_domain::ParameterDomain;
 use crate::operations::intersect::numeric::surface_patches::{
     SurfacePatches, grown, nearest, reach,
 };
-use crate::operations::intersect::results::sort_by_known_parameter;
+use crate::operations::intersect::results::sort_by_parameter;
 use crate::operations::intersect::{Completeness, CurveCurveRegion};
 use crate::{Point, Tolerance, Vector};
 
@@ -84,7 +84,7 @@ impl HullCurve<'_> {
     /// The curve's own parameter at the B-spline's `t`; an angle is taken
     /// at its representative nearest `t`, not wrapped into the range.
     fn carried(&self, t: f64) -> f64 {
-        let point = || self.bspline.eval_point(t);
+        let point = || self.bspline.point_at(t);
         // The conics invert in closed form, which takes no tolerance.
         let tol = Tolerance::DEFAULT;
         match self.source {
@@ -112,13 +112,11 @@ impl HullCurve<'_> {
     /// along it, and the curve ranges of the regions.
     fn carry_hits<C: ParametricCurve>(&self, curve: &C, hits: &mut CurveSurfaceHits) {
         for hit in &mut hits.hits {
-            if let Some(parameter) = hit.curve_parameter {
-                let parameter = self.parameter(parameter);
-                hit.curve_parameter = Some(parameter);
-                hit.point = curve.eval_point(parameter);
-            }
+            let parameter = self.parameter(hit.curve_parameter);
+            hit.curve_parameter = parameter;
+            hit.point = curve.point_at(parameter);
         }
-        sort_by_known_parameter(&mut hits.hits, |hit| hit.curve_parameter);
+        sort_by_parameter(&mut hits.hits, |hit| hit.curve_parameter);
         if let Completeness::Incomplete { regions, .. } = &mut hits.completeness {
             for region in regions {
                 region.curve_range = self.carried_range(region.curve_range);
@@ -149,7 +147,7 @@ pub(crate) fn inside(curve: ElementaryCurve, b: &Aabb) -> Option<(f64, f64)> {
                 return Some((f64::INFINITY, f64::NEG_INFINITY));
             }
             // p(t) = origin + t²/(4 focal) x + t y.
-            let scale = 4.0 * p.focal();
+            let scale = 4.0 * p.focal_distance();
             let (near, far) = ((x0.max(0.0) * scale).sqrt(), (x1 * scale).sqrt());
             Some(between_absolute((y0, y1), (near, far)))
         }
@@ -345,11 +343,7 @@ where
                 ha.parameter(e.first_parameter),
                 hb.parameter(e.second_parameter),
             );
-            CurveCurveExtremum {
-                first_parameter: s,
-                second_parameter: t,
-                distance: a.eval_point(s).distance(b.eval_point(t)),
-            }
+            CurveCurveExtremum::new(s, a.point_at(s), t, b.point_at(t))
         })
         .collect();
     found.sort_by(|p, q| p.distance.total_cmp(&q.distance));

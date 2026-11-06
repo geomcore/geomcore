@@ -126,15 +126,11 @@ fn assert_on_both<C: ParametricCurve, S: ParametricSurface>(
     let (lo, hi) = curve.bounds();
     let ((u0, u1), (v0, v1)) = (surface.u_bounds(), surface.v_bounds());
     for hit in hits {
-        let (u, v) = hit.surface_parameters.unwrap();
-        assert!((lo..=hi).contains(&hit.curve_parameter.unwrap()), "{hit:?}");
+        let (u, v) = hit.surface_parameters;
+        assert!((lo..=hi).contains(&hit.curve_parameter), "{hit:?}");
         assert!((u0..=u1).contains(&u) && (v0..=v1).contains(&v), "{hit:?}");
-        assert!(
-            hit.point
-                .distance(curve.eval_point(hit.curve_parameter.unwrap()))
-                < 1e-12
-        );
-        assert!(hit.point.distance(surface.eval_point(u, v)) <= TOL.confusion);
+        assert!(hit.point.distance(curve.point_at(hit.curve_parameter)) < 1e-12);
+        assert!(hit.point.distance(surface.point_at(u, v)) <= TOL.confusion);
     }
     for pair in hits.windows(2) {
         assert!(
@@ -157,13 +153,13 @@ fn assert_surface_hits<C: ParametricCurve, S: ParametricSurface>(
     assert_on_both(&hits, curve, surface);
     let sampled: Vec<_> = sampled_curve_surface(curve, surface, TOL)
         .into_iter()
-        .filter(|h| within(curve, h.curve_parameter.unwrap()))
+        .filter(|h| within(curve, h.curve_parameter))
         .collect();
     assert_eq!(hits.len(), sampled.len(), "{hits:#?}\n{sampled:#?}");
     for want in &sampled {
         assert!(
             hits.iter().any(|h| h.point.distance(want.point) < 1e-6
-                && (h.curve_parameter.unwrap() - want.curve_parameter.unwrap()).abs() < 1e-6),
+                && (h.curve_parameter - want.curve_parameter).abs() < 1e-6),
             "{want:?} missing from {hits:#?}"
         );
     }
@@ -180,7 +176,7 @@ fn assert_curve_hits<A: ParametricCurve, B: ParametricCurve>(a: &A, b: &B) -> Ve
     assert_curve_hits_on_both(&hits, a, b);
     let sampled: Vec<_> = sampled_curve_curve(a, b, TOL)
         .into_iter()
-        .filter(|h| within(a, h.first_parameter.unwrap()) && within(b, h.second_parameter.unwrap()))
+        .filter(|h| within(a, h.first_parameter) && within(b, h.second_parameter))
         .collect();
     assert_eq!(hits.len(), sampled.len(), "{hits:#?}\n{sampled:#?}");
     for want in &sampled {
@@ -202,21 +198,10 @@ fn assert_curve_hits_on_both<A: ParametricCurve, B: ParametricCurve>(
 ) {
     let ((a0, a1), (b0, b1)) = (a.bounds(), b.bounds());
     for hit in hits {
-        assert!((a0..=a1).contains(&hit.first_parameter.unwrap()), "{hit:?}");
-        assert!(
-            (b0..=b1).contains(&hit.second_parameter.unwrap()),
-            "{hit:?}"
-        );
-        assert!(
-            hit.point
-                .distance(a.eval_point(hit.first_parameter.unwrap()))
-                < 1e-12
-        );
-        assert!(
-            hit.point
-                .distance(b.eval_point(hit.second_parameter.unwrap()))
-                <= TOL.confusion
-        );
+        assert!((a0..=a1).contains(&hit.first_parameter), "{hit:?}");
+        assert!((b0..=b1).contains(&hit.second_parameter), "{hit:?}");
+        assert!(hit.point.distance(a.point_at(hit.first_parameter)) < 1e-12);
+        assert!(hit.point.distance(b.point_at(hit.second_parameter)) <= TOL.confusion);
     }
     for pair in hits.windows(2) {
         assert!(
@@ -259,19 +244,19 @@ fn test_trimmed_elementary_curves_keep_their_hits_in_range() {
         let hits = assert_surface_hits(&arc, &surface);
         let inside = whole
             .iter()
-            .filter(|h| (lo..=hi).contains(&h.curve_parameter.unwrap()));
+            .filter(|h| (lo..=hi).contains(&h.curve_parameter));
         assert_eq!(hits.len(), inside.clone().count());
         for (hit, want) in hits.iter().zip(inside) {
-            assert!((hit.curve_parameter.unwrap() - want.curve_parameter.unwrap()).abs() < 1e-9);
+            assert!((hit.curve_parameter - want.curve_parameter).abs() < 1e-9);
         }
     }
     let line = Line::new(p(2.0, 2.0, -1.0), Vector::Z).unwrap();
     let hit = assert_surface_hits(&line, &surface)[0];
-    let trimmed = TrimmedCurve::new(line, hit.curve_parameter.unwrap() - 0.5, 10.0).unwrap();
+    let trimmed = TrimmedCurve::new(line, hit.curve_parameter - 0.5, 10.0).unwrap();
     let hits = assert_surface_hits(&trimmed, &surface);
     assert_eq!(hits.len(), 1);
-    assert!((hits[0].curve_parameter.unwrap() - hit.curve_parameter.unwrap()).abs() < 1e-9);
-    let missed = TrimmedCurve::new(line, hit.curve_parameter.unwrap() + 0.5, 10.0).unwrap();
+    assert!((hits[0].curve_parameter - hit.curve_parameter).abs() < 1e-9);
+    let missed = TrimmedCurve::new(line, hit.curve_parameter + 0.5, 10.0).unwrap();
     assert!(assert_surface_hits(&missed, &surface).is_empty());
     let parabola = Parabola::new(p(2.5, 2.5, -1.0), Vector::X, Vector::Z, 0.5).unwrap();
     let half = TrimmedCurve::new(parabola, 0.0, 5.0).unwrap();
@@ -287,14 +272,14 @@ fn assert_contact<C: ParametricCurve, S: ParametricSurface>(curve: &C, surface: 
         .iter()
         .find(|h| h.point.distance(at) < 1e-6)
         .unwrap_or_else(|| panic!("no hit at {at:?} in {hits:#?}"));
-    let (u, v) = hit.surface_parameters.unwrap();
-    assert!(surface.eval_point(u, v).distance(at) < 1e-6);
+    let (u, v) = hit.surface_parameters;
+    assert!(surface.point_at(u, v).distance(at) < 1e-6);
     match hits.completeness() {
         Completeness::Complete => {}
         Completeness::Incomplete { regions, .. } => assert!(
             regions.iter().any(|r| {
                 let (lo, hi) = r.curve_range;
-                (lo - 1e-9..=hi + 1e-9).contains(&hit.curve_parameter.unwrap())
+                (lo - 1e-9..=hi + 1e-9).contains(&hit.curve_parameter)
             }),
             "{hit:?} outside {regions:#?}"
         ),
@@ -316,9 +301,9 @@ fn test_tangent_contacts_are_found() {
 fn test_bspline_curve_against_elementary_surfaces() {
     let curve = wander();
     // A torus whose tube the curve runs through at its middle.
-    let tangent = curve.eval_derivative(1.0, 1).normalized().unwrap();
+    let tangent = curve.derivative(1.0, 1).normalized().unwrap();
     let across = tangent.cross(Vector::X).normalized().unwrap();
-    let core = curve.eval_point(1.0) - across * 2.0;
+    let core = curve.point_at(1.0) - across * 2.0;
     let surfaces = [
         Surface::Plane(Plane::new(p(0.0, 0.0, 0.3), v(0.2, 0.1, 1.0)).unwrap()),
         Surface::Cylinder(Cylinder::new(Point::ORIGIN, Vector::Z, 1.5).unwrap()),
@@ -378,8 +363,8 @@ fn test_hits_at_sphere_poles_and_cone_apex() {
     assert_eq!(hits.len(), 2, "{hits:#?}");
     assert!(hits[0].point.distance(p(1.0, 2.0, 1.0)) < 1e-9);
     assert!(hits[1].point.distance(p(1.0, 2.0, 5.0)) < 1e-9);
-    assert!((hits[0].surface_parameters.unwrap().1 + FRAC_PI_2).abs() < 1e-6);
-    assert!((hits[1].surface_parameters.unwrap().1 - FRAC_PI_2).abs() < 1e-6);
+    assert!((hits[0].surface_parameters.1 + FRAC_PI_2).abs() < 1e-6);
+    assert!((hits[1].surface_parameters.1 - FRAC_PI_2).abs() < 1e-6);
 
     // The apex is at height -1; the axis meets the cone there alone.
     let cone = Cone::new(Point::ORIGIN, Vector::Z, FRAC_PI_4, 1.0).unwrap();
@@ -398,17 +383,14 @@ fn test_hits_at_sphere_poles_and_cone_apex() {
     assert!(hits[0].point.distance(p(1.5, 0.0, -2.5)) < 1e-9);
     assert!(hits[1].point.distance(p(1.5, 0.0, 0.5)) < 1e-9);
     let apex = -1.0 / FRAC_PI_4.sin();
-    assert!(
-        hits[0].surface_parameters.unwrap().1 < apex
-            && apex < hits[1].surface_parameters.unwrap().1
-    );
+    assert!(hits[0].surface_parameters.1 < apex && apex < hits[1].surface_parameters.1);
 }
 
 #[test]
 fn test_unbounded_shapes_hit_far_from_origin() {
     let offset = v(1000.0, -2000.0, 500.0);
     let surface = wavy(offset);
-    let target = surface.eval_point(1.3, 1.7);
+    let target = surface.point_at(1.3, 1.7);
     let line = Line::new(Point::ORIGIN, target - Point::ORIGIN + v(0.0, 0.0, 300.0)).unwrap();
     let line = Line::new(target - line.direction() * 2500.0, line.direction()).unwrap();
     let hits = search_curve_surface(&line, &surface, TOL);
@@ -419,7 +401,7 @@ fn test_unbounded_shapes_hit_far_from_origin() {
         hits.iter().any(|h| h.point.distance(target) < 1e-9),
         "{hits:#?}"
     );
-    let piece = segment(line.eval_point(2400.0), line.eval_point(2600.0));
+    let piece = segment(line.point_at(2400.0), line.point_at(2600.0));
     let along = search_curve_surface(&piece, &surface, TOL).into_hits();
     assert_eq!(hits.len(), along.len());
     for (hit, want) in hits.iter().zip(&along) {
@@ -447,10 +429,7 @@ fn test_unbounded_shapes_hit_far_from_origin() {
     let hits = hits.into_hits();
     assert_on_both(&hits, &far, &cylinder);
     assert!(!hits.is_empty());
-    assert!(
-        hits.iter()
-            .all(|h| h.surface_parameters.unwrap().1 > 2999.0)
-    );
+    assert!(hits.iter().all(|h| h.surface_parameters.1 > 2999.0));
     let cone = Cone::new(p(5000.0, 0.0, 2000.0), Vector::Z, 0.004, 1.0).unwrap();
     let hits = search_curve_surface(&far, &cone, TOL);
     assert_eq!(hits.completeness(), &Completeness::Complete);
@@ -472,7 +451,7 @@ fn test_inside_uses_both_frame_axes() {
         ]
     };
     let parabola = Parabola::new(Point::ORIGIN, Vector::Z, Vector::X, 1.0).unwrap();
-    let at = parabola.eval_point(100.0);
+    let at = parabola.point_at(100.0);
     let (lo, hi) = inside(ElementaryCurve::Parabola(parabola), &center(at)).unwrap();
     // The y span alone would allow [98, 102]; the x span narrows it to
     // the two branches near t = ±100, of which only the positive one
@@ -480,7 +459,7 @@ fn test_inside_uses_both_frame_axes() {
     assert!(99.9 < lo && hi < 100.1, "{lo}..{hi}");
 
     let hyperbola = Hyperbola::new(Point::ORIGIN, Vector::Z, Vector::X, 2.0, 1.0).unwrap();
-    let at = hyperbola.eval_point(5.0);
+    let at = hyperbola.point_at(5.0);
     let (lo, hi) = inside(ElementaryCurve::Hyperbola(hyperbola), &center(at)).unwrap();
     // The y span alone would be about [4.97, 5.03].
     assert!(4.9 < lo && hi < 5.1 && hi - lo < 0.04, "{lo}..{hi}");
@@ -493,7 +472,7 @@ fn test_restriction_keeps_every_hit() {
     let mut rng = Lcg(5);
     for _ in 0..40 {
         let (u, w) = (3.0 * rng.next(), 3.0 * rng.next());
-        let target = surface.eval_point(u, w);
+        let target = surface.point_at(u, w);
         let direction = v(rng.next() - 0.5, rng.next() - 0.5, rng.next() + 0.2);
         let reach = 1e4 * (rng.next() - 0.5);
         let line = Line::new(Point::ORIGIN, direction).unwrap();
@@ -525,7 +504,7 @@ fn test_restriction_keeps_every_hit() {
     let patches = SurfacePatches::new(&cone, || Some(cover)).unwrap();
     assert_eq!(patches.patches().count(), 2);
     for t in 0..=40 {
-        let at = curve.eval_point(f64::from(t) / 20.0);
+        let at = curve.point_at(f64::from(t) / 20.0);
         for (k, x) in [at.x, at.y, at.z].into_iter().enumerate() {
             assert!(cover[k] + TOL.confusion < x && x < cover[k + 3] - TOL.confusion);
         }
@@ -558,7 +537,7 @@ fn test_elementary_curves_against_bspline_curve() {
         let hits = assert_curve_hits(&arc, &curve);
         let inside = whole
             .iter()
-            .filter(|h| (lo..=hi).contains(&h.first_parameter.unwrap()));
+            .filter(|h| (lo..=hi).contains(&h.first_parameter));
         assert_eq!(hits.len(), inside.clone().count());
         for (hit, want) in hits.iter().zip(inside) {
             assert!(hit.point.distance(want.point) < 1e-9);
@@ -607,8 +586,8 @@ fn assert_tangent<A: ParametricCurve, B: ParametricCurve>(a: &A, b: &B) {
     assert!(
         regions
             .iter()
-            .any(|r| holds(r.first_range, hit.first_parameter.unwrap())
-                && holds(r.second_range, hit.second_parameter.unwrap())),
+            .any(|r| holds(r.first_range, hit.first_parameter)
+                && holds(r.second_range, hit.second_parameter)),
         "{hit:?} outside {regions:#?}"
     );
 }
@@ -619,7 +598,7 @@ fn test_line_meets_bspline_curve_far_from_origin() {
     let line = Line::new(p(-1e4, 0.3, 0.0), Vector::X).unwrap();
     let hits = assert_curve_hits_far(&line, &curve);
     assert_eq!(hits.len(), 3);
-    assert!(hits.iter().all(|h| h.first_parameter.unwrap() > 9990.0));
+    assert!(hits.iter().all(|h| h.first_parameter > 9990.0));
     let beside = Line::new(p(0.0, 0.0, 5.0), Vector::X).unwrap();
     let hits = search_curve_curve(&beside, &curve, TOL);
     assert_eq!(hits.completeness(), &Completeness::Complete);

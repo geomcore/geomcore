@@ -9,7 +9,7 @@ use crate::{
 fn test_parabola2d_new_ok() {
     let p = Parabola2D::new(Point2D::new(1.0, -2.0), Vector2D::X, 1.7).unwrap();
     assert_eq!(p.apex(), Point2D::new(1.0, -2.0));
-    assert_eq!(p.focal(), 1.7);
+    assert_eq!(p.focal_distance(), 1.7);
     assert_eq!(p.frame().y_direction(), Vector2D::Y);
 }
 
@@ -53,7 +53,7 @@ fn test_parabola2d_new_null_direction_errors() {
 fn test_parabola2d_from_frame_ok() {
     let p = Parabola2D::from_frame(Frame2D::WORLD, 2.5).unwrap();
     assert_eq!(p.frame(), Frame2D::WORLD);
-    assert_eq!(p.focal(), 2.5);
+    assert_eq!(p.focal_distance(), 2.5);
 }
 
 #[test]
@@ -71,15 +71,15 @@ fn test_parabola2d_from_frame_invalid_focal_errors() {
 #[test]
 fn test_parabola2d_eval_point_and_derivatives() {
     let p = Parabola2D::new(Point2D::ORIGIN, Vector2D::X, 1.0).unwrap();
-    assert_eq!(p.eval_point(2.0), Point2D::new(1.0, 2.0));
-    assert_eq!(p.eval_derivative(0.0, 1), Vector2D::Y);
-    assert_eq!(p.eval_derivative(2.0, 1), Vector2D::new(1.0, 1.0));
-    assert_eq!(p.eval_derivative(2.0, 2), Vector2D::new(0.5, 0.0));
+    assert_eq!(p.point_at(2.0), Point2D::new(1.0, 2.0));
+    assert_eq!(p.derivative(0.0, 1), Vector2D::Y);
+    assert_eq!(p.derivative(2.0, 1), Vector2D::new(1.0, 1.0));
+    assert_eq!(p.derivative(2.0, 2), Vector2D::new(0.5, 0.0));
     for order in [3u32, 4, 10] {
-        assert_eq!(p.eval_derivative(2.0, order), Vector2D::ZERO);
+        assert_eq!(p.derivative(2.0, order), Vector2D::ZERO);
     }
     assert_eq!(
-        p.eval_points(&[0.0, 2.0]),
+        p.points_at(&[0.0, 2.0]),
         [Point2D::ORIGIN, Point2D::new(1.0, 2.0)]
     );
 }
@@ -88,14 +88,14 @@ fn test_parabola2d_eval_point_and_derivatives() {
 #[should_panic]
 fn test_parabola2d_eval_derivative_order0_panics() {
     let p = Parabola2D::new(Point2D::ORIGIN, Vector2D::X, 1.0).unwrap();
-    p.eval_derivative(0.0, 0);
+    p.derivative(0.0, 0);
 }
 
 #[test]
 fn test_parabola2d_parameter_of_round_trip() {
     let p = Parabola2D::new(Point2D::new(3.0, -1.0), Vector2D::new(0.6, 0.8), 1.5).unwrap();
     for u in [0.3, 2.0, -5.5] {
-        assert!((p.parameter_of(p.eval_point(u), Tolerance::DEFAULT) - u).abs() < 1e-9);
+        assert!((p.parameter_of(p.point_at(u), Tolerance::DEFAULT) - u).abs() < 1e-9);
     }
 }
 
@@ -118,12 +118,7 @@ fn test_parabola2d_projection_and_contains_agree() {
         Point2D::new(1.0, -2.0),
     ] {
         let projection = p.project_point(q, tol);
-        assert!(
-            projection
-                .point
-                .distance(p.eval_point(projection.parameter))
-                <= 1e-12
-        );
+        assert!(projection.point.distance(p.point_at(projection.parameter)) <= 1e-12);
         assert_eq!(p.contains(q, tol), projection.distance == 0.0);
     }
 }
@@ -167,7 +162,7 @@ fn test_parabola2d_trimmed_evaluates_and_projects_within_its_range() {
     let piece = TrimmedCurve2D::new(p, -2.0, 2.0).unwrap();
     assert_eq!(piece.bounds(), (-2.0, 2.0));
     assert_eq!(piece.start_point(), Point2D::new(1.0, -2.0));
-    assert_eq!(piece.eval_point(1.0), p.eval_point(1.0));
+    assert_eq!(piece.point_at(1.0), p.point_at(1.0));
     // The basis foot of (4, 4) lies outside the range: the end wins.
     let projection = piece.project_point(Point2D::new(4.0, 4.0), tol);
     assert_eq!(projection.parameter, 2.0);
@@ -190,7 +185,7 @@ fn test_parabola2d_with_huge_focal_projects_and_contains_correctly() {
 fn test_parabola2d_swap_of_axis_orients_y_counterclockwise() {
     let p = Parabola2D::new(Point2D::ORIGIN, Vector2D::Y, 1.0).unwrap();
     assert_eq!(p.frame().y_direction(), -Vector2D::X);
-    assert_eq!(p.eval_point(2.0), Point2D::new(-2.0, 1.0));
+    assert_eq!(p.point_at(2.0), Point2D::new(-2.0, 1.0));
     assert!(p.contains(Point2D::new(-2.0, 1.0), Tolerance::DEFAULT));
 }
 
@@ -206,4 +201,19 @@ fn test_parabola2d_project_non_finite_point_is_nan() {
         let proj = curve.project_point(p, tol);
         assert!(proj.parameter.is_nan() && proj.distance.is_nan());
     }
+}
+
+#[test]
+fn test_parabola2d_from_focus_and_directrix() {
+    let tol = crate::Tolerance::DEFAULT;
+    let directrix = crate::Line2D::new(Point2D::new(1.0, 2.0), Vector2D::new(-1.0, 2.0)).unwrap();
+    let focus = Point2D::new(4.0, 1.0);
+    let parabola = Parabola2D::from_focus_and_directrix(focus, &directrix).unwrap();
+    assert!(parabola.focus().distance(focus) < 1e-12);
+    for k in -5..=5 {
+        let p = parabola.point_at(f64::from(k) * 0.7);
+        let to_directrix = directrix.project_point(p, tol).distance;
+        assert!((p.distance(focus) - to_directrix).abs() < 1e-12);
+    }
+    assert!(parabola.derivative(0.0, 1).dot(directrix.direction()) > 0.0);
 }
