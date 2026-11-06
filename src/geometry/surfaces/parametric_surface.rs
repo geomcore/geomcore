@@ -3,7 +3,7 @@
 //! normal-recovery helpers it falls back on where the partial derivatives
 //! degenerate.
 
-use crate::geometry::curves::{Continuity, Curve, Curve2D};
+use crate::geometry::curves::{Continuity, Curve, Curve2D, TrimmedCurve, TrimmedCurve2D};
 use crate::geometry::surfaces::{
     BSplineSurface, Curve3DToUvError, ElementarySurface, ExtrusionSurface, RevolutionSurface,
     UvCurveTo3DError,
@@ -56,6 +56,15 @@ pub struct SurfaceCurvatures {
 /// ```
 pub trait ParametricSurface {
     /// Evaluates the point on the surface at parameters `(u, v)`.
+    ///
+    /// Every `(u, v)` evaluates, inside the bounds or not. Past them, an
+    /// elementary surface continues along its own equation, and a swept
+    /// surface along its sweep, with its profile evaluated as that curve is
+    /// past its own bounds. A non-periodic direction of
+    /// a B-spline or Bézier surface clamps its parameter to the nearer
+    /// bound, so the point and every partial are those at the bound. An
+    /// operation that builds from a parameter, such as an iso-curve or a
+    /// split, refuses one outside the bounds instead (ADR 0037).
     fn point_at(&self, u: f64, v: f64) -> Point;
 
     /// Evaluates the partial derivative of order `(du, dv)` at parameters
@@ -661,6 +670,14 @@ pub trait ParametricSurface {
     /// | poloidal or toroidal circle | torus | a line along `v` or `u` |
     /// | ellipse, parabola, hyperbola | plane | the 2D conic of the same radii or focal distance |
     /// | B-spline or Bézier curve | plane | the same spline over its poles' plane coordinates |
+    /// | generator line | extrusion | a line along `v` |
+    /// | the profile translated along the direction | extrusion | a line along `u` |
+    /// | parallel circle | revolution | a line along `u` |
+    /// | the profile turned about the axis | revolution | a line along `v` |
+    ///
+    /// A translated or turned profile is recognized in the profile's own
+    /// parameter only, as [`ExtrusionSurface`] and [`RevolutionSurface`]
+    /// carry and turn it.
     ///
     /// The plane map is affine, so a spline keeps its degree, knots,
     /// multiplicities, weights and periodicity. On a periodic surface a
@@ -679,8 +696,9 @@ pub trait ParametricSurface {
     /// [`Curve3DToUvError::NotAnalytic`] for every other pair, never
     /// approximated: a slanted line or circle on a curved surface, a conic
     /// or a spline on any surface but a plane, every curve on an
-    /// extrusion, revolution, B-spline or Bézier surface, and every curve
-    /// on a surface type defined outside the crate, the default.
+    /// extrusion or revolution but its iso-curves, every curve on a
+    /// B-spline or Bézier surface, and every curve on a surface type
+    /// defined outside the crate, the default.
     /// [`curve_3d_to_uv_within`](crate::curve_3d_to_uv_within) gives
     /// those within a deviation. [`Curve3DToUvError::CurveNotOnSurface`] when the curve does
     /// not lie on the surface, as for a circle whose radius does not match
@@ -721,6 +739,45 @@ pub trait ParametricSurface {
     fn curve_3d_to_uv(&self, curve: &Curve, tol: Tolerance) -> Result<Curve2D, Curve3DToUvError> {
         let _ = (curve, tol);
         Err(Curve3DToUvError::NotAnalytic)
+    }
+
+    /// The trimmed curve in the surface's parameters: the
+    /// [`curve_3d_to_uv`](Self::curve_3d_to_uv) image of its basis, over the
+    /// same range, since that image keeps the curve's parameter. An edge of
+    /// a face is a piece of its curve, and this is its curve on the face.
+    ///
+    /// # Errors
+    ///
+    /// Those of [`curve_3d_to_uv`](Self::curve_3d_to_uv) for the basis.
+    ///
+    /// # Examples
+    ///
+    /// A quarter of a cross-section circle of a cylinder maps to a piece of
+    /// the line along `u`:
+    ///
+    /// ```
+    /// use geomcore::prelude::*;
+    /// use geomcore::{Circle, Cylinder, Point, Tolerance, TrimmedCurve, Vector};
+    /// use std::f64::consts::FRAC_PI_2;
+    ///
+    /// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
+    /// let circle = Circle::new(Point::new(0.0, 0.0, 3.0), Vector::Z, 2.0).unwrap();
+    /// let edge = TrimmedCurve::new(circle, 0.0, FRAC_PI_2).unwrap().into_curve();
+    /// let uv_edge = cylinder.trimmed_curve_3d_to_uv(&edge, Tolerance::DEFAULT).unwrap();
+    /// let end = uv_edge.end_point();
+    /// assert!((end.x - FRAC_PI_2).abs() < 1e-9 && (end.y - 3.0).abs() < 1e-9);
+    /// ```
+    fn trimmed_curve_3d_to_uv(
+        &self,
+        curve: &TrimmedCurve,
+        tol: Tolerance,
+    ) -> Result<TrimmedCurve2D, Curve3DToUvError> {
+        let basis = self.curve_3d_to_uv(curve.basis(), tol)?;
+        Ok(TrimmedCurve2D::from_parts(
+            basis,
+            curve.first(),
+            curve.last(),
+        ))
     }
 
     /// Routing hook of the numeric search, hidden from the documentation: the

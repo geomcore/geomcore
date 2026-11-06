@@ -98,6 +98,7 @@ pub struct CurveCurveOverlap {
 /// let result = plane.intersect(&cylinder, Tolerance::DEFAULT);
 /// let piece = &result.curves()[0];
 /// assert!(!piece.tangent);
+/// assert_eq!(piece.deviation, 0.0); // an exact circle
 ///
 /// // On the cylinder, the circle is the iso-curve at v = 2, in the
 /// // circle's parameter: the point at t is the surface's at uv(t).
@@ -131,6 +132,14 @@ pub struct IntersectionCurve {
     /// parallel along it, or so nearly that moving one surface by the
     /// confusion distance makes them touch.
     pub tangent: bool,
+    /// How far `curve` strays from the surfaces through its curves in
+    /// parameters: the largest distance between `curve`'s point at `t` and
+    /// each surface's point at its UV curve's point at `t`, the tolerance
+    /// an edge along the curve needs. A marched curve samples it at the
+    /// middle of each knot span, where its fits stray furthest from the
+    /// traced points, so it can miss a larger distance elsewhere; an exact
+    /// curve is `0.0`.
+    pub deviation: f64,
 }
 
 impl IntersectionCurve {
@@ -143,6 +152,7 @@ impl IntersectionCurve {
             first_uv_curve: None,
             second_uv_curve: None,
             tangent,
+            deviation: 0.0,
         }
     }
 }
@@ -763,24 +773,30 @@ impl SurfaceSurfaceIntersection {
         }
     }
 
-    /// The result with each exact curve's curves in parameters on `first`
-    /// and `second`, where a closed form exists (see
-    /// [`IntersectionCurve::first_uv_curve`]). A marched result has them
-    /// already. The solvers built the curves on both surfaces, so the
-    /// closed forms skip their on-surface check: it tripled the cost of a
-    /// plane cutting a cylinder.
+    /// The result with each curve's missing curves in parameters on
+    /// `first` and `second` found, where a closed form exists (see
+    /// [`IntersectionCurve::first_uv_curve`]). A marched curve has both
+    /// already, and a swept surface's plane cut has the one on the swept
+    /// surface; a curve through crossings found numerically, as a plane
+    /// cutting a spline profile's extrusion, gets them like an exact one.
+    /// The solvers built the curves on both surfaces, so the closed forms
+    /// skip their on-surface check: it tripled the cost of a plane cutting
+    /// a cylinder.
     pub(crate) fn with_exact_uv_curves(
         mut self,
         first: &impl ParametricSurface,
         second: &impl ParametricSurface,
         tol: Tolerance,
     ) -> Self {
-        if self.method == IntersectionMethod::Exact {
-            for piece in &mut self.curves {
-                let uv_curve = |surface: &dyn ParametricSurface| {
-                    checked_curve_3d_to_uv(surface, &piece.curve, tol, OnSurfaceCheck::Skipped).ok()
-                };
+        for piece in &mut self.curves {
+            let curve = &piece.curve;
+            let uv_curve = |surface: &dyn ParametricSurface| {
+                checked_curve_3d_to_uv(surface, curve, tol, OnSurfaceCheck::Skipped).ok()
+            };
+            if piece.first_uv_curve.is_none() {
                 piece.first_uv_curve = uv_curve(first);
+            }
+            if piece.second_uv_curve.is_none() {
                 piece.second_uv_curve = uv_curve(second);
             }
         }

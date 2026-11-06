@@ -2,6 +2,7 @@ use super::{
     Curve3DToUvError, FRAC_PI_2, PI, TAU, mirror_about_horizontal, sphere_meridian,
     sphere_set_in_bounds,
 };
+use crate::base::transform::Transformable;
 use crate::geometry::curves::{Curve2D, ParametricCurve, ParametricCurve2D};
 use crate::geometry::surfaces::ParametricSurface;
 use crate::math::elementary::curve::in_period;
@@ -619,4 +620,129 @@ fn test_bspline_leaving_the_plane_is_not_on_surface() {
 
 fn assert_close(a: f64, b: f64) {
     assert!((a - b).abs() < 1e-9, "expected {b}, got {a}");
+}
+
+// ---- iso-curves of swept surfaces (#221) ----
+
+/// Asserts that `uv_curve` traces `curve` on `surface` in its parameter.
+fn assert_traces(
+    surface: &impl ParametricSurface,
+    uv_curve: &Curve2D,
+    curve: &crate::Curve,
+    parameters: &[f64],
+) {
+    for &t in parameters {
+        let uv = uv_curve.point_at(t);
+        let gap = surface.point_at(uv.x, uv.y).distance(curve.point_at(t));
+        assert!(gap < 1e-12, "{gap:e} at t = {t}");
+    }
+}
+
+fn slanted_extrusion() -> crate::ExtrusionSurface {
+    let profile = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 3.0, 1.0).unwrap();
+    crate::ExtrusionSurface::new(profile.into(), Vector::new(0.3, -0.2, 1.0)).unwrap()
+}
+
+fn torus_of_revolution() -> crate::RevolutionSurface {
+    let tube = Circle::new(Point::new(3.0, 0.0, 0.0), Vector::Y, 1.0).unwrap();
+    let axis = crate::Axis::new(Point::ORIGIN, Vector::Z).unwrap();
+    crate::RevolutionSurface::new(tube.into(), axis).unwrap()
+}
+
+#[test]
+fn test_generator_line_of_an_extrusion_is_a_u_iso_line() {
+    let surface = slanted_extrusion();
+    let foot = surface.profile().point_at(1.2);
+    for sense in [1.0, -1.0] {
+        let line: crate::Curve = Line::new(
+            foot + 0.5 * surface.direction(),
+            sense * surface.direction(),
+        )
+        .unwrap()
+        .into();
+        let uv_curve = surface.curve_3d_to_uv(&line, Tolerance::DEFAULT).unwrap();
+        let Curve2D::Line(uv_line) = &uv_curve else {
+            panic!("expected a line, got {uv_curve:?}");
+        };
+        assert!((uv_line.origin().x - 1.2).abs() < 1e-9);
+        assert_eq!(uv_line.direction().x, 0.0);
+        assert_traces(&surface, &uv_curve, &line, &[-3.0, 0.0, 2.5]);
+    }
+    let beside: crate::Curve = Line::new(
+        foot + Vector::new(0.0, 0.0, 0.0) + 5.0 * Vector::X,
+        surface.direction(),
+    )
+    .unwrap()
+    .into();
+    assert_eq!(
+        surface.curve_3d_to_uv(&beside, Tolerance::DEFAULT),
+        Err(Curve3DToUvError::CurveNotOnSurface)
+    );
+}
+
+#[test]
+fn test_translated_profile_of_an_extrusion_is_a_v_iso_line() {
+    let surface = slanted_extrusion();
+    let shift = crate::Transform::translation(2.5 * surface.direction());
+    let carried = surface.profile().transformed(shift).unwrap();
+    let uv_curve = surface
+        .curve_3d_to_uv(&carried, Tolerance::DEFAULT)
+        .unwrap();
+    let Curve2D::Line(uv_line) = &uv_curve else {
+        panic!("expected a line, got {uv_curve:?}");
+    };
+    assert_eq!(uv_line.direction(), Vector2D::new(1.0, 0.0));
+    assert!(uv_line.origin().distance(Point2D::new(0.0, 2.5)) < 1e-12);
+    assert_traces(&surface, &uv_curve, &carried, &[0.0, 1.0, 4.0]);
+    // The same ellipse started elsewhere runs in another parameter.
+    let turned = Ellipse::new(Point::ORIGIN, Vector::Z, -Vector::X, 3.0, 1.0)
+        .unwrap()
+        .transformed(shift)
+        .unwrap();
+    assert_eq!(
+        surface.curve_3d_to_uv(&turned.into(), Tolerance::DEFAULT),
+        Err(Curve3DToUvError::NotAnalytic)
+    );
+}
+
+#[test]
+fn test_parallel_circle_of_a_revolution_is_a_v_iso_line() {
+    let surface = torus_of_revolution();
+    let height = 0.6_f64;
+    let radius = 3.0 + (1.0 - height * height).sqrt();
+    for normal in [Vector::Z, -Vector::Z] {
+        let circle: crate::Curve = Circle::new(Point::new(0.0, 0.0, height), normal, radius)
+            .unwrap()
+            .into();
+        let uv_curve = surface.curve_3d_to_uv(&circle, Tolerance::DEFAULT).unwrap();
+        let Curve2D::Line(uv_line) = &uv_curve else {
+            panic!("expected a line, got {uv_curve:?}");
+        };
+        assert_eq!(uv_line.direction(), Vector2D::new(normal.z, 0.0));
+        assert_traces(&surface, &uv_curve, &circle, &[0.0, 1.0, 2.0, 5.5]);
+    }
+    let wider: crate::Curve = Circle::new(Point::new(0.0, 0.0, height), Vector::Z, radius + 0.1)
+        .unwrap()
+        .into();
+    assert_eq!(
+        surface.curve_3d_to_uv(&wider, Tolerance::DEFAULT),
+        Err(Curve3DToUvError::NotAnalytic)
+    );
+}
+
+#[test]
+fn test_meridian_of_a_revolution_is_a_u_iso_line() {
+    let surface = torus_of_revolution();
+    for angle in [1.0, 4.0, -0.5] {
+        let meridian = surface.u_iso(angle).unwrap();
+        let uv_curve = surface
+            .curve_3d_to_uv(&meridian, Tolerance::DEFAULT)
+            .unwrap();
+        let Curve2D::Line(uv_line) = &uv_curve else {
+            panic!("expected a line, got {uv_curve:?}");
+        };
+        assert!((uv_line.origin().x - in_period(angle, 0.0, TAU)).abs() < 1e-12);
+        assert_eq!(uv_line.direction(), Vector2D::new(0.0, 1.0));
+        assert_traces(&surface, &uv_curve, &meridian, &[0.0, 1.0, 3.0, 6.0]);
+    }
 }

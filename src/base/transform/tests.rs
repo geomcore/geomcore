@@ -1,4 +1,4 @@
-use crate::{Axis, Frame, Point, Transform, Vector};
+use crate::{Axis, Frame, Point, Transform, TransformError, TransformMatrixError, Vector};
 use std::f64::consts::PI;
 
 #[test]
@@ -129,4 +129,80 @@ fn test_then_applies_self_before_next() {
     assert!((result.x - 0.0).abs() < 1e-10, "x = {}", result.x);
     assert!((result.y - 1.0).abs() < 1e-10, "y = {}", result.y);
     assert!((result.z - 0.0).abs() < 1e-10, "z = {}", result.z);
+}
+
+/// Every kind of transformation, composed, for the matrix and inverse
+/// round trips.
+fn assorted_transforms() -> Vec<Transform> {
+    let axis = Axis::new(Point::new(1.0, -2.0, 0.5), Vector::new(1.0, 2.0, 3.0)).unwrap();
+    let frame = Frame::new(
+        Point::new(0.0, 1.0, 0.0),
+        Vector::new(1.0, 1.0, 0.0),
+        Vector::Z,
+    )
+    .unwrap();
+    vec![
+        Transform::IDENTITY,
+        Transform::translation(Vector::new(1.0, 2.0, 3.0)),
+        Transform::rotation(axis, 0.7),
+        Transform::scaling(Point::new(1.0, 1.0, 1.0), -2.5),
+        Transform::mirror_point(Point::new(0.0, 3.0, 0.0)),
+        Transform::mirror_axis(axis),
+        Transform::mirror_plane(frame),
+        Transform::rotation(axis, 1.9)
+            .then(Transform::mirror_plane(frame))
+            .then(Transform::scaling(Point::ORIGIN, 0.1)),
+    ]
+}
+
+#[test]
+fn a_transform_rebuilt_from_its_matrix_is_the_same_transform() {
+    for transform in assorted_transforms() {
+        let matrix = transform.to_matrix();
+        assert_eq!(Transform::from_matrix(matrix), Ok(transform));
+    }
+    let collapse = Transform::scaling(Point::ORIGIN, 0.0);
+    assert_eq!(Transform::from_matrix(collapse.to_matrix()), Ok(collapse));
+}
+
+#[test]
+fn a_matrix_that_is_not_a_similarity_is_refused() {
+    let mut matrix = Transform::IDENTITY.to_matrix();
+    matrix[1][1] = 2.0;
+    assert_eq!(
+        Transform::from_matrix(matrix),
+        Err(TransformMatrixError::NotSimilarity)
+    );
+    let mut projective = Transform::IDENTITY.to_matrix();
+    projective[3][0] = 0.1;
+    assert_eq!(
+        Transform::from_matrix(projective),
+        Err(TransformMatrixError::NotAffine)
+    );
+    let mut undefined = Transform::IDENTITY.to_matrix();
+    undefined[0][3] = f64::NAN;
+    assert_eq!(
+        Transform::from_matrix(undefined),
+        Err(TransformMatrixError::NonFinite)
+    );
+}
+
+#[test]
+fn the_inverse_undoes_the_transform() {
+    let points = [
+        Point::ORIGIN,
+        Point::new(3.0, -1.0, 2.0),
+        Point::new(-7.0, 0.5, 9.0),
+    ];
+    for transform in assorted_transforms() {
+        let inverse = transform.inverse().unwrap();
+        for p in points {
+            assert!(inverse.apply_point(transform.apply_point(p)).distance(p) < 1e-13);
+            assert!(transform.apply_point(inverse.apply_point(p)).distance(p) < 1e-13);
+        }
+    }
+    assert_eq!(
+        Transform::scaling(Point::ORIGIN, 0.0).inverse(),
+        Err(TransformError::Collapsed)
+    );
 }

@@ -154,6 +154,30 @@ impl Cone {
         Cone::from_frame(frame, semi_angle, ref_radius)
     }
 
+    /// The cone with its apex at `apex`, opening along `axis_direction` at
+    /// `semi_angle` from the axis: a cone of reference radius 0, its frame
+    /// at the apex. A negative angle opens it the other way.
+    ///
+    /// # Errors
+    ///
+    /// Those of [`Cone::new`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Cone, Point, Vector};
+    /// let cone = Cone::from_apex(Point::new(0.0, 0.0, 2.0), Vector::Z, 0.5).unwrap();
+    /// assert_eq!(cone.apex(), Point::new(0.0, 0.0, 2.0));
+    /// assert_eq!(cone.ref_radius(), 0.0);
+    /// ```
+    pub fn from_apex(
+        apex: Point,
+        axis_direction: Vector,
+        semi_angle: f64,
+    ) -> Result<Cone, ConeConstructionError> {
+        Cone::new(apex, axis_direction, semi_angle, 0.0)
+    }
+
     /// Creates a cone through two circular sections: `p1` with radius `r1`
     /// and `p2` with radius `r2`.
     ///
