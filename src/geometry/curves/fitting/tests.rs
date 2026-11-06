@@ -159,17 +159,24 @@ fn test_approximation_within_keeps_points_close_with_few_poles() {
     let points = wavy_points(200);
     for p in 1..=4 {
         for tolerance in [1e-1, 1e-3, 1e-5] {
-            let curve = BSplineCurve::approximate_within(
+            let fit = BSplineCurve::approximate_within(
                 &points,
                 p,
                 tolerance,
                 PointParametrization::Chordal,
             )
             .unwrap();
+            let curve = fit.curve();
             let params = point_parameters(&points, PointParametrization::Chordal).unwrap();
-            for (q, &t) in points.iter().zip(&params) {
-                assert!(curve.point_at(t).distance(*q) <= tolerance, "degree {p}");
-            }
+            let largest = points
+                .iter()
+                .zip(&params)
+                .map(|(q, &t)| curve.point_at(t).distance(*q))
+                .fold(0.0, f64::max);
+            // The deviation reported is the one measured at the points.
+            assert!(largest <= tolerance, "degree {p}");
+            assert_eq!(fit.deviation(), largest, "degree {p}");
+            assert!(fit.is_proven());
             assert!(curve.poles().len() < points.len(), "degree {p}");
         }
     }
@@ -187,8 +194,9 @@ fn test_approximation_within_gathers_knots_where_points_bend() {
             Point::new(x, y, 0.0)
         })
         .collect();
-    let curve =
-        BSplineCurve::approximate_within(&points, 3, 1e-4, PointParametrization::Chordal).unwrap();
+    let curve = BSplineCurve::approximate_within(&points, 3, 1e-4, PointParametrization::Chordal)
+        .unwrap()
+        .into_curve();
     // The wave, under a third of the length, holds most interior knots.
     let start = curve
         .project_point(Point::new(2.0, 0.0, 0.0), crate::Tolerance::DEFAULT)
@@ -210,7 +218,12 @@ fn test_approximation_within_zero_deviation_interpolates() {
         PointParametrization::Centripetal,
     ] {
         let within = BSplineCurve::approximate_within(&points, 3, 0.0, par).unwrap();
-        assert_eq!(within, BSplineCurve::interpolate(&points, 3, par).unwrap());
+        assert_eq!(
+            within.curve(),
+            &BSplineCurve::interpolate(&points, 3, par).unwrap()
+        );
+        // Through the points, up to rounding.
+        assert!(within.deviation() < 1e-14);
         let nan = BSplineCurve::approximate_within(&points, 3, f64::NAN, par).unwrap();
         assert_eq!(nan, within);
     }

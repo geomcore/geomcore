@@ -42,7 +42,7 @@ On a plane, or an extrusion perpendicular to its line, every kind is kept.
 - **A composed curve type that evaluates any curve through any surface**: deferred. It answers every pair, but with a curve that is neither elementary nor a B-spline, which no operation reads yet. It would be added when a consumer needs it, and the exact table stays its fast path.
 - **Approximating the refused pairs**: rejected. A tolerance-dependent fit under a name that promises exactness would hide the choice from the caller. ADR 0035 adds that fit as its own operation, `uv_curve_to_3d_within`.
 - **`impl Into<Curve2D>`**: rejected, as it would make the trait not dyn-compatible.
-- **`TrimmedCurve2D`**: not accepted, since it is not a `Curve2D` variant. A caller maps its basis and trims the result in the same parameter.
+- **`TrimmedCurve2D`**: not accepted, since it is not a `Curve2D` variant. A caller maps its basis and trims the result in the same parameter. Amended by #187: every edge is a trimmed curve, so every caller wrote that step. `ParametricSurface::trimmed_curve_3d_to_uv` now does it, a provided method next to `curve_3d_to_uv` rather than a widened argument, and Python's `curve_3d_to_uv` accepts either.
 
 ## Consequences
 

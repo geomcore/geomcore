@@ -6,8 +6,7 @@ parametric evaluation, rigid transformations, and analytic curve-on-surface
 parametrization, implemented in Rust.
 
 ```python
-from geomcore import Point, Vector
-from geomcore.curves import Circle
+from geomcore import Circle, Point, Vector
 import math
 
 circle = Circle(Point.origin(), Vector.unit_z(), 2.0)
@@ -47,7 +46,8 @@ Windows, for Python 3.9+ (abi3 — one wheel covers all versions).
   boxes (`BoundingBox2D`), surface reversal, and one-sided B-spline
   evaluation at knots and seams (`Side`).
 - Curve-on-surface parametrization: `surface.curve_3d_to_uv(curve)`
-  (exact) and `curve_3d_to_uv_numeric` (sampled), and the inverse
+  (exact) and `curve_3d_to_uv_within(surface, curve, max_deviation)`
+  (one B-spline within a deviation), and the inverse
   `surface.uv_curve_to_3d(uv_curve)` (exact) and
   `uv_curve_to_3d_within(surface, uv_curve, max_deviation)` (one
   B-spline within a deviation).

@@ -1,5 +1,5 @@
 use super::*;
-use crate::geometry::curves::{BSplineCurve, Ellipse, Parabola};
+use crate::geometry::curves::{BSplineCurve, Ellipse, Parabola, ParametricCurve2D};
 use crate::geometry::surfaces::{ParametricSurface, Surface};
 use crate::{Axis, Vector};
 
@@ -52,6 +52,33 @@ fn assert_on_both(
     }
 }
 
+/// Checks that every curve carries its curves in parameters on both
+/// surfaces, and that each traces the curve in its parameter.
+fn assert_uv_curves_on_both(
+    result: &SurfaceSurfaceIntersection,
+    first: &impl ParametricSurface,
+    second: &impl ParametricSurface,
+) {
+    for cut in result.curves() {
+        let (start, end) = cut.curve.bounds();
+        let (start, end) = (start.max(-5.0), end.min(5.0));
+        for (surface, uv_curve) in [
+            (first as &dyn ParametricSurface, &cut.first_uv_curve),
+            (second as &dyn ParametricSurface, &cut.second_uv_curve),
+        ] {
+            let uv_curve = uv_curve
+                .as_ref()
+                .unwrap_or_else(|| panic!("no curve in parameters for {:?}", cut.curve));
+            for index in 0..=16 {
+                let t = start + (end - start) * index as f64 / 16.0;
+                let uv = uv_curve.point_at(t);
+                let gap = surface.point_at(uv.x, uv.y).distance(cut.curve.point_at(t));
+                assert!(gap < 1e-9, "{gap:e} off at t = {t}");
+            }
+        }
+    }
+}
+
 #[test]
 fn test_plane_holding_the_direction_cuts_generator_lines() {
     let surface =
@@ -67,6 +94,7 @@ fn test_plane_holding_the_direction_cuts_generator_lines() {
             .all(|cut| !cut.tangent && matches!(cut.curve, Curve::Line(_)))
     );
     assert_on_both(&result, &surface, &cutter);
+    assert_uv_curves_on_both(&result, &surface, &cutter);
 }
 
 #[test]
@@ -93,6 +121,9 @@ fn test_oblique_plane_cuts_the_carried_profile() {
     assert_eq!(result.curves().len(), 1);
     assert!(matches!(result.curves()[0].curve, Curve::Ellipse(_)));
     assert_on_both(&result, &surface, &cutter);
+    // The ellipse climbs the extrusion as it turns: no iso-line of it.
+    assert!(result.curves()[0].first_uv_curve.is_none());
+    assert!(result.curves()[0].second_uv_curve.is_some());
 }
 
 #[test]
@@ -113,9 +144,12 @@ fn test_spline_profile_crossings_are_numeric_but_complete() {
     assert!(result.is_complete());
     assert_eq!(result.curves().len(), 3);
     assert_on_both(&result, &surface, &cutter);
-    let carried = surface.intersect(&plane((0.0, 0.0, 4.0), Vector::Z), TOL);
+    assert_uv_curves_on_both(&result, &surface, &cutter);
+    let top = plane((0.0, 0.0, 4.0), Vector::Z);
+    let carried = surface.intersect(&top, TOL);
     assert_eq!(carried.method(), IntersectionMethod::Exact);
     assert!(matches!(carried.curves()[0].curve, Curve::BSpline(_)));
+    assert_uv_curves_on_both(&carried, &surface, &top);
 }
 
 #[test]
@@ -168,6 +202,7 @@ fn test_perpendicular_plane_cuts_circles_of_a_torus() {
     assert!((radii[0] - (3.0 - half_width)).abs() < 1e-12);
     assert!((radii[1] - (3.0 + half_width)).abs() < 1e-12);
     assert_on_both(&result, &surface, &cutter);
+    assert_uv_curves_on_both(&result, &surface, &cutter);
 
     let top = surface.intersect(&plane((0.0, 0.0, 1.0), Vector::Z), TOL);
     assert_eq!(top.curves().len(), 1);
@@ -180,6 +215,7 @@ fn test_perpendicular_plane_cuts_a_sphere_once() {
     let result = surface.intersect(&plane((0.0, 0.0, 1.0), Vector::Z), TOL);
     assert_eq!(result.curves().len(), 1);
     assert!(!result.curves()[0].tangent);
+    assert_uv_curves_on_both(&result, &surface, &plane((0.0, 0.0, 1.0), Vector::Z));
     let pole = surface.intersect(&plane((0.0, 0.0, 2.0), Vector::Z), TOL);
     assert!(pole.curves().is_empty());
     assert_eq!(pole.contact_points().len(), 1);
@@ -207,10 +243,12 @@ fn test_plane_through_the_axis_cuts_both_halves() {
     assert_eq!(result.method(), IntersectionMethod::Exact);
     assert_eq!(result.curves().len(), 2);
     assert_on_both(&result, &surface, &cutter);
+    assert_uv_curves_on_both(&result, &surface, &cutter);
 
     let symmetric = sphere().intersect(&cutter, TOL);
     assert_eq!(symmetric.curves().len(), 1);
     assert_on_both(&symmetric, &sphere(), &cutter);
+    assert_uv_curves_on_both(&symmetric, &sphere(), &cutter);
 }
 
 #[test]
@@ -221,15 +259,30 @@ fn test_other_positions_march() {
     assert_eq!(off_axis.method(), IntersectionMethod::Numeric);
 }
 
+/// Asserts that `swapped` is `result` read in the other order of the
+/// surfaces: the same curves, each with its curves in parameters
+/// exchanged.
+fn assert_swapped(swapped: &SurfaceSurfaceIntersection, result: &SurfaceSurfaceIntersection) {
+    assert_eq!(swapped.method(), result.method());
+    assert_eq!(swapped.contact_points(), result.contact_points());
+    assert_eq!(swapped.curves().len(), result.curves().len());
+    for (other, piece) in swapped.curves().iter().zip(result.curves()) {
+        assert_eq!(other.curve, piece.curve);
+        assert_eq!(other.tangent, piece.tangent);
+        assert_eq!(other.first_uv_curve, piece.second_uv_curve);
+        assert_eq!(other.second_uv_curve, piece.first_uv_curve);
+    }
+}
+
 #[test]
 fn test_either_order_and_the_enums_agree() {
     let surface = torus();
     let cutter = plane((0.0, 0.0, 0.5), Vector::Z);
     let expected = surface.intersect(&cutter, TOL);
-    assert_eq!(cutter.intersect(&surface, TOL), expected);
+    assert_swapped(&cutter.intersect(&surface, TOL), &expected);
     let (wrapped, wrapped_plane) = (Surface::from(surface.clone()), Surface::from(cutter));
     assert_eq!(wrapped.intersect(&wrapped_plane, TOL), expected);
-    assert_eq!(wrapped_plane.intersect(&wrapped, TOL), expected);
+    assert_swapped(&wrapped_plane.intersect(&wrapped, TOL), &expected);
     let elementary = crate::geometry::surfaces::ElementarySurface::Plane(cutter);
-    assert_eq!(elementary.intersect(&surface, TOL), expected);
+    assert_swapped(&elementary.intersect(&surface, TOL), &expected);
 }

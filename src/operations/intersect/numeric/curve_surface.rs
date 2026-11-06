@@ -8,7 +8,7 @@ use crate::math::numeric::boxtree::Aabb;
 use crate::math::numeric::{brent_minimum, newton_3d};
 use crate::operations::intersect::numeric::curve_surface_hull::CurveSurfaceHits;
 use crate::operations::intersect::numeric::{overlap_runs, pairs_with_bspline};
-use crate::operations::intersect::results::sort_by_known_parameter;
+use crate::operations::intersect::results::sort_by_parameter;
 use crate::operations::intersect::{
     CurveSurfaceHit, CurveSurfaceIntersection, curve_surface_multiplicity,
 };
@@ -72,7 +72,7 @@ const WINDOW: f64 = 10.0;
 /// let result = intersect_curve_surface(&Helix, &plane, Tolerance::DEFAULT);
 /// assert_eq!(result.method(), IntersectionMethod::Numeric);
 /// assert_eq!(result.hits().len(), 1);
-/// assert!((result.hits()[0].curve_parameter.unwrap() - 3.0 * std::f64::consts::PI).abs() < 1e-9);
+/// assert!((result.hits()[0].curve_parameter - 3.0 * std::f64::consts::PI).abs() < 1e-9);
 /// ```
 pub fn intersect_curve_surface<C, S>(
     curve: &C,
@@ -265,8 +265,8 @@ where
                 push(
                     &mut hits,
                     CurveSurfaceHit {
-                        curve_parameter: Some(rt),
-                        surface_parameters: Some((ru, rv)),
+                        curve_parameter: rt,
+                        surface_parameters: (ru, rv),
                         point: p,
                         multiplicity: multiplicity_at(rt, ru, rv, p),
                     },
@@ -291,8 +291,8 @@ where
                 push(
                     &mut hits,
                     CurveSurfaceHit {
-                        curve_parameter: Some(rt),
-                        surface_parameters: Some((proj.u, proj.v)),
+                        curve_parameter: rt,
+                        surface_parameters: (proj.u, proj.v),
                         point: p,
                         multiplicity: multiplicity_at(rt, proj.u, proj.v, p),
                     },
@@ -300,7 +300,7 @@ where
             }
         }
     }
-    sort_by_known_parameter(&mut hits, |hit| hit.curve_parameter);
+    sort_by_parameter(&mut hits, |hit| hit.curve_parameter);
     hits
 }
 

@@ -3,6 +3,7 @@ use crate::geometry::curves::ParametricCurve;
 use crate::{
     Circle, Cone, Cylinder, Frame, IntersectExact, Plane, Point, Sphere, Tolerance, Torus, Vector,
 };
+use core::f64::consts::{FRAC_PI_2, PI, TAU};
 
 #[test]
 fn test_plane_plane_intersection_line() {
@@ -445,12 +446,73 @@ fn test_cylinder_cylinder_intersection_degenerate() {
         c1.intersect_exact(&c1, tol),
         CylinderCylinderIntersection::Coincident
     );
-    // Crossing axes: space quartic, no closed form.
-    let crossed = Cylinder::new(Point::ORIGIN, Vector::X, 2.0).unwrap();
+    // Crossing axes of different radii: space quartic, no closed form.
+    let crossed = Cylinder::new(Point::ORIGIN, Vector::X, 1.5).unwrap();
     assert_eq!(
         c1.intersect_exact(&crossed, tol),
         CylinderCylinderIntersection::NotAnalytic
     );
+    // Equal radii whose axes miss each other: no closed form either.
+    let skew = Cylinder::new(Point::new(0.0, 0.5, 0.0), Vector::X, 2.0).unwrap();
+    assert_eq!(
+        c1.intersect_exact(&skew, tol),
+        CylinderCylinderIntersection::NotAnalytic
+    );
+}
+
+/// Two equal cylinders whose axes meet at `meeting`, at `angle` between
+/// the axes, meet in two ellipses that lie on both, cross where the
+/// cylinders touch, and have the minor radius `r` and the major radii
+/// `r / sin(angle / 2)` (across the sum of the axis directions) and
+/// `r / cos(angle / 2)`.
+fn assert_crossing_equal_cylinders(meeting: Point, angle: f64) {
+    let tol = Tolerance::DEFAULT;
+    let r = 5.0;
+    let first = Cylinder::new(meeting, Vector::Z, r).unwrap();
+    let direction = Vector::new(angle.sin(), 0.0, angle.cos());
+    // The second axis passes through `meeting` from an origin along it.
+    let second = Cylinder::new(meeting + direction * 3.0, direction, r).unwrap();
+    let CylinderCylinderIntersection::TwoEllipses(e1, e2) = first.intersect_exact(&second, tol)
+    else {
+        panic!("expected two ellipses at angle {angle}");
+    };
+    let half = angle / 2.0;
+    assert!(
+        (e1.major_radius() - r / half.sin()).abs() < 1e-12,
+        "{angle}"
+    );
+    assert!(
+        (e2.major_radius() - r / half.cos()).abs() < 1e-12,
+        "{angle}"
+    );
+    for ellipse in [e1, e2] {
+        assert!(ellipse.center().distance(meeting) < 1e-12);
+        assert!((ellipse.minor_radius() - r).abs() < 1e-12);
+        for k in 0..64 {
+            let point = ellipse.point_at(k as f64 * TAU / 64.0);
+            assert!(first.contains(point, tol), "{angle} {k}");
+            assert!(second.contains(point, tol), "{angle} {k}");
+        }
+    }
+    // The ellipses cross at the ends of their shared minor axis, across
+    // both axes.
+    for t in [FRAC_PI_2, 3.0 * FRAC_PI_2] {
+        let point = e1.point_at(t);
+        assert!((point - meeting).dot(Vector::Z).abs() < 1e-12);
+        assert!((point - meeting).dot(direction).abs() < 1e-12);
+        let on_second = [e2.point_at(FRAC_PI_2), e2.point_at(3.0 * FRAC_PI_2)];
+        assert!(on_second.iter().any(|q| q.distance(point) < 1e-12));
+    }
+}
+
+#[test]
+fn test_equal_cylinders_whose_axes_meet_meet_in_two_ellipses() {
+    // The tee of two equal pipes.
+    assert_crossing_equal_cylinders(Point::ORIGIN, FRAC_PI_2);
+    // Oblique, and away from the origin.
+    assert_crossing_equal_cylinders(Point::new(1.0, -2.0, 3.0), PI / 3.0);
+    assert_crossing_equal_cylinders(Point::new(-4.0, 0.5, 0.0), 0.3);
+    assert_crossing_equal_cylinders(Point::ORIGIN, PI - 0.3);
 }
 
 #[test]

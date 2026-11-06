@@ -18,7 +18,7 @@ use crate::geometry::curves::ParametricCurve;
 use crate::geometry::surfaces::ParametricSurface;
 use crate::operations::intersect::numeric::curve_curve::{grazing_multiplicity, same_contact};
 use crate::operations::intersect::results::completeness::{meet, merged};
-use crate::operations::intersect::results::sort_by_known_parameter;
+use crate::operations::intersect::results::sort_by_parameter;
 use crate::operations::intersect::{
     Completeness, CurveCurveHit, CurveCurveOverlap, CurveCurveRegion, CurveSurfaceHit,
     CurveSurfaceRegion, IncompleteReason,
@@ -81,7 +81,7 @@ where
     };
     let anchors = hits
         .iter()
-        .filter_map(|hit| hit.curve_parameter.map(|t| (t, t)))
+        .map(|hit| (hit.curve_parameter, hit.curve_parameter))
         .chain(regions.iter().map(|region| region.curve_range))
         .collect();
     let runs = lying_runs(anchors, curve.bounds(), &mut on);
@@ -107,7 +107,7 @@ where
     let inside = |t: f64| runs.iter().any(|&run| covers(curve, run, t, tol));
     let hits = hits
         .into_iter()
-        .filter(|hit| !hit.curve_parameter.is_some_and(inside))
+        .filter(|hit| !inside(hit.curve_parameter))
         .collect();
     let mut regions = regions;
     for &run in &runs {
@@ -161,7 +161,7 @@ where
         second,
         known: hits
             .iter()
-            .filter_map(|hit| hit.first_parameter.zip(hit.second_parameter))
+            .map(|hit| (hit.first_parameter, hit.second_parameter))
             .collect(),
         tol,
     };
@@ -181,7 +181,7 @@ where
     }
     let anchors = hits
         .iter()
-        .filter_map(|hit| hit.first_parameter.map(|t| (t, t)))
+        .map(|hit| (hit.first_parameter, hit.first_parameter))
         .chain(regions.iter().map(|region| region.first_range))
         .collect();
     let runs = lying_runs(anchors, first.bounds(), &mut |t, spacing| {
@@ -216,10 +216,10 @@ where
     };
     let mut hits: Vec<CurveCurveHit> = hits
         .into_iter()
-        .filter(|hit| !hit.first_parameter.is_some_and(inside))
+        .filter(|hit| !inside(hit.first_parameter))
         .collect();
     hits.extend(contacts.iter().map(|&(_, hit)| hit));
-    sort_by_known_parameter(&mut hits, |hit| hit.first_parameter);
+    sort_by_parameter(&mut hits, |hit| hit.first_parameter);
     // Two contacts on either side of one tangency are one contact.
     let mut distinct: Vec<CurveCurveHit> = Vec::new();
     for hit in hits {
@@ -378,9 +378,9 @@ impl<A: ParametricCurve, B: ParametricCurve> Follower<'_, A, B> {
             return None;
         }
         Some(CurveCurveHit {
-            first_parameter: Some(t),
+            first_parameter: t,
             point: self.first.point_at(t),
-            second_parameter: Some(s),
+            second_parameter: s,
             multiplicity: grazing_multiplicity(self.first, t, self.second, s, self.tol),
         })
     }

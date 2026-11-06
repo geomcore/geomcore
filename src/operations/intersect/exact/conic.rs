@@ -27,7 +27,7 @@ use crate::math::numeric::{
     QuadraticSolution, RealRoot, roots_with_tangency, solve_quadratic, solve_trig,
     solve_trig_linear,
 };
-use crate::operations::intersect::results::sort_by_known_parameter;
+use crate::operations::intersect::results::sort_by_parameter;
 use crate::operations::intersect::{
     ConicConicIntersection, ConicSurfaceHit, ConicSurfaceIntersection, CurveCurveHit,
 };
@@ -399,9 +399,9 @@ pub(crate) fn intersect_conic_quadric<C: Conic, S: Quadric>(
 
 /// Intersects two conics: [`ConicConicIntersection::Coincident`] when
 /// they are the same curve, else their hits, ordered by the first conic's
-/// parameter when every hit has one. The conic of lower
-/// [`ConicShape::rank`] substitutes into the other's equation, so only its
-/// parameter is computed; the hits come back in the callers' order.
+/// parameter. The conic of lower [`ConicShape::rank`] substitutes into the
+/// other's equation, which yields its parameter; the other's is recovered
+/// from the point. The hits come back in the callers' order.
 pub(crate) fn intersect_conic_conic<A: Conic, B: Conic>(
     first: &A,
     second: &B,
@@ -424,13 +424,13 @@ pub(crate) fn intersect_conic_conic<A: Conic, B: Conic>(
     if hits.is_empty() {
         return ConicConicIntersection::Empty;
     }
-    sort_by_known_parameter(&mut hits, |hit| hit.first_parameter);
+    sort_by_parameter(&mut hits, |hit| hit.first_parameter);
     ConicConicIntersection::Hits(hits.to_vec())
 }
 
 /// The hits of `conic` on `other`, with `conic`'s parameter first, or
 /// `None` when they are the same curve. The solve yields `conic`'s
-/// parameter; `other`'s is stored only where the tangency test needed it.
+/// parameter; `other`'s is recovered from the point.
 fn conic_conic_hits<A: Conic, B: Conic>(
     conic: &A,
     other: &B,
@@ -440,9 +440,9 @@ fn conic_conic_hits<A: Conic, B: Conic>(
     let (frame, other_frame) = (conic.frame(), other.frame());
     let normal = frame.z_direction();
     let hit = |t: f64, p: Point, multiplicity: u32| CurveCurveHit {
-        first_parameter: Some(conic.parameter_in_bounds(t, tol)),
+        first_parameter: conic.parameter_in_bounds(t, tol),
         point: p,
-        second_parameter: None,
+        second_parameter: other.parameter_in_bounds(other.parameter_of(p, tol), tol),
         multiplicity,
     };
     // Coplanar when either conic lies in the other's plane: solving in
@@ -466,12 +466,7 @@ fn conic_conic_hits<A: Conic, B: Conic>(
                 if other.contains(h.point, point_tolerance(h.point, tol)) {
                     let mut found = hit(h.parameter, h.point, 1);
                     if h.multiplicity >= 2 {
-                        // The tangency test needs the other conic's
-                        // parameter, so it is kept.
-                        let second =
-                            other.parameter_in_bounds(other.parameter_of(h.point, tol), tol);
-                        found.second_parameter = Some(second);
-                        let along = other.derivative(second, 1);
+                        let along = other.derivative(found.second_parameter, 1);
                         if along.dot(normal).abs() <= along_tolerance * along.magnitude() {
                             found.multiplicity = h.multiplicity;
                         }

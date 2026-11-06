@@ -7,8 +7,7 @@ bilinear patch over the unit square:
 === "Python"
 
     ```python
-    from geomcore import Point
-    from geomcore.surfaces import BSplineSurface
+    from geomcore import BSplineSurface, Point
 
     poles = [[Point(0, 0, 0), Point(1, 0, 0)],
              [Point(0, 1, 0), Point(1, 1, 0)]]
