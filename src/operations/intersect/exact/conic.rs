@@ -197,7 +197,7 @@ impl Quadric for Plane {
 
     #[inline]
     fn section(&self, origin: Point, x: Vector, y: Vector) -> ImplicitConic {
-        let n = self.axis().direction();
+        let n = self.normal_direction();
         ImplicitConic {
             a2: 0.0,
             b2: 0.0,
@@ -222,7 +222,7 @@ impl Quadric for Plane {
         let angular = tol.angular_for_extent(conic.shape().extent());
         frame
             .z_direction()
-            .cross(self.axis().direction())
+            .cross(self.normal_direction())
             .magnitude()
             <= angular
             && self.contains(frame.origin(), tol)

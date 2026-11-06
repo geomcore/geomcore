@@ -266,6 +266,14 @@ impl Plane {
         }
     }
 
+    /// The direction of [`axis`](Self::axis) alone, the unit normal, for
+    /// the intersections that need no origin: it skips copying one.
+    #[inline]
+    pub(crate) fn normal_direction(&self) -> Vector {
+        let z = self.frame.z_direction();
+        if self.frame.is_direct() { z } else { -z }
+    }
+
     /// The `u` isoparametric line at `u`: `u` fixed, running along `v`.
     /// A line through `origin + u * x_direction` in the `y` direction,
     /// so `u_iso(u).point_at(t)` is `point_at(u, t)` for every `t`.

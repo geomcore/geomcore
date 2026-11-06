@@ -132,7 +132,7 @@ impl ExtrusionSurface {
     pub(crate) fn carried_onto(&self, plane: &Plane) -> Option<Curve> {
         let (origin, normal, direction) = (
             plane.frame().origin(),
-            plane.axis().direction(),
+            plane.normal_direction(),
             self.direction,
         );
         let crossing = normal.dot(direction);
