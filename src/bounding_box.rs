@@ -6,14 +6,16 @@ mod box_2d;
 mod curves;
 mod curves_2d;
 mod surfaces;
+mod tight;
 
 pub use box_2d::{BoundingBox2D, HasBoundingBox2D};
 pub(crate) use curves::{
-    BoundingBoxOf, box_through, hyperbola_box, parabola_box, spline_box, trigonometric_box,
+    BoundingBoxOf, box_through, hyperbola_box, parabola_box, spline_box, tight_spline_box,
+    trigonometric_box,
 };
 
 use crate::base::tier::operations::BoxOperations;
-use crate::{Point, Point2D, Vector};
+use crate::{Point, Point2D, Tolerance, Vector};
 
 /// An axis-aligned box: the points whose coordinates all lie between
 /// those of its [`min`](BoundingBox::min) and
@@ -268,9 +270,10 @@ impl BoundingBox {
 /// tightest (weights are positive, so the shape lies in the convex hull of
 /// its poles); a trimmed B-spline reports the box of the poles of the knot
 /// spans its range covers and of the Bézier control points of its pieces
-/// of the spans it cuts. Lines, parabolas, hyperbolas, planes, cylinders
-/// and cones are unbounded and report `None`; a trimmed curve always has a
-/// box, over its range.
+/// of the spans it cuts. [`tight_bounding_box`](Self::tight_bounding_box)
+/// touches every shape, within `tol.confusion`. Lines, parabolas,
+/// hyperbolas, planes, cylinders and cones are unbounded and report
+/// `None`; a trimmed curve always has a box, over its range.
 ///
 /// # Examples
 ///
@@ -303,11 +306,45 @@ pub trait HasBoundingBox {
     /// The axis-aligned box bounding the shape, or `None` if the shape is
     /// unbounded.
     fn bounding_box(&self) -> Option<BoundingBox>;
+
+    /// The axis-aligned box bounding the shape as tightly as
+    /// `tol.confusion`: it holds the shape, and each of its sides is within
+    /// `tol.confusion` of a point of the shape. `None` if the shape is
+    /// unbounded.
+    ///
+    /// The box of an elementary shape is [`bounding_box`](Self::bounding_box),
+    /// which already touches it. A B-spline's is found by halving its
+    /// Bézier pieces until their control points come that close, and a
+    /// revolution surface's from its profile's, at the cost of a few
+    /// hundred evaluations of the pieces' control points: for a collision
+    /// pre-check, against `bounding_box`, which holds the control points.
+    ///
+    /// ```
+    /// use geomcore::prelude::*;
+    /// use geomcore::{BSplineCurve, Point, Tolerance};
+    ///
+    /// // A quadratic arch, from (0, 0) to (2, 0), peaking at y = 1.
+    /// let poles = vec![Point::ORIGIN, Point::new(1.0, 2.0, 0.0), Point::new(2.0, 0.0, 0.0)];
+    /// let arch = BSplineCurve::new(2, poles, vec![0.0, 1.0], vec![3, 3], false).unwrap();
+    /// // The control points reach y = 2; the curve, 1.
+    /// assert_eq!(arch.bounding_box().unwrap().max().y, 2.0);
+    /// let tol = Tolerance::DEFAULT;
+    /// let tight = arch.tight_bounding_box(tol).unwrap();
+    /// assert!(tight.max().y >= 1.0 && tight.max().y - 1.0 <= tol.confusion);
+    /// ```
+    fn tight_bounding_box(&self, tol: Tolerance) -> Option<BoundingBox> {
+        let _ = tol;
+        self.bounding_box()
+    }
 }
 
 impl<T: HasBoundingBox + ?Sized> HasBoundingBox for &T {
     fn bounding_box(&self) -> Option<BoundingBox> {
         (**self).bounding_box()
+    }
+
+    fn tight_bounding_box(&self, tol: Tolerance) -> Option<BoundingBox> {
+        (**self).tight_bounding_box(tol)
     }
 }
 

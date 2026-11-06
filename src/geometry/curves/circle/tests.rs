@@ -107,7 +107,7 @@ fn test_circle3d_from_three_points_collinear_errors() {
 #[test]
 fn test_circle3d_eval_point_zero() {
     let c = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
-    let p = c.eval_point(0.0);
+    let p = c.point_at(0.0);
     assert!((p.x - 2.0).abs() < 1e-9);
     assert!(p.y.abs() < 1e-9);
     assert!(p.z.abs() < 1e-9);
@@ -117,14 +117,14 @@ fn test_circle3d_eval_point_zero() {
 fn test_circle3d_eval_points_matches_loop() {
     let c = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
     let us = [0.0, 0.5, 1.5];
-    let expected: Vec<Point> = us.iter().map(|&u| c.eval_point(u)).collect();
-    assert_eq!(c.eval_points(&us), expected);
+    let expected: Vec<Point> = us.iter().map(|&u| c.point_at(u)).collect();
+    assert_eq!(c.points_at(&us), expected);
 }
 
 #[test]
 fn test_circle3d_eval_derivative_order1() {
     let c = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
-    let d1 = c.eval_derivative(0.0, 1);
+    let d1 = c.derivative(0.0, 1);
     assert!(d1.x.abs() < 1e-9);
     assert!((d1.y - 2.0).abs() < 1e-9);
 }
@@ -133,14 +133,14 @@ fn test_circle3d_eval_derivative_order1() {
 #[should_panic]
 fn test_circle3d_eval_derivative_order0_panics() {
     let c = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
-    c.eval_derivative(0.0, 0);
+    c.derivative(0.0, 0);
 }
 
 #[test]
 fn test_circle3d_parameter_of_round_trip() {
     let c = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
     for u in [0.3, 2.0, 5.5] {
-        let p = c.eval_point(u);
+        let p = c.point_at(u);
         assert!((c.parameter_of(p, Tolerance::DEFAULT) - u).abs() < 1e-9);
     }
 }
@@ -149,7 +149,7 @@ fn test_circle3d_parameter_of_round_trip() {
 fn test_circle3d_parameter_of_in_zero_to_tau() {
     let c = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
     for u in [-1.0, -0.1, 7.0] {
-        let p = c.eval_point(u);
+        let p = c.point_at(u);
         let recovered = c.parameter_of(p, Tolerance::DEFAULT);
         assert!((0.0..std::f64::consts::TAU).contains(&recovered));
     }
@@ -192,7 +192,7 @@ fn test_circle3d_contains() {
     let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
     let tol = Tolerance::DEFAULT;
     assert!(circle.contains(Point::new(2.0, 0.0, 0.0), tol));
-    assert!(circle.contains(circle.eval_point(1.0), tol));
+    assert!(circle.contains(circle.point_at(1.0), tol));
     assert!(!circle.contains(Point::ORIGIN, tol));
     assert!(!circle.contains(Point::new(3.0, 0.0, 0.0), tol));
 }
@@ -234,7 +234,7 @@ fn test_circle3d_transformed_translation_spot_check() {
     assert_eq!(moved.radius(), 2.0);
     assert_eq!(moved.normal(), Vector::Z);
     // Hand-computed evaluation at u = 0.
-    assert_eq!(moved.eval_point(0.0), Point::new(3.0, 0.0, 5.0));
+    assert_eq!(moved.point_at(0.0), Point::new(3.0, 0.0, 5.0));
 }
 
 #[test]
@@ -247,7 +247,7 @@ fn test_circle3d_transformed_scale_and_round_trip() {
     // Transformed points stay on the transformed circle.
     let tol = Tolerance::DEFAULT;
     for u in [0.0, 1.0, 2.5] {
-        assert!(moved.contains(t.apply_point(circle.eval_point(u)), tol));
+        assert!(moved.contains(t.apply_point(circle.point_at(u)), tol));
     }
     // Round trip through the inverse scale restores the circle.
     let back = moved
@@ -271,9 +271,9 @@ fn test_circle3d_transformed_mirror_commutes_with_evaluation() {
     assert!(!moved.frame().is_direct());
     let tol = Tolerance::DEFAULT;
     for u in [0.0, 0.7, 2.1] {
-        let expected = m.apply_point(circle.eval_point(u));
+        let expected = m.apply_point(circle.point_at(u));
         assert!(moved.contains(expected, tol));
-        assert!(moved.eval_point(u).distance(expected) < 1e-12);
+        assert!(moved.point_at(u).distance(expected) < 1e-12);
         assert!((moved.parameter_of(expected, tol) - u).abs() < 1e-12);
     }
     // Mirroring twice is the identity.

@@ -1,8 +1,8 @@
 //! Python bindings for the `geomcore` geometric kernel.
 //!
-//! The extension module mirrors the Rust crate's namespaces: value types live
-//! at the package root (`geomcore`), curves under `geomcore.curves`, and
-//! surfaces under `geomcore.surfaces`. Fallible operations raise
+//! The extension module `geomcore._native` holds every class and function
+//! flat, as the Rust crate root does (ADR 0022); the `geomcore` package
+//! re-exports it (ADR 0038). Fallible operations raise
 //! the `GeomcoreError` subclass matching the Rust error type (see `errors`);
 //! `GeomcoreError` is a `ValueError`.
 
@@ -13,10 +13,11 @@ use errors::invalid_argument;
 use pyo3::prelude::*;
 use pyo3::types::PyModule;
 
-use geomcore::{Continuity, PointParametrization, Tolerance};
+use geomcore::{Continuity, Tolerance};
+use values::ToleranceArgument;
 
 /// The tolerance given, or the default.
-pub(crate) fn tolerance(tolerance: Option<PyTolerance>) -> Tolerance {
+pub(crate) fn tolerance(tolerance: Option<ToleranceArgument>) -> Tolerance {
     tolerance.map_or(Tolerance::DEFAULT, |given| given.0)
 }
 
@@ -41,7 +42,7 @@ impl<'py> IntoPyObject<'py> for ContinuityNumber {
 pub(crate) fn check_curve_order(order: u32) -> PyResult<()> {
     if order == 0 {
         Err(invalid_argument(
-            "order must be >= 1 (use eval_point for order 0)",
+            "order must be >= 1 (use point_at for order 0)",
         ))
     } else {
         Ok(())
@@ -80,7 +81,7 @@ pub(crate) fn check_surface_order<S: HighestDerivativeOrder>(
     let highest = S::HIGHEST_DERIVATIVE_ORDER;
     match du.checked_add(dv) {
         Some(0) => Err(invalid_argument(
-            "du + dv must be >= 1 (use eval_point for the (0, 0) order)",
+            "du + dv must be >= 1 (use point_at for the (0, 0) order)",
         )),
         Some(order) if order <= highest => Ok(()),
         _ => Err(invalid_argument(format!(
@@ -89,53 +90,46 @@ pub(crate) fn check_surface_order<S: HighestDerivativeOrder>(
     }
 }
 
-pub(crate) fn parse_parametrization(s: &str) -> PyResult<PointParametrization> {
-    match s {
-        "chordal" => Ok(PointParametrization::Chordal),
-        "centripetal" => Ok(PointParametrization::Centripetal),
-        _ => Err(invalid_argument(
-            "parametrization must be 'chordal' or 'centripetal'",
-        )),
-    }
-}
-
+mod approximation;
 mod arguments;
+mod arrays;
 mod bounding_box;
 mod curves;
 mod discretization;
+mod enums;
 mod intersect;
 mod method_sets;
+mod pickling;
 mod results;
 mod surfaces;
 mod values;
 
+use approximation::{PyCurveApproximation, PyCurveApproximation2D, PySurfaceApproximation};
 use arguments::{curve_2d_classes, curve_classes, surface_classes};
 use bounding_box::{PyBoundingBox, PyBoundingBox2D};
 use curves::{PyTrimmedCurve, PyTrimmedCurve2D};
 use discretization::{PyDiscretization, PyDiscretization2D};
 use intersect::py_curve_curve_extrema;
 use results::{
-    PyCompleteness, PyCompletenessStatus, PyCurveCurveExtrema, PyCurveCurveExtremum,
-    PyCurveCurveHit, PyCurveCurveHit2D, PyCurveCurveIntersection, PyCurveCurveIntersection2D,
-    PyCurveCurveOverlap, PyCurveCurveRegion, PyCurveProjection, PyCurveProjection2D,
-    PyCurveSurfaceHit, PyCurveSurfaceIntersection, PyCurveSurfaceRegion, PyIncompleteReason,
-    PyIntersectionCurve, PyIntersectionMethod, PySurfaceCurvatures, PySurfaceProjection,
+    PyCompleteness, PyCurveCurveExtrema, PyCurveCurveExtremum, PyCurveCurveHit, PyCurveCurveHit2D,
+    PyCurveCurveIntersection, PyCurveCurveIntersection2D, PyCurveCurveOverlap, PyCurveCurveRegion,
+    PyCurveProjection, PyCurveProjection2D, PyCurveSurfaceHit, PyCurveSurfaceIntersection,
+    PyCurveSurfaceRegion, PyIntersectionCurve, PySurfaceCurvatures, PySurfaceProjection,
     PySurfaceSurfaceIntersection, PySurfaceSurfaceRegion,
 };
-use surfaces::{PyUvCurveApproximation, py_curve_3d_to_uv_numeric, py_uv_curve_to_3d_within};
+use surfaces::{py_curve_3d_to_uv_within, py_uv_curve_to_3d_within};
 use values::{
-    PyAxis, PyAxis2D, PyFrame, PyFrame2D, PyPoint, PyPoint2D, PySide, PyTolerance, PyTransform,
-    PyVector, PyVector2D,
+    PyAxis, PyAxis2D, PyFrame, PyFrame2D, PyPoint, PyPoint2D, PyTolerance, PyTransform, PyVector,
+    PyVector2D,
 };
 
 // ---------------------------------------------------------------------------
 // Module wiring
 // ---------------------------------------------------------------------------
 
-#[pymodule(name = "geomcore")]
+#[pymodule(name = "_native")]
 fn geomcore_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    let py = m.py();
-
+    m.setattr("__version__", env!("CARGO_PKG_VERSION"))?;
     errors::register(m)?;
     m.add_class::<PyPoint>()?;
     m.add_class::<PyPoint2D>()?;
@@ -151,11 +145,7 @@ fn geomcore_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyBoundingBox2D>()?;
     m.add_class::<PyDiscretization2D>()?;
     m.add_class::<PyDiscretization>()?;
-    m.add_class::<PySide>()?;
-
-    m.add_class::<PyIntersectionMethod>()?;
-    m.add_class::<PyCompletenessStatus>()?;
-    m.add_class::<PyIncompleteReason>()?;
+    enums::register(m)?;
     m.add_class::<PyCompleteness>()?;
     m.add_class::<PyCurveCurveRegion>()?;
     m.add_class::<PyCurveSurfaceRegion>()?;
@@ -175,26 +165,17 @@ fn geomcore_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyCurveCurveExtremum>()?;
     m.add_class::<PyCurveCurveExtrema>()?;
     m.add_class::<PySurfaceCurvatures>()?;
-    m.add_class::<PyUvCurveApproximation>()?;
+    m.add_class::<PyCurveApproximation>()?;
+    m.add_class::<PyCurveApproximation2D>()?;
+    m.add_class::<PySurfaceApproximation>()?;
 
-    let curves = PyModule::new(py, "curves")?;
-    curve_classes::add_to(&curves)?;
-    curve_2d_classes::add_to(&curves)?;
-    curves.add_class::<PyTrimmedCurve>()?;
-    curves.add_class::<PyTrimmedCurve2D>()?;
-    m.add_submodule(&curves)?;
+    curve_classes::add_to(m)?;
+    curve_2d_classes::add_to(m)?;
+    m.add_class::<PyTrimmedCurve>()?;
+    m.add_class::<PyTrimmedCurve2D>()?;
+    surface_classes::add_to(m)?;
 
-    let surfaces = PyModule::new(py, "surfaces")?;
-    surface_classes::add_to(&surfaces)?;
-    m.add_submodule(&surfaces)?;
-
-    // Register the submodules in sys.modules so that
-    // `from geomcore.curves import Circle` works.
-    let sys_modules = py.import("sys")?.getattr("modules")?;
-    sys_modules.set_item("geomcore.curves", &curves)?;
-    sys_modules.set_item("geomcore.surfaces", &surfaces)?;
-
-    m.add_function(wrap_pyfunction!(py_curve_3d_to_uv_numeric, m)?)?;
+    m.add_function(wrap_pyfunction!(py_curve_3d_to_uv_within, m)?)?;
     m.add_function(wrap_pyfunction!(py_uv_curve_to_3d_within, m)?)?;
     m.add_function(wrap_pyfunction!(py_curve_curve_extrema, m)?)?;
 

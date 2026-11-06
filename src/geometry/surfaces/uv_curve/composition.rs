@@ -120,7 +120,7 @@ fn uv_spline(
         Curve2D::Parabola(_) => 2,
         _ => return Err(UvCurveTo3DError::NotAnalytic),
     };
-    let (point, first, second) = uv_curve.eval_d2(0.0);
+    let (point, first, second) = uv_curve.second_derivatives(0.0);
     // `c(t) = point + t first + t² second / 2`, coordinate by coordinate.
     let polynomial = [0, 1].map(|d| {
         let pick = |x: f64, y: f64| if d == 0 { x } else { y };
@@ -131,8 +131,8 @@ fn uv_spline(
         ]
     });
     let (start, end) = inside_interval(polynomial, limits, tol)?;
-    let (from, velocity) = uv_curve.eval_d1(start);
-    let to = uv_curve.eval_point(end);
+    let (from, velocity) = uv_curve.first_derivatives(start);
+    let to = uv_curve.point_at(end);
     let poles = if degree == 1 {
         vec![from, to]
     } else {
@@ -502,7 +502,7 @@ fn compose_piece(
     pieces: &mut Vec<Piece>,
 ) -> Result<(), UvCurveTo3DError> {
     let (start, end) = uv.bounds();
-    let middle = uv.eval_point(0.5 * (start + end));
+    let middle = uv.point_at(0.5 * (start + end));
     let mut spans = [(0, (0.0, 0.0)); 2];
     for (d, span) in spans.iter_mut().enumerate() {
         if let Some((low, high)) = grid.domain(d) {

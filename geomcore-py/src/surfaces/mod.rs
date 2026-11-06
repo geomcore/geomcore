@@ -1,4 +1,4 @@
-//! The `geomcore.surfaces` classes, one file per class as in the core crate's
+//! The surface classes, one file per class as in the core crate's
 //! `surfaces/`.
 
 mod bezier;
@@ -10,7 +10,7 @@ mod plane;
 mod revolution;
 mod sphere;
 mod torus;
-mod uv_curve;
+pub(crate) mod uv_curve;
 
 pub(crate) use bezier::PyBezierSurface;
 pub(crate) use bspline::PyBSplineSurface;
@@ -21,6 +21,4 @@ pub(crate) use plane::PyPlane;
 pub(crate) use revolution::PyRevolutionSurface;
 pub(crate) use sphere::PySphere;
 pub(crate) use torus::PyTorus;
-pub(crate) use uv_curve::{
-    PyUvCurveApproximation, py_curve_3d_to_uv_numeric, py_uv_curve_to_3d_within,
-};
+pub(crate) use uv_curve::{py_curve_3d_to_uv_within, py_uv_curve_to_3d_within};

@@ -88,8 +88,8 @@ pub struct GenericBezierCurve<P: TierPoint>(GenericBSplineCurve<P>);
 /// ];
 /// let curve = BezierCurve::new(3, poles).unwrap();
 ///
-/// assert_eq!(curve.eval_point(0.0), Point::new(0.0, 0.0, 0.0));
-/// assert_eq!(curve.eval_point(0.5), Point::new(2.0, 1.5, 0.5));
+/// assert_eq!(curve.point_at(0.0), Point::new(0.0, 0.0, 0.0));
+/// assert_eq!(curve.point_at(0.5), Point::new(2.0, 1.5, 0.5));
 /// assert_eq!(curve.bounds(), (0.0, 1.0));
 /// ```
 pub type BezierCurve = GenericBezierCurve<Point>;
@@ -119,8 +119,8 @@ pub type BezierCurve = GenericBezierCurve<Point>;
 /// ];
 /// let curve = BezierCurve2D::new(3, poles).unwrap();
 ///
-/// assert_eq!(curve.eval_point(0.0), Point2D::new(0.0, 0.0));
-/// assert_eq!(curve.eval_point(0.5), Point2D::new(2.0, 1.5));
+/// assert_eq!(curve.point_at(0.0), Point2D::new(0.0, 0.0));
+/// assert_eq!(curve.point_at(0.5), Point2D::new(2.0, 1.5));
 /// assert_eq!(curve.bounds(), (0.0, 1.0));
 /// ```
 pub type BezierCurve2D = GenericBezierCurve<Point2D>;
@@ -143,7 +143,7 @@ impl<P: TierPoint> GenericBezierCurve<P> {
     ///
     /// let poles = vec![Point::new(0.0, 0.0, 0.0), Point::new(2.0, 0.0, 0.0)];
     /// let curve = BezierCurve::new(1, poles.clone()).unwrap();
-    /// assert_eq!(curve.eval_point(0.5), Point::new(1.0, 0.0, 0.0));
+    /// assert_eq!(curve.point_at(0.5), Point::new(1.0, 0.0, 0.0));
     /// assert_eq!(
     ///     BezierCurve::new(2, poles),
     ///     Err(BezierConstructionError::PoleCountMismatch)
@@ -179,7 +179,7 @@ impl<P: TierPoint> GenericBezierCurve<P> {
     ///     Point::new(0.0, 1.0, 0.0),
     /// ];
     /// let arc = BezierCurve::new_rational(2, poles, vec![1.0, w, 1.0]).unwrap();
-    /// let p = arc.eval_point(1.0);
+    /// let p = arc.point_at(1.0);
     /// assert!((p.x - 0.0).abs() < 1e-12 && (p.y - 1.0).abs() < 1e-12);
     /// ```
     pub fn new_rational(
@@ -328,7 +328,7 @@ impl<P: TierPoint> GenericBezierCurve<P> {
     /// let (left, right) = curve.split_at(0.25).unwrap();
     /// assert_eq!((left.bounds(), right.bounds()), ((0.0, 0.25), (0.25, 1.0)));
     /// assert_eq!(left.poles()[3], right.poles()[0]);
-    /// assert!(left.eval_point(0.1).distance(curve.eval_point(0.1)) < 1e-12);
+    /// assert!(left.point_at(0.1).distance(curve.point_at(0.1)) < 1e-12);
     /// assert_eq!(curve.split_at(1.0), Err(BSplineSplitError::EmptyRange));
     /// ```
     pub fn split_at(
@@ -368,7 +368,7 @@ impl<P: TierPoint> GenericBezierCurve<P> {
     /// let quadratic = BezierCurve::new(2, poles).unwrap();
     /// let cubic = quadratic.elevate_degree(1).unwrap();
     /// assert_eq!((cubic.degree(), cubic.poles().len()), (3, 4));
-    /// assert!(cubic.eval_point(0.3).distance(quadratic.eval_point(0.3)) < 1e-12);
+    /// assert!(cubic.point_at(0.3).distance(quadratic.point_at(0.3)) < 1e-12);
     /// ```
     pub fn elevate_degree(
         &self,
@@ -381,7 +381,7 @@ impl<P: TierPoint> GenericBezierCurve<P> {
 
     /// Evaluates the point and the first derivative at parameter `u` from one
     /// side, as
-    /// [`BSplineCurve::eval_d1_sided`](crate::BSplineCurve::eval_d1_sided). A
+    /// [`BSplineCurve::first_derivatives_sided`](crate::BSplineCurve::first_derivatives_sided). A
     /// Bézier curve is one polynomial piece, so both sides agree everywhere.
     ///
     /// # Examples
@@ -391,21 +391,21 @@ impl<P: TierPoint> GenericBezierCurve<P> {
     /// let poles = vec![Point::new(0.0, 0.0, 0.0), Point::new(2.0, 0.0, 0.0)];
     /// let curve = BezierCurve::new(1, poles).unwrap();
     /// assert_eq!(
-    ///     curve.eval_d1_sided(0.5, Side::Below),
-    ///     curve.eval_d1_sided(0.5, Side::Above)
+    ///     curve.first_derivatives_sided(0.5, Side::Below),
+    ///     curve.first_derivatives_sided(0.5, Side::Above)
     /// );
     /// ```
-    pub fn eval_d1_sided(&self, u: f64, side: Side) -> (P, P::Vector) {
-        self.0.eval_d1_sided(u, side)
+    pub fn first_derivatives_sided(&self, u: f64, side: Side) -> (P, P::Vector) {
+        self.0.first_derivatives_sided(u, side)
     }
 
     /// Evaluates the derivative of the given `order` at parameter `u` from
-    /// one side, as [`eval_d1_sided`](Self::eval_d1_sided).
+    /// one side, as [`first_derivatives_sided`](Self::first_derivatives_sided).
     ///
     /// # Panics
     ///
     /// Panics if `order == 0`, as
-    /// [`eval_derivative`](Self::eval_derivative).
+    /// [`derivative`](Self::derivative).
     ///
     /// # Examples
     ///
@@ -417,15 +417,15 @@ impl<P: TierPoint> GenericBezierCurve<P> {
     ///     Point::new(2.0, 0.0, 0.0),
     /// ];
     /// let curve = BezierCurve::new(2, poles).unwrap();
-    /// assert_eq!(curve.eval_derivative_sided(0.5, 2, Side::Below), Vector::new(0.0, -4.0, 0.0));
+    /// assert_eq!(curve.derivative_sided(0.5, 2, Side::Below), Vector::new(0.0, -4.0, 0.0));
     /// ```
-    pub fn eval_derivative_sided(&self, u: f64, order: u32, side: Side) -> P::Vector {
-        self.0.eval_derivative_sided(u, order, side)
+    pub fn derivative_sided(&self, u: f64, order: u32, side: Side) -> P::Vector {
+        self.0.derivative_sided(u, order, side)
     }
 
     /// Evaluates the point and the first and second derivatives at
     /// parameter `u` from one side, as
-    /// [`eval_d1_sided`](Self::eval_d1_sided).
+    /// [`first_derivatives_sided`](Self::first_derivatives_sided).
     ///
     /// # Examples
     ///
@@ -438,10 +438,10 @@ impl<P: TierPoint> GenericBezierCurve<P> {
     ///     Point::new(2.0, 0.0, 0.0),
     /// ];
     /// let curve = BezierCurve::new(2, poles).unwrap();
-    /// assert_eq!(curve.eval_d2_sided(0.5, Side::Above), curve.eval_d2(0.5));
+    /// assert_eq!(curve.second_derivatives_sided(0.5, Side::Above), curve.second_derivatives(0.5));
     /// ```
-    pub fn eval_d2_sided(&self, u: f64, side: Side) -> (P, P::Vector, P::Vector) {
-        self.0.eval_d2_sided(u, side)
+    pub fn second_derivatives_sided(&self, u: f64, side: Side) -> (P, P::Vector, P::Vector) {
+        self.0.second_derivatives_sided(u, side)
     }
 
     /// The length of the curve over its bounds, within `max_length_error` as far
@@ -496,20 +496,20 @@ impl_for_both_tiers! {
 impl_for_both_tiers! {
     impl ParametricCurve, ParametricCurve2D for GenericBezierCurve {
         #[inline]
-        fn eval_point(&self, u: f64) -> P {
-            self.0.eval_point(u)
+        fn point_at(&self, u: f64) -> P {
+            self.0.point_at(u)
         }
 
-        fn eval_derivative(&self, u: f64, order: u32) -> V {
-            self.0.eval_derivative(u, order)
+        fn derivative(&self, u: f64, order: u32) -> V {
+            self.0.derivative(u, order)
         }
 
-        fn eval_d1(&self, u: f64) -> (P, V) {
-            self.0.eval_d1(u)
+        fn first_derivatives(&self, u: f64) -> (P, V) {
+            self.0.first_derivatives(u)
         }
 
-        fn eval_d2(&self, u: f64) -> (P, V, V) {
-            self.0.eval_d2(u)
+        fn second_derivatives(&self, u: f64) -> (P, V, V) {
+            self.0.second_derivatives(u)
         }
 
         fn bounds(&self) -> (f64, f64) {

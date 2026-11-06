@@ -8,8 +8,8 @@
 
 use geomcore::prelude::*;
 use geomcore::{
-    BSplineCurve2D, Circle2D, Cone, Cylinder, Line2D, Plane, Point, Point2D, Sphere, Tolerance,
-    Torus, TrimmedCurve2D, UvCurveApproximation, UvCurveApproximationError, Vector, Vector2D,
+    BSplineCurve2D, Circle2D, Cone, CurveApproximation, Cylinder, Line2D, Plane, Point, Point2D,
+    Sphere, Tolerance, Torus, TrimmedCurve2D, UvCurveTo3DApproximationError, Vector, Vector2D,
     uv_curve_to_3d_within,
 };
 use std::f64::consts::{FRAC_PI_2, PI};
@@ -27,15 +27,15 @@ fn segment(start: Point2D, end: Point2D) -> TrimmedCurve2D<Line2D> {
 fn measured_deviation(
     surface: &impl ParametricSurface,
     uv_curve: &impl ParametricCurve2D,
-    approximation: &UvCurveApproximation,
+    approximation: &CurveApproximation,
 ) -> f64 {
     let (first, last) = uv_curve.bounds();
     let curve = approximation.curve();
     (0..=2000)
         .map(|k| {
             let t = first + (last - first) * (k as f64 / 2000.0);
-            let uv = uv_curve.eval_point(t);
-            curve.eval_point(t).distance(surface.eval_point(uv.x, uv.y))
+            let uv = uv_curve.point_at(t);
+            curve.point_at(t).distance(surface.point_at(uv.x, uv.y))
         })
         .fold(0.0, f64::max)
 }
@@ -46,7 +46,7 @@ fn approximated(
     surface: &impl ParametricSurface,
     uv_curve: &impl ParametricCurve2D,
     max_deviation: f64,
-) -> UvCurveApproximation {
+) -> CurveApproximation {
     let approximation = uv_curve_to_3d_within(surface, uv_curve, max_deviation, TOL).unwrap();
     let curve = approximation.curve();
     assert!([5, 9].contains(&curve.degree()));
@@ -78,7 +78,7 @@ fn approximated(
 /// Whether the curve has degree `degree` and every interior knot the
 /// multiplicity `(degree + 1) / 2`, so that the curve is C² at degree 5
 /// and C⁴ at degree 9.
-fn is_smooth_at_degree(approximation: &UvCurveApproximation, degree: usize) -> bool {
+fn is_smooth_at_degree(approximation: &CurveApproximation, degree: usize) -> bool {
     let curve = approximation.curve();
     let multiplicities = curve.multiplicities();
     curve.degree() == degree
@@ -250,7 +250,7 @@ fn a_whole_line_is_unbounded() {
     let line = Line2D::new(Point2D::ORIGIN, Vector2D::new(1.0, 1.0)).unwrap();
     assert_eq!(
         uv_curve_to_3d_within(&cylinder, &line, 1e-7, TOL),
-        Err(UvCurveApproximationError::Unbounded)
+        Err(UvCurveTo3DApproximationError::Unbounded)
     );
 }
 
@@ -261,7 +261,7 @@ fn a_deviation_must_be_positive_and_finite() {
     for deviation in [0.0, -1e-7, f64::NAN, f64::INFINITY] {
         assert_eq!(
             uv_curve_to_3d_within(&cylinder, &helix, deviation, TOL),
-            Err(UvCurveApproximationError::InvalidDeviation)
+            Err(UvCurveTo3DApproximationError::InvalidDeviation)
         );
     }
 }
@@ -272,13 +272,13 @@ fn a_line_along_a_pole_collapses() {
     let pole = segment(Point2D::new(0.0, FRAC_PI_2), Point2D::new(PI, FRAC_PI_2));
     assert_eq!(
         uv_curve_to_3d_within(&sphere, &pole, 1e-7, TOL),
-        Err(UvCurveApproximationError::Collapsed)
+        Err(UvCurveTo3DApproximationError::Collapsed)
     );
     let poles = vec![Point2D::new(1.0, 0.0); 2];
     let point = BSplineCurve2D::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
     assert_eq!(
         uv_curve_to_3d_within(&sphere, &point, 1e-7, TOL),
-        Err(UvCurveApproximationError::Collapsed)
+        Err(UvCurveTo3DApproximationError::Collapsed)
     );
 }
 
@@ -288,7 +288,7 @@ fn a_line_past_a_pole_leaves_the_domain() {
     let past = segment(Point2D::new(0.0, 0.0), Point2D::new(1.0, 2.0));
     assert_eq!(
         uv_curve_to_3d_within(&sphere, &past, 1e-7, TOL),
-        Err(UvCurveApproximationError::OutsideSurfaceDomain)
+        Err(UvCurveTo3DApproximationError::OutsideSurfaceDomain)
     );
 }
 
@@ -297,7 +297,7 @@ fn an_unreachable_deviation_is_refused_with_the_reached_one() {
     let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 1e3).unwrap();
     let helix = segment(Point2D::ORIGIN, Point2D::new(20_000.0 * PI, 1.0));
     match uv_curve_to_3d_within(&cylinder, &helix, 1e-12, TOL) {
-        Err(UvCurveApproximationError::DeviationNotReached { reached }) => {
+        Err(UvCurveTo3DApproximationError::DeviationNotReached { reached }) => {
             assert!(reached > 1e-12)
         }
         other => panic!("{:?}", other.map(|approximation| approximation.deviation())),

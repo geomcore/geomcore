@@ -52,47 +52,47 @@ fn test_line3d_from_two_points_confused_errors() {
 #[test]
 fn test_line3d_eval_point() {
     let line = Line::new(Point::ORIGIN, Vector::X).unwrap();
-    assert_eq!(line.eval_point(3.0), Point::new(3.0, 0.0, 0.0));
+    assert_eq!(line.point_at(3.0), Point::new(3.0, 0.0, 0.0));
 }
 
 #[test]
 fn test_line3d_eval_points_matches_loop() {
     let line = Line::new(Point::new(1.0, -2.0, 0.5), Vector::Y).unwrap();
     let us = [0.0, 1.5, -3.0];
-    let expected: Vec<Point> = us.iter().map(|&u| line.eval_point(u)).collect();
-    assert_eq!(line.eval_points(&us), expected);
+    let expected: Vec<Point> = us.iter().map(|&u| line.point_at(u)).collect();
+    assert_eq!(line.points_at(&us), expected);
 }
 
 #[test]
 fn test_line3d_eval_derivative_order1_is_direction() {
     let line = Line::new(Point::ORIGIN, Vector::new(0.0, 3.0, 0.0)).unwrap();
-    assert_eq!(line.eval_derivative(1.5, 1), Vector::Y);
+    assert_eq!(line.derivative(1.5, 1), Vector::Y);
 }
 
 #[test]
 fn test_line3d_eval_derivative_order2_is_zero() {
     let line = Line::new(Point::ORIGIN, Vector::X).unwrap();
-    assert_eq!(line.eval_derivative(1.5, 2), Vector::ZERO);
+    assert_eq!(line.derivative(1.5, 2), Vector::ZERO);
 }
 
 #[test]
 fn test_line3d_eval_derivative_order3_is_zero() {
     let line = Line::new(Point::ORIGIN, Vector::X).unwrap();
-    assert_eq!(line.eval_derivative(1.5, 3), Vector::ZERO);
+    assert_eq!(line.derivative(1.5, 3), Vector::ZERO);
 }
 
 #[test]
 #[should_panic]
 fn test_line3d_eval_derivative_order0_panics() {
     let line = Line::new(Point::ORIGIN, Vector::X).unwrap();
-    line.eval_derivative(1.5, 0);
+    line.derivative(1.5, 0);
 }
 
 #[test]
 fn test_line3d_parameter_of_round_trip() {
     let line = Line::new(Point::new(1.0, -2.0, 0.5), Vector::new(1.0, 2.0, 2.0)).unwrap();
     for u in [0.3, 2.0, -5.5] {
-        let p = line.eval_point(u);
+        let p = line.point_at(u);
         assert!((line.parameter_of(p, Tolerance::DEFAULT) - u).abs() < 1e-9);
     }
 }
@@ -126,7 +126,7 @@ fn test_line3d_contains() {
     let line = Line::new(Point::ORIGIN, Vector::X).unwrap();
     let tol = Tolerance::DEFAULT;
     assert!(line.contains(Point::new(2.5, 0.0, 0.0), tol));
-    assert!(line.contains(line.eval_point(-3.0), tol));
+    assert!(line.contains(line.point_at(-3.0), tol));
     assert!(!line.contains(Point::new(2.5, 1.0, 0.0), tol));
     // Tolerance boundary: 1e-6 off the line fails at default, passes loose.
     let near = Point::new(0.0, 1e-6, 0.0);
@@ -185,7 +185,7 @@ fn test_line3d_transformed_translation_spot_check() {
     assert_eq!(moved.origin(), Point::new(1.0, 5.0, -2.0));
     assert_eq!(moved.direction(), Vector::Y);
     // Hand-computed evaluation: origin + 2 * direction.
-    assert_eq!(moved.eval_point(2.0), Point::new(1.0, 7.0, -2.0));
+    assert_eq!(moved.point_at(2.0), Point::new(1.0, 7.0, -2.0));
 }
 
 #[test]
@@ -211,7 +211,7 @@ fn test_line3d_transformed_round_trip() {
     // Transformed points stay on the transformed line.
     let tol = Tolerance::DEFAULT;
     for u in [0.0, 1.5, -2.5] {
-        assert!(moved.contains(t.apply_point(line.eval_point(u)), tol));
+        assert!(moved.contains(t.apply_point(line.point_at(u)), tol));
     }
     // Round trip through the inverse restores the line.
     let inv = Transform::scaling(Point::ORIGIN, 0.5)

@@ -56,7 +56,7 @@ impl std::error::Error for CylinderConstructionError {}
 /// use geomcore::prelude::*;
 /// use geomcore::{Cylinder, Point, Vector};
 /// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
-/// assert_eq!(cylinder.eval_point(0.0, 5.0), Point::new(2.0, 0.0, 5.0));
+/// assert_eq!(cylinder.point_at(0.0, 5.0), Point::new(2.0, 0.0, 5.0));
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Cylinder {
@@ -202,8 +202,8 @@ impl Cylinder {
     }
 
     /// The `u` isoparametric line at `u`: the generator through the point
-    /// at `(u, 0)`, parallel to the axis, so `u_iso(u).eval_point(t)` is
-    /// `eval_point(u, t)` for every `t`.
+    /// at `(u, 0)`, parallel to the axis, so `u_iso(u).point_at(t)` is
+    /// `point_at(u, t)` for every `t`.
     /// The axis-aligned special case of
     /// [`uv_curve_to_3d`](crate::ParametricSurface::uv_curve_to_3d):
     /// a line along `v`, run at rate `1` from `0`.
@@ -218,16 +218,16 @@ impl Cylinder {
     /// use geomcore::{Cylinder, Point, Vector};
     /// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
     /// let iso = cylinder.u_iso(0.0).unwrap();
-    /// assert_eq!(iso.eval_point(3.0), Point::new(2.0, 0.0, 3.0));
+    /// assert_eq!(iso.point_at(3.0), Point::new(2.0, 0.0, 3.0));
     /// ```
     pub fn u_iso(&self, u: f64) -> Result<Line, SurfaceIsoError> {
         let u = check_iso_param(u, None)?;
-        iso_line(self.eval_point(u, 0.0), self.frame.z_direction())
+        iso_line(self.point_at(u, 0.0), self.frame.z_direction())
     }
 
     /// The `v` isoparametric circle at `v`: the ring of the cylinder's
-    /// radius at height `v` along the axis, so `v_iso(v).eval_point(t)` is
-    /// `eval_point(t, v)` for every `t`.
+    /// radius at height `v` along the axis, so `v_iso(v).point_at(t)` is
+    /// `point_at(t, v)` for every `t`.
     /// The axis-aligned special case of
     /// [`uv_curve_to_3d`](crate::ParametricSurface::uv_curve_to_3d):
     /// a line along `u`, run at rate `1` from `0`.
@@ -258,13 +258,13 @@ impl Cylinder {
 
 impl ParametricSurface for Cylinder {
     #[inline]
-    fn eval_point(&self, u: f64, v: f64) -> Point {
+    fn point_at(&self, u: f64, v: f64) -> Point {
         elementary::cylinder_d0(&self.frame, self.radius, u, v)
     }
 
     fn project_point(&self, point: Point, tol: Tolerance) -> SurfaceProjection {
         let (u, v) = self.parameters_of(point, tol);
-        let foot = self.eval_point(u, v);
+        let foot = self.point_at(u, v);
         let distance = foot.distance(point);
         SurfaceProjection {
             u,
@@ -276,14 +276,12 @@ impl ParametricSurface for Cylinder {
 
     fn contains(&self, point: Point, tol: Tolerance) -> bool {
         let (u, v) = self.parameters_of(point, tol);
-        self.eval_point(u, v).distance(point) <= tol.confusion
+        self.point_at(u, v).distance(point) <= tol.confusion
     }
 
-    fn eval_derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> Vector {
+    fn derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> Vector {
         match du + dv {
-            0 => panic!(
-                "eval_derivative: du + dv must be >= 1 (use eval_point for the (0, 0) order)"
-            ),
+            0 => panic!("derivative: du + dv must be >= 1 (use point_at for the (0, 0) order)"),
             _ => elementary::cylinder_derivative(&self.frame, self.radius, u, v, du, dv),
         }
     }
@@ -332,7 +330,7 @@ impl ReversibleSurface for Cylinder {
     /// Returns the cylinder running in the opposite angular direction:
     /// the same point set with the frame's y direction negated, so the
     /// frame turns indirect and the normal reverses.
-    /// `reversed_u().eval_point(u, v)` is `eval_point(-u, v)`.
+    /// `reversed_u().point_at(u, v)` is `point_at(-u, v)`.
     fn reversed_u(&self) -> Cylinder {
         Cylinder {
             frame: self.frame.flipped_y(),
@@ -342,7 +340,7 @@ impl ReversibleSurface for Cylinder {
 
     /// Returns the cylinder running in the opposite axial direction:
     /// the same point set with the frame's z direction negated.
-    /// `reversed_v().eval_point(u, v)` is `eval_point(u, -v)`.
+    /// `reversed_v().point_at(u, v)` is `point_at(u, -v)`.
     fn reversed_v(&self) -> Cylinder {
         Cylinder {
             frame: self.frame.flipped_z(),

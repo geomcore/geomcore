@@ -152,8 +152,8 @@ fn test_vector2_cross() {
 
 #[test]
 fn test_vector2_perp() {
-    assert_eq!(Vector2D::X.perp(), Vector2D::Y);
-    assert_eq!(Vector2D::Y.perp(), Vector2D::new(-1.0, 0.0));
+    assert_eq!(Vector2D::X.perpendicular(), Vector2D::Y);
+    assert_eq!(Vector2D::Y.perpendicular(), Vector2D::new(-1.0, 0.0));
 }
 
 #[test]
