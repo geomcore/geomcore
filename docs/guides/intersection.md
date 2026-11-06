@@ -86,7 +86,10 @@ with the point where the surfaces touch, if any, in `contact_points`:
 two cylinders with axes `|r1 − r2|` apart meet in one loop that crosses
 itself there. Two cones with one apex and axes apart split into lines
 instead: up to four through the apex, the generators they share, with the apex in
-`contact_points`.
+`contact_points`. A cone and a cylinder, or two cones, whose axes meet
+at a point as far from both, so that both touch one sphere centred
+there, split into two plane conics (the ellipses of a reducer), with the
+points where they touch in `contact_points`.
 Lines/circles/conics against each
 other and against the elementary surfaces, and any two conics —
 coplanar (up to four hits) or in crossing planes (met on the shared

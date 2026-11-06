@@ -702,8 +702,17 @@ def test_intersect_cone_cone():
     assert sorted([r1.radius(), r2.radius()]) == pytest.approx([1.1155, 4.7245], abs=1e-3)
 
     assert c1.intersect(c1).is_coincident()
-    tilted = Cone(Point.origin(), Vector.unit_x(), 0.4, 2.0)
+    tilted = Cone(Point.origin(), Vector.unit_x(), 0.4, 1.5)
     assert c1.intersect(tilted).method == IntersectionMethod.NUMERIC
+
+    # Axes meeting at the origin, both cones as far from it: two conics
+    # through the two points where the cones touch the sphere of radius 2·cos 0.4.
+    around = Cone(Point.origin(), Vector.unit_x(), 0.4, 2.0)
+    conics = c1.intersect(around)
+    assert conics.method == IntersectionMethod.EXACT and conics.is_complete()
+    assert len(conics.contact_points) == 2
+    for point in conics.contact_points:
+        assert point.distance(Point.origin()) == pytest.approx(2.0 * math.cos(0.4))
 
     # One apex, axes apart: four lines through it, each a generator of both.
     narrow = Cone(Point.origin(), Vector.unit_z(), math.pi / 4.0, 0.0)
