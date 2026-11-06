@@ -11,7 +11,7 @@ use geomcore::Ellipse2D;
 pub(crate) struct PyEllipse2D(pub(crate) Ellipse2D);
 
 shape_methods! {
-    PyEllipse2D: [curve_2d, discretize_2d];
+    PyEllipse2D: [curve_2d, bounded_curve_2d];
 
     /// The placement frame of the ellipse.
     fn frame(&self) -> PyFrame2D {

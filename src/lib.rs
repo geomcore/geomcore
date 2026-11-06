@@ -165,15 +165,15 @@ pub use geometry::approximation::{
 };
 pub use geometry::curves::{
     ArcConstructionError, BSplineConstructionError, BSplineConversionError, BSplineCurve,
-    BSplineCurve2D, BSplineSplitError, BezierConstructionError, BezierCurve, BezierCurve2D, Circle,
-    Circle2D, CircleConstructionError, Continuity, Curve, Curve2D, DegreeElevationError,
-    ElementaryCurve, Ellipse, Ellipse2D, EllipseConstructionError, GenericBSplineCurve,
-    GenericBezierCurve, GenericCircle, GenericEllipse, GenericHyperbola, GenericLine,
-    GenericParabola, GenericTrimmedCurve, Hyperbola, Hyperbola2D, HyperbolaConstructionError,
-    KnotInsertionError, KnotRemovalError, Line, Line2D, LineConstructionError, Parabola,
-    Parabola2D, ParabolaConstructionError, ParametricCurve, ParametricCurve2D, PointExtrema,
-    PointExtrema2D, PointParametrization, PoleEditError, ReversibleCurve, Side, TrimmedCurve,
-    TrimmedCurve2D, TrimmedCurveConstructionError,
+    BSplineCurve2D, BSplineSplitError, BezierConstructionError, BezierCurve, BezierCurve2D,
+    BoundedCurve, BoundedCurve2D, Circle, Circle2D, CircleConstructionError, Continuity, Curve,
+    Curve2D, DegreeElevationError, ElementaryCurve, Ellipse, Ellipse2D, EllipseConstructionError,
+    GenericBSplineCurve, GenericBezierCurve, GenericCircle, GenericEllipse, GenericHyperbola,
+    GenericLine, GenericParabola, GenericTrimmedCurve, Hyperbola, Hyperbola2D,
+    HyperbolaConstructionError, KnotInsertionError, KnotRemovalError, Line, Line2D,
+    LineConstructionError, Parabola, Parabola2D, ParabolaConstructionError, ParametricCurve,
+    ParametricCurve2D, PointExtrema, PointExtrema2D, PointParametrization, PoleEditError,
+    ReversibleCurve, Side, TrimmedCurve, TrimmedCurve2D, TrimmedCurveConstructionError,
 };
 pub use geometry::surfaces::{
     BSplineSurface, BezierSurface, Cone, ConeConstructionError, Curve3DToUvError, Cylinder,

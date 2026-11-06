@@ -9,7 +9,13 @@ from typing import get_args
 
 import geomcore
 
-__all__ = sorted(cls.__name__ for cls in (*get_args(geomcore.Curve), *get_args(geomcore.Curve2D)))
+__all__ = sorted(
+    [
+        *(cls.__name__ for cls in (*get_args(geomcore.Curve), *get_args(geomcore.Curve2D))),
+        "TrimmedCurve",
+        "TrimmedCurve2D",
+    ]
+)
 
 
 def __getattr__(name):

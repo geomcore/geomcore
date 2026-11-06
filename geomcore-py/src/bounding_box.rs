@@ -65,6 +65,28 @@ impl PyBoundingBox {
         self.0.encloses(point.0)
     }
 
+    /// `point in box`: the same as `encloses`.
+    fn __contains__(&self, point: PyPoint) -> bool {
+        self.0.encloses(point.0)
+    }
+
+    /// The smallest box holding this box and `point`.
+    fn including(&self, point: PyPoint) -> Self {
+        PyBoundingBox(self.0.including(point.0))
+    }
+
+    /// The box of the points the two boxes share, or `None` when they are
+    /// apart. Boxes that only touch share a flat box.
+    fn intersection(&self, other: &PyBoundingBox) -> Option<Self> {
+        self.0.intersection(other.0).map(PyBoundingBox)
+    }
+
+    /// The distance from `point` to the box: 0 for a point in it, the
+    /// distance to the nearest point of the box otherwise.
+    fn distance(&self, point: PyPoint) -> f64 {
+        self.0.distance(point.0)
+    }
+
     /// Whether the boxes touch or overlap on every axis.
     fn overlaps(&self, other: &PyBoundingBox) -> bool {
         self.0.overlaps(other.0)
@@ -145,6 +167,28 @@ impl PyBoundingBox2D {
     /// Whether the box holds `point` on both axes.
     fn encloses(&self, point: PyPoint2D) -> bool {
         self.0.encloses(point.0)
+    }
+
+    /// `point in box`: the same as `encloses`.
+    fn __contains__(&self, point: PyPoint2D) -> bool {
+        self.0.encloses(point.0)
+    }
+
+    /// The smallest box holding this box and `point`.
+    fn including(&self, point: PyPoint2D) -> Self {
+        PyBoundingBox2D(self.0.including(point.0))
+    }
+
+    /// The box of the points the two boxes share, or `None` when they are
+    /// apart. Boxes that only touch share a flat box.
+    fn intersection(&self, other: &PyBoundingBox2D) -> Option<Self> {
+        self.0.intersection(other.0).map(PyBoundingBox2D)
+    }
+
+    /// The distance from `point` to the box: 0 for a point in it, the
+    /// distance to the nearest point of the box otherwise.
+    fn distance(&self, point: PyPoint2D) -> f64 {
+        self.0.distance(point.0)
     }
 
     /// Whether the boxes touch or overlap on both axes.

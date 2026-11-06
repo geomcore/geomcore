@@ -146,16 +146,6 @@ shape_methods! {
         self.0.v_degree()
     }
 
-    /// Whether the surface is periodic in u.
-    fn is_u_periodic(&self) -> bool {
-        self.0.is_u_periodic()
-    }
-
-    /// Whether the surface is periodic in v.
-    fn is_v_periodic(&self) -> bool {
-        self.0.is_v_periodic()
-    }
-
     /// Whether the surface carries rational weights.
     fn is_rational(&self) -> bool {
         self.0.is_rational()
@@ -368,6 +358,12 @@ shape_methods! {
             .into_iter()
             .map(|row| row.into_iter().map(PyBezierSurface).collect())
             .collect()
+    }
+
+    /// The surface itself, as the other surfaces give their exact
+    /// B-spline with `to_bspline()`.
+    fn to_bspline(&self) -> Self {
+        Self(self.0.to_bspline())
     }
 
     /// The piece over `u_range × v_range` as a clamped, non-periodic

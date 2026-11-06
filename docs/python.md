@@ -13,16 +13,18 @@ Every name is at the package root, as in the Rust crate: the shapes
 (`Circle`, `Plane`, `BSplineSurface`), the values (`Point`, `Frame`,
 `Tolerance`), the results (`CurveCurveIntersection`), the enums and the
 errors. Three more names stand for a whole kind of shape: `Curve`,
-`Curve2D` and `Surface` are the unions of their classes, both for
-annotations and, from Python 3.10, for `isinstance`. `typing.get_args`
-gives the tuple of classes on any version:
+`Curve2D` and `Surface` are the unions of the classes of the Rust enums
+of the same names, both for annotations and, from Python 3.10, for
+`isinstance`. `typing.get_args` gives the tuple of classes on any
+version. As in Rust, a `TrimmedCurve` is a piece of a curve rather than
+one of them, so code that takes either says so:
 
 ```python
-from geomcore import Curve, Surface
+from geomcore import Curve, Surface, TrimmedCurve
 
-def clearance(curve: Curve, surface: Surface) -> float: ...
+def clearance(curve: Curve | TrimmedCurve, surface: Surface) -> float: ...
 
-isinstance(shape, Curve)  # Python 3.10+
+isinstance(shape, Curve)  # Python 3.10+; False for a TrimmedCurve
 ```
 
 `geomcore.curves` and `geomcore.surfaces` still resolve each shape, with a

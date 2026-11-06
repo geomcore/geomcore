@@ -266,6 +266,23 @@ impl Plane {
         }
     }
 
+    /// The signed distance from the plane to `point`: positive on the side
+    /// the [`axis`](Self::axis) points to, so it follows the plane's
+    /// orientation, negative on the other side.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::prelude::*;
+    /// use geomcore::{Plane, Point, Vector};
+    /// let plane = Plane::new(Point::new(0.0, 0.0, 1.0), Vector::Z).unwrap();
+    /// assert_eq!(plane.signed_distance(Point::new(4.0, 5.0, 3.0)), 2.0);
+    /// assert_eq!(plane.reversed_u().signed_distance(Point::new(4.0, 5.0, 3.0)), -2.0);
+    /// ```
+    pub fn signed_distance(&self, point: Point) -> f64 {
+        (point - self.frame.origin()).dot(self.normal_direction())
+    }
+
     /// The direction of [`axis`](Self::axis) alone, the unit normal, for
     /// the intersections that need no origin: it skips copying one.
     #[inline]

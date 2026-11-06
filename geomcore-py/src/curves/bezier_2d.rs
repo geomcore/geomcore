@@ -12,7 +12,7 @@ use geomcore::BezierCurve2D;
 pub(crate) struct PyBezierCurve2D(pub(crate) BezierCurve2D);
 
 shape_methods! {
-    PyBezierCurve2D: [curve_2d, discretize_2d, sided_evaluation_2d];
+    PyBezierCurve2D: [curve_2d, bounded_curve_2d, sided_evaluation_2d];
 
     /// Build a non-rational Bézier curve of `degree` from `degree + 1`
     /// poles, over `[0, 1]`.

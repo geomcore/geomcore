@@ -18,7 +18,7 @@ use geomcore::{
 };
 use pyo3::prelude::*;
 use pyo3::type_object::PyTypeInfo;
-use pyo3::types::PyList;
+use pyo3::types::{PyIterator, PyList};
 
 // ---------------------------------------------------------------------------
 // repr helpers
@@ -608,10 +608,29 @@ impl PyIntersectionCurve {
 /// the class's `repr_content`). `$completeness` names the
 /// `PyCompleteness` constructor of the pair family.
 macro_rules! intersection_result {
-    ($class:ident, $completeness:ident; $($own:tt)*) => {
+    ($class:ident, $completeness:ident, $items:ident; $($own:tt)*) => {
         #[pymethods]
         impl $class {
             $($own)*
+
+            #[doc = concat!("The number of `", stringify!($items), "`.")]
+            fn __len__(&self) -> usize {
+                self.result.$items().len()
+            }
+
+            #[doc = concat!("Iterates over `", stringify!($items), "`.")]
+            fn __iter__<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyIterator>> {
+                self.$items(py)?.try_iter()
+            }
+
+            #[doc = concat!("An item, or a list for a slice, of `", stringify!($items), "`.")]
+            fn __getitem__<'py>(
+                &self,
+                py: Python<'py>,
+                index: &Bound<'py, PyAny>,
+            ) -> PyResult<Bound<'py, PyAny>> {
+                self.$items(py)?.as_any().get_item(index)
+            }
 
             /// `EXACT` for a closed form, `NUMERIC` for a search or marching.
             #[getter]
@@ -650,6 +669,8 @@ macro_rules! intersection_result {
             }
 
             /// False when empty, so `if a.intersect(b):` reads as "they meet".
+            /// An overlap or a contact point counts, so a result can be true
+            /// with no items to iterate.
             fn __bool__(&self) -> bool {
                 !self.result.is_empty()
             }
@@ -698,12 +719,18 @@ impl PyCurveCurveIntersection {
 }
 
 intersection_result! {
-    PyCurveCurveIntersection, curve_curve;
+    PyCurveCurveIntersection, curve_curve, hits;
 
     /// The points where the curves meet, by first-curve parameter.
     #[getter]
     fn hits<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyList>> {
         PyList::new(py, self.result.hits().iter().map(|h| PyCurveCurveHit(*h)))
+    }
+
+    /// The point of each hit, in the order of `hits`.
+    #[getter]
+    fn points(&self) -> Vec<PyPoint> {
+        self.result.hits().iter().map(|h| PyPoint(h.point)).collect()
     }
 
     /// The ranges where the curves coincide.
@@ -742,12 +769,18 @@ impl PyCurveCurveIntersection2D {
 }
 
 intersection_result! {
-    PyCurveCurveIntersection2D, curve_curve;
+    PyCurveCurveIntersection2D, curve_curve, hits;
 
     /// The points where the curves meet, by first-curve parameter.
     #[getter]
     fn hits<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyList>> {
         PyList::new(py, self.result.hits().iter().map(|h| PyCurveCurveHit2D(*h)))
+    }
+
+    /// The point of each hit, in the order of `hits`.
+    #[getter]
+    fn points(&self) -> Vec<PyPoint2D> {
+        self.result.hits().iter().map(|h| PyPoint2D(h.point)).collect()
     }
 
     /// The ranges where the curves coincide.
@@ -793,12 +826,18 @@ impl PyCurveSurfaceIntersection {
 }
 
 intersection_result! {
-    PyCurveSurfaceIntersection, curve_surface;
+    PyCurveSurfaceIntersection, curve_surface, hits;
 
     /// The points where the curve meets the surface, by curve parameter.
     #[getter]
     fn hits<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyList>> {
         PyList::new(py, self.result.hits().iter().map(|h| PyCurveSurfaceHit(*h)))
+    }
+
+    /// The point of each hit, in the order of `hits`.
+    #[getter]
+    fn points(&self) -> Vec<PyPoint> {
+        self.result.hits().iter().map(|h| PyPoint(h.point)).collect()
     }
 
     /// The stretches of the curve that lie on the surface.
@@ -858,7 +897,7 @@ impl PySurfaceSurfaceIntersection {
 }
 
 intersection_result! {
-    PySurfaceSurfaceIntersection, surface_surface;
+    PySurfaceSurfaceIntersection, surface_surface, curves;
 
     /// The curves where the surfaces meet.
     #[getter]
@@ -1149,7 +1188,19 @@ impl PyCurveCurveExtremum {
         self.0.second_parameter
     }
 
-    /// The distance between the curves' points at the two parameters.
+    /// The point of the first curve at `first_parameter`.
+    #[getter]
+    fn first_point(&self) -> PyPoint {
+        PyPoint(self.0.first_point)
+    }
+
+    /// The point of the second curve at `second_parameter`.
+    #[getter]
+    fn second_point(&self) -> PyPoint {
+        PyPoint(self.0.second_point)
+    }
+
+    /// The distance between `first_point` and `second_point`.
     #[getter]
     fn distance(&self) -> f64 {
         self.0.distance
@@ -1157,9 +1208,12 @@ impl PyCurveCurveExtremum {
 
     fn __repr__(&self) -> String {
         format!(
-            "CurveCurveExtremum(first_parameter={}, second_parameter={}, distance={})",
+            "CurveCurveExtremum(first_parameter={}, second_parameter={}, first_point={}, \
+             second_point={}, distance={})",
             float_repr(self.0.first_parameter),
             float_repr(self.0.second_parameter),
+            point3_repr(self.0.first_point),
+            point3_repr(self.0.second_point),
             float_repr(self.0.distance),
         )
     }
@@ -1181,6 +1235,26 @@ impl PyCurveCurveExtrema {
     /// The number of minima; an extrema result is falsy when there is none.
     fn __len__(&self) -> usize {
         self.result.minima().len()
+    }
+
+    /// The closest minimum, the first of `minima`, or `None` when there
+    /// is none.
+    fn closest(&self) -> Option<PyCurveCurveExtremum> {
+        self.result.closest().copied().map(PyCurveCurveExtremum)
+    }
+
+    /// Iterates over the minima, closest first.
+    fn __iter__<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyIterator>> {
+        self.minima(py)?.try_iter()
+    }
+
+    /// A minimum, or a list for a slice, closest first.
+    fn __getitem__<'py>(
+        &self,
+        py: Python<'py>,
+        index: &Bound<'py, PyAny>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        self.minima(py)?.as_any().get_item(index)
     }
 
     /// The minima, closest first.

@@ -1,4 +1,5 @@
 use crate::base::tolerance::Tolerance;
+use crate::base::transform::Transform;
 use crate::base::vector::{Vector, Vector2D};
 
 /// Two-dimensional point.
@@ -63,6 +64,19 @@ impl Point2D {
     /// ```
     pub fn coincides(self, other: Point2D, tol: Tolerance) -> bool {
         self.distance(other) <= tol.confusion
+    }
+
+    /// The point halfway between this point and `other`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::Point2D;
+    /// let m = Point2D::new(0.0, 0.0).midpoint(Point2D::new(2.0, 4.0));
+    /// assert_eq!(m, Point2D::new(1.0, 2.0));
+    /// ```
+    pub fn midpoint(self, other: Point2D) -> Point2D {
+        Point2D::new(0.5 * (self.x + other.x), 0.5 * (self.y + other.y))
     }
 
     /// Whether every coordinate is finite (neither NaN nor infinite).
@@ -149,6 +163,39 @@ impl Point {
     /// ```
     pub fn coincides(self, other: Point, tol: Tolerance) -> bool {
         self.distance(other) <= tol.confusion
+    }
+
+    /// The point halfway between this point and `other`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::Point;
+    /// let m = Point::new(0.0, 0.0, 0.0).midpoint(Point::new(2.0, 4.0, -6.0));
+    /// assert_eq!(m, Point::new(1.0, 2.0, -3.0));
+    /// ```
+    pub fn midpoint(self, other: Point) -> Point {
+        Point::new(
+            0.5 * (self.x + other.x),
+            0.5 * (self.y + other.y),
+            0.5 * (self.z + other.z),
+        )
+    }
+
+    /// The image of this point under `transform`, the same as
+    /// [`Transform::apply_point`] read in the order of the shapes'
+    /// `transformed`. Unlike a shape, a point cannot collapse, so this
+    /// never fails.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Point, Transform, Vector};
+    /// let shift = Transform::translation(Vector::new(1.0, 0.0, 0.0));
+    /// assert_eq!(Point::ORIGIN.transformed(shift), Point::new(1.0, 0.0, 0.0));
+    /// ```
+    pub fn transformed(self, transform: Transform) -> Point {
+        transform.apply_point(self)
     }
 
     /// Whether every coordinate is finite (neither NaN nor infinite).
