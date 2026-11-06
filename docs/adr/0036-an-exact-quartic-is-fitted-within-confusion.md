@@ -12,7 +12,7 @@ For two cylinders, the distance `d` between the axes decides:
 
 - `d > r₁ + r₂`: empty;
 - `d = r₁ + r₂` within confusion: the cylinders touch at one point;
-- `d = |r₁ − r₂|` within confusion: the curve is nodal, and it goes to the numeric intersection;
+- `d = |r₁ − r₂|` within confusion: the thin cylinder touches the thick one from inside, and one loop crosses itself there. It is read along the thin one, every generator of which meets the thick one twice, and runs twice around through the crossing, as Viviani's curve does;
 - otherwise one loop or two, each closed. A loop runs around the first cylinder when every generator meets the second one; otherwise it runs over an arc of generators, there and back on the two roots.
 
 For a sphere of radius `R` and a cylinder of radius `r` whose axis is `e` from its centre, `R` decides:
@@ -37,7 +37,7 @@ A point within a quarter of confusion of both surfaces need not be that close to
 
 ## Touching within confusion is touching
 
-When the sphere's radius is within confusion of the radius at which it touches the ruled quadric, the sphere is read with that radius: `r + e` for a cylinder, or the distance from its centre to the generator it touches, or to the apex, for a cone. The curve then crosses itself exactly where the surfaces touch. Its points lie on the sphere of that radius, which is within confusion of the given one, and the fit is checked against it. The other choice, two loops a hair apart or one loop pinched almost shut, would be fitted through a square root that vanishes nowhere but changes by orders of magnitude within confusion. The tangent point of `Tolerance` is a point, so the crossing is one too.
+When the sphere's radius is within confusion of the radius at which it touches the ruled quadric, the sphere is read with that radius: `r + e` for a cylinder, or the distance from its centre to the generator it touches, or to the apex, for a cone. Two cylinders whose axes are within confusion of `|r₁ − r₂|` apart are read with each radius moved by half the difference, so each surface moves by at most half of confusion. The curve then crosses itself exactly where the surfaces touch. Its points lie on the sphere of that radius, which is within confusion of the given one, and the fit is checked against it. The other choice, two loops a hair apart or one loop pinched almost shut, would be fitted through a square root that vanishes nowhere but changes by orders of magnitude within confusion. The tangent point of `Tolerance` is a point, so the crossing is one too.
 
 ## No curve in the sphere's parameters through a pole
 

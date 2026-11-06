@@ -458,13 +458,14 @@ fn test_cylinder_cylinder_intersection_degenerate() {
         panic!("expected the quartic");
     };
     assert_eq!(curve.component_count(), 1);
-    // Axes `|r1 − r2|` apart: the loops cross where the cylinders touch,
-    // no closed form.
+    // Axes `|r1 − r2|` apart: one loop that crosses itself where the
+    // cylinders touch.
     let flush = Cylinder::new(Point::new(0.0, 0.5, 0.0), Vector::X, 1.5).unwrap();
-    assert_eq!(
-        c1.intersect_exact(&flush, tol),
-        CylinderCylinderIntersection::NotAnalytic
-    );
+    let CylinderCylinderIntersection::Quartic(curve) = c1.intersect_exact(&flush, tol) else {
+        panic!("expected the quartic");
+    };
+    assert_eq!(curve.component_count(), 1);
+    assert!(curve.contact_point().is_some());
 }
 
 /// Two equal cylinders whose axes meet at `meeting`, at `angle` between
