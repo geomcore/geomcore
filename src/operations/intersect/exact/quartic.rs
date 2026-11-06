@@ -216,8 +216,7 @@ impl QuarticCurve {
 }
 
 /// The intersection of two cylinders whose axes are not parallel, unless
-/// the radii are equal and the axes meet (the two ellipses), or the curve
-/// crosses itself where the cylinders touch: `None` then.
+/// the radii are equal and the axes meet (the two ellipses): `None` then.
 #[inline]
 pub(super) fn crossing_cylinders(
     first: &Cylinder,
@@ -235,13 +234,21 @@ pub(super) fn crossing_cylinders(
         return Some(CylinderCylinderIntersection::Empty);
     }
     if distance >= r1 + r2 - tol.confusion {
+        // From the first axis towards the second.
+        let toward = normal * -d.signum();
         return Some(CylinderCylinderIntersection::TangentPoint(touching_point(
-            first, second, normal, d,
+            (first, r1, toward),
+            (second, r2, -toward),
         )));
     }
     if (distance - (r1 - r2).abs()).abs() <= tol.confusion {
-        // A node where the cylinders touch, or the two ellipses.
-        return None;
+        if r1 > r2 {
+            let curve = nodal_cylinders(second, first, tol)?;
+            return Some(CylinderCylinderIntersection::Quartic(
+                curve.operands_swapped(),
+            ));
+        }
+        return nodal_cylinders(first, second, tol).map(CylinderCylinderIntersection::Quartic);
     }
     // The generator at `t` is at `δ(t) = d + r1 cos(t − tn)` from the
     // second axis, and meets the second cylinder where `|δ| ≤ r2`: between
@@ -287,6 +294,51 @@ pub(super) fn crossing_cylinders(
         components,
         None,
     )))
+}
+
+/// The loop that crosses itself where a thin cylinder touches a thick one
+/// from inside, their axes not parallel and `r2 − r1` apart within
+/// confusion. Every generator of the thin one meets the thick one twice,
+/// and the curve runs twice around through the crossing. The radii are
+/// moved half each to make the distance exact, so the loop crosses itself
+/// exactly where the cylinders touch; `None` when the axes meet, where the
+/// radii are equal (the two ellipses, or a hair from them).
+fn nodal_cylinders(thin: &Cylinder, thick: &Cylinder, tol: Tolerance) -> Option<QuarticCurve> {
+    let (a1, a2) = (thin.frame().z_direction(), thick.frame().z_direction());
+    let normal = a1.cross(a2).normalized()?;
+    let d = (thin.frame().origin() - thick.frame().origin()).dot(normal);
+    if d.abs() <= tol.confusion {
+        return None;
+    }
+    let excess = thick.radius() - thin.radius() - d.abs();
+    let thin = Cylinder::from_frame(thin.frame(), thin.radius() + 0.5 * excess).ok()?;
+    let thick = Cylinder::from_frame(thick.frame(), thick.radius() - 0.5 * excess).ok()?;
+    let (r1, r2) = (thin.radius(), thick.radius());
+    // The generator of the thin one at `τ = 0`, towards `normal`, is at
+    // `d + r1` from the thick axis: it touches when `d > 0`, the one at
+    // `τ = π` otherwise. The other factor never vanishes.
+    let (cosines, factor, across, toward) = if d > 0.0 {
+        ([1.0, (-r2 - d) / r1], 0, PI, normal)
+    } else {
+        ([(r2 - d) / r1, -1.0], 1, 0.0, -normal)
+    };
+    let cosine = a1.dot(a2);
+    let discriminant = Discriminant::TwoFactors {
+        scale: (1.0 - cosine * cosine) * r1 * r1,
+        cosines,
+    };
+    let tn = normal
+        .dot(thin.frame().y_direction())
+        .atan2(normal.dot(thin.frame().x_direction()));
+    let contact = touching_point((&thin, r1, toward), (&thick, r2, toward));
+    Some(QuarticCurve::new(
+        Surfaces::Cylinders(thin, thick),
+        discriminant,
+        tn,
+        true,
+        &[Component::node(factor, tn + across)],
+        Some(contact),
+    ))
 }
 
 /// The intersection of a sphere and a cylinder whose axis is more than
@@ -547,10 +599,13 @@ impl Component {
     }
 }
 
-/// The point where two cylinders touch from outside, `d` the signed
-/// distance between their axes along `normal`: midway between the points
-/// of each across from the other axis.
-fn touching_point(first: &Cylinder, second: &Cylinder, normal: Vector, d: f64) -> Point {
+/// The point where two cylinders touch, each given with its radius and the
+/// unit direction from its axis to the point, across both axes: midway
+/// between the points of each.
+fn touching_point(
+    (first, r1, toward_first): (&Cylinder, f64, Vector),
+    (second, r2, toward_second): (&Cylinder, f64, Vector),
+) -> Point {
     let (a1, a2) = (first.frame().z_direction(), second.frame().z_direction());
     let (p1, p2) = (first.frame().origin(), second.frame().origin());
     // The closest points p1 + s a1 and p2 + t a2 of the two axes.
@@ -560,10 +615,8 @@ fn touching_point(first: &Cylinder, second: &Cylinder, normal: Vector, d: f64) -
     let denominator = 1.0 - c * c;
     let s = (c * e2 - e1) / denominator;
     let t = (e2 - c * e1) / denominator;
-    // From the first axis towards the second.
-    let toward = normal * -d.signum();
-    let on_first = p1 + a1 * s + toward * first.radius();
-    let on_second = p2 + a2 * t - toward * second.radius();
+    let on_first = p1 + a1 * s + toward_first * r1;
+    let on_second = p2 + a2 * t + toward_second * r2;
     on_first + (on_second - on_first) * 0.5
 }
 
@@ -778,9 +831,17 @@ trait Other: Copy {
     /// cancellation in the smaller one costs nothing.
     fn along(&self, base: Point, direction: Vector, root: f64) -> f64;
 
-    /// The derivative in `t` of how far along the generator its point
-    /// nearest the centre is, `m = (C − B)·D`, from `B`, `D` and theirs.
-    fn foot_turn(&self, base: Point, direction: Vector, turns: (Vector, Vector)) -> f64;
+    /// The rate of [`along`](Other::along) when `t` turns at `angle_rate`
+    /// and the root changes at `root_rate`, from `B`, `D` and their
+    /// derivatives in `t`.
+    fn along_rate(
+        &self,
+        base: Point,
+        direction: Vector,
+        turns: (Vector, Vector),
+        angle_rate: f64,
+        root_rate: f64,
+    ) -> f64;
 
     /// A normal of the quadric at `point`, of any length.
     fn normal(&self, point: Point) -> Vector;
@@ -843,8 +904,17 @@ impl Other for OtherCylinder {
         (root - (base - self.origin).dot(self.across)) * self.inverse_leading
     }
 
-    fn foot_turn(&self, _base: Point, _direction: Vector, _turns: (Vector, Vector)) -> f64 {
-        unreachable!("two cylinders that touch are left to the numeric intersection")
+    /// The generators run along the ruled axis: only `β` turns.
+    #[inline]
+    fn along_rate(
+        &self,
+        _base: Point,
+        _direction: Vector,
+        (base_turn, _): (Vector, Vector),
+        angle_rate: f64,
+        root_rate: f64,
+    ) -> f64 {
+        (root_rate - angle_rate * base_turn.dot(self.across)) * self.inverse_leading
     }
 
     #[inline]
@@ -909,10 +979,18 @@ impl Other for OtherSphere {
         (self.center - base).dot(direction) + root
     }
 
+    /// `m = (C − B)·D` turns with `B` and `D`.
     #[inline]
-    fn foot_turn(&self, base: Point, direction: Vector, turns: (Vector, Vector)) -> f64 {
-        let (base_turn, direction_turn) = turns;
-        (self.center - base).dot(direction_turn) - base_turn.dot(direction)
+    fn along_rate(
+        &self,
+        base: Point,
+        direction: Vector,
+        (base_turn, direction_turn): (Vector, Vector),
+        angle_rate: f64,
+        root_rate: f64,
+    ) -> f64 {
+        let foot_turn = (self.center - base).dot(direction_turn) - base_turn.dot(direction);
+        angle_rate * foot_turn + root_rate
     }
 
     #[inline]
@@ -1221,7 +1299,7 @@ impl<R: Ruled, O: Other> Rulings<R, O> {
     /// The derivative of the point of a component through a crossing or
     /// the apex along its parameter, where the normals' cross product
     /// vanishes, and those of the generator's angle and of the distance
-    /// along it. Only a sphere meets a ruled quadric there.
+    /// along it.
     fn velocity(
         &self,
         component: Component,
@@ -1231,9 +1309,13 @@ impl<R: Ruled, O: Other> Rulings<R, O> {
         let turns = self.ruled.turns(on.radial);
         let (base_turn, direction_turn) = turns;
         let base = on.point - on.direction * on.along;
-        let foot_turn = self.other.foot_turn(base, on.direction, turns);
+        let along_rate = |angle_rate, root_rate| {
+            self.other
+                .along_rate(base, on.direction, turns, angle_rate, root_rate)
+        };
         let (angle_rate, along_rate) = match component {
-            Component::Apex => (1.0, 2.0 * foot_turn),
+            // `s = 2m`, the root zero.
+            Component::Apex => (1.0, 2.0 * along_rate(1.0, 0.0)),
             Component::Node { factor, .. } => {
                 let (scale, cosines, factors) = self.discriminant.factored();
                 let (sin, cos) = on.angle.sin_cos();
@@ -1250,7 +1332,7 @@ impl<R: Ruled, O: Other> Rulings<R, O> {
                 let (sin_p, cos_p) = parameter.sin_cos();
                 let root_rate = (2.0 * scale).sqrt()
                     * (cos_p * other_turn / other.sqrt() - sin_p * other.sqrt());
-                (2.0, 2.0 * foot_turn + root_rate)
+                (2.0, along_rate(2.0, root_rate))
             }
             Component::Around { .. } | Component::Between { .. } => {
                 unreachable!("the normals' cross product runs along these")

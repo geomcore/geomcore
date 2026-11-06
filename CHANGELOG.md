@@ -36,8 +36,9 @@ the Python distribution are versioned in lockstep.
   `point_at(component, parameter)` lies on both cylinders to rounding.
   Cylinders touching from outside give their contact point
   (`TangentPoint`); axes farther apart than the sum of the radii
-  give nothing. Only axes `|r1 − r2|` apart, where the quartic crosses
-  itself, are still marched.
+  give nothing. Axes `|r1 − r2|` apart, where the thin cylinder touches
+  the thick one from inside, give one loop that crosses itself there,
+  with the touching point in `contact_points` (#234).
 ### Breaking
 
 - `SphereCylinderIntersection` and `SphereConeIntersection` lose the

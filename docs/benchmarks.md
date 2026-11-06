@@ -378,6 +378,10 @@ the fit took 100 against 210 µs (bite), 175 against 500 µs (through) and
 because cubic Hermite spans within a quarter of confusion need about as
 many points as the march takes. About half of the fit is `sin_cos`, for
 the generator angle and the second cylinder's angle at each sample.
+The thin pipe touching the thick one from inside (node: axes `r1 − r2`
+apart, one loop that crosses itself, #234) was marched too. Its closed
+form classifies in 1124 instructions and fits in 1.60M; criterion times
+the fit at 160 µs against 746 µs for the march it replaces.
 
 A sphere against a cylinder or a cone whose axis misses its centre went
 the same way (#232, #233): the same walk along the generators, read
