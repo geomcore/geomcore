@@ -35,9 +35,9 @@
 //! re-exported below, so a class file imports `crate::method_sets::*`.
 //!
 //! The stubs mirror each set as a stub-only class (`_CurveMethods`,
-//! `_SurfaceNormalMethods`, ...) in `geomcore/curves.pyi` or
-//! `surfaces.pyi`, which the class stubs inherit (ADR 0029). A method added
-//! to a set goes into that class too, with the same docstring.
+//! `_SurfaceNormalMethods`, ...) in `geomcore/__init__.pyi`, which the
+//! class stubs inherit (ADR 0029). A method added to a set goes into that
+//! class too, with the same docstring.
 
 pub(crate) use crate::arguments::{curve_2d_classes, curve_classes};
 pub(crate) use crate::arrays;
@@ -90,6 +90,56 @@ macro_rules! curve {
                 fn transformed(&self, transform: &PyTransform) -> PyResult<Self> {
                     Ok(Self(self.0.transformed(transform.0).map_err(python_error)?))
                 }
+
+                /// The extrema of the distance to `other`, a point or a curve.
+                ///
+                /// From a point: its stationary points on the curve (local
+                /// minima plus the ends of a bounded curve), as
+                /// `CurveProjection` objects ordered by ascending distance.
+                ///
+                /// From a curve or `TrimmedCurve`: a `CurveCurveExtrema` of the
+                /// local minima of the distance between the two curves, closest
+                /// first, with whether the search proved there is no other.
+                /// Parallel lines, concentric circles and other continuous
+                /// families of equal minima report the distance once, with a
+                /// representative pair. The result holds this curve as `first`
+                /// and `other` as `second`. Other Python threads run during the
+                /// search. Raises `TypeError` for anything else, a 2D curve
+                /// included.
+                #[pyo3(signature = (other, tol = None))]
+                fn extrema(
+                    slf: &Bound<'_, Self>,
+                    other: &Bound<'_, PyAny>,
+                    tol: Option<ToleranceArgument>,
+                ) -> PyResult<Py<PyAny>> {
+                    let py = slf.py();
+                    let tol = tolerance(tol);
+                    if let Ok(point) = other.cast::<PyPoint>() {
+                        let point = point.borrow().0;
+                        let projections: Vec<PyCurveProjection> = slf
+                            .borrow()
+                            .0
+                            .extrema(point, tol)
+                            .into_iter()
+                            .map(|projection| PyCurveProjection::new(projection, slf, point))
+                            .collect();
+                        return Ok(projections.into_pyobject(py)?.into_any().unbind());
+                    }
+                    let Ok(second) = $crate::arguments::extract_curve_arg(other) else {
+                        return Err(pyo3::exceptions::PyTypeError::new_err(format!(
+                            "extrema takes a Point or a 3D curve, not {}",
+                            other.get_type().name()?
+                        )));
+                    };
+                    let first = $crate::arguments::extract_curve_arg(slf.as_any())?;
+                    let result = py.detach(|| geomcore::curve_curve_extrema(&first, &second, tol));
+                    let extrema = $crate::results::PyCurveCurveExtrema {
+                        result,
+                        first: slf.clone().into_any().unbind(),
+                        second: other.clone().unbind(),
+                    };
+                    Ok(Py::new(py, extrema)?.into_any())
+                }
             }
         }
     };
@@ -101,7 +151,25 @@ macro_rules! curve_2d {
     ($class:ident $sets:tt { $($methods:tt)* }) => {
         $crate::method_sets::curve_methods! {
             [PyPoint2D, PyVector2D, PyBoundingBox2D, PyCurveProjection2D]
-            $class $sets { $($methods)* }
+            $class $sets {
+                $($methods)*
+
+                /// The stationary points of the distance from `point` to the
+                /// curve (local minima plus the ends of a bounded curve), as
+                /// `CurveProjection2D` objects ordered by ascending distance.
+                #[pyo3(signature = (point, tol = None))]
+                fn extrema(
+                    slf: &Bound<'_, Self>,
+                    point: PyPoint2D,
+                    tol: Option<ToleranceArgument>,
+                ) -> Vec<PyCurveProjection2D> {
+                    let projections = slf.borrow().0.extrema(point.0, tolerance(tol));
+                    projections
+                        .into_iter()
+                        .map(|projection| PyCurveProjection2D::new(projection, slf, point.0))
+                        .collect()
+                }
+            }
         }
     };
 }
@@ -232,22 +300,6 @@ macro_rules! curve_methods {
             /// excluded (`math.inf` when smooth everywhere).
             fn min_continuity(&self) -> ContinuityNumber {
                 ContinuityNumber(self.0.min_continuity())
-            }
-
-            /// The stationary points of the distance from `point` to the
-            /// curve (local minima plus the ends of a bounded curve), as
-            /// projection objects ordered by ascending distance.
-            #[pyo3(signature = (point, tol = None))]
-            fn extrema(
-                slf: &Bound<'_, Self>,
-                point: $point,
-                tol: Option<ToleranceArgument>,
-            ) -> Vec<$projection> {
-                let projections = slf.borrow().0.extrema(point.0, tolerance(tol));
-                projections
-                    .into_iter()
-                    .map(|projection| $projection::new(projection, slf, point.0))
-                    .collect()
             }
 
             /// Projects `point` onto the curve: the closest point, as a

@@ -1,4 +1,4 @@
-//! The Python class `geomcore.surfaces.Cylinder`, wrapping `geomcore::Cylinder`.
+//! The Python class `geomcore.Cylinder`, wrapping `geomcore::Cylinder`.
 
 use crate::curves::*;
 use crate::method_sets::*;
@@ -8,7 +8,7 @@ use geomcore::Cylinder;
 
 /// An infinite circular cylinder; u is the angle around the axis, v the
 /// height along it.
-#[pyclass(name = "Cylinder", module = "geomcore.surfaces", eq)]
+#[pyclass(name = "Cylinder", module = "geomcore", eq)]
 #[derive(Clone, PartialEq)]
 pub(crate) struct PyCylinder(pub(crate) Cylinder);
 

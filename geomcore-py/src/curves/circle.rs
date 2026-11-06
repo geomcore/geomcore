@@ -1,4 +1,4 @@
-//! The Python class `geomcore.curves.Circle`, wrapping `geomcore::Circle`.
+//! The Python class `geomcore.Circle`, wrapping `geomcore::Circle`.
 
 use crate::curves::*;
 use crate::method_sets::*;
@@ -6,7 +6,7 @@ use crate::values::{PyAxis, PyFrame, float_repr};
 use geomcore::Circle;
 
 /// A circle in 3D, parametrized by the angle from its frame's x direction.
-#[pyclass(name = "Circle", module = "geomcore.curves", eq)]
+#[pyclass(name = "Circle", module = "geomcore", eq)]
 #[derive(Clone, PartialEq)]
 pub(crate) struct PyCircle(pub(crate) Circle);
 

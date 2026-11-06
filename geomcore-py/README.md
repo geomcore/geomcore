@@ -6,8 +6,7 @@ parametric evaluation, rigid transformations, and analytic curve-on-surface
 parametrization, implemented in Rust.
 
 ```python
-from geomcore import Point, Vector
-from geomcore.curves import Circle
+from geomcore import Circle, Point, Vector
 import math
 
 circle = Circle(Point.origin(), Vector.unit_z(), 2.0)

@@ -1,4 +1,4 @@
-//! The Python class `geomcore.surfaces.Plane`, wrapping `geomcore::Plane`.
+//! The Python class `geomcore.Plane`, wrapping `geomcore::Plane`.
 
 use crate::method_sets::*;
 use crate::surfaces::*;
@@ -6,7 +6,7 @@ use crate::values::PyFrame;
 use geomcore::Plane;
 
 /// An infinite plane, parametrized by in-plane coordinates (u, v).
-#[pyclass(name = "Plane", module = "geomcore.surfaces", eq)]
+#[pyclass(name = "Plane", module = "geomcore", eq)]
 #[derive(Clone, PartialEq)]
 pub(crate) struct PyPlane(pub(crate) Plane);
 

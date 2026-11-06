@@ -1,4 +1,4 @@
-//! The Python class `geomcore.surfaces.ExtrusionSurface`, wrapping
+//! The Python class `geomcore.ExtrusionSurface`, wrapping
 //! `geomcore::ExtrusionSurface`.
 
 use crate::method_sets::*;
@@ -13,7 +13,7 @@ use geomcore::ExtrusionSurface;
 /// `Vector(0, 0, 1)`, and `v` stays the distance along it. Raises
 /// `ValueError` for a zero direction and for a profile lying on one line
 /// along it.
-#[pyclass(name = "ExtrusionSurface", module = "geomcore.surfaces", eq)]
+#[pyclass(name = "ExtrusionSurface", module = "geomcore", eq)]
 #[derive(Clone, PartialEq)]
 pub(crate) struct PyExtrusionSurface(pub(crate) ExtrusionSurface);
 
