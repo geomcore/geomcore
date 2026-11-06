@@ -219,10 +219,10 @@ pub(crate) mod operations {
         fn including(self, point: Self::Point) -> Self;
 
         /// The corner with the smallest coordinates.
-        fn min(self) -> Self::Point;
+        fn min_corner(self) -> Self::Point;
 
         /// The corner with the largest coordinates.
-        fn max(self) -> Self::Point;
+        fn max_corner(self) -> Self::Point;
     }
 
     /// The operations of a tier's frames: an origin and the two directions

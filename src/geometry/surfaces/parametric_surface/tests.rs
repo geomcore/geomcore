@@ -514,9 +514,9 @@ fn test_normal_beside_a_cone_apex_is_the_flank_normal() {
     // Within confusion of the apex but not at it, on either nappe, the
     // meridian still has a normal: Su × Sv, oriented as it is there.
     let tol = Tolerance::DEFAULT;
-    for semi_angle in [0.1, 0.4, 1.2] {
-        let c = Cone::new(Point::ORIGIN, Vector::Z, semi_angle, 2.0).unwrap();
-        let v_apex = -2.0 / semi_angle.sin();
+    for half_angle in [0.1, 0.4, 1.2] {
+        let c = Cone::new(Point::ORIGIN, Vector::Z, half_angle, 2.0).unwrap();
+        let v_apex = -2.0 / half_angle.sin();
         for offset in [1e-9, -1e-9, 1e-8, -1e-8, 1e-6, -1e-3] {
             for u in [0.0, 1.0, 4.0] {
                 let v = v_apex + offset;
@@ -525,7 +525,7 @@ fn test_normal_beside_a_cone_apex_is_the_flank_normal() {
                 let normal = c.normal(u, v, tol).unwrap();
                 assert!(
                     (normal - exact).magnitude() < 1e-12,
-                    "semi-angle {semi_angle}, offset {offset}, u = {u}: {normal:?}"
+                    "half-angle {half_angle}, offset {offset}, u = {u}: {normal:?}"
                 );
             }
         }
@@ -540,7 +540,7 @@ fn test_normal_beside_a_cone_apex_is_the_flank_normal() {
                 assert_eq!(
                     scaled.normal(u * scale, v_apex * scale, tol),
                     None,
-                    "semi-angle {semi_angle}, scale {scale}, u = {u}"
+                    "half-angle {half_angle}, scale {scale}, u = {u}"
                 );
                 // A v line is a meridian, along which the normal is
                 // constant: compare with its regular middle.
@@ -553,7 +553,7 @@ fn test_normal_beside_a_cone_apex_is_the_flank_normal() {
                     .unwrap_or_else(|| panic!("scale {scale}, u = {u}: None"));
                 assert!(
                     (normal - flank).magnitude() < 1e-12,
-                    "semi-angle {semi_angle}, scale {scale}, u = {u}: {normal:?}"
+                    "half-angle {half_angle}, scale {scale}, u = {u}: {normal:?}"
                 );
             }
         }

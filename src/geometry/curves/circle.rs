@@ -357,6 +357,26 @@ impl Circle {
             -self.frame.z_direction()
         }
     }
+
+    /// Returns the circle's axis: through the center along the
+    /// [`normal`](Circle::normal), spelled as the axis of a cylinder, a
+    /// cone, a torus or a surface of revolution.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Circle, Point, Vector};
+    /// let circle = Circle::new(Point::new(0.0, 0.0, 1.0), Vector::Z, 2.0).unwrap();
+    /// assert_eq!(circle.axis().origin(), Point::new(0.0, 0.0, 1.0));
+    /// assert_eq!(circle.axis().direction(), Vector::Z);
+    /// ```
+    pub fn axis(&self) -> Axis {
+        if self.frame.is_direct() {
+            self.frame.axis()
+        } else {
+            self.frame.axis().reversed()
+        }
+    }
 }
 
 impl Circle2D {

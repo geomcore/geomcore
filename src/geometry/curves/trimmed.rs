@@ -296,16 +296,6 @@ impl_for_both_tiers_over_basis! {
             check_range(first, last, basis.bounds(), basis.period())?;
             Ok(Self::from_parts(basis, first, last))
         }
-
-        /// Returns the point at the start of the range.
-        pub fn start_point(&self) -> P {
-            self.basis.point_at(self.first)
-        }
-
-        /// Returns the point at the end of the range.
-        pub fn end_point(&self) -> P {
-            self.basis.point_at(self.last)
-        }
     }
 }
 
@@ -348,6 +338,7 @@ impl TrimmedCurve<Line> {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{Point, TrimmedCurve};
     ///
     /// let end = Point::new(3.0, 4.0, 0.0);
@@ -551,6 +542,7 @@ impl TrimmedCurve2D<Circle2D> {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{Point2D, Tolerance, TrimmedCurve2D};
     /// use std::f64::consts::FRAC_PI_2;
     ///
@@ -675,7 +667,8 @@ impl_for_both_tiers_over_basis! {
             {
                 return true;
             }
-            self.start_point().distance(self.end_point()) <= tol.confusion
+            let (start, end) = (self.basis.point_at(self.first), self.basis.point_at(self.last));
+            start.distance(end) <= tol.confusion
         }
 
         /// [`Continuity`] at parameter `u`: the basis continuity there, and

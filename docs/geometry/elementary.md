@@ -387,7 +387,7 @@ reference circle ($v = 0$), not at the apex — the only point with no
 normal is a bad datum, it is often hundreds of radii from the part, and
 anchoring there would break the cone→cylinder limit as $\alpha \to 0$.
 When the apex is the datum at hand anyway, `Cone.from_apex(apex,
-axis_direction, semi_angle)` builds the cone whose reference circle is
+axis_direction, half_angle)` builds the cone whose reference circle is
 the apex itself ($R = 0$).
 
 <figure class="geom-fig">

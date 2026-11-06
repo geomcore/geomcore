@@ -116,3 +116,14 @@ fn test_point2_op_identity() {
     let diff = q - p;
     assert_eq!(p + diff, q);
 }
+
+#[test]
+fn test_midpoint_and_transformed() {
+    let (a, b) = (Point::new(1.0, -2.0, 3.0), Point::new(3.0, 4.0, -1.0));
+    assert_eq!(a.midpoint(b), Point::new(2.0, 1.0, 1.0));
+    assert_eq!(a.midpoint(b), b.midpoint(a));
+    let a2 = Point2D::new(1.0, -2.0);
+    assert_eq!(a2.midpoint(Point2D::new(3.0, 4.0)), Point2D::new(2.0, 1.0));
+    let t = crate::Transform::scaling(Point::ORIGIN, 2.0);
+    assert_eq!(a.transformed(t), t.apply_point(a));
+}

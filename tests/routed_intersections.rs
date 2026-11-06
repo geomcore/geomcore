@@ -72,7 +72,12 @@ fn test_line_in_plane_is_an_unbounded_overlap() {
     let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
     let r = line.intersect(&plane, TOL);
     assert!(r.hits().is_empty());
-    assert_eq!(r.overlaps(), &[(f64::NEG_INFINITY, f64::INFINITY)]);
+    assert_eq!(
+        r.overlaps(),
+        &[CurveSurfaceOverlap {
+            curve_range: (f64::NEG_INFINITY, f64::INFINITY)
+        }]
+    );
     assert!(!r.is_empty());
 }
 
@@ -81,7 +86,12 @@ fn test_circle_on_sphere_is_a_full_period_overlap() {
     let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
     let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
     let r = circle.intersect(&sphere, TOL);
-    assert_eq!(r.overlaps(), &[(0.0, TAU)]);
+    assert_eq!(
+        r.overlaps(),
+        &[CurveSurfaceOverlap {
+            curve_range: (0.0, TAU)
+        }]
+    );
 }
 
 #[test]

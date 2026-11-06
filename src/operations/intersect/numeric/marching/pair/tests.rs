@@ -201,7 +201,7 @@ fn test_the_trace_box_is_the_smaller_bounded_side_grown_by_a_tenth() {
         SurfacePair::new(&large, &near).trace_box(&[], TOL),
     ] {
         assert!(matches!(limit, TraceBox::Bounded(_)));
-        let (low, high) = (limit.bounds().min(), limit.bounds().max());
+        let (low, high) = (limit.bounds().min_corner(), limit.bounds().max_corner());
         assert!((high.x - (1e5 + grown)).abs() < 1e-9, "{high:?}");
         assert!((low.y + grown).abs() < 1e-9 && (high.z - grown).abs() < 1e-9);
     }
@@ -221,7 +221,7 @@ fn test_two_planes_grow_the_seeded_box_by_their_window_whatever_the_seeds() {
     for seeds in [&one[..], &two[..]] {
         let limit = pair.trace_box(seeds, TOL);
         assert!(matches!(limit, TraceBox::Seeded(_)) && limit.cuts_branches());
-        let (low, high) = (limit.bounds().min(), limit.bounds().max());
+        let (low, high) = (limit.bounds().min_corner(), limit.bounds().max_corner());
         assert!((low.x + window).abs() < 1e-9, "{low:?}");
         assert!((low.y + window).abs() < 1e-9 && (high.y - window).abs() < 1e-9);
         let rightmost = if seeds.len() == 2 { 2.0 } else { 0.0 };
@@ -239,7 +239,7 @@ fn test_the_seeded_trace_box_takes_the_larger_radius_of_a_cone_and_a_cylinder() 
     let seed = [0.0, 0.0, 0.0, 0.0];
     let at = cone.point_at(0.0, 0.0);
     let limit = pair.trace_box(&[seed], TOL).bounds();
-    let grown = limit.max() - at;
+    let grown = limit.max_corner() - at;
     assert!(
         (grown - Vector::new(1.0, 1.0, 1.0)).magnitude() < 1e-9,
         "{grown:?}"
