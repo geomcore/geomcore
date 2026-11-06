@@ -324,6 +324,17 @@ impl ConeConeIntersection {
         match self {
             ConeConeIntersection::Circle(c) => surface_curves([(c, false)]),
             ConeConeIntersection::TwoCircles(c1, c2) => surface_curves([(c1, false), (c2, false)]),
+            ConeConeIntersection::Generators(shared) => {
+                let curves = shared
+                    .generators()
+                    .map(|generator| IntersectionCurve::in_space(generator.line, generator.tangent))
+                    .collect();
+                Some(SurfaceSurfaceIntersection::exact(
+                    curves,
+                    vec![shared.apex()],
+                    false,
+                ))
+            }
             ConeConeIntersection::ApexPoint(p) => contact_point(p),
             ConeConeIntersection::Coincident => surfaces_coincide(),
             ConeConeIntersection::NotAnalytic => None,

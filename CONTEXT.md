@@ -108,6 +108,10 @@ _Avoid_: exact routes, analytic pairs
 The quartic where a cylinder or a cone meets another quadric away from the configurations that split it into conics and lines: two cylinders whose axes cross (the bicylindric curve), or a sphere and a cylinder or a cone whose axis misses its centre. One or two closed loops, read along the generators of the cylinder or cone: each loop runs around it, over an arc of its generators, twice around through the point where the surfaces touch and the loop crosses itself, or through the apex of a cone that lies on the sphere. Its closed form gives each point exactly; `intersect` fits it within confusion and reports it exact (ADR 0036).
 _Avoid_: bicylindric curve for anything but two cylinders, Steinmetz curve (the case of equal radii and meeting axes only)
 
+**Shared generator**:
+A line through the common apex of two cones with axes apart that lies on both. There are up to four: on the unit sphere around the apex, each cone's directions are two circles, and each line is where they meet. The cones touch along a line where their circles touch, and cross along the others.
+_Avoid_: common ruling
+
 **Viviani's curve**:
 The quartic curve of a sphere and a cylinder that touches it from inside, the cylinder's axis and its far side as far from the centre as the sphere's radius: one loop crossing itself where they touch. Classically the sphere of radius `2r` and the cylinder of radius `r` through its centre.
 _Avoid_: hippopede (its projection), Viviani's window (the surface it bounds)

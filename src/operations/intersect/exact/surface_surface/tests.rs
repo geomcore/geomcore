@@ -1,7 +1,9 @@
 use super::*;
 use crate::geometry::curves::ParametricCurve;
+use crate::geometry::curves::ParametricCurve2D;
 use crate::{
-    Circle, Cone, Cylinder, Frame, IntersectExact, Plane, Point, Sphere, Tolerance, Torus, Vector,
+    Circle, Cone, Curve, Cylinder, Frame, Intersect, IntersectExact, IntersectionMethod, Plane,
+    Point, Sphere, Tolerance, Torus, Vector,
 };
 use core::f64::consts::{FRAC_PI_2, PI, TAU};
 
@@ -632,6 +634,118 @@ fn test_cone_cone_intersection() {
     let tilted = Cone::new(Point::ORIGIN, Vector::X, 0.4, 2.0).unwrap();
     assert_eq!(
         c1.intersect_exact(&tilted, tol),
+        ConeConeIntersection::NotAnalytic
+    );
+}
+
+/// A cone with its apex at `apex` around `axis` at the half-angle `phi`,
+/// its frame's origin `reach` along the axis from the apex.
+fn cone_at(apex: Point, axis: Vector, phi: f64, reach: f64) -> Cone {
+    let axis = axis.normalized().unwrap();
+    Cone::new(apex + axis * reach, axis, phi, reach * phi.tan()).unwrap()
+}
+
+/// The generators `cones_sharing_an_apex` finds for the pair, each checked
+/// on both cones far along it either way, its normals parallel exactly
+/// where it is tangent; with the routed result exact, complete, its lines
+/// the curves and the apex the contact point.
+fn shared_generators(first: &Cone, second: &Cone) -> Vec<SharedGenerator> {
+    let tol = Tolerance::DEFAULT;
+    let generators = match first.intersect_exact(second, tol) {
+        ConeConeIntersection::Generators(shared) => {
+            let between = first.apex() + (second.apex() - first.apex()) * 0.5;
+            assert!(shared.apex().distance(between) < 1e-15);
+            shared.generators().collect()
+        }
+        ConeConeIntersection::ApexPoint(_) => Vec::new(),
+        other => panic!("expected lines through the apex, got {other:?}"),
+    };
+    for generator in &generators {
+        for t in [-20.0, -1.0, 1e-3, 1.0, 20.0] {
+            let p = generator.line.point_at(t);
+            assert!(first.contains(p, tol) && second.contains(p, tol));
+        }
+        let p = generator.line.point_at(3.0);
+        let normal = |cone: &Cone| {
+            let (u, v) = cone.parameters_of(p, tol);
+            cone.normal(u, v, tol).unwrap()
+        };
+        let sine = normal(first).cross(normal(second)).magnitude();
+        assert_eq!(sine < 1e-9, generator.tangent, "sine {sine:e}");
+    }
+    let result = first.intersect(second, tol);
+    assert_eq!(result.method(), IntersectionMethod::Exact);
+    assert!(result.is_complete());
+    assert_eq!(result.curves().len(), generators.len());
+    for (piece, generator) in result.curves().iter().zip(&generators) {
+        assert_eq!(piece.curve, Curve::Line(generator.line));
+        assert_eq!(piece.tangent, generator.tangent);
+        // Each line is an iso line of either cone, `u` fixed: its own
+        // generator, within confusion of the line when the apexes differ.
+        for (uv_curve, cone) in [
+            (&piece.first_uv_curve, first),
+            (&piece.second_uv_curve, second),
+        ] {
+            let uv_curve = uv_curve
+                .as_ref()
+                .expect("the line's curve in the cone's parameters");
+            for t in [-3.0, 0.5, 4.0] {
+                let uv = uv_curve.point_at(t);
+                assert!(
+                    cone.point_at(uv.x, uv.y).distance(piece.curve.point_at(t)) < tol.confusion
+                );
+            }
+        }
+    }
+    assert_eq!(result.contact_points().len(), 1);
+    generators
+}
+
+#[test]
+fn test_cones_sharing_an_apex_meet_in_up_to_four_lines_through_it() {
+    // 30° around Z against 70° around an axis tilted by `tilt` in XZ: the
+    // circles of their directions around Z and the tilted axis are `tilt`
+    // apart, and around Z and its opposite `180° − tilt`, each meeting in
+    // two points within 40°..100° and in one at either end.
+    let (phi1, phi2) = (30f64.to_radians(), 70f64.to_radians());
+    for (tilt, lines, tangent) in [
+        (20.0, 0, 0),
+        (40.0, 1, 1),
+        (60.0, 2, 0),
+        (80.0, 3, 1),
+        (90.0, 4, 0),
+        (100.0, 3, 1),
+        (140.0, 1, 1),
+        (170.0, 0, 0),
+    ] {
+        let tilt = f64::to_radians(tilt);
+        let axis = Vector::new(tilt.sin(), 0.0, tilt.cos());
+        let first = cone_at(Point::ORIGIN, Vector::Z, phi1, 0.0);
+        let second = cone_at(Point::ORIGIN, axis, phi2, 0.0);
+        for (a, b) in [(&first, &second), (&second, &first)] {
+            let generators = shared_generators(a, b);
+            assert_eq!(generators.len(), lines);
+            assert_eq!(generators.iter().filter(|g| g.tangent).count(), tangent);
+        }
+    }
+}
+
+#[test]
+fn test_cones_sharing_an_apex_anywhere_meet_in_lines_on_both() {
+    let apex = Point::new(1.5, -2.0, 0.7);
+    // Origins away from the apex, a negative half-angle, and apexes a
+    // fraction of confusion apart.
+    let first = cone_at(apex, Vector::new(0.3, -0.5, 0.8), 0.6, 1.7);
+    let second = cone_at(apex, Vector::new(-0.6, 0.2, 0.4), -1.1, -0.6);
+    assert_eq!(shared_generators(&first, &second).len(), 4);
+    let nudged = Point::new(0.0, 0.4e-7, 0.0) + (apex - Point::ORIGIN);
+    let second = cone_at(nudged, Vector::new(-0.6, 0.2, 0.4), 1.1, 2.0);
+    assert_eq!(shared_generators(&first, &second).len(), 4);
+    // Apexes more than confusion apart are a space quartic.
+    let apart = Point::new(0.0, 2e-7, 0.0) + (apex - Point::ORIGIN);
+    let second = cone_at(apart, Vector::new(-0.6, 0.2, 0.4), 1.1, 2.0);
+    assert_eq!(
+        first.intersect_exact(&second, Tolerance::DEFAULT),
         ConeConeIntersection::NotAnalytic
     );
 }
