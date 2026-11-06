@@ -82,7 +82,8 @@ pub struct ExtrusionSurface {
 
 impl ExtrusionSurface {
     /// Creates the surface sweeping `profile` along `direction`, which is
-    /// normalized.
+    /// normalized: its length is dropped, so `v` stays the distance
+    /// travelled along it.
     ///
     /// # Errors
     ///
@@ -112,7 +113,7 @@ impl ExtrusionSurface {
             return Err(ExtrusionSurfaceConstructionError::NonFinite);
         }
         let direction = direction
-            .normalized()
+            .normalized_unless_unit()
             .ok_or(ExtrusionSurfaceConstructionError::NullDirection)?;
         let section = Section::new(&profile, direction)?;
         Ok(ExtrusionSurface {

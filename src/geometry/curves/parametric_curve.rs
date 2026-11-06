@@ -141,6 +141,14 @@ impl Continuity {
 /// ```
 pub trait ParametricCurve {
     /// Evaluates the point on the curve at parameter `u`.
+    ///
+    /// Every `u` evaluates, inside the bounds or not. Past them, a line,
+    /// conic or periodic curve continues along its own equation, and a
+    /// trimmed curve evaluates its basis curve there. A non-periodic
+    /// B-spline or Bézier curve clamps `u` to the nearer bound, so the
+    /// point and every derivative are those at the bound. An operation that
+    /// builds from a parameter, such as a split or a knot insertion, refuses
+    /// one outside the bounds instead (ADR 0037).
     fn point_at(&self, u: f64) -> Point;
 
     /// Evaluates the derivative of the given `order` at parameter `u`.

@@ -17,7 +17,7 @@ use crate::operations::intersect::numeric::subdivision::{
     Node, OnceExhausted, PairTests, Subdivision, Visit, interval,
 };
 use crate::operations::intersect::results::completeness::box_union;
-use crate::operations::intersect::results::sort_by_known_parameter;
+use crate::operations::intersect::results::sort_by_parameter;
 use crate::operations::intersect::{Completeness, CurveCurveHit, CurveCurveRegion};
 use crate::{Point, Tolerance};
 use std::ops::Deref;
@@ -66,7 +66,7 @@ impl CurveCurveHits {
                 self.hits.push(hit);
             }
         }
-        sort_by_known_parameter(&mut self.hits, |hit| hit.first_parameter);
+        sort_by_parameter(&mut self.hits, |hit| hit.first_parameter);
     }
 
     /// The hits, ordered by first-curve parameter, without the

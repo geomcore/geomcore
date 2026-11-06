@@ -299,6 +299,50 @@ as the 3D one already did: 2D circle–circle routed 321 → 247
 instructions per pair, 35 → 25 ns. The other two pairs did not move
 (1161 and 759 instructions).
 
+### Every parameter filled (#177)
+
+Hit parameters are no longer optional: the router recovers in closed
+form every parameter the solver did not compute (an `atan2` or more each),
+and the fields shrink back to plain `f64`. Against the parent commit,
+criterion medians of two runs, batches of 1000:
+
+| pair | exact | routed before | routed after |
+|---|---|---|---|
+| line–cylinder | 77–86 µs | 147 µs | 229–233 µs |
+| circle–circle (coplanar) | 42–47 µs | 88–90 µs | 201–215 µs |
+| 2D circle–circle | 7.7–8.6 µs | 55–56 µs | 111–125 µs |
+
+Callgrind instructions per batch item:
+
+| pair | routed before | routed after |
+|---|---|---|
+| line–cylinder | 1237 | 1755 |
+| circle–circle (coplanar) | 793 | 1635 |
+| 2D circle–circle | 366 | 1099 |
+
+A circle–circle pair recovers four angles (two hits on two circles), a
+line–cylinder pair two `(u, v)` pairs. The typed exact calls are unchanged,
+except conic–conic, which now fills both parameters too (ellipse–ellipse
+typed +5% instructions).
+
+### Every marched curve's deviation (#188)
+
+A marched curve now measures its `deviation` at the middle of each knot
+span: one point on the curve, one on each UV curve, and one on each
+surface. Callgrind instructions against the parent commit:
+
+| benchmark | before | after |
+|---|---|---|
+| marching torus–plane oblique | 9,065,899 | 9,681,029 (+6.8%) |
+| marching cone–cylinder unbounded | 8,456,356 | 8,935,573 (+5.7%) |
+| marching sphere–torus | 13,727,998 | 14,277,464 (+4.0%) |
+| marching B-spline surface pair | 46,848,975 | 48,193,749 (+2.9%) |
+| swept plane cuts, B-spline patch | | +2.3% to +3.9% |
+
+Sampling every knot too doubled the cost (up to +14%) for nothing: there
+the fits pass through the traced points, which the trace converged far
+below confusion.
+
 ### Surface–surface
 
 A plane at heights up to 0.9 across a unit sphere, one circle each. The
@@ -779,6 +823,13 @@ The count also depends on where the binary lives: the heap layout shifts the
 malloc work inside the routine, so the script copies each binary to
 `/tmp/geomcore-benchmark-budget/<bench>` and runs it from there with a fixed
 environment. Budgets and checks always use that path.
+
+The script links the binaries without RELRO (`-z norelro`), in their own
+`target/benchmark-budget` directory. LLD, rust's default linker, can lay
+the writable segment out as all RELRO, and valgrind 3.22 then reads no
+symbols from the binary, so the toggle on `Bencher::iter` collects
+nothing. The `#221` build of `marching_intersection` was the first to hit
+this; every count was re-measured with the flag.
 
 ### Running the check locally
 

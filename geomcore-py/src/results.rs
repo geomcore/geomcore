@@ -32,10 +32,6 @@ fn point2_repr(p: Point2D) -> String {
     format!("Point2D{}", coordinates_2d(p))
 }
 
-fn optional_repr(value: Option<f64>) -> String {
-    value.map_or_else(|| "None".to_string(), float_repr)
-}
-
 fn range_repr((start, end): (f64, f64)) -> String {
     format!("({}, {})", float_repr(start), float_repr(end))
 }
@@ -331,26 +327,22 @@ impl PyCompleteness {
 // Hits and pieces
 // ---------------------------------------------------------------------------
 
-/// Where two 3D curves meet.
-///
-/// A parameter is `None` when the solver did not compute it. Recover it
-/// from `point` with the curve's `parameter_of` when it has one, or with
-/// its `project_point` otherwise.
+/// Where two 3D curves meet, with the parameter of the point on each curve.
 #[pyclass(name = "CurveCurveHit", module = "geomcore", eq, frozen)]
 #[derive(Clone, PartialEq)]
 pub(crate) struct PyCurveCurveHit(pub(crate) CurveCurveHit);
 
 #[pymethods]
 impl PyCurveCurveHit {
-    /// The parameter on the first curve, or `None` when not computed.
+    /// The parameter on the first curve.
     #[getter]
-    fn first_parameter(&self) -> Option<f64> {
+    fn first_parameter(&self) -> f64 {
         self.0.first_parameter
     }
 
-    /// The parameter on the second curve, or `None` when not computed.
+    /// The parameter on the second curve.
     #[getter]
-    fn second_parameter(&self) -> Option<f64> {
+    fn second_parameter(&self) -> f64 {
         self.0.second_parameter
     }
 
@@ -369,34 +361,30 @@ impl PyCurveCurveHit {
     fn __repr__(&self) -> String {
         format!(
             "CurveCurveHit(first_parameter={}, second_parameter={}, point={}, multiplicity={})",
-            optional_repr(self.0.first_parameter),
-            optional_repr(self.0.second_parameter),
+            float_repr(self.0.first_parameter),
+            float_repr(self.0.second_parameter),
             point3_repr(self.0.point),
             self.0.multiplicity,
         )
     }
 }
 
-/// Where two 2D curves meet.
-///
-/// A parameter is `None` when the solver did not compute it. Recover it
-/// from `point` with the curve's `parameter_of` when it has one, or with
-/// its `project_point` otherwise.
+/// Where two 2D curves meet, with the parameter of the point on each curve.
 #[pyclass(name = "CurveCurveHit2D", module = "geomcore", eq, frozen)]
 #[derive(Clone, PartialEq)]
 pub(crate) struct PyCurveCurveHit2D(pub(crate) CurveCurveHit2D);
 
 #[pymethods]
 impl PyCurveCurveHit2D {
-    /// The parameter on the first curve, or `None` when not computed.
+    /// The parameter on the first curve.
     #[getter]
-    fn first_parameter(&self) -> Option<f64> {
+    fn first_parameter(&self) -> f64 {
         self.0.first_parameter
     }
 
-    /// The parameter on the second curve, or `None` when not computed.
+    /// The parameter on the second curve.
     #[getter]
-    fn second_parameter(&self) -> Option<f64> {
+    fn second_parameter(&self) -> f64 {
         self.0.second_parameter
     }
 
@@ -415,35 +403,31 @@ impl PyCurveCurveHit2D {
     fn __repr__(&self) -> String {
         format!(
             "CurveCurveHit2D(first_parameter={}, second_parameter={}, point={}, multiplicity={})",
-            optional_repr(self.0.first_parameter),
-            optional_repr(self.0.second_parameter),
+            float_repr(self.0.first_parameter),
+            float_repr(self.0.second_parameter),
             point2_repr(self.0.point),
             self.0.multiplicity,
         )
     }
 }
 
-/// Where a curve meets a surface.
-///
-/// A parameter is `None` when the solver did not compute it. Recover the
-/// curve parameter with the curve's `parameter_of` and the surface
-/// parameters with the surface's `parameters_of` when they have them, or
-/// with their `project_point` otherwise.
+/// Where a curve meets a surface, with the parameter of the point on the
+/// curve and its `(u, v)` parameters on the surface.
 #[pyclass(name = "CurveSurfaceHit", module = "geomcore", eq, frozen)]
 #[derive(Clone, PartialEq)]
 pub(crate) struct PyCurveSurfaceHit(pub(crate) CurveSurfaceHit);
 
 #[pymethods]
 impl PyCurveSurfaceHit {
-    /// The parameter on the curve, or `None` when not computed.
+    /// The parameter on the curve.
     #[getter]
-    fn curve_parameter(&self) -> Option<f64> {
+    fn curve_parameter(&self) -> f64 {
         self.0.curve_parameter
     }
 
-    /// The `(u, v)` parameters on the surface, or `None` when not computed.
+    /// The `(u, v)` parameters on the surface.
     #[getter]
-    fn surface_parameters(&self) -> Option<(f64, f64)> {
+    fn surface_parameters(&self) -> (f64, f64) {
         self.0.surface_parameters
     }
 
@@ -461,13 +445,10 @@ impl PyCurveSurfaceHit {
     }
 
     fn __repr__(&self) -> String {
-        let surface_parameters = self
-            .0
-            .surface_parameters
-            .map_or_else(|| "None".to_string(), range_repr);
         format!(
-            "CurveSurfaceHit(curve_parameter={}, surface_parameters={surface_parameters}, point={}, multiplicity={})",
-            optional_repr(self.0.curve_parameter),
+            "CurveSurfaceHit(curve_parameter={}, surface_parameters={}, point={}, multiplicity={})",
+            float_repr(self.0.curve_parameter),
+            range_repr(self.0.surface_parameters),
             point3_repr(self.0.point),
             self.0.multiplicity,
         )
@@ -552,11 +533,21 @@ impl PyIntersectionCurve {
             .transpose()
     }
 
-    /// Whether the surfaces graze along the curve. Always `False` for a
-    /// marched curve.
+    /// Whether the surfaces touch along the curve instead of crossing it.
     #[getter]
     fn tangent(&self) -> bool {
         self.0.tangent
+    }
+
+    /// How far `curve` strays from the surfaces through its curves in
+    /// parameters: the largest distance between `curve`'s point at `t` and
+    /// each surface's point at its UV curve's point at `t`, the tolerance an
+    /// edge along the curve needs. A marched curve samples it at the middle
+    /// of each knot span, where its fits stray furthest from the traced
+    /// points; an exact curve is `0.0`.
+    #[getter]
+    fn deviation(&self) -> f64 {
+        self.0.deviation
     }
 
     fn __repr__(&self, py: Python<'_>) -> PyResult<String> {
@@ -567,10 +558,12 @@ impl PyIntersectionCurve {
             })
         };
         Ok(format!(
-            "IntersectionCurve(curve={curve}, first_uv_curve={}, second_uv_curve={}, tangent={})",
+            "IntersectionCurve(curve={curve}, first_uv_curve={}, second_uv_curve={}, tangent={}, \
+             deviation={})",
             repr(self.first_uv_curve(py)?)?,
             repr(self.second_uv_curve(py)?)?,
-            bool_repr(self.0.tangent)
+            bool_repr(self.0.tangent),
+            float_repr(self.0.deviation)
         ))
     }
 }
@@ -677,8 +670,7 @@ impl PyCurveCurveIntersection {
 intersection_result! {
     PyCurveCurveIntersection, curve_curve;
 
-    /// The points where the curves meet, by first-curve parameter when
-    /// every hit has one.
+    /// The points where the curves meet, by first-curve parameter.
     #[getter]
     fn hits<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyList>> {
         PyList::new(py, self.result.hits().iter().map(|h| PyCurveCurveHit(*h)))
@@ -722,8 +714,7 @@ impl PyCurveCurveIntersection2D {
 intersection_result! {
     PyCurveCurveIntersection2D, curve_curve;
 
-    /// The points where the curves meet, by first-curve parameter when
-    /// every hit has one.
+    /// The points where the curves meet, by first-curve parameter.
     #[getter]
     fn hits<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyList>> {
         PyList::new(py, self.result.hits().iter().map(|h| PyCurveCurveHit2D(*h)))
@@ -773,8 +764,7 @@ impl PyCurveSurfaceIntersection {
 intersection_result! {
     PyCurveSurfaceIntersection, curve_surface;
 
-    /// The points where the curve meets the surface, by curve parameter
-    /// when every hit has one.
+    /// The points where the curve meets the surface, by curve parameter.
     #[getter]
     fn hits<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyList>> {
         PyList::new(py, self.result.hits().iter().map(|h| PyCurveSurfaceHit(*h)))

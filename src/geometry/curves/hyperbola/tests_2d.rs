@@ -245,3 +245,14 @@ fn test_hyperbola2d_indirect_frame_matches_mirrored_parametrization() {
     assert!((p.y - 2.0 * 1.0f64.cosh()).abs() < 1e-12);
     assert!(h.contains(p, Tolerance::DEFAULT));
 }
+
+#[test]
+fn test_hyperbola2d_other_branch_turns_the_same_way() {
+    let hyperbola =
+        Hyperbola2D::new(Point2D::new(1.0, -2.0), Vector2D::new(1.0, 1.0), 2.0, 1.0).unwrap();
+    let other = hyperbola.other_branch();
+    assert_eq!(other.frame().is_direct(), hyperbola.frame().is_direct());
+    let center = hyperbola.center();
+    let mirrored = center + (center - hyperbola.point_at(0.3));
+    assert!(other.point_at(0.3).distance(mirrored) < 1e-12);
+}
