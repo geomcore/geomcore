@@ -1,4 +1,4 @@
-//! The Python class `geomcore.curves.Hyperbola`, wrapping `geomcore::Hyperbola`.
+//! The Python class `geomcore.Hyperbola`, wrapping `geomcore::Hyperbola`.
 
 use crate::curves::*;
 use crate::method_sets::*;
@@ -6,7 +6,7 @@ use crate::values::{PyFrame, float_repr};
 use geomcore::Hyperbola;
 
 /// One branch of a hyperbola in 3D.
-#[pyclass(name = "Hyperbola", module = "geomcore.curves", eq)]
+#[pyclass(name = "Hyperbola", module = "geomcore", eq)]
 #[derive(Clone, PartialEq)]
 pub(crate) struct PyHyperbola(pub(crate) Hyperbola);
 
@@ -16,6 +16,11 @@ shape_methods! {
     /// The placement frame of the hyperbola.
     fn frame(&self) -> PyFrame {
         PyFrame(self.0.frame())
+    }
+
+    fn __reduce__<'py>(slf: &pyo3::Bound<'py, Self>) -> pyo3::PyResult<pyo3::Bound<'py, pyo3::types::PyTuple>> {
+        let this = slf.borrow();
+        crate::pickling::reduce(slf.as_any(), Some("from_frame"), (this.frame(), this.major_radius(), this.minor_radius(),))
     }
 
     fn __repr__(&self) -> String {

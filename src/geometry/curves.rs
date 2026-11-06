@@ -20,7 +20,7 @@ mod trimmed;
 pub use bezier::{BezierConstructionError, BezierCurve, BezierCurve2D, GenericBezierCurve};
 pub use bspline::{
     BSplineConstructionError, BSplineCurve, BSplineCurve2D, BSplineSplitError,
-    DegreeElevationError, GenericBSplineCurve, KnotInsertionError, KnotRemovalError,
+    DegreeElevationError, GenericBSplineCurve, KnotInsertionError, KnotRemovalError, PoleEditError,
 };
 pub use circle::{Circle, Circle2D, CircleConstructionError, GenericCircle};
 pub use conversion::BSplineConversionError;

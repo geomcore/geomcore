@@ -1,11 +1,11 @@
-//! The Python class `geomcore.curves.Line2D`, wrapping `geomcore::Line2D`.
+//! The Python class `geomcore.Line2D`, wrapping `geomcore::Line2D`.
 
 use crate::method_sets::*;
 use crate::values::{PyAxis2D, coordinates_2d};
 use geomcore::Line2D;
 
 /// A straight line in a surface's 2D (u, v) parameter space.
-#[pyclass(name = "Line2D", module = "geomcore.curves", eq)]
+#[pyclass(name = "Line2D", module = "geomcore", eq)]
 #[derive(Clone, PartialEq)]
 pub(crate) struct PyLine2D(pub(crate) Line2D);
 
@@ -48,6 +48,11 @@ shape_methods! {
     /// The unit direction of the line.
     fn direction(&self) -> PyVector2D {
         PyVector2D(self.0.direction())
+    }
+
+    fn __reduce__<'py>(slf: &pyo3::Bound<'py, Self>) -> pyo3::PyResult<pyo3::Bound<'py, pyo3::types::PyTuple>> {
+        let this = slf.borrow();
+        crate::pickling::reduce(slf.as_any(), None, (this.origin(), this.direction(),))
     }
 
     fn __repr__(&self) -> String {

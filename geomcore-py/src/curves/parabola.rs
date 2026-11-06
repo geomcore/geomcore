@@ -1,4 +1,4 @@
-//! The Python class `geomcore.curves.Parabola`, wrapping `geomcore::Parabola`.
+//! The Python class `geomcore.Parabola`, wrapping `geomcore::Parabola`.
 
 use crate::curves::*;
 use crate::method_sets::*;
@@ -6,7 +6,7 @@ use crate::values::{PyFrame, float_repr};
 use geomcore::Parabola;
 
 /// A parabola in 3D, parametrized so the apex is at parameter 0.
-#[pyclass(name = "Parabola", module = "geomcore.curves", eq)]
+#[pyclass(name = "Parabola", module = "geomcore", eq)]
 #[derive(Clone, PartialEq)]
 pub(crate) struct PyParabola(pub(crate) Parabola);
 
@@ -22,6 +22,11 @@ shape_methods! {
     /// The placement frame of the parabola.
     fn frame(&self) -> PyFrame {
         PyFrame(self.0.frame())
+    }
+
+    fn __reduce__<'py>(slf: &pyo3::Bound<'py, Self>) -> pyo3::PyResult<pyo3::Bound<'py, pyo3::types::PyTuple>> {
+        let this = slf.borrow();
+        crate::pickling::reduce(slf.as_any(), Some("from_frame"), (this.frame(), this.focal_distance(),))
     }
 
     fn __repr__(&self) -> String {

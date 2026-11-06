@@ -46,8 +46,7 @@ space.
 === "Python"
 
     ```python
-    from geomcore import Point, Vector
-    from geomcore.curves import Line
+    from geomcore import Line, Point, Vector
 
     line = Line(Point.origin(), Vector.unit_z())
     p = line.point_at(2.0)  # parameter -> 3D point
@@ -86,7 +85,7 @@ conic whose parameter is proportional to distance travelled.
 === "Python"
 
     ```python
-    from geomcore.curves import Circle
+    from geomcore import Circle
 
     circle = Circle(Point.origin(), Vector.unit_z(), 2.0)
     assert abs(circle.length() - 4.0 * 3.141592653589793) < 1e-12
@@ -127,7 +126,7 @@ of the major axis.
 === "Python"
 
     ```python
-    from geomcore.curves import Ellipse
+    from geomcore import Ellipse
 
     ellipse = Ellipse(Point.origin(), Vector.unit_z(), Vector.unit_x(), 3.0, 1.0)
     p = ellipse.point_at(1.0)  # parameter -> 3D point
@@ -172,7 +171,7 @@ mirror branch is a second curve no value of $u$ reaches, which
 === "Python"
 
     ```python
-    from geomcore.curves import Hyperbola
+    from geomcore import Hyperbola
 
     hyp = Hyperbola(Point.origin(), Vector.unit_z(), Vector.unit_x(), 2.0, 1.0)
     p = hyp.point_at(1.0)  # parameter -> 3D point
@@ -214,7 +213,7 @@ $(f, 0)$, directrix $x = -f$.
 === "Python"
 
     ```python
-    from geomcore.curves import Parabola
+    from geomcore import Parabola
 
     parab = Parabola(Point.origin(), Vector.unit_z(), Vector.unit_x(), 1.5)
     p = parab.point_at(2.0)  # parameter -> 3D point
@@ -263,7 +262,7 @@ periodicity, no degenerate point.
 === "Python"
 
     ```python
-    from geomcore.surfaces import Plane
+    from geomcore import Plane
 
     plane = Plane(Point.origin(), Vector.unit_z())
     p = plane.point_at(1.0, 2.0)  # parameters -> 3D point
@@ -293,8 +292,7 @@ maps any 2D curve through the plane's frame, so a `Circle2D` drawn in
 the plane's $(u, v)$ coordinates comes back as the 3D `Circle`.
 
 ```python
-from geomcore import Point2D
-from geomcore.curves import Circle2D
+from geomcore import Circle2D, Point2D
 
 plane = Plane(Point(0.0, 0.0, 5.0), Vector.unit_z())
 circle = plane.uv_curve_to_3d(Circle2D(Point2D(1.0, 2.0), 0.5))
@@ -314,7 +312,7 @@ not the same kind of quantity.
 === "Python"
 
     ```python
-    from geomcore.surfaces import Cylinder
+    from geomcore import Cylinder
 
     cyl = Cylinder(Point.origin(), Vector.unit_z(), 2.0)
     p = cyl.point_at(1.0, 2.0)  # parameters -> 3D point
@@ -356,7 +354,7 @@ parameter plane instead; the article compares both.
 === "Python"
 
     ```python
-    from geomcore.surfaces import Cone
+    from geomcore import Cone
     import math
 
     cone = Cone(Point.origin(), Vector.unit_z(), math.radians(28), 4.0)
@@ -406,7 +404,7 @@ circle of longitudes collapses onto the axis.
 === "Python"
 
     ```python
-    from geomcore.surfaces import Sphere
+    from geomcore import Sphere
 
     sphere = Sphere(Point.origin(), 2.0)
     assert abs(sphere.volume() - 4.0 / 3.0 * 3.141592653589793 * 8.0) < 1e-9
@@ -449,7 +447,7 @@ rectangle of the five.
 === "Python"
 
     ```python
-    from geomcore.surfaces import Torus
+    from geomcore import Torus
 
     torus = Torus(Point.origin(), Vector.unit_z(), 5.0, 1.5)
     p = torus.point_at(0.5, 1.0)  # parameters -> 3D point
