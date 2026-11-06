@@ -14,9 +14,12 @@ the Python distribution are versioned in lockstep.
 - Every Python shape is importable from the package root (#203):
   `from geomcore import Circle, Plane, Point`, as every Rust item is at
   the crate root. `geomcore.Curve`, `geomcore.Curve2D` and
-  `geomcore.Surface` name the union of each kind's classes, to annotate
-  with and, from Python 3.10, to pass to `isinstance` (`typing.get_args`
-  gives the tuple on 3.9). The stubs are one file. ADR 0038.
+  `geomcore.Surface` name the union of the classes of the Rust enum of
+  the same name, to annotate with and, from Python 3.10, to pass to
+  `isinstance` (`typing.get_args` gives the tuple on 3.9). As in Rust, a
+  `TrimmedCurve` is a piece of a curve, not one of them: a method that
+  takes either is typed `Curve | TrimmedCurve`. The stubs are one file.
+  ADR 0038.
 - Python 3D curves take a curve in `extrema(other, tol)` (#201), as
   well as a point. A curve or `TrimmedCurve` gives the
   `CurveCurveExtrema` of the pair, holding this curve as `first`. A

@@ -123,7 +123,13 @@ def _operands_2d():
 
 
 _CURVE_CLASSES = {
-    cls.__name__: cls for cls in (*get_args(geomcore.Curve), *get_args(geomcore.Curve2D))
+    cls.__name__: cls
+    for cls in (
+        *get_args(geomcore.Curve),
+        geomcore.TrimmedCurve,
+        *get_args(geomcore.Curve2D),
+        geomcore.TrimmedCurve2D,
+    )
 }
 _SURFACE_CLASSES = {cls.__name__: cls for cls in get_args(geomcore.Surface)}
 
@@ -292,7 +298,7 @@ def _union_members(value):
 
 def _union_aliases(trees):
     """Each union alias of the stubs whose members are all curve or surface
-    classes, such as `Curve` or `_WholeCurve`, as its class names."""
+    classes, such as `Curve` or `Surface`, as its class names."""
     members = {}
     for tree in trees.values():
         for node in tree.body:
@@ -326,14 +332,30 @@ def _union_parameters():
     function's required parameters as (name, annotation), the union one)."""
     trees = _stub_trees()
     aliases = _union_aliases(trees)
+    shapes = _shape_classes()
     found = []
+
+    def annotation_key(annotation):
+        # A plain name, or an inline union of shapes such as
+        # `Curve | TrimmedCurve`, registered as an alias of its own.
+        names = None if annotation is None else _union_members(annotation)
+        if names is None:
+            return None
+        if len(names) == 1:
+            return names[0]
+        leaves = [leaf for name in names for leaf in aliases.get(name, [name])]
+        if not all(leaf in shapes for leaf in leaves):
+            return None
+        key = " | ".join(names)
+        aliases[key] = leaves
+        return key
 
     def scan(owner, function):
         arguments = function.args.args
         required = arguments[: len(arguments) - len(function.args.defaults)]
         if owner is not None and not _is_static(function):
             required = required[1:]  # self or cls
-        typed = [(argument.arg, getattr(argument.annotation, "id", None)) for argument in required]
+        typed = [(argument.arg, annotation_key(argument.annotation)) for argument in required]
         for index, (_, annotation) in enumerate(typed):
             if annotation in aliases:
                 found.append((owner, function.name, typed, index))
@@ -396,7 +418,8 @@ _OTHER_ARGUMENTS = {
 def test_every_member_of_a_stub_union_is_accepted(owner, function, typed, index):
     # stubtest checks that a parameter exists with a compatible annotation,
     # not that the runtime takes each class of a `Union`: #176 found three
-    # parameters typed `_Curve` that raised TypeError on a `TrimmedCurve`.
+    # parameters typed for any curve that raised TypeError on a
+    # `TrimmedCurve`.
     fixtures = _fixtures()
     if owner is None:
         call = getattr(geomcore, function)
@@ -444,7 +467,7 @@ def test_type_checkers_see_every_method_of_every_class(tmp_path):
         "    assert_type(line.intersect(line), geomcore.CurveCurveIntersection)",
         "    assert_type(line.intersect(plane), geomcore.CurveSurfaceIntersection)",
         "    assert_type(line_2d.intersect(spline_2d), geomcore.CurveCurveIntersection2D)",
-        "    assert_type(plane.curve_3d_to_uv(ellipse), geomcore._WholeCurve2D)",
+        "    assert_type(plane.curve_3d_to_uv(ellipse), geomcore.Curve2D)",
         "    assert_type(ellipse.discretize(0.1), geomcore.Discretization)",
         "    assert_type(spline_2d.discretize(0.1), geomcore.Discretization2D)",
         "    assert_type(spline_2d.first_derivatives_sided(0.0, geomcore.Side.BELOW)[1], geomcore.Vector2D)",
