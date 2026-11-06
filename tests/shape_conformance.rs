@@ -28,13 +28,13 @@ fn assert_close(actual: f64, expected: f64, context: &str) {
 
 fn check_curve<C: PointExtrema + Debug>(curve: &C) {
     let us = parameters(curve.bounds());
-    let points = curve.eval_points(&us);
+    let points = curve.points_at(&us);
     assert!(!curve.is_periodic() || curve.is_closed(TOL), "{curve:?}");
     assert_eq!(curve.is_periodic(), curve.period().is_some(), "{curve:?}");
     for (&u, &point) in us.iter().zip(&points) {
         let context = format!("{curve:?} at {u}");
-        assert_eq!(point, curve.eval_point(u), "eval_points: {context}");
-        let (_, first, second) = curve.eval_d2(u);
+        assert_eq!(point, curve.point_at(u), "points_at: {context}");
+        let (_, first, second) = curve.second_derivatives(u);
         let tangent = curve.tangent(u, TOL).unwrap();
         assert!(
             (tangent - first.normalized().unwrap()).magnitude() < 1e-15,
@@ -54,12 +54,12 @@ fn check_curve<C: PointExtrema + Debug>(curve: &C) {
         let projection = curve.project_point(point, TOL);
         assert!(projection.distance < 1e-9, "projection: {context}");
         assert!(projection.point.distance(point) < 1e-9, "{context}");
-        let foot = curve.eval_point(projection.parameter);
+        let foot = curve.point_at(projection.parameter);
         assert!(foot.distance(point) < 1e-9, "projection: {context}");
         assert!(curve.contains(point, TOL), "contains: {context}");
         let parameter = curve.parameter_of(point, TOL);
         assert!(
-            curve.eval_point(parameter).distance(point) < 1e-9,
+            curve.point_at(parameter).distance(point) < 1e-9,
             "parameter_of: {context}"
         );
     }
@@ -72,13 +72,13 @@ fn check_curve<C: PointExtrema + Debug>(curve: &C) {
 
 fn check_curve_2d<C: PointExtrema2D + Debug>(curve: &C) {
     let us = parameters(curve.bounds());
-    let points = curve.eval_points(&us);
+    let points = curve.points_at(&us);
     assert!(!curve.is_periodic() || curve.is_closed(TOL), "{curve:?}");
     assert_eq!(curve.is_periodic(), curve.period().is_some(), "{curve:?}");
     for (&u, &point) in us.iter().zip(&points) {
         let context = format!("{curve:?} at {u}");
-        assert_eq!(point, curve.eval_point(u), "eval_points: {context}");
-        let (_, first, second) = curve.eval_d2(u);
+        assert_eq!(point, curve.point_at(u), "points_at: {context}");
+        let (_, first, second) = curve.second_derivatives(u);
         let tangent = curve.tangent(u, TOL).unwrap();
         assert!(
             (tangent - first.normalized().unwrap()).magnitude() < 1e-15,
@@ -98,12 +98,12 @@ fn check_curve_2d<C: PointExtrema2D + Debug>(curve: &C) {
         let projection = curve.project_point(point, TOL);
         assert!(projection.distance < 1e-9, "projection: {context}");
         assert!(projection.point.distance(point) < 1e-9, "{context}");
-        let foot: Point2D = curve.eval_point(projection.parameter);
+        let foot: Point2D = curve.point_at(projection.parameter);
         assert!(foot.distance(point) < 1e-9, "projection: {context}");
         assert!(curve.contains(point, TOL), "contains: {context}");
         let parameter = curve.parameter_of(point, TOL);
         assert!(
-            curve.eval_point(parameter).distance(point) < 1e-9,
+            curve.point_at(parameter).distance(point) < 1e-9,
             "parameter_of: {context}"
         );
     }
@@ -116,7 +116,7 @@ fn check_curve_2d<C: PointExtrema2D + Debug>(curve: &C) {
 
 fn check_surface<S: ParametricSurface + Debug>(surface: &S) {
     let uvs = surface_parameters(surface);
-    let points = surface.eval_points(&uvs);
+    let points = surface.points_at(&uvs);
     assert!(
         surface.u_period().is_none() || surface.is_u_closed(TOL),
         "{surface:?}"
@@ -127,8 +127,8 @@ fn check_surface<S: ParametricSurface + Debug>(surface: &S) {
     );
     for (&(u, v), &point) in uvs.iter().zip(&points) {
         let context = format!("{surface:?} at ({u}, {v})");
-        assert_eq!(point, surface.eval_point(u, v), "eval_points: {context}");
-        let (_, [su, sv]) = surface.eval_d1(u, v);
+        assert_eq!(point, surface.point_at(u, v), "points_at: {context}");
+        let (_, [su, sv]) = surface.first_derivatives(u, v);
         let normal = surface.normal(u, v, TOL).unwrap();
         let expected = su.cross(sv).normalized().unwrap();
         assert!((normal - expected).magnitude() < 1e-15, "normal: {context}");
@@ -149,12 +149,12 @@ fn check_surface<S: ParametricSurface + Debug>(surface: &S) {
         let projection = surface.project_point(point, TOL);
         assert!(projection.distance < 1e-9, "projection: {context}");
         assert!(projection.point.distance(point) < 1e-9, "{context}");
-        let foot = surface.eval_point(projection.u, projection.v);
+        let foot = surface.point_at(projection.u, projection.v);
         assert!(foot.distance(point) < 1e-9, "projection: {context}");
         assert!(surface.contains(point, TOL), "contains: {context}");
         let (found_u, found_v) = surface.parameters_of(point, TOL);
         assert!(
-            surface.eval_point(found_u, found_v).distance(point) < 1e-9,
+            surface.point_at(found_u, found_v).distance(point) < 1e-9,
             "parameters_of: {context}"
         );
     }

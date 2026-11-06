@@ -121,7 +121,7 @@ fn test_line3d_intersect_cone() {
             assert!(p1.z < apex.z && p2.z > apex.z);
             for (t, p) in [(t1, p1), (t2, p2)] {
                 assert!(cone.contains(p, tol));
-                assert_eq!(p, side.eval_point(t));
+                assert_eq!(p, side.point_at(t));
             }
         }
         _ => panic!("expected two points"),
@@ -141,7 +141,7 @@ fn test_line3d_intersect_cone() {
     match slanted.intersect_exact(&cone, tol) {
         LineQuadricIntersection::OnePoint(t, p) => {
             assert!(cone.contains(p, tol));
-            assert_eq!(p, slanted.eval_point(t));
+            assert_eq!(p, slanted.point_at(t));
         }
         _ => panic!("expected one point"),
     }
@@ -159,7 +159,7 @@ fn test_line3d_intersect_torus() {
             let params: Vec<f64> = hits.iter().map(|h| h.line_parameter).collect();
             assert_eq!(params, vec![-5.0, -3.0, 3.0, 5.0]);
             for h in &hits {
-                assert_eq!(h.point, line.eval_point(h.line_parameter));
+                assert_eq!(h.point, line.point_at(h.line_parameter));
                 assert!(torus.contains(h.point, tol));
                 assert_eq!(h.multiplicity, 1);
                 let (u, v) = torus.parameters_of(h.point, tol);
@@ -225,7 +225,7 @@ fn test_line3d_intersect_torus_matches_generic() {
                 );
                 for (h, g) in hits.iter().zip(generic.iter()) {
                     assert!(
-                        (h.line_parameter - g.curve_parameter.unwrap()).abs() < 1e-6,
+                        (h.line_parameter - g.curve_parameter).abs() < 1e-6,
                         "param mismatch for line {origin:?} {dir:?}"
                     );
                     assert!(h.point.distance(g.point) < 1e-6);
@@ -262,7 +262,7 @@ fn test_line3d_sphere_tangent_with_rounded_construction() {
     .unwrap();
     match line.intersect_exact(&sphere, tol) {
         LineQuadricIntersection::Tangent(t, p) => {
-            assert_eq!(p, line.eval_point(t));
+            assert_eq!(p, line.point_at(t));
             assert!((p.distance(sphere.center()) - sphere.radius()).abs() < 1e-7);
         }
         other => panic!("expected a tangent, got {other:?}"),
@@ -851,9 +851,9 @@ fn assert_three_corner_hits(
 ) {
     let tol = Tolerance::DEFAULT;
     for t in [0.0, 2.0 * PI / 3.0, 4.0 * PI / 3.0] {
-        assert!(surface.contains(circle.eval_point(t), tol));
+        assert!(surface.contains(circle.point_at(t), tol));
     }
-    assert!(!surface.contains(circle.eval_point(1.0), tol));
+    assert!(!surface.contains(circle.point_at(1.0), tol));
     let CircleSurfaceIntersection::Hits(hits) = result else {
         panic!("expected the three corners, got {result:?}");
     };

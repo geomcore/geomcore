@@ -10,6 +10,14 @@ An overlap of two curves, `CurveCurveOverlap`, is a parameter range on each curv
 
 Rust results do not hold their operands. Borrowing them would make every result generic over the operand types and tied to their lifetime; cloning them would allocate for B-splines. Results stay plain owned data that a caller can store, collect across mixed pairs and send between threads, and the caller already has the operands. Python results do hold them (`first` and `second` on intersections, `target` and `query_point` on projections): there an operand reference is one reference count, with no copy and no lifetime, and it lets a display draw a result from the result alone. Python hit parameters mirror Rust: `None` when not computed.
 
+## Amendment: every hit carries all its parameters (#177)
+
+The UX study of 0.43.0 (#173, finding G-04) found that every caller who read hits needed the missing parameters and recovered them with a second call, so the saving went to callers who don't read hits, and every caller who did paid for it in code. The routed result now fills every parameter: where the closed form solves for one operand's parameter only, the router recovers the other with its closed-form `parameter_of` / `parameters_of` while building the result, and the fields are plain `f64` and `(f64, f64)` (Python `float` and `tuple[float, float]`). The typed conic–conic result fills both too. Hits are always sorted by the first operand's parameter.
+
+The cost is the `atan2` (or more) per recovered parameter that this ADR avoided. Measured against the parent commit, the median of criterion runs over batches of 1000 pairs: routed circle–circle 88 → about 205 ns per pair, 2D circle–circle 55 → about 115 ns, line–cylinder 147 → about 230 ns; callgrind 793 → 1635, 366 → 1099 and 1237 → 1755 instructions per pair. The typed `intersect_exact` is unchanged (except conic–conic, now about 5% heavier). It stays the hot path for a caller who needs only the points. A faster closed-form angle recovery can win the routed cost back without changing this interface.
+
+The first considered option below, rejected for that cost, is now the decision. The `None` reading of a hit parameter in the Python paragraph above no longer holds.
+
 ## Considered options
 
 - **Recovering every parameter on every hit** (non-optional fields): rejected. It is the cost most callers do not need, on the hot path of the cheapest pairs.

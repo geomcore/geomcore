@@ -25,7 +25,7 @@ fn sampled_distance(surface: &RevolutionSurface, point: Point, (first, last): (f
     (0..=20_000)
         .map(|i| {
             let t = first + (last - first) * i as f64 / 20_000.0;
-            let (h, w) = surface.split(surface.profile().eval_point(t));
+            let (h, w) = surface.split(surface.profile().point_at(t));
             (w.magnitude() - radial.magnitude()).hypot(h - height)
         })
         .fold(f64::INFINITY, f64::min)
@@ -222,13 +222,10 @@ fn test_new_rejects_profiles_sweeping_no_area() {
 fn test_eval_point_turns_the_profile() {
     for (name, surface, _) in cases() {
         let v = 0.3;
-        let p = surface.profile().eval_point(v);
-        assert!(surface.eval_point(0.0, v).distance(p) < 1e-14, "{name}");
+        let p = surface.profile().point_at(v);
+        assert!(surface.point_at(0.0, v).distance(p) < 1e-14, "{name}");
         let quarter = Transform::rotation(surface.axis(), 1.1).apply_point(p);
-        assert!(
-            surface.eval_point(1.1, v).distance(quarter) < 1e-12,
-            "{name}"
-        );
+        assert!(surface.point_at(1.1, v).distance(quarter) < 1e-12, "{name}");
     }
 }
 
@@ -237,19 +234,16 @@ fn test_derivatives_match_finite_differences() {
     let h = 1e-5;
     for (name, surface, _) in cases() {
         let (u, v) = (0.8, 0.4);
-        let (_, [su, sv], [suu, suv, svv]) = surface.eval_d2(u, v);
-        let at = |u: f64, v: f64| surface.eval_point(u, v);
+        let (_, [su, sv], [suu, suv, svv]) = surface.second_derivatives(u, v);
+        let at = |u: f64, v: f64| surface.point_at(u, v);
         let fd_u = (at(u + h, v) - at(u - h, v)) * (0.5 / h);
         let fd_v = (at(u, v + h) - at(u, v - h)) * (0.5 / h);
-        let fd_uu = (surface.eval_derivative(u + h, v, 1, 0)
-            - surface.eval_derivative(u - h, v, 1, 0))
-            * (0.5 / h);
-        let fd_uv = (surface.eval_derivative(u, v + h, 1, 0)
-            - surface.eval_derivative(u, v - h, 1, 0))
-            * (0.5 / h);
-        let fd_vv = (surface.eval_derivative(u, v + h, 0, 1)
-            - surface.eval_derivative(u, v - h, 0, 1))
-            * (0.5 / h);
+        let fd_uu =
+            (surface.derivative(u + h, v, 1, 0) - surface.derivative(u - h, v, 1, 0)) * (0.5 / h);
+        let fd_uv =
+            (surface.derivative(u, v + h, 1, 0) - surface.derivative(u, v - h, 1, 0)) * (0.5 / h);
+        let fd_vv =
+            (surface.derivative(u, v + h, 0, 1) - surface.derivative(u, v - h, 0, 1)) * (0.5 / h);
         assert!((su - fd_u).magnitude() < 1e-6, "{name} su");
         assert!((sv - fd_v).magnitude() < 1e-6, "{name} sv");
         assert!((suu - fd_uu).magnitude() < 1e-5, "{name} suu");
@@ -287,8 +281,8 @@ fn test_circle_meridian_matches_the_torus() {
         assert!(ours.point.distance(theirs.point) < 1e-9, "{point:?}");
         assert!(
             surface
-                .eval_point(0.7, 2.1)
-                .distance(torus.eval_point(0.7, 2.1))
+                .point_at(0.7, 2.1)
+                .distance(torus.point_at(0.7, 2.1))
                 < 1e-14
         );
     }
@@ -316,7 +310,7 @@ fn test_project_point_matches_sampling() {
     for (name, surface, window) in cases() {
         for point in query_points() {
             let projection = surface.project_point(point, tol);
-            let on_surface = surface.eval_point(projection.u, projection.v);
+            let on_surface = surface.point_at(projection.u, projection.v);
             assert!(on_surface.distance(projection.point) < 1e-12, "{name}");
             assert!(
                 (projection.point.distance(point) - projection.distance).abs() < 1e-12,
@@ -336,7 +330,7 @@ fn test_project_point_matches_sampling() {
 fn test_project_point_of_a_surface_point_returns_it() {
     let tol = Tolerance::DEFAULT;
     for (name, surface, _) in cases() {
-        let point = surface.eval_point(2.5, 0.6);
+        let point = surface.point_at(2.5, 0.6);
         assert_eq!(surface.project_point(point, tol).distance, 0.0, "{name}");
     }
 }
@@ -354,14 +348,14 @@ fn test_project_point_on_the_axis() {
 fn test_reversed_surfaces_map_their_parameters() {
     for (name, surface, _) in cases() {
         let (u, v) = (0.6, 0.35);
-        let point = surface.eval_point(u, v);
+        let point = surface.point_at(u, v);
         let there = surface
             .reversed_u()
-            .eval_point(surface.u_reversed_parameter(u), v);
+            .point_at(surface.u_reversed_parameter(u), v);
         assert!(there.distance(point) < 1e-12, "{name} u");
         let there = surface
             .reversed_v()
-            .eval_point(u, surface.v_reversed_parameter(v));
+            .point_at(u, surface.v_reversed_parameter(v));
         assert!(there.distance(point) < 1e-12, "{name} v");
     }
 }
@@ -373,11 +367,11 @@ fn test_iso_curves_follow_the_surface() {
         let v_iso = surface.v_iso(0.45).unwrap();
         for t in [0.1, 0.5, 0.9] {
             assert!(
-                u_iso.eval_point(t).distance(surface.eval_point(2.0, t)) < 1e-12,
+                u_iso.point_at(t).distance(surface.point_at(2.0, t)) < 1e-12,
                 "{name}"
             );
             assert!(
-                v_iso.eval_point(t).distance(surface.eval_point(t, 0.45)) < 1e-12,
+                v_iso.point_at(t).distance(surface.point_at(t, 0.45)) < 1e-12,
                 "{name}"
             );
         }
@@ -401,14 +395,14 @@ fn test_transformed_maps_every_point() {
         let (u, v) = (0.3, 0.8);
         for transform in transforms {
             let image = surface.transformed(transform).unwrap();
-            let expected = transform.apply_point(surface.eval_point(u, v));
-            let error = image.eval_point(u, v).distance(expected);
+            let expected = transform.apply_point(surface.point_at(u, v));
+            let error = image.point_at(u, v).distance(expected);
             assert!(error < 1e-11, "{name} {transform:?}: {error}");
         }
         // A scale changes the parameter of a line or parabola profile (a
         // length), so only the point set is compared.
         let image = surface.transformed(scaling).unwrap();
-        let expected = scaling.apply_point(surface.eval_point(u, v));
+        let expected = scaling.apply_point(surface.point_at(u, v));
         let projection = image.project_point(expected, Tolerance::DEFAULT);
         assert_eq!(projection.distance, 0.0, "{name}");
         assert!((projection.u - u).abs() < 1e-9, "{name}");
@@ -426,7 +420,7 @@ fn test_bounding_box_holds_the_surface() {
             for j in 0..=40 {
                 let u = TAU * i as f64 / 40.0;
                 let v = window.0 + (window.1 - window.0) * j as f64 / 40.0;
-                let p = surface.eval_point(u, v);
+                let p = surface.point_at(u, v);
                 assert!(bounds.enlarged(1e-12).encloses(p), "{name}: {p:?}");
             }
         }
@@ -456,11 +450,11 @@ fn test_bspline_patch_lies_on_the_surface() {
             let (u0, u1) = patch.u_bounds();
             let (v0, v1) = patch.v_bounds();
             for (s, t) in [(0.0, 0.0), (0.3, 0.7), (1.0, 1.0), (0.55, 0.2)] {
-                let p = patch.eval_point(u0 + s * (u1 - u0), v0 + t * (v1 - v0));
+                let p = patch.point_at(u0 + s * (u1 - u0), v0 + t * (v1 - v0));
                 assert!(surface.project_point(p, tol).distance < 1e-9, "{name}");
             }
-            let corner = surface.eval_point(u_range.0, v_range.0);
-            assert!(patch.eval_point(u0, v0).distance(corner) < 1e-12, "{name}");
+            let corner = surface.point_at(u_range.0, v_range.0);
+            assert!(patch.point_at(u0, v0).distance(corner) < 1e-12, "{name}");
         }
     }
 }
@@ -485,7 +479,11 @@ fn test_project_point_converges_to_the_closest_profile_point() {
             if curvature <= 0.0 {
                 continue;
             }
-            let speed = surface.profile().eval_d1(projection.v).1.magnitude();
+            let speed = surface
+                .profile()
+                .first_derivatives(projection.v)
+                .1
+                .magnitude();
             let short = (slope / curvature).abs() * speed;
             assert!(short < 1e-12, "{name}: {point:?} stops {short:e} short");
         }

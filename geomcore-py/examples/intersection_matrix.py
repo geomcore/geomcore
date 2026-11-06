@@ -26,8 +26,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from geomcore import Frame, Point, Transform, Vector
-from geomcore.surfaces import Cone, Cylinder, Plane, Sphere, Torus
+from geomcore import Cone, Cylinder, Frame, Plane, Point, Sphere, Torus, Transform, Vector
 
 import geomcore_viewer as gv
 

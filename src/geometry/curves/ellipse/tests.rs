@@ -130,7 +130,7 @@ fn test_ellipse3d_from_center_and_points_non_finite_errors() {
 #[test]
 fn test_ellipse3d_eval_point_zero() {
     let e = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 3.0, 1.5).unwrap();
-    let p = e.eval_point(0.0);
+    let p = e.point_at(0.0);
     assert!((p.x - 3.0).abs() < 1e-9);
     assert!(p.y.abs() < 1e-9);
     assert!(p.z.abs() < 1e-9);
@@ -140,14 +140,14 @@ fn test_ellipse3d_eval_point_zero() {
 fn test_ellipse3d_eval_points_matches_loop() {
     let e = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 3.0, 1.5).unwrap();
     let us = [0.0, 0.5, 1.5];
-    let expected: Vec<Point> = us.iter().map(|&u| e.eval_point(u)).collect();
-    assert_eq!(e.eval_points(&us), expected);
+    let expected: Vec<Point> = us.iter().map(|&u| e.point_at(u)).collect();
+    assert_eq!(e.points_at(&us), expected);
 }
 
 #[test]
 fn test_ellipse3d_eval_derivative_order1() {
     let e = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 3.0, 1.5).unwrap();
-    let d1 = e.eval_derivative(0.0, 1);
+    let d1 = e.derivative(0.0, 1);
     assert!(d1.x.abs() < 1e-9);
     assert!((d1.y - 1.5).abs() < 1e-9);
 }
@@ -156,14 +156,14 @@ fn test_ellipse3d_eval_derivative_order1() {
 #[should_panic]
 fn test_ellipse3d_eval_derivative_order0_panics() {
     let e = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 3.0, 1.5).unwrap();
-    e.eval_derivative(0.0, 0);
+    e.derivative(0.0, 0);
 }
 
 #[test]
 fn test_ellipse3d_parameter_of_round_trip() {
     let e = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 3.0, 1.5).unwrap();
     for u in [0.3, 2.0, 5.5] {
-        let p = e.eval_point(u);
+        let p = e.point_at(u);
         assert!((e.parameter_of(p, Tolerance::DEFAULT) - u).abs() < 1e-9);
     }
 }
@@ -172,7 +172,7 @@ fn test_ellipse3d_parameter_of_round_trip() {
 fn test_ellipse3d_parameter_of_in_zero_to_tau() {
     let e = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 3.0, 1.5).unwrap();
     for u in [-1.0, -0.1, 7.0] {
-        let p = e.eval_point(u);
+        let p = e.point_at(u);
         let recovered = e.parameter_of(p, Tolerance::DEFAULT);
         assert!((0.0..std::f64::consts::TAU).contains(&recovered));
     }
@@ -216,7 +216,7 @@ fn test_ellipse3d_contains() {
     let tol = Tolerance::DEFAULT;
     assert!(e.contains(Point::new(3.0, 0.0, 0.0), tol));
     assert!(e.contains(Point::new(0.0, 1.5, 0.0), tol));
-    assert!(e.contains(e.eval_point(1.0), tol));
+    assert!(e.contains(e.point_at(1.0), tol));
     assert!(!e.contains(Point::ORIGIN, tol));
     assert!(!e.contains(Point::new(4.0, 0.0, 0.0), tol));
 }
@@ -262,7 +262,7 @@ fn test_ellipse3d_project_point_near_pi() {
         (3.0, 1.0, std::f64::consts::PI),
     ] {
         let e = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, a, b).unwrap();
-        let proj = e.project_point(e.eval_point(u), tol);
+        let proj = e.project_point(e.point_at(u), tol);
         assert!(proj.distance < 1e-12, "({a}, {b}, {u}): {}", proj.distance);
     }
 }
@@ -281,7 +281,7 @@ fn test_ellipse3d_transformed_rotation_spot_check() {
     assert_eq!(moved.major_radius(), 3.0);
     assert_eq!(moved.minor_radius(), 1.5);
     // Major axis (was X) now lies along Y: u = 0 evaluates on Y.
-    assert!(moved.eval_point(0.0).distance(Point::new(0.0, 3.0, 0.0)) < 1e-9);
+    assert!(moved.point_at(0.0).distance(Point::new(0.0, 3.0, 0.0)) < 1e-9);
 }
 
 #[test]
@@ -295,19 +295,19 @@ fn test_ellipse3d_transformed_round_trip_and_mirror() {
     assert_eq!(moved.minor_radius(), 0.75);
     let tol = Tolerance::DEFAULT;
     for u in [0.0, 1.0, 4.0] {
-        assert!(moved.contains(t.apply_point(ellipse.eval_point(u)), tol));
+        assert!(moved.contains(t.apply_point(ellipse.point_at(u)), tol));
     }
     let inv = Transform::scaling(Point::ORIGIN, 2.0)
         .then(Transform::translation(Vector::new(1.0, -0.5, -2.0)));
     let back = moved.transformed(inv).unwrap();
     for u in [0.0, 1.0, 4.0] {
-        assert!(back.eval_point(u).distance(ellipse.eval_point(u)) < 1e-9);
+        assert!(back.point_at(u).distance(ellipse.point_at(u)) < 1e-9);
     }
     // Mirror across the xy-plane preserves the point set.
     let m = Transform::mirror_plane(Frame::WORLD);
     let mirrored = ellipse.transformed(m).unwrap();
     for u in [0.0, 1.0, 4.0] {
-        assert!(mirrored.contains(m.apply_point(ellipse.eval_point(u)), tol));
+        assert!(mirrored.contains(m.apply_point(ellipse.point_at(u)), tol));
     }
     assert_eq!(mirrored.transformed(m).unwrap(), ellipse);
 }
@@ -326,4 +326,42 @@ fn test_ellipse3d_project_non_finite_point_is_nan() {
         let proj = curve.project_point(p, tol);
         assert!(proj.parameter.is_nan() && proj.distance.is_nan());
     }
+}
+
+// ---- foci and directrices ----
+
+#[test]
+fn test_ellipse_points_keep_the_focal_ratios() {
+    // A tilted ellipse: the distances to the two foci sum to the major
+    // axis, and each is the eccentricity times the distance to its
+    // directrix.
+    let tol = Tolerance::DEFAULT;
+    let ellipse = Ellipse::new(
+        Point::new(1.0, -2.0, 0.5),
+        Vector::new(0.2, 0.3, 1.0),
+        Vector::X,
+        3.0,
+        1.2,
+    )
+    .unwrap();
+    let foci = ellipse.foci();
+    let directrices = ellipse.directrices().unwrap();
+    let e = ellipse.eccentricity();
+    for k in 0..12 {
+        let p = ellipse.point_at(f64::from(k) * 0.5);
+        let to_foci = [p.distance(foci[0]), p.distance(foci[1])];
+        assert!((to_foci[0] + to_foci[1] - 6.0).abs() < 1e-12);
+        for side in 0..2 {
+            let to_directrix = directrices[side].project_point(p, tol).distance;
+            assert!((to_foci[side] - e * to_directrix).abs() < 1e-12);
+        }
+    }
+}
+
+#[test]
+fn test_ellipse_of_equal_radii_has_its_foci_at_the_center() {
+    let round = Ellipse::new(Point::new(1.0, 2.0, 3.0), Vector::Z, Vector::X, 2.0, 2.0).unwrap();
+    assert_eq!(round.eccentricity(), 0.0);
+    assert_eq!(round.foci(), [round.center(); 2]);
+    assert!(round.directrices().is_none());
 }

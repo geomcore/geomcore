@@ -57,7 +57,7 @@ where
     let at = |(low, high): (f64, f64), i: usize| low + (high - low) * i as f64 / last;
     let bounds = BoundingBox::from_points((0..COINCIDENCE_SAMPLES).flat_map(|i| {
         (0..COINCIDENCE_SAMPLES)
-            .map(move |j| a.eval_point(at(first_u_range, i), at(first_v_range, j)))
+            .map(move |j| a.point_at(at(first_u_range, i), at(first_v_range, j)))
     }))?;
     Some(SurfaceSurfaceRegion {
         first_u_range,
@@ -176,7 +176,7 @@ where
             + (COINCIDENCE_SAMPLES - 1) * (COINCIDENCE_SAMPLES - 1),
     );
     for (i, j) in samples {
-        let (p, [su, sv]) = s.eval_d1(at(u_bounds, i), at(v_bounds, j));
+        let (p, [su, sv]) = s.first_derivatives(at(u_bounds, i), at(v_bounds, j));
         let foot = other.project_point(p, tol);
         if foot.distance > tol.confusion {
             return None;
@@ -191,7 +191,7 @@ where
         // other sample, half a grid step.
         let spacing = (su.magnitude() * u_half_step).min(sv.magnitude() * v_half_step);
         let allowed_tilt = tol.angular.max(2.0 * tol.confusion / spacing);
-        let (_, [ou, ov]) = other.eval_d1(foot.u, foot.v);
+        let (_, [ou, ov]) = other.first_derivatives(foot.u, foot.v);
         if let (Some(n), Some(m)) = (unit_normal(s, su, sv, tol), unit_normal(other, ou, ov, tol))
             && n.cross(m).magnitude() > allowed_tilt
         {
@@ -239,7 +239,7 @@ fn surface_corners<S: ParametricSurface>(s: &S) -> (Point, Point) {
         let last = (COINCIDENCE_SAMPLES - 1) as f64;
         BoundingBox::from_points((0..COINCIDENCE_SAMPLES).flat_map(|i| {
             (0..COINCIDENCE_SAMPLES).map(move |j| {
-                s.eval_point(
+                s.point_at(
                     u0 + (u1 - u0) * i as f64 / last,
                     v0 + (v1 - v0) * j as f64 / last,
                 )

@@ -1,4 +1,4 @@
-//! The Python class `geomcore.surfaces.RevolutionSurface`, wrapping
+//! The Python class `geomcore.RevolutionSurface`, wrapping
 //! `geomcore::RevolutionSurface`.
 
 use crate::method_sets::*;
@@ -8,12 +8,18 @@ use geomcore::RevolutionSurface;
 
 /// A profile curve turned about an axis: the profile point at `v` rotated
 /// by the angle `u`.
-#[pyclass(name = "RevolutionSurface", module = "geomcore.surfaces", eq)]
+#[pyclass(name = "RevolutionSurface", module = "geomcore", eq)]
 #[derive(Clone, PartialEq)]
 pub(crate) struct PyRevolutionSurface(pub(crate) RevolutionSurface);
 
 shape_methods! {
     PyRevolutionSurface: [surface, surface_normal];
+
+    fn __reduce__<'py>(slf: &pyo3::Bound<'py, Self>) -> pyo3::PyResult<pyo3::Bound<'py, pyo3::types::PyTuple>> {
+        let this = slf.borrow();
+        let profile = this.profile(slf.py())?;
+        crate::pickling::reduce(slf.as_any(), None, (profile, this.axis()))
+    }
 
     fn __repr__(&self, py: Python<'_>) -> PyResult<String> {
         let profile = curve_classes::to_py(py, self.0.profile().clone())?;

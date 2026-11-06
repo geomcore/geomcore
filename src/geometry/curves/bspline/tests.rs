@@ -110,13 +110,13 @@ fn test_error_is_std_error() {
     takes_error(&BSplineConstructionError::InvalidDegree);
 }
 
-// ---- eval_point / eval_points / eval_derivative ----
+// ---- point_at / points_at / derivative ----
 
 #[test]
 fn test_eval_point_degree1_line_midpoint() {
     let poles = vec![Point::ORIGIN, Point::new(2.0, 0.0, 0.0)];
     let curve = BSplineCurve::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
-    assert_eq!(curve.eval_point(0.5), Point::new(1.0, 0.0, 0.0));
+    assert_eq!(curve.point_at(0.5), Point::new(1.0, 0.0, 0.0));
 }
 
 #[test]
@@ -124,22 +124,22 @@ fn test_eval_points_matches_mapped_eval_point() {
     let poles = vec![Point::ORIGIN, Point::new(2.0, 0.0, 0.0)];
     let curve = BSplineCurve::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
     let us = [0.0, 0.3, 0.5, 1.0];
-    let expected: Vec<Point> = us.iter().map(|&u| curve.eval_point(u)).collect();
-    assert_eq!(curve.eval_points(&us), expected);
+    let expected: Vec<Point> = us.iter().map(|&u| curve.point_at(u)).collect();
+    assert_eq!(curve.points_at(&us), expected);
 }
 
 #[test]
 fn test_eval_derivative_order1_constant_tangent() {
     let poles = vec![Point::ORIGIN, Point::new(2.0, 0.0, 0.0)];
     let curve = BSplineCurve::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
-    assert_eq!(curve.eval_derivative(0.5, 1), Vector::new(2.0, 0.0, 0.0));
+    assert_eq!(curve.derivative(0.5, 1), Vector::new(2.0, 0.0, 0.0));
 }
 
 #[test]
 fn test_eval_derivative_order2_of_line_is_zero() {
     let poles = vec![Point::ORIGIN, Point::new(2.0, 0.0, 0.0)];
     let curve = BSplineCurve::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
-    assert_eq!(curve.eval_derivative(0.5, 2), Vector::ZERO);
+    assert_eq!(curve.derivative(0.5, 2), Vector::ZERO);
 }
 
 #[test]
@@ -147,15 +147,15 @@ fn test_eval_derivative_order2_of_line_is_zero() {
 fn test_eval_derivative_order0_panics() {
     let poles = vec![Point::ORIGIN, Point::new(2.0, 0.0, 0.0)];
     let curve = BSplineCurve::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
-    curve.eval_derivative(0.5, 0);
+    curve.derivative(0.5, 0);
 }
 
 #[test]
 fn test_eval_derivative_above_the_degree_is_zero() {
     let poles = vec![Point::ORIGIN, Point::new(2.0, 0.0, 0.0)];
     let curve = BSplineCurve::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
-    assert_eq!(curve.eval_derivative(0.5, 2), Vector::ZERO);
-    assert_eq!(curve.eval_derivative(0.5, 3), Vector::ZERO);
+    assert_eq!(curve.derivative(0.5, 2), Vector::ZERO);
+    assert_eq!(curve.derivative(0.5, 3), Vector::ZERO);
 }
 
 #[test]
@@ -169,8 +169,8 @@ fn test_eval_derivative_of_a_cubic_is_its_constant_third_derivative() {
     ];
     let curve = BSplineCurve::new(3, poles, vec![0.0, 1.0], vec![4, 4], false).unwrap();
     for u in [0.0, 0.3, 1.0] {
-        assert!((curve.eval_derivative(u, 3) - Vector::new(6.0, 0.0, 0.0)).magnitude() < 1e-12);
-        assert_eq!(curve.eval_derivative(u, 4), Vector::ZERO);
+        assert!((curve.derivative(u, 3) - Vector::new(6.0, 0.0, 0.0)).magnitude() < 1e-12);
+        assert_eq!(curve.derivative(u, 4), Vector::ZERO);
     }
 }
 
@@ -185,10 +185,10 @@ fn test_eval_derivative_of_a_rational_circle_matches_the_circle_at_every_order()
     let h = 1e-5;
     for order in 2..=5u32 {
         for u in [0.3, 1.1, 2.0] {
-            let below = circle.eval_derivative(u - h, order - 1);
-            let above = circle.eval_derivative(u + h, order - 1);
+            let below = circle.derivative(u - h, order - 1);
+            let above = circle.derivative(u + h, order - 1);
             let difference = (above - below) * (1.0 / (2.0 * h));
-            let exact = circle.eval_derivative(u, order);
+            let exact = circle.derivative(u, order);
             let scale = exact.magnitude().max(1.0);
             assert!(
                 (exact - difference).magnitude() < 1e-4 * scale,
@@ -220,8 +220,8 @@ fn test_periodic_bounds_are_full_knot_span() {
 fn test_periodic_seam_point_matches_across_wrap() {
     let curve = periodic_ring_curve();
     let (first, last) = curve.bounds();
-    let p_first = curve.eval_point(first);
-    let p_last = curve.eval_point(last);
+    let p_first = curve.point_at(first);
+    let p_last = curve.point_at(last);
     assert!((p_first.x - p_last.x).abs() < 1e-9);
     assert!((p_first.y - p_last.y).abs() < 1e-9);
     assert!((p_first.z - p_last.z).abs() < 1e-9);
@@ -232,12 +232,12 @@ fn test_periodic_out_of_window_u_matches_golden_samples() {
     let curve = periodic_ring_curve();
     // Golden samples from tests/fixtures/curves_bspline.json
     // (periodic_cubic_ring case) at u = -0.5 and u = 7.3.
-    let p = curve.eval_point(-0.5);
+    let p = curve.point_at(-0.5);
     assert!((p.x - 1.4375000000000002).abs() < 1e-7);
     assert!((p.y - 0.829941011960087).abs() < 1e-7);
     assert!((p.z - -6.938893903907228e-17).abs() < 1e-7);
 
-    let p = curve.eval_point(7.3);
+    let p = curve.point_at(7.3);
     assert!((p.x - -1.2338333333333324).abs() < 1e-7);
     assert!((p.y - 1.1134199941321936).abs() < 1e-7);
     assert!((p.z - 0.056799999999999996).abs() < 1e-7);
@@ -281,7 +281,7 @@ fn test_bspline_contains_segment() {
     let curve = degree_one_segment();
     let tol = Tolerance::DEFAULT;
     assert!(curve.contains(Point::new(1.0, 0.0, 0.0), tol));
-    assert!(curve.contains(curve.eval_point(0.25), tol));
+    assert!(curve.contains(curve.point_at(0.25), tol));
     assert!(!curve.contains(Point::new(1.0, 1.0, 0.0), tol));
     assert!(!curve.contains(Point::new(3.0, 0.0, 0.0), tol));
 }
@@ -291,7 +291,7 @@ fn test_bspline_project_point_periodic_ring() {
     let curve = periodic_ring_curve();
     let tol = Tolerance::DEFAULT;
     // On-curve point projects to (near-)zero distance.
-    let on = curve.eval_point(2.5);
+    let on = curve.point_at(2.5);
     assert_eq!(curve.project_point(on, tol).distance, 0.0);
     assert!(curve.contains(on, tol));
     // Off-curve: beat against dense brute-force sampling.
@@ -301,7 +301,7 @@ fn test_bspline_project_point_periodic_ring() {
     let mut best = f64::INFINITY;
     for i in 0..=2000 {
         let d = curve
-            .eval_point(first + (last - first) * i as f64 / 2000.0)
+            .point_at(first + (last - first) * i as f64 / 2000.0)
             .distance(query);
         best = best.min(d);
     }
@@ -358,7 +358,7 @@ fn test_bspline_project_point_close_basins_in_one_span() {
     .unwrap();
     for i in 0..=200 {
         let t = 6.12 + 1.38 * i as f64 / 200.0;
-        let q = curve.eval_point(t);
+        let q = curve.point_at(t);
         let proj = curve.project_point(q, Tolerance::DEFAULT);
         assert_eq!(proj.distance, 0.0, "t = {t}: {proj:?}");
         assert_eq!(curve.extrema(q, Tolerance::DEFAULT)[0].distance, 0.0);
@@ -393,8 +393,8 @@ fn test_bspline_project_point_exact_foot() {
     let proj = curve.project_point(query, Tolerance::DEFAULT);
     assert!((proj.parameter - 1.756876).abs() < 1e-6);
     assert!((proj.distance - 5.349035).abs() < 1e-6);
-    let r = curve.eval_point(proj.parameter) - query;
-    let d1 = curve.eval_derivative(proj.parameter, 1);
+    let r = curve.point_at(proj.parameter) - query;
+    let d1 = curve.derivative(proj.parameter, 1);
     assert!(
         r.dot(d1).abs() < 1e-12 * r.magnitude() * d1.magnitude(),
         "{}",
@@ -419,8 +419,8 @@ fn test_interpolate_line_points() {
             assert!(curve.contains(*p, tol), "{param:?}");
         }
         // Collinear data interpolates the straight segment.
-        assert!((curve.eval_point(0.5).y).abs() < 1e-9);
-        assert!((curve.eval_point(0.5).z).abs() < 1e-9);
+        assert!((curve.point_at(0.5).y).abs() < 1e-9);
+        assert!((curve.point_at(0.5).z).abs() < 1e-9);
     }
 }
 
@@ -439,7 +439,7 @@ fn test_interpolate_circle_points() {
     }
     // Near-circular: radius stays close to 2.
     for i in 0..=40 {
-        let p = curve.eval_point(i as f64 / 40.0);
+        let p = curve.point_at(i as f64 / 40.0);
         let r = (p.x * p.x + p.y * p.y).sqrt();
         assert!((r - 2.0).abs() < 0.05, "{p:?}");
     }
@@ -485,7 +485,7 @@ fn test_approximate_circle_fewer_poles() {
     assert_eq!(curve.degree(), 3);
     // Near-circular fit with fewer poles than points.
     for i in 0..=60 {
-        let p = curve.eval_point(i as f64 / 60.0);
+        let p = curve.point_at(i as f64 / 60.0);
         let r = (p.x * p.x + p.y * p.y).sqrt();
         assert!((r - 2.0).abs() < 0.05, "{p:?}");
     }
@@ -501,7 +501,7 @@ fn test_approximate_line_data_exact() {
     ];
     let curve = BSplineCurve::approximate(&points, 1, 2, PointParametrization::Chordal).unwrap();
     for i in 0..=20 {
-        let p = curve.eval_point(i as f64 / 20.0);
+        let p = curve.point_at(i as f64 / 20.0);
         assert!(p.y.abs() < 1e-9 && p.z.abs() < 1e-9, "{p:?}");
         assert!((0.0..=3.0).contains(&p.x), "{p:?}");
     }
@@ -555,8 +555,8 @@ fn test_bspline_curve3d_transformed_translation_spot_check() {
     assert_eq!(moved.knots(), curve.knots());
     assert_eq!(moved.bounds(), curve.bounds());
     // Hand-computed: translation shifts every evaluation.
-    let p = moved.eval_point(0.5);
-    let q = curve.eval_point(0.5);
+    let p = moved.point_at(0.5);
+    let q = curve.point_at(0.5);
     assert_eq!(p, Point::new(q.x + 1.0, q.y + 1.0, q.z + 1.0));
 }
 
@@ -570,20 +570,20 @@ fn test_bspline_curve3d_transformed_round_trip_and_mirror() {
     let tol = Tolerance::DEFAULT;
     for i in 0..=10 {
         let u = i as f64 / 10.0;
-        assert!(moved.contains(t.apply_point(curve.eval_point(u)), tol));
+        assert!(moved.contains(t.apply_point(curve.point_at(u)), tol));
     }
     let inv = Transform::scaling(Point::ORIGIN, 0.5).then(Transform::rotation(axis, -PI / 3.0));
     let back = moved.transformed(inv).unwrap();
     for i in 0..=10 {
         let u = i as f64 / 10.0;
-        assert!(back.eval_point(u).distance(curve.eval_point(u)) < 1e-9);
+        assert!(back.point_at(u).distance(curve.point_at(u)) < 1e-9);
     }
     // Mirror preserves the point set (as a fresh pole net).
     let m = Transform::mirror_plane(Frame::WORLD);
     let mirrored = curve.transformed(m).unwrap();
     for i in 0..=10 {
         let u = i as f64 / 10.0;
-        assert!(mirrored.contains(m.apply_point(curve.eval_point(u)), tol));
+        assert!(mirrored.contains(m.apply_point(curve.point_at(u)), tol));
     }
     assert_eq!(mirrored.transformed(m).unwrap(), curve);
 }
@@ -681,8 +681,8 @@ fn assert_same_curve(curve: &BSplineCurve, refined: &BSplineCurve) {
         params.extend([first - 0.3 * period, last + 0.45 * period]);
     }
     for u in params {
-        let (p, d1, d2) = curve.eval_d2(u);
-        let (q, e1, e2) = refined.eval_d2(u);
+        let (p, d1, d2) = curve.second_derivatives(u);
+        let (q, e1, e2) = refined.second_derivatives(u);
         let pairs = [(p - Point::ORIGIN, q - Point::ORIGIN), (d1, e1), (d2, e2)];
         for (k, (a, b)) in pairs.into_iter().enumerate() {
             let tol = 1e-12 * size.max(a.magnitude());
@@ -781,10 +781,10 @@ fn test_bezier_pieces_cover_every_span_and_evaluate_as_the_curve() {
             for i in 0..=8 {
                 let u = a + (b - a) * i as f64 / 8.0;
                 let tol = 1e-12 * size;
-                assert!(piece.eval_point(u).distance(curve.eval_point(u)) <= tol);
+                assert!(piece.point_at(u).distance(curve.point_at(u)) <= tol);
                 if (1..8).contains(&i) {
-                    let (_, d1, d2) = curve.eval_d2(u);
-                    let (_, e1, e2) = piece.eval_d2(u);
+                    let (_, d1, d2) = curve.second_derivatives(u);
+                    let (_, e1, e2) = piece.second_derivatives(u);
                     assert!((d1 - e1).magnitude() <= tol.max(1e-12 * d1.magnitude()));
                     assert!((d2 - e2).magnitude() <= tol.max(1e-12 * d2.magnitude()));
                 }
@@ -916,7 +916,7 @@ fn test_length_adds_up_over_pieces() {
         let pieces = low.length(1e-12) + high.length(1e-12);
         assert!((whole - pieces).abs() <= 1e-11, "{whole} vs {pieces}");
         // A fine polyline along the curve is a little shorter.
-        let points = curve.eval_points(
+        let points = curve.points_at(
             &(0..=4000)
                 .map(|i| first + (last - first) * i as f64 / 4000.0)
                 .collect::<Vec<_>>(),
@@ -943,8 +943,8 @@ fn test_refine_knots_beyond_the_stack() {
     assert_eq!(refined.poles().len(), curve.poles().len() + knots.len());
     for i in 0..=100 {
         let u = first + (last - first) * i as f64 / 100.0;
-        let (p, d1) = curve.eval_d1(u);
-        let (q, e1) = refined.eval_d1(u);
+        let (p, d1) = curve.first_derivatives(u);
+        let (q, e1) = refined.first_derivatives(u);
         assert!(p.distance(q) <= 1e-12 * 8.0, "u = {u}: {p:?} vs {q:?}");
         assert!(
             (d1 - e1).magnitude() <= 1e-11 * d1.magnitude().max(8.0),
@@ -1158,7 +1158,7 @@ fn sampled_deviation(a: &BSplineCurve, b: &BSplineCurve) -> f64 {
         .map(|i| first + (last - first) * i as f64 / 2000.0)
         .chain(a.knots().iter().chain(b.knots()).copied())
         .filter(|u| (first..=last).contains(u))
-        .map(|u| a.eval_point(u).distance(b.eval_point(u)))
+        .map(|u| a.point_at(u).distance(b.point_at(u)))
         .fold(0.0, f64::max)
 }
 
@@ -1633,7 +1633,7 @@ fn test_bspline_curve3d_transformed_rational_keeps_weights() {
     let moved = curve.transformed(t).unwrap();
     assert_eq!(moved.weights(), curve.weights());
     assert!(moved.is_rational());
-    let p = moved.eval_point(1.0);
+    let p = moved.point_at(1.0);
     assert!((p.x - 5.0).abs() < 1e-9 && (p.y - 1.0).abs() < 1e-9);
 }
 
@@ -1691,8 +1691,8 @@ fn assert_piece(curve: &BSplineCurve, piece: &BSplineCurve, (first, last): (f64,
     let stretch = (shortest_span(curve) / shortest_span(piece)).max(1.0);
     for i in 0..48 {
         let u = first + (last - first) * (i as f64 + 0.5) / 48.0;
-        let (p, d1, d2) = curve.eval_d2(u);
-        let (q, e1, e2) = piece.eval_d2(u);
+        let (p, d1, d2) = curve.second_derivatives(u);
+        let (q, e1, e2) = piece.second_derivatives(u);
         assert_close(
             p - Point::ORIGIN,
             q - Point::ORIGIN,
@@ -1703,7 +1703,7 @@ fn assert_piece(curve: &BSplineCurve, piece: &BSplineCurve, (first, last): (f64,
         assert_close(d2, e2, size * stretch * stretch, &format!("d2 at {u}"));
     }
     for &u in piece.knots() {
-        let (p, q) = (curve.eval_point(u), piece.eval_point(u));
+        let (p, q) = (curve.point_at(u), piece.point_at(u));
         assert_close(
             p - Point::ORIGIN,
             q - Point::ORIGIN,
@@ -1811,8 +1811,8 @@ fn test_split_at_gives_two_continuous_pieces() {
                 whole + curve.degree() - present + 1
             );
             let size = pole_size(&curve);
-            let (p, d) = left.eval_d1(u);
-            let (q, e) = right.eval_d1(u);
+            let (p, d) = left.first_derivatives(u);
+            let (q, e) = right.first_derivatives(u);
             assert_close(p - Point::ORIGIN, q - Point::ORIGIN, size, "split point");
             if !curve.knots().contains(&u) {
                 assert_close(d, e, size, "split tangent");
@@ -1919,8 +1919,8 @@ fn assert_reversed(curve: &BSplineCurve, reversed: &BSplineCurve) {
             u if u == last => first,
             u => first + last - u,
         };
-        let (p, d1, d2) = curve.eval_d2(mirrored);
-        let (q, e1, e2) = reversed.eval_d2(u);
+        let (p, d1, d2) = curve.second_derivatives(mirrored);
+        let (q, e1, e2) = reversed.second_derivatives(u);
         assert_close(
             p - Point::ORIGIN,
             q - Point::ORIGIN,
@@ -2041,23 +2041,23 @@ fn creased_cubic() -> BSplineCurve {
 fn test_sided_derivatives_match_split_pieces() {
     let curve = creased_cubic();
     let (left, right) = curve.split_at(0.5).unwrap();
-    let below1 = curve.eval_derivative_sided(0.5, 1, Side::Below);
-    let above1 = curve.eval_derivative_sided(0.5, 1, Side::Above);
-    let below2 = curve.eval_derivative_sided(0.5, 2, Side::Below);
-    let above2 = curve.eval_derivative_sided(0.5, 2, Side::Above);
+    let below1 = curve.derivative_sided(0.5, 1, Side::Below);
+    let above1 = curve.derivative_sided(0.5, 1, Side::Above);
+    let below2 = curve.derivative_sided(0.5, 2, Side::Below);
+    let above2 = curve.derivative_sided(0.5, 2, Side::Above);
     // C1: positions and first derivatives agree, seconds differ.
     assert!((below1 - above1).magnitude() < 1e-9);
     assert!((below2 - above2).magnitude() > 1e-6);
     // Each side matches its split piece evaluated at the cut.
     let (_, left_hi) = left.bounds();
     let (right_lo, _) = right.bounds();
-    assert!((left.eval_derivative(left_hi, 1) - below1).magnitude() < 1e-9);
-    assert!((left.eval_derivative(left_hi, 2) - below2).magnitude() < 1e-9);
-    assert!((right.eval_derivative(right_lo, 1) - above1).magnitude() < 1e-9);
-    assert!((right.eval_derivative(right_lo, 2) - above2).magnitude() < 1e-9);
+    assert!((left.derivative(left_hi, 1) - below1).magnitude() < 1e-9);
+    assert!((left.derivative(left_hi, 2) - below2).magnitude() < 1e-9);
+    assert!((right.derivative(right_lo, 1) - above1).magnitude() < 1e-9);
+    assert!((right.derivative(right_lo, 2) - above2).magnitude() < 1e-9);
     // Points agree across the knot.
-    let (pb, _) = curve.eval_d1_sided(0.5, Side::Below);
-    let (pa, _) = curve.eval_d1_sided(0.5, Side::Above);
+    let (pb, _) = curve.first_derivatives_sided(0.5, Side::Below);
+    let (pa, _) = curve.first_derivatives_sided(0.5, Side::Above);
     assert!(pb.distance(pa) < 1e-12);
 }
 
@@ -2065,11 +2065,11 @@ fn test_sided_derivatives_match_split_pieces() {
 fn test_sided_evaluation_agrees_off_knots() {
     let curve = creased_cubic();
     for u in [0.1, 0.49, 0.51, 0.9] {
-        let (p, d1, d2) = curve.eval_d2(u);
-        assert_eq!(curve.eval_d1_sided(u, Side::Below), (p, d1));
-        assert_eq!(curve.eval_d1_sided(u, Side::Above), (p, d1));
-        assert_eq!(curve.eval_derivative_sided(u, 1, Side::Below), d1);
-        assert_eq!(curve.eval_derivative_sided(u, 2, Side::Above), d2);
+        let (p, d1, d2) = curve.second_derivatives(u);
+        assert_eq!(curve.first_derivatives_sided(u, Side::Below), (p, d1));
+        assert_eq!(curve.first_derivatives_sided(u, Side::Above), (p, d1));
+        assert_eq!(curve.derivative_sided(u, 1, Side::Below), d1);
+        assert_eq!(curve.derivative_sided(u, 2, Side::Above), d2);
     }
 }
 
@@ -2079,9 +2079,9 @@ fn test_sided_evaluation_on_periodic_matches_plain() {
     // both sides equal plain evaluation up to rounding.
     let curve = periodic_ring_curve();
     for u in [0.0, 2.0, 5.0, 6.0] {
-        let (p, d1, d2) = curve.eval_d2(u);
+        let (p, d1, d2) = curve.second_derivatives(u);
         for side in [Side::Below, Side::Above] {
-            let (sided_p, sided_d1, sided_d2) = curve.eval_d2_sided(u, side);
+            let (sided_p, sided_d1, sided_d2) = curve.second_derivatives_sided(u, side);
             assert!(sided_p.distance(p) < 1e-12);
             assert!((sided_d1 - d1).magnitude() < 1e-9);
             assert!((sided_d2 - d2).magnitude() < 1e-9);
@@ -2109,34 +2109,40 @@ fn test_sided_derivatives_on_periodic_creases_are_limits() {
     // The derivative is piecewise linear, so a parameter `step` away
     // from the crease is within O(step) of the one-sided limit.
     for crease in [2.0, 0.0, 5.0] {
-        let below = curve.eval_derivative_sided(crease, 1, Side::Below);
-        let above = curve.eval_derivative_sided(crease, 1, Side::Above);
+        let below = curve.derivative_sided(crease, 1, Side::Below);
+        let above = curve.derivative_sided(crease, 1, Side::Above);
         assert!((below - above).magnitude() > 0.1, "no crease at {crease}");
         let before = if crease == 0.0 { 5.0 } else { crease };
         let after = if crease == 5.0 { 0.0 } else { crease };
-        assert!((curve.eval_derivative(before - step, 1) - below).magnitude() < 1e-6);
-        assert!((curve.eval_derivative(after + step, 1) - above).magnitude() < 1e-6);
-        let (point_below, _) = curve.eval_d1_sided(crease, Side::Below);
-        let (point_above, _) = curve.eval_d1_sided(crease, Side::Above);
+        assert!((curve.derivative(before - step, 1) - below).magnitude() < 1e-6);
+        assert!((curve.derivative(after + step, 1) - above).magnitude() < 1e-6);
+        let (point_below, _) = curve.first_derivatives_sided(crease, Side::Below);
+        let (point_above, _) = curve.first_derivatives_sided(crease, Side::Above);
         assert!(point_below.distance(point_above) < 1e-12);
     }
     // Either bound names the seam.
     for side in [Side::Below, Side::Above] {
         assert_eq!(
-            curve.eval_d2_sided(0.0, side),
-            curve.eval_d2_sided(5.0, side)
+            curve.second_derivatives_sided(0.0, side),
+            curve.second_derivatives_sided(5.0, side)
         );
         assert_eq!(
-            curve.eval_d2_sided(-5.0, side),
-            curve.eval_d2_sided(10.0, side)
+            curve.second_derivatives_sided(-5.0, side),
+            curve.second_derivatives_sided(10.0, side)
         );
     }
     // Plain evaluation takes the above side, except at the upper bound.
-    assert_eq!(curve.eval_d2(0.0), curve.eval_d2_sided(0.0, Side::Above));
-    assert_eq!(curve.eval_d2(2.0), curve.eval_d2_sided(2.0, Side::Above));
     assert_eq!(
-        curve.eval_d2(5.0).1,
-        curve.eval_derivative_sided(5.0, 1, Side::Below)
+        curve.second_derivatives(0.0),
+        curve.second_derivatives_sided(0.0, Side::Above)
+    );
+    assert_eq!(
+        curve.second_derivatives(2.0),
+        curve.second_derivatives_sided(2.0, Side::Above)
+    );
+    assert_eq!(
+        curve.second_derivatives(5.0).1,
+        curve.derivative_sided(5.0, 1, Side::Below)
     );
 }
 
@@ -2155,16 +2161,16 @@ fn test_sided_matches_neighbor_spans_at_knot() {
     ];
     let curve = BSplineCurve::new(3, poles, vec![0.0, 0.4, 1.0], vec![4, 2, 4], false).unwrap();
     for order in [1u32, 2] {
-        let below = curve.eval_derivative_sided(0.4, order, Side::Below);
-        let above = curve.eval_derivative_sided(0.4, order, Side::Above);
-        let left = curve.eval_derivative(0.4 - 1e-13, order);
-        let right = curve.eval_derivative(0.4 + 1e-13, order);
+        let below = curve.derivative_sided(0.4, order, Side::Below);
+        let above = curve.derivative_sided(0.4, order, Side::Above);
+        let left = curve.derivative(0.4 - 1e-13, order);
+        let right = curve.derivative(0.4 + 1e-13, order);
         assert!((below - left).magnitude() < 1e-9, "order {order}");
         assert!((above - right).magnitude() < 1e-9, "order {order}");
-        assert_eq!(above, curve.eval_derivative(0.4, order));
+        assert_eq!(above, curve.derivative(0.4, order));
     }
     // Positions are continuous: bitwise identical from either span.
-    let (pb, _) = curve.eval_d1_sided(0.4, Side::Below);
-    let (pa, _) = curve.eval_d1_sided(0.4, Side::Above);
+    let (pb, _) = curve.first_derivatives_sided(0.4, Side::Below);
+    let (pa, _) = curve.first_derivatives_sided(0.4, Side::Above);
     assert_eq!(pb, pa);
 }

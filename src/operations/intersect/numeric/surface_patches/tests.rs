@@ -27,7 +27,7 @@ fn assert_maps_back<S: ParametricSurface>(surface: &S, patches: &SurfacePatches)
                 let u = u0 + (u1 - u0) * f64::from(i) / 8.0;
                 let v = v0 + (v1 - v0) * f64::from(j) / 8.0;
                 let (su, sv) = patches.parameters((u, v));
-                let (on_patch, on_surface) = (patch.eval_point(u, v), surface.eval_point(su, sv));
+                let (on_patch, on_surface) = (patch.point_at(u, v), surface.point_at(su, sv));
                 assert!(
                     on_patch.distance(on_surface) < 1e-9,
                     "({u}, {v}) -> ({su}, {sv}): {on_patch:?} vs {on_surface:?}"
@@ -119,7 +119,7 @@ fn test_a_cone_holding_its_apex_splits_at_it() {
         let u = std::f64::consts::TAU * f64::from(i) / 8.0;
         let (su, sv) = patches.parameters((u, apex));
         assert!((sv - apex).abs() < 1e-12);
-        assert!(cone.eval_point(su, sv).distance(Point::ORIGIN) < 1e-12);
+        assert!(cone.point_at(su, sv).distance(Point::ORIGIN) < 1e-12);
     }
     // A cover above the apex leaves one nappe.
     let above = [-2.0, -2.0, 0.5, 2.0, 2.0, 2.0];

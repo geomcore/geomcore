@@ -26,7 +26,7 @@ fn assert_pieces_follow(curve: &BSplineCurve, range: (f64, f64), breaks: &[f64])
     for i in 0..pieces.len() {
         let (t0, t1) = pieces.ranges[i];
         for f in [0.0, 0.3, 0.5, 1.0] {
-            let expected = curve.eval_point(t0 + f * (t1 - t0));
+            let expected = curve.point_at(t0 + f * (t1 - t0));
             assert!(bezier_point(pieces.piece(i), f).distance(expected) < 1e-12);
         }
     }

@@ -6,11 +6,11 @@ use crate::base::frame::frame_error;
 use crate::base::tier::operations::FrameOperations;
 use crate::base::tier::{TierPoint, impl_for_both_tiers};
 use crate::base::transform::image_error;
-use crate::geometry::curves::ReversibleCurve;
 use crate::geometry::curves::{ElementaryCurve, ParametricCurve, ParametricCurve2D};
+use crate::geometry::curves::{GenericLine, ReversibleCurve};
 use crate::geometry::curves::{PointExtrema, PointExtrema2D};
 use crate::math::elementary::curve as elementary;
-use crate::math::numeric::{polish_root, real_roots};
+use crate::math::numeric::{polish_root, quadrature, real_roots};
 use crate::operations::projection::CurveProjection;
 use crate::{
     Frame, Frame2D, Point, Point2D, Tolerance, Transform, Vector, Vector2D, operations::projection,
@@ -72,9 +72,9 @@ impl std::error::Error for EllipseConstructionError {}
 /// use geomcore::prelude::*;
 /// use geomcore::{Ellipse, Ellipse2D, Point, Point2D, Vector, Vector2D};
 /// let ellipse = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 3.0, 1.5).unwrap();
-/// assert_eq!(ellipse.eval_point(0.0), Point::new(3.0, 0.0, 0.0));
+/// assert_eq!(ellipse.point_at(0.0), Point::new(3.0, 0.0, 0.0));
 /// let ellipse_2d = Ellipse2D::new(Point2D::ORIGIN, Vector2D::X, 3.0, 1.5).unwrap();
-/// assert_eq!(ellipse_2d.eval_point(0.0), Point2D::new(3.0, 0.0));
+/// assert_eq!(ellipse_2d.point_at(0.0), Point2D::new(3.0, 0.0));
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct GenericEllipse<P: TierPoint> {
@@ -95,7 +95,7 @@ pub struct GenericEllipse<P: TierPoint> {
 /// use geomcore::prelude::*;
 /// use geomcore::{Ellipse, Point, Vector};
 /// let ellipse = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 3.0, 1.5).unwrap();
-/// assert_eq!(ellipse.eval_point(0.0), Point::new(3.0, 0.0, 0.0));
+/// assert_eq!(ellipse.point_at(0.0), Point::new(3.0, 0.0, 0.0));
 /// ```
 pub type Ellipse = GenericEllipse<Point>;
 
@@ -111,7 +111,7 @@ pub type Ellipse = GenericEllipse<Point>;
 /// use geomcore::prelude::*;
 /// use geomcore::{Ellipse2D, Point2D, Vector2D};
 /// let ellipse = Ellipse2D::new(Point2D::ORIGIN, Vector2D::X, 3.0, 1.5).unwrap();
-/// assert_eq!(ellipse.eval_point(0.0), Point2D::new(3.0, 0.0));
+/// assert_eq!(ellipse.point_at(0.0), Point2D::new(3.0, 0.0));
 /// ```
 pub type Ellipse2D = GenericEllipse<Point2D>;
 
@@ -220,10 +220,108 @@ impl<P: TierPoint> GenericEllipse<P> {
     /// use geomcore::{Ellipse, Point, Vector};
     /// use std::f64::consts::PI;
     /// let ellipse = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 3.0, 1.5).unwrap();
-    /// assert!((ellipse.area() - PI * 4.5).abs() < 1e-12);
+    /// assert!((ellipse.enclosed_area() - PI * 4.5).abs() < 1e-12);
     /// ```
-    pub fn area(&self) -> f64 {
+    pub fn enclosed_area(&self) -> f64 {
         std::f64::consts::PI * self.major_radius * self.minor_radius
+    }
+
+    /// The eccentricity, `sqrt(1 - (minor/major)^2)`: 0 for a circle, below
+    /// 1 otherwise.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Ellipse, Frame};
+    /// let ellipse = Ellipse::from_frame(Frame::WORLD, 5.0, 3.0).unwrap();
+    /// assert_eq!(ellipse.eccentricity(), 0.8);
+    /// ```
+    pub fn eccentricity(&self) -> f64 {
+        self.focal_reach() / self.major_radius
+    }
+
+    /// The two foci, on the major axis at `sqrt(major^2 - minor^2)` from
+    /// the center, first along its x direction: both the center for a
+    /// circle.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Ellipse, Frame, Point};
+    /// let ellipse = Ellipse::from_frame(Frame::WORLD, 5.0, 3.0).unwrap();
+    /// assert_eq!(ellipse.foci(), [Point::new(4.0, 0.0, 0.0), Point::new(-4.0, 0.0, 0.0)]);
+    /// ```
+    pub fn foci(&self) -> [P; 2] {
+        let reach = self.focal_reach();
+        let x = self.frame.x_direction();
+        let center = self.center();
+        [center + x * reach, center + x * -reach]
+    }
+
+    /// The two directrices, across the major axis at `major^2 / reach` from
+    /// the center (`reach` the foci's distance), in the order of
+    /// [`foci`](Self::foci): a point of the curve is
+    /// [`eccentricity`](Self::eccentricity) times as far from a focus as
+    /// from its directrix. `None` for a circle, whose directrices are at
+    /// infinity.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Ellipse, Frame, Point};
+    /// let ellipse = Ellipse::from_frame(Frame::WORLD, 5.0, 3.0).unwrap();
+    /// let [own, _] = ellipse.directrices().unwrap();
+    /// assert_eq!(own.origin(), Point::new(6.25, 0.0, 0.0));
+    /// assert!(Ellipse::from_frame(Frame::WORLD, 1.0, 1.0).unwrap().directrices().is_none());
+    /// ```
+    pub fn directrices(&self) -> Option<[GenericLine<P>; 2]> {
+        let reach = self.focal_reach();
+        if reach == 0.0 {
+            return None;
+        }
+        let offset = self.major_radius * (self.major_radius / reach);
+        let (x, y) = (self.frame.x_direction(), self.frame.y_direction());
+        let center = self.center();
+        Some([offset, -offset].map(|offset| {
+            GenericLine::new(center + x * offset, y).expect("a frame direction is a unit vector")
+        }))
+    }
+
+    /// The distance from the center to each focus, `sqrt(major^2 - minor^2)`,
+    /// factored to keep its precision when the radii are close.
+    fn focal_reach(&self) -> f64 {
+        let (a, b) = (self.major_radius, self.minor_radius);
+        ((a - b) * (a + b)).sqrt()
+    }
+
+    /// The length of the ellipse, its perimeter, within `max_error` as far
+    /// as the quadrature's own error estimate tells: it has no closed form.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Ellipse, Point, Vector};
+    /// use std::f64::consts::TAU;
+    /// let ellipse = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 2.0, 1.0).unwrap();
+    /// assert!((ellipse.length(1e-12) - 9.688_448_220_547_675).abs() < 1e-11);
+    /// // Equal radii make a circle.
+    /// let round = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 1.0, 1.0).unwrap();
+    /// assert!((round.length(1e-12) - TAU).abs() < 1e-12);
+    /// ```
+    pub fn length(&self, max_error: f64) -> f64 {
+        // The four quarters have one length.
+        4.0 * self.arc_length(0.0, 0.5 * std::f64::consts::PI, 0.25 * max_error)
+    }
+
+    /// The length of the arc from parameter `first` to `last`: the
+    /// integral of the speed `|(-a sin u, b cos u)|`.
+    pub(crate) fn arc_length(&self, first: f64, last: f64, max_error: f64) -> f64 {
+        let (a, b) = (self.major_radius, self.minor_radius);
+        let speed = |u: f64| {
+            let (sine, cosine) = u.sin_cos();
+            (a * sine).hypot(b * cosine)
+        };
+        quadrature::integrate(&speed, first, last, max_error)
     }
 
     /// The parameter to report for a point found at parameter `u`: `u`
@@ -434,9 +532,9 @@ impl Ellipse2D {
             return Err(EllipseConstructionError::InvertedAxis);
         }
         let y_axis = if cross < 0.0 {
-            -x_axis.perp()
+            -x_axis.perpendicular()
         } else {
-            x_axis.perp()
+            x_axis.perpendicular()
         };
         let frame = Frame2D::new(center, x_axis, y_axis).map_err(frame_error(
             EllipseConstructionError::NonFinite,
@@ -488,7 +586,7 @@ impl_for_both_tiers! {
                 .map(|t| {
                     let t = polish_root(g, dg, t, 8);
                     // Measured at the polished parameter, reported in bounds.
-                    let foot = self.eval_point(t);
+                    let foot = self.point_at(t);
                     (self.parameter_in_bounds(t, tol), foot, foot.distance(point))
                 })
                 .collect();
@@ -535,7 +633,7 @@ impl_for_both_tiers! {
                 return near;
             }
             let u = self.parameter_of(point, tol);
-            self.eval_point(u).distance(point) <= tol.confusion
+            self.point_at(u).distance(point) <= tol.confusion
                 || self.project_point(point, tol).distance <= tol.confusion
         }
 
@@ -551,13 +649,13 @@ impl_for_both_tiers! {
 impl_for_both_tiers! {
     impl ParametricCurve, ParametricCurve2D for GenericEllipse {
         #[inline]
-        fn eval_point(&self, u: f64) -> P {
+        fn point_at(&self, u: f64) -> P {
             elementary::ellipse_d0(&self.frame, self.major_radius, self.minor_radius, u)
         }
 
-        fn eval_derivative(&self, u: f64, order: u32) -> V {
+        fn derivative(&self, u: f64, order: u32) -> V {
             match order {
-                0 => panic!("eval_derivative: order must be >= 1 (use eval_point for order 0)"),
+                0 => panic!("derivative: order must be >= 1 (use point_at for order 0)"),
                 _ => elementary::ellipse_dn(
                     &self.frame,
                     self.major_radius,
