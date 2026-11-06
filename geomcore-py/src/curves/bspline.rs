@@ -1,4 +1,4 @@
-//! The Python class `geomcore.curves.BSplineCurve`, wrapping `geomcore::BSplineCurve`.
+//! The Python class `geomcore.BSplineCurve`, wrapping `geomcore::BSplineCurve`.
 
 use crate::arrays::Points;
 use crate::curves::*;
@@ -7,7 +7,7 @@ use crate::method_sets::*;
 use geomcore::{BSplineCurve, Point};
 
 /// A B-spline (optionally rational, optionally periodic) curve in 3D.
-#[pyclass(name = "BSplineCurve", module = "geomcore.curves", eq)]
+#[pyclass(name = "BSplineCurve", module = "geomcore", eq)]
 #[derive(Clone, PartialEq)]
 pub(crate) struct PyBSplineCurve(pub(crate) BSplineCurve);
 

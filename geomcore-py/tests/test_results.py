@@ -5,6 +5,10 @@ import math
 import pytest
 
 from geomcore import (
+    BSplineCurve,
+    BSplineSurface,
+    Circle,
+    Circle2D,
     Completeness,
     CompletenessStatus,
     CurveCurveExtrema,
@@ -16,26 +20,23 @@ from geomcore import (
     CurveSurfaceHit,
     CurveSurfaceIntersection,
     CurveSurfaceRegion,
+    Cylinder,
     Frame,
     IncompleteReason,
     IntersectionCurve,
     IntersectionMethod,
-    Point2D,
-    Point,
-    SurfaceSurfaceIntersection,
-    Vector2D,
-    Vector,
-)
-from geomcore.curves import (
-    BSplineCurve,
-    Circle2D,
-    Circle,
-    Line2D,
     Line,
-    TrimmedCurve2D,
+    Line2D,
+    Plane,
+    Point,
+    Point2D,
+    Sphere,
+    SurfaceSurfaceIntersection,
     TrimmedCurve,
+    TrimmedCurve2D,
+    Vector,
+    Vector2D,
 )
-from geomcore.surfaces import BSplineSurface, Cylinder, Plane, Sphere
 
 TAU = 2.0 * math.pi
 

@@ -35,9 +35,9 @@
 //! re-exported below, so a class file imports `crate::method_sets::*`.
 //!
 //! The stubs mirror each set as a stub-only class (`_CurveMethods`,
-//! `_SurfaceNormalMethods`, ...) in `geomcore/curves.pyi` or
-//! `surfaces.pyi`, which the class stubs inherit (ADR 0029). A method added
-//! to a set goes into that class too, with the same docstring.
+//! `_SurfaceNormalMethods`, ...) in `geomcore/__init__.pyi`, which the
+//! class stubs inherit (ADR 0029). A method added to a set goes into that
+//! class too, with the same docstring.
 
 pub(crate) use crate::arguments::{curve_2d_classes, curve_classes};
 pub(crate) use crate::arrays;

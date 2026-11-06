@@ -6,8 +6,7 @@ import math
 
 import pytest
 
-from geomcore import ConstructionError, Point, Point2D, Tolerance
-from geomcore.curves import BSplineCurve, BSplineCurve2D
+from geomcore import BSplineCurve, BSplineCurve2D, ConstructionError, Point, Point2D, Tolerance
 
 _POLES = [Point(0, 0, 0), Point(1, 2, 0.5), Point(3, 2, 1), Point(4, 0, 0.3), Point(5, 1, 2)]
 

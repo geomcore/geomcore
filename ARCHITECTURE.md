@@ -246,7 +246,7 @@ The table at the top of `method_sets.rs` says which set follows from
 which trait.
 
 The stubs mirror the sets (ADR 0029). Each set is a stub-only private
-class in `curves.pyi` or `surfaces.pyi` (`_CurveMethods`,
+class in `geomcore/__init__.pyi` (`_CurveMethods`,
 `_DiscretizeMethods`, `_SurfaceMethods`, ...) holding the set's typed
 signatures and its docstrings. A class stub inherits the sets its
 `shape_methods!` line names and lists only its own methods. What differs
@@ -271,11 +271,11 @@ so other Python threads run during a search (ADR 0021).
 - Add one `Variant => PyClass` line to the registry in `arguments.rs`.
   `intersect`, every argument that takes a curve or surface, and every
   method that returns one then accept the class.
-- Add its stub to `geomcore-py/geomcore/curves.pyi` (or `surfaces.pyi`):
-  a class inheriting the stub classes of the sets named in its
-  `shape_methods!` line, with its own methods only, and add it to the
-  `_WholeCurve`, `_Curve2D` or `_Surface` union there. stubtest checks
-  the stub's methods against the class.
+- Add its stub to `geomcore-py/geomcore/__init__.pyi`: a class
+  inheriting the stub classes of the sets named in its `shape_methods!`
+  line, with its own methods only. Add it to the `Curve`, `Curve2D` or
+  `Surface` union there and in `__init__.py`. stubtest checks the stub's
+  methods against the class.
 - `tests/test_parity.py` fails until the new class has a fixture. It then
   checks that the class has every method its stub inherits, and runs it
   through `intersect` against every other class.

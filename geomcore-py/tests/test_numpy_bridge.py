@@ -6,9 +6,17 @@ from typing import List, Sequence, Union
 import numpy
 import pytest
 
-from geomcore import Point, Point2D, Vector
-from geomcore.curves import BSplineCurve, BSplineCurve2D, Circle, Circle2D
-from geomcore.surfaces import BSplineSurface, Sphere
+from geomcore import (
+    BSplineCurve,
+    BSplineCurve2D,
+    BSplineSurface,
+    Circle,
+    Circle2D,
+    Point,
+    Point2D,
+    Sphere,
+    Vector,
+)
 
 
 def _rows(points: Sequence[Union[Point, Point2D]]) -> List[List[float]]:
