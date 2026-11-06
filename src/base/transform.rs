@@ -244,7 +244,7 @@ impl Transform {
         }
     }
 
-    /// Composes `self` with `next`: `self` is applied first, then `next`.
+    /// Composes `self` with `other`: `self` is applied first, then `other`.
     ///
     /// # Examples
     ///
@@ -259,12 +259,130 @@ impl Transform {
     /// assert!((p.x - 0.0).abs() < 1e-10);
     /// assert!((p.y - 1.0).abs() < 1e-10);
     /// ```
-    pub fn then(self, next: Transform) -> Transform {
-        let linear = mat_mul(next.linear, self.linear);
-        let translation = mat_vec(next.linear, self.translation) + next.translation;
+    pub fn then(self, other: Transform) -> Transform {
+        let linear = mat_mul(other.linear, self.linear);
+        let translation = mat_vec(other.linear, self.translation) + other.translation;
         Transform {
             linear,
             translation,
+        }
+    }
+
+    /// The transformation of a row-major 4×4 homogeneous `matrix`: a point
+    /// `p` maps to the upper 3×3 block times `p` plus the last column.
+    /// [`to_matrix`](Self::to_matrix) gives it back unchanged.
+    ///
+    /// # Errors
+    ///
+    /// [`TransformMatrixError::NonFinite`] for a NaN or infinite entry,
+    /// [`TransformMatrixError::NotAffine`] when the last row is not
+    /// `[0, 0, 0, 1]`, and [`TransformMatrixError::NotSimilarity`] when the
+    /// 3×3 block is not a uniform scale of a rotation or a mirror: its
+    /// columns must have one length and be orthogonal within the default
+    /// angular tolerance, as [`Frame::from_axes`] asks of its directions.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Point, Transform, TransformMatrixError};
+    /// let quarter_turn = [
+    ///     [0.0, -1.0, 0.0, 5.0],
+    ///     [1.0, 0.0, 0.0, 0.0],
+    ///     [0.0, 0.0, 1.0, 0.0],
+    ///     [0.0, 0.0, 0.0, 1.0],
+    /// ];
+    /// let pose = Transform::from_matrix(quarter_turn).unwrap();
+    /// assert_eq!(pose.apply_point(Point::new(1.0, 0.0, 0.0)), Point::new(5.0, 1.0, 0.0));
+    /// assert_eq!(pose.to_matrix(), quarter_turn);
+    ///
+    /// let mut sheared = quarter_turn;
+    /// sheared[0][2] = 0.5;
+    /// assert_eq!(Transform::from_matrix(sheared), Err(TransformMatrixError::NotSimilarity));
+    /// ```
+    pub fn from_matrix(matrix: [[f64; 4]; 4]) -> Result<Transform, TransformMatrixError> {
+        if !matrix.iter().flatten().all(|entry| entry.is_finite()) {
+            return Err(TransformMatrixError::NonFinite);
+        }
+        if matrix[3] != [0.0, 0.0, 0.0, 1.0] {
+            return Err(TransformMatrixError::NotAffine);
+        }
+        let linear = [0, 1, 2].map(|i| [matrix[i][0], matrix[i][1], matrix[i][2]]);
+        let column = |j: usize| Vector::new(linear[0][j], linear[1][j], linear[2][j]);
+        let columns = [column(0), column(1), column(2)];
+        if !is_similarity(columns) {
+            return Err(TransformMatrixError::NotSimilarity);
+        }
+        Ok(Transform {
+            linear,
+            translation: Vector::new(matrix[0][3], matrix[1][3], matrix[2][3]),
+        })
+    }
+
+    /// The row-major 4×4 homogeneous matrix of this transformation: the
+    /// linear part in the upper 3×3 block, the translation in the last
+    /// column, and `[0, 0, 0, 1]` below.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Transform, Vector};
+    /// let shift = Transform::translation(Vector::new(1.0, 2.0, 3.0));
+    /// assert_eq!(shift.to_matrix()[1], [0.0, 1.0, 0.0, 2.0]);
+    /// ```
+    pub fn to_matrix(self) -> [[f64; 4]; 4] {
+        let [x, y, z] = self.linear;
+        let t = self.translation;
+        [
+            [x[0], x[1], x[2], t.x],
+            [y[0], y[1], y[2], t.y],
+            [z[0], z[1], z[2], t.z],
+            [0.0, 0.0, 0.0, 1.0],
+        ]
+    }
+
+    /// The transformation that undoes this one: `self.then(inverse)` maps
+    /// every point back to itself, within rounding. The linear part is a
+    /// uniform scale `s` of an orthogonal map, so its inverse is its
+    /// transpose over `s²`.
+    ///
+    /// # Errors
+    ///
+    /// [`TransformError::Collapsed`] when the scale factor is zero, so the
+    /// transformation collapses space onto a point, and
+    /// [`TransformError::NonFinite`] when the inverse overflows `f64`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Axis, Point, Transform, TransformError, Vector};
+    /// let axis = Axis::new(Point::new(1.0, 0.0, 0.0), Vector::Z).unwrap();
+    /// let turn = Transform::rotation(axis, 0.3).then(Transform::scaling(Point::ORIGIN, 2.0));
+    /// let back = turn.inverse().unwrap();
+    /// let p = Point::new(3.0, -1.0, 2.0);
+    /// assert!(back.apply_point(turn.apply_point(p)).distance(p) < 1e-14);
+    /// assert_eq!(
+    ///     Transform::scaling(Point::ORIGIN, 0.0).inverse(),
+    ///     Err(TransformError::Collapsed)
+    /// );
+    /// ```
+    pub fn inverse(self) -> Result<Transform, TransformError> {
+        let square_scale = self.apply_vector(Vector::X).square_magnitude();
+        if square_scale == 0.0 {
+            return Err(TransformError::Collapsed);
+        }
+        let l = self.linear;
+        let linear = [0, 1, 2].map(|i| [0, 1, 2].map(|j| l[j][i] / square_scale));
+        let translation = -mat_vec(linear, self.translation);
+        let inverse = Transform {
+            linear,
+            translation,
+        };
+        let finite =
+            linear.iter().flatten().all(|entry| entry.is_finite()) && translation.is_finite();
+        if finite {
+            Ok(inverse)
+        } else {
+            Err(TransformError::NonFinite)
         }
     }
 
@@ -333,6 +451,53 @@ impl Transform {
     }
 }
 
+/// Whether three columns are those of a uniform scale of an orthogonal
+/// map: all zero, or of one length and orthogonal within the default
+/// angular tolerance, as [`Frame::from_axes`] checks its directions.
+fn is_similarity(columns: [Vector; 3]) -> bool {
+    let lengths = columns.map(Vector::magnitude);
+    let longest = lengths[0].max(lengths[1]).max(lengths[2]);
+    if longest == 0.0 {
+        return true;
+    }
+    let angular = crate::Tolerance::DEFAULT.angular;
+    let one_length = lengths
+        .iter()
+        .all(|&length| (longest - length) <= angular * longest);
+    let orthogonal = [(0, 1), (0, 2), (1, 2)]
+        .iter()
+        .all(|&(i, j)| columns[i].dot(columns[j]).abs() <= angular * longest * longest);
+    one_length && orthogonal
+}
+
+/// Error returned by [`Transform::from_matrix`] for a matrix that is not
+/// a transformation this crate represents.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TransformMatrixError {
+    /// An entry is NaN or infinite.
+    NonFinite,
+    /// The last row is not `[0, 0, 0, 1]`, so the matrix is projective
+    /// rather than affine.
+    NotAffine,
+    /// The 3×3 block is not a uniform scale of a rotation or a mirror: it
+    /// shears, or scales the directions by different factors.
+    NotSimilarity,
+}
+
+impl fmt::Display for TransformMatrixError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            TransformMatrixError::NonFinite => "a matrix entry is NaN or infinite",
+            TransformMatrixError::NotAffine => "the last row of the matrix is not [0, 0, 0, 1]",
+            TransformMatrixError::NotSimilarity => {
+                "the matrix is not a uniform scale of a rotation or a mirror"
+            }
+        })
+    }
+}
+
+impl std::error::Error for TransformMatrixError {}
+
 /// Error returned when a shape cannot be moved by a [`Transform`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TransformError {
@@ -382,7 +547,7 @@ pub(crate) fn image_error<E: PartialEq>(non_finite: E) -> impl FnOnce(E) -> Tran
 ///
 /// The image is parametrized by the image of the shape's parametrization:
 /// under a rotation, a translation or a mirror,
-/// `shape.transformed(t)?.eval_point(u)` is `t.apply_point(shape.eval_point(u))`
+/// `shape.transformed(t)?.point_at(u)` is `t.apply_point(shape.point_at(u))`
 /// at every parameter. Under a scale `s`, a parameter that is a length
 /// (along a line, a parabola, the generators of a plane, cylinder or cone,
 /// the sweep of an extrusion) scales by `s` too; angles and B-spline
@@ -406,7 +571,7 @@ pub(crate) fn image_error<E: PartialEq>(non_finite: E) -> impl FnOnce(E) -> Tran
 /// let circle = Curve::from(Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap());
 /// let shift = Transform::translation(Vector::new(0.0, 0.0, 5.0));
 /// let moved = circle.transformed(shift).unwrap();
-/// assert_eq!(moved.eval_point(0.0), Point::new(2.0, 0.0, 5.0));
+/// assert_eq!(moved.point_at(0.0), Point::new(2.0, 0.0, 5.0));
 ///
 /// let collapse = Transform::scaling(Point::ORIGIN, 0.0);
 /// assert_eq!(circle.transformed(collapse), Err(TransformError::Collapsed));

@@ -51,9 +51,9 @@ impl std::error::Error for LineConstructionError {}
 /// use geomcore::prelude::*;
 /// use geomcore::{Line, Line2D, Point, Point2D, Vector, Vector2D};
 /// let line = Line::new(Point::ORIGIN, Vector::X).unwrap();
-/// assert_eq!(line.eval_point(3.0), Point::new(3.0, 0.0, 0.0));
+/// assert_eq!(line.point_at(3.0), Point::new(3.0, 0.0, 0.0));
 /// let line_2d = Line2D::new(Point2D::ORIGIN, Vector2D::X).unwrap();
-/// assert_eq!(line_2d.eval_point(3.0), Point2D::new(3.0, 0.0));
+/// assert_eq!(line_2d.point_at(3.0), Point2D::new(3.0, 0.0));
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct GenericLine<P: TierPoint> {
@@ -70,7 +70,7 @@ pub struct GenericLine<P: TierPoint> {
 /// use geomcore::prelude::*;
 /// use geomcore::{Line, Point, Vector};
 /// let line = Line::new(Point::ORIGIN, Vector::X).unwrap();
-/// assert_eq!(line.eval_point(3.0), Point::new(3.0, 0.0, 0.0));
+/// assert_eq!(line.point_at(3.0), Point::new(3.0, 0.0, 0.0));
 /// ```
 pub type Line = GenericLine<Point>;
 
@@ -84,7 +84,7 @@ pub type Line = GenericLine<Point>;
 /// use geomcore::prelude::*;
 /// use geomcore::{Line2D, Point2D, Vector2D};
 /// let line = Line2D::new(Point2D::ORIGIN, Vector2D::X).unwrap();
-/// assert_eq!(line.eval_point(3.0), Point2D::new(3.0, 0.0));
+/// assert_eq!(line.point_at(3.0), Point2D::new(3.0, 0.0));
 /// ```
 pub type Line2D = GenericLine<Point2D>;
 
@@ -209,12 +209,12 @@ impl_for_both_tiers! {
 
         fn contains(&self, point: P, tol: Tolerance) -> bool {
             let u = self.parameter_of(point, tol);
-            self.eval_point(u).distance(point) <= tol.confusion
+            self.point_at(u).distance(point) <= tol.confusion
         }
 
         fn project_point(&self, point: P, tol: Tolerance) -> CurveProjection<P> {
             let u = self.parameter_of(point, tol);
-            let foot = self.eval_point(u);
+            let foot = self.point_at(u);
             let distance = foot.distance(point);
             CurveProjection {
                 point: foot,
@@ -228,13 +228,13 @@ impl_for_both_tiers! {
 impl_for_both_tiers! {
     impl ParametricCurve, ParametricCurve2D for GenericLine {
         #[inline]
-        fn eval_point(&self, u: f64) -> P {
+        fn point_at(&self, u: f64) -> P {
             elementary::line_d0(&self.axis, u)
         }
 
-        fn eval_derivative(&self, _u: f64, order: u32) -> V {
+        fn derivative(&self, _u: f64, order: u32) -> V {
             match order {
-                0 => panic!("eval_derivative: order must be >= 1 (use eval_point for order 0)"),
+                0 => panic!("derivative: order must be >= 1 (use point_at for order 0)"),
                 1 => elementary::line_d1(&self.axis),
                 _ => V::ZERO,
             }

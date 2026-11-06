@@ -3,6 +3,7 @@ use crate::geometry::curves::ParametricCurve;
 use crate::{
     Circle, Cone, Cylinder, Frame, IntersectExact, Plane, Point, Sphere, Tolerance, Torus, Vector,
 };
+use core::f64::consts::{FRAC_PI_2, PI, TAU};
 
 #[test]
 fn test_plane_plane_intersection_line() {
@@ -14,8 +15,8 @@ fn test_plane_plane_intersection_line() {
             assert_eq!(line.origin(), Point::ORIGIN);
             assert_eq!(line.direction(), Vector::Y);
             // The line lies on both planes.
-            assert!(xy.contains(line.eval_point(2.0), tol));
-            assert!(zy.contains(line.eval_point(-1.0), tol));
+            assert!(xy.contains(line.point_at(2.0), tol));
+            assert!(zy.contains(line.point_at(-1.0), tol));
         }
         _ => panic!("expected a line"),
     }
@@ -86,7 +87,7 @@ fn test_plane_cylinder_intersection_ellipse() {
             assert_eq!(ellipse.center(), Point::ORIGIN);
             assert_eq!(ellipse.minor_radius(), 2.0);
             assert!((ellipse.major_radius() - 2.0 / tilt.cos()).abs() < 1e-9);
-            for p in ellipse.eval_points(&[0.0, 1.0, 2.0, 4.0]) {
+            for p in ellipse.points_at(&[0.0, 1.0, 2.0, 4.0]) {
                 assert!(plane.contains(p, tol));
                 assert!(cylinder.contains(p, tol));
             }
@@ -135,7 +136,7 @@ fn test_plane_cone_intersection_ellipse() {
     match plane.intersect_exact(&cone, tol) {
         PlaneConeIntersection::Ellipse(ellipse) => {
             assert!(ellipse.major_radius() > ellipse.minor_radius());
-            for p in ellipse.eval_points(&[0.0, 1.0, 2.0, 4.0]) {
+            for p in ellipse.points_at(&[0.0, 1.0, 2.0, 4.0]) {
                 assert!(plane.contains(p, tol));
                 assert!(cone.contains(p, tol));
             }
@@ -152,7 +153,7 @@ fn test_plane_cone_intersection_parabola() {
     let cone = Cone::from_frame(Frame::WORLD, 0.4, 2.0).unwrap();
     match plane.intersect_exact(&cone, tol) {
         PlaneConeIntersection::Parabola(parabola) => {
-            for p in parabola.eval_points(&[-2.0, 0.0, 2.0]) {
+            for p in parabola.points_at(&[-2.0, 0.0, 2.0]) {
                 assert!(plane.contains(p, tol));
                 assert!(cone.contains(p, tol));
             }
@@ -170,7 +171,7 @@ fn test_plane_cone_intersection_hyperbola() {
         PlaneConeIntersection::Hyperbola(upper, lower) => {
             let apex_height = cone.apex().z;
             for (branch, side) in [(upper, 1.0), (lower, -1.0)] {
-                for p in branch.eval_points(&[-2.0, 0.0, 2.0]) {
+                for p in branch.points_at(&[-2.0, 0.0, 2.0]) {
                     assert!(plane.contains(p, tol));
                     assert!(cone.contains(p, tol));
                     // One branch on each nappe.
@@ -265,8 +266,8 @@ fn test_plane_cone_intersection_degenerate() {
         PlaneConeIntersection::TwoLines(l1, l2) => {
             assert_eq!(l1.origin(), apex);
             assert_eq!(l2.origin(), apex);
-            assert!(cone.contains(l1.eval_point(2.0), tol));
-            assert!(cone.contains(l2.eval_point(2.0), tol));
+            assert!(cone.contains(l1.point_at(2.0), tol));
+            assert!(cone.contains(l2.point_at(2.0), tol));
         }
         _ => panic!("expected two lines"),
     }
@@ -316,8 +317,8 @@ fn test_plane_cone_tangent_line_is_the_generator_in_the_plane() {
                 panic!("expected a tangent line at tilt {tilt}");
             };
             for t in [-5.0, 5.0] {
-                assert!(plane.contains(line.eval_point(t), tol));
-                assert!(cone.contains(line.eval_point(t), tol));
+                assert!(plane.contains(line.point_at(t), tol));
+                assert!(cone.contains(line.point_at(t), tol));
             }
         }
     }
@@ -350,7 +351,7 @@ fn test_plane_cone_sections_beyond_the_apex() {
                 assert!((circle.radius() - 2.0).abs() < 1e-9);
                 assert!(
                     circle
-                        .eval_points(&[0.0, 2.0])
+                        .points_at(&[0.0, 2.0])
                         .into_iter()
                         .all(|p| on_both(p, &flat))
                 );
@@ -364,7 +365,7 @@ fn test_plane_cone_sections_beyond_the_apex() {
         .unwrap();
         match tilted.intersect_exact(&cone, tol) {
             PlaneConeIntersection::Ellipse(ellipse) => {
-                let points = ellipse.eval_points(&[0.0, 1.0, 2.0, 4.0]);
+                let points = ellipse.points_at(&[0.0, 1.0, 2.0, 4.0]);
                 assert!(points.into_iter().all(|p| on_both(p, &tilted)));
             }
             _ => panic!("expected an ellipse"),
@@ -377,7 +378,7 @@ fn test_plane_cone_sections_beyond_the_apex() {
         .unwrap();
         match parallel.intersect_exact(&cone, tol) {
             PlaneConeIntersection::Parabola(parabola) => {
-                let points = parabola.eval_points(&[-2.0, 0.0, 2.0]);
+                let points = parabola.points_at(&[-2.0, 0.0, 2.0]);
                 assert!(points.into_iter().all(|p| on_both(p, &parallel)));
             }
             _ => panic!("expected a parabola"),
@@ -387,8 +388,8 @@ fn test_plane_cone_sections_beyond_the_apex() {
         match apex_plane.intersect_exact(&cone, tol) {
             PlaneConeIntersection::TwoLines(l1, l2) => {
                 for t in [-3.0, 3.0] {
-                    assert!(cone.contains(l1.eval_point(t), tol));
-                    assert!(cone.contains(l2.eval_point(t), tol));
+                    assert!(cone.contains(l1.point_at(t), tol));
+                    assert!(cone.contains(l2.point_at(t), tol));
                 }
             }
             _ => panic!("expected two lines"),
@@ -407,7 +408,7 @@ fn test_cylinder_cylinder_intersection_two_lines() {
             assert!((l1.origin().x - 1.5).abs() < 1e-12);
             assert!((l1.origin().y - 1.75f64.sqrt()).abs() < 1e-9);
             assert!((l2.origin().y + 1.75f64.sqrt()).abs() < 1e-9);
-            for p in [l1.eval_point(2.0), l2.eval_point(-1.0)] {
+            for p in [l1.point_at(2.0), l2.point_at(-1.0)] {
                 assert!(c1.contains(p, tol));
                 assert!(c2.contains(p, tol));
             }
@@ -445,12 +446,73 @@ fn test_cylinder_cylinder_intersection_degenerate() {
         c1.intersect_exact(&c1, tol),
         CylinderCylinderIntersection::Coincident
     );
-    // Crossing axes: space quartic, no closed form.
-    let crossed = Cylinder::new(Point::ORIGIN, Vector::X, 2.0).unwrap();
+    // Crossing axes of different radii: space quartic, no closed form.
+    let crossed = Cylinder::new(Point::ORIGIN, Vector::X, 1.5).unwrap();
     assert_eq!(
         c1.intersect_exact(&crossed, tol),
         CylinderCylinderIntersection::NotAnalytic
     );
+    // Equal radii whose axes miss each other: no closed form either.
+    let skew = Cylinder::new(Point::new(0.0, 0.5, 0.0), Vector::X, 2.0).unwrap();
+    assert_eq!(
+        c1.intersect_exact(&skew, tol),
+        CylinderCylinderIntersection::NotAnalytic
+    );
+}
+
+/// Two equal cylinders whose axes meet at `meeting`, at `angle` between
+/// the axes, meet in two ellipses that lie on both, cross where the
+/// cylinders touch, and have the minor radius `r` and the major radii
+/// `r / sin(angle / 2)` (across the sum of the axis directions) and
+/// `r / cos(angle / 2)`.
+fn assert_crossing_equal_cylinders(meeting: Point, angle: f64) {
+    let tol = Tolerance::DEFAULT;
+    let r = 5.0;
+    let first = Cylinder::new(meeting, Vector::Z, r).unwrap();
+    let direction = Vector::new(angle.sin(), 0.0, angle.cos());
+    // The second axis passes through `meeting` from an origin along it.
+    let second = Cylinder::new(meeting + direction * 3.0, direction, r).unwrap();
+    let CylinderCylinderIntersection::TwoEllipses(e1, e2) = first.intersect_exact(&second, tol)
+    else {
+        panic!("expected two ellipses at angle {angle}");
+    };
+    let half = angle / 2.0;
+    assert!(
+        (e1.major_radius() - r / half.sin()).abs() < 1e-12,
+        "{angle}"
+    );
+    assert!(
+        (e2.major_radius() - r / half.cos()).abs() < 1e-12,
+        "{angle}"
+    );
+    for ellipse in [e1, e2] {
+        assert!(ellipse.center().distance(meeting) < 1e-12);
+        assert!((ellipse.minor_radius() - r).abs() < 1e-12);
+        for k in 0..64 {
+            let point = ellipse.point_at(k as f64 * TAU / 64.0);
+            assert!(first.contains(point, tol), "{angle} {k}");
+            assert!(second.contains(point, tol), "{angle} {k}");
+        }
+    }
+    // The ellipses cross at the ends of their shared minor axis, across
+    // both axes.
+    for t in [FRAC_PI_2, 3.0 * FRAC_PI_2] {
+        let point = e1.point_at(t);
+        assert!((point - meeting).dot(Vector::Z).abs() < 1e-12);
+        assert!((point - meeting).dot(direction).abs() < 1e-12);
+        let on_second = [e2.point_at(FRAC_PI_2), e2.point_at(3.0 * FRAC_PI_2)];
+        assert!(on_second.iter().any(|q| q.distance(point) < 1e-12));
+    }
+}
+
+#[test]
+fn test_equal_cylinders_whose_axes_meet_meet_in_two_ellipses() {
+    // The tee of two equal pipes.
+    assert_crossing_equal_cylinders(Point::ORIGIN, FRAC_PI_2);
+    // Oblique, and away from the origin.
+    assert_crossing_equal_cylinders(Point::new(1.0, -2.0, 3.0), PI / 3.0);
+    assert_crossing_equal_cylinders(Point::new(-4.0, 0.5, 0.0), 0.3);
+    assert_crossing_equal_cylinders(Point::ORIGIN, PI - 0.3);
 }
 
 #[test]
@@ -466,7 +528,7 @@ fn test_cone_cylinder_intersection() {
             assert!(lower.center().distance(mirror) < 1e-9);
             for circle in [lower, upper] {
                 assert_eq!(circle.radius(), 2.0);
-                for p in circle.eval_points(&[0.0, 1.0, 3.0]) {
+                for p in circle.points_at(&[0.0, 1.0, 3.0]) {
                     assert!(cone.contains(p, tol));
                     assert!(cylinder.contains(p, tol));
                 }
@@ -478,10 +540,7 @@ fn test_cone_cylinder_intersection() {
     let flipped = Cone::from_frame(Frame::WORLD, -0.4, 2.0).unwrap();
     match flipped.intersect_exact(&cylinder, tol) {
         ConeCylinderIntersection::TwoCircles(lower, upper) => {
-            for p in [lower, upper]
-                .iter()
-                .flat_map(|c| c.eval_points(&[0.0, 2.0]))
-            {
+            for p in [lower, upper].iter().flat_map(|c| c.points_at(&[0.0, 2.0])) {
                 assert!(flipped.contains(p, tol));
                 assert!(cylinder.contains(p, tol));
             }
@@ -526,7 +585,7 @@ fn test_cone_cone_intersection() {
             assert!(height(first) < height(second));
             for p in [first, second]
                 .iter()
-                .flat_map(|c| c.eval_points(&[0.0, 1.0, 3.0]))
+                .flat_map(|c| c.points_at(&[0.0, 1.0, 3.0]))
             {
                 assert!(c1.contains(p, tol));
                 assert!(c2.contains(p, tol));
@@ -541,7 +600,7 @@ fn test_cone_cone_intersection() {
         ConeConeIntersection::Circle(circle) => {
             let mid = c1.apex() + (shifted.apex() - c1.apex()) * 0.5;
             assert!(circle.center().distance(mid) < 1e-9);
-            for p in circle.eval_points(&[0.0, 2.0]) {
+            for p in circle.points_at(&[0.0, 2.0]) {
                 assert!(c1.contains(p, tol));
                 assert!(shifted.contains(p, tol));
             }
@@ -580,8 +639,8 @@ fn test_sphere_sphere_intersection_circle() {
             assert!((circle.radius() - 1.75f64.sqrt()).abs() < 1e-12);
             assert_eq!(circle.normal(), Vector::X);
             // The circle lies on both spheres.
-            assert!(s1.contains(circle.eval_point(1.0), tol));
-            assert!(s2.contains(circle.eval_point(2.0), tol));
+            assert!(s1.contains(circle.point_at(1.0), tol));
+            assert!(s2.contains(circle.point_at(2.0), tol));
         }
         _ => panic!("expected a circle"),
     }
@@ -624,7 +683,7 @@ fn test_sphere_cylinder_intersection() {
             assert_eq!(c2.radius(), 2.0);
             assert!((c1.center().z - 5.0f64.sqrt()).abs() < 1e-9);
             assert!((c2.center().z + 5.0f64.sqrt()).abs() < 1e-9);
-            for p in c1.eval_points(&[0.0, 2.0]) {
+            for p in c1.points_at(&[0.0, 2.0]) {
                 assert!(sphere.contains(p, tol));
                 assert!(cylinder.contains(p, tol));
             }
@@ -666,11 +725,11 @@ fn test_sphere_cone_intersection() {
             assert!((c1.radius() - 2.6188).abs() < 1e-3);
             assert!((c2.center().z + 2.8983).abs() < 1e-3);
             assert!((c2.radius() - 0.7746).abs() < 1e-3);
-            for p in c1.eval_points(&[0.0, 2.0]) {
+            for p in c1.points_at(&[0.0, 2.0]) {
                 assert!(sphere.contains(p, tol));
                 assert!(cone.contains(p, tol));
             }
-            for p in c2.eval_points(&[1.0, 3.0]) {
+            for p in c2.points_at(&[1.0, 3.0]) {
                 assert!(sphere.contains(p, tol));
                 assert!(cone.contains(p, tol));
             }
@@ -687,7 +746,7 @@ fn test_sphere_cone_intersection() {
     let behind = Sphere::new(Point::new(0.0, 0.0, -6.0), 0.5).unwrap();
     match behind.intersect_exact(&cone, tol) {
         SphereConeIntersection::TwoCircles(c1, c2) => {
-            for p in [c1, c2].iter().flat_map(|c| c.eval_points(&[0.0, 2.0])) {
+            for p in [c1, c2].iter().flat_map(|c| c.points_at(&[0.0, 2.0])) {
                 assert!(p.z < cone.apex().z);
                 assert!(behind.contains(p, tol));
                 assert!(cone.contains(p, tol));
@@ -700,7 +759,7 @@ fn test_sphere_cone_intersection() {
     match around.intersect_exact(&cone, tol) {
         SphereConeIntersection::TwoCircles(c1, c2) => {
             assert!((c1.center().z - cone.apex().z) * (c2.center().z - cone.apex().z) < 0.0);
-            for p in [c1, c2].iter().flat_map(|c| c.eval_points(&[0.0, 2.0])) {
+            for p in [c1, c2].iter().flat_map(|c| c.points_at(&[0.0, 2.0])) {
                 assert!(around.contains(p, tol));
                 assert!(cone.contains(p, tol));
             }
@@ -724,8 +783,8 @@ fn test_sphere_cone_intersection_tangent() {
     let sphere = Sphere::new(Point::ORIGIN, tc * 0.4f64.sin()).unwrap();
     match sphere.intersect_exact(&cone, tol) {
         SphereConeIntersection::TangentCircle(c) => {
-            assert!(sphere.contains(c.eval_point(0.0), tol));
-            assert!(cone.contains(c.eval_point(1.0), tol));
+            assert!(sphere.contains(c.point_at(0.0), tol));
+            assert!(cone.contains(c.point_at(1.0), tol));
         }
         _ => panic!("expected a tangent circle"),
     }
@@ -742,7 +801,7 @@ fn test_torus_plane_intersection() {
             let mut radii = [c1.radius(), c2.radius()];
             radii.sort_by(|a, b| a.partial_cmp(b).unwrap());
             assert_eq!(radii, [3.0, 5.0]);
-            for p in c1.eval_points(&[0.0, 2.0]) {
+            for p in c1.points_at(&[0.0, 2.0]) {
                 assert!(torus.contains(p, tol));
                 assert!(flat.contains(p, tol));
             }
@@ -795,7 +854,7 @@ fn test_torus_plane_villarceau_circles() {
                 assert!((c.radius() - 3.0).abs() < 1e-12);
                 assert!((c.center().distance(torus.center()) - 1.0).abs() < 1e-12);
                 let ts: Vec<f64> = (0..12).map(|k| k as f64 * 0.5).collect();
-                for p in c.eval_points(&ts) {
+                for p in c.points_at(&ts) {
                     assert!(torus.contains(p, tol), "{p:?}");
                     assert!(plane.contains(p, tol), "{p:?}");
                 }
@@ -841,11 +900,11 @@ fn test_torus_sphere_intersection() {
     let sphere = Sphere::new(Point::new(0.0, 0.0, 1.0), 4.0).unwrap();
     match torus.intersect_exact(&sphere, tol) {
         TorusSphereIntersection::TwoCircles(c1, c2) => {
-            for p in c1.eval_points(&[0.0, 2.0]) {
+            for p in c1.points_at(&[0.0, 2.0]) {
                 assert!(torus.contains(p, tol));
                 assert!(sphere.contains(p, tol));
             }
-            for p in c2.eval_points(&[1.0, 3.0]) {
+            for p in c2.points_at(&[1.0, 3.0]) {
                 assert!(torus.contains(p, tol));
                 assert!(sphere.contains(p, tol));
             }
@@ -885,7 +944,7 @@ fn test_torus_cylinder_intersection() {
             assert_eq!(c1.radius(), 4.5);
             assert!((c1.center().z - 0.8660254037844386).abs() < 1e-9);
             assert!((c2.center().z + 0.8660254037844386).abs() < 1e-9);
-            for p in c1.eval_points(&[0.0, 2.0]) {
+            for p in c1.points_at(&[0.0, 2.0]) {
                 assert!(torus.contains(p, tol));
                 assert!(cylinder.contains(p, tol));
             }
@@ -922,7 +981,7 @@ fn test_torus_cone_intersection() {
     let cone = Cone::from_frame(Frame::WORLD, 1.1, 2.0).unwrap();
     let check = |rings: &[LatitudeRing], cone: &Cone| {
         for ring in rings {
-            for p in ring.circle.eval_points(&[0.0, 1.0, 3.0]) {
+            for p in ring.circle.points_at(&[0.0, 1.0, 3.0]) {
                 assert!(torus.contains(p, tol));
                 assert!(cone.contains(p, tol));
             }
@@ -974,11 +1033,11 @@ fn test_torus_torus_intersection() {
     let t2 = Torus::new(Point::new(0.0, 0.0, 1.5), Vector::Z, 4.0, 1.0).unwrap();
     match t1.intersect_exact(&t2, tol) {
         TorusTorusIntersection::TwoCircles(c1, c2) => {
-            for p in c1.eval_points(&[0.0, 2.0]) {
+            for p in c1.points_at(&[0.0, 2.0]) {
                 assert!(t1.contains(p, tol));
                 assert!(t2.contains(p, tol));
             }
-            for p in c2.eval_points(&[1.0, 3.0]) {
+            for p in c2.points_at(&[1.0, 3.0]) {
                 assert!(t1.contains(p, tol));
                 assert!(t2.contains(p, tol));
             }

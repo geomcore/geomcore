@@ -433,11 +433,11 @@ pub struct SurfaceCase {
 pub fn assert_curve_samples(curve: &impl ParametricCurve, samples: &[CurveSample<[f64; 3]>]) {
     for sample in samples {
         let u = sample.u;
-        assert_point3(curve.eval_point(u), sample.point);
-        assert_vector3(curve.eval_derivative(u, 1), sample.d1);
-        assert_vector3(curve.eval_derivative(u, 2), sample.d2);
+        assert_point3(curve.point_at(u), sample.point);
+        assert_vector3(curve.derivative(u, 1), sample.d1);
+        assert_vector3(curve.derivative(u, 2), sample.d2);
         if let Some(d3) = sample.d3 {
-            assert_vector3(curve.eval_derivative(u, 3), d3);
+            assert_vector3(curve.derivative(u, 3), d3);
         }
     }
 }
@@ -447,11 +447,11 @@ pub fn assert_curve_samples(curve: &impl ParametricCurve, samples: &[CurveSample
 pub fn assert_curve_2d_samples(curve: &impl ParametricCurve2D, samples: &[CurveSample<[f64; 2]>]) {
     for sample in samples {
         let u = sample.u;
-        assert_point2(curve.eval_point(u), sample.point);
-        assert_vector2(curve.eval_derivative(u, 1), sample.d1);
-        assert_vector2(curve.eval_derivative(u, 2), sample.d2);
+        assert_point2(curve.point_at(u), sample.point);
+        assert_vector2(curve.derivative(u, 1), sample.d1);
+        assert_vector2(curve.derivative(u, 2), sample.d2);
         if let Some(d3) = sample.d3 {
-            assert_vector2(curve.eval_derivative(u, 3), d3);
+            assert_vector2(curve.derivative(u, 3), d3);
         }
     }
 }
@@ -501,12 +501,12 @@ pub fn assert_curve_2d_projections(
 pub fn assert_surface_samples(surface: &impl ParametricSurface, samples: &[SurfaceSample]) {
     for sample in samples {
         let (u, v) = (sample.u, sample.v);
-        assert_point3(surface.eval_point(u, v), sample.point);
-        assert_vector3(surface.eval_derivative(u, v, 1, 0), sample.d1u);
-        assert_vector3(surface.eval_derivative(u, v, 0, 1), sample.d1v);
-        assert_vector3(surface.eval_derivative(u, v, 2, 0), sample.d2u);
-        assert_vector3(surface.eval_derivative(u, v, 0, 2), sample.d2v);
-        assert_vector3(surface.eval_derivative(u, v, 1, 1), sample.d2uv);
+        assert_point3(surface.point_at(u, v), sample.point);
+        assert_vector3(surface.derivative(u, v, 1, 0), sample.d1u);
+        assert_vector3(surface.derivative(u, v, 0, 1), sample.d1v);
+        assert_vector3(surface.derivative(u, v, 2, 0), sample.d2u);
+        assert_vector3(surface.derivative(u, v, 0, 2), sample.d2v);
+        assert_vector3(surface.derivative(u, v, 1, 1), sample.d2uv);
     }
 }
 
@@ -539,7 +539,7 @@ pub fn assert_surface_projections(
             projection.distance
         );
         assert_point3(
-            surface.eval_point(found.u, found.v),
+            surface.point_at(found.u, found.v),
             [found.point.x, found.point.y, found.point.z],
         );
         if let Some(closest) = projection.closest {

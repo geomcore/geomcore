@@ -115,7 +115,7 @@ fn test_segment_is_parametrised_by_arc_length() {
     assert_eq!(s.bounds(), (0.0, 5.0));
     assert_eq!(s.start_point(), a);
     assert!(s.end_point().distance(b) < 1e-12);
-    assert!(s.eval_point(2.5).distance(Point::new(1.0, 2.5, 3.0)) < 1e-12);
+    assert!(s.point_at(2.5).distance(Point::new(1.0, 2.5, 3.0)) < 1e-12);
 }
 
 #[test]
@@ -128,13 +128,10 @@ fn test_trimmed_is_never_periodic() {
 #[test]
 fn test_evaluation_delegates_to_basis() {
     let arc = TrimmedCurve::new(circle(), 0.5, 2.0).unwrap();
-    assert_eq!(arc.eval_point(1.0), circle().eval_point(1.0));
+    assert_eq!(arc.point_at(1.0), circle().point_at(1.0));
+    assert_eq!(arc.derivative(1.0, 2), circle().derivative(1.0, 2));
     assert_eq!(
-        arc.eval_derivative(1.0, 2),
-        circle().eval_derivative(1.0, 2)
-    );
-    assert_eq!(
-        arc.eval_points(&[0.5, 2.0]),
+        arc.points_at(&[0.5, 2.0]),
         vec![arc.start_point(), arc.end_point()]
     );
 }
@@ -243,7 +240,7 @@ fn test_intersect_curve_surface_ignores_hits_outside_the_range() {
     let half = TrimmedCurve::segment(Point::ORIGIN, Point::new(2.0, 0.0, 0.0)).unwrap();
     let hits = search_curve_surface(&half, &sphere, TOL);
     assert_eq!(hits.len(), 1);
-    assert!(close(hits[0].curve_parameter.unwrap(), 1.0));
+    assert!(close(hits[0].curve_parameter, 1.0));
 }
 
 #[test]
@@ -399,9 +396,10 @@ fn test_both_tiers_answer_the_shared_methods_alike() {
 
     // Derivatives, continuity, projection, reversal and conversion.
     let (u, inside) = (0.3, 0.7);
-    let ((_, space_d1), (_, plane_d1)) = (space.eval_d1(u), plane.eval_d1(u));
+    let ((_, space_d1), (_, plane_d1)) = (space.first_derivatives(u), plane.first_derivatives(u));
     assert!(close(space_d1.x, plane_d1.x) && close(space_d1.y, plane_d1.y));
-    let ((_, _, space_d2), (_, _, plane_d2)) = (space.eval_d2(u), plane.eval_d2(u));
+    let ((_, _, space_d2), (_, _, plane_d2)) =
+        (space.second_derivatives(u), plane.second_derivatives(u));
     assert!(close(space_d2.x, plane_d2.x) && close(space_d2.y, plane_d2.y));
     assert_eq!(space.continuity(inside, TOL), plane.continuity(inside, TOL));
     for (x, y) in [(2.0, 2.0), (-1.0, -1.0), (0.5, -3.0)] {
@@ -424,4 +422,160 @@ fn test_both_tiers_answer_the_shared_methods_alike() {
     fn assert_copy<T: Copy>(_: &T) {}
     assert_copy(&space);
     assert_copy(&plane);
+}
+
+// ---- length ----
+
+#[test]
+fn test_length_is_exact_on_segments_and_arcs() {
+    let segment = TrimmedCurve::segment(Point::ORIGIN, Point::new(1.0, 2.0, 2.0)).unwrap();
+    assert_eq!(segment.length(0.0), 3.0);
+    let big = Circle::new(Point::ORIGIN, Vector::Z, 3.0).unwrap();
+    // An arc across the seam.
+    let arc = TrimmedCurve::new(big, 5.0, 6.5).unwrap();
+    assert!(close(arc.length(0.0), 4.5));
+}
+
+#[test]
+fn test_length_of_numeric_pieces_matches_the_sum_of_their_halves() {
+    let ellipse = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 3.0, 1.0).unwrap();
+    let whole = TrimmedCurve::new(ellipse, 0.0, TAU).unwrap().length(1e-12);
+    assert!((whole - ellipse.length(1e-12)).abs() < 1e-11);
+    let poles = vec![
+        Point::ORIGIN,
+        Point::new(1.0, 2.0, 0.0),
+        Point::new(3.0, -1.0, 1.0),
+        Point::new(4.0, 0.0, 0.0),
+    ];
+    let spline = BSplineCurve::new(3, poles, vec![0.0, 1.0], vec![4, 4], false).unwrap();
+    let full = spline.length(1e-12);
+    let left = TrimmedCurve::new(spline.clone(), 0.0, 0.3)
+        .unwrap()
+        .length(1e-12);
+    let right = TrimmedCurve::new(spline, 0.3, 1.0).unwrap().length(1e-12);
+    assert!((left + right - full).abs() < 1e-10);
+}
+
+#[test]
+fn test_length_of_a_plane_arc_matches_its_space_twin() {
+    let arc_2d = TrimmedCurve2D::new(Circle2D::new(Point2D::ORIGIN, 2.0).unwrap(), 1.0, 2.0);
+    assert!(close(arc_2d.unwrap().length(0.0), 2.0));
+}
+
+// ---- arcs ----
+
+#[test]
+fn test_arc_through_passes_through_its_three_points_in_order() {
+    let (start, middle, end) = (
+        Point::new(1.0, 0.0, 0.0),
+        Point::new(0.0, 1.0, 0.0),
+        Point::new(-1.0, 0.0, 0.0),
+    );
+    let arc = TrimmedCurve::arc_through(start, middle, end).unwrap();
+    assert!(arc.start_point().distance(start) < 1e-12);
+    assert!(arc.end_point().distance(end) < 1e-12);
+    assert!(close(arc.sweep_angle(), PI));
+    let middle_parameter = arc.basis().parameter_of(middle, TOL);
+    assert!(0.0 < middle_parameter && middle_parameter < arc.sweep_angle());
+}
+
+#[test]
+fn test_arc_through_rejects_degenerate_points() {
+    let (a, b) = (Point::ORIGIN, Point::new(1.0, 0.0, 0.0));
+    let c = Point::new(2.0, 0.0, 0.0);
+    let nan = Point::new(f64::NAN, 0.0, 0.0);
+    assert_eq!(
+        TrimmedCurve::arc_through(a, a, b).err(),
+        Some(ArcConstructionError::ConfusedPoints)
+    );
+    assert_eq!(
+        TrimmedCurve::arc_through(a, b, c).err(),
+        Some(ArcConstructionError::CollinearPoints)
+    );
+    assert_eq!(
+        TrimmedCurve::arc_through(a, b, nan).err(),
+        Some(ArcConstructionError::NonFinite)
+    );
+}
+
+#[test]
+fn test_arc_about_a_center_turns_about_the_normal() {
+    let (start, end) = (Point::new(0.0, 2.0, 1.0), Point::new(0.0, 0.0, 3.0));
+    let center = Point::new(0.0, 0.0, 1.0);
+    let arc = TrimmedCurve::arc(center, start, end, Vector::X, TOL).unwrap();
+    assert!(close(arc.sweep_angle(), FRAC_PI_2));
+    assert!(arc.end_point().distance(end) < 1e-12);
+    let other_way = TrimmedCurve::arc(center, start, end, -Vector::X, TOL).unwrap();
+    assert!(close(other_way.sweep_angle(), 3.0 * FRAC_PI_2));
+    assert!(other_way.end_point().distance(end) < 1e-12);
+}
+
+#[test]
+fn test_arc_with_confused_ends_is_a_full_turn() {
+    let start = Point::new(1.0, 0.0, 0.0);
+    let arc = TrimmedCurve::arc(Point::ORIGIN, start, start, Vector::Z, TOL).unwrap();
+    assert_eq!(arc.sweep_angle(), TAU);
+}
+
+#[test]
+fn test_arc_rejects_points_off_its_circle() {
+    let start = Point::new(1.0, 0.0, 0.0);
+    let off = [
+        Point::new(0.0, 1.0, 0.5),  // out of the plane
+        Point::new(0.0, 1.01, 0.0), // another radius
+    ];
+    for end in off {
+        assert_eq!(
+            TrimmedCurve::arc(Point::ORIGIN, start, end, Vector::Z, TOL).err(),
+            Some(ArcConstructionError::OffCircle)
+        );
+    }
+    let lifted = Point::new(1.0, 0.0, 0.5);
+    assert_eq!(
+        TrimmedCurve::arc(Point::ORIGIN, lifted, start, Vector::Z, TOL).err(),
+        Some(ArcConstructionError::OffCircle)
+    );
+    assert_eq!(
+        TrimmedCurve::arc(Point::ORIGIN, Point::ORIGIN, start, Vector::Z, TOL).err(),
+        Some(ArcConstructionError::ConfusedPoints)
+    );
+    assert_eq!(
+        TrimmedCurve::arc(Point::ORIGIN, start, start, Vector::ZERO, TOL).err(),
+        Some(ArcConstructionError::NullNormal)
+    );
+}
+
+#[test]
+fn test_plane_arc_through_takes_the_turning_sense_of_its_points() {
+    let (start, middle, end) = (
+        Point2D::new(1.0, 0.0),
+        Point2D::new(0.0, 1.0),
+        Point2D::new(-1.0, 0.0),
+    );
+    let left = TrimmedCurve2D::arc_through(start, middle, end).unwrap();
+    assert!(left.basis().is_counterclockwise());
+    let right = TrimmedCurve2D::arc_through(end, middle, start).unwrap();
+    assert!(!right.basis().is_counterclockwise());
+    for arc in [left, right] {
+        assert!(close(arc.sweep_angle(), PI));
+        let parameter = arc.basis().parameter_of(middle, TOL);
+        assert!(close(parameter, FRAC_PI_2));
+    }
+}
+
+#[test]
+fn test_plane_arc_runs_either_way_between_its_ends() {
+    let (start, end) = (Point2D::new(2.0, 0.0), Point2D::new(0.0, 2.0));
+    let counterclockwise = TrimmedCurve2D::arc(Point2D::ORIGIN, start, end, true, TOL).unwrap();
+    let clockwise = TrimmedCurve2D::arc(Point2D::ORIGIN, start, end, false, TOL).unwrap();
+    assert!(close(counterclockwise.sweep_angle(), FRAC_PI_2));
+    assert!(close(clockwise.sweep_angle(), 3.0 * FRAC_PI_2));
+    for arc in [counterclockwise, clockwise] {
+        assert!(arc.start_point().distance(start) < 1e-12);
+        assert!(arc.end_point().distance(end) < 1e-12);
+    }
+    assert_eq!(
+        TrimmedCurve2D::arc(Point2D::ORIGIN, start, Point2D::new(0.0, 3.0), true, TOL).err(),
+        Some(ArcConstructionError::OffCircle)
+    );
 }

@@ -8,7 +8,7 @@ use crate::math::numeric::boxtree::Aabb;
 use crate::math::numeric::{brent_minimum, newton_3d};
 use crate::operations::intersect::numeric::curve_surface_hull::CurveSurfaceHits;
 use crate::operations::intersect::numeric::{overlap_runs, pairs_with_bspline};
-use crate::operations::intersect::results::sort_by_known_parameter;
+use crate::operations::intersect::results::sort_by_parameter;
 use crate::operations::intersect::{
     CurveSurfaceHit, CurveSurfaceIntersection, curve_surface_multiplicity,
 };
@@ -49,11 +49,11 @@ const WINDOW: f64 = 10.0;
 /// struct Helix;
 ///
 /// impl ParametricCurve for Helix {
-///     fn eval_point(&self, u: f64) -> Point {
+///     fn point_at(&self, u: f64) -> Point {
 ///         let turn = std::f64::consts::TAU;
 ///         Point::new(u.cos(), u.sin(), u / turn)
 ///     }
-///     fn eval_derivative(&self, u: f64, order: u32) -> Vector {
+///     fn derivative(&self, u: f64, order: u32) -> Vector {
 ///         let turn = std::f64::consts::TAU;
 ///         match order {
 ///             1 => Vector::new(-u.sin(), u.cos(), 1.0 / turn),
@@ -72,7 +72,7 @@ const WINDOW: f64 = 10.0;
 /// let result = intersect_curve_surface(&Helix, &plane, Tolerance::DEFAULT);
 /// assert_eq!(result.method(), IntersectionMethod::Numeric);
 /// assert_eq!(result.hits().len(), 1);
-/// assert!((result.hits()[0].curve_parameter.unwrap() - 3.0 * std::f64::consts::PI).abs() < 1e-9);
+/// assert!((result.hits()[0].curve_parameter - 3.0 * std::f64::consts::PI).abs() < 1e-9);
 /// ```
 pub fn intersect_curve_surface<C, S>(
     curve: &C,
@@ -215,7 +215,7 @@ where
     let samples: Vec<(f64, f64)> = (0..SEEDS)
         .map(|i| {
             let t = lo + step * i as f64;
-            (t, surface.project_point(curve.eval_point(t), tol).distance)
+            (t, surface.project_point(curve.point_at(t), tol).distance)
         })
         .collect();
     let local_min = |i: usize| {
@@ -239,20 +239,20 @@ where
         }
     };
     let multiplicity_at = |t: f64, u: f64, v: f64, point: Point| {
-        let (_, tangent) = curve.eval_d1(t);
-        let (_, [su, sv]) = surface.eval_d1(u, v);
+        let (_, tangent) = curve.first_derivatives(t);
+        let (_, [su, sv]) = surface.first_derivatives(u, v);
         curve_surface_multiplicity(tangent, su.cross(sv), point, tol)
     };
     for i in order.into_iter().take(KEEP) {
         let t = samples[i].0;
-        let proj = surface.project_point(curve.eval_point(t), tol);
+        let proj = surface.project_point(curve.point_at(t), tol);
         let f = |x: [f64; 3]| {
-            let d = curve.eval_point(x[0]) - surface.eval_point(x[1], x[2]);
+            let d = curve.point_at(x[0]) - surface.point_at(x[1], x[2]);
             [d.x, d.y, d.z]
         };
         let jac = |x: [f64; 3]| {
-            let (_, ct) = curve.eval_d1(x[0]);
-            let (_, [su, sv]) = surface.eval_d1(x[1], x[2]);
+            let (_, ct) = curve.first_derivatives(x[0]);
+            let (_, [su, sv]) = surface.first_derivatives(x[1], x[2]);
             [
                 [ct.x, -su.x, -sv.x],
                 [ct.y, -su.y, -sv.y],
@@ -260,13 +260,13 @@ where
             ]
         };
         if let Some([rt, ru, rv]) = newton_3d(f, jac, [t, proj.u, proj.v], tol.confusion, 50) {
-            let p = curve.eval_point(rt);
-            if p.distance(surface.eval_point(ru, rv)) <= tol.confusion {
+            let p = curve.point_at(rt);
+            if p.distance(surface.point_at(ru, rv)) <= tol.confusion {
                 push(
                     &mut hits,
                     CurveSurfaceHit {
-                        curve_parameter: Some(rt),
-                        surface_parameters: Some((ru, rv)),
+                        curve_parameter: rt,
+                        surface_parameters: (ru, rv),
                         point: p,
                         multiplicity: multiplicity_at(rt, ru, rv, p),
                     },
@@ -279,20 +279,20 @@ where
             // own, which snaps to zero within `tol.confusion` and would
             // leave the minimum anywhere in that band.
             let distance = |t: f64| {
-                let p = curve.eval_point(t);
+                let p = curve.point_at(t);
                 let proj = surface.project_point(p, tol);
-                p.distance(surface.eval_point(proj.u, proj.v))
+                p.distance(surface.point_at(proj.u, proj.v))
             };
             let (a, b) = ((t - step).max(lo), (t + step).min(hi));
             let rt = brent_minimum(distance, a, b, 1e-13);
-            let p = curve.eval_point(rt);
+            let p = curve.point_at(rt);
             let proj = surface.project_point(p, tol);
             if proj.distance <= tol.confusion {
                 push(
                     &mut hits,
                     CurveSurfaceHit {
-                        curve_parameter: Some(rt),
-                        surface_parameters: Some((proj.u, proj.v)),
+                        curve_parameter: rt,
+                        surface_parameters: (proj.u, proj.v),
                         point: p,
                         multiplicity: multiplicity_at(rt, proj.u, proj.v, p),
                     },
@@ -300,7 +300,7 @@ where
             }
         }
     }
-    sort_by_known_parameter(&mut hits, |hit| hit.curve_parameter);
+    sort_by_parameter(&mut hits, |hit| hit.curve_parameter);
     hits
 }
 

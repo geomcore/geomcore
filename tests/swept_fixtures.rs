@@ -89,7 +89,7 @@ fn assert_patch(
                 u0 + (u1 - u0) * f64::from(i) / 6.0,
                 v0 + (v1 - v0) * f64::from(j) / 6.0,
             );
-            let on_patch = patch.eval_point(u, v);
+            let on_patch = patch.point_at(u, v);
             let scale = (on_patch - Point::ORIGIN).magnitude().max(1.0);
             let distance = surface.project_point(on_patch, Tolerance::DEFAULT).distance;
             assert!(
@@ -116,7 +116,8 @@ fn plane(json: &PlaneJson) -> Plane {
 
 /// Checks the routed cut of `swept` by `plane`: complete, exact unless the
 /// profile is a spline, through every reference point, on both surfaces,
-/// and the same in either order and through the `Surface` enum.
+/// and the same in either order (each curve's curves in parameters
+/// exchanged) and through the `Surface` enum.
 fn assert_cut<S>(name: &str, swept: &S, plane: &Plane, spline_profile: bool, reference: &[[f64; 3]])
 where
     S: ParametricSurface
@@ -149,7 +150,7 @@ where
         for index in 0..=16 {
             let point = cut
                 .curve
-                .eval_point(first + (last - first) * f64::from(index) / 16.0);
+                .point_at(first + (last - first) * f64::from(index) / 16.0);
             let off = swept
                 .project_point(point, tol)
                 .distance
@@ -160,9 +161,19 @@ where
             );
         }
     }
+    // In the other order each curve's curves in parameters are exchanged.
+    let reversed = plane.intersect(swept, tol);
+    assert_eq!(reversed.curves().len(), result.curves().len(), "{name}");
+    for (other, cut) in reversed.curves().iter().zip(result.curves()) {
+        assert_eq!(
+            (&other.curve, &other.first_uv_curve, &other.second_uv_curve),
+            (&cut.curve, &cut.second_uv_curve, &cut.first_uv_curve),
+            "{name}: reversed order"
+        );
+    }
     assert_eq!(
-        plane.intersect(swept, tol),
-        result,
+        reversed.contact_points(),
+        result.contact_points(),
         "{name}: reversed order"
     );
     let (wrapped, wrapped_plane) = (swept.clone().into(), Surface::from(*plane));

@@ -128,7 +128,7 @@ impl<'a> SurfacePatches<'a> {
             return;
         }
         for hit in &mut hits.hits {
-            hit.surface_parameters = hit.surface_parameters.map(|uv| self.parameters(uv));
+            hit.surface_parameters = self.parameters(hit.surface_parameters);
         }
         if let Completeness::Incomplete { regions, .. } = &mut hits.completeness {
             for region in regions {
@@ -250,7 +250,7 @@ impl Direction {
             Direction::Angle { curve, arc } => {
                 // A circle or ellipse inverts in closed form, which takes no
                 // tolerance.
-                let parameter = curve.parameter_of(arc.eval_point(x), Tolerance::DEFAULT);
+                let parameter = curve.parameter_of(arc.point_at(x), Tolerance::DEFAULT);
                 nearest(parameter, x)
             }
         }

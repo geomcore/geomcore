@@ -1,7 +1,7 @@
 //! UV curve to 3D curve: the exact 3D curve `S∘c` that a UV curve `c`, a curve
 //! in a surface's `(u, v)` parameter space, traces on the surface `S`, at
-//! the same parameter, so that `surface.uv_curve_to_3d(c)?.eval_point(t)`
-//! is `surface.eval_point(c(t))` for every `t`. It is the inverse of
+//! the same parameter, so that `surface.uv_curve_to_3d(c)?.point_at(t)`
+//! is `surface.point_at(c(t))` for every `t`. It is the inverse of
 //! `curve_3d_to_uv` (`uv_curve/from_curve.rs`).
 //!
 //! Two kinds of pair have a closed form (ADR 0030):
@@ -262,7 +262,7 @@ impl AffineMap {
         center: Point2D,
         tol: Tolerance,
     ) -> Result<Curve, UvCurveTo3DError> {
-        let (point, first, second) = curve.eval_d2(0.0);
+        let (point, first, second) = curve.second_derivatives(0.0);
         Expansion {
             kind,
             center: self.point(center),
@@ -391,7 +391,7 @@ fn reparametrized(
         if !unit_speed {
             return Err(UvCurveTo3DError::NotAnalytic);
         }
-        let (point, first, second) = curve.eval_d2(shift);
+        let (point, first, second) = curve.second_derivatives(shift);
         Expansion {
             kind,
             center,
@@ -428,8 +428,8 @@ fn segment(
     (first, last): (f64, f64),
 ) -> Result<Curve, UvCurveTo3DError> {
     let poles = vec![
-        line.eval_point(shift + scale * first),
-        line.eval_point(shift + scale * last),
+        line.point_at(shift + scale * first),
+        line.point_at(shift + scale * last),
     ];
     BSplineCurve::new(1, poles, vec![first, last], vec![2, 2], false)
         .map(Curve::from)

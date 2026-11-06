@@ -99,7 +99,7 @@ fn sample_orientations() -> Vec<Surface> {
 }
 
 fn unit_normal(surface: &Surface, u: f64, v: f64) -> Vector {
-    let (_, [su, sv]) = surface.eval_d1(u, v);
+    let (_, [su, sv]) = surface.first_derivatives(u, v);
     su.cross(sv).normalized().unwrap()
 }
 
@@ -197,9 +197,9 @@ fn test_parameter_maps_land_on_the_same_point_and_invert_themselves() {
         let (reversed_u, reversed_v) = (surface.reversed_u(), surface.reversed_v());
         for parameters in PARAMETERS {
             let (u, v) = in_domain(&surface, parameters);
-            let point = surface.eval_point(u, v);
-            let on_u = reversed_u.eval_point(surface.u_reversed_parameter(u), v);
-            let on_v = reversed_v.eval_point(u, surface.v_reversed_parameter(v));
+            let point = surface.point_at(u, v);
+            let on_u = reversed_u.point_at(surface.u_reversed_parameter(u), v);
+            let on_v = reversed_v.point_at(u, surface.v_reversed_parameter(v));
             assert!(on_u.distance(point) < 1e-12, "{surface:?}: u map at {u}");
             assert!(on_v.distance(point) < 1e-12, "{surface:?}: v map at {v}");
             let back_u = reversed_u.u_reversed_parameter(surface.u_reversed_parameter(u));
@@ -219,11 +219,11 @@ fn test_iso_curves_of_reversed_surfaces_follow_the_reversed_parametrization() {
                 for t in [-0.4, 0.0, 0.7] {
                     let (along_u_at, along_v_at) = in_domain(&reversed, (t, t));
                     let along_v = u_iso
-                        .eval_point(along_v_at)
-                        .distance(reversed.eval_point(u, along_v_at));
+                        .point_at(along_v_at)
+                        .distance(reversed.point_at(u, along_v_at));
                     let along_u = v_iso
-                        .eval_point(along_u_at)
-                        .distance(reversed.eval_point(along_u_at, v));
+                        .point_at(along_u_at)
+                        .distance(reversed.point_at(along_u_at, v));
                     assert!(along_v < 1e-12, "{reversed:?}: u_iso({u}) at {along_v_at}");
                     assert!(along_u < 1e-12, "{reversed:?}: v_iso({v}) at {along_u_at}");
                 }
@@ -242,8 +242,8 @@ fn test_transform_commutes_with_surface_evaluation() {
                 let (u, v) = in_bounds(&surface, parameters);
                 let ((iu, iv), [u_factor, v_factor]) =
                     image_parameters(&surface, similarity.scale, (u, v));
-                let (point, [su, sv]) = surface.eval_d1(u, v);
-                let (image_point, [image_su, image_sv]) = image.eval_d1(iu, iv);
+                let (point, [su, sv]) = surface.first_derivatives(u, v);
+                let (image_point, [image_su, image_sv]) = image.first_derivatives(iu, iv);
                 let context = format!("{} of {surface:?} at ({u}, {v})", similarity.name);
                 assert!(
                     image_point.distance(t.apply_point(point)) < 1e-11,
@@ -338,16 +338,16 @@ fn test_conversion_to_bspline_commutes_with_transforms() {
             for (a, b) in [(0.0, 0.0), (0.3, 0.7), (0.5, 0.5), (1.0, 0.2), (0.9, 1.0)] {
                 let (u, v) = (u0 + a * (u1 - u0), v0 + b * (v1 - v0));
                 let ((iu, iv), _) = image_parameters(&surface, similarity.scale, (u, v));
-                let first = converted_then_moved.eval_point(u, v);
-                let second = moved_then_converted.eval_point(iu, iv);
+                let first = converted_then_moved.point_at(u, v);
+                let second = moved_then_converted.point_at(iu, iv);
                 assert!(
                     first.distance(second) < 1e-11,
                     "{} of {surface:?} at ({u}, {v})",
                     similarity.name
                 );
                 // The B-spline of the image has the image's orientation.
-                let (_, [su, sv]) = moved_then_converted.eval_d1(iu, iv);
-                let (_, [image_su, image_sv]) = converted_then_moved.eval_d1(u, v);
+                let (_, [su, sv]) = moved_then_converted.first_derivatives(iu, iv);
+                let (_, [image_su, image_sv]) = converted_then_moved.first_derivatives(u, v);
                 let normal = su.cross(sv).normalized();
                 let expected = image_su.cross(image_sv).normalized();
                 if let (Some(normal), Some(expected)) = (normal, expected) {
@@ -369,10 +369,10 @@ fn test_projection_onto_reversed_and_mirrored_surfaces_finds_the_foot() {
         ] {
             for parameters in [(0.3, 0.2), (2.0, -0.7)] {
                 let (u, v) = in_domain(&target, parameters);
-                let foot = target.eval_point(u, v);
+                let foot = target.point_at(u, v);
                 let off = foot + 0.1 * unit_normal(&target, u, v);
                 let projection = target.project_point(off, tol);
-                let found = target.eval_point(projection.u, projection.v);
+                let found = target.point_at(projection.u, projection.v);
                 assert!(found.distance(foot) < 1e-9, "{target:?} at ({u}, {v})");
                 assert!(
                     projection.point.distance(foot) < 1e-9,
@@ -434,8 +434,8 @@ fn test_transform_commutes_with_curve_evaluation_and_parameter_recovery() {
                 } else {
                     u.clamp(first, last)
                 };
-                let (point, derivative) = curve.eval_d1(u);
-                let (image_point, image_derivative) = image.eval_d1(u * factor);
+                let (point, derivative) = curve.first_derivatives(u);
+                let (image_point, image_derivative) = image.first_derivatives(u * factor);
                 let context = format!("{} of {curve:?} at {u}", similarity.name);
                 assert!(
                     image_point.distance(t.apply_point(point)) < 1e-10,
@@ -459,8 +459,8 @@ fn test_transform_commutes_with_curve_evaluation_and_parameter_recovery() {
                 let expected = (sign / similarity.scale) * t.apply_vector(circle.normal());
                 assert!((image.normal() - expected).magnitude() < 1e-12);
                 // The image turns counterclockwise about its normal.
-                let (_, d1) = image.eval_d1(0.0);
-                let radial = image.eval_point(0.0) - image.center();
+                let (_, d1) = image.first_derivatives(0.0);
+                let radial = image.point_at(0.0) - image.center();
                 assert!(radial.cross(d1).dot(image.normal()) > 0.0);
             }
             let conversions = match (&curve, &image) {
@@ -472,8 +472,8 @@ fn test_transform_commutes_with_curve_evaluation_and_parameter_recovery() {
                 let converted_then_moved = converted.transformed(t).unwrap();
                 for u in [0.0, 1.0, 3.3, 5.9] {
                     let gap = converted_then_moved
-                        .eval_point(u)
-                        .distance(image_converted.eval_point(u));
+                        .point_at(u)
+                        .distance(image_converted.point_at(u));
                     assert!(gap < 1e-11, "{} of {curve:?} at {u}", similarity.name);
                 }
             }
@@ -490,12 +490,10 @@ type Hit = (f64, Point, u32);
 /// searched numerically.
 fn curve_surface_hits(result: CurveSurfaceIntersection) -> Option<(bool, Vec<Hit>)> {
     (result.method() == IntersectionMethod::Exact).then(|| {
-        let hits = result.hits().iter().map(|hit| {
-            let parameter = hit
-                .curve_parameter
-                .expect("an exact hit stores its curve parameter");
-            (parameter, hit.point, hit.multiplicity)
-        });
+        let hits = result
+            .hits()
+            .iter()
+            .map(|hit| (hit.curve_parameter, hit.point, hit.multiplicity));
         (!result.overlaps().is_empty(), hits.collect())
     })
 }
@@ -559,12 +557,7 @@ fn test_curve_surface_intersection_commutes_with_mirrors() {
                         "{context}"
                     );
                     assert_eq!(multiplicity, image_multiplicity, "{context}");
-                    assert!(
-                        image_curve
-                            .eval_point(image_parameter)
-                            .distance(image_point)
-                            < 1e-8
-                    );
+                    assert!(image_curve.point_at(image_parameter).distance(image_point) < 1e-8);
                     assert!(image_surface.project_point(image_point, tol).distance < 1e-8);
                     checked_hits += 1;
                 }
@@ -574,15 +567,9 @@ fn test_curve_surface_intersection_commutes_with_mirrors() {
     assert!(checked_hits > 300, "only {checked_hits} hits checked");
 }
 
-/// A hit's parameters on both curves, recovered from its point where the
-/// exact solver did not store them.
-fn hit_parameters(hit: &CurveCurveHit, first: &Curve, second: &Curve) -> (f64, f64) {
-    (
-        hit.first_parameter
-            .unwrap_or_else(|| first.parameter_of(hit.point, Tolerance::DEFAULT)),
-        hit.second_parameter
-            .unwrap_or_else(|| second.parameter_of(hit.point, Tolerance::DEFAULT)),
-    )
+/// A hit's parameters on both curves.
+fn hit_parameters(hit: &CurveCurveHit) -> (f64, f64) {
+    (hit.first_parameter, hit.second_parameter)
 }
 
 #[test]
@@ -643,9 +630,8 @@ fn test_curve_curve_intersection_commutes_with_mirrors() {
                 };
                 checked_hits += hits.len();
                 for (hit, image_hit) in hits.iter().zip(image_hits.iter()) {
-                    let (first_parameter, second_parameter) = hit_parameters(hit, first, second);
-                    let (image_first_parameter, image_second_parameter) =
-                        hit_parameters(image_hit, &first_image, &second_image);
+                    let (first_parameter, second_parameter) = hit_parameters(hit);
+                    let (image_first_parameter, image_second_parameter) = hit_parameters(image_hit);
                     assert!(
                         (image_first_parameter - first_factor * first_parameter).abs() < 1e-8,
                         "{context}"
@@ -660,13 +646,13 @@ fn test_curve_curve_intersection_commutes_with_mirrors() {
                     );
                     assert!(
                         first_image
-                            .eval_point(image_first_parameter)
+                            .point_at(image_first_parameter)
                             .distance(image_hit.point)
                             < 1e-8
                     );
                     assert!(
                         second_image
-                            .eval_point(image_second_parameter)
+                            .point_at(image_second_parameter)
                             .distance(image_hit.point)
                             < 1e-8
                     );
@@ -762,7 +748,7 @@ fn test_surface_surface_intersection_commutes_with_mirrors() {
                 checked_curves += image_curves.len();
                 for curve in image_curves {
                     for parameter in [-0.6, 0.0, 0.4, 1.3] {
-                        let point = curve.eval_point(parameter);
+                        let point = curve.point_at(parameter);
                         assert!(image.project_point(point, tol).distance < 1e-8, "{context}");
                         assert!(
                             other_image.project_point(point, tol).distance < 1e-8,
@@ -825,18 +811,16 @@ fn test_routed_curve_surface_intersection_commutes_with_mirrors() {
                         image_surface.project_point(hit.point, tol).distance < 1e-7,
                         "{context}"
                     );
-                    if let Some(parameter) = hit.curve_parameter {
-                        assert!(
-                            image_curve.eval_point(parameter).distance(hit.point) < 1e-7,
-                            "{context}"
-                        );
-                    }
-                    if let Some((u, v)) = hit.surface_parameters {
-                        assert!(
-                            image_surface.eval_point(u, v).distance(hit.point) < 1e-7,
-                            "{context}"
-                        );
-                    }
+                    let parameter = hit.curve_parameter;
+                    assert!(
+                        image_curve.point_at(parameter).distance(hit.point) < 1e-7,
+                        "{context}"
+                    );
+                    let (u, v) = hit.surface_parameters;
+                    assert!(
+                        image_surface.point_at(u, v).distance(hit.point) < 1e-7,
+                        "{context}"
+                    );
                     checked_hits += 1;
                 }
             }
@@ -903,7 +887,7 @@ fn test_routed_surface_surface_intersection_commutes_with_mirrors() {
                     let (first, last) = (first.max(-3.0), last.min(3.0));
                     for step in 0..=4 {
                         let parameter = first + (last - first) * step as f64 / 4.0;
-                        let point = piece.curve.eval_point(parameter);
+                        let point = piece.curve.point_at(parameter);
                         assert!(image.project_point(point, tol).distance < gap, "{context}");
                         assert!(
                             other_image.project_point(point, tol).distance < gap,
@@ -950,7 +934,7 @@ fn curves_on(surface: &Surface) -> Vec<Curve> {
     }
     if let Surface::Plane(plane) = surface {
         let frame = Frame::new(
-            plane.eval_point(0.4, -0.3),
+            plane.point_at(0.4, -0.3),
             plane.normal(),
             plane.frame().x_direction() + plane.frame().y_direction(),
         )
@@ -979,10 +963,10 @@ fn test_parametrization_on_reversed_and_mirrored_surfaces() {
                     .curve_3d_to_uv(&curve, tol)
                     .unwrap_or_else(|error| panic!("{error:?}: {curve:?} on {target:?}"));
                 for parameter in [0.0, 0.9, 2.5, 5.0] {
-                    let uv = pcurve.eval_point(parameter);
-                    let on_surface = target.eval_point(uv.x, uv.y);
+                    let uv = pcurve.point_at(parameter);
+                    let on_surface = target.point_at(uv.x, uv.y);
                     assert!(
-                        on_surface.distance(curve.eval_point(parameter)) < 1e-9,
+                        on_surface.distance(curve.point_at(parameter)) < 1e-9,
                         "{curve:?} on {target:?} at {parameter}"
                     );
                 }

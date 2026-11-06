@@ -6,28 +6,31 @@ import pytest
 
 import geomcore
 from geomcore import (
-    Axis2D,
     Axis,
-    Frame2D,
-    Frame,
-    Point2D,
-    Point,
-    Vector2D,
-    Vector,
-)
-from geomcore.curves import (
+    Axis2D,
     BSplineCurve,
-    Circle2D,
+    BSplineSurface,
     Circle,
+    Circle2D,
+    Cone,
+    Cylinder,
     Ellipse,
+    Frame,
+    Frame2D,
     Hyperbola,
-    Line2D,
     Line,
+    Line2D,
     Parabola,
-    TrimmedCurve2D,
+    Plane,
+    Point,
+    Point2D,
+    Sphere,
+    Torus,
     TrimmedCurve,
+    TrimmedCurve2D,
+    Vector,
+    Vector2D,
 )
-from geomcore.surfaces import BSplineSurface, Cone, Cylinder, Plane, Sphere, Torus
 
 Z = Vector(0.0, 0.0, 1.0)
 
@@ -107,7 +110,7 @@ def test_center_on_torus_and_apex_on_parabola():
 
 
 # ---------------------------------------------------------------------------
-# Group 2: period, eval_d1/eval_d2, 2D bounds, from_two_points, extrema
+# Group 2: period, first_derivatives/second_derivatives, 2D bounds, from_two_points, extrema
 # ---------------------------------------------------------------------------
 
 
@@ -168,23 +171,23 @@ def test_u_and_v_period_on_surfaces():
 @pytest.mark.parametrize("curve", curves_3d())
 def test_eval_d1_d2_on_3d_curves(curve):
     u = 0.5
-    point, first = curve.eval_d1(u)
-    assert point == curve.eval_point(u)
-    assert first == curve.eval_derivative(u, 1)
-    point, first, second = curve.eval_d2(u)
-    assert point == curve.eval_point(u)
-    assert first == curve.eval_derivative(u, 1)
-    assert second == curve.eval_derivative(u, 2)
+    point, first = curve.first_derivatives(u)
+    assert point == curve.point_at(u)
+    assert first == curve.derivative(u, 1)
+    point, first, second = curve.second_derivatives(u)
+    assert point == curve.point_at(u)
+    assert first == curve.derivative(u, 1)
+    assert second == curve.derivative(u, 2)
 
 
 @pytest.mark.parametrize("curve", curves_2d())
 def test_eval_d1_d2_on_2d_curves(curve):
     u = 0.5
-    point, first = curve.eval_d1(u)
-    assert point == curve.eval_point(u)
-    assert first == curve.eval_derivative(u, 1)
-    point, first, second = curve.eval_d2(u)
-    assert second == curve.eval_derivative(u, 2)
+    point, first = curve.first_derivatives(u)
+    assert point == curve.point_at(u)
+    assert first == curve.derivative(u, 1)
+    point, first, second = curve.second_derivatives(u)
+    assert second == curve.derivative(u, 2)
 
 
 def test_eval_d1_d2_on_surfaces():
@@ -198,14 +201,14 @@ def test_eval_d1_d2_on_surfaces():
     ]
     for surface in surfaces:
         u, v = 0.4, 0.3
-        point, (du, dv) = surface.eval_d1(u, v)
-        assert point == surface.eval_point(u, v)
-        assert du == surface.eval_derivative(u, v, 1, 0)
-        assert dv == surface.eval_derivative(u, v, 0, 1)
-        point, (du, dv), (duu, duv, dvv) = surface.eval_d2(u, v)
-        assert duu == surface.eval_derivative(u, v, 2, 0)
-        assert duv == surface.eval_derivative(u, v, 1, 1)
-        assert dvv == surface.eval_derivative(u, v, 0, 2)
+        point, (du, dv) = surface.first_derivatives(u, v)
+        assert point == surface.point_at(u, v)
+        assert du == surface.derivative(u, v, 1, 0)
+        assert dv == surface.derivative(u, v, 0, 1)
+        point, (du, dv), (duu, duv, dvv) = surface.second_derivatives(u, v)
+        assert duu == surface.derivative(u, v, 2, 0)
+        assert duv == surface.derivative(u, v, 1, 1)
+        assert dvv == surface.derivative(u, v, 0, 2)
 
 
 def test_bounds_on_2d_curves():
@@ -258,8 +261,8 @@ def test_to_bspline_on_elementary_curves_and_surfaces():
         assert isinstance(spline, BSplineCurve)
         first, last = spline.bounds()
         middle = 0.5 * (first + last)
-        assert spline.eval_point(middle).distance(
-            curve.eval_point(curve.parameter_of(spline.eval_point(middle)))
+        assert spline.point_at(middle).distance(
+            curve.point_at(curve.parameter_of(spline.point_at(middle)))
         ) == pytest.approx(0.0, abs=1e-9)
     # Unbounded curves convert over a range, through a trimmed curve.
     for curve in (
@@ -268,7 +271,7 @@ def test_to_bspline_on_elementary_curves_and_surfaces():
         Hyperbola.from_frame(frame, 3.0, 2.0),
     ):
         spline = TrimmedCurve(curve, 0.0, 1.0).to_bspline()
-        assert spline.eval_point(0.5).distance(curve.eval_point(0.5)) < 1e-9
+        assert spline.point_at(0.5).distance(curve.point_at(0.5)) < 1e-9
     assert isinstance(Sphere(Point(0.0, 0.0, 0.0), 1.0).to_bspline(), BSplineSurface)
     assert isinstance(Torus.from_frame(frame, 3.0, 1.0).to_bspline(), BSplineSurface)
     for surface in (
@@ -375,7 +378,7 @@ def test_vector_2d_members():
     assert v.components() == (3.0, 4.0)
     assert v.square_magnitude() == 25.0
     assert v.cross(Vector2D(0.0, 1.0)) == 3.0
-    assert v.perp() == Vector2D(-4.0, 3.0)
+    assert v.perpendicular() == Vector2D(-4.0, 3.0)
     assert v.normalized() == Vector2D(0.6, 0.8)
     assert Vector2D.zero().normalized() is None
     assert v.is_finite()
@@ -417,24 +420,24 @@ def test_repr_snaps_rounding_noise_to_zero():
 def test_eval_d1_matches_finite_differences():
     step = 1e-6
     circle = Circle(Point(0.0, 0.0, 0.0), Z, 2.0)
-    _, tangent = circle.eval_d1(0.5)
-    ahead, behind = circle.eval_point(0.5 + step), circle.eval_point(0.5 - step)
+    _, tangent = circle.first_derivatives(0.5)
+    ahead, behind = circle.point_at(0.5 + step), circle.point_at(0.5 - step)
     estimate = (ahead - behind) * (0.5 / step)
     assert (estimate - tangent).magnitude() < 1e-6
 
     circle_2d = Circle2D(Point2D(0.0, 0.0), 2.0)
-    _, tangent_2d = circle_2d.eval_d1(0.5)
-    estimate_2d = (circle_2d.eval_point(0.5 + step) - circle_2d.eval_point(0.5 - step)) * (
+    _, tangent_2d = circle_2d.first_derivatives(0.5)
+    estimate_2d = (circle_2d.point_at(0.5 + step) - circle_2d.point_at(0.5 - step)) * (
         0.5 / step
     )
     assert (estimate_2d - tangent_2d).magnitude() < 1e-6
 
     sphere = Sphere(Point(0.0, 0.0, 0.0), 2.0)
-    _, (du, dv) = sphere.eval_d1(0.4, 0.3)
-    estimate_u = (sphere.eval_point(0.4 + step, 0.3) - sphere.eval_point(0.4 - step, 0.3)) * (
+    _, (du, dv) = sphere.first_derivatives(0.4, 0.3)
+    estimate_u = (sphere.point_at(0.4 + step, 0.3) - sphere.point_at(0.4 - step, 0.3)) * (
         0.5 / step
     )
-    estimate_v = (sphere.eval_point(0.4, 0.3 + step) - sphere.eval_point(0.4, 0.3 - step)) * (
+    estimate_v = (sphere.point_at(0.4, 0.3 + step) - sphere.point_at(0.4, 0.3 - step)) * (
         0.5 / step
     )
     assert (estimate_u - du).magnitude() < 1e-6
