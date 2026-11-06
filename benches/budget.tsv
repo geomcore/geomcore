@@ -78,7 +78,7 @@ intersect_dispatch	intersect/circle_cylinder/routed	9875246
 intersect_dispatch	intersect/circle_cylinder/typed	9352974
 intersect_dispatch	intersect/cone_cylinder_around_a_sphere/elementary	4401457
 intersect_dispatch	intersect/cone_cylinder_around_a_sphere/erased	4474301
-intersect_dispatch	intersect/cone_cylinder_around_a_sphere/routed	4064566
+intersect_dispatch	intersect/cone_cylinder_around_a_sphere/routed	4161844
 intersect_dispatch	intersect/cone_cylinder_around_a_sphere/typed	2399541
 intersect_dispatch	intersect/cones_sharing_an_apex/elementary	8609033
 intersect_dispatch	intersect/cones_sharing_an_apex/erased	8709498
@@ -96,6 +96,10 @@ intersect_dispatch	intersect/line_torus/elementary	8052798
 intersect_dispatch	intersect/line_torus/erased	8083516
 intersect_dispatch	intersect/line_torus/routed	8009736
 intersect_dispatch	intersect/line_torus/typed	7695632
+intersect_dispatch	intersect/parallel_cones/elementary	4143874
+intersect_dispatch	intersect/parallel_cones/erased	4227842
+intersect_dispatch	intersect/parallel_cones/routed	3893828
+intersect_dispatch	intersect/parallel_cones/typed	2368052
 intersect_dispatch	intersect/plane_sphere/elementary	1619066
 intersect_dispatch	intersect/plane_sphere/erased	1681242
 intersect_dispatch	intersect/plane_sphere/routed	1542452
@@ -122,7 +126,7 @@ intersect_dispatch	intersect_routed/plane_sphere/exact	447798
 intersect_dispatch	intersect_routed/plane_sphere/routed	1811920
 intersect_dispatch	intersect_routed/sphere_quadric/cone_apex_exact	1053
 intersect_dispatch	intersect_routed/sphere_quadric/cone_apex_routed	2452807
-intersect_dispatch	intersect_routed/sphere_quadric/cone_beside_exact	1841
+intersect_dispatch	intersect_routed/sphere_quadric/cone_beside_exact	2070
 intersect_dispatch	intersect_routed/sphere_quadric/cone_beside_routed	1473884
 intersect_dispatch	intersect_routed/sphere_quadric/cylinder_wall_exact	996
 intersect_dispatch	intersect_routed/sphere_quadric/cylinder_wall_routed	2404969
