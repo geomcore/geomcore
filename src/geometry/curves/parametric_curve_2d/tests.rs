@@ -7,7 +7,7 @@ use crate::{Continuity, Frame2D};
 use std::f64::consts::TAU;
 
 fn sample<C: ParametricCurve2D>(c: &C) -> Point2D {
-    c.eval_point(0.5)
+    c.point_at(0.5)
 }
 
 fn line() -> Line2D {
@@ -27,19 +27,19 @@ fn ellipse() -> Ellipse2D {
 #[test]
 fn test_sample_line_agrees_with_inherent() {
     let l = line();
-    assert_eq!(sample(&l), l.eval_point(0.5));
+    assert_eq!(sample(&l), l.point_at(0.5));
 }
 
 #[test]
 fn test_sample_circle_agrees_with_inherent() {
     let c = circle();
-    assert_eq!(sample(&c), c.eval_point(0.5));
+    assert_eq!(sample(&c), c.point_at(0.5));
 }
 
 #[test]
 fn test_sample_ellipse_agrees_with_inherent() {
     let e = ellipse();
-    assert_eq!(sample(&e), e.eval_point(0.5));
+    assert_eq!(sample(&e), e.point_at(0.5));
 }
 
 // ---- heterogeneous Vec<Curve2D> eval ----
@@ -87,31 +87,31 @@ fn test_ellipse_bounds_and_period() {
     assert!(wrapped.is_periodic());
 }
 
-// ---- default eval_points == mapped eval_point ----
+// ---- default points_at == mapped point_at ----
 
 #[test]
 fn test_default_eval_points_matches_mapped_eval_point_for_each_type() {
     let us = [0.0, 0.5, 1.0, -2.0];
 
     let l = line();
-    let expected: Vec<Point2D> = us.iter().map(|&u| l.eval_point(u)).collect();
-    assert_eq!(l.eval_points(&us), expected);
+    let expected: Vec<Point2D> = us.iter().map(|&u| l.point_at(u)).collect();
+    assert_eq!(l.points_at(&us), expected);
 
     let c = circle();
-    let expected: Vec<Point2D> = us.iter().map(|&u| c.eval_point(u)).collect();
-    assert_eq!(c.eval_points(&us), expected);
+    let expected: Vec<Point2D> = us.iter().map(|&u| c.point_at(u)).collect();
+    assert_eq!(c.points_at(&us), expected);
 }
 
 #[test]
 fn test_eval_derivative_delegates_to_inherent() {
     let l = line();
-    assert_eq!(l.eval_derivative(0.5, 1), l.eval_derivative(0.5, 1));
+    assert_eq!(l.derivative(0.5, 1), l.derivative(0.5, 1));
 
     let c = circle();
-    assert_eq!(c.eval_derivative(0.5, 1), c.eval_derivative(0.5, 1));
+    assert_eq!(c.derivative(0.5, 1), c.derivative(0.5, 1));
 
     let e = ellipse();
-    assert_eq!(e.eval_derivative(0.5, 1), e.eval_derivative(0.5, 1));
+    assert_eq!(e.derivative(0.5, 1), e.derivative(0.5, 1));
 }
 
 // ---- signed local properties ----

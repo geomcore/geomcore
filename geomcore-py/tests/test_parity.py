@@ -13,6 +13,7 @@ The method sets are read from the stubs, where each is a stub-only class
 
 import ast
 import inspect
+from typing import get_args
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -32,24 +33,23 @@ from geomcore import (
     Vector2D,
     Vector,
 )
-from geomcore import curves, surfaces
 
 def _curves_3d():
     """One small instance of each whole 3D curve class, near the origin."""
     return [
-        curves.Line(Point(0.0, 0.0, -2.0), Vector(0.1, 0.2, 1.0)),
-        curves.Circle(Point.origin(), Vector.unit_z(), 1.0),
-        curves.Ellipse(Point.origin(), Vector.unit_y(), Vector.unit_x(), 1.5, 0.5),
-        curves.Parabola(Point.origin(), Vector.unit_x(), Vector.unit_y(), 0.5),
-        curves.Hyperbola(Point.origin(), Vector.unit_z(), Vector.unit_x(), 1.0, 0.5),
-        curves.BSplineCurve(
+        geomcore.Line(Point(0.0, 0.0, -2.0), Vector(0.1, 0.2, 1.0)),
+        geomcore.Circle(Point.origin(), Vector.unit_z(), 1.0),
+        geomcore.Ellipse(Point.origin(), Vector.unit_y(), Vector.unit_x(), 1.5, 0.5),
+        geomcore.Parabola(Point.origin(), Vector.unit_x(), Vector.unit_y(), 0.5),
+        geomcore.Hyperbola(Point.origin(), Vector.unit_z(), Vector.unit_x(), 1.0, 0.5),
+        geomcore.BSplineCurve(
             2,
             [Point(-1.0, -1.0, 0.5), Point(0.0, 2.0, -0.5), Point(1.0, -1.0, 0.5)],
             [0.0, 1.0],
             [3, 3],
             False,
         ),
-        curves.BezierCurve(
+        geomcore.BezierCurve(
             2, [Point(-1.0, 0.5, -1.0), Point(0.0, 0.5, 2.0), Point(1.0, 0.5, -1.0)]
         ),
     ]
@@ -58,19 +58,19 @@ def _curves_3d():
 def _curves_2d():
     """One small instance of each whole 2D curve class, near the origin."""
     return [
-        curves.Line2D(Point2D(-2.0, 0.1), Vector2D(1.0, 0.05)),
-        curves.Circle2D(Point2D(0.0, 0.0), 1.0),
-        curves.Ellipse2D(Point2D(0.0, 0.0), Vector2D(1.0, 0.0), 1.5, 0.5),
-        curves.Parabola2D(Point2D(0.0, -0.5), Vector2D(0.0, 1.0), 0.5),
-        curves.Hyperbola2D(Point2D(0.0, 0.0), Vector2D(1.0, 0.0), 0.5, 0.5),
-        curves.BSplineCurve2D(
+        geomcore.Line2D(Point2D(-2.0, 0.1), Vector2D(1.0, 0.05)),
+        geomcore.Circle2D(Point2D(0.0, 0.0), 1.0),
+        geomcore.Ellipse2D(Point2D(0.0, 0.0), Vector2D(1.0, 0.0), 1.5, 0.5),
+        geomcore.Parabola2D(Point2D(0.0, -0.5), Vector2D(0.0, 1.0), 0.5),
+        geomcore.Hyperbola2D(Point2D(0.0, 0.0), Vector2D(1.0, 0.0), 0.5, 0.5),
+        geomcore.BSplineCurve2D(
             2,
             [Point2D(-1.0, -1.0), Point2D(0.0, 2.0), Point2D(1.0, -1.0)],
             [0.0, 1.0],
             [3, 3],
             False,
         ),
-        curves.BezierCurve2D(2, [Point2D(-1.0, 0.5), Point2D(0.0, -1.0), Point2D(1.0, 0.5)]),
+        geomcore.BezierCurve2D(2, [Point2D(-1.0, 0.5), Point2D(0.0, -1.0), Point2D(1.0, 0.5)]),
     ]
 
 
@@ -81,25 +81,25 @@ def _surfaces():
         [Point(1.0, -1.0, -0.2), Point(1.0, 1.0, 0.2)],
     ]
     return [
-        surfaces.Plane(Point(0.0, 0.0, 0.1), Vector(0.0, 0.1, 1.0)),
-        surfaces.Cylinder(Point.origin(), Vector.unit_y(), 0.5),
-        surfaces.Cone(Point(0.0, 0.0, -1.0), Vector.unit_z(), 0.4, 0.5),
-        surfaces.Sphere(Point(0.2, 0.0, 0.0), 0.8),
-        surfaces.Torus(Point.origin(), Vector.unit_x(), 1.0, 0.3),
-        surfaces.ExtrusionSurface(
-            curves.Ellipse(Point(0.0, 0.0, -0.5), Vector.unit_z(), Vector.unit_x(), 0.6, 0.4),
+        geomcore.Plane(Point(0.0, 0.0, 0.1), Vector(0.0, 0.1, 1.0)),
+        geomcore.Cylinder(Point.origin(), Vector.unit_y(), 0.5),
+        geomcore.Cone(Point(0.0, 0.0, -1.0), Vector.unit_z(), 0.4, 0.5),
+        geomcore.Sphere(Point(0.2, 0.0, 0.0), 0.8),
+        geomcore.Torus(Point.origin(), Vector.unit_x(), 1.0, 0.3),
+        geomcore.ExtrusionSurface(
+            geomcore.Ellipse(Point(0.0, 0.0, -0.5), Vector.unit_z(), Vector.unit_x(), 0.6, 0.4),
             Vector(0.1, 0.0, 1.0),
         ),
-        surfaces.RevolutionSurface(
-            curves.Circle.from_frame(
+        geomcore.RevolutionSurface(
+            geomcore.Circle.from_frame(
                 Frame(Point(0.7, 0.0, 0.0), Vector.unit_y(), Vector.unit_x()), 0.25
             ),
             Axis(Point.origin(), Vector.unit_z()),
         ),
-        surfaces.BSplineSurface(
+        geomcore.BSplineSurface(
             1, 1, patch, [0.0, 1.0], [2, 2], [0.0, 1.0], [2, 2], False, False
         ),
-        surfaces.BezierSurface(1, 1, patch),
+        geomcore.BezierSurface(1, 1, patch),
     ]
 
 
@@ -113,24 +113,22 @@ def _piece(curve, trimmed_class):
 
 def _operands_3d():
     whole = _curves_3d()
-    return whole + [_piece(c, curves.TrimmedCurve) for c in whole[:2]] + _surfaces()
+    return whole + [_piece(c, geomcore.TrimmedCurve) for c in whole[:2]] + _surfaces()
 
 
 def _operands_2d():
     whole = _curves_2d()
-    return whole + [_piece(c, curves.TrimmedCurve2D) for c in whole[:2]]
+    return whole + [_piece(c, geomcore.TrimmedCurve2D) for c in whole[:2]]
 
 
-def _classes(module):
-    return {
-        name: value
-        for name, value in vars(module).items()
-        if inspect.isclass(value) and not name.startswith("_")
-    }
+_CURVE_CLASSES = {
+    cls.__name__: cls for cls in (*get_args(geomcore.Curve), *get_args(geomcore.Curve2D))
+}
+_SURFACE_CLASSES = {cls.__name__: cls for cls in get_args(geomcore.Surface)}
 
 
 def _shape_classes():
-    return {**_classes(curves), **_classes(surfaces)}
+    return {**_CURVE_CLASSES, **_SURFACE_CLASSES}
 
 
 class _StubClass:
@@ -149,17 +147,18 @@ class _StubClass:
 
 
 def _base_name(base):
-    return base.value.id if isinstance(base, ast.Subscript) else base.id
+    if isinstance(base, ast.Subscript):
+        return base.value.id
+    return base.attr if isinstance(base, ast.Attribute) else base.id
 
 
 def _read_stub_classes():
     stub_directory = Path(geomcore.__file__).parent
     classes = {}
-    for module in ("curves", "surfaces"):
-        tree = ast.parse((stub_directory / f"{module}.pyi").read_text(encoding="utf-8"))
-        for node in tree.body:
-            if isinstance(node, ast.ClassDef):
-                classes[node.name] = _StubClass(node)
+    tree = ast.parse((stub_directory / "__init__.pyi").read_text(encoding="utf-8"))
+    for node in tree.body:
+        if isinstance(node, ast.ClassDef):
+            classes[node.name] = _StubClass(node)
     return classes
 
 
@@ -192,12 +191,12 @@ def _stub_docstrings(name):
 
 def test_every_class_has_a_fixture():
     covered = {type(shape).__name__ for shape in _operands_3d() + _operands_2d()}
-    assert set(_classes(curves)) | set(_classes(surfaces)) == covered
+    assert set(_shape_classes()) == covered
 
 
 def test_every_class_takes_its_tier_method_set():
     for name in _shape_classes():
-        if name in _classes(surfaces):
+        if name in _SURFACE_CLASSES:
             tier = "_SurfaceMethods"
         elif name.endswith("2D"):
             tier = "_Curve2DMethods"
@@ -214,7 +213,7 @@ def test_every_class_answers_each_method_its_stub_gives_it(name):
 
 
 def test_3d_curves_are_transformed_and_2d_curves_are_not():
-    for name, cls in _classes(curves).items():
+    for name, cls in _CURVE_CLASSES.items():
         assert ("transformed" in dir(cls)) == (not name.endswith("2D")), name
 
 
@@ -229,8 +228,7 @@ def test_bounded_curves_discretize_and_unbounded_ones_do_not():
 def test_spline_classes_have_the_sided_evaluations():
     sided = {
         name
-        for module in (curves, surfaces)
-        for name, cls in _classes(module).items()
+        for name, cls in _shape_classes().items()
         if _stub_methods("_SidedEvaluationMethods") <= set(dir(cls))
     }
     assert sided == {
@@ -265,32 +263,30 @@ def test_type_checkers_see_every_method_of_every_class(tmp_path):
     lines = [
         "from typing_extensions import assert_type",
         "import geomcore",
-        "from geomcore import curves, surfaces",
     ]
-    for module in (curves, surfaces):
-        for name, cls in sorted(_classes(module).items()):
-            for method in sorted(m for m in vars(cls) if not m.startswith("_")):
-                lines.append(f"{module.__name__}.{name}.{method}")
+    for name, cls in sorted(_shape_classes().items()):
+        for method in sorted(m for m in vars(cls) if not m.startswith("_")):
+            lines.append(f"geomcore.{name}.{method}")
     lines += [
         "def check(",
-        "    line: curves.Line,",
-        "    line_2d: curves.Line2D,",
-        "    ellipse: curves.Ellipse,",
-        "    spline_2d: curves.BSplineCurve2D,",
-        "    plane: surfaces.Plane,",
-        "    torus: surfaces.Torus,",
+        "    line: geomcore.Line,",
+        "    line_2d: geomcore.Line2D,",
+        "    ellipse: geomcore.Ellipse,",
+        "    spline_2d: geomcore.BSplineCurve2D,",
+        "    plane: geomcore.Plane,",
+        "    torus: geomcore.Torus,",
         ") -> None:",
-        "    assert_type(line.eval_point(0.0), geomcore.Point)",
-        "    assert_type(line_2d.eval_point(0.0), geomcore.Point2D)",
+        "    assert_type(line.point_at(0.0), geomcore.Point)",
+        "    assert_type(line_2d.point_at(0.0), geomcore.Point2D)",
         "    assert_type(line.intersect(line), geomcore.CurveCurveIntersection)",
         "    assert_type(line.intersect(plane), geomcore.CurveSurfaceIntersection)",
         "    assert_type(line_2d.intersect(spline_2d), geomcore.CurveCurveIntersection2D)",
-        "    assert_type(plane.curve_3d_to_uv(ellipse), curves._WholeCurve2D)",
+        "    assert_type(plane.curve_3d_to_uv(ellipse), geomcore._WholeCurve2D)",
         "    assert_type(ellipse.discretize(0.1), geomcore.Discretization)",
         "    assert_type(spline_2d.discretize(0.1), geomcore.Discretization2D)",
-        "    assert_type(spline_2d.eval_d1_sided(0.0, geomcore.Side.BELOW)[1], geomcore.Vector2D)",
-        "    assert_type(plane.u_iso(0.0), curves.Line)",
-        "    assert_type(torus.v_iso(0.0), curves.Circle)",
+        "    assert_type(spline_2d.first_derivatives_sided(0.0, geomcore.Side.BELOW)[1], geomcore.Vector2D)",
+        "    assert_type(plane.u_iso(0.0), geomcore.Line)",
+        "    assert_type(torus.v_iso(0.0), geomcore.Circle)",
         "    assert_type(torus.intersect(plane), geomcore.SurfaceSurfaceIntersection)",
     ]
     source = tmp_path / "uses_the_stubs.py"
@@ -305,11 +301,11 @@ def test_type_checkers_see_every_method_of_every_class(tmp_path):
 
 
 def _family(a, b):
-    if isinstance(a, tuple(_classes(surfaces).values())):
-        if isinstance(b, tuple(_classes(surfaces).values())):
+    if isinstance(a, tuple(_SURFACE_CLASSES.values())):
+        if isinstance(b, tuple(_SURFACE_CLASSES.values())):
             return SurfaceSurfaceIntersection
         return CurveSurfaceIntersection
-    if isinstance(b, tuple(_classes(surfaces).values())):
+    if isinstance(b, tuple(_SURFACE_CLASSES.values())):
         return CurveSurfaceIntersection
     return CurveCurveIntersection
 
@@ -374,10 +370,10 @@ def test_every_class_has_a_repr_and_value_equality():
 
 def test_every_whole_curve_comes_back_as_its_class():
     for curve in _curves_3d():
-        basis = _piece(curve, curves.TrimmedCurve).basis()
+        basis = _piece(curve, geomcore.TrimmedCurve).basis()
         assert type(basis) is type(curve) and basis == curve
     for curve in _curves_2d():
-        basis = _piece(curve, curves.TrimmedCurve2D).basis()
+        basis = _piece(curve, geomcore.TrimmedCurve2D).basis()
         assert type(basis) is type(curve) and basis == curve
 
 
@@ -389,14 +385,14 @@ def _middle(bounds):
 def test_every_surface_gives_its_isoparametric_curves():
     for surface in _surfaces():
         u, v = _middle(surface.u_bounds()), _middle(surface.v_bounds())
-        on_surface = surface.eval_point(u, v)
+        on_surface = surface.point_at(u, v)
         for curve, parameter in ((surface.u_iso(u), v), (surface.v_iso(v), u)):
-            assert type(curve).__name__ in _classes(curves), type(surface).__name__
-            assert curve.eval_point(parameter).distance(on_surface) < 1e-9
+            assert type(curve).__name__ in _CURVE_CLASSES, type(surface).__name__
+            assert curve.point_at(parameter).distance(on_surface) < 1e-9
 
 
 def test_every_surface_is_accepted_where_a_surface_is_expected():
-    line = curves.Line(Point(0.0, 0.0, -2.0), Vector.unit_z())
+    line = geomcore.Line(Point(0.0, 0.0, -2.0), Vector.unit_z())
     for surface in _surfaces():
         try:
             surface.curve_3d_to_uv(line)
@@ -418,13 +414,13 @@ def test_every_shape_is_transformed_into_its_class_and_commutes_with_evaluation(
         moved = curve.transformed(t)
         assert type(moved) is type(curve)
         u = _middle(curve.bounds())
-        assert moved.eval_point(u).distance(t.apply_point(curve.eval_point(u))) < 1e-9
+        assert moved.point_at(u).distance(t.apply_point(curve.point_at(u))) < 1e-9
     for surface in _surfaces():
         moved = surface.transformed(t)
         assert type(moved) is type(surface)
         u, v = _middle(surface.u_bounds()), _middle(surface.v_bounds())
-        image = t.apply_point(surface.eval_point(u, v))
-        assert moved.eval_point(u, v).distance(image) < 1e-9, type(surface).__name__
+        image = t.apply_point(surface.point_at(u, v))
+        assert moved.point_at(u, v).distance(image) < 1e-9, type(surface).__name__
 
 
 def test_every_shape_rejects_a_collapsing_transform():
@@ -442,6 +438,6 @@ def test_every_curve_reversed_meets_itself_at_the_reversed_parameter():
         assert reversed_curve.bounds() == tuple(ends)
         first, last = (max(end, -1.0) if end < 0 else min(end, 1.0) for end in curve.bounds())
         u = first + 0.3 * (last - first)
-        there = reversed_curve.eval_point(curve.reversed_parameter(u))
-        assert there.distance(curve.eval_point(u)) < 1e-9, type(curve).__name__
+        there = reversed_curve.point_at(curve.reversed_parameter(u))
+        assert there.distance(curve.point_at(u)) < 1e-9, type(curve).__name__
         assert reversed_curve.reversed() == curve

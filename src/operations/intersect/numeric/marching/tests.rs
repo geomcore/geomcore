@@ -13,7 +13,7 @@ fn test_marching_plane_plane_line() {
     assert_eq!(curves.len(), 1);
     // The traced line runs along Y through the origin.
     for t in [0.0, 0.25, 0.5, 0.75, 1.0] {
-        let p = curves[0].eval_point(t);
+        let p = curves[0].point_at(t);
         assert!(p.x.abs() < 1e-6, "{p:?}");
         assert!(p.z.abs() < 1e-6, "{p:?}");
     }
@@ -29,7 +29,7 @@ fn test_marching_plane_sphere_circle() {
     assert_eq!(curves.len(), 1);
     // Approximate fit: residuals within marching scale (not confusion).
     for t in [0.0, 0.2, 0.4, 0.6, 0.8, 1.0] {
-        let p = curves[0].eval_point(t);
+        let p = curves[0].point_at(t);
         assert!(plane.project_point(p, tol).distance < 1e-3, "{p:?}");
         assert!(sphere.project_point(p, tol).distance < 1e-3, "{p:?}");
     }
@@ -47,7 +47,7 @@ fn test_marching_loop_is_traced_once() {
     let n = 2000;
     let length: f64 = (0..n)
         .map(|k| {
-            let at = |k: usize| curve.eval_point(t0 + (t1 - t0) * k as f64 / n as f64);
+            let at = |k: usize| curve.point_at(t0 + (t1 - t0) * k as f64 / n as f64);
             at(k).distance(at(k + 1))
         })
         .sum();
@@ -69,7 +69,7 @@ where
     let curve = curves[0].clone();
     let (t0, t1) = curve.bounds();
     for k in 0..=40 {
-        let p = curve.eval_point(t0 + (t1 - t0) * k as f64 / 40.0);
+        let p = curve.point_at(t0 + (t1 - t0) * k as f64 / 40.0);
         assert!(a.project_point(p, tol).distance < 1e-3, "{p:?}");
         assert!(b.project_point(p, tol).distance < 1e-3, "{p:?}");
     }
@@ -88,7 +88,7 @@ fn test_marching_plane_sphere_off_grid_heights() {
         let curve = assert_one_curve_on_both(&curves, &plane, &sphere);
         let r = (1.0 - h * h).sqrt();
         for t in [0.0, 0.3, 0.6, 0.9] {
-            let p = curve.eval_point(t);
+            let p = curve.point_at(t);
             assert!((p.x.hypot(p.y) - r).abs() < 1e-3, "h = {h}: {p:?}");
         }
     }
@@ -117,7 +117,7 @@ fn test_marching_shallow_angle_spheres() {
         let curve = assert_one_curve_on_both(&curves, &a, &b);
         let r = (1.0 - d * d / 4.0).sqrt();
         for t in [0.0, 0.3, 0.6, 0.9] {
-            let p = curve.eval_point(t);
+            let p = curve.point_at(t);
             assert!((p.z - d / 2.0).abs() < 1e-3, "d = {d}: {p:?}");
             assert!((p.x.hypot(p.y) - r).abs() < 1e-3, "d = {d}: {p:?}");
         }
@@ -136,7 +136,7 @@ fn test_marching_small_loop() {
     let curve = assert_one_curve_on_both(&curves, &plane, &sphere);
     let r = (1e-4f64 - 9e-6).sqrt();
     for t in [0.0, 0.3, 0.6, 0.9] {
-        let p = curve.eval_point(t);
+        let p = curve.point_at(t);
         assert!((p.x.hypot(p.y) - r).abs() < 1e-4, "{p:?}");
     }
 }
@@ -150,7 +150,7 @@ fn test_marching_open_trace_is_not_closed() {
     let curves = marched_curves(&xy, &zy, tol);
     assert_eq!(curves.len(), 1);
     let (t0, t1) = curves[0].bounds();
-    let gap = curves[0].eval_point(t0).distance(curves[0].eval_point(t1));
+    let gap = curves[0].point_at(t0).distance(curves[0].point_at(t1));
     assert!(gap > 10.0, "open line fitted as a loop: end gap {gap}");
 }
 
@@ -158,7 +158,7 @@ fn test_marching_open_trace_is_not_closed() {
 fn traced_length(curve: &BSplineCurve) -> f64 {
     let (t0, t1) = curve.bounds();
     let n = 4000;
-    let at = |k: usize| curve.eval_point(t0 + (t1 - t0) * k as f64 / n as f64);
+    let at = |k: usize| curve.point_at(t0 + (t1 - t0) * k as f64 / n as f64);
     (0..n).map(|k| at(k).distance(at(k + 1))).sum()
 }
 
@@ -183,7 +183,7 @@ fn test_marching_stops_at_a_self_crossing() {
     for curve in &curves {
         let (t0, t1) = curve.bounds();
         for k in 0..=40 {
-            let p = curve.eval_point(t0 + (t1 - t0) * k as f64 / 40.0);
+            let p = curve.point_at(t0 + (t1 - t0) * k as f64 / 40.0);
             assert!(torus.project_point(p, tol).distance < 1e-3, "{p:?}");
             assert!(plane.project_point(p, tol).distance < 1e-3, "{p:?}");
         }
@@ -206,7 +206,7 @@ fn test_marching_near_the_villarceau_tilt_gives_two_loops() {
         assert_eq!(curves.len(), 2, "d = {d}");
         for curve in &curves {
             let (t0, t1) = curve.bounds();
-            let gap = curve.eval_point(t0).distance(curve.eval_point(t1));
+            let gap = curve.point_at(t0).distance(curve.point_at(t1));
             assert!(gap < 1e-6, "d = {d}: open curve, end gap {gap}");
         }
     }
@@ -239,10 +239,10 @@ where
     let tol = Tolerance::DEFAULT;
     for curve in curves {
         let (t0, t1) = curve.bounds();
-        let gap = curve.eval_point(t0).distance(curve.eval_point(t1));
+        let gap = curve.point_at(t0).distance(curve.point_at(t1));
         assert!(gap < 1e-6, "open curve, end gap {gap}");
         for k in 0..=40 {
-            let p = curve.eval_point(t0 + (t1 - t0) * k as f64 / 40.0);
+            let p = curve.point_at(t0 + (t1 - t0) * k as f64 / 40.0);
             assert!(a.project_point(p, tol).distance < 1e-3, "{p:?}");
             assert!(b.project_point(p, tol).distance < 1e-3, "{p:?}");
         }
@@ -270,7 +270,7 @@ fn test_marching_finds_skew_cylinders_far_from_the_origin() {
         for curve in &curves {
             let (t0, t1) = curve.bounds();
             for k in 0..=20 {
-                let p = curve.eval_point(t0 + (t1 - t0) * k as f64 / 20.0);
+                let p = curve.point_at(t0 + (t1 - t0) * k as f64 / 20.0);
                 assert!((p.x - 500.0).abs() <= 50.0 + 1e-6, "{p:?}");
             }
         }
@@ -292,11 +292,11 @@ fn test_marching_steinmetz_cylinders_trace_both_ellipses() {
     for curve in &curves {
         let (t0, t1) = curve.bounds();
         for end in [t0, t1] {
-            let p = curve.eval_point(end);
+            let p = curve.point_at(end);
             assert!((p.z.abs() - 1.0).abs() < 1e-6, "{p:?}");
         }
         for k in 0..=40 {
-            let p = curve.eval_point(t0 + (t1 - t0) * k as f64 / 40.0);
+            let p = curve.point_at(t0 + (t1 - t0) * k as f64 / 40.0);
             assert!(along_x.project_point(p, tol).distance < 1e-3, "{p:?}");
             assert!(along_y.project_point(p, tol).distance < 1e-3, "{p:?}");
         }
@@ -339,7 +339,7 @@ where
     for curve in curves {
         let (t0, t1) = curve.bounds();
         for k in 0..=40 {
-            let p = curve.eval_point(t0 + (t1 - t0) * k as f64 / 40.0);
+            let p = curve.point_at(t0 + (t1 - t0) * k as f64 / 40.0);
             assert!(a.project_point(p, tol).distance < 1e-3, "{p:?}");
             assert!(b.project_point(p, tol).distance < 1e-3, "{p:?}");
         }
@@ -550,7 +550,7 @@ fn test_marching_does_not_step_over_a_small_bump() {
         let knots = curve.knots();
         for span in knots.windows(2) {
             for k in 0..20 {
-                let p = curve.eval_point(span[0] + (span[1] - span[0]) * k as f64 / 20.0);
+                let p = curve.point_at(span[0] + (span[1] - span[0]) * k as f64 / 20.0);
                 assert!(
                     wall.project_point(p, tol).distance < 1e-3,
                     "bump {bump}: {p:?}"
@@ -650,7 +650,7 @@ fn test_marching_does_not_skip_a_tent_in_a_knot_cluster() {
             let knots = curve.knots();
             for span in knots.windows(2) {
                 for k in 0..=20 {
-                    let p = curve.eval_point(span[0] + (span[1] - span[0]) * k as f64 / 20.0);
+                    let p = curve.point_at(span[0] + (span[1] - span[0]) * k as f64 / 20.0);
                     lowest = lowest.min(p.x);
                     highest = highest.max(p.x);
                     assert!(
@@ -700,7 +700,7 @@ fn test_marching_cuts_an_unbounded_branch_and_reports_it() {
     // in the region reported for the cut.
     for piece in result.curves() {
         let (t0, t1) = piece.curve.bounds();
-        for end in [piece.curve.eval_point(t0), piece.curve.eval_point(t1)] {
+        for end in [piece.curve.point_at(t0), piece.curve.point_at(t1)] {
             let inside = |r: &SurfaceSurfaceRegion| {
                 let (lo, hi) = (r.min_corner, r.max_corner);
                 let tol = 1e-6;
@@ -892,11 +892,11 @@ fn test_plane_touching_a_cylinder_patch_traces_a_tangent_ruling() {
             panic!("a numeric curve is a B-spline");
         };
         let (t0, t1) = curve.bounds();
-        let mut heights = [curve.eval_point(t0).z, curve.eval_point(t1).z];
+        let mut heights = [curve.point_at(t0).z, curve.point_at(t1).z];
         heights.sort_by(f64::total_cmp);
         assert!(heights[0].abs() < 1e-6 && (heights[1] - 2.0).abs() < 1e-6);
         for k in 0..=8 {
-            let p = curve.eval_point(t0 + (t1 - t0) * k as f64 / 8.0);
+            let p = curve.point_at(t0 + (t1 - t0) * k as f64 / 8.0);
             assert!((p.x - offset).abs() < 1e-7 && p.y.abs() < 1e-6, "{p:?}");
         }
     }
@@ -924,9 +924,9 @@ fn test_sphere_inside_a_cylinder_patch_traces_the_touching_circle() {
             panic!("a numeric curve is a B-spline");
         };
         let (t0, t1) = curve.bounds();
-        assert!(curve.eval_point(t0).distance(curve.eval_point(t1)) < 1e-9);
+        assert!(curve.point_at(t0).distance(curve.point_at(t1)) < 1e-9);
         for k in 0..=16 {
-            let p = curve.eval_point(t0 + (t1 - t0) * k as f64 / 16.0);
+            let p = curve.point_at(t0 + (t1 - t0) * k as f64 / 16.0);
             let radius = (p.x * p.x + p.y * p.y).sqrt();
             assert!(
                 (radius - 1.0).abs() < 1e-6 && (p.z - 1.0).abs() < 1e-6,
@@ -1078,7 +1078,7 @@ fn test_bumps_between_the_sample_lines_are_not_coincident() {
     for height in [0.1, 1e-3] {
         let bumpy = bumpy_patch(height);
         for k in 0..6 {
-            let peak = bumpy.eval_point((k as f64 + 0.5) / 6.0, 0.5);
+            let peak = bumpy.point_at((k as f64 + 0.5) / 6.0, 0.5);
             assert!((peak.z.abs() - height).abs() < 1e-9, "{peak:?}");
         }
         for result in [
@@ -1142,7 +1142,7 @@ fn torus_intersection_samples(first: &crate::Torus, second: &crate::Torus) -> Ve
     let mut samples = Vec::new();
     for i in 0..180 {
         let u = TAU * i as f64 / 180.0;
-        let at = |v: f64| first.eval_point(u, v);
+        let at = |v: f64| first.point_at(u, v);
         let count = 720;
         for j in 0..count {
             let (mut low, mut high) = (
@@ -1172,7 +1172,7 @@ fn assert_covered(curves: &[BSplineCurve], samples: &[Point], reach: f64, label:
         .iter()
         .flat_map(|curve| {
             let (t0, t1) = curve.bounds();
-            (0..=4000).map(move |k| curve.eval_point(t0 + (t1 - t0) * k as f64 / 4000.0))
+            (0..=4000).map(move |k| curve.point_at(t0 + (t1 - t0) * k as f64 / 4000.0))
         })
         .collect();
     let missed = samples
@@ -1245,7 +1245,7 @@ fn test_marched_curves_lie_within_confusion_of_both_surfaces() {
             .iter()
             .flat_map(|curve| {
                 let (t0, t1) = curve.bounds();
-                (0..=4000).map(move |k| curve.eval_point(t0 + (t1 - t0) * k as f64 / 4000.0))
+                (0..=4000).map(move |k| curve.point_at(t0 + (t1 - t0) * k as f64 / 4000.0))
             })
             .map(|p| {
                 torus_signed_distance(&first, p)
@@ -1346,7 +1346,7 @@ pub(super) fn assert_one_small_loop<A, B>(
     assert_closed_on_both(&curves, a, b);
     let (t0, t1) = curves[0].bounds();
     for k in 0..=40 {
-        let p = curves[0].eval_point(t0 + (t1 - t0) * k as f64 / 40.0);
+        let p = curves[0].point_at(t0 + (t1 - t0) * k as f64 / 40.0);
         assert!(p.distance(centre) < radius, "{p:?}");
     }
 }
@@ -1356,7 +1356,7 @@ fn test_a_bump_finer_than_the_grid_meets_a_cylinder_in_a_small_loop() {
     use crate::Cylinder;
     let tol = Tolerance::DEFAULT;
     let sheet = bumped_sheet(0.04);
-    let peak = sheet.eval_point(38.0 / 96.0, 38.0 / 96.0);
+    let peak = sheet.point_at(38.0 / 96.0, 38.0 / 96.0);
     assert!(peak.distance(Point::new(38.0 / 48.0, 38.0 / 48.0, 0.04)) < 1e-12);
     // A cylinder along x, beside the top of the bump, dipping 0.002 into
     // it: the loop lies between the rulings and the circles that seed
@@ -1384,7 +1384,7 @@ fn test_a_plane_through_a_bump_finer_than_the_grid_finds_the_loop() {
     use crate::Plane;
     let tol = Tolerance::DEFAULT;
     let sheet = bumped_sheet(0.04);
-    let peak = sheet.eval_point(38.0 / 96.0, 38.0 / 96.0);
+    let peak = sheet.point_at(38.0 / 96.0, 38.0 / 96.0);
     // Tilted a little, so that the pair has no closed form, and too little
     // to reach the sheet itself.
     let plane = Plane::new(
@@ -1415,4 +1415,146 @@ fn test_a_plane_cutting_a_small_cap_off_a_torus_finds_the_loop() {
     let plane = Plane::new(touch - 1e-4 * normal, normal).unwrap();
     let result = marching_intersection(&torus, &plane, tol);
     assert_one_small_loop(&result, &torus, &plane, touch, 0.05);
+}
+
+/// The largest distance, over samples of every curve of `result`, between
+/// the curve and each surface's point at its curve in parameters.
+fn uv_curve_deviation<A, B>(result: &SurfaceSurfaceIntersection, a: &A, b: &B) -> f64
+where
+    A: ParametricSurface,
+    B: ParametricSurface,
+{
+    use crate::geometry::curves::ParametricCurve2D;
+    let mut worst: f64 = 0.0;
+    for piece in result.curves() {
+        let (Some(first), Some(second)) = (&piece.first_uv_curve, &piece.second_uv_curve) else {
+            panic!("a marched curve has both curves in parameters");
+        };
+        let (t0, t1) = piece.curve.bounds();
+        assert_eq!(first.bounds(), (t0, t1));
+        assert_eq!(second.bounds(), (t0, t1));
+        for k in 0..=2000 {
+            let t = t0 + (t1 - t0) * k as f64 / 2000.0;
+            let p = piece.curve.point_at(t);
+            let (uv1, uv2) = (first.point_at(t), second.point_at(t));
+            worst = worst
+                .max(a.point_at(uv1.x, uv1.y).distance(p))
+                .max(b.point_at(uv2.x, uv2.y).distance(p));
+        }
+    }
+    worst
+}
+
+#[test]
+fn test_marched_curves_carry_their_curves_in_parameters() {
+    use crate::{Cylinder, Frame, Plane, Sphere, Torus};
+    let tol = Tolerance::DEFAULT;
+    // A cylinder around a sphere's axis, off it: two loops around the
+    // seams of both, each closing a period away in u on both surfaces.
+    let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
+    let cylinder = Cylinder::new(Point::new(0.3, 0.0, 0.0), Vector::Z, 1.0).unwrap();
+    let loops = marching_intersection(&sphere, &cylinder, tol);
+    assert_eq!(loops.curves().len(), 2);
+    // Two tori in general position.
+    let first = Torus::from_frame(
+        Frame::new(Point::ORIGIN, Vector::Z, Vector::X).unwrap(),
+        3.0,
+        1.0,
+    )
+    .unwrap();
+    let axis = Vector::new(1.0, 0.4, 0.3);
+    let second = Torus::from_frame(
+        Frame::new(Point::new(2.0, 0.5, 0.2), axis, axis.cross(Vector::Z)).unwrap(),
+        2.5,
+        0.8,
+    )
+    .unwrap();
+    let tori = marching_intersection(&first, &second, tol);
+    // A plane through a bump of a B-spline sheet.
+    let sheet = bumped_sheet(0.3);
+    let plane = Plane::new(Point::new(0.0, 0.0, 0.1), Vector::Z).unwrap();
+    let bump = marching_intersection(&plane, &sheet, tol);
+    // A plane touching a cylinder patch along a ruling: an interpolant.
+    let patch = cylinder_patch((0.0, std::f64::consts::TAU));
+    let touching_plane = Plane::new(Point::new(1.0, 0.0, 0.0), Vector::X).unwrap();
+    let touch = marching_intersection(&touching_plane, &patch, tol);
+    assert!(touch.curves()[0].tangent);
+    for (label, deviation, curves) in [
+        (
+            "sphere and cylinder",
+            uv_curve_deviation(&loops, &sphere, &cylinder),
+            loops.curves().len(),
+        ),
+        (
+            "two tori",
+            uv_curve_deviation(&tori, &first, &second),
+            tori.curves().len(),
+        ),
+        (
+            "plane and bump",
+            uv_curve_deviation(&bump, &plane, &sheet),
+            bump.curves().len(),
+        ),
+        (
+            "touching plane",
+            uv_curve_deviation(&touch, &touching_plane, &patch),
+            touch.curves().len(),
+        ),
+    ] {
+        assert!(curves > 0, "{label}");
+        // Within the marched curve's own distance to the surfaces, which
+        // the steep bump grows along the parameters.
+        assert!(deviation < 10.0 * tol.confusion, "{label}: {deviation:e}");
+    }
+}
+
+#[test]
+fn test_marched_curves_report_how_far_they_stray_from_the_surfaces() {
+    // A sphere cut by a slanted plane and a cylinder across a torus, at
+    // the default tolerance and a coarse one.
+    use crate::{Cylinder, Plane, Sphere, Torus};
+    let plane = Plane::new(Point::new(0.0, 0.0, 0.5), Vector::new(0.3, 0.0, 1.0)).unwrap();
+    let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
+    let torus = Torus::new(Point::ORIGIN, Vector::Z, 3.0, 1.0).unwrap();
+    let cylinder = Cylinder::new(Point::new(3.0, 0.0, 0.0), Vector::X, 0.7).unwrap();
+    for tol in [Tolerance::DEFAULT, Tolerance::new(1e-4, 1e-9, 1e-9)] {
+        assert_deviation_bounds_a_dense_sample(&plane, &sphere, tol);
+        assert_deviation_bounds_a_dense_sample(&torus, &cylinder, tol);
+    }
+}
+
+/// Asserts that every curve marched between `first` and `second` strays
+/// from them, through its curves in parameters, by no more than its
+/// deviation at 401 parameters, or than confusion where the traced points
+/// themselves are the farthest.
+fn assert_deviation_bounds_a_dense_sample<A, B>(first: &A, second: &B, tol: Tolerance)
+where
+    A: ParametricSurface,
+    B: ParametricSurface,
+{
+    use crate::geometry::curves::ParametricCurve2D;
+    let result = marching_intersection(first, second, tol);
+    assert!(!result.curves().is_empty());
+    for piece in result.curves() {
+        let (Some(on_first), Some(on_second)) = (&piece.first_uv_curve, &piece.second_uv_curve)
+        else {
+            panic!("a marched curve has both curves in parameters")
+        };
+        let (t0, t1) = piece.curve.bounds();
+        let dense = (0..=400)
+            .map(|k| {
+                let t = t0 + (t1 - t0) * f64::from(k) / 400.0;
+                let point = piece.curve.point_at(t);
+                let (a, b) = (on_first.point_at(t), on_second.point_at(t));
+                let to_first = first.point_at(a.x, a.y).distance(point);
+                to_first.max(second.point_at(b.x, b.y).distance(point))
+            })
+            .fold(0.0, f64::max);
+        assert!(0.0 < piece.deviation && piece.deviation < 1e-3);
+        assert!(
+            dense <= (1.1 * piece.deviation).max(tol.confusion),
+            "{dense} {}",
+            piece.deviation
+        );
+    }
 }

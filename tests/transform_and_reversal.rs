@@ -58,8 +58,8 @@ where
         let image = curve.transformed(transform).unwrap();
         let factor = if is_length { scale } else { 1.0 };
         for u in parameters(curve.bounds()) {
-            let (point, derivative) = curve.eval_d1(u);
-            let (image_point, image_derivative) = image.eval_d1(u * factor);
+            let (point, derivative) = curve.first_derivatives(u);
+            let (image_point, image_derivative) = image.first_derivatives(u * factor);
             let context = format!("{name} of {curve:?} at {u}");
             assert!(
                 image_point.distance(transform.apply_point(point)) < 1e-10,
@@ -100,8 +100,8 @@ where
     let twice = reversed.reversed();
     for u in parameters(curve.bounds()) {
         let ru = curve.reversed_parameter(u);
-        let (point, derivative) = curve.eval_d1(u);
-        let (there, reversed_derivative) = reversed.eval_d1(ru);
+        let (point, derivative) = curve.first_derivatives(u);
+        let (there, reversed_derivative) = reversed.first_derivatives(ru);
         assert!(there.distance(point) < 1e-12, "{curve:?} at {u}");
         assert!(
             (reversed_derivative + derivative).magnitude() < 1e-10,
@@ -112,7 +112,7 @@ where
             "{curve:?} at {u}"
         );
         assert!(
-            twice.eval_point(u).distance(point) < 1e-12,
+            twice.point_at(u).distance(point) < 1e-12,
             "{curve:?} at {u}"
         );
     }
@@ -132,8 +132,8 @@ where
     let twice = reversed.reversed();
     for u in parameters(curve.bounds()) {
         let ru = curve.reversed_parameter(u);
-        let (point, derivative) = curve.eval_d1(u);
-        let (there, reversed_derivative) = reversed.eval_d1(ru);
+        let (point, derivative) = curve.first_derivatives(u);
+        let (there, reversed_derivative) = reversed.first_derivatives(ru);
         assert!(there.distance(point) < 1e-12, "{curve:?} at {u}");
         assert!(
             (reversed_derivative + derivative).magnitude() < 1e-10,
@@ -144,7 +144,7 @@ where
             "{curve:?} at {u}"
         );
         assert!(
-            twice.eval_point(u).distance(point) < 1e-12,
+            twice.point_at(u).distance(point) < 1e-12,
             "{curve:?} at {u}"
         );
     }
@@ -163,13 +163,13 @@ where
     let (reversed_u, reversed_v) = (surface.reversed_u(), surface.reversed_v());
     let (twice_u, twice_v) = (reversed_u.reversed_u(), reversed_v.reversed_v());
     for (u, v) in surface_parameters(surface) {
-        let (point, [su, sv]) = surface.eval_d1(u, v);
+        let (point, [su, sv]) = surface.first_derivatives(u, v);
         let (ru, rv) = (
             surface.u_reversed_parameter(u),
             surface.v_reversed_parameter(v),
         );
-        let (on_u, [u_su, u_sv]) = reversed_u.eval_d1(ru, v);
-        let (on_v, [v_su, v_sv]) = reversed_v.eval_d1(u, rv);
+        let (on_u, [u_su, u_sv]) = reversed_u.first_derivatives(ru, v);
+        let (on_v, [v_su, v_sv]) = reversed_v.first_derivatives(u, rv);
         let context = format!("{surface:?} at ({u}, {v})");
         assert!(on_u.distance(point) < 1e-12, "u: {context}");
         assert!(on_v.distance(point) < 1e-12, "v: {context}");
@@ -186,11 +186,11 @@ where
             "v: {context}"
         );
         assert!(
-            twice_u.eval_point(u, v).distance(point) < 1e-12,
+            twice_u.point_at(u, v).distance(point) < 1e-12,
             "u: {context}"
         );
         assert!(
-            twice_v.eval_point(u, v).distance(point) < 1e-12,
+            twice_v.point_at(u, v).distance(point) < 1e-12,
             "v: {context}"
         );
     }
@@ -203,9 +203,9 @@ where
     for (name, transform, scale) in similarities() {
         let image = surface.transformed(transform).unwrap();
         for (u, v) in surface_parameters(surface) {
-            let (point, [su, sv]) = surface.eval_d1(u, v);
+            let (point, [su, sv]) = surface.first_derivatives(u, v);
             let (iu, iv) = (scaled(u, u_length, scale), scaled(v, v_length, scale));
-            let (image_point, [image_su, image_sv]) = image.eval_d1(iu, iv);
+            let (image_point, [image_su, image_sv]) = image.first_derivatives(iu, iv);
             let context = format!("{name} of {surface:?} at ({u}, {v})");
             let u_factor = if u_length { 1.0 / scale } else { 1.0 };
             let v_factor = if v_length { 1.0 / scale } else { 1.0 };
@@ -308,9 +308,9 @@ fn test_a_mirror_then_a_reversal_restores_the_orientation_of_every_surface() {
     for surface in surfaces() {
         let image = surface.transformed(mirror).unwrap().reversed_u();
         for (u, v) in surface_parameters(&surface) {
-            let (_, [su, sv]) = surface.eval_d1(u, v);
+            let (_, [su, sv]) = surface.first_derivatives(u, v);
             let iu = surface.transformed(mirror).unwrap().u_reversed_parameter(u);
-            let (_, [image_su, image_sv]) = image.eval_d1(iu, v);
+            let (_, [image_su, image_sv]) = image.first_derivatives(iu, v);
             let normal = su.cross(sv).normalized().unwrap();
             let image_normal = image_su.cross(image_sv).normalized().unwrap();
             assert!(

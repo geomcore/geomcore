@@ -8,25 +8,28 @@ import pytest
 import geomcore
 from geomcore import (
     Axis,
+    BSplineCurve,
+    BSplineSurface,
+    Circle,
+    Cone,
+    Cylinder,
+    Ellipse,
     Frame,
     FrameConstructionError,
-    Point,
-    Side,
-    SurfaceCurvatures,
-    Tolerance,
-    Transform,
-    Vector,
-)
-from geomcore.curves import (
-    BSplineCurve,
-    Circle,
-    Ellipse,
     Hyperbola,
     Line,
     Parabola,
+    Plane,
+    Point,
+    Side,
+    Sphere,
+    SurfaceCurvatures,
+    Tolerance,
+    Torus,
+    Transform,
     TrimmedCurve,
+    Vector,
 )
-from geomcore.surfaces import BSplineSurface, Cone, Cylinder, Plane, Sphere, Torus
 
 ORIGIN = Point.origin()
 X, Y, Z = Vector.unit_x(), Vector.unit_y(), Vector.unit_z()
@@ -105,7 +108,7 @@ def test_conic_curvatures_match_closed_forms():
     for curve in [ellipse, parabola, hyperbola]:
         tangent = curve.tangent(0.7)
         assert tangent.magnitude() == pytest.approx(1.0)
-        assert tangent.cross(curve.eval_d1(0.7)[1]).magnitude() < 1e-12
+        assert tangent.cross(curve.first_derivatives(0.7)[1]).magnitude() < 1e-12
 
 
 def test_bspline_cusp_has_no_tangent_or_curvature():
@@ -117,7 +120,7 @@ def test_bspline_cusp_has_no_tangent_or_curvature():
         Point(2.0, 0.0, 0.0),
     ]
     cusp = BSplineCurve(2, poles, [0.0, 1.0, 2.0], [3, 1, 3], False)
-    _, speed = cusp.eval_d1(1.0)
+    _, speed = cusp.first_derivatives(1.0)
     assert speed.magnitude() == 0.0
     assert cusp.tangent(1.0) is None
     assert cusp.curvature(1.0) is None
@@ -261,7 +264,7 @@ def test_cylinder_curvatures_match_closed_form():
 )
 def test_principal_directions_are_a_perpendicular_unit_tangent_pair(surface):
     c = surface.curvatures(0.3, 0.2)
-    _, (su, sv) = surface.eval_d1(0.3, 0.2)
+    _, (su, sv) = surface.first_derivatives(0.3, 0.2)
     normal = su.cross(sv).normalized()
     for direction in (c.min_direction, c.max_direction):
         assert direction.magnitude() == pytest.approx(1.0)
@@ -315,14 +318,14 @@ def normal_at(surface, u, v):
 @pytest.mark.parametrize("surface", ELEMENTARY, ids=lambda s: type(s).__name__)
 def test_reversal_keeps_the_points_and_flips_the_normal(surface):
     u, v = 0.3, 0.2
-    point = surface.eval_point(u, v)
+    point = surface.point_at(u, v)
     reversed_u = surface.reversed_u()
     reversed_v = surface.reversed_v()
     assert type(reversed_u) is type(surface)
     u_there = surface.u_reversed_parameter(u)
     v_there = surface.v_reversed_parameter(v)
-    assert reversed_u.eval_point(u_there, v).distance(point) < 1e-12
-    assert reversed_v.eval_point(u, v_there).distance(point) < 1e-12
+    assert reversed_u.point_at(u_there, v).distance(point) < 1e-12
+    assert reversed_v.point_at(u, v_there).distance(point) < 1e-12
     assert not reversed_u.frame().is_direct()
     assert close(normal_at(reversed_u, u_there, v), -normal_at(surface, u, v))
     assert close(normal_at(reversed_v, u, v_there), -normal_at(surface, u, v))
@@ -335,9 +338,9 @@ def test_bspline_surface_reversed_parameters():
     u_there = surface.u_reversed_parameter(0.5)
     assert u_there == 1.5
     assert surface.v_reversed_parameter(0.25) == 0.75
-    point = surface.eval_point(0.5, 0.25)
-    assert surface.reversed_u().eval_point(u_there, 0.25).distance(point) < 1e-12
-    assert surface.reversed_v().eval_point(0.5, 0.75).distance(point) < 1e-12
+    point = surface.point_at(0.5, 0.25)
+    assert surface.reversed_u().point_at(u_there, 0.25).distance(point) < 1e-12
+    assert surface.reversed_v().point_at(0.5, 0.75).distance(point) < 1e-12
 
 
 def test_reversed_surface_curvatures_change_sign():
@@ -391,7 +394,7 @@ def test_mirrored_surface_maps_its_parametrization_and_flips_its_normal():
     mirror = Transform.mirror_plane(Frame.world())
     image = sphere.transformed(mirror)
     u, v = 0.3, 0.2
-    assert image.eval_point(u, v).distance(mirror.apply_point(sphere.eval_point(u, v))) < 1e-12
+    assert image.point_at(u, v).distance(mirror.apply_point(sphere.point_at(u, v))) < 1e-12
     assert not image.frame().is_direct()
     # The image's normal is the opposite of the mirrored normal: inward.
     assert close(image.normal(u, v), -mirror.apply_vector(sphere.normal(u, v)))
@@ -409,72 +412,72 @@ def test_mirrored_surface_maps_its_parametrization_and_flips_its_normal():
 def test_side_is_a_hashable_named_enum():
     assert Side.BELOW != Side.ABOVE
     assert Side.BELOW.name == "BELOW" and Side.ABOVE.name == "ABOVE"
-    assert repr(Side.ABOVE) == "Side.ABOVE"
+    assert list(Side) == [Side.BELOW, Side.ABOVE]
     assert {Side.BELOW: 1, Side.ABOVE: 2}[Side.ABOVE] == 2
     assert geomcore.Side is Side
 
 
 def test_curve_sided_evaluation_at_a_kink():
     curve = kinked_polyline()
-    below = curve.eval_d1_sided(1.0, Side.BELOW)
-    above = curve.eval_d1_sided(1.0, Side.ABOVE)
+    below = curve.first_derivatives_sided(1.0, Side.BELOW)
+    above = curve.first_derivatives_sided(1.0, Side.ABOVE)
     assert below[0] == above[0] == Point(1.0, 0.0, 0.0)
     assert below[1] == X and above[1] == Y
     # Plain evaluation takes the above side.
-    assert curve.eval_d1(1.0)[1] == above[1]
-    assert curve.eval_derivative_sided(1.0, 1, Side.BELOW) == X
-    point, first, second = curve.eval_d2_sided(1.0, Side.BELOW)
+    assert curve.first_derivatives(1.0)[1] == above[1]
+    assert curve.derivative_sided(1.0, 1, Side.BELOW) == X
+    point, first, second = curve.second_derivatives_sided(1.0, Side.BELOW)
     assert (point, first, second) == (Point(1.0, 0.0, 0.0), X, Vector(0.0, 0.0, 0.0))
     # Strictly inside a span both sides agree.
-    assert curve.eval_d1_sided(0.5, Side.BELOW) == curve.eval_d1_sided(0.5, Side.ABOVE)
+    assert curve.first_derivatives_sided(0.5, Side.BELOW) == curve.first_derivatives_sided(0.5, Side.ABOVE)
 
 
 def test_curve_sided_evaluation_wraps_a_periodic_seam():
     curve = periodic_quadratic()
-    last_span = curve.eval_derivative(3.5, 2)  # constant on a quadratic span
-    first_span = curve.eval_derivative(0.5, 2)
+    last_span = curve.derivative(3.5, 2)  # constant on a quadratic span
+    first_span = curve.derivative(0.5, 2)
     assert first_span != last_span
     for seam in (0.0, 4.0):
-        assert close(curve.eval_derivative_sided(seam, 2, Side.BELOW), last_span)
-        assert close(curve.eval_derivative_sided(seam, 2, Side.ABOVE), first_span)
-        assert close(curve.eval_d2_sided(seam, Side.BELOW)[2], last_span)
+        assert close(curve.derivative_sided(seam, 2, Side.BELOW), last_span)
+        assert close(curve.derivative_sided(seam, 2, Side.ABOVE), first_span)
+        assert close(curve.second_derivatives_sided(seam, Side.BELOW)[2], last_span)
 
 
 def test_curve_sided_evaluation_rejects_order_zero():
     curve = kinked_polyline()
     with pytest.raises(ValueError, match="order must be >= 1"):
-        curve.eval_derivative_sided(1.0, 0, Side.BELOW)
+        curve.derivative_sided(1.0, 0, Side.BELOW)
 
 
 def test_curve_derivatives_above_the_degree_are_zero():
     curve = kinked_polyline()
-    assert coordinates(curve.eval_derivative_sided(1.0, 3, Side.BELOW)) == (0.0, 0.0, 0.0)
-    assert coordinates(curve.eval_derivative(0.5, 3)) == (0.0, 0.0, 0.0)
+    assert coordinates(curve.derivative_sided(1.0, 3, Side.BELOW)) == (0.0, 0.0, 0.0)
+    assert coordinates(curve.derivative(0.5, 3)) == (0.0, 0.0, 0.0)
 
 
 def test_sided_evaluation_at_nan_gives_nan():
-    point, first = kinked_polyline().eval_d1_sided(math.nan, Side.BELOW)
+    point, first = kinked_polyline().first_derivatives_sided(math.nan, Side.BELOW)
     assert all(math.isnan(c) for c in coordinates(point) + coordinates(first))
-    point, (du, dv) = creased_surface().eval_d1_sided(math.nan, 0.5, Side.BELOW, Side.ABOVE)
+    point, (du, dv) = creased_surface().first_derivatives_sided(math.nan, 0.5, Side.BELOW, Side.ABOVE)
     assert all(math.isnan(c) for c in coordinates(point))
 
 
 def test_surface_sided_evaluation_across_a_crease():
     surface = creased_surface()
-    below = surface.eval_d1_sided(1.0, 0.5, Side.BELOW, Side.ABOVE)
-    above = surface.eval_d1_sided(1.0, 0.5, Side.ABOVE, Side.ABOVE)
+    below = surface.first_derivatives_sided(1.0, 0.5, Side.BELOW, Side.ABOVE)
+    above = surface.first_derivatives_sided(1.0, 0.5, Side.ABOVE, Side.ABOVE)
     assert below[1][0] == Vector(1.0, 0.0, 0.0)
     assert above[1][0] == Vector(1.0, 0.0, 0.5)
-    assert surface.eval_d1(1.0, 0.5)[1][0] == above[1][0]
-    assert surface.eval_derivative_sided(1.0, 0.5, 1, 1, Side.BELOW, Side.ABOVE) == Vector(
+    assert surface.first_derivatives(1.0, 0.5)[1][0] == above[1][0]
+    assert surface.derivative_sided(1.0, 0.5, 1, 1, Side.BELOW, Side.ABOVE) == Vector(
         0.0, 0.0, 0.0
     )
-    assert surface.eval_derivative_sided(1.0, 0.5, 1, 1, Side.ABOVE, Side.ABOVE) == Vector(
+    assert surface.derivative_sided(1.0, 0.5, 1, 1, Side.ABOVE, Side.ABOVE) == Vector(
         0.0, 0.0, 1.0
     )
-    point, (du, dv), (duu, duv, dvv) = surface.eval_d2_sided(1.0, 0.5, Side.BELOW, Side.BELOW)
+    point, (du, dv), (duu, duv, dvv) = surface.second_derivatives_sided(1.0, 0.5, Side.BELOW, Side.BELOW)
     assert du == Vector(1.0, 0.0, 0.0) and duv == Vector(0.0, 0.0, 0.0)
     with pytest.raises(ValueError, match="du \\+ dv must be >= 1"):
-        surface.eval_derivative_sided(1.0, 0.5, 0, 0, Side.BELOW, Side.BELOW)
+        surface.derivative_sided(1.0, 0.5, 0, 0, Side.BELOW, Side.BELOW)
     with pytest.raises(ValueError, match="du \\+ dv must be <= 2"):
-        surface.eval_derivative_sided(1.0, 0.5, 2, 1, Side.BELOW, Side.BELOW)
+        surface.derivative_sided(1.0, 0.5, 2, 1, Side.BELOW, Side.BELOW)

@@ -1,4 +1,4 @@
-//! The Python class `geomcore.surfaces.Cone`, wrapping `geomcore::Cone`.
+//! The Python class `geomcore.Cone`, wrapping `geomcore::Cone`.
 
 use crate::method_sets::*;
 use crate::surfaces::*;
@@ -7,7 +7,7 @@ use geomcore::Cone;
 
 /// An infinite cone; u is the angle around the axis, v the distance along a
 /// generator from the reference circle.
-#[pyclass(name = "Cone", module = "geomcore.surfaces", eq)]
+#[pyclass(name = "Cone", module = "geomcore", eq)]
 #[derive(Clone, PartialEq)]
 pub(crate) struct PyCone(pub(crate) Cone);
 
@@ -17,6 +17,11 @@ shape_methods! {
     /// The placement frame of the cone.
     fn frame(&self) -> PyFrame {
         PyFrame(self.0.frame())
+    }
+
+    fn __reduce__<'py>(slf: &pyo3::Bound<'py, Self>) -> pyo3::PyResult<pyo3::Bound<'py, pyo3::types::PyTuple>> {
+        let this = slf.borrow();
+        crate::pickling::reduce(slf.as_any(), Some("from_frame"), (this.frame(), this.semi_angle(), this.ref_radius(),))
     }
 
     fn __repr__(&self) -> String {
@@ -55,6 +60,15 @@ shape_methods! {
     fn from_two_points_and_radii(p1: PyPoint, p2: PyPoint, r1: f64, r2: f64) -> PyResult<Self> {
         Ok(PyCone(
             Cone::from_two_points_and_radii(p1.0, p2.0, r1, r2).map_err(python_error)?,
+        ))
+    }
+
+    /// Build the cone of apex `apex` opening along `axis_direction` at
+    /// half-angle `semi_angle`; its reference circle shrinks to the apex.
+    #[staticmethod]
+    fn from_apex(apex: PyPoint, axis_direction: PyVector, semi_angle: f64) -> PyResult<Self> {
+        Ok(PyCone(
+            Cone::from_apex(apex.0, axis_direction.0, semi_angle).map_err(python_error)?,
         ))
     }
 

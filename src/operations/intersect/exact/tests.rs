@@ -71,7 +71,7 @@ fn samples(curve: &impl ParametricCurve) -> Vec<Point> {
     let (lo, hi) = curve.bounds();
     let (lo, hi) = (lo.max(-3.0), hi.min(3.0));
     (0..=8)
-        .map(|i| curve.eval_point(lo + (hi - lo) * f64::from(i) / 8.0))
+        .map(|i| curve.point_at(lo + (hi - lo) * f64::from(i) / 8.0))
         .collect()
 }
 
@@ -121,7 +121,7 @@ fn assert_same(ab: &SurfaceSurfaceIntersection, ba: &SurfaceSurfaceIntersection)
         }
         let twin = c2
             .iter()
-            .find(|c| distance_to(&c.curve, curve.curve.eval_point(0.1)) <= TOL.confusion);
+            .find(|c| distance_to(&c.curve, curve.curve.point_at(0.1)) <= TOL.confusion);
         assert_eq!(
             twin.map(|c| c.tangent),
             Some(curve.tangent),
@@ -189,7 +189,7 @@ fn test_surface_intersection_matches_marching() {
             for curve in &traced {
                 let (lo, hi) = curve.bounds();
                 for k in 0..=16 {
-                    let p = curve.eval_point(lo + (hi - lo) * f64::from(k) / 16.0);
+                    let p = curve.point_at(lo + (hi - lo) * f64::from(k) / 16.0);
                     assert!(
                         on_some_curve(curves, p, 1e-4),
                         "{p:?} off the exact curves of {a:?} and {b:?}"
@@ -335,11 +335,9 @@ fn assert_curve_surface_valid(
         );
     }
     for hit in hits {
-        let parameter = hit
-            .curve_parameter
-            .expect("an exact hit stores its curve parameter");
+        let parameter = hit.curve_parameter;
         let scale = 1.0 + hit.point.distance(Point::ORIGIN);
-        let on_curve = curve.eval_point(parameter);
+        let on_curve = curve.point_at(parameter);
         assert!(
             (on_curve - hit.point).magnitude() <= 1e-9 * scale,
             "{hit:?} of {curve:?}"
@@ -387,7 +385,7 @@ fn test_curve_surface_intersection_matches_numeric() {
             }
             for h in hits
                 .iter()
-                .filter(|h| h.multiplicity == 1 && window(curve, h.curve_parameter.unwrap()))
+                .filter(|h| h.multiplicity == 1 && window(curve, h.curve_parameter))
             {
                 assert!(
                     numeric.iter().any(|n| near(h.point, n.point)),
@@ -470,30 +468,20 @@ fn assert_curve_curve_valid(
         return;
     }
     let hits = result.hits();
-    // Sorted by first parameter when every hit stores one.
-    if hits.iter().all(|h| h.first_parameter.is_some()) {
-        for pair in hits.windows(2) {
-            assert!(
-                pair[0].first_parameter <= pair[1].first_parameter,
-                "{hits:?}"
-            );
-        }
+    // Sorted by first parameter.
+    for pair in hits.windows(2) {
+        assert!(
+            pair[0].first_parameter <= pair[1].first_parameter,
+            "{hits:?}"
+        );
     }
     for hit in hits {
-        if let Some(t) = hit.first_parameter {
-            assert!(near(a.eval_point(t), hit.point), "{hit:?} off {a:?}");
-        }
-        if let Some(t) = hit.second_parameter {
-            assert!(near(b.eval_point(t), hit.point), "{hit:?} off {b:?}");
-        }
-        assert!(near(
-            a.eval_point(a.parameter_of(hit.point, TOL)),
-            hit.point
-        ));
-        assert!(near(
-            b.eval_point(b.parameter_of(hit.point, TOL)),
-            hit.point
-        ));
+        let t = hit.first_parameter;
+        assert!(near(a.point_at(t), hit.point), "{hit:?} off {a:?}");
+        let t = hit.second_parameter;
+        assert!(near(b.point_at(t), hit.point), "{hit:?} off {b:?}");
+        assert!(near(a.point_at(a.parameter_of(hit.point, TOL)), hit.point));
+        assert!(near(b.point_at(b.parameter_of(hit.point, TOL)), hit.point));
         assert!(hit.multiplicity >= 1);
     }
 }
@@ -550,17 +538,7 @@ fn test_curve_curve_intersection_matches_numeric() {
                 );
             }
             for h in hits.iter().filter(|h| {
-                h.multiplicity == 1
-                    && window(
-                        a,
-                        h.first_parameter
-                            .unwrap_or_else(|| a.parameter_of(h.point, Tolerance::DEFAULT)),
-                    )
-                    && window(
-                        b,
-                        h.second_parameter
-                            .unwrap_or_else(|| b.parameter_of(h.point, Tolerance::DEFAULT)),
-                    )
+                h.multiplicity == 1 && window(a, h.first_parameter) && window(b, h.second_parameter)
             }) {
                 assert!(
                     numeric.iter().any(|n| close(h.point, n.point)),
@@ -827,7 +805,7 @@ fn test_circle_and_ellipse_parameters_lie_in_bounds() {
                 if let Some(result) = exact(curve, surface) {
                     let list = result.hits();
                     for h in list {
-                        in_bounds(curve, h.curve_parameter.unwrap());
+                        in_bounds(curve, h.curve_parameter);
                         hits += 1;
                     }
                     assert!(
@@ -845,9 +823,7 @@ fn test_circle_and_ellipse_parameters_lie_in_bounds() {
                             } else {
                                 h.first_parameter
                             };
-                            if let Some(t) = stored {
-                                in_bounds(curve, t);
-                            }
+                            in_bounds(curve, stored);
                             hits += 1;
                         }
                     }
@@ -881,7 +857,7 @@ fn test_circle_and_ellipse_parameters_lie_in_bounds() {
             result
                 .hits()
                 .iter()
-                .map(|h| h.curve_parameter.unwrap())
+                .map(|h| h.curve_parameter)
                 .collect::<Vec<_>>()
         };
         let grazing = Plane::new(Point::new(1.0, 0.0, 0.0), Vector::X).unwrap();

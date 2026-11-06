@@ -25,7 +25,7 @@ fn check_curve<C: ParametricCurve>(
 ) {
     for q in query_points() {
         let p = project(q);
-        let expected = curve.eval_point(p.parameter);
+        let expected = curve.point_at(p.parameter);
         assert!(
             p.point.distance(expected) <= 1e-12,
             "{name}: point is not eval(parameter) for {q:?}"
@@ -40,7 +40,7 @@ fn check_curve<C: ParametricCurve>(
 fn check_surface<S: ParametricSurface>(name: &str, surface: &S) {
     for q in query_points() {
         let p = surface.project_point(q, Tolerance::DEFAULT);
-        let expected = surface.eval_point(p.u, p.v);
+        let expected = surface.point_at(p.u, p.v);
         assert!(
             p.point.distance(expected) <= 1e-12,
             "{name}: point is not eval(u, v) for {q:?}"
@@ -117,7 +117,7 @@ fn test_curve_2d_projection_returns_its_point() {
     for curve in &curves {
         for q in [Point2D::new(3.0, -1.0), Point2D::new(-0.5, 0.25)] {
             let p = curve.project_point(q, tol);
-            assert!(p.point.distance(curve.eval_point(p.parameter)) <= 1e-12);
+            assert!(p.point.distance(curve.point_at(p.parameter)) <= 1e-12);
         }
         let batch = curve.project_points(&[Point2D::new(3.0, -1.0)], tol);
         assert_eq!(batch[0], curve.project_point(Point2D::new(3.0, -1.0), tol));

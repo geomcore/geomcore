@@ -27,7 +27,7 @@ fn assert_same_shape(a: &BezierCurve2D, b: &BezierCurve2D) {
     let (first, last) = a.bounds();
     for i in 0..=20 {
         let u = first + (last - first) * i as f64 / 20.0;
-        assert!(a.eval_point(u).distance(b.eval_point(u)) < 1e-12, "u={u}");
+        assert!(a.point_at(u).distance(b.point_at(u)) < 1e-12, "u={u}");
     }
 }
 
@@ -72,16 +72,16 @@ fn test_construction_errors() {
 fn test_eval_matches_bernstein_form() {
     let curve = cubic();
     // (P0 + 3 P1 + 3 P2 + P3) / 8 at the middle.
-    assert_eq!(curve.eval_point(0.5), Point2D::new(2.0, 1.5));
-    assert_eq!(curve.eval_derivative(0.5, 1), Vector2D::new(4.5, 0.0));
-    let (point, d1, d2) = curve.eval_d2(0.5);
+    assert_eq!(curve.point_at(0.5), Point2D::new(2.0, 1.5));
+    assert_eq!(curve.derivative(0.5, 1), Vector2D::new(4.5, 0.0));
+    let (point, d1, d2) = curve.second_derivatives(0.5);
     assert_eq!(point, Point2D::new(2.0, 1.5));
     assert_eq!(d1, Vector2D::new(4.5, 0.0));
     assert_eq!(d2, Vector2D::new(0.0, -12.0));
-    assert_eq!(curve.eval_d1(0.5), (point, d1));
-    assert_eq!(curve.eval_points(&[0.5])[0], point);
+    assert_eq!(curve.first_derivatives(0.5), (point, d1));
+    assert_eq!(curve.points_at(&[0.5])[0], point);
     for i in 0..=10 {
-        let p = quarter_circle().eval_point(i as f64 / 10.0);
+        let p = quarter_circle().point_at(i as f64 / 10.0);
         assert!(((p.x * p.x + p.y * p.y).sqrt() - 1.0).abs() < 1e-12);
     }
 }
@@ -91,15 +91,18 @@ fn test_sides_agree_and_continuity_is_smooth() {
     let curve = cubic();
     for u in [0.0, 0.3, 1.0] {
         assert_eq!(
-            curve.eval_d1_sided(u, Side::Below),
-            curve.eval_d1_sided(u, Side::Above)
+            curve.first_derivatives_sided(u, Side::Below),
+            curve.first_derivatives_sided(u, Side::Above)
         );
         assert_eq!(curve.continuity(u, Tolerance::DEFAULT), Continuity::Smooth);
     }
-    assert_eq!(curve.eval_d2_sided(0.5, Side::Above), curve.eval_d2(0.5));
     assert_eq!(
-        curve.eval_derivative_sided(0.5, 1, Side::Below),
-        curve.eval_derivative(0.5, 1)
+        curve.second_derivatives_sided(0.5, Side::Above),
+        curve.second_derivatives(0.5)
+    );
+    assert_eq!(
+        curve.derivative_sided(0.5, 1, Side::Below),
+        curve.derivative(0.5, 1)
     );
     assert_eq!(curve.min_continuity(), Continuity::Smooth);
     assert!(!curve.is_closed(Tolerance::DEFAULT));
@@ -160,8 +163,8 @@ fn test_split_at_gives_two_beziers() {
     assert_eq!((left.bounds(), right.bounds()), ((0.0, 0.25), (0.25, 1.0)));
     assert_eq!(left.poles()[3], right.poles()[0]);
     assert_eq!(left.to_bspline().multiplicities(), &[4, 4]);
-    assert!(left.eval_point(0.1).distance(curve.eval_point(0.1)) < 1e-12);
-    assert!(right.eval_point(0.7).distance(curve.eval_point(0.7)) < 1e-12);
+    assert!(left.point_at(0.1).distance(curve.point_at(0.1)) < 1e-12);
+    assert!(right.point_at(0.7).distance(curve.point_at(0.7)) < 1e-12);
     assert_eq!(curve.split_at(0.0), Err(BSplineSplitError::EmptyRange));
     assert_eq!(curve.split_at(-1.0), Err(BSplineSplitError::OutOfRange));
 }
@@ -184,11 +187,8 @@ fn test_elevate_degree_keeps_the_shape() {
 fn test_reversed_mirrors_the_parameter() {
     let curve = cubic();
     let reversed = curve.reversed();
-    assert_eq!(reversed.eval_point(0.0), curve.eval_point(1.0));
-    let (d, e) = (
-        curve.eval_derivative(0.3, 1),
-        reversed.eval_derivative(0.7, 1),
-    );
+    assert_eq!(reversed.point_at(0.0), curve.point_at(1.0));
+    let (d, e) = (curve.derivative(0.3, 1), reversed.derivative(0.7, 1));
     assert!((d + e).magnitude() < 1e-12);
     assert_eq!(reversed.reversed(), curve);
 }
@@ -220,7 +220,7 @@ fn test_discretization_meets_the_proven_deviation() {
         assert_eq!(d.points.len(), curve.point_count(criteria));
         assert!(d.chord_deviations.iter().all(|&e| e <= 1e-3));
         for (u, chord) in d.parameters.windows(2).zip(d.points.windows(2)) {
-            let middle = curve.eval_point(0.5 * (u[0] + u[1]));
+            let middle = curve.point_at(0.5 * (u[0] + u[1]));
             let foot = Point2D::new(
                 0.5 * (chord[0].x + chord[1].x),
                 0.5 * (chord[0].y + chord[1].y),
@@ -236,8 +236,8 @@ fn test_trait_impls_delegate() {
     assert_eq!(curve.bounds(), (0.0, 1.0));
     assert_eq!(curve.period(), None);
     assert!(!curve.is_periodic());
-    assert_eq!(curve.eval_point(0.5), Point2D::new(2.0, 1.5));
-    assert_eq!(curve.eval_d2(0.5), curve.eval_d2(0.5));
+    assert_eq!(curve.point_at(0.5), Point2D::new(2.0, 1.5));
+    assert_eq!(curve.second_derivatives(0.5), curve.second_derivatives(0.5));
     assert!(
         !curve
             .extrema(Point2D::new(1.0, 5.0), Tolerance::DEFAULT)
@@ -256,5 +256,5 @@ fn test_bezier_pieces_of_a_bspline_are_beziers() {
     assert_eq!(pieces.len(), 3);
     assert_eq!(pieces[1].bounds(), (1.0, 2.0));
     assert_eq!(pieces[1].poles().len(), 4);
-    assert!(pieces[1].eval_point(1.5).distance(spline.eval_point(1.5)) < 1e-12);
+    assert!(pieces[1].point_at(1.5).distance(spline.point_at(1.5)) < 1e-12);
 }

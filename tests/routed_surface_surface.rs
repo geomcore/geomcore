@@ -17,7 +17,7 @@ fn assert_curves_lie_on<A: ParametricSurface, B: ParametricSurface>(
         let (start, end) = piece.curve.bounds();
         for i in 0..50 {
             let parameter = start + (end - start) * i as f64 / 49.0;
-            let point = piece.curve.eval_point(parameter);
+            let point = piece.curve.point_at(parameter);
             assert!(a.project_point(point, TOL).distance <= limit);
             assert!(b.project_point(point, TOL).distance <= limit);
         }
@@ -42,23 +42,39 @@ fn test_plane_sphere_routes_exact_with_the_same_circle() {
     assert!(!routed.curves()[0].tangent);
 }
 
+/// The curves of `result` in space, and their curves in parameters with
+/// the surfaces exchanged.
+fn swapped_curves(result: &SurfaceSurfaceIntersection) -> Vec<IntersectionCurve> {
+    result
+        .curves()
+        .iter()
+        .map(|piece| IntersectionCurve {
+            first_uv_curve: piece.second_uv_curve.clone(),
+            second_uv_curve: piece.first_uv_curve.clone(),
+            ..piece.clone()
+        })
+        .collect()
+}
+
 #[test]
 fn test_both_argument_orders_give_the_same_curves() {
+    // The same curves in space; each one's curves in parameters follow
+    // the surfaces.
     let plane = Plane::new(Point::new(0.0, 0.0, 1.0), Vector::Z).unwrap();
     let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
     assert_eq!(
         plane.intersect(&sphere, TOL).curves(),
-        sphere.intersect(&plane, TOL).curves()
+        swapped_curves(&sphere.intersect(&plane, TOL))
     );
     let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
     assert_eq!(
         cylinder.intersect(&sphere, TOL).curves(),
-        sphere.intersect(&cylinder, TOL).curves()
+        swapped_curves(&sphere.intersect(&cylinder, TOL))
     );
     let (surface, other) = (Surface::from(plane), Surface::from(sphere));
     assert_eq!(
         surface.intersect(&other, TOL).curves(),
-        other.intersect(&surface, TOL).curves()
+        swapped_curves(&other.intersect(&surface, TOL))
     );
     assert_eq!(
         surface.intersect(&sphere, TOL),
