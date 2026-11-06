@@ -1,4 +1,4 @@
-//! The Python class `geomcore.surfaces.Sphere`, wrapping `geomcore::Sphere`.
+//! The Python class `geomcore.Sphere`, wrapping `geomcore::Sphere`.
 
 use crate::method_sets::*;
 use crate::surfaces::*;
@@ -6,7 +6,7 @@ use crate::values::{PyFrame, float_repr};
 use geomcore::Sphere;
 
 /// A sphere; u is the longitude in [0, 2*pi), v the latitude in [-pi/2, pi/2].
-#[pyclass(name = "Sphere", module = "geomcore.surfaces", eq)]
+#[pyclass(name = "Sphere", module = "geomcore", eq)]
 #[derive(Clone, PartialEq)]
 pub(crate) struct PySphere(pub(crate) Sphere);
 
@@ -16,6 +16,11 @@ shape_methods! {
     /// The placement frame of the sphere.
     fn frame(&self) -> PyFrame {
         PyFrame(self.0.frame())
+    }
+
+    fn __reduce__<'py>(slf: &pyo3::Bound<'py, Self>) -> pyo3::PyResult<pyo3::Bound<'py, pyo3::types::PyTuple>> {
+        let this = slf.borrow();
+        crate::pickling::reduce(slf.as_any(), Some("from_frame"), (this.frame(), this.radius(),))
     }
 
     fn __repr__(&self) -> String {

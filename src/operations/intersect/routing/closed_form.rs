@@ -21,7 +21,7 @@
 //! listed in its family's `solved` entry, or a solver over kinds listed in
 //! the [`SurfaceKind`] pair match, as the plane cuts of `swept_plane` are.
 
-use super::swept_plane::{Swept, swept_plane_intersection};
+use super::swept_plane::{Swept, SweptSide, swept_plane_intersection};
 use crate::Tolerance;
 use crate::geometry::curves::{
     Circle, Circle2D, Curve, Curve2D, ElementaryCurve, Ellipse, Ellipse2D, Hyperbola, Hyperbola2D,
@@ -356,9 +356,8 @@ impl<'b> ExactFamily<SurfaceKind<'b>> for SurfaceKind<'_> {
                 first.exact_family(second, ranges, tol, numeric_search)
             }
             _ => match plane_and_swept(*self, *other) {
-                Some((plane, swept)) => {
-                    swept_plane_intersection(&plane, swept, tol).unwrap_or_else(numeric_search)
-                }
+                Some((plane, swept, side)) => swept_plane_intersection(&plane, swept, side, tol)
+                    .unwrap_or_else(numeric_search),
                 None => numeric_search(),
             },
         }
@@ -366,16 +365,19 @@ impl<'b> ExactFamily<SurfaceKind<'b>> for SurfaceKind<'_> {
 }
 
 /// The plane and the swept surface of a pair holding one of each, in
-/// either order: the cuts `swept_plane` solves.
+/// either order, and which operand the swept surface is: the cuts
+/// `swept_plane` solves.
 #[inline]
 fn plane_and_swept<'a>(
     first: SurfaceKind<'a>,
     second: SurfaceKind<'a>,
-) -> Option<(Plane, Swept<'a>)> {
+) -> Option<(Plane, Swept<'a>, SweptSide)> {
     match (first, second) {
-        (SurfaceKind::Elementary(ElementarySurface::Plane(plane)), SurfaceKind::Swept(swept))
-        | (SurfaceKind::Swept(swept), SurfaceKind::Elementary(ElementarySurface::Plane(plane))) => {
-            Some((plane, swept))
+        (SurfaceKind::Elementary(ElementarySurface::Plane(plane)), SurfaceKind::Swept(swept)) => {
+            Some((plane, swept, SweptSide::Second))
+        }
+        (SurfaceKind::Swept(swept), SurfaceKind::Elementary(ElementarySurface::Plane(plane))) => {
+            Some((plane, swept, SweptSide::First))
         }
         _ => None,
     }

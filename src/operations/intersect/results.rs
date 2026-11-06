@@ -773,24 +773,30 @@ impl SurfaceSurfaceIntersection {
         }
     }
 
-    /// The result with each exact curve's curves in parameters on `first`
-    /// and `second`, where a closed form exists (see
-    /// [`IntersectionCurve::first_uv_curve`]). A marched result has them
-    /// already. The solvers built the curves on both surfaces, so the
-    /// closed forms skip their on-surface check: it tripled the cost of a
-    /// plane cutting a cylinder.
+    /// The result with each curve's missing curves in parameters on
+    /// `first` and `second` found, where a closed form exists (see
+    /// [`IntersectionCurve::first_uv_curve`]). A marched curve has both
+    /// already, and a swept surface's plane cut has the one on the swept
+    /// surface; a curve through crossings found numerically, as a plane
+    /// cutting a spline profile's extrusion, gets them like an exact one.
+    /// The solvers built the curves on both surfaces, so the closed forms
+    /// skip their on-surface check: it tripled the cost of a plane cutting
+    /// a cylinder.
     pub(crate) fn with_exact_uv_curves(
         mut self,
         first: &impl ParametricSurface,
         second: &impl ParametricSurface,
         tol: Tolerance,
     ) -> Self {
-        if self.method == IntersectionMethod::Exact {
-            for piece in &mut self.curves {
-                let uv_curve = |surface: &dyn ParametricSurface| {
-                    checked_curve_3d_to_uv(surface, &piece.curve, tol, OnSurfaceCheck::Skipped).ok()
-                };
+        for piece in &mut self.curves {
+            let curve = &piece.curve;
+            let uv_curve = |surface: &dyn ParametricSurface| {
+                checked_curve_3d_to_uv(surface, curve, tol, OnSurfaceCheck::Skipped).ok()
+            };
+            if piece.first_uv_curve.is_none() {
                 piece.first_uv_curve = uv_curve(first);
+            }
+            if piece.second_uv_curve.is_none() {
                 piece.second_uv_curve = uv_curve(second);
             }
         }

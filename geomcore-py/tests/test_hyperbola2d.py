@@ -4,8 +4,7 @@ import math
 
 import pytest
 
-from geomcore import Frame2D, Point2D, Vector2D
-from geomcore.curves import Hyperbola2D, Line2D, TrimmedCurve2D
+from geomcore import Frame2D, Hyperbola2D, Line2D, Point2D, TrimmedCurve2D, Vector2D
 
 ORIGIN = Point2D.origin()
 X, Y = Vector2D.unit_x(), Vector2D.unit_y()

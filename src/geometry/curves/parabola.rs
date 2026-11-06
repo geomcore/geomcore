@@ -5,8 +5,8 @@ use crate::base::frame::frame_error;
 use crate::base::tier::operations::FrameOperations;
 use crate::base::tier::{TierPoint, impl_for_both_tiers};
 use crate::base::transform::image_error;
-use crate::geometry::curves::ReversibleCurve;
 use crate::geometry::curves::{ElementaryCurve, ParametricCurve, ParametricCurve2D};
+use crate::geometry::curves::{GenericLine, Line, Line2D, ReversibleCurve};
 use crate::geometry::curves::{PointExtrema, PointExtrema2D};
 use crate::math::elementary::curve as elementary;
 use crate::math::numeric::real_roots;
@@ -167,6 +167,72 @@ impl<P: TierPoint> GenericParabola<P> {
     pub fn focal_distance(&self) -> f64 {
         self.focal_distance
     }
+
+    /// The eccentricity of every parabola: 1, a point being as far from
+    /// the focus as from the directrix.
+    pub fn eccentricity(&self) -> f64 {
+        1.0
+    }
+
+    /// The focus, on the axis at the focal distance from the apex, inside
+    /// the curve.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Frame, Parabola, Point};
+    /// let parabola = Parabola::from_frame(Frame::WORLD, 1.5).unwrap();
+    /// assert_eq!(parabola.focus(), Point::new(1.5, 0.0, 0.0));
+    /// ```
+    pub fn focus(&self) -> P {
+        self.apex() + self.frame.x_direction() * self.focal_distance
+    }
+
+    /// The directrix, across the axis at the focal distance behind the
+    /// apex, along the direction the parameter runs: every point of the
+    /// curve is as far from it as from the [`focus`](Self::focus).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Frame, Parabola, Point, Vector};
+    /// let parabola = Parabola::from_frame(Frame::WORLD, 1.5).unwrap();
+    /// let directrix = parabola.directrix();
+    /// assert_eq!(directrix.origin(), Point::new(-1.5, 0.0, 0.0));
+    /// assert_eq!(directrix.direction(), Vector::Y);
+    /// ```
+    pub fn directrix(&self) -> GenericLine<P> {
+        let behind = self.apex() + self.frame.x_direction() * -self.focal_distance;
+        GenericLine::new(behind, self.frame.y_direction())
+            .expect("a frame direction is a unit vector")
+    }
+}
+
+/// The apex, the unit axis direction toward the focus and the focal
+/// distance of the parabola of `focus` and a directrix through `origin`
+/// along the unit `direction`, or the error when the focus is on the
+/// directrix.
+fn apex_axis_and_focal_distance<P: TierPoint>(
+    focus: P,
+    origin: P,
+    direction: P::Vector,
+) -> Result<(P, P::Vector, f64), ParabolaConstructionError> {
+    use crate::base::tier::operations::VectorOperations;
+    if !(focus.is_finite() && origin.is_finite()) {
+        return Err(ParabolaConstructionError::NonFinite);
+    }
+    let offset = focus - origin;
+    let foot = origin + direction * offset.dot(direction);
+    let to_focus = focus - foot;
+    let distance = to_focus.magnitude();
+    if distance <= Tolerance::DEFAULT.confusion {
+        return Err(ParabolaConstructionError::NonPositiveFocal);
+    }
+    Ok((
+        foot + to_focus * 0.5,
+        to_focus * (1.0 / distance),
+        0.5 * distance,
+    ))
 }
 
 impl Parabola {
@@ -204,9 +270,75 @@ impl Parabola {
         ))?;
         Parabola::from_frame(frame, focal_distance)
     }
+
+    /// The parabola of the points as far from `focus` as from
+    /// `directrix`, in the plane through both, its parameter running along
+    /// the directrix's direction.
+    ///
+    /// # Errors
+    ///
+    /// [`ParabolaConstructionError::NonPositiveFocal`] when the focus is on
+    /// the directrix, within confusion, and
+    /// [`ParabolaConstructionError::NonFinite`] for a non-finite focus.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Line, Parabola, Point, Vector};
+    /// let directrix = Line::new(Point::new(0.0, 0.0, -1.0), Vector::X).unwrap();
+    /// let parabola = Parabola::from_focus_and_directrix(Point::new(0.0, 0.0, 1.0), &directrix).unwrap();
+    /// assert_eq!(parabola.apex(), Point::ORIGIN);
+    /// assert_eq!(parabola.focal_distance(), 1.0);
+    /// assert_eq!(parabola.focus(), Point::new(0.0, 0.0, 1.0));
+    /// ```
+    pub fn from_focus_and_directrix(
+        focus: Point,
+        directrix: &Line,
+    ) -> Result<Parabola, ParabolaConstructionError> {
+        let direction = directrix.direction();
+        let (apex, axis, focal_distance) =
+            apex_axis_and_focal_distance(focus, directrix.origin(), direction)?;
+        let frame = Frame::new(apex, axis.cross(direction), axis).map_err(frame_error(
+            ParabolaConstructionError::NonFinite,
+            ParabolaConstructionError::NullNormal,
+        ))?;
+        Parabola::from_frame(frame, focal_distance)
+    }
 }
 
 impl Parabola2D {
+    /// The parabola of the points as far from `focus` as from
+    /// `directrix`, its parameter running along the directrix's direction.
+    ///
+    /// # Errors
+    ///
+    /// [`ParabolaConstructionError::NonPositiveFocal`] when the focus is on
+    /// the directrix, within confusion, and
+    /// [`ParabolaConstructionError::NonFinite`] for a non-finite focus.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Line2D, Parabola2D, Point2D, Vector2D};
+    /// let directrix = Line2D::new(Point2D::new(0.0, -1.0), Vector2D::X).unwrap();
+    /// let parabola = Parabola2D::from_focus_and_directrix(Point2D::new(0.0, 1.0), &directrix).unwrap();
+    /// assert_eq!(parabola.apex(), Point2D::ORIGIN);
+    /// assert_eq!(parabola.focal_distance(), 1.0);
+    /// ```
+    pub fn from_focus_and_directrix(
+        focus: Point2D,
+        directrix: &Line2D,
+    ) -> Result<Parabola2D, ParabolaConstructionError> {
+        let direction = directrix.direction();
+        let (apex, axis, focal_distance) =
+            apex_axis_and_focal_distance(focus, directrix.origin(), direction)?;
+        let frame = Frame2D::new(apex, axis, direction).map_err(frame_error(
+            ParabolaConstructionError::NonFinite,
+            ParabolaConstructionError::NullNormal,
+        ))?;
+        Parabola2D::from_frame(frame, focal_distance)
+    }
+
     /// Creates a parabola from an apex, an axis direction, and a focal
     /// distance.
     ///
