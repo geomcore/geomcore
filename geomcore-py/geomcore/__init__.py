@@ -6,10 +6,12 @@ from geomcore import _native
 __doc__ = _native.__doc__
 __version__ = _native.__version__
 
-# Every 3D curve, 2D curve and surface class, as the union to annotate
-# with. `isinstance` takes a union from Python 3.10; `typing.get_args` gives
-# the tuple of classes.
-Curve = _Union[Line, Circle, Ellipse, Parabola, Hyperbola, BSplineCurve, BezierCurve, TrimmedCurve]
+# The union to annotate with of each kind of shape. A curve is one of the
+# classes of the `Curve` enum's variants, as in Rust; a `TrimmedCurve` is a
+# piece of one, so code that takes either says `Curve | TrimmedCurve`.
+# `isinstance` takes a union from Python 3.10; `typing.get_args` gives the
+# tuple of classes.
+Curve = _Union[Line, Circle, Ellipse, Parabola, Hyperbola, BSplineCurve, BezierCurve]
 Curve2D = _Union[
     Line2D,
     Circle2D,
@@ -18,7 +20,6 @@ Curve2D = _Union[
     Hyperbola2D,
     BSplineCurve2D,
     BezierCurve2D,
-    TrimmedCurve2D,
 ]
 Surface = _Union[
     Plane,

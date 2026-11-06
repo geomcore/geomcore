@@ -31,13 +31,13 @@ impl PyBoundingBox {
     }
 
     /// The corner with the smallest coordinates.
-    fn min(&self) -> PyPoint {
-        PyPoint(self.0.min())
+    fn min_corner(&self) -> PyPoint {
+        PyPoint(self.0.min_corner())
     }
 
     /// The corner with the largest coordinates.
-    fn max(&self) -> PyPoint {
-        PyPoint(self.0.max())
+    fn max_corner(&self) -> PyPoint {
+        PyPoint(self.0.max_corner())
     }
 
     /// The middle of the box.
@@ -65,6 +65,28 @@ impl PyBoundingBox {
         self.0.encloses(point.0)
     }
 
+    /// `point in box`: the same as `encloses`.
+    fn __contains__(&self, point: PyPoint) -> bool {
+        self.0.encloses(point.0)
+    }
+
+    /// The smallest box holding this box and `point`.
+    fn including(&self, point: PyPoint) -> Self {
+        PyBoundingBox(self.0.including(point.0))
+    }
+
+    /// The box of the points the two boxes share, or `None` when they are
+    /// apart. Boxes that only touch share a flat box.
+    fn intersection(&self, other: &PyBoundingBox) -> Option<Self> {
+        self.0.intersection(other.0).map(PyBoundingBox)
+    }
+
+    /// The distance from `point` to the box: 0 for a point in it, the
+    /// distance to the nearest point of the box otherwise.
+    fn distance(&self, point: PyPoint) -> f64 {
+        self.0.distance(point.0)
+    }
+
     /// Whether the boxes touch or overlap on every axis.
     fn overlaps(&self, other: &PyBoundingBox) -> bool {
         self.0.overlaps(other.0)
@@ -74,11 +96,11 @@ impl PyBoundingBox {
         slf: &pyo3::Bound<'py, Self>,
     ) -> PyResult<pyo3::Bound<'py, pyo3::types::PyTuple>> {
         let this = slf.borrow();
-        crate::pickling::reduce(slf.as_any(), None, (this.min(), this.max()))
+        crate::pickling::reduce(slf.as_any(), None, (this.min_corner(), this.max_corner()))
     }
 
     fn __repr__(&self) -> String {
-        let (lo, hi) = (self.0.min(), self.0.max());
+        let (lo, hi) = (self.0.min_corner(), self.0.max_corner());
         format!(
             "BoundingBox(min={}, max={})",
             coordinates(lo),
@@ -113,13 +135,13 @@ impl PyBoundingBox2D {
     }
 
     /// The corner with the smallest coordinates.
-    fn min(&self) -> PyPoint2D {
-        PyPoint2D(self.0.min())
+    fn min_corner(&self) -> PyPoint2D {
+        PyPoint2D(self.0.min_corner())
     }
 
     /// The corner with the largest coordinates.
-    fn max(&self) -> PyPoint2D {
-        PyPoint2D(self.0.max())
+    fn max_corner(&self) -> PyPoint2D {
+        PyPoint2D(self.0.max_corner())
     }
 
     /// The middle of the box.
@@ -147,6 +169,28 @@ impl PyBoundingBox2D {
         self.0.encloses(point.0)
     }
 
+    /// `point in box`: the same as `encloses`.
+    fn __contains__(&self, point: PyPoint2D) -> bool {
+        self.0.encloses(point.0)
+    }
+
+    /// The smallest box holding this box and `point`.
+    fn including(&self, point: PyPoint2D) -> Self {
+        PyBoundingBox2D(self.0.including(point.0))
+    }
+
+    /// The box of the points the two boxes share, or `None` when they are
+    /// apart. Boxes that only touch share a flat box.
+    fn intersection(&self, other: &PyBoundingBox2D) -> Option<Self> {
+        self.0.intersection(other.0).map(PyBoundingBox2D)
+    }
+
+    /// The distance from `point` to the box: 0 for a point in it, the
+    /// distance to the nearest point of the box otherwise.
+    fn distance(&self, point: PyPoint2D) -> f64 {
+        self.0.distance(point.0)
+    }
+
     /// Whether the boxes touch or overlap on both axes.
     fn overlaps(&self, other: &PyBoundingBox2D) -> bool {
         self.0.overlaps(other.0)
@@ -156,11 +200,11 @@ impl PyBoundingBox2D {
         slf: &pyo3::Bound<'py, Self>,
     ) -> PyResult<pyo3::Bound<'py, pyo3::types::PyTuple>> {
         let this = slf.borrow();
-        crate::pickling::reduce(slf.as_any(), None, (this.min(), this.max()))
+        crate::pickling::reduce(slf.as_any(), None, (this.min_corner(), this.max_corner()))
     }
 
     fn __repr__(&self) -> String {
-        let (lo, hi) = (self.0.min(), self.0.max());
+        let (lo, hi) = (self.0.min_corner(), self.0.max_corner());
         format!(
             "BoundingBox2D(min={}, max={})",
             coordinates_2d(lo),

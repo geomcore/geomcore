@@ -12,7 +12,7 @@ use geomcore::{BSplineCurve, Point};
 pub(crate) struct PyBSplineCurve(pub(crate) BSplineCurve);
 
 shape_methods! {
-    PyBSplineCurve: [curve, discretize, sided_evaluation];
+    PyBSplineCurve: [curve, bounded_curve, sided_evaluation];
 
     fn __reduce__<'py>(slf: &pyo3::Bound<'py, Self>) -> pyo3::PyResult<pyo3::Bound<'py, pyo3::types::PyTuple>> {
         let this = slf.borrow();
@@ -296,12 +296,18 @@ shape_methods! {
             .collect()
     }
 
-    /// The piece over `[first, last]` as a clamped, non-periodic B-spline
+    /// The curve itself, as the other curves give their exact B-spline
+    /// with `to_bspline()`.
+    fn to_bspline(&self) -> Self {
+        Self(self.0.to_bspline())
+    }
+
+    /// The piece over `[start, end]` as a clamped, non-periodic B-spline
     /// (the range may cross the seam of a periodic curve, up to one
     /// period).
-    fn extract(&self, first: f64, last: f64) -> PyResult<Self> {
+    fn extract(&self, start: f64, end: f64) -> PyResult<Self> {
         Ok(PyBSplineCurve(
-            self.0.extract(first, last).map_err(python_error)?,
+            self.0.extract(start, end).map_err(python_error)?,
         ))
     }
 

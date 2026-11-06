@@ -9,12 +9,12 @@ use crate::values::{coordinates, coordinates_2d, float_repr};
 use geomcore::{Curve, Curve2D, TrimmedCurve, TrimmedCurve2D};
 use pyo3::exceptions::PyTypeError;
 
-/// A 3D curve restricted to the parameter range `[first, last]` of a
+/// A 3D curve restricted to the parameter range `[start_parameter, end_parameter]` of a
 /// basis curve: a line segment, an arc of a circle or conic, or a piece of
 /// a B-spline. Geometry only, with no vertices or orientation.
 ///
 /// The basis keeps its parametrisation and `bounds()` is
-/// `(first, last)`; evaluation does not check a parameter against it. On
+/// `(start_parameter, end_parameter)`; evaluation does not check a parameter against it. On
 /// a periodic basis (circle, ellipse, periodic
 /// B-spline) the range may cross the seam, up to one period. Pass it to
 /// `intersect`, `curve_curve_extrema` or `curve_3d_to_uv_within` to search
@@ -24,17 +24,17 @@ use pyo3::exceptions::PyTypeError;
 pub(crate) struct PyTrimmedCurve(pub(crate) TrimmedCurve);
 
 shape_methods! {
-    PyTrimmedCurve: [curve, discretize];
+    PyTrimmedCurve: [curve, bounded_curve];
 
     #[new]
     /// Restrict `basis` (any 3D curve) to the parameter range
-    /// `[first, last]`. Raises `ValueError` for non-finite ends, an empty
+    /// `[start_parameter, end_parameter]`. Raises `ValueError` for non-finite ends, an empty
     /// range, a range outside a non-periodic basis's bounds, or one longer
     /// than a periodic basis's period.
-    fn py_new(basis: &Bound<'_, PyAny>, first: f64, last: f64) -> PyResult<Self> {
+    fn py_new(basis: &Bound<'_, PyAny>, start_parameter: f64, end_parameter: f64) -> PyResult<Self> {
         let basis = curve_classes::extract(basis)?;
         Ok(PyTrimmedCurve(
-            TrimmedCurve::new(basis, first, last).map_err(python_error)?,
+            TrimmedCurve::new(basis, start_parameter, end_parameter).map_err(python_error)?,
         ))
     }
 
@@ -81,7 +81,7 @@ shape_methods! {
     /// `Circle`.
     fn sweep_angle(&self) -> PyResult<f64> {
         match self.0.basis() {
-            Curve::Circle(_) => Ok(self.0.last() - self.0.first()),
+            Curve::Circle(_) => Ok(self.0.end_parameter() - self.0.start_parameter()),
             _ => Err(PyTypeError::new_err("sweep_angle: the basis is not a Circle")),
         }
     }
@@ -97,14 +97,14 @@ shape_methods! {
         curve_classes::to_py(py, self.0.basis().clone())
     }
 
-    /// The start of the parameter range.
-    fn first(&self) -> f64 {
-        self.0.first()
+    /// The start of the parameter range, the parameter of `start_point`.
+    fn start_parameter(&self) -> f64 {
+        self.0.start_parameter()
     }
 
-    /// The end of the parameter range.
-    fn last(&self) -> f64 {
-        self.0.last()
+    /// The end of the parameter range, the parameter of `end_point`.
+    fn end_parameter(&self) -> f64 {
+        self.0.end_parameter()
     }
 
     /// The trimmed piece as an exact B-spline over the same range: a
@@ -115,35 +115,25 @@ shape_methods! {
         Ok(PyBSplineCurve(self.0.to_bspline().map_err(python_error)?))
     }
 
-    /// The point at the start of the range.
-    fn start_point(&self) -> PyPoint {
-        PyPoint(self.0.start_point())
-    }
-
-    /// The point at the end of the range.
-    fn end_point(&self) -> PyPoint {
-        PyPoint(self.0.end_point())
-    }
-
     fn __reduce__<'py>(slf: &pyo3::Bound<'py, Self>) -> pyo3::PyResult<pyo3::Bound<'py, pyo3::types::PyTuple>> {
         let this = slf.borrow();
         let basis = this.basis(slf.py())?;
-        crate::pickling::reduce(slf.as_any(), None, (basis, this.first(), this.last()))
+        crate::pickling::reduce(slf.as_any(), None, (basis, this.start_parameter(), this.end_parameter()))
     }
 
     fn __repr__(&self) -> String {
         let (s, e) = (self.0.start_point(), self.0.end_point());
         format!(
-            "TrimmedCurve(first={}, last={}, start={}, end={})",
-            float_repr(self.0.first()),
-            float_repr(self.0.last()),
+            "TrimmedCurve(start_parameter={}, end_parameter={}, start_point={}, end_point={})",
+            float_repr(self.0.start_parameter()),
+            float_repr(self.0.end_parameter()),
             coordinates(s),
             coordinates(e)
         )
     }
 }
 
-/// A 2D curve restricted to the parameter range `[first, last]` of a
+/// A 2D curve restricted to the parameter range `[start_parameter, end_parameter]` of a
 /// basis curve: a line segment, a circular arc or a B-spline piece,
 /// typically a trimmed pcurve in a surface's (u, v) parameter space. Mirrors `TrimmedCurve`.
 #[pyclass(name = "TrimmedCurve2D", module = "geomcore", eq)]
@@ -151,15 +141,15 @@ shape_methods! {
 pub(crate) struct PyTrimmedCurve2D(pub(crate) TrimmedCurve2D);
 
 shape_methods! {
-    PyTrimmedCurve2D: [curve_2d, discretize_2d];
+    PyTrimmedCurve2D: [curve_2d, bounded_curve_2d];
 
     #[new]
     /// Restrict `basis` (a Line2D, Circle2D, Ellipse2D or BSplineCurve2D) to the parameter range
-    /// `[first, last]`, under the rules of `TrimmedCurve`.
-    fn py_new(basis: &Bound<'_, PyAny>, first: f64, last: f64) -> PyResult<Self> {
+    /// `[start_parameter, end_parameter]`, under the rules of `TrimmedCurve`.
+    fn py_new(basis: &Bound<'_, PyAny>, start_parameter: f64, end_parameter: f64) -> PyResult<Self> {
         let basis = curve_2d_classes::extract(basis)?;
         Ok(PyTrimmedCurve2D(
-            TrimmedCurve2D::new(basis, first, last).map_err(python_error)?,
+            TrimmedCurve2D::new(basis, start_parameter, end_parameter).map_err(python_error)?,
         ))
     }
 
@@ -205,7 +195,7 @@ shape_methods! {
     /// basis is not a `Circle2D`.
     fn sweep_angle(&self) -> PyResult<f64> {
         match self.0.basis() {
-            Curve2D::Circle(_) => Ok(self.0.last() - self.0.first()),
+            Curve2D::Circle(_) => Ok(self.0.end_parameter() - self.0.start_parameter()),
             _ => Err(PyTypeError::new_err("sweep_angle: the basis is not a Circle2D")),
         }
     }
@@ -229,38 +219,28 @@ shape_methods! {
         Ok(PyBSplineCurve2D(self.0.to_bspline().map_err(python_error)?))
     }
 
-    /// The start of the parameter range.
-    fn first(&self) -> f64 {
-        self.0.first()
+    /// The start of the parameter range, the parameter of `start_point`.
+    fn start_parameter(&self) -> f64 {
+        self.0.start_parameter()
     }
 
-    /// The end of the parameter range.
-    fn last(&self) -> f64 {
-        self.0.last()
-    }
-
-    /// The point at the start of the range.
-    fn start_point(&self) -> PyPoint2D {
-        PyPoint2D(self.0.start_point())
-    }
-
-    /// The point at the end of the range.
-    fn end_point(&self) -> PyPoint2D {
-        PyPoint2D(self.0.end_point())
+    /// The end of the parameter range, the parameter of `end_point`.
+    fn end_parameter(&self) -> f64 {
+        self.0.end_parameter()
     }
 
     fn __reduce__<'py>(slf: &pyo3::Bound<'py, Self>) -> pyo3::PyResult<pyo3::Bound<'py, pyo3::types::PyTuple>> {
         let this = slf.borrow();
         let basis = this.basis(slf.py())?;
-        crate::pickling::reduce(slf.as_any(), None, (basis, this.first(), this.last()))
+        crate::pickling::reduce(slf.as_any(), None, (basis, this.start_parameter(), this.end_parameter()))
     }
 
     fn __repr__(&self) -> String {
         let (s, e) = (self.0.start_point(), self.0.end_point());
         format!(
-            "TrimmedCurve2D(first={}, last={}, start={}, end={})",
-            float_repr(self.0.first()),
-            float_repr(self.0.last()),
+            "TrimmedCurve2D(start_parameter={}, end_parameter={}, start_point={}, end_point={})",
+            float_repr(self.0.start_parameter()),
+            float_repr(self.0.end_parameter()),
             coordinates_2d(s),
             coordinates_2d(e)
         )

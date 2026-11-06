@@ -8,14 +8,14 @@ use std::f64::consts::{FRAC_PI_2, FRAC_PI_4};
 #[test]
 fn test_from_frame_ok() {
     let c = Cone::from_frame(Frame::WORLD, 0.4, 2.0).unwrap();
-    assert_eq!(c.semi_angle(), 0.4);
-    assert_eq!(c.ref_radius(), 2.0);
+    assert_eq!(c.half_angle(), 0.4);
+    assert_eq!(c.reference_radius(), 2.0);
 }
 
 #[test]
 fn test_from_frame_negative_angle_ok() {
     let c = Cone::from_frame(Frame::WORLD, -0.4, 2.0).unwrap();
-    assert_eq!(c.semi_angle(), -0.4);
+    assert_eq!(c.half_angle(), -0.4);
 }
 
 #[test]
@@ -92,7 +92,7 @@ fn test_from_two_points_and_radii_negative_radius_errors() {
 
 #[test]
 fn test_from_two_points_and_radii_null_angle_errors_when_radii_equal() {
-    // r1 == r2 gives a zero semi-angle: no valid cone (it's a cylinder).
+    // r1 == r2 gives a zero half-angle: no valid cone (it's a cylinder).
     assert_eq!(
         Cone::from_two_points_and_radii(Point::ORIGIN, Point::new(0.0, 0.0, 1.0), 2.0, 2.0),
         Err(ConeConstructionError::NullAngle)
@@ -104,8 +104,8 @@ fn test_from_two_points_and_radii_matches_golden_case_shrinking() {
     // From tests/fixtures/construction.json: cones_two_points_radii[0].
     let c = Cone::from_two_points_and_radii(Point::ORIGIN, Point::new(0.0, 0.0, 4.0), 2.0, 1.0)
         .unwrap();
-    assert!((c.semi_angle() - (-0.24497866312686414)).abs() < 1e-9);
-    assert_eq!(c.ref_radius(), 2.0);
+    assert!((c.half_angle() - (-0.24497866312686414)).abs() < 1e-9);
+    assert_eq!(c.reference_radius(), 2.0);
     let frame = c.frame();
     assert_eq!(frame.origin(), Point::ORIGIN);
     assert_vector3_close(frame.x_direction(), Vector::new(0.0, -1.0, 0.0));
@@ -123,8 +123,8 @@ fn test_from_two_points_and_radii_matches_golden_case_growing() {
         2.5,
     )
     .unwrap();
-    assert!((c.semi_angle() - 0.5908727501454191).abs() < 1e-9);
-    assert_eq!(c.ref_radius(), 1.0);
+    assert!((c.half_angle() - 0.5908727501454191).abs() < 1e-9);
+    assert_eq!(c.reference_radius(), 1.0);
     let frame = c.frame();
     assert_eq!(frame.origin(), Point::new(1.0, 1.0, 1.0));
     assert_vector3_close(
@@ -202,7 +202,7 @@ fn test_error_display() {
     );
     assert_eq!(
         ConeConstructionError::BadAngle.to_string(),
-        "semi-angle is out of range"
+        "half-angle is out of range"
     );
     assert_eq!(
         ConeConstructionError::NullAxis.to_string(),
@@ -210,7 +210,7 @@ fn test_error_display() {
     );
     assert_eq!(
         ConeConstructionError::NullAngle.to_string(),
-        "semi-angle is null or a right angle"
+        "half-angle is null or a right angle"
     );
     assert_eq!(
         ConeConstructionError::NullNormal.to_string(),
@@ -252,8 +252,8 @@ fn test_cone_transformed_translation_spot_check() {
     let cone = Cone::new(Point::ORIGIN, Vector::Z, 0.4, 2.0).unwrap();
     let t = Transform::translation(Vector::new(0.0, 3.0, 0.0));
     let moved = cone.transformed(t).unwrap();
-    assert_eq!(moved.semi_angle(), 0.4);
-    assert_eq!(moved.ref_radius(), 2.0);
+    assert_eq!(moved.half_angle(), 0.4);
+    assert_eq!(moved.reference_radius(), 2.0);
     // Hand-computed evaluation, shifted; the apex shifts identically.
     assert_eq!(moved.point_at(0.0, 0.0), Point::new(2.0, 3.0, 0.0));
     assert_eq!(moved.apex(), t.apply_point(cone.apex()));
@@ -265,8 +265,8 @@ fn test_cone_transformed_round_trip_and_mirror() {
     let t = Transform::translation(Vector::new(1.0, -1.0, 2.0))
         .then(Transform::scaling(Point::ORIGIN, 2.0));
     let moved = cone.transformed(t).unwrap();
-    assert_eq!(moved.semi_angle(), 0.4);
-    assert_eq!(moved.ref_radius(), 4.0);
+    assert_eq!(moved.half_angle(), 0.4);
+    assert_eq!(moved.reference_radius(), 4.0);
     let tol = Tolerance::DEFAULT;
     for (u, v) in [(0.0, 0.0), (1.0, -2.0), (4.0, 0.5)] {
         assert!(moved.contains(t.apply_point(cone.point_at(u, v)), tol));
@@ -274,7 +274,7 @@ fn test_cone_transformed_round_trip_and_mirror() {
     let inv = Transform::scaling(Point::ORIGIN, 0.5)
         .then(Transform::translation(Vector::new(-1.0, 1.0, -2.0)));
     let back = moved.transformed(inv).unwrap();
-    assert!((back.ref_radius() - cone.ref_radius()).abs() < 1e-9);
+    assert!((back.reference_radius() - cone.reference_radius()).abs() < 1e-9);
     assert!(back.apex().distance(cone.apex()) < 1e-9);
     // Mirror across the xy-plane preserves the point set.
     let m = Transform::mirror_plane(Frame::WORLD);
@@ -298,7 +298,7 @@ fn test_reversed_cones_share_point_set() {
         assert!((rsu.cross(rsv) + su.cross(sv)).magnitude() < 1e-9);
         let rv = cone.reversed_v();
         assert!(!rv.frame().is_direct());
-        assert_eq!(rv.semi_angle(), -0.4);
+        assert_eq!(rv.half_angle(), -0.4);
         assert!((rv.point_at(u, v) - cone.point_at(u, -v)).magnitude() < 1e-12);
         assert_eq!(rv.v_reversed_parameter(cone.v_reversed_parameter(v)), v);
     }

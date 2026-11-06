@@ -91,7 +91,7 @@ fn level_seeds<S: ParametricSurface>(
     }
     let cover = || {
         let bounds = level.bounding_box()?;
-        let (min, max) = (bounds.min(), bounds.max());
+        let (min, max) = (bounds.min_corner(), bounds.max_corner());
         Some(grown(&[min.x, min.y, min.z, max.x, max.y, max.z], tol))
     };
     let patches = SurfacePatches::new(other, cover)?;
@@ -202,7 +202,7 @@ enum Level {
         radius: f64,
     },
     /// `|q|^2 - (1 + slope) (q . axis)^2`, `q = p - apex`, `slope` the
-    /// squared tangent of the semi-angle: both nappes.
+    /// squared tangent of the half-angle: both nappes.
     Cone {
         apex: Point,
         axis: Vector,
@@ -237,7 +237,7 @@ impl Level {
             ElementarySurface::Cone(s) => Level::Cone {
                 apex: s.apex(),
                 axis: s.frame().z_direction(),
-                slope: s.semi_angle().tan().powi(2),
+                slope: s.half_angle().tan().powi(2),
             },
             ElementarySurface::Torus(s) => Level::Torus {
                 center: s.center(),

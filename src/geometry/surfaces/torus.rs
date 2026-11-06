@@ -13,7 +13,8 @@ use crate::geometry::surfaces::uv_curve::{from_curve, to_curve};
 use crate::geometry::surfaces::{Curve3DToUvError, UvCurveTo3DError};
 use crate::math::elementary::surface as elementary;
 use crate::{
-    Circle, Frame, Point, SurfaceProjection, Tolerance, Transform, Vector, operations::projection,
+    Axis, Circle, Frame, Point, SurfaceProjection, Tolerance, Transform, Vector,
+    operations::projection,
 };
 use crate::{TransformError, Transformable};
 use std::f64::consts::TAU;
@@ -159,6 +160,20 @@ impl Torus {
     /// ```
     pub fn frame(&self) -> Frame {
         self.frame
+    }
+
+    /// Returns the torus's axis: through the center along the frame's z
+    /// direction, the axis the tube turns about.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Point, Torus, Vector};
+    /// let torus = Torus::new(Point::new(1.0, 2.0, 3.0), Vector::Z, 5.0, 1.5).unwrap();
+    /// assert_eq!(torus.axis().origin(), Point::new(1.0, 2.0, 3.0));
+    /// ```
+    pub fn axis(&self) -> Axis {
+        self.frame.axis()
     }
 
     /// Returns the torus's major radius (the distance from the center to

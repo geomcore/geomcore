@@ -225,7 +225,7 @@ pub struct GenericTrimmedCurve<P: TierPoint, C> {
 ///
 /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
 /// let quarter = TrimmedCurve::new(circle, 0.0, std::f64::consts::FRAC_PI_2).unwrap();
-/// assert_eq!(quarter.last(), std::f64::consts::FRAC_PI_2);
+/// assert_eq!(quarter.end_parameter(), std::f64::consts::FRAC_PI_2);
 /// ```
 pub type TrimmedCurve<C = Curve> = GenericTrimmedCurve<Point, C>;
 
@@ -258,13 +258,15 @@ impl<P: TierPoint, C> GenericTrimmedCurve<P, C> {
         self.basis
     }
 
-    /// Returns the start of the parameter range.
-    pub fn first(&self) -> f64 {
+    /// Returns the start of the parameter range, the parameter of
+    /// `start_point`.
+    pub fn start_parameter(&self) -> f64 {
         self.first
     }
 
-    /// Returns the end of the parameter range.
-    pub fn last(&self) -> f64 {
+    /// Returns the end of the parameter range, the parameter of
+    /// `end_point`.
+    pub fn end_parameter(&self) -> f64 {
         self.last
     }
 
@@ -293,16 +295,6 @@ impl_for_both_tiers_over_basis! {
         pub fn new(basis: C, first: f64, last: f64) -> Result<Self, TrimmedCurveConstructionError> {
             check_range(first, last, basis.bounds(), basis.period())?;
             Ok(Self::from_parts(basis, first, last))
-        }
-
-        /// Returns the point at the start of the range.
-        pub fn start_point(&self) -> P {
-            self.basis.point_at(self.first)
-        }
-
-        /// Returns the point at the end of the range.
-        pub fn end_point(&self) -> P {
-            self.basis.point_at(self.last)
         }
     }
 }
@@ -346,11 +338,12 @@ impl TrimmedCurve<Line> {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{Point, TrimmedCurve};
     ///
     /// let end = Point::new(3.0, 4.0, 0.0);
     /// let segment = TrimmedCurve::segment(Point::ORIGIN, end).unwrap();
-    /// assert_eq!(segment.last(), 5.0);
+    /// assert_eq!(segment.end_parameter(), 5.0);
     /// assert_eq!(segment.end_point(), end);
     /// ```
     pub fn segment(start: Point, end: Point) -> Result<Self, LineConstructionError> {
@@ -549,6 +542,7 @@ impl TrimmedCurve2D<Circle2D> {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{Point2D, Tolerance, TrimmedCurve2D};
     /// use std::f64::consts::FRAC_PI_2;
     ///
@@ -673,7 +667,8 @@ impl_for_both_tiers_over_basis! {
             {
                 return true;
             }
-            self.start_point().distance(self.end_point()) <= tol.confusion
+            let (start, end) = (self.basis.point_at(self.first), self.basis.point_at(self.last));
+            start.distance(end) <= tol.confusion
         }
 
         /// [`Continuity`] at parameter `u`: the basis continuity there, and

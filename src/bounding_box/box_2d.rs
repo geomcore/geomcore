@@ -3,8 +3,8 @@
 use crate::{Point2D, Tolerance, Vector2D};
 
 /// An axis-aligned box in the plane: the points whose coordinates all lie
-/// between those of its [`min`](BoundingBox2D::min) and
-/// [`max`](BoundingBox2D::max) corners, edges included. The planar
+/// between those of its [`min_corner`](BoundingBox2D::min_corner) and
+/// [`max_corner`](BoundingBox2D::max_corner), edges included. The planar
 /// counterpart of [`BoundingBox`](crate::BoundingBox).
 ///
 /// A box is never empty: `min` is at most `max` on both axes. A box of a
@@ -20,7 +20,7 @@ use crate::{Point2D, Tolerance, Vector2D};
 /// assert!(!a.overlaps(b));
 /// // Within a distance of 1 of each other: the boxes enlarged by half of it touch.
 /// assert!(a.enlarged(0.5).overlaps(b.enlarged(0.5)));
-/// assert_eq!(a.union(b).max(), Point2D::new(4.0, 1.0));
+/// assert_eq!(a.union(b).max_corner(), Point2D::new(4.0, 1.0));
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct BoundingBox2D {
@@ -45,8 +45,8 @@ impl BoundingBox2D {
     /// use geomcore::{BoundingBox2D, Point2D};
     ///
     /// let b = BoundingBox2D::new(Point2D::new(1.0, 0.0), Point2D::new(0.0, 2.0));
-    /// assert_eq!(b.min(), Point2D::new(0.0, 0.0));
-    /// assert_eq!(b.max(), Point2D::new(1.0, 2.0));
+    /// assert_eq!(b.min_corner(), Point2D::new(0.0, 0.0));
+    /// assert_eq!(b.max_corner(), Point2D::new(1.0, 2.0));
     /// ```
     pub fn new(a: Point2D, b: Point2D) -> BoundingBox2D {
         BoundingBox2D {
@@ -65,8 +65,8 @@ impl BoundingBox2D {
     ///
     /// let points = [Point2D::new(1.0, 0.0), Point2D::new(-1.0, 2.0)];
     /// let b = BoundingBox2D::from_points(points).unwrap();
-    /// assert_eq!(b.min(), Point2D::new(-1.0, 0.0));
-    /// assert_eq!(b.max(), Point2D::new(1.0, 2.0));
+    /// assert_eq!(b.min_corner(), Point2D::new(-1.0, 0.0));
+    /// assert_eq!(b.max_corner(), Point2D::new(1.0, 2.0));
     /// assert_eq!(BoundingBox2D::from_points([]), None);
     /// ```
     pub fn from_points(points: impl IntoIterator<Item = Point2D>) -> Option<BoundingBox2D> {
@@ -83,9 +83,9 @@ impl BoundingBox2D {
     /// use geomcore::{BoundingBox2D, Point2D};
     ///
     /// let b = BoundingBox2D::new(Point2D::new(1.0, 2.0), Point2D::ORIGIN);
-    /// assert_eq!(b.min(), Point2D::ORIGIN);
+    /// assert_eq!(b.min_corner(), Point2D::ORIGIN);
     /// ```
-    pub fn min(self) -> Point2D {
+    pub fn min_corner(self) -> Point2D {
         self.min
     }
 
@@ -97,9 +97,9 @@ impl BoundingBox2D {
     /// use geomcore::{BoundingBox2D, Point2D};
     ///
     /// let b = BoundingBox2D::new(Point2D::new(1.0, 2.0), Point2D::ORIGIN);
-    /// assert_eq!(b.max(), Point2D::new(1.0, 2.0));
+    /// assert_eq!(b.max_corner(), Point2D::new(1.0, 2.0));
     /// ```
-    pub fn max(self) -> Point2D {
+    pub fn max_corner(self) -> Point2D {
         self.max
     }
 
@@ -117,8 +117,8 @@ impl BoundingBox2D {
         self.min + 0.5 * (self.max - self.min)
     }
 
-    /// The vector from the [`min`](Self::min) corner to the
-    /// [`max`](Self::max) corner: the box's size along each axis.
+    /// The vector from [`min_corner`](Self::min_corner) to
+    /// [`max_corner`](Self::max_corner): the box's size along each axis.
     ///
     /// # Examples
     ///
@@ -143,8 +143,8 @@ impl BoundingBox2D {
     /// let a = BoundingBox2D::new(Point2D::ORIGIN, Point2D::new(1.0, 1.0));
     /// let b = BoundingBox2D::new(Point2D::new(2.0, -1.0), Point2D::new(3.0, 0.0));
     /// let both = a.union(b);
-    /// assert_eq!(both.min(), Point2D::new(0.0, -1.0));
-    /// assert_eq!(both.max(), Point2D::new(3.0, 1.0));
+    /// assert_eq!(both.min_corner(), Point2D::new(0.0, -1.0));
+    /// assert_eq!(both.max_corner(), Point2D::new(3.0, 1.0));
     /// ```
     pub fn union(self, other: BoundingBox2D) -> BoundingBox2D {
         self.including(other.min).including(other.max)
@@ -161,12 +161,12 @@ impl BoundingBox2D {
     ///
     /// let b = BoundingBox2D::new(Point2D::ORIGIN, Point2D::new(4.0, 1.0));
     /// let grown = b.enlarged(0.5);
-    /// assert_eq!(grown.min(), Point2D::new(-0.5, -0.5));
-    /// assert_eq!(grown.max(), Point2D::new(4.5, 1.5));
+    /// assert_eq!(grown.min_corner(), Point2D::new(-0.5, -0.5));
+    /// assert_eq!(grown.max_corner(), Point2D::new(4.5, 1.5));
     ///
     /// let shrunk = b.enlarged(-1.0);
-    /// assert_eq!(shrunk.min(), Point2D::new(1.0, 0.5));
-    /// assert_eq!(shrunk.max(), Point2D::new(3.0, 0.5));
+    /// assert_eq!(shrunk.min_corner(), Point2D::new(1.0, 0.5));
+    /// assert_eq!(shrunk.max_corner(), Point2D::new(3.0, 0.5));
     /// ```
     pub fn enlarged(self, distance: f64) -> BoundingBox2D {
         let (min, max) = (coordinates(self.min), coordinates(self.max));
@@ -226,8 +226,72 @@ impl BoundingBox2D {
         (0..2).all(|k| a_min[k] <= b_max[k] && b_min[k] <= a_max[k])
     }
 
+    /// The box of the points the two boxes share, or `None` when they are
+    /// apart. Boxes that only touch share a flat box.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{BoundingBox2D, Point2D};
+    ///
+    /// let a = BoundingBox2D::new(Point2D::ORIGIN, Point2D::new(2.0, 2.0));
+    /// let b = BoundingBox2D::new(Point2D::new(1.0, 1.0), Point2D::new(3.0, 3.0));
+    /// assert_eq!(a.intersection(b), Some(BoundingBox2D::new(Point2D::new(1.0, 1.0), Point2D::new(2.0, 2.0))));
+    /// assert_eq!(a.intersection(BoundingBox2D::new(Point2D::new(4.0, 0.0), Point2D::new(4.0, 1.0))), None);
+    /// ```
+    pub fn intersection(self, other: BoundingBox2D) -> Option<BoundingBox2D> {
+        if !self.overlaps(other) {
+            return None;
+        }
+        let (a_min, a_max) = (coordinates(self.min), coordinates(self.max));
+        let (b_min, b_max) = (coordinates(other.min), coordinates(other.max));
+        let lo: [f64; 2] = std::array::from_fn(|k| a_min[k].max(b_min[k]));
+        let hi: [f64; 2] = std::array::from_fn(|k| a_max[k].min(b_max[k]));
+        Some(BoundingBox2D {
+            min: point(lo),
+            max: point(hi),
+        })
+    }
+
+    /// The distance from `point` to the box: zero for a point in it,
+    /// edges included, the distance to the nearest point of the box
+    /// otherwise.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{BoundingBox2D, Point2D};
+    ///
+    /// let b = BoundingBox2D::new(Point2D::ORIGIN, Point2D::new(2.0, 2.0));
+    /// assert_eq!(b.distance(Point2D::new(1.0, 1.0)), 0.0);
+    /// assert_eq!(b.distance(Point2D::new(5.0, 1.0)), 3.0);
+    /// ```
+    pub fn distance(self, point: Point2D) -> f64 {
+        let (p, min, max) = (
+            coordinates(point),
+            coordinates(self.min),
+            coordinates(self.max),
+        );
+        (0..2)
+            .map(|k| {
+                let gap = (min[k] - p[k]).max(p[k] - max[k]).max(0.0);
+                gap * gap
+            })
+            .sum::<f64>()
+            .sqrt()
+    }
+
     /// The smallest box holding this box and `point`.
-    pub(crate) fn including(self, p: Point2D) -> BoundingBox2D {
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{BoundingBox2D, Point2D};
+    ///
+    /// let b = BoundingBox2D::new(Point2D::ORIGIN, Point2D::new(2.0, 2.0)).including(Point2D::new(5.0, 1.0));
+    /// assert_eq!(b.max_corner(), Point2D::new(5.0, 2.0));
+    /// ```
+    pub fn including(self, p: Point2D) -> BoundingBox2D {
         BoundingBox2D {
             min: Point2D::new(self.min.x.min(p.x), self.min.y.min(p.y)),
             max: Point2D::new(self.max.x.max(p.x), self.max.y.max(p.y)),
@@ -254,8 +318,8 @@ impl BoundingBox2D {
 ///
 /// let circle = Circle2D::new(Point2D::new(1.0, 0.0), 2.0).unwrap();
 /// let b = circle.bounding_box().unwrap();
-/// assert_eq!(b.min(), Point2D::new(-1.0, -2.0));
-/// assert_eq!(b.max(), Point2D::new(3.0, 2.0));
+/// assert_eq!(b.min_corner(), Point2D::new(-1.0, -2.0));
+/// assert_eq!(b.max_corner(), Point2D::new(3.0, 2.0));
 ///
 /// let line = Line2D::new(Point2D::ORIGIN, Vector2D::X).unwrap();
 /// assert_eq!(line.bounding_box(), None);

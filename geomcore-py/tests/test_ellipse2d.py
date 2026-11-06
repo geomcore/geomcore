@@ -117,8 +117,8 @@ def test_local_properties():
 def test_bounding_box_and_discretization():
     e = ellipse()
     box = e.bounding_box()
-    assert xy(box.min()) == pytest.approx((-3.0, -1.5))
-    assert xy(box.max()) == pytest.approx((3.0, 1.5))
+    assert xy(box.min_corner()) == pytest.approx((-3.0, -1.5))
+    assert xy(box.max_corner()) == pytest.approx((3.0, 1.5))
 
     criteria = (1e-3, 0.2)
     count = e.point_count(*criteria)

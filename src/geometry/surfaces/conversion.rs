@@ -276,7 +276,7 @@ impl Cone {
     /// The straight generatrix over `v_range`, ending exactly on the axis
     /// at the apex.
     fn profile(&self, (first, last): (f64, f64)) -> PlaneNet {
-        let (ref_r, alpha) = (self.ref_radius(), self.semi_angle());
+        let (ref_r, alpha) = (self.reference_radius(), self.half_angle());
         let pole = |v: f64| {
             let radial = v * alpha.sin();
             [
@@ -315,7 +315,7 @@ impl Cone {
     /// use std::f64::consts::PI;
     ///
     /// let cone = Cone::new(Point::ORIGIN, Vector::Z, PI / 6.0, 1.0).unwrap();
-    /// // From the apex (v = -ref_radius / sin(semi_angle) = -2) up to v = 1.
+    /// // From the apex (v = -reference_radius / sin(half_angle) = -2) up to v = 1.
     /// let patch = cone.to_bspline_patch((0.0, PI), (-2.0, 1.0)).unwrap();
     /// let apex = cone.point_at(0.0, -2.0);
     /// assert!(patch.point_at(1.0, -2.0).distance(apex) < 1e-15);
@@ -518,6 +518,7 @@ impl ElementarySurface {
     /// # Examples
     ///
     /// ```
+    /// use geomcore::prelude::*;
     /// use geomcore::{BSplineConversionError, ElementarySurface, Plane, Point, Sphere, Vector};
     ///
     /// let sphere = Sphere::new(Point::ORIGIN, 1.0).unwrap();
