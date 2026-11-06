@@ -259,10 +259,21 @@ class _SurfaceMethods(Generic[_UIsoCurveType, _VIsoCurveType]):
         `TypeError` for a 2D curve, and for an object that is not a
         geomcore curve or surface. Other Python threads run
         meanwhile.
+
+        `within`, a `BoundingBox`, is where the caller needs the
+        intersection of two surfaces: every point inside it is
+        found, and a branch running to infinity ends on its
+        boundary without making the result incomplete. Without it,
+        such a branch ends on a guessed box and the result reports
+        it cut (`IncompleteReason.UNBOUNDED`). Raises `TypeError`
+        when `other` is a curve.
         """
     @overload
     def intersect(
-        self, other: _Surface, tol: Optional[Tolerance] = ...
+        self,
+        other: _Surface,
+        tol: Optional[Tolerance] = ...,
+        within: Optional[BoundingBox] = ...,
     ) -> SurfaceSurfaceIntersection: ...
 
 class _SurfaceNormalMethods:

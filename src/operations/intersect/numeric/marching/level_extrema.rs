@@ -31,9 +31,9 @@ use crate::geometry::surfaces::{
 use crate::math::bspline::surface::net_points;
 use crate::math::numeric::boxtree::Aabb;
 use crate::operations::intersect::numeric::bezier_pieces::{bounding_box, derivative_cones, dot};
-use crate::operations::intersect::numeric::surface_patches::{SurfacePatches, grown};
+use crate::operations::intersect::numeric::surface_patches::{SurfacePatches, aabb, grown};
 use crate::operations::intersect::routing::route_curve_surface;
-use crate::{HasBoundingBox, Point, Tolerance, Vector};
+use crate::{BoundingBox, HasBoundingBox, Point, Tolerance, Vector};
 
 /// Seeds `[a_u, a_v, b_u, b_v]` on the loops of the intersection of the
 /// surfaces of `pair` that bound a disc on the side that is not
@@ -70,18 +70,21 @@ where
         (None, None) => return None,
     };
     if level_first {
-        level_seeds(pair.first.as_elementary()?, pair.second, tol)
+        level_seeds(pair.first.as_elementary()?, pair.second, pair.within, tol)
     } else {
-        let seeds = level_seeds(pair.second.as_elementary()?, pair.first, tol)?;
+        let seeds = level_seeds(pair.second.as_elementary()?, pair.first, pair.within, tol)?;
         Some(seeds.into_iter().map(swap).collect())
     }
 }
 
 /// The seeds of [`extremum_seeds`] with `level` the elementary side, as
 /// `[level_u, level_v, other_u, other_v]`.
+/// Where `level` is unbounded, `other` is searched over the caller's box
+/// `within`.
 fn level_seeds<S: ParametricSurface>(
     level: ElementarySurface,
     other: &S,
+    within: Option<&BoundingBox>,
     tol: Tolerance,
 ) -> Option<Vec<[f64; 4]>> {
     if let (ElementarySurface::Plane(plane), Some(ElementarySurface::Torus(torus))) =
@@ -90,9 +93,8 @@ fn level_seeds<S: ParametricSurface>(
         return Some(plane_torus_seeds(&plane, &torus, tol));
     }
     let cover = || {
-        let bounds = level.bounding_box()?;
-        let (min, max) = (bounds.min(), bounds.max());
-        Some(grown(&[min.x, min.y, min.z, max.x, max.y, max.z], tol))
+        let bounds = level.bounding_box().or(within.copied())?;
+        Some(grown(&aabb(&bounds), tol))
     };
     let patches = SurfacePatches::new(other, cover)?;
     let function = Level::of(level);

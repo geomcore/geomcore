@@ -152,7 +152,7 @@ fn assert_routed(first: &Cylinder, second: &Cylinder, count: usize) {
         assert!(piece.first_uv_curve.is_some() && piece.second_uv_curve.is_some());
     }
     assert_fitted(first, second, result.curves());
-    let marched = marching_intersection(first, second, TOL);
+    let marched = marching_intersection(first, second, None, TOL);
     assert_eq!(marched.curves().len(), count);
 }
 

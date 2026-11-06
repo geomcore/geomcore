@@ -11,6 +11,17 @@ the Python distribution are versioned in lockstep.
 
 ### Added
 
+- The caller can give the box where they need the intersection of two
+  surfaces (#264): `a.intersect_within(&b, &bounds, tol)` in Rust (the
+  new `IntersectWithin` trait, in the prelude), `a.intersect(b,
+  within=bounds)` in Python. Every point inside the box is found, and a
+  branch of two unbounded surfaces (cylinders, cones, planes, sweeps)
+  ends on its boundary without making the result incomplete, where
+  `intersect` ends it on a guessed box and reports it
+  `Incomplete(Unbounded)`. The box also spans the seeds of unbounded
+  parameters, which were sampled over `[-10, 10]` when neither surface
+  had a box of its own. A bounded side keeps its own box, and closed-form
+  results are returned whole.
 - Two cones with parallel axes and equal half-angles, such as the
   chamfers of two neighbouring parallel holes, meet in one plane conic
   instead of being marched (#262): each cone is the other moved sideways,

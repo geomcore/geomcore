@@ -213,6 +213,6 @@ pub use operations::intersect::{
     CurveSurfaceIntersection, GenericCurveCurveHit, GenericCurveCurveIntersection,
     IntersectionCurve, IntersectionMethod, SurfaceSurfaceIntersection, SurfaceSurfaceRegion,
 };
-pub use operations::intersect::{InlineList, Intersect, IntersectExact};
+pub use operations::intersect::{InlineList, Intersect, IntersectExact, IntersectWithin};
 pub use operations::intersect::{intersect_curve_curve, intersect_curve_surface};
 pub use operations::projection::{CurveProjection, CurveProjection2D, SurfaceProjection};

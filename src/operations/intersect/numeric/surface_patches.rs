@@ -22,7 +22,7 @@ use crate::math::numeric::boxtree::Aabb;
 use crate::operations::intersect::Completeness;
 use crate::operations::intersect::numeric::curve_surface_hull::CurveSurfaceHits;
 use crate::operations::intersect::numeric::parameter_domain::ParameterDomain;
-use crate::{Point, Tolerance, Vector};
+use crate::{BoundingBox, Point, Tolerance, Vector};
 
 /// A surface as B-spline patches holding the part of it a search can
 /// meet, and the map from their parameters back to the surface's.
@@ -141,11 +141,14 @@ impl<'a> SurfacePatches<'a> {
 
 /// `a` and `b` as [`SurfacePatches`]: a bounded one whole, an unbounded
 /// one over the box of the other's patches grown (see [`grown`]), which
-/// holds every point where they meet. `None` when either does not
-/// convert, or both are unbounded.
+/// holds every point where they meet. Both unbounded, both over the
+/// caller's box `within` grown, where the caller needs the intersection.
+/// `None` when either does not convert, or both are unbounded and there
+/// is no `within`.
 pub(crate) fn pair_patches<'a, 'b, A, B>(
     a: &'a A,
     b: &'b B,
+    within: Option<&BoundingBox>,
     tol: Tolerance,
 ) -> Option<(SurfacePatches<'a>, SurfacePatches<'b>)>
 where
@@ -166,8 +169,20 @@ where
             let pa = SurfacePatches::new(a, || Some(grown(&pb.bounds(), tol)))?;
             Some((pa, pb))
         }
-        (None, None) => None,
+        (None, None) => {
+            let cover = || within.map(|bounds| grown(&aabb(bounds), tol));
+            Some((
+                SurfacePatches::new(a, cover)?,
+                SurfacePatches::new(b, cover)?,
+            ))
+        }
     }
+}
+
+/// `bounds` as an [`Aabb`].
+pub(crate) fn aabb(bounds: &BoundingBox) -> Aabb {
+    let (min, max) = (bounds.min(), bounds.max());
+    [min.x, min.y, min.z, max.x, max.y, max.z]
 }
 
 /// `b` grown on every side by `tol.confusion` and a sixteenth of its

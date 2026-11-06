@@ -654,6 +654,26 @@ def test_intersect_cone_cylinder():
     assert cone.intersect(off).method == IntersectionMethod.NUMERIC
 
 
+def test_intersect_within_ends_unbounded_branches_on_the_box():
+    from geomcore import BoundingBox, IncompleteReason
+    from geomcore.curves import Line
+    from geomcore.surfaces import Cone
+
+    # A cylinder along a generator of a cone, off its apex: the branches
+    # run to infinity along that generator.
+    cone = Cone(Point(0.0, 0.0, 0.0), Vector.unit_z(), 0.3, 1.0)
+    generator = Vector(math.sin(0.3), 0.0, math.cos(0.3))
+    cylinder = Cylinder(Point(1.0, 0.0, 0.0), generator, 0.5)
+    guessed = cone.intersect(cylinder)
+    assert guessed.completeness.reason == IncompleteReason.UNBOUNDED
+    within = BoundingBox(Point(-50.0, -50.0, -50.0), Point(50.0, 50.0, 50.0))
+    result = cone.intersect(cylinder, within=within)
+    assert result.completeness.reason is None
+    assert len(result.curves) == len(guessed.curves) > 0
+    with pytest.raises(TypeError):
+        cone.intersect(Line(Point(0.0, 0.0, 0.0), Vector.unit_x()), within=within)
+
+
 def test_intersect_cone_cone():
     from geomcore import Frame, IntersectionMethod
     from geomcore.surfaces import Cone

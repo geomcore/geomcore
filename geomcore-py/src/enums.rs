@@ -208,6 +208,8 @@ python_enum! {
     ///   tangent contact of a curve with a surface.
     /// - `UNBOUNDED`: a branch of two unbounded surfaces runs beyond the
     ///   box it was traced in, and continues past the regions reported.
+    ///   Passing `within=` to `intersect` ends such branches on that box
+    ///   instead, unreported.
     PyIncompleteReason => "IncompleteReason" ("IntEnum", mixin None) {
         BudgetExhausted => "BUDGET_EXHAUSTED" = 0u8,
         Unseparated => "UNSEPARATED" = 1u8,

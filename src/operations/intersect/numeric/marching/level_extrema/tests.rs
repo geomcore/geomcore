@@ -43,7 +43,7 @@ fn test_a_saddle_without_a_loop_gives_no_seeds() {
     let tol = Tolerance::DEFAULT;
     // The level `x^2 - y^2 - 0.1` has one critical point, the saddle.
     let plane = Plane::new(Point::new(0.0, 0.0, 0.1), Vector::Z).unwrap();
-    let seeds = level_seeds(ElementarySurface::Plane(plane), &saddle(), tol);
+    let seeds = level_seeds(ElementarySurface::Plane(plane), &saddle(), None, tol);
     assert_eq!(seeds, Some(Vec::new()));
     // At the saddle itself the level is critical and below the plane, but
     // its Hessian is indefinite: no loop to shoot at.
@@ -68,13 +68,13 @@ fn test_a_loop_beside_a_saddle_is_found() {
     ]);
     let peak = sheet.point_at(38.0 / 96.0, 38.0 / 96.0);
     let plane = tilted_plane(Point::new(peak.x, peak.y, peak.z - 0.002));
-    let seeds = level_seeds(ElementarySurface::Plane(plane), &sheet, tol).unwrap();
+    let seeds = level_seeds(ElementarySurface::Plane(plane), &sheet, None, tol).unwrap();
     assert!(!seeds.is_empty());
     for seed in &seeds {
         assert!(sheet.point_at(seed[2], seed[3]).distance(peak) < 0.05);
     }
     assert_one_small_loop(
-        &marching_intersection(&plane, &sheet, tol),
+        &marching_intersection(&plane, &sheet, None, tol),
         &plane,
         &sheet,
         peak,
@@ -89,7 +89,7 @@ fn test_a_plane_through_a_dent_finds_the_loop() {
     let bottom = sheet.point_at(38.0 / 96.0, 38.0 / 96.0);
     let plane = tilted_plane(Point::new(bottom.x, bottom.y, bottom.z + 0.002));
     assert_one_small_loop(
-        &marching_intersection(&plane, &sheet, tol),
+        &marching_intersection(&plane, &sheet, None, tol),
         &plane,
         &sheet,
         bottom,
@@ -104,10 +104,10 @@ fn test_a_dent_above_the_plane_gives_no_seeds() {
     let sheet = sheet_with_bumps(&[(39, 39, -0.04)]);
     let bottom = sheet.point_at(38.0 / 96.0, 38.0 / 96.0);
     let plane = tilted_plane(Point::new(bottom.x, bottom.y, bottom.z - 0.002));
-    let seeds = level_seeds(ElementarySurface::Plane(plane), &sheet, tol);
+    let seeds = level_seeds(ElementarySurface::Plane(plane), &sheet, None, tol);
     assert_eq!(seeds, Some(Vec::new()));
     assert!(
-        marching_intersection(&plane, &sheet, tol)
+        marching_intersection(&plane, &sheet, None, tol)
             .curves()
             .is_empty()
     );
@@ -141,7 +141,7 @@ fn test_a_plane_across_the_axis_of_a_torus_gives_no_seeds() {
     .unwrap();
     let axis = Axis::new(Point::ORIGIN, Vector::Z).unwrap();
     let revolution = RevolutionSurface::new(meridian.into(), axis).unwrap();
-    let seeds = level_seeds(ElementarySurface::Plane(plane), &revolution, tol);
+    let seeds = level_seeds(ElementarySurface::Plane(plane), &revolution, None, tol);
     assert_eq!(seeds, Some(Vec::new()));
 }
 

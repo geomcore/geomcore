@@ -2,7 +2,7 @@
 //! surfaces, in what order, and when one is left out (see [`seeds`]).
 
 use super::level_extrema::extremum_seeds;
-use super::pair::{SurfacePair, own_box, swap};
+use super::pair::{SurfacePair, swap};
 use super::tracer::first_step;
 use crate::geometry::curves::{Circle, ElementaryCurve, ParametricCurve, PointExtrema};
 use crate::geometry::surfaces::{BSplineSurface, ElementarySurface, ParametricSurface, Surface};
@@ -90,7 +90,7 @@ where
 {
     if pair.first.as_bspline().is_some()
         && pair.second.as_bspline().is_some()
-        && let Some(patches) = pair_patches(pair.first, pair.second, tol)
+        && let Some(patches) = pair_patches(pair.first, pair.second, pair.within, tol)
     {
         let (mut seeds, complete) = patch_pair_seeds(&patches, &|_| false, tol);
         if !complete {
@@ -128,7 +128,7 @@ where
     if let Some(points) = extremum_seeds(pair, tol) {
         return points.into_iter().map(Seed::On).collect();
     }
-    pair_patches(pair.first, pair.second, tol).map_or_else(Vec::new, |patches| {
+    pair_patches(pair.first, pair.second, pair.within, tol).map_or_else(Vec::new, |patches| {
         patch_pair_seeds(&patches, traced, tol).0
     })
 }
@@ -205,13 +205,13 @@ where
         return Some(seeds);
     }
     if let SeedTarget::Elementary(own) = first
-        && let Some(family) = family_seeds(own, second, tol)
+        && let Some(family) = family_seeds(own, second, pair.within, tol)
     {
         seeded = true;
         seeds.extend(family.into_iter().filter_map(|x| pair.meet(x, None, tol)));
     }
     if let SeedTarget::Elementary(own) = second
-        && let Some(family) = family_seeds(own, first, tol)
+        && let Some(family) = family_seeds(own, first, pair.within, tol)
     {
         seeded = true;
         seeds.extend(
@@ -350,10 +350,11 @@ impl<'a> SeedTarget<'a> {
 fn family_seeds(
     own: ElementarySurface,
     other: SeedTarget,
+    within: Option<&BoundingBox>,
     tol: Tolerance,
 ) -> Option<Vec<[f64; 4]>> {
     let surface = Surface::from(own);
-    let values = seeding_iso_values(own, other, tol);
+    let values = seeding_iso_values(own, other, within, tol);
     if values.is_empty() {
         return None;
     }
@@ -391,12 +392,16 @@ fn family_seeds(
 /// [`marching_intersection`](super::marching_intersection)). Circles are
 /// left out against an elementary surface the closed-form pair table does
 /// not pair them with (a torus), where a circle meets it only through the
-/// sampled search: a sphere or torus then has none.
+/// sampled search: a sphere or torus then has none. Where `other` is
+/// unbounded, the iso-curves span the caller's box `within` as they span
+/// a bounded other surface's own box.
 fn seeding_iso_values(
     own: ElementarySurface,
     other: SeedTarget,
+    within: Option<&BoundingBox>,
     tol: Tolerance,
 ) -> Vec<(IsoDirection, f64)> {
+    let spanning = other.bounding_box().or(within.copied());
     let periodic =
         |period: f64| (0..ISO_CURVE_COUNT).map(move |i| period * i as f64 / ISO_CURVE_COUNT as f64);
     let tau = std::f64::consts::TAU;
@@ -423,7 +428,7 @@ fn seeding_iso_values(
         }
     };
     match own {
-        ElementarySurface::Plane(_) => match other.bounding_box() {
+        ElementarySurface::Plane(_) => match spanning {
             Some(bounds) => {
                 let across = across_box(bounds);
                 let lines = across(0).into_iter().map(|u| (IsoDirection::U, u));
@@ -441,7 +446,7 @@ fn seeding_iso_values(
             // Circles across the other surface's box, or the one at `v = 0`
             // against an unbounded surface (which a ruling may run
             // alongside, as for two cylinders with parallel axes).
-            let circles = match (circles_meet_exactly, other.bounding_box()) {
+            let circles = match (circles_meet_exactly, spanning) {
                 (false, _) => Vec::new(),
                 (true, Some(bounds)) => across_box(bounds)(1),
                 (true, None) => vec![0.0],
@@ -518,8 +523,9 @@ where
 {
     const N: usize = 24;
     let (s, other) = (pair.first, pair.second);
-    let (u0, u1) = seed_window(s, other, 0, tol);
-    let (v0, v1) = seed_window(s, other, 1, tol);
+    let spanning = pair.seeding_box(other);
+    let (u0, u1) = seed_window(s, spanning, 0, tol);
+    let (v0, v1) = seed_window(s, spanning, 1, tol);
     let mut samples: Vec<([f64; 4], f64)> = Vec::with_capacity((N + 1) * (N + 1));
     for j in 0..=N {
         for i in 0..=N {
@@ -554,18 +560,19 @@ where
 
 /// The window of parameter `direction` of `s` (0 for `u`, 1 for `v`) that
 /// the grid of its seeds samples. A finite bound is the window's own end.
-/// An unbounded end is read from the box of `other`: the parameters of
-/// the box's corners projected onto `s`, spanned with a margin of a
-/// twentieth of their width, as the iso-curve seeds span the box. Where
-/// `other` has no box (it is neither elementary nor a B-spline), the end
-/// falls back to `-10` or `10`, the window that was used before any box
-/// sized it. That fallback is the only fixed window left, and only for a
-/// surface meeting an unbounded surface with no box.
-pub(super) fn seed_window<S, T>(s: &S, other: &T, direction: usize, tol: Tolerance) -> (f64, f64)
-where
-    S: ParametricSurface,
-    T: ParametricSurface,
-{
+/// An unbounded end is read from `spanning`, the box the seeds span (see
+/// [`SurfacePair::seeding_box`]): the parameters of the box's corners
+/// projected onto `s`, spanned with a margin of a twentieth of their
+/// width, as the iso-curve seeds span the box. Without a box (the other
+/// surface is neither elementary nor a B-spline, and the caller gave
+/// none), the end falls back to `-10` or `10`, the window that was used
+/// before any box sized it. That fallback is the only fixed window left.
+pub(super) fn seed_window<S: ParametricSurface>(
+    s: &S,
+    spanning: Option<BoundingBox>,
+    direction: usize,
+    tol: Tolerance,
+) -> (f64, f64) {
     const FALLBACK: f64 = 10.0;
     let (lo, hi) = if direction == 0 {
         s.u_bounds()
@@ -575,7 +582,7 @@ where
     if lo.is_finite() && hi.is_finite() {
         return (lo, hi);
     }
-    let (spanned_low, spanned_high) = match own_box(other) {
+    let (spanned_low, spanned_high) = match spanning {
         Some(bounds) => {
             let parameter = |corner: Point| {
                 let projection = s.project_point(corner, tol);

@@ -97,7 +97,9 @@ where
         contacts,
     );
     assert_eq!(
-        marching_intersection(sphere, other, TOL).curves().len(),
+        marching_intersection(sphere, other, None, TOL)
+            .curves()
+            .len(),
         count
     );
 }

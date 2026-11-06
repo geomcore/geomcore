@@ -42,4 +42,4 @@ pub use results::{
     GenericCurveCurveIntersection, InlineList, IntersectionCurve, IntersectionMethod,
     SurfaceSurfaceIntersection, SurfaceSurfaceRegion,
 };
-pub use routing::Intersect;
+pub use routing::{Intersect, IntersectWithin};

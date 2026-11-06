@@ -14,8 +14,8 @@ use crate::tolerance;
 use crate::values::*;
 use geomcore::prelude::*;
 use geomcore::{
-    Curve2D, CurveCurveIntersection, CurveCurveIntersection2D, CurveSurfaceIntersection, Surface,
-    Tolerance, TrimmedCurve2D, curve_curve_extrema,
+    BoundingBox, Curve2D, CurveCurveIntersection, CurveCurveIntersection2D,
+    CurveSurfaceIntersection, Surface, Tolerance, TrimmedCurve2D, curve_curve_extrema,
 };
 use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
@@ -72,6 +72,34 @@ fn routed_curve_curve_2d(
         (CurveArg2D::Trimmed(a), CurveArg2D::Whole(b)) => a.intersect(b, tol),
         (CurveArg2D::Trimmed(a), CurveArg2D::Trimmed(b)) => a.intersect(b, tol),
     }
+}
+
+/// Intersects the surface `first` with the surface `second` inside
+/// `within`, through the routed Rust `intersect_within`, and wraps the
+/// result with both operands. Raises `TypeError` when `second` is not a
+/// surface.
+pub(crate) fn intersect_within(
+    first: &Bound<'_, PyAny>,
+    second: &Bound<'_, PyAny>,
+    within: &BoundingBox,
+    tol: Tolerance,
+) -> PyResult<Py<PyAny>> {
+    let py = first.py();
+    let (Operand::Surface(a), Ok(Operand::Surface(b))) =
+        (operand_of(first, true)?, operand_of(second, true))
+    else {
+        return Err(PyTypeError::new_err(format!(
+            "within bounds a surface-surface intersection only, not {}",
+            second.get_type().name()?
+        )));
+    };
+    PySurfaceSurfaceIntersection {
+        result: py.detach(|| a.intersect_within(&b, within, tol)),
+        first: first.clone().unbind(),
+        second: second.clone().unbind(),
+    }
+    .into_pyobject(py)
+    .map(|object| object.into_any().unbind())
 }
 
 /// Intersects `first` with `second` through the routed Rust `intersect`

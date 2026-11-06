@@ -35,7 +35,7 @@ use crate::operations::intersect::{
     CurveCurveIntersection, CurveCurveIntersection2D, CurveCurveOverlap, CurveSurfaceIntersection,
     GenericCurveCurveIntersection, InlineList, intersect_curve_curve, intersect_curve_surface,
 };
-use crate::{Point, Point2D, TierPoint, Tolerance};
+use crate::{BoundingBox, Point, Point2D, TierPoint, Tolerance};
 
 // The list macros come before the submodules, which use `shapes!` too.
 
@@ -127,6 +127,55 @@ pub trait Intersect<Rhs: ?Sized = Self> {
     /// Intersects `self` with `other`, deciding tangency and coincidence
     /// with `tol`.
     fn intersect(&self, other: &Rhs, tol: Tolerance) -> Self::Output;
+}
+
+/// Intersection of two surfaces where the caller needs it: inside a box.
+///
+/// Two unbounded surfaces (planes, cylinders, cones) can meet along
+/// branches that run to infinity. [`Intersect::intersect`] ends them at a
+/// box it guesses from the surfaces' sizes, and reports each branch it
+/// cut there as [`Unbounded`](crate::IncompleteReason::Unbounded). Here
+/// the caller gives that box: every intersection point inside `within`
+/// is in the result, an unbounded branch ends on its boundary, and ending
+/// there leaves the result complete, since nothing beyond it was asked
+/// for.
+///
+/// `within` replaces only the guess. Where a surface is bounded (a
+/// sphere, a torus, a B-spline), the intersection already lies in its
+/// own box, which the search keeps, so a curve may run past `within`. A
+/// closed-form result is returned whole, as by `intersect`: a line or a
+/// hyperbola stays unbounded.
+///
+/// # Examples
+///
+/// ```
+/// use geomcore::prelude::*;
+/// use geomcore::{BoundingBox, Completeness, Cone, Cylinder, Point, Tolerance, Vector};
+///
+/// // A cylinder along a generator of a cone, off its apex: the branches
+/// // run to infinity along that generator.
+/// let cone = Cone::new(Point::ORIGIN, Vector::Z, 0.3, 1.0).unwrap();
+/// let generator = Vector::new(0.3f64.sin(), 0.0, 0.3f64.cos());
+/// let cylinder = Cylinder::new(Point::new(1.0, 0.0, 0.0), generator, 0.5).unwrap();
+/// let tol = Tolerance::DEFAULT;
+///
+/// // Guessed box: the branches are cut there and reported.
+/// let guessed = cone.intersect(&cylinder, tol);
+/// assert!(matches!(guessed.completeness(), Completeness::Incomplete { .. }));
+///
+/// // The caller's box: the branches end on it, and nothing is missing.
+/// let within = BoundingBox::new(Point::new(-50.0, -50.0, -50.0), Point::new(50.0, 50.0, 50.0));
+/// let result = cone.intersect_within(&cylinder, &within, tol);
+/// assert!(!matches!(result.completeness(), Completeness::Incomplete { .. }));
+/// assert!(!result.curves().is_empty());
+/// ```
+pub trait IntersectWithin<Rhs: ?Sized = Self> {
+    /// The result of intersecting `Self` with `Rhs`.
+    type Output;
+
+    /// Intersects `self` with `other` inside `within`, deciding tangency
+    /// and coincidence with `tol`.
+    fn intersect_within(&self, other: &Rhs, within: &BoundingBox, tol: Tolerance) -> Self::Output;
 }
 
 /// A curve in the tier of `P` as the readers of `exact_family` and the
@@ -631,9 +680,10 @@ surface_operands!(trimmed_curve_surface);
 pub(crate) fn route_surface_surface<A: SurfaceOperand, B: SurfaceOperand>(
     a: &A,
     b: &B,
+    within: Option<&BoundingBox>,
     tol: Tolerance,
 ) -> SurfaceSurfaceIntersection {
-    let numeric_search = || marching_intersection(a, b, tol);
+    let numeric_search = || marching_intersection(a, b, within, tol);
     let first: SurfaceKind<'_> = a.surface_basis().into();
     let second: SurfaceKind<'_> = b.surface_basis().into();
     first
@@ -650,7 +700,21 @@ macro_rules! surface_surface {
 
             #[inline]
             fn intersect(&self, other: &$second, tol: Tolerance) -> SurfaceSurfaceIntersection {
-                route_surface_surface(self, other, tol)
+                route_surface_surface(self, other, None, tol)
+            }
+        }
+
+        impl IntersectWithin<$second> for $first {
+            type Output = SurfaceSurfaceIntersection;
+
+            #[inline]
+            fn intersect_within(
+                &self,
+                other: &$second,
+                within: &BoundingBox,
+                tol: Tolerance,
+            ) -> SurfaceSurfaceIntersection {
+                route_surface_surface(self, other, Some(within), tol)
             }
         }
     )*};

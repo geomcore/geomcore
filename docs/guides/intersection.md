@@ -200,6 +200,15 @@ smaller than the iso-curve spacing can be missed. Where a branch of two
 unbounded surfaces was cut at its box, the result is `Incomplete` with
 `Unbounded` as its reason, and its regions mark where the cuts are.
 
+That box is a guess. When you know where you need the curves, the
+box of the faces you are intersecting say, give it instead:
+`a.intersect_within(&b, &bounds, tol)` in Rust, `a.intersect(b,
+within=bounds)` in Python. Every intersection point inside it is found;
+a branch running to infinity ends on its boundary and is not reported
+cut, since nothing beyond it was asked for. It replaces only the guess:
+a bounded side (sphere, torus, B-spline) keeps its own box, so a curve
+may run past yours, and a closed-form result comes back whole.
+
 <figure class="geom-fig">
 <img src="../../assets/figures/intersection/31-marching-round-a-cylinder-and-a-sphere.svg" alt="Marching round a cylinder and a sphere">
 <figcaption>Marching: seed, trace along the tangent, correct back onto both surfaces, fit the trail.</figcaption>

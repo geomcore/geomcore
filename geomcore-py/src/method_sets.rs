@@ -820,13 +820,30 @@ macro_rules! surface {
             /// `TypeError` for a 2D curve, and for an object that is not a
             /// geomcore curve or surface. Other Python threads run
             /// meanwhile.
-            #[pyo3(signature = (other, tol = None))]
+            ///
+            /// `within`, a `BoundingBox`, is where the caller needs the
+            /// intersection of two surfaces: every point inside it is
+            /// found, and a branch running to infinity ends on its
+            /// boundary without making the result incomplete. Without it,
+            /// such a branch ends on a guessed box and the result reports
+            /// it cut (`IncompleteReason.UNBOUNDED`). Raises `TypeError`
+            /// when `other` is a curve.
+            #[pyo3(signature = (other, tol = None, within = None))]
             fn intersect(
                 slf: &Bound<'_, Self>,
                 other: &Bound<'_, PyAny>,
                 tol: Option<PyTolerance>,
+                within: Option<$crate::bounding_box::PyBoundingBox>,
             ) -> PyResult<Py<PyAny>> {
-                $crate::intersect::intersect(slf.as_any(), other, tolerance(tol))
+                match within {
+                    None => $crate::intersect::intersect(slf.as_any(), other, tolerance(tol)),
+                    Some(within) => $crate::intersect::intersect_within(
+                        slf.as_any(),
+                        other,
+                        &within.0,
+                        tolerance(tol),
+                    ),
+                }
             }
         }}
     };

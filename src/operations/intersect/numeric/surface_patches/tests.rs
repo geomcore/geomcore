@@ -193,7 +193,7 @@ fn test_unbounded_profiles_do_not_convert() {
 fn test_an_unbounded_surface_is_covered_by_the_other() {
     let sphere = Sphere::new(Point::new(5.0, 0.0, 0.0), 1.0).unwrap();
     let plane = Plane::new(Point::new(5.0, 0.0, 0.0), Vector::new(0.0, 0.3, 1.0)).unwrap();
-    let (on_plane, on_sphere) = pair_patches(&plane, &sphere, TOL).unwrap();
+    let (on_plane, on_sphere) = pair_patches(&plane, &sphere, None, TOL).unwrap();
     let (cover, held) = (on_plane.bounds(), on_sphere.bounds());
     // The plane's patch reaches past the sphere's box on every side the
     // plane runs along.
@@ -202,8 +202,8 @@ fn test_an_unbounded_surface_is_covered_by_the_other() {
     }
     assert_maps_back(&plane, &on_plane);
     let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
-    assert!(pair_patches(&plane, &cylinder, TOL).is_none());
+    assert!(pair_patches(&plane, &cylinder, None, TOL).is_none());
     let torus = Torus::new(Point::ORIGIN, Vector::Z, 2.0, 1.0).unwrap();
-    let (whole, _) = pair_patches(&torus, &sphere, TOL).unwrap();
+    let (whole, _) = pair_patches(&torus, &sphere, None, TOL).unwrap();
     assert_maps_back(&torus, &whole);
 }

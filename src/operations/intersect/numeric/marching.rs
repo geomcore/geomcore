@@ -29,7 +29,7 @@ use crate::operations::intersect::{
     Completeness, IncompleteReason, IntersectionCurve, SurfaceSurfaceIntersection,
     SurfaceSurfaceRegion,
 };
-use crate::{Point, Point2D, Tolerance, Vector, Vector2D};
+use crate::{BoundingBox, Point, Point2D, Tolerance, Vector, Vector2D};
 use pair::SurfacePair;
 use seeding::Seed;
 use tracer::{CHORD_DEVIATION, Cut, Trace, Tracer};
@@ -106,10 +106,14 @@ use tracer::{CHORD_DEVIATION, Cut, Trace, Tracer};
 /// the trace box (see [`trace_box`](SurfacePair::trace_box)), its last
 /// point then lying on the bound or the box. The box of a bounded side
 /// holds the whole intersection, so leaving it stops a runaway trace
-/// only. Where both surfaces are unbounded the box is grown from the
-/// seeds, and leaving it cuts a branch: the result is then
-/// [`Completeness::Incomplete`] with reason
-/// [`IncompleteReason::Unbounded`] and a region at each cut. Where branches cross,
+/// only. Where both surfaces are unbounded, the box is the caller's
+/// `within`: a branch ends on it, and nothing beyond it was asked for.
+/// Without `within` the box is grown from the seeds, and leaving it cuts
+/// a branch: the result is then [`Completeness::Incomplete`] with reason
+/// [`IncompleteReason::Unbounded`] and a region at each cut. `within`
+/// also spans the seeds of the unbounded parameters (see
+/// [`seed_window`](seeding::seed_window)) and the patches the later seeds
+/// search, where both surfaces are unbounded. Where branches cross,
 /// the surfaces touch and a trace stalls, no smooth step turning onto
 /// another branch: the branches crossing there are seeded a first step
 /// along each way (see [`branch_seeds`](seeding::branch_seeds)), since
@@ -179,13 +183,14 @@ use tracer::{CHORD_DEVIATION, Cut, Trace, Tracer};
 pub(crate) fn marching_intersection<A, B>(
     a: &A,
     b: &B,
+    within: Option<&BoundingBox>,
     tol: Tolerance,
 ) -> SurfaceSurfaceIntersection
 where
     A: ParametricSurface,
     B: ParametricSurface,
 {
-    let pair = SurfacePair::new(a, b);
+    let pair = SurfacePair::new(a, b).within(within);
     if let Some(coincident) = coincidence::coincidence(pair, tol) {
         return coincident;
     }
@@ -306,7 +311,7 @@ where
     A: ParametricSurface,
     B: ParametricSurface,
 {
-    marching_intersection(a, b, tol)
+    marching_intersection(a, b, None, tol)
         .curves()
         .iter()
         .filter_map(|piece| match &piece.curve {

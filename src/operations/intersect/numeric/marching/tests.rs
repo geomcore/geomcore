@@ -687,7 +687,7 @@ fn cone_and_generator_cylinder(offset: Vector) -> (crate::Cone, crate::Cylinder)
 fn test_marching_cuts_an_unbounded_branch_and_reports_it() {
     let tol = Tolerance::DEFAULT;
     let (cone, cylinder) = cone_and_generator_cylinder(Vector::ZERO);
-    let result = marching_intersection(&cone, &cylinder, tol);
+    let result = marching_intersection(&cone, &cylinder, None, tol);
     let Completeness::Incomplete { reason, regions } = result.completeness() else {
         panic!(
             "expected an incomplete result, got {:?}",
@@ -719,15 +719,84 @@ fn test_marching_cuts_an_unbounded_branch_and_reports_it() {
 }
 
 #[test]
+fn test_marching_within_a_box_ends_unbounded_branches_on_it() {
+    // The caller's box is larger than the guessed one: the branches reach
+    // past the guess, end on the faces of the box, and are not cut.
+    let tol = Tolerance::DEFAULT;
+    let (cone, cylinder) = cone_and_generator_cylinder(Vector::ZERO);
+    let half = 40.0;
+    let within = BoundingBox::new(
+        Point::new(-half, -half, -half),
+        Point::new(half, half, half),
+    );
+    let result = marching_intersection(&cone, &cylinder, Some(&within), tol);
+    assert_eq!(*result.completeness(), Completeness::Sampled);
+    let guessed = marching_intersection(&cone, &cylinder, None, tol);
+    let reach = |result: &SurfaceSurfaceIntersection| {
+        let ends = result.curves().iter().flat_map(|piece| {
+            let (t0, t1) = piece.curve.bounds();
+            [piece.curve.point_at(t0), piece.curve.point_at(t1)]
+        });
+        ends.map(|p| p.x.abs().max(p.y.abs()).max(p.z.abs()))
+            .fold(0.0, f64::max)
+    };
+    assert!(reach(&result) > 2.0 * reach(&guessed));
+    for piece in result.curves() {
+        let (t0, t1) = piece.curve.bounds();
+        let (start, end) = (piece.curve.point_at(t0), piece.curve.point_at(t1));
+        if start.distance(end) <= 1e-6 {
+            continue;
+        }
+        for p in [start, end] {
+            let on_face = [p.x, p.y, p.z]
+                .iter()
+                .any(|c| (c.abs() - half).abs() <= 1e-6);
+            assert!(on_face, "{p:?} is not on a face of the box");
+        }
+    }
+    assert_eq!(result.curves().len(), guessed.curves().len());
+    let curves: Vec<BSplineCurve> = result
+        .curves()
+        .iter()
+        .filter_map(|piece| match &piece.curve {
+            Curve::BSpline(curve) => Some(curve.clone()),
+            _ => None,
+        })
+        .collect();
+    assert_on_both(&curves, &cone, &cylinder);
+}
+
+#[test]
+fn test_marching_within_a_box_seeds_where_the_guess_does_not_reach() {
+    // A plane across the extrusion of a circle meets it along two lines
+    // parallel to the extrusion. Asked for 1000 along them, far beyond the
+    // guessed seed window, the march finds both there.
+    let tol = Tolerance::DEFAULT;
+    let profile = crate::Circle::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
+    let extrusion = crate::ExtrusionSurface::new(profile.into(), Vector::Z).unwrap();
+    let plane = crate::Plane::new(Point::new(0.5, 0.0, 0.0), Vector::X).unwrap();
+    let within = BoundingBox::new(Point::new(-2.0, -2.0, 1000.0), Point::new(2.0, 2.0, 1004.0));
+    let result = marching_intersection(&plane, &extrusion, Some(&within), tol);
+    assert_eq!(*result.completeness(), Completeness::Sampled);
+    assert_eq!(result.curves().len(), 2);
+    for piece in result.curves() {
+        let (t0, t1) = piece.curve.bounds();
+        for p in [piece.curve.point_at(t0), piece.curve.point_at(t1)] {
+            assert!((1000.0 - 1e-6..=1004.0 + 1e-6).contains(&p.z), "{p:?}");
+        }
+    }
+}
+
+#[test]
 fn test_marching_unbounded_branches_do_not_depend_on_where_the_pair_lies() {
     // Moved 1e6 away from the origin, along the diagonal, the pair has the
     // same branches: nothing in marching is fixed in space.
     let tol = Tolerance::DEFAULT;
     let (cone, cylinder) = cone_and_generator_cylinder(Vector::ZERO);
-    let near = marching_intersection(&cone, &cylinder, tol);
+    let near = marching_intersection(&cone, &cylinder, None, tol);
     let offset = Vector::new(1.0, 1.0, 1.0) * (1e6 / 3f64.sqrt());
     let (far_cone, far_cylinder) = cone_and_generator_cylinder(offset);
-    let far = marching_intersection(&far_cone, &far_cylinder, tol);
+    let far = marching_intersection(&far_cone, &far_cylinder, None, tol);
     assert_eq!(far.curves().len(), near.curves().len());
     assert!(matches!(
         far.completeness(),
@@ -749,13 +818,13 @@ fn test_marching_with_a_bounded_side_stays_sampled() {
     let plane = Plane::new(Point::new(0.0, 0.0, 0.5), Vector::Z).unwrap();
     let sphere = Sphere::new(Point::ORIGIN, 1.0).unwrap();
     assert_eq!(
-        marching_intersection(&plane, &sphere, tol).completeness(),
+        marching_intersection(&plane, &sphere, None, tol).completeness(),
         &Completeness::Sampled
     );
     let torus = Torus::new(Point::ORIGIN, Vector::Z, 3.0, 1.0).unwrap();
     let plane = Plane::new(Point::ORIGIN, Vector::new(0.3, 0.0, 1.0)).unwrap();
     assert_eq!(
-        marching_intersection(&plane, &torus, tol).completeness(),
+        marching_intersection(&plane, &torus, None, tol).completeness(),
         &Completeness::Sampled
     );
 }
@@ -807,9 +876,9 @@ fn test_surface_and_its_bspline_form_are_coincident() {
     let sphere = Sphere::new(Point::new(0.3, 0.2, 0.5), 0.8).unwrap();
     let copy = sphere.to_bspline();
     for result in [
-        marching_intersection(&sphere, &copy, tol),
-        marching_intersection(&copy, &sphere, tol),
-        marching_intersection(&copy, &copy, tol),
+        marching_intersection(&sphere, &copy, None, tol),
+        marching_intersection(&copy, &sphere, None, tol),
+        marching_intersection(&copy, &copy, None, tol),
     ] {
         assert!(result.is_coincident() && !result.is_empty());
         assert!(result.curves().is_empty());
@@ -835,7 +904,7 @@ fn test_patch_lying_on_its_surface_is_incomplete_over_the_patch() {
     let tol = Tolerance::DEFAULT;
     let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
     let whole = cylinder_patch((0.0, TAU));
-    let result = marching_intersection(&cylinder, &whole, tol);
+    let result = marching_intersection(&cylinder, &whole, None, tol);
     assert!(!result.is_coincident() && result.curves().is_empty());
     let region = only_region(&result);
     // The patch spans the whole turn: the cylinder's range is the period.
@@ -843,17 +912,17 @@ fn test_patch_lying_on_its_surface_is_incomplete_over_the_patch() {
     assert_eq!(region.first_v_range, (0.0, 2.0));
     assert_eq!(region.second_u_range, whole.u_bounds());
     // Swapped, the patch is the first surface.
-    let region = only_region(&marching_intersection(&whole, &cylinder, tol));
+    let region = only_region(&marching_intersection(&whole, &cylinder, None, tol));
     assert_eq!(region.first_u_range, whole.u_bounds());
     assert_eq!(region.second_u_range, (0.0, TAU));
     // A half turn keeps to its range on the cylinder.
     let half = cylinder_patch((0.0, PI));
-    let region = only_region(&marching_intersection(&cylinder, &half, tol));
+    let region = only_region(&marching_intersection(&cylinder, &half, None, tol));
     assert!(region.first_u_range.0.abs() < 1e-9 && (region.first_u_range.1 - PI).abs() < 1e-9);
     // A plane against its own bilinear patch.
     let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
     let patch = plane.to_bspline_patch((-1.0, 2.0), (0.0, 3.0)).unwrap();
-    let region = only_region(&marching_intersection(&plane, &patch, tol));
+    let region = only_region(&marching_intersection(&plane, &patch, None, tol));
     assert_eq!(
         (region.first_u_range, region.first_v_range),
         ((-1.0, 2.0), (0.0, 3.0))
@@ -869,7 +938,12 @@ fn test_crossing_surfaces_are_not_taken_for_coincident() {
     // Crossing the patch through its first sample row: the check stops
     // at the first sample off the plane.
     let plane = Plane::new(Point::new(1.0, 0.0, 0.0), Vector::new(1.0, 0.0, 1.0)).unwrap();
-    let result = marching_intersection(&plane, &cylinder_patch((0.0, std::f64::consts::TAU)), tol);
+    let result = marching_intersection(
+        &plane,
+        &cylinder_patch((0.0, std::f64::consts::TAU)),
+        None,
+        tol,
+    );
     assert!(!result.is_coincident());
     assert_eq!(result.completeness(), &Completeness::Sampled);
     assert!(!result.curves().is_empty());
@@ -885,7 +959,7 @@ fn test_plane_touching_a_cylinder_patch_traces_a_tangent_ruling() {
     // within confusion.
     for offset in [1.0, 1.0 - 1e-9] {
         let plane = Plane::new(Point::new(offset, 0.0, 0.0), Vector::X).unwrap();
-        let result = marching_intersection(&plane, &patch, tol);
+        let result = marching_intersection(&plane, &patch, None, tol);
         assert_eq!(result.curves().len(), 1);
         assert!(result.curves()[0].tangent);
         let Curve::BSpline(curve) = &result.curves()[0].curve else {
@@ -902,7 +976,7 @@ fn test_plane_touching_a_cylinder_patch_traces_a_tangent_ruling() {
     }
     // Crossing at 0.99, the two curves are not tangent.
     let plane = Plane::new(Point::new(0.99, 0.0, 0.0), Vector::X).unwrap();
-    let result = marching_intersection(&plane, &patch, tol);
+    let result = marching_intersection(&plane, &patch, None, tol);
     assert_eq!(result.curves().len(), 2);
     assert!(result.curves().iter().all(|piece| !piece.tangent));
 }
@@ -915,8 +989,8 @@ fn test_sphere_inside_a_cylinder_patch_traces_the_touching_circle() {
     let sphere = Sphere::new(Point::new(0.0, 0.0, 1.0), 1.0).unwrap();
     let torus = Torus::new(Point::new(0.0, 0.0, 1.0), Vector::Z, 2.0, 1.0).unwrap();
     for result in [
-        marching_intersection(&sphere, &patch, tol),
-        marching_intersection(&torus, &patch, tol),
+        marching_intersection(&sphere, &patch, None, tol),
+        marching_intersection(&torus, &patch, None, tol),
     ] {
         assert_eq!(result.curves().len(), 1);
         assert!(result.curves()[0].tangent);
@@ -942,7 +1016,7 @@ fn test_sphere_touching_a_cylinder_patch_at_a_point_is_a_contact_point() {
     let tol = Tolerance::DEFAULT;
     let patch = cylinder_patch((0.0, std::f64::consts::TAU));
     let sphere = Sphere::new(Point::new(2.0, 0.0, 1.0), 1.0).unwrap();
-    let result = marching_intersection(&sphere, &patch, tol);
+    let result = marching_intersection(&sphere, &patch, None, tol);
     assert!(result.curves().is_empty());
     assert_eq!(result.contact_points().len(), 1);
     assert!(result.contact_points()[0].distance(Point::new(1.0, 0.0, 1.0)) < 1e-6);
@@ -954,7 +1028,7 @@ fn test_patches_overlapping_in_part_report_a_region_over_the_overlap() {
     let tol = Tolerance::DEFAULT;
     let first = cylinder_patch((0.0, 3.0));
     let second = cylinder_patch((1.5, 4.5));
-    let result = marching_intersection(&first, &second, tol);
+    let result = marching_intersection(&first, &second, None, tol);
     assert!(!result.is_coincident());
     let Completeness::Incomplete { reason, regions } = result.completeness() else {
         panic!(
@@ -993,14 +1067,14 @@ fn test_near_copies_within_confusion_are_coincident() {
         let offset = Vector::new(1.0, 0.5, 0.25).normalized().unwrap() * shift;
         let moved = shifted(&copy, offset);
         for result in [
-            marching_intersection(&sphere, &moved, tol),
-            marching_intersection(&moved, &sphere, tol),
-            marching_intersection(&copy, &moved, tol),
+            marching_intersection(&sphere, &moved, None, tol),
+            marching_intersection(&moved, &sphere, None, tol),
+            marching_intersection(&copy, &moved, None, tol),
         ] {
             assert!(result.is_coincident(), "shift {shift}");
             assert!(result.curves().is_empty());
         }
-        let result = marching_intersection(&cylinder, &shifted(&patch, offset), tol);
+        let result = marching_intersection(&cylinder, &shifted(&patch, offset), None, tol);
         assert!(!result.is_coincident() && result.curves().is_empty());
         let region = only_region(&result);
         assert!(region.first_u_range.0.abs() < 1e-6);
@@ -1016,7 +1090,7 @@ fn test_copies_apart_beyond_confusion_are_not_coincident() {
     let copy = sphere.to_bspline();
     // Equal spheres 1e-5 apart cross in one great circle.
     let offset = Vector::new(1.0, 0.5, 0.25).normalized().unwrap() * 1e-5;
-    let result = marching_intersection(&sphere, &shifted(&copy, offset), tol);
+    let result = marching_intersection(&sphere, &shifted(&copy, offset), None, tol);
     assert!(!result.is_coincident());
     assert_eq!(result.completeness(), &Completeness::Sampled);
     assert_eq!(result.curves().len(), 1);
@@ -1082,8 +1156,8 @@ fn test_bumps_between_the_sample_lines_are_not_coincident() {
             assert!((peak.z.abs() - height).abs() < 1e-9, "{peak:?}");
         }
         for result in [
-            marching_intersection(&flat, &bumpy, tol),
-            marching_intersection(&bumpy, &flat, tol),
+            marching_intersection(&flat, &bumpy, None, tol),
+            marching_intersection(&bumpy, &flat, None, tol),
         ] {
             assert!(!result.is_coincident());
             // The tall bumps touch the flat patch along the seven
@@ -1366,8 +1440,8 @@ fn test_a_bump_finer_than_the_grid_meets_a_cylinder_in_a_small_loop() {
     let cylinder =
         Cylinder::new(Point::new(0.0, peak.y + beside, height), Vector::X, radius).unwrap();
     for result in [
-        marching_intersection(&sheet, &cylinder, tol),
-        marching_intersection(&cylinder, &sheet, tol),
+        marching_intersection(&sheet, &cylinder, None, tol),
+        marching_intersection(&cylinder, &sheet, None, tol),
     ] {
         assert_one_small_loop(&result, &sheet, &cylinder, peak, 0.05);
     }
@@ -1375,7 +1449,7 @@ fn test_a_bump_finer_than_the_grid_meets_a_cylinder_in_a_small_loop() {
     let circle =
         crate::Circle::new(Point::new(0.0, peak.y + beside, height), Vector::X, radius).unwrap();
     let extrusion = crate::ExtrusionSurface::new(circle.into(), Vector::X).unwrap();
-    let result = marching_intersection(&extrusion, &sheet, tol);
+    let result = marching_intersection(&extrusion, &sheet, None, tol);
     assert_one_small_loop(&result, &extrusion, &sheet, peak, 0.05);
 }
 
@@ -1392,7 +1466,7 @@ fn test_a_plane_through_a_bump_finer_than_the_grid_finds_the_loop() {
         Vector::new(0.01, 0.0, 1.0),
     )
     .unwrap();
-    let result = marching_intersection(&plane, &sheet, tol);
+    let result = marching_intersection(&plane, &sheet, None, tol);
     assert_one_small_loop(&result, &plane, &sheet, peak, 0.05);
 }
 
@@ -1413,7 +1487,7 @@ fn test_a_plane_cutting_a_small_cap_off_a_torus_finds_the_loop() {
     );
     let touch = Point::new(3.0 * azimuth.cos(), 3.0 * azimuth.sin(), 0.0) + normal;
     let plane = Plane::new(touch - 1e-4 * normal, normal).unwrap();
-    let result = marching_intersection(&torus, &plane, tol);
+    let result = marching_intersection(&torus, &plane, None, tol);
     assert_one_small_loop(&result, &torus, &plane, touch, 0.05);
 }
 
@@ -1453,7 +1527,7 @@ fn test_marched_curves_carry_their_curves_in_parameters() {
     // seams of both, each closing a period away in u on both surfaces.
     let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
     let cylinder = Cylinder::new(Point::new(0.3, 0.0, 0.0), Vector::Z, 1.0).unwrap();
-    let loops = marching_intersection(&sphere, &cylinder, tol);
+    let loops = marching_intersection(&sphere, &cylinder, None, tol);
     assert_eq!(loops.curves().len(), 2);
     // Two tori in general position.
     let first = Torus::from_frame(
@@ -1469,15 +1543,15 @@ fn test_marched_curves_carry_their_curves_in_parameters() {
         0.8,
     )
     .unwrap();
-    let tori = marching_intersection(&first, &second, tol);
+    let tori = marching_intersection(&first, &second, None, tol);
     // A plane through a bump of a B-spline sheet.
     let sheet = bumped_sheet(0.3);
     let plane = Plane::new(Point::new(0.0, 0.0, 0.1), Vector::Z).unwrap();
-    let bump = marching_intersection(&plane, &sheet, tol);
+    let bump = marching_intersection(&plane, &sheet, None, tol);
     // A plane touching a cylinder patch along a ruling: an interpolant.
     let patch = cylinder_patch((0.0, std::f64::consts::TAU));
     let touching_plane = Plane::new(Point::new(1.0, 0.0, 0.0), Vector::X).unwrap();
-    let touch = marching_intersection(&touching_plane, &patch, tol);
+    let touch = marching_intersection(&touching_plane, &patch, None, tol);
     assert!(touch.curves()[0].tangent);
     for (label, deviation, curves) in [
         (
