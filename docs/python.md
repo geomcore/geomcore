@@ -9,11 +9,29 @@ Windows, for Python 3.9+ (abi3: one wheel covers every version). The
 package ships type stubs (PEP 561), so IDEs and type checkers see the full
 API, with the documentation of the methods every curve or surface shares.
 
+Every name is at the package root, as in the Rust crate: the shapes
+(`Circle`, `Plane`, `BSplineSurface`), the values (`Point`, `Frame`,
+`Tolerance`), the results (`CurveCurveIntersection`), the enums and the
+errors. Three more names stand for a whole kind of shape: `Curve`,
+`Curve2D` and `Surface` are the unions of their classes, both for
+annotations and, from Python 3.10, for `isinstance`. `typing.get_args`
+gives the tuple of classes on any version:
+
+```python
+from geomcore import Curve, Surface
+
+def clearance(curve: Curve, surface: Surface) -> float: ...
+
+isinstance(shape, Curve)  # Python 3.10+
+```
+
+`geomcore.curves` and `geomcore.surfaces` still resolve each shape, with a
+`DeprecationWarning`, until the next release.
+
 === "Python"
 
     ```python
-    from geomcore import Point, Vector
-    from geomcore.curves import Circle
+    from geomcore import Circle, Point, Vector
     import math
 
     circle = Circle(Point.origin(), Vector.unit_z(), 2.0)
@@ -33,7 +51,9 @@ API, with the documentation of the methods every curve or surface shares.
 ## Local properties and one-sided evaluation
 
 Curves and surfaces answer the same differential queries as in Rust,
-with the tolerance as the keyword `tol=None` (`Tolerance.default()`):
+with the tolerance as the keyword `tol=None` (`Tolerance.default()`).
+Every `tol` also takes a number, read as `Tolerance(confusion=number)`,
+so `p.coincides(q, 1e-3)` loosens the distance tolerance alone:
 
 - 3D curves: `tangent(u)`, `curvature(u)` and `curvature_center(u)`,
   `is_closed()`, `continuity(u)` and `min_continuity()`, `reversed()`
@@ -65,8 +85,7 @@ order as an `int`, or `math.inf` where the shape is smooth (Rust's
     ```python
     import math
 
-    from geomcore import Point, Side
-    from geomcore.curves import BSplineCurve
+    from geomcore import BSplineCurve, Point, Side
 
     poles = [Point(0.0, 0.0, 0.0), Point(1.0, 0.0, 0.0), Point(1.0, 1.0, 0.0)]
     kinked = BSplineCurve(1, poles, [0.0, 1.0, 2.0], [2, 1, 2], False)
@@ -92,6 +111,39 @@ order as an `int`, or `math.inf` where the shape is smooth (Rust's
     let (_, incoming) = kinked.first_derivatives_sided(1.0, Side::Below); // (1, 0, 0)
     let (_, outgoing) = kinked.first_derivatives_sided(1.0, Side::Above); // (0, 1, 0)
     ```
+
+## Values, numpy and pickling
+
+Points and vectors are sequences of their coordinates. They unpack
+(`x, y, z = p`), index (`p[0]`, `p[-1]`) and convert to numpy, so
+`numpy.array(p)` is a float array of shape `(3,)` and
+`numpy.array(points)` one of shape `(N, 3)`. Vectors also divide by a
+number (`v / 2`) and give their length to `abs(v)`.
+
+A `Transform` reads and writes 4×4 homogeneous matrices, so a robot pose
+or a placement from another tool comes in and goes out directly.
+`a @ b` composes like the matrix product, `b` first, so `a @ b` is
+`b.then(a)`:
+
+```python
+from geomcore import Transform
+import numpy
+
+pose = Transform.from_matrix(matrix)   # four rows of four numbers
+back = pose.inverse()                  # pose @ back is the identity, within rounding
+numpy.array((pose @ back).to_matrix())
+```
+
+`from_matrix` raises `ConstructionError` for a matrix that shears or
+scales the directions unequally, since a curve or surface keeps its shape
+only under a uniform scale of a rotation or a mirror.
+
+Every value and every curve and surface pickles, and copies with `copy` and
+`copy.deepcopy`, so shapes cross to `multiprocessing` workers and into
+caches. The copy is equal to the original, bit for bit. The intersection,
+projection and approximation results do not pickle, because they keep a
+reference to the shapes they were computed on. Values stay unhashable
+(ADR 0009): `==` compares coordinates exactly.
 
 ## Reprs
 

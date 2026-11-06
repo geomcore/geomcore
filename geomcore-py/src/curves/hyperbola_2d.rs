@@ -1,4 +1,4 @@
-//! The Python class `geomcore.curves.Hyperbola2D`, wrapping `geomcore::Hyperbola2D`.
+//! The Python class `geomcore.Hyperbola2D`, wrapping `geomcore::Hyperbola2D`.
 
 use crate::curves::*;
 use crate::method_sets::*;
@@ -7,7 +7,7 @@ use geomcore::Hyperbola2D;
 
 /// A hyperbola branch in 2D, parametrized as
 /// `center + major*cosh(u)*x_dir + minor*sinh(u)*y_dir`.
-#[pyclass(name = "Hyperbola2D", module = "geomcore.curves", eq)]
+#[pyclass(name = "Hyperbola2D", module = "geomcore", eq)]
 #[derive(Clone, PartialEq)]
 pub(crate) struct PyHyperbola2D(pub(crate) Hyperbola2D);
 
@@ -66,6 +66,11 @@ shape_methods! {
     /// The semi-minor radius.
     fn minor_radius(&self) -> f64 {
         self.0.minor_radius()
+    }
+
+    fn __reduce__<'py>(slf: &pyo3::Bound<'py, Self>) -> pyo3::PyResult<pyo3::Bound<'py, pyo3::types::PyTuple>> {
+        let this = slf.borrow();
+        crate::pickling::reduce(slf.as_any(), Some("from_frame"), (this.frame(), this.major_radius(), this.minor_radius(),))
     }
 
     fn __repr__(&self) -> String {

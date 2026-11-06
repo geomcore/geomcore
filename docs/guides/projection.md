@@ -69,8 +69,11 @@ pointer or topology.
 ## project_point
 
 Returns the closest point: its parameter(s), the point itself and the
-distance; sub-tolerance distances snap to `0.0`, so projection agrees
-with `contains`. In Python the result is a `CurveProjection`,
+distance. A distance within `tol.confusion` snaps to `0.0`, so projection
+agrees with `contains`: with the default tolerance (`confusion` `1e-7`) a
+point `1e-8` off a cylinder projects at distance `0.0`, and one `1e-7` off
+at its measured distance. Pass a smaller `Tolerance` to read smaller
+distances. In Python the result is a `CurveProjection`,
 `CurveProjection2D` or `SurfaceProjection` that also holds the `target`
 it was computed on and the `query_point`. Batch variants
 (`project_points`) share the setup and return a list.
@@ -136,16 +139,16 @@ grid = sphere.points_at_array(numpy.column_stack([us, vs]))   # (N, 3)
 
 ## Curves against curves
 
-`curve_curve_extrema` reports the local minima of the distance between
-two curves over their domains — the primitive behind closest-approach
-queries and trimmed-arc handling.
+`curve.extrema(other)` with another curve reports the local minima of
+the distance between the two curves over their domains: the primitive
+behind closest-approach queries and trimmed-arc handling. With a point,
+the same method gives that point's projections, as above. In Rust the
+curve pair is the free function `curve_curve_extrema` (ADR 0033).
 
 === "Python"
 
     ```python
-    from geomcore import curve_curve_extrema
-
-    minima = curve_curve_extrema(line, circle).minima
+    minima = line.extrema(circle).minima
     distances = [m.distance for m in minima]
     ```
 
