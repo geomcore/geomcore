@@ -24,7 +24,7 @@ use pyo3::exceptions::PyTypeError;
 pub(crate) struct PyTrimmedCurve(pub(crate) TrimmedCurve);
 
 shape_methods! {
-    PyTrimmedCurve: [curve, discretize];
+    PyTrimmedCurve: [curve, bounded_curve];
 
     #[new]
     /// Restrict `basis` (any 3D curve) to the parameter range
@@ -115,16 +115,6 @@ shape_methods! {
         Ok(PyBSplineCurve(self.0.to_bspline().map_err(python_error)?))
     }
 
-    /// The point at the start of the range.
-    fn start_point(&self) -> PyPoint {
-        PyPoint(self.0.start_point())
-    }
-
-    /// The point at the end of the range.
-    fn end_point(&self) -> PyPoint {
-        PyPoint(self.0.end_point())
-    }
-
     fn __reduce__<'py>(slf: &pyo3::Bound<'py, Self>) -> pyo3::PyResult<pyo3::Bound<'py, pyo3::types::PyTuple>> {
         let this = slf.borrow();
         let basis = this.basis(slf.py())?;
@@ -151,7 +141,7 @@ shape_methods! {
 pub(crate) struct PyTrimmedCurve2D(pub(crate) TrimmedCurve2D);
 
 shape_methods! {
-    PyTrimmedCurve2D: [curve_2d, discretize_2d];
+    PyTrimmedCurve2D: [curve_2d, bounded_curve_2d];
 
     #[new]
     /// Restrict `basis` (a Line2D, Circle2D, Ellipse2D or BSplineCurve2D) to the parameter range
@@ -237,16 +227,6 @@ shape_methods! {
     /// The end of the parameter range, the parameter of `end_point`.
     fn end_parameter(&self) -> f64 {
         self.0.end_parameter()
-    }
-
-    /// The point at the start of the range.
-    fn start_point(&self) -> PyPoint2D {
-        PyPoint2D(self.0.start_point())
-    }
-
-    /// The point at the end of the range.
-    fn end_point(&self) -> PyPoint2D {
-        PyPoint2D(self.0.end_point())
     }
 
     fn __reduce__<'py>(slf: &pyo3::Bound<'py, Self>) -> pyo3::PyResult<pyo3::Bound<'py, pyo3::types::PyTuple>> {

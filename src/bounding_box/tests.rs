@@ -81,3 +81,21 @@ fn test_center_and_diagonal() {
     assert_eq!(b.center(), Point::new(1.0, 1.0, 2.0));
     assert_eq!(b.diagonal(), Vector::new(4.0, 2.0, 0.0));
 }
+
+#[test]
+fn test_intersection_of_touching_boxes_is_flat() {
+    let right = BoundingBox::new(Point::new(1.0, 0.5, 0.0), Point::new(2.0, 2.0, 1.0));
+    let shared = unit().intersection(right).unwrap();
+    assert_eq!(shared.min_corner(), Point::new(1.0, 0.5, 0.0));
+    assert_eq!(shared.max_corner(), Point::new(1.0, 1.0, 1.0));
+    assert_eq!(unit().intersection(unit()), Some(unit()));
+}
+
+#[test]
+fn test_distance_reaches_the_nearest_face_edge_or_corner() {
+    let b = unit();
+    assert_eq!(b.distance(Point::new(0.5, 0.5, 0.5)), 0.0);
+    assert_eq!(b.distance(Point::new(0.5, 0.5, 3.0)), 2.0);
+    assert_eq!(b.distance(Point::new(4.0, 5.0, 0.5)), 5.0);
+    assert_eq!(b.distance(Point::new(-1.0, 3.0, 3.0)), 3.0);
+}

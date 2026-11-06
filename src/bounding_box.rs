@@ -240,8 +240,72 @@ impl BoundingBox {
         (0..3).all(|k| a_min[k] <= b_max[k] && b_min[k] <= a_max[k])
     }
 
+    /// The box of the points the two boxes share, or `None` when they are
+    /// apart. Boxes that only touch share a flat box.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{BoundingBox, Point};
+    ///
+    /// let a = BoundingBox::new(Point::ORIGIN, Point::new(2.0, 2.0, 2.0));
+    /// let b = BoundingBox::new(Point::new(1.0, 1.0, 1.0), Point::new(3.0, 3.0, 3.0));
+    /// assert_eq!(a.intersection(b), Some(BoundingBox::new(Point::new(1.0, 1.0, 1.0), Point::new(2.0, 2.0, 2.0))));
+    /// assert_eq!(a.intersection(BoundingBox::new(Point::new(4.0, 0.0, 0.0), Point::new(4.0, 1.0, 1.0))), None);
+    /// ```
+    pub fn intersection(self, other: BoundingBox) -> Option<BoundingBox> {
+        if !self.overlaps(other) {
+            return None;
+        }
+        let (a_min, a_max) = (coordinates(self.min), coordinates(self.max));
+        let (b_min, b_max) = (coordinates(other.min), coordinates(other.max));
+        let lo: [f64; 3] = std::array::from_fn(|k| a_min[k].max(b_min[k]));
+        let hi: [f64; 3] = std::array::from_fn(|k| a_max[k].min(b_max[k]));
+        Some(BoundingBox {
+            min: point(lo),
+            max: point(hi),
+        })
+    }
+
+    /// The distance from `point` to the box: zero for a point in it,
+    /// faces included, the distance to the nearest point of the box
+    /// otherwise.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{BoundingBox, Point};
+    ///
+    /// let b = BoundingBox::new(Point::ORIGIN, Point::new(2.0, 2.0, 2.0));
+    /// assert_eq!(b.distance(Point::new(1.0, 1.0, 1.0)), 0.0);
+    /// assert_eq!(b.distance(Point::new(5.0, 1.0, 1.0)), 3.0);
+    /// ```
+    pub fn distance(self, point: Point) -> f64 {
+        let (p, min, max) = (
+            coordinates(point),
+            coordinates(self.min),
+            coordinates(self.max),
+        );
+        (0..3)
+            .map(|k| {
+                let gap = (min[k] - p[k]).max(p[k] - max[k]).max(0.0);
+                gap * gap
+            })
+            .sum::<f64>()
+            .sqrt()
+    }
+
     /// The smallest box holding this box and `point`.
-    pub(crate) fn including(self, p: Point) -> BoundingBox {
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{BoundingBox, Point};
+    ///
+    /// let b = BoundingBox::new(Point::ORIGIN, Point::new(2.0, 2.0, 2.0)).including(Point::new(5.0, 1.0, 1.0));
+    /// assert_eq!(b.max_corner(), Point::new(5.0, 2.0, 2.0));
+    /// ```
+    pub fn including(self, p: Point) -> BoundingBox {
         BoundingBox {
             min: Point::new(
                 self.min.x.min(p.x),
@@ -327,10 +391,10 @@ pub trait HasBoundingBox {
     /// let poles = vec![Point::ORIGIN, Point::new(1.0, 2.0, 0.0), Point::new(2.0, 0.0, 0.0)];
     /// let arch = BSplineCurve::new(2, poles, vec![0.0, 1.0], vec![3, 3], false).unwrap();
     /// // The control points reach y = 2; the curve, 1.
-    /// assert_eq!(arch.bounding_box().unwrap().max().y, 2.0);
+    /// assert_eq!(arch.bounding_box().unwrap().max_corner().y, 2.0);
     /// let tol = Tolerance::DEFAULT;
     /// let tight = arch.tight_bounding_box(tol).unwrap();
-    /// assert!(tight.max().y >= 1.0 && tight.max().y - 1.0 <= tol.confusion);
+    /// assert!(tight.max_corner().y >= 1.0 && tight.max_corner().y - 1.0 <= tol.confusion);
     /// ```
     fn tight_bounding_box(&self, tol: Tolerance) -> Option<BoundingBox> {
         let _ = tol;
