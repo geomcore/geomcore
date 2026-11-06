@@ -26,7 +26,7 @@ fn distance_to_segment(p: Point, a: Point, b: Point) -> f64 {
 
 /// The angle between the curve's tangent at `u` and the segment `[a, b]`.
 fn angle_to_segment<C: ParametricCurve>(curve: &C, u: f64, a: Point, b: Point) -> f64 {
-    let tangent = curve.eval_derivative(u, 1);
+    let tangent = curve.derivative(u, 1);
     let chord = b - a;
     tangent.cross(chord).magnitude().atan2(tangent.dot(chord))
 }
@@ -64,7 +64,7 @@ fn true_deviations<C: ParametricCurve>(curve: &C, d: &Discretization) -> Vec<(f6
         .map(|i| {
             let (u0, u1) = (d.parameters[i], d.parameters[i + 1]);
             let (a, b) = (d.points[i], d.points[i + 1]);
-            let chord = maximum(u0, u1, |u| distance_to_segment(curve.eval_point(u), a, b));
+            let chord = maximum(u0, u1, |u| distance_to_segment(curve.point_at(u), a, b));
             let angle = maximum(u0, u1, |u| angle_to_segment(curve, u, a, b));
             (chord, angle)
         })
@@ -90,7 +90,7 @@ fn assert_proven<C: ParametricCurve>(
     assert_eq!(d.parameters[n - 1], last);
     assert!(d.parameters.windows(2).all(|w| w[0] < w[1]));
     for (u, p) in d.parameters.iter().zip(&d.points) {
-        assert!(curve.eval_point(*u).distance(*p) <= 1e-12 * scale);
+        assert!(curve.point_at(*u).distance(*p) <= 1e-12 * scale);
     }
     let max_angle = criteria.max_angle_deviation().unwrap_or(PI);
     for (i, (chord, angle)) in true_deviations(curve, d).into_iter().enumerate() {
@@ -183,7 +183,7 @@ fn test_circle_arcs_whole_and_across_the_seam() {
         let arc = TrimmedCurve::new(c, first, last).unwrap();
         for criteria in [chord(1e-2), chord(1e-4), chord_and_angle(1e-2, 0.05)] {
             let d = arc.discretize(criteria);
-            assert_eq!(d.points[0], c.eval_point(first));
+            assert_eq!(d.points[0], c.point_at(first));
             assert_proven(&arc, &d, criteria, 3.0);
         }
     }
@@ -302,7 +302,7 @@ fn test_bspline_chord_deviations_are_proven() {
             let criteria = chord(max);
             let d = curve.discretize(criteria);
             assert_proven(&curve, &d, criteria, 8.0);
-            assert_eq!(d.points[0], curve.eval_point(curve.bounds().0));
+            assert_eq!(d.points[0], curve.point_at(curve.bounds().0));
         }
     }
 }
@@ -314,7 +314,7 @@ fn test_trimmed_bsplines_including_across_the_seam() {
         let piece = TrimmedCurve::new(&ring, first, last).unwrap();
         let d = piece.discretize(chord(1e-4));
         assert_proven(&piece, &d, chord(1e-4), 4.0);
-        assert_eq!(d.points[0], ring.eval_point(first));
+        assert_eq!(d.points[0], ring.point_at(first));
         assert_eq!(
             d.points[d.points.len() - 1] == d.points[0],
             last - first == 6.0
@@ -725,7 +725,7 @@ fn test_a_trimmed_line_is_one_segment() {
     let segment = TrimmedCurve::new(line, -1.0, 2.0).unwrap();
     let d = segment.discretize(chord_and_angle(1e-7, 1e-9));
     assert_eq!(d.parameters, vec![-1.0, 2.0]);
-    assert_eq!(d.points, vec![line.eval_point(-1.0), line.eval_point(2.0)]);
+    assert_eq!(d.points, vec![line.point_at(-1.0), line.point_at(2.0)]);
     assert_eq!(d.chord_deviations, vec![0.0]);
     assert_eq!(d.angle_deviations, vec![0.0]);
 }
@@ -787,7 +787,7 @@ fn distance_to_segment_2d(p: Point2D, a: Point2D, b: Point2D) -> f64 {
 }
 
 fn angle_to_segment_2d<C: ParametricCurve2D>(curve: &C, u: f64, a: Point2D, b: Point2D) -> f64 {
-    let tangent = curve.eval_derivative(u, 1);
+    let tangent = curve.derivative(u, 1);
     let chord = b - a;
     tangent.cross(chord).abs().atan2(tangent.dot(chord))
 }
@@ -809,15 +809,13 @@ fn assert_proven_2d<C: ParametricCurve2D>(
     assert_eq!(d.parameters[n - 1], last);
     assert!(d.parameters.windows(2).all(|w| w[0] < w[1]));
     for (u, p) in d.parameters.iter().zip(&d.points) {
-        assert!(curve.eval_point(*u).distance(*p) <= 1e-12 * scale);
+        assert!(curve.point_at(*u).distance(*p) <= 1e-12 * scale);
     }
     let max_angle = criteria.max_angle_deviation().unwrap_or(PI);
     for i in 0..n - 1 {
         let (u0, u1) = (d.parameters[i], d.parameters[i + 1]);
         let (a, b) = (d.points[i], d.points[i + 1]);
-        let chord = maximum(u0, u1, |u| {
-            distance_to_segment_2d(curve.eval_point(u), a, b)
-        });
+        let chord = maximum(u0, u1, |u| distance_to_segment_2d(curve.point_at(u), a, b));
         let angle = maximum(u0, u1, |u| angle_to_segment_2d(curve, u, a, b));
         let (reported_chord, reported_angle) = (d.chord_deviations[i], d.angle_deviations[i]);
         assert!(
@@ -1008,7 +1006,7 @@ fn test_2d_trimmed_line_is_one_segment() {
     let segment = TrimmedCurve2D::new(line, -1.0, 2.0).unwrap();
     let d = segment.discretize(chord_and_angle(1e-7, 1e-9));
     assert_eq!(d.parameters, vec![-1.0, 2.0]);
-    assert_eq!(d.points, vec![line.eval_point(-1.0), line.eval_point(2.0)]);
+    assert_eq!(d.points, vec![line.point_at(-1.0), line.point_at(2.0)]);
     assert_eq!(d.chord_deviations, vec![0.0]);
     assert_eq!(d.angle_deviations, vec![0.0]);
 }

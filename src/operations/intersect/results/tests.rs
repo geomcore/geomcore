@@ -3,8 +3,8 @@ use crate::{Completeness, Point};
 
 fn hit(first: f64, second: f64) -> CurveCurveHit {
     CurveCurveHit {
-        first_parameter: Some(first),
-        second_parameter: Some(second),
+        first_parameter: first,
+        second_parameter: second,
         point: Point::ORIGIN,
         multiplicity: 1,
     }
@@ -18,7 +18,7 @@ fn test_exact_curve_curve_is_complete_and_sorted() {
     );
     assert_eq!(r.method(), IntersectionMethod::Exact);
     assert!(r.is_complete());
-    assert_eq!(r.hits()[0].first_parameter, Some(1.0));
+    assert_eq!(r.hits()[0].first_parameter, 1.0);
     assert!(!r.is_empty());
 }
 
@@ -41,7 +41,9 @@ fn test_coincident_surfaces_are_not_empty() {
 fn test_unbounded_overlap_is_not_empty() {
     let r = CurveSurfaceIntersection::exact(
         [],
-        [(f64::NEG_INFINITY, f64::INFINITY)].into_iter().collect(),
+        vec![CurveSurfaceOverlap {
+            curve_range: (f64::NEG_INFINITY, f64::INFINITY),
+        }],
     );
     assert!(!r.is_empty());
     assert_eq!(r.overlaps().len(), 1);

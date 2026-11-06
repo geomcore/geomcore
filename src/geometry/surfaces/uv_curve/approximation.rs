@@ -25,6 +25,7 @@
 
 use std::fmt;
 
+use crate::geometry::approximation::CurveApproximation;
 use crate::geometry::curves::{BSplineCurve, BSplineCurve2D, Continuity, ParametricCurve2D, Side};
 use crate::geometry::surfaces::uv_curve::to_curve::{StraightUvCurve, UvCurveTo3DError};
 use crate::geometry::surfaces::{ElementarySurface, ParametricSurface};
@@ -33,7 +34,7 @@ use crate::{Point, Point2D, Tolerance, Vector, Vector2D};
 /// The order of the derivatives a span matches at each end where only
 /// second derivatives are available: degree 5, the lowest whose spans join
 /// C².
-const LOW_ORDER: usize = 2;
+pub(super) const LOW_ORDER: usize = 2;
 
 /// The order of the derivatives a span matches at each end where `f` is
 /// analytic: degree 9, whose spans join C⁴. Past it, each order of
@@ -47,12 +48,12 @@ const HIGHEST_DEGREE: usize = degree(HIGH_ORDER);
 /// A sampled span is accepted when its sampled deviation is within the
 /// Hermite budget divided by this margin, for the deviation between the
 /// samples.
-const SAMPLING_MARGIN: f64 = 2.0;
+pub(super) const SAMPLING_MARGIN: f64 = 2.0;
 
 /// The interior samples of a span in the sampled check, evenly spaced. The
 /// Hermite error is about `((t - a) (t - b))ⁿ⁺¹`, widest at the midpoint,
 /// which the samples include.
-const SAMPLES_PER_SPAN: usize = 9;
+pub(super) const SAMPLES_PER_SPAN: usize = 9;
 
 /// A sampled span above the deviation asks for the pieces its Hermite
 /// error predicts within it, times this margin, up to `MAXIMUM_SPLIT`.
@@ -67,17 +68,17 @@ const MAXIMUM_SPLIT: usize = 64;
 const MINIMUM_SAMPLED_SPAN_COUNT: usize = 4;
 
 /// The most spans a 3D curve gets before it is refused.
-const MAXIMUM_SPAN_COUNT: usize = 100_000;
+pub(super) const MAXIMUM_SPAN_COUNT: usize = 100_000;
 
 /// The degree of the Hermite spans that match derivatives up to `order`.
-const fn degree(order: usize) -> usize {
+pub(super) const fn degree(order: usize) -> usize {
     2 * order + 1
 }
 
 /// Error returned when a UV curve has no 3D curve within the asked
 /// deviation.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum UvCurveApproximationError {
+pub enum UvCurveTo3DApproximationError {
     /// The asked deviation is not a positive finite number.
     InvalidDeviation,
     /// The UV curve has an infinite bound, as a line has: trim it first
@@ -100,22 +101,22 @@ pub enum UvCurveApproximationError {
     },
 }
 
-impl fmt::Display for UvCurveApproximationError {
+impl fmt::Display for UvCurveTo3DApproximationError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            UvCurveApproximationError::InvalidDeviation => {
+            UvCurveTo3DApproximationError::InvalidDeviation => {
                 f.write_str("the asked deviation is not a positive finite number")
             }
-            UvCurveApproximationError::Unbounded => {
+            UvCurveTo3DApproximationError::Unbounded => {
                 f.write_str("the UV curve is unbounded; trim it first")
             }
-            UvCurveApproximationError::Collapsed => {
+            UvCurveTo3DApproximationError::Collapsed => {
                 f.write_str("the 3D curve collapses to a point of the surface")
             }
-            UvCurveApproximationError::OutsideSurfaceDomain => {
+            UvCurveTo3DApproximationError::OutsideSurfaceDomain => {
                 f.write_str("the UV curve leaves the surface's parameter domain")
             }
-            UvCurveApproximationError::DeviationNotReached { reached } => write!(
+            UvCurveTo3DApproximationError::DeviationNotReached { reached } => write!(
                 f,
                 "the asked deviation was not reached; the approximation stopped at {reached}"
             ),
@@ -123,53 +124,12 @@ impl fmt::Display for UvCurveApproximationError {
     }
 }
 
-impl std::error::Error for UvCurveApproximationError {}
-
-/// The 3D curve of a UV curve within a deviation, from
-/// [`uv_curve_to_3d_within`].
-#[derive(Debug, Clone, PartialEq)]
-pub struct UvCurveApproximation {
-    curve: BSplineCurve,
-    deviation: f64,
-    proven: bool,
-}
-
-impl UvCurveApproximation {
-    /// The 3D curve: one non-rational, non-periodic B-spline over the UV
-    /// curve's bounds, in its parameter. It is of degree 9 and C⁴ on an
-    /// elementary surface along a UV curve with no knot, unless degree 5
-    /// takes no more poles, and of degree 5 and C² wherever the UV curve
-    /// is otherwise.
-    pub fn curve(&self) -> &BSplineCurve {
-        &self.curve
-    }
-
-    /// The 3D curve, taken out of the result.
-    pub fn into_curve(self) -> BSplineCurve {
-        self.curve
-    }
-
-    /// The largest distance between the 3D curve's point at `t` and the
-    /// surface's point at the UV curve's point at `t`, over the bounds: a
-    /// bound when [`is_proven`](Self::is_proven), the largest sampled
-    /// distance otherwise. It is never above the asked deviation.
-    pub fn deviation(&self) -> f64 {
-        self.deviation
-    }
-
-    /// Whether [`deviation`](Self::deviation) is a proven bound, up to
-    /// rounding: for a straight UV curve on a plane, cylinder, cone, sphere
-    /// or torus. For every other pair it is sampled, each span checked at
-    /// nine points against half the asked deviation.
-    pub fn is_proven(&self) -> bool {
-        self.proven
-    }
-}
+impl std::error::Error for UvCurveTo3DApproximationError {}
 
 /// The 3D curve that `uv_curve` traces on `surface`, within `max_deviation`
 /// at the same parameter, over the UV curve's bounds: one B-spline whose
 /// point at every `t` lies within `max_deviation` of
-/// `surface.eval_point(c(t))`.
+/// `surface.point_at(c(t))`.
 ///
 /// It is the counterpart of
 /// [`uv_curve_to_3d`](ParametricSurface::uv_curve_to_3d), which gives the
@@ -203,43 +163,50 @@ impl UvCurveApproximation {
 /// let curve = approximation.curve();
 /// assert_eq!(curve.degree(), 9);
 /// assert_eq!(curve.bounds(), (0.0, length));
-/// let uv = turn.eval_point(1.0);
-/// assert!(curve.eval_point(1.0).distance(cylinder.eval_point(uv.x, uv.y)) <= 1e-7);
+/// let uv = turn.point_at(1.0);
+/// assert!(curve.point_at(1.0).distance(cylinder.point_at(uv.x, uv.y)) <= 1e-7);
 /// ```
 ///
-/// For a straight UV curve on a plane, cylinder, cone, sphere or torus the
-/// deviation is proven; for every other pair it is sampled densely and
-/// held to half `max_deviation` (see [`UvCurveApproximation::is_proven`]).
+/// The 3D curve is one non-rational, non-periodic B-spline over the UV
+/// curve's bounds, in its parameter. It is of degree 9 and C⁴ on an
+/// elementary surface along a UV curve with no knot, unless degree 5 takes
+/// no more poles, and of degree 5 and C² wherever the UV curve is
+/// otherwise. Its [`deviation`](CurveApproximation::deviation) is the
+/// largest distance between its point at `t` and the surface's point at
+/// the UV curve's point at `t`. For a straight UV curve on a plane,
+/// cylinder, cone, sphere or torus it is proven, up to rounding; for every
+/// other pair it is sampled, each span checked at nine points against
+/// half `max_deviation` (see [`CurveApproximation::is_proven`]).
 ///
 /// # Errors
 ///
-/// [`UvCurveApproximationError::InvalidDeviation`] if `max_deviation` is
-/// not a positive finite number, [`UvCurveApproximationError::Unbounded`]
+/// [`UvCurveTo3DApproximationError::InvalidDeviation`] if `max_deviation` is
+/// not a positive finite number, [`UvCurveTo3DApproximationError::Unbounded`]
 /// for a UV curve with an infinite bound,
-/// [`UvCurveApproximationError::Collapsed`] when the 3D curve is a point,
-/// [`UvCurveApproximationError::OutsideSurfaceDomain`] when the UV curve
+/// [`UvCurveTo3DApproximationError::Collapsed`] when the 3D curve is a point,
+/// [`UvCurveTo3DApproximationError::OutsideSurfaceDomain`] when the UV curve
 /// leaves the surface's domain, and
-/// [`UvCurveApproximationError::DeviationNotReached`] when the deviation
+/// [`UvCurveTo3DApproximationError::DeviationNotReached`] when the deviation
 /// takes more than 100 000 spans or a span shorter than `tol.parametric`.
 pub fn uv_curve_to_3d_within<S, C>(
     surface: &S,
     uv_curve: &C,
     max_deviation: f64,
     tol: Tolerance,
-) -> Result<UvCurveApproximation, UvCurveApproximationError>
+) -> Result<CurveApproximation, UvCurveTo3DApproximationError>
 where
     S: ParametricSurface + ?Sized,
     C: ParametricCurve2D + ?Sized,
 {
     if !(max_deviation.is_finite() && max_deviation > 0.0) {
-        return Err(UvCurveApproximationError::InvalidDeviation);
+        return Err(UvCurveTo3DApproximationError::InvalidDeviation);
     }
     let (first, last) = uv_curve.bounds();
     if !(first.is_finite() && last.is_finite()) {
-        return Err(UvCurveApproximationError::Unbounded);
+        return Err(UvCurveTo3DApproximationError::Unbounded);
     }
     if last - first <= tol.parametric {
-        return Err(UvCurveApproximationError::Collapsed);
+        return Err(UvCurveTo3DApproximationError::Collapsed);
     }
     let low = Composition {
         surface,
@@ -251,7 +218,7 @@ where
     };
     let straight = match StraightUvCurve::of(uv_curve, tol) {
         Ok(straight) => Some(straight),
-        Err(UvCurveTo3DError::Collapsed) => return Err(UvCurveApproximationError::Collapsed),
+        Err(UvCurveTo3DError::Collapsed) => return Err(UvCurveTo3DApproximationError::Collapsed),
         Err(_) => None,
     };
     let elementary = surface.as_elementary();
@@ -285,7 +252,7 @@ where
                 (Ok(low_plan), _) => (low, low_plan),
                 (Err(_), Ok(high_plan)) => (high, high_plan),
                 (Err(_), Err(reached)) => {
-                    return Err(UvCurveApproximationError::DeviationNotReached { reached });
+                    return Err(UvCurveTo3DApproximationError::DeviationNotReached { reached });
                 }
             };
             let breakpoints = proven_breakpoints(&composition, (first, last), plan.span_count)?;
@@ -311,22 +278,27 @@ where
             (low, breakpoints, deviation, false)
         }
     };
-    Ok(UvCurveApproximation {
-        curve: joined(&breakpoints, composition.order(), tol)?,
-        deviation,
-        proven,
-    })
+    let curve = joined(&breakpoints, composition.order());
+    let start = curve.poles()[0];
+    if curve
+        .poles()
+        .iter()
+        .all(|pole| pole.distance(start) <= tol.confusion)
+    {
+        return Err(UvCurveTo3DApproximationError::Collapsed);
+    }
+    Ok(CurveApproximation::new(curve, deviation, proven))
 }
 
 // ---- the composed curve ----
 
 /// The point of `f = S∘c` and its derivatives at a parameter.
 #[derive(Clone, Copy)]
-struct Jet {
-    point: Point,
+pub(super) struct Jet {
+    pub(super) point: Point,
     /// `derivatives[k - 1]` is `f⁽ᵏ⁾`, up to the order of the composition
     /// that read it; the others are zero.
-    derivatives: [Vector; HIGH_ORDER],
+    pub(super) derivatives: [Vector; HIGH_ORDER],
 }
 
 /// `f = S∘c` and its derivatives, read from the surface and the UV curve.
@@ -356,32 +328,33 @@ impl<S: ParametricSurface + ?Sized, C: ParametricCurve2D + ?Sized> Composition<'
 
     /// The jet of `f` at `t`, from the side `side` at a knot of a spline
     /// UV curve at the low order.
-    fn jet(&self, t: f64, side: Side) -> Result<Jet, UvCurveApproximationError> {
+    fn jet(&self, t: f64, side: Side) -> Result<Jet, UvCurveTo3DApproximationError> {
         let order = self.order();
         let mut uv_derivatives = [Vector2D::ZERO; HIGH_ORDER];
         let uv = match (self.high_order_surface, self.spline) {
             (None, Some(spline)) => {
-                let (uv, d1, d2) = spline.eval_d2_sided(t, side);
+                let (uv, d1, d2) = spline.second_derivatives_sided(t, side);
                 uv_derivatives[..2].copy_from_slice(&[d1, d2]);
                 uv
             }
             (None, None) => {
-                let (uv, d1, d2) = self.uv_curve.eval_d2(t);
+                let (uv, d1, d2) = self.uv_curve.second_derivatives(t);
                 uv_derivatives[..2].copy_from_slice(&[d1, d2]);
                 uv
             }
             (Some(_), _) => {
                 for (k, derivative) in uv_derivatives.iter_mut().enumerate() {
-                    *derivative = self.uv_curve.eval_derivative(t, k as u32 + 1);
+                    *derivative = self.uv_curve.derivative(t, k as u32 + 1);
                 }
-                self.uv_curve.eval_point(t)
+                self.uv_curve.point_at(t)
             }
         };
         self.check_domain(uv)?;
         // `partials[i][j]` is `∂ⁱ⁺ʲS / ∂uⁱ ∂vʲ`.
         let (point, partials) = match self.high_order_surface {
             None => {
-                let (point, [su, sv], [suu, suv, svv]) = self.surface.eval_d2(uv.x, uv.y);
+                let (point, [su, sv], [suu, suv, svv]) =
+                    self.surface.second_derivatives(uv.x, uv.y);
                 let mut partials = [[Vector::ZERO; HIGH_ORDER + 1]; HIGH_ORDER + 1];
                 partials[1][0] = su;
                 partials[0][1] = sv;
@@ -398,25 +371,25 @@ impl<S: ParametricSurface + ?Sized, C: ParametricCurve2D + ?Sized> Composition<'
             _ => composed_derivatives::<HIGH_ORDER>(&partials, &uv_derivatives),
         };
         if !(point.is_finite() && derivatives.iter().all(|derivative| derivative.is_finite())) {
-            return Err(UvCurveApproximationError::OutsideSurfaceDomain);
+            return Err(UvCurveTo3DApproximationError::OutsideSurfaceDomain);
         }
         Ok(Jet { point, derivatives })
     }
 
     /// The point of `f` at `t`.
-    fn point(&self, t: f64) -> Result<Point, UvCurveApproximationError> {
-        let uv = self.uv_curve.eval_point(t);
+    fn point(&self, t: f64) -> Result<Point, UvCurveTo3DApproximationError> {
+        let uv = self.uv_curve.point_at(t);
         self.check_domain(uv)?;
-        let point = self.surface.eval_point(uv.x, uv.y);
+        let point = self.surface.point_at(uv.x, uv.y);
         if !point.is_finite() {
-            return Err(UvCurveApproximationError::OutsideSurfaceDomain);
+            return Err(UvCurveTo3DApproximationError::OutsideSurfaceDomain);
         }
         Ok(point)
     }
 
     /// Refuses a UV point outside the surface's bounds, by more than
     /// `tol.parametric`, in a direction that is not periodic.
-    fn check_domain(&self, uv: Point2D) -> Result<(), UvCurveApproximationError> {
+    fn check_domain(&self, uv: Point2D) -> Result<(), UvCurveTo3DApproximationError> {
         let parametric = self.tol.parametric;
         let inside = |value: f64, (low, high): (f64, f64), period: Option<f64>| {
             period.is_some() || (value >= low - parametric && value <= high + parametric)
@@ -427,12 +400,12 @@ impl<S: ParametricSurface + ?Sized, C: ParametricCurve2D + ?Sized> Composition<'
         {
             Ok(())
         } else {
-            Err(UvCurveApproximationError::OutsideSurfaceDomain)
+            Err(UvCurveTo3DApproximationError::OutsideSurfaceDomain)
         }
     }
 
     /// The breakpoint at `t`, where the UV curve is smooth.
-    fn breakpoint(&self, t: f64) -> Result<Breakpoint, UvCurveApproximationError> {
+    fn breakpoint(&self, t: f64) -> Result<Breakpoint, UvCurveTo3DApproximationError> {
         self.knot_breakpoint(t, u32::MAX)
     }
 
@@ -442,7 +415,7 @@ impl<S: ParametricSurface + ?Sized, C: ParametricCurve2D + ?Sized> Composition<'
         &self,
         t: f64,
         continuity: u32,
-    ) -> Result<Breakpoint, UvCurveApproximationError> {
+    ) -> Result<Breakpoint, UvCurveTo3DApproximationError> {
         let order = self.order();
         // The first bound has no span below it.
         let side = if t == self.first {
@@ -562,23 +535,23 @@ fn binomial(n: usize, k: usize) -> f64 {
 /// share one jet of order `n`, so that they meet `Cⁿ`, and more at a knot
 /// where the UV curve is less smooth, whose jets differ.
 #[derive(Clone, Copy)]
-struct Breakpoint {
-    parameter: f64,
-    below: Jet,
-    above: Jet,
-    multiplicity: u32,
+pub(super) struct Breakpoint {
+    pub(super) parameter: f64,
+    pub(super) below: Jet,
+    pub(super) above: Jet,
+    pub(super) multiplicity: u32,
 }
 
 /// The Bézier poles of a span: room for the highest degree, of which the
 /// first `degree + 1` are used.
-type SpanPoles = [Point; HIGHEST_DEGREE + 1];
+pub(super) type SpanPoles = [Point; HIGHEST_DEGREE + 1];
 
 /// The Bézier poles of the Hermite interpolant of degree `p = 2n + 1` from
 /// `start` to `end`, with `n = order`. On `[a, b]`, `h = b - a`, the pole
 /// `k ≤ n` is `Σⱼ C(k, j) (p - j)! / p! hʲ f⁽ʲ⁾(a)`, and the pole `p - k`
 /// the same from `b` with `-h`: at degree 5, `f(a)`, `f(a) + h f'(a) / 5`
 /// and `f(a) + 2 h f'(a) / 5 + h² f''(a) / 20`.
-fn hermite_poles(start: &Breakpoint, end: &Breakpoint, order: usize) -> SpanPoles {
+pub(super) fn hermite_poles(start: &Breakpoint, end: &Breakpoint, order: usize) -> SpanPoles {
     let degree = degree(order);
     let h = end.parameter - start.parameter;
     let mut poles = [start.above.point; HIGHEST_DEGREE + 1];
@@ -601,7 +574,7 @@ fn hermite_poles(start: &Breakpoint, end: &Breakpoint, order: usize) -> SpanPole
 
 /// The Bézier curve of degree `degree` of `poles` at `s` in `[0, 1]`, by
 /// de Casteljau.
-fn bezier_point(poles: &SpanPoles, degree: usize, s: f64) -> Point {
+pub(super) fn bezier_point(poles: &SpanPoles, degree: usize, s: f64) -> Point {
     let mut points = *poles;
     for level in (1..=degree).rev() {
         for k in 0..level {
@@ -638,8 +611,8 @@ fn derivative_bound(
         ElementarySurface::Plane(_) => (0.0, 0.0),
         ElementarySurface::Cylinder(cylinder) => (cylinder.radius() * a.powi(exponent), 0.0),
         ElementarySurface::Cone(cone) => {
-            let sine = cone.semi_angle().sin();
-            let radius = |v: f64| (cone.ref_radius() + v * sine).abs();
+            let sine = cone.half_angle().sin();
+            let radius = |v: f64| (cone.reference_radius() + v * sine).abs();
             let largest_radius = radius(start.y).max(radius(end.y));
             (
                 largest_radius * a.powi(exponent)
@@ -710,7 +683,7 @@ fn proven_breakpoints<S, C>(
     composition: &Composition<'_, S, C>,
     (first, last): (f64, f64),
     span_count: usize,
-) -> Result<Vec<Breakpoint>, UvCurveApproximationError>
+) -> Result<Vec<Breakpoint>, UvCurveTo3DApproximationError>
 where
     S: ParametricSurface + ?Sized,
     C: ParametricCurve2D + ?Sized,
@@ -728,32 +701,120 @@ where
         .collect()
 }
 
+/// What sampled spans are built from: the breakpoints, with their jets,
+/// of the curve being approximated, and the deviation of a span between
+/// two of them. `uv_curve_to_3d_within` approximates `S∘c` in 3D, and
+/// `curve_3d_to_uv_within` the UV curve of a 3D curve, whose deviation it
+/// measures through the surface.
+pub(super) trait SpanSource {
+    /// The error a span or breakpoint can fail with.
+    type Error;
+
+    /// The order of the jets.
+    fn order(&self) -> usize;
+
+    /// The shortest span that may still be split.
+    fn shortest_span(&self) -> f64;
+
+    /// Each knot of the curve strictly between `first` and `last`, with
+    /// its continuity there; the spans start from them.
+    fn knots(&self, first: f64, last: f64) -> Vec<(f64, u32)>;
+
+    /// The breakpoint at `t`, where the curve is smooth.
+    fn breakpoint(&self, t: f64) -> Result<Breakpoint, Self::Error>;
+
+    /// The breakpoint at a knot where the curve is `C^continuity`.
+    fn knot_breakpoint(&self, t: f64, continuity: u32) -> Result<Breakpoint, Self::Error>;
+
+    /// The largest deviation of the span from `start` to `end`, sampled at
+    /// `SAMPLES_PER_SPAN` evenly spaced interior parameters.
+    fn span_deviation(&self, start: &Breakpoint, end: &Breakpoint) -> Result<f64, Self::Error>;
+
+    /// The error of a deviation not reached, having reached `reached`.
+    fn not_reached(reached: f64) -> Self::Error;
+}
+
+impl<S: ParametricSurface + ?Sized, C: ParametricCurve2D + ?Sized> SpanSource
+    for Composition<'_, S, C>
+{
+    type Error = UvCurveTo3DApproximationError;
+
+    fn order(&self) -> usize {
+        Composition::order(self)
+    }
+
+    fn shortest_span(&self) -> f64 {
+        self.tol.parametric
+    }
+
+    fn knots(&self, first: f64, last: f64) -> Vec<(f64, u32)> {
+        self.spline.map_or_else(Vec::new, |spline| {
+            knots_between(
+                spline.degree(),
+                spline.knots(),
+                spline.multiplicities(),
+                first,
+                last,
+            )
+        })
+    }
+
+    fn breakpoint(&self, t: f64) -> Result<Breakpoint, Self::Error> {
+        Composition::breakpoint(self, t)
+    }
+
+    fn knot_breakpoint(&self, t: f64, continuity: u32) -> Result<Breakpoint, Self::Error> {
+        Composition::knot_breakpoint(self, t, continuity)
+    }
+
+    /// The largest distance between the Hermite span and `f`.
+    fn span_deviation(&self, start: &Breakpoint, end: &Breakpoint) -> Result<f64, Self::Error> {
+        let order = Composition::order(self);
+        let poles = hermite_poles(start, end, order);
+        let h = end.parameter - start.parameter;
+        let mut deviation: f64 = 0.0;
+        for sample in 1..=SAMPLES_PER_SPAN {
+            let s = sample as f64 / (SAMPLES_PER_SPAN + 1) as f64;
+            let target = self.point(start.parameter + s * h)?;
+            deviation = deviation.max(bezier_point(&poles, degree(order), s).distance(target));
+        }
+        Ok(deviation)
+    }
+
+    fn not_reached(reached: f64) -> Self::Error {
+        UvCurveTo3DApproximationError::DeviationNotReached { reached }
+    }
+}
+
+/// Each knot of a spline of `degree` strictly between `first` and `last`,
+/// with the spline's continuity there.
+pub(super) fn knots_between(
+    degree: usize,
+    knots: &[f64],
+    multiplicities: &[u32],
+    first: f64,
+    last: f64,
+) -> Vec<(f64, u32)> {
+    knots
+        .iter()
+        .zip(multiplicities)
+        .filter(|&(&knot, _)| knot > first && knot < last)
+        .map(|(&knot, &multiplicity)| (knot, (degree as u32).saturating_sub(multiplicity)))
+        .collect()
+}
+
 /// The spans from the UV curve's knots, each sampled and split until
 /// within `budget / SAMPLING_MARGIN`, and their largest sampled deviation;
 /// refused past `span_limit` spans.
-fn sampled_spans<S, C>(
-    composition: &Composition<'_, S, C>,
+pub(super) fn sampled_spans<T: SpanSource>(
+    composition: &T,
     (first, last): (f64, f64),
     budget: f64,
     span_limit: usize,
-) -> Result<(Vec<Breakpoint>, f64), UvCurveApproximationError>
-where
-    S: ParametricSurface + ?Sized,
-    C: ParametricCurve2D + ?Sized,
-{
+) -> Result<(Vec<Breakpoint>, f64), T::Error> {
     let order = composition.order();
-    // Each interior knot of a spline UV curve, with the UV curve's
-    // continuity there.
-    let knots: Vec<(f64, u32)> = composition.spline.map_or_else(Vec::new, |spline| {
-        let degree = spline.degree() as u32;
-        spline
-            .knots()
-            .iter()
-            .zip(spline.multiplicities())
-            .filter(|&(&knot, _)| knot > first && knot < last)
-            .map(|(&knot, &multiplicity)| (knot, degree.saturating_sub(multiplicity)))
-            .collect()
-    });
+    // Each interior knot of the curve, with its continuity there.
+    let knots = composition.knots(first, last);
     let knot_parameters: Vec<f64> = knots.iter().map(|&(knot, _)| knot).collect();
     let pieces = MINIMUM_SAMPLED_SPAN_COUNT.div_ceil(knots.len() + 1);
     let mut breakpoints = vec![composition.breakpoint(first)?];
@@ -768,7 +829,7 @@ where
     }
     let mut deviations = breakpoints
         .windows(2)
-        .map(|pair| sampled_deviation(composition, &pair[0], &pair[1]))
+        .map(|pair| composition.span_deviation(&pair[0], &pair[1]))
         .collect::<Result<Vec<_>, _>>()?;
     let accepted = budget / SAMPLING_MARGIN;
     // The pieces a failing span asks for, as a real number: the Hermite
@@ -810,7 +871,7 @@ where
                 .map(|&(start, end, _)| end - start)
                 .sum::<usize>();
         if kept + runs.iter().map(|&(_, _, pieces)| pieces).sum::<usize>() > span_limit {
-            return Err(UvCurveApproximationError::DeviationNotReached { reached });
+            return Err(T::not_reached(reached));
         }
         let mut split_breakpoints = vec![breakpoints[0]];
         let mut split_deviations = Vec::with_capacity(2 * deviations.len());
@@ -824,9 +885,9 @@ where
             let spans = run_start..run_end;
             if spans.clone().any(|span| {
                 breakpoints[span + 1].parameter - breakpoints[span].parameter
-                    < composition.tol.parametric
+                    < composition.shortest_span()
             }) {
-                return Err(UvCurveApproximationError::DeviationNotReached { reached });
+                return Err(T::not_reached(reached));
             }
             // The new breakpoints spread the pieces asked evenly, each span
             // asking for its pieces evenly over its length.
@@ -854,7 +915,7 @@ where
                     let share = (target - asked_before) / asked[asked_span - run_start];
                     composition.breakpoint(low + share * (high - low))?
                 };
-                split_deviations.push(sampled_deviation(composition, &piece_start, &piece_end)?);
+                split_deviations.push(composition.span_deviation(&piece_start, &piece_end)?);
                 split_breakpoints.push(piece_end);
                 piece_start = piece_end;
             }
@@ -869,29 +930,6 @@ where
     }
     let deviation = deviations.iter().copied().fold(0.0, f64::max);
     Ok((breakpoints, deviation))
-}
-
-/// The largest distance between the Hermite span from `start` to `end` and
-/// `f`, at `SAMPLES_PER_SPAN` evenly spaced interior parameters.
-fn sampled_deviation<S, C>(
-    composition: &Composition<'_, S, C>,
-    start: &Breakpoint,
-    end: &Breakpoint,
-) -> Result<f64, UvCurveApproximationError>
-where
-    S: ParametricSurface + ?Sized,
-    C: ParametricCurve2D + ?Sized,
-{
-    let order = composition.order();
-    let poles = hermite_poles(start, end, order);
-    let h = end.parameter - start.parameter;
-    let mut deviation: f64 = 0.0;
-    for sample in 1..=SAMPLES_PER_SPAN {
-        let s = sample as f64 / (SAMPLES_PER_SPAN + 1) as f64;
-        let target = composition.point(start.parameter + s * h)?;
-        deviation = deviation.max(bezier_point(&poles, degree(order), s).distance(target));
-    }
-    Ok(deviation)
 }
 
 /// The spans between `breakpoints`, Hermite interpolants matching
@@ -911,25 +949,13 @@ where
 /// `k = α + β`. So that blossom is `Σₖ f⁽ᵏ⁾(t_i) e_k / (k! C(p, k))`; at
 /// degree 5 around a knot of multiplicity 3,
 /// `f + (h_r - h_l) f' / 5 - h_l h_r f'' / 20`.
-fn joined(
-    breakpoints: &[Breakpoint],
-    order: usize,
-    tol: Tolerance,
-) -> Result<BSplineCurve, UvCurveApproximationError> {
+pub(super) fn joined(breakpoints: &[Breakpoint], order: usize) -> BSplineCurve {
     let degree = degree(order);
     let span_count = breakpoints.len() - 1;
     let spans: Vec<SpanPoles> = breakpoints
         .windows(2)
         .map(|pair| hermite_poles(&pair[0], &pair[1], order))
         .collect();
-    let start = spans[0][0];
-    if spans
-        .iter()
-        .flat_map(|poles| &poles[..=degree])
-        .all(|pole| pole.distance(start) <= tol.confusion)
-    {
-        return Err(UvCurveApproximationError::Collapsed);
-    }
     let end_multiplicity = degree as u32 + 1;
     let multiplicities: Vec<u32> = (0..=span_count)
         .map(|k| match k {
@@ -984,8 +1010,6 @@ fn joined(
         })
         .collect();
     let knots = breakpoints.iter().map(|b| b.parameter).collect();
-    Ok(
-        BSplineCurve::new(degree, poles, knots, multiplicities, false)
-            .expect("the breakpoints increase and every pole is finite"),
-    )
+    BSplineCurve::new(degree, poles, knots, multiplicities, false)
+        .expect("the breakpoints increase and every pole is finite")
 }

@@ -18,5 +18,5 @@ pub use frame::{Axis, Axis2D, Frame, Frame2D, FrameConstructionError};
 pub use point::{Point, Point2D};
 pub use tier::TierPoint;
 pub use tolerance::Tolerance;
-pub use transform::{Transform, TransformError, Transformable};
+pub use transform::{Transform, TransformError, TransformMatrixError, Transformable};
 pub use vector::{Vector, Vector2D};

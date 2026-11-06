@@ -4,8 +4,7 @@ import math
 
 import pytest
 
-from geomcore import Frame2D, Point2D, Vector2D
-from geomcore.curves import Line2D, Parabola2D, TrimmedCurve2D
+from geomcore import Frame2D, Line2D, Parabola2D, Point2D, TrimmedCurve2D, Vector2D
 
 ORIGIN = Point2D.origin()
 X, Y = Vector2D.unit_x(), Vector2D.unit_y()
@@ -24,7 +23,7 @@ def test_construction_and_accessors():
     assert xy(p.apex()) == (0.0, 0.0)
     assert xy(p.frame().x_direction()) == (1.0, 0.0)
     assert xy(p.frame().y_direction()) == (0.0, 1.0)
-    assert p.focal() == 1.0
+    assert p.focal_distance() == 1.0
     assert p.bounds() == (-math.inf, math.inf)
     assert p.period() is None
     assert not p.is_periodic()
@@ -32,7 +31,7 @@ def test_construction_and_accessors():
 
     from_frame = Parabola2D.from_frame(Frame2D(Point2D(1.0, 2.0), X, Y), 2.5)
     assert xy(from_frame.apex()) == (1.0, 2.0)
-    assert from_frame.focal() == 2.5
+    assert from_frame.focal_distance() == 2.5
 
 
 def test_construction_validation():
@@ -51,24 +50,24 @@ def test_construction_validation():
 def test_evaluation_derivatives_and_parameter_inversion():
     p = parabola()
     for u in [0.0, 0.7, 2.3, -1.2]:
-        point = p.eval_point(u)
+        point = p.point_at(u)
         assert xy(point) == pytest.approx((u * u / 4.0, u))
-        assert xy(p.eval_derivative(u, 1)) == pytest.approx((u / 2.0, 1.0))
-        assert xy(p.eval_derivative(u, 2)) == pytest.approx((0.5, 0.0))
-        assert xy(p.eval_derivative(u, 3)) == (0.0, 0.0)
-        d1, v1 = p.eval_d1(u)
+        assert xy(p.derivative(u, 1)) == pytest.approx((u / 2.0, 1.0))
+        assert xy(p.derivative(u, 2)) == pytest.approx((0.5, 0.0))
+        assert xy(p.derivative(u, 3)) == (0.0, 0.0)
+        d1, v1 = p.first_derivatives(u)
         assert xy(d1) == xy(point)
-        assert xy(v1) == xy(p.eval_derivative(u, 1))
-        d2, v2, a2 = p.eval_d2(u)
+        assert xy(v1) == xy(p.derivative(u, 1))
+        d2, v2, a2 = p.second_derivatives(u)
         assert xy(d2) == xy(point)
         assert xy(v2) == xy(v1)
-        assert xy(a2) == xy(p.eval_derivative(u, 2))
+        assert xy(a2) == xy(p.derivative(u, 2))
         assert p.parameter_of(point) == pytest.approx(u)
-    points = p.eval_points([0.0, 2.0])
+    points = p.points_at([0.0, 2.0])
     assert xy(points[0]) == (0.0, 0.0)
     assert xy(points[1]) == pytest.approx((1.0, 2.0))
     with pytest.raises(ValueError):
-        p.eval_derivative(0.0, 0)
+        p.derivative(0.0, 0)
 
 
 def test_contains_and_projection():
@@ -120,8 +119,8 @@ def test_trimmed_curve():
     assert isinstance(arc.basis(), Parabola2D)
 
     box = arc.bounding_box()
-    assert xy(box.min()) == pytest.approx((0.0, -2.0))
-    assert xy(box.max()) == pytest.approx((1.0, 2.0))
+    assert xy(box.min_corner()) == pytest.approx((0.0, -2.0))
+    assert xy(box.max_corner()) == pytest.approx((1.0, 2.0))
 
     criteria = (1e-3, 0.2)
     d = arc.discretize(*criteria)
@@ -134,4 +133,4 @@ def test_intersect_and_repr():
     p = parabola()
     hits = p.intersect(Line2D(Point2D(1.0, 0.0), Y))
     assert sorted(hit.point.y for hit in hits.hits) == pytest.approx([-2.0, 2.0])
-    assert repr(p) == "Parabola2D(apex=(0.0, 0.0), x_direction=(1.0, 0.0), focal=1.0)"
+    assert repr(p) == "Parabola2D(apex=(0.0, 0.0), x_direction=(1.0, 0.0), focal_distance=1.0)"

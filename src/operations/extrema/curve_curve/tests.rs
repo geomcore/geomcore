@@ -35,10 +35,10 @@ fn arc(center: Point, radius: f64, lo: f64, hi: f64) -> crate::TrimmedCurve<crat
 fn grid_min<A: ParametricCurve, B: ParametricCurve>(a: &A, b: &B, n: usize) -> f64 {
     let ((a0, a1), (b0, b1)) = (a.bounds(), b.bounds());
     let at = |lo: f64, hi: f64, i: usize| lo + (hi - lo) * i as f64 / (n - 1) as f64;
-    let pb: Vec<Point> = (0..n).map(|j| b.eval_point(at(b0, b1, j))).collect();
+    let pb: Vec<Point> = (0..n).map(|j| b.point_at(at(b0, b1, j))).collect();
     (0..n)
         .flat_map(|i| {
-            let p = a.eval_point(at(a0, a1, i));
+            let p = a.point_at(at(a0, a1, i));
             pb.iter().map(move |q| p.distance(*q))
         })
         .fold(f64::INFINITY, f64::min)
@@ -58,7 +58,7 @@ fn assert_local_minima<A: ParametricCurve, B: ParametricCurve>(
                 let h = 1e-4 * sign;
                 let s = (e.first_parameter + h * ds).clamp(a0, a1);
                 let t = (e.second_parameter + h * dt).clamp(b0, b1);
-                let d = a.eval_point(s).distance(b.eval_point(t));
+                let d = a.point_at(s).distance(b.point_at(t));
                 assert!(
                     d >= e.distance - 1e-12,
                     "{e:?} is not a minimum: {d} at ({s}, {t})"
@@ -147,7 +147,7 @@ fn test_curve_curve_extrema_parallel_lines() {
     assert!((ext[0].distance - 106f64.sqrt()).abs() < 1e-12);
     assert_eq!(ext[0].first_parameter, 0.0);
     // The representative's foot: (3, 9, 5) on the second line.
-    let foot = b.eval_point(ext[0].second_parameter);
+    let foot = b.point_at(ext[0].second_parameter);
     assert!(foot.distance(Point::new(3.0, 9.0, 5.0)) < 1e-12);
     match a.intersect_exact(&b, tol) {
         LineLineIntersection::Parallel(d) => assert!((ext[0].distance - d).abs() < 1e-12),
@@ -217,11 +217,11 @@ fn test_curve_curve_extrema_parabola_far_circle() {
     let parabola = Parabola::new(Point::ORIGIN, Vector::Z, Vector::X, 1.0).unwrap();
     let u = 60.0;
     let normal = parabola
-        .eval_derivative(u, 1)
+        .derivative(u, 1)
         .cross(Vector::Z)
         .normalized()
         .unwrap();
-    let center = parabola.eval_point(u) + normal * 5.0;
+    let center = parabola.point_at(u) + normal * 5.0;
     let circle = Circle::new(center, Vector::Z, 1.0).unwrap();
     let ext = curve_curve_extrema(&parabola, &circle, tol);
     assert!((ext[0].distance - 4.0).abs() < 1e-9, "{ext:?}");
@@ -296,8 +296,8 @@ fn test_every_minimum_carries_its_two_points() {
         assert!(!found.is_empty());
         assert_eq!(found.closest(), found.first());
         for m in found.iter() {
-            assert_eq!(m.first_point, a.eval_point(m.first_parameter));
-            assert_eq!(m.second_point, b.eval_point(m.second_parameter));
+            assert_eq!(m.first_point, a.point_at(m.first_parameter));
+            assert_eq!(m.second_point, b.point_at(m.second_parameter));
             assert_eq!(m.distance, m.first_point.distance(m.second_point));
         }
     }

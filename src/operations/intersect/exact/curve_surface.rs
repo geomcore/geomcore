@@ -139,7 +139,7 @@ impl IntersectExact<Plane> for Line {
     /// }
     /// ```
     fn intersect_exact(&self, plane: &Plane, tol: Tolerance) -> LinePlaneIntersection {
-        let n = plane.normal();
+        let n = plane.normal_direction();
         let b = n.dot(self.direction());
         let c = n.dot(self.origin() - plane.frame().origin());
         if b.abs() <= tol.angular {
@@ -150,7 +150,7 @@ impl IntersectExact<Plane> for Line {
             }
         } else {
             let t = -c / b;
-            LinePlaneIntersection::Point(t, self.eval_point(t))
+            LinePlaneIntersection::Point(t, self.point_at(t))
         }
     }
 }
@@ -188,17 +188,16 @@ impl IntersectExact<Sphere> for Line {
     fn intersect_exact(&self, sphere: &Sphere, tol: Tolerance) -> LineQuadricIntersection {
         let d = self.direction();
         let t0 = -d.dot(self.origin() - sphere.center());
-        let w = self.eval_point(t0) - sphere.center();
+        let w = self.point_at(t0) - sphere.center();
         // A is exactly 1: the direction is unit by construction.
         let qb = 2.0 * d.dot(w);
         let sol = solve_quadratic(1.0, qb, w.dot(w) - sphere.radius().powi(2), tol)
-            .touching_at(-0.5 * qb, |s| sphere.contains(self.eval_point(t0 + s), tol));
+            .touching_at(-0.5 * qb, |s| sphere.contains(self.point_at(t0 + s), tol));
         match sol.shifted(t0) {
-            QuadraticSolution::Two(t1, t2) => LineQuadricIntersection::TwoPoints(
-                (t1, self.eval_point(t1)),
-                (t2, self.eval_point(t2)),
-            ),
-            QuadraticSolution::One(t) => LineQuadricIntersection::Tangent(t, self.eval_point(t)),
+            QuadraticSolution::Two(t1, t2) => {
+                LineQuadricIntersection::TwoPoints((t1, self.point_at(t1)), (t2, self.point_at(t2)))
+            }
+            QuadraticSolution::One(t) => LineQuadricIntersection::Tangent(t, self.point_at(t)),
             QuadraticSolution::Empty => LineQuadricIntersection::Empty,
             QuadraticSolution::Linear(_) | QuadraticSolution::Degenerate => {
                 unreachable!("unit direction gives a leading coefficient of 1")
@@ -245,7 +244,7 @@ impl IntersectExact<Cylinder> for Line {
         };
         // Coefficients about the line point at parameter t0.
         let coeffs = |t0: f64| {
-            let w = self.eval_point(t0) - cylinder.axis().origin();
+            let w = self.point_at(t0) - cylinder.axis().origin();
             let wa = w.dot(a);
             (
                 2.0 * (d.dot(w) - da * wa),
@@ -257,17 +256,14 @@ impl IntersectExact<Cylinder> for Line {
         let t0 = quadratic_centre(qa, coeffs(0.0).0, tol);
         let (qb, qc) = coeffs(t0);
         let sol = solve_quadratic(qa, qb, qc, tol).touching_at(-qb / (2.0 * qa), |s| {
-            cylinder.contains(self.eval_point(t0 + s), tol)
+            cylinder.contains(self.point_at(t0 + s), tol)
         });
         match sol.shifted(t0) {
-            QuadraticSolution::Two(t1, t2) => LineQuadricIntersection::TwoPoints(
-                (t1, self.eval_point(t1)),
-                (t2, self.eval_point(t2)),
-            ),
-            QuadraticSolution::One(t) => LineQuadricIntersection::Tangent(t, self.eval_point(t)),
-            QuadraticSolution::Linear(t) => {
-                LineQuadricIntersection::OnePoint(t, self.eval_point(t))
+            QuadraticSolution::Two(t1, t2) => {
+                LineQuadricIntersection::TwoPoints((t1, self.point_at(t1)), (t2, self.point_at(t2)))
             }
+            QuadraticSolution::One(t) => LineQuadricIntersection::Tangent(t, self.point_at(t)),
+            QuadraticSolution::Linear(t) => LineQuadricIntersection::OnePoint(t, self.point_at(t)),
             QuadraticSolution::Empty => LineQuadricIntersection::Empty,
             QuadraticSolution::Degenerate => {
                 if cylinder.contains(self.origin(), tol) {
@@ -309,12 +305,12 @@ impl IntersectExact<Cone> for Line {
     fn intersect_exact(&self, cone: &Cone, tol: Tolerance) -> LineQuadricIntersection {
         let d = self.direction();
         let a = cone.frame().z_direction();
-        let cos_phi = cone.semi_angle().cos();
+        let cos_phi = cone.half_angle().cos();
         let da = d.dot(a);
         let qa = da * da - cos_phi * cos_phi;
         // Coefficients about the line point at parameter t0.
         let coeffs = |t0: f64| {
-            let m = self.eval_point(t0) - cone.apex();
+            let m = self.point_at(t0) - cone.apex();
             let ma = m.dot(a);
             (
                 2.0 * (da * ma - cos_phi * cos_phi * d.dot(m)),
@@ -324,18 +320,16 @@ impl IntersectExact<Cone> for Line {
         // Centred at the midpoint of the two roots.
         let t0 = quadratic_centre(qa, coeffs(0.0).0, tol);
         let (qb, qc) = coeffs(t0);
-        let hit = |t: f64| (t, self.eval_point(t));
+        let hit = |t: f64| (t, self.point_at(t));
         // Tangent when the vertex of the quadratic lies within tolerance
         // of the cone.
         let sol = solve_quadratic(qa, qb, qc, tol).touching_at(-qb / (2.0 * qa), |s| {
-            cone.contains(self.eval_point(t0 + s), tol)
+            cone.contains(self.point_at(t0 + s), tol)
         });
         match sol.shifted(t0) {
             QuadraticSolution::Two(t1, t2) => LineQuadricIntersection::TwoPoints(hit(t1), hit(t2)),
-            QuadraticSolution::One(t) => LineQuadricIntersection::Tangent(t, self.eval_point(t)),
-            QuadraticSolution::Linear(t) => {
-                LineQuadricIntersection::OnePoint(t, self.eval_point(t))
-            }
+            QuadraticSolution::One(t) => LineQuadricIntersection::Tangent(t, self.point_at(t)),
+            QuadraticSolution::Linear(t) => LineQuadricIntersection::OnePoint(t, self.point_at(t)),
             QuadraticSolution::Empty => LineQuadricIntersection::Empty,
             QuadraticSolution::Degenerate => {
                 if cone.contains(self.origin(), tol) {
@@ -396,7 +390,7 @@ impl IntersectExact<Torus> for Line {
         let (major, minor) = (torus.major_radius(), torus.minor_radius());
         let d = self.direction();
         let t0 = -d.dot(self.origin() - torus.center());
-        let w = self.eval_point(t0) - torus.center();
+        let w = self.point_at(t0) - torus.center();
         let wd = w.dot(d);
         let (da, wa) = (d.dot(a), w.dot(a));
         let b1 = 2.0 * wd;
@@ -412,12 +406,12 @@ impl IntersectExact<Torus> for Line {
             2.0 * b1,
             1.0,
         ];
-        let touches = |s: f64| torus.contains(self.eval_point(t0 + s), tol);
+        let touches = |s: f64| torus.contains(self.point_at(t0 + s), tol);
         let mut hits: Vec<LineTorusHit> = roots_with_tangency(&coeffs, tol, touches)
             .iter()
             .filter_map(|r| {
                 let t = t0 + r.value;
-                let p = self.eval_point(t);
+                let p = self.point_at(t);
                 if torus.contains(p, tol) {
                     Some(LineTorusHit {
                         line_parameter: t,

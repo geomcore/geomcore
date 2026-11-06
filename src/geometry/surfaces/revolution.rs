@@ -71,7 +71,7 @@ impl std::error::Error for RevolutionSurfaceConstructionError {}
 /// let line = Line::new(Point::new(1.0, 0.0, 0.0), Vector::new(1.0, 0.0, 1.0)).unwrap();
 /// let axis = Axis::new(Point::ORIGIN, Vector::Z).unwrap();
 /// let cone = RevolutionSurface::new(line.into(), axis).unwrap();
-/// let p = cone.eval_point(std::f64::consts::FRAC_PI_2, 0.0);
+/// let p = cone.point_at(std::f64::consts::FRAC_PI_2, 0.0);
 /// assert!(p.distance(Point::new(0.0, 1.0, 0.0)) < 1e-15);
 /// ```
 #[derive(Debug, Clone, PartialEq)]
@@ -157,7 +157,7 @@ impl RevolutionSurface {
     }
 
     /// The `u` isoparametric curve at `u`: the profile turned by `u` about
-    /// the axis, so `u_iso(u).eval_point(t)` is `eval_point(u, t)` for
+    /// the axis, so `u_iso(u).point_at(t)` is `point_at(u, t)` for
     /// every `t`.
     /// The axis-aligned special case of
     /// [`uv_curve_to_3d`](crate::ParametricSurface::uv_curve_to_3d):
@@ -175,7 +175,7 @@ impl RevolutionSurface {
     /// let line = Line::new(Point::new(1.0, 0.0, 0.0), Vector::Z).unwrap();
     /// let surface = RevolutionSurface::new(line.into(), axis).unwrap();
     /// let iso = surface.u_iso(std::f64::consts::PI).unwrap();
-    /// assert!(iso.eval_point(2.0).distance(Point::new(-1.0, 0.0, 2.0)) < 1e-15);
+    /// assert!(iso.point_at(2.0).distance(Point::new(-1.0, 0.0, 2.0)) < 1e-15);
     /// ```
     pub fn u_iso(&self, u: f64) -> Result<Curve, SurfaceIsoError> {
         if !u.is_finite() {
@@ -187,8 +187,8 @@ impl RevolutionSurface {
     }
 
     /// The `v` isoparametric circle at `v`: the circle the profile point
-    /// at `v` turns along, so `v_iso(v).eval_point(t)` is
-    /// `eval_point(t, v)` for every `t`. A profile point on the axis
+    /// at `v` turns along, so `v_iso(v).point_at(t)` is
+    /// `point_at(t, v)` for every `t`. A profile point on the axis
     /// turns along a circle of zero radius.
     /// The axis-aligned special case of
     /// [`uv_curve_to_3d`](crate::ParametricSurface::uv_curve_to_3d):
@@ -211,7 +211,7 @@ impl RevolutionSurface {
     /// ```
     pub fn v_iso(&self, v: f64) -> Result<Circle, SurfaceIsoError> {
         let v = check_profile_parameter(&self.profile, v)?;
-        let (height, radial) = self.split(self.profile.eval_point(v));
+        let (height, radial) = self.split(self.profile.point_at(v));
         let direction = self.axis.direction();
         let center = self.axis.origin() + height * direction;
         let radius = radial.magnitude();
@@ -300,7 +300,7 @@ impl RevolutionSurface {
         let radius = radial.magnitude();
         let profile = &self.profile;
         let squared_distance = |t: f64| {
-            let (h, w) = self.split(profile.eval_point(wrap_profile_parameter(profile, t)));
+            let (h, w) = self.split(profile.point_at(wrap_profile_parameter(profile, t)));
             (w.magnitude() - radius).powi(2) + (h - height).powi(2)
         };
         let (first, last, samples) = self.search_window(point, squared_distance(0.0).sqrt());
@@ -341,7 +341,7 @@ impl RevolutionSurface {
             20,
         );
         let t = wrap_profile_parameter(profile, t);
-        let (_, profile_radial) = self.split(profile.eval_point(t));
+        let (_, profile_radial) = self.split(profile.point_at(t));
         (self.angle(profile_radial, radial), t)
     }
 
@@ -352,7 +352,7 @@ impl RevolutionSurface {
     fn meridian_distance(&self, t: f64, radius: f64, height: f64) -> (f64, f64, f64) {
         let a = self.axis.direction();
         let t = wrap_profile_parameter(&self.profile, t);
-        let (point, first, second) = self.profile.eval_d2(t);
+        let (point, first, second) = self.profile.second_derivatives(t);
         let (h, w) = self.split(point);
         let (h1, h2) = (first.dot(a), second.dot(a));
         let (w1, w2) = (first - h1 * a, second - h2 * a);
@@ -444,7 +444,9 @@ impl Meridian {
                         c.major_radius(),
                         c.major_radius() == c.minor_radius(),
                     ),
-                    Curve::Parabola(c) => (c.frame(), c.frame().origin(), c.focal(), false),
+                    Curve::Parabola(c) => {
+                        (c.frame(), c.frame().origin(), c.focal_distance(), false)
+                    }
                     Curve::Hyperbola(c) => (c.frame(), c.center(), c.major_radius(), false),
                     _ => unreachable!("the conics are matched above"),
                 };
@@ -504,25 +506,25 @@ impl Meridian {
 
 impl ParametricSurface for RevolutionSurface {
     #[inline]
-    fn eval_point(&self, u: f64, v: f64) -> Point {
+    fn point_at(&self, u: f64, v: f64) -> Point {
         let origin = self.axis.origin();
-        origin + self.rotate(self.profile.eval_point(v) - origin, u)
+        origin + self.rotate(self.profile.point_at(v) - origin, u)
     }
 
-    fn eval_derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> Vector {
+    fn derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> Vector {
         match (du, dv) {
-            (0, 0) => panic!(
-                "eval_derivative: du + dv must be >= 1 (use eval_point for the (0, 0) order)"
-            ),
+            (0, 0) => {
+                panic!("derivative: du + dv must be >= 1 (use point_at for the (0, 0) order)")
+            }
             (1, 0) | (2, 0) => {
-                let offset = self.profile.eval_point(v) - self.axis.origin();
+                let offset = self.profile.point_at(v) - self.axis.origin();
                 self.rotate_derivative(offset, u, du)
             }
-            (0, 1) | (0, 2) => self.rotate(self.profile.eval_derivative(v, dv), u),
-            (1, 1) => self.rotate_derivative(self.profile.eval_derivative(v, 1), u, 1),
-            _ => panic!(
-                "eval_derivative: order du={du}, dv={dv} is not supported (du + dv must be <= 2)"
-            ),
+            (0, 1) | (0, 2) => self.rotate(self.profile.derivative(v, dv), u),
+            (1, 1) => self.rotate_derivative(self.profile.derivative(v, 1), u, 1),
+            _ => {
+                panic!("derivative: order du={du}, dv={dv} is not supported (du + dv must be <= 2)")
+            }
         }
     }
 
@@ -562,7 +564,7 @@ impl ParametricSurface for RevolutionSurface {
             Meridian::Planar { reference } => self.planar_parameters(point, reference, tol),
             Meridian::Skew => self.skew_parameters(point),
         };
-        let foot = self.eval_point(u, v);
+        let foot = self.point_at(u, v);
         SurfaceProjection {
             u,
             v,
@@ -590,8 +592,8 @@ impl ParametricSurface for RevolutionSurface {
 
 impl ReversibleSurface for RevolutionSurface {
     /// Returns the surface turning the other way: the same point set with
-    /// the axis direction negated, so `reversed_u().eval_point(u, v)` is
-    /// `eval_point(-u, v)` and the normal is reversed.
+    /// the axis direction negated, so `reversed_u().point_at(u, v)` is
+    /// `point_at(-u, v)` and the normal is reversed.
     fn reversed_u(&self) -> RevolutionSurface {
         let axis = Axis::new(self.axis.origin(), -self.axis.direction())
             .expect("a reversed axis is a valid axis");

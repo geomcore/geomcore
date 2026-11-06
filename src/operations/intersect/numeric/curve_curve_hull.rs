@@ -17,7 +17,7 @@ use crate::operations::intersect::numeric::subdivision::{
     Node, OnceExhausted, PairTests, Subdivision, Visit, interval,
 };
 use crate::operations::intersect::results::completeness::box_union;
-use crate::operations::intersect::results::sort_by_known_parameter;
+use crate::operations::intersect::results::sort_by_parameter;
 use crate::operations::intersect::{Completeness, CurveCurveHit, CurveCurveRegion};
 use crate::{Point, Tolerance};
 use std::ops::Deref;
@@ -66,7 +66,7 @@ impl CurveCurveHits {
                 self.hits.push(hit);
             }
         }
-        sort_by_known_parameter(&mut self.hits, |hit| hit.first_parameter);
+        sort_by_parameter(&mut self.hits, |hit| hit.first_parameter);
     }
 
     /// The hits, ordered by first-curve parameter, without the
@@ -262,8 +262,8 @@ fn meeting(
     let [(s0, s1), (t0, t1)] = ranges;
     let x = closest_pair(a, b, [0.5 * (s0 + s1), 0.5 * (t0 + t1)])?;
     let (s, t) = (ra.admit(x[0])?, rb.admit(x[1])?);
-    let point = a.eval_point(s);
-    let hit = CurveCurveExtremum::new(s, point, t, b.eval_point(t));
+    let point = a.point_at(s);
+    let hit = CurveCurveExtremum::new(s, point, t, b.point_at(t));
     if hit.distance > tol.confusion {
         return None;
     }
@@ -319,8 +319,8 @@ pub(crate) fn along_one_line(a: &[[f64; 3]], b: &[[f64; 3]], gap: f64) -> Option
 /// `None` when the tangents are parallel or the steps do not settle.
 fn closest_pair(a: &BSplineCurve, b: &BSplineCurve, mut x: [f64; 2]) -> Option<[f64; 2]> {
     let eval = |x: [f64; 2]| {
-        let (p, dp) = a.eval_d1(x[0]);
-        let (q, dq) = b.eval_d1(x[1]);
+        let (p, dp) = a.first_derivatives(x[0]);
+        let (q, dq) = b.first_derivatives(x[1]);
         (p - q, dp, dq)
     };
     let (mut f, mut da, mut db) = eval(x);

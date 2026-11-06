@@ -5,6 +5,10 @@ import math
 import pytest
 
 from geomcore import (
+    BSplineCurve,
+    BSplineSurface,
+    Circle,
+    Circle2D,
     Completeness,
     CompletenessStatus,
     CurveCurveExtrema,
@@ -16,27 +20,23 @@ from geomcore import (
     CurveSurfaceHit,
     CurveSurfaceIntersection,
     CurveSurfaceRegion,
+    Cylinder,
     Frame,
     IncompleteReason,
     IntersectionCurve,
     IntersectionMethod,
-    Point2D,
-    Point,
-    SurfaceSurfaceIntersection,
-    Vector2D,
-    Vector,
-    curve_curve_extrema,
-)
-from geomcore.curves import (
-    BSplineCurve,
-    Circle2D,
-    Circle,
-    Line2D,
     Line,
-    TrimmedCurve2D,
+    Line2D,
+    Plane,
+    Point,
+    Point2D,
+    Sphere,
+    SurfaceSurfaceIntersection,
     TrimmedCurve,
+    TrimmedCurve2D,
+    Vector,
+    Vector2D,
 )
-from geomcore.surfaces import BSplineSurface, Cylinder, Plane, Sphere
 
 TAU = 2.0 * math.pi
 
@@ -98,7 +98,7 @@ def test_bspline_surfaces_march_and_are_sampled():
     piece = result.curves[0]
     assert isinstance(piece, IntersectionCurve)
     assert piece.tangent is False
-    assert piece.curve.eval_point(sum(piece.curve.bounds()) / 2).x == pytest.approx(1.0)
+    assert piece.curve.point_at(sum(piece.curve.bounds()) / 2).x == pytest.approx(1.0)
 
 
 # ------------------------------------------------------------ completeness
@@ -187,7 +187,7 @@ def test_trimmed_arc_across_the_seam_keeps_both_hits():
     assert len(result.hits) == 2
     for hit in result.hits:
         assert hit.point.x == pytest.approx(0.5)
-    parameters = [hit.curve_parameter for hit in result.hits if hit.curve_parameter is not None]
+    parameters = [hit.curve_parameter for hit in result.hits]
     for t in parameters:
         assert 1.5 * math.pi <= t <= 2.5 * math.pi
     # Half the circle is outside the arc: a plane there misses it.
@@ -216,7 +216,7 @@ def test_curve_lying_on_a_surface_is_an_overlap():
     equator = Circle(Point.origin(), Vector.unit_z(), 2.0)
     result = equator.intersect(sphere)
     assert result.hits == []
-    assert result.overlaps == [pytest.approx((0.0, TAU))]
+    assert [overlap.curve_range for overlap in result.overlaps] == [pytest.approx((0.0, TAU))]
     assert not result.is_empty()
 
 
@@ -318,7 +318,7 @@ def test_curve_curve_extrema_is_an_object():
         False,
     )
     rail = _segment(Point(1.0, 0.0, 1.0), Point(1.0, 2.0, 1.0))
-    extrema = curve_curve_extrema(arch, rail)
+    extrema = arch.extrema(rail)
     assert isinstance(extrema, CurveCurveExtrema)
     assert extrema.first is arch and extrema.second is rail
     assert extrema.is_complete()
@@ -327,7 +327,7 @@ def test_curve_curve_extrema_is_an_object():
     assert minimum.distance == pytest.approx(1.0)
     assert minimum.first_parameter == pytest.approx(0.5)
     assert 0.0 <= minimum.second_parameter <= 1.0
-    assert curve_curve_extrema(first=arch, second=rail) == extrema
+    assert arch.extrema(other=rail) == extrema
 
 
 def test_an_extremum_gives_its_two_points_and_the_closest_comes_first():
@@ -340,16 +340,16 @@ def test_an_extremum_gives_its_two_points_and_the_closest_comes_first():
         False,
     )
     rail = _segment(Point(1.0, 0.0, 1.0), Point(1.0, 2.0, 1.0))
-    closest = curve_curve_extrema(arch, rail).closest()
+    closest = arch.extrema(rail).closest()
     assert closest.first_point.distance(Point(1.0, 1.0, 0.0)) < 1e-9
     assert closest.second_point.distance(Point(1.0, 1.0, 1.0)) < 1e-9
-    assert closest.first_point == arch.eval_point(closest.first_parameter)
-    assert closest.second_point == rail.eval_point(closest.second_parameter)
+    assert closest.first_point == arch.point_at(closest.first_parameter)
+    assert closest.second_point == rail.point_at(closest.second_parameter)
     assert closest.distance == closest.first_point.distance(closest.second_point)
     assert "first_point=Point(" in repr(closest)
     left = TrimmedCurve(Circle(Point.origin(), Vector.unit_z(), 1.0), 0.2, 2.0)
     right = TrimmedCurve(Circle(Point(3.0, 0.0, 0.0), Vector.unit_z(), 1.0), 2.0, 4.0)
-    extrema = curve_curve_extrema(left, right)
+    extrema = left.extrema(right)
     assert extrema.closest() == extrema.minima[0]
     assert [m.distance for m in extrema.minima] == sorted(m.distance for m in extrema.minima)
 
@@ -406,7 +406,6 @@ def test_swapped_numeric_curve_curve_order_swaps_both_parameters():
     assert forward.method == backward.method == IntersectionMethod.NUMERIC
     assert len(forward.hits) == len(backward.hits) == 2
     for hit in forward.hits:
-        assert hit.first_parameter is not None and hit.second_parameter is not None
         match = [h for h in backward.hits if h.point.distance(hit.point) < 1e-9]
         assert len(match) == 1
         assert match[0].first_parameter == pytest.approx(hit.second_parameter)
@@ -474,16 +473,64 @@ def test_empty_results_are_falsy():
 def test_extrema_length_is_the_number_of_minima():
     a = _segment(Point.origin(), Point(1.0, 0.0, 0.0))
     b = _segment(Point(0.0, 1.0, 0.0), Point(1.0, 2.0, 0.0))
-    extrema = curve_curve_extrema(a, b)
+    extrema = a.extrema(b)
     assert len(extrema) == len(extrema.minima) >= 1
     assert extrema
+
+
+def test_results_are_sequences_of_their_primary_items():
+    # #191: callers wrote `result.hits` and `[h.point for h in result.hits]`.
+    sphere = Sphere(Point.origin(), 2.0)
+    line = Line(Point(-5.0, 0.0, 0.0), Vector.unit_x())
+    hits = line.intersect(sphere)
+    assert len(hits) == 2
+    assert list(hits) == hits.hits
+    assert hits[0] == hits.hits[0] and hits[-1] == hits.hits[1]
+    assert hits[:1] == hits.hits[:1]
+    assert hits.points == [h.point for h in hits.hits]
+    assert hits.points[0].distance(Point(-2.0, 0.0, 0.0)) < 1e-9
+    with pytest.raises(IndexError):
+        hits[2]
+    circles = Circle(Point.origin(), Vector.unit_z(), 1.0).intersect(
+        Line(Point(0.0, 0.0, 0.0), Vector.unit_x())
+    )
+    assert [h.point for h in circles] == circles.points
+    planar = Circle2D(Point2D(0.0, 0.0), 1.0).intersect(Line2D(Point2D(0.0, 0.0), Vector2D(1.0, 0.0)))
+    assert len(planar) == 2 and list(planar) == planar.hits
+    assert planar.points == [h.point for h in planar.hits]
+    section = sphere.intersect(Plane(Point.origin(), Vector.unit_z()))
+    assert len(section) == 1 and list(section) == section.curves
+    assert section[0] == section.curves[0]
+
+
+def test_a_result_with_only_an_overlap_or_a_contact_is_true_and_empty_to_iterate():
+    sphere = Sphere(Point.origin(), 2.0)
+    equator = Circle(Point.origin(), Vector.unit_z(), 2.0).intersect(sphere)
+    assert equator and len(equator) == 0 and equator.points == []
+    touching = Plane(Point(0.0, 0.0, 2.0), Vector.unit_z()).intersect(sphere)
+    assert touching and len(touching) == 0
+
+
+def test_extrema_and_discretizations_are_sequences():
+    a = _segment(Point.origin(), Point(1.0, 0.0, 0.0))
+    b = _segment(Point(0.0, 1.0, 0.0), Point(1.0, 2.0, 0.0))
+    extrema = a.extrema(b)
+    assert list(extrema) == extrema.minima
+    assert extrema[0] == extrema.minima[0]
+    discretization = a.discretize(0.1)
+    assert len(discretization) == len(discretization.points)
+    assert list(discretization) == discretization.points
+    assert discretization[-1] == Point(1.0, 0.0, 0.0)
+    planar = Circle2D(Point2D(0.0, 0.0), 1.0)
+    pieces = TrimmedCurve2D(planar, 0.0, 1.0).discretize(0.01)
+    assert list(pieces) == pieces.points and pieces[1:3] == pieces.points[1:3]
 
 
 def test_curves_and_surfaces_have_deterministic_reprs():
     circle = Circle(Point(1.0, 0.0, 0.0), Vector.unit_z(), 2.5)
     assert repr(circle) == "Circle(center=(1.0, 0.0, 0.0), normal=(0.0, 0.0, 1.0), radius=2.5)"
     assert repr(Sphere(Point.origin(), 3.0)) == "Sphere(center=(0.0, 0.0, 0.0), radius=3.0)"
-    assert repr(Plane(Point.origin(), Vector.unit_z())) == "Plane(origin=(0.0, 0.0, 0.0), normal=(0.0, 0.0, 1.0))"
+    assert repr(Plane(Point.origin(), Vector.unit_z())) == "Plane(point=(0.0, 0.0, 0.0), normal=(0.0, 0.0, 1.0))"
     result = Plane(Point.origin(), Vector.unit_z()).intersect(Sphere(Point.origin(), 3.0))
     assert "Circle(center=(0.0, 0.0, 0.0), normal=(0.0, 0.0, 1.0), radius=3.0)" in repr(result)
     assert " at 0x" not in repr(result)
@@ -499,7 +546,7 @@ def test_numeric_curve_lying_on_a_surface_is_an_overlap():
     result = segment.intersect(_square())
     assert result.method == IntersectionMethod.NUMERIC
     assert result.hits == []
-    assert result.overlaps == [(0.0, 1.0)]
+    assert [overlap.curve_range for overlap in result.overlaps] == [(0.0, 1.0)]
     assert result.completeness.status == CompletenessStatus.INCOMPLETE
     assert result.completeness.reason == IncompleteReason.UNSEPARATED
 

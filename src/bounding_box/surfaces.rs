@@ -1,14 +1,19 @@
 //! Boxes of surfaces: closed form for spheres and tori, control points for
 //! B-splines, the profile's box turned about the axis for revolution
 //! surfaces; planes, cylinders, cones and extrusion surfaces are unbounded.
+//! The tight boxes of B-splines and revolution surfaces come from branch
+//! and bound over Bézier pieces (`tight.rs`).
 
+use super::tight::Nets;
 use super::{BoundingBox, HasBoundingBox, coordinates, point};
-use crate::Point;
+use crate::geometry::curves::{ParametricCurve, RangeOperations};
+use crate::geometry::surfaces::ParametricSurface;
 use crate::geometry::surfaces::{
     BSplineSurface, BezierSurface, Cone, Cylinder, ElementarySurface, ExtrusionSurface, Plane,
     RevolutionSurface, Sphere, Surface, Torus,
 };
 use crate::geometry::surfaces::{elementary_surface_dispatch, surface_dispatch};
+use crate::{Point, Tolerance};
 
 /// The box `center ± half` on each axis.
 fn centered(center: Point, half: [f64; 3]) -> BoundingBox {
@@ -64,11 +69,21 @@ impl HasBoundingBox for BSplineSurface {
     fn bounding_box(&self) -> Option<BoundingBox> {
         BoundingBox::from_points(self.poles().iter().copied())
     }
+
+    /// The extremes of each coordinate over the knot-span patches, by
+    /// branch and bound.
+    fn tight_bounding_box(&self, tol: Tolerance) -> Option<BoundingBox> {
+        Some(Nets::of_surface(self).coordinate_box::<Point>(tol.confusion))
+    }
 }
 
 impl HasBoundingBox for BezierSurface {
     fn bounding_box(&self) -> Option<BoundingBox> {
         BoundingBox::from_points(self.poles().iter().copied())
+    }
+
+    fn tight_bounding_box(&self, tol: Tolerance) -> Option<BoundingBox> {
+        self.as_bspline()?.tight_bounding_box(tol)
     }
 }
 
@@ -108,11 +123,48 @@ impl HasBoundingBox for RevolutionSurface {
         let disk = |height: f64| centered(axis.origin() + height * axis.direction(), half);
         Some(disk(bottom).union(disk(top)))
     }
+
+    /// Along coordinate `k`, the circle a profile point turns on reaches
+    /// `o_k + h a_k ± r √(1 − a_k²)`, `h` its height along the unit axis
+    /// `a` from the axis origin `o` and `r` its distance from the axis.
+    /// Both, the lowest negated, are convex in the point, as `r` is: their
+    /// extremes over the profile's Bézier pieces follow by branch and
+    /// bound. `None` for an unbounded profile.
+    fn tight_bounding_box(&self, tol: Tolerance) -> Option<BoundingBox> {
+        let (first, last) = self.profile().bounds();
+        if !(first.is_finite() && last.is_finite()) {
+            return None;
+        }
+        let spline = self.profile().bspline_range(first, last).ok()?;
+        let nets = Nets::of_curve(&spline, spline.bounds());
+        let axis = self.axis();
+        let origin = coordinates(axis.origin());
+        let a = coordinates(Point::ORIGIN + axis.direction());
+        let reach = |p: [f64; 3], k: usize, side: f64| {
+            let d: [f64; 3] = std::array::from_fn(|c| p[c] - origin[c]);
+            let height = d[0] * a[0] + d[1] * a[1] + d[2] * a[2];
+            let radial = (d[0] - height * a[0])
+                .hypot(d[1] - height * a[1])
+                .hypot(d[2] - height * a[2]);
+            let across = a[(k + 1) % 3].hypot(a[(k + 2) % 3]);
+            origin[k] + height * a[k] + side * radial * across
+        };
+        let high = std::array::from_fn(|k| nets.largest(|p| reach(p, k, 1.0), tol.confusion));
+        let low = std::array::from_fn(|k| -nets.largest(|p| -reach(p, k, -1.0), tol.confusion));
+        Some(BoundingBox {
+            min: point(low),
+            max: point(high),
+        })
+    }
 }
 
 impl HasBoundingBox for Surface {
     fn bounding_box(&self) -> Option<BoundingBox> {
         surface_dispatch!(self, s => s.bounding_box())
+    }
+
+    fn tight_bounding_box(&self, tol: Tolerance) -> Option<BoundingBox> {
+        surface_dispatch!(self, s => s.tight_bounding_box(tol))
     }
 }
 

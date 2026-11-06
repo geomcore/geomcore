@@ -2,7 +2,7 @@ use super::*;
 use crate::Continuity;
 
 fn sample<C: ParametricCurve2D>(c: &C) -> Point2D {
-    c.eval_point(0.5)
+    c.point_at(0.5)
 }
 
 fn line() -> Line2D {
@@ -23,7 +23,7 @@ fn ellipse() -> Ellipse2D {
 fn test_sample_curve2d_enum_agrees_with_inherent() {
     let l = line();
     let wrapped: Curve2D = l.into();
-    assert_eq!(sample(&wrapped), l.eval_point(0.5));
+    assert_eq!(sample(&wrapped), l.point_at(0.5));
 }
 
 // ---- heterogeneous Vec<Curve2D> eval ----
@@ -33,9 +33,9 @@ fn test_heterogeneous_vec_eval() {
     let l = line();
     let c = circle();
     let curves: Vec<Curve2D> = vec![l.into(), c.into()];
-    let points: Vec<Point2D> = curves.iter().map(|curve| curve.eval_point(0.25)).collect();
-    assert_eq!(points[0], l.eval_point(0.25));
-    assert_eq!(points[1], c.eval_point(0.25));
+    let points: Vec<Point2D> = curves.iter().map(|curve| curve.point_at(0.25)).collect();
+    assert_eq!(points[0], l.point_at(0.25));
+    assert_eq!(points[1], c.point_at(0.25));
 }
 
 // ---- From round-trips ----
@@ -69,15 +69,15 @@ fn test_from_ellipse_round_trips() {
 
 // ---- bounds/period table, per type (inherent trait impl + enum dispatch) ----
 
-// ---- default eval_points == mapped eval_point ----
+// ---- default points_at == mapped point_at ----
 
 #[test]
 fn test_curve2d_enum_eval_points_matches_mapped_eval_point() {
     let us = [0.0, 0.5, 1.0, -2.0];
     let curves: Vec<Curve2D> = vec![line().into(), circle().into()];
     for curve in &curves {
-        let expected: Vec<Point2D> = us.iter().map(|&u| curve.eval_point(u)).collect();
-        assert_eq!(curve.eval_points(&us), expected);
+        let expected: Vec<Point2D> = us.iter().map(|&u| curve.point_at(u)).collect();
+        assert_eq!(curve.points_at(&us), expected);
     }
 }
 

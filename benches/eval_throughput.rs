@@ -101,7 +101,7 @@ fn bench_eval_throughput(c: &mut Criterion) {
     let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
     let params = circle_params();
     group.bench_function("circle_eval_points_100k", |b| {
-        b.iter(|| black_box(circle.eval_points(black_box(&params))))
+        b.iter(|| black_box(circle.points_at(black_box(&params))))
     });
 
     let curve = representative_curve();
@@ -110,7 +110,7 @@ fn bench_eval_throughput(c: &mut Criterion) {
         .map(|i| first + (last - first) * i as f64 / (N - 1) as f64)
         .collect();
     group.bench_function("bspline_curve_eval_points_100k", |b| {
-        b.iter(|| black_box(curve.eval_points(black_box(&curve_params))))
+        b.iter(|| black_box(curve.points_at(black_box(&curve_params))))
     });
 
     let surface = representative_surface();
@@ -121,7 +121,7 @@ fn bench_eval_throughput(c: &mut Criterion) {
         })
         .collect();
     group.bench_function("bspline_surface_eval_points_100k", |b| {
-        b.iter(|| black_box(surface.eval_points(black_box(&uvs))))
+        b.iter(|| black_box(surface.points_at(black_box(&uvs))))
     });
 
     let rational_curve = representative_rational_curve();
@@ -132,7 +132,7 @@ fn bench_eval_throughput(c: &mut Criterion) {
         group.bench_function(name, |b| {
             b.iter(|| {
                 for &u in black_box(&curve_params) {
-                    black_box(curve.eval_d1(u));
+                    black_box(curve.first_derivatives(u));
                 }
             })
         });
@@ -145,7 +145,7 @@ fn bench_eval_throughput(c: &mut Criterion) {
         group.bench_function(name, |b| {
             b.iter(|| {
                 for &(u, v) in black_box(&uvs) {
-                    black_box(surface.eval_d1(u, v));
+                    black_box(surface.first_derivatives(u, v));
                 }
             })
         });
@@ -157,9 +157,9 @@ fn bench_eval_throughput(c: &mut Criterion) {
             b.iter(|| {
                 for &u in black_box(&curve_params) {
                     black_box((
-                        curve.eval_point(u),
-                        curve.eval_derivative(u, 1),
-                        curve.eval_derivative(u, 2),
+                        curve.point_at(u),
+                        curve.derivative(u, 1),
+                        curve.derivative(u, 2),
                     ));
                 }
             })
@@ -168,7 +168,7 @@ fn bench_eval_throughput(c: &mut Criterion) {
     group.bench_function("bspline_curve_eval_d2_100k", |b| {
         b.iter(|| {
             for &u in black_box(&curve_params) {
-                black_box(curve.eval_d2(u));
+                black_box(curve.second_derivatives(u));
             }
         })
     });
@@ -177,12 +177,12 @@ fn bench_eval_throughput(c: &mut Criterion) {
         b.iter(|| {
             for &(u, v) in black_box(&uvs) {
                 black_box((
-                    surface.eval_point(u, v),
-                    surface.eval_derivative(u, v, 1, 0),
-                    surface.eval_derivative(u, v, 0, 1),
-                    surface.eval_derivative(u, v, 2, 0),
-                    surface.eval_derivative(u, v, 1, 1),
-                    surface.eval_derivative(u, v, 0, 2),
+                    surface.point_at(u, v),
+                    surface.derivative(u, v, 1, 0),
+                    surface.derivative(u, v, 0, 1),
+                    surface.derivative(u, v, 2, 0),
+                    surface.derivative(u, v, 1, 1),
+                    surface.derivative(u, v, 0, 2),
                 ));
             }
         })
@@ -190,7 +190,7 @@ fn bench_eval_throughput(c: &mut Criterion) {
     group.bench_function("bspline_surface_eval_d2_100k", |b| {
         b.iter(|| {
             for &(u, v) in black_box(&uvs) {
-                black_box(surface.eval_d2(u, v));
+                black_box(surface.second_derivatives(u, v));
             }
         })
     });
