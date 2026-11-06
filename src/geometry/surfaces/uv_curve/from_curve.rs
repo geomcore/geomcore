@@ -530,9 +530,11 @@ fn line_on_cone(
     let mut foot = line.origin();
     let mut delta_v = 0.0;
     if foot.distance(apex) < tol.confusion {
-        // At the apex the v-isoline is degenerate; step along the line to get
-        // a well-defined foot point and remember the unit shift to undo.
-        foot = foot + line.direction();
+        // At the apex the v-isoline is degenerate; step from the apex along
+        // the line to get a well-defined foot point and remember the unit
+        // shift to undo. From the apex itself, a line through a point
+        // within confusion of it maps onto the generator along it.
+        foot = apex + line.direction();
         delta_v = 1.0;
     }
     let (u, v) = crate::math::elementary::surface::cone_parameters(&frame, ref_r, semi_angle, foot);

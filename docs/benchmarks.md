@@ -840,6 +840,15 @@ deliberate cost, raise the budget with `update` in the PR and give the reason
 in the PR body. Do not raise a budget to make a failure go away without that
 reason.
 
+A new benchmark can move the count of an unrelated one in the same binary:
+each benchmark inlines the whole call, so another caller of a shared
+function can change what the compiler inlines elsewhere. Adding the
+`cones_sharing_an_apex` batch to `intersect_dispatch` stopped the inlining
+of `with_exact_uv_curves` into the plane–sphere routed loop, 5% more
+instructions with the library unchanged. Measure the old ids without the
+new batch before looking for a cause in the library, and when it is the
+binary, raise the budget saying so.
+
 ### Updating the budget
 
 ```sh

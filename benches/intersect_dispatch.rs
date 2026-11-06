@@ -124,6 +124,27 @@ fn bench_intersect_dispatch(c: &mut Criterion) {
         Surface
     );
 
+    // Cones sharing an apex, axes 60°–100° apart: two to four lines
+    // through it.
+    let cones_sharing_an_apex: Vec<(Cone, Cone)> = (0..BATCH)
+        .map(|i| {
+            let tilt = (80.0 + 20.0 * jitter(i, 9)).to_radians();
+            let axis = Vector::new(tilt.sin(), 0.0, tilt.cos());
+            let narrow = Cone::new(Point::ORIGIN, Vector::Z, 30f64.to_radians(), 0.0);
+            let wide = Cone::new(Point::ORIGIN, axis, 70f64.to_radians(), 0.0);
+            (narrow.unwrap(), wide.unwrap())
+        })
+        .collect();
+    bench_pair!(
+        c,
+        "cones_sharing_an_apex",
+        cones_sharing_an_apex,
+        ElementarySurface,
+        ElementarySurface,
+        Surface,
+        Surface
+    );
+
     // Random lines against a torus: up to four hits.
     let line_torus: Vec<(Line, Torus)> = (0..BATCH)
         .map(|i| {
