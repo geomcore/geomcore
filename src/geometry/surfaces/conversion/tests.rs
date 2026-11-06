@@ -205,17 +205,17 @@ fn test_quarter_turn_pieces_have_the_circle_weights() {
     assert_eq!(profile.weights, None);
 }
 
-fn cone(semi_angle: f64) -> Cone {
-    Cone::from_frame(tilted_frame(Point::new(1.0, 0.5, -2.0)), semi_angle, 2.0).unwrap()
+fn cone(half_angle: f64) -> Cone {
+    Cone::from_frame(tilted_frame(Point::new(1.0, 0.5, -2.0)), half_angle, 2.0).unwrap()
 }
 
 /// Distance to the double cone, from the point's radius and height in
 /// the cone's frame.
 fn cone_distance(c: &Cone, p: Point) -> f64 {
     let (x, y, z) = c.frame().local_coordinates(p);
-    let (sin, cos) = (c.semi_angle().sin(), c.semi_angle().cos());
+    let (sin, cos) = (c.half_angle().sin(), c.half_angle().cos());
     let rho = x.hypot(y);
-    let to_line = |r: f64| ((r - c.ref_radius()) * cos - z * sin).abs();
+    let to_line = |r: f64| ((r - c.reference_radius()) * cos - z * sin).abs();
     to_line(rho).min(to_line(-rho))
 }
 
@@ -223,7 +223,7 @@ fn cone_distance(c: &Cone, p: Point) -> f64 {
 fn test_cone_patches_are_exact_on_both_nappes() {
     for alpha in [0.4, -0.6, 1.5] {
         let c = cone(alpha);
-        let apex = -c.ref_radius() / alpha.sin();
+        let apex = -c.reference_radius() / alpha.sin();
         for u in ANGLES {
             for v in [(-1.0, 3.0), (apex, 3.0), (apex - 2.0, apex), (-10.0, 10.0)] {
                 let (v0, v1) = (v.0.min(v.1), v.0.max(v.1));
@@ -241,7 +241,7 @@ fn test_cone_patches_are_exact_on_both_nappes() {
 #[test]
 fn test_cone_patch_collapses_at_the_apex() {
     let c = cone(0.4);
-    let apex = -c.ref_radius() / 0.4f64.sin();
+    let apex = -c.reference_radius() / 0.4f64.sin();
     let circle = angle_net(-1.0, 4.0);
     for (v, j) in [((apex, 3.0), 0), ((apex - 2.0, apex), 1)] {
         let profile = c.profile(v);

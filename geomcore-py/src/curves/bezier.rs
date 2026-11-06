@@ -12,7 +12,7 @@ use geomcore::BezierCurve;
 pub(crate) struct PyBezierCurve(pub(crate) BezierCurve);
 
 shape_methods! {
-    PyBezierCurve: [curve, discretize, sided_evaluation];
+    PyBezierCurve: [curve, bounded_curve, sided_evaluation];
 
     /// Build a non-rational Bézier curve of `degree` from `degree + 1`
     /// poles, over `[0, 1]`.
@@ -103,8 +103,8 @@ shape_methods! {
         ))
     }
 
-    /// The arc length, integrating the speed to within `max_error`.
-    fn length(&self, max_error: f64) -> f64 {
-        self.0.length(max_error)
+    /// The arc length, integrating the speed to within `max_length_error`.
+    fn length(&self, max_length_error: f64) -> f64 {
+        self.0.length(max_length_error)
     }
 }

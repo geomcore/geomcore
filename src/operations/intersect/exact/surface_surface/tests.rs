@@ -305,8 +305,8 @@ fn test_plane_cone_tangency_band_through_the_apex_is_linear_in_tilt() {
 #[test]
 fn test_plane_cone_tangent_line_is_the_generator_in_the_plane() {
     let tol = Tolerance::DEFAULT;
-    for semi_angle in [0.4, -0.4] {
-        let cone = Cone::from_frame(Frame::WORLD, semi_angle, 2.0).unwrap();
+    for half_angle in [0.4, -0.4] {
+        let cone = Cone::from_frame(Frame::WORLD, half_angle, 2.0).unwrap();
         let apex = cone.apex();
         for tilt in [
             std::f64::consts::FRAC_PI_2 - 0.4,
@@ -339,10 +339,10 @@ fn test_plane_cone_parabola_band_off_the_apex_is_linear_in_tilt() {
 #[test]
 fn test_plane_cone_sections_beyond_the_apex() {
     // The cone is double: sections past the apex lie on the opposite
-    // nappe, for either sign of the semi-angle.
+    // nappe, for either sign of the half-angle.
     let tol = Tolerance::DEFAULT;
-    for semi_angle in [0.4, -0.4] {
-        let cone = Cone::from_frame(Frame::WORLD, semi_angle, 2.0).unwrap();
+    for half_angle in [0.4, -0.4] {
+        let cone = Cone::from_frame(Frame::WORLD, half_angle, 2.0).unwrap();
         let beyond = 2.0 * (cone.apex().z);
         let on_both = |p: Point, plane: &Plane| plane.contains(p, tol) && cone.contains(p, tol);
         let flat = Plane::new(Point::new(0.0, 0.0, beyond), Vector::Z).unwrap();
@@ -536,7 +536,7 @@ fn test_cone_cylinder_intersection() {
         }
         _ => panic!("expected two circles"),
     }
-    // A negative semi-angle opens the other way: same two rings.
+    // A negative half-angle opens the other way: same two rings.
     let flipped = Cone::from_frame(Frame::WORLD, -0.4, 2.0).unwrap();
     match flipped.intersect_exact(&cylinder, tol) {
         ConeCylinderIntersection::TwoCircles(lower, upper) => {

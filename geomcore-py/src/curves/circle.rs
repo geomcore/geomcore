@@ -11,7 +11,12 @@ use geomcore::Circle;
 pub(crate) struct PyCircle(pub(crate) Circle);
 
 shape_methods! {
-    PyCircle: [curve, discretize];
+    PyCircle: [curve, bounded_curve];
+
+    /// The axis of the circle: through the center along the normal.
+    fn axis(&self) -> PyAxis {
+        PyAxis(self.0.axis())
+    }
 
     /// The placement frame of the circle.
     fn frame(&self) -> PyFrame {

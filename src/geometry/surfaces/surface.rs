@@ -382,9 +382,9 @@ impl ElementarySurface {
             }
             ElementarySurface::Cone(cone) => {
                 let frame = cone.frame();
-                let (radius, semi_angle) = (cone.ref_radius(), Turn::of(cone.semi_angle()));
+                let (radius, half_angle) = (cone.reference_radius(), Turn::of(cone.half_angle()));
                 table(|du, dv| {
-                    elementary::cone_partial(&frame, radius, semi_angle, u_turn, v, du, dv)
+                    elementary::cone_partial(&frame, radius, half_angle, u_turn, v, du, dv)
                 })
             }
             ElementarySurface::Sphere(sphere) => {

@@ -7,6 +7,7 @@ use crate::values::*;
 use geomcore::prelude::*;
 use geomcore::{Discretization, Discretization2D, DiscretizationCriteria};
 use pyo3::prelude::*;
+use pyo3::types::{PyIterator, PyList};
 
 /// A discretized 3D curve: points on the curve in order of parameter,
 /// joined by straight segments. `parameters[i]` is the parameter of
@@ -31,6 +32,25 @@ impl PyDiscretization {
     #[getter]
     fn points(&self) -> Vec<PyPoint> {
         self.0.points.iter().copied().map(PyPoint).collect()
+    }
+
+    /// The number of points.
+    fn __len__(&self) -> usize {
+        self.0.points.len()
+    }
+
+    /// Iterates over the points.
+    fn __iter__<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyIterator>> {
+        PyList::new(py, self.points())?.try_iter()
+    }
+
+    /// A point, or a list for a slice.
+    fn __getitem__<'py>(
+        &self,
+        py: Python<'py>,
+        index: &Bound<'py, PyAny>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        PyList::new(py, self.points())?.as_any().get_item(index)
     }
 
     /// The chord deviation of each segment.
@@ -69,6 +89,25 @@ impl PyDiscretization2D {
     #[getter]
     fn points(&self) -> Vec<PyPoint2D> {
         self.0.points.iter().copied().map(PyPoint2D).collect()
+    }
+
+    /// The number of points.
+    fn __len__(&self) -> usize {
+        self.0.points.len()
+    }
+
+    /// Iterates over the points.
+    fn __iter__<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyIterator>> {
+        PyList::new(py, self.points())?.try_iter()
+    }
+
+    /// A point, or a list for a slice.
+    fn __getitem__<'py>(
+        &self,
+        py: Python<'py>,
+        index: &Bound<'py, PyAny>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        PyList::new(py, self.points())?.as_any().get_item(index)
     }
 
     /// The chord deviation of each segment.

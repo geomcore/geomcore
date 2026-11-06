@@ -168,7 +168,7 @@ fn surface_box<S: ParametricSurface>(surface: &S, tol: Tolerance) -> Option<Aabb
     } else {
         surface.as_revolution()?.bounding_box()?
     };
-    let (min, max) = (box_.min(), box_.max());
+    let (min, max) = (box_.min_corner(), box_.max_corner());
     Some(grown([min.x, min.y, min.z, max.x, max.y, max.z], tol))
 }
 
@@ -208,7 +208,7 @@ fn range_reaching_extrusion(
     let profile_box = extrusion.profile().bounding_box()?;
     let frame = Frame::from_z(Point::ORIGIN, extrusion.direction()).ok()?;
     let local = Transform::world_to_local(frame);
-    let (low, high) = (profile_box.min(), profile_box.max());
+    let (low, high) = (profile_box.min_corner(), profile_box.max_corner());
     let mut prism = [
         f64::INFINITY,
         f64::INFINITY,

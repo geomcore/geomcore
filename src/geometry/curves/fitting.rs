@@ -858,7 +858,7 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
         ))
     }
 
-    /// Least-squares B-spline fit through `points` with `num_poles` poles.
+    /// Least-squares B-spline fit through `points` with `pole_count` poles.
     ///
     /// Same chord-like parametrization as
     /// [`interpolate`](Self::interpolate), but an overdetermined system:
@@ -923,7 +923,7 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
     pub fn approximate(
         points: &[P],
         degree: usize,
-        num_poles: usize,
+        pole_count: usize,
         parametrization: PointParametrization,
     ) -> Result<GenericBSplineCurve<P>, BSplineConstructionError> {
         let n = points.len();
@@ -931,16 +931,16 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
             return Err(BSplineConstructionError::TooFewPoints);
         }
         check_degree(degree)?;
-        if degree > num_poles.saturating_sub(1) {
+        if degree > pole_count.saturating_sub(1) {
             return Err(BSplineConstructionError::DegreeTooHigh);
         }
-        if num_poles > n {
+        if pole_count > n {
             return Err(BSplineConstructionError::TooManyPoles);
         }
         let params = point_parameters(points, parametrization)?;
-        let flat = approximation_knots(&params, num_poles, degree);
+        let flat = approximation_knots(&params, pole_count, degree);
         let basis = BasisTable::new(&flat, degree, &params);
-        let poles = least_squares(&basis, num_poles, 1, |_, k| points[k])
+        let poles = least_squares(&basis, pole_count, 1, |_, k| points[k])
             .ok_or(BSplineConstructionError::PoleCountMismatch)?;
         let (knots, mults) = compress_knots(&flat);
         Ok(GenericBSplineCurve::from_validated_parts(

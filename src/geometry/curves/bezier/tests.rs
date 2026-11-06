@@ -305,8 +305,8 @@ fn test_projection_on_a_rational_arc() {
 #[test]
 fn test_bounding_box_is_the_pole_hull() {
     let bounds = cubic().bounding_box().unwrap();
-    assert_eq!(bounds.min(), Point::new(0.0, 0.0, 0.0));
-    assert_eq!(bounds.max(), Point::new(4.0, 2.0, 1.0));
+    assert_eq!(bounds.min_corner(), Point::new(0.0, 0.0, 0.0));
+    assert_eq!(bounds.max_corner(), Point::new(4.0, 2.0, 1.0));
 }
 
 #[test]

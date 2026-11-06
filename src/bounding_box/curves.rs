@@ -61,7 +61,7 @@ pub(crate) fn trigonometric_box<P: TierPoint>(
         high = std::array::from_fn(|k| center[k] + amplitude[k]);
     } else {
         let ends = BoundingBoxOf::<P>::new(point_at(first), point_at(last));
-        (low, high) = (lanes(ends.min()), lanes(ends.max()));
+        (low, high) = (lanes(ends.min_corner()), lanes(ends.max_corner()));
         let reached = |t: f64| first + (t - first).rem_euclid(TAU) <= last;
         for k in 0..P::DIM {
             let peak = b.coordinate(k).atan2(a.coordinate(k));
