@@ -1,4 +1,4 @@
-//! The `geomcore.surfaces` classes, one file per class as in the core crate's
+//! The surface classes, one file per class as in the core crate's
 //! `surfaces/`.
 
 mod bezier;

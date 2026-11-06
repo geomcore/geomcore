@@ -15,9 +15,21 @@ import math
 import time
 from pathlib import Path
 
-from geomcore import Frame, Point2D, Point, Vector
-from geomcore.curves import Ellipse, TrimmedCurve2D, TrimmedCurve
-from geomcore.surfaces import BSplineSurface, Cone, Cylinder, Plane, Sphere, Torus
+from geomcore import (
+    BSplineSurface,
+    Cone,
+    Cylinder,
+    Ellipse,
+    Frame,
+    Plane,
+    Point,
+    Point2D,
+    Sphere,
+    Torus,
+    TrimmedCurve,
+    TrimmedCurve2D,
+    Vector,
+)
 
 import geomcore_viewer as gv
 

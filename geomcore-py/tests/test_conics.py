@@ -5,8 +5,8 @@ import math
 import pytest
 
 import geomcore
-from geomcore import Point, Point2D, Vector, Vector2D
-from geomcore.curves import (
+from geomcore import (
+    Cone,
     Ellipse,
     Ellipse2D,
     Hyperbola,
@@ -15,8 +15,11 @@ from geomcore.curves import (
     Line2D,
     Parabola,
     Parabola2D,
+    Point,
+    Point2D,
+    Vector,
+    Vector2D,
 )
-from geomcore.surfaces import Cone
 
 
 def test_ellipse_points_sum_their_focal_distances_to_the_major_axis():

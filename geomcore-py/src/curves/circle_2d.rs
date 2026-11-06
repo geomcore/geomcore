@@ -1,4 +1,4 @@
-//! The Python class `geomcore.curves.Circle2D`, wrapping `geomcore::Circle2D`.
+//! The Python class `geomcore.Circle2D`, wrapping `geomcore::Circle2D`.
 
 use crate::curves::*;
 use crate::method_sets::*;
@@ -6,7 +6,7 @@ use crate::values::{PyFrame2D, coordinates_2d, float_repr};
 use geomcore::Circle2D;
 
 /// A circle in a surface's 2D (u, v) parameter space.
-#[pyclass(name = "Circle2D", module = "geomcore.curves", eq)]
+#[pyclass(name = "Circle2D", module = "geomcore", eq)]
 #[derive(Clone, PartialEq)]
 pub(crate) struct PyCircle2D(pub(crate) Circle2D);
 

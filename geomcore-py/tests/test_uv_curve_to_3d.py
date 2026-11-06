@@ -7,20 +7,26 @@ import math
 import pytest
 
 import geomcore
-from geomcore import Point, Point2D, Vector, Vector2D
-from geomcore.curves import (
-    BezierCurve2D,
+from geomcore import (
     BSplineCurve,
     BSplineCurve2D,
+    BezierCurve2D,
+    BezierSurface,
     Circle,
     Circle2D,
+    Cylinder,
     Ellipse,
     Ellipse2D,
     Line,
     Line2D,
+    Plane,
+    Point,
+    Point2D,
+    Sphere,
     TrimmedCurve2D,
+    Vector,
+    Vector2D,
 )
-from geomcore.surfaces import BezierSurface, Cylinder, Plane, Sphere
 
 
 def assert_traces(traced, curve, surface, parameters=(-1.2, 0.0, 0.4, 2.5)):
@@ -116,7 +122,7 @@ def test_a_slanted_line_on_a_cylinder_maps_within_a_deviation():
     with pytest.raises(geomcore.UvCurveTo3DError):
         cylinder.uv_curve_to_3d(line)
     turn = TrimmedCurve2D(line, 0.0, slope.magnitude())
-    approximation = geomcore.uv_curve_to_3d_within(cylinder, turn, 1e-7)
+    approximation = cylinder.uv_curve_to_3d_within(turn, 1e-7)
     assert approximation.is_proven()
     assert approximation.deviation <= 1e-7
     curve = approximation.curve
@@ -132,9 +138,7 @@ def test_a_slanted_line_on_a_cylinder_maps_within_a_deviation():
 def test_a_circle_on_a_sphere_maps_within_a_sampled_deviation():
     sphere = Sphere(Point(0, 0, 0), 2.0)
     circle = Circle2D(Point2D(1.0, 0.0), 0.5)
-    approximation = geomcore.uv_curve_to_3d_within(
-        sphere, circle, 1e-6, geomcore.Tolerance.default()
-    )
+    approximation = sphere.uv_curve_to_3d_within(circle, 1e-6, geomcore.Tolerance.default())
     assert not approximation.is_proven()
     assert approximation.deviation <= 1e-6
     first, last = approximation.curve.bounds()
@@ -145,8 +149,20 @@ def test_uv_curve_to_3d_within_refuses_with_its_own_error():
     cylinder = Cylinder(Point(0, 0, 0), Vector(0, 0, 1), 10.0)
     line = Line2D(Point2D(0.0, 0.0), Vector2D(1.0, 1.0))
     with pytest.raises(geomcore.UvCurveTo3DApproximationError, match="unbounded"):
-        geomcore.uv_curve_to_3d_within(cylinder, line, 1e-7)
+        cylinder.uv_curve_to_3d_within(line, 1e-7)
     turn = TrimmedCurve2D(line, 0.0, 1.0)
     with pytest.raises(geomcore.UvCurveTo3DApproximationError, match="deviation"):
-        geomcore.uv_curve_to_3d_within(cylinder, turn, -1.0)
+        cylinder.uv_curve_to_3d_within(turn, -1.0)
 
+
+
+def test_the_free_functions_warn_and_give_the_methods_results():
+    cylinder = Cylinder(Point(0, 0, 0), Vector(0, 0, 1), 10.0)
+    slope = Vector2D(2.0 * math.pi, 5.0)
+    turn = TrimmedCurve2D(Line2D(Point2D(0.0, 0.0), slope), 0.0, slope.magnitude())
+    with pytest.warns(DeprecationWarning, match="surface.uv_curve_to_3d_within"):
+        traced = geomcore.uv_curve_to_3d_within(cylinder, turn, 1e-7)  # type: ignore[deprecated]
+    assert traced.curve == cylinder.uv_curve_to_3d_within(turn, 1e-7).curve
+    with pytest.warns(DeprecationWarning, match="surface.curve_3d_to_uv_within"):
+        mapped = geomcore.curve_3d_to_uv_within(cylinder, traced.curve, 1e-6)  # type: ignore[deprecated]
+    assert mapped.curve == cylinder.curve_3d_to_uv_within(traced.curve, 1e-6).curve

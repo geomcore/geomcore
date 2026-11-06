@@ -5,15 +5,23 @@ import math
 
 import pytest
 
-from geomcore import Axis, Frame, IntersectionMethod, Point, Transform, Vector
-from geomcore.curves import BSplineCurve, Circle, Ellipse, Line
-from geomcore.surfaces import (
+from geomcore import (
+    Axis,
+    BSplineCurve,
     BSplineSurface,
+    Circle,
     Cylinder,
+    Ellipse,
     ExtrusionSurface,
+    Frame,
+    IntersectionMethod,
+    Line,
     Plane,
+    Point,
     RevolutionSurface,
     Torus,
+    Transform,
+    Vector,
 )
 
 _O, _X, _Y, _Z = Point.origin(), Vector.unit_x(), Vector.unit_y(), Vector.unit_z()
@@ -148,7 +156,7 @@ def test_plane_cuts_of_swept_surfaces_are_exact():
 
 
 def test_plane_cuts_of_swept_surfaces_carry_both_uv_curves():
-    from geomcore.curves import Line2D
+    from geomcore import Line2D
 
     extrusion = ExtrusionSurface(Circle(_O, _Z, 2.0), _Z)
     torus = RevolutionSurface(_torus_profile(), Axis(_O, _Z))

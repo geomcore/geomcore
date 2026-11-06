@@ -197,6 +197,15 @@ smaller than the iso-curve spacing can be missed. Where a branch of two
 unbounded surfaces was cut at its box, the result is `Incomplete` with
 `Unbounded` as its reason, and its regions mark where the cuts are.
 
+The confusion also sets the size of a fitted curve: each segment must
+stay within it of both surfaces, so a looser confusion takes fewer,
+longer segments. Two wavy B-spline patches cut at the default `1e-7`
+give curves of 296 and 194 poles; at `1e-3` they give one curve of 42
+poles. The same value decides what counts as a hit or a tangency, so
+loosen it for a lighter fit only where a point within it of both
+surfaces is on both. In Python, `tol=1e-3` is short for
+`Tolerance(confusion=1e-3)`.
+
 <figure class="geom-fig">
 <img src="../../assets/figures/intersection/31-marching-round-a-cylinder-and-a-sphere.svg" alt="Marching round a cylinder and a sphere">
 <figcaption>Marching: seed, trace along the tangent, correct back onto both surfaces, fit the trail.</figcaption>
@@ -242,8 +251,7 @@ within a deviation.
 === "Python"
 
     ```python
-    from geomcore import Point, Vector
-    from geomcore.surfaces import Cylinder, Plane
+    from geomcore import Cylinder, Plane, Point, Vector
 
     cylinder = Cylinder(Point.origin(), Vector.unit_z(), 1.0)
     (piece,) = Plane(Point(0.0, 0.0, 2.0), Vector.unit_z()).intersect(cylinder).curves

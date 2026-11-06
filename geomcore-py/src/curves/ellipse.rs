@@ -1,4 +1,4 @@
-//! The Python class `geomcore.curves.Ellipse`, wrapping `geomcore::Ellipse`.
+//! The Python class `geomcore.Ellipse`, wrapping `geomcore::Ellipse`.
 
 use crate::curves::*;
 use crate::method_sets::*;
@@ -6,7 +6,7 @@ use crate::values::{PyFrame, float_repr};
 use geomcore::Ellipse;
 
 /// An ellipse in 3D.
-#[pyclass(name = "Ellipse", module = "geomcore.curves", eq)]
+#[pyclass(name = "Ellipse", module = "geomcore", eq)]
 #[derive(Clone, PartialEq)]
 pub(crate) struct PyEllipse(pub(crate) Ellipse);
 

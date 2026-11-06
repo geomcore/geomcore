@@ -6,28 +6,31 @@ import pytest
 
 import geomcore
 from geomcore import (
-    Axis2D,
     Axis,
-    Frame2D,
-    Frame,
-    Point2D,
-    Point,
-    Vector2D,
-    Vector,
-)
-from geomcore.curves import (
+    Axis2D,
     BSplineCurve,
-    Circle2D,
+    BSplineSurface,
     Circle,
+    Circle2D,
+    Cone,
+    Cylinder,
     Ellipse,
+    Frame,
+    Frame2D,
     Hyperbola,
-    Line2D,
     Line,
+    Line2D,
     Parabola,
-    TrimmedCurve2D,
+    Plane,
+    Point,
+    Point2D,
+    Sphere,
+    Torus,
     TrimmedCurve,
+    TrimmedCurve2D,
+    Vector,
+    Vector2D,
 )
-from geomcore.surfaces import BSplineSurface, Cone, Cylinder, Plane, Sphere, Torus
 
 Z = Vector(0.0, 0.0, 1.0)
 

@@ -1,4 +1,4 @@
-//! The Python class `geomcore.surfaces.BezierSurface`, wrapping `geomcore::BezierSurface`.
+//! The Python class `geomcore.BezierSurface`, wrapping `geomcore::BezierSurface`.
 
 use crate::method_sets::*;
 use crate::surfaces::*;
@@ -8,7 +8,7 @@ use geomcore::BezierSurface;
 /// `(u_degree + 1) x (v_degree + 1)` control poles over one parameter
 /// rectangle, `[0, 1] x [0, 1]` when built from poles. It has no knot
 /// vectors: `to_bspline` gives the `BSplineSurface`.
-#[pyclass(name = "BezierSurface", module = "geomcore.surfaces", eq)]
+#[pyclass(name = "BezierSurface", module = "geomcore", eq)]
 #[derive(Clone, PartialEq)]
 pub(crate) struct PyBezierSurface(pub(crate) BezierSurface);
 
