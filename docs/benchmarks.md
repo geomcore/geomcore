@@ -421,6 +421,26 @@ Measuring each span against the curve rather than the two surfaces,
 which near a tangency let a fit stray 4 µm from the closed form, adds
 2–8% to every routed id here.
 
+Two cones in general position followed (#237, ADR 0041), read along the
+first cone's generators. One pair per id, `intersect_routed/two_cones/*`,
+the same upright cone against one of 15° along `X`: the typed call
+classifies in 2625 instructions (its apex inside the narrow cone, two
+loops around), 6665 (two arcs) and 5142 (a bite, one arc). The routed
+call fits the loops in 1.76M, 2.32M and 1.44M instructions, against
+8.02M, 10.76M and 7.39M for the march on the same pairs: 4.6 to 5 times
+fewer. The cone as the other quadric now reads `A` and `β` from each
+generator for both pairs, and the two pairs build their loops with one
+function: the cone and cylinder's typed calls take 140–200 instructions
+more (1322, 2859 and 4214), and their routed calls 0.7–0.8%.
+`ConeConeIntersection` holds the quartic inline and grows from 232 to
+440 bytes: the cones sharing an apex and the parallel cones take 2–3.5%
+more on the typed call, copying the larger result, and 0.1–0.4% on the
+routed one. The same change moved the inlining of functions it does not
+touch, in the other bench binaries: `Plane`'s `holds` for a conic is no
+longer inlined into `intersect_conic_quadric` (`conic_quadric/*/plane`,
+4–7%), nor the line and placed conic into the 2D line–conic calls (1.3%
+and 2.2%), nor a closure of the skew revolution projection (1.8%).
+
 Reproduce with:
 
 ```sh

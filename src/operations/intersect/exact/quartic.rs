@@ -614,7 +614,7 @@ pub(super) fn cone_off_cylinder_axis(
     // `a₂ − (a₁·a₂) a₁` is not with the axes parallel.
     // `|across| = √(1 − (a₁·a₂)²)`, more than `|sin φ|` where `A < 0`.
     let (across_x, across_y) = (a2.dot(x), a2.dot(y));
-    let width = across_x.hypot(across_y);
+    let width = (across_x * across_x + across_y * across_y).sqrt();
     let e1 = if width > 0.0 {
         x * (across_x / width) + y * (across_y / width)
     } else {
@@ -685,7 +685,8 @@ pub(super) fn cones_in_general_position(
     // `d·a₂ = P + R cos(t − θ)` stays on one side of `± cos φ₂`, with a
     // margin, or `A` vanishes on a generator.
     let middle = ruled.cos * a1.dot(a2);
-    let reach = ruled.sin.abs() * ruled.x.dot(a2).hypot(ruled.y.dot(a2));
+    let (reach_x, reach_y) = (ruled.x.dot(a2), ruled.y.dot(a2));
+    let reach = ruled.sin.abs() * (reach_x * reach_x + reach_y * reach_y).sqrt();
     let (low, high) = (middle - reach, middle + reach);
     // `|d·a₂|` over the generators, from `0` where `d·a₂` changes sign.
     let largest = low.abs().max(high.abs());
@@ -725,7 +726,8 @@ pub(super) fn cones_in_general_position(
     let v = along_w.cross(u);
     let (uu, uv, vv) = (u.dot(form(u)), u.dot(form(v)), v.dot(form(v)));
     let mean = 0.5 * (uu + vv);
-    let radius = (0.5 * (uu - vv)).hypot(uv);
+    let half_difference = 0.5 * (uu - vv);
+    let radius = (half_difference * half_difference + uv * uv).sqrt();
     let turn = 0.5 * (2.0 * uv).atan2(uu - vv);
     let (sin_turn, cos_turn) = turn.sin_cos();
     let e1 = u * cos_turn + v * sin_turn;
@@ -759,7 +761,8 @@ pub(super) fn cones_in_general_position(
             let direction = ruled.generator(ruled.radial(angle.sin(), angle.cos())).1;
             let (leading, half_linear, _, _) = other.coefficients(ruled.apex, direction);
             let distance = (half_linear / leading).abs();
-            tol.confusion * n.magnitude() / (along_cos.hypot(along_sin) * distance)
+            tol.confusion * n.magnitude()
+                / ((along_cos * along_cos + along_sin * along_sin).sqrt() * distance)
         });
         factored_loops(normals.map(linear), touch)?
     };
@@ -825,8 +828,10 @@ impl Loops {
 /// arcs where it is positive, every other one. `None` where a factor
 /// nearly vanishes twice, `|cₖ|` within `touch[k]` of one, as the
 /// surfaces touch there, or does not turn.
+#[inline]
 fn factored_loops(factors: [[f64; 3]; 2], touch: [f64; 2]) -> Option<Loops> {
-    let amplitudes = factors.map(|[_, along_cos, along_sin]| along_cos.hypot(along_sin));
+    let amplitudes = factors
+        .map(|[_, along_cos, along_sin]| (along_cos * along_cos + along_sin * along_sin).sqrt());
     let references = factors.map(|[_, along_cos, along_sin]| along_sin.atan2(along_cos));
     let cosines: [f64; 2] = std::array::from_fn(|k| -factors[k][0] / amplitudes[k]);
     if (0..2).any(|k| !cosines[k].is_finite() || (cosines[k].abs() - 1.0).abs() <= touch[k]) {
