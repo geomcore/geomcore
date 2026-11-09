@@ -34,8 +34,12 @@ the Python distribution are versioned in lockstep.
   planes through both apexes touching the second cone, or nothing. In
   Rust, `intersect_exact` returns the closed form as
   `ConeConeIntersection::Quartic(QuarticCurve)`, read along the first
-  cone's generators, and cones that miss as `Empty`. Still marched:
-  each apex on the other cone.
+  cone's generators, and cones that miss as `Empty`. Each apex on the
+  other cone gives the line through both and a cubic through both
+  apexes, `ConeConeIntersection::LineAndCubic(Line, QuarticCurve)`
+  (ADR 0045): `intersect` returns the line and the cubic's pieces
+  between its points at infinity as exact `QuarticBranch` curves, with
+  both apexes, where they cross, as contact points.
 - `QuarticBranch`, a new `Curve` variant and Python class: a piece of
   the quartic where two cones meet that runs to infinity at both ends,
   where a generator of one cone is parallel to one of the other's (#237,
@@ -54,7 +58,7 @@ the Python distribution are versioned in lockstep.
   tol)` rebuilds one, `QuarticBranch::surfaces` and
   `QuarticBranch::tolerance` give back its surfaces and the tolerance it
   was read with, which rebuilds it as it was (#283), and Python pickles
-  it. A generator of one cone touching the other's
+  it; it rebuilds a branch of the cubic of `LineAndCubic` too. A generator of one cone touching the other's
   directions is one where the branch runs off at both ends, and two
   branches meet at infinity where both roots run off together along one
   generator. Still marched: those two at once, the plane through the
@@ -161,8 +165,9 @@ the Python distribution are versioned in lockstep.
 - `IntersectionCurve` gains the public field `parameter_range`, the
   range of its curve along which the surfaces meet: a struct literal
   needs it, or `..` from another curve (#266).
-- `ConeConeIntersection` gains `Quartic(QuarticCurve)` and `Empty`
-  (#237): a `match` on it needs the arms.
+- `ConeConeIntersection` gains `Quartic(QuarticCurve)`,
+  `LineAndCubic(Line, QuarticCurve)` and `Empty` (#237): a `match` on it
+  needs the arms.
 - `ConeCylinderIntersection` gains `Quartic(QuarticCurve)` and `Empty`
   (#237): a `match` on it needs the arms.
 - `ConeCylinderIntersection` and `ConeConeIntersection` gain

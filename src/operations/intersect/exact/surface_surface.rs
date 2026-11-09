@@ -358,6 +358,14 @@ pub enum ConeConeIntersection {
     /// cone, otherwise arcs between the planes through both apexes that
     /// touch the second cone.
     Quartic(QuarticCurve),
+    /// Each apex on the other cone, the cones otherwise in general
+    /// position: the line through both apexes, a generator of each, and
+    /// the cubic left of the quartic, which crosses the line at both
+    /// apexes and runs to infinity. The cubic is read along the first
+    /// cone's generators as a [`QuarticCurve`] of one component, whose
+    /// [`branches`](QuarticCurve::branches) are its pieces between its
+    /// points at infinity.
+    LineAndCubic(Line, QuarticCurve),
     /// The cones miss each other: no generator of the first meets the
     /// second.
     Empty,

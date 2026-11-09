@@ -218,21 +218,185 @@ fn test_the_first_apex_on_the_second_cone_is_a_contact_point_too() {
     through_an_apex(&second, Point::ORIGIN, 1);
 }
 
+/// A cone from `apex`, on the upright cone, through the upright apex:
+/// its axis `half_angle` from the line to the origin, turned `turn` about
+/// it from the plane of that line and `X`, and pointing away from the
+/// origin when `away`.
+fn through_the_upright_apex(apex: Point, half_angle: f64, turn: f64, away: bool) -> Cone {
+    let toward_first = (Point::ORIGIN - apex).normalized().unwrap();
+    let in_plane = toward_first.cross(Vector::Y).normalized().unwrap();
+    let out_of_plane = toward_first.cross(in_plane);
+    let across = in_plane * turn.cos() + out_of_plane * turn.sin();
+    let axis = toward_first * half_angle.cos() + across * half_angle.sin();
+    from_apex(apex, if away { -axis } else { axis }, half_angle)
+}
+
 #[test]
-fn test_each_apex_on_the_other_cone_is_left_to_the_search() {
-    // The line through both apexes lies on both cones.
-    let toward_first = (Point::ORIGIN - on_upright()).normalized().unwrap();
-    // Turned out of the plane of the upright axis, so the axes miss.
-    let across = toward_first.cross(Vector::X).normalized().unwrap();
-    let second = from_apex(
-        on_upright(),
-        toward_first * 0.3_f64.cos() + across * 0.3_f64.sin(),
-        0.3,
-    );
-    assert_eq!(
+fn test_each_apex_on_the_other_cone_is_the_line_through_both_and_a_cubic() {
+    // The line through both apexes is a generator of each; the rest of the
+    // quartic is a cubic through both apexes, running to infinity where
+    // generators of the two cones run along the same direction.
+    let lower = Point::new(-1.0, 0.0, -(3.0_f64.sqrt()));
+    let mut counts = [0; 4];
+    for (apex, half_angle, turn, away) in [
+        (on_upright(), 0.3, 1.2, false),
+        (on_upright(), 0.3, -2.0, false),
+        (on_upright(), 0.7, 0.5, true),
+        (on_upright(), 1.1, 2.7, false),
+        (lower, 1.3, 1.9, true),
+        (Point::new(2.0, 0.0, 2.0 * 3.0_f64.sqrt()), 0.2, 2.6, false),
+        (lower, 0.4, 1.0, false),
+        (lower, 1.1, -0.8, true),
+        (
+            Point::new(
+                1.5 * 2.0_f64.cos(),
+                1.5 * 2.0_f64.sin(),
+                1.5 * 3.0_f64.sqrt(),
+            ),
+            0.5,
+            2.2,
+            false,
+        ),
+    ] {
+        let second = through_the_upright_apex(apex, half_angle, turn, away);
+        for (first, second) in [(upright(), second), (second, upright())] {
+            let ConeConeIntersection::LineAndCubic(line, cubic) =
+                first.intersect_exact(&second, TOL)
+            else {
+                panic!("a line and a cubic");
+            };
+            for on in [first.apex(), second.apex()] {
+                assert!(Curve::from(line).project_point(on, TOL).distance < 1e-12);
+            }
+            assert_branches_run_to_infinity(&cubic);
+            let branches = cubic.branches();
+            counts[branches.len()] += 1;
+            let pieces: Vec<Curve> = branches
+                .iter()
+                .map(|branch| branch.clone().into())
+                .collect();
+            let nearest = |point: Point| {
+                pieces
+                    .iter()
+                    .map(|piece| piece.project_point(point, TOL).distance)
+                    .fold(f64::INFINITY, f64::min)
+            };
+            for branch in &branches {
+                for u in [-1e4, -50.0, -2.0, 0.0, 0.4, 3.0, 80.0, 1e4] {
+                    let point = branch.point_at(u);
+                    let scale = 1.0 + point.distance(Point::ORIGIN);
+                    assert!(off(&first, point) < 1e-12 * scale, "{u}");
+                    assert!(off(&second, point) < 1e-12 * scale, "{u}");
+                }
+            }
+            // Through both apexes, and through the second point of every
+            // generator of the first cone, solved for on its own.
+            for on in [first.apex(), second.apex()] {
+                assert!(nearest(on) < 1e-9);
+            }
+            let (axis, apex) = (second.frame().z_direction(), second.apex());
+            let cos_squared = second.half_angle().cos().powi(2);
+            for k in 0..24 {
+                let angle = TAU * f64::from(k) / 24.0 + 0.1;
+                let direction = (first.point_at(angle, 1.0) - first.point_at(angle, 0.0))
+                    .normalized()
+                    .unwrap();
+                let w = first.apex() - apex;
+                let leading = direction.dot(axis).powi(2) - cos_squared;
+                let half_linear =
+                    w.dot(axis) * direction.dot(axis) - cos_squared * w.dot(direction);
+                let point = first.apex() + direction * (-2.0 * half_linear / leading);
+                if point.distance(Point::ORIGIN) < 50.0 {
+                    assert!(nearest(point) < 1e-9, "{angle}");
+                }
+            }
+            for (index, branch) in branches.iter().enumerate() {
+                let again = QuarticBranch::from_cones(&first, &second, index, TOL).unwrap();
+                assert_eq!(again.point_at(0.3), branch.point_at(0.3));
+            }
+            let routed = first.intersect(&second, TOL);
+            assert_eq!(routed.method(), IntersectionMethod::Exact);
+            assert!(routed.is_complete());
+            assert_eq!(routed.curves().len(), 1 + branches.len());
+            assert!(matches!(routed.curves()[0].curve, Curve::Line(_)));
+            assert_eq!(routed.contact_points(), [first.apex(), second.apex()]);
+        }
+    }
+    assert!(counts[1] > 0 && counts[3] > 0, "{counts:?}");
+}
+
+#[test]
+fn test_apexes_on_each_other_within_the_angular_tolerance_are_a_line_and_a_cubic() {
+    // The second apex `1e-13` off the upright cone, both ways: the line
+    // through the apexes within `tol.angular` of a generator of each, the
+    // cubic of the cones with the apex on it. `1e-9` off, within confusion
+    // but not within `tol.angular` along the line, the line strays from
+    // the cones far out, and the pair is left to the search.
+    let normal = Vector::new(FRAC_PI_6.cos(), 0.0, -FRAC_PI_6.sin());
+    for off_by in [1e-13, -1e-13, 1e-9] {
+        let apex = on_upright() + normal * off_by;
+        let second = through_the_upright_apex(apex, 0.6, 1.0, false);
+        let result = upright().intersect_exact(&second, TOL);
+        if off_by.abs() > 1e-12 {
+            assert_eq!(result, ConeConeIntersection::NotAnalytic);
+            continue;
+        }
+        let ConeConeIntersection::LineAndCubic(_, cubic) = result else {
+            panic!("a line and a cubic");
+        };
+        assert_branches_run_to_infinity(&cubic);
+        for branch in &cubic.branches() {
+            for u in [-50.0, -2.0, 0.0, 0.4, 3.0, 80.0] {
+                let point = branch.point_at(u);
+                let scale = 1.0 + point.distance(Point::ORIGIN);
+                assert!(off(&upright(), point) < 1e-11 * scale, "{u}");
+                assert!(off(&second, point) < 1e-11 * scale, "{u}");
+            }
+        }
+    }
+}
+
+#[test]
+fn test_a_cubic_touching_infinity_runs_out_and_back_along_one_generator() {
+    // The second cone's directions on the far side touch the upright
+    // one's: `φ₁ + φ₂` from `−a₂` to `Z`, `a₂·D` only reaching `−a₂·D₀`
+    // there. Two branches: one out and back along that generator, one
+    // through the other point at infinity. Within `tol.angular`, too.
+    let half_angle = 70.0_f64.to_radians();
+    let (sin_first, cos_first) = FRAC_PI_6.sin_cos();
+    for nudge in [0.0, 1e-13, -1e-13] {
+        let z = (PI - FRAC_PI_6 - half_angle + nudge).cos();
+        let x = (half_angle.cos() - z * cos_first) / sin_first;
+        let axis = Vector::new(x, (1.0 - x * x - z * z).sqrt(), z);
+        let second = from_apex(on_upright(), axis, half_angle);
+        let ConeConeIntersection::LineAndCubic(_, cubic) = upright().intersect_exact(&second, TOL)
+        else {
+            panic!("a line and a cubic");
+        };
+        assert_branches_run_to_infinity(&cubic);
+        let branches = cubic.branches();
+        assert_eq!(branches.len(), 2, "{nudge}");
+        for branch in &branches {
+            for u in [-1e4, -50.0, -2.0, 0.0, 0.4, 3.0, 80.0, 1e4] {
+                let point = branch.point_at(u);
+                let scale = 1.0 + point.distance(Point::ORIGIN);
+                assert!(off(&upright(), point) < 1e-12 * scale, "{u}");
+                assert!(off(&second, point) < 1e-12 * scale, "{u}");
+            }
+        }
+    }
+}
+
+#[test]
+fn test_cones_touching_along_the_line_through_both_apexes_meet_in_it_and_a_conic() {
+    // The second cone touches the upright one along the generator through
+    // both apexes: their axes meet, both cones touch one sphere centred
+    // there, and the line comes with the conic left.
+    let second = through_the_upright_apex(on_upright(), 0.3, 0.0, false);
+    assert!(matches!(
         upright().intersect_exact(&second, TOL),
-        ConeConeIntersection::NotAnalytic
-    );
+        ConeConeIntersection::TwoConics(_)
+    ));
 }
 
 #[test]

@@ -109,8 +109,9 @@ impl QuarticBranch {
     /// The branch `index` of the quartic where `first` and `second` meet
     /// (see [`QuarticCurve::branches`]), read within `tol`: the tolerance
     /// of the intersection that returned it, [`tolerance`](Self::tolerance),
-    /// gives the same branch back. `None` when they do not meet in a
-    /// quartic or it has no such branch.
+    /// gives the same branch back: of the quartic, or of the cubic where
+    /// each apex is on the other cone. `None` when they meet in neither or
+    /// it has no such branch.
     ///
     /// # Examples
     ///
@@ -130,7 +131,9 @@ impl QuarticBranch {
         tol: Tolerance,
     ) -> Option<QuarticBranch> {
         match first.intersect_exact(second, tol) {
-            ConeConeIntersection::Quartic(curve) => curve.branches().into_iter().nth(index),
+            ConeConeIntersection::Quartic(curve) | ConeConeIntersection::LineAndCubic(_, curve) => {
+                curve.branches().into_iter().nth(index)
+            }
             _ => None,
         }
     }
