@@ -639,7 +639,10 @@ The same bench times elementary pairs:
 - `cylinder_extruded_wall`: a cylinder of radius 1 about z against a cubic
   B-spline wall extruded along z (two open curves);
 - `cone_cylinder_unbounded`: a cone of half-angle 0.3 against a cylinder
-  whose axis is parallel to a generator (two curves to infinity).
+  whose axis is parallel to a generator (two curves to infinity). Since
+  it has a closed form (ADR 0042) it is no longer marched, and the bench
+  dropped it: `intersect_routed/cone_cylinder/along_*` times the closed
+  form.
 
 Fastest of three runs, same settings (2026-10-15, machine loaded). Three
 versions:
@@ -978,7 +981,10 @@ written out in the test so the hash does not change with the standard
 library). The hashes are committed in
 `tests/fixtures/intersection_fingerprints.txt`.
 
-- `marching`: the ten surface pairs of the `marching_intersection` bench.
+- `marching`: the ten surface pairs of the `marching_intersection` bench
+  as it was, the cone and the cylinder along its generator among them:
+  that pair now has a closed form and left the bench, and its fingerprint
+  follows the exact result.
 - `curve_curve`: crossing B-splines, a circle against a B-spline, and two
   coplanar circles.
 - `curve_surface`: a B-spline and a circle against the footprint surface,

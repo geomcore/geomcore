@@ -187,9 +187,9 @@ pub enum CylinderCylinderIntersection {
 /// apex (or the apex for a degenerate tube). Axes that meet, the cone and
 /// the cylinder touching one sphere centred there, give two plane conics.
 /// Anything else is a space quartic in closed form (see [`QuarticCurve`]),
-/// but where the surfaces touch, where the apex lies on the cylinder, and
-/// where a generator of the cylinder is parallel to one of the cone's
-/// (the curve runs off to infinity): those report
+/// running off to infinity where a generator of the cylinder is parallel
+/// to one of the cone's ([`QuarticCurve::branches`]), but where the
+/// surfaces touch and where the apex lies on the cylinder: those report
 /// [`ConeCylinderIntersection::NotAnalytic`], reserved for the numeric
 /// surface-surface path.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -1258,10 +1258,12 @@ impl IntersectExact<Cylinder> for Cone {
     /// ellipses, the curves of a reducer. Anything else is a space quartic
     /// in closed form, read along the cylinder's generators (see
     /// [`QuarticCurve`]): two loops around the cylinder, one or two loops
-    /// over arcs of its generators, or nothing. Where the surfaces touch,
-    /// where the apex lies on the cylinder (within `tol.confusion`), and
-    /// where a generator of the cylinder is parallel to one of the cone's
-    /// (against `tol.angular`), it reports
+    /// over arcs of its generators, or nothing. With the cylinder's axis
+    /// along a generator of the cone (against `tol.angular`), each
+    /// generator of the cylinder meets the cone once, on one loop that is
+    /// bounded or runs off to infinity ([`QuarticCurve::branches`]).
+    /// Where the surfaces touch, and where the apex lies on the cylinder
+    /// (within `tol.confusion`), it reports
     /// [`ConeCylinderIntersection::NotAnalytic`].
     ///
     /// # Examples

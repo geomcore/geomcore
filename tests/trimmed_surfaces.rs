@@ -237,20 +237,26 @@ fn test_a_line_through_a_trimmed_cylinder_becomes_a_segment() {
 }
 
 #[test]
-fn test_a_trimmed_cone_and_generator_cylinder_march_to_the_ranges() {
-    // The intersection of the untrimmed pair runs to infinity, so the
-    // untrimmed march is cut and incomplete; trimmed, no branch is cut (a
-    // march samples, so its result is `Sampled`) and the curves end on the
-    // ranges.
+fn test_a_trimmed_cone_and_generator_cylinder_cut_the_exact_branches_at_the_ranges() {
+    // The intersection of the untrimmed pair runs to infinity, in exact
+    // branches; trimmed, they are cut where they leave the ranges, and the
+    // curves end there.
     let cone = Cone::new(Point::ORIGIN, Vector::Z, 0.3, 1.0).unwrap();
     let generator = Vector::new(0.3f64.sin(), 0.0, 0.3f64.cos());
     let cylinder = Cylinder::new(Point::new(1.0, 0.0, 0.0), generator, 0.5).unwrap();
-    assert!(!cone.intersect(&cylinder, TOL).is_complete());
+    let whole = cone.intersect(&cylinder, TOL);
+    assert!(whole.is_complete());
+    assert!(
+        whole
+            .curves()
+            .iter()
+            .all(|piece| matches!(piece.curve, Curve::QuarticBranch(_)))
+    );
     let cone_patch = cone.trimmed((0.0, TAU), (0.5, 6.0)).unwrap();
     let cylinder_patch = cylinder.trimmed((0.0, TAU), (-2.0, 8.0)).unwrap();
     let result = cone_patch.intersect(&cylinder_patch, TOL);
-    assert_eq!(result.method(), IntersectionMethod::Numeric);
-    assert_eq!(*result.completeness(), Completeness::Sampled);
+    assert_eq!(result.method(), IntersectionMethod::Exact);
+    assert!(result.is_complete());
     assert!(!result.curves().is_empty());
     assert_inside(&result, &cone_patch, &cylinder_patch);
     assert_ends_on_boundaries(&result, &cone_patch, &cylinder_patch);

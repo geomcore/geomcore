@@ -51,9 +51,21 @@ the Python distribution are versioned in lockstep.
   measured on exact points. It reverses, transforms, has no bounding box,
   B-spline or curve in parameters, and intersects other shapes through
   the numeric search. `QuarticBranch::from_cones(first, second, index)`
-  rebuilds one, and Python pickles it. Still marched: a generator of one
-  cone touching the other's directions, and one along which both roots
-  run off together.
+  rebuilds one, `QuarticBranch::surfaces` gives its surfaces back, and
+  Python pickles it. Still marched: a generator of one cone touching the
+  other's directions, and one along which both roots run off together.
+- A cone and a cylinder whose axis runs along a generator of the cone
+  meet in an exact curve instead of a marched one (#237, ADR 0042): each
+  generator of the cylinder meets the cone once, on one loop around it.
+  Out of reach of the cone's generator along the axis the loop is bounded
+  and fitted; otherwise it runs off to infinity where a generator of the
+  cylinder is parallel to the cone, and `intersect` returns its pieces as
+  exact `QuarticBranch` curves, the result exact and complete.
+  `QuarticBranch::from_cone_and_cylinder(cone, cylinder, index)` rebuilds
+  one, and the Python `QuarticBranch(first, second, index)` takes a cone
+  and a cylinder too. Trimmed patches of the pair cut those branches at
+  their ranges. The `marching_intersection` bench no longer times this
+  pair; `intersect_dispatch` does, as `cone_cylinder/along_*`.
 - A cone and a cylinder off its axis meet in an exact quartic instead of
   a marched one, in about a quarter of the time (#237, ADR 0040).
   `intersect`, in Rust and Python, fits each loop within confusion, with

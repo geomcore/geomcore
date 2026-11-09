@@ -1,6 +1,6 @@
 # An unbounded quartic branch is an exact curve
 
-Two cones in general position often meet in a curve that runs off to infinity: whenever a generator of the first cone is parallel to a generator of the second. ADR 0041 left those to the march and decided that, like the lines and hyperbolas already returned whole, they would come back as the curve, not as a piece cut at a box. A fit has bounds (ADR 0036), so they needed a representation. This is it: `Curve::QuarticBranch`, an exact curve with an infinite range, for two cones first (issue #237).
+Two cones in general position often meet in a curve that runs off to infinity: whenever a generator of the first cone is parallel to a generator of the second. So does a cone and a cylinder whose axis runs along a generator of the cone. ADR 0041 left those to the march and decided that, like the lines and hyperbolas already returned whole, they would come back as the curve, not as a piece cut at a box. A fit has bounds (ADR 0036), so they needed a representation. This is it: `Curve::QuarticBranch`, an exact curve with an infinite range, for two cones first (issue #237).
 
 ## Where the walk runs to infinity
 
@@ -9,6 +9,16 @@ Along a generator `d` of the first cone, `A = (d·a₂)² − cos² φ₂` vanis
 The pieces are `QuarticCurve::branches`. A component with no point at infinity is still fitted, exact and complete within confusion, with its curves in parameters. Each piece of one that has them is an `IntersectionCurve` holding a `QuarticBranch`, with the parameter range `(−∞, ∞)` and no curves in parameters.
 
 The finite root is read as `−γ / (√Δ + β)` where `√Δ` and `β` share a sign: near a point at infinity `A → 0`, and `(√Δ − β) / A` would cancel to rounding.
+
+## A cylinder along a generator of the cone
+
+Read along the cylinder's generators, `A = (a₁·a₂)² − cos² φ` is the same on every one, and vanishes when the axis `a₁` runs along a generator of the cone. Within `tol.angular` of that, the quadratic is linear: each generator of the cylinder meets the cone once, at `s = −γ / 2β`, and the curve is one loop around the cylinder (`Discriminant::MetOnce`). The point is read from that quotient directly, not through a root of `Δ = β²`, so that no rounding of the signs near `β = 0` can pick the root that runs off.
+
+With `W(t)` from the apex to the generator's base, `β = n·W(t)` with `n = (a₁·a₂) a₂ − cos² φ a₁`, across the axis: `k₀ + k₁ cos t + k₂ sin t`, vanishing at two arccosines or none. Where it vanishes the point runs off to infinity along that generator, and the loop falls apart into two branches. Where it never does, the cylinder is out of reach of the cone's generator along its axis and the loop is bounded, fitted like any other. Where `β` touches zero, within `tol.angular`, the point runs off and comes back on the same side: one branch, growing as `u²` rather than `|u|`. `γ` and `β` vanish together only on a generator of the cylinder that lies on the cone, through the apex: the apex on the cylinder, still left to the search.
+
+The true `A` within `tol.angular` of zero puts the second root about `2β / A` away, and the point read as met once is off the cone by about `A s`: nothing at the distances a model reaches.
+
+`QuarticBranch::from_cone_and_cylinder(cone, cylinder, index)` rebuilds such a branch. An intersection reads the pair as met once within its own `tol.angular`, which the branch does not keep, so the rebuild reads it within `QuarticBranch::LOOSEST_ANGULAR` (`1e-6`), looser than any angular tolerance an intersection uses: every branch an intersection returns comes back. `QuarticBranch::surfaces` gives the two surfaces back, two cones or a cone and a cylinder.
 
 ## The parameter
 
@@ -28,14 +38,13 @@ Far out the points lose precision: `A` cancels to about `1e-16` in its terms, an
 
 `QuarticBranch` is a `Curve` variant: it evaluates, projects, reverses (`u` negated), transforms (its placement composed with the transform), and intersects through the numeric search, as a B-spline does. It has no bounding box and no B-spline (`Unbounded`), and no curve in any surface's parameters (`NotAnalytic`). A swept surface takes it as a profile: an extrusion projects onto it by searching along it, a revolution by searching out to where it passes the reach.
 
-`QuarticBranch::from_cones(first, second, index)` builds one from the cones it lies on and its place among the quartic's branches, read with zero tolerances so that every branch an intersection returned comes back. With `is_reversed` and `placement`, that is what the Python class pickles.
+`QuarticBranch::from_cones(first, second, index)` builds one from the cones it lies on and its place among the quartic's branches, read with zero tolerances so that every branch an intersection returned comes back; `from_cone_and_cylinder` does the same for a cone and a cylinder. With `surfaces`, `is_reversed` and `placement`, that is what the Python class pickles.
 
 ## What is still left to the search
 
 - **`A` vanishing twice**, a generator of the first cone touching the second's directions: `P ± R` within `tol.angular` of `± cos φ₂`.
 - **`β` vanishing at a point at infinity** too, within confusion: both roots run off together, along a branch like a parabola's.
 - An apex on the other cone, and the cones touching, as before.
-- **A cone and a cylinder whose axis runs along a generator of the cone**: there `A` vanishes on every generator, and the quadratic becomes linear. That case follows in its own change.
 
 ## Considered options
 

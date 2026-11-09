@@ -86,6 +86,14 @@ def _quartic_branch():
     )
 
 
+def _cone_cylinder_branch():
+    """A branch of the curve where a cylinder whose axis runs along a
+    generator of a cone meets it."""
+    cone = Cone(Point(0, 0, 1), Vector(0, 0, 1), math.pi / 4, 1.0)
+    along = Vector(1, 0, 1).normalized()
+    return QuarticBranch(cone, Cylinder(Point(0, 0.5, 0), along, 1.0), 0)
+
+
 def _shapes():
     profile = _spline_curve()
     planar = BSplineCurve2D(2, [Point2D(0, 0), Point2D(1, 2), Point2D(3, 1)], [0.0, 1.0], [3, 3], False)
@@ -114,6 +122,7 @@ def _shapes():
         _quartic_branch(),
         _quartic_branch().reversed().transformed(_MIRROR),
         TrimmedCurve(_quartic_branch(), -1.0, 2.0),
+        _cone_cylinder_branch(),
         TrimmedCurve(Circle.from_frame(_FRAME, 2.5), 0.25, 2.0),
         TrimmedCurve(profile, 0.1, 0.8),
         TrimmedCurve2D(planar, 0.2, 0.9),

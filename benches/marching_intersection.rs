@@ -9,9 +9,11 @@
 //! - a sphere of radius 1.2 centred on that torus's centre circle
 //!   (two closed curves);
 //! - a cylinder of radius 1 about z against a cubic wall extruded along z
-//!   (two open curves);
-//! - a cone of half-angle 0.3 against a cylinder whose axis is parallel to
-//!   one of its generators (two curves cut at their seeded trace box).
+//!   (two open curves).
+//!
+//! (A cone against a cylinder whose axis is parallel to one of its
+//! generators was timed here until it got a closed form: it is now in
+//! `intersect_dispatch`, `intersect_routed/cone_cylinder/along_*`.)
 //!
 //! And pairs where the surfaces lie on each other or touch, which the
 //! coincidence check settles before marching or which trace a touching
@@ -34,8 +36,8 @@ use std::hint::black_box;
 
 use geomcore::prelude::*;
 use geomcore::{
-    BSplineSurface, Completeness, Cone, Cylinder, IncompleteReason, IntersectionMethod, Plane,
-    Point, Sphere, SurfaceSurfaceIntersection, Tolerance, Torus, Vector,
+    BSplineSurface, Completeness, Cylinder, IncompleteReason, IntersectionMethod, Plane, Point,
+    Sphere, SurfaceSurfaceIntersection, Tolerance, Torus, Vector,
 };
 
 fn surface(height: impl Fn(f64, f64) -> f64) -> BSplineSurface {
@@ -141,13 +143,6 @@ fn bench_marching_intersection(c: &mut Criterion) {
     assert_marched(&cylinder, &wall, tol);
     group.bench_function("cylinder_extruded_wall", |b| {
         b.iter(|| black_box(black_box(&cylinder).intersect(&wall, tol)))
-    });
-    let cone = Cone::new(Point::ORIGIN, Vector::Z, 0.3, 1.0).unwrap();
-    let generator = Vector::new(0.3f64.sin(), 0.0, 0.3f64.cos());
-    let along_generator = Cylinder::new(Point::new(1.0, 0.0, 0.0), generator, 0.5).unwrap();
-    assert_marched(&cone, &along_generator, tol);
-    group.bench_function("cone_cylinder_unbounded", |b| {
-        b.iter(|| black_box(black_box(&cone).intersect(&along_generator, tol)))
     });
     bench_degenerate_pairs(&mut group, tol);
     group.finish();
