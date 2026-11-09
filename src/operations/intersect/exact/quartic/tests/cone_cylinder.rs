@@ -3,7 +3,7 @@
 
 use super::*;
 use crate::{ConeCylinderIntersection, Curve, Frame, QuarticBranch};
-use std::f64::consts::{FRAC_PI_6, PI};
+use std::f64::consts::{FRAC_PI_2, FRAC_PI_6, PI, TAU};
 
 /// The cone of half-angle 30° with its apex at the origin along `Z`.
 fn upright() -> Cone {
@@ -366,14 +366,127 @@ fn test_a_steep_tube_through_the_apex_crosses_itself_there_each_time_around() {
     }
 }
 
+/// A tube of radius `radius` along the upright cone's generator at angle
+/// `turn` about `Z`, its wall through the apex: its axis `radius` from the
+/// generator, `around` from the plane of the generator and `Z`. `reversed`
+/// runs the axis the other way along the generator.
+fn through_the_apex_along(turn: f64, around: f64, radius: f64, reversed: bool) -> Cylinder {
+    let (sin, cos) = turn.sin_cos();
+    let half_root_three = 3.0_f64.sqrt() / 2.0;
+    let along = Vector::new(0.5 * cos, 0.5 * sin, half_root_three);
+    let across = Vector::new(half_root_three * cos, half_root_three * sin, -0.5);
+    let side = Vector::new(-sin, cos, 0.0);
+    let offset = (across * around.cos() + side * around.sin()) * radius;
+    cylinder(
+        Point::ORIGIN + offset,
+        if reversed { -along } else { along },
+        radius,
+    )
+}
+
+/// The second point of the tube's generator at `angle` on the upright
+/// cone, solved for on its own: `A` vanishes along the generator, so the
+/// point is at `s = −γ / 2β`.
+fn second_point_on_generator(tube: &Cylinder, angle: f64) -> Point {
+    let base = tube.point_at(angle, 0.0);
+    let along = tube.frame().z_direction();
+    let w = base - Point::ORIGIN;
+    let cos_squared = FRAC_PI_6.cos().powi(2);
+    let half_linear = w.z * along.z - cos_squared * w.dot(along);
+    let constant = w.z * w.z - cos_squared * w.dot(w);
+    base + along * (-constant / (2.0 * half_linear))
+}
+
 #[test]
-fn test_an_apex_on_a_tube_along_a_generator_is_left_to_the_search() {
-    // The tube's generator through the apex lies on the cone.
-    let tube = cylinder(Point::new(0.0, 1.0, 0.0), generator(), 1.0);
-    assert_eq!(
-        upright().intersect_exact(&tube, TOL),
-        ConeCylinderIntersection::NotAnalytic
-    );
+fn test_an_apex_on_a_tube_along_a_generator_is_the_generator_and_a_cubic() {
+    // The tube's generator through the apex is the cone's generator; the
+    // rest of the quartic is a cubic through the apex, running to infinity
+    // once, where `β` vanishes on the generator the cone's axis leans to.
+    for (turn, around, radius, reversed) in [
+        (0.0, FRAC_PI_2, 1.0, false),
+        (0.0, -FRAC_PI_2, 1.0, true),
+        (0.7, 0.4, 0.5, false),
+        (-2.1, 2.5, 2.0, false),
+        (2.9, -1.2, 0.3, true),
+        (1.3, 3.0, 1.5, false),
+    ] {
+        let tube = through_the_apex_along(turn, around, radius, reversed);
+        let cone = upright();
+        for result in [
+            cone.intersect_exact(&tube, TOL),
+            tube.intersect_exact(&cone, TOL),
+        ] {
+            let ConeCylinderIntersection::LineAndCubic(line, cubic) = result else {
+                panic!("a line and a cubic: {result:?}");
+            };
+            let line = Curve::from(line);
+            for u in [-1e3, -1.0, 0.0, 2.0, 1e3] {
+                let point = line.point_at(u);
+                let scale = 1.0 + point.distance(Point::ORIGIN);
+                assert!(off(&cone, point) < 1e-12 * scale);
+                assert!(off(&tube, point) < 1e-12 * scale);
+            }
+            assert!(line.project_point(Point::ORIGIN, TOL).distance < 1e-12);
+            assert_branches_on(&cubic, &tube, 1);
+            let piece = Curve::from(cubic.branches()[0].clone());
+            let nearest = |point: Point| piece.project_point(point, TOL).distance;
+            assert!(nearest(Point::ORIGIN) < 1e-9);
+            for k in 0..24 {
+                let point = second_point_on_generator(&tube, TAU * f64::from(k) / 24.0 + 0.1);
+                if point.distance(Point::ORIGIN) < 50.0 {
+                    assert!(nearest(point) < 1e-9, "{k}");
+                }
+            }
+            let again = QuarticBranch::from_cone_and_cylinder(&cone, &tube, 0, TOL).unwrap();
+            assert_eq!(again, cubic.branches()[0]);
+            assert!(QuarticBranch::from_cone_and_cylinder(&cone, &tube, 1, TOL).is_none());
+        }
+        for routed in [cone.intersect(&tube, TOL), tube.intersect(&cone, TOL)] {
+            assert_eq!(routed.method(), IntersectionMethod::Exact);
+            assert!(routed.is_complete());
+            assert_eq!(routed.curves().len(), 2);
+            assert!(matches!(routed.curves()[0].curve, Curve::Line(_)));
+            assert!(matches!(routed.curves()[1].curve, Curve::QuarticBranch(_)));
+            assert_eq!(routed.contact_points(), [Point::ORIGIN]);
+        }
+    }
+}
+
+#[test]
+fn test_an_apex_within_confusion_of_a_tube_along_a_generator_is_read_on_it() {
+    // The tube's wall a hair off the apex: read through it, the line along
+    // the axis staying that hair from both surfaces however far out.
+    for off_by in [1e-13, -1e-13, 1e-9] {
+        let tube = through_the_apex_along(0.7, 0.4, 1.0 + off_by, false);
+        let ConeCylinderIntersection::LineAndCubic(line, cubic) =
+            upright().intersect_exact(&tube, TOL)
+        else {
+            panic!("a line and a cubic");
+        };
+        assert_eq!(cubic.branches().len(), 1);
+        for u in [-1e6, 0.0, 1e6] {
+            let point = Curve::from(line).point_at(u);
+            let within = 2.0 * off_by.abs() + 1e-12 * (1.0 + u.abs());
+            assert!(off(&upright(), point) < within, "{off_by} {u}");
+            assert!(off(&tube, point) < within, "{off_by} {u}");
+        }
+    }
+}
+
+#[test]
+fn test_a_tube_along_a_generator_touching_the_cone_there_meets_it_in_it_and_a_conic() {
+    // The tube's wall through the apex with its axis in the plane of the
+    // generator and `Z`, from outside or inside: the axes meet, and the
+    // tube touches the cone all along the generator. Read on the sphere
+    // centred where the axes meet: the generator and an ellipse.
+    for around in [0.0, PI] {
+        let tube = through_the_apex_along(0.7, around, 1.0, false);
+        let result = upright().intersect_exact(&tube, TOL);
+        assert!(
+            matches!(result, ConeCylinderIntersection::TwoConics(_)),
+            "{result:?}"
+        );
+    }
 }
 
 #[test]

@@ -58,7 +58,8 @@ the Python distribution are versioned in lockstep.
   tol)` rebuilds one, `QuarticBranch::surfaces` and
   `QuarticBranch::tolerance` give back its surfaces and the tolerance it
   was read with, which rebuilds it as it was (#283), and Python pickles
-  it; it rebuilds a branch of the cubic of `LineAndCubic` too. A generator of one cone touching the other's
+  it; it rebuilds a branch of the cubic of `LineAndCubic` too. A
+  generator of one cone touching the other's
   directions is one where the branch runs off at both ends, and two
   branches meet at infinity where both roots run off together along one
   generator. Still marched: those two at once, the plane through the
@@ -74,7 +75,13 @@ the Python distribution are versioned in lockstep.
   rebuilds one, and the Python `QuarticBranch(first, second, index,
   tol=None)` takes a cone and a cylinder too. Trimmed patches of the pair cut those branches at
   their ranges. The `marching_intersection` bench no longer times this
-  pair; `intersect_dispatch` does, as `cone_cylinder/along_*`.
+  pair; `intersect_dispatch` does, as `cone_cylinder/along_*`. With the
+  apex on the cylinder, that generator of the cone lies on the cylinder,
+  and the rest is a cubic through the apex,
+  `ConeCylinderIntersection::LineAndCubic(Line, QuarticCurve)` (ADR
+  0045): `intersect` returns the line along the axis through the apex
+  and the cubic's one exact `QuarticBranch`, with the apex as the
+  contact point.
 - A cone and a cylinder off its axis meet in an exact quartic instead of
   a marched one, in about a quarter of the time (#237, ADR 0040).
   `intersect`, in Rust and Python, fits each loop within confusion, with
@@ -98,9 +105,7 @@ the Python distribution are versioned in lockstep.
   a point of its own beside a loop elsewhere. `intersect` reports it
   exact and complete, the apex among its `contact_points`; the curve in
   the cone's own parameters is left out, its angle undefined at the
-  apex. Still marched: each apex of two cones on the other, and a
-  cylinder along a generator of the cone through its apex, where the
-  curve is a line and a cubic.
+  apex.
 - Two cones with parallel axes and equal half-angles, such as the
   chamfers of two neighbouring parallel holes, meet in one plane conic
   instead of being marched (#262): each cone is the other moved sideways,
@@ -168,8 +173,9 @@ the Python distribution are versioned in lockstep.
 - `ConeConeIntersection` gains `Quartic(QuarticCurve)`,
   `LineAndCubic(Line, QuarticCurve)` and `Empty` (#237): a `match` on it
   needs the arms.
-- `ConeCylinderIntersection` gains `Quartic(QuarticCurve)` and `Empty`
-  (#237): a `match` on it needs the arms.
+- `ConeCylinderIntersection` gains `Quartic(QuarticCurve)`,
+  `LineAndCubic(Line, QuarticCurve)` and `Empty` (#237): a `match` on it
+  needs the arms.
 - `ConeCylinderIntersection` and `ConeConeIntersection` gain
   `TangentPoint(Point)` (#237): a `match` on them needs the arm.
 - `SphereCylinderIntersection` and `SphereConeIntersection` lose the

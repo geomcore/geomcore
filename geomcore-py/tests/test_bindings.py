@@ -724,6 +724,21 @@ def test_intersect_cone_cylinder():
     with pytest.raises(TypeError):
         QuarticBranch(around, cone, 0)
 
+    # The apex on its wall: the generator through the apex lies on both,
+    # and the rest is a cubic through the apex, in one exact branch.
+    apex = cone.apex()
+    through = Cylinder(Point(apex.x, apex.y + 0.5, apex.z), along, 0.5)
+    split = cone.intersect(through)
+    assert split.method == IntersectionMethod.EXACT and split.is_complete()
+    line, cubic = (piece.curve for piece in split.curves)
+    assert isinstance(line, Line) and isinstance(cubic, QuarticBranch)
+    for u in [-50.0, 0.0, 3.0]:
+        for point in [line.point_at(u), cubic.point_at(u)]:
+            assert cone.project_point(point).distance < 1e-9
+            assert through.project_point(point).distance < 1e-9
+    assert [point.distance(apex) for point in split.contact_points] == pytest.approx([0.0])
+    assert pickle.loads(pickle.dumps(cubic)) == cubic
+
 
 def test_intersect_cone_cone():
     from geomcore import Cone, Frame, IntersectionMethod, QuarticBranch

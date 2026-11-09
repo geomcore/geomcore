@@ -93,9 +93,10 @@ the other surface, at its apex. Where each apex of two cones lies on
 the other, the line through both lies on both, and the rest is a cubic
 through both apexes: `intersect` returns the line and the cubic's
 pieces between its points at infinity as `QuarticBranch` curves, with
-both apexes as contact points. A cylinder along a generator of a cone
-through its apex, and surfaces that touch twice, are left to the
-numeric search.
+both apexes as contact points. So does a cylinder along a generator of
+a cone through its apex: that generator and a cubic through the apex,
+in one branch, the apex the contact point. Surfaces that touch twice
+are left to the numeric search.
 `intersect_exact` returns its closed form
 (`QuarticCurve`, exact points on both surfaces), and `intersect` fits
 each loop within confusion and reports the result exact and complete,

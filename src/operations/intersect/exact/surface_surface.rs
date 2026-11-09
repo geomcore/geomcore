@@ -209,6 +209,13 @@ pub enum ConeCylinderIntersection {
     /// The space quartic of a cylinder off the cone's axis, in one or two
     /// loops (see [`QuarticCurve`]), read along the cylinder's generators.
     Quartic(QuarticCurve),
+    /// The cylinder's axis along a generator of the cone, the apex on the
+    /// cylinder: the cylinder's generator through the apex, which lies on
+    /// the cone, and the cubic left of the quartic, which crosses it at
+    /// the apex and runs to infinity along the axis both ways. The cubic is
+    /// read along the cylinder's generators as a [`QuarticCurve`] of one
+    /// component, one [`branch`](QuarticCurve::branches).
+    LineAndCubic(Line, QuarticCurve),
     /// The cylinder misses the cone: no generator of it meets the cone.
     Empty,
     /// No closed form for this configuration.

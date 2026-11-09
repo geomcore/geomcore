@@ -309,6 +309,7 @@ impl ConeCylinderIntersection {
                 contact_point(p)
             }
             ConeCylinderIntersection::Quartic(curve) => quartic(curve, tol),
+            ConeCylinderIntersection::LineAndCubic(line, cubic) => cubic.with_line(line),
             ConeCylinderIntersection::Empty => surfaces_miss(),
             ConeCylinderIntersection::NotAnalytic => None,
         }

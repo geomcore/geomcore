@@ -17,7 +17,7 @@ The apex is the curve's contact point either way. The cone's angle around its ax
 
 ## The first cone's apex on the second
 
-Every generator of the first cone then meets the second at the shared apex point. Read along the second cone instead, this is the case above, with the operands swapped in the result. Each apex on the other cone puts the line through both on both cones: the curve is that line and a cubic, and it stays with the march, as does a cylinder along a generator of a cone through its apex (ADR 0042). *Amended (ADR 0045):* the two cones are read in closed form, as the line and the cubic.
+Every generator of the first cone then meets the second at the shared apex point. Read along the second cone instead, this is the case above, with the operands swapped in the result. Each apex on the other cone puts the line through both on both cones: the curve is that line and a cubic, and it stays with the march, as does a cylinder along a generator of a cone through its apex (ADR 0042). *Amended (ADR 0045):* both are read in closed form, as the line and the cubic.
 
 ## Touching cones, measured
 
