@@ -10,8 +10,8 @@ mod tight;
 
 pub use box_2d::{BoundingBox2D, HasBoundingBox2D};
 pub(crate) use curves::{
-    BoundingBoxOf, box_through, hyperbola_box, parabola_box, spline_box, tight_spline_box,
-    trigonometric_box,
+    BoundingBoxOf, box_through, hyperbola_box, parabola_box, sampled_box, spline_box,
+    tight_spline_box, trigonometric_box,
 };
 
 use crate::base::tier::operations::BoxOperations;

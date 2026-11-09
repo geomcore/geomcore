@@ -702,7 +702,7 @@ def test_intersect_cone_cylinder():
 
 
 def test_intersect_cone_cone():
-    from geomcore import Cone, Frame, IntersectionMethod
+    from geomcore import Cone, Frame, IntersectionMethod, QuarticBranch
 
     c1 = Cone.from_frame(Frame.world(), 0.4, 2.0)
     frame2 = Frame(Point(0.0, 0.0, 1.0), Vector.unit_z(), Vector.unit_x())
@@ -719,9 +719,22 @@ def test_intersect_cone_cone():
     assert len(quartic.curves) == 2
 
     # A wide cone across: some of its generators run along some of the
-    # first's, and the curve runs to infinity: marched.
+    # first's, and the curve runs to infinity there, in exact branches
+    # between those generators.
     wide = Cone(Point(5.0, 0.3, 1.0), Vector.unit_x(), 1.2, 1.0)
-    assert c1.intersect(wide).method == IntersectionMethod.NUMERIC
+    branches = c1.intersect(wide)
+    assert branches.method == IntersectionMethod.EXACT and branches.is_complete()
+    assert len(branches.curves) == 4
+    for piece in branches.curves:
+        branch = piece.curve
+        assert isinstance(branch, QuarticBranch)
+        assert piece.parameter_range == (-math.inf, math.inf)
+        for u in [-50.0, 0.0, 3.0]:
+            point = branch.point_at(u)
+            assert c1.project_point(point).distance < 1e-9
+            assert wide.project_point(point).distance < 1e-9
+        first, second = branch.cones()
+        assert QuarticBranch(first, second, branch.index()) == branch
 
     # Parallel axes, equal half-angles: the 90° chamfers of two holes 3
     # apart meet in one hyperbola, in the plane x = 1.5 halfway between.

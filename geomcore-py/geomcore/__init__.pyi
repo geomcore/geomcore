@@ -840,7 +840,7 @@ def curve_curve_extrema(
 # a `TrimmedCurve` is a piece of one, so a method that takes either says
 # `Curve | TrimmedCurve`.
 Curve = Union[
-    Line, Circle, Ellipse, Parabola, Hyperbola, BSplineCurve, BezierCurve
+    Line, Circle, Ellipse, Parabola, Hyperbola, BSplineCurve, BezierCurve, QuarticBranch
 ]
 Curve2D = Union[
     Line2D, Circle2D, Ellipse2D, Parabola2D, Hyperbola2D, BSplineCurve2D, BezierCurve2D
@@ -1517,6 +1517,17 @@ class BezierCurve2D(
     def length(self, max_length_error: float) -> float: ...
 
 @final
+class QuarticBranch(_CurveMethods):
+    def __repr__(self) -> str: ...
+    __hash__: ClassVar[None]  # type: ignore[assignment]
+    def __new__(cls, first: Cone, second: Cone, index: int) -> QuarticBranch: ...
+    def __setstate__(self, state: Tuple[bool, Transform]) -> None: ...
+    def cones(self) -> Tuple[Cone, Cone]: ...
+    def index(self) -> int: ...
+    def is_reversed(self) -> bool: ...
+    def placement(self) -> Transform: ...
+
+@final
 class Line2D(_Curve2DMethods):
     __hash__: ClassVar[None]  # type: ignore[assignment]
     def __new__(cls, origin: Point2D, direction: Vector2D) -> Line2D: ...
@@ -1684,6 +1695,7 @@ __all__ = [
     "Line",
     "Parabola2D",
     "Parabola",
+    "QuarticBranch",
     "TrimmedCurve2D",
     "TrimmedCurve",
 ]
@@ -2438,6 +2450,7 @@ __all__ = [
     "Hyperbola",
     "BSplineCurve",
     "BezierCurve",
+    "QuarticBranch",
     "Line2D",
     "Circle2D",
     "Ellipse2D",

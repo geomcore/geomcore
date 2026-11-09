@@ -41,7 +41,10 @@ use std::f64::consts::{PI, TAU};
 use crate::geometry::curves::fitting::{hermite_knots, hermite_spline, segment_length};
 use crate::geometry::curves::{Curve, Curve2D, ParametricCurve};
 use crate::operations::intersect::IntersectionCurve;
-use crate::{Cone, Cylinder, Point, Point2D, Sphere, Tolerance, Vector, Vector2D};
+use crate::{Cone, Cylinder, InlineList, Point, Point2D, Sphere, Tolerance, Vector, Vector2D};
+
+mod branch;
+pub use branch::QuarticBranch;
 
 use super::surface_surface::{
     ConeConeIntersection, ConeCylinderIntersection, CylinderCylinderIntersection,
@@ -50,7 +53,11 @@ use super::surface_surface::{
 
 /// The quartic where two quadrics meet, one of them ruled (a cylinder or a
 /// cone), away from the configurations that split it into conics or lines:
-/// one or two closed loops, each a smooth piece of the curve.
+/// one or two loops, each a smooth piece of the curve. Between two cones a
+/// loop may run off to infinity along a generator of one parallel to a
+/// generator of the other, and come back from its other end: closed
+/// through the points at infinity, it is open in space, in pieces between
+/// them (see [`branches`](QuarticCurve::branches)).
 ///
 /// A component is evaluated at a parameter in `[0, 2π]`, its two ends the
 /// same point:
@@ -68,8 +75,10 @@ use super::surface_surface::{
 /// The ruled quadric is the cylinder against a cylinder or a cone, and the
 /// cylinder or the cone against a sphere.
 ///
-/// The routed [`intersect`](crate::Intersect) fits each component as a
-/// [`BSplineCurve`](crate::BSplineCurve) through exact points.
+/// The routed [`intersect`](crate::Intersect) fits each bounded component
+/// as a [`BSplineCurve`](crate::BSplineCurve) through exact points, and
+/// returns each piece of one that runs to infinity as an exact
+/// [`QuarticBranch`](crate::QuarticBranch).
 ///
 /// # Examples
 ///
@@ -104,7 +113,18 @@ pub struct QuarticCurve {
     /// Whether the surfaces touch at `contact_point`.
     touching: bool,
     contact_point: Point,
+    /// The parameters on their components where the curve runs to
+    /// infinity, along a generator parallel to one of the other quadric's,
+    /// ascending on each component.
+    infinities: [f64; MOST_INFINITIES],
+    /// The component of each of `infinities`.
+    infinity_components: [u8; MOST_INFINITIES],
+    /// How many of `infinities` there are.
+    infinity_count: u8,
 }
+
+/// A quartic meets the plane at infinity in at most four points.
+const MOST_INFINITIES: usize = 4;
 
 /// The two quadrics of a quartic curve, the ruled one second for a sphere.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -197,7 +217,8 @@ enum Ends {
 }
 
 impl QuarticCurve {
-    /// The number of closed loops: one or two.
+    /// The number of loops: one or two, each closed in space or through
+    /// its points at infinity.
     pub fn component_count(&self) -> usize {
         usize::from(self.component_count)
     }
@@ -210,7 +231,7 @@ impl QuarticCurve {
     }
 
     /// The point of the component `component` at `parameter` in `[0, 2π]`
-    /// (see [`QuarticCurve`]).
+    /// (see [`QuarticCurve`]), not finite where it runs to infinity.
     ///
     /// # Panics
     ///
@@ -233,9 +254,79 @@ impl QuarticCurve {
     /// and tangents, within a quarter of `tol.confusion` of the curve,
     /// with its curves in the parameters of both, on the same knots (but
     /// on a sphere through whose pole it passes); `None` when a fit fails.
+    ///
+    /// A component that runs to infinity is not fitted: its pieces between
+    /// the points at infinity follow, each an exact
+    /// [`QuarticBranch`](crate::QuarticBranch) with no curves in
+    /// parameters.
     pub(crate) fn fitted(&self, tol: Tolerance) -> Option<Vec<IntersectionCurve>> {
-        let components = &self.components[..self.component_count()];
-        with_rulings!(self, rulings => rulings.fitted(components, tol.confusion, self.ruled_first))
+        let mut bounded: InlineList<Component, 2> = InlineList::new();
+        for (index, component) in self.components[..self.component_count()].iter().enumerate() {
+            if self.infinities_of(index).next().is_none() {
+                bounded.push(*component);
+            }
+        }
+        let mut curves = with_rulings!(self, rulings => rulings.fitted(&bounded, tol.confusion, self.ruled_first))?;
+        curves.extend(
+            self.branches()
+                .into_iter()
+                .map(|branch| IntersectionCurve::in_space(branch, false)),
+        );
+        Some(curves)
+    }
+
+    /// The pieces of the components that run to infinity, between their
+    /// consecutive points at infinity: each an exact unbounded curve, in
+    /// the order of their components and then along them. Empty when the
+    /// curve is bounded.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::prelude::*;
+    /// use geomcore::{Cone, ConeConeIntersection, IntersectExact, Point, Tolerance, Vector};
+    ///
+    /// // Two wide cones whose axes cross at a right angle, a little apart:
+    /// // generators of one run parallel to generators of the other.
+    /// let first = Cone::new(Point::ORIGIN, Vector::Z, 1.0, 0.5).unwrap();
+    /// let second = Cone::new(Point::new(0.0, 0.3, 0.0), Vector::X, 1.0, 0.5).unwrap();
+    /// let ConeConeIntersection::Quartic(curve) = first.intersect_exact(&second, Tolerance::DEFAULT)
+    /// else {
+    ///     panic!("a quartic");
+    /// };
+    /// let branches = curve.branches();
+    /// assert!(!branches.is_empty());
+    /// let far = branches[0].point_at(1e3);
+    /// assert!(far.distance(Point::ORIGIN) > 100.0);
+    /// ```
+    pub fn branches(&self) -> Vec<QuarticBranch> {
+        let mut normalized = *self;
+        // The branches carry no curves in parameters: one order of the
+        // operands for both.
+        normalized.ruled_first = true;
+        let mut branches = Vec::new();
+        for component in 0..self.component_count() {
+            let Some(first) = self.infinities_of(component).next() else {
+                continue;
+            };
+            let mut previous = first;
+            for next in self.infinities_of(component).skip(1).chain([first + TAU]) {
+                let index = branches.len();
+                branches.push(QuarticBranch::new(
+                    normalized, index, component, previous, next,
+                ));
+                previous = next;
+            }
+        }
+        branches
+    }
+
+    /// The two quadrics, the ruled one first, if they are both cones.
+    pub(crate) fn cones(&self) -> Option<(Cone, Cone)> {
+        match self.surfaces {
+            Surfaces::Cones(first, second) => Some((first, second)),
+            _ => None,
+        }
     }
 }
 
@@ -682,27 +773,18 @@ pub(super) fn cones_in_general_position(
     let other = OtherCone::new(second);
     let (a1, a2) = (ruled.axis, other.cone.axis);
     let cos_squared = other.cos_squared;
-    // `d·a₂ = P + R cos(t − θ)` stays on one side of `± cos φ₂`, with a
-    // margin, or `A` vanishes on a generator.
+    // `d·a₂ = P + R cos(t − θ)`: `A` vanishes where it is `± cos φ₂`, on
+    // the generators parallel to one of the second cone's.
     let middle = ruled.cos * a1.dot(a2);
-    let (reach_x, reach_y) = (ruled.x.dot(a2), ruled.y.dot(a2));
-    let reach = ruled.sin.abs() * (reach_x * reach_x + reach_y * reach_y).sqrt();
-    let (low, high) = (middle - reach, middle + reach);
-    // `|d·a₂|` over the generators, from `0` where `d·a₂` changes sign.
-    let largest = low.abs().max(high.abs());
-    let smallest = if low * high <= 0.0 {
-        0.0
-    } else {
-        low.abs().min(high.abs())
-    };
-    let smallest_leading = if largest * largest < cos_squared {
-        cos_squared - largest * largest
-    } else if smallest * smallest > cos_squared {
-        smallest * smallest - cos_squared
-    } else {
-        0.0
-    };
-    if smallest_leading <= tol.angular {
+    let (reach_x, reach_y) = (ruled.sin * ruled.x.dot(a2), ruled.sin * ruled.y.dot(a2));
+    let reach = (reach_x * reach_x + reach_y * reach_y).sqrt();
+    // `A` at the generators where `d·a₂` is least and greatest: near zero,
+    // a generator of each cone touches the other's directions and `A`
+    // vanishes twice there.
+    if [middle - reach, middle + reach]
+        .iter()
+        .any(|edge| (edge * edge - cos_squared).abs() <= tol.angular)
+    {
         return None;
     }
     if other.offset(ruled.apex).0.abs() <= tol.confusion
@@ -710,6 +792,7 @@ pub(super) fn cones_in_general_position(
     {
         return None;
     }
+    let infinities = cones_at_infinity(&ruled, &other, (middle, reach_x, reach_y), tol)?;
     let w = ruled.apex - other.cone.apex;
     let w_axis = w.dot(a2);
     let gamma = w_axis * w_axis - cos_squared * w.square_magnitude();
@@ -767,19 +850,53 @@ pub(super) fn cones_in_general_position(
         factored_loops(normals.map(linear), touch)?
     };
     let surfaces = Surfaces::Cones(*first, *second);
-    Some(loops.into_result(
+    loops.into_result(
         |discriminant, reference, components| {
-            ConeConeIntersection::Quartic(QuarticCurve::new(
-                surfaces,
-                discriminant,
-                reference,
-                true,
-                components,
-                None,
-            ))
+            QuarticCurve::new(surfaces, discriminant, reference, true, components, None)
+                .with_infinities(&infinities)
+                .map(ConeConeIntersection::Quartic)
         },
-        ConeConeIntersection::Empty,
-    ))
+        Some(ConeConeIntersection::Empty),
+    )
+}
+
+/// The generators of the first cone parallel to one of the second's, each
+/// with the side of its root that runs to infinity there: where
+/// `d·a₂ = middle + reach_x cos t + reach_y sin t` is `± cos φ₂`, `A`
+/// vanishes, and `s = (±√Δ − β) / A` runs off on the side `−β`, `Δ` being
+/// `β²` there. `None` where `β` vanishes too: both roots run off, along a
+/// parabola-like branch.
+fn cones_at_infinity(
+    ruled: &RuledCone,
+    other: &OtherCone,
+    (middle, reach_x, reach_y): (f64, f64, f64),
+    tol: Tolerance,
+) -> Option<InlineList<(f64, f64), MOST_INFINITIES>> {
+    let mut found = InlineList::new();
+    let reach = (reach_x * reach_x + reach_y * reach_y).sqrt();
+    if reach == 0.0 {
+        return Some(found);
+    }
+    let cosine = other.cos_squared.sqrt();
+    let mut towards = None;
+    for target in [cosine, -cosine] {
+        let along = (target - middle) / reach;
+        if along.abs() >= 1.0 {
+            continue;
+        }
+        let towards = *towards.get_or_insert_with(|| reach_y.atan2(reach_x));
+        let half = along.acos();
+        for angle in [towards - half, towards + half] {
+            let (sin, cos) = angle.sin_cos();
+            let direction = ruled.generator(ruled.radial(sin, cos)).1;
+            let (_, half_linear, _, _) = other.coefficients(ruled.apex, direction);
+            if half_linear.abs() <= tol.confusion {
+                return None;
+            }
+            found.push((angle.rem_euclid(TAU), -half_linear.signum()));
+        }
+    }
+    Some(found)
 }
 
 /// The loops of a quartic whose quarter discriminant has a closed form.
@@ -959,7 +1076,44 @@ impl QuarticCurve {
             component_count: components.len() as u8,
             touching: contact_point.is_some(),
             contact_point: contact_point.unwrap_or(Point::ORIGIN),
+            infinities: [0.0; MOST_INFINITIES],
+            infinity_components: [0; MOST_INFINITIES],
+            infinity_count: 0,
         }
+    }
+
+    /// The same curve running to infinity along the generators at the
+    /// given angles, each on the side `branch` of its root: on the
+    /// component that holds that point. `None` when a generator is on no
+    /// component, the closed form then not holding.
+    fn with_infinities(mut self, generators: &[(f64, f64)]) -> Option<QuarticCurve> {
+        let mut found = [(0_u8, 0.0); MOST_INFINITIES];
+        for (slot, &(angle, branch)) in found.iter_mut().zip(generators) {
+            *slot = self.components[..self.component_count()]
+                .iter()
+                .enumerate()
+                .find_map(|(index, component)| {
+                    component
+                        .parameter_at_infinity(angle, branch)
+                        .map(|parameter| (index as u8, parameter))
+                })?;
+        }
+        let found = &mut found[..generators.len()];
+        found.sort_by(|a, b| a.0.cmp(&b.0).then(a.1.total_cmp(&b.1)));
+        for (k, &(component, parameter)) in found.iter().enumerate() {
+            self.infinity_components[k] = component;
+            self.infinities[k] = parameter;
+        }
+        self.infinity_count = generators.len() as u8;
+        Some(self)
+    }
+
+    /// The parameters where component `component` runs to infinity,
+    /// ascending.
+    fn infinities_of(&self, component: usize) -> impl Iterator<Item = f64> + '_ {
+        (0..usize::from(self.infinity_count))
+            .filter(move |&k| usize::from(self.infinity_components[k]) == component)
+            .map(|k| self.infinities[k])
     }
 }
 
@@ -968,6 +1122,26 @@ impl Component {
     /// from the generator at `start`, across from it.
     fn node(factor: usize, start: f64) -> Component {
         Component::Node { factor, start }
+    }
+
+    /// The parameter of the point on the generator at `angle`, on the side
+    /// `branch` of its root, if this component holds it.
+    fn parameter_at_infinity(self, angle: f64, branch: f64) -> Option<f64> {
+        match self {
+            Component::Around { branch: own } => (own == branch).then(|| angle.rem_euclid(TAU)),
+            Component::Between { start, end, .. } => {
+                let span = end - start;
+                let from_start = (angle - start).rem_euclid(TAU);
+                if from_start > span {
+                    return None;
+                }
+                // `t = start + span sin²(parameter / 2)`, the higher root
+                // on the way out and the lower one on the way back.
+                let half = 2.0 * (from_start / span).sqrt().min(1.0).asin();
+                Some(if branch > 0.0 { half } else { TAU - half })
+            }
+            Component::Node { .. } | Component::Apex => None,
+        }
     }
 
     /// The same component with its first angle in `[0, 2π)`, so its curve
@@ -1472,11 +1646,19 @@ impl OtherCone {
 }
 
 impl Other for OtherCone {
-    /// `(root − β) / A`.
+    /// `(root − β) / A`, or `−γ / (root + β)` where `root` and `β` share
+    /// their sign: the same root, `root² − β² = −A γ`, without the
+    /// cancellation. Near a generator parallel to one of the cone's, `A`
+    /// nearly vanishes and the root that stays finite is the second form.
     #[inline]
     fn along(&self, base: Point, direction: Vector, root: f64) -> f64 {
-        let (leading, half_linear, _, _) = self.coefficients(base, direction);
-        (root - half_linear) / leading
+        let (leading, half_linear, _, w_along_axis) = self.coefficients(base, direction);
+        if root * half_linear <= 0.0 {
+            return (root - half_linear) / leading;
+        }
+        let w = base - self.cone.apex;
+        let constant = w_along_axis * w_along_axis - self.cos_squared * w.square_magnitude();
+        -constant / (root + half_linear)
     }
 
     /// `(root' − β' − s A') / A`, primes the derivatives in `t`.

@@ -54,6 +54,11 @@ def _curves_3d():
         geomcore.BezierCurve(
             2, [Point(-1.0, 0.5, -1.0), Point(0.0, 0.5, 2.0), Point(1.0, 0.5, -1.0)]
         ),
+        geomcore.QuarticBranch(
+            geomcore.Cone(Point.origin(), Vector.unit_z(), 1.0, 0.5),
+            geomcore.Cone(Point(0.0, 0.3, 0.0), Vector.unit_x(), 1.0, 0.5),
+            0,
+        ),
     ]
 
 

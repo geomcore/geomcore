@@ -38,6 +38,7 @@ from geomcore import (
     Plane,
     Point,
     Point2D,
+    QuarticBranch,
     RevolutionSurface,
     Sphere,
     Tolerance,
@@ -75,6 +76,16 @@ def _spline_surface() -> BSplineSurface:
     return BSplineSurface(2, 2, poles, [0.0, 1.0], [3, 3], [0.0, 1.0], [3, 3], False, False)
 
 
+def _quartic_branch():
+    """A branch of the quartic where two wide cones meet, their axes
+    crossing at a right angle a little apart."""
+    return QuarticBranch(
+        Cone(Point(0, 0, 0), Vector(0, 0, 1), 1.0, 0.5),
+        Cone(Point(0, 0.3, 0), Vector(1, 0, 0), 1.0, 0.5),
+        1,
+    )
+
+
 def _shapes():
     profile = _spline_curve()
     planar = BSplineCurve2D(2, [Point2D(0, 0), Point2D(1, 2), Point2D(3, 1)], [0.0, 1.0], [3, 3], False)
@@ -100,6 +111,9 @@ def _shapes():
         BezierCurve(3, [Point(0, 0, 0), Point(1, 2, 0), Point(3, 2, 1), Point(4, 0, 1)]),
         BezierCurve.new_rational(2, [Point(1, 0, 0), Point(1, 1, 0), Point(0, 1, 0)], [1.0, 0.7, 1.0]),
         BezierCurve2D(2, [Point2D(0, 0), Point2D(1, 2), Point2D(3, 1)]),
+        _quartic_branch(),
+        _quartic_branch().reversed().transformed(_MIRROR),
+        TrimmedCurve(_quartic_branch(), -1.0, 2.0),
         TrimmedCurve(Circle.from_frame(_FRAME, 2.5), 0.25, 2.0),
         TrimmedCurve(profile, 0.1, 0.8),
         TrimmedCurve2D(planar, 0.2, 0.9),

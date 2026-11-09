@@ -17,7 +17,7 @@ use std::f64::consts::{FRAC_PI_2, TAU};
 /// `point_at_parameter`: the fewest steps for which `deviations(k)`, the
 /// chord and angle deviation of each of `k` steps (both falling as `k`
 /// grows), meet the criteria. `guess` estimates that count.
-fn equal_steps<P, F>(
+pub(super) fn equal_steps<P, F>(
     point_at_parameter: impl Fn(f64) -> P,
     (first, last): (f64, f64),
     criteria: &DiscretizationCriteria,

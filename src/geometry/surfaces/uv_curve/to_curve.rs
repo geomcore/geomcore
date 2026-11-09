@@ -26,7 +26,7 @@ use std::fmt;
 
 use crate::geometry::curves::{
     BSplineCurve, BSplineCurve2D, BezierCurve, Circle, Curve, Curve2D, Ellipse, Hyperbola, Line,
-    Parabola, ParametricCurve, ParametricCurve2D,
+    Parabola, ParametricCurve, ParametricCurve2D, ReversibleCurve,
 };
 use crate::geometry::surfaces::uv_curve::composition;
 use crate::geometry::surfaces::{
@@ -415,6 +415,13 @@ fn reparametrized(
         // curve too.
         Curve::Bezier(bezier) => reparametrized_spline(bezier.bspline(), shift, scale, tol)
             .map(|spline| BezierCurve::from_span(spline).into()),
+        // Its parameter maps onto itself only unchanged or negated.
+        Curve::QuarticBranch(branch) if shift == 0.0 && unit_speed => Ok(if scale > 0.0 {
+            curve.clone()
+        } else {
+            branch.reversed().into()
+        }),
+        Curve::QuarticBranch(_) => Err(UvCurveTo3DError::NotAnalytic),
     }
 }
 

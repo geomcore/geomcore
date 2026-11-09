@@ -80,10 +80,12 @@ cylinders whose axes cross, a sphere and a cylinder or a cone whose
 axis misses its centre, a cone and a cylinder off its axis, or two
 cones in general position. Those meet in a quartic, in one loop or two:
 the bicylindric curve of two cylinders, or, for a sphere, Viviani's
-curve among others. A cone and a cylinder, or two cones, are left to the
-numeric search where a generator of one runs along one of the other's
-(the curve runs off to infinity), where an apex lies on the other
-surface, and where the surfaces touch. `intersect_exact` returns its closed form
+curve among others. Where a generator of one cone runs along one of the
+other's, the curve runs off to infinity there: each piece between two
+such generators comes back whole as an exact `QuarticBranch`, unbounded
+both ways, the loops that stay bounded fitted as usual. A cone and a
+cylinder whose generators run along each other, an apex on the other
+surface, and surfaces that touch are left to the numeric search. `intersect_exact` returns its closed form
 (`QuarticCurve`, exact points on both surfaces), and `intersect` fits
 each loop within confusion and reports the result exact and complete,
 with the point where the surfaces touch, if any, in `contact_points`:

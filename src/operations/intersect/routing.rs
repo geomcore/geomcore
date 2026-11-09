@@ -22,7 +22,7 @@ use crate::geometry::curves::PointExtrema;
 use crate::geometry::curves::PointExtrema2D;
 use crate::geometry::curves::{
     BSplineCurve, BSplineCurve2D, BezierCurve, BezierCurve2D, Curve, Curve2D, ElementaryCurve,
-    ParametricCurve, ParametricCurve2D, TrimmedCurve, TrimmedCurve2D,
+    ParametricCurve, ParametricCurve2D, QuarticBranch, TrimmedCurve, TrimmedCurve2D,
 };
 use crate::geometry::surfaces::{
     BSplineSurface, BezierSurface, ElementarySurface, ExtrusionSurface, ParametricSurface,
@@ -264,6 +264,15 @@ impl CurveOperand for BSplineCurve {
 }
 
 impl CurveOperand for BezierCurve {
+    type Basis = CurveKind;
+
+    #[inline]
+    fn basis_and_range(&self) -> Operand<CurveKind> {
+        (CurveKind::Unlisted, None)
+    }
+}
+
+impl CurveOperand for QuarticBranch {
     type Basis = CurveKind;
 
     #[inline]

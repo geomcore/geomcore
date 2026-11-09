@@ -11,7 +11,9 @@ __version__ = _native.__version__
 # piece of one, so code that takes either says `Curve | TrimmedCurve`.
 # `isinstance` takes a union from Python 3.10; `typing.get_args` gives the
 # tuple of classes.
-Curve = _Union[Line, Circle, Ellipse, Parabola, Hyperbola, BSplineCurve, BezierCurve]
+Curve = _Union[
+    Line, Circle, Ellipse, Parabola, Hyperbola, BSplineCurve, BezierCurve, QuarticBranch
+]
 Curve2D = _Union[
     Line2D,
     Circle2D,

@@ -241,6 +241,7 @@ fn test_curve3d_enum_closedness_dispatch_agrees_with_concrete() {
             Curve::Hyperbola(c) => c.is_closed(tol),
             Curve::BSpline(c) => c.is_closed(tol),
             Curve::Bezier(c) => c.is_closed(tol),
+            Curve::QuarticBranch(c) => c.is_closed(tol),
         };
         assert_eq!(curve.is_closed(tol), expected);
     }
@@ -282,6 +283,7 @@ fn test_curve3d_enum_continuity_dispatch_agrees_with_concrete() {
             Curve::Hyperbola(c) => c.continuity(0.5, tol),
             Curve::BSpline(c) => c.continuity(0.5, tol),
             Curve::Bezier(c) => c.continuity(0.5, tol),
+            Curve::QuarticBranch(c) => c.continuity(0.5, tol),
         };
         assert_eq!(curve.continuity(0.5, tol), expected);
     }

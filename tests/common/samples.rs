@@ -13,7 +13,8 @@ use geomcore::{
     Axis, BSplineCurve, BSplineCurve2D, BSplineSurface, BezierCurve, BezierCurve2D, BezierSurface,
     Circle, Circle2D, Cone, Curve, Curve2D, Cylinder, Ellipse, Ellipse2D, ExtrusionSurface, Frame,
     Hyperbola, Hyperbola2D, Line, Line2D, Parabola, Parabola2D, Plane, Point, Point2D,
-    RevolutionSurface, Sphere, Surface, Torus, TrimmedCurve, TrimmedCurve2D, Vector, Vector2D,
+    QuarticBranch, RevolutionSurface, Sphere, Surface, Torus, Transform, TrimmedCurve,
+    TrimmedCurve2D, Vector, Vector2D,
 };
 
 /// The placement of the samples: no axis along a coordinate axis.
@@ -71,7 +72,19 @@ pub fn curves() -> Vec<Curve> {
         BezierCurve::new_rational(3, curve_poles(), vec![1.0, 0.5, 2.0, 1.0])
             .unwrap()
             .into(),
+        quartic_branch().into(),
     ]
+}
+
+/// A branch of the quartic where two wide cones meet, their axes crossing
+/// at a right angle a little apart, placed in the tilted frame.
+pub fn quartic_branch() -> QuarticBranch {
+    let first = Cone::new(Point::ORIGIN, Vector::Z, 1.0, 0.5).unwrap();
+    let second = Cone::new(Point::new(0.0, 0.3, 0.0), Vector::X, 1.0, 0.5).unwrap();
+    QuarticBranch::from_cones(&first, &second, 0)
+        .unwrap()
+        .transformed(Transform::between_frames(Frame::WORLD, tilted_frame()))
+        .unwrap()
 }
 
 /// The poles of the sample B-spline and Bézier curves in the plane.

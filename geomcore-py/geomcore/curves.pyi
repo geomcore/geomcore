@@ -16,6 +16,7 @@ from geomcore import (
     Line2D as Line2D,
     Parabola as Parabola,
     Parabola2D as Parabola2D,
+    QuarticBranch as QuarticBranch,
     TrimmedCurve as TrimmedCurve,
     TrimmedCurve2D as TrimmedCurve2D,
 )
@@ -35,6 +36,7 @@ __all__ = [
     "Line2D",
     "Parabola",
     "Parabola2D",
+    "QuarticBranch",
     "TrimmedCurve",
     "TrimmedCurve2D",
 ]

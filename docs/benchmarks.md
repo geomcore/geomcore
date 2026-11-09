@@ -441,6 +441,22 @@ longer inlined into `intersect_conic_quadric` (`conic_quadric/*/plane`,
 4–7%), nor the line and placed conic into the 2D line–conic calls (1.3%
 and 2.2%), nor a closure of the skew revolution projection (1.8%).
 
+The pieces running to infinity came next (ADR 0042). The typed call now
+finds the generators parallel to one of the second cone's, and places each
+on its component: 2938, 6923 and 5406 instructions on the three pairs above
+(+300, +260 and +260), about 0.1 µs. The arccosine and the angle of the
+reach run only where such a generator exists. A fourth pair,
+`branches`, a wide cone across the upright one, meets it in four
+branches: 5133 instructions typed, 10,965 routed, as nothing is marched
+or fitted. On one branch, a point (`branch_point`) takes 1447
+instructions, a root on a generator and the placement, and a projection
+(`branch_projection`) 161k, 64 samples refined by Brent's search and
+Newton steps. The new `Curve` variant moved inlining elsewhere, the
+library unchanged there: the 2D line–parabola and line–ellipse calls
+(+3.3% and +1.6%), the cone's conics (+1.2–2.7%), the cone and cylinder's
+typed calls (+1.6% and +2.5%), and down 4–15% on the sphere's typed calls
+and the parallel cones.
+
 Reproduce with:
 
 ```sh

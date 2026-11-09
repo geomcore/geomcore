@@ -25,7 +25,7 @@ The positive quadratic form of a cone and a cylinder, `cos² φ ((W·a₂)² + A
 
 `intersect_exact` reports `NotAnalytic`, and `intersect` marches, in four configurations:
 
-- **A generator of one cone parallel to one of the other's**: `d·a₂ = cos φ₁ (a₁·a₂) + sin φ₁ ρ(t)·a₂` ranges over an interval, and `A` keeps one sign only if `|d·a₂|` stays on one side of `cos φ₂`, by more than `tol.angular` in `A`. Otherwise the curve runs off to infinity.
+- **A generator of one cone parallel to one of the other's**: `d·a₂ = cos φ₁ (a₁·a₂) + sin φ₁ ρ(t)·a₂` ranges over an interval, and `A` keeps one sign only if `|d·a₂|` stays on one side of `cos φ₂`, by more than `tol.angular` in `A`. Otherwise the curve runs off to infinity. ADR 0042 returns those branches exactly.
 - **Either apex on the other cone**, within confusion. The curve passes through it and crosses itself there.
 - **The cones touching**, where a factor vanishes twice: its plane touches the first cone along a generator, within confusion at the point where that generator meets the second cone.
 - **A factor that does not turn**, a tangent plane across the first cone's axis. Rare, and marched rather than given its own case.
@@ -34,7 +34,7 @@ Near them the closed form holds. With the second apex `2 × confusion` off the f
 
 ## Unbounded branches
 
-Two cones in general position often run off to infinity: their direction cones overlap, as for any two wide cones turned apart. The exact curves that run to infinity already in the library, the lines of a plane through a cone's apex, the hyperbolas of a plane or of two parallel cones, are returned whole, with an infinite `parameter_range`, exact and complete. A trimmed surface narrows that range to the patch (ADR 0039); it is not what makes the curve exact. Unbounded quartic branches will follow the same rule, in their own change: the curve, not a piece of it cut at a box. What a quartic lacks is a representation: `intersect` returns its fit (ADR 0036), and a fit has bounds. ADR 0040's reason for leaving them to the march, that a trimmed surface bounds them, is withdrawn.
+Two cones in general position often run off to infinity: their direction cones overlap, as for any two wide cones turned apart. The exact curves that run to infinity already in the library, the lines of a plane through a cone's apex, the hyperbolas of a plane or of two parallel cones, are returned whole, with an infinite `parameter_range`, exact and complete. A trimmed surface narrows that range to the patch (ADR 0039); it is not what makes the curve exact. Unbounded quartic branches will follow the same rule, in their own change: the curve, not a piece of it cut at a box. What a quartic lacks is a representation: `intersect` returns its fit (ADR 0036), and a fit has bounds. ADR 0040's reason for leaving them to the march, that a trimmed surface bounds them, is withdrawn. ADR 0042 gives them that representation.
 
 ## Considered options
 

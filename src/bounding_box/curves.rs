@@ -14,11 +14,11 @@ use crate::base::tier::{TierPoint, impl_for_both_tiers};
 use crate::geometry::curves::{
     Curve, ElementaryCurve, GenericBSplineCurve, GenericBezierCurve, GenericCircle, GenericEllipse,
     GenericHyperbola, GenericLine, GenericParabola, ParametricCurve, ParametricCurve2D,
-    RangeOperations, TrimmedCurve,
+    QuarticBranch, RangeOperations, TrimmedCurve,
 };
 use crate::geometry::curves::{curve_dispatch, elementary_curve_dispatch};
 use crate::math::bspline::curve as math;
-use crate::math::numeric::bernstein;
+use crate::math::numeric::{bernstein, brent_minimum};
 use crate::{Point, Tolerance};
 use std::f64::consts::{PI, TAU};
 
@@ -91,6 +91,52 @@ pub(crate) fn box_through<P: TierPoint>(
         .into_iter()
         .filter(|&t| first < t && t < last)
         .fold(ends, |b, t| b.including(point_at(t)))
+}
+
+/// Parameters sampled across a range by [`sampled_box`].
+const BOX_SAMPLES: usize = 64;
+
+/// The box of the curve evaluated by `point_at` over `[first, last]`, for
+/// a curve with no closed form: through its ends and the points where a
+/// coordinate is least or greatest among `BOX_SAMPLES` evenly spaced ones,
+/// each refined by Brent's search between its neighbours. Exact as long
+/// as no coordinate turns twice between samples.
+pub(crate) fn sampled_box(
+    point_at: impl Fn(f64) -> Point,
+    (first, last): (f64, f64),
+) -> BoundingBox {
+    let step = (last - first) / BOX_SAMPLES as f64;
+    let parameter = |k: usize| {
+        if k == BOX_SAMPLES {
+            last
+        } else {
+            first + step * k as f64
+        }
+    };
+    let points: Vec<Point> = (0..=BOX_SAMPLES).map(|k| point_at(parameter(k))).collect();
+    let mut stationary = Vec::new();
+    for axis in 0..3 {
+        let coordinate = |p: Point| [p.x, p.y, p.z][axis];
+        for k in 1..BOX_SAMPLES {
+            let (before, at, after) = (
+                coordinate(points[k - 1]),
+                coordinate(points[k]),
+                coordinate(points[k + 1]),
+            );
+            // A least coordinate is the greatest of its negation.
+            for sign in [1.0, -1.0] {
+                if sign * at <= sign * before && sign * at <= sign * after {
+                    stationary.push(brent_minimum(
+                        |t| sign * coordinate(point_at(t)),
+                        parameter(k - 1),
+                        parameter(k + 1),
+                        1e-12,
+                    ));
+                }
+            }
+        }
+    }
+    box_through(point_at, (first, last), stationary)
 }
 
 /// The box of a parabola with focal distance `focal` in `frame` over
@@ -249,6 +295,13 @@ box_over_bounds!(
     GenericBSplineCurve,
     GenericBezierCurve
 );
+
+/// A quartic branch runs to infinity.
+impl HasBoundingBox for QuarticBranch {
+    fn bounding_box(&self) -> Option<BoundingBox> {
+        None
+    }
+}
 
 impl HasBoundingBox for Curve {
     fn bounding_box(&self) -> Option<BoundingBox> {

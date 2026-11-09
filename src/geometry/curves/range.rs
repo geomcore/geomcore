@@ -25,7 +25,7 @@ use crate::geometry::curves::conversion::{self, BSplineConversionError};
 use crate::geometry::curves::{
     Curve, Curve2D, ElementaryCurve, GenericBSplineCurve, GenericBezierCurve, GenericCircle,
     GenericEllipse, GenericHyperbola, GenericLine, GenericParabola, ParametricCurve,
-    ParametricCurve2D,
+    ParametricCurve2D, QuarticBranch,
 };
 use crate::geometry::curves::{curve_2d_dispatch, curve_dispatch, elementary_curve_dispatch};
 use crate::math::numeric::quadrature;
@@ -439,6 +439,54 @@ impl_for_both_tiers! {
                 .expect("a range a trimmed curve accepts converts")
                 .length(max_error)
         }
+    }
+}
+
+/// No closed form: the box, steps and length of a quartic branch are
+/// measured on its exact points (ADR 0042).
+impl RangeOperations for QuarticBranch {
+    type Point = Point;
+
+    fn range_box(&self, first: f64, last: f64) -> BoundingBoxOf<Point> {
+        bounding_box::sampled_box(|u| self.point_at(u), (first, last))
+    }
+
+    fn for_each_run<F>(
+        &self,
+        first: f64,
+        last: f64,
+        criteria: &DiscretizationCriteria,
+        min_segments: usize,
+        visit: F,
+    ) where
+        F: FnMut(Run, &dyn Fn(f64) -> Point),
+    {
+        discretization::sampled_steps(
+            |u| self.point_at(u),
+            (first, last),
+            criteria,
+            min_segments,
+            visit,
+        );
+    }
+
+    /// A quartic branch is no B-spline, not even over a range.
+    fn bspline_range(
+        &self,
+        _first: f64,
+        _last: f64,
+    ) -> Result<GenericBSplineCurve<Point>, BSplineConversionError> {
+        Err(BSplineConversionError::NotRepresentable)
+    }
+
+    fn parameter_is_length(&self) -> bool {
+        false
+    }
+
+    /// The speed integrated by quadrature.
+    fn range_length(&self, first: f64, last: f64, max_error: f64) -> f64 {
+        let speed = |u: f64| self.derivative(u, 1).magnitude();
+        quadrature::integrate(&speed, first, last, max_error)
     }
 }
 
