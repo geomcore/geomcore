@@ -27,7 +27,7 @@ The positive quadratic form of a cone and a cylinder, `cos² φ ((W·a₂)² + A
 
 - **A generator of one cone parallel to one of the other's**: `d·a₂ = cos φ₁ (a₁·a₂) + sin φ₁ ρ(t)·a₂` ranges over an interval, and `A` keeps one sign only if `|d·a₂|` stays on one side of `cos φ₂`, by more than `tol.angular` in `A`. Otherwise the curve runs off to infinity. ADR 0042 returns those branches exactly.
 - **Either apex on the other cone**, within confusion. The curve passes through it and crosses itself there.
-- **The cones touching**, where a factor vanishes twice: its plane touches the first cone along a generator, within confusion at the point where that generator meets the second cone.
+- **The cones touching**, where a factor vanishes twice: its plane touches the first cone along a generator, within confusion at the point where that generator meets the second cone. *Amended (ADR 0043):* read on the walk, the crossing signed.
 - **A factor that does not turn**, a tangent plane across the first cone's axis. Rare, and marched rather than given its own case.
 
 Near them the closed form holds. With the second apex `2 × confusion` off the first cone, the two loops pass `2 × confusion` apart where they would cross, and are fitted within `0.3 × confusion` of their closed form. The march, within confusion of both, traces them as one.

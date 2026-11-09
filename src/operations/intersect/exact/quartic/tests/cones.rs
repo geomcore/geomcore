@@ -208,3 +208,60 @@ fn test_an_apex_a_hair_off_the_other_cone_is_fitted_on_its_curve() {
         assert_fitted_on_closed_form(&curve, 0.3 * TOL.confusion);
     }
 }
+
+#[test]
+fn test_cones_touching_meet_at_the_point_or_in_an_arc_crossing_itself_there() {
+    // A narrow cone whose generator through `P`, on the upright cone,
+    // runs along `X` in the tangent plane there, its axis leaning out of
+    // the upright cone or into it: the cones touch at `P`.
+    let sqrt3 = 3.0_f64.sqrt();
+    let p = Point::new(0.0, sqrt3, 3.0);
+    let normal = Vector::new(0.0, sqrt3 / 2.0, -0.5);
+    for (half_angle, length) in [(0.1_f64, 5.0), (0.3, 2.0)] {
+        let leaning = |side: f64| {
+            let axis = Vector::X * half_angle.cos() + normal * (side * half_angle.sin());
+            from_apex(p - Vector::X * length, axis, half_angle)
+        };
+        // Leaning out, the narrow cone stays outside near `P`: only `P`.
+        let outside = leaning(1.0);
+        let ConeConeIntersection::TangentPoint(point) = upright().intersect_exact(&outside, TOL)
+        else {
+            panic!("a tangent point");
+        };
+        assert!(point.distance(p) < 1e-12);
+        assert_routed_result(
+            &upright().intersect(&outside, TOL),
+            &upright(),
+            &outside,
+            0,
+            1,
+        );
+        // Leaning in, it crosses the upright cone on an arc of generators
+        // that crosses itself at `P`.
+        let inside = leaning(-1.0);
+        let ConeConeIntersection::Quartic(curve) = upright().intersect_exact(&inside, TOL) else {
+            panic!("the quartic");
+        };
+        assert_eq!(curve.component_count(), 1);
+        let Component::Between { ends, .. } = curve.components[0] else {
+            panic!("an arc");
+        };
+        assert!(ends.contains(&Ends::Crossing));
+        assert!(curve.contact_point().unwrap().distance(p) < 1e-12);
+        assert_exact(&curve, &upright(), &inside, TOL.confusion);
+        assert_routed_result(
+            &upright().intersect(&inside, TOL),
+            &upright(),
+            &inside,
+            1,
+            1,
+        );
+        assert_routed_result(
+            &inside.intersect(&upright(), TOL),
+            &inside,
+            &upright(),
+            1,
+            1,
+        );
+    }
+}

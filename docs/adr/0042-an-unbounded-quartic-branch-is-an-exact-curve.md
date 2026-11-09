@@ -44,7 +44,7 @@ Far out the points lose precision: `A` cancels to about `1e-16` in its terms, an
 
 - **`A` vanishing twice**, a generator of the first cone touching the second's directions: `P ± R` within `tol.angular` of `± cos φ₂`.
 - **`β` vanishing at a point at infinity** too, within confusion: both roots run off together, along a branch like a parabola's.
-- An apex on the other cone, and the cones touching, as before.
+- An apex on the other cone, as before. (The cones touching: ADR 0043.)
 
 ## Considered options
 

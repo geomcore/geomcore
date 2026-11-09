@@ -188,8 +188,9 @@ pub enum CylinderCylinderIntersection {
 /// the cylinder touching one sphere centred there, give two plane conics.
 /// Anything else is a space quartic in closed form (see [`QuarticCurve`]),
 /// running off to infinity where a generator of the cylinder is parallel
-/// to one of the cone's ([`QuarticCurve::branches`]), but where the
-/// surfaces touch and where the apex lies on the cylinder: those report
+/// to one of the cone's ([`QuarticCurve::branches`]), and crossing itself
+/// where the surfaces touch, or that point alone. Where the apex lies on
+/// the cylinder, or the surfaces touch twice, it reports
 /// [`ConeCylinderIntersection::NotAnalytic`], reserved for the numeric
 /// surface-surface path.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -201,6 +202,9 @@ pub enum ConeCylinderIntersection {
     TwoConics(CommonSphereConics<PlaneCylinderIntersection>),
     /// Degenerate tube (its axis) meeting the cone at the apex.
     ApexPoint(Point),
+    /// The surfaces touch at this point and meet nowhere else: a
+    /// generator of the cylinder touches the cone there.
+    TangentPoint(Point),
     /// The space quartic of a cylinder off the cone's axis, in one or two
     /// loops (see [`QuarticCurve`]), read along the cylinder's generators.
     Quartic(QuarticCurve),
@@ -321,9 +325,10 @@ pub enum TorusTorusIntersection {
 /// in one plane conic, cones with one apex but axes apart in up to four
 /// lines through it, and cones around one sphere in two plane conics.
 /// Anything else is a space quartic in closed form (see [`QuarticCurve`]),
-/// but where a generator of one cone is parallel to one of the other's (the
-/// curve runs off to infinity), where either apex lies on the other cone,
-/// and where the cones touch: those report
+/// running off to infinity where a generator of one cone is parallel to
+/// one of the other's ([`QuarticCurve::branches`]), and crossing itself
+/// where the cones touch, or that point alone. Where either apex lies on
+/// the other cone, or the cones touch twice, it reports
 /// [`ConeConeIntersection::NotAnalytic`], reserved for the numeric
 /// surface-surface path.
 // The quartic is stored inline, as in the other quartic results.
@@ -357,6 +362,9 @@ pub enum ConeConeIntersection {
     /// The cones meet only at their shared apex: coaxial with different
     /// half-angles, or axes apart with no generator in common.
     ApexPoint(Point),
+    /// The cones touch at this point and meet nowhere else, away from
+    /// both apexes.
+    TangentPoint(Point),
     /// Same apex, axis, and half-angle within tolerance.
     Coincident,
     /// No closed form for this configuration.
@@ -1084,8 +1092,11 @@ impl IntersectExact<Cone> for Cone {
     /// sphere around it. Axes that meet at a point as far from both cones
     /// (within `tol.confusion`), and not at an apex, give two plane conics,
     /// each the first cone's section by a plane through that point (see
-    /// [`CommonSphereConics`]). Anything else is a space quartic and
-    /// reports [`ConeConeIntersection::NotAnalytic`].
+    /// [`CommonSphereConics`]). Anything else is a space quartic in closed
+    /// form, read along the first cone's generators (see [`QuarticCurve`]),
+    /// crossing itself where the cones touch, or that point alone. Where
+    /// either apex lies on the other cone (within `tol.confusion`), or the
+    /// cones touch twice, it reports [`ConeConeIntersection::NotAnalytic`].
     ///
     /// # Examples
     ///
@@ -1262,8 +1273,10 @@ impl IntersectExact<Cylinder> for Cone {
     /// along a generator of the cone (against `tol.angular`), each
     /// generator of the cylinder meets the cone once, on one loop that is
     /// bounded or runs off to infinity ([`QuarticCurve::branches`]).
-    /// Where the surfaces touch, and where the apex lies on the cylinder
-    /// (within `tol.confusion`), it reports
+    /// Where the surfaces touch at a point, the curve crosses itself there,
+    /// or is that point alone ([`ConeCylinderIntersection::TangentPoint`]).
+    /// Where the apex lies on the cylinder (within `tol.confusion`), or the
+    /// surfaces touch twice, it reports
     /// [`ConeCylinderIntersection::NotAnalytic`].
     ///
     /// # Examples

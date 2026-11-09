@@ -305,7 +305,9 @@ impl ConeCylinderIntersection {
                 surface_curves([(c1, false), (c2, false)])
             }
             ConeCylinderIntersection::TwoConics(conics) => common_sphere_conics(&conics),
-            ConeCylinderIntersection::ApexPoint(p) => contact_point(p),
+            ConeCylinderIntersection::ApexPoint(p) | ConeCylinderIntersection::TangentPoint(p) => {
+                contact_point(p)
+            }
             ConeCylinderIntersection::Quartic(curve) => quartic(curve, tol),
             ConeCylinderIntersection::Empty => surfaces_miss(),
             ConeCylinderIntersection::NotAnalytic => None,
@@ -418,7 +420,9 @@ impl ConeConeIntersection {
             ConeConeIntersection::TwoConics(conics) => common_sphere_conics(&conics),
             ConeConeIntersection::Quartic(curve) => quartic(curve, tol),
             ConeConeIntersection::Empty => surfaces_miss(),
-            ConeConeIntersection::ApexPoint(p) => contact_point(p),
+            ConeConeIntersection::ApexPoint(p) | ConeConeIntersection::TangentPoint(p) => {
+                contact_point(p)
+            }
             ConeConeIntersection::Coincident => surfaces_coincide(),
             ConeConeIntersection::NotAnalytic => None,
         }

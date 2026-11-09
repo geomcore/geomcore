@@ -35,7 +35,7 @@ the Python distribution are versioned in lockstep.
   Rust, `intersect_exact` returns the closed form as
   `ConeConeIntersection::Quartic(QuarticCurve)`, read along the first
   cone's generators, and cones that miss as `Empty`. Still marched:
-  either apex on the other cone, and cones that touch.
+  either apex on the other cone.
 - `QuarticBranch`, a new `Curve` variant and Python class: a piece of
   the quartic where two cones meet that runs to infinity at both ends,
   where a generator of one cone is parallel to one of the other's (#237,
@@ -74,11 +74,16 @@ the Python distribution are versioned in lockstep.
   pipe across it, which run between the edges of the cone's shadow, or
   nothing. In Rust, `intersect_exact` returns the closed form as
   `ConeCylinderIntersection::Quartic(QuarticCurve)`, read along the
-  cylinder's generators, and a pipe beside the cone as `Empty`. Three
-  configurations are still marched: a generator of the cylinder parallel
-  to one of the cone's, where the curve runs to infinity (trim the
-  surfaces to bound it), the apex on the cylinder, and surfaces that
-  touch.
+  cylinder's generators, and a pipe beside the cone as `Empty`. The apex
+  on the cylinder is still marched.
+- A cone and a cylinder, or two cones, that touch at a point meet in an
+  exact curve instead of a marched one (#237, ADR 0043). Where the
+  surfaces part on both sides of the point, `intersect` reports it as a
+  contact point, alone or beside the loops elsewhere; where they cross
+  there, the curve crosses itself, as one loop through the point twice,
+  fitted within confusion, the point among its `contact_points`. In
+  Rust, `intersect_exact` returns a lone point as the new
+  `TangentPoint(Point)`. Two touches at once are still marched.
 - Two cones with parallel axes and equal half-angles, such as the
   chamfers of two neighbouring parallel holes, meet in one plane conic
   instead of being marched (#262): each cone is the other moved sideways,
@@ -147,6 +152,8 @@ the Python distribution are versioned in lockstep.
   (#237): a `match` on it needs the arms.
 - `ConeCylinderIntersection` gains `Quartic(QuarticCurve)` and `Empty`
   (#237): a `match` on it needs the arms.
+- `ConeCylinderIntersection` and `ConeConeIntersection` gain
+  `TangentPoint(Point)` (#237): a `match` on them needs the arm.
 - `SphereCylinderIntersection` and `SphereConeIntersection` lose the
   variant `NotAnalytic`, every configuration having a closed form, and
   gain `Quartic` and `TangentPoint`, the cone pair also
