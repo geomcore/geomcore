@@ -11,6 +11,16 @@ the Python distribution are versioned in lockstep.
 
 ### Added
 
+- Two cones with one apex but different axes meet in the lines through
+  it that lie on both, up to four, instead of being marched, which
+  found none of them (#235). `intersect`, in Rust and Python, reports
+  them exact and complete, each with its curves in both cones'
+  parameters and marked tangent where the cones touch along it, and the
+  apex in `contact_points`; with no line in common, the apex alone. In
+  Rust, `ConeConeIntersection` gains `Generators(SharedGenerators)`, and
+  `ApexPoint` covers cones that share only the apex. A line within
+  confusion of a cone's apex now maps onto the cone's generator in
+  `curve_3d_to_uv`.
 - A sphere meets a cylinder or a cone whose axis misses its centre in an
   exact quartic (#232, #233), in Rust and Python, instead of a marched
   one. `intersect` fits each loop within confusion and reports the

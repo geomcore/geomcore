@@ -22,6 +22,7 @@ from geomcore import (
     Frame,
     Hyperbola,
     Hyperbola2D,
+    Line,
     Line2D,
     Parabola,
     Parabola2D,
@@ -703,6 +704,20 @@ def test_intersect_cone_cone():
     assert c1.intersect(c1).is_coincident()
     tilted = Cone(Point.origin(), Vector.unit_x(), 0.4, 2.0)
     assert c1.intersect(tilted).method == IntersectionMethod.NUMERIC
+
+    # One apex, axes apart: four lines through it, each a generator of both.
+    narrow = Cone(Point.origin(), Vector.unit_z(), math.pi / 4.0, 0.0)
+    wide = Cone(Point.origin(), Vector.unit_x(), math.pi / 3.0, 0.0)
+    shared = narrow.intersect(wide)
+    assert shared.method == IntersectionMethod.EXACT and shared.is_complete()
+    assert shared.contact_points == [Point.origin()]
+    assert len(shared.curves) == 4
+    for piece in shared.curves:
+        assert isinstance(piece.curve, Line) and not piece.tangent
+        d = piece.curve.direction()
+        assert (abs(d.x), abs(d.y), abs(d.z)) == pytest.approx((0.5, 0.5, math.sqrt(0.5)))
+        uv = piece.second_uv_curve.point_at(2.0)
+        assert wide.point_at(uv.x, uv.y).distance(piece.curve.point_at(2.0)) < 1e-12
 
 
 def test_intersection_curves_carry_their_uv_curves():
