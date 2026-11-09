@@ -200,7 +200,7 @@ pub use operations::intersect::{
     LineCircleIntersection, LineConicHit, LineConicIntersection, LineLine2DIntersection,
     LineLineIntersection, LinePlaneIntersection, LineQuadricIntersection, LineTorusHit,
     LineTorusIntersection, PlaneConeIntersection, PlaneCylinderIntersection,
-    PlanePlaneIntersection, PlaneSphereIntersection, QuarticCurve, SharedGenerator,
+    PlanePlaneIntersection, PlaneSphereIntersection, QuarticBranch, QuarticCurve, SharedGenerator,
     SharedGenerators, SphereConeIntersection, SphereCylinderIntersection, SphereSphereIntersection,
     TorusConeIntersection, TorusCylinderIntersection, TorusPlaneIntersection,
     TorusSphereIntersection, TorusTorusIntersection,

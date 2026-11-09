@@ -46,7 +46,7 @@ A loop through a pole of the sphere has no continuous longitude: the angle jumps
 ## Considered options
 
 - **Report it `Numeric`, as the marched curve was**: rejected. It would tell the caller that a search ran and might be incomplete. It would also send the caller to the marched result's checks, such as `IncompleteReason`, which never apply here.
-- **A `QuarticCurve` variant in `Curve`**: rejected for now (YAGNI). Every consumer of `Curve` would need to handle a curve no file format stores, and a B-rep wants a B-spline edge anyway. `intersect_exact` gives the closed form to a caller that wants it.
+- **A `QuarticCurve` variant in `Curve`**: rejected for now (YAGNI); ADR 0042 adds one for the pieces that run to infinity, which a fit cannot hold. Every consumer of `Curve` would need to handle a curve no file format stores, and a B-rep wants a B-spline edge anyway. `intersect_exact` gives the closed form to a caller that wants it.
 - **One closed-form type per pair** (`BicylindricCurve`, a Viviani type, a cone type): rejected. The three share the walk along generators, the components and the fit; only the generator, the other quadric and the factors of `Δ` differ. One type keeps one fit and one set of tests for it.
 - **A rational parametrization**: rejected. The quartic is rational only where it crosses itself. In general its parametrization needs the square root of `Δ`, which no B-spline reproduces exactly.
 - **Fit to the caller's deviation**: rejected. `intersect` takes a `Tolerance` and no deviation, as the marcher does. Confusion is the deviation every intersection curve already promises.

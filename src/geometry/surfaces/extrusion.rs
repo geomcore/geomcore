@@ -154,7 +154,7 @@ impl ExtrusionSurface {
                     .ok()
                     .map(Curve::from)
             }
-            SectionShape::Folded { .. } => None,
+            SectionShape::Folded { .. } | SectionShape::Searched => None,
         }
     }
 
@@ -255,6 +255,20 @@ impl ExtrusionSurface {
             } => shift + scale * curve.project_point(flat, tol).parameter,
             SectionShape::Folded { direction, fold } => {
                 fold.parameter((flat - section.origin).dot(*direction))
+            }
+            SectionShape::Searched => {
+                let Curve::QuarticBranch(branch) = &self.profile else {
+                    unreachable!("only a quartic branch is searched")
+                };
+                let carried =
+                    |p: Point| (section.flatten(p, self.direction) - flat).square_magnitude();
+                branch
+                    .minima(carried)
+                    .into_iter()
+                    .min_by(|a, b| {
+                        carried(branch.point_at(*a)).total_cmp(&carried(branch.point_at(*b)))
+                    })
+                    .expect("a branch has a closest point")
             }
         };
         wrap_profile_parameter(&self.profile, t)
@@ -364,6 +378,9 @@ enum SectionShape {
     /// through the section origin along the unit `direction`: the profile
     /// point at `t` lands at `origin + fold.value(t) * direction`.
     Folded { direction: Vector, fold: Fold },
+    /// A profile whose image has no closed form (a quartic branch): the
+    /// closest carried point is searched for along the profile itself.
+    Searched,
 }
 
 /// The position along its line of a folded section, as a function of the
@@ -484,6 +501,12 @@ impl Section {
                     },
                 }
             }
+            // A space quartic lies on no line, so it always sweeps an
+            // area.
+            Curve::QuarticBranch(branch) => Section {
+                origin: point(branch.point_at(0.0)),
+                shape: SectionShape::Searched,
+            },
         };
         Ok(section)
     }
@@ -505,6 +528,7 @@ fn anchor(profile: &Curve) -> Point {
         Curve::Hyperbola(c) => c.center(),
         Curve::BSpline(c) => c.poles()[0],
         Curve::Bezier(c) => c.poles()[0],
+        Curve::QuarticBranch(c) => c.point_at(0.0),
     }
 }
 

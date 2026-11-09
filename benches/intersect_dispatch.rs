@@ -15,8 +15,9 @@ use std::hint::black_box;
 
 use geomcore::prelude::*;
 use geomcore::{
-    Circle, Circle2D, Cone, Curve, Cylinder, ElementaryCurve, ElementarySurface, Ellipse, Line,
-    Plane, Point, Point2D, Sphere, Surface, Tolerance, Torus, Vector,
+    Circle, Circle2D, Cone, ConeConeIntersection, Curve, Cylinder, ElementaryCurve,
+    ElementarySurface, Ellipse, Line, Plane, Point, Point2D, Sphere, Surface, Tolerance, Torus,
+    Vector,
 };
 
 const BATCH: usize = 1024;
@@ -431,6 +432,12 @@ fn bench_two_cones(c: &mut Criterion) {
         ("arcs", across(0.0, 2.3)),
         // Off to the side, biting into the upper nappe: one arc.
         ("bite", across(1.0, 1.5)),
+        // A wide cone across: four of its generators run along the
+        // upright cone's, and the curve in four branches to infinity.
+        (
+            "branches",
+            Cone::new(Point::new(-2.0, 0.0, 1.0), Vector::X, 1.2, 1.2_f64.tan()).unwrap(),
+        ),
     ];
     for (name, other) in pairs {
         group.bench_function(format!("{name}_exact"), |b| {
@@ -440,6 +447,19 @@ fn bench_two_cones(c: &mut Criterion) {
             b.iter(|| black_box(black_box(&upright).intersect(&other, tol)))
         });
     }
+    // A branch of the wide pair: evaluated, and a point projected on it.
+    let wide = pairs[3].1;
+    let ConeConeIntersection::Quartic(curve) = upright.intersect_exact(&wide, tol) else {
+        panic!("the wide pair meets in a quartic");
+    };
+    let branch = curve.branches().remove(0);
+    let target = branch.point_at(1.3) + Vector::new(0.01, -0.02, 0.03);
+    group.bench_function("branch_point", |b| {
+        b.iter(|| black_box(black_box(&branch).point_at(black_box(1.3))))
+    });
+    group.bench_function("branch_projection", |b| {
+        b.iter(|| black_box(black_box(&branch).project_point(black_box(target), tol)))
+    });
     group.finish();
 }
 

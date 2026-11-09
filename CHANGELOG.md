@@ -34,9 +34,26 @@ the Python distribution are versioned in lockstep.
   planes through both apexes touching the second cone, or nothing. In
   Rust, `intersect_exact` returns the closed form as
   `ConeConeIntersection::Quartic(QuarticCurve)`, read along the first
-  cone's generators, and cones that miss as `Empty`. Still marched: a
-  generator of one cone parallel to one of the other's, where the curve
-  runs to infinity, either apex on the other cone, and cones that touch.
+  cone's generators, and cones that miss as `Empty`. Still marched:
+  either apex on the other cone, and cones that touch.
+- `QuarticBranch`, a new `Curve` variant and Python class: a piece of
+  the quartic where two cones meet that runs to infinity at both ends,
+  where a generator of one cone is parallel to one of the other's (#237,
+  ADR 0042). Two such cones no longer go to the march: `intersect`
+  returns the loops that stay bounded fitted as before, and each piece of
+  a loop that runs to infinity as an exact `QuarticBranch` with the
+  parameter range `(−∞, ∞)`, the result exact and complete;
+  `QuarticCurve::branches` gives the pieces. Every point of a branch is
+  exact; its parameter runs over the real line, the distance growing
+  about as fast. Its derivatives are central differences of exact points,
+  its projection a sampled search refined by Brent's method and Newton
+  steps, and a trimmed piece's box, discretization and length are
+  measured on exact points. It reverses, transforms, has no bounding box,
+  B-spline or curve in parameters, and intersects other shapes through
+  the numeric search. `QuarticBranch::from_cones(first, second, index)`
+  rebuilds one, and Python pickles it. Still marched: a generator of one
+  cone touching the other's directions, and one along which both roots
+  run off together.
 - A cone and a cylinder off its axis meet in an exact quartic instead of
   a marched one, in about a quarter of the time (#237, ADR 0040).
   `intersect`, in Rust and Python, fits each loop within confusion, with

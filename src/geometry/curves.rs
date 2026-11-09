@@ -17,6 +17,8 @@ mod parametric_curve;
 mod parametric_curve_2d;
 mod range;
 mod trimmed;
+/// Built where two cones meet, beside the quartic it is a piece of.
+pub use crate::operations::intersect::QuarticBranch;
 pub use bezier::{BezierConstructionError, BezierCurve, BezierCurve2D, GenericBezierCurve};
 pub use bspline::{
     BSplineConstructionError, BSplineCurve, BSplineCurve2D, BSplineSplitError,

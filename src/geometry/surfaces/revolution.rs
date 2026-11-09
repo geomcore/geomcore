@@ -408,6 +408,18 @@ impl RevolutionSurface {
                 let (first, last) = c.bounds();
                 (first, last, (2 * (c.degree() + 1)).max(16))
             }
+            Curve::QuarticBranch(c) => {
+                // The branch runs off to infinity at both ends: out to
+                // where both lie beyond the reach.
+                let mut end: f64 = 1.0;
+                while end < 1e8
+                    && (c.point_at(end).distance(origin) <= reach
+                        || c.point_at(-end).distance(origin) <= reach)
+                {
+                    end *= 2.0;
+                }
+                (-end, end, 64)
+            }
         }
     }
 }
@@ -500,6 +512,8 @@ impl Meridian {
                     Meridian::Skew
                 })
             }
+            // A space quartic lies in no plane, and on no axis.
+            Curve::QuarticBranch(_) => Ok(Meridian::Skew),
         }
     }
 }

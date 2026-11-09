@@ -361,8 +361,8 @@ impl Curve {
     ///
     /// # Errors
     ///
-    /// Returns [`BSplineConversionError::Unbounded`] for a line, parabola
-    /// or hyperbola.
+    /// Returns [`BSplineConversionError::Unbounded`] for a line, parabola,
+    /// hyperbola or quartic branch.
     ///
     /// # Examples
     ///
@@ -382,6 +382,7 @@ impl Curve {
         match self {
             Curve::BSpline(c) => Ok(c.clone()),
             Curve::Bezier(c) => Ok(c.to_bspline()),
+            Curve::QuarticBranch(_) => Err(BSplineConversionError::Unbounded),
             _ => self
                 .as_elementary()
                 .expect("every other curve is elementary")

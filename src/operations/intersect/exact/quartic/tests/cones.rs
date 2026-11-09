@@ -122,10 +122,28 @@ fn test_a_narrow_cone_far_beside_the_upright_one_misses_it() {
 }
 
 #[test]
-fn test_parallel_generators_and_an_apex_on_the_other_cone_are_left_to_the_search() {
+fn test_parallel_generators_split_the_curve_into_branches_running_to_infinity() {
     // A wide cone across: some of its generators are parallel to the
-    // upright cone's, and the curve runs off to infinity.
+    // upright cone's, and the curve runs off to infinity there.
     let wide = from_apex(Point::new(-3.0, 0.0, 1.0), Vector::X, 1.2);
+    let ConeConeIntersection::Quartic(curve) = upright().intersect_exact(&wide, TOL) else {
+        panic!("a quartic");
+    };
+    let branches = curve.branches();
+    assert!(!branches.is_empty());
+    for branch in &branches {
+        for u in [-100.0, -1.0, 0.0, 2.0, 100.0] {
+            let point = branch.point_at(u);
+            let scale = 1.0 + point.distance(Point::ORIGIN);
+            for cone in [upright(), wide] {
+                assert!(cone.project_point(point, TOL).distance < 1e-12 * scale);
+            }
+        }
+    }
+}
+
+#[test]
+fn test_an_apex_on_the_other_cone_is_left_to_the_search() {
     // The second apex on the upright cone, and the upright apex on the
     // second cone.
     let on_first = from_apex(Point::new(1.0, 0.0, 3.0_f64.sqrt()), Vector::X, 0.3);
@@ -134,7 +152,7 @@ fn test_parallel_generators_and_an_apex_on_the_other_cone_are_left_to_the_search
         Vector::new(1.0, 0.0, 0.2),
         0.2_f64.atan(),
     );
-    for second in [wide, on_first, on_second] {
+    for second in [on_first, on_second] {
         assert_eq!(
             upright().intersect_exact(&second, TOL),
             ConeConeIntersection::NotAnalytic

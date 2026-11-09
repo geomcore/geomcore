@@ -90,6 +90,7 @@ shape_classes! {
         Hyperbola => PyHyperbola,
         BSpline => PyBSplineCurve,
         Bezier => PyBezierCurve,
+        QuarticBranch => PyQuarticBranch,
     }
 
     /// The 2D curve classes, one per `Curve2D` variant.

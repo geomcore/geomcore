@@ -101,7 +101,7 @@ Two directions are parallel for a configuration when turning one onto the other 
 ## Intersection
 
 **Exact intersection**:
-An intersection computed in closed form, for a pair the closed-form pair table lists: elementary shapes, or a plane with a swept surface. Its result is itself made of elementary curves and points, or of curves read off a swept surface's profile, except a quartic curve, which is fitted within confusion from its closed form (ADR 0036).
+An intersection computed in closed form, for a pair the closed-form pair table lists: elementary shapes, or a plane with a swept surface. Its result is itself made of elementary curves and points, or of curves read off a swept surface's profile, except a quartic curve, which is fitted within confusion from its closed form (ADR 0036), its pieces that run to infinity exact quartic branches (ADR 0042).
 _Avoid_: analytic intersection
 
 **Closed-form pair table**:
@@ -109,8 +109,12 @@ The one place that says which pairs of shapes `intersect` solves in closed form,
 _Avoid_: exact routes, analytic pairs
 
 **Quartic curve**:
-The quartic where a cylinder or a cone meets another quadric away from the configurations that split it into conics and lines: two cylinders whose axes cross (the bicylindric curve), a sphere and a cylinder or a cone whose axis misses its centre, a cone and a cylinder off its axis (ADR 0040), or two cones in general position (ADR 0041). One or two closed loops, read along the generators of the cylinder or cone: each loop runs around it, over an arc of its generators, twice around through the point where the surfaces touch and the loop crosses itself, or through the apex of a cone that lies on the sphere. Its closed form gives each point exactly; `intersect` fits it within confusion and reports it exact (ADR 0036).
+The quartic where a cylinder or a cone meets another quadric away from the configurations that split it into conics and lines: two cylinders whose axes cross (the bicylindric curve), a sphere and a cylinder or a cone whose axis misses its centre, a cone and a cylinder off its axis (ADR 0040), or two cones in general position (ADR 0041). One or two closed loops, read along the generators of the cylinder or cone: each loop runs around it, over an arc of its generators, twice around through the point where the surfaces touch and the loop crosses itself, or through the apex of a cone that lies on the sphere. Its closed form gives each point exactly; `intersect` fits it within confusion and reports it exact (ADR 0036). Between two cones a loop may run off to infinity along a generator of one parallel to one of the other's and come back from the other end: closed only through its points at infinity, it comes back as quartic branches.
 _Avoid_: bicylindric curve for anything but two cylinders, Steinmetz curve (the case of equal radii and meeting axes only)
+
+**Quartic branch**:
+A piece of a quartic curve between two of its points at infinity, where a generator of one cone is parallel to one of the other's: exact at every point, unbounded both ways, its parameter running over the real line (ADR 0042). `intersect` returns it as the curve, not a piece cut at a box.
+_Avoid_: unbounded component, infinite loop, asymptotic arc
 
 **Common sphere conics**:
 The two plane conics where a cone and a cylinder, or two cones, meet when their axes meet at a point as far from both surfaces, so that both touch one sphere centred there (Monge's theorem on quadrics sharing an inscribed sphere). Each conic is a plane section of either surface; the planes share the line through the points where the surfaces touch along the sphere, two of them, one or none.

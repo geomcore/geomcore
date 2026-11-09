@@ -5,11 +5,13 @@
 
 mod bspline;
 mod elementary;
+mod sampled;
 
 pub(crate) use bspline::spline_runs;
 pub(crate) use elementary::{
     circle_steps, ellipse_steps, hyperbola_steps, line_steps, parabola_steps,
 };
+pub(crate) use sampled::sampled_steps;
 
 #[cfg(doc)]
 use crate::Tolerance;

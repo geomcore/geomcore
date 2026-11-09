@@ -15,6 +15,7 @@ mod line;
 mod line_2d;
 mod parabola;
 mod parabola_2d;
+mod quartic_branch;
 mod trimmed;
 
 pub(crate) use bezier::PyBezierCurve;
@@ -31,6 +32,7 @@ pub(crate) use line::PyLine;
 pub(crate) use line_2d::PyLine2D;
 pub(crate) use parabola::PyParabola;
 pub(crate) use parabola_2d::PyParabola2D;
+pub(crate) use quartic_branch::PyQuarticBranch;
 pub(crate) use trimmed::{PyTrimmedCurve, PyTrimmedCurve2D};
 
 /// The repr of a B-spline curve: its degree, pole count and flags, and

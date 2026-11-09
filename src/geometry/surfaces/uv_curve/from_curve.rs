@@ -116,6 +116,8 @@ pub(crate) fn checked_curve_3d_to_uv(
         Curve::Hyperbola(hyperbola) => hyperbola_on_surface(hyperbola, &surface, tol, check),
         Curve::BSpline(bspline) => bspline_on_surface(bspline, &surface, tol, check),
         Curve::Bezier(bezier) => bezier_on_surface(bezier, &surface, tol, check),
+        // No closed form in the parameters of any surface.
+        Curve::QuarticBranch(_) => Err(Curve3DToUvError::NotAnalytic),
     }
 }
 

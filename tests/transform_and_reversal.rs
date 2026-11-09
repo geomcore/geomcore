@@ -327,7 +327,9 @@ fn test_reversed_parameter_follows_the_rule_of_each_curve_type() {
         let (first, last) = curve.bounds();
         let expected = match curve {
             Curve::Circle(_) | Curve::Ellipse(_) => std::f64::consts::TAU - 0.7,
-            Curve::Line(_) | Curve::Parabola(_) | Curve::Hyperbola(_) => -0.7,
+            Curve::Line(_) | Curve::Parabola(_) | Curve::Hyperbola(_) | Curve::QuarticBranch(_) => {
+                -0.7
+            }
             _ => first + last - 0.7,
         };
         assert_eq!(curve.reversed_parameter(0.7), expected, "{curve:?}");

@@ -6,7 +6,7 @@ use crate::geometry::curves::ParametricCurve;
 use crate::geometry::curves::PointExtrema;
 use crate::geometry::curves::ReversibleCurve;
 use crate::geometry::curves::{
-    BSplineCurve, BezierCurve, Circle, Ellipse, Hyperbola, Line, Parabola,
+    BSplineCurve, BezierCurve, Circle, Ellipse, Hyperbola, Line, Parabola, QuarticBranch,
 };
 use crate::operations::projection::CurveProjection;
 use crate::{Point, Tolerance, Vector};
@@ -21,7 +21,8 @@ macro_rules! curve_variants {
     };
     (Curve, $($worker:tt)+) => {
         $crate::geometry::curves::curve_variants! {
-            @elementary Curve, $($worker)+, BSpline(BSplineCurve), Bezier(BezierCurve)
+            @elementary Curve, $($worker)+, BSpline(BSplineCurve), Bezier(BezierCurve),
+            QuarticBranch(QuarticBranch)
         }
     };
     (@elementary $enum:ident, $($worker:ident)::+ ! $arguments:tt, $($others:tt)*) => {
@@ -104,6 +105,9 @@ pub enum Curve {
     BSpline(BSplineCurve),
     /// A [`BezierCurve`] curve.
     Bezier(BezierCurve),
+    /// A [`QuarticBranch`]: a piece of the curve where two cones meet,
+    /// running to infinity at both ends.
+    QuarticBranch(QuarticBranch),
 }
 
 impl ParametricCurve for Curve {
