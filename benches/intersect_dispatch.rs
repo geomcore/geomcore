@@ -290,6 +290,9 @@ fn bench_crossing_cylinders(c: &mut Criterion) {
         ("through", 2.0, 1.0, Vector::X, 0.3),
         // Oblique axes, the pipes biting: one loop.
         ("oblique", 1.3, 0.9, direction, 0.6),
+        // The thin pipe touching the thick one from inside: one loop that
+        // crosses itself.
+        ("node", 2.0, 1.0, Vector::X, 1.0),
     ];
     for (name, first_radius, second_radius, axis, offset) in pairs {
         let first = Cylinder::new(Point::ORIGIN, Vector::Z, first_radius).unwrap();
