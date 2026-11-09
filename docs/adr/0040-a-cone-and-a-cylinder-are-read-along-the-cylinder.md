@@ -19,7 +19,7 @@ The issue expected `Δ` not to factor, and the arc ends to come from a quartic r
 
 `intersect_exact` reports `NotAnalytic`, and `intersect` marches, in three configurations:
 
-- **A generator of the cylinder parallel to one of the cone's**, `A` within `tol.angular` of zero. The curve runs off to infinity, as the march's box shows (`IncompleteReason::Unbounded`). A curve without bounds cannot be fitted. Trimming the surfaces to the patches the caller needs (ADR 0039) bounds the march, and the curve with it. This settles the issue's first question for this pair: no closed form for unbounded branches, because a trimmed surface already gives them bounds.
+- **A generator of the cylinder parallel to one of the cone's**, `A` within `tol.angular` of zero. The curve runs off to infinity, as the march's box shows (`IncompleteReason::Unbounded`). A curve without bounds cannot be fitted, so it is marched for now. *Amended (ADR 0041):* this does not settle the issue's first question. An exact curve that runs to infinity is returned whole, as the lines of a plane through a cone's apex already are, and trimming only narrows its `parameter_range` (ADR 0039): unbounded branches get a closed form of their own, which a trimmed surface does not replace.
 - **The apex on the cylinder**, within confusion. The curve is a rational quartic with a node at the apex.
 - **The surfaces touching**, where an edge of the shadow touches the circle within confusion. The curve crosses itself, or is a point.
 
@@ -31,4 +31,4 @@ Near them the closed form holds. A cone around a sphere `2 × confusion` wider t
 
 - **Along the cone's generators**: rejected. `A` varies with the generator, the loops of the arcs need the zeros of a varying leading coefficient, and the walk would need a second kind of root. Two cones will need it; a cone and a cylinder do not.
 - **`Δ` as a trigonometric polynomial with `solve_trig` roots**: rejected. The arc ends would carry the solver's error, and the fit near them would read `√Δ` from a value that cancels.
-- **Close the unbounded branches at a box**: rejected. The march already does so and reports `Incomplete`. A trimmed surface bounds them for a caller who needs them.
+- **Close the unbounded branches at a box**: rejected. A box is not the curve, and a trimmed surface only narrows the range of a whole curve.

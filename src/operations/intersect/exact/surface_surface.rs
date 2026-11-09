@@ -2,8 +2,8 @@
 //! pair, solved in closed form.
 
 use super::quartic::{
-    QuarticCurve, cone_off_cylinder_axis, crossing_cylinders, sphere_off_cone_axis,
-    sphere_off_cylinder_axis,
+    QuarticCurve, cone_off_cylinder_axis, cones_in_general_position, crossing_cylinders,
+    sphere_off_cone_axis, sphere_off_cylinder_axis,
 };
 use std::f64::consts::PI;
 
@@ -320,8 +320,14 @@ pub enum TorusTorusIntersection {
 /// (or apex/coincident degenerates), parallel cones with equal half-angles
 /// in one plane conic, cones with one apex but axes apart in up to four
 /// lines through it, and cones around one sphere in two plane conics.
-/// Anything else is a space quartic and reports
-/// [`ConeConeIntersection::NotAnalytic`].
+/// Anything else is a space quartic in closed form (see [`QuarticCurve`]),
+/// but where a generator of one cone is parallel to one of the other's (the
+/// curve runs off to infinity), where either apex lies on the other cone,
+/// and where the cones touch: those report
+/// [`ConeConeIntersection::NotAnalytic`], reserved for the numeric
+/// surface-surface path.
+// The quartic is stored inline, as in the other quartic results.
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, PartialEq)]
 pub enum ConeConeIntersection {
     /// One latitude ring (equal half-angles, distinct apexes).
@@ -339,6 +345,15 @@ pub enum ConeConeIntersection {
     /// Axes that meet, both cones touching one sphere centred there: two
     /// plane conics, each the plane's section of the first cone.
     TwoConics(Box<CommonSphereConics<PlaneConeIntersection>>),
+    /// The space quartic of cones in general position, in one or two
+    /// loops (see [`QuarticCurve`]), read along the first cone's
+    /// generators: two loops around it when its apex is inside the second
+    /// cone, otherwise arcs between the planes through both apexes that
+    /// touch the second cone.
+    Quartic(QuarticCurve),
+    /// The cones miss each other: no generator of the first meets the
+    /// second.
+    Empty,
     /// The cones meet only at their shared apex: coaxial with different
     /// half-angles, or axes apart with no generator in common.
     ApexPoint(Point),
@@ -1088,14 +1103,18 @@ impl IntersectExact<Cone> for Cone {
     fn intersect_exact(&self, other: &Cone, tol: Tolerance) -> ConeConeIntersection {
         let a1 = self.frame().z_direction();
         let a2 = other.frame().z_direction();
+        let quartic = |first: &Cone, second: &Cone| {
+            cones_in_general_position(first, second, tol)
+                .unwrap_or(ConeConeIntersection::NotAnalytic)
+        };
         if a1.cross(a2).magnitude() > tol.angular {
             if self.apex().distance(other.apex()) <= tol.confusion {
                 return cones_sharing_an_apex(self, other, tol);
             }
-            return cones_around_a_sphere(self, other, tol)
-                .map_or(ConeConeIntersection::NotAnalytic, |conics| {
-                    ConeConeIntersection::TwoConics(Box::new(conics))
-                });
+            return cones_around_a_sphere(self, other, tol).map_or_else(
+                || quartic(self, other),
+                |conics| ConeConeIntersection::TwoConics(Box::new(conics)),
+            );
         }
         let w = other.apex() - self.apex();
         let (phi1, phi2) = (self.half_angle().abs(), other.half_angle().abs());
@@ -1107,7 +1126,7 @@ impl IntersectExact<Cone> for Cone {
                     ConeConeIntersection::ParallelSection,
                 )
             } else {
-                ConeConeIntersection::NotAnalytic
+                quartic(self, other)
             };
         }
         let d = w.dot(a1);

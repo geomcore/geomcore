@@ -711,8 +711,17 @@ def test_intersect_cone_cone():
     assert sorted([r1.radius(), r2.radius()]) == pytest.approx([1.1155, 4.7245], abs=1e-3)
 
     assert c1.intersect(c1).is_coincident()
+    # Axes apart, no generator of one parallel to one of the other's: the
+    # quartic in closed form, fitted on its two pieces.
     tilted = Cone(Point.origin(), Vector.unit_x(), 0.4, 1.5)
-    assert c1.intersect(tilted).method == IntersectionMethod.NUMERIC
+    quartic = c1.intersect(tilted)
+    assert quartic.method == IntersectionMethod.EXACT and quartic.is_complete()
+    assert len(quartic.curves) == 2
+
+    # A wide cone across: some of its generators run along some of the
+    # first's, and the curve runs to infinity: marched.
+    wide = Cone(Point(5.0, 0.3, 1.0), Vector.unit_x(), 1.2, 1.0)
+    assert c1.intersect(wide).method == IntersectionMethod.NUMERIC
 
     # Parallel axes, equal half-angles: the 90° chamfers of two holes 3
     # apart meet in one hyperbola, in the plane x = 1.5 halfway between.
