@@ -147,32 +147,33 @@ macro_rules! with_rulings {
         let discriminant = curve.discriminant;
         let (sin, cos) = curve.reference.sin_cos();
         let reference = [sin, cos];
+        let crossing = curve.crossing();
         match &curve.surfaces {
             Surfaces::Cylinders(first, second) => {
                 let ruled = RuledCylinder::new(first);
                 let other = OtherCylinder::new(second, ruled.axis);
-                let $rulings = Rulings::new(ruled, other, discriminant, reference);
+                let $rulings = Rulings::new(ruled, other, discriminant, reference, crossing);
                 $body
             }
             Surfaces::SphereCylinder(sphere, cylinder) => {
                 let (ruled, other) = (RuledCylinder::new(cylinder), OtherSphere::new(sphere));
-                let $rulings = Rulings::new(ruled, other, discriminant, reference);
+                let $rulings = Rulings::new(ruled, other, discriminant, reference, crossing);
                 $body
             }
             Surfaces::SphereCone(sphere, cone) => {
                 let (ruled, other) = (RuledCone::new(cone), OtherSphere::new(sphere));
-                let $rulings = Rulings::new(ruled, other, discriminant, reference);
+                let $rulings = Rulings::new(ruled, other, discriminant, reference, crossing);
                 $body
             }
             Surfaces::ConeCylinder(cone, cylinder) => {
                 let ruled = RuledCylinder::new(cylinder);
                 let other = OtherCone::new(cone);
-                let $rulings = Rulings::new(ruled, other, discriminant, reference);
+                let $rulings = Rulings::new(ruled, other, discriminant, reference, crossing);
                 $body
             }
             Surfaces::Cones(first, second) => {
                 let (ruled, other) = (RuledCone::new(first), OtherCone::new(second));
-                let $rulings = Rulings::new(ruled, other, discriminant, reference);
+                let $rulings = Rulings::new(ruled, other, discriminant, reference, crossing);
                 $body
             }
         }
@@ -196,16 +197,12 @@ enum Component {
         /// of the factor that vanishes there.
         start_from_reference: [f64; 2],
         end_from_reference: [f64; 2],
-        /// Whether the arc crosses itself on the generator `half_crossing`
-        /// past half of `start`: where the surfaces touch, a factor
-        /// vanishing twice there ([`Ends::Crossing`]), or at the other
-        /// cone's apex, both factors vanishing once. The root changes sign
-        /// there, so the arc goes smoothly through.
+        /// Whether the arc crosses itself on the curve's crossing
+        /// generator ([`QuarticCurve::crossing`]): where the surfaces
+        /// touch, a factor vanishing twice there ([`Ends::Crossing`]), or
+        /// at the other cone's apex, both factors vanishing once. The root
+        /// changes sign there, so the arc goes smoothly through.
         crosses: bool,
-        /// Half the angle from `start` to the generator where the arc
-        /// crosses itself, read only where it `crosses`: kept beside the
-        /// ends, not in them, so they stay a byte each.
-        half_crossing: f64,
     },
     /// Twice around from the generator at angle `start`, through the other
     /// cone's apex, where `Δ`, the sum of two squares, vanishes: the root
@@ -233,7 +230,7 @@ enum Ends {
     Both,
     /// The factor is `1 ± cos` and vanishes twice inside the arc, on the
     /// generator `t_c` where the surfaces touch and the arc crosses itself
-    /// ([`Component::Between`]'s `half_crossing`): its square root is
+    /// ([`QuarticCurve::crossing`]): its square root is
     /// `√2 |sin((t − t_c) / 2)|`.
     Crossing,
 }
@@ -492,6 +489,7 @@ fn nodal_cylinders(thin: &Cylinder, thick: &Cylinder, tol: Tolerance) -> Option<
 /// that crosses itself where the sphere touches the cylinder from inside
 /// (Viviani's curve, with `R = 2r = 2e`), one loop over an arc of
 /// generators, a tangent point, or nothing.
+#[inline]
 pub(super) fn sphere_off_cylinder_axis(
     sphere: &Sphere,
     cylinder: &Cylinder,
@@ -560,6 +558,7 @@ pub(super) fn sphere_off_cylinder_axis(
 /// generators point at the sphere, two loops, the loop that crosses itself
 /// where the sphere touches the cone, one loop over an arc of generators,
 /// or a tangent point.
+#[inline]
 pub(super) fn sphere_off_cone_axis(
     sphere: &Sphere,
     cone: &Cone,
@@ -1217,7 +1216,7 @@ fn factored_loops(
             return None;
         }
         let mut ends = [Ends::Neither; 2];
-        let (mut crosses, mut half_crossing) = (false, 0.0);
+        let mut crosses = false;
         if first == last {
             ends[first] = Ends::Both;
         } else {
@@ -1230,7 +1229,7 @@ fn factored_loops(
             let from_start = (at - start).rem_euclid(TAU);
             if from_start < end - start {
                 ends[k] = Ends::Crossing;
-                (crosses, half_crossing) = (true, 0.5 * from_start);
+                crosses = true;
             }
         }
         let ((sin_from, cos_from), (sin_to, cos_to)) = (from.sin_cos(), to.sin_cos());
@@ -1241,7 +1240,6 @@ fn factored_loops(
             start_from_reference: [sin_from, cos_from],
             end_from_reference: [sin_to, cos_to],
             crosses,
-            half_crossing,
         };
         kept += 1;
     }
@@ -1307,7 +1305,6 @@ fn apex_arc(
         start_from_reference: [sin_from, cos_from],
         end_from_reference: [sin_to, cos_to],
         crosses: !away,
-        half_crossing: 0.5 * (TAU - past[far]),
     };
     Some(Loops::Arcs {
         discriminant,
@@ -1347,7 +1344,6 @@ fn arc(t0: f64, from: f64, to: f64, ends: [Ends; 2]) -> Component {
         start_from_reference: [sin_from, cos_from],
         end_from_reference: [sin_to, cos_to],
         crosses: false,
-        half_crossing: 0.0,
     }
 }
 
@@ -1386,19 +1382,58 @@ impl QuarticCurve {
         }
     }
 
+    /// The angle of the generator where an arc crosses itself, `0.0` if
+    /// none does: at most one arc of a curve crosses itself, and its
+    /// crossing is read back from the discriminant, not kept on the curve,
+    /// which every result carries by value. Where the surfaces touch, the
+    /// touching factor `|cos(τ − σ) − c|`, `c = ±1`, vanishes at its
+    /// reference `t₀ + σ` or across from it. At the other cone's apex, the
+    /// factor that vanishes at the arc's start, `ρ` past its reference,
+    /// vanishes there too, `ρ` before it: `2ρ` before the start.
+    fn crossing(&self) -> f64 {
+        for component in &self.components[..self.component_count()] {
+            let &Component::Between {
+                start,
+                ends,
+                start_from_reference: [sin_from, cos_from],
+                crosses: true,
+                ..
+            } = component
+            else {
+                continue;
+            };
+            return match ends.iter().position(|&end| end == Ends::Crossing) {
+                Some(factor) => {
+                    let (_, cosines, _) = self.discriminant.factored();
+                    let [sin_shift, cos_shift] = self.discriminant.shift();
+                    let shift = if factor == 1 {
+                        sin_shift.atan2(cos_shift)
+                    } else {
+                        0.0
+                    };
+                    let across = if cosines[factor] > 0.0 { 0.0 } else { PI };
+                    self.reference + shift + across
+                }
+                None => start - 2.0 * sin_from.atan2(cos_from),
+            };
+        }
+        0.0
+    }
+
     /// The same curve running to infinity along the generators at the
     /// given angles, each on the side `branch` of its root: on the
     /// component that holds that point. `None` when a generator is on no
     /// component, the closed form then not holding.
     fn with_infinities(mut self, generators: &[(f64, f64)]) -> Option<QuarticCurve> {
         let mut found = [(0_u8, 0.0); MOST_INFINITIES];
+        let crossing = self.crossing();
         for (slot, &(angle, branch)) in found.iter_mut().zip(generators) {
             *slot = self.components[..self.component_count()]
                 .iter()
                 .enumerate()
                 .find_map(|(index, component)| {
                     component
-                        .parameter_at_infinity(angle, branch)
+                        .parameter_at_infinity(angle, branch, crossing)
                         .map(|parameter| (index as u8, parameter))
                 })?;
         }
@@ -1429,15 +1464,15 @@ impl Component {
     }
 
     /// The parameter of the point on the generator at `angle`, on the side
-    /// `branch` of its root, if this component holds it.
-    fn parameter_at_infinity(self, angle: f64, branch: f64) -> Option<f64> {
+    /// `branch` of its root, if this component holds it, `crossing` the
+    /// generator where it crosses itself if it does.
+    fn parameter_at_infinity(self, angle: f64, branch: f64, crossing: f64) -> Option<f64> {
         match self {
             Component::Around { branch: own } => (own == branch).then(|| angle.rem_euclid(TAU)),
             Component::Between {
                 start,
                 end,
                 crosses,
-                half_crossing,
                 ..
             } => {
                 let span = end - start;
@@ -1449,7 +1484,7 @@ impl Component {
                 // on the way out and the lower one on the way back, the
                 // other way round past a crossing.
                 let half = 2.0 * (from_start / span).sqrt().min(1.0).asin();
-                let past_crossing = crosses && from_start > 2.0 * half_crossing;
+                let past_crossing = crosses && from_start > (crossing - start).rem_euclid(TAU);
                 Some(if (branch > 0.0) != past_crossing {
                     half
                 } else {
@@ -2211,6 +2246,9 @@ struct Rulings<R, O> {
     discriminant: Discriminant,
     /// `[sin, cos]` of the reference angle `t₀`: `τ = t − t₀`.
     reference: [f64; 2],
+    /// The angle of the generator where an arc crosses itself
+    /// ([`QuarticCurve::crossing`]), read only by the arc that crosses.
+    crossing_generator: f64,
     /// Whether the curve in the other quadric's parameters is fitted: not
     /// on a sphere whose pole the curve passes through, where its angle
     /// jumps by `π`. The ruled quadric's always is.
@@ -2276,12 +2314,19 @@ const DEEPEST_SPLIT: u32 = 24;
 const MOST_PIECES: f64 = 8.0;
 
 impl<R: Ruled, O: Other> Rulings<R, O> {
-    fn new(ruled: R, other: O, discriminant: Discriminant, reference: [f64; 2]) -> Self {
+    fn new(
+        ruled: R,
+        other: O,
+        discriminant: Discriminant,
+        reference: [f64; 2],
+        crossing_generator: f64,
+    ) -> Self {
         Rulings {
             ruled,
             other,
             discriminant,
             reference,
+            crossing_generator,
             other_parameters_fit: true,
         }
     }
@@ -2359,7 +2404,6 @@ impl<R: Ruled, O: Other> Rulings<R, O> {
                 start_from_reference: [start_sin, start_cos],
                 end_from_reference: [end_sin, end_cos],
                 crosses,
-                half_crossing,
             } => {
                 let (scale, cosines, factors) = self.discriminant.factored();
                 let (sin_half, cos_half) = (0.5 * parameter).sin_cos();
@@ -2397,6 +2441,7 @@ impl<R: Ruled, O: Other> Rulings<R, O> {
                     // Signed through the crossing: the touching factor's
                     // root itself, or the sign alone where both factors
                     // vanish once at the apex.
+                    let half_crossing = 0.5 * (self.crossing_generator - start).rem_euclid(TAU);
                     let towards = (from_start - half_crossing).sin();
                     branch *= if ends.contains(&Ends::Crossing) {
                         SQRT_2 * towards

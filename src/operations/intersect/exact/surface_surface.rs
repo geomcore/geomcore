@@ -930,6 +930,7 @@ impl IntersectExact<Cylinder> for Cylinder {
 /// than `tol.confusion`. The ellipses are centred on the middle of the
 /// axes' closest points, at the mean radius, so they are as close to
 /// both cylinders.
+#[inline]
 fn crossing_equal_cylinders(
     first: &Cylinder,
     second: &Cylinder,
@@ -1183,6 +1184,7 @@ impl IntersectExact<Cone> for Cone {
 /// intersection is then the plane's section of either cone. The normal
 /// `w⊥ − tan² φ (w·a) a` vanishes only for coaxial cones, which the caller
 /// has ruled out.
+#[inline]
 fn parallel_cones_section(
     first: &Cone,
     second: &Cone,
@@ -1357,6 +1359,7 @@ fn cone_and_cylinder_around_a_sphere(
 
 /// The conics of two cones whose axes meet at a point as far from both,
 /// not at an apex, cut from the first; `None` otherwise.
+#[inline]
 fn cones_around_a_sphere(
     first: &Cone,
     second: &Cone,
