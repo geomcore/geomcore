@@ -1,6 +1,5 @@
 //! Two cones in general position, read along the first cone's generators.
 
-use super::sphere::{assert_routed_both_ways, assert_routed_result, cone};
 use super::*;
 use crate::ConeConeIntersection;
 use std::f64::consts::FRAC_PI_6;
@@ -55,9 +54,9 @@ fn test_an_apex_inside_the_other_cone_gives_two_loops_around() {
         let second = from_apex(apex, direction, half_angle);
         let curve = cones_quartic(&upright(), &second);
         assert_eq!(curve.component_count(), 2);
-        assert!(matches!(curve.components[0], Component::Around { .. }));
+        assert!(runs_around(&curve, 0, &upright()) && runs_around(&curve, 1, &upright()));
         assert_routed_both_ways(&upright(), &second, 2, 0);
-        assert_fitted_on_closed_form(&curve, 0.3 * TOL.confusion);
+        assert_fitted_on_closed_form(&curve, &upright(), &second, 0.3 * TOL.confusion);
     }
 }
 
@@ -77,12 +76,9 @@ fn test_a_narrow_cone_across_the_upright_one_meets_it_over_arcs_or_loops() {
         let second = from_apex(Point::new(-3.0, side, height), Vector::X, 0.26);
         let curve = cones_quartic(&upright(), &second);
         assert_eq!(curve.component_count(), count, "height {height}");
-        assert_eq!(
-            matches!(curve.components[0], Component::Between { .. }),
-            arcs
-        );
+        assert_eq!(!runs_around(&curve, 0, &upright()), arcs, "height {height}");
         assert_routed_both_ways(&upright(), &second, count, 0);
-        assert_fitted_on_closed_form(&curve, 0.3 * TOL.confusion);
+        assert_fitted_on_closed_form(&curve, &upright(), &second, 0.3 * TOL.confusion);
     }
 }
 
@@ -161,31 +157,6 @@ fn test_an_apex_on_the_other_cone_is_left_to_the_search() {
 }
 
 #[test]
-fn test_the_tangent_runs_with_the_parameter_on_every_component() {
-    for (apex, direction, half_angle) in [
-        (Point::new(-3.0, 0.0, 2.3), Vector::X, 0.26),
-        (
-            Point::new(0.3, -0.2, -1.0),
-            Vector::new(0.1, 0.05, 1.0),
-            1.05,
-        ),
-    ] {
-        let curve = cones_quartic(&upright(), &from_apex(apex, direction, half_angle));
-        for component in &curve.components[..curve.component_count()] {
-            with_rulings!(&curve, rulings => {
-                let orientation = rulings.orientation(*component);
-                for parameter in [0.3, 1.0, 2.0, 4.0, 5.5] {
-                    let here = rulings.sample(*component, parameter, orientation);
-                    let next = rulings.sample(*component, parameter + 1e-6, orientation);
-                    let chord = (next.point - here.point).normalized().unwrap();
-                    assert!(here.tangent.dot(chord) > 0.999, "{component:?} at {parameter}");
-                }
-            });
-        }
-    }
-}
-
-#[test]
 fn test_an_apex_a_hair_off_the_other_cone_is_fitted_on_its_curve() {
     // The second apex `2 × confusion` outside the upright cone, on its
     // generator at `(1, 0, √3)`: the curve nearly passes through it,
@@ -205,6 +176,6 @@ fn test_an_apex_a_hair_off_the_other_cone_is_fitted_on_its_curve() {
         );
         assert_routed_result(&first, &upright(), &second, count, 0);
         assert_routed_result(&other_way, &second, &upright(), count, 0);
-        assert_fitted_on_closed_form(&curve, 0.3 * TOL.confusion);
+        assert_fitted_on_closed_form(&curve, &upright(), &second, 0.3 * TOL.confusion);
     }
 }

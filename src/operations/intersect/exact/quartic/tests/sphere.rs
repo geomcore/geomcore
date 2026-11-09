@@ -1,7 +1,7 @@
 //! A sphere against a cylinder or a cone whose axis misses its centre.
 
 use super::*;
-use crate::{Frame, SurfaceSurfaceIntersection};
+use crate::Frame;
 use std::f64::consts::FRAC_PI_6;
 
 /// The cylinder of radius 1 along `Z` through the origin, and the sphere of
@@ -10,15 +10,6 @@ fn sphere_by_cylinder(across: f64, height: f64, radius: f64) -> (Sphere, Cylinde
     let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
     let sphere = Sphere::new(Point::new(across, 0.0, height), radius).unwrap();
     (sphere, cylinder)
-}
-
-/// The cone of half-angle `half_angle` with its apex at the origin and its
-/// axis along `Z`, of radius `reference_radius` where `v` is zero.
-pub(super) fn cone(half_angle: f64, reference_radius: f64) -> Cone {
-    let origin = Point::new(0.0, 0.0, reference_radius / half_angle.tan());
-    let cone = Cone::new(origin, Vector::Z, half_angle, reference_radius).unwrap();
-    assert!(cone.apex().distance(Point::ORIGIN) < 1e-15);
-    cone
 }
 
 /// The sphere of radius `radius` centred at `(across, 0, height)`, and
@@ -56,61 +47,13 @@ fn cone_quartic(sphere: &Sphere, cone: &Cone, within: f64) -> QuarticCurve {
     curve
 }
 
-/// The routed result is exact and complete, with `count` fitted loops on
-/// both surfaces and `contacts` points where they touch.
-pub(super) fn assert_routed_result<A: ParametricSurface, B: ParametricSurface>(
-    result: &SurfaceSurfaceIntersection,
-    first: &A,
-    second: &B,
-    count: usize,
-    contacts: usize,
-) {
-    assert_eq!(result.method(), IntersectionMethod::Exact);
-    assert!(result.is_complete());
-    assert_eq!(result.curves().len(), count);
-    assert_eq!(result.contact_points().len(), contacts);
-    for p in result.contact_points() {
-        assert!(off(first, *p) <= TOL.confusion && off(second, *p) <= TOL.confusion);
-    }
-    assert_fitted(first, second, result.curves());
-}
-
-/// [`assert_routed_result`] in both orders, the loops as many as the
-/// marcher traces.
-pub(super) fn assert_routed_both_ways<A, B>(sphere: &A, other: &B, count: usize, contacts: usize)
-where
-    A: ParametricSurface + Intersect<B, Output = SurfaceSurfaceIntersection>,
-    B: ParametricSurface + Intersect<A, Output = SurfaceSurfaceIntersection>,
-{
-    assert_routed_result(
-        &sphere.intersect(other, TOL),
-        sphere,
-        other,
-        count,
-        contacts,
-    );
-    assert_routed_result(
-        &other.intersect(sphere, TOL),
-        other,
-        sphere,
-        count,
-        contacts,
-    );
-    assert_eq!(
-        marching_intersection(sphere, other, None, TOL)
-            .curves()
-            .len(),
-        count
-    );
-}
-
 #[test]
 fn test_a_sphere_wider_than_the_cylinder_reaches_meets_it_in_two_loops_around() {
     // Beyond `r + e`: every generator crosses the sphere twice.
     let (sphere, cylinder) = sphere_by_cylinder(0.5, 0.3, 2.0);
     let curve = cylinder_quartic(&sphere, &cylinder, 1e-12);
     assert_eq!(curve.component_count(), 2);
-    assert!(matches!(curve.components[0], Component::Around { .. }));
+    assert!(runs_around(&curve, 0, &cylinder) && runs_around(&curve, 1, &cylinder));
     assert_eq!(curve.contact_point(), None);
     assert_routed_both_ways(&sphere, &cylinder, 2, 0);
 }
@@ -122,7 +65,7 @@ fn test_a_sphere_through_the_cylinder_wall_meets_it_in_one_loop_over_an_arc() {
         let (sphere, cylinder) = sphere_by_cylinder(across, -0.4, radius);
         let curve = cylinder_quartic(&sphere, &cylinder, 1e-12);
         assert_eq!(curve.component_count(), 1);
-        assert!(matches!(curve.components[0], Component::Between { .. }));
+        assert!(!runs_around(&curve, 0, &cylinder));
         assert_routed_both_ways(&sphere, &cylinder, 1, 0);
     }
     // Centred on the wall, the loop runs through both poles of the sphere:
@@ -185,7 +128,11 @@ fn test_a_sphere_within_confusion_of_touching_crosses_itself_where_it_touches() 
         let cylinder = Cylinder::new(sphere.center() + across * 0.9, axis, 1.1).unwrap();
         let curve = cylinder_quartic(&sphere, &cylinder, TOL.confusion);
         assert_eq!(curve.component_count(), 1);
-        assert!(matches!(curve.components[0], Component::Node { .. }));
+        // Through the crossing twice, a quarter and three quarters along.
+        let node = curve.contact_point().unwrap();
+        for parameter in [FRAC_PI_2, 3.0 * FRAC_PI_2] {
+            assert!(curve.point_at(0, parameter).distance(node) < 1e-12);
+        }
         let result = sphere.intersect(&cylinder, TOL);
         assert_eq!(result.method(), IntersectionMethod::Exact);
         assert_eq!(result.curves().len(), 1);
@@ -242,8 +189,10 @@ fn test_a_sphere_through_the_apex_meets_the_cone_in_a_loop_through_it() {
     let cone = cone(FRAC_PI_6, 0.0);
     let curve = cone_quartic(&sphere, &cone, 1e-12);
     assert_eq!(curve.component_count(), 1);
-    assert!(matches!(curve.components[0], Component::Apex));
     assert_eq!(curve.contact_point(), Some(Point::ORIGIN));
+    // The loop runs once around the cone, through the apex.
+    assert!(runs_around(&curve, 0, &cone));
+    assert!(to_closed_form(&curve, 0, Point::ORIGIN) < 1e-9);
     let result = sphere.intersect(&cone, TOL);
     assert_routed_result(&result, &sphere, &cone, 1, 1);
     // Above the apex: the apex is a point apart from the loop.
@@ -277,7 +226,6 @@ fn test_a_sphere_touching_the_far_generator_from_inside_crosses_itself_there() {
         let within = if gap == 0.0 { 1e-12 } else { TOL.confusion };
         let curve = cone_quartic(&sphere, &cone, within);
         assert_eq!(curve.component_count(), 1);
-        assert!(matches!(curve.components[0], Component::Node { .. }));
         let node = curve.contact_point().unwrap();
         assert!(from_line(node, far) < 1e-12);
         assert!(curve.point_at(0, FRAC_PI_2).distance(node) < 1e-12);
@@ -304,7 +252,7 @@ fn test_a_sphere_beside_the_cone_meets_the_nappes_facing_it_over_arcs() {
     let (sphere, cone) = sphere_by_cone(2.0, 0.0, touching + 0.05);
     let curve = cone_quartic(&sphere, &cone, 1e-12);
     assert_eq!(curve.component_count(), 2);
-    assert!(matches!(curve.components[1], Component::Between { .. }));
+    assert!(!runs_around(&curve, 0, &cone) && !runs_around(&curve, 1, &cone));
     assert_routed_both_ways(&sphere, &cone, 2, 0);
     // Higher, the sphere cuts an arc of the upper nappe and touches the
     // lower one: 2.098 and 3.098 from the generators in `XZ`, the lower
@@ -391,12 +339,16 @@ fn test_spheres_anywhere_meet_a_turned_cylinder_or_cone_on_both() {
                     sphere.intersect_exact(&cylinder, TOL)
                 {
                     assert_exact(&curve, &sphere, &cylinder, 1e-11);
-                    assert_fitted(&sphere, &cylinder, &curve.fitted(TOL).unwrap());
+                    let result = sphere.intersect(&cylinder, TOL);
+                    assert_eq!(result.method(), IntersectionMethod::Exact);
+                    assert_fitted(&sphere, &cylinder, result.curves());
                     quartics += 1;
                 }
                 if let SphereConeIntersection::Quartic(curve) = sphere.intersect_exact(&cone, TOL) {
                     assert_exact(&curve, &sphere, &cone, 1e-11);
-                    assert_fitted(&sphere, &cone, &curve.fitted(TOL).unwrap());
+                    let result = sphere.intersect(&cone, TOL);
+                    assert_eq!(result.method(), IntersectionMethod::Exact);
+                    assert_fitted(&sphere, &cone, result.curves());
                     quartics += 1;
                 }
             }
@@ -413,10 +365,10 @@ fn test_a_fit_where_the_quadrics_nearly_touch_stays_on_the_curve() {
     for (across, radius) in [(1.0, 2.00001), (1.0, 1.99999), (2.5, 1.501)] {
         let (sphere, cylinder) = sphere_by_cylinder(across, 0.0, radius);
         let curve = cylinder_quartic(&sphere, &cylinder, 1e-12);
-        assert_fitted_on_closed_form(&curve, 0.3 * TOL.confusion);
+        assert_fitted_on_closed_form(&curve, &sphere, &cylinder, 0.3 * TOL.confusion);
     }
     // Through the apex, where the loop crosses itself.
     let (sphere, cone) = sphere_by_cone(1.0, 0.5, 1.25_f64.sqrt());
     let curve = cone_quartic(&sphere, &cone, 1e-12);
-    assert_fitted_on_closed_form(&curve, 0.3 * TOL.confusion);
+    assert_fitted_on_closed_form(&curve, &sphere, &cone, 0.3 * TOL.confusion);
 }
