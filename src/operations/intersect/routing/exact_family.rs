@@ -30,11 +30,12 @@ use crate::operations::intersect::{
     intersect_conic_conic,
 };
 use crate::operations::intersect::{
-    ConeConeIntersection, ConeCylinderIntersection, CylinderCylinderIntersection,
-    PlaneConeIntersection, PlaneCylinderIntersection, PlanePlaneIntersection,
-    PlaneSphereIntersection, SphereConeIntersection, SphereCylinderIntersection,
-    SphereSphereIntersection, TorusConeIntersection, TorusCylinderIntersection,
-    TorusPlaneIntersection, TorusSphereIntersection, TorusTorusIntersection,
+    CommonSphereConics, ConeConeIntersection, ConeCylinderIntersection,
+    CylinderCylinderIntersection, PlaneConeIntersection, PlaneCylinderIntersection,
+    PlanePlaneIntersection, PlaneSphereIntersection, SphereConeIntersection,
+    SphereCylinderIntersection, SphereSphereIntersection, TorusConeIntersection,
+    TorusCylinderIntersection, TorusPlaneIntersection, TorusSphereIntersection,
+    TorusTorusIntersection,
 };
 use crate::{Point, Point2D, QuarticCurve, Tolerance};
 
@@ -71,6 +72,64 @@ fn quartic(curve: QuarticCurve, tol: Tolerance) -> Option<SurfaceSurfaceIntersec
         curve.contact_point().into_iter().collect(),
         false,
     ))
+}
+
+/// The curves of the two plane sections, with the points where the
+/// surfaces touch: where the conics cross, and an apex a section reduces
+/// to.
+fn common_sphere_conics<S: PlaneSection>(
+    conics: &CommonSphereConics<S>,
+) -> Option<SurfaceSurfaceIntersection> {
+    let mut curves = Vec::new();
+    let mut points = conics.touching_points().to_vec();
+    for section in conics.sections() {
+        section.pieces(&mut curves, &mut points);
+    }
+    Some(SurfaceSurfaceIntersection::exact(curves, points, false))
+}
+
+/// A plane's section of a surface, as the curves and points it holds.
+trait PlaneSection {
+    fn pieces(&self, curves: &mut Vec<IntersectionCurve>, points: &mut Vec<Point>);
+}
+
+impl PlaneSection for PlaneCylinderIntersection {
+    fn pieces(&self, curves: &mut Vec<IntersectionCurve>, _points: &mut Vec<Point>) {
+        let mut add =
+            |curve: Curve, tangent| curves.push(IntersectionCurve::in_space(curve, tangent));
+        match *self {
+            PlaneCylinderIntersection::Circle(c) => add(c.into(), false),
+            PlaneCylinderIntersection::Ellipse(e) => add(e.into(), false),
+            PlaneCylinderIntersection::TwoLines(l1, l2) => {
+                add(l1.into(), false);
+                add(l2.into(), false);
+            }
+            PlaneCylinderIntersection::TangentLine(l) => add(l.into(), true),
+            PlaneCylinderIntersection::Empty => {}
+        }
+    }
+}
+
+impl PlaneSection for PlaneConeIntersection {
+    fn pieces(&self, curves: &mut Vec<IntersectionCurve>, points: &mut Vec<Point>) {
+        let mut add =
+            |curve: Curve, tangent| curves.push(IntersectionCurve::in_space(curve, tangent));
+        match *self {
+            PlaneConeIntersection::Circle(c) => add(c.into(), false),
+            PlaneConeIntersection::Ellipse(e) => add(e.into(), false),
+            PlaneConeIntersection::Parabola(p) => add(p.into(), false),
+            PlaneConeIntersection::Hyperbola(h1, h2) => {
+                add(h1.into(), false);
+                add(h2.into(), false);
+            }
+            PlaneConeIntersection::TwoLines(l1, l2) => {
+                add(l1.into(), false);
+                add(l2.into(), false);
+            }
+            PlaneConeIntersection::TangentLine(l) => add(l.into(), true),
+            PlaneConeIntersection::ApexPoint(p) => points.push(p),
+        }
+    }
 }
 
 /// The surfaces do not meet.
@@ -235,6 +294,7 @@ impl ConeCylinderIntersection {
             ConeCylinderIntersection::TwoCircles(c1, c2) => {
                 surface_curves([(c1, false), (c2, false)])
             }
+            ConeCylinderIntersection::TwoConics(conics) => common_sphere_conics(&conics),
             ConeCylinderIntersection::ApexPoint(p) => contact_point(p),
             ConeCylinderIntersection::NotAnalytic => None,
         }
@@ -335,6 +395,7 @@ impl ConeConeIntersection {
                     false,
                 ))
             }
+            ConeConeIntersection::TwoConics(conics) => common_sphere_conics(&conics),
             ConeConeIntersection::ApexPoint(p) => contact_point(p),
             ConeConeIntersection::Coincident => surfaces_coincide(),
             ConeConeIntersection::NotAnalytic => None,
