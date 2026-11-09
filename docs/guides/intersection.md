@@ -96,7 +96,8 @@ pieces between its points at infinity as `QuarticBranch` curves, with
 both apexes as contact points. So does a cylinder along a generator of
 a cone through its apex: that generator and a cubic through the apex,
 in one branch, the apex the contact point. Surfaces that touch twice
-are left to the numeric search.
+and meet nowhere else, such as a pipe beside a cone's apex touching
+both nappes, give those two points as `contact_points`.
 `intersect_exact` returns its closed form
 (`QuarticCurve`, exact points on both surfaces), and `intersect` fits
 each loop within confusion and reports the result exact and complete,

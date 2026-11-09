@@ -192,7 +192,10 @@ pub enum CylinderCylinderIntersection {
 /// where the surfaces touch or at the apex on the cylinder, or that point
 /// alone. The apex on a cylinder along a generator of the cone gives that
 /// generator and a cubic ([`ConeCylinderIntersection::LineAndCubic`]).
-/// Where the surfaces touch twice, it reports
+/// Surfaces that touch twice meet at those two points alone
+/// ([`ConeCylinderIntersection::TwoTangentPoints`]), or in two conics
+/// through both, which the common sphere reads. A pair a hair from these
+/// readings without being read by them reports
 /// [`ConeCylinderIntersection::NotAnalytic`], reserved for the numeric
 /// surface-surface path.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -207,6 +210,10 @@ pub enum ConeCylinderIntersection {
     /// The surfaces touch at this point and meet nowhere else: a
     /// generator of the cylinder touches the cone there.
     TangentPoint(Point),
+    /// The surfaces touch at these two points and meet nowhere else: the
+    /// cylinder outside the cone's shadow along its axis, touching each
+    /// nappe once.
+    TwoTangentPoints(Point, Point),
     /// The space quartic of a cylinder off the cone's axis, in one or two
     /// loops (see [`QuarticCurve`]), read along the cylinder's generators.
     Quartic(QuarticCurve),
@@ -338,9 +345,13 @@ pub enum TorusTorusIntersection {
 /// one of the other's ([`QuarticCurve::branches`]), and crossing itself
 /// where the cones touch or at an apex on the other cone, or that point
 /// alone. Each apex on the other cone gives the line through both and a
-/// cubic ([`ConeConeIntersection::LineAndCubic`]). Where the cones touch
-/// twice, it reports [`ConeConeIntersection::NotAnalytic`], reserved for
-/// the numeric surface-surface path.
+/// cubic ([`ConeConeIntersection::LineAndCubic`]). Cones that touch twice
+/// meet at those two points alone
+/// ([`ConeConeIntersection::TwoTangentPoints`]), or in two conics through
+/// both, which the common sphere reads. Where a plane through generators
+/// of both along one direction touches both cones, it reports
+/// [`ConeConeIntersection::NotAnalytic`], reserved for the numeric
+/// surface-surface path.
 // The quartic is stored inline, as in the other quartic results.
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, PartialEq)]
@@ -383,6 +394,10 @@ pub enum ConeConeIntersection {
     /// The cones touch at this point and meet nowhere else, away from
     /// both apexes.
     TangentPoint(Point),
+    /// The cones touch at these two points and meet nowhere else: both
+    /// are tangent to the same two planes through both apexes, in opposite
+    /// sectors between them.
+    TwoTangentPoints(Point, Point),
     /// Same apex, axis, and half-angle within tolerance.
     Coincident,
     /// No closed form for this configuration.
@@ -1117,8 +1132,12 @@ impl IntersectExact<Cone> for Cone {
     /// cone, or that point alone. Each apex on the other cone (within
     /// `tol.confusion`, the line through both within `tol.angular` of a
     /// generator of each) gives that line and a cubic
-    /// ([`ConeConeIntersection::LineAndCubic`]). Where the cones touch
-    /// twice, it reports [`ConeConeIntersection::NotAnalytic`].
+    /// ([`ConeConeIntersection::LineAndCubic`]). Cones that touch twice
+    /// meet at those two points alone
+    /// ([`ConeConeIntersection::TwoTangentPoints`]), or in two conics
+    /// through both, which the common sphere reads. Where a plane through
+    /// generators of both along one direction touches both cones, it
+    /// reports [`ConeConeIntersection::NotAnalytic`].
     ///
     /// # Examples
     ///
@@ -1301,8 +1320,11 @@ impl IntersectExact<Cylinder> for Cone {
     /// With the apex on the cylinder (within `tol.confusion`) the curve
     /// crosses itself there, or the apex is a point of its own beside it.
     /// The apex on a cylinder along a generator gives that generator and a
-    /// cubic ([`ConeCylinderIntersection::LineAndCubic`]). Where the
-    /// surfaces touch twice, it reports
+    /// cubic ([`ConeCylinderIntersection::LineAndCubic`]). Surfaces that
+    /// touch twice meet at those two points alone
+    /// ([`ConeCylinderIntersection::TwoTangentPoints`]), or in two conics
+    /// through both, which the common sphere reads. A pair a hair from
+    /// these readings without being read by them reports
     /// [`ConeCylinderIntersection::NotAnalytic`].
     ///
     /// # Examples

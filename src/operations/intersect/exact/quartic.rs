@@ -835,6 +835,9 @@ pub(super) fn cone_off_cylinder_axis(
             ))
         },
         |angle| ConeCylinderIntersection::TangentPoint(touching(angle)),
+        |[first, second]| {
+            ConeCylinderIntersection::TwoTangentPoints(touching(first), touching(second))
+        },
         ConeCylinderIntersection::Empty,
     ))
 }
@@ -979,9 +982,11 @@ fn cylinder_through_the_apex(
 /// second.
 ///
 /// Each apex on the other cone is the line through both and a cubic
-/// ([`sharing_a_generator`]). `None` where the closed form does not hold:
+/// ([`sharing_a_generator`]). Cones touching twice, apart from those
+/// points, meet nowhere else. `None` where the closed form does not hold:
 /// `A` vanishing twice where `β` vanishes too, or the cones touching
-/// twice. The numeric search takes those.
+/// twice and crossing, which the common-sphere conics read first. The
+/// numeric search takes those.
 pub(super) fn cones_in_general_position(
     first: &Cone,
     second: &Cone,
@@ -1103,6 +1108,12 @@ pub(super) fn cones_in_general_position(
             .map(ConeConeIntersection::Quartic)
         },
         |angle| Some(ConeConeIntersection::TangentPoint(touching(angle))),
+        |[first, second]| {
+            Some(ConeConeIntersection::TwoTangentPoints(
+                touching(first),
+                touching(second),
+            ))
+        },
         Some(ConeConeIntersection::Empty),
     )
 }
@@ -1275,6 +1286,9 @@ enum Loops {
     /// `Δ < 0` throughout but on the generator at this angle, where the
     /// surfaces touch at a point.
     Touching(f64),
+    /// `Δ < 0` throughout but on the generators at these angles, where the
+    /// surfaces touch at a point each.
+    TouchingTwice([f64; 2]),
     /// `Δ < 0` throughout: no generator meets the other quadric.
     Empty,
 }
@@ -1282,11 +1296,13 @@ enum Loops {
 impl Loops {
     /// The pair's result: `quartic` from the discriminant, its reference,
     /// the components and the angle of the generator where the surfaces
-    /// touch, `touching` from that angle alone, or `empty`.
+    /// touch, `touching` from that angle alone, `touching_twice` from the
+    /// two angles, or `empty`.
     fn into_result<T>(
         self,
         quartic: impl FnOnce(Discriminant, f64, &[Component], Option<f64>) -> T,
         touching: impl FnOnce(f64) -> T,
+        touching_twice: impl FnOnce([f64; 2]) -> T,
         empty: T,
     ) -> T {
         const AROUND: [Component; 2] = [
@@ -1303,6 +1319,7 @@ impl Loops {
                 contact,
             } => quartic(discriminant, reference, &components[..count], contact),
             Loops::Touching(angle) => touching(angle),
+            Loops::TouchingTwice(angles) => touching_twice(angles),
             Loops::Empty => empty,
         }
     }
@@ -1343,17 +1360,19 @@ fn factored_loops(
     }
     // A factor that nearly vanishes twice is read as touching zero, `cₖ`
     // set to `± 1`: the surfaces touch on the generator where it does,
-    // `θₖ`, or `θₖ + π`. Both at once, the surfaces touch twice: left to
-    // the search.
-    let node = match (touching[0], touching[1]) {
-        (true, true) => return None,
-        (false, false) => None,
-        (first, _) => {
-            let k = if first { 0 } else { 1 };
+    // `θₖ`, or `θₖ + π`.
+    let mut touching_at = [None; 2];
+    for k in 0..2 {
+        if touching[k] {
             cosines[k] = cosines[k].signum();
             let across = if cosines[k] > 0.0 { 0.0 } else { PI };
-            Some((k, (references[k] + across).rem_euclid(TAU)))
+            touching_at[k] = Some((references[k] + across).rem_euclid(TAU));
         }
+    }
+    let node = match touching_at {
+        [Some(at), None] => Some((0, at)),
+        [None, Some(at)] => Some((1, at)),
+        _ => None,
     };
     let (sin_shift, cos_shift) = (references[1] - references[0]).sin_cos();
     let discriminant = Discriminant::TwoFactors {
@@ -1380,6 +1399,15 @@ fn factored_loops(
         let [first, second] = std::array::from_fn(|k| (t - references[k]).cos() - cosines[k]);
         first * second > 0.0
     };
+    if let [Some(first), Some(second)] = touching_at {
+        // Both factors touch zero, keeping their signs: the surfaces touch
+        // twice. With `Δ ≤ 0`, they meet at those two points alone. With
+        // `Δ ≥ 0`, the curve is two conics through both, whose planes the
+        // walk does not read: the axes then meet, and the common-sphere
+        // conics read the pair first. Left to the search if it gets here.
+        return (!positive_at(0.5 * (first + second)))
+            .then_some(Loops::TouchingTwice([first, second]));
+    }
     if roots.is_empty() {
         return Some(match node {
             // Positive but where the touching factor vanishes: one loop

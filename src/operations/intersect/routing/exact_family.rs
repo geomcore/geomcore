@@ -308,6 +308,9 @@ impl ConeCylinderIntersection {
             ConeCylinderIntersection::ApexPoint(p) | ConeCylinderIntersection::TangentPoint(p) => {
                 contact_point(p)
             }
+            ConeCylinderIntersection::TwoTangentPoints(p, q) => Some(
+                SurfaceSurfaceIntersection::exact(Vec::new(), vec![p, q], false),
+            ),
             ConeCylinderIntersection::Quartic(curve) => quartic(curve, tol),
             ConeCylinderIntersection::LineAndCubic(line, cubic) => cubic.with_line(line),
             ConeCylinderIntersection::Empty => surfaces_miss(),
@@ -425,6 +428,9 @@ impl ConeConeIntersection {
             ConeConeIntersection::ApexPoint(p) | ConeConeIntersection::TangentPoint(p) => {
                 contact_point(p)
             }
+            ConeConeIntersection::TwoTangentPoints(p, q) => Some(
+                SurfaceSurfaceIntersection::exact(Vec::new(), vec![p, q], false),
+            ),
             ConeConeIntersection::Coincident => surfaces_coincide(),
             ConeConeIntersection::NotAnalytic => None,
         }

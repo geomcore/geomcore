@@ -4,7 +4,7 @@ A cone and a cylinder, or two cones, that touch at a point meet in a curve that 
 
 ## Where a factor vanishes twice
 
-`Δ = scale · |cos(t − θ₀) − c₀| · |cos(t − θ₁) − c₁|` along the ruled quadric. A factor with `|cₖ|` within its touch tolerance of 1 nearly vanishes twice. Its plane, or its edge of the cone's shadow, touches the ruled quadric along a generator, and on that generator the quadrics touch within confusion. That factor is read as touching exactly: `cₖ` is set to `± 1`, and the crossing is the generator at `θₖ`, or `θₖ + π`. The point where they touch is the double root there, `−β / A`. Setting `cₖ` moves `Δ` by no more than the touch tolerance, chosen so that it moves the points within confusion. Two cylinders move their radii instead, as they can. Both factors touching, the quadrics touching twice, stays with the march. *Amended (ADR 0044):* for two cones the touch is now measured as a distance to the second cone (issue #277).
+`Δ = scale · |cos(t − θ₀) − c₀| · |cos(t − θ₁) − c₁|` along the ruled quadric. A factor with `|cₖ|` within its touch tolerance of 1 nearly vanishes twice. Its plane, or its edge of the cone's shadow, touches the ruled quadric along a generator, and on that generator the quadrics touch within confusion. That factor is read as touching exactly: `cₖ` is set to `± 1`, and the crossing is the generator at `θₖ`, or `θₖ + π`. The point where they touch is the double root there, `−β / A`. Setting `cₖ` moves `Δ` by no more than the touch tolerance, chosen so that it moves the points within confusion. Two cylinders move their radii instead, as they can. Both factors touching, the quadrics touching twice, stays with the march. *Amended:* read in closed form where the curve is the two points alone (see below). *Amended (ADR 0044):* for two cones the touch is now measured as a distance to the second cone (issue #277).
 
 Where `Δ` is negative on both sides of the crossing, the quadrics touch at an isolated point:
 
@@ -17,6 +17,13 @@ Where `Δ` is positive on both sides:
 - **The crossing inside an arc of the other factor**: the arc runs between that factor's zeros and passes the crossing on its way. Its square root is read signed there (`Ends::Crossing`): `|cos(t − θₖ) ∓ 1| = 2 sin²((t − t_c) / 2)`, so `√Δ` is `√(2 scale g) sin((t − t_c) / 2)`, smooth through zero. The arc then runs out from one end through the crossing on one sign and back through it on the other, as a single loop.
 
 The quadrics' normals are parallel at the crossing, so their cross product is no tangent there: it vanishes and turns over. An arc through a crossing takes its tangent from a central difference of its exact points in the walk parameter, as the node takes it from its velocity. Its points are exact, and the fit is the same as for any other arc.
+
+## Touching twice
+
+Both factors read as touching keep their signs everywhere but on their generators, so `Δ` does too.
+
+- **`Δ ≤ 0`**: the surfaces meet at the two points alone, each the double root on its generator. The result is `TwoTangentPoints`, as for a sphere touching each nappe of a cone. A cone and a cylinder do this when the pipe lies beside the apex, outside the cone's shadow along its axis, touching both nappes. Two cones do it when both are tangent to the same two planes through both apexes, in opposite sectors between them. Their axes are skew, so no sphere touches both.
+- **`Δ ≥ 0`**: two quadrics that touch twice meet in two conics through both points, whose planes the walk does not read. Here the shadow's edges, or the planes through both apexes, have their bisector through both axes, so the axes meet, and the common-sphere conics read the pair first (issue #236). A pair that reaches the walk this way, by a hair, goes to the search.
 
 ## Considered options
 

@@ -98,7 +98,10 @@ the Python distribution are versioned in lockstep.
   there, the curve crosses itself, as one loop through the point twice,
   fitted within confusion, the point among its `contact_points`. In
   Rust, `intersect_exact` returns a lone point as the new
-  `TangentPoint(Point)`. Two touches at once are still marched.
+  `TangentPoint(Point)`. Surfaces that touch twice and meet nowhere else
+  give both points, `TwoTangentPoints(Point, Point)` in Rust: a pipe
+  beside a cone's apex touching both nappes, or two cones tangent to the
+  same two planes through both apexes, in opposite sectors between them.
 - A cone whose apex lies on a cylinder, or on another cone, meets it in
   an exact curve instead of a marched one (#237, ADR 0044): the curve
   crosses itself at the apex, one loop through it twice, or the apex is
@@ -177,7 +180,8 @@ the Python distribution are versioned in lockstep.
   `LineAndCubic(Line, QuarticCurve)` and `Empty` (#237): a `match` on it
   needs the arms.
 - `ConeCylinderIntersection` and `ConeConeIntersection` gain
-  `TangentPoint(Point)` (#237): a `match` on them needs the arm.
+  `TangentPoint(Point)` and `TwoTangentPoints(Point, Point)` (#237): a
+  `match` on them needs the arms.
 - `SphereCylinderIntersection` and `SphereConeIntersection` lose the
   variant `NotAnalytic`, every configuration having a closed form, and
   gain `Quartic` and `TangentPoint`, the cone pair also

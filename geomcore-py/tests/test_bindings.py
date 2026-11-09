@@ -739,6 +739,17 @@ def test_intersect_cone_cylinder():
     assert [point.distance(apex) for point in split.contact_points] == pytest.approx([0.0])
     assert pickle.loads(pickle.dumps(cubic)) == cubic
 
+    # A pipe beside the apex, touching both nappes: the two points alone.
+    sqrt3 = math.sqrt(3.0)
+    upright = Cone(Point(0.0, 0.0, 1.0), Vector.unit_z(), math.pi / 6.0, 1.0 / sqrt3)
+    pipe = Cylinder(Point(1.0, 0.0, 0.0), Vector.unit_y(), sqrt3 / 2.0)
+    for touching in [upright.intersect(pipe), pipe.intersect(upright)]:
+        assert touching.method == IntersectionMethod.EXACT and touching.is_complete()
+        assert not touching.curves
+        heights = sorted(point.z for point in touching.contact_points)
+        assert heights == pytest.approx([-sqrt3 / 4.0, sqrt3 / 4.0])
+        assert all(point.x == pytest.approx(0.25) for point in touching.contact_points)
+
 
 def test_intersect_cone_cone():
     from geomcore import Cone, Frame, IntersectionMethod, QuarticBranch
