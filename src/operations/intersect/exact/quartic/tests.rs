@@ -60,6 +60,30 @@ fn quartic(first: &Cylinder, second: &Cylinder) -> QuarticCurve {
     curve
 }
 
+/// Every branch of `curve` runs on without a jump, the points at nearby
+/// parameters near relative to how far out they are, and off to infinity
+/// at both ends: the root it is on at each end the one that runs off.
+fn assert_branches_run_to_infinity(curve: &QuarticCurve) {
+    let branches = curve.branches();
+    assert!(!branches.is_empty());
+    for branch in &branches {
+        let mut previous = branch.point_at(-30.0);
+        for k in 1..=6000 {
+            let u = -30.0 + 0.01 * f64::from(k);
+            let point = branch.point_at(u);
+            let scale = 1.0 + point.distance(Point::ORIGIN);
+            assert!(point.distance(previous) < 0.2 * scale, "a jump at {u}");
+            previous = point;
+        }
+        for u in [-1e4, 1e4] {
+            assert!(
+                branch.point_at(u).distance(Point::ORIGIN) > 1e3,
+                "finite at {u}"
+            );
+        }
+    }
+}
+
 /// Every fitted curve lies within confusion of both surfaces, closes, and
 /// its curves in parameters, where there are, map onto it within the
 /// deviation it reports.

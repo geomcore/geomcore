@@ -179,8 +179,8 @@ fn assert_branches_on(curve: &QuarticCurve, tube: &Cylinder, count: usize) {
             assert!(off(&upright(), point) < 1e-12 * scale);
             assert!(off(tube, point) < 1e-12 * scale);
         }
-        assert!(branch.point_at(1e3).distance(Point::ORIGIN) > 100.0);
     }
+    assert_branches_run_to_infinity(curve);
 }
 
 #[test]

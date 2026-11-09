@@ -1482,10 +1482,11 @@ impl Component {
                 }
                 // `t = start + span sin²(parameter / 2)`, the higher root
                 // on the way out and the lower one on the way back, the
-                // other way round past a crossing.
+                // other way round before a crossing, where the root is
+                // signed (see [`Rulings::at`]).
                 let half = 2.0 * (from_start / span).sqrt().min(1.0).asin();
-                let past_crossing = crosses && from_start > (crossing - start).rem_euclid(TAU);
-                Some(if (branch > 0.0) != past_crossing {
+                let before_crossing = crosses && from_start < (crossing - start).rem_euclid(TAU);
+                Some(if (branch > 0.0) != before_crossing {
                     half
                 } else {
                     TAU - half
@@ -2436,7 +2437,14 @@ impl<R: Ruled, O: Other> Rulings<R, O> {
                 if factors == 2 {
                     product *= factor(ends[1], 1);
                 }
-                let mut branch = if parameter <= PI { 1.0 } else { -1.0 };
+                // Out on the higher root and back on the lower, each turn,
+                // the sign of `sin(parameter)`: a branch's parameters run
+                // past `2π`.
+                let mut branch = if sin_half * cos_half >= 0.0 {
+                    1.0
+                } else {
+                    -1.0
+                };
                 if crosses {
                     // Signed through the crossing: the touching factor's
                     // root itself, or the sign alone where both factors
@@ -2474,7 +2482,11 @@ impl<R: Ruled, O: Other> Rulings<R, O> {
                 let (sin, cos) = angle.sin_cos();
                 let (cos_tau, sin_tau) = self.angle_from_reference(sin, cos);
                 let root = self.discriminant.at(cos_tau, sin_tau).max(0.0).sqrt();
-                let side = if parameter < PI { 1.0 } else { -1.0 };
+                let side = if parameter.rem_euclid(TAU) < PI {
+                    1.0
+                } else {
+                    -1.0
+                };
                 (angle, sin, cos, Some(side * root))
             }
             Component::Apex => {

@@ -129,6 +129,7 @@ fn test_parallel_generators_split_the_curve_into_branches_running_to_infinity() 
     let ConeConeIntersection::Quartic(curve) = upright().intersect_exact(&wide, TOL) else {
         panic!("a quartic");
     };
+    assert_branches_run_to_infinity(&curve);
     let branches = curve.branches();
     assert!(!branches.is_empty());
     for branch in &branches {
@@ -364,6 +365,7 @@ fn test_an_apex_on_the_other_cone_with_parallel_generators_runs_to_infinity_on_b
             panic!("the quartic");
         };
         assert!(curve.contact_point().unwrap().distance(on_upright()) < 1e-12);
+        assert_branches_run_to_infinity(&curve);
         let branches = curve.branches();
         assert!(!branches.is_empty());
         for branch in &branches {
@@ -408,4 +410,35 @@ fn test_cones_whose_beta_vanishes_on_a_factors_reference_generator_are_read_in_c
         );
         assert_routed_result(&first.intersect(&second, TOL), &first, &second, 0, 0);
     }
+}
+
+#[test]
+fn test_every_branch_of_cones_turned_anywhere_runs_to_infinity_at_both_ends() {
+    // A branch's walk parameters run past a turn of its component: the
+    // root it is on must still be the one that runs off at each end.
+    let mut branches = 0;
+    for i in 0..60 {
+        let f = f64::from(i);
+        let apex = Point::new(
+            3.0 * (0.7 * f).sin(),
+            2.5 * (1.3 * f).cos(),
+            2.0 * (0.37 * f).sin(),
+        );
+        let direction = Vector::new((0.91 * f).cos(), (1.7 * f).sin(), (0.53 * f).cos());
+        let half_angle = 0.3 + 0.9 * (0.5 + 0.5 * (2.3 * f).sin());
+        let second = from_apex(apex, direction, half_angle);
+        let ConeConeIntersection::Quartic(curve) = upright().intersect_exact(&second, TOL) else {
+            continue;
+        };
+        for branch in curve.branches() {
+            branches += 1;
+            for u in [-1e4, 1e4] {
+                assert!(
+                    branch.point_at(u).distance(Point::ORIGIN) > 1e3,
+                    "{i} at {u}"
+                );
+            }
+        }
+    }
+    assert!(branches > 20);
 }
