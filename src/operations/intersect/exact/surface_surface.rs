@@ -190,8 +190,9 @@ pub enum CylinderCylinderIntersection {
 /// running off to infinity where a generator of the cylinder is parallel
 /// to one of the cone's ([`QuarticCurve::branches`]), and crossing itself
 /// where the surfaces touch or at the apex on the cylinder, or that point
-/// alone. Where the apex lies on a cylinder along a generator of the cone,
-/// or the surfaces touch twice, it reports
+/// alone. The apex on a cylinder along a generator of the cone gives that
+/// generator and a cubic ([`ConeCylinderIntersection::LineAndCubic`]).
+/// Where the surfaces touch twice, it reports
 /// [`ConeCylinderIntersection::NotAnalytic`], reserved for the numeric
 /// surface-surface path.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -1299,8 +1300,9 @@ impl IntersectExact<Cylinder> for Cone {
     /// or is that point alone ([`ConeCylinderIntersection::TangentPoint`]).
     /// With the apex on the cylinder (within `tol.confusion`) the curve
     /// crosses itself there, or the apex is a point of its own beside it.
-    /// Where the apex lies on a cylinder along a generator, or the surfaces
-    /// touch twice, it reports
+    /// The apex on a cylinder along a generator gives that generator and a
+    /// cubic ([`ConeCylinderIntersection::LineAndCubic`]). Where the
+    /// surfaces touch twice, it reports
     /// [`ConeCylinderIntersection::NotAnalytic`].
     ///
     /// # Examples
