@@ -398,6 +398,25 @@ sphere, where its longitude turns fast: it takes 786 poles against the
 march's 570. Sharing the walk among the three pairs costs the two
 cylinders 1.3–1.4% on the routed call and 50–85 instructions on the
 typed one, whose result now holds the point where the surfaces touch.
+
+A cone and a cylinder off its axis went the same way (#237, ADR 0040),
+read along the cylinder's generators. One pair per id,
+`intersect_routed/cone_cylinder/*`, all against the cone of half-angle
+30° with its apex at `(0, 0, √3)`: the typed call classifies in 1181
+instructions (a tilted cylinder, two loops around it), 2675 (a pipe
+biting into the cone, one arc) and 4013 (a pipe around the apex, an arc
+on each nappe), the last two finding the arc ends from two arccosines
+per edge of the cone's shadow. The routed call fits the loops in 2.44M,
+1.31M and 1.75M instructions, against 9.55M, 5.66M and 7.27M for the
+march it replaces on the same pairs: about four times fewer. The
+result now holds the quartic inline: `ConeCylinderIntersection` grows
+from 296 to 448 bytes, which costs the reducer's conics
+(`intersect/cone_cylinder_around_a_sphere`) 1.1% on the typed call and
+1.5% on the routed one. Boxing the quartic instead was measured on the
+two cylinders: 20–30% more instructions on every typed quartic call,
+and a result no longer `Copy`. The sphere and cone's typed call drops
+to 1555 instructions (from 2058) as its loops are kept in arrays rather
+than vectors.
 Measuring each span against the curve rather than the two surfaces,
 which near a tangency let a fit stray 4 µm from the closed form, adds
 2–8% to every routed id here.

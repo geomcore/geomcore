@@ -2,7 +2,8 @@
 //! pair, solved in closed form.
 
 use super::quartic::{
-    QuarticCurve, crossing_cylinders, sphere_off_cone_axis, sphere_off_cylinder_axis,
+    QuarticCurve, cone_off_cylinder_axis, crossing_cylinders, sphere_off_cone_axis,
+    sphere_off_cylinder_axis,
 };
 use std::f64::consts::PI;
 
@@ -92,6 +93,9 @@ pub enum PlaneConeIntersection {
 /// sphere center (within `tol.confusion`), the section is made of latitude
 /// circles; otherwise it is a space quartic, Viviani's curve among them
 /// (see [`QuarticCurve`]).
+// The quartic is stored inline so an exact result never allocates: boxed,
+// a typed call costs 20–30% more instructions and the result loses `Copy`.
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum SphereCylinderIntersection {
     /// Latitude circle(s): one tangent ring or a symmetric pair.
@@ -116,6 +120,9 @@ pub enum SphereCylinderIntersection {
 /// axis (within `tol.confusion`), the section is made of latitude circles;
 /// otherwise it is a space quartic (see [`QuarticCurve`]) or the points
 /// where the sphere touches the cone.
+// The quartic is stored inline so an exact result never allocates: boxed,
+// a typed call costs 20–30% more instructions and the result loses `Copy`.
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum SphereConeIntersection {
     /// Two latitude circles (on one nappe or one on each).
@@ -144,6 +151,9 @@ pub enum SphereConeIntersection {
 /// `tol.confusion`, too near equal for the node to have a side. Those report
 /// [`CylinderCylinderIntersection::NotAnalytic`], reserved for the
 /// numeric surface-surface path.
+// The quartic is stored inline so an exact result never allocates: boxed,
+// a typed call costs 20–30% more instructions and the result loses `Copy`.
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum CylinderCylinderIntersection {
     /// Two shared generators.
@@ -172,11 +182,14 @@ pub enum CylinderCylinderIntersection {
 
 /// Result of intersecting a cone with a cylinder.
 ///
-/// The closed form needs coaxial axes (within tolerance): the tube of
+/// Coaxial axes (within tolerance) give two latitude circles: the tube of
 /// radius `r` meets each nappe at axial distance `r/|tan(phi)|` from the
-/// apex, two latitude circles (or the apex for a degenerate tube); or
-/// axes that meet, the cone and the cylinder touching one sphere centred
-/// there: two plane conics. Anything else is a space quartic and reports
+/// apex (or the apex for a degenerate tube). Axes that meet, the cone and
+/// the cylinder touching one sphere centred there, give two plane conics.
+/// Anything else is a space quartic in closed form (see [`QuarticCurve`]),
+/// but where the surfaces touch, where the apex lies on the cylinder, and
+/// where a generator of the cylinder is parallel to one of the cone's
+/// (the curve runs off to infinity): those report
 /// [`ConeCylinderIntersection::NotAnalytic`], reserved for the numeric
 /// surface-surface path.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -188,6 +201,11 @@ pub enum ConeCylinderIntersection {
     TwoConics(CommonSphereConics<PlaneCylinderIntersection>),
     /// Degenerate tube (its axis) meeting the cone at the apex.
     ApexPoint(Point),
+    /// The space quartic of a cylinder off the cone's axis, in one or two
+    /// loops (see [`QuarticCurve`]), read along the cylinder's generators.
+    Quartic(QuarticCurve),
+    /// The cylinder misses the cone: no generator of it meets the cone.
+    Empty,
     /// No closed form for this configuration.
     NotAnalytic,
 }
@@ -1219,7 +1237,13 @@ impl IntersectExact<Cylinder> for Cone {
     /// (within `tol.confusion`) give two plane conics, each the cylinder's
     /// section by a plane through that point (see [`CommonSphereConics`]):
     /// ellipses, the curves of a reducer. Anything else is a space quartic
-    /// and reports [`ConeCylinderIntersection::NotAnalytic`].
+    /// in closed form, read along the cylinder's generators (see
+    /// [`QuarticCurve`]): two loops around the cylinder, one or two loops
+    /// over arcs of its generators, or nothing. Where the surfaces touch,
+    /// where the apex lies on the cylinder (within `tol.confusion`), and
+    /// where a generator of the cylinder is parallel to one of the cone's
+    /// (against `tol.angular`), it reports
+    /// [`ConeCylinderIntersection::NotAnalytic`].
     ///
     /// # Examples
     ///
@@ -1240,17 +1264,23 @@ impl IntersectExact<Cylinder> for Cone {
     fn intersect_exact(&self, cylinder: &Cylinder, tol: Tolerance) -> ConeCylinderIntersection {
         let a = self.frame().z_direction();
         let axis = cylinder.axis();
+        let r = cylinder.radius();
+        let quartic = || {
+            if r <= tol.confusion {
+                // A line, not a tube: it meets the cone at points.
+                return ConeCylinderIntersection::NotAnalytic;
+            }
+            cone_off_cylinder_axis(self, cylinder, tol)
+                .unwrap_or(ConeCylinderIntersection::NotAnalytic)
+        };
         if a.cross(axis.direction()).magnitude() > tol.angular {
-            return cone_and_cylinder_around_a_sphere(self, cylinder, tol).map_or(
-                ConeCylinderIntersection::NotAnalytic,
-                ConeCylinderIntersection::TwoConics,
-            );
+            return cone_and_cylinder_around_a_sphere(self, cylinder, tol)
+                .map_or_else(quartic, ConeCylinderIntersection::TwoConics);
         }
         let w = axis.origin() - self.apex();
         if (w - a * w.dot(a)).magnitude() > tol.confusion {
-            return ConeCylinderIntersection::NotAnalytic;
+            return quartic();
         }
-        let r = cylinder.radius();
         if r <= tol.confusion {
             return ConeCylinderIntersection::ApexPoint(self.apex());
         }
@@ -1424,6 +1454,22 @@ impl IntersectExact<Cone> for Sphere {
             let root = disc.sqrt() * cos_phi.abs();
             let base = tc * cos_phi * cos_phi;
             SphereConeIntersection::TwoCircles(mk(base + root), mk(base - root))
+        }
+    }
+}
+
+impl IntersectExact<Cone> for Cylinder {
+    type Output = ConeCylinderIntersection;
+
+    /// The same result as in the other argument order (see
+    /// [`Cone::intersect_exact`](IntersectExact::intersect_exact)), the
+    /// quartic's curves in parameters the cylinder's first.
+    fn intersect_exact(&self, cone: &Cone, tol: Tolerance) -> ConeCylinderIntersection {
+        match cone.intersect_exact(self, tol) {
+            ConeCylinderIntersection::Quartic(curve) => {
+                ConeCylinderIntersection::Quartic(curve.operands_swapped())
+            }
+            other => other,
         }
     }
 }

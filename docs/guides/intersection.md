@@ -76,10 +76,14 @@ Covered pairs include plane/quadric/torus surfaces against each other
 in their symmetric configurations — among them the tee of two equal
 cylinders whose axes meet, two ellipses that cross at the two points
 where the cylinders touch, both listed in `contact_points` — and any two
-cylinders whose axes cross, or a sphere and a cylinder or a cone whose
-axis misses its centre. Those meet in a quartic, in one loop or two:
-the bicylindric curve of two cylinders, or, for a sphere, Viviani's
-curve among others. `intersect_exact` returns its closed form
+cylinders whose axes cross, a sphere and a cylinder or a cone whose
+axis misses its centre, or a cone and a cylinder off its axis. Those
+meet in a quartic, in one loop or two: the bicylindric curve of two
+cylinders, or, for a sphere, Viviani's curve among others. A cone and a
+cylinder are left to the numeric search where the cylinder runs along
+one of the cone's generators (the curve runs off to infinity: trim the
+surfaces to bound it), where the apex lies on the cylinder, and where
+the surfaces touch. `intersect_exact` returns its closed form
 (`QuarticCurve`, exact points on both surfaces), and `intersect` fits
 each loop within confusion and reports the result exact and complete,
 with the point where the surfaces touch, if any, in `contact_points`:
