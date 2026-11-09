@@ -642,7 +642,10 @@ The same bench times elementary pairs:
   whose axis is parallel to a generator (two curves to infinity). Since
   it has a closed form (ADR 0042) it is no longer marched, and the bench
   dropped it: `intersect_routed/cone_cylinder/along_*` times the closed
-  form.
+  form. Its march cost 8.9 M instructions in the budget; routed, the
+  closed form costs 5.4 k where it runs off in branches
+  (`along_branches_routed`, nothing to fit) and 1.15 M where the loop
+  stays bounded and is fitted (`along_loop_routed`).
 
 Fastest of three runs, same settings (2026-10-15, machine loaded). Three
 versions:
