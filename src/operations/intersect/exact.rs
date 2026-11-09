@@ -69,7 +69,6 @@ reversed!(
     Cone => Plane,
     Plane => Torus,
     Sphere => Torus,
-    Cylinder => Cone,
     Cylinder => Torus,
     Cone => Torus,
 );

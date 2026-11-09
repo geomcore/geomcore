@@ -688,8 +688,17 @@ def test_intersect_cone_cylinder():
     assert upper.center().distance(Point.origin()) < 1e-9
     assert lower.center().z == pytest.approx(2.0 * cone.apex().z)
 
+    # Off the cone's axis: the quartic, two loops around the cylinder.
     off = Cylinder(Point(1.0, 0.0, 0.0), Vector.unit_z(), 2.0)
-    assert cone.intersect(off).method == IntersectionMethod.NUMERIC
+    quartic = cone.intersect(off)
+    assert quartic.method == IntersectionMethod.EXACT
+    assert quartic.is_complete()
+    assert len(quartic.curves) == 2
+
+    # Along one of the cone's generators the curve runs to infinity: marched.
+    along = Vector(math.sin(0.4), 0.0, math.cos(0.4))
+    beside = Cylinder(Point(3.0, 0.0, 0.0), along, 0.5)
+    assert cone.intersect(beside).method == IntersectionMethod.NUMERIC
 
 
 def test_intersect_cone_cone():

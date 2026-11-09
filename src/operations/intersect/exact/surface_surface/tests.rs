@@ -564,23 +564,23 @@ fn test_cone_cylinder_intersection() {
         cone.intersect_exact(&axis_line, tol),
         ConeCylinderIntersection::ApexPoint(cone.apex())
     );
-    // Offset axis: space quartic, no closed form.
+    // Offset axis: the space quartic.
     let off = Cylinder::new(Point::new(1.0, 0.0, 0.0), Vector::Z, 2.0).unwrap();
-    assert_eq!(
+    assert!(matches!(
         cone.intersect_exact(&off, tol),
-        ConeCylinderIntersection::NotAnalytic
-    );
-    // Tilted axis: space quartic, no closed form.
+        ConeCylinderIntersection::Quartic(_)
+    ));
+    // Tilted axis: the space quartic.
     let tilted = Cylinder::new(
         Point::ORIGIN,
         Vector::new(0.0, 0.1, 1.0).normalized().unwrap(),
         2.0,
     )
     .unwrap();
-    assert_eq!(
+    assert!(matches!(
         cone.intersect_exact(&tilted, tol),
-        ConeCylinderIntersection::NotAnalytic
-    );
+        ConeCylinderIntersection::Quartic(_)
+    ));
 }
 
 #[test]
@@ -1393,10 +1393,10 @@ fn test_surfaces_around_spheres_that_differ_are_not_conics() {
     let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
     let off = 1.0 + 2.0 * tol.confusion;
     let cone = cone_around(Point::ORIGIN, off, Vector::X, 0.5, 1.0);
-    assert_eq!(
+    assert!(matches!(
         cone.intersect_exact(&cylinder, tol),
-        ConeCylinderIntersection::NotAnalytic
-    );
+        ConeCylinderIntersection::Quartic(_)
+    ));
     let other = cone_around(Point::ORIGIN, 1.0, Vector::Y, 0.4, -1.0);
     assert_eq!(
         cone.intersect_exact(&other, tol),
@@ -1421,10 +1421,10 @@ fn test_surfaces_around_spheres_that_differ_are_not_conics() {
         FRAC_PI_2 / 3.0,
         1.0,
     );
-    assert_eq!(
+    assert!(matches!(
         missing.intersect_exact(&cylinder, tol),
-        ConeCylinderIntersection::NotAnalytic
-    );
+        ConeCylinderIntersection::Quartic(_)
+    ));
 }
 
 #[test]

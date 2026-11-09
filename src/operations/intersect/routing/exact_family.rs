@@ -77,6 +77,7 @@ fn quartic(curve: QuarticCurve, tol: Tolerance) -> Option<SurfaceSurfaceIntersec
 /// The curves of the two plane sections, with the points where the
 /// surfaces touch: where the conics cross, and an apex a section reduces
 /// to.
+#[inline]
 fn common_sphere_conics<S: PlaneSection>(
     conics: &CommonSphereConics<S>,
 ) -> Option<SurfaceSurfaceIntersection> {
@@ -294,14 +295,19 @@ impl CylinderCylinderIntersection {
 }
 
 impl ConeCylinderIntersection {
+    /// The family result; the quartic is fitted within `tol` (see
+    /// [`QuarticCurve::fitted`](crate::QuarticCurve)), and a fit
+    /// that fails hands the pair to the numeric search.
     #[inline]
-    pub(super) fn into_family(self, _tol: Tolerance) -> Option<SurfaceSurfaceIntersection> {
+    pub(super) fn into_family(self, tol: Tolerance) -> Option<SurfaceSurfaceIntersection> {
         match self {
             ConeCylinderIntersection::TwoCircles(c1, c2) => {
                 surface_curves([(c1, false), (c2, false)])
             }
             ConeCylinderIntersection::TwoConics(conics) => common_sphere_conics(&conics),
             ConeCylinderIntersection::ApexPoint(p) => contact_point(p),
+            ConeCylinderIntersection::Quartic(curve) => quartic(curve, tol),
+            ConeCylinderIntersection::Empty => surfaces_miss(),
             ConeCylinderIntersection::NotAnalytic => None,
         }
     }

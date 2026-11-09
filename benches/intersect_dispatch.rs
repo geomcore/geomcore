@@ -4,8 +4,9 @@
 //! four ways: the typed `intersect_exact`, and the routed `intersect` on
 //! the concrete types, on `ElementaryCurve` / `ElementarySurface`, and on
 //! `Curve` / `Surface`. The routed calls build the family result; the
-//! enum operands add a `match`. Two cylinders whose axes cross are timed
-//! alone: their routed result fits each loop of the quartic they meet in.
+//! enum operands add a `match`. Two cylinders whose axes cross, and a cone
+//! with a cylinder off its axis, are timed alone: their routed result fits
+//! each loop of the quartic they meet in.
 //!
 //! Informational only, like `eval_throughput`; not a correctness gate.
 
@@ -371,6 +372,40 @@ fn bench_crossing_cylinders(c: &mut Criterion) {
     group.finish();
 }
 
+/// A cone and a cylinder off its axis: the closed form along the
+/// cylinder's generators, then the routed call that fits each loop.
+fn bench_cone_cylinder(c: &mut Criterion) {
+    let tol = Tolerance::default();
+    let mut group = c.benchmark_group("intersect_routed/cone_cylinder");
+    // Half-angle 30°, the apex at the origin.
+    let cone = Cone::new(
+        Point::new(0.0, 0.0, 3.0_f64.sqrt()),
+        Vector::Z,
+        std::f64::consts::FRAC_PI_6,
+        1.0,
+    )
+    .unwrap();
+    let tilted = Vector::new(0.2, 0.1, 1.0).normalized().unwrap();
+    let pairs = [
+        // Steeper than the cone, beside the apex: two loops around it.
+        ("around", Point::new(1.5, -0.7, 3.0), tilted, 0.6),
+        // A pipe across the upper nappe, biting into it: one loop.
+        ("bite", Point::new(0.0, 1.8, 3.0), Vector::X, 0.6),
+        // A pipe around the apex: a loop on each nappe.
+        ("apex_inside", Point::new(0.0, 0.0, 0.5), Vector::X, 1.0),
+    ];
+    for (name, through, axis, radius) in pairs {
+        let cylinder = Cylinder::new(through, axis, radius).unwrap();
+        group.bench_function(format!("{name}_exact"), |b| {
+            b.iter(|| black_box(black_box(&cone).intersect_exact(&cylinder, tol)))
+        });
+        group.bench_function(format!("{name}_routed"), |b| {
+            b.iter(|| black_box(black_box(&cone).intersect(&cylinder, tol)))
+        });
+    }
+    group.finish();
+}
+
 fn bench_sphere_quadrics(c: &mut Criterion) {
     let tol = Tolerance::default();
     let mut group = c.benchmark_group("intersect_routed/sphere_quadric");
@@ -409,6 +444,7 @@ criterion_group!(
     bench_intersect_dispatch,
     bench_intersect_routed,
     bench_crossing_cylinders,
+    bench_cone_cylinder,
     bench_sphere_quadrics
 );
 criterion_main!(benches);

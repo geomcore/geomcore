@@ -14,7 +14,7 @@ fn sphere_by_cylinder(across: f64, height: f64, radius: f64) -> (Sphere, Cylinde
 
 /// The cone of half-angle `half_angle` with its apex at the origin and its
 /// axis along `Z`, of radius `reference_radius` where `v` is zero.
-fn cone(half_angle: f64, reference_radius: f64) -> Cone {
+pub(super) fn cone(half_angle: f64, reference_radius: f64) -> Cone {
     let origin = Point::new(0.0, 0.0, reference_radius / half_angle.tan());
     let cone = Cone::new(origin, Vector::Z, half_angle, reference_radius).unwrap();
     assert!(cone.apex().distance(Point::ORIGIN) < 1e-15);
@@ -58,7 +58,7 @@ fn cone_quartic(sphere: &Sphere, cone: &Cone, within: f64) -> QuarticCurve {
 
 /// The routed result is exact and complete, with `count` fitted loops on
 /// both surfaces and `contacts` points where they touch.
-fn assert_routed_result<A: ParametricSurface, B: ParametricSurface>(
+pub(super) fn assert_routed_result<A: ParametricSurface, B: ParametricSurface>(
     result: &SurfaceSurfaceIntersection,
     first: &A,
     second: &B,
@@ -77,7 +77,7 @@ fn assert_routed_result<A: ParametricSurface, B: ParametricSurface>(
 
 /// [`assert_routed_result`] in both orders, the loops as many as the
 /// marcher traces.
-fn assert_routed_both_ways<A, B>(sphere: &A, other: &B, count: usize, contacts: usize)
+pub(super) fn assert_routed_both_ways<A, B>(sphere: &A, other: &B, count: usize, contacts: usize)
 where
     A: ParametricSurface + Intersect<B, Output = SurfaceSurfaceIntersection>,
     B: ParametricSurface + Intersect<A, Output = SurfaceSurfaceIntersection>,

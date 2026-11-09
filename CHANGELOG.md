@@ -26,6 +26,19 @@ the Python distribution are versioned in lockstep.
   surfaces whose intersection runs to infinity are no longer cut and
   incomplete (ADR 0039).
 
+- A cone and a cylinder off its axis meet in an exact quartic instead of
+  a marched one, in about a quarter of the time (#237, ADR 0040).
+  `intersect`, in Rust and Python, fits each loop within confusion, with
+  both curves in parameters, and reports the result exact and complete:
+  two loops around a cylinder steeper than the cone, or the arcs of a
+  pipe across it, which run between the edges of the cone's shadow, or
+  nothing. In Rust, `intersect_exact` returns the closed form as
+  `ConeCylinderIntersection::Quartic(QuarticCurve)`, read along the
+  cylinder's generators, and a pipe beside the cone as `Empty`. Three
+  configurations are still marched: a generator of the cylinder parallel
+  to one of the cone's, where the curve runs to infinity (trim the
+  surfaces to bound it), the apex on the cylinder, and surfaces that
+  touch.
 - Two cones with parallel axes and equal half-angles, such as the
   chamfers of two neighbouring parallel holes, meet in one plane conic
   instead of being marched (#262): each cone is the other moved sideways,
@@ -90,6 +103,8 @@ the Python distribution are versioned in lockstep.
 - `IntersectionCurve` gains the public field `parameter_range`, the
   range of its curve along which the surfaces meet: a struct literal
   needs it, or `..` from another curve (#266).
+- `ConeCylinderIntersection` gains `Quartic(QuarticCurve)` and `Empty`
+  (#237): a `match` on it needs the arms.
 - `SphereCylinderIntersection` and `SphereConeIntersection` lose the
   variant `NotAnalytic`, every configuration having a closed form, and
   gain `Quartic` and `TangentPoint`, the cone pair also
