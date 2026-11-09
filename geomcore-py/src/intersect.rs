@@ -10,10 +10,11 @@ use crate::results::{
     PyCurveCurveIntersection, PyCurveCurveIntersection2D, PyCurveSurfaceIntersection,
     PySurfaceSurfaceIntersection,
 };
+use crate::surfaces::PyTrimmedSurface;
 use geomcore::prelude::*;
 use geomcore::{
     Curve2D, CurveCurveIntersection, CurveCurveIntersection2D, CurveSurfaceIntersection, Surface,
-    Tolerance, TrimmedCurve2D,
+    SurfaceSurfaceIntersection, Tolerance, TrimmedCurve2D, TrimmedSurface,
 };
 use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
@@ -29,13 +30,40 @@ enum Operand {
     Curve(CurveArg),
     Curve2D(CurveArg2D),
     Surface(Surface),
+    /// Boxed: a patch is a surface and its ranges, and the operand stays
+    /// the size of a whole surface.
+    TrimmedSurface(Box<TrimmedSurface>),
+}
+
+impl Operand {
+    /// The operand as a surface or a patch of one, if it is either.
+    fn as_surface(&self) -> Option<SurfaceArg<'_>> {
+        match self {
+            Operand::Surface(surface) => Some(SurfaceArg::Whole(surface)),
+            Operand::TrimmedSurface(patch) => Some(SurfaceArg::Trimmed(patch)),
+            _ => None,
+        }
+    }
+}
+
+/// A surface passed from Python: a whole surface or a patch of one.
+enum SurfaceArg<'a> {
+    Whole(&'a Surface),
+    Trimmed(&'a TrimmedSurface),
 }
 
 /// The operand `obj` holds, read by type tests that raise nothing on a
 /// miss: the surface classes first when `surfaces_first` (the other
 /// operand is a surface), the 3D curve classes first otherwise.
 fn operand_of(obj: &Bound<'_, PyAny>, surfaces_first: bool) -> PyResult<Operand> {
-    let surface = || surface_classes::of(obj).map(Operand::Surface);
+    let surface = || {
+        if let Ok(trimmed) = obj.downcast::<PyTrimmedSurface>() {
+            return Some(Operand::TrimmedSurface(Box::new(
+                trimmed.borrow().0.clone(),
+            )));
+        }
+        surface_classes::of(obj).map(Operand::Surface)
+    };
     let curve = || curve_arg_of(obj).map(Operand::Curve);
     let found = if surfaces_first {
         surface().or_else(curve)
@@ -88,8 +116,16 @@ pub(crate) fn intersect(
     let py = first.py();
     // The receiver is read curves first: most calls are on curves.
     let a = operand_of(first, false)?;
-    let b = operand_of(second, matches!(a, Operand::Surface(_)))?;
+    let b = operand_of(second, a.as_surface().is_some())?;
     let (first, second) = (first.clone().unbind(), second.clone().unbind());
+    if let (Some(a), Some(b)) = (a.as_surface(), b.as_surface()) {
+        let object = PySurfaceSurfaceIntersection {
+            result: py.detach(|| routed_surface_surface(&a, &b, tol)),
+            first,
+            second,
+        };
+        return Ok(object.into_pyobject(py)?.into_any().unbind());
+    }
     let object = match (&a, &b) {
         (Operand::Curve(a), Operand::Curve(b)) => PyCurveCurveIntersection {
             result: py.detach(|| routed_curve_curve(a, b, tol)),
@@ -106,13 +142,6 @@ pub(crate) fn intersect(
         }
         .into_pyobject(py)?
         .into_any(),
-        (Operand::Surface(a), Operand::Surface(b)) => PySurfaceSurfaceIntersection {
-            result: py.detach(|| a.intersect(b, tol)),
-            first,
-            second,
-        }
-        .into_pyobject(py)?
-        .into_any(),
         (Operand::Curve2D(a), Operand::Curve2D(b)) => PyCurveCurveIntersection2D {
             result: py.detach(|| routed_curve_curve_2d(a, b, tol)),
             first,
@@ -120,6 +149,12 @@ pub(crate) fn intersect(
         }
         .into_pyobject(py)?
         .into_any(),
+        (Operand::Curve(_), Operand::TrimmedSurface(_))
+        | (Operand::TrimmedSurface(_), Operand::Curve(_)) => {
+            return Err(PyTypeError::new_err(
+                "a TrimmedSurface intersects surfaces only: intersect the curve with its basis()",
+            ));
+        }
         _ => {
             return Err(PyTypeError::new_err(format!(
                 "cannot intersect a 2D curve with a 3D curve or a surface ({} and {})",
@@ -162,6 +197,20 @@ pub(crate) fn routed_curve_curve(
         (CurveArg::Whole(a), CurveArg::Trimmed(b)) => a.intersect(b, tol),
         (CurveArg::Trimmed(a), CurveArg::Whole(b)) => a.intersect(b, tol),
         (CurveArg::Trimmed(a), CurveArg::Trimmed(b)) => a.intersect(b, tol),
+    }
+}
+
+/// The routed intersection of two surfaces passed from Python.
+fn routed_surface_surface(
+    a: &SurfaceArg<'_>,
+    b: &SurfaceArg<'_>,
+    tol: Tolerance,
+) -> SurfaceSurfaceIntersection {
+    match (a, b) {
+        (SurfaceArg::Whole(a), SurfaceArg::Whole(b)) => a.intersect(*b, tol),
+        (SurfaceArg::Whole(a), SurfaceArg::Trimmed(b)) => a.intersect(*b, tol),
+        (SurfaceArg::Trimmed(a), SurfaceArg::Whole(b)) => a.intersect(*b, tol),
+        (SurfaceArg::Trimmed(a), SurfaceArg::Trimmed(b)) => a.intersect(*b, tol),
     }
 }
 

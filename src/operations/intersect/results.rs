@@ -14,6 +14,7 @@ mod regions;
 pub use inline_list::InlineList;
 pub use regions::{CurveCurveRegion, CurveSurfaceRegion, SurfaceSurfaceRegion};
 
+use crate::geometry::curves::ParametricCurve;
 use crate::geometry::surfaces::ParametricSurface;
 use crate::geometry::surfaces::uv_curve::from_curve::{OnSurfaceCheck, checked_curve_3d_to_uv};
 use crate::operations::intersect::Completeness;
@@ -163,14 +164,26 @@ pub struct IntersectionCurve {
     /// fitted from a closed form (ADR 0036) samples it at the quarters of
     /// each span; an exact curve is `0.0`.
     pub deviation: f64,
+    /// The range of the parameter of `curve`, and of the curves in
+    /// parameters, along which the surfaces meet: `curve`'s own bounds
+    /// (infinite for a line), or the piece of it inside the ranges of a
+    /// [`TrimmedSurface`](crate::TrimmedSurface), which ends where the
+    /// curve leaves either surface's ranges. A periodic `curve` cut by the
+    /// ranges keeps a piece across its seam whole, its range running past
+    /// the period.
+    pub parameter_range: (f64, f64),
 }
 
 impl IntersectionCurve {
     /// The curve of an exact result, before its curves in parameters are
     /// found (see [`SurfaceSurfaceIntersection::with_exact_uv_curves`]).
     #[inline]
-    pub(crate) fn in_space(curve: impl Into<Curve>, tangent: bool) -> Self {
+    pub(crate) fn in_space(curve: impl Into<Curve> + ParametricCurve, tangent: bool) -> Self {
+        // Read on the concrete curve, where it is a constant or a field,
+        // not through the enum's dispatch.
+        let parameter_range = curve.bounds();
         IntersectionCurve {
+            parameter_range,
             curve: curve.into(),
             first_uv_curve: None,
             second_uv_curve: None,
@@ -824,6 +837,21 @@ impl SurfaceSurfaceIntersection {
                 piece.second_uv_curve = uv_curve(second);
             }
         }
+        self
+    }
+
+    /// The result with its curves, contact points and coincidence
+    /// changed by `restrict`, its method and completeness kept: the
+    /// intersection of two bases clipped to the ranges of trimmed surfaces.
+    pub(crate) fn restricted(
+        mut self,
+        restrict: impl FnOnce(&mut Vec<IntersectionCurve>, &mut Vec<Point>, &mut bool),
+    ) -> Self {
+        restrict(
+            &mut self.curves,
+            &mut self.contact_points,
+            &mut self.coincident,
+        );
         self
     }
 

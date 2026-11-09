@@ -6,7 +6,7 @@
 use crate::geometry::curves::{Continuity, Curve, Curve2D, TrimmedCurve, TrimmedCurve2D};
 use crate::geometry::surfaces::{
     BSplineSurface, Curve3DToUvError, ElementarySurface, ExtrusionSurface, RevolutionSurface,
-    UvCurveTo3DError,
+    TrimmedSurface, TrimmedSurfaceConstructionError, UvCurveTo3DError,
 };
 use crate::{Point, SurfaceProjection, Tolerance, Vector};
 
@@ -844,6 +844,34 @@ pub trait ParametricSurface {
     #[doc(hidden)]
     fn as_revolution(&self) -> Option<&RevolutionSurface> {
         None
+    }
+
+    /// The surface restricted to the parameter ranges `u_range` and
+    /// `v_range`, each `(first, last)`: [`TrimmedSurface::new`] with this
+    /// surface as the basis, under the same checks.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::prelude::*;
+    /// use geomcore::{Cylinder, Point, Vector};
+    /// use std::f64::consts::PI;
+    ///
+    /// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
+    /// // A band across the seam: u from 3π/2 to 5π/2.
+    /// let band = cylinder.trimmed((1.5 * PI, 2.5 * PI), (0.0, 1.0)).unwrap();
+    /// assert_eq!(band.u_range(), (1.5 * PI, 2.5 * PI));
+    /// assert!(cylinder.trimmed((0.0, 7.0), (0.0, 1.0)).is_err()); // more than a turn
+    /// ```
+    fn trimmed(
+        self,
+        u_range: (f64, f64),
+        v_range: (f64, f64),
+    ) -> Result<TrimmedSurface<Self>, TrimmedSurfaceConstructionError>
+    where
+        Self: Sized,
+    {
+        TrimmedSurface::new(self, u_range, v_range)
     }
 }
 

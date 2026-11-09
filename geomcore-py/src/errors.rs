@@ -35,6 +35,12 @@ create_exception!(
 );
 create_exception!(
     geomcore,
+    TrimmedSurfaceConstructionError,
+    ConstructionError,
+    "A trimmed surface could not be built, for example from an invalid parameter range."
+);
+create_exception!(
+    geomcore,
     KnotInsertionError,
     GeomcoreError,
     "A knot could not be inserted into a B-spline."
@@ -113,6 +119,10 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
         "TrimmedCurveConstructionError",
         py.get_type::<TrimmedCurveConstructionError>(),
     )?;
+    m.add(
+        "TrimmedSurfaceConstructionError",
+        py.get_type::<TrimmedSurfaceConstructionError>(),
+    )?;
     m.add("KnotInsertionError", py.get_type::<KnotInsertionError>())?;
     m.add("KnotRemovalError", py.get_type::<KnotRemovalError>())?;
     m.add(
@@ -190,6 +200,7 @@ map_error!(ConstructionError:
 );
 map_error!(FrameConstructionError: geomcore::FrameConstructionError);
 map_error!(TrimmedCurveConstructionError: geomcore::TrimmedCurveConstructionError);
+map_error!(TrimmedSurfaceConstructionError: geomcore::TrimmedSurfaceConstructionError);
 map_error!(KnotInsertionError: geomcore::KnotInsertionError);
 map_error!(KnotRemovalError: geomcore::KnotRemovalError);
 map_error!(DegreeElevationError: geomcore::DegreeElevationError);

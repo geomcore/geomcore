@@ -80,7 +80,7 @@ pub(super) fn swept_plane_intersection(
 /// The cut along `curve`, with `on_swept`, its curve in the swept
 /// surface's parameters, on `side`.
 fn cut(
-    curve: impl Into<Curve>,
+    curve: impl Into<Curve> + ParametricCurve,
     tangent: bool,
     on_swept: Option<Line2D>,
     side: SweptSide,

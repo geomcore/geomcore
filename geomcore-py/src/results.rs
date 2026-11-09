@@ -582,6 +582,16 @@ impl PyIntersectionCurve {
         self.0.deviation
     }
 
+    /// The `(first, last)` range of `curve`'s parameter, and of the curves
+    /// in parameters, along which the surfaces meet: `curve`'s own bounds
+    /// (infinite for a line), or the piece of it inside the ranges of a
+    /// `TrimmedSurface`. A periodic `curve` cut by the ranges keeps a piece
+    /// across its seam whole, its range running past the period.
+    #[getter]
+    fn parameter_range(&self) -> (f64, f64) {
+        self.0.parameter_range
+    }
+
     fn __repr__(&self, py: Python<'_>) -> PyResult<String> {
         let curve = self.curve(py)?.bind(py).repr()?.to_string();
         let repr = |uv_curve: Option<Py<PyAny>>| -> PyResult<String> {
@@ -591,11 +601,12 @@ impl PyIntersectionCurve {
         };
         Ok(format!(
             "IntersectionCurve(curve={curve}, first_uv_curve={}, second_uv_curve={}, tangent={}, \
-             deviation={})",
+             deviation={}, parameter_range={})",
             repr(self.first_uv_curve(py)?)?,
             repr(self.second_uv_curve(py)?)?,
             bool_repr(self.0.tangent),
-            float_repr(self.0.deviation)
+            float_repr(self.0.deviation),
+            range_repr(self.0.parameter_range)
         ))
     }
 }

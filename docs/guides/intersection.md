@@ -330,5 +330,57 @@ tunable sampling density is
 
 <iframe src="https://geomcore.github.io/geomcore-viewer/?scene=https://geomcore.github.io/geomcore/assets/scenes/intersect-marching.json" width="100%" height="480" style="border: 1px solid #333; border-radius: 8px;" allow="fullscreen" title="B-spline patch and sphere with their marching intersection loop"></iframe>
 
+## Trimmed surfaces
+
+A face lies on a patch of its surface, not the whole of it.
+`surface.trimmed(u_range, v_range)` restricts a surface to a rectangle
+of its parameters, a `TrimmedSurface`; a periodic direction's range may
+cross the seam, as `(1.5π, 2.5π)` on a cylinder. `intersect` takes it
+with any surface or another trimmed surface, in either order: the bases
+are intersected, exactly where a closed form exists, and each curve is
+cut to the pieces inside the ranges of the trimmed sides. A piece keeps
+the curve of the bases, and its `parameter_range` says which part lies
+on both patches; an untrimmed pair's is the curve's own bounds. A
+curve cut on both sides of its seam keeps the piece across it whole,
+its range running past the period.
+
+=== "Python"
+
+    ```python
+    import math
+    from geomcore import Cylinder, Plane, Point, Vector
+
+    cylinder = Cylinder(Point.origin(), Vector.unit_z(), 1.0)
+    half = cylinder.trimmed((0.0, math.pi), (-5.0, 5.0))
+    plane = Plane(Point.origin(), Vector(0.0, 1.0, 1.0))
+    (piece,) = plane.intersect(half).curves   # half of the ellipse
+    start, end = piece.parameter_range
+    assert math.isclose(end - start, math.pi)
+    ```
+
+=== "Rust"
+
+    ```rust
+    use geomcore::prelude::*;
+    use geomcore::{Cylinder, Plane, Point, Tolerance, Vector};
+    use std::f64::consts::PI;
+
+    let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
+    let half = cylinder.trimmed((0.0, PI), (-5.0, 5.0)).unwrap();
+    let plane = Plane::new(Point::ORIGIN, Vector::new(0.0, 1.0, 1.0)).unwrap();
+    let result = plane.intersect(&half, Tolerance::DEFAULT);
+    let (start, end) = result.curves()[0].parameter_range;
+    assert!((end - start - PI).abs() < 1e-9);
+    ```
+
+A march between trimmed surfaces is held to the box of the patches, so
+two patches of unbounded surfaces whose intersection runs to infinity,
+such as a cone and a cylinder along one of its generators, come back
+`Sampled` with curves ending on the ranges instead of cut and
+`Incomplete`. Contact points outside the ranges are dropped, and two
+patches of one surface are coincident only where they overlap. A curve
+and a trimmed surface do not intersect yet: intersect the curve with
+the `basis()`.
+
 All the scenes on this page were computed by the kernel itself —
 see `docs/assets/scenes/gen_scenes.py` — not drawn by hand.

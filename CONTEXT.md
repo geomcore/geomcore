@@ -42,6 +42,10 @@ _Avoid_: sweep for a profile moved along an arbitrary path (not supported), surf
 The curve a swept surface moves.
 _Avoid_: generatrix, basis curve, directrix
 
+**Trimmed surface**:
+A surface restricted to a rectangle of its parameters, a `u` range by a `v` range: the patch a face of a model lies on, without its boundary curves or orientation. It evaluates as its basis, past the ranges too; a periodic direction's range may cross the seam. Its intersection with another surface is the intersection of the bases, cut to the pieces inside the ranges (ADR 0039).
+_Avoid_: face (which adds boundary curves and topology), patch for the type name, bounded surface
+
 **UV curve**:
 A 2D curve in a surface's `(u, v)` parameter space; its 3D curve is the surface composed with it, `S∘c`, which `uv_curve_to_3d` gives exactly or refuses (ADR 0030; on a spline surface by composing the two, ADR 0032), and `uv_curve_to_3d_within` gives within a deviation as one B-spline in the same parameter (ADR 0035). `curve_3d_to_uv` goes the other way: the UV curve `c` of a 3D curve `C` on the surface, with `S∘c = C` (ADR 0031).
 Synonyms: pcurve (the ISO 10303-42 entity name), parameter-space curve.

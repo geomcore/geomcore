@@ -235,6 +235,9 @@ pub enum IncompleteReason {
     /// curve continues there, and the regions hold where each branch was
     /// cut, so the caller knows where it goes on. Outside the regions the
     /// marching search is as sampled as before, so hits may still be
-    /// missing there.
+    /// missing there. Trimming the surfaces to the patches where the
+    /// intersection is needed ([`TrimmedSurface`](crate::TrimmedSurface))
+    /// ends the branches on their ranges instead, and they are not
+    /// reported.
     Unbounded,
 }

@@ -11,6 +11,21 @@ the Python distribution are versioned in lockstep.
 
 ### Added
 
+- `TrimmedSurface`, a surface restricted to a parameter rectangle, the
+  patch a face lies on, built by `surface.trimmed(u_range, v_range)` on
+  every surface, in Rust and Python (#266). A periodic direction's range
+  may cross the seam. It evaluates as its basis, its bounds are the
+  ranges, and its projection and bounding box keep to the patch.
+  `intersect` takes it with any surface, or another trimmed surface, in
+  either order: the bases are intersected, exactly where a closed form
+  exists, and each curve is cut to the pieces inside the ranges of the
+  trimmed sides, which each `IntersectionCurve` gives as its new
+  `parameter_range`; contact points outside the ranges are dropped, and
+  two patches of one surface are coincident only where they overlap. A
+  march is held to the patches' box, so two patches of unbounded
+  surfaces whose intersection runs to infinity are no longer cut and
+  incomplete (ADR 0039).
+
 - Two cones with parallel axes and equal half-angles, such as the
   chamfers of two neighbouring parallel holes, meet in one plane conic
   instead of being marched (#262): each cone is the other moved sideways,
@@ -69,8 +84,12 @@ the Python distribution are versioned in lockstep.
   give nothing. Axes `|r1 − r2|` apart, where the thin cylinder touches
   the thick one from inside, give one loop that crosses itself there,
   with the touching point in `contact_points` (#234).
+
 ### Breaking
 
+- `IntersectionCurve` gains the public field `parameter_range`, the
+  range of its curve along which the surfaces meet: a struct literal
+  needs it, or `..` from another curve (#266).
 - `SphereCylinderIntersection` and `SphereConeIntersection` lose the
   variant `NotAnalytic`, every configuration having a closed form, and
   gain `Quartic` and `TangentPoint`, the cone pair also
