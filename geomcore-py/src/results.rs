@@ -540,9 +540,11 @@ impl PyIntersectionCurve {
     /// The curve in the first surface's `(u, v)` parameters, in the same
     /// parameter as `curve`: the surface's point at its `(u, v)` at `t` is
     /// `curve`'s point at `t`. A marched curve always has one, fitted from
-    /// the parameters the march walked. An exact curve has the exact one
-    /// where a closed form exists, and `None` otherwise (an ellipse on a
-    /// cylinder): `curve_3d_to_uv_within` maps it within a deviation.
+    /// the parameters the march walked, as does a curve fitted from a
+    /// closed form (a loop where two cylinders cross). Another exact curve
+    /// has the exact one where a closed form exists, and `None` otherwise
+    /// (an ellipse on a cylinder): `curve_3d_to_uv_within` maps it within
+    /// a deviation.
     #[getter]
     fn first_uv_curve(&self, py: Python<'_>) -> PyResult<Option<Py<PyAny>>> {
         self.0

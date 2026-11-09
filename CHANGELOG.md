@@ -9,6 +9,21 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+### Added
+
+- Two cylinders whose axes cross meet in an exact quartic, the
+  bicylindric curve, instead of a marched one, in 2–3× less time.
+  `intersect`, in Rust and Python, fits each of its one or two loops
+  within confusion, with both curves in parameters and the `deviation`
+  they reach, and reports the result exact and complete (ADR 0036). In Rust, `intersect_exact`
+  returns its closed form as
+  `CylinderCylinderIntersection::Quartic(BicylindricCurve)`, whose
+  `point_at(component, parameter)` lies on both cylinders to rounding.
+  Cylinders touching from outside give their contact point
+  (`TangentPoint`); axes farther apart than the sum of the radii
+  give nothing. Only axes `|r1 − r2|` apart, where the quartic crosses
+  itself, are still marched.
+
 ## [0.44.0] - 2026-11-06
 
 The API reads the way a newcomer guesses it. Every Python name is at the

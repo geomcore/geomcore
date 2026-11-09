@@ -643,8 +643,19 @@ def test_intersect_symmetric_quadrics():
     l1, _ = _curves(c1.intersect(c2))
     assert l1.origin().x == pytest.approx(1.5)
     assert c1.intersect(c1).is_coincident()
+    # A thinner pipe through it: two loops of the quartic, fitted from its
+    # closed form, each with its curves in both cylinders' parameters.
     crossed = Cylinder(Point.origin(), Vector.unit_x(), 1.5)
-    assert c1.intersect(crossed).method == IntersectionMethod.NUMERIC
+    result = c1.intersect(crossed)
+    assert result.method == IntersectionMethod.EXACT and result.is_complete()
+    assert len(result.curves) == 2
+    for piece in result.curves:
+        assert isinstance(piece.curve, BSplineCurve)
+        p = piece.curve.point_at(0.3)
+        uv = piece.second_uv_curve.point_at(0.3)
+        assert crossed.point_at(uv.x, uv.y).distance(p) < 1e-6
+        assert math.hypot(p.x, p.y) == pytest.approx(2.0, abs=1e-6)
+        assert math.hypot(p.y, p.z) == pytest.approx(1.5, abs=1e-6)
     # The tee of two equal pipes: two ellipses, crossing where they touch.
 
     tee = c1.intersect(Cylinder(Point.origin(), Vector.unit_x(), 2.0))

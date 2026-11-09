@@ -446,16 +446,23 @@ fn test_cylinder_cylinder_intersection_degenerate() {
         c1.intersect_exact(&c1, tol),
         CylinderCylinderIntersection::Coincident
     );
-    // Crossing axes of different radii: space quartic, no closed form.
+    // Crossing axes of different radii: the space quartic, in two loops.
     let crossed = Cylinder::new(Point::ORIGIN, Vector::X, 1.5).unwrap();
-    assert_eq!(
-        c1.intersect_exact(&crossed, tol),
-        CylinderCylinderIntersection::NotAnalytic
-    );
-    // Equal radii whose axes miss each other: no closed form either.
+    let CylinderCylinderIntersection::Quartic(curve) = c1.intersect_exact(&crossed, tol) else {
+        panic!("expected the quartic");
+    };
+    assert_eq!(curve.component_count(), 2);
+    // Equal radii whose axes miss each other: one loop.
     let skew = Cylinder::new(Point::new(0.0, 0.5, 0.0), Vector::X, 2.0).unwrap();
+    let CylinderCylinderIntersection::Quartic(curve) = c1.intersect_exact(&skew, tol) else {
+        panic!("expected the quartic");
+    };
+    assert_eq!(curve.component_count(), 1);
+    // Axes `|r1 − r2|` apart: the loops cross where the cylinders touch,
+    // no closed form.
+    let flush = Cylinder::new(Point::new(0.0, 0.5, 0.0), Vector::X, 1.5).unwrap();
     assert_eq!(
-        c1.intersect_exact(&skew, tol),
+        c1.intersect_exact(&flush, tol),
         CylinderCylinderIntersection::NotAnalytic
     );
 }

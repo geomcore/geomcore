@@ -97,12 +97,16 @@ Two directions are parallel for a configuration when turning one onto the other 
 ## Intersection
 
 **Exact intersection**:
-An intersection computed in closed form, for a pair the closed-form pair table lists: elementary shapes, or a plane with a swept surface. Its result is itself made of elementary curves and points, or of curves read off a swept surface's profile.
+An intersection computed in closed form, for a pair the closed-form pair table lists: elementary shapes, or a plane with a swept surface. Its result is itself made of elementary curves and points, or of curves read off a swept surface's profile, except a bicylindric curve, which is fitted within confusion from its closed form (ADR 0036).
 _Avoid_: analytic intersection
 
 **Closed-form pair table**:
 The one place that says which pairs of shapes `intersect` solves in closed form, and which solver answers each. Every other pair, and every pair with a B-spline or Bézier shape, goes to the numeric intersection.
 _Avoid_: exact routes, analytic pairs
+
+**Bicylindric curve**:
+The quartic where two cylinders with non-parallel axes meet: one or two closed loops, each around the first cylinder or over an arc of its generators. Its closed form gives each point exactly; `intersect` fits it within confusion and reports it exact (ADR 0036).
+_Avoid_: cylinder–cylinder quartic, Steinmetz curve (the case of equal radii and meeting axes only)
 
 **Numeric intersection**:
 An intersection traced or refined iteratively, whose curves are fitted approximations. `intersect` runs it only for a pair or configuration without a closed form, and the result says so (its intersection method).

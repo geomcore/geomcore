@@ -310,7 +310,9 @@ macro_rules! surface_surface {
                 tol: Tolerance,
                 numeric_search: impl FnOnce() -> SurfaceSurfaceIntersection,
             ) -> SurfaceSurfaceIntersection {
-                self.intersect_exact(other, tol).into_family().unwrap_or_else(numeric_search)
+                self.intersect_exact(other, tol)
+                    .into_family(tol)
+                    .unwrap_or_else(numeric_search)
             }
         }
     )*};

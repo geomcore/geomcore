@@ -365,6 +365,20 @@ from the parameters the march walked: 4–12% more instructions per march.
 The typed exact calls are unchanged and stay the fast path for a caller
 who needs only the curves in space.
 
+Two cylinders whose axes cross used to be marched; their quartic is now
+classified in closed form and each loop fitted from it (ADR 0036). One
+pair per id, `intersect_routed/crossing_cylinders/*`: the typed call
+classifies in 1008–1255 instructions (85–170 ns), and the routed call
+fits the loops in 1.04M (bite: a thin pipe biting a thick one, one
+loop), 1.65M (oblique, one loop) and 2.08M instructions (through: a thin
+pipe through a thick one, two loops). Against the marcher on the same
+pairs, timed in one test run on a loaded machine (load average 17–20),
+the fit took 100 against 210 µs (bite), 175 against 500 µs (through) and
+170 against 440 µs (oblique). Its loops carry 386, 748 and 674 poles,
+because cubic Hermite spans within a quarter of confusion need about as
+many points as the march takes. About half of the fit is `sin_cos`, for
+the generator angle and the second cylinder's angle at each sample.
+
 Reproduce with:
 
 ```sh

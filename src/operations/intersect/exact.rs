@@ -16,6 +16,7 @@
 //! [`ConicConicIntersection`](crate::ConicConicIntersection) hold a `Vec`. The router reads each typed
 //! result straight into its family result (`routing/exact_family.rs`).
 
+pub(crate) mod bicylindric;
 pub(crate) mod conic;
 pub(crate) mod conic_2d;
 pub(crate) mod curve_curve;
