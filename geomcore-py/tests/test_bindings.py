@@ -623,9 +623,18 @@ def test_intersect_symmetric_quadrics():
     assert abs(c1.center().z) == pytest.approx(math.sqrt(5.0))
 
     assert len(sphere.intersect(Cylinder(Point.origin(), Vector.unit_z(), 3.0)).curves) == 1
-    # Off-axis pairs have no closed form: marching traces them.
+    # Off-axis, a space quartic fitted from its closed form: here one loop
+    # over an arc of the cylinder's generators.
     off = Cylinder(Point(0.0, 1.0, 0.0), Vector.unit_z(), 2.0)
-    assert sphere.intersect(off).method == IntersectionMethod.NUMERIC
+    result = sphere.intersect(off)
+    assert result.method == IntersectionMethod.EXACT and result.is_complete()
+    assert len(result.curves) == 1
+    # Viviani's curve crosses itself where the sphere touches the cylinder.
+    viviani = Sphere(Point.origin(), 2.0).intersect(
+        Cylinder(Point(1.0, 0.0, 0.0), Vector.unit_z(), 1.0)
+    )
+    assert viviani.method == IntersectionMethod.EXACT and len(viviani.curves) == 1
+    assert viviani.contact_points[0].distance(Point(2.0, 0.0, 0.0)) < 1e-12
 
     cone = Cone.from_frame(Frame.world(), 0.4, 2.0)
     r1, r2 = _curves(sphere.intersect(cone))

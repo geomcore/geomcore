@@ -1,7 +1,9 @@
 //! Exact intersections of two elementary surfaces: one result type per
 //! pair, solved in closed form.
 
-use super::bicylindric::{BicylindricCurve, crossing_cylinders};
+use super::quartic::{
+    QuarticCurve, crossing_cylinders, sphere_off_cone_axis, sphere_off_cylinder_axis,
+};
 use crate::geometry::surfaces::ParametricSurface;
 use crate::math::numeric::{QuadraticSolution, solve_quadratic};
 use crate::{
@@ -84,38 +86,53 @@ pub enum PlaneConeIntersection {
 
 /// Result of intersecting a sphere with a cylinder.
 ///
-/// The closed form requires the cylinder axis through the sphere
-/// center (within `tol.confusion`); otherwise the section is a space
-/// quartic and reports [`SphereCylinderIntersection::NotAnalytic`],
-/// reserved for the numeric surface-surface path.
+/// Every configuration is closed-form. With the cylinder axis through the
+/// sphere center (within `tol.confusion`), the section is made of latitude
+/// circles; otherwise it is a space quartic, Viviani's curve among them
+/// (see [`QuarticCurve`]).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum SphereCylinderIntersection {
     /// Latitude circle(s): one tangent ring or a symmetric pair.
     Circle(Circle),
     /// Two latitude rings symmetric about the equatorial plane.
     TwoCircles(Circle, Circle),
+    /// The space quartic of an axis off the center: two loops around the
+    /// cylinder, one over an arc of its generators, or one that crosses
+    /// itself where the sphere touches the cylinder from inside (its
+    /// [`contact_point`](QuarticCurve::contact_point)).
+    Quartic(QuarticCurve),
+    /// The sphere touches the cylinder at one point, from inside or
+    /// outside.
+    TangentPoint(Point),
     /// The cylinder misses the sphere.
     Empty,
-    /// No closed form for this configuration.
-    NotAnalytic,
 }
 
 /// Result of intersecting a sphere with a cone.
 ///
-/// The closed form requires the sphere center on the cone axis
-/// (within `tol.confusion`); otherwise the section is a space quartic
-/// and reports [`SphereConeIntersection::NotAnalytic`], reserved for the
-/// numeric surface-surface path.
+/// Every configuration is closed-form. With the sphere center on the cone
+/// axis (within `tol.confusion`), the section is made of latitude circles;
+/// otherwise it is a space quartic (see [`QuarticCurve`]) or the points
+/// where the sphere touches the cone.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum SphereConeIntersection {
     /// Two latitude circles (on one nappe or one on each).
     TwoCircles(Circle, Circle),
     /// Grazing contact ring.
     TangentCircle(Circle),
+    /// The space quartic of an axis off the center: a loop on each nappe
+    /// around the apex inside the sphere, a loop through the apex on the
+    /// sphere, or, with the apex outside, one or two loops on the nappes
+    /// facing the sphere. Its [`contact_point`](QuarticCurve::contact_point)
+    /// is the apex on the sphere, where a loop crosses itself, or where
+    /// the sphere touches the other nappe.
+    Quartic(QuarticCurve),
+    /// The sphere touches one nappe at one point and misses the other.
+    TangentPoint(Point),
+    /// The sphere touches each nappe at one point.
+    TwoTangentPoints(Point, Point),
     /// The sphere misses the cone.
     Empty,
-    /// No closed form for this configuration.
-    NotAnalytic,
 }
 
 /// Result of intersecting two cylinders.
@@ -137,8 +154,8 @@ pub enum CylinderCylinderIntersection {
     /// `point_at(3π/2)`, where the cylinders touch.
     TwoEllipses(Ellipse, Ellipse),
     /// The space quartic of axes that are not parallel, in one or two
-    /// loops (see [`BicylindricCurve`]).
-    Quartic(BicylindricCurve),
+    /// loops (see [`QuarticCurve`]).
+    Quartic(QuarticCurve),
     /// Axes that are not parallel, `r1 + r2` apart: the cylinders touch at
     /// one point.
     TangentPoint(Point),
@@ -646,7 +663,7 @@ impl IntersectExact<Cylinder> for Cylinder {
     /// axis, so `(X − O)·a1 = ±(X − O)·a2`, two planes through `O`, and each
     /// cuts the cylinders in one ellipse of minor radius `r` across both
     /// axes. Any other axes that are not parallel give the bicylindric
-    /// quartic (see [`BicylindricCurve`]): from `d`, the distance between
+    /// quartic (see [`QuarticCurve`]): from `d`, the distance between
     /// the axes, the cylinders miss (`d` beyond `r1 + r2`), touch at a
     /// point (`d = r1 + r2`) or meet in one loop (`d` between `|r1 − r2|`
     /// and `r1 + r2`) or two (`d` below `|r1 − r2|`). At `d = |r1 − r2|`
@@ -885,8 +902,12 @@ impl IntersectExact<Cylinder> for Sphere {
     /// `tol.confusion`), a tube radius beyond `radius + tol.confusion`
     /// misses, a tube at the radius grazes one equatorial ring, and a
     /// thinner tube cuts two symmetric latitude rings at axial offsets
-    /// `+-sqrt(radius^2 - tube^2)`. Anything else is a space quartic and
-    /// reports [`SphereCylinderIntersection::NotAnalytic`].
+    /// `+-sqrt(radius^2 - tube^2)`. An axis off the center gives a space
+    /// quartic, decided by the sphere's radius against `r + e` and
+    /// `|r − e|`, `r` the tube's radius and `e` the distance from the
+    /// center to the axis: two loops beyond `r + e`, Viviani's curve
+    /// (crossing itself) at it, one loop between, a tangent point at
+    /// `|r − e|`, and nothing below.
     ///
     /// # Examples
     ///
@@ -910,7 +931,7 @@ impl IntersectExact<Cylinder> for Sphere {
         let axial = w.dot(a);
         let dist = (w - a * axial).magnitude();
         if dist > tol.confusion {
-            return SphereCylinderIntersection::NotAnalytic;
+            return sphere_off_cylinder_axis(self, cylinder, tol);
         }
         let r = self.radius();
         let tube = cylinder.radius();
@@ -940,8 +961,13 @@ impl IntersectExact<Cone> for Sphere {
     /// offsets `alpha` solve `alpha^2/cos^2(phi) - 2*tc*alpha + tc^2 -
     /// R^2 = 0`, i.e. latitude rings where the cone radius `|alpha| *
     /// |tan(phi)|` meets the sphere section, on either nappe: two rings, a
-    /// grazing ring, or empty. Anything else is a space quartic and
-    /// reports [`SphereConeIntersection::NotAnalytic`].
+    /// grazing ring, or empty. An axis off the center gives a space
+    /// quartic, or the points where the sphere touches the cone: with the
+    /// apex inside the sphere, a loop on each nappe; on it, a loop through
+    /// the apex; outside, on each nappe facing the sphere, two loops, a
+    /// loop crossing itself, one loop over an arc of generators, or a
+    /// tangent point, from the distances of the centre to the generators
+    /// in the plane of the axis and the centre.
     ///
     /// # Examples
     ///
@@ -962,7 +988,7 @@ impl IntersectExact<Cone> for Sphere {
         let tc = w.dot(a);
         let dist = (w - a * tc).magnitude();
         if dist > tol.confusion {
-            return SphereConeIntersection::NotAnalytic;
+            return sphere_off_cone_axis(self, cone, tol);
         }
         let r = self.radius();
         let cos_phi = cone.half_angle().cos();
@@ -983,6 +1009,38 @@ impl IntersectExact<Cone> for Sphere {
             let root = disc.sqrt() * cos_phi.abs();
             let base = tc * cos_phi * cos_phi;
             SphereConeIntersection::TwoCircles(mk(base + root), mk(base - root))
+        }
+    }
+}
+
+impl IntersectExact<Sphere> for Cylinder {
+    type Output = SphereCylinderIntersection;
+
+    /// The same result as in the other argument order (see
+    /// [`Sphere::intersect_exact`](IntersectExact::intersect_exact)), the
+    /// quartic's curves in parameters the cylinder's first.
+    fn intersect_exact(&self, sphere: &Sphere, tol: Tolerance) -> SphereCylinderIntersection {
+        match sphere.intersect_exact(self, tol) {
+            SphereCylinderIntersection::Quartic(curve) => {
+                SphereCylinderIntersection::Quartic(curve.operands_swapped())
+            }
+            other => other,
+        }
+    }
+}
+
+impl IntersectExact<Sphere> for Cone {
+    type Output = SphereConeIntersection;
+
+    /// The same result as in the other argument order (see
+    /// [`Sphere::intersect_exact`](IntersectExact::intersect_exact)), the
+    /// quartic's curves in parameters the cone's first.
+    fn intersect_exact(&self, sphere: &Sphere, tol: Tolerance) -> SphereConeIntersection {
+        match sphere.intersect_exact(self, tol) {
+            SphereConeIntersection::Quartic(curve) => {
+                SphereConeIntersection::Quartic(curve.operands_swapped())
+            }
+            other => other,
         }
     }
 }

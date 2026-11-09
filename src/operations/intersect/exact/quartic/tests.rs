@@ -1,4 +1,6 @@
 use super::*;
+
+mod sphere;
 use crate::geometry::curves::ParametricCurve;
 use crate::geometry::surfaces::ParametricSurface;
 use crate::operations::intersect::numeric::marching::marching_intersection;
@@ -19,22 +21,24 @@ fn pair(r1: f64, r2: f64, angle: f64, d: f64) -> (Cylinder, Cylinder) {
     (first, second)
 }
 
-/// How far `point` is from `cylinder`'s surface.
-fn off(cylinder: &Cylinder, point: Point) -> f64 {
-    let (u, v) = cylinder.parameters_of(point, TOL);
-    cylinder.point_at(u, v).distance(point)
+/// How far `point` is from `surface`.
+fn off<S: ParametricSurface>(surface: &S, point: Point) -> f64 {
+    let (u, v) = surface.parameters_of(point, TOL);
+    surface.point_at(u, v).distance(point)
 }
 
-/// The quartic of the pair, its exact points on both cylinders, and each
-/// component closed.
-fn quartic(first: &Cylinder, second: &Cylinder) -> BicylindricCurve {
-    let CylinderCylinderIntersection::Quartic(curve) = first.intersect_exact(second, TOL) else {
-        panic!("expected the quartic");
-    };
+/// The points of each component of `curve` lie within `within` of both
+/// surfaces, and each component closes.
+fn assert_exact<A: ParametricSurface, B: ParametricSurface>(
+    curve: &QuarticCurve,
+    first: &A,
+    second: &B,
+    within: f64,
+) {
     for component in 0..curve.component_count() {
         for k in 0..=256 {
             let p = curve.point_at(component, k as f64 * TAU / 256.0);
-            assert!(off(first, p) < 1e-12 && off(second, p) < 1e-12);
+            assert!(off(first, p) < within && off(second, p) < within);
         }
         let (start, end) = (
             curve.point_at(component, 0.0),
@@ -42,30 +46,99 @@ fn quartic(first: &Cylinder, second: &Cylinder) -> BicylindricCurve {
         );
         assert!(start.distance(end) < 1e-12);
     }
+}
+
+/// The quartic of the pair, its exact points on both cylinders, and each
+/// component closed.
+fn quartic(first: &Cylinder, second: &Cylinder) -> QuarticCurve {
+    let CylinderCylinderIntersection::Quartic(curve) = first.intersect_exact(second, TOL) else {
+        panic!("expected the quartic");
+    };
+    assert_exact(&curve, first, second, 1e-12);
     curve
 }
 
-/// Every fitted curve lies within confusion of both cylinders, closes, and
-/// its curves in parameters map onto it, within the deviation it reports.
-fn assert_fitted(first: &Cylinder, second: &Cylinder, curves: &[IntersectionCurve]) {
+/// Every fitted curve lies within confusion of both surfaces, closes, and
+/// its curves in parameters, where there are, map onto it within the
+/// deviation it reports.
+fn assert_fitted<A: ParametricSurface, B: ParametricSurface>(
+    first: &A,
+    second: &B,
+    curves: &[IntersectionCurve],
+) {
+    assert_fitted_within(first, second, curves, TOL.confusion);
+}
+
+/// [`assert_fitted`] within `within`.
+fn assert_fitted_within<A: ParametricSurface, B: ParametricSurface>(
+    first: &A,
+    second: &B,
+    curves: &[IntersectionCurve],
+    within: f64,
+) {
     for piece in curves {
         let curve = &piece.curve;
         let (t0, t1) = curve.bounds();
         assert!(curve.point_at(t0).distance(curve.point_at(t1)) < 1e-12);
-        let first_uv = piece.first_uv_curve.as_ref().unwrap();
-        let second_uv = piece.second_uv_curve.as_ref().unwrap();
         for k in 0..=1000 {
             let t = t0 + (t1 - t0) * k as f64 / 1000.0;
             let p = curve.point_at(t);
-            assert!(off(first, p) <= TOL.confusion);
-            assert!(off(second, p) <= TOL.confusion);
-            let uv = first_uv.point_at(t);
-            assert!(first.point_at(uv.x, uv.y).distance(p) <= TOL.confusion);
-            let uv = second_uv.point_at(t);
-            assert!(second.point_at(uv.x, uv.y).distance(p) <= TOL.confusion);
+            assert!(off(first, p) <= within);
+            assert!(off(second, p) <= within);
+            if let Some(uv_curve) = &piece.first_uv_curve {
+                let uv = uv_curve.point_at(t);
+                assert!(first.point_at(uv.x, uv.y).distance(p) <= TOL.confusion);
+            }
+            if let Some(uv_curve) = &piece.second_uv_curve {
+                let uv = uv_curve.point_at(t);
+                assert!(second.point_at(uv.x, uv.y).distance(p) <= TOL.confusion);
+            }
         }
         assert!(!piece.tangent);
         assert!(piece.deviation > 0.0 && piece.deviation <= TOL.confusion);
+    }
+}
+
+/// The distance from `point` to the component `component` of `curve`: the
+/// nearest of its points, found by a scan and then golden sections around
+/// the three nearest scanned.
+fn to_closed_form(curve: &QuarticCurve, component: usize, point: Point) -> f64 {
+    const SCAN: usize = 4096;
+    let step = TAU / SCAN as f64;
+    let distance = |t: f64| curve.point_at(component, t).distance(point);
+    let mut scanned: Vec<(f64, usize)> =
+        (0..SCAN).map(|k| (distance(k as f64 * step), k)).collect();
+    scanned.sort_by(|a, b| a.0.total_cmp(&b.0));
+    let ratio = 0.5 * (5.0_f64.sqrt() - 1.0);
+    scanned[..3]
+        .iter()
+        .map(|&(_, k)| {
+            let (mut low, mut high) = ((k as f64 - 1.0) * step, (k as f64 + 1.0) * step);
+            for _ in 0..80 {
+                let (left, right) = (high - ratio * (high - low), low + ratio * (high - low));
+                if distance(left) < distance(right) {
+                    high = right;
+                } else {
+                    low = left;
+                }
+            }
+            distance(0.5 * (low + high))
+        })
+        .fold(f64::INFINITY, f64::min)
+}
+
+/// Each fitted component of `curve` lies within `within` of its closed
+/// form, and covers it: its points are within `within` of the fit.
+fn assert_fitted_on_closed_form(curve: &QuarticCurve, within: f64) {
+    let fitted = curve.fitted(TOL).unwrap();
+    assert_eq!(fitted.len(), curve.component_count());
+    for (component, piece) in fitted.iter().enumerate() {
+        let (t0, t1) = piece.curve.bounds();
+        for k in 0..=400 {
+            let p = piece.curve.point_at(t0 + (t1 - t0) * k as f64 / 400.0);
+            let distance = to_closed_form(curve, component, p);
+            assert!(distance <= within, "{distance:e} from the closed form");
+        }
     }
 }
 
@@ -77,6 +150,9 @@ fn assert_routed(first: &Cylinder, second: &Cylinder, count: usize) {
     assert!(result.is_complete());
     assert_eq!(result.curves().len(), count);
     assert!(result.contact_points().is_empty());
+    for piece in result.curves() {
+        assert!(piece.first_uv_curve.is_some() && piece.second_uv_curve.is_some());
+    }
     assert_fitted(first, second, result.curves());
     let marched = marching_intersection(first, second, TOL);
     assert_eq!(marched.curves().len(), count);
@@ -176,4 +252,14 @@ fn test_either_order_meets_in_the_same_loops() {
     let ba = second.intersect(&first, TOL);
     assert_eq!(ab.curves().len(), ba.curves().len());
     assert_fitted(&second, &first, ba.curves());
+}
+
+#[test]
+fn test_a_fit_where_the_cylinders_nearly_touch_stays_on_the_curve() {
+    // The axes 1e-5 past `r1 − r2`: the loop nearly crosses itself where
+    // the cylinders nearly touch, and a point within confusion of both
+    // can be microns off the curve.
+    let first = Cylinder::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
+    let second = Cylinder::new(Point::new(0.0, 0.50001, 0.0), Vector::X, 0.5).unwrap();
+    assert_fitted_on_closed_form(&quartic(&first, &second), 0.3 * TOL.confusion);
 }

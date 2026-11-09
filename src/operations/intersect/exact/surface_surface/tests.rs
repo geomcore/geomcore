@@ -712,12 +712,12 @@ fn test_sphere_cylinder_intersection() {
         sphere.intersect_exact(&fat, tol),
         SphereCylinderIntersection::Empty
     );
-    // Offset axis: space quartic, no closed form.
+    // Offset axis: a space quartic (see the quartic module's tests).
     let off = Cylinder::new(Point::new(0.0, 1.0, 0.0), Vector::Z, 2.0).unwrap();
-    assert_eq!(
+    assert!(matches!(
         sphere.intersect_exact(&off, tol),
-        SphereCylinderIntersection::NotAnalytic
-    );
+        SphereCylinderIntersection::Quartic(_)
+    ));
 }
 
 #[test]
@@ -773,12 +773,13 @@ fn test_sphere_cone_intersection() {
         }
         _ => panic!("expected two circles"),
     }
-    // Off-axis center: space quartic, no closed form.
+    // Off-axis center: a space quartic, or the points where the sphere
+    // touches the cone (see the quartic module's tests).
     let off = Sphere::new(Point::new(1.0, 0.0, 0.0), 1.0).unwrap();
-    assert_eq!(
+    assert!(!matches!(
         off.intersect_exact(&cone, tol),
-        SphereConeIntersection::NotAnalytic
-    );
+        SphereConeIntersection::TwoCircles(..) | SphereConeIntersection::TangentCircle(_)
+    ));
 }
 
 #[test]

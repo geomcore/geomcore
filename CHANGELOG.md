@@ -11,18 +11,39 @@ the Python distribution are versioned in lockstep.
 
 ### Added
 
+- A sphere meets a cylinder or a cone whose axis misses its centre in an
+  exact quartic (#232, #233), in Rust and Python, instead of a marched
+  one. `intersect` fits each loop within confusion and reports the
+  result exact and complete, with the point where the surfaces touch in
+  `contact_points`. Against a cylinder the sphere's radius decides
+  among two loops around the cylinder, one loop over an arc of its
+  generators, Viviani's curve (the loop that crosses itself where the
+  sphere touches the cylinder from inside), a tangent point, or nothing.
+  Against a cone: a loop on each nappe around the apex inside the
+  sphere, a loop through the apex on it, or, on each nappe facing the
+  sphere, two loops, a crossing loop, an arc, or a tangent point. In
+  Rust, `SphereCylinderIntersection` and `SphereConeIntersection` gain
+  `Quartic(QuarticCurve)` and `TangentPoint`, and the cone pair
+  `TwoTangentPoints`. A curve through a pole of the sphere has no curve
+  in the sphere's parameters, whose longitude jumps there.
 - Two cylinders whose axes cross meet in an exact quartic, the
   bicylindric curve, instead of a marched one, in 2–3× less time.
   `intersect`, in Rust and Python, fits each of its one or two loops
   within confusion, with both curves in parameters and the `deviation`
   they reach, and reports the result exact and complete (ADR 0036). In Rust, `intersect_exact`
   returns its closed form as
-  `CylinderCylinderIntersection::Quartic(BicylindricCurve)`, whose
+  `CylinderCylinderIntersection::Quartic(QuarticCurve)`, whose
   `point_at(component, parameter)` lies on both cylinders to rounding.
   Cylinders touching from outside give their contact point
   (`TangentPoint`); axes farther apart than the sum of the radii
   give nothing. Only axes `|r1 − r2|` apart, where the quartic crosses
   itself, are still marched.
+### Breaking
+
+- `SphereCylinderIntersection` and `SphereConeIntersection` lose the
+  variant `NotAnalytic`, every configuration having a closed form, and
+  gain `Quartic` and `TangentPoint`, the cone pair also
+  `TwoTangentPoints` (#232, #233): a `match` on them needs the arms.
 
 ## [0.44.0] - 2026-11-06
 
