@@ -679,7 +679,7 @@ def test_intersect_symmetric_quadrics():
 
 
 def test_intersect_cone_cylinder():
-    from geomcore import Cone, Cylinder, Frame, IntersectionMethod
+    from geomcore import Cone, Cylinder, Frame, IntersectionMethod, QuarticBranch
 
     cone = Cone.from_frame(Frame.world(), 0.4, 2.0)
     cylinder = Cylinder(Point.origin(), Vector.unit_z(), 2.0)
@@ -695,10 +695,33 @@ def test_intersect_cone_cylinder():
     assert quartic.is_complete()
     assert len(quartic.curves) == 2
 
-    # Along one of the cone's generators the curve runs to infinity: marched.
+    # The axis along one of the cone's generators: each generator of the
+    # cylinder meets the cone once. Out of reach of the generator through
+    # the apex, on one bounded loop.
     along = Vector(math.sin(0.4), 0.0, math.cos(0.4))
     beside = Cylinder(Point(3.0, 0.0, 0.0), along, 0.5)
-    assert cone.intersect(beside).method == IntersectionMethod.NUMERIC
+    loop = cone.intersect(beside)
+    assert loop.method == IntersectionMethod.EXACT and loop.is_complete()
+    assert len(loop.curves) == 1
+
+    # Around it, the point runs to infinity on two generators: two exact
+    # branches.
+    around = Cylinder(Point(0.0, 0.3, cone.apex().z), along, 1.0)
+    branches = cone.intersect(around)
+    assert branches.method == IntersectionMethod.EXACT and branches.is_complete()
+    assert len(branches.curves) == 2
+    for piece in branches.curves:
+        branch = piece.curve
+        assert isinstance(branch, QuarticBranch)
+        for u in [-50.0, 0.0, 3.0]:
+            point = branch.point_at(u)
+            assert cone.project_point(point).distance < 1e-9
+            assert around.project_point(point).distance < 1e-9
+        first, second = branch.surfaces()
+        assert isinstance(first, Cone) and isinstance(second, Cylinder)
+        assert QuarticBranch(first, second, branch.index()) == branch
+    with pytest.raises(TypeError):
+        QuarticBranch(around, cone, 0)
 
 
 def test_intersect_cone_cone():
@@ -733,7 +756,7 @@ def test_intersect_cone_cone():
             point = branch.point_at(u)
             assert c1.project_point(point).distance < 1e-9
             assert wide.project_point(point).distance < 1e-9
-        first, second = branch.cones()
+        first, second = branch.surfaces()
         assert QuarticBranch(first, second, branch.index()) == branch
 
     # Parallel axes, equal half-angles: the 90° chamfers of two holes 3

@@ -125,6 +125,7 @@ fn test_parallel_generators_split_the_curve_into_branches_running_to_infinity() 
     let ConeConeIntersection::Quartic(curve) = upright().intersect_exact(&wide, TOL) else {
         panic!("a quartic");
     };
+    assert_branches_run_to_infinity(&curve);
     let branches = curve.branches();
     assert!(!branches.is_empty());
     for branch in &branches {
@@ -138,22 +139,100 @@ fn test_parallel_generators_split_the_curve_into_branches_running_to_infinity() 
     }
 }
 
+/// The quartic of the pair, through `apex`, where the curve meets it:
+/// exact, its single component, its contact point the apex, and routed
+/// exact and complete in either order in `count` loops, the apex a contact
+/// point.
+fn through_an_apex(second: &Cone, apex: Point, count: usize) -> QuarticCurve {
+    let curve = cones_quartic(&upright(), second);
+    assert_eq!(curve.component_count(), 1);
+    assert!(curve.contact_point().unwrap().distance(apex) < 1e-12);
+    assert_exact(&curve, &upright(), second, 1e-12);
+    assert_routed_result(
+        &upright().intersect(second, TOL),
+        &upright(),
+        second,
+        count,
+        1,
+    );
+    assert_routed_result(
+        &second.intersect(&upright(), TOL),
+        second,
+        &upright(),
+        count,
+        1,
+    );
+    curve
+}
+
+/// A point of the upright cone, on its generator along `X`.
+fn on_upright() -> Point {
+    Point::new(1.0, 0.0, 3.0_f64.sqrt())
+}
+
 #[test]
-fn test_an_apex_on_the_other_cone_is_left_to_the_search() {
-    // The second apex on the upright cone, and the upright apex on the
-    // second cone.
-    let on_first = from_apex(Point::new(1.0, 0.0, 3.0_f64.sqrt()), Vector::X, 0.3);
-    let on_second = from_apex(
+fn test_an_apex_on_the_other_cone_across_its_tangent_plane_crosses_itself_there() {
+    // The second axis in the upright cone's tangent plane at the apex: the
+    // plane cuts the second cone in two generators, one arc through the
+    // apex along each.
+    for direction in [Vector::Y, Vector::new(0.5, 1.0, 3.0_f64.sqrt() / 2.0)] {
+        let second = from_apex(on_upright(), direction, 0.3);
+        let curve = through_an_apex(&second, on_upright(), 1);
+        assert!(!runs_around(&curve, 0, &upright()));
+        assert_eq!(passes_through(&curve, 0, on_upright()), 2);
+    }
+}
+
+#[test]
+fn test_an_apex_on_the_other_cone_off_its_tangent_plane_is_a_point_of_its_own() {
+    // The second cone narrow along `X`: the tangent plane at its apex
+    // misses it but there, and the cones meet on an arc beyond.
+    let second = from_apex(on_upright(), Vector::X, 0.3);
+    let curve = through_an_apex(&second, on_upright(), 1);
+    assert!(!runs_around(&curve, 0, &upright()));
+    assert!(to_closed_form(&curve, 0, on_upright()) > 0.1);
+}
+
+#[test]
+fn test_an_apex_on_the_other_cone_around_the_first_apex_crosses_itself_each_time_around() {
+    // The second cone wider than the upright one, about its axis: the
+    // upright apex inside it, every generator crosses it twice, both loops
+    // through its apex.
+    for direction in [Vector::Z, Vector::new(0.1, 0.05, 1.0)] {
+        let second = from_apex(on_upright(), direction, std::f64::consts::FRAC_PI_4);
+        let curve = through_an_apex(&second, on_upright(), 1);
+        assert!(runs_around(&curve, 0, &upright()));
+        assert_eq!(passes_through(&curve, 0, on_upright()), 2);
+    }
+}
+
+#[test]
+fn test_the_first_apex_on_the_second_cone_is_a_contact_point_too() {
+    // The upright apex on the second cone, the second's away from the
+    // upright one: read the other way round.
+    let second = from_apex(
         Point::new(-2.0, 0.0, 0.0),
         Vector::new(1.0, 0.0, 0.2),
         0.2_f64.atan(),
     );
-    for second in [on_first, on_second] {
-        assert_eq!(
-            upright().intersect_exact(&second, TOL),
-            ConeConeIntersection::NotAnalytic
-        );
-    }
+    through_an_apex(&second, Point::ORIGIN, 1);
+}
+
+#[test]
+fn test_each_apex_on_the_other_cone_is_left_to_the_search() {
+    // The line through both apexes lies on both cones.
+    let toward_first = (Point::ORIGIN - on_upright()).normalized().unwrap();
+    // Turned out of the plane of the upright axis, so the axes miss.
+    let across = toward_first.cross(Vector::X).normalized().unwrap();
+    let second = from_apex(
+        on_upright(),
+        toward_first * 0.3_f64.cos() + across * 0.3_f64.sin(),
+        0.3,
+    );
+    assert_eq!(
+        upright().intersect_exact(&second, TOL),
+        ConeConeIntersection::NotAnalytic
+    );
 }
 
 #[test]
@@ -178,4 +257,156 @@ fn test_an_apex_a_hair_off_the_other_cone_is_fitted_on_its_curve() {
         assert_routed_result(&other_way, &second, &upright(), count, 0);
         assert_fitted_on_closed_form(&curve, &upright(), &second, 0.3 * TOL.confusion);
     }
+}
+
+#[test]
+fn test_cones_touching_meet_at_the_point_or_in_an_arc_crossing_itself_there() {
+    // A narrow cone whose generator through `P`, on the upright cone,
+    // runs along `X` in the tangent plane there, its axis leaning out of
+    // the upright cone or into it: the cones touch at `P`.
+    let sqrt3 = 3.0_f64.sqrt();
+    let p = Point::new(0.0, sqrt3, 3.0);
+    let normal = Vector::new(0.0, sqrt3 / 2.0, -0.5);
+    for (half_angle, length) in [(0.1_f64, 5.0), (0.3, 2.0)] {
+        let leaning = |side: f64| {
+            let axis = Vector::X * half_angle.cos() + normal * (side * half_angle.sin());
+            from_apex(p - Vector::X * length, axis, half_angle)
+        };
+        // Leaning out, the narrow cone stays outside near `P`: only `P`.
+        let outside = leaning(1.0);
+        let ConeConeIntersection::TangentPoint(point) = upright().intersect_exact(&outside, TOL)
+        else {
+            panic!("a tangent point");
+        };
+        assert!(point.distance(p) < 1e-12);
+        assert_routed_result(
+            &upright().intersect(&outside, TOL),
+            &upright(),
+            &outside,
+            0,
+            1,
+        );
+        // Leaning in, it crosses the upright cone on an arc of generators
+        // that crosses itself at `P`.
+        let inside = leaning(-1.0);
+        let ConeConeIntersection::Quartic(curve) = upright().intersect_exact(&inside, TOL) else {
+            panic!("the quartic");
+        };
+        assert_eq!(curve.component_count(), 1);
+        assert!(curve.contact_point().unwrap().distance(p) < 1e-12);
+        assert!(!runs_around(&curve, 0, &upright()));
+        assert_eq!(passes_through(&curve, 0, p), 2);
+        assert_exact(&curve, &upright(), &inside, TOL.confusion);
+        assert_routed_result(
+            &upright().intersect(&inside, TOL),
+            &upright(),
+            &inside,
+            1,
+            1,
+        );
+        assert_routed_result(
+            &inside.intersect(&upright(), TOL),
+            &inside,
+            &upright(),
+            1,
+            1,
+        );
+    }
+}
+
+#[test]
+fn test_an_apex_on_the_other_cone_with_parallel_generators_runs_to_infinity_on_both() {
+    // Generators of the upright cone parallel to the second's: the loop
+    // through the apex runs off to infinity, its pieces exact branches.
+    for second in [
+        // The upright apex inside the second cone: once around each way.
+        from_apex(on_upright(), Point::ORIGIN - on_upright(), 0.4),
+        // Outside: one arc crossing itself at the apex.
+        from_apex(on_upright(), Vector::Y, 1.2),
+        from_apex(
+            on_upright(),
+            Vector::new(0.5, 1.0, 3.0_f64.sqrt() / 2.0),
+            0.6,
+        ),
+    ] {
+        let ConeConeIntersection::Quartic(curve) = upright().intersect_exact(&second, TOL) else {
+            panic!("the quartic");
+        };
+        assert!(curve.contact_point().unwrap().distance(on_upright()) < 1e-12);
+        assert_branches_run_to_infinity(&curve);
+        let branches = curve.branches();
+        assert!(!branches.is_empty());
+        for branch in &branches {
+            for u in [-50.0, -2.0, -0.3, 0.0, 0.4, 3.0, 80.0] {
+                let point = branch.point_at(u);
+                let scale = 1.0 + point.distance(Point::ORIGIN);
+                assert!(off(&upright(), point) < 1e-11 * scale, "{u}");
+                assert!(off(&second, point) < 1e-11 * scale, "{u}");
+            }
+        }
+        for result in [
+            upright().intersect(&second, TOL),
+            second.intersect(&upright(), TOL),
+        ] {
+            assert_eq!(result.method(), IntersectionMethod::Exact);
+            assert!(result.is_complete());
+            assert_eq!(result.contact_points().len(), 1);
+        }
+    }
+}
+
+#[test]
+fn test_cones_whose_beta_vanishes_on_a_factors_reference_generator_are_read_in_closed_form() {
+    // Issue #277: `β` vanishes on the generator at a factor's reference
+    // angle, far from touching. The cones miss each other.
+    let first = Cone::new(Point::ORIGIN, Vector::Z, FRAC_PI_6, 0.0).unwrap();
+    for axis in [
+        Vector::Y,
+        Vector::new(0.0, 1.0, 0.05),
+        Vector::new(0.3, 1.0, 0.2),
+    ] {
+        let second = Cone::new(
+            Point::new(3.0, 0.0, 0.0),
+            axis.normalized().unwrap(),
+            10.0_f64.to_radians(),
+            0.0,
+        )
+        .unwrap();
+        assert_eq!(
+            first.intersect_exact(&second, TOL),
+            ConeConeIntersection::Empty
+        );
+        assert_routed_result(&first.intersect(&second, TOL), &first, &second, 0, 0);
+    }
+}
+
+#[test]
+fn test_every_branch_of_cones_turned_anywhere_runs_to_infinity_at_both_ends() {
+    // A branch's walk parameters run past a turn of its component: the
+    // root it is on must still be the one that runs off at each end.
+    let mut branches = 0;
+    for i in 0..60 {
+        let f = f64::from(i);
+        let apex = Point::new(
+            3.0 * (0.7 * f).sin(),
+            2.5 * (1.3 * f).cos(),
+            2.0 * (0.37 * f).sin(),
+        );
+        let direction = Vector::new((0.91 * f).cos(), (1.7 * f).sin(), (0.53 * f).cos());
+        let half_angle = 0.3 + 0.9 * (0.5 + 0.5 * (2.3 * f).sin());
+        let second = from_apex(apex, direction, half_angle);
+        let ConeConeIntersection::Quartic(curve) = upright().intersect_exact(&second, TOL) else {
+            continue;
+        };
+        for branch in curve.branches() {
+            branches += 1;
+            for u in [-1e4, 1e4] {
+                assert!(
+                    branch.point_at(u).distance(Point::ORIGIN) > 1e3,
+                    "{i} at {u}"
+                );
+            }
+        }
+    }
+    assert!(branches > 20);
 }

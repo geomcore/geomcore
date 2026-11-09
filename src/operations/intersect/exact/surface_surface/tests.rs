@@ -1468,11 +1468,27 @@ fn test_parallel_cones_with_equal_half_angles_meet_in_one_plane_conic() {
                 assert_exact_curves_on_both(&second, &first, curves);
             }
         }
-        // Unequal half-angles: a space quartic.
+        // Unequal half-angles: a space quartic, in closed form (#277: `β`
+        // vanishes on the generator at a factor's reference angle).
         let wider = cone_at(apex + across * 1.5, axis, phi + 0.05, 1.0);
-        assert_eq!(
+        assert!(matches!(
             first.intersect_exact(&wider, tol),
-            ConeConeIntersection::NotAnalytic
-        );
+            ConeConeIntersection::Quartic(_)
+        ));
+        let result = first.intersect(&wider, tol);
+        assert_eq!(result.method(), IntersectionMethod::Exact);
+        assert!(result.is_complete());
+        for piece in result.curves() {
+            let (start, end) = piece.parameter_range;
+            for k in 0..=16 {
+                let t = if start.is_finite() && end.is_finite() {
+                    start + (end - start) * k as f64 / 16.0
+                } else {
+                    k as f64 - 8.0
+                };
+                let point = piece.curve.point_at(t);
+                assert!(first.contains(point, tol) && wider.contains(point, tol));
+            }
+        }
     }
 }

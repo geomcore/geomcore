@@ -83,9 +83,16 @@ the bicylindric curve of two cylinders, or, for a sphere, Viviani's
 curve among others. Where a generator of one cone runs along one of the
 other's, the curve runs off to infinity there: each piece between two
 such generators comes back whole as an exact `QuarticBranch`, unbounded
-both ways, the loops that stay bounded fitted as usual. A cone and a
-cylinder whose generators run along each other, an apex on the other
-surface, and surfaces that touch are left to the numeric search. `intersect_exact` returns its closed form
+both ways, the loops that stay bounded fitted as usual. A cylinder whose
+axis runs along a generator of a cone meets it once on each of its own
+generators, on one loop that is bounded, or runs off to infinity in
+branches like those. A cone and a cylinder, or two cones, that touch
+at a point meet in a curve crossing itself there, one loop through the
+point twice, or at that point alone; so does a cone whose apex lies on
+the other surface, at its apex. Each apex of two cones on the other, a
+cylinder along a generator of a cone through its apex, and surfaces that
+touch twice are left to the numeric search.
+`intersect_exact` returns its closed form
 (`QuarticCurve`, exact points on both surfaces), and `intersect` fits
 each loop within confusion and reports the result exact and complete,
 with the point where the surfaces touch, if any, in `contact_points`:
@@ -380,10 +387,11 @@ its range running past the period.
     ```
 
 A march between trimmed surfaces is held to the box of the patches, so
-two patches of unbounded surfaces whose intersection runs to infinity,
-such as a cone and a cylinder along one of its generators, come back
-`Sampled` with curves ending on the ranges instead of cut and
-`Incomplete`. Contact points outside the ranges are dropped, and two
+two patches of unbounded surfaces whose intersection runs to infinity
+and has no closed form come back `Sampled` with curves ending on the
+ranges instead of cut and `Incomplete`. An exact curve that runs to
+infinity, a line or a `QuarticBranch`, is cut where it leaves the
+ranges, and the result stays exact. Contact points outside the ranges are dropped, and two
 patches of one surface are coincident only where they overlap. A curve
 and a trimmed surface do not intersect yet: intersect the curve with
 the `basis()`.

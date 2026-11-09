@@ -1,15 +1,16 @@
 //! The Python class `geomcore.QuarticBranch`, wrapping
 //! `geomcore::QuarticBranch`.
 
+use crate::arguments::{expected, surface_classes};
 use crate::method_sets::*;
-use crate::surfaces::PyCone;
 use crate::values::PyTransform;
-use geomcore::QuarticBranch;
+use geomcore::{QuarticBranch, Surface};
 use pyo3::exceptions::PyValueError;
 
-/// A piece of the curve where two cones meet that runs off to infinity at
-/// both ends: every point exact, on a generator of the first cone, the
-/// parameter running over the whole real line.
+/// A piece of the curve where two cones, or a cone and a cylinder, meet
+/// that runs off to infinity at both ends: every point exact, on a
+/// generator of the first cone or of the cylinder, the parameter running
+/// over the whole real line.
 #[pyclass(name = "QuarticBranch", module = "geomcore", eq)]
 #[derive(Clone, PartialEq)]
 pub(crate) struct PyQuarticBranch(pub(crate) QuarticBranch);
@@ -19,8 +20,13 @@ shape_methods! {
 
     fn __reduce__<'py>(slf: &pyo3::Bound<'py, Self>) -> pyo3::PyResult<pyo3::Bound<'py, pyo3::types::PyTuple>> {
         let this = slf.borrow();
-        let (first, second) = this.cones();
-        let arguments = (first, second, this.index()).into_pyobject(slf.py())?;
+        let (first, second) = this.0.surfaces();
+        let arguments = (
+            surface_classes::to_py(slf.py(), first)?,
+            surface_classes::to_py(slf.py(), second)?,
+            this.index(),
+        )
+            .into_pyobject(slf.py())?;
         let state = (this.is_reversed(), this.placement()).into_pyobject(slf.py())?;
         pyo3::types::PyTuple::new(
             slf.py(),
@@ -45,20 +51,39 @@ shape_methods! {
     }
 
     #[new]
-    /// Build the branch `index` of the quartic where the cones `first` and
-    /// `second` meet, read with zero tolerances; `ValueError` when they meet
-    /// in no quartic with such a branch.
-    fn py_new(first: PyCone, second: PyCone, index: usize) -> PyResult<Self> {
-        QuarticBranch::from_cones(&first.0, &second.0, index)
-            .map(PyQuarticBranch)
-            .ok_or_else(|| PyValueError::new_err("the cones meet in no quartic with such a branch"))
+    /// Build the branch `index` of the quartic where `first` and `second`
+    /// meet: two cones, read with zero tolerances, or a cone and a cylinder
+    /// whose axis runs along a generator of the cone (within
+    /// `LOOSEST_ANGULAR`). `TypeError` for other surfaces, `ValueError`
+    /// when they meet in no quartic with such a branch.
+    fn py_new(
+        first: &pyo3::Bound<'_, pyo3::PyAny>,
+        second: &pyo3::Bound<'_, pyo3::PyAny>,
+        index: usize,
+    ) -> PyResult<Self> {
+        let branch = match (surface_classes::extract(first)?, surface_classes::extract(second)?) {
+            (Surface::Cone(first), Surface::Cone(second)) => {
+                QuarticBranch::from_cones(&first, &second, index)
+            }
+            (Surface::Cone(cone), Surface::Cylinder(cylinder)) => {
+                QuarticBranch::from_cone_and_cylinder(&cone, &cylinder, index)
+            }
+            _ => return Err(expected("pair of surfaces", &["two Cones", "a Cone and a Cylinder"])),
+        };
+        branch.map(PyQuarticBranch).ok_or_else(|| {
+            PyValueError::new_err("the surfaces meet in no quartic with such a branch")
+        })
     }
 
-    /// The two cones, the one whose generators carry the points first, as
-    /// they were before any transform.
-    fn cones(&self) -> (PyCone, PyCone) {
-        let (first, second) = self.0.cones();
-        (PyCone(first), PyCone(second))
+    /// The two surfaces, as they were before any transform: two cones, the
+    /// one whose generators carry the points first, or a cone and a
+    /// cylinder.
+    fn surfaces(&self, py: Python<'_>) -> PyResult<(Py<PyAny>, Py<PyAny>)> {
+        let (first, second) = self.0.surfaces();
+        Ok((
+            surface_classes::to_py(py, first)?,
+            surface_classes::to_py(py, second)?,
+        ))
     }
 
     /// The branch's place among those of its quartic.

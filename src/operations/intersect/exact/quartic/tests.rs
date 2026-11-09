@@ -94,6 +94,30 @@ fn quartic(first: &Cylinder, second: &Cylinder) -> QuarticCurve {
     curve
 }
 
+/// Every branch of `curve` runs on without a jump, the points at nearby
+/// parameters near relative to how far out they are, and off to infinity
+/// at both ends: the root it is on at each end the one that runs off.
+fn assert_branches_run_to_infinity(curve: &QuarticCurve) {
+    let branches = curve.branches();
+    assert!(!branches.is_empty());
+    for branch in &branches {
+        let mut previous = branch.point_at(-30.0);
+        for k in 1..=6000 {
+            let u = -30.0 + 0.01 * f64::from(k);
+            let point = branch.point_at(u);
+            let scale = 1.0 + point.distance(Point::ORIGIN);
+            assert!(point.distance(previous) < 0.2 * scale, "a jump at {u}");
+            previous = point;
+        }
+        for u in [-1e4, 1e4] {
+            assert!(
+                branch.point_at(u).distance(Point::ORIGIN) > 1e3,
+                "finite at {u}"
+            );
+        }
+    }
+}
+
 /// Every fitted curve lies within confusion of both surfaces, closes, takes
 /// few poles, and its curves in parameters, where there are, map onto it
 /// within the deviation it reports.
@@ -144,28 +168,56 @@ fn assert_fitted_within<A: ParametricSurface, B: ParametricSurface>(
 /// nearest of its points, found by a scan and then golden sections around
 /// the three nearest scanned.
 fn to_closed_form(curve: &QuarticCurve, component: usize, point: Point) -> f64 {
-    const SCAN: usize = 4096;
+    let scanned = scan(curve, component, point);
+    let mut nearest: Vec<usize> = (0..SCAN).collect();
+    nearest.sort_by(|&a, &b| scanned[a].total_cmp(&scanned[b]));
+    nearest[..3]
+        .iter()
+        .map(|&k| nearest_around(curve, component, point, k))
+        .fold(f64::INFINITY, f64::min)
+}
+
+/// How many times the component `component` of `curve` passes through
+/// `point`: the dips of its distance to it, over a scan of the turn, that
+/// golden sections take within `1e-9` of it.
+fn passes_through(curve: &QuarticCurve, component: usize, point: Point) -> usize {
+    let scanned = scan(curve, component, point);
+    (0..SCAN)
+        .filter(|&k| {
+            let (before, after) = (scanned[(k + SCAN - 1) % SCAN], scanned[(k + 1) % SCAN]);
+            scanned[k] < before && scanned[k] <= after
+        })
+        .filter(|&k| nearest_around(curve, component, point, k) < 1e-9)
+        .count()
+}
+
+/// The steps of the scans over a turn of a component.
+const SCAN: usize = 4096;
+
+/// The distances from `point` of the component's points at each step.
+fn scan(curve: &QuarticCurve, component: usize, point: Point) -> Vec<f64> {
+    let step = TAU / SCAN as f64;
+    (0..SCAN)
+        .map(|k| curve.point_at(component, k as f64 * step).distance(point))
+        .collect()
+}
+
+/// The nearest the component comes to `point` within a step of the step
+/// `k`, by golden sections.
+fn nearest_around(curve: &QuarticCurve, component: usize, point: Point, k: usize) -> f64 {
     let step = TAU / SCAN as f64;
     let distance = |t: f64| curve.point_at(component, t).distance(point);
-    let mut scanned: Vec<(f64, usize)> =
-        (0..SCAN).map(|k| (distance(k as f64 * step), k)).collect();
-    scanned.sort_by(|a, b| a.0.total_cmp(&b.0));
     let ratio = 0.5 * (5.0_f64.sqrt() - 1.0);
-    scanned[..3]
-        .iter()
-        .map(|&(_, k)| {
-            let (mut low, mut high) = ((k as f64 - 1.0) * step, (k as f64 + 1.0) * step);
-            for _ in 0..80 {
-                let (left, right) = (high - ratio * (high - low), low + ratio * (high - low));
-                if distance(left) < distance(right) {
-                    high = right;
-                } else {
-                    low = left;
-                }
-            }
-            distance(0.5 * (low + high))
-        })
-        .fold(f64::INFINITY, f64::min)
+    let (mut low, mut high) = ((k as f64 - 1.0) * step, (k as f64 + 1.0) * step);
+    for _ in 0..80 {
+        let (left, right) = (high - ratio * (high - low), low + ratio * (high - low));
+        if distance(left) < distance(right) {
+            high = right;
+        } else {
+            low = left;
+        }
+    }
+    distance(0.5 * (low + high))
 }
 
 /// Each loop the routed pair fits lies within `within` of its closed form

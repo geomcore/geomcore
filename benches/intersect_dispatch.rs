@@ -387,6 +387,7 @@ fn bench_cone_cylinder(c: &mut Criterion) {
     )
     .unwrap();
     let tilted = Vector::new(0.2, 0.1, 1.0).normalized().unwrap();
+    let along = Vector::new(0.5, 0.0, 3.0_f64.sqrt() / 2.0);
     let pairs = [
         // Steeper than the cone, beside the apex: two loops around it.
         ("around", Point::new(1.5, -0.7, 3.0), tilted, 0.6),
@@ -394,6 +395,12 @@ fn bench_cone_cylinder(c: &mut Criterion) {
         ("bite", Point::new(0.0, 1.8, 3.0), Vector::X, 0.6),
         // A pipe around the apex: a loop on each nappe.
         ("apex_inside", Point::new(0.0, 0.0, 0.5), Vector::X, 1.0),
+        // Along a generator, out of reach of the one through the apex:
+        // each generator meets the cone once, on one bounded loop.
+        ("along_loop", Point::new(3.0, 0.0, 0.0), along, 1.0),
+        // Along a generator, beside the one through the apex: two branches
+        // running to infinity.
+        ("along_branches", Point::new(0.0, 0.5, 0.0), along, 1.0),
     ];
     for (name, through, axis, radius) in pairs {
         let cylinder = Cylinder::new(through, axis, radius).unwrap();

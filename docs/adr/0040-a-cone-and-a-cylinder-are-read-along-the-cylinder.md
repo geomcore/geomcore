@@ -19,9 +19,9 @@ The issue expected `Δ` not to factor, and the arc ends to come from a quartic r
 
 `intersect_exact` reports `NotAnalytic`, and `intersect` marches, in three configurations:
 
-- **A generator of the cylinder parallel to one of the cone's**, `A` within `tol.angular` of zero. The curve runs off to infinity, as the march's box shows (`IncompleteReason::Unbounded`). A curve without bounds cannot be fitted, so it is marched for now. *Amended (ADR 0041):* this does not settle the issue's first question. An exact curve that runs to infinity is returned whole, as the lines of a plane through a cone's apex already are, and trimming only narrows its `parameter_range` (ADR 0039): unbounded branches get a closed form of their own, which a trimmed surface does not replace.
-- **The apex on the cylinder**, within confusion. The curve is a rational quartic with a node at the apex.
-- **The surfaces touching**, where an edge of the shadow touches the circle within confusion. The curve crosses itself, or is a point.
+- **A generator of the cylinder parallel to one of the cone's**, `A` within `tol.angular` of zero. The curve runs off to infinity, as the march's box shows (`IncompleteReason::Unbounded`). A curve without bounds cannot be fitted, so it is marched for now. *Amended (ADR 0041):* this does not settle the issue's first question. An exact curve that runs to infinity is returned whole, as the lines of a plane through a cone's apex already are, and trimming only narrows its `parameter_range` (ADR 0039): unbounded branches get a closed form of their own, which a trimmed surface does not replace. *Amended (ADR 0042):* the pair now has that closed form: each generator of the cylinder meets the cone once, on one loop, bounded or in exact branches.
+- **The apex on the cylinder**, within confusion. The curve is a rational quartic with a node at the apex. *Amended (ADR 0044):* read on the walk, the crossing at the apex signed.
+- **The surfaces touching**, where an edge of the shadow touches the circle within confusion. The curve crosses itself, or is a point. *Amended (ADR 0043):* read on the walk, the crossing signed.
 
 These are the issue's singular cases. Each needs its own parametrization, as the cylinders' node did (#234). They stay with the march, which handled them before, until a model needs them.
 

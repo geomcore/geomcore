@@ -2,7 +2,7 @@
 //! generators.
 
 use super::*;
-use crate::{ConeCylinderIntersection, Frame};
+use crate::{ConeCylinderIntersection, Curve, Frame, QuarticBranch};
 use std::f64::consts::{FRAC_PI_6, PI};
 
 /// The cone of half-angle 30° with its apex at the origin along `Z`.
@@ -141,26 +141,239 @@ fn test_a_pipe_beside_the_cone_misses_it() {
     assert!(result.curves().is_empty() && result.contact_points().is_empty());
 }
 
-#[test]
-fn test_touching_an_apex_on_the_tube_and_a_parallel_generator_are_left_to_the_search() {
-    // A pipe along `X` at height 3 touching the cone's side, `r` from the
-    // generator at `y = z / √3`.
-    let sqrt3 = 3.0_f64.sqrt();
-    let touching = cylinder(Point::new(0.0, sqrt3 + 2.0 / sqrt3, 3.0), Vector::X, 1.0);
-    // The apex on the wall.
-    let through_apex = cylinder(Point::new(1.0, 0.0, 0.0), Vector::Y, 1.0);
-    // Along a generator of the cone: the curve runs off to infinity.
-    let along = cylinder(
-        Point::new(3.0, 0.0, 0.0),
-        Vector::new(0.5, 0.0, sqrt3 / 2.0),
-        1.0,
-    );
-    for tube in [touching, through_apex, along] {
-        assert_eq!(
-            upright().intersect_exact(&tube, TOL),
-            ConeCylinderIntersection::NotAnalytic
-        );
+/// The direction of the upright cone's generator in the `XZ` plane.
+fn generator() -> Vector {
+    Vector::new(0.5, 0.0, 3.0_f64.sqrt() / 2.0)
+}
+
+/// Across [`generator`] in the `XZ` plane: where `β = n·W` is read, `n`
+/// along it.
+fn across_generator() -> Vector {
+    Vector::new(3.0_f64.sqrt() / 2.0, 0.0, -0.5)
+}
+
+/// The quartic of the upright cone and a tube of radius 1 along
+/// [`generator`] through `through`, its exact points on both, read with
+/// the cone first and second.
+fn along_a_generator(through: Point) -> (Cylinder, QuarticCurve) {
+    let tube = cylinder(through, generator(), 1.0);
+    let ConeCylinderIntersection::Quartic(curve) = upright().intersect_exact(&tube, TOL) else {
+        panic!("expected the quartic");
+    };
+    assert!(matches!(
+        tube.intersect_exact(&upright(), TOL),
+        ConeCylinderIntersection::Quartic(_)
+    ));
+    assert_eq!(curve.component_count(), 1);
+    (tube, curve)
+}
+
+/// Every branch of `curve` on both surfaces, far out too.
+fn assert_branches_on(curve: &QuarticCurve, tube: &Cylinder, count: usize) {
+    let branches = curve.branches();
+    assert_eq!(branches.len(), count);
+    for branch in &branches {
+        for u in [-1e3, -10.0, -1.0, 0.0, 0.5, 3.0, 1e3] {
+            let point = branch.point_at(u);
+            let scale = 1.0 + point.distance(Point::ORIGIN);
+            assert!(off(&upright(), point) < 1e-12 * scale);
+            assert!(off(tube, point) < 1e-12 * scale);
+        }
     }
+    assert_branches_run_to_infinity(curve);
+}
+
+#[test]
+fn test_a_tube_along_a_generator_out_of_reach_meets_every_generator_once_on_one_loop() {
+    // The tube's axis 2.6 from the generator through the apex, across it
+    // in the plane of the axes: `β` never vanishes, and the one point on
+    // each generator stays finite.
+    let (tube, curve) = along_a_generator(Point::new(3.0, 0.0, 0.0));
+    assert_exact(&curve, &upright(), &tube, 1e-12);
+    assert!(curve.branches().is_empty());
+    assert_routed_both_ways(&upright(), &tube, 1, 0);
+}
+
+#[test]
+fn test_a_tube_along_a_generator_beside_it_runs_to_infinity_in_two_branches() {
+    // The tube's axis beside the generator through the apex: `β` vanishes
+    // on two of its generators, where the point runs off along them.
+    let (tube, curve) = along_a_generator(Point::new(0.0, 0.5, 0.0));
+    assert_branches_on(&curve, &tube, 2);
+    for result in [
+        upright().intersect(&tube, TOL),
+        tube.intersect(&upright(), TOL),
+    ] {
+        assert_eq!(result.method(), IntersectionMethod::Exact);
+        assert!(result.is_complete());
+        assert_eq!(result.curves().len(), 2);
+        for piece in result.curves() {
+            assert!(matches!(piece.curve, Curve::QuarticBranch(_)));
+        }
+    }
+}
+
+#[test]
+fn test_a_tube_along_a_generator_whose_beta_touches_zero_runs_to_infinity_once() {
+    // The axis a radius from the generator through the apex across it,
+    // and beside it: `β` touches zero on one generator, and the point runs
+    // off and back on the same side, one branch.
+    let through = Point::ORIGIN + across_generator() + Vector::new(0.0, 0.7, 0.0);
+    let (tube, curve) = along_a_generator(through);
+    assert_branches_on(&curve, &tube, 1);
+}
+
+#[test]
+fn test_a_branch_comes_back_from_its_cone_and_cylinder() {
+    let (tube, curve) = along_a_generator(Point::new(0.0, 0.5, 0.0));
+    for (index, branch) in curve.branches().into_iter().enumerate() {
+        let (Surface::Cone(cone), Surface::Cylinder(cylinder)) = branch.surfaces() else {
+            panic!("a cone and a cylinder");
+        };
+        assert_eq!((cone, cylinder), (upright(), tube));
+        let rebuilt = QuarticBranch::from_cone_and_cylinder(&cone, &cylinder, index).unwrap();
+        assert_eq!(rebuilt, branch);
+    }
+    assert!(QuarticBranch::from_cone_and_cylinder(&upright(), &tube, 2).is_none());
+    // Across the cone, the curve is bounded: no branch.
+    let across = cylinder(Point::new(0.0, 0.4, 3.0), Vector::X, 0.8);
+    assert!(QuarticBranch::from_cone_and_cylinder(&upright(), &across, 0).is_none());
+}
+
+/// The point of the upright cone's generator in the `YZ` plane,
+/// `y = z / √3`, nearest `center`.
+fn foot_on_side(center: Point) -> Point {
+    let side = Vector::new(0.0, 0.5, 3.0_f64.sqrt() / 2.0);
+    Point::ORIGIN + side * (center - Point::ORIGIN).dot(side)
+}
+
+/// [`assert_routed_result`] with the cone first and second.
+fn assert_routed_in_either_order(tube: &Cylinder, count: usize, contacts: usize) {
+    let (cone, tube) = (upright(), *tube);
+    assert_routed_result(&cone.intersect(&tube, TOL), &cone, &tube, count, contacts);
+    assert_routed_result(&tube.intersect(&cone, TOL), &tube, &cone, count, contacts);
+}
+
+#[test]
+fn test_a_pipe_touching_the_cone_from_outside_meets_it_at_the_point() {
+    // A pipe along `X` at height 3, `r` from the generator at `y = z / √3`
+    // on the outside: only that point.
+    let sqrt3 = 3.0_f64.sqrt();
+    let center = Point::new(0.0, sqrt3 + 2.0 / sqrt3, 3.0);
+    let tube = cylinder(center, Vector::X, 1.0);
+    let ConeCylinderIntersection::TangentPoint(point) = upright().intersect_exact(&tube, TOL)
+    else {
+        panic!("a tangent point");
+    };
+    assert!(point.distance(foot_on_side(center)) < 1e-12);
+    assert_routed_in_either_order(&tube, 0, 1);
+}
+
+#[test]
+fn test_a_pipe_touching_the_cone_from_inside_meets_it_in_one_loop_crossing_itself() {
+    // Inside the cone's section, touching the side: every generator of the
+    // pipe crosses the cone twice, the loop running twice around through
+    // the point.
+    let center = Point::new(0.0, 2.0 / 3.0_f64.sqrt(), 3.0);
+    let tube = cylinder(center, Vector::X, 0.5);
+    let ConeCylinderIntersection::Quartic(curve) = upright().intersect_exact(&tube, TOL) else {
+        panic!("the quartic");
+    };
+    assert_eq!(curve.component_count(), 1);
+    let contact = curve.contact_point().unwrap();
+    assert!(contact.distance(foot_on_side(center)) < 1e-12);
+    assert!(runs_around(&curve, 0, &tube));
+    assert_eq!(passes_through(&curve, 0, contact), 2);
+    assert_exact(&curve, &upright(), &tube, TOL.confusion);
+    assert_routed_in_either_order(&tube, 1, 1);
+}
+
+#[test]
+fn test_a_pipe_touching_one_side_and_crossing_the_other_crosses_itself_on_an_arc() {
+    // The pipe's section touches the side `y = z / √3` from inside and
+    // crosses the side `y = −z / √3`: one arc of its generators, crossing
+    // itself where the pipe touches.
+    let center = Point::new(0.0, -0.5, 3.0);
+    let radius = (3.0 + 3.0_f64.sqrt() * 0.5) / 2.0;
+    let tube = cylinder(center, Vector::X, radius);
+    let ConeCylinderIntersection::Quartic(curve) = upright().intersect_exact(&tube, TOL) else {
+        panic!("the quartic");
+    };
+    let contact = curve.contact_point().unwrap();
+    assert!(contact.distance(foot_on_side(center)) < 1e-12);
+    let crossing: Vec<usize> = (0..curve.component_count())
+        .filter(|&component| passes_through(&curve, component, contact) > 0)
+        .collect();
+    assert_eq!(crossing.len(), 1);
+    assert!(!runs_around(&curve, crossing[0], &tube));
+    assert_eq!(passes_through(&curve, crossing[0], contact), 2);
+    assert_exact(&curve, &upright(), &tube, TOL.confusion);
+    assert_routed_in_either_order(&tube, curve.component_count(), 1);
+}
+
+/// The pair's quartic, through the apex where the curve meets it: exact,
+/// its single component, its contact point the apex, and routed exact and
+/// complete in either order, the apex a contact point.
+fn through_the_apex(tube: &Cylinder) -> QuarticCurve {
+    let curve = cone_cylinder_quartic(&upright(), tube);
+    assert_eq!(curve.component_count(), 1);
+    assert!(curve.contact_point().unwrap().distance(Point::ORIGIN) < 1e-12);
+    assert_exact(&curve, &upright(), tube, 1e-12);
+    assert_routed_in_either_order(tube, 1, 1);
+    curve
+}
+
+#[test]
+fn test_a_tube_through_the_apex_across_the_cone_crosses_itself_there() {
+    // Along `Y`, its wall through the apex upright: the tube's tangent
+    // plane there cuts the cone in two generators, one arc through the
+    // apex along each.
+    for (through, direction) in [
+        (Point::new(1.0, 0.0, 0.0), Vector::Y),
+        (Point::new(1.0, 0.0, 0.0), Vector::new(0.0, 1.0, 0.3)),
+    ] {
+        let tube = cylinder(through, direction, 1.0);
+        let curve = through_the_apex(&tube);
+        assert!(!runs_around(&curve, 0, &tube));
+        assert_eq!(passes_through(&curve, 0, Point::ORIGIN), 2);
+    }
+}
+
+#[test]
+fn test_a_tube_over_the_apex_meets_it_at_the_apex_alone_and_the_cone_beyond() {
+    // Along `X` above the apex, its wall tangent to the plane across the
+    // axis there: the apex is a point of its own, the arc on the far side.
+    let tube = cylinder(Point::new(0.0, 0.0, 1.0), Vector::X, 1.0);
+    let curve = through_the_apex(&tube);
+    assert!(!runs_around(&curve, 0, &tube));
+    assert!(to_closed_form(&curve, 0, Point::ORIGIN) > 0.1);
+}
+
+#[test]
+fn test_a_steep_tube_through_the_apex_crosses_itself_there_each_time_around() {
+    // Steeper than the cone, its wall through the apex: both loops around
+    // pass through it, read as one twice around.
+    for direction in [Vector::Z, Vector::new(0.2, -0.1, 1.0)] {
+        let through = Point::new(1.0, 0.0, 0.0);
+        let along = direction.normalized().unwrap();
+        let radius = (through - Point::ORIGIN)
+            .component_perpendicular_to(along)
+            .magnitude();
+        let tube = cylinder(through, direction, radius);
+        let curve = through_the_apex(&tube);
+        assert!(runs_around(&curve, 0, &tube));
+        assert_eq!(passes_through(&curve, 0, Point::ORIGIN), 2);
+    }
+}
+
+#[test]
+fn test_an_apex_on_a_tube_along_a_generator_is_left_to_the_search() {
+    // The tube's generator through the apex lies on the cone.
+    let tube = cylinder(Point::new(0.0, 1.0, 0.0), generator(), 1.0);
+    assert_eq!(
+        upright().intersect_exact(&tube, TOL),
+        ConeCylinderIntersection::NotAnalytic
+    );
 }
 
 #[test]

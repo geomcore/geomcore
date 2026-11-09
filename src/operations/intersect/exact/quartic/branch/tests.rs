@@ -1,7 +1,7 @@
 use crate::prelude::*;
 use crate::{
-    Axis, Cone, ConeConeIntersection, Curve, IntersectionMethod, Point, QuarticBranch, Tolerance,
-    Transform, Vector,
+    Axis, Cone, ConeConeIntersection, Curve, IntersectionMethod, Point, QuarticBranch, Surface,
+    Tolerance, Transform, Vector,
 };
 
 const TOL: Tolerance = Tolerance::DEFAULT;
@@ -156,7 +156,9 @@ fn test_a_transformed_branch_is_the_transformed_points() {
 #[test]
 fn test_a_branch_comes_back_from_its_cones_and_index() {
     for branch in branches() {
-        let (first, second) = branch.cones();
+        let (Surface::Cone(first), Surface::Cone(second)) = branch.surfaces() else {
+            panic!("two cones");
+        };
         let rebuilt = QuarticBranch::from_cones(&first, &second, branch.index()).unwrap();
         assert_eq!(rebuilt, branch);
     }

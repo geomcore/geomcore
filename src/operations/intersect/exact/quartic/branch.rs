@@ -1,6 +1,7 @@
-//! [`QuarticBranch`]: a piece of the quartic where two cones meet that
-//! runs to infinity at both ends, evaluated exactly along the generators
-//! of the first cone (ADR 0042).
+//! [`QuarticBranch`]: a piece of the quartic where two cones, or a cone
+//! and a cylinder, meet that runs to infinity at both ends, evaluated
+//! exactly along the generators of the first cone or of the cylinder
+//! (ADR 0042).
 
 use std::f64::consts::{FRAC_2_PI, PI};
 
@@ -8,17 +9,19 @@ use crate::geometry::curves::{ParametricCurve, PointExtrema, ReversibleCurve};
 use crate::math::numeric::brent_minimum;
 use crate::operations::projection::{CurveProjection, snap_distance};
 use crate::{
-    Cone, ConeConeIntersection, IntersectExact, Point, QuarticCurve, Tolerance, Transform,
-    TransformError, Transformable, Vector,
+    Cone, ConeConeIntersection, ConeCylinderIntersection, Cylinder, IntersectExact, Point,
+    QuarticCurve, Surface, Tolerance, Transform, TransformError, Transformable, Vector,
 };
 
-/// A piece of the curve where two cones meet that runs off to infinity at
-/// both ends, along a generator of the first cone parallel to one of the
-/// second's: what [`intersect`](crate::Intersect) returns for each such
-/// piece, as [`QuarticCurve::branches`] gives them.
+/// A piece of the curve where two cones, or a cone and a cylinder, meet
+/// that runs off to infinity at both ends, along a generator of the first
+/// cone parallel to one of the second's, or along a generator of the
+/// cylinder whose axis runs along one of the cone's: what
+/// [`intersect`](crate::Intersect) returns for each such piece, as
+/// [`QuarticCurve::branches`] gives them.
 ///
 /// Every point is exact, a root of the quadratic along a generator of the
-/// first cone. The parameter `u` runs over the whole real line, the curve
+/// first cone or of the cylinder. The parameter `u` runs over the whole real line, the curve
 /// reaching infinity as `u → ±∞`, about as far from where it starts as
 /// `|u|` grows: the generator at walk parameter `w` of
 /// [`QuarticCurve::point_at`] is reached at `u = tan((w − m) π / (2 h))`,
@@ -130,16 +133,64 @@ impl QuarticBranch {
         }
     }
 
-    /// The two cones, the one whose generators carry the points first, as
-    /// they were before any transform: [`from_cones`](Self::from_cones)
-    /// with them and [`index`](Self::index) gives the branch back, which
+    /// The branch `index` of the curve where `cone` and `cylinder` meet,
+    /// the cylinder's axis along a generator of the cone: within
+    /// [`LOOSEST_ANGULAR`](Self::LOOSEST_ANGULAR), so that every branch an
+    /// intersection returns comes back, whatever its angular tolerance.
+    /// `None` when the axis is farther from the cone's directions, the
+    /// apex is on the cylinder, or the curve has no such branch.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::f64::consts::FRAC_PI_4;
+    ///
+    /// use geomcore::{Cone, Cylinder, Point, QuarticBranch, Vector};
+    ///
+    /// // The cylinder's axis along a generator of a 45° cone, its apex at
+    /// // the origin.
+    /// let cone = Cone::new(Point::new(0.0, 0.0, 1.0), Vector::Z, FRAC_PI_4, 1.0).unwrap();
+    /// let along = Vector::new(1.0, 0.0, 1.0).normalized().unwrap();
+    /// let cylinder = Cylinder::new(Point::new(0.0, 0.5, 0.0), along, 1.0).unwrap();
+    /// assert!(QuarticBranch::from_cone_and_cylinder(&cone, &cylinder, 1).is_some());
+    /// assert!(QuarticBranch::from_cone_and_cylinder(&cone, &cylinder, 2).is_none());
+    /// ```
+    pub fn from_cone_and_cylinder(
+        cone: &Cone,
+        cylinder: &Cylinder,
+        index: usize,
+    ) -> Option<QuarticBranch> {
+        let loose = Tolerance {
+            confusion: 0.0,
+            angular: Self::LOOSEST_ANGULAR,
+            parametric: 0.0,
+        };
+        match cone.intersect_exact(cylinder, loose) {
+            ConeCylinderIntersection::Quartic(curve) => curve.branches().into_iter().nth(index),
+            _ => None,
+        }
+    }
+
+    /// How far, in `(a₁·a₂)² − cos² φ`, a cylinder's axis may be from a
+    /// generator of the cone for
+    /// [`from_cone_and_cylinder`](Self::from_cone_and_cylinder) to read it
+    /// along one: far looser than any angular tolerance an intersection
+    /// reads it with, the curve then being out of reach by `1 / A` times
+    /// the surfaces' size.
+    pub const LOOSEST_ANGULAR: f64 = 1e-6;
+
+    /// The two surfaces, as they were before any transform: two cones,
+    /// the one whose generators carry the points first, for
+    /// [`from_cones`](Self::from_cones), or a cone and a cylinder, for
+    /// [`from_cone_and_cylinder`](Self::from_cone_and_cylinder). With
+    /// [`index`](Self::index) that gives the branch back, which
     /// [`is_reversed`](Self::is_reversed) and
     /// [`placement`](Self::placement) then turn and place.
-    pub fn cones(&self) -> (Cone, Cone) {
+    pub fn surfaces(&self) -> (Surface, Surface) {
         self.placed
             .curve
-            .cones()
-            .expect("a quartic branch lies on two cones")
+            .branch_surfaces()
+            .expect("a quartic branch lies on two cones or a cone and a cylinder")
     }
 
     /// The branch's place among those of its quartic.
