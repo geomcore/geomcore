@@ -42,7 +42,7 @@ Far out the points lose precision: `A` cancels to about `1e-16` in its terms, an
 
 ## What is still left to the search
 
-- **`A` vanishing twice**, a generator of the first cone touching the second's directions: `P ± R` within `tol.angular` of `± cos φ₂`.
+- **`A` vanishing twice**, a generator of the first cone touching the second's directions: `P ± R` within `tol.angular` of `± cos φ₂`. *Amended:* read as vanishing once, on that generator. `A` keeps its sign on either side of it, so the root that runs off is the same one from both sides, on the side `−β`: the curve runs to infinity there once, and the loop through it is one branch, both its ends out along that generator. Where `A` only comes within `tol.angular` of zero, the curve's points near that generator lie out beyond about `|β| / tol.angular` along it, and are read as at infinity. Where `β` vanishes on that generator too, the next case.
 - **`β` vanishing at a point at infinity** too, within confusion: both roots run off together, along a branch like a parabola's.
 - Each apex on the other cone, the line through both on both. (The cones touching: ADR 0043; one apex on the other cone: ADR 0044.)
 
