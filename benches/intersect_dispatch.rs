@@ -406,6 +406,43 @@ fn bench_cone_cylinder(c: &mut Criterion) {
     group.finish();
 }
 
+/// Two cones in general position: the closed form along the first
+/// cone's generators, then the routed call that fits each loop.
+fn bench_two_cones(c: &mut Criterion) {
+    let tol = Tolerance::default();
+    let mut group = c.benchmark_group("intersect_routed/two_cones");
+    // Half-angle 30°, the apex at the origin.
+    let upright = Cone::new(
+        Point::new(0.0, 0.0, 3.0_f64.sqrt()),
+        Vector::Z,
+        std::f64::consts::FRAC_PI_6,
+        1.0,
+    )
+    .unwrap();
+    // A cone of 15° along `X`, its apex at `(-3, side, height)`.
+    let across = |side: f64, height: f64| {
+        let apex = Point::new(-3.0, side, height);
+        Cone::new(apex + Vector::X, Vector::X, 0.26, 0.26_f64.tan()).unwrap()
+    };
+    let pairs = [
+        // The upright apex inside the narrow cone: two loops around it.
+        ("around", across(0.1, 0.2)),
+        // Through the upper nappe, crossing its edges: two arcs.
+        ("arcs", across(0.0, 2.3)),
+        // Off to the side, biting into the upper nappe: one arc.
+        ("bite", across(1.0, 1.5)),
+    ];
+    for (name, other) in pairs {
+        group.bench_function(format!("{name}_exact"), |b| {
+            b.iter(|| black_box(black_box(&upright).intersect_exact(&other, tol)))
+        });
+        group.bench_function(format!("{name}_routed"), |b| {
+            b.iter(|| black_box(black_box(&upright).intersect(&other, tol)))
+        });
+    }
+    group.finish();
+}
+
 fn bench_sphere_quadrics(c: &mut Criterion) {
     let tol = Tolerance::default();
     let mut group = c.benchmark_group("intersect_routed/sphere_quadric");
@@ -445,6 +482,7 @@ criterion_group!(
     bench_intersect_routed,
     bench_crossing_cylinders,
     bench_cone_cylinder,
+    bench_two_cones,
     bench_sphere_quadrics
 );
 criterion_main!(benches);

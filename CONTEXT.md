@@ -109,7 +109,7 @@ The one place that says which pairs of shapes `intersect` solves in closed form,
 _Avoid_: exact routes, analytic pairs
 
 **Quartic curve**:
-The quartic where a cylinder or a cone meets another quadric away from the configurations that split it into conics and lines: two cylinders whose axes cross (the bicylindric curve), a sphere and a cylinder or a cone whose axis misses its centre, or a cone and a cylinder off its axis (ADR 0040). One or two closed loops, read along the generators of the cylinder or cone: each loop runs around it, over an arc of its generators, twice around through the point where the surfaces touch and the loop crosses itself, or through the apex of a cone that lies on the sphere. Its closed form gives each point exactly; `intersect` fits it within confusion and reports it exact (ADR 0036).
+The quartic where a cylinder or a cone meets another quadric away from the configurations that split it into conics and lines: two cylinders whose axes cross (the bicylindric curve), a sphere and a cylinder or a cone whose axis misses its centre, a cone and a cylinder off its axis (ADR 0040), or two cones in general position (ADR 0041). One or two closed loops, read along the generators of the cylinder or cone: each loop runs around it, over an arc of its generators, twice around through the point where the surfaces touch and the loop crosses itself, or through the apex of a cone that lies on the sphere. Its closed form gives each point exactly; `intersect` fits it within confusion and reports it exact (ADR 0036).
 _Avoid_: bicylindric curve for anything but two cylinders, Steinmetz curve (the case of equal radii and meeting axes only)
 
 **Common sphere conics**:

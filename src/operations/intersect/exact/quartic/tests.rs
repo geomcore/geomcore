@@ -1,6 +1,7 @@
 use super::*;
 
 mod cone_cylinder;
+mod cones;
 mod sphere;
 use crate::geometry::curves::ParametricCurve;
 use crate::geometry::surfaces::ParametricSurface;

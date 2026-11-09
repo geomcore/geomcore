@@ -631,14 +631,14 @@ fn test_cone_cone_intersection() {
         c1.intersect_exact(&wide, tol),
         ConeConeIntersection::ApexPoint(c1.apex())
     );
-    // Tilted axis: space quartic, no closed form. (With a reference radius
+    // Tilted axis: a space quartic in two pieces. (With a reference radius
     // of 2, both cones would be as far from the origin, where the axes
     // meet: two conics.)
     let tilted = Cone::new(Point::ORIGIN, Vector::X, 0.4, 1.5).unwrap();
-    assert_eq!(
-        c1.intersect_exact(&tilted, tol),
-        ConeConeIntersection::NotAnalytic
-    );
+    let ConeConeIntersection::Quartic(quartic) = c1.intersect_exact(&tilted, tol) else {
+        panic!("expected the quartic");
+    };
+    assert_eq!(quartic.component_count(), 2);
 }
 
 /// A cone with its apex at `apex` around `axis` at the half-angle `phi`,
@@ -1398,10 +1398,10 @@ fn test_surfaces_around_spheres_that_differ_are_not_conics() {
         ConeCylinderIntersection::Quartic(_)
     ));
     let other = cone_around(Point::ORIGIN, 1.0, Vector::Y, 0.4, -1.0);
-    assert_eq!(
+    assert!(matches!(
         cone.intersect_exact(&other, tol),
-        ConeConeIntersection::NotAnalytic
-    );
+        ConeConeIntersection::Quartic(_)
+    ));
     // Within confusion: conics.
     let near = cone_around(
         Point::ORIGIN,

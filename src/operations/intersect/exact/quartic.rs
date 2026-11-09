@@ -44,8 +44,8 @@ use crate::operations::intersect::IntersectionCurve;
 use crate::{Cone, Cylinder, Point, Point2D, Sphere, Tolerance, Vector, Vector2D};
 
 use super::surface_surface::{
-    ConeCylinderIntersection, CylinderCylinderIntersection, SphereConeIntersection,
-    SphereCylinderIntersection,
+    ConeConeIntersection, ConeCylinderIntersection, CylinderCylinderIntersection,
+    SphereConeIntersection, SphereCylinderIntersection,
 };
 
 /// The quartic where two quadrics meet, one of them ruled (a cylinder or a
@@ -113,6 +113,7 @@ enum Surfaces {
     SphereCylinder(Sphere, Cylinder),
     SphereCone(Sphere, Cone),
     ConeCylinder(Cone, Cylinder),
+    Cones(Cone, Cone),
 }
 
 /// Evaluates `$body` with `$rulings` bound to the generators of the curve's
@@ -143,7 +144,12 @@ macro_rules! with_rulings {
             }
             Surfaces::ConeCylinder(cone, cylinder) => {
                 let ruled = RuledCylinder::new(cylinder);
-                let other = OtherCone::new(cone, ruled.axis);
+                let other = OtherCone::new(cone);
+                let $rulings = Rulings::new(ruled, other, discriminant, reference);
+                $body
+            }
+            Surfaces::Cones(first, second) => {
+                let (ruled, other) = (RuledCone::new(first), OtherCone::new(second));
                 let $rulings = Rulings::new(ruled, other, discriminant, reference);
                 $body
             }
@@ -559,9 +565,10 @@ pub(super) fn sphere_off_cone_axis(
 /// cylinder's generators. `A = (a₁·a₂)² − cos² φ` is the same on every
 /// generator. With the base of each generator level with the apex, `W`
 /// from the apex to it is across the cylinder's axis, and
-/// `Δ = cos² φ (h² + A |W|²)`, `h = W·a₂`:
-/// - `A > 0`: the generators point within the cone, and each crosses it
-///   twice: two loops around the cylinder;
+/// `Δ = cos² φ ((W·a₂)² + A |W|²)`, a quadratic form in `W`:
+/// - `A > 0`: positive, the sum of two squares along and across the part
+///   of `a₂` across the axis: the generators point within the cone, and
+///   each crosses it twice: two loops around the cylinder;
 /// - `A < 0`: `Δ ≥ 0` where `W` lies in the cone's shadow on the plane
 ///   across the cylinder's axis, the wedge `|W·e₁| sin φ ≥ |W·e₂| √−A`,
 ///   `e₁` along `a₂` across `a₁`. `Δ` is the product of the distances
@@ -597,57 +604,242 @@ pub(super) fn cone_off_cylinder_axis(
     // From the apex across the axis to it: `W(t) = p + r ρ(t)`.
     let w = frame.origin() - cone.apex();
     let p = w - a1 * w.dot(a1);
-    let distance = p.magnitude();
-    if (distance - r).abs() <= tol.confusion {
+    if (p.magnitude() - r).abs() <= tol.confusion {
         return None;
     }
-    let surfaces = Surfaces::ConeCylinder(*cone, *cylinder);
-    let quartic = |discriminant, reference, components: &[Component]| {
-        Some(ConeCylinderIntersection::Quartic(QuarticCurve::new(
-            surfaces,
-            discriminant,
-            reference,
-            false,
-            components,
-            None,
-        )))
+    // `n·W(t)` as `k₀ + k₁ cos t + k₂ sin t`.
+    let linear = |n: Vector| [n.dot(p), r * n.dot(x), r * n.dot(y)];
+    // The part of `a₂` across the cylinder's axis, from its components on
+    // `x` and `y`: across the axis even where it is rounding alone, which
+    // `a₂ − (a₁·a₂) a₁` is not with the axes parallel.
+    // `|across| = √(1 − (a₁·a₂)²)`, more than `|sin φ|` where `A < 0`.
+    let (across_x, across_y) = (a2.dot(x), a2.dot(y));
+    let width = (across_x * across_x + across_y * across_y).sqrt();
+    let e1 = if width > 0.0 {
+        x * (across_x / width) + y * (across_y / width)
+    } else {
+        x
     };
-    let around = [
-        Component::Around { branch: 1.0 },
-        Component::Around { branch: -1.0 },
-    ];
-    if leading > 0.0 {
-        let discriminant = Discriminant::Squares {
-            scale: cos_squared,
-            height: [p.dot(a2), r * x.dot(a2), r * y.dot(a2)],
-            length: [
-                distance * distance + r * r,
-                2.0 * r * p.dot(x),
-                2.0 * r * p.dot(y),
-            ],
-            leading,
-        };
-        return quartic(discriminant, 0.0, &around);
-    }
-    // `|across| = √(1 − (a₁·a₂)²) > |sin φ|`, as `A < 0`.
-    let across = a2 - a1 * cosine;
-    let width = across.magnitude();
-    let e1 = across * (1.0 / width);
     let e2 = a1.cross(e1);
-    let (sin, steep) = (sin_phi.abs(), (-leading).sqrt());
-    // The wedge's lines are where `nₖ·W = 0`; `|nₖ| = width`.
-    let normals = [e1 * sin - e2 * steep, e1 * sin + e2 * steep];
-    let references = normals.map(|n| n.dot(y).atan2(n.dot(x)));
-    let cosines = normals.map(|n| -n.dot(p) / (r * width));
-    if cosines
-        .iter()
-        .any(|c| ((c.abs() - 1.0) * r).abs() <= tol.confusion)
+    let loops = if leading > 0.0 {
+        // `W·a₂ = width (W·e₁)`: `(width² + A)(W·e₁)² + A (W·e₂)²`.
+        let cos_phi = cos_phi.abs();
+        let scaled = |n: Vector, weight: f64| linear(n * (cos_phi * weight.sqrt()));
+        Loops::Around(Discriminant::TwoSquares {
+            first: scaled(e1, width * width + leading),
+            second: scaled(e2, leading),
+        })
+    } else {
+        let (sin, steep) = (sin_phi.abs(), (-leading).sqrt());
+        // The wedge's lines are where `nₖ·W = 0`; `|nₖ| = width`, and
+        // `cos φ nₖ·W` are the factors.
+        let normals = [e1 * sin - e2 * steep, e1 * sin + e2 * steep];
+        let factors = normals.map(|n| linear(n * cos_phi.abs()));
+        // The circle `r` from the axis touches a line `r (1 − |cₖ|)` away.
+        factored_loops(factors, [tol.confusion / r; 2])?
+    };
+    let surfaces = Surfaces::ConeCylinder(*cone, *cylinder);
+    Some(loops.into_result(
+        |discriminant, reference, components| {
+            ConeCylinderIntersection::Quartic(QuarticCurve::new(
+                surfaces,
+                discriminant,
+                reference,
+                false,
+                components,
+                None,
+            ))
+        },
+        ConeCylinderIntersection::Empty,
+    ))
+}
+
+/// The intersection of two cones in general position, read along the
+/// first cone's generators, all from its apex `O₁`. On the generator along
+/// the unit `d`, `A = (d·a₂)² − cos² φ₂` turns with `d`, and the quarter
+/// discriminant is a quadratic form `Δ = dᵀ M d`,
+/// `M = m mᵀ − γ (a₂ a₂ᵀ − cos² φ₂ I)`, with `w = O₁ − O₂`,
+/// `m = (w·a₂) a₂ − cos² φ₂ w` and `γ = (w·a₂)² − cos² φ₂ |w|²`. It
+/// vanishes along `w`, the line through both apexes, so `M` has rank two:
+/// - `γ > 0`, `O₁` inside the second cone: `M` is positive, the sum of two
+///   squares, and every generator crosses the second cone twice: two
+///   loops around the first;
+/// - `γ < 0`, `O₁` outside: `M` is the product of two linear forms, the
+///   two planes through both apexes tangent to the second cone. Each is
+///   `aₖ (cos(t − θₖ) − cₖ)` along the first cone, and the arcs end at
+///   closed-form arccosines, as for a cone and a cylinder.
+///
+/// `None` where the closed form does not hold: a generator of one cone
+/// parallel to one of the other's (`A` vanishing on some generator, within
+/// `tol.angular`, where the curve runs off to infinity), either apex on the
+/// other cone, or the surfaces touching. The numeric search takes those.
+pub(super) fn cones_in_general_position(
+    first: &Cone,
+    second: &Cone,
+    tol: Tolerance,
+) -> Option<ConeConeIntersection> {
+    let ruled = RuledCone::new(first);
+    let other = OtherCone::new(second);
+    let (a1, a2) = (ruled.axis, other.cone.axis);
+    let cos_squared = other.cos_squared;
+    // `d·a₂ = P + R cos(t − θ)` stays on one side of `± cos φ₂`, with a
+    // margin, or `A` vanishes on a generator.
+    let middle = ruled.cos * a1.dot(a2);
+    let (reach_x, reach_y) = (ruled.x.dot(a2), ruled.y.dot(a2));
+    let reach = ruled.sin.abs() * (reach_x * reach_x + reach_y * reach_y).sqrt();
+    let (low, high) = (middle - reach, middle + reach);
+    // `|d·a₂|` over the generators, from `0` where `d·a₂` changes sign.
+    let largest = low.abs().max(high.abs());
+    let smallest = if low * high <= 0.0 {
+        0.0
+    } else {
+        low.abs().min(high.abs())
+    };
+    let smallest_leading = if largest * largest < cos_squared {
+        cos_squared - largest * largest
+    } else if smallest * smallest > cos_squared {
+        smallest * smallest - cos_squared
+    } else {
+        0.0
+    };
+    if smallest_leading <= tol.angular {
+        return None;
+    }
+    if other.offset(ruled.apex).0.abs() <= tol.confusion
+        || ruled.offset(other.cone.apex).0.abs() <= tol.confusion
     {
+        return None;
+    }
+    let w = ruled.apex - other.cone.apex;
+    let w_axis = w.dot(a2);
+    let gamma = w_axis * w_axis - cos_squared * w.square_magnitude();
+    let m = a2 * w_axis - w * cos_squared;
+    let form = |v: Vector| m * m.dot(v) - (a2 * a2.dot(v) - v * cos_squared) * gamma;
+    // `M` across `w`, where its rank lies.
+    let along_w = w.normalized()?;
+    let seed = if along_w.dot(a1).abs() < 0.9 {
+        a1
+    } else {
+        ruled.x
+    };
+    let u = seed.component_perpendicular_to(along_w).normalized()?;
+    let v = along_w.cross(u);
+    let (uu, uv, vv) = (u.dot(form(u)), u.dot(form(v)), v.dot(form(v)));
+    let mean = 0.5 * (uu + vv);
+    let half_difference = 0.5 * (uu - vv);
+    let radius = (half_difference * half_difference + uv * uv).sqrt();
+    let turn = 0.5 * (2.0 * uv).atan2(uu - vv);
+    let (sin_turn, cos_turn) = turn.sin_cos();
+    let e1 = u * cos_turn + v * sin_turn;
+    let e2 = v * cos_turn - u * sin_turn;
+    let (larger, smaller) = (mean + radius, mean - radius);
+    // `n·d(t)` as `k₀ + k₁ cos t + k₂ sin t`.
+    let linear = |n: Vector| {
+        [
+            ruled.cos * n.dot(a1),
+            ruled.sin * n.dot(ruled.x),
+            ruled.sin * n.dot(ruled.y),
+        ]
+    };
+    let loops = if gamma > 0.0 {
+        Loops::Around(Discriminant::TwoSquares {
+            first: linear(e1 * larger.max(0.0).sqrt()),
+            second: linear(e2 * smaller.max(0.0).sqrt()),
+        })
+    } else {
+        if smaller >= 0.0 {
+            return None;
+        }
+        let (along, across) = (e1 * larger.sqrt(), e2 * (-smaller).sqrt());
+        let normals = [along - across, along + across];
+        // Where a factor nearly vanishes twice, the generator at `θₖ`
+        // nearly touches the second cone at `s = −β/A`, `nₖ·d / |nₖ|` off
+        // its tangent plane by the angle.
+        let touch = normals.map(|n| {
+            let [_, along_cos, along_sin] = linear(n);
+            let angle = along_sin.atan2(along_cos);
+            let direction = ruled.generator(ruled.radial(angle.sin(), angle.cos())).1;
+            let (leading, half_linear, _, _) = other.coefficients(ruled.apex, direction);
+            let distance = (half_linear / leading).abs();
+            tol.confusion * n.magnitude()
+                / ((along_cos * along_cos + along_sin * along_sin).sqrt() * distance)
+        });
+        factored_loops(normals.map(linear), touch)?
+    };
+    let surfaces = Surfaces::Cones(*first, *second);
+    Some(loops.into_result(
+        |discriminant, reference, components| {
+            ConeConeIntersection::Quartic(QuarticCurve::new(
+                surfaces,
+                discriminant,
+                reference,
+                true,
+                components,
+                None,
+            ))
+        },
+        ConeConeIntersection::Empty,
+    ))
+}
+
+/// The loops of a quartic whose quarter discriminant has a closed form.
+enum Loops {
+    /// Two loops around the ruled quadric, `Δ` positive throughout.
+    Around(Discriminant),
+    /// Arcs over the generators where `Δ ≥ 0`, from `reference`.
+    Arcs {
+        discriminant: Discriminant,
+        reference: f64,
+        components: [Component; 2],
+        count: usize,
+    },
+    /// `Δ < 0` throughout: no generator meets the other quadric.
+    Empty,
+}
+
+impl Loops {
+    /// The pair's result: `quartic` from the discriminant, its reference
+    /// and the components, or `empty`.
+    fn into_result<T>(
+        self,
+        quartic: impl FnOnce(Discriminant, f64, &[Component]) -> T,
+        empty: T,
+    ) -> T {
+        const AROUND: [Component; 2] = [
+            Component::Around { branch: 1.0 },
+            Component::Around { branch: -1.0 },
+        ];
+        match self {
+            Loops::Around(discriminant) => quartic(discriminant, 0.0, &AROUND),
+            Loops::Arcs {
+                discriminant,
+                reference,
+                components,
+                count,
+            } => quartic(discriminant, reference, &components[..count]),
+            Loops::Empty => empty,
+        }
+    }
+}
+
+/// The loops where `Δ = f₀(t) f₁(t) ≥ 0`, each factor `k₀ + k₁ cos t + k₂ sin t`
+/// read as `aₖ (cos(t − θₖ) − cₖ)`. Each factor vanishes at `θₖ ± acos cₖ`,
+/// and `Δ` changes sign there, both factors vanishing together never: the
+/// arcs where it is positive, every other one. `None` where a factor
+/// nearly vanishes twice, `|cₖ|` within `touch[k]` of one, as the
+/// surfaces touch there, or does not turn.
+#[inline]
+fn factored_loops(factors: [[f64; 3]; 2], touch: [f64; 2]) -> Option<Loops> {
+    let amplitudes = factors
+        .map(|[_, along_cos, along_sin]| (along_cos * along_cos + along_sin * along_sin).sqrt());
+    let references = factors.map(|[_, along_cos, along_sin]| along_sin.atan2(along_cos));
+    let cosines: [f64; 2] = std::array::from_fn(|k| -factors[k][0] / amplitudes[k]);
+    if (0..2).any(|k| !cosines[k].is_finite() || (cosines[k].abs() - 1.0).abs() <= touch[k]) {
         return None;
     }
     let (sin_shift, cos_shift) = (references[1] - references[0]).sin_cos();
     let discriminant = Discriminant::TwoFactors {
-        scale: cos_squared * r * r * width * width,
+        scale: amplitudes[0] * amplitudes[1],
         cosines,
         shift: [sin_shift, cos_shift],
     };
@@ -671,15 +863,23 @@ pub(super) fn cone_off_cylinder_axis(
         first * second > 0.0
     };
     if roots.is_empty() {
-        return if positive_at(references[0]) {
-            quartic(discriminant, references[0], &around)
+        return Some(if positive_at(references[0]) {
+            Loops::Arcs {
+                discriminant,
+                reference: references[0],
+                components: [
+                    Component::Around { branch: 1.0 },
+                    Component::Around { branch: -1.0 },
+                ],
+                count: 2,
+            }
         } else {
-            Some(ConeCylinderIntersection::Empty)
-        };
+            Loops::Empty
+        });
     }
     roots.sort_by(|a, b| a.0.total_cmp(&b.0));
     // `Δ` changes sign at each root, both factors vanishing together only
-    // where `W = 0`, the apex on the tube: every other arc is kept.
+    // where the surfaces are singular: every other arc is kept.
     let mut components = [Component::Apex; 2];
     let mut kept = 0;
     for (i, &(start, first, from)) in roots.iter().enumerate() {
@@ -689,7 +889,7 @@ pub(super) fn cone_off_cylinder_axis(
             continue;
         }
         if kept == components.len() {
-            // Two roots together, the apex all but on the tube.
+            // Two roots together, a singular point all but on the curve.
             return None;
         }
         let mut ends = [Ends::Neither; 2];
@@ -709,7 +909,12 @@ pub(super) fn cone_off_cylinder_axis(
         };
         kept += 1;
     }
-    quartic(discriminant, references[0], &components[..kept])
+    Some(Loops::Arcs {
+        discriminant,
+        reference: references[0],
+        components,
+        count: kept,
+    })
 }
 
 /// The loop over the generators from `t0 + from` to `t0 + to`, `ends`
@@ -1013,14 +1218,15 @@ trait Other: Copy {
     /// cancellation in the smaller one costs nothing.
     fn along(&self, base: Point, direction: Vector, root: f64) -> f64;
 
-    /// The rate of [`along`](Other::along) when `t` turns at `angle_rate`
-    /// and the root changes at `root_rate`, from `B`, `D` and their
-    /// derivatives in `t`.
+    /// The rate of [`along`](Other::along), at `along`, when `t` turns at
+    /// `angle_rate` and the root changes at `root_rate`, from `B`, `D` and
+    /// their derivatives in `t`.
     fn along_rate(
         &self,
         base: Point,
         direction: Vector,
         turns: (Vector, Vector),
+        along: f64,
         angle_rate: f64,
         root_rate: f64,
     ) -> f64;
@@ -1093,6 +1299,7 @@ impl Other for OtherCylinder {
         _base: Point,
         _direction: Vector,
         (base_turn, _): (Vector, Vector),
+        _along: f64,
         angle_rate: f64,
         root_rate: f64,
     ) -> f64 {
@@ -1168,6 +1375,7 @@ impl Other for OtherSphere {
         base: Point,
         direction: Vector,
         (base_turn, direction_turn): (Vector, Vector),
+        _along: f64,
         angle_rate: f64,
         root_rate: f64,
     ) -> f64 {
@@ -1223,54 +1431,74 @@ impl Other for OtherSphere {
     }
 }
 
-/// A cone as the other quadric, read against a ruled cylinder: every
-/// generator runs along the same axis `a₁`, and meets the cone, `w` from
-/// its apex, where `(w·a₂)² = cos² φ |w|²`.
+/// A cone as the other quadric, meeting the generator from `B` along the
+/// unit `D` where `A s² + 2β s + γ = 0`, with `w = B − apex`,
+/// `A = (D·a₂)² − cos² φ`, `β = (w·a₂)(D·a₂) − cos² φ (w·D)` and `γ` the
+/// cone's equation at `B`. Against a cylinder `A` is the same on every
+/// generator; against a cone it turns with `D`.
 #[derive(Debug, Clone, Copy)]
 struct OtherCone {
     /// The cone read as a ruled quadric, for its points and distances.
     cone: RuledCone,
     origin: Point,
     reference_radius: f64,
-    /// `(a₁·a₂) a₂ − cos² φ a₁`: `β = (B − apex)·` it.
-    across: Vector,
-    /// `1 / A`, `A = (a₁·a₂)² − cos² φ`.
-    inverse_leading: f64,
+    cos_squared: f64,
 }
 
 impl OtherCone {
-    fn new(cone: &Cone, ruled_axis: Vector) -> OtherCone {
+    fn new(cone: &Cone) -> OtherCone {
         let ruled = RuledCone::new(cone);
-        let cosine = ruled_axis.dot(ruled.axis);
-        let cos_squared = ruled.cos * ruled.cos;
         OtherCone {
             cone: ruled,
             origin: cone.frame().origin(),
             reference_radius: cone.reference_radius(),
-            across: ruled.axis * cosine - ruled_axis * cos_squared,
-            inverse_leading: 1.0 / (cosine * cosine - cos_squared),
+            cos_squared: ruled.cos * ruled.cos,
         }
+    }
+
+    /// `A` and `β` on the generator from `base` along `direction`, with
+    /// `D·a₂` and `w·a₂`.
+    #[inline]
+    fn coefficients(&self, base: Point, direction: Vector) -> (f64, f64, f64, f64) {
+        let w = base - self.cone.apex;
+        let (along_axis, w_along_axis) = (direction.dot(self.cone.axis), w.dot(self.cone.axis));
+        (
+            along_axis * along_axis - self.cos_squared,
+            w_along_axis * along_axis - self.cos_squared * w.dot(direction),
+            along_axis,
+            w_along_axis,
+        )
     }
 }
 
 impl Other for OtherCone {
-    /// `(root − β) / A`, the generators along the ruled axis.
+    /// `(root − β) / A`.
     #[inline]
-    fn along(&self, base: Point, _direction: Vector, root: f64) -> f64 {
-        (root - (base - self.cone.apex).dot(self.across)) * self.inverse_leading
+    fn along(&self, base: Point, direction: Vector, root: f64) -> f64 {
+        let (leading, half_linear, _, _) = self.coefficients(base, direction);
+        (root - half_linear) / leading
     }
 
-    /// The generators run along the ruled axis: only `β` turns.
+    /// `(root' − β' − s A') / A`, primes the derivatives in `t`.
     #[inline]
     fn along_rate(
         &self,
-        _base: Point,
-        _direction: Vector,
-        (base_turn, _): (Vector, Vector),
+        base: Point,
+        direction: Vector,
+        (base_turn, direction_turn): (Vector, Vector),
+        along: f64,
         angle_rate: f64,
         root_rate: f64,
     ) -> f64 {
-        (root_rate - angle_rate * base_turn.dot(self.across)) * self.inverse_leading
+        let (leading, _, along_axis, w_along_axis) = self.coefficients(base, direction);
+        let axis = self.cone.axis;
+        let w = base - self.cone.apex;
+        let direction_turn_axis = direction_turn.dot(axis);
+        let half_linear_turn = base_turn.dot(axis) * along_axis
+            + w_along_axis * direction_turn_axis
+            - self.cos_squared * (base_turn.dot(direction) + w.dot(direction_turn));
+        let leading_turn = 2.0 * along_axis * direction_turn_axis;
+        (root_rate - angle_rate * (half_linear_turn + along * leading_turn)) / leading
     }
 
     /// Half the gradient of `(w·a₂)² − cos² φ |w|²`.
@@ -1343,16 +1571,16 @@ enum Discriminant {
     /// `(p + q cos τ)² − gamma`: a sphere around the cone's apex
     /// (`gamma < 0`), or through it (`gamma = 0`).
     Positive { p: f64, q: f64, gamma: f64 },
-    /// `scale · (h(τ)² + leading · l(τ))`, with `h = h₀ + h₁ cos τ + h₂ sin τ`
-    /// and `l` likewise, `leading > 0` and `l > 0`: a cylinder whose
-    /// generators all point within a cone, each crossing it twice. The sum
-    /// of positive terms is evaluated as such: it never cancels.
-    Squares {
-        scale: f64,
-        height: [f64; 3],
-        length: [f64; 3],
-        leading: f64,
-    },
+    /// `h₀(τ)² + h₁(τ)²`, each `hₖ = hₖ₀ + hₖ₁ cos τ + hₖ₂ sin τ`: every
+    /// generator crosses a cone twice, the quadratic form of `Δ` being
+    /// positive. The sum is evaluated as such: it never cancels.
+    TwoSquares { first: [f64; 3], second: [f64; 3] },
+}
+
+/// `k₀ + k₁ cos τ + k₂ sin τ`.
+#[inline]
+fn linear_at([constant, along_cos, along_sin]: [f64; 3], cos_tau: f64, sin_tau: f64) -> f64 {
+    constant + along_cos * cos_tau + along_sin * sin_tau
 }
 
 /// No shift between the factors' references: `[sin 0, cos 0]`.
@@ -1375,15 +1603,10 @@ impl Discriminant {
                 let m = p + q * cos_tau;
                 m * m - gamma
             }
-            Discriminant::Squares {
-                scale,
-                height: [h0, h1, h2],
-                length: [l0, l1, l2],
-                leading,
-            } => {
-                let h = h0 + h1 * cos_tau + h2 * sin_tau;
-                let l = l0 + l1 * cos_tau + l2 * sin_tau;
-                scale * (h * h + leading * l)
+            Discriminant::TwoSquares { first, second } => {
+                let first = linear_at(first, cos_tau, sin_tau);
+                let second = linear_at(second, cos_tau, sin_tau);
+                first * first + second * second
             }
         }
     }
@@ -1396,7 +1619,7 @@ impl Discriminant {
         match *self {
             Discriminant::TwoFactors { scale, cosines, .. } => (scale, cosines, 2),
             Discriminant::OneFactor { scale, cosine } => (scale, [cosine, 0.0], 1),
-            Discriminant::Positive { .. } | Discriminant::Squares { .. } => {
+            Discriminant::Positive { .. } | Discriminant::TwoSquares { .. } => {
                 unreachable!("only loops around read it whole")
             }
         }
@@ -1652,7 +1875,7 @@ impl<R: Ruled, O: Other> Rulings<R, O> {
         let base = on.point - on.direction * on.along;
         let along_rate = |angle_rate, root_rate| {
             self.other
-                .along_rate(base, on.direction, turns, angle_rate, root_rate)
+                .along_rate(base, on.direction, turns, on.along, angle_rate, root_rate)
         };
         let (angle_rate, along_rate) = match component {
             // `s = 2m`, the root zero.
@@ -1731,7 +1954,10 @@ impl<R: Ruled, O: Other> Rulings<R, O> {
             Component::Around { .. } => turns.0 + turns.1 * on.along,
             Component::Between { .. } => {
                 let base = on.point - on.direction * on.along;
-                on.direction * self.other.along_rate(base, on.direction, turns, 0.0, 1.0)
+                on.direction
+                    * self
+                        .other
+                        .along_rate(base, on.direction, turns, on.along, 0.0, 1.0)
             }
             Component::Node { .. } | Component::Apex => return 1.0,
         };

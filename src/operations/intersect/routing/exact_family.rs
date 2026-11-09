@@ -391,8 +391,11 @@ impl TorusTorusIntersection {
 }
 
 impl ConeConeIntersection {
+    /// The family result; the quartic is fitted within `tol` (see
+    /// [`QuarticCurve::fitted`](crate::QuarticCurve)), and a fit
+    /// that fails hands the pair to the numeric search.
     #[inline]
-    pub(super) fn into_family(self, _tol: Tolerance) -> Option<SurfaceSurfaceIntersection> {
+    pub(super) fn into_family(self, tol: Tolerance) -> Option<SurfaceSurfaceIntersection> {
         match self {
             ConeConeIntersection::Circle(c) => surface_curves([(c, false)]),
             ConeConeIntersection::TwoCircles(c1, c2) => surface_curves([(c1, false), (c2, false)]),
@@ -413,6 +416,8 @@ impl ConeConeIntersection {
                 ))
             }
             ConeConeIntersection::TwoConics(conics) => common_sphere_conics(&conics),
+            ConeConeIntersection::Quartic(curve) => quartic(curve, tol),
+            ConeConeIntersection::Empty => surfaces_miss(),
             ConeConeIntersection::ApexPoint(p) => contact_point(p),
             ConeConeIntersection::Coincident => surfaces_coincide(),
             ConeConeIntersection::NotAnalytic => None,

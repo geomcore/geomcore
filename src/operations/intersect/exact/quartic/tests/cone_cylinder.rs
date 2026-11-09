@@ -3,7 +3,7 @@
 
 use super::sphere::{assert_routed_both_ways, cone};
 use super::*;
-use crate::ConeCylinderIntersection;
+use crate::{ConeCylinderIntersection, Frame};
 use std::f64::consts::FRAC_PI_6;
 
 /// The cone of half-angle 30° with its apex at the origin along `Z`.
@@ -50,6 +50,34 @@ fn test_a_cylinder_steeper_than_the_cone_meets_it_in_two_loops_around() {
         assert!(matches!(curve.components[0], Component::Around { .. }));
         assert_routed_both_ways(&upright(), &tube, 2, 0);
     }
+}
+
+#[test]
+fn test_parallel_axes_turned_anywhere_meet_in_two_loops_around() {
+    // The axes along the same tilted unit vector: the part of the cone's
+    // axis across the cylinder's is rounding alone, not zero, and gives no
+    // direction (the fit of the misread loops never converged).
+    let frame = Frame::new(
+        Point::new(1.3, -1.6, 0.9),
+        Vector::new(0.3, -0.4, 0.86),
+        Vector::new(1.0, 0.2, 0.0),
+    )
+    .unwrap();
+    let cone = Cone::from_frame(frame, 0.3, 1.0).unwrap();
+    let tube = Cylinder::from_frame(
+        Frame::new(
+            Point::new(1.0, -2.0, 0.5),
+            frame.z_direction(),
+            frame.x_direction(),
+        )
+        .unwrap(),
+        2.0,
+    )
+    .unwrap();
+    let curve = cone_cylinder_quartic(&cone, &tube);
+    assert_eq!(curve.component_count(), 2);
+    assert!(matches!(curve.components[0], Component::Around { .. }));
+    assert_routed_both_ways(&cone, &tube, 2, 0);
 }
 
 #[test]
