@@ -36,7 +36,7 @@
 //! Dupont, Lazard, Lazard and Petitjean ("Near-optimal parameterization
 //! of the intersection of quadrics", J. Symbolic Computation 43, 2008).
 
-use std::f64::consts::{PI, SQRT_2, TAU};
+use std::f64::consts::{FRAC_PI_2, PI, SQRT_2, TAU};
 
 use crate::geometry::curves::fitting::{hermite_knots, hermite_spline, segment_length};
 use crate::geometry::curves::{Curve, Curve2D, ParametricCurve};
@@ -196,11 +196,22 @@ enum Component {
         /// of the factor that vanishes there.
         start_from_reference: [f64; 2],
         end_from_reference: [f64; 2],
+        /// Whether the arc crosses itself on the generator `half_crossing`
+        /// past half of `start`: where the surfaces touch, a factor
+        /// vanishing twice there ([`Ends::Crossing`]), or at the other
+        /// cone's apex, both factors vanishing once. The root changes sign
+        /// there, so the arc goes smoothly through.
+        crosses: bool,
         /// Half the angle from `start` to the generator where the arc
-        /// crosses itself, read only where `ends` holds [`Ends::Crossing`]:
-        /// kept beside the ends, not in them, so they stay a byte each.
+        /// crosses itself, read only where it `crosses`: kept beside the
+        /// ends, not in them, so they stay a byte each.
         half_crossing: f64,
     },
+    /// Twice around from the generator at angle `start`, through the other
+    /// cone's apex, where `Δ`, the sum of two squares, vanishes: the root
+    /// `√Δ` takes the sign of `sin((t − start) / 2)`, so each time around
+    /// the curve goes smoothly through the apex onto the other root.
+    ThroughApex { start: f64 },
     /// Twice around from the generator at angle `start`, across from the
     /// one where the factor `factor` of the discriminant is `1 ± cos τ`
     /// and the surfaces touch: the signed root `√(2 scale g) cos(parameter)`
@@ -222,9 +233,8 @@ enum Ends {
     Both,
     /// The factor is `1 ± cos` and vanishes twice inside the arc, on the
     /// generator `t_c` where the surfaces touch and the arc crosses itself
-    /// ([`Component::Between`]'s `half_crossing`): its square root is read
-    /// signed, `√2 sin((t − t_c) / 2)`, so the arc goes smoothly through
-    /// the crossing.
+    /// ([`Component::Between`]'s `half_crossing`): its square root is
+    /// `√2 |sin((t − t_c) / 2)|`.
     Crossing,
 }
 
@@ -687,9 +697,12 @@ pub(super) fn sphere_off_cone_axis(
 /// With `A` within `tol.angular` of zero, the cylinder's axis runs along a
 /// generator of the cone: see [`cylinder_along_a_generator`].
 ///
-/// `None` where the closed form does not hold: the apex on the cylinder,
-/// or a wedge line touching the circle (the surfaces touch). The numeric
-/// search takes those.
+/// With the apex on the cylinder, both factors, or both squares, vanish on
+/// the generator through it: see [`apex_arc`] and [`apex_loop`].
+///
+/// `None` where the closed form does not hold: the apex on a cylinder
+/// along a generator of the cone, or both wedge lines touching the circle.
+/// The numeric search takes those.
 pub(super) fn cone_off_cylinder_axis(
     cone: &Cone,
     cylinder: &Cylinder,
@@ -710,12 +723,17 @@ pub(super) fn cone_off_cylinder_axis(
     // From the apex across the axis to it: `W(t) = p + r ρ(t)`.
     let w = frame.origin() - cone.apex();
     let p = w - a1 * w.dot(a1);
-    if (p.magnitude() - r).abs() <= tol.confusion {
-        return None;
-    }
+    let apex_on_cylinder = (p.magnitude() - r).abs() <= tol.confusion;
     if leading.abs() <= tol.angular {
+        if apex_on_cylinder {
+            // The cylinder's generator through the apex lies on the cone:
+            // a line and a cubic, left to the search.
+            return None;
+        }
         return cylinder_along_a_generator(cone, cylinder, tol);
     }
+    // The generator through the apex, `ρ(t) = −p / |p|`.
+    let through_apex = apex_on_cylinder.then(|| (-p.dot(y)).atan2(-p.dot(x)));
     // `n·W(t)` as `k₀ + k₁ cos t + k₂ sin t`.
     let linear = |n: Vector| [n.dot(p), r * n.dot(x), r * n.dot(y)];
     // The part of `a₂` across the cylinder's axis, from its components on
@@ -734,18 +752,26 @@ pub(super) fn cone_off_cylinder_axis(
         // `W·a₂ = width (W·e₁)`: `(width² + A)(W·e₁)² + A (W·e₂)²`.
         let cos_phi = cos_phi.abs();
         let scaled = |n: Vector, weight: f64| linear(n * (cos_phi * weight.sqrt()));
-        Loops::Around(Discriminant::TwoSquares {
-            first: scaled(e1, width * width + leading),
-            second: scaled(e2, leading),
-        })
+        let squares = [scaled(e1, width * width + leading), scaled(e2, leading)];
+        match through_apex {
+            Some(at) => apex_loop(squares, at),
+            None => Loops::Around(Discriminant::TwoSquares {
+                first: squares[0],
+                second: squares[1],
+            }),
+        }
     } else {
         let (sin, steep) = (sin_phi.abs(), (-leading).sqrt());
         // The wedge's lines are where `nₖ·W = 0`; `|nₖ| = width`, and
         // `cos φ nₖ·W` are the factors.
         let normals = [e1 * sin - e2 * steep, e1 * sin + e2 * steep];
         let factors = normals.map(|n| linear(n * cos_phi.abs()));
-        // The circle `r` from the axis touches a line `r (1 − |cₖ|)` away.
-        factored_loops(factors, [tol.confusion / r; 2])?
+        // The circle `r` from the axis comes `r (1 − |cₖ|)` from a line.
+        let touching = factors.map(|[constant, along_cos, along_sin]| {
+            let cosine = -constant / (along_cos * along_cos + along_sin * along_sin).sqrt();
+            r * (1.0 - cosine.abs()).abs() <= tol.confusion
+        });
+        factored_loops(factors, touching, through_apex)?
     };
     let surfaces = Surfaces::ConeCylinder(*cone, *cylinder);
     let touching =
@@ -846,10 +872,16 @@ fn cylinder_along_a_generator(
 ///   `aₖ (cos(t − θₖ) − cₖ)` along the first cone, and the arcs end at
 ///   closed-form arccosines, as for a cone and a cylinder.
 ///
-/// `None` where the closed form does not hold: a generator of one cone
-/// parallel to one of the other's (`A` vanishing on some generator, within
-/// `tol.angular`, where the curve runs off to infinity), either apex on the
-/// other cone, or the surfaces touching. The numeric search takes those.
+/// With the second apex on the first cone, both factors, or both squares,
+/// vanish on the generator through it: see [`apex_arc`] and [`apex_loop`].
+/// With the first apex on the second cone, the pair is read along the
+/// second.
+///
+/// `None` where the closed form does not hold: a generator of the first
+/// cone touching the second's directions (`A` vanishing twice, within
+/// `tol.angular`), `β` vanishing too where the curve runs to infinity,
+/// each apex on the other cone, or the cones touching twice. The numeric
+/// search takes those.
 pub(super) fn cones_in_general_position(
     first: &Cone,
     second: &Cone,
@@ -857,6 +889,23 @@ pub(super) fn cones_in_general_position(
 ) -> Option<ConeConeIntersection> {
     let ruled = RuledCone::new(first);
     let other = OtherCone::new(second);
+    let first_apex_on_second = other.offset(ruled.apex).0.abs() <= tol.confusion;
+    let second_apex_on_first = ruled.offset(other.cone.apex).0.abs() <= tol.confusion;
+    match (first_apex_on_second, second_apex_on_first) {
+        // The line through both apexes lies on both: a line and a cubic,
+        // left to the search.
+        (true, true) => return None,
+        // Read along the second cone, through the first's apex.
+        (true, false) => {
+            return cones_in_general_position(second, first, tol).map(|result| match result {
+                ConeConeIntersection::Quartic(curve) => {
+                    ConeConeIntersection::Quartic(curve.operands_swapped())
+                }
+                other => other,
+            });
+        }
+        (false, _) => {}
+    }
     let (a1, a2) = (ruled.axis, other.cone.axis);
     let cos_squared = other.cos_squared;
     // `d·a₂ = P + R cos(t − θ)`: `A` vanishes where it is `± cos φ₂`, on
@@ -873,11 +922,16 @@ pub(super) fn cones_in_general_position(
     {
         return None;
     }
-    if other.offset(ruled.apex).0.abs() <= tol.confusion
-        || ruled.offset(other.cone.apex).0.abs() <= tol.confusion
-    {
-        return None;
-    }
+    // The generator through the second apex, `cos φ₁ a₁ + sin φ₁ ρ(t)`
+    // along the line from the first: `ρ` along its part across `a₁`,
+    // turned over where the line runs into the other nappe.
+    let through_apex = second_apex_on_first.then(|| {
+        let toward = other.cone.apex - ruled.apex;
+        let height = toward.dot(a1);
+        let across = toward - a1 * height;
+        let side = (height * ruled.cos).signum() * ruled.sin.signum();
+        (side * across.dot(ruled.y)).atan2(side * across.dot(ruled.x))
+    });
     let infinities = cones_at_infinity(&ruled, &other, (middle, reach_x, reach_y), tol)?;
     let w = ruled.apex - other.cone.apex;
     let w_axis = w.dot(a2);
@@ -911,29 +965,44 @@ pub(super) fn cones_in_general_position(
         ]
     };
     let loops = if gamma > 0.0 {
-        Loops::Around(Discriminant::TwoSquares {
-            first: linear(e1 * larger.max(0.0).sqrt()),
-            second: linear(e2 * smaller.max(0.0).sqrt()),
-        })
+        let squares = [
+            linear(e1 * larger.max(0.0).sqrt()),
+            linear(e2 * smaller.max(0.0).sqrt()),
+        ];
+        match through_apex {
+            Some(at) => apex_loop(squares, at),
+            None => Loops::Around(Discriminant::TwoSquares {
+                first: squares[0],
+                second: squares[1],
+            }),
+        }
     } else {
         if smaller >= 0.0 {
             return None;
         }
         let (along, across) = (e1 * larger.sqrt(), e2 * (-smaller).sqrt());
         let normals = [along - across, along + across];
-        // Where a factor nearly vanishes twice, the generator at `θₖ`
-        // nearly touches the second cone at `s = −β/A`, `nₖ·d / |nₖ|` off
-        // its tangent plane by the angle.
-        let touch = normals.map(|n| {
-            let [_, along_cos, along_sin] = linear(n);
-            let angle = along_sin.atan2(along_cos);
-            let direction = ruled.generator(ruled.radial(angle.sin(), angle.cos())).1;
+        let factors = normals.map(linear);
+        // A factor is least in size, `aₖ (1 − |cₖ|)`, on the generator at
+        // `θₖ` where `cₖ > 0` and across from it otherwise. There the
+        // middle of the generator's roots, `s = −β/A`, is off the second
+        // cone by `|Q| / |∇Q|`, `Q = −Δ/A` and `Δ` that factor times the
+        // other: within confusion, the surfaces touch.
+        let touching: [bool; 2] = std::array::from_fn(|k| {
+            let [constant, along_cos, along_sin] = factors[k];
+            let amplitude = (along_cos * along_cos + along_sin * along_sin).sqrt();
+            let cosine = -constant / amplitude;
+            let across = if cosine < 0.0 { PI } else { 0.0 };
+            let (sin, cos) = (along_sin.atan2(along_cos) + across).sin_cos();
+            let direction = ruled.generator(ruled.radial(sin, cos)).1;
             let (leading, half_linear, _, _) = other.coefficients(ruled.apex, direction);
-            let distance = (half_linear / leading).abs();
-            tol.confusion * n.magnitude()
-                / ((along_cos * along_cos + along_sin * along_sin).sqrt() * distance)
+            let nearest = ruled.apex + direction * (-half_linear / leading);
+            let rest = linear_at(factors[1 - k], cos, sin);
+            let gradient = 2.0 * other.normal(nearest).magnitude();
+            amplitude * (1.0 - cosine.abs()).abs() * rest.abs()
+                <= tol.confusion * leading.abs() * gradient
         });
-        factored_loops(normals.map(linear), touch)?
+        factored_loops(factors, touching, through_apex)?
     };
     let surfaces = Surfaces::Cones(*first, *second);
     let touching = |angle| touching_on_generator(&ruled, &other, angle);
@@ -1048,14 +1117,22 @@ impl Loops {
 /// The loops where `Δ = f₀(t) f₁(t) ≥ 0`, each factor `k₀ + k₁ cos t + k₂ sin t`
 /// read as `aₖ (cos(t − θₖ) − cₖ)`. Each factor vanishes at `θₖ ± acos cₖ`,
 /// and `Δ` changes sign there, both factors vanishing together never: the
-/// arcs where it is positive, every other one. `None` where a factor
-/// nearly vanishes twice, `|cₖ|` within `touch[k]` of one, as the
-/// surfaces touch there, or does not turn.
+/// arcs where it is positive, every other one. `touching[k]` where factor
+/// `k` nearly vanishes twice, the surfaces touching within confusion on
+/// the generator where it is least: it is read as vanishing there. `None`
+/// where both do, or a factor does not turn.
 #[inline]
-fn factored_loops(factors: [[f64; 3]; 2], touch: [f64; 2]) -> Option<Loops> {
+fn factored_loops(
+    factors: [[f64; 3]; 2],
+    touching: [bool; 2],
+    through_apex: Option<f64>,
+) -> Option<Loops> {
     let amplitudes = factors
         .map(|[_, along_cos, along_sin]| (along_cos * along_cos + along_sin * along_sin).sqrt());
     let references = factors.map(|[_, along_cos, along_sin]| along_sin.atan2(along_cos));
+    if let Some(at) = through_apex {
+        return apex_arc(amplitudes, references, at, touching);
+    }
     let mut cosines: [f64; 2] = std::array::from_fn(|k| -factors[k][0] / amplitudes[k]);
     if cosines.iter().any(|c| !c.is_finite()) {
         return None;
@@ -1064,8 +1141,7 @@ fn factored_loops(factors: [[f64; 3]; 2], touch: [f64; 2]) -> Option<Loops> {
     // set to `± 1`: the surfaces touch on the generator where it does,
     // `θₖ`, or `θₖ + π`. Both at once, the surfaces touch twice: left to
     // the search.
-    let near = |k: usize| (cosines[k].abs() - 1.0).abs() <= touch[k];
-    let node = match (near(0), near(1)) {
+    let node = match (touching[0], touching[1]) {
         (true, true) => return None,
         (false, false) => None,
         (first, _) => {
@@ -1141,7 +1217,7 @@ fn factored_loops(factors: [[f64; 3]; 2], touch: [f64; 2]) -> Option<Loops> {
             return None;
         }
         let mut ends = [Ends::Neither; 2];
-        let mut half_crossing = 0.0;
+        let (mut crosses, mut half_crossing) = (false, 0.0);
         if first == last {
             ends[first] = Ends::Both;
         } else {
@@ -1154,7 +1230,7 @@ fn factored_loops(factors: [[f64; 3]; 2], touch: [f64; 2]) -> Option<Loops> {
             let from_start = (at - start).rem_euclid(TAU);
             if from_start < end - start {
                 ends[k] = Ends::Crossing;
-                half_crossing = 0.5 * from_start;
+                (crosses, half_crossing) = (true, 0.5 * from_start);
             }
         }
         let ((sin_from, cos_from), (sin_to, cos_to)) = (from.sin_cos(), to.sin_cos());
@@ -1164,6 +1240,7 @@ fn factored_loops(factors: [[f64; 3]; 2], touch: [f64; 2]) -> Option<Loops> {
             ends,
             start_from_reference: [sin_from, cos_from],
             end_from_reference: [sin_to, cos_to],
+            crosses,
             half_crossing,
         };
         kept += 1;
@@ -1177,6 +1254,88 @@ fn factored_loops(factors: [[f64; 3]; 2], touch: [f64; 2]) -> Option<Loops> {
     })
 }
 
+/// The loop where `Δ = f₀ f₁ ≥ 0`, as in [`factored_loops`], when the
+/// generator at `at` runs through the other cone's apex, `amplitudes` and
+/// `references` read from the factors: both vanish there, each read as
+/// vanishing exactly, `cₖ = cos(at − θₖ)`, its other zero across its
+/// reference. `Δ` keeps its sign at `at` and changes it at the other two
+/// zeros, so one arc runs between them: away from `at`, the apex a point
+/// of its own, or through it, the arc crossing itself at the apex. `None`
+/// where a factor is `touching`, vanishing twice at `at`: the surfaces
+/// touch at the apex.
+fn apex_arc(
+    amplitudes: [f64; 2],
+    references: [f64; 2],
+    at: f64,
+    touching: [bool; 2],
+) -> Option<Loops> {
+    // `at` from each factor's reference, in `(−π, π]`.
+    let froms: [f64; 2] = std::array::from_fn(|k| {
+        let from = (at - references[k]).rem_euclid(TAU);
+        if from > PI { from - TAU } else { from }
+    });
+    let cosines = froms.map(f64::cos);
+    if touching.contains(&true) || cosines.iter().any(|c| !c.is_finite()) {
+        return None;
+    }
+    let (sin_shift, cos_shift) = (references[1] - references[0]).sin_cos();
+    let discriminant = Discriminant::TwoFactors {
+        scale: amplitudes[0] * amplitudes[1],
+        cosines,
+        shift: [sin_shift, cos_shift],
+    };
+    // How far past `at` each factor's other zero is.
+    let past: [f64; 2] = std::array::from_fn(|k| (references[k] - froms[k] - at).rem_euclid(TAU));
+    let (near, far) = if past[0] <= past[1] { (0, 1) } else { (1, 0) };
+    let positive_at = |t: f64| {
+        let [first, second] = std::array::from_fn(|k| (t - references[k]).cos() - cosines[k]);
+        first * second > 0.0
+    };
+    let away = positive_at(at + 0.5 * (past[near] + past[far]));
+    let (first, last) = if away { (near, far) } else { (far, near) };
+    let start = at + past[first];
+    let end = at + past[last] + if away { 0.0 } else { TAU };
+    let mut ends = [Ends::Neither; 2];
+    ends[first] = Ends::Start;
+    ends[last] = Ends::End;
+    let ((sin_from, cos_from), (sin_to, cos_to)) =
+        ((-froms[first]).sin_cos(), (-froms[last]).sin_cos());
+    let component = Component::Between {
+        start,
+        end,
+        ends,
+        start_from_reference: [sin_from, cos_from],
+        end_from_reference: [sin_to, cos_to],
+        crosses: !away,
+        half_crossing: 0.5 * (TAU - past[far]),
+    };
+    Some(Loops::Arcs {
+        discriminant,
+        reference: references[0],
+        components: [component, Component::Apex],
+        count: 1,
+        contact: Some(at),
+    })
+}
+
+/// The loop where `Δ`, the sum of the squares of `squares` (each
+/// `k₀ + k₁ cos t + k₂ sin t`), is positive but on the generator at `at`,
+/// through the other cone's apex: each square read as vanishing there
+/// exactly, one loop twice around, crossing itself at the apex.
+fn apex_loop(squares: [[f64; 3]; 2], at: f64) -> Loops {
+    let (sin, cos) = at.sin_cos();
+    let [first, second] = squares.map(|[_, along_cos, along_sin]| {
+        [-(along_cos * cos + along_sin * sin), along_cos, along_sin]
+    });
+    Loops::Arcs {
+        discriminant: Discriminant::TwoSquares { first, second },
+        reference: 0.0,
+        components: [Component::ThroughApex { start: at }, Component::Apex],
+        count: 1,
+        contact: Some(at),
+    }
+}
+
 /// The loop over the generators from `t0 + from` to `t0 + to`, `ends`
 /// where each factor of the discriminant vanishes.
 fn arc(t0: f64, from: f64, to: f64, ends: [Ends; 2]) -> Component {
@@ -1187,6 +1346,7 @@ fn arc(t0: f64, from: f64, to: f64, ends: [Ends; 2]) -> Component {
         ends,
         start_from_reference: [sin_from, cos_from],
         end_from_reference: [sin_to, cos_to],
+        crosses: false,
         half_crossing: 0.0,
     }
 }
@@ -1273,18 +1433,46 @@ impl Component {
     fn parameter_at_infinity(self, angle: f64, branch: f64) -> Option<f64> {
         match self {
             Component::Around { branch: own } => (own == branch).then(|| angle.rem_euclid(TAU)),
-            Component::Between { start, end, .. } => {
+            Component::Between {
+                start,
+                end,
+                crosses,
+                half_crossing,
+                ..
+            } => {
                 let span = end - start;
                 let from_start = (angle - start).rem_euclid(TAU);
                 if from_start > span {
                     return None;
                 }
                 // `t = start + span sin²(parameter / 2)`, the higher root
-                // on the way out and the lower one on the way back.
+                // on the way out and the lower one on the way back, the
+                // other way round past a crossing.
                 let half = 2.0 * (from_start / span).sqrt().min(1.0).asin();
-                Some(if branch > 0.0 { half } else { TAU - half })
+                let past_crossing = crosses && from_start > 2.0 * half_crossing;
+                Some(if (branch > 0.0) != past_crossing {
+                    half
+                } else {
+                    TAU - half
+                })
             }
-            Component::Node { .. } | Component::Apex => None,
+            Component::Node { start, .. } => {
+                // `t = start + 2 parameter`, the root's sign that of
+                // `cos(parameter)`.
+                let half = 0.5 * (angle - start).rem_euclid(TAU);
+                Some(if (half < FRAC_PI_2) == (branch > 0.0) {
+                    half
+                } else {
+                    half + PI
+                })
+            }
+            Component::ThroughApex { start } => {
+                // `t = start + 2 parameter`, the root's sign that of
+                // `sin(parameter)`.
+                let half = 0.5 * (angle - start).rem_euclid(TAU);
+                Some(if branch > 0.0 { half } else { half + PI })
+            }
+            Component::Apex => None,
         }
     }
 
@@ -1297,7 +1485,9 @@ impl Component {
                 *start -= shift;
                 *end -= shift;
             }
-            Component::Node { start, .. } => *start = start.rem_euclid(TAU),
+            Component::Node { start, .. } | Component::ThroughApex { start } => {
+                *start = start.rem_euclid(TAU);
+            }
             Component::Around { .. } | Component::Apex => {}
         }
         self
@@ -1894,6 +2084,12 @@ impl Other for OtherCone {
     fn point(&self, uv: Point2D) -> Point {
         self.cone.point(uv)
     }
+
+    /// Not through the apex, where the angle around the axis is undefined
+    /// and its rate along the curve nought over nought.
+    fn parameters_fit(&self, ruled: &impl Ruled, confusion: f64) -> bool {
+        ruled.offset(self.cone.apex).0.abs() > confusion
+    }
 }
 
 /// The quarter discriminant `Δ(τ)` of the quadratic along a generator.
@@ -1998,8 +2194,8 @@ fn shifted_cosine(cos_tau: f64, sin_tau: f64, [sin_shift, cos_shift]: [f64; 2]) 
 fn crossed_by_normals(component: Component) -> bool {
     match component {
         Component::Around { .. } => true,
-        Component::Between { ends, .. } => !ends.contains(&Ends::Crossing),
-        Component::Node { .. } | Component::Apex => false,
+        Component::Between { crosses, .. } => !crosses,
+        Component::Node { .. } | Component::ThroughApex { .. } | Component::Apex => false,
     }
 }
 
@@ -2162,6 +2358,7 @@ impl<R: Ruled, O: Other> Rulings<R, O> {
                 ends,
                 start_from_reference: [start_sin, start_cos],
                 end_from_reference: [end_sin, end_cos],
+                crosses,
                 half_crossing,
             } => {
                 let (scale, cosines, factors) = self.discriminant.factored();
@@ -2196,8 +2393,16 @@ impl<R: Ruled, O: Other> Rulings<R, O> {
                     product *= factor(ends[1], 1);
                 }
                 let mut branch = if parameter <= PI { 1.0 } else { -1.0 };
-                if ends.contains(&Ends::Crossing) {
-                    branch *= SQRT_2 * (from_start - half_crossing).sin();
+                if crosses {
+                    // Signed through the crossing: the touching factor's
+                    // root itself, or the sign alone where both factors
+                    // vanish once at the apex.
+                    let towards = (from_start - half_crossing).sin();
+                    branch *= if ends.contains(&Ends::Crossing) {
+                        SQRT_2 * towards
+                    } else {
+                        towards.signum()
+                    };
                 }
                 (angle, sin, cos, Some(branch * (scale * product).sqrt()))
             }
@@ -2218,6 +2423,14 @@ impl<R: Ruled, O: Other> Rulings<R, O> {
                     cos,
                     Some((2.0 * scale * other).sqrt() * parameter.cos()),
                 )
+            }
+            Component::ThroughApex { start } => {
+                let angle = start + 2.0 * parameter;
+                let (sin, cos) = angle.sin_cos();
+                let (cos_tau, sin_tau) = self.angle_from_reference(sin, cos);
+                let root = self.discriminant.at(cos_tau, sin_tau).max(0.0).sqrt();
+                let side = if parameter < PI { 1.0 } else { -1.0 };
+                (angle, sin, cos, Some(side * root))
             }
             Component::Apex => {
                 let (sin, cos) = parameter.sin_cos();
@@ -2293,8 +2506,10 @@ impl<R: Ruled, O: Other> Rulings<R, O> {
                     * (cos_p * other_turn / other.sqrt() - sin_p * other.sqrt());
                 (2.0, along_rate(2.0, root_rate))
             }
-            Component::Around { .. } | Component::Between { .. } => {
-                unreachable!("the normals' cross product runs along these")
+            Component::Around { .. }
+            | Component::Between { .. }
+            | Component::ThroughApex { .. } => {
+                unreachable!("a central difference gives the tangent of these")
             }
         };
         let velocity =
@@ -2316,7 +2531,9 @@ impl<R: Ruled, O: Other> Rulings<R, O> {
                     Vector2D::new(angle_rate * inverse, along_rate * inverse),
                 )
             }
-            Component::Around { .. } | Component::Between { .. } => {
+            Component::Around { .. }
+            | Component::Between { .. }
+            | Component::ThroughApex { .. } => {
                 let tangent = if crossed_by_normals(component) {
                     self.crossing(&on) * orientation
                 } else {
@@ -2371,7 +2588,9 @@ impl<R: Ruled, O: Other> Rulings<R, O> {
                         .other
                         .along_rate(base, on.direction, turns, on.along, 0.0, 1.0)
             }
-            Component::Node { .. } | Component::Apex => return 1.0,
+            Component::Node { .. } | Component::ThroughApex { .. } | Component::Apex => {
+                return 1.0;
+            }
         };
         if self.crossing(&on).dot(forward) >= 0.0 {
             1.0
@@ -2389,7 +2608,7 @@ impl<R: Ruled, O: Other> Rulings<R, O> {
                 let velocity = self.velocity(component, parameter, on).0;
                 velocity * (1.0 / velocity.magnitude())
             }
-            Component::Between { .. } if !crossed_by_normals(component) => {
+            Component::ThroughApex { .. } | Component::Between { crosses: true, .. } => {
                 self.stepped_tangent(component, parameter)
             }
             Component::Around { .. } | Component::Between { .. } => self.crossing(on),
@@ -2458,7 +2677,8 @@ impl<R: Ruled, O: Other> Rulings<R, O> {
     /// The distance from `point` to `component`: to first order where the
     /// quadrics cross at an angle, otherwise along the component (see
     /// [`Self::distance_to_component`]). The cone curves too fast near its
-    /// apex for the first order, so a component through it always slides.
+    /// apex for the first order, so a component through it always slides,
+    /// as does an arc through a crossing, where the normals turn parallel.
     #[inline]
     fn distance(
         &self,
@@ -2469,7 +2689,9 @@ impl<R: Ruled, O: Other> Rulings<R, O> {
         ahead: f64,
     ) -> f64 {
         match component {
-            Component::Apex => None,
+            Component::Apex
+            | Component::ThroughApex { .. }
+            | Component::Between { crosses: true, .. } => None,
             _ => self.first_order_distance(point),
         }
         .unwrap_or_else(|| self.distance_to_component(component, point, parameter, samples, ahead))

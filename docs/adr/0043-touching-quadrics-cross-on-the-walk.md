@@ -4,7 +4,7 @@ A cone and a cylinder, or two cones, that touch at a point meet in a curve that 
 
 ## Where a factor vanishes twice
 
-`Δ = scale · |cos(t − θ₀) − c₀| · |cos(t − θ₁) − c₁|` along the ruled quadric. A factor with `|cₖ|` within its touch tolerance of 1 nearly vanishes twice. Its plane, or its edge of the cone's shadow, touches the ruled quadric along a generator, and on that generator the quadrics touch within confusion. That factor is read as touching exactly: `cₖ` is set to `± 1`, and the crossing is the generator at `θₖ`, or `θₖ + π`. The point where they touch is the double root there, `−β / A`. Setting `cₖ` moves `Δ` by no more than the touch tolerance, chosen so that it moves the points within confusion. Two cylinders move their radii instead, as they can. Both factors touching, the quadrics touching twice, stays with the march.
+`Δ = scale · |cos(t − θ₀) − c₀| · |cos(t − θ₁) − c₁|` along the ruled quadric. A factor with `|cₖ|` within its touch tolerance of 1 nearly vanishes twice. Its plane, or its edge of the cone's shadow, touches the ruled quadric along a generator, and on that generator the quadrics touch within confusion. That factor is read as touching exactly: `cₖ` is set to `± 1`, and the crossing is the generator at `θₖ`, or `θₖ + π`. The point where they touch is the double root there, `−β / A`. Setting `cₖ` moves `Δ` by no more than the touch tolerance, chosen so that it moves the points within confusion. Two cylinders move their radii instead, as they can. Both factors touching, the quadrics touching twice, stays with the march. *Amended (ADR 0044):* for two cones the touch is now measured as a distance to the second cone (issue #277).
 
 Where `Δ` is negative on both sides of the crossing, the quadrics touch at an isolated point:
 

@@ -35,7 +35,7 @@ the Python distribution are versioned in lockstep.
   Rust, `intersect_exact` returns the closed form as
   `ConeConeIntersection::Quartic(QuarticCurve)`, read along the first
   cone's generators, and cones that miss as `Empty`. Still marched:
-  either apex on the other cone.
+  each apex on the other cone.
 - `QuarticBranch`, a new `Curve` variant and Python class: a piece of
   the quartic where two cones meet that runs to infinity at both ends,
   where a generator of one cone is parallel to one of the other's (#237,
@@ -74,8 +74,7 @@ the Python distribution are versioned in lockstep.
   pipe across it, which run between the edges of the cone's shadow, or
   nothing. In Rust, `intersect_exact` returns the closed form as
   `ConeCylinderIntersection::Quartic(QuarticCurve)`, read along the
-  cylinder's generators, and a pipe beside the cone as `Empty`. The apex
-  on the cylinder is still marched.
+  cylinder's generators, and a pipe beside the cone as `Empty`.
 - A cone and a cylinder, or two cones, that touch at a point meet in an
   exact curve instead of a marched one (#237, ADR 0043). Where the
   surfaces part on both sides of the point, `intersect` reports it as a
@@ -84,6 +83,15 @@ the Python distribution are versioned in lockstep.
   fitted within confusion, the point among its `contact_points`. In
   Rust, `intersect_exact` returns a lone point as the new
   `TangentPoint(Point)`. Two touches at once are still marched.
+- A cone whose apex lies on a cylinder, or on another cone, meets it in
+  an exact curve instead of a marched one (#237, ADR 0044): the curve
+  crosses itself at the apex, one loop through it twice, or the apex is
+  a point of its own beside a loop elsewhere. `intersect` reports it
+  exact and complete, the apex among its `contact_points`; the curve in
+  the cone's own parameters is left out, its angle undefined at the
+  apex. Still marched: each apex of two cones on the other, and a
+  cylinder along a generator of the cone through its apex, where the
+  curve is a line and a cubic.
 - Two cones with parallel axes and equal half-angles, such as the
   chamfers of two neighbouring parallel holes, meet in one plane conic
   instead of being marched (#262): each cone is the other moved sideways,

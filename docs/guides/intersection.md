@@ -88,8 +88,10 @@ axis runs along a generator of a cone meets it once on each of its own
 generators, on one loop that is bounded, or runs off to infinity in
 branches like those. A cone and a cylinder, or two cones, that touch
 at a point meet in a curve crossing itself there, one loop through the
-point twice, or at that point alone. An apex on the other surface, and
-surfaces that touch twice, are left to the numeric search.
+point twice, or at that point alone; so does a cone whose apex lies on
+the other surface, at its apex. Each apex of two cones on the other, a
+cylinder along a generator of a cone through its apex, and surfaces that
+touch twice are left to the numeric search.
 `intersect_exact` returns its closed form
 (`QuarticCurve`, exact points on both surfaces), and `intersect` fits
 each loop within confusion and reports the result exact and complete,

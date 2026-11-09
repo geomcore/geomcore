@@ -321,17 +321,72 @@ fn test_a_pipe_touching_one_side_and_crossing_the_other_crosses_itself_on_an_arc
     assert_routed_in_either_order(&tube, curve.component_count(), 1);
 }
 
+/// The single component of the pair's quartic, through the apex where the
+/// curve meets it: exact, its contact point the apex, and routed exact and
+/// complete in either order, the apex a contact point.
+fn through_the_apex(tube: &Cylinder) -> Component {
+    let curve = cone_cylinder_quartic(&upright(), tube);
+    assert_eq!(curve.component_count(), 1);
+    assert!(curve.contact_point().unwrap().distance(Point::ORIGIN) < 1e-12);
+    assert_exact(&curve, &upright(), tube, 1e-12);
+    assert_routed_in_either_order(tube, 1, 1);
+    curve.components[0]
+}
+
 #[test]
-fn test_an_apex_on_the_tube_is_left_to_the_search() {
-    // The apex on the wall, across a generator of the cone and along one.
-    let through_apex = cylinder(Point::new(1.0, 0.0, 0.0), Vector::Y, 1.0);
-    let along_through_apex = cylinder(Point::new(0.0, 1.0, 0.0), generator(), 1.0);
-    for tube in [through_apex, along_through_apex] {
-        assert_eq!(
-            upright().intersect_exact(&tube, TOL),
-            ConeCylinderIntersection::NotAnalytic
-        );
+fn test_a_tube_through_the_apex_across_the_cone_crosses_itself_there() {
+    // Along `Y`, its wall through the apex upright: the tube's tangent
+    // plane there cuts the cone in two generators, one arc through the
+    // apex along each.
+    for (through, direction) in [
+        (Point::new(1.0, 0.0, 0.0), Vector::Y),
+        (Point::new(1.0, 0.0, 0.0), Vector::new(0.0, 1.0, 0.3)),
+    ] {
+        let tube = cylinder(through, direction, 1.0);
+        assert!(matches!(
+            through_the_apex(&tube),
+            Component::Between { crosses: true, .. }
+        ));
     }
+}
+
+#[test]
+fn test_a_tube_over_the_apex_meets_it_at_the_apex_alone_and_the_cone_beyond() {
+    // Along `X` above the apex, its wall tangent to the plane across the
+    // axis there: the apex is a point of its own, the arc on the far side.
+    let tube = cylinder(Point::new(0.0, 0.0, 1.0), Vector::X, 1.0);
+    assert!(matches!(
+        through_the_apex(&tube),
+        Component::Between { crosses: false, .. }
+    ));
+}
+
+#[test]
+fn test_a_steep_tube_through_the_apex_crosses_itself_there_each_time_around() {
+    // Steeper than the cone, its wall through the apex: both loops around
+    // pass through it, read as one twice around.
+    for direction in [Vector::Z, Vector::new(0.2, -0.1, 1.0)] {
+        let through = Point::new(1.0, 0.0, 0.0);
+        let along = direction.normalized().unwrap();
+        let radius = (through - Point::ORIGIN)
+            .component_perpendicular_to(along)
+            .magnitude();
+        let tube = cylinder(through, direction, radius);
+        assert!(matches!(
+            through_the_apex(&tube),
+            Component::ThroughApex { .. }
+        ));
+    }
+}
+
+#[test]
+fn test_an_apex_on_a_tube_along_a_generator_is_left_to_the_search() {
+    // The tube's generator through the apex lies on the cone.
+    let tube = cylinder(Point::new(0.0, 1.0, 0.0), generator(), 1.0);
+    assert_eq!(
+        upright().intersect_exact(&tube, TOL),
+        ConeCylinderIntersection::NotAnalytic
+    );
 }
 
 #[test]
