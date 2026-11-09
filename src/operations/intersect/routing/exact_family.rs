@@ -384,6 +384,11 @@ impl ConeConeIntersection {
         match self {
             ConeConeIntersection::Circle(c) => surface_curves([(c, false)]),
             ConeConeIntersection::TwoCircles(c1, c2) => surface_curves([(c1, false), (c2, false)]),
+            ConeConeIntersection::ParallelSection(section) => {
+                let (mut curves, mut points) = (Vec::new(), Vec::new());
+                section.pieces(&mut curves, &mut points);
+                Some(SurfaceSurfaceIntersection::exact(curves, points, false))
+            }
             ConeConeIntersection::Generators(shared) => {
                 let curves = shared
                     .generators()

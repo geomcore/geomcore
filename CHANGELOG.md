@@ -11,6 +11,14 @@ the Python distribution are versioned in lockstep.
 
 ### Added
 
+- Two cones with parallel axes and equal half-angles, such as the
+  chamfers of two neighbouring parallel holes, meet in one plane conic
+  instead of being marched (#262): each cone is the other moved sideways,
+  so their equations differ by a plane. `intersect`, in Rust and Python,
+  reports it exact and complete: a hyperbola when each apex is outside
+  the other cone, an ellipse when inside, and the line through both
+  apexes, marked tangent, when each apex is on the other cone. In Rust,
+  `ConeConeIntersection` gains `ParallelSection(PlaneConeIntersection)`.
 - A cone and a cylinder, or two cones, whose axes meet at a point as far
   from both surfaces, so that both touch one sphere centred there, meet
   in two plane conics instead of being marched (#236): the ellipses of a
