@@ -2,7 +2,7 @@
 //! clipped to the parameter ranges of each trimmed side.
 
 use geomcore::*;
-use std::f64::consts::{FRAC_PI_2, PI, TAU};
+use std::f64::consts::{FRAC_PI_2, FRAC_PI_6, PI, TAU};
 
 const TOL: Tolerance = Tolerance::DEFAULT;
 
@@ -254,6 +254,41 @@ fn test_a_trimmed_cone_and_generator_cylinder_march_to_the_ranges() {
     assert!(!result.curves().is_empty());
     assert_inside(&result, &cone_patch, &cylinder_patch);
     assert_ends_on_boundaries(&result, &cone_patch, &cylinder_patch);
+}
+
+#[test]
+fn test_two_trimmed_cones_whose_curve_runs_to_infinity_are_clipped_to_the_ranges() {
+    // A wide cone across the upright one has generators parallel to its
+    // own: the untrimmed quartic is exact, complete, and runs to infinity
+    // in branches. Trimmed, the branches are clipped to the ranges, with
+    // nothing inside both patches lost.
+    let upright = Cone::new(
+        Point::new(0.0, 0.0, 1.0 / FRAC_PI_6.tan()),
+        Vector::Z,
+        FRAC_PI_6,
+        1.0,
+    )
+    .unwrap();
+    let apex = Point::new(-3.0, 0.0, 1.0);
+    let wide = Cone::new(apex + Vector::X, Vector::X, 1.2, 1.2f64.tan()).unwrap();
+    let untrimmed = upright.intersect(&wide, TOL);
+    assert_eq!(untrimmed.method(), IntersectionMethod::Exact);
+    assert!(untrimmed.is_complete());
+    assert!(
+        untrimmed
+            .curves()
+            .iter()
+            .any(|piece| matches!(piece.curve, Curve::QuarticBranch(_)))
+    );
+    let upright_patch = upright.trimmed((0.0, TAU), (-1.0, 8.0)).unwrap();
+    let wide_patch = wide.trimmed((0.0, TAU), (-2.0, 6.0)).unwrap();
+    let result = upright_patch.intersect(&wide_patch, TOL);
+    assert_eq!(result.method(), IntersectionMethod::Exact);
+    assert!(result.is_complete());
+    assert!(!result.curves().is_empty());
+    assert_inside(&result, &upright_patch, &wide_patch);
+    assert_ends_on_boundaries(&result, &upright_patch, &wide_patch);
+    assert_covers(&result, &untrimmed, &upright_patch, &wide_patch);
 }
 
 #[test]
