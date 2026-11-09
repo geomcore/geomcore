@@ -1,7 +1,7 @@
 //! Two cones in general position, read along the first cone's generators.
 
 use super::*;
-use crate::{ConeConeIntersection, Curve};
+use crate::{ConeConeIntersection, Curve, QuarticBranch};
 use std::f64::consts::FRAC_PI_6;
 
 /// The cone of half-angle 30° with its apex at the origin along `Z`.
@@ -549,4 +549,31 @@ fn test_generators_along_the_same_direction_in_a_plane_touching_the_second_cone_
             assert_fitted(&first, &second, &fitted);
         }
     }
+}
+
+#[test]
+fn test_a_branch_read_within_tolerance_comes_back_from_its_cones() {
+    // A generator of the second cone `1e-13` from the upright cone's
+    // directions, read as touching them within `tol.angular`: one branch,
+    // which the cones give back within the same tolerance (issue #283).
+    // Read exactly, `A` changes sign twice there instead.
+    let tilt = 2.0 * FRAC_PI_6 + 1e-13;
+    let second = from_apex(
+        Point::new(-3.0, 0.5, 1.0),
+        Vector::new(tilt.sin(), 0.0, tilt.cos()),
+        FRAC_PI_6,
+    );
+    let ConeConeIntersection::Quartic(curve) = upright().intersect_exact(&second, TOL) else {
+        panic!("the quartic");
+    };
+    let branches = curve.branches();
+    assert_eq!(branches.len(), 1);
+    assert_eq!(branches[0].tolerance(), TOL);
+    let rebuilt = QuarticBranch::from_cones(&upright(), &second, 0, branches[0].tolerance());
+    assert_eq!(rebuilt.as_ref(), Some(&branches[0]));
+    let exact = Tolerance::new(0.0, 0.0, 0.0);
+    assert_ne!(
+        QuarticBranch::from_cones(&upright(), &second, 0, exact).as_ref(),
+        Some(&branches[0])
+    );
 }

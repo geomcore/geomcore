@@ -3,7 +3,7 @@
 
 use crate::arguments::{expected, surface_classes};
 use crate::method_sets::*;
-use crate::values::PyTransform;
+use crate::values::{PyTolerance, PyTransform, ToleranceArgument};
 use geomcore::{QuarticBranch, Surface};
 use pyo3::exceptions::PyValueError;
 
@@ -25,6 +25,7 @@ shape_methods! {
             surface_classes::to_py(slf.py(), first)?,
             surface_classes::to_py(slf.py(), second)?,
             this.index(),
+            this.tolerance(),
         )
             .into_pyobject(slf.py())?;
         let state = (this.is_reversed(), this.placement()).into_pyobject(slf.py())?;
@@ -51,22 +52,26 @@ shape_methods! {
     }
 
     #[new]
+    #[pyo3(signature = (first, second, index, tol=None))]
     /// Build the branch `index` of the quartic where `first` and `second`
-    /// meet: two cones, read with zero tolerances, or a cone and a cylinder
-    /// whose axis runs along a generator of the cone (within
-    /// `LOOSEST_ANGULAR`). `TypeError` for other surfaces, `ValueError`
-    /// when they meet in no quartic with such a branch.
+    /// meet, read within `tol` (the default if omitted): two cones, or a
+    /// cone and a cylinder whose axis runs along a generator of the cone.
+    /// The tolerance of the intersection that returned a branch,
+    /// `tolerance()`, gives it back. `TypeError` for other surfaces,
+    /// `ValueError` when they meet in no quartic with such a branch.
     fn py_new(
         first: &pyo3::Bound<'_, pyo3::PyAny>,
         second: &pyo3::Bound<'_, pyo3::PyAny>,
         index: usize,
+        tol: Option<ToleranceArgument>,
     ) -> PyResult<Self> {
+        let tol = crate::tolerance(tol);
         let branch = match (surface_classes::extract(first)?, surface_classes::extract(second)?) {
             (Surface::Cone(first), Surface::Cone(second)) => {
-                QuarticBranch::from_cones(&first, &second, index)
+                QuarticBranch::from_cones(&first, &second, index, tol)
             }
             (Surface::Cone(cone), Surface::Cylinder(cylinder)) => {
-                QuarticBranch::from_cone_and_cylinder(&cone, &cylinder, index)
+                QuarticBranch::from_cone_and_cylinder(&cone, &cylinder, index, tol)
             }
             _ => return Err(expected("pair of surfaces", &["two Cones", "a Cone and a Cylinder"])),
         };
@@ -89,6 +94,12 @@ shape_methods! {
     /// The branch's place among those of its quartic.
     fn index(&self) -> usize {
         self.0.index()
+    }
+
+    /// The tolerance its quartic was read with: with `surfaces()` and
+    /// `index()`, it gives the branch back.
+    fn tolerance(&self) -> PyTolerance {
+        PyTolerance(self.0.tolerance())
     }
 
     /// Whether the branch runs the other way from the one the constructor

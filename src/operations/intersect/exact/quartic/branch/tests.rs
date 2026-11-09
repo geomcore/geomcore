@@ -159,14 +159,15 @@ fn test_a_branch_comes_back_from_its_cones_and_index() {
         let (Surface::Cone(first), Surface::Cone(second)) = branch.surfaces() else {
             panic!("two cones");
         };
-        let rebuilt = QuarticBranch::from_cones(&first, &second, branch.index()).unwrap();
+        let rebuilt =
+            QuarticBranch::from_cones(&first, &second, branch.index(), branch.tolerance()).unwrap();
         assert_eq!(rebuilt, branch);
     }
     let (first, second) = cones();
-    assert!(QuarticBranch::from_cones(&first, &second, 4).is_none());
+    assert!(QuarticBranch::from_cones(&first, &second, 4, TOL).is_none());
     // Cones that meet in conics have no branch.
     let coaxial = Cone::new(Point::new(0.0, 0.0, 1.0), Vector::Z, 0.3, 0.5).unwrap();
-    assert!(QuarticBranch::from_cones(&first, &coaxial, 0).is_none());
+    assert!(QuarticBranch::from_cones(&first, &coaxial, 0, TOL).is_none());
 }
 
 #[test]

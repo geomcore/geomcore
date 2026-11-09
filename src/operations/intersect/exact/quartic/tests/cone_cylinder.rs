@@ -231,13 +231,13 @@ fn test_a_branch_comes_back_from_its_cone_and_cylinder() {
             panic!("a cone and a cylinder");
         };
         assert_eq!((cone, cylinder), (upright(), tube));
-        let rebuilt = QuarticBranch::from_cone_and_cylinder(&cone, &cylinder, index).unwrap();
+        let rebuilt = QuarticBranch::from_cone_and_cylinder(&cone, &cylinder, index, TOL).unwrap();
         assert_eq!(rebuilt, branch);
     }
-    assert!(QuarticBranch::from_cone_and_cylinder(&upright(), &tube, 2).is_none());
+    assert!(QuarticBranch::from_cone_and_cylinder(&upright(), &tube, 2, TOL).is_none());
     // Across the cone, the curve is bounded: no branch.
     let across = cylinder(Point::new(0.0, 0.4, 3.0), Vector::X, 0.8);
-    assert!(QuarticBranch::from_cone_and_cylinder(&upright(), &across, 0).is_none());
+    assert!(QuarticBranch::from_cone_and_cylinder(&upright(), &across, 0, TOL).is_none());
 }
 
 /// The point of the upright cone's generator in the `YZ` plane,
