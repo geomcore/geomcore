@@ -7,10 +7,14 @@ use crate::geometry::curves::ParametricCurve;
 use crate::geometry::surfaces::ParametricSurface;
 use crate::operations::intersect::numeric::marching::marching_intersection;
 use crate::prelude::*;
-use crate::{IntersectExact, IntersectionMethod};
-use std::f64::consts::FRAC_PI_2;
+use crate::{IntersectExact, IntersectionMethod, SurfaceSurfaceIntersection};
+use std::f64::consts::{FRAC_PI_2, TAU};
 
 const TOL: Tolerance = Tolerance::DEFAULT;
+
+/// The most poles the fit of one loop takes. A sample tangent turned the
+/// wrong way still fits within confusion, but over thousands of segments.
+const MOST_FIT_POLES: usize = 4_000;
 
 /// The cylinder of radius `r1` along `Z` through the origin, and the one of
 /// radius `r2` whose axis is at `angle` from `Z` in the `XZ` plane, moved
@@ -23,10 +27,40 @@ fn pair(r1: f64, r2: f64, angle: f64, d: f64) -> (Cylinder, Cylinder) {
     (first, second)
 }
 
+/// The cone of half-angle `half_angle` with its apex at the origin and its
+/// axis along `Z`, of radius `reference_radius` where `v` is zero.
+fn cone(half_angle: f64, reference_radius: f64) -> Cone {
+    let origin = Point::new(0.0, 0.0, reference_radius / half_angle.tan());
+    let cone = Cone::new(origin, Vector::Z, half_angle, reference_radius).unwrap();
+    assert!(cone.apex().distance(Point::ORIGIN) < 1e-15);
+    cone
+}
+
 /// How far `point` is from `surface`.
 fn off<S: ParametricSurface>(surface: &S, point: Point) -> f64 {
     let (u, v) = surface.parameters_of(point, TOL);
     surface.point_at(u, v).distance(point)
+}
+
+/// Whether the component `component` of `curve` runs around `ruled`, the
+/// quadric it is read along: its points are found at every angle around
+/// the axis, no sixteenth of a turn left empty. A loop over an arc of
+/// generators leaves the rest of the turn empty.
+fn runs_around<S: ParametricSurface>(curve: &QuarticCurve, component: usize, ruled: &S) -> bool {
+    const SAMPLES: usize = 256;
+    let mut angles: Vec<f64> = (0..SAMPLES)
+        .map(|k| {
+            let point = curve.point_at(component, k as f64 * TAU / SAMPLES as f64);
+            ruled.parameters_of(point, TOL).0.rem_euclid(TAU)
+        })
+        .collect();
+    angles.sort_by(f64::total_cmp);
+    let around_the_seam = angles[0] + TAU - angles[SAMPLES - 1];
+    let widest_gap = angles
+        .windows(2)
+        .map(|pair| pair[1] - pair[0])
+        .fold(around_the_seam, f64::max);
+    widest_gap < TAU / 16.0
 }
 
 /// The points of each component of `curve` lie within `within` of both
@@ -84,9 +118,9 @@ fn assert_branches_run_to_infinity(curve: &QuarticCurve) {
     }
 }
 
-/// Every fitted curve lies within confusion of both surfaces, closes, and
-/// its curves in parameters, where there are, map onto it within the
-/// deviation it reports.
+/// Every fitted curve lies within confusion of both surfaces, closes, takes
+/// few poles, and its curves in parameters, where there are, map onto it
+/// within the deviation it reports.
 fn assert_fitted<A: ParametricSurface, B: ParametricSurface>(
     first: &A,
     second: &B,
@@ -104,6 +138,11 @@ fn assert_fitted_within<A: ParametricSurface, B: ParametricSurface>(
 ) {
     for piece in curves {
         let curve = &piece.curve;
+        let Curve::BSpline(spline) = curve else {
+            panic!("expected a fitted loop, not {curve:?}");
+        };
+        let poles = spline.poles().len();
+        assert!(poles <= MOST_FIT_POLES, "a loop fitted with {poles} poles");
         let (t0, t1) = curve.bounds();
         assert!(curve.point_at(t0).distance(curve.point_at(t1)) < 1e-12);
         for k in 0..=1000 {
@@ -129,34 +168,67 @@ fn assert_fitted_within<A: ParametricSurface, B: ParametricSurface>(
 /// nearest of its points, found by a scan and then golden sections around
 /// the three nearest scanned.
 fn to_closed_form(curve: &QuarticCurve, component: usize, point: Point) -> f64 {
-    const SCAN: usize = 4096;
-    let step = TAU / SCAN as f64;
-    let distance = |t: f64| curve.point_at(component, t).distance(point);
-    let mut scanned: Vec<(f64, usize)> =
-        (0..SCAN).map(|k| (distance(k as f64 * step), k)).collect();
-    scanned.sort_by(|a, b| a.0.total_cmp(&b.0));
-    let ratio = 0.5 * (5.0_f64.sqrt() - 1.0);
-    scanned[..3]
+    let scanned = scan(curve, component, point);
+    let mut nearest: Vec<usize> = (0..SCAN).collect();
+    nearest.sort_by(|&a, &b| scanned[a].total_cmp(&scanned[b]));
+    nearest[..3]
         .iter()
-        .map(|&(_, k)| {
-            let (mut low, mut high) = ((k as f64 - 1.0) * step, (k as f64 + 1.0) * step);
-            for _ in 0..80 {
-                let (left, right) = (high - ratio * (high - low), low + ratio * (high - low));
-                if distance(left) < distance(right) {
-                    high = right;
-                } else {
-                    low = left;
-                }
-            }
-            distance(0.5 * (low + high))
-        })
+        .map(|&k| nearest_around(curve, component, point, k))
         .fold(f64::INFINITY, f64::min)
 }
 
-/// Each fitted component of `curve` lies within `within` of its closed
-/// form, and covers it: its points are within `within` of the fit.
-fn assert_fitted_on_closed_form(curve: &QuarticCurve, within: f64) {
-    let fitted = curve.fitted(TOL).unwrap();
+/// How many times the component `component` of `curve` passes through
+/// `point`: the dips of its distance to it, over a scan of the turn, that
+/// golden sections take within `1e-9` of it.
+fn passes_through(curve: &QuarticCurve, component: usize, point: Point) -> usize {
+    let scanned = scan(curve, component, point);
+    (0..SCAN)
+        .filter(|&k| {
+            let (before, after) = (scanned[(k + SCAN - 1) % SCAN], scanned[(k + 1) % SCAN]);
+            scanned[k] < before && scanned[k] <= after
+        })
+        .filter(|&k| nearest_around(curve, component, point, k) < 1e-9)
+        .count()
+}
+
+/// The steps of the scans over a turn of a component.
+const SCAN: usize = 4096;
+
+/// The distances from `point` of the component's points at each step.
+fn scan(curve: &QuarticCurve, component: usize, point: Point) -> Vec<f64> {
+    let step = TAU / SCAN as f64;
+    (0..SCAN)
+        .map(|k| curve.point_at(component, k as f64 * step).distance(point))
+        .collect()
+}
+
+/// The nearest the component comes to `point` within a step of the step
+/// `k`, by golden sections.
+fn nearest_around(curve: &QuarticCurve, component: usize, point: Point, k: usize) -> f64 {
+    let step = TAU / SCAN as f64;
+    let distance = |t: f64| curve.point_at(component, t).distance(point);
+    let ratio = 0.5 * (5.0_f64.sqrt() - 1.0);
+    let (mut low, mut high) = ((k as f64 - 1.0) * step, (k as f64 + 1.0) * step);
+    for _ in 0..80 {
+        let (left, right) = (high - ratio * (high - low), low + ratio * (high - low));
+        if distance(left) < distance(right) {
+            high = right;
+        } else {
+            low = left;
+        }
+    }
+    distance(0.5 * (low + high))
+}
+
+/// Each loop the routed pair fits lies within `within` of its closed form
+/// `curve`, and covers it: its points are within `within` of the fit.
+fn assert_fitted_on_closed_form<A, B>(curve: &QuarticCurve, first: &A, second: &B, within: f64)
+where
+    A: Intersect<B, Output = SurfaceSurfaceIntersection>,
+{
+    let result = first.intersect(second, TOL);
+    assert_eq!(result.method(), IntersectionMethod::Exact);
+    let fitted = result.curves();
     assert_eq!(fitted.len(), curve.component_count());
     for (component, piece) in fitted.iter().enumerate() {
         let (t0, t1) = piece.curve.bounds();
@@ -184,12 +256,60 @@ fn assert_routed(first: &Cylinder, second: &Cylinder, count: usize) {
     assert_eq!(marched.curves().len(), count);
 }
 
+/// The routed result is exact and complete, with `count` fitted loops on
+/// both surfaces and `contacts` points where they touch.
+fn assert_routed_result<A: ParametricSurface, B: ParametricSurface>(
+    result: &SurfaceSurfaceIntersection,
+    first: &A,
+    second: &B,
+    count: usize,
+    contacts: usize,
+) {
+    assert_eq!(result.method(), IntersectionMethod::Exact);
+    assert!(result.is_complete());
+    assert_eq!(result.curves().len(), count);
+    assert_eq!(result.contact_points().len(), contacts);
+    for p in result.contact_points() {
+        assert!(off(first, *p) <= TOL.confusion && off(second, *p) <= TOL.confusion);
+    }
+    assert_fitted(first, second, result.curves());
+}
+
+/// [`assert_routed_result`] in both orders, the loops as many as the
+/// marcher traces.
+fn assert_routed_both_ways<A, B>(first: &A, second: &B, count: usize, contacts: usize)
+where
+    A: ParametricSurface + Intersect<B, Output = SurfaceSurfaceIntersection>,
+    B: ParametricSurface + Intersect<A, Output = SurfaceSurfaceIntersection>,
+{
+    assert_routed_result(
+        &first.intersect(second, TOL),
+        first,
+        second,
+        count,
+        contacts,
+    );
+    assert_routed_result(
+        &second.intersect(first, TOL),
+        second,
+        first,
+        count,
+        contacts,
+    );
+    assert_eq!(
+        marching_intersection(first, second, None, TOL)
+            .curves()
+            .len(),
+        count
+    );
+}
+
 #[test]
 fn test_a_thin_pipe_through_a_thick_one_meets_it_in_two_loops_around_the_thin_one() {
     let (thin, thick) = pair(1.0, 2.0, FRAC_PI_2, 0.0);
     let curve = quartic(&thin, &thick);
     assert_eq!(curve.component_count(), 2);
-    assert!(matches!(curve.components[0], Component::Around { .. }));
+    assert!(runs_around(&curve, 0, &thin) && runs_around(&curve, 1, &thin));
     assert_routed(&thin, &thick, 2);
     // Off-centre and oblique.
     let (thin, thick) = pair(1.0, 2.0, 0.7, 0.6);
@@ -202,7 +322,9 @@ fn test_a_thick_pipe_meets_a_thin_one_through_it_in_two_loops_over_arcs() {
     let (thick, thin) = pair(2.0, 1.0, FRAC_PI_2, 0.0);
     let curve = quartic(&thick, &thin);
     assert_eq!(curve.component_count(), 2);
-    assert!(matches!(curve.components[0], Component::Between { .. }));
+    // Read along the thick one, each loop covers an arc of its generators;
+    // it still runs around the thin one.
+    assert!(!runs_around(&curve, 0, &thick) && runs_around(&curve, 0, &thin));
     assert_routed(&thick, &thin, 2);
     let (thick, thin) = pair(2.0, 1.0, 1.1, -0.4);
     assert_eq!(quartic(&thick, &thin).component_count(), 2);
@@ -218,7 +340,9 @@ fn test_pipes_biting_into_each_other_meet_in_one_loop() {
         (1.3, 0.9, 2.5, 1.9),
     ] {
         let (first, second) = pair(r1, r2, angle, d);
-        assert_eq!(quartic(&first, &second).component_count(), 1);
+        let curve = quartic(&first, &second);
+        assert_eq!(curve.component_count(), 1);
+        assert!(!runs_around(&curve, 0, &first) && !runs_around(&curve, 0, &second));
         assert_routed(&first, &second, 1);
     }
 }
@@ -239,8 +363,9 @@ fn test_nearly_parallel_axes_meet_in_long_loops() {
     let (first, second) = pair(1.0, 0.8, 0.01, 0.5);
     let curve = quartic(&first, &second);
     assert_eq!(curve.component_count(), 1);
-    let curves = curve.fitted(TOL).unwrap();
-    assert_fitted(&first, &second, &curves);
+    let result = first.intersect(&second, TOL);
+    assert_eq!(result.method(), IntersectionMethod::Exact);
+    assert_fitted(&first, &second, result.curves());
 }
 
 #[test]
@@ -286,7 +411,6 @@ fn test_a_thin_cylinder_touching_a_thick_one_from_inside_crosses_itself_there() 
                     panic!("expected the loop through the node");
                 };
                 assert_eq!(curve.component_count(), 1);
-                assert!(matches!(curve.components[0], Component::Node { .. }));
                 // The thin one's generator farthest from the thick axis,
                 // the axes at `y = 0` and `y = d`.
                 let (thin_axis, thin_radius, away) = if r1 < r2 {
@@ -297,7 +421,13 @@ fn test_a_thin_cylinder_touching_a_thick_one_from_inside_crosses_itself_there() 
                 let node = Point::new(0.0, thin_axis + away * thin_radius, 0.0);
                 let contact = curve.contact_point().unwrap();
                 assert!(contact.distance(node) < TOL.confusion);
-                // Both ways through the node, at `π/2` and `3π/2`.
+                // Twice around the thin one, over an arc of the thick one,
+                // both ways through the node, at `π/2` and `3π/2`.
+                let (around_first, around_second) = (
+                    runs_around(&curve, 0, &first),
+                    runs_around(&curve, 0, &second),
+                );
+                assert_eq!((around_first, around_second), (r1 < r2, r2 < r1));
                 for parameter in [FRAC_PI_2, 3.0 * FRAC_PI_2] {
                     assert!(curve.point_at(0, parameter).distance(contact) < 1e-12);
                 }
@@ -310,7 +440,7 @@ fn test_a_thin_cylinder_touching_a_thick_one_from_inside_crosses_itself_there() 
                 assert_eq!(result.contact_points(), [contact]);
                 assert_fitted(&first, &second, result.curves());
                 if angle == 0.9 {
-                    assert_fitted_on_closed_form(&curve, 0.3 * TOL.confusion);
+                    assert_fitted_on_closed_form(&curve, &first, &second, 0.3 * TOL.confusion);
                 }
             }
         }
@@ -333,5 +463,6 @@ fn test_a_fit_where_the_cylinders_nearly_touch_stays_on_the_curve() {
     // can be microns off the curve.
     let first = Cylinder::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
     let second = Cylinder::new(Point::new(0.0, 0.50001, 0.0), Vector::X, 0.5).unwrap();
-    assert_fitted_on_closed_form(&quartic(&first, &second), 0.3 * TOL.confusion);
+    let curve = quartic(&first, &second);
+    assert_fitted_on_closed_form(&curve, &first, &second, 0.3 * TOL.confusion);
 }

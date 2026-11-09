@@ -1,10 +1,9 @@
 //! A cone and a cylinder off its axis, read along the cylinder's
 //! generators.
 
-use super::sphere::{assert_routed_both_ways, assert_routed_result, cone};
 use super::*;
 use crate::{ConeCylinderIntersection, Curve, Frame, QuarticBranch};
-use std::f64::consts::FRAC_PI_6;
+use std::f64::consts::{FRAC_PI_6, PI};
 
 /// The cone of half-angle 30° with its apex at the origin along `Z`.
 fn upright() -> Cone {
@@ -47,7 +46,7 @@ fn test_a_cylinder_steeper_than_the_cone_meets_it_in_two_loops_around() {
         let tube = cylinder(through, direction, radius);
         let curve = cone_cylinder_quartic(&upright(), &tube);
         assert_eq!(curve.component_count(), 2);
-        assert!(matches!(curve.components[0], Component::Around { .. }));
+        assert!(runs_around(&curve, 0, &tube) && runs_around(&curve, 1, &tube));
         assert_routed_both_ways(&upright(), &tube, 2, 0);
     }
 }
@@ -76,7 +75,7 @@ fn test_parallel_axes_turned_anywhere_meet_in_two_loops_around() {
     .unwrap();
     let curve = cone_cylinder_quartic(&cone, &tube);
     assert_eq!(curve.component_count(), 2);
-    assert!(matches!(curve.components[0], Component::Around { .. }));
+    assert!(runs_around(&curve, 0, &tube) && runs_around(&curve, 1, &tube));
     assert_routed_both_ways(&cone, &tube, 2, 0);
 }
 
@@ -97,8 +96,9 @@ fn test_a_pipe_across_the_cone_meets_it_in_loops_around_or_over_arcs() {
         let curve = cone_cylinder_quartic(&upright(), &pipe);
         assert_eq!(curve.component_count(), loops, "{through:?} {radius}");
         assert_eq!(
-            matches!(curve.components[0], Component::Around { .. }),
-            around
+            runs_around(&curve, 0, &pipe),
+            around,
+            "{through:?} {radius}"
         );
         assert_routed_both_ways(&upright(), &pipe, loops, 0);
     }
@@ -125,7 +125,7 @@ fn test_skew_cones_and_cylinders_anywhere_meet_on_both() {
         let tube = cylinder(through, direction, radius);
         let curve = cone_cylinder_quartic(&tilted, &tube);
         assert_routed_both_ways(&tilted, &tube, curve.component_count(), 0);
-        assert_fitted_on_closed_form(&curve, 0.3 * TOL.confusion);
+        assert_fitted_on_closed_form(&curve, &tilted, &tube, 0.3 * TOL.confusion);
     }
 }
 
@@ -280,14 +280,10 @@ fn test_a_pipe_touching_the_cone_from_inside_meets_it_in_one_loop_crossing_itsel
         panic!("the quartic");
     };
     assert_eq!(curve.component_count(), 1);
-    assert!(matches!(curve.components[0], Component::Node { .. }));
-    assert!(
-        curve
-            .contact_point()
-            .unwrap()
-            .distance(foot_on_side(center))
-            < 1e-12
-    );
+    let contact = curve.contact_point().unwrap();
+    assert!(contact.distance(foot_on_side(center)) < 1e-12);
+    assert!(runs_around(&curve, 0, &tube));
+    assert_eq!(passes_through(&curve, 0, contact), 2);
     assert_exact(&curve, &upright(), &tube, TOL.confusion);
     assert_routed_in_either_order(&tube, 1, 1);
 }
@@ -303,34 +299,28 @@ fn test_a_pipe_touching_one_side_and_crossing_the_other_crosses_itself_on_an_arc
     let ConeCylinderIntersection::Quartic(curve) = upright().intersect_exact(&tube, TOL) else {
         panic!("the quartic");
     };
-    let crossing = curve.components[..curve.component_count()]
-        .iter()
-        .filter(|component| {
-            matches!(component, Component::Between { ends, .. } if ends.contains(&Ends::Crossing))
-        })
-        .count();
-    assert_eq!(crossing, 1);
-    assert!(
-        curve
-            .contact_point()
-            .unwrap()
-            .distance(foot_on_side(center))
-            < 1e-12
-    );
+    let contact = curve.contact_point().unwrap();
+    assert!(contact.distance(foot_on_side(center)) < 1e-12);
+    let crossing: Vec<usize> = (0..curve.component_count())
+        .filter(|&component| passes_through(&curve, component, contact) > 0)
+        .collect();
+    assert_eq!(crossing.len(), 1);
+    assert!(!runs_around(&curve, crossing[0], &tube));
+    assert_eq!(passes_through(&curve, crossing[0], contact), 2);
     assert_exact(&curve, &upright(), &tube, TOL.confusion);
     assert_routed_in_either_order(&tube, curve.component_count(), 1);
 }
 
-/// The single component of the pair's quartic, through the apex where the
-/// curve meets it: exact, its contact point the apex, and routed exact and
+/// The pair's quartic, through the apex where the curve meets it: exact,
+/// its single component, its contact point the apex, and routed exact and
 /// complete in either order, the apex a contact point.
-fn through_the_apex(tube: &Cylinder) -> Component {
+fn through_the_apex(tube: &Cylinder) -> QuarticCurve {
     let curve = cone_cylinder_quartic(&upright(), tube);
     assert_eq!(curve.component_count(), 1);
     assert!(curve.contact_point().unwrap().distance(Point::ORIGIN) < 1e-12);
     assert_exact(&curve, &upright(), tube, 1e-12);
     assert_routed_in_either_order(tube, 1, 1);
-    curve.components[0]
+    curve
 }
 
 #[test]
@@ -343,10 +333,9 @@ fn test_a_tube_through_the_apex_across_the_cone_crosses_itself_there() {
         (Point::new(1.0, 0.0, 0.0), Vector::new(0.0, 1.0, 0.3)),
     ] {
         let tube = cylinder(through, direction, 1.0);
-        assert!(matches!(
-            through_the_apex(&tube),
-            Component::Between { crosses: true, .. }
-        ));
+        let curve = through_the_apex(&tube);
+        assert!(!runs_around(&curve, 0, &tube));
+        assert_eq!(passes_through(&curve, 0, Point::ORIGIN), 2);
     }
 }
 
@@ -355,10 +344,9 @@ fn test_a_tube_over_the_apex_meets_it_at_the_apex_alone_and_the_cone_beyond() {
     // Along `X` above the apex, its wall tangent to the plane across the
     // axis there: the apex is a point of its own, the arc on the far side.
     let tube = cylinder(Point::new(0.0, 0.0, 1.0), Vector::X, 1.0);
-    assert!(matches!(
-        through_the_apex(&tube),
-        Component::Between { crosses: false, .. }
-    ));
+    let curve = through_the_apex(&tube);
+    assert!(!runs_around(&curve, 0, &tube));
+    assert!(to_closed_form(&curve, 0, Point::ORIGIN) > 0.1);
 }
 
 #[test]
@@ -372,10 +360,9 @@ fn test_a_steep_tube_through_the_apex_crosses_itself_there_each_time_around() {
             .component_perpendicular_to(along)
             .magnitude();
         let tube = cylinder(through, direction, radius);
-        assert!(matches!(
-            through_the_apex(&tube),
-            Component::ThroughApex { .. }
-        ));
+        let curve = through_the_apex(&tube);
+        assert!(runs_around(&curve, 0, &tube));
+        assert_eq!(passes_through(&curve, 0, Point::ORIGIN), 2);
     }
 }
 
@@ -412,14 +399,23 @@ fn test_a_pipe_around_the_apex_meets_each_nappe_over_an_arc_between_the_shadow_e
         let pipe = cylinder(through, Vector::X, radius);
         let curve = cone_cylinder_quartic(&upright(), &pipe);
         assert_eq!(curve.component_count(), 2);
-        for component in &curve.components {
-            let Component::Between { ends, .. } = component else {
-                panic!("expected an arc");
-            };
-            assert!(ends.contains(&Ends::Start) && ends.contains(&Ends::End));
+        for component in 0..2 {
+            assert!(!runs_around(&curve, component, &pipe));
+            // Each arc turns back at the parameters 0 and π, on a generator
+            // of the pipe that grazes the cone: the cone's normal there is
+            // across the pipe. The edges are the planes `y = ±z / √3`, and
+            // the arc has an end on each.
+            let ends = [0.0, PI].map(|parameter| curve.point_at(component, parameter));
+            for end in ends {
+                let (u, v) = upright().parameters_of(end, TOL);
+                let normal = upright().normal(u, v, TOL).unwrap();
+                assert!(normal.dot(Vector::X).abs() < 1e-6, "{normal:?}");
+                assert!((end.y.abs() - end.z.abs() / 3.0_f64.sqrt()).abs() < 1e-9);
+            }
+            assert!(ends[0].y * ends[1].y < 0.0, "{ends:?}");
         }
         assert_routed_both_ways(&upright(), &pipe, 2, 0);
-        assert_fitted_on_closed_form(&curve, 0.3 * TOL.confusion);
+        assert_fitted_on_closed_form(&curve, &upright(), &pipe, 0.3 * TOL.confusion);
     }
 }
 
@@ -439,31 +435,5 @@ fn test_a_cone_a_hair_off_the_cylinders_sphere_is_fitted_on_its_curve() {
     let curve = cone_cylinder_quartic(&wide, &tube);
     assert_eq!(curve.component_count(), 2);
     assert_routed_both_ways(&wide, &tube, 2, 0);
-    assert_fitted_on_closed_form(&curve, 0.3 * TOL.confusion);
-}
-
-#[test]
-fn test_the_tangent_runs_with_the_parameter_on_every_component() {
-    // Where the leading coefficient is negative, the distance along a
-    // generator falls as `√Δ` grows: an arc leaving the shadow's edge runs
-    // against the generator's direction. A tangent turned the wrong way
-    // still fits, but over tens of thousands of segments.
-    for (through, direction, radius) in [
-        (Point::new(0.0, 1.8, 3.0), Vector::X, 0.6),
-        (Point::new(0.0, 0.0, 0.5), Vector::X, 1.0),
-        (Point::new(1.5, -0.7, 3.0), Vector::new(0.2, 0.1, 1.0), 0.6),
-    ] {
-        let curve = cone_cylinder_quartic(&upright(), &cylinder(through, direction, radius));
-        for component in &curve.components[..curve.component_count()] {
-            with_rulings!(&curve, rulings => {
-                let orientation = rulings.orientation(*component);
-                for parameter in [0.3, 1.0, 2.0, 4.0, 5.5] {
-                    let here = rulings.sample(*component, parameter, orientation);
-                    let next = rulings.sample(*component, parameter + 1e-6, orientation);
-                    let chord = (next.point - here.point).normalized().unwrap();
-                    assert!(here.tangent.dot(chord) > 0.999, "{component:?} at {parameter}");
-                }
-            });
-        }
-    }
+    assert_fitted_on_closed_form(&curve, &wide, &tube, 0.3 * TOL.confusion);
 }
