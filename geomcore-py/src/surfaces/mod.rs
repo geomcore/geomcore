@@ -10,6 +10,7 @@ mod plane;
 mod revolution;
 mod sphere;
 mod torus;
+mod trimmed;
 pub(crate) mod uv_curve;
 
 pub(crate) use bezier::PyBezierSurface;
@@ -21,4 +22,5 @@ pub(crate) use plane::PyPlane;
 pub(crate) use revolution::PyRevolutionSurface;
 pub(crate) use sphere::PySphere;
 pub(crate) use torus::PyTorus;
+pub(crate) use trimmed::{PyTrimmedSurface, trimmed_surface};
 pub(crate) use uv_curve::{py_curve_3d_to_uv_within, py_uv_curve_to_3d_within};

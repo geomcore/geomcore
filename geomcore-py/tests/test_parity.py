@@ -132,7 +132,9 @@ _CURVE_CLASSES = {
         geomcore.TrimmedCurve2D,
     )
 }
-_SURFACE_CLASSES = {cls.__name__: cls for cls in get_args(geomcore.Surface)}
+_SURFACE_CLASSES = {
+    cls.__name__: cls for cls in (*get_args(geomcore.Surface), geomcore.TrimmedSurface)
+}
 
 
 def _shape_classes():
@@ -198,12 +200,15 @@ def _stub_docstrings(name):
 
 
 def test_every_class_has_a_fixture():
-    covered = {type(shape).__name__ for shape in _operands_3d() + _operands_2d()}
-    assert set(_shape_classes()) == covered
+    assert set(_shape_classes()) == set(_fixtures())
 
 
 def test_every_class_takes_its_tier_method_set():
     for name in _shape_classes():
+        if name == "TrimmedSurface":
+            # A patch has its own methods: the set's isoparametric curves,
+            # reversals and transforms are its basis's.
+            continue
         if name in _SURFACE_CLASSES:
             tier = "_SurfaceMethods"
         elif name.endswith("2D"):
@@ -341,7 +346,8 @@ def _union_parameters():
         # `Curve | TrimmedCurve`, registered as an alias of its own.
         names = None if annotation is None else _union_members(annotation)
         if names is None:
-            return None
+            # Another annotation, as `Tuple[float, float]`, by its text.
+            return None if annotation is None else ast.unparse(annotation)
         if len(names) == 1:
             return names[0]
         leaves = [leaf for name in names for leaf in aliases.get(name, [name])]
@@ -385,6 +391,9 @@ def _fixtures():
     fixtures = {}
     for shape in _operands_3d() + _operands_2d():
         fixtures.setdefault(type(shape).__name__, shape)
+    # A patch intersects surfaces only, so it is no operand of the
+    # curve-surface parity checks.
+    fixtures["TrimmedSurface"] = fixtures["Cylinder"].trimmed((0.0, 3.0), (-1.0, 1.0))
     return fixtures
 
 
@@ -405,6 +414,7 @@ _OTHER_ARGUMENTS = {
     "Axis": Axis(Point(0.0, 0.0, 5.0), Vector.unit_x()),
     "float": 0.1,
     "int": 8,
+    "Tuple[float, float]": (0.0, 1.0),
 }
 
 

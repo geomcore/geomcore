@@ -173,6 +173,7 @@ fn geomcore_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     curve_classes::add_to(m)?;
     curve_2d_classes::add_to(m)?;
     m.add_class::<PyTrimmedCurve>()?;
+    m.add_class::<surfaces::PyTrimmedSurface>()?;
     m.add_class::<PyTrimmedCurve2D>()?;
     surface_classes::add_to(m)?;
 

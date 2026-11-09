@@ -36,6 +36,9 @@ class FrameConstructionError(ConstructionError):
 class TrimmedCurveConstructionError(ConstructionError):
     """A trimmed curve could not be built, for example from an invalid parameter range."""
 
+class TrimmedSurfaceConstructionError(ConstructionError):
+    """A trimmed surface could not be built, for example from an invalid parameter range."""
+
 class KnotInsertionError(GeomcoreError):
     """A knot could not be inserted into a B-spline."""
 
@@ -617,6 +620,8 @@ class IntersectionCurve:
     def tangent(self) -> bool: ...
     @property
     def deviation(self) -> float: ...
+    @property
+    def parameter_range(self) -> Tuple[float, float]: ...
 
 @final
 class CurveCurveIntersection:
@@ -2007,6 +2012,17 @@ class _SurfaceMethods(Generic[_UIsoCurveType, _VIsoCurveType]):
         `Tolerance.default()` when omitted. Other Python threads run
         during the approximation.
         """
+    def trimmed(
+        self, u_range: Tuple[float, float], v_range: Tuple[float, float]
+    ) -> TrimmedSurface:
+        """The patch of the surface over the parameter ranges
+        `u_range` and `v_range`, each `(first, last)`, as a
+        `TrimmedSurface`. A periodic direction's range may cross the
+        seam, up to one period. Raises
+        `TrimmedSurfaceConstructionError` for non-finite ends, an
+        empty range, a range outside a non-periodic direction's
+        bounds, or one longer than a period.
+        """
     @overload
     def intersect(
         self, other: Curve | TrimmedCurve, tol: Optional[_ToleranceLike] = ...
@@ -2025,7 +2041,7 @@ class _SurfaceMethods(Generic[_UIsoCurveType, _VIsoCurveType]):
         """
     @overload
     def intersect(
-        self, other: Surface, tol: Optional[_ToleranceLike] = ...
+        self, other: Surface | TrimmedSurface, tol: Optional[_ToleranceLike] = ...
     ) -> SurfaceSurfaceIntersection: ...
 
 class _SidedSurfaceEvaluationMethods:
@@ -2313,6 +2329,36 @@ class BezierSurface(
     def elevate_u_degree(self, amount: int) -> BezierSurface: ...
     def elevate_v_degree(self, amount: int) -> BezierSurface: ...
 
+@final
+class TrimmedSurface:
+    __hash__: ClassVar[None]  # type: ignore[assignment]
+    def __new__(
+        cls, basis: Surface, u_range: Tuple[float, float], v_range: Tuple[float, float]
+    ) -> TrimmedSurface: ...
+    def basis(self) -> Surface: ...
+    def u_range(self) -> Tuple[float, float]: ...
+    def v_range(self) -> Tuple[float, float]: ...
+    def u_bounds(self) -> Tuple[float, float]: ...
+    def v_bounds(self) -> Tuple[float, float]: ...
+    def point_at(self, u: float, v: float) -> Point: ...
+    def points_at(self, uvs: Sequence[Tuple[float, float]]) -> List[Point]: ...
+    def first_derivatives(self, u: float, v: float) -> Tuple[Point, Tuple[Vector, Vector]]: ...
+    def normal(
+        self, u: float, v: float, tol: Optional[_ToleranceLike] = ...
+    ) -> Optional[Vector]: ...
+    def project_point(
+        self, point: Point, tol: Optional[_ToleranceLike] = ...
+    ) -> SurfaceProjection: ...
+    def contains(self, point: Point, tol: Optional[_ToleranceLike] = ...) -> bool: ...
+    def parameters_of(
+        self, point: Point, tol: Optional[_ToleranceLike] = ...
+    ) -> Tuple[float, float]: ...
+    def bounding_box(self) -> Optional[BoundingBox]: ...
+    def intersect(
+        self, other: Surface | TrimmedSurface, tol: Optional[_ToleranceLike] = ...
+    ) -> SurfaceSurfaceIntersection: ...
+    def __repr__(self) -> str: ...
+
 __all__ = [
     "BSplineSurface",
     "BezierSurface",
@@ -2323,6 +2369,7 @@ __all__ = [
     "RevolutionSurface",
     "Sphere",
     "Torus",
+    "TrimmedSurface",
 ]
 
 __all__ = [
@@ -2330,6 +2377,7 @@ __all__ = [
     "ConstructionError",
     "FrameConstructionError",
     "TrimmedCurveConstructionError",
+    "TrimmedSurfaceConstructionError",
     "KnotInsertionError",
     "KnotRemovalError",
     "DegreeElevationError",
@@ -2408,6 +2456,7 @@ __all__ = [
     "RevolutionSurface",
     "BSplineSurface",
     "BezierSurface",
+    "TrimmedSurface",
     "curve_3d_to_uv_within",
     "uv_curve_to_3d_within",
     "curve_curve_extrema",

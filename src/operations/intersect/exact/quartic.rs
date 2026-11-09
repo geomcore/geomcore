@@ -33,7 +33,7 @@
 use std::f64::consts::{PI, TAU};
 
 use crate::geometry::curves::fitting::{hermite_knots, hermite_spline, segment_length};
-use crate::geometry::curves::{Curve, Curve2D};
+use crate::geometry::curves::{Curve, Curve2D, ParametricCurve};
 use crate::operations::intersect::IntersectionCurve;
 use crate::{Cone, Cylinder, Point, Point2D, Sphere, Tolerance, Vector, Vector2D};
 
@@ -1626,6 +1626,7 @@ impl<R: Ruled, O: Other> Rulings<R, O> {
             hermite_spline(&values, &derivatives, &knots).map(|curve| Some(Curve2D::BSpline(curve)))
         });
         Some(IntersectionCurve {
+            parameter_range: curve.bounds(),
             curve: Curve::BSpline(curve),
             first_uv_curve: first.ok()?,
             second_uv_curve: second.ok()?,

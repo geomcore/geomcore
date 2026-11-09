@@ -44,7 +44,7 @@ use crate::{Point, Point2D, QuarticCurve, Tolerance};
 /// The surfaces meet in `curves`, each marked `true` where the surfaces
 /// graze along it instead of crossing.
 #[inline]
-fn surface_curves<C: Into<Curve>, const K: usize>(
+fn surface_curves<C: Into<Curve> + ParametricCurve, const K: usize>(
     curves: [(C, bool); K],
 ) -> Option<SurfaceSurfaceIntersection> {
     let curves = curves
@@ -95,16 +95,20 @@ trait PlaneSection {
 
 impl PlaneSection for PlaneCylinderIntersection {
     fn pieces(&self, curves: &mut Vec<IntersectionCurve>, _points: &mut Vec<Point>) {
-        let mut add =
-            |curve: Curve, tangent| curves.push(IntersectionCurve::in_space(curve, tangent));
         match *self {
-            PlaneCylinderIntersection::Circle(c) => add(c.into(), false),
-            PlaneCylinderIntersection::Ellipse(e) => add(e.into(), false),
-            PlaneCylinderIntersection::TwoLines(l1, l2) => {
-                add(l1.into(), false);
-                add(l2.into(), false);
+            PlaneCylinderIntersection::Circle(c) => {
+                curves.push(IntersectionCurve::in_space(c, false))
             }
-            PlaneCylinderIntersection::TangentLine(l) => add(l.into(), true),
+            PlaneCylinderIntersection::Ellipse(e) => {
+                curves.push(IntersectionCurve::in_space(e, false))
+            }
+            PlaneCylinderIntersection::TwoLines(l1, l2) => {
+                curves.push(IntersectionCurve::in_space(l1, false));
+                curves.push(IntersectionCurve::in_space(l2, false));
+            }
+            PlaneCylinderIntersection::TangentLine(l) => {
+                curves.push(IntersectionCurve::in_space(l, true))
+            }
             PlaneCylinderIntersection::Empty => {}
         }
     }
@@ -112,21 +116,23 @@ impl PlaneSection for PlaneCylinderIntersection {
 
 impl PlaneSection for PlaneConeIntersection {
     fn pieces(&self, curves: &mut Vec<IntersectionCurve>, points: &mut Vec<Point>) {
-        let mut add =
-            |curve: Curve, tangent| curves.push(IntersectionCurve::in_space(curve, tangent));
         match *self {
-            PlaneConeIntersection::Circle(c) => add(c.into(), false),
-            PlaneConeIntersection::Ellipse(e) => add(e.into(), false),
-            PlaneConeIntersection::Parabola(p) => add(p.into(), false),
+            PlaneConeIntersection::Circle(c) => curves.push(IntersectionCurve::in_space(c, false)),
+            PlaneConeIntersection::Ellipse(e) => curves.push(IntersectionCurve::in_space(e, false)),
+            PlaneConeIntersection::Parabola(p) => {
+                curves.push(IntersectionCurve::in_space(p, false))
+            }
             PlaneConeIntersection::Hyperbola(h1, h2) => {
-                add(h1.into(), false);
-                add(h2.into(), false);
+                curves.push(IntersectionCurve::in_space(h1, false));
+                curves.push(IntersectionCurve::in_space(h2, false));
             }
             PlaneConeIntersection::TwoLines(l1, l2) => {
-                add(l1.into(), false);
-                add(l2.into(), false);
+                curves.push(IntersectionCurve::in_space(l1, false));
+                curves.push(IntersectionCurve::in_space(l2, false));
             }
-            PlaneConeIntersection::TangentLine(l) => add(l.into(), true),
+            PlaneConeIntersection::TangentLine(l) => {
+                curves.push(IntersectionCurve::in_space(l, true))
+            }
             PlaneConeIntersection::ApexPoint(p) => points.push(p),
         }
     }

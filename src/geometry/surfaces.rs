@@ -18,6 +18,7 @@ mod sphere;
 mod surface;
 pub(crate) mod swept;
 mod torus;
+mod trimmed;
 pub(crate) mod uv_curve;
 
 pub use bezier::BezierSurface;
@@ -33,6 +34,8 @@ pub use sphere::{Sphere, SphereConstructionError};
 pub use surface::{ElementarySurface, Surface};
 pub(crate) use surface::{elementary_surface_dispatch, surface_dispatch, surface_variants};
 pub use torus::{Torus, TorusConstructionError};
+pub(crate) use trimmed::Restriction;
+pub use trimmed::{TrimmedSurface, TrimmedSurfaceConstructionError};
 pub use uv_curve::{
     Curve3DToUvApproximationError, Curve3DToUvError, UvCurveTo3DApproximationError,
     UvCurveTo3DError, curve_3d_to_uv_within, uv_curve_to_3d_within,

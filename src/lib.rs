@@ -181,7 +181,8 @@ pub use geometry::surfaces::{
     ExtrusionSurfaceConstructionError, ParametricSurface, Plane, PlaneConstructionError,
     ReversibleSurface, RevolutionSurface, RevolutionSurfaceConstructionError, Sphere,
     SphereConstructionError, Surface, SurfaceCurvatures, SurfaceIsoError, Torus,
-    TorusConstructionError, UvCurveTo3DApproximationError, UvCurveTo3DError,
+    TorusConstructionError, TrimmedSurface, TrimmedSurfaceConstructionError,
+    UvCurveTo3DApproximationError, UvCurveTo3DError,
 };
 pub use geometry::surfaces::{
     Curve3DToUvApproximationError, curve_3d_to_uv_within, uv_curve_to_3d_within,

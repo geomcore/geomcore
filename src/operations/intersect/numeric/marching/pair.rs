@@ -13,10 +13,16 @@ use crate::geometry::surfaces::{ElementarySurface, ParametricSurface};
 use crate::math::numeric::{solve_2x2, solve_3x3, solve_4x4};
 use crate::{BoundingBox, HasBoundingBox, Point, Tolerance, Vector};
 
-/// The two surfaces whose intersection is marched.
+/// The two surfaces whose intersection is marched, and the caller's box
+/// where unbounded branches end (see [`within`](Self::within)).
 pub(super) struct SurfacePair<'s, A, B> {
     pub(super) first: &'s A,
     pub(super) second: &'s B,
+    /// The box where the caller needs the intersection, where both
+    /// surfaces are unbounded: it replaces the guessed trace box (see
+    /// [`trace_box`](Self::trace_box)) and seed windows (see
+    /// [`seed_window`]).
+    pub(super) within: Option<&'s BoundingBox>,
 }
 
 impl<A, B> Clone for SurfacePair<'_, A, B> {
@@ -38,12 +44,28 @@ where
     B: ParametricSurface,
 {
     pub(super) fn new(first: &'s A, second: &'s B) -> Self {
-        SurfacePair { first, second }
+        SurfacePair {
+            first,
+            second,
+            within: None,
+        }
+    }
+
+    /// The same surfaces, their unbounded branches ending on `within`.
+    pub(super) fn within(self, within: Option<&'s BoundingBox>) -> Self {
+        SurfacePair { within, ..self }
     }
 
     /// The same surfaces, the second first; its parameters are [`swap`]ped.
     pub(super) fn swapped(self) -> SurfacePair<'s, B, A> {
-        SurfacePair::new(self.second, self.first)
+        SurfacePair::new(self.second, self.first).within(self.within)
+    }
+
+    /// The box the seeds of `surface`'s unbounded parameters span: the
+    /// own box of the other surface (see [`own_box`]), else the caller's
+    /// box.
+    pub(super) fn seeding_box<T: ParametricSurface>(&self, other: &T) -> Option<BoundingBox> {
+        own_box(other).or(self.within.copied())
     }
 
     /// The point at parameters `x` on the first surface.
@@ -458,19 +480,22 @@ where
 
     /// The box where traces end (see [`TraceBox`]): the smaller box around
     /// a bounded elementary or B-spline side (see [`own_box`]), which holds
-    /// the whole intersection; else the box of `seeds`, grown from their
-    /// spread and the surfaces' sizes (see [`seeded_box`](Self::seeded_box)).
+    /// the whole intersection; else the caller's box
+    /// ([`within`](Self::within)); else the box of `seeds`, grown from
+    /// their spread and the surfaces' sizes (see
+    /// [`seeded_box`](Self::seeded_box)).
     pub(super) fn trace_box(&self, seeds: &[[f64; 4]], tol: Tolerance) -> TraceBox {
         let size = |b: &BoundingBox| b.diagonal().magnitude();
-        match (own_box(self.first), own_box(self.second)) {
+        let own = match (own_box(self.first), own_box(self.second)) {
             (Some(first), Some(second)) if size(&second) < size(&first) => Some(second),
             (Some(first), _) => Some(first),
             (None, second) => second,
+        };
+        match (own, self.within) {
+            (Some(bounds), _) => TraceBox::Bounded(bounds.enlarged(0.1 * size(&bounds))),
+            (None, Some(&within)) => TraceBox::Within(within),
+            (None, None) => TraceBox::Seeded(self.seeded_box(seeds, tol)),
         }
-        .map_or_else(
-            || TraceBox::Seeded(self.seeded_box(seeds, tol)),
-            |bounds| TraceBox::Bounded(bounds.enlarged(0.1 * size(&bounds))),
-        )
     }
 
     /// The box of `seeds`, their points on the first surface, grown on
@@ -570,8 +595,8 @@ where
     S: ParametricSurface,
     T: ParametricSurface,
 {
-    let (u0, u1) = seed_window(surface, other, 0, tol);
-    let (v0, v1) = seed_window(surface, other, 1, tol);
+    let (u0, u1) = seed_window(surface, own_box(other), 0, tol);
+    let (v0, v1) = seed_window(surface, own_box(other), 1, tol);
     let corners = [(u0, v0), (u1, v0), (u0, v1), (u1, v1)];
     BoundingBox::from_points(corners.into_iter().map(|(u, v)| surface.point_at(u, v)))
         .map_or(0.0, |bounds| bounds.diagonal().magnitude())
@@ -585,9 +610,13 @@ pub(super) enum TraceBox {
     /// it, so a trace leaving it only catches a runaway step, and no
     /// branch is cut there.
     Bounded(BoundingBox),
-    /// The box of the seeds, where both surfaces are unbounded. A branch
-    /// leaving it runs on beyond it, so the trace reports the branch cut
-    /// there (see [`Cut`](super::tracer::Cut)).
+    /// The caller's box, where both surfaces are unbounded. A branch
+    /// leaving it ends there: the caller asked for nothing beyond, so no
+    /// branch is cut.
+    Within(BoundingBox),
+    /// The box of the seeds, where both surfaces are unbounded and the
+    /// caller gave no box. A branch leaving it runs on beyond it, so the
+    /// trace reports the branch cut there (see [`Cut`](super::tracer::Cut)).
     Seeded(BoundingBox),
 }
 
@@ -595,7 +624,9 @@ impl TraceBox {
     /// The box itself.
     pub(super) fn bounds(self) -> BoundingBox {
         match self {
-            TraceBox::Bounded(bounds) | TraceBox::Seeded(bounds) => bounds,
+            TraceBox::Bounded(bounds) | TraceBox::Within(bounds) | TraceBox::Seeded(bounds) => {
+                bounds
+            }
         }
     }
 

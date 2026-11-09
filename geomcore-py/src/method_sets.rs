@@ -1054,6 +1054,21 @@ macro_rules! surface {
                 self.0.v_reversed_parameter(v)
             }
 
+            /// The patch of the surface over the parameter ranges
+            /// `u_range` and `v_range`, each `(first, last)`, as a
+            /// `TrimmedSurface`. A periodic direction's range may cross the
+            /// seam, up to one period. Raises
+            /// `TrimmedSurfaceConstructionError` for non-finite ends, an
+            /// empty range, a range outside a non-periodic direction's
+            /// bounds, or one longer than a period.
+            fn trimmed(
+                &self,
+                u_range: (f64, f64),
+                v_range: (f64, f64),
+            ) -> PyResult<$crate::surfaces::PyTrimmedSurface> {
+                $crate::surfaces::trimmed_surface(self.0.clone(), u_range, v_range)
+            }
+
             /// Intersects with any curve or surface, in either order.
             ///
             /// Returns a `CurveSurfaceIntersection` or

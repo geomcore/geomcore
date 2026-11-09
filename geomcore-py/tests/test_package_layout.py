@@ -1,6 +1,6 @@
 """One path per name, at the package root (#203): the shapes sit beside the
 values and results, `Curve`, `Curve2D` and `Surface` name the classes of
-the Rust enums, a trimmed curve being a piece of a curve, and the old
+the Rust enums, a trimmed curve or surface being a piece of one, and the old
 `geomcore.curves` / `geomcore.surfaces` paths warn."""
 
 import pickle
@@ -20,6 +20,7 @@ from geomcore import (
     Surface,
     TrimmedCurve,
     TrimmedCurve2D,
+    TrimmedSurface,
     Vector,
 )
 
@@ -31,7 +32,7 @@ def _shape_classes_in_all():
 
 def test_curve_curve2d_and_surface_hold_every_shape_class_but_the_trimmed_once():
     kinds = [get_args(kind) for kind in (Curve, Curve2D, Surface)]
-    kinds.append((TrimmedCurve, TrimmedCurve2D))
+    kinds.append((TrimmedCurve, TrimmedCurve2D, TrimmedSurface))
     assert sum(len(kind) for kind in kinds) == len(_shape_classes_in_all())
     assert set().union(*kinds) == _shape_classes_in_all()
     assert all(cls.__name__.endswith("2D") for cls in get_args(Curve2D))

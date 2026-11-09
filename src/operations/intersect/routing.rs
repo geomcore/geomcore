@@ -26,7 +26,7 @@ use crate::geometry::curves::{
 };
 use crate::geometry::surfaces::{
     BSplineSurface, BezierSurface, ElementarySurface, ExtrusionSurface, ParametricSurface,
-    RevolutionSurface, Surface,
+    RevolutionSurface, Surface, TrimmedSurface,
 };
 use crate::operations::intersect::numeric::embedding_2d::{Embed, intersect_numeric_2d};
 use crate::operations::intersect::numeric::marching::marching_intersection;
@@ -35,7 +35,8 @@ use crate::operations::intersect::{
     CurveCurveIntersection, CurveCurveIntersection2D, CurveCurveOverlap, CurveSurfaceIntersection,
     GenericCurveCurveIntersection, InlineList, intersect_curve_curve, intersect_curve_surface,
 };
-use crate::{Point, Point2D, TierPoint, Tolerance};
+use crate::{BoundingBox, HasBoundingBox, Point, Point2D, TierPoint, Tolerance};
+use trimmed_surface::{route_restricted, trimmed};
 
 // The list macros come before the submodules, which use `shapes!` too.
 
@@ -91,6 +92,7 @@ macro_rules! curve_operands_2d {
 mod closed_form;
 mod exact_family;
 mod swept_plane;
+mod trimmed_surface;
 pub(crate) use closed_form::ExactFamily;
 use closed_form::{CurveKind, CurveKind2D, SurfaceKind};
 use swept_plane::Swept;
@@ -629,7 +631,19 @@ pub(crate) fn route_surface_surface<A: SurfaceOperand, B: SurfaceOperand>(
     b: &B,
     tol: Tolerance,
 ) -> SurfaceSurfaceIntersection {
-    let numeric_search = || marching_intersection(a, b, tol);
+    route_within(a, b, None, tol)
+}
+
+/// Intersects two surfaces as [`route_surface_surface`] does, a march
+/// tracing its branches only `within` the box when there is one.
+#[inline]
+fn route_within<A: SurfaceOperand, B: SurfaceOperand>(
+    a: &A,
+    b: &B,
+    within: Option<&BoundingBox>,
+    tol: Tolerance,
+) -> SurfaceSurfaceIntersection {
+    let numeric_search = || marching_intersection(a, b, within, tol);
     let first: SurfaceKind<'_> = a.surface_basis().into();
     let second: SurfaceKind<'_> = b.surface_basis().into();
     first
@@ -656,6 +670,52 @@ macro_rules! surface_surface {
 }
 
 surface_operands!(surface_operands surface_surface);
+
+/// Implements [`Intersect`] between a trimmed surface over any surface
+/// operand and each surface, in both orders: the bases are intersected and
+/// the result clipped to the ranges (see `trimmed_surface`).
+macro_rules! trimmed_surface_surface {
+    ([$($surface:ty),*]) => {$(
+        impl<X: SurfaceOperand + HasBoundingBox> Intersect<$surface> for TrimmedSurface<X> {
+            type Output = SurfaceSurfaceIntersection;
+
+            #[inline]
+            fn intersect(&self, other: &$surface, tol: Tolerance) -> SurfaceSurfaceIntersection {
+                route_restricted(self.basis(), trimmed(self), other, None, tol)
+            }
+        }
+
+        impl<X: SurfaceOperand + HasBoundingBox> Intersect<TrimmedSurface<X>> for $surface {
+            type Output = SurfaceSurfaceIntersection;
+
+            #[inline]
+            fn intersect(&self, other: &TrimmedSurface<X>, tol: Tolerance) -> SurfaceSurfaceIntersection {
+                route_restricted(self, None, other.basis(), trimmed(other), tol)
+            }
+        }
+    )*};
+}
+
+surface_operands!(trimmed_surface_surface);
+
+impl<X, Y> Intersect<TrimmedSurface<Y>> for TrimmedSurface<X>
+where
+    X: SurfaceOperand + HasBoundingBox,
+    Y: SurfaceOperand + HasBoundingBox,
+{
+    type Output = SurfaceSurfaceIntersection;
+
+    #[inline]
+    fn intersect(&self, other: &TrimmedSurface<Y>, tol: Tolerance) -> SurfaceSurfaceIntersection {
+        route_restricted(
+            self.basis(),
+            trimmed(self),
+            other.basis(),
+            trimmed(other),
+            tol,
+        )
+    }
+}
 
 /// Intersects two curves of one tier, each read as its basis and range:
 /// in closed form when the table lists the pair, by the tier's numeric
