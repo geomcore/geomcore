@@ -9,6 +9,22 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+## [0.45.0] - 2026-11-10
+
+Cylinders, cones and spheres meet in closed form. Every pair of them,
+in any position but one, is now intersected exactly instead of
+marched: the space quartic where two of them meet is fitted loop by
+loop within confusion, and the pieces that run to infinity come back
+as `QuarticBranch`, a new exact curve. The special positions have
+readings of their own: surfaces touching at one or two points, an apex
+on the other surface, a shared apex, a common inscribed sphere, two
+parallel cones of one half-angle. One cone pair stays with the search:
+a plane through parallel generators touching both cones (ADR 0042).
+`TrimmedSurface` restricts any surface to the patch a face lies on,
+and an intersection cuts its curves to the patch. The breaking changes
+are new variants of the closed-form result enums and a new field of
+`IntersectionCurve`; each entry under Breaking says what to write.
+
 ### Added
 
 - `TrimmedSurface`, a surface restricted to a parameter rectangle, the
@@ -59,8 +75,7 @@ the Python distribution are versioned in lockstep.
   `QuarticBranch::tolerance` give back its surfaces and the tolerance it
   was read with, which rebuilds it as it was (#283), and Python pickles
   it; it rebuilds a branch of the cubic of `LineAndCubic` too. A
-  generator of one cone touching the other's
-  directions is one where the branch runs off at both ends, and two
+  generator of one cone touching the other's directions is one where the branch runs off at both ends, and two
   branches meet at infinity where both roots run off together along one
   generator. Still marched: those two at once, the plane through the
   generators touching both cones.
@@ -73,8 +88,8 @@ the Python distribution are versioned in lockstep.
   exact `QuarticBranch` curves, the result exact and complete.
   `QuarticBranch::from_cone_and_cylinder(cone, cylinder, index, tol)`
   rebuilds one, and the Python `QuarticBranch(first, second, index,
-  tol=None)` takes a cone and a cylinder too. Trimmed patches of the pair cut those branches at
-  their ranges. The `marching_intersection` bench no longer times this
+  tol=None)` takes a cone and a cylinder too. Trimmed patches of the
+  pair cut those branches at their ranges. The `marching_intersection` bench no longer times this
   pair; `intersect_dispatch` does, as `cone_cylinder/along_*`. With the
   apex on the cylinder, that generator of the cone lies on the cylinder,
   and the rest is a cubic through the apex,
@@ -3015,7 +3030,8 @@ Behaviour, in Rust and Python alike:
 - Golden-fixture validation of all numeric results at 1e-7 tolerance, and
   criterion throughput benchmarks (`docs/benchmarks.md`).
 
-[Unreleased]: https://github.com/geomcore/geomcore/compare/v0.44.0...HEAD
+[Unreleased]: https://github.com/geomcore/geomcore/compare/v0.45.0...HEAD
+[0.45.0]: https://github.com/geomcore/geomcore/compare/v0.44.0...v0.45.0
 [0.44.0]: https://github.com/geomcore/geomcore/compare/v0.43.0...v0.44.0
 [0.43.0]: https://github.com/geomcore/geomcore/compare/v0.42.2...v0.43.0
 [0.42.2]: https://github.com/geomcore/geomcore/compare/v0.42.1...v0.42.2
