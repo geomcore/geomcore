@@ -85,7 +85,11 @@ _Avoid_: AABB, bbox, extent, contains or inside (reserved) for a point in a box
 ## Precision
 
 **Model size**:
-The side of the cube, centred on the origin, that models are assumed to fit in: 1e5 model units. It bounds the model, not its carriers: an infinite line or plane matters only inside it. Within it, `f64` coordinates are exact to far below the confusion tolerance.
+The side of the cube that models are assumed to fit in: 1e5 model units at the default tolerance, `tol.confusion / tol.angular` in general. The cube sits on the model, wherever the model is (ADR 0046). It bounds the model, not its carriers: an infinite line or plane matters only inside it. Within it, `f64` coordinates are exact to far below the confusion tolerance.
+
+**Similarity invariance**:
+Moving every operand by one similarity and scaling the confusion tolerance alike gives the same result, moved. A result therefore does not depend on the model's size nor on where it sits (ADR 0046).
+_Avoid_: scale-free or unit-independent for this property
 
 **Confusion tolerance**:
 The distance below which two points coincide (`tol.confusion`), tested by `coincides`. Every geometric decision is a distance decision against it.

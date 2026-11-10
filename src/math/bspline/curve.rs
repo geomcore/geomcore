@@ -1539,14 +1539,17 @@ fn scan_span_sized<const N: usize, G: TierPoint>(
     }
     let q: [f64; 3] = std::array::from_fn(|c| if c < G::DIM { point.coord(c) } else { 0.0 });
     // Offsets `A` per coordinate and their differences (`A'` up to the
-    // factor `p`, as `w'`), scaled; `magnitude` bounds their rounding.
+    // factor `p`, as `w'`), scaled. Each offset is rounded within
+    // `EPSILON * magnitude`, and `reach` is the largest of them.
     let mut offset = [[0.0; N]; 3];
     let mut slope = [[0.0; N]; 3];
     let mut magnitude: f64 = 0.0;
+    let mut reach: f64 = 0.0;
     for c in 0..3 {
         for k in 0..=p {
             offset[c][k] = bezier[c][k] - q[c] * weight[k];
             magnitude = magnitude.max(bezier[c][k].abs() + q[c].abs() * weight[k]);
+            reach = reach.max(offset[c][k].abs());
         }
         for k in 0..p {
             slope[c][k] = offset[c][k + 1] - offset[c][k];
@@ -1581,7 +1584,11 @@ fn scan_span_sized<const N: usize, G: TierPoint>(
     let g = &mut g[..=degree_g];
     unscale(g);
     let max_weight = weight[..=p].iter().fold(0.0f64, |m, &w| m.max(w));
-    let tiny = 1e3 * f64::EPSILON * magnitude * magnitude * max_weight;
+    // A coefficient of `G` is a sum of products of two offsets, so its
+    // rounding follows the offsets' rounding times their size: far from
+    // the origin the coordinates grow and the offsets do not.
+    let reach = reach.max(f64::EPSILON * magnitude);
+    let tiny = 1e3 * f64::EPSILON * magnitude * reach * max_weight;
     let h = b - a;
     rising_roots::<N>(g, tiny, |s0, s1, s| {
         let bounds = (a + s0 * h, if s1 == 1.0 { b } else { a + s1 * h });

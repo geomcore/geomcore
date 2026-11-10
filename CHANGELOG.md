@@ -9,6 +9,22 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+### Fixed
+
+- `project_point` and `extrema` on a B-spline or Bézier curve far from
+  the origin: at 1e7 model units the interior minima were dropped and
+  the closest point came back up to four times too far. The rounding
+  floor of the search now follows the distances from the query to the
+  poles, not the coordinates.
+
+### Changed
+
+- A result is meant not to depend on the model's size or placement
+  (ADR 0046). `tests/similarity_invariance.rs` checks it on every
+  sample shape and pair, and
+  `tests/fixtures/similarity_invariance_known.txt` lists the
+  comparisons that do not hold yet.
+
 ## [0.45.0] - 2026-11-10
 
 Cylinders, cones and spheres meet in closed form. Every pair of them,
