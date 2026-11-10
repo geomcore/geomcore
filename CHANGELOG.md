@@ -25,6 +25,17 @@ the Python distribution are versioned in lockstep.
   distance against `tol.confusion`: the surfaces are tangent when they
   are within `tol.confusion` of touching. For the torus this widens the
   tangent case, which was decided by how close two roots were.
+- `curve_curve_extrema` lost minima when the curves were scaled or
+  moved far from the origin, for 33 sample pairs. Three causes. The
+  minimiser's shift of an indefinite Hessian was measured on a
+  Hessian mixing an angle and a length, so a parabola scaled by 2^20
+  barely moved; it is now measured on the Hessian scaled to a unit
+  diagonal. Far from the origin the squared distance rounds long
+  before the parameters converge; a full Newton step that stays convex
+  and at least halves the gradient is now taken as progress, as in one
+  parameter. And a `QuarticBranch` differenced its world points
+  for its derivatives, so 1e7 away its second derivative was wrong in
+  the third digit; it now differences its points before its placement.
 
 ### Changed
 
