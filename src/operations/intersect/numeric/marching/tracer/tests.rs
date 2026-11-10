@@ -1,5 +1,5 @@
 use super::*;
-use crate::{Cylinder, Plane, Sphere, Torus};
+use crate::{Cone, Cylinder, Plane, Sphere, Torus};
 
 const TOL: Tolerance = Tolerance::DEFAULT;
 
@@ -137,14 +137,29 @@ fn test_a_touch_at_a_point_is_a_touch() {
 }
 
 #[test]
-fn test_a_crossing_without_a_direction_is_lost() {
+fn test_a_touch_at_a_sphere_pole_is_a_touch() {
     // The plane `z = 1` touches the unit sphere at its pole, where the
-    // sphere's parametrization is singular: no touch is read there, and
-    // the normals, both along z, give no direction to cross along.
+    // sphere's parameters give no tangent plane but its geometry does.
     let plane = Plane::new(Point::new(0.0, 0.0, 1.0), Vector::Z).unwrap();
     let sphere = Sphere::new(Point::ORIGIN, 1.0).unwrap();
     let pair = SurfacePair::new(&plane, &sphere);
     let seed = seed_at(&pair, Point::new(0.0, 0.0, 1.0));
+    assert!(matches!(
+        Tracer::new(pair, TOL, &[seed]).trace(seed),
+        Trace::Touch
+    ));
+}
+
+#[test]
+fn test_a_crossing_at_a_cone_apex_is_lost() {
+    // Two cones with one apex cross along lines through it, but at the
+    // apex neither has a tangent plane to step along.
+    let first = Cone::from_apex(Point::ORIGIN, Vector::Z, 0.5).unwrap();
+    let second = Cone::from_apex(Point::ORIGIN, Vector::X, 1.2).unwrap();
+    let pair = SurfacePair::new(&first, &second);
+    let (u1, v1) = first.parameters_of(Point::ORIGIN, TOL);
+    let (u2, v2) = second.parameters_of(Point::ORIGIN, TOL);
+    let seed = [u1, v1, u2, v2];
     assert!(matches!(
         Tracer::new(pair, TOL, &[seed]).trace(seed),
         Trace::Lost
@@ -164,4 +179,32 @@ fn test_knot_counts_run_on_across_periods() {
     assert_eq!(knot(&knots, true, -1), -2.0);
     assert_eq!(knot(&knots, false, -1), f64::NEG_INFINITY);
     assert_eq!(knot(&knots, false, 4), f64::INFINITY);
+}
+
+#[test]
+fn test_a_trace_from_a_sphere_pole_leaves_it() {
+    // At the pole the sphere's parameters give no tangent plane, so no
+    // step there moves them to first order: the step's guess is the
+    // projection of the predicted point instead.
+    let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
+    let torus = Torus::new(Point::new(0.0, 2.0, 2.0), Vector::X, 1.5, 0.5).unwrap();
+    let pole = Point::new(0.0, 0.0, 2.0);
+    let pair = SurfacePair::new(&sphere, &torus);
+    let (u, v) = sphere.parameters_of(pole, TOL);
+    let on_torus = torus.project_point(pole, TOL);
+    let seed = [u, v, on_torus.u, on_torus.v];
+    let Trace::Curve { points, .. } = Tracer::new(pair, TOL, &[seed]).trace(seed) else {
+        panic!("no curve traced from the pole");
+    };
+    assert!(points.len() > 10, "{}", points.len());
+    for p in &points {
+        assert!(
+            (p.distance(Point::ORIGIN) - 2.0).abs() <= TOL.confusion,
+            "{p:?}"
+        );
+        assert!(
+            torus.project_point(*p, TOL).distance <= TOL.confusion,
+            "{p:?}"
+        );
+    }
 }

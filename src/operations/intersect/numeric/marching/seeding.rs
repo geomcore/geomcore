@@ -2,11 +2,13 @@
 //! surfaces, in what order, and when one is left out (see [`seeds`]).
 
 use super::level_extrema::extremum_seeds;
-use super::pair::{SurfacePair, swap};
+use super::pair::{SurfacePair, swap, unit_normal};
 use super::tracer::first_step;
 use crate::geometry::curves::{Circle, ElementaryCurve, ParametricCurve};
+use crate::geometry::surfaces::parametric_surface::reference_widths;
 use crate::geometry::surfaces::{BSplineSurface, ElementarySurface, ParametricSurface, Surface};
 use crate::math::numeric::boxtree::Aabb;
+use crate::math::numeric::brent_minimum;
 use crate::operations::intersect::CurveSurfaceIntersection;
 use crate::operations::intersect::numeric::patch_pairs;
 use crate::operations::intersect::numeric::surface_patches::{SurfacePatches, pair_patches};
@@ -98,10 +100,19 @@ where
         }
         return (seeds, false);
     }
-    let points = match pair_seeds(pair, tol) {
+    let mut points = match pair_seeds(pair, tol) {
         Some(seeds) => distinct_seeds(pair.first, seeds, tol),
         None => both_grid_seeds(pair, tol),
     };
+    for seed in known_singular_seeds(pair, tol) {
+        let p = pair.point(seed);
+        if points
+            .iter()
+            .all(|&x| pair.point(x).distance(p) > tol.confusion)
+        {
+            points.push(seed);
+        }
+    }
     let later = !(grid_scale(pair.first) && grid_scale(pair.second));
     (points.into_iter().map(Seed::On).collect(), later)
 }
@@ -274,6 +285,193 @@ where
             pair.meet(pair.predict(x, step), Some((p + step, direction)), tol)
         })
         .collect()
+}
+
+/// Seeds on the branches leaving `x`, a point on both surfaces where the
+/// parameters of a surface give it no tangent plane (see
+/// [`unit_normal`]): a cone's apex, a sphere's pole, a spindle torus's
+/// points on its axis. No trace steps from there, so a curve through the
+/// point is seeded a first step away from it instead, on each surface
+/// singular at `x` (see [`ring_seeds`]).
+///
+/// Around an apex the branches leaving it are the generators of the cone
+/// that lie on the other surface's tangent cone there: against another
+/// cone through the same apex, their shared generators; against a smooth
+/// surface, the generators in its tangent plane. A generator along which
+/// the two only touch is a double direction: it is kept where the other
+/// surface comes within confusion of the ring of points a first step
+/// from the apex.
+pub(super) fn singular_point_seeds<A, B>(
+    pair: SurfacePair<A, B>,
+    x: [f64; 4],
+    tol: Tolerance,
+) -> Vec<[f64; 4]>
+where
+    A: ParametricSurface,
+    B: ParametricSurface,
+{
+    let mut seeds = ring_seeds(pair, x, tol);
+    seeds.extend(
+        ring_seeds(pair.swapped(), swap(x), tol)
+            .into_iter()
+            .map(swap),
+    );
+    seeds
+}
+
+/// Seeds at the singular points of either surface of `pair` that lie
+/// within confusion of the other (see [`singular_points`]), so that the
+/// branches leaving them are seeded around (see [`singular_point_seeds`])
+/// whether or not another seed lands there.
+fn known_singular_seeds<A, B>(pair: SurfacePair<A, B>, tol: Tolerance) -> Vec<[f64; 4]>
+where
+    A: ParametricSurface,
+    B: ParametricSurface,
+{
+    fn on_other<S: ParametricSurface, T: ParametricSurface>(
+        surface: &S,
+        other: &T,
+        tol: Tolerance,
+    ) -> Vec<[f64; 4]> {
+        singular_points(surface)
+            .into_iter()
+            .filter_map(|point| {
+                let hit = other.project_point(point, tol);
+                let (u, v) = surface.parameters_of(point, tol);
+                (hit.distance <= tol.confusion).then_some([u, v, hit.u, hit.v])
+            })
+            .collect()
+    }
+    let mut seeds = on_other(pair.first, pair.second, tol);
+    seeds.extend(on_other(pair.second, pair.first, tol).into_iter().map(swap));
+    seeds
+}
+
+/// The points where an elementary surface has no tangent plane: a cone's
+/// apex, and a torus's points on its axis when its minor radius is at
+/// least its major radius (a spindle torus, or a horn torus's centre).
+fn singular_points<S: ParametricSurface>(surface: &S) -> Vec<Point> {
+    match surface.as_elementary() {
+        Some(ElementarySurface::Cone(cone)) => vec![cone.apex()],
+        Some(ElementarySurface::Torus(torus)) if torus.minor_radius() >= torus.major_radius() => {
+            let frame = torus.frame();
+            let reach = (torus.minor_radius().powi(2) - torus.major_radius().powi(2)).sqrt();
+            let along = frame.z_direction() * reach;
+            vec![frame.origin() + along, frame.origin() - along]
+        }
+        _ => Vec::new(),
+    }
+}
+
+/// Samples of the distance to the other surface around a ring of
+/// [`ring_seeds`].
+const RING_SAMPLES: usize = 48;
+
+/// Seeds where the other surface of `pair` meets the rings around `x` on
+/// the first surface, when the first surface's partials there give it no
+/// tangent plane (see [`unit_normal`]), one of them vanishing: the
+/// parameter of the vanishing partial runs over its range, the other is
+/// moved by a first step's length either way (see [`first_step`]), and
+/// the ring is the point it then sweeps, a first step from `x`. At each
+/// local minimum of the distance to the other surface over
+/// [`RING_SAMPLES`] samples, refined by Brent's method, a distance within
+/// confusion is a branch crossing the ring, converged onto both surfaces.
+/// Nothing where the partials span a plane, both vanish, or a ring would
+/// leave the parameter bounds (the half of a sphere beyond its pole).
+fn ring_seeds<S, T>(pair: SurfacePair<S, T>, x: [f64; 4], tol: Tolerance) -> Vec<[f64; 4]>
+where
+    S: ParametricSurface,
+    T: ParametricSurface,
+{
+    let (surface, other) = (pair.first, pair.second);
+    let (_, [su, sv]) = surface.first_derivatives(x[0], x[1]);
+    if unit_normal(surface, su, sv, tol).is_some() {
+        return Vec::new();
+    }
+    let [u_width, v_width] = reference_widths(surface, tol);
+    let vanishing = (
+        tol.is_negligible_derivative(su.magnitude(), u_width),
+        tol.is_negligible_derivative(sv.magnitude(), v_width),
+    );
+    // The parameter running around the ring, and the speed along the other.
+    let (around, speed) = match vanishing {
+        (true, false) => (0, sv.magnitude()),
+        (false, true) => (1, su.magnitude()),
+        _ => return Vec::new(),
+    };
+    let across = 1 - around;
+    let (period, bounds) = if around == 0 {
+        (surface.u_period(), surface.u_bounds())
+    } else {
+        (surface.v_period(), surface.v_bounds())
+    };
+    let (low, high, count) = match period {
+        Some(period) => (x[around], x[around] + period, RING_SAMPLES),
+        None if bounds.0.is_finite() && bounds.1.is_finite() => {
+            (bounds.0, bounds.1, RING_SAMPLES + 1)
+        }
+        None => return Vec::new(),
+    };
+    let across_bounds = if across == 0 {
+        surface.u_bounds()
+    } else {
+        surface.v_bounds()
+    };
+    let parameters = |around_value: f64, across_value: f64| {
+        if around == 0 {
+            (around_value, across_value)
+        } else {
+            (across_value, around_value)
+        }
+    };
+    let spacing = (high - low) / RING_SAMPLES as f64;
+    let step = first_step(tol) / speed;
+    let mut seeds = Vec::new();
+    for side in [1.0, -1.0] {
+        let across_value = x[across] + side * step;
+        if !(across_bounds.0..=across_bounds.1).contains(&across_value) {
+            continue;
+        }
+        let projection = |r: f64| {
+            let (u, v) = parameters(r, across_value);
+            other.project_point(surface.point_at(u, v), tol)
+        };
+        let at = |i: usize| low + spacing * i as f64;
+        let distances: Vec<f64> = (0..count).map(|i| projection(at(i)).distance).collect();
+        for i in 0..count {
+            let neighbour = |offset: isize| {
+                let j = i as isize + offset;
+                match period {
+                    Some(_) => Some(distances[j.rem_euclid(count as isize) as usize]),
+                    None => usize::try_from(j)
+                        .ok()
+                        .and_then(|j| distances.get(j).copied()),
+                }
+            };
+            if [neighbour(-1), neighbour(1)]
+                .into_iter()
+                .flatten()
+                .any(|d| d < distances[i])
+            {
+                continue;
+            }
+            let (from, to) = (at(i) - spacing, at(i) + spacing);
+            let (from, to) = match period {
+                Some(_) => (from, to),
+                None => (from.max(low), to.min(high)),
+            };
+            let nearest = brent_minimum(|r| projection(r).distance, from, to, 1e-12 * spacing);
+            let hit = projection(nearest);
+            if hit.distance > tol.confusion {
+                continue;
+            }
+            let (u, v) = parameters(nearest, across_value);
+            if let Some(y) = pair.meet([u, v, hit.u, hit.v], None, tol) {
+                seeds.push(y);
+            }
+        }
+    }
+    seeds
 }
 
 /// Iso-curves seeding from one elementary side.
