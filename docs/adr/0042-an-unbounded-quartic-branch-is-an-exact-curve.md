@@ -18,7 +18,7 @@ With `W(t)` from the apex to the generator's base, `β = n·W(t)` with `n = (a�
 
 The true `A` within `tol.angular` of zero puts the second root about `2β / A` away, and the point read as met once is off the cone by about `A s`: nothing at the distances a model reaches.
 
-`QuarticBranch::from_cone_and_cylinder(cone, cylinder, index)` rebuilds such a branch. An intersection reads the pair as met once within its own `tol.angular`, which the branch does not keep, so the rebuild reads it within `QuarticBranch::LOOSEST_ANGULAR` (`1e-6`), looser than any angular tolerance an intersection uses: every branch an intersection returns comes back. `QuarticBranch::surfaces` gives the two surfaces back, two cones or a cone and a cylinder.
+`QuarticBranch::from_cone_and_cylinder(cone, cylinder, index, tol)` rebuilds such a branch. `QuarticBranch::surfaces` gives the two surfaces back, two cones or a cone and a cylinder, and `QuarticBranch::tolerance` the tolerance it was read with (see below).
 
 ## The parameter
 
@@ -38,7 +38,9 @@ Far out the points lose precision: `A` cancels to about `1e-16` in its terms, an
 
 `QuarticBranch` is a `Curve` variant: it evaluates, projects, reverses (`u` negated), transforms (its placement composed with the transform), and intersects through the numeric search, as a B-spline does. It has no bounding box and no B-spline (`Unbounded`), and no curve in any surface's parameters (`NotAnalytic`). A swept surface takes it as a profile: an extrusion projects onto it by searching along it, a revolution by searching out to where it passes the reach.
 
-`QuarticBranch::from_cones(first, second, index)` builds one from the cones it lies on and its place among the quartic's branches, read with zero tolerances so that every branch an intersection returned comes back; `from_cone_and_cylinder` does the same for a cone and a cylinder. With `surfaces`, `is_reversed` and `placement`, that is what the Python class pickles.
+`QuarticBranch::from_cones(first, second, index, tol)` builds one from the cones it lies on, its place among the quartic's branches and the tolerance it is read with; `from_cone_and_cylinder` does the same for a cone and a cylinder. With `surfaces`, `tolerance`, `is_reversed` and `placement`, that is what the Python class pickles.
+
+*Amended (issue #283):* the curve keeps the tolerance it was read with, and a branch is rebuilt with it. Within a tolerance the walk reads a factor as touching zero, an apex as on the other cone, `A` as vanishing twice and `β` as vanishing with it, and those readings are not monotone in the tolerance: a rebuild with zero tolerances, or a looser one, can find another curve, and a branch that came from an intersection would not come back. The tolerance adds 24 bytes to `QuarticCurve`, which every exact result carries by value: about 20 to 40 instructions more for an exact quartic, nothing measurable where it is fitted. `QuarticBranch::LOOSEST_ANGULAR`, which the rebuild from a cone and a cylinder read within, is gone.
 
 ## What is still left to the search
 

@@ -13,7 +13,7 @@ use geomcore::{
     Axis, BSplineCurve, BSplineCurve2D, BSplineSurface, BezierCurve, BezierCurve2D, BezierSurface,
     Circle, Circle2D, Cone, Curve, Curve2D, Cylinder, Ellipse, Ellipse2D, ExtrusionSurface, Frame,
     Hyperbola, Hyperbola2D, Line, Line2D, Parabola, Parabola2D, Plane, Point, Point2D,
-    QuarticBranch, RevolutionSurface, Sphere, Surface, Torus, Transform, TrimmedCurve,
+    QuarticBranch, RevolutionSurface, Sphere, Surface, Tolerance, Torus, Transform, TrimmedCurve,
     TrimmedCurve2D, Vector, Vector2D,
 };
 
@@ -81,7 +81,7 @@ pub fn curves() -> Vec<Curve> {
 pub fn quartic_branch() -> QuarticBranch {
     let first = Cone::new(Point::ORIGIN, Vector::Z, 1.0, 0.5).unwrap();
     let second = Cone::new(Point::new(0.0, 0.3, 0.0), Vector::X, 1.0, 0.5).unwrap();
-    QuarticBranch::from_cones(&first, &second, 0)
+    QuarticBranch::from_cones(&first, &second, 0, Tolerance::DEFAULT)
         .unwrap()
         .transformed(Transform::between_frames(Frame::WORLD, tilted_frame()))
         .unwrap()

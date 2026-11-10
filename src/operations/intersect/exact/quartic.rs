@@ -123,6 +123,10 @@ pub struct QuarticCurve {
     infinity_components: [u8; MOST_INFINITIES],
     /// How many of `infinities` there are.
     infinity_count: u8,
+    /// The tolerance the curve was read with, which decides the cases it
+    /// reads as touching, through an apex or running off once: a branch
+    /// is rebuilt with it.
+    tolerance: Tolerance,
 }
 
 /// A quartic meets the plane at infinity in at most four points.
@@ -440,6 +444,7 @@ pub(super) fn crossing_cylinders(
         true,
         components,
         None,
+        tol,
     )))
 }
 
@@ -486,6 +491,7 @@ fn nodal_cylinders(thin: &Cylinder, thick: &Cylinder, tol: Tolerance) -> Option<
         true,
         &[Component::node(factor, tn + across)],
         Some(contact),
+        tol,
     ))
 }
 
@@ -555,6 +561,7 @@ pub(super) fn sphere_off_cylinder_axis(
         false,
         components,
         contact,
+        tol,
     ))
 }
 
@@ -599,6 +606,7 @@ pub(super) fn sphere_off_cone_axis(
             false,
             components,
             contact,
+            tol,
         ))
     };
     let around = [
@@ -791,6 +799,7 @@ pub(super) fn cone_off_cylinder_axis(
                 false,
                 components,
                 contact.map(touching),
+                tol,
             ))
         },
         |angle| ConeCylinderIntersection::TangentPoint(touching(angle)),
@@ -858,6 +867,7 @@ fn cylinder_along_a_generator(
         false,
         &[Component::Around { branch: 1.0 }],
         None,
+        tol,
     )
     .with_infinities(&infinities)
     .map(ConeCylinderIntersection::Quartic)
@@ -1009,6 +1019,7 @@ pub(super) fn cones_in_general_position(
                 true,
                 components,
                 contact.map(touching),
+                tol,
             )
             .with_infinities(&infinities)
             .map(ConeConeIntersection::Quartic)
@@ -1462,6 +1473,7 @@ impl QuarticCurve {
         ruled_first: bool,
         components: &[Component],
         contact_point: Option<Point>,
+        tolerance: Tolerance,
     ) -> QuarticCurve {
         let none = Component::Around { branch: 0.0 };
         let mut stored = [none; 2];
@@ -1480,7 +1492,13 @@ impl QuarticCurve {
             infinities: [0.0; MOST_INFINITIES],
             infinity_components: [0; MOST_INFINITIES],
             infinity_count: 0,
+            tolerance,
         }
+    }
+
+    /// The tolerance the curve was read with.
+    pub(crate) fn tolerance(&self) -> Tolerance {
+        self.tolerance
     }
 
     /// The angle of the generator where an arc crosses itself, `0.0` if

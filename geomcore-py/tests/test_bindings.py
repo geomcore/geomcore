@@ -1,6 +1,7 @@
 """Behavioral tests for the geomcore Python bindings."""
 
 import math
+import pickle
 from typing import get_args
 
 import pytest
@@ -758,6 +759,16 @@ def test_intersect_cone_cone():
             assert wide.project_point(point).distance < 1e-9
         first, second = branch.surfaces()
         assert QuarticBranch(first, second, branch.index()) == branch
+
+    # Read within another tolerance, a branch keeps it, and gives it back
+    # through the constructor and a pickle.
+    loose = Tolerance(1e-5, 1e-10, 1e-8)
+    branch = c1.intersect(wide, loose).curves[0].curve
+    assert branch.tolerance() == loose
+    first, second = branch.surfaces()
+    assert QuarticBranch(first, second, branch.index(), loose) == branch
+    assert QuarticBranch(first, second, branch.index()) != branch
+    assert pickle.loads(pickle.dumps(branch)) == branch
 
     # Parallel axes, equal half-angles: the 90° chamfers of two holes 3
     # apart meet in one hyperbola, in the plane x = 1.5 halfway between.

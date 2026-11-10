@@ -40,7 +40,7 @@ use crate::{
 ///
 /// let first = Cone::new(Point::ORIGIN, Vector::Z, 1.0, 0.5).unwrap();
 /// let second = Cone::new(Point::new(0.0, 0.3, 0.0), Vector::X, 1.0, 0.5).unwrap();
-/// let branch = QuarticBranch::from_cones(&first, &second, 0).unwrap();
+/// let branch = QuarticBranch::from_cones(&first, &second, 0, Tolerance::DEFAULT).unwrap();
 /// let point = branch.point_at(2.0);
 /// let tol = Tolerance::DEFAULT;
 /// assert!(first.contains(point, tol) && second.contains(point, tol));
@@ -107,83 +107,74 @@ impl QuarticBranch {
     }
 
     /// The branch `index` of the quartic where `first` and `second` meet
-    /// (see [`QuarticCurve::branches`]), the curve read with zero
-    /// tolerances so that every branch an intersection returns comes back;
-    /// `None` when they do not meet in a quartic or it has no such branch.
+    /// (see [`QuarticCurve::branches`]), read within `tol`: the tolerance
+    /// of the intersection that returned it, [`tolerance`](Self::tolerance),
+    /// gives the same branch back. `None` when they do not meet in a
+    /// quartic or it has no such branch.
     ///
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Cone, Point, QuarticBranch, Vector};
+    /// use geomcore::{Cone, Point, QuarticBranch, Tolerance, Vector};
     ///
     /// let first = Cone::new(Point::ORIGIN, Vector::Z, 1.0, 0.5).unwrap();
     /// let second = Cone::new(Point::new(0.0, 0.3, 0.0), Vector::X, 1.0, 0.5).unwrap();
-    /// assert!(QuarticBranch::from_cones(&first, &second, 0).is_some());
-    /// assert!(QuarticBranch::from_cones(&first, &second, 9).is_none());
+    /// let tol = Tolerance::DEFAULT;
+    /// assert!(QuarticBranch::from_cones(&first, &second, 0, tol).is_some());
+    /// assert!(QuarticBranch::from_cones(&first, &second, 9, tol).is_none());
     /// ```
-    pub fn from_cones(first: &Cone, second: &Cone, index: usize) -> Option<QuarticBranch> {
-        let exact = Tolerance {
-            confusion: 0.0,
-            angular: 0.0,
-            parametric: 0.0,
-        };
-        match first.intersect_exact(second, exact) {
+    pub fn from_cones(
+        first: &Cone,
+        second: &Cone,
+        index: usize,
+        tol: Tolerance,
+    ) -> Option<QuarticBranch> {
+        match first.intersect_exact(second, tol) {
             ConeConeIntersection::Quartic(curve) => curve.branches().into_iter().nth(index),
             _ => None,
         }
     }
 
     /// The branch `index` of the curve where `cone` and `cylinder` meet,
-    /// the cylinder's axis along a generator of the cone: within
-    /// [`LOOSEST_ANGULAR`](Self::LOOSEST_ANGULAR), so that every branch an
-    /// intersection returns comes back, whatever its angular tolerance.
-    /// `None` when the axis is farther from the cone's directions, the
-    /// apex is on the cylinder, or the curve has no such branch.
+    /// the cylinder's axis along a generator of the cone within `tol`, as
+    /// for [`from_cones`](Self::from_cones). `None` when the axis is
+    /// farther from the cone's directions, the apex is on the cylinder, or
+    /// the curve has no such branch.
     ///
     /// # Examples
     ///
     /// ```
     /// use std::f64::consts::FRAC_PI_4;
     ///
-    /// use geomcore::{Cone, Cylinder, Point, QuarticBranch, Vector};
+    /// use geomcore::{Cone, Cylinder, Point, QuarticBranch, Tolerance, Vector};
     ///
     /// // The cylinder's axis along a generator of a 45° cone, its apex at
     /// // the origin.
     /// let cone = Cone::new(Point::new(0.0, 0.0, 1.0), Vector::Z, FRAC_PI_4, 1.0).unwrap();
     /// let along = Vector::new(1.0, 0.0, 1.0).normalized().unwrap();
     /// let cylinder = Cylinder::new(Point::new(0.0, 0.5, 0.0), along, 1.0).unwrap();
-    /// assert!(QuarticBranch::from_cone_and_cylinder(&cone, &cylinder, 1).is_some());
-    /// assert!(QuarticBranch::from_cone_and_cylinder(&cone, &cylinder, 2).is_none());
+    /// let tol = Tolerance::DEFAULT;
+    /// assert!(QuarticBranch::from_cone_and_cylinder(&cone, &cylinder, 1, tol).is_some());
+    /// assert!(QuarticBranch::from_cone_and_cylinder(&cone, &cylinder, 2, tol).is_none());
     /// ```
     pub fn from_cone_and_cylinder(
         cone: &Cone,
         cylinder: &Cylinder,
         index: usize,
+        tol: Tolerance,
     ) -> Option<QuarticBranch> {
-        let loose = Tolerance {
-            confusion: 0.0,
-            angular: Self::LOOSEST_ANGULAR,
-            parametric: 0.0,
-        };
-        match cone.intersect_exact(cylinder, loose) {
+        match cone.intersect_exact(cylinder, tol) {
             ConeCylinderIntersection::Quartic(curve) => curve.branches().into_iter().nth(index),
             _ => None,
         }
     }
 
-    /// How far, in `(a₁·a₂)² − cos² φ`, a cylinder's axis may be from a
-    /// generator of the cone for
-    /// [`from_cone_and_cylinder`](Self::from_cone_and_cylinder) to read it
-    /// along one: far looser than any angular tolerance an intersection
-    /// reads it with, the curve then being out of reach by `1 / A` times
-    /// the surfaces' size.
-    pub const LOOSEST_ANGULAR: f64 = 1e-6;
-
     /// The two surfaces, as they were before any transform: two cones,
     /// the one whose generators carry the points first, for
     /// [`from_cones`](Self::from_cones), or a cone and a cylinder, for
     /// [`from_cone_and_cylinder`](Self::from_cone_and_cylinder). With
-    /// [`index`](Self::index) that gives the branch back, which
+    /// [`index`](Self::index) and [`tolerance`](Self::tolerance) that
+    /// gives the branch back, which
     /// [`is_reversed`](Self::is_reversed) and
     /// [`placement`](Self::placement) then turn and place.
     pub fn surfaces(&self) -> (Surface, Surface) {
@@ -196,6 +187,14 @@ impl QuarticBranch {
     /// The branch's place among those of its quartic.
     pub fn index(&self) -> usize {
         usize::from(self.index)
+    }
+
+    /// The tolerance its quartic was read with, which decides the cases
+    /// read as touching, through an apex or running off once. With
+    /// [`surfaces`](Self::surfaces) and [`index`](Self::index) it gives the
+    /// branch back.
+    pub fn tolerance(&self) -> Tolerance {
+        self.placed.curve.tolerance()
     }
 
     /// Whether the branch runs the other way from the one

@@ -50,9 +50,11 @@ the Python distribution are versioned in lockstep.
   steps, and a trimmed piece's box, discretization and length are
   measured on exact points. It reverses, transforms, has no bounding box,
   B-spline or curve in parameters, and intersects other shapes through
-  the numeric search. `QuarticBranch::from_cones(first, second, index)`
-  rebuilds one, `QuarticBranch::surfaces` gives its surfaces back, and
-  Python pickles it. A generator of one cone touching the other's
+  the numeric search. `QuarticBranch::from_cones(first, second, index,
+  tol)` rebuilds one, `QuarticBranch::surfaces` and
+  `QuarticBranch::tolerance` give back its surfaces and the tolerance it
+  was read with, which rebuilds it as it was (#283), and Python pickles
+  it. A generator of one cone touching the other's
   directions is one where the branch runs off at both ends, and two
   branches meet at infinity where both roots run off together along one
   generator. Still marched: those two at once, the plane through the
@@ -64,9 +66,9 @@ the Python distribution are versioned in lockstep.
   and fitted; otherwise it runs off to infinity where a generator of the
   cylinder is parallel to the cone, and `intersect` returns its pieces as
   exact `QuarticBranch` curves, the result exact and complete.
-  `QuarticBranch::from_cone_and_cylinder(cone, cylinder, index)` rebuilds
-  one, and the Python `QuarticBranch(first, second, index)` takes a cone
-  and a cylinder too. Trimmed patches of the pair cut those branches at
+  `QuarticBranch::from_cone_and_cylinder(cone, cylinder, index, tol)`
+  rebuilds one, and the Python `QuarticBranch(first, second, index,
+  tol=None)` takes a cone and a cylinder too. Trimmed patches of the pair cut those branches at
   their ranges. The `marching_intersection` bench no longer times this
   pair; `intersect_dispatch` does, as `cone_cylinder/along_*`.
 - A cone and a cylinder off its axis meet in an exact quartic instead of
