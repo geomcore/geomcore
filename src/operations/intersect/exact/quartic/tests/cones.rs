@@ -410,3 +410,97 @@ fn test_every_branch_of_cones_turned_anywhere_runs_to_infinity_at_both_ends() {
     }
     assert!(branches > 20);
 }
+
+#[test]
+fn test_a_tangent_plane_across_the_first_axis_leaves_one_factor_to_turn() {
+    // The plane through both apexes touching the second cone is across the
+    // first cone's axis: its factor of `Δ` keeps one value on every
+    // generator, and the curve is read from the other factor alone.
+    for (first_half_angle, second_half_angle) in [(45.0_f64, 30.0_f64), (30.0, 40.0)] {
+        let first =
+            Cone::new(Point::ORIGIN, Vector::Z, first_half_angle.to_radians(), 0.0).unwrap();
+        let (sin, cos) = second_half_angle.to_radians().sin_cos();
+        for axis in [Vector::new(0.0, cos, sin), Vector::new(0.0, -cos, sin)] {
+            let second = Cone::new(
+                Point::new(3.0, 0.0, 0.0),
+                axis,
+                second_half_angle.to_radians(),
+                0.0,
+            )
+            .unwrap();
+            let ConeConeIntersection::Quartic(curve) = first.intersect_exact(&second, TOL) else {
+                panic!("the quartic");
+            };
+            assert_branches_run_to_infinity(&curve);
+            let branches = curve.branches();
+            assert_eq!(branches.len(), 2);
+            for branch in &branches {
+                for u in [-50.0, -2.0, 0.0, 0.4, 3.0, 80.0] {
+                    let point = branch.point_at(u);
+                    let scale = 1.0 + point.distance(Point::ORIGIN);
+                    assert!(off(&first, point) < 1e-11 * scale, "{u}");
+                    assert!(off(&second, point) < 1e-11 * scale, "{u}");
+                }
+            }
+            let routed = first.intersect(&second, TOL);
+            assert_eq!(routed.method(), IntersectionMethod::Exact);
+            assert!(routed.is_complete());
+            assert_eq!(routed.curves().len(), 2);
+        }
+    }
+}
+
+#[test]
+fn test_a_generator_of_each_cone_along_the_same_direction_is_one_branch_running_off_both_ways() {
+    // The second cone's axis `π/6 + φ₂` from `Z`: its generator nearest
+    // `Z`, `π/6` from it, runs along the upright cone's generator toward
+    // `X`, where `A` touches zero without changing sign. Within
+    // `tol.angular` of that, too.
+    for (apex, nudge) in [
+        (Point::new(-3.0, 0.5, 1.0), 0.0),
+        (Point::new(1.0, -1.0, -2.0), 0.0),
+        (Point::new(-3.0, 0.5, 1.0), 1e-13),
+        (Point::new(0.5, 3.0, 2.0), -1e-13),
+    ] {
+        let half_angle = FRAC_PI_6;
+        let tilt = FRAC_PI_6 + half_angle + nudge;
+        let second = from_apex(apex, Vector::new(tilt.sin(), 0.0, tilt.cos()), half_angle);
+        let ConeConeIntersection::Quartic(curve) = upright().intersect_exact(&second, TOL) else {
+            panic!("the quartic");
+        };
+        let branches = curve.branches();
+        assert_eq!(branches.len(), 1);
+        assert_branches_run_to_infinity(&curve);
+        for u in [-1e3, -50.0, -2.0, 0.0, 0.4, 3.0, 80.0, 1e3] {
+            let point = branches[0].point_at(u);
+            let scale = 1.0 + point.distance(Point::ORIGIN);
+            assert!(off(&upright(), point) < 1e-12 * scale, "{u}");
+            assert!(off(&second, point) < 1e-12 * scale, "{u}");
+        }
+        for result in [
+            upright().intersect(&second, TOL),
+            second.intersect(&upright(), TOL),
+        ] {
+            assert_eq!(result.method(), IntersectionMethod::Exact);
+            assert!(result.is_complete());
+            assert_eq!(result.curves().len(), 1);
+        }
+    }
+}
+
+#[test]
+fn test_parallel_generators_in_a_plane_touching_both_cones_are_left_to_the_search() {
+    // The apex across `Y` from the upright one: the plane through the two
+    // generators along the same direction touches both cones, `β`
+    // vanishing there too.
+    let tilt = 2.0 * FRAC_PI_6;
+    let second = from_apex(
+        Point::new(0.0, 2.0, 0.0),
+        Vector::new(tilt.sin(), 0.0, tilt.cos()),
+        FRAC_PI_6,
+    );
+    assert_eq!(
+        upright().intersect_exact(&second, TOL),
+        ConeConeIntersection::NotAnalytic
+    );
+}

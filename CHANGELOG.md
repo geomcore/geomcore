@@ -52,8 +52,9 @@ the Python distribution are versioned in lockstep.
   B-spline or curve in parameters, and intersects other shapes through
   the numeric search. `QuarticBranch::from_cones(first, second, index)`
   rebuilds one, `QuarticBranch::surfaces` gives its surfaces back, and
-  Python pickles it. Still marched: a generator of one cone touching the
-  other's directions, and one along which both roots run off together.
+  Python pickles it. A generator of one cone touching the other's
+  directions is one where the branch runs off at both ends. Still
+  marched: a generator along which both roots run off together.
 - A cone and a cylinder whose axis runs along a generator of the cone
   meet in an exact curve instead of a marched one (#237, ADR 0042): each
   generator of the cylinder meets the cone once, on one loop around it.

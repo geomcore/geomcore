@@ -876,11 +876,9 @@ fn cylinder_along_a_generator(
 /// With the first apex on the second cone, the pair is read along the
 /// second.
 ///
-/// `None` where the closed form does not hold: a generator of the first
-/// cone touching the second's directions (`A` vanishing twice, within
-/// `tol.angular`), `β` vanishing too where the curve runs to infinity,
-/// each apex on the other cone, or the cones touching twice. The numeric
-/// search takes those.
+/// `None` where the closed form does not hold: `β` vanishing too where
+/// the curve runs to infinity, each apex on the other cone, or the cones
+/// touching twice. The numeric search takes those.
 pub(super) fn cones_in_general_position(
     first: &Cone,
     second: &Cone,
@@ -911,16 +909,6 @@ pub(super) fn cones_in_general_position(
     // the generators parallel to one of the second cone's.
     let middle = ruled.cos * a1.dot(a2);
     let (reach_x, reach_y) = (ruled.sin * ruled.x.dot(a2), ruled.sin * ruled.y.dot(a2));
-    let reach = (reach_x * reach_x + reach_y * reach_y).sqrt();
-    // `A` at the generators where `d·a₂` is least and greatest: near zero,
-    // a generator of each cone touches the other's directions and `A`
-    // vanishes twice there.
-    if [middle - reach, middle + reach]
-        .iter()
-        .any(|edge| (edge * edge - cos_squared).abs() <= tol.angular)
-    {
-        return None;
-    }
     // The generator through the second apex, `cos φ₁ a₁ + sin φ₁ ρ(t)`
     // along the line from the first: `ρ` along its part across `a₁`,
     // turned over where the line runs into the other nappe.
@@ -1027,7 +1015,9 @@ pub(super) fn cones_in_general_position(
 /// with the side of its root that runs to infinity there: where
 /// `d·a₂ = middle + reach_x cos t + reach_y sin t` is `± cos φ₂`, `A`
 /// vanishes, and `s = (±√Δ − β) / A` runs off on the side `−β`, `Δ` being
-/// `β²` there. `None` where `β` vanishes too: both roots run off, along a
+/// `β²` there. Where `d·a₂` only touches `± cos φ₂`, `A` vanishing twice,
+/// one generator, the root running off on the same side from either way.
+/// `None` where `β` vanishes too: both roots run off, along a
 /// parabola-like branch.
 fn cones_at_infinity(
     ruled: &RuledCone,
@@ -1042,24 +1032,48 @@ fn cones_at_infinity(
     }
     let cosine = other.cos_squared.sqrt();
     let mut towards = None;
+    let running_off = |angle| running_off(ruled, other, angle, tol);
     for target in [cosine, -cosine] {
         let along = (target - middle) / reach;
+        // `d·a₂` at its greatest (`θ`) or least (`θ + π`), on the side of
+        // the target: within `tol.angular` of it in `A`, a generator of
+        // each cone touches the other's directions, and `A` vanishes twice
+        // there, the root running off on the same side either way.
+        let edge = middle + reach.copysign(along);
+        if (edge * edge - other.cos_squared).abs() <= tol.angular {
+            let towards = *towards.get_or_insert_with(|| reach_y.atan2(reach_x));
+            found.push(running_off(if along > 0.0 {
+                towards
+            } else {
+                towards + PI
+            })?);
+            continue;
+        }
         if along.abs() >= 1.0 {
             continue;
         }
         let towards = *towards.get_or_insert_with(|| reach_y.atan2(reach_x));
         let half = along.acos();
         for angle in [towards - half, towards + half] {
-            let (sin, cos) = angle.sin_cos();
-            let direction = ruled.generator(ruled.radial(sin, cos)).1;
-            let (_, half_linear, _, _) = other.coefficients(ruled.apex, direction);
-            if half_linear.abs() <= tol.confusion {
-                return None;
-            }
-            found.push((angle.rem_euclid(TAU), -half_linear.signum()));
+            found.push(running_off(angle)?);
         }
     }
     Some(found)
+}
+
+/// The generator of the ruled cone at `angle` and the side `−β` of its
+/// root, where the root runs off; `None` where `β` vanishes too.
+#[inline]
+fn running_off(
+    ruled: &RuledCone,
+    other: &OtherCone,
+    angle: f64,
+    tol: Tolerance,
+) -> Option<(f64, f64)> {
+    let (sin, cos) = angle.sin_cos();
+    let direction = ruled.generator(ruled.radial(sin, cos)).1;
+    let (_, half_linear, _, _) = other.coefficients(ruled.apex, direction);
+    (half_linear.abs() > tol.confusion).then(|| (angle.rem_euclid(TAU), -half_linear.signum()))
 }
 
 /// The loops of a quartic whose quarter discriminant has a closed form.
@@ -1119,7 +1133,7 @@ impl Loops {
 /// arcs where it is positive, every other one. `touching[k]` where factor
 /// `k` nearly vanishes twice, the surfaces touching within confusion on
 /// the generator where it is least: it is read as vanishing there. `None`
-/// where both do, or a factor does not turn.
+/// where both do.
 #[inline]
 fn factored_loops(
     factors: [[f64; 3]; 2],
@@ -1134,7 +1148,17 @@ fn factored_loops(
     }
     let mut cosines: [f64; 2] = std::array::from_fn(|k| -factors[k][0] / amplitudes[k]);
     if cosines.iter().any(|c| !c.is_finite()) {
-        return None;
+        // A factor that does not turn, its plane across the ruled
+        // quadric's axis: `Δ` is the other factor, scaled.
+        let k = amplitudes.iter().position(|&amplitude| amplitude == 0.0)?;
+        let other = 1 - k;
+        return constant_factor_loops(
+            factors[k][0],
+            amplitudes[other],
+            references[other],
+            cosines[other],
+            touching[other],
+        );
     }
     // A factor that nearly vanishes twice is read as touching zero, `cₖ`
     // set to `± 1`: the surfaces touch on the generator where it does,
@@ -1250,6 +1274,69 @@ fn factored_loops(
         count: kept,
         contact: node.map(|(_, at)| at),
     })
+}
+
+/// The loops where `Δ = k a (cos(t − θ) − c) ≥ 0`, one factor of
+/// [`factored_loops`] the constant `k` and the other `a (cos(t − θ) − c)`,
+/// `touching` where it nearly vanishes twice, read as `c = ± 1`. `Δ` is
+/// one factor, read from `θ`: an arc around `θ` where `k > 0`, across from
+/// it otherwise, or loops around. `None` where both factors are constant.
+#[cold]
+fn constant_factor_loops(
+    constant: f64,
+    amplitude: f64,
+    reference: f64,
+    cosine: f64,
+    touching: bool,
+) -> Option<Loops> {
+    if constant == 0.0 || !cosine.is_finite() {
+        return None;
+    }
+    let cosine = if touching { cosine.signum() } else { cosine };
+    let discriminant = Discriminant::OneFactor {
+        scale: (constant * amplitude).abs(),
+        cosine,
+    };
+    let positive_from = |from: f64| constant * (from.cos() - cosine) > 0.0;
+    let arcs = |components: [Component; 2], count, contact| Loops::Arcs {
+        discriminant,
+        reference,
+        components,
+        count,
+        contact,
+    };
+    if touching {
+        // Where the factor vanishes, `θ` or across from it, the surfaces
+        // touch: one loop twice around through there, or that point alone.
+        let at = reference + if cosine > 0.0 { 0.0 } else { PI };
+        return Some(if positive_from(at - reference + PI) {
+            arcs([Component::node(0, at + PI), Component::Apex], 1, Some(at))
+        } else {
+            Loops::Touching(at.rem_euclid(TAU))
+        });
+    }
+    if cosine.abs() >= 1.0 {
+        return Some(if positive_from(0.0) {
+            arcs(
+                [
+                    Component::Around { branch: 1.0 },
+                    Component::Around { branch: -1.0 },
+                ],
+                2,
+                None,
+            )
+        } else {
+            Loops::Empty
+        });
+    }
+    let half = cosine.acos();
+    let (from, to) = if constant > 0.0 {
+        (-half, half)
+    } else {
+        (half, TAU - half)
+    };
+    let component = arc(reference, from, to, [Ends::Both, Ends::Neither]);
+    Some(arcs([component, Component::Apex], 1, None))
 }
 
 /// The loop where `Δ = f₀ f₁ ≥ 0`, as in [`factored_loops`], when the
