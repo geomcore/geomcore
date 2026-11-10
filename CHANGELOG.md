@@ -21,8 +21,9 @@ the Python distribution are versioned in lockstep.
     circle), the result is the whole circle.
   - `intersect` reports the pair `Exact` and complete, in Rust and
     Python, where it used to run the numeric search.
-  - The march now also seeds from the circles of a cylinder, cone, sphere
-    or torus where they cut a torus.
+  - A march still does not seed from circles against a torus. They cost
+    3.7% more on a sphere and a torus and found no curve the other seeds
+    missed (ADR 0047).
   - An ellipse, a parabola or a hyperbola against a torus still runs the
     numeric search: substituted into the torus, they give an equation of
     degree 8.
