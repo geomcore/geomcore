@@ -229,10 +229,12 @@ enum Component {
     /// The cone's apex on the sphere: every generator meets the sphere at
     /// the apex, and at `s = 2 m(t)`.
     Apex,
-    /// Around the ruled cone, each apex on the other cone: the generator
-    /// at angle `shared`, through both apexes, lies on both, and every
-    /// other generator meets the other cone at the apex and at one more
-    /// point ([`Other::along_off_shared`]), the cubic left of the quartic.
+    /// Around the ruled quadric, the generator at angle `shared` lying on
+    /// the other cone too: two cones each with its apex on the other, or a
+    /// cylinder along a generator of a cone through its apex. Every other
+    /// generator meets the cone at the ruled cone's apex, or at infinity
+    /// along the cylinder, and at one more point
+    /// ([`Other::along_off_shared`]): the cubic left of the quartic.
     /// Through the shared generator it runs through the other cone's
     /// apex.
     OffSharedGenerator { shared: f64 },
@@ -358,13 +360,19 @@ impl QuarticCurve {
         branches
     }
 
-    /// The result of [`ConeConeIntersection::LineAndCubic`]: `line`, then
-    /// the branches of this cubic, exact and complete, with both apexes,
-    /// where they cross, the first operand's first, as contact points.
+    /// The result of a `LineAndCubic`: `line`, then the branches of this
+    /// cubic, exact and complete, with the apexes where they cross as
+    /// contact points: both cones', the first operand's first, or the one
+    /// cone's beside a cylinder.
     #[cold]
     pub(crate) fn with_line(&self, line: Line) -> Option<SurfaceSurfaceIntersection> {
-        let Surfaces::Cones(first, second) = self.surfaces else {
-            return None;
+        let apexes = match self.surfaces {
+            Surfaces::Cones(first, second) if self.ruled_first => {
+                vec![first.apex(), second.apex()]
+            }
+            Surfaces::Cones(first, second) => vec![second.apex(), first.apex()],
+            Surfaces::ConeCylinder(cone, _) => vec![cone.apex()],
+            _ => return None,
         };
         let mut curves = vec![IntersectionCurve::in_space(line, false)];
         curves.extend(
@@ -372,16 +380,7 @@ impl QuarticCurve {
                 .into_iter()
                 .map(|branch| IntersectionCurve::in_space(branch, false)),
         );
-        let apexes = if self.ruled_first {
-            [first.apex(), second.apex()]
-        } else {
-            [second.apex(), first.apex()]
-        };
-        Some(SurfaceSurfaceIntersection::exact(
-            curves,
-            apexes.to_vec(),
-            false,
-        ))
+        Some(SurfaceSurfaceIntersection::exact(curves, apexes, false))
     }
 
     /// The two quadrics as the constructors of [`QuarticBranch`] take
@@ -747,9 +746,11 @@ pub(super) fn sphere_off_cone_axis(
 /// With the apex on the cylinder, both factors, or both squares, vanish on
 /// the generator through it: see [`apex_arc`] and [`apex_loop`].
 ///
-/// `None` where the closed form does not hold: the apex on a cylinder
-/// along a generator of the cone, or both wedge lines touching the circle.
-/// The numeric search takes those.
+/// With both, the cylinder's generator through the apex lies on the cone:
+/// see [`cylinder_through_the_apex`].
+///
+/// `None` where the closed form does not hold: both wedge lines touching
+/// the circle. The numeric search takes those.
 pub(super) fn cone_off_cylinder_axis(
     cone: &Cone,
     cylinder: &Cylinder,
@@ -773,9 +774,7 @@ pub(super) fn cone_off_cylinder_axis(
     let apex_on_cylinder = (p.magnitude() - r).abs() <= tol.confusion;
     if leading.abs() <= tol.angular {
         if apex_on_cylinder {
-            // The cylinder's generator through the apex lies on the cone:
-            // a line and a cubic, left to the search.
-            return None;
+            return cylinder_through_the_apex(cone, cylinder, tol);
         }
         return cylinder_along_a_generator(cone, cylinder, tol);
     }
@@ -904,6 +903,59 @@ fn cylinder_along_a_generator(
     )
     .with_infinities(&infinities)
     .map(ConeCylinderIntersection::Quartic)
+}
+
+/// A cone and a cylinder along one of its generators through its apex: the
+/// generator of the cylinder at `t₀`, through the apex, lies on the cone,
+/// and what is left of the quartic is a cubic through the apex, read along
+/// the cylinder's generators ([`Component::OffSharedGenerator`]), as for
+/// two cones each with its apex on the other ([`sharing_a_generator`]).
+/// `β = n·W(t)` vanishes at `t₀` and once more, across from it about the
+/// generator where it is largest: there the cubic runs to infinity, out
+/// along the axis one way and back the other. `None` where the surfaces
+/// touch along the shared generator, their normals within `tol.angular`:
+/// the cubic splits into it and a conic.
+#[cold]
+fn cylinder_through_the_apex(
+    cone: &Cone,
+    cylinder: &Cylinder,
+    tol: Tolerance,
+) -> Option<ConeCylinderIntersection> {
+    let ruled = RuledCylinder::new(cylinder);
+    let other = OtherCone::new(cone);
+    let frame = cylinder.frame();
+    let (x, y, a1) = (
+        frame.x_direction(),
+        frame.y_direction(),
+        frame.z_direction(),
+    );
+    let w = frame.origin() - cone.apex();
+    let p = w - a1 * w.dot(a1);
+    // The generator through the apex, `ρ(t₀) = −p / |p|`.
+    let shared = (-p.dot(y)).atan2(-p.dot(x));
+    let (sin, cos) = shared.sin_cos();
+    // The cone's normal is the same along its generator, off the apex.
+    let cone_normal = other.normal(cone.apex() + a1 * cylinder.radius());
+    let touching = ruled.normal(ruled.radial(sin, cos)).cross(cone_normal);
+    if touching.magnitude() <= tol.angular * cone_normal.magnitude() {
+        return None;
+    }
+    let a2 = other.cone.axis;
+    let n = a2 * a1.dot(a2) - a1 * other.cos_squared;
+    let towards = n.dot(y).atan2(n.dot(x));
+    let infinity = (2.0 * towards - shared).rem_euclid(TAU);
+    let curve = QuarticCurve::new(
+        Surfaces::ConeCylinder(*cone, *cylinder),
+        Discriminant::MetOnce,
+        0.0,
+        false,
+        &[Component::OffSharedGenerator { shared }],
+        None,
+        tol,
+    )
+    .with_infinities(&[(infinity, 1.0)])?;
+    let line = Line::new(cone.apex(), a1).ok()?;
+    Some(ConeCylinderIntersection::LineAndCubic(line, curve))
 }
 
 /// The intersection of two cones in general position, read along the
@@ -2039,19 +2091,20 @@ trait Other: Copy {
     }
 
     /// Where the generator from `base` along `direction` meets the
-    /// quadric off the ruled cone's apex, when the generator from
-    /// `shared_base` along `shared_direction` lies on both
-    /// ([`Component::OffSharedGenerator`]): the quadratic vanishes there,
-    /// so it is `2 sin δ` times the quadratic of the differences, `δ` half
-    /// the angle between the generators and `across` the derivatives of
-    /// `B` and `D` midway between them, which has one root at the apex.
+    /// quadric, when the generator from `shared_base` along
+    /// `shared_direction` lies on both ([`Component::OffSharedGenerator`]):
+    /// the quadratic vanishes there, so it is `2 sin δ` times the quadratic
+    /// of the differences, `δ` half the angle between the generators and
+    /// `across` the derivatives of `B` and `D` midway between them. That
+    /// one has a root at the ruled cone's apex, or at infinity along a
+    /// ruled cylinder: the point is its other root.
     fn along_off_shared(
         &self,
         _generator: (Point, Vector),
         _shared: (Point, Vector),
         _across: (Vector, Vector),
     ) -> f64 {
-        unreachable!("only two cones share a generator through both apexes")
+        unreachable!("only a cone shares a generator with a ruled quadric")
     }
 
     /// A normal of the quadric at `point`, of any length.
@@ -2319,22 +2372,29 @@ impl Other for OtherCone {
     }
 
     /// With `Q = a₂ a₂ᵀ − cos² φ`, `q(v) − q(u) = (v − u)ᵀ Q (v + u)` cancels
-    /// `2 sin δ` from the leading coefficient and from the half linear
-    /// one, `D − D₀ = 2 sin δ D'` midway: on the ruled cone `B` is its
-    /// apex, so `γ` vanishes on every generator and the other root is
-    /// `−2β / A`, exact through the shared generator.
+    /// `2 sin δ` from each coefficient, `B − B₀ = 2 sin δ B'` and
+    /// `D − D₀ = 2 sin δ D'` midway. On a ruled cone `B` is its apex, so
+    /// `γ` vanishes on every generator and the other root is `−2β / A`; on
+    /// a ruled cylinder `D` is its axis, so `A` vanishes and the root is
+    /// `−γ / 2β`. Either is exact through the shared generator.
     #[inline]
     fn along_off_shared(
         &self,
         (base, direction): (Point, Vector),
-        (_, shared_direction): (Point, Vector),
-        (_, direction_across): (Vector, Vector),
+        (shared_base, shared_direction): (Point, Vector),
+        (base_across, direction_across): (Vector, Vector),
     ) -> f64 {
         let axis = self.cone.axis;
         let form = |v: Vector| axis * axis.dot(v) - v * self.cos_squared;
-        let leading = direction_across.dot(form(direction + shared_direction));
-        let half_linear = direction_across.dot(form(base - self.cone.apex));
-        -2.0 * half_linear / leading
+        let (w, shared_w) = (base - self.cone.apex, shared_base - self.cone.apex);
+        let half_linear = direction_across.dot(form(w)) + shared_direction.dot(form(base_across));
+        if base_across == Vector::ZERO {
+            let leading = direction_across.dot(form(direction + shared_direction));
+            -2.0 * half_linear / leading
+        } else {
+            let constant = base_across.dot(form(w + shared_w));
+            -constant / (2.0 * half_linear)
+        }
     }
 
     /// `(root' − β' − s A') / A`, primes the derivatives in `t`.

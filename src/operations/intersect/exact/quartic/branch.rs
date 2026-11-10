@@ -140,9 +140,10 @@ impl QuarticBranch {
 
     /// The branch `index` of the curve where `cone` and `cylinder` meet,
     /// the cylinder's axis along a generator of the cone within `tol`, as
-    /// for [`from_cones`](Self::from_cones). `None` when the axis is
-    /// farther from the cone's directions, the apex is on the cylinder, or
-    /// the curve has no such branch.
+    /// for [`from_cones`](Self::from_cones): of the curve, or of the cubic
+    /// left beside the line where the apex is on the cylinder. `None` when
+    /// the axis is farther from the cone's directions or the curve has no
+    /// such branch.
     ///
     /// # Examples
     ///
@@ -167,7 +168,10 @@ impl QuarticBranch {
         tol: Tolerance,
     ) -> Option<QuarticBranch> {
         match cone.intersect_exact(cylinder, tol) {
-            ConeCylinderIntersection::Quartic(curve) => curve.branches().into_iter().nth(index),
+            ConeCylinderIntersection::Quartic(curve)
+            | ConeCylinderIntersection::LineAndCubic(_, curve) => {
+                curve.branches().into_iter().nth(index)
+            }
             _ => None,
         }
     }

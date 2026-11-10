@@ -31,6 +31,18 @@ The cubic is one component of a `QuarticCurve`, `OffSharedGenerator { shared: t�
 
 Cones that touch along the shared line split the cubic into the line again and a conic. Their axes then lie in the plane through the line normal to both cones, and meet. Both cones touch the sphere centred there, so the common-sphere conics read them first. A guard for a touch within `tol.angular` hands the pair to the search if it reaches this reading.
 
+## A cylinder along a generator through the apex
+
+A cylinder whose axis runs along a generator of the cone, with the apex on its wall, shares that generator with the cone (ADR 0042 left it to the search). It is read the same way, along the cylinder's generators, as another component of the same kind. Along the cylinder `A` vanishes on every generator, and the apex on the cylinder puts `γ` and `β` both to zero on the shared one, at `t₀`. Now the generator's base turns and its direction `D` does not, so `γ = −2β s` gives the one root. With `W(t) − W₀ = 2 sin δ B'` and `B'` the base's derivative taken midway, the difference identity cancels `2 sin δ` from both:
+
+`s = −(B'·Q (W + W₀)) / (2 D·Q B')`.
+
+`β = n·W(t)`, `n = (a₁·a₂) a₂ − cos² φ a₁`, vanishes at `t₀` and once more, at `2h − t₀` with `h` the angle of `n` across the axis. That is the cubic's one point at infinity, so the cubic is always one branch, never fitted.
+
+The apex is read on the cylinder within confusion of its wall. Unlike two cones' apexes, no angular test is needed: the line runs along the cylinder's axis, so its offset from both surfaces does not grow along it, and `A` already holds within `tol.angular`. A cylinder touching the cone along that generator, its axis in the plane of the generator and the cone's axis, has axes that meet, and the common-sphere conics read it first, as for two cones; a guard on the normals there hands it to the search if it reaches this reading.
+
+`ConeCylinderIntersection::LineAndCubic(Line, QuarticCurve)`: the line through the apex along the cylinder's axis, and the cubic. `intersect` returns both, exact and complete, with the apex as the contact point. `QuarticBranch::from_cone_and_cylinder` rebuilds the branch.
+
 ## Considered options
 
 - **A cubic type of its own**, rational in the tangent of the half angle: rejected for now. The quartic's walk already evaluates, splits at infinity, rebuilds and pickles. A rational cubic would duplicate all of that for one pair. It is worth revisiting if a consumer needs the cubic's rational form, for example to convert it to a NURBS.

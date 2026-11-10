@@ -190,8 +190,9 @@ pub enum CylinderCylinderIntersection {
 /// running off to infinity where a generator of the cylinder is parallel
 /// to one of the cone's ([`QuarticCurve::branches`]), and crossing itself
 /// where the surfaces touch or at the apex on the cylinder, or that point
-/// alone. Where the apex lies on a cylinder along a generator of the cone,
-/// or the surfaces touch twice, it reports
+/// alone. The apex on a cylinder along a generator of the cone gives that
+/// generator and a cubic ([`ConeCylinderIntersection::LineAndCubic`]).
+/// Where the surfaces touch twice, it reports
 /// [`ConeCylinderIntersection::NotAnalytic`], reserved for the numeric
 /// surface-surface path.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -209,6 +210,13 @@ pub enum ConeCylinderIntersection {
     /// The space quartic of a cylinder off the cone's axis, in one or two
     /// loops (see [`QuarticCurve`]), read along the cylinder's generators.
     Quartic(QuarticCurve),
+    /// The cylinder's axis along a generator of the cone, the apex on the
+    /// cylinder: the cylinder's generator through the apex, which lies on
+    /// the cone, and the cubic left of the quartic, which crosses it at
+    /// the apex and runs to infinity along the axis both ways. The cubic is
+    /// read along the cylinder's generators as a [`QuarticCurve`] of one
+    /// component, one [`branch`](QuarticCurve::branches).
+    LineAndCubic(Line, QuarticCurve),
     /// The cylinder misses the cone: no generator of it meets the cone.
     Empty,
     /// No closed form for this configuration.
@@ -1292,8 +1300,9 @@ impl IntersectExact<Cylinder> for Cone {
     /// or is that point alone ([`ConeCylinderIntersection::TangentPoint`]).
     /// With the apex on the cylinder (within `tol.confusion`) the curve
     /// crosses itself there, or the apex is a point of its own beside it.
-    /// Where the apex lies on a cylinder along a generator, or the surfaces
-    /// touch twice, it reports
+    /// The apex on a cylinder along a generator gives that generator and a
+    /// cubic ([`ConeCylinderIntersection::LineAndCubic`]). Where the
+    /// surfaces touch twice, it reports
     /// [`ConeCylinderIntersection::NotAnalytic`].
     ///
     /// # Examples
