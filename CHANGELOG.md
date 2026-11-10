@@ -16,6 +16,15 @@ the Python distribution are versioned in lockstep.
   the closest point came back up to four times too far. The rounding
   floor of the search now follows the distances from the query to the
   poles, not the coordinates.
+- Closed forms that took two surfaces for tangent, or for apart, by
+  their size: a sphere on a cone's axis, two spheres, a torus and a
+  cone on one axis, and two tori on one axis. A sphere and a cone
+  crossing in two circles came back as one tangent circle a million
+  times larger, and two spheres crossing 0.01 short of touching as a
+  tangent point a million times smaller. Each is now decided by a
+  distance against `tol.confusion`: the surfaces are tangent when they
+  are within `tol.confusion` of touching. For the torus this widens the
+  tangent case, which was decided by how close two roots were.
 
 ### Changed
 
@@ -24,6 +33,9 @@ the Python distribution are versioned in lockstep.
   sample shape and pair, and
   `tests/fixtures/similarity_invariance_known.txt` lists the
   comparisons that do not hold yet.
+- A line and a circle of the plane are decided by the distance from
+  the centre to the line, without trigonometry: the typed intersection
+  takes about 60% fewer instructions, the routed one about 40%.
 
 ## [0.45.0] - 2026-11-10
 

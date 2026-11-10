@@ -1492,3 +1492,154 @@ fn test_parallel_cones_with_equal_half_angles_meet_in_one_plane_conic() {
         }
     }
 }
+
+/// The variant a closed form reports for two surfaces scaled by `scale`
+/// about the origin, the confusion tolerance scaled alike.
+fn decision_at<A, B>(first: &A, second: &B, scale: f64) -> String
+where
+    A: IntersectExact<B> + crate::Transformable,
+    B: crate::Transformable,
+    A::Output: core::fmt::Debug,
+{
+    let scaling = crate::Transform::scaling(Point::ORIGIN, scale);
+    let reference = Tolerance::DEFAULT;
+    let tol = Tolerance::new(
+        reference.confusion * scale,
+        reference.angular,
+        reference.parametric,
+    );
+    let result = first
+        .transformed(scaling)
+        .unwrap()
+        .intersect_exact(&second.transformed(scaling).unwrap(), tol);
+    let text = format!("{result:?}");
+    let end = text.find(['(', ' ', '{']).unwrap_or(text.len());
+    text[..end].to_string()
+}
+
+/// Two surfaces 0.01 short of touching and 0.01 past it are decided as
+/// crossing and as apart, and the same way a million times smaller or
+/// larger (ADR 0046).
+#[test]
+fn test_closed_forms_decide_a_near_tangency_alike_at_any_size() {
+    fn check<A, B>(name: &str, first: &A, crossing: &B, apart: &B) -> Vec<String>
+    where
+        A: IntersectExact<B> + crate::Transformable,
+        B: crate::Transformable,
+        A::Output: core::fmt::Debug,
+    {
+        let mut failures = Vec::new();
+        let decisions = [crossing, apart].map(|second| decision_at(first, second, 1.0));
+        if decisions[0] == decisions[1] {
+            failures.push(format!("{name}: both sides are {}", decisions[0]));
+        }
+        for exponent in [-20, 20] {
+            for (second, reference) in [crossing, apart].into_iter().zip(&decisions) {
+                let moved = decision_at(first, second, 2f64.powi(exponent));
+                if &moved != reference {
+                    failures.push(format!(
+                        "{name}, scale 2^{exponent}: {reference} became {moved}"
+                    ));
+                }
+            }
+        }
+        failures
+    }
+    let sphere = |x: f64, radius: f64| Sphere::new(Point::new(x, 0.0, 0.0), radius).unwrap();
+    let ball = Sphere::new(Point::ORIGIN, 2.0).unwrap();
+    // A sphere 3 up the z axis, its centre 5 from the tube's centre circle.
+    let raised = |radius: f64| Sphere::new(Point::new(0.0, 0.0, 3.0), radius).unwrap();
+    let plane = |height: f64| Plane::new(Point::new(0.0, 0.0, height), Vector::Z).unwrap();
+    let wall = |x: f64| Plane::new(Point::new(x, 0.0, 0.0), Vector::X).unwrap();
+    let tube =
+        |x: f64, radius: f64| Cylinder::new(Point::new(x, 0.0, 0.0), Vector::Z, radius).unwrap();
+    let torus = |major: f64, height: f64| {
+        Torus::new(Point::new(0.0, 0.0, height), Vector::Z, major, 1.0).unwrap()
+    };
+    let ring = torus(4.0, 0.0);
+    // A cone on the z axis with its apex at the origin, its generators
+    // `reach` from the point 4 along x.
+    let cone = |reach: f64| {
+        let half_angle = (reach / 4.0f64).acos();
+        Cone::new(
+            Point::new(0.0, 0.0, 1.0),
+            Vector::Z,
+            half_angle,
+            half_angle.tan(),
+        )
+        .unwrap()
+    };
+    // The cone of the samples and spheres on its axis, 0.01 either side
+    // of its generators.
+    let wide = Cone::from_frame(Frame::WORLD, 0.4, 2.0).unwrap();
+    let reach = (Point::ORIGIN - wide.apex()).magnitude() * 0.4f64.sin();
+    let failures: Vec<String> = [
+        check("plane, sphere", &plane(1.99), &ball, &sphere(0.0, 1.98)),
+        check(
+            "plane, cylinder",
+            &wall(1.99),
+            &tube(0.0, 2.0),
+            &tube(0.0, 1.98),
+        ),
+        check("plane, torus", &ring, &plane(0.99), &plane(1.01)),
+        check(
+            "cylinders side by side",
+            &tube(0.0, 2.0),
+            &tube(2.99, 1.0),
+            &tube(3.01, 1.0),
+        ),
+        check(
+            "cylinder in cylinder",
+            &tube(0.0, 2.0),
+            &tube(1.01, 1.0),
+            &tube(0.99, 1.0),
+        ),
+        check(
+            "sphere, cylinder",
+            &ball,
+            &tube(0.0, 1.99),
+            &tube(0.0, 2.01),
+        ),
+        check(
+            "sphere, cone",
+            &wide,
+            &sphere(0.0, reach + 0.01),
+            &sphere(0.0, reach - 0.01),
+        ),
+        check(
+            "spheres side by side",
+            &ball,
+            &sphere(3.99, 2.0),
+            &sphere(4.01, 2.0),
+        ),
+        check(
+            "sphere in sphere",
+            &ball,
+            &sphere(1.01, 1.0),
+            &sphere(0.99, 1.0),
+        ),
+        check(
+            "torus, sphere",
+            &ring,
+            &sphere(0.0, 4.99),
+            &sphere(0.0, 5.01),
+        ),
+        check(
+            "torus, sphere up the axis",
+            &ring,
+            &raised(5.99),
+            &raised(6.01),
+        ),
+        check("torus, cylinder", &ring, &tube(0.0, 4.99), &tube(0.0, 5.01)),
+        check("torus, cone", &ring, &cone(0.99), &cone(1.01)),
+        check("tori stacked", &ring, &torus(4.0, 1.99), &torus(4.0, 2.01)),
+        check(
+            "tori side by side",
+            &ring,
+            &torus(4.5, (1.99f64 * 1.99 - 0.25).sqrt()),
+            &torus(4.5, (2.01f64 * 2.01 - 0.25).sqrt()),
+        ),
+    ]
+    .concat();
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+}

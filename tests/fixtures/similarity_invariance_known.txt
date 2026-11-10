@@ -85,7 +85,6 @@ surface-surface 1:Cylinder x 6:Extrusion | translation 1e7
 surface-surface 1:Cylinder x 7:Extrusion | scale 2^20
 surface-surface 1:Cylinder x 8:Revolution | scale 2^-20
 surface-surface 1:Cylinder x 9:Revolution | scale 2^20
-surface-surface 2:Cone x 3:Sphere | scale 2^20
 surface-surface 2:Cone x 5:Extrusion | scale 2^20
 surface-surface 2:Cone x 6:Extrusion | scale 2^-20
 surface-surface 2:Cone x 6:Extrusion | scale 2^20
