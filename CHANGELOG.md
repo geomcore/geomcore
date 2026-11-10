@@ -53,8 +53,10 @@ the Python distribution are versioned in lockstep.
   the numeric search. `QuarticBranch::from_cones(first, second, index)`
   rebuilds one, `QuarticBranch::surfaces` gives its surfaces back, and
   Python pickles it. A generator of one cone touching the other's
-  directions is one where the branch runs off at both ends. Still
-  marched: a generator along which both roots run off together.
+  directions is one where the branch runs off at both ends, and two
+  branches meet at infinity where both roots run off together along one
+  generator. Still marched: those two at once, the plane through the
+  generators touching both cones.
 - A cone and a cylinder whose axis runs along a generator of the cone
   meet in an exact curve instead of a marched one (#237, ADR 0042): each
   generator of the cylinder meets the cone once, on one loop around it.

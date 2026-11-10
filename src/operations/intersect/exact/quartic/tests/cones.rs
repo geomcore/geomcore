@@ -1,7 +1,7 @@
 //! Two cones in general position, read along the first cone's generators.
 
 use super::*;
-use crate::ConeConeIntersection;
+use crate::{ConeConeIntersection, Curve};
 use std::f64::consts::FRAC_PI_6;
 
 /// The cone of half-angle 30° with its apex at the origin along `Z`.
@@ -503,4 +503,50 @@ fn test_parallel_generators_in_a_plane_touching_both_cones_are_left_to_the_searc
         upright().intersect_exact(&second, TOL),
         ConeConeIntersection::NotAnalytic
     );
+}
+
+#[test]
+fn test_generators_along_the_same_direction_in_a_plane_touching_the_second_cone_run_off_together() {
+    // The second cone has a generator along the upright cone's toward `X`,
+    // and touches the plane `XZ` along it, which holds both apexes: on that
+    // generator of the upright cone `A` and `β` vanish, and both roots run
+    // off together, at the end of an arc. The other way round, one root
+    // runs off. An apex `1e-9` off the plane, within confusion, too.
+    let toward_x = Vector::new(0.5, 0.0, 3.0_f64.sqrt() / 2.0);
+    for (apex, half_angle, count) in [
+        (Point::new(3.0, 0.0, 0.0), 0.4_f64, 2),
+        (Point::new(-2.0, 0.0, 1.0), 0.3, 2),
+        (Point::new(1.0, 0.0, -2.0), 0.7, 3),
+        (Point::new(3.0, 1e-9, 0.0), 0.4, 2),
+    ] {
+        let axis = toward_x * half_angle.cos() + Vector::Y * half_angle.sin();
+        let second = from_apex(apex, axis, half_angle);
+        for (first, second) in [(upright(), second), (second, upright())] {
+            let ConeConeIntersection::Quartic(curve) = first.intersect_exact(&second, TOL) else {
+                panic!("the quartic");
+            };
+            assert_branches_run_to_infinity(&curve);
+            let branches = curve.branches();
+            assert_eq!(branches.len(), 2);
+            for branch in &branches {
+                for u in [-1e4, -50.0, -2.0, 0.0, 0.4, 3.0, 80.0, 1e4] {
+                    let point = branch.point_at(u);
+                    let scale = 1.0 + point.distance(Point::ORIGIN);
+                    assert!(off(&first, point) < 1e-14 * scale, "{u}");
+                    assert!(off(&second, point) < 1e-14 * scale, "{u}");
+                }
+            }
+            let result = first.intersect(&second, TOL);
+            assert_eq!(result.method(), IntersectionMethod::Exact);
+            assert!(result.is_complete());
+            assert_eq!(result.curves().len(), count);
+            let (unbounded, fitted): (Vec<_>, Vec<_>) = result
+                .curves()
+                .iter()
+                .cloned()
+                .partition(|piece| matches!(piece.curve, Curve::QuarticBranch(_)));
+            assert_eq!(unbounded.len(), 2);
+            assert_fitted(&first, &second, &fitted);
+        }
+    }
 }

@@ -128,6 +128,13 @@ pub struct QuarticCurve {
 /// A quartic meets the plane at infinity in at most four points.
 const MOST_INFINITIES: usize = 4;
 
+/// How far, in angle, a generator where both roots run off may be from
+/// the end of an arc and be read as that end. The two are one where `β`
+/// vanishes exactly; with `β` within confusion they are `β² / |A' γ|`
+/// apart, far less, and the end's arccosine is good to about `1e-8` where
+/// it is near `± 1`.
+const TO_AN_END: f64 = 1e-6;
+
 /// The two quadrics of a quartic curve, the ruled one second for a sphere.
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum Surfaces {
@@ -876,9 +883,9 @@ fn cylinder_along_a_generator(
 /// With the first apex on the second cone, the pair is read along the
 /// second.
 ///
-/// `None` where the closed form does not hold: `β` vanishing too where
-/// the curve runs to infinity, each apex on the other cone, or the cones
-/// touching twice. The numeric search takes those.
+/// `None` where the closed form does not hold: `A` vanishing twice where
+/// `β` vanishes too, each apex on the other cone, or the cones touching
+/// twice. The numeric search takes those.
 pub(super) fn cones_in_general_position(
     first: &Cone,
     second: &Cone,
@@ -1017,8 +1024,10 @@ pub(super) fn cones_in_general_position(
 /// vanishes, and `s = (±√Δ − β) / A` runs off on the side `−β`, `Δ` being
 /// `β²` there. Where `d·a₂` only touches `± cos φ₂`, `A` vanishing twice,
 /// one generator, the root running off on the same side from either way.
-/// `None` where `β` vanishes too: both roots run off, along a
-/// parabola-like branch.
+/// Where `β` vanishes too, the side `0`: both roots run off together, at
+/// the end of an arc. `None` where it vanishes with `A` vanishing twice,
+/// the plane through the generators along the same direction touching
+/// both cones.
 fn cones_at_infinity(
     ruled: &RuledCone,
     other: &OtherCone,
@@ -1042,11 +1051,14 @@ fn cones_at_infinity(
         let edge = middle + reach.copysign(along);
         if (edge * edge - other.cos_squared).abs() <= tol.angular {
             let towards = *towards.get_or_insert_with(|| reach_y.atan2(reach_x));
-            found.push(running_off(if along > 0.0 {
-                towards
-            } else {
-                towards + PI
-            })?);
+            let (angle, side) = running_off(if along > 0.0 { towards } else { towards + PI });
+            // `β` vanishing there too, the plane through the generators
+            // along the same direction touches both cones: left to the
+            // search.
+            if side == 0.0 {
+                return None;
+            }
+            found.push((angle, side));
             continue;
         }
         if along.abs() >= 1.0 {
@@ -1055,25 +1067,27 @@ fn cones_at_infinity(
         let towards = *towards.get_or_insert_with(|| reach_y.atan2(reach_x));
         let half = along.acos();
         for angle in [towards - half, towards + half] {
-            found.push(running_off(angle)?);
+            found.push(running_off(angle));
         }
     }
     Some(found)
 }
 
 /// The generator of the ruled cone at `angle` and the side `−β` of its
-/// root, where the root runs off; `None` where `β` vanishes too.
+/// root, where the root runs off. Where `β` vanishes too, within
+/// confusion, the side `0`: `Δ = β² − A γ` vanishes there as well, and
+/// both roots run off together, `±√Δ / A`, at an end of an arc.
 #[inline]
-fn running_off(
-    ruled: &RuledCone,
-    other: &OtherCone,
-    angle: f64,
-    tol: Tolerance,
-) -> Option<(f64, f64)> {
+fn running_off(ruled: &RuledCone, other: &OtherCone, angle: f64, tol: Tolerance) -> (f64, f64) {
     let (sin, cos) = angle.sin_cos();
     let direction = ruled.generator(ruled.radial(sin, cos)).1;
     let (_, half_linear, _, _) = other.coefficients(ruled.apex, direction);
-    (half_linear.abs() > tol.confusion).then(|| (angle.rem_euclid(TAU), -half_linear.signum()))
+    let side = if half_linear.abs() > tol.confusion {
+        -half_linear.signum()
+    } else {
+        0.0
+    };
+    (angle.rem_euclid(TAU), side)
 }
 
 /// The loops of a quartic whose quarter discriminant has a closed form.
@@ -1553,9 +1567,27 @@ impl Component {
     /// The parameter of the point on the generator at `angle`, on the side
     /// `branch` of its root, if this component holds it, `crossing` the
     /// generator where it crosses itself if it does.
+    ///
+    /// `branch` is `0` where both roots run off together, `Δ` vanishing
+    /// there: the end of an arc within [`TO_AN_END`] of `angle`, the
+    /// parameter `0` at its start and `π` at its end.
     fn parameter_at_infinity(self, angle: f64, branch: f64, crossing: f64) -> Option<f64> {
         match self {
             Component::Around { branch: own } => (own == branch).then(|| angle.rem_euclid(TAU)),
+            Component::Between { start, end, .. } if branch == 0.0 => {
+                let off = |end: f64| {
+                    let gap = (angle - end).rem_euclid(TAU);
+                    gap.min(TAU - gap)
+                };
+                if off(start) <= TO_AN_END {
+                    Some(0.0)
+                } else if off(end) <= TO_AN_END {
+                    Some(PI)
+                } else {
+                    None
+                }
+            }
+            Component::Node { .. } | Component::ThroughApex { .. } if branch == 0.0 => None,
             Component::Between {
                 start,
                 end,
