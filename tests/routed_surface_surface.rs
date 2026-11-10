@@ -139,3 +139,20 @@ fn test_grazing_cylinders_report_a_tangent_line() {
     assert_eq!(result.curves().len(), 1);
     assert!(result.curves()[0].tangent);
 }
+
+#[test]
+fn test_a_torus_touching_a_sphere_at_its_pole_routes_to_the_contact_point() {
+    // A sphere and a torus in general position have no closed form, so
+    // they are marched; the sphere's parameters give no tangent plane at
+    // its pole, where the torus touches it from outside.
+    let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
+    let torus = Torus::new(Point::new(0.0, 0.0, 4.0), Vector::Y, 1.5, 0.5).unwrap();
+    let pole = Point::new(0.0, 0.0, 2.0);
+    for result in [sphere.intersect(&torus, TOL), torus.intersect(&sphere, TOL)] {
+        assert_eq!(result.method(), IntersectionMethod::Numeric);
+        assert!(result.curves().is_empty());
+        assert_eq!(result.contact_points().len(), 1);
+        assert!(result.contact_points()[0].distance(pole) <= TOL.confusion);
+        assert_eq!(result.completeness(), &Completeness::Sampled);
+    }
+}

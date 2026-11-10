@@ -323,12 +323,19 @@ back `Incomplete` with one `Unseparated` region covering the patch, and
 no curves. Where the surfaces touch along a curve (a plane tangent to a
 cylinder patch along a ruling, a sphere inside a cylinder of its radius)
 the curve is traced along the direction in which they keep touching and
-reported with `tangent` set; a touch at a point is a contact point.
+reported with `tangent` set; a touch at a point is a contact point,
+at a sphere's pole too.
 
 Marching is approximate by design. Its limits:
 - the curves are fitted, to about 1e-4 at the default tolerance;
-- no singular points: a touch at a sphere's pole or a cone's apex is
-  not reported;
+- at a point where a surface has no tangent plane (a cone's apex, a
+  spindle torus's points on its axis), no trace can step: the branches
+  leaving it are seeded a first step away, where the other surface
+  crosses the ring of points around it. A branch along which the
+  surfaces only touch is kept where the other surface comes within
+  confusion of that ring. A seed that no trace leaves and no curve
+  passes through makes the result `Incomplete` with an `Unseparated`
+  region at it, rather than dropping it;
 - the coincidence check sees only a whole surface lying on the other:
   two patches that overlap in part are marched; the seeds where they lie
   on each other make the result `Incomplete` with an `Unseparated`

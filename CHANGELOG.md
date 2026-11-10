@@ -9,6 +9,21 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+### Fixed
+
+- Marching no longer drops a curve through a point where a surface has
+  no tangent plane (#260, ADR 0046). Two cones sharing an apex, each
+  placed at its apex (reference radius 0), came back `Sampled` with no
+  curves, every seed landing on the apex; they now give the same lines
+  as the same cones placed elsewhere: four, three (one where they touch)
+  or two. The march seeds the branches leaving a cone's apex, or a
+  spindle torus's point on its axis, a first step away from it, both
+  where a seed lands there and where the point lies on the other
+  surface. A seed that no trace can leave and that no curve passes
+  through now makes the result `Incomplete` with an `Unseparated` region
+  at it, instead of being dropped. A surface touching a sphere at its
+  pole gives the contact point, where nothing was reported.
+
 ## [0.45.0] - 2026-11-10
 
 Cylinders, cones and spheres meet in closed form. Every pair of them,
