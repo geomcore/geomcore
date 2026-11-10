@@ -419,6 +419,7 @@ impl ConeConeIntersection {
             }
             ConeConeIntersection::TwoConics(conics) => common_sphere_conics(&conics),
             ConeConeIntersection::Quartic(curve) => quartic(curve, tol),
+            ConeConeIntersection::LineAndCubic(line, cubic) => cubic.with_line(line),
             ConeConeIntersection::Empty => surfaces_miss(),
             ConeConeIntersection::ApexPoint(p) | ConeConeIntersection::TangentPoint(p) => {
                 contact_point(p)

@@ -40,9 +40,9 @@ use std::f64::consts::{FRAC_PI_2, PI, SQRT_2, TAU};
 
 use crate::geometry::curves::fitting::{hermite_knots, hermite_spline, segment_length};
 use crate::geometry::curves::{Curve, Curve2D, ParametricCurve};
-use crate::operations::intersect::IntersectionCurve;
+use crate::operations::intersect::{IntersectionCurve, SurfaceSurfaceIntersection};
 use crate::{
-    Cone, Cylinder, InlineList, Point, Point2D, Sphere, Surface, Tolerance, Vector, Vector2D,
+    Cone, Cylinder, InlineList, Line, Point, Point2D, Sphere, Surface, Tolerance, Vector, Vector2D,
 };
 
 mod branch;
@@ -229,6 +229,13 @@ enum Component {
     /// The cone's apex on the sphere: every generator meets the sphere at
     /// the apex, and at `s = 2 m(t)`.
     Apex,
+    /// Around the ruled cone, each apex on the other cone: the generator
+    /// at angle `shared`, through both apexes, lies on both, and every
+    /// other generator meets the other cone at the apex and at one more
+    /// point ([`Other::along_off_shared`]), the cubic left of the quartic.
+    /// Through the shared generator it runs through the other cone's
+    /// apex.
+    OffSharedGenerator { shared: f64 },
 }
 
 /// The ends of an arc of generators where a factor of the discriminant
@@ -349,6 +356,32 @@ impl QuarticCurve {
             }
         }
         branches
+    }
+
+    /// The result of [`ConeConeIntersection::LineAndCubic`]: `line`, then
+    /// the branches of this cubic, exact and complete, with both apexes,
+    /// where they cross, the first operand's first, as contact points.
+    #[cold]
+    pub(crate) fn with_line(&self, line: Line) -> Option<SurfaceSurfaceIntersection> {
+        let Surfaces::Cones(first, second) = self.surfaces else {
+            return None;
+        };
+        let mut curves = vec![IntersectionCurve::in_space(line, false)];
+        curves.extend(
+            self.branches()
+                .into_iter()
+                .map(|branch| IntersectionCurve::in_space(branch, false)),
+        );
+        let apexes = if self.ruled_first {
+            [first.apex(), second.apex()]
+        } else {
+            [second.apex(), first.apex()]
+        };
+        Some(SurfaceSurfaceIntersection::exact(
+            curves,
+            apexes.to_vec(),
+            false,
+        ))
     }
 
     /// The two quadrics as the constructors of [`QuarticBranch`] take
@@ -893,8 +926,9 @@ fn cylinder_along_a_generator(
 /// With the first apex on the second cone, the pair is read along the
 /// second.
 ///
-/// `None` where the closed form does not hold: `A` vanishing twice where
-/// `β` vanishes too, each apex on the other cone, or the cones touching
+/// Each apex on the other cone is the line through both and a cubic
+/// ([`sharing_a_generator`]). `None` where the closed form does not hold:
+/// `A` vanishing twice where `β` vanishes too, or the cones touching
 /// twice. The numeric search takes those.
 pub(super) fn cones_in_general_position(
     first: &Cone,
@@ -906,9 +940,7 @@ pub(super) fn cones_in_general_position(
     let first_apex_on_second = other.offset(ruled.apex).0.abs() <= tol.confusion;
     let second_apex_on_first = ruled.offset(other.cone.apex).0.abs() <= tol.confusion;
     match (first_apex_on_second, second_apex_on_first) {
-        // The line through both apexes lies on both: a line and a cubic,
-        // left to the search.
-        (true, true) => return None,
+        (true, true) => return sharing_a_generator(first, second, &ruled, &other, tol),
         // Read along the second cone, through the first's apex.
         (true, false) => {
             return cones_in_general_position(second, first, tol).map(|result| match result {
@@ -929,13 +961,7 @@ pub(super) fn cones_in_general_position(
     // The generator through the second apex, `cos φ₁ a₁ + sin φ₁ ρ(t)`
     // along the line from the first: `ρ` along its part across `a₁`,
     // turned over where the line runs into the other nappe.
-    let through_apex = second_apex_on_first.then(|| {
-        let toward = other.cone.apex - ruled.apex;
-        let height = toward.dot(a1);
-        let across = toward - a1 * height;
-        let side = (height * ruled.cos).signum() * ruled.sin.signum();
-        (side * across.dot(ruled.y)).atan2(side * across.dot(ruled.x))
-    });
+    let through_apex = second_apex_on_first.then(|| ruled.angle_through(other.cone.apex));
     let infinities = cones_at_infinity(&ruled, &other, (middle, reach_x, reach_y), tol)?;
     let w = ruled.apex - other.cone.apex;
     let w_axis = w.dot(a2);
@@ -1027,6 +1053,84 @@ pub(super) fn cones_in_general_position(
         |angle| Some(ConeConeIntersection::TangentPoint(touching(angle))),
         Some(ConeConeIntersection::Empty),
     )
+}
+
+/// Two cones in general position, each apex on the other: the line
+/// through both lies on both, and what is left of the quartic is a cubic
+/// through both apexes, read along the first cone's generators
+/// ([`Component::OffSharedGenerator`]). On the generator at `t`, `δ` from
+/// the shared one at `t₀`, `A = 2 sin δ (D'·a₂)(a₂·(D + D₀))`, `D'` midway:
+/// the cubic runs to infinity where `D'(t₀ + δ)` is across `a₂`, once, and
+/// where `a₂·D = −a₂·D₀`, twice, or once, out and back on the same side,
+/// where `a₂·D` only comes within `tol.angular` of that, or not at all.
+/// `None` where the line through the apexes is not a generator of each
+/// within `tol.angular`, as where they are a few confusions apart, or
+/// where the cones touch along it, their normals within `tol.angular`
+/// there: the cubic splits into the line and a conic.
+#[cold]
+fn sharing_a_generator(
+    first: &Cone,
+    second: &Cone,
+    ruled: &RuledCone,
+    other: &OtherCone,
+    tol: Tolerance,
+) -> Option<ConeConeIntersection> {
+    let a2 = other.cone.axis;
+    let length = other.cone.apex.distance(ruled.apex);
+    let off_first = ruled.offset(other.cone.apex).0;
+    let off_second = other.offset(ruled.apex).0;
+    if off_first.abs().max(off_second.abs()) > tol.angular * length {
+        return None;
+    }
+    let shared = ruled.angle_through(other.cone.apex);
+    let radial_at = |angle: f64| {
+        let (sin, cos) = angle.sin_cos();
+        ruled.radial(sin, cos)
+    };
+    let shared_radial = radial_at(shared);
+    let shared_direction = ruled.generator(shared_radial).1;
+    let touching = ruled.normal(shared_radial).cross(other.normal(ruled.apex));
+    if touching.magnitude() <= tol.angular * other.normal(ruled.apex).magnitude() {
+        return None;
+    }
+    // `D'(h)·a₂` vanishes where `ρ(h)` runs along `a₂` across the axis.
+    let midway = a2.dot(ruled.y).atan2(a2.dot(ruled.x));
+    let across_axis = (2.0 * midway - shared).rem_euclid(TAU);
+    let mut infinities: InlineList<(f64, f64), MOST_INFINITIES> = InlineList::new();
+    infinities.push((across_axis, 1.0));
+    // `a₂·D = middle + R cos(t − towards)`.
+    let middle = ruled.cos * ruled.axis.dot(a2);
+    let (reach_x, reach_y) = (ruled.sin * ruled.x.dot(a2), ruled.sin * ruled.y.dot(a2));
+    let reach = reach_x.hypot(reach_y);
+    let target = -a2.dot(shared_direction);
+    let towards = reach_y.atan2(reach_x);
+    let edge = middle + reach.copysign(target - middle);
+    // The factors differ by `2 a₂·D₀`, so they never vanish together.
+    if (edge - target).abs() <= tol.angular {
+        let angle = if target > middle {
+            towards
+        } else {
+            towards + PI
+        };
+        infinities.push((angle.rem_euclid(TAU), 1.0));
+    } else if ((target - middle) / reach).abs() < 1.0 {
+        let half = ((target - middle) / reach).acos();
+        for angle in [towards - half, towards + half] {
+            infinities.push((angle.rem_euclid(TAU), 1.0));
+        }
+    }
+    let curve = QuarticCurve::new(
+        Surfaces::Cones(*first, *second),
+        Discriminant::MetOnceOffTheApex,
+        0.0,
+        true,
+        &[Component::OffSharedGenerator { shared }],
+        None,
+        tol,
+    )
+    .with_infinities(&infinities)?;
+    let line = Line::new(ruled.apex, other.cone.apex - ruled.apex).ok()?;
+    Some(ConeConeIntersection::LineAndCubic(line, curve))
 }
 
 /// The generators of the first cone parallel to one of the second's, each
@@ -1646,6 +1750,7 @@ impl Component {
                 Some(if branch > 0.0 { half } else { half + PI })
             }
             Component::Apex => None,
+            Component::OffSharedGenerator { .. } => Some(angle.rem_euclid(TAU)),
         }
     }
 
@@ -1661,7 +1766,7 @@ impl Component {
             Component::Node { start, .. } | Component::ThroughApex { start } => {
                 *start = start.rem_euclid(TAU);
             }
-            Component::Around { .. } | Component::Apex => {}
+            Component::Around { .. } | Component::Apex | Component::OffSharedGenerator { .. } => {}
         }
         self
     }
@@ -1836,6 +1941,19 @@ impl RuledCone {
     }
 }
 
+impl RuledCone {
+    /// The angle of the generator through `point`: `cos φ a + sin φ ρ(t)`
+    /// along the line from the apex, `ρ` along its part across the axis,
+    /// turned over where the line runs into the other nappe.
+    fn angle_through(&self, point: Point) -> f64 {
+        let toward = point - self.apex;
+        let height = toward.dot(self.axis);
+        let across = toward - self.axis * height;
+        let side = (height * self.cos).signum() * self.sin.signum();
+        (side * across.dot(self.y)).atan2(side * across.dot(self.x))
+    }
+}
+
 impl Ruled for RuledCone {
     #[inline]
     fn plane(&self) -> (Vector, Vector) {
@@ -1918,6 +2036,22 @@ trait Other: Copy {
     /// `β` vanishes and the point runs to infinity.
     fn along_once(&self, _base: Point, _direction: Vector) -> f64 {
         unreachable!("only a cone meets every generator of a quadric once")
+    }
+
+    /// Where the generator from `base` along `direction` meets the
+    /// quadric off the ruled cone's apex, when the generator from
+    /// `shared_base` along `shared_direction` lies on both
+    /// ([`Component::OffSharedGenerator`]): the quadratic vanishes there,
+    /// so it is `2 sin δ` times the quadratic of the differences, `δ` half
+    /// the angle between the generators and `across` the derivatives of
+    /// `B` and `D` midway between them, which has one root at the apex.
+    fn along_off_shared(
+        &self,
+        _generator: (Point, Vector),
+        _shared: (Point, Vector),
+        _across: (Vector, Vector),
+    ) -> f64 {
+        unreachable!("only two cones share a generator through both apexes")
     }
 
     /// A normal of the quadric at `point`, of any length.
@@ -2184,6 +2318,25 @@ impl Other for OtherCone {
         -constant / (2.0 * half_linear)
     }
 
+    /// With `Q = a₂ a₂ᵀ − cos² φ`, `q(v) − q(u) = (v − u)ᵀ Q (v + u)` cancels
+    /// `2 sin δ` from the leading coefficient and from the half linear
+    /// one, `D − D₀ = 2 sin δ D'` midway: on the ruled cone `B` is its
+    /// apex, so `γ` vanishes on every generator and the other root is
+    /// `−2β / A`, exact through the shared generator.
+    #[inline]
+    fn along_off_shared(
+        &self,
+        (base, direction): (Point, Vector),
+        (_, shared_direction): (Point, Vector),
+        (_, direction_across): (Vector, Vector),
+    ) -> f64 {
+        let axis = self.cone.axis;
+        let form = |v: Vector| axis * axis.dot(v) - v * self.cos_squared;
+        let leading = direction_across.dot(form(direction + shared_direction));
+        let half_linear = direction_across.dot(form(base - self.cone.apex));
+        -2.0 * half_linear / leading
+    }
+
     /// `(root' − β' − s A') / A`, primes the derivatives in `t`.
     #[inline]
     fn along_rate(
@@ -2291,6 +2444,10 @@ enum Discriminant {
     /// generator meets the other quadric once, at `−γ / 2β`
     /// ([`Other::along_once`]), on one loop around the ruled quadric.
     MetOnce,
+    /// `β²`: `γ` vanishes on every generator, each apex on the other cone.
+    /// Each generator meets the other cone at the ruled cone's apex and
+    /// once more, read by [`Component::OffSharedGenerator`].
+    MetOnceOffTheApex,
 }
 
 /// `k₀ + k₁ cos τ + k₂ sin τ`.
@@ -2324,7 +2481,9 @@ impl Discriminant {
                 let second = linear_at(second, cos_tau, sin_tau);
                 first * first + second * second
             }
-            Discriminant::MetOnce => unreachable!("met once, the root is not read"),
+            Discriminant::MetOnce | Discriminant::MetOnceOffTheApex => {
+                unreachable!("met once, the root is not read")
+            }
         }
     }
 
@@ -2338,7 +2497,8 @@ impl Discriminant {
             Discriminant::OneFactor { scale, cosine } => (scale, [cosine, 0.0], 1),
             Discriminant::Positive { .. }
             | Discriminant::TwoSquares { .. }
-            | Discriminant::MetOnce => {
+            | Discriminant::MetOnce
+            | Discriminant::MetOnceOffTheApex => {
                 unreachable!("only loops around read it whole")
             }
         }
@@ -2368,7 +2528,10 @@ fn crossed_by_normals(component: Component) -> bool {
     match component {
         Component::Around { .. } => true,
         Component::Between { crosses, .. } => !crosses,
-        Component::Node { .. } | Component::ThroughApex { .. } | Component::Apex => false,
+        Component::Node { .. }
+        | Component::ThroughApex { .. }
+        | Component::Apex
+        | Component::OffSharedGenerator { .. } => false,
     }
 }
 
@@ -2630,6 +2793,26 @@ impl<R: Ruled, O: Other> Rulings<R, O> {
                 let (sin, cos) = parameter.sin_cos();
                 (parameter, sin, cos, Some(0.0))
             }
+            Component::OffSharedGenerator { shared } => {
+                let (sin, cos) = parameter.sin_cos();
+                let radial = self.ruled.radial(sin, cos);
+                let generator = self.ruled.generator(radial);
+                let generator_at = |angle: f64| {
+                    let (sin, cos) = angle.sin_cos();
+                    self.ruled.radial(sin, cos)
+                };
+                let on_shared = self.ruled.generator(generator_at(shared));
+                let across = self.ruled.turns(generator_at(0.5 * (parameter + shared)));
+                let along = self.other.along_off_shared(generator, on_shared, across);
+                let (base, direction) = generator;
+                return OnGenerator {
+                    angle: parameter,
+                    radial,
+                    direction,
+                    point: base + direction * along,
+                    along,
+                };
+            }
         };
         let radial = self.ruled.radial(sin, cos);
         let (base, direction) = self.ruled.generator(radial);
@@ -2702,7 +2885,8 @@ impl<R: Ruled, O: Other> Rulings<R, O> {
             }
             Component::Around { .. }
             | Component::Between { .. }
-            | Component::ThroughApex { .. } => {
+            | Component::ThroughApex { .. }
+            | Component::OffSharedGenerator { .. } => {
                 unreachable!("a central difference gives the tangent of these")
             }
         };
@@ -2727,7 +2911,8 @@ impl<R: Ruled, O: Other> Rulings<R, O> {
             }
             Component::Around { .. }
             | Component::Between { .. }
-            | Component::ThroughApex { .. } => {
+            | Component::ThroughApex { .. }
+            | Component::OffSharedGenerator { .. } => {
                 let tangent = if crossed_by_normals(component) {
                     self.crossing(&on) * orientation
                 } else {
@@ -2782,7 +2967,10 @@ impl<R: Ruled, O: Other> Rulings<R, O> {
                         .other
                         .along_rate(base, on.direction, turns, on.along, 0.0, 1.0)
             }
-            Component::Node { .. } | Component::ThroughApex { .. } | Component::Apex => {
+            Component::Node { .. }
+            | Component::ThroughApex { .. }
+            | Component::Apex
+            | Component::OffSharedGenerator { .. } => {
                 return 1.0;
             }
         };
@@ -2802,7 +2990,9 @@ impl<R: Ruled, O: Other> Rulings<R, O> {
                 let velocity = self.velocity(component, parameter, on).0;
                 velocity * (1.0 / velocity.magnitude())
             }
-            Component::ThroughApex { .. } | Component::Between { crosses: true, .. } => {
+            Component::ThroughApex { .. }
+            | Component::OffSharedGenerator { .. }
+            | Component::Between { crosses: true, .. } => {
                 self.stepped_tangent(component, parameter)
             }
             Component::Around { .. } | Component::Between { .. } => self.crossing(on),
@@ -2885,6 +3075,7 @@ impl<R: Ruled, O: Other> Rulings<R, O> {
         match component {
             Component::Apex
             | Component::ThroughApex { .. }
+            | Component::OffSharedGenerator { .. }
             | Component::Between { crosses: true, .. } => None,
             _ => self.first_order_distance(point),
         }

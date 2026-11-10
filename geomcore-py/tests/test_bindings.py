@@ -770,6 +770,38 @@ def test_intersect_cone_cone():
     assert QuarticBranch(first, second, branch.index()) != branch
     assert pickle.loads(pickle.dumps(branch)) == branch
 
+    # Each apex on the other cone: the line through both, a generator of
+    # each, and the cubic left, in exact branches, crossing the line at
+    # both apexes.
+    sqrt3 = math.sqrt(3.0)
+    upright = Cone(Point(0.0, 0.0, 1.0), Vector.unit_z(), math.pi / 6.0, 1.0 / sqrt3)
+    apex = Point(1.0, 0.0, sqrt3)
+    half_angle, turn = 0.6, 1.0
+    toward_first = (-0.5, 0.0, -sqrt3 / 2.0)
+    across = (sqrt3 / 2.0 * math.cos(turn), -math.sin(turn), -0.5 * math.cos(turn))
+    axis = Vector(
+        *(
+            t * math.cos(half_angle) + a * math.sin(half_angle)
+            for t, a in zip(toward_first, across)
+        )
+    )
+    origin = Point(apex.x + axis.x, apex.y + axis.y, apex.z + axis.z)
+    second = Cone(origin, axis, half_angle, math.tan(half_angle))
+    split = upright.intersect(second)
+    assert split.method == IntersectionMethod.EXACT and split.is_complete()
+    line, *cubic = (piece.curve for piece in split.curves)
+    assert isinstance(line, Line)
+    assert cubic and all(isinstance(branch, QuarticBranch) for branch in cubic)
+    for branch in cubic:
+        for u in [-50.0, 0.0, 3.0]:
+            point = branch.point_at(u)
+            assert upright.project_point(point).distance < 1e-9
+            assert second.project_point(point).distance < 1e-9
+        assert pickle.loads(pickle.dumps(branch)) == branch
+    first_apex, second_apex = split.contact_points
+    assert first_apex.distance(Point.origin()) < 1e-12
+    assert second_apex.distance(apex) < 1e-12
+
     # Parallel axes, equal half-angles: the 90° chamfers of two holes 3
     # apart meet in one hyperbola, in the plane x = 1.5 halfway between.
     left = Cone(Point.origin(), Vector.unit_z(), math.pi / 4.0, 0.0)

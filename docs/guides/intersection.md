@@ -89,9 +89,13 @@ generators, on one loop that is bounded, or runs off to infinity in
 branches like those. A cone and a cylinder, or two cones, that touch
 at a point meet in a curve crossing itself there, one loop through the
 point twice, or at that point alone; so does a cone whose apex lies on
-the other surface, at its apex. Each apex of two cones on the other, a
-cylinder along a generator of a cone through its apex, and surfaces that
-touch twice are left to the numeric search.
+the other surface, at its apex. Where each apex of two cones lies on
+the other, the line through both lies on both, and the rest is a cubic
+through both apexes: `intersect` returns the line and the cubic's
+pieces between its points at infinity as `QuarticBranch` curves, with
+both apexes as contact points. A cylinder along a generator of a cone
+through its apex, and surfaces that touch twice, are left to the
+numeric search.
 `intersect_exact` returns its closed form
 (`QuarticCurve`, exact points on both surfaces), and `intersect` fits
 each loop within confusion and reports the result exact and complete,

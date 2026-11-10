@@ -329,10 +329,10 @@ pub enum TorusTorusIntersection {
 /// running off to infinity where a generator of one cone is parallel to
 /// one of the other's ([`QuarticCurve::branches`]), and crossing itself
 /// where the cones touch or at an apex on the other cone, or that point
-/// alone. Where each apex lies on the other cone, or the cones touch twice,
-/// it reports
-/// [`ConeConeIntersection::NotAnalytic`], reserved for the numeric
-/// surface-surface path.
+/// alone. Each apex on the other cone gives the line through both and a
+/// cubic ([`ConeConeIntersection::LineAndCubic`]). Where the cones touch
+/// twice, it reports [`ConeConeIntersection::NotAnalytic`], reserved for
+/// the numeric surface-surface path.
 // The quartic is stored inline, as in the other quartic results.
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, PartialEq)]
@@ -358,6 +358,14 @@ pub enum ConeConeIntersection {
     /// cone, otherwise arcs between the planes through both apexes that
     /// touch the second cone.
     Quartic(QuarticCurve),
+    /// Each apex on the other cone, the cones otherwise in general
+    /// position: the line through both apexes, a generator of each, and
+    /// the cubic left of the quartic, which crosses the line at both
+    /// apexes and runs to infinity. The cubic is read along the first
+    /// cone's generators as a [`QuarticCurve`] of one component, whose
+    /// [`branches`](QuarticCurve::branches) are its pieces between its
+    /// points at infinity.
+    LineAndCubic(Line, QuarticCurve),
     /// The cones miss each other: no generator of the first meets the
     /// second.
     Empty,
@@ -1098,9 +1106,11 @@ impl IntersectExact<Cone> for Cone {
     /// [`CommonSphereConics`]). Anything else is a space quartic in closed
     /// form, read along the first cone's generators (see [`QuarticCurve`]),
     /// crossing itself where the cones touch or at an apex on the other
-    /// cone, or that point alone. Where each apex lies on the other cone
-    /// (within `tol.confusion`), or the cones touch twice, it reports
-    /// [`ConeConeIntersection::NotAnalytic`].
+    /// cone, or that point alone. Each apex on the other cone (within
+    /// `tol.confusion`, the line through both within `tol.angular` of a
+    /// generator of each) gives that line and a cubic
+    /// ([`ConeConeIntersection::LineAndCubic`]). Where the cones touch
+    /// twice, it reports [`ConeConeIntersection::NotAnalytic`].
     ///
     /// # Examples
     ///
