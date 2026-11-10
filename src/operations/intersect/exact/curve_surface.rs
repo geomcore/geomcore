@@ -6,7 +6,7 @@ use crate::geometry::surfaces::ParametricSurface;
 use crate::math::numeric::{
     QuadraticSolution, quadratic_centre, roots_with_tangency, solve_quadratic,
 };
-use crate::operations::intersect::intersect_conic_quadric;
+use crate::operations::intersect::{intersect_circle_torus, intersect_conic_quadric};
 use crate::{
     Circle, Cone, Cylinder, Ellipse, Hyperbola, IntersectExact, Line, Parabola, Plane, Point,
     Sphere, Tolerance, Torus,
@@ -84,9 +84,9 @@ pub struct ConicSurfaceHit {
     pub multiplicity: u32,
 }
 
-/// Result of intersecting a 3D circle with a plane, sphere, cylinder, or
-/// cone: either the whole circle lies on the surface, isolated hits
-/// report, or nothing does.
+/// Result of intersecting a 3D circle with a plane, sphere, cylinder,
+/// cone, or torus: either the whole circle lies on the surface, isolated
+/// hits report, or nothing does.
 #[derive(Debug, Clone, PartialEq)]
 pub enum CircleSurfaceIntersection {
     /// The whole circle lies on the surface (sample-verified).
@@ -553,6 +553,46 @@ impl IntersectExact<Cone> for Circle {
     /// ```
     fn intersect_exact(&self, cone: &Cone, tol: Tolerance) -> CircleSurfaceIntersection {
         match intersect_conic_quadric(self, cone, tol) {
+            ConicSurfaceIntersection::Coincident => CircleSurfaceIntersection::Circle(*self),
+            ConicSurfaceIntersection::Hits(hits) => CircleSurfaceIntersection::Hits(hits),
+            ConicSurfaceIntersection::Empty => CircleSurfaceIntersection::Empty,
+        }
+    }
+}
+
+impl IntersectExact<Torus> for Circle {
+    type Output = CircleSurfaceIntersection;
+
+    /// Intersects this circle with a torus.
+    ///
+    /// The torus equation along the circle carries double-angle terms, as
+    /// a cylinder's or a cone's does, and is solved as a quartic in
+    /// `tan(t/2)`: at most four hits. A circle on the torus (a tube,
+    /// latitude or Villarceau circle) returns itself.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::prelude::*;
+    /// use geomcore::{Circle, CircleSurfaceIntersection, Point, Tolerance, Torus, Vector};
+    /// let torus = Torus::new(Point::ORIGIN, Vector::Z, 3.0, 1.0).unwrap();
+    /// let tol = Tolerance::DEFAULT;
+    /// // In the torus's mid-plane, a circle about a point of the tube's
+    /// // centre circle crosses its inner and outer equators twice each.
+    /// let circle = Circle::new(Point::new(3.0, 0.0, 0.0), Vector::Z, 1.5).unwrap();
+    /// match circle.intersect_exact(&torus, tol) {
+    ///     CircleSurfaceIntersection::Hits(hits) => assert_eq!(hits.len(), 4),
+    ///     other => panic!("expected four hits, got {other:?}"),
+    /// }
+    /// // The tube circle at u = 0 lies on the torus.
+    /// let tube = torus.u_iso(0.0).unwrap();
+    /// assert!(matches!(
+    ///     tube.intersect_exact(&torus, tol),
+    ///     CircleSurfaceIntersection::Circle(_)
+    /// ));
+    /// ```
+    fn intersect_exact(&self, torus: &Torus, tol: Tolerance) -> CircleSurfaceIntersection {
+        match intersect_circle_torus(self, torus, tol) {
             ConicSurfaceIntersection::Coincident => CircleSurfaceIntersection::Circle(*self),
             ConicSurfaceIntersection::Hits(hits) => CircleSurfaceIntersection::Hits(hits),
             ConicSurfaceIntersection::Empty => CircleSurfaceIntersection::Empty,

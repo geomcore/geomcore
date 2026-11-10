@@ -12,7 +12,6 @@
 //! to the numeric search (two cylinders with skew axes). Every other pair
 //! goes to the numeric search: a pair the table leaves out, and every pair
 //! with a shape it lists nowhere, such as a B-spline or Bézier shape.
-//! [`ExactFamily::has_closed_form`] reads the same entries.
 //!
 //! The concrete types of each list come from the shape enums' variant
 //! lists (ADR 0017), so a new shape type edits no list here. Adding a
@@ -44,11 +43,6 @@ pub(crate) trait ExactFamily<B> {
     /// [`CurveCurveIntersection2D`], [`CurveSurfaceIntersection`] or
     /// [`SurfaceSurfaceIntersection`].
     type Family;
-
-    /// Whether the table lists the pair: a closed-form solver answers it,
-    /// though it may still hand a configuration it does not cover to the
-    /// numeric search.
-    fn has_closed_form(&self, other: &B) -> bool;
 
     /// Intersects `self` with `other` in closed form, each restricted to
     /// its range in `ranges`, deciding tangency and coincidence with
@@ -195,11 +189,6 @@ macro_rules! enum_second {
             type Family = $family;
 
             #[inline]
-            fn has_closed_form(&self, other: &$enum) -> bool {
-                $each!(other, shape => self.has_closed_form(shape); false)
-            }
-
-            #[inline]
             fn exact_family(
                 &self,
                 other: &$enum,
@@ -223,11 +212,6 @@ macro_rules! enum_first {
     ($family:ty: $enum:ty, $each:ident; [$($second:ty),*]) => {$(
         impl ExactFamily<$second> for $enum {
             type Family = $family;
-
-            #[inline]
-            fn has_closed_form(&self, other: &$second) -> bool {
-                $each!(self, shape => shape.has_closed_form(other); false)
-            }
 
             #[inline]
             fn exact_family(
@@ -254,14 +238,6 @@ macro_rules! kind_second {
     ($family:ty: $kind:ty, $elementary:path; [$($first:ty),*]) => {$(
         impl ExactFamily<$kind> for $first {
             type Family = $family;
-
-            #[inline]
-            fn has_closed_form(&self, other: &$kind) -> bool {
-                match other {
-                    $elementary(shape) => self.has_closed_form(shape),
-                    _ => false,
-                }
-            }
 
             #[inline]
             fn exact_family(
@@ -298,11 +274,6 @@ macro_rules! surface_surface {
             type Family = SurfaceSurfaceIntersection;
 
             #[inline]
-            fn has_closed_form(&self, _other: &$second) -> bool {
-                true
-            }
-
-            #[inline]
             fn exact_family(
                 &self,
                 other: &$second,
@@ -334,16 +305,6 @@ enum_first!(
 
 impl<'b> ExactFamily<SurfaceKind<'b>> for SurfaceKind<'_> {
     type Family = SurfaceSurfaceIntersection;
-
-    #[inline]
-    fn has_closed_form(&self, other: &SurfaceKind<'b>) -> bool {
-        match (self, other) {
-            (SurfaceKind::Elementary(first), SurfaceKind::Elementary(second)) => {
-                first.has_closed_form(second)
-            }
-            _ => plane_and_swept(*self, *other).is_some(),
-        }
-    }
 
     #[inline]
     fn exact_family(
@@ -385,8 +346,8 @@ fn plane_and_swept<'a>(
     }
 }
 
-// Curve–surface: a line with every elementary surface, a conic with every
-// quadric, each through its typed solver.
+// Curve–surface: a line or a circle with every elementary surface, a conic
+// with every quadric, each through its typed solver.
 
 /// Implements [`ExactFamily`] for each pair of a concrete curve and a
 /// concrete surface the table lists (`solved`) through its typed solver,
@@ -397,11 +358,6 @@ macro_rules! curve_surface {
     (solved: $($curve:ty => [$($surface:ty),*]),*) => {$($(
         impl ExactFamily<$surface> for $curve {
             type Family = CurveSurfaceIntersection;
-
-            #[inline]
-            fn has_closed_form(&self, _surface: &$surface) -> bool {
-                true
-            }
 
             #[inline]
             fn exact_family(
@@ -419,12 +375,10 @@ macro_rules! curve_surface {
         impl ExactFamily<$surface> for $curve {
             type Family = CurveSurfaceIntersection;
 
-            #[inline]
-            fn has_closed_form(&self, _surface: &$surface) -> bool {
-                false
-            }
-
-            /// A circle or conic against a torus has no closed form.
+            /// An ellipse, a parabola or a hyperbola against a torus has no
+            /// closed form: substituted into the torus, they give an
+            /// equation of degree 8. A circle gives one of degree 4, the
+            /// torus being bicircular, and is listed.
             #[inline]
             fn exact_family(
                 &self,
@@ -442,7 +396,7 @@ macro_rules! curve_surface {
 curve_surface!(
     solved:
     Line => [Plane, Cylinder, Cone, Sphere, Torus],
-    Circle => [Plane, Cylinder, Cone, Sphere],
+    Circle => [Plane, Cylinder, Cone, Sphere, Torus],
     Ellipse => [Plane, Cylinder, Cone, Sphere],
     Parabola => [Plane, Cylinder, Cone, Sphere],
     Hyperbola => [Plane, Cylinder, Cone, Sphere]
@@ -450,7 +404,6 @@ curve_surface!(
 
 curve_surface!(
     unlisted:
-    Circle => Torus,
     Ellipse => Torus,
     Parabola => Torus,
     Hyperbola => Torus
@@ -485,11 +438,6 @@ macro_rules! curve_curve {
             type Family = $family;
 
             #[inline]
-            fn has_closed_form(&self, _other: &$second) -> bool {
-                true
-            }
-
-            #[inline]
             fn exact_family(
                 &self,
                 other: &$second,
@@ -504,11 +452,6 @@ macro_rules! curve_curve {
     ($family:ty; reversed: $($first:ty => $second:ty),*) => {$(
         impl ExactFamily<$second> for $first {
             type Family = $family;
-
-            #[inline]
-            fn has_closed_form(&self, other: &$second) -> bool {
-                other.has_closed_form(self)
-            }
 
             #[inline]
             fn exact_family(
@@ -568,14 +511,6 @@ where
     type Family = <ElementaryCurve as ExactFamily<B>>::Family;
 
     #[inline]
-    fn has_closed_form(&self, other: &B) -> bool {
-        match self {
-            CurveKind::Elementary(curve) => curve.has_closed_form(other),
-            CurveKind::Unlisted => false,
-        }
-    }
-
-    #[inline]
     fn exact_family(
         &self,
         other: &B,
@@ -625,14 +560,6 @@ where
     Curve2D: ExactFamily<B>,
 {
     type Family = <Curve2D as ExactFamily<B>>::Family;
-
-    #[inline]
-    fn has_closed_form(&self, other: &B) -> bool {
-        match self {
-            CurveKind2D::Elementary(curve) => curve.has_closed_form(other),
-            CurveKind2D::Unlisted => false,
-        }
-    }
 
     #[inline]
     fn exact_family(

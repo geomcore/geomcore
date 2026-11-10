@@ -9,6 +9,24 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+### Added
+
+- A circle meets a torus in closed form (#269):
+  `IntersectExact<Torus> for Circle` returns a `CircleSurfaceIntersection`.
+  - Along a circle, the torus equation is
+    `A cos 2t + B sin 2t + C cos t + D sin t + E = 0`, a quartic in
+    `tan(t/2)`. This gives up to four hits, with tangency decided by
+    distance as for the other circle pairs.
+  - Where the circle lies on the torus (a tube, latitude or Villarceau
+    circle), the result is the whole circle.
+  - `intersect` reports the pair `Exact` and complete, in Rust and
+    Python, where it used to run the numeric search.
+  - The march now also seeds from the circles of a cylinder, cone, sphere
+    or torus where they cut a torus.
+  - An ellipse, a parabola or a hyperbola against a torus still runs the
+    numeric search: substituted into the torus, they give an equation of
+    degree 8.
+
 ### Fixed
 
 - Marching no longer drops a curve through a point where a surface has

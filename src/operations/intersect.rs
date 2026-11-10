@@ -9,7 +9,8 @@ mod results;
 pub(crate) mod routing;
 pub use exact::IntersectExact;
 pub(crate) use exact::conic::{
-    Conic, ImplicitConic, PlacedConic, intersect_conic_conic, intersect_conic_quadric,
+    Conic, ImplicitConic, PlacedConic, intersect_circle_torus, intersect_conic_conic,
+    intersect_conic_quadric,
 };
 pub use exact::conic_2d::Conic2DIntersection;
 pub use exact::curve_curve::{

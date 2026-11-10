@@ -467,9 +467,10 @@ cargo bench --bench intersect_dispatch -- intersect_routed
 
 `benches/conic_quadric.rs` times batches of 1024 typed `Intersect::intersect`
 calls for each of the 16 pairs of a conic (circle, ellipse, parabola,
-hyperbola) and a quadric (plane, sphere, cylinder, cone). The conics are
-placed at random near the quadric, so each batch mixes crossings,
-tangencies and misses.
+hyperbola) and a quadric (plane, sphere, cylinder, cone), and for a circle
+against a torus (`conic_quadric/circle/torus`). The conics are placed at
+random near the surface, so each batch mixes crossings, tangencies and
+misses.
 
 Machine: Linux 7.0, x86-64 desktop, single thread, `--warm-up-time 1
 --measurement-time 4` (2026-10-12). Times are per pair.
@@ -487,6 +488,11 @@ factoring it, and the tangency check costs a bounded Newton search on the
 derivative per pair of neighbouring roots or complex pair, plus one
 surface containment test there. Setting up the coefficients takes under
 10 ns.
+
+A circle against a torus solves the same kind of quartic and costs about
+what a circle against a cylinder or a cone does: ~1.88 µs per pair, against
+~1.83 µs and ~1.86 µs for those two in the same run (2026-11-10, on a
+busier machine than the table's).
 
 Reproduce with:
 
@@ -679,7 +685,10 @@ They now run to the cube 50 000 away, the step doubling along the nearly
 straight branches. The torus seeds from 24 meridian circles cut by the
 sphere or the plane (exact), and the plane from 48 lines across the
 torus's box (each a quartic). The sphere's circles would meet the torus
-only through the sampled search, so they are left out. The wall's grid
+only through the sampled search, so they are left out. A circle meets a
+torus in closed form since #269, and they are still left out: they found
+no curve the other seeds missed, at 3.7% more instructions here (ADR
+0047). The wall's grid
 finds the curves that the cylinder's rulings miss, since the rulings run
 along the extrusion.
 
