@@ -2,7 +2,7 @@
 //! generators.
 
 use super::*;
-use crate::{ConeCylinderIntersection, Curve, Frame, QuarticBranch};
+use crate::{ConeCylinderIntersection, Curve, Frame, QuarticBranch, Transform};
 use std::f64::consts::{FRAC_PI_2, FRAC_PI_6, PI, TAU};
 
 /// The cone of half-angle 30° with its apex at the origin along `Z`.
@@ -267,6 +267,84 @@ fn test_a_pipe_touching_the_cone_from_outside_meets_it_at_the_point() {
     };
     assert!(point.distance(foot_on_side(center)) < 1e-12);
     assert_routed_in_either_order(&tube, 0, 1);
+}
+
+/// A placement with no axis along a coordinate axis.
+fn tilted() -> Transform {
+    let frame = Frame::new(
+        Point::new(1.0, -2.0, 0.5),
+        Vector::new(0.3, -0.4, 0.86),
+        Vector::new(1.0, 0.2, 0.0),
+    )
+    .unwrap();
+    Transform::between_frames(Frame::WORLD, frame)
+}
+
+#[test]
+fn test_a_pipe_beside_the_apex_touching_both_nappes_meets_them_at_the_two_points() {
+    // A pipe across the axis through `d` from it at the apex's height,
+    // `√3 d / 2` in radius: across its axis it touches the generators at
+    // `z = ± √3 x`, one on each nappe, at `(d / 4, 0, ± √3 d / 4)`,
+    // turned about `Z` by `turn`; and the same, placed anywhere.
+    let sqrt3 = 3.0_f64.sqrt();
+    for (d, turn) in [(1.0, 0.0), (0.4, 2.3), (3.0, -1.1)] {
+        let (sin, cos) = f64::sin_cos(turn);
+        let radial = Vector::new(cos, sin, 0.0);
+        let tube = cylinder(
+            Point::ORIGIN + radial * d,
+            Vector::new(-sin, cos, 0.0),
+            sqrt3 * d / 2.0,
+        );
+        let touching = [1.0, -1.0]
+            .map(|side| Point::ORIGIN + radial * (d / 4.0) + Vector::Z * (side * sqrt3 * d / 4.0));
+        for transform in [Transform::IDENTITY, tilted()] {
+            let cone = upright().transformed(transform).unwrap();
+            let tube = tube.transformed(transform).unwrap();
+            let expected = touching.map(|point| transform.apply_point(point));
+            for result in [
+                cone.intersect_exact(&tube, TOL),
+                tube.intersect_exact(&cone, TOL),
+            ] {
+                let ConeCylinderIntersection::TwoTangentPoints(first, second) = result else {
+                    panic!("two tangent points: {result:?}");
+                };
+                let scale = 1.0 + d;
+                let near = |point: Point| {
+                    expected
+                        .iter()
+                        .map(|on| on.distance(point))
+                        .fold(f64::INFINITY, f64::min)
+                };
+                assert!(near(first) < 1e-12 * scale && near(second) < 1e-12 * scale);
+                assert!(first.distance(second) > 0.8 * d);
+            }
+            assert_routed_both_ways(&cone, &tube, 0, 2);
+        }
+    }
+}
+
+#[test]
+fn test_a_pipe_beside_the_apex_within_confusion_of_both_nappes_touches_them() {
+    // Within confusion of touching both nappes, the two points; farther
+    // in, an arc on each nappe; farther out, nothing.
+    let sqrt3 = 3.0_f64.sqrt();
+    let tube = |radius: f64| cylinder(Point::new(1.0, 0.0, 0.0), Vector::Y, radius);
+    for off_by in [1e-9, -1e-9, 0.0] {
+        assert!(matches!(
+            upright().intersect_exact(&tube(sqrt3 / 2.0 + off_by), TOL),
+            ConeCylinderIntersection::TwoTangentPoints(..)
+        ));
+    }
+    let ConeCylinderIntersection::Quartic(arcs) =
+        upright().intersect_exact(&tube(sqrt3 / 2.0 + 1e-3), TOL)
+    else {
+        panic!("the quartic");
+    };
+    assert_eq!(arcs.component_count(), 2);
+    assert_eq!(
+        upright().intersect_exact(&tube(sqrt3 / 2.0 - 1e-3), TOL),
+        ConeCylinderIntersection::Empty
+    );
 }
 
 #[test]

@@ -741,3 +741,91 @@ fn test_a_branch_read_within_tolerance_comes_back_from_its_cones() {
         Some(&branches[0])
     );
 }
+
+/// Two cones in opposite sectors of the two planes through the `X` axis
+/// at `± tilt` from `XY`, each tangent to both: the first from the origin
+/// along `(cos turn, sin turn, 0)`, in the sectors around `± Y`; the
+/// second from `(2, 0, 0)` along `(cos lean, 0, sin lean)`, around `± Z`,
+/// `widen` added to its half-angle. With the points where they touch,
+/// where the generators along which each touches a plane cross.
+fn in_opposite_sectors(tilt: f64, turn: f64, lean: f64, widen: f64) -> (Cone, Cone, [Point; 2]) {
+    let first_axis = Vector::new(turn.cos(), turn.sin(), 0.0);
+    let second_axis = Vector::new(lean.cos(), 0.0, lean.sin());
+    let second_apex = Point::new(2.0, 0.0, 0.0);
+    let normals = [1.0, -1.0].map(|side| Vector::new(0.0, -tilt.sin(), side * tilt.cos()));
+    let first = from_apex(
+        Point::ORIGIN,
+        first_axis,
+        first_axis.dot(normals[0]).abs().asin(),
+    );
+    let second = from_apex(
+        second_apex,
+        second_axis,
+        second_axis.dot(normals[0]).abs().asin() + widen,
+    );
+    let touching = normals.map(|normal| {
+        let along = |axis: Vector| axis - normal * axis.dot(normal);
+        let (from_first, from_second) = (along(first_axis), along(second_axis));
+        let across = from_first.cross(from_second);
+        let s = (second_apex - Point::ORIGIN).cross(from_second).dot(across) / across.dot(across);
+        Point::ORIGIN + from_first * s
+    });
+    (first, second, touching)
+}
+
+#[test]
+fn test_cones_in_opposite_sectors_of_the_planes_touching_both_meet_at_two_points() {
+    // Both cones tangent to the same two planes through both apexes, in
+    // opposite sectors between them: they touch once in each plane and
+    // meet nowhere else. The axes are skew, so no sphere touches both.
+    for (tilt, turn, lean) in [(0.5, 1.0, 1.2), (0.3, 2.0, 0.8), (1.1, 1.4, 2.5)] {
+        let (first, second, touching) = in_opposite_sectors(tilt, turn, lean, 0.0);
+        for (first, second) in [(first, second), (second, first)] {
+            let result = first.intersect_exact(&second, TOL);
+            let ConeConeIntersection::TwoTangentPoints(p, q) = result else {
+                panic!("two tangent points: {result:?}");
+            };
+            for (point, expected) in [p, q].into_iter().zip(touching) {
+                let scale = 1.0 + expected.distance(Point::ORIGIN);
+                assert!(
+                    point.distance(expected) < 1e-12 * scale,
+                    "{point:?} {expected:?}"
+                );
+            }
+            assert_routed_both_ways(&first, &second, 0, 2);
+        }
+    }
+}
+
+#[test]
+fn test_cones_in_opposite_sectors_within_confusion_of_touching_twice_touch() {
+    // The second cone `1e-10` wider or narrower, within confusion of both
+    // touches: the two points. `1e-3` wider, it crosses into the first
+    // cone's sectors at both: two loops; narrower, the cones miss.
+    for widen in [1e-10, -1e-10] {
+        let (first, second, _) = in_opposite_sectors(0.5, 1.0, 1.2, widen);
+        assert!(matches!(
+            first.intersect_exact(&second, TOL),
+            ConeConeIntersection::TwoTangentPoints(..)
+        ));
+    }
+    let (first, second, _) = in_opposite_sectors(0.5, 1.0, 1.2, 1e-3);
+    let ConeConeIntersection::Quartic(curve) = first.intersect_exact(&second, TOL) else {
+        panic!("the quartic");
+    };
+    assert_eq!(curve.component_count(), 2);
+    // The loops reach far out, generators of the two all but parallel.
+    for component in 0..2 {
+        for k in 0..=256 {
+            let point = curve.point_at(component, f64::from(k) * TAU / 256.0);
+            let scale = 1.0 + point.distance(Point::ORIGIN);
+            assert!(off(&first, point) < 1e-12 * scale);
+            assert!(off(&second, point) < 1e-12 * scale);
+        }
+    }
+    let (first, second, _) = in_opposite_sectors(0.5, 1.0, 1.2, -1e-3);
+    assert_eq!(
+        first.intersect_exact(&second, TOL),
+        ConeConeIntersection::Empty
+    );
+}
