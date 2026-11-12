@@ -2371,3 +2371,18 @@ def test_bspline_curve_2d_intersections_are_numeric_and_complete():
     arc = TrimmedCurve2D(circle, 0.0, math.pi)
     half = arc.to_bspline()
     assert half.point_at(half.bounds()[1]).x == pytest.approx(-2.0)
+
+
+@pytest.mark.parametrize("bad", [-1.0, 0.0, float("nan"), float("inf")])
+def test_a_tolerance_scale_must_be_positive_and_finite(bad):
+    # #306: a bad scale read as a proven empty answer.
+    from geomcore import ConstructionError
+
+    for scales in ({"confusion": bad}, {"angular": bad}, {"parametric": bad}):
+        with pytest.raises(ConstructionError, match=next(iter(scales))):
+            Tolerance(**scales)
+    circle = Circle(Point.origin(), Vector.unit_z(), 2.0)
+    line = Line(Point.origin(), Vector.unit_x())
+    with pytest.raises(ValueError, match="confusion"):
+        circle.intersect(line, tol=bad)
+    assert len(circle.intersect(line, tol=1e-3).hits) == 2

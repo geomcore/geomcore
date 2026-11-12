@@ -1591,7 +1591,10 @@ fn test_marched_curves_report_how_far_they_stray_from_the_surfaces() {
     let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
     let torus = Torus::new(Point::ORIGIN, Vector::Z, 3.0, 1.0).unwrap();
     let cylinder = Cylinder::new(Point::new(3.0, 0.0, 0.0), Vector::X, 0.7).unwrap();
-    for tol in [Tolerance::DEFAULT, Tolerance::new(1e-4, 1e-9, 1e-9)] {
+    for tol in [
+        Tolerance::DEFAULT,
+        Tolerance::new(1e-4, 1e-9, 1e-9).unwrap(),
+    ] {
         assert_deviation_bounds_a_dense_sample(&plane, &sphere, tol);
         assert_deviation_bounds_a_dense_sample(&torus, &cylinder, tol);
     }
@@ -1646,7 +1649,8 @@ fn test_plane_cuts_a_ring_in_two_circles_at_any_size() {
             Tolerance::DEFAULT.confusion * scale,
             Tolerance::DEFAULT.angular,
             Tolerance::DEFAULT.parametric,
-        );
+        )
+        .unwrap();
         let profile = Circle::from_frame(
             Frame::new(Point::new(3.0 * scale, 0.0, 0.0), Vector::Y, Vector::X).unwrap(),
             0.7 * scale,
@@ -1843,7 +1847,8 @@ fn test_a_cut_along_a_patch_ends_on_its_edges_at_any_size() {
             Tolerance::DEFAULT.confusion * scale,
             Tolerance::DEFAULT.angular,
             Tolerance::DEFAULT.parametric,
-        );
+        )
+        .unwrap();
         let patch = bumpy_patch(0.1)
             .transformed(Transform::scaling(Point::ORIGIN, scale))
             .unwrap();
@@ -1886,7 +1891,8 @@ fn test_a_cylinder_cut_by_a_swept_line_is_one_ellipse_at_any_size() {
             Tolerance::DEFAULT.confusion * scale,
             Tolerance::DEFAULT.angular,
             Tolerance::DEFAULT.parametric,
-        );
+        )
+        .unwrap();
         let similarity = Transform::scaling(Point::ORIGIN, scale);
         let cylinder = cylinder.clone().transformed(similarity).unwrap();
         let wall = wall.clone().transformed(similarity).unwrap();

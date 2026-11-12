@@ -64,6 +64,7 @@ fn tolerance(scale: f64) -> Tolerance {
         reference.angular,
         reference.parametric,
     )
+    .unwrap()
 }
 
 /// How far an image point, brought back, may sit from its reference.

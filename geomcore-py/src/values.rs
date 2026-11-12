@@ -1111,9 +1111,12 @@ impl PyTolerance {
         angular = Tolerance::DEFAULT.angular,
         parametric = Tolerance::DEFAULT.parametric,
     ))]
-    /// Build tolerances from the three scales explicitly.
-    fn py_new(confusion: f64, angular: f64, parametric: f64) -> Self {
-        PyTolerance(Tolerance::new(confusion, angular, parametric))
+    /// Build tolerances from the three scales explicitly. Raises
+    /// `ConstructionError` when a scale is not a positive finite number.
+    fn py_new(confusion: f64, angular: f64, parametric: f64) -> PyResult<Self> {
+        Tolerance::new(confusion, angular, parametric)
+            .map(PyTolerance)
+            .map_err(python_error)
     }
 
     /// The default tolerances (confusion 1e-7, angular 1e-12, parametric 1e-9).
@@ -1183,10 +1186,12 @@ impl<'py> FromPyObject<'py> for ToleranceArgument {
             return Ok(ToleranceArgument(given.borrow().0));
         }
         match object.extract::<f64>() {
-            Ok(confusion) => Ok(ToleranceArgument(Tolerance {
-                confusion,
-                ..Tolerance::DEFAULT
-            })),
+            Ok(confusion) => {
+                let default = Tolerance::DEFAULT;
+                Tolerance::new(confusion, default.angular, default.parametric)
+                    .map(ToleranceArgument)
+                    .map_err(python_error)
+            }
             Err(_) => Err(PyTypeError::new_err(format!(
                 "tol must be a Tolerance or a number (its confusion), not {}",
                 object.get_type().name()?

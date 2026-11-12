@@ -11,6 +11,10 @@ the Python distribution are versioned in lockstep.
 
 ### Breaking
 
+- `Tolerance::new` returns `Result<Tolerance, ToleranceConstructionError>`
+  (#306): append `?` or `.unwrap()`. Its error, new, names the scale that
+  is not a positive finite number. A tolerance built field by field is
+  still not checked.
 - `SphereConeIntersection` gains `CircleAndApex(Circle, Point)` (#312).
   A `match` on it needs an arm for the new variant, as for `TwoCircles`
   with the point added to the contacts.
@@ -39,6 +43,12 @@ the Python distribution are versioned in lockstep.
   other surface. `intersect` now reports one curve and the apex as a
   contact point. A `Circle` of radius 0 stays valid, documented as the
   point at its centre, as the iso curve through a sphere's pole is.
+- A negative, zero, NaN or infinite tolerance is refused instead of
+  answering as if nothing were close enough (#306): `tol=-1.0` gave a
+  circle and a line through its centre an exact, complete, empty
+  intersection. `Tolerance::new`, Python's `Tolerance(...)` and a number
+  passed as `tol=` raise `ConstructionError` (a `ValueError`) naming the
+  scale.
 
 ## [0.46.0] - 2026-11-12
 

@@ -285,7 +285,7 @@ fn test_plane_cone_tangency_band_through_the_apex_is_linear_in_tilt() {
     let cone = Cone::new(Point::ORIGIN, Vector::Z, 30f64.to_radians(), 0.0).unwrap();
     let tangent = 60f64.to_radians();
     let kind = |d: f64, angular: f64| {
-        let tol = Tolerance::new(1e-7, angular, 1e-9);
+        let tol = Tolerance::new(1e-7, angular, 1e-9).unwrap();
         match tilted(Point::ORIGIN, tangent + d).intersect_exact(&cone, tol) {
             PlaneConeIntersection::ApexPoint(_) => "apex",
             PlaneConeIntersection::TangentLine(_) => "tangent",
@@ -1598,7 +1598,8 @@ where
         reference.confusion * scale,
         reference.angular,
         reference.parametric,
-    );
+    )
+    .unwrap();
     let result = first
         .transformed(scaling)
         .unwrap()
