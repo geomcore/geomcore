@@ -255,7 +255,7 @@ pub(crate) fn extent(points: &[[f64; 3]], axis: [f64; 3]) -> (f64, f64) {
 /// Whether two curve pieces, with the Euclidean control points `a` and
 /// `b`, meet at most once.
 ///
-/// Two meetings `A(s1) = B(t1)` and `A(s2) = B(t2)` would give `(s2 - s1)
+/// Two common points `A(s1) = B(t1)` and `A(s2) = B(t2)` would give `(s2 - s1)
 /// c = (t2 - t1) d` with `c` and `d` integrals of tangents along the
 /// pieces, so in their tangent cones: some tangent of one would be
 /// parallel to one of the other. The cones (see [`tangent_cone`]) rule
@@ -346,7 +346,7 @@ fn net_directions(points: &[[f64; 3]], rows: usize, cols: usize) -> [[f64; 3]; 2
 /// its parametrisation is singular).
 ///
 /// The curve's tangents lie in a cone `K_c` and the surface's partial
-/// derivatives in cones `K_s` and `K_t`. Two meetings `C(t1) = S(s1, t1')`
+/// derivatives in cones `K_s` and `K_t`. Two common points `C(t1) = S(s1, t1')`
 /// and `C(t2) = S(s2, t2')` would give `(t2 - t1) c = (s2 - s1) a + (t2' -
 /// t1') b` with `c`, `a`, `b` integrals of derivatives along straight
 /// parameter paths, so in those cones. That cannot happen when every

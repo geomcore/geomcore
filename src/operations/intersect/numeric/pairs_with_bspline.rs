@@ -1,7 +1,7 @@
 //! The hull-pruned searches on pairs holding a B-spline: two B-splines as
 //! they are, and an elementary or swept shape against a B-spline once
 //! converted to its exact rational B-spline (see [`curve_surface`] and
-//! [`curve_curve_meetings`]).
+//! [`curve_curve_candidates`]).
 //!
 //! A hit lies on the B-spline, so within the box of its control points.
 //! An unbounded shape (a line, parabola, hyperbola, plane, cylinder, cone
@@ -262,7 +262,7 @@ where
 
 /// `curve`, paired with the B-spline `other`, as a [`Hull`] restricted
 /// to its points inside the box of `other`'s control points, grown, which
-/// hold its meetings with `other`.
+/// hold its hits with `other`.
 fn restricted<'a, C: ParametricCurve>(
     curve: &'a C,
     other: &BSplineCurve,
@@ -316,13 +316,13 @@ pub(crate) fn carried(
     }
 }
 
-/// The meetings of `a` and `b` found by the hull-pruned search (see
+/// The candidate hits of `a` and `b` found by the hull-pruned search (see
 /// [`bspline_curve_curve`]) when one is a B-spline (or a trimmed one) and
 /// the other a B-spline or an elementary curve, as extrema on the curves
 /// themselves, closest first, with their completeness; `None` for any
 /// other pair, or when the elementary curve's B-spline does not fit in
 /// `f64`.
-pub(crate) fn curve_curve_meetings<A, B>(
+pub(crate) fn curve_curve_candidates<A, B>(
     a: &A,
     b: &B,
     tol: Tolerance,

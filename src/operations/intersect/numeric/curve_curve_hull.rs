@@ -119,7 +119,7 @@ pub(crate) const SPLITS_PER_PAIR: usize = 256;
 /// Gauss-Newton steps from the centre of a subpiece pair.
 const NEWTON_STEPS: usize = 32;
 
-/// The meetings of `a` over the range `ra` with `b` over `rb`, as extrema
+/// The candidate hits of `a` over the range `ra` with `b` over `rb`, as extrema
 /// at distances within `tol.confusion`, closest first, complete unless
 /// some pair of pieces was left unsettled.
 ///
@@ -159,12 +159,12 @@ pub(crate) fn bspline_curve_curve(
     rb: ParameterDomain,
     tol: Tolerance,
 ) -> (Vec<CurveCurveExtremum>, Completeness<CurveCurveRegion>) {
-    search_meetings(a, ra, b, rb, tol, SPLITS_PER_PAIR)
+    search_candidates(a, ra, b, rb, tol, SPLITS_PER_PAIR)
 }
 
 /// [`bspline_curve_curve`] with `splits_per_pair` halvings allowed per
 /// initial pair of pieces.
-fn search_meetings(
+fn search_candidates(
     a: &BSplineCurve,
     ra: ParameterDomain,
     b: &BSplineCurve,
@@ -201,29 +201,29 @@ fn search_meetings(
             );
         });
     }
-    let mut meetings = Meetings {
+    let mut candidates = CandidateHits {
         curves: [(a, ra), (b, rb)],
         origin: start,
         tol,
         found: Vec::new(),
     };
-    let unsettled = pairs.search(&mut meetings, splits_per_pair);
-    let mut found = meetings.found;
+    let unsettled = pairs.search(&mut candidates, splits_per_pair);
+    let mut found = candidates.found;
     found.sort_by(|p, q| p.distance.total_cmp(&q.distance));
     (found, unsettled.completeness())
 }
 
 /// The tests of [`bspline_curve_curve`] on a pair of pieces of its
-/// `curves` over their ranges, and the meetings `found`. The pieces'
+/// `curves` over their ranges, and the candidate hits `found`. The pieces'
 /// control points are taken about `origin`.
-struct Meetings<'a> {
+struct CandidateHits<'a> {
     curves: [(&'a BSplineCurve, ParameterDomain); 2],
     origin: Point,
     tol: Tolerance,
     found: Vec<CurveCurveExtremum>,
 }
 
-impl PairTests for Meetings<'_> {
+impl PairTests for CandidateHits<'_> {
     type Region = CurveCurveRegion;
     const ONCE_EXHAUSTED: OnceExhausted = OnceExhausted::Stop;
 
@@ -234,7 +234,7 @@ impl PairTests for Meetings<'_> {
             return Visit::Settled;
         }
         if curves_meet_at_most_once(pa, pb)
-            && let Some((hit, settles)) = self.meeting(pa, [node.range(0), node.range(1)])
+            && let Some((hit, settles)) = self.candidate(pa, [node.range(0), node.range(1)])
         {
             self.found.push(hit);
             if settles {
@@ -259,14 +259,14 @@ impl PairTests for Meetings<'_> {
     }
 }
 
-impl Meetings<'_> {
-    /// The meeting of the subpieces over `ranges` of a pair that meets at
+impl CandidateHits<'_> {
+    /// The candidate hit of the subpieces over `ranges` of a pair that meets at
     /// most once, the first one with the Euclidean control points `pa`
     /// about `origin`, solved from the pair's centre (see
     /// [`closest_pair`]): the hit, if one lies within `tol.confusion` of
     /// both curves, and whether it settles the pair, lying within it or
     /// within `tol.confusion` of the whole first piece.
-    fn meeting(
+    fn candidate(
         &self,
         pa: &[[f64; 3]],
         ranges: [(f64, f64); 2],
