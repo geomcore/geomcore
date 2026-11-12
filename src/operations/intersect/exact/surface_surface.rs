@@ -1,6 +1,9 @@
 //! Exact intersections of two elementary surfaces: one result type per
 //! pair, solved in closed form.
 
+use super::curve_curve::{
+    CircleCircle2DIntersection, LineCircle2DIntersection, unit_line_meets_circle,
+};
 use super::quartic::{
     OcticCurve, OcticCut, QuarticCurve, cone_off_cylinder_axis, cones_in_general_position,
     crossing_cylinders, sphere_off_cone_axis, sphere_off_cylinder_axis, torus_cone, torus_cylinder,
@@ -9,10 +12,9 @@ use super::quartic::{
 use std::f64::consts::PI;
 
 use crate::geometry::surfaces::ParametricSurface;
-use crate::math::numeric::{QuadraticSolution, solve_quadratic};
 use crate::{
-    Circle, Cone, Cylinder, Ellipse, Hyperbola, IntersectExact, Line, Parabola, Plane, Point,
-    Sphere, Tolerance, Torus, Vector,
+    Circle, Circle2D, Cone, Cylinder, Ellipse, Hyperbola, IntersectExact, Line, Parabola, Plane,
+    Point, Point2D, Sphere, Tolerance, Torus, Vector, Vector2D,
 };
 /// Result of intersecting two planes.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -1540,8 +1542,10 @@ impl IntersectExact<Cone> for Sphere {
     /// The analytic path needs the sphere center on the cone axis: axial
     /// offsets `alpha` solve `alpha^2/cos^2(phi) - 2*tc*alpha + tc^2 -
     /// R^2 = 0`, i.e. latitude rings where the cone radius `|alpha| *
-    /// |tan(phi)|` meets the sphere section, on either nappe: two rings, a
-    /// grazing ring, or empty. An axis off the center gives a space
+    /// |tan(phi)|` meets the sphere section, on either nappe. The center
+    /// is `|tc| * |sin(phi)|` from the generators: beyond `R +
+    /// tol.confusion` the sphere misses, within `tol.confusion` of `R` it
+    /// grazes one ring, and nearer it cuts two. An axis off the center gives a space
     /// quartic, or the points where the sphere touches the cone: with the
     /// apex inside the sphere, a loop on each nappe; on it, a loop through
     /// the apex; outside, on each nappe facing the sphere, two loops, a
@@ -1571,11 +1575,10 @@ impl IntersectExact<Cone> for Sphere {
             return sphere_off_cone_axis(self, cone, tol);
         }
         let r = self.radius();
-        let cos_phi = cone.half_angle().cos();
-        // disc = R^2 - tc^2*sin^2(phi), in length-squared units.
-        let disc = r * r - tc * tc * (1.0 - cos_phi * cos_phi);
-        let band = tol.confusion * (r * r + tc * tc).max(1.0);
-        if disc < -band {
+        let (sin_phi, cos_phi) = cone.half_angle().sin_cos();
+        // How far the centre is from the generators.
+        let reach = tc.abs() * sin_phi.abs();
+        if reach > r + tol.confusion {
             return SphereConeIntersection::Empty;
         }
         let tan_phi = cone.half_angle().tan().abs();
@@ -1583,11 +1586,11 @@ impl IntersectExact<Cone> for Sphere {
             Circle::new(cone.apex() + a * alpha, a, alpha.abs() * tan_phi)
                 .expect("latitude radius is non-negative by construction")
         };
-        if disc <= band {
-            SphereConeIntersection::TangentCircle(mk(tc * cos_phi * cos_phi))
+        let base = tc * cos_phi * cos_phi;
+        if reach >= r - tol.confusion {
+            SphereConeIntersection::TangentCircle(mk(base))
         } else {
-            let root = disc.sqrt() * cos_phi.abs();
-            let base = tc * cos_phi * cos_phi;
+            let root = (r * r - reach * reach).sqrt() * cos_phi.abs();
             SphereConeIntersection::TwoCircles(mk(base + root), mk(base - root))
         }
     }
@@ -1649,12 +1652,14 @@ impl IntersectExact<Sphere> for Sphere {
     /// Concentric spheres (center distance within `tol.confusion`) are
     /// [`SphereSphereIntersection::Coincident`] when the radii agree within
     /// tolerance, else [`SphereSphereIntersection::Empty`]. Otherwise the
-    /// radical plane cuts the center line at distance
-    /// `a = (r1^2 - r2^2 + d^2) / (2d)` from this center; a negative
-    /// `r1^2 - a^2` (beyond tolerance) misses
-    /// ([`SphereSphereIntersection::Empty`]), a near-zero one grazes in a
-    /// single [`SphereSphereIntersection::TangentPoint`], and the rest meet
-    /// in a [`Circle`] whose axis points from this center to the other.
+    /// center distance `d` decides: beyond `r1 + r2 + tol.confusion` or
+    /// below `|r1 - r2| - tol.confusion` the spheres miss
+    /// ([`SphereSphereIntersection::Empty`]), within `tol.confusion` of
+    /// either they graze in a single
+    /// [`SphereSphereIntersection::TangentPoint`], and between they meet
+    /// in a [`Circle`] whose axis points from this center to the other,
+    /// in the radical plane, which cuts the center line at distance
+    /// `a = (r1^2 - r2^2 + d^2) / (2d)` from this center.
     ///
     /// # Examples
     ///
@@ -1685,19 +1690,19 @@ impl IntersectExact<Sphere> for Sphere {
                 SphereSphereIntersection::Empty
             }
         } else {
+            let (outside, inside) = (r1 + r2, (r1 - r2).abs());
+            if d > outside + tol.confusion || d < inside - tol.confusion {
+                return SphereSphereIntersection::Empty;
+            }
             let dir = axis * (1.0 / d);
             let a = (r1 * r1 - r2 * r2 + d * d) / (2.0 * d);
             let center = c1 + dir * a;
-            let disc = r1 * r1 - a * a;
-            // Tangent band in length-squared units: |R - |h|| * |R + |h||.
-            let band = tol.confusion * 2.0 * (r1 + r2 + d).max(1.0);
-            if disc < -band {
-                SphereSphereIntersection::Empty
-            } else if disc <= band {
+            if d >= outside - tol.confusion || d <= inside + tol.confusion {
                 SphereSphereIntersection::TangentPoint(center)
             } else {
-                // disc > 0, and dir is unit: construction cannot fail.
-                let circle = Circle::new(center, dir, disc.sqrt())
+                // `d` is strictly between the two tangencies, so
+                // `r1^2 - a^2` is positive, and dir is unit.
+                let circle = Circle::new(center, dir, (r1 * r1 - a * a).sqrt())
                     .expect("section radius is positive by construction");
                 SphereSphereIntersection::Circle(circle)
             }
@@ -1811,9 +1816,10 @@ impl IntersectExact<Sphere> for Torus {
 
     /// Intersects this torus with a sphere.
     ///
-    /// With the sphere center on the torus axis, eliminating the radial
-    /// coordinate gives `2*R*rho = K + 2*tc*z`, a quadratic in `z` whose
-    /// roots yield latitude rings. A sphere centred anywhere else meets a
+    /// With the sphere center on the torus axis, in a half-plane on the
+    /// axis the tube's circle meets the sphere's great circle in up to two
+    /// points, each a latitude ring, and one where the circles are within
+    /// `tol.confusion` of touching. A sphere centred anywhere else meets a
     /// ring torus in two tube circles it holds, a
     /// [`TorusSphereIntersection::Quartic`], or a point where it touches.
     ///
@@ -1831,7 +1837,6 @@ impl IntersectExact<Sphere> for Torus {
     /// }
     /// ```
     fn intersect_exact(&self, sphere: &Sphere, tol: Tolerance) -> TorusSphereIntersection {
-        let (major, _) = (self.major_radius(), self.minor_radius());
         if !torus_is_analytic(self, tol) {
             return TorusSphereIntersection::NotAnalytic;
         }
@@ -1842,33 +1847,25 @@ impl IntersectExact<Sphere> for Torus {
         if (w - a * tc).magnitude() > tol.confusion {
             return torus_sphere(self, sphere, tol).unwrap_or(TorusSphereIntersection::NotAnalytic);
         }
-        let rs = sphere.radius();
-        let k = major * major - self.minor_radius() * self.minor_radius() - tc * tc + rs * rs;
-        // Substitute rho(z) into the sphere equation.
-        let aq = (tc / major) * (tc / major) + 1.0;
-        let bq = 2.0 * (k * tc / (2.0 * major * major) - tc);
-        let cq = (k / (2.0 * major)) * (k / (2.0 * major)) + tc * tc - rs * rs;
-        let ring = |z: f64| {
-            let rho = (k + 2.0 * tc * z) / (2.0 * major);
-            if rho >= -tol.confusion {
-                Some(Circle::new(o + a * z, a, rho.max(0.0)).expect("kept radii non-negative"))
-            } else {
-                None
+        let great_circle = Circle2D::new(Point2D::new(tc, 0.0), sphere.radius())
+            .expect("a sphere's radius is non-negative");
+        let ring = |section: Point2D| latitude_circle(o, a, section, tol);
+        match tube_section(self).intersect_exact(&great_circle, tol) {
+            CircleCircle2DIntersection::Points(p, q) => {
+                let (p, q) = lower_first(p, q);
+                match (ring(p), ring(q)) {
+                    (Some(c1), Some(c2)) => TorusSphereIntersection::TwoCircles(c1, c2),
+                    (Some(c), None) | (None, Some(c)) => TorusSphereIntersection::Circle(c),
+                    (None, None) => TorusSphereIntersection::Empty,
+                }
             }
-        };
-        match solve_quadratic(aq, bq, cq, tol) {
-            QuadraticSolution::Two(z1, z2) => match (ring(z1), ring(z2)) {
-                (Some(c1), Some(c2)) => TorusSphereIntersection::TwoCircles(c1, c2),
-                (Some(c), None) | (None, Some(c)) => TorusSphereIntersection::Circle(c),
-                (None, None) => TorusSphereIntersection::Empty,
-            },
-            QuadraticSolution::One(z) => match ring(z) {
+            CircleCircle2DIntersection::Tangent(p) => match ring(p) {
                 Some(c) => TorusSphereIntersection::TangentCircle(c),
                 None => TorusSphereIntersection::Empty,
             },
-            QuadraticSolution::Empty => TorusSphereIntersection::Empty,
-            QuadraticSolution::Linear(_) | QuadraticSolution::Degenerate => {
-                unreachable!("axial quadratic coefficient exceeds 1")
+            CircleCircle2DIntersection::Empty => TorusSphereIntersection::Empty,
+            CircleCircle2DIntersection::Coincident => {
+                unreachable!("the tube's circle is centred off the axis")
             }
         }
     }
@@ -2008,12 +2005,12 @@ impl IntersectExact<Cone> for Torus {
 
     /// Intersects this torus with a cone.
     ///
-    /// Coaxial, on each nappe the cone radius is linear in the
-    /// torus-axial coordinate `z`, `rho = m*(z - za)` with
-    /// `m = ±|tan(phi)|`, so `(rho - R)^2 + z^2 = r^2` is a quadratic per
-    /// nappe; its roots on that nappe's side of the apex are rings (a
-    /// double root a grazing one), up to four in all. Off the axis, the
-    /// curve is read along the torus's tube circles (see [`OcticCurve`]).
+    /// Coaxial, in a half-plane on the axis each nappe is a generator, a
+    /// line through the apex, and the torus is the tube's circle: where
+    /// they meet on that nappe's side of the apex are rings, up to four in
+    /// all, a grazing one where the generator is within `tol.confusion` of
+    /// touching the circle. Off the axis, the curve is read along the
+    /// torus's tube circles (see [`OcticCurve`]).
     ///
     /// # Examples
     ///
@@ -2051,35 +2048,30 @@ impl IntersectExact<Cone> for Torus {
                 None => TorusConeIntersection::NotAnalytic,
             };
         }
-        let za = w.dot(a);
-        let k = cone.half_angle().tan().abs();
+        let apex = Point2D::new(w.dot(a), 0.0);
+        // The generators' unit directions, from their slope.
+        let slope = cone.half_angle().tan().abs();
+        let cosine = 1.0 / (1.0 + slope * slope).sqrt();
+        let sine = slope * cosine;
+        let tube = (Point2D::new(0.0, major), minor);
         let mut rings: Vec<LatitudeRing> = Vec::new();
-        for m in [k, -k] {
-            // (m*(z - za) - R)^2 + z^2 = r^2, kept where m*(z - za) >= 0.
-            let aq = m * m + 1.0;
-            let bq = -2.0 * m * (m * za + major);
-            let cq = (m * za + major) * (m * za + major) - minor * minor;
-            let mut push = |z: f64, tangent: bool| {
-                let rho = m * (z - za);
-                if rho >= -tol.confusion {
-                    let circle =
-                        Circle::new(o + a * z, a, rho.max(0.0)).expect("kept radii non-negative");
+        for sine in [sine, -sine] {
+            let generator = Vector2D::new(cosine, sine);
+            let mut push = |section: Point2D, tangent: bool| {
+                if let Some(circle) = latitude_circle(o, a, section, tol) {
                     // A ring on the apex is found from both nappes.
                     if !rings.iter().any(|r| r.circle == circle) {
                         rings.push(LatitudeRing { circle, tangent });
                     }
                 }
             };
-            match solve_quadratic(aq, bq, cq, tol) {
-                QuadraticSolution::Two(z1, z2) => {
-                    push(z1, false);
-                    push(z2, false);
+            match unit_line_meets_circle(apex, generator, tube, tol) {
+                LineCircle2DIntersection::Points((_, p), (_, q)) => {
+                    push(p, false);
+                    push(q, false);
                 }
-                QuadraticSolution::One(z) => push(z, true),
-                QuadraticSolution::Empty => {}
-                QuadraticSolution::Linear(_) | QuadraticSolution::Degenerate => {
-                    unreachable!("axial quadratic coefficient exceeds 1")
-                }
+                LineCircle2DIntersection::Tangent(_, p) => push(p, true),
+                LineCircle2DIntersection::Empty => {}
             }
         }
         if rings.is_empty() {
@@ -2098,9 +2090,10 @@ impl IntersectExact<Torus> for Torus {
 
     /// Intersects this torus with another torus.
     ///
-    /// The analytic path needs collinear axes. Stacked equal-major tori
-    /// reduce to one height; otherwise elimination gives a quadratic in
-    /// the axial coordinate. Anything else (up to degree 16) reports
+    /// The analytic path needs collinear axes: in a half-plane on the
+    /// axis the two tubes are circles, which meet in up to two points,
+    /// each a latitude ring, and in one where they are within
+    /// `tol.confusion` of touching. Anything else (up to degree 16) reports
     /// [`TorusTorusIntersection::NotAnalytic`].
     ///
     /// # Examples
@@ -2117,7 +2110,6 @@ impl IntersectExact<Torus> for Torus {
     /// }
     /// ```
     fn intersect_exact(&self, other: &Torus, tol: Tolerance) -> TorusTorusIntersection {
-        let (r1, s1) = (self.major_radius(), self.minor_radius());
         let (r2, s2) = (other.major_radius(), other.minor_radius());
         if !torus_is_analytic(self, tol) || !torus_is_analytic(other, tol) {
             return TorusTorusIntersection::NotAnalytic;
@@ -2133,69 +2125,61 @@ impl IntersectExact<Torus> for Torus {
         if (w - a * w.dot(a)).magnitude() > tol.confusion {
             return TorusTorusIntersection::NotAnalytic;
         }
-        let z2 = w.dot(a);
-        if w.magnitude() <= tol.confusion
-            && (r1 - r2).abs() <= tol.confusion
-            && (s1 - s2).abs() <= tol.confusion
-        {
-            return TorusTorusIntersection::Coincident;
-        }
-        let ring = |z: f64, rho: f64| {
-            if rho >= -tol.confusion {
-                Some(Circle::new(o1 + a * z, a, rho.max(0.0)).expect("kept radii non-negative"))
-            } else {
-                None
-            }
-        };
-        let dr = r2 - r1;
-        if dr.abs() <= tol.confusion {
-            // Same center circle: stacked (z2 != 0 here) or nested-empty.
-            if z2.abs() <= tol.confusion {
-                return TorusTorusIntersection::Empty;
-            }
-            let l1 = (s1 * s1 - s2 * s2) + z2 * z2;
-            let z_star = l1 / (2.0 * z2);
-            let s_rad = s1 * s1 - z_star * z_star;
-            if s_rad < -tol.confusion * (s1 * s1 + z2 * z2 + 1.0) {
-                TorusTorusIntersection::Empty
-            } else if s_rad.abs() <= tol.confusion * (s1 * s1 + z2 * z2 + 1.0) {
-                TorusTorusIntersection::TangentCircle(
-                    Circle::new(o1 + a * z_star, a, r1)
-                        .expect("major radius is positive by construction"),
-                )
-            } else {
-                let root = s_rad.sqrt();
-                match (ring(z_star, r1 + root), ring(z_star, r1 - root)) {
+        let other_tube = Circle2D::new(Point2D::new(w.dot(a), r2), s2)
+            .expect("a torus's minor radius is non-negative");
+        let ring = |section: Point2D| latitude_circle(o1, a, section, tol);
+        match tube_section(self).intersect_exact(&other_tube, tol) {
+            CircleCircle2DIntersection::Points(p, q) => {
+                let (p, q) = lower_first(p, q);
+                match (ring(p), ring(q)) {
                     (Some(c1), Some(c2)) => TorusTorusIntersection::TwoCircles(c1, c2),
                     (Some(c), None) | (None, Some(c)) => TorusTorusIntersection::Circle(c),
                     (None, None) => TorusTorusIntersection::Empty,
                 }
             }
-        } else {
-            // General: rho linear in z, then a quadratic in z.
-            let l1 = (s1 * s1 - s2 * s2) - (r1 * r1 - r2 * r2) + z2 * z2;
-            let aq = (z2 / dr) * (z2 / dr) + 1.0;
-            let bq = 2.0 * ((l1 / (2.0 * dr) - r1) * (-z2 / dr));
-            let cq = (l1 / (2.0 * dr) - r1) * (l1 / (2.0 * dr) - r1) - s1 * s1;
-            let rho_of = |z: f64| (l1 - 2.0 * z * z2) / (2.0 * dr);
-            match solve_quadratic(aq, bq, cq, tol) {
-                QuadraticSolution::Two(z1, z2) => {
-                    match (ring(z1, rho_of(z1)), ring(z2, rho_of(z2))) {
-                        (Some(c1), Some(c2)) => TorusTorusIntersection::TwoCircles(c1, c2),
-                        (Some(c), None) | (None, Some(c)) => TorusTorusIntersection::Circle(c),
-                        (None, None) => TorusTorusIntersection::Empty,
-                    }
-                }
-                QuadraticSolution::One(z) => match ring(z, rho_of(z)) {
-                    Some(c) => TorusTorusIntersection::TangentCircle(c),
-                    None => TorusTorusIntersection::Empty,
-                },
-                QuadraticSolution::Empty => TorusTorusIntersection::Empty,
-                QuadraticSolution::Linear(_) | QuadraticSolution::Degenerate => {
-                    unreachable!("axial quadratic coefficient exceeds 1")
-                }
-            }
+            CircleCircle2DIntersection::Tangent(p) => match ring(p) {
+                Some(c) => TorusTorusIntersection::TangentCircle(c),
+                None => TorusTorusIntersection::Empty,
+            },
+            CircleCircle2DIntersection::Empty => TorusTorusIntersection::Empty,
+            CircleCircle2DIntersection::Coincident => TorusTorusIntersection::Coincident,
         }
+    }
+}
+
+/// The section of a torus by a half-plane on its axis: the tube's circle,
+/// in the height along the axis from the torus's centre and the distance
+/// from the axis.
+fn tube_section(torus: &Torus) -> Circle2D {
+    Circle2D::new(
+        Point2D::new(0.0, torus.major_radius()),
+        torus.minor_radius(),
+    )
+    .expect("a torus's minor radius is non-negative")
+}
+
+/// The circle of latitude through `section`, a point of the half-plane
+/// on the axis through `origin` along `axis` given by its height and its
+/// distance from the axis; none for a point across the axis.
+fn latitude_circle(
+    origin: Point,
+    axis: Vector,
+    section: Point2D,
+    tol: Tolerance,
+) -> Option<Circle> {
+    (section.y >= -tol.confusion).then(|| {
+        Circle::new(origin + axis * section.x, axis, section.y.max(0.0))
+            .expect("kept radii non-negative")
+    })
+}
+
+/// Two points of a section through an axis, the lower first and, at one
+/// height, the one farther from the axis first.
+fn lower_first(p: Point2D, q: Point2D) -> (Point2D, Point2D) {
+    if (q.x, p.y) < (p.x, q.y) {
+        (q, p)
+    } else {
+        (p, q)
     }
 }
 

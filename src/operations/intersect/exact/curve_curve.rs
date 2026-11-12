@@ -483,11 +483,11 @@ impl IntersectExact<Circle2D> for Line2D {
 
     /// Intersects this line with a 2D circle.
     ///
-    /// Substituting the unit-speed parametrization into
-    /// `|X - C|^2 = r^2` gives a quadratic with leading coefficient
-    /// exactly 1, classified with `solve_quadratic` about the line's
-    /// closest approach to the centre; the line is tangent when that
-    /// closest point lies within `tol.confusion` of the circle.
+    /// The distance from the centre to the line decides: beyond
+    /// `radius + tol.confusion` the line misses, within `tol.confusion`
+    /// of `radius` it is tangent at its closest point to the centre, and
+    /// nearer it crosses at two points, half a chord either side of that
+    /// point.
     ///
     /// # Examples
     ///
@@ -505,23 +505,38 @@ impl IntersectExact<Circle2D> for Line2D {
     /// }
     /// ```
     fn intersect_exact(&self, circle: &Circle2D, tol: Tolerance) -> LineCircle2DIntersection {
-        let d = self.direction();
-        let t0 = -d.dot(self.origin() - circle.center());
-        let w = self.point_at(t0) - circle.center();
-        // A is exactly 1: the direction is unit by construction.
-        let qb = 2.0 * d.dot(w);
-        let sol = solve_quadratic(1.0, qb, w.dot(w) - circle.radius().powi(2), tol)
-            .touching_at(-0.5 * qb, |s| circle.contains(self.point_at(t0 + s), tol));
-        match sol.shifted(t0) {
-            QuadraticSolution::Two(t1, t2) => {
-                LineCircle2DIntersection::Points((t1, self.point_at(t1)), (t2, self.point_at(t2)))
-            }
-            QuadraticSolution::One(t) => LineCircle2DIntersection::Tangent(t, self.point_at(t)),
-            QuadraticSolution::Empty => LineCircle2DIntersection::Empty,
-            QuadraticSolution::Linear(_) | QuadraticSolution::Degenerate => {
-                unreachable!("unit direction gives a leading coefficient of 1")
-            }
-        }
+        unit_line_meets_circle(
+            self.origin(),
+            self.direction(),
+            (circle.center(), circle.radius()),
+            tol,
+        )
+    }
+}
+
+/// Where the line through `origin` along the unit `direction` meets the
+/// circle of this centre and radius (see
+/// [`Line2D::intersect_exact`](IntersectExact::intersect_exact)), the
+/// parameters measured from `origin`.
+#[inline]
+pub(super) fn unit_line_meets_circle(
+    origin: Point2D,
+    direction: Vector2D,
+    (centre, radius): (Point2D, f64),
+    tol: Tolerance,
+) -> LineCircle2DIntersection {
+    let w = origin - centre;
+    let foot = -direction.dot(w);
+    let offset = (w.x * direction.y - w.y * direction.x).abs();
+    let at = |t: f64| (t, origin + direction * t);
+    if offset > radius + tol.confusion {
+        LineCircle2DIntersection::Empty
+    } else if offset >= radius - tol.confusion {
+        let (t, point) = at(foot);
+        LineCircle2DIntersection::Tangent(t, point)
+    } else {
+        let half_chord = ((radius - offset) * (radius + offset)).sqrt();
+        LineCircle2DIntersection::Points(at(foot - half_chord), at(foot + half_chord))
     }
 }
 

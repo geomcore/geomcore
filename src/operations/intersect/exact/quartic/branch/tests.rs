@@ -153,6 +153,26 @@ fn test_a_transformed_branch_is_the_transformed_points() {
     assert!(branch.transformed(collapse).is_err());
 }
 
+/// A branch moved far from the origin keeps its derivatives: they are
+/// differenced before the placement, so the rounding of points 1e7 away
+/// does not reach them.
+#[test]
+fn test_a_branch_far_from_the_origin_keeps_its_derivatives() {
+    let branch = &branches()[2];
+    let image = branch
+        .transformed(Transform::translation(Vector::new(1e7, -2e7, 1.5e7)))
+        .unwrap();
+    for u in PARAMETERS {
+        for order in [1, 2] {
+            let (near, far) = (branch.derivative(u, order), image.derivative(u, order));
+            assert!(
+                (far - near).magnitude() <= 1e-12 * (1.0 + near.magnitude()),
+                "u = {u}, order {order}: {near:?} became {far:?}"
+            );
+        }
+    }
+}
+
 #[test]
 fn test_a_branch_comes_back_from_its_cones_and_index() {
     for branch in branches() {

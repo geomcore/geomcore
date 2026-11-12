@@ -149,7 +149,9 @@ pub(crate) fn newton_3d(
 /// indefinite Hessian to positive definite. The step is projected onto
 /// the box and halved until `f` decreases (or, once `f` is flat to
 /// rounding, the gradient shrinks, so the minimiser is located to full
-/// precision rather than `sqrt(eps)`); the accepted trial's derivatives
+/// precision rather than `sqrt(eps)`; or, where `f` rounds coarser than
+/// its value, a full convex step halves the gradient); the accepted
+/// trial's derivatives
 /// are reused, so each point is evaluated once.
 ///
 /// Unlike the root finders above this never fails: it returns its last
@@ -197,7 +199,15 @@ pub(crate) fn newton_min_2d(
                     .map(|i| g[i] * g[i])
                     .sum::<f64>()
             };
-            if fy < f || (fy <= f + flat_band(f) && norm(gy) < norm(g)) {
+            // Where `f` is a difference of large terms (a squared distance
+            // far from the origin), its rounding outgrows `flat_band` long
+            // before `x` converges. A full Newton step that stays convex
+            // and at least halves the gradient converges on it instead.
+            let converging = alpha == 1.0
+                && positive_definite(h, free)
+                && positive_definite(hy, free)
+                && norm(gy) <= 0.25 * norm(g);
+            if fy < f || (fy <= f + flat_band(f) && norm(gy) < norm(g)) || converging {
                 (x, f, g, h) = (y, fy, gy, hy);
                 accepted = true;
                 break;
@@ -264,25 +274,50 @@ pub(crate) fn newton_min_1d(
     x
 }
 
+/// Whether a symmetric 2 by 2 matrix is positive definite over the
+/// `free` parameters.
+fn positive_definite(h: [[f64; 2]; 2], free: [bool; 2]) -> bool {
+    match free {
+        [true, true] => {
+            let b = 0.5 * (h[0][1] + h[1][0]);
+            h[0][0] > 0.0 && h[1][1] > 0.0 && h[0][0] * h[1][1] > b * b
+        }
+        [true, false] => h[0][0] > 0.0,
+        [false, true] => h[1][1] > 0.0,
+        [false, false] => false,
+    }
+}
+
 /// Rounding band of an objective value: changes of `f` within it are
 /// noise, not information.
 fn flat_band(f: f64) -> f64 {
     8.0 * f64::EPSILON * f.abs().max(f64::MIN_POSITIVE)
 }
 
-/// Descent direction `-(H + mu I)^{-1} g` restricted to the `free`
+/// Descent direction `-(H + mu D)^{-1} g` restricted to the `free`
 /// parameters (zero on the others), with `mu` the smallest shift making
 /// the reduced Hessian safely positive definite (`0` when it already is).
+/// `D` is the magnitude of the Hessian's diagonal, so the shift is
+/// measured on the Hessian scaled to a unit diagonal: two parameters in
+/// different units (an angle and a length) keep the same step whatever
+/// the size of the curves. A zero diagonal entry falls back to `D = I`.
 fn newton_direction(g: [f64; 2], h: [[f64; 2]; 2], free: [bool; 2]) -> [f64; 2] {
     match free {
         [true, true] => {
             let (a, b, c) = (h[0][0], 0.5 * (h[0][1] + h[1][0]), h[1][1]);
-            let mean = 0.5 * (a + c);
-            let radius = (0.25 * (a - c) * (a - c) + b * b).sqrt();
+            let (scale_a, scale_c) = if a != 0.0 && c != 0.0 {
+                (a.abs(), c.abs())
+            } else {
+                (1.0, 1.0)
+            };
+            // The Hessian with a unit diagonal: `diag(D)^{-1/2} H diag(D)^{-1/2}`.
+            let (sa, sb, sc) = (a / scale_a, b / (scale_a * scale_c).sqrt(), c / scale_c);
+            let mean = 0.5 * (sa + sc);
+            let radius = (0.25 * (sa - sc) * (sa - sc) + sb * sb).sqrt();
             let (lo, hi) = (mean - radius, mean + radius);
             let floor = 1e-10 * (lo.abs() + hi.abs()) + f64::MIN_POSITIVE;
             let mu = if lo > floor { 0.0 } else { floor - lo };
-            let (a, c) = (a + mu, c + mu);
+            let (a, c) = (a + mu * scale_a, c + mu * scale_c);
             let det = a * c - b * b;
             [-(c * g[0] - b * g[1]) / det, -(a * g[1] - b * g[0]) / det]
         }

@@ -70,7 +70,7 @@ fn assert_points_close(a: &[Point], b: &[Point], tol: f64) {
 #[test]
 fn test_basis_rows_sum_to_one_and_match_full_rows() {
     let points = wavy_points(17);
-    let params = point_parameters(&points, PointParametrization::Chordal).unwrap();
+    let params = point_parameters(&points, PointParametrization::Chordal, CONFUSED_CHORD).unwrap();
     for p in 1..=5 {
         let flat = averaged_knots(&params, p);
         let mut rows = BasisRows::new(&flat, p);
@@ -101,7 +101,8 @@ fn test_interpolation_matches_dense_solve() {
     for (count, p) in [(2, 1), (5, 2), (9, 3), (40, 3), (23, 5)] {
         let points = wavy_points(count);
         let curve = BSplineCurve::interpolate(&points, p, PointParametrization::Chordal).unwrap();
-        let params = point_parameters(&points, PointParametrization::Chordal).unwrap();
+        let params =
+            point_parameters(&points, PointParametrization::Chordal, CONFUSED_CHORD).unwrap();
         let flat = averaged_knots(&params, p);
         let a = params.iter().map(|&t| dense_row(&flat, p, t)).collect();
         let expected = dense_solve(a, points.clone());
@@ -118,7 +119,8 @@ fn test_approximation_matches_dense_normal_equations() {
         let points = wavy_points(count);
         let curve =
             BSplineCurve::approximate(&points, p, m, PointParametrization::Centripetal).unwrap();
-        let params = point_parameters(&points, PointParametrization::Centripetal).unwrap();
+        let params =
+            point_parameters(&points, PointParametrization::Centripetal, CONFUSED_CHORD).unwrap();
         let flat = approximation_knots(&params, m, p);
         let rows: Vec<Vec<f64>> = params.iter().map(|&t| dense_row(&flat, p, t)).collect();
         let mut normal = vec![vec![0.0; m]; m];
@@ -167,7 +169,8 @@ fn test_approximation_within_keeps_points_close_with_few_poles() {
             )
             .unwrap();
             let curve = fit.curve();
-            let params = point_parameters(&points, PointParametrization::Chordal).unwrap();
+            let params =
+                point_parameters(&points, PointParametrization::Chordal, CONFUSED_CHORD).unwrap();
             let largest = points
                 .iter()
                 .zip(&params)

@@ -302,6 +302,11 @@ impl Quadric for Cone {
 
     /// A cone holds the circles and ellipses that are its plane sections,
     /// and also parabolas and hyperbolas.
+    // Left to the compiler, whether it is inlined into
+    // `intersect_conic_quadric` turns on changes elsewhere in the crate:
+    // 2% of a hyperbola against a cone, its points' `sinh` and `cosh`
+    // computed again when it is not.
+    #[inline(always)]
     fn holds<C: Conic>(&self, conic: &C, tol: Tolerance) -> bool {
         conic_lies_on(conic, self, conic.shape().samples(), tol)
     }

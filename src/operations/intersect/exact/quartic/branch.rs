@@ -216,6 +216,14 @@ impl QuarticBranch {
         self.placed.placement
     }
 
+    /// The point at `u` where the quartic is solved, before its
+    /// placement.
+    fn local_point(&self, u: f64) -> Point {
+        self.placed
+            .curve
+            .point_at(usize::from(self.component), self.walk(u))
+    }
+
     /// The walk parameter of the quartic's component at `u`.
     fn walk(&self, u: f64) -> f64 {
         let u = if self.reversed { -u } else { u };
@@ -317,12 +325,14 @@ fn central_difference(f: impl Fn(f64) -> Point, u: f64, order: u32, h: f64) -> V
 
 impl ParametricCurve for QuarticBranch {
     fn point_at(&self, u: f64) -> Point {
-        let PlacedQuartic { curve, placement } = &*self.placed;
-        placement.apply_point(curve.point_at(usize::from(self.component), self.walk(u)))
+        self.placed.placement.apply_point(self.local_point(u))
     }
 
     /// Central differences of exact points, with a step relative to
-    /// `1 + |u|`: five points for the first two orders.
+    /// `1 + |u|`: five points for the first two orders. The points are
+    /// differenced where the quartic is solved, before its placement, so
+    /// their rounding is that of the branch's own size and not of how far
+    /// the placement moves it.
     ///
     /// # Panics
     ///
@@ -335,7 +345,8 @@ impl ParametricCurve for QuarticBranch {
             2 => SECOND_DERIVATIVE_STEP,
             _ => HIGHER_DERIVATIVE_STEP,
         };
-        central_difference(|v| self.point_at(v), u, order, step * scale)
+        let local = central_difference(|v| self.local_point(v), u, order, step * scale);
+        self.placed.placement.apply_vector(local)
     }
 
     fn bounds(&self) -> (f64, f64) {
