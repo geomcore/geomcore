@@ -9,6 +9,7 @@
 //! `project_point(point, tol).distance == 0.0`.
 
 use crate::base::tier::TierPoint;
+use crate::base::tier::operations::VectorOperations;
 use crate::{Point, Point2D};
 
 /// Closest point of a query point on a curve: the parameter, the point and
@@ -111,6 +112,28 @@ impl SurfaceProjection {
 /// containment: a contained point projects to distance exactly zero.
 pub(crate) fn snap_distance(distance: f64, confusion: f64) -> f64 {
     if distance <= confusion { 0.0 } else { distance }
+}
+
+/// The share of the sizes compared within which a sign reads as zero: a
+/// stationary point or an end so flat that rounding decides it is kept.
+const FLAT: f64 = 1e-9;
+
+/// Whether the distance from a point grows on both sides of a stationary
+/// point of a curve, given `offset`, from the point to the curve there,
+/// and the curve's first and second derivatives. Half the second
+/// derivative of the squared distance is `|C'|² + offset · C''`; a flat
+/// one is kept, as for a valley of equal distance.
+pub(crate) fn is_distance_minimum<V: VectorOperations>(offset: V, first: V, second: V) -> bool {
+    let speed = first.dot(first);
+    let bend = offset.dot(second);
+    speed + bend >= -FLAT * (speed + offset.magnitude() * second.magnitude())
+}
+
+/// Whether the distance from a point grows from an end of a curve into it,
+/// given `offset`, from the point to the end, and `inward`, the curve's
+/// derivative there turned to point into the curve.
+pub(crate) fn grows_inward<V: VectorOperations>(offset: V, inward: V) -> bool {
+    offset.dot(inward) >= -FLAT * offset.magnitude() * inward.magnitude()
 }
 
 #[cfg(test)]

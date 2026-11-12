@@ -552,15 +552,18 @@ impl_for_both_tiers! {
             let mut out: Vec<CurveProjection<P>> = real_roots(&coeffs, tol.confusion)
                 .into_iter()
                 .filter(|r| r.value > 0.0)
-                .map(|r| {
+                .filter_map(|r| {
                     let t = polish_root(g, dg, r.value.ln(), 8);
                     let foot = self.point_at(t);
+                    let (first, second) = (self.derivative(t, 1), self.derivative(t, 2));
                     let distance = foot.distance(point);
-                    CurveProjection {
-                        parameter: t,
-                        point: foot,
-                        distance: projection::snap_distance(distance, tol.confusion),
-                    }
+                    projection::is_distance_minimum(foot - point, first, second).then(|| {
+                        CurveProjection {
+                            parameter: t,
+                            point: foot,
+                            distance: projection::snap_distance(distance, tol.confusion),
+                        }
+                    })
                 })
                 .collect();
             out.sort_by(|x, y| x.distance.total_cmp(&y.distance));

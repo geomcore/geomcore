@@ -92,9 +92,10 @@ macro_rules! curve {
 
                 /// The extrema of the distance to `other`, a point or a curve.
                 ///
-                /// From a point: its stationary points on the curve (local
-                /// minima plus the ends of a bounded curve), as
-                /// `CurveProjection` objects ordered by ascending distance.
+                /// From a point: the local minima of its distance to the
+                /// curve, an end of a bounded curve among them where the
+                /// distance grows from it into the curve, as `CurveProjection`
+                /// objects ordered by ascending distance.
                 ///
                 /// From a curve or `TrimmedCurve`: a `CurveCurveExtrema` of the
                 /// local minima of the distance between the two curves, closest
@@ -153,8 +154,9 @@ macro_rules! curve_2d {
             $class $sets {
                 $($methods)*
 
-                /// The stationary points of the distance from `point` to the
-                /// curve (local minima plus the ends of a bounded curve), as
+                /// The local minima of the distance from `point` to the
+                /// curve, an end of a bounded curve among them where the
+                /// distance grows from it into the curve, as
                 /// `CurveProjection2D` objects ordered by ascending distance.
                 #[pyo3(signature = (point, tol = None))]
                 fn extrema(

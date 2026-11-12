@@ -53,10 +53,14 @@ fn test_ellipse2d_extrema_are_ordered_and_start_at_the_projection() {
     let tol = Tolerance::DEFAULT;
     let e = Ellipse2D::new(Point2D::ORIGIN, Vector2D::X, 3.0, 1.5).unwrap();
     let extrema = e.extrema(Point2D::new(4.0, 0.0), tol);
-    assert!(extrema.len() >= 2);
-    assert!(extrema.windows(2).all(|w| w[0].distance <= w[1].distance));
+    assert_eq!(extrema.len(), 1);
     assert_eq!(extrema[0], e.project_point(Point2D::new(4.0, 0.0), tol));
     assert_eq!(extrema[0].distance, 1.0);
+    // Inside, off both axes: two minima, nearest first.
+    let extrema = e.extrema(Point2D::new(0.3, 0.2), tol);
+    assert_eq!(extrema.len(), 2);
+    assert!(extrema.windows(2).all(|w| w[0].distance <= w[1].distance));
+    assert_eq!(extrema[0], e.project_point(Point2D::new(0.3, 0.2), tol));
 }
 
 #[test]

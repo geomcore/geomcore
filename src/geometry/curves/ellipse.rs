@@ -583,11 +583,13 @@ impl_for_both_tiers! {
                         .map(|r| std::f64::consts::PI + 2.0 * r.value.atan()),
                 )
                 .chain([0.0, std::f64::consts::PI])
-                .map(|t| {
+                .filter_map(|t| {
                     let t = polish_root(g, dg, t, 8);
                     // Measured at the polished parameter, reported in bounds.
                     let foot = self.point_at(t);
-                    (self.parameter_in_bounds(t, tol), foot, foot.distance(point))
+                    let (first, second) = (self.derivative(t, 1), self.derivative(t, 2));
+                    projection::is_distance_minimum(foot - point, first, second)
+                        .then(|| (self.parameter_in_bounds(t, tol), foot, foot.distance(point)))
                 })
                 .collect();
             ts.sort_by(|x, y| x.0.total_cmp(&y.0));
