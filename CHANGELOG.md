@@ -9,6 +9,17 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+### Fixed
+
+- A trimmed curve against a revolution or extrusion surface, or any
+  surface without a closed form, no longer returns hits beyond its ends
+  (#308). The numeric search's Newton iteration is not held to the
+  curve's range, and from a seed near an end it reached hits of the
+  basis curve beyond it: a segment from x = 0 to 1 met an extruded
+  circle of radius 4 at parameter 3.99. A hit now counts only within the
+  range, or within `tol.confusion` beyond an end, where it is snapped to
+  the end.
+
 ## [0.46.0] - 2026-11-12
 
 Tori meet everything in closed form. A torus against a circle, a plane,
