@@ -836,12 +836,17 @@ pub(super) fn cone_off_cylinder_axis(
         // The wedge's lines are where `nₖ·W = 0`; `|nₖ| = width`, and
         // `cos φ nₖ·W` are the factors.
         let normals = [e1 * sin - e2 * steep, e1 * sin + e2 * steep];
-        let factors = normals.map(|n| linear(n * cos_phi.abs()));
+        // Each element is spelled out rather than mapped: through the
+        // array's `map`, the closures stopped being inlined when the
+        // crate grew (#271).
+        let factor = |n: Vector| linear(n * cos_phi.abs());
+        let factors = [factor(normals[0]), factor(normals[1])];
         // The circle `r` from the axis comes `r (1 − |cₖ|)` from a line.
-        let touching = factors.map(|[constant, along_cos, along_sin]| {
+        let touches = |[constant, along_cos, along_sin]: [f64; 3]| {
             let cosine = -constant / (along_cos * along_cos + along_sin * along_sin).sqrt();
             r * (1.0 - cosine.abs()).abs() <= tol.confusion
-        });
+        };
+        let touching = [touches(factors[0]), touches(factors[1])];
         factored_loops(factors, touching, through_apex)?
     };
     let surfaces = Surfaces::ConeCylinder(*cone, *cylinder);
@@ -1094,13 +1099,14 @@ pub(super) fn cones_in_general_position(
         }
         let (along, across) = (e1 * larger.sqrt(), e2 * (-smaller).sqrt());
         let normals = [along - across, along + across];
-        let factors = normals.map(linear);
+        // Spelled out rather than mapped, as for a cone and a cylinder.
+        let factors = [linear(normals[0]), linear(normals[1])];
         // A factor is least in size, `aₖ (1 − |cₖ|)`, on the generator at
         // `θₖ` where `cₖ > 0` and across from it otherwise. There the
         // middle of the generator's roots, `s = −β/A`, is off the second
         // cone by `|Q| / |∇Q|`, `Q = −Δ/A` and `Δ` that factor times the
         // other: within confusion, the surfaces touch.
-        let touching: [bool; 2] = std::array::from_fn(|k| {
+        let touches = |k: usize| {
             let [constant, along_cos, along_sin] = factors[k];
             let amplitude = (along_cos * along_cos + along_sin * along_sin).sqrt();
             let cosine = -constant / amplitude;
@@ -1113,7 +1119,8 @@ pub(super) fn cones_in_general_position(
             let gradient = 2.0 * other.normal(nearest).magnitude();
             amplitude * (1.0 - cosine.abs()).abs() * rest.abs()
                 <= tol.confusion * leading.abs() * gradient
-        });
+        };
+        let touching = [touches(0), touches(1)];
         factored_loops(factors, touching, through_apex)?
     };
     let surfaces = Surfaces::Cones(*first, *second);
