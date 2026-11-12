@@ -148,6 +148,10 @@ const NEWTON_STEPS: usize = 32;
 /// the other pairs. If the budget of halvings runs out first, the pairs
 /// still pending are left unsettled too. Either way, the result is
 /// incomplete, with the unsettled pairs as its regions.
+///
+/// The pieces' control points are taken about the first curve's first
+/// pole: far from the origin, the halvings then round about the curves'
+/// own size, not about how far they sit.
 pub(crate) fn bspline_curve_curve(
     a: &BSplineCurve,
     ra: ParameterDomain,
@@ -168,9 +172,13 @@ fn search_meetings(
     tol: Tolerance,
     splits_per_pair: usize,
 ) -> (Vec<CurveCurveExtremum>, Completeness<CurveCurveRegion>) {
+    // The pieces are moved so the first curve starts at the origin: far
+    // from it, their halvings then round about the curves' own size.
+    let start = a.poles()[0];
+    let origin = [start.x, start.y, start.z];
     let (pieces_a, pieces_b) = (
-        CurvePieces::new(a, (ra.start(), ra.end())),
-        CurvePieces::new(b, (rb.start(), rb.end())),
+        CurvePieces::new(a, (ra.start(), ra.end())).moved_from(origin),
+        CurvePieces::new(b, (rb.start(), rb.end())).moved_from(origin),
     );
     let mut pairs = Subdivision::new(
         [pieces_a.width, pieces_b.width].map(|w| (w, 1, 4)),
@@ -195,6 +203,7 @@ fn search_meetings(
     }
     let mut meetings = Meetings {
         curves: [(a, ra), (b, rb)],
+        origin: start,
         tol,
         found: Vec::new(),
     };
@@ -205,9 +214,11 @@ fn search_meetings(
 }
 
 /// The tests of [`bspline_curve_curve`] on a pair of pieces of its
-/// `curves` over their ranges, and the meetings `found`.
+/// `curves` over their ranges, and the meetings `found`. The pieces'
+/// control points are taken about `origin`.
 struct Meetings<'a> {
     curves: [(&'a BSplineCurve, ParameterDomain); 2],
+    origin: Point,
     tol: Tolerance,
     found: Vec<CurveCurveExtremum>,
 }
@@ -222,10 +233,8 @@ impl PairTests for Meetings<'_> {
         if boxes_apart(&bounding_box(pa), &bounding_box(pb), gap) || separated(pa, pb, gap) {
             return Visit::Settled;
         }
-        let [(a, ra), (b, rb)] = self.curves;
         if curves_meet_at_most_once(pa, pb)
-            && let Some((hit, settles)) =
-                meeting(a, ra, b, rb, pa, [node.range(0), node.range(1)], self.tol)
+            && let Some((hit, settles)) = self.meeting(pa, [node.range(0), node.range(1)])
         {
             self.found.push(hit);
             if settles {
@@ -240,39 +249,45 @@ impl PairTests for Meetings<'_> {
     }
 
     fn region(&mut self, pairs: &Subdivision, node: &Node) -> CurveCurveRegion {
-        region(pairs, node)
+        let local = region(pairs, node);
+        let offset = self.origin - Point::ORIGIN;
+        CurveCurveRegion {
+            min_corner: local.min_corner + offset,
+            max_corner: local.max_corner + offset,
+            ..local
+        }
     }
 }
 
-/// The meeting of the subpieces over `ranges` of a pair that meets at
-/// most once, the first one with the Euclidean control points `pa`,
-/// solved from the pair's centre (see [`closest_pair`]): the hit, if one
-/// lies within `tol.confusion` of both curves, and whether it settles the
-/// pair, lying within it or within `tol.confusion` of the whole first
-/// piece.
-fn meeting(
-    a: &BSplineCurve,
-    ra: ParameterDomain,
-    b: &BSplineCurve,
-    rb: ParameterDomain,
-    pa: &[[f64; 3]],
-    ranges: [(f64, f64); 2],
-    tol: Tolerance,
-) -> Option<(CurveCurveExtremum, bool)> {
-    let [(s0, s1), (t0, t1)] = ranges;
-    let x = closest_pair(a, b, [0.5 * (s0 + s1), 0.5 * (t0 + t1)])?;
-    let (s, t) = (ra.admit(x[0])?, rb.admit(x[1])?);
-    let point = a.point_at(s);
-    let hit = CurveCurveExtremum::new(s, point, t, b.point_at(t));
-    if hit.distance > tol.confusion {
-        return None;
+impl Meetings<'_> {
+    /// The meeting of the subpieces over `ranges` of a pair that meets at
+    /// most once, the first one with the Euclidean control points `pa`
+    /// about `origin`, solved from the pair's centre (see
+    /// [`closest_pair`]): the hit, if one lies within `tol.confusion` of
+    /// both curves, and whether it settles the pair, lying within it or
+    /// within `tol.confusion` of the whole first piece.
+    fn meeting(
+        &self,
+        pa: &[[f64; 3]],
+        ranges: [(f64, f64); 2],
+    ) -> Option<(CurveCurveExtremum, bool)> {
+        let [(a, ra), (b, rb)] = self.curves;
+        let [(s0, s1), (t0, t1)] = ranges;
+        let x = closest_pair(a, b, [0.5 * (s0 + s1), 0.5 * (t0 + t1)])?;
+        let (s, t) = (ra.admit(x[0])?, rb.admit(x[1])?);
+        let point = a.point_at(s);
+        let hit = CurveCurveExtremum::new(s, point, t, b.point_at(t));
+        if hit.distance > self.tol.confusion {
+            return None;
+        }
+        let inside = ra.within_slack_of(x[0], (s0, s1)) && rb.within_slack_of(x[1], (t0, t1));
+        let local = point - self.origin;
+        let settles = inside
+            || pa
+                .iter()
+                .all(|p| norm(sub(*p, [local.x, local.y, local.z])) <= self.tol.confusion);
+        Some((hit, settles))
     }
-    let inside = ra.within_slack_of(x[0], (s0, s1)) && rb.within_slack_of(x[1], (t0, t1));
-    let settles = inside
-        || pa
-            .iter()
-            .all(|p| norm(sub(*p, [point.x, point.y, point.z])) <= tol.confusion);
-    Some((hit, settles))
 }
 
 /// Whether the hulls of the curve pieces with the Euclidean control

@@ -70,6 +70,18 @@ impl CurvePieces {
         }
     }
 
+    /// The pieces moved by `-origin`: halving them then rounds about
+    /// their own size, not about how far `origin` sits from the origin.
+    pub(crate) fn moved_from(mut self, origin: [f64; 3]) -> Self {
+        for point in self.points.as_chunks_mut::<4>().0 {
+            let weight = point[3];
+            for (coordinate, shift) in point.iter_mut().zip(origin) {
+                *coordinate -= shift * weight;
+            }
+        }
+        self
+    }
+
     /// The number of pieces.
     pub(crate) fn len(&self) -> usize {
         self.ranges.len()

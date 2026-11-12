@@ -812,3 +812,37 @@ fn test_minima_on_ends_and_corners_match_grid() {
     assert!(ext.iter().any(|e| e.first_parameter == 0.0), "{ext:#?}");
     assert!(ext.iter().all(|e| (0.0..8.0).contains(&e.second_parameter)));
 }
+
+/// A B-spline and a Bézier curve on the same poles, tangent at both shared
+/// ends, settle alike wherever they sit: the halving runs on the curves
+/// moved to the origin, so far from it the edges of the tangent contacts,
+/// where the gap reaches `tol.confusion`, are not chased into rounding
+/// until the budget runs out.
+#[test]
+fn test_curves_tangent_at_their_ends_settle_far_from_the_origin() {
+    use crate::operations::intersect::numeric::curve_curve::intersect_curve_curve;
+    use crate::{BezierCurve, Transform, Transformable, Vector};
+    let poles = vec![
+        Point::new(0.0, 0.0, 0.0),
+        Point::new(1.0, 2.0, 0.5),
+        Point::new(3.0, 1.0, -0.5),
+        Point::new(4.0, 3.0, 1.0),
+    ];
+    let spline =
+        BSplineCurve::new(2, poles.clone(), vec![-1.0, 0.5, 4.0], vec![3, 1, 3], false).unwrap();
+    let bezier = BezierCurve::new(3, poles).unwrap();
+    for distance in [0.0, 1e3, 1e7] {
+        let away = Transform::translation(Vector::new(distance, -2.0 * distance, 1.5 * distance));
+        let (a, b) = (
+            spline.transformed(away).unwrap(),
+            bezier.transformed(away).unwrap(),
+        );
+        let result = intersect_curve_curve(&a, &b, TOL);
+        assert!(
+            result.is_complete(),
+            "{distance:e}: {:?}",
+            result.completeness()
+        );
+        assert_eq!(result.hits().len(), 2, "{distance:e}: {:?}", result.hits());
+    }
+}

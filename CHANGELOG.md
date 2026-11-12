@@ -36,6 +36,13 @@ the Python distribution are versioned in lockstep.
   parameter. And a `QuarticBranch` differenced its world points
   for its derivatives, so 1e7 away its second derivative was wrong in
   the third digit; it now differences its points before its placement.
+- The intersection of two B-spline or Bézier curves ran out of its
+  budget of halvings once the curves sat 1e3 from the origin, where it
+  had settled them near the origin: the result went from complete to
+  incomplete. Its halvings rounded about the origin, so the edge of a
+  tangent contact, where the gap between the curves reaches
+  `tol.confusion`, was chased into rounding. The pieces' control points
+  are now taken about the first curve's first pole.
 
 ### Changed
 
