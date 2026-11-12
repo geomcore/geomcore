@@ -45,10 +45,10 @@ where
         let cell = (window.1 - window.0) / SEED_GRID_CELLS;
         ((low - cell).max(bounds.0), (high + cell).min(bounds.1))
     };
-    let first_u_window = seed_window(a, pair.seeding_box(b), 0, tol);
-    let first_v_window = seed_window(a, pair.seeding_box(b), 1, tol);
-    let second_u_window = seed_window(b, pair.seeding_box(a), 0, tol);
-    let second_v_window = seed_window(b, pair.seeding_box(a), 1, tol);
+    let first_u_window = seed_window(a, pair.seeding_box(b, tol), 0, tol);
+    let first_v_window = seed_window(a, pair.seeding_box(b, tol), 1, tol);
+    let second_u_window = seed_window(b, pair.seeding_box(a, tol), 0, tol);
+    let second_v_window = seed_window(b, pair.seeding_box(a, tol), 1, tol);
     let (first_u_range, first_v_range) = (
         range(0, a.u_bounds(), first_u_window),
         range(1, a.v_bounds(), first_v_window),

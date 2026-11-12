@@ -232,12 +232,15 @@ fn test_the_trace_box_is_the_smaller_bounded_side_grown_by_a_tenth() {
 #[test]
 fn test_two_planes_grow_the_seeded_box_by_their_window_whatever_the_seeds() {
     // Two planes have no own size: the box of the seeds grows by the size
-    // of the seeding window in space, here the fallback square of side 20
-    // (diagonal 20 sqrt(2)), however many seeds survived along the line.
+    // of the seeding window in space, however many seeds survived along
+    // the line. Their origins are 0.25 apart, the pair's size: each window
+    // spans the box 5 sizes around the other plane's origin, a square of
+    // side 2.5 grown by a twentieth of it on each side (diagonal
+    // 2.75 sqrt(2)).
     let first = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
     let second = Plane::new(Point::new(0.0, 0.0, 0.25), Vector::X).unwrap();
     let pair = SurfacePair::new(&first, &second);
-    let window = 20.0 * 2f64.sqrt();
+    let window = 2.75 * 2f64.sqrt();
     let one = [[0.0, 0.0, 0.0, 0.0]];
     let two = [[0.0, 0.0, 0.0, 0.0], [2.0, 0.0, 2.0, 0.0]];
     for seeds in [&one[..], &two[..]] {
@@ -271,7 +274,9 @@ fn test_the_seeded_trace_box_takes_the_larger_radius_of_a_cone_and_a_cylinder() 
 #[test]
 fn test_a_single_seed_of_two_planes_traces_as_far_as_the_window() {
     // A single seed, no spread: the box still spans the seeding window,
-    // so the line through it is traced well beyond a first step.
+    // so the line through it is traced well beyond a first step. The
+    // planes share their origin, so the pair has no length of its own and
+    // the window spans the model's cube.
     let first = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
     let second = Plane::new(Point::ORIGIN, Vector::X).unwrap();
     let pair = SurfacePair::new(&first, &second);

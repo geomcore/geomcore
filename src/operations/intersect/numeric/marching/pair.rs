@@ -61,11 +61,35 @@ where
         SurfacePair::new(self.second, self.first).within(self.within)
     }
 
-    /// The box the seeds of `surface`'s unbounded parameters span: the
-    /// own box of the other surface (see [`own_box`]), else the caller's
-    /// box.
-    pub(super) fn seeding_box<T: ParametricSurface>(&self, other: &T) -> Option<BoundingBox> {
-        own_box(other).or(self.within.copied())
+    /// The box the seeds of a surface's unbounded parameters span against
+    /// `other`, one of the pair: the own box of `other` (see [`own_box`]),
+    /// else the caller's box, else the box [`REACH`] sizes of the pair
+    /// around `other`'s [`anchor`]. The pair's size is the larger own size
+    /// of its surfaces (see [`own_size`]), else the distance between their
+    /// anchors. Where the pair has no length at all (two planes through
+    /// one point, two cones placed at their common apex), the box is the
+    /// model's cube around the anchor, of side `confusion / angular`
+    /// (ADR 0006). Every length is the operands' or `tol`'s, so the box
+    /// scales and moves with them (ADR 0050).
+    pub(super) fn seeding_box<T: ParametricSurface>(
+        &self,
+        other: &T,
+        tol: Tolerance,
+    ) -> BoundingBox {
+        own_box(other).or(self.within.copied()).unwrap_or_else(|| {
+            let size = match (own_size(self.first), own_size(self.second)) {
+                (Some(first), Some(second)) => first.max(second),
+                (Some(size), None) | (None, Some(size)) => size,
+                (None, None) => anchor(self.first).distance(anchor(self.second)),
+            };
+            let reach = if size > 0.0 {
+                REACH * size
+            } else {
+                0.5 * tol.confusion / tol.angular
+            };
+            let at = anchor(other);
+            BoundingBox::new(at, at).enlarged(reach)
+        })
     }
 
     /// The point at parameters `x` on the first surface.
@@ -570,8 +594,16 @@ where
             (Some(first), Some(second)) => first.max(second),
             (Some(size), None) | (None, Some(size)) => size.max(spread),
             (None, None) => spread
-                .max(window_size(self.first, self.second, tol))
-                .max(window_size(self.second, self.first, tol)),
+                .max(window_size(
+                    self.first,
+                    self.seeding_box(self.second, tol),
+                    tol,
+                ))
+                .max(window_size(
+                    self.second,
+                    self.seeding_box(self.first, tol),
+                    tol,
+                )),
         };
         seed_box.enlarged(growth.max(first_step(tol)))
     }
@@ -617,6 +649,18 @@ where
     }
 }
 
+/// How many sizes of a pair of unbounded surfaces the seeding box reaches
+/// from a surface's anchor (see [`SurfacePair::seeding_box`]).
+const REACH: f64 = 5.0;
+
+/// The point of `s` at parameters `(0, 0)`, each brought into its bounds:
+/// a point fixed on the surface, which a similarity moves with it (a
+/// plane's origin, a point of a cylinder's or cone's reference circle).
+fn anchor<S: ParametricSurface>(s: &S) -> Point {
+    let into = |(low, high): (f64, f64)| 0.0f64.clamp(low, high);
+    s.point_at(into(s.u_bounds()), into(s.v_bounds()))
+}
+
 /// The box around `s` when it is a bounded elementary surface or B-spline.
 pub(super) fn own_box<S: ParametricSurface>(s: &S) -> Option<BoundingBox> {
     match (s.as_elementary(), s.as_bspline()) {
@@ -651,15 +695,11 @@ fn own_size<S: ParametricSurface>(s: &S) -> Option<f64> {
 }
 
 /// The size in space of the window of `surface`'s parameters that its
-/// grid seeds sample against `other` (see [`seed_window`]): the diagonal
+/// grid seeds sample across `spanning` (see [`seed_window`]): the diagonal
 /// of the box of its points at the window's corners.
-fn window_size<S, T>(surface: &S, other: &T, tol: Tolerance) -> f64
-where
-    S: ParametricSurface,
-    T: ParametricSurface,
-{
-    let (u0, u1) = seed_window(surface, own_box(other), 0, tol);
-    let (v0, v1) = seed_window(surface, own_box(other), 1, tol);
+fn window_size<S: ParametricSurface>(surface: &S, spanning: BoundingBox, tol: Tolerance) -> f64 {
+    let (u0, u1) = seed_window(surface, spanning, 0, tol);
+    let (v0, v1) = seed_window(surface, spanning, 1, tol);
     let corners = [(u0, v0), (u1, v0), (u0, v1), (u1, v1)];
     BoundingBox::from_points(corners.into_iter().map(|(u, v)| surface.point_at(u, v)))
         .map_or(0.0, |bounds| bounds.diagonal().magnitude())
