@@ -110,7 +110,7 @@ intersect_dispatch	intersect/torus_cone/erased	4619725
 intersect_dispatch	intersect/torus_cone/routed	4325763
 intersect_dispatch	intersect/torus_cone/typed	1251054
 intersect_dispatch	intersect_routed/circle_circle/exact	444726
-intersect_dispatch	intersect_routed/circle_circle/routed	1629026
+intersect_dispatch	intersect_routed/circle_circle/routed	1668962
 intersect_dispatch	intersect_routed/circle_circle_2d/exact	79147
 intersect_dispatch	intersect_routed/circle_circle_2d/routed	1095241
 intersect_dispatch	intersect_routed/cone_cylinder/along_branches_exact	1894
