@@ -1554,6 +1554,45 @@ fn test_unbounded_line_meets_a_revolution_surface_on_both_sides_of_its_origin() 
 }
 
 #[test]
+fn test_hyperbola_meets_a_revolution_surface_where_its_crossing_is_alone() {
+    // #310: the hyperbola runs close to the vase around three crossings,
+    // and the closest seeds all crowded there, so the lone fourth
+    // crossing was missed.
+    let vase = vase();
+    let hyperbola = Hyperbola::new(
+        Point::new(-1.34857433611751, -1.251850001069137, 7.548267129822567),
+        Vector::new(0.975886192657318, 0.1577412274699706, -0.15087691717778046),
+        Vector::new(
+            -0.1893834652173253,
+            0.9555606775133391,
+            -0.22591523784934603,
+        ),
+        2.1756456246775375,
+        2.8592710888926964,
+    )
+    .unwrap();
+    let expected = [-1.497277, -0.421211, 0.151598, 0.731247];
+    let parameters = |r: &CurveSurfaceIntersection| {
+        let mut ts: Vec<f64> = r.hits().iter().map(|h| h.curve_parameter).collect();
+        ts.sort_by(f64::total_cmp);
+        ts
+    };
+    let trimmed = TrimmedCurve::new(hyperbola, -3.0, 3.0).unwrap();
+    for r in [
+        hyperbola.intersect(&vase, TOL),
+        vase.intersect(&hyperbola, TOL),
+        trimmed.intersect(&vase, TOL),
+    ] {
+        let ts = parameters(&r);
+        assert_eq!(ts.len(), 4, "{ts:?}");
+        for (t, e) in ts.iter().zip(expected) {
+            assert!((t - e).abs() <= 1e-6, "{ts:?}, expected {expected:?}");
+        }
+    }
+    assert_hits_lie_on(&hyperbola.intersect(&vase, TOL), &hyperbola, &vase);
+}
+
+#[test]
 fn test_unbounded_line_meets_a_revolved_circle_like_the_equal_torus() {
     let axis = Axis::new(Point::ORIGIN, Vector::Z).unwrap();
     let tube = Circle::new(Point::new(3.0, 0.0, 0.0), Vector::Y, 1.0).unwrap();

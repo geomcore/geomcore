@@ -128,6 +128,13 @@ the Python distribution are versioned in lockstep.
 
 ### Fixed
 
+- A curve against a surface without a closed form no longer misses a
+  crossing that stands alone (#310). A hyperbola against a revolved vase
+  gave 3 of its 4 hits, `Sampled`, since 0.44.0: it ran close to the
+  vase around three crossings, the 24 closest samples all crowded there,
+  and the fourth showed as one dip of the distance only. The search now
+  also starts Newton from every dip of the sampled distance that the 24
+  closest samples leave out.
 - Marching no longer drops a curve through a point where a surface has
   no tangent plane (#260, ADR 0046). Two cones sharing an apex, each
   placed at its apex (reference radius 0), came back `Sampled` with no

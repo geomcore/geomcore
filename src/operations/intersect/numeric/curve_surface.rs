@@ -272,8 +272,20 @@ where
         (i == 0 || samples[i].1 <= samples[i - 1].1)
             && (i + 1 == SEEDS || samples[i].1 <= samples[i + 1].1)
     };
+    // The closest samples, then every other dip of the distance inside
+    // the range: where the curve runs near the surface for a while, the
+    // closest samples all crowd around those hits, and a crossing
+    // elsewhere shows as one dip only (#310). An end of the range is no
+    // dip: the distance only keeps falling beyond it.
     let mut order: Vec<usize> = (0..SEEDS).collect();
     order.sort_by(|&a, &b| samples[a].1.total_cmp(&samples[b].1));
+    let other_dips: Vec<usize> = order[KEEP..]
+        .iter()
+        .copied()
+        .filter(|&i| 0 < i && i + 1 < SEEDS && local_min(i))
+        .collect();
+    order.truncate(KEEP);
+    order.extend(other_dips);
     let mut hits: Vec<CurveSurfaceHit> = Vec::new();
     // Contact-level dedupe (sqrt scale): near-tangent seeds reach distinct
     // points of one grazing contact; transversal hits are far apart by
@@ -293,7 +305,7 @@ where
         let (_, [su, sv]) = surface.first_derivatives(u, v);
         curve_surface_multiplicity(tangent, su.cross(sv), point, tol)
     };
-    for i in order.into_iter().take(KEEP) {
+    for i in order {
         let t = samples[i].0;
         let proj = surface.project_point(curve.point_at(t), tol);
         let f = |x: [f64; 3]| {
