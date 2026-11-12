@@ -1222,12 +1222,25 @@ fn test_torus_torus_intersection() {
         t1.intersect_exact(&t1, tol),
         TorusTorusIntersection::Coincident
     );
-    // Crossed axes: up to degree 16, no closed form.
+    // Crossed axes through one centre: the curve of degree eight, four
+    // loops crossing where the equators meet on the `y` axis, the tori
+    // touching there.
     let crossed = Torus::new(Point::ORIGIN, Vector::X, 4.0, 1.0).unwrap();
-    assert_eq!(
-        t1.intersect_exact(&crossed, tol),
-        TorusTorusIntersection::NotAnalytic
-    );
+    let TorusTorusIntersection::Octic(curve) = t1.intersect_exact(&crossed, tol) else {
+        panic!("expected the octic");
+    };
+    assert_eq!(curve.component_count(), 4);
+    assert_eq!(curve.contact_points().len(), 4);
+    for p in curve.contact_points() {
+        assert!(p.x.abs() < 1e-12 && p.z.abs() < 1e-12);
+        assert!((p.y.abs() - 3.0).abs() < 1e-12 || (p.y.abs() - 5.0).abs() < 1e-12);
+    }
+    for component in 0..curve.component_count() {
+        for k in 0..16 {
+            let p = curve.point_at(component, k as f64 * TAU / 16.0);
+            assert!(t1.contains(p, tol) && crossed.contains(p, tol));
+        }
+    }
 }
 
 /// Torus off the origin with a tilted axis, and the plane through its

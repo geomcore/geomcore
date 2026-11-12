@@ -931,8 +931,12 @@ def test_intersect_torus_symmetric():
     other = Torus(Point(0.0, 0.0, 1.5), Vector.unit_z(), 4.0, 1.0)
     assert len(torus.intersect(other).curves) == 2
     assert torus.intersect(torus).is_coincident()
+    # Crossed axes through one centre: four loops, crossing where the
+    # equators meet on the y axis.
     tilted = Torus(Point.origin(), Vector.unit_x(), 4.0, 1.0)
-    assert torus.intersect(tilted).method == IntersectionMethod.NUMERIC
+    crossed = torus.intersect(tilted)
+    assert crossed.method == IntersectionMethod.EXACT
+    assert len(crossed.curves) == 4 and len(crossed.contact_points) == 4
 
 
 def test_conic_surface_intersections():
@@ -1415,6 +1419,46 @@ def test_torus_cylinder_and_cone_intersections_anywhere():
     result = torus.intersect(touching)
     assert result.method == IntersectionMethod.EXACT and not result.curves
     assert result.contact_points[0].distance(Point(5.0, 0.0, 0.0)) < 1e-9
+
+
+def test_torus_torus_intersections_anywhere():
+    from geomcore import BSplineCurve2D, Circle, IntersectionMethod, Torus
+
+    torus = Torus(Point.origin(), Vector.unit_z(), 4.0, 1.0)
+
+    # Linked like a chain, and tilted beside it: fitted loops on both, in
+    # either order.
+    thick = Torus(Point.origin(), Vector.unit_z(), 4.0, 1.7)
+    linked = Torus(Point(3.2, 0.0, 0.0), Vector.unit_y(), 4.0, 1.7)
+    beside = Torus(Point(7.0, 0.0, 0.3), Vector(0.2, 0.1, 1.0), 4.0, 1.0)
+    for one, other, loops in [(thick, linked, 2), (torus, beside, 1)]:
+        for first, second in [(one, other), (other, one)]:
+            result = first.intersect(second)
+            assert result.method == IntersectionMethod.EXACT and result.is_complete()
+            assert len(result.curves) == loops
+            for piece in result.curves:
+                assert isinstance(piece.first_uv_curve, BSplineCurve2D)
+                assert isinstance(piece.second_uv_curve, BSplineCurve2D)
+                start, end = piece.curve.bounds()
+                for k in range(11):
+                    p = piece.curve.point_at(start + (end - start) * k / 10)
+                    assert one.contains(p) and other.contains(p)
+
+    # Touching at a point from outside.
+    standing = Torus(Point(10.0, 0.0, 0.0), Vector.unit_y(), 4.0, 1.0)
+    result = torus.intersect(standing)
+    assert result.method == IntersectionMethod.EXACT and not result.curves
+    assert result.contact_points[0].distance(Point(5.0, 0.0, 0.0)) < 1e-9
+
+    # A pipe bend continuing the tube at (4, 0, 0): the shared tube circle,
+    # where the tori touch, and one loop crossing it.
+    bend = Torus(Point(4.0, 0.0, 3.0), Vector.unit_x(), 3.0, 1.0)
+    result = torus.intersect(bend)
+    assert result.method == IntersectionMethod.EXACT
+    (circle,) = [piece for piece in result.curves if piece.tangent]
+    assert isinstance(circle.curve, Circle)
+    assert circle.curve.center().distance(Point(4.0, 0.0, 0.0)) < 1e-12
+    assert len(result.curves) == 2
 
 
 def test_ellipse_ellipse_intersections():

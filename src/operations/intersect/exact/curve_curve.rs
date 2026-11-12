@@ -688,6 +688,7 @@ fn line_meets_plane_near(
 /// off the conic (the unmodeled hyperbola branch) are dropped, so a
 /// lone hit reports [`LineConicIntersection::Tangent`] even when it
 /// is transversal.
+#[inline]
 fn line_meets_placed_conic(
     line: &Line,
     conic: &PlacedConic,

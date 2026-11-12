@@ -74,11 +74,18 @@ fn quartic(curve: QuarticCurve, tol: Tolerance) -> Option<SurfaceSurfaceIntersec
     ))
 }
 
-/// The loops of a curve of degree eight fitted through exact points,
-/// with the points where the surfaces touch.
+/// The loops of a curve of degree eight fitted through exact points, the
+/// tube circle two tori share and touch along, and the points where the
+/// surfaces touch.
 fn octic(curve: &OcticCurve, tol: Tolerance) -> Option<SurfaceSurfaceIntersection> {
+    let mut curves = curve.fitted(tol)?;
+    curves.extend(
+        curve
+            .shared_circle()
+            .map(|circle| IntersectionCurve::in_space(circle, true)),
+    );
     Some(SurfaceSurfaceIntersection::exact(
-        curve.fitted(tol)?,
+        curves,
         curve.contact_points().to_vec(),
         false,
     ))
@@ -406,7 +413,7 @@ impl TorusConeIntersection {
 
 impl TorusTorusIntersection {
     #[inline]
-    pub(super) fn into_family(self, _tol: Tolerance) -> Option<SurfaceSurfaceIntersection> {
+    pub(super) fn into_family(self, tol: Tolerance) -> Option<SurfaceSurfaceIntersection> {
         match self {
             TorusTorusIntersection::Circle(c) => surface_curves([(c, false)]),
             TorusTorusIntersection::TwoCircles(c1, c2) => {
@@ -415,6 +422,8 @@ impl TorusTorusIntersection {
             TorusTorusIntersection::TangentCircle(c) => surface_curves([(c, true)]),
             TorusTorusIntersection::Empty => surfaces_miss(),
             TorusTorusIntersection::Coincident => surfaces_coincide(),
+            TorusTorusIntersection::Octic(curve) => octic(&curve, tol),
+            TorusTorusIntersection::TangentPoint(point) => contact_point(point),
             TorusTorusIntersection::NotAnalytic => None,
         }
     }

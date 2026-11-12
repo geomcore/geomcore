@@ -121,7 +121,7 @@ The circle of a torus at one angle around its axis, in a half-plane through the 
 _Avoid_: poloidal circle
 
 **Octic curve**:
-The curve of degree eight where a cylinder or a cone off its axis meets a ring torus (ADR 0049). Read along the torus's tube circles, each holding up to four of its points, between the tube circles where a pair of points appears or vanishes and the points where the surfaces touch. One to four loops: two where a pipe passes through the tube, four where it runs along a diameter, one crossing itself where the surfaces touch or where a cone's apex lies on the torus. A point where they touch and meet nowhere else is a tangent point. Its closed form gives each point exactly; `intersect` fits it within confusion and reports it exact.
+The curve of degree eight where a cylinder, a cone or a second torus off its axis meets a ring torus (ADR 0049, ADR 0050). Read along the torus's tube circles, each holding up to four of its points, between the tube circles where a pair of points appears or vanishes and the points where the surfaces touch. One to four loops: two where a pipe passes through the tube, four where it runs along a diameter, one crossing itself where the surfaces touch or where a cone's apex lies on the torus. A point where they touch and meet nowhere else is a tangent point. Two tori may share a tube circle, as pipe bends joined end to end do, and touch all along it: the curve splits into that circle and loops. Its closed form gives each point exactly; `intersect` fits it within confusion and reports it exact.
 _Avoid_: degree-8 curve, octic
 
 **Quartic branch**:
