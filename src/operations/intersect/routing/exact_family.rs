@@ -320,14 +320,19 @@ impl ConeCylinderIntersection {
 }
 
 impl TorusPlaneIntersection {
+    /// The family result; the spiric section is fitted within `tol` (see
+    /// [`QuarticCurve::fitted`](crate::QuarticCurve)), and a fit that
+    /// fails hands the pair to the numeric search.
     #[inline]
-    pub(super) fn into_family(self, _tol: Tolerance) -> Option<SurfaceSurfaceIntersection> {
+    pub(super) fn into_family(self, tol: Tolerance) -> Option<SurfaceSurfaceIntersection> {
         match self {
             TorusPlaneIntersection::TwoCircles(c1, c2) => {
                 surface_curves([(c1, false), (c2, false)])
             }
             TorusPlaneIntersection::TangentCircle(c) => surface_curves([(c, true)]),
             TorusPlaneIntersection::Circle(c) => surface_curves([(c, false)]),
+            TorusPlaneIntersection::Quartic(curve) => quartic(curve, tol),
+            TorusPlaneIntersection::TangentPoint(p) => contact_point(p),
             TorusPlaneIntersection::Empty => surfaces_miss(),
             TorusPlaneIntersection::NotAnalytic => None,
         }
@@ -335,14 +340,19 @@ impl TorusPlaneIntersection {
 }
 
 impl TorusSphereIntersection {
+    /// The family result; the quartic is fitted within `tol` (see
+    /// [`QuarticCurve::fitted`](crate::QuarticCurve)), and a fit that
+    /// fails hands the pair to the numeric search.
     #[inline]
-    pub(super) fn into_family(self, _tol: Tolerance) -> Option<SurfaceSurfaceIntersection> {
+    pub(super) fn into_family(self, tol: Tolerance) -> Option<SurfaceSurfaceIntersection> {
         match self {
             TorusSphereIntersection::Circle(c) => surface_curves([(c, false)]),
             TorusSphereIntersection::TwoCircles(c1, c2) => {
                 surface_curves([(c1, false), (c2, false)])
             }
             TorusSphereIntersection::TangentCircle(c) => surface_curves([(c, true)]),
+            TorusSphereIntersection::Quartic(curve) => quartic(curve, tol),
+            TorusSphereIntersection::TangentPoint(p) => contact_point(p),
             TorusSphereIntersection::Empty => surfaces_miss(),
             TorusSphereIntersection::NotAnalytic => None,
         }

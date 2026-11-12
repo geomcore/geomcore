@@ -3,7 +3,7 @@
 
 use super::quartic::{
     QuarticCurve, cone_off_cylinder_axis, cones_in_general_position, crossing_cylinders,
-    sphere_off_cone_axis, sphere_off_cylinder_axis,
+    sphere_off_cone_axis, sphere_off_cylinder_axis, torus_plane, torus_sphere,
 };
 use std::f64::consts::PI;
 
@@ -232,11 +232,16 @@ pub enum ConeCylinderIntersection {
 
 /// Result of intersecting a torus with a plane.
 ///
-/// The closed form needs the plane through the axis (two meridian
-/// circles), perpendicular to it (latitude circles), or through the
-/// center and tangent to the tube twice (two Villarceau circles).
-/// Anything else is a quartic spiric section and reports
-/// [`TorusPlaneIntersection::NotAnalytic`].
+/// A plane through the axis cuts two meridian circles, one perpendicular
+/// to it latitude circles, and one through the center tangent to the tube
+/// twice two Villarceau circles. Any other plane cuts a ring torus in a
+/// spiric section, a [`QuarticCurve`] read along the tube circles: two
+/// loops around the axis, one or two loops (Cassini's ovals among them,
+/// parallel to the axis at the minor radius from it), or one crossing
+/// itself where the plane touches the inner side of the tube; or touches
+/// it at a point.
+// The quartic is stored inline, as in the other quartic results.
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum TorusPlaneIntersection {
     /// Two circles: meridian (axis-containing plane), latitude
@@ -246,28 +251,51 @@ pub enum TorusPlaneIntersection {
     TangentCircle(Circle),
     /// Single latitude ring (spindle case).
     Circle(Circle),
+    /// The spiric section: one or two loops, with the point where the
+    /// plane touches the torus if a loop crosses itself there.
+    Quartic(QuarticCurve),
+    /// The plane touches the torus at this point and meets it nowhere
+    /// else.
+    TangentPoint(Point),
     /// The plane misses the torus.
     Empty,
-    /// No closed form for this configuration.
+    /// No closed form for this configuration: a plane in no special
+    /// position against a horn or spindle torus, whose tube circles cross
+    /// on its axis.
     NotAnalytic,
 }
 
 /// Result of intersecting a torus with a sphere.
 ///
-/// The closed form needs the sphere center on the torus axis, reducing
-/// to a quadratic in the axial coordinate. Anything else is high-degree
-/// and reports [`TorusSphereIntersection::NotAnalytic`].
+/// A sphere centred on the torus axis meets it in latitude rings, from a
+/// quadratic in the axial coordinate. A sphere centred in the torus's
+/// plane that holds two tube circles meets it in those, and one that
+/// touches the torus twice meets it in two circles through those points.
+/// Any other sphere meets a ring torus in a quartic, a [`QuarticCurve`]
+/// read along the tube circles, or touches it at a point.
+// The quartic is stored inline, as in the other quartic results.
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum TorusSphereIntersection {
     /// Latitude ring.
     Circle(Circle),
-    /// Two latitude rings.
+    /// Two latitude rings, two tube circles, or the two circles through
+    /// the points where a sphere off the axis touches the torus twice.
     TwoCircles(Circle, Circle),
-    /// Grazing ring.
+    /// Grazing ring: a latitude ring, or the tube circle a sphere of the
+    /// tube's radius is centred on.
     TangentCircle(Circle),
+    /// One or two loops, with the point where the sphere touches the torus
+    /// if a loop crosses itself there.
+    Quartic(QuarticCurve),
+    /// The sphere touches the torus at this point and meets it nowhere
+    /// else.
+    TangentPoint(Point),
     /// No ring.
     Empty,
-    /// No closed form for this configuration.
+    /// No closed form for this configuration: a sphere off the axis
+    /// against a horn or spindle torus, whose tube circles cross on its
+    /// axis.
     NotAnalytic,
 }
 
@@ -1662,8 +1690,9 @@ impl IntersectExact<Plane> for Torus {
     /// perpendicular to the axis cuts latitude rings (two, one grazing,
     /// or one spindle ring); a plane through the center tangent to the
     /// tube twice (tilted `asin(r / R)` from the equatorial plane) cuts
-    /// two Villarceau circles of radius `R`. Anything else is a quartic
-    /// spiric section and reports [`TorusPlaneIntersection::NotAnalytic`].
+    /// two Villarceau circles of radius `R`. Any other plane cuts a ring
+    /// torus in a spiric section, a [`TorusPlaneIntersection::Quartic`],
+    /// or touches it at a point.
     ///
     /// # Examples
     ///
@@ -1694,7 +1723,7 @@ impl IntersectExact<Plane> for Torus {
         if s.abs() <= angular {
             // Axis-containing plane: the axis must lie in it.
             if ((o - plane.frame().origin()).dot(n)).abs() > tol.confusion {
-                return TorusPlaneIntersection::NotAnalytic;
+                return spiric_section(self, plane, tol);
             }
             // sin is near 1 here (s near 0), so the division is safe.
             let m = n.cross(a) * (1.0 / sin);
@@ -1741,10 +1770,16 @@ impl IntersectExact<Plane> for Torus {
                 };
                 TorusPlaneIntersection::TwoCircles(mk(1.0), mk(-1.0))
             } else {
-                TorusPlaneIntersection::NotAnalytic
+                spiric_section(self, plane, tol)
             }
         }
     }
+}
+
+/// The spiric section of a plane in no special position, `NotAnalytic`
+/// where it has no closed form.
+fn spiric_section(torus: &Torus, plane: &Plane, tol: Tolerance) -> TorusPlaneIntersection {
+    torus_plane(torus, plane, tol).unwrap_or(TorusPlaneIntersection::NotAnalytic)
 }
 
 impl IntersectExact<Sphere> for Torus {
@@ -1752,11 +1787,11 @@ impl IntersectExact<Sphere> for Torus {
 
     /// Intersects this torus with a sphere.
     ///
-    /// The analytic path needs the sphere center on the torus axis:
-    /// eliminating the radial coordinate gives
-    /// `2*R*rho = K + 2*tc*z`, a quadratic in `z` whose roots yield
-    /// latitude rings. Anything else reports
-    /// [`TorusSphereIntersection::NotAnalytic`].
+    /// With the sphere center on the torus axis, eliminating the radial
+    /// coordinate gives `2*R*rho = K + 2*tc*z`, a quadratic in `z` whose
+    /// roots yield latitude rings. A sphere centred anywhere else meets a
+    /// ring torus in two tube circles it holds, a
+    /// [`TorusSphereIntersection::Quartic`], or a point where it touches.
     ///
     /// # Examples
     ///
@@ -1781,7 +1816,7 @@ impl IntersectExact<Sphere> for Torus {
         let w = sphere.center() - o;
         let tc = w.dot(a);
         if (w - a * tc).magnitude() > tol.confusion {
-            return TorusSphereIntersection::NotAnalytic;
+            return torus_sphere(self, sphere, tol).unwrap_or(TorusSphereIntersection::NotAnalytic);
         }
         let rs = sphere.radius();
         let k = major * major - self.minor_radius() * self.minor_radius() - tc * tc + rs * rs;
@@ -1811,6 +1846,38 @@ impl IntersectExact<Sphere> for Torus {
             QuadraticSolution::Linear(_) | QuadraticSolution::Degenerate => {
                 unreachable!("axial quadratic coefficient exceeds 1")
             }
+        }
+    }
+}
+
+impl IntersectExact<Torus> for Plane {
+    type Output = TorusPlaneIntersection;
+
+    /// The same result as in the other argument order (see
+    /// [`Torus::intersect_exact`](IntersectExact::intersect_exact)), the
+    /// spiric section's curves in parameters the plane's first.
+    fn intersect_exact(&self, torus: &Torus, tol: Tolerance) -> TorusPlaneIntersection {
+        match torus.intersect_exact(self, tol) {
+            TorusPlaneIntersection::Quartic(curve) => {
+                TorusPlaneIntersection::Quartic(curve.operands_swapped())
+            }
+            other => other,
+        }
+    }
+}
+
+impl IntersectExact<Torus> for Sphere {
+    type Output = TorusSphereIntersection;
+
+    /// The same result as in the other argument order (see
+    /// [`Torus::intersect_exact`](IntersectExact::intersect_exact)), the
+    /// quartic's curves in parameters the sphere's first.
+    fn intersect_exact(&self, torus: &Torus, tol: Tolerance) -> TorusSphereIntersection {
+        match torus.intersect_exact(self, tol) {
+            TorusSphereIntersection::Quartic(curve) => {
+                TorusSphereIntersection::Quartic(curve.operands_swapped())
+            }
+            other => other,
         }
     }
 }

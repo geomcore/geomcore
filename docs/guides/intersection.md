@@ -111,6 +111,17 @@ there, split into two plane conics (the ellipses of a reducer), with the
 points where they touch in `contact_points`. Two cones with parallel
 axes and equal half-angles, each the other moved sideways, meet in one
 plane conic: the hyperbola of two neighbouring chamfers.
+A torus meets a plane or a sphere in any position in closed form too,
+read along its tube circles instead of a quadric's generators. A plane
+cuts a spiric section: two loops around the axis, one loop or two
+(Cassini's ovals, parallel to the axis at the minor radius from it), or
+one crossing itself where the plane touches the inside of the tube, that
+point in `contact_points`. A sphere off the axis meets it in a quartic of the
+same shapes. A sphere touching it twice meets it in two circles through
+both points, and one centred in the torus's plane can hold two tube
+circles. A plane or a sphere that touches the torus and meets it nowhere
+else gives that point. A horn or spindle torus, whose tube circles cross
+on its axis, runs the numeric search away from the special positions.
 Lines/circles/conics against each
 other and against the elementary surfaces, except an ellipse, a
 parabola or a hyperbola against a torus: substituted into the torus they

@@ -1335,6 +1335,44 @@ def test_circle_torus_intersections():
     assert overlap.curve_range == pytest.approx((0.0, 2.0 * math.pi))
 
 
+def test_torus_plane_and_sphere_intersections_anywhere():
+    from geomcore import BSplineCurve2D, IntersectionMethod, Plane, Torus
+
+    torus = Torus(Point.origin(), Vector.unit_z(), 4.0, 1.0)
+
+    # Planes parallel to the axis: Cassini's ovals at the minor radius from
+    # it, one loop crossing itself where the plane touches the inner
+    # equator, a point where it touches the outer one.
+    ovals = torus.intersect(Plane(Point(1.0, 0.0, 0.0), Vector.unit_x()))
+    assert ovals.method == IntersectionMethod.EXACT and ovals.is_complete()
+    assert len(ovals.curves) == 2
+    node = torus.intersect(Plane(Point(3.0, 0.0, 0.0), Vector.unit_x()))
+    assert len(node.curves) == 1
+    assert node.contact_points[0].distance(Point(3.0, 0.0, 0.0)) < 1e-12
+    point = torus.intersect(Plane(Point(5.0, 0.0, 0.0), Vector.unit_x()))
+    assert point.method == IntersectionMethod.EXACT and not point.curves
+    assert point.contact_points[0].distance(Point(5.0, 0.0, 0.0)) < 1e-12
+
+    # A tilted plane and a sphere off the axis, in either order: fitted
+    # loops on both surfaces.
+    tilted = Plane(Point(4.5, 0.0, 0.0), Vector(math.cos(0.3), 0.0, math.sin(0.3)))
+    sphere = Sphere(Point(4.0, 0.0, 1.5), 1.0)
+    for first, second in [(torus, tilted), (tilted, torus), (torus, sphere), (sphere, torus)]:
+        result = first.intersect(second)
+        assert result.method == IntersectionMethod.EXACT and result.is_complete()
+        (piece,) = result.curves
+        assert isinstance(piece.first_uv_curve, BSplineCurve2D)
+        assert isinstance(piece.second_uv_curve, BSplineCurve2D)
+        start, end = piece.curve.bounds()
+        for k in range(11):
+            t = start + (end - start) * k / 10
+            p = piece.curve.point_at(t)
+            other = second if first is torus else first
+            assert torus.contains(p) and other.contains(p)
+            uv = piece.first_uv_curve.point_at(t)
+            assert first.point_at(uv.x, uv.y).distance(p) <= 1.1 * piece.deviation
+
+
 def test_ellipse_ellipse_intersections():
     from geomcore import Ellipse
 
