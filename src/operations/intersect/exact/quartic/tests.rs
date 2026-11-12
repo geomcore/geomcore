@@ -2,7 +2,9 @@ use super::*;
 
 mod cone_cylinder;
 mod cones;
+mod octic;
 mod sphere;
+mod torus;
 use crate::geometry::curves::ParametricCurve;
 use crate::geometry::surfaces::ParametricSurface;
 use crate::operations::intersect::numeric::marching::marching_intersection;

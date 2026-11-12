@@ -411,11 +411,11 @@ fn test_curve_surface_intersection_holds_four_hits() {
 
 #[test]
 fn test_curve_surface_intersection_without_closed_form_is_numeric() {
-    let circle = Circle::new(Point::ORIGIN, Vector::Y, 4.0).unwrap();
+    let ellipse = Ellipse::from_frame(Frame::WORLD, 5.0, 1.0).unwrap();
     let torus = Torus::new(Point::ORIGIN, Vector::Z, 4.0, 1.0).unwrap();
     assert_eq!(
         exact(
-            &ElementaryCurve::from(circle),
+            &ElementaryCurve::from(ellipse),
             &ElementarySurface::from(torus)
         ),
         None

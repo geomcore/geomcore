@@ -2,6 +2,7 @@ use super::*;
 use crate::geometry::curves::ParametricCurve;
 use crate::geometry::curves::ParametricCurve2D;
 use crate::geometry::surfaces::ParametricSurface;
+use crate::operations::intersect::numeric::marching::marching_intersection;
 use crate::{
     Circle, Cone, Curve, Cylinder, Frame, Intersect, IntersectExact, IntersectionMethod, Plane,
     Point, Sphere, Tolerance, Torus, Vector,
@@ -962,12 +963,13 @@ fn test_torus_plane_intersection() {
         torus.intersect_exact(&miss, tol),
         TorusPlaneIntersection::Empty
     );
-    // Tilted: quartic spiric section, no closed form.
+    // Tilted past the Villarceau planes: a spiric section of two loops,
+    // one on either side of the hole.
     let tilted = Plane::new(Point::ORIGIN, Vector::new(0.0, 1.0, 1.0)).unwrap();
-    assert_eq!(
-        torus.intersect_exact(&tilted, tol),
-        TorusPlaneIntersection::NotAnalytic
-    );
+    let TorusPlaneIntersection::Quartic(curve) = torus.intersect_exact(&tilted, tol) else {
+        panic!("expected the spiric section");
+    };
+    assert_eq!(curve.component_count(), 2);
 }
 
 #[test]
@@ -1004,23 +1006,31 @@ fn test_torus_plane_villarceau_circles() {
 }
 
 #[test]
-fn test_torus_plane_near_villarceau_is_not_analytic() {
+fn test_torus_plane_near_villarceau_is_a_spiric_section() {
+    // Turned or moved off the bitangent plane, the two circles part at
+    // the points where they cross into the loops of a spiric section, on
+    // both surfaces.
     let tol = Tolerance::DEFAULT;
-    let (torus, plane, _) = tilted_torus_and_plane(1e-4);
-    assert_eq!(
-        torus.intersect_exact(&plane, tol),
-        TorusPlaneIntersection::NotAnalytic
-    );
     let (torus, plane, _) = tilted_torus_and_plane(0.0);
     let shifted = Plane::new(
         torus.center() + plane.axis().direction() * 1e-4,
         plane.axis().direction(),
     )
     .unwrap();
-    assert_eq!(
-        torus.intersect_exact(&shifted, tol),
-        TorusPlaneIntersection::NotAnalytic
-    );
+    let (torus, turned, _) = tilted_torus_and_plane(1e-4);
+    for plane in [turned, shifted] {
+        let TorusPlaneIntersection::Quartic(curve) = torus.intersect_exact(&plane, tol) else {
+            panic!("expected the spiric section");
+        };
+        let marched = marching_intersection(&torus, &plane, None, tol);
+        assert_eq!(curve.component_count(), marched.curves().len());
+        for component in 0..curve.component_count() {
+            for k in 0..64 {
+                let p = curve.point_at(component, k as f64 * 0.1);
+                assert!(torus.contains(p, tol) && plane.contains(p, tol), "{p:?}");
+            }
+        }
+    }
 }
 
 #[test]
@@ -1056,12 +1066,33 @@ fn test_torus_sphere_intersection() {
         torus.intersect_exact(&small, tol),
         TorusSphereIntersection::Empty
     );
-    // Off-axis center: no closed form.
-    let off = Sphere::new(Point::new(1.0, 0.0, 0.0), 4.0).unwrap();
-    assert_eq!(
-        torus.intersect_exact(&off, tol),
-        TorusSphereIntersection::NotAnalytic
-    );
+    // Off-axis center: a quartic, here one loop through the tube on the
+    // side of the centre, short of it across the hole.
+    let off = Sphere::new(Point::new(1.0, 0.0, 0.0), 3.5).unwrap();
+    let TorusSphereIntersection::Quartic(curve) = torus.intersect_exact(&off, tol) else {
+        panic!("expected the quartic");
+    };
+    assert_eq!(curve.component_count(), 1);
+    // Wider, it touches the torus inside the hole at (−3, 0, 0) and from
+    // inside at (5, 0, 0): two circles through both points.
+    let bitangent = Sphere::new(Point::new(1.0, 0.0, 0.0), 4.0).unwrap();
+    let TorusSphereIntersection::TwoCircles(c1, c2) = torus.intersect_exact(&bitangent, tol) else {
+        panic!("expected two circles");
+    };
+    for circle in [c1, c2] {
+        for k in 0..16 {
+            let p = circle.point_at(k as f64 * 0.4);
+            assert!(
+                torus.contains(p, tol) && bitangent.contains(p, tol),
+                "{p:?}"
+            );
+        }
+        for touching in [Point::new(-3.0, 0.0, 0.0), Point::new(5.0, 0.0, 0.0)] {
+            let offset = touching - circle.center();
+            assert!((offset.magnitude() - circle.radius()).abs() <= tol.confusion);
+            assert!(offset.dot(circle.frame().z_direction()).abs() <= tol.confusion);
+        }
+    }
 }
 
 #[test]
@@ -1096,12 +1127,18 @@ fn test_torus_cylinder_intersection() {
         torus.intersect_exact(&fat, tol),
         TorusCylinderIntersection::Empty
     );
-    // Offset axis: no closed form.
+    // Offset axis: the curve of degree eight. The cylinder runs inside
+    // the tube except where it passes beyond the outer equator, so its
+    // upper and lower halves join there into one loop.
     let off = Cylinder::new(Point::new(1.0, 0.0, 0.0), Vector::Z, 4.5).unwrap();
-    assert_eq!(
-        torus.intersect_exact(&off, tol),
-        TorusCylinderIntersection::NotAnalytic
-    );
+    let TorusCylinderIntersection::Octic(curve) = torus.intersect_exact(&off, tol) else {
+        panic!("expected the octic");
+    };
+    assert_eq!(curve.component_count(), 1);
+    for k in 0..16 {
+        let p = curve.point_at(0, k as f64 * TAU / 16.0);
+        assert!(torus.contains(p, tol) && off.contains(p, tol));
+    }
 }
 
 #[test]
@@ -1148,12 +1185,18 @@ fn test_torus_cone_intersection() {
         }
         _ => panic!("expected two grazing rings"),
     }
-    // Tilted cone axis: no closed form.
+    // Tilted cone axis: the curve of degree eight.
     let tilted = Cone::new(Point::ORIGIN, Vector::X, 1.1, 2.0).unwrap();
-    assert_eq!(
-        torus.intersect_exact(&tilted, tol),
-        TorusConeIntersection::NotAnalytic
-    );
+    let TorusConeIntersection::Octic(curve) = torus.intersect_exact(&tilted, tol) else {
+        panic!("expected the octic");
+    };
+    assert!(curve.component_count() > 0);
+    for component in 0..curve.component_count() {
+        for k in 0..16 {
+            let p = curve.point_at(component, k as f64 * TAU / 16.0);
+            assert!(torus.contains(p, tol) && tilted.contains(p, tol));
+        }
+    }
 }
 
 #[test]
@@ -1519,7 +1562,7 @@ where
 
 /// Two surfaces 0.01 short of touching and 0.01 past it are decided as
 /// crossing and as apart, and the same way a million times smaller or
-/// larger (ADR 0046).
+/// larger (ADR 0050).
 #[test]
 fn test_closed_forms_decide_a_near_tangency_alike_at_any_size() {
     fn check<A, B>(name: &str, first: &A, crossing: &B, apart: &B) -> Vec<String>

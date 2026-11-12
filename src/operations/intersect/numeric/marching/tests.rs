@@ -1674,3 +1674,160 @@ fn test_plane_cuts_a_ring_in_two_circles_at_any_size() {
     }
     assert_eq!(counts, [2, 2, 2]);
 }
+
+/// Two cones with one apex at the origin, half-angles 30° and 70°, their
+/// axes `apart` degrees apart, each placed at the circle of radius
+/// `reference_radius` (0: at the apex).
+fn cones_sharing_an_apex(apart: f64, reference_radius: f64) -> (crate::Cone, crate::Cone) {
+    let cone = |axis: Vector, half_angle: f64| {
+        let half_angle = half_angle.to_radians();
+        let center = Point::ORIGIN + axis * (reference_radius / half_angle.tan());
+        crate::Cone::new(center, axis, half_angle, reference_radius).unwrap()
+    };
+    let apart = apart.to_radians();
+    (
+        cone(Vector::Z, 30.0),
+        cone(Vector::new(apart.sin(), 0.0, apart.cos()), 70.0),
+    )
+}
+
+/// Whether `region` is the point `at`, to within `reach`.
+fn region_at(region: &SurfaceSurfaceRegion, at: Point, reach: f64) -> bool {
+    region.min_corner.distance(at) <= reach && region.max_corner.distance(at) <= reach
+}
+
+#[test]
+fn test_cones_sharing_an_apex_march_the_same_lines_whatever_their_reference_radius() {
+    let tol = Tolerance::DEFAULT;
+    // 90°: four lines; 80°: three, one where the cones touch; 60°: two.
+    for (apart, lines, tangent) in [(90.0, 4, 0), (80.0, 3, 1), (60.0, 2, 0)] {
+        for reference_radius in [0.0, 1.0] {
+            let (first, second) = cones_sharing_an_apex(apart, reference_radius);
+            let result = marching_intersection(&first, &second, None, tol);
+            let label = format!("{apart}° apart, reference radius {reference_radius}");
+            assert_eq!(result.curves().len(), lines, "{label}");
+            let touching = result.curves().iter().filter(|c| c.tangent).count();
+            assert_eq!(touching, tangent, "{label}");
+            for piece in result.curves() {
+                // A line through the apex, on both cones.
+                let (t0, t1) = piece.curve.bounds();
+                let end = piece.curve.point_at(t1);
+                let start = piece.curve.point_at(t0);
+                let direction = if end.distance(Point::ORIGIN) >= start.distance(Point::ORIGIN) {
+                    end - Point::ORIGIN
+                } else {
+                    start - Point::ORIGIN
+                };
+                let direction = direction.normalized().unwrap();
+                for k in 0..=20 {
+                    let p = piece.curve.point_at(t0 + (t1 - t0) * k as f64 / 20.0);
+                    let off = (p - Point::ORIGIN).cross(direction).magnitude();
+                    assert!(off < 1e-5, "{label}: {p:?} is {off} off the line");
+                    assert!(first.project_point(p, tol).distance < 1e-5, "{label}");
+                    assert!(second.project_point(p, tol).distance < 1e-5, "{label}");
+                }
+            }
+            // The lines run off to infinity: the result is cut, and no
+            // region is left at the apex, every line passing through it.
+            let Completeness::Incomplete { reason, regions } = result.completeness() else {
+                panic!("{label}: {:?}", result.completeness());
+            };
+            assert_eq!(*reason, IncompleteReason::Unbounded, "{label}");
+            assert!(
+                regions.iter().all(|r| !region_at(r, Point::ORIGIN, 0.0)),
+                "{label}: {regions:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn test_cones_at_their_apex_march_lines_long_enough_to_see() {
+    // A cone placed at its apex has no size of its own: the trace box is
+    // grown as for a plane, not to a first step around the apex.
+    let tol = Tolerance::DEFAULT;
+    let (first, second) = cones_sharing_an_apex(90.0, 0.0);
+    let result = marching_intersection(&first, &second, None, tol);
+    for piece in result.curves() {
+        let (t0, t1) = piece.curve.bounds();
+        let length = piece.curve.point_at(t0).distance(piece.curve.point_at(t1));
+        assert!(length > 1.0, "{length}");
+    }
+}
+
+#[test]
+fn test_without_seeds_around_the_apex_the_lost_apex_is_an_unseparated_region() {
+    let tol = Tolerance::DEFAULT;
+    for apart in [90.0, 80.0, 60.0] {
+        let (first, second) = cones_sharing_an_apex(apart, 0.0);
+        let result = marching_without_singular_seeds(&first, &second, tol);
+        assert!(result.curves().is_empty(), "{apart}°");
+        let Completeness::Incomplete { reason, regions } = result.completeness() else {
+            panic!("{apart}°: {:?}", result.completeness());
+        };
+        assert_eq!(*reason, IncompleteReason::Unseparated, "{apart}°");
+        assert_eq!(regions.len(), 1, "{apart}°: {regions:?}");
+        assert!(
+            region_at(&regions[0], Point::ORIGIN, tol.confusion),
+            "{regions:?}"
+        );
+    }
+}
+
+#[test]
+fn test_a_plane_through_a_spindle_point_of_a_torus_marches_through_it() {
+    // A spindle torus (minor radius above the major one) has no tangent
+    // plane at its two points on the axis; a plane through one, across
+    // the axis, meets the torus in a curve crossing itself there.
+    use crate::{Plane, Torus};
+    let tol = Tolerance::DEFAULT;
+    let torus = Torus::new(Point::ORIGIN, Vector::Z, 1.0, 2.0).unwrap();
+    let spindle = Point::new(0.0, 0.0, 3.0f64.sqrt());
+    let plane = Plane::new(spindle, Vector::new(1.0, 0.0, 0.3)).unwrap();
+    for result in [
+        marching_intersection(&plane, &torus, None, tol),
+        marching_intersection(&torus, &plane, None, tol),
+    ] {
+        assert!(!result.curves().is_empty());
+        let nearest = result
+            .curves()
+            .iter()
+            .map(|piece| {
+                let (t0, t1) = piece.curve.bounds();
+                (0..=4000)
+                    .map(|k| piece.curve.point_at(t0 + (t1 - t0) * k as f64 / 4000.0))
+                    .map(|p| p.distance(spindle))
+                    .fold(f64::INFINITY, f64::min)
+            })
+            .fold(f64::INFINITY, f64::min);
+        assert!(nearest < 1e-3, "{nearest}");
+        assert!(
+            !matches!(result.completeness(), Completeness::Incomplete { .. }),
+            "{:?}",
+            result.completeness()
+        );
+    }
+}
+
+#[test]
+fn test_a_torus_touching_a_sphere_at_its_pole_is_a_contact_point() {
+    // At the pole the sphere's parameters give no tangent plane, but its
+    // geometry does: the touch is a contact point, not a lost seed.
+    use crate::{Sphere, Torus};
+    let tol = Tolerance::DEFAULT;
+    let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
+    let pole = Point::new(0.0, 0.0, 2.0);
+    for (major, minor) in [(1.5, 0.5), (3.0, 1.0)] {
+        let center = Point::new(0.0, 0.0, 2.0 + major + minor);
+        let torus = Torus::new(center, Vector::Y, major, minor).unwrap();
+        for result in [
+            marching_intersection(&sphere, &torus, None, tol),
+            marching_intersection(&torus, &sphere, None, tol),
+        ] {
+            assert!(result.curves().is_empty());
+            assert_eq!(result.contact_points().len(), 1);
+            assert!(result.contact_points()[0].distance(pole) <= tol.confusion);
+            assert!(matches!(result.completeness(), Completeness::Sampled));
+        }
+    }
+}

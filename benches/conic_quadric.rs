@@ -2,8 +2,10 @@
 //!
 //! Times a batch of typed `IntersectExact::intersect_exact` calls for each of the 16
 //! pairs of a conic (circle, ellipse, parabola, hyperbola) and a quadric
-//! (plane, sphere, cylinder, cone). The conics are placed at random near
-//! the quadrics, so each batch mixes crossings, tangencies and misses.
+//! (plane, sphere, cylinder, cone), and for a circle against a torus, the
+//! one conic a torus meets in closed form. The conics are placed at
+//! random near the surfaces, so each batch mixes crossings, tangencies
+//! and misses.
 //!
 //! Informational only, like `eval_throughput`; not a correctness gate.
 
@@ -13,7 +15,7 @@ use std::hint::black_box;
 use geomcore::prelude::*;
 use geomcore::{
     Circle, Cone, Cylinder, Ellipse, Frame, Hyperbola, Parabola, Plane, Point, Sphere, Tolerance,
-    Vector,
+    Torus, Vector,
 };
 
 const BATCH: usize = 1024;
@@ -111,8 +113,26 @@ macro_rules! bench_conic {
     }};
 }
 
+/// Times the circles against a torus they cross, touch or miss.
+fn bench_circle_torus(c: &mut Criterion) {
+    let circles = circles();
+    let tol = Tolerance::default();
+    let torus = Torus::new(Point::ORIGIN, Vector::Z, 1.6, 0.6).unwrap();
+    let mut group = c.benchmark_group("conic_quadric/circle");
+    group.throughput(Throughput::Elements(BATCH as u64));
+    group.bench_function("torus", |b| {
+        b.iter(|| {
+            for x in black_box(&circles) {
+                black_box(x.intersect_exact(&torus, tol));
+            }
+        })
+    });
+    group.finish();
+}
+
 fn bench_conic_quadric(c: &mut Criterion) {
     bench_conic!(c, "circle", circles());
+    bench_circle_torus(c);
     bench_conic!(c, "ellipse", ellipses());
     bench_conic!(c, "parabola", parabolas());
     bench_conic!(c, "hyperbola", hyperbolas());

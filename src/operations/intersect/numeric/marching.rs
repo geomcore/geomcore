@@ -140,6 +140,20 @@ use tracer::{CHORD_DEVIATION, Cut, Trace, Tracer};
 /// reported tangent. A touch whose trace stays shorter than a first step
 /// is a contact point.
 ///
+/// Where a surface's parameters give it no tangent plane, no step can
+/// be taken. At a sphere's pole the geometry still has one (see
+/// [`grazes`](SurfacePair::grazes)), so a touch there is a contact point and a crossing is
+/// traced through it. At a cone's apex or a spindle torus's points on its
+/// axis the surface itself has none: the curves through the point are
+/// seeded a first step from it, where the other surface meets the ring
+/// of points around it (see [`singular_point_seeds`](seeding::singular_point_seeds)),
+/// both for a seed landing there and for those points of either surface
+/// lying on the other, seeded whether or not another seed lands there. A
+/// seed no trace can leave, where the surfaces cross, that no traced
+/// curve passes through makes the result [`Completeness::Incomplete`]
+/// with an [`IncompleteReason::Unseparated`] region at the seed (see
+/// [`Traced::unexplained_regions`]) rather than being dropped.
+///
 /// Two B-spline surfaces (see [`ParametricSurface::as_bspline`]) are
 /// seeded from pairs of their Bézier patches instead. The pairs whose
 /// control points' boxes overlap are halved until the hulls part, or
@@ -172,8 +186,7 @@ use tracer::{CHORD_DEVIATION, Cut, Trace, Tracer};
 /// [`deviation`](IntersectionCurve::deviation) reports its own): exact
 /// classification stays with the exact intersection
 /// ([`IntersectExact::intersect_exact`](crate::IntersectExact::intersect_exact)). Likewise
-/// no marching through singular points (poles, apexes; a touch there is
-/// not reported), a coincidence check that sees only whole surfaces (two
+/// a coincidence check that sees only whole surfaces (two
 /// patches overlapping in part are marched: the seeds where they lie on
 /// each other make the result `Incomplete` with an `Unseparated` region
 /// around them, but spurious curves may still cross the overlap), and a fixed number of seeding iso-curves or grid samples (a
@@ -196,10 +209,23 @@ where
     if let Some(coincident) = coincidence::coincidence(pair, tol) {
         return coincident;
     }
-    let traced = traced_intersection(pair, tol);
+    result_of(pair, traced_intersection(pair, tol, true), tol)
+}
+
+/// The result of marching on `pair`, from what was `traced`.
+fn result_of<A, B>(
+    pair: SurfacePair<A, B>,
+    traced: Traced,
+    tol: Tolerance,
+) -> SurfaceSurfaceIntersection
+where
+    A: ParametricSurface,
+    B: ParametricSurface,
+{
     let coincident = coincidence::coincident_region(pair, &traced.coincident_seeds, tol);
+    let unexplained = traced.unexplained_regions(pair, tol);
     let completeness = completeness_of(
-        coincident,
+        coincident.into_iter().chain(unexplained).collect(),
         traced.cuts.into_iter().map(cut_region).collect(),
     );
     let curves = traced
@@ -223,25 +249,24 @@ where
 
 /// The completeness of a marching result. Sampled, unless a branch of
 /// unbounded surfaces was cut at the trace box (`cuts`, reason
-/// [`Unbounded`](IncompleteReason::Unbounded)), or the surfaces lie on
-/// each other around `coincident` (reason
-/// [`Unseparated`](IncompleteReason::Unseparated)). With both, the reason
-/// is the stronger one (see [`stronger`]) and both kinds of region are
-/// kept.
+/// [`Unbounded`](IncompleteReason::Unbounded)), or the march could not
+/// separate the curves somewhere (`unseparated`, reason
+/// [`Unseparated`](IncompleteReason::Unseparated)): where the surfaces
+/// lie on each other, or at a seed no trace could leave (see
+/// [`Traced::unexplained_regions`]). With both, the reason is the
+/// stronger one (see [`stronger`]) and both kinds of region are kept.
 fn completeness_of(
-    coincident: Option<SurfaceSurfaceRegion>,
+    unseparated: Vec<SurfaceSurfaceRegion>,
     cuts: Vec<SurfaceSurfaceRegion>,
 ) -> Completeness<SurfaceSurfaceRegion> {
     let cut = (!cuts.is_empty()).then_some(IncompleteReason::Unbounded);
-    let overlap = coincident
-        .is_some()
-        .then_some(IncompleteReason::Unseparated);
+    let overlap = (!unseparated.is_empty()).then_some(IncompleteReason::Unseparated);
     let reason = match (cut, overlap) {
         (Some(cut), Some(overlap)) => stronger(cut, overlap),
         (Some(reason), None) | (None, Some(reason)) => reason,
         (None, None) => return Completeness::Sampled,
     };
-    of_reason(coincident.into_iter().chain(cuts).collect(), reason)
+    of_reason(unseparated.into_iter().chain(cuts).collect(), reason)
 }
 
 /// The region of a branch cut at the trace box (see [`Cut`]): the
@@ -271,12 +296,24 @@ fn cut_region(cut: Cut) -> SurfaceSurfaceRegion {
 /// The trace box is grown from the seeds it is traced from (see
 /// [`Tracer::new`]), so the seeds of the second round, which may lie
 /// beyond the first box, get a box grown to hold them too.
-fn traced_intersection<A, B>(pair: SurfacePair<A, B>, tol: Tolerance) -> Traced
+///
+/// A seed no trace leaves, at a point where a surface's parameters give it
+/// no tangent plane, is seeded around (see
+/// [`seeding::singular_point_seeds`]) unless `around_singular_points` is
+/// false, which only tests set, to see what the march reports without it.
+fn traced_intersection<A, B>(
+    pair: SurfacePair<A, B>,
+    tol: Tolerance,
+    around_singular_points: bool,
+) -> Traced
 where
     A: ParametricSurface,
     B: ParametricSurface,
 {
-    let mut traced = Traced::default();
+    let mut traced = Traced {
+        around_singular_points,
+        ..Traced::default()
+    };
     let (seeds, later) = seeding::seeds(pair, tol);
     let mut reached: Vec<[f64; 4]> = seeds.iter().map(|seed| seed.parameters()).collect();
     traced.follow_seeds(&Tracer::new(pair, tol, &reached), seeds, tol);
@@ -309,6 +346,22 @@ where
         .collect()
 }
 
+/// [`marching_intersection`] without the seeds around a singular point
+/// (see [`seeding::singular_point_seeds`]).
+#[cfg(test)]
+pub(crate) fn marching_without_singular_seeds<A, B>(
+    a: &A,
+    b: &B,
+    tol: Tolerance,
+) -> SurfaceSurfaceIntersection
+where
+    A: ParametricSurface,
+    B: ParametricSurface,
+{
+    let pair = SurfacePair::new(a, b);
+    result_of(pair, traced_intersection(pair, tol, false), tol)
+}
+
 /// The curves of [`marching_intersection`], fitted.
 #[cfg(test)]
 pub(crate) fn marched_curves<A, B>(a: &A, b: &B, tol: Tolerance) -> Vec<BSplineCurve>
@@ -328,17 +381,21 @@ where
 
 /// The curves traced so far, fitted (see [`Fitted`]); the points where they touch
 /// without a curve to trace; the seeds where they lie on each other (see
-/// [`SurfacePair::osculates`]); the branches cut at the trace box of
-/// unbounded surfaces (see [`Cut`]); and the traced polylines: the box
-/// around each, the boxes around its runs of `RUN` segments, and its
-/// points.
+/// [`SurfacePair::osculates`]); the seeds no trace could leave, the
+/// surfaces crossing there (see [`Trace::Lost`]); the branches cut at the
+/// trace box of unbounded surfaces (see [`Cut`]); and the traced
+/// polylines: the box around each, the boxes around its runs of `RUN`
+/// segments, and its points. Whether a lost seed at a singular point is
+/// seeded around (see [`traced_intersection`]).
 #[derive(Default)]
 struct Traced {
     curves: Vec<Fitted>,
     contact_points: Vec<Point>,
     coincident_seeds: Vec<[f64; 4]>,
+    lost_seeds: Vec<[f64; 4]>,
     cuts: Vec<Cut>,
     traces: Vec<(Aabb, Vec<Aabb>, Vec<Point>)>,
+    around_singular_points: bool,
 }
 
 impl Traced {
@@ -357,8 +414,8 @@ impl Traced {
     }
 
     /// Traces the curve through `seed` unless it was traced already, then
-    /// the branches crossing it where a trace stalled (see
-    /// [`seeding::branch_seeds`]), until every branch reached is traced.
+    /// the seeds that trace finds (see [`follow_one`](Self::follow_one)),
+    /// until every branch reached is traced.
     fn follow<A, B>(&mut self, tracer: &Tracer<A, B>, seed: [f64; 4], tol: Tolerance)
     where
         A: ParametricSurface,
@@ -366,16 +423,17 @@ impl Traced {
     {
         let mut pending = vec![seed];
         while let Some(seed) = pending.pop() {
-            for stall in self.follow_one(tracer, seed, tol) {
-                pending.extend(seeding::branch_seeds(tracer.pair(), stall, tol));
-            }
+            pending.extend(self.follow_one(tracer, seed, tol));
         }
     }
 
     /// Traces the curve through `seed` unless it was traced already, and
-    /// returns the parameters where its trace stalled. A seed where the
-    /// surfaces touch is kept as a contact point when no curve runs from
-    /// it.
+    /// returns the seeds on the branches it reached: those crossing where
+    /// its trace stalled (see [`seeding::branch_seeds`]), or, where no
+    /// trace leaves the seed, those around it when it is a singular point
+    /// of a surface (see [`seeding::singular_point_seeds`]). A seed where
+    /// the surfaces touch is kept as a contact point when no curve runs
+    /// from it; a seed no trace leaves where they cross is kept as lost.
     fn follow_one<A, B>(
         &mut self,
         tracer: &Tracer<A, B>,
@@ -415,7 +473,22 @@ impl Traced {
                 }
                 return Vec::new();
             }
-            Trace::Lost => return Vec::new(),
+            Trace::Lost => {
+                // A seed lost already, met again from another source, has
+                // been seeded around.
+                let again = self
+                    .lost_seeds
+                    .iter()
+                    .any(|&x| pair.point(x).distance(p) <= tol.confusion);
+                if again {
+                    return Vec::new();
+                }
+                self.lost_seeds.push(seed);
+                if !self.around_singular_points {
+                    return Vec::new();
+                }
+                return seeding::singular_point_seeds(pair, seed, tol);
+            }
         };
         // Only the box of unbounded surfaces cuts a branch: the box of a
         // bounded side catches runaway steps alone.
@@ -437,6 +510,41 @@ impl Traced {
             self.curves.push(fitted);
         }
         stalls
+            .into_iter()
+            .flat_map(|stall| seeding::branch_seeds(pair, stall, tol))
+            .collect()
+    }
+
+    /// The regions where the march could not tell what the curves do: one
+    /// at each seed no trace could leave (see [`Trace::Lost`]) that no
+    /// traced curve passes through. A curve may leave such a seed, as at a
+    /// cone's apex, where the surface has no tangent plane to step along.
+    /// Each region is the seed's parameters and point.
+    fn unexplained_regions<A, B>(
+        &self,
+        pair: SurfacePair<A, B>,
+        tol: Tolerance,
+    ) -> Vec<SurfaceSurfaceRegion>
+    where
+        A: ParametricSurface,
+        B: ParametricSurface,
+    {
+        self.lost_seeds
+            .iter()
+            .filter_map(|&x| {
+                let p = pair.point(x);
+                (!self.crosses(&[p.x, p.y, p.z, p.x, p.y, p.z], tol)).then_some(
+                    SurfaceSurfaceRegion {
+                        first_u_range: (x[0], x[0]),
+                        first_v_range: (x[1], x[1]),
+                        second_u_range: (x[2], x[2]),
+                        second_v_range: (x[3], x[3]),
+                        min_corner: p,
+                        max_corner: p,
+                    },
+                )
+            })
+            .collect()
     }
 
     /// Whether something was traced and all of it is where the surfaces

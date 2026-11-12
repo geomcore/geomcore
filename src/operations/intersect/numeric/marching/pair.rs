@@ -560,11 +560,20 @@ where
     /// double root) when `sin^2(theta) = 2 k g`: the crossing is a touch
     /// within confusion when `sin^2(theta) <= 2 |k| confusion`. This is the
     /// rule of the exact solvers, a plane being tangent to a cylinder when
-    /// its distance to the axis is the radius within confusion. `false`
-    /// where a normal degenerates (a singular point).
+    /// its distance to the axis is the radius within confusion. Where a
+    /// surface's parameters give it no tangent plane, they touch when the
+    /// normals of the geometry are parallel within `tol.angular` (see
+    /// [`geometric_normal`]): at a sphere's pole; `false` at a singular
+    /// point, a cone's apex, which has no normal.
     pub(super) fn grazes(&self, x: [f64; 4], tol: Tolerance) -> bool {
         let Some(([first, second], (na, nb), (e1, e2))) = self.second_forms(x, tol) else {
-            return false;
+            // At a pole the parameters give no tangent plane but the
+            // geometry does: the surfaces touch where those normals agree.
+            let normals = (
+                geometric_normal(self.first, x[0], x[1], tol),
+                geometric_normal(self.second, x[2], x[3], tol),
+            );
+            return matches!(normals, (Some(na), Some(nb)) if na.cross(nb).magnitude() <= tol.angular);
         };
         let sine = na.cross(nb).magnitude();
         if sine <= tol.angular {
@@ -591,13 +600,16 @@ pub(super) fn own_box<S: ParametricSurface>(s: &S) -> Option<BoundingBox> {
 /// The length a surface's unbounded branches are grown from in the
 /// seeded trace box (see [`SurfacePair::seeded_box`]): a cylinder's or
 /// cone's radius, or the diagonal of a revolution's or extrusion's
-/// profile box. `None` where there is none: a plane, or a sweep whose
-/// profile is itself unbounded.
+/// profile box. `None` where there is none: a plane, a cone placed at its
+/// apex (reference radius 0), or a sweep whose profile is itself
+/// unbounded.
 fn own_size<S: ParametricSurface>(s: &S) -> Option<f64> {
     if let Some(elementary) = s.as_elementary() {
         return match elementary {
             ElementarySurface::Cylinder(cylinder) => Some(cylinder.radius()),
-            ElementarySurface::Cone(cone) => Some(cone.reference_radius()),
+            ElementarySurface::Cone(cone) => {
+                Some(cone.reference_radius()).filter(|&radius| radius > 0.0)
+            }
             _ => None,
         };
     }
@@ -665,6 +677,48 @@ impl TraceBox {
 /// confusion / h^2`.
 fn osculation(tol: Tolerance) -> f64 {
     2.0 * tol.confusion / (first_step(tol) * first_step(tol))
+}
+
+/// The unit normal of `surface` at `(u, v)` where its geometry has one:
+/// [`ParametricSurface::normal`], when the partials there span a plane
+/// (see [`unit_normal`]) or, where one of them vanishes, when the limiting
+/// normal it gives is the same at a third and two thirds of the way round
+/// the vanishing parameter's range: at a sphere's pole, which the
+/// parameters' whole range sweeps through one point with one tangent
+/// plane. At a cone's apex the limiting normal turns with the generator,
+/// and there is none.
+fn geometric_normal<S: ParametricSurface + ?Sized>(
+    surface: &S,
+    u: f64,
+    v: f64,
+    tol: Tolerance,
+) -> Option<Vector> {
+    let normal = surface.normal(u, v, tol)?;
+    let (_, [su, sv]) = surface.first_derivatives(u, v);
+    if unit_normal(surface, su, sv, tol).is_some() {
+        return Some(normal);
+    }
+    let [u_width, v_width] = reference_widths(surface, tol);
+    let width = |period: Option<f64>, (low, high): (f64, f64)| period.unwrap_or(high - low);
+    let (du, dv) = match (
+        tol.is_negligible_derivative(su.magnitude(), u_width),
+        tol.is_negligible_derivative(sv.magnitude(), v_width),
+    ) {
+        (true, false) => (width(surface.u_period(), surface.u_bounds()), 0.0),
+        (false, true) => (0.0, width(surface.v_period(), surface.v_bounds())),
+        _ => return None,
+    };
+    if !(du + dv).is_finite() {
+        return None;
+    }
+    let agrees = |fraction: f64| {
+        surface
+            .normal(u + fraction * du, v + fraction * dv, tol)
+            .is_some_and(|other| {
+                other.dot(normal) > 0.0 && other.cross(normal).magnitude() <= tol.angular
+            })
+    };
+    (agrees(1.0 / 3.0) && agrees(2.0 / 3.0)).then_some(normal)
 }
 
 /// The unit normal `su x sv` of `surface` from its partials `su` and
