@@ -94,6 +94,7 @@ where
             (f, r, f.dot(f) + r * r)
         };
         let mut x = self.clamp(x);
+        let periods = self.periods();
         let (mut f, mut r, mut merit) = residual(x);
         for _ in 0..32 {
             if f.magnitude() <= 0.1 * tol.confusion && r.abs() <= 0.1 * tol.confusion {
@@ -101,8 +102,8 @@ where
             }
             let (_, [au, av]) = a.first_derivatives(x[0], x[1]);
             let (_, [bu, bv]) = b.first_derivatives(x[2], x[3]);
-            let cols = [au, av, -bu, -bv];
-            let delta = match plane {
+            let (cols, lengths) = in_length([au, av, -bu, -bv]);
+            let step = match plane {
                 Some((_, normal)) => {
                     let m = [
                         cols.map(|c| c.x),
@@ -121,10 +122,16 @@ where
                     cols.map(|c| c.dot(Vector::new(y[0], y[1], y[2])))
                 }
             };
+            let delta: [f64; 4] = std::array::from_fn(|k| step[k] / lengths[k]);
+            let wraps = turns_more_than_half(delta, periods);
             let mut scale = 1.0;
             let mut improved = false;
             for _ in 0..12 {
-                let trial = self.clamp([0, 1, 2, 3].map(|k| x[k] + scale * delta[k]));
+                let mut turns = delta.map(|d| scale * d);
+                if wraps {
+                    turns = shortest_turns(turns, periods);
+                }
+                let trial = self.clamp(std::array::from_fn(|k| x[k] + turns[k]));
                 let (trial_residual, trial_normal_residual, trial_merit) = residual(trial);
                 if trial_merit < merit {
                     (x, f, r, merit) = (trial, trial_residual, trial_normal_residual, trial_merit);
@@ -221,6 +228,7 @@ where
         let free: [usize; 3] = std::array::from_fn(|i| if i < pin { i } else { i + 1 });
         let residual = |x: [f64; 4]| a.point_at(x[0], x[1]) - b.point_at(x[2], x[3]);
         let mut x = self.clamp(x);
+        let periods = self.periods();
         x[pin] = value;
         let mut f = residual(x);
         for _ in 0..32 {
@@ -229,17 +237,23 @@ where
             }
             let (_, [au, av]) = a.first_derivatives(x[0], x[1]);
             let (_, [bu, bv]) = b.first_derivatives(x[2], x[3]);
-            let cols = [au, av, -bu, -bv].map(|c| [c.x, c.y, c.z]);
+            let (cols, lengths) = in_length([au, av, -bu, -bv]);
+            let cols = cols.map(|c| [c.x, c.y, c.z]);
             let m = std::array::from_fn(|r| free.map(|k| cols[k][r]));
-            let delta = solve_3x3(m, [-f.x, -f.y, -f.z], 1e-12)?;
+            let step = solve_3x3(m, [-f.x, -f.y, -f.z], 1e-12)?;
+            let mut delta = [0.0; 4];
+            for (i, &k) in free.iter().enumerate() {
+                delta[k] = step[i] / lengths[k];
+            }
+            let wraps = turns_more_than_half(delta, periods);
             let mut scale = 1.0;
             let mut improved = false;
             for _ in 0..12 {
-                let mut trial = x;
-                for (i, &k) in free.iter().enumerate() {
-                    trial[k] += scale * delta[i];
+                let mut turns = delta.map(|d| scale * d);
+                if wraps {
+                    turns = shortest_turns(turns, periods);
                 }
-                let trial = self.clamp(trial);
+                let trial = self.clamp(std::array::from_fn(|k| x[k] + turns[k]));
                 let trial_residual = residual(trial);
                 if trial_residual.square_magnitude() < f.square_magnitude() {
                     (x, f) = (trial, trial_residual);
@@ -281,6 +295,16 @@ where
                 x[k] + ((near[k] - x[k]) / period).round() * period
             })
         })
+    }
+
+    /// The period of each parameter, `None` where it is not periodic.
+    fn periods(&self) -> [Option<f64>; 4] {
+        [
+            self.first.u_period(),
+            self.first.v_period(),
+            self.second.u_period(),
+            self.second.v_period(),
+        ]
     }
 
     /// Parameters `x` with each non-periodic one clamped into its bounds.
@@ -336,17 +360,15 @@ where
         ]
     }
 
-    /// Unit tangent `N1 x N2` of the intersection at parameters `x`, or
-    /// `None` where the surfaces are tangent or a normal degenerates.
-    pub(super) fn tangent(&self, x: [f64; 4], tol: Tolerance) -> Option<Vector> {
+    /// Unit tangent `N1 x N2` of the intersection at parameters `x`, with
+    /// the sine of the angle between the surfaces, `|N1 x N2|`; `None`
+    /// where the surfaces are tangent or a normal degenerates.
+    pub(super) fn tangent_and_sine(&self, x: [f64; 4], tol: Tolerance) -> Option<(Vector, f64)> {
         let na = self.first.normal(x[0], x[1], tol)?;
         let nb = self.second.normal(x[2], x[3], tol)?;
         let t = na.cross(nb);
-        if t.magnitude() <= tol.angular {
-            None
-        } else {
-            Some(t * (1.0 / t.magnitude()))
-        }
+        let sine = t.magnitude();
+        (sine > tol.angular).then(|| (t * (1.0 / sine), sine))
     }
 
     /// The second fundamental forms of both surfaces at parameters `x`, in
@@ -665,6 +687,50 @@ pub(super) fn unit_normal<S: ParametricSurface + ?Sized>(
     let widths = reference_widths(surface, tol);
     partials_span_a_plane(su.magnitude(), sv.magnitude(), length, widths, tol)
         .then(|| n * (1.0 / length))
+}
+
+/// The derivative columns of a system on the surfaces' parameters, each
+/// divided by its length, and those lengths: the system then solves for
+/// steps measured along the surfaces, so a parameter that is an angle and
+/// one that is a length weigh alike whatever the size of the surfaces,
+/// and its singularity test reads their directions alone. A step `y_k`
+/// in a column is the step `y_k / length_k` in its parameter. A vanishing
+/// column is kept as it is, with length 1.
+#[inline]
+fn in_length<const N: usize>(columns: [Vector; N]) -> ([Vector; N], [f64; N]) {
+    let lengths = columns.map(|c| {
+        let length = c.magnitude();
+        if length > 0.0 && length.is_finite() {
+            length
+        } else {
+            1.0
+        }
+    });
+    (std::array::from_fn(|k| columns[k] / lengths[k]), lengths)
+}
+
+/// The parameter step `delta` with each periodic parameter's step reduced
+/// by whole periods to at most half a period (`periods` as
+/// [`SurfacePair::periods`] gives them): it reaches the same points. Near a
+/// pole, where moving along a parameter barely moves the point, a step
+/// measured along the surfaces may turn an angle by billions of periods,
+/// which would leave it no precision.
+#[inline]
+fn shortest_turns(delta: [f64; 4], periods: [Option<f64>; 4]) -> [f64; 4] {
+    std::array::from_fn(|k| match periods[k] {
+        Some(period) if delta[k].abs() > 0.5 * period => {
+            delta[k] - (delta[k] / period).round() * period
+        }
+        _ => delta[k],
+    })
+}
+
+/// Whether `delta` turns a periodic parameter by more than half its
+/// period (see [`shortest_turns`]): checked once per Newton step, whose
+/// trials only shrink it.
+#[inline]
+fn turns_more_than_half(delta: [f64; 4], periods: [Option<f64>; 4]) -> bool {
+    (0..4).any(|k| periods[k].is_some_and(|period| delta[k].abs() > 0.5 * period))
 }
 
 #[cfg(test)]

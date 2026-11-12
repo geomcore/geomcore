@@ -63,6 +63,28 @@ fn test_meet_in_a_plane_lands_where_the_plane_cuts_the_curve() {
 }
 
 #[test]
+fn test_meet_next_to_a_pole_turns_the_angle_by_less_than_a_period() {
+    // A step measured along the surfaces finds moving along `u` almost
+    // free next to the sphere's pole, where `u` barely moves the point:
+    // the step turns `u` by billions of radians unless reduced by whole
+    // periods, which reach the same points.
+    let plane = Plane::new(Point::new(0.005, 0.0, 0.0), Vector::X).unwrap();
+    let sphere = Sphere::new(Point::ORIGIN, 1.0).unwrap();
+    let pair = SurfacePair::new(&plane, &sphere);
+    let near_pole = [2.0, FRAC_PI_2 - 1e-12];
+    let on_plane = plane.project_point(sphere.point_at(near_pole[0], near_pole[1]), TOL);
+    let x = pair
+        .meet(
+            [on_plane.u, on_plane.v, near_pole[0], near_pole[1]],
+            None,
+            TOL,
+        )
+        .unwrap();
+    assert!((pair.point(x).x - 0.005).abs() < 1e-9, "{x:?}");
+    assert!((x[2] - near_pole[0]).abs() < std::f64::consts::TAU, "{x:?}");
+}
+
+#[test]
 fn test_meet_from_surfaces_that_miss_is_none() {
     let plane = Plane::new(Point::new(0.0, 0.0, 2.0), Vector::Z).unwrap();
     let sphere = Sphere::new(Point::ORIGIN, 1.0).unwrap();
@@ -119,7 +141,7 @@ fn test_tangent_runs_along_the_circle() {
     let (plane, sphere) = plane_and_sphere();
     let pair = SurfacePair::new(&plane, &sphere);
     let x = parameters_of(&pair, Point::new(0.75f64.sqrt(), 0.0, 0.5));
-    let t = pair.tangent(x, TOL).unwrap();
+    let t = pair.tangent_and_sine(x, TOL).unwrap().0;
     assert!((t.dot(Vector::Y).abs() - 1.0).abs() < 1e-12, "{t:?}");
     assert!(!pair.grazes(x, TOL));
 }
@@ -139,7 +161,7 @@ fn test_plane_tangent_to_a_cylinder_grazes_along_its_ruling() {
     let pair = SurfacePair::new(&plane, &cylinder);
     let x = parameters_of(&pair, Point::new(1.0, 0.0, 0.3));
     assert!(pair.grazes(x, TOL));
-    assert!(pair.tangent(x, TOL).is_none());
+    assert!(pair.tangent_and_sine(x, TOL).is_none());
     let along = pair.contact_direction(x, TOL).unwrap();
     assert!(
         (along.dot(Vector::Z).abs() - 1.0).abs() < 1e-12,

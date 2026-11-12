@@ -1339,7 +1339,7 @@ fn test_without_confused_keeps_the_ends() {
     let p = |x: f64| Point::new(x, 0.0, 0.0);
     let points = vec![p(0.0), p(1.0), p(1.0 + 1e-9), p(2.0), p(2.0 + 1e-9)];
     let tangents = (0..5).map(|k| Vector::new(1.0, 0.0, k as f64)).collect();
-    let (kept, tangents) = without_confused(points, tangents);
+    let (kept, tangents) = without_confused(points, tangents, Tolerance::DEFAULT.confusion);
     assert_eq!(kept, vec![p(0.0), p(1.0), p(2.0 + 1e-9)]);
     assert_eq!(
         tangents.iter().map(|t| t.z).collect::<Vec<_>>(),
@@ -1631,4 +1631,46 @@ where
             piece.deviation
         );
     }
+}
+
+/// A plane, whose parameters are lengths, through a ring swept by a
+/// circle about an axis, whose `u` is an angle: the march finds both
+/// circles of the cut at any size, though the two kinds of parameter
+/// drift apart in scale with it.
+#[test]
+fn test_plane_cuts_a_ring_in_two_circles_at_any_size() {
+    use crate::{Axis, Circle, Frame, Plane, RevolutionSurface};
+    let mut counts = Vec::new();
+    for scale in [2f64.powi(-20), 1.0, 2f64.powi(20)] {
+        let tol = Tolerance::new(
+            Tolerance::DEFAULT.confusion * scale,
+            Tolerance::DEFAULT.angular,
+            Tolerance::DEFAULT.parametric,
+        );
+        let profile = Circle::from_frame(
+            Frame::new(Point::new(3.0 * scale, 0.0, 0.0), Vector::Y, Vector::X).unwrap(),
+            0.7 * scale,
+        )
+        .unwrap();
+        let ring =
+            RevolutionSurface::new(profile.into(), Axis::new(Point::ORIGIN, Vector::Z).unwrap())
+                .unwrap();
+        let plane = Plane::new(Point::new(0.0, 0.0, 0.3 * scale), Vector::Z).unwrap();
+        let curves = marched_curves(&plane, &ring, tol);
+        // The cut circles have radii 3 ± sqrt(0.7² - 0.3²) about the axis.
+        let offset = (0.7f64.powi(2) - 0.3f64.powi(2)).sqrt();
+        for curve in &curves {
+            let (lo, hi) = curve.bounds();
+            for k in 0..=8 {
+                let p = curve.point_at(lo + (hi - lo) * k as f64 / 8.0);
+                let radius = p.x.hypot(p.y) / scale;
+                assert!(
+                    ((radius - 3.0).abs() - offset).abs() < 1e-5,
+                    "a point at radius {radius} at scale {scale:e}"
+                );
+            }
+        }
+        counts.push(curves.len());
+    }
+    assert_eq!(counts, [2, 2, 2]);
 }

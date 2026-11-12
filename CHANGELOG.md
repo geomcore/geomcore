@@ -43,6 +43,20 @@ the Python distribution are versioned in lockstep.
   tangent contact, where the gap between the curves reaches
   `tol.confusion`, was chased into rounding. The pieces' control points
   are now taken about the first curve's first pole.
+- The surface–surface march lost curves, or found extra ones, when the
+  surfaces were scaled with `tol.confusion`, for 37 sample comparisons. A
+  plane and a ring scaled by 2^20 met in no curve and still said
+  `Sampled`. Three causes. Its Newton steps solved on derivatives
+  mixing an angle and a length, so at 2^20 the singularity test
+  rejected every step; each derivative is now divided by its length, and
+  the step measured along the surfaces (an angle's step is taken modulo
+  its period, which keeps its precision next to a pole). Each trace dropped the points
+  closer than 1e-7 to the one before, so at 2^-20 the polyline cut
+  corners and a curve already traced was traced again; it now drops
+  those within `tol.confusion`. And where branches cross, a trace could
+  turn onto the other branch through steps of a few `tol.confusion`,
+  whose turns are rounding noise; it now ends at the crossing, which
+  seeds every branch through it.
 
 ### Changed
 
