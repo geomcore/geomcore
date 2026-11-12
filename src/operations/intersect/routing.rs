@@ -35,7 +35,10 @@ use crate::operations::intersect::{
     CurveCurveIntersection, CurveCurveIntersection2D, CurveCurveOverlap, CurveSurfaceIntersection,
     GenericCurveCurveIntersection, InlineList, intersect_curve_curve, intersect_curve_surface,
 };
-use crate::{BoundingBox, HasBoundingBox, Point, Point2D, TierPoint, Tolerance};
+use crate::{
+    BoundingBox, HasBoundingBox, Point, Point2D, TierPoint, Tolerance, Transform, Transformable,
+    Vector,
+};
 use trimmed_surface::{route_restricted, trimmed};
 
 // The list macros come before the submodules, which use `shapes!` too.
@@ -234,6 +237,18 @@ pub(crate) trait CurveOperand: ParametricCurve {
 
     /// The basis and the restricting parameter range.
     fn basis_and_range(&self) -> Operand<Self::Basis>;
+
+    /// The curve moved by `offset`, with the same parameters; `None` where
+    /// the moved curve overflows.
+    fn moved_by(&self, offset: Vector) -> Option<Self>
+    where
+        Self: Sized;
+}
+
+/// `curve` moved by `offset`; `None` where it overflows.
+#[inline]
+fn translated<C: Transformable>(curve: &C, offset: Vector) -> Option<C> {
+    curve.transformed(Transform::translation(offset)).ok()
 }
 
 /// Makes each concrete elementary curve, and [`ElementaryCurve`], its own
@@ -246,6 +261,11 @@ macro_rules! own_curve_basis {
             #[inline]
             fn basis_and_range(&self) -> Operand<$curve> {
                 (*self, None)
+            }
+
+            #[inline]
+            fn moved_by(&self, offset: Vector) -> Option<$curve> {
+                translated(self, offset)
             }
         }
     )*};
@@ -261,6 +281,10 @@ impl CurveOperand for BSplineCurve {
     fn basis_and_range(&self) -> Operand<CurveKind> {
         (CurveKind::Unlisted, None)
     }
+    #[inline]
+    fn moved_by(&self, offset: Vector) -> Option<BSplineCurve> {
+        translated(self, offset)
+    }
 }
 
 impl CurveOperand for BezierCurve {
@@ -269,6 +293,10 @@ impl CurveOperand for BezierCurve {
     #[inline]
     fn basis_and_range(&self) -> Operand<CurveKind> {
         (CurveKind::Unlisted, None)
+    }
+    #[inline]
+    fn moved_by(&self, offset: Vector) -> Option<BezierCurve> {
+        translated(self, offset)
     }
 }
 
@@ -279,6 +307,10 @@ impl CurveOperand for QuarticBranch {
     fn basis_and_range(&self) -> Operand<CurveKind> {
         (CurveKind::Unlisted, None)
     }
+    #[inline]
+    fn moved_by(&self, offset: Vector) -> Option<QuarticBranch> {
+        translated(self, offset)
+    }
 }
 
 impl CurveOperand for Curve {
@@ -287,6 +319,10 @@ impl CurveOperand for Curve {
     #[inline]
     fn basis_and_range(&self) -> Operand<CurveKind> {
         (CurveKind::from(self), None)
+    }
+    #[inline]
+    fn moved_by(&self, offset: Vector) -> Option<Curve> {
+        translated(self, offset)
     }
 }
 
@@ -299,6 +335,16 @@ impl<C: CurveOperand> CurveOperand for TrimmedCurve<C> {
     fn basis_and_range(&self) -> Operand<C::Basis> {
         let (basis, _) = self.basis().basis_and_range();
         (basis, Some((self.start_parameter(), self.end_parameter())))
+    }
+    /// A translation keeps the basis's parameters, so the range is kept.
+    #[inline]
+    fn moved_by(&self, offset: Vector) -> Option<Self> {
+        let basis = self.basis().moved_by(offset)?;
+        Some(TrimmedCurve::from_parts(
+            basis,
+            self.start_parameter(),
+            self.end_parameter(),
+        ))
     }
 }
 
@@ -962,8 +1008,40 @@ macro_rules! curve_curve {
 }
 
 curve_operands!(curve_operands curve_curve (
-    CurveOperand, TrimmedCurve, intersect_curve_curve, CurveCurveIntersection
+    CurveOperand, TrimmedCurve, intersect_curve_curve_about_anchor, CurveCurveIntersection
 ));
+
+/// [`intersect_curve_curve`] solved about the first curve's anchor, its
+/// point at parameter 0 brought into its bounds, and the result moved back,
+/// when the anchor lies beyond the model's cube from the origin (rule 2 of
+/// ADR 0051).
+///
+/// A point of a curve rounds about the origin: 1e7 away, by about 2e-9.
+/// Where two curves touch, the distance between them grows as the square
+/// of the distance from the contact, so it stays flat to that rounding
+/// over a stretch of about 1e-4, and the search for the closest approach
+/// stops anywhere in it. Moved next to the origin, the curves round about
+/// themselves; two curves sharing a point still share it, as each moves
+/// by the same offset. Within the cube, of side `tol.confusion /
+/// tol.angular`, a coordinate rounds no coarser than across a model that
+/// fills it, and the curves are searched where they are.
+fn intersect_curve_curve_about_anchor<A: CurveOperand, B: CurveOperand>(
+    a: &A,
+    b: &B,
+    tol: Tolerance,
+) -> CurveCurveIntersection {
+    let (low, high) = a.bounds();
+    let anchor = a.point_at(0f64.clamp(low, high)) - Point::ORIGIN;
+    let within_the_cube =
+        anchor.x.abs().max(anchor.y.abs()).max(anchor.z.abs()) <= tol.confusion / tol.angular;
+    if within_the_cube {
+        return intersect_curve_curve(a, b, tol);
+    }
+    match (a.moved_by(-anchor), b.moved_by(-anchor)) {
+        (Some(a), Some(b)) => intersect_curve_curve(&a, &b, tol).moved_by(anchor),
+        _ => intersect_curve_curve(a, b, tol),
+    }
+}
 
 /// How a 2D curve enters the router: its basis, the shape the closed-form
 /// pair table matches it on (see `closed_form`), and the parameter range
