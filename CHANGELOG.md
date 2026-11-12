@@ -9,6 +9,21 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+### Breaking
+
+- `SphereConeIntersection` gains `CircleAndApex(Circle, Point)` (#312).
+  A `match` on it needs an arm for the new variant, as for `TwoCircles`
+  with the point added to the contacts.
+
+### Fixed
+
+- A cone whose apex lies on a sphere centred on its axis meets it in a
+  circle and the apex (#312). The apex came back as a second circle, of
+  radius 0, and with no contact point, unlike every other apex on the
+  other surface. `intersect` now reports one curve and the apex as a
+  contact point. A `Circle` of radius 0 stays valid, documented as the
+  point at its centre, as the iso curve through a sphere's pole is.
+
 ## [0.46.0] - 2026-11-12
 
 Tori meet everything in closed form. A torus against a circle, a plane,
