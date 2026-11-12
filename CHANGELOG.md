@@ -11,6 +11,14 @@ the Python distribution are versioned in lockstep.
 
 ### Fixed
 
+- A trimmed curve against a revolution or extrusion surface, or any
+  surface without a closed form, no longer returns hits beyond its ends
+  (#308). The numeric search's Newton iteration is not held to the
+  curve's range, and from a seed near an end it reached hits of the
+  basis curve beyond it: a segment from x = 0 to 1 met an extruded
+  circle of radius 4 at parameter 3.99. A hit now counts only within the
+  range, or within `tol.confusion` beyond an end, where it is snapped to
+  the end.
 - Far from the origin, a march through a crossing of two branches could
   run from one branch onto the other: rounding opens the crossing into
   a bend a few millionths wide, and the turns through it were too small
