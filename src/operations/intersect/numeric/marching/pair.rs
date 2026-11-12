@@ -61,11 +61,35 @@ where
         SurfacePair::new(self.second, self.first).within(self.within)
     }
 
-    /// The box the seeds of `surface`'s unbounded parameters span: the
-    /// own box of the other surface (see [`own_box`]), else the caller's
-    /// box.
-    pub(super) fn seeding_box<T: ParametricSurface>(&self, other: &T) -> Option<BoundingBox> {
-        own_box(other).or(self.within.copied())
+    /// The box the seeds of a surface's unbounded parameters span against
+    /// `other`, one of the pair: the own box of `other` (see [`own_box`]),
+    /// else the caller's box, else the box [`REACH`] sizes of the pair
+    /// around `other`'s [`anchor`]. The pair's size is the larger own size
+    /// of its surfaces (see [`own_size`]), else the distance between their
+    /// anchors. Where the pair has no length at all (two planes through
+    /// one point, two cones placed at their common apex), the box is the
+    /// model's cube around the anchor, of side `confusion / angular`
+    /// (ADR 0006). Every length is the operands' or `tol`'s, so the box
+    /// scales and moves with them (ADR 0051).
+    pub(super) fn seeding_box<T: ParametricSurface>(
+        &self,
+        other: &T,
+        tol: Tolerance,
+    ) -> BoundingBox {
+        own_box(other).or(self.within.copied()).unwrap_or_else(|| {
+            let size = match (own_size(self.first), own_size(self.second)) {
+                (Some(first), Some(second)) => first.max(second),
+                (Some(size), None) | (None, Some(size)) => size,
+                (None, None) => anchor(self.first).distance(anchor(self.second)),
+            };
+            let reach = if size > 0.0 {
+                REACH * size
+            } else {
+                0.5 * tol.confusion / tol.angular
+            };
+            let at = anchor(other);
+            BoundingBox::new(at, at).enlarged(reach)
+        })
     }
 
     /// The point at parameters `x` on the first surface.
@@ -86,6 +110,35 @@ where
         plane: Option<(Point, Vector)>,
         tol: Tolerance,
     ) -> Option<[f64; 4]> {
+        let (x, f, r) = self.newton(x, plane, 0.1 * tol.confusion)?;
+        (f.magnitude() <= tol.confusion && r.abs() <= tol.confusion).then_some(x)
+    }
+
+    /// `seed`, a point on both surfaces within confusion, moved onto the
+    /// crossing itself: Newton's steps go on to a thousandth of confusion,
+    /// or while the residual drops. Where the surfaces cross at a small
+    /// angle, the points within confusion of both form a band
+    /// `confusion / sin(angle)` wide, and [`meet`](Self::meet) stops at its
+    /// edge. A trace's corrected steps land on the crossing, so from the
+    /// edge every step would jump sideways across the band and none would
+    /// be taken, and a seed at the edge would lie too far from a curve
+    /// traced through the band to be found on it. `seed` itself where the
+    /// system is singular.
+    pub(super) fn polish(&self, seed: [f64; 4], tol: Tolerance) -> [f64; 4] {
+        self.newton(seed, None, 1e-3 * tol.confusion)
+            .map_or(seed, |(x, _, _)| x)
+    }
+
+    /// The Newton iteration of [`meet`](Self::meet), stopped once both
+    /// residuals are within `stop`, or where no step lowers them: the
+    /// parameters reached, the gap between the surfaces' points and the
+    /// residual of `plane`. `None` where the system is singular.
+    fn newton(
+        &self,
+        x: [f64; 4],
+        plane: Option<(Point, Vector)>,
+        stop: f64,
+    ) -> Option<([f64; 4], Vector, f64)> {
         let (a, b) = (self.first, self.second);
         let residual = |x: [f64; 4]| {
             let pa = a.point_at(x[0], x[1]);
@@ -94,15 +147,16 @@ where
             (f, r, f.dot(f) + r * r)
         };
         let mut x = self.clamp(x);
+        let periods = self.periods();
         let (mut f, mut r, mut merit) = residual(x);
         for _ in 0..32 {
-            if f.magnitude() <= 0.1 * tol.confusion && r.abs() <= 0.1 * tol.confusion {
-                return Some(x);
+            if f.magnitude() <= stop && r.abs() <= stop {
+                return Some((x, f, r));
             }
             let (_, [au, av]) = a.first_derivatives(x[0], x[1]);
             let (_, [bu, bv]) = b.first_derivatives(x[2], x[3]);
-            let cols = [au, av, -bu, -bv];
-            let delta = match plane {
+            let (cols, lengths) = in_length([au, av, -bu, -bv]);
+            let step = match plane {
                 Some((_, normal)) => {
                     let m = [
                         cols.map(|c| c.x),
@@ -121,10 +175,16 @@ where
                     cols.map(|c| c.dot(Vector::new(y[0], y[1], y[2])))
                 }
             };
+            let delta: [f64; 4] = std::array::from_fn(|k| step[k] / lengths[k]);
+            let wraps = turns_more_than_half(delta, periods);
             let mut scale = 1.0;
             let mut improved = false;
             for _ in 0..12 {
-                let trial = self.clamp([0, 1, 2, 3].map(|k| x[k] + scale * delta[k]));
+                let mut turns = delta.map(|d| scale * d);
+                if wraps {
+                    turns = shortest_turns(turns, periods);
+                }
+                let trial = self.clamp(std::array::from_fn(|k| x[k] + turns[k]));
                 let (trial_residual, trial_normal_residual, trial_merit) = residual(trial);
                 if trial_merit < merit {
                     (x, f, r, merit) = (trial, trial_residual, trial_normal_residual, trial_merit);
@@ -137,7 +197,7 @@ where
                 break;
             }
         }
-        (f.magnitude() <= tol.confusion && r.abs() <= tol.confusion).then_some(x)
+        Some((x, f, r))
     }
 
     /// [`meet`](Self::meet) in the plane through `origin` normal to
@@ -221,6 +281,7 @@ where
         let free: [usize; 3] = std::array::from_fn(|i| if i < pin { i } else { i + 1 });
         let residual = |x: [f64; 4]| a.point_at(x[0], x[1]) - b.point_at(x[2], x[3]);
         let mut x = self.clamp(x);
+        let periods = self.periods();
         x[pin] = value;
         let mut f = residual(x);
         for _ in 0..32 {
@@ -229,17 +290,23 @@ where
             }
             let (_, [au, av]) = a.first_derivatives(x[0], x[1]);
             let (_, [bu, bv]) = b.first_derivatives(x[2], x[3]);
-            let cols = [au, av, -bu, -bv].map(|c| [c.x, c.y, c.z]);
+            let (cols, lengths) = in_length([au, av, -bu, -bv]);
+            let cols = cols.map(|c| [c.x, c.y, c.z]);
             let m = std::array::from_fn(|r| free.map(|k| cols[k][r]));
-            let delta = solve_3x3(m, [-f.x, -f.y, -f.z], 1e-12)?;
+            let step = solve_3x3(m, [-f.x, -f.y, -f.z], 1e-12)?;
+            let mut delta = [0.0; 4];
+            for (i, &k) in free.iter().enumerate() {
+                delta[k] = step[i] / lengths[k];
+            }
+            let wraps = turns_more_than_half(delta, periods);
             let mut scale = 1.0;
             let mut improved = false;
             for _ in 0..12 {
-                let mut trial = x;
-                for (i, &k) in free.iter().enumerate() {
-                    trial[k] += scale * delta[i];
+                let mut turns = delta.map(|d| scale * d);
+                if wraps {
+                    turns = shortest_turns(turns, periods);
                 }
-                let trial = self.clamp(trial);
+                let trial = self.clamp(std::array::from_fn(|k| x[k] + turns[k]));
                 let trial_residual = residual(trial);
                 if trial_residual.square_magnitude() < f.square_magnitude() {
                     (x, f) = (trial, trial_residual);
@@ -281,6 +348,16 @@ where
                 x[k] + ((near[k] - x[k]) / period).round() * period
             })
         })
+    }
+
+    /// The period of each parameter, `None` where it is not periodic.
+    fn periods(&self) -> [Option<f64>; 4] {
+        [
+            self.first.u_period(),
+            self.first.v_period(),
+            self.second.u_period(),
+            self.second.v_period(),
+        ]
     }
 
     /// Parameters `x` with each non-periodic one clamped into its bounds.
@@ -336,17 +413,15 @@ where
         ]
     }
 
-    /// Unit tangent `N1 x N2` of the intersection at parameters `x`, or
-    /// `None` where the surfaces are tangent or a normal degenerates.
-    pub(super) fn tangent(&self, x: [f64; 4], tol: Tolerance) -> Option<Vector> {
+    /// Unit tangent `N1 x N2` of the intersection at parameters `x`, with
+    /// the sine of the angle between the surfaces, `|N1 x N2|`; `None`
+    /// where the surfaces are tangent or a normal degenerates.
+    pub(super) fn tangent_and_sine(&self, x: [f64; 4], tol: Tolerance) -> Option<(Vector, f64)> {
         let na = self.first.normal(x[0], x[1], tol)?;
         let nb = self.second.normal(x[2], x[3], tol)?;
         let t = na.cross(nb);
-        if t.magnitude() <= tol.angular {
-            None
-        } else {
-            Some(t * (1.0 / t.magnitude()))
-        }
+        let sine = t.magnitude();
+        (sine > tol.angular).then(|| (t * (1.0 / sine), sine))
     }
 
     /// The second fundamental forms of both surfaces at parameters `x`, in
@@ -519,8 +594,16 @@ where
             (Some(first), Some(second)) => first.max(second),
             (Some(size), None) | (None, Some(size)) => size.max(spread),
             (None, None) => spread
-                .max(window_size(self.first, self.second, tol))
-                .max(window_size(self.second, self.first, tol)),
+                .max(window_size(
+                    self.first,
+                    self.seeding_box(self.second, tol),
+                    tol,
+                ))
+                .max(window_size(
+                    self.second,
+                    self.seeding_box(self.first, tol),
+                    tol,
+                )),
         };
         seed_box.enlarged(growth.max(first_step(tol)))
     }
@@ -566,6 +649,18 @@ where
     }
 }
 
+/// How many sizes of a pair of unbounded surfaces the seeding box reaches
+/// from a surface's anchor (see [`SurfacePair::seeding_box`]).
+const REACH: f64 = 5.0;
+
+/// The point of `s` at parameters `(0, 0)`, each brought into its bounds:
+/// a point fixed on the surface, which a similarity moves with it (a
+/// plane's origin, a point of a cylinder's or cone's reference circle).
+fn anchor<S: ParametricSurface>(s: &S) -> Point {
+    let into = |(low, high): (f64, f64)| 0.0f64.clamp(low, high);
+    s.point_at(into(s.u_bounds()), into(s.v_bounds()))
+}
+
 /// The box around `s` when it is a bounded elementary surface or B-spline.
 pub(super) fn own_box<S: ParametricSurface>(s: &S) -> Option<BoundingBox> {
     match (s.as_elementary(), s.as_bspline()) {
@@ -600,15 +695,11 @@ fn own_size<S: ParametricSurface>(s: &S) -> Option<f64> {
 }
 
 /// The size in space of the window of `surface`'s parameters that its
-/// grid seeds sample against `other` (see [`seed_window`]): the diagonal
+/// grid seeds sample across `spanning` (see [`seed_window`]): the diagonal
 /// of the box of its points at the window's corners.
-fn window_size<S, T>(surface: &S, other: &T, tol: Tolerance) -> f64
-where
-    S: ParametricSurface,
-    T: ParametricSurface,
-{
-    let (u0, u1) = seed_window(surface, own_box(other), 0, tol);
-    let (v0, v1) = seed_window(surface, own_box(other), 1, tol);
+fn window_size<S: ParametricSurface>(surface: &S, spanning: BoundingBox, tol: Tolerance) -> f64 {
+    let (u0, u1) = seed_window(surface, spanning, 0, tol);
+    let (v0, v1) = seed_window(surface, spanning, 1, tol);
     let corners = [(u0, v0), (u1, v0), (u0, v1), (u1, v1)];
     BoundingBox::from_points(corners.into_iter().map(|(u, v)| surface.point_at(u, v)))
         .map_or(0.0, |bounds| bounds.diagonal().magnitude())
@@ -719,6 +810,50 @@ pub(super) fn unit_normal<S: ParametricSurface + ?Sized>(
     let widths = reference_widths(surface, tol);
     partials_span_a_plane(su.magnitude(), sv.magnitude(), length, widths, tol)
         .then(|| n * (1.0 / length))
+}
+
+/// The derivative columns of a system on the surfaces' parameters, each
+/// divided by its length, and those lengths: the system then solves for
+/// steps measured along the surfaces, so a parameter that is an angle and
+/// one that is a length weigh alike whatever the size of the surfaces,
+/// and its singularity test reads their directions alone. A step `y_k`
+/// in a column is the step `y_k / length_k` in its parameter. A vanishing
+/// column is kept as it is, with length 1.
+#[inline]
+fn in_length<const N: usize>(columns: [Vector; N]) -> ([Vector; N], [f64; N]) {
+    let lengths = columns.map(|c| {
+        let length = c.magnitude();
+        if length > 0.0 && length.is_finite() {
+            length
+        } else {
+            1.0
+        }
+    });
+    (std::array::from_fn(|k| columns[k] / lengths[k]), lengths)
+}
+
+/// The parameter step `delta` with each periodic parameter's step reduced
+/// by whole periods to at most half a period (`periods` as
+/// [`SurfacePair::periods`] gives them): it reaches the same points. Near a
+/// pole, where moving along a parameter barely moves the point, a step
+/// measured along the surfaces may turn an angle by billions of periods,
+/// which would leave it no precision.
+#[inline]
+fn shortest_turns(delta: [f64; 4], periods: [Option<f64>; 4]) -> [f64; 4] {
+    std::array::from_fn(|k| match periods[k] {
+        Some(period) if delta[k].abs() > 0.5 * period => {
+            delta[k] - (delta[k] / period).round() * period
+        }
+        _ => delta[k],
+    })
+}
+
+/// Whether `delta` turns a periodic parameter by more than half its
+/// period (see [`shortest_turns`]): checked once per Newton step, whose
+/// trials only shrink it.
+#[inline]
+fn turns_more_than_half(delta: [f64; 4], periods: [Option<f64>; 4]) -> bool {
+    (0..4).any(|k| periods[k].is_some_and(|period| delta[k].abs() > 0.5 * period))
 }
 
 #[cfg(test)]

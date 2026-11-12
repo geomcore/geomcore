@@ -232,23 +232,41 @@ where
                             }
                         }
                     } else if let Some(y) = self.correct(guess, (target, t), contact)
-                        && let Some(ty) = self.direction(y, contact).map(|ty| match contact {
+                        && let Some((ty, sine)) = self.direction_and_sine(y, contact)
+                        && let ty = match contact {
                             Contact::Touching if ty.dot(t) < 0.0 => -ty,
                             Contact::Touching => ty,
                             Contact::Crossing => ty * dir,
-                        })
+                        }
                     {
                         let q = pair.point(y);
                         let chord = q.distance(p);
                         let turn = t.cross(ty).magnitude().atan2(t.dot(ty));
                         let smooth =
                             turn <= FREE_TURN.max(CURVATURE_GROWTH * last_curvature * chord);
+                        // Where the surfaces already touch within
+                        // confusion, the tangent is noise and the
+                        // curvature measured from it compounds step after
+                        // step: a turn beyond the free one is then onto
+                        // another branch, and the trace ends at the
+                        // crossing to seed its branches. There the tangent
+                        // swings by the change of the normals over the
+                        // sine of the angle between the surfaces, so only
+                        // a turn larger than that sine is checked, last,
+                        // on a step otherwise taken: the check needs
+                        // second derivatives.
+                        let onto_another_branch = || {
+                            turn > FREE_TURN
+                                && sine.is_some_and(|sine| sine < turn)
+                                && pair.grazes(y, tol)
+                        };
                         if ty.dot(t) > 0.0
                             && chord <= 2.0 * h
                             && chord * turn <= 32.0 * chord_deviation
                             && smooth
                             && self.crosses_one_knot_at_most(x, y)
                             && let Some(error) = self.step_error((x, p, t), (y, q, ty), contact)
+                            && !onto_another_branch()
                         {
                             step = Some((y, q, ty, turn / chord.max(f64::MIN_POSITIVE), error));
                             break;
@@ -257,7 +275,7 @@ where
                     h *= 0.5;
                 }
                 if let Some((q, tq, y)) = boundary_point {
-                    if q.distance(p) > tol.confusion.max(Tolerance::DEFAULT.confusion) {
+                    if q.distance(p) > tol.confusion {
                         // A last step much shorter than the one before makes
                         // the fitted curve overshoot the boundary: the
                         // boundary point then replaces the last point.
@@ -340,9 +358,22 @@ where
     /// so nearly that their cross product points anywhere in the tangent
     /// plane. `None` where it does not exist.
     fn direction(&self, x: [f64; 4], contact: Contact) -> Option<Vector> {
+        self.direction_and_sine(x, contact)
+            .map(|(direction, _)| direction)
+    }
+
+    /// [`direction`](Self::direction) at `x`, with the sine of the angle
+    /// between the surfaces where they cross.
+    fn direction_and_sine(&self, x: [f64; 4], contact: Contact) -> Option<(Vector, Option<f64>)> {
         match contact {
-            Contact::Crossing => self.pair.tangent(x, self.tol),
-            Contact::Touching => self.pair.contact_direction(x, self.tol),
+            Contact::Crossing => self
+                .pair
+                .tangent_and_sine(x, self.tol)
+                .map(|(tangent, sine)| (tangent, Some(sine))),
+            Contact::Touching => self
+                .pair
+                .contact_direction(x, self.tol)
+                .map(|direction| (direction, None)),
         }
     }
 

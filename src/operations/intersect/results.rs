@@ -246,10 +246,10 @@ pub(crate) fn curve_surface_multiplicity(
 /// use geomcore::{CurveCurveIntersection, GenericCurveCurveIntersection, TierPoint};
 ///
 /// // A function over the results of either tier.
-/// fn meetings<P: TierPoint>(result: &GenericCurveCurveIntersection<P>) -> usize {
+/// fn hits_and_overlaps<P: TierPoint>(result: &GenericCurveCurveIntersection<P>) -> usize {
 ///     result.hits().len() + result.overlaps().len()
 /// }
-/// # let _ = meetings::<geomcore::Point>;
+/// # let _ = hits_and_overlaps::<geomcore::Point>;
 /// ```
 #[derive(Debug, Clone, PartialEq)]
 pub struct GenericCurveCurveIntersection<P: TierPoint> {
@@ -1001,7 +1001,7 @@ impl SurfaceSurfaceIntersection {
     }
 }
 
-/// One meeting of two curves of one tier: [`CurveCurveHit`] in space,
+/// A point where two curves of one tier meet: [`CurveCurveHit`] in space,
 /// [`CurveCurveHit2D`] in the plane (ADR 0014).
 ///
 /// Every hit carries its parameter on both curves: an exact solver that
@@ -1016,13 +1016,13 @@ pub struct GenericCurveCurveHit<P: TierPoint> {
     /// range, within `tol.confusion` in space of the range (a hit just
     /// beyond an end reports that end).
     pub second_parameter: f64,
-    /// The meeting point, within tolerance of both curves.
+    /// The point, within tolerance of both curves.
     pub point: P,
     /// 1 where the curves cross, 2 or more where they are tangent.
     pub multiplicity: u32,
 }
 
-/// One meeting of two 3D curves.
+/// A point where two 3D curves meet.
 ///
 /// # Examples
 ///
@@ -1040,7 +1040,7 @@ pub struct GenericCurveCurveHit<P: TierPoint> {
 /// ```
 pub type CurveCurveHit = GenericCurveCurveHit<Point>;
 
-/// One meeting of two 2D curves.
+/// A point where two 2D curves meet.
 ///
 /// # Examples
 ///
@@ -1056,7 +1056,7 @@ pub type CurveCurveHit = GenericCurveCurveHit<Point>;
 /// ```
 pub type CurveCurveHit2D = GenericCurveCurveHit<Point2D>;
 
-/// One meeting of a curve and a surface.
+/// A point where a curve meets a surface.
 ///
 /// Every hit carries its parameter on the curve and its parameters on the
 /// surface: an exact solver solves for the curve's and recovers the
@@ -1083,7 +1083,7 @@ pub struct CurveSurfaceHit {
     /// Parameters on the surface, `(u, v)`: at a pole or an apex, where
     /// every `u` is the same point, the one `parameters_of` gives.
     pub surface_parameters: (f64, f64),
-    /// The meeting point (on the curve; within tolerance of the surface).
+    /// The point (on the curve; within tolerance of the surface).
     pub point: Point,
     /// 1 where the curve crosses the surface, 2 or more where the curve is
     /// tangent to it.

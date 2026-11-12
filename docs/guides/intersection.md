@@ -226,7 +226,7 @@ crossings closer together than the grid spacing are each found.
     for hit in result.hits:
         hit.curve_parameter, hit.u, hit.v, hit.point
     complete = result.is_complete()
-    meetings = curve_a.intersect(curve_b)            # CurveCurveIntersection
+    intersection = curve_a.intersect(curve_b)        # CurveCurveIntersection
     ```
 
 === "Rust"
@@ -239,7 +239,7 @@ crossings closer together than the grid spacing are each found.
         let _ = (h.curve_parameter, h.surface_parameters, h.point);
     }
     let complete = result.is_complete();
-    let meetings = a.intersect(&b, tol);
+    let intersection = a.intersect(&b, tol);
     ```
 
 ## Numeric: marching surfaces
