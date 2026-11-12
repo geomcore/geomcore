@@ -111,8 +111,32 @@ there, split into two plane conics (the ellipses of a reducer), with the
 points where they touch in `contact_points`. Two cones with parallel
 axes and equal half-angles, each the other moved sideways, meet in one
 plane conic: the hyperbola of two neighbouring chamfers.
+A torus meets a plane or a sphere in any position in closed form too,
+read along its tube circles instead of a quadric's generators. A plane
+cuts a spiric section: two loops around the axis, one loop or two
+(Cassini's ovals, parallel to the axis at the minor radius from it), or
+one crossing itself where the plane touches the inside of the tube, that
+point in `contact_points`. A sphere off the axis meets it in a quartic of the
+same shapes. A sphere touching it twice meets it in two circles through
+both points, and one centred in the torus's plane can hold two tube
+circles. A plane or a sphere that touches the torus and meets it nowhere
+else gives that point. A horn or spindle torus, whose tube circles cross
+on its axis, runs the numeric search away from the special positions.
+A cylinder or a cone off the torus's axis meets it in a curve of degree
+eight, an `OcticCurve`, read along the same tube circles: each holds up
+to four of its points, the roots of a quartic. A pipe through the tube
+cuts two loops, one along a diameter four, and one touching the torus
+crosses itself there, that point in `contact_points`, as does a cone
+whose apex lies on the torus. One touching it and meeting it nowhere
+else gives that point. A horn or spindle torus, or a cylinder or a cone
+holding a tube circle, runs the numeric search.
 Lines/circles/conics against each
-other and against the elementary surfaces, and any two conics —
+other and against the elementary surfaces, except an ellipse, a
+parabola or a hyperbola against a torus: substituted into the torus they
+give an equation of degree 8, and that pair runs the numeric search. A
+circle against a torus gives one of degree 4, the torus being
+bicircular: up to four hits, or the whole circle where it lies on the
+torus (a tube, latitude or Villarceau circle). Any two conics —
 coplanar (up to four hits) or in crossing planes (met on the shared
 line). The 2D pairs are exact too: any two of `Line2D`, `Circle2D`,
 `Ellipse2D`, `Parabola2D` and `Hyperbola2D`, whole or trimmed, solved
@@ -323,12 +347,19 @@ back `Incomplete` with one `Unseparated` region covering the patch, and
 no curves. Where the surfaces touch along a curve (a plane tangent to a
 cylinder patch along a ruling, a sphere inside a cylinder of its radius)
 the curve is traced along the direction in which they keep touching and
-reported with `tangent` set; a touch at a point is a contact point.
+reported with `tangent` set; a touch at a point is a contact point,
+at a sphere's pole too.
 
 Marching is approximate by design. Its limits:
 - the curves are fitted, to about 1e-4 at the default tolerance;
-- no singular points: a touch at a sphere's pole or a cone's apex is
-  not reported;
+- at a point where a surface has no tangent plane (a cone's apex, a
+  spindle torus's points on its axis), no trace can step: the branches
+  leaving it are seeded a first step away, where the other surface
+  crosses the ring of points around it. A branch along which the
+  surfaces only touch is kept where the other surface comes within
+  confusion of that ring. A seed that no trace leaves and no curve
+  passes through makes the result `Incomplete` with an `Unseparated`
+  region at it, rather than dropping it;
 - the coincidence check sees only a whole surface lying on the other:
   two patches that overlap in part are marched; the seeds where they lie
   on each other make the result `Incomplete` with an `Unseparated`
