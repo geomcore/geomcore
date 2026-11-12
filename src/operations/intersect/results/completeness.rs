@@ -227,7 +227,9 @@ pub enum IncompleteReason {
     /// halved: a tangent contact of a curve with a surface, an overlap (a
     /// curve lying on the surface or along the other curve), or a hit at a
     /// singular point. Its regions hold them. A tangent contact between two
-    /// curves is instead one hit, and the result stays complete.
+    /// curves is instead one hit, and the result stays complete. A march
+    /// reports it too where two surfaces lie on each other, or at a point
+    /// on both where no curve could be traced from.
     Unseparated,
     /// A branch of the intersection of two unbounded surfaces, a cone and
     /// a cylinder say, runs beyond the box its trace was cut at: the box

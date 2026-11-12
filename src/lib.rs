@@ -199,7 +199,7 @@ pub use operations::intersect::{
     CurveSurfaceHit, CylinderCylinderIntersection, LatitudeRing, LineCircle2DIntersection,
     LineCircleIntersection, LineConicHit, LineConicIntersection, LineLine2DIntersection,
     LineLineIntersection, LinePlaneIntersection, LineQuadricIntersection, LineTorusHit,
-    LineTorusIntersection, PlaneConeIntersection, PlaneCylinderIntersection,
+    LineTorusIntersection, OcticCurve, PlaneConeIntersection, PlaneCylinderIntersection,
     PlanePlaneIntersection, PlaneSphereIntersection, QuarticBranch, QuarticCurve, SharedGenerator,
     SharedGenerators, SphereConeIntersection, SphereCylinderIntersection, SphereSphereIntersection,
     TorusConeIntersection, TorusCylinderIntersection, TorusPlaneIntersection,

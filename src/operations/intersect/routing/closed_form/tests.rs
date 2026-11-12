@@ -4,7 +4,7 @@ use crate::geometry::curves::{BSplineCurve2D, BezierCurve, BezierCurve2D};
 use crate::geometry::surfaces::{
     BezierSurface, ExtrusionSurface, ParametricSurface, RevolutionSurface, Surface,
 };
-use crate::operations::intersect::routing::{CurveOperand, CurveOperand2D, SurfaceOperand};
+use crate::operations::intersect::routing::SurfaceOperand;
 use crate::operations::intersect::{Intersect, IntersectionMethod};
 use crate::{Axis, Point, Point2D, Vector, Vector2D};
 
@@ -118,12 +118,12 @@ fn is_elementary_surface(surface: &Surface) -> bool {
     )
 }
 
-/// A line meets every elementary surface in closed form, a conic every
-/// quadric.
+/// A line or a circle meets every elementary surface in closed form, a
+/// conic every quadric.
 fn curve_surface_listed(curve: &Curve, surface: &Surface) -> bool {
     match (curve, surface) {
         _ if !is_elementary_curve(curve) || !is_elementary_surface(surface) => false,
-        (Curve::Line(_), _) => true,
+        (Curve::Line(_) | Curve::Circle(_), _) => true,
         (_, Surface::Torus(_)) => false,
         _ => true,
     }
@@ -148,12 +148,6 @@ fn test_curve_surface_pairs_route_to_exact_exactly_when_listed() {
     for curve in &curves() {
         for surface in &surfaces() {
             let listed = curve_surface_listed(curve, surface);
-            let (basis, _) = curve.basis_and_range();
-            assert_eq!(
-                basis.has_closed_form(&surface.surface_basis()),
-                listed,
-                "{curve:?} and {surface:?}"
-            );
             let result = curve.intersect(surface, TOL);
             assert_eq!(
                 result.method() == IntersectionMethod::Exact,
@@ -171,11 +165,6 @@ fn test_surface_pairs_route_to_exact_exactly_when_listed() {
         for second in &surfaces() {
             let listed = surface_surface_listed(first, second);
             let (first_kind, second_kind) = (first.surface_basis(), second.surface_basis());
-            assert_eq!(
-                first_kind.has_closed_form(&second_kind),
-                listed,
-                "{first:?} and {second:?}"
-            );
             // The march stands in for nothing here: the router's one call
             // is checked for whether it reaches it.
             let mut marched = false;
@@ -193,13 +182,6 @@ fn test_curve_pairs_route_to_exact_exactly_when_listed() {
     for first in &curves() {
         for second in &curves() {
             let listed = is_elementary_curve(first) && is_elementary_curve(second);
-            let (first_basis, _) = first.basis_and_range();
-            let (second_basis, _) = second.basis_and_range();
-            assert_eq!(
-                first_basis.has_closed_form(&second_basis),
-                listed,
-                "{first:?} and {second:?}"
-            );
             let result = first.intersect(second, TOL);
             assert_eq!(
                 result.method() == IntersectionMethod::Exact,
@@ -215,13 +197,6 @@ fn test_2d_curve_pairs_route_to_exact_exactly_when_listed() {
     for first in &curves_2d() {
         for second in &curves_2d() {
             let listed = is_elementary_curve_2d(first) && is_elementary_curve_2d(second);
-            let (first_basis, _) = first.basis_and_range();
-            let (second_basis, _) = second.basis_and_range();
-            assert_eq!(
-                first_basis.has_closed_form(&second_basis),
-                listed,
-                "{first:?} and {second:?}"
-            );
             let result = first.intersect(second, TOL);
             assert_eq!(
                 result.method() == IntersectionMethod::Exact,
@@ -235,18 +210,20 @@ fn test_2d_curve_pairs_route_to_exact_exactly_when_listed() {
 #[test]
 fn test_typed_and_enum_bases_agree_on_the_table() {
     // A concrete shape is its own basis: the typed entry and the one read
-    // through the enums give the same answer.
+    // through the enums route the same way.
     let circle = Circle::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
     let line = Line::new(Point::ORIGIN, Vector::X).unwrap();
     for surface in surfaces() {
         let Some(elementary) = surface.as_elementary() else {
             continue;
         };
-        let kind = surface.surface_basis();
         assert_eq!(
-            circle.has_closed_form(&elementary),
-            CurveKind::from(&Curve::from(circle)).has_closed_form(&kind)
+            circle.intersect(&elementary, TOL).method(),
+            Curve::from(circle).intersect(&surface, TOL).method()
         );
-        assert!(line.has_closed_form(&elementary));
+        assert_eq!(
+            line.intersect(&elementary, TOL).method(),
+            IntersectionMethod::Exact
+        );
     }
 }

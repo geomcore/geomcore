@@ -95,6 +95,31 @@ fn test_circle_on_sphere_is_a_full_period_overlap() {
 }
 
 #[test]
+fn test_circle_torus_routes_exact_and_complete() {
+    let torus = Torus::new(Point::ORIGIN, Vector::Z, 3.0, 1.0).unwrap();
+    let circle = Circle::new(Point::new(3.0, 0.0, 0.0), Vector::Z, 1.5).unwrap();
+    let r = circle.intersect(&torus, TOL);
+    assert_eq!(r.method(), IntersectionMethod::Exact);
+    assert!(r.is_complete());
+    assert_eq!(r.hits().len(), 4);
+    assert_hits_lie_on(&r, &circle, &torus);
+    // The same pair the other way round.
+    let swapped = torus.intersect(&circle, TOL);
+    assert_eq!(swapped.method(), IntersectionMethod::Exact);
+    assert_eq!(swapped.hits().len(), 4);
+    // A tube circle is one overlap over the whole circle.
+    let tube = torus.u_iso(1.0).unwrap();
+    let on = tube.intersect(&torus, TOL);
+    assert_eq!(on.method(), IntersectionMethod::Exact);
+    assert_eq!(
+        on.overlaps(),
+        &[CurveSurfaceOverlap {
+            curve_range: (0.0, TAU)
+        }]
+    );
+}
+
+#[test]
 fn test_ellipse_torus_routes_numeric() {
     let torus = Torus::new(Point::ORIGIN, Vector::Z, 3.0, 1.0).unwrap();
     let ellipse = Ellipse::from_frame(Frame::WORLD, 5.0, 1.0).unwrap();

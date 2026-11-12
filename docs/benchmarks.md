@@ -457,6 +457,46 @@ library unchanged there: the 2D line–parabola and line–ellipse calls
 typed calls (+1.6% and +2.5%), and down 4–15% on the sphere's typed calls
 and the parallel cones.
 
+A ring torus against a plane or a sphere in any position followed (#270,
+ADR 0048), read along its tube circles with the quadrics' fit. One pair
+per id, `intersect_routed/torus_quartic/*`, against the torus of radii 4
+and 1 about `Z`: a plane tilted 0.15 through the centre (`tilted_plane`,
+two loops around the axis), the plane `x = 1` (`cassini_ovals`, Cassini's
+two ovals) and a sphere of radius 1 centred 1.5 above the tube's centre
+circle (`sphere_through_the_tube`, one loop).
+The typed call classifies in 2455, 4069 and 3322 instructions, and the
+routed call fits the loops in 2.09M, 1.95M and 1.52M. These pairs were
+marched before: the march the `marching_intersection` bench timed on a
+torus against an oblique plane and against a sphere cost 9.7M and 14.3M
+instructions. The plane cuts that keep their circles take about 130
+instructions more (`swept_plane_cut/torus_*/elementary`, +3%), reading
+the plane's position once more before the special cases.
+
+Splitting the fit from the generators left the signed root of `Δ` out of
+line, 2.5–3.5% more on the quadrics' routed calls: it is now forced
+inline, and they are back within 0.5% of before. The same change stopped
+inlining `Plane`'s `holds` into `intersect_conic_quadric`, as #237 did
+(`conic_quadric/*/plane`, +4–7%): forced inline too, they are within 1%.
+
+A torus against a cylinder or a cone off its axis followed (#271,
+ADR 0049), read along its tube circles between events found by
+subdivision. One pair per id, `intersect_routed/torus_octic/*`, against
+the same torus: a pipe of radius 0.5 along `Z` through the tube's centre
+circle (`pipe_through_the_tube`, two loops), one along `X` through the
+centre (`pipe_along_a_diameter`, four loops), and a cone of half-angle
+0.15 tilted 0.1 through the tube (`cone_through_the_tube`, two loops).
+The typed call reads the curve in 600k, 962k and 676k instructions,
+most of it the subdivision copying and quartering its boxes, and the
+routed call fits the loops in 6.18M, 10.49M and 4.83M. The result enums
+hold the curve boxed: inline, its 600 bytes made the coaxial torus–cone
+results that size, and `intersect/torus_cone/typed` took 7% more, all
+copying them; boxed, it is back within 0.1% of before. The new code
+also stopped inlining the closures that `[T; N]::map` and
+`std::array::from_fn` wrap in `cone_off_cylinder_axis` and
+`cones_in_general_position`, 1–3% on the quadrics' typed calls
+(`intersect_routed/{cone_cylinder,two_cones}/*_exact`). Spelling out
+both elements brought them back to or below before.
+
 Reproduce with:
 
 ```sh
@@ -467,9 +507,10 @@ cargo bench --bench intersect_dispatch -- intersect_routed
 
 `benches/conic_quadric.rs` times batches of 1024 typed `Intersect::intersect`
 calls for each of the 16 pairs of a conic (circle, ellipse, parabola,
-hyperbola) and a quadric (plane, sphere, cylinder, cone). The conics are
-placed at random near the quadric, so each batch mixes crossings,
-tangencies and misses.
+hyperbola) and a quadric (plane, sphere, cylinder, cone), and for a circle
+against a torus (`conic_quadric/circle/torus`). The conics are placed at
+random near the surface, so each batch mixes crossings, tangencies and
+misses.
 
 Machine: Linux 7.0, x86-64 desktop, single thread, `--warm-up-time 1
 --measurement-time 4` (2026-10-12). Times are per pair.
@@ -487,6 +528,11 @@ factoring it, and the tangency check costs a bounded Newton search on the
 derivative per pair of neighbouring roots or complex pair, plus one
 surface containment test there. Setting up the coefficients takes under
 10 ns.
+
+A circle against a torus solves the same kind of quartic and costs about
+what a circle against a cylinder or a cone does: ~1.88 µs per pair, against
+~1.83 µs and ~1.86 µs for those two in the same run (2026-11-10, on a
+busier machine than the table's).
 
 Reproduce with:
 
@@ -635,7 +681,12 @@ The same bench times elementary pairs:
 - `torus_plane_oblique`: a torus of radii 3 and 1 about z against the
   plane through `(0.5, 0, 0.2)` tilted 0.6 radians about y (two loops);
 - `sphere_torus`: a sphere of radius 1.2 centred on that torus's centre
-  circle (two loops);
+  circle (two loops). Since #270 both have a closed form, and the bench
+  marches the same plane and sphere against the torus's rational B-spline
+  form instead (`bspline_torus_plane_oblique`, `sphere_bspline_torus`):
+  42.7M and 205M instructions, against 9.7M and 14.3M for the torus
+  itself, whose 24 meridian circles seed the march exactly where the
+  B-spline's seeds come from the patch search;
 - `cylinder_extruded_wall`: a cylinder of radius 1 about z against a cubic
   B-spline wall extruded along z (two open curves);
 - `cone_cylinder_unbounded`: a cone of half-angle 0.3 against a cylinder
@@ -679,7 +730,10 @@ They now run to the cube 50 000 away, the step doubling along the nearly
 straight branches. The torus seeds from 24 meridian circles cut by the
 sphere or the plane (exact), and the plane from 48 lines across the
 torus's box (each a quartic). The sphere's circles would meet the torus
-only through the sampled search, so they are left out. The wall's grid
+only through the sampled search, so they are left out. A circle meets a
+torus in closed form since #269, and they are still left out: they found
+no curve the other seeds missed, at 3.7% more instructions here (ADR
+0047). The wall's grid
 finds the curves that the cylinder's rulings miss, since the rulings run
 along the extrusion.
 
@@ -987,7 +1041,8 @@ library). The hashes are committed in
 - `marching`: the ten surface pairs of the `marching_intersection` bench
   as it was, the cone and the cylinder along its generator among them:
   that pair now has a closed form and left the bench, and its fingerprint
-  follows the exact result.
+  follows the exact result. The torus against the oblique plane and the
+  sphere follow the bench onto the torus's B-spline form (#270).
 - `curve_curve`: crossing B-splines, a circle against a B-spline, and two
   coplanar circles.
 - `curve_surface`: a B-spline and a circle against the footprint surface,
