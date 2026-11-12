@@ -718,7 +718,7 @@ where
 {
     const N: usize = 24;
     let (s, other) = (pair.first, pair.second);
-    let spanning = pair.seeding_box(other);
+    let spanning = pair.seeding_box(other, tol);
     let (u0, u1) = seed_window(s, spanning, 0, tol);
     let (v0, v1) = seed_window(s, spanning, 1, tol);
     let mut samples: Vec<([f64; 4], f64)> = Vec::with_capacity((N + 1) * (N + 1));
@@ -758,17 +758,13 @@ where
 /// An unbounded end is read from `spanning`, the box the seeds span (see
 /// [`SurfacePair::seeding_box`]): the parameters of the box's corners
 /// projected onto `s`, spanned with a margin of a twentieth of their
-/// width, as the iso-curve seeds span the box. Without a box (the other
-/// surface is neither elementary nor a B-spline, and the caller gave
-/// none), the end falls back to `-10` or `10`, the window that was used
-/// before any box sized it. That fallback is the only fixed window left.
+/// width, as the iso-curve seeds span the box.
 pub(super) fn seed_window<S: ParametricSurface>(
     s: &S,
-    spanning: Option<BoundingBox>,
+    spanning: BoundingBox,
     direction: usize,
     tol: Tolerance,
 ) -> (f64, f64) {
-    const FALLBACK: f64 = 10.0;
     let (lo, hi) = if direction == 0 {
         s.u_bounds()
     } else {
@@ -777,24 +773,19 @@ pub(super) fn seed_window<S: ParametricSurface>(
     if lo.is_finite() && hi.is_finite() {
         return (lo, hi);
     }
-    let (spanned_low, spanned_high) = match spanning {
-        Some(bounds) => {
-            let parameter = |corner: Point| {
-                let projection = s.project_point(corner, tol);
-                if direction == 0 {
-                    projection.u
-                } else {
-                    projection.v
-                }
-            };
-            let values = box_corners(bounds).map(parameter);
-            let low = values.iter().copied().fold(f64::INFINITY, f64::min);
-            let high = values.iter().copied().fold(f64::NEG_INFINITY, f64::max);
-            let margin = 0.05 * (high - low);
-            (low - margin, high + margin)
+    let parameter = |corner: Point| {
+        let projection = s.project_point(corner, tol);
+        if direction == 0 {
+            projection.u
+        } else {
+            projection.v
         }
-        None => (-FALLBACK, FALLBACK),
     };
+    let values = box_corners(spanning).map(parameter);
+    let low = values.iter().copied().fold(f64::INFINITY, f64::min);
+    let high = values.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+    let margin = 0.05 * (high - low);
+    let (spanned_low, spanned_high) = (low - margin, high + margin);
     (
         if lo.is_finite() { lo } else { spanned_low },
         if hi.is_finite() { hi } else { spanned_high },
