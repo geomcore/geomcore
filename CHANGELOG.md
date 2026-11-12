@@ -136,6 +136,44 @@ the Python distribution are versioned in lockstep.
   parameter. And a `QuarticBranch` differenced its world points
   for its derivatives, so 1e7 away its second derivative was wrong in
   the third digit; it now differences its points before its placement.
+- The intersection of two B-spline or Bézier curves ran out of its
+  budget of halvings once the curves sat 1e3 from the origin, where it
+  had settled them near the origin: the result went from complete to
+  incomplete. Its halvings rounded about the origin, so the edge of a
+  tangent contact, where the gap between the curves reaches
+  `tol.confusion`, was chased into rounding. The pieces' control points
+  are now taken about the first curve's first pole.
+- The surface–surface march lost curves, or found extra ones, when the
+  surfaces were scaled with `tol.confusion`, for 51 sample comparisons. A
+  plane and a ring scaled by 2^20 met in no curve and still said
+  `Sampled`. Five causes. Its Newton steps solved on derivatives
+  mixing an angle and a length, so at 2^20 the singularity test
+  rejected every step; each derivative is now divided by its length, and
+  the step measured along the surfaces (an angle's step is taken modulo
+  its period, which keeps its precision next to a pole). Each trace dropped the points
+  closer than 1e-7 to the one before, so at 2^-20 the polyline cut
+  corners and a curve already traced was traced again; it now drops
+  those within `tol.confusion`. And where branches cross, a trace could
+  turn onto the other branch through steps of a few `tol.confusion`,
+  whose turns are rounding noise; it now ends at the crossing, which
+  seeds every branch through it. A trace dropped its last step onto a
+  parameter bound when shorter than 1e-7, so at 2^-20 curves ended short
+  of their bounds and were traced twice; it now keeps it beyond
+  `tol.confusion`. And where the surfaces cross at a small angle, a seed
+  could sit at the edge of the band where they lie within confusion of
+  each other, from where no step reached the crossing; seeds are now
+  polished onto it, and two spheres 1e-5 apart no longer come back with
+  an `Unseparated` region.
+- The march between two unbounded surfaces (a cylinder, a cone, a
+  plane, an extrusion, the revolution of a line) sampled its seeds in
+  the parameters `[-10, 10]` of each unbounded direction, whatever the
+  size of the model: a cylinder cut by the extrusion of a line scaled
+  by 2^20 came back as pieces ending on that window, `Incomplete`, where
+  at scale 1 it is one closed ellipse. The seeds now span a box around
+  a point of the other surface, five sizes of the pair wide (a radius,
+  a profile's size, or the distance between the surfaces), or the
+  model's cube where the pair has no length of its own. 14 sample
+  comparisons now hold.
 
 ### Changed
 

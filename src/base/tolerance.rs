@@ -15,10 +15,15 @@
 ///
 /// # Precision system
 ///
-/// Models are assumed to fit in a cube of side [`Tolerance::MODEL_SIZE`]
-/// centred on the origin, in one length unit. Inside it an `f64`
-/// coordinate is exact to about 1e-11, four orders of magnitude below the
-/// default `confusion`, so computed points converge well inside it.
+/// Models are assumed to fit in a cube of side `confusion / angular`
+/// ([`Tolerance::MODEL_SIZE`] at the defaults), in one length unit. The
+/// cube sits on the model, wherever the model is: no result depends on
+/// where the origin lies, nor on the model's size once `confusion` is
+/// scaled with it (ADR 0050). Near the origin an `f64` coordinate is exact
+/// to about 1e-11, four orders of magnitude below the default
+/// `confusion`, so computed points converge well inside it; a coordinate
+/// rounds to about 2e-16 times its size, so a model placed far from the
+/// origin needs a `confusion` well above that.
 ///
 /// Every geometric decision is a distance decision against `confusion`.
 /// Two directions are parallel for a configuration when turning one onto
@@ -57,8 +62,9 @@ pub struct Tolerance {
 }
 
 impl Tolerance {
-    /// The side of the cube, centred on the origin, that models are
-    /// assumed to fit in: 1e5 model units (100 m in millimetres).
+    /// The side of the cube that models are assumed to fit in at the
+    /// default tolerances, wherever the model sits: 1e5 model units (100 m
+    /// in millimetres).
     pub const MODEL_SIZE: f64 = 1e5;
 
     /// Default tolerances: `confusion = 1e-7`, `angular = 1e-12` (that is,
