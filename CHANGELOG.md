@@ -9,6 +9,22 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+## [0.46.0] - 2026-11-12
+
+Tori meet everything in closed form. A torus against a circle, a plane,
+a sphere, a cylinder, a cone or a second torus, in any position, is now
+intersected exactly instead of marched: the curves of degree eight where
+a cylinder, a cone or a torus meets it are read along its tube circles,
+up to four points each, and come back as `OcticCurve`, a new exact
+curve; pipe bends joined end to end share their tube circle. A result is
+now meant not to depend on the model's size or placement (ADR 0051): a
+judge checks it on every sample pair, and the curve–curve search, its
+extrema, the march with an unbounded surface and the closed forms'
+tangency decisions no longer read lengths in model units. The march
+passes through a cone's apex and a spindle torus's point. The breaking
+changes are new variants of the torus result enums; each entry under
+Breaking says what to write.
+
 ### Added
 
 - Two tori meet in closed form in any position (#272): pipe bends
@@ -3243,7 +3259,8 @@ Behaviour, in Rust and Python alike:
 - Golden-fixture validation of all numeric results at 1e-7 tolerance, and
   criterion throughput benchmarks (`docs/benchmarks.md`).
 
-[Unreleased]: https://github.com/geomcore/geomcore/compare/v0.45.0...HEAD
+[Unreleased]: https://github.com/geomcore/geomcore/compare/v0.46.0...HEAD
+[0.46.0]: https://github.com/geomcore/geomcore/compare/v0.45.0...v0.46.0
 [0.45.0]: https://github.com/geomcore/geomcore/compare/v0.44.0...v0.45.0
 [0.44.0]: https://github.com/geomcore/geomcore/compare/v0.43.0...v0.44.0
 [0.43.0]: https://github.com/geomcore/geomcore/compare/v0.42.2...v0.43.0
