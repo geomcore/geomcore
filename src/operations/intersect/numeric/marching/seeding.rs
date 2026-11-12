@@ -4,7 +4,7 @@
 use super::level_extrema::extremum_seeds;
 use super::pair::{SurfacePair, swap, unit_normal};
 use super::tracer::first_step;
-use crate::geometry::curves::{Circle, ElementaryCurve, ParametricCurve};
+use crate::geometry::curves::{ElementaryCurve, ParametricCurve};
 use crate::geometry::surfaces::parametric_surface::reference_widths;
 use crate::geometry::surfaces::{BSplineSurface, ElementarySurface, ParametricSurface, Surface};
 use crate::math::numeric::boxtree::Aabb;
@@ -12,8 +12,8 @@ use crate::math::numeric::brent_minimum;
 use crate::operations::intersect::CurveSurfaceIntersection;
 use crate::operations::intersect::numeric::patch_pairs;
 use crate::operations::intersect::numeric::surface_patches::{SurfacePatches, pair_patches};
-use crate::operations::intersect::routing::{ExactFamily, route_curve_surface};
-use crate::{BoundingBox, Frame, HasBoundingBox, Point, Tolerance};
+use crate::operations::intersect::routing::route_curve_surface;
+use crate::{BoundingBox, HasBoundingBox, Point, Tolerance};
 
 /// Where a trace may start.
 #[derive(Clone, Copy, Debug)]
@@ -511,14 +511,15 @@ impl<'a> SeedTarget<'a> {
         }
     }
 
-    /// Whether the closed-form pair table solves a circle meeting this
-    /// surface. It answers by kind, so any circle stands for the seeding
-    /// ones. A B-spline is met by the search whatever the iso-curve, so
-    /// circles seed against it as lines do.
-    fn meets_circles_exactly(self) -> bool {
+    /// Whether circles seed against this surface: against every surface
+    /// but a torus. A circle meets a torus in closed form too, through a
+    /// quartic, but the seeds it gives a march found no curve the other
+    /// seeds missed, at 4% more instructions on a sphere and a torus
+    /// (ADR 0047). A B-spline is met by the search whatever the
+    /// iso-curve, so circles seed against it as lines do.
+    fn takes_circle_seeds(self) -> bool {
         match self {
-            SeedTarget::Elementary(surface) => Circle::from_frame(Frame::WORLD, 1.0)
-                .is_ok_and(|circle| circle.has_closed_form(&surface)),
+            SeedTarget::Elementary(surface) => !matches!(surface, ElementarySurface::Torus(_)),
             SeedTarget::BSpline(_) => true,
         }
     }
@@ -585,9 +586,8 @@ fn family_seeds(
 
 /// The iso-curves `own` seeds from, as `(direction, fixed value)` (see
 /// [`marching_intersection`](super::marching_intersection)). Circles are
-/// left out against an elementary surface the closed-form pair table does
-/// not pair them with (a torus), where a circle meets it only through the
-/// sampled search: a sphere or torus then has none. Where `other` is
+/// left out against a torus (see [`SeedTarget::takes_circle_seeds`]): a
+/// sphere or torus then has none. Where `other` is
 /// unbounded, the iso-curves span the caller's box `within` as they span
 /// a bounded other surface's own box.
 fn seeding_iso_values(
@@ -600,7 +600,7 @@ fn seeding_iso_values(
     let periodic =
         |period: f64| (0..ISO_CURVE_COUNT).map(move |i| period * i as f64 / ISO_CURVE_COUNT as f64);
     let tau = std::f64::consts::TAU;
-    let circles_meet_exactly = other.meets_circles_exactly();
+    let takes_circles = other.takes_circle_seeds();
     // The range of `own`'s parameters at the corners of the other surface's
     // box, grown by 10 %: `ISO_CURVE_COUNT` values across it, ends included
     // (one value when the range is flat).
@@ -641,7 +641,7 @@ fn seeding_iso_values(
             // Circles across the other surface's box, or the one at `v = 0`
             // against an unbounded surface (which a ruling may run
             // alongside, as for two cylinders with parallel axes).
-            let circles = match (circles_meet_exactly, spanning) {
+            let circles = match (takes_circles, spanning) {
                 (false, _) => Vec::new(),
                 (true, Some(bounds)) => across_box(bounds)(1),
                 (true, None) => vec![0.0],
@@ -650,7 +650,7 @@ fn seeding_iso_values(
                 .chain(circles.into_iter().map(|v| (IsoDirection::V, v)))
                 .collect()
         }
-        _ if !circles_meet_exactly => Vec::new(),
+        _ if !takes_circles => Vec::new(),
         // A meridian circle is whole: the one at `u + PI` is the same.
         ElementarySurface::Sphere(_) => periodic(0.5 * tau).map(|u| (IsoDirection::U, u)).collect(),
         ElementarySurface::Torus(_) => periodic(tau).map(|u| (IsoDirection::U, u)).collect(),

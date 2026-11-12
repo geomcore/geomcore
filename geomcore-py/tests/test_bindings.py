@@ -1314,6 +1314,27 @@ def test_line_torus_intersections():
     assert Line(Point(0.0, 6.0, 0.0), Vector.unit_x()).intersect(torus).is_empty()
 
 
+def test_circle_torus_intersections():
+    from geomcore import IntersectionMethod, Torus
+
+    torus = Torus(Point.origin(), Vector.unit_z(), 3.0, 1.0)
+    result = Circle(Point(3.0, 0.0, 0.0), Vector.unit_z(), 1.5).intersect(torus)
+    assert result.method == IntersectionMethod.EXACT
+    assert result.is_complete()
+    assert len(result.hits) == 4
+    for hit in result.hits:
+        assert hit.multiplicity == 1
+        assert torus.contains(hit.point)
+
+    (touch,) = Circle(Point(5.0, 0.0, 0.0), Vector.unit_z(), 1.0).intersect(torus).hits
+    assert (touch.point.x, touch.point.y) == (pytest.approx(4.0), pytest.approx(0.0, abs=1e-9))
+    assert touch.multiplicity >= 2
+
+    tube = torus.u_iso(0.0)
+    (overlap,) = tube.intersect(torus).overlaps
+    assert overlap.curve_range == pytest.approx((0.0, 2.0 * math.pi))
+
+
 def test_ellipse_ellipse_intersections():
     from geomcore import Ellipse
 

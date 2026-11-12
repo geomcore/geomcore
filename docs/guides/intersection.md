@@ -112,7 +112,12 @@ points where they touch in `contact_points`. Two cones with parallel
 axes and equal half-angles, each the other moved sideways, meet in one
 plane conic: the hyperbola of two neighbouring chamfers.
 Lines/circles/conics against each
-other and against the elementary surfaces, and any two conics —
+other and against the elementary surfaces, except an ellipse, a
+parabola or a hyperbola against a torus: substituted into the torus they
+give an equation of degree 8, and that pair runs the numeric search. A
+circle against a torus gives one of degree 4, the torus being
+bicircular: up to four hits, or the whole circle where it lies on the
+torus (a tube, latitude or Villarceau circle). Any two conics —
 coplanar (up to four hits) or in crossing planes (met on the shared
 line). The 2D pairs are exact too: any two of `Line2D`, `Circle2D`,
 `Ellipse2D`, `Parabola2D` and `Hyperbola2D`, whole or trimmed, solved

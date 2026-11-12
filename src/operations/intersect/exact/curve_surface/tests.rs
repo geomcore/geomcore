@@ -3,9 +3,10 @@ use crate::geometry::curves::PointExtrema;
 use crate::geometry::surfaces::ParametricSurface;
 use crate::operations::intersect::numeric::curve_surface::search_curve_surface;
 use crate::{
-    Circle, CircleSurfaceIntersection, Cone, ConicSurfaceIntersection, Cylinder, Ellipse, Frame,
-    Hyperbola, IntersectExact, Line, LinePlaneIntersection, LineQuadricIntersection,
-    LineTorusIntersection, Parabola, Plane, Point, Sphere, Tolerance, Torus, Vector,
+    Circle, CircleSurfaceIntersection, Cone, ConicSurfaceHit, ConicSurfaceIntersection, Cylinder,
+    Ellipse, Frame, Hyperbola, IntersectExact, Line, LinePlaneIntersection,
+    LineQuadricIntersection, LineTorusIntersection, Parabola, Plane, Point, Sphere, Tolerance,
+    Torus, Vector,
 };
 use std::f64::consts::PI;
 
@@ -861,4 +862,127 @@ fn assert_three_corner_hits(
     for h in &hits {
         assert!(surface.contains(h.point, tol));
     }
+}
+
+/// The hits of `circle` on `torus`, each checked on both within confusion.
+fn circle_torus_hits(circle: &Circle, torus: &Torus) -> Vec<ConicSurfaceHit> {
+    let tol = Tolerance::DEFAULT;
+    match circle.intersect_exact(torus, tol) {
+        CircleSurfaceIntersection::Hits(hits) => {
+            for hit in &hits {
+                assert!(circle.point_at(hit.parameter).distance(hit.point) <= tol.confusion);
+                assert!(torus.contains(hit.point, tol), "{hit:?}");
+            }
+            hits
+        }
+        CircleSurfaceIntersection::Empty => Vec::new(),
+        other => panic!("expected hits, got {other:?}"),
+    }
+}
+
+#[test]
+fn test_circle_torus_crossing_four_times_two_times_touching_and_missing() {
+    let torus = Torus::new(Point::ORIGIN, Vector::Z, 3.0, 1.0).unwrap();
+    let in_mid_plane = |x: f64, radius: f64| {
+        let circle = Circle::new(Point::new(x, 0.0, 0.0), Vector::Z, radius).unwrap();
+        circle_torus_hits(&circle, &torus)
+    };
+    // Across both equators, at distances 2 and 4 from the axis.
+    let four = in_mid_plane(3.0, 1.5);
+    assert_eq!(four.len(), 4);
+    assert!(four.iter().all(|h| h.multiplicity == 1));
+    // Across the outer equator only.
+    let two = in_mid_plane(5.0, 1.5);
+    assert_eq!(two.len(), 2);
+    // Touching the outer equator from outside at (4, 0, 0).
+    let touch = in_mid_plane(5.0, 1.0);
+    assert_eq!(touch.len(), 1);
+    assert!(touch[0].multiplicity >= 2);
+    assert!(touch[0].point.distance(Point::new(4.0, 0.0, 0.0)) <= 1e-7);
+    assert!((touch[0].parameter - PI).abs() <= 1e-7);
+    // Clear of the tube.
+    assert!(in_mid_plane(7.0, 1.0).is_empty());
+    // Above the torus, coaxial, and across its top at a tilt.
+    let above = Circle::new(Point::new(0.0, 0.0, 2.0), Vector::Z, 3.0).unwrap();
+    assert!(circle_torus_hits(&above, &torus).is_empty());
+    let tilted = Circle::new(Point::new(3.0, 0.0, 0.0), Vector::new(1.0, 1.0, 0.0), 1.5).unwrap();
+    assert_eq!(circle_torus_hits(&tilted, &torus).len(), 2);
+}
+
+#[test]
+fn test_circles_on_a_torus_are_the_whole_circle() {
+    let tol = Tolerance::DEFAULT;
+    let frame = Frame::new(
+        Point::new(1.0, -2.0, 0.5),
+        Vector::new(0.3, 0.4, 1.0).normalized().unwrap(),
+        Vector::new(1.0, 0.0, -0.3).normalized().unwrap(),
+    )
+    .unwrap();
+    let (major, minor) = (3.0, 1.0);
+    let torus = Torus::from_frame(frame, major, minor).unwrap();
+    let tube = torus.u_iso(0.7).unwrap();
+    let latitude = torus.v_iso(2.1).unwrap();
+    // A Villarceau circle: in the plane through the centre tilted by
+    // asin(r/R) about the frame's y axis, centred r along it, of radius R.
+    let tilt = (minor / major).asin();
+    let (x, y, z) = (
+        frame.x_direction(),
+        frame.y_direction(),
+        frame.z_direction(),
+    );
+    let villarceau = Circle::new(
+        frame.origin() + y * minor,
+        z * tilt.cos() - x * tilt.sin(),
+        major,
+    )
+    .unwrap();
+    for circle in [tube, latitude, villarceau] {
+        assert!(
+            (0..12).all(|k| torus.contains(circle.point_at(k as f64 * 0.5), tol)),
+            "{circle:?} is not on the torus"
+        );
+        assert_eq!(
+            circle.intersect_exact(&torus, tol),
+            CircleSurfaceIntersection::Circle(circle)
+        );
+    }
+    // Moved off the torus by more than confusion, the tube circle misses.
+    let off = Circle::new(tube.center(), tube.normal(), tube.radius() + 1e-6).unwrap();
+    assert!(circle_torus_hits(&off, &torus).is_empty());
+}
+
+#[test]
+fn test_circle_torus_matches_generic() {
+    // Deterministic pseudo-random circles (LCG) cross-checked against the
+    // generic curve-surface solver: same count, same parameters.
+    let tol = Tolerance::DEFAULT;
+    let torus = Torus::new(Point::ORIGIN, Vector::Z, 4.0, 1.0).unwrap();
+    let mut state: u64 = 0x0fed_cba9_8765_4321;
+    let mut next = || {
+        state = state
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
+        (state >> 33) as f64 / 2147483648.0
+    };
+    let mut compared = 0;
+    for _ in 0..40 {
+        let center = Point::new(10.0 * next() - 5.0, 10.0 * next() - 5.0, 4.0 * next() - 2.0);
+        let normal = Vector::new(2.0 * next() - 1.0, 2.0 * next() - 1.0, 2.0 * next() - 1.0);
+        let Some(normal) = normal.normalized() else {
+            continue;
+        };
+        let circle = Circle::new(center, normal, 0.5 + 4.0 * next()).unwrap();
+        let exact = circle_torus_hits(&circle, &torus);
+        let generic = search_curve_surface(&circle, &torus, tol);
+        assert_eq!(exact.len(), generic.len(), "count mismatch for {circle:?}");
+        for (h, g) in exact.iter().zip(generic.iter()) {
+            assert!(
+                (h.parameter - g.curve_parameter).abs() < 1e-6,
+                "parameter mismatch for {circle:?}"
+            );
+            assert!(h.point.distance(g.point) < 1e-6);
+        }
+        compared += exact.len();
+    }
+    assert!(compared > 20, "too few hits compared: {compared}");
 }
