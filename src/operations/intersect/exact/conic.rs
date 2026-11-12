@@ -33,7 +33,7 @@ use crate::operations::intersect::{
 };
 use crate::{
     Circle, Cone, Cylinder, Ellipse, Frame, Hyperbola, InlineList, IntersectExact, Parabola, Plane,
-    Point, Sphere, Tolerance, Vector,
+    Point, Sphere, Tolerance, Torus, Vector,
 };
 
 /// The shape of a conic in its own frame: what its parametrization
@@ -216,7 +216,10 @@ impl Quadric for Plane {
     /// Any conic lies on a plane through its origin whose normal turns
     /// onto its own while moving the conic by at most the confusion
     /// tolerance.
-    #[inline]
+    // Left to `#[inline]`, whether it is inlined into
+    // `intersect_conic_quadric` turns on changes elsewhere in the crate,
+    // 4–7% of the plane's conic intersections.
+    #[inline(always)]
     fn holds<C: Conic>(&self, conic: &C, tol: Tolerance) -> bool {
         let frame = conic.frame();
         let angular = tol.angular_for_extent(conic.shape().extent());
@@ -396,6 +399,73 @@ pub(crate) fn intersect_conic_quadric<C: Conic, S: Quadric>(
     }
     for h in &mut hits {
         h.parameter = conic.parameter_in_bounds(h.parameter, tol);
+    }
+    hits.sort_unstable_by(|x, y| x.parameter.total_cmp(&y.parameter));
+    ConicSurfaceIntersection::Hits(hits)
+}
+
+/// Intersects a circle with a torus: [`ConicSurfaceIntersection::Coincident`]
+/// when the whole circle lies on it, else the hits verified on it.
+///
+/// With `Q` the circle point less the torus centre, the torus is
+/// `(|Q|² + R² − r²)² − 4R²|Q|² + 4R²(Q·a)² = 0`. Along the circle
+/// `c + ρ (cos t x + sin t y)`, both `|Q|²` and `Q·a` are first-degree
+/// trigonometric polynomials `k0 + k1 cos t + k2 sin t`, so the equation
+/// is `A cos 2t + B sin 2t + C cos t + D sin t + E = 0`: a quartic in
+/// `tan(t/2)`, at most four hits. The torus being bicircular, the other
+/// four points Bezout allows a circle and a quartic surface lie at the
+/// circular points at infinity. A circle on the torus (a tube, latitude or
+/// Villarceau circle) makes the equation vanish, which five samples on
+/// the torus decide, as for a quadric.
+pub(crate) fn intersect_circle_torus(
+    circle: &Circle,
+    torus: &Torus,
+    tol: Tolerance,
+) -> ConicSurfaceIntersection {
+    if conic_lies_on(circle, torus, CLOSED_CONIC_SAMPLES, tol) {
+        return ConicSurfaceIntersection::Coincident;
+    }
+    let frame = circle.frame();
+    let axis = torus.frame().z_direction();
+    let (major, minor, radius) = (torus.major_radius(), torus.minor_radius(), circle.radius());
+    let (x, y) = (frame.x_direction(), frame.y_direction());
+    let w = frame.origin() - torus.center();
+    // |Q|² and Q·a as k0 + k1 cos t + k2 sin t.
+    let squared = [
+        w.dot(w) + radius * radius,
+        2.0 * radius * w.dot(x),
+        2.0 * radius * w.dot(y),
+    ];
+    let height = [w.dot(axis), radius * x.dot(axis), radius * y.dot(axis)];
+    let shifted = [
+        squared[0] + major * major - minor * minor,
+        squared[1],
+        squared[2],
+    ];
+    let four_major_squared = 4.0 * major * major;
+    // (k0 + k1 cos t + k2 sin t)² as [cos 2t, sin 2t, cos t, sin t, 1].
+    let square = |[k0, k1, k2]: [f64; 3]| {
+        [
+            (k1 * k1 - k2 * k2) / 2.0,
+            k1 * k2,
+            2.0 * k0 * k1,
+            2.0 * k0 * k2,
+            k0 * k0 + (k1 * k1 + k2 * k2) / 2.0,
+        ]
+    };
+    let (outer, along_axis) = (square(shifted), square(height));
+    let radial = [0.0, 0.0, squared[1], squared[2], squared[0]];
+    let [a2, b2, c1, d1, e] = std::array::from_fn(|k| {
+        outer[k] - four_major_squared * radial[k] + four_major_squared * along_axis[k]
+    });
+    let touches = |t: f64| torus.contains(circle.point_at(t), tol);
+    let candidates = solve_trig(a2, b2, c1, d1, e, tol, touches);
+    let mut hits = verify_conic_hits(circle, torus, &candidates, tol);
+    if hits.is_empty() {
+        return ConicSurfaceIntersection::Empty;
+    }
+    for h in &mut hits {
+        h.parameter = circle.parameter_in_bounds(h.parameter, tol);
     }
     hits.sort_unstable_by(|x, y| x.parameter.total_cmp(&y.parameter));
     ConicSurfaceIntersection::Hits(hits)
@@ -687,7 +757,8 @@ where
 }
 
 /// Five equally spaced parameters around a circle or an ellipse, enough
-/// to decide whether the whole curve lies on a quadric (see
+/// to decide whether the whole curve lies on a quadric, or a circle on a
+/// torus (see
 /// [`conic_lies_on`]).
 const CLOSED_CONIC_SAMPLES: [f64; 5] = [
     0.0,
@@ -697,11 +768,12 @@ const CLOSED_CONIC_SAMPLES: [f64; 5] = [
     1.6 * std::f64::consts::PI,
 ];
 
-/// Whether the whole conic lies on a quadric surface. On a conic, the
-/// surface's equation is a polynomial of degree at most 4 (in `t`,
-/// `e^t`, or `tan(t/2)` for the parabola, hyperbola, and circle or
-/// ellipse), so five distinct `params` on the surface force it to vanish
-/// identically. Three would not do for a circle on a cylinder or cone:
+/// Whether the whole conic lies on a quadric surface, or a circle on a
+/// torus. On a conic, the surface's equation is a polynomial of degree at
+/// most 4 (in `t`, `e^t`, or `tan(t/2)` for the parabola, hyperbola, and
+/// circle or ellipse; a circle on a torus too, see
+/// [`intersect_circle_torus`]), so five distinct `params` on the surface
+/// force it to vanish identically. Three would not do for a circle on a cylinder or cone:
 /// their section by the circle's plane is a conic, which a circle can
 /// cross at three points without lying on it.
 #[inline]

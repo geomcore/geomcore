@@ -158,7 +158,9 @@ fn marching_dump() -> String {
     let tol = Tolerance::default();
     let wavy = marching_surface(|x, y| (0.7 * x * y).sin());
     let bumpy = marching_surface(|x, y| 0.5 * (1.3 * x).cos() * (1.1 * y).cos());
-    let torus = Torus::new(Point::ORIGIN, Vector::Z, 3.0, 1.0).unwrap();
+    let torus = Torus::new(Point::ORIGIN, Vector::Z, 3.0, 1.0)
+        .unwrap()
+        .to_bspline();
     let tilt: f64 = 0.6;
     let plane = Plane::new(
         Point::new(0.5, 0.0, 0.2),
@@ -184,8 +186,8 @@ fn marching_dump() -> String {
 
     let mut dump = String::new();
     dump += &surface_surface_text("bspline_surface_pair", &wavy.intersect(&bumpy, tol));
-    dump += &surface_surface_text("torus_plane_oblique", &torus.intersect(&plane, tol));
-    dump += &surface_surface_text("sphere_torus", &sphere.intersect(&torus, tol));
+    dump += &surface_surface_text("bspline_torus_plane_oblique", &torus.intersect(&plane, tol));
+    dump += &surface_surface_text("sphere_bspline_torus", &sphere.intersect(&torus, tol));
     dump += &surface_surface_text("cylinder_extruded_wall", &cylinder.intersect(&wall, tol));
     dump += &surface_surface_text(
         "cone_cylinder_unbounded",

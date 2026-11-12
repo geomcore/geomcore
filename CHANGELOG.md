@@ -9,8 +9,108 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+### Added
+
+- A torus meets a cylinder or a cone in closed form in any position
+  (#271): a pipe through a fillet, a drill axis off a bend, a cone
+  through a toroidal edge round. It used to be only coaxial; every other
+  position ran the numeric search.
+  - On each tube circle the other surface's equation is
+    `A cos 2v + B sin 2v + C cos v + D sin v + E`, a quartic in
+    `tan(v/2)`: up to four exact points. The curve is of degree eight,
+    read between the tube circles where a pair of points appears or
+    vanishes and the points where the surfaces touch. Both are common
+    zeros of two trigonometric polynomials, found by subdivision and
+    certified (ADR 0049).
+  - `TorusCylinderIntersection` and `TorusConeIntersection` gain
+    `Octic(Box<OcticCurve>)` and `TangentPoint(Point)`:
+    - two loops where a pipe or a cone passes through the tube, four
+      where a pipe runs along a diameter;
+    - a loop crossing itself where the surfaces touch, or where a cone's
+      apex lies on the torus, the point in `contact_points`;
+    - a point where either touches the torus and meets it nowhere else.
+  - A cone's apex, or a point where the surfaces touch, within confusion
+    is moved to touch exactly, by one translation or a cylinder's radius.
+  - `intersect` fits each loop within confusion, with curves in both
+    surfaces' parameters, and reports the pair `Exact` and complete, in
+    either order, in Rust and Python.
+  - `NotAnalytic` stays for a horn or spindle torus, a cylinder or a cone
+    holding a tube circle, contact of higher order than a crossing, and
+    near-contacts no single move makes exact.
+  - Timed under `intersect_routed/torus_octic`.
+
+- A torus meets a plane or a sphere in closed form in any position
+  (#270). It used to be only through or across its axis, in a Villarceau
+  plane, or with the sphere centred on its axis; every other position
+  ran the numeric search.
+  - Each tube circle meets the plane or the sphere where
+    `α cos v + β sin v = γ`. Its two points, `(cos v, sin v)` along
+    `(αγ ∓ β√Δ, βγ ± α√Δ)`, merge where `Δ = α² + β² − γ²` vanishes.
+    `Δ` is a quadratic in the cosine of the angle around the axis, which
+    factors like the discriminant of the quadric quartics. So the loops
+    are read and fitted by the same code, along the torus's tube circles
+    instead of a quadric's generators.
+  - `TorusPlaneIntersection` and `TorusSphereIntersection` gain
+    `Quartic(QuarticCurve)` and `TangentPoint(Point)`:
+    - a spiric section: two loops around the axis, one or two loops
+      (Cassini's ovals among them, parallel to the axis at the minor
+      radius from it), or one crossing itself where the plane touches
+      the inside of the tube;
+    - a sphere off the axis: a quartic of the same shapes;
+    - a point where either touches the torus and meets it nowhere else.
+  - A sphere touching the torus twice meets it in two circles through
+    both points, and one centred in the torus's plane can hold two tube
+    circles. Both come back as `TwoCircles`.
+  - `intersect` fits each loop within confusion, with curves in both
+    surfaces' parameters, and reports the pair `Exact` and complete, in
+    either order, in Rust and Python.
+  - A horn or spindle torus keeps `NotAnalytic` away from the special
+    positions: its tube circles cross on its axis, where its normal
+    fails.
+  - The `marching_intersection` bench and the `marching` fingerprints
+    now march the torus pairs against the torus's B-spline form
+    (`bspline_torus_plane_oblique`, `sphere_bspline_torus`). The closed
+    form is timed under `intersect_routed/torus_quartic`.
+- A circle meets a torus in closed form (#269):
+  `IntersectExact<Torus> for Circle` returns a `CircleSurfaceIntersection`.
+  - Along a circle, the torus equation is
+    `A cos 2t + B sin 2t + C cos t + D sin t + E = 0`, a quartic in
+    `tan(t/2)`. This gives up to four hits, with tangency decided by
+    distance as for the other circle pairs.
+  - Where the circle lies on the torus (a tube, latitude or Villarceau
+    circle), the result is the whole circle.
+  - `intersect` reports the pair `Exact` and complete, in Rust and
+    Python, where it used to run the numeric search.
+  - A march still does not seed from circles against a torus. They cost
+    3.7% more on a sphere and a torus and found no curve the other seeds
+    missed (ADR 0047).
+  - An ellipse, a parabola or a hyperbola against a torus still runs the
+    numeric search: substituted into the torus, they give an equation of
+    degree 8.
+
+### Breaking
+
+- `TorusCylinderIntersection` and `TorusConeIntersection` gain
+  `Octic(Box<OcticCurve>)` and `TangentPoint(Point)` (#271): a `match` on
+  them needs the arms. `TorusCylinderIntersection` is no longer `Copy`.
+- `TorusPlaneIntersection` and `TorusSphereIntersection` gain
+  `Quartic(QuarticCurve)` and `TangentPoint(Point)` (#270): a `match` on
+  them needs the arms.
+
 ### Fixed
 
+- Marching no longer drops a curve through a point where a surface has
+  no tangent plane (#260, ADR 0046). Two cones sharing an apex, each
+  placed at its apex (reference radius 0), came back `Sampled` with no
+  curves, every seed landing on the apex; they now give the same lines
+  as the same cones placed elsewhere: four, three (one where they touch)
+  or two. The march seeds the branches leaving a cone's apex, or a
+  spindle torus's point on its axis, a first step away from it, both
+  where a seed lands there and where the point lies on the other
+  surface. A seed that no trace can leave and that no curve passes
+  through now makes the result `Incomplete` with an `Unseparated` region
+  at it, instead of being dropped. A surface touching a sphere at its
+  pole gives the contact point, where nothing was reported.
 - `project_point` and `extrema` on a B-spline or Bézier curve far from
   the origin: at 1e7 model units the interior minima were dropped and
   the closest point came back up to four times too far. The rounding
