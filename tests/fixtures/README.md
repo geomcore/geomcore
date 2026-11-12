@@ -20,7 +20,7 @@ conventions.
 | `bezier.json` | Explicit Bernstein sums, computed outside geomcore | `bezier_fixtures.rs` |
 | `discretization.json` | geomcore's own output, frozen to catch regressions | `discretization_fixtures.rs` |
 | `intersect_2d.json` | Derived by hand; each case's `note` gives the derivation | `intersect_2d_fixtures.rs` |
-| `similarity_invariance_known.txt` | geomcore's own output: the comparisons of the judge that do not hold yet (ADR 0050) | `similarity_invariance.rs` |
+| `similarity_invariance_known.txt` | geomcore's own output: the comparisons of the judge that do not hold yet (ADR 0051) | `similarity_invariance.rs` |
 
 ## Updating a fixture
 

@@ -535,10 +535,12 @@ fn bench_torus_quartics(c: &mut Criterion) {
     group.finish();
 }
 
-/// A torus against a cylinder or a cone off its axis, read along its tube
-/// circles: a pipe dropped through the tube (two loops), one along a
-/// diameter through the tube on both sides (four loops), and a cone
-/// through the tube (two loops).
+/// A torus against a cylinder, a cone or a second torus off its axis,
+/// read along its tube circles: a pipe dropped through the tube (two
+/// loops), one along a diameter through the tube on both sides (four
+/// loops), a cone through the tube (two loops), tori linked like a chain
+/// (two loops), side by side (three loops crossing where they touch) and
+/// pipe bends joined end to end (their shared tube circle and a loop).
 fn bench_torus_octics(c: &mut Criterion) {
     let tol = Tolerance::default();
     let mut group = c.benchmark_group("intersect_routed/torus_octic");
@@ -564,6 +566,24 @@ fn bench_torus_octics(c: &mut Criterion) {
     group.bench_function("cone_through_the_tube_routed", |b| {
         b.iter(|| black_box(black_box(&torus).intersect(&cone, tol)))
     });
+    // Two tori: linked like a chain, side by side in one plane (crossing
+    // where they touch), and pipe bends joined end to end.
+    let thick = Torus::new(Point::ORIGIN, Vector::Z, 4.0, 1.7).unwrap();
+    let linked = Torus::new(Point::new(3.2, 0.0, 0.0), Vector::Y, 4.0, 1.7).unwrap();
+    let beside = Torus::new(Point::new(7.0, 0.0, 0.0), Vector::Z, 4.0, 1.0).unwrap();
+    let bend = Torus::new(Point::new(4.0, 0.0, 3.0), Vector::X, 3.0, 1.0).unwrap();
+    for (name, first, second) in [
+        ("tori_linked", &thick, &linked),
+        ("tori_side_by_side", &torus, &beside),
+        ("pipe_bends", &torus, &bend),
+    ] {
+        group.bench_function(format!("{name}_exact"), |b| {
+            b.iter(|| black_box(black_box(first).intersect_exact(second, tol)))
+        });
+        group.bench_function(format!("{name}_routed"), |b| {
+            b.iter(|| black_box(black_box(first).intersect(second, tol)))
+        });
+    }
     group.finish();
 }
 

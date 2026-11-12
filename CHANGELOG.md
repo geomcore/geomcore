@@ -11,6 +11,33 @@ the Python distribution are versioned in lockstep.
 
 ### Added
 
+- Two tori meet in closed form in any position (#272): pipe bends
+  meeting at a corner, a fillet against a bend, rings linked like a
+  chain. It used to be only with collinear axes, the rest documented as
+  "up to degree 16" and marched.
+  - The torus being bicircular, a second torus's equation along the
+    first's tube circles is of degree two in each angle, as a quadric's:
+    up to four exact points per tube circle, and a curve of degree eight
+    read by the same sweep (ADR 0050).
+  - `TorusTorusIntersection` gains `Octic(Box<OcticCurve>)` and
+    `TangentPoint(Point)`: loops, crossing where the tori touch, or a
+    point where they touch and part. A torus touching within confusion
+    is moved by one translation or one change of its minor radius.
+  - Pipe bends joined end to end share a tube circle and touch all along
+    it. It is divided out of the equation and comes back as
+    `OcticCurve::shared_circle`, routed as a tangent curve, with the
+    loops of the rest; alone, it is a `TangentCircle`.
+  - A circle of one torus lying on the other as a latitude or a
+    Villarceau circle stays `NotAnalytic`, as does a horn or spindle
+    torus off the other's axis.
+  - `intersect` fits each loop within confusion, with curves in both
+    tori's parameters, and reports the pair `Exact` and complete, in
+    Rust and Python. Timed under `intersect_routed/torus_octic/tori_*`
+    and `pipe_bends_*`.
+  - Fitting a loop through a crossing measures the distance to it to
+    first order away from the crossing, sliding along it only where the
+    normals are near parallel: 2–3 times cheaper on loops that cross.
+
 - A torus meets a cylinder or a cone in closed form in any position
   (#271): a pipe through a fillet, a drill axis off a bend, a cone
   through a toroidal edge round. It used to be only coaxial; every other
@@ -90,6 +117,8 @@ the Python distribution are versioned in lockstep.
 
 ### Breaking
 
+- `TorusTorusIntersection` gains `Octic(Box<OcticCurve>)` and
+  `TangentPoint(Point)` (#272), and is no longer `Copy`.
 - `TorusCylinderIntersection` and `TorusConeIntersection` gain
   `Octic(Box<OcticCurve>)` and `TangentPoint(Point)` (#271): a `match` on
   them needs the arms. `TorusCylinderIntersection` is no longer `Copy`.
@@ -178,7 +207,7 @@ the Python distribution are versioned in lockstep.
 ### Changed
 
 - A result is meant not to depend on the model's size or placement
-  (ADR 0050). `tests/similarity_invariance.rs` checks it on every
+  (ADR 0051). `tests/similarity_invariance.rs` checks it on every
   sample shape and pair, and
   `tests/fixtures/similarity_invariance_known.txt` lists the
   comparisons that do not hold yet.

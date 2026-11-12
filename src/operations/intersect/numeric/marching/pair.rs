@@ -70,7 +70,7 @@ where
     /// one point, two cones placed at their common apex), the box is the
     /// model's cube around the anchor, of side `confusion / angular`
     /// (ADR 0006). Every length is the operands' or `tol`'s, so the box
-    /// scales and moves with them (ADR 0050).
+    /// scales and moves with them (ADR 0051).
     pub(super) fn seeding_box<T: ParametricSurface>(
         &self,
         other: &T,

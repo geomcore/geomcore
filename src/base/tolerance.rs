@@ -19,7 +19,7 @@
 /// ([`Tolerance::MODEL_SIZE`] at the defaults), in one length unit. The
 /// cube sits on the model, wherever the model is: no result depends on
 /// where the origin lies, nor on the model's size once `confusion` is
-/// scaled with it (ADR 0050). Near the origin an `f64` coordinate is exact
+/// scaled with it (ADR 0051). Near the origin an `f64` coordinate is exact
 /// to about 1e-11, four orders of magnitude below the default
 /// `confusion`, so computed points converge well inside it; a coordinate
 /// rounds to about 2e-16 times its size, so a model placed far from the
