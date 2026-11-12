@@ -130,6 +130,10 @@ pub enum SphereCylinderIntersection {
 pub enum SphereConeIntersection {
     /// Two latitude circles (on one nappe or one on each).
     TwoCircles(Circle, Circle),
+    /// The apex on the sphere, the axis through its centre: a latitude
+    /// circle on the nappe running into the sphere, and the apex, where
+    /// both nappes meet the sphere and nothing else does.
+    CircleAndApex(Circle, Point),
     /// Grazing contact ring.
     TangentCircle(Circle),
     /// The space quartic of an axis off the center: a loop on each nappe
@@ -1554,7 +1558,8 @@ impl IntersectExact<Cone> for Sphere {
     /// |tan(phi)|` meets the sphere section, on either nappe. The center
     /// is `|tc| * |sin(phi)|` from the generators: beyond `R +
     /// tol.confusion` the sphere misses, within `tol.confusion` of `R` it
-    /// grazes one ring, and nearer it cuts two. An axis off the center gives a space
+    /// grazes one ring, and nearer it cuts two, one of them the apex
+    /// itself when the apex lies on the sphere. An axis off the center gives a space
     /// quartic, or the points where the sphere touches the cone: with the
     /// apex inside the sphere, a loop on each nappe; on it, a loop through
     /// the apex; outside, on each nappe facing the sphere, two loops, a
@@ -1597,10 +1602,17 @@ impl IntersectExact<Cone> for Sphere {
         };
         let base = tc * cos_phi * cos_phi;
         if reach >= r - tol.confusion {
-            SphereConeIntersection::TangentCircle(mk(base))
-        } else {
-            let root = (r * r - reach * reach).sqrt() * cos_phi.abs();
-            SphereConeIntersection::TwoCircles(mk(base + root), mk(base - root))
+            return SphereConeIntersection::TangentCircle(mk(base));
+        }
+        let root = (r * r - reach * reach).sqrt() * cos_phi.abs();
+        let (first, second) = (base + root, base - root);
+        // A ring within confusion of the apex, along the generator, is
+        // the apex: it lies on the sphere.
+        let at_apex = |alpha: f64| alpha.abs() <= tol.confusion * cos_phi.abs();
+        match (at_apex(first), at_apex(second)) {
+            (false, true) => SphereConeIntersection::CircleAndApex(mk(first), cone.apex()),
+            (true, false) => SphereConeIntersection::CircleAndApex(mk(second), cone.apex()),
+            _ => SphereConeIntersection::TwoCircles(mk(first), mk(second)),
         }
     }
 }

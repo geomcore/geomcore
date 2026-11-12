@@ -9,8 +9,22 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+### Breaking
+
+- `SphereConeIntersection` gains `CircleAndApex(Circle, Point)` (#312).
+  A `match` on it needs an arm for the new variant, as for `TwoCircles`
+  with the point added to the contacts.
+
 ### Fixed
 
+- A trimmed curve against a revolution or extrusion surface, or any
+  surface without a closed form, no longer returns hits beyond its ends
+  (#308). The numeric search's Newton iteration is not held to the
+  curve's range, and from a seed near an end it reached hits of the
+  basis curve beyond it: a segment from x = 0 to 1 met an extruded
+  circle of radius 4 at parameter 3.99. A hit now counts only within the
+  range, or within `tol.confusion` beyond an end, where it is snapped to
+  the end.
 - Far from the origin, a march through a crossing of two branches could
   run from one branch onto the other: rounding opens the crossing into
   a bend a few millionths wide, and the turns through it were too small
@@ -28,6 +42,12 @@ the Python distribution are versioned in lockstep.
   the other is now one whole curve, sampled along its own parameter, and
   only the rest is traced (ADR 0052). The last sixteen sample comparisons
   between two bounded surfaces now hold.
+- A cone whose apex lies on a sphere centred on its axis meets it in a
+  circle and the apex (#312). The apex came back as a second circle, of
+  radius 0, and with no contact point, unlike every other apex on the
+  other surface. `intersect` now reports one curve and the apex as a
+  contact point. A `Circle` of radius 0 stays valid, documented as the
+  point at its centre, as the iso curve through a sphere's pole is.
 
 ## [0.46.0] - 2026-11-12
 

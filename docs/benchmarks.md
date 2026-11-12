@@ -521,7 +521,11 @@ marked `#[inline]`, back to before. `swept_plane_cut/extrusion_bspline_oblique/s
 reads 82 instructions more (+1.2%), its plane-curve fit called out of
 line, and the coaxial `intersect/torus_cone` routed calls 1.4% more,
 in `normalize_line2d_at_zero` (marking its helpers `#[inline]` changed
-nothing).
+nothing). `intersect_routed/circle_circle/routed` reads either 1.63M or
+1.67M instructions, from changes elsewhere in the crate: the 40k between
+them is `memcpy` in moving the circle–circle result, laid out on the
+stack one way or the other (#312, which touches only the sphere–cone
+reading, moved it back to 1.67M).
 
 Reproduce with:
 
