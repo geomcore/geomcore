@@ -1028,8 +1028,8 @@ class _CurveMethods(
 
         From a point: the local minima of its distance to the
         curve, an end of a bounded curve among them where the
-        distance grows from it into the curve, as
-        `CurveProjection` objects ordered by ascending distance.
+        distance grows from it into the curve, as `CurveProjection`
+        objects ordered by ascending distance.
 
         From a curve or `TrimmedCurve`: a `CurveCurveExtrema` of the
         local minima of the distance between the two curves, closest
