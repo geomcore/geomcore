@@ -9,6 +9,17 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+### Fixed
+
+- Far from the origin, a march through a crossing of two branches could
+  run from one branch onto the other: rounding opens the crossing into
+  a bend a few millionths wide, and the turns through it were too small
+  to end the trace. A plane through a generator of a hyperboloid 1e7
+  from the origin gave three lines where it gives four near it. Where
+  the surfaces graze, a turn larger than the sine between them now ends
+  the trace whatever its size. The last three sample comparisons with
+  an unbounded surface now hold.
+
 ## [0.46.0] - 2026-11-12
 
 Tori meet everything in closed form. A torus against a circle, a plane,
