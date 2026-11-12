@@ -85,10 +85,10 @@ _Avoid_: AABB, bbox, extent, contains or inside (reserved) for a point in a box
 ## Precision
 
 **Model size**:
-The side of the cube that models are assumed to fit in: 1e5 model units at the default tolerance, `tol.confusion / tol.angular` in general. The cube sits on the model, wherever the model is (ADR 0046). It bounds the model, not its carriers: an infinite line or plane matters only inside it. Within it, `f64` coordinates are exact to far below the confusion tolerance.
+The side of the cube that models are assumed to fit in: 1e5 model units at the default tolerance, `tol.confusion / tol.angular` in general. The cube sits on the model, wherever the model is (ADR 0050). It bounds the model, not its carriers: an infinite line or plane matters only inside it. Within it, `f64` coordinates are exact to far below the confusion tolerance.
 
 **Similarity invariance**:
-Moving every operand by one similarity and scaling the confusion tolerance alike gives the same result, moved. A result therefore does not depend on the model's size nor on where it sits (ADR 0046).
+Moving every operand by one similarity and scaling the confusion tolerance alike gives the same result, moved. A result therefore does not depend on the model's size nor on where it sits (ADR 0050).
 _Avoid_: scale-free or unit-independent for this property
 
 **Confusion tolerance**:
@@ -113,8 +113,20 @@ The one place that says which pairs of shapes `intersect` solves in closed form,
 _Avoid_: exact routes, analytic pairs
 
 **Quartic curve**:
-The quartic where a cylinder or a cone meets another quadric away from the configurations that split it into conics and lines: two cylinders whose axes cross (the bicylindric curve), a sphere and a cylinder or a cone whose axis misses its centre, a cone and a cylinder off its axis (ADR 0040), or two cones in general position (ADR 0041). One or two closed loops, read along the generators of the cylinder or cone: each loop runs around it, over an arc of its generators, twice around through the point where the surfaces touch and the loop crosses itself, over an arc that crosses itself there or at a cone's apex on the other surface, or through the apex of a cone that lies on the sphere. Its closed form gives each point exactly; `intersect` fits it within confusion and reports it exact (ADR 0036). Between two cones a loop may run off to infinity along a generator of one parallel to one of the other's and come back from the other end: closed only through its points at infinity, it comes back as quartic branches. So may the one loop where a cylinder whose axis runs along a generator of a cone meets it, each generator of the cylinder meeting the cone once.
+The quartic where a cylinder or a cone meets another quadric away from the configurations that split it into conics and lines: two cylinders whose axes cross (the bicylindric curve), a sphere and a cylinder or a cone whose axis misses its centre, a cone and a cylinder off its axis (ADR 0040), or two cones in general position (ADR 0041). Also where a ring torus meets a plane (a spiric section) or a sphere in no special position, read along the torus's tube circles instead of generators (ADR 0048). One or two closed loops, read along the generators of the cylinder or cone: each loop runs around it, over an arc of its generators, twice around through the point where the surfaces touch and the loop crosses itself, over an arc that crosses itself there or at a cone's apex on the other surface, or through the apex of a cone that lies on the sphere. Its closed form gives each point exactly; `intersect` fits it within confusion and reports it exact (ADR 0036). Between two cones a loop may run off to infinity along a generator of one parallel to one of the other's and come back from the other end: closed only through its points at infinity, it comes back as quartic branches. So may the one loop where a cylinder whose axis runs along a generator of a cone meets it, each generator of the cylinder meeting the cone once.
 _Avoid_: bicylindric curve for anything but two cylinders, Steinmetz curve (the case of equal radii and meeting axes only)
+
+**Spiric section**:
+The curve where a plane cuts a torus, a quartic curve. A plane parallel to the axis cuts two ovals while it is nearer the axis than the inner equator, Cassini's ovals at the distance of the minor radius; touching the inner equator, one loop crossing itself there; and one loop between the equators. Through the axis it is two meridian circles, across the axis latitude circles, and in a bitangent plane through the centre the two Villarceau circles.
+_Avoid_: toric section (also used for any section of a torus by a surface), Cassini oval for any section but at the distance of the minor radius
+
+**Tube circle**:
+The circle of a torus at one angle around its axis, in a half-plane through the axis: a meridian circle of the torus, its `u` iso-curve. A plane or a sphere meets each where a sine wave in the angle around the tube vanishes, which reads their quartic curve. A cylinder or a cone meets each in up to four points, the roots of a quartic, which reads their octic curve.
+_Avoid_: poloidal circle
+
+**Octic curve**:
+The curve of degree eight where a cylinder or a cone off its axis meets a ring torus (ADR 0049). Read along the torus's tube circles, each holding up to four of its points, between the tube circles where a pair of points appears or vanishes and the points where the surfaces touch. One to four loops: two where a pipe passes through the tube, four where it runs along a diameter, one crossing itself where the surfaces touch or where a cone's apex lies on the torus. A point where they touch and meet nowhere else is a tangent point. Its closed form gives each point exactly; `intersect` fits it within confusion and reports it exact.
+_Avoid_: degree-8 curve, octic
 
 **Quartic branch**:
 A piece of a quartic curve between two of its points at infinity, where a generator of one cone is parallel to one of the other's, or a generator of a cylinder runs along one of a cone's: exact at every point, unbounded both ways, its parameter running over the real line (ADR 0042). `intersect` returns it as the curve, not a piece cut at a box.

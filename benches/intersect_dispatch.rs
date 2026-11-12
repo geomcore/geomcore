@@ -6,7 +6,9 @@
 //! `Curve` / `Surface`. The routed calls build the family result; the
 //! enum operands add a `match`. Two cylinders whose axes cross, and a cone
 //! with a cylinder off its axis, are timed alone: their routed result fits
-//! each loop of the quartic they meet in.
+//! each loop of the quartic they meet in. So are a torus against a plane
+//! and a sphere in no special position, and against a cylinder and a cone
+//! off its axis.
 //!
 //! Informational only, like `eval_throughput`; not a correctness gate.
 
@@ -16,8 +18,8 @@ use std::hint::black_box;
 use geomcore::prelude::*;
 use geomcore::{
     Circle, Circle2D, Cone, ConeConeIntersection, Curve, Cylinder, ElementaryCurve,
-    ElementarySurface, Ellipse, Line, Plane, Point, Point2D, Sphere, Surface, Tolerance, Torus,
-    Vector,
+    ElementarySurface, Ellipse, Frame, Line, Plane, Point, Point2D, Sphere, Surface, Tolerance,
+    Torus, Vector,
 };
 
 const BATCH: usize = 1024;
@@ -503,6 +505,68 @@ fn bench_sphere_quadrics(c: &mut Criterion) {
     group.finish();
 }
 
+/// A torus against a plane or a sphere in no special position, read along
+/// its tube circles: a plane tilted through the centre (two loops around
+/// the axis), a plane parallel to the axis at the minor radius from it
+/// (Cassini's two ovals), and a sphere off the axis through the tube (one
+/// loop).
+fn bench_torus_quartics(c: &mut Criterion) {
+    let tol = Tolerance::default();
+    let mut group = c.benchmark_group("intersect_routed/torus_quartic");
+    let torus = Torus::new(Point::ORIGIN, Vector::Z, 4.0, 1.0).unwrap();
+    let tilt: f64 = 0.15;
+    let tilted = Plane::new(Point::ORIGIN, Vector::new(-tilt.sin(), 0.0, tilt.cos())).unwrap();
+    let cassini = Plane::new(Point::new(1.0, 0.0, 0.0), Vector::X).unwrap();
+    let sphere = Sphere::new(Point::new(4.0, 0.0, 1.5), 1.0).unwrap();
+    for (name, plane) in [("tilted_plane", &tilted), ("cassini_ovals", &cassini)] {
+        group.bench_function(format!("{name}_exact"), |b| {
+            b.iter(|| black_box(black_box(&torus).intersect_exact(plane, tol)))
+        });
+        group.bench_function(format!("{name}_routed"), |b| {
+            b.iter(|| black_box(black_box(&torus).intersect(plane, tol)))
+        });
+    }
+    group.bench_function("sphere_through_the_tube_exact", |b| {
+        b.iter(|| black_box(black_box(&torus).intersect_exact(&sphere, tol)))
+    });
+    group.bench_function("sphere_through_the_tube_routed", |b| {
+        b.iter(|| black_box(black_box(&torus).intersect(&sphere, tol)))
+    });
+    group.finish();
+}
+
+/// A torus against a cylinder or a cone off its axis, read along its tube
+/// circles: a pipe dropped through the tube (two loops), one along a
+/// diameter through the tube on both sides (four loops), and a cone
+/// through the tube (two loops).
+fn bench_torus_octics(c: &mut Criterion) {
+    let tol = Tolerance::default();
+    let mut group = c.benchmark_group("intersect_routed/torus_octic");
+    let torus = Torus::new(Point::ORIGIN, Vector::Z, 4.0, 1.0).unwrap();
+    let through = Cylinder::new(Point::new(4.0, 0.0, 0.0), Vector::Z, 0.5).unwrap();
+    let diameter = Cylinder::new(Point::ORIGIN, Vector::X, 0.5).unwrap();
+    for (name, pipe) in [
+        ("pipe_through_the_tube", &through),
+        ("pipe_along_a_diameter", &diameter),
+    ] {
+        group.bench_function(format!("{name}_exact"), |b| {
+            b.iter(|| black_box(black_box(&torus).intersect_exact(pipe, tol)))
+        });
+        group.bench_function(format!("{name}_routed"), |b| {
+            b.iter(|| black_box(black_box(&torus).intersect(pipe, tol)))
+        });
+    }
+    let frame = Frame::from_z(Point::new(4.0, 0.0, 0.0), Vector::new(0.1, 0.0, 1.0)).unwrap();
+    let cone = Cone::from_frame(frame, 0.15, 0.4).unwrap();
+    group.bench_function("cone_through_the_tube_exact", |b| {
+        b.iter(|| black_box(black_box(&torus).intersect_exact(&cone, tol)))
+    });
+    group.bench_function("cone_through_the_tube_routed", |b| {
+        b.iter(|| black_box(black_box(&torus).intersect(&cone, tol)))
+    });
+    group.finish();
+}
+
 criterion_group!(
     benches,
     bench_intersect_dispatch,
@@ -510,6 +574,8 @@ criterion_group!(
     bench_crossing_cylinders,
     bench_cone_cylinder,
     bench_two_cones,
-    bench_sphere_quadrics
+    bench_sphere_quadrics,
+    bench_torus_quartics,
+    bench_torus_octics
 );
 criterion_main!(benches);
