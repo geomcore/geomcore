@@ -85,10 +85,10 @@ _Avoid_: AABB, bbox, extent, contains or inside (reserved) for a point in a box
 ## Precision
 
 **Model size**:
-The side of the cube that models are assumed to fit in: 1e5 model units at the default tolerance, `tol.confusion / tol.angular` in general. The cube sits on the model, wherever the model is (ADR 0050). It bounds the model, not its carriers: an infinite line or plane matters only inside it. Within it, `f64` coordinates are exact to far below the confusion tolerance.
+The side of the cube that models are assumed to fit in: 1e5 model units at the default tolerance, `tol.confusion / tol.angular` in general. The cube sits on the model, wherever the model is (ADR 0051). It bounds the model, not its carriers: an infinite line or plane matters only inside it. Within it, `f64` coordinates are exact to far below the confusion tolerance.
 
 **Similarity invariance**:
-Moving every operand by one similarity and scaling the confusion tolerance alike gives the same result, moved. A result therefore does not depend on the model's size nor on where it sits (ADR 0050).
+Moving every operand by one similarity and scaling the confusion tolerance alike gives the same result, moved. A result therefore does not depend on the model's size nor on where it sits (ADR 0051).
 _Avoid_: scale-free or unit-independent for this property
 
 **Confusion tolerance**:
@@ -125,7 +125,7 @@ The circle of a torus at one angle around its axis, in a half-plane through the 
 _Avoid_: poloidal circle
 
 **Octic curve**:
-The curve of degree eight where a cylinder or a cone off its axis meets a ring torus (ADR 0049). Read along the torus's tube circles, each holding up to four of its points, between the tube circles where a pair of points appears or vanishes and the points where the surfaces touch. One to four loops: two where a pipe passes through the tube, four where it runs along a diameter, one crossing itself where the surfaces touch or where a cone's apex lies on the torus. A point where they touch and meet nowhere else is a tangent point. Its closed form gives each point exactly; `intersect` fits it within confusion and reports it exact.
+The curve of degree eight where a cylinder, a cone or a second torus off its axis meets a ring torus (ADR 0049, ADR 0050). Read along the torus's tube circles, each holding up to four of its points, between the tube circles where a pair of points appears or vanishes and the points where the surfaces touch. One to four loops: two where a pipe passes through the tube, four where it runs along a diameter, one crossing itself where the surfaces touch or where a cone's apex lies on the torus. A point where they touch and meet nowhere else is a tangent point. Two tori may share a tube circle, as pipe bends joined end to end do, and touch all along it: the curve splits into that circle and loops. Its closed form gives each point exactly; `intersect` fits it within confusion and reports it exact.
 _Avoid_: degree-8 curve, octic
 
 **Quartic branch**:

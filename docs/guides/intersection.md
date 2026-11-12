@@ -130,6 +130,14 @@ crosses itself there, that point in `contact_points`, as does a cone
 whose apex lies on the torus. One touching it and meeting it nowhere
 else gives that point. A horn or spindle torus, or a cylinder or a cone
 holding a tube circle, runs the numeric search.
+Two tori off one axis meet in an `OcticCurve` too, read along the first
+one's tube circles: two loops for rings linked like a chain, loops
+crossing where tori side by side touch, a point where they touch and
+part. Pipe bends joined end to end share a tube circle and touch all
+along it: it comes back as a tangent curve (`OcticCurve::shared_circle`),
+with the loops of the rest of the curve. A circle of one torus lying on
+the other otherwise, a latitude or Villarceau circle, runs the numeric
+search.
 Lines/circles/conics against each
 other and against the elementary surfaces, except an ellipse, a
 parabola or a hyperbola against a torus: substituted into the torus they
