@@ -2174,3 +2174,43 @@ fn test_sided_matches_neighbor_spans_at_knot() {
     let (pa, _) = curve.first_derivatives_sided(0.4, Side::Above);
     assert_eq!(pb, pa);
 }
+
+#[test]
+fn test_project_point_far_from_origin() {
+    // The rounding floor of the stationarity polynomial follows the
+    // offsets from the query to the poles, not the coordinates: a curve
+    // moved far away keeps its interior minimum.
+    let poles = vec![
+        Point::new(0.0, 0.0, 0.0),
+        Point::new(1.0, 2.0, 0.5),
+        Point::new(3.0, 1.0, -0.5),
+        Point::new(4.0, 3.0, 1.0),
+    ];
+    let weights = vec![1.0, 0.5, 2.0, 1.0];
+    let plain =
+        BSplineCurve::new(2, poles.clone(), vec![-1.0, 0.5, 4.0], vec![3, 1, 3], false).unwrap();
+    let rational =
+        BSplineCurve::new_rational(3, poles, weights, vec![0.0, 1.0], vec![4, 4], false).unwrap();
+    let offset = Vector::new(1e7, -2e7, 1.5e7);
+    for curve in [plain, rational] {
+        let (first, last) = curve.bounds();
+        let moved = curve.transformed(Transform::translation(offset)).unwrap();
+        for fraction in [0.1, 0.45, 0.8] {
+            let u = first + fraction * (last - first);
+            let point = curve.point_at(u) + Vector::new(0.3, -0.2, 0.5);
+            let near = curve.project_point(point, Tolerance::DEFAULT);
+            let far = moved.project_point(point + offset, Tolerance::DEFAULT);
+            assert!(
+                (far.distance - near.distance).abs() <= 1e-7,
+                "at {u}: {} became {}",
+                near.distance,
+                far.distance
+            );
+            assert_eq!(
+                moved.extrema(point + offset, Tolerance::DEFAULT).len(),
+                curve.extrema(point, Tolerance::DEFAULT).len(),
+                "at {u}"
+            );
+        }
+    }
+}

@@ -20,6 +20,7 @@ conventions.
 | `bezier.json` | Explicit Bernstein sums, computed outside geomcore | `bezier_fixtures.rs` |
 | `discretization.json` | geomcore's own output, frozen to catch regressions | `discretization_fixtures.rs` |
 | `intersect_2d.json` | Derived by hand; each case's `note` gives the derivation | `intersect_2d_fixtures.rs` |
+| `similarity_invariance_known.txt` | geomcore's own output: the comparisons of the judge that do not hold yet (ADR 0051) | `similarity_invariance.rs` |
 
 ## Updating a fixture
 
@@ -29,5 +30,9 @@ conventions.
 - **`discretization.json`.** Regenerate with
   `UPDATE_DISCRETIZATION_FIXTURES=1 cargo test --test discretization_fixtures`,
   then review the diff: every change is a change in geomcore's output.
+- **`similarity_invariance_known.txt`.** After a fix, regenerate with
+  `GEOMCORE_UPDATE_KNOWN_MISMATCHES=1 cargo test --release --test similarity_invariance`.
+  The file may only get shorter: a new line is a new dependence on the
+  model's size or placement.
 - **`bezier.json` and `intersect_2d.json`.** Edit by hand, and keep the
   derivation in the case's note.

@@ -308,3 +308,67 @@ fn test_every_minimum_carries_its_two_points() {
     check(&arch, &rail, tol);
     check(&rail, &arch, tol);
 }
+
+/// A parabola, whose parameter is a length, crossing a circle, whose
+/// parameter is an angle: the minimiser finds both crossings at any size,
+/// though the two parameters' units drift apart with the size.
+#[test]
+fn test_circle_crossing_a_parabola_at_any_size() {
+    use crate::{Circle, Parabola};
+    for scale in [2f64.powi(-20), 1.0, 2f64.powi(20)] {
+        let tol = Tolerance::new(
+            Tolerance::DEFAULT.confusion * scale,
+            Tolerance::DEFAULT.angular,
+            Tolerance::DEFAULT.parametric,
+        );
+        let center = Point::new(1.0 * scale, 0.5 * scale, 0.0);
+        let circle = Circle::new(center, Vector::Z, 2.0 * scale).unwrap();
+        let parabola = Parabola::new(Point::ORIGIN, Vector::Z, Vector::X, 0.8 * scale).unwrap();
+        let found = curve_curve_extrema(&circle, &parabola, tol);
+        assert_eq!(found.len(), 2, "scale {scale:e}: {found:?}");
+        for minimum in &found {
+            assert!(
+                minimum.distance <= tol.confusion,
+                "scale {scale:e}: {found:?}"
+            );
+        }
+    }
+}
+
+/// A circle and a B-spline 1e7 from the origin, where a squared distance
+/// rounds to about `distance * 1e-8`: the minimiser still converges on
+/// both minima the pair has at the origin.
+#[test]
+fn test_circle_and_bspline_far_from_the_origin() {
+    use crate::{Circle, Frame, Transform, Transformable};
+    let tol = Tolerance::DEFAULT;
+    let poles = vec![
+        Point::new(0.0, 0.0, 0.0),
+        Point::new(1.0, 2.0, 0.5),
+        Point::new(3.0, 1.0, -0.5),
+        Point::new(4.0, 3.0, 1.0),
+    ];
+    let spline = BSplineCurve::new(2, poles, vec![-1.0, 0.5, 4.0], vec![3, 1, 3], false).unwrap();
+    let frame = Frame::new(
+        Point::new(1.0, -2.0, 0.5),
+        Vector::new(0.3, -0.4, 0.86),
+        Vector::new(1.0, 0.2, 0.0),
+    )
+    .unwrap();
+    let circle = Circle::from_frame(frame, 2.0).unwrap();
+    let near = curve_curve_extrema(&circle, &spline, tol);
+    assert_eq!(near.len(), 2, "{near:?}");
+    let away = Transform::translation(Vector::new(1e7, -2e7, 1.5e7));
+    let far = curve_curve_extrema(
+        &circle.transformed(away).unwrap(),
+        &spline.transformed(away).unwrap(),
+        tol,
+    );
+    assert_eq!(far.len(), near.len(), "{far:?}");
+    for (far, near) in far.iter().zip(near.iter()) {
+        assert!(
+            (far.distance - near.distance).abs() < 1e-6,
+            "{far:?} {near:?}"
+        );
+    }
+}

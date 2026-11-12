@@ -80,7 +80,7 @@ where
 }
 
 /// Generic 3D curve-curve intersection: [`curve_curve_extrema`] filtered
-/// to meetings within `tol.confusion`, ordered by first-curve parameter.
+/// to the minima within `tol.confusion`, ordered by first-curve parameter.
 /// A hit where the tangents are parallel within `tol.angular` has
 /// multiplicity 2.
 /// Overlapping curves report a single representative point; use the
@@ -119,8 +119,9 @@ where
     A: ParametricCurve,
     B: ParametricCurve,
 {
-    if let Some((meetings, completeness)) = pairs_with_bspline::curve_curve_meetings(a, b, tol) {
-        let mut hits = CurveCurveHits::new(hits_at_minima(a, b, meetings, tol), completeness);
+    if let Some((candidates, completeness)) = pairs_with_bspline::curve_curve_candidates(a, b, tol)
+    {
+        let mut hits = CurveCurveHits::new(hits_at_minima(a, b, candidates, tol), completeness);
         if !hits.is_complete() {
             hits.add_sampled(a, b, sampled_curve_curve(a, b, tol), tol);
         }

@@ -427,7 +427,8 @@ impl Traced {
         }
     }
 
-    /// Traces the curve through `seed` unless it was traced already, and
+    /// Traces the curve through `seed`, first moved onto the crossing (see
+    /// [`SurfacePair::polish`]), unless it was traced already, and
     /// returns the seeds on the branches it reached: those crossing where
     /// its trace stalled (see [`seeding::branch_seeds`]), or, where no
     /// trace leaves the seed, those around it when it is a singular point
@@ -448,9 +449,16 @@ impl Traced {
         // Seeds near a traced polyline are on its curve (the trace's chord
         // deviation exceeds confusion, so tight containment cannot decide
         // duplication). Near-tangent distinct curves (closer than this)
-        // are out of scope.
+        // are out of scope. A seed is polished only once it is not found
+        // on a curve as it is, and looked for again from where it lands.
+        let traced =
+            |p: Point| !tracer.encloses(p) || self.crosses(&[p.x, p.y, p.z, p.x, p.y, p.z], tol);
+        if traced(pair.point(seed)) {
+            return Vec::new();
+        }
+        let seed = pair.polish(seed, tol);
         let p = pair.point(seed);
-        if !tracer.encloses(p) || self.crosses(&[p.x, p.y, p.z, p.x, p.y, p.z], tol) {
+        if traced(p) {
             return Vec::new();
         }
         let (points, tangents, parameters, stalls, touching, cuts) = match tracer.trace(seed) {
@@ -496,8 +504,8 @@ impl Traced {
             self.cuts.extend(cuts);
         }
         let along = tangents.into_iter().zip(parameters).collect();
-        let (points, along) = without_confused(points, along);
-        let fit = Fitted::new(&pair, &points, &along, touching);
+        let (points, along) = without_confused(points, along, tol.confusion);
+        let fit = Fitted::new(&pair, &points, &along, touching, tol);
         debug_assert!(fit.is_ok(), "a trace of {} points fits", points.len());
         if let Ok(fitted) = fit {
             let coords: Vec<[f64; 3]> = points.iter().map(|p| [p.x, p.y, p.z]).collect();
@@ -607,6 +615,7 @@ impl Fitted {
         points: &[Point],
         along: &[(Vector, [f64; 4])],
         touching: bool,
+        tol: Tolerance,
     ) -> Result<Fitted, BSplineConstructionError>
     where
         A: ParametricSurface,
@@ -621,7 +630,12 @@ impl Fitted {
         let uv_points = [uv(0), uv(1)];
         let (curve, uv_curves) = if touching {
             let degree = 3.min(points.len() - 1);
-            interpolate_with_companions(points, [&uv_points[0], &uv_points[1]], degree)?
+            interpolate_with_companions(
+                points,
+                [&uv_points[0], &uv_points[1]],
+                degree,
+                tol.confusion,
+            )?
         } else {
             let tangents: Vec<Vector> = along.iter().map(|&(t, _)| t).collect();
             let knots = hermite_knots(points, &tangents);
