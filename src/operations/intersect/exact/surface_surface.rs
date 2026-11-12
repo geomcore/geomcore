@@ -4,7 +4,7 @@
 use super::quartic::{
     OcticCurve, OcticCut, QuarticCurve, cone_off_cylinder_axis, cones_in_general_position,
     crossing_cylinders, sphere_off_cone_axis, sphere_off_cylinder_axis, torus_cone, torus_cylinder,
-    torus_plane, torus_sphere,
+    torus_plane, torus_sphere, torus_torus,
 };
 use std::f64::consts::PI;
 
@@ -365,10 +365,11 @@ pub enum TorusConeIntersection {
 
 /// Result of intersecting two tori.
 ///
-/// The closed form needs collinear axes, reducing to quadratics in the
-/// axial coordinate. Anything else (up to degree 16) reports
-/// [`TorusTorusIntersection::NotAnalytic`].
-#[derive(Debug, Clone, Copy, PartialEq)]
+/// Tori with collinear axes meet in latitude rings, from quadratics in
+/// the axial coordinate. Any others, both ring tori, meet in a curve of
+/// degree eight read along the first one's tube circles, an
+/// [`OcticCurve`], or touch at a point.
+#[derive(Debug, Clone, PartialEq)]
 pub enum TorusTorusIntersection {
     /// Latitude ring.
     Circle(Circle),
@@ -380,7 +381,15 @@ pub enum TorusTorusIntersection {
     Empty,
     /// Same center and radii within tolerance.
     Coincident,
-    /// No closed form for this configuration.
+    /// Loops, with the points where the tori touch.
+    Octic(Box<OcticCurve>),
+    /// The tori touch at this point and meet nowhere else.
+    TangentPoint(Point),
+    /// No closed form for this configuration: a horn or spindle torus off
+    /// the other's axis, whose tube circles cross on its axis; tori
+    /// sharing a circle, the curve then splitting off that circle; or
+    /// touching to a higher order than a crossing or a point, or at
+    /// several points no single move within tolerance makes exact.
     NotAnalytic,
 }
 
@@ -2098,10 +2107,11 @@ impl IntersectExact<Torus> for Torus {
 
     /// Intersects this torus with another torus.
     ///
-    /// The analytic path needs collinear axes. Stacked equal-major tori
-    /// reduce to one height; otherwise elimination gives a quadratic in
-    /// the axial coordinate. Anything else (up to degree 16) reports
-    /// [`TorusTorusIntersection::NotAnalytic`].
+    /// With collinear axes, stacked equal-major tori reduce to one
+    /// height; otherwise elimination gives a quadratic in the axial
+    /// coordinate. Any other pair is read along this torus's tube
+    /// circles, each meeting the other torus in up to four points (see
+    /// [`OcticCurve`]).
     ///
     /// # Examples
     ///
@@ -2126,12 +2136,24 @@ impl IntersectExact<Torus> for Torus {
         let o1 = self.center();
         // Coaxial when turning the other torus about its centre onto this
         // one's axis moves it by at most the confusion tolerance.
-        if a.cross(other.frame().z_direction()).magnitude() > tol.angular_for_extent(r2 + s2) {
-            return TorusTorusIntersection::NotAnalytic;
-        }
         let w = other.center() - o1;
-        if (w - a * w.dot(a)).magnitude() > tol.confusion {
-            return TorusTorusIntersection::NotAnalytic;
+        if a.cross(other.frame().z_direction()).magnitude() > tol.angular_for_extent(r2 + s2)
+            || (w - a * w.dot(a)).magnitude() > tol.confusion
+        {
+            return match torus_torus(self, other, tol) {
+                Some(OcticCut::Curve(curve)) => match curve.shared_circle() {
+                    // Touching along a shared tube circle and nowhere else.
+                    Some(circle)
+                        if curve.component_count() == 0 && curve.contact_points().is_empty() =>
+                    {
+                        TorusTorusIntersection::TangentCircle(circle)
+                    }
+                    _ => TorusTorusIntersection::Octic(curve),
+                },
+                Some(OcticCut::TangentPoint(point)) => TorusTorusIntersection::TangentPoint(point),
+                Some(OcticCut::Empty) => TorusTorusIntersection::Empty,
+                None => TorusTorusIntersection::NotAnalytic,
+            };
         }
         let z2 = w.dot(a);
         if w.magnitude() <= tol.confusion

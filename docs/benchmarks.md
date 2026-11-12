@@ -497,6 +497,32 @@ also stopped inlining the closures that `[T; N]::map` and
 (`intersect_routed/{cone_cylinder,two_cones}/*_exact`). Spelling out
 both elements brought them back to or below before.
 
+Two tori off one axis followed (#272, ADR 0050), read by the same sweep:
+`tori_linked` (radii 4 and 1.7, the second along `Y` through
+`(3.2, 0, 0)`, two loops), `tori_side_by_side` (equal tori in one plane
+7 apart, three loops crossing at four points) and `pipe_bends` (a bend
+of radius 3 turning up from the tube at `(4, 0, 0)`, the shared tube
+circle and one loop). The typed call reads them in 609k, 14.5M and 366k
+instructions, and the routed call fits them in 5.90M, 73.7M and 15.2M.
+The pair side by side is symmetric: the subdivision meets many boxes
+near the plane halfway between them, and its loops cross where the
+tori touch. Before, its fit slid along every loop through a crossing to
+every distance, at three evaluations of the curve per step: 157M, and
+45.9M for the pipe bends. It now slides only where the normals are near
+parallel. The cone and cylinder calls read 0.4–1.4% more in `memcpy`
+(2.3–4.2% on `intersect/cone_cylinder_around_a_sphere`, where it is a
+larger share), its count changed by where the stack places the copies,
+not by how much they copy: the results are the same size as before.
+Inlining the function the extra call goes to read 7–9% more. The added
+code also stopped inlining `KnotVector::window` into the B-spline
+evaluation (+2.9% on `eval_throughput/bspline_curve_eval_d2_100k`) and
+the line–conic solver into its 2D entry points (+1.3–2.2%): both are now
+marked `#[inline]`, back to before. `swept_plane_cut/extrusion_bspline_oblique/swept`
+reads 82 instructions more (+1.2%), its plane-curve fit called out of
+line, and the coaxial `intersect/torus_cone` routed calls 1.4% more,
+in `normalize_line2d_at_zero` (marking its helpers `#[inline]` changed
+nothing).
+
 Reproduce with:
 
 ```sh

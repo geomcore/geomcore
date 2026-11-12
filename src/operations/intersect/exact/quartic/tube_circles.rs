@@ -355,7 +355,7 @@ impl<S: CutsTubes> CurveFamily for TubeCircles<S> {
     type Component = Component;
 
     #[inline]
-    fn slides_along(&self, component: Component) -> bool {
+    fn slides_along(&self, component: Component, _point: Point) -> bool {
         slides_along(component)
     }
 

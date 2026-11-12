@@ -1,5 +1,5 @@
-//! A torus against a cylinder or a cone in any position, along the
-//! torus's tube circles.
+//! A torus against a cylinder, a cone or a second torus in any position,
+//! along the torus's tube circles.
 //!
 //! The torus's point `P(u, v) = C + (R + r cos v) e(u) + r sin v a` is of
 //! degree one in the cosine and sine of each angle, and the cylinder's or
@@ -24,11 +24,21 @@
 //! gives the loops, each fitted through exact points as the quadrics'
 //! quartics are.
 //!
-//! The surfaces touch along a curve only coaxially: a contact curve's
-//! normals meet both the torus's centre circle and the other surface's
-//! axis, which for a line and a circle happens along a curve only when
-//! the line is the circle's axis. That case and the circles it gives are
-//! read before.
+//! A second torus's equation `(|w|² + R₂² − r₂²)² − 4 R₂² (|w|² − (w·a₂)²)`,
+//! `w = P − C₂`, is of degree two in each angle too: on the tube circles
+//! `|w|²` and `w·a₂` are of degree one, the torus being bicircular. So a
+//! tube circle meets a second torus in up to four points as well, and the
+//! same sweep reads the curve.
+//!
+//! A cylinder or a cone touches the torus along a curve only coaxially: a
+//! contact curve's normals meet both the torus's centre circle and the
+//! other surface's axis, which for a line and a circle happens along a
+//! curve only when the line is the circle's axis. That case and the
+//! circles it gives are read before. Two tori also touch along a tube
+//! circle they share, as pipe bends joined end to end do: there `F`
+//! vanishes to second order on the line `u = u₀`, and the rest of the
+//! curve is the zeros of `F / (1 − cos(u − u₀))`, again of degree two in
+//! `v`.
 
 use super::tube_circles::Tubes;
 use super::*;
@@ -36,7 +46,7 @@ use crate::math::numeric::solve_trig;
 use crate::math::numeric::trigonometric::{
     TrigonometricPolynomial, angular_distance, basis, common_zeros, wrap,
 };
-use crate::{Transform, Transformable};
+use crate::{Circle, Transform, Transformable};
 
 /// `F(u, v)`, the other surface's equation on the torus's parameters.
 type Equation = TrigonometricPolynomial<5>;
@@ -83,64 +93,55 @@ const CUT_IN_A_GAP: f64 = 0.381_966_011_250_105_2;
 /// cross the angle they are ordered from.
 const DEEPEST_CUT: u32 = 8;
 
-/// The other surface: its equation's terms, and its own surface.
+/// The surface the tube circles are read against.
 #[derive(Debug, Clone, Copy, PartialEq)]
-enum Quadric {
+enum OtherSurface {
     Cylinder(Cylinder),
     Cone(Cone),
+    Torus(Torus),
 }
 
-impl Quadric {
-    /// `Q`, `M` and `c` of `(P − Q)ᵀ M (P − Q) + c`: a cylinder's squared
-    /// distance to its axis less its radius squared, and a cone's
-    /// `((P − V)·a)² − cos² φ |P − V|²`, both nappes.
-    fn terms(&self) -> (Point, [[f64; 3]; 3], f64) {
-        let (centre, axis, along, across, constant) = match self {
-            Quadric::Cylinder(cylinder) => {
-                let frame = cylinder.frame();
-                let radius = cylinder.radius();
-                (
-                    frame.origin(),
-                    frame.z_direction(),
-                    -1.0,
-                    1.0,
-                    -radius * radius,
-                )
-            }
-            Quadric::Cone(cone) => {
-                let cos = cone.half_angle().cos();
-                (
-                    cone.apex(),
-                    cone.frame().z_direction(),
-                    1.0,
-                    -cos * cos,
-                    0.0,
-                )
-            }
-        };
-        let a = [axis.x, axis.y, axis.z];
-        let matrix = std::array::from_fn(|i| {
-            std::array::from_fn(|j| {
-                let identity = if i == j { across } else { 0.0 };
-                identity + along * a[i] * a[j]
-            })
-        });
-        (centre, matrix, constant)
-    }
-
+impl OtherSurface {
     /// The surface moved by `offset`.
-    fn moved(&self, offset: Vector) -> Quadric {
+    fn moved(&self, offset: Vector) -> OtherSurface {
         let transform = Transform::translation(offset);
         match self {
-            Quadric::Cylinder(cylinder) => Quadric::Cylinder(
+            OtherSurface::Cylinder(cylinder) => OtherSurface::Cylinder(
                 cylinder
                     .transformed(transform)
                     .expect("a translation keeps a cylinder"),
             ),
-            Quadric::Cone(cone) => Quadric::Cone(
+            OtherSurface::Cone(cone) => OtherSurface::Cone(
                 cone.transformed(transform)
                     .expect("a translation keeps a cone"),
             ),
+            OtherSurface::Torus(torus) => OtherSurface::Torus(
+                torus
+                    .transformed(transform)
+                    .expect("a translation keeps a torus"),
+            ),
+        }
+    }
+
+    /// The surface offset by `distance` along its normal, where that is
+    /// the same kind of surface: a cylinder's radius or a torus's minor
+    /// radius grown by it. `None` for a cone, or a radius that would not
+    /// stay positive.
+    fn offset_by(&self, distance: f64) -> Option<OtherSurface> {
+        match self {
+            OtherSurface::Cylinder(cylinder) => {
+                Cylinder::from_axis(cylinder.axis(), cylinder.radius() + distance)
+                    .ok()
+                    .map(OtherSurface::Cylinder)
+            }
+            OtherSurface::Torus(torus) => Torus::from_frame(
+                torus.frame(),
+                torus.major_radius(),
+                torus.minor_radius() + distance,
+            )
+            .ok()
+            .map(OtherSurface::Torus),
+            OtherSurface::Cone(_) => None,
         }
     }
 
@@ -148,15 +149,74 @@ impl Quadric {
     /// it grows.
     fn offset(&self, point: Point) -> (f64, Vector) {
         match self {
-            Quadric::Cylinder(cylinder) => OtherCylinder::new(cylinder, Vector::ZERO).offset(point),
-            Quadric::Cone(cone) => RuledCone::new(cone).offset(point),
+            OtherSurface::Cylinder(cylinder) => {
+                OtherCylinder::new(cylinder, Vector::ZERO).offset(point)
+            }
+            OtherSurface::Cone(cone) => RuledCone::new(cone).offset(point),
+            OtherSurface::Torus(torus) => Tubes::new(torus).offset(point),
+        }
+    }
+
+    /// A bound on `|F|` at the torus's points within `confusion` of the
+    /// surface: `confusion` times the largest gradient of its equation
+    /// `G` over the torus.
+    fn within(&self, tubes: &Tubes, confusion: f64) -> f64 {
+        let centre = match self {
+            OtherSurface::Cylinder(cylinder) => cylinder.frame().origin(),
+            OtherSurface::Cone(cone) => cone.apex(),
+            OtherSurface::Torus(torus) => torus.center(),
+        };
+        let reach = (tubes.origin - centre).magnitude() + tubes.major + tubes.minor;
+        match self {
+            // `|∇G| ≤ 2 |P − Q|`.
+            OtherSurface::Cylinder(_) | OtherSurface::Cone(_) => 4.0 * reach * confusion,
+            // `∇G = 4 (|w|² + R² − r²) w − 8 R² (w − (w·a) a)`.
+            OtherSurface::Torus(torus) => {
+                let (major, minor) = (torus.major_radius(), torus.minor_radius());
+                let largest = 4.0 * reach * (reach * reach + major * major + minor * minor)
+                    + 8.0 * major * major * reach;
+                largest * confusion
+            }
         }
     }
 }
 
-/// `F(u, v)` for the torus's tube circles against `quadric`.
-fn equation(tubes: &Tubes, quadric: &Quadric) -> Equation {
-    let (centre, matrix, constant) = quadric.terms();
+/// `F(u, v)` for the torus's tube circles against `surface`.
+fn equation(tubes: &Tubes, surface: &OtherSurface) -> Equation {
+    // A quadric's `Q`, `M` and `c` of `(P − Q)ᵀ M (P − Q) + c`: a
+    // cylinder's squared distance to its axis less its radius squared,
+    // and a cone's `((P − V)·a)² − cos² φ |P − V|²`, both nappes.
+    let (centre, axis, along, across, constant) = match surface {
+        OtherSurface::Cylinder(cylinder) => {
+            let frame = cylinder.frame();
+            let radius = cylinder.radius();
+            (
+                frame.origin(),
+                frame.z_direction(),
+                -1.0,
+                1.0,
+                -radius * radius,
+            )
+        }
+        OtherSurface::Cone(cone) => {
+            let cos = cone.half_angle().cos();
+            (
+                cone.apex(),
+                cone.frame().z_direction(),
+                1.0,
+                -cos * cos,
+                0.0,
+            )
+        }
+        OtherSurface::Torus(torus) => return torus_equation(tubes, &Tubes::new(torus)),
+    };
+    let a = [axis.x, axis.y, axis.z];
+    let matrix: [[f64; 3]; 3] = std::array::from_fn(|i| {
+        std::array::from_fn(|j| {
+            let identity = if i == j { across } else { 0.0 };
+            identity + along * a[i] * a[j]
+        })
+    });
     let (major, minor) = (tubes.major, tubes.minor);
     // `P − Q` in the basis `(1, cos u, sin u) × (1, cos v, sin v)`.
     let mut terms = [[Vector::ZERO; 3]; 3];
@@ -202,6 +262,80 @@ fn equation(tubes: &Tubes, quadric: &Quadric) -> Equation {
         }
     }
     TrigonometricPolynomial { c }
+}
+
+/// `F(u, v)` for the tube circles against a second torus, `w = P − C₂`:
+/// `(|w|² + R₂² − r₂²)² − 4 R₂² (|w|² − (w·a₂)²)`. Both `|w|²` and `w·a₂`
+/// are of degree one in each angle on the tube circles, the parts of
+/// `(R + r cos v)² + r² sin² v` of degree two cancelling, so `F` is of
+/// degree two in each, as against a quadric.
+fn torus_equation(tubes: &Tubes, other: &Tubes) -> Equation {
+    let (major, minor) = (tubes.major, tubes.minor);
+    let d = tubes.origin - other.origin;
+    // `|w|²` and `w·a₂` in the basis `(1, cos u, sin u) × (1, cos v, sin v)`.
+    let mut squared = [[0.0; 3]; 3];
+    squared[0][0] = d.dot(d) + major * major + minor * minor;
+    squared[0][1] = 2.0 * major * minor;
+    squared[1][0] = 2.0 * major * d.dot(tubes.x);
+    squared[2][0] = 2.0 * major * d.dot(tubes.y);
+    squared[1][1] = 2.0 * minor * d.dot(tubes.x);
+    squared[2][1] = 2.0 * minor * d.dot(tubes.y);
+    squared[0][2] = 2.0 * minor * d.dot(tubes.axis);
+    let a = other.axis;
+    let mut height = [[0.0; 3]; 3];
+    height[0][0] = d.dot(a);
+    height[1][0] = major * tubes.x.dot(a);
+    height[2][0] = major * tubes.y.dot(a);
+    height[1][1] = minor * tubes.x.dot(a);
+    height[2][1] = minor * tubes.y.dot(a);
+    height[0][2] = minor * tubes.axis.dot(a);
+    let (big, small) = (other.major, other.minor);
+    let mut shifted = squared;
+    shifted[0][0] += big * big - small * small;
+    let scale = 4.0 * big * big;
+    let mut c = product(&shifted, &shifted);
+    let height_squared = product(&height, &height);
+    for (row, heights) in c.iter_mut().zip(&height_squared) {
+        for (value, h) in row.iter_mut().zip(heights) {
+            *value += scale * h;
+        }
+    }
+    for (row, squares) in c.iter_mut().zip(&squared) {
+        for (value, w) in row.iter_mut().zip(squares) {
+            *value -= scale * w;
+        }
+    }
+    TrigonometricPolynomial { c }
+}
+
+/// The product of two functions of degree one in each angle, in the
+/// basis `(1, cos, sin, cos 2, sin 2)` of each.
+fn product(first: &[[f64; 3]; 3], second: &[[f64; 3]; 3]) -> [[f64; 5]; 5] {
+    let mut c = [[0.0; 5]; 5];
+    for (i1, row1) in first.iter().enumerate() {
+        for (j1, &x1) in row1.iter().enumerate() {
+            if x1 == 0.0 {
+                continue;
+            }
+            for (i2, row2) in second.iter().enumerate() {
+                for (j2, &x2) in row2.iter().enumerate() {
+                    if x2 == 0.0 {
+                        continue;
+                    }
+                    let (along_u, along_v) = (PRODUCTS[i1][i2], PRODUCTS[j1][j2]);
+                    for (a, &x) in along_u.iter().enumerate() {
+                        if x == 0.0 {
+                            continue;
+                        }
+                        for (b, &y) in along_v.iter().enumerate() {
+                            c[a][b] += x1 * x2 * x * y;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    c
 }
 
 /// The angles `v` where the tube circle at `u` meets the other surface,
@@ -303,10 +437,13 @@ struct Loop {
     crosses: bool,
 }
 
-/// The curve of degree eight where a torus meets a cylinder or a cone away
-/// from their common axis: loops read along the torus's tube circles,
-/// each a smooth piece of the curve, and the points where the surfaces
-/// touch, at a point no loop reaches or where a loop crosses itself.
+/// The curve of degree eight where a torus meets a cylinder, a cone or a
+/// second torus away from their common axis: loops read along the
+/// torus's tube circles, each a smooth piece of the curve, and the points
+/// where the surfaces touch, at a point no loop reaches or where a loop
+/// crosses itself. Two tori may also share a tube circle and touch all
+/// along it ([`shared_circle`](Self::shared_circle)), the loops then the
+/// rest of the curve.
 ///
 /// A loop is evaluated at a parameter in `[0, 2π]`, its two ends the same
 /// point. The routed [`intersect`](crate::Intersect) fits each as a
@@ -333,7 +470,7 @@ pub struct OcticCurve {
     torus: Torus,
     /// The other surface as the curve is read on: moved by at most the
     /// confusion tolerance where it touches the torus within it.
-    other: Quadric,
+    other: OtherSurface,
     /// Whether the torus is the first operand, its curve in parameters
     /// the first.
     torus_first: bool,
@@ -346,6 +483,9 @@ pub struct OcticCurve {
     touching: Vec<Point>,
     /// The angles of those where they touch and part.
     alone: Vec<[f64; 2]>,
+    /// The angle of the tube circle a second torus shares, the two
+    /// touching along it; the loops are the rest of the curve.
+    shared: Option<f64>,
     /// Those where the curve crosses itself.
     crossings: Vec<Crossing>,
 }
@@ -380,6 +520,23 @@ impl OcticCurve {
         &self.touching
     }
 
+    /// The tube circle a second torus shares with the torus, touching it
+    /// all along it, as pipe bends joined end to end do: the curve splits
+    /// into that circle, twice over, and the loops.
+    pub fn shared_circle(&self) -> Option<Circle> {
+        let tubes = Tubes::new(&self.torus);
+        self.shared.map(|at| {
+            let (sin, cos) = at.sin_cos();
+            let radial = tubes.radial(sin, cos);
+            Circle::new(
+                tubes.origin + radial * tubes.major,
+                tubes.axis.cross(radial),
+                tubes.minor,
+            )
+            .expect("a ring torus's tube circle")
+        })
+    }
+
     /// The point of loop `component` at `parameter` in `[0, 2π]`.
     ///
     /// # Panics
@@ -404,7 +561,7 @@ impl OcticCurve {
         let components: Vec<usize> = (0..self.loops.len()).collect();
         let tubes = Tubes::new(&self.torus);
         match &self.other {
-            Quadric::Cylinder(cylinder) => {
+            OtherSurface::Cylinder(cylinder) => {
                 let other = OtherCylinder::new(cylinder, Vector::ZERO);
                 OcticFamily::new(self, tubes, other).fitted(
                     &components,
@@ -412,8 +569,16 @@ impl OcticCurve {
                     self.torus_first,
                 )
             }
-            Quadric::Cone(cone) => {
+            OtherSurface::Cone(cone) => {
                 let other = OtherCone::new(cone);
+                OcticFamily::new(self, tubes, other).fitted(
+                    &components,
+                    tol.confusion,
+                    self.torus_first,
+                )
+            }
+            OtherSurface::Torus(torus) => {
+                let other = OtherTorus(Tubes::new(torus));
                 OcticFamily::new(self, tubes, other).fitted(
                     &components,
                     tol.confusion,
@@ -516,7 +681,8 @@ impl OcticCurve {
     }
 }
 
-/// What a cylinder or a cone off the torus's axis cuts from it.
+/// What a cylinder, a cone or a second torus off the torus's axis cuts
+/// from it.
 pub(in crate::operations::intersect::exact) enum OcticCut {
     Curve(Box<OcticCurve>),
     TangentPoint(Point),
@@ -529,7 +695,7 @@ pub(in crate::operations::intersect::exact) fn torus_cylinder(
     cylinder: &Cylinder,
     tol: Tolerance,
 ) -> Option<OcticCut> {
-    torus_quadric(torus, Quadric::Cylinder(*cylinder), tol)
+    torus_against(torus, OtherSurface::Cylinder(*cylinder), tol)
 }
 
 /// A torus against a cone off its axis.
@@ -538,7 +704,17 @@ pub(in crate::operations::intersect::exact) fn torus_cone(
     cone: &Cone,
     tol: Tolerance,
 ) -> Option<OcticCut> {
-    torus_quadric(torus, Quadric::Cone(*cone), tol)
+    torus_against(torus, OtherSurface::Cone(*cone), tol)
+}
+
+/// A torus against a second torus whose axis is not the same line.
+pub(in crate::operations::intersect::exact) fn torus_torus(
+    torus: &Torus,
+    other: &Torus,
+    tol: Tolerance,
+) -> Option<OcticCut> {
+    Tubes::of_ring(other, tol)?;
+    torus_against(torus, OtherSurface::Torus(*other), tol)
 }
 
 /// A point where the surfaces touch: a crossing of two branches, or a
@@ -557,29 +733,44 @@ struct Turn {
     opens_back: bool,
 }
 
-/// The curve of a ring torus against `quadric`, `None` where it is not
+/// The curve of a ring torus against `surface`, `None` where it is not
 /// read in closed form: a horn or spindle torus, a tube circle lying on
 /// the other surface, surfaces touching to a higher order than a crossing
 /// or a point, or touching at several points that no single move within
 /// tolerance makes exact.
-fn torus_quadric(torus: &Torus, mut quadric: Quadric, tol: Tolerance) -> Option<OcticCut> {
+fn torus_against(torus: &Torus, mut surface: OtherSurface, tol: Tolerance) -> Option<OcticCut> {
     let tubes = Tubes::of_ring(torus, tol)?;
     // A cone's apex within confusion of the torus is moved onto it.
-    if let Quadric::Cone(cone) = quadric {
+    if let OtherSurface::Cone(cone) = surface {
         let (gap, normal) = tubes.offset(cone.apex());
         if gap.abs() <= tol.confusion && gap != 0.0 {
-            quadric = quadric.moved(normal * -gap);
+            surface = surface.moved(normal * -gap);
         }
     }
-    let reach = (tubes.origin - quadric.terms().0).magnitude() + tubes.major + tubes.minor;
-    // `|F|` where the surfaces are within confusion: `|∇G| ≤ 2 |P − Q|`.
-    let within = 4.0 * reach * tol.confusion;
-    let mut touching = touching_points(&tubes, &quadric, within, tol)?;
-    if let Some(snapped) = touching_exactly(&tubes, &quadric, &touching, tol) {
-        quadric = snapped?;
-        touching = touching_points(&tubes, &quadric, within, tol)?;
-    }
-    let equation = equation(&tubes, &quadric);
+    let within = surface.within(&tubes, tol.confusion);
+    let shared = match &surface {
+        OtherSurface::Torus(other) => shared_tube_circle(&tubes, &Tubes::new(other), tol),
+        _ => None,
+    };
+    let (equation, touching) = match shared {
+        // The tori touch all along the shared circle, so no move is read
+        // from it; the rest of the curve touches where the quotient is
+        // stationary and within the bound it has across from the circle,
+        // where `1 − cos(u − u₀)` is two.
+        Some(at) => {
+            let equation = without_tube_circle(&equation(&tubes, &surface), at);
+            let touching = stationary_zeros(&equation, within / 2.0)?;
+            (equation, touching)
+        }
+        None => {
+            let mut touching = touching_points(&tubes, &surface, within, tol)?;
+            if let Some(snapped) = touching_exactly(&tubes, &surface, &touching, tol) {
+                surface = snapped?;
+                touching = touching_points(&tubes, &surface, within, tol)?;
+            }
+            (equation(&tubes, &surface), touching)
+        }
+    };
     let classified = classify(&equation, &touching)?;
     let turns = turns(&equation, &classified)?;
     let alone: Vec<[f64; 2]> = classified
@@ -587,27 +778,118 @@ fn torus_quadric(torus: &Torus, mut quadric: Quadric, tol: Tolerance) -> Option<
         .filter(|t| !t.crossing)
         .map(|t| t.angles)
         .collect();
-    let curve = sweep(torus, &tubes, quadric, equation, &classified, &turns, alone)?;
-    Some(match (curve.loops.is_empty(), curve.touching.as_slice()) {
-        (true, []) => OcticCut::Empty,
-        (true, [point]) => OcticCut::TangentPoint(*point),
-        _ => OcticCut::Curve(Box::new(curve)),
+    let mut curve = sweep(torus, &tubes, surface, equation, &classified, &turns, alone)?;
+    if let Some(at) = shared {
+        // The tori touch all along the shared circle: a point of the rest
+        // of the curve on it says nothing more.
+        curve.shared = shared;
+        // Where a loop meets the circle the tori touch, the normals'
+        // cross product vanishes: its tangent is stepped, as through a
+        // crossing.
+        for lap in &mut curve.loops {
+            lap.crosses = true;
+        }
+        let on_circle = |point: &Point| {
+            let (along_x, along_y) = (
+                (*point - tubes.origin).dot(tubes.x),
+                (*point - tubes.origin).dot(tubes.y),
+            );
+            angular_distance([along_y.atan2(along_x), 0.0], [at, 0.0]) <= SAME_EVENT
+        };
+        curve.touching.retain(|point| !on_circle(point));
+    }
+    Some(
+        match (curve.loops.is_empty(), curve.touching.as_slice(), shared) {
+            (true, [], None) => OcticCut::Empty,
+            (true, [point], None) => OcticCut::TangentPoint(*point),
+            _ => OcticCut::Curve(Box::new(curve)),
+        },
+    )
+}
+
+/// The angle `u₀` of the first torus's tube circle the second torus also
+/// holds as a tube circle, the tori touching all along it: equal minor
+/// radii and centre circles touching at its centre. `None` where they
+/// share none.
+///
+/// The circle's centre is on the first centre circle, at an angle whose
+/// direction `e(u₀)` is across both `(C₁ − C₂) × a₁` (the second centre
+/// circle's plane holds the first's tangent) and `a₂ × a₁`; each gives
+/// two candidates, checked by points of the circle on the second torus
+/// with the same normal.
+fn shared_tube_circle(tubes: &Tubes, other: &Tubes, tol: Tolerance) -> Option<f64> {
+    if (tubes.minor - other.minor).abs() > tol.confusion {
+        return None;
+    }
+    let candidates = [
+        (tubes.origin - other.origin).cross(tubes.axis),
+        other.axis.cross(tubes.axis),
+    ];
+    candidates
+        .into_iter()
+        .filter_map(|across| {
+            let (x, y) = (across.dot(tubes.x), across.dot(tubes.y));
+            (x.hypot(y) > tol.confusion).then(|| x.atan2(-y))
+        })
+        .flat_map(|angle| [angle, angle + PI])
+        .find(|&u| holds_tube_circle(tubes, other, u, tol))
+}
+
+/// Whether `other` holds the tube circle of `tubes` at `u` and touches it
+/// along it: sixteen of its points within confusion of `other`, the
+/// normals there the same up to sign.
+fn holds_tube_circle(tubes: &Tubes, other: &Tubes, u: f64, tol: Tolerance) -> bool {
+    let (sin_u, cos_u) = u.sin_cos();
+    let radial = tubes.radial(sin_u, cos_u);
+    (0..16).all(|k| {
+        let (sin_v, cos_v) = (k as f64 * TAU / 16.0).sin_cos();
+        let point = tubes.point_on(radial, cos_v, sin_v);
+        let (gap, normal) = other.offset(point);
+        let own = radial * cos_v + tubes.axis * sin_v;
+        gap.abs() <= tol.confusion && own.cross(normal).magnitude() <= tol.angular
     })
+}
+
+/// `F` divided by `1 − cos(u − u₀)`, where the tube circle at `u₀` lies on
+/// the other surface and touches it: there `F` vanishes to second order
+/// on each tube circle's coefficient, each of degree two in `u`, which
+/// factors as `(1 − cos w)(p + q cos w + s sin w)`, `w = u − u₀`. The
+/// quotient, of degree one in `u`, has the rest of the curve for zeros.
+fn without_tube_circle(equation: &Equation, at: f64) -> Equation {
+    let (sin_1, cos_1) = at.sin_cos();
+    let (sin_2, cos_2) = (2.0 * at).sin_cos();
+    // Each coefficient of `v`, of degree one in `u` once divided.
+    let quotient = |b: usize| -> [f64; 3] {
+        let column: [f64; 5] = std::array::from_fn(|a| equation.c[a][b]);
+        // The coefficients in `w`: `cos(w + u₀)` and `sin(w + u₀)`.
+        let along_cos_1 = column[1] * cos_1 + column[2] * sin_1;
+        let along_cos_2 = column[3] * cos_2 + column[4] * sin_2;
+        let along_sin_2 = column[4] * cos_2 - column[3] * sin_2;
+        let (q, s) = (-2.0 * along_cos_2, -2.0 * along_sin_2);
+        let p = q - along_cos_1;
+        // Back to `u`: `cos w = cos u cos u₀ + sin u sin u₀`,
+        // `sin w = sin u cos u₀ − cos u sin u₀`.
+        [p, q * cos_1 - s * sin_1, q * sin_1 + s * cos_1]
+    };
+    let columns: [[f64; 3]; 5] = std::array::from_fn(quotient);
+    let c =
+        std::array::from_fn(|a| std::array::from_fn(|b| columns[b].get(a).copied().unwrap_or(0.0)));
+    TrigonometricPolynomial { c }
 }
 
 /// The other surface moved to touch the torus exactly where it touches it
 /// within confusion: by the one translation that closes every gap, or for
-/// a cylinder by the one change of radius. `None` when nothing needs
+/// a cylinder or a torus by the one change of its radius or minor radius. `None` when nothing needs
 /// moving, `Some(None)` when no single move closes every gap.
 fn touching_exactly(
     tubes: &Tubes,
-    quadric: &Quadric,
+    surface: &OtherSurface,
     touching: &[[f64; 2]],
     tol: Tolerance,
-) -> Option<Option<Quadric>> {
+) -> Option<Option<OtherSurface>> {
     let gaps: Vec<(f64, Vector)> = touching
         .iter()
-        .map(|&[u, v]| quadric.offset(tubes.point(Point2D::new(u, v))))
+        .map(|&[u, v]| surface.offset(tubes.point(Point2D::new(u, v))))
         .collect();
     if gaps.iter().all(|(gap, _)| *gap == 0.0) {
         return None;
@@ -619,13 +901,12 @@ fn touching_exactly(
         .iter()
         .all(|&(gap, normal)| (normal * gap - first_move).magnitude() <= agree)
     {
-        return Some(Some(quadric.moved(first_move)));
+        return Some(Some(surface.moved(first_move)));
     }
-    if let Quadric::Cylinder(cylinder) = quadric
-        && gaps.iter().all(|(gap, _)| (gap - first_gap).abs() <= agree)
+    if gaps.iter().all(|(gap, _)| (gap - first_gap).abs() <= agree)
+        && let Some(offset) = surface.offset_by(first_gap)
     {
-        let widened = Cylinder::from_axis(cylinder.axis(), cylinder.radius() + first_gap).ok();
-        return Some(widened.map(Quadric::Cylinder));
+        return Some(Some(offset));
     }
     Some(None)
 }
@@ -641,20 +922,28 @@ const SNAPS_AGREE: f64 = 1e-3;
 /// than points.
 fn touching_points(
     tubes: &Tubes,
-    quadric: &Quadric,
+    surface: &OtherSurface,
     within: f64,
     tol: Tolerance,
 ) -> Option<Vec<[f64; 2]>> {
-    let equation = equation(tubes, quadric);
+    let equation = equation(tubes, surface);
     let (along_u, along_v) = (equation.derivative_u(), equation.derivative_v());
     let zeros = common_zeros(&along_u, &along_v, Some((&equation, within)))?;
     let near = |&[u, v]: &[f64; 2]| {
-        quadric.offset(tubes.point(Point2D::new(u, v))).0.abs() <= tol.confusion
+        surface.offset(tubes.point(Point2D::new(u, v))).0.abs() <= tol.confusion
     };
     if zeros.clusters.iter().any(near) {
         return None;
     }
     Some(zeros.simple.into_iter().filter(near).collect())
+}
+
+/// The stationary points of `equation` where it is within `within` of
+/// zero, `None` where they make a curve or a cluster.
+fn stationary_zeros(equation: &Equation, within: f64) -> Option<Vec<[f64; 2]>> {
+    let (along_u, along_v) = (equation.derivative_u(), equation.derivative_v());
+    let zeros = common_zeros(&along_u, &along_v, Some((equation, within)))?;
+    zeros.clusters.is_empty().then_some(zeros.simple)
 }
 
 /// The points where the surfaces touch, each a crossing or a point alone
@@ -761,7 +1050,7 @@ type End = (usize, usize, usize);
 fn sweep(
     torus: &Torus,
     tubes: &Tubes,
-    quadric: Quadric,
+    surface: OtherSurface,
     equation: Equation,
     touching: &[Touching],
     turns: &[Turn],
@@ -967,7 +1256,7 @@ fn sweep(
         .collect();
     Some(OcticCurve {
         torus: *torus,
-        other: quadric,
+        other: surface,
         torus_first: true,
         equation,
         pieces,
@@ -976,6 +1265,7 @@ fn sweep(
         loops,
         touching: touching_points,
         alone,
+        shared: None,
         crossings: touching
             .iter()
             .filter(|t| t.crossing)
@@ -1091,6 +1381,49 @@ struct OcticFamily<'a, S> {
     other_parameters_fit: bool,
 }
 
+/// A second torus as the surface the tube circles are read against.
+#[derive(Debug, Clone, Copy)]
+struct OtherTorus(Tubes);
+
+impl SecondSurface for OtherTorus {
+    #[inline]
+    fn normal(&self, point: Point) -> Vector {
+        self.0.offset(point).1
+    }
+
+    /// Both angles, `u` around the axis and `v` around the tube.
+    fn uv(&self, point: Point, tangent: Vector) -> (Point2D, Vector2D) {
+        let tubes = &self.0;
+        let w = point - tubes.origin;
+        let height = w.dot(tubes.axis);
+        let (along_x, along_y) = (w.dot(tubes.x), w.dot(tubes.y));
+        let from_axis = along_x.hypot(along_y);
+        let from_core = from_axis - tubes.major;
+        let distance = from_core.hypot(height);
+        let (cos_v, sin_v) = (from_core / distance, height / distance);
+        let radial = tubes.radial(along_y / from_axis, along_x / from_axis);
+        (
+            Point2D::new(along_y.atan2(along_x), height.atan2(from_core)),
+            tubes.uv_derivative(tangent, radial, cos_v, sin_v),
+        )
+    }
+
+    #[inline]
+    fn point(&self, uv: Point2D) -> Point {
+        self.0.point(uv)
+    }
+
+    #[inline]
+    fn offset(&self, point: Point) -> (f64, Vector) {
+        self.0.offset(point)
+    }
+}
+
+/// The sine of the angle between the normals below which the distance to
+/// a loop through a crossing slides along it: nearer the crossing than
+/// that, the other branch is near too.
+const SLIDES_BELOW_SINE: f64 = 0.25;
+
 /// A point of a loop: its angles on the torus, `ρ(u)`, the point, and the
 /// cosine and sine of its `v`.
 struct OnTube {
@@ -1144,9 +1477,15 @@ impl<'a, S: SecondSurface> OcticFamily<'a, S> {
 impl<S: SecondSurface> CurveFamily for OcticFamily<'_, S> {
     type Component = usize;
 
+    /// Near where a loop crosses itself or meets a shared tube circle the
+    /// first order reads the distance to whichever branch is nearer, so it
+    /// slides there; elsewhere the surfaces cross at an angle.
     #[inline]
-    fn slides_along(&self, component: usize) -> bool {
-        self.crosses(component)
+    fn slides_along(&self, component: usize, point: Point) -> bool {
+        self.crosses(component) && {
+            let [(_, first), (_, second)] = self.offsets(point);
+            first.cross(second).magnitude() < SLIDES_BELOW_SINE
+        }
     }
 
     #[inline]
@@ -1215,14 +1554,13 @@ impl<S: SecondSurface> CurveFamily for OcticFamily<'_, S> {
         }
     }
 
-    /// Both of the torus's parameters are angles; a cylinder's or a
-    /// cone's first is, its second runs along the axis.
+    /// Both of a torus's parameters are angles; a cylinder's or a cone's
+    /// first is, its second runs along the axis.
     #[inline]
     fn angles(&self, side: usize) -> [bool; 2] {
-        if side == 0 {
-            [true, true]
-        } else {
-            [true, false]
+        match (side, self.curve.other) {
+            (0, _) | (_, OtherSurface::Torus(_)) => [true, true],
+            _ => [true, false],
         }
     }
 

@@ -53,7 +53,7 @@ mod octic;
 mod tube_circles;
 pub use branch::QuarticBranch;
 pub use octic::OcticCurve;
-pub(super) use octic::{OcticCut, torus_cone, torus_cylinder};
+pub(super) use octic::{OcticCut, torus_cone, torus_cylinder, torus_torus};
 use tube_circles::{OtherPlane, TubeCircles};
 pub(super) use tube_circles::{torus_plane, torus_sphere};
 
@@ -3066,9 +3066,9 @@ trait CurveFamily: Copy {
     /// What names a component of the curve.
     type Component: Copy;
 
-    /// Whether the distance to `component` is read along it rather than
-    /// to first order, where the normals turn parallel on it.
-    fn slides_along(&self, component: Self::Component) -> bool;
+    /// Whether the distance from `point` to `component` is read along it
+    /// rather than to first order, where the normals turn parallel on it.
+    fn slides_along(&self, component: Self::Component, point: Point) -> bool;
 
     /// The point of `component` at `parameter`.
     fn point(&self, component: Self::Component, parameter: f64) -> Point;
@@ -3205,7 +3205,7 @@ trait CurveFamily: Copy {
         samples: (&Sample, &Sample),
         ahead: f64,
     ) -> f64 {
-        if self.slides_along(component) {
+        if self.slides_along(component, point) {
             None
         } else {
             self.first_order_distance(point)
@@ -3410,7 +3410,7 @@ impl<R: Ruled, O: Other> CurveFamily for Rulings<R, O> {
     type Component = Component;
 
     #[inline]
-    fn slides_along(&self, component: Component) -> bool {
+    fn slides_along(&self, component: Component, _point: Point) -> bool {
         slides_along(component)
     }
 

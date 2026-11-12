@@ -513,6 +513,7 @@ impl KnotVector {
     /// Locates `u` and evaluates into `w` the non-zero basis functions
     /// there, with derivatives up to `order`, touching only the
     /// `2 * degree` knots around the span.
+    #[inline]
     pub(crate) fn window<const N: usize>(&self, u: f64, order: usize, w: &mut Window<N>) {
         let mut left = [0.0f64; N];
         let mut right = [0.0f64; N];
