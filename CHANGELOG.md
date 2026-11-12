@@ -17,6 +17,22 @@ the Python distribution are versioned in lockstep.
 
 ### Fixed
 
+- A trimmed curve against a revolution or extrusion surface, or any
+  surface without a closed form, no longer returns hits beyond its ends
+  (#308). The numeric search's Newton iteration is not held to the
+  curve's range, and from a seed near an end it reached hits of the
+  basis curve beyond it: a segment from x = 0 to 1 met an extruded
+  circle of radius 4 at parameter 3.99. A hit now counts only within the
+  range, or within `tol.confusion` beyond an end, where it is snapped to
+  the end.
+- Far from the origin, a march through a crossing of two branches could
+  run from one branch onto the other: rounding opens the crossing into
+  a bend a few millionths wide, and the turns through it were too small
+  to end the trace. A plane through a generator of a hyperboloid 1e7
+  from the origin gave three lines where it gives four near it. Where
+  the surfaces graze, a turn larger than the sine between them now ends
+  the trace whatever its size. The last three sample comparisons with
+  an unbounded surface now hold.
 - A cone whose apex lies on a sphere centred on its axis meets it in a
   circle and the apex (#312). The apex came back as a second circle, of
   radius 0, and with no contact point, unlike every other apex on the

@@ -1592,6 +1592,90 @@ fn test_hyperbola_meets_a_revolution_surface_where_its_crossing_is_alone() {
     assert_hits_lie_on(&hyperbola.intersect(&vase, TOL), &hyperbola, &vase);
 }
 
+/// The hits of `r` lie within `range` of the curve's parameter.
+fn assert_hits_within(r: &CurveSurfaceIntersection, (first, last): (f64, f64), case: &str) {
+    for h in r.hits() {
+        assert!(
+            first <= h.curve_parameter && h.curve_parameter <= last,
+            "{case}: hit at {} outside [{first}, {last}]",
+            h.curve_parameter
+        );
+    }
+}
+
+#[test]
+fn test_trimmed_curve_meets_a_swept_surface_only_within_its_range() {
+    // #308: the numeric search let Newton run off the piece, and returned
+    // hits of the basis curve beyond its ends.
+    let pin = TrimmedCurve::segment(Point::new(0.0, 0.3, 2.0), Point::new(1.0, 0.3, 2.0)).unwrap();
+    let ring = Circle::new(Point::ORIGIN, Vector::Z, 4.0).unwrap();
+    let wall = ExtrusionSurface::new(ring.into(), Vector::Z).unwrap();
+    let axis = Axis::new(Point::ORIGIN, Vector::Z).unwrap();
+    let tube = Circle::new(Point::new(3.0, 0.0, 2.0), Vector::Y, 1.0).unwrap();
+    let ring_surface = RevolutionSurface::new(tube.into(), axis).unwrap();
+    for r in [
+        pin.intersect(&wall, TOL),
+        wall.intersect(&pin, TOL),
+        pin.intersect(&ring_surface, TOL),
+        ring_surface.intersect(&pin, TOL),
+    ] {
+        assert!(r.hits().is_empty(), "{:?}", hit_xs(&r));
+    }
+    // A piece reaching the wall keeps its hit, at its end.
+    let reaching =
+        TrimmedCurve::segment(Point::new(0.0, 0.3, 2.0), Point::new(4.0, 0.3, 2.0)).unwrap();
+    let x = (16.0f64 - 0.09).sqrt();
+    let r = reaching.intersect(&wall, TOL);
+    assert_eq!(hit_xs(&r).len(), 1);
+    assert!((hit_xs(&r)[0] - x).abs() <= 1e-7, "{:?}", hit_xs(&r));
+    // Segments and arcs across a vase and an extruded B-spline wall.
+    let vase = vase();
+    let profile = BSplineCurve::interpolate(
+        &[
+            Point::new(-3.0, 0.0, 0.0),
+            Point::new(-1.0, 2.0, 0.0),
+            Point::new(1.0, -1.0, 0.0),
+            Point::new(3.0, 1.0, 0.0),
+        ],
+        3,
+        PointParametrization::Centripetal,
+    )
+    .unwrap();
+    let swept = ExtrusionSurface::new(profile.into(), Vector::Z).unwrap();
+    let mut state = 0x2545_f491_4f6c_dd1du64;
+    let mut next = move || {
+        state ^= state << 13;
+        state ^= state >> 7;
+        state ^= state << 17;
+        (state >> 11) as f64 / (1u64 << 53) as f64
+    };
+    let point = |next: &mut dyn FnMut() -> f64| {
+        Point::new(8.0 * next() - 4.0, 8.0 * next() - 4.0, 10.0 * next())
+    };
+    for k in 0..200 {
+        let (a, b) = (point(&mut next), point(&mut next));
+        let Ok(segment) = TrimmedCurve::segment(a, b) else {
+            continue;
+        };
+        let range = (segment.start_parameter(), segment.end_parameter());
+        let circle = Circle::new(a, b - a, 0.5 + 3.0 * next()).unwrap();
+        let start = 6.0 * next();
+        let arc = TrimmedCurve::new(circle, start, start + 0.3 + 2.0 * next()).unwrap();
+        let arc_range = (arc.start_parameter(), arc.end_parameter());
+        for (name, surface) in [
+            ("vase", Surface::from(vase.clone())),
+            ("swept", swept.clone().into()),
+        ] {
+            let r = segment.intersect(&surface, TOL);
+            assert_hits_within(&r, range, &format!("segment {k} on the {name}"));
+            assert_hits_lie_on(&r, &segment, &surface);
+            let r = arc.intersect(&surface, TOL);
+            assert_hits_within(&r, arc_range, &format!("arc {k} on the {name}"));
+            assert_hits_lie_on(&r, &arc, &surface);
+        }
+    }
+}
+
 #[test]
 fn test_unbounded_line_meets_a_revolved_circle_like_the_equal_torus() {
     let axis = Axis::new(Point::ORIGIN, Vector::Z).unwrap();
