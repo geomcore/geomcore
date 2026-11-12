@@ -120,7 +120,7 @@ the Python distribution are versioned in lockstep.
 ### Changed
 
 - A result is meant not to depend on the model's size or placement
-  (ADR 0046). `tests/similarity_invariance.rs` checks it on every
+  (ADR 0050). `tests/similarity_invariance.rs` checks it on every
   sample shape and pair, and
   `tests/fixtures/similarity_invariance_known.txt` lists the
   comparisons that do not hold yet.
