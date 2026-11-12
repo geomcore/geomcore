@@ -117,8 +117,12 @@ The curve where a plane cuts a torus, a quartic curve. A plane parallel to the a
 _Avoid_: toric section (also used for any section of a torus by a surface), Cassini oval for any section but at the distance of the minor radius
 
 **Tube circle**:
-The circle of a torus at one angle around its axis, in a half-plane through the axis: a meridian circle of the torus, its `u` iso-curve. A plane or a sphere meets each where a sine wave in the angle around the tube vanishes, which reads their quartic curve.
+The circle of a torus at one angle around its axis, in a half-plane through the axis: a meridian circle of the torus, its `u` iso-curve. A plane or a sphere meets each where a sine wave in the angle around the tube vanishes, which reads their quartic curve. A cylinder or a cone meets each in up to four points, the roots of a quartic, which reads their octic curve.
 _Avoid_: poloidal circle
+
+**Octic curve**:
+The curve of degree eight where a cylinder or a cone off its axis meets a ring torus (ADR 0049). Read along the torus's tube circles, each holding up to four of its points, between the tube circles where a pair of points appears or vanishes and the points where the surfaces touch. One to four loops: two where a pipe passes through the tube, four where it runs along a diameter, one crossing itself where the surfaces touch or where a cone's apex lies on the torus. A point where they touch and meet nowhere else is a tangent point. Its closed form gives each point exactly; `intersect` fits it within confusion and reports it exact.
+_Avoid_: degree-8 curve, octic
 
 **Quartic branch**:
 A piece of a quartic curve between two of its points at infinity, where a generator of one cone is parallel to one of the other's, or a generator of a cylinder runs along one of a cone's: exact at every point, unbounded both ways, its parameter running over the real line (ADR 0042). `intersect` returns it as the curve, not a piece cut at a box.

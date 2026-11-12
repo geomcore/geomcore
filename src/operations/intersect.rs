@@ -22,7 +22,7 @@ pub use exact::curve_surface::{
     CircleSurfaceIntersection, ConicSurfaceHit, ConicSurfaceIntersection, LinePlaneIntersection,
     LineQuadricIntersection, LineTorusHit, LineTorusIntersection,
 };
-pub use exact::quartic::{QuarticBranch, QuarticCurve};
+pub use exact::quartic::{OcticCurve, QuarticBranch, QuarticCurve};
 pub use exact::surface_surface::{
     CommonSphereConics, ConeConeIntersection, ConeCylinderIntersection,
     CylinderCylinderIntersection, LatitudeRing, PlaneConeIntersection, PlaneCylinderIntersection,

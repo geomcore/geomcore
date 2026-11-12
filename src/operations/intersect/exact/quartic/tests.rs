@@ -2,6 +2,7 @@ use super::*;
 
 mod cone_cylinder;
 mod cones;
+mod octic;
 mod sphere;
 mod torus;
 use crate::geometry::curves::ParametricCurve;

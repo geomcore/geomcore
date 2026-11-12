@@ -1373,6 +1373,50 @@ def test_torus_plane_and_sphere_intersections_anywhere():
             assert first.point_at(uv.x, uv.y).distance(p) <= 1.1 * piece.deviation
 
 
+def test_torus_cylinder_and_cone_intersections_anywhere():
+    from geomcore import BSplineCurve2D, Cone, Cylinder, IntersectionMethod, Torus
+
+    torus = Torus(Point.origin(), Vector.unit_z(), 4.0, 1.0)
+
+    # A pipe through the tube cuts two loops, one along a diameter four.
+    through = Cylinder(Point(4.0, 0.0, 0.0), Vector.unit_z(), 0.5)
+    diameter = Cylinder(Point.origin(), Vector.unit_x(), 0.5)
+    # A cone through the tube, and one whose apex lies on the outer
+    # equator: one loop crossing itself there. The cone's parameters fail
+    # at its apex, so that loop has no curve in them.
+    cone = Cone(Point(4.0, 0.0, 0.0), Vector(0.1, 0.0, 1.0), 0.15, 0.4)
+    apex = Cone(Point(5.0, 0.0, 0.0), Vector.unit_z(), 0.3, 0.0)
+    for other, loops in [(through, 2), (diameter, 4), (cone, 2), (apex, 1)]:
+        for first, second in [(torus, other), (other, torus)]:
+            result = first.intersect(second)
+            assert result.method == IntersectionMethod.EXACT and result.is_complete()
+            assert len(result.curves) == loops
+            for piece in result.curves:
+                on_torus, on_other = piece.first_uv_curve, piece.second_uv_curve
+                if first is not torus:
+                    on_torus, on_other = on_other, on_torus
+                assert isinstance(on_torus, BSplineCurve2D)
+                if other is apex:
+                    assert on_other is None
+                else:
+                    assert isinstance(on_other, BSplineCurve2D)
+                start, end = piece.curve.bounds()
+                for k in range(11):
+                    t = start + (end - start) * k / 10
+                    p = piece.curve.point_at(t)
+                    assert torus.contains(p) and other.contains(p)
+                    uv = on_torus.point_at(t)
+                    assert torus.point_at(uv.x, uv.y).distance(p) <= 1.1 * piece.deviation
+    (point,) = torus.intersect(apex).contact_points
+    assert point.distance(Point(5.0, 0.0, 0.0)) < 1e-10
+
+    # A pipe touching the outer equator from outside meets it there only.
+    touching = Cylinder(Point(5.5, 0.0, 0.0), Vector.unit_z(), 0.5)
+    result = torus.intersect(touching)
+    assert result.method == IntersectionMethod.EXACT and not result.curves
+    assert result.contact_points[0].distance(Point(5.0, 0.0, 0.0)) < 1e-9
+
+
 def test_ellipse_ellipse_intersections():
     from geomcore import Ellipse
 

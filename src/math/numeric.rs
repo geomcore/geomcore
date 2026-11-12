@@ -19,6 +19,7 @@ pub(crate) mod equation;
 pub(crate) mod poly;
 pub(crate) mod quadrature;
 pub(crate) mod solve;
+pub(crate) mod trigonometric;
 
 pub(crate) use equation::{
     QuadraticSolution, quadratic_centre, roots_with_tangency, solve_quadratic, solve_trig,

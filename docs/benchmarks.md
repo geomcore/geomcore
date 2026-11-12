@@ -478,6 +478,25 @@ inline, and they are back within 0.5% of before. The same change stopped
 inlining `Plane`'s `holds` into `intersect_conic_quadric`, as #237 did
 (`conic_quadric/*/plane`, +4–7%): forced inline too, they are within 1%.
 
+A torus against a cylinder or a cone off its axis followed (#271,
+ADR 0049), read along its tube circles between events found by
+subdivision. One pair per id, `intersect_routed/torus_octic/*`, against
+the same torus: a pipe of radius 0.5 along `Z` through the tube's centre
+circle (`pipe_through_the_tube`, two loops), one along `X` through the
+centre (`pipe_along_a_diameter`, four loops), and a cone of half-angle
+0.15 tilted 0.1 through the tube (`cone_through_the_tube`, two loops).
+The typed call reads the curve in 600k, 962k and 676k instructions,
+most of it the subdivision copying and quartering its boxes, and the
+routed call fits the loops in 6.18M, 10.49M and 4.83M. The result enums
+hold the curve boxed: inline, its 600 bytes made the coaxial torus–cone
+results that size, and `intersect/torus_cone/typed` took 7% more, all
+copying them; boxed, it is back within 0.1% of before. The new code
+also stopped inlining the closures that `[T; N]::map` and
+`std::array::from_fn` wrap in `cone_off_cylinder_axis` and
+`cones_in_general_position`, 1–3% on the quadrics' typed calls
+(`intersect_routed/{cone_cylinder,two_cones}/*_exact`). Spelling out
+both elements brought them back to or below before.
+
 Reproduce with:
 
 ```sh
