@@ -446,13 +446,19 @@ impl Traced {
         B: ParametricSurface,
     {
         let pair = tracer.pair();
-        let seed = pair.polish(seed, tol);
         // Seeds near a traced polyline are on its curve (the trace's chord
         // deviation exceeds confusion, so tight containment cannot decide
         // duplication). Near-tangent distinct curves (closer than this)
-        // are out of scope.
+        // are out of scope. A seed is polished only once it is not found
+        // on a curve as it is, and looked for again from where it lands.
+        let traced =
+            |p: Point| !tracer.encloses(p) || self.crosses(&[p.x, p.y, p.z, p.x, p.y, p.z], tol);
+        if traced(pair.point(seed)) {
+            return Vec::new();
+        }
+        let seed = pair.polish(seed, tol);
         let p = pair.point(seed);
-        if !tracer.encloses(p) || self.crosses(&[p.x, p.y, p.z, p.x, p.y, p.z], tol) {
+        if traced(p) {
             return Vec::new();
         }
         let (points, tangents, parameters, stalls, touching, cuts) = match tracer.trace(seed) {
