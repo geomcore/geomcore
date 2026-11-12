@@ -43,21 +43,22 @@ impl PointParametrization {
 pub(crate) const CONFUSED_CHORD: f64 = Tolerance::DEFAULT.confusion;
 
 /// The `points`, with what goes with each of them (`along`), without
-/// those the fit cannot tell from the point kept before them (see
-/// [`CONFUSED_CHORD`]): a trace's steps may shrink that far towards a
+/// those within `confused` of the point kept before them, which the fit
+/// cannot tell apart: a trace's steps may shrink that far towards a
 /// point where its surfaces touch. The last point is kept, in place of
 /// the one before it when those two are confused.
-pub(crate) fn without_confused<E: Copy>(points: Vec<Point>, along: Vec<E>) -> (Vec<Point>, Vec<E>) {
+pub(crate) fn without_confused<E: Copy>(
+    points: Vec<Point>,
+    along: Vec<E>,
+    confused: f64,
+) -> (Vec<Point>, Vec<E>) {
     let Some(&last) = points.last() else {
         return (points, along);
     };
     let last_along = along[along.len() - 1];
     let mut kept: Vec<(Point, E)> = Vec::with_capacity(points.len());
     for (p, e) in points.into_iter().zip(along) {
-        if kept
-            .last()
-            .is_none_or(|(q, _)| q.distance(p) > CONFUSED_CHORD)
-        {
+        if kept.last().is_none_or(|(q, _)| q.distance(p) > confused) {
             kept.push((p, e));
         }
     }
@@ -124,10 +125,13 @@ pub(crate) fn hermite_spline<P: TierPoint>(
 /// with centripetal parameters, and on its knots and parameters the
 /// interpolant of each line of `companions`, as many points each: the
 /// parameter curves of a traced intersection, in the same parameter.
+/// Consecutive `points` within `confused` of each other are
+/// `ConfusedPoints`.
 pub(crate) fn interpolate_with_companions(
     points: &[Point],
     companions: [&[Point2D]; 2],
     degree: usize,
+    confused: f64,
 ) -> Result<(BSplineCurve, [BSplineCurve2D; 2]), BSplineConstructionError> {
     let n = points.len();
     if n < 2 {
@@ -137,7 +141,7 @@ pub(crate) fn interpolate_with_companions(
     if degree > n - 1 {
         return Err(BSplineConstructionError::DegreeTooHigh);
     }
-    let params = point_parameters(points, PointParametrization::Centripetal)?;
+    let params = point_parameters(points, PointParametrization::Centripetal, confused)?;
     let flat = averaged_knots(&params, degree);
     let basis = BasisTable::new(&flat, degree, &params);
     let (knots, multiplicities) = compress_knots(&flat);
@@ -170,10 +174,12 @@ pub(crate) fn interpolate_with_companions(
 }
 
 /// Increasing parameters of `points` in `[0, 1]` (`exponent` 1 chordal, 0.5
-/// centripetal), or `ConfusedPoints` for coincident consecutive points.
+/// centripetal), or `ConfusedPoints` for consecutive points within
+/// `confused` of each other.
 fn point_parameters<G: TierPoint>(
     points: &[G],
     parametrization: PointParametrization,
+    confused: f64,
 ) -> Result<Vec<f64>, BSplineConstructionError> {
     let exponent = parametrization.exponent();
     let mut params = Vec::with_capacity(points.len());
@@ -181,7 +187,7 @@ fn point_parameters<G: TierPoint>(
     let mut total = 0.0;
     for pair in points.windows(2) {
         let d = pair[1].distance(pair[0]);
-        if d <= CONFUSED_CHORD {
+        if d <= confused {
             return Err(BSplineConstructionError::ConfusedPoints);
         }
         total += if exponent == 1.0 { d } else { d.sqrt() };
@@ -850,7 +856,7 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
         if degree > n - 1 {
             return Err(BSplineConstructionError::DegreeTooHigh);
         }
-        let params = point_parameters(points, parametrization)?;
+        let params = point_parameters(points, parametrization, CONFUSED_CHORD)?;
         let (flat, poles) = interpolated(points, &params, degree);
         let (knots, mults) = compress_knots(&flat);
         Ok(GenericBSplineCurve::from_validated_parts(
@@ -937,7 +943,7 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
         if pole_count > n {
             return Err(BSplineConstructionError::TooManyPoles);
         }
-        let params = point_parameters(points, parametrization)?;
+        let params = point_parameters(points, parametrization, CONFUSED_CHORD)?;
         let flat = approximation_knots(&params, pole_count, degree);
         let basis = BasisTable::new(&flat, degree, &params);
         let poles = least_squares(&basis, pole_count, 1, |_, k| points[k])
@@ -1034,7 +1040,7 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
         if degree > n - 1 {
             return Err(BSplineConstructionError::DegreeTooHigh);
         }
-        let params = point_parameters(points, parametrization)?;
+        let params = point_parameters(points, parametrization, CONFUSED_CHORD)?;
         // The largest distance from a point to the curve at its parameter.
         let largest = |basis: &BasisTable, poles: &[P], deviations: &mut [f64]| {
             for (k, deviation) in deviations.iter_mut().enumerate() {

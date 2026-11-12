@@ -63,6 +63,28 @@ fn test_meet_in_a_plane_lands_where_the_plane_cuts_the_curve() {
 }
 
 #[test]
+fn test_meet_next_to_a_pole_turns_the_angle_by_less_than_a_period() {
+    // A step measured along the surfaces finds moving along `u` almost
+    // free next to the sphere's pole, where `u` barely moves the point:
+    // the step turns `u` by billions of radians unless reduced by whole
+    // periods, which reach the same points.
+    let plane = Plane::new(Point::new(0.005, 0.0, 0.0), Vector::X).unwrap();
+    let sphere = Sphere::new(Point::ORIGIN, 1.0).unwrap();
+    let pair = SurfacePair::new(&plane, &sphere);
+    let near_pole = [2.0, FRAC_PI_2 - 1e-12];
+    let on_plane = plane.project_point(sphere.point_at(near_pole[0], near_pole[1]), TOL);
+    let x = pair
+        .meet(
+            [on_plane.u, on_plane.v, near_pole[0], near_pole[1]],
+            None,
+            TOL,
+        )
+        .unwrap();
+    assert!((pair.point(x).x - 0.005).abs() < 1e-9, "{x:?}");
+    assert!((x[2] - near_pole[0]).abs() < std::f64::consts::TAU, "{x:?}");
+}
+
+#[test]
 fn test_meet_from_surfaces_that_miss_is_none() {
     let plane = Plane::new(Point::new(0.0, 0.0, 2.0), Vector::Z).unwrap();
     let sphere = Sphere::new(Point::ORIGIN, 1.0).unwrap();
@@ -119,7 +141,7 @@ fn test_tangent_runs_along_the_circle() {
     let (plane, sphere) = plane_and_sphere();
     let pair = SurfacePair::new(&plane, &sphere);
     let x = parameters_of(&pair, Point::new(0.75f64.sqrt(), 0.0, 0.5));
-    let t = pair.tangent(x, TOL).unwrap();
+    let t = pair.tangent_and_sine(x, TOL).unwrap().0;
     assert!((t.dot(Vector::Y).abs() - 1.0).abs() < 1e-12, "{t:?}");
     assert!(!pair.grazes(x, TOL));
 }
@@ -139,7 +161,7 @@ fn test_plane_tangent_to_a_cylinder_grazes_along_its_ruling() {
     let pair = SurfacePair::new(&plane, &cylinder);
     let x = parameters_of(&pair, Point::new(1.0, 0.0, 0.3));
     assert!(pair.grazes(x, TOL));
-    assert!(pair.tangent(x, TOL).is_none());
+    assert!(pair.tangent_and_sine(x, TOL).is_none());
     let along = pair.contact_direction(x, TOL).unwrap();
     assert!(
         (along.dot(Vector::Z).abs() - 1.0).abs() < 1e-12,
@@ -210,12 +232,15 @@ fn test_the_trace_box_is_the_smaller_bounded_side_grown_by_a_tenth() {
 #[test]
 fn test_two_planes_grow_the_seeded_box_by_their_window_whatever_the_seeds() {
     // Two planes have no own size: the box of the seeds grows by the size
-    // of the seeding window in space, here the fallback square of side 20
-    // (diagonal 20 sqrt(2)), however many seeds survived along the line.
+    // of the seeding window in space, however many seeds survived along
+    // the line. Their origins are 0.25 apart, the pair's size: each window
+    // spans the box 5 sizes around the other plane's origin, a square of
+    // side 2.5 grown by a twentieth of it on each side (diagonal
+    // 2.75 sqrt(2)).
     let first = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
     let second = Plane::new(Point::new(0.0, 0.0, 0.25), Vector::X).unwrap();
     let pair = SurfacePair::new(&first, &second);
-    let window = 20.0 * 2f64.sqrt();
+    let window = 2.75 * 2f64.sqrt();
     let one = [[0.0, 0.0, 0.0, 0.0]];
     let two = [[0.0, 0.0, 0.0, 0.0], [2.0, 0.0, 2.0, 0.0]];
     for seeds in [&one[..], &two[..]] {
@@ -249,7 +274,9 @@ fn test_the_seeded_trace_box_takes_the_larger_radius_of_a_cone_and_a_cylinder() 
 #[test]
 fn test_a_single_seed_of_two_planes_traces_as_far_as_the_window() {
     // A single seed, no spread: the box still spans the seeding window,
-    // so the line through it is traced well beyond a first step.
+    // so the line through it is traced well beyond a first step. The
+    // planes share their origin, so the pair has no length of its own and
+    // the window spans the model's cube.
     let first = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
     let second = Plane::new(Point::ORIGIN, Vector::X).unwrap();
     let pair = SurfacePair::new(&first, &second);
