@@ -41,12 +41,12 @@ use crate::{Circle, Frame, Plane, Torus, TorusPlaneIntersection, TorusSphereInte
 /// of radius `minor`, in the plane of `ρ(t)` and `axis`.
 #[derive(Debug, Clone, Copy)]
 pub(super) struct Tubes {
-    origin: Point,
-    x: Vector,
-    y: Vector,
-    axis: Vector,
-    major: f64,
-    minor: f64,
+    pub(super) origin: Point,
+    pub(super) x: Vector,
+    pub(super) y: Vector,
+    pub(super) axis: Vector,
+    pub(super) major: f64,
+    pub(super) minor: f64,
 }
 
 impl Tubes {
@@ -60,7 +60,7 @@ impl Tubes {
 
     /// The torus's tube circles, a ring torus checked by
     /// [`of_ring`](Self::of_ring).
-    fn new(torus: &Torus) -> Tubes {
+    pub(super) fn new(torus: &Torus) -> Tubes {
         let frame = torus.frame();
         Tubes {
             origin: frame.origin(),
@@ -74,7 +74,7 @@ impl Tubes {
 
     /// `ρ(t)` from `sin t` and `cos t`.
     #[inline]
-    fn radial(&self, sin: f64, cos: f64) -> Vector {
+    pub(super) fn radial(&self, sin: f64, cos: f64) -> Vector {
         self.x * cos + self.y * sin
     }
 
@@ -87,13 +87,13 @@ impl Tubes {
 
     /// The point at `v` on the tube circle at `ρ(t)`.
     #[inline]
-    fn point_on(&self, radial: Vector, cos_v: f64, sin_v: f64) -> Point {
+    pub(super) fn point_on(&self, radial: Vector, cos_v: f64, sin_v: f64) -> Point {
         self.origin + radial * (self.major + self.minor * cos_v) + self.axis * (self.minor * sin_v)
     }
 
     /// The torus's point at `uv`.
     #[inline]
-    fn point(&self, uv: Point2D) -> Point {
+    pub(super) fn point(&self, uv: Point2D) -> Point {
         let ((sin_u, cos_u), (sin_v, cos_v)) = (uv.x.sin_cos(), uv.y.sin_cos());
         self.point_on(self.radial(sin_u, cos_u), cos_v, sin_v)
     }
@@ -101,7 +101,7 @@ impl Tubes {
     /// The signed distance from `point` to the torus, and the unit normal
     /// along which it grows.
     #[inline]
-    fn offset(&self, point: Point) -> (f64, Vector) {
+    pub(super) fn offset(&self, point: Point) -> (f64, Vector) {
         let w = point - self.origin;
         let height = w.dot(self.axis);
         let across = w - self.axis * height;
@@ -118,7 +118,13 @@ impl Tubes {
     /// tube circle at `ρ(t)`: `∂P/∂u = (R + r cos v) ρ'(t)` and
     /// `∂P/∂v = r (cos v a − sin v ρ(t))`, at right angles.
     #[inline]
-    fn uv_derivative(&self, tangent: Vector, radial: Vector, cos_v: f64, sin_v: f64) -> Vector2D {
+    pub(super) fn uv_derivative(
+        &self,
+        tangent: Vector,
+        radial: Vector,
+        cos_v: f64,
+        sin_v: f64,
+    ) -> Vector2D {
         let around = self.y * radial.dot(self.x) - self.x * radial.dot(self.y);
         Vector2D::new(
             tangent.dot(around) / (self.major + self.minor * cos_v),
@@ -346,6 +352,13 @@ impl<S: CutsTubes> TubeCircles<S> {
 }
 
 impl<S: CutsTubes> CurveFamily for TubeCircles<S> {
+    type Component = Component;
+
+    #[inline]
+    fn slides_along(&self, component: Component) -> bool {
+        slides_along(component)
+    }
+
     #[inline]
     fn point(&self, component: Component, parameter: f64) -> Point {
         self.at(component, parameter).point

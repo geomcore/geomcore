@@ -1127,12 +1127,18 @@ fn test_torus_cylinder_intersection() {
         torus.intersect_exact(&fat, tol),
         TorusCylinderIntersection::Empty
     );
-    // Offset axis: no closed form.
+    // Offset axis: the curve of degree eight. The cylinder runs inside
+    // the tube except where it passes beyond the outer equator, so its
+    // upper and lower halves join there into one loop.
     let off = Cylinder::new(Point::new(1.0, 0.0, 0.0), Vector::Z, 4.5).unwrap();
-    assert_eq!(
-        torus.intersect_exact(&off, tol),
-        TorusCylinderIntersection::NotAnalytic
-    );
+    let TorusCylinderIntersection::Octic(curve) = torus.intersect_exact(&off, tol) else {
+        panic!("expected the octic");
+    };
+    assert_eq!(curve.component_count(), 1);
+    for k in 0..16 {
+        let p = curve.point_at(0, k as f64 * TAU / 16.0);
+        assert!(torus.contains(p, tol) && off.contains(p, tol));
+    }
 }
 
 #[test]
@@ -1179,12 +1185,18 @@ fn test_torus_cone_intersection() {
         }
         _ => panic!("expected two grazing rings"),
     }
-    // Tilted cone axis: no closed form.
+    // Tilted cone axis: the curve of degree eight.
     let tilted = Cone::new(Point::ORIGIN, Vector::X, 1.1, 2.0).unwrap();
-    assert_eq!(
-        torus.intersect_exact(&tilted, tol),
-        TorusConeIntersection::NotAnalytic
-    );
+    let TorusConeIntersection::Octic(curve) = torus.intersect_exact(&tilted, tol) else {
+        panic!("expected the octic");
+    };
+    assert!(curve.component_count() > 0);
+    for component in 0..curve.component_count() {
+        for k in 0..16 {
+            let p = curve.point_at(component, k as f64 * TAU / 16.0);
+            assert!(torus.contains(p, tol) && tilted.contains(p, tol));
+        }
+    }
 }
 
 #[test]

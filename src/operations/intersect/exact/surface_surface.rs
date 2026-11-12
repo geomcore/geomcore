@@ -2,8 +2,9 @@
 //! pair, solved in closed form.
 
 use super::quartic::{
-    QuarticCurve, cone_off_cylinder_axis, cones_in_general_position, crossing_cylinders,
-    sphere_off_cone_axis, sphere_off_cylinder_axis, torus_plane, torus_sphere,
+    OcticCurve, OcticCut, QuarticCurve, cone_off_cylinder_axis, cones_in_general_position,
+    crossing_cylinders, sphere_off_cone_axis, sphere_off_cylinder_axis, torus_cone, torus_cylinder,
+    torus_plane, torus_sphere,
 };
 use std::f64::consts::PI;
 
@@ -301,17 +302,28 @@ pub enum TorusSphereIntersection {
 
 /// Result of intersecting a torus with a cylinder.
 ///
-/// The closed form needs coaxial axes. Anything else reports
-/// [`TorusCylinderIntersection::NotAnalytic`].
-#[derive(Debug, Clone, Copy, PartialEq)]
+/// A coaxial cylinder cuts latitude rings. Any other cuts a ring torus in
+/// a curve of degree eight read along its tube circles, an
+/// [`OcticCurve`], or touches it at a point.
+#[derive(Debug, Clone, PartialEq)]
 pub enum TorusCylinderIntersection {
     /// Two latitude rings symmetric about the equatorial plane.
     TwoCircles(Circle, Circle),
     /// Grazing ring in the equatorial plane.
     TangentCircle(Circle),
+    /// Loops, with the points where the cylinder touches the torus.
+    Octic(Box<OcticCurve>),
+    /// The cylinder touches the torus at this point and meets it nowhere
+    /// else.
+    TangentPoint(Point),
     /// The tube misses the torus.
     Empty,
-    /// No closed form for this configuration.
+    /// No closed form for this configuration: a cylinder off the axis
+    /// against a horn or spindle torus, whose tube circles cross on its
+    /// axis; a cylinder holding a tube circle, the curve then splitting
+    /// off that circle; or one touching the torus to a higher order than
+    /// a crossing or a point, or at several points no single move within
+    /// tolerance makes exact.
     NotAnalytic,
 }
 
@@ -326,16 +338,28 @@ pub struct LatitudeRing {
 
 /// Result of intersecting a torus with a cone.
 ///
-/// The closed form needs coaxial axes, reducing to a quadratic in the
-/// axial coordinate per nappe. Anything else reports
-/// [`TorusConeIntersection::NotAnalytic`].
+/// A coaxial cone cuts latitude rings, from a quadratic in the axial
+/// coordinate per nappe. Any other cuts a ring torus in a curve of degree
+/// eight read along its tube circles, an [`OcticCurve`], or touches it at
+/// a point.
 #[derive(Debug, Clone, PartialEq)]
 pub enum TorusConeIntersection {
     /// Latitude rings, up to two per nappe, ordered along the torus axis.
     Rings(Vec<LatitudeRing>),
+    /// Loops, with the points where the cone touches the torus, its apex
+    /// among them where it lies on the torus.
+    Octic(Box<OcticCurve>),
+    /// The cone touches the torus at this point and meets it nowhere
+    /// else.
+    TangentPoint(Point),
     /// The cone misses the torus.
     Empty,
-    /// No closed form for this configuration.
+    /// No closed form for this configuration: a cone off the axis against
+    /// a horn or spindle torus, whose tube circles cross on its axis; a
+    /// cone holding a tube circle, the curve then splitting off that
+    /// circle; or one touching the torus to a higher order than a
+    /// crossing or a point, or at several points no single move within
+    /// tolerance makes exact.
     NotAnalytic,
 }
 
@@ -1882,15 +1906,46 @@ impl IntersectExact<Torus> for Sphere {
     }
 }
 
+impl IntersectExact<Torus> for Cylinder {
+    type Output = TorusCylinderIntersection;
+
+    /// The same result as in the other argument order (see
+    /// [`Torus::intersect_exact`](IntersectExact::intersect_exact)), the
+    /// curve's curves in parameters the cylinder's first.
+    fn intersect_exact(&self, torus: &Torus, tol: Tolerance) -> TorusCylinderIntersection {
+        match torus.intersect_exact(self, tol) {
+            TorusCylinderIntersection::Octic(curve) => {
+                TorusCylinderIntersection::Octic(curve.operands_swapped())
+            }
+            other => other,
+        }
+    }
+}
+
+impl IntersectExact<Torus> for Cone {
+    type Output = TorusConeIntersection;
+
+    /// The same result as in the other argument order (see
+    /// [`Torus::intersect_exact`](IntersectExact::intersect_exact)), the
+    /// curve's curves in parameters the cone's first.
+    fn intersect_exact(&self, torus: &Torus, tol: Tolerance) -> TorusConeIntersection {
+        match torus.intersect_exact(self, tol) {
+            TorusConeIntersection::Octic(curve) => {
+                TorusConeIntersection::Octic(curve.operands_swapped())
+            }
+            other => other,
+        }
+    }
+}
+
 impl IntersectExact<Cylinder> for Torus {
     type Output = TorusCylinderIntersection;
 
     /// Intersects this torus with a cylinder.
     ///
-    /// The analytic path needs coaxial axes: the tube radius against the
-    /// torus tube decides miss, graze, or a symmetric ring pair.
-    /// Anything else reports
-    /// [`TorusCylinderIntersection::NotAnalytic`].
+    /// Coaxial, the tube radius against the torus tube decides miss,
+    /// graze, or a symmetric ring pair. Off the axis, the curve is read
+    /// along the torus's tube circles (see [`OcticCurve`]).
     ///
     /// # Examples
     ///
@@ -1916,12 +1971,18 @@ impl IntersectExact<Cylinder> for Torus {
         // Coaxial when the cylinder's axis passes through the centre and
         // turning it onto the torus's moves it by at most the confusion
         // tolerance across the torus.
-        if a.cross(ac).magnitude() > tol.angular_for_extent(major + minor) {
-            return TorusCylinderIntersection::NotAnalytic;
-        }
         let w = cylinder.axis().origin() - o;
-        if (w - ac * w.dot(ac)).magnitude() > tol.confusion {
-            return TorusCylinderIntersection::NotAnalytic;
+        if a.cross(ac).magnitude() > tol.angular_for_extent(major + minor)
+            || (w - ac * w.dot(ac)).magnitude() > tol.confusion
+        {
+            return match torus_cylinder(self, cylinder, tol) {
+                Some(OcticCut::Curve(curve)) => TorusCylinderIntersection::Octic(curve),
+                Some(OcticCut::TangentPoint(point)) => {
+                    TorusCylinderIntersection::TangentPoint(point)
+                }
+                Some(OcticCut::Empty) => TorusCylinderIntersection::Empty,
+                None => TorusCylinderIntersection::NotAnalytic,
+            };
         }
         let rc = cylinder.radius();
         let gap = (rc - major).abs();
@@ -1947,12 +2008,12 @@ impl IntersectExact<Cone> for Torus {
 
     /// Intersects this torus with a cone.
     ///
-    /// The analytic path needs coaxial axes. On each nappe the cone
-    /// radius is linear in the torus-axial coordinate `z`, `rho = m*(z -
-    /// za)` with `m = ±|tan(phi)|`, so `(rho - R)^2 + z^2 = r^2` is a
-    /// quadratic per nappe; its roots on that nappe's side of the apex
-    /// are rings (a double root a grazing one), up to four in all.
-    /// Anything else reports [`TorusConeIntersection::NotAnalytic`].
+    /// Coaxial, on each nappe the cone radius is linear in the
+    /// torus-axial coordinate `z`, `rho = m*(z - za)` with
+    /// `m = ±|tan(phi)|`, so `(rho - R)^2 + z^2 = r^2` is a quadratic per
+    /// nappe; its roots on that nappe's side of the apex are rings (a
+    /// double root a grazing one), up to four in all. Off the axis, the
+    /// curve is read along the torus's tube circles (see [`OcticCurve`]).
     ///
     /// # Examples
     ///
@@ -1980,11 +2041,15 @@ impl IntersectExact<Cone> for Torus {
         // axis about it moves the cone by at most the confusion tolerance
         // across the torus.
         let reach = w.magnitude() + major + minor;
-        if a.cross(ac).magnitude() > tol.angular_for_extent(reach) {
-            return TorusConeIntersection::NotAnalytic;
-        }
-        if (w - a * w.dot(a)).magnitude() > tol.confusion {
-            return TorusConeIntersection::NotAnalytic;
+        if a.cross(ac).magnitude() > tol.angular_for_extent(reach)
+            || (w - a * w.dot(a)).magnitude() > tol.confusion
+        {
+            return match torus_cone(self, cone, tol) {
+                Some(OcticCut::Curve(curve)) => TorusConeIntersection::Octic(curve),
+                Some(OcticCut::TangentPoint(point)) => TorusConeIntersection::TangentPoint(point),
+                Some(OcticCut::Empty) => TorusConeIntersection::Empty,
+                None => TorusConeIntersection::NotAnalytic,
+            };
         }
         let za = w.dot(a);
         let k = cone.half_angle().tan().abs();

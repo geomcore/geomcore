@@ -49,8 +49,11 @@ use crate::{
 };
 
 mod branch;
+mod octic;
 mod tube_circles;
 pub use branch::QuarticBranch;
+pub use octic::OcticCurve;
+pub(super) use octic::{OcticCut, torus_cone, torus_cylinder};
 use tube_circles::{OtherPlane, TubeCircles};
 pub(super) use tube_circles::{torus_plane, torus_sphere};
 
@@ -3053,20 +3056,27 @@ impl<R: Ruled, O: Other> Rulings<R, O> {
 /// second surface where the signed root of `Δ(t)` says ([`Roots`]); the
 /// components are fitted through those exact points alike.
 trait CurveFamily: Copy {
+    /// What names a component of the curve.
+    type Component: Copy;
+
+    /// Whether the distance to `component` is read along it rather than
+    /// to first order, where the normals turn parallel on it.
+    fn slides_along(&self, component: Self::Component) -> bool;
+
     /// The point of `component` at `parameter`.
-    fn point(&self, component: Component, parameter: f64) -> Point;
+    fn point(&self, component: Self::Component, parameter: f64) -> Point;
 
     /// The point of `component` at `parameter` and its unit tangent there,
     /// up to its sign.
-    fn point_and_tangent(&self, component: Component, parameter: f64) -> (Point, Vector);
+    fn point_and_tangent(&self, component: Self::Component, parameter: f64) -> (Point, Vector);
 
     /// The sample of `component` at `parameter`, its tangent turned by
     /// `orientation`.
-    fn sample(&self, component: Component, parameter: f64, orientation: f64) -> Sample;
+    fn sample(&self, component: Self::Component, parameter: f64, orientation: f64) -> Sample;
 
     /// `1.0` when the cross product of the normals runs along `component`
     /// as its parameter grows, `-1.0` otherwise (see [`Sample::tangent`]).
-    fn orientation(&self, component: Component) -> f64;
+    fn orientation(&self, component: Self::Component) -> f64;
 
     /// The signed distances from `point` to the two surfaces, the first
     /// the family's, and the unit normals along which they grow.
@@ -3090,7 +3100,7 @@ trait CurveFamily: Copy {
     /// in parameters the family's surface's first when `family_first`.
     fn fitted(
         self,
-        components: &[Component],
+        components: &[Self::Component],
         confusion: f64,
         family_first: bool,
     ) -> Option<Vec<IntersectionCurve>> {
@@ -3110,7 +3120,7 @@ trait CurveFamily: Copy {
     /// The unit tangent of an arc through a crossing at `parameter`, along
     /// it: a central difference of its exact points, as the normals' cross
     /// product vanishes at the crossing and turns over there.
-    fn stepped_tangent(&self, component: Component, parameter: f64) -> Vector {
+    fn stepped_tangent(&self, component: Self::Component, parameter: f64) -> Vector {
         let point = |parameter: f64| self.point(component, parameter.rem_euclid(TAU));
         let step =
             point(parameter + CROSSING_TANGENT_STEP) - point(parameter - CROSSING_TANGENT_STEP);
@@ -3143,7 +3153,7 @@ trait CurveFamily: Copy {
     /// from the curve, so their distances alone do not bound it.
     fn distance_to_component(
         &self,
-        component: Component,
+        component: Self::Component,
         point: Point,
         mut parameter: f64,
         (a, b): (&Sample, &Sample),
@@ -3182,13 +3192,13 @@ trait CurveFamily: Copy {
     #[inline]
     fn distance(
         &self,
-        component: Component,
+        component: Self::Component,
         point: Point,
         parameter: f64,
         samples: (&Sample, &Sample),
         ahead: f64,
     ) -> f64 {
-        if slides_along(component) {
+        if self.slides_along(component) {
             None
         } else {
             self.first_order_distance(point)
@@ -3204,7 +3214,7 @@ trait CurveFamily: Copy {
     /// fit's deviation (see [`IntersectionCurve::deviation`]).
     fn segment_error(
         &self,
-        component: Component,
+        component: Self::Component,
         a: &Sample,
         b: &Sample,
         deviation: f64,
@@ -3262,7 +3272,7 @@ trait CurveFamily: Copy {
     /// (see [`Rulings::segment_error`]).
     fn refine(
         &self,
-        component: Component,
+        component: Self::Component,
         orientation: f64,
         (a, b): (Sample, Sample),
         depth: u32,
@@ -3306,7 +3316,7 @@ trait CurveFamily: Copy {
 
     /// The fitted component (see [`QuarticCurve::fitted`]), its curves in
     /// parameters the ruled quadric's first.
-    fn fit(&self, component: Component, confusion: f64) -> Option<IntersectionCurve> {
+    fn fit(&self, component: Self::Component, confusion: f64) -> Option<IntersectionCurve> {
         let orientation = self.orientation(component);
         let deviation = SEGMENT_DEVIATION * confusion;
         let step = TAU / FIRST_SEGMENTS as f64;
@@ -3390,6 +3400,13 @@ fn slides_along(component: Component) -> bool {
 }
 
 impl<R: Ruled, O: Other> CurveFamily for Rulings<R, O> {
+    type Component = Component;
+
+    #[inline]
+    fn slides_along(&self, component: Component) -> bool {
+        slides_along(component)
+    }
+
     #[inline]
     fn point(&self, component: Component, parameter: f64) -> Point {
         self.at(component, parameter).point

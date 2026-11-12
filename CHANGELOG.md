@@ -11,6 +11,34 @@ the Python distribution are versioned in lockstep.
 
 ### Added
 
+- A torus meets a cylinder or a cone in closed form in any position
+  (#271): a pipe through a fillet, a drill axis off a bend, a cone
+  through a toroidal edge round. It used to be only coaxial; every other
+  position ran the numeric search.
+  - On each tube circle the other surface's equation is
+    `A cos 2v + B sin 2v + C cos v + D sin v + E`, a quartic in
+    `tan(v/2)`: up to four exact points. The curve is of degree eight,
+    read between the tube circles where a pair of points appears or
+    vanishes and the points where the surfaces touch. Both are common
+    zeros of two trigonometric polynomials, found by subdivision and
+    certified (ADR 0049).
+  - `TorusCylinderIntersection` and `TorusConeIntersection` gain
+    `Octic(Box<OcticCurve>)` and `TangentPoint(Point)`:
+    - two loops where a pipe or a cone passes through the tube, four
+      where a pipe runs along a diameter;
+    - a loop crossing itself where the surfaces touch, or where a cone's
+      apex lies on the torus, the point in `contact_points`;
+    - a point where either touches the torus and meets it nowhere else.
+  - A cone's apex, or a point where the surfaces touch, within confusion
+    is moved to touch exactly, by one translation or a cylinder's radius.
+  - `intersect` fits each loop within confusion, with curves in both
+    surfaces' parameters, and reports the pair `Exact` and complete, in
+    either order, in Rust and Python.
+  - `NotAnalytic` stays for a horn or spindle torus, a cylinder or a cone
+    holding a tube circle, contact of higher order than a crossing, and
+    near-contacts no single move makes exact.
+  - Timed under `intersect_routed/torus_octic`.
+
 - A torus meets a plane or a sphere in closed form in any position
   (#270). It used to be only through or across its axis, in a Villarceau
   plane, or with the sphere centred on its axis; every other position
@@ -62,6 +90,9 @@ the Python distribution are versioned in lockstep.
 
 ### Breaking
 
+- `TorusCylinderIntersection` and `TorusConeIntersection` gain
+  `Octic(Box<OcticCurve>)` and `TangentPoint(Point)` (#271): a `match` on
+  them needs the arms. `TorusCylinderIntersection` is no longer `Copy`.
 - `TorusPlaneIntersection` and `TorusSphereIntersection` gain
   `Quartic(QuarticCurve)` and `TangentPoint(Point)` (#270): a `match` on
   them needs the arms.

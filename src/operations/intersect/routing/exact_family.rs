@@ -37,7 +37,7 @@ use crate::operations::intersect::{
     TorusCylinderIntersection, TorusPlaneIntersection, TorusSphereIntersection,
     TorusTorusIntersection,
 };
-use crate::{Point, Point2D, QuarticCurve, Tolerance};
+use crate::{OcticCurve, Point, Point2D, QuarticCurve, Tolerance};
 
 // Surface–surface.
 
@@ -70,6 +70,16 @@ fn quartic(curve: QuarticCurve, tol: Tolerance) -> Option<SurfaceSurfaceIntersec
     Some(SurfaceSurfaceIntersection::exact(
         curve.fitted(tol)?,
         curve.contact_point().into_iter().collect(),
+        false,
+    ))
+}
+
+/// The loops of a curve of degree eight fitted through exact points,
+/// with the points where the surfaces touch.
+fn octic(curve: &OcticCurve, tol: Tolerance) -> Option<SurfaceSurfaceIntersection> {
+    Some(SurfaceSurfaceIntersection::exact(
+        curve.fitted(tol)?,
+        curve.contact_points().to_vec(),
         false,
     ))
 }
@@ -361,12 +371,14 @@ impl TorusSphereIntersection {
 
 impl TorusCylinderIntersection {
     #[inline]
-    pub(super) fn into_family(self, _tol: Tolerance) -> Option<SurfaceSurfaceIntersection> {
+    pub(super) fn into_family(self, tol: Tolerance) -> Option<SurfaceSurfaceIntersection> {
         match self {
             TorusCylinderIntersection::TwoCircles(c1, c2) => {
                 surface_curves([(c1, false), (c2, false)])
             }
             TorusCylinderIntersection::TangentCircle(c) => surface_curves([(c, true)]),
+            TorusCylinderIntersection::Octic(curve) => octic(&curve, tol),
+            TorusCylinderIntersection::TangentPoint(p) => contact_point(p),
             TorusCylinderIntersection::Empty => surfaces_miss(),
             TorusCylinderIntersection::NotAnalytic => None,
         }
@@ -375,7 +387,7 @@ impl TorusCylinderIntersection {
 
 impl TorusConeIntersection {
     #[inline]
-    pub(super) fn into_family(self, _tol: Tolerance) -> Option<SurfaceSurfaceIntersection> {
+    pub(super) fn into_family(self, tol: Tolerance) -> Option<SurfaceSurfaceIntersection> {
         match self {
             TorusConeIntersection::Rings(rings) => {
                 let curves = rings
@@ -384,6 +396,8 @@ impl TorusConeIntersection {
                     .collect();
                 Some(SurfaceSurfaceIntersection::exact(curves, Vec::new(), false))
             }
+            TorusConeIntersection::Octic(curve) => octic(&curve, tol),
+            TorusConeIntersection::TangentPoint(p) => contact_point(p),
             TorusConeIntersection::Empty => surfaces_miss(),
             TorusConeIntersection::NotAnalytic => None,
         }

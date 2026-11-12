@@ -122,6 +122,14 @@ both points, and one centred in the torus's plane can hold two tube
 circles. A plane or a sphere that touches the torus and meets it nowhere
 else gives that point. A horn or spindle torus, whose tube circles cross
 on its axis, runs the numeric search away from the special positions.
+A cylinder or a cone off the torus's axis meets it in a curve of degree
+eight, an `OcticCurve`, read along the same tube circles: each holds up
+to four of its points, the roots of a quartic. A pipe through the tube
+cuts two loops, one along a diameter four, and one touching the torus
+crosses itself there, that point in `contact_points`, as does a cone
+whose apex lies on the torus. One touching it and meeting it nowhere
+else gives that point. A horn or spindle torus, or a cylinder or a cone
+holding a tube circle, runs the numeric search.
 Lines/circles/conics against each
 other and against the elementary surfaces, except an ellipse, a
 parabola or a hyperbola against a torus: substituted into the torus they

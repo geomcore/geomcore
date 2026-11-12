@@ -29,7 +29,7 @@ changes are flagged in the changelog). Implemented:
   curves included, through one `a.intersect(&b, tol)` call that works in
   either order and on shapes whose type is only known at run time. It
   solves the pair exactly when a closed form exists (plane, quadric and
-  torus pairs, a torus against a plane or a sphere in any position; lines, circles and conics against each other and against
+  torus pairs, a torus against a plane, a sphere, a cylinder or a cone in any position; lines, circles and conics against each other and against
   the elementary surfaces, a torus only for lines and circles; a plane against an extruded or revolved
   surface in the common positions), with tangency and coincidence classification,
   and runs a numeric search otherwise (curve–curve and curve–surface
