@@ -86,6 +86,35 @@ where
         plane: Option<(Point, Vector)>,
         tol: Tolerance,
     ) -> Option<[f64; 4]> {
+        let (x, f, r) = self.newton(x, plane, 0.1 * tol.confusion)?;
+        (f.magnitude() <= tol.confusion && r.abs() <= tol.confusion).then_some(x)
+    }
+
+    /// `seed`, a point on both surfaces within confusion, moved onto the
+    /// crossing itself: Newton's steps go on to a thousandth of confusion,
+    /// or while the residual drops. Where the surfaces cross at a small
+    /// angle, the points within confusion of both form a band
+    /// `confusion / sin(angle)` wide, and [`meet`](Self::meet) stops at its
+    /// edge. A trace's corrected steps land on the crossing, so from the
+    /// edge every step would jump sideways across the band and none would
+    /// be taken, and a seed at the edge would lie too far from a curve
+    /// traced through the band to be found on it. `seed` itself where the
+    /// system is singular.
+    pub(super) fn polish(&self, seed: [f64; 4], tol: Tolerance) -> [f64; 4] {
+        self.newton(seed, None, 1e-3 * tol.confusion)
+            .map_or(seed, |(x, _, _)| x)
+    }
+
+    /// The Newton iteration of [`meet`](Self::meet), stopped once both
+    /// residuals are within `stop`, or where no step lowers them: the
+    /// parameters reached, the gap between the surfaces' points and the
+    /// residual of `plane`. `None` where the system is singular.
+    fn newton(
+        &self,
+        x: [f64; 4],
+        plane: Option<(Point, Vector)>,
+        stop: f64,
+    ) -> Option<([f64; 4], Vector, f64)> {
         let (a, b) = (self.first, self.second);
         let residual = |x: [f64; 4]| {
             let pa = a.point_at(x[0], x[1]);
@@ -97,8 +126,8 @@ where
         let periods = self.periods();
         let (mut f, mut r, mut merit) = residual(x);
         for _ in 0..32 {
-            if f.magnitude() <= 0.1 * tol.confusion && r.abs() <= 0.1 * tol.confusion {
-                return Some(x);
+            if f.magnitude() <= stop && r.abs() <= stop {
+                return Some((x, f, r));
             }
             let (_, [au, av]) = a.first_derivatives(x[0], x[1]);
             let (_, [bu, bv]) = b.first_derivatives(x[2], x[3]);
@@ -144,7 +173,7 @@ where
                 break;
             }
         }
-        (f.magnitude() <= tol.confusion && r.abs() <= tol.confusion).then_some(x)
+        Some((x, f, r))
     }
 
     /// [`meet`](Self::meet) in the plane through `origin` normal to

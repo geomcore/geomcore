@@ -1831,3 +1831,36 @@ fn test_a_torus_touching_a_sphere_at_its_pole_is_a_contact_point() {
         }
     }
 }
+
+/// A plane along a bumpy unit patch: the cut ends on the patch's two
+/// edges `x = 0` and `x = 1` at any size, its last step onto an edge kept
+/// however short.
+#[test]
+fn test_a_cut_along_a_patch_ends_on_its_edges_at_any_size() {
+    use crate::{Plane, Transform, Transformable};
+    for scale in [2f64.powi(-20), 1.0, 2f64.powi(20)] {
+        let tol = Tolerance::new(
+            Tolerance::DEFAULT.confusion * scale,
+            Tolerance::DEFAULT.angular,
+            Tolerance::DEFAULT.parametric,
+        );
+        let patch = bumpy_patch(0.1)
+            .transformed(Transform::scaling(Point::ORIGIN, scale))
+            .unwrap();
+        let plane = Plane::new(
+            Point::new(0.0, 0.2 * scale, 0.0),
+            Vector::new(0.3, -1.0, 0.0),
+        )
+        .unwrap();
+        let curves = marched_curves(&plane, &patch, tol);
+        assert_eq!(curves.len(), 1, "at scale {scale:e}");
+        let (lo, hi) = curves[0].bounds();
+        let mut ends = [curves[0].point_at(lo).x, curves[0].point_at(hi).x];
+        ends.sort_by(f64::total_cmp);
+        assert!(
+            ends[0].abs() <= tol.confusion && (ends[1] - scale).abs() <= tol.confusion,
+            "ends at x = {:?} at scale {scale:e}",
+            ends.map(|x| x / scale)
+        );
+    }
+}

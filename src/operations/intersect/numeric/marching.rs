@@ -427,7 +427,8 @@ impl Traced {
         }
     }
 
-    /// Traces the curve through `seed` unless it was traced already, and
+    /// Traces the curve through `seed`, first moved onto the crossing (see
+    /// [`SurfacePair::polish`]), unless it was traced already, and
     /// returns the seeds on the branches it reached: those crossing where
     /// its trace stalled (see [`seeding::branch_seeds`]), or, where no
     /// trace leaves the seed, those around it when it is a singular point
@@ -445,6 +446,7 @@ impl Traced {
         B: ParametricSurface,
     {
         let pair = tracer.pair();
+        let seed = pair.polish(seed, tol);
         // Seeds near a traced polyline are on its curve (the trace's chord
         // deviation exceeds confusion, so tight containment cannot decide
         // duplication). Near-tangent distinct curves (closer than this)

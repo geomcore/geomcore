@@ -275,7 +275,7 @@ where
                     h *= 0.5;
                 }
                 if let Some((q, tq, y)) = boundary_point {
-                    if q.distance(p) > tol.confusion.max(Tolerance::DEFAULT.confusion) {
+                    if q.distance(p) > tol.confusion {
                         // A last step much shorter than the one before makes
                         // the fitted curve overshoot the boundary: the
                         // boundary point then replaces the last point.

@@ -144,9 +144,9 @@ the Python distribution are versioned in lockstep.
   `tol.confusion`, was chased into rounding. The pieces' control points
   are now taken about the first curve's first pole.
 - The surface–surface march lost curves, or found extra ones, when the
-  surfaces were scaled with `tol.confusion`, for 37 sample comparisons. A
+  surfaces were scaled with `tol.confusion`, for 51 sample comparisons. A
   plane and a ring scaled by 2^20 met in no curve and still said
-  `Sampled`. Three causes. Its Newton steps solved on derivatives
+  `Sampled`. Five causes. Its Newton steps solved on derivatives
   mixing an angle and a length, so at 2^20 the singularity test
   rejected every step; each derivative is now divided by its length, and
   the step measured along the surfaces (an angle's step is taken modulo
@@ -156,7 +156,14 @@ the Python distribution are versioned in lockstep.
   those within `tol.confusion`. And where branches cross, a trace could
   turn onto the other branch through steps of a few `tol.confusion`,
   whose turns are rounding noise; it now ends at the crossing, which
-  seeds every branch through it.
+  seeds every branch through it. A trace dropped its last step onto a
+  parameter bound when shorter than 1e-7, so at 2^-20 curves ended short
+  of their bounds and were traced twice; it now keeps it beyond
+  `tol.confusion`. And where the surfaces cross at a small angle, a seed
+  could sit at the edge of the band where they lie within confusion of
+  each other, from where no step reached the crossing; seeds are now
+  polished onto it, and two spheres 1e-5 apart no longer come back with
+  an `Unseparated` region.
 
 ### Changed
 
