@@ -7,12 +7,14 @@
 //! ([`seeding`]) says where traces start, the tracer ([`tracer`]) runs the
 //! step loop from each seed, and both ask the surface pair ([`pair`]) for
 //! what they need at a point on both surfaces. The coincidence check
-//! ([`coincidence`]) runs first.
+//! ([`coincidence`]) runs first, then the edges of either surface lying
+//! on the other are kept whole ([`shared_edges`]).
 
 mod coincidence;
 mod level_extrema;
 mod pair;
 mod seeding;
+mod shared_edges;
 mod tracer;
 
 use crate::geometry::curves::fitting::{
@@ -52,7 +54,14 @@ use tracer::{CHORD_DEVIATION, Cut, Trace, Tracer};
 /// other. The check stops at the first sample off the other surface, so
 /// crossing surfaces pay one or two projections for it.
 ///
-/// Otherwise, when one surface is elementary and the other elementary or a B-spline,
+/// Otherwise, each edge of either surface (the bound of a bounded
+/// parameter) lying on the other is one curve, sampled along its own
+/// parameter (see [`shared_edges`](shared_edges::shared_edges), ADR
+/// 0052): a trace along it would run on a parameter bound of both
+/// surfaces, ending wherever a rounding takes a step out. Seeds on it are
+/// then found on it and not traced.
+///
+/// Then, when one surface is elementary and the other elementary or a B-spline,
 /// seeds are the points where the iso-curves of an elementary side meet
 /// the other surface, found by the routed curve-surface intersection
 /// (exact against an elementary surface, the Bézier piece search against
@@ -314,6 +323,7 @@ where
         around_singular_points,
         ..Traced::default()
     };
+    traced.keep_shared_edges(pair, tol);
     let (seeds, later) = seeding::seeds(pair, tol);
     let mut reached: Vec<[f64; 4]> = seeds.iter().map(|seed| seed.parameters()).collect();
     traced.follow_seeds(&Tracer::new(pair, tol, &reached), seeds, tol);
@@ -503,6 +513,29 @@ impl Traced {
         if tracer.reports_cuts() {
             self.cuts.extend(cuts);
         }
+        self.keep(pair, points, tangents, parameters, touching, tol);
+        stalls
+            .into_iter()
+            .flat_map(|stall| seeding::branch_seeds(pair, stall, tol))
+            .collect()
+    }
+
+    /// Keeps the curve through the traced `points`, each with its unit
+    /// tangent and its parameters on both surfaces, fitted (see
+    /// [`Fitted::new`]), and its polyline, which later seeds are looked
+    /// for on (see [`crosses`](Self::crosses)).
+    fn keep<A, B>(
+        &mut self,
+        pair: SurfacePair<A, B>,
+        points: Vec<Point>,
+        tangents: Vec<Vector>,
+        parameters: Vec<[f64; 4]>,
+        touching: bool,
+        tol: Tolerance,
+    ) where
+        A: ParametricSurface,
+        B: ParametricSurface,
+    {
         let along = tangents.into_iter().zip(parameters).collect();
         let (points, along) = without_confused(points, along, tol.confusion);
         let fit = Fitted::new(&pair, &points, &along, touching, tol);
@@ -517,10 +550,35 @@ impl Traced {
                 .push((bezier_pieces::bounding_box(&coords), runs, points));
             self.curves.push(fitted);
         }
-        stalls
-            .into_iter()
-            .flat_map(|stall| seeding::branch_seeds(pair, stall, tol))
-            .collect()
+    }
+
+    /// Keeps each edge of a surface lying on the other (see
+    /// [`shared_edges::shared_edges`]) as a curve, unless a curve kept
+    /// already runs through its ends and middle: an edge of the second
+    /// surface that is also one of the first. Seeds on an edge are then
+    /// found on it and not traced.
+    fn keep_shared_edges<A, B>(&mut self, pair: SurfacePair<A, B>, tol: Tolerance)
+    where
+        A: ParametricSurface,
+        B: ParametricSurface,
+    {
+        for edge in shared_edges::shared_edges(pair, tol) {
+            let last = edge.points.len() - 1;
+            let kept_already = [0, last / 2, last].iter().all(|&k| {
+                let p = edge.points[k];
+                self.crosses(&[p.x, p.y, p.z, p.x, p.y, p.z], tol)
+            });
+            if !kept_already {
+                self.keep(
+                    pair,
+                    edge.points,
+                    edge.tangents,
+                    edge.parameters,
+                    edge.touching,
+                    tol,
+                );
+            }
+        }
     }
 
     /// The regions where the march could not tell what the curves do: one
