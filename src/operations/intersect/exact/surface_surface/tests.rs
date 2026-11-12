@@ -1562,7 +1562,7 @@ where
 
 /// Two surfaces 0.01 short of touching and 0.01 past it are decided as
 /// crossing and as apart, and the same way a million times smaller or
-/// larger (ADR 0046).
+/// larger (ADR 0050).
 #[test]
 fn test_closed_forms_decide_a_near_tangency_alike_at_any_size() {
     fn check<A, B>(name: &str, first: &A, crossing: &B, apart: &B) -> Vec<String>
