@@ -164,6 +164,16 @@ the Python distribution are versioned in lockstep.
   each other, from where no step reached the crossing; seeds are now
   polished onto it, and two spheres 1e-5 apart no longer come back with
   an `Unseparated` region.
+- The march between two unbounded surfaces (a cylinder, a cone, a
+  plane, an extrusion, the revolution of a line) sampled its seeds in
+  the parameters `[-10, 10]` of each unbounded direction, whatever the
+  size of the model: a cylinder cut by the extrusion of a line scaled
+  by 2^20 came back as pieces ending on that window, `Incomplete`, where
+  at scale 1 it is one closed ellipse. The seeds now span a box around
+  a point of the other surface, five sizes of the pair wide (a radius,
+  a profile's size, or the distance between the surfaces), or the
+  model's cube where the pair has no length of its own. 14 sample
+  comparisons now hold.
 
 ### Changed
 

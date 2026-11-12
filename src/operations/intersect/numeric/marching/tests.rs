@@ -251,14 +251,14 @@ where
 
 #[test]
 fn test_marching_finds_skew_cylinders_far_from_the_origin() {
-    // The cylinders meet around x = 500, far beyond the grid window of
-    // +-10 along the first cylinder's axis, in one loop about 510 long.
+    // The cylinders meet around x = 500, 500 along the first cylinder's
+    // axis from its origin, in one loop about 510 long: each grid window
+    // is placed on the other cylinder, wherever its parameters start.
     use crate::Cylinder;
     let tol = Tolerance::DEFAULT;
     let along_x = Cylinder::new(Point::ORIGIN, Vector::X, 50.0).unwrap();
     let along_y = Cylinder::new(Point::new(500.0, 0.0, 30.0), Vector::Y, 50.0).unwrap();
-    // The same second cylinder, its parameters measured from y = 300:
-    // neither grid window holds a point of the intersection.
+    // The same second cylinder, its parameters measured from y = 300.
     let along_y_far = Cylinder::new(Point::new(500.0, 300.0, 30.0), Vector::Y, 50.0).unwrap();
     for curves in [
         marched_curves(&along_x, &along_y, tol),
@@ -1862,5 +1862,43 @@ fn test_a_cut_along_a_patch_ends_on_its_edges_at_any_size() {
             "ends at x = {:?} at scale {scale:e}",
             ends.map(|x| x / scale)
         );
+    }
+}
+
+/// A cylinder cut by the extrusion of a line, a plane neither of which
+/// bounds the other: the seeding windows are placed on the surfaces, so
+/// the cut is one closed ellipse at any size, not pieces of it ended by a
+/// window fixed in model units.
+#[test]
+fn test_a_cylinder_cut_by_a_swept_line_is_one_ellipse_at_any_size() {
+    use crate::{Cylinder, ExtrusionSurface, Frame, Line, Transform, Transformable};
+    let frame = Frame::new(
+        Point::new(1.0, -2.0, 0.5),
+        Vector::new(0.3, -0.4, 0.86),
+        Vector::new(1.0, 0.2, 0.0),
+    )
+    .unwrap();
+    let cylinder = Cylinder::from_frame(frame, 2.0).unwrap();
+    let line = Line::new(frame.origin(), Vector::new(0.3, 0.9, -0.2)).unwrap();
+    let wall = ExtrusionSurface::new(line.into(), Vector::new(0.2, -0.1, 1.5)).unwrap();
+    for scale in [2f64.powi(-20), 1.0, 2f64.powi(20)] {
+        let tol = Tolerance::new(
+            Tolerance::DEFAULT.confusion * scale,
+            Tolerance::DEFAULT.angular,
+            Tolerance::DEFAULT.parametric,
+        );
+        let similarity = Transform::scaling(Point::ORIGIN, scale);
+        let cylinder = cylinder.clone().transformed(similarity).unwrap();
+        let wall = wall.clone().transformed(similarity).unwrap();
+        let result = marching_intersection(&cylinder, &wall, None, tol);
+        assert_eq!(
+            result.completeness(),
+            &Completeness::Sampled,
+            "at {scale:e}"
+        );
+        assert_eq!(result.curves().len(), 1, "at {scale:e}");
+        let curve = &result.curves()[0].curve;
+        let (t0, t1) = curve.bounds();
+        assert!(curve.point_at(t0).distance(curve.point_at(t1)) <= tol.confusion);
     }
 }
