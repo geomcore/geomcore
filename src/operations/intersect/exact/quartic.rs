@@ -2,7 +2,9 @@
 //! generators of the ruled one: two cylinders whose axes cross (the
 //! bicylindric curve), a sphere and a cylinder whose axis misses its
 //! centre (Viviani's curve among them), a sphere and a cone whose axis
-//! misses its centre, and a cone and a cylinder off its axis.
+//! misses its centre, and a cone and a cylinder off its axis; and the
+//! spiric sections where a ring torus meets a plane or a sphere, read the
+//! same way along its tube circles (see `tube_circles`).
 //!
 //! The generator of the ruled quadric at angle `t`, `B(t) + s D(t)` with
 //! `D` a unit vector, meets the other quadric where a quadratic in `s`
@@ -42,11 +44,15 @@ use crate::geometry::curves::fitting::{hermite_knots, hermite_spline, segment_le
 use crate::geometry::curves::{Curve, Curve2D, ParametricCurve};
 use crate::operations::intersect::{IntersectionCurve, SurfaceSurfaceIntersection};
 use crate::{
-    Cone, Cylinder, InlineList, Line, Point, Point2D, Sphere, Surface, Tolerance, Vector, Vector2D,
+    Cone, Cylinder, InlineList, Line, Plane, Point, Point2D, Sphere, Surface, Tolerance, Torus,
+    Vector, Vector2D,
 };
 
 mod branch;
+mod tube_circles;
 pub use branch::QuarticBranch;
+use tube_circles::{OtherPlane, TubeCircles};
+pub(super) use tube_circles::{torus_plane, torus_sphere};
 
 use super::surface_surface::{
     ConeConeIntersection, ConeCylinderIntersection, CylinderCylinderIntersection,
@@ -54,8 +60,10 @@ use super::surface_surface::{
 };
 
 /// The quartic where two quadrics meet, one of them ruled (a cylinder or a
-/// cone), away from the configurations that split it into conics or lines:
-/// one or two loops, each a smooth piece of the curve. Between two cones a
+/// cone), away from the configurations that split it into conics or lines,
+/// or where a ring torus meets a plane or a sphere away from the positions
+/// that split it into circles: one or two loops, each a smooth piece of
+/// the curve. Between two cones a
 /// loop may run off to infinity along a generator of one parallel to a
 /// generator of the other, and come back from its other end: closed
 /// through the points at infinity, it is open in space, in pieces between
@@ -75,7 +83,9 @@ use super::surface_surface::{
 ///   of each generator, the first being the apex.
 ///
 /// The ruled quadric is the cylinder against a cylinder or a cone, and the
-/// cylinder or the cone against a sphere.
+/// cylinder or the cone against a sphere. On a torus the members are its
+/// tube circles in place of generators, a component evaluated at the
+/// tube circle's angle around the axis.
 ///
 /// The routed [`intersect`](crate::Intersect) fits each bounded component
 /// as a [`BSplineCurve`](crate::BSplineCurve) through exact points, and
@@ -147,6 +157,8 @@ enum Surfaces {
     SphereCone(Sphere, Cone),
     ConeCylinder(Cone, Cylinder),
     Cones(Cone, Cone),
+    TorusPlane(Torus, Plane),
+    TorusSphere(Torus, Sphere),
 }
 
 /// Evaluates `$body` with `$rulings` bound to the generators of the curve's
@@ -185,6 +197,16 @@ macro_rules! with_rulings {
             Surfaces::Cones(first, second) => {
                 let (ruled, other) = (RuledCone::new(first), OtherCone::new(second));
                 let $rulings = Rulings::new(ruled, other, discriminant, reference, crossing);
+                $body
+            }
+            Surfaces::TorusPlane(torus, plane) => {
+                let other = OtherPlane::new(plane);
+                let $rulings = TubeCircles::new(torus, other, discriminant, reference, crossing);
+                $body
+            }
+            Surfaces::TorusSphere(torus, sphere) => {
+                let other = OtherSphere::new(sphere);
+                let $rulings = TubeCircles::new(torus, other, discriminant, reference, crossing);
                 $body
             }
         }
@@ -279,7 +301,7 @@ impl QuarticCurve {
     pub fn point_at(&self, component: usize, parameter: f64) -> Point {
         assert!(component < self.component_count(), "no such component");
         let component = self.components[component];
-        with_rulings!(self, rulings => rulings.at(component, parameter).point)
+        with_rulings!(self, rulings => rulings.point(component, parameter))
     }
 
     /// The same curve with the operands in the other order: its curves in
@@ -1394,9 +1416,15 @@ fn factored_loops(
         }
     }
     let roots = &mut found[..count];
-    // The sign of `Δ` at `t`: the product of the factors.
+    // The sign of `Δ` at `t`: the product of the factors. A touching
+    // factor, `cos − 1` or `cos + 1`, keeps its sign all round: read as
+    // that, it is not taken for a change of sign where it vanishes, at
+    // the middle of an arc of a symmetric curve.
     let positive_at = |t: f64| {
-        let [first, second] = std::array::from_fn(|k| (t - references[k]).cos() - cosines[k]);
+        let [first, second] = std::array::from_fn(|k| match touching_at[k] {
+            Some(_) => -cosines[k],
+            None => (t - references[k]).cos() - cosines[k],
+        });
         first * second > 0.0
     };
     if let [Some(first), Some(second)] = touching_at {
@@ -2089,8 +2117,9 @@ impl Ruled for RuledCone {
     }
 }
 
-/// The other quadric, a cylinder or a sphere.
-trait Other: Copy {
+/// The other quadric, a cylinder, a sphere or a cone, read along the
+/// generators of the ruled one.
+trait Other: SecondSurface {
     /// Where along the generator from `base` along `direction` it meets
     /// the quadric, `root` the signed root of the discriminant. The roots
     /// are distances along the generator: their error is absolute, so the
@@ -2134,8 +2163,12 @@ trait Other: Copy {
     ) -> f64 {
         unreachable!("only a cone shares a generator with a ruled quadric")
     }
+}
 
-    /// A normal of the quadric at `point`, of any length.
+/// The surface a family of curves is read against: the other quadric
+/// against a ruled one, or a plane or a sphere against a torus.
+trait SecondSurface: Copy {
+    /// A normal of the surface at `point`, of any length.
     fn normal(&self, point: Point) -> Vector;
 
     /// The parameters of `point` and their derivatives along the unit
@@ -2145,14 +2178,15 @@ trait Other: Copy {
     /// The point at the parameters `uv`.
     fn point(&self, uv: Point2D) -> Point;
 
-    /// The signed distance from `point` to the quadric, and the unit
+    /// The signed distance from `point` to the surface, and the unit
     /// normal along which it grows.
     fn offset(&self, point: Point) -> (f64, Vector);
 
-    /// Whether the curve in these parameters can be fitted, the curve on
-    /// `ruled`: not on a sphere through whose pole it passes.
+    /// Whether the curve in these parameters can be fitted, `first_offset`
+    /// the distance to the surface the family lies on: not on a sphere
+    /// through whose pole the curve passes, nor through a cone's apex.
     #[inline]
-    fn parameters_fit(&self, _ruled: &impl Ruled, _confusion: f64) -> bool {
+    fn parameters_fit(&self, _first_offset: impl Fn(Point) -> f64, _confusion: f64) -> bool {
         true
     }
 }
@@ -2209,7 +2243,9 @@ impl Other for OtherCylinder {
     ) -> f64 {
         (root_rate - angle_rate * base_turn.dot(self.across)) * self.inverse_leading
     }
+}
 
+impl SecondSurface for OtherCylinder {
     #[inline]
     fn normal(&self, point: Point) -> Vector {
         let w = point - self.origin;
@@ -2286,7 +2322,9 @@ impl Other for OtherSphere {
         let foot_turn = (self.center - base).dot(direction_turn) - base_turn.dot(direction);
         angle_rate * foot_turn + root_rate
     }
+}
 
+impl SecondSurface for OtherSphere {
     #[inline]
     fn normal(&self, point: Point) -> Vector {
         point - self.center
@@ -2324,14 +2362,10 @@ impl Other for OtherSphere {
     }
 
     /// Not through a pole, where the longitude jumps by `π`.
-    fn parameters_fit(&self, ruled: &impl Ruled, confusion: f64) -> bool {
-        [1.0, -1.0].into_iter().all(|side| {
-            ruled
-                .offset(self.center + self.z * (side * self.radius))
-                .0
-                .abs()
-                > confusion
-        })
+    fn parameters_fit(&self, first_offset: impl Fn(Point) -> f64, confusion: f64) -> bool {
+        [1.0, -1.0]
+            .into_iter()
+            .all(|side| first_offset(self.center + self.z * (side * self.radius)).abs() > confusion)
     }
 }
 
@@ -2446,7 +2480,9 @@ impl Other for OtherCone {
         let leading_turn = 2.0 * along_axis * direction_turn_axis;
         (root_rate - angle_rate * (half_linear_turn + along * leading_turn)) / leading
     }
+}
 
+impl SecondSurface for OtherCone {
     /// Half the gradient of `(w·a₂)² − cos² φ |w|²`.
     #[inline]
     fn normal(&self, point: Point) -> Vector {
@@ -2501,8 +2537,8 @@ impl Other for OtherCone {
 
     /// Not through the apex, where the angle around the axis is undefined
     /// and its rate along the curve nought over nought.
-    fn parameters_fit(&self, ruled: &impl Ruled, confusion: f64) -> bool {
-        ruled.offset(self.cone.apex).0.abs() > confusion
+    fn parameters_fit(&self, first_offset: impl Fn(Point) -> f64, confusion: f64) -> bool {
+        first_offset(self.cone.apex).abs() > confusion
     }
 }
 
@@ -2627,17 +2663,26 @@ fn crossed_by_normals(component: Component) -> bool {
 /// tangent of an arc through a crossing.
 const CROSSING_TANGENT_STEP: f64 = 1e-6;
 
+/// The signed root of the discriminant along the components: on which
+/// member of the family (a generator or a tube circle) the point at a
+/// parameter lies, and on which side of where the member grazes the other
+/// surface.
+#[derive(Debug, Clone, Copy)]
+struct Roots {
+    discriminant: Discriminant,
+    /// `[sin, cos]` of the reference angle `t₀`: `τ = t − t₀`.
+    reference: [f64; 2],
+    /// The angle of the member where an arc crosses itself
+    /// ([`QuarticCurve::crossing`]), read only by the arc that crosses.
+    crossing_generator: f64,
+}
+
 /// The ruled quadric's generators read against the other quadric.
 #[derive(Debug, Clone, Copy)]
 struct Rulings<R, O> {
     ruled: R,
     other: O,
-    discriminant: Discriminant,
-    /// `[sin, cos]` of the reference angle `t₀`: `τ = t − t₀`.
-    reference: [f64; 2],
-    /// The angle of the generator where an arc crosses itself
-    /// ([`QuarticCurve::crossing`]), read only by the arc that crosses.
-    crossing_generator: f64,
+    roots: Roots,
     /// Whether the curve in the other quadric's parameters is fitted: not
     /// on a sphere whose pole the curve passes through, where its angle
     /// jumps by `π`. The ruled quadric's always is.
@@ -2702,45 +2747,7 @@ const DEEPEST_SPLIT: u32 = 24;
 /// The most pieces a segment is split into at once.
 const MOST_PIECES: f64 = 8.0;
 
-impl<R: Ruled, O: Other> Rulings<R, O> {
-    fn new(
-        ruled: R,
-        other: O,
-        discriminant: Discriminant,
-        reference: [f64; 2],
-        crossing_generator: f64,
-    ) -> Self {
-        Rulings {
-            ruled,
-            other,
-            discriminant,
-            reference,
-            crossing_generator,
-            other_parameters_fit: true,
-        }
-    }
-
-    /// The fitted `components` (see [`QuarticCurve::fitted`]), their curves
-    /// in parameters the ruled quadric's first when `ruled_first`.
-    fn fitted(
-        mut self,
-        components: &[Component],
-        confusion: f64,
-        ruled_first: bool,
-    ) -> Option<Vec<IntersectionCurve>> {
-        self.other_parameters_fit = self.other.parameters_fit(&self.ruled, confusion);
-        components
-            .iter()
-            .map(|component| {
-                let mut piece = self.fit(*component, confusion)?;
-                if !ruled_first {
-                    std::mem::swap(&mut piece.first_uv_curve, &mut piece.second_uv_curve);
-                }
-                Some(piece)
-            })
-            .collect()
-    }
-
+impl Roots {
     /// `cos τ` and `sin τ` from `sin t` and `cos t`.
     #[inline]
     fn angle_from_reference(&self, sin: f64, cos: f64) -> (f64, f64) {
@@ -2765,17 +2772,23 @@ impl<R: Ruled, O: Other> Rulings<R, O> {
         )
     }
 
-    /// The point of `component` at `parameter` (see [`QuarticCurve`]).
+    /// The angle `t` of the member that holds the point of `component` at
+    /// `parameter` (see [`QuarticCurve`]), its sine and cosine, and the
+    /// signed root of `Δ` there: `None` where each member meets the other
+    /// surface once ([`Discriminant::MetOnce`]). Not for a component off a
+    /// shared generator, whose point is not read from a root.
     ///
     /// On an arc, `t = start + (end − start) sin²(parameter / 2)`, and a
     /// factor vanishing at an end `τr` is `2 sin((τ + τr) / 2) sin((τ − τr) / 2)`,
     /// with `(τ − τs) / 2 = (end − start) sin²(parameter / 2) / 2` from the
     /// start `τs` and `(τe − τ) / 2 = (end − start) cos²(parameter / 2) / 2`
     /// to the end `τe`, both exact: `√Δ` is zero at the ends, where rounding
-    /// `τ` by `ε` would move the point by `√ε` along the generator.
-    #[inline]
-    fn at(&self, component: Component, parameter: f64) -> OnGenerator {
-        let (angle, sin, cos, root) = match component {
+    /// `τ` by `ε` would move the point by `√ε` along the member.
+    // Left to `#[inline]`, the fit called it out of line, 2.5–3.5% more
+    // instructions on the quadrics' routed calls.
+    #[inline(always)]
+    fn at(&self, component: Component, parameter: f64) -> (f64, f64, f64, Option<f64>) {
+        match component {
             Component::Around { branch } => {
                 let (sin, cos) = parameter.sin_cos();
                 let root = if let Discriminant::MetOnce = self.discriminant {
@@ -2881,27 +2894,58 @@ impl<R: Ruled, O: Other> Rulings<R, O> {
                 let (sin, cos) = parameter.sin_cos();
                 (parameter, sin, cos, Some(0.0))
             }
-            Component::OffSharedGenerator { shared } => {
-                let (sin, cos) = parameter.sin_cos();
-                let radial = self.ruled.radial(sin, cos);
-                let generator = self.ruled.generator(radial);
-                let generator_at = |angle: f64| {
-                    let (sin, cos) = angle.sin_cos();
-                    self.ruled.radial(sin, cos)
-                };
-                let on_shared = self.ruled.generator(generator_at(shared));
-                let across = self.ruled.turns(generator_at(0.5 * (parameter + shared)));
-                let along = self.other.along_off_shared(generator, on_shared, across);
-                let (base, direction) = generator;
-                return OnGenerator {
-                    angle: parameter,
-                    radial,
-                    direction,
-                    point: base + direction * along,
-                    along,
-                };
+            Component::OffSharedGenerator { .. } => {
+                unreachable!("a point off a shared generator is not read from a root")
             }
-        };
+        }
+    }
+}
+
+impl<R: Ruled, O: Other> Rulings<R, O> {
+    fn new(
+        ruled: R,
+        other: O,
+        discriminant: Discriminant,
+        reference: [f64; 2],
+        crossing_generator: f64,
+    ) -> Self {
+        Rulings {
+            ruled,
+            other,
+            roots: Roots {
+                discriminant,
+                reference,
+                crossing_generator,
+            },
+            other_parameters_fit: true,
+        }
+    }
+
+    /// The point of `component` at `parameter` (see [`QuarticCurve`]) on
+    /// its generator.
+    #[inline]
+    fn at(&self, component: Component, parameter: f64) -> OnGenerator {
+        if let Component::OffSharedGenerator { shared } = component {
+            let (sin, cos) = parameter.sin_cos();
+            let radial = self.ruled.radial(sin, cos);
+            let generator = self.ruled.generator(radial);
+            let generator_at = |angle: f64| {
+                let (sin, cos) = angle.sin_cos();
+                self.ruled.radial(sin, cos)
+            };
+            let on_shared = self.ruled.generator(generator_at(shared));
+            let across = self.ruled.turns(generator_at(0.5 * (parameter + shared)));
+            let along = self.other.along_off_shared(generator, on_shared, across);
+            let (base, direction) = generator;
+            return OnGenerator {
+                angle: parameter,
+                radial,
+                direction,
+                point: base + direction * along,
+                along,
+            };
+        }
+        let (angle, sin, cos, root) = self.roots.at(component, parameter);
         let radial = self.ruled.radial(sin, cos);
         let (base, direction) = self.ruled.generator(radial);
         let mut along = match root {
@@ -2953,12 +2997,13 @@ impl<R: Ruled, O: Other> Rulings<R, O> {
             // `s = 2m`, the root zero.
             Component::Apex => (1.0, 2.0 * along_rate(1.0, 0.0)),
             Component::Node { factor, .. } => {
-                let (scale, cosines, factors) = self.discriminant.factored();
+                let (scale, cosines, factors) = self.roots.discriminant.factored();
                 let (sin, cos) = on.angle.sin_cos();
-                let (cos_tau, sin_tau) = self.angle_from_reference(sin, cos);
+                let (cos_tau, sin_tau) = self.roots.angle_from_reference(sin, cos);
                 // The other factor `g` and its derivative in `τ`.
                 let (other, other_turn) = if factors == 2 {
-                    let (cos_other, sin_other) = self.factor_angle(1 - factor, cos_tau, sin_tau);
+                    let (cos_other, sin_other) =
+                        self.roots.factor_angle(1 - factor, cos_tau, sin_tau);
                     let g = cos_other - cosines[1 - factor];
                     (g.abs(), -sin_other * g.signum())
                 } else {
@@ -2983,92 +3028,6 @@ impl<R: Ruled, O: Other> Rulings<R, O> {
         (velocity, angle_rate, along_rate)
     }
 
-    /// The sample of `component` at `parameter`, its tangent turned by
-    /// `orientation`.
-    #[inline]
-    fn sample(&self, component: Component, parameter: f64, orientation: f64) -> Sample {
-        let on = self.at(component, parameter);
-        let (tangent, ruled_derivative) = match component {
-            Component::Node { .. } | Component::Apex => {
-                let (velocity, angle_rate, along_rate) = self.velocity(component, parameter, &on);
-                let inverse = 1.0 / velocity.magnitude();
-                (
-                    velocity * inverse,
-                    Vector2D::new(angle_rate * inverse, along_rate * inverse),
-                )
-            }
-            Component::Around { .. }
-            | Component::Between { .. }
-            | Component::ThroughApex { .. }
-            | Component::OffSharedGenerator { .. } => {
-                let tangent = if crossed_by_normals(component) {
-                    self.crossing(&on) * orientation
-                } else {
-                    self.stepped_tangent(component, parameter)
-                };
-                (
-                    tangent,
-                    self.ruled.uv_derivative(tangent, on.radial, on.along),
-                )
-            }
-        };
-        let (other_uv, other_derivative) = self.other.uv(on.point, tangent);
-        Sample {
-            parameter,
-            point: on.point,
-            tangent,
-            uv: [self.ruled.uv(on.angle, on.along), other_uv],
-            uv_derivatives: [ruled_derivative, other_derivative],
-        }
-    }
-
-    /// The unit tangent of an arc through a crossing at `parameter`, along
-    /// it: a central difference of its exact points, as the normals' cross
-    /// product vanishes at the crossing and turns over there.
-    fn stepped_tangent(&self, component: Component, parameter: f64) -> Vector {
-        let point = |parameter: f64| self.at(component, parameter.rem_euclid(TAU)).point;
-        let step =
-            point(parameter + CROSSING_TANGENT_STEP) - point(parameter - CROSSING_TANGENT_STEP);
-        step * (1.0 / step.magnitude())
-    }
-
-    /// `1.0` when the cross product of the normals runs along the component
-    /// as its parameter grows, `-1.0` otherwise. Away from where the
-    /// quadrics touch the cross product never vanishes, so one sign holds
-    /// over the whole component: at its start, a loop around the ruled
-    /// quadric turns with the angle, and an arc runs along the generator
-    /// the way the distance along it moves as `√Δ` grows from zero, against
-    /// the generator's direction where the leading coefficient is negative.
-    /// A loop through a crossing or the apex follows its parameter instead.
-    fn orientation(&self, component: Component) -> f64 {
-        if !crossed_by_normals(component) {
-            return 1.0;
-        }
-        let on = self.at(component, 0.0);
-        let turns = self.ruled.turns(on.radial);
-        let forward = match component {
-            Component::Around { .. } => turns.0 + turns.1 * on.along,
-            Component::Between { .. } => {
-                let base = on.point - on.direction * on.along;
-                on.direction
-                    * self
-                        .other
-                        .along_rate(base, on.direction, turns, on.along, 0.0, 1.0)
-            }
-            Component::Node { .. }
-            | Component::ThroughApex { .. }
-            | Component::Apex
-            | Component::OffSharedGenerator { .. } => {
-                return 1.0;
-            }
-        };
-        if self.crossing(&on).dot(forward) >= 0.0 {
-            1.0
-        } else {
-            -1.0
-        }
-    }
-
     /// The unit tangent of `component` at `on`, the point at `parameter`,
     /// up to its sign.
     #[inline]
@@ -3086,6 +3045,77 @@ impl<R: Ruled, O: Other> Rulings<R, O> {
             Component::Around { .. } | Component::Between { .. } => self.crossing(on),
         }
     }
+}
+
+/// A family of curves on the first surface, one at each angle `t`, read
+/// against the second: a ruled quadric's generators ([`Rulings`]) or a
+/// torus's tube circles ([`TubeCircles`]). The member at `t` meets the
+/// second surface where the signed root of `Δ(t)` says ([`Roots`]); the
+/// components are fitted through those exact points alike.
+trait CurveFamily: Copy {
+    /// The point of `component` at `parameter`.
+    fn point(&self, component: Component, parameter: f64) -> Point;
+
+    /// The point of `component` at `parameter` and its unit tangent there,
+    /// up to its sign.
+    fn point_and_tangent(&self, component: Component, parameter: f64) -> (Point, Vector);
+
+    /// The sample of `component` at `parameter`, its tangent turned by
+    /// `orientation`.
+    fn sample(&self, component: Component, parameter: f64, orientation: f64) -> Sample;
+
+    /// `1.0` when the cross product of the normals runs along `component`
+    /// as its parameter grows, `-1.0` otherwise (see [`Sample::tangent`]).
+    fn orientation(&self, component: Component) -> f64;
+
+    /// The signed distances from `point` to the two surfaces, the first
+    /// the family's, and the unit normals along which they grow.
+    fn offsets(&self, point: Point) -> [(f64, Vector); 2];
+
+    /// The point of the surface `side`, the family's first, at `uv`.
+    fn surface_point(&self, side: usize, uv: Point2D) -> Point;
+
+    /// Which parameters of the surface `side` are angles, continued
+    /// across their seams.
+    fn angles(&self, side: usize) -> [bool; 2];
+
+    /// Whether the curve in the second surface's parameters is fitted.
+    fn second_parameters_fit(&self) -> bool;
+
+    /// The family with [`second_parameters_fit`](Self::second_parameters_fit)
+    /// decided for `confusion`.
+    fn checked(self, confusion: f64) -> Self;
+
+    /// The fitted `components` (see [`QuarticCurve::fitted`]), their curves
+    /// in parameters the family's surface's first when `family_first`.
+    fn fitted(
+        self,
+        components: &[Component],
+        confusion: f64,
+        family_first: bool,
+    ) -> Option<Vec<IntersectionCurve>> {
+        let family = self.checked(confusion);
+        components
+            .iter()
+            .map(|component| {
+                let mut piece = family.fit(*component, confusion)?;
+                if !family_first {
+                    std::mem::swap(&mut piece.first_uv_curve, &mut piece.second_uv_curve);
+                }
+                Some(piece)
+            })
+            .collect()
+    }
+
+    /// The unit tangent of an arc through a crossing at `parameter`, along
+    /// it: a central difference of its exact points, as the normals' cross
+    /// product vanishes at the crossing and turns over there.
+    fn stepped_tangent(&self, component: Component, parameter: f64) -> Vector {
+        let point = |parameter: f64| self.point(component, parameter.rem_euclid(TAU));
+        let step =
+            point(parameter + CROSSING_TANGENT_STEP) - point(parameter - CROSSING_TANGENT_STEP);
+        step * (1.0 / step.magnitude())
+    }
 
     /// The distance from `point` to the curve to first order, from its
     /// signed distances `g₁`, `g₂` to the quadrics along their unit normals
@@ -3094,8 +3124,7 @@ impl<R: Ruled, O: Other> Rulings<R, O> {
     /// normals are too near parallel for it.
     #[inline]
     fn first_order_distance(&self, point: Point) -> Option<f64> {
-        let (first, first_normal) = self.ruled.offset(point);
-        let (second, second_normal) = self.other.offset(point);
+        let [(first, first_normal), (second, second_normal)] = self.offsets(point);
         let cosine = first_normal.dot(second_normal);
         let sine_squared = 1.0 - cosine * cosine;
         (sine_squared >= SMALLEST_CROSSING_SINE * SMALLEST_CROSSING_SINE).then(|| {
@@ -3125,12 +3154,11 @@ impl<R: Ruled, O: Other> Rulings<R, O> {
         let mut previous: Option<(f64, f64)> = None;
         let mut offset = Vector::ZERO;
         for _ in 0..PROJECTION_STEPS {
-            let on = self.at(component, parameter);
-            let mut tangent = self.unit_tangent(component, parameter, &on);
+            let (on, mut tangent) = self.point_and_tangent(component, parameter);
             if tangent.dot(a.tangent) < 0.0 {
                 tangent = -tangent;
             }
-            offset = point - on.point;
+            offset = point - on;
             let along = offset.dot(tangent);
             if along.abs() <= ahead {
                 return (offset - tangent * along).magnitude();
@@ -3160,12 +3188,10 @@ impl<R: Ruled, O: Other> Rulings<R, O> {
         samples: (&Sample, &Sample),
         ahead: f64,
     ) -> f64 {
-        match component {
-            Component::Apex
-            | Component::ThroughApex { .. }
-            | Component::OffSharedGenerator { .. }
-            | Component::Between { crosses: true, .. } => None,
-            _ => self.first_order_distance(point),
+        if slides_along(component) {
+            None
+        } else {
+            self.first_order_distance(point)
         }
         .unwrap_or_else(|| self.distance_to_component(component, point, parameter, samples, ahead))
     }
@@ -3194,8 +3220,14 @@ impl<R: Ruled, O: Other> Rulings<R, O> {
         let ahead = (0.2 * deviation / curvature).sqrt();
         // The angles of `b` on the turn of `a`'s.
         let mut b_uv = b.uv;
-        for (b, a) in b_uv.iter_mut().zip(a.uv) {
-            b.x += TAU * ((a.x - b.x) / TAU).round();
+        for (side, (b, a)) in b_uv.iter_mut().zip(a.uv).enumerate() {
+            let [u_angle, v_angle] = self.angles(side);
+            if u_angle {
+                b.x += TAU * ((a.x - b.x) / TAU).round();
+            }
+            if v_angle {
+                b.y += TAU * ((a.y - b.y) / TAU).round();
+            }
         }
         [0.25, 0.5, 0.75]
             .into_iter()
@@ -3214,9 +3246,9 @@ impl<R: Ruled, O: Other> Rulings<R, O> {
                         + b.uv_derivatives[side] * (length * h3)
                 };
                 let parameter = a.parameter + (b.parameter - a.parameter) * s;
-                let mut off = self.ruled.point(uv(0)).distance(point);
-                if self.other_parameters_fit {
-                    off = off.max(self.other.point(uv(1)).distance(point));
+                let mut off = self.surface_point(0, uv(0)).distance(point);
+                if self.second_parameters_fit() {
+                    off = off.max(self.surface_point(1, uv(1)).distance(point));
                 }
                 let error = self.distance(component, point, parameter, (a, b), ahead);
                 (worst.max(error).max(off), worst_off.max(off))
@@ -3298,10 +3330,10 @@ impl<R: Ruled, O: Other> Rulings<R, O> {
         let knots = hermite_knots(&points, &tangents);
         let curve = hermite_spline(&points, &tangents, &knots).ok()?;
         let [first, second] = std::array::from_fn(|side| {
-            if side == 1 && !self.other_parameters_fit {
+            if side == 1 && !self.second_parameters_fit() {
                 return Ok(None);
             }
-            let (values, derivatives) = Self::parameter_curve(&samples, side);
+            let (values, derivatives) = self.parameter_curve(&samples, side);
             hermite_spline(&values, &derivatives, &knots).map(|curve| Some(Curve2D::BSpline(curve)))
         });
         Some(IntersectionCurve {
@@ -3314,25 +3346,169 @@ impl<R: Ruled, O: Other> Rulings<R, O> {
         })
     }
 
-    /// The parameters of the samples on the quadric `side` and their
-    /// derivatives, the angle continuous across the seam: on the turn of
+    /// The parameters of the samples on the surface `side` and their
+    /// derivatives, each angle continuous across the seam: on the turn of
     /// the sample before, from a first one in `[0, 2π)`.
-    fn parameter_curve(samples: &[Sample], side: usize) -> (Vec<Point2D>, Vec<Vector2D>) {
-        let mut previous: Option<f64> = None;
+    fn parameter_curve(&self, samples: &[Sample], side: usize) -> (Vec<Point2D>, Vec<Vector2D>) {
+        let [u_angle, v_angle] = self.angles(side);
+        let continued = |angle: f64, before: Option<f64>| match before {
+            Some(before) => angle + TAU * ((before - angle) / TAU).round(),
+            None => angle.rem_euclid(TAU),
+        };
+        let mut previous: Option<Point2D> = None;
         let values = samples
             .iter()
             .map(|sample| {
                 let mut uv = sample.uv[side];
-                uv.x = match previous {
-                    Some(before) => uv.x + TAU * ((before - uv.x) / TAU).round(),
-                    None => uv.x.rem_euclid(TAU),
-                };
-                previous = Some(uv.x);
+                if u_angle {
+                    uv.x = continued(uv.x, previous.map(|before| before.x));
+                }
+                if v_angle {
+                    uv.y = continued(uv.y, previous.map(|before| before.y));
+                }
+                previous = Some(uv);
                 uv
             })
             .collect();
         let derivatives = samples.iter().map(|s| s.uv_derivatives[side]).collect();
         (values, derivatives)
+    }
+}
+
+/// Whether the distance to `component` is read along it rather than to
+/// first order: the cone curves too fast near its apex for the first
+/// order, and the normals turn parallel where an arc crosses itself.
+#[inline]
+fn slides_along(component: Component) -> bool {
+    matches!(
+        component,
+        Component::Apex
+            | Component::ThroughApex { .. }
+            | Component::OffSharedGenerator { .. }
+            | Component::Between { crosses: true, .. }
+    )
+}
+
+impl<R: Ruled, O: Other> CurveFamily for Rulings<R, O> {
+    #[inline]
+    fn point(&self, component: Component, parameter: f64) -> Point {
+        self.at(component, parameter).point
+    }
+
+    #[inline]
+    fn point_and_tangent(&self, component: Component, parameter: f64) -> (Point, Vector) {
+        let on = self.at(component, parameter);
+        (on.point, self.unit_tangent(component, parameter, &on))
+    }
+
+    /// The sample of `component` at `parameter`, its tangent turned by
+    /// `orientation`.
+    #[inline]
+    fn sample(&self, component: Component, parameter: f64, orientation: f64) -> Sample {
+        let on = self.at(component, parameter);
+        let (tangent, ruled_derivative) = match component {
+            Component::Node { .. } | Component::Apex => {
+                let (velocity, angle_rate, along_rate) = self.velocity(component, parameter, &on);
+                let inverse = 1.0 / velocity.magnitude();
+                (
+                    velocity * inverse,
+                    Vector2D::new(angle_rate * inverse, along_rate * inverse),
+                )
+            }
+            Component::Around { .. }
+            | Component::Between { .. }
+            | Component::ThroughApex { .. }
+            | Component::OffSharedGenerator { .. } => {
+                let tangent = if crossed_by_normals(component) {
+                    self.crossing(&on) * orientation
+                } else {
+                    self.stepped_tangent(component, parameter)
+                };
+                (
+                    tangent,
+                    self.ruled.uv_derivative(tangent, on.radial, on.along),
+                )
+            }
+        };
+        let (other_uv, other_derivative) = self.other.uv(on.point, tangent);
+        Sample {
+            parameter,
+            point: on.point,
+            tangent,
+            uv: [self.ruled.uv(on.angle, on.along), other_uv],
+            uv_derivatives: [ruled_derivative, other_derivative],
+        }
+    }
+
+    /// `1.0` when the cross product of the normals runs along the component
+    /// as its parameter grows, `-1.0` otherwise. Away from where the
+    /// quadrics touch the cross product never vanishes, so one sign holds
+    /// over the whole component: at its start, a loop around the ruled
+    /// quadric turns with the angle, and an arc runs along the generator
+    /// the way the distance along it moves as `√Δ` grows from zero, against
+    /// the generator's direction where the leading coefficient is negative.
+    /// A loop through a crossing or the apex follows its parameter instead.
+    fn orientation(&self, component: Component) -> f64 {
+        if !crossed_by_normals(component) {
+            return 1.0;
+        }
+        let on = self.at(component, 0.0);
+        let turns = self.ruled.turns(on.radial);
+        let forward = match component {
+            Component::Around { .. } => turns.0 + turns.1 * on.along,
+            Component::Between { .. } => {
+                let base = on.point - on.direction * on.along;
+                on.direction
+                    * self
+                        .other
+                        .along_rate(base, on.direction, turns, on.along, 0.0, 1.0)
+            }
+            Component::Node { .. }
+            | Component::ThroughApex { .. }
+            | Component::Apex
+            | Component::OffSharedGenerator { .. } => {
+                return 1.0;
+            }
+        };
+        if self.crossing(&on).dot(forward) >= 0.0 {
+            1.0
+        } else {
+            -1.0
+        }
+    }
+
+    #[inline]
+    fn offsets(&self, point: Point) -> [(f64, Vector); 2] {
+        [self.ruled.offset(point), self.other.offset(point)]
+    }
+
+    #[inline]
+    fn surface_point(&self, side: usize, uv: Point2D) -> Point {
+        if side == 0 {
+            self.ruled.point(uv)
+        } else {
+            self.other.point(uv)
+        }
+    }
+
+    /// Each quadric's first parameter is the angle around its axis; the
+    /// second runs along the generators of a cylinder or a cone, and is a
+    /// sphere's latitude.
+    #[inline]
+    fn angles(&self, _side: usize) -> [bool; 2] {
+        [true, false]
+    }
+
+    #[inline]
+    fn second_parameters_fit(&self) -> bool {
+        self.other_parameters_fit
+    }
+
+    fn checked(mut self, confusion: f64) -> Self {
+        self.other_parameters_fit = self
+            .other
+            .parameters_fit(|point| self.ruled.offset(point).0, confusion);
+        self
     }
 }
 

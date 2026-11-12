@@ -457,6 +457,27 @@ library unchanged there: the 2D line–parabola and line–ellipse calls
 typed calls (+1.6% and +2.5%), and down 4–15% on the sphere's typed calls
 and the parallel cones.
 
+A ring torus against a plane or a sphere in any position followed (#270,
+ADR 0048), read along its tube circles with the quadrics' fit. One pair
+per id, `intersect_routed/torus_quartic/*`, against the torus of radii 4
+and 1 about `Z`: a plane tilted 0.15 through the centre (`tilted_plane`,
+two loops around the axis), the plane `x = 1` (`cassini_ovals`, Cassini's
+two ovals) and a sphere of radius 1 centred 1.5 above the tube's centre
+circle (`sphere_through_the_tube`, one loop).
+The typed call classifies in 2455, 4069 and 3322 instructions, and the
+routed call fits the loops in 2.09M, 1.95M and 1.52M. These pairs were
+marched before: the march the `marching_intersection` bench timed on a
+torus against an oblique plane and against a sphere cost 9.7M and 14.3M
+instructions. The plane cuts that keep their circles take about 130
+instructions more (`swept_plane_cut/torus_*/elementary`, +3%), reading
+the plane's position once more before the special cases.
+
+Splitting the fit from the generators left the signed root of `Δ` out of
+line, 2.5–3.5% more on the quadrics' routed calls: it is now forced
+inline, and they are back within 0.5% of before. The same change stopped
+inlining `Plane`'s `holds` into `intersect_conic_quadric`, as #237 did
+(`conic_quadric/*/plane`, +4–7%): forced inline too, they are within 1%.
+
 Reproduce with:
 
 ```sh
@@ -641,7 +662,12 @@ The same bench times elementary pairs:
 - `torus_plane_oblique`: a torus of radii 3 and 1 about z against the
   plane through `(0.5, 0, 0.2)` tilted 0.6 radians about y (two loops);
 - `sphere_torus`: a sphere of radius 1.2 centred on that torus's centre
-  circle (two loops);
+  circle (two loops). Since #270 both have a closed form, and the bench
+  marches the same plane and sphere against the torus's rational B-spline
+  form instead (`bspline_torus_plane_oblique`, `sphere_bspline_torus`):
+  42.7M and 205M instructions, against 9.7M and 14.3M for the torus
+  itself, whose 24 meridian circles seed the march exactly where the
+  B-spline's seeds come from the patch search;
 - `cylinder_extruded_wall`: a cylinder of radius 1 about z against a cubic
   B-spline wall extruded along z (two open curves);
 - `cone_cylinder_unbounded`: a cone of half-angle 0.3 against a cylinder
@@ -996,7 +1022,8 @@ library). The hashes are committed in
 - `marching`: the ten surface pairs of the `marching_intersection` bench
   as it was, the cone and the cylinder along its generator among them:
   that pair now has a closed form and left the bench, and its fingerprint
-  follows the exact result.
+  follows the exact result. The torus against the oblique plane and the
+  sphere follow the bench onto the torus's B-spline form (#270).
 - `curve_curve`: crossing B-splines, a circle against a B-spline, and two
   coplanar circles.
 - `curve_surface`: a B-spline and a circle against the footprint surface,

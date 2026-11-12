@@ -142,11 +142,13 @@ fn test_grazing_cylinders_report_a_tangent_line() {
 
 #[test]
 fn test_a_torus_touching_a_sphere_at_its_pole_routes_to_the_contact_point() {
-    // A sphere and a torus in general position have no closed form, so
-    // they are marched; the sphere's parameters give no tangent plane at
-    // its pole, where the torus touches it from outside.
+    // Marched against the torus's B-spline form: the sphere's parameters
+    // give no tangent plane at its pole, where the torus touches it from
+    // outside.
     let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
-    let torus = Torus::new(Point::new(0.0, 0.0, 4.0), Vector::Y, 1.5, 0.5).unwrap();
+    let torus = Torus::new(Point::new(0.0, 0.0, 4.0), Vector::Y, 1.5, 0.5)
+        .unwrap()
+        .to_bspline();
     let pole = Point::new(0.0, 0.0, 2.0);
     for result in [sphere.intersect(&torus, TOL), torus.intersect(&sphere, TOL)] {
         assert_eq!(result.method(), IntersectionMethod::Numeric);
@@ -154,5 +156,46 @@ fn test_a_torus_touching_a_sphere_at_its_pole_routes_to_the_contact_point() {
         assert_eq!(result.contact_points().len(), 1);
         assert!(result.contact_points()[0].distance(pole) <= TOL.confusion);
         assert_eq!(result.completeness(), &Completeness::Sampled);
+    }
+}
+
+#[test]
+fn test_a_torus_cut_by_a_plane_or_a_sphere_off_its_axis_routes_exact() {
+    // The pairs the march was timed on: an oblique plane, and a sphere
+    // centred on the torus's core circle. Each meets the torus in two
+    // loops, as many as the march traces on its B-spline form.
+    let torus = Torus::new(Point::ORIGIN, Vector::Z, 3.0, 1.0).unwrap();
+    let tilt: f64 = 0.6;
+    let plane = Plane::new(
+        Point::new(0.5, 0.0, 0.2),
+        Vector::new(-tilt.sin(), 0.0, tilt.cos()),
+    )
+    .unwrap();
+    let sphere = Sphere::new(Point::new(3.0, 0.0, 0.0), 1.2).unwrap();
+    let bspline = torus.to_bspline();
+    for (routed, marched, other) in [
+        (
+            torus.intersect(&plane, TOL),
+            bspline.intersect(&plane, TOL),
+            Surface::from(plane),
+        ),
+        (
+            torus.intersect(&sphere, TOL),
+            bspline.intersect(&sphere, TOL),
+            Surface::from(sphere),
+        ),
+    ] {
+        assert_eq!(routed.method(), IntersectionMethod::Exact);
+        assert!(routed.is_complete());
+        assert_eq!(routed.curves().len(), 2);
+        assert_eq!(marched.method(), IntersectionMethod::Numeric);
+        assert_eq!(marched.curves().len(), 2);
+        assert_curves_lie_on(&routed, &torus, &other, TOL.confusion);
+        for piece in routed.curves() {
+            assert!(piece.first_uv_curve.is_some() && piece.second_uv_curve.is_some());
+        }
+        let reversed = other.intersect(&torus, TOL);
+        assert_eq!(reversed.method(), IntersectionMethod::Exact);
+        assert_eq!(reversed.curves().len(), 2);
     }
 }

@@ -216,7 +216,10 @@ impl Quadric for Plane {
     /// Any conic lies on a plane through its origin whose normal turns
     /// onto its own while moving the conic by at most the confusion
     /// tolerance.
-    #[inline]
+    // Left to `#[inline]`, whether it is inlined into
+    // `intersect_conic_quadric` turns on changes elsewhere in the crate,
+    // 4–7% of the plane's conic intersections.
+    #[inline(always)]
     fn holds<C: Conic>(&self, conic: &C, tol: Tolerance) -> bool {
         let frame = conic.frame();
         let angular = tol.angular_for_extent(conic.shape().extent());

@@ -4,16 +4,20 @@
 //! `[0, 5]^2`, with heights `sin(0.7 i j)` and `0.5 cos(1.3 i) cos(1.1 j)`
 //! at their poles `(i, j)`. They cross in six curves: five open across the
 //! footprint and one closed loop. Also times elementary pairs:
-//! - a torus of radii 3 and 1 about z against the plane through
-//!   `(0.5, 0, 0.2)` tilted 0.6 radians about y (two closed curves);
-//! - a sphere of radius 1.2 centred on that torus's centre circle
-//!   (two closed curves);
+//! - the B-spline form of a torus of radii 3 and 1 about z against the
+//!   plane through `(0.5, 0, 0.2)` tilted 0.6 radians about y (two closed
+//!   curves);
+//! - a sphere of radius 1.2 centred on that torus's centre circle, against
+//!   the same B-spline form (two closed curves);
 //! - a cylinder of radius 1 about z against a cubic wall extruded along z
 //!   (two open curves).
 //!
 //! (A cone against a cylinder whose axis is parallel to one of its
 //! generators was timed here until it got a closed form: it is now in
-//! `intersect_dispatch`, `intersect_routed/cone_cylinder/along_*`.)
+//! `intersect_dispatch`, `intersect_routed/cone_cylinder/along_*`. The
+//! torus itself was timed against the plane and the sphere until they got
+//! one: those are now in `intersect_routed/torus_quartic`, and the march
+//! is timed against the torus's B-spline form.)
 //!
 //! And pairs where the surfaces lie on each other or touch, which the
 //! coincidence check settles before marching or which trace a touching
@@ -122,7 +126,9 @@ fn bench_marching_intersection(c: &mut Criterion) {
     group.bench_function("bspline_surface_pair", |b| {
         b.iter(|| black_box(black_box(&wavy).intersect(&bumpy, tol)))
     });
-    let torus = Torus::new(Point::ORIGIN, Vector::Z, 3.0, 1.0).unwrap();
+    let torus = Torus::new(Point::ORIGIN, Vector::Z, 3.0, 1.0)
+        .unwrap()
+        .to_bspline();
     let tilt: f64 = 0.6;
     let plane = Plane::new(
         Point::new(0.5, 0.0, 0.2),
@@ -130,12 +136,12 @@ fn bench_marching_intersection(c: &mut Criterion) {
     )
     .unwrap();
     assert_marched(&torus, &plane, tol);
-    group.bench_function("torus_plane_oblique", |b| {
+    group.bench_function("bspline_torus_plane_oblique", |b| {
         b.iter(|| black_box(black_box(&torus).intersect(&plane, tol)))
     });
     let sphere = Sphere::new(Point::new(3.0, 0.0, 0.0), 1.2).unwrap();
     assert_marched(&sphere, &torus, tol);
-    group.bench_function("sphere_torus", |b| {
+    group.bench_function("sphere_bspline_torus", |b| {
         b.iter(|| black_box(black_box(&sphere).intersect(&torus, tol)))
     });
     let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();

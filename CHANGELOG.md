@@ -11,6 +11,38 @@ the Python distribution are versioned in lockstep.
 
 ### Added
 
+- A torus meets a plane or a sphere in closed form in any position
+  (#270). It used to be only through or across its axis, in a Villarceau
+  plane, or with the sphere centred on its axis; every other position
+  ran the numeric search.
+  - Each tube circle meets the plane or the sphere where
+    `α cos v + β sin v = γ`. Its two points, `(cos v, sin v)` along
+    `(αγ ∓ β√Δ, βγ ± α√Δ)`, merge where `Δ = α² + β² − γ²` vanishes.
+    `Δ` is a quadratic in the cosine of the angle around the axis, which
+    factors like the discriminant of the quadric quartics. So the loops
+    are read and fitted by the same code, along the torus's tube circles
+    instead of a quadric's generators.
+  - `TorusPlaneIntersection` and `TorusSphereIntersection` gain
+    `Quartic(QuarticCurve)` and `TangentPoint(Point)`:
+    - a spiric section: two loops around the axis, one or two loops
+      (Cassini's ovals among them, parallel to the axis at the minor
+      radius from it), or one crossing itself where the plane touches
+      the inside of the tube;
+    - a sphere off the axis: a quartic of the same shapes;
+    - a point where either touches the torus and meets it nowhere else.
+  - A sphere touching the torus twice meets it in two circles through
+    both points, and one centred in the torus's plane can hold two tube
+    circles. Both come back as `TwoCircles`.
+  - `intersect` fits each loop within confusion, with curves in both
+    surfaces' parameters, and reports the pair `Exact` and complete, in
+    either order, in Rust and Python.
+  - A horn or spindle torus keeps `NotAnalytic` away from the special
+    positions: its tube circles cross on its axis, where its normal
+    fails.
+  - The `marching_intersection` bench and the `marching` fingerprints
+    now march the torus pairs against the torus's B-spline form
+    (`bspline_torus_plane_oblique`, `sphere_bspline_torus`). The closed
+    form is timed under `intersect_routed/torus_quartic`.
 - A circle meets a torus in closed form (#269):
   `IntersectExact<Torus> for Circle` returns a `CircleSurfaceIntersection`.
   - Along a circle, the torus equation is
@@ -27,6 +59,12 @@ the Python distribution are versioned in lockstep.
   - An ellipse, a parabola or a hyperbola against a torus still runs the
     numeric search: substituted into the torus, they give an equation of
     degree 8.
+
+### Breaking
+
+- `TorusPlaneIntersection` and `TorusSphereIntersection` gain
+  `Quartic(QuarticCurve)` and `TangentPoint(Point)` (#270): a `match` on
+  them needs the arms.
 
 ### Fixed
 
