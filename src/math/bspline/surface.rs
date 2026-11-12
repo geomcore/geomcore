@@ -402,7 +402,6 @@ fn bezier_net<const H: usize, const N: usize, const FIXED: bool>(
     out: &mut [f64],
 ) {
     let (m, n) = if FIXED { (N, N) } else { (p + 1, q + 1) };
-    let point = |net: &[f64], k: usize| -> [f64; H] { std::array::from_fn(|c| net[k * H + c]) };
     // Along v first: `scratch[i][l]` is Bernstein point `l` of pole row `i`.
     for i in 0..m {
         let start = ((first_u + i) % n_u) * n_v;
@@ -421,7 +420,7 @@ fn bezier_net<const H: usize, const N: usize, const FIXED: bool>(
         let mut row = [[0.0f64; H]; N];
         for (i, &weight) in weights.iter().enumerate() {
             for (l, x) in row.iter_mut().enumerate().take(n) {
-                let y = point(scratch, i * n + l);
+                let y = &scratch[(i * n + l) * H..][..H];
                 for c in 0..H {
                     x[c] += weight * y[c];
                 }
