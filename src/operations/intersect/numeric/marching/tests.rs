@@ -1902,3 +1902,26 @@ fn test_a_cylinder_cut_by_a_swept_line_is_one_ellipse_at_any_size() {
         assert!(curve.point_at(t0).distance(curve.point_at(t1)) <= tol.confusion);
     }
 }
+
+/// A plane through a generator of a hyperboloid of one sheet cuts it in
+/// two lines crossing where the plane touches it: four half-lines from
+/// the crossing, the same near the origin and 1e7 away from it. Far away,
+/// rounding opens the crossing into a bend a few millionths wide, through
+/// which a trace turned from one line onto the other by turns below the
+/// free one.
+#[test]
+fn test_a_plane_through_a_generator_of_a_hyperboloid_ends_its_lines_at_the_crossing_anywhere() {
+    use crate::{Axis, ExtrusionSurface, Line, RevolutionSurface, Transform, Transformable};
+    let line = Line::new(Point::new(1.0, -2.0, 0.5), Vector::new(0.3, 0.9, -0.2)).unwrap();
+    let plane = ExtrusionSurface::new(line.into(), Vector::new(0.2, -0.1, 1.5)).unwrap();
+    let hyperboloid =
+        RevolutionSurface::new(line.into(), Axis::new(Point::ORIGIN, Vector::Z).unwrap()).unwrap();
+    let mut counts = Vec::new();
+    for distance in [0.0, 1e7] {
+        let moved = Transform::translation(Vector::new(distance, -2.0 * distance, 1.5 * distance));
+        let plane = plane.clone().transformed(moved).unwrap();
+        let hyperboloid = hyperboloid.clone().transformed(moved).unwrap();
+        counts.push(marched_curves(&plane, &hyperboloid, Tolerance::DEFAULT).len());
+    }
+    assert_eq!(counts, [4, 4]);
+}
