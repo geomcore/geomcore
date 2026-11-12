@@ -189,3 +189,30 @@ fn test_parameters_skip_lines_without_length() {
         assert!((a - b).abs() < 1e-15);
     }
 }
+
+#[test]
+fn test_parameters_keep_short_lines_and_skip_collapsed_ones_at_any_size() {
+    let moved = |scale: f64, shift: f64| -> Vec<Vec<Point>> {
+        let mut points = wavy_grid(4, 5);
+        points[0] = vec![points[0][0]; 5];
+        points
+            .into_iter()
+            .map(|row| {
+                row.into_iter()
+                    .map(|p| Point::new(p.x * scale + shift, p.y * scale - shift, p.z * scale))
+                    .collect()
+            })
+            .collect()
+    };
+    let unmoved = moved(1.0, 0.0);
+    let reference = Grid::new(&unmoved, PointParametrization::Chordal).unwrap();
+    // Scaled by 2^-24 every line is shorter than 1e-7, and still has a
+    // length; 1e7 away the collapsed line is still one point.
+    for (scale, shift) in [(2f64.powi(-24), 0.0), (1.0, 1e7)] {
+        let points = moved(scale, shift);
+        let grid = Grid::new(&points, PointParametrization::Chordal).unwrap();
+        for (a, b) in grid.v_params.iter().zip(&reference.v_params) {
+            assert!((a - b).abs() < 1e-7, "at scale {scale}, shift {shift}");
+        }
+    }
+}
