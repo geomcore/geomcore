@@ -60,12 +60,15 @@ shape_methods! {
         }
     }
 
-    fn __repr__(&self) -> String {
-        format!(
-            "BezierCurve2D(degree={}, pole_count={}, rational={})",
-            self.0.degree(),
-            self.0.poles().len(),
-            crate::values::py_bool(self.0.is_rational())
+    fn __repr__(slf: &pyo3::Bound<'_, Self>) -> PyResult<String> {
+        let this = slf.borrow();
+        if this.0.is_rational() {
+            return crate::pickling::paste_back_repr!(slf);
+        }
+        crate::pickling::paste_back_repr!(
+            slf,
+            "degree" => this.0.degree(),
+            "poles" => this.poles(),
         )
     }
 

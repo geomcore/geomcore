@@ -131,13 +131,18 @@ shape_methods! {
         }
     }
 
-    fn __repr__(&self) -> String {
-        bspline_repr(
-            "BSplineCurve2D",
-            (self.0.degree(), self.0.poles().len()),
-            (self.0.is_rational(), self.0.is_periodic()),
-            self.0.knots(),
-            self.0.multiplicities(),
+    fn __repr__(slf: &pyo3::Bound<'_, Self>) -> PyResult<String> {
+        let this = slf.borrow();
+        if this.0.is_rational() {
+            return crate::pickling::paste_back_repr!(slf);
+        }
+        crate::pickling::paste_back_repr!(
+            slf,
+            "degree" => this.0.degree(),
+            "poles" => this.poles(),
+            "knots" => this.knots(),
+            "multiplicities" => this.multiplicities(),
+            "periodic" => this.0.is_periodic(),
         )
     }
 

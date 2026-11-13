@@ -2,7 +2,7 @@
 
 use crate::curves::*;
 use crate::method_sets::*;
-use crate::values::{PyFrame2D, coordinates_2d, float_repr};
+use crate::values::PyFrame2D;
 use geomcore::Circle2D;
 
 /// A circle in a surface's 2D (u, v) parameter space.
@@ -69,11 +69,12 @@ shape_methods! {
         crate::pickling::reduce(slf.as_any(), Some("from_frame"), (this.frame(), this.radius(),))
     }
 
-    fn __repr__(&self) -> String {
-        format!(
-            "Circle2D(center={}, radius={})",
-            coordinates_2d(self.0.center()),
-            float_repr(self.0.radius())
+    fn __repr__(slf: &pyo3::Bound<'_, Self>) -> PyResult<String> {
+        let this = slf.borrow();
+        crate::pickling::paste_back_repr!(
+            slf,
+            "center" => crate::values::PyPoint2D(this.0.center()),
+            "radius" => this.0.radius(),
         )
     }
 }

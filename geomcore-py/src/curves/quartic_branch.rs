@@ -46,9 +46,19 @@ shape_methods! {
         Ok(())
     }
 
-    fn __repr__(&self) -> String {
-        let reversed = if self.0.is_reversed() { ", reversed" } else { "" };
-        format!("QuarticBranch(index={}{reversed})", self.0.index())
+    /// The constructor call, then `.reversed()` and `.transformed(...)`
+    /// for the orientation and placement the constructor does not take.
+    fn __repr__(slf: &pyo3::Bound<'_, Self>) -> PyResult<String> {
+        let mut text = crate::pickling::paste_back_repr!(slf)?;
+        let branch = &slf.borrow().0;
+        if branch.is_reversed() {
+            text.push_str(".reversed()");
+        }
+        if branch.placement() != geomcore::Transform::IDENTITY {
+            let placement = PyTransform(branch.placement()).into_pyobject(slf.py())?;
+            text.push_str(&format!(".transformed({})", placement.repr()?));
+        }
+        Ok(text)
     }
 
     #[new]

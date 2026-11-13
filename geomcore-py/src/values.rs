@@ -785,6 +785,15 @@ impl PyAxis {
         PyAxis(self.0.reversed())
     }
 
+    fn __repr__(slf: &Bound<'_, Self>) -> PyResult<String> {
+        let axis = slf.borrow().0;
+        pickling::paste_back_repr!(
+            slf,
+            "origin" => PyPoint(axis.origin()),
+            "direction" => PyVector(axis.direction()),
+        )
+    }
+
     fn __reduce__<'py>(slf: &Bound<'py, Self>) -> PyResult<Bound<'py, PyTuple>> {
         let axis = slf.borrow().0;
         let arguments = (PyPoint(axis.origin()), PyVector(axis.direction()));
@@ -857,11 +866,12 @@ impl PyAxis2D {
         PyAxis2D(self.0.reversed())
     }
 
-    fn __repr__(&self) -> String {
-        format!(
-            "Axis2D(origin={}, direction={})",
-            coordinates_2d(self.0.origin()),
-            coordinates_2d(self.0.direction())
+    fn __repr__(slf: &Bound<'_, Self>) -> PyResult<String> {
+        let axis = slf.borrow().0;
+        pickling::paste_back_repr!(
+            slf,
+            "origin" => PyPoint2D(axis.origin()),
+            "direction" => PyVector2D(axis.direction()),
         )
     }
 
@@ -960,12 +970,13 @@ impl PyFrame2D {
         self.0.local_components(vector.0)
     }
 
-    fn __repr__(&self) -> String {
-        format!(
-            "Frame2D(origin={}, x_direction={}, y_direction={})",
-            coordinates_2d(self.0.origin()),
-            coordinates_2d(self.0.x_direction()),
-            coordinates_2d(self.0.y_direction())
+    fn __repr__(slf: &Bound<'_, Self>) -> PyResult<String> {
+        let frame = slf.borrow().0;
+        pickling::paste_back_repr!(
+            slf,
+            "origin" => PyPoint2D(frame.origin()),
+            "x_direction" => PyVector2D(frame.x_direction()),
+            "y_direction" => PyVector2D(frame.y_direction()),
         )
     }
 
@@ -1110,6 +1121,16 @@ impl PyFrame {
         Ok(PyFrame(
             self.0.transformed(transform.0).map_err(python_error)?,
         ))
+    }
+
+    fn __repr__(slf: &Bound<'_, Self>) -> PyResult<String> {
+        let frame = slf.borrow().0;
+        pickling::paste_back_repr!(
+            slf,
+            "origin" => PyPoint(frame.origin()),
+            "z_direction" => PyVector(frame.z_direction()),
+            "x_hint" => PyVector(frame.x_direction()),
+        )
     }
 
     fn __reduce__<'py>(slf: &Bound<'py, Self>) -> PyResult<Bound<'py, PyTuple>> {
@@ -1378,7 +1399,7 @@ impl PyTransform {
             .to_matrix()
             .iter()
             .map(|row| {
-                let entries: Vec<String> = row.iter().map(|&entry| python_float(entry)).collect();
+                let entries: Vec<String> = row.iter().map(|&entry| float_repr(entry)).collect();
                 format!("[{}]", entries.join(", "))
             })
             .collect();

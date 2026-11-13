@@ -5,7 +5,6 @@ use crate::curves::*;
 use crate::method_sets::*;
 use crate::tolerance;
 use crate::values::ToleranceArgument;
-use crate::values::{coordinates, coordinates_2d, float_repr};
 use geomcore::{Curve, Curve2D, TrimmedCurve, TrimmedCurve2D};
 use pyo3::exceptions::PyTypeError;
 
@@ -121,14 +120,13 @@ shape_methods! {
         crate::pickling::reduce(slf.as_any(), None, (basis, this.start_parameter(), this.end_parameter()))
     }
 
-    fn __repr__(&self) -> String {
-        let (s, e) = (self.0.start_point(), self.0.end_point());
-        format!(
-            "TrimmedCurve(start_parameter={}, end_parameter={}, start_point={}, end_point={})",
-            float_repr(self.0.start_parameter()),
-            float_repr(self.0.end_parameter()),
-            coordinates(s),
-            coordinates(e)
+    fn __repr__(slf: &pyo3::Bound<'_, Self>) -> PyResult<String> {
+        let (this, py) = (slf.borrow(), slf.py());
+        crate::pickling::paste_back_repr!(
+            slf,
+            "basis" => this.basis(py)?,
+            "start_parameter" => this.0.start_parameter(),
+            "end_parameter" => this.0.end_parameter(),
         )
     }
 }
@@ -235,14 +233,13 @@ shape_methods! {
         crate::pickling::reduce(slf.as_any(), None, (basis, this.start_parameter(), this.end_parameter()))
     }
 
-    fn __repr__(&self) -> String {
-        let (s, e) = (self.0.start_point(), self.0.end_point());
-        format!(
-            "TrimmedCurve2D(start_parameter={}, end_parameter={}, start_point={}, end_point={})",
-            float_repr(self.0.start_parameter()),
-            float_repr(self.0.end_parameter()),
-            coordinates_2d(s),
-            coordinates_2d(e)
+    fn __repr__(slf: &pyo3::Bound<'_, Self>) -> PyResult<String> {
+        let (this, py) = (slf.borrow(), slf.py());
+        crate::pickling::paste_back_repr!(
+            slf,
+            "basis" => this.basis(py)?,
+            "start_parameter" => this.0.start_parameter(),
+            "end_parameter" => this.0.end_parameter(),
         )
     }
 }

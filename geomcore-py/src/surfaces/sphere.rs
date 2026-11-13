@@ -2,7 +2,7 @@
 
 use crate::method_sets::*;
 use crate::surfaces::*;
-use crate::values::{PyFrame, float_repr};
+use crate::values::PyFrame;
 use geomcore::Sphere;
 
 /// A sphere; u is the longitude in [0, 2*pi), v the latitude in [-pi/2, pi/2].
@@ -23,11 +23,12 @@ shape_methods! {
         crate::pickling::reduce(slf.as_any(), Some("from_frame"), (this.frame(), this.radius(),))
     }
 
-    fn __repr__(&self) -> String {
-        format!(
-            "Sphere(center={}, radius={})",
-            crate::values::coordinates(self.0.center()),
-            float_repr(self.0.radius())
+    fn __repr__(slf: &pyo3::Bound<'_, Self>) -> PyResult<String> {
+        let this = slf.borrow();
+        crate::pickling::paste_back_repr!(
+            slf,
+            "center" => crate::values::PyPoint(this.0.center()),
+            "radius" => this.0.radius(),
         )
     }
 

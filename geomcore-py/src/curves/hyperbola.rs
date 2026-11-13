@@ -2,7 +2,7 @@
 
 use crate::curves::*;
 use crate::method_sets::*;
-use crate::values::{PyFrame, float_repr};
+use crate::values::PyFrame;
 use geomcore::Hyperbola;
 
 /// One branch of a hyperbola in 3D.
@@ -23,13 +23,15 @@ shape_methods! {
         crate::pickling::reduce(slf.as_any(), Some("from_frame"), (this.frame(), this.major_radius(), this.minor_radius(),))
     }
 
-    fn __repr__(&self) -> String {
-        format!(
-            "Hyperbola(center={}, normal={}, major_radius={}, minor_radius={})",
-            crate::values::coordinates(self.0.center()),
-            crate::values::coordinates(self.0.frame().z_direction()),
-            float_repr(self.0.major_radius()),
-            float_repr(self.0.minor_radius())
+    fn __repr__(slf: &pyo3::Bound<'_, Self>) -> PyResult<String> {
+        let this = slf.borrow();
+        crate::pickling::paste_back_repr!(
+            slf,
+            "center" => crate::values::PyPoint(this.0.center()),
+            "normal" => crate::values::PyVector(this.0.frame().z_direction()),
+            "x_direction" => crate::values::PyVector(this.0.frame().x_direction()),
+            "major_radius" => this.0.major_radius(),
+            "minor_radius" => this.0.minor_radius(),
         )
     }
 
