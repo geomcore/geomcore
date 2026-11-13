@@ -199,3 +199,23 @@ def test_extrema_from_a_curve_is_the_curve_pair_operation():
     with pytest.raises(TypeError, match="a Point or a 3D curve, not Line2D"):
         circle.extrema(line)  # type: ignore[call-overload]
     assert [type(e) for e in circle.extrema(Point(3, 0, 0))] == [CurveProjection]
+
+
+def test_signed_distance_tells_the_side_of_the_surface():
+    # #254: metrology needs to know whether material is in excess or missing.
+    sphere = Sphere(Point.origin(), 2.0)
+    assert sphere.project_point(Point(3.0, 0.0, 0.0)).signed_distance == 1.0
+    assert sphere.project_point(Point(1.0, 0.0, 0.0)).signed_distance == -1.0
+    assert sphere.project_point(Point(0.0, 0.0, 2.0)).signed_distance == 0.0
+    # The sign follows the surface's orientation.
+    assert sphere.reversed_u().project_point(Point(3.0, 0.0, 0.0)).signed_distance == -1.0
+    plane = Plane(Point.origin(), Vector.unit_z())
+    (below,) = plane.project_points([Point(0.5, 0.5, -3.0)])
+    assert below.signed_distance == -3.0
+    # Beside a trimmed surface, in its tangent plane, there is no side.
+    square = plane.trimmed((0.0, 1.0), (0.0, 1.0))
+    assert square.project_point(Point(2.0, 0.5, 0.0)).signed_distance is None
+    assert square.project_point(Point(0.5, 0.5, 4.0)).signed_distance == 4.0
+    cylinder = Cylinder(Point.origin(), Vector.unit_z(), 1.0)
+    bspline = cylinder.to_bspline_patch((0.0, math.pi), (0.0, 1.0))
+    assert bspline.project_point(Point(0.0, 0.5, 0.5)).signed_distance == pytest.approx(-0.5)
