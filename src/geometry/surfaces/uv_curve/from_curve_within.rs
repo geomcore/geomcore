@@ -70,7 +70,9 @@ pub enum Curve3DToUvApproximationError {
     /// The curve is farther from the surface than half the asked deviation,
     /// the share each sampled span is held to.
     CurveNotOnSurface {
-        /// The largest distance found between the curve and the surface.
+        /// The largest distance found between the curve and the surface:
+        /// over the evenly spaced samples when the curve leaves the surface
+        /// there, otherwise at the first point found off it.
         distance: f64,
     },
     /// A breakpoint of the UV curve falls where the surface's
@@ -271,19 +273,38 @@ where
         };
         let start = curve.point_at(first);
         let mut collapsed = true;
-        for k in 0..=LIFT_SAMPLE_COUNT {
-            let parameter = if k == LIFT_SAMPLE_COUNT {
+        let sample_parameter = |k: usize| {
+            if k == LIFT_SAMPLE_COUNT {
                 last
             } else {
                 first + (last - first) * (k as f64 / LIFT_SAMPLE_COUNT as f64)
-            };
+            }
+        };
+        for k in 0..=LIFT_SAMPLE_COUNT {
+            let parameter = sample_parameter(k);
             let point = curve.point_at(parameter);
             collapsed &= point.distance(start) <= tol.confusion;
             let predicted = inversion
                 .lift
                 .last()
                 .map(|previous| previous.predict(parameter));
-            let uv = inversion.inverted(point, predicted)?;
+            let uv = match inversion.inverted(point, predicted) {
+                Ok(uv) => uv,
+                Err(Curve3DToUvApproximationError::CurveNotOnSurface { distance })
+                    if !distance.is_nan() =>
+                {
+                    // Report the largest distance over the samples, so one
+                    // retry with a deviation above it is enough.
+                    let distance = (k + 1..=LIFT_SAMPLE_COUNT)
+                        .map(|k| {
+                            let point = curve.point_at(sample_parameter(k));
+                            surface.project_point(point, tol).distance
+                        })
+                        .fold(distance, f64::max);
+                    return Err(Curve3DToUvApproximationError::CurveNotOnSurface { distance });
+                }
+                Err(error) => return Err(error),
+            };
             let velocity = inversion.uv_derivatives(parameter, uv, Side::Above);
             inversion.lift.push(LiftSample {
                 parameter,
