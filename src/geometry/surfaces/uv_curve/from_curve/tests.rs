@@ -1,14 +1,11 @@
-use super::{
-    Curve3DToUvError, FRAC_PI_2, PI, TAU, mirror_about_horizontal, sphere_meridian,
-    sphere_set_in_bounds,
-};
+use super::{Curve3DToUvError, PI, TAU};
 use crate::base::transform::Transformable;
 use crate::geometry::curves::{Curve2D, ParametricCurve, ParametricCurve2D};
 use crate::geometry::surfaces::ParametricSurface;
 use crate::math::elementary::curve::in_period;
 use crate::{
-    BSplineCurve, BezierCurve, Circle, Cylinder, Ellipse, Frame, Hyperbola, Line, Line2D, Parabola,
-    Plane, Point, Point2D, Sphere, Tolerance, Vector, Vector2D,
+    BSplineCurve, BezierCurve, Circle, Cylinder, Ellipse, Frame, Hyperbola, Line, Parabola, Plane,
+    Point, Point2D, Sphere, Tolerance, TrimmedCurve, Vector, Vector2D,
 };
 
 #[test]
@@ -72,10 +69,10 @@ fn test_great_circle_near_a_meridian_follows_the_confusion_tolerance() {
     let sphere = Sphere::new(Point::ORIGIN, 10.0).unwrap();
     let normal = Vector::new(1.0, 0.0, 1e-5);
     let circle = Circle::new(Point::ORIGIN, normal, 10.0).unwrap();
-    assert!(matches!(
+    assert_eq!(
         sphere.curve_3d_to_uv(&circle.into(), loose),
-        Ok(Curve2D::Line(_))
-    ));
+        Err(Curve3DToUvError::ThroughPole)
+    );
     assert_eq!(
         sphere.curve_3d_to_uv(&circle.into(), Tolerance::DEFAULT),
         Err(Curve3DToUvError::NotAnalytic)
@@ -121,152 +118,85 @@ fn test_curve_3d_to_uv_error_display_and_is_std_error() {
     assert!(!Curve3DToUvError::CurveNotOnSurface.to_string().is_empty());
 }
 
-// ---- sphere pole-mirror branch (sphere_set_in_bounds lines 397-410) ----
-//
-// The branch mirrors a meridian UV curve about v = +-pi/2 when q(0) sits
-// at a pole boundary AND the line's v-direction continues past it. The
-// reviewer's suggested construction (circle-frame x_direction() pointing
-// exactly at a pole) does NOT trigger it: `sphere_meridian` derives the
-// UV curve's v-direction from `p2 - p1`, where `p2` comes from the
-// circle's y_direction() — orthogonal to x_direction(), and therefore
-// always closer to the equator. That forces `dir.y` to point *away* from
-// whichever pole `p1` sits at, the opposite of what the mirror condition
-// needs. Exhaustive random search over orthonormal circle frames
-// confirms this construction never triggers the branch.
-//
-// The actual trigger is the *seam-fold* sub-case (line 336): tilt the
-// circle's x_direction() a hair off the pole (a few 1e-7 rad) so
-// `sphere_meridian`'s own pole snap-to (`Tolerance::DEFAULT.parametric = 1e-9`)
-// does *not* fire, but the endpoints still straddle the u-seam
-// (`|p1.x - p2.x| ~ pi`), which folds `p2` across the pole and makes the
-// line's v-direction continue *past* it. The resulting `p1.y` then lands
-// just inside `sphere_set_in_bounds`'s looser boundary tolerance
-// (`Tolerance::DEFAULT.confusion = 1e-7`) with the matching direction sign, which is
-// exactly the condition on lines 393-396.
+// ---- sphere meridians (#313) ----
+
+/// A meridian of `sphere` in the plane through its axis at angle `phi`,
+/// starting at the north pole.
+fn meridian_from_the_north_pole(sphere: &Sphere, phi: f64) -> Circle {
+    let normal = Vector::new(-phi.sin(), phi.cos(), 0.0);
+    let frame = Frame::new(sphere.frame().origin(), normal, Vector::Z).unwrap();
+    Circle::from_frame(frame, sphere.radius()).unwrap()
+}
+
 #[test]
-fn test_sphere_meridian_pole_mirror_north() {
+fn test_a_whole_meridian_runs_through_the_poles_and_is_refused() {
+    // A line in (u, v) would leave the v bounds past each pole, where the
+    // meridian's u jumps by pi.
     let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
-
-    // circle normal = +X (perpendicular to the sphere's z-axis, so this
-    // is a meridian); x_hint tilts x_direction() a hair off the north
-    // pole and just past the u-seam relative to y_direction(), which is
-    // what makes sphere_meridian fold p2 across the pole (the seam-fold
-    // sub-case) instead of snapping p1 to it (the pole sub-case).
-    let eps = 2e-7_f64;
-    let phi = 15.0_f64.to_radians();
-    let x_hint = Vector::new(phi.cos() * eps.sin(), phi.sin() * eps.sin(), eps.cos());
-    let frame = Frame::new(Point::ORIGIN, Vector::X, x_hint).unwrap();
-    let circle = Circle::from_frame(frame, 2.0).unwrap();
-
-    let sf = sphere.frame();
-    let raw = sphere_meridian(&circle, sf);
-    // q(0) sits just short of the north pole, with the v-direction
-    // continuing past it — the trigger condition on line 394.
-    assert!(FRAC_PI_2 - raw.origin().y > 0.0);
-    assert!(FRAC_PI_2 - raw.origin().y < Tolerance::DEFAULT.confusion);
-    assert_close(raw.direction().y, 1.0);
-
-    let normalized = sphere_set_in_bounds(raw);
-    // Observable proof the mirror branch ran: v is reflected about
-    // pi/2 (staying within Tolerance::DEFAULT.confusion of the pole, on the other
-    // side of it from the raw line) and u picks up the +pi shift
-    // (wrapped into [0, 2pi)).
-    assert_close(
-        normalized.origin().x,
-        in_period(raw.origin().x + PI, 0.0, TAU),
-    );
-    assert_close(normalized.direction().y, -raw.direction().y);
-    assert!((normalized.origin().y - FRAC_PI_2).abs() < Tolerance::DEFAULT.confusion);
-    assert!((0.0..TAU + 1e-9).contains(&normalized.origin().x));
-
-    // The consistency invariant is the real proof the mirror math is
-    // right: it must hold across t values that cross the pole.
-    let uv_curve = sphere
-        .curve_3d_to_uv(&circle.into(), Tolerance::DEFAULT)
-        .unwrap();
-    assert_eq!(uv_curve, Curve2D::Line(normalized));
-    for t in [0.0_f64, 0.5, 1.7, 3.0, 4.5] {
-        let uv = uv_curve.point_at(t);
-        let on_surface = sphere.point_at(uv.x, uv.y);
-        let expected = circle.point_at(t);
-        assert!(
-            on_surface.distance(expected) < 1e-9,
-            "t={t}: sphere.point_at(u,v)={on_surface:?} != circle.point_at(t)={expected:?}"
+    for phi in [0.0, 1.0, PI, 5.0] {
+        let circle = meridian_from_the_north_pole(&sphere, phi);
+        assert_eq!(
+            sphere.curve_3d_to_uv(&circle.into(), Tolerance::DEFAULT),
+            Err(Curve3DToUvError::ThroughPole)
         );
+    }
+    // A meridian's circle of another radius is off the sphere.
+    let smaller = Circle::new(Point::ORIGIN, Vector::Y, 1.5).unwrap();
+    assert_eq!(
+        sphere.curve_3d_to_uv(&smaller.into(), Tolerance::DEFAULT),
+        Err(Curve3DToUvError::CurveNotOnSurface)
+    );
+    assert!(
+        Curve3DToUvError::ThroughPole
+            .to_string()
+            .contains("curve_3d_to_uv_within")
+    );
+}
+
+#[test]
+fn test_a_meridian_arc_from_pole_to_pole_is_a_line_within_the_v_bounds() {
+    let sphere = Sphere::new(Point::new(1.0, -2.0, 0.5), 2.0).unwrap();
+    for phi in [0.0, 1.0, PI, 5.0] {
+        let circle = meridian_from_the_north_pole(&sphere, phi);
+        // The two halves of the meridian, each from pole to pole, and a
+        // piece inside each.
+        for (start, end) in [(0.0, PI), (PI, TAU), (0.3, 2.0), (4.0, 5.5)] {
+            let arc = TrimmedCurve::new(circle.into(), start, end).unwrap();
+            let uv = sphere
+                .trimmed_curve_3d_to_uv(&arc, Tolerance::DEFAULT)
+                .unwrap();
+            let (low, high) = sphere.v_bounds();
+            for k in 0..=8 {
+                let t = start + (end - start) * f64::from(k) / 8.0;
+                let at = uv.point_at(t);
+                assert!(
+                    at.y >= low - 1e-12 && at.y <= high + 1e-12,
+                    "phi {phi}, t {t}: v {}",
+                    at.y
+                );
+                assert!((0.0..TAU).contains(&at.x), "phi {phi}: u {}", at.x);
+                let on_sphere = sphere.point_at(at.x, at.y);
+                assert!(
+                    on_sphere.distance(circle.point_at(t)) < 1e-12,
+                    "phi {phi}, t {t}"
+                );
+            }
+        }
     }
 }
 
 #[test]
-fn test_sphere_meridian_pole_mirror_south() {
+fn test_a_meridian_arc_across_a_pole_is_refused() {
     let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
-
-    // South twin: negating the whole north x_hint reflects the
-    // construction through the sphere's center, landing x_direction()
-    // just short of the south pole with the matching seam-fold geometry.
-    let eps = 2e-7_f64;
-    let phi = 15.0_f64.to_radians();
-    let x_hint = -Vector::new(phi.cos() * eps.sin(), phi.sin() * eps.sin(), eps.cos());
-    let frame = Frame::new(Point::ORIGIN, Vector::X, x_hint).unwrap();
-    let circle = Circle::from_frame(frame, 2.0).unwrap();
-
-    let sf = sphere.frame();
-    let raw = sphere_meridian(&circle, sf);
-    assert!(raw.origin().y - (-FRAC_PI_2) > 0.0);
-    assert!(raw.origin().y - (-FRAC_PI_2) < Tolerance::DEFAULT.confusion);
-    assert_close(raw.direction().y, -1.0);
-
-    let normalized = sphere_set_in_bounds(raw);
-    // Observable proof the mirror branch ran: v is reflected about
-    // -pi/2 and u picks up the +pi shift (wrapped into [0, 2pi)).
-    assert_close(
-        normalized.origin().x,
-        in_period(raw.origin().x + PI, 0.0, TAU),
-    );
-    assert_close(normalized.direction().y, -raw.direction().y);
-    assert!((normalized.origin().y - (-FRAC_PI_2)).abs() < Tolerance::DEFAULT.confusion);
-    assert!((0.0..TAU + 1e-9).contains(&normalized.origin().x));
-
-    let uv_curve = sphere
-        .curve_3d_to_uv(&circle.into(), Tolerance::DEFAULT)
-        .unwrap();
-    assert_eq!(uv_curve, Curve2D::Line(normalized));
-    for t in [0.0_f64, 0.5, 1.7, 3.0, 4.5] {
-        let uv = uv_curve.point_at(t);
-        let on_surface = sphere.point_at(uv.x, uv.y);
-        let expected = circle.point_at(t);
-        assert!(
-            on_surface.distance(expected) < 1e-9,
-            "t={t}: sphere.point_at(u,v)={on_surface:?} != circle.point_at(t)={expected:?}"
+    let circle = meridian_from_the_north_pole(&sphere, 0.7);
+    for (start, end) in [(-0.5, 0.5), (3.0, 3.3), (0.0, 4.0)] {
+        let arc = TrimmedCurve::new(circle.into(), start, end).unwrap();
+        assert_eq!(
+            sphere.trimmed_curve_3d_to_uv(&arc, Tolerance::DEFAULT),
+            Err(Curve3DToUvError::ThroughPole),
+            "({start}, {end})"
         );
     }
-}
-
-/// Direct unit test of the mirror helper: `mirror_about_horizontal`
-/// reflects `(u, v)` about the horizontal line `v = c`, i.e.
-/// `(u, v) -> (u, 2c - v)`, and flips the sign of the direction's `v`
-/// component. The caller (`sphere_set_in_bounds`) applies the separate
-/// `u += π` shift itself; that translation does not live inside this
-/// helper.
-#[test]
-fn test_mirror_about_horizontal() {
-    let line = Line2D::new(Point2D::new(1.0, 1.7), Vector2D::new(0.0, 1.0)).unwrap();
-    let mirrored = mirror_about_horizontal(line, FRAC_PI_2);
-    assert_close(mirrored.origin().x, 1.0);
-    assert_close(mirrored.origin().y, 2.0 * FRAC_PI_2 - 1.7);
-    assert_close(mirrored.direction().x, 0.0);
-    assert_close(mirrored.direction().y, -1.0);
-}
-
-#[test]
-fn test_mirror_about_horizontal_is_involution() {
-    // Mirroring twice about the same axis returns the original line.
-    let line = Line2D::new(Point2D::new(-2.3, 0.4), Vector2D::new(0.0, -1.0)).unwrap();
-    let once = mirror_about_horizontal(line, FRAC_PI_2);
-    let twice = mirror_about_horizontal(once, FRAC_PI_2);
-    assert_close(twice.origin().x, line.origin().x);
-    assert_close(twice.origin().y, line.origin().y);
-    assert_close(twice.direction().x, line.direction().x);
-    assert_close(twice.direction().y, line.direction().y);
 }
 
 // ---- ellipse, parabola, hyperbola and B-spline on a plane (#95) ----

@@ -32,7 +32,11 @@ A circle coaxial with a cylinder is a horizontal line in $(u, v)$; a
 line in a plane is a line. The result is a `Line2D`/`Circle2D` (or a
 `Curve2D` run-time value) that evaluates through the surface back onto
 the 3D curve within `tol.confusion` — that check is what "lies on"
-means, and anything farther off is `CurveNotOnSurface`.
+means, and anything farther off is `CurveNotOnSurface`. A sphere's
+meridian runs through both poles, where its `u` jumps by half a turn, so
+no line within the `v` bounds holds the whole circle: it is refused as
+`ThroughPole`, and an arc of it from pole to pole maps to a line along
+`v` (`trimmed_curve_3d_to_uv` in Rust, a `TrimmedCurve` in Python).
 
 The Python examples on this page share these shapes: a cylinder, a
 circle around its axis, and the ellipse a slanted plane cuts from it.

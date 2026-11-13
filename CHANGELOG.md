@@ -11,6 +11,14 @@ the Python distribution are versioned in lockstep.
 
 ### Breaking
 
+- `Curve3DToUvError` has a third variant, `ThroughPole` (#313): a whole
+  meridian of a sphere is refused with it, where it returned a line in
+  `(u, v)` that left the sphere's `v` bounds past each pole. An arc of the
+  meridian from pole to pole maps to a line along `v` within the bounds,
+  through `trimmed_curve_3d_to_uv` (a `TrimmedCurve` in Python), and so
+  does a meridian piece of a trimmed sphere's intersection clipped between
+  the poles. The whole circle maps within a deviation with
+  `curve_3d_to_uv_within`.
 - Python: the deprecated modules `geomcore.curves` and `geomcore.surfaces`
   are removed (#295); import every shape from `geomcore`, as
   `from geomcore import Circle`. They warned since 0.44.0.

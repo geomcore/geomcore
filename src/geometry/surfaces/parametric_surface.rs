@@ -4,6 +4,7 @@
 //! degenerate.
 
 use crate::geometry::curves::{Continuity, Curve, Curve2D, TrimmedCurve, TrimmedCurve2D};
+use crate::geometry::surfaces::uv_curve::from_curve::{OnSurfaceCheck, meridian_arc_to_uv};
 use crate::geometry::surfaces::{
     BSplineSurface, Curve3DToUvError, ElementarySurface, ExtrusionSurface, RevolutionSurface,
     TrimmedSurface, TrimmedSurfaceConstructionError, UvCurveTo3DError,
@@ -696,7 +697,7 @@ pub trait ParametricSurface {
     /// | line along a generator | cone | a line along `v` |
     /// | circle | plane | a 2D circle |
     /// | circle about the axis | cylinder, cone | a line along `u` |
-    /// | meridian or parallel | sphere | a line along `v` or `u` |
+    /// | parallel | sphere | a line along `u` |
     /// | poloidal or toroidal circle | torus | a line along `v` or `u` |
     /// | ellipse, parabola, hyperbola | plane | the 2D conic of the same radii or focal distance |
     /// | B-spline or Bézier curve | plane | the same spline over its poles' plane coordinates |
@@ -802,7 +803,14 @@ pub trait ParametricSurface {
         curve: &TrimmedCurve,
         tol: Tolerance,
     ) -> Result<TrimmedCurve2D, Curve3DToUvError> {
-        let basis = self.curve_3d_to_uv(curve.basis(), tol)?;
+        let range = (curve.start_parameter(), curve.end_parameter());
+        let basis = match self.curve_3d_to_uv(curve.basis(), tol) {
+            // A meridian arc between the poles maps to its half's line.
+            Err(Curve3DToUvError::ThroughPole) => {
+                meridian_arc_to_uv(self, curve.basis(), range, tol, OnSurfaceCheck::Sampled)?
+            }
+            other => other?,
+        };
         Ok(TrimmedCurve2D::from_parts(
             basis,
             curve.start_parameter(),

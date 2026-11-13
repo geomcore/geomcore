@@ -54,6 +54,12 @@ pub enum Curve3DToUvError {
     NotAnalytic,
     /// The curve does not lie on the surface (within tolerance).
     CurveNotOnSurface,
+    /// The curve runs through a pole of a sphere, where its `u` jumps by
+    /// half a turn: a whole meridian. A meridian arc from pole to pole has
+    /// a UV curve ([`ParametricSurface::trimmed_curve_3d_to_uv`]), and
+    /// [`curve_3d_to_uv_within`](crate::curve_3d_to_uv_within) maps the
+    /// whole circle within a deviation.
+    ThroughPole,
 }
 
 impl fmt::Display for Curve3DToUvError {
@@ -63,6 +69,10 @@ impl fmt::Display for Curve3DToUvError {
                 "no closed-form 2D representation exists for this curve/surface pair"
             }
             Curve3DToUvError::CurveNotOnSurface => "the curve does not lie on the surface",
+            Curve3DToUvError::ThroughPole => {
+                "the curve runs through a pole of the sphere, where its u jumps: \
+                 map an arc from pole to pole, or use curve_3d_to_uv_within"
+            }
         };
         f.write_str(message)
     }
@@ -182,6 +192,15 @@ fn circle_on_surface(
             finish_line(surface, uv_curve, |t| circle.point_at(t), tol, check)
         }
         ElementarySurface::Sphere(sphere) => {
+            if is_meridian(circle, sphere.frame(), tol) {
+                // Through both poles: no line within the `v` bounds holds it.
+                let on_sphere = (circle.radius() - sphere.radius()).abs() <= tol.confusion;
+                return Err(if on_sphere || check == OnSurfaceCheck::Skipped {
+                    Curve3DToUvError::ThroughPole
+                } else {
+                    Curve3DToUvError::CurveNotOnSurface
+                });
+            }
             let uv_curve = circle_on_sphere(circle, sphere.frame(), tol)?;
             finish_line(surface, uv_curve, |t| circle.point_at(t), tol, check)
         }
@@ -608,8 +627,8 @@ fn cone_apex(frame: crate::Frame, ref_r: f64, half_angle: f64) -> Point {
 
 // ---- sphere ----
 
-/// 2D image of a circle on a sphere: succeeds only for a meridian (great
-/// circle through the poles) or a parallel (horizontal circle).
+/// 2D image of a circle on a sphere: succeeds only for a parallel
+/// (horizontal circle). A meridian is refused before (see [`is_meridian`]).
 fn circle_on_sphere(
     circle: &Circle,
     frame: crate::Frame,
@@ -617,48 +636,77 @@ fn circle_on_sphere(
 ) -> Result<Line2D, Curve3DToUvError> {
     let z = frame.z_direction();
     let cf = circle.frame();
-    let normal = circle.normal();
-
     // A tilt of angle `a` moves the circle's points by up to `radius * a`.
     let r = circle.radius();
-    let is_iso_u = r * normal.dot(z).abs() <= tol.confusion
-        && circle.center().distance(frame.origin()) <= tol.confusion;
     let is_iso_v = r * cf.x_direction().dot(z).abs() <= tol.confusion
         && r * cf.y_direction().dot(z).abs() <= tol.confusion;
-
-    if is_iso_u {
-        Ok(sphere_meridian(circle, frame))
-    } else if is_iso_v {
+    if is_iso_v {
         sphere_parallel(circle, frame)
     } else {
         Err(Curve3DToUvError::NotAnalytic)
     }
 }
 
-/// Meridian (iso-`u`) image: a vertical line in `(u, v)` derived from the 2D
-/// images of the circle's x and y axis endpoints, with seam/pole handling.
-fn sphere_meridian(circle: &Circle, frame: crate::Frame) -> Line2D {
-    let cf = circle.frame();
-    let mut p1 = sphere_parameters(frame, cf.x_direction());
-    let mut p2 = sphere_parameters(frame, cf.y_direction());
+/// Whether `circle` is a great circle through the poles of the sphere of
+/// `frame`: centred on it, its plane holding the axis.
+fn is_meridian(circle: &Circle, frame: crate::Frame, tol: Tolerance) -> bool {
+    // A tilt of angle `a` moves the circle's points by up to `radius * a`.
+    circle.radius() * circle.normal().dot(frame.z_direction()).abs() <= tol.confusion
+        && circle.center().distance(frame.origin()) <= tol.confusion
+}
 
-    if (p1.y - FRAC_PI_2).abs() < Tolerance::DEFAULT.parametric
-        || (p1.y + FRAC_PI_2).abs() < Tolerance::DEFAULT.parametric
-    {
-        // p1 sits on a pole where u is undefined; borrow p2's u.
-        p1.x = p2.x;
-    } else if ((p1.x - p2.x).abs() - PI).abs() < Tolerance::DEFAULT.parametric {
-        // The two endpoints straddle the seam; fold p2 onto p1's meridian.
-        p2.x = p1.x;
-        p2.y = if p2.y < 0.0 { -PI - p2.y } else { PI - p2.y };
-    } else {
-        p2.x = p1.x;
+/// The UV curve of a meridian of `surface`, a sphere, over `range` of its
+/// parameter: the line along `v` of the half of the meridian `range` lies
+/// on, from pole to pole at most. [`Curve3DToUvError::ThroughPole`] when
+/// `range` runs through a pole, or `curve` is no meridian of a sphere.
+#[cold]
+#[inline(never)]
+pub(crate) fn meridian_arc_to_uv(
+    surface: &(impl ParametricSurface + ?Sized),
+    curve: &Curve,
+    (start, end): (f64, f64),
+    tol: Tolerance,
+    check: OnSurfaceCheck,
+) -> Result<Curve2D, Curve3DToUvError> {
+    // The curve is checked first: the surface's kind is a copy of it.
+    let Curve::Circle(circle) = curve else {
+        return Err(Curve3DToUvError::ThroughPole);
+    };
+    let Some(ElementarySurface::Sphere(sphere)) = surface.as_elementary() else {
+        return Err(Curve3DToUvError::ThroughPole);
+    };
+    let frame = sphere.frame();
+    if !is_meridian(circle, frame, tol) {
+        return Err(Curve3DToUvError::ThroughPole);
     }
-
-    let dir = (p2 - p1)
-        .normalized()
-        .expect("meridian endpoints are distinct in v");
-    Line2D::new(p1, dir).expect("meridian direction is unit length")
+    // On a meridian `v` runs at one radian per radian of the circle's
+    // angle, up or down by the turn of the circle.
+    let middle = 0.5 * (start + end);
+    let at = sphere_parameters(
+        frame,
+        (circle.point_at(middle) - circle.center()) * (1.0 / circle.radius()),
+    );
+    let rising = circle.derivative(middle, 1).dot(frame.z_direction()) >= 0.0;
+    let slope = if rising { 1.0 } else { -1.0 };
+    let reach = 0.5 * (end - start).abs();
+    // The arc's ends may sit on the poles, within the angle `confusion`
+    // subtends.
+    let slack = tol.confusion / sphere.radius();
+    if at.y.abs() + reach > FRAC_PI_2 + slack {
+        return Err(Curve3DToUvError::ThroughPole);
+    }
+    let origin = Point2D::new(in_period(at.x, 0.0, TAU), at.y - slope * middle);
+    let line = Line2D::new(origin, Vector2D::new(0.0, slope)).expect("a unit direction along v");
+    let uv_curve = Curve2D::Line(line);
+    verify_on_surface_at(
+        surface,
+        &uv_curve,
+        |t| circle.point_at(t),
+        &[start, middle, end],
+        tol,
+        check,
+    )?;
+    Ok(uv_curve)
 }
 
 /// Parallel (iso-`v`) image: a horizontal line in `(u, v)` at constant
@@ -689,49 +737,6 @@ fn sphere_parameters(frame: crate::Frame, dir: Vector) -> Point2D {
     let u = angle_or_zero(y, x);
     let v = z.clamp(-1.0, 1.0).asin();
     Point2D::new(u, v)
-}
-
-/// Canonicalizes a sphere UV curve's value at `t = 0` into the parameter window,
-/// folding poles and the `v`/`u` seams (mirror about `v = ±π/2` with a `+π`
-/// `u` shift when the reference point spills past a pole).
-fn sphere_set_in_bounds(line: Line2D) -> Line2D {
-    let mut line = line;
-
-    // 1. Bring v(0) into [-π, π].
-    let y0 = line.point_at(0.0).y;
-    let new_y = in_period(y0, -PI, PI);
-    line = translate_line(line, 0.0, new_y - y0);
-
-    // 2. Pole mirroring if v(0) still overshoots ±π/2.
-    let p = line.point_at(0.0);
-    let dir = line.direction();
-    let north = p.y - FRAC_PI_2 > Tolerance::DEFAULT.confusion
-        || ((p.y - FRAC_PI_2).abs() < Tolerance::DEFAULT.confusion && dir.y > 0.0);
-    let south = p.y + FRAC_PI_2 < -Tolerance::DEFAULT.confusion
-        || ((p.y + FRAC_PI_2).abs() < Tolerance::DEFAULT.confusion && dir.y < 0.0);
-    if north {
-        line = mirror_about_horizontal(line, FRAC_PI_2);
-        line = translate_line(line, PI, 0.0);
-    } else if south {
-        line = mirror_about_horizontal(line, -FRAC_PI_2);
-        line = translate_line(line, PI, 0.0);
-    } else {
-        return line;
-    }
-
-    // 3. Bring u(0) into [0, 2π).
-    let x0 = line.point_at(0.0).x;
-    let new_x = in_period(x0, 0.0, TAU);
-    translate_line(line, new_x - x0, 0.0)
-}
-
-/// Reflects a 2D line about the horizontal axis `v = c`: `(u, v) -> (u, 2c-v)`,
-/// flipping the direction's `v` component.
-fn mirror_about_horizontal(line: Line2D, c: f64) -> Line2D {
-    let o = line.origin();
-    let d = line.direction();
-    Line2D::new(Point2D::new(o.x, 2.0 * c - o.y), Vector2D::new(d.x, -d.y))
-        .expect("mirrored direction keeps unit length")
 }
 
 // ---- torus ----
@@ -846,14 +851,15 @@ fn frame_angle(frame: crate::Frame, direction: Vector) -> f64 {
 // ---- normalization ----
 
 /// Shifts `line`'s value at `t = 0` into `surface`'s canonical parameter
-/// window: `u` (and `v` for the torus) wrapped by period multiples; the sphere
-/// additionally folds poles/seams via [`sphere_set_in_bounds`].
+/// window: `u` (and `v` for the torus) wrapped by period multiples. On a
+/// sphere only a parallel gets here, which never reaches a pole.
 fn normalize_line2d_at_zero(line: Line2D, surface: &ElementarySurface) -> Line2D {
     match surface {
         // A plane has no periodic direction: leave the line as-is.
         ElementarySurface::Plane(_) => line,
-        ElementarySurface::Cylinder(_) | ElementarySurface::Cone(_) => wrap_u(line),
-        ElementarySurface::Sphere(_) => sphere_set_in_bounds(line),
+        ElementarySurface::Cylinder(_)
+        | ElementarySurface::Cone(_)
+        | ElementarySurface::Sphere(_) => wrap_u(line),
         ElementarySurface::Torus(_) => wrap_v(wrap_u(line)),
     }
 }

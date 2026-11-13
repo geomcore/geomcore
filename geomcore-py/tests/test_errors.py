@@ -1,3 +1,5 @@
+import math
+
 import pytest
 
 import geomcore
@@ -153,6 +155,23 @@ def test_curve_3d_to_uv_error():
     )
     with pytest.raises(geomcore.Curve3DToUvError):
         sphere.curve_3d_to_uv(far_line)
+
+
+def test_a_whole_sphere_meridian_is_refused_and_an_arc_from_pole_to_pole_maps():
+    # The meridian's u jumps by pi at each pole (#313): the issue's circle.
+    sphere = geomcore.Sphere(geomcore.Point(0, 0, 0), 2.0)
+    meridian = geomcore.Circle(geomcore.Point(0, 0, 0), geomcore.Vector(0, 1, 0), 2.0)
+    with pytest.raises(geomcore.Curve3DToUvError, match="pole to pole"):
+        sphere.curve_3d_to_uv(meridian)
+    low, high = sphere.v_bounds()
+    for start in (math.pi / 2, 3 * math.pi / 2):
+        arc = geomcore.TrimmedCurve(meridian, start, start + math.pi)
+        uv_curve = sphere.curve_3d_to_uv(arc)
+        for k in range(7):
+            t = start + math.pi * k / 6
+            u, v = uv_curve.point_at(t)
+            assert low - 1e-12 <= v <= high + 1e-12
+            assert sphere.point_at(u, v).distance(meridian.point_at(t)) < 1e-12
 
 
 def test_uv_curve_to_3d_error():

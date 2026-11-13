@@ -14,6 +14,7 @@ use crate::geometry::curves::{
     Curve, Curve2D, Line2D, ParametricCurve, ParametricCurve2D, RangeOperations, TrimmedCurve,
     TrimmedCurve2D,
 };
+use crate::geometry::surfaces::uv_curve::from_curve::{OnSurfaceCheck, meridian_arc_to_uv};
 use crate::geometry::surfaces::{ParametricSurface, Restriction};
 use crate::operations::intersect::results::{IntersectionCurve, SurfaceSurfaceIntersection};
 use crate::operations::intersect::routing::{Intersect, SurfaceOperand, route_within};
@@ -70,6 +71,9 @@ pub(super) fn route_restricted<A: SurfaceOperand, B: SurfaceOperand>(
             .into_iter()
             .flat_map(|piece| clipped(piece, sides, within, tol))
             .collect();
+        for piece in curves.iter_mut() {
+            with_meridian_uv_curves(piece, a, b, tol);
+        }
         contact_points.retain(|&point| {
             sides
                 .iter()
@@ -80,6 +84,29 @@ pub(super) fn route_restricted<A: SurfaceOperand, B: SurfaceOperand>(
             *coincident = *coincident && rectangles_overlap(&one, &other, tol);
         }
     })
+}
+
+/// Gives `piece` its curves in the parameters of a sphere where it is an
+/// arc of a meridian from pole to pole. A whole meridian runs through the
+/// poles and has no curve in the sphere's parameters, so the intersection
+/// of the bases left them out, but a piece of it clipped between the poles
+/// has one (#313).
+fn with_meridian_uv_curves(
+    piece: &mut IntersectionCurve,
+    first: &impl ParametricSurface,
+    second: &impl ParametricSurface,
+    tol: Tolerance,
+) {
+    let (curve, range) = (&piece.curve, piece.parameter_range);
+    let meridian = |surface: &dyn ParametricSurface| {
+        meridian_arc_to_uv(surface, curve, range, tol, OnSurfaceCheck::Skipped).ok()
+    };
+    if piece.first_uv_curve.is_none() {
+        piece.first_uv_curve = meridian(first);
+    }
+    if piece.second_uv_curve.is_none() {
+        piece.second_uv_curve = meridian(second);
+    }
 }
 
 /// The pieces of `piece` inside the ranges of both sides.
