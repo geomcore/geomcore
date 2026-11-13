@@ -81,3 +81,19 @@ def test_the_old_submodule_paths_warn_and_give_the_root_class():
         geomcore.curves.Point  # noqa: B018
     with pytest.raises(AttributeError):
         geomcore.nothing  # noqa: B018
+
+
+def test_the_module_docstring_orients_and_its_examples_run():
+    # `help(geomcore)` opens on it (#332): the main calls, each run here.
+    import doctest
+
+    assert "intersect" in geomcore.__doc__
+    assert "https://geomcore.github.io/geomcore/" in geomcore.__doc__
+    failed, attempted = doctest.testmod(geomcore)
+    assert attempted > 0 and failed == 0
+
+
+def test_the_unions_document_themselves_where_python_lets_them():
+    # From Python 3.14 a union's docstring is read-only.
+    if sys.version_info < (3, 14):
+        assert "TrimmedCurve" in Curve.__doc__
