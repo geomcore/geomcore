@@ -1392,18 +1392,27 @@ fn factored_loops(
     }
     // A factor that nearly vanishes twice is read as touching zero, `cₖ`
     // set to `± 1`: the surfaces touch on the generator where it does,
-    // `θₖ`, or `θₖ + π`.
+    // `θₖ`, or `θₖ + π`. Where the others vanish: the generator's angle,
+    // the factor, and the angle from the factor's reference, `± acos cₖ`
+    // exactly.
+    let mut touching_at = [None; 2];
+    let mut found = [(0.0, 0, 0.0); 4];
+    let mut count = 0;
     for k in 0..2 {
         if touching[k] {
             cosines[k] = cosines[k].signum();
         }
+        match FormZeros::of(cosines[k], touching[k], || references[k]) {
+            FormZeros::Never => {}
+            FormZeros::Touching(at) => touching_at[k] = Some(at.rem_euclid(TAU)),
+            FormZeros::Crossing { reference, half } => {
+                for from in [-half, half] {
+                    found[count] = ((reference + from).rem_euclid(TAU), k, from);
+                    count += 1;
+                }
+            }
+        }
     }
-    let zeros: [FormZeros; 2] =
-        std::array::from_fn(|k| FormZeros::of(cosines[k], touching[k], || references[k]));
-    let touching_at = zeros.map(|zeros| match zeros {
-        FormZeros::Touching(at) => Some(at.rem_euclid(TAU)),
-        FormZeros::Never | FormZeros::Crossing { .. } => None,
-    });
     let node = match touching_at {
         [Some(at), None] => Some((0, at)),
         [None, Some(at)] => Some((1, at)),
@@ -1415,18 +1424,6 @@ fn factored_loops(
         cosines,
         shift: [sin_shift, cos_shift],
     };
-    // Where each factor vanishes: the generator's angle, the factor, and
-    // the angle from the factor's reference, `± acos cₖ` exactly.
-    let mut found = [(0.0, 0, 0.0); 4];
-    let mut count = 0;
-    for (k, zeros) in zeros.into_iter().enumerate() {
-        if let FormZeros::Crossing { reference, half } = zeros {
-            for from in [-half, half] {
-                found[count] = ((reference + from).rem_euclid(TAU), k, from);
-                count += 1;
-            }
-        }
-    }
     let roots = &mut found[..count];
     // The sign of `Δ` at `t`: the product of the factors. A touching
     // factor, `cos − 1` or `cos + 1`, keeps its sign all round: read as
@@ -2663,11 +2660,7 @@ impl FormZeros {
     /// in size: `θ` where `c > 0`, across from it otherwise (ADR 0044).
     #[inline(always)]
     fn touching_at(reference: f64, cosine: f64) -> f64 {
-        if cosine > 0.0 {
-            reference
-        } else {
-            reference + PI
-        }
+        reference + if cosine > 0.0 { 0.0 } else { PI }
     }
 }
 
