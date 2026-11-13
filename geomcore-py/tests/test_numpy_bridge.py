@@ -201,3 +201,30 @@ def test_a_non_finite_point_fails_every_fit(bad: float) -> None:
     for fit in fits:
         with pytest.raises(ConstructionError, match="NaN or infinite"):
             fit()
+
+
+def test_a_discretization_converts_to_its_points_and_results_reverse() -> None:
+    # #319: numpy saw a discretization as one object, and `reversed` raised.
+    from geomcore import Line, Line2D, Plane
+
+    circle = Circle(Point.origin(), Vector.unit_z(), 2.0)
+    planar = Circle2D(Point2D.origin(), 2.0)
+    for discretization in (circle.discretize(0.05), planar.discretize(0.05)):
+        array = numpy.array(discretization)
+        assert array.shape == (len(discretization), len(discretization[0]))
+        assert array.dtype == numpy.float64
+        numpy.testing.assert_array_equal(array, _rows(discretization.points))
+        assert numpy.asarray(discretization, dtype=numpy.float32).dtype == numpy.float32
+        assert list(reversed(discretization)) == discretization.points[::-1]
+    sphere = Sphere(Point.origin(), 2.0)
+    line = Line(Point(-3.0, 0.5, 0.0), Vector.unit_x())
+    results = [
+        circle.intersect(line),
+        planar.intersect(Line2D(Point2D(-3.0, 0.5), Vector2D(1.0, 0.0))),
+        line.intersect(sphere),
+        Plane(Point(0.0, 0.0, 0.5), Vector.unit_z()).intersect(sphere),
+        circle.extrema(Circle(Point(5.0, 0.0, 0.0), Vector.unit_z(), 1.0)),
+    ]
+    for result in results:
+        assert len(result) >= 1
+        assert list(reversed(result)) == list(result)[::-1]
