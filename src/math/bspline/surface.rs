@@ -548,7 +548,7 @@ pub(crate) fn net_distance_bound(
     let (c10, c11) = (corner(rows - 1, 0), corner(rows - 1, cols - 1));
     let along_s = add(sub(c10, c00), sub(c11, c01));
     let along_t = add(sub(c01, c00), sub(c11, c10));
-    // A net collapsed to an edge curve has no extent along `s`: then the
+    // A net collapsed to a boundary curve has no extent along `s`: then the
     // frame follows the curve's chord, with any normal to it.
     let fitted = unit(along_s).or_else(|| unit(along_t)).map_or(0.0, |t1| {
         let n = unit(cross(along_s, along_t)).unwrap_or_else(|| {
@@ -565,9 +565,9 @@ pub(crate) fn net_distance_bound(
 }
 
 /// Replaces a Bernstein net, row-major `[rows][cols][h]`, by the net of its
-/// edge curve `side` (`0` or `1`) across the rows (the `u` direction) if
+/// boundary curve `side` (`0` or `1`) across the rows (the `u` direction) if
 /// `along_rows`, else across the columns: every row (column) becomes a
-/// copy of that edge one, so the net no longer varies in that direction.
+/// copy of that boundary one, so the net no longer varies in that direction.
 pub(crate) fn collapse_net(
     net: &mut [f64],
     rows: usize,
@@ -578,15 +578,15 @@ pub(crate) fn collapse_net(
 ) {
     let width = cols * h;
     if along_rows {
-        let edge = side * (rows - 1) * width;
+        let boundary = side * (rows - 1) * width;
         for r in 0..rows {
-            net.copy_within(edge..edge + width, r * width);
+            net.copy_within(boundary..boundary + width, r * width);
         }
     } else {
         for r in 0..rows {
-            let edge = r * width + side * (cols - 1) * h;
+            let boundary = r * width + side * (cols - 1) * h;
             for c in 0..cols {
-                net.copy_within(edge..edge + h, r * width + c * h);
+                net.copy_within(boundary..boundary + h, r * width + c * h);
             }
         }
     }

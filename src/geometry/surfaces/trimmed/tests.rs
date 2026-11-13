@@ -64,7 +64,7 @@ fn test_parameters_of_shift_into_a_range_across_the_seam() {
 #[test]
 fn test_project_point_lands_on_the_boundary_outside_the_ranges() {
     let patch = cylinder().trimmed((0.0, PI), (0.0, 2.0)).unwrap();
-    // Above the patch: the closest point is on the top edge.
+    // Above the patch: the closest point is on the top boundary curve.
     let above = patch.project_point(Point::new(0.0, 2.0, 5.0), TOL);
     assert!((above.v - 2.0).abs() <= 1e-9);
     assert!((above.distance - (1.0f64 + 9.0).sqrt()).abs() <= 1e-9);

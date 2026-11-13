@@ -47,7 +47,7 @@ pub(crate) fn trace_uv_curve<S: ParametricSurface + ?Sized>(
     let basis = cut.map_or(basis, Curve2D::BSpline);
     let traced = surface.uv_curve_to_3d(&basis, tol).map_err(python_error)?;
     let traced = TrimmedCurve::new(traced, first, last).map_err(|error| match error {
-        // The trace of a line or parabola stops at the domain's edge.
+        // The trace of a line or parabola stops at the domain's bound.
         TrimmedCurveConstructionError::OutsideBasis => {
             python_error(UvCurveTo3DError::OutsideSurfaceDomain)
         }

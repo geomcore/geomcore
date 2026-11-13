@@ -108,7 +108,8 @@ struct PatchTree {
 
 impl PatchTree {
     /// The parameter rectangle `[u0, u1, v0, v1]` of patch `k` and whether
-    /// each of its edges is a crease or a boundary.
+    /// each of its boundary curves lies on a crease or on the surface's
+    /// boundary.
     fn patch(&self, k: usize) -> ([f64; 4], [bool; 4]) {
         let n_vspans = self.v_breaks.len() - 1;
         let (a, b) = (k / n_vspans, k % n_vspans);
@@ -1267,11 +1268,11 @@ impl BSplineSurface {
     /// [`uv_curve_to_3d`](crate::ParametricSurface::uv_curve_to_3d):
     /// a line along `v`, run at rate `1` from `0`.
     ///
-    /// Each pole is a column of the net blended by the `u` basis functions
-    /// at `u`, in homogeneous coordinates if rational. The curve is
-    /// rational unless its weights all come out equal, as for a surface
-    /// rational in `u` alone. On a collapsed edge (a pole of a surface of
-    /// revolution) every pole coincides and the curve is that point.
+    /// Each pole is a column of the net blended by the `u` basis functions at
+    /// `u`, in homogeneous coordinates if rational. The curve is rational
+    /// unless its weights all come out equal, as for a surface rational in `u`
+    /// alone. On a collapsed boundary curve (a pole of a surface of revolution)
+    /// every pole coincides and the curve is that point.
     ///
     /// # Errors
     ///
@@ -1635,13 +1636,13 @@ impl BSplineSurface {
     /// [`BSplineSurface::project_point`].
     ///
     /// Every knot-span patch is searched as in
-    /// [`BSplineSurface::project_point`], but keeping each minimum found
-    /// rather than only the closest: a subpatch is dropped only when it
-    /// provably holds no local minimum. Each minimum is polished by the
-    /// same Newton minimisation within the C1 region around it (C0 crease
-    /// knots bound it), so minima on an edge, corner or crease are reached
-    /// exactly. Minima within `tol.confusion` of each other merge.
-    /// Periodic parameters are reported within their period.
+    /// [`BSplineSurface::project_point`], but keeping each minimum found rather
+    /// than only the closest: a subpatch is dropped only when it provably holds
+    /// no local minimum. Each minimum is polished by the same Newton
+    /// minimisation within the C1 region around it (C0 crease knots bound it),
+    /// so minima on a boundary curve, corner or crease are reached exactly.
+    /// Minima within `tol.confusion` of each other merge. Periodic parameters
+    /// are reported within their period.
     ///
     /// # Examples
     ///
@@ -1674,8 +1675,8 @@ impl BSplineSurface {
         let u_regions = self.u_knots.smooth_regions();
         let v_regions = self.v_knots.smooth_regions();
         let (u_period, v_period) = (self.u_knots.period(), self.v_knots.period());
-        // A minimum on a subpatch edge inside a smooth region is where the
-        // search stopped, not necessarily a minimum of the surface: polish
+        // A minimum on a subpatch's boundary curve inside a smooth region is where
+        // the search stopped, not necessarily a minimum of the surface: polish
         // across subpatches.
         let mut candidates = vec![(global.u, global.v)];
         for (u, v) in search.minima {
@@ -1986,7 +1987,7 @@ impl ParametricSurface for BSplineSurface {
                     slot,
                     rect,
                     depth: 0,
-                    edge: None,
+                    boundary_curve: None,
                 };
                 search.search(root, rect, creases);
             }
@@ -2170,8 +2171,9 @@ struct PatchSearch<'a> {
 /// A subpatch awaiting its visit: its net at offset `slot`, its parameter
 /// rectangle `[u0, u1, v0, v1]`, a lower bound `lower` on its distance,
 /// and the visiting order `key`, its closest control point's distance. Once
-/// its minima are known to lie on its edge `side` of `direction`, `edge`
-/// holds `(direction, side)` and the net is that edge curve's.
+/// its minima are known to lie on its boundary curve `side` of
+/// `direction`, `boundary_curve` holds `(direction, side)` and the net is
+/// that boundary curve's.
 #[derive(Clone, Copy)]
 struct Subpatch {
     lower: f64,
@@ -2179,7 +2181,7 @@ struct Subpatch {
     slot: usize,
     rect: [f64; 4],
     depth: u32,
-    edge: Option<(usize, usize)>,
+    boundary_curve: Option<(usize, usize)>,
 }
 
 impl PartialEq for Subpatch {
@@ -2206,16 +2208,16 @@ impl Ord for Subpatch {
 /// What a subpatch's derivative bounds say about its minima.
 enum Verdict {
     /// No local minimum of the surface: the gradient keeps a sign towards
-    /// a smooth edge, or the distance curves down everywhere.
+    /// a smooth boundary curve, or the distance curves down everywhere.
     None,
     /// At the corner `[s, t]` (each `0` or `1`), the gradient pinning it
-    /// to two crease or boundary edges.
+    /// to two boundary curves, each on a crease or on the surface's boundary.
     Corner([usize; 2]),
-    /// On edge `side` (`0` or `1`) of direction `direction` (`0` for `u`),
-    /// pinned there by the gradient, convex along it.
-    Edge(usize, usize),
-    /// On edge `side` of `direction`, pinned there by the gradient, but
-    /// anywhere along it as far as known.
+    /// On boundary curve `side` (`0` or `1`) of direction `direction` (`0` for
+    /// `u`), pinned there by the gradient, convex along it.
+    OnBoundaryCurve(usize, usize),
+    /// On boundary curve `side` of `direction`, pinned there by the gradient,
+    /// but anywhere along it as far as known.
     Pinned(usize, usize),
     /// Anywhere, the distance being convex.
     Convex,
@@ -2270,7 +2272,8 @@ impl<'a> PatchSearch<'a> {
     }
 
     /// Searches the patch over `rect`, with the subpatch `root` over all of
-    /// it, whose edges are creases or boundaries as flagged in `creases`.
+    /// it, whose boundary curves lie on creases or on the surface's boundary as
+    /// flagged in `creases`.
     fn search(&mut self, root: Subpatch, rect: [f64; 4], creases: [bool; 4]) {
         self.pending.push(root);
         let (mut splits, mut fallbacks) = (0, 0);
@@ -2279,9 +2282,9 @@ impl<'a> PatchSearch<'a> {
                 self.free.push(node.slot);
                 continue;
             }
-            // Only the patch's own edges can be creases.
-            let edge = std::array::from_fn(|i| creases[i] && node.rect[i] == rect[i]);
-            let verdict = self.verdict(&node, edge);
+            // Only the patch's own boundary curves can be creases.
+            let creased = std::array::from_fn(|i| creases[i] && node.rect[i] == rect[i]);
+            let verdict = self.verdict(&node, creased);
             match verdict {
                 Verdict::None => {}
                 Verdict::Corner([s, t]) => {
@@ -2289,12 +2292,12 @@ impl<'a> PatchSearch<'a> {
                     let distance = Point::new(p[0], p[1], p[2]).distance(self.point);
                     self.found(distance, node.rect[s], node.rect[2 + t]);
                 }
-                Verdict::Edge(direction, side) => {
+                Verdict::OnBoundaryCurve(direction, side) => {
                     let start = self.closest_control_point(Some((direction, side)));
                     self.minimise(&node, start);
                 }
                 Verdict::Pinned(direction, side) => {
-                    // Search the edge curve instead, keeping the slot.
+                    // Search the boundary curve instead, keeping the slot.
                     math::collapse_net(
                         &mut self.nets[node.slot..node.slot + self.size],
                         self.rows,
@@ -2317,7 +2320,7 @@ impl<'a> PatchSearch<'a> {
                         continue;
                     } else if fallbacks < MAX_FALLBACKS {
                         fallbacks += 1;
-                        let start = self.closest_control_point(node.edge);
+                        let start = self.closest_control_point(node.boundary_curve);
                         self.minimise(&node, start);
                     }
                 }
@@ -2342,8 +2345,14 @@ impl<'a> PatchSearch<'a> {
     }
 
     /// Queues the subpatch with the net at `slot` (see [`Self::node`]).
-    fn push(&mut self, slot: usize, rect: [f64; 4], depth: u32, edge: Option<(usize, usize)>) {
-        if let Some(node) = self.node(slot, rect, depth, edge) {
+    fn push(
+        &mut self,
+        slot: usize,
+        rect: [f64; 4],
+        depth: u32,
+        boundary_curve: Option<(usize, usize)>,
+    ) {
+        if let Some(node) = self.node(slot, rect, depth, boundary_curve) {
             self.pending.push(node);
         }
     }
@@ -2356,7 +2365,7 @@ impl<'a> PatchSearch<'a> {
         slot: usize,
         rect: [f64; 4],
         depth: u32,
-        edge: Option<(usize, usize)>,
+        boundary_curve: Option<(usize, usize)>,
     ) -> Option<Subpatch> {
         let (rows, cols) = (self.rows, self.cols);
         if self.all {
@@ -2367,7 +2376,7 @@ impl<'a> PatchSearch<'a> {
                 slot,
                 rect,
                 depth,
-                edge,
+                boundary_curve,
             });
         }
         math::net_points(&self.nets[slot..slot + self.size], self.h, &mut self.points);
@@ -2375,8 +2384,8 @@ impl<'a> PatchSearch<'a> {
             let p = self.points[s * (rows - 1) * cols + t * (cols - 1)];
             let distance = Point::new(p[0], p[1], p[2]).distance(self.point);
             if distance < self.best.0 {
-                // A collapsed net's corners sit on its edge.
-                let [s, t] = match edge {
+                // A collapsed net's corners sit on its boundary curve.
+                let [s, t] = match boundary_curve {
                     Some((0, side)) => [side, t],
                     Some((_, side)) => [s, side],
                     None => [s, t],
@@ -2402,22 +2411,22 @@ impl<'a> PatchSearch<'a> {
             slot,
             rect,
             depth,
-            edge,
+            boundary_curve,
         })
     }
 
-    /// Classifies `node` given its crease or boundary edges `creases`
-    /// (`[u0, u1, v0, v1]`), leaving its Euclidean control points in
-    /// `points`.
+    /// Classifies `node` given which of its boundary curves lie on creases or
+    /// on the surface's boundary, `creases` (`[u0, u1, v0, v1]`), leaving its
+    /// Euclidean control points in `points`.
     fn verdict(&mut self, node: &Subpatch, creases: [bool; 4]) -> Verdict {
         let (rows, cols, h) = (self.rows, self.cols, self.h);
         let net = &self.nets[node.slot..node.slot + self.size];
         math::net_points(net, h, &mut self.points);
         let q = [self.point.x, self.point.y, self.point.z];
         // The side each direction's gradient pins the minimum to; a
-        // collapsed net stays on its edge.
+        // collapsed net stays on its boundary curve.
         let pinned = |gradient: [math::Interval; 2]| -> [Option<usize>; 2] {
-            std::array::from_fn(|direction| match node.edge {
+            std::array::from_fn(|direction| match node.boundary_curve {
                 Some((d, side)) if d == direction => Some(side),
                 _ => {
                     let g = gradient[direction];
@@ -2450,7 +2459,7 @@ impl<'a> PatchSearch<'a> {
         let pinned = pinned(bounds.gradient);
         for direction in 0..2 {
             let crease = |side: usize| creases[2 * direction + side];
-            // Descending through a smooth edge, or curving down towards
+            // Descending through a smooth boundary curve, or curving down towards
             // two of them: the minima are elsewhere.
             let concave = bounds.hessian[2 * direction].hi < 0.0;
             if pinned[direction].is_some_and(|side| !crease(side))
@@ -2464,11 +2473,11 @@ impl<'a> PatchSearch<'a> {
         }
         match pinned {
             [Some(s), Some(t)] => Verdict::Corner([s, t]),
-            [Some(s), None] if ftt.lo > 0.0 => Verdict::Edge(0, s),
-            [None, Some(t)] if fss.lo > 0.0 => Verdict::Edge(1, t),
-            // Along the edge, as a curve.
-            [Some(s), None] if node.edge.is_none() => Verdict::Pinned(0, s),
-            [None, Some(t)] if node.edge.is_none() => Verdict::Pinned(1, t),
+            [Some(s), None] if ftt.lo > 0.0 => Verdict::OnBoundaryCurve(0, s),
+            [None, Some(t)] if fss.lo > 0.0 => Verdict::OnBoundaryCurve(1, t),
+            // Along the boundary curve, searched as a curve.
+            [Some(s), None] if node.boundary_curve.is_none() => Verdict::Pinned(0, s),
+            [None, Some(t)] if node.boundary_curve.is_none() => Verdict::Pinned(1, t),
             [Some(_), None] => Verdict::Unknown(false),
             [None, Some(_)] => Verdict::Unknown(true),
             [None, None]
@@ -2482,16 +2491,16 @@ impl<'a> PatchSearch<'a> {
     }
 
     /// The parameters, as fractions `(s, t)` of the subpatch, of its
-    /// control point closest to the point, among those on edge `side` of
-    /// `direction` if given.
-    fn closest_control_point(&self, edge: Option<(usize, usize)>) -> (f64, f64) {
+    /// control point closest to the point, among those on boundary curve
+    /// `side` of `direction` if given.
+    fn closest_control_point(&self, boundary_curve: Option<(usize, usize)>) -> (f64, f64) {
         let (p, q) = (self.rows - 1, self.cols - 1);
         let target = [self.point.x, self.point.y, self.point.z];
         let distance = |i: usize, j: usize| {
             let x = self.points[i * self.cols + j];
             (0..3).map(|c| (x[c] - target[c]).powi(2)).sum::<f64>()
         };
-        let (rows, cols) = match edge {
+        let (rows, cols) = match boundary_curve {
             Some((0, side)) => (side * p..=side * p, 0..=q),
             Some((_, side)) => (0..=p, side * q..=side * q),
             None => (0..=p, 0..=q),
@@ -2548,8 +2557,8 @@ impl<'a> PatchSearch<'a> {
             let mid = 0.5 * (r[2] + r[3]);
             ([r[0], r[1], r[2], mid], [r[0], r[1], mid, r[3]])
         };
-        self.push(left, first, node.depth + 1, node.edge);
-        self.push(right, second, node.depth + 1, node.edge);
+        self.push(left, first, node.depth + 1, node.boundary_curve);
+        self.push(right, second, node.depth + 1, node.boundary_curve);
     }
 }
 

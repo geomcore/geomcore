@@ -7,7 +7,7 @@
 //! cones and a circle arc for spheres and tori. Pole `(i, j)` is profile
 //! pole `j` turned to the angle of circle pole `i`, weighted by the product
 //! of their weights. A profile pole on the axis (a cone's apex, a sphere's
-//! pole) turns into a row of coincident poles: a collapsed edge.
+//! pole) turns into a row of coincident poles: a collapsed boundary curve.
 //!
 //! A swept surface converts its profile's B-spline: an extrusion pairs it
 //! with a segment along the direction, a revolution turns it about the
@@ -295,7 +295,7 @@ impl Cone {
     /// whole turn), whose parameter agrees with the angle at the range
     /// ends, the knots and the middle of each piece; along `v` the cone's
     /// own parameter. A `v_range` ending at the apex gives a collapsed
-    /// edge, all its poles at the apex; one crossing it covers both
+    /// boundary curve, all its poles at the apex; one crossing it covers both
     /// nappes.
     ///
     /// # Errors
@@ -384,7 +384,8 @@ impl Sphere {
     /// ends, those knots and the middle of each piece, and stray at most
     /// `0.0161` rad in between. A `u_range` spanning a whole turn, from any
     /// start, gives a periodic `u` direction; a `v_range` ending at `±π/2`
-    /// gives a collapsed edge, all its poles on the sphere's pole.
+    /// gives a collapsed boundary curve, all its poles on the sphere's
+    /// pole.
     ///
     /// # Errors
     ///
@@ -468,7 +469,7 @@ impl Torus {
     /// [`Sphere::to_bspline_patch`]'s; a range spanning a whole turn, from
     /// any start, gives a periodic direction. On a torus whose tube meets
     /// the axis (major radius at most the minor one), a `v_range` ending on
-    /// the axis gives a collapsed edge.
+    /// the axis gives a collapsed boundary curve.
     ///
     /// # Errors
     ///

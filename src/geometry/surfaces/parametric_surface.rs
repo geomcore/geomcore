@@ -792,9 +792,9 @@ pub trait ParametricSurface {
     ///
     /// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
     /// let circle = Circle::new(Point::new(0.0, 0.0, 3.0), Vector::Z, 2.0).unwrap();
-    /// let edge = TrimmedCurve::new(circle, 0.0, FRAC_PI_2).unwrap().into_curve();
-    /// let uv_edge = cylinder.trimmed_curve_3d_to_uv(&edge, Tolerance::DEFAULT).unwrap();
-    /// let end = uv_edge.end_point();
+    /// let arc = TrimmedCurve::new(circle, 0.0, FRAC_PI_2).unwrap().into_curve();
+    /// let uv_arc = cylinder.trimmed_curve_3d_to_uv(&arc, Tolerance::DEFAULT).unwrap();
+    /// let end = uv_arc.end_point();
     /// assert!((end.x - FRAC_PI_2).abs() < 1e-9 && (end.y - 3.0).abs() < 1e-9);
     /// ```
     fn trimmed_curve_3d_to_uv(

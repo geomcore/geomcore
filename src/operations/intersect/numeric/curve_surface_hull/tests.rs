@@ -367,11 +367,11 @@ fn segment(from: Point, to: Point) -> BSplineCurve {
 }
 
 #[test]
-fn test_hits_at_curve_ends_and_surface_edges() {
+fn test_hits_at_curve_ends_and_surface_boundary_curves() {
     let plane = flat();
     let cases = [
-        // Ending on the surface, starting on it, and through its edges
-        // and corners.
+        // Ending on the surface, starting on it, and through its boundary
+        // curves and corners.
         (Point::new(2.3, 1.7, -1.0), Point::new(2.3, 1.7, 0.0)),
         (Point::new(2.3, 1.7, 0.0), Point::new(2.9, 1.1, 1.0)),
         (Point::new(0.0, 2.2, -1.0), Point::new(0.0, 2.2, 1.0)),

@@ -238,7 +238,7 @@ fn test_open_pairs_a_traced_curve_crosses_are_dropped() {
 #[test]
 fn test_open_curves_end_on_the_domain_bounds() {
     // A sheet crossing a flat surface along x = 2.5 - 0.5 sin(0.4 y),
-    // from the edge y = 0 to the edge y = 5.
+    // from the boundary curve y = 0 to the one at y = 5.
     let flat = graph(&THIRDS, |_, _| 0.0, None);
     let sheet = graph(
         &THIRDS,
