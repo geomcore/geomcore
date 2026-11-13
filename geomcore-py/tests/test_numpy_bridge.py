@@ -16,6 +16,7 @@ from geomcore import (
     Point2D,
     Sphere,
     Vector,
+    Vector2D,
 )
 
 
@@ -135,7 +136,7 @@ def test_a_wrong_shape_raises_value_error() -> None:
         circle.project_points_array(numpy.zeros((4, 2)))
     with pytest.raises(ValueError, match=r"us must have shape \(N\)"):
         circle.points_at_array(numpy.zeros((2, 2)))
-    with pytest.raises(ValueError, match=r"points must have shape \(N, N, 3\)"):
+    with pytest.raises(ValueError, match=r"points must have shape \(N, M, 3\)"):
         BSplineSurface.approximate(numpy.zeros((4, 4)), 3, 3, 4, 4)
 
 
@@ -155,3 +156,75 @@ def test_returned_arrays_are_fresh_and_writable() -> None:
     assert first.flags.writeable
 
 
+@pytest.mark.parametrize(
+    "point, vector",
+    [(Point(1.0, 2.0, 3.0), Vector(1.0, 2.0, 3.0)), (Point2D(1.0, 2.0), Vector2D(1.0, 2.0))],
+)
+def test_numpy_on_the_left_defers_to_the_value_operators(point, vector) -> None:
+    # #325: numpy read the values as sequences and its operators ran first.
+    two = numpy.float64(2.0)
+    doubled = type(vector)(*(2.0 * c for c in vector))
+    for scaled in (two * vector, vector * two, vector / numpy.float64(0.5)):
+        assert type(scaled) is type(vector) and scaled == doubled
+    array = numpy.ones(len(point))
+    for value in (point, vector):
+        for operation in (
+            lambda: value + array,
+            lambda: array + value,
+            lambda: value - array,
+            lambda: array - value,
+            lambda: value * array,
+            lambda: array * value,
+        ):
+            with pytest.raises(TypeError):
+                operation()
+        same = numpy.array(value)
+        assert (value == same) is False and (same == value) is False
+        numpy.testing.assert_array_equal(numpy.asarray(value), list(value))
+    assert type(point + vector) is type(point) and type(point - point) is type(vector)
+
+
+@pytest.mark.parametrize("bad", [math.nan, math.inf])
+def test_a_non_finite_point_fails_every_fit(bad: float) -> None:
+    # #307: one bad scan row built a NaN curve, a fit reported proven.
+    from geomcore import ConstructionError
+
+    row = numpy.array([[0.0, 0, 0], [1, 1, 0], [2, bad, 0], [3, 1, 0], [4, 0, 0], [5, 1, 0]])
+    fits = [
+        lambda: BSplineCurve.interpolate(row, 3),
+        lambda: BSplineCurve.approximate(row, 3, 4),
+        lambda: BSplineCurve.approximate_within(row, 3, 0.01),
+        lambda: BSplineCurve2D.approximate_within(row[:, :2], 3, 0.01),
+        lambda: BSplineSurface.approximate_within(numpy.stack([row, row + [0, 0, 1]]), 1, 3, 0.01),
+        lambda: BSplineCurve.clamped_uniform(3, [Point(*p) for p in row]),
+    ]
+    for fit in fits:
+        with pytest.raises(ConstructionError, match="NaN or infinite"):
+            fit()
+
+
+def test_a_discretization_converts_to_its_points_and_results_reverse() -> None:
+    # #319: numpy saw a discretization as one object, and `reversed` raised.
+    from geomcore import Line, Line2D, Plane
+
+    circle = Circle(Point.origin(), Vector.unit_z(), 2.0)
+    planar = Circle2D(Point2D.origin(), 2.0)
+    for discretization in (circle.discretize(0.05), planar.discretize(0.05)):
+        array = numpy.array(discretization)
+        assert array.shape == (len(discretization), len(discretization[0]))
+        assert array.dtype == numpy.float64
+        numpy.testing.assert_array_equal(array, _rows(discretization.points))
+        assert numpy.asarray(discretization, dtype=numpy.float32).dtype == numpy.float32
+        assert list(reversed(discretization)) == discretization.points[::-1]
+    sphere = Sphere(Point.origin(), 2.0)
+    line = Line(Point(-3.0, 0.5, 0.0), Vector.unit_x())
+    results = [
+        circle.intersect(line),
+        planar.intersect(Line2D(Point2D(-3.0, 0.5), Vector2D(1.0, 0.0))),
+        line.intersect(sphere),
+        Plane(Point(0.0, 0.0, 0.5), Vector.unit_z()).intersect(sphere),
+        circle.extrema(Circle(Point(5.0, 0.0, 0.0), Vector.unit_z(), 1.0)),
+    ]
+    for result in results:
+        assert len(result) >= 1
+        assert list(reversed(result)) == list(result)[::-1]

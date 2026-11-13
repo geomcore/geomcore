@@ -269,6 +269,13 @@ impl SphereConeIntersection {
             SphereConeIntersection::TwoCircles(c1, c2) => {
                 surface_curves([(c1, false), (c2, false)])
             }
+            SphereConeIntersection::CircleAndApex(c, apex) => {
+                Some(SurfaceSurfaceIntersection::exact(
+                    vec![IntersectionCurve::in_space(c, false)],
+                    vec![apex],
+                    false,
+                ))
+            }
             SphereConeIntersection::TangentCircle(c) => surface_curves([(c, true)]),
             SphereConeIntersection::Quartic(curve) => quartic(curve, tol),
             SphereConeIntersection::TangentPoint(p) => contact_point(p),

@@ -13,6 +13,7 @@ use crate::Point2D;
 use crate::Vector;
 use crate::base::tier::TierPoint;
 use crate::geometry::approximation::GenericCurveApproximation;
+use crate::geometry::curves::all_finite;
 use crate::geometry::curves::{
     BSplineConstructionError, BSplineCurve, BSplineCurve2D, GenericBSplineCurve,
 };
@@ -126,7 +127,7 @@ pub(crate) fn hermite_spline<P: TierPoint>(
     let mut multiplicities = vec![2u32; knots.len()];
     multiplicities[0] = 4;
     multiplicities[knots.len() - 1] = 4;
-    GenericBSplineCurve::new(3, poles, knots.to_vec(), multiplicities, false)
+    GenericBSplineCurve::from_parts(3, poles, None, knots.to_vec(), multiplicities, false)
 }
 
 /// The interpolant of `points` by [`interpolate`](GenericBSplineCurve::interpolate)
@@ -316,6 +317,16 @@ pub(crate) fn check_degree(degree: usize) -> Result<(), BSplineConstructionError
         Ok(())
     } else {
         Err(BSplineConstructionError::InvalidDegree)
+    }
+}
+
+/// `NonFinite` if a point to fit is NaN or infinite: its fit would be NaN,
+/// reported as within any deviation.
+fn check_finite<G: TierPoint>(points: &[G]) -> Result<(), BSplineConstructionError> {
+    if all_finite(points, []) {
+        Ok(())
+    } else {
+        Err(BSplineConstructionError::NonFinite)
     }
 }
 
@@ -821,8 +832,9 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
     /// Returns [`BSplineConstructionError::TooFewPoints`] for fewer than
     /// two points, [`BSplineConstructionError::InvalidDegree`] outside
     /// `1..=25`, [`BSplineConstructionError::DegreeTooHigh`] when
-    /// `degree` exceeds points minus one, or
-    /// [`BSplineConstructionError::ConfusedPoints`] for coincident
+    /// `degree` exceeds points minus one,
+    /// [`BSplineConstructionError::NonFinite`] for a NaN or infinite point,
+    /// or [`BSplineConstructionError::ConfusedPoints`] for coincident
     /// consecutive points.
     ///
     /// # Examples
@@ -866,6 +878,7 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
             return Err(BSplineConstructionError::TooFewPoints);
         }
         check_degree(degree)?;
+        check_finite(points)?;
         if degree > n - 1 {
             return Err(BSplineConstructionError::DegreeTooHigh);
         }
@@ -894,7 +907,8 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
     /// `1..=25`, [`BSplineConstructionError::DegreeTooHigh`] when
     /// `degree` exceeds poles minus one,
     /// [`BSplineConstructionError::TooManyPoles`] for more poles than
-    /// points, [`BSplineConstructionError::ConfusedPoints`] for
+    /// points, [`BSplineConstructionError::NonFinite`] for a NaN or
+    /// infinite point, [`BSplineConstructionError::ConfusedPoints`] for
     /// coincident consecutive points, or
     /// [`BSplineConstructionError::PoleCountMismatch`] when the data
     /// leaves a pole undetermined.
@@ -950,6 +964,7 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
             return Err(BSplineConstructionError::TooFewPoints);
         }
         check_degree(degree)?;
+        check_finite(points)?;
         if degree > pole_count.saturating_sub(1) {
             return Err(BSplineConstructionError::DegreeTooHigh);
         }
@@ -993,8 +1008,9 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
     /// [`BSplineConstructionError::TooFewPoints`] for fewer than two
     /// points, [`BSplineConstructionError::InvalidDegree`] outside
     /// `1..=25`, [`BSplineConstructionError::DegreeTooHigh`] when
-    /// `degree` exceeds points minus one, or
-    /// [`BSplineConstructionError::ConfusedPoints`] for coincident
+    /// `degree` exceeds points minus one,
+    /// [`BSplineConstructionError::NonFinite`] for a NaN or infinite point,
+    /// or [`BSplineConstructionError::ConfusedPoints`] for coincident
     /// consecutive points.
     ///
     /// # Examples
@@ -1050,6 +1066,7 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
             return Err(BSplineConstructionError::TooFewPoints);
         }
         check_degree(degree)?;
+        check_finite(points)?;
         if degree > n - 1 {
             return Err(BSplineConstructionError::DegreeTooHigh);
         }

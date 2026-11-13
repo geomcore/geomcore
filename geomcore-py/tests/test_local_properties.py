@@ -477,3 +477,45 @@ def test_surface_sided_evaluation_across_a_crease():
         surface.derivative_sided(1.0, 0.5, 0, 0, Side.BELOW, Side.BELOW)
     with pytest.raises(ValueError, match="du \\+ dv must be <= 2"):
         surface.derivative_sided(1.0, 0.5, 2, 1, Side.BELOW, Side.BELOW)
+
+
+def test_elementary_normals_point_as_their_docstrings_say():
+    # #333: which way each normal points was written nowhere.
+    def away_from_axis(point):
+        return Vector(point.x, point.y, 0.0).normalized()
+
+    plane = Plane(ORIGIN, Vector(0.0, 1.0, 1.0))
+    assert plane.normal(0.4, 0.7).dot(Vector(0.0, 1.0, 1.0).normalized()) == pytest.approx(1.0)
+    cylinder = Cylinder(ORIGIN, Z, 2.0)
+    cone = Cone(ORIGIN, Z, 0.4, 2.0)
+    for surface in (cylinder, cone):
+        point = surface.point_at(0.3, 0.2)
+        assert surface.normal(0.3, 0.2).dot(away_from_axis(point)) > 0.9
+    sphere = Sphere(ORIGIN, 2.0)
+    point = sphere.point_at(0.3, 0.2)
+    assert sphere.normal(0.3, 0.2).dot(point - ORIGIN) == pytest.approx(2.0)
+    assert sphere.curvatures(0.3, 0.2).mean == pytest.approx(-0.5)
+    torus = Torus(ORIGIN, Z, 3.0, 1.0)
+    point = torus.point_at(0.3, 0.2)
+    tube_center = ORIGIN + away_from_axis(point) * 3.0
+    assert torus.normal(0.3, 0.2).dot(point - tube_center) == pytest.approx(1.0)
+    for surface in (cylinder, cone, sphere, torus):
+        normal = surface.normal(0.3, 0.2)
+        reversed_u = surface.reversed_u()
+        assert reversed_u.normal(surface.u_reversed_parameter(0.3), 0.2).dot(normal) == pytest.approx(-1.0)
+        reversed_v = surface.reversed_v()
+        assert reversed_v.normal(0.3, surface.v_reversed_parameter(0.2)).dot(normal) == pytest.approx(-1.0)
+
+
+def test_parameters_of_maps_a_point_onto_the_converted_bspline():
+    # #333: to_bspline reparametrizes; parameters_of is the bridge.
+    torus = Torus(ORIGIN, Z, 3.0, 1.0)
+    bspline = torus.to_bspline()
+    point = torus.point_at(0.3, 1.1)
+    assert bspline.point_at(0.3, 1.1).distance(point) > 1e-3
+    u, v = bspline.parameters_of(point)
+    assert bspline.point_at(u, v).distance(point) < 1e-9
+    circle = Circle(ORIGIN, Z, 2.0)
+    curve = circle.to_bspline()
+    assert curve.point_at(1.1).distance(circle.point_at(1.1)) > 1e-3
+    assert curve.point_at(curve.parameter_of(circle.point_at(1.1))).distance(circle.point_at(1.1)) < 1e-9

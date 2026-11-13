@@ -60,7 +60,8 @@ shape_methods! {
         let param = geomcore::PointParametrization::from(parametrization);
         let points = points.0;
         Ok(PyBSplineCurve2D(
-            BSplineCurve2D::interpolate(&points, degree, param).map_err(python_error)?,
+            BSplineCurve2D::interpolate(&points, degree, param)
+                .map_err(|error| crate::errors::count_error(error, degree, points.len(), "points"))?,
         ))
     }
 
@@ -131,13 +132,18 @@ shape_methods! {
         }
     }
 
-    fn __repr__(&self) -> String {
-        bspline_repr(
-            "BSplineCurve2D",
-            (self.0.degree(), self.0.poles().len()),
-            (self.0.is_rational(), self.0.is_periodic()),
-            self.0.knots(),
-            self.0.multiplicities(),
+    fn __repr__(slf: &pyo3::Bound<'_, Self>) -> PyResult<String> {
+        let this = slf.borrow();
+        if this.0.is_rational() {
+            return crate::pickling::paste_back_repr!(slf);
+        }
+        crate::pickling::paste_back_repr!(
+            slf,
+            "degree" => this.0.degree(),
+            "poles" => this.poles(),
+            "knots" => this.knots(),
+            "multiplicities" => this.multiplicities(),
+            "periodic" => this.0.is_periodic(),
         )
     }
 
@@ -197,8 +203,10 @@ shape_methods! {
     /// The curve starts at the first pole and ends at the last.
     #[staticmethod]
     fn clamped_uniform(degree: usize, poles: Points<Point2D>) -> PyResult<Self> {
+        let pole_count = poles.0.len();
         Ok(PyBSplineCurve2D(
-            BSplineCurve2D::clamped_uniform(degree, poles.0).map_err(python_error)?,
+            BSplineCurve2D::clamped_uniform(degree, poles.0)
+                .map_err(|error| crate::errors::count_error(error, degree, pole_count, "poles"))?,
         ))
     }
 
@@ -207,6 +215,23 @@ shape_methods! {
     /// curve.
     fn flat_knots(&self) -> Vec<f64> {
         self.0.flat_knots().to_vec()
+    }
+
+    /// The index `s` of the knot span holding `u`, counted on
+    /// `flat_knots()`: `flat[s] <= u < flat[s + 1]` (`<=` at the upper
+    /// bound). As in evaluation, `u` past the bounds is clamped, or
+    /// wrapped into the period of a periodic curve.
+    fn span_index(&self, u: f64) -> usize {
+        self.0.span_index(u)
+    }
+
+    /// The `degree + 1` basis functions non-zero at `u`, as
+    /// `(first, values)`: the point at `u` of a non-rational curve is
+    /// the sum of `values[j]` times pole `first + j` (wrapping past the
+    /// last pole of a periodic curve). They are the polynomial basis,
+    /// before any weights, and sum to 1.
+    fn basis_functions(&self, u: f64) -> (usize, Vec<f64>) {
+        self.0.basis_functions(u)
     }
 
     /// The curve with pole `index` (negative counting from the end) moved
@@ -309,17 +334,19 @@ shape_methods! {
     /// period).
     fn extract(&self, start: f64, end: f64) -> PyResult<Self> {
         Ok(PyBSplineCurve2D(
-            self.0.extract(start, end).map_err(python_error)?,
+            self.0.extract(start, end).map_err(|error| crate::errors::split_error(error, &crate::errors::range_text(self.0.bounds())))?,
         ))
     }
 
     /// The two halves split at `u`, each a clamped, non-periodic B-spline.
     fn split_at(&self, u: f64) -> PyResult<(Self, Self)> {
-        let (a, b) = self.0.split_at(u).map_err(python_error)?;
+        let (a, b) = self.0.split_at(u).map_err(|error| crate::errors::split_error(error, &crate::errors::range_text(self.0.bounds())))?;
         Ok((PyBSplineCurve2D(a), PyBSplineCurve2D(b)))
     }
 
     /// The arc length, integrating the speed to within `max_length_error`.
+    /// `max_length_error` defaults to the default confusion, 1e-7.
+    #[pyo3(signature = (max_length_error = geomcore::Tolerance::DEFAULT.confusion))]
     fn length(&self, max_length_error: f64) -> f64 {
         self.0.length(max_length_error)
     }

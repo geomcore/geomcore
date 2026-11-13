@@ -285,7 +285,7 @@ fn test_plane_cone_tangency_band_through_the_apex_is_linear_in_tilt() {
     let cone = Cone::new(Point::ORIGIN, Vector::Z, 30f64.to_radians(), 0.0).unwrap();
     let tangent = 60f64.to_radians();
     let kind = |d: f64, angular: f64| {
-        let tol = Tolerance::new(1e-7, angular, 1e-9);
+        let tol = Tolerance::new(1e-7, angular, 1e-9).unwrap();
         match tilted(Point::ORIGIN, tangent + d).intersect_exact(&cone, tol) {
             PlaneConeIntersection::ApexPoint(_) => "apex",
             PlaneConeIntersection::TangentLine(_) => "tangent",
@@ -898,6 +898,41 @@ fn test_sphere_cone_intersection() {
     assert!(!matches!(
         off.intersect_exact(&cone, tol),
         SphereConeIntersection::TwoCircles(..) | SphereConeIntersection::TangentCircle(_)
+    ));
+}
+
+#[test]
+fn test_cone_apex_on_a_coaxial_sphere_is_a_circle_and_the_apex() {
+    // #312: the ring at the apex came back as a circle of radius 0.
+    let tol = Tolerance::DEFAULT;
+    let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
+    for (apex, axis) in [
+        (Point::new(0.0, 0.0, -2.0), Vector::Z),
+        (Point::new(0.0, 0.0, 2.0), Vector::Z),
+        (Point::new(0.0, 0.0, -2.0), -Vector::Z),
+    ] {
+        let cone = Cone::from_apex(apex, axis, PI / 6.0).unwrap();
+        for result in [
+            sphere.intersect_exact(&cone, tol),
+            cone.intersect_exact(&sphere, tol),
+        ] {
+            let SphereConeIntersection::CircleAndApex(circle, point) = result else {
+                panic!("apex {apex:?} along {axis:?}: {result:?}");
+            };
+            assert!(point.distance(apex) <= 1e-12);
+            assert!((circle.radius() - 3f64.sqrt()).abs() <= 1e-12);
+            assert!((circle.center().z + apex.z / 2.0).abs() <= 1e-12);
+        }
+        let routed = sphere.intersect(&cone, tol);
+        assert_eq!(routed.curves().len(), 1);
+        assert_eq!(routed.contact_points().len(), 1, "{routed:?}");
+        assert!(routed.contact_points()[0].distance(apex) <= 1e-12);
+    }
+    // The apex a hair inside the sphere still cuts two rings.
+    let cone = Cone::from_apex(Point::new(0.0, 0.0, -1.9), Vector::Z, PI / 6.0).unwrap();
+    assert!(matches!(
+        sphere.intersect_exact(&cone, tol),
+        SphereConeIntersection::TwoCircles(..)
     ));
 }
 
@@ -1563,7 +1598,8 @@ where
         reference.confusion * scale,
         reference.angular,
         reference.parametric,
-    );
+    )
+    .unwrap();
     let result = first
         .transformed(scaling)
         .unwrap()

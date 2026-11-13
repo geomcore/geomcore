@@ -190,11 +190,18 @@ fn test_non_finite_query_is_undefined() {
 }
 
 #[test]
-fn test_extrema_keep_ends_and_sort_by_distance() {
+fn test_extrema_keep_an_end_only_where_the_distance_grows_into_the_range() {
     let s = TrimmedCurve::segment(Point::ORIGIN, Point::new(4.0, 0.0, 0.0)).unwrap();
-    let ext = s.extrema(Point::new(1.0, 1.0, 0.0), TOL);
-    let params: Vec<f64> = ext.iter().map(|e| e.parameter).collect();
-    assert_eq!(params, vec![1.0, 0.0, 4.0]);
+    let parameters =
+        |q: Point| -> Vec<f64> { s.extrema(q, TOL).iter().map(|e| e.parameter).collect() };
+    assert_eq!(parameters(Point::new(1.0, 1.0, 0.0)), vec![1.0]);
+    assert_eq!(parameters(Point::new(-1.0, 1.0, 0.0)), vec![0.0]);
+    assert_eq!(parameters(Point::new(5.0, 1.0, 0.0)), vec![4.0]);
+    // Two ends, each a minimum, nearest first: an arc around the point.
+    let arc = TrimmedCurve::new(circle(), 0.0, 1.5 * PI).unwrap();
+    let ext = arc.extrema(Point::new(0.5, -0.4, 0.0), TOL);
+    assert!(ext.windows(2).all(|w| w[0].distance <= w[1].distance));
+    assert_eq!(ext.len(), 2);
 }
 
 #[test]

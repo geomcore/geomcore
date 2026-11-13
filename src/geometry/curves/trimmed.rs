@@ -13,7 +13,7 @@ use crate::geometry::curves::{
 };
 use crate::geometry::curves::{RangeOperations, ReversibleCurve};
 use crate::math::bspline::curve as bspline_math;
-use crate::operations::projection::CurveProjection;
+use crate::operations::projection::{CurveProjection, grows_inward, snap_distance};
 use crate::{Continuity, Frame, Frame2D, Point, Point2D, Tolerance, Vector};
 use crate::{Transform, TransformError, Transformable};
 use std::f64::consts::TAU;
@@ -38,7 +38,9 @@ impl fmt::Display for TrimmedCurveConstructionError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let message = match self {
             TrimmedCurveConstructionError::NonFinite => "a range end is NaN or infinite",
-            TrimmedCurveConstructionError::EmptyRange => "first is not less than last",
+            TrimmedCurveConstructionError::EmptyRange => {
+                "the start parameter is not less than the end parameter"
+            }
             TrimmedCurveConstructionError::OutsideBasis => "the range leaves the basis bounds",
             TrimmedCurveConstructionError::ExceedsPeriod => {
                 "the range is longer than the basis period"
@@ -140,14 +142,16 @@ fn check_range(
 
 /// The extrema of a trimmed curve from those of its basis: the basis
 /// extrema inside `[first, last]` (shifted by whole periods into it), then
-/// the two ends, ordered by ascending distance. On a tie the interior
-/// extremum wins, and an end at the parameter of a kept extremum is
-/// dropped. `end_projection` builds the projection at an end parameter.
+/// the ends from which the distance grows into the range, ordered by
+/// ascending distance. On a tie the interior extremum wins, and an end at
+/// the parameter of a kept extremum is dropped. `end_minimum` builds the
+/// projection at an end parameter, `None` where the distance falls from
+/// it into the range.
 fn restrict<P: TierPoint>(
     extrema: Vec<CurveProjection<P>>,
     (first, last): (f64, f64),
     period: Option<f64>,
-    end_projection: impl Fn(f64) -> CurveProjection<P>,
+    end_minimum: impl Fn(f64) -> Option<CurveProjection<P>>,
     tol: Tolerance,
 ) -> Vec<CurveProjection<P>> {
     let mut out: Vec<CurveProjection<P>> = extrema
@@ -163,8 +167,10 @@ fn restrict<P: TierPoint>(
     for t in [first, last] {
         let same =
             |e: &CurveProjection<P>| (e.parameter - t).abs() <= tol.parametric * (1.0 + t.abs());
-        if !out.iter().any(same) {
-            out.push(end_projection(t));
+        if !out.iter().any(same)
+            && let Some(end) = end_minimum(t)
+        {
+            out.push(end);
         }
     }
     out.sort_by(|x, y| x.distance.total_cmp(&y.distance));
@@ -722,22 +728,21 @@ impl_for_both_tiers_over_basis! {
             if !point.is_finite() {
                 return Vec::new();
             }
-            let end_projection = |t: f64| {
+            let end_minimum = |t: f64| {
                 let foot = self.basis.point_at(t);
-                CurveProjection {
+                let along = self.basis.derivative(t, 1);
+                let inward = if t == self.first { along } else { -along };
+                grows_inward(foot - point, inward).then(|| CurveProjection {
                     parameter: t,
                     point: foot,
-                    distance: crate::operations::projection::snap_distance(
-                        foot.distance(point),
-                        tol.confusion,
-                    ),
-                }
+                    distance: snap_distance(foot.distance(point), tol.confusion),
+                })
             };
             restrict(
                 self.basis.extrema(point, tol),
                 (self.first, self.last),
                 self.basis.period(),
-                end_projection,
+                end_minimum,
                 tol,
             )
         }

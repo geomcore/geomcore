@@ -74,17 +74,18 @@ fn place<P: TierPoint>(
         return Err(BSplineConversionError::NotRepresentable);
     }
     let curve = match net.weights {
-        Some(weights) => GenericBSplineCurve::new_rational(
+        Some(weights) => GenericBSplineCurve::from_parts(
             net.degree,
             poles,
-            weights,
+            Some(weights),
             net.knots,
             net.multiplicities,
             net.periodic,
         ),
-        None => GenericBSplineCurve::new(
+        None => GenericBSplineCurve::from_parts(
             net.degree,
             poles,
+            None,
             net.knots,
             net.multiplicities,
             net.periodic,
@@ -215,7 +216,7 @@ pub(crate) fn segment_bspline<P: TierPoint>(
     if !poles.iter().all(|p| p.is_finite()) {
         return Err(BSplineConversionError::NotRepresentable);
     }
-    GenericBSplineCurve::new(1, poles, vec![first, last], vec![2, 2], false)
+    GenericBSplineCurve::from_parts(1, poles, None, vec![first, last], vec![2, 2], false)
         .map_err(|_| BSplineConversionError::NotRepresentable)
 }
 

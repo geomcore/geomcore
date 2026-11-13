@@ -474,11 +474,12 @@ fn regular_speed(first_derivative: Vector, width: f64, tol: Tolerance) -> Option
 /// assert_eq!(extrema[0].distance, 1.0);
 /// ```
 pub trait PointExtrema: ParametricCurve {
-    /// Parameters on the curve's own domain that include every local
-    /// minimum of the distance from `point` (other stationary points may
-    /// be listed too; a valley of equal minima is represented by one of
-    /// its points), ordered by ascending distance, the global closest
-    /// point first. Distances within `tol.confusion` snap to `0.0`.
+    /// The local minima of the distance from `point`, and only those, on
+    /// the curve's own domain, ordered by ascending distance, the global
+    /// closest point first: an end of a bounded curve is one where the
+    /// distance grows from it into the curve, and a valley of equal minima
+    /// is represented by one of its points. Distances within
+    /// `tol.confusion` snap to `0.0`.
     ///
     /// A query point with a non-finite coordinate has no extrema.
     fn extrema(&self, point: Point, tol: Tolerance) -> Vec<CurveProjection>;

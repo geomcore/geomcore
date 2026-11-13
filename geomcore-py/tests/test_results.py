@@ -528,11 +528,18 @@ def test_extrema_and_discretizations_are_sequences():
 
 def test_curves_and_surfaces_have_deterministic_reprs():
     circle = Circle(Point(1.0, 0.0, 0.0), Vector.unit_z(), 2.5)
-    assert repr(circle) == "Circle(center=(1.0, 0.0, 0.0), normal=(0.0, 0.0, 1.0), radius=2.5)"
-    assert repr(Sphere(Point.origin(), 3.0)) == "Sphere(center=(0.0, 0.0, 0.0), radius=3.0)"
-    assert repr(Plane(Point.origin(), Vector.unit_z())) == "Plane(point=(0.0, 0.0, 0.0), normal=(0.0, 0.0, 1.0))"
+    assert repr(circle) == (
+        "Circle(center=Point(1.0, 0.0, 0.0), normal=Vector(0.0, 0.0, 1.0), radius=2.5)"
+    )
+    assert repr(Sphere(Point.origin(), 3.0)) == "Sphere(center=Point(0.0, 0.0, 0.0), radius=3.0)"
+    assert repr(Plane(Point.origin(), Vector.unit_z())) == (
+        "Plane(point=Point(0.0, 0.0, 0.0), normal=Vector(0.0, 0.0, 1.0))"
+    )
     result = Plane(Point.origin(), Vector.unit_z()).intersect(Sphere(Point.origin(), 3.0))
-    assert "Circle(center=(0.0, 0.0, 0.0), normal=(0.0, 0.0, 1.0), radius=3.0)" in repr(result)
+    assert (
+        "Circle(center=Point(0.0, 0.0, 0.0), normal=Vector(0.0, 0.0, 1.0), radius=3.0)"
+        in repr(result)
+    )
     assert " at 0x" not in repr(result)
 
 

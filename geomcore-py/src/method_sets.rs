@@ -92,9 +92,10 @@ macro_rules! curve {
 
                 /// The extrema of the distance to `other`, a point or a curve.
                 ///
-                /// From a point: its stationary points on the curve (local
-                /// minima plus the ends of a bounded curve), as
-                /// `CurveProjection` objects ordered by ascending distance.
+                /// From a point: the local minima of its distance to the
+                /// curve, an end of a bounded curve among them where the
+                /// distance grows from it into the curve, as `CurveProjection`
+                /// objects ordered by ascending distance.
                 ///
                 /// From a curve or `TrimmedCurve`: a `CurveCurveExtrema` of the
                 /// local minima of the distance between the two curves, closest
@@ -153,20 +154,30 @@ macro_rules! curve_2d {
             $class $sets {
                 $($methods)*
 
-                /// The stationary points of the distance from `point` to the
-                /// curve (local minima plus the ends of a bounded curve), as
+                /// The local minima of the distance from `point` to the
+                /// curve, an end of a bounded curve among them where the
+                /// distance grows from it into the curve, as
                 /// `CurveProjection2D` objects ordered by ascending distance.
+                /// Raises `TypeError` for anything but a `Point2D`: the
+                /// extrema between two 2D curves are not supported.
                 #[pyo3(signature = (point, tol = None))]
                 fn extrema(
                     slf: &Bound<'_, Self>,
-                    point: PyPoint2D,
+                    point: &Bound<'_, PyAny>,
                     tol: Option<ToleranceArgument>,
-                ) -> Vec<PyCurveProjection2D> {
+                ) -> PyResult<Vec<PyCurveProjection2D>> {
+                    let Ok(point) = point.extract::<PyPoint2D>() else {
+                        return Err(pyo3::exceptions::PyTypeError::new_err(format!(
+                            "extrema of a 2D curve takes a Point2D, not {}; the extrema \
+                             between two 2D curves are not supported",
+                            point.get_type().name()?
+                        )));
+                    };
                     let projections = slf.borrow().0.extrema(point.0, tolerance(tol));
-                    projections
+                    Ok(projections
                         .into_iter()
                         .map(|projection| PyCurveProjection2D::new(projection, slf, point.0))
-                        .collect()
+                        .collect())
                 }
             }
         }
@@ -719,10 +730,12 @@ macro_rules! surface {
             }
 
             /// Unit normal at surface parameters `(u, v)`
-            /// (`Tolerance.default()` when omitted). Singular points such as
-            /// poles give their limiting normal; returns `None` at an apex,
-            /// whose meridians each have their own, and where no normal can
-            /// be recovered.
+            /// (`Tolerance.default()` when omitted): the direction of
+            /// `du × dv`, the cross product of the `u` and `v` derivatives,
+            /// so reversing either direction flips it. Singular points such
+            /// as poles give their limiting normal; returns `None` at an
+            /// apex, whose meridians each have their own, and where no
+            /// normal can be recovered.
             #[pyo3(signature = (u, v, tol = None))]
             fn normal(&self, u: f64, v: f64, tol: Option<ToleranceArgument>) -> Option<PyVector> {
                 self.0.normal(u, v, tolerance(tol)).map(PyVector)
@@ -1031,7 +1044,7 @@ macro_rules! surface {
 
             /// The same surface with the `u` direction reversed:
             /// `reversed_u().point_at(u_reversed_parameter(u), v)` is
-            /// `point_at(u, v)`.
+            /// `point_at(u, v)`, and the normal there is flipped.
             fn reversed_u(&self) -> Self {
                 Self(self.0.reversed_u())
             }

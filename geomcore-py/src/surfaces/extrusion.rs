@@ -26,13 +26,13 @@ shape_methods! {
         crate::pickling::reduce(slf.as_any(), None, (profile, this.direction()))
     }
 
-    fn __repr__(&self, py: Python<'_>) -> PyResult<String> {
-        let profile = curve_classes::to_py(py, self.0.profile().clone())?;
-        Ok(format!(
-            "ExtrusionSurface(profile={}, direction={})",
-            profile.bind(py).repr()?,
-            crate::values::coordinates(self.0.direction())
-        ))
+    fn __repr__(slf: &pyo3::Bound<'_, Self>) -> PyResult<String> {
+        let (this, py) = (slf.borrow(), slf.py());
+        crate::pickling::paste_back_repr!(
+            slf,
+            "profile" => this.profile(py)?,
+            "direction" => this.direction(),
+        )
     }
 
     #[new]
@@ -43,7 +43,7 @@ shape_methods! {
     /// direction and for a profile lying on one line along it.
     fn py_new(profile: &Bound<'_, PyAny>, direction: PyVector) -> PyResult<Self> {
         Ok(PyExtrusionSurface(
-            ExtrusionSurface::new(curve_classes::extract(profile)?, direction.0)
+            ExtrusionSurface::new(crate::arguments::profile_curve(profile)?, direction.0)
                 .map_err(python_error)?,
         ))
     }
@@ -59,7 +59,9 @@ shape_methods! {
     }
 
     /// The patch `u_range × v_range` as an exact B-spline surface
-    /// (raises `ValueError` for a bad range).
+    /// (raises `ValueError` for a bad range). It keeps `v`, and keeps `u`
+    /// when the swept curve's `to_bspline` keeps its parameter; otherwise
+    /// map a point across with `bspline.parameters_of(point)`.
     fn to_bspline_patch(
         &self,
         u_range: (f64, f64),

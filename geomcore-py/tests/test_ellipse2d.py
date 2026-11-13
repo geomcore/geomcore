@@ -152,6 +152,6 @@ def test_to_bspline_and_repr():
     assert bspline.bounds() == (0.0, math.tau)
     assert xy(bspline.point_at(math.pi / 2)) == pytest.approx((0.0, 1.5))
     assert repr(e) == (
-        "Ellipse2D(center=(0.0, 0.0), x_direction=(1.0, 0.0), "
+        "Ellipse2D(center=Point2D(0.0, 0.0), x_direction=Vector2D(1.0, 0.0), "
         "major_radius=3.0, minor_radius=1.5)"
     )

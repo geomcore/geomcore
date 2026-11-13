@@ -21,14 +21,13 @@ shape_methods! {
         crate::pickling::reduce(slf.as_any(), None, (profile, this.axis()))
     }
 
-    fn __repr__(&self, py: Python<'_>) -> PyResult<String> {
-        let profile = curve_classes::to_py(py, self.0.profile().clone())?;
-        Ok(format!(
-            "RevolutionSurface(profile={}, axis=({}, {}))",
-            profile.bind(py).repr()?,
-            crate::values::coordinates(self.0.axis().origin()),
-            crate::values::coordinates(self.0.axis().direction())
-        ))
+    fn __repr__(slf: &pyo3::Bound<'_, Self>) -> PyResult<String> {
+        let (this, py) = (slf.borrow(), slf.py());
+        crate::pickling::paste_back_repr!(
+            slf,
+            "profile" => this.profile(py)?,
+            "axis" => this.axis(),
+        )
     }
 
     #[new]
@@ -39,7 +38,7 @@ shape_methods! {
     /// circle about the axis.
     fn py_new(profile: &Bound<'_, PyAny>, axis: PyAxis) -> PyResult<Self> {
         Ok(PyRevolutionSurface(
-            RevolutionSurface::new(curve_classes::extract(profile)?, axis.0)
+            RevolutionSurface::new(crate::arguments::profile_curve(profile)?, axis.0)
                 .map_err(python_error)?,
         ))
     }
@@ -56,6 +55,9 @@ shape_methods! {
 
     /// The whole surface as an exact rational B-spline surface (raises
     /// `ValueError` for an unbounded profile).
+    /// Its rational arcs do not keep the angles as parameters: the same
+    /// `(u, v)` gives a different point on each surface between the
+    /// knots, so map a point across with `bspline.parameters_of(point)`.
     fn to_bspline(&self) -> PyResult<PyBSplineSurface> {
         let (u_range, v_range) = (self.0.u_bounds(), self.0.v_bounds());
         self.to_bspline_patch(u_range, v_range)
@@ -63,6 +65,9 @@ shape_methods! {
 
     /// The patch `u_range × v_range` as an exact rational B-spline
     /// surface (raises `ValueError` for a bad range).
+    /// Its rational arcs do not keep the angles as parameters: the same
+    /// `(u, v)` gives a different point on each surface between the
+    /// knots, so map a point across with `bspline.parameters_of(point)`.
     fn to_bspline_patch(
         &self,
         u_range: (f64, f64),

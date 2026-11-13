@@ -9,11 +9,147 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+### Added
+
+- `SurfaceProjection.signed_distance` (#254): the distance positive on
+  the side the surface normal at the closest point points to, negative on
+  the other, `None` where no side is defined (an undefined normal, or a
+  point beside a trimmed surface in its tangent plane). It follows the
+  surface's orientation, so `reversed_u()` flips it. In Rust,
+  `SurfaceProjection::signed_distance(surface, point, tol)` reads it on
+  demand, so a projection costs no more.
+- `span_index(u)` and `basis_functions(u)` on B-spline curves, in both
+  tiers and in Python (#256): the knot span holding `u`, counted on
+  `flat_knots()`, and the `degree + 1` non-zero basis functions with the
+  index of the first pole they weigh, for teaching and for B-spline
+  algorithms of one's own. `u` past the bounds is clamped, or wrapped
+  into the period, as evaluation does.
+
+### Breaking
+
+- `Tolerance::new` returns `Result<Tolerance, ToleranceConstructionError>`
+  (#306): append `?` or `.unwrap()`. Its error, new, names the scale that
+  is not a positive finite number. A tolerance built field by field is
+  still not checked.
+- `SphereConeIntersection` gains `CircleAndApex(Circle, Point)` (#312).
+  A `match` on it needs an arm for the new variant, as for `TwoCircles`
+  with the point added to the contacts.
+- `BSplineConstructionError` and `BezierConstructionError` gain
+  `NonFinite`, and `PoleEditError` gains `NonFinitePole` (#307). A
+  `match` on them needs an arm for the new variant.
+- `EllipseConstructionError`, `ParabolaConstructionError` and
+  `HyperbolaConstructionError` gain `XDirectionAlongNormal` (#335): an x
+  direction parallel to the normal reported `NullNormal`, "normal has
+  zero length". A `match` on them needs an arm for the new variant.
+
 ### Fixed
 
+- `numpy.array(discretization)` is the `(N, 3)` (or `(N, 2)`) array of its
+  points, not a 0-d array of one object (#319), and `reversed()` works on
+  a discretization and on every intersection and extrema result, which
+  iterate and index but raised. Intersection results stay unconvertible,
+  as `docs/python.md` now says: they hold hits, not points.
+- Every value and shape repr pastes back as an equal object (#320):
+  `eval(repr(x)) == x` held for 6 of 32 classes. Shapes printed points
+  as tuples the constructors refuse; 3D ellipses, parabolas and
+  hyperbolas left out their x direction; B-splines and Bézier curves
+  printed no poles; `TrimmedCurve` hid its basis; `Axis` and `Frame` had
+  no repr; `BoundingBox` printed `min=`/`max=`; a moved `QuarticBranch`
+  printed like the original; `Transform` showed rounding noise. A repr
+  is now the constructor called with keywords, or the static constructor
+  pickling uses when the keywords cannot state the placement, with lists
+  past ten items cut by an explicit `...`.
+- Every enumeration member prints as `Class.NAME` (#321).
+  Since Python 3.11 an `IntEnum` prints its number, so
+  `print(result.completeness.status)` showed `2`, and an f-string showed
+  it on every version, while `PointParametrization` printed its name.
+  `str()` and f-strings now give `CompletenessStatus.SAMPLED` on every
+  enumeration and every Python version. Members still compare equal to
+  their integer or string value.
+- numpy on the left of a point or vector no longer takes over its
+  operators (#325). numpy read the value as a sequence and ran first:
+  `numpy.float64(2) * Vector(1, 2, 3)` gave an array, and
+  `Point(1, 2, 3) + numpy.array([1.0, 0, 0])` an array, not an error.
+  `Point`, `Vector`, `Point2D` and `Vector2D` set `__array_ufunc__ =
+  None`, so the number scales the vector, an array on either side of an
+  operator raises `TypeError`, and `==` against an array is `False`.
+  `numpy.array(p)` converts as before.
+- A NaN or infinite pole, weight, knot or data point is refused by every
+  B-spline and Bézier constructor and fit, curve and surface, 2D and 3D
+  (#307). It built a curve of NaN without complaint: one bad sample in
+  six gave `BSplineCurve.interpolate` the knots `[0, nan, nan, 1]`, and
+  `approximate_within` called the NaN fit proven within any deviation.
+  Each now raises `ConstructionError` (Rust: `NonFinite`), as the conic
+  constructors already did; `with_pole` refuses a non-finite pole too.
+- A trimmed curve against a revolution or extrusion surface, or any
+  surface without a closed form, no longer returns hits beyond its ends
+  (#308). The numeric search's Newton iteration is not held to the
+  curve's range, and from a seed near an end it reached hits of the
+  basis curve beyond it: a segment from x = 0 to 1 met an extruded
+  circle of radius 4 at parameter 3.99. A hit now counts only within the
+  range, or within `tol.confusion` beyond an end, where it is snapped to
+  the end.
+- Far from the origin, a march through a crossing of two branches could
+  run from one branch onto the other: rounding opens the crossing into
+  a bend a few millionths wide, and the turns through it were too small
+  to end the trace. A plane through a generator of a hyperboloid 1e7
+  from the origin gave three lines where it gives four near it. Where
+  the surfaces graze, a turn larger than the sine between them now ends
+  the trace whatever its size. The last three sample comparisons with
+  an unbounded surface now hold.
+- A cone whose apex lies on a sphere centred on its axis meets it in a
+  circle and the apex (#312). The apex came back as a second circle, of
+  radius 0, and with no contact point, unlike every other apex on the
+  other surface. `intersect` now reports one curve and the apex as a
+  contact point. A `Circle` of radius 0 stays valid, documented as the
+  point at its centre, as the iso curve through a sphere's pole is.
+- A negative, zero, NaN or infinite tolerance is refused instead of
+  answering as if nothing were close enough (#306): `tol=-1.0` gave a
+  circle and a line through its centre an exact, complete, empty
+  intersection. `Tolerance::new`, Python's `Tolerance(...)` and a number
+  passed as `tol=` raise `ConstructionError` (a `ValueError`) naming the
+  scale.
+- A curve's point extrema are the local minima of the distance, and only
+  those (#309), as the projection guide promised. An ellipse, a
+  hyperbola and a parabola listed every stationary point, the farthest
+  included: from (4, 1, 0) an ellipse of radii 3 and 2 gave its nearest
+  and its farthest point, so `extrema(p)[1]` read as the second closest
+  approach was the farthest. A B-spline or a trimmed curve listed both
+  ends always. A stationary point is now kept where the distance grows
+  on both sides of it, and an end where it grows into the curve.
+- The Python docstrings say which way surface normals point and that
+  `to_bspline` changes the parametrization (#333). `normal()` is
+  `du × dv`: along a plane's `normal`, away from a cylinder's or cone's
+  axis, out of a sphere and out of a torus's tube, flipped by
+  `reversed_u()` and `reversed_v()`. Each `to_bspline` states whether it
+  keeps the parameters and names `parameters_of`/`parameter_of` as the
+  bridge when it does not. `x`, `y` and `z` on the points and vectors
+  have docstrings; `Ellipse` explains `x_direction` and the major ≥
+  minor rule, `Cone.half_angle` its unit and range, and `Tolerance` the
+  units and defaults of its three scales. The elementary-geometry page
+  gains both sections.
+- Error messages name the cause and the next step (#335). A cone's
+  half-angle gives its unit and range; an empty trimmed range names the
+  start and end parameters; a split or extraction outside the bounds
+  gives them; an interpolation or `clamped_uniform` short of points or
+  poles says how many the degree needs; an unknown enumeration value
+  lists the valid ones; `extrema` of a 2D curve given a curve says the
+  2D curve–curve extrema are not supported; a grid of the wrong shape
+  asks for `(N, M, 3)` and prints the shape as numpy does; and
+  `curve_3d_to_uv_within` names the largest distance off the surface,
+  not the first one, so one retry is enough. `normalized()` warns that
+  it gives `None` for a zero vector.
+- `length()` needs no error bound (#329): `max_length_error` defaults to
+  the default confusion, 1e-7, on ellipses, B-spline and Bézier curves
+  and trimmed curves. A segment or a circular arc, which have a closed
+  form, asked for one they never used.
+- A `TrimmedCurve` given as the profile of a `RevolutionSurface` or an
+  `ExtrusionSurface` names the way out (#328): pass
+  `profile.to_bspline()`, the piece as a whole curve, or trim the
+  surface. It raised a list of the accepted classes.
 - `BSplineCurve::interpolate`, `approximate` and `approximate_within`,
   their 2D forms and the surface fits took points closer than 1e-7 for
-  one point, whatever the size of the model: the points of a curve
+  one point, whatever the size of the model (#342): the points of a curve
   scaled by 2^-20 returned `ConfusedPoints`, and a surface fit skipped
   every line of a grid that small. Two points now coincide when they are
   within the rounding of their coordinates, so equal points still do at

@@ -80,11 +80,16 @@ fn read(
     let array = numpy.call_method1("ascontiguousarray", (object, numpy.getattr("float64")?))?;
     let shape: Vec<usize> = array.getattr("shape")?.extract()?;
     if shape.len() != leading + trailing.len() || shape[leading..] != *trailing {
-        let free = vec!["N"; leading].join(", ");
+        let free = ["N", "M", "K"][..leading].join(", ");
         let expected = trailing.iter().map(usize::to_string);
         let expected: Vec<String> = [free].into_iter().chain(expected).collect();
+        let actual: Vec<String> = shape.iter().map(usize::to_string).collect();
+        let actual = match actual.as_slice() {
+            [single] => format!("({single},)"),
+            _ => format!("({})", actual.join(", ")),
+        };
         return Err(PyValueError::new_err(format!(
-            "{name} must have shape ({}), not {shape:?}",
+            "{name} must have shape ({}), not {actual}",
             expected.join(", ")
         )));
     }

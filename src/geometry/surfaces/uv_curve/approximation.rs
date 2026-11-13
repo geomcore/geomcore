@@ -1010,6 +1010,6 @@ pub(super) fn joined(breakpoints: &[Breakpoint], order: usize) -> BSplineCurve {
         })
         .collect();
     let knots = breakpoints.iter().map(|b| b.parameter).collect();
-    BSplineCurve::new(degree, poles, knots, multiplicities, false)
+    BSplineCurve::from_parts(degree, poles, None, knots, multiplicities, false)
         .expect("the breakpoints increase and every pole is finite")
 }

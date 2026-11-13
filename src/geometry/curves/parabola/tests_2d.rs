@@ -134,11 +134,13 @@ fn test_parabola2d_extrema_are_ordered_and_start_at_the_projection() {
     assert_eq!(extrema[0], p.project_point(focus, tol));
     assert_eq!(extrema[0].parameter, 0.0);
     assert_eq!(extrema[0].distance, 1.0);
-    // Beyond the centre of curvature at the apex, three feet exist.
-    let extrema = p.extrema(Point2D::new(5.0, 0.0), tol);
-    assert_eq!(extrema.len(), 3);
+    // Beyond the centre of curvature at the apex, three feet exist, and
+    // the apex is the farthest of them: the two others are the minima.
+    let extrema = p.extrema(Point2D::new(5.0, 0.3), tol);
+    assert_eq!(extrema.len(), 2);
     assert!(extrema.windows(2).all(|w| w[0].distance <= w[1].distance));
-    assert_eq!(extrema[2].parameter, 0.0);
+    assert_eq!(extrema[0], p.project_point(Point2D::new(5.0, 0.3), tol));
+    assert!(extrema.iter().all(|x| x.parameter.abs() > 1.0));
 }
 
 #[test]

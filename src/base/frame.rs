@@ -42,6 +42,23 @@ pub(crate) fn frame_error<E>(non_finite: E, other: E) -> impl FnOnce(FrameConstr
     }
 }
 
+/// Maps the error of a frame built from a normal and an x direction onto
+/// a shape's construction error: `non_finite` for
+/// [`FrameConstructionError::NonFinite`], `parallel` for
+/// [`FrameConstructionError::ParallelDirections`], `null` for a zero
+/// direction.
+pub(crate) fn placement_error<E>(
+    non_finite: E,
+    null: E,
+    parallel: E,
+) -> impl FnOnce(FrameConstructionError) -> E {
+    move |e| match e {
+        FrameConstructionError::NonFinite => non_finite,
+        FrameConstructionError::ParallelDirections => parallel,
+        _ => null,
+    }
+}
+
 /// A 3D axis: an origin point and a unit direction.
 ///
 /// # Examples

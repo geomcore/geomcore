@@ -204,3 +204,26 @@ def test_the_free_functions_warn_and_give_the_methods_results():
     with pytest.warns(DeprecationWarning, match="surface.curve_3d_to_uv_within"):
         mapped = geomcore.curve_3d_to_uv_within(cylinder, traced.curve, 1e-6)  # type: ignore[deprecated]
     assert mapped.curve == cylinder.curve_3d_to_uv_within(traced.curve, 1e-6).curve
+
+
+def test_the_helix_recipe_of_the_parametrization_guide():
+    # #257: the recipe in docs/guides/parametrization.md, and its comments.
+    from geomcore import Cylinder, Line2D, Point2D, TrimmedCurve2D, Vector2D
+
+    radius, pitch, turns = 5.0, 2.0, 3.0
+    cylinder = Cylinder(geomcore.Point.origin(), geomcore.Vector.unit_z(), radius)
+    uv_line = Line2D(Point2D(0.0, 0.0), Vector2D(2 * math.pi, pitch))
+    uv_piece = TrimmedCurve2D(uv_line, 0.0, turns * math.hypot(2 * math.pi, pitch))
+    approximation = cylinder.uv_curve_to_3d_within(uv_piece, 1e-6)
+    helix = approximation.curve
+    assert (helix.degree(), len(helix.poles())) == (9, 60)
+    assert approximation.is_proven()
+    assert approximation.deviation < 4.2e-7
+    end = helix.end_point()
+    assert (end.x, end.y, end.z) == pytest.approx((5.0, 0.0, 6.0), abs=1e-12)
+    for k in range(1, 30):
+        point = helix.point_at(helix.bounds()[1] * k / 30)
+        assert math.hypot(point.x, point.y) == pytest.approx(radius, abs=1e-6)
+        assert point.z == pytest.approx(pitch * turns * k / 30, abs=1e-6)
+    # Right-handed: it starts turning counterclockwise seen from above.
+    assert helix.point_at(0.1).y > 0.0

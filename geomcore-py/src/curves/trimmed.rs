@@ -5,7 +5,6 @@ use crate::curves::*;
 use crate::method_sets::*;
 use crate::tolerance;
 use crate::values::ToleranceArgument;
-use crate::values::{coordinates, coordinates_2d, float_repr};
 use geomcore::{Curve, Curve2D, TrimmedCurve, TrimmedCurve2D};
 use pyo3::exceptions::PyTypeError;
 
@@ -88,6 +87,8 @@ shape_methods! {
 
     /// The length of the piece: exact on a segment or a circular arc
     /// (`max_length_error` is then unused), within `max_length_error` otherwise.
+    /// `max_length_error` defaults to the default confusion, 1e-7.
+    #[pyo3(signature = (max_length_error = geomcore::Tolerance::DEFAULT.confusion))]
     fn length(&self, max_length_error: f64) -> f64 {
         self.0.length(max_length_error)
     }
@@ -110,7 +111,9 @@ shape_methods! {
     /// The trimmed piece as an exact B-spline over the same range: a
     /// clamped B-spline for an elementary basis, the extracted piece for
     /// a B-spline or Bézier one (raises `ValueError` when the poles would
-    /// overflow `f64`).
+    /// overflow `f64`). A line, parabola, B-spline or Bézier basis keeps
+    /// its parameter; the rational arcs of a circle, ellipse or hyperbola
+    /// do not, so map a point across with `bspline.parameter_of(point)`.
     fn to_bspline(&self) -> PyResult<PyBSplineCurve> {
         Ok(PyBSplineCurve(self.0.to_bspline().map_err(python_error)?))
     }
@@ -121,14 +124,13 @@ shape_methods! {
         crate::pickling::reduce(slf.as_any(), None, (basis, this.start_parameter(), this.end_parameter()))
     }
 
-    fn __repr__(&self) -> String {
-        let (s, e) = (self.0.start_point(), self.0.end_point());
-        format!(
-            "TrimmedCurve(start_parameter={}, end_parameter={}, start_point={}, end_point={})",
-            float_repr(self.0.start_parameter()),
-            float_repr(self.0.end_parameter()),
-            coordinates(s),
-            coordinates(e)
+    fn __repr__(slf: &pyo3::Bound<'_, Self>) -> PyResult<String> {
+        let (this, py) = (slf.borrow(), slf.py());
+        crate::pickling::paste_back_repr!(
+            slf,
+            "basis" => this.basis(py)?,
+            "start_parameter" => this.0.start_parameter(),
+            "end_parameter" => this.0.end_parameter(),
         )
     }
 }
@@ -202,6 +204,8 @@ shape_methods! {
 
     /// The length of the piece: exact on a segment or a circular arc
     /// (`max_length_error` is then unused), within `max_length_error` otherwise.
+    /// `max_length_error` defaults to the default confusion, 1e-7.
+    #[pyo3(signature = (max_length_error = geomcore::Tolerance::DEFAULT.confusion))]
     fn length(&self, max_length_error: f64) -> f64 {
         self.0.length(max_length_error)
     }
@@ -214,7 +218,9 @@ shape_methods! {
     /// The trimmed piece as an exact B-spline over the same range: the
     /// extracted piece for a B-spline basis, a clamped B-spline for a line
     /// or circle (raises `ValueError` when the poles would overflow
-    /// `f64`).
+    /// `f64`). A line or B-spline basis keeps its parameter; a circle's
+    /// rational arcs do not, so map a point across with
+    /// `bspline.parameter_of(point)`.
     fn to_bspline(&self) -> PyResult<PyBSplineCurve2D> {
         Ok(PyBSplineCurve2D(self.0.to_bspline().map_err(python_error)?))
     }
@@ -235,14 +241,13 @@ shape_methods! {
         crate::pickling::reduce(slf.as_any(), None, (basis, this.start_parameter(), this.end_parameter()))
     }
 
-    fn __repr__(&self) -> String {
-        let (s, e) = (self.0.start_point(), self.0.end_point());
-        format!(
-            "TrimmedCurve2D(start_parameter={}, end_parameter={}, start_point={}, end_point={})",
-            float_repr(self.0.start_parameter()),
-            float_repr(self.0.end_parameter()),
-            coordinates_2d(s),
-            coordinates_2d(e)
+    fn __repr__(slf: &pyo3::Bound<'_, Self>) -> PyResult<String> {
+        let (this, py) = (slf.borrow(), slf.py());
+        crate::pickling::paste_back_repr!(
+            slf,
+            "basis" => this.basis(py)?,
+            "start_parameter" => this.0.start_parameter(),
+            "end_parameter" => this.0.end_parameter(),
         )
     }
 }

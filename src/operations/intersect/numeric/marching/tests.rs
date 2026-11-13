@@ -1591,7 +1591,10 @@ fn test_marched_curves_report_how_far_they_stray_from_the_surfaces() {
     let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
     let torus = Torus::new(Point::ORIGIN, Vector::Z, 3.0, 1.0).unwrap();
     let cylinder = Cylinder::new(Point::new(3.0, 0.0, 0.0), Vector::X, 0.7).unwrap();
-    for tol in [Tolerance::DEFAULT, Tolerance::new(1e-4, 1e-9, 1e-9)] {
+    for tol in [
+        Tolerance::DEFAULT,
+        Tolerance::new(1e-4, 1e-9, 1e-9).unwrap(),
+    ] {
         assert_deviation_bounds_a_dense_sample(&plane, &sphere, tol);
         assert_deviation_bounds_a_dense_sample(&torus, &cylinder, tol);
     }
@@ -1646,7 +1649,8 @@ fn test_plane_cuts_a_ring_in_two_circles_at_any_size() {
             Tolerance::DEFAULT.confusion * scale,
             Tolerance::DEFAULT.angular,
             Tolerance::DEFAULT.parametric,
-        );
+        )
+        .unwrap();
         let profile = Circle::from_frame(
             Frame::new(Point::new(3.0 * scale, 0.0, 0.0), Vector::Y, Vector::X).unwrap(),
             0.7 * scale,
@@ -1843,7 +1847,8 @@ fn test_a_cut_along_a_patch_ends_on_its_edges_at_any_size() {
             Tolerance::DEFAULT.confusion * scale,
             Tolerance::DEFAULT.angular,
             Tolerance::DEFAULT.parametric,
-        );
+        )
+        .unwrap();
         let patch = bumpy_patch(0.1)
             .transformed(Transform::scaling(Point::ORIGIN, scale))
             .unwrap();
@@ -1886,7 +1891,8 @@ fn test_a_cylinder_cut_by_a_swept_line_is_one_ellipse_at_any_size() {
             Tolerance::DEFAULT.confusion * scale,
             Tolerance::DEFAULT.angular,
             Tolerance::DEFAULT.parametric,
-        );
+        )
+        .unwrap();
         let similarity = Transform::scaling(Point::ORIGIN, scale);
         let cylinder = cylinder.clone().transformed(similarity).unwrap();
         let wall = wall.clone().transformed(similarity).unwrap();
@@ -1901,4 +1907,27 @@ fn test_a_cylinder_cut_by_a_swept_line_is_one_ellipse_at_any_size() {
         let (t0, t1) = curve.bounds();
         assert!(curve.point_at(t0).distance(curve.point_at(t1)) <= tol.confusion);
     }
+}
+
+/// A plane through a generator of a hyperboloid of one sheet cuts it in
+/// two lines crossing where the plane touches it: four half-lines from
+/// the crossing, the same near the origin and 1e7 away from it. Far away,
+/// rounding opens the crossing into a bend a few millionths wide, through
+/// which a trace turned from one line onto the other by turns below the
+/// free one.
+#[test]
+fn test_a_plane_through_a_generator_of_a_hyperboloid_ends_its_lines_at_the_crossing_anywhere() {
+    use crate::{Axis, ExtrusionSurface, Line, RevolutionSurface, Transform, Transformable};
+    let line = Line::new(Point::new(1.0, -2.0, 0.5), Vector::new(0.3, 0.9, -0.2)).unwrap();
+    let plane = ExtrusionSurface::new(line.into(), Vector::new(0.2, -0.1, 1.5)).unwrap();
+    let hyperboloid =
+        RevolutionSurface::new(line.into(), Axis::new(Point::ORIGIN, Vector::Z).unwrap()).unwrap();
+    let mut counts = Vec::new();
+    for distance in [0.0, 1e7] {
+        let moved = Transform::translation(Vector::new(distance, -2.0 * distance, 1.5 * distance));
+        let plane = plane.clone().transformed(moved).unwrap();
+        let hyperboloid = hyperboloid.clone().transformed(moved).unwrap();
+        counts.push(marched_curves(&plane, &hyperboloid, Tolerance::DEFAULT).len());
+    }
+    assert_eq!(counts, [4, 4]);
 }
