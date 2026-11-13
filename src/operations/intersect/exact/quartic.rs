@@ -2654,18 +2654,73 @@ fn shifted_cosine(cos_tau: f64, sin_tau: f64, [sin_shift, cos_shift]: [f64; 2]) 
     cos_tau * cos_shift + sin_tau * sin_shift
 }
 
-/// Whether the cross product of the quadrics' normals runs along
-/// `component` everywhere: not through a crossing or the apex, where it
-/// vanishes.
-#[inline]
-fn crossed_by_normals(component: Component) -> bool {
-    match component {
-        Component::Around { .. } => true,
-        Component::Between { crosses, .. } => !crosses,
-        Component::Node { .. }
-        | Component::ThroughApex { .. }
-        | Component::Apex
-        | Component::OffSharedGenerator { .. } => false,
+/// How the fit reads a component: its tangent, and whether the distance
+/// to it is read along it rather than to first order.
+#[derive(Debug, Clone, Copy)]
+struct ComponentReading {
+    tangent: TangentReading,
+    /// The cone curves too fast near its apex for the first order, and
+    /// the normals turn parallel where an arc crosses itself.
+    slides_along: bool,
+}
+
+/// Where the tangent of a component comes from.
+#[derive(Debug, Clone, Copy)]
+enum TangentReading {
+    /// The cross product of the quadrics' normals, which runs along the
+    /// component everywhere, its sign taken against `Forward`.
+    Normals(Forward),
+    /// The exact velocity: through a crossing or the apex the normals'
+    /// cross product vanishes.
+    Velocity(ExactVelocity),
+    /// A central difference of exact points
+    /// ([`CurveFamily::stepped_tangent`]).
+    Stepped,
+}
+
+/// The direction a component whose tangent is the normals' cross product
+/// runs as its parameter grows.
+#[derive(Debug, Clone, Copy)]
+enum Forward {
+    /// Around the ruled quadric, with the generator's angle.
+    WithTheAngle,
+    /// Along a generator, the way the distance along it moves as `√Δ`
+    /// grows from zero.
+    AlongTheGenerator,
+}
+
+/// A component whose exact velocity gives its tangent.
+#[derive(Debug, Clone, Copy)]
+enum ExactVelocity {
+    /// Through the cone's apex on the sphere ([`Component::Apex`]).
+    Apex,
+    /// Through the crossing of [`Component::Node`].
+    Node { factor: usize },
+}
+
+impl Component {
+    /// How the fit reads this component.
+    #[inline]
+    fn reading(self) -> ComponentReading {
+        let (tangent, slides_along) = match self {
+            Component::Around { .. } => (TangentReading::Normals(Forward::WithTheAngle), false),
+            Component::Between { crosses: false, .. } => {
+                (TangentReading::Normals(Forward::AlongTheGenerator), false)
+            }
+            Component::Between { crosses: true, .. } => (TangentReading::Stepped, true),
+            Component::Node { factor, .. } => (
+                TangentReading::Velocity(ExactVelocity::Node { factor }),
+                false,
+            ),
+            Component::Apex => (TangentReading::Velocity(ExactVelocity::Apex), true),
+            Component::ThroughApex { .. } | Component::OffSharedGenerator { .. } => {
+                (TangentReading::Stepped, true)
+            }
+        };
+        ComponentReading {
+            tangent,
+            slides_along,
+        }
     }
 }
 
@@ -2992,7 +3047,7 @@ impl<R: Ruled, O: Other> Rulings<R, O> {
     /// along it.
     fn velocity(
         &self,
-        component: Component,
+        component_kind: ExactVelocity,
         parameter: f64,
         on: &OnGenerator,
     ) -> (Vector, f64, f64) {
@@ -3003,10 +3058,10 @@ impl<R: Ruled, O: Other> Rulings<R, O> {
             self.other
                 .along_rate(base, on.direction, turns, on.along, angle_rate, root_rate)
         };
-        let (angle_rate, along_rate) = match component {
+        let (angle_rate, along_rate) = match component_kind {
             // `s = 2m`, the root zero.
-            Component::Apex => (1.0, 2.0 * along_rate(1.0, 0.0)),
-            Component::Node { factor, .. } => {
+            ExactVelocity::Apex => (1.0, 2.0 * along_rate(1.0, 0.0)),
+            ExactVelocity::Node { factor } => {
                 let (scale, cosines, factors) = self.roots.discriminant.factored();
                 let (sin, cos) = on.angle.sin_cos();
                 let (cos_tau, sin_tau) = self.roots.angle_from_reference(sin, cos);
@@ -3026,12 +3081,6 @@ impl<R: Ruled, O: Other> Rulings<R, O> {
                     * (cos_p * other_turn / other.sqrt() - sin_p * other.sqrt());
                 (2.0, along_rate(2.0, root_rate))
             }
-            Component::Around { .. }
-            | Component::Between { .. }
-            | Component::ThroughApex { .. }
-            | Component::OffSharedGenerator { .. } => {
-                unreachable!("a central difference gives the tangent of these")
-            }
         };
         let velocity =
             (base_turn + direction_turn * on.along) * angle_rate + on.direction * along_rate;
@@ -3042,17 +3091,13 @@ impl<R: Ruled, O: Other> Rulings<R, O> {
     /// up to its sign.
     #[inline]
     fn unit_tangent(&self, component: Component, parameter: f64, on: &OnGenerator) -> Vector {
-        match component {
-            Component::Node { .. } | Component::Apex => {
-                let velocity = self.velocity(component, parameter, on).0;
+        match component.reading().tangent {
+            TangentReading::Velocity(component_kind) => {
+                let velocity = self.velocity(component_kind, parameter, on).0;
                 velocity * (1.0 / velocity.magnitude())
             }
-            Component::ThroughApex { .. }
-            | Component::OffSharedGenerator { .. }
-            | Component::Between { crosses: true, .. } => {
-                self.stepped_tangent(component, parameter)
-            }
-            Component::Around { .. } | Component::Between { .. } => self.crossing(on),
+            TangentReading::Stepped => self.stepped_tangent(component, parameter),
+            TangentReading::Normals(_) => self.crossing(on),
         }
     }
 }
@@ -3392,26 +3437,12 @@ trait CurveFamily: Copy {
     }
 }
 
-/// Whether the distance to `component` is read along it rather than to
-/// first order: the cone curves too fast near its apex for the first
-/// order, and the normals turn parallel where an arc crosses itself.
-#[inline]
-fn slides_along(component: Component) -> bool {
-    matches!(
-        component,
-        Component::Apex
-            | Component::ThroughApex { .. }
-            | Component::OffSharedGenerator { .. }
-            | Component::Between { crosses: true, .. }
-    )
-}
-
 impl<R: Ruled, O: Other> CurveFamily for Rulings<R, O> {
     type Component = Component;
 
     #[inline]
     fn slides_along(&self, component: Component, _point: Point) -> bool {
-        slides_along(component)
+        component.reading().slides_along
     }
 
     #[inline]
@@ -3430,24 +3461,25 @@ impl<R: Ruled, O: Other> CurveFamily for Rulings<R, O> {
     #[inline]
     fn sample(&self, component: Component, parameter: f64, orientation: f64) -> Sample {
         let on = self.at(component, parameter);
-        let (tangent, ruled_derivative) = match component {
-            Component::Node { .. } | Component::Apex => {
-                let (velocity, angle_rate, along_rate) = self.velocity(component, parameter, &on);
+        let (tangent, ruled_derivative) = match component.reading().tangent {
+            TangentReading::Velocity(component_kind) => {
+                let (velocity, angle_rate, along_rate) =
+                    self.velocity(component_kind, parameter, &on);
                 let inverse = 1.0 / velocity.magnitude();
                 (
                     velocity * inverse,
                     Vector2D::new(angle_rate * inverse, along_rate * inverse),
                 )
             }
-            Component::Around { .. }
-            | Component::Between { .. }
-            | Component::ThroughApex { .. }
-            | Component::OffSharedGenerator { .. } => {
-                let tangent = if crossed_by_normals(component) {
-                    self.crossing(&on) * orientation
-                } else {
-                    self.stepped_tangent(component, parameter)
-                };
+            TangentReading::Normals(_) => {
+                let tangent = self.crossing(&on) * orientation;
+                (
+                    tangent,
+                    self.ruled.uv_derivative(tangent, on.radial, on.along),
+                )
+            }
+            TangentReading::Stepped => {
+                let tangent = self.stepped_tangent(component, parameter);
                 (
                     tangent,
                     self.ruled.uv_derivative(tangent, on.radial, on.along),
@@ -3473,25 +3505,19 @@ impl<R: Ruled, O: Other> CurveFamily for Rulings<R, O> {
     /// the generator's direction where the leading coefficient is negative.
     /// A loop through a crossing or the apex follows its parameter instead.
     fn orientation(&self, component: Component) -> f64 {
-        if !crossed_by_normals(component) {
+        let TangentReading::Normals(forward) = component.reading().tangent else {
             return 1.0;
-        }
+        };
         let on = self.at(component, 0.0);
         let turns = self.ruled.turns(on.radial);
-        let forward = match component {
-            Component::Around { .. } => turns.0 + turns.1 * on.along,
-            Component::Between { .. } => {
+        let forward = match forward {
+            Forward::WithTheAngle => turns.0 + turns.1 * on.along,
+            Forward::AlongTheGenerator => {
                 let base = on.point - on.direction * on.along;
                 on.direction
                     * self
                         .other
                         .along_rate(base, on.direction, turns, on.along, 0.0, 1.0)
-            }
-            Component::Node { .. }
-            | Component::ThroughApex { .. }
-            | Component::Apex
-            | Component::OffSharedGenerator { .. } => {
-                return 1.0;
             }
         };
         if self.crossing(&on).dot(forward) >= 0.0 {
