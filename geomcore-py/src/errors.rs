@@ -195,6 +195,7 @@ map_error!(ConstructionError:
     geomcore::PlaneConstructionError,
     geomcore::SphereConstructionError,
     geomcore::TorusConstructionError,
+    geomcore::ToleranceConstructionError,
     geomcore::TransformError,
     geomcore::TransformMatrixError,
 );

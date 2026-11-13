@@ -26,7 +26,7 @@ fn test_point3_coincides_within_confusion() {
     let tol = Tolerance::DEFAULT;
     assert!(p.coincides(Point::new(1.0, 2.0, 3.0 + 5e-8), tol));
     assert!(!p.coincides(Point::new(1.0, 2.0, 3.0 + 5e-7), tol));
-    let loose = Tolerance::new(1e-3, tol.angular, tol.parametric);
+    let loose = Tolerance::new(1e-3, tol.angular, tol.parametric).unwrap();
     assert!(p.coincides(Point::new(1.0, 2.0005, 3.0), loose));
     assert!(!p.coincides(Point::new(f64::NAN, 2.0, 3.0), loose));
 }

@@ -735,7 +735,12 @@ fn test_a_branch_read_within_tolerance_comes_back_from_its_cones() {
     assert_eq!(branches[0].tolerance(), TOL);
     let rebuilt = QuarticBranch::from_cones(&upright(), &second, 0, branches[0].tolerance());
     assert_eq!(rebuilt.as_ref(), Some(&branches[0]));
-    let exact = Tolerance::new(0.0, 0.0, 0.0);
+    // Built field by field: no query takes it, it only tells branches apart.
+    let exact = Tolerance {
+        confusion: 0.0,
+        angular: 0.0,
+        parametric: 0.0,
+    };
     assert_ne!(
         QuarticBranch::from_cones(&upright(), &second, 0, exact).as_ref(),
         Some(&branches[0])
