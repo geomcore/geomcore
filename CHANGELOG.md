@@ -108,6 +108,10 @@ the Python distribution are versioned in lockstep.
   minor rule, `Cone.half_angle` its unit and range, and `Tolerance` the
   units and defaults of its three scales. The elementary-geometry page
   gains both sections.
+- A `TrimmedCurve` given as the profile of a `RevolutionSurface` or an
+  `ExtrusionSurface` names the way out (#328): pass
+  `profile.to_bspline()`, the piece as a whole curve, or trim the
+  surface. It raised a list of the accepted classes.
 
 ## [0.46.0] - 2026-11-12
 
