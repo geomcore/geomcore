@@ -152,6 +152,15 @@ the Python distribution are versioned in lockstep.
   `ExtrusionSurface` names the way out (#328): pass
   `profile.to_bspline()`, the piece as a whole curve, or trim the
   surface. It raised a list of the accepted classes.
+- Two curves touching far from the origin (#338): their contact landed up to
+  1e-4 away from where it lands near it. A B-spline and a Bézier curve on
+  the same poles, moved 1e7 away, gave their contacts 2e-5 to 9e-5 from
+  the shared ends. A point of a curve rounds about the origin, and across
+  a contact the distance between the curves stays flat to that rounding
+  over a long stretch. Where a point of the first curve lies beyond the
+  model's cube (`tol.confusion / tol.angular`) from the origin, the
+  numeric search for two curves now runs on the curves moved next to the
+  origin by that point, and moves its hits back (ADR 0051).
 
 ## [0.46.0] - 2026-11-12
 
