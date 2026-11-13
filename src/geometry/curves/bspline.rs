@@ -565,6 +565,49 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
         self.knots.flat()
     }
 
+    /// Returns the index `s` of the knot span holding `u`, counted on
+    /// [`flat_knots`](Self::flat_knots): `flat[s] <= u < flat[s + 1]`
+    /// (`<=` at the upper bound), the span having nonzero width. As in
+    /// evaluation, `u` past the bounds of a non-periodic curve is clamped
+    /// to the nearer bound, and wrapped into the period of a periodic one.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{BSplineCurve, Point};
+    /// let poles: Vec<Point> = (0..4).map(|i| Point::new(i as f64, 0.0, 0.0)).collect();
+    /// let curve = BSplineCurve::from_flat_knots(2, poles, vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], None, false).unwrap();
+    /// assert_eq!(curve.span_index(0.25), 2);
+    /// assert_eq!(curve.span_index(0.5), 3);
+    /// assert_eq!(curve.span_index(1.0), 3);
+    /// ```
+    pub fn span_index(&self, u: f64) -> usize {
+        self.knots.span_index(u)
+    }
+
+    /// Returns the `degree + 1` basis functions that are non-zero at `u`,
+    /// with the index of the pole the first one weighs: the point at `u`
+    /// of a non-rational curve is the sum of `values[j]` times pole
+    /// `first + j` (wrapping past the last pole of a periodic curve). They
+    /// are the polynomial basis, before any weights, and sum to 1. `u` is
+    /// clamped or wrapped as in [`span_index`](Self::span_index).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{BSplineCurve, Point};
+    /// let poles: Vec<Point> = (0..3).map(|i| Point::new(i as f64, 0.0, 0.0)).collect();
+    /// let curve = BSplineCurve::new(2, poles, vec![0.0, 1.0], vec![3, 3], false).unwrap();
+    /// let (first, values) = curve.basis_functions(0.5);
+    /// assert_eq!(first, 0);
+    /// assert_eq!(values, vec![0.25, 0.5, 0.25]);
+    /// ```
+    pub fn basis_functions(&self, u: f64) -> (usize, Vec<f64>) {
+        let mut values = [0.0; math::LARGE];
+        let first = self.knots.basis(u, &mut values);
+        (first, values[..=self.degree()].to_vec())
+    }
+
     /// Creates a curve from its flat knot vector, the form textbooks use:
     /// each distinct knot repeated by its multiplicity, so a non-periodic
     /// curve of `n` poles takes `n + degree + 1` knots. `weights`, one per

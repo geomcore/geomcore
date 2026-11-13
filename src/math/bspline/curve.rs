@@ -450,6 +450,29 @@ impl KnotVector {
         self.periodic_span_at(u, local, left, right)
     }
 
+    /// The index `s` of the flat knot opening the nonzero-width span that
+    /// holds `u`, with `u` clamped into the range of a non-periodic
+    /// direction or wrapped into the period of a periodic one, as
+    /// [`KnotVector::span_knots`] locates it. Kept out of line, off the
+    /// evaluation path.
+    #[inline(never)]
+    pub(crate) fn span_index(&self, u: f64) -> usize {
+        if !self.periodic {
+            return self.span(u).0;
+        }
+        let (first, last) = self.bounds();
+        let u = if u == last {
+            last
+        } else {
+            in_period(u, first, last)
+        };
+        let block = &self.flat[..self.pole_count];
+        block
+            .partition_point(|&k| k <= u)
+            .saturating_sub(1)
+            .min(block.len() - 1)
+    }
+
     /// [`KnotVector::periodic_span_knots`] from one side: `u` is wrapped
     /// into `[first, last)` so that the seam is a knot like any other,
     /// then [`Side::Above`] takes the span starting at `u` and

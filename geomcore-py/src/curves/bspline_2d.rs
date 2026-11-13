@@ -214,6 +214,23 @@ shape_methods! {
         self.0.flat_knots().to_vec()
     }
 
+    /// The index `s` of the knot span holding `u`, counted on
+    /// `flat_knots()`: `flat[s] <= u < flat[s + 1]` (`<=` at the upper
+    /// bound). As in evaluation, `u` past the bounds is clamped, or
+    /// wrapped into the period of a periodic curve.
+    fn span_index(&self, u: f64) -> usize {
+        self.0.span_index(u)
+    }
+
+    /// The `degree + 1` basis functions non-zero at `u`, as
+    /// `(first, values)`: the point at `u` of a non-rational curve is
+    /// the sum of `values[j]` times pole `first + j` (wrapping past the
+    /// last pole of a periodic curve). They are the polynomial basis,
+    /// before any weights, and sum to 1.
+    fn basis_functions(&self, u: f64) -> (usize, Vec<f64>) {
+        self.0.basis_functions(u)
+    }
+
     /// The curve with pole `index` (negative counting from the end) moved
     /// to `pole`, its degree, knots and weights kept.
     fn with_pole(&self, index: isize, pole: PyPoint2D) -> PyResult<Self> {

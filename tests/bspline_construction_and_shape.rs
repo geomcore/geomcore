@@ -226,3 +226,76 @@ fn a_side_with_no_speed_keeps_the_parametric_order() {
         Continuity::Order(0)
     );
 }
+
+/// The point a basis gives: the sum of `values[j]` times pole
+/// `first + j`, wrapping past the last pole.
+fn point_from_basis(curve: &BSplineCurve, u: f64) -> Point {
+    let (first, values) = curve.basis_functions(u);
+    let poles = curve.poles();
+    let mut sum = [0.0; 3];
+    for (j, value) in values.iter().enumerate() {
+        let pole = poles[(first + j) % poles.len()];
+        sum[0] += value * pole.x;
+        sum[1] += value * pole.y;
+        sum[2] += value * pole.z;
+    }
+    Point::new(sum[0], sum[1], sum[2])
+}
+
+#[test]
+fn the_basis_functions_rebuild_the_point_and_the_span_holds_it() {
+    let clamped = BSplineCurve::new(
+        3,
+        wavy_poles(),
+        vec![0.0, 0.4, 0.7, 1.0],
+        vec![4, 1, 1, 4],
+        false,
+    )
+    .unwrap();
+    let periodic = BSplineCurve::new(
+        3,
+        wavy_poles(),
+        vec![0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
+        vec![1; 7],
+        true,
+    )
+    .unwrap();
+    for curve in [&clamped, &periodic] {
+        let (first, last) = curve.bounds();
+        let flat = curve.flat_knots();
+        for k in 0..=40 {
+            let u = first + (last - first) * f64::from(k) / 40.0;
+            let (_, values) = curve.basis_functions(u);
+            assert_eq!(values.len(), curve.degree() + 1);
+            assert!((values.iter().sum::<f64>() - 1.0).abs() < 1e-14);
+            assert!(point_from_basis(curve, u).distance(curve.point_at(u)) < 1e-12);
+            let s = curve.span_index(u);
+            assert!(flat[s] <= u && flat[s] < flat[s + 1], "u = {u}, s = {s}");
+            assert!(u < flat[s + 1] || u == last, "u = {u}, s = {s}");
+        }
+    }
+    // Past the bounds a non-periodic curve clamps, as evaluation does,
+    // and a periodic one wraps.
+    assert_eq!(clamped.span_index(-1.0), clamped.span_index(0.0));
+    assert_eq!(clamped.basis_functions(2.0), clamped.basis_functions(1.0));
+    assert_eq!(periodic.span_index(7.5), periodic.span_index(1.5));
+    assert!(point_from_basis(&periodic, 7.5).distance(periodic.point_at(7.5)) < 1e-12);
+    // The 2D tier gives the same basis.
+    let flat_poles: Vec<Point2D> = wavy_poles()
+        .iter()
+        .map(|p| Point2D::new(p.x, p.y))
+        .collect();
+    let clamped_2d = BSplineCurve2D::new(
+        3,
+        flat_poles,
+        vec![0.0, 0.4, 0.7, 1.0],
+        vec![4, 1, 1, 4],
+        false,
+    )
+    .unwrap();
+    assert_eq!(
+        clamped_2d.basis_functions(0.55),
+        clamped.basis_functions(0.55)
+    );
+    assert_eq!(clamped_2d.span_index(0.55), clamped.span_index(0.55));
+}

@@ -9,6 +9,15 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+### Added
+
+- `span_index(u)` and `basis_functions(u)` on B-spline curves, in both
+  tiers and in Python (#256): the knot span holding `u`, counted on
+  `flat_knots()`, and the `degree + 1` non-zero basis functions with the
+  index of the first pole they weigh, for teaching and for B-spline
+  algorithms of one's own. `u` past the bounds is clamped, or wrapped
+  into the period, as evaluation does.
+
 ### Breaking
 
 - `Tolerance::new` returns `Result<Tolerance, ToleranceConstructionError>`

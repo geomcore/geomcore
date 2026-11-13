@@ -1322,6 +1322,19 @@ class BSplineCurve(
         multiplicity, `len(poles) + degree + 1` knots for a non-periodic
         curve.
         """
+    def span_index(self, u: float) -> int:
+        """The index `s` of the knot span holding `u`, counted on
+        `flat_knots()`: `flat[s] <= u < flat[s + 1]` (`<=` at the upper
+        bound). As in evaluation, `u` past the bounds is clamped, or
+        wrapped into the period of a periodic curve.
+        """
+    def basis_functions(self, u: float) -> Tuple[int, List[float]]:
+        """The `degree + 1` basis functions non-zero at `u`, as
+        `(first, values)`: the point at `u` of a non-rational curve is
+        the sum of `values[j]` times pole `first + j` (wrapping past the
+        last pole of a periodic curve). They are the polynomial basis,
+        before any weights, and sum to 1.
+        """
     def with_pole(self, index: int, pole: Point) -> BSplineCurve:
         """The curve with pole `index` (negative counting from the end) moved
         to `pole`, its degree, knots and weights kept.
@@ -1443,6 +1456,19 @@ class BSplineCurve2D(
         """The flat knot vector: each distinct knot repeated by its
         multiplicity, `len(poles) + degree + 1` knots for a non-periodic
         curve.
+        """
+    def span_index(self, u: float) -> int:
+        """The index `s` of the knot span holding `u`, counted on
+        `flat_knots()`: `flat[s] <= u < flat[s + 1]` (`<=` at the upper
+        bound). As in evaluation, `u` past the bounds is clamped, or
+        wrapped into the period of a periodic curve.
+        """
+    def basis_functions(self, u: float) -> Tuple[int, List[float]]:
+        """The `degree + 1` basis functions non-zero at `u`, as
+        `(first, values)`: the point at `u` of a non-rational curve is
+        the sum of `values[j]` times pole `first + j` (wrapping past the
+        last pole of a periodic curve). They are the polynomial basis,
+        before any weights, and sum to 1.
         """
     def with_pole(self, index: int, pole: Point2D) -> BSplineCurve2D:
         """The curve with pole `index` (negative counting from the end) moved
