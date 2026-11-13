@@ -340,6 +340,40 @@ impl<P: TierPoint> GenericCurveCurveIntersection<P> {
         }
     }
 
+    /// The result made of the parts its getters return: for rebuilding a
+    /// stored result, as Python's `pickle` does. The parts are kept as
+    /// they are, not checked or sorted.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::prelude::*;
+    /// use geomcore::{Circle, CurveCurveIntersection, Line, Point, Tolerance, Vector};
+    /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
+    /// let line = Line::new(Point::ORIGIN, Vector::X).unwrap();
+    /// let result = circle.intersect(&line, Tolerance::DEFAULT);
+    /// let rebuilt = CurveCurveIntersection::from_parts(
+    ///     result.hits().to_vec(),
+    ///     result.overlaps().to_vec(),
+    ///     result.method(),
+    ///     result.completeness().clone(),
+    /// );
+    /// assert_eq!(rebuilt, result);
+    /// ```
+    pub fn from_parts(
+        hits: Vec<GenericCurveCurveHit<P>>,
+        overlaps: Vec<CurveCurveOverlap>,
+        method: IntersectionMethod,
+        completeness: Completeness<CurveCurveRegion>,
+    ) -> Self {
+        GenericCurveCurveIntersection {
+            hits: hits.into(),
+            overlaps,
+            method,
+            completeness,
+        }
+    }
+
     /// A numeric result with the status of its search.
     pub(crate) fn numeric(
         hits: Vec<GenericCurveCurveHit<P>>,
@@ -619,6 +653,40 @@ impl CurveSurfaceIntersection {
         result
     }
 
+    /// The result made of the parts its getters return: for rebuilding a
+    /// stored result, as Python's `pickle` does. The parts are kept as
+    /// they are, not checked or sorted.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::prelude::*;
+    /// use geomcore::{CurveSurfaceIntersection, Line, Point, Sphere, Tolerance, Vector};
+    /// let line = Line::new(Point::ORIGIN, Vector::X).unwrap();
+    /// let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
+    /// let result = line.intersect(&sphere, Tolerance::DEFAULT);
+    /// let rebuilt = CurveSurfaceIntersection::from_parts(
+    ///     result.hits().to_vec(),
+    ///     result.overlaps().to_vec(),
+    ///     result.method(),
+    ///     result.completeness().clone(),
+    /// );
+    /// assert_eq!(rebuilt, result);
+    /// ```
+    pub fn from_parts(
+        hits: Vec<CurveSurfaceHit>,
+        overlaps: Vec<CurveSurfaceOverlap>,
+        method: IntersectionMethod,
+        completeness: Completeness<CurveSurfaceRegion>,
+    ) -> Self {
+        CurveSurfaceIntersection {
+            hits: hits.into(),
+            overlaps,
+            method,
+            completeness,
+        }
+    }
+
     /// A numeric result with the status of its search.
     pub(crate) fn numeric(
         hits: Vec<CurveSurfaceHit>,
@@ -809,6 +877,43 @@ impl SurfaceSurfaceIntersection {
             coincident,
             method: IntersectionMethod::Exact,
             completeness: Completeness::Complete,
+        }
+    }
+
+    /// The result made of the parts its getters return: for rebuilding a
+    /// stored result, as Python's `pickle` does. The parts are kept as
+    /// they are, not checked.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::prelude::*;
+    /// use geomcore::{Plane, Point, Sphere, SurfaceSurfaceIntersection, Tolerance, Vector};
+    /// let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
+    /// let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
+    /// let result = plane.intersect(&sphere, Tolerance::DEFAULT);
+    /// let rebuilt = SurfaceSurfaceIntersection::from_parts(
+    ///     result.curves().to_vec(),
+    ///     result.contact_points().to_vec(),
+    ///     result.is_coincident(),
+    ///     result.method(),
+    ///     result.completeness().clone(),
+    /// );
+    /// assert_eq!(rebuilt, result);
+    /// ```
+    pub fn from_parts(
+        curves: Vec<IntersectionCurve>,
+        contact_points: Vec<Point>,
+        coincident: bool,
+        method: IntersectionMethod,
+        completeness: Completeness<SurfaceSurfaceRegion>,
+    ) -> Self {
+        SurfaceSurfaceIntersection {
+            curves,
+            contact_points,
+            coincident,
+            method,
+            completeness,
         }
     }
 

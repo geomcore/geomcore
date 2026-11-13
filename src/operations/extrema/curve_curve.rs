@@ -102,6 +102,31 @@ impl CurveCurveExtrema {
         }
     }
 
+    /// The extrema made of the parts their getters return: for rebuilding
+    /// stored extrema, as Python's `pickle` does. The parts are kept as
+    /// they are, not checked or sorted.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{CurveCurveExtrema, Line, Point, Tolerance, Vector, curve_curve_extrema};
+    /// let l1 = Line::new(Point::ORIGIN, Vector::X).unwrap();
+    /// let l2 = Line::new(Point::new(0.0, 0.0, 1.0), Vector::Y).unwrap();
+    /// let extrema = curve_curve_extrema(&l1, &l2, Tolerance::DEFAULT);
+    /// let rebuilt =
+    ///     CurveCurveExtrema::from_parts(extrema.minima().to_vec(), extrema.completeness().clone());
+    /// assert_eq!(rebuilt, extrema);
+    /// ```
+    pub fn from_parts(
+        minima: Vec<CurveCurveExtremum>,
+        completeness: Completeness<CurveCurveRegion>,
+    ) -> Self {
+        CurveCurveExtrema {
+            minima,
+            completeness,
+        }
+    }
+
     /// Minima found from samples.
     pub(crate) fn sampled(minima: Vec<CurveCurveExtremum>) -> Self {
         Self::new(minima, Completeness::Sampled)

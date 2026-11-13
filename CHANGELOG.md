@@ -23,6 +23,20 @@ the Python distribution are versioned in lockstep.
   are removed (#295); import every shape from `geomcore`, as
   `from geomcore import Circle`. They warned since 0.44.0.
 
+### Added
+
+- Python: every result pickles and copies (#318): the intersections and
+  their hits, overlaps, regions, completeness and curves, the projections,
+  the curve–curve extrema, the surface curvatures, the approximations and
+  the discretizations. A result pickles the operands it holds with it, so
+  a `multiprocessing` worker can return one. A result's pickle loads only
+  in the geomcore version that wrote it (ADR 0053).
+- Rust: `from_parts` on `CurveCurveIntersection` (and its 2D twin),
+  `CurveSurfaceIntersection`, `SurfaceSurfaceIntersection`,
+  `CurveCurveExtrema`, `CurveApproximation` (and its 2D twin),
+  `SurfaceApproximation`, `Discretization` and `Discretization2D`: a
+  result rebuilt from the parts its getters return, for deserializing one.
+
 ### Fixed
 
 - The viewer page says which geomcore geomcore-viewer 0.4 draws (#316):

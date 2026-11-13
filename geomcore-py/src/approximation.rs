@@ -17,6 +17,20 @@ pub(crate) struct PyCurveApproximation(pub(crate) CurveApproximation);
 
 #[pymethods]
 impl PyCurveApproximation {
+    fn __reduce__<'py>(slf: &Bound<'py, Self>) -> PyResult<Bound<'py, pyo3::types::PyTuple>> {
+        crate::result_states::pickled(slf.as_any(), Vec::new(), &slf.get().0)
+    }
+
+    /// Rebuilds a pickled object (see `__reduce__`).
+    #[staticmethod]
+    fn _from_state(py: Python<'_>, version: &str, state: &Bound<'_, PyAny>) -> PyResult<Self> {
+        Ok(Self(crate::result_states::unpickled(
+            py,
+            version,
+            state.extract()?,
+        )?))
+    }
+
     /// The curve.
     #[getter]
     fn curve(&self) -> PyBSplineCurve {
@@ -59,6 +73,20 @@ pub(crate) struct PyCurveApproximation2D(pub(crate) CurveApproximation2D);
 
 #[pymethods]
 impl PyCurveApproximation2D {
+    fn __reduce__<'py>(slf: &Bound<'py, Self>) -> PyResult<Bound<'py, pyo3::types::PyTuple>> {
+        crate::result_states::pickled(slf.as_any(), Vec::new(), &slf.get().0)
+    }
+
+    /// Rebuilds a pickled object (see `__reduce__`).
+    #[staticmethod]
+    fn _from_state(py: Python<'_>, version: &str, state: &Bound<'_, PyAny>) -> PyResult<Self> {
+        Ok(Self(crate::result_states::unpickled(
+            py,
+            version,
+            state.extract()?,
+        )?))
+    }
+
     /// The curve.
     #[getter]
     fn curve(&self) -> PyBSplineCurve2D {
@@ -101,6 +129,20 @@ pub(crate) struct PySurfaceApproximation(pub(crate) SurfaceApproximation);
 
 #[pymethods]
 impl PySurfaceApproximation {
+    fn __reduce__<'py>(slf: &Bound<'py, Self>) -> PyResult<Bound<'py, pyo3::types::PyTuple>> {
+        crate::result_states::pickled(slf.as_any(), Vec::new(), &slf.get().0)
+    }
+
+    /// Rebuilds a pickled object (see `__reduce__`).
+    #[staticmethod]
+    fn _from_state(py: Python<'_>, version: &str, state: &Bound<'_, PyAny>) -> PyResult<Self> {
+        Ok(Self(crate::result_states::unpickled(
+            py,
+            version,
+            state.extract()?,
+        )?))
+    }
+
     /// The surface.
     #[getter]
     fn surface(&self) -> PyBSplineSurface {
