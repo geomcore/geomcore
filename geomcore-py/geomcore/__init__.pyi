@@ -1088,6 +1088,8 @@ class _Curve2DMethods(
         curve, an end of a bounded curve among them where the
         distance grows from it into the curve, as
         `CurveProjection2D` objects ordered by ascending distance.
+        Raises `TypeError` for anything but a `Point2D`: the
+        extrema between two 2D curves are not supported.
         """
 
 class _BoundedCurveMethods(Generic[_PointType, _DiscretizationType]):

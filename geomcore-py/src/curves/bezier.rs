@@ -96,7 +96,7 @@ shape_methods! {
     /// The two pieces either side of `u`, over `[first, u]` and `[u, last]`,
     /// each a `BezierCurve` of the same degree.
     fn split_at(&self, u: f64) -> PyResult<(Self, Self)> {
-        let (a, b) = self.0.split_at(u).map_err(python_error)?;
+        let (a, b) = self.0.split_at(u).map_err(|error| crate::errors::split_error(error, &crate::errors::range_text(self.0.bounds())))?;
         Ok((PyBezierCurve(a), PyBezierCurve(b)))
     }
 

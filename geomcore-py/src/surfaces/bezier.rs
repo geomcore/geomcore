@@ -135,13 +135,13 @@ shape_methods! {
     /// The two pieces either side of `u`, over `[first, u]` and
     /// `[u, last]` in `u`, each a `BezierSurface`.
     fn split_u_at(&self, u: f64) -> PyResult<(Self, Self)> {
-        let (low, high) = self.0.split_u_at(u).map_err(python_error)?;
+        let (low, high) = self.0.split_u_at(u).map_err(|error| crate::errors::split_error(error, &format!("u in {}", crate::errors::range_text(self.0.u_bounds()))))?;
         Ok((PyBezierSurface(low), PyBezierSurface(high)))
     }
 
     /// The two pieces either side of `v`, as `split_u_at` for `v`.
     fn split_v_at(&self, v: f64) -> PyResult<(Self, Self)> {
-        let (low, high) = self.0.split_v_at(v).map_err(python_error)?;
+        let (low, high) = self.0.split_v_at(v).map_err(|error| crate::errors::split_error(error, &format!("v in {}", crate::errors::range_text(self.0.v_bounds()))))?;
         Ok((PyBezierSurface(low), PyBezierSurface(high)))
     }
 
