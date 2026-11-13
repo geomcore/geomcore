@@ -297,6 +297,10 @@ fn quotient(sums: [[f64; 4]; 6], rational: bool) -> [Vector; 6] {
 /// By the convex hull property (weights are positive) each patch lies in
 /// its box, so the distance to the box bounds the distance to the patch
 /// from below.
+// Out of line, as profiled: inlined into its callers it costs them more
+// (up to 2% of a projection or a march onto a B-spline surface), and the
+// codegen units that decide it shift with unrelated edits.
+#[inline(never)]
 pub(crate) fn patch_boxes(
     u_knots: &KnotVector,
     v_knots: &KnotVector,
@@ -371,6 +375,10 @@ pub(crate) type SpanMatrix<'a> = (&'a [f64], usize, usize, usize);
 /// The tensor product of each direction's span matrix applied to the
 /// patch's poles, the pole indices wrapping modulo the pole count (a
 /// periodic direction), so seams come out exactly as the evaluator's.
+// Out of line, as profiled: inlined into its callers it costs them more
+// (up to 2% of a projection or a march onto a B-spline surface), and the
+// codegen units that decide it shift with unrelated edits.
+#[inline(never)]
 pub(crate) fn patch_bezier(
     u: SpanMatrix,
     v: SpanMatrix,
@@ -489,6 +497,10 @@ pub(crate) fn net_points(net: &[f64], h: usize, out: &mut Vec<[f64; 3]>) {
 /// to the patch corners. Weights are positive, so the patch lies in the
 /// points' convex hull, hence in both boxes; on a small patch the fitted
 /// box is flat, its bound exact to second order in the patch size.
+// Out of line, as profiled: inlined into its callers it costs them more
+// (up to 2% of a projection or a march onto a B-spline surface), and the
+// codegen units that decide it shift with unrelated edits.
+#[inline(never)]
 pub(crate) fn net_distance_bound(
     points: &[[f64; 3]],
     rows: usize,

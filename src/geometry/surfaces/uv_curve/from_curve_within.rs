@@ -208,9 +208,10 @@ where
         .iter()
         .map(|pole| Point2D::new(pole.x, pole.y))
         .collect();
-    let curve = BSplineCurve2D::new(
+    let curve = BSplineCurve2D::from_parts(
         spline.degree(),
         poles,
+        None,
         spline.knots().to_vec(),
         spline.multiplicities().to_vec(),
         false,

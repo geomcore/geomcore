@@ -1653,9 +1653,18 @@ pub(crate) fn validate_direction(
         return Err(BSplineConstructionError::TooFewKnots);
     }
     for pair in knots.windows(2) {
-        if pair[1] <= pair[0] {
-            return Err(BSplineConstructionError::KnotsNotIncreasing);
+        // Not greater: decreasing, equal, or a NaN on either side.
+        if pair[1].partial_cmp(&pair[0]) != Some(std::cmp::Ordering::Greater) {
+            return Err(if knots.iter().all(|k| k.is_finite()) {
+                BSplineConstructionError::KnotsNotIncreasing
+            } else {
+                BSplineConstructionError::NonFinite
+            });
         }
+    }
+    // Strictly increasing, so only an end can be infinite.
+    if !(knots[0].is_finite() && knots[knots.len() - 1].is_finite()) {
+        return Err(BSplineConstructionError::NonFinite);
     }
 
     let last = mults.len() - 1;
