@@ -9,8 +9,7 @@ __version__ = _native.__version__
 # The union to annotate with of each kind of shape. A curve is one of the
 # classes of the `Curve` enum's variants, as in Rust; a `TrimmedCurve` is a
 # piece of one, so code that takes either says `Curve | TrimmedCurve`.
-# `isinstance` takes a union from Python 3.10; `typing.get_args` gives the
-# tuple of classes.
+# `isinstance` takes the union; `typing.get_args` gives the tuple of classes.
 Curve = _Union[
     Line, Circle, Ellipse, Parabola, Hyperbola, BSplineCurve, BezierCurve, QuarticBranch
 ]
