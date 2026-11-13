@@ -9,6 +9,20 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+### Fixed
+
+- `help(geomcore)` and the PyPI page orient a newcomer (#332).
+  `geomcore.__doc__` was empty, so `help` opened on the package's
+  submodules: it now shows the main calls, each run as a doctest, and the
+  documentation link. `help(geomcore.Curve)`, `Curve2D` and `Surface` say
+  what the union holds, on Pythons before 3.14. The summary names
+  intersection, projection and fitting. The metadata gains a
+  Documentation link, the Python version classifiers and `Typing ::
+  Typed`. The PyPI description calls the methods rather than the
+  deprecated free functions, and lists Bézier shapes, extrusion,
+  revolution and trimmed surfaces, `QuarticBranch`, the numpy extra and
+  pickling.
+
 ## [0.47.0] - 2026-11-13
 
 Python reads like Python. A study of a newcomer's first hour with
