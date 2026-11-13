@@ -123,6 +123,10 @@ the Python distribution are versioned in lockstep.
   `curve_3d_to_uv_within` names the largest distance off the surface,
   not the first one, so one retry is enough. `normalized()` warns that
   it gives `None` for a zero vector.
+- `length()` needs no error bound (#329): `max_length_error` defaults to
+  the default confusion, 1e-7, on ellipses, B-spline and Bézier curves
+  and trimmed curves. A segment or a circular arc, which have a closed
+  form, asked for one they never used.
 
 ## [0.46.0] - 2026-11-12
 

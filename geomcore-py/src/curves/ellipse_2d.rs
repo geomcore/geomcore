@@ -77,6 +77,8 @@ shape_methods! {
 
     /// The perimeter, integrating the speed to within `max_length_error`: it has
     /// no closed form.
+    /// `max_length_error` defaults to the default confusion, 1e-7.
+    #[pyo3(signature = (max_length_error = geomcore::Tolerance::DEFAULT.confusion))]
     fn length(&self, max_length_error: f64) -> f64 {
         self.0.length(max_length_error)
     }
