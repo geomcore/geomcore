@@ -127,6 +127,10 @@ the Python distribution are versioned in lockstep.
   the default confusion, 1e-7, on ellipses, B-spline and Bézier curves
   and trimmed curves. A segment or a circular arc, which have a closed
   form, asked for one they never used.
+- A `TrimmedCurve` given as the profile of a `RevolutionSurface` or an
+  `ExtrusionSurface` names the way out (#328): pass
+  `profile.to_bspline()`, the piece as a whole curve, or trim the
+  surface. It raised a list of the accepted classes.
 
 ## [0.46.0] - 2026-11-12
 
