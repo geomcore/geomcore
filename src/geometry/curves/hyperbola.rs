@@ -2,7 +2,7 @@
 //! and center+two-points construction, thin wrappers over
 //! [`crate::math::elementary::curve`].
 
-use crate::base::frame::frame_error;
+use crate::base::frame::{frame_error, placement_error};
 use crate::base::tier::operations::FrameOperations;
 use crate::base::tier::{TierPoint, impl_for_both_tiers};
 use crate::base::transform::image_error;
@@ -25,9 +25,11 @@ pub enum HyperbolaConstructionError {
     /// The major or minor radius is zero or negative (a zero radius
     /// collapses the hyperbola onto lines).
     NonPositiveRadius,
-    /// The normal (or the x direction) has zero length, or the x direction
-    /// is parallel to the normal.
+    /// The normal or the x direction has zero length.
     NullNormal,
+    /// The x direction is parallel to the normal, so it gives no axis in
+    /// the plane.
+    XDirectionAlongNormal,
     /// Two (or more) of the three points given to build the hyperbola are
     /// coincident (or too close to distinguish).
     ConfusedPoints,
@@ -43,7 +45,10 @@ impl fmt::Display for HyperbolaConstructionError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let message = match self {
             HyperbolaConstructionError::NonPositiveRadius => "radius is not positive",
-            HyperbolaConstructionError::NullNormal => "normal has zero length",
+            HyperbolaConstructionError::NullNormal => "normal or x direction has zero length",
+            HyperbolaConstructionError::XDirectionAlongNormal => {
+                "x direction is parallel to the normal"
+            }
             HyperbolaConstructionError::ConfusedPoints => "the points are confused",
             HyperbolaConstructionError::CollinearPoints => "the points are collinear",
             HyperbolaConstructionError::NonFinite => "an input is NaN or infinite",
@@ -294,9 +299,10 @@ impl Hyperbola {
     ///
     /// # Errors
     ///
-    /// Returns [`HyperbolaConstructionError::NullNormal`] if `normal` cannot
-    /// be normalized, if `x_direction` cannot be normalized, or if
-    /// `x_direction` is parallel to `normal`;
+    /// Returns [`HyperbolaConstructionError::NullNormal`] if `normal` or
+    /// `x_direction` cannot be normalized;
+    /// [`HyperbolaConstructionError::XDirectionAlongNormal`] if `x_direction`
+    /// is parallel to `normal`;
     /// [`HyperbolaConstructionError::NonPositiveRadius`] if
     /// `major_radius <= 0` or `minor_radius <= 0`; or
     /// [`HyperbolaConstructionError::NonFinite`] if any input is NaN or
@@ -317,9 +323,10 @@ impl Hyperbola {
         major_radius: f64,
         minor_radius: f64,
     ) -> Result<Hyperbola, HyperbolaConstructionError> {
-        let frame = Frame::new(center, normal, x_direction).map_err(frame_error(
+        let frame = Frame::new(center, normal, x_direction).map_err(placement_error(
             HyperbolaConstructionError::NonFinite,
             HyperbolaConstructionError::NullNormal,
+            HyperbolaConstructionError::XDirectionAlongNormal,
         ))?;
         Hyperbola::from_frame(frame, major_radius, minor_radius)
     }
@@ -563,6 +570,15 @@ impl_for_both_tiers! {
                     }
                 })
                 .collect();
+            out.sort_by(|x, y| x.parameter.total_cmp(&y.parameter));
+            // `dg` is half the second derivative of the squared distance,
+            // its terms within `r (2r + |rel|)`, `r` bounding the point's
+            // and its derivatives' lengths.
+            let is_minimum = |t: f64| {
+                let r = s2.sqrt() * t.cosh();
+                projection::grows(dg(t), r * (2.0 * r + rel.magnitude()))
+            };
+            out = projection::alternating_minima(out, false, is_minimum);
             out.sort_by(|x, y| x.distance.total_cmp(&y.distance));
             out
         }

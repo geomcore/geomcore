@@ -2,10 +2,16 @@
 
 use crate::curves::*;
 use crate::method_sets::*;
-use crate::values::{PyFrame, float_repr};
+use crate::values::PyFrame;
 use geomcore::Ellipse;
 
-/// An ellipse in 3D.
+/// An ellipse in 3D, evaluated as
+/// `center + major_radius*cos(t)*x + minor_radius*sin(t)*y`. The major
+/// axis `x` is `x_direction` projected onto the plane perpendicular to
+/// `normal`, and `y = normal × x`, so `t` turns counterclockwise seen from
+/// the side `normal` points to. `major_radius` must be at least
+/// `minor_radius` (`ConstructionError` otherwise): to lay the long axis
+/// along another direction, turn `x_direction` rather than swap the radii.
 #[pyclass(name = "Ellipse", module = "geomcore", eq)]
 #[derive(Clone, PartialEq)]
 pub(crate) struct PyEllipse(pub(crate) Ellipse);
@@ -23,13 +29,15 @@ shape_methods! {
         crate::pickling::reduce(slf.as_any(), Some("from_frame"), (this.frame(), this.major_radius(), this.minor_radius(),))
     }
 
-    fn __repr__(&self) -> String {
-        format!(
-            "Ellipse(center={}, normal={}, major_radius={}, minor_radius={})",
-            crate::values::coordinates(self.0.center()),
-            crate::values::coordinates(self.0.frame().z_direction()),
-            float_repr(self.0.major_radius()),
-            float_repr(self.0.minor_radius())
+    fn __repr__(slf: &pyo3::Bound<'_, Self>) -> PyResult<String> {
+        let this = slf.borrow();
+        crate::pickling::paste_back_repr!(
+            slf,
+            "center" => crate::values::PyPoint(this.0.center()),
+            "normal" => crate::values::PyVector(this.0.frame().z_direction()),
+            "x_direction" => crate::values::PyVector(this.0.frame().x_direction()),
+            "major_radius" => this.0.major_radius(),
+            "minor_radius" => this.0.minor_radius(),
         )
     }
 
@@ -79,6 +87,9 @@ shape_methods! {
 
     /// The ellipse as an exact periodic rational quadratic B-spline over
     /// `[0, 2π]`.
+    /// Its rational arcs do not keep the angle as parameter: the same
+    /// parameter gives a different point on each curve between the knots,
+    /// so map a point across with `bspline.parameter_of(point)`.
     fn to_bspline(&self) -> PyBSplineCurve {
         PyBSplineCurve(self.0.to_bspline())
     }
@@ -100,6 +111,11 @@ shape_methods! {
 
     /// The perimeter, integrating the speed to within `max_length_error`: it has
     /// no closed form.
+    /// `max_length_error` defaults to the default confusion, 1e-7.
+    #[pyo3(
+        signature = (max_length_error = geomcore::Tolerance::DEFAULT.confusion),
+        text_signature = "($self, max_length_error=1e-07)"
+    )]
     fn length(&self, max_length_error: f64) -> f64 {
         self.0.length(max_length_error)
     }

@@ -48,6 +48,20 @@ A point *lies on* a curve or surface when it is within `tol.confusion`
 of it, tested by re-evaluating the inverse parameter — never by
 pointer or topology.
 
+The Python examples on this page share these shapes:
+
+```python
+import numpy
+from geomcore import Circle, Ellipse, Line, Point, Sphere, Vector
+
+circle = Circle(Point(0, 0, 0), Vector.unit_z(), 2.0)
+sphere = Sphere(Point(0, 0, 0), 2.0)
+ellipse = Ellipse(Point(0, 0, 0), Vector.unit_z(), Vector.unit_x(), 3.0, 2.0)
+line = Line(Point(0, 0, 3), Vector.unit_x())
+us = numpy.linspace(0.0, 6.0, 7)
+vs = numpy.linspace(-1.0, 1.0, 7)
+```
+
 === "Python"
 
     ```python
@@ -99,9 +113,10 @@ it was computed on and the `query_point`. Batch variants
 
 ## extrema
 
-All local minima of the distance, nearest first — plus the open ends
-of bounded curves. What `project_point` returns first, `extrema`
-returns whole.
+All local minima of the distance, nearest first, and nothing else: a
+farthest point is never listed, and an end of a bounded curve only
+where the distance grows from it into the curve. What `project_point`
+returns first, `extrema` returns whole.
 
 === "Python"
 

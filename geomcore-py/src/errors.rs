@@ -153,13 +153,65 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
 }
 
 /// A Rust error type with a dedicated Python exception class.
-pub(crate) trait IntoPythonError: std::fmt::Display {
-    fn into_python_error(self) -> PyErr;
+pub(crate) trait IntoPythonError: std::fmt::Display + Sized {
+    /// The exception for this error, carrying `message`.
+    fn into_python_error_with(self, message: String) -> PyErr;
+
+    fn into_python_error(self) -> PyErr {
+        let message = self.to_string();
+        self.into_python_error_with(message)
+    }
 }
 
 /// Converts a Rust error into its Python exception, for `map_err`.
 pub(crate) fn python_error<E: IntoPythonError>(error: E) -> PyErr {
     error.into_python_error()
+}
+
+/// The exception of `error` with what the call knows appended, such as
+/// the bounds a parameter left: `"<error>: <detail>"`.
+pub(crate) fn python_error_detailed<E: IntoPythonError>(
+    error: E,
+    detail: impl std::fmt::Display,
+) -> PyErr {
+    let message = format!("{error}: {detail}");
+    error.into_python_error_with(message)
+}
+
+/// A split or extraction error, naming the bounds `bounds` a parameter
+/// left when it left them.
+pub(crate) fn split_error(error: geomcore::BSplineSplitError, bounds: &str) -> PyErr {
+    match error {
+        geomcore::BSplineSplitError::OutOfRange => {
+            python_error_detailed(error, format_args!("the bounds are {bounds}"))
+        }
+        _ => python_error(error),
+    }
+}
+
+/// A fit or construction error; when the degree asks for more points or
+/// poles than `count` gives, the message says how many it needs.
+pub(crate) fn count_error(
+    error: geomcore::BSplineConstructionError,
+    degree: usize,
+    count: usize,
+    what: &str,
+) -> PyErr {
+    use geomcore::BSplineConstructionError::{DegreeTooHigh, PoleCountMismatch};
+    if matches!(error, DegreeTooHigh | PoleCountMismatch) && count <= degree {
+        let needed = degree + 1;
+        python_error_detailed(
+            error,
+            format_args!("degree {degree} needs at least {needed} {what}, got {count}"),
+        )
+    } else {
+        python_error(error)
+    }
+}
+
+/// A parameter range as `[first, last]`, for messages.
+pub(crate) fn range_text((first, last): (f64, f64)) -> String {
+    format!("[{first:?}, {last:?}]")
 }
 
 /// A `ValueError` for an invalid argument that has no Rust error type.
@@ -171,8 +223,8 @@ macro_rules! map_error {
     ($exception:ident: $($rust_error:ty),+ $(,)?) => {
         $(
             impl IntoPythonError for $rust_error {
-                fn into_python_error(self) -> PyErr {
-                    $exception::new_err(self.to_string())
+                fn into_python_error_with(self, message: String) -> PyErr {
+                    $exception::new_err(message)
                 }
             }
         )+
@@ -195,6 +247,7 @@ map_error!(ConstructionError:
     geomcore::PlaneConstructionError,
     geomcore::SphereConstructionError,
     geomcore::TorusConstructionError,
+    geomcore::ToleranceConstructionError,
     geomcore::TransformError,
     geomcore::TransformMatrixError,
 );
@@ -214,14 +267,17 @@ map_error!(SurfaceIsoError: geomcore::SurfaceIsoError);
 map_error!(DiscretizationCriteriaError: geomcore::DiscretizationCriteriaError);
 
 /// A pole index past the end is an `IndexError`, as for a list; a weight
-/// that is not positive and finite cannot build the curve.
+/// that is not positive and finite, or a pole that is not finite, cannot
+/// build the curve.
 impl IntoPythonError for geomcore::PoleEditError {
-    fn into_python_error(self) -> PyErr {
+    fn into_python_error_with(self, message: String) -> PyErr {
         match self {
             geomcore::PoleEditError::IndexOutOfRange => {
-                pyo3::exceptions::PyIndexError::new_err(self.to_string())
+                pyo3::exceptions::PyIndexError::new_err(message)
             }
-            geomcore::PoleEditError::InvalidWeight => ConstructionError::new_err(self.to_string()),
+            geomcore::PoleEditError::InvalidWeight | geomcore::PoleEditError::NonFinitePole => {
+                ConstructionError::new_err(message)
+            }
         }
     }
 }

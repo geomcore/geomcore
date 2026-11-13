@@ -17,12 +17,12 @@ jobs:
       - run: cargo doc --no-deps
         env: { RUSTDOCFLAGS: "-D warnings" }
   python:
-    # Ubuntu 26.04 has no prebuilt Python 3.9, the abi3 floor.
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     strategy:
       matrix:
-        # The floor of the abi3 wheel, and a current release.
-        python-version: ["3.9", "3.12"]
+        # The floor of the abi3 wheel, the oldest Python not yet at end of
+        # life, and the latest release.
+        python-version: ["3.11", "3.15"]
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -35,8 +35,8 @@ jobs:
       - run: pip install --no-index --find-links dist geomcore
       - run: pytest geomcore-py/tests
       # The allowlist names operator methods that only newer Pythons
-      # report, so the stubs are checked on the current release.
-      - if: matrix.python-version == '3.12'
+      # report, so the stubs are checked on the latest release.
+      - if: matrix.python-version == '3.15'
         run: python -m mypy.stubtest geomcore --allowlist geomcore-py/stubtest-allowlist.txt
   benchmark-budget:
     # Counts instructions under valgrind. The budget in benches/budget.tsv

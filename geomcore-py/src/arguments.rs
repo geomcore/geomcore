@@ -196,6 +196,20 @@ pub(crate) fn extract_curve_arg(obj: &Bound<'_, PyAny>) -> PyResult<CurveArg> {
     })
 }
 
+/// The whole 3D curve a swept surface turns or sweeps. A `TrimmedCurve`
+/// is refused with the way out: the surface spans its profile's bounds,
+/// and `piece.to_bspline()` is the piece as a whole curve.
+pub(crate) fn profile_curve(obj: &Bound<'_, PyAny>) -> PyResult<Curve> {
+    if obj.downcast::<PyTrimmedCurve>().is_ok() {
+        return Err(PyTypeError::new_err(
+            "a TrimmedCurve is not a profile: the surface spans its profile's \
+             bounds; pass profile.to_bspline(), the piece as a whole curve, or \
+             trim the surface with trimmed()",
+        ));
+    }
+    curve_classes::extract(obj)
+}
+
 /// The 3D curve or piece of one `obj` holds, if it is a 3D curve class;
 /// a miss raises nothing.
 pub(crate) fn curve_arg_of(obj: &Bound<'_, PyAny>) -> Option<CurveArg> {

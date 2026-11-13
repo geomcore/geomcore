@@ -24,6 +24,7 @@ pub use bspline::{
     BSplineConstructionError, BSplineCurve, BSplineCurve2D, BSplineSplitError,
     DegreeElevationError, GenericBSplineCurve, KnotInsertionError, KnotRemovalError, PoleEditError,
 };
+pub(crate) use bspline::{all_finite, grid_finite};
 pub use circle::{Circle, Circle2D, CircleConstructionError, GenericCircle};
 pub use conversion::BSplineConversionError;
 pub use curve::{Curve, ElementaryCurve};

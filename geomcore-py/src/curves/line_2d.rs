@@ -1,7 +1,7 @@
 //! The Python class `geomcore.Line2D`, wrapping `geomcore::Line2D`.
 
 use crate::method_sets::*;
-use crate::values::{PyAxis2D, coordinates_2d};
+use crate::values::PyAxis2D;
 use geomcore::Line2D;
 
 /// A straight line in a surface's 2D (u, v) parameter space.
@@ -55,11 +55,12 @@ shape_methods! {
         crate::pickling::reduce(slf.as_any(), None, (this.origin(), this.direction(),))
     }
 
-    fn __repr__(&self) -> String {
-        format!(
-            "Line2D(origin={}, direction={})",
-            coordinates_2d(self.0.origin()),
-            coordinates_2d(self.0.direction())
+    fn __repr__(slf: &pyo3::Bound<'_, Self>) -> PyResult<String> {
+        let this = slf.borrow();
+        crate::pickling::paste_back_repr!(
+            slf,
+            "origin" => crate::values::PyPoint2D(this.0.origin()),
+            "direction" => crate::values::PyVector2D(this.0.direction()),
         )
     }
 }

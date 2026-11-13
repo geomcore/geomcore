@@ -70,7 +70,7 @@ fn assert_points_close(a: &[Point], b: &[Point], tol: f64) {
 #[test]
 fn test_basis_rows_sum_to_one_and_match_full_rows() {
     let points = wavy_points(17);
-    let params = point_parameters(&points, PointParametrization::Chordal, CONFUSED_CHORD).unwrap();
+    let params = point_parameters(&points, PointParametrization::Chordal, 0.0).unwrap();
     for p in 1..=5 {
         let flat = averaged_knots(&params, p);
         let mut rows = BasisRows::new(&flat, p);
@@ -101,8 +101,7 @@ fn test_interpolation_matches_dense_solve() {
     for (count, p) in [(2, 1), (5, 2), (9, 3), (40, 3), (23, 5)] {
         let points = wavy_points(count);
         let curve = BSplineCurve::interpolate(&points, p, PointParametrization::Chordal).unwrap();
-        let params =
-            point_parameters(&points, PointParametrization::Chordal, CONFUSED_CHORD).unwrap();
+        let params = point_parameters(&points, PointParametrization::Chordal, 0.0).unwrap();
         let flat = averaged_knots(&params, p);
         let a = params.iter().map(|&t| dense_row(&flat, p, t)).collect();
         let expected = dense_solve(a, points.clone());
@@ -119,8 +118,7 @@ fn test_approximation_matches_dense_normal_equations() {
         let points = wavy_points(count);
         let curve =
             BSplineCurve::approximate(&points, p, m, PointParametrization::Centripetal).unwrap();
-        let params =
-            point_parameters(&points, PointParametrization::Centripetal, CONFUSED_CHORD).unwrap();
+        let params = point_parameters(&points, PointParametrization::Centripetal, 0.0).unwrap();
         let flat = approximation_knots(&params, m, p);
         let rows: Vec<Vec<f64>> = params.iter().map(|&t| dense_row(&flat, p, t)).collect();
         let mut normal = vec![vec![0.0; m]; m];
@@ -169,8 +167,7 @@ fn test_approximation_within_keeps_points_close_with_few_poles() {
             )
             .unwrap();
             let curve = fit.curve();
-            let params =
-                point_parameters(&points, PointParametrization::Chordal, CONFUSED_CHORD).unwrap();
+            let params = point_parameters(&points, PointParametrization::Chordal, 0.0).unwrap();
             let largest = points
                 .iter()
                 .zip(&params)
@@ -277,4 +274,61 @@ fn test_interpolation_of_two_points_is_their_segment() {
     assert_eq!(curve.poles(), &points);
     assert_eq!(curve.knots(), &[0.0, 1.0]);
     assert_eq!(curve.multiplicities(), &[2, 2]);
+}
+
+/// Five points 5e-8 apart along a bend: the points of a curve of size 1
+/// scaled by about 2^-20.
+fn small_points(scale: f64, shift: f64) -> Vec<Point> {
+    (0..5)
+        .map(|k| {
+            let k = k as f64;
+            Point::new(
+                k * 5e-8 * scale + shift,
+                k * k * 1e-8 * scale - shift,
+                shift,
+            )
+        })
+        .collect()
+}
+
+#[test]
+fn test_interpolation_takes_points_closer_than_the_default_confusion_at_any_size() {
+    let fit = |scale: f64, shift: f64| {
+        BSplineCurve::interpolate(
+            &small_points(scale, shift),
+            3,
+            PointParametrization::Chordal,
+        )
+        .unwrap()
+    };
+    let reference = fit(1.0, 0.0);
+    // Scaled by a power of two, the points scale without rounding: the
+    // fit scales with them.
+    let scaled = fit(2f64.powi(20), 0.0);
+    for (pole, reference_pole) in scaled.poles().iter().zip(reference.poles()) {
+        let back = Point::ORIGIN + (*pole - Point::ORIGIN) / 2f64.powi(20);
+        assert!(back.distance(*reference_pole) <= 1e-12 * 2e-7);
+    }
+    // 1e7 away, each point rounds by about 2e-9: the fit follows the
+    // points it is given, within that rounding of the reference.
+    let shift = 1e7;
+    let far = fit(1.0, shift);
+    for t in [0.0, 0.3, 0.5, 0.8, 1.0] {
+        let back = far.point_at(t) - Vector::new(shift, -shift, shift);
+        let deviation = back.distance(reference.point_at(t));
+        assert!(deviation <= 1e-8, "at {t}: {deviation:e}");
+    }
+}
+
+#[test]
+fn test_interpolation_rejects_equal_consecutive_points_at_any_size() {
+    for shift in [0.0, 1e7] {
+        let mut points = small_points(1.0, shift);
+        points[2] = points[1];
+        assert_eq!(
+            BSplineCurve::interpolate(&points, 3, PointParametrization::Chordal),
+            Err(BSplineConstructionError::ConfusedPoints),
+            "at {shift}"
+        );
+    }
 }

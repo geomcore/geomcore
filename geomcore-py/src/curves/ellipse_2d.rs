@@ -2,10 +2,15 @@
 
 use crate::curves::*;
 use crate::method_sets::*;
-use crate::values::{PyFrame2D, coordinates_2d, float_repr};
+use crate::values::PyFrame2D;
 use geomcore::Ellipse2D;
 
-/// An ellipse in 2D.
+/// An ellipse in 2D, evaluated as
+/// `center + major_radius*cos(t)*x + minor_radius*sin(t)*y`. The major
+/// axis `x` is the normalized `x_direction` and `y` its counterclockwise
+/// perpendicular. `major_radius` must be at least `minor_radius`
+/// (`ConstructionError` otherwise): to lay the long axis along another
+/// direction, turn `x_direction` rather than swap the radii.
 #[pyclass(name = "Ellipse2D", module = "geomcore", eq)]
 #[derive(Clone, PartialEq)]
 pub(crate) struct PyEllipse2D(pub(crate) Ellipse2D);
@@ -72,13 +77,20 @@ shape_methods! {
 
     /// The perimeter, integrating the speed to within `max_length_error`: it has
     /// no closed form.
+    /// `max_length_error` defaults to the default confusion, 1e-7.
+    #[pyo3(
+        signature = (max_length_error = geomcore::Tolerance::DEFAULT.confusion),
+        text_signature = "($self, max_length_error=1e-07)"
+    )]
     fn length(&self, max_length_error: f64) -> f64 {
         self.0.length(max_length_error)
     }
 
     /// The ellipse as an exact rational B-spline of degree 2, periodic over
     /// `[0, 2*pi]`; its parameter agrees with the angle at the knots and
-    /// the middle of each quarter turn.
+    /// the middle of each quarter turn. In between the same parameter
+    /// gives a different point on each curve, so map a point across with
+    /// `bspline.parameter_of(point)`.
     fn to_bspline(&self) -> PyBSplineCurve2D {
         PyBSplineCurve2D(self.0.to_bspline())
     }
@@ -88,13 +100,14 @@ shape_methods! {
         crate::pickling::reduce(slf.as_any(), Some("from_frame"), (this.frame(), this.major_radius(), this.minor_radius(),))
     }
 
-    fn __repr__(&self) -> String {
-        format!(
-            "Ellipse2D(center={}, x_direction={}, major_radius={}, minor_radius={})",
-            coordinates_2d(self.0.center()),
-            coordinates_2d(self.0.frame().x_direction()),
-            float_repr(self.0.major_radius()),
-            float_repr(self.0.minor_radius())
+    fn __repr__(slf: &pyo3::Bound<'_, Self>) -> PyResult<String> {
+        let this = slf.borrow();
+        crate::pickling::paste_back_repr!(
+            slf,
+            "center" => crate::values::PyPoint2D(this.0.center()),
+            "x_direction" => crate::values::PyVector2D(this.0.frame().x_direction()),
+            "major_radius" => this.0.major_radius(),
+            "minor_radius" => this.0.minor_radius(),
         )
     }
 

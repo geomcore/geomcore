@@ -36,6 +36,8 @@ pub enum BezierConstructionError {
     /// The B-spline is not one clamped, non-periodic span: it has
     /// interior knots, is periodic, or is not clamped at its ends.
     NotABezier,
+    /// A pole or weight is NaN or infinite.
+    NonFinite,
 }
 
 impl fmt::Display for BezierConstructionError {
@@ -50,6 +52,7 @@ impl fmt::Display for BezierConstructionError {
             BezierConstructionError::NotABezier => {
                 "the B-spline is not a single clamped non-periodic span"
             }
+            BezierConstructionError::NonFinite => "an input is NaN or infinite",
         };
         f.write_str(message)
     }
@@ -132,8 +135,9 @@ impl<P: TierPoint> GenericBezierCurve<P> {
     /// # Errors
     ///
     /// [`BezierConstructionError::InvalidDegree`] if `degree` is not in
-    /// `1..=25`, and [`BezierConstructionError::PoleCountMismatch`] if
-    /// `poles.len() != degree + 1`.
+    /// `1..=25`, [`BezierConstructionError::PoleCountMismatch`] if
+    /// `poles.len() != degree + 1`, and [`BezierConstructionError::NonFinite`]
+    /// if a pole is NaN or infinite.
     ///
     /// # Examples
     ///
@@ -162,8 +166,9 @@ impl<P: TierPoint> GenericBezierCurve<P> {
     /// # Errors
     ///
     /// [`BezierConstructionError::WeightCountMismatch`] if `weights.len()
-    /// != poles.len()`, [`BezierConstructionError::NonPositiveWeight`] if
-    /// a weight is `<= 0`; otherwise as [`BezierCurve::new`].
+    /// != poles.len()`, [`BezierConstructionError::NonFinite`] if a weight
+    /// is NaN or infinite, [`BezierConstructionError::NonPositiveWeight`]
+    /// if a weight is `<= 0`; otherwise as [`BezierCurve::new`].
     ///
     /// # Examples
     ///

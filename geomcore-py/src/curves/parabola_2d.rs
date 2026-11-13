@@ -2,7 +2,7 @@
 
 use crate::curves::*;
 use crate::method_sets::*;
-use crate::values::{PyFrame2D, coordinates_2d, float_repr};
+use crate::values::PyFrame2D;
 use geomcore::Parabola2D;
 
 /// A parabola in 2D, parametrized so the apex is at parameter 0.
@@ -58,12 +58,13 @@ shape_methods! {
         crate::pickling::reduce(slf.as_any(), Some("from_frame"), (this.frame(), this.focal_distance(),))
     }
 
-    fn __repr__(&self) -> String {
-        format!(
-            "Parabola2D(apex={}, x_direction={}, focal_distance={})",
-            coordinates_2d(self.0.apex()),
-            coordinates_2d(self.0.frame().x_direction()),
-            float_repr(self.0.focal_distance())
+    fn __repr__(slf: &pyo3::Bound<'_, Self>) -> PyResult<String> {
+        let this = slf.borrow();
+        crate::pickling::paste_back_repr!(
+            slf,
+            "apex" => crate::values::PyPoint2D(this.0.apex()),
+            "x_direction" => crate::values::PyVector2D(this.0.frame().x_direction()),
+            "focal_distance" => this.0.focal_distance(),
         )
     }
 

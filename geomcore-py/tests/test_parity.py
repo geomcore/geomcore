@@ -12,9 +12,9 @@ The method sets are read from the stubs, where each is a stub-only class
 """
 
 import ast
+import importlib.util
 import inspect
 import re
-import sys
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import get_args
@@ -276,6 +276,55 @@ def test_stub_docstrings_are_the_runtime_ones(name):
         assert docstring == inspect.getdoc(getattr(runtime, method)), (name, method)
 
 
+def test_every_runtime_docstring_is_in_the_stub():
+    # Editors that read only the stub show its docstrings on hover (#334).
+    path = Path(__file__).resolve().parents[2] / "scripts" / "sync_stub_docstrings.py"
+    spec = importlib.util.spec_from_file_location("sync_stub_docstrings", path)
+    sync = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(sync)
+    edits = sync.stub_edits(sync.STUB.read_text(encoding="utf-8"))
+    assert not edits, (
+        f"{len(edits)} stub docstrings differ from the runtime ones, the first at "
+        f"line {edits[0][0][0]}: run scripts/sync_stub_docstrings.py"
+    )
+
+
+def _runtime_callables():
+    for name in dir(geomcore):
+        value = getattr(geomcore, name)
+        if inspect.isclass(value):
+            yield name, value
+            for member in vars(value):
+                if not member.startswith("__") or member == "__new__":
+                    yield f"{name}.{member}", getattr(value, member)
+        elif callable(value):
+            yield name, value
+
+
+def test_no_default_prints_as_an_ellipsis():
+    # `help()` and `inspect.signature` show the value a parameter takes (#334).
+    for name, value in _runtime_callables():
+        try:
+            signature = inspect.signature(value)
+        except (TypeError, ValueError):
+            continue
+        for parameter in signature.parameters.values():
+            assert parameter.default is not Ellipsis, (name, parameter.name)
+    stub = (Path(geomcore.__file__).parent / "__init__.pyi").read_text(encoding="utf-8")
+    assert "= ..." not in stub
+
+
+def test_the_printed_tolerance_defaults_are_the_default_tolerance():
+    defaults = {
+        name: parameter.default
+        for name, parameter in inspect.signature(geomcore.Tolerance).parameters.items()
+    }
+    assert geomcore.Tolerance(**defaults) == geomcore.Tolerance.default()
+    assert defaults["confusion"] == inspect.signature(
+        geomcore.BSplineCurve.length
+    ).parameters["max_length_error"].default
+
+
 def _stub_trees():
     stub_directory = Path(geomcore.__file__).parent
     return {
@@ -286,7 +335,14 @@ def _stub_trees():
 
 def _union_members(value):
     """The names a union annotation lists, `Union[A, B]` or `A | B`, or
-    None when it is not a union of plain names."""
+    None when it is not a union of plain names. A method set such as
+    `_SurfaceMethods[Any, Any]` counts as its plain name."""
+    if (
+        isinstance(value, ast.Subscript)
+        and isinstance(value.value, ast.Name)
+        and value.value.id in STUB_CLASSES
+    ):
+        return [value.value.id]
     if (
         isinstance(value, ast.Subscript)
         and isinstance(value.value, ast.Name)
@@ -344,6 +400,16 @@ def _union_parameters():
     trees = _stub_trees()
     aliases = _union_aliases(trees)
     shapes = _shape_classes()
+    # A parameter typed with a method set, such as `_CurveMethods`, takes
+    # every class that inherits it.
+    for base in STUB_CLASSES:
+        inheritors = [
+            name
+            for name in shapes
+            if name != base and any(stub is STUB_CLASSES[base] for stub in _stub_bases(name))
+        ]
+        if base.startswith("_") and inheritors:
+            aliases[base] = inheritors
     found = []
 
     def annotation_key(annotation):
@@ -675,9 +741,6 @@ _ELEMENTARY = {
 }
 
 
-@pytest.mark.skipif(
-    sys.version_info < (3, 10), reason="a native class has no signature before Python 3.10"
-)
 def test_elementary_reprs_use_the_constructor_keywords():
     seen = set()
     for shape in _operands_3d() + _operands_2d():

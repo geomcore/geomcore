@@ -55,14 +55,22 @@ shape_methods! {
         }
     }
 
-    fn __repr__(&self) -> String {
-        format!(
-            "BSplineSurface(u_degree={}, v_degree={}, pole_count=({}, {}), rational={})",
-            self.0.u_degree(),
-            self.0.v_degree(),
-            self.0.u_pole_count(),
-            self.0.v_pole_count(),
-            crate::values::py_bool(self.0.is_rational())
+    fn __repr__(slf: &pyo3::Bound<'_, Self>) -> PyResult<String> {
+        let this = slf.borrow();
+        if this.0.is_rational() {
+            return crate::pickling::paste_back_repr!(slf);
+        }
+        crate::pickling::paste_back_repr!(
+            slf,
+            "u_degree" => this.0.u_degree(),
+            "v_degree" => this.0.v_degree(),
+            "poles" => this.poles(),
+            "u_knots" => this.u_knots(),
+            "u_multiplicities" => this.u_multiplicities(),
+            "v_knots" => this.v_knots(),
+            "v_multiplicities" => this.v_multiplicities(),
+            "u_periodic" => this.is_u_periodic(),
+            "v_periodic" => this.is_v_periodic(),
         )
     }
 
@@ -208,7 +216,10 @@ shape_methods! {
     /// `"centripetal"` (the default) or `"chordal"`.
     #[staticmethod]
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (points, u_degree, v_degree, u_pole_count, v_pole_count, parametrization = PyPointParametrization::Centripetal))]
+    #[pyo3(
+        signature = (points, u_degree, v_degree, u_pole_count, v_pole_count, parametrization = PyPointParametrization::Centripetal),
+        text_signature = "(points, u_degree, v_degree, u_pole_count, v_pole_count, parametrization=\"centripetal\")"
+    )]
     fn approximate(
         points: PointGrid,
         u_degree: usize,
@@ -245,7 +256,10 @@ shape_methods! {
     /// `"centripetal"` (the default) or `"chordal"`.
     #[staticmethod]
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (points, u_degree, v_degree, max_deviation, parametrization = PyPointParametrization::Centripetal))]
+    #[pyo3(
+        signature = (points, u_degree, v_degree, max_deviation, parametrization = PyPointParametrization::Centripetal),
+        text_signature = "(points, u_degree, v_degree, max_deviation, parametrization=\"centripetal\")"
+    )]
     fn approximate_within(
         points: PointGrid,
         u_degree: usize,
@@ -371,7 +385,7 @@ shape_methods! {
     /// to one period).
     fn extract(&self, u_range: (f64, f64), v_range: (f64, f64)) -> PyResult<Self> {
         Ok(PyBSplineSurface(
-            self.0.extract(u_range, v_range).map_err(python_error)?,
+            self.0.extract(u_range, v_range).map_err(|error| crate::errors::split_error(error, &format!("u in {}, v in {}", crate::errors::range_text(self.0.u_bounds()), crate::errors::range_text(self.0.v_bounds()))))?,
         ))
     }
 
@@ -379,7 +393,7 @@ shape_methods! {
     /// unchanged.
     fn extract_u(&self, start: f64, end: f64) -> PyResult<Self> {
         Ok(PyBSplineSurface(
-            self.0.extract_u(start, end).map_err(python_error)?,
+            self.0.extract_u(start, end).map_err(|error| crate::errors::split_error(error, &format!("u in {}", crate::errors::range_text(self.0.u_bounds()))))?,
         ))
     }
 
@@ -387,19 +401,19 @@ shape_methods! {
     /// unchanged.
     fn extract_v(&self, start: f64, end: f64) -> PyResult<Self> {
         Ok(PyBSplineSurface(
-            self.0.extract_v(start, end).map_err(python_error)?,
+            self.0.extract_v(start, end).map_err(|error| crate::errors::split_error(error, &format!("v in {}", crate::errors::range_text(self.0.v_bounds()))))?,
         ))
     }
 
     /// The two halves split at `u`, each a clamped, non-periodic B-spline.
     fn split_u_at(&self, u: f64) -> PyResult<(Self, Self)> {
-        let (a, b) = self.0.split_u_at(u).map_err(python_error)?;
+        let (a, b) = self.0.split_u_at(u).map_err(|error| crate::errors::split_error(error, &format!("u in {}", crate::errors::range_text(self.0.u_bounds()))))?;
         Ok((PyBSplineSurface(a), PyBSplineSurface(b)))
     }
 
     /// The two halves split at `v`, each a clamped, non-periodic B-spline.
     fn split_v_at(&self, v: f64) -> PyResult<(Self, Self)> {
-        let (a, b) = self.0.split_v_at(v).map_err(python_error)?;
+        let (a, b) = self.0.split_v_at(v).map_err(|error| crate::errors::split_error(error, &format!("v in {}", crate::errors::range_text(self.0.v_bounds()))))?;
         Ok((PyBSplineSurface(a), PyBSplineSurface(b)))
     }
 }
