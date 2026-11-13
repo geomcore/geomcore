@@ -69,12 +69,3 @@ del _union, _text
 
 __all__ = [*_native.__all__, "Curve", "Curve2D", "Surface"]
 
-
-def __getattr__(name):
-    # `geomcore.curves` and `geomcore.surfaces` without importing them
-    # first, as before the shapes moved to the root.
-    if name in ("curves", "surfaces"):
-        import importlib
-
-        return importlib.import_module(f"geomcore.{name}")
-    raise AttributeError(f"module 'geomcore' has no attribute {name!r}")

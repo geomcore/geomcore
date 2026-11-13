@@ -9,6 +9,12 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+### Breaking
+
+- Python: the deprecated modules `geomcore.curves` and `geomcore.surfaces`
+  are removed (#295); import every shape from `geomcore`, as
+  `from geomcore import Circle`. They warned since 0.44.0.
+
 ### Fixed
 
 - `help(geomcore)` and the PyPI page orient a newcomer (#332).
