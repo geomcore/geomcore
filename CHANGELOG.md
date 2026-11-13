@@ -108,6 +108,10 @@ the Python distribution are versioned in lockstep.
   minor rule, `Cone.half_angle` its unit and range, and `Tolerance` the
   units and defaults of its three scales. The elementary-geometry page
   gains both sections.
+- `length()` needs no error bound (#329): `max_length_error` defaults to
+  the default confusion, 1e-7, on ellipses, B-spline and Bézier curves
+  and trimmed curves. A segment or a circular arc, which have a closed
+  form, asked for one they never used.
 
 ## [0.46.0] - 2026-11-12
 
