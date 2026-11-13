@@ -2,11 +2,12 @@
 
 use crate::method_sets::*;
 use crate::surfaces::*;
-use crate::values::{PyAxis, PyFrame, float_repr};
+use crate::values::{PyAxis, PyFrame};
 use geomcore::Cone;
 
 /// An infinite cone; u is the angle around the axis, v the distance along a
-/// generator from the reference circle.
+/// generator from the reference circle. Its normal points away from the
+/// axis.
 #[pyclass(name = "Cone", module = "geomcore", eq)]
 #[derive(Clone, PartialEq)]
 pub(crate) struct PyCone(pub(crate) Cone);
@@ -24,18 +25,20 @@ shape_methods! {
         crate::pickling::reduce(slf.as_any(), Some("from_frame"), (this.frame(), this.half_angle(), this.reference_radius(),))
     }
 
-    fn __repr__(&self) -> String {
-        format!(
-            "Cone(center={}, axis_direction={}, half_angle={}, reference_radius={})",
-            crate::values::coordinates(self.0.frame().origin()),
-            crate::values::coordinates(self.0.frame().z_direction()),
-            float_repr(self.0.half_angle()),
-            float_repr(self.0.reference_radius())
+    fn __repr__(slf: &pyo3::Bound<'_, Self>) -> PyResult<String> {
+        let this = slf.borrow();
+        crate::pickling::paste_back_repr!(
+            slf,
+            "center" => crate::values::PyPoint(this.0.frame().origin()),
+            "axis_direction" => crate::values::PyVector(this.0.frame().z_direction()),
+            "half_angle" => this.0.half_angle(),
+            "reference_radius" => this.0.reference_radius(),
         )
     }
 
     #[new]
-    /// Build a cone from a reference-circle center, axis direction, half-angle and reference radius.
+    /// Build a cone from a reference-circle center, axis direction,
+    /// half-angle (radians, `0 < |half_angle| < pi/2`) and reference radius.
     fn py_new(
         center: PyPoint,
         axis_direction: PyVector,
@@ -83,7 +86,9 @@ shape_methods! {
         PyPoint(self.0.apex())
     }
 
-    /// The half-angle in radians.
+    /// The angle between the axis and a generator, in radians, with
+    /// `0 < |half_angle| < pi/2`; a negative half-angle makes the radius
+    /// shrink, not grow, along `axis_direction`.
     fn half_angle(&self) -> f64 {
         self.0.half_angle()
     }
@@ -95,6 +100,9 @@ shape_methods! {
 
     /// The patch `u_range × v_range` as an exact rational B-spline
     /// surface (raises `ValueError` for a bad range).
+    /// Its rational arcs do not keep the angles as parameters: the same
+    /// `(u, v)` gives a different point on each surface between the
+    /// knots, so map a point across with `bspline.parameters_of(point)`.
     fn to_bspline_patch(
         &self,
         u_range: (f64, f64),

@@ -55,16 +55,19 @@ impl PyPoint {
         PyPoint(Point::ORIGIN)
     }
 
+    /// The x coordinate.
     #[getter]
     fn x(&self) -> f64 {
         self.0.x
     }
 
+    /// The y coordinate.
     #[getter]
     fn y(&self) -> f64 {
         self.0.y
     }
 
+    /// The z coordinate.
     #[getter]
     fn z(&self) -> f64 {
         self.0.z
@@ -210,16 +213,19 @@ impl PyVector {
         PyVector(Vector::Z)
     }
 
+    /// The x coordinate.
     #[getter]
     fn x(&self) -> f64 {
         self.0.x
     }
 
+    /// The y coordinate.
     #[getter]
     fn y(&self) -> f64 {
         self.0.y
     }
 
+    /// The z coordinate.
     #[getter]
     fn z(&self) -> f64 {
         self.0.z
@@ -256,7 +262,8 @@ impl PyVector {
     }
 
     /// The unit vector with the same direction, or `None` for a vector too
-    /// short to normalize.
+    /// short to normalize: check the result before passing it on, as a
+    /// constructor taking a vector refuses `None`.
     fn normalized(&self) -> Option<PyVector> {
         self.0.normalized().map(PyVector)
     }
@@ -402,11 +409,13 @@ impl PyPoint2D {
         PyPoint2D(Point2D::ORIGIN)
     }
 
+    /// The x coordinate.
     #[getter]
     fn x(&self) -> f64 {
         self.0.x
     }
 
+    /// The y coordinate.
     #[getter]
     fn y(&self) -> f64 {
         self.0.y
@@ -535,11 +544,13 @@ impl PyVector2D {
         PyVector2D(Vector2D::Y)
     }
 
+    /// The x coordinate.
     #[getter]
     fn x(&self) -> f64 {
         self.0.x
     }
 
+    /// The y coordinate.
     #[getter]
     fn y(&self) -> f64 {
         self.0.y
@@ -628,7 +639,8 @@ impl PyVector2D {
     }
 
     /// The unit vector with the same direction, or `None` for a vector too
-    /// short to normalize.
+    /// short to normalize: check the result before passing it on, as a
+    /// constructor taking a vector refuses `None`.
     fn normalized(&self) -> Option<PyVector2D> {
         self.0.normalized().map(PyVector2D)
     }
@@ -785,6 +797,15 @@ impl PyAxis {
         PyAxis(self.0.reversed())
     }
 
+    fn __repr__(slf: &Bound<'_, Self>) -> PyResult<String> {
+        let axis = slf.borrow().0;
+        pickling::paste_back_repr!(
+            slf,
+            "origin" => PyPoint(axis.origin()),
+            "direction" => PyVector(axis.direction()),
+        )
+    }
+
     fn __reduce__<'py>(slf: &Bound<'py, Self>) -> PyResult<Bound<'py, PyTuple>> {
         let axis = slf.borrow().0;
         let arguments = (PyPoint(axis.origin()), PyVector(axis.direction()));
@@ -857,11 +878,12 @@ impl PyAxis2D {
         PyAxis2D(self.0.reversed())
     }
 
-    fn __repr__(&self) -> String {
-        format!(
-            "Axis2D(origin={}, direction={})",
-            coordinates_2d(self.0.origin()),
-            coordinates_2d(self.0.direction())
+    fn __repr__(slf: &Bound<'_, Self>) -> PyResult<String> {
+        let axis = slf.borrow().0;
+        pickling::paste_back_repr!(
+            slf,
+            "origin" => PyPoint2D(axis.origin()),
+            "direction" => PyVector2D(axis.direction()),
         )
     }
 
@@ -960,12 +982,13 @@ impl PyFrame2D {
         self.0.local_components(vector.0)
     }
 
-    fn __repr__(&self) -> String {
-        format!(
-            "Frame2D(origin={}, x_direction={}, y_direction={})",
-            coordinates_2d(self.0.origin()),
-            coordinates_2d(self.0.x_direction()),
-            coordinates_2d(self.0.y_direction())
+    fn __repr__(slf: &Bound<'_, Self>) -> PyResult<String> {
+        let frame = slf.borrow().0;
+        pickling::paste_back_repr!(
+            slf,
+            "origin" => PyPoint2D(frame.origin()),
+            "x_direction" => PyVector2D(frame.x_direction()),
+            "y_direction" => PyVector2D(frame.y_direction()),
         )
     }
 
@@ -1112,6 +1135,16 @@ impl PyFrame {
         ))
     }
 
+    fn __repr__(slf: &Bound<'_, Self>) -> PyResult<String> {
+        let frame = slf.borrow().0;
+        pickling::paste_back_repr!(
+            slf,
+            "origin" => PyPoint(frame.origin()),
+            "z_direction" => PyVector(frame.z_direction()),
+            "x_hint" => PyVector(frame.x_direction()),
+        )
+    }
+
     fn __reduce__<'py>(slf: &Bound<'py, Self>) -> PyResult<Bound<'py, PyTuple>> {
         let frame = slf.borrow().0;
         let arguments = (
@@ -1126,6 +1159,12 @@ impl PyFrame {
 
 /// Distance and angle tolerances shared by all geometric queries:
 /// containment, projection, intersection and fitting.
+///
+/// `confusion` is a distance in model units (default 1e-7), `angular` an
+/// angle in radians (default 1e-12, the default confusion over
+/// `MODEL_SIZE`) and `parametric` a distance between curve or surface
+/// parameters (default 1e-9). Scale `confusion` with the model: models
+/// are assumed to fit in a cube of side `confusion / angular`.
 ///
 /// `Tolerance()` with no arguments equals `Tolerance.default()`. Every
 /// `tol=` argument also takes a number, read as
@@ -1157,19 +1196,22 @@ impl PyTolerance {
         PyTolerance(Tolerance::DEFAULT)
     }
 
-    /// Distance below which two points are considered coincident.
+    /// Distance below which two points are considered coincident, in
+    /// model units (default 1e-7).
     #[getter]
     fn confusion(&self) -> f64 {
         self.0.confusion
     }
 
-    /// Angular tolerance for parallelism/orthogonality checks (radians).
+    /// Angle below which two directions are parallel or orthogonal, in
+    /// radians (default 1e-12).
     #[getter]
     fn angular(&self) -> f64 {
         self.0.angular
     }
 
-    /// Parametric-space tolerance.
+    /// Distance between two parameter values below which they are the
+    /// same parameter (default 1e-9).
     #[getter]
     fn parametric(&self) -> f64 {
         self.0.parametric
@@ -1378,7 +1420,7 @@ impl PyTransform {
             .to_matrix()
             .iter()
             .map(|row| {
-                let entries: Vec<String> = row.iter().map(|&entry| python_float(entry)).collect();
+                let entries: Vec<String> = row.iter().map(|&entry| float_repr(entry)).collect();
                 format!("[{}]", entries.join(", "))
             })
             .collect();

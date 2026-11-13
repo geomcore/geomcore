@@ -80,6 +80,25 @@ def test_enumerations_are_real_enums_that_list_their_members():
     assert result.completeness.status is CompletenessStatus.COMPLETE
 
 
+
+def test_every_enumeration_member_prints_as_its_name():
+    # #321: an IntEnum printed its number, and the enumerations disagreed.
+    import geomcore
+
+    enumerations = [
+        value
+        for value in vars(geomcore).values()
+        if isinstance(value, type) and issubclass(value, enum.Enum)
+    ]
+    assert len(enumerations) == 5
+    for enumeration in enumerations:
+        for member in enumeration:
+            name = f"{enumeration.__name__}.{member.name}"
+            assert (str(member), f"{member}", f"{member:>40}".strip()) == (name, name, name)
+            assert repr(member).startswith(f"<{name}:")
+    assert geomcore.Side.ABOVE == int(geomcore.Side.ABOVE)
+    assert geomcore.PointParametrization.CHORDAL == "chordal"
+
 def test_a_parametrization_is_an_enum_member_or_its_string():
     from geomcore import BSplineCurve, PointParametrization
 

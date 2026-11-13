@@ -202,7 +202,7 @@ fn test_error_display() {
     );
     assert_eq!(
         ConeConstructionError::BadAngle.to_string(),
-        "half-angle is out of range"
+        "half-angle must be in radians, with 0 < |half-angle| < pi/2"
     );
     assert_eq!(
         ConeConstructionError::NullAxis.to_string(),

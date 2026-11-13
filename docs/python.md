@@ -128,6 +128,13 @@ An array on either side of `+`, `-` or `*` raises `TypeError`, and `==`
 against an array is `False`. Convert with `numpy.array(p)` to compute on
 the coordinates as an array.
 
+A `Discretization` converts to its points: `numpy.array(curve.discretize(0.01))`
+is a float array of shape `(N, 3)` (`(N, 2)` for a `Discretization2D`).
+Intersection and extrema results iterate, index and reverse over what
+they hold, but do not convert: they hold hits, curves and minima, not
+points. Take `numpy.array([hit.point for hit in result])` for the points
+of the hits.
+
 A `Transform` reads and writes 4×4 homogeneous matrices, so a robot pose
 or a placement from another tool comes in and goes out directly.
 `a @ b` composes like the matrix product, `b` first, so `a @ b` is
@@ -155,9 +162,22 @@ reference to the shapes they were computed on. Values stay unhashable
 
 ## Reprs
 
+A repr is Python that rebuilds the object: `eval(repr(x))` (with the
+`geomcore` names in scope) gives an object equal to `x`. A shape prints
+as its constructor called with keywords, `Circle(center=Point(0.0, 0.0,
+0.0), normal=Vector(0.0, 0.0, 1.0), radius=2.0)`, when those keywords
+rebuild it. When they cannot say where its parametrization starts, as
+for a tilted or mirrored circle, it prints as the static constructor
+pickling uses instead: `Circle.from_frame(Frame.from_axes(...), 2.0)`. A
+B-spline prints its poles, knots and multiplicities. A list longer than
+ten items prints its first eight, `...` and its last, so a long pole list
+stays readable, and its repr fails to paste rather than paste as another
+shape.
+
 Reprs print floats as Python does and show coordinates below `1e-15` as
-`0.0`, so rounding noise such as `cos(pi / 2)` does not clutter them. A repr is
-therefore for reading, not an exact round trip of such tiny coordinates.
+`0.0`, so rounding noise such as `cos(pi / 2)` does not clutter them. Such
+a coordinate is the one place a repr pastes back to a slightly different
+object. A tolerance keeps its tiny values.
 
 A Python API reference generated from docstrings, and tutorials, are on
 the roadmap. Until then, the Rust items on

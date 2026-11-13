@@ -56,7 +56,8 @@ shape_methods! {
         ))
     }
 
-    /// The surface as a `BSplineSurface` over the same bounds.
+    /// The surface as a `BSplineSurface` over the same bounds, with the
+    /// same point at each `(u, v)`.
     fn to_bspline(&self) -> PyBSplineSurface {
         PyBSplineSurface(self.0.to_bspline())
     }
@@ -74,14 +75,16 @@ shape_methods! {
         }
     }
 
-    fn __repr__(&self) -> String {
-        format!(
-            "BezierSurface(u_degree={}, v_degree={}, pole_count=({}, {}), rational={})",
-            self.0.u_degree(),
-            self.0.v_degree(),
-            self.0.u_pole_count(),
-            self.0.v_pole_count(),
-            crate::values::py_bool(self.0.is_rational())
+    fn __repr__(slf: &pyo3::Bound<'_, Self>) -> PyResult<String> {
+        let this = slf.borrow();
+        if this.0.is_rational() {
+            return crate::pickling::paste_back_repr!(slf);
+        }
+        crate::pickling::paste_back_repr!(
+            slf,
+            "u_degree" => this.0.u_degree(),
+            "v_degree" => this.0.v_degree(),
+            "poles" => this.poles(),
         )
     }
 
@@ -132,13 +135,13 @@ shape_methods! {
     /// The two pieces either side of `u`, over `[first, u]` and
     /// `[u, last]` in `u`, each a `BezierSurface`.
     fn split_u_at(&self, u: f64) -> PyResult<(Self, Self)> {
-        let (low, high) = self.0.split_u_at(u).map_err(python_error)?;
+        let (low, high) = self.0.split_u_at(u).map_err(|error| crate::errors::split_error(error, &format!("u in {}", crate::errors::range_text(self.0.u_bounds()))))?;
         Ok((PyBezierSurface(low), PyBezierSurface(high)))
     }
 
     /// The two pieces either side of `v`, as `split_u_at` for `v`.
     fn split_v_at(&self, v: f64) -> PyResult<(Self, Self)> {
-        let (low, high) = self.0.split_v_at(v).map_err(python_error)?;
+        let (low, high) = self.0.split_v_at(v).map_err(|error| crate::errors::split_error(error, &format!("v in {}", crate::errors::range_text(self.0.v_bounds()))))?;
         Ok((PyBezierSurface(low), PyBezierSurface(high)))
     }
 

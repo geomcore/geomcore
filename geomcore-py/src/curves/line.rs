@@ -22,11 +22,12 @@ shape_methods! {
         crate::pickling::reduce(slf.as_any(), None, (this.origin(), this.direction(),))
     }
 
-    fn __repr__(&self) -> String {
-        format!(
-            "Line(origin={}, direction={})",
-            crate::values::coordinates(self.0.origin()),
-            crate::values::coordinates(self.0.direction())
+    fn __repr__(slf: &pyo3::Bound<'_, Self>) -> PyResult<String> {
+        let this = slf.borrow();
+        crate::pickling::paste_back_repr!(
+            slf,
+            "origin" => crate::values::PyPoint(this.0.origin()),
+            "direction" => crate::values::PyVector(this.0.direction()),
         )
     }
 

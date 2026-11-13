@@ -3,7 +3,6 @@
 
 use crate::arguments::surface_classes;
 use crate::method_sets::*;
-use crate::values::float_repr;
 use geomcore::{Surface, TrimmedSurface};
 
 /// A surface restricted to a parameter rectangle `u_range` by `v_range`
@@ -146,17 +145,14 @@ impl PyTrimmedSurface {
         crate::pickling::reduce(slf.as_any(), None, (basis, this.u_range(), this.v_range()))
     }
 
-    fn __repr__(&self, py: Python<'_>) -> PyResult<String> {
-        let basis = self.basis(py)?;
-        let ((u0, u1), (v0, v1)) = (self.0.u_range(), self.0.v_range());
-        Ok(format!(
-            "TrimmedSurface(basis={}, u_range=({}, {}), v_range=({}, {}))",
-            basis.bind(py).repr()?,
-            float_repr(u0),
-            float_repr(u1),
-            float_repr(v0),
-            float_repr(v1)
-        ))
+    fn __repr__(slf: &pyo3::Bound<'_, Self>) -> PyResult<String> {
+        let (this, py) = (slf.borrow(), slf.py());
+        crate::pickling::paste_back_repr!(
+            slf,
+            "basis" => this.basis(py)?,
+            "u_range" => this.0.u_range(),
+            "v_range" => this.0.v_range(),
+        )
     }
 }
 

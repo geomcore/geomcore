@@ -292,6 +292,21 @@ def test_frame3_accessors():
 def test_docstrings_present():
     assert Circle.__doc__
     assert Circle.point_at.__doc__
+    # #333: `x`, `y` and `z` had none; every public member now has one.
+    import inspect
+
+    import geomcore
+
+    undocumented = [
+        f"{name}.{member}"
+        for name, cls in vars(geomcore).items()
+        if inspect.isclass(cls) and cls.__module__ == "geomcore"
+        for member, value in vars(cls).items()
+        if not member.startswith("_")
+        and not isinstance(value, (int, float, str, tuple))
+        and not getattr(value, "__doc__", None)
+    ]
+    assert undocumented == []
 
 
 def test_tolerance_defaults():
@@ -1655,8 +1670,8 @@ def test_trimmed_curves_name_their_range_by_its_ends():
     assert (piece.start_parameter(), piece.end_parameter()) == piece.bounds() == (1.0, 3.0)
     assert piece.point_at(piece.start_parameter()) == piece.start_point()
     assert repr(piece) == (
-        "TrimmedCurve(start_parameter=1.0, end_parameter=3.0, "
-        "start_point=(1.0, 0.0, 0.0), end_point=(3.0, 0.0, 0.0))"
+        "TrimmedCurve(basis=Line(origin=Point(0.0, 0.0, 0.0), direction=Vector(1.0, 0.0, 0.0)), "
+        "start_parameter=1.0, end_parameter=3.0)"
     )
 
 
@@ -2397,3 +2412,26 @@ def test_point_extrema_are_the_local_minima_only():
     assert [round(e.parameter, 3) for e in extrema] == [1.404, 4.91]
     (nearest,) = ellipse.extrema(Point(4.0, 1.0, 0.0))
     assert nearest.parameter == pytest.approx(0.2715, abs=1e-4)
+
+
+def test_length_needs_no_error_bound():
+    # #329: a segment's length asked for `max_length_error`.
+    from geomcore import TrimmedCurve, TrimmedCurve2D
+
+    segment = TrimmedCurve.segment(Point(0.0, 0.0, 0.0), Point(1.0, 0.0, 0.0))
+    assert segment.length() == 1.0
+    arc = TrimmedCurve(Circle(Point.origin(), Vector.unit_z(), 2.0), 0.0, math.pi)
+    assert arc.length() == pytest.approx(2.0 * math.pi, rel=1e-15)
+    assert TrimmedCurve2D.segment(Point2D(0.0, 0.0), Point2D(0.0, 3.0)).length() == 3.0
+    ellipse = Ellipse(Point.origin(), Vector.unit_z(), Vector.unit_x(), 3.0, 2.0)
+    # Ramanujan's second approximation, exact to about 1e-10 here.
+    h = (3.0 - 2.0) ** 2 / (3.0 + 2.0) ** 2
+    perimeter = math.pi * 5.0 * (1.0 + 3.0 * h / (10.0 + math.sqrt(4.0 - 3.0 * h)))
+    assert ellipse.length() == pytest.approx(perimeter, abs=1e-7)
+    assert Ellipse2D(Point2D.origin(), Vector2D.unit_x(), 3.0, 2.0).length() == pytest.approx(
+        perimeter, abs=1e-7
+    )
+    spline = BSplineCurve.interpolate(
+        [Point(0, 0, 0), Point(1, 1, 0), Point(2, 0, 0), Point(3, 1, 0)], 3
+    )
+    assert spline.length() == pytest.approx(spline.length(1e-12), abs=1e-7)
