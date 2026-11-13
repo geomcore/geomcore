@@ -216,12 +216,14 @@ pub(crate) fn merged<R: Region>(mut regions: Vec<R>) -> Vec<R> {
 pub enum IncompleteReason {
     /// The search ran out of its budget of halvings. Its regions hold the
     /// pairs of pieces it had not settled yet, as well as any that never
-    /// separated. A curve lying on a curved surface, two curves
-    /// overlapping along a curved stretch, or a valley of equal distance
-    /// between two curves (concentric arcs) often ends this way: covering
-    /// it with pieces small enough to be told apart from a crossing, or
-    /// from an isolated minimum, takes more halvings than the budget
-    /// allows.
+    /// separated. A valley of equal distance between two curves
+    /// (concentric arcs) often ends this way: covering it with pieces
+    /// small enough to be told apart from an isolated minimum takes more
+    /// halvings than the budget allows. A curve lying on a curved surface,
+    /// or along a curved curve, runs out of halvings too, but it is
+    /// reported [`Unseparated`](Self::Unseparated) when every region lies
+    /// in its overlaps, since no budget would separate them; the reason
+    /// stays out of budget where pieces beside the overlaps are left.
     BudgetExhausted,
     /// Some pairs of pieces never separated, however small they were
     /// halved: a tangent contact of a curve with a surface, an overlap (a
