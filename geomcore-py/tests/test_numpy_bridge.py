@@ -16,6 +16,7 @@ from geomcore import (
     Point2D,
     Sphere,
     Vector,
+    Vector2D,
 )
 
 
@@ -155,3 +156,31 @@ def test_returned_arrays_are_fresh_and_writable() -> None:
     assert first.flags.writeable
 
 
+
+
+@pytest.mark.parametrize(
+    "point, vector",
+    [(Point(1.0, 2.0, 3.0), Vector(1.0, 2.0, 3.0)), (Point2D(1.0, 2.0), Vector2D(1.0, 2.0))],
+)
+def test_numpy_on_the_left_defers_to_the_value_operators(point, vector) -> None:
+    # #325: numpy read the values as sequences and its operators ran first.
+    two = numpy.float64(2.0)
+    doubled = type(vector)(*(2.0 * c for c in vector))
+    for scaled in (two * vector, vector * two, vector / numpy.float64(0.5)):
+        assert type(scaled) is type(vector) and scaled == doubled
+    array = numpy.ones(len(point))
+    for value in (point, vector):
+        for operation in (
+            lambda: value + array,
+            lambda: array + value,
+            lambda: value - array,
+            lambda: array - value,
+            lambda: value * array,
+            lambda: array * value,
+        ):
+            with pytest.raises(TypeError):
+                operation()
+        same = numpy.array(value)
+        assert (value == same) is False and (same == value) is False
+        numpy.testing.assert_array_equal(numpy.asarray(value), list(value))
+    assert type(point + vector) is type(point) and type(point - point) is type(vector)

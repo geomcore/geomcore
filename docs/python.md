@@ -123,6 +123,12 @@ Points and vectors are sequences of their coordinates. They unpack
 `numpy.array(points)` one of shape `(N, 3)`. Vectors also divide by a
 number (`v / 2`) and give their length to `abs(v)`.
 
+numpy's operators step aside for points and vectors, so a numpy number
+scales a vector from either side (`numpy.float64(2) * v` is a `Vector`).
+An array on either side of `+`, `-` or `*` raises `TypeError`, and `==`
+against an array is `False`. Convert with `numpy.array(p)` to compute on
+the coordinates as an array.
+
 A `Transform` reads and writes 4×4 homogeneous matrices, so a robot pose
 or a placement from another tool comes in and goes out directly.
 `a @ b` composes like the matrix product, `b` first, so `a @ b` is
