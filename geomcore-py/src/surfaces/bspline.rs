@@ -80,7 +80,7 @@ shape_methods! {
     fn py_new(
         u_degree: usize,
         v_degree: usize,
-        poles: Vec<Vec<PyPoint>>,
+        poles: PointGrid,
         u_knots: Vec<f64>,
         u_multiplicities: Vec<u32>,
         v_knots: Vec<f64>,
@@ -88,10 +88,7 @@ shape_methods! {
         u_periodic: bool,
         v_periodic: bool,
     ) -> PyResult<Self> {
-        let poles = poles
-            .into_iter()
-            .map(|row| row.into_iter().map(|p| p.0).collect())
-            .collect();
+        let poles = poles.0;
         Ok(PyBSplineSurface(
             BSplineSurface::new(
                 u_degree,
@@ -114,7 +111,7 @@ shape_methods! {
     fn new_rational(
         u_degree: usize,
         v_degree: usize,
-        poles: Vec<Vec<PyPoint>>,
+        poles: PointGrid,
         weights: Vec<Vec<f64>>,
         u_knots: Vec<f64>,
         u_multiplicities: Vec<u32>,
@@ -123,10 +120,7 @@ shape_methods! {
         u_periodic: bool,
         v_periodic: bool,
     ) -> PyResult<Self> {
-        let poles = poles
-            .into_iter()
-            .map(|row| row.into_iter().map(|p| p.0).collect())
-            .collect();
+        let poles = poles.0;
         Ok(PyBSplineSurface(
             BSplineSurface::new_rational(
                 u_degree,
@@ -206,6 +200,54 @@ shape_methods! {
     /// The multiplicity of each `v` knot.
     fn v_multiplicities(&self) -> Vec<u32> {
         self.0.v_multiplicities().to_vec()
+    }
+
+    /// The flat knot vector in the `u` direction: each distinct knot
+    /// repeated by its multiplicity.
+    fn u_flat_knots(&self) -> Vec<f64> {
+        self.0.u_flat_knots().to_vec()
+    }
+
+    /// The flat knot vector in the `v` direction: each distinct knot
+    /// repeated by its multiplicity.
+    fn v_flat_knots(&self) -> Vec<f64> {
+        self.0.v_flat_knots().to_vec()
+    }
+
+    /// Build a surface from its flat knot vectors, the form textbooks
+    /// use: each distinct knot repeated by its multiplicity, so a
+    /// non-periodic direction of `n` poles takes `n + degree + 1` knots.
+    /// `weights`, a grid laid out as `poles`, make it rational. The flat
+    /// knots are as `u_flat_knots()` and `v_flat_knots()` give them.
+    #[staticmethod]
+    #[allow(clippy::too_many_arguments)]
+    #[pyo3(signature = (
+        u_degree, v_degree, poles, u_flat_knots, v_flat_knots,
+        weights = None, u_periodic = false, v_periodic = false,
+    ))]
+    fn from_flat_knots(
+        u_degree: usize,
+        v_degree: usize,
+        poles: PointGrid,
+        u_flat_knots: Vec<f64>,
+        v_flat_knots: Vec<f64>,
+        weights: Option<Vec<Vec<f64>>>,
+        u_periodic: bool,
+        v_periodic: bool,
+    ) -> PyResult<Self> {
+        Ok(PyBSplineSurface(
+            BSplineSurface::from_flat_knots(
+                u_degree,
+                v_degree,
+                poles.0,
+                u_flat_knots,
+                v_flat_knots,
+                weights,
+                u_periodic,
+                v_periodic,
+            )
+            .map_err(python_error)?,
+        ))
     }
 
     /// Least-squares B-spline fit through the grid `points[i][j]`.

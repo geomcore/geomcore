@@ -12,22 +12,15 @@ use geomcore::BezierSurface;
 #[derive(Clone, PartialEq)]
 pub(crate) struct PyBezierSurface(pub(crate) BezierSurface);
 
-fn point_grid(poles: Vec<Vec<PyPoint>>) -> Vec<Vec<geomcore::Point>> {
-    poles
-        .into_iter()
-        .map(|row| row.into_iter().map(|p| p.0).collect())
-        .collect()
-}
-
 shape_methods! {
     PyBezierSurface: [surface, sided_surface_evaluation, surface_extrema];
 
     /// Build a non-rational Bézier surface from `u_degree + 1` rows of
     /// `v_degree + 1` poles, `poles[i_u][i_v]`, over `[0, 1] x [0, 1]`.
     #[new]
-    fn py_new(u_degree: usize, v_degree: usize, poles: Vec<Vec<PyPoint>>) -> PyResult<Self> {
+    fn py_new(u_degree: usize, v_degree: usize, poles: crate::arrays::PointGrid) -> PyResult<Self> {
         Ok(PyBezierSurface(
-            BezierSurface::new(u_degree, v_degree, point_grid(poles)).map_err(python_error)?,
+            BezierSurface::new(u_degree, v_degree, poles.0).map_err(python_error)?,
         ))
     }
 
@@ -37,11 +30,11 @@ shape_methods! {
     fn new_rational(
         u_degree: usize,
         v_degree: usize,
-        poles: Vec<Vec<PyPoint>>,
+        poles: crate::arrays::PointGrid,
         weights: Vec<Vec<f64>>,
     ) -> PyResult<Self> {
         Ok(PyBezierSurface(
-            BezierSurface::new_rational(u_degree, v_degree, point_grid(poles), weights)
+            BezierSurface::new_rational(u_degree, v_degree, poles.0, weights)
                 .map_err(python_error)?,
         ))
     }
