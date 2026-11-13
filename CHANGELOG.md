@@ -24,6 +24,13 @@ the Python distribution are versioned in lockstep.
 
 ### Fixed
 
+- Every enumeration member prints as `Class.NAME` (#321).
+  Since Python 3.11 an `IntEnum` prints its number, so
+  `print(result.completeness.status)` showed `2`, and an f-string showed
+  it on every version, while `PointParametrization` printed its name.
+  `str()` and f-strings now give `CompletenessStatus.SAMPLED` on every
+  enumeration and every Python version. Members still compare equal to
+  their integer or string value.
 - numpy on the left of a point or vector no longer takes over its
   operators (#325). numpy read the value as a sequence and ran first:
   `numpy.float64(2) * Vector(1, 2, 3)` gave an array, and
