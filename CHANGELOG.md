@@ -161,6 +161,13 @@ the Python distribution are versioned in lockstep.
   model's cube (`tol.confusion / tol.angular`) from the origin, the
   numeric search for two curves now runs on the curves moved next to the
   origin by that point, and moves its hits back (ADR 0051).
+- `BSplineCurve::interpolate`, `approximate` and `approximate_within`,
+  their 2D forms and the surface fits took points closer than 1e-7 for
+  one point, whatever the size of the model (#342): the points of a curve
+  scaled by 2^-20 returned `ConfusedPoints`, and a surface fit skipped
+  every line of a grid that small. Two points now coincide when they are
+  within the rounding of their coordinates, so equal points still do at
+  any size and place (ADR 0051).
 
 ## [0.46.0] - 2026-11-12
 
