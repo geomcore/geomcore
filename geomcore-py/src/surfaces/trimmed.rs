@@ -69,7 +69,8 @@ impl PyTrimmedSurface {
     }
 
     /// Evaluate many (u, v) pairs at once.
-    fn points_at(&self, uvs: Vec<(f64, f64)>) -> Vec<PyPoint> {
+    fn points_at(&self, uvs: crate::arrays::Pairs) -> Vec<PyPoint> {
+        let uvs = uvs.0;
         self.0.points_at(&uvs).into_iter().map(PyPoint).collect()
     }
 

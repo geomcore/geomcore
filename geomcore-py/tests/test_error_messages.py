@@ -40,7 +40,7 @@ def test_two_dimensional_extrema_say_what_they_take():
     circle = Circle2D(Point2D.origin(), 1.0)
     with raises(
         TypeError,
-        "extrema of a 2D curve takes a Point2D, not Circle2D; "
+        "extrema of a 2D curve takes a Point2D or a sequence of 2 numbers, not Circle2D; "
         "the extrema between two 2D curves are not supported",
     ):
         circle.extrema(Circle2D(Point2D(3.0, 0.0), 1.0))

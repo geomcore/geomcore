@@ -114,8 +114,7 @@ macro_rules! curve {
                 ) -> PyResult<Py<PyAny>> {
                     let py = slf.py();
                     let tol = tolerance(tol);
-                    if let Ok(point) = other.cast::<PyPoint>() {
-                        let point = point.borrow().0;
+                    if let Ok(PyPoint(point)) = other.extract::<PyPoint>() {
                         let projections: Vec<PyCurveProjection> = slf
                             .borrow()
                             .0
@@ -158,7 +157,8 @@ macro_rules! curve_2d {
                 /// curve, an end of a bounded curve among them where the
                 /// distance grows from it into the curve, as
                 /// `CurveProjection2D` objects ordered by ascending distance.
-                /// Raises `TypeError` for anything but a `Point2D`: the
+                /// `point` is a `Point2D` or a sequence of its two
+                /// coordinates. Raises `TypeError` for anything else: the
                 /// extrema between two 2D curves are not supported.
                 #[pyo3(signature = (point, tol = None))]
                 fn extrema(
@@ -168,8 +168,8 @@ macro_rules! curve_2d {
                 ) -> PyResult<Vec<PyCurveProjection2D>> {
                     let Ok(point) = point.extract::<PyPoint2D>() else {
                         return Err(pyo3::exceptions::PyTypeError::new_err(format!(
-                            "extrema of a 2D curve takes a Point2D, not {}; the extrema \
-                             between two 2D curves are not supported",
+                            "extrema of a 2D curve takes a Point2D or a sequence of 2 numbers, \
+                             not {}; the extrema between two 2D curves are not supported",
                             point.get_type().name()?
                         )));
                     };
@@ -333,10 +333,10 @@ macro_rules! curve_methods {
             #[pyo3(signature = (points, tol = None))]
             fn project_points(
                 slf: &Bound<'_, Self>,
-                points: Vec<$point>,
+                points: $crate::arrays::Points<<$point as $crate::arrays::PointClass>::Point>,
                 tol: Option<ToleranceArgument>,
             ) -> Vec<$projection> {
-                let points = points.into_iter().map(|p| p.0).collect::<Vec<_>>();
+                let points = points.0;
                 let projections = slf.borrow().0.project_points(&points, tolerance(tol));
                 projections
                     .into_iter()
@@ -604,8 +604,8 @@ macro_rules! surface {
             }
 
             /// Evaluate many (u, v) pairs at once.
-            fn points_at(&self, uvs: Vec<(f64, f64)>) -> Vec<PyPoint> {
-                self.0.points_at(&uvs).into_iter().map(PyPoint).collect()
+            fn points_at(&self, uvs: $crate::arrays::Pairs) -> Vec<PyPoint> {
+                self.0.points_at(&uvs.0).into_iter().map(PyPoint).collect()
             }
 
             /// The points at each `(u, v)` row of the `(N, 2)` array-like
@@ -780,10 +780,10 @@ macro_rules! surface {
             #[pyo3(signature = (points, tol = None))]
             fn project_points(
                 slf: &Bound<'_, Self>,
-                points: Vec<PyPoint>,
+                points: $crate::arrays::Points<geomcore::Point>,
                 tol: Option<ToleranceArgument>,
             ) -> Vec<PySurfaceProjection> {
-                let points = points.into_iter().map(|p| p.0).collect::<Vec<_>>();
+                let points = points.0;
                 let projections = slf.borrow().0.project_points(&points, tolerance(tol));
                 projections
                     .into_iter()

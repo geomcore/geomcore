@@ -31,6 +31,17 @@ the Python distribution are versioned in lockstep.
   the discretizations. A result pickles the operands it holds with it, so
   a `multiprocessing` worker can return one. A result's pickle loads only
   in the geomcore version that wrote it (ADR 0053).
+- Python: a point argument takes a sequence of its coordinates (#322): a
+  tuple, a list or a row of an array, where only a `Point` passed. A list
+  of points takes an `(N, 3)` array (`(N, 2)` in 2D) wherever it takes a
+  list, empty included, a grid of poles an array of shape
+  `(rows, columns, 3)`, and `points_at` an `(N, 2)` array of parameters.
+  `Point(array_row)` says to write `Point(*row)`. The stub types each such
+  argument the same way.
+- `BSplineSurface::from_flat_knots` and the `u_flat_knots` and
+  `v_flat_knots` getters, in Rust and Python (#322): a surface built from
+  and read as the flat knot vectors other formats store, as a curve
+  already was.
 - Rust: `from_parts` on `CurveCurveIntersection` (and its 2D twin),
   `CurveSurfaceIntersection`, `SurfaceSurfaceIntersection`,
   `CurveCurveExtrema`, `CurveApproximation` (and its 2D twin),

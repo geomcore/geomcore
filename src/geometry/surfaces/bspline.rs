@@ -269,10 +269,67 @@ impl BSplineSurface {
         )
     }
 
+    /// Creates a surface from its flat knot vectors, the form textbooks
+    /// use: each distinct knot repeated by its multiplicity, so a
+    /// non-periodic direction of `n` poles takes `n + degree + 1` knots.
+    /// `weights`, a grid laid out as `poles`, make the surface rational.
+    /// The flat knots are as [`u_flat_knots`](Self::u_flat_knots) and
+    /// [`v_flat_knots`](Self::v_flat_knots) give them.
+    ///
+    /// # Errors
+    ///
+    /// The errors of [`BSplineSurface::new`] and
+    /// [`BSplineSurface::new_rational`] for the distinct knots and their
+    /// multiplicities, [`KnotsNotIncreasing`](BSplineConstructionError::KnotsNotIncreasing)
+    /// among them if the knots decrease.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{BSplineSurface, Point};
+    /// let poles = vec![
+    ///     vec![Point::new(0.0, 0.0, 0.0), Point::new(0.0, 1.0, 0.0)],
+    ///     vec![Point::new(1.0, 0.0, 0.0), Point::new(1.0, 1.0, 1.0)],
+    /// ];
+    /// let flat = vec![0.0, 0.0, 1.0, 1.0];
+    /// let surface = BSplineSurface::from_flat_knots(
+    ///     1, 1, poles, flat.clone(), flat, None, false, false,
+    /// )
+    /// .unwrap();
+    /// assert_eq!(surface.u_knots(), &[0.0, 1.0]);
+    /// assert_eq!(surface.u_flat_knots(), &[0.0, 0.0, 1.0, 1.0]);
+    /// ```
+    #[allow(clippy::too_many_arguments)] // the curve's arguments, in each direction
+    pub fn from_flat_knots(
+        u_degree: usize,
+        v_degree: usize,
+        poles: Vec<Vec<Point>>,
+        u_flat_knots: Vec<f64>,
+        v_flat_knots: Vec<f64>,
+        weights: Option<Vec<Vec<f64>>>,
+        u_periodic: bool,
+        v_periodic: bool,
+    ) -> Result<BSplineSurface, BSplineConstructionError> {
+        let (u_knots, u_multiplicities) = curve::distinct_knots(&u_flat_knots);
+        let (v_knots, v_multiplicities) = curve::distinct_knots(&v_flat_knots);
+        Self::build(
+            u_degree,
+            v_degree,
+            poles,
+            weights,
+            u_knots,
+            u_multiplicities,
+            v_knots,
+            v_multiplicities,
+            u_periodic,
+            v_periodic,
+        )
+    }
+
     /// A polynomial surface from flat knots consistent with its pole grid
     /// (row-major, a row per `u` pole), clamped in both directions:
     /// fitting results skip revalidation.
-    pub(crate) fn from_flat_knots(
+    pub(crate) fn from_fitted_flat_knots(
         (u_degree, u_flat): (usize, Vec<f64>),
         (v_degree, v_flat): (usize, Vec<f64>),
         poles: Vec<Point>,
@@ -569,6 +626,44 @@ impl BSplineSurface {
     /// ```
     pub fn v_multiplicities(&self) -> &[u32] {
         self.v_knots.multiplicities()
+    }
+
+    /// Returns the flat knot vector of the `u` direction: each distinct
+    /// knot repeated by its multiplicity.
+    /// [`from_flat_knots`](Self::from_flat_knots) builds the surface back
+    /// from the flat knots of both directions.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use geomcore::{BSplineSurface, Point};
+    /// # let poles = vec![
+    /// #     vec![Point::new(0.0, 0.0, 0.0), Point::new(0.0, 1.0, 0.0)],
+    /// #     vec![Point::new(1.0, 0.0, 0.0), Point::new(1.0, 1.0, 1.0)],
+    /// # ];
+    /// # let surface = BSplineSurface::new(1, 1, poles, vec![0.0, 1.0], vec![2, 2], vec![0.0, 1.0], vec![2, 2], false, false).unwrap();
+    /// assert_eq!(surface.u_flat_knots(), &[0.0, 0.0, 1.0, 1.0]);
+    /// ```
+    pub fn u_flat_knots(&self) -> &[f64] {
+        self.u_knots.flat()
+    }
+
+    /// Returns the flat knot vector of the `v` direction, as
+    /// [`u_flat_knots`](Self::u_flat_knots) does for `u`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use geomcore::{BSplineSurface, Point};
+    /// # let poles = vec![
+    /// #     vec![Point::new(0.0, 0.0, 0.0), Point::new(0.0, 1.0, 0.0)],
+    /// #     vec![Point::new(1.0, 0.0, 0.0), Point::new(1.0, 1.0, 1.0)],
+    /// # ];
+    /// # let surface = BSplineSurface::new(1, 1, poles, vec![0.0, 1.0], vec![2, 2], vec![0.0, 1.0], vec![2, 2], false, false).unwrap();
+    /// assert_eq!(surface.v_flat_knots(), &[0.0, 0.0, 1.0, 1.0]);
+    /// ```
+    pub fn v_flat_knots(&self) -> &[f64] {
+        self.v_knots.flat()
     }
 
     /// Returns the same surface with the knot `u` inserted `times` times in
