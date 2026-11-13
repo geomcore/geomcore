@@ -55,16 +55,19 @@ impl PyPoint {
         PyPoint(Point::ORIGIN)
     }
 
+    /// The x coordinate.
     #[getter]
     fn x(&self) -> f64 {
         self.0.x
     }
 
+    /// The y coordinate.
     #[getter]
     fn y(&self) -> f64 {
         self.0.y
     }
 
+    /// The z coordinate.
     #[getter]
     fn z(&self) -> f64 {
         self.0.z
@@ -210,16 +213,19 @@ impl PyVector {
         PyVector(Vector::Z)
     }
 
+    /// The x coordinate.
     #[getter]
     fn x(&self) -> f64 {
         self.0.x
     }
 
+    /// The y coordinate.
     #[getter]
     fn y(&self) -> f64 {
         self.0.y
     }
 
+    /// The z coordinate.
     #[getter]
     fn z(&self) -> f64 {
         self.0.z
@@ -402,11 +408,13 @@ impl PyPoint2D {
         PyPoint2D(Point2D::ORIGIN)
     }
 
+    /// The x coordinate.
     #[getter]
     fn x(&self) -> f64 {
         self.0.x
     }
 
+    /// The y coordinate.
     #[getter]
     fn y(&self) -> f64 {
         self.0.y
@@ -535,11 +543,13 @@ impl PyVector2D {
         PyVector2D(Vector2D::Y)
     }
 
+    /// The x coordinate.
     #[getter]
     fn x(&self) -> f64 {
         self.0.x
     }
 
+    /// The y coordinate.
     #[getter]
     fn y(&self) -> f64 {
         self.0.y
@@ -1148,6 +1158,12 @@ impl PyFrame {
 /// Distance and angle tolerances shared by all geometric queries:
 /// containment, projection, intersection and fitting.
 ///
+/// `confusion` is a distance in model units (default 1e-7), `angular` an
+/// angle in radians (default 1e-12, the default confusion over
+/// `MODEL_SIZE`) and `parametric` a distance between curve or surface
+/// parameters (default 1e-9). Scale `confusion` with the model: models
+/// are assumed to fit in a cube of side `confusion / angular`.
+///
 /// `Tolerance()` with no arguments equals `Tolerance.default()`. Every
 /// `tol=` argument also takes a number, read as
 /// `Tolerance(confusion=number)`, so `tol=1e-3` loosens the distance
@@ -1178,19 +1194,22 @@ impl PyTolerance {
         PyTolerance(Tolerance::DEFAULT)
     }
 
-    /// Distance below which two points are considered coincident.
+    /// Distance below which two points are considered coincident, in
+    /// model units (default 1e-7).
     #[getter]
     fn confusion(&self) -> f64 {
         self.0.confusion
     }
 
-    /// Angular tolerance for parallelism/orthogonality checks (radians).
+    /// Angle below which two directions are parallel or orthogonal, in
+    /// radians (default 1e-12).
     #[getter]
     fn angular(&self) -> f64 {
         self.0.angular
     }
 
-    /// Parametric-space tolerance.
+    /// Distance between two parameter values below which they are the
+    /// same parameter (default 1e-9).
     #[getter]
     fn parametric(&self) -> f64 {
         self.0.parametric

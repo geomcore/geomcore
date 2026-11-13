@@ -59,7 +59,9 @@ shape_methods! {
     }
 
     /// The patch `u_range × v_range` as an exact B-spline surface
-    /// (raises `ValueError` for a bad range).
+    /// (raises `ValueError` for a bad range). It keeps `v`, and keeps `u`
+    /// when the swept curve's `to_bspline` keeps its parameter; otherwise
+    /// map a point across with `bspline.parameters_of(point)`.
     fn to_bspline_patch(
         &self,
         u_range: (f64, f64),

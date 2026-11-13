@@ -93,6 +93,9 @@ shape_methods! {
 
     /// The circle as an exact periodic rational quadratic B-spline over
     /// `[0, 2π]`.
+    /// Its rational arcs do not keep the angle as parameter: the same
+    /// parameter gives a different point on each curve between the knots,
+    /// so map a point across with `bspline.parameter_of(point)`.
     fn to_bspline(&self) -> PyBSplineCurve {
         PyBSplineCurve(self.0.to_bspline())
     }

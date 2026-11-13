@@ -292,6 +292,21 @@ def test_frame3_accessors():
 def test_docstrings_present():
     assert Circle.__doc__
     assert Circle.point_at.__doc__
+    # #333: `x`, `y` and `z` had none; every public member now has one.
+    import inspect
+
+    import geomcore
+
+    undocumented = [
+        f"{name}.{member}"
+        for name, cls in vars(geomcore).items()
+        if inspect.isclass(cls) and cls.__module__ == "geomcore"
+        for member, value in vars(cls).items()
+        if not member.startswith("_")
+        and not isinstance(value, (int, float, str, tuple))
+        and not getattr(value, "__doc__", None)
+    ]
+    assert undocumented == []
 
 
 def test_tolerance_defaults():

@@ -56,7 +56,8 @@ shape_methods! {
         ))
     }
 
-    /// The surface as a `BSplineSurface` over the same bounds.
+    /// The surface as a `BSplineSurface` over the same bounds, with the
+    /// same point at each `(u, v)`.
     fn to_bspline(&self) -> PyBSplineSurface {
         PyBSplineSurface(self.0.to_bspline())
     }

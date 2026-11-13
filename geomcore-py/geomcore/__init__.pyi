@@ -1746,7 +1746,7 @@ class _SurfaceMethods(Generic[_UIsoCurveType, _VIsoCurveType]):
     def reversed_u(self: _Self) -> _Self:
         """The same surface with the `u` direction reversed:
         `reversed_u().point_at(u_reversed_parameter(u), v)` is
-        `point_at(u, v)`.
+        `point_at(u, v)`, and the normal there is flipped.
         """
     def reversed_v(self: _Self) -> _Self:
         """The same surface with the `v` direction reversed, as
@@ -1843,10 +1843,12 @@ class _SurfaceMethods(Generic[_UIsoCurveType, _VIsoCurveType]):
         self, u: float, v: float, tol: Optional[_ToleranceLike] = ...
     ) -> Optional[Vector]:
         """Unit normal at surface parameters `(u, v)`
-        (`Tolerance.default()` when omitted). Singular points such as
-        poles give their limiting normal; returns `None` at an apex,
-        whose meridians each have their own, and where no normal can
-        be recovered.
+        (`Tolerance.default()` when omitted): the direction of
+        `du × dv`, the cross product of the `u` and `v` derivatives,
+        so reversing either direction flips it. Singular points such
+        as poles give their limiting normal; returns `None` at an
+        apex, whose meridians each have their own, and where no
+        normal can be recovered.
         """
     def curvatures(
         self, u: float, v: float, tol: Optional[_ToleranceLike] = ...
