@@ -129,6 +129,13 @@ An array on either side of `+`, `-` or `*` raises `TypeError`, and `==`
 against an array is `False`. Convert with `numpy.array(p)` to compute on
 the coordinates as an array.
 
+A `Discretization` converts to its points: `numpy.array(curve.discretize(0.01))`
+is a float array of shape `(N, 3)` (`(N, 2)` for a `Discretization2D`).
+Intersection and extrema results iterate, index and reverse over what
+they hold, but do not convert: they hold hits, curves and minima, not
+points. Take `numpy.array([hit.point for hit in result])` for the points
+of the hits.
+
 A `Transform` reads and writes 4×4 homogeneous matrices, so a robot pose
 or a placement from another tool comes in and goes out directly.
 `a @ b` composes like the matrix product, `b` first, so `a @ b` is

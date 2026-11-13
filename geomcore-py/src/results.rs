@@ -645,6 +645,13 @@ macro_rules! intersection_result {
                 self.$items(py)?.as_any().get_item(index)
             }
 
+            #[doc = concat!("Iterates over `", stringify!($items), "` from the last to the first.")]
+            fn __reversed__<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyIterator>> {
+                let items = self.$items(py)?;
+                items.reverse()?;
+                items.try_iter()
+            }
+
             /// `EXACT` for a closed form, `NUMERIC` for a search or marching.
             #[getter]
             fn method(&self) -> PyIntersectionMethod {
@@ -1268,6 +1275,13 @@ impl PyCurveCurveExtrema {
         index: &Bound<'py, PyAny>,
     ) -> PyResult<Bound<'py, PyAny>> {
         self.minima(py)?.as_any().get_item(index)
+    }
+
+    /// Iterates over the minima, farthest first.
+    fn __reversed__<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyIterator>> {
+        let minima = self.minima(py)?;
+        minima.reverse()?;
+        minima.try_iter()
     }
 
     /// The minima, closest first.
