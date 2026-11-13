@@ -22,3 +22,5 @@ The root holds about 90 names. Like the crate root's 150 (ADR 0022), they do not
 
 - Breaking in the next release: `geomcore.curves` and `geomcore.surfaces` are removed, and `geomcore.geomcore` is gone now. It was never documented.
 - `isinstance(x, geomcore.Curve)` raises on Python 3.9. `typing.get_args` is the portable form.
+
+Amended (#295): `geomcore.curves` and `geomcore.surfaces` stayed through 0.47 rather than one release, and are removed in 0.48. The stubs hold one `__all__`, and the parity test reads `__init__.pyi` alone.

@@ -2,6 +2,7 @@
 
 import math
 import pickle
+import typing
 
 import pytest
 
@@ -24,8 +25,8 @@ def cylinder():
 
 
 def test_every_surface_has_trimmed():
-    for cls in geomcore.surfaces.__all__:
-        assert hasattr(getattr(geomcore, cls), "trimmed"), cls
+    for cls in typing.get_args(geomcore.Surface):
+        assert hasattr(cls, "trimmed"), cls.__name__
 
 
 def test_trimmed_keeps_the_basis_and_ranges():

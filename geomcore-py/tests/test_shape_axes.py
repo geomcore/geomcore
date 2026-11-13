@@ -2,9 +2,7 @@
 constructors take `axis_direction` (the circle keeps its `normal`), and
 `axis()` returns an `Axis`."""
 
-from geomcore import Axis, Point, Vector
-from geomcore.curves import Circle
-from geomcore.surfaces import Cone, Cylinder, Torus
+from geomcore import Axis, Circle, Cone, Cylinder, Point, Torus, Vector
 
 
 def test_every_rotational_shape_has_an_axis():

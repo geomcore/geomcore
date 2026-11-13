@@ -27,9 +27,6 @@ shape = Circle(Point(0, 0, 0), Vector(0, 0, 1), 2.0)
 assert isinstance(shape, Curve)  # False for a TrimmedCurve
 ```
 
-`geomcore.curves` and `geomcore.surfaces` still resolve each shape, with a
-`DeprecationWarning`, until the next release.
-
 === "Python"
 
     ```python

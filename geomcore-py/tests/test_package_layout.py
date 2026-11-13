@@ -1,8 +1,9 @@
 """One path per name, at the package root (#203): the shapes sit beside the
 values and results, `Curve`, `Curve2D` and `Surface` name the classes of
 the Rust enums, a trimmed curve or surface being a piece of one, and the old
-`geomcore.curves` / `geomcore.surfaces` paths warn."""
+`geomcore.curves` / `geomcore.surfaces` paths are gone."""
 
+import importlib
 import pickle
 import sys
 from typing import get_args
@@ -71,16 +72,13 @@ def test_the_native_module_is_private():
     assert geomcore.__version__ == geomcore._native.__version__
 
 
-def test_the_old_submodule_paths_warn_and_give_the_root_class():
-    with pytest.warns(DeprecationWarning, match=r"geomcore\.curves\.Circle is deprecated: use geomcore\.Circle"):
-        from geomcore.curves import Circle as old_circle
-    assert old_circle is Circle
-    with pytest.warns(DeprecationWarning, match=r"geomcore\.surfaces\.Plane"):
-        assert geomcore.surfaces.Plane is Plane
+def test_the_old_submodule_paths_are_gone():
+    # Removed in 0.48 (#295), one release later than ADR 0038 planned.
+    for name in ("curves", "surfaces"):
+        with pytest.raises(ModuleNotFoundError):
+            importlib.import_module(f"geomcore.{name}")
     with pytest.raises(AttributeError):
-        geomcore.curves.Point  # noqa: B018
-    with pytest.raises(AttributeError):
-        geomcore.nothing  # noqa: B018
+        geomcore.curves  # noqa: B018
 
 
 def test_the_module_docstring_orients_and_its_examples_run():

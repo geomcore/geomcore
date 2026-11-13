@@ -2945,25 +2945,6 @@ class TrimmedCurve2D(_Curve2DMethods, _BoundedCurveMethods[Point2D, Discretizati
         """The end of the parameter range, the parameter of `end_point`."""
     def __repr__(self) -> str: ...
 
-__all__ = [
-    "BSplineCurve2D",
-    "BSplineCurve",
-    "BezierCurve2D",
-    "BezierCurve",
-    "Circle2D",
-    "Circle",
-    "Ellipse2D",
-    "Ellipse",
-    "Hyperbola2D",
-    "Hyperbola",
-    "Line2D",
-    "Line",
-    "Parabola2D",
-    "Parabola",
-    "QuarticBranch",
-    "TrimmedCurve2D",
-    "TrimmedCurve",
-]
 
 # -------------------------------------------------------------- surfaces
 
@@ -3933,18 +3914,6 @@ class TrimmedSurface:
         """
     def __repr__(self) -> str: ...
 
-__all__ = [
-    "BSplineSurface",
-    "BezierSurface",
-    "Cone",
-    "Cylinder",
-    "ExtrusionSurface",
-    "Plane",
-    "RevolutionSurface",
-    "Sphere",
-    "Torus",
-    "TrimmedSurface",
-]
 
 __all__ = [
     "GeomcoreError",
