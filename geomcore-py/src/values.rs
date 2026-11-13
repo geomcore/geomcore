@@ -150,6 +150,14 @@ impl PyPoint {
         pickling::coordinate_array(py, &[self.0.x, self.0.y, self.0.z], dtype)
     }
 
+    /// `None`, so numpy defers to this class's own operators: with a numpy
+    /// number or array on the left, `2.0 * v` stays a vector and
+    /// `p + array` raises instead of turning into an array.
+    #[classattr]
+    fn __array_ufunc__(py: Python<'_>) -> Py<PyAny> {
+        py.None()
+    }
+
     fn __reduce__<'py>(slf: &Bound<'py, Self>) -> PyResult<Bound<'py, PyTuple>> {
         let this = slf.borrow();
         pickling::reduce(slf.as_any(), None, (this.0.x, this.0.y, this.0.z))
@@ -345,6 +353,14 @@ impl PyVector {
         pickling::coordinate_array(py, &[self.0.x, self.0.y, self.0.z], dtype)
     }
 
+    /// `None`, so numpy defers to this class's own operators: with a numpy
+    /// number or array on the left, `2.0 * v` stays a vector and
+    /// `p + array` raises instead of turning into an array.
+    #[classattr]
+    fn __array_ufunc__(py: Python<'_>) -> Py<PyAny> {
+        py.None()
+    }
+
     fn __reduce__<'py>(slf: &Bound<'py, Self>) -> PyResult<Bound<'py, PyTuple>> {
         let this = slf.borrow();
         pickling::reduce(slf.as_any(), None, (this.0.x, this.0.y, this.0.z))
@@ -468,6 +484,14 @@ impl PyPoint2D {
     ) -> PyResult<Bound<'py, PyAny>> {
         let _ = copy;
         pickling::coordinate_array(py, &[self.0.x, self.0.y], dtype)
+    }
+
+    /// `None`, so numpy defers to this class's own operators: with a numpy
+    /// number or array on the left, `2.0 * v` stays a vector and
+    /// `p + array` raises instead of turning into an array.
+    #[classattr]
+    fn __array_ufunc__(py: Python<'_>) -> Py<PyAny> {
+        py.None()
     }
 
     fn __reduce__<'py>(slf: &Bound<'py, Self>) -> PyResult<Bound<'py, PyTuple>> {
@@ -656,6 +680,14 @@ impl PyVector2D {
     ) -> PyResult<Bound<'py, PyAny>> {
         let _ = copy;
         pickling::coordinate_array(py, &[self.0.x, self.0.y], dtype)
+    }
+
+    /// `None`, so numpy defers to this class's own operators: with a numpy
+    /// number or array on the left, `2.0 * v` stays a vector and
+    /// `p + array` raises instead of turning into an array.
+    #[classattr]
+    fn __array_ufunc__(py: Python<'_>) -> Py<PyAny> {
+        py.None()
     }
 
     fn __reduce__<'py>(slf: &Bound<'py, Self>) -> PyResult<Bound<'py, PyTuple>> {

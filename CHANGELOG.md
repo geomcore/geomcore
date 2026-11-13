@@ -24,6 +24,14 @@ the Python distribution are versioned in lockstep.
 
 ### Fixed
 
+- numpy on the left of a point or vector no longer takes over its
+  operators (#325). numpy read the value as a sequence and ran first:
+  `numpy.float64(2) * Vector(1, 2, 3)` gave an array, and
+  `Point(1, 2, 3) + numpy.array([1.0, 0, 0])` an array, not an error.
+  `Point`, `Vector`, `Point2D` and `Vector2D` set `__array_ufunc__ =
+  None`, so the number scales the vector, an array on either side of an
+  operator raises `TypeError`, and `==` against an array is `False`.
+  `numpy.array(p)` converts as before.
 - A NaN or infinite pole, weight, knot or data point is refused by every
   B-spline and Bézier constructor and fit, curve and surface, 2D and 3D
   (#307). It built a curve of NaN without complaint: one bad sample in
