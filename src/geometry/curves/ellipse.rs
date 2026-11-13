@@ -605,6 +605,11 @@ impl_for_both_tiers! {
                     });
                 }
             }
+            // `dg` is half the second derivative of the squared distance,
+            // its terms within `a (2a + |rel|)`.
+            let reach = rel.magnitude();
+            let is_minimum = |t: f64| projection::grows(dg(t), a * (2.0 * a + reach));
+            let mut out = projection::alternating_minima(out, true, is_minimum);
             out.sort_by(|x, y| x.distance.total_cmp(&y.distance));
             out
         }

@@ -386,11 +386,12 @@ impl<C: ParametricCurve2D> BoundedCurve2D for crate::TrimmedCurve2D<C> {}
 /// assert_eq!(extrema[0].distance, 2.0);
 /// ```
 pub trait PointExtrema2D: ParametricCurve2D {
-    /// Parameters on the curve's own domain that include every local
-    /// minimum of the distance from `point` (other stationary points may
-    /// be listed too; a valley of equal minima is represented by one of
-    /// its points), ordered by ascending distance, the global closest
-    /// point first. Distances within `tol.confusion` snap to `0.0`.
+    /// The local minima of the distance from `point`, and only those, on
+    /// the curve's own domain, ordered by ascending distance, the global
+    /// closest point first: an end of a bounded curve is one where the
+    /// distance grows from it into the curve, and a valley of equal minima
+    /// is represented by one of its points. Distances within
+    /// `tol.confusion` snap to `0.0`.
     ///
     /// A query point with a non-finite coordinate has no extrema.
     fn extrema(&self, point: Point2D, tol: Tolerance) -> Vec<CurveProjection2D>;

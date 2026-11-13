@@ -563,6 +563,15 @@ impl_for_both_tiers! {
                     }
                 })
                 .collect();
+            out.sort_by(|x, y| x.parameter.total_cmp(&y.parameter));
+            // `dg` is half the second derivative of the squared distance,
+            // its terms within `r (2r + |rel|)`, `r` bounding the point's
+            // and its derivatives' lengths.
+            let is_minimum = |t: f64| {
+                let r = s2.sqrt() * t.cosh();
+                projection::grows(dg(t), r * (2.0 * r + rel.magnitude()))
+            };
+            out = projection::alternating_minima(out, false, is_minimum);
             out.sort_by(|x, y| x.distance.total_cmp(&y.distance));
             out
         }

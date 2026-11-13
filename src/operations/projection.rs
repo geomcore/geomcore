@@ -9,6 +9,7 @@
 //! `project_point(point, tol).distance == 0.0`.
 
 use crate::base::tier::TierPoint;
+use crate::base::tier::operations::VectorOperations;
 use crate::{Point, Point2D};
 
 /// Closest point of a query point on a curve: the parameter, the point and
@@ -111,6 +112,72 @@ impl SurfaceProjection {
 /// containment: a contained point projects to distance exactly zero.
 pub(crate) fn snap_distance(distance: f64, confusion: f64) -> f64 {
     if distance <= confusion { 0.0 } else { distance }
+}
+
+/// The share of the sizes compared within which a sign reads as zero: a
+/// stationary point or an end so flat that rounding decides it is kept.
+const FLAT: f64 = 1e-9;
+
+/// Whether the distance from a point grows on both sides of a stationary
+/// point of a curve, given `offset`, from the point to the curve there,
+/// and the curve's first and second derivatives. Half the second
+/// derivative of the squared distance is `|C'|² + offset · C''`; a flat
+/// one is kept, as for a valley of equal distance.
+pub(crate) fn is_distance_minimum<V: VectorOperations>(offset: V, first: V, second: V) -> bool {
+    let speed = first.dot(first);
+    let bend = offset.dot(second);
+    grows(
+        speed + bend,
+        speed + offset.magnitude() * second.magnitude(),
+    )
+}
+
+/// The minima among the stationary points of the distance from a point,
+/// `stationary` sorted by parameter. Simple stationary points alternate
+/// between minima and maxima: on an open curve, where the distance grows
+/// without bound at both ends, they are odd in number and the first is a
+/// minimum; on a closed curve they are even in number and the nearest is
+/// one. Any other count holds a double root or a stray candidate, and
+/// `is_minimum` then decides each point from its parameter.
+pub(crate) fn alternating_minima<P: TierPoint>(
+    stationary: Vec<CurveProjection<P>>,
+    closed: bool,
+    is_minimum: impl Fn(f64) -> bool,
+) -> Vec<CurveProjection<P>> {
+    let count = stationary.len();
+    let first_minimum = match (closed, count % 2) {
+        (false, 1) => Some(0),
+        (true, 0) => stationary
+            .iter()
+            .enumerate()
+            .min_by(|x, y| x.1.distance.total_cmp(&y.1.distance))
+            .map(|(nearest, _)| nearest % 2),
+        _ => None,
+    };
+    match first_minimum {
+        Some(parity) => stationary
+            .into_iter()
+            .enumerate()
+            .filter_map(|(i, s)| (i % 2 == parity).then_some(s))
+            .collect(),
+        None => stationary
+            .into_iter()
+            .filter(|s| is_minimum(s.parameter))
+            .collect(),
+    }
+}
+
+/// Whether a rate of change of the distance, `rate`, is not negative
+/// beyond rounding: `size` bounds the terms it was summed from.
+pub(crate) fn grows(rate: f64, size: f64) -> bool {
+    rate >= -FLAT * size
+}
+
+/// Whether the distance from a point grows from an end of a curve into it,
+/// given `offset`, from the point to the end, and `inward`, the curve's
+/// derivative there turned to point into the curve.
+pub(crate) fn grows_inward<V: VectorOperations>(offset: V, inward: V) -> bool {
+    grows(offset.dot(inward), offset.magnitude() * inward.magnitude())
 }
 
 #[cfg(test)]
