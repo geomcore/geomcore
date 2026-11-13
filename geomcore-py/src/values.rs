@@ -1434,8 +1434,30 @@ impl PyTransform {
     }
 
     /// Apply the transformation to a point.
-    fn apply_point(&self, p: PyPoint) -> PyPoint {
+    fn apply_point(
+        &self,
+        #[pyo3(from_py_with = crate::arrays::point_or_apply_points)] p: PyPoint,
+    ) -> PyPoint {
         PyPoint(self.0.apply_point(p.0))
+    }
+
+    /// Apply the transformation to each point of `points`, a list of
+    /// points or an `(N, 3)` array-like, as an `(N, 3)` numpy array.
+    /// Other Python threads run meanwhile.
+    fn apply_points<'py>(
+        &self,
+        py: Python<'py>,
+        points: crate::arrays::Points<Point>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let transform = self.0;
+        let moved: Vec<Point> = py.detach(|| {
+            points
+                .0
+                .iter()
+                .map(|&point| transform.apply_point(point))
+                .collect()
+        });
+        crate::arrays::point_array(py, moved.into_iter())
     }
 
     /// Apply the transformation to a vector (ignores the translation part).

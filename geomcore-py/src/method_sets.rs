@@ -204,7 +204,10 @@ macro_rules! curve_methods {
             /// the point and every derivative are those at the bound. An
             /// operation that builds from a parameter, such as a B-spline's
             /// `split_at`, raises on one outside the bounds instead.
-            fn point_at(&self, u: f64) -> $point {
+            fn point_at(
+                &self,
+                #[pyo3(from_py_with = $crate::arrays::number_or_points_at_array)] u: f64,
+            ) -> $point {
                 $point(self.0.point_at(u))
             }
 
@@ -321,6 +324,7 @@ macro_rules! curve_methods {
             #[pyo3(signature = (point, tol = None))]
             fn project_point(
                 slf: &Bound<'_, Self>,
+                #[pyo3(from_py_with = $crate::arrays::point_or_project_points_array::<$point>)]
                 point: $point,
                 tol: Option<ToleranceArgument>,
             ) -> $projection {
@@ -599,7 +603,11 @@ macro_rules! surface {
             /// nearer bound, so the point and every partial are those at the
             /// bound. An operation that builds from a parameter, such as
             /// `u_iso`, raises on one outside the bounds instead.
-            fn point_at(&self, u: f64, v: f64) -> PyPoint {
+            fn point_at(
+                &self,
+                #[pyo3(from_py_with = $crate::arrays::number_or_points_at_array)] u: f64,
+                #[pyo3(from_py_with = $crate::arrays::number_or_points_at_array)] v: f64,
+            ) -> PyPoint {
                 PyPoint(self.0.point_at(u, v))
             }
 
@@ -737,8 +745,36 @@ macro_rules! surface {
             /// apex, whose meridians each have their own, and where no
             /// normal can be recovered.
             #[pyo3(signature = (u, v, tol = None))]
-            fn normal(&self, u: f64, v: f64, tol: Option<ToleranceArgument>) -> Option<PyVector> {
+            fn normal(
+                &self,
+                #[pyo3(from_py_with = $crate::arrays::number_or_normals_array)] u: f64,
+                #[pyo3(from_py_with = $crate::arrays::number_or_normals_array)] v: f64,
+                tol: Option<ToleranceArgument>,
+            ) -> Option<PyVector> {
                 self.0.normal(u, v, tolerance(tol)).map(PyVector)
+            }
+
+            /// The unit normal at each `(u, v)` row of the `(N, 2)`
+            /// array-like `uvs` (`Tolerance.default()` when omitted), as
+            /// `normal` gives it, in an `(N, 3)` numpy array: a row of
+            /// NaN where `normal` returns `None`. Other Python threads run
+            /// meanwhile.
+            #[pyo3(signature = (uvs, tol = None))]
+            fn normals_array<'py>(
+                &self,
+                py: Python<'py>,
+                uvs: &Bound<'py, PyAny>,
+                tol: Option<ToleranceArgument>,
+            ) -> PyResult<Bound<'py, PyAny>> {
+                let uvs = arrays::read_pairs(uvs, "uvs")?;
+                let tol = tolerance(tol);
+                let undefined = geomcore::Vector::new(f64::NAN, f64::NAN, f64::NAN);
+                let normals: Vec<geomcore::Vector> = py.detach(|| {
+                    uvs.iter()
+                        .map(|&(u, v)| self.0.normal(u, v, tol).unwrap_or(undefined))
+                        .collect()
+                });
+                arrays::point_array(py, normals.into_iter())
             }
 
             /// Principal curvatures with their directions, and the mean and
@@ -750,8 +786,8 @@ macro_rules! surface {
             #[pyo3(signature = (u, v, tol = None))]
             fn curvatures(
                 &self,
-                u: f64,
-                v: f64,
+                #[pyo3(from_py_with = $crate::arrays::number_alone)] u: f64,
+                #[pyo3(from_py_with = $crate::arrays::number_alone)] v: f64,
                 tol: Option<ToleranceArgument>,
             ) -> Option<PySurfaceCurvatures> {
                 self.0
@@ -768,6 +804,7 @@ macro_rules! surface {
             #[pyo3(signature = (point, tol = None))]
             fn project_point(
                 slf: &Bound<'_, Self>,
+                #[pyo3(from_py_with = $crate::arrays::point_or_project_points_array::<PyPoint>)]
                 point: PyPoint,
                 tol: Option<ToleranceArgument>,
             ) -> PySurfaceProjection {

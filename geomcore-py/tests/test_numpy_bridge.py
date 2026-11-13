@@ -7,14 +7,17 @@ import numpy
 import pytest
 
 from geomcore import (
+    Axis,
     BSplineCurve,
     BSplineCurve2D,
     BSplineSurface,
     Circle,
     Circle2D,
+    Cone,
     Point,
     Point2D,
     Sphere,
+    Transform,
     Vector,
     Vector2D,
 )
@@ -51,6 +54,43 @@ def test_surface_points_at_array_matches_points_at() -> None:
     assert array.shape == (3, 3)
     pairs = [(float(u), float(v)) for u, v in uvs]
     numpy.testing.assert_allclose(array, _rows(sphere.points_at(pairs)))
+
+
+def test_surface_normals_array_matches_normal() -> None:
+    sphere = Sphere(Point.origin(), 2.0)
+    uvs = numpy.array([[0.0, 0.0], [1.0, 0.5], [2.0, -0.5], [0.3, math.pi / 2]])
+    array = sphere.normals_array(uvs)
+    assert array.shape == (4, 3)
+    for row, (u, v) in zip(array, uvs):
+        normal = sphere.normal(float(u), float(v))
+        assert normal is not None
+        numpy.testing.assert_allclose(row, normal.components())
+
+
+def test_normals_array_has_a_nan_row_where_normal_is_none() -> None:
+    # Each meridian has its own limit at the apex, so there is no normal.
+    cone = Cone(Point.origin(), Vector.unit_z(), 0.4, 2.0)
+    v_apex = -2.0 / math.sin(0.4)
+    assert cone.normal(0.0, v_apex) is None
+    array = cone.normals_array([[0.0, v_apex], [0.0, 0.0]])
+    assert numpy.isnan(array[0]).all()
+    beside = cone.normal(0.0, 0.0)
+    assert beside is not None
+    numpy.testing.assert_allclose(array[1], beside.components())
+    assert cone.normals_array(numpy.zeros((0, 2))).shape == (0, 3)
+
+
+def test_apply_points_matches_apply_point() -> None:
+    axis = Axis(Point.origin(), Vector(0.2, 0.3, 1.0))
+    turn = Transform.rotation(axis, 0.3).then(Transform.translation(Vector(1.0, 2.0, 3.0)))
+    points = numpy.array([[0.0, 0.0, 0.0], [1.0, -2.0, 0.5], [3.0, 4.0, 5.0]])
+    array = turn.apply_points(points)
+    assert array.shape == (3, 3)
+    expected = [turn.apply_point(Point(*row)) for row in points]
+    numpy.testing.assert_allclose(array, _rows(expected))
+    from_points = turn.apply_points([Point(*row) for row in points])
+    numpy.testing.assert_array_equal(from_points, array)
+    assert turn.apply_points([]).shape == (0, 3)
 
 
 def test_curve_project_points_array_matches_project_points() -> None:
