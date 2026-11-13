@@ -74,14 +74,16 @@ shape_methods! {
         }
     }
 
-    fn __repr__(&self) -> String {
-        format!(
-            "BezierSurface(u_degree={}, v_degree={}, pole_count=({}, {}), rational={})",
-            self.0.u_degree(),
-            self.0.v_degree(),
-            self.0.u_pole_count(),
-            self.0.v_pole_count(),
-            crate::values::py_bool(self.0.is_rational())
+    fn __repr__(slf: &pyo3::Bound<'_, Self>) -> PyResult<String> {
+        let this = slf.borrow();
+        if this.0.is_rational() {
+            return crate::pickling::paste_back_repr!(slf);
+        }
+        crate::pickling::paste_back_repr!(
+            slf,
+            "u_degree" => this.0.u_degree(),
+            "v_degree" => this.0.v_degree(),
+            "poles" => this.poles(),
         )
     }
 

@@ -1655,8 +1655,8 @@ def test_trimmed_curves_name_their_range_by_its_ends():
     assert (piece.start_parameter(), piece.end_parameter()) == piece.bounds() == (1.0, 3.0)
     assert piece.point_at(piece.start_parameter()) == piece.start_point()
     assert repr(piece) == (
-        "TrimmedCurve(start_parameter=1.0, end_parameter=3.0, "
-        "start_point=(1.0, 0.0, 0.0), end_point=(3.0, 0.0, 0.0))"
+        "TrimmedCurve(basis=Line(origin=Point(0.0, 0.0, 0.0), direction=Vector(1.0, 0.0, 0.0)), "
+        "start_parameter=1.0, end_parameter=3.0)"
     )
 
 

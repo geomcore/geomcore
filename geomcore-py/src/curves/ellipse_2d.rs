@@ -2,7 +2,7 @@
 
 use crate::curves::*;
 use crate::method_sets::*;
-use crate::values::{PyFrame2D, coordinates_2d, float_repr};
+use crate::values::PyFrame2D;
 use geomcore::Ellipse2D;
 
 /// An ellipse in 2D.
@@ -88,13 +88,14 @@ shape_methods! {
         crate::pickling::reduce(slf.as_any(), Some("from_frame"), (this.frame(), this.major_radius(), this.minor_radius(),))
     }
 
-    fn __repr__(&self) -> String {
-        format!(
-            "Ellipse2D(center={}, x_direction={}, major_radius={}, minor_radius={})",
-            coordinates_2d(self.0.center()),
-            coordinates_2d(self.0.frame().x_direction()),
-            float_repr(self.0.major_radius()),
-            float_repr(self.0.minor_radius())
+    fn __repr__(slf: &pyo3::Bound<'_, Self>) -> PyResult<String> {
+        let this = slf.borrow();
+        crate::pickling::paste_back_repr!(
+            slf,
+            "center" => crate::values::PyPoint2D(this.0.center()),
+            "x_direction" => crate::values::PyVector2D(this.0.frame().x_direction()),
+            "major_radius" => this.0.major_radius(),
+            "minor_radius" => this.0.minor_radius(),
         )
     }
 

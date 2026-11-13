@@ -3,7 +3,7 @@
 use crate::curves::*;
 use crate::method_sets::*;
 use crate::surfaces::*;
-use crate::values::{PyAxis, PyFrame, float_repr};
+use crate::values::{PyAxis, PyFrame};
 use geomcore::Cylinder;
 
 /// An infinite circular cylinder; u is the angle around the axis, v the
@@ -30,12 +30,13 @@ shape_methods! {
         crate::pickling::reduce(slf.as_any(), Some("from_frame"), (this.frame(), this.radius(),))
     }
 
-    fn __repr__(&self) -> String {
-        format!(
-            "Cylinder(center={}, axis_direction={}, radius={})",
-            crate::values::coordinates(self.0.frame().origin()),
-            crate::values::coordinates(self.0.frame().z_direction()),
-            float_repr(self.0.radius())
+    fn __repr__(slf: &pyo3::Bound<'_, Self>) -> PyResult<String> {
+        let this = slf.borrow();
+        crate::pickling::paste_back_repr!(
+            slf,
+            "center" => crate::values::PyPoint(this.0.frame().origin()),
+            "axis_direction" => crate::values::PyVector(this.0.frame().z_direction()),
+            "radius" => this.0.radius(),
         )
     }
 
