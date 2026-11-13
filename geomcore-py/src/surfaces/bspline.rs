@@ -379,7 +379,7 @@ shape_methods! {
     /// to one period).
     fn extract(&self, u_range: (f64, f64), v_range: (f64, f64)) -> PyResult<Self> {
         Ok(PyBSplineSurface(
-            self.0.extract(u_range, v_range).map_err(python_error)?,
+            self.0.extract(u_range, v_range).map_err(|error| crate::errors::split_error(error, &format!("u in {}, v in {}", crate::errors::range_text(self.0.u_bounds()), crate::errors::range_text(self.0.v_bounds()))))?,
         ))
     }
 
@@ -387,7 +387,7 @@ shape_methods! {
     /// unchanged.
     fn extract_u(&self, start: f64, end: f64) -> PyResult<Self> {
         Ok(PyBSplineSurface(
-            self.0.extract_u(start, end).map_err(python_error)?,
+            self.0.extract_u(start, end).map_err(|error| crate::errors::split_error(error, &format!("u in {}", crate::errors::range_text(self.0.u_bounds()))))?,
         ))
     }
 
@@ -395,19 +395,19 @@ shape_methods! {
     /// unchanged.
     fn extract_v(&self, start: f64, end: f64) -> PyResult<Self> {
         Ok(PyBSplineSurface(
-            self.0.extract_v(start, end).map_err(python_error)?,
+            self.0.extract_v(start, end).map_err(|error| crate::errors::split_error(error, &format!("v in {}", crate::errors::range_text(self.0.v_bounds()))))?,
         ))
     }
 
     /// The two halves split at `u`, each a clamped, non-periodic B-spline.
     fn split_u_at(&self, u: f64) -> PyResult<(Self, Self)> {
-        let (a, b) = self.0.split_u_at(u).map_err(python_error)?;
+        let (a, b) = self.0.split_u_at(u).map_err(|error| crate::errors::split_error(error, &format!("u in {}", crate::errors::range_text(self.0.u_bounds()))))?;
         Ok((PyBSplineSurface(a), PyBSplineSurface(b)))
     }
 
     /// The two halves split at `v`, each a clamped, non-periodic B-spline.
     fn split_v_at(&self, v: f64) -> PyResult<(Self, Self)> {
-        let (a, b) = self.0.split_v_at(v).map_err(python_error)?;
+        let (a, b) = self.0.split_v_at(v).map_err(|error| crate::errors::split_error(error, &format!("v in {}", crate::errors::range_text(self.0.v_bounds()))))?;
         Ok((PyBSplineSurface(a), PyBSplineSurface(b)))
     }
 }

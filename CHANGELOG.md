@@ -21,6 +21,10 @@ the Python distribution are versioned in lockstep.
 - `BSplineConstructionError` and `BezierConstructionError` gain
   `NonFinite`, and `PoleEditError` gains `NonFinitePole` (#307). A
   `match` on them needs an arm for the new variant.
+- `EllipseConstructionError`, `ParabolaConstructionError` and
+  `HyperbolaConstructionError` gain `XDirectionAlongNormal` (#335): an x
+  direction parallel to the normal reported `NullNormal`, "normal has
+  zero length". A `match` on them needs an arm for the new variant.
 
 ### Fixed
 
@@ -108,6 +112,21 @@ the Python distribution are versioned in lockstep.
   minor rule, `Cone.half_angle` its unit and range, and `Tolerance` the
   units and defaults of its three scales. The elementary-geometry page
   gains both sections.
+- Error messages name the cause and the next step (#335). A cone's
+  half-angle gives its unit and range; an empty trimmed range names the
+  start and end parameters; a split or extraction outside the bounds
+  gives them; an interpolation or `clamped_uniform` short of points or
+  poles says how many the degree needs; an unknown enumeration value
+  lists the valid ones; `extrema` of a 2D curve given a curve says the
+  2D curve–curve extrema are not supported; a grid of the wrong shape
+  asks for `(N, M, 3)` and prints the shape as numpy does; and
+  `curve_3d_to_uv_within` names the largest distance off the surface,
+  not the first one, so one retry is enough. `normalized()` warns that
+  it gives `None` for a zero vector.
+- `length()` needs no error bound (#329): `max_length_error` defaults to
+  the default confusion, 1e-7, on ellipses, B-spline and Bézier curves
+  and trimmed curves. A segment or a circular arc, which have a closed
+  form, asked for one they never used.
 - A `TrimmedCurve` given as the profile of a `RevolutionSurface` or an
   `ExtrusionSurface` names the way out (#328): pass
   `profile.to_bspline()`, the piece as a whole curve, or trim the

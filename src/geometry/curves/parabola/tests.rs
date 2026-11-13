@@ -65,7 +65,7 @@ fn test_parabola3d_new_null_normal_errors() {
 fn test_parabola3d_new_parallel_x_direction_errors() {
     assert_eq!(
         Parabola::new(Point::ORIGIN, Vector::Z, Vector::Z, 1.0),
-        Err(ParabolaConstructionError::NullNormal)
+        Err(ParabolaConstructionError::XDirectionAlongNormal)
     );
 }
 
@@ -151,7 +151,11 @@ fn test_parabola_construction_error_display() {
     );
     assert_eq!(
         ParabolaConstructionError::NullNormal.to_string(),
-        "normal has zero length"
+        "normal or x direction has zero length"
+    );
+    assert_eq!(
+        ParabolaConstructionError::XDirectionAlongNormal.to_string(),
+        "x direction is parallel to the normal"
     );
 }
 

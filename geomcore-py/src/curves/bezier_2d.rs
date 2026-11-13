@@ -96,7 +96,7 @@ shape_methods! {
     /// The two pieces either side of `u`, over `[first, u]` and `[u, last]`,
     /// each a `BezierCurve2D` of the same degree.
     fn split_at(&self, u: f64) -> PyResult<(Self, Self)> {
-        let (a, b) = self.0.split_at(u).map_err(python_error)?;
+        let (a, b) = self.0.split_at(u).map_err(|error| crate::errors::split_error(error, &crate::errors::range_text(self.0.bounds())))?;
         Ok((PyBezierCurve2D(a), PyBezierCurve2D(b)))
     }
 
@@ -108,6 +108,8 @@ shape_methods! {
     }
 
     /// The arc length, integrating the speed to within `max_length_error`.
+    /// `max_length_error` defaults to the default confusion, 1e-7.
+    #[pyo3(signature = (max_length_error = geomcore::Tolerance::DEFAULT.confusion))]
     fn length(&self, max_length_error: f64) -> f64 {
         self.0.length(max_length_error)
     }

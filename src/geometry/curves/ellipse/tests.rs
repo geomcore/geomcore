@@ -41,7 +41,7 @@ fn test_ellipse3d_new_null_normal_errors() {
 fn test_ellipse3d_new_parallel_x_direction_errors() {
     assert_eq!(
         Ellipse::new(Point::ORIGIN, Vector::Z, Vector::Z, 3.0, 1.5),
-        Err(EllipseConstructionError::NullNormal)
+        Err(EllipseConstructionError::XDirectionAlongNormal)
     );
 }
 
@@ -192,7 +192,11 @@ fn test_ellipse_construction_error_display() {
     );
     assert_eq!(
         EllipseConstructionError::NullNormal.to_string(),
-        "normal has zero length"
+        "normal or x direction has zero length"
+    );
+    assert_eq!(
+        EllipseConstructionError::XDirectionAlongNormal.to_string(),
+        "x direction is parallel to the normal"
     );
     assert_eq!(
         EllipseConstructionError::NullAxis.to_string(),
