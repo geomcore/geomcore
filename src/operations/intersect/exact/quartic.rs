@@ -684,9 +684,11 @@ pub(super) fn sphere_off_cone_axis(
             None,
         );
     }
-    let factored = |reach: f64| Discriminant::TwoFactors {
+    // Where `m = ± reach`, the factors vanishing.
+    let cosines_at = |reach: f64| [(reach - p) / q, (-reach - p) / q];
+    let factored = |cosines: [f64; 2]| Discriminant::TwoFactors {
         scale: q * q,
-        cosines: [(reach - p) / q, (-reach - p) / q],
+        cosines,
         shift: UNSHIFTED,
     };
     let reach = gamma.sqrt();
@@ -712,23 +714,18 @@ pub(super) fn sphere_off_cone_axis(
         if sign * m_farthest > 0.0 && off_line(farthest) <= radius + tol.confusion {
             if off_line(farthest) < radius - tol.confusion {
                 // Every generator of this nappe crosses the sphere twice.
-                return quartic(radius, factored(reach), &around, None);
+                return quartic(radius, factored(cosines_at(reach)), &around, None);
             }
             // The sphere touches the farthest generator: as wide as its
             // distance from the centre there.
-            let reach = sign * m_farthest;
-            let mut discriminant = factored(reach);
-            if let Discriminant::TwoFactors { cosines, .. } = &mut discriminant {
-                cosines[factor] = -sign;
-            }
+            let mut cosines = cosines_at(sign * m_farthest);
+            cosines[factor] = -sign;
+            let discriminant = factored(cosines);
             let crossing = apex + farthest * m_farthest;
             let node = Component::node(factor, t0 + tau_nearest);
             return quartic(off_line(farthest), discriminant, &[node], Some(crossing));
         }
-        let Discriminant::TwoFactors { cosines, .. } = factored(reach) else {
-            unreachable!()
-        };
-        let half = cosines[factor].clamp(-1.0, 1.0).acos();
+        let half = cosines_at(reach)[factor].clamp(-1.0, 1.0).acos();
         components[arcs] = if factor == 0 {
             arc(t0, -half, half, [Ends::Both, Ends::Neither])
         } else {
@@ -742,7 +739,7 @@ pub(super) fn sphere_off_cone_axis(
         (0, [first, second]) => SphereConeIntersection::TwoTangentPoints(*first, *second),
         _ => quartic(
             radius,
-            factored(reach),
+            factored(cosines_at(reach)),
             &components[..arcs],
             contacts[..touching].first().copied(),
         ),
@@ -2154,6 +2151,9 @@ trait Other: SecondSurface {
     /// when it meets it once, the quadratic being linear on every
     /// generator ([`Discriminant::MetOnce`]): `−γ / 2β`, not finite where
     /// `β` vanishes and the point runs to infinity.
+    // Only `Rulings<RuledCylinder, OtherCone>` reads a `MetOnce` curve,
+    // but the component kinds are chosen at run time, in code generic over
+    // `Other`: a type would split the curve by pair. So for the next two.
     fn along_once(&self, _base: Point, _direction: Vector) -> f64 {
         unreachable!("only a cone meets every generator of a quadric once")
     }
@@ -2689,6 +2689,8 @@ impl Discriminant {
                 let second = second.at(cos_tau, sin_tau);
                 first * first + second * second
             }
+            // Their components read the point from `Other`, not from a root:
+            // which reads which is chosen at run time, with the kinds.
             Discriminant::MetOnce | Discriminant::MetOnceOffTheApex => {
                 unreachable!("met once, the root is not read")
             }
@@ -2707,6 +2709,8 @@ impl Discriminant {
             | Discriminant::TwoSquares { .. }
             | Discriminant::MetOnce
             | Discriminant::MetOnceOffTheApex => {
+                // Asked only by arcs and nodes, chosen with the discriminant
+                // at run time.
                 unreachable!("only loops around read it whole")
             }
         }
@@ -3033,6 +3037,8 @@ impl Roots {
                 let (sin, cos) = parameter.sin_cos();
                 (parameter, sin, cos, Some(0.0))
             }
+            // Read by `Rulings::at` before it asks for a root; the kind is
+            // chosen at run time.
             Component::OffSharedGenerator { .. } => {
                 unreachable!("a point off a shared generator is not read from a root")
             }

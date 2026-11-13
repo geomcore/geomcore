@@ -4,7 +4,7 @@
 //! The solvers and their result types live by family, in `curve_curve`,
 //! `curve_surface` and `surface_surface`; `conic` and `conic_2d` hold the
 //! shared conic machinery. This module holds the trait and the reversed
-//! argument orders.
+//! argument orders, a pair's curve then read with its operands swapped.
 //!
 //! [`IntersectExact`] is the zero-cost typed path, implemented once per
 //! exact pair, in both argument orders, with the pair's own result type as
@@ -24,8 +24,10 @@ pub(crate) mod quartic;
 pub(crate) mod surface_surface;
 
 use crate::{
-    Circle, Circle2D, Cone, Cylinder, Ellipse, Hyperbola, Line, Line2D, Parabola, Plane, Sphere,
-    Tolerance, Torus,
+    Circle, Circle2D, Cone, ConeCylinderIntersection, Cylinder, Ellipse, Hyperbola, Line, Line2D,
+    Parabola, Plane, Sphere, SphereConeIntersection, SphereCylinderIntersection, Tolerance, Torus,
+    TorusConeIntersection, TorusCylinderIntersection, TorusPlaneIntersection,
+    TorusSphereIntersection,
 };
 
 /// Exact intersection of two shapes: the typed, stack-only path.
@@ -62,6 +64,36 @@ macro_rules! reversed {
         }
     )*};
 }
+
+/// Implements the reversed argument order of a pair whose curve is read
+/// in both surfaces' parameters, the first operand's first: the same
+/// result, its curve's operands swapped.
+macro_rules! reversed_swapping_operands {
+    ($($a:ty => $b:ty: $output:ident::$curve:ident),* $(,)?) => {$(
+        impl IntersectExact<$b> for $a {
+            type Output = $output;
+
+            /// The same result as in the other argument order, its curve
+            /// in parameters `self`'s first.
+            fn intersect_exact(&self, other: &$b, tol: Tolerance) -> $output {
+                match other.intersect_exact(self, tol) {
+                    $output::$curve(curve) => $output::$curve(curve.operands_swapped()),
+                    result => result,
+                }
+            }
+        }
+    )*};
+}
+
+reversed_swapping_operands!(
+    Cylinder => Cone: ConeCylinderIntersection::Quartic,
+    Cylinder => Sphere: SphereCylinderIntersection::Quartic,
+    Cone => Sphere: SphereConeIntersection::Quartic,
+    Plane => Torus: TorusPlaneIntersection::Quartic,
+    Sphere => Torus: TorusSphereIntersection::Quartic,
+    Cylinder => Torus: TorusCylinderIntersection::Octic,
+    Cone => Torus: TorusConeIntersection::Octic,
+);
 
 reversed!(
     Sphere => Plane,

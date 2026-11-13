@@ -945,8 +945,10 @@ impl IntersectExact<Cylinder> for Cylinder {
 
     /// Intersects this cylinder with another cylinder.
     ///
-    /// The analytic path needs parallel axes (against `tol.angular`):
-    /// with the axis separation `d`, disjoint (`d` beyond `r1 + r2`),
+    /// Every pair is read in closed form, or reported as
+    /// [`CylinderCylinderIntersection::NotAnalytic`] a hair from the two
+    /// ellipses. Parallel axes (against `tol.angular`), with the axis
+    /// separation `d`: disjoint (`d` beyond `r1 + r2`),
     /// nested (`d` below `|r1 - r2|`), grazing, and twin-generator cases
     /// follow the planar two-circle logic, positioned by the radical
     /// formula `s = (r1^2 - r2^2 + d^2) / (2d)`. Coaxial cylinders of
@@ -1367,9 +1369,10 @@ impl IntersectExact<Cylinder> for Cone {
 
     /// Intersects this cone with a cylinder.
     ///
-    /// The analytic path needs coaxial axes: with the axis lines
-    /// coincident (direction against `tol.angular`, separation against
-    /// `tol.confusion`), the tube of radius `r` meets each nappe at axial
+    /// Every pair is read in closed form, or reported as
+    /// [`ConeCylinderIntersection::NotAnalytic`] a hair from a reading.
+    /// With the axis lines coincident (direction against `tol.angular`,
+    /// separation against `tol.confusion`), the tube of radius `r` meets each nappe at axial
     /// distance `r/|tan(half_angle)|` from the apex, two latitude circles
     /// — or just the apex for a degenerate (zero-radius) tube. Axes that
     /// meet at a point as far from the cone as the cylinder's radius
@@ -1492,8 +1495,8 @@ impl IntersectExact<Cylinder> for Sphere {
 
     /// Intersects this sphere with a cylinder.
     ///
-    /// The analytic path needs the cylinder axis through the sphere
-    /// center: with the axis at distance `dist` (against
+    /// Every pair is read in closed form. With the cylinder's axis
+    /// through the sphere's center (its distance `dist` against
     /// `tol.confusion`), a tube radius beyond `radius + tol.confusion`
     /// misses, a tube at the radius grazes one equatorial ring, and a
     /// thinner tube cuts two symmetric latitude rings at axial offsets
@@ -1552,8 +1555,8 @@ impl IntersectExact<Cone> for Sphere {
 
     /// Intersects this sphere with a cone.
     ///
-    /// The analytic path needs the sphere center on the cone axis: axial
-    /// offsets `alpha` solve `alpha^2/cos^2(phi) - 2*tc*alpha + tc^2 -
+    /// Every pair is read in closed form. With the sphere's center on the
+    /// cone's axis, axial offsets `alpha` solve `alpha^2/cos^2(phi) - 2*tc*alpha + tc^2 -
     /// R^2 = 0`, i.e. latitude rings where the cone radius `|alpha| *
     /// |tan(phi)|` meets the sphere section, on either nappe. The center
     /// is `|tc| * |sin(phi)|` from the generators: beyond `R +
@@ -1613,54 +1616,6 @@ impl IntersectExact<Cone> for Sphere {
             (false, true) => SphereConeIntersection::CircleAndApex(mk(first), cone.apex()),
             (true, false) => SphereConeIntersection::CircleAndApex(mk(second), cone.apex()),
             _ => SphereConeIntersection::TwoCircles(mk(first), mk(second)),
-        }
-    }
-}
-
-impl IntersectExact<Cone> for Cylinder {
-    type Output = ConeCylinderIntersection;
-
-    /// The same result as in the other argument order (see
-    /// [`Cone::intersect_exact`](IntersectExact::intersect_exact)), the
-    /// quartic's curves in parameters the cylinder's first.
-    fn intersect_exact(&self, cone: &Cone, tol: Tolerance) -> ConeCylinderIntersection {
-        match cone.intersect_exact(self, tol) {
-            ConeCylinderIntersection::Quartic(curve) => {
-                ConeCylinderIntersection::Quartic(curve.operands_swapped())
-            }
-            other => other,
-        }
-    }
-}
-
-impl IntersectExact<Sphere> for Cylinder {
-    type Output = SphereCylinderIntersection;
-
-    /// The same result as in the other argument order (see
-    /// [`Sphere::intersect_exact`](IntersectExact::intersect_exact)), the
-    /// quartic's curves in parameters the cylinder's first.
-    fn intersect_exact(&self, sphere: &Sphere, tol: Tolerance) -> SphereCylinderIntersection {
-        match sphere.intersect_exact(self, tol) {
-            SphereCylinderIntersection::Quartic(curve) => {
-                SphereCylinderIntersection::Quartic(curve.operands_swapped())
-            }
-            other => other,
-        }
-    }
-}
-
-impl IntersectExact<Sphere> for Cone {
-    type Output = SphereConeIntersection;
-
-    /// The same result as in the other argument order (see
-    /// [`Sphere::intersect_exact`](IntersectExact::intersect_exact)), the
-    /// quartic's curves in parameters the cone's first.
-    fn intersect_exact(&self, sphere: &Sphere, tol: Tolerance) -> SphereConeIntersection {
-        match sphere.intersect_exact(self, tol) {
-            SphereConeIntersection::Quartic(curve) => {
-                SphereConeIntersection::Quartic(curve.operands_swapped())
-            }
-            other => other,
         }
     }
 }
@@ -1888,70 +1843,6 @@ impl IntersectExact<Sphere> for Torus {
             CircleCircle2DIntersection::Coincident => {
                 unreachable!("the tube's circle is centred off the axis")
             }
-        }
-    }
-}
-
-impl IntersectExact<Torus> for Plane {
-    type Output = TorusPlaneIntersection;
-
-    /// The same result as in the other argument order (see
-    /// [`Torus::intersect_exact`](IntersectExact::intersect_exact)), the
-    /// spiric section's curves in parameters the plane's first.
-    fn intersect_exact(&self, torus: &Torus, tol: Tolerance) -> TorusPlaneIntersection {
-        match torus.intersect_exact(self, tol) {
-            TorusPlaneIntersection::Quartic(curve) => {
-                TorusPlaneIntersection::Quartic(curve.operands_swapped())
-            }
-            other => other,
-        }
-    }
-}
-
-impl IntersectExact<Torus> for Sphere {
-    type Output = TorusSphereIntersection;
-
-    /// The same result as in the other argument order (see
-    /// [`Torus::intersect_exact`](IntersectExact::intersect_exact)), the
-    /// quartic's curves in parameters the sphere's first.
-    fn intersect_exact(&self, torus: &Torus, tol: Tolerance) -> TorusSphereIntersection {
-        match torus.intersect_exact(self, tol) {
-            TorusSphereIntersection::Quartic(curve) => {
-                TorusSphereIntersection::Quartic(curve.operands_swapped())
-            }
-            other => other,
-        }
-    }
-}
-
-impl IntersectExact<Torus> for Cylinder {
-    type Output = TorusCylinderIntersection;
-
-    /// The same result as in the other argument order (see
-    /// [`Torus::intersect_exact`](IntersectExact::intersect_exact)), the
-    /// curve's curves in parameters the cylinder's first.
-    fn intersect_exact(&self, torus: &Torus, tol: Tolerance) -> TorusCylinderIntersection {
-        match torus.intersect_exact(self, tol) {
-            TorusCylinderIntersection::Octic(curve) => {
-                TorusCylinderIntersection::Octic(curve.operands_swapped())
-            }
-            other => other,
-        }
-    }
-}
-
-impl IntersectExact<Torus> for Cone {
-    type Output = TorusConeIntersection;
-
-    /// The same result as in the other argument order (see
-    /// [`Torus::intersect_exact`](IntersectExact::intersect_exact)), the
-    /// curve's curves in parameters the cone's first.
-    fn intersect_exact(&self, torus: &Torus, tol: Tolerance) -> TorusConeIntersection {
-        match torus.intersect_exact(self, tol) {
-            TorusConeIntersection::Octic(curve) => {
-                TorusConeIntersection::Octic(curve.operands_swapped())
-            }
-            other => other,
         }
     }
 }
