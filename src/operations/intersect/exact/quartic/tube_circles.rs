@@ -356,7 +356,7 @@ impl<S: CutsTubes> CurveFamily for TubeCircles<S> {
 
     #[inline]
     fn slides_along(&self, component: Component, _point: Point) -> bool {
-        slides_along(component)
+        component.reading().slides_along
     }
 
     #[inline]
@@ -367,10 +367,13 @@ impl<S: CutsTubes> CurveFamily for TubeCircles<S> {
     #[inline]
     fn point_and_tangent(&self, component: Component, parameter: f64) -> (Point, Vector) {
         let on = self.at(component, parameter);
-        let tangent = if crossed_by_normals(component) {
-            self.crossing(&on)
-        } else {
-            self.stepped_tangent(component, parameter)
+        // A tube circle's exact velocity is not written out: where the
+        // normals' cross product vanishes, a central difference reads it.
+        let tangent = match component.reading().tangent {
+            TangentReading::Normals(_) => self.crossing(&on),
+            TangentReading::Velocity(_) | TangentReading::Stepped => {
+                self.stepped_tangent(component, parameter)
+            }
         };
         (on.point, tangent)
     }
@@ -378,10 +381,11 @@ impl<S: CutsTubes> CurveFamily for TubeCircles<S> {
     #[inline]
     fn sample(&self, component: Component, parameter: f64, orientation: f64) -> Sample {
         let on = self.at(component, parameter);
-        let tangent = if crossed_by_normals(component) {
-            self.crossing(&on) * orientation
-        } else {
-            self.stepped_tangent(component, parameter)
+        let tangent = match component.reading().tangent {
+            TangentReading::Normals(_) => self.crossing(&on) * orientation,
+            TangentReading::Velocity(_) | TangentReading::Stepped => {
+                self.stepped_tangent(component, parameter)
+            }
         };
         let (other_uv, other_derivative) = self.cut.uv(on.point, tangent);
         Sample {
@@ -400,9 +404,9 @@ impl<S: CutsTubes> CurveFamily for TubeCircles<S> {
     /// The way the component runs at its start, from its exact points on
     /// either side: the tangent through a crossing follows its parameter.
     fn orientation(&self, component: Component) -> f64 {
-        if !crossed_by_normals(component) {
+        let TangentReading::Normals(_) = component.reading().tangent else {
             return 1.0;
-        }
+        };
         let along = self.crossing(&self.at(component, 0.0));
         if along.dot(self.stepped_tangent(component, 0.0)) >= 0.0 {
             1.0
