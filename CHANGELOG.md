@@ -25,6 +25,12 @@ the Python distribution are versioned in lockstep.
 
 ### Fixed
 
+- The viewer page says which geomcore geomcore-viewer 0.4 draws (#316):
+  0.43 at the latest, since it reads the names geomcore renamed in 0.44.
+  It shows how to pin geomcore for drawing until a viewer release follows
+  the renames, and each page with a viewer example points there. The
+  release steps run the viewer's tests before a release that renames a
+  Python name.
 - A result's status says what was proved (#330). Two bounded surfaces
   whose boxes are apart come back empty and `Complete`, where the march
   said `Sampled`: the boxes holding the control points are checked

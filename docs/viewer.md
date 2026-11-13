@@ -10,15 +10,30 @@ The demo scene shows an ellipse, a circle, a hyperbola and a line, with the poin
 
 === "Python"
 
+    **geomcore-viewer 0.4 draws geomcore 0.43 at the latest.** It reads
+    shapes through the names geomcore had up to 0.43 (`eval_point`,
+    `semi_angle`, `first`…). With geomcore 0.44 or later, `view.add`
+    raises `AttributeError` for every shape but a point, and refuses a
+    `TrimmedSurface`.
+    [geomcore-viewer#38](https://github.com/geomcore/geomcore-viewer/issues/38)
+    tracks the viewer release that follows the renames. Until it is out,
+    draw from an environment pinned to geomcore 0.43:
+
     ```sh
-    pip install geomcore geomcore-viewer
+    pip install "geomcore==0.43.*" geomcore-viewer
     ```
+
+    geomcore 0.43 imports the shapes from `geomcore.curves` and
+    `geomcore.surfaces` and spells several methods differently, so the
+    viewer examples on this site, written for the current release, do not
+    run there as they are.
 
     geomcore-viewer 0.4 has no dependencies and ships the built viewer
     in the wheel. It reads geomcore objects through their public
-    getters rather than pinning a geomcore version. It works with
-    geomcore 0.33 through 0.43, under both the class names from 0.39 on
-    (`Point`, `Circle`…) and the older ones (`Point3D`, `Circle3D`…);
+    getters rather than declaring a geomcore version, so pip does not
+    warn about a geomcore it cannot draw. It works with geomcore 0.33
+    through 0.43, under both the class names from 0.39 on (`Point`,
+    `Circle`…) and the older ones (`Point3D`, `Circle3D`…);
     geomcore-viewer 0.3 cannot draw objects from geomcore 0.39 or later.
     Drawing result objects directly (projections, intersections,
     extrema) needs geomcore 0.36.

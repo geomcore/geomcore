@@ -126,6 +126,8 @@ From a script or notebook, send the real objects — B-splines travel
 sampled (curve → 256-segment polyline) until native protocol types land
 ([viewer#5](https://github.com/geomcore/geomcore-viewer/issues/5)):
 
+The viewer does not draw geomcore 0.44 or later yet: see [Viewer](../viewer.md#install).
+
 === "Python"
 
     ```python
