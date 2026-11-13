@@ -1177,11 +1177,14 @@ pub(crate) struct PyTolerance(pub(crate) Tolerance);
 #[pymethods]
 impl PyTolerance {
     #[new]
-    #[pyo3(signature = (
-        confusion = Tolerance::DEFAULT.confusion,
-        angular = Tolerance::DEFAULT.angular,
-        parametric = Tolerance::DEFAULT.parametric,
-    ))]
+    #[pyo3(
+        signature = (
+            confusion = Tolerance::DEFAULT.confusion,
+            angular = Tolerance::DEFAULT.angular,
+            parametric = Tolerance::DEFAULT.parametric,
+        ),
+        text_signature = "(confusion=1e-07, angular=1e-12, parametric=1e-09)"
+    )]
     /// Build tolerances from the three scales explicitly. Raises
     /// `ConstructionError` when a scale is not a positive finite number.
     fn py_new(confusion: f64, angular: f64, parametric: f64) -> PyResult<Self> {

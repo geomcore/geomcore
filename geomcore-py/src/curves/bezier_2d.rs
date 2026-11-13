@@ -109,7 +109,10 @@ shape_methods! {
 
     /// The arc length, integrating the speed to within `max_length_error`.
     /// `max_length_error` defaults to the default confusion, 1e-7.
-    #[pyo3(signature = (max_length_error = geomcore::Tolerance::DEFAULT.confusion))]
+    #[pyo3(
+        signature = (max_length_error = geomcore::Tolerance::DEFAULT.confusion),
+        text_signature = "($self, max_length_error=1e-07)"
+    )]
     fn length(&self, max_length_error: f64) -> f64 {
         self.0.length(max_length_error)
     }
