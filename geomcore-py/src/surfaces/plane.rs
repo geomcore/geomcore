@@ -23,11 +23,12 @@ shape_methods! {
         crate::pickling::reduce(slf.as_any(), Some("from_frame"), (this.frame(),))
     }
 
-    fn __repr__(&self) -> String {
-        format!(
-            "Plane(point={}, normal={})",
-            crate::values::coordinates(self.0.frame().origin()),
-            crate::values::coordinates(self.0.axis().direction())
+    fn __repr__(slf: &pyo3::Bound<'_, Self>) -> PyResult<String> {
+        let this = slf.borrow();
+        crate::pickling::paste_back_repr!(
+            slf,
+            "point" => crate::values::PyPoint(this.0.frame().origin()),
+            "normal" => crate::values::PyVector(this.0.axis().direction()),
         )
     }
 

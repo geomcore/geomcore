@@ -29,6 +29,16 @@ the Python distribution are versioned in lockstep.
   a discretization and on every intersection and extrema result, which
   iterate and index but raised. Intersection results stay unconvertible,
   as `docs/python.md` now says: they hold hits, not points.
+- Every value and shape repr pastes back as an equal object (#320):
+  `eval(repr(x)) == x` held for 6 of 32 classes. Shapes printed points
+  as tuples the constructors refuse; 3D ellipses, parabolas and
+  hyperbolas left out their x direction; B-splines and Bézier curves
+  printed no poles; `TrimmedCurve` hid its basis; `Axis` and `Frame` had
+  no repr; `BoundingBox` printed `min=`/`max=`; a moved `QuarticBranch`
+  printed like the original; `Transform` showed rounding noise. A repr
+  is now the constructor called with keywords, or the static constructor
+  pickling uses when the keywords cannot state the placement, with lists
+  past ten items cut by an explicit `...`.
 - Every enumeration member prints as `Class.NAME` (#321).
   Since Python 3.11 an `IntEnum` prints its number, so
   `print(result.completeness.status)` showed `2`, and an f-string showed

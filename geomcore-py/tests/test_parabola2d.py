@@ -134,4 +134,4 @@ def test_intersect_and_repr():
     p = parabola()
     hits = p.intersect(Line2D(Point2D(1.0, 0.0), Y))
     assert sorted(hit.point.y for hit in hits.hits) == pytest.approx([-2.0, 2.0])
-    assert repr(p) == "Parabola2D(apex=(0.0, 0.0), x_direction=(1.0, 0.0), focal_distance=1.0)"
+    assert repr(p) == "Parabola2D(apex=Point2D(0.0, 0.0), x_direction=Vector2D(1.0, 0.0), focal_distance=1.0)"

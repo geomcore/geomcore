@@ -2,7 +2,7 @@
 
 use crate::curves::*;
 use crate::method_sets::*;
-use crate::values::{PyAxis, PyFrame, float_repr};
+use crate::values::{PyAxis, PyFrame};
 use geomcore::Circle;
 
 /// A circle in 3D, parametrized by the angle from its frame's x direction.
@@ -28,12 +28,13 @@ shape_methods! {
         crate::pickling::reduce(slf.as_any(), Some("from_frame"), (this.frame(), this.radius(),))
     }
 
-    fn __repr__(&self) -> String {
-        format!(
-            "Circle(center={}, normal={}, radius={})",
-            crate::values::coordinates(self.0.center()),
-            crate::values::coordinates(self.0.normal()),
-            float_repr(self.0.radius())
+    fn __repr__(slf: &pyo3::Bound<'_, Self>) -> PyResult<String> {
+        let this = slf.borrow();
+        crate::pickling::paste_back_repr!(
+            slf,
+            "center" => crate::values::PyPoint(this.0.center()),
+            "normal" => crate::values::PyVector(this.0.normal()),
+            "radius" => this.0.radius(),
         )
     }
 

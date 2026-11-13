@@ -143,4 +143,4 @@ def test_bounding_box2d_value():
     )
     with pytest.raises(ValueError):
         BoundingBox2D.from_points([])
-    assert repr(a) == "BoundingBox2D(min=(0.0, 0.0), max=(2.0, 1.0))"
+    assert repr(a) == "BoundingBox2D(a=Point2D(0.0, 0.0), b=Point2D(2.0, 1.0))"

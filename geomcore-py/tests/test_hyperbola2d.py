@@ -161,5 +161,5 @@ def test_intersect_and_repr():
     )
     assert (
         repr(h)
-        == "Hyperbola2D(center=(0.0, 0.0), x_direction=(1.0, 0.0), major_radius=2.0, minor_radius=1.0)"
+        == "Hyperbola2D(center=Point2D(0.0, 0.0), x_direction=Vector2D(1.0, 0.0), major_radius=2.0, minor_radius=1.0)"
     )

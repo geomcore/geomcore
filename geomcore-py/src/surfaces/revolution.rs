@@ -21,14 +21,13 @@ shape_methods! {
         crate::pickling::reduce(slf.as_any(), None, (profile, this.axis()))
     }
 
-    fn __repr__(&self, py: Python<'_>) -> PyResult<String> {
-        let profile = curve_classes::to_py(py, self.0.profile().clone())?;
-        Ok(format!(
-            "RevolutionSurface(profile={}, axis=({}, {}))",
-            profile.bind(py).repr()?,
-            crate::values::coordinates(self.0.axis().origin()),
-            crate::values::coordinates(self.0.axis().direction())
-        ))
+    fn __repr__(slf: &pyo3::Bound<'_, Self>) -> PyResult<String> {
+        let (this, py) = (slf.borrow(), slf.py());
+        crate::pickling::paste_back_repr!(
+            slf,
+            "profile" => this.profile(py)?,
+            "axis" => this.axis(),
+        )
     }
 
     #[new]
