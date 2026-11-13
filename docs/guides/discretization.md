@@ -43,6 +43,9 @@ allocating.
 === "Python"
 
     ```python
+    from geomcore import Ellipse, Point, Vector
+
+    curve = Ellipse(Point(0, 0, 0), Vector(0, 0, 1), Vector(1, 0, 0), 3.0, 2.0)
     d = curve.discretize(0.01)                    # chord deviation ≤ 0.01
     d = curve.discretize(0.01, 0.05)              # ... and angle deviation ≤ 0.05 rad
     params, points = d.parameters, d.points

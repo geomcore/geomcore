@@ -34,6 +34,19 @@ line in a plane is a line. The result is a `Line2D`/`Circle2D` (or a
 the 3D curve within `tol.confusion` — that check is what "lies on"
 means, and anything farther off is `CurveNotOnSurface`.
 
+The Python examples on this page share these shapes: a cylinder, a
+circle around its axis, and the ellipse a slanted plane cuts from it.
+
+```python
+from geomcore import Circle, Cylinder, Plane, Point, Vector
+
+cylinder = Cylinder(Point(0, 0, 0), Vector.unit_z(), 2.0)
+circle = Circle(Point(0, 0, 1), Vector.unit_z(), 2.0)
+surface = cylinder
+(cut,) = Plane(Point(0, 0, 0), Vector(0.0, 1.0, 2.0)).intersect(cylinder).curves
+curve = cut.curve                                # an Ellipse on the cylinder
+```
+
 === "Python"
 
     ```python
@@ -147,6 +160,9 @@ handle.
 === "Python"
 
     ```python
+    import geomcore_viewer as gv
+
+    view = gv.Viewer("A circle on a cylinder")
     s = view.add(cylinder, label="S")
     view.add(circle, label="C")
     view.pcurve(cylinder.curve_3d_to_uv(circle), s, label="C in (u, v)")

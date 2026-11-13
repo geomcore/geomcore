@@ -6,6 +6,22 @@ measure them. Curve API first, with per-direction surface equivalents
 inline. The Python bindings mirror the Rust names 1:1, with errors as
 `ValueError`.
 
+The Python examples on this page share these shapes: the quadratic of
+[Curves](curves.md), one span over `[0, 1]`, and a biquadratic patch.
+
+```python
+from geomcore import BSplineCurve, BSplineSurface, Point
+
+curve = BSplineCurve(
+    2, [Point(0, 0, 0), Point(1, 0, 0), Point(1, 1, 0)], [0.0, 1.0], [3, 3], False
+)
+surf = BSplineSurface(
+    2, 2,
+    [[Point(x, y, x * y) for y in (0.0, 0.5, 1.0)] for x in (0.0, 0.5, 1.0)],
+    [0.0, 1.0], [3, 3], [0.0, 1.0], [3, 3], False, False,
+)
+```
+
 ## Knots and degree
 
 Insertion, refinement, elevation and removal keep the shape exactly
@@ -134,7 +150,7 @@ result every operation within a deviation hands back.
 In Python the points can also be an `(N, 3)` numpy array (`(N, 2)`
 for `BSplineCurve2D`, `(n, m, 3)` for a surface grid).
 
-`BSplineSurface::approximate` fits a grid by separating rows and
+`BSplineSurface.approximate` (`BSplineSurface::approximate` in Rust) fits a grid by separating rows and
 columns (one factored system per direction); `approximate_within`
 does the same within a deviation, and returns the surface with its
 deviation.
@@ -149,6 +165,8 @@ patches.
 === "Python"
 
     ```python
+    from geomcore import Circle, Cylinder, Ellipse, Point, TrimmedCurve, Vector
+
     circle_bs = Circle(Point.origin(), Vector.unit_z(), 2.0).to_bspline()
     assert circle_bs.is_periodic()
 
