@@ -525,8 +525,16 @@ fn tube_loops(coefficients: Coefficients, tol: Tolerance) -> Option<TubeCut> {
     // `|L| (cos τ − c₁)(c₂ − cos τ)`, the second factor read from `θ + π`.
     let scale = -leading;
     let factors = [
-        [-lower, cos_theta, sin_theta],
-        [scale * upper, -scale * cos_theta, -scale * sin_theta],
+        LinearForm {
+            constant: -lower,
+            along_cos: cos_theta,
+            along_sin: sin_theta,
+        },
+        LinearForm {
+            constant: scale * upper,
+            along_cos: -scale * cos_theta,
+            along_sin: -scale * sin_theta,
+        },
     ];
     let factor_touching = match touching_side {
         Some(side) if side == lower && side != upper => [true, false],

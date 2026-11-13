@@ -806,7 +806,11 @@ pub(super) fn cone_off_cylinder_axis(
     // The generator through the apex, `ρ(t) = −p / |p|`.
     let through_apex = apex_on_cylinder.then(|| (-p.dot(y)).atan2(-p.dot(x)));
     // `n·W(t)` as `k₀ + k₁ cos t + k₂ sin t`.
-    let linear = |n: Vector| [n.dot(p), r * n.dot(x), r * n.dot(y)];
+    let linear = |n: Vector| LinearForm {
+        constant: n.dot(p),
+        along_cos: r * n.dot(x),
+        along_sin: r * n.dot(y),
+    };
     // The part of `a₂` across the cylinder's axis, from its components on
     // `x` and `y`: across the axis even where it is rounding alone, which
     // `a₂ − (a₁·a₂) a₁` is not with the axes parallel.
@@ -842,8 +846,8 @@ pub(super) fn cone_off_cylinder_axis(
         let factor = |n: Vector| linear(n * cos_phi.abs());
         let factors = [factor(normals[0]), factor(normals[1])];
         // The circle `r` from the axis comes `r (1 − |cₖ|)` from a line.
-        let touches = |[constant, along_cos, along_sin]: [f64; 3]| {
-            let cosine = -constant / (along_cos * along_cos + along_sin * along_sin).sqrt();
+        let touches = |form: LinearForm| {
+            let cosine = form.vanishing_cosine(form.amplitude());
             r * (1.0 - cosine.abs()).abs() <= tol.confusion
         };
         let touching = [touches(factors[0]), touches(factors[1])];
@@ -907,21 +911,23 @@ fn cylinder_along_a_generator(
     let n = a2 * a1.dot(a2) - a1 * (cos_phi * cos_phi);
     let w = frame.origin() - cone.apex();
     let r = cylinder.radius();
-    let [constant, along_cos, along_sin] = [n.dot(w), r * n.dot(x), r * n.dot(y)];
-    let reach = (along_cos * along_cos + along_sin * along_sin).sqrt();
-    let cosine = -constant / reach;
+    let form = LinearForm {
+        constant: n.dot(w),
+        along_cos: r * n.dot(x),
+        along_sin: r * n.dot(y),
+    };
+    let cosine = form.vanishing_cosine(form.amplitude());
     let mut infinities: InlineList<(f64, f64), MOST_INFINITIES> = InlineList::new();
-    if (cosine.abs() - 1.0).abs() <= tol.angular {
-        // `β` touches zero: the point runs to infinity and comes back on
-        // the same side, along one generator.
-        let towards = along_sin.atan2(along_cos);
-        let angle = if cosine > 0.0 { towards } else { towards + PI };
-        infinities.push((angle.rem_euclid(TAU), 1.0));
-    } else if cosine.abs() < 1.0 {
-        let towards = along_sin.atan2(along_cos);
-        let half = cosine.acos();
-        for angle in [towards - half, towards + half] {
-            infinities.push((angle.rem_euclid(TAU), 1.0));
+    // Where `β` touches zero, the point runs to infinity and comes back on
+    // the same side, along one generator.
+    let touching = (cosine.abs() - 1.0).abs() <= tol.angular;
+    match FormZeros::of(cosine, touching, || form.reference()) {
+        FormZeros::Never => {}
+        FormZeros::Touching(angle) => infinities.push((angle.rem_euclid(TAU), 1.0)),
+        FormZeros::Crossing { reference, half } => {
+            for angle in [reference - half, reference + half] {
+                infinities.push((angle.rem_euclid(TAU), 1.0));
+            }
         }
     }
     let surfaces = Surfaces::ConeCylinder(*cone, *cylinder);
@@ -1074,12 +1080,10 @@ pub(super) fn cones_in_general_position(
     let e2 = v * cos_turn - u * sin_turn;
     let (larger, smaller) = (mean + radius, mean - radius);
     // `n·d(t)` as `k₀ + k₁ cos t + k₂ sin t`.
-    let linear = |n: Vector| {
-        [
-            ruled.cos * n.dot(a1),
-            ruled.sin * n.dot(ruled.x),
-            ruled.sin * n.dot(ruled.y),
-        ]
+    let linear = |n: Vector| LinearForm {
+        constant: ruled.cos * n.dot(a1),
+        along_cos: ruled.sin * n.dot(ruled.x),
+        along_sin: ruled.sin * n.dot(ruled.y),
     };
     let loops = if gamma > 0.0 {
         let squares = [
@@ -1107,15 +1111,14 @@ pub(super) fn cones_in_general_position(
         // cone by `|Q| / |∇Q|`, `Q = −Δ/A` and `Δ` that factor times the
         // other: within confusion, the surfaces touch.
         let touches = |k: usize| {
-            let [constant, along_cos, along_sin] = factors[k];
-            let amplitude = (along_cos * along_cos + along_sin * along_sin).sqrt();
-            let cosine = -constant / amplitude;
-            let across = if cosine < 0.0 { PI } else { 0.0 };
-            let (sin, cos) = (along_sin.atan2(along_cos) + across).sin_cos();
+            let form = factors[k];
+            let amplitude = form.amplitude();
+            let cosine = form.vanishing_cosine(amplitude);
+            let (sin, cos) = FormZeros::touching_at(form.reference(), cosine).sin_cos();
             let direction = ruled.generator(ruled.radial(sin, cos)).1;
             let (leading, half_linear, _, _) = other.coefficients(ruled.apex, direction);
             let nearest = ruled.apex + direction * (-half_linear / leading);
-            let rest = linear_at(factors[1 - k], cos, sin);
+            let rest = factors[1 - k].at(cos, sin);
             let gradient = 2.0 * other.normal(nearest).magnitude();
             amplitude * (1.0 - cosine.abs()).abs() * rest.abs()
                 <= tol.confusion * leading.abs() * gradient
@@ -1198,20 +1201,18 @@ fn sharing_a_generator(
     let (reach_x, reach_y) = (ruled.sin * ruled.x.dot(a2), ruled.sin * ruled.y.dot(a2));
     let reach = reach_x.hypot(reach_y);
     let target = -a2.dot(shared_direction);
-    let towards = reach_y.atan2(reach_x);
     let edge = middle + reach.copysign(target - middle);
     // The factors differ by `2 a₂·D₀`, so they never vanish together.
-    if (edge - target).abs() <= tol.angular {
-        let angle = if target > middle {
-            towards
-        } else {
-            towards + PI
-        };
-        infinities.push((angle.rem_euclid(TAU), 1.0));
-    } else if ((target - middle) / reach).abs() < 1.0 {
-        let half = ((target - middle) / reach).acos();
-        for angle in [towards - half, towards + half] {
-            infinities.push((angle.rem_euclid(TAU), 1.0));
+    let touching = (edge - target).abs() <= tol.angular;
+    match FormZeros::of((target - middle) / reach, touching, || {
+        reach_y.atan2(reach_x)
+    }) {
+        FormZeros::Never => {}
+        FormZeros::Touching(angle) => infinities.push((angle.rem_euclid(TAU), 1.0)),
+        FormZeros::Crossing { reference, half } => {
+            for angle in [reference - half, reference + half] {
+                infinities.push((angle.rem_euclid(TAU), 1.0));
+            }
         }
     }
     let curve = QuarticCurve::new(
@@ -1259,25 +1260,25 @@ fn cones_at_infinity(
         // each cone touches the other's directions, and `A` vanishes twice
         // there, the root running off on the same side either way.
         let edge = middle + reach.copysign(along);
-        if (edge * edge - other.cos_squared).abs() <= tol.angular {
-            let towards = *towards.get_or_insert_with(|| reach_y.atan2(reach_x));
-            let (angle, side) = running_off(if along > 0.0 { towards } else { towards + PI });
-            // `β` vanishing there too, the plane through the generators
-            // along the same direction touches both cones: left to the
-            // search.
-            if side == 0.0 {
-                return None;
+        let touching = (edge * edge - other.cos_squared).abs() <= tol.angular;
+        let reference = || *towards.get_or_insert_with(|| reach_y.atan2(reach_x));
+        match FormZeros::of(along, touching, reference) {
+            FormZeros::Never => {}
+            FormZeros::Touching(at) => {
+                let (angle, side) = running_off(at);
+                // `β` vanishing there too, the plane through the generators
+                // along the same direction touches both cones: left to the
+                // search.
+                if side == 0.0 {
+                    return None;
+                }
+                found.push((angle, side));
             }
-            found.push((angle, side));
-            continue;
-        }
-        if along.abs() >= 1.0 {
-            continue;
-        }
-        let towards = *towards.get_or_insert_with(|| reach_y.atan2(reach_x));
-        let half = along.acos();
-        for angle in [towards - half, towards + half] {
-            found.push(running_off(angle));
+            FormZeros::Crossing { reference, half } => {
+                for angle in [reference - half, reference + half] {
+                    found.push(running_off(angle));
+                }
+            }
         }
     }
     Some(found)
@@ -1366,24 +1367,23 @@ impl Loops {
 /// where both do.
 #[inline]
 fn factored_loops(
-    factors: [[f64; 3]; 2],
+    factors: [LinearForm; 2],
     touching: [bool; 2],
     through_apex: Option<f64>,
 ) -> Option<Loops> {
-    let amplitudes = factors
-        .map(|[_, along_cos, along_sin]| (along_cos * along_cos + along_sin * along_sin).sqrt());
-    let references = factors.map(|[_, along_cos, along_sin]| along_sin.atan2(along_cos));
+    let amplitudes = factors.map(LinearForm::amplitude);
+    let references = factors.map(LinearForm::reference);
     if let Some(at) = through_apex {
         return apex_arc(amplitudes, references, at, touching);
     }
-    let mut cosines: [f64; 2] = std::array::from_fn(|k| -factors[k][0] / amplitudes[k]);
+    let mut cosines: [f64; 2] = std::array::from_fn(|k| factors[k].vanishing_cosine(amplitudes[k]));
     if cosines.iter().any(|c| !c.is_finite()) {
         // A factor that does not turn, its plane across the ruled
         // quadric's axis: `Δ` is the other factor, scaled.
         let k = amplitudes.iter().position(|&amplitude| amplitude == 0.0)?;
         let other = 1 - k;
         return constant_factor_loops(
-            factors[k][0],
+            factors[k].constant,
             amplitudes[other],
             references[other],
             cosines[other],
@@ -1393,14 +1393,17 @@ fn factored_loops(
     // A factor that nearly vanishes twice is read as touching zero, `cₖ`
     // set to `± 1`: the surfaces touch on the generator where it does,
     // `θₖ`, or `θₖ + π`.
-    let mut touching_at = [None; 2];
     for k in 0..2 {
         if touching[k] {
             cosines[k] = cosines[k].signum();
-            let across = if cosines[k] > 0.0 { 0.0 } else { PI };
-            touching_at[k] = Some((references[k] + across).rem_euclid(TAU));
         }
     }
+    let zeros: [FormZeros; 2] =
+        std::array::from_fn(|k| FormZeros::of(cosines[k], touching[k], || references[k]));
+    let touching_at = zeros.map(|zeros| match zeros {
+        FormZeros::Touching(at) => Some(at.rem_euclid(TAU)),
+        FormZeros::Never | FormZeros::Crossing { .. } => None,
+    });
     let node = match touching_at {
         [Some(at), None] => Some((0, at)),
         [None, Some(at)] => Some((1, at)),
@@ -1416,11 +1419,10 @@ fn factored_loops(
     // the angle from the factor's reference, `± acos cₖ` exactly.
     let mut found = [(0.0, 0, 0.0); 4];
     let mut count = 0;
-    for (k, c) in cosines.into_iter().enumerate() {
-        if c.abs() < 1.0 {
-            let half = c.acos();
+    for (k, zeros) in zeros.into_iter().enumerate() {
+        if let FormZeros::Crossing { reference, half } = zeros {
             for from in [-half, half] {
-                found[count] = ((references[k] + from).rem_euclid(TAU), k, from);
+                found[count] = ((reference + from).rem_euclid(TAU), k, from);
                 count += 1;
             }
         }
@@ -1552,31 +1554,32 @@ fn constant_factor_loops(
         count,
         contact,
     };
-    if touching {
+    let half = match FormZeros::of(cosine, touching, || reference) {
         // Where the factor vanishes, `θ` or across from it, the surfaces
         // touch: one loop twice around through there, or that point alone.
-        let at = reference + if cosine > 0.0 { 0.0 } else { PI };
-        return Some(if positive_from(at - reference + PI) {
-            arcs([Component::node(0, at + PI), Component::Apex], 1, Some(at))
-        } else {
-            Loops::Touching(at.rem_euclid(TAU))
-        });
-    }
-    if cosine.abs() >= 1.0 {
-        return Some(if positive_from(0.0) {
-            arcs(
-                [
-                    Component::Around { branch: 1.0 },
-                    Component::Around { branch: -1.0 },
-                ],
-                2,
-                None,
-            )
-        } else {
-            Loops::Empty
-        });
-    }
-    let half = cosine.acos();
+        FormZeros::Touching(at) => {
+            return Some(if positive_from(at - reference + PI) {
+                arcs([Component::node(0, at + PI), Component::Apex], 1, Some(at))
+            } else {
+                Loops::Touching(at.rem_euclid(TAU))
+            });
+        }
+        FormZeros::Never => {
+            return Some(if positive_from(0.0) {
+                arcs(
+                    [
+                        Component::Around { branch: 1.0 },
+                        Component::Around { branch: -1.0 },
+                    ],
+                    2,
+                    None,
+                )
+            } else {
+                Loops::Empty
+            });
+        }
+        FormZeros::Crossing { half, .. } => half,
+    };
     let (from, to) = if constant > 0.0 {
         (-half, half)
     } else {
@@ -1653,10 +1656,11 @@ fn apex_arc(
 /// `k₀ + k₁ cos t + k₂ sin t`), is positive but on the generator at `at`,
 /// through the other cone's apex: each square read as vanishing there
 /// exactly, one loop twice around, crossing itself at the apex.
-fn apex_loop(squares: [[f64; 3]; 2], at: f64) -> Loops {
+fn apex_loop(squares: [LinearForm; 2], at: f64) -> Loops {
     let (sin, cos) = at.sin_cos();
-    let [first, second] = squares.map(|[_, along_cos, along_sin]| {
-        [-(along_cos * cos + along_sin * sin), along_cos, along_sin]
+    let [first, second] = squares.map(|form| LinearForm {
+        constant: -(form.along_cos * cos + form.along_sin * sin),
+        ..form
     });
     Loops::Arcs {
         discriminant: Discriminant::TwoSquares { first, second },
@@ -2572,7 +2576,10 @@ enum Discriminant {
     /// `h₀(τ)² + h₁(τ)²`, each `hₖ = hₖ₀ + hₖ₁ cos τ + hₖ₂ sin τ`: every
     /// generator crosses a cone twice, the quadratic form of `Δ` being
     /// positive. The sum is evaluated as such: it never cancels.
-    TwoSquares { first: [f64; 3], second: [f64; 3] },
+    TwoSquares {
+        first: LinearForm,
+        second: LinearForm,
+    },
     /// `β²`: `A` vanishes on every generator, a cylinder's axis running
     /// along a generator of the cone, and the quadratic is linear. Each
     /// generator meets the other quadric once, at `−γ / 2β`
@@ -2584,10 +2591,84 @@ enum Discriminant {
     MetOnceOffTheApex,
 }
 
-/// `k₀ + k₁ cos τ + k₂ sin τ`.
-#[inline]
-fn linear_at([constant, along_cos, along_sin]: [f64; 3], cos_tau: f64, sin_tau: f64) -> f64 {
-    constant + along_cos * cos_tau + along_sin * sin_tau
+/// `k₀ + k₁ cos t + k₂ sin t` in the angle `t` of a generator, read as
+/// `a (cos(t − θ) − c)`: the amplitude `a`, the reference `θ` where the
+/// form is greatest, and the cosine `c` from it where the form vanishes.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct LinearForm {
+    constant: f64,
+    along_cos: f64,
+    along_sin: f64,
+}
+
+impl LinearForm {
+    /// The form at the generator whose angle has cosine `cos_t` and sine
+    /// `sin_t`.
+    #[inline]
+    fn at(self, cos_t: f64, sin_t: f64) -> f64 {
+        self.constant + self.along_cos * cos_t + self.along_sin * sin_t
+    }
+
+    /// `a = √(k₁² + k₂²)`.
+    #[inline]
+    fn amplitude(self) -> f64 {
+        (self.along_cos * self.along_cos + self.along_sin * self.along_sin).sqrt()
+    }
+
+    /// `θ`, where the form is greatest.
+    #[inline]
+    fn reference(self) -> f64 {
+        self.along_sin.atan2(self.along_cos)
+    }
+
+    /// `c = −k₀ / a`, given `a`: not finite where the form does not turn.
+    #[inline]
+    fn vanishing_cosine(self, amplitude: f64) -> f64 {
+        -self.constant / amplitude
+    }
+}
+
+/// Where a form `a (cos(t − θ) − c)` vanishes.
+#[derive(Clone, Copy)]
+enum FormZeros {
+    /// Nowhere: `|c| ≥ 1`, not touching.
+    Never,
+    /// Once, the form touching zero there, on the generator at `θ` where
+    /// `c > 0` and across from it otherwise (ADR 0044). Not wrapped into
+    /// a turn.
+    Touching(f64),
+    /// Twice, at `θ ± acos c`.
+    Crossing { reference: f64, half: f64 },
+}
+
+impl FormZeros {
+    /// The zeros of a form of cosine `c`, `touching` where the reader's own
+    /// band reads it as touching zero. `reference` gives `θ`, asked for only
+    /// once a zero is found: no trigonometry on the pairs it never meets.
+    #[inline(always)]
+    fn of(cosine: f64, touching: bool, reference: impl FnOnce() -> f64) -> FormZeros {
+        if touching {
+            return FormZeros::Touching(FormZeros::touching_at(reference(), cosine));
+        }
+        if cosine.abs() < 1.0 {
+            return FormZeros::Crossing {
+                reference: reference(),
+                half: cosine.acos(),
+            };
+        }
+        FormZeros::Never
+    }
+
+    /// The generator where a form of cosine `c` and reference `θ` is least
+    /// in size: `θ` where `c > 0`, across from it otherwise (ADR 0044).
+    #[inline(always)]
+    fn touching_at(reference: f64, cosine: f64) -> f64 {
+        if cosine > 0.0 {
+            reference
+        } else {
+            reference + PI
+        }
+    }
 }
 
 /// No shift between the factors' references: `[sin 0, cos 0]`.
@@ -2611,8 +2692,8 @@ impl Discriminant {
                 m * m - gamma
             }
             Discriminant::TwoSquares { first, second } => {
-                let first = linear_at(first, cos_tau, sin_tau);
-                let second = linear_at(second, cos_tau, sin_tau);
+                let first = first.at(cos_tau, sin_tau);
+                let second = second.at(cos_tau, sin_tau);
                 first * first + second * second
             }
             Discriminant::MetOnce | Discriminant::MetOnceOffTheApex => {
