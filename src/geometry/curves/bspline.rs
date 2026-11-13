@@ -21,7 +21,7 @@ use crate::math::bspline::editing::{self, Elevation, Insertion, Lanes};
 use crate::math::bspline::poles::PolePoint;
 use crate::math::numeric::boxtree::{BoxTree, Lazy};
 use crate::math::numeric::quadrature;
-use crate::operations::projection::{CurveProjection, snap_distance};
+use crate::operations::projection::{CurveProjection, grows_inward, snap_distance};
 use crate::{Continuity, Point, Point2D, Tolerance, Transform};
 use crate::{TransformError, Transformable};
 use std::fmt;
@@ -1679,8 +1679,12 @@ impl_for_both_tiers! {
                 }
             }
             if !self.is_periodic() {
-                params.push(first);
-                params.push(last);
+                let ends = [(first, self.derivative(first, 1)), (last, -self.derivative(last, 1))];
+                for (t, inward) in ends {
+                    if grows_inward(self.point_at(t) - point, inward) {
+                        params.push(t);
+                    }
+                }
             } else if ends[n - 1].end_falling && ends[0].start_rising {
                 params.push(first);
             }

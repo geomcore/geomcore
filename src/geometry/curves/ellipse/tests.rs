@@ -225,17 +225,17 @@ fn test_ellipse3d_contains() {
 fn test_ellipse3d_extrema() {
     let e = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 3.0, 1.5).unwrap();
     let tol = Tolerance::DEFAULT;
-    // Outside on the major axis: nearest (3,0,0), farthest (-3,0,0).
+    // Outside on the major axis: the nearest point (3,0,0) only; the
+    // farthest, (-3,0,0), is no minimum.
     let ext = e.extrema(Point::new(4.0, 0.0, 0.0), tol);
-    assert!(ext.len() >= 2);
+    assert_eq!(ext.len(), 1);
     assert_eq!(ext[0].distance, 1.0);
     assert!((ext[0].parameter - 0.0).abs() < 1e-9);
-    assert!((ext.last().unwrap().distance - 7.0).abs() < 1e-9);
-    // Center: all four axis endpoints equidistant in pairs.
+    // Center: the two ends of the minor axis; those of the major axis are
+    // the farthest points.
     let center_ext = e.extrema(Point::ORIGIN, tol);
-    assert_eq!(center_ext.len(), 4);
-    assert!((center_ext[0].distance - 1.5).abs() < 1e-9);
-    assert!((center_ext[3].distance - 3.0).abs() < 1e-9);
+    assert_eq!(center_ext.len(), 2);
+    assert!(center_ext.iter().all(|x| (x.distance - 1.5).abs() < 1e-9));
 }
 
 #[test]

@@ -111,7 +111,8 @@ def test_contains_and_projection():
     assert batch[1].distance == 0.0
 
     extrema = h.extrema(Point2D(3.0, 0.0))
-    assert len(extrema) >= 2
+    assert extrema
+    assert extrema[0].distance == pytest.approx(h.project_point(Point2D(3.0, 0.0)).distance)
     distances = [item.distance for item in extrema]
     assert distances == sorted(distances)
 

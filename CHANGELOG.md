@@ -49,6 +49,14 @@ the Python distribution are versioned in lockstep.
   intersection. `Tolerance::new`, Python's `Tolerance(...)` and a number
   passed as `tol=` raise `ConstructionError` (a `ValueError`) naming the
   scale.
+- A curve's point extrema are the local minima of the distance, and only
+  those (#309), as the projection guide promised. An ellipse, a
+  hyperbola and a parabola listed every stationary point, the farthest
+  included: from (4, 1, 0) an ellipse of radii 3 and 2 gave its nearest
+  and its farthest point, so `extrema(p)[1]` read as the second closest
+  approach was the farthest. A B-spline or a trimmed curve listed both
+  ends always. A stationary point is now kept where the distance grows
+  on both sides of it, and an end where it grows into the curve.
 
 ## [0.46.0] - 2026-11-12
 

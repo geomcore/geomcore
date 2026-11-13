@@ -1213,7 +1213,7 @@ def test_conic_extrema_and_projection():
 
     ellipse = Ellipse(Point.origin(), Vector.unit_z(), Vector.unit_x(), 3.0, 1.5)
     ext = ellipse.extrema(Point(4.0, 0.0, 0.0))
-    assert len(ext) >= 2
+    assert len(ext) == 1
     assert ext[0].distance == pytest.approx(1.0)
     projection = ellipse.project_point(Point(0.0, 3.0, 0.0))
     assert projection.distance == pytest.approx(1.5)
@@ -2386,3 +2386,14 @@ def test_a_tolerance_scale_must_be_positive_and_finite(bad):
     with pytest.raises(ValueError, match="confusion"):
         circle.intersect(line, tol=bad)
     assert len(circle.intersect(line, tol=1e-3).hits) == 2
+
+
+def test_point_extrema_are_the_local_minima_only():
+    # #309: the farthest point of an ellipse is no extremum to list.
+    from geomcore import Ellipse
+
+    ellipse = Ellipse(Point.origin(), Vector.unit_z(), Vector.unit_x(), 3.0, 2.0)
+    extrema = ellipse.extrema(Point(0.3, 0.2, 0.0))
+    assert [round(e.parameter, 3) for e in extrema] == [1.404, 4.91]
+    (nearest,) = ellipse.extrema(Point(4.0, 1.0, 0.0))
+    assert nearest.parameter == pytest.approx(0.2715, abs=1e-4)

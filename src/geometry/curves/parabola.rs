@@ -395,6 +395,12 @@ impl_for_both_tiers! {
                     }
                 })
                 .collect();
+            out.sort_by(|x, y| x.parameter.total_cmp(&y.parameter));
+            let is_minimum = |t: f64| {
+                let (first, second) = (self.derivative(t, 1), self.derivative(t, 2));
+                projection::is_distance_minimum(self.point_at(t) - point, first, second)
+            };
+            out = projection::alternating_minima(out, false, is_minimum);
             out.sort_by(|x, y| x.distance.total_cmp(&y.distance));
             out
         }

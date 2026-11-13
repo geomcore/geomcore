@@ -86,12 +86,13 @@ def test_contains_and_projection():
     assert batch[1].parameter == pytest.approx(2.0)
     assert batch[1].distance == 0.0
 
-    # Beyond the centre of curvature at the apex, three feet exist.
-    extrema = p.extrema(Point2D(5.0, 0.0))
-    assert len(extrema) == 3
+    # Beyond the centre of curvature at the apex, three feet exist; the
+    # apex is the farthest of them, no minimum.
+    extrema = p.extrema(Point2D(5.0, 0.3))
+    assert len(extrema) == 2
     distances = [item.distance for item in extrema]
     assert distances == sorted(distances)
-    assert extrema[-1].parameter == pytest.approx(0.0)
+    assert all(abs(item.parameter) > 1.0 for item in extrema)
 
 
 def test_local_properties():
