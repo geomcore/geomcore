@@ -14,7 +14,6 @@ The method sets are read from the stubs, where each is a stub-only class
 import ast
 import inspect
 import re
-import sys
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import get_args
@@ -675,9 +674,6 @@ _ELEMENTARY = {
 }
 
 
-@pytest.mark.skipif(
-    sys.version_info < (3, 10), reason="a native class has no signature before Python 3.10"
-)
 def test_elementary_reprs_use_the_constructor_keywords():
     seen = set()
     for shape in _operands_3d() + _operands_2d():

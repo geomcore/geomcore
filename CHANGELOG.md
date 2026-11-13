@@ -41,6 +41,11 @@ the Python distribution are versioned in lockstep.
   `HyperbolaConstructionError` gain `XDirectionAlongNormal` (#335): an x
   direction parallel to the normal reported `NullNormal`, "normal has
   zero length". A `match` on them needs an arm for the new variant.
+- The Python package requires Python 3.11 or newer: 3.9 and 3.10 have
+  reached end of life. pip on 3.9 or 3.10 keeps installing 0.46.0. The
+  one abi3 wheel per platform still covers every newer Python, 3.15
+  included, which CI now tests along with 3.11. `isinstance(x, Curve)`
+  works on every supported version.
 
 ### Fixed
 
@@ -147,6 +152,15 @@ the Python distribution are versioned in lockstep.
   `ExtrusionSurface` names the way out (#328): pass
   `profile.to_bspline()`, the piece as a whole curve, or trim the
   surface. It raised a list of the accepted classes.
+- Two curves touching far from the origin (#338): their contact landed up to
+  1e-4 away from where it lands near it. A B-spline and a Bézier curve on
+  the same poles, moved 1e7 away, gave their contacts 2e-5 to 9e-5 from
+  the shared ends. A point of a curve rounds about the origin, and across
+  a contact the distance between the curves stays flat to that rounding
+  over a long stretch. Where a point of the first curve lies beyond the
+  model's cube (`tol.confusion / tol.angular`) from the origin, the
+  numeric search for two curves now runs on the curves moved next to the
+  origin by that point, and moves its hits back (ADR 0051).
 - `BSplineCurve::interpolate`, `approximate` and `approximate_within`,
   their 2D forms and the surface fits took points closer than 1e-7 for
   one point, whatever the size of the model (#342): the points of a curve

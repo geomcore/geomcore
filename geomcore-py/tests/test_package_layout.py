@@ -39,13 +39,12 @@ def test_curve_curve2d_and_surface_hold_every_shape_class_but_the_trimmed_once()
     assert not any(cls.__name__.endswith("2D") for cls in get_args(Curve))
 
 
-def test_isinstance_takes_the_tuple_of_classes_on_every_python():
+def test_isinstance_takes_the_tuple_of_classes():
     circle = Circle(Point.origin(), Vector.unit_z(), 1.0)
     assert isinstance(circle, get_args(Curve))
     assert not isinstance(circle, get_args(Surface))
 
 
-@pytest.mark.skipif(sys.version_info < (3, 10), reason="isinstance takes a Union from Python 3.10")
 def test_isinstance_takes_the_kind_names():
     circle = Circle(Point.origin(), Vector.unit_z(), 1.0)
     assert isinstance(circle, Curve)

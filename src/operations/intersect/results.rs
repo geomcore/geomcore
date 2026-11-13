@@ -281,6 +281,24 @@ pub struct GenericCurveCurveIntersection<P: TierPoint> {
 /// ```
 pub type CurveCurveIntersection = GenericCurveCurveIntersection<Point>;
 
+impl CurveCurveIntersection {
+    /// The same intersection of the curves moved by `offset`: the points
+    /// of the hits and the corners of the regions moved, the parameters
+    /// kept.
+    pub(crate) fn moved_by(mut self, offset: Vector) -> Self {
+        for hit in self.hits.iter_mut() {
+            hit.point = hit.point + offset;
+        }
+        if let Completeness::Incomplete { regions, .. } = &mut self.completeness {
+            for region in regions.iter_mut() {
+                region.min_corner = region.min_corner + offset;
+                region.max_corner = region.max_corner + offset;
+            }
+        }
+        self
+    }
+}
+
 /// The intersection of two 2D curves: exact and complete for every pair of
 /// lines and conics, numeric when one is a
 /// [`BSplineCurve2D`](crate::BSplineCurve2D).

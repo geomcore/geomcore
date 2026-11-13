@@ -5,7 +5,7 @@ pip install geomcore
 ```
 
 Pre-built wheels are published for Linux (x86_64, aarch64), macOS and
-Windows, for Python 3.9+ (abi3: one wheel covers every version). The
+Windows, for Python 3.11+ (abi3: one wheel covers every version). The
 package ships type stubs (PEP 561), so IDEs and type checkers see the full
 API, with the documentation of the methods every curve or surface shares.
 
@@ -14,9 +14,8 @@ Every name is at the package root, as in the Rust crate: the shapes
 `Tolerance`), the results (`CurveCurveIntersection`), the enums and the
 errors. Three more names stand for a whole kind of shape: `Curve`,
 `Curve2D` and `Surface` are the unions of the classes of the Rust enums
-of the same names, both for annotations and, from Python 3.10, for
-`isinstance`. `typing.get_args` gives the tuple of classes on any
-version. As in Rust, a `TrimmedCurve` is a piece of a curve rather than
+of the same names, both for annotations and for `isinstance`.
+`typing.get_args` gives the tuple of classes. As in Rust, a `TrimmedCurve` is a piece of a curve rather than
 one of them, so code that takes either says so:
 
 ```python
@@ -24,7 +23,7 @@ from geomcore import Curve, Surface, TrimmedCurve
 
 def clearance(curve: Curve | TrimmedCurve, surface: Surface) -> float: ...
 
-isinstance(shape, Curve)  # Python 3.10+; False for a TrimmedCurve
+isinstance(shape, Curve)  # False for a TrimmedCurve
 ```
 
 `geomcore.curves` and `geomcore.surfaces` still resolve each shape, with a
