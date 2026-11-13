@@ -14,7 +14,7 @@
 use crate::geometry::curves::{
     BSplineSplitError, BezierConstructionError, BezierCurve, DegreeElevationError, Side,
 };
-use crate::geometry::curves::{Curve, Curve2D, all_finite};
+use crate::geometry::curves::{Curve, Curve2D, grid_finite};
 use crate::geometry::surfaces::ReversibleSurface;
 use crate::geometry::surfaces::uv_curve::{from_curve, to_curve};
 use crate::geometry::surfaces::{BSplineSurface, ParametricSurface, SurfaceIsoError};
@@ -152,11 +152,10 @@ impl BezierSurface {
                 return Err(BezierConstructionError::WeightCountMismatch);
             }
         }
-        let weight_values = || weights.iter().flatten().flatten();
-        if !all_finite(poles.iter().flatten(), weight_values()) {
+        if !grid_finite(&poles, weights.as_deref()) {
             return Err(BezierConstructionError::NonFinite);
         }
-        if weight_values().any(|&w| w <= 0.0) {
+        if weights.iter().flatten().flatten().any(|&w| w <= 0.0) {
             return Err(BezierConstructionError::NonPositiveWeight);
         }
         let degrees = 1..=MAX_DEGREE;

@@ -389,7 +389,7 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
         multiplicities: Vec<u32>,
         periodic: bool,
     ) -> Result<GenericBSplineCurve<P>, BSplineConstructionError> {
-        Self::from_parts(degree, poles, None, knots, multiplicities, periodic)
+        Self::from_input_parts(degree, poles, None, knots, multiplicities, periodic)
     }
 
     /// Creates a rational (NURBS) B-spline curve with one weight per pole.
@@ -436,7 +436,7 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
         multiplicities: Vec<u32>,
         periodic: bool,
     ) -> Result<GenericBSplineCurve<P>, BSplineConstructionError> {
-        Self::from_parts(
+        Self::from_input_parts(
             degree,
             poles,
             Some(weights),
@@ -604,7 +604,7 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
         periodic: bool,
     ) -> Result<GenericBSplineCurve<P>, BSplineConstructionError> {
         let (knots, multiplicities) = math::distinct_knots(&flat_knots);
-        Self::from_parts(degree, poles, weights, knots, multiplicities, periodic)
+        Self::from_input_parts(degree, poles, weights, knots, multiplicities, periodic)
     }
 
     /// Creates the clamped curve of `degree` with uniform knots over
@@ -1432,9 +1432,28 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
         self.knots.bounds()
     }
 
+    /// [`from_parts`](Self::from_parts) for parts given by the caller,
+    /// checked finite first: a NaN or infinite pole or weight would build
+    /// a curve of NaN.
+    fn from_input_parts(
+        degree: usize,
+        poles: Vec<P>,
+        weights: Option<Vec<f64>>,
+        knots: Vec<f64>,
+        multiplicities: Vec<u32>,
+        periodic: bool,
+    ) -> Result<Self, BSplineConstructionError> {
+        if !all_finite(&poles, weights.iter().flatten()) {
+            return Err(BSplineConstructionError::NonFinite);
+        }
+        Self::from_parts(degree, poles, weights, knots, multiplicities, periodic)
+    }
+
     /// Validates the parts: the weights (one positive weight per pole),
-    /// the poles and weights finite, then the degree, knots and
-    /// multiplicities against the pole count.
+    /// then the degree, knots and multiplicities against the pole count.
+    /// The poles are not checked finite: the crate computes its own from
+    /// finite geometry, and [`from_input_parts`](Self::from_input_parts)
+    /// checks the caller's.
     pub(crate) fn from_parts(
         degree: usize,
         poles: Vec<P>,
@@ -1447,9 +1466,6 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
             && ws.len() != poles.len()
         {
             return Err(BSplineConstructionError::WeightCountMismatch);
-        }
-        if !all_finite(&poles, weights.iter().flatten()) {
-            return Err(BSplineConstructionError::NonFinite);
         }
         if weights.iter().flatten().any(|&w| w <= 0.0) {
             return Err(BSplineConstructionError::NonPositiveWeight);
@@ -1895,6 +1911,17 @@ pub(crate) fn all_finite<'a, P: TierPoint + 'a>(
     weights: impl IntoIterator<Item = &'a f64>,
 ) -> bool {
     points.into_iter().all(|p| p.is_finite()) && weights.into_iter().all(|w| w.is_finite())
+}
+
+/// [`all_finite`] for a surface's grid of poles and, if rational, of
+/// weights, kept out of line: a cold check that the surface constructors
+/// need not carry.
+#[inline(never)]
+pub(crate) fn grid_finite(poles: &[Vec<Point>], weights: Option<&[Vec<f64>]>) -> bool {
+    all_finite(
+        poles.iter().flatten(),
+        weights.into_iter().flatten().flatten(),
+    )
 }
 
 /// The speed at `t` of the Bézier piece with the homogeneous control
