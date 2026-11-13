@@ -9,6 +9,19 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+## [0.47.0] - 2026-11-13
+
+Python reads like Python. A study of a newcomer's first hour with
+0.45.0 drove most of this release: every repr pastes back as an equal
+object, numpy converts a discretization and stays out of point and
+vector arithmetic, enumerations print their names, the docstrings say
+which way normals point, and error messages name the cause and the next
+step. Bad input is refused instead of computed with: a NaN pole or a
+tolerance that is not positive raises. A march through a crossing, a
+tangent contact between two curves and a fit's coincident points no
+longer change with the model's size or place (ADR 0051). The Python
+package now needs Python 3.11 or newer.
+
 ### Added
 
 - `SurfaceProjection.signed_distance` (#254): the distance positive on
@@ -3419,7 +3432,8 @@ Behaviour, in Rust and Python alike:
 - Golden-fixture validation of all numeric results at 1e-7 tolerance, and
   criterion throughput benchmarks (`docs/benchmarks.md`).
 
-[Unreleased]: https://github.com/geomcore/geomcore/compare/v0.46.0...HEAD
+[Unreleased]: https://github.com/geomcore/geomcore/compare/v0.47.0...HEAD
+[0.47.0]: https://github.com/geomcore/geomcore/compare/v0.46.0...v0.47.0
 [0.46.0]: https://github.com/geomcore/geomcore/compare/v0.45.0...v0.46.0
 [0.45.0]: https://github.com/geomcore/geomcore/compare/v0.44.0...v0.45.0
 [0.44.0]: https://github.com/geomcore/geomcore/compare/v0.43.0...v0.44.0
