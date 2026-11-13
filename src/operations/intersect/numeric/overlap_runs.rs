@@ -109,6 +109,13 @@ where
         .into_iter()
         .filter(|hit| !inside(hit.curve_parameter))
         .collect();
+    let reason = reason_beside_overlaps(
+        reason,
+        regions.iter().map(|region| region.curve_range),
+        &runs,
+        curve,
+        tol,
+    );
     let mut regions = regions;
     for &run in &runs {
         let points = run_points(curve, run);
@@ -244,6 +251,15 @@ where
         .into_iter()
         .filter(|region| !accounted_by_contact(region))
         .collect();
+    let overlap_ranges: Vec<(f64, f64)> =
+        overlaps.iter().map(|overlap| overlap.first_range).collect();
+    let reason = reason_beside_overlaps(
+        reason,
+        regions.iter().map(|region| region.first_range),
+        &overlap_ranges,
+        first,
+        tol,
+    );
     for overlap in &overlaps {
         let (min_corner, max_corner) = corners(&run_points(first, overlap.first_range));
         regions.push(CurveCurveRegion {
@@ -576,6 +592,30 @@ fn settled(run: (f64, f64), tol: Tolerance, mut distance: impl FnMut(f64) -> Opt
         let t = low + (high - low) * k as f64 / RUN_SAMPLES as f64;
         distance(t).is_some_and(|d| d <= 0.25 * tol.confusion)
     })
+}
+
+/// The reason of a result whose search left `regions` (ranges of the
+/// curve) and whose curve lies on the other operand over `runs`: a budget
+/// run out only inside the runs is no reason, since the pieces of an
+/// overlap never separate however small they are halved, so the reason is
+/// then [`Unseparated`](IncompleteReason::Unseparated) (#330). Any other
+/// reason, or a region outside the runs, keeps it.
+fn reason_beside_overlaps<C: ParametricCurve>(
+    reason: IncompleteReason,
+    mut regions: impl Iterator<Item = (f64, f64)>,
+    runs: &[(f64, f64)],
+    curve: &C,
+    tol: Tolerance,
+) -> IncompleteReason {
+    let inside_a_run = |(low, high): (f64, f64)| {
+        runs.iter()
+            .any(|&run| covers(curve, run, low, tol) && covers(curve, run, high, tol))
+    };
+    if reason == IncompleteReason::BudgetExhausted && regions.all(inside_a_run) {
+        IncompleteReason::Unseparated
+    } else {
+        reason
+    }
 }
 
 /// Whether the curve over `run` is longer in space than `tol.confusion`

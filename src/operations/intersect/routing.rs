@@ -32,8 +32,9 @@ use crate::operations::intersect::numeric::embedding_2d::{Embed, intersect_numer
 use crate::operations::intersect::numeric::marching::marching_intersection;
 use crate::operations::intersect::results::{CurveCurveOverlapList, SurfaceSurfaceIntersection};
 use crate::operations::intersect::{
-    CurveCurveIntersection, CurveCurveIntersection2D, CurveCurveOverlap, CurveSurfaceIntersection,
-    GenericCurveCurveIntersection, InlineList, intersect_curve_curve, intersect_curve_surface,
+    Completeness, CurveCurveIntersection, CurveCurveIntersection2D, CurveCurveOverlap,
+    CurveSurfaceIntersection, GenericCurveCurveIntersection, InlineList, intersect_curve_curve,
+    intersect_curve_surface,
 };
 use crate::{
     BoundingBox, HasBoundingBox, Point, Point2D, TierPoint, Tolerance, Transform, Transformable,
@@ -350,7 +351,7 @@ impl<C: CurveOperand> CurveOperand for TrimmedCurve<C> {
 
 /// How a surface enters the router: its basis, the shape the closed-form
 /// pair table matches it on (see `closed_form`).
-pub(crate) trait SurfaceOperand: ParametricSurface {
+pub(crate) trait SurfaceOperand: ParametricSurface + HasBoundingBox {
     /// The basis type: the surface's own type when it is a concrete
     /// elementary surface, so a curve meeting it is solved by the pair's
     /// typed solver; [`ElementarySurface`], or a [`SurfaceKind`], when its
@@ -698,12 +699,36 @@ fn route_within<A: SurfaceOperand, B: SurfaceOperand>(
     within: Option<&BoundingBox>,
     tol: Tolerance,
 ) -> SurfaceSurfaceIntersection {
-    let numeric_search = || marching_intersection(a, b, within, tol);
+    let numeric_search = || {
+        // The boxes holding the control points cost nothing; the tight
+        // boxes cost a few hundred evaluations, so they are checked only
+        // when the march found nothing.
+        if apart(a.bounding_box(), b.bounding_box(), tol) {
+            return SurfaceSurfaceIntersection::proved_empty();
+        }
+        let marched = marching_intersection(a, b, within, tol);
+        if marched.is_empty()
+            && matches!(marched.completeness(), Completeness::Sampled)
+            && apart(a.tight_bounding_box(tol), b.tight_bounding_box(tol), tol)
+        {
+            return SurfaceSurfaceIntersection::proved_empty();
+        }
+        marched
+    };
     let first: SurfaceKind<'_> = a.surface_basis().into();
     let second: SurfaceKind<'_> = b.surface_basis().into();
     first
         .exact_family(&second, (None, None), tol, numeric_search)
         .with_exact_uv_curves(a, b, tol)
+}
+
+/// Whether two boxes, each `None` for an unbounded shape, are farther
+/// apart than `tol.confusion`: the shapes they hold cannot meet (#330).
+fn apart(first: Option<BoundingBox>, second: Option<BoundingBox>, tol: Tolerance) -> bool {
+    match (first, second) {
+        (Some(first), Some(second)) => first.enlarged(tol.confusion).intersection(second).is_none(),
+        _ => false,
+    }
 }
 
 /// Implements [`Intersect`] for every surface of the list with every

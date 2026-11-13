@@ -873,6 +873,12 @@ impl SurfaceSurfaceIntersection {
         self
     }
 
+    /// A numeric result proving the surfaces do not meet: their boxes are
+    /// apart.
+    pub(crate) fn proved_empty() -> Self {
+        SurfaceSurfaceIntersection::numeric(Vec::new(), Vec::new(), Completeness::Complete)
+    }
+
     /// A numeric result for two surfaces found to be the same surface.
     pub(crate) fn numeric_coincident(completeness: Completeness<SurfaceSurfaceRegion>) -> Self {
         SurfaceSurfaceIntersection {
