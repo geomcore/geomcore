@@ -38,7 +38,7 @@ shape_methods! {
     /// circle about the axis.
     fn py_new(profile: &Bound<'_, PyAny>, axis: PyAxis) -> PyResult<Self> {
         Ok(PyRevolutionSurface(
-            RevolutionSurface::new(curve_classes::extract(profile)?, axis.0)
+            RevolutionSurface::new(crate::arguments::profile_curve(profile)?, axis.0)
                 .map_err(python_error)?,
         ))
     }

@@ -92,7 +92,8 @@ shape_methods! {
         let param = geomcore::PointParametrization::from(parametrization);
         let points = points.0;
         Ok(PyBSplineCurve(
-            BSplineCurve::interpolate(&points, degree, param).map_err(python_error)?,
+            BSplineCurve::interpolate(&points, degree, param)
+                .map_err(|error| crate::errors::count_error(error, degree, points.len(), "points"))?,
         ))
     }
 
@@ -173,8 +174,10 @@ shape_methods! {
     /// The curve starts at the first pole and ends at the last.
     #[staticmethod]
     fn clamped_uniform(degree: usize, poles: Points<Point>) -> PyResult<Self> {
+        let pole_count = poles.0.len();
         Ok(PyBSplineCurve(
-            BSplineCurve::clamped_uniform(degree, poles.0).map_err(python_error)?,
+            BSplineCurve::clamped_uniform(degree, poles.0)
+                .map_err(|error| crate::errors::count_error(error, degree, pole_count, "poles"))?,
         ))
     }
 
@@ -312,17 +315,19 @@ shape_methods! {
     /// period).
     fn extract(&self, start: f64, end: f64) -> PyResult<Self> {
         Ok(PyBSplineCurve(
-            self.0.extract(start, end).map_err(python_error)?,
+            self.0.extract(start, end).map_err(|error| crate::errors::split_error(error, &crate::errors::range_text(self.0.bounds())))?,
         ))
     }
 
     /// The two halves split at `u`, each a clamped, non-periodic B-spline.
     fn split_at(&self, u: f64) -> PyResult<(Self, Self)> {
-        let (a, b) = self.0.split_at(u).map_err(python_error)?;
+        let (a, b) = self.0.split_at(u).map_err(|error| crate::errors::split_error(error, &crate::errors::range_text(self.0.bounds())))?;
         Ok((PyBSplineCurve(a), PyBSplineCurve(b)))
     }
 
     /// The arc length, integrating the speed to within `max_length_error`.
+    /// `max_length_error` defaults to the default confusion, 1e-7.
+    #[pyo3(signature = (max_length_error = geomcore::Tolerance::DEFAULT.confusion))]
     fn length(&self, max_length_error: f64) -> f64 {
         self.0.length(max_length_error)
     }

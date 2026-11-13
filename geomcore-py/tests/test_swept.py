@@ -203,3 +203,20 @@ def test_an_extrusion_drops_the_length_of_its_direction():
     long = ExtrusionSurface(Line(_O, _X), Vector(0, 0, 2))
     assert long.direction() == _Z
     assert long == ExtrusionSurface(Line(_O, _X), _Z)
+
+
+def test_a_trimmed_profile_is_refused_with_the_way_out():
+    # #328: a profile drawn as segments is a list of trimmed curves; the
+    # error names `to_bspline()`, which builds the same surface.
+    from geomcore import TrimmedCurve
+
+    segment = TrimmedCurve.segment(Point(3.0, 0.0, 0.0), Point(4.0, 0.0, 5.0))
+    axis = Axis(_O, _Z)
+    with pytest.raises(TypeError, match=r"pass profile\.to_bspline\(\)"):
+        RevolutionSurface(segment, axis)
+    with pytest.raises(TypeError, match=r"pass profile\.to_bspline\(\)"):
+        ExtrusionSurface(segment, _X)
+    vase = RevolutionSurface(segment.to_bspline(), axis)
+    point = vase.point_at(1.0, 0.5)
+    assert vase.parameters_of(point) == pytest.approx((1.0, 0.5))
+    assert ExtrusionSurface(segment.to_bspline(), _X).point_at(0.0, 0.0) == segment.start_point()

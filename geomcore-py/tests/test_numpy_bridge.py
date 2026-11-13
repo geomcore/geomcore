@@ -136,7 +136,7 @@ def test_a_wrong_shape_raises_value_error() -> None:
         circle.project_points_array(numpy.zeros((4, 2)))
     with pytest.raises(ValueError, match=r"us must have shape \(N\)"):
         circle.points_at_array(numpy.zeros((2, 2)))
-    with pytest.raises(ValueError, match=r"points must have shape \(N, N, 3\)"):
+    with pytest.raises(ValueError, match=r"points must have shape \(N, M, 3\)"):
         BSplineSurface.approximate(numpy.zeros((4, 4)), 3, 3, 4, 4)
 
 
