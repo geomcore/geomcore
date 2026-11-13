@@ -24,6 +24,11 @@ the Python distribution are versioned in lockstep.
 
 ### Fixed
 
+- `numpy.array(discretization)` is the `(N, 3)` (or `(N, 2)`) array of its
+  points, not a 0-d array of one object (#319), and `reversed()` works on
+  a discretization and on every intersection and extrema result, which
+  iterate and index but raised. Intersection results stay unconvertible,
+  as `docs/python.md` now says: they hold hits, not points.
 - Every value and shape repr pastes back as an equal object (#320):
   `eval(repr(x)) == x` held for 6 of 32 classes. Shapes printed points
   as tuples the constructors refuse; 3D ellipses, parabolas and
