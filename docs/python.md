@@ -7,7 +7,7 @@ pip install geomcore
 Pre-built wheels are published for Linux (x86_64, aarch64), macOS and
 Windows, for Python 3.11+ (abi3: one wheel covers every version). The
 package ships type stubs (PEP 561), so IDEs and type checkers see the full
-API, with the documentation of the methods every curve or surface shares.
+API, with the docstring of every class, method and property.
 
 Every name is at the package root, as in the Rust crate: the shapes
 (`Circle`, `Plane`, `BSplineSurface`), the values (`Point`, `Frame`,

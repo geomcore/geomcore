@@ -55,7 +55,10 @@ shape_methods! {
     /// `parametrization` is a `PointParametrization` or its string value,
     /// `"centripetal"` (the default, tamer at sharp turns) or `"chordal"`.
     #[staticmethod]
-    #[pyo3(signature = (points, degree, parametrization = PyPointParametrization::Centripetal))]
+    #[pyo3(
+        signature = (points, degree, parametrization = PyPointParametrization::Centripetal),
+        text_signature = "(points, degree, parametrization=\"centripetal\")"
+    )]
     fn interpolate(points: Points<Point2D>, degree: usize, parametrization: PyPointParametrization) -> PyResult<Self> {
         let param = geomcore::PointParametrization::from(parametrization);
         let points = points.0;
@@ -73,7 +76,10 @@ shape_methods! {
     /// `parametrization` is a `PointParametrization` or its string value,
     /// `"centripetal"` (the default) or `"chordal"`.
     #[staticmethod]
-    #[pyo3(signature = (points, degree, pole_count, parametrization = PyPointParametrization::Centripetal))]
+    #[pyo3(
+        signature = (points, degree, pole_count, parametrization = PyPointParametrization::Centripetal),
+        text_signature = "(points, degree, pole_count, parametrization=\"centripetal\")"
+    )]
     fn approximate(
         points: Points<Point2D>,
         degree: usize,
@@ -99,7 +105,10 @@ shape_methods! {
     /// `parametrization` is a `PointParametrization` or its string value,
     /// `"centripetal"` (the default) or `"chordal"`.
     #[staticmethod]
-    #[pyo3(signature = (points, degree, max_deviation, parametrization = PyPointParametrization::Centripetal))]
+    #[pyo3(
+        signature = (points, degree, max_deviation, parametrization = PyPointParametrization::Centripetal),
+        text_signature = "(points, degree, max_deviation, parametrization=\"centripetal\")"
+    )]
     fn approximate_within(
         points: Points<Point2D>,
         degree: usize,
@@ -346,7 +355,10 @@ shape_methods! {
 
     /// The arc length, integrating the speed to within `max_length_error`.
     /// `max_length_error` defaults to the default confusion, 1e-7.
-    #[pyo3(signature = (max_length_error = geomcore::Tolerance::DEFAULT.confusion))]
+    #[pyo3(
+        signature = (max_length_error = geomcore::Tolerance::DEFAULT.confusion),
+        text_signature = "($self, max_length_error=1e-07)"
+    )]
     fn length(&self, max_length_error: f64) -> f64 {
         self.0.length(max_length_error)
     }

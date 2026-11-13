@@ -216,7 +216,10 @@ shape_methods! {
     /// `"centripetal"` (the default) or `"chordal"`.
     #[staticmethod]
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (points, u_degree, v_degree, u_pole_count, v_pole_count, parametrization = PyPointParametrization::Centripetal))]
+    #[pyo3(
+        signature = (points, u_degree, v_degree, u_pole_count, v_pole_count, parametrization = PyPointParametrization::Centripetal),
+        text_signature = "(points, u_degree, v_degree, u_pole_count, v_pole_count, parametrization=\"centripetal\")"
+    )]
     fn approximate(
         points: PointGrid,
         u_degree: usize,
@@ -253,7 +256,10 @@ shape_methods! {
     /// `"centripetal"` (the default) or `"chordal"`.
     #[staticmethod]
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (points, u_degree, v_degree, max_deviation, parametrization = PyPointParametrization::Centripetal))]
+    #[pyo3(
+        signature = (points, u_degree, v_degree, max_deviation, parametrization = PyPointParametrization::Centripetal),
+        text_signature = "(points, u_degree, v_degree, max_deviation, parametrization=\"centripetal\")"
+    )]
     fn approximate_within(
         points: PointGrid,
         u_degree: usize,

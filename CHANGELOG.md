@@ -22,6 +22,18 @@ the Python distribution are versioned in lockstep.
   deprecated free functions, and lists Bézier shapes, extrusion,
   revolution and trimmed surfaces, `QuarticBranch`, the numpy extra and
   pickling.
+- The type stubs agree with what runs (#334). `help()` and
+  `inspect.signature` print each default's value,
+  `Tolerance(confusion=1e-07, angular=1e-12, parametric=1e-09)` and
+  `parametrization="centripetal"`, where they printed `Ellipsis`. mypy
+  and pyright accept a tuple of points, a numpy array of knots,
+  multiplicities, weights or parameters, a numpy matrix for
+  `Transform.from_matrix`, a list mixing curve or surface classes as an
+  `intersect` argument, and `isinstance(shape, geomcore.Curve)`. Every
+  class, method and property documented at run time carries the same
+  docstring in the stub, so an editor that reads only the stub shows it
+  on hover. The stub no longer needs `typing_extensions` on Python 3.13
+  and later.
 
 ## [0.47.0] - 2026-11-13
 
