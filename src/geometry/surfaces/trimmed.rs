@@ -284,11 +284,11 @@ impl<S: ParametricSurface + Into<Surface>> TrimmedSurface<S> {
     ///
     /// let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
     /// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
-    /// let faces: Vec<TrimmedSurface> = vec![
+    /// let patches: Vec<TrimmedSurface> = vec![
     ///     plane.trimmed((0.0, 1.0), (0.0, 1.0)).unwrap().into_surface(),
     ///     cylinder.trimmed((0.0, 1.0), (0.0, 1.0)).unwrap().into_surface(),
     /// ];
-    /// assert_eq!(faces.len(), 2);
+    /// assert_eq!(patches.len(), 2);
     /// ```
     pub fn into_surface(self) -> TrimmedSurface<Surface> {
         TrimmedSurface {

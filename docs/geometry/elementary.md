@@ -381,7 +381,7 @@ $$
 The way back: $u = \mathrm{atan2}(y, x),\; v = \sin\alpha\,(\rho - R) + \cos\alpha\,z$.
 
 At $v_{\mathrm{apex}} = -R / \sin\alpha$ the radius reaches zero: a
-whole edge of the rectangle is one point, the normal vanishes, and past
+whole side of the rectangle is one point, the normal vanishes, and past
 it $\rho$ goes negative into the opposite nappe. The frame sits on the
 reference circle ($v = 0$), not at the apex — the only point with no
 normal is a bad datum, it is often hundreds of radii from the part, and
@@ -441,7 +441,7 @@ The way back: $u = \mathrm{atan2}(y, x),\; v = \mathrm{atan2}(z, \rho)$.
 
 The cone's shape with $v$ turning the radius instead of growing it:
 $\rho = R + r\cos v$. Both parameters close, so the domain — both
-pairs of edges glued — is itself a torus, the most faithful
+pairs of opposite sides glued — is itself a torus, the most faithful
 rectangle of the five.
 
 === "Python"
@@ -500,7 +500,7 @@ Where the $u$-speed depends on $v$, a uniform $(u, v)$ grid is not
 uniform on the surface — triangles crowd at the poles. Every mesher
 corrects for exactly this table.
 
-## Seams and degenerate edges
+## Seams and collapsed boundaries
 
 Three things go wrong, and all the special cases in surface code live
 at these three places:
@@ -519,8 +519,8 @@ at these three places:
 - **Self-intersection** — the spindle torus above.
 
 <figure class="geom-fig">
-<img src="../../assets/figures/elementary-geometry/17-the-parameter-rectangles-of-the-plane.svg" alt="The five parameter rectangles with seams and degenerate edges">
-<figcaption>The five domains. Dashed border: unbounded. Shaded edge: seam, two edges one curve. Red edge: a whole edge that is a single point.</figcaption>
+<img src="../../assets/figures/elementary-geometry/17-the-parameter-rectangles-of-the-plane.svg" alt="The five parameter rectangles with seams and collapsed sides">
+<figcaption>The five domains. Dashed border: unbounded. Shaded side: seam, two sides one curve. Red side: a whole side that is a single point.</figcaption>
 </figure>
 
 ## Why ten special cases

@@ -280,7 +280,7 @@ surfaces is on both. In Python, `tol=1e-3` is short for
 </figure>
 
 <figure class="geom-fig">
-<img src="../../assets/figures/intersection/33-the-loop-no-edge-sees.svg" alt="An isolated loop">
+<img src="../../assets/figures/intersection/33-the-loop-no-boundary-sees.svg" alt="An isolated loop">
 <figcaption>The hard case: an isolated loop no seed grid line crosses. Patch-pair seeding finds these on B-spline pairs.</figcaption>
 </figure>
 

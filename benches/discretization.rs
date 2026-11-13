@@ -1,11 +1,11 @@
-//! Cost of discretizing a model-like mix of edges.
+//! Cost of discretizing a model-like mix of trimmed curves.
 //!
-//! Two thirds of the edges are cubic B-splines with 1 to 7 spans, one third
+//! Two thirds of the curves are cubic B-splines with 1 to 7 spans, one third
 //! quarter-circle arcs, half as rational quadratic B-splines and half as
-//! trimmed `Circle`s. Every edge is a run-time `TrimmedCurve`, as a
-//! model's edges are, and its chord deviation is relative to its size.
-//! Times the count step, the fill into one buffer reused across edges, and
-//! the allocating call.
+//! trimmed `Circle`s. Every curve is a run-time `TrimmedCurve`, as the
+//! curve under a model's edge is, and its chord deviation is relative
+//! to its size. Times the count step, the fill into one buffer reused
+//! across curves, and the allocating call.
 //!
 //! Informational only, like `eval_throughput`; not a correctness gate.
 
@@ -16,7 +16,7 @@ use std::hint::black_box;
 use geomcore::prelude::*;
 use geomcore::{BSplineCurve, Circle, Curve, DiscretizationCriteria, Point, TrimmedCurve, Vector};
 
-const EDGES: usize = 3000;
+const CURVES: usize = 3000;
 
 /// A deterministic value in `[0, 1)` for the `i`-th input.
 fn random(i: usize, salt: u64) -> f64 {
@@ -55,9 +55,9 @@ fn rational_quarter(radius: f64) -> BSplineCurve {
     BSplineCurve::new_rational(2, poles, weights, vec![0.0, 1.0], vec![3, 3], false).unwrap()
 }
 
-/// The edges, each with its size.
-fn edges() -> Vec<(TrimmedCurve, f64)> {
-    (0..EDGES)
+/// The curves, each with its size.
+fn curves() -> Vec<(TrimmedCurve, f64)> {
+    (0..CURVES)
         .map(|i| {
             let (curve, size) = if i % 3 == 0 {
                 let radius = 1.0 + 49.0 * random(i, 1);
@@ -82,18 +82,18 @@ fn edges() -> Vec<(TrimmedCurve, f64)> {
 }
 
 fn bench_discretization(c: &mut Criterion) {
-    let edges = edges();
+    let curves = curves();
     for relative in [1e-2, 1e-3] {
-        let jobs: Vec<(&TrimmedCurve, DiscretizationCriteria)> = edges
+        let jobs: Vec<(&TrimmedCurve, DiscretizationCriteria)> = curves
             .iter()
-            .map(|(edge, size)| (edge, DiscretizationCriteria::new(relative * size).unwrap()))
+            .map(|(curve, size)| (curve, DiscretizationCriteria::new(relative * size).unwrap()))
             .collect();
         let mut group = c.benchmark_group(format!("discretization/{relative:e}"));
-        group.throughput(Throughput::Elements(EDGES as u64));
+        group.throughput(Throughput::Elements(CURVES as u64));
         group.bench_function("count", |b| {
             b.iter(|| {
-                for (edge, criteria) in &jobs {
-                    black_box(edge.point_count(*criteria));
+                for (curve, criteria) in &jobs {
+                    black_box(curve.point_count(*criteria));
                 }
             })
         });
@@ -101,13 +101,13 @@ fn bench_discretization(c: &mut Criterion) {
             let (mut parameters, mut points) = (Vec::new(), Vec::new());
             let (mut chords, mut angles) = (Vec::new(), Vec::new());
             b.iter(|| {
-                for (edge, criteria) in &jobs {
-                    let n = edge.point_count(*criteria);
+                for (curve, criteria) in &jobs {
+                    let n = curve.point_count(*criteria);
                     parameters.resize(n, 0.0);
                     points.resize(n, Point::ORIGIN);
                     chords.resize(n - 1, 0.0);
                     angles.resize(n - 1, 0.0);
-                    edge.discretize_into(
+                    curve.discretize_into(
                         *criteria,
                         &mut parameters,
                         &mut points,
@@ -120,8 +120,8 @@ fn bench_discretization(c: &mut Criterion) {
         });
         group.bench_function("allocate", |b| {
             b.iter(|| {
-                for (edge, criteria) in &jobs {
-                    black_box(edge.discretize(*criteria));
+                for (curve, criteria) in &jobs {
+                    black_box(curve.discretize(*criteria));
                 }
             })
         });

@@ -1776,12 +1776,12 @@ def test_curve_3d_to_uv_maps_a_trimmed_curve_to_a_trimmed_uv_curve():
 
     cylinder = Cylinder(Point.origin(), Vector.unit_z(), 2.0)
     circle = Circle(Point(0.0, 0.0, 3.0), Vector.unit_z(), 2.0)
-    edge = TrimmedCurve(circle, 0.5, 2.0)
-    uv_edge = cylinder.curve_3d_to_uv(edge)
-    assert isinstance(uv_edge, TrimmedCurve2D)
-    assert isinstance(uv_edge.basis(), Line2D)
-    assert (uv_edge.start_parameter(), uv_edge.end_parameter()) == (0.5, 2.0)
-    end = uv_edge.end_point()
+    arc = TrimmedCurve(circle, 0.5, 2.0)
+    uv_arc = cylinder.curve_3d_to_uv(arc)
+    assert isinstance(uv_arc, TrimmedCurve2D)
+    assert isinstance(uv_arc.basis(), Line2D)
+    assert (uv_arc.start_parameter(), uv_arc.end_parameter()) == (0.5, 2.0)
+    end = uv_arc.end_point()
     assert (end.x, end.y) == (pytest.approx(2.0), pytest.approx(3.0))
 
 

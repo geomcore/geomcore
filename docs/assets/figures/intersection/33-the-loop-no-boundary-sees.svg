@@ -895,12 +895,12 @@
   <circle cx="16" cy="139.69" r="3.6" fill="var(--a)"></circle>
   <path d="M 170.32 100.86 L 178.32 108.86" fill="none" stroke="var(--warn)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>
   <path d="M 170.32 108.86 L 178.32 100.86" fill="none" stroke="var(--warn)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>
-  <text class="sv-l" x="266" y="52" fill="var(--a)">from the edges</text>
+  <text class="sv-l" x="266" y="52" fill="var(--a)">from the boundary</text>
   <text class="sv-m" x="266" y="68" fill="var(--ink-2)">two points where the curve</text>
   <text class="sv-m" x="266" y="84" fill="var(--ink-2)">crosses the boundary; one</text>
   <text class="sv-m" x="266" y="100" fill="var(--ink-2)">branch joins them</text>
   <text class="sv-l" x="266" y="136" fill="var(--warn)">from inside</text>
-  <text class="sv-m" x="266" y="152" fill="var(--ink-2)">a closed loop touching no edge</text>
+  <text class="sv-m" x="266" y="152" fill="var(--ink-2)">a closed loop off the boundary</text>
   <text class="sv-m" x="266" y="168" fill="var(--ink-2)">and holding no sample; it</text>
   <text class="sv-m" x="266" y="184" fill="var(--ink-2)">surrounds the top of the bump (x),</text>
   <text class="sv-m" x="266" y="200" fill="var(--ink-2)">where the normal is parallel</text>

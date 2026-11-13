@@ -1837,10 +1837,10 @@ fn test_a_torus_touching_a_sphere_at_its_pole_is_a_contact_point() {
 }
 
 /// A plane along a bumpy unit patch: the cut ends on the patch's two
-/// edges `x = 0` and `x = 1` at any size, its last step onto an edge kept
-/// however short.
+/// boundary curves `x = 0` and `x = 1` at any size, its last step onto
+/// one kept however short.
 #[test]
-fn test_a_cut_along_a_patch_ends_on_its_edges_at_any_size() {
+fn test_a_cut_along_a_patch_ends_on_its_boundary_curves_at_any_size() {
     use crate::{Plane, Transform, Transformable};
     for scale in [2f64.powi(-20), 1.0, 2f64.powi(20)] {
         let tol = Tolerance::new(

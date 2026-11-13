@@ -1,9 +1,9 @@
 use super::*;
 
 /// `lo + 1.0 * (hi - lo)` can round one step past `hi`: a projection
-/// onto the upper edge must still land inside the parameter range.
+/// onto the upper boundary curve must still land inside the parameter range.
 #[test]
-fn test_projection_on_the_upper_edge_stays_in_the_parameter_range() {
+fn test_projection_on_the_upper_boundary_curve_stays_in_the_parameter_range() {
     let poles = vec![
         vec![Point::new(0.0, 0.0, 0.0), Point::new(0.0, 1.0, 0.0)],
         vec![Point::new(1.0, 0.0, 0.0), Point::new(1.0, 1.0, 0.0)],
@@ -451,11 +451,11 @@ fn test_bspline_surface_project_point_planar() {
     assert!((proj.u - 0.5).abs() < 1e-9);
     assert!((proj.v - 0.5).abs() < 1e-9);
     assert!((proj.distance - 1.0).abs() < 1e-9);
-    // Beyond the edge: boundary foot wins.
-    let edge = s.project_point(Point::new(3.0, 1.0, 0.0), tol);
-    assert!((edge.u - 1.0).abs() < 1e-9);
-    assert!((edge.v - 0.5).abs() < 1e-9);
-    assert!((edge.distance - 1.0).abs() < 1e-9);
+    // Beyond the boundary curve: its foot wins.
+    let beyond = s.project_point(Point::new(3.0, 1.0, 0.0), tol);
+    assert!((beyond.u - 1.0).abs() < 1e-9);
+    assert!((beyond.v - 0.5).abs() < 1e-9);
+    assert!((beyond.distance - 1.0).abs() < 1e-9);
 }
 
 #[test]
@@ -1379,7 +1379,7 @@ fn test_project_point_close_basins_on_a_folded_net() {
     let s = folded_net();
     let tol = Tolerance::DEFAULT;
     // In patch `[0, 1] x [0, 0.56]`: the foot is the point itself, and a
-    // second minimum lies on the edge `u = 0` about 0.08 away.
+    // second minimum lies on the boundary curve `u = 0` about 0.08 away.
     let on = s.point_at(0.05, 0.1);
     let proj = s.project_point(on, tol);
     assert_eq!(proj.distance, 0.0);
@@ -1470,10 +1470,10 @@ fn test_project_point_exact_foot_on_rational_cylinder() {
 }
 
 #[test]
-fn test_project_point_exact_foot_on_edge_corner_and_crease() {
+fn test_project_point_exact_foot_on_boundary_curve_corner_and_crease() {
     let tol = Tolerance::DEFAULT;
-    // Bilinear square [0, 2]^2 in z = 0 over [0, 1]^2: an edge foot
-    // and a corner foot.
+    // Bilinear square [0, 2]^2 in z = 0 over [0, 1]^2: a foot on a
+    // boundary curve and a corner foot.
     let s = bilinear_patch();
     let proj = s.project_point(Point::new(3.0, 1.0, 1.0), tol);
     assert_eq!((proj.u, proj.v), (1.0, 0.5));
