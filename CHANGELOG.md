@@ -24,6 +24,13 @@ the Python distribution are versioned in lockstep.
 
 ### Fixed
 
+- Every enumeration member prints as `Class.NAME` (#321).
+  Since Python 3.11 an `IntEnum` prints its number, so
+  `print(result.completeness.status)` showed `2`, and an f-string showed
+  it on every version, while `PointParametrization` printed its name.
+  `str()` and f-strings now give `CompletenessStatus.SAMPLED` on every
+  enumeration and every Python version. Members still compare equal to
+  their integer or string value.
 - A NaN or infinite pole, weight, knot or data point is refused by every
   B-spline and Bézier constructor and fit, curve and surface, 2D and 3D
   (#307). It built a curve of NaN without complaint: one bad sample in
