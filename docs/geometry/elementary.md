@@ -292,11 +292,11 @@ maps any 2D curve through the plane's frame, so a `Circle2D` drawn in
 the plane's $(u, v)$ coordinates comes back as the 3D `Circle`.
 
 ```python
-from geomcore import Circle2D, Point2D
+from geomcore import Circle2D, Plane, Point2D
 
 plane = Plane(Point(0.0, 0.0, 5.0), Vector.unit_z())
 circle = plane.uv_curve_to_3d(Circle2D(Point2D(1.0, 2.0), 0.5))
-# Circle(center=(1.0, 2.0, 5.0), normal=(0.0, 0.0, 1.0), radius=0.5)
+# Circle(center=Point(1.0, 2.0, 5.0), normal=Vector(0.0, 0.0, 1.0), radius=0.5)
 ```
 
 <figure class="geom-fig">

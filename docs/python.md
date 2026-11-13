@@ -19,11 +19,12 @@ of the same names, both for annotations and for `isinstance`.
 one of them, so code that takes either says so:
 
 ```python
-from geomcore import Curve, Surface, TrimmedCurve
+from geomcore import Circle, Curve, Point, Surface, TrimmedCurve, Vector
 
 def clearance(curve: Curve | TrimmedCurve, surface: Surface) -> float: ...
 
-isinstance(shape, Curve)  # False for a TrimmedCurve
+shape = Circle(Point(0, 0, 0), Vector(0, 0, 1), 2.0)
+assert isinstance(shape, Curve)  # False for a TrimmedCurve
 ```
 
 `geomcore.curves` and `geomcore.surfaces` still resolve each shape, with a
@@ -144,6 +145,12 @@ or a placement from another tool comes in and goes out directly.
 from geomcore import Transform
 import numpy
 
+matrix = [                             # a quarter turn about z, then a move
+    [0.0, -1.0, 0.0, 1.0],
+    [1.0, 0.0, 0.0, 2.0],
+    [0.0, 0.0, 1.0, 3.0],
+    [0.0, 0.0, 0.0, 1.0],
+]
 pose = Transform.from_matrix(matrix)   # four rows of four numbers
 back = pose.inverse()                  # pose @ back is the identity, within rounding
 numpy.array((pose @ back).to_matrix())
