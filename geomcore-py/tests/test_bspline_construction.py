@@ -91,3 +91,16 @@ def test_the_repr_rebuilds_a_small_curve_and_cuts_a_long_one():
     assert "Point(7.0, 0.0, 0.0), ..., Point(11.0, 0.0, 0.0)]" in repr(many)
     with pytest.raises(TypeError):
         eval(repr(many), vars(geomcore))
+
+
+def test_basis_functions_and_span_index():
+    # #256: the basis the evaluation computes, for teaching and own algorithms.
+    poles = [Point(float(i), float(i % 2), 0.0) for i in range(3)]
+    curve = BSplineCurve(2, poles, [0.0, 1.0], [3, 3], False)
+    assert curve.basis_functions(0.5) == (0, [0.25, 0.5, 0.25])
+    assert curve.span_index(0.5) == 2
+    assert curve.flat_knots()[2] <= 0.5 < curve.flat_knots()[3]
+    flat = BSplineCurve2D(2, [Point2D(p.x, p.y) for p in poles], [0.0, 1.0], [3, 3], False)
+    assert flat.basis_functions(0.5) == curve.basis_functions(0.5)
+    # Past the bounds, clamped as evaluation is.
+    assert curve.basis_functions(-1.0) == curve.basis_functions(0.0) == (0, [1.0, 0.0, 0.0])

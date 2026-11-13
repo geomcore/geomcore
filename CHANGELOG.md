@@ -18,6 +18,12 @@ the Python distribution are versioned in lockstep.
   surface's orientation, so `reversed_u()` flips it. In Rust,
   `SurfaceProjection::signed_distance(surface, point, tol)` reads it on
   demand, so a projection costs no more.
+- `span_index(u)` and `basis_functions(u)` on B-spline curves, in both
+  tiers and in Python (#256): the knot span holding `u`, counted on
+  `flat_knots()`, and the `degree + 1` non-zero basis functions with the
+  index of the first pole they weigh, for teaching and for B-spline
+  algorithms of one's own. `u` past the bounds is clamped, or wrapped
+  into the period, as evaluation does.
 
 ### Breaking
 
