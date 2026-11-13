@@ -9,6 +9,16 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+### Added
+
+- `SurfaceProjection.signed_distance` (#254): the distance positive on
+  the side the surface normal at the closest point points to, negative on
+  the other, `None` where no side is defined (an undefined normal, or a
+  point beside a trimmed surface in its tangent plane). It follows the
+  surface's orientation, so `reversed_u()` flips it. In Rust,
+  `SurfaceProjection::signed_distance(surface, point, tol)` reads it on
+  demand, so a projection costs no more.
+
 ### Breaking
 
 - `Tolerance::new` returns `Result<Tolerance, ToleranceConstructionError>`
