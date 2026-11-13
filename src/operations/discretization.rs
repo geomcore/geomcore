@@ -151,6 +151,38 @@ pub struct Discretization {
     pub angle_deviations: Vec<f64>,
 }
 
+impl Discretization {
+    /// The discretization made of its fields: for rebuilding a stored one,
+    /// as Python's `pickle` does, since the struct is `non_exhaustive`.
+    /// The fields are kept as they are, not checked.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Discretization, Point};
+    /// let rebuilt = Discretization::from_parts(
+    ///     vec![0.0, 1.0],
+    ///     vec![Point::ORIGIN, Point::ORIGIN],
+    ///     vec![0.0],
+    ///     vec![0.0],
+    /// );
+    /// assert_eq!(rebuilt.parameters, [0.0, 1.0]);
+    /// ```
+    pub fn from_parts(
+        parameters: Vec<f64>,
+        points: Vec<Point>,
+        chord_deviations: Vec<f64>,
+        angle_deviations: Vec<f64>,
+    ) -> Self {
+        Discretization {
+            parameters,
+            points,
+            chord_deviations,
+            angle_deviations,
+        }
+    }
+}
+
 /// Discretization of a bounded 3D curve over its whole
 /// [`bounds`](ParametricCurve::bounds).
 ///
@@ -268,6 +300,38 @@ pub struct Discretization2D {
     pub chord_deviations: Vec<f64>,
     /// The angle deviation of each segment, in radians.
     pub angle_deviations: Vec<f64>,
+}
+
+impl Discretization2D {
+    /// The discretization made of its fields: for rebuilding a stored one,
+    /// as Python's `pickle` does, since the struct is `non_exhaustive`.
+    /// The fields are kept as they are, not checked.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Discretization2D, Point2D};
+    /// let rebuilt = Discretization2D::from_parts(
+    ///     vec![0.0, 1.0],
+    ///     vec![Point2D::ORIGIN, Point2D::ORIGIN],
+    ///     vec![0.0],
+    ///     vec![0.0],
+    /// );
+    /// assert_eq!(rebuilt.parameters, [0.0, 1.0]);
+    /// ```
+    pub fn from_parts(
+        parameters: Vec<f64>,
+        points: Vec<Point2D>,
+        chord_deviations: Vec<f64>,
+        angle_deviations: Vec<f64>,
+    ) -> Self {
+        Discretization2D {
+            parameters,
+            points,
+            chord_deviations,
+            angle_deviations,
+        }
+    }
 }
 
 /// Discretization of a bounded 2D curve over its whole

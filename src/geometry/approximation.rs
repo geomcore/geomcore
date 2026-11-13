@@ -54,6 +54,28 @@ impl<P: TierPoint> GenericCurveApproximation<P> {
         }
     }
 
+    /// The approximation made of the parts its getters return: for
+    /// rebuilding a stored one, as Python's `pickle` does. The parts are
+    /// kept as they are, not checked.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{BSplineCurve, CurveApproximation, Point, PointParametrization};
+    /// let points: Vec<Point> = (0..20)
+    ///     .map(|i| Point::new(i as f64, (i as f64 / 3.0).sin(), 0.0))
+    ///     .collect();
+    /// let fit =
+    ///     BSplineCurve::approximate_within(&points, 3, 1e-3, PointParametrization::Chordal)
+    ///         .unwrap();
+    /// let rebuilt =
+    ///     CurveApproximation::from_parts(fit.curve().clone(), fit.deviation(), fit.is_proven());
+    /// assert_eq!(rebuilt, fit);
+    /// ```
+    pub fn from_parts(curve: GenericBSplineCurve<P>, deviation: f64, proven: bool) -> Self {
+        Self::new(curve, deviation, proven)
+    }
+
     /// The curve.
     pub fn curve(&self) -> &GenericBSplineCurve<P> {
         &self.curve
@@ -117,6 +139,33 @@ impl SurfaceApproximation {
             deviation,
             proven,
         }
+    }
+
+    /// The approximation made of the parts its getters return: for
+    /// rebuilding a stored one, as Python's `pickle` does. The parts are
+    /// kept as they are, not checked.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{BSplineSurface, Point, PointParametrization, SurfaceApproximation};
+    /// let points: Vec<Vec<Point>> = (0..8)
+    ///     .map(|i| {
+    ///         (0..8)
+    ///             .map(|j| Point::new(i as f64, j as f64, (i as f64 / 3.0).sin()))
+    ///             .collect()
+    ///     })
+    ///     .collect();
+    /// let fit = BSplineSurface::approximate_within(
+    ///     &points, 3, 3, 1e-3, PointParametrization::Chordal,
+    /// )
+    /// .unwrap();
+    /// let rebuilt =
+    ///     SurfaceApproximation::from_parts(fit.surface().clone(), fit.deviation(), fit.is_proven());
+    /// assert_eq!(rebuilt, fit);
+    /// ```
+    pub fn from_parts(surface: BSplineSurface, deviation: f64, proven: bool) -> Self {
+        Self::new(surface, deviation, proven)
     }
 
     /// The surface.

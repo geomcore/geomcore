@@ -159,9 +159,16 @@ only under a uniform scale of a rotation or a mirror.
 
 Every value and every curve and surface pickles, and copies with `copy` and
 `copy.deepcopy`, so shapes cross to `multiprocessing` workers and into
-caches. The copy is equal to the original, bit for bit. The intersection,
-projection and approximation results do not pickle, because they keep a
-reference to the shapes they were computed on. Values stay unhashable
+caches. The copy is equal to the original, bit for bit. Every result
+pickles and copies too: the intersections, projections, extrema,
+curvatures, approximations and discretizations, and the hits, regions and
+curves inside them. A result that holds its operands (`first`,
+`second`, `target`) pickles them with it, so a worker can return an
+intersection. A shape's pickle calls its public constructor, so it loads
+in a later geomcore as long as that constructor takes the same
+arguments. A result's pickle loads only in the geomcore version that
+wrote it, since its parts change between releases; another version
+refuses it with a `ValueError` naming both (ADR 0053). Values stay unhashable
 (ADR 0009): `==` compares coordinates exactly.
 
 ## Reprs

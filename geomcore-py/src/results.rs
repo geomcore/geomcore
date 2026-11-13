@@ -13,8 +13,8 @@ use geomcore::{
     Completeness, CurveCurveExtrema, CurveCurveExtremum, CurveCurveHit, CurveCurveHit2D,
     CurveCurveIntersection, CurveCurveIntersection2D, CurveCurveOverlap, CurveCurveRegion,
     CurveProjection, CurveProjection2D, CurveSurfaceHit, CurveSurfaceIntersection,
-    CurveSurfaceOverlap, CurveSurfaceRegion, IntersectionCurve, Point, Point2D, SurfaceCurvatures,
-    SurfaceProjection, SurfaceSurfaceIntersection, SurfaceSurfaceRegion,
+    CurveSurfaceOverlap, CurveSurfaceRegion, IncompleteReason, IntersectionCurve, Point, Point2D,
+    SurfaceCurvatures, SurfaceProjection, SurfaceSurfaceIntersection, SurfaceSurfaceRegion,
 };
 use pyo3::prelude::*;
 use pyo3::type_object::PyTypeInfo;
@@ -68,6 +68,20 @@ pub(crate) struct PyCurveCurveRegion(pub(crate) CurveCurveRegion);
 
 #[pymethods]
 impl PyCurveCurveRegion {
+    fn __reduce__<'py>(slf: &Bound<'py, Self>) -> PyResult<Bound<'py, pyo3::types::PyTuple>> {
+        crate::result_states::pickled(slf.as_any(), Vec::new(), &slf.get().0)
+    }
+
+    /// Rebuilds a pickled object (see `__reduce__`).
+    #[staticmethod]
+    fn _from_state(py: Python<'_>, version: &str, state: &Bound<'_, PyAny>) -> PyResult<Self> {
+        Ok(Self(crate::result_states::unpickled(
+            py,
+            version,
+            state.extract()?,
+        )?))
+    }
+
     /// The first curve's parameter interval.
     #[getter]
     fn first_range(&self) -> (f64, f64) {
@@ -112,6 +126,20 @@ pub(crate) struct PyCurveSurfaceRegion(pub(crate) CurveSurfaceRegion);
 
 #[pymethods]
 impl PyCurveSurfaceRegion {
+    fn __reduce__<'py>(slf: &Bound<'py, Self>) -> PyResult<Bound<'py, pyo3::types::PyTuple>> {
+        crate::result_states::pickled(slf.as_any(), Vec::new(), &slf.get().0)
+    }
+
+    /// Rebuilds a pickled object (see `__reduce__`).
+    #[staticmethod]
+    fn _from_state(py: Python<'_>, version: &str, state: &Bound<'_, PyAny>) -> PyResult<Self> {
+        Ok(Self(crate::result_states::unpickled(
+            py,
+            version,
+            state.extract()?,
+        )?))
+    }
+
     /// The curve parameter interval.
     #[getter]
     fn curve_range(&self) -> (f64, f64) {
@@ -163,6 +191,20 @@ pub(crate) struct PySurfaceSurfaceRegion(pub(crate) SurfaceSurfaceRegion);
 
 #[pymethods]
 impl PySurfaceSurfaceRegion {
+    fn __reduce__<'py>(slf: &Bound<'py, Self>) -> PyResult<Bound<'py, pyo3::types::PyTuple>> {
+        crate::result_states::pickled(slf.as_any(), Vec::new(), &slf.get().0)
+    }
+
+    /// Rebuilds a pickled object (see `__reduce__`).
+    #[staticmethod]
+    fn _from_state(py: Python<'_>, version: &str, state: &Bound<'_, PyAny>) -> PyResult<Self> {
+        Ok(Self(crate::result_states::unpickled(
+            py,
+            version,
+            state.extract()?,
+        )?))
+    }
+
     /// The first surface's `u` parameter interval.
     #[getter]
     fn first_u_range(&self) -> (f64, f64) {
@@ -266,10 +308,70 @@ impl PyCompleteness {
     pub(crate) fn surface_surface(completeness: &Completeness<SurfaceSurfaceRegion>) -> Self {
         Self::new(completeness, Regions::SurfaceSurface)
     }
+
+    /// The Rust completeness, with `regions` as its regions.
+    fn rust<R: Clone>(&self, regions: &[R]) -> Completeness<R> {
+        match (self.status, self.reason) {
+            (PyCompletenessStatus::Incomplete, Some(reason)) => Completeness::Incomplete {
+                reason: match reason {
+                    PyIncompleteReason::BudgetExhausted => IncompleteReason::BudgetExhausted,
+                    PyIncompleteReason::Unseparated => IncompleteReason::Unseparated,
+                    PyIncompleteReason::Unbounded => IncompleteReason::Unbounded,
+                },
+                regions: regions.to_vec(),
+            },
+            (PyCompletenessStatus::Sampled, _) => Completeness::Sampled,
+            _ => Completeness::Complete,
+        }
+    }
 }
 
 #[pymethods]
 impl PyCompleteness {
+    fn __reduce__<'py>(slf: &Bound<'py, Self>) -> PyResult<Bound<'py, pyo3::types::PyTuple>> {
+        use crate::result_states::pickled;
+        use pyo3::IntoPyObjectExt;
+        let (this, py) = (slf.get(), slf.py());
+        let object = slf.as_any();
+        let kind = |name: &str| name.into_py_any(py).map(|kind| vec![kind]);
+        match &this.regions {
+            Regions::CurveCurve(r) => pickled(object, kind("curve_curve")?, &this.rust(r)),
+            Regions::CurveSurface(r) => pickled(object, kind("curve_surface")?, &this.rust(r)),
+            Regions::SurfaceSurface(r) => pickled(object, kind("surface_surface")?, &this.rust(r)),
+        }
+    }
+
+    /// Rebuilds a pickled completeness (see `__reduce__`).
+    #[staticmethod]
+    fn _from_state(
+        py: Python<'_>,
+        version: &str,
+        kind: &str,
+        state: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
+        use crate::result_states::unpickled;
+        match kind {
+            "curve_curve" => Ok(Self::curve_curve(&unpickled(
+                py,
+                version,
+                state.extract()?,
+            )?)),
+            "curve_surface" => Ok(Self::curve_surface(&unpickled(
+                py,
+                version,
+                state.extract()?,
+            )?)),
+            "surface_surface" => Ok(Self::surface_surface(&unpickled(
+                py,
+                version,
+                state.extract()?,
+            )?)),
+            _ => Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "unknown kind of completeness {kind:?} in a pickle"
+            ))),
+        }
+    }
+
     /// `COMPLETE`, `INCOMPLETE` or `SAMPLED`.
     #[getter]
     fn status(&self) -> PyCompletenessStatus {
@@ -334,6 +436,20 @@ pub(crate) struct PyCurveCurveHit(pub(crate) CurveCurveHit);
 
 #[pymethods]
 impl PyCurveCurveHit {
+    fn __reduce__<'py>(slf: &Bound<'py, Self>) -> PyResult<Bound<'py, pyo3::types::PyTuple>> {
+        crate::result_states::pickled(slf.as_any(), Vec::new(), &slf.get().0)
+    }
+
+    /// Rebuilds a pickled object (see `__reduce__`).
+    #[staticmethod]
+    fn _from_state(py: Python<'_>, version: &str, state: &Bound<'_, PyAny>) -> PyResult<Self> {
+        Ok(Self(crate::result_states::unpickled(
+            py,
+            version,
+            state.extract()?,
+        )?))
+    }
+
     /// The parameter on the first curve.
     #[getter]
     fn first_parameter(&self) -> f64 {
@@ -376,6 +492,20 @@ pub(crate) struct PyCurveCurveHit2D(pub(crate) CurveCurveHit2D);
 
 #[pymethods]
 impl PyCurveCurveHit2D {
+    fn __reduce__<'py>(slf: &Bound<'py, Self>) -> PyResult<Bound<'py, pyo3::types::PyTuple>> {
+        crate::result_states::pickled(slf.as_any(), Vec::new(), &slf.get().0)
+    }
+
+    /// Rebuilds a pickled object (see `__reduce__`).
+    #[staticmethod]
+    fn _from_state(py: Python<'_>, version: &str, state: &Bound<'_, PyAny>) -> PyResult<Self> {
+        Ok(Self(crate::result_states::unpickled(
+            py,
+            version,
+            state.extract()?,
+        )?))
+    }
+
     /// The parameter on the first curve.
     #[getter]
     fn first_parameter(&self) -> f64 {
@@ -419,6 +549,20 @@ pub(crate) struct PyCurveSurfaceHit(pub(crate) CurveSurfaceHit);
 
 #[pymethods]
 impl PyCurveSurfaceHit {
+    fn __reduce__<'py>(slf: &Bound<'py, Self>) -> PyResult<Bound<'py, pyo3::types::PyTuple>> {
+        crate::result_states::pickled(slf.as_any(), Vec::new(), &slf.get().0)
+    }
+
+    /// Rebuilds a pickled object (see `__reduce__`).
+    #[staticmethod]
+    fn _from_state(py: Python<'_>, version: &str, state: &Bound<'_, PyAny>) -> PyResult<Self> {
+        Ok(Self(crate::result_states::unpickled(
+            py,
+            version,
+            state.extract()?,
+        )?))
+    }
+
     /// The parameter on the curve.
     #[getter]
     fn curve_parameter(&self) -> f64 {
@@ -472,6 +616,20 @@ pub(crate) struct PyCurveCurveOverlap(pub(crate) CurveCurveOverlap);
 
 #[pymethods]
 impl PyCurveCurveOverlap {
+    fn __reduce__<'py>(slf: &Bound<'py, Self>) -> PyResult<Bound<'py, pyo3::types::PyTuple>> {
+        crate::result_states::pickled(slf.as_any(), Vec::new(), &slf.get().0)
+    }
+
+    /// Rebuilds a pickled object (see `__reduce__`).
+    #[staticmethod]
+    fn _from_state(py: Python<'_>, version: &str, state: &Bound<'_, PyAny>) -> PyResult<Self> {
+        Ok(Self(crate::result_states::unpickled(
+            py,
+            version,
+            state.extract()?,
+        )?))
+    }
+
     /// The first curve's parameter interval.
     #[getter]
     fn first_range(&self) -> (f64, f64) {
@@ -509,6 +667,20 @@ pub(crate) struct PyCurveSurfaceOverlap(pub(crate) CurveSurfaceOverlap);
 
 #[pymethods]
 impl PyCurveSurfaceOverlap {
+    fn __reduce__<'py>(slf: &Bound<'py, Self>) -> PyResult<Bound<'py, pyo3::types::PyTuple>> {
+        crate::result_states::pickled(slf.as_any(), Vec::new(), &slf.get().0)
+    }
+
+    /// Rebuilds a pickled object (see `__reduce__`).
+    #[staticmethod]
+    fn _from_state(py: Python<'_>, version: &str, state: &Bound<'_, PyAny>) -> PyResult<Self> {
+        Ok(Self(crate::result_states::unpickled(
+            py,
+            version,
+            state.extract()?,
+        )?))
+    }
+
     /// The curve's parameter interval.
     #[getter]
     fn curve_range(&self) -> (f64, f64) {
@@ -530,6 +702,20 @@ pub(crate) struct PyIntersectionCurve(pub(crate) IntersectionCurve);
 
 #[pymethods]
 impl PyIntersectionCurve {
+    fn __reduce__<'py>(slf: &Bound<'py, Self>) -> PyResult<Bound<'py, pyo3::types::PyTuple>> {
+        crate::result_states::pickled(slf.as_any(), Vec::new(), &slf.get().0)
+    }
+
+    /// Rebuilds a pickled object (see `__reduce__`).
+    #[staticmethod]
+    fn _from_state(py: Python<'_>, version: &str, state: &Bound<'_, PyAny>) -> PyResult<Self> {
+        Ok(Self(crate::result_states::unpickled(
+            py,
+            version,
+            state.extract()?,
+        )?))
+    }
+
     /// The curve: a line, circle, ellipse, parabola or hyperbola from a
     /// closed form, a `BSplineCurve` traced by marching otherwise.
     #[getter]
@@ -625,6 +811,26 @@ macro_rules! intersection_result {
         #[pymethods]
         impl $class {
             $($own)*
+
+            fn __reduce__<'py>(slf: &Bound<'py, Self>) -> PyResult<Bound<'py, pyo3::types::PyTuple>> {
+                let (this, py) = (slf.get(), slf.py());
+                let operands = vec![this.first.clone_ref(py), this.second.clone_ref(py)];
+                crate::result_states::pickled(slf.as_any(), operands, &this.result)
+            }
+
+            /// Rebuilds a pickled result (see `__reduce__`).
+            #[staticmethod]
+            fn _from_state(
+                py: Python<'_>,
+                version: &str,
+                first: Py<PyAny>,
+                second: Py<PyAny>,
+                state: &Bound<'_, PyAny>,
+            ) -> PyResult<Self> {
+                let result = crate::result_states::unpickled(py, version, state.extract()?)?;
+                Ok(Self { result, first, second })
+            }
+
 
             #[doc = concat!("The number of `", stringify!($items), "`.")]
             fn __len__(&self) -> usize {
@@ -980,6 +1186,28 @@ impl PyCurveProjection {
 
 #[pymethods]
 impl PyCurveProjection {
+    fn __reduce__<'py>(slf: &Bound<'py, Self>) -> PyResult<Bound<'py, pyo3::types::PyTuple>> {
+        let (this, py) = (slf.get(), slf.py());
+        let value = (this.result, this.query_point);
+        crate::result_states::pickled(slf.as_any(), vec![this.target.clone_ref(py)], &value)
+    }
+
+    /// Rebuilds a pickled result (see `__reduce__`).
+    #[staticmethod]
+    fn _from_state(
+        py: Python<'_>,
+        version: &str,
+        target: Py<PyAny>,
+        state: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
+        let (result, query_point) = crate::result_states::unpickled(py, version, state.extract()?)?;
+        Ok(Self {
+            result,
+            target,
+            query_point,
+        })
+    }
+
     /// The parameter of the closest point.
     #[getter]
     fn parameter(&self) -> f64 {
@@ -1055,6 +1283,28 @@ impl PyCurveProjection2D {
 
 #[pymethods]
 impl PyCurveProjection2D {
+    fn __reduce__<'py>(slf: &Bound<'py, Self>) -> PyResult<Bound<'py, pyo3::types::PyTuple>> {
+        let (this, py) = (slf.get(), slf.py());
+        let value = (this.result, this.query_point);
+        crate::result_states::pickled(slf.as_any(), vec![this.target.clone_ref(py)], &value)
+    }
+
+    /// Rebuilds a pickled result (see `__reduce__`).
+    #[staticmethod]
+    fn _from_state(
+        py: Python<'_>,
+        version: &str,
+        target: Py<PyAny>,
+        state: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
+        let (result, query_point) = crate::result_states::unpickled(py, version, state.extract()?)?;
+        Ok(Self {
+            result,
+            target,
+            query_point,
+        })
+    }
+
     /// The parameter of the closest point.
     #[getter]
     fn parameter(&self) -> f64 {
@@ -1130,6 +1380,28 @@ impl PySurfaceProjection {
 
 #[pymethods]
 impl PySurfaceProjection {
+    fn __reduce__<'py>(slf: &Bound<'py, Self>) -> PyResult<Bound<'py, pyo3::types::PyTuple>> {
+        let (this, py) = (slf.get(), slf.py());
+        let value = (this.result, this.query_point);
+        crate::result_states::pickled(slf.as_any(), vec![this.target.clone_ref(py)], &value)
+    }
+
+    /// Rebuilds a pickled result (see `__reduce__`).
+    #[staticmethod]
+    fn _from_state(
+        py: Python<'_>,
+        version: &str,
+        target: Py<PyAny>,
+        state: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
+        let (result, query_point) = crate::result_states::unpickled(py, version, state.extract()?)?;
+        Ok(Self {
+            result,
+            target,
+            query_point,
+        })
+    }
+
     /// The `u` parameter of the closest point.
     #[getter]
     fn u(&self) -> f64 {
@@ -1215,6 +1487,20 @@ pub(crate) struct PyCurveCurveExtremum(pub(crate) CurveCurveExtremum);
 
 #[pymethods]
 impl PyCurveCurveExtremum {
+    fn __reduce__<'py>(slf: &Bound<'py, Self>) -> PyResult<Bound<'py, pyo3::types::PyTuple>> {
+        crate::result_states::pickled(slf.as_any(), Vec::new(), &slf.get().0)
+    }
+
+    /// Rebuilds a pickled object (see `__reduce__`).
+    #[staticmethod]
+    fn _from_state(py: Python<'_>, version: &str, state: &Bound<'_, PyAny>) -> PyResult<Self> {
+        Ok(Self(crate::result_states::unpickled(
+            py,
+            version,
+            state.extract()?,
+        )?))
+    }
+
     /// The parameter on the first curve.
     #[getter]
     fn first_parameter(&self) -> f64 {
@@ -1271,6 +1557,29 @@ pub(crate) struct PyCurveCurveExtrema {
 
 #[pymethods]
 impl PyCurveCurveExtrema {
+    fn __reduce__<'py>(slf: &Bound<'py, Self>) -> PyResult<Bound<'py, pyo3::types::PyTuple>> {
+        let (this, py) = (slf.get(), slf.py());
+        let operands = vec![this.first.clone_ref(py), this.second.clone_ref(py)];
+        crate::result_states::pickled(slf.as_any(), operands, &this.result)
+    }
+
+    /// Rebuilds a pickled result (see `__reduce__`).
+    #[staticmethod]
+    fn _from_state(
+        py: Python<'_>,
+        version: &str,
+        first: Py<PyAny>,
+        second: Py<PyAny>,
+        state: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
+        let result = crate::result_states::unpickled(py, version, state.extract()?)?;
+        Ok(Self {
+            result,
+            first,
+            second,
+        })
+    }
+
     /// The number of minima; an extrema result is falsy when there is none.
     fn __len__(&self) -> usize {
         self.result.minima().len()
@@ -1374,6 +1683,20 @@ pub(crate) struct PySurfaceCurvatures(pub(crate) SurfaceCurvatures);
 
 #[pymethods]
 impl PySurfaceCurvatures {
+    fn __reduce__<'py>(slf: &Bound<'py, Self>) -> PyResult<Bound<'py, pyo3::types::PyTuple>> {
+        crate::result_states::pickled(slf.as_any(), Vec::new(), &slf.get().0)
+    }
+
+    /// Rebuilds a pickled object (see `__reduce__`).
+    #[staticmethod]
+    fn _from_state(py: Python<'_>, version: &str, state: &Bound<'_, PyAny>) -> PyResult<Self> {
+        Ok(Self(crate::result_states::unpickled(
+            py,
+            version,
+            state.extract()?,
+        )?))
+    }
+
     /// The smaller principal curvature.
     #[getter]
     fn min_curvature(&self) -> f64 {

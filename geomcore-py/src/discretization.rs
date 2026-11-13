@@ -22,6 +22,20 @@ pub(crate) struct PyDiscretization(pub(crate) Discretization);
 
 #[pymethods]
 impl PyDiscretization {
+    fn __reduce__<'py>(slf: &Bound<'py, Self>) -> PyResult<Bound<'py, pyo3::types::PyTuple>> {
+        crate::result_states::pickled(slf.as_any(), Vec::new(), &slf.get().0)
+    }
+
+    /// Rebuilds a pickled object (see `__reduce__`).
+    #[staticmethod]
+    fn _from_state(py: Python<'_>, version: &str, state: &Bound<'_, PyAny>) -> PyResult<Self> {
+        Ok(Self(crate::result_states::unpickled(
+            py,
+            version,
+            state.extract()?,
+        )?))
+    }
+
     /// The parameter of each point, increasing.
     #[getter]
     fn parameters(&self) -> Vec<f64> {
@@ -102,6 +116,20 @@ pub(crate) struct PyDiscretization2D(pub(crate) Discretization2D);
 
 #[pymethods]
 impl PyDiscretization2D {
+    fn __reduce__<'py>(slf: &Bound<'py, Self>) -> PyResult<Bound<'py, pyo3::types::PyTuple>> {
+        crate::result_states::pickled(slf.as_any(), Vec::new(), &slf.get().0)
+    }
+
+    /// Rebuilds a pickled object (see `__reduce__`).
+    #[staticmethod]
+    fn _from_state(py: Python<'_>, version: &str, state: &Bound<'_, PyAny>) -> PyResult<Self> {
+        Ok(Self(crate::result_states::unpickled(
+            py,
+            version,
+            state.extract()?,
+        )?))
+    }
+
     /// The parameter of each point, increasing.
     #[getter]
     fn parameters(&self) -> Vec<f64> {
