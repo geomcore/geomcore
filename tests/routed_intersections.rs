@@ -1759,3 +1759,45 @@ fn test_curves_sharing_their_ends_touch_there_far_from_the_origin() {
         }
     }
 }
+
+#[test]
+fn test_cylinders_whose_axes_nearly_meet_return_finite_curves_in_bounded_work() {
+    // Axes through one point at a small angle, radii 2 and 1.5: the curves
+    // are real and run out along the nearly parallel axes, 3.5 / angle far.
+    // Below 4e-4 rad their points are known more coarsely than the fit's
+    // deviation, and the fit used to split without end until memory ran
+    // out (#305); past its budget it now hands the pair to the search.
+    let first = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
+    for angle in [
+        1e-2_f64, 1e-3, 4e-4, 2e-4, 1e-4, 1e-5, 1e-7, 1e-9, 1e-11, 1e-13,
+    ] {
+        let axis = Vector::new(angle.sin(), 0.0, angle.cos());
+        let second = Cylinder::new(Point::ORIGIN, axis, 1.5).unwrap();
+        let result = Surface::from(first).intersect(&Surface::from(second), TOL);
+        for piece in result.curves() {
+            let (start, end) = piece.parameter_range;
+            assert!(
+                start.is_finite() && end.is_finite(),
+                "at {angle}: {start}, {end}"
+            );
+            for parameter in [start, 0.5 * (start + end), end] {
+                let point = piece.curve.point_at(parameter);
+                assert!(point.x.is_finite() && point.y.is_finite() && point.z.is_finite());
+            }
+        }
+        if angle >= 4e-4 {
+            assert_eq!(result.method(), IntersectionMethod::Exact, "at {angle}");
+            assert!(result.completeness().is_complete(), "at {angle}");
+            assert_eq!(result.curves().len(), 2, "at {angle}");
+        } else if angle >= 1e-4 {
+            // The search finds both loops, within the confusion.
+            assert_eq!(result.curves().len(), 2, "at {angle}");
+            assert!(
+                result
+                    .curves()
+                    .iter()
+                    .all(|piece| piece.deviation <= TOL.confusion)
+            );
+        }
+    }
+}
