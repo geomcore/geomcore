@@ -328,3 +328,199 @@ fn test_elementary_surfaces_reject_non_finite() {
     assert!(Torus::new(O, Z, 4.0, 0.0).is_ok());
     assert!(Cone::new(O, Z, 0.4, 0.0).is_ok());
 }
+
+/// Six points along a wave, with point `at` replaced by `bad`: a scan row
+/// with one bad sample.
+fn wave_with(at: usize, bad: Point) -> Vec<Point> {
+    let mut points: Vec<Point> = (0..6)
+        .map(|i| Point::new(i as f64, (i % 2) as f64, 0.0))
+        .collect();
+    points[at] = bad;
+    points
+}
+
+#[test]
+fn test_bspline_and_bezier_curves_reject_non_finite() {
+    use geomcore::{
+        BSplineConstructionError, BSplineCurve, BSplineCurve2D, BezierConstructionError,
+        BezierCurve, BezierCurve2D, PoleEditError,
+    };
+    let nf = Some(BSplineConstructionError::NonFinite);
+    let bezier_nf = Some(BezierConstructionError::NonFinite);
+    let line = |end: Point| vec![O, end];
+    let (knots, ends) = (vec![0.0, 1.0], vec![2, 2]);
+    let good = BSplineCurve::new(
+        1,
+        line(Point::new(1.0, 0.0, 0.0)),
+        knots.clone(),
+        ends.clone(),
+        false,
+    )
+    .unwrap();
+    for p in bad_points() {
+        assert_eq!(
+            BSplineCurve::new(1, line(p), knots.clone(), ends.clone(), false).err(),
+            nf
+        );
+        assert_eq!(BSplineCurve::clamped_uniform(1, line(p)).err(), nf);
+        assert_eq!(
+            BSplineCurve::from_flat_knots(1, line(p), vec![0.0, 0.0, 1.0, 1.0], None, false).err(),
+            nf
+        );
+        assert_eq!(BezierCurve::new(1, line(p)).err(), bezier_nf);
+        assert_eq!(
+            good.with_pole(1, p).err(),
+            Some(PoleEditError::NonFinitePole)
+        );
+    }
+    for b in BAD {
+        let p = Point2D::new(b, 0.0);
+        assert_eq!(
+            BSplineCurve2D::clamped_uniform(1, vec![Point2D::ORIGIN, p]).err(),
+            nf
+        );
+        assert_eq!(
+            BezierCurve2D::new(1, vec![Point2D::ORIGIN, p]).err(),
+            bezier_nf
+        );
+        let line = line(Point::new(1.0, 0.0, 0.0));
+        assert_eq!(
+            BSplineCurve::new(1, line.clone(), vec![0.0, b], ends.clone(), false).err(),
+            nf
+        );
+        assert_eq!(
+            BSplineCurve::from_flat_knots(1, line.clone(), vec![b, b, 1.0, 1.0], None, false).err(),
+            nf
+        );
+        assert_eq!(
+            BSplineCurve::new_rational(
+                1,
+                line.clone(),
+                vec![1.0, b],
+                knots.clone(),
+                ends.clone(),
+                false
+            )
+            .err(),
+            nf
+        );
+        assert_eq!(
+            BezierCurve::new_rational(1, line, vec![b, 1.0]).err(),
+            bezier_nf
+        );
+    }
+}
+
+#[test]
+fn test_bspline_curve_fits_reject_non_finite_points() {
+    use geomcore::{BSplineConstructionError, BSplineCurve, BSplineCurve2D, PointParametrization};
+    let nf = Some(BSplineConstructionError::NonFinite);
+    let centripetal = PointParametrization::Centripetal;
+    for (at, p) in [0, 2, 5].into_iter().zip(bad_points()) {
+        let points = wave_with(at, p);
+        assert_eq!(BSplineCurve::interpolate(&points, 3, centripetal).err(), nf);
+        assert_eq!(
+            BSplineCurve::approximate(&points, 3, 4, centripetal).err(),
+            nf
+        );
+        // A NaN fit read as proven within any deviation.
+        assert_eq!(
+            BSplineCurve::approximate_within(&points, 3, 0.01, centripetal).err(),
+            nf
+        );
+        let flat: Vec<Point2D> = points.iter().map(|q| Point2D::new(q.x, q.y)).collect();
+        assert_eq!(BSplineCurve2D::interpolate(&flat, 3, centripetal).err(), nf);
+        assert_eq!(
+            BSplineCurve2D::approximate(&flat, 3, 4, centripetal).err(),
+            nf
+        );
+        assert_eq!(
+            BSplineCurve2D::approximate_within(&flat, 3, 0.01, centripetal).err(),
+            nf
+        );
+    }
+}
+
+#[test]
+fn test_bspline_and_bezier_surfaces_reject_non_finite() {
+    use geomcore::{
+        BSplineConstructionError, BSplineSurface, BezierConstructionError, BezierSurface,
+        PointParametrization,
+    };
+    let nf = Some(BSplineConstructionError::NonFinite);
+    let bezier_nf = Some(BezierConstructionError::NonFinite);
+    let grid = |bad: Point| {
+        vec![
+            vec![O, Point::new(0.0, 1.0, 0.0)],
+            vec![Point::new(1.0, 0.0, 0.0), bad],
+        ]
+    };
+    let good = || grid(Point::new(1.0, 1.0, 1.0));
+    let (k, m) = (vec![0.0, 1.0], vec![2, 2]);
+    let unit_weights = |b: f64| vec![vec![1.0, 1.0], vec![1.0, b]];
+    for p in bad_points() {
+        let surface = BSplineSurface::new(
+            1,
+            1,
+            grid(p),
+            k.clone(),
+            m.clone(),
+            k.clone(),
+            m.clone(),
+            false,
+            false,
+        );
+        assert_eq!(surface.err(), nf);
+        assert_eq!(BezierSurface::new(1, 1, grid(p)).err(), bezier_nf);
+    }
+    for b in BAD {
+        let surface = BSplineSurface::new(
+            1,
+            1,
+            good(),
+            vec![0.0, b],
+            m.clone(),
+            k.clone(),
+            m.clone(),
+            false,
+            false,
+        );
+        assert_eq!(surface.err(), nf);
+        let rational = BSplineSurface::new_rational(
+            1,
+            1,
+            good(),
+            unit_weights(b),
+            k.clone(),
+            m.clone(),
+            k.clone(),
+            m.clone(),
+            false,
+            false,
+        );
+        assert_eq!(rational.err(), nf);
+        assert_eq!(
+            BezierSurface::new_rational(1, 1, good(), unit_weights(b)).err(),
+            bezier_nf
+        );
+    }
+    let centripetal = PointParametrization::Centripetal;
+    for (at, p) in [0, 2, 5].into_iter().zip(bad_points()) {
+        let rows: Vec<Vec<Point>> = (0..4)
+            .map(|r| {
+                wave_with(at, p)
+                    .into_iter()
+                    .map(|q| Point::new(q.x, q.y, r as f64))
+                    .collect()
+            })
+            .collect();
+        assert_eq!(
+            BSplineSurface::approximate(&rows, 2, 3, 3, 4, centripetal).err(),
+            nf
+        );
+        assert_eq!(
+            BSplineSurface::approximate_within(&rows, 2, 3, 0.01, centripetal).err(),
+            nf
+        );
+    }
+}

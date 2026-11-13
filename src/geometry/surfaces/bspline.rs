@@ -6,7 +6,7 @@
 //! pole if rational, and each direction's knot vector with its flattened
 //! knot sequence, so evaluation never re-derives them.
 
-use crate::geometry::curves::{Curve, Curve2D};
+use crate::geometry::curves::{Curve, Curve2D, grid_finite};
 use crate::geometry::surfaces::uv_curve::{from_curve, to_curve};
 use crate::geometry::surfaces::{Curve3DToUvError, UvCurveTo3DError};
 use std::cmp::Ordering;
@@ -154,7 +154,9 @@ impl BSplineSurface {
     ///
     /// Returns [`BSplineConstructionError::PoleCountMismatch`] if the pole grid
     /// is empty or ragged (rows of differing length), since a well-formed
-    /// tensor-product net must be rectangular. Otherwise returns a
+    /// tensor-product net must be rectangular, and
+    /// [`BSplineConstructionError::NonFinite`] if a pole or a knot is NaN or
+    /// infinite. Otherwise returns a
     /// [`BSplineConstructionError`] if either direction's `degree`, `knots`,
     /// `multiplicities`, and pole count (grid rows for `u`, columns for `v`)
     /// are not mutually consistent (see the error variants for the exact
@@ -211,8 +213,10 @@ impl BSplineSurface {
     /// # Errors
     ///
     /// Returns [`BSplineConstructionError::WeightCountMismatch`] if the weight
-    /// grid does not match the pole grid shape, or
-    /// [`BSplineConstructionError::NonPositiveWeight`] if any weight is `<= 0`.
+    /// grid does not match the pole grid shape,
+    /// [`BSplineConstructionError::NonFinite`] if a weight is NaN or
+    /// infinite, or [`BSplineConstructionError::NonPositiveWeight`] if any
+    /// weight is `<= 0`.
     /// Otherwise validates the pole grid and both directions exactly as
     /// [`BSplineSurface::new`] does.
     ///
@@ -306,6 +310,10 @@ impl BSplineSurface {
         let n_v = poles[0].len();
         if poles.iter().any(|row| row.len() != n_v) {
             return Err(BSplineConstructionError::PoleCountMismatch);
+        }
+
+        if !grid_finite(&poles, weights.as_deref()) {
+            return Err(BSplineConstructionError::NonFinite);
         }
 
         // Weight grid, if present, must match the pole grid shape, and be

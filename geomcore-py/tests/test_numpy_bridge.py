@@ -156,8 +156,6 @@ def test_returned_arrays_are_fresh_and_writable() -> None:
     assert first.flags.writeable
 
 
-
-
 @pytest.mark.parametrize(
     "point, vector",
     [(Point(1.0, 2.0, 3.0), Vector(1.0, 2.0, 3.0)), (Point2D(1.0, 2.0), Vector2D(1.0, 2.0))],
@@ -184,3 +182,22 @@ def test_numpy_on_the_left_defers_to_the_value_operators(point, vector) -> None:
         assert (value == same) is False and (same == value) is False
         numpy.testing.assert_array_equal(numpy.asarray(value), list(value))
     assert type(point + vector) is type(point) and type(point - point) is type(vector)
+
+
+@pytest.mark.parametrize("bad", [math.nan, math.inf])
+def test_a_non_finite_point_fails_every_fit(bad: float) -> None:
+    # #307: one bad scan row built a NaN curve, a fit reported proven.
+    from geomcore import ConstructionError
+
+    row = numpy.array([[0.0, 0, 0], [1, 1, 0], [2, bad, 0], [3, 1, 0], [4, 0, 0], [5, 1, 0]])
+    fits = [
+        lambda: BSplineCurve.interpolate(row, 3),
+        lambda: BSplineCurve.approximate(row, 3, 4),
+        lambda: BSplineCurve.approximate_within(row, 3, 0.01),
+        lambda: BSplineCurve2D.approximate_within(row[:, :2], 3, 0.01),
+        lambda: BSplineSurface.approximate_within(numpy.stack([row, row + [0, 0, 1]]), 1, 3, 0.01),
+        lambda: BSplineCurve.clamped_uniform(3, [Point(*p) for p in row]),
+    ]
+    for fit in fits:
+        with pytest.raises(ConstructionError, match="NaN or infinite"):
+            fit()

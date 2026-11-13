@@ -18,6 +18,9 @@ the Python distribution are versioned in lockstep.
 - `SphereConeIntersection` gains `CircleAndApex(Circle, Point)` (#312).
   A `match` on it needs an arm for the new variant, as for `TwoCircles`
   with the point added to the contacts.
+- `BSplineConstructionError` and `BezierConstructionError` gain
+  `NonFinite`, and `PoleEditError` gains `NonFinitePole` (#307). A
+  `match` on them needs an arm for the new variant.
 
 ### Fixed
 
@@ -29,6 +32,13 @@ the Python distribution are versioned in lockstep.
   None`, so the number scales the vector, an array on either side of an
   operator raises `TypeError`, and `==` against an array is `False`.
   `numpy.array(p)` converts as before.
+- A NaN or infinite pole, weight, knot or data point is refused by every
+  B-spline and Bézier constructor and fit, curve and surface, 2D and 3D
+  (#307). It built a curve of NaN without complaint: one bad sample in
+  six gave `BSplineCurve.interpolate` the knots `[0, nan, nan, 1]`, and
+  `approximate_within` called the NaN fit proven within any deviation.
+  Each now raises `ConstructionError` (Rust: `NonFinite`), as the conic
+  constructors already did; `with_pole` refuses a non-finite pole too.
 - A trimmed curve against a revolution or extrusion surface, or any
   surface without a closed form, no longer returns hits beyond its ends
   (#308). The numeric search's Newton iteration is not held to the

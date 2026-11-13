@@ -100,7 +100,7 @@ intersect_dispatch	intersect/line_torus/typed	7694181
 intersect_dispatch	intersect/parallel_cones/elementary	3980036
 intersect_dispatch	intersect/parallel_cones/erased	4066052
 intersect_dispatch	intersect/parallel_cones/routed	3699268
-intersect_dispatch	intersect/parallel_cones/typed	2231860
+intersect_dispatch	intersect/parallel_cones/typed	2255412
 intersect_dispatch	intersect/plane_sphere/elementary	1660489
 intersect_dispatch	intersect/plane_sphere/erased	1724641
 intersect_dispatch	intersect/plane_sphere/routed	1491283
@@ -110,7 +110,7 @@ intersect_dispatch	intersect/torus_cone/erased	4619725
 intersect_dispatch	intersect/torus_cone/routed	4325763
 intersect_dispatch	intersect/torus_cone/typed	1251054
 intersect_dispatch	intersect_routed/circle_circle/exact	444726
-intersect_dispatch	intersect_routed/circle_circle/routed	1668962
+intersect_dispatch	intersect_routed/circle_circle/routed	1686370
 intersect_dispatch	intersect_routed/circle_circle_2d/exact	79147
 intersect_dispatch	intersect_routed/circle_circle_2d/routed	1095241
 intersect_dispatch	intersect_routed/cone_cylinder/along_branches_exact	1894
@@ -184,7 +184,7 @@ swept_plane_cut	swept_plane_cut/cylinder_parallel/bspline_patch	5174293
 swept_plane_cut	swept_plane_cut/cylinder_parallel/elementary	2840
 swept_plane_cut	swept_plane_cut/cylinder_parallel/swept	7515
 swept_plane_cut	swept_plane_cut/extrusion_bspline_oblique/bspline_patch	6941726
-swept_plane_cut	swept_plane_cut/extrusion_bspline_oblique/swept	6985
+swept_plane_cut	swept_plane_cut/extrusion_bspline_oblique/swept	7112
 swept_plane_cut	swept_plane_cut/revolution_bspline_perpendicular/bspline_patch	20212323
 swept_plane_cut	swept_plane_cut/revolution_bspline_perpendicular/swept	42155
 swept_plane_cut	swept_plane_cut/torus_perpendicular/bspline_patch	50248885
