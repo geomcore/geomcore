@@ -14,11 +14,12 @@ mod common;
 use common::samples::{curve_parameter_is_length, surface_parameters_are_lengths};
 use geomcore::prelude::*;
 use geomcore::{
-    Axis, BSplineCurve, BSplineSurface, Circle, Cone, Curve, CurveCurveHit,
+    Axis, BSplineCurve, BSplineSurface, Circle, Cone, Curve, Curve3DToUvError, CurveCurveHit,
     CurveSurfaceIntersection, Cylinder, Ellipse, Frame, Hyperbola, Intersect, IntersectionMethod,
     Line, Parabola, Plane, Point, Sphere, Surface, SurfaceSurfaceIntersection, Tolerance, Torus,
-    Transform, Vector,
+    Transform, TrimmedCurve, Vector,
 };
+use std::f64::consts::PI;
 
 const PARAMETERS: [(f64, f64); 4] = [(0.0, 0.0), (0.3, 0.2), (2.0, -0.7), (4.5, 1.1)];
 const CURVE_PARAMETERS: [f64; 4] = [0.0, 0.3, 2.0, 4.5];
@@ -959,9 +960,16 @@ fn test_parametrization_on_reversed_and_mirrored_surfaces() {
             surface.transformed(mirror.transform).unwrap(),
         ] {
             for curve in curves_on(&target) {
-                let pcurve = target
-                    .curve_3d_to_uv(&curve, tol)
-                    .unwrap_or_else(|error| panic!("{error:?}: {curve:?} on {target:?}"));
+                let pcurve = match target.curve_3d_to_uv(&curve, tol) {
+                    Ok(pcurve) => pcurve,
+                    // A sphere's meridian runs through its poles: each half,
+                    // pole to pole, maps on its own (#313).
+                    Err(Curve3DToUvError::ThroughPole) => {
+                        check_meridian_halves(&target, &curve, tol);
+                        continue;
+                    }
+                    Err(error) => panic!("{error:?}: {curve:?} on {target:?}"),
+                };
                 for parameter in [0.0, 0.9, 2.5, 5.0] {
                     let uv = pcurve.point_at(parameter);
                     let on_surface = target.point_at(uv.x, uv.y);
@@ -971,6 +979,39 @@ fn test_parametrization_on_reversed_and_mirrored_surfaces() {
                     );
                 }
             }
+        }
+    }
+}
+
+/// Each half of the meridian `curve` of the sphere `target`, from pole to
+/// pole, maps to a UV curve within the `v` bounds that runs on the
+/// meridian.
+fn check_meridian_halves(target: &Surface, curve: &Curve, tol: Tolerance) {
+    let (Surface::Sphere(sphere), Curve::Circle(circle)) = (target, curve) else {
+        panic!("only a sphere's meridian runs through a pole: {curve:?} on {target:?}");
+    };
+    // The meridian's parameter at the north pole.
+    let axis = sphere.frame().z_direction();
+    let frame = circle.frame();
+    let pole = axis
+        .dot(frame.y_direction())
+        .atan2(axis.dot(frame.x_direction()));
+    for start in [pole, pole + PI] {
+        let half = TrimmedCurve::new(curve.clone(), start, start + PI).unwrap();
+        let uv_curve = target.trimmed_curve_3d_to_uv(&half, tol).unwrap();
+        let (low, high) = target.v_bounds();
+        for k in 0..=6 {
+            let parameter = start + PI * f64::from(k) / 6.0;
+            let uv = uv_curve.point_at(parameter);
+            assert!(
+                uv.y >= low - 1e-9 && uv.y <= high + 1e-9,
+                "{curve:?} at {parameter}"
+            );
+            let on_surface = target.point_at(uv.x, uv.y);
+            assert!(
+                on_surface.distance(curve.point_at(parameter)) < 1e-9,
+                "{curve:?} on {target:?} at {parameter}"
+            );
         }
     }
 }

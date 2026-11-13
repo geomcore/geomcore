@@ -16,8 +16,8 @@ use common::{
 };
 use geomcore::prelude::*;
 use geomcore::{
-    Axis, BSplineCurve2D, Circle, Cone, Curve2D, Curve3DToUvError, Cylinder, Ellipse, Hyperbola,
-    Plane, Tolerance, Transform,
+    Axis, BSplineCurve2D, Circle, Cone, Curve, Curve2D, Curve3DToUvError, Cylinder, Ellipse,
+    Hyperbola, Plane, Surface, Tolerance, Transform, TrimmedCurve,
 };
 use serde::Deserialize;
 
@@ -657,6 +657,41 @@ fn parametrize_matches_golden_fixture() {
                 "case {}: expected CurveNotOnSurface",
                 case.name
             );
+            continue;
+        }
+
+        // A whole sphere meridian runs through the poles and is refused
+        // (#313), where the reference returns one line leaving the `v`
+        // bounds. Each reference point is checked on the half of the
+        // meridian, pole to pole, that holds its parameter.
+        if result == Err(Curve3DToUvError::ThroughPole) {
+            let (Surface::Sphere(sphere), Curve::Circle(circle)) = (&surface, &curve) else {
+                panic!(
+                    "case {}: only a sphere meridian runs through a pole",
+                    case.name
+                );
+            };
+            let axis = sphere.frame().z_direction();
+            let frame = circle.frame();
+            let pole = axis
+                .dot(frame.y_direction())
+                .atan2(axis.dot(frame.x_direction()));
+            for (t, expected) in case.consistency_params.iter().zip(&case.consistency_points) {
+                let half = ((t - pole) / std::f64::consts::PI).floor();
+                let start = pole + half * std::f64::consts::PI;
+                let arc =
+                    TrimmedCurve::new(curve.clone(), start, start + std::f64::consts::PI).unwrap();
+                let uv = surface
+                    .trimmed_curve_3d_to_uv(&arc, Tolerance::DEFAULT)
+                    .unwrap_or_else(|e| panic!("case {}: half at {t}: {e:?}", case.name));
+                let at = uv.point_at(*t);
+                assert!(
+                    at.y.abs() <= std::f64::consts::FRAC_PI_2 + 1e-9,
+                    "case {}",
+                    case.name
+                );
+                assert_point3(surface.point_at(at.x, at.y), *expected);
+            }
             continue;
         }
 

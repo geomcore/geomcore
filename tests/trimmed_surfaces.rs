@@ -345,3 +345,44 @@ fn test_an_untrimmed_surface_keeps_its_result() {
         result.curves()[0].curve.bounds()
     );
 }
+
+#[test]
+fn test_a_meridian_clipped_between_the_poles_has_its_curve_in_the_sphere_parameters() {
+    // The plane cuts the whole sphere along a meridian, which runs through
+    // the poles and has no curve in the sphere's parameters; the half of
+    // it on the half sphere runs from pole to pole and has one (#313).
+    let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
+    let half = sphere.trimmed((0.0, PI), (-0.5 * PI, 0.5 * PI)).unwrap();
+    let plane = Plane::new(Point::ORIGIN, Vector::X).unwrap();
+    let pieces: Vec<_> = [
+        half.intersect(&plane, Tolerance::DEFAULT)
+            .curves()
+            .iter()
+            .map(|piece| (piece.clone(), piece.first_uv_curve.clone()))
+            .collect::<Vec<_>>(),
+        plane
+            .intersect(&half, Tolerance::DEFAULT)
+            .curves()
+            .iter()
+            .map(|piece| (piece.clone(), piece.second_uv_curve.clone()))
+            .collect(),
+    ]
+    .into_iter()
+    .flatten()
+    .collect();
+    assert_eq!(pieces.len(), 2);
+    for (piece, uv_curve) in pieces {
+        let uv_curve = uv_curve.expect("the half meridian has a curve in parameters");
+        let (start, end) = piece.parameter_range;
+        for parameter in [start, 0.5 * (start + end), end] {
+            let uv = uv_curve.point_at(parameter);
+            assert!(
+                half.basis()
+                    .point_at(uv.x, uv.y)
+                    .distance(piece.curve.point_at(parameter))
+                    <= 1e-9
+            );
+            assert!(uv.y.abs() <= 0.5 * PI + 1e-8);
+        }
+    }
+}
