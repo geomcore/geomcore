@@ -53,7 +53,8 @@ pub enum BSplineConstructionError {
     NonPositiveWeight,
     /// Interpolation needs at least two points.
     TooFewPoints,
-    /// Interpolation degree exceeds points minus one.
+    /// The degree is not less than the number of points to fit, or than
+    /// the number of poles asked for.
     DegreeTooHigh,
     /// Two consecutive interpolation points coincide.
     ConfusedPoints,
@@ -82,7 +83,7 @@ impl fmt::Display for BSplineConstructionError {
             BSplineConstructionError::NonPositiveWeight => "a weight is zero or negative",
             BSplineConstructionError::TooFewPoints => "interpolation needs at least two points",
             BSplineConstructionError::DegreeTooHigh => {
-                "interpolation degree exceeds pole count minus one"
+                "the degree is not less than the number of points (or of poles asked for)"
             }
             BSplineConstructionError::ConfusedPoints => {
                 "two consecutive interpolation points coincide"

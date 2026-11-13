@@ -101,6 +101,10 @@ def __str__(self):
 
 def __format__(self, format_spec):
     return format(str(self), format_spec)
+
+def _missing_(cls, value):
+    valid = ', '.join(repr(member.value) for member in cls)
+    raise ValueError(f'{value!r} is not a valid {cls.__name__}; use a member or one of {valid}')
 ";
 
 /// The functions of [`MEMBER_TEXT`], compiled once.
@@ -146,6 +150,11 @@ fn build_class(
     for method in ["__str__", "__format__"] {
         built.setattr(method, text.getattr(method)?)?;
     }
+    let classmethod = py.import("builtins")?.getattr("classmethod")?;
+    built.setattr(
+        "_missing_",
+        classmethod.call1((text.getattr("_missing_")?,))?,
+    )?;
     Ok(built.unbind())
 }
 

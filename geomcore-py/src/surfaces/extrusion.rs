@@ -43,7 +43,7 @@ shape_methods! {
     /// direction and for a profile lying on one line along it.
     fn py_new(profile: &Bound<'_, PyAny>, direction: PyVector) -> PyResult<Self> {
         Ok(PyExtrusionSurface(
-            ExtrusionSurface::new(curve_classes::extract(profile)?, direction.0)
+            ExtrusionSurface::new(crate::arguments::profile_curve(profile)?, direction.0)
                 .map_err(python_error)?,
         ))
     }

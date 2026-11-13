@@ -10,7 +10,7 @@
 
 use crate::base::tier::TierPoint;
 use crate::base::tier::operations::VectorOperations;
-use crate::{Point, Point2D};
+use crate::{ParametricSurface, Point, Point2D, Tolerance};
 
 /// Closest point of a query point on a curve: the parameter, the point and
 /// the distance. One type for both tiers: `CurveProjection` in space, its
@@ -96,6 +96,44 @@ pub struct SurfaceProjection {
 }
 
 impl SurfaceProjection {
+    /// The distance with a side: positive when `point`, the query point
+    /// this projection came from, lies on the side the surface normal at
+    /// the closest point points to, negative on the other, `0.0` on the
+    /// surface. The sign follows the surface's own orientation, so
+    /// `reversed_u()` or `reversed_v()` flips it.
+    ///
+    /// `None` where no side is defined: the normal at the closest point
+    /// is undefined, as at a cone's apex, or `point` lies beside the
+    /// surface, in its tangent plane past a boundary. `tol` reads the
+    /// normal and decides that last case, the offset along the normal
+    /// being within `tol.confusion`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::prelude::*;
+    /// use geomcore::{Point, Sphere, Tolerance};
+    ///
+    /// let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
+    /// let inside = Point::new(1.0, 0.0, 0.0);
+    /// let projection = sphere.project_point(inside, Tolerance::DEFAULT);
+    /// // The sphere's normal points out, so a point inside is behind it.
+    /// assert_eq!(projection.signed_distance(&sphere, inside, Tolerance::DEFAULT), Some(-1.0));
+    /// ```
+    pub fn signed_distance<S: ParametricSurface + ?Sized>(
+        &self,
+        surface: &S,
+        point: Point,
+        tol: Tolerance,
+    ) -> Option<f64> {
+        if self.distance == 0.0 {
+            return Some(0.0);
+        }
+        let normal = surface.normal(self.u, self.v, tol)?;
+        let offset = (point - self.point).dot(normal);
+        (offset.abs() > tol.confusion).then(|| self.distance.copysign(offset))
+    }
+
     /// The projection of a query point with a non-finite coordinate:
     /// parameters, point and distance are all NaN.
     pub(crate) const UNDEFINED: SurfaceProjection = SurfaceProjection {

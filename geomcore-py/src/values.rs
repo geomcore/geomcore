@@ -262,7 +262,8 @@ impl PyVector {
     }
 
     /// The unit vector with the same direction, or `None` for a vector too
-    /// short to normalize.
+    /// short to normalize: check the result before passing it on, as a
+    /// constructor taking a vector refuses `None`.
     fn normalized(&self) -> Option<PyVector> {
         self.0.normalized().map(PyVector)
     }
@@ -638,7 +639,8 @@ impl PyVector2D {
     }
 
     /// The unit vector with the same direction, or `None` for a vector too
-    /// short to normalize.
+    /// short to normalize: check the result before passing it on, as a
+    /// constructor taking a vector refuses `None`.
     fn normalized(&self) -> Option<PyVector2D> {
         self.0.normalized().map(PyVector2D)
     }

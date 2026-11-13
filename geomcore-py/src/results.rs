@@ -1154,6 +1154,25 @@ impl PySurfaceProjection {
         self.result.distance
     }
 
+    /// The distance with a side: positive when `query_point` lies on the
+    /// side the surface normal at `point` points to, negative on the
+    /// other, `0.0` on the surface. The sign follows the surface's own
+    /// orientation, so `reversed_u()` or `reversed_v()` flips it. `None`
+    /// where no side is defined: the normal at `point` is undefined, as at
+    /// a cone's apex, or `query_point` lies beside the surface, in its
+    /// tangent plane past a boundary.
+    #[getter]
+    fn signed_distance(&self, py: Python<'_>) -> PyResult<Option<f64>> {
+        let target = self.target.bind(py);
+        let (point, tol) = (self.query_point, geomcore::Tolerance::DEFAULT);
+        if let Ok(trimmed) = target.cast::<crate::surfaces::PyTrimmedSurface>() {
+            return Ok(self.result.signed_distance(&trimmed.borrow().0, point, tol));
+        }
+        let surface = surface_classes::of(target)
+            .ok_or_else(|| pyo3::exceptions::PyTypeError::new_err("the target is not a surface"))?;
+        Ok(self.result.signed_distance(&surface, point, tol))
+    }
+
     /// The surface that was projected onto.
     #[getter]
     fn target(&self, py: Python<'_>) -> Py<PyAny> {

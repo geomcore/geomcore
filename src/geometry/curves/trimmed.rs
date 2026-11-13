@@ -38,7 +38,9 @@ impl fmt::Display for TrimmedCurveConstructionError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let message = match self {
             TrimmedCurveConstructionError::NonFinite => "a range end is NaN or infinite",
-            TrimmedCurveConstructionError::EmptyRange => "first is not less than last",
+            TrimmedCurveConstructionError::EmptyRange => {
+                "the start parameter is not less than the end parameter"
+            }
             TrimmedCurveConstructionError::OutsideBasis => "the range leaves the basis bounds",
             TrimmedCurveConstructionError::ExceedsPeriod => {
                 "the range is longer than the basis period"
