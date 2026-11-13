@@ -301,7 +301,7 @@ fn a_surface_rational_in_one_direction_gives_polynomial_isos_across_it() {
 }
 
 #[test]
-fn a_collapsed_bspline_edge_gives_a_point_curve() {
+fn a_collapsed_bspline_boundary_curve_gives_a_point_curve() {
     let sphere = Sphere::from_frame(tilted_frame(), 2.0)
         .unwrap()
         .to_bspline();

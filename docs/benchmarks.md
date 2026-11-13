@@ -585,18 +585,18 @@ cargo bench --bench conic_quadric
 
 # Discretization
 
-`benches/discretization.rs` discretizes 3000 model-like edges: two thirds
+`benches/discretization.rs` discretizes 3000 model-like trimmed curves: two thirds
 cubic B-splines with 1 to 7 spans, one third quarter-circle arcs (half
-rational quadratic B-splines, half trimmed `Circle`s). Every edge is a
+rational quadratic B-splines, half trimmed `Circle`s). Every curve is a
 run-time `TrimmedCurve`, and its maximum chord deviation is 1e-2 or 1e-3
 times its size, with no angle limit. Three measurements: counting the
-points, filling one set of buffers reused across the edges (count, then
+points, filling one set of buffers reused across the curves (count, then
 fill), and the allocating call.
 
 Machine: Linux 7.0, x86-64 desktop, single thread, `--warm-up-time 1
---measurement-time 3` (2026-10-12). Times are per edge.
+--measurement-time 3` (2026-10-12). Times are per curve.
 
-| chord deviation | points per edge (mean, p95) | count | fill, reused buffer | allocating |
+| chord deviation | points per curve (mean, p95) | count | fill, reused buffer | allocating |
 |---|---|---|---|---|
 | 1e-2 × size | 13.3, 24 | ~1.37 µs | ~4.46 µs | ~4.47 µs |
 | 1e-3 × size | 36.2, 67 | ~1.52 µs | ~5.65 µs | ~5.68 µs |

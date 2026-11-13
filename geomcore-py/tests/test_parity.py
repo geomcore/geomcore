@@ -329,7 +329,7 @@ def _stub_trees():
     stub_directory = Path(geomcore.__file__).parent
     return {
         module: ast.parse((stub_directory / f"{module}.pyi").read_text(encoding="utf-8"))
-        for module in ("__init__", "curves", "surfaces")
+        for module in ("__init__",)
     }
 
 
