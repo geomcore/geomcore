@@ -1725,10 +1725,10 @@ fn test_unbounded_line_meets_an_extrusion_far_from_its_origin() {
 }
 
 #[test]
-fn test_surfaces_on_one_control_net_meet_along_each_whole_edge_at_any_size() {
+fn test_surfaces_on_one_control_net_meet_along_each_whole_boundary_curve_at_any_size() {
     // Every row and column of the net is straight, so the plain and the
-    // rational surface share their four straight edges, and cross inside
-    // along two more curves.
+    // rational surface share their four straight boundary curves, and cross
+    // inside along two more curves.
     let poles: Vec<Vec<Point>> = (0..3)
         .map(|i| {
             (0..3)
@@ -1744,7 +1744,7 @@ fn test_surfaces_on_one_control_net_meet_along_each_whole_edge_at_any_size() {
     let plain = BezierSurface::new(2, 2, poles.clone()).unwrap();
     let rational = BezierSurface::new_rational(2, 2, poles.clone(), weights).unwrap();
     let corner = |i: usize, j: usize| poles[i][j];
-    let edges = [
+    let boundary_curves = [
         (corner(0, 0), corner(0, 2)),
         (corner(2, 0), corner(2, 2)),
         (corner(0, 0), corner(2, 0)),
@@ -1761,7 +1761,7 @@ fn test_surfaces_on_one_control_net_meet_along_each_whole_edge_at_any_size() {
         let b = rational.clone().transformed(similarity).unwrap();
         let result = Surface::from(a).intersect(&Surface::from(b), tol);
         assert_eq!(result.curves().len(), 6, "at scale {scale}, shift {shift}");
-        for (start, end) in edges {
+        for (start, end) in boundary_curves {
             let (start, end) = (moved(start), moved(end));
             let whole = result.curves().iter().any(|piece| {
                 let (low, high) = piece.parameter_range;
@@ -1771,7 +1771,7 @@ fn test_surfaces_on_one_control_net_meet_along_each_whole_edge_at_any_size() {
             });
             assert!(
                 whole,
-                "edge {start:?} to {end:?} at scale {scale}, shift {shift}"
+                "boundary curve {start:?} to {end:?} at scale {scale}, shift {shift}"
             );
         }
     }
