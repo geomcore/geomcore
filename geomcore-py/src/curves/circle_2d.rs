@@ -2,7 +2,7 @@
 
 use crate::curves::*;
 use crate::method_sets::*;
-use crate::values::{PyFrame2D, coordinates_2d, float_repr};
+use crate::values::PyFrame2D;
 use geomcore::Circle2D;
 
 /// A circle in a surface's 2D (u, v) parameter space.
@@ -59,7 +59,9 @@ shape_methods! {
 
     /// The circle as an exact rational B-spline of degree 2, periodic over
     /// `[0, 2*pi]`; its parameter agrees with the angle at the knots and
-    /// the middle of each quarter turn.
+    /// the middle of each quarter turn. In between the same parameter
+    /// gives a different point on each curve, so map a point across with
+    /// `bspline.parameter_of(point)`.
     fn to_bspline(&self) -> PyBSplineCurve2D {
         PyBSplineCurve2D(self.0.to_bspline())
     }
@@ -69,11 +71,12 @@ shape_methods! {
         crate::pickling::reduce(slf.as_any(), Some("from_frame"), (this.frame(), this.radius(),))
     }
 
-    fn __repr__(&self) -> String {
-        format!(
-            "Circle2D(center={}, radius={})",
-            coordinates_2d(self.0.center()),
-            float_repr(self.0.radius())
+    fn __repr__(slf: &pyo3::Bound<'_, Self>) -> PyResult<String> {
+        let this = slf.borrow();
+        crate::pickling::paste_back_repr!(
+            slf,
+            "center" => crate::values::PyPoint2D(this.0.center()),
+            "radius" => this.0.radius(),
         )
     }
 }

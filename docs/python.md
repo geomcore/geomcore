@@ -5,26 +5,26 @@ pip install geomcore
 ```
 
 Pre-built wheels are published for Linux (x86_64, aarch64), macOS and
-Windows, for Python 3.9+ (abi3: one wheel covers every version). The
+Windows, for Python 3.11+ (abi3: one wheel covers every version). The
 package ships type stubs (PEP 561), so IDEs and type checkers see the full
-API, with the documentation of the methods every curve or surface shares.
+API, with the docstring of every class, method and property.
 
 Every name is at the package root, as in the Rust crate: the shapes
 (`Circle`, `Plane`, `BSplineSurface`), the values (`Point`, `Frame`,
 `Tolerance`), the results (`CurveCurveIntersection`), the enums and the
 errors. Three more names stand for a whole kind of shape: `Curve`,
 `Curve2D` and `Surface` are the unions of the classes of the Rust enums
-of the same names, both for annotations and, from Python 3.10, for
-`isinstance`. `typing.get_args` gives the tuple of classes on any
-version. As in Rust, a `TrimmedCurve` is a piece of a curve rather than
+of the same names, both for annotations and for `isinstance`.
+`typing.get_args` gives the tuple of classes. As in Rust, a `TrimmedCurve` is a piece of a curve rather than
 one of them, so code that takes either says so:
 
 ```python
-from geomcore import Curve, Surface, TrimmedCurve
+from geomcore import Circle, Curve, Point, Surface, TrimmedCurve, Vector
 
 def clearance(curve: Curve | TrimmedCurve, surface: Surface) -> float: ...
 
-isinstance(shape, Curve)  # Python 3.10+; False for a TrimmedCurve
+shape = Circle(Point(0, 0, 0), Vector(0, 0, 1), 2.0)
+assert isinstance(shape, Curve)  # False for a TrimmedCurve
 ```
 
 `geomcore.curves` and `geomcore.surfaces` still resolve each shape, with a
@@ -129,6 +129,13 @@ An array on either side of `+`, `-` or `*` raises `TypeError`, and `==`
 against an array is `False`. Convert with `numpy.array(p)` to compute on
 the coordinates as an array.
 
+A `Discretization` converts to its points: `numpy.array(curve.discretize(0.01))`
+is a float array of shape `(N, 3)` (`(N, 2)` for a `Discretization2D`).
+Intersection and extrema results iterate, index and reverse over what
+they hold, but do not convert: they hold hits, curves and minima, not
+points. Take `numpy.array([hit.point for hit in result])` for the points
+of the hits.
+
 A `Transform` reads and writes 4×4 homogeneous matrices, so a robot pose
 or a placement from another tool comes in and goes out directly.
 `a @ b` composes like the matrix product, `b` first, so `a @ b` is
@@ -138,6 +145,12 @@ or a placement from another tool comes in and goes out directly.
 from geomcore import Transform
 import numpy
 
+matrix = [                             # a quarter turn about z, then a move
+    [0.0, -1.0, 0.0, 1.0],
+    [1.0, 0.0, 0.0, 2.0],
+    [0.0, 0.0, 1.0, 3.0],
+    [0.0, 0.0, 0.0, 1.0],
+]
 pose = Transform.from_matrix(matrix)   # four rows of four numbers
 back = pose.inverse()                  # pose @ back is the identity, within rounding
 numpy.array((pose @ back).to_matrix())
@@ -156,9 +169,22 @@ reference to the shapes they were computed on. Values stay unhashable
 
 ## Reprs
 
+A repr is Python that rebuilds the object: `eval(repr(x))` (with the
+`geomcore` names in scope) gives an object equal to `x`. A shape prints
+as its constructor called with keywords, `Circle(center=Point(0.0, 0.0,
+0.0), normal=Vector(0.0, 0.0, 1.0), radius=2.0)`, when those keywords
+rebuild it. When they cannot say where its parametrization starts, as
+for a tilted or mirrored circle, it prints as the static constructor
+pickling uses instead: `Circle.from_frame(Frame.from_axes(...), 2.0)`. A
+B-spline prints its poles, knots and multiplicities. A list longer than
+ten items prints its first eight, `...` and its last, so a long pole list
+stays readable, and its repr fails to paste rather than paste as another
+shape.
+
 Reprs print floats as Python does and show coordinates below `1e-15` as
-`0.0`, so rounding noise such as `cos(pi / 2)` does not clutter them. A repr is
-therefore for reading, not an exact round trip of such tiny coordinates.
+`0.0`, so rounding noise such as `cos(pi / 2)` does not clutter them. Such
+a coordinate is the one place a repr pastes back to a slightly different
+object. A tolerance keeps its tiny values.
 
 A Python API reference generated from docstrings, and tutorials, are on
 the roadmap. Until then, the Rust items on

@@ -2,10 +2,11 @@
 
 use crate::method_sets::*;
 use crate::surfaces::*;
-use crate::values::{PyAxis, PyFrame, float_repr};
+use crate::values::{PyAxis, PyFrame};
 use geomcore::Torus;
 
 /// A torus; u is the angle around the main axis, v the angle around the tube.
+/// Its normal points out of the tube.
 #[pyclass(name = "Torus", module = "geomcore", eq)]
 #[derive(Clone, PartialEq)]
 pub(crate) struct PyTorus(pub(crate) Torus);
@@ -34,13 +35,14 @@ shape_methods! {
         crate::pickling::reduce(slf.as_any(), Some("from_frame"), (this.frame(), this.major_radius(), this.minor_radius(),))
     }
 
-    fn __repr__(&self) -> String {
-        format!(
-            "Torus(center={}, axis_direction={}, major_radius={}, minor_radius={})",
-            crate::values::coordinates(self.0.center()),
-            crate::values::coordinates(self.0.frame().z_direction()),
-            float_repr(self.0.major_radius()),
-            float_repr(self.0.minor_radius())
+    fn __repr__(slf: &pyo3::Bound<'_, Self>) -> PyResult<String> {
+        let this = slf.borrow();
+        crate::pickling::paste_back_repr!(
+            slf,
+            "center" => crate::values::PyPoint(this.0.center()),
+            "axis_direction" => crate::values::PyVector(this.0.frame().z_direction()),
+            "major_radius" => this.0.major_radius(),
+            "minor_radius" => this.0.minor_radius(),
         )
     }
 
@@ -77,12 +79,18 @@ shape_methods! {
     }
 
     /// The whole torus as an exact rational B-spline surface.
+    /// Its rational arcs do not keep the angles as parameters: the same
+    /// `(u, v)` gives a different point on each surface between the
+    /// knots, so map a point across with `bspline.parameters_of(point)`.
     fn to_bspline(&self) -> PyBSplineSurface {
         PyBSplineSurface(self.0.to_bspline())
     }
 
     /// The patch `u_range × v_range` as an exact rational B-spline
     /// surface (raises `ValueError` for a bad range).
+    /// Its rational arcs do not keep the angles as parameters: the same
+    /// `(u, v)` gives a different point on each surface between the
+    /// knots, so map a point across with `bspline.parameters_of(point)`.
     fn to_bspline_patch(
         &self,
         u_range: (f64, f64),

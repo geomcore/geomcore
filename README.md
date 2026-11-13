@@ -16,9 +16,9 @@ just future CAD-kernel builders.
 Pre-1.0: the API can still change between minor versions (breaking
 changes are flagged in the changelog). Implemented:
 
-- **Evaluation** of lines, circles, ellipses, parabolas, hyperbolas and
-  B-spline curves (rational and periodic) in 3D, plus 2D lines and
-  circles; and of planes, cylinders, cones, spheres, tori, B-spline
+- **Evaluation** of lines, circles, ellipses, parabolas, hyperbolas,
+  B-spline curves (rational and periodic) and Bézier curves, in 3D and in
+  2D; and of planes, cylinders, cones, spheres, tori, B-spline and Bézier
   surfaces, and surfaces extruded or revolved from any curve.
 - **Transformations**: translation, rotation, mirroring and scaling via a
   single `Transform` type, applied to any curve or surface with

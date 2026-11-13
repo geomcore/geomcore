@@ -12,5 +12,5 @@ name = "geomcore"
 crate-type = ["cdylib"]
 
 [dependencies]
-pyo3 = { version = "0.26", features = ["extension-module", "abi3-py39"] }
+pyo3 = { version = "0.26", features = ["extension-module", "abi3-py311"] }
 geomcore = { path = ".." }

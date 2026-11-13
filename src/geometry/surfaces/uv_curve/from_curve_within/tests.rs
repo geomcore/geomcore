@@ -175,10 +175,12 @@ fn the_degenerate_pairs_are_refused() {
         Err(Curve3DToUvApproximationError::Unbounded)
     );
     let wider = Circle::new(Point::ORIGIN, Vector::Z, 2.5).unwrap();
-    assert_eq!(
-        curve_3d_to_uv_within(&cylinder, &wider, 1e-6, TOL),
-        Err(Curve3DToUvApproximationError::CurveNotOnSurface { distance: 0.5 })
-    );
+    let Err(Curve3DToUvApproximationError::CurveNotOnSurface { distance }) =
+        curve_3d_to_uv_within(&cylinder, &wider, 1e-6, TOL)
+    else {
+        panic!("a wider circle is off the cylinder");
+    };
+    assert!((distance - 0.5).abs() < 1e-12, "{distance}");
     // A ruling of a cone that lingers at its apex, as the fourth power of
     // the parameter: the UV curve has no one-sided limit there to read.
     let cone = Cone::from_apex(Point::ORIGIN, Vector::Z, 0.5).unwrap();

@@ -2,7 +2,7 @@
 
 use crate::curves::*;
 use crate::method_sets::*;
-use crate::values::{PyFrame, float_repr};
+use crate::values::PyFrame;
 use geomcore::Parabola;
 
 /// A parabola in 3D, parametrized so the apex is at parameter 0.
@@ -29,12 +29,14 @@ shape_methods! {
         crate::pickling::reduce(slf.as_any(), Some("from_frame"), (this.frame(), this.focal_distance(),))
     }
 
-    fn __repr__(&self) -> String {
-        format!(
-            "Parabola(apex={}, normal={}, focal_distance={})",
-            crate::values::coordinates(self.0.apex()),
-            crate::values::coordinates(self.0.frame().z_direction()),
-            float_repr(self.0.focal_distance())
+    fn __repr__(slf: &pyo3::Bound<'_, Self>) -> PyResult<String> {
+        let this = slf.borrow();
+        crate::pickling::paste_back_repr!(
+            slf,
+            "apex" => crate::values::PyPoint(this.0.apex()),
+            "normal" => crate::values::PyVector(this.0.frame().z_direction()),
+            "x_direction" => crate::values::PyVector(this.0.frame().x_direction()),
+            "focal_distance" => this.0.focal_distance(),
         )
     }
 

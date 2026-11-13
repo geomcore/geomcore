@@ -34,6 +34,19 @@ line in a plane is a line. The result is a `Line2D`/`Circle2D` (or a
 the 3D curve within `tol.confusion` — that check is what "lies on"
 means, and anything farther off is `CurveNotOnSurface`.
 
+The Python examples on this page share these shapes: a cylinder, a
+circle around its axis, and the ellipse a slanted plane cuts from it.
+
+```python
+from geomcore import Circle, Cylinder, Plane, Point, Vector
+
+cylinder = Cylinder(Point(0, 0, 0), Vector.unit_z(), 2.0)
+circle = Circle(Point(0, 0, 1), Vector.unit_z(), 2.0)
+surface = cylinder
+(cut,) = Plane(Point(0, 0, 0), Vector(0.0, 1.0, 2.0)).intersect(cylinder).curves
+curve = cut.curve                                # an Ellipse on the cylinder
+```
+
 === "Python"
 
     ```python
@@ -111,6 +124,33 @@ and `uv_curve_to_3d_within(&surface, &uv_curve, d, tol)`.
     let uv_curve = approximation.curve();
     ```
 
+### Recipe: a helix
+
+A helix is a straight line in the UV space of a cylinder: one turn is
+2π in `u` and one pitch in `v`. `uv_curve_to_3d_within` turns that line
+into one B-spline within the deviation, so a helix needs no type of its
+own:
+
+```python
+import math
+
+from geomcore import Cylinder, Line2D, Point, Point2D, TrimmedCurve2D, Vector, Vector2D
+
+radius, pitch, turns = 5.0, 2.0, 3.0
+cylinder = Cylinder(Point.origin(), Vector.unit_z(), radius)
+# The line's parameter is its length in the UV plane.
+uv_line = Line2D(Point2D(0.0, 0.0), Vector2D(2 * math.pi, pitch))
+uv_piece = TrimmedCurve2D(uv_line, 0.0, turns * math.hypot(2 * math.pi, pitch))
+approximation = cylinder.uv_curve_to_3d_within(uv_piece, 1e-6)
+helix = approximation.curve  # degree 9, 60 poles
+approximation.is_proven()  # True: within 4.2e-7, proven
+helix.end_point()  # Point(5.0, ~0, 6.0): three turns up
+```
+
+A negative `u` direction turns the other way, a left-handed helix. The
+B-spline is an approximation; a caller that needs the exact curve, for
+its exact length or projection, would need a `Helix` type of its own.
+
 ## Viewing UV curves
 
 The viewer draws a UV curve twice: on the surface in 3D and in its own
@@ -120,6 +160,9 @@ handle.
 === "Python"
 
     ```python
+    import geomcore_viewer as gv
+
+    view = gv.Viewer("A circle on a cylinder")
     s = view.add(cylinder, label="S")
     view.add(circle, label="C")
     view.pcurve(cylinder.curve_3d_to_uv(circle), s, label="C in (u, v)")

@@ -292,11 +292,11 @@ maps any 2D curve through the plane's frame, so a `Circle2D` drawn in
 the plane's $(u, v)$ coordinates comes back as the 3D `Circle`.
 
 ```python
-from geomcore import Circle2D, Point2D
+from geomcore import Circle2D, Plane, Point2D
 
 plane = Plane(Point(0.0, 0.0, 5.0), Vector.unit_z())
 circle = plane.uv_curve_to_3d(Circle2D(Point2D(1.0, 2.0), 0.5))
-# Circle(center=(1.0, 2.0, 5.0), normal=(0.0, 0.0, 1.0), radius=0.5)
+# Circle(center=Point(1.0, 2.0, 5.0), normal=Vector(0.0, 0.0, 1.0), radius=0.5)
 ```
 
 <figure class="geom-fig">
@@ -499,6 +499,46 @@ length; where it is a radius the parameter is an angle.
 Where the $u$-speed depends on $v$, a uniform $(u, v)$ grid is not
 uniform on the surface — triangles crowd at the poles. Every mesher
 corrects for exactly this table.
+
+## Which way the normal points
+
+`normal(u, v)` is the direction of
+$\partial S/\partial u \times \partial S/\partial v$. With the
+parametrizations above that gives:
+
+| Surface | The normal points |
+|---|---|
+| Plane | along the `normal` it was built with ($\vec{X} \times \vec{Y}$) |
+| Cylinder | away from the axis |
+| Cone | away from the axis |
+| Sphere | out of the sphere |
+| Torus | out of the tube |
+
+Curvature signs follow the normal: a surface bending away from it has
+negative curvatures, so a sphere of radius 2 reports $-0.5$ for both.
+`reversed_u()` and `reversed_v()` flip the normal, and with it the sign
+of every curvature.
+
+## Converting to a B-spline changes the parameters
+
+`to_bspline()` and `to_bspline_patch()` are exact as point sets, but a
+rational quadratic arc does not run at constant angular speed: between
+the knots the same parameter lands on a different point, up to 6% of
+the radius away on a torus. Compare the two shapes through the inverse
+map, not through the parameter:
+
+```python
+import math
+from geomcore import Point, Torus, Vector
+
+torus = Torus(Point.origin(), Vector.unit_z(), 3.0, 1.0)
+bspline = torus.to_bspline()
+point = torus.point_at(0.3, 1.1)
+u, v = bspline.parameters_of(point)
+assert bspline.point_at(u, v).distance(point) < 1e-9
+```
+
+The plane, the line and the Bézier shapes keep their parameters.
 
 ## Seams and collapsed boundaries
 

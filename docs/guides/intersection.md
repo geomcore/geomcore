@@ -1,6 +1,7 @@
 # Intersection
 
-One entry point, two methods. `a.intersect(&b, tol)` works for any two
+One entry point, two methods. `a.intersect(b)` (in Rust,
+`a.intersect(&b, tol)`) works for any two
 curves or surfaces, B-splines, Bézier types and trimmed curves
 included, in either order. It solves the pair exactly whenever a closed form exists, and
 runs a numeric search (curve–curve, curve–surface, marching
@@ -27,9 +28,10 @@ One result per family: `CurveCurveIntersection` (and
 - for two surfaces, the **curves** (each with a `tangent` flag and its
   curve in the parameters of each surface, see below), the **contact
   points** and whether the surfaces are **coincident**;
-- the **method** (`Exact` or `Numeric`) and the **completeness**: an
-  exact result is always complete; a numeric one is complete, incomplete
-  (with the regions where hits may be missing) or sampled. The method
+- the **method** (`EXACT` or `NUMERIC`; `Exact` or `Numeric` in Rust)
+  and the **completeness**: an exact result is always complete; a
+  numeric one is complete, incomplete (with the regions where hits may
+  be missing) or sampled. The method
   says how the result was found, not what type its curves are: an exact
   `Circle` can come out of a numeric search, as on the swept surfaces
   below.
@@ -43,6 +45,33 @@ and a tangency is decided by distance, not by root separation:
 </figure>
 
 ## Exact: one call, either order
+
+The Python examples on this page share these shapes:
+
+```python
+from geomcore import BSplineCurve, BSplineSurface, Line, Plane, Point, Sphere, Vector
+
+plane = Plane(Point(0.0, 0.0, 0.0), Vector.unit_z())
+sphere = Sphere(Point(0.0, 0.0, 0.5), 1.0)
+line = Line(Point(-2.0, 0.0, 0.5), Vector.unit_x())
+
+# A dome over the unit square, a curve diving through it, and a second
+# curve through the first one's middle.
+dome = [
+    [Point(x, y, 1.0 if x == y == 0.5 else 0.0) for y in (0.0, 0.5, 1.0)]
+    for x in (0.0, 0.5, 1.0)
+]
+spline_surface = BSplineSurface(2, 2, dome, [0.0, 1.0], [3, 3], [0.0, 1.0], [3, 3], False, False)
+spline_curve = BSplineCurve.interpolate(
+    [Point(0.1, 0.2, 1.0), Point(0.4, 0.5, -0.5), Point(0.7, 0.4, 1.0), Point(0.9, 0.8, -0.5)], 3
+)
+curve_a = spline_curve
+curve_b = BSplineCurve.interpolate(
+    [Point(0.0, 0.5, 0.0), curve_a.point_at(0.5), Point(1.0, 0.0, 0.5)], 2
+)
+surface_a = spline_surface
+surface_b = Plane(Point(0.0, 0.0, 0.25), Vector(0.0, 0.2, 1.0))
+```
 
 === "Python"
 
@@ -64,11 +93,11 @@ and a tangency is decided by distance, not by root separation:
     assert_eq!(sphere.intersect(&plane, tol), result);
     ```
 
-A pair of concrete types calls its exact solver directly, with no
-run-time dispatch; only `Curve`, `Surface`, `ElementaryCurve` or
+In Rust, a pair of concrete types calls its exact solver directly, with
+no run-time dispatch; only `Curve`, `Surface`, `ElementaryCurve` or
 `ElementarySurface` operands pay for a `match`. For hot loops over a
 pair of concrete types, `a.intersect_exact(&b, tol)` (the `IntersectExact`
-trait) returns the pair's own enum, such as `PlaneSphereIntersection`,
+trait, Rust only) returns the pair's own enum, such as `PlaneSphereIntersection`,
 on the stack, recovers no parameter it does not need, and reports
 `NotAnalytic` where no closed form exists instead of searching.
 
@@ -183,7 +212,7 @@ Two more landmarks, as figures:
 
 ## Numeric: curves
 
-The routed `a.intersect(&b, tol)` takes the numeric search for pairs
+The routed `intersect` takes the numeric search for pairs
 without a closed form (a B-spline, or an ellipse against a torus), and
 trimmed pieces are searched over their own range. A curve or surface
 type you define yourself, by implementing `ParametricCurve` or
@@ -210,8 +239,8 @@ multiplicity 2, and the result stays `Complete`; an overlap between curves whose
 range on the second curve would cross that curve's seam is not joined,
 and keeps its hits and region.
 
-The search reports whether it finished: the result's `method()` is
-`Numeric`, and its `completeness()` is `Complete` when every piece pair
+The search reports whether it finished: the result's method is
+`Numeric`, and its completeness is `Complete` when every piece pair
 was proven apart or isolated, `Incomplete` with the parameter regions
 where hits may be missing otherwise, and `Sampled` when the hits come
 from samples (a pair without a B-spline, such as an ellipse against a

@@ -22,6 +22,10 @@ A plane, sphere, cylinder or cone: an elementary surface whose implicit equation
 A curve whose two ends meet, or a surface direction whose boundary curves at its two bounds coincide, so travelling along it returns to its start. Periodicity implies closedness, not conversely: a clamped shape with coincident ends is closed without a period.
 _Avoid_: periodic for merely closed shapes, seamless
 
+**Boundary curve**:
+The iso-curve of a surface at a bound of a bounded parameter: `S(u_min, v)`, `S(u_max, v)`, `S(u, v_min)` or `S(u, v_max)`. A patch has four, some possibly collapsed to a point, as at a pole. Two patches sharing a boundary curve meet along it, and the march keeps it as one whole curve (ADR 0052). It is geometry: an edge of a model may lie on it, but the edge, its vertices and the faces it joins belong to the caller.
+_Avoid_: edge (topology), border, side
+
 **Lies on**:
 A point lies on a curve or surface when it is within `tol.confusion` of it, tested by `contains`.
 _Avoid_: inside (reserved for polygons), containment for anything other than this test
@@ -43,8 +47,8 @@ The curve a swept surface moves.
 _Avoid_: generatrix, basis curve, directrix
 
 **Trimmed surface**:
-A surface restricted to a rectangle of its parameters, a `u` range by a `v` range: the patch a face of a model lies on, without its boundary curves or orientation. It evaluates as its basis, past the ranges too; a periodic direction's range may cross the seam. Its intersection with another surface is the intersection of the bases, cut to the pieces inside the ranges (ADR 0039).
-_Avoid_: face (which adds boundary curves and topology), patch for the type name, bounded surface
+A surface restricted to a rectangle of its parameters, a `u` range by a `v` range: the patch a face of a model lies on, without the face's edges or orientation. It evaluates as its basis, past the ranges too; a periodic direction's range may cross the seam. Its intersection with another surface is the intersection of the bases, cut to the pieces inside the ranges (ADR 0039).
+_Avoid_: face (which adds edges and topology), patch for the type name, bounded surface
 
 **UV curve**:
 A 2D curve in a surface's `(u, v)` parameter space; its 3D curve is the surface composed with it, `S∘c`, which `uv_curve_to_3d` gives exactly or refuses (ADR 0030; on a spline surface by composing the two, ADR 0032), and `uv_curve_to_3d_within` gives within a deviation as one B-spline in the same parameter (ADR 0035). `curve_3d_to_uv` goes the other way: the UV curve `c` of a 3D curve `C` on the surface, with `S∘c = C` (ADR 0031).

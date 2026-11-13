@@ -39,13 +39,12 @@ def test_curve_curve2d_and_surface_hold_every_shape_class_but_the_trimmed_once()
     assert not any(cls.__name__.endswith("2D") for cls in get_args(Curve))
 
 
-def test_isinstance_takes_the_tuple_of_classes_on_every_python():
+def test_isinstance_takes_the_tuple_of_classes():
     circle = Circle(Point.origin(), Vector.unit_z(), 1.0)
     assert isinstance(circle, get_args(Curve))
     assert not isinstance(circle, get_args(Surface))
 
 
-@pytest.mark.skipif(sys.version_info < (3, 10), reason="isinstance takes a Union from Python 3.10")
 def test_isinstance_takes_the_kind_names():
     circle = Circle(Point.origin(), Vector.unit_z(), 1.0)
     assert isinstance(circle, Curve)
@@ -82,3 +81,19 @@ def test_the_old_submodule_paths_warn_and_give_the_root_class():
         geomcore.curves.Point  # noqa: B018
     with pytest.raises(AttributeError):
         geomcore.nothing  # noqa: B018
+
+
+def test_the_module_docstring_orients_and_its_examples_run():
+    # `help(geomcore)` opens on it (#332): the main calls, each run here.
+    import doctest
+
+    assert "intersect" in geomcore.__doc__
+    assert "https://geomcore.github.io/geomcore/" in geomcore.__doc__
+    failed, attempted = doctest.testmod(geomcore)
+    assert attempted > 0 and failed == 0
+
+
+def test_the_unions_document_themselves_where_python_lets_them():
+    # From Python 3.14 a union's docstring is read-only.
+    if sys.version_info < (3, 14):
+        assert "TrimmedCurve" in Curve.__doc__

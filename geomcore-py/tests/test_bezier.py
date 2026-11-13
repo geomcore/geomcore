@@ -72,7 +72,10 @@ def test_curve_accessors_and_eval():
     assert curve.min_continuity() == math.inf
     box = curve.bounding_box()
     assert box is not None and box.max_corner() == Point(4.0, 2.0, 1.0)
-    assert repr(curve) == "BezierCurve(degree=3, pole_count=4, rational=False)"
+    assert repr(curve) == (
+        "BezierCurve(degree=3, poles=[Point(0.0, 0.0, 0.0), Point(1.0, 2.0, 0.0), "
+        "Point(3.0, 2.0, 1.0), Point(4.0, 0.0, 1.0)])"
+    )
 
 
 def test_curve_rational_quarter_circle():
@@ -216,8 +219,8 @@ def test_surface_accessors_and_eval():
     tight = surface.tight_bounding_box()
     assert tight is not None and box.encloses(tight.min_corner()) and box.encloses(tight.max_corner())
     assert close(tight.max_corner(), Point(2.0, 2.0, 4.0), 1e-12)
-    assert repr(surface) == (
-        "BezierSurface(u_degree=2, v_degree=2, pole_count=(3, 3), rational=False)"
+    assert repr(surface).startswith(
+        "BezierSurface(u_degree=2, v_degree=2, poles=[[Point(0.0, 0.0, 0.0), Point(0.0, 1.0, 0.0)"
     )
     normal = surface.normal(0.0, 0.0)
     assert normal is not None and (normal - Vector.unit_z()).magnitude() < 1e-12

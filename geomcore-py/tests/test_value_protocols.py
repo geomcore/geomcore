@@ -173,6 +173,27 @@ def test_every_value_and_shape_pickles_to_an_equal_object(original):
     assert copy.copy(original) == original
 
 
+
+def _snapped(value) -> bool:
+    """Whether a coordinate of `value` is below 1e-15, which a repr shows
+    as 0.0 (docs/python.md)."""
+    coordinates = (Point, Point2D, Vector, Vector2D)
+    return isinstance(value, coordinates) and any(0.0 < abs(c) < 1e-15 for c in value)
+
+
+@pytest.mark.parametrize("original", _EVERYTHING, ids=lambda o: type(o).__name__)
+def test_every_repr_pastes_back_as_an_equal_object(original):
+    # #320: shape reprs printed tuples the constructors refuse, and left
+    # out the x direction, the poles and the basis.
+    import geomcore
+
+    text = repr(original)
+    restored = eval(text, vars(geomcore))
+    assert type(restored) is type(original)
+    assert repr(restored) == text
+    if not _snapped(original):
+        assert restored == original, text
+
 def test_points_and_vectors_unpack_index_and_convert_to_numpy():
     numpy = pytest.importorskip("numpy")
     point = Point(1.0, 2.0, 3.0)

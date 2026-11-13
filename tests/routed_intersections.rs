@@ -1723,3 +1723,92 @@ fn test_unbounded_line_meets_an_extrusion_far_from_its_origin() {
     // A line that passes beside the prism holding the wall never meets it.
     assert!(crossing(Point::new(-30.0, 9.0, 0.0), Vector::X).is_empty());
 }
+
+#[test]
+fn test_surfaces_on_one_control_net_meet_along_each_whole_boundary_curve_at_any_size() {
+    // Every row and column of the net is straight, so the plain and the
+    // rational surface share their four straight boundary curves, and cross
+    // inside along two more curves.
+    let poles: Vec<Vec<Point>> = (0..3)
+        .map(|i| {
+            (0..3)
+                .map(|j| Point::new(i as f64, j as f64, ((i + 1) * (j + 2)) as f64 * 0.1))
+                .collect()
+        })
+        .collect();
+    let weights = vec![
+        vec![1.0, 2.0, 1.0],
+        vec![0.5, 3.0, 1.0],
+        vec![1.0, 0.2, 4.0],
+    ];
+    let plain = BezierSurface::new(2, 2, poles.clone()).unwrap();
+    let rational = BezierSurface::new_rational(2, 2, poles.clone(), weights).unwrap();
+    let corner = |i: usize, j: usize| poles[i][j];
+    let boundary_curves = [
+        (corner(0, 0), corner(0, 2)),
+        (corner(2, 0), corner(2, 2)),
+        (corner(0, 0), corner(2, 0)),
+        (corner(0, 2), corner(2, 2)),
+    ];
+    for (scale, shift) in [(1.0, 0.0), (2f64.powi(-20), 0.0), (1.0, 1e7)] {
+        let offset = Vector::new(shift, -2.0 * shift, 1.5 * shift);
+        // Scaled first, then moved: a point `p` goes to `p * scale + offset`.
+        let similarity =
+            Transform::scaling(Point::ORIGIN, scale).then(Transform::translation(offset));
+        let moved = |p: Point| Point::ORIGIN + (p - Point::ORIGIN) * scale + offset;
+        let tol = Tolerance::new(TOL.confusion * scale, TOL.angular, TOL.parametric).unwrap();
+        let a = plain.clone().transformed(similarity).unwrap();
+        let b = rational.clone().transformed(similarity).unwrap();
+        let result = Surface::from(a).intersect(&Surface::from(b), tol);
+        assert_eq!(result.curves().len(), 6, "at scale {scale}, shift {shift}");
+        for (start, end) in boundary_curves {
+            let (start, end) = (moved(start), moved(end));
+            let whole = result.curves().iter().any(|piece| {
+                let (low, high) = piece.parameter_range;
+                let (p, q) = (piece.curve.point_at(low), piece.curve.point_at(high));
+                let close = |x: Point, y: Point| x.distance(y) <= 1e-6 * scale;
+                (close(p, start) && close(q, end)) || (close(p, end) && close(q, start))
+            });
+            assert!(
+                whole,
+                "boundary curve {start:?} to {end:?} at scale {scale}, shift {shift}"
+            );
+        }
+    }
+}
+
+#[test]
+fn test_curves_sharing_their_ends_touch_there_far_from_the_origin() {
+    // A B-spline and a Bézier curve on the same poles share both end
+    // points and their tangents there: two contacts. 1e7 away, a point
+    // rounds by about 2e-9, which left the distance between the curves
+    // flat over a stretch of about 1e-4 at each end.
+    let poles = |far: f64| {
+        [
+            (0.0, 0.0, 0.0),
+            (1.0, 2.0, 0.5),
+            (3.0, 1.0, -0.5),
+            (4.0, 3.0, 1.0),
+        ]
+        .map(|(x, y, z)| Point::new(x + far, y - far, z + far))
+        .to_vec()
+    };
+    for far in [0.0, 1e7] {
+        let bspline: Curve =
+            BSplineCurve::new(2, poles(far), vec![-1.0, 0.5, 4.0], vec![3, 1, 3], false)
+                .unwrap()
+                .into();
+        let bezier: Curve = BezierCurve::new(3, poles(far)).unwrap().into();
+        let result = bspline.intersect(&bezier, TOL);
+        let ends = [poles(far)[0], poles(far)[3]];
+        assert!(result.completeness().is_complete(), "at {far}");
+        assert_eq!(result.hits().len(), 2, "at {far}");
+        for (hit, end) in result.hits().iter().zip(ends) {
+            assert!(
+                hit.point.distance(end) <= 1e-6,
+                "at {far}: the contact lies {:e} from the shared end",
+                hit.point.distance(end)
+            );
+        }
+    }
+}

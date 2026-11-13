@@ -4,19 +4,26 @@ build-backend = "maturin"
 
 [project]
 name = "geomcore"
-description = "A pure, standalone geometric kernel for CAD-grade curves and surfaces: parametric evaluation, transformations, and curve-on-surface parametrization."
+description = "A geometric kernel for CAD-grade curves and surfaces, in Rust: intersection, projection and extrema, B-spline fitting, evaluation, transformations and curve-on-surface parametrization."
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.11"
 license = "MIT OR Apache-2.0"
-keywords = ["geometry", "cad", "curves", "surfaces", "nurbs"]
+keywords = ["geometry", "cad", "curves", "surfaces", "nurbs", "b-spline", "intersection", "projection"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3.15",
     "Programming Language :: Rust",
     "Operating System :: OS Independent",
     "Topic :: Scientific/Engineering :: Mathematics",
+    "Typing :: Typed",
 ]
 dynamic = ["version"]
 
@@ -24,6 +31,7 @@ dynamic = ["version"]
 numpy = ["numpy"]
 
 [project.urls]
+Documentation = "https://geomcore.github.io/geomcore/"
 Repository = "https://github.com/geomcore/geomcore"
 Changelog = "https://github.com/geomcore/geomcore/blob/main/CHANGELOG.md"
 Roadmap = "https://github.com/geomcore/geomcore/blob/main/ROADMAP.md"

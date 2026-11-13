@@ -74,11 +74,33 @@ def test_geometric_continuity_sees_a_smooth_shape_through_a_full_knot():
     assert kinked.geometric_continuity(1.0, Tolerance(angular=2.0)) == 2
 
 
-def test_the_repr_shows_the_knots_of_a_small_curve():
+def test_the_repr_rebuilds_a_small_curve_and_cuts_a_long_one():
+    import geomcore
+
     curve = BSplineCurve.clamped_uniform(2, _POLES)
     assert repr(curve) == (
-        "BSplineCurve(degree=2, pole_count=5, rational=False, periodic=False, "
-        "knots=[0.0, 0.3333333333333333, 0.6666666666666666, 1.0], multiplicities=[3, 1, 1, 3])"
+        "BSplineCurve(degree=2, poles=[Point(0.0, 0.0, 0.0), Point(1.0, 2.0, 0.5), "
+        "Point(3.0, 2.0, 1.0), Point(4.0, 0.0, 0.3), Point(5.0, 1.0, 2.0)], "
+        "knots=[0.0, 0.3333333333333333, 0.6666666666666666, 1.0], "
+        "multiplicities=[3, 1, 1, 3], periodic=False)"
     )
+    assert eval(repr(curve), vars(geomcore)) == curve
+    # #320: a long list is cut with `...`, so it fails to paste rather
+    # than paste as another curve.
     many = BSplineCurve.clamped_uniform(1, [Point(i, 0, 0) for i in range(12)])
-    assert repr(many) == "BSplineCurve(degree=1, pole_count=12, rational=False, periodic=False)"
+    assert "Point(7.0, 0.0, 0.0), ..., Point(11.0, 0.0, 0.0)]" in repr(many)
+    with pytest.raises(TypeError):
+        eval(repr(many), vars(geomcore))
+
+
+def test_basis_functions_and_span_index():
+    # #256: the basis the evaluation computes, for teaching and own algorithms.
+    poles = [Point(float(i), float(i % 2), 0.0) for i in range(3)]
+    curve = BSplineCurve(2, poles, [0.0, 1.0], [3, 3], False)
+    assert curve.basis_functions(0.5) == (0, [0.25, 0.5, 0.25])
+    assert curve.span_index(0.5) == 2
+    assert curve.flat_knots()[2] <= 0.5 < curve.flat_knots()[3]
+    flat = BSplineCurve2D(2, [Point2D(p.x, p.y) for p in poles], [0.0, 1.0], [3, 3], False)
+    assert flat.basis_functions(0.5) == curve.basis_functions(0.5)
+    # Past the bounds, clamped as evaluation is.
+    assert curve.basis_functions(-1.0) == curve.basis_functions(0.0) == (0, [1.0, 0.0, 0.0])

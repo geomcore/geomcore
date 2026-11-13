@@ -412,7 +412,7 @@ def test_repr_snaps_rounding_noise_to_zero():
     assert 0.0 < noisy < 1e-15
     assert repr(Point(noisy, -noisy, 1.0)) == "Point(0.0, 0.0, 1.0)"
     circle = Circle(Point(noisy, 0.0, 0.0), Z, 1.0)
-    assert repr(circle).startswith("Circle(center=(0.0, 0.0, 0.0)")
+    assert repr(circle).startswith("Circle(center=Point(0.0, 0.0, 0.0)")
     # A tolerance is not geometry: tiny values are kept.
     assert "angular=1e-12" in repr(geomcore.Tolerance())
 

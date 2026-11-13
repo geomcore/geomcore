@@ -50,7 +50,7 @@ fn test_hyperbola3d_new_null_normal_errors() {
 fn test_hyperbola3d_new_parallel_x_direction_errors() {
     assert_eq!(
         Hyperbola::new(Point::ORIGIN, Vector::Z, Vector::Z, 2.0, 1.0),
-        Err(HyperbolaConstructionError::NullNormal)
+        Err(HyperbolaConstructionError::XDirectionAlongNormal)
     );
 }
 
@@ -170,7 +170,11 @@ fn test_hyperbola_construction_error_display() {
     );
     assert_eq!(
         HyperbolaConstructionError::NullNormal.to_string(),
-        "normal has zero length"
+        "normal or x direction has zero length"
+    );
+    assert_eq!(
+        HyperbolaConstructionError::XDirectionAlongNormal.to_string(),
+        "x direction is parallel to the normal"
     );
     assert_eq!(
         HyperbolaConstructionError::ConfusedPoints.to_string(),

@@ -2,10 +2,11 @@
 
 use crate::method_sets::*;
 use crate::surfaces::*;
-use crate::values::{PyFrame, float_repr};
+use crate::values::PyFrame;
 use geomcore::Sphere;
 
 /// A sphere; u is the longitude in [0, 2*pi), v the latitude in [-pi/2, pi/2].
+/// Its normal points out of the sphere.
 #[pyclass(name = "Sphere", module = "geomcore", eq)]
 #[derive(Clone, PartialEq)]
 pub(crate) struct PySphere(pub(crate) Sphere);
@@ -23,11 +24,12 @@ shape_methods! {
         crate::pickling::reduce(slf.as_any(), Some("from_frame"), (this.frame(), this.radius(),))
     }
 
-    fn __repr__(&self) -> String {
-        format!(
-            "Sphere(center={}, radius={})",
-            crate::values::coordinates(self.0.center()),
-            float_repr(self.0.radius())
+    fn __repr__(slf: &pyo3::Bound<'_, Self>) -> PyResult<String> {
+        let this = slf.borrow();
+        crate::pickling::paste_back_repr!(
+            slf,
+            "center" => crate::values::PyPoint(this.0.center()),
+            "radius" => this.0.radius(),
         )
     }
 
@@ -68,12 +70,18 @@ shape_methods! {
     }
 
     /// The whole sphere as an exact rational B-spline surface.
+    /// Its rational arcs do not keep the angles as parameters: the same
+    /// `(u, v)` gives a different point on each surface between the
+    /// knots, so map a point across with `bspline.parameters_of(point)`.
     fn to_bspline(&self) -> PyBSplineSurface {
         PyBSplineSurface(self.0.to_bspline())
     }
 
     /// The patch `u_range × v_range` as an exact rational B-spline
     /// surface (raises `ValueError` for a bad range).
+    /// Its rational arcs do not keep the angles as parameters: the same
+    /// `(u, v)` gives a different point on each surface between the
+    /// knots, so map a point across with `bspline.parameters_of(point)`.
     fn to_bspline_patch(
         &self,
         u_range: (f64, f64),

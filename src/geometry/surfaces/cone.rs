@@ -45,7 +45,9 @@ impl fmt::Display for ConeConstructionError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let message = match self {
             ConeConstructionError::NegativeRadius => "radius is negative",
-            ConeConstructionError::BadAngle => "half-angle is out of range",
+            ConeConstructionError::BadAngle => {
+                "half-angle must be in radians, with 0 < |half-angle| < pi/2"
+            }
             ConeConstructionError::NullAxis => "the two points are confused",
             ConeConstructionError::NullAngle => "half-angle is null or a right angle",
             ConeConstructionError::NullNormal => "axis direction has zero length",

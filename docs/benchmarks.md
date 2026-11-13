@@ -527,6 +527,19 @@ them is `memcpy` in moving the circle–circle result, laid out on the
 stack one way or the other (#312, which touches only the sphere–cone
 reading, moved it back to 1.67M).
 
+One reading of where a linear form in the generator angle vanishes,
+shared by the quartic module's five readers (#292), costs the cone pairs
+up to 42 instructions (`factored_loops`, +14 on `two_cones/arcs_exact`)
+and `two_cones/around_exact` one (2,933 against main's 2,932, itself
+within a hair of its budget). Routed through the shared reading, the
+loop over a pair's infinities measured within noise. The added code
+also moved `ExtrusionSurface::carried_onto` out of line, unchanged:
+`swept_plane_cut/extrusion_bspline_oblique/swept` reads 7,201, 89 more
+than main. Marking it `#[inline]` brought it back but moved the
+vectorizer's packing of `cones_in_general_position`, 10–25 instructions
+more on every pair of cones, with that function's code otherwise as
+before: both ids are budgeted at the counts measured.
+
 Reproduce with:
 
 ```sh
