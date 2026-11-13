@@ -199,3 +199,73 @@ fn test_a_torus_cut_by_a_plane_or_a_sphere_off_its_axis_routes_exact() {
         assert_eq!(reversed.curves().len(), 2);
     }
 }
+
+/// A biquadratic patch over the unit square at `height`, arched in `z`:
+/// its middle control point, `peak` above the others, lifts the surface
+/// only a quarter of `peak`.
+fn arch(height: f64, peak: f64) -> BSplineSurface {
+    let poles = (0..3)
+        .map(|i| {
+            (0..3)
+                .map(|j| {
+                    let z = if i == 1 && j == 1 { peak } else { 0.0 };
+                    Point::new(0.5 * i as f64, 0.5 * j as f64, height + z)
+                })
+                .collect()
+        })
+        .collect();
+    let (knots, multiplicities) = (vec![0.0, 1.0], vec![3, 3]);
+    BSplineSurface::new(
+        2,
+        2,
+        poles,
+        knots.clone(),
+        multiplicities.clone(),
+        knots,
+        multiplicities,
+        false,
+        false,
+    )
+    .unwrap()
+}
+
+#[test]
+fn test_patches_with_boxes_apart_are_proved_not_to_meet() {
+    // The boxes of the control points are apart: no march is needed.
+    let low = arch(0.0, 1.0);
+    let high = arch(5.0, 1.0);
+    let result = low.intersect(&high, TOL);
+    assert!(result.is_empty());
+    assert_eq!(result.completeness(), &Completeness::Complete);
+}
+
+#[test]
+fn test_patches_whose_tight_boxes_are_apart_are_proved_not_to_meet() {
+    // The arch's control point reaches z = 2, above the flat patch at
+    // z = 1.5, but the arch itself only z = 0.5 (#330).
+    let arched = arch(0.0, 2.0);
+    let flat = arch(1.5, 0.0);
+    assert!(
+        arched
+            .bounding_box()
+            .unwrap()
+            .intersection(flat.bounding_box().unwrap())
+            .is_some()
+    );
+    let result = arched.intersect(&flat, TOL);
+    assert!(result.is_empty());
+    assert_eq!(result.completeness(), &Completeness::Complete);
+    assert_eq!(result.method(), IntersectionMethod::Numeric);
+}
+
+#[test]
+fn test_patches_that_meet_stay_sampled() {
+    // The arch rises to z = 0.5 and the flat patch at z = 0.4 cuts a loop
+    // off its top: the boxes prove nothing, and the march's result is
+    // still the sampled one.
+    let arched = arch(0.0, 2.0);
+    let flat = arch(0.4, 0.0);
+    let result = arched.intersect(&flat, TOL);
+    assert!(!result.curves().is_empty());
+    assert_eq!(result.completeness(), &Completeness::Sampled);
+}

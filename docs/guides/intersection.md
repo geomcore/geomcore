@@ -34,7 +34,12 @@ One result per family: `CurveCurveIntersection` (and
   be missing) or sampled. The method
   says how the result was found, not what type its curves are: an exact
   `Circle` can come out of a numeric search, as on the swept surfaces
-  below.
+  below. Nor does `EXACT` mean that every curve is the closed form
+  itself: a loop of two quadrics that is no conic, as two cylinders
+  crossing, is a B-spline fitted through the closed form, within the
+  confusion of both surfaces. Each curve's `deviation` tells them apart:
+  `0.0` for a closed-form curve, the largest distance found from the
+  surfaces for a fitted one.
 
 Hits on circles and ellipses keep their parameters inside `bounds()`,
 and a tangency is decided by distance, not by root separation:
@@ -232,7 +237,11 @@ curve stays on the other operand between them (samples within
 `tol.confusion`, tangents along it), extended by halving to where the
 curve leaves it, within `tol.confusion` in space of the true end. The
 hits inside drop out, and the result stays `Incomplete`, with an
-`Unseparated` region over the overlap: samples found it, not a proof. A
+`Unseparated` region over the overlap: samples found it, not a proof.
+The reason stays `Unseparated` where the search ran out of halvings
+along a curved overlap, since no budget would separate its pieces; it is
+`BudgetExhausted` only where pieces beside the overlap were left
+unsettled. A
 stretch where the operands only touch (they part as the square of the
 distance from the contact) is one hit at the closest approach, with
 multiplicity 2, and the result stays `Complete`; an overlap between curves whose
@@ -290,7 +299,11 @@ each checked at its midpoint, so the whole curve stays within
 confusion of both surfaces. Two B-spline surfaces additionally
 seed from overlapping patch pairs, so isolated loops smaller than the
 seed spacing are found there. A marched result is `Sampled`: a loop
-smaller than the iso-curve spacing can be missed. Where a branch of two
+smaller than the iso-curve spacing can be missed. Two bounded surfaces
+whose boxes are apart are proved not to meet: the result is empty and
+`Complete`. The boxes of the control points are checked before the
+march, and the tight boxes (see `tight_bounding_box`) after a march that
+found nothing. Where a branch of two
 unbounded surfaces was cut at its box, the result is `Incomplete` with
 `Unbounded` as its reason, and its regions mark where the cuts are.
 
@@ -341,9 +354,13 @@ parameters of every point it traced, and they are fitted on the curve's
 own knots, continuous across the seams (a loop around a cylinder ends a
 period away in `u`). An exact curve has the exact one where a closed
 form exists (a circle in a plane's parameters, a ruling or a parallel
-circle as a line in a cylinder's) and `None` otherwise, as an ellipse
-on a cylinder: [`curve_3d_to_uv_within`](parametrization.md) maps those
-within a deviation.
+circle as a line in a cylinder's) and `None` otherwise: an ellipse on a
+cylinder, a circle of two spheres that is no parallel of either, a
+hyperbola of two cones, the ellipses where two equal cylinders cross, and
+any curve running through a sphere's pole or a cone's apex, where its
+`u` jumps. A meridian clipped to a trimmed sphere between its poles has
+its line again. [`curve_3d_to_uv_within`](parametrization.md) maps the
+others within a deviation.
 
 === "Python"
 

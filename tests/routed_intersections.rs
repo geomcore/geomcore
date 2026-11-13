@@ -1854,3 +1854,64 @@ fn test_cylinders_whose_axes_nearly_meet_return_finite_curves_in_bounded_work() 
         }
     }
 }
+
+/// A bicubic patch over `[0, 4]²`, waved in `z`.
+fn wave() -> BSplineSurface {
+    let poles = (0..4)
+        .map(|i| {
+            (0..4)
+                .map(|j| {
+                    let (x, y) = (4.0 * i as f64 / 3.0, 4.0 * j as f64 / 3.0);
+                    Point::new(x, y, x.sin() * y.cos())
+                })
+                .collect()
+        })
+        .collect();
+    let (knots, multiplicities) = (vec![0.0, 1.0], vec![4, 4]);
+    BSplineSurface::new(
+        3,
+        3,
+        poles,
+        knots.clone(),
+        multiplicities.clone(),
+        knots,
+        multiplicities,
+        false,
+        false,
+    )
+    .unwrap()
+}
+
+#[test]
+fn test_a_curve_lying_on_a_curved_surface_is_unseparated_not_out_of_budget() {
+    // The search runs out of halvings along the iso curve, but its pieces
+    // would never separate from the surface: no budget would settle them
+    // (#330).
+    let surface = wave();
+    let curve = surface.u_iso(0.4).unwrap();
+    let result = curve.intersect(&surface, TOL);
+    assert_eq!(result.overlaps().len(), 1);
+    match result.completeness() {
+        Completeness::Incomplete { reason, .. } => {
+            assert_eq!(*reason, IncompleteReason::Unseparated)
+        }
+        other => panic!("expected an incomplete result, got {other:?}"),
+    }
+}
+
+#[test]
+fn test_a_curve_lying_along_a_curved_curve_is_unseparated_not_out_of_budget() {
+    // The piece lies on the curve over all its range. Read from the whole
+    // curve, the search leaves stretches beside the overlap unsettled, and
+    // the reason stays out of budget there.
+    let curve = wave().v_iso(0.3).unwrap();
+    let piece = curve.extract(0.2, 0.7).unwrap();
+    let result = piece.intersect(&curve, TOL);
+    assert_eq!(result.overlaps().len(), 1);
+    match result.completeness() {
+        Completeness::Incomplete { reason, .. } => {
+            assert_eq!(*reason, IncompleteReason::Unseparated)
+        }
+        other => panic!("expected an incomplete result, got {other:?}"),
+    }
+}

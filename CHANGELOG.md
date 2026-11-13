@@ -25,6 +25,14 @@ the Python distribution are versioned in lockstep.
 
 ### Fixed
 
+- A result's status says what was proved (#330). Two bounded surfaces
+  whose boxes are apart come back empty and `Complete`, where the march
+  said `Sampled`: the boxes holding the control points are checked
+  before it, and the tight boxes after a march that found nothing. A
+  curve lying on a curved surface, or along a curved curve, is
+  `Unseparated`, where it was `BudgetExhausted` with no budget to raise.
+  The intersection guide says how to read `EXACT` next to a curve's
+  `deviation`, and which exact curves have no curve in parameters.
 - Two cylinders whose axes nearly meet no longer exhaust memory (#305).
   Below about 4e-4 rad between the axes, the points of their curves, which
   run thousands of units out, are known more coarsely than the fit's
