@@ -119,7 +119,7 @@ pub(crate) fn hermite_spline<P: TierPoint>(
     let mut multiplicities = vec![2u32; knots.len()];
     multiplicities[0] = 4;
     multiplicities[knots.len() - 1] = 4;
-    GenericBSplineCurve::new(3, poles, knots.to_vec(), multiplicities, false)
+    GenericBSplineCurve::from_parts(3, poles, None, knots.to_vec(), multiplicities, false)
 }
 
 /// The interpolant of `points` by [`interpolate`](GenericBSplineCurve::interpolate)
