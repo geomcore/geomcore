@@ -141,6 +141,16 @@ package now needs Python 3.11 or newer.
   the surfaces graze, a turn larger than the sine between them now ends
   the trace whatever its size. The last three sample comparisons with
   an unbounded surface now hold.
+- Two surfaces sharing a boundary curve, as the plain and the rational
+  surface on one control net, came back from the march in pieces whose
+  number changed with the model's size and placement: 10 curves at the
+  reference size, 4 at a scale of 2^-20, 42 at a translation of 1e3. The
+  march traced the boundary curve along a parameter bound of both
+  surfaces and ended wherever a rounding took a step out. A boundary
+  curve of either surface lying on the other is now one whole curve,
+  sampled along its own parameter, and only the rest is traced (ADR
+  0052). The last sixteen sample comparisons between two bounded
+  surfaces now hold.
 - A cone whose apex lies on a sphere centred on its axis meets it in a
   circle and the apex (#312). The apex came back as a second circle, of
   radius 0, and with no contact point, unlike every other apex on the

@@ -4,15 +4,18 @@
 //! intersection and fitted.
 //!
 //! [`marching_intersection`] composes three modules: the seeding policy
-//! ([`seeding`]) says where traces start, the tracer ([`tracer`]) runs the
-//! step loop from each seed, and both ask the surface pair ([`pair`]) for
-//! what they need at a point on both surfaces. The coincidence check
-//! ([`coincidence`]) runs first.
+//! ([`seeding`]) says where traces start, the tracer ([`tracer`]) runs
+//! the step loop from each seed, and both ask the surface pair ([`pair`])
+//! for what they need at a point on both surfaces. The coincidence check
+//! ([`coincidence`]) runs first, then the boundary curves of either
+//! surface lying on the other are kept whole
+//! ([`shared_boundary_curves`]).
 
 mod coincidence;
 mod level_extrema;
 mod pair;
 mod seeding;
+mod shared_boundary_curves;
 mod tracer;
 
 use crate::geometry::curves::fitting::{
@@ -52,7 +55,15 @@ use tracer::{CHORD_DEVIATION, Cut, Trace, Tracer};
 /// other. The check stops at the first sample off the other surface, so
 /// crossing surfaces pay one or two projections for it.
 ///
-/// Otherwise, when one surface is elementary and the other elementary or a B-spline,
+/// Otherwise, each boundary curve of either surface (the bound of a
+/// bounded parameter) lying on the other is one curve, sampled along its
+/// own parameter (see
+/// [`shared_boundary_curves`](shared_boundary_curves::shared_boundary_curves),
+/// ADR 0052): a trace along it would run on a parameter bound of both
+/// surfaces, ending wherever a rounding takes a step out. Seeds on it are
+/// then found on it and not traced.
+///
+/// Then, when one surface is elementary and the other elementary or a B-spline,
 /// seeds are the points where the iso-curves of an elementary side meet
 /// the other surface, found by the routed curve-surface intersection
 /// (exact against an elementary surface, the Bézier piece search against
@@ -314,6 +325,7 @@ where
         around_singular_points,
         ..Traced::default()
     };
+    traced.keep_shared_boundary_curves(pair, tol);
     let (seeds, later) = seeding::seeds(pair, tol);
     let mut reached: Vec<[f64; 4]> = seeds.iter().map(|seed| seed.parameters()).collect();
     traced.follow_seeds(&Tracer::new(pair, tol, &reached), seeds, tol);
@@ -503,6 +515,29 @@ impl Traced {
         if tracer.reports_cuts() {
             self.cuts.extend(cuts);
         }
+        self.keep(pair, points, tangents, parameters, touching, tol);
+        stalls
+            .into_iter()
+            .flat_map(|stall| seeding::branch_seeds(pair, stall, tol))
+            .collect()
+    }
+
+    /// Keeps the curve through the traced `points`, each with its unit
+    /// tangent and its parameters on both surfaces, fitted (see
+    /// [`Fitted::new`]), and its polyline, which later seeds are looked
+    /// for on (see [`crosses`](Self::crosses)).
+    fn keep<A, B>(
+        &mut self,
+        pair: SurfacePair<A, B>,
+        points: Vec<Point>,
+        tangents: Vec<Vector>,
+        parameters: Vec<[f64; 4]>,
+        touching: bool,
+        tol: Tolerance,
+    ) where
+        A: ParametricSurface,
+        B: ParametricSurface,
+    {
         let along = tangents.into_iter().zip(parameters).collect();
         let (points, along) = without_confused(points, along, tol.confusion);
         let fit = Fitted::new(&pair, &points, &along, touching, tol);
@@ -517,10 +552,35 @@ impl Traced {
                 .push((bezier_pieces::bounding_box(&coords), runs, points));
             self.curves.push(fitted);
         }
-        stalls
-            .into_iter()
-            .flat_map(|stall| seeding::branch_seeds(pair, stall, tol))
-            .collect()
+    }
+
+    /// Keeps each boundary curve of a surface lying on the other (see
+    /// [`shared_boundary_curves::shared_boundary_curves`]) as a curve, unless
+    /// a curve kept already runs through its ends and middle: a boundary
+    /// curve of the second surface that is also one of the first. Seeds on a
+    /// boundary curve are then found on it and not traced.
+    fn keep_shared_boundary_curves<A, B>(&mut self, pair: SurfacePair<A, B>, tol: Tolerance)
+    where
+        A: ParametricSurface,
+        B: ParametricSurface,
+    {
+        for boundary in shared_boundary_curves::shared_boundary_curves(pair, tol) {
+            let last = boundary.points.len() - 1;
+            let kept_already = [0, last / 2, last].iter().all(|&k| {
+                let p = boundary.points[k];
+                self.crosses(&[p.x, p.y, p.z, p.x, p.y, p.z], tol)
+            });
+            if !kept_already {
+                self.keep(
+                    pair,
+                    boundary.points,
+                    boundary.tangents,
+                    boundary.parameters,
+                    boundary.touching,
+                    tol,
+                );
+            }
+        }
     }
 
     /// The regions where the march could not tell what the curves do: one
