@@ -14,7 +14,7 @@
 use crate::geometry::curves::{
     BSplineSplitError, BezierConstructionError, BezierCurve, DegreeElevationError, Side,
 };
-use crate::geometry::curves::{Curve, Curve2D};
+use crate::geometry::curves::{Curve, Curve2D, all_finite};
 use crate::geometry::surfaces::ReversibleSurface;
 use crate::geometry::surfaces::uv_curve::{from_curve, to_curve};
 use crate::geometry::surfaces::{BSplineSurface, ParametricSurface, SurfaceIsoError};
@@ -69,7 +69,8 @@ impl BezierSurface {
     /// [`BezierConstructionError::InvalidDegree`] if either degree is not
     /// in `1..=25`, and [`BezierConstructionError::PoleCountMismatch`] if
     /// the grid is not `u_degree + 1` rows of `v_degree + 1` poles each
-    /// (an empty or ragged grid included).
+    /// (an empty or ragged grid included), and
+    /// [`BezierConstructionError::NonFinite`] if a pole is NaN or infinite.
     ///
     /// # Examples
     ///
@@ -104,8 +105,9 @@ impl BezierSurface {
     ///
     /// [`BezierConstructionError::WeightCountMismatch`] if the weight grid
     /// does not have the shape of the pole grid,
-    /// [`BezierConstructionError::NonPositiveWeight`] if a weight is
-    /// `<= 0`; otherwise as [`BezierSurface::new`].
+    /// [`BezierConstructionError::NonFinite`] if a weight is NaN or
+    /// infinite, [`BezierConstructionError::NonPositiveWeight`] if a weight
+    /// is `<= 0`; otherwise as [`BezierSurface::new`].
     ///
     /// # Examples
     ///
@@ -135,8 +137,8 @@ impl BezierSurface {
         Self::build(u_degree, v_degree, poles, Some(weights))
     }
 
-    /// The weights are checked before the degrees and the pole grid, as
-    /// for [`BezierCurve`](crate::BezierCurve).
+    /// The weights, then the poles and weights finite, are checked before
+    /// the degrees and the pole grid, as for [`BezierCurve`](crate::BezierCurve).
     fn build(
         u_degree: usize,
         v_degree: usize,
@@ -149,9 +151,13 @@ impl BezierSurface {
             if !same_shape {
                 return Err(BezierConstructionError::WeightCountMismatch);
             }
-            if ws.iter().flatten().any(|&w| w <= 0.0) {
-                return Err(BezierConstructionError::NonPositiveWeight);
-            }
+        }
+        let weight_values = || weights.iter().flatten().flatten();
+        if !all_finite(poles.iter().flatten(), weight_values()) {
+            return Err(BezierConstructionError::NonFinite);
+        }
+        if weight_values().any(|&w| w <= 0.0) {
+            return Err(BezierConstructionError::NonPositiveWeight);
         }
         let degrees = 1..=MAX_DEGREE;
         if !degrees.contains(&u_degree) || !degrees.contains(&v_degree) {

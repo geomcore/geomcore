@@ -1652,6 +1652,9 @@ pub(crate) fn validate_direction(
     if knots.len() < 2 || mults.len() < 2 || knots.len() != mults.len() {
         return Err(BSplineConstructionError::TooFewKnots);
     }
+    if !knots.iter().all(|k| k.is_finite()) {
+        return Err(BSplineConstructionError::NonFinite);
+    }
     for pair in knots.windows(2) {
         if pair[1] <= pair[0] {
             return Err(BSplineConstructionError::KnotsNotIncreasing);

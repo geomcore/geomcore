@@ -214,14 +214,17 @@ map_error!(SurfaceIsoError: geomcore::SurfaceIsoError);
 map_error!(DiscretizationCriteriaError: geomcore::DiscretizationCriteriaError);
 
 /// A pole index past the end is an `IndexError`, as for a list; a weight
-/// that is not positive and finite cannot build the curve.
+/// that is not positive and finite, or a pole that is not finite, cannot
+/// build the curve.
 impl IntoPythonError for geomcore::PoleEditError {
     fn into_python_error(self) -> PyErr {
         match self {
             geomcore::PoleEditError::IndexOutOfRange => {
                 pyo3::exceptions::PyIndexError::new_err(self.to_string())
             }
-            geomcore::PoleEditError::InvalidWeight => ConstructionError::new_err(self.to_string()),
+            geomcore::PoleEditError::InvalidWeight | geomcore::PoleEditError::NonFinitePole => {
+                ConstructionError::new_err(self.to_string())
+            }
         }
     }
 }

@@ -59,6 +59,8 @@ pub enum BSplineConstructionError {
     ConfusedPoints,
     /// More poles requested than data points.
     TooManyPoles,
+    /// A pole, weight, knot or data point is NaN or infinite.
+    NonFinite,
 }
 
 impl fmt::Display for BSplineConstructionError {
@@ -86,6 +88,7 @@ impl fmt::Display for BSplineConstructionError {
                 "two consecutive interpolation points coincide"
             }
             BSplineConstructionError::TooManyPoles => "more poles requested than data points",
+            BSplineConstructionError::NonFinite => "an input is NaN or infinite",
         };
         f.write_str(message)
     }
@@ -216,6 +219,8 @@ pub enum PoleEditError {
     IndexOutOfRange,
     /// The weight is zero, negative or not finite.
     InvalidWeight,
+    /// The pole is NaN or infinite.
+    NonFinitePole,
 }
 
 impl fmt::Display for PoleEditError {
@@ -223,6 +228,7 @@ impl fmt::Display for PoleEditError {
         let message = match self {
             PoleEditError::IndexOutOfRange => "there is no pole at the index",
             PoleEditError::InvalidWeight => "a weight must be positive and finite",
+            PoleEditError::NonFinitePole => "a pole must be finite",
         };
         f.write_str(message)
     }
@@ -362,7 +368,9 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
     ///
     /// Returns a [`BSplineConstructionError`] if `degree`, `knots`,
     /// `multiplicities`, and `poles.len()` are not mutually consistent (see
-    /// the error variants for the exact conditions checked).
+    /// the error variants for the exact conditions checked), or
+    /// [`BSplineConstructionError::NonFinite`] if a pole or a knot is NaN
+    /// or infinite.
     ///
     /// # Examples
     ///
@@ -389,9 +397,10 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
     /// # Errors
     ///
     /// Returns [`BSplineConstructionError::WeightCountMismatch`] if
-    /// `weights.len() != poles.len()`, or
-    /// [`BSplineConstructionError::NonPositiveWeight`] if any weight is `<=
-    /// 0`. Otherwise validates degree/knots/multiplicities/poles exactly as
+    /// `weights.len() != poles.len()`,
+    /// [`BSplineConstructionError::NonFinite`] if a weight is NaN or
+    /// infinite, or [`BSplineConstructionError::NonPositiveWeight`] if any
+    /// weight is `<= 0`. Otherwise validates degree/knots/multiplicities/poles exactly as
     /// [`BSplineCurve::new`] does.
     ///
     /// # Examples
@@ -645,7 +654,8 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
     ///
     /// # Errors
     ///
-    /// [`PoleEditError::IndexOutOfRange`] if there is no pole `index`.
+    /// [`PoleEditError::IndexOutOfRange`] if there is no pole `index`,
+    /// [`PoleEditError::NonFinitePole`] if `pole` is NaN or infinite.
     ///
     /// # Examples
     ///
@@ -665,6 +675,9 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
     ) -> Result<GenericBSplineCurve<P>, PoleEditError> {
         if index >= self.poles.len() {
             return Err(PoleEditError::IndexOutOfRange);
+        }
+        if !pole.is_finite() {
+            return Err(PoleEditError::NonFinitePole);
         }
         let mut poles = self.poles.clone();
         poles[index] = pole;
@@ -1420,7 +1433,8 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
     }
 
     /// Validates the parts: the weights (one positive weight per pole),
-    /// then the degree, knots and multiplicities against the pole count.
+    /// the poles and weights finite, then the degree, knots and
+    /// multiplicities against the pole count.
     pub(crate) fn from_parts(
         degree: usize,
         poles: Vec<P>,
@@ -1429,13 +1443,16 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
         multiplicities: Vec<u32>,
         periodic: bool,
     ) -> Result<Self, BSplineConstructionError> {
-        if let Some(ws) = &weights {
-            if ws.len() != poles.len() {
-                return Err(BSplineConstructionError::WeightCountMismatch);
-            }
-            if ws.iter().any(|&w| w <= 0.0) {
-                return Err(BSplineConstructionError::NonPositiveWeight);
-            }
+        if let Some(ws) = &weights
+            && ws.len() != poles.len()
+        {
+            return Err(BSplineConstructionError::WeightCountMismatch);
+        }
+        if !all_finite(&poles, weights.iter().flatten()) {
+            return Err(BSplineConstructionError::NonFinite);
+        }
+        if weights.iter().flatten().any(|&w| w <= 0.0) {
+            return Err(BSplineConstructionError::NonPositiveWeight);
         }
         let knots = math::KnotVector::new(degree, knots, multiplicities, periodic, poles.len())?;
         Ok(Self::from_knot_vector(knots, poles, weights))
@@ -1443,19 +1460,22 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
 
     /// The Bézier curve of `degree` over `[0, 1]`: one clamped span of
     /// `degree + 1` poles. The weights, if any, are checked before the
-    /// degree and the pole count.
+    /// degree and the pole count, the poles and weights finite.
     pub(crate) fn new_bezier(
         degree: usize,
         poles: Vec<P>,
         weights: Option<Vec<f64>>,
     ) -> Result<Self, BezierConstructionError> {
-        if let Some(ws) = &weights {
-            if ws.len() != poles.len() {
-                return Err(BezierConstructionError::WeightCountMismatch);
-            }
-            if ws.iter().any(|&w| w <= 0.0) {
-                return Err(BezierConstructionError::NonPositiveWeight);
-            }
+        if let Some(ws) = &weights
+            && ws.len() != poles.len()
+        {
+            return Err(BezierConstructionError::WeightCountMismatch);
+        }
+        if !all_finite(&poles, weights.iter().flatten()) {
+            return Err(BezierConstructionError::NonFinite);
+        }
+        if weights.iter().flatten().any(|&w| w <= 0.0) {
+            return Err(BezierConstructionError::NonPositiveWeight);
         }
         if !(1..=math::MAX_DEGREE).contains(&degree) {
             return Err(BezierConstructionError::InvalidDegree);
@@ -1865,6 +1885,16 @@ impl Transformable for BSplineCurve {
             Err(TransformError::NonFinite)
         }
     }
+}
+
+/// Whether every one of `points` and `weights` is finite: a NaN or
+/// infinite input would build a curve or a fit of NaN, as if it were
+/// valid.
+pub(crate) fn all_finite<'a, P: TierPoint + 'a>(
+    points: impl IntoIterator<Item = &'a P>,
+    weights: impl IntoIterator<Item = &'a f64>,
+) -> bool {
+    points.into_iter().all(|p| p.is_finite()) && weights.into_iter().all(|w| w.is_finite())
 }
 
 /// The speed at `t` of the Bézier piece with the homogeneous control
