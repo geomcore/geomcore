@@ -17,6 +17,14 @@ the Python distribution are versioned in lockstep.
 
 ### Fixed
 
+- Two cylinders whose axes nearly meet no longer exhaust memory (#305).
+  Below about 4e-4 rad between the axes, the points of their curves, which
+  run thousands of units out, are known more coarsely than the fit's
+  deviation, and the fit split its segments without end: at 1e-4 rad it
+  aborted the process on a 4 GB allocation. The fit now stops at 65 536
+  samples, and the pair goes to the numeric search, which returns both
+  loops within the confusion in under 0.1 s, `NUMERIC` and `SAMPLED`.
+  Every angle from 1e-2 down to 1e-13 rad now returns finite curves.
 - `help(geomcore)` and the PyPI page orient a newcomer (#332).
   `geomcore.__doc__` was empty, so `help` opened on the package's
   submodules: it now shows the main calls, each run as a doctest, and the

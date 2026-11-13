@@ -2890,6 +2890,15 @@ const DEEPEST_SPLIT: u32 = 24;
 /// The most pieces a segment is split into at once.
 const MOST_PIECES: f64 = 8.0;
 
+/// The most samples a component is fitted through. Where the quadrics cross
+/// at a small angle far from the origin, their curve's points are known
+/// only to a precision coarser than the fit's deviation: two cylinders
+/// whose axes meet at 2e-4 rad run 30 000 out and measure 5e-7 off on any
+/// segment, however short, so the splitting never ends (#305). Past the
+/// budget the fit fails and the pair goes to the numeric search. The
+/// largest fits of the test suite take under 2 000.
+const MOST_SAMPLES: usize = 1 << 16;
+
 impl Roots {
     /// `cos τ` and `sin τ` from `sin t` and `cos t`.
     #[inline]
@@ -3416,6 +3425,11 @@ trait CurveFamily: Copy {
             out.push(b);
             return off;
         }
+        if out.len() >= MOST_SAMPLES {
+            // Out of budget: the fit fails (see `MOST_SAMPLES`).
+            out.push(b);
+            return f64::INFINITY;
+        }
         let pieces = (error / deviation)
             .sqrt()
             .sqrt()
@@ -3466,6 +3480,9 @@ trait CurveFamily: Copy {
                 &mut samples,
             ));
             previous = next;
+        }
+        if samples.len() > MOST_SAMPLES {
+            return None;
         }
         let points: Vec<Point> = samples.iter().map(|s| s.point).collect();
         let tangents: Vec<Vector> = samples.iter().map(|s| s.tangent).collect();
