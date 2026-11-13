@@ -5,7 +5,13 @@ use crate::method_sets::*;
 use crate::values::PyFrame;
 use geomcore::Ellipse;
 
-/// An ellipse in 3D.
+/// An ellipse in 3D, evaluated as
+/// `center + major_radius*cos(t)*x + minor_radius*sin(t)*y`. The major
+/// axis `x` is `x_direction` projected onto the plane perpendicular to
+/// `normal`, and `y = normal × x`, so `t` turns counterclockwise seen from
+/// the side `normal` points to. `major_radius` must be at least
+/// `minor_radius` (`ConstructionError` otherwise): to lay the long axis
+/// along another direction, turn `x_direction` rather than swap the radii.
 #[pyclass(name = "Ellipse", module = "geomcore", eq)]
 #[derive(Clone, PartialEq)]
 pub(crate) struct PyEllipse(pub(crate) Ellipse);
@@ -81,6 +87,9 @@ shape_methods! {
 
     /// The ellipse as an exact periodic rational quadratic B-spline over
     /// `[0, 2π]`.
+    /// Its rational arcs do not keep the angle as parameter: the same
+    /// parameter gives a different point on each curve between the knots,
+    /// so map a point across with `bspline.parameter_of(point)`.
     fn to_bspline(&self) -> PyBSplineCurve {
         PyBSplineCurve(self.0.to_bspline())
     }

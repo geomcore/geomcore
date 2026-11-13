@@ -721,10 +721,12 @@ macro_rules! surface {
             }
 
             /// Unit normal at surface parameters `(u, v)`
-            /// (`Tolerance.default()` when omitted). Singular points such as
-            /// poles give their limiting normal; returns `None` at an apex,
-            /// whose meridians each have their own, and where no normal can
-            /// be recovered.
+            /// (`Tolerance.default()` when omitted): the direction of
+            /// `du × dv`, the cross product of the `u` and `v` derivatives,
+            /// so reversing either direction flips it. Singular points such
+            /// as poles give their limiting normal; returns `None` at an
+            /// apex, whose meridians each have their own, and where no
+            /// normal can be recovered.
             #[pyo3(signature = (u, v, tol = None))]
             fn normal(&self, u: f64, v: f64, tol: Option<ToleranceArgument>) -> Option<PyVector> {
                 self.0.normal(u, v, tolerance(tol)).map(PyVector)
@@ -1033,7 +1035,7 @@ macro_rules! surface {
 
             /// The same surface with the `u` direction reversed:
             /// `reversed_u().point_at(u_reversed_parameter(u), v)` is
-            /// `point_at(u, v)`.
+            /// `point_at(u, v)`, and the normal there is flipped.
             fn reversed_u(&self) -> Self {
                 Self(self.0.reversed_u())
             }

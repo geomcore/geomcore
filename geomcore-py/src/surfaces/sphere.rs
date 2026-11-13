@@ -6,6 +6,7 @@ use crate::values::PyFrame;
 use geomcore::Sphere;
 
 /// A sphere; u is the longitude in [0, 2*pi), v the latitude in [-pi/2, pi/2].
+/// Its normal points out of the sphere.
 #[pyclass(name = "Sphere", module = "geomcore", eq)]
 #[derive(Clone, PartialEq)]
 pub(crate) struct PySphere(pub(crate) Sphere);
@@ -69,12 +70,18 @@ shape_methods! {
     }
 
     /// The whole sphere as an exact rational B-spline surface.
+    /// Its rational arcs do not keep the angles as parameters: the same
+    /// `(u, v)` gives a different point on each surface between the
+    /// knots, so map a point across with `bspline.parameters_of(point)`.
     fn to_bspline(&self) -> PyBSplineSurface {
         PyBSplineSurface(self.0.to_bspline())
     }
 
     /// The patch `u_range × v_range` as an exact rational B-spline
     /// surface (raises `ValueError` for a bad range).
+    /// Its rational arcs do not keep the angles as parameters: the same
+    /// `(u, v)` gives a different point on each surface between the
+    /// knots, so map a point across with `bspline.parameters_of(point)`.
     fn to_bspline_patch(
         &self,
         u_range: (f64, f64),

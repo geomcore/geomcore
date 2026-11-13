@@ -55,6 +55,9 @@ shape_methods! {
 
     /// The whole surface as an exact rational B-spline surface (raises
     /// `ValueError` for an unbounded profile).
+    /// Its rational arcs do not keep the angles as parameters: the same
+    /// `(u, v)` gives a different point on each surface between the
+    /// knots, so map a point across with `bspline.parameters_of(point)`.
     fn to_bspline(&self) -> PyResult<PyBSplineSurface> {
         let (u_range, v_range) = (self.0.u_bounds(), self.0.v_bounds());
         self.to_bspline_patch(u_range, v_range)
@@ -62,6 +65,9 @@ shape_methods! {
 
     /// The patch `u_range × v_range` as an exact rational B-spline
     /// surface (raises `ValueError` for a bad range).
+    /// Its rational arcs do not keep the angles as parameters: the same
+    /// `(u, v)` gives a different point on each surface between the
+    /// knots, so map a point across with `bspline.parameters_of(point)`.
     fn to_bspline_patch(
         &self,
         u_range: (f64, f64),

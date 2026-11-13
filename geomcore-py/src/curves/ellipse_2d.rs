@@ -5,7 +5,12 @@ use crate::method_sets::*;
 use crate::values::PyFrame2D;
 use geomcore::Ellipse2D;
 
-/// An ellipse in 2D.
+/// An ellipse in 2D, evaluated as
+/// `center + major_radius*cos(t)*x + minor_radius*sin(t)*y`. The major
+/// axis `x` is the normalized `x_direction` and `y` its counterclockwise
+/// perpendicular. `major_radius` must be at least `minor_radius`
+/// (`ConstructionError` otherwise): to lay the long axis along another
+/// direction, turn `x_direction` rather than swap the radii.
 #[pyclass(name = "Ellipse2D", module = "geomcore", eq)]
 #[derive(Clone, PartialEq)]
 pub(crate) struct PyEllipse2D(pub(crate) Ellipse2D);
@@ -78,7 +83,9 @@ shape_methods! {
 
     /// The ellipse as an exact rational B-spline of degree 2, periodic over
     /// `[0, 2*pi]`; its parameter agrees with the angle at the knots and
-    /// the middle of each quarter turn.
+    /// the middle of each quarter turn. In between the same parameter
+    /// gives a different point on each curve, so map a point across with
+    /// `bspline.parameter_of(point)`.
     fn to_bspline(&self) -> PyBSplineCurve2D {
         PyBSplineCurve2D(self.0.to_bspline())
     }

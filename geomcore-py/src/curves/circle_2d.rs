@@ -59,7 +59,9 @@ shape_methods! {
 
     /// The circle as an exact rational B-spline of degree 2, periodic over
     /// `[0, 2*pi]`; its parameter agrees with the angle at the knots and
-    /// the middle of each quarter turn.
+    /// the middle of each quarter turn. In between the same parameter
+    /// gives a different point on each curve, so map a point across with
+    /// `bspline.parameter_of(point)`.
     fn to_bspline(&self) -> PyBSplineCurve2D {
         PyBSplineCurve2D(self.0.to_bspline())
     }

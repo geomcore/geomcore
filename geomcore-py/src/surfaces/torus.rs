@@ -6,6 +6,7 @@ use crate::values::{PyAxis, PyFrame};
 use geomcore::Torus;
 
 /// A torus; u is the angle around the main axis, v the angle around the tube.
+/// Its normal points out of the tube.
 #[pyclass(name = "Torus", module = "geomcore", eq)]
 #[derive(Clone, PartialEq)]
 pub(crate) struct PyTorus(pub(crate) Torus);
@@ -78,12 +79,18 @@ shape_methods! {
     }
 
     /// The whole torus as an exact rational B-spline surface.
+    /// Its rational arcs do not keep the angles as parameters: the same
+    /// `(u, v)` gives a different point on each surface between the
+    /// knots, so map a point across with `bspline.parameters_of(point)`.
     fn to_bspline(&self) -> PyBSplineSurface {
         PyBSplineSurface(self.0.to_bspline())
     }
 
     /// The patch `u_range × v_range` as an exact rational B-spline
     /// surface (raises `ValueError` for a bad range).
+    /// Its rational arcs do not keep the angles as parameters: the same
+    /// `(u, v)` gives a different point on each surface between the
+    /// knots, so map a point across with `bspline.parameters_of(point)`.
     fn to_bspline_patch(
         &self,
         u_range: (f64, f64),

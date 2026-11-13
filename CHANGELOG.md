@@ -97,6 +97,17 @@ the Python distribution are versioned in lockstep.
   approach was the farthest. A B-spline or a trimmed curve listed both
   ends always. A stationary point is now kept where the distance grows
   on both sides of it, and an end where it grows into the curve.
+- The Python docstrings say which way surface normals point and that
+  `to_bspline` changes the parametrization (#333). `normal()` is
+  `du × dv`: along a plane's `normal`, away from a cylinder's or cone's
+  axis, out of a sphere and out of a torus's tube, flipped by
+  `reversed_u()` and `reversed_v()`. Each `to_bspline` states whether it
+  keeps the parameters and names `parameters_of`/`parameter_of` as the
+  bridge when it does not. `x`, `y` and `z` on the points and vectors
+  have docstrings; `Ellipse` explains `x_direction` and the major ≥
+  minor rule, `Cone.half_angle` its unit and range, and `Tolerance` the
+  units and defaults of its three scales. The elementary-geometry page
+  gains both sections.
 
 ## [0.46.0] - 2026-11-12
 

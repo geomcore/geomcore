@@ -109,7 +109,9 @@ shape_methods! {
     /// The trimmed piece as an exact B-spline over the same range: a
     /// clamped B-spline for an elementary basis, the extracted piece for
     /// a B-spline or Bézier one (raises `ValueError` when the poles would
-    /// overflow `f64`).
+    /// overflow `f64`). A line, parabola, B-spline or Bézier basis keeps
+    /// its parameter; the rational arcs of a circle, ellipse or hyperbola
+    /// do not, so map a point across with `bspline.parameter_of(point)`.
     fn to_bspline(&self) -> PyResult<PyBSplineCurve> {
         Ok(PyBSplineCurve(self.0.to_bspline().map_err(python_error)?))
     }
@@ -212,7 +214,9 @@ shape_methods! {
     /// The trimmed piece as an exact B-spline over the same range: the
     /// extracted piece for a B-spline basis, a clamped B-spline for a line
     /// or circle (raises `ValueError` when the poles would overflow
-    /// `f64`).
+    /// `f64`). A line or B-spline basis keeps its parameter; a circle's
+    /// rational arcs do not, so map a point across with
+    /// `bspline.parameter_of(point)`.
     fn to_bspline(&self) -> PyResult<PyBSplineCurve2D> {
         Ok(PyBSplineCurve2D(self.0.to_bspline().map_err(python_error)?))
     }

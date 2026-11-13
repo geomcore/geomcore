@@ -5,7 +5,8 @@ use crate::surfaces::*;
 use crate::values::{PyAxis, PyFrame};
 use geomcore::Plane;
 
-/// An infinite plane, parametrized by in-plane coordinates (u, v).
+/// An infinite plane, parametrized by in-plane coordinates (u, v). Its
+/// normal is the `normal` it was built with.
 #[pyclass(name = "Plane", module = "geomcore", eq)]
 #[derive(Clone, PartialEq)]
 pub(crate) struct PyPlane(pub(crate) Plane);
@@ -77,7 +78,8 @@ shape_methods! {
     }
 
     /// The patch `u_range × v_range` as an exact bilinear B-spline
-    /// surface (raises `ValueError` for a bad range).
+    /// surface (raises `ValueError` for a bad range). It keeps the
+    /// parameters: the same `(u, v)` gives the same point on both.
     fn to_bspline_patch(
         &self,
         u_range: (f64, f64),

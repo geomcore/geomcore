@@ -43,7 +43,8 @@ shape_methods! {
         ))
     }
 
-    /// The curve as a `BSplineCurve` over the same bounds.
+    /// The curve as a `BSplineCurve` over the same bounds, with the same
+    /// point at each parameter.
     fn to_bspline(&self) -> PyBSplineCurve {
         PyBSplineCurve(self.0.to_bspline())
     }
