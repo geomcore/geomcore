@@ -25,6 +25,12 @@ the Python distribution are versioned in lockstep.
 
 ### Fixed
 
+- The viewer page says which geomcore geomcore-viewer 0.4 draws (#316):
+  0.43 at the latest, since it reads the names geomcore renamed in 0.44.
+  It shows how to pin geomcore for drawing until a viewer release follows
+  the renames, and each page with a viewer example points there. The
+  release steps run the viewer's tests before a release that renames a
+  Python name.
 - Two cylinders whose axes nearly meet no longer exhaust memory (#305).
   Below about 4e-4 rad between the axes, the points of their curves, which
   run thousands of units out, are known more coarsely than the fit's

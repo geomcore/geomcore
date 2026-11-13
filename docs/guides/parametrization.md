@@ -159,7 +159,8 @@ its exact length or projection, would need a `Helix` type of its own.
 
 The viewer draws a UV curve twice: on the surface in 3D and in its own
 $(u, v)$ pane. Pass the 2D curve with the already-added surface's
-handle.
+handle. The viewer does not draw geomcore 0.44 or later yet: see
+[Viewer](../viewer.md#install).
 
 === "Python"
 

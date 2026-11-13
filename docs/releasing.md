@@ -54,15 +54,21 @@ GitHub release with the artifacts attached.
    maturin. The tag check refuses a release if they ever disagree.
 2. Move the `[Unreleased]` entries in `CHANGELOG.md` under a new
    `[X.Y.Z] - YYYY-MM-DD` heading and update the compare links at the bottom.
-3. PR, review, merge to `main`.
-4. Tag and push:
+3. If the release renames or removes a Python name, run
+   [geomcore-viewer](https://github.com/geomcore/geomcore-viewer)'s tests
+   against a wheel built from the release branch
+   (`maturin build --release -m geomcore-py/Cargo.toml`, installed into
+   the viewer's environment). Open a viewer issue for each break, and
+   say in `docs/viewer.md` which geomcore the released viewer draws.
+4. PR, review, merge to `main`.
+5. Tag and push:
 
    ```sh
    git tag vX.Y.Z
    git push origin vX.Y.Z
    ```
 
-5. Watch the Release workflow. It will refuse to publish if the tag doesn't
+6. Watch the Release workflow. It will refuse to publish if the tag doesn't
    match the crate versions, or if tests fail.
 
 First release only: remove the "Not yet published" lines from `README.md`

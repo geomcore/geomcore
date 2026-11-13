@@ -44,7 +44,8 @@ Surface fitting (`approximate` over a point grid,
 In the viewer a B-spline surface arrives as a 48×48 mesh. Read the
 sampling window off the surface itself with `u_bounds()`/`v_bounds()`
 — and curves on B-spline surfaces have no pcurve mapping
-([viewer#9](https://github.com/geomcore/geomcore-viewer/issues/9)).
+([viewer#9](https://github.com/geomcore/geomcore-viewer/issues/9)). The viewer does not draw geomcore 0.44 or later yet: see
+[Viewer](../viewer.md#install).
 
 === "Python"
 
