@@ -1,7 +1,7 @@
 //! Parabolas of both tiers: parametric evaluation and parameter
 //! inversion, a thin wrapper over [`crate::math::elementary::curve`].
 
-use crate::base::frame::frame_error;
+use crate::base::frame::{frame_error, placement_error};
 use crate::base::tier::operations::FrameOperations;
 use crate::base::tier::{TierPoint, impl_for_both_tiers};
 use crate::base::transform::image_error;
@@ -24,9 +24,11 @@ pub enum ParabolaConstructionError {
     /// The requested focal distance is zero or negative (a zero focal
     /// distance collapses the parabola onto its axis).
     NonPositiveFocal,
-    /// The normal (or the x direction) has zero length, or the x direction
-    /// is parallel to the normal.
+    /// The normal or the x direction has zero length.
     NullNormal,
+    /// The x direction is parallel to the normal, so it gives no axis in
+    /// the plane.
+    XDirectionAlongNormal,
     /// An input coordinate, radius, or angle is NaN or infinite.
     NonFinite,
 }
@@ -35,7 +37,10 @@ impl fmt::Display for ParabolaConstructionError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let message = match self {
             ParabolaConstructionError::NonPositiveFocal => "focal distance is not positive",
-            ParabolaConstructionError::NullNormal => "normal has zero length",
+            ParabolaConstructionError::NullNormal => "normal or x direction has zero length",
+            ParabolaConstructionError::XDirectionAlongNormal => {
+                "x direction is parallel to the normal"
+            }
             ParabolaConstructionError::NonFinite => "an input is NaN or infinite",
         };
         f.write_str(message)
@@ -244,9 +249,10 @@ impl Parabola {
     ///
     /// # Errors
     ///
-    /// Returns [`ParabolaConstructionError::NullNormal`] if `normal` cannot
-    /// be normalized, if `x_direction` cannot be normalized, or if
-    /// `x_direction` is parallel to `normal`;
+    /// Returns [`ParabolaConstructionError::NullNormal`] if `normal` or
+    /// `x_direction` cannot be normalized;
+    /// [`ParabolaConstructionError::XDirectionAlongNormal`] if `x_direction`
+    /// is parallel to `normal`;
     /// [`ParabolaConstructionError::NonPositiveFocal`] if `focal_distance <= 0`; or
     /// [`ParabolaConstructionError::NonFinite`] if any input is NaN or
     /// infinite.
@@ -264,9 +270,10 @@ impl Parabola {
         x_direction: Vector,
         focal_distance: f64,
     ) -> Result<Parabola, ParabolaConstructionError> {
-        let frame = Frame::new(apex, normal, x_direction).map_err(frame_error(
+        let frame = Frame::new(apex, normal, x_direction).map_err(placement_error(
             ParabolaConstructionError::NonFinite,
             ParabolaConstructionError::NullNormal,
+            ParabolaConstructionError::XDirectionAlongNormal,
         ))?;
         Parabola::from_frame(frame, focal_distance)
     }
@@ -395,6 +402,12 @@ impl_for_both_tiers! {
                     }
                 })
                 .collect();
+            out.sort_by(|x, y| x.parameter.total_cmp(&y.parameter));
+            let is_minimum = |t: f64| {
+                let (first, second) = (self.derivative(t, 1), self.derivative(t, 2));
+                projection::is_distance_minimum(self.point_at(t) - point, first, second)
+            };
+            out = projection::alternating_minima(out, false, is_minimum);
             out.sort_by(|x, y| x.distance.total_cmp(&y.distance));
             out
         }

@@ -232,6 +232,21 @@ fn range_reaching_extrusion(
     pairs_with_bspline::inside(curve.transformed(local).ok()?, &grown(prism, tol))
 }
 
+/// `t` when it lies within the curve's bounds, the nearer end when it
+/// lies within `tol.confusion` beyond it, `None` further out: Newton
+/// is not held to the bounds, and from a seed near an end of a trimmed
+/// piece it reaches a hit of the basis curve beyond it (#308). A
+/// periodic curve has every parameter on it.
+fn on_curve<C: ParametricCurve>(curve: &C, t: f64, tol: Tolerance) -> Option<f64> {
+    let (first, last) = curve.bounds();
+    if curve.period().is_some() || (first <= t && t <= last) {
+        return Some(t);
+    }
+    let end = t.clamp(first, last);
+    let (_, tangent) = curve.first_derivatives(end);
+    ((t - end).abs() * tangent.magnitude() <= tol.confusion).then_some(end)
+}
+
 /// The sampled search of [`search_curve_surface`].
 pub(crate) fn sampled_curve_surface<C, S>(
     curve: &C,
@@ -321,7 +336,10 @@ where
                 [ct.z, -su.z, -sv.z],
             ]
         };
-        if let Some([rt, ru, rv]) = newton_3d(f, jac, [t, proj.u, proj.v], tol.confusion, 50) {
+        let solved = newton_3d(f, jac, [t, proj.u, proj.v], tol.confusion, 50);
+        if let Some([rt, ru, rv]) = solved
+            && let Some(rt) = on_curve(curve, rt, tol)
+        {
             let p = curve.point_at(rt);
             if p.distance(surface.point_at(ru, rv)) <= tol.confusion {
                 push(

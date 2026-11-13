@@ -9,7 +9,8 @@
 //! `project_point(point, tol).distance == 0.0`.
 
 use crate::base::tier::TierPoint;
-use crate::{Point, Point2D};
+use crate::base::tier::operations::VectorOperations;
+use crate::{ParametricSurface, Point, Point2D, Tolerance};
 
 /// Closest point of a query point on a curve: the parameter, the point and
 /// the distance. One type for both tiers: `CurveProjection` in space, its
@@ -95,6 +96,44 @@ pub struct SurfaceProjection {
 }
 
 impl SurfaceProjection {
+    /// The distance with a side: positive when `point`, the query point
+    /// this projection came from, lies on the side the surface normal at
+    /// the closest point points to, negative on the other, `0.0` on the
+    /// surface. The sign follows the surface's own orientation, so
+    /// `reversed_u()` or `reversed_v()` flips it.
+    ///
+    /// `None` where no side is defined: the normal at the closest point
+    /// is undefined, as at a cone's apex, or `point` lies beside the
+    /// surface, in its tangent plane past a boundary. `tol` reads the
+    /// normal and decides that last case, the offset along the normal
+    /// being within `tol.confusion`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::prelude::*;
+    /// use geomcore::{Point, Sphere, Tolerance};
+    ///
+    /// let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
+    /// let inside = Point::new(1.0, 0.0, 0.0);
+    /// let projection = sphere.project_point(inside, Tolerance::DEFAULT);
+    /// // The sphere's normal points out, so a point inside is behind it.
+    /// assert_eq!(projection.signed_distance(&sphere, inside, Tolerance::DEFAULT), Some(-1.0));
+    /// ```
+    pub fn signed_distance<S: ParametricSurface + ?Sized>(
+        &self,
+        surface: &S,
+        point: Point,
+        tol: Tolerance,
+    ) -> Option<f64> {
+        if self.distance == 0.0 {
+            return Some(0.0);
+        }
+        let normal = surface.normal(self.u, self.v, tol)?;
+        let offset = (point - self.point).dot(normal);
+        (offset.abs() > tol.confusion).then(|| self.distance.copysign(offset))
+    }
+
     /// The projection of a query point with a non-finite coordinate:
     /// parameters, point and distance are all NaN.
     pub(crate) const UNDEFINED: SurfaceProjection = SurfaceProjection {
@@ -111,6 +150,72 @@ impl SurfaceProjection {
 /// containment: a contained point projects to distance exactly zero.
 pub(crate) fn snap_distance(distance: f64, confusion: f64) -> f64 {
     if distance <= confusion { 0.0 } else { distance }
+}
+
+/// The share of the sizes compared within which a sign reads as zero: a
+/// stationary point or an end so flat that rounding decides it is kept.
+const FLAT: f64 = 1e-9;
+
+/// Whether the distance from a point grows on both sides of a stationary
+/// point of a curve, given `offset`, from the point to the curve there,
+/// and the curve's first and second derivatives. Half the second
+/// derivative of the squared distance is `|C'|² + offset · C''`; a flat
+/// one is kept, as for a valley of equal distance.
+pub(crate) fn is_distance_minimum<V: VectorOperations>(offset: V, first: V, second: V) -> bool {
+    let speed = first.dot(first);
+    let bend = offset.dot(second);
+    grows(
+        speed + bend,
+        speed + offset.magnitude() * second.magnitude(),
+    )
+}
+
+/// The minima among the stationary points of the distance from a point,
+/// `stationary` sorted by parameter. Simple stationary points alternate
+/// between minima and maxima: on an open curve, where the distance grows
+/// without bound at both ends, they are odd in number and the first is a
+/// minimum; on a closed curve they are even in number and the nearest is
+/// one. Any other count holds a double root or a stray candidate, and
+/// `is_minimum` then decides each point from its parameter.
+pub(crate) fn alternating_minima<P: TierPoint>(
+    stationary: Vec<CurveProjection<P>>,
+    closed: bool,
+    is_minimum: impl Fn(f64) -> bool,
+) -> Vec<CurveProjection<P>> {
+    let count = stationary.len();
+    let first_minimum = match (closed, count % 2) {
+        (false, 1) => Some(0),
+        (true, 0) => stationary
+            .iter()
+            .enumerate()
+            .min_by(|x, y| x.1.distance.total_cmp(&y.1.distance))
+            .map(|(nearest, _)| nearest % 2),
+        _ => None,
+    };
+    match first_minimum {
+        Some(parity) => stationary
+            .into_iter()
+            .enumerate()
+            .filter_map(|(i, s)| (i % 2 == parity).then_some(s))
+            .collect(),
+        None => stationary
+            .into_iter()
+            .filter(|s| is_minimum(s.parameter))
+            .collect(),
+    }
+}
+
+/// Whether a rate of change of the distance, `rate`, is not negative
+/// beyond rounding: `size` bounds the terms it was summed from.
+pub(crate) fn grows(rate: f64, size: f64) -> bool {
+    rate >= -FLAT * size
+}
+
+/// Whether the distance from a point grows from an end of a curve into it,
+/// given `offset`, from the point to the end, and `inward`, the curve's
+/// derivative there turned to point into the curve.
+pub(crate) fn grows_inward<V: VectorOperations>(offset: V, inward: V) -> bool {
+    grows(offset.dot(inward), offset.magnitude() * inward.magnitude())
 }
 
 #[cfg(test)]

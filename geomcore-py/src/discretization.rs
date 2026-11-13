@@ -53,6 +53,29 @@ impl PyDiscretization {
         PyList::new(py, self.points())?.as_any().get_item(index)
     }
 
+    /// Iterates over the points from the last to the first.
+    fn __reversed__<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyIterator>> {
+        PyList::new(py, self.points().into_iter().rev())?.try_iter()
+    }
+
+    /// The points as a numpy array of shape `(N, 3)`, so
+    /// `numpy.array(discretization)` gives floats, not an array of objects.
+    #[pyo3(signature = (dtype = None, copy = None))]
+    fn __array__<'py>(
+        &self,
+        py: Python<'py>,
+        dtype: Option<&Bound<'py, PyAny>>,
+        copy: Option<bool>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let _ = copy;
+        let floats: Vec<f64> = self.0.points.iter().flat_map(|p| [p.x, p.y, p.z]).collect();
+        let array = crate::arrays::array(py, &floats, &[self.0.points.len(), 3])?;
+        match dtype {
+            Some(dtype) if !dtype.is_none() => array.call_method1("astype", (dtype,)),
+            _ => Ok(array),
+        }
+    }
+
     /// The chord deviation of each segment.
     #[getter]
     fn chord_deviations(&self) -> Vec<f64> {
@@ -108,6 +131,29 @@ impl PyDiscretization2D {
         index: &Bound<'py, PyAny>,
     ) -> PyResult<Bound<'py, PyAny>> {
         PyList::new(py, self.points())?.as_any().get_item(index)
+    }
+
+    /// Iterates over the points from the last to the first.
+    fn __reversed__<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyIterator>> {
+        PyList::new(py, self.points().into_iter().rev())?.try_iter()
+    }
+
+    /// The points as a numpy array of shape `(N, 2)`, so
+    /// `numpy.array(discretization)` gives floats, not an array of objects.
+    #[pyo3(signature = (dtype = None, copy = None))]
+    fn __array__<'py>(
+        &self,
+        py: Python<'py>,
+        dtype: Option<&Bound<'py, PyAny>>,
+        copy: Option<bool>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let _ = copy;
+        let floats: Vec<f64> = self.0.points.iter().flat_map(|p| [p.x, p.y]).collect();
+        let array = crate::arrays::array(py, &floats, &[self.0.points.len(), 2])?;
+        match dtype {
+            Some(dtype) if !dtype.is_none() => array.call_method1("astype", (dtype,)),
+            _ => Ok(array),
+        }
     }
 
     /// The chord deviation of each segment.

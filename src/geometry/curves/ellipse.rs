@@ -2,7 +2,7 @@
 //! and center+two-points construction, thin wrappers over
 //! [`crate::math::elementary::curve`].
 
-use crate::base::frame::frame_error;
+use crate::base::frame::{frame_error, placement_error};
 use crate::base::tier::operations::FrameOperations;
 use crate::base::tier::{TierPoint, impl_for_both_tiers};
 use crate::base::transform::image_error;
@@ -28,9 +28,11 @@ pub enum EllipseConstructionError {
     NonPositiveRadius,
     /// The major radius is smaller than the minor radius.
     InvertedRadii,
-    /// The normal (or the x direction) has zero length, or the x direction
-    /// is parallel to the normal.
+    /// The normal or the x direction has zero length.
     NullNormal,
+    /// The x direction is parallel to the normal, so it gives no axis in
+    /// the plane.
+    XDirectionAlongNormal,
     /// The major-axis point coincides with the center, so no major axis can
     /// be derived.
     NullAxis,
@@ -47,7 +49,10 @@ impl fmt::Display for EllipseConstructionError {
         let message = match self {
             EllipseConstructionError::NonPositiveRadius => "minor radius is not positive",
             EllipseConstructionError::InvertedRadii => "major radius is smaller than minor radius",
-            EllipseConstructionError::NullNormal => "normal has zero length",
+            EllipseConstructionError::NullNormal => "normal or x direction has zero length",
+            EllipseConstructionError::XDirectionAlongNormal => {
+                "x direction is parallel to the normal"
+            }
             EllipseConstructionError::NullAxis => "major-axis point coincides with the center",
             EllipseConstructionError::InvertedAxis => {
                 "the two points do not determine a valid axis pair"
@@ -343,9 +348,10 @@ impl Ellipse {
     ///
     /// # Errors
     ///
-    /// Returns [`EllipseConstructionError::NullNormal`] if `normal` cannot
-    /// be normalized, if `x_direction` cannot be normalized, or if
-    /// `x_direction` is parallel to `normal`;
+    /// Returns [`EllipseConstructionError::NullNormal`] if `normal` or
+    /// `x_direction` cannot be normalized;
+    /// [`EllipseConstructionError::XDirectionAlongNormal`] if `x_direction`
+    /// is parallel to `normal`;
     /// [`EllipseConstructionError::NonPositiveRadius`] if `minor_radius <= 0`;
     /// [`EllipseConstructionError::InvertedRadii`] if
     /// `major_radius < minor_radius`; or
@@ -367,9 +373,10 @@ impl Ellipse {
         major_radius: f64,
         minor_radius: f64,
     ) -> Result<Ellipse, EllipseConstructionError> {
-        let frame = Frame::new(center, normal, x_direction).map_err(frame_error(
+        let frame = Frame::new(center, normal, x_direction).map_err(placement_error(
             EllipseConstructionError::NonFinite,
             EllipseConstructionError::NullNormal,
+            EllipseConstructionError::XDirectionAlongNormal,
         ))?;
         Ellipse::from_frame(frame, major_radius, minor_radius)
     }
@@ -605,6 +612,11 @@ impl_for_both_tiers! {
                     });
                 }
             }
+            // `dg` is half the second derivative of the squared distance,
+            // its terms within `a (2a + |rel|)`.
+            let reach = rel.magnitude();
+            let is_minimum = |t: f64| projection::grows(dg(t), a * (2.0 * a + reach));
+            let mut out = projection::alternating_minima(out, true, is_minimum);
             out.sort_by(|x, y| x.distance.total_cmp(&y.distance));
             out
         }

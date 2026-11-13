@@ -320,7 +320,8 @@ fn test_circle_crossing_a_parabola_at_any_size() {
             Tolerance::DEFAULT.confusion * scale,
             Tolerance::DEFAULT.angular,
             Tolerance::DEFAULT.parametric,
-        );
+        )
+        .unwrap();
         let center = Point::new(1.0 * scale, 0.5 * scale, 0.0);
         let circle = Circle::new(center, Vector::Z, 2.0 * scale).unwrap();
         let parabola = Parabola::new(Point::ORIGIN, Vector::Z, Vector::X, 0.8 * scale).unwrap();

@@ -92,8 +92,37 @@ macro_rules! python_enum {
     };
 }
 
-/// Builds `enum.<base>(class, members, module="geomcore", type=mixin)`
-/// and gives it the docstring `doc`.
+/// `__str__` and `__format__` for every enumeration: the member as
+/// `Class.NAME`. Since Python 3.11 an `IntEnum` prints its number from
+/// `str()`, and before it from an f-string, so a printed status read `2`.
+const MEMBER_TEXT: &std::ffi::CStr = c"
+def __str__(self):
+    return f'{type(self).__name__}.{self.name}'
+
+def __format__(self, format_spec):
+    return format(str(self), format_spec)
+
+def _missing_(cls, value):
+    valid = ', '.join(repr(member.value) for member in cls)
+    raise ValueError(f'{value!r} is not a valid {cls.__name__}; use a member or one of {valid}')
+";
+
+/// The functions of [`MEMBER_TEXT`], compiled once.
+fn member_text(py: Python<'_>) -> PyResult<&Bound<'_, PyModule>> {
+    static MODULE: PyOnceLock<Py<PyModule>> = PyOnceLock::new();
+    MODULE
+        .get_or_try_init(py, || {
+            Ok::<_, PyErr>(
+                PyModule::from_code(py, MEMBER_TEXT, c"geomcore_enums.py", c"geomcore_enums")?
+                    .unbind(),
+            )
+        })
+        .map(|module| module.bind(py))
+}
+
+/// Builds `enum.<base>(class, members, module="geomcore", type=mixin)`,
+/// gives it the docstring `doc`, and makes its members print as
+/// `Class.NAME` (see [`MEMBER_TEXT`]).
 fn build_class(
     py: Python<'_>,
     class: &str,
@@ -117,6 +146,15 @@ fn build_class(
         .map(|line| line.strip_prefix(' ').unwrap_or(line))
         .collect();
     built.setattr("__doc__", lines.join("\n"))?;
+    let text = member_text(py)?;
+    for method in ["__str__", "__format__"] {
+        built.setattr(method, text.getattr(method)?)?;
+    }
+    let classmethod = py.import("builtins")?.getattr("classmethod")?;
+    built.setattr(
+        "_missing_",
+        classmethod.call1((text.getattr("_missing_")?,))?,
+    )?;
     Ok(built.unbind())
 }
 

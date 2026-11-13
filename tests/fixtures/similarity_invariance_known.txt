@@ -35,6 +35,3 @@ surface-surface 12:Bezier x 13:Bezier | scale 2^-20
 surface-surface 12:Bezier x 13:Bezier | scale 2^20
 surface-surface 12:Bezier x 13:Bezier | translation 1e3
 surface-surface 12:Bezier x 13:Bezier | translation 1e7
-surface-surface 1:Cylinder x 6:Extrusion | translation 1e7
-surface-surface 3:Sphere x 6:Extrusion | translation 1e7
-surface-surface 5:Extrusion x 9:Revolution | translation 1e7

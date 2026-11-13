@@ -1,3 +1,5 @@
+use std::fmt;
+
 /// Distance and angle tolerances shared by all geometric queries.
 ///
 /// Containment checks, projections, and intersections are meaningless without
@@ -77,18 +79,48 @@ impl Tolerance {
 
     /// Create tolerances from the three scales explicitly.
     ///
+    /// Built field by field, a tolerance is not checked; built here, each
+    /// scale must be a positive finite number. A negative, zero or NaN
+    /// scale would make every query answer as if nothing were close
+    /// enough, and an infinite one as if everything were.
+    ///
+    /// # Errors
+    ///
+    /// The [`ToleranceConstructionError`] variant names the first scale,
+    /// in argument order, that is not positive and finite.
+    ///
     /// # Examples
     ///
     /// ```
-    /// use geomcore::Tolerance;
-    /// let tol = Tolerance::new(1e-6, 1e-10, 1e-8);
+    /// use geomcore::{Tolerance, ToleranceConstructionError};
+    ///
+    /// let tol = Tolerance::new(1e-6, 1e-10, 1e-8).unwrap();
     /// assert_eq!(tol.confusion, 1e-6);
+    /// assert_eq!(
+    ///     Tolerance::new(-1e-6, 1e-10, 1e-8),
+    ///     Err(ToleranceConstructionError::Confusion)
+    /// );
     /// ```
-    pub const fn new(confusion: f64, angular: f64, parametric: f64) -> Tolerance {
-        Tolerance {
-            confusion,
-            angular,
-            parametric,
+    pub const fn new(
+        confusion: f64,
+        angular: f64,
+        parametric: f64,
+    ) -> Result<Tolerance, ToleranceConstructionError> {
+        const fn is_scale(value: f64) -> bool {
+            value > 0.0 && value.is_finite()
+        }
+        if !is_scale(confusion) {
+            Err(ToleranceConstructionError::Confusion)
+        } else if !is_scale(angular) {
+            Err(ToleranceConstructionError::Angular)
+        } else if !is_scale(parametric) {
+            Err(ToleranceConstructionError::Parametric)
+        } else {
+            Ok(Tolerance {
+                confusion,
+                angular,
+                parametric,
+            })
         }
     }
 
@@ -145,6 +177,31 @@ impl Tolerance {
         distance.is_nan() || distance <= self.confusion
     }
 }
+
+/// Error returned by [`Tolerance::new`]: the scale named is not a positive
+/// finite number.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ToleranceConstructionError {
+    /// The confusion distance is not positive and finite.
+    Confusion,
+    /// The angular tolerance is not positive and finite.
+    Angular,
+    /// The parametric tolerance is not positive and finite.
+    Parametric,
+}
+
+impl fmt::Display for ToleranceConstructionError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let scale = match self {
+            ToleranceConstructionError::Confusion => "confusion",
+            ToleranceConstructionError::Angular => "angular",
+            ToleranceConstructionError::Parametric => "parametric",
+        };
+        write!(f, "the {scale} tolerance is not a positive finite number")
+    }
+}
+
+impl std::error::Error for ToleranceConstructionError {}
 
 impl Default for Tolerance {
     fn default() -> Tolerance {

@@ -247,19 +247,19 @@ where
                         // Where the surfaces already touch within
                         // confusion, the tangent is noise and the
                         // curvature measured from it compounds step after
-                        // step: a turn beyond the free one is then onto
-                        // another branch, and the trace ends at the
-                        // crossing to seed its branches. There the tangent
-                        // swings by the change of the normals over the
-                        // sine of the angle between the surfaces, so only
-                        // a turn larger than that sine is checked, last,
-                        // on a step otherwise taken: the check needs
+                        // step: a turn there is onto another branch, and
+                        // the trace ends at the crossing to seed its
+                        // branches. Even turns below the free one: far from
+                        // the origin, rounding opens a crossing into a bend
+                        // a few millionths wide, through which small turns
+                        // led from one branch onto the other. There the
+                        // tangent swings by the change of the normals over
+                        // the sine of the angle between the surfaces, so
+                        // only a turn larger than that sine is checked,
+                        // last, on a step otherwise taken: the check needs
                         // second derivatives.
-                        let onto_another_branch = || {
-                            turn > FREE_TURN
-                                && sine.is_some_and(|sine| sine < turn)
-                                && pair.grazes(y, tol)
-                        };
+                        let onto_another_branch =
+                            || sine.is_some_and(|sine| sine < turn) && pair.grazes(y, tol);
                         if ty.dot(t) > 0.0
                             && chord <= 2.0 * h
                             && chord * turn <= 32.0 * chord_deviation

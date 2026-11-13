@@ -500,6 +500,46 @@ Where the $u$-speed depends on $v$, a uniform $(u, v)$ grid is not
 uniform on the surface — triangles crowd at the poles. Every mesher
 corrects for exactly this table.
 
+## Which way the normal points
+
+`normal(u, v)` is the direction of
+$\partial S/\partial u \times \partial S/\partial v$. With the
+parametrizations above that gives:
+
+| Surface | The normal points |
+|---|---|
+| Plane | along the `normal` it was built with ($\vec{X} \times \vec{Y}$) |
+| Cylinder | away from the axis |
+| Cone | away from the axis |
+| Sphere | out of the sphere |
+| Torus | out of the tube |
+
+Curvature signs follow the normal: a surface bending away from it has
+negative curvatures, so a sphere of radius 2 reports $-0.5$ for both.
+`reversed_u()` and `reversed_v()` flip the normal, and with it the sign
+of every curvature.
+
+## Converting to a B-spline changes the parameters
+
+`to_bspline()` and `to_bspline_patch()` are exact as point sets, but a
+rational quadratic arc does not run at constant angular speed: between
+the knots the same parameter lands on a different point, up to 6% of
+the radius away on a torus. Compare the two shapes through the inverse
+map, not through the parameter:
+
+```python
+import math
+from geomcore import Point, Torus, Vector
+
+torus = Torus(Point.origin(), Vector.unit_z(), 3.0, 1.0)
+bspline = torus.to_bspline()
+point = torus.point_at(0.3, 1.1)
+u, v = bspline.parameters_of(point)
+assert bspline.point_at(u, v).distance(point) < 1e-9
+```
+
+The plane, the line and the Bézier shapes keep their parameters.
+
 ## Seams and degenerate edges
 
 Three things go wrong, and all the special cases in surface code live

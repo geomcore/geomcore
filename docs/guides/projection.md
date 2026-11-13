@@ -99,9 +99,10 @@ it was computed on and the `query_point`. Batch variants
 
 ## extrema
 
-All local minima of the distance, nearest first — plus the open ends
-of bounded curves. What `project_point` returns first, `extrema`
-returns whole.
+All local minima of the distance, nearest first, and nothing else: a
+farthest point is never listed, and an end of a bounded curve only
+where the distance grows from it into the curve. What `project_point`
+returns first, `extrema` returns whole.
 
 === "Python"
 

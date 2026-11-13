@@ -8,11 +8,11 @@
 //! [`crate::BSplineCurve::approximate`] for the curve fit).
 
 use crate::geometry::approximation::SurfaceApproximation;
-use crate::geometry::curves::BSplineConstructionError;
 use crate::geometry::curves::fitting::{
     BasisTable, approximation_knots, averaged_knots, check_degree, fit_within_fewest,
     interpolation, least_squares, shared_parameters,
 };
+use crate::geometry::curves::{BSplineConstructionError, all_finite};
 use crate::{BSplineSurface, Point, PointParametrization};
 
 /// A grid of points `points[i][j]`, `i` along `u` and `j` along `v`,
@@ -37,6 +37,9 @@ impl<'a> Grid<'a> {
         }
         if points.iter().any(|row| row.len() != cols) {
             return Err(BSplineConstructionError::PoleCountMismatch);
+        }
+        if !all_finite(points.iter().flatten(), []) {
+            return Err(BSplineConstructionError::NonFinite);
         }
         // Along `u`, the columns are the lines of points; along `v`, the rows.
         let u_params = shared_parameters(cols, rows, |j, i| points[i][j], parametrization)?;
@@ -145,7 +148,8 @@ impl BSplineSurface {
     /// [`BSplineConstructionError::TooFewPoints`] for fewer than two rows
     /// or columns, [`BSplineConstructionError::PoleCountMismatch`] for
     /// rows of differing lengths or when the points leave a pole
-    /// undetermined, [`BSplineConstructionError::InvalidDegree`] outside
+    /// undetermined, [`BSplineConstructionError::NonFinite`] for a NaN or
+    /// infinite point, [`BSplineConstructionError::InvalidDegree`] outside
     /// `1..=25`, [`BSplineConstructionError::DegreeTooHigh`] when a
     /// degree exceeds its pole count minus one,
     /// [`BSplineConstructionError::TooManyPoles`] for more poles than

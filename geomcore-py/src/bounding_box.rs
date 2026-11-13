@@ -99,12 +99,12 @@ impl PyBoundingBox {
         crate::pickling::reduce(slf.as_any(), None, (this.min_corner(), this.max_corner()))
     }
 
-    fn __repr__(&self) -> String {
-        let (lo, hi) = (self.0.min_corner(), self.0.max_corner());
-        format!(
-            "BoundingBox(min={}, max={})",
-            coordinates(lo),
-            coordinates(hi)
+    fn __repr__(slf: &pyo3::Bound<'_, Self>) -> PyResult<String> {
+        let this = slf.borrow();
+        crate::pickling::paste_back_repr!(
+            slf,
+            "a" => this.min_corner(),
+            "b" => this.max_corner(),
         )
     }
 }
@@ -203,12 +203,12 @@ impl PyBoundingBox2D {
         crate::pickling::reduce(slf.as_any(), None, (this.min_corner(), this.max_corner()))
     }
 
-    fn __repr__(&self) -> String {
-        let (lo, hi) = (self.0.min_corner(), self.0.max_corner());
-        format!(
-            "BoundingBox2D(min={}, max={})",
-            coordinates_2d(lo),
-            coordinates_2d(hi)
+    fn __repr__(slf: &pyo3::Bound<'_, Self>) -> PyResult<String> {
+        let this = slf.borrow();
+        crate::pickling::paste_back_repr!(
+            slf,
+            "a" => this.min_corner(),
+            "b" => this.max_corner(),
         )
     }
 }

@@ -105,6 +105,9 @@ pub type Circle2D = GenericCircle<Point2D>;
 impl<P: TierPoint> GenericCircle<P> {
     /// Creates a circle from a frame and a radius directly.
     ///
+    /// A radius of 0 is accepted: the circle is then the point at its
+    /// centre, as the iso curve through a sphere's pole is.
+    ///
     /// # Errors
     ///
     /// Returns [`CircleConstructionError::NegativeRadius`] if `radius < 0`.
