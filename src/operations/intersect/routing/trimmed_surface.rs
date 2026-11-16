@@ -6,7 +6,9 @@
 //! side: where that curve crosses a side of the parameter rectangle, or a
 //! copy of it shifted by periods, the curve is cut, and each piece is kept
 //! when its middle lies in the rectangle. A curve with no curve in
-//! parameters is mapped within a deviation; one that cannot be mapped, as
+//! parameters, or whose curve in parameters strays from it by more than
+//! the confusion distance, is mapped within a deviation; one that cannot
+//! be mapped, as
 //! a curve lingering at a cone's apex, is cut where samples of it leave
 //! the rectangle instead.
 
@@ -131,8 +133,13 @@ fn clipped(
         } else {
             &piece.second_uv_curve
         };
+        // A fit that strays from the curve by more than the confusion
+        // distance, as a march's fit in the parameters of a surface whose
+        // parameters turn fast along a straight cut, would cut the curve
+        // away from the boundary: the curve is mapped instead (#314).
         let uv_curve = stored
             .clone()
+            .filter(|_| piece.deviation <= tol.confusion)
             .or_else(|| mapped(side.basis, &piece.curve, range, tol));
         tests[index] = match uv_curve {
             Some(uv_curve) => {

@@ -9,6 +9,17 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+### Fixed
+
+- A marched curve clipped by a trimmed surface ends on the face boundary
+  (#314). The clip placed its cuts with the march's curve in the
+  parameters of the trimmed side, which can stray from the curve by far
+  more than the confusion: a plane at x = 0.25 across a flat ring of
+  radii 0.5 to 2 ended its inner pieces at y = ±0.458, where the ring's
+  inner circle is at ±0.433. A curve in parameters whose `deviation`
+  exceeds the confusion is now mapped within a tenth of it before the
+  cut, and the ends lie within 1e-10 of the boundary.
+
 ## [0.48.0] - 2026-11-16
 
 Python takes numpy and threads as they come. A point argument takes a

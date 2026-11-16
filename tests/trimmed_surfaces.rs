@@ -386,3 +386,35 @@ fn test_a_meridian_clipped_between_the_poles_has_its_curve_in_the_sphere_paramet
         }
     }
 }
+
+#[test]
+fn test_a_marched_curve_ends_on_the_face_boundary() {
+    // A flat ring, a revolution of a line trimmed to radii (0.5, 2), cut by
+    // the plane x = 0.25: the plane meets the basis along a straight line,
+    // marched, and the two pieces on the ring end on its circles, at
+    // y = ±sqrt(0.5² − 0.25²) inside and ±sqrt(2² − 0.25²) outside (#314).
+    let profile = Line::new(Point::ORIGIN, Vector::X).unwrap();
+    let axis = Axis::new(Point::ORIGIN, Vector::Z).unwrap();
+    let revolution = RevolutionSurface::new(Curve::Line(profile), axis).unwrap();
+    let ring = revolution.trimmed((0.0, TAU), (0.5, 2.0)).unwrap();
+    let plane = Plane::new(Point::new(0.25, 0.0, 0.0), Vector::X).unwrap();
+    let result = ring.intersect(&plane, TOL);
+    assert_eq!(result.curves().len(), 2);
+    let mut ends: Vec<f64> = result
+        .curves()
+        .iter()
+        .flat_map(|piece| {
+            let (start, end) = piece.parameter_range;
+            [piece.curve.point_at(start).y, piece.curve.point_at(end).y]
+        })
+        .collect();
+    ends.sort_by(f64::total_cmp);
+    let (inner, outer) = ((0.5f64.powi(2) - 0.0625).sqrt(), (4.0f64 - 0.0625).sqrt());
+    for (end, expected) in ends.iter().zip([-outer, -inner, inner, outer]) {
+        assert!(
+            (end - expected).abs() <= TOL.confusion,
+            "{ends:?} against ±{inner}, ±{outer}"
+        );
+    }
+    assert_inside(&result, &ring, &plane);
+}
