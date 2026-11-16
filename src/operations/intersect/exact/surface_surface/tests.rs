@@ -81,6 +81,24 @@ fn test_plane_sphere_intersection() {
 }
 
 #[test]
+fn test_plane_cylinder_intersection_circle() {
+    let tol = Tolerance::DEFAULT;
+    let plane = Plane::new(Point::new(0.0, 0.0, 1.5), Vector::Z).unwrap();
+    let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
+    match plane.intersect_exact(&cylinder, tol) {
+        PlaneCylinderIntersection::Circle(circle) => {
+            assert!(circle.center().distance(Point::new(0.0, 0.0, 1.5)) < 1e-12);
+            assert!((circle.radius() - 2.0).abs() < 1e-12);
+            for p in circle.points_at(&[0.0, 1.0, 2.0, 4.0]) {
+                assert!(plane.contains(p, tol));
+                assert!(cylinder.contains(p, tol));
+            }
+        }
+        _ => panic!("expected a circle"),
+    }
+}
+
+#[test]
 fn test_plane_cylinder_intersection_ellipse() {
     let tol = Tolerance::DEFAULT;
     let tilt = 0.3f64;

@@ -271,6 +271,14 @@ fn test_surface_intersection_of_a_bspline_is_numeric() {
     let itself = plane.intersect(&plane, TOL);
     assert_eq!(itself.method(), IntersectionMethod::Exact);
     assert!(itself.is_coincident());
+    // A line through the patch is searched numerically too.
+    let line = Curve::from(Line::new(Point::new(0.5, 0.5, -1.0), Vector::Z).unwrap());
+    let result = line.intersect(&patch, TOL);
+    assert_eq!(result.method(), IntersectionMethod::Numeric);
+    let [hit] = result.hits() else {
+        panic!("expected one hit, got {:?}", result.hits());
+    };
+    assert!(hit.point.distance(Point::new(0.5, 0.5, 0.0)) < 1e-9);
 }
 
 /// Curves crossing, grazing, lying on and missing the fixture surfaces.
@@ -596,10 +604,14 @@ fn test_curve_curve_multiplicity_marks_only_tangency() {
         multiplicities(line(Point::new(0.0, 2.0 + 1e-9, 0.0), Vector::X), circle),
         [2]
     );
-    // Parallel to the parabola's axis: one crossing. Along the tangent
-    // at the vertex: a tangency.
+    // Parallel to the parabola's axis, or along it through the vertex:
+    // one crossing. Along the tangent at the vertex: a tangency.
     assert_eq!(
         multiplicities(line(Point::new(0.0, 1.0, 0.0), Vector::X), parabola),
+        [1]
+    );
+    assert_eq!(
+        multiplicities(line(Point::ORIGIN, Vector::X), parabola),
         [1]
     );
     assert_eq!(
@@ -611,6 +623,14 @@ fn test_curve_curve_multiplicity_marks_only_tangency() {
         .unwrap()
         .into();
     assert_eq!(multiplicities(circle, touching), [2]);
+    // Along the tangent at a hyperbola's vertex: a tangency.
+    let hyperbola: ElementaryCurve = Hyperbola::new(Point::ORIGIN, Vector::Z, Vector::X, 2.0, 1.0)
+        .unwrap()
+        .into();
+    assert_eq!(
+        multiplicities(line(Point::new(2.0, -5.0, 0.0), Vector::Y), hyperbola),
+        [2]
+    );
 }
 
 #[test]

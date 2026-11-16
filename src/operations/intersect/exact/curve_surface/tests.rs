@@ -530,6 +530,18 @@ fn test_circle3d_intersect_sphere_cylinder_cone() {
         }
         _ => panic!("expected hits"),
     }
+    // Concentric sphere larger than the circle: miss.
+    let around = Sphere::new(Point::ORIGIN, 3.0).unwrap();
+    assert_eq!(
+        circle.intersect_exact(&around, tol),
+        CircleSurfaceIntersection::Empty
+    );
+    // Coaxial cylinder of the circle's radius: the whole circle.
+    let fitting = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
+    assert!(matches!(
+        circle.intersect_exact(&fitting, tol),
+        CircleSurfaceIntersection::Circle(_)
+    ));
     // Coaxial cylinder wider than the circle: miss.
     let fat = Cylinder::new(Point::ORIGIN, Vector::Z, 3.0).unwrap();
     assert_eq!(
@@ -822,6 +834,55 @@ fn test_hyperbola3d_intersect_cone_crosscheck() {
         }
         _ => panic!("expected hits"),
     }
+}
+
+/// The hits of `result`, each on `curve` and `surface`.
+fn hits_on_both<C: PointExtrema, S: ParametricSurface>(
+    result: ConicSurfaceIntersection,
+    curve: &C,
+    surface: &S,
+) -> Vec<ConicSurfaceHit> {
+    let tol = Tolerance::DEFAULT;
+    let ConicSurfaceIntersection::Hits(hits) = result else {
+        panic!("expected hits, got {result:?}");
+    };
+    for hit in &hits {
+        assert!(curve.contains(hit.point, tol));
+        assert!(surface.contains(hit.point, tol));
+    }
+    hits
+}
+
+#[test]
+fn test_conics_cross_a_plane_a_cone_and_a_cylinder() {
+    let tol = Tolerance::DEFAULT;
+    let ellipse = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 3.0, 1.5).unwrap();
+    // A plane across the minor axis: the two minor vertices.
+    let across = Plane::new(Point::ORIGIN, Vector::X).unwrap();
+    let hits = hits_on_both(ellipse.intersect_exact(&across, tol), &ellipse, &across);
+    assert_eq!(hits.len(), 2);
+    for hit in &hits {
+        assert!((hit.point.y.abs() - 1.5).abs() < 1e-12);
+    }
+    // The ellipse in the plane where the cone's radius is 2: it crosses
+    // that circle four times.
+    let cone = Cone::from_frame(Frame::WORLD, 0.4, 2.0).unwrap();
+    let hits = hits_on_both(ellipse.intersect_exact(&cone, tol), &ellipse, &cone);
+    assert_eq!(hits.len(), 4);
+    // A hyperbola whose vertex is on a coaxial cylinder of its real
+    // semi-axis: the cylinder touches the branch at the vertex.
+    let hyperbola = Hyperbola::new(Point::ORIGIN, Vector::Z, Vector::X, 2.0, 1.0).unwrap();
+    let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
+    let hits = hits_on_both(
+        hyperbola.intersect_exact(&cylinder, tol),
+        &hyperbola,
+        &cylinder,
+    );
+    let [vertex] = hits.as_slice() else {
+        panic!("expected one hit, got {hits:?}");
+    };
+    assert!(vertex.point.distance(Point::new(2.0, 0.0, 0.0)) < 1e-9);
+    assert!(vertex.multiplicity >= 2);
 }
 
 /// The circumcircle of an equilateral triangle inscribed in `ellipse`
