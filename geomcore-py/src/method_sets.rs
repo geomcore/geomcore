@@ -16,14 +16,16 @@
 //!
 //! Each set is the Python face of a core trait or of an inherent method
 //! every shape of a family has, so a class gets a method exactly when its
-//! core type has it:
+//! core type has it. The one exception is `TrimmedSurface`: the `surface`
+//! set holds more traits than its core type has, so the class writes a
+//! part of the set by hand (#290):
 //!
 //! | Set | Core | Classes |
 //! |---|---|---|
 //! | `curve`, `curve_2d` | `ParametricCurve(2D)`, `PointExtrema(2D)`, `ReversibleCurve`, `HasBoundingBox(2D)`, `Intersect`, and `Transformable` in 3D | every curve |
 //! | `bounded_curve`, `bounded_curve_2d` | `BoundedCurve(2D)`, `Discretize(2D)` | the bounded curves |
 //! | `sided_evaluation`, `sided_evaluation_2d` | the `*_sided` evaluations | B-spline and Bézier curves |
-//! | `surface` | `ParametricSurface` (with `uv_curve_to_3d` and `curve_3d_to_uv`), `ReversibleSurface`, `Transformable`, `HasBoundingBox`, `Intersect`, isoparametric curves | every surface |
+//! | `surface` | `ParametricSurface` (with `uv_curve_to_3d` and `curve_3d_to_uv`), `ReversibleSurface`, `Transformable`, `HasBoundingBox`, `Intersect`, isoparametric curves | every surface but `TrimmedSurface` |
 //! | `sided_surface_evaluation` | the `*_sided` evaluations | B-spline and Bézier surfaces |
 //! | `surface_extrema` | `extrema` | B-spline and Bézier surfaces |
 //!

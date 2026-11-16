@@ -33,6 +33,8 @@ src/
 │   │   ├── range.rs                 internal: RangeOperations, the box, discretization and
 │   │   │                            B-spline of a range of each curve (ADR 0005)
 │   │   ├── conversion.rs fitting.rs   to B-spline, from points
+│   │   └── (QuarticBranch)          a Curve variant that lives beside the quartic it is
+│   │                                a piece of: operations/intersect/exact/quartic/branch.rs
 │   ├── surfaces/            the public surface types, one file per type
 │   │   ├── parametric_surface.rs    ParametricSurface, ReversibleSurface, SurfaceCurvatures,
 │   │   │                            normal recovery
@@ -40,21 +42,30 @@ src/
 │   │   ├── plane.rs … torus.rs bspline.rs bezier.rs
 │   │   ├── extrusion.rs revolution.rs   the swept surfaces; swept.rs holds the
 │   │   │                            profile geometry they share (ADR 0016)
+│   │   ├── trimmed.rs               TrimmedSurface: a basis surface over a u range and
+│   │   │                            a v range (ADR 0039)
 │   │   ├── iso.rs                   helpers shared by the iso curves (u_iso, v_iso)
 │   │   ├── uv_curve.rs              UV curves to and from 3D curves (ADR 0030,
 │   │   │                            0031); uv_curve/to_curve.rs is the pair table
-│   │   │                            of uv_curve_to_3d, uv_curve/from_curve.rs the
-│   │   │                            closed forms of curve_3d_to_uv,
+│   │   │                            of uv_curve_to_3d, uv_curve/composition.rs its
+│   │   │                            exact composition on a B-spline surface (ADR
+│   │   │                            0032), uv_curve/from_curve.rs the closed forms
+│   │   │                            of curve_3d_to_uv (from_curve/swept.rs those
+│   │   │                            along the iso-curves of the swept surfaces),
 │   │   │                            uv_curve/approximation.rs
 │   │   │                            uv_curve_to_3d_within (ADR 0035) and
 │   │   │                            uv_curve/from_curve_within.rs its mirror
 │   │   │                            curve_3d_to_uv_within
 │   │   └── conversion.rs fitting.rs
+│   ├── approximation.rs         the results of the operations within a deviation:
+│   │                            CurveApproximation, SurfaceApproximation
 │   └── enum_variants.rs         the macros that expand a shape enum's variant list
 │                                (ADR 0017)
 │
 ├── operations/          the operations on curves and surfaces, one folder each
-│   ├── discretization/      Discretize: proven point sequences on bounded curves
+│   ├── discretization/      Discretize: proven point sequences on bounded curves;
+│   │                        sampled.rs measures the curves with no closed-form
+│   │                        deviations (a quartic branch)
 │   ├── extrema/             distance extrema between two curves (ADR 0033)
 │   │   ├── curve_curve.rs   curve_curve_extrema: seeds, refinement and its results
 │   │   └── curve_curve_pieces.rs  the minima search on the Bézier pieces of two
@@ -67,26 +78,44 @@ src/
 │   │   │                    result (ADR 0018)
 │   │   ├── routing/swept_plane.rs  plane cuts of the swept surfaces in closed form,
 │   │   │                    entries of the table
+│   │   ├── routing/trimmed_surface.rs  the intersection of trimmed surfaces: the bases
+│   │   │                    intersected, the result clipped to the ranges (ADR 0039)
 │   │   ├── exact/           IntersectExact and the closed-form solvers, by family:
-│   │   │                    curve_curve.rs, curve_surface.rs, surface_surface.rs
+│   │   │                    curve_curve.rs, curve_surface.rs, surface_surface.rs.
+│   │   │                    conic.rs and conic_2d.rs solve a conic against a quadric
+│   │   │                    or another conic for them. quartic.rs is the quartic
+│   │   │                    curve where two quadrics meet, read along the generators
+│   │   │                    of the ruled one and fitted within confusion (ADR 0036,
+│   │   │                    0040, 0041); quartic/branch.rs is QuarticBranch, its
+│   │   │                    pieces that run to infinity (ADR 0042)
 │   │   ├── numeric/         the searches for pairs with no closed form. subdivision.rs is
 │   │   │                    the one driver of the searches on Bézier pieces (the queue of
 │   │   │                    pairs, the budget of halvings, the pairs left unsettled);
 │   │   │                    *_hull.rs and patch_pairs.rs bring their tests on a pair (ADR 0019);
+│   │   │                    bezier_pieces.rs holds the Bézier pieces and the tests on
+│   │   │                    pairs of them that the searches share;
+│   │   │                    pairs_with_bspline.rs runs the searches on the pairs holding
+│   │   │                    a B-spline, the other shape converted to its exact B-spline.
 │   │   │                    curve_curve.rs reads its hits from the extrema at zero distance;
+│   │   │                    curve_surface.rs is the curve-surface search (sampled seeds
+│   │   │                    refined, or piece pairs on B-splines); overlap_runs.rs joins
+│   │   │                    the runs along which a curve lies on the other operand;
+│   │   │                    embedding_2d.rs meets 2D curves through the 3D search, at z = 0.
 │   │   │                    parameter_domain.rs is the bounds or period of a curve or a
 │   │   │                    surface direction, with the searches' wrapping and slack.
 │   │   │                    surface_patches.rs turns any surface into Bézier patches with a
 │   │   │                    map back to its own parameters (ADR 0026).
 │   │   │                    marching.rs composes marching/: the surface pair (pair.rs), the
-│   │   │                    tracer's step loop (tracer.rs), the seeding policy (seeding.rs)
+│   │   │                    tracer's step loop (tracer.rs), the seeding policy (seeding.rs,
+│   │   │                    with the seeds on closed loops of level_extrema.rs)
 │   │   │                    and the coincidence check (coincidence.rs) (ADR 0025)
 │   │   └── results/         the results Intersect returns, their regions (regions.rs),
-│   │                        Completeness, InlineList
+│   │                        Completeness, InlineList, InlineOrHeapList
 │   └── projection.rs    results of point projection (CurveProjection, …)
 │
 ├── bounding_box/        HasBoundingBox: the box type and one file per family; also the
-│                        culling box of the numeric searches and the tiers
+│                        culling box of the numeric searches and the tiers. tight.rs
+│                        holds the tight boxes of B-spline shapes
 │
 └── math/                internal math under the curves and surfaces
     ├── elementary/      closed-form formulas of the elementary curves and surfaces
@@ -121,6 +150,14 @@ paths.
    `Ellipse` and `Ellipse2D`, lives in `geometry/curves/ellipse.rs`, and its 2D unit
    tests in `geometry/curves/ellipse/tests_2d.rs`. Only 2D types carry a dimension
    suffix (ADR 0013). A type's construction error lives beside it.
+   One curve type lives elsewhere. `QuarticBranch`, a `Curve` variant, is
+   built from the two quadrics it lies on and read through the quartic's
+   walk, so it sits beside that quartic in
+   `operations/intersect/exact/quartic/branch.rs`, and `geometry/curves.rs`
+   re-exports it (ADR 0042). Through it the `Curve` enum reaches the cone
+   and the cylinder. The check that curves do not depend on surfaces
+   (`tests/module_dependencies.rs`, ADR 0031) reads the files under
+   `geometry/curves/` only, so it does not see this.
 2. **Shared behaviour lives on the traits, implemented in the type's
    file.** `ParametricCurve`, `PointExtrema`, `ParametricCurve2D`,
    `PointExtrema2D`, `ParametricSurface`, `ReversibleCurve` and
@@ -228,13 +265,18 @@ files are:
 | File | Holds |
 |---|---|
 | `lib.rs` | the module wiring (`#[pymodule]`) and small shared argument checks |
-| `values.rs` | `Point`, `Vector`, `Axis`, `Frame`, `Tolerance`, `Transform`, `Side` |
+| `values.rs` | `Point`, `Vector`, `Axis`, `Frame` and their 2D forms, `Tolerance`, `Transform` |
+| `enums.rs` | the enumerations Python sees as `enum` classes: `Side`, `PointParametrization`, `IntersectionMethod`, `CompletenessStatus`, `IncompleteReason` |
 | `bounding_box.rs`, `discretization.rs` | the classes of those operations |
+| `approximation.rs` | `CurveApproximation`, `CurveApproximation2D`, `SurfaceApproximation`: what the operations within a deviation return |
+| `arrays.rs` | the numpy bridge: the bulk queries that read and return float arrays |
+| `pickling.rs` | pickling and the coordinate protocols the value classes share |
 | `method_sets.rs` | the method sets the curve and surface classes share |
 | `arguments.rs` | the class registry: the Python class of each core enum variant |
 | `intersect.rs` | the routed `intersect` every class shares, and `curve_curve_extrema` |
 | `results.rs` | the intersection, projection, extrema and curvature results |
 | `errors.rs` | the Python exception hierarchy |
+| `surfaces/uv_curve.rs` | the argument handling of `uv_curve_to_3d`, and the deprecated free functions of the UV curve mappings |
 
 **Method sets.** A class writes its `#[pymethods]` block through
 `shape_methods!`, naming the sets it takes (`curve`, `discretize`,
@@ -242,6 +284,9 @@ files are:
 face of a core trait (`curve` is `ParametricCurve`, `PointExtrema`,
 `ReversibleCurve`, `Transformable`, `HasBoundingBox` and `Intersect`), with its docstrings and signatures
 written once, so a class has a method exactly when its core type has it.
+The one exception is `TrimmedSurface`: the `surface` set holds more traits
+than its core type has, so the class writes a part of the set by hand and
+lacks the rest (#290).
 The table at the top of `method_sets.rs` says which set follows from
 which trait.
 
@@ -267,15 +312,16 @@ so other Python threads run during a search (ADR 0021).
 - Add `geomcore-py/src/curves/<name>.rs` (or `surfaces/`) with the
   `#[pyclass]` holding the core type as field `0`, and its methods through
   `shape_methods!`: the sets its core traits give it, then its
-  constructors and inherent methods.
+  constructors and inherent methods. Declare the file and re-export the
+  class in `curves/mod.rs` (or `surfaces/mod.rs`).
 - Add one `Variant => PyClass` line to the registry in `arguments.rs`.
   `intersect`, every argument that takes a curve or surface, and every
   method that returns one then accept the class.
 - Add its stub to `geomcore-py/geomcore/__init__.pyi`: a class
   inheriting the stub classes of the sets named in its `shape_methods!`
   line, with its own methods only. Add it to the `Curve`, `Curve2D` or
-  `Surface` union there and in `__init__.py`. stubtest checks the stub's
-  methods against the class.
+  `Surface` union there and in `__init__.py`, and to the stub's
+  `__all__`. stubtest checks the stub's methods against the class.
 - `tests/test_parity.py` fails until the new class has a fixture. It then
   checks that the class has every method its stub inherits, and runs it
   through `intersect` against every other class.
@@ -287,14 +333,16 @@ checks.
 
 | Area | Files |
 |---|---|
-| Evaluation and construction | `combined_evaluation.rs`, `construction_validation.rs`, `precision.rs`, `surface_reversal.rs`, `transform_and_reversal.rs` |
+| Evaluation and construction | `combined_evaluation.rs`, `construction_validation.rs`, `out_of_domain_evaluation.rs`, `precision.rs`, `surface_reversal.rs`, `transform_and_reversal.rs` |
 | Golden fixtures | `vs_fixtures.rs`, `bezier_fixtures.rs`, `discretization_fixtures.rs`, `intersect_2d_fixtures.rs`, `swept_fixtures.rs` |
-| B-splines and Bézier | `bspline_tiers.rs`, `degree_elevation.rs`, `bezier_surface.rs` |
+| B-splines and Bézier | `bspline_construction_and_shape.rs`, `bspline_tiers.rs`, `degree_elevation.rs`, `bezier_surface.rs` |
 | Projection | `projection_point.rs` |
-| Intersection | `routed_intersections.rs`, `routed_surface_surface.rs`, `bezier_intersections.rs`, `bezier_through_enums.rs` |
+| UV curves | `uv_curve_to_3d.rs`, `uv_curve_composition.rs`, `uv_curve_to_3d_within.rs` |
+| Intersection | `routed_intersections.rs`, `routed_surface_surface.rs`, `trimmed_surfaces.rs`, `bezier_intersections.rs`, `bezier_through_enums.rs`, `intersection_fingerprints.rs` |
 | Bounding boxes | `bounding_box.rs`, `bounding_box_allocation.rs` |
 | Discretization | `discretization.rs`, `discretization_allocation.rs` |
 | Every variant | `shape_conformance.rs` |
+| Module rules | `module_dependencies.rs` |
 
 `tests/common/samples.rs` holds samples of every variant of every shape
 enum; the tests that check a property on every shape take their shapes

@@ -4,6 +4,12 @@
 //! file under `src/geometry/curves/` names `crate::geometry::surfaces`, nor
 //! any name the crate root re-exports from it, such as `Plane` reached
 //! through `crate::Plane`.
+//!
+//! Only the files under `src/geometry/curves/` are read. `QuarticBranch`
+//! lives beside the quartic it is a piece of, under
+//! `src/operations/intersect/exact/quartic/`, and holds the cones or the
+//! cone and cylinder it lies on (ADR 0042): through that variant the
+//! `Curve` enum reaches surfaces, and this check does not see it.
 
 use std::fs;
 use std::path::{Path, PathBuf};
