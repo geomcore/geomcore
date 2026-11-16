@@ -8,15 +8,19 @@ import pytest
 
 import geomcore
 from geomcore import (
+    BSplineSurface,
     Cylinder,
     Ellipse,
+    Line2D,
     Plane,
     Point,
+    Point2D,
     Sphere,
     SurfaceSurfaceIntersection,
     TrimmedSurface,
     TrimmedSurfaceConstructionError,
     Vector,
+    Vector2D,
 )
 
 
@@ -87,3 +91,32 @@ def test_a_curve_and_a_trimmed_surface_raise():
         patch.intersect(line)
     with pytest.raises(TypeError):
         line.intersect(patch)
+
+
+def test_a_patch_answers_what_its_basis_answers():
+    # #290: the patch took only 14 hand-written methods of its basis's.
+    basis = cylinder()
+    patch = basis.trimmed((0.0, 3.0), (-1.0, 1.0))
+    assert patch.second_derivatives(1.0, 0.5) == basis.second_derivatives(1.0, 0.5)
+    assert patch.derivative(1.0, 0.5, 3, 0) == basis.derivative(1.0, 0.5, 3, 0)
+    assert patch.curvatures(1.0, 0.5).mean == basis.curvatures(1.0, 0.5).mean
+    assert patch.continuity_u(1.0) == basis.continuity_u(1.0)
+    assert patch.u_period() is None and not patch.is_u_periodic()
+    points = [Point(2, 0, 0.5), Point(0, 2, 0), Point(-2, -0.1, 0)]
+    projections = patch.project_points(points)
+    assert [(p.u, p.v) for p in projections] == [
+        (patch.project_point(point).u, patch.project_point(point).v) for point in points
+    ]
+    assert patch.points_at_array([[1.0, 0.5]]).tolist() == [list(patch.point_at(1.0, 0.5))]
+    along_v = Line2D(Point2D(1.0, 0.0), Vector2D(0.0, 1.0))
+    assert patch.uv_curve_to_3d(along_v).point_at(0.5) == basis.uv_curve_to_3d(along_v).point_at(0.5)
+    assert patch.tight_bounding_box() is not None
+
+
+def test_a_patch_checks_a_derivative_order_against_its_basis():
+    grid = [[Point(i, j, (i - 1) * (j - 1)) for j in range(3)] for i in range(3)]
+    spline = BSplineSurface.approximate(grid, 2, 2, 3, 3)
+    patch = spline.trimmed((0.2, 0.8), (0.2, 0.8))
+    patch.derivative(0.5, 0.5, 1, 1)
+    with pytest.raises(ValueError, match=r"du \+ dv must be <= 2"):
+        patch.derivative(0.5, 0.5, 2, 1)

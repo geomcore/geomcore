@@ -51,13 +51,16 @@ pub(crate) fn check_curve_order(order: u32) -> PyResult<()> {
 
 /// The highest total order `du + dv` a core surface evaluates.
 pub(crate) trait HighestDerivativeOrder {
-    const HIGHEST_DERIVATIVE_ORDER: u32;
+    /// That order, `u32::MAX` when every order evaluates.
+    fn highest_derivative_order(&self) -> u32;
 }
 
 macro_rules! highest_derivative_order {
     ($order:expr => $($surface:ty),+ $(,)?) => {
         $(impl HighestDerivativeOrder for $surface {
-            const HIGHEST_DERIVATIVE_ORDER: u32 = $order;
+            fn highest_derivative_order(&self) -> u32 {
+                $order
+            }
         })+
     };
 }
@@ -70,15 +73,36 @@ highest_derivative_order!(2 =>
     geomcore::BezierSurface,
 );
 
+impl HighestDerivativeOrder for geomcore::Surface {
+    fn highest_derivative_order(&self) -> u32 {
+        use geomcore::Surface;
+        match self {
+            Surface::Plane(_)
+            | Surface::Cylinder(_)
+            | Surface::Cone(_)
+            | Surface::Sphere(_)
+            | Surface::Torus(_) => u32::MAX,
+            _ => 2,
+        }
+    }
+}
+
+/// A trimmed surface evaluates its basis.
+impl HighestDerivativeOrder for geomcore::TrimmedSurface {
+    fn highest_derivative_order(&self) -> u32 {
+        self.basis().highest_derivative_order()
+    }
+}
+
 /// Checks a surface derivative order satisfies
 /// `1 <= du + dv <= highest`: every order on the plane, cylinder, cone,
 /// sphere and torus, 2 on the other surfaces.
 pub(crate) fn check_surface_order<S: HighestDerivativeOrder>(
-    _surface: &S,
+    surface: &S,
     du: u32,
     dv: u32,
 ) -> PyResult<()> {
-    let highest = S::HIGHEST_DERIVATIVE_ORDER;
+    let highest = surface.highest_derivative_order();
     match du.checked_add(dv) {
         Some(0) => Err(invalid_argument(
             "du + dv must be >= 1 (use point_at for the (0, 0) order)",

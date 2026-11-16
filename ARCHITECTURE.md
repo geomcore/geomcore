@@ -284,9 +284,10 @@ files are:
 face of a core trait (`curve` is `ParametricCurve`, `PointExtrema`,
 `ReversibleCurve`, `Transformable`, `HasBoundingBox` and `Intersect`), with its docstrings and signatures
 written once, so a class has a method exactly when its core type has it.
-The one exception is `TrimmedSurface`: the `surface` set holds more traits
-than its core type has, so the class writes a part of the set by hand and
-lacks the rest (#290).
+The surface sets split the same way: `parametric_surface` is what every
+`ParametricSurface` with a box answers, `TrimmedSurface` included, and
+`surface` what only a whole surface does (reversal, transform, iso curves,
+`trimmed`, `intersect` with curves).
 The table at the top of `method_sets.rs` says which set follows from
 which trait.
 

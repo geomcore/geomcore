@@ -10,16 +10,25 @@ use geomcore::{Surface, TrimmedSurface};
 /// with no boundary curves or orientation.
 ///
 /// The basis keeps its parametrisation, and `u_bounds()` and `v_bounds()`
-/// are the ranges; evaluation does not check a parameter against them. On
-/// a periodic basis direction (a cylinder's angle) the range may cross the
-/// seam, up to one period. Pass it to `intersect` to get only the curves
-/// and points inside the ranges of the trimmed sides.
+/// are the ranges; evaluation, derivatives, normals and curvatures are the
+/// basis's, inside the ranges or not. On a periodic basis direction (a
+/// cylinder's angle) the range may cross the seam, up to one period, and
+/// the patch itself is not periodic. `project_point` gives the basis's
+/// closest point when it lies in the ranges, otherwise the closest point on
+/// the boundary of the ranges; a local minimum of the distance inside the
+/// ranges other than the basis's closest point is not searched.
+/// `parameters_of` shifts a periodic parameter by whole periods into its
+/// range where it can. The bounding box is that of the patch's exact
+/// rational B-spline patch, or the basis's box for a B-spline or Bézier
+/// basis. Pass it to `intersect` to get only the curves and points inside
+/// the ranges of the trimmed sides.
 #[pyclass(name = "TrimmedSurface", module = "geomcore", eq)]
 #[derive(Clone, PartialEq)]
 pub(crate) struct PyTrimmedSurface(pub(crate) TrimmedSurface);
 
-#[pymethods]
-impl PyTrimmedSurface {
+shape_methods! {
+    PyTrimmedSurface: [parametric_surface];
+
     /// Restrict `basis` (any surface) to the parameter ranges `u_range`
     /// and `v_range`, each `(first, last)`. Raises
     /// `TrimmedSurfaceConstructionError` for non-finite ends, an empty
@@ -50,78 +59,6 @@ impl PyTrimmedSurface {
     /// The `(first, last)` range of `v`.
     fn v_range(&self) -> (f64, f64) {
         self.0.v_range()
-    }
-
-    /// The `(first, last)` `u` parameter bounds: the `u` range.
-    fn u_bounds(&self) -> (f64, f64) {
-        self.0.u_bounds()
-    }
-
-    /// The `(first, last)` `v` parameter bounds: the `v` range.
-    fn v_bounds(&self) -> (f64, f64) {
-        self.0.v_bounds()
-    }
-
-    /// The basis's point at surface parameters (u, v), inside the ranges
-    /// or not.
-    fn point_at(&self, u: f64, v: f64) -> PyPoint {
-        PyPoint(self.0.point_at(u, v))
-    }
-
-    /// Evaluate many (u, v) pairs at once. Other Python threads run
-    /// meanwhile.
-    fn points_at(&self, py: Python<'_>, uvs: crate::arrays::Pairs) -> Vec<PyPoint> {
-        let points = py.detach(|| self.0.points_at(&uvs.0));
-        points.into_iter().map(PyPoint).collect()
-    }
-
-    /// The point and the first partial derivatives `(du, dv)` at `(u, v)`.
-    fn first_derivatives(&self, u: f64, v: f64) -> (PyPoint, (PyVector, PyVector)) {
-        let (point, [du, dv]) = self.0.first_derivatives(u, v);
-        (PyPoint(point), (PyVector(du), PyVector(dv)))
-    }
-
-    /// The basis's unit normal at `(u, v)` (`Tolerance.default()` when
-    /// omitted), as `Surface.normal`.
-    #[pyo3(signature = (u, v, tol = None))]
-    fn normal(&self, u: f64, v: f64, tol: Option<ToleranceArgument>) -> Option<PyVector> {
-        self.0.normal(u, v, tolerance(tol)).map(PyVector)
-    }
-
-    /// Projects `point` onto the patch: the basis's closest point when it
-    /// lies in the ranges, otherwise the closest point on the boundary of
-    /// the ranges, as a `SurfaceProjection`. A local minimum of the
-    /// distance inside the ranges other than the basis's closest point is
-    /// not searched.
-    #[pyo3(signature = (point, tol = None))]
-    fn project_point(
-        slf: &Bound<'_, Self>,
-        point: PyPoint,
-        tol: Option<ToleranceArgument>,
-    ) -> PySurfaceProjection {
-        let projection = slf.borrow().0.project_point(point.0, tolerance(tol));
-        PySurfaceProjection::new(projection, slf, point.0)
-    }
-
-    /// Returns whether `point` lies on the patch within `tol`
-    /// (`Tolerance.default()` when omitted).
-    #[pyo3(signature = (point, tol = None))]
-    fn contains(&self, point: PyPoint, tol: Option<ToleranceArgument>) -> bool {
-        self.0.contains(point.0, tolerance(tol))
-    }
-
-    /// The basis's `(u, v)` parameters of `point`, a periodic parameter
-    /// shifted by whole periods into its range where it can be
-    /// (`Tolerance.default()` when omitted).
-    #[pyo3(signature = (point, tol = None))]
-    fn parameters_of(&self, point: PyPoint, tol: Option<ToleranceArgument>) -> (f64, f64) {
-        self.0.parameters_of(point.0, tolerance(tol))
-    }
-
-    /// The axis-aligned box around the patch: that of its exact rational
-    /// B-spline patch, or the basis's box for a B-spline or Bézier basis.
-    fn bounding_box(&self) -> Option<PyBoundingBox> {
-        self.0.bounding_box().map(PyBoundingBox)
     }
 
     /// Intersects with any surface or trimmed surface, in either order.

@@ -12,7 +12,7 @@ use geomcore::Torus;
 pub(crate) struct PyTorus(pub(crate) Torus);
 
 shape_methods! {
-    PyTorus: [surface];
+    PyTorus: [parametric_surface, surface];
 
     /// The center of the torus.
     fn center(&self) -> PyPoint {

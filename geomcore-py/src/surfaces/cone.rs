@@ -13,7 +13,7 @@ use geomcore::Cone;
 pub(crate) struct PyCone(pub(crate) Cone);
 
 shape_methods! {
-    PyCone: [surface];
+    PyCone: [parametric_surface, surface];
 
     /// The placement frame of the cone.
     fn frame(&self) -> PyFrame {

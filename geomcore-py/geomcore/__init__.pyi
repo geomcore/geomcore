@@ -2997,31 +2997,7 @@ _VIsoCurveType = TypeVar("_VIsoCurveType", covariant=True)
 # each, as for the curves. The type arguments of `_SurfaceMethods` are the
 # classes of the `u` and `v` isoparametric curves.
 
-class _SurfaceMethods(Generic[_UIsoCurveType, _VIsoCurveType]):
-    def transformed(self: _Self, transform: Transform) -> _Self:
-        """The image of the surface under `transform`, parametrized by
-        the image of its parametrization: a parameter that is a
-        length scales with the transform. Raises
-        `ConstructionError` when the transform collapses the surface
-        (a zero scale) or overflows.
-        """
-    def reversed_u(self: _Self) -> _Self:
-        """The same surface with the `u` direction reversed:
-        `reversed_u().point_at(u_reversed_parameter(u), v)` is
-        `point_at(u, v)`, and the normal there is flipped.
-        """
-    def reversed_v(self: _Self) -> _Self:
-        """The same surface with the `v` direction reversed, as
-        `reversed_u`.
-        """
-    def u_reversed_parameter(self, u: float) -> float:
-        """Maps `u` onto the `reversed_u()` surface: the `u` parameter
-        of the same point there.
-        """
-    def v_reversed_parameter(self, v: float) -> float:
-        """Maps `v` onto the `reversed_v()` surface: the `v` parameter
-        of the same point there.
-        """
+class _ParametricSurfaceMethods:
     def point_at(self, u: float, v: float) -> Point:
         """Evaluate the point at surface parameters (u, v).
 
@@ -3183,16 +3159,6 @@ class _SurfaceMethods(Generic[_UIsoCurveType, _VIsoCurveType]):
         `bounding_box` on an elementary shape; a B-spline's comes from halving
         its Bézier pieces, a revolution surface's from its profile's.
         `tol` is `Tolerance.default()` when omitted."""
-    def u_iso(self, u: float) -> _UIsoCurveType:
-        """The `u` isoparametric curve at `u`, parametrized by `v` like
-        the surface: `u_iso(u).point_at(t)` is `point_at(u, t)`.
-        Raises `SurfaceIsoError` for a non-finite parameter or one
-        outside a non-periodic direction (a periodic one wraps).
-        """
-    def v_iso(self, v: float) -> _VIsoCurveType:
-        """The `v` isoparametric curve at `v`, parametrized by `u` like
-        the surface, as `u_iso`.
-        """
     @overload
     def uv_curve_to_3d(
         self, uv_curve: Curve2D, tol: Optional[_ToleranceLike] = None
@@ -3316,6 +3282,43 @@ class _SurfaceMethods(Generic[_UIsoCurveType, _VIsoCurveType]):
         `Tolerance.default()` when omitted. Other Python threads run
         during the approximation.
         """
+
+
+class _SurfaceMethods(_ParametricSurfaceMethods, Generic[_UIsoCurveType, _VIsoCurveType]):
+    def transformed(self: _Self, transform: Transform) -> _Self:
+        """The image of the surface under `transform`, parametrized by
+        the image of its parametrization: a parameter that is a
+        length scales with the transform. Raises
+        `ConstructionError` when the transform collapses the surface
+        (a zero scale) or overflows.
+        """
+    def reversed_u(self: _Self) -> _Self:
+        """The same surface with the `u` direction reversed:
+        `reversed_u().point_at(u_reversed_parameter(u), v)` is
+        `point_at(u, v)`, and the normal there is flipped.
+        """
+    def reversed_v(self: _Self) -> _Self:
+        """The same surface with the `v` direction reversed, as
+        `reversed_u`.
+        """
+    def u_reversed_parameter(self, u: float) -> float:
+        """Maps `u` onto the `reversed_u()` surface: the `u` parameter
+        of the same point there.
+        """
+    def v_reversed_parameter(self, v: float) -> float:
+        """Maps `v` onto the `reversed_v()` surface: the `v` parameter
+        of the same point there.
+        """
+    def u_iso(self, u: float) -> _UIsoCurveType:
+        """The `u` isoparametric curve at `u`, parametrized by `v` like
+        the surface: `u_iso(u).point_at(t)` is `point_at(u, t)`.
+        Raises `SurfaceIsoError` for a non-finite parameter or one
+        outside a non-periodic direction (a periodic one wraps).
+        """
+    def v_iso(self, v: float) -> _VIsoCurveType:
+        """The `v` isoparametric curve at `v`, parametrized by `u` like
+        the surface, as `u_iso`.
+        """
     def trimmed(
         self, u_range: Tuple[float, float], v_range: Tuple[float, float]
     ) -> TrimmedSurface:
@@ -3347,6 +3350,7 @@ class _SurfaceMethods(Generic[_UIsoCurveType, _VIsoCurveType]):
     def intersect(
         self, other: _SurfaceMethods[Any, Any] | TrimmedSurface, tol: Optional[_ToleranceLike] = None
     ) -> SurfaceSurfaceIntersection: ...
+
 
 class _SidedSurfaceEvaluationMethods:
     def first_derivatives_sided(
@@ -3906,16 +3910,24 @@ class BezierSurface(
         """The surface with its `v` degree raised by `amount` (same shape)."""
 
 @final
-class TrimmedSurface:
+class TrimmedSurface(_ParametricSurfaceMethods):
     """A surface restricted to a parameter rectangle `u_range` by `v_range`
     of a basis surface: the patch a face of a model lies on. Geometry only,
     with no boundary curves or orientation.
 
     The basis keeps its parametrisation, and `u_bounds()` and `v_bounds()`
-    are the ranges; evaluation does not check a parameter against them. On
-    a periodic basis direction (a cylinder's angle) the range may cross the
-    seam, up to one period. Pass it to `intersect` to get only the curves
-    and points inside the ranges of the trimmed sides.
+    are the ranges; evaluation, derivatives, normals and curvatures are the
+    basis's, inside the ranges or not. On a periodic basis direction (a
+    cylinder's angle) the range may cross the seam, up to one period, and
+    the patch itself is not periodic. `project_point` gives the basis's
+    closest point when it lies in the ranges, otherwise the closest point on
+    the boundary of the ranges; a local minimum of the distance inside the
+    ranges other than the basis's closest point is not searched.
+    `parameters_of` shifts a periodic parameter by whole periods into its
+    range where it can. The bounding box is that of the patch's exact
+    rational B-spline patch, or the basis's box for a B-spline or Bézier
+    basis. Pass it to `intersect` to get only the curves and points inside
+    the ranges of the trimmed sides.
     """
     __hash__: ClassVar[None]  # type: ignore[assignment]
     def __new__(
@@ -3927,50 +3939,6 @@ class TrimmedSurface:
         """The `(first, last)` range of `u`."""
     def v_range(self) -> Tuple[float, float]:
         """The `(first, last)` range of `v`."""
-    def u_bounds(self) -> Tuple[float, float]:
-        """The `(first, last)` `u` parameter bounds: the `u` range."""
-    def v_bounds(self) -> Tuple[float, float]:
-        """The `(first, last)` `v` parameter bounds: the `v` range."""
-    def point_at(self, u: float, v: float) -> Point:
-        """The basis's point at surface parameters (u, v), inside the ranges
-        or not.
-        """
-    def points_at(self, uvs: _Pairs) -> List[Point]:
-        """Evaluate many (u, v) pairs at once. Other Python threads run
-        meanwhile.
-        """
-    def first_derivatives(self, u: float, v: float) -> Tuple[Point, Tuple[Vector, Vector]]:
-        """The point and the first partial derivatives `(du, dv)` at `(u, v)`."""
-    def normal(
-        self, u: float, v: float, tol: Optional[_ToleranceLike] = None
-    ) -> Optional[Vector]:
-        """The basis's unit normal at `(u, v)` (`Tolerance.default()` when
-        omitted), as `Surface.normal`.
-        """
-    def project_point(
-        self, point: _PointLike, tol: Optional[_ToleranceLike] = None
-    ) -> SurfaceProjection:
-        """Projects `point` onto the patch: the basis's closest point when it
-        lies in the ranges, otherwise the closest point on the boundary of
-        the ranges, as a `SurfaceProjection`. A local minimum of the
-        distance inside the ranges other than the basis's closest point is
-        not searched.
-        """
-    def contains(self, point: _PointLike, tol: Optional[_ToleranceLike] = None) -> bool:
-        """Returns whether `point` lies on the patch within `tol`
-        (`Tolerance.default()` when omitted).
-        """
-    def parameters_of(
-        self, point: _PointLike, tol: Optional[_ToleranceLike] = None
-    ) -> Tuple[float, float]:
-        """The basis's `(u, v)` parameters of `point`, a periodic parameter
-        shifted by whole periods into its range where it can be
-        (`Tolerance.default()` when omitted).
-        """
-    def bounding_box(self) -> Optional[BoundingBox]:
-        """The axis-aligned box around the patch: that of its exact rational
-        B-spline patch, or the basis's box for a B-spline or Bézier basis.
-        """
     def intersect(
         self, other: _SurfaceMethods[Any, Any] | TrimmedSurface, tol: Optional[_ToleranceLike] = None
     ) -> SurfaceSurfaceIntersection:
@@ -3984,7 +3952,6 @@ class TrimmedSurface:
         is not a geomcore surface. Other Python threads run meanwhile.
         """
     def __repr__(self) -> str: ...
-
 
 __all__ = [
     "GeomcoreError",
