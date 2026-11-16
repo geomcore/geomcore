@@ -27,8 +27,9 @@ use super::approximation::{
     Breakpoint, Jet, LOW_ORDER, MAXIMUM_SPAN_COUNT, SAMPLES_PER_SPAN, SAMPLING_MARGIN, SpanSource,
     bezier_point, degree, hermite_poles, joined, knots_between, sampled_spans,
 };
+use crate::Side;
 use crate::geometry::approximation::CurveApproximation2D;
-use crate::geometry::curves::{BSplineCurve, BSplineCurve2D, ParametricCurve, Side};
+use crate::geometry::curves::{BSplineCurve, BSplineCurve2D, ParametricCurve};
 use crate::geometry::surfaces::ParametricSurface;
 use crate::{Point, Point2D, Tolerance, Vector, Vector2D};
 

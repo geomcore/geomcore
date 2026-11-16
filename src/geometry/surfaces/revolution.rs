@@ -14,9 +14,10 @@ use crate::geometry::surfaces::{Curve3DToUvError, UvCurveTo3DError};
 use std::f64::consts::{PI, TAU};
 use std::fmt;
 
+use crate::Continuity;
 use crate::base::transform::frame_image_error;
 use crate::geometry::curves::ReversibleCurve;
-use crate::geometry::curves::{Continuity, Curve, ParametricCurve, PointExtrema};
+use crate::geometry::curves::{Curve, ParametricCurve, PointExtrema};
 use crate::geometry::surfaces::ReversibleSurface;
 use crate::geometry::surfaces::swept::{ROUNDING, check_profile_parameter, wrap_profile_parameter};
 use crate::geometry::surfaces::{ParametricSurface, SurfaceIsoError};

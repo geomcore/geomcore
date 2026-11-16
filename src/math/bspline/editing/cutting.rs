@@ -5,8 +5,8 @@ use std::borrow::Cow;
 use std::ops::Range;
 
 use super::{HomogeneousPole, Lanes, Pole, PolePoint, Source, Weighted, refine, spans};
-use crate::geometry::curves::BSplineSplitError;
 use crate::math::bspline::curve::KnotVector;
+use crate::math::bspline::errors::BSplineSplitError;
 
 /// Checks the range `[first, last]` of a piece of `direction`. A periodic
 /// direction accepts any start, so a piece may cross the seam, but no more

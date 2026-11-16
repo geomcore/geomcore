@@ -17,6 +17,7 @@
 //! come from the shape enums' variant lists, so a new shape type edits no
 //! list here.
 
+use crate::InlineList;
 use crate::base::tier::operations::VectorOperations;
 use crate::geometry::curves::PointExtrema;
 use crate::geometry::curves::PointExtrema2D;
@@ -33,7 +34,7 @@ use crate::operations::intersect::numeric::marching::marching_intersection;
 use crate::operations::intersect::results::{CurveCurveOverlapList, SurfaceSurfaceIntersection};
 use crate::operations::intersect::{
     Completeness, CurveCurveIntersection, CurveCurveIntersection2D, CurveCurveOverlap,
-    CurveSurfaceIntersection, GenericCurveCurveIntersection, InlineList, intersect_curve_curve,
+    CurveSurfaceIntersection, GenericCurveCurveIntersection, intersect_curve_curve,
     intersect_curve_surface,
 };
 use crate::{

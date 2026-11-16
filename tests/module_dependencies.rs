@@ -1,4 +1,10 @@
 //! Dependency rules between the crate's modules, checked on the sources.
+//!
+//! The internal math sits under the shapes: no production file under
+//! `src/math/` names the `geometry`, `operations` or `bounding_box`
+//! modules, nor any name the crate root re-exports from them. It works on
+//! the values of `base/` and on its own types.
+//!
 //! Curves do not depend on surfaces: a surface owns the mapping between its
 //! UV curves and 3D curves both ways (ADRs 0030, 0031), so no production
 //! file under `src/geometry/curves/` names `crate::geometry::surfaces`, nor
@@ -33,17 +39,22 @@ fn production_files(directory: &Path) -> Vec<PathBuf> {
     files
 }
 
-/// The names `src/lib.rs` re-exports from `surfaces`, read from its
-/// `pub use geometry::surfaces::...;` statements, braced or not.
-fn surface_names(root: &Path) -> Vec<String> {
+/// The names `src/lib.rs` re-exports from the module at `path` (such as
+/// `geometry::surfaces` or `operations`), read from its `pub use` statements,
+/// braced or not.
+fn reexported_names(root: &Path, path: &str) -> Vec<String> {
     let lib = fs::read_to_string(root.join("src/lib.rs")).unwrap();
-    let marker = "pub use geometry::surfaces::";
+    let marker = format!("pub use {path}::");
     let mut names = Vec::new();
     let mut remaining = lib.as_str();
-    while let Some(start) = remaining.find(marker) {
+    while let Some(start) = remaining.find(&marker) {
         let statement = &remaining[start + marker.len()..];
         let end = statement.find(';').unwrap();
-        let list = statement[..end].trim_matches(|c| c == '{' || c == '}');
+        let body = &statement[..end];
+        let list = match body.find('{') {
+            Some(open) => body[open + 1..].trim_end_matches('}'),
+            None => body.rsplit("::").next().unwrap(),
+        };
         names.extend(
             list.split(',')
                 .map(str::trim)
@@ -53,6 +64,17 @@ fn surface_names(root: &Path) -> Vec<String> {
         remaining = &statement[end..];
     }
     names
+}
+
+/// The code of `source` without its comments: every line from its first
+/// `//` on is dropped, so a doc comment may name the shape a function
+/// serves.
+fn code_of(source: &str) -> String {
+    source
+        .lines()
+        .map(|line| line.find("//").map_or(line, |at| &line[..at]))
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 /// Whether `word` appears in `text` as a whole identifier.
@@ -68,7 +90,7 @@ fn names_word(text: &str, word: &str) -> bool {
 #[test]
 fn no_curve_source_names_the_surfaces_module_or_a_surface_type() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let surface_names = surface_names(root);
+    let surface_names = reexported_names(root, "geometry::surfaces");
     // A parse that found nothing would pass every file, so pin the list.
     for expected in [
         "Surface",
@@ -103,5 +125,54 @@ fn no_curve_source_names_the_surfaces_module_or_a_surface_type() {
     assert!(
         offenders.is_empty(),
         "curves must not depend on surfaces: {offenders:#?}"
+    );
+}
+
+#[test]
+fn no_math_source_names_a_shape_or_an_operation() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let modules = ["geometry", "operations", "bounding_box"];
+    let names: Vec<String> = modules
+        .iter()
+        .flat_map(|module| reexported_names(root, module))
+        .collect();
+    // A parse that found nothing would pass every file, so pin the list.
+    for expected in [
+        "BSplineCurve",
+        "Curve",
+        "Plane",
+        "CurveApproximation",
+        "HasBoundingBox",
+        "Discretize",
+        "Intersect",
+        "Completeness",
+        "CurveProjection",
+        "curve_curve_extrema",
+    ] {
+        assert!(
+            names.iter().any(|name| name == expected),
+            "{expected} missing from {names:?}"
+        );
+    }
+
+    let files = production_files(&root.join("src/math"));
+    assert!(files.len() > 10, "only {} math files", files.len());
+    let mut offenders = Vec::new();
+    for path in &files {
+        let code = code_of(&fs::read_to_string(path).unwrap());
+        for module in modules {
+            if code.contains(&format!("crate::{module}")) {
+                offenders.push(format!("{}: crate::{module}", path.display()));
+            }
+        }
+        for name in &names {
+            if names_word(&code, name) {
+                offenders.push(format!("{}: {name}", path.display()));
+            }
+        }
+    }
+    assert!(
+        offenders.is_empty(),
+        "math must not depend on the shapes or the operations: {offenders:#?}"
     );
 }

@@ -40,7 +40,7 @@ pub(crate) use results::curve_surface_multiplicity;
 pub use results::{
     CurveCurveHit, CurveCurveHit2D, CurveCurveIntersection, CurveCurveIntersection2D,
     CurveCurveOverlap, CurveSurfaceHit, CurveSurfaceIntersection, CurveSurfaceOverlap,
-    GenericCurveCurveHit, GenericCurveCurveIntersection, InlineList, IntersectionCurve,
-    IntersectionMethod, SurfaceSurfaceIntersection, SurfaceSurfaceRegion,
+    GenericCurveCurveHit, GenericCurveCurveIntersection, IntersectionCurve, IntersectionMethod,
+    SurfaceSurfaceIntersection, SurfaceSurfaceRegion,
 };
 pub use routing::Intersect;

@@ -2,7 +2,9 @@
 //! [`PointExtrema2D`] point-projection trait and the [`BoundedCurve2D`]
 //! trait of the 2D curves with ends.
 
-use crate::geometry::curves::{BSplineCurve2D, Continuity, Line2D};
+use crate::geometry::curves::{BSplineCurve2D, Line2D};
+
+use crate::Continuity;
 use crate::operations::projection::CurveProjection2D;
 use crate::{Point2D, Tolerance, Vector2D};
 

@@ -14,9 +14,10 @@ use crate::geometry::surfaces::uv_curve::{from_curve, to_curve};
 use crate::geometry::surfaces::{Curve3DToUvError, UvCurveTo3DError};
 use std::fmt;
 
+use crate::Continuity;
 use crate::base::transform::image_error;
 use crate::geometry::curves::ReversibleCurve;
-use crate::geometry::curves::{BSplineCurve, Continuity, Curve, ParametricCurve, PointExtrema};
+use crate::geometry::curves::{BSplineCurve, Curve, ParametricCurve, PointExtrema};
 use crate::geometry::surfaces::ReversibleSurface;
 use crate::geometry::surfaces::swept::{
     ROUNDING, bezier_with_poles, bspline_with_poles, check_profile_parameter,

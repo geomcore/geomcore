@@ -11,6 +11,7 @@
 
 use super::closed_form::Ranges;
 use super::{CurveBasis, CurveTier, coincident_overlaps, in_range, kept_parameter};
+use crate::InlineList;
 use crate::base::tier::TierPoint;
 use crate::geometry::curves::{
     Circle, Circle2D, Curve, Line, Line2D, ParametricCurve, PointExtrema,
@@ -23,11 +24,10 @@ use crate::operations::intersect::{
     CircleCircle2DIntersection, CircleCircleIntersection, CircleSurfaceIntersection, Conic,
     Conic2DIntersection, ConicConicIntersection, ConicSurfaceHit, ConicSurfaceIntersection,
     CurveCurveIntersection, CurveCurveIntersection2D, CurveSurfaceHit, CurveSurfaceIntersection,
-    CurveSurfaceOverlap, GenericCurveCurveHit, GenericCurveCurveIntersection, InlineList,
-    IntersectionCurve, LineCircle2DIntersection, LineCircleIntersection, LineConicHit,
-    LineConicIntersection, LineLine2DIntersection, LineLineIntersection, LinePlaneIntersection,
-    LineQuadricIntersection, LineTorusIntersection, SurfaceSurfaceIntersection,
-    intersect_conic_conic,
+    CurveSurfaceOverlap, GenericCurveCurveHit, GenericCurveCurveIntersection, IntersectionCurve,
+    LineCircle2DIntersection, LineCircleIntersection, LineConicHit, LineConicIntersection,
+    LineLine2DIntersection, LineLineIntersection, LinePlaneIntersection, LineQuadricIntersection,
+    LineTorusIntersection, SurfaceSurfaceIntersection, intersect_conic_conic,
 };
 use crate::operations::intersect::{
     CommonSphereConics, ConeConeIntersection, ConeCylinderIntersection,

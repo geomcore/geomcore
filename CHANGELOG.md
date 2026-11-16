@@ -21,6 +21,16 @@ the Python distribution are versioned in lockstep.
   checked against the basis's. The stub types it with the methods its
   class has, and the parity tests cover it.
 
+### Changed
+
+- Internal: the math under the shapes no longer depends on them, and
+  `tests/module_dependencies.rs` checks it. `Side`, `Continuity` and
+  `InlineList` move to `base/`; the errors the B-spline engine raises
+  (`BSplineConstructionError`, `KnotInsertionError`, `KnotRemovalError`,
+  `DegreeElevationError`, `BSplineSplitError`) move to
+  `math/bspline/errors.rs`, beside the checks that raise them. Nothing
+  public changes: every item keeps its path at the crate root.
+
 ### Fixed
 
 - A marched curve clipped by a trimmed surface ends on the face boundary

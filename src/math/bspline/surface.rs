@@ -21,7 +21,7 @@
 //! Bernstein nets of patches are row-major `[k_u][k_v][h]`, with `h = 4`
 //! homogeneous coordinates per point if rational, else `h = 3`.
 
-use crate::geometry::curves::Side;
+use crate::Side;
 use crate::math::bspline::curve;
 use crate::math::bspline::curve::{KnotVector, Poles};
 use crate::{Point, Vector};

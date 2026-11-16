@@ -1,11 +1,12 @@
 //! The [`Curve2D`] enum adaptor unifying the concrete 2D curve types behind
 //! one value type.
 
+use crate::Continuity;
 use crate::geometry::curves::ParametricCurve2D;
 use crate::geometry::curves::PointExtrema2D;
 use crate::geometry::curves::ReversibleCurve;
 use crate::geometry::curves::{
-    BSplineCurve2D, BezierCurve2D, Circle2D, Continuity, Ellipse2D, Hyperbola2D, Line2D, Parabola2D,
+    BSplineCurve2D, BezierCurve2D, Circle2D, Ellipse2D, Hyperbola2D, Line2D, Parabola2D,
 };
 use crate::operations::projection::CurveProjection2D;
 use crate::{Point2D, Tolerance, Vector2D};

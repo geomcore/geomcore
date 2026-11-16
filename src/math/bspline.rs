@@ -8,5 +8,7 @@
 pub(crate) mod conic;
 pub(crate) mod curve;
 pub(crate) mod editing;
+/// The errors of the engine's checks, re-exported at the crate root.
+pub(crate) mod errors;
 pub(crate) mod poles;
 pub(crate) mod surface;

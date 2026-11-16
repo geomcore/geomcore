@@ -159,25 +159,24 @@ mod operations;
 pub mod prelude;
 
 pub use base::{
-    Axis, Axis2D, Frame, Frame2D, FrameConstructionError, Point, Point2D, TierPoint, Tolerance,
-    ToleranceConstructionError, Transform, TransformError, TransformMatrixError, Transformable,
-    Vector, Vector2D,
+    Axis, Axis2D, Continuity, Frame, Frame2D, FrameConstructionError, InlineList, Point, Point2D,
+    Side, TierPoint, Tolerance, ToleranceConstructionError, Transform, TransformError,
+    TransformMatrixError, Transformable, Vector, Vector2D,
 };
 pub use bounding_box::{BoundingBox, BoundingBox2D, HasBoundingBox, HasBoundingBox2D};
 pub use geometry::approximation::{
     CurveApproximation, CurveApproximation2D, GenericCurveApproximation, SurfaceApproximation,
 };
 pub use geometry::curves::{
-    ArcConstructionError, BSplineConstructionError, BSplineConversionError, BSplineCurve,
-    BSplineCurve2D, BSplineSplitError, BezierConstructionError, BezierCurve, BezierCurve2D,
-    BoundedCurve, BoundedCurve2D, Circle, Circle2D, CircleConstructionError, Continuity, Curve,
-    Curve2D, DegreeElevationError, ElementaryCurve, Ellipse, Ellipse2D, EllipseConstructionError,
-    GenericBSplineCurve, GenericBezierCurve, GenericCircle, GenericEllipse, GenericHyperbola,
-    GenericLine, GenericParabola, GenericTrimmedCurve, Hyperbola, Hyperbola2D,
-    HyperbolaConstructionError, KnotInsertionError, KnotRemovalError, Line, Line2D,
-    LineConstructionError, Parabola, Parabola2D, ParabolaConstructionError, ParametricCurve,
-    ParametricCurve2D, PointExtrema, PointExtrema2D, PointParametrization, PoleEditError,
-    ReversibleCurve, Side, TrimmedCurve, TrimmedCurve2D, TrimmedCurveConstructionError,
+    ArcConstructionError, BSplineConversionError, BSplineCurve, BSplineCurve2D,
+    BezierConstructionError, BezierCurve, BezierCurve2D, BoundedCurve, BoundedCurve2D, Circle,
+    Circle2D, CircleConstructionError, Curve, Curve2D, ElementaryCurve, Ellipse, Ellipse2D,
+    EllipseConstructionError, GenericBSplineCurve, GenericBezierCurve, GenericCircle,
+    GenericEllipse, GenericHyperbola, GenericLine, GenericParabola, GenericTrimmedCurve, Hyperbola,
+    Hyperbola2D, HyperbolaConstructionError, Line, Line2D, LineConstructionError, Parabola,
+    Parabola2D, ParabolaConstructionError, ParametricCurve, ParametricCurve2D, PointExtrema,
+    PointExtrema2D, PointParametrization, PoleEditError, ReversibleCurve, TrimmedCurve,
+    TrimmedCurve2D, TrimmedCurveConstructionError,
 };
 pub use geometry::surfaces::{
     BSplineSurface, BezierSurface, Cone, ConeConstructionError, Curve3DToUvError, Cylinder,
@@ -190,6 +189,10 @@ pub use geometry::surfaces::{
 };
 pub use geometry::surfaces::{
     Curve3DToUvApproximationError, curve_3d_to_uv_within, uv_curve_to_3d_within,
+};
+pub use math::bspline::errors::{
+    BSplineConstructionError, BSplineSplitError, DegreeElevationError, KnotInsertionError,
+    KnotRemovalError,
 };
 pub use operations::discretization::{
     Discretization, Discretization2D, DiscretizationCriteria, DiscretizationCriteriaError,
@@ -218,6 +221,6 @@ pub use operations::intersect::{
     GenericCurveCurveIntersection, IntersectionCurve, IntersectionMethod,
     SurfaceSurfaceIntersection, SurfaceSurfaceRegion,
 };
-pub use operations::intersect::{InlineList, Intersect, IntersectExact};
+pub use operations::intersect::{Intersect, IntersectExact};
 pub use operations::intersect::{intersect_curve_curve, intersect_curve_surface};
 pub use operations::projection::{CurveProjection, CurveProjection2D, SurfaceProjection};

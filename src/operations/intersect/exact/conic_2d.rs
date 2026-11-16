@@ -7,12 +7,11 @@
 //! read as the 3D family result. The hits come back with `z` dropped and
 //! their parameters and multiplicities as the 3D result has them.
 
+use crate::InlineList;
 use crate::geometry::curves::{Circle2D, Ellipse2D, Hyperbola2D, Line2D, Parabola2D};
 use crate::operations::intersect::numeric::embedding_2d::ToSpace;
 use crate::operations::intersect::routing::ExactFamily;
-use crate::operations::intersect::{
-    CurveCurveHit2D, CurveCurveIntersection, InlineList, IntersectExact,
-};
+use crate::operations::intersect::{CurveCurveHit2D, CurveCurveIntersection, IntersectExact};
 use crate::{Point2D, Tolerance};
 
 /// The intersection of a 2D line or conic with a 2D conic.

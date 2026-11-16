@@ -3,7 +3,9 @@
 //! normal-recovery helpers it falls back on where the partial derivatives
 //! degenerate.
 
-use crate::geometry::curves::{Continuity, Curve, Curve2D, TrimmedCurve, TrimmedCurve2D};
+use crate::geometry::curves::{Curve, Curve2D, TrimmedCurve, TrimmedCurve2D};
+
+use crate::Continuity;
 use crate::geometry::surfaces::uv_curve::from_curve::{OnSurfaceCheck, meridian_arc_to_uv};
 use crate::geometry::surfaces::{
     BSplineSurface, Curve3DToUvError, ElementarySurface, ExtrusionSurface, RevolutionSurface,

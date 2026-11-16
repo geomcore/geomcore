@@ -11,8 +11,8 @@
 
 use super::bezier::walk;
 use super::{Count, Edit, Edited, Kept, Lanes, One, Pole, Source};
-use crate::geometry::curves::DegreeElevationError;
 use crate::math::bspline::curve::{KnotVector, LARGE, MAX_DEGREE, flat_knots};
+use crate::math::bspline::errors::DegreeElevationError;
 
 /// Raising the degree by the amount: see [`elevate`].
 pub(crate) struct Elevation(pub(crate) usize);
