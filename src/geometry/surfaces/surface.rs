@@ -1,7 +1,9 @@
 //! The [`Surface`] and [`ElementarySurface`] enum adaptors unifying the
 //! concrete surface types behind one value type each.
 
-use crate::geometry::curves::{Continuity, Curve, Curve2D};
+use crate::geometry::curves::{Curve, Curve2D};
+
+use crate::Continuity;
 use crate::geometry::surfaces::ParametricSurface;
 use crate::geometry::surfaces::ReversibleSurface;
 use crate::geometry::surfaces::SurfaceCurvatures;

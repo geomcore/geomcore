@@ -23,7 +23,7 @@ pub(crate) use removal::{Deviation, check_removal, remove_knots};
 
 use super::curve::KnotVector;
 use super::poles::{HomogeneousPole, Pole, PolePoint};
-use crate::geometry::curves::KnotInsertionError;
+use crate::math::bspline::errors::KnotInsertionError;
 
 /// The poles an edit reads, by index: a slice of them, or a rational
 /// shape's points and weights read as homogeneous points, so that they

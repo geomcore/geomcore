@@ -4,8 +4,8 @@
 //! over measures how far the shape moves.
 
 use super::{Edited, Kept, Lanes, Pole, PolePoint, Source, Weighted, from_homogeneous};
-use crate::geometry::curves::KnotRemovalError;
 use crate::math::bspline::curve::{KnotVector, MAX_DEGREE};
+use crate::math::bspline::errors::KnotRemovalError;
 use crate::{Point, Point2D};
 
 /// A direction with knots removed, its poles and weights laid out as the

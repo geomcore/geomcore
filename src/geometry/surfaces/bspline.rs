@@ -12,7 +12,6 @@ use crate::geometry::surfaces::{Curve3DToUvError, UvCurveTo3DError};
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 
-use crate::geometry::curves::{Continuity, Side};
 use crate::geometry::surfaces::iso::{SurfaceIsoError, check_iso_param};
 use crate::geometry::surfaces::{BezierSurface, ParametricSurface};
 use crate::math::bspline::curve;
@@ -22,12 +21,11 @@ use crate::math::numeric::boxtree::{BoxTree, Lazy, box_distance};
 use crate::math::numeric::newton_min_2d;
 use crate::operations::projection::SurfaceProjection;
 use crate::{BSplineCurve, Point, Tolerance, Transform, Vector};
+use crate::{Continuity, Side};
 
-pub use crate::geometry::curves::BSplineConstructionError;
-use crate::geometry::curves::{
-    BSplineSplitError, DegreeElevationError, KnotInsertionError, KnotRemovalError,
-};
+pub use crate::BSplineConstructionError;
 use crate::geometry::surfaces::ReversibleSurface;
+use crate::{BSplineSplitError, DegreeElevationError, KnotInsertionError, KnotRemovalError};
 use crate::{TransformError, Transformable};
 
 /// A parametric direction of a surface.

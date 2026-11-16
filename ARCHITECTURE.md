@@ -18,12 +18,15 @@ src/
 │   ├── frame.rs             Axis, Frame and their 2D forms: where a shape is placed
 │   ├── transform.rs         Transform, and the Transformable trait of the shapes it moves
 │   ├── tolerance.rs         Tolerance: every geometric decision takes one
-│   └── tier.rs              TierPoint: the two tiers (space, plane) the curve types are
-│                            generic over
+│   ├── tier.rs              TierPoint: the two tiers (space, plane) the curve types are
+│   │                        generic over
+│   ├── side.rs continuity.rs   Side and Continuity: the one-sided queries at a knot
+│   │                        or a seam, and how smooth a shape is there
+│   └── inline_list.rs       InlineList: up to a proven bound of items, without allocating
 │
 ├── geometry/            the curve and surface types
 │   ├── curves/              the public curve types, one file per type
-│   │   ├── parametric_curve.rs      ParametricCurve, PointExtrema, ReversibleCurve, Side, Continuity
+│   │   ├── parametric_curve.rs      ParametricCurve, PointExtrema, ReversibleCurve
 │   │   ├── parametric_curve_2d.rs   ParametricCurve2D, PointExtrema2D
 │   │   ├── curve.rs curve_2d.rs     the Curve, ElementaryCurve, Curve2D enums
 │   │   ├── line.rs … hyperbola.rs   elementary curves, each one generic type for both tiers
@@ -110,7 +113,7 @@ src/
 │   │   │                    with the seeds on closed loops of level_extrema.rs)
 │   │   │                    and the coincidence check (coincidence.rs) (ADR 0025)
 │   │   └── results/         the results Intersect returns, their regions (regions.rs),
-│   │                        Completeness, InlineList, InlineOrHeapList
+│   │                        Completeness, InlineOrHeapList
 │   └── projection.rs    results of point projection (CurveProjection, …)
 │
 ├── bounding_box/        HasBoundingBox: the box type and one file per family; also the
@@ -120,7 +123,8 @@ src/
 └── math/                internal math under the curves and surfaces
     ├── elementary/      closed-form formulas of the elementary curves and surfaces
     ├── bspline/         the B-spline engine (poles, curve evaluation, editing,
-    │                    tensor-product surfaces, exact conic nets)
+    │                    tensor-product surfaces, exact conic nets) and errors.rs,
+    │                    the errors its checks raise
     └── numeric/         polynomial roots, Bernstein form, solvers, quadrature
 ```
 
@@ -149,7 +153,10 @@ paths.
    generic type over its tier (ADR 0014): `GenericEllipse`, with its aliases
    `Ellipse` and `Ellipse2D`, lives in `geometry/curves/ellipse.rs`, and its 2D unit
    tests in `geometry/curves/ellipse/tests_2d.rs`. Only 2D types carry a dimension
-   suffix (ADR 0013). A type's construction error lives beside it.
+   suffix (ADR 0013). An error lives with the code that checks it: a type's
+   construction error lives beside the type, and the errors of the B-spline
+   engine's checks (the knot vector, knot insertion and removal, degree
+   elevation, splits) live in `math/bspline/errors.rs`, beside those checks.
    One curve type lives elsewhere. `QuarticBranch`, a `Curve` variant, is
    built from the two quadrics it lies on and read through the quartic's
    walk, so it sits beside that quartic in
@@ -189,9 +196,16 @@ paths.
    result type `LinePlaneIntersection`. The general results that `Intersect`
    returns live in `operations/intersect/results/`.
 5. **Internal math sits under the shapes.** `math/` (`elementary/`,
-   `bspline/` and `numeric/`) re-exports nothing from `lib.rs`. They work on poles, knots and numbers,
-   not on the public shape types; a shape calls into them, never the
-   other way round.
+   `bspline/` and `numeric/`) works on poles, knots, numbers and the values
+   of `base/`, not on the public shape types; a shape calls into it, never
+   the other way round. No file under `math/` names `geometry`,
+   `operations` or `bounding_box`, nor any name the crate root re-exports
+   from them, and `tests/module_dependencies.rs` checks it. A value both
+   sides need, such as `Side`, `Continuity` or `InlineList`, lives in
+   `base/`. The only public items `math/` defines are the errors of the
+   B-spline engine's checks (rule 1). `base/` and `math/` form one level:
+   `TierPoint` requires the engine's `PolePoint`, so `base/tier.rs`
+   imports from `math/`.
 6. **Unit tests live in a sibling `tests.rs`.** `geometry/curves/line.rs` ends with
    `#[cfg(test)] mod tests;` and its tests are in `geometry/curves/line/tests.rs`.
    Tests that only

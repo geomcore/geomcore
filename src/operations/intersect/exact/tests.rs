@@ -1,11 +1,12 @@
 use super::*;
 
+use crate::InlineList;
 use crate::geometry::curves::{Curve, ElementaryCurve, ParametricCurve, PointExtrema};
 use crate::geometry::surfaces::{ElementarySurface, ParametricSurface, Surface};
 use crate::operations::intersect::numeric::marching::marched_curves;
 use crate::operations::intersect::routing::ExactFamily;
 use crate::operations::intersect::{
-    CurveCurveIntersection, CurveSurfaceIntersection, InlineList, Intersect, IntersectionCurve,
+    CurveCurveIntersection, CurveSurfaceIntersection, Intersect, IntersectionCurve,
     IntersectionMethod, SurfaceSurfaceIntersection,
 };
 

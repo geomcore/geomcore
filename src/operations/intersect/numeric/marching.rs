@@ -18,12 +18,12 @@ mod seeding;
 mod shared_boundary_curves;
 mod tracer;
 
+use crate::BSplineConstructionError;
 use crate::geometry::curves::fitting::{
     hermite_knots, hermite_spline, interpolate_with_companions, without_confused,
 };
 use crate::geometry::curves::{
-    BSplineConstructionError, BSplineCurve, BSplineCurve2D, Curve, Curve2D, ParametricCurve,
-    ParametricCurve2D,
+    BSplineCurve, BSplineCurve2D, Curve, Curve2D, ParametricCurve, ParametricCurve2D,
 };
 use crate::geometry::surfaces::ParametricSurface;
 use crate::math::numeric::boxtree::{Aabb, boxes_apart};

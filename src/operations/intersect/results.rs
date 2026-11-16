@@ -7,11 +7,9 @@
 //! so the storage can change without breaking callers.
 
 pub(crate) mod completeness;
-mod inline_list;
 pub(crate) mod inline_or_heap_list;
 mod regions;
 
-pub use inline_list::InlineList;
 pub use regions::{CurveCurveRegion, CurveSurfaceRegion, SurfaceSurfaceRegion};
 
 use crate::geometry::curves::ParametricCurve;

@@ -1,13 +1,14 @@
-//! A list that keeps up to `N` items inline, for intersection results
-//! whose piece count has a proven bound.
+//! A list that keeps up to `N` items inline, for results whose item count
+//! has a proven bound: the roots of a low-degree equation, the pieces of
+//! an intersection.
 
 use std::ops::{Deref, DerefMut};
 
 /// Up to `N` items stored inline, read as a slice.
 ///
-/// Holds the pieces of an intersection result without allocating.
-/// Its capacity is a proven bound on the pair it serves, so it never
-/// fills up.
+/// Holds the roots of an equation or the pieces of an intersection result
+/// without allocating. Its capacity is a proven bound on what it serves,
+/// so it never fills up.
 #[derive(Clone, Copy)]
 pub struct InlineList<T: Copy, const N: usize>(Slots<T, N>);
 

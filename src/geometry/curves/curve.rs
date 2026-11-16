@@ -1,7 +1,7 @@
 //! The [`Curve`] and [`ElementaryCurve`] enum adaptors unifying the concrete
 //! 3D curve types behind one value type each.
 
-use crate::geometry::curves::Continuity;
+use crate::Continuity;
 use crate::geometry::curves::ParametricCurve;
 use crate::geometry::curves::PointExtrema;
 use crate::geometry::curves::ReversibleCurve;

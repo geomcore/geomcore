@@ -5,7 +5,9 @@
 //! range. It carries no boundary loops, orientation or tolerance; those
 //! belong to the topology (faces) of a kernel built on top of geomcore.
 
-use crate::geometry::curves::{Continuity, Curve, Curve2D, TrimmedCurve, TrimmedCurve2D};
+use crate::geometry::curves::{Curve, Curve2D, TrimmedCurve, TrimmedCurve2D};
+
+use crate::Continuity;
 use crate::geometry::surfaces::{
     Curve3DToUvError, ParametricSurface, Surface, SurfaceCurvatures, UvCurveTo3DError,
 };

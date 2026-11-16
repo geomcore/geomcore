@@ -7,12 +7,13 @@
 //! factored system per direction serves them all (see
 //! [`crate::BSplineCurve::approximate`] for the curve fit).
 
+use crate::BSplineConstructionError;
 use crate::geometry::approximation::SurfaceApproximation;
+use crate::geometry::curves::all_finite;
 use crate::geometry::curves::fitting::{
     BasisTable, approximation_knots, averaged_knots, check_degree, fit_within_fewest,
     interpolation, least_squares, shared_parameters,
 };
-use crate::geometry::curves::{BSplineConstructionError, all_finite};
 use crate::{BSplineSurface, Point, PointParametrization};
 
 /// A grid of points `points[i][j]`, `i` along `u` and `j` along `v`,

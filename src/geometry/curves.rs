@@ -20,10 +20,7 @@ mod trimmed;
 /// Built where two cones meet, beside the quartic it is a piece of.
 pub use crate::operations::intersect::QuarticBranch;
 pub use bezier::{BezierConstructionError, BezierCurve, BezierCurve2D, GenericBezierCurve};
-pub use bspline::{
-    BSplineConstructionError, BSplineCurve, BSplineCurve2D, BSplineSplitError,
-    DegreeElevationError, GenericBSplineCurve, KnotInsertionError, KnotRemovalError, PoleEditError,
-};
+pub use bspline::{BSplineCurve, BSplineCurve2D, GenericBSplineCurve, PoleEditError};
 pub(crate) use bspline::{all_finite, grid_finite};
 pub use circle::{Circle, Circle2D, CircleConstructionError, GenericCircle};
 pub use conversion::BSplineConversionError;
@@ -36,9 +33,7 @@ pub use fitting::PointParametrization;
 pub use hyperbola::{GenericHyperbola, Hyperbola, Hyperbola2D, HyperbolaConstructionError};
 pub use line::{GenericLine, Line, Line2D, LineConstructionError};
 pub use parabola::{GenericParabola, Parabola, Parabola2D, ParabolaConstructionError};
-pub use parametric_curve::{
-    BoundedCurve, Continuity, ParametricCurve, PointExtrema, ReversibleCurve, Side,
-};
+pub use parametric_curve::{BoundedCurve, ParametricCurve, PointExtrema, ReversibleCurve};
 pub use parametric_curve_2d::{BoundedCurve2D, ParametricCurve2D, PointExtrema2D};
 pub(crate) use range::{RangeOperations, Run};
 pub use trimmed::{

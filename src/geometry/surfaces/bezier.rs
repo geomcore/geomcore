@@ -11,9 +11,11 @@
 //! editing. [`BezierSurface::to_bspline`] gives the B-spline surface when
 //! those are wanted.
 
-use crate::geometry::curves::{
-    BSplineSplitError, BezierConstructionError, BezierCurve, DegreeElevationError, Side,
-};
+use crate::geometry::curves::{BezierConstructionError, BezierCurve};
+
+use crate::{BSplineSplitError, DegreeElevationError};
+
+use crate::Side;
 use crate::geometry::curves::{Curve, Curve2D, grid_finite};
 use crate::geometry::surfaces::ReversibleSurface;
 use crate::geometry::surfaces::uv_curve::{from_curve, to_curve};

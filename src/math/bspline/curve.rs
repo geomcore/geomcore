@@ -20,9 +20,10 @@
 use std::sync::OnceLock;
 
 pub(crate) use super::poles::{HomogeneousPole, Pole, PolePoint, Poles};
+use crate::Side;
 use crate::base::tier::TierPoint;
 use crate::base::tier::operations::VectorOperations;
-use crate::geometry::curves::Side;
+use crate::math::bspline::errors::BSplineConstructionError;
 use crate::math::elementary::curve::in_period;
 use crate::math::numeric::bernstein::{CAPACITY, add_product, rising_roots, scale, unscale};
 use crate::math::numeric::newton_min_1d;
@@ -30,12 +31,6 @@ use crate::{Continuity, Tolerance};
 
 /// Maximum supported B-spline degree.
 pub(crate) const MAX_DEGREE: usize = 25;
-
-/// Error type re-exported here for use by [`validate_direction`]; the
-/// canonical definition (and its docs) live on [`crate::geometry::curves`], next to
-/// [`crate::BSplineCurve`], the type that actually constructs and
-/// reports these errors.
-pub(crate) use crate::geometry::curves::BSplineConstructionError;
 
 /// Builds the flattened knot sequence: knot `i` repeated `mults[i]` times.
 ///

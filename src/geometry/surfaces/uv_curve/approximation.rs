@@ -26,9 +26,10 @@
 use std::fmt;
 
 use crate::geometry::approximation::CurveApproximation;
-use crate::geometry::curves::{BSplineCurve, BSplineCurve2D, Continuity, ParametricCurve2D, Side};
+use crate::geometry::curves::{BSplineCurve, BSplineCurve2D, ParametricCurve2D};
 use crate::geometry::surfaces::uv_curve::to_curve::{StraightUvCurve, UvCurveTo3DError};
 use crate::geometry::surfaces::{ElementarySurface, ParametricSurface};
+use crate::{Continuity, Side};
 use crate::{Point, Point2D, Tolerance, Vector, Vector2D};
 
 /// The order of the derivatives a span matches at each end where only

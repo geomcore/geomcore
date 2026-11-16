@@ -9,13 +9,14 @@
 //! periodicity and no knot editing. [`GenericBezierCurve::to_bspline`]
 //! gives the B-spline when those are wanted.
 
+use crate::Side;
 use crate::base::tier::{TierPoint, impl_for_both_tiers};
 use crate::geometry::curves::ReversibleCurve;
-use crate::geometry::curves::bspline::{BSplineSplitError, DegreeElevationError};
 use crate::geometry::curves::{
-    GenericBSplineCurve, ParametricCurve, ParametricCurve2D, PointExtrema, PointExtrema2D, Side,
+    GenericBSplineCurve, ParametricCurve, ParametricCurve2D, PointExtrema, PointExtrema2D,
 };
 use crate::operations::projection::CurveProjection;
+use crate::{BSplineSplitError, DegreeElevationError};
 use crate::{Continuity, Point, Point2D, Tolerance};
 use crate::{Transform, TransformError, Transformable};
 use std::fmt;

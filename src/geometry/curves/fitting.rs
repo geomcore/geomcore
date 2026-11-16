@@ -8,15 +8,14 @@
 //! its band directly; least squares solves the normal equations, whose
 //! matrix has half-bandwidth `degree`, by banded Cholesky.
 
+use crate::BSplineConstructionError;
 use crate::Point;
 use crate::Point2D;
 use crate::Vector;
 use crate::base::tier::TierPoint;
 use crate::geometry::approximation::GenericCurveApproximation;
 use crate::geometry::curves::all_finite;
-use crate::geometry::curves::{
-    BSplineConstructionError, BSplineCurve, BSplineCurve2D, GenericBSplineCurve,
-};
+use crate::geometry::curves::{BSplineCurve, BSplineCurve2D, GenericBSplineCurve};
 use crate::math::bspline::curve as math;
 use crate::math::bspline::curve::Pole;
 
