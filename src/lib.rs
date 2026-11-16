@@ -159,9 +159,9 @@ mod operations;
 pub mod prelude;
 
 pub use base::{
-    Axis, Axis2D, Continuity, Frame, Frame2D, FrameConstructionError, InlineList, Point, Point2D,
-    Side, TierPoint, Tolerance, ToleranceConstructionError, Transform, TransformError,
-    TransformMatrixError, Transformable, Vector, Vector2D,
+    Axis, Axis2D, Continuity, Direction, Direction2D, Frame, Frame2D, FrameConstructionError,
+    InlineList, Point, Point2D, Side, TierPoint, Tolerance, ToleranceConstructionError, Transform,
+    TransformError, TransformMatrixError, Transformable, Vector, Vector2D,
 };
 pub use bounding_box::{BoundingBox, BoundingBox2D, HasBoundingBox, HasBoundingBox2D};
 pub use geometry::approximation::{

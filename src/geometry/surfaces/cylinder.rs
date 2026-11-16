@@ -82,7 +82,18 @@ impl Cylinder {
     /// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
     /// assert_eq!(cylinder.radius(), 2.0);
     /// ```
+    #[inline]
     pub fn new(
+        center: Point,
+        axis_direction: impl Into<Vector>,
+        radius: f64,
+    ) -> Result<Cylinder, CylinderConstructionError> {
+        Self::new_with_vectors(center, axis_direction.into(), radius)
+    }
+
+    /// The body of [`new`](Self::new) over plain vectors, compiled
+    /// once: only the conversion of its arguments is generic.
+    fn new_with_vectors(
         center: Point,
         axis_direction: Vector,
         radius: f64,
@@ -171,6 +182,7 @@ impl Cylinder {
     /// let cylinder = Cylinder::from_frame(Frame::WORLD, 2.0).unwrap();
     /// assert_eq!(cylinder.frame(), Frame::WORLD);
     /// ```
+    #[inline]
     pub fn frame(&self) -> Frame {
         self.frame
     }
@@ -184,6 +196,7 @@ impl Cylinder {
     /// let cylinder = Cylinder::from_frame(Frame::WORLD, 2.0).unwrap();
     /// assert_eq!(cylinder.radius(), 2.0);
     /// ```
+    #[inline]
     pub fn radius(&self) -> f64 {
         self.radius
     }
@@ -197,6 +210,7 @@ impl Cylinder {
     /// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
     /// assert_eq!(cylinder.axis().direction(), Vector::Z);
     /// ```
+    #[inline]
     pub fn axis(&self) -> Axis {
         self.frame.axis()
     }

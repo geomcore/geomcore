@@ -138,6 +138,7 @@ impl RevolutionSurface {
     /// let surface = RevolutionSurface::new(tube.into(), axis).unwrap();
     /// assert_eq!(surface.profile(), &Curve::Circle(tube));
     /// ```
+    #[inline]
     pub fn profile(&self) -> &Curve {
         &self.profile
     }
@@ -153,6 +154,7 @@ impl RevolutionSurface {
     /// let surface = RevolutionSurface::new(tube.into(), axis).unwrap();
     /// assert_eq!(surface.axis(), axis);
     /// ```
+    #[inline]
     pub fn axis(&self) -> Axis {
         self.axis
     }
@@ -220,7 +222,8 @@ impl RevolutionSurface {
             Some(x) => x,
             None => Frame::from_z(center, direction)
                 .map_err(|_| SurfaceIsoError::NonFinite)?
-                .x_direction(),
+                .x_direction()
+                .vector(),
         };
         let frame = Frame::new(center, direction, x).map_err(|_| SurfaceIsoError::NonFinite)?;
         Circle::from_frame(frame, radius).map_err(|_| SurfaceIsoError::NonFinite)
@@ -254,7 +257,7 @@ impl RevolutionSurface {
     /// The derivative in the angle of [`rotate`](Self::rotate).
     fn rotate_derivative(&self, vector: Vector, angle: f64, order: u32) -> Vector {
         let a = self.axis.direction();
-        let radial = vector - vector.dot(a) * a;
+        let radial = vector.component_perpendicular_to(a);
         let turned = a.cross(vector);
         let (sin, cos) = angle.sin_cos();
         match order {
@@ -428,13 +431,13 @@ impl RevolutionSurface {
 impl Meridian {
     fn new(profile: &Curve, axis: Axis) -> Result<Meridian, RevolutionSurfaceConstructionError> {
         let (origin, a) = (axis.origin(), axis.direction());
-        let radial = |v: Vector| v - v.dot(a) * a;
+        let radial = |v: Vector| v.component_perpendicular_to(a);
         let no_area = Err(RevolutionSurfaceConstructionError::SweepsNoArea);
         match profile {
             Curve::Line(line) => {
                 let offset = line.origin() - origin;
                 let size = offset.magnitude();
-                let reference = [radial(offset), radial(line.direction())]
+                let reference = [radial(offset), radial(line.direction().vector())]
                     .into_iter()
                     .zip([size, 1.0])
                     .find(|(r, scale)| r.magnitude() > ROUNDING * scale)
@@ -469,7 +472,7 @@ impl Meridian {
                 let normal = frame.z_direction();
                 let offset = center - origin;
                 let scale = offset.magnitude() + size;
-                let about_axis = radial(normal).magnitude() <= ROUNDING
+                let about_axis = radial(normal.vector()).magnitude() <= ROUNDING
                     && radial(offset).magnitude() <= ROUNDING * scale;
                 if round && about_axis {
                     return no_area;

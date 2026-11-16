@@ -40,7 +40,7 @@ shape_methods! {
         crate::pickling::paste_back_repr!(
             slf,
             "center" => crate::values::PyPoint(this.0.center()),
-            "axis_direction" => crate::values::PyVector(this.0.frame().z_direction()),
+            "axis_direction" => crate::values::PyVector(this.0.frame().z_direction().vector()),
             "major_radius" => this.0.major_radius(),
             "minor_radius" => this.0.minor_radius(),
         )

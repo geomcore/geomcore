@@ -5,6 +5,7 @@
 
 use super::pair::{SurfacePair, own_box, swap};
 use super::tracer::chord_deviation;
+use crate::Direction;
 use crate::geometry::curves::fitting::segment_length;
 use crate::geometry::surfaces::ParametricSurface;
 use crate::{Point, Tolerance, Vector};
@@ -293,9 +294,9 @@ fn keeps_to_boundary_curve(
     if length <= tol.confusion {
         return true;
     }
-    let along = chord * (1.0 / length);
+    let along = Direction::from_unit_vector(chord * (1.0 / length));
     let off_chord = middle.point - from.point;
-    let sag = (off_chord - along * off_chord.dot(along)).magnitude();
+    let sag = off_chord.component_perpendicular_to(along).magnitude();
     if sag > chord_deviation {
         return false;
     }
@@ -306,5 +307,7 @@ fn keeps_to_boundary_curve(
         + chord * 0.5
         + (tp - tq) * (0.125 * segment_length(from.point, to.point, tp, tq));
     let off = hermite - middle.point;
-    (off - tm * off.dot(tm)).magnitude() <= 0.25 * tol.confusion
+    off.component_perpendicular_to(Direction::from_unit_vector(tm))
+        .magnitude()
+        <= 0.25 * tol.confusion
 }

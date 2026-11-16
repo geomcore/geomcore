@@ -242,17 +242,19 @@ fn test_predicates_hold_for_any_length_and_reject_the_zero_vector() {
 }
 
 #[test]
-fn test_components_split_the_vector_and_vanish_along_nothing() {
+fn test_components_split_the_vector() {
     let v = Vector::new(1.0, 2.0, 3.0);
-    let d = Vector::new(1.0, 1.0, 0.0);
+    let d = Vector::new(1.0, 1.0, 0.0).direction().unwrap();
     let (along, across) = (v.component_along(d), v.component_perpendicular_to(d));
     assert!((along + across - v).magnitude() < 1e-15);
     assert!(across.dot(d).abs() < 1e-15);
     assert!(along.cross(d).magnitude() < 1e-15);
-    assert_eq!(v.component_along(Vector::ZERO), Vector::ZERO);
-    assert_eq!(v.component_perpendicular_to(Vector::ZERO), v);
     let w = Vector2D::new(3.0, 4.0);
-    assert_eq!(w.component_along(Vector2D::ZERO), Vector2D::ZERO);
+    assert_eq!(w.component_along(Direction2D::X), Vector2D::new(3.0, 0.0));
+    assert_eq!(
+        w.component_perpendicular_to(Direction2D::X),
+        Vector2D::new(0.0, 4.0)
+    );
 }
 
 #[test]

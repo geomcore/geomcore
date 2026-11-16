@@ -782,11 +782,7 @@ fn lone_hit_multiplicity(line: &Line, conic: &impl Conic, parameter: f64, tol: T
     let a = line.direction();
     let b = conic.derivative(parameter, 1);
     let angular = tol.angular_for_extent(conic.shape().extent());
-    if a.cross(b).magnitude() <= angular * b.magnitude() {
-        2
-    } else {
-        1
-    }
+    if b.is_parallel(a, angular) { 2 } else { 1 }
 }
 
 impl LineLineIntersection {

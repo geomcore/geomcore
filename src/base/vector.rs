@@ -1,6 +1,5 @@
-/// How far the squared length of a normalized vector strays from 1 by
-/// rounding: at most three ulps of 1, with room to spare.
-const UNIT_ROUNDING: f64 = 8.0 * f64::EPSILON;
+use crate::base::direction::UNIT_ROUNDING;
+use crate::{Direction, Direction2D};
 
 /// Two-dimensional vector.
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
@@ -65,7 +64,8 @@ impl Vector2D {
     /// assert_eq!(Vector2D::X.dot(Vector2D::Y), 0.0);
     /// assert_eq!(Vector2D::X.dot(Vector2D::X), 1.0);
     /// ```
-    pub fn dot(self, other: Vector2D) -> f64 {
+    pub fn dot(self, other: impl Into<Vector2D>) -> f64 {
+        let other: Vector2D = other.into();
         self.x * other.x + self.y * other.y
     }
 
@@ -78,7 +78,8 @@ impl Vector2D {
     /// assert_eq!(Vector2D::X.cross(Vector2D::Y), 1.0);
     /// assert_eq!(Vector2D::Y.cross(Vector2D::X), -1.0);
     /// ```
-    pub fn cross(self, other: Vector2D) -> f64 {
+    pub fn cross(self, other: impl Into<Vector2D>) -> f64 {
+        let other: Vector2D = other.into();
         self.x * other.y - self.y * other.x
     }
 
@@ -172,7 +173,8 @@ impl Vector2D {
     /// use geomcore::Vector2D;
     /// assert!((Vector2D::X.angle(Vector2D::new(-1.0, -1.0)) - 3.0 * PI / 4.0).abs() < 1e-15);
     /// ```
-    pub fn angle(self, other: Vector2D) -> f64 {
+    pub fn angle(self, other: impl Into<Vector2D>) -> f64 {
+        let other: Vector2D = other.into();
         self.cross(other).abs().atan2(self.dot(other))
     }
 
@@ -210,7 +212,8 @@ impl Vector2D {
     /// the angle between them, `|a × b| / (|a| |b|)`, is at most
     /// `angular`. Pass `tol.angular`, or `tol.angular_for_extent(size)`
     /// where a direction error matters as a distance over `size`. A zero
-    /// vector is parallel to nothing.
+    /// vector is parallel to nothing. Between two directions, which need
+    /// no normalizing, ask [`Direction2D::is_parallel`].
     ///
     /// # Examples
     ///
@@ -221,14 +224,17 @@ impl Vector2D {
     /// assert!(!Vector2D::X.is_parallel(Vector2D::new(1.0, 1e-6), angular));
     /// assert!(!Vector2D::ZERO.is_parallel(Vector2D::X, angular));
     /// ```
-    pub fn is_parallel(self, other: Vector2D, angular: f64) -> bool {
+    #[inline]
+    pub fn is_parallel(self, other: impl Into<Vector2D>, angular: f64) -> bool {
+        let other: Vector2D = other.into();
         let scale = self.magnitude() * other.magnitude();
         scale > 0.0 && self.cross(other).abs() <= angular * scale
     }
 
     /// Whether the vectors are perpendicular: the cosine of the angle
     /// between them, `|a · b| / (|a| |b|)`, is at most `angular`. A zero
-    /// vector is perpendicular to nothing.
+    /// vector is perpendicular to nothing. Between two directions, ask
+    /// [`Direction2D::is_perpendicular`].
     ///
     /// # Examples
     ///
@@ -238,27 +244,26 @@ impl Vector2D {
     /// assert!(Vector2D::new(0.0, 3.0).is_perpendicular(Vector2D::new(2.0, 0.0), angular));
     /// assert!(!Vector2D::ZERO.is_perpendicular(Vector2D::X, angular));
     /// ```
-    pub fn is_perpendicular(self, other: Vector2D, angular: f64) -> bool {
+    #[inline]
+    pub fn is_perpendicular(self, other: impl Into<Vector2D>, angular: f64) -> bool {
+        let other: Vector2D = other.into();
         let scale = self.magnitude() * other.magnitude();
         scale > 0.0 && self.dot(other).abs() <= angular * scale
     }
 
-    /// The part of this vector along `direction`, `d (v · d) / |d|²`, of
-    /// any length; the zero vector when `direction` is zero.
+    /// The part of this vector along `direction`, `d (v · d)`. For a
+    /// vector `w` of any length, pass `w.direction()?`.
     ///
     /// # Examples
     ///
     /// ```
-    /// use geomcore::Vector2D;
+    /// use geomcore::{Direction2D, Vector2D};
     /// let v = Vector2D::new(3.0, 4.0);
-    /// assert_eq!(v.component_along(Vector2D::new(2.0, 0.0)), Vector2D::new(3.0, 0.0));
+    /// assert_eq!(v.component_along(Direction2D::X), Vector2D::new(3.0, 0.0));
     /// ```
-    pub fn component_along(self, direction: Vector2D) -> Vector2D {
-        let square = direction.square_magnitude();
-        if square <= f64::MIN_POSITIVE {
-            return Vector2D::ZERO;
-        }
-        direction * (self.dot(direction) / square)
+    #[inline]
+    pub fn component_along(self, direction: Direction2D) -> Vector2D {
+        direction * self.dot(direction)
     }
 
     /// The part of this vector across `direction`: the vector less its
@@ -267,24 +272,36 @@ impl Vector2D {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::Vector2D;
+    /// use geomcore::{Direction2D, Vector2D};
     /// let v = Vector2D::new(3.0, 4.0);
-    /// assert_eq!(v.component_perpendicular_to(Vector2D::X), Vector2D::new(0.0, 4.0));
+    /// assert_eq!(v.component_perpendicular_to(Direction2D::X), Vector2D::new(0.0, 4.0));
     /// ```
-    pub fn component_perpendicular_to(self, direction: Vector2D) -> Vector2D {
-        self - self.component_along(direction)
+    #[inline]
+    pub fn component_perpendicular_to(self, direction: Direction2D) -> Vector2D {
+        self - direction * self.dot(direction)
     }
 
-    /// The vector normalized, or itself when it is already of unit length
-    /// within rounding, so that normalizing a normalized vector changes
-    /// nothing: a frame or axis rebuilt from its own directions is the
-    /// same frame or axis, bit for bit.
+    /// The direction of the vector, a unit vector: the vector itself when it
+    /// is already unit within rounding, so that a unit vector costs no square
+    /// root or division and comes back bit for bit (a frame or axis rebuilt
+    /// from its own directions is the same frame or axis), else the vector
+    /// [`normalized`](Self::normalized). `None` for a zero vector, which has no
+    /// direction.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Direction2D, Vector2D};
+    /// assert_eq!(Vector2D::new(3.0, 4.0).direction().unwrap(), Vector2D::new(0.6, 0.8));
+    /// assert_eq!(Vector2D::X.direction(), Some(Direction2D::X));
+    /// assert_eq!(Vector2D::ZERO.direction(), None);
+    /// ```
     #[inline(always)]
-    pub(crate) fn normalized_unless_unit(self) -> Option<Vector2D> {
+    pub fn direction(self) -> Option<Direction2D> {
         if (self.square_magnitude() - 1.0).abs() <= UNIT_ROUNDING {
-            Some(self)
+            Some(Direction2D::from_unit_vector(self))
         } else {
-            self.normalized()
+            self.normalized().map(Direction2D::from_unit_vector)
         }
     }
 }
@@ -381,7 +398,8 @@ impl Vector {
     /// assert_eq!(Vector::X.dot(Vector::Y), 0.0);
     /// assert_eq!(Vector::X.dot(Vector::X), 1.0);
     /// ```
-    pub fn dot(self, other: Vector) -> f64 {
+    pub fn dot(self, other: impl Into<Vector>) -> f64 {
+        let other: Vector = other.into();
         self.x * other.x + self.y * other.y + self.z * other.z
     }
 
@@ -395,7 +413,8 @@ impl Vector {
     /// assert_eq!(Vector::Y.cross(Vector::Z), Vector::X);
     /// assert_eq!(Vector::Z.cross(Vector::X), Vector::Y);
     /// ```
-    pub fn cross(self, other: Vector) -> Vector {
+    pub fn cross(self, other: impl Into<Vector>) -> Vector {
+        let other: Vector = other.into();
         Vector {
             x: self.y * other.z - self.z * other.y,
             y: self.z * other.x - self.x * other.z,
@@ -468,16 +487,27 @@ impl Vector {
         }
     }
 
-    /// The vector normalized, or itself when it is already of unit length
-    /// within rounding, so that normalizing a normalized vector changes
-    /// nothing: a frame or axis rebuilt from its own directions is the
-    /// same frame or axis, bit for bit.
+    /// The direction of the vector, a unit vector: the vector itself when it
+    /// is already unit within rounding, so that a unit vector costs no square
+    /// root or division and comes back bit for bit (a frame or axis rebuilt
+    /// from its own directions is the same frame or axis), else the vector
+    /// [`normalized`](Self::normalized). `None` for a zero vector, which has no
+    /// direction.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Direction, Vector};
+    /// assert_eq!(Vector::new(0.0, 3.0, 4.0).direction().unwrap(), Vector::new(0.0, 0.6, 0.8));
+    /// assert_eq!(Vector::Z.direction(), Some(Direction::Z));
+    /// assert_eq!(Vector::ZERO.direction(), None);
+    /// ```
     #[inline(always)]
-    pub(crate) fn normalized_unless_unit(self) -> Option<Vector> {
+    pub fn direction(self) -> Option<Direction> {
         if (self.square_magnitude() - 1.0).abs() <= UNIT_ROUNDING {
-            Some(self)
+            Some(Direction::from_unit_vector(self))
         } else {
-            self.normalized()
+            self.normalized().map(Direction::from_unit_vector)
         }
     }
 
@@ -500,7 +530,13 @@ impl Vector {
     /// let angle = Vector::X.angle_with_reference(Vector::Y, Vector::Z);
     /// assert!((angle - PI / 2.0).abs() < 1e-10);
     /// ```
-    pub fn angle_with_reference(self, other: Vector, reference: Vector) -> f64 {
+    pub fn angle_with_reference(
+        self,
+        other: impl Into<Vector>,
+        reference: impl Into<Vector>,
+    ) -> f64 {
+        let other = other.into();
+        let reference = reference.into();
         let cross_product = self.cross(other);
         let dot_product = self.dot(other);
 
@@ -528,7 +564,8 @@ impl Vector {
     /// use geomcore::Vector;
     /// assert!((Vector::X.angle(Vector::new(0.0, -2.0, 0.0)) - PI / 2.0).abs() < 1e-15);
     /// ```
-    pub fn angle(self, other: Vector) -> f64 {
+    pub fn angle(self, other: impl Into<Vector>) -> f64 {
+        let other: Vector = other.into();
         self.cross(other).magnitude().atan2(self.dot(other))
     }
 
@@ -536,7 +573,8 @@ impl Vector {
     /// the angle between them, `|a × b| / (|a| |b|)`, is at most
     /// `angular`. Pass `tol.angular`, or `tol.angular_for_extent(size)`
     /// where a direction error matters as a distance over `size`. A zero
-    /// vector is parallel to nothing.
+    /// vector is parallel to nothing. Between two directions, which need
+    /// no normalizing, ask [`Direction::is_parallel`].
     ///
     /// # Examples
     ///
@@ -547,14 +585,17 @@ impl Vector {
     /// assert!(!Vector::Z.is_parallel(Vector::new(1e-6, 0.0, 1.0), angular));
     /// assert!(!Vector::ZERO.is_parallel(Vector::Z, angular));
     /// ```
-    pub fn is_parallel(self, other: Vector, angular: f64) -> bool {
+    #[inline]
+    pub fn is_parallel(self, other: impl Into<Vector>, angular: f64) -> bool {
+        let other: Vector = other.into();
         let scale = self.magnitude() * other.magnitude();
         scale > 0.0 && self.cross(other).magnitude() <= angular * scale
     }
 
     /// Whether the vectors are perpendicular: the cosine of the angle
     /// between them, `|a · b| / (|a| |b|)`, is at most `angular`. A zero
-    /// vector is perpendicular to nothing.
+    /// vector is perpendicular to nothing. Between two directions, ask
+    /// [`Direction::is_perpendicular`].
     ///
     /// # Examples
     ///
@@ -564,27 +605,26 @@ impl Vector {
     /// assert!(Vector::new(3.0, 0.0, 0.0).is_perpendicular(Vector::Z, angular));
     /// assert!(!Vector::ZERO.is_perpendicular(Vector::Z, angular));
     /// ```
-    pub fn is_perpendicular(self, other: Vector, angular: f64) -> bool {
+    #[inline]
+    pub fn is_perpendicular(self, other: impl Into<Vector>, angular: f64) -> bool {
+        let other: Vector = other.into();
         let scale = self.magnitude() * other.magnitude();
         scale > 0.0 && self.dot(other).abs() <= angular * scale
     }
 
-    /// The part of this vector along `direction`, `d (v · d) / |d|²`, of
-    /// any length; the zero vector when `direction` is zero.
+    /// The part of this vector along `direction`, `d (v · d)`. For a
+    /// vector `w` of any length, pass `w.direction()?`.
     ///
     /// # Examples
     ///
     /// ```
-    /// use geomcore::Vector;
+    /// use geomcore::{Direction, Vector};
     /// let v = Vector::new(1.0, 2.0, 3.0);
-    /// assert_eq!(v.component_along(Vector::new(0.0, 0.0, 5.0)), Vector::new(0.0, 0.0, 3.0));
+    /// assert_eq!(v.component_along(Direction::Z), Vector::new(0.0, 0.0, 3.0));
     /// ```
-    pub fn component_along(self, direction: Vector) -> Vector {
-        let square = direction.square_magnitude();
-        if square <= f64::MIN_POSITIVE {
-            return Vector::ZERO;
-        }
-        direction * (self.dot(direction) / square)
+    #[inline]
+    pub fn component_along(self, direction: Direction) -> Vector {
+        direction * self.dot(direction)
     }
 
     /// The part of this vector across `direction`: the vector less its
@@ -595,12 +635,13 @@ impl Vector {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::Vector;
+    /// use geomcore::{Direction, Vector};
     /// let v = Vector::new(1.0, 2.0, 3.0);
-    /// assert_eq!(v.component_perpendicular_to(Vector::Z), Vector::new(1.0, 2.0, 0.0));
+    /// assert_eq!(v.component_perpendicular_to(Direction::Z), Vector::new(1.0, 2.0, 0.0));
     /// ```
-    pub fn component_perpendicular_to(self, direction: Vector) -> Vector {
-        self - self.component_along(direction)
+    #[inline]
+    pub fn component_perpendicular_to(self, direction: Direction) -> Vector {
+        self - direction * self.dot(direction)
     }
 }
 

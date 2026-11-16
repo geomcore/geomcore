@@ -171,6 +171,7 @@ impl<P: TierPoint> GenericEllipse<P> {
     /// let ellipse = Ellipse::new(Point::new(1.0, 2.0, 3.0), Vector::Z, Vector::X, 3.0, 1.5).unwrap();
     /// assert_eq!(ellipse.center(), Point::new(1.0, 2.0, 3.0));
     /// ```
+    #[inline]
     pub fn center(&self) -> P {
         self.frame.origin()
     }
@@ -184,6 +185,7 @@ impl<P: TierPoint> GenericEllipse<P> {
     /// let ellipse = Ellipse::from_frame(Frame::WORLD, 3.0, 1.5).unwrap();
     /// assert_eq!(ellipse.frame(), Frame::WORLD);
     /// ```
+    #[inline]
     pub fn frame(&self) -> P::Frame {
         self.frame
     }
@@ -197,6 +199,7 @@ impl<P: TierPoint> GenericEllipse<P> {
     /// let ellipse = Ellipse::from_frame(Frame::WORLD, 3.0, 1.5).unwrap();
     /// assert_eq!(ellipse.major_radius(), 3.0);
     /// ```
+    #[inline]
     pub fn major_radius(&self) -> f64 {
         self.major_radius
     }
@@ -210,6 +213,7 @@ impl<P: TierPoint> GenericEllipse<P> {
     /// let ellipse = Ellipse::from_frame(Frame::WORLD, 3.0, 1.5).unwrap();
     /// assert_eq!(ellipse.minor_radius(), 1.5);
     /// ```
+    #[inline]
     pub fn minor_radius(&self) -> f64 {
         self.minor_radius
     }
@@ -366,7 +370,26 @@ impl Ellipse {
     /// assert_eq!(ellipse.major_radius(), 3.0);
     /// assert_eq!(ellipse.minor_radius(), 1.5);
     /// ```
+    #[inline]
     pub fn new(
+        center: Point,
+        normal: impl Into<Vector>,
+        x_direction: impl Into<Vector>,
+        major_radius: f64,
+        minor_radius: f64,
+    ) -> Result<Ellipse, EllipseConstructionError> {
+        Self::new_with_vectors(
+            center,
+            normal.into(),
+            x_direction.into(),
+            major_radius,
+            minor_radius,
+        )
+    }
+
+    /// The body of [`new`](Self::new) over plain vectors, compiled
+    /// once: only the conversion of its arguments is generic.
+    fn new_with_vectors(
         center: Point,
         normal: Vector,
         x_direction: Vector,
@@ -474,7 +497,19 @@ impl Ellipse2D {
     /// assert_eq!(ellipse.major_radius(), 3.0);
     /// assert_eq!(ellipse.minor_radius(), 1.5);
     /// ```
+    #[inline]
     pub fn new(
+        center: Point2D,
+        x_direction: impl Into<Vector2D>,
+        major_radius: f64,
+        minor_radius: f64,
+    ) -> Result<Ellipse2D, EllipseConstructionError> {
+        Self::new_with_vectors(center, x_direction.into(), major_radius, minor_radius)
+    }
+
+    /// The body of [`new`](Self::new) over plain vectors, compiled
+    /// once: only the conversion of its arguments is generic.
+    fn new_with_vectors(
         center: Point2D,
         x_direction: Vector2D,
         major_radius: f64,

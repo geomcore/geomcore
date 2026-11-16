@@ -64,7 +64,7 @@ fn curve_on_extrusion(
     let samples = sample_parameters(curve);
     let along = surface.direction();
     let uv_curve = match curve {
-        Curve::Line(line) if line.direction().cross(along).magnitude() <= tol.angular => {
+        Curve::Line(line) if line.direction().is_parallel(along, tol.angular) => {
             generator_line(surface, line, tol)
         }
         _ => translated_profile(surface, curve, &samples, tol),
@@ -82,7 +82,7 @@ fn curve_on_revolution(
     let samples = sample_parameters(curve);
     let along = surface.axis().direction();
     let parallel = match curve {
-        Curve::Circle(circle) if circle.normal().cross(along).magnitude() <= tol.angular => {
+        Curve::Circle(circle) if circle.normal().is_parallel(along, tol.angular) => {
             parallel_circle(surface, circle, &samples, tol)
         }
         _ => None,

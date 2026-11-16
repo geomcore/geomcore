@@ -2,7 +2,7 @@
 //! surfaces are positioned in.
 
 use crate::Tolerance;
-use crate::{Point, Point2D, Transform, TransformError, Vector, Vector2D};
+use crate::{Direction, Direction2D, Point, Point2D, Transform, TransformError, Vector, Vector2D};
 use std::fmt;
 
 /// Error returned when an axis or frame cannot be constructed from the
@@ -71,7 +71,7 @@ pub(crate) fn placement_error<E>(
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Axis {
     origin: Point,
-    direction: Vector,
+    direction: Direction,
 }
 
 impl Axis {
@@ -91,12 +91,22 @@ impl Axis {
     /// assert_eq!(axis.origin(), Point::ORIGIN);
     /// assert_eq!(axis.direction(), Vector::X);
     /// ```
-    pub fn new(origin: Point, direction: Vector) -> Result<Axis, FrameConstructionError> {
+    #[inline]
+    pub fn new(
+        origin: Point,
+        direction: impl Into<Vector>,
+    ) -> Result<Axis, FrameConstructionError> {
+        Self::new_with_vectors(origin, direction.into())
+    }
+
+    /// The body of [`new`](Self::new) over plain vectors, compiled
+    /// once: only the conversion of its arguments is generic.
+    fn new_with_vectors(origin: Point, direction: Vector) -> Result<Axis, FrameConstructionError> {
         if !origin.is_finite() || !direction.is_finite() {
             return Err(FrameConstructionError::NonFinite);
         }
         let direction = direction
-            .normalized_unless_unit()
+            .direction()
             .ok_or(FrameConstructionError::NullDirection)?;
         Ok(Axis { origin, direction })
     }
@@ -110,6 +120,7 @@ impl Axis {
     /// let axis = Axis::new(Point::new(1.0, 2.0, 3.0), Vector::X).unwrap();
     /// assert_eq!(axis.origin(), Point::new(1.0, 2.0, 3.0));
     /// ```
+    #[inline]
     pub fn origin(self) -> Point {
         self.origin
     }
@@ -123,7 +134,8 @@ impl Axis {
     /// let axis = Axis::new(Point::ORIGIN, Vector::new(0.0, 5.0, 0.0)).unwrap();
     /// assert_eq!(axis.direction(), Vector::Y);
     /// ```
-    pub fn direction(self) -> Vector {
+    #[inline]
+    pub fn direction(self) -> Direction {
         self.direction
     }
 
@@ -179,6 +191,7 @@ impl Axis {
     /// let axis = Axis::new(Point::ORIGIN, Vector::Z).unwrap();
     /// assert_eq!(axis.distance(Point::new(3.0, 4.0, 5.0)), 5.0);
     /// ```
+    #[inline]
     pub fn distance(self, point: Point) -> f64 {
         (point - self.origin)
             .component_perpendicular_to(self.direction)
@@ -195,12 +208,14 @@ impl Axis {
     /// assert!(axis.contains(Point::new(0.0, 0.0, 5.0), Tolerance::DEFAULT));
     /// assert!(!axis.contains(Point::new(3.0, 4.0, 5.0), Tolerance::DEFAULT));
     /// ```
+    #[inline]
     pub fn contains(self, point: Point, tol: Tolerance) -> bool {
         self.distance(point) <= tol.confusion
     }
 
-    /// Whether the axes have parallel directions, in either orientation,
-    /// within `angular` (see [`Vector::is_parallel`]).
+    /// Whether the axes have parallel directions, in either orientation:
+    /// the sine of the angle between them is at most `angular` (see
+    /// [`Direction::is_parallel`]).
     ///
     /// # Examples
     ///
@@ -210,13 +225,18 @@ impl Axis {
     /// let other = Axis::new(Point::new(3.0, 4.0, 5.0), -Vector::Z).unwrap();
     /// assert!(axis.is_parallel(other, Tolerance::DEFAULT.angular));
     /// ```
+    #[inline]
     pub fn is_parallel(self, other: Axis, angular: f64) -> bool {
         self.direction.is_parallel(other.direction, angular)
     }
 
     /// Whether the axes are the same line, in either orientation: their
-    /// directions are parallel within `tol.angular` and the other origin
-    /// lies on this axis within `tol.confusion`. Where the direction error
+    /// directions are parallel within `tol.angular` and the origin of
+    /// `other` lies on this axis within `tol.confusion`. Two lines a
+    /// tolerated angle apart drift apart away from where they meet, so the
+    /// test is measured at `other`'s origin: pass as `other` the axis whose
+    /// origin is where the shapes are, such as the centre of a torus, not
+    /// one whose origin may lie anywhere along it. Where the direction error
     /// matters as a distance over a shape's size, pass a tolerance whose
     /// `angular` is `tol.angular_for_extent(size)`.
     ///
@@ -228,6 +248,7 @@ impl Axis {
     /// assert!(axis.is_coaxial(Axis::new(Point::new(0.0, 0.0, 5.0), -Vector::Z).unwrap(), Tolerance::DEFAULT));
     /// assert!(!axis.is_coaxial(Axis::new(Point::new(3.0, 4.0, 5.0), Vector::Z).unwrap(), Tolerance::DEFAULT));
     /// ```
+    #[inline]
     pub fn is_coaxial(self, other: Axis, tol: Tolerance) -> bool {
         self.is_parallel(other, tol.angular) && self.contains(other.origin, tol)
     }
@@ -241,6 +262,7 @@ impl Axis {
     /// let axis = Axis::new(Point::ORIGIN, Vector::Z).unwrap();
     /// assert_eq!(axis.reversed().direction(), -Vector::Z);
     /// ```
+    #[inline]
     pub fn reversed(self) -> Axis {
         Axis {
             direction: -self.direction,
@@ -270,9 +292,9 @@ pub struct Frame {
     // parameters rely on it (they skip normalizing `z_dir`), so the fields
     // stay private.
     origin: Point,
-    x_dir: Vector,
-    y_dir: Vector,
-    z_dir: Vector,
+    x_dir: Direction,
+    y_dir: Direction,
+    z_dir: Direction,
 }
 
 impl Frame {
@@ -288,9 +310,9 @@ impl Frame {
     /// ```
     pub const WORLD: Frame = Frame {
         origin: Point::ORIGIN,
-        x_dir: Vector::X,
-        y_dir: Vector::Y,
-        z_dir: Vector::Z,
+        x_dir: Direction::X,
+        y_dir: Direction::Y,
+        z_dir: Direction::Z,
     };
 
     /// Creates a frame from an origin, a main (z) direction, and a hint
@@ -321,7 +343,18 @@ impl Frame {
     /// assert_eq!(f.y_direction(), Vector::Y);
     /// assert_eq!(f.z_direction(), Vector::Z);
     /// ```
+    #[inline]
     pub fn new(
+        origin: Point,
+        z_direction: impl Into<Vector>,
+        x_hint: impl Into<Vector>,
+    ) -> Result<Frame, FrameConstructionError> {
+        Self::new_with_vectors(origin, z_direction.into(), x_hint.into())
+    }
+
+    /// The body of [`new`](Self::new) over plain vectors, compiled
+    /// once: only the conversion of its arguments is generic.
+    fn new_with_vectors(
         origin: Point,
         z_direction: Vector,
         x_hint: Vector,
@@ -330,17 +363,18 @@ impl Frame {
             return Err(FrameConstructionError::NonFinite);
         }
         let z_dir = z_direction
-            .normalized_unless_unit()
+            .direction()
             .ok_or(FrameConstructionError::NullDirection)?;
         let x_hint = x_hint
-            .normalized_unless_unit()
+            .direction()
             .ok_or(FrameConstructionError::NullDirection)?;
         let x_dir = z_dir
             .cross(x_hint)
             .cross(z_dir)
             .normalized()
+            .map(Direction::from_unit_vector)
             .ok_or(FrameConstructionError::ParallelDirections)?;
-        let y_dir = z_dir.cross(x_dir);
+        let y_dir = Direction::from_unit_vector(z_dir.cross(x_dir));
         Ok(Frame {
             origin,
             x_dir,
@@ -373,12 +407,25 @@ impl Frame {
     /// assert!((f.x_direction().dot(f.y_direction())).abs() < 1e-10);
     /// assert!((f.x_direction().cross(f.y_direction()) - f.z_direction()).magnitude() < 1e-10);
     /// ```
-    pub fn from_z(origin: Point, z_direction: Vector) -> Result<Frame, FrameConstructionError> {
+    #[inline]
+    pub fn from_z(
+        origin: Point,
+        z_direction: impl Into<Vector>,
+    ) -> Result<Frame, FrameConstructionError> {
+        Self::from_z_with_vectors(origin, z_direction.into())
+    }
+
+    /// The body of [`from_z`](Self::from_z) over plain vectors, compiled
+    /// once: only the conversion of its arguments is generic.
+    fn from_z_with_vectors(
+        origin: Point,
+        z_direction: Vector,
+    ) -> Result<Frame, FrameConstructionError> {
         if !origin.is_finite() || !z_direction.is_finite() {
             return Err(FrameConstructionError::NonFinite);
         }
         let z_dir = z_direction
-            .normalized_unless_unit()
+            .direction()
             .ok_or(FrameConstructionError::NullDirection)?;
         let candidates = [Vector::X, Vector::Y, Vector::Z];
         let hint = candidates
@@ -433,7 +480,24 @@ impl Frame {
     /// .unwrap();
     /// assert!(!left.is_direct());
     /// ```
+    #[inline]
     pub fn from_axes(
+        origin: Point,
+        x_direction: impl Into<Vector>,
+        y_direction: impl Into<Vector>,
+        z_direction: impl Into<Vector>,
+    ) -> Result<Frame, FrameConstructionError> {
+        Self::from_axes_with_vectors(
+            origin,
+            x_direction.into(),
+            y_direction.into(),
+            z_direction.into(),
+        )
+    }
+
+    /// The body of [`from_axes`](Self::from_axes) over plain vectors, compiled
+    /// once: only the conversion of its arguments is generic.
+    fn from_axes_with_vectors(
         origin: Point,
         x_direction: Vector,
         y_direction: Vector,
@@ -448,18 +512,19 @@ impl Frame {
         }
         let (x_dir, y_dir, z_dir) = (
             x_direction
-                .normalized_unless_unit()
+                .direction()
                 .ok_or(FrameConstructionError::NullDirection)?,
             y_direction
-                .normalized_unless_unit()
+                .direction()
                 .ok_or(FrameConstructionError::NullDirection)?,
             z_direction
-                .normalized_unless_unit()
+                .direction()
                 .ok_or(FrameConstructionError::NullDirection)?,
         );
-        if x_dir.dot(y_dir).abs() > Tolerance::DEFAULT.angular
-            || y_dir.dot(z_dir).abs() > Tolerance::DEFAULT.angular
-            || z_dir.dot(x_dir).abs() > Tolerance::DEFAULT.angular
+        let angular = Tolerance::DEFAULT.angular;
+        if !x_dir.is_perpendicular(y_dir, angular)
+            || !y_dir.is_perpendicular(z_dir, angular)
+            || !z_dir.is_perpendicular(x_dir, angular)
         {
             return Err(FrameConstructionError::NotOrthogonal);
         }
@@ -486,6 +551,7 @@ impl Frame {
     /// use geomcore::Frame;
     /// assert!(Frame::WORLD.is_direct());
     /// ```
+    #[inline]
     pub fn is_direct(self) -> bool {
         self.x_dir.cross(self.y_dir).dot(self.z_dir) > 0.0
     }
@@ -501,6 +567,7 @@ impl Frame {
     /// assert_eq!(flipped.x_direction(), -Vector::X);
     /// assert!(!flipped.is_direct());
     /// ```
+    #[inline]
     pub fn flipped_x(self) -> Frame {
         Frame {
             x_dir: -self.x_dir,
@@ -517,6 +584,7 @@ impl Frame {
     /// use geomcore::Frame;
     /// assert!(!Frame::WORLD.flipped_y().is_direct());
     /// ```
+    #[inline]
     pub fn flipped_y(self) -> Frame {
         Frame {
             y_dir: -self.y_dir,
@@ -533,6 +601,7 @@ impl Frame {
     /// use geomcore::Frame;
     /// assert!(!Frame::WORLD.flipped_z().is_direct());
     /// ```
+    #[inline]
     pub fn flipped_z(self) -> Frame {
         Frame {
             z_dir: -self.z_dir,
@@ -548,6 +617,7 @@ impl Frame {
     /// use geomcore::{Frame, Point};
     /// assert_eq!(Frame::WORLD.origin(), Point::ORIGIN);
     /// ```
+    #[inline]
     pub fn origin(self) -> Point {
         self.origin
     }
@@ -560,7 +630,8 @@ impl Frame {
     /// use geomcore::{Frame, Vector};
     /// assert_eq!(Frame::WORLD.x_direction(), Vector::X);
     /// ```
-    pub fn x_direction(self) -> Vector {
+    #[inline]
+    pub fn x_direction(self) -> Direction {
         self.x_dir
     }
 
@@ -572,7 +643,8 @@ impl Frame {
     /// use geomcore::{Frame, Vector};
     /// assert_eq!(Frame::WORLD.y_direction(), Vector::Y);
     /// ```
-    pub fn y_direction(self) -> Vector {
+    #[inline]
+    pub fn y_direction(self) -> Direction {
         self.y_dir
     }
 
@@ -584,7 +656,8 @@ impl Frame {
     /// use geomcore::{Frame, Vector};
     /// assert_eq!(Frame::WORLD.z_direction(), Vector::Z);
     /// ```
-    pub fn z_direction(self) -> Vector {
+    #[inline]
+    pub fn z_direction(self) -> Direction {
         self.z_dir
     }
 
@@ -598,6 +671,7 @@ impl Frame {
     /// assert_eq!(axis.origin(), Point::ORIGIN);
     /// assert_eq!(axis.direction(), Vector::Z);
     /// ```
+    #[inline]
     pub fn axis(self) -> Axis {
         Axis {
             origin: self.origin,
@@ -704,7 +778,7 @@ impl Frame {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Axis2D {
     origin: Point2D,
-    direction: Vector2D,
+    direction: Direction2D,
 }
 
 impl Axis2D {
@@ -724,12 +798,25 @@ impl Axis2D {
     /// assert_eq!(axis.origin(), Point2D::ORIGIN);
     /// assert_eq!(axis.direction(), Vector2D::X);
     /// ```
-    pub fn new(origin: Point2D, direction: Vector2D) -> Result<Axis2D, FrameConstructionError> {
+    #[inline]
+    pub fn new(
+        origin: Point2D,
+        direction: impl Into<Vector2D>,
+    ) -> Result<Axis2D, FrameConstructionError> {
+        Self::new_with_vectors(origin, direction.into())
+    }
+
+    /// The body of [`new`](Self::new) over plain vectors, compiled
+    /// once: only the conversion of its arguments is generic.
+    fn new_with_vectors(
+        origin: Point2D,
+        direction: Vector2D,
+    ) -> Result<Axis2D, FrameConstructionError> {
         if !origin.is_finite() || !direction.is_finite() {
             return Err(FrameConstructionError::NonFinite);
         }
         let direction = direction
-            .normalized_unless_unit()
+            .direction()
             .ok_or(FrameConstructionError::NullDirection)?;
         Ok(Axis2D { origin, direction })
     }
@@ -743,6 +830,7 @@ impl Axis2D {
     /// let axis = Axis2D::new(Point2D::new(1.0, 2.0), Vector2D::X).unwrap();
     /// assert_eq!(axis.origin(), Point2D::new(1.0, 2.0));
     /// ```
+    #[inline]
     pub fn origin(self) -> Point2D {
         self.origin
     }
@@ -756,7 +844,8 @@ impl Axis2D {
     /// let axis = Axis2D::new(Point2D::ORIGIN, Vector2D::new(5.0, 0.0)).unwrap();
     /// assert_eq!(axis.direction(), Vector2D::X);
     /// ```
-    pub fn direction(self) -> Vector2D {
+    #[inline]
+    pub fn direction(self) -> Direction2D {
         self.direction
     }
 
@@ -812,6 +901,7 @@ impl Axis2D {
     /// let axis = Axis2D::new(Point2D::ORIGIN, Vector2D::Y).unwrap();
     /// assert_eq!(axis.distance(Point2D::new(3.0, 5.0)), 3.0);
     /// ```
+    #[inline]
     pub fn distance(self, point: Point2D) -> f64 {
         (point - self.origin)
             .component_perpendicular_to(self.direction)
@@ -828,6 +918,7 @@ impl Axis2D {
     /// assert!(axis.contains(Point2D::new(0.0, 5.0), Tolerance::DEFAULT));
     /// assert!(!axis.contains(Point2D::new(3.0, 5.0), Tolerance::DEFAULT));
     /// ```
+    #[inline]
     pub fn contains(self, point: Point2D, tol: Tolerance) -> bool {
         self.distance(point) <= tol.confusion
     }
@@ -843,6 +934,7 @@ impl Axis2D {
     /// let other = Axis2D::new(Point2D::new(3.0, 5.0), -Vector2D::Y).unwrap();
     /// assert!(axis.is_parallel(other, Tolerance::DEFAULT.angular));
     /// ```
+    #[inline]
     pub fn is_parallel(self, other: Axis2D, angular: f64) -> bool {
         self.direction.is_parallel(other.direction, angular)
     }
@@ -856,6 +948,7 @@ impl Axis2D {
     /// let axis = Axis2D::new(Point2D::ORIGIN, Vector2D::Y).unwrap();
     /// assert_eq!(axis.reversed().direction(), -Vector2D::Y);
     /// ```
+    #[inline]
     pub fn reversed(self) -> Axis2D {
         Axis2D {
             direction: -self.direction,
@@ -878,8 +971,8 @@ impl Axis2D {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Frame2D {
     origin: Point2D,
-    x_dir: Vector2D,
-    y_dir: Vector2D,
+    x_dir: Direction2D,
+    y_dir: Direction2D,
 }
 
 impl Frame2D {
@@ -895,8 +988,8 @@ impl Frame2D {
     /// ```
     pub const WORLD: Frame2D = Frame2D {
         origin: Point2D::ORIGIN,
-        x_dir: Vector2D::X,
-        y_dir: Vector2D::Y,
+        x_dir: Direction2D::X,
+        y_dir: Direction2D::Y,
     };
 
     /// Creates a frame from an origin and two directions.
@@ -926,6 +1019,17 @@ impl Frame2D {
     #[inline]
     pub fn new(
         origin: Point2D,
+        x_direction: impl Into<Vector2D>,
+        y_direction: impl Into<Vector2D>,
+    ) -> Result<Frame2D, FrameConstructionError> {
+        Self::new_with_vectors(origin, x_direction.into(), y_direction.into())
+    }
+
+    /// The body of [`new`](Self::new) over plain vectors, compiled
+    /// once: only the conversion of its arguments is generic.
+    #[inline]
+    fn new_with_vectors(
+        origin: Point2D,
         x_direction: Vector2D,
         y_direction: Vector2D,
     ) -> Result<Frame2D, FrameConstructionError> {
@@ -933,12 +1037,12 @@ impl Frame2D {
             return Err(FrameConstructionError::NonFinite);
         }
         let x_dir = x_direction
-            .normalized_unless_unit()
+            .direction()
             .ok_or(FrameConstructionError::NullDirection)?;
         let y_dir = y_direction
-            .normalized_unless_unit()
+            .direction()
             .ok_or(FrameConstructionError::NullDirection)?;
-        if x_dir.dot(y_dir).abs() > Tolerance::DEFAULT.angular {
+        if !x_dir.is_perpendicular(y_dir, Tolerance::DEFAULT.angular) {
             return Err(FrameConstructionError::NotOrthogonal);
         }
         Ok(Frame2D {
@@ -966,7 +1070,17 @@ impl Frame2D {
     /// assert_eq!(f.y_direction(), Vector2D::new(-0.8, 0.6));
     /// assert!(f.is_direct());
     /// ```
+    #[inline]
     pub fn from_x(
+        origin: Point2D,
+        x_direction: impl Into<Vector2D>,
+    ) -> Result<Frame2D, FrameConstructionError> {
+        Self::from_x_with_vectors(origin, x_direction.into())
+    }
+
+    /// The body of [`from_x`](Self::from_x) over plain vectors, compiled
+    /// once: only the conversion of its arguments is generic.
+    fn from_x_with_vectors(
         origin: Point2D,
         x_direction: Vector2D,
     ) -> Result<Frame2D, FrameConstructionError> {
@@ -974,7 +1088,7 @@ impl Frame2D {
             return Err(FrameConstructionError::NonFinite);
         }
         let x_dir = x_direction
-            .normalized_unless_unit()
+            .direction()
             .ok_or(FrameConstructionError::NullDirection)?;
         Ok(Frame2D {
             origin,
@@ -991,6 +1105,7 @@ impl Frame2D {
     /// use geomcore::{Frame2D, Point2D};
     /// assert_eq!(Frame2D::WORLD.origin(), Point2D::ORIGIN);
     /// ```
+    #[inline]
     pub fn origin(self) -> Point2D {
         self.origin
     }
@@ -1003,7 +1118,8 @@ impl Frame2D {
     /// use geomcore::{Frame2D, Vector2D};
     /// assert_eq!(Frame2D::WORLD.x_direction(), Vector2D::X);
     /// ```
-    pub fn x_direction(self) -> Vector2D {
+    #[inline]
+    pub fn x_direction(self) -> Direction2D {
         self.x_dir
     }
 
@@ -1015,7 +1131,8 @@ impl Frame2D {
     /// use geomcore::{Frame2D, Vector2D};
     /// assert_eq!(Frame2D::WORLD.y_direction(), Vector2D::Y);
     /// ```
-    pub fn y_direction(self) -> Vector2D {
+    #[inline]
+    pub fn y_direction(self) -> Direction2D {
         self.y_dir
     }
 
@@ -1027,6 +1144,7 @@ impl Frame2D {
     /// use geomcore::Frame2D;
     /// assert!(Frame2D::WORLD.is_direct());
     /// ```
+    #[inline]
     pub fn is_direct(self) -> bool {
         self.x_dir.cross(self.y_dir) > 0.0
     }
@@ -1041,6 +1159,7 @@ impl Frame2D {
     /// assert_eq!(axis.origin(), Point2D::ORIGIN);
     /// assert_eq!(axis.direction(), Vector2D::X);
     /// ```
+    #[inline]
     pub fn x_axis(self) -> Axis2D {
         Axis2D {
             origin: self.origin,
@@ -1056,6 +1175,7 @@ impl Frame2D {
     /// use geomcore::{Frame2D, Vector2D};
     /// assert_eq!(Frame2D::WORLD.y_axis().direction(), Vector2D::Y);
     /// ```
+    #[inline]
     pub fn y_axis(self) -> Axis2D {
         Axis2D {
             origin: self.origin,

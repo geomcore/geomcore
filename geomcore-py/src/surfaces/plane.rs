@@ -29,7 +29,7 @@ shape_methods! {
         crate::pickling::paste_back_repr!(
             slf,
             "point" => crate::values::PyPoint(this.0.frame().origin()),
-            "normal" => crate::values::PyVector(this.0.axis().direction()),
+            "normal" => crate::values::PyVector(this.0.axis().direction().vector()),
         )
     }
 

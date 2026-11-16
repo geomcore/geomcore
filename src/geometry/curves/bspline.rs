@@ -9,7 +9,7 @@
 //! discretization exist once for both tiers (ADR 0014).
 
 use crate::Side;
-use crate::base::tier::operations::VectorOperations;
+use crate::base::tier::operations::{DirectionOperations, VectorOperations};
 use crate::base::tier::{TierPoint, impl_for_both_tiers};
 use crate::geometry::curves::ReversibleCurve;
 use crate::geometry::curves::bezier::BezierConstructionError;
@@ -72,10 +72,10 @@ impl<V: VectorOperations> UnitTangent<V> {
         if tol.is_negligible_derivative(length, width) {
             return None;
         }
-        let tangent = speed * (1.0 / length);
-        let normal_acceleration = acceleration - tangent * acceleration.dot(tangent);
+        let tangent = (speed * (1.0 / length)).unit_direction();
+        let normal_acceleration = acceleration.component_perpendicular_to(tangent);
         Some(UnitTangent {
-            tangent,
+            tangent: tangent.vector(),
             curvature: normal_acceleration * (1.0 / (length * length)),
         })
     }

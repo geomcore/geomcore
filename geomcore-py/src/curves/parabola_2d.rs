@@ -63,7 +63,7 @@ shape_methods! {
         crate::pickling::paste_back_repr!(
             slf,
             "apex" => crate::values::PyPoint2D(this.0.apex()),
-            "x_direction" => crate::values::PyVector2D(this.0.frame().x_direction()),
+            "x_direction" => crate::values::PyVector2D(this.0.frame().x_direction().vector()),
             "focal_distance" => this.0.focal_distance(),
         )
     }

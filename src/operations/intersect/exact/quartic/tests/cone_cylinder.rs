@@ -433,7 +433,7 @@ fn test_a_steep_tube_through_the_apex_crosses_itself_there_each_time_around() {
     // pass through it, read as one twice around.
     for direction in [Vector::Z, Vector::new(0.2, -0.1, 1.0)] {
         let through = Point::new(1.0, 0.0, 0.0);
-        let along = direction.normalized().unwrap();
+        let along = direction.direction().unwrap();
         let radius = (through - Point::ORIGIN)
             .component_perpendicular_to(along)
             .magnitude();

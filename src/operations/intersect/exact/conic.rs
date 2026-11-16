@@ -21,6 +21,7 @@
 //! planes cross: the hits of one conic on the other's plane, kept when
 //! they lie on the other conic.
 
+use crate::Direction;
 use crate::geometry::curves::{ParametricCurve, PointExtrema};
 use crate::geometry::surfaces::ParametricSurface;
 use crate::math::numeric::{
@@ -388,7 +389,11 @@ pub(crate) fn intersect_conic_quadric<C: Conic, S: Quadric>(
     }
     let frame = conic.frame();
     let origin = frame.origin();
-    let section = quadric.section(origin, frame.x_direction(), frame.y_direction());
+    let section = quadric.section(
+        origin,
+        frame.x_direction().vector(),
+        frame.y_direction().vector(),
+    );
     let touches = |t: f64| quadric.contains(conic.point_at(t), tol);
     let candidates = section_candidates(
         conic,
@@ -529,7 +534,7 @@ fn conic_conic_hits<A: Conic, B: Conic>(
     // tolerance.
     let plane = Plane::from_frame(other_frame);
     if !plane.holds(conic, tol) && !Plane::from_frame(frame).holds(other, tol) {
-        if normal.cross(other_frame.z_direction()).magnitude() <= tol.angular {
+        if normal.is_parallel(other_frame.z_direction(), tol.angular) {
             // Distinct parallel planes.
             return Some(hits);
         }
@@ -587,7 +592,7 @@ fn same_conic<A: Conic, B: Conic>(first: &A, second: &B, tol: Tolerance) -> bool
     let close = |x: f64, y: f64| (x - y).abs() <= tol.confusion;
     let (f1, f2) = (first.frame(), second.frame());
     let (x1, x2) = (f1.x_direction(), f2.x_direction());
-    let parallel = x1.cross(x2).magnitude() <= tol.angular_for_extent(first.shape().extent());
+    let parallel = x1.is_parallel(x2, tol.angular_for_extent(first.shape().extent()));
     let same_way = parallel && x1.dot(x2) > 0.0;
     f1.origin().distance(f2.origin()) <= tol.confusion
         && match (first.shape(), second.shape()) {
@@ -871,9 +876,9 @@ pub(crate) struct PlacedConic {
     /// The conic's plane.
     pub plane: Plane,
     /// The frame x direction.
-    pub x: Vector,
+    pub x: Direction,
     /// The frame y direction.
-    pub y: Vector,
+    pub y: Direction,
     /// The frame origin (center or apex).
     pub origin: Point,
     /// The implicit equation in frame coordinates.

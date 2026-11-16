@@ -121,6 +121,7 @@ impl Sphere {
     /// let sphere = Sphere::new(Point::new(1.0, 2.0, 3.0), 2.0).unwrap();
     /// assert_eq!(sphere.center(), Point::new(1.0, 2.0, 3.0));
     /// ```
+    #[inline]
     pub fn center(&self) -> Point {
         self.frame.origin()
     }
@@ -134,6 +135,7 @@ impl Sphere {
     /// let sphere = Sphere::from_frame(Frame::WORLD, 2.0).unwrap();
     /// assert_eq!(sphere.frame(), Frame::WORLD);
     /// ```
+    #[inline]
     pub fn frame(&self) -> Frame {
         self.frame
     }
@@ -147,6 +149,7 @@ impl Sphere {
     /// let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
     /// assert_eq!(sphere.radius(), 2.0);
     /// ```
+    #[inline]
     pub fn radius(&self) -> f64 {
         self.radius
     }

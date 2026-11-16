@@ -156,6 +156,7 @@ impl<P: TierPoint> GenericParabola<P> {
     /// let parabola = Parabola::from_frame(Frame::WORLD, 1.7).unwrap();
     /// assert_eq!(parabola.frame(), Frame::WORLD);
     /// ```
+    #[inline]
     pub fn frame(&self) -> P::Frame {
         self.frame
     }
@@ -169,6 +170,7 @@ impl<P: TierPoint> GenericParabola<P> {
     /// let parabola = Parabola::from_frame(Frame::WORLD, 1.7).unwrap();
     /// assert_eq!(parabola.focal_distance(), 1.7);
     /// ```
+    #[inline]
     pub fn focal_distance(&self) -> f64 {
         self.focal_distance
     }
@@ -264,7 +266,19 @@ impl Parabola {
     /// let parabola = Parabola::new(Point::ORIGIN, Vector::Z, Vector::X, 1.0).unwrap();
     /// assert_eq!(parabola.focal_distance(), 1.0);
     /// ```
+    #[inline]
     pub fn new(
+        apex: Point,
+        normal: impl Into<Vector>,
+        x_direction: impl Into<Vector>,
+        focal_distance: f64,
+    ) -> Result<Parabola, ParabolaConstructionError> {
+        Self::new_with_vectors(apex, normal.into(), x_direction.into(), focal_distance)
+    }
+
+    /// The body of [`new`](Self::new) over plain vectors, compiled
+    /// once: only the conversion of its arguments is generic.
+    fn new_with_vectors(
         apex: Point,
         normal: Vector,
         x_direction: Vector,
@@ -304,7 +318,7 @@ impl Parabola {
     ) -> Result<Parabola, ParabolaConstructionError> {
         let direction = directrix.direction();
         let (apex, axis, focal_distance) =
-            apex_axis_and_focal_distance(focus, directrix.origin(), direction)?;
+            apex_axis_and_focal_distance(focus, directrix.origin(), direction.vector())?;
         let frame = Frame::new(apex, axis.cross(direction), axis).map_err(frame_error(
             ParabolaConstructionError::NonFinite,
             ParabolaConstructionError::NullNormal,
@@ -338,7 +352,7 @@ impl Parabola2D {
     ) -> Result<Parabola2D, ParabolaConstructionError> {
         let direction = directrix.direction();
         let (apex, axis, focal_distance) =
-            apex_axis_and_focal_distance(focus, directrix.origin(), direction)?;
+            apex_axis_and_focal_distance(focus, directrix.origin(), direction.vector())?;
         let frame = Frame2D::new(apex, axis, direction).map_err(frame_error(
             ParabolaConstructionError::NonFinite,
             ParabolaConstructionError::NullNormal,
@@ -366,7 +380,18 @@ impl Parabola2D {
     /// let parabola = Parabola2D::new(Point2D::ORIGIN, Vector2D::X, 1.0).unwrap();
     /// assert_eq!(parabola.focal_distance(), 1.0);
     /// ```
+    #[inline]
     pub fn new(
+        apex: Point2D,
+        x_direction: impl Into<Vector2D>,
+        focal_distance: f64,
+    ) -> Result<Parabola2D, ParabolaConstructionError> {
+        Self::new_with_vectors(apex, x_direction.into(), focal_distance)
+    }
+
+    /// The body of [`new`](Self::new) over plain vectors, compiled
+    /// once: only the conversion of its arguments is generic.
+    fn new_with_vectors(
         apex: Point2D,
         x_direction: Vector2D,
         focal_distance: f64,

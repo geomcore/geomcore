@@ -22,6 +22,7 @@
 //! Every other pair is refused with
 //! [`UvCurveTo3DError::NotAnalytic`], never approximated.
 
+use crate::Direction;
 use std::fmt;
 
 use crate::geometry::curves::{
@@ -217,8 +218,8 @@ pub(crate) fn uv_curve_to_3d(
 /// plane or of the extrusion of a line.
 pub(crate) struct AffineMap {
     origin: Point,
-    u_direction: Vector,
-    v_direction: Vector,
+    u_direction: Direction,
+    v_direction: Direction,
 }
 
 impl AffineMap {
@@ -310,7 +311,7 @@ impl StraightUvCurve {
             return Ok(StraightUvCurve {
                 point: line.origin(),
                 parameter: 0.0,
-                velocity: line.direction(),
+                velocity: line.direction().vector(),
                 bounds: uv_curve.bounds(),
             });
         }
@@ -601,8 +602,7 @@ fn perpendicular_frame(
     y: Vector,
     angular: f64,
 ) -> Result<Frame, UvCurveTo3DError> {
-    let lengths = x.magnitude() * y.magnitude();
-    if lengths == 0.0 || x.dot(y).abs() > angular * lengths {
+    if !x.is_perpendicular(y, angular) {
         return Err(UvCurveTo3DError::NotAnalytic);
     }
     // `Frame::new` takes `y` as `z × x`, which is `y` made perpendicular.

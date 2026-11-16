@@ -90,7 +90,19 @@ impl Torus {
     /// assert_eq!(torus.major_radius(), 5.0);
     /// assert_eq!(torus.minor_radius(), 1.5);
     /// ```
+    #[inline]
     pub fn new(
+        center: Point,
+        normal: impl Into<Vector>,
+        major_radius: f64,
+        minor_radius: f64,
+    ) -> Result<Torus, TorusConstructionError> {
+        Self::new_with_vectors(center, normal.into(), major_radius, minor_radius)
+    }
+
+    /// The body of [`new`](Self::new) over plain vectors, compiled
+    /// once: only the conversion of its arguments is generic.
+    fn new_with_vectors(
         center: Point,
         normal: Vector,
         major_radius: f64,
@@ -145,6 +157,7 @@ impl Torus {
     /// let torus = Torus::new(Point::new(1.0, 2.0, 3.0), Vector::Z, 5.0, 1.5).unwrap();
     /// assert_eq!(torus.center(), Point::new(1.0, 2.0, 3.0));
     /// ```
+    #[inline]
     pub fn center(&self) -> Point {
         self.frame.origin()
     }
@@ -158,6 +171,7 @@ impl Torus {
     /// let torus = Torus::from_frame(Frame::WORLD, 5.0, 1.5).unwrap();
     /// assert_eq!(torus.frame(), Frame::WORLD);
     /// ```
+    #[inline]
     pub fn frame(&self) -> Frame {
         self.frame
     }
@@ -172,6 +186,7 @@ impl Torus {
     /// let torus = Torus::new(Point::new(1.0, 2.0, 3.0), Vector::Z, 5.0, 1.5).unwrap();
     /// assert_eq!(torus.axis().origin(), Point::new(1.0, 2.0, 3.0));
     /// ```
+    #[inline]
     pub fn axis(&self) -> Axis {
         self.frame.axis()
     }
@@ -186,6 +201,7 @@ impl Torus {
     /// let torus = Torus::from_frame(Frame::WORLD, 5.0, 1.5).unwrap();
     /// assert_eq!(torus.major_radius(), 5.0);
     /// ```
+    #[inline]
     pub fn major_radius(&self) -> f64 {
         self.major_radius
     }
@@ -199,6 +215,7 @@ impl Torus {
     /// let torus = Torus::from_frame(Frame::WORLD, 5.0, 1.5).unwrap();
     /// assert_eq!(torus.minor_radius(), 1.5);
     /// ```
+    #[inline]
     pub fn minor_radius(&self) -> f64 {
         self.minor_radius
     }
