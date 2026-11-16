@@ -129,6 +129,29 @@ pub(crate) fn hermite_spline<P: TierPoint>(
     GenericBSplineCurve::from_parts(3, poles, None, knots.to_vec(), multiplicities, false)
 }
 
+/// The [`hermite_spline`] of a closed run of `values`, the last one the
+/// first again, made periodic: its period is the last knot, and the curve
+/// runs on across its start, C1 there as at every other knot. The
+/// derivative at the start stands for the one at the end.
+pub(crate) fn periodic_hermite_spline<P: TierPoint>(
+    values: &[P],
+    derivatives: &[P::Vector],
+    knots: &[f64],
+) -> Result<GenericBSplineCurve<P>, BSplineConstructionError> {
+    let last = values.len() - 1;
+    let mut poles = Vec::with_capacity(2 * last);
+    poles.push(values[0] + derivatives[0] * ((knots[last - 1] - knots[last]) / 3.0));
+    for k in 1..=last {
+        let third = (knots[k] - knots[k - 1]) / 3.0;
+        poles.push(values[k - 1] + derivatives[k - 1] * third);
+        if k < last {
+            poles.push(values[k] + derivatives[k] * -third);
+        }
+    }
+    let multiplicities = vec![2u32; knots.len()];
+    GenericBSplineCurve::from_parts(3, poles, None, knots.to_vec(), multiplicities, true)
+}
+
 /// The interpolant of `points` by [`interpolate`](GenericBSplineCurve::interpolate)
 /// with centripetal parameters, and on its knots and parameters the
 /// interpolant of each line of `companions`, as many points each: the

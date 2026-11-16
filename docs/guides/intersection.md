@@ -345,6 +345,22 @@ lighter fit only where a point within it of both surfaces is on both. In Python,
     let curves = result.curves();   // BSpline curves where marched
     ```
 
+### The parameter of a fitted curve
+
+A fitted curve, marched or fitted from a closed form (a loop where two
+cylinders cross), is a cubic `BSplineCurve` whose parameter is its arc
+length, to within the fit: its knots are the lengths of its segments,
+each measured as a circular arc between its end tangents, so its speed
+stays close to 1 (within 1e-4 on the loops of two crossing cylinders, a
+torus and a sphere, and a plane and a B-spline sphere) and a piece's
+length is about the length of its range. A fitted closed loop is
+periodic, its period its length: a piece of it can run across its start,
+as an arc of a circle runs across its seam, and a `TrimmedCurve` takes
+the piece's range. Where the surfaces touch along a marched curve, it is
+an interpolant whose parameter runs from 0 to 1, spaced by the square
+roots of the distances between the traced points, and a loop is not
+periodic.
+
 ### The curves in each surface's parameters
 
 Each curve also comes as `first_uv_curve` and `second_uv_curve`: the

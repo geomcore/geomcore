@@ -131,15 +131,26 @@ pub struct CurveSurfaceOverlap {
 /// ```
 #[derive(Debug, Clone, PartialEq)]
 pub struct IntersectionCurve {
-    /// The curve of contact.
+    /// The curve of contact. A fitted curve, marched or fitted from a
+    /// closed form (a loop where two cylinders cross), is a cubic
+    /// B-spline whose parameter is its arc length, to within the fit: its
+    /// knots are the lengths of its segments. A fitted closed loop is
+    /// periodic, its period its length, so a piece of it can run across
+    /// its start as an arc of a circle runs across its seam. Where the
+    /// surfaces touch along a marched curve, its parameter runs from 0 to 1
+    /// instead, spaced by the square roots of the distances between the
+    /// traced points, and a loop is not periodic.
     pub curve: Curve,
     /// The curve in the parameters of the first surface, in the same
     /// parameter as `curve`: the surface's point at its `(u, v)` at `t` is
     /// `curve`'s point at `t`. A marched curve always has one, fitted on
     /// `curve`'s knots from the parameters the march walked, within the
     /// fit's error. A curve fitted from a closed form, as a loop where two
-    /// cylinders cross, has one fitted on the same knots. Another exact
-    /// curve has the exact one where a closed form exists (see
+    /// cylinders cross, has one fitted on the same knots. Those of a fitted
+    /// closed loop are not periodic, as one around a cylinder ends a period
+    /// away in `u`: a piece across the loop's start has them run on over a
+    /// second turn. Another exact curve has the exact one where a closed
+    /// form exists (see
     /// [`ParametricSurface::curve_3d_to_uv`](crate::ParametricSurface::curve_3d_to_uv)),
     /// and `None` otherwise, as an ellipse on a cylinder:
     /// [`curve_3d_to_uv_within`](crate::curve_3d_to_uv_within) maps it

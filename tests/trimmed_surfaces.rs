@@ -160,8 +160,10 @@ fn test_two_trimmed_cylinders_meet_along_bounded_quartic_arcs() {
     assert!(!result.curves().is_empty());
     assert_inside(&result, &a, &b);
     assert_ends_on_boundaries(&result, &a, &b);
+    // Only the loop at x < 0 reaches the narrow patch, and half of it,
+    // y > 0, lies on the wide one: one arc, across the loop's start.
+    assert_eq!(result.curves().len(), 1);
     let untrimmed = wide.intersect(&narrow, TOL);
-    assert!(result.curves().len() >= untrimmed.curves().len());
     assert_covers(&result, &untrimmed, &a, &b);
 }
 
@@ -417,4 +419,52 @@ fn test_a_marched_curve_ends_on_the_face_boundary() {
         );
     }
     assert_inside(&result, &ring, &plane);
+}
+
+#[test]
+fn test_a_closed_fitted_loop_keeps_a_piece_across_its_start_whole() {
+    // A narrow cylinder across a wide one meets it in two closed loops,
+    // fitted from a closed form. The short wall keeps two arcs of each:
+    // the arc across a loop's start is one piece, its range running past
+    // the loop's period, as an arc of a circle across its seam (#315).
+    let wide = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
+    let narrow = Cylinder::new(Point::new(0.0, 0.0, 2.5), Vector::X, 1.0).unwrap();
+    let side = wide.trimmed((0.0, TAU), (0.0, 5.0)).unwrap();
+    let short_wall = narrow.trimmed((0.0, TAU), (-1.9, 1.9)).unwrap();
+    let result = side.intersect(&short_wall, TOL);
+    assert_eq!(result.method(), IntersectionMethod::Exact);
+    assert_eq!(result.curves().len(), 4, "two arcs of each loop");
+    assert_inside(&result, &side, &short_wall);
+    assert_ends_on_boundaries(&result, &side, &short_wall);
+    let across: Vec<&IntersectionCurve> = result
+        .curves()
+        .iter()
+        .filter(|piece| piece.parameter_range.1 > piece.curve.bounds().1)
+        .collect();
+    assert_eq!(across.len(), 2, "one arc across each loop's start");
+    for piece in across {
+        let period = piece.curve.period().expect("a closed loop is periodic");
+        let (start, end) = piece.parameter_range;
+        assert!(end - start < period);
+        assert!(TrimmedCurve::new(piece.curve.clone(), start, end).is_ok());
+        // Its curves in parameters hold over the whole piece, past the
+        // loop's start too.
+        let uv_curves = [&piece.first_uv_curve, &piece.second_uv_curve];
+        for (surface, uv_curve) in [&wide as &dyn ParametricSurface, &narrow]
+            .into_iter()
+            .zip(uv_curves)
+        {
+            let uv_curve = uv_curve.as_ref().expect("a fitted loop has its curves");
+            for i in 0..=20 {
+                let t = start + (end - start) * f64::from(i) / 20.0;
+                let uv = uv_curve.point_at(t);
+                let off = surface
+                    .point_at(uv.x, uv.y)
+                    .distance(piece.curve.point_at(t));
+                assert!(off <= 1e-6, "{off} at {t} in {:?}", piece.parameter_range);
+            }
+        }
+    }
+    let untrimmed = wide.intersect(&narrow, TOL);
+    assert_covers(&result, &untrimmed, &side, &short_wall);
 }

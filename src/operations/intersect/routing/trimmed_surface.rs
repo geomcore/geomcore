@@ -13,8 +13,8 @@
 //! the rectangle instead.
 
 use crate::geometry::curves::{
-    Curve, Curve2D, Line2D, ParametricCurve, ParametricCurve2D, RangeOperations, TrimmedCurve,
-    TrimmedCurve2D,
+    BSplineCurve2D, Curve, Curve2D, Line2D, ParametricCurve, ParametricCurve2D, RangeOperations,
+    TrimmedCurve, TrimmedCurve2D,
 };
 use crate::geometry::surfaces::uv_curve::from_curve::{OnSurfaceCheck, meridian_arc_to_uv};
 use crate::geometry::surfaces::{ParametricSurface, Restriction};
@@ -184,11 +184,68 @@ fn clipped(
     }
     kept.into_iter()
         .filter(|&interval| spatial_length(&piece.curve, interval) > tol.confusion)
-        .map(|parameter_range| IntersectionCurve {
-            parameter_range,
-            ..piece.clone()
+        .map(|parameter_range| {
+            let mut kept = IntersectionCurve {
+                parameter_range,
+                ..piece.clone()
+            };
+            if parameter_range.1 > range.1 {
+                // Across the seam: the curves in parameters run on past it.
+                for uv_curve in [&mut kept.first_uv_curve, &mut kept.second_uv_curve]
+                    .into_iter()
+                    .flatten()
+                {
+                    if let Some(turned) = over_a_second_turn(uv_curve) {
+                        *uv_curve = turned;
+                    }
+                }
+            }
+            kept
         })
         .collect()
+}
+
+/// The curve in parameters of a closed loop, `uv_curve`, followed by
+/// itself moved on by a turn: by its range in parameter, and in value by
+/// how far it moves over the turn (nothing, or a period of a surface the
+/// loop runs around). A piece across the loop's start then has its curve
+/// in parameters over its whole range. `None` where `uv_curve` holds past
+/// its range already, a line or a periodic curve, or is a rational or
+/// unclamped B-spline, which no fit of a loop gives.
+fn over_a_second_turn(uv_curve: &Curve2D) -> Option<Curve2D> {
+    let Curve2D::BSpline(curve) = uv_curve else {
+        return None;
+    };
+    let degree = curve.degree();
+    let (poles, knots, multiplicities) = (curve.poles(), curve.knots(), curve.multiplicities());
+    let last = knots.len() - 1;
+    let clamped = |multiplicity: u32| multiplicity as usize == degree + 1;
+    if curve.period().is_some()
+        || curve.is_rational()
+        || !clamped(multiplicities[0])
+        || !clamped(multiplicities[last])
+    {
+        return None;
+    }
+    let turn = knots[last] - knots[0];
+    let shift = poles[poles.len() - 1] - poles[0];
+    let mut joined_poles = poles.to_vec();
+    joined_poles.extend(poles[1..].iter().map(|&pole| pole + shift));
+    let mut joined_knots = knots.to_vec();
+    joined_knots.extend(knots[1..].iter().map(|&knot| knot + turn));
+    let mut joined_multiplicities = multiplicities.to_vec();
+    joined_multiplicities[last] = degree as u32;
+    joined_multiplicities.extend_from_slice(&multiplicities[1..]);
+    BSplineCurve2D::from_parts(
+        degree,
+        joined_poles,
+        None,
+        joined_knots,
+        joined_multiplicities,
+        false,
+    )
+    .ok()
+    .map(Curve2D::BSpline)
 }
 
 /// How a piece of a curve is tested against one side's ranges.
