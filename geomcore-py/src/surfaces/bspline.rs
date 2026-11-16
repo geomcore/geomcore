@@ -12,7 +12,7 @@ use geomcore::BSplineSurface;
 pub(crate) struct PyBSplineSurface(pub(crate) BSplineSurface);
 
 shape_methods! {
-    PyBSplineSurface: [surface, sided_surface_evaluation, surface_extrema];
+    PyBSplineSurface: [parametric_surface, surface, sided_surface_evaluation, surface_extrema];
 
     fn __reduce__<'py>(slf: &pyo3::Bound<'py, Self>) -> pyo3::PyResult<pyo3::Bound<'py, pyo3::types::PyTuple>> {
         let this = slf.borrow();

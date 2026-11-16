@@ -12,7 +12,7 @@ use geomcore::Plane;
 pub(crate) struct PyPlane(pub(crate) Plane);
 
 shape_methods! {
-    PyPlane: [surface];
+    PyPlane: [parametric_surface, surface];
 
     /// The placement frame of the plane.
     fn frame(&self) -> PyFrame {

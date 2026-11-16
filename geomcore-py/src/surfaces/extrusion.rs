@@ -18,7 +18,7 @@ use geomcore::ExtrusionSurface;
 pub(crate) struct PyExtrusionSurface(pub(crate) ExtrusionSurface);
 
 shape_methods! {
-    PyExtrusionSurface: [surface];
+    PyExtrusionSurface: [parametric_surface, surface];
 
     fn __reduce__<'py>(slf: &pyo3::Bound<'py, Self>) -> pyo3::PyResult<pyo3::Bound<'py, pyo3::types::PyTuple>> {
         let this = slf.borrow();

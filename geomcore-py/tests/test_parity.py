@@ -211,10 +211,10 @@ def test_every_class_has_a_fixture():
 def test_every_class_takes_its_tier_method_set():
     for name in _shape_classes():
         if name == "TrimmedSurface":
-            # A patch has its own methods: the set's isoparametric curves,
-            # reversals and transforms are its basis's.
-            continue
-        if name in _SURFACE_CLASSES:
+            # A patch answers what every parametric surface does; the
+            # isoparametric curves, reversals and transforms are its basis's.
+            tier = "_ParametricSurfaceMethods"
+        elif name in _SURFACE_CLASSES:
             tier = "_SurfaceMethods"
         elif name.endswith("2D"):
             tier = "_Curve2DMethods"

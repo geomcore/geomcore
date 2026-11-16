@@ -12,7 +12,7 @@ use geomcore::Sphere;
 pub(crate) struct PySphere(pub(crate) Sphere);
 
 shape_methods! {
-    PySphere: [surface];
+    PySphere: [parametric_surface, surface];
 
     /// The placement frame of the sphere.
     fn frame(&self) -> PyFrame {

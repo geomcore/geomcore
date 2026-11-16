@@ -16,16 +16,15 @@
 //!
 //! Each set is the Python face of a core trait or of an inherent method
 //! every shape of a family has, so a class gets a method exactly when its
-//! core type has it. The one exception is `TrimmedSurface`: the `surface`
-//! set holds more traits than its core type has, so the class writes a
-//! part of the set by hand (#290):
+//! core type has it:
 //!
 //! | Set | Core | Classes |
 //! |---|---|---|
 //! | `curve`, `curve_2d` | `ParametricCurve(2D)`, `PointExtrema(2D)`, `ReversibleCurve`, `HasBoundingBox(2D)`, `Intersect`, and `Transformable` in 3D | every curve |
 //! | `bounded_curve`, `bounded_curve_2d` | `BoundedCurve(2D)`, `Discretize(2D)` | the bounded curves |
 //! | `sided_evaluation`, `sided_evaluation_2d` | the `*_sided` evaluations | B-spline and Bézier curves |
-//! | `surface` | `ParametricSurface` (with `uv_curve_to_3d` and `curve_3d_to_uv`), `ReversibleSurface`, `Transformable`, `HasBoundingBox`, `Intersect`, isoparametric curves | every surface but `TrimmedSurface` |
+//! | `parametric_surface` | `ParametricSurface` (with the UV curve mappings), `HasBoundingBox` | every surface and `TrimmedSurface` |
+//! | `surface` | `ReversibleSurface`, `Transformable`, `Intersect` with any curve or surface, isoparametric curves, `trimmed` | every surface |
 //! | `sided_surface_evaluation` | the `*_sided` evaluations | B-spline and Bézier surfaces |
 //! | `surface_extrema` | `extrema` | B-spline and Bézier surfaces |
 //!
@@ -596,8 +595,10 @@ macro_rules! sided_evaluation_methods {
 }
 pub(crate) use sided_evaluation_methods;
 
-/// The methods of every surface.
-macro_rules! surface {
+/// The methods of every surface, a `TrimmedSurface` included: the Python
+/// face of `ParametricSurface` (with the UV curve mappings) and
+/// `HasBoundingBox`.
+macro_rules! parametric_surface {
     ($class:ident $sets:tt { $($methods:tt)* }) => {
         $crate::method_sets::shape_methods! { @next $class $sets {
             $($methods)*
@@ -905,22 +906,6 @@ macro_rules! surface {
                 self.0.tight_bounding_box(tolerance(tol)).map(PyBoundingBox)
             }
 
-            /// The `u` isoparametric curve at `u`, parametrized by `v` like
-            /// the surface: `u_iso(u).point_at(t)` is `point_at(u, t)`.
-            /// Raises `SurfaceIsoError` for a non-finite parameter or one
-            /// outside a non-periodic direction (a periodic one wraps).
-            fn u_iso(&self, py: Python<'_>, u: f64) -> PyResult<Py<PyAny>> {
-                let curve = self.0.u_iso(u).map_err(python_error)?;
-                curve_classes::to_py(py, Curve::from(curve))
-            }
-
-            /// The `v` isoparametric curve at `v`, parametrized by `u` like
-            /// the surface, as `u_iso`.
-            fn v_iso(&self, py: Python<'_>, v: f64) -> PyResult<Py<PyAny>> {
-                let curve = self.0.v_iso(v).map_err(python_error)?;
-                curve_classes::to_py(py, Curve::from(curve))
-            }
-
             /// The exact 3D curve that `uv_curve`, a curve in this surface's (u, v)
             /// parameter space, traces on the surface, in the same parameter: its
             /// point at `t` is the surface's point at the UV curve's (u, v) at `t`.
@@ -1085,6 +1070,33 @@ macro_rules! surface {
                 Ok($crate::approximation::PyCurveApproximation(
                     approximation.map_err(python_error)?,
                 ))
+            }
+        }}
+    };
+}
+pub(crate) use parametric_surface;
+
+/// The methods of a whole surface, which a `TrimmedSurface` does not
+/// have: the isoparametric curves, `ReversibleSurface`, `Transformable`,
+/// `trimmed`, and `Intersect` with any curve or surface.
+macro_rules! surface {
+    ($class:ident $sets:tt { $($methods:tt)* }) => {
+        $crate::method_sets::shape_methods! { @next $class $sets {
+            $($methods)*
+            /// The `u` isoparametric curve at `u`, parametrized by `v` like
+            /// the surface: `u_iso(u).point_at(t)` is `point_at(u, t)`.
+            /// Raises `SurfaceIsoError` for a non-finite parameter or one
+            /// outside a non-periodic direction (a periodic one wraps).
+            fn u_iso(&self, py: Python<'_>, u: f64) -> PyResult<Py<PyAny>> {
+                let curve = self.0.u_iso(u).map_err(python_error)?;
+                curve_classes::to_py(py, Curve::from(curve))
+            }
+
+            /// The `v` isoparametric curve at `v`, parametrized by `u` like
+            /// the surface, as `u_iso`.
+            fn v_iso(&self, py: Python<'_>, v: f64) -> PyResult<Py<PyAny>> {
+                let curve = self.0.v_iso(v).map_err(python_error)?;
+                curve_classes::to_py(py, Curve::from(curve))
             }
 
             /// The image of the surface under `transform`, parametrized by

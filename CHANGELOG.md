@@ -9,6 +9,18 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+### Added
+
+- Python: a `TrimmedSurface` answers every method a parametric surface
+  does (#290): `derivative`, `second_derivatives`, `u_period` and
+  `v_period`, `is_u_periodic` and `is_v_periodic`, `is_u_closed` and
+  `is_v_closed`, the continuities, `curvatures`, `normals_array`,
+  `points_at_array`, `project_points`, `project_points_array`,
+  `tight_bounding_box`, and the UV curve mappings `uv_curve_to_3d`,
+  `curve_3d_to_uv` and their `_within` forms. A `derivative` order is
+  checked against the basis's. The stub types it with the methods its
+  class has, and the parity tests cover it.
+
 ### Fixed
 
 - A marched curve clipped by a trimmed surface ends on the face boundary
