@@ -4,7 +4,7 @@
 //! [`shared_boundary_curves`]).
 
 use super::pair::{SurfacePair, own_box, swap};
-use super::tracer::CHORD_DEVIATION;
+use super::tracer::chord_deviation;
 use crate::geometry::curves::fitting::segment_length;
 use crate::geometry::surfaces::ParametricSurface;
 use crate::{Point, Tolerance, Vector};
@@ -188,8 +188,9 @@ impl BoundaryCurve {
         starts.push(high);
         let samples: Vec<Sample> = starts.iter().map(|&t| self.sample(s, t)).collect();
         let mut kept = vec![samples[0]];
+        let deviation = chord_deviation(pair, tol);
         for piece in samples.windows(2) {
-            self.halve_into(s, piece[0], piece[1], 0, tol, &mut kept);
+            self.halve_into(s, piece[0], piece[1], 0, (deviation, tol), &mut kept);
         }
         let length: f64 = kept
             .windows(2)
@@ -253,16 +254,16 @@ impl BoundaryCurve {
         from: Sample,
         to: Sample,
         halvings: usize,
-        tol: Tolerance,
+        allowed: (f64, Tolerance),
         kept: &mut Vec<Sample>,
     ) {
         let middle = self.sample(s, 0.5 * (from.t + to.t));
-        if halvings >= MOST_HALVINGS || keeps_to_boundary_curve(from, middle, to, tol) {
+        if halvings >= MOST_HALVINGS || keeps_to_boundary_curve(from, middle, to, allowed) {
             kept.push(to);
             return;
         }
-        self.halve_into(s, from, middle, halvings + 1, tol, kept);
-        self.halve_into(s, middle, to, halvings + 1, tol, kept);
+        self.halve_into(s, from, middle, halvings + 1, allowed, kept);
+        self.halve_into(s, middle, to, halvings + 1, allowed, kept);
     }
 }
 
@@ -281,7 +282,12 @@ struct Sample {
 /// from the Hermite segment between the ends, across the boundary curve,
 /// by at most a quarter of confusion. A piece no longer than confusion
 /// keeps to it.
-fn keeps_to_boundary_curve(from: Sample, middle: Sample, to: Sample, tol: Tolerance) -> bool {
+fn keeps_to_boundary_curve(
+    from: Sample,
+    middle: Sample,
+    to: Sample,
+    (chord_deviation, tol): (f64, Tolerance),
+) -> bool {
     let chord = to.point - from.point;
     let length = chord.magnitude();
     if length <= tol.confusion {
@@ -290,7 +296,7 @@ fn keeps_to_boundary_curve(from: Sample, middle: Sample, to: Sample, tol: Tolera
     let along = chord * (1.0 / length);
     let off_chord = middle.point - from.point;
     let sag = (off_chord - along * off_chord.dot(along)).magnitude();
-    if sag > CHORD_DEVIATION * tol.confusion {
+    if sag > chord_deviation {
         return false;
     }
     let (Some(tp), Some(tq), Some(tm)) = (from.tangent, to.tangent, middle.tangent) else {

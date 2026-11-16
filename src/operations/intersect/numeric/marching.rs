@@ -36,7 +36,7 @@ use crate::operations::intersect::{
 use crate::{BoundingBox, Point, Point2D, Tolerance, Vector, Vector2D};
 use pair::SurfacePair;
 use seeding::Seed;
-use tracer::{CHORD_DEVIATION, Cut, Trace, Tracer};
+use tracer::{Cut, Trace, Tracer, chord_deviation};
 
 /// Marching surface-surface intersection for any two parametric surfaces.
 ///
@@ -104,15 +104,16 @@ use tracer::{CHORD_DEVIATION, Cut, Trace, Tracer};
 /// Each seed traces both ways along the `N1 x N2` tangent; every step is
 /// corrected by Newton's method on the same system plus the plane through
 /// the predicted point normal to the tangent. The step length follows the
-/// curvature (a chord deviation of about `1000 * confusion`), with no
-/// fixed cap. A step is halved when the intersection at its midpoint,
-/// converged onto both surfaces, strays from the chord by more than twice
-/// that deviation, or, where the surfaces cross, when the fitted segment
-/// between the step's ends lies there more than a quarter of confusion
-/// off either surface (see [`step_error`](Tracer::step_error)), or when
-/// it crosses more than one knot in a parameter of a B-spline side, so
-/// that it never steps over a whole knot span (within a span the control
-/// points bound the features). The segment's error grows as the fourth
+/// curvature (a chord deviation of about `1000 * confusion`, but no more
+/// than a thousandth of the smaller surface's size, see
+/// [`chord_deviation`]), with no fixed cap. A step is halved when the
+/// intersection at its midpoint, converged onto both surfaces, strays
+/// from the chord by more than twice that deviation, or, where the
+/// surfaces cross, when the fitted segment between the step's ends lies
+/// there more than a quarter of confusion off either surface (see
+/// [`step_error`](Tracer::step_error)), or when it crosses more than one
+/// knot in a parameter of a B-spline side, so that it never steps over a
+/// whole knot span (within a span the control points bound the features). The segment's error grows as the fourth
 /// power of the step, which sizes the next step. A trace ends
 /// when it closes a loop, stalls, reaches a parameter bound, or leaves
 /// the trace box (see [`trace_box`](SurfacePair::trace_box)), its last
@@ -234,7 +235,7 @@ where
     B: ParametricSurface,
 {
     let coincident = coincidence::coincident_region(pair, &traced.coincident_seeds, tol);
-    let unexplained = traced.unexplained_regions(pair, tol);
+    let unexplained = traced.unexplained_regions(pair);
     let completeness = completeness_of(
         coincident.into_iter().chain(unexplained).collect(),
         traced.cuts.into_iter().map(cut_region).collect(),
@@ -321,16 +322,13 @@ where
     A: ParametricSurface,
     B: ParametricSurface,
 {
-    let mut traced = Traced {
-        around_singular_points,
-        ..Traced::default()
-    };
+    let mut traced = Traced::new(chord_deviation(pair, tol), around_singular_points);
     traced.keep_shared_boundary_curves(pair, tol);
     let (seeds, later) = seeding::seeds(pair, tol);
     let mut reached: Vec<[f64; 4]> = seeds.iter().map(|seed| seed.parameters()).collect();
     traced.follow_seeds(&Tracer::new(pair, tol, &reached), seeds, tol);
     if later && !traced.only_touches() {
-        let seeds = seeding::later_seeds(pair, &|b| traced.crosses(b, tol), tol);
+        let seeds = seeding::later_seeds(pair, &|b| traced.crosses(b), tol);
         reached.extend(seeds.iter().map(|seed| seed.parameters()));
         traced.follow_seeds(&Tracer::new(pair, tol, &reached), seeds, tol);
     }
@@ -347,7 +345,7 @@ where
     let pair = SurfacePair::new(a, b);
     let seeds = seeding::both_grid_seeds(pair, tol);
     let tracer = Tracer::new(pair, tol, &seeds);
-    let mut traced = Traced::default();
+    let mut traced = Traced::new(chord_deviation(pair, tol), true);
     for seed in seeds {
         traced.follow(&tracer, seed, tol);
     }
@@ -398,8 +396,9 @@ where
 /// trace box of unbounded surfaces (see [`Cut`]); and the traced
 /// polylines: the box around each, the boxes around its runs of `RUN`
 /// segments, and its points. Whether a lost seed at a singular point is
-/// seeded around (see [`traced_intersection`]).
-#[derive(Default)]
+/// seeded around (see [`traced_intersection`]), and the chord deviation
+/// the traces' steps keep to (see [`chord_deviation`]), which sets how
+/// far a point may lie from a traced polyline and still be on its curve.
 struct Traced {
     curves: Vec<Fitted>,
     contact_points: Vec<Point>,
@@ -408,9 +407,24 @@ struct Traced {
     cuts: Vec<Cut>,
     traces: Vec<(Aabb, Vec<Aabb>, Vec<Point>)>,
     around_singular_points: bool,
+    chord_deviation: f64,
 }
 
 impl Traced {
+    /// Nothing traced yet, the steps keeping to `chord_deviation`.
+    fn new(chord_deviation: f64, around_singular_points: bool) -> Self {
+        Traced {
+            curves: Vec::new(),
+            contact_points: Vec::new(),
+            coincident_seeds: Vec::new(),
+            lost_seeds: Vec::new(),
+            cuts: Vec::new(),
+            traces: Vec::new(),
+            around_singular_points,
+            chord_deviation,
+        }
+    }
+
     /// Follows each of `seeds` in order (see [`follow`](Self::follow)),
     /// starting it unless a curve traced so far crosses its patches.
     fn follow_seeds<A, B>(&mut self, tracer: &Tracer<A, B>, seeds: Vec<Seed>, tol: Tolerance)
@@ -419,7 +433,7 @@ impl Traced {
         B: ParametricSurface,
     {
         for seed in seeds {
-            if let Some(start) = seed.start(&tracer.pair(), |b| self.crosses(b, tol), tol) {
+            if let Some(start) = seed.start(&tracer.pair(), |b| self.crosses(b), tol) {
                 self.follow(tracer, start, tol);
             }
         }
@@ -464,7 +478,7 @@ impl Traced {
         // are out of scope. A seed is polished only once it is not found
         // on a curve as it is, and looked for again from where it lands.
         let traced =
-            |p: Point| !tracer.encloses(p) || self.crosses(&[p.x, p.y, p.z, p.x, p.y, p.z], tol);
+            |p: Point| !tracer.encloses(p) || self.crosses(&[p.x, p.y, p.z, p.x, p.y, p.z]);
         if traced(pair.point(seed)) {
             return Vec::new();
         }
@@ -483,7 +497,7 @@ impl Traced {
                 cuts,
             } => (points, tangents, parameters, stalls, touching, cuts),
             Trace::Touch => {
-                let gap = 8.0 * CHORD_DEVIATION * tol.confusion;
+                let gap = 8.0 * self.chord_deviation;
                 if pair.osculates(seed, tol) {
                     // The surfaces lie on each other here: no point stands
                     // for the contact.
@@ -568,7 +582,7 @@ impl Traced {
             let last = boundary.points.len() - 1;
             let kept_already = [0, last / 2, last].iter().all(|&k| {
                 let p = boundary.points[k];
-                self.crosses(&[p.x, p.y, p.z, p.x, p.y, p.z], tol)
+                self.crosses(&[p.x, p.y, p.z, p.x, p.y, p.z])
             });
             if !kept_already {
                 self.keep(
@@ -588,11 +602,7 @@ impl Traced {
     /// traced curve passes through. A curve may leave such a seed, as at a
     /// cone's apex, where the surface has no tangent plane to step along.
     /// Each region is the seed's parameters and point.
-    fn unexplained_regions<A, B>(
-        &self,
-        pair: SurfacePair<A, B>,
-        tol: Tolerance,
-    ) -> Vec<SurfaceSurfaceRegion>
+    fn unexplained_regions<A, B>(&self, pair: SurfacePair<A, B>) -> Vec<SurfaceSurfaceRegion>
     where
         A: ParametricSurface,
         B: ParametricSurface,
@@ -601,16 +611,14 @@ impl Traced {
             .iter()
             .filter_map(|&x| {
                 let p = pair.point(x);
-                (!self.crosses(&[p.x, p.y, p.z, p.x, p.y, p.z], tol)).then_some(
-                    SurfaceSurfaceRegion {
-                        first_u_range: (x[0], x[0]),
-                        first_v_range: (x[1], x[1]),
-                        second_u_range: (x[2], x[2]),
-                        second_v_range: (x[3], x[3]),
-                        min_corner: p,
-                        max_corner: p,
-                    },
-                )
+                (!self.crosses(&[p.x, p.y, p.z, p.x, p.y, p.z])).then_some(SurfaceSurfaceRegion {
+                    first_u_range: (x[0], x[0]),
+                    first_v_range: (x[1], x[1]),
+                    second_u_range: (x[2], x[2]),
+                    second_v_range: (x[3], x[3]),
+                    min_corner: p,
+                    max_corner: p,
+                })
             })
             .collect()
     }
@@ -624,10 +632,10 @@ impl Traced {
 
     /// Whether a traced polyline passes through the box `b`, grown by the
     /// distance its chords may stray from the curve.
-    fn crosses(&self, b: &Aabb, tol: Tolerance) -> bool {
+    fn crosses(&self, b: &Aabb) -> bool {
         // Steps keep `chord * turn` within 32 chord deviations, so a chord
         // strays at most a quarter of that from the curve.
-        let gap = 8.0 * CHORD_DEVIATION * tol.confusion;
+        let gap = 8.0 * self.chord_deviation;
         let grown: Aabb = std::array::from_fn(|c| if c < 3 { b[c] - gap } else { b[c] + gap });
         self.traces.iter().any(|(bounds, runs, points)| {
             !boxes_apart(bounds, &grown, 0.0)

@@ -276,7 +276,7 @@ where
         return Vec::new();
     };
     let p = pair.point(x);
-    let h = first_step(tol);
+    let h = first_step(pair, tol);
     branches
         .into_iter()
         .flat_map(|d| [d * h, d * -h])
@@ -425,7 +425,7 @@ where
         }
     };
     let spacing = (high - low) / RING_SAMPLES as f64;
-    let step = first_step(tol) / speed;
+    let step = first_step(pair, tol) / speed;
     let mut seeds = Vec::new();
     for side in [1.0, -1.0] {
         let across_value = x[across] + side * step;

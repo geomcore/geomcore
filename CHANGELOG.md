@@ -31,6 +31,19 @@ the Python distribution are versioned in lockstep.
   inner circle is at ±0.433. A curve in parameters whose `deviation`
   exceeds the confusion is now mapped within a tenth of it before the
   cut, and the ends lie within 1e-10 of the boundary.
+- A looser tolerance no longer drops a surface–surface curve or fits one
+  far off the surfaces (#311). The march's steps could stray from their
+  chords by a thousand times the confusion, a whole unit at `1e-3`, and
+  it took any seed within eight such units of a traced curve to lie on
+  it. Two wavy B-spline patches that cross along two curves three units
+  apart gave one curve from `tol=3e-4` up, and a sphere cut the first
+  patch in a 38-pole loop up to 0.70 off the sphere at `1e-3`. Steps now
+  keep to a thousandth of the smaller surface's size as well: both
+  curves come back at every tolerance, within it of both surfaces, in 52
+  and 34 poles at `1e-3` against 294 and 198 at the default, and the
+  loop takes 92 poles within 1e-4 of both. A model as small against its
+  tolerance, a patch a few thousandths across at the default, gains the
+  same.
 
 ## [0.48.0] - 2026-11-16
 
