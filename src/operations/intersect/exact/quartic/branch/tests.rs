@@ -232,3 +232,154 @@ fn test_the_cones_meet_in_exact_branches() {
         .count();
     assert_eq!(branches, 4);
 }
+
+/// The largest distance between `bspline` and `branch` at the same
+/// parameter, over `samples` equal steps of `[first, last]`.
+fn deviation_from(
+    bspline: &crate::BSplineCurve,
+    branch: &impl ParametricCurve,
+    (first, last): (f64, f64),
+    samples: usize,
+) -> f64 {
+    (0..=samples)
+        .map(|k| first + (last - first) * k as f64 / samples as f64)
+        .map(|u| bspline.point_at(u).distance(branch.point_at(u)))
+        .fold(0.0, f64::max)
+}
+
+#[test]
+fn test_a_trimmed_branch_converts_to_a_bspline_within_confusion() {
+    for branch in branches() {
+        for (first, last) in [(-5.0, 5.0), (-200.0, 30.0), (0.5, 0.75), (2.0, 900.0)] {
+            let piece = crate::TrimmedCurve::new(branch.clone(), first, last).unwrap();
+            let bspline = piece.to_bspline().unwrap();
+            assert_eq!(bspline.bounds(), (first, last));
+            let poles = bspline.poles();
+            assert_eq!(poles[0], piece.start_point());
+            assert_eq!(poles[poles.len() - 1], piece.end_point());
+            let deviation = deviation_from(&bspline, &branch, (first, last), 2000);
+            assert!(
+                deviation <= 0.5 * TOL.confusion,
+                "[{first}, {last}]: {deviation:e} with {} poles",
+                bspline.poles().len()
+            );
+        }
+    }
+}
+
+#[test]
+fn test_a_branch_read_within_a_looser_confusion_is_fitted_within_it() {
+    let (first, second) = cones();
+    let loose = Tolerance {
+        confusion: 1e-4,
+        ..TOL
+    };
+    let branch = QuarticBranch::from_cones(&first, &second, 0, loose).unwrap();
+    let tight = crate::TrimmedCurve::new(branches()[0].clone(), -5.0, 5.0).unwrap();
+    let piece = crate::TrimmedCurve::new(branch.clone(), -5.0, 5.0).unwrap();
+    let bspline = piece.to_bspline().unwrap();
+    assert!(deviation_from(&bspline, &branch, (-5.0, 5.0), 2000) <= 0.5 * loose.confusion);
+    assert!(bspline.poles().len() < tight.to_bspline().unwrap().poles().len());
+}
+
+#[test]
+fn test_a_moved_piece_converts_to_the_moved_bspline() {
+    let branch = &branches()[1];
+    let transform = Transform::rotation(
+        Axis::new(Point::new(1.0, 2.0, 0.0), Vector::Y).unwrap(),
+        0.7,
+    )
+    .then(Transform::scaling(Point::ORIGIN, 2.5))
+    .then(Transform::mirror_point(Point::new(0.0, 0.0, 3.0)));
+    let piece = crate::TrimmedCurve::new(branch.clone(), -8.0, 3.0).unwrap();
+    let moved = piece.transformed(transform).unwrap();
+    let expected = piece.to_bspline().unwrap().transformed(transform).unwrap();
+    let bspline = moved.to_bspline().unwrap();
+    assert_eq!(bspline.knots(), expected.knots());
+    for (pole, expected) in bspline.poles().iter().zip(expected.poles()) {
+        assert!(pole.distance(*expected) <= 1e-12 * (1.0 + expected.distance(Point::ORIGIN)));
+    }
+    let deviation = deviation_from(&bspline, moved.basis(), (-8.0, 3.0), 2000);
+    assert!(deviation <= 2.5 * 0.5 * TOL.confusion, "{deviation:e}");
+}
+
+#[test]
+fn test_a_reversed_piece_converts_to_a_bspline_within_confusion() {
+    let branch = &branches()[3];
+    let piece = crate::TrimmedCurve::new(branch.clone(), -1.0, 6.0)
+        .unwrap()
+        .reversed();
+    let bspline = piece.to_bspline().unwrap();
+    assert_eq!(bspline.bounds(), (-6.0, 1.0));
+    let deviation = deviation_from(&bspline, piece.basis(), (-6.0, 1.0), 2000);
+    assert!(deviation <= 0.5 * TOL.confusion, "{deviation:e}");
+}
+
+#[test]
+fn test_a_piece_too_far_out_for_its_points_is_not_representable() {
+    let branch = branches()[0].clone();
+    let piece = crate::TrimmedCurve::new(branch, 1e8, 2e8).unwrap();
+    assert_eq!(
+        piece.to_bspline().err(),
+        Some(crate::BSplineConversionError::NotRepresentable)
+    );
+}
+
+#[test]
+fn test_a_piece_split_again_converts_piece_by_piece() {
+    let branch = branches()[2].clone();
+    let piece = crate::TrimmedCurve::new(branch.clone(), -5.0, 5.0).unwrap();
+    let (before, after) = piece.split_at(1.5).unwrap();
+    assert_eq!((before.bounds(), after.bounds()), ((-5.0, 1.5), (1.5, 5.0)));
+    let (left, right) = (before.to_bspline().unwrap(), after.to_bspline().unwrap());
+    assert_eq!(left.end_point(), right.start_point());
+    assert!(deviation_from(&left, &branch, (-5.0, 1.5), 1000) <= 0.5 * TOL.confusion);
+    assert!(deviation_from(&right, &branch, (1.5, 5.0), 1000) <= 0.5 * TOL.confusion);
+    let whole = piece.length(1e-9);
+    assert!((before.length(1e-9) + after.length(1e-9) - whole).abs() < 1e-8 * whole);
+}
+
+#[test]
+fn test_a_moved_branch_lies_on_its_moved_surfaces() {
+    let (first, second) = cones();
+    let transform = Transform::scaling(Point::new(1.0, -2.0, 0.5), 3.0)
+        .then(Transform::mirror_point(Point::new(0.0, 0.0, 3.0)));
+    for branch in branches() {
+        let moved = branch.transformed(transform).unwrap();
+        let (Surface::Cone(moved_first), Surface::Cone(moved_second)) = moved.surfaces() else {
+            panic!("two cones");
+        };
+        assert_eq!(moved_first, first.transformed(transform).unwrap());
+        assert_eq!(moved_second, second.transformed(transform).unwrap());
+        for u in PARAMETERS {
+            let point = moved.point_at(u);
+            let scale = 1.0 + point.distance(Point::ORIGIN);
+            for cone in [moved_first, moved_second] {
+                assert!(
+                    cone.project_point(point, TOL).distance < 1e-12 * scale,
+                    "{u}"
+                );
+            }
+        }
+        // The branch of the moved cones traces the same points, but reads
+        // its quartic on them, not on the cones before the move: equal
+        // only field by field, it is not equal.
+        let of_moved =
+            QuarticBranch::from_cones(&moved_first, &moved_second, branch.index(), TOL).unwrap();
+        assert_ne!(of_moved, moved);
+        for u in [-3.0, 0.0, 0.7] {
+            let point = moved.point_at(u);
+            assert!(of_moved.project_point(point, TOL).distance < 1e-12, "{u}");
+        }
+        // The surfaces before the move give the branch back.
+        let (Surface::Cone(before_first), Surface::Cone(before_second)) =
+            moved.surfaces_before_placement()
+        else {
+            panic!("two cones");
+        };
+        assert_eq!((before_first, before_second), (first, second));
+        let rebuilt =
+            QuarticBranch::from_cones(&before_first, &before_second, branch.index(), TOL).unwrap();
+        assert_eq!(rebuilt.transformed(transform).unwrap(), moved);
+    }
+}

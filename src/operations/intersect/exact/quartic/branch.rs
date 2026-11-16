@@ -5,12 +5,15 @@
 
 use std::f64::consts::{FRAC_2_PI, PI};
 
+use super::hermite_weights;
+use crate::geometry::curves::fitting::hermite_spline;
 use crate::geometry::curves::{ParametricCurve, PointExtrema, ReversibleCurve};
 use crate::math::numeric::brent_minimum;
 use crate::operations::projection::{CurveProjection, snap_distance};
 use crate::{
-    Cone, ConeConeIntersection, ConeCylinderIntersection, Cylinder, IntersectExact, Point,
-    QuarticCurve, Surface, Tolerance, Transform, TransformError, Transformable, Vector,
+    BSplineConversionError, BSplineCurve, Cone, ConeConeIntersection, ConeCylinderIntersection,
+    Cylinder, IntersectExact, Point, QuarticCurve, Surface, Tolerance, Transform, TransformError,
+    Transformable, Vector,
 };
 
 /// A piece of the curve where two cones, or a cone and a cylinder, meet
@@ -82,6 +85,30 @@ const HIGHER_DERIVATIVE_STEP: f64 = 1e-2;
 
 /// Newton steps polishing a projection found by Brent's search.
 const POLISH_STEPS: usize = 4;
+
+/// How far the B-spline of a piece may stray from the branch, in units of
+/// the confusion its quartic was read with: the bound of a fitted quartic
+/// (ADR 0036).
+const FIT_DEVIATION: f64 = 0.25;
+
+/// The spans a piece's B-spline starts from, at equal steps of the walk.
+const FIRST_SPANS: usize = 8;
+
+/// The most spans a piece's B-spline may take: far out, where the points
+/// lose precision beyond the deviation, the splitting would not end.
+const MOST_SPANS: usize = 4096;
+
+/// The most pieces a span is split into at once.
+const MOST_PIECES: f64 = 16.0;
+
+/// A point of a piece's B-spline: the parameter, and the point and first
+/// derivative there before the placement.
+#[derive(Debug, Clone, Copy)]
+struct FitSample {
+    parameter: f64,
+    point: Point,
+    derivative: Vector,
+}
 
 impl QuarticBranch {
     /// The branch `index` of `curve` over the walk parameters
@@ -176,15 +203,49 @@ impl QuarticBranch {
         }
     }
 
-    /// The two surfaces, as they were before any transform: two cones,
-    /// the one whose generators carry the points first, for
-    /// [`from_cones`](Self::from_cones), or a cone and a cylinder, for
-    /// [`from_cone_and_cylinder`](Self::from_cone_and_cylinder). With
-    /// [`index`](Self::index) and [`tolerance`](Self::tolerance) that
-    /// gives the branch back, which
-    /// [`is_reversed`](Self::is_reversed) and
-    /// [`placement`](Self::placement) then turn and place.
+    /// The two surfaces the branch lies on, moved with it by its
+    /// [`placement`](Self::placement): two cones, the one whose generators
+    /// carry the points first, or a cone and a cylinder.
+    ///
+    /// The branch of the moved surfaces traces the same points, up to
+    /// rounding, but is not [equal](PartialEq) to a moved branch: that
+    /// one keeps the quartic it was read on and its placement, which
+    /// [`surfaces_before_placement`](Self::surfaces_before_placement)
+    /// gives back.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::prelude::*;
+    /// use geomcore::{Cone, Point, QuarticBranch, Surface, Tolerance, Transform, Vector};
+    ///
+    /// let first = Cone::new(Point::ORIGIN, Vector::Z, 1.0, 0.5).unwrap();
+    /// let second = Cone::new(Point::new(0.0, 0.3, 0.0), Vector::X, 1.0, 0.5).unwrap();
+    /// let branch = QuarticBranch::from_cones(&first, &second, 0, Tolerance::DEFAULT).unwrap();
+    /// let up = Transform::translation(Vector::new(0.0, 0.0, 2.0));
+    /// let moved = branch.transformed(up).unwrap();
+    /// let (moved_first, _) = moved.surfaces();
+    /// assert_eq!(moved_first, Surface::Cone(first.transformed(up).unwrap()));
+    /// assert_eq!(moved.surfaces_before_placement().0, Surface::Cone(first));
+    /// ```
     pub fn surfaces(&self) -> (Surface, Surface) {
+        let (first, second) = self.surfaces_before_placement();
+        let placement = self.placed.placement;
+        let moved = |surface: Surface| {
+            surface
+                .transformed(placement)
+                .expect("a branch is placed only where its surfaces move")
+        };
+        (moved(first), moved(second))
+    }
+
+    /// The two surfaces as they were before any transform, as
+    /// [`from_cones`](Self::from_cones) or
+    /// [`from_cone_and_cylinder`](Self::from_cone_and_cylinder) took them.
+    /// With [`index`](Self::index) and [`tolerance`](Self::tolerance) that
+    /// gives the branch back, which [`is_reversed`](Self::is_reversed) and
+    /// [`placement`](Self::placement) then turn and place.
+    pub fn surfaces_before_placement(&self) -> (Surface, Surface) {
         self.placed
             .curve
             .branch_surfaces()
@@ -198,8 +259,8 @@ impl QuarticBranch {
 
     /// The tolerance its quartic was read with, which decides the cases
     /// read as touching, through an apex or running off once. With
-    /// [`surfaces`](Self::surfaces) and [`index`](Self::index) it gives the
-    /// branch back.
+    /// [`surfaces_before_placement`](Self::surfaces_before_placement) and
+    /// [`index`](Self::index) it gives the branch back.
     pub fn tolerance(&self) -> Tolerance {
         self.placed.curve.tolerance()
     }
@@ -222,6 +283,114 @@ impl QuarticBranch {
         self.placed
             .curve
             .point_at(usize::from(self.component), self.walk(u))
+    }
+
+    /// The derivative of order `order` at `u` before the placement, a
+    /// central difference of exact points (see
+    /// [`ParametricCurve::derivative`]).
+    fn local_derivative(&self, u: f64, order: u32) -> Vector {
+        let step = match order {
+            0 => panic!("derivative: order must be >= 1 (use point_at for order 0)"),
+            1 => FIRST_DERIVATIVE_STEP,
+            2 => SECOND_DERIVATIVE_STEP,
+            _ => HIGHER_DERIVATIVE_STEP,
+        };
+        let h = step * (1.0 + u.abs());
+        central_difference(|v| self.local_point(v), u, order, h)
+    }
+
+    /// The piece over `[first, last]` as a B-spline in the same parameter:
+    /// the cubic Hermite spline through exact points and their derivatives,
+    /// each span split until the spline at its quarter points lies within
+    /// [`FIT_DEVIATION`] times the confusion its quartic was read with of
+    /// the branch's point at the same parameter. The spline is fitted
+    /// before the placement and its poles placed after, so it is the
+    /// placed image of one fit, the deviation scaled with it.
+    ///
+    /// `NotRepresentable` where the splitting does not end: so far out
+    /// that the points, computed in `f64`, lose precision beyond the
+    /// deviation.
+    pub(crate) fn bspline_over(
+        &self,
+        first: f64,
+        last: f64,
+    ) -> Result<BSplineCurve, BSplineConversionError> {
+        let deviation = FIT_DEVIATION * self.tolerance().confusion;
+        let sample = |parameter: f64| FitSample {
+            parameter,
+            point: self.local_point(parameter),
+            derivative: self.local_derivative(parameter, 1),
+        };
+        // The first spans at equal steps of the walk, so that they crowd
+        // where the branch turns and spread out where it runs off.
+        let (low, high) = (first.atan(), last.atan());
+        let mut pending: Vec<FitSample> = (1..FIRST_SPANS)
+            .rev()
+            .map(|k| sample((low + (high - low) * k as f64 / FIRST_SPANS as f64).tan()))
+            .filter(|s| first < s.parameter && s.parameter < last)
+            .collect();
+        pending.insert(0, sample(last));
+        let mut fitted = vec![sample(first)];
+        while let Some(&end) = pending.last() {
+            let start = fitted[fitted.len() - 1];
+            let error = self.span_error(&start, &end);
+            if error <= deviation {
+                fitted.push(end);
+                pending.pop();
+                continue;
+            }
+            if error.is_nan() {
+                return Err(BSplineConversionError::NotRepresentable);
+            }
+            // The error goes as the fourth power of the span's length.
+            let pieces = (error / deviation)
+                .sqrt()
+                .sqrt()
+                .ceil()
+                .clamp(2.0, MOST_PIECES);
+            let step = (end.parameter - start.parameter) / pieces;
+            for k in (1..pieces as usize).rev() {
+                let parameter = start.parameter + step * k as f64;
+                if !(start.parameter < parameter && parameter < end.parameter) {
+                    return Err(BSplineConversionError::NotRepresentable);
+                }
+                pending.push(sample(parameter));
+            }
+            if fitted.len() + pending.len() > MOST_SPANS {
+                return Err(BSplineConversionError::NotRepresentable);
+            }
+        }
+        let parameters: Vec<f64> = fitted.iter().map(|s| s.parameter).collect();
+        let points: Vec<Point> = fitted.iter().map(|s| s.point).collect();
+        let derivatives: Vec<Vector> = fitted.iter().map(|s| s.derivative).collect();
+        hermite_spline(&points, &derivatives, &parameters)
+            .ok()
+            .and_then(|spline| spline.transformed(self.placed.placement).ok())
+            .ok_or(BSplineConversionError::NotRepresentable)
+    }
+
+    /// How far the cubic Hermite span from `start` to `end` strays from
+    /// the branch at the same parameter, at its quarter points; infinite
+    /// where the derivatives turn by more than 60°, which the quarter
+    /// points alone could miss a turn within.
+    fn span_error(&self, start: &FitSample, end: &FitSample) -> f64 {
+        let (a, b) = (start.derivative, end.derivative);
+        if a.dot(b) < 0.5 * a.magnitude() * b.magnitude() {
+            return f64::INFINITY;
+        }
+        let length = end.parameter - start.parameter;
+        [0.25, 0.5, 0.75]
+            .into_iter()
+            .fold(0.0, |worst: f64, s: f64| {
+                let [h0, h1, h2, h3] = hermite_weights(s);
+                let spline = Point::ORIGIN
+                    + (start.point - Point::ORIGIN) * h0
+                    + a * (length * h1)
+                    + (end.point - Point::ORIGIN) * h2
+                    + b * (length * h3);
+                let exact = self.local_point(start.parameter + length * s);
+                worst.max(spline.distance(exact))
+            })
     }
 
     /// The walk parameter of the quartic's component at `u`.
@@ -338,15 +507,9 @@ impl ParametricCurve for QuarticBranch {
     ///
     /// When `order` is zero.
     fn derivative(&self, u: f64, order: u32) -> Vector {
-        let scale = 1.0 + u.abs();
-        let step = match order {
-            0 => panic!("derivative: order must be >= 1 (use point_at for order 0)"),
-            1 => FIRST_DERIVATIVE_STEP,
-            2 => SECOND_DERIVATIVE_STEP,
-            _ => HIGHER_DERIVATIVE_STEP,
-        };
-        let local = central_difference(|v| self.local_point(v), u, order, step * scale);
-        self.placed.placement.apply_vector(local)
+        self.placed
+            .placement
+            .apply_vector(self.local_derivative(u, order))
     }
 
     fn bounds(&self) -> (f64, f64) {
@@ -403,13 +566,18 @@ impl ReversibleCurve for QuarticBranch {
 
 impl Transformable for QuarticBranch {
     /// The same branch placed by `transform` after its placement: the
-    /// parameter is kept.
+    /// parameter is kept, and its [`surfaces`](QuarticBranch::surfaces)
+    /// move with it.
     fn transformed(&self, transform: Transform) -> Result<QuarticBranch, TransformError> {
         if transform.scale_factor() == 0.0 {
             return Err(TransformError::Collapsed);
         }
         let mut image = self.clone();
-        image.placed.placement = self.placed.placement.then(transform);
+        let placement = self.placed.placement.then(transform);
+        image.placed.placement = placement;
+        let (first, second) = self.surfaces_before_placement();
+        first.transformed(placement)?;
+        second.transformed(placement)?;
         if image.point_at(0.0).is_finite() {
             Ok(image)
         } else {

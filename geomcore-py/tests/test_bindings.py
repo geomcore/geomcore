@@ -598,6 +598,58 @@ def test_a_quartic_branch_is_a_curve_on_its_two_surfaces():
     assert pickle.loads(pickle.dumps(branch)) == branch
 
 
+def test_a_quartic_branch_edge_moves_splits_and_converts():
+    from geomcore import (
+        BSplineCurve,
+        BSplineSplitError,
+        Cone,
+        Frame,
+        QuarticBranch,
+        Transform,
+        TrimmedCurve,
+    )
+
+    cone = Cone.from_frame(Frame.world(), 0.4, 2.0)
+    wide = Cone(Point(5.0, 0.3, 1.0), Vector.unit_x(), 1.2, 1.0)
+    branch = cone.intersect(wide).curves[0].curve
+    assert isinstance(branch, QuarticBranch)
+
+    # Moved, the branch gives its moved surfaces, and the ones it was read
+    # on, which rebuild and pickle it.
+    up = Transform.translation(Vector(0.0, 0.0, 2.0))
+    moved = branch.transformed(up)
+    first, second = moved.surfaces()
+    assert isinstance(first, Cone) and isinstance(second, Cone)
+    assert first == branch.surfaces()[0].transformed(up)
+    assert moved.surfaces_before_placement() == branch.surfaces()
+    assert pickle.loads(pickle.dumps(moved)) == moved
+
+    # A piece of it converts to a B-spline over the same range, and splits
+    # into two pieces meeting at the cut.
+    piece = TrimmedCurve(moved, -5.0, 5.0)
+    bspline = piece.to_bspline()
+    assert isinstance(bspline, BSplineCurve)
+    assert bspline.bounds() == (-5.0, 5.0)
+    before, after = piece.split_at(1.0)
+    assert isinstance(before, TrimmedCurve) and isinstance(after, TrimmedCurve)
+    assert (before.start_parameter(), before.end_parameter()) == (-5.0, 1.0)
+    assert (after.start_parameter(), after.end_parameter()) == (1.0, 5.0)
+    assert before.end_point() == after.start_point()
+    for u in [5.0, 6.0, math.nan]:
+        with pytest.raises(BSplineSplitError):
+            piece.split_at(u)
+
+
+def test_a_trimmed_curve_2d_splits():
+    from geomcore import BSplineSplitError, TrimmedCurve2D
+
+    segment = TrimmedCurve2D.segment(Point2D.origin(), Point2D(2.0, 0.0))
+    before, after = segment.split_at(0.5)
+    assert before.end_point() == after.start_point() == Point2D(0.5, 0.0)
+    with pytest.raises(BSplineSplitError, match="bounds"):
+        segment.split_at(3.0)
+
+
 def test_intersection_curves_carry_their_uv_curves():
     from geomcore import BSplineCurve2D, Circle2D, Cylinder, Line2D, Plane, Sphere
 

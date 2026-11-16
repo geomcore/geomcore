@@ -9,6 +9,16 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+### Breaking
+
+- `QuarticBranch::surfaces` (`surfaces()` in Python) gives the two
+  surfaces moved with the branch by its placement (#327), where it gave
+  those before any transform: on a moved branch it returns other
+  surfaces than before. `QuarticBranch::surfaces_before_placement`
+  (`surfaces_before_placement()` in Python) gives the old result, the
+  surfaces the constructor took, which rebuild the branch with `index`
+  and `tolerance`.
+
 ### Added
 
 - Python: a `TrimmedSurface` answers every method a parametric surface
@@ -20,6 +30,15 @@ the Python distribution are versioned in lockstep.
   `curve_3d_to_uv` and their `_within` forms. A `derivative` order is
   checked against the basis's. The stub types it with the methods its
   class has, and the parity tests cover it.
+- A trimmed `QuarticBranch` converts to a B-spline (#327):
+  `TrimmedCurve::to_bspline` fits it in the branch's own parameter, as a
+  bounded quartic is, within a quarter of the confusion it was read with.
+  It is `NotRepresentable` only when trimmed so far out (beyond `|u|` of
+  about `1e4` at the default confusion) that its points lose more
+  precision than that.
+- `TrimmedCurve::split_at` and `TrimmedCurve2D::split_at`, in Rust and
+  Python (#327): the two pieces of the same basis on either side of a
+  parameter, meeting at its point, so an edge can be cut again.
 
 ### Changed
 

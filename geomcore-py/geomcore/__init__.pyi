@@ -2624,15 +2624,24 @@ class QuarticBranch(_CurveMethods):
     def __setstate__(self, state: Tuple[bool, Transform]) -> None:
         """Restore the orientation and placement a pickle saved."""
     def surfaces(self) -> Tuple[Cone, Union[Cone, Cylinder]]:
-        """The two surfaces, as they were before any transform: two cones, the
-        one whose generators carry the points first, or a cone and a
-        cylinder.
+        """The two surfaces the branch lies on, moved with it by its
+        `placement()`: two cones, the one whose generators carry the points
+        first, or a cone and a cylinder. The branch of the moved surfaces
+        traces the same points, up to rounding, but is not equal to a moved
+        branch, which keeps the quartic it was read on.
+        """
+    def surfaces_before_placement(self) -> Tuple[Cone, Union[Cone, Cylinder]]:
+        """The two surfaces as they were before any transform, as the
+        constructor took them: with `index()` and `tolerance()` they give
+        the branch back, which `is_reversed()` and `placement()` then turn
+        and place.
         """
     def index(self) -> int:
         """The branch's place among those of its quartic."""
     def tolerance(self) -> Tolerance:
-        """The tolerance its quartic was read with: with `surfaces()` and
-        `index()`, it gives the branch back.
+        """The tolerance its quartic was read with: with
+        `surfaces_before_placement()` and `index()`, it gives the branch
+        back.
         """
     def is_reversed(self) -> bool:
         """Whether the branch runs the other way from the one the constructor
@@ -2910,6 +2919,15 @@ class TrimmedCurve(_CurveMethods, _BoundedCurveMethods[Point, Discretization]):
         overflow `f64`). A line, parabola, B-spline or Bézier basis keeps
         its parameter; the rational arcs of a circle, ellipse or hyperbola
         do not, so map a point across with `bspline.parameter_of(point)`.
+        A `QuarticBranch` has no exact B-spline: its piece is fitted in its
+        own parameter, within a quarter of the confusion it was read with
+        at the quarter points of every span, as a bounded quartic is.
+        """
+    def split_at(self, u: float) -> Tuple[TrimmedCurve, TrimmedCurve]:
+        """The pieces over `[start_parameter, u]` and `[u, end_parameter]` of
+        the same basis, meeting at the point at `u`. Raises
+        `BSplineSplitError` when `u` is not finite, outside the range, or
+        one of its ends.
         """
     def __repr__(self) -> str: ...
 
@@ -2968,6 +2986,12 @@ class TrimmedCurve2D(_Curve2DMethods, _BoundedCurveMethods[Point2D, Discretizati
         `f64`). A line or B-spline basis keeps its parameter; a circle's
         rational arcs do not, so map a point across with
         `bspline.parameter_of(point)`.
+        """
+    def split_at(self, u: float) -> Tuple[TrimmedCurve2D, TrimmedCurve2D]:
+        """The pieces over `[start_parameter, u]` and `[u, end_parameter]` of
+        the same basis, meeting at the point at `u`. Raises
+        `BSplineSplitError` when `u` is not finite, outside the range, or
+        one of its ends.
         """
     def start_parameter(self) -> float:
         """The start of the parameter range, the parameter of `start_point`."""
