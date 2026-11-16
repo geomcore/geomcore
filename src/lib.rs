@@ -20,12 +20,15 @@
 //! - The curves, in space and in the plane: [`Line`], [`Circle`],
 //!   [`Ellipse`], [`Parabola`], [`Hyperbola`], [`BSplineCurve`] and
 //!   [`BezierCurve`], their 2D forms ([`Line2D`], …, [`BezierCurve2D`]),
-//!   the [`Curve`]/[`Curve2D`] enums, and the
+//!   [`QuarticBranch`] (an unbounded piece of the quartic where two
+//!   quadrics meet), the [`Curve`]/[`Curve2D`] enums, and the
 //!   [`TrimmedCurve`]/[`TrimmedCurve2D`] pieces of a curve over a
 //!   parameter range (segments, arcs).
 //! - The surfaces: [`Plane`], [`Cylinder`], [`Cone`], [`Sphere`],
-//!   [`Torus`], [`BSplineSurface`], [`BezierSurface`] and the [`Surface`]
-//!   enum.
+//!   [`Torus`], [`BSplineSurface`], [`BezierSurface`], the swept
+//!   [`ExtrusionSurface`] and [`RevolutionSurface`], the [`Surface`]
+//!   enum, and [`TrimmedSurface`], a surface over a range of each of its
+//!   parameters.
 //! - The results of the operations: [`BoundingBox`], [`Discretization`],
 //!   [`CurveProjection`], [`CurveCurveIntersection`] and the other
 //!   intersection results.

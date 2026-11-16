@@ -35,7 +35,7 @@ The unit direction of `Su × Sv` at a surface's parameters. A partial counts as 
 _Avoid_: raw cross product for the normal, tangent for either partial derivative
 
 **B-spline**:
-A curve or surface defined by poles, knots and optional weights. Every curve is either elementary or a B-spline; a surface may also be swept.
+A curve or surface defined by poles, knots and optional weights. A curve is elementary, a B-spline or a **quartic branch**; a surface is elementary, a B-spline or **swept**.
 A Bézier curve or surface is a B-spline of a single span, and every operation reads it as one.
 
 **Swept surface**:
