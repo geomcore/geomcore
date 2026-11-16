@@ -233,6 +233,9 @@ paths.
   family's entry of the closed-form pair table,
   `operations/intersect/routing/closed_form.rs`, so that `Intersect` routes the pair
   there instead of to the numeric search.
+- Test its configurations in Rust, beside the solver. The bindings need
+  no new test unless the pair returns a kind of result they have not
+  converted before (see [The Python bindings](#the-python-bindings)).
 
 **A change to marching.** A new seed source, or a change to when one
 runs, goes in `operations/intersect/numeric/marching/seeding.rs`; a change to the
@@ -308,6 +311,19 @@ classes, and the classes' registration in their module.
 
 **The interpreter lock.** `intersect` releases it around every core call,
 so other Python threads run during a search (ADR 0021).
+
+**What a Python test covers.** A test under `geomcore-py/tests/` covers
+what the binding adds: the conversion of arguments and results, the
+operands a method accepts, `repr`, pickling, the errors it raises, and a
+new class or result field. Which configuration gives which curves,
+points or overlaps is asserted in the core tests, beside the solver.
+`intersect` has no path per pair: it calls the core router and converts
+the family result (ADR 0018, ADR 0021), and `tests/test_parity.py` runs
+every class against every other through it. A new closed-form
+configuration therefore needs no Python test. The Python tests keep one
+case per kind of result the binding converts (a contact point, an exact
+conic, a fitted quartic, a quartic branch, a coincident pair, a marched
+curve, an overlap, ...), so each conversion stays exercised end to end.
 
 **Binding a new curve or surface type.**
 - Add `geomcore-py/src/curves/<name>.rs` (or `surfaces/`) with the

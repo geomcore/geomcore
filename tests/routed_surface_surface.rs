@@ -128,7 +128,8 @@ fn test_tangent_sphere_gives_a_contact_point_and_parallel_planes_nothing() {
     assert!(result.curves().is_empty());
     let high = Plane::new(Point::new(0.0, 0.0, 3.0), Vector::Z).unwrap();
     let low = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
-    assert!(high.intersect(&low, TOL).is_empty());
+    let parallel = high.intersect(&low, TOL);
+    assert!(parallel.is_empty() && parallel.is_complete());
 }
 
 #[test]

@@ -183,6 +183,12 @@ fn test_line3d_intersect_ellipse() {
         miss.intersect_exact(&ellipse, tol),
         LineConicIntersection::Empty
     );
+    // Parallel miss above the plane.
+    let above = Line::new(Point::new(0.0, 0.0, 1.0), Vector::X).unwrap();
+    assert_eq!(
+        above.intersect_exact(&ellipse, tol),
+        LineConicIntersection::Empty
+    );
 }
 
 #[test]

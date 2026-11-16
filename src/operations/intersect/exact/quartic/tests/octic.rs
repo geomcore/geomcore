@@ -139,8 +139,15 @@ fn test_a_cone_with_its_apex_on_the_torus_crosses_itself_there() {
     assert!(curve.contact_points()[0].distance(apex) < 1e-12);
     // The loop through the apex twice: the marcher splits it there.
     assert_eq!(curve.component_count(), 1);
-    assert_routed_result(&torus.intersect(&cone, TOL), &torus, &cone, 1, 1);
-    assert_routed_result(&cone.intersect(&torus, TOL), &cone, &torus, 1, 1);
+    let torus_first = torus.intersect(&cone, TOL);
+    let cone_first = cone.intersect(&torus, TOL);
+    assert_routed_result(&torus_first, &torus, &cone, 1, 1);
+    assert_routed_result(&cone_first, &cone, &torus, 1, 1);
+    // The cone's parameters fail at its apex, so the loop has a curve in
+    // the torus's parameters only.
+    let (on_torus, on_cone) = (&torus_first.curves()[0], &cone_first.curves()[0]);
+    assert!(on_torus.first_uv_curve.is_some() && on_torus.second_uv_curve.is_none());
+    assert!(on_cone.first_uv_curve.is_none() && on_cone.second_uv_curve.is_some());
 }
 
 /// Cylinders through the torus at assorted places, directions and radii.
