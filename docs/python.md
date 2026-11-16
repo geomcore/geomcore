@@ -122,8 +122,10 @@ number (`v / 2`) and give their length to `abs(v)`.
 
 For many points, keep them in an array and call the array forms:
 `points_at_array` evaluates an array of parameters (of `(u, v)` rows on a
-surface) and `project_points_array` projects an `(N, 3)` array, each
-returning numpy arrays without building a Python object per point. They
+surface), `normals_array` gives a surface's normals at `(u, v)` rows,
+`project_points_array` projects an `(N, 3)` array and
+`Transform.apply_points` moves one, each returning numpy arrays without
+building a Python object per point. They
 and the list forms (`points_at`, `project_points`) let other Python
 threads run during the work, so a thread pool over chunks of points
 scales. A list of `Point` objects you already hold converts with
