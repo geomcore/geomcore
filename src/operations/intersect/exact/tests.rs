@@ -11,7 +11,7 @@ use crate::operations::intersect::{
 };
 
 use crate::operations::intersect::numeric::curve_curve::search_curve_curve;
-use crate::operations::intersect::numeric::curve_surface::search_curve_surface;
+use crate::operations::intersect::numeric::curve_surface::{search_curve_surface, seeded_range};
 use crate::{Frame, Point, TorusConeIntersection, Vector};
 
 const TOL: Tolerance = Tolerance::DEFAULT;
@@ -369,9 +369,12 @@ fn test_curve_surface_intersection_is_valid() {
 
 #[test]
 fn test_curve_surface_intersection_matches_numeric() {
-    // Without a surface box to seed from, an unbounded curve keeps the
-    // default [-10, 10] window.
-    let window = |c: &ElementaryCurve, t: f64| c.period().is_some() || t.abs() <= 10.0;
+    // An unbounded curve is seeded over a window, not over its whole
+    // range: the exact hits outside it are not looked for.
+    let window = |c: &ElementaryCurve, s: &ElementarySurface, t: f64| {
+        let (low, high) = seeded_range(c, s, TOL);
+        c.period().is_some() || (low..=high).contains(&t)
+    };
     let mut compared = 0;
     for curve in &curves() {
         for surface in &surfaces() {
@@ -394,7 +397,7 @@ fn test_curve_surface_intersection_matches_numeric() {
             }
             for h in hits
                 .iter()
-                .filter(|h| h.multiplicity == 1 && window(curve, h.curve_parameter))
+                .filter(|h| h.multiplicity == 1 && window(curve, surface, h.curve_parameter))
             {
                 assert!(
                     numeric.iter().any(|n| near(h.point, n.point)),

@@ -178,3 +178,51 @@ fn test_tangent_contact_is_a_hit_not_an_overlap() {
     assert!(result.overlaps().is_empty());
     assert_eq!(result.hits().len(), 1);
 }
+
+/// A curve lying on a swept surface it was swept from: the sampled search
+/// finds hits all along it, and they are joined into one overlap over the
+/// curve's whole range, at any size.
+#[test]
+fn test_a_profile_lying_on_its_swept_surface_is_one_overlap() {
+    use crate::{Axis, ExtrusionSurface, RevolutionSurface, Transform, Transformable};
+    let line = Line::new(Point::new(1.0, -2.0, 0.5), Vector::new(0.3, 0.9, -0.2)).unwrap();
+    let circle = Circle::new(
+        Point::new(1.0, -2.0, 0.5),
+        Vector::new(0.3, -0.4, 0.86),
+        2.0,
+    )
+    .unwrap();
+    let sweep = Vector::new(0.2, -0.1, 1.5);
+    let axis = Axis::new(Point::ORIGIN, Vector::Z).unwrap();
+    let line_extrusion = ExtrusionSurface::new(line.into(), sweep).unwrap();
+    let circle_extrusion = ExtrusionSurface::new(circle.into(), sweep).unwrap();
+    let line_revolution = RevolutionSurface::new(line.into(), axis).unwrap();
+    for scale in [2f64.powi(-20), 1.0, 2f64.powi(20)] {
+        let tol = Tolerance::new(TOL.confusion * scale, TOL.angular, TOL.parametric).unwrap();
+        let resize = Transform::scaling(Point::ORIGIN, scale);
+        let line = line.transformed(resize).unwrap();
+        let circle = circle.transformed(resize).unwrap();
+        for result in [
+            line.intersect(&line_extrusion.clone().transformed(resize).unwrap(), tol),
+            line.intersect(&line_revolution.clone().transformed(resize).unwrap(), tol),
+        ] {
+            assert!(result.hits().is_empty(), "scale {scale:e}: {result:?}");
+            assert_eq!(
+                result.overlaps(),
+                &[CurveSurfaceOverlap {
+                    curve_range: (f64::NEG_INFINITY, f64::INFINITY)
+                }],
+                "scale {scale:e}"
+            );
+            assert_eq!(result.completeness(), &Completeness::Sampled);
+        }
+        let result = circle.intersect(&circle_extrusion.clone().transformed(resize).unwrap(), tol);
+        assert!(result.hits().is_empty(), "scale {scale:e}: {result:?}");
+        assert_eq!(result.overlaps().len(), 1, "scale {scale:e}");
+        assert_range(
+            result.overlaps()[0].curve_range,
+            (0.0, std::f64::consts::TAU),
+        );
+        assert_eq!(result.completeness(), &Completeness::Sampled);
+    }
+}
