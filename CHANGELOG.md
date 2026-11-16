@@ -9,6 +9,18 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+## [0.48.0] - 2026-11-16
+
+Python takes numpy and threads as they come. A point argument takes a
+tuple, a list or an array row; a list of points takes an `(N, 3)` array;
+surfaces give normals and transforms move points by the array; the list
+calls let other threads run; and a scalar method handed an array names
+its array twin. Every result pickles, so a `multiprocessing` worker can
+return an intersection. A result's status says what was proved, two
+cylinders whose axes nearly meet no longer exhaust memory, and the type
+stubs agree with what runs. The deprecated `geomcore.curves` and
+`geomcore.surfaces` modules are gone.
+
 ### Breaking
 
 - `Curve3DToUvError` has a third variant, `ThroughPole` (#313): a whole
@@ -3545,7 +3557,8 @@ Behaviour, in Rust and Python alike:
 - Golden-fixture validation of all numeric results at 1e-7 tolerance, and
   criterion throughput benchmarks (`docs/benchmarks.md`).
 
-[Unreleased]: https://github.com/geomcore/geomcore/compare/v0.47.0...HEAD
+[Unreleased]: https://github.com/geomcore/geomcore/compare/v0.48.0...HEAD
+[0.48.0]: https://github.com/geomcore/geomcore/compare/v0.47.0...v0.48.0
 [0.47.0]: https://github.com/geomcore/geomcore/compare/v0.46.0...v0.47.0
 [0.46.0]: https://github.com/geomcore/geomcore/compare/v0.45.0...v0.46.0
 [0.45.0]: https://github.com/geomcore/geomcore/compare/v0.44.0...v0.45.0
