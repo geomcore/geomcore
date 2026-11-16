@@ -33,8 +33,10 @@ pub enum BSplineConversionError {
     /// only over finite parameter ranges.
     Unbounded,
     /// The B-spline does not fit in `f64`: a pole overflows (a hyperbola
-    /// trimmed beyond `|u| ≈ 710`, a parabola beyond `|u| ≈ 1e154`), or the
-    /// range ends are so large that its knots round onto each other.
+    /// trimmed beyond `|u| ≈ 710`, a parabola beyond `|u| ≈ 1e154`), the
+    /// range ends are so large that its knots round onto each other, or a
+    /// quartic branch is trimmed so far out that its points, computed in
+    /// `f64`, lose more precision than its fit allows.
     NotRepresentable,
     /// A surface parameter range is NaN or empty (`first >= last`), longer
     /// than the period of a periodic direction, or leaves the bounds of a
@@ -284,11 +286,24 @@ impl<P: TierPoint, C: RangeOperations<Point = P>> GenericTrimmedCurve<P, C> {
     /// gives a clamped B-spline ending exactly on its first point, never a
     /// periodic one, as a trimmed curve is never periodic.
     ///
+    /// A [`QuarticBranch`](crate::QuarticBranch) has no exact B-spline: its
+    /// piece is fitted, as a bounded quartic is (ADR 0036), by a C1 cubic
+    /// B-spline through its exact points and their derivatives, in the
+    /// branch's own parameter. Each span is split until the B-spline at
+    /// its quarter points lies within a quarter of the confusion the
+    /// branch was read with
+    /// ([`QuarticBranch::tolerance`](crate::QuarticBranch::tolerance)),
+    /// scaled with any transform since, of the branch's point at the same
+    /// parameter.
+    ///
     /// # Errors
     ///
     /// Returns [`BSplineConversionError::NotRepresentable`] when a pole
-    /// overflows `f64` (a hyperbola trimmed beyond `|u| ≈ 710`) or the
-    /// range ends are so large that knots round onto each other.
+    /// overflows `f64` (a hyperbola trimmed beyond `|u| ≈ 710`), the
+    /// range ends are so large that knots round onto each other, or a
+    /// quartic branch is trimmed so far out that its points lose more
+    /// precision than its fit allows (beyond `|u|` of about `1e4` at the
+    /// default confusion).
     ///
     /// # Examples
     ///

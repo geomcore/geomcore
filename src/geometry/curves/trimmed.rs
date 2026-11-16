@@ -14,7 +14,7 @@ use crate::geometry::curves::{
 use crate::geometry::curves::{RangeOperations, ReversibleCurve};
 use crate::math::bspline::curve as bspline_math;
 use crate::operations::projection::{CurveProjection, grows_inward, snap_distance};
-use crate::{Continuity, Frame, Frame2D, Point, Point2D, Tolerance, Vector};
+use crate::{BSplineSplitError, Continuity, Frame, Frame2D, Point, Point2D, Tolerance, Vector};
 use crate::{Transform, TransformError, Transformable};
 use std::f64::consts::TAU;
 use std::fmt;
@@ -285,6 +285,50 @@ impl<P: TierPoint, C> GenericTrimmedCurve<P, C> {
             last,
             tier: PhantomData,
         }
+    }
+}
+
+impl<P: TierPoint, C: Clone> GenericTrimmedCurve<P, C> {
+    /// Splits the piece at `u` into the pieces over `[first, u]` and
+    /// `[u, last]` of the same basis, meeting at the point at `u`: each
+    /// evaluates as this piece over its range. On a periodic basis `u` is
+    /// in the piece's own range, which may cross the seam.
+    ///
+    /// # Errors
+    ///
+    /// [`BSplineSplitError::NonFinite`] if `u` is NaN or infinite,
+    /// [`BSplineSplitError::OutOfRange`] if it lies outside the range,
+    /// and [`BSplineSplitError::EmptyRange`] if it is one of its ends.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::prelude::*;
+    /// use geomcore::{BSplineSplitError, Circle, Point, TrimmedCurve, Vector};
+    /// use std::f64::consts::PI;
+    ///
+    /// // Three quarters of the unit circle, across the seam at angle 0.
+    /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
+    /// let arc = TrimmedCurve::new(circle, -PI / 2.0, PI).unwrap();
+    /// let (before, after) = arc.split_at(0.0).unwrap();
+    /// assert_eq!((before.bounds(), after.bounds()), ((-PI / 2.0, 0.0), (0.0, PI)));
+    /// assert_eq!(before.end_point(), after.start_point());
+    /// assert_eq!(arc.split_at(PI), Err(BSplineSplitError::EmptyRange));
+    /// ```
+    pub fn split_at(&self, u: f64) -> Result<(Self, Self), BSplineSplitError> {
+        if !u.is_finite() {
+            return Err(BSplineSplitError::NonFinite);
+        }
+        if u < self.first || u > self.last {
+            return Err(BSplineSplitError::OutOfRange);
+        }
+        if u == self.first || u == self.last {
+            return Err(BSplineSplitError::EmptyRange);
+        }
+        Ok((
+            Self::from_parts(self.basis.clone(), self.first, u),
+            Self::from_parts(self.basis.clone(), u, self.last),
+        ))
     }
 }
 

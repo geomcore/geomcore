@@ -20,7 +20,7 @@ shape_methods! {
 
     fn __reduce__<'py>(slf: &pyo3::Bound<'py, Self>) -> pyo3::PyResult<pyo3::Bound<'py, pyo3::types::PyTuple>> {
         let this = slf.borrow();
-        let (first, second) = this.0.surfaces();
+        let (first, second) = this.0.surfaces_before_placement();
         let arguments = (
             surface_classes::to_py(slf.py(), first)?,
             surface_classes::to_py(slf.py(), second)?,
@@ -90,11 +90,25 @@ shape_methods! {
         })
     }
 
-    /// The two surfaces, as they were before any transform: two cones, the
-    /// one whose generators carry the points first, or a cone and a
-    /// cylinder.
+    /// The two surfaces the branch lies on, moved with it by its
+    /// `placement()`: two cones, the one whose generators carry the points
+    /// first, or a cone and a cylinder. The branch of the moved surfaces
+    /// traces the same points, up to rounding, but is not equal to a moved
+    /// branch, which keeps the quartic it was read on.
     fn surfaces(&self, py: Python<'_>) -> PyResult<(Py<PyAny>, Py<PyAny>)> {
         let (first, second) = self.0.surfaces();
+        Ok((
+            surface_classes::to_py(py, first)?,
+            surface_classes::to_py(py, second)?,
+        ))
+    }
+
+    /// The two surfaces as they were before any transform, as the
+    /// constructor took them: with `index()` and `tolerance()` they give
+    /// the branch back, which `is_reversed()` and `placement()` then turn
+    /// and place.
+    fn surfaces_before_placement(&self, py: Python<'_>) -> PyResult<(Py<PyAny>, Py<PyAny>)> {
+        let (first, second) = self.0.surfaces_before_placement();
         Ok((
             surface_classes::to_py(py, first)?,
             surface_classes::to_py(py, second)?,
@@ -106,8 +120,9 @@ shape_methods! {
         self.0.index()
     }
 
-    /// The tolerance its quartic was read with: with `surfaces()` and
-    /// `index()`, it gives the branch back.
+    /// The tolerance its quartic was read with: with
+    /// `surfaces_before_placement()` and `index()`, it gives the branch
+    /// back.
     fn tolerance(&self) -> PyTolerance {
         PyTolerance(self.0.tolerance())
     }

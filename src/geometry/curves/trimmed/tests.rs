@@ -590,3 +590,43 @@ fn test_plane_arc_runs_either_way_between_its_ends() {
         Some(ArcConstructionError::OffCircle)
     );
 }
+
+// ---- splitting ----
+
+#[test]
+fn test_split_at_cuts_an_arc_across_the_seam_into_two_arcs() {
+    let arc = TrimmedCurve::new(circle(), -FRAC_PI_2, PI).unwrap();
+    let (before, after) = arc.split_at(0.5).unwrap();
+    assert_eq!(before.bounds(), (-FRAC_PI_2, 0.5));
+    assert_eq!(after.bounds(), (0.5, PI));
+    assert_eq!((before.basis(), after.basis()), (arc.basis(), arc.basis()));
+    assert_eq!(before.end_point(), after.start_point());
+    assert!(close(
+        before.length(0.0) + after.length(0.0),
+        arc.length(0.0)
+    ));
+}
+
+#[test]
+fn test_split_at_rejects_a_parameter_off_the_range_or_at_its_ends() {
+    let arc = TrimmedCurve::new(circle(), -FRAC_PI_2, PI).unwrap();
+    for (u, expected) in [
+        (f64::NAN, BSplineSplitError::NonFinite),
+        (f64::INFINITY, BSplineSplitError::NonFinite),
+        (-2.0, BSplineSplitError::OutOfRange),
+        (TAU, BSplineSplitError::OutOfRange),
+        (-FRAC_PI_2, BSplineSplitError::EmptyRange),
+        (PI, BSplineSplitError::EmptyRange),
+    ] {
+        assert_eq!(arc.split_at(u), Err(expected), "{u}");
+    }
+}
+
+#[test]
+fn test_split_at_cuts_a_segment_in_the_plane() {
+    let segment = TrimmedCurve2D::segment(Point2D::ORIGIN, Point2D::new(4.0, 0.0)).unwrap();
+    let (before, after) = segment.split_at(1.0).unwrap();
+    assert_eq!(before.end_point(), Point2D::new(1.0, 0.0));
+    assert_eq!(after.bounds(), (1.0, 4.0));
+    assert_eq!(after.length(0.0), 3.0);
+}

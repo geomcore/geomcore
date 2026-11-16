@@ -117,8 +117,22 @@ shape_methods! {
     /// overflow `f64`). A line, parabola, B-spline or Bézier basis keeps
     /// its parameter; the rational arcs of a circle, ellipse or hyperbola
     /// do not, so map a point across with `bspline.parameter_of(point)`.
+    /// A `QuarticBranch` has no exact B-spline: its piece is fitted in its
+    /// own parameter, within a quarter of the confusion it was read with
+    /// at the quarter points of every span, as a bounded quartic is.
     fn to_bspline(&self) -> PyResult<PyBSplineCurve> {
         Ok(PyBSplineCurve(self.0.to_bspline().map_err(python_error)?))
+    }
+
+    /// The pieces over `[start_parameter, u]` and `[u, end_parameter]` of
+    /// the same basis, meeting at the point at `u`. Raises
+    /// `BSplineSplitError` when `u` is not finite, outside the range, or
+    /// one of its ends.
+    fn split_at(&self, u: f64) -> PyResult<(Self, Self)> {
+        let (before, after) = self.0.split_at(u).map_err(|error| {
+            crate::errors::split_error(error, &crate::errors::range_text(self.0.bounds()))
+        })?;
+        Ok((PyTrimmedCurve(before), PyTrimmedCurve(after)))
     }
 
     fn __reduce__<'py>(slf: &pyo3::Bound<'py, Self>) -> pyo3::PyResult<pyo3::Bound<'py, pyo3::types::PyTuple>> {
@@ -229,6 +243,17 @@ shape_methods! {
     /// `bspline.parameter_of(point)`.
     fn to_bspline(&self) -> PyResult<PyBSplineCurve2D> {
         Ok(PyBSplineCurve2D(self.0.to_bspline().map_err(python_error)?))
+    }
+
+    /// The pieces over `[start_parameter, u]` and `[u, end_parameter]` of
+    /// the same basis, meeting at the point at `u`. Raises
+    /// `BSplineSplitError` when `u` is not finite, outside the range, or
+    /// one of its ends.
+    fn split_at(&self, u: f64) -> PyResult<(Self, Self)> {
+        let (before, after) = self.0.split_at(u).map_err(|error| {
+            crate::errors::split_error(error, &crate::errors::range_text(self.0.bounds()))
+        })?;
+        Ok((PyTrimmedCurve2D(before), PyTrimmedCurve2D(after)))
     }
 
     /// The start of the parameter range, the parameter of `start_point`.

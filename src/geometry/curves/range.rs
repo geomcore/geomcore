@@ -443,7 +443,8 @@ impl_for_both_tiers! {
 }
 
 /// No closed form: the box, steps and length of a quartic branch are
-/// measured on its exact points (ADR 0042).
+/// measured on its exact points (ADR 0042), and its B-spline fitted
+/// through them.
 impl RangeOperations for QuarticBranch {
     type Point = Point;
 
@@ -470,13 +471,15 @@ impl RangeOperations for QuarticBranch {
         );
     }
 
-    /// A quartic branch is no B-spline, not even over a range.
+    /// No exact B-spline: the cubic Hermite spline through exact points,
+    /// within a quarter of the confusion the quartic was read with, in the
+    /// same parameter.
     fn bspline_range(
         &self,
-        _first: f64,
-        _last: f64,
+        first: f64,
+        last: f64,
     ) -> Result<GenericBSplineCurve<Point>, BSplineConversionError> {
-        Err(BSplineConversionError::NotRepresentable)
+        self.bspline_over(first, last)
     }
 
     fn parameter_is_length(&self) -> bool {
