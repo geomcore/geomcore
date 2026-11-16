@@ -68,10 +68,11 @@ impl PyTrimmedSurface {
         PyPoint(self.0.point_at(u, v))
     }
 
-    /// Evaluate many (u, v) pairs at once.
-    fn points_at(&self, uvs: crate::arrays::Pairs) -> Vec<PyPoint> {
-        let uvs = uvs.0;
-        self.0.points_at(&uvs).into_iter().map(PyPoint).collect()
+    /// Evaluate many (u, v) pairs at once. Other Python threads run
+    /// meanwhile.
+    fn points_at(&self, py: Python<'_>, uvs: crate::arrays::Pairs) -> Vec<PyPoint> {
+        let points = py.detach(|| self.0.points_at(&uvs.0));
+        points.into_iter().map(PyPoint).collect()
     }
 
     /// The point and the first partial derivatives `(du, dv)` at `(u, v)`.

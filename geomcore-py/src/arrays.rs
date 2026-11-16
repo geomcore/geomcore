@@ -62,7 +62,7 @@ impl Coordinates for Vector {
 }
 
 /// The numpy module, or an `ImportError` saying the method needs it.
-fn numpy(py: Python<'_>) -> PyResult<Bound<'_, PyModule>> {
+pub(crate) fn numpy(py: Python<'_>) -> PyResult<Bound<'_, PyModule>> {
     py.import("numpy").map_err(|_| {
         PyImportError::new_err(
             "this method returns numpy arrays: install numpy (pip install numpy)",

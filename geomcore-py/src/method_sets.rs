@@ -213,9 +213,11 @@ macro_rules! curve_methods {
                 $point(self.0.point_at(u))
             }
 
-            /// Evaluate many parameters at once.
-            fn points_at(&self, us: Vec<f64>) -> Vec<$point> {
-                self.0.points_at(&us).into_iter().map($point).collect()
+            /// Evaluate many parameters at once. Other Python threads run
+            /// meanwhile.
+            fn points_at(&self, py: Python<'_>, us: Vec<f64>) -> Vec<$point> {
+                let points = py.detach(|| self.0.points_at(&us));
+                points.into_iter().map($point).collect()
             }
 
             /// The points at each parameter of the array-like `us`, as a
@@ -335,7 +337,8 @@ macro_rules! curve_methods {
             }
 
             /// Projects each point in `points` onto the curve, returning a
-            /// projection object per point.
+            /// projection object per point. Other Python threads run
+            /// meanwhile.
             #[pyo3(signature = (points, tol = None))]
             fn project_points(
                 slf: &Bound<'_, Self>,
@@ -343,7 +346,11 @@ macro_rules! curve_methods {
                 tol: Option<ToleranceArgument>,
             ) -> Vec<$projection> {
                 let points = points.0;
-                let projections = slf.borrow().0.project_points(&points, tolerance(tol));
+                let tol = tolerance(tol);
+                let shape = slf.borrow();
+                let curve = &shape.0;
+                let projections = slf.py().detach(|| curve.project_points(&points, tol));
+                drop(shape);
                 projections
                     .into_iter()
                     .zip(points)
@@ -613,9 +620,11 @@ macro_rules! surface {
                 PyPoint(self.0.point_at(u, v))
             }
 
-            /// Evaluate many (u, v) pairs at once.
-            fn points_at(&self, uvs: $crate::arrays::Pairs) -> Vec<PyPoint> {
-                self.0.points_at(&uvs.0).into_iter().map(PyPoint).collect()
+            /// Evaluate many (u, v) pairs at once. Other Python threads run
+            /// meanwhile.
+            fn points_at(&self, py: Python<'_>, uvs: $crate::arrays::Pairs) -> Vec<PyPoint> {
+                let points = py.detach(|| self.0.points_at(&uvs.0));
+                points.into_iter().map(PyPoint).collect()
             }
 
             /// The points at each `(u, v)` row of the `(N, 2)` array-like
@@ -815,7 +824,8 @@ macro_rules! surface {
             }
 
             /// Projects each point in `points` onto the surface, returning a
-            /// `SurfaceProjection` per point.
+            /// `SurfaceProjection` per point. Other Python threads run
+            /// meanwhile.
             #[pyo3(signature = (points, tol = None))]
             fn project_points(
                 slf: &Bound<'_, Self>,
@@ -823,7 +833,11 @@ macro_rules! surface {
                 tol: Option<ToleranceArgument>,
             ) -> Vec<PySurfaceProjection> {
                 let points = points.0;
-                let projections = slf.borrow().0.project_points(&points, tolerance(tol));
+                let tol = tolerance(tol);
+                let shape = slf.borrow();
+                let surface = &shape.0;
+                let projections = slf.py().detach(|| surface.project_points(&points, tol));
+                drop(shape);
                 projections
                     .into_iter()
                     .zip(points)

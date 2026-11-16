@@ -1653,7 +1653,9 @@ class _CurveMethodsInEitherDimension(
         `split_at`, raises on one outside the bounds instead.
         """
     def points_at(self, us: _Floats) -> List[_PointType]:
-        """Evaluate many parameters at once."""
+        """Evaluate many parameters at once. Other Python threads run
+        meanwhile.
+        """
     def points_at_array(self, us: numpy.typing.ArrayLike) -> _FloatArray:
         """The points at each parameter of the array-like `us`, as a
         numpy array with one row of coordinates per parameter.
@@ -1724,7 +1726,8 @@ class _CurveMethodsInEitherDimension(
         self, points: Union[Sequence[_PointArgument[_PointType]], numpy.typing.NDArray[Any]], tol: Optional[_ToleranceLike] = None
     ) -> List[_ProjectionType]:
         """Projects each point in `points` onto the curve, returning a
-        projection object per point.
+        projection object per point. Other Python threads run
+        meanwhile.
         """
     def project_points_array(
         self, points: numpy.typing.ArrayLike, tol: Optional[_ToleranceLike] = None
@@ -3032,7 +3035,9 @@ class _SurfaceMethods(Generic[_UIsoCurveType, _VIsoCurveType]):
         `u_iso`, raises on one outside the bounds instead.
         """
     def points_at(self, uvs: _Pairs) -> List[Point]:
-        """Evaluate many (u, v) pairs at once."""
+        """Evaluate many (u, v) pairs at once. Other Python threads run
+        meanwhile.
+        """
     def points_at_array(self, uvs: numpy.typing.ArrayLike) -> _FloatArray:
         """The points at each `(u, v)` row of the `(N, 2)` array-like
         `uvs`, as an `(N, 3)` numpy array.
@@ -3142,7 +3147,8 @@ class _SurfaceMethods(Generic[_UIsoCurveType, _VIsoCurveType]):
         self, points: _Points, tol: Optional[_ToleranceLike] = None
     ) -> List[SurfaceProjection]:
         """Projects each point in `points` onto the surface, returning a
-        `SurfaceProjection` per point.
+        `SurfaceProjection` per point. Other Python threads run
+        meanwhile.
         """
     def project_points_array(
         self, points: numpy.typing.ArrayLike, tol: Optional[_ToleranceLike] = None
@@ -3930,7 +3936,9 @@ class TrimmedSurface:
         or not.
         """
     def points_at(self, uvs: _Pairs) -> List[Point]:
-        """Evaluate many (u, v) pairs at once."""
+        """Evaluate many (u, v) pairs at once. Other Python threads run
+        meanwhile.
+        """
     def first_derivatives(self, u: float, v: float) -> Tuple[Point, Tuple[Vector, Vector]]:
         """The point and the first partial derivatives `(du, dv)` at `(u, v)`."""
     def normal(
