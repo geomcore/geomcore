@@ -18,9 +18,34 @@ the Python distribution are versioned in lockstep.
   (`surfaces_before_placement()` in Python) gives the old result, the
   surfaces the constructor took, which rebuild the branch with `index`
   and `tolerance`.
+- The directions of axes, frames and shapes are `Direction` values
+  (`Direction2D` in the plane), unit vectors by type (#205, ADR 0054):
+  `Axis::direction`, `Frame::x_direction`, `y_direction` and
+  `z_direction`, `Circle::normal`, `Line::direction` and
+  `ExtrusionSurface::direction` return one. A direction reads as its unit
+  vector (`d.x`, `d.dot(v)`, `d.cross(v)`), scales to a vector
+  (`d * length`), and passes wherever a vector is taken; write
+  `d.vector()` where a `Vector` value is needed, as in a
+  `let v: Vector = ...` or a function of your own. `assert_eq!` compares a
+  direction with a vector. Python is unchanged: a direction comes back as
+  a unit `Vector`.
+- `Vector::component_along` and `component_perpendicular_to` take a
+  `Direction`. For a vector `w` of any length, pass `w.direction()?`:
+  where they took a zero `w` as no direction at all, `w.direction()` is
+  `None`.
+- `TierPoint` has a `Direction` associated type.
 
 ### Added
 
+- `Direction` and `Direction2D` (#205): built once from a vector by
+  `Vector::direction`, which returns `None` for a zero vector and a unit
+  vector unchanged, bit for bit. Their `is_parallel` and
+  `is_perpendicular` compare the sine or cosine of the angle with
+  `angular` directly, without the normalization the `Vector` forms pay on
+  every call. The constructors of axes, frames, lines, conics, planes,
+  cylinders, cones, tori and extrusions take a direction or a vector, as
+  do `dot`, `cross`, `angle`, `is_parallel`, `is_perpendicular` and
+  `Transform::apply_vector`.
 - Python: a `TrimmedSurface` answers every method a parametric surface
   does (#290): `derivative`, `second_derivatives`, `u_period` and
   `v_period`, `is_u_periodic` and `is_v_periodic`, `is_u_closed` and
@@ -49,6 +74,14 @@ the Python distribution are versioned in lockstep.
   `DegreeElevationError`, `BSplineSplitError`) move to
   `math/bspline/errors.rs`, beside the checks that raise them. Nothing
   public changes: every item keeps its path at the crate root.
+- Internal: the solvers ask whether directions are parallel or
+  perpendicular, whether axes are coaxial and what part of a vector lies
+  across a direction through the predicates of `Direction`, `Vector` and
+  `Axis` (#205), not by hand. The copies had drifted to five conventions
+  for "parallel"; each solver now chooses only the angle, `tol.angular`
+  for unbounded shapes or `tol.angular_for_extent(size)` for bounded ones
+  (ADR 0006). Every converted site compared unit vectors, so no result
+  changes.
 
 ### Fixed
 

@@ -2,6 +2,7 @@
 //! distance minima at zero distance become hits (see
 //! [`curve_curve_extrema`](crate::curve_curve_extrema)).
 
+use crate::Direction;
 use crate::geometry::curves::ParametricCurve;
 use crate::operations::extrema::CurveCurveExtremum;
 use crate::operations::extrema::curve_curve::{curve_curve_extrema, sampled_curve_curve_extrema};
@@ -220,11 +221,13 @@ where
     if sine * sine > 2.0 / SHARPEST_TOUCH_RADIUS_IN_CONFUSIONS {
         return 1;
     }
-    let unit_tangent = tangent_first * (1.0 / tangent_first.magnitude());
+    let unit_tangent =
+        Direction::from_unit_vector(tangent_first * (1.0 / tangent_first.magnitude()));
     let difference = curvature_vector(first, first_parameter, tangent_first)
         - curvature_vector(second, second_parameter, tangent_second);
-    let curvature_difference =
-        (difference - unit_tangent * difference.dot(unit_tangent)).magnitude();
+    let curvature_difference = difference
+        .component_perpendicular_to(unit_tangent)
+        .magnitude();
     if sine * sine <= 2.0 * curvature_difference * tol.confusion {
         2
     } else {
@@ -243,8 +246,8 @@ const SHARPEST_TOUCH_RADIUS_IN_CONFUSIONS: f64 = 100.0;
 /// tangent, over the squared speed.
 fn curvature_vector<C: ParametricCurve>(curve: &C, parameter: f64, speed: Vector) -> Vector {
     let acceleration = curve.derivative(parameter, 2);
-    let unit_tangent = speed * (1.0 / speed.magnitude());
-    (acceleration - unit_tangent * acceleration.dot(unit_tangent)) * (1.0 / speed.dot(speed))
+    let unit_tangent = Direction::from_unit_vector(speed * (1.0 / speed.magnitude()));
+    acceleration.component_perpendicular_to(unit_tangent) * (1.0 / speed.dot(speed))
 }
 
 /// Whether the hits `kept` and `hit` are one contact, so that only one of

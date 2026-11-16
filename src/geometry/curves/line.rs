@@ -104,7 +104,20 @@ impl<P: TierPoint> GenericLine<P> {
     /// let line_2d = Line2D::new(Point2D::ORIGIN, Vector2D::new(0.0, 5.0)).unwrap();
     /// assert_eq!(line_2d.direction(), Vector2D::Y);
     /// ```
-    pub fn new(origin: P, direction: P::Vector) -> Result<GenericLine<P>, LineConstructionError> {
+    #[inline]
+    pub fn new(
+        origin: P,
+        direction: impl Into<P::Vector>,
+    ) -> Result<GenericLine<P>, LineConstructionError> {
+        Self::new_with_vectors(origin, direction.into())
+    }
+
+    /// The body of [`new`](Self::new) over plain vectors, compiled
+    /// once: only the conversion of its arguments is generic.
+    fn new_with_vectors(
+        origin: P,
+        direction: P::Vector,
+    ) -> Result<GenericLine<P>, LineConstructionError> {
         let axis = P::Axis::new(origin, direction).map_err(frame_error(
             LineConstructionError::NonFinite,
             LineConstructionError::NullDirection,
@@ -163,6 +176,7 @@ impl<P: TierPoint> GenericLine<P> {
     /// let line = Line::new(Point::new(1.0, 2.0, 3.0), Vector::X).unwrap();
     /// assert_eq!(line.origin(), Point::new(1.0, 2.0, 3.0));
     /// ```
+    #[inline]
     pub fn origin(&self) -> P {
         self.axis.origin()
     }
@@ -176,7 +190,8 @@ impl<P: TierPoint> GenericLine<P> {
     /// let line = Line::new(Point::ORIGIN, Vector::new(0.0, 5.0, 0.0)).unwrap();
     /// assert_eq!(line.direction(), Vector::Y);
     /// ```
-    pub fn direction(&self) -> P::Vector {
+    #[inline]
+    pub fn direction(&self) -> P::Direction {
         self.axis.direction()
     }
 
@@ -190,6 +205,7 @@ impl<P: TierPoint> GenericLine<P> {
     /// let line = Line::from_axis(axis);
     /// assert_eq!(line.axis(), axis);
     /// ```
+    #[inline]
     pub fn axis(&self) -> P::Axis {
         self.axis
     }

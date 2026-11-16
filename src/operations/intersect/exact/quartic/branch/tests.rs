@@ -102,7 +102,7 @@ fn test_a_point_off_the_branch_projects_back_onto_its_foot() {
             let projection = first.project_point(point, TOL);
             let normal = first.normal(projection.u, projection.v, TOL).unwrap();
             let normal = normal
-                .component_perpendicular_to(tangent)
+                .component_perpendicular_to(tangent.direction().unwrap())
                 .normalized()
                 .unwrap();
             let found = branch.project_point(point + normal * 1e-3, TOL);

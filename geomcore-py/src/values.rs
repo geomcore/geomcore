@@ -326,13 +326,19 @@ impl PyVector {
     /// The part of this vector along `direction`, of any length; the zero
     /// vector when `direction` is zero.
     fn component_along(&self, direction: &PyVector) -> PyVector {
-        PyVector(self.0.component_along(direction.0))
+        match direction.0.direction() {
+            Some(direction) => PyVector(self.0.component_along(direction)),
+            None => PyVector(geomcore::Vector::ZERO),
+        }
     }
 
     /// The part of this vector across `direction`: the vector less its
     /// component along `direction`.
     fn component_perpendicular_to(&self, direction: &PyVector) -> PyVector {
-        PyVector(self.0.component_perpendicular_to(direction.0))
+        match direction.0.direction() {
+            Some(direction) => PyVector(self.0.component_perpendicular_to(direction)),
+            None => PyVector(self.0),
+        }
     }
 
     fn __add__(&self, other: &PyVector) -> PyVector {
@@ -684,13 +690,19 @@ impl PyVector2D {
     /// The part of this vector along `direction`, of any length; the zero
     /// vector when `direction` is zero.
     fn component_along(&self, direction: &PyVector2D) -> PyVector2D {
-        PyVector2D(self.0.component_along(direction.0))
+        match direction.0.direction() {
+            Some(direction) => PyVector2D(self.0.component_along(direction)),
+            None => PyVector2D(geomcore::Vector2D::ZERO),
+        }
     }
 
     /// The part of this vector across `direction`: the vector less its
     /// component along `direction`.
     fn component_perpendicular_to(&self, direction: &PyVector2D) -> PyVector2D {
-        PyVector2D(self.0.component_perpendicular_to(direction.0))
+        match direction.0.direction() {
+            Some(direction) => PyVector2D(self.0.component_perpendicular_to(direction)),
+            None => PyVector2D(self.0),
+        }
     }
 
     /// Euclidean length of the vector.
@@ -816,7 +828,7 @@ impl PyAxis {
 
     /// The unit direction of the axis.
     fn direction(&self) -> PyVector {
-        PyVector(self.0.direction())
+        PyVector(self.0.direction().vector())
     }
 
     /// The point at `t` along the axis, `origin + t * direction`.
@@ -872,13 +884,13 @@ impl PyAxis {
         pickling::paste_back_repr!(
             slf,
             "origin" => PyPoint(axis.origin()),
-            "direction" => PyVector(axis.direction()),
+            "direction" => PyVector(axis.direction().vector()),
         )
     }
 
     fn __reduce__<'py>(slf: &Bound<'py, Self>) -> PyResult<Bound<'py, PyTuple>> {
         let axis = slf.borrow().0;
-        let arguments = (PyPoint(axis.origin()), PyVector(axis.direction()));
+        let arguments = (PyPoint(axis.origin()), PyVector(axis.direction().vector()));
         pickling::reduce(slf.as_any(), None, arguments)
     }
 }
@@ -905,7 +917,7 @@ impl PyAxis2D {
 
     /// The unit direction of the axis.
     fn direction(&self) -> PyVector2D {
-        PyVector2D(self.0.direction())
+        PyVector2D(self.0.direction().vector())
     }
 
     /// The point at `t` along the axis, `origin + t * direction`.
@@ -953,13 +965,16 @@ impl PyAxis2D {
         pickling::paste_back_repr!(
             slf,
             "origin" => PyPoint2D(axis.origin()),
-            "direction" => PyVector2D(axis.direction()),
+            "direction" => PyVector2D(axis.direction().vector()),
         )
     }
 
     fn __reduce__<'py>(slf: &Bound<'py, Self>) -> PyResult<Bound<'py, PyTuple>> {
         let axis = slf.borrow().0;
-        let arguments = (PyPoint2D(axis.origin()), PyVector2D(axis.direction()));
+        let arguments = (
+            PyPoint2D(axis.origin()),
+            PyVector2D(axis.direction().vector()),
+        );
         pickling::reduce(slf.as_any(), None, arguments)
     }
 }
@@ -1006,12 +1021,12 @@ impl PyFrame2D {
 
     /// The unit x direction.
     fn x_direction(&self) -> PyVector2D {
-        PyVector2D(self.0.x_direction())
+        PyVector2D(self.0.x_direction().vector())
     }
 
     /// The unit y direction.
     fn y_direction(&self) -> PyVector2D {
-        PyVector2D(self.0.y_direction())
+        PyVector2D(self.0.y_direction().vector())
     }
 
     /// Whether y is x turned a quarter turn counter-clockwise.
@@ -1057,8 +1072,8 @@ impl PyFrame2D {
         pickling::paste_back_repr!(
             slf,
             "origin" => PyPoint2D(frame.origin()),
-            "x_direction" => PyVector2D(frame.x_direction()),
-            "y_direction" => PyVector2D(frame.y_direction()),
+            "x_direction" => PyVector2D(frame.x_direction().vector()),
+            "y_direction" => PyVector2D(frame.y_direction().vector()),
         )
     }
 
@@ -1066,8 +1081,8 @@ impl PyFrame2D {
         let frame = slf.borrow().0;
         let arguments = (
             PyPoint2D(frame.origin()),
-            PyVector2D(frame.x_direction()),
-            PyVector2D(frame.y_direction()),
+            PyVector2D(frame.x_direction().vector()),
+            PyVector2D(frame.y_direction().vector()),
         );
         pickling::reduce(slf.as_any(), None, arguments)
     }
@@ -1152,17 +1167,17 @@ impl PyFrame {
 
     /// The unit x direction.
     fn x_direction(&self) -> PyVector {
-        PyVector(self.0.x_direction())
+        PyVector(self.0.x_direction().vector())
     }
 
     /// The unit y direction.
     fn y_direction(&self) -> PyVector {
-        PyVector(self.0.y_direction())
+        PyVector(self.0.y_direction().vector())
     }
 
     /// The unit z direction.
     fn z_direction(&self) -> PyVector {
-        PyVector(self.0.z_direction())
+        PyVector(self.0.z_direction().vector())
     }
 
     /// The axis through the origin along the z direction.
@@ -1210,8 +1225,8 @@ impl PyFrame {
         pickling::paste_back_repr!(
             slf,
             "origin" => PyPoint(frame.origin()),
-            "z_direction" => PyVector(frame.z_direction()),
-            "x_hint" => PyVector(frame.x_direction()),
+            "z_direction" => PyVector(frame.z_direction().vector()),
+            "x_hint" => PyVector(frame.x_direction().vector()),
         )
     }
 
@@ -1219,9 +1234,9 @@ impl PyFrame {
         let frame = slf.borrow().0;
         let arguments = (
             PyPoint(frame.origin()),
-            PyVector(frame.x_direction()),
-            PyVector(frame.y_direction()),
-            PyVector(frame.z_direction()),
+            PyVector(frame.x_direction().vector()),
+            PyVector(frame.y_direction().vector()),
+            PyVector(frame.z_direction().vector()),
         );
         pickling::reduce(slf.as_any(), Some("from_axes"), arguments)
     }

@@ -42,6 +42,7 @@
 
 use super::tube_circles::Tubes;
 use super::*;
+use crate::Direction;
 use crate::math::numeric::solve_trig;
 use crate::math::numeric::trigonometric::{
     TrigonometricPolynomial, angular_distance, basis, common_zeros, wrap,
@@ -846,7 +847,9 @@ fn holds_tube_circle(tubes: &Tubes, other: &Tubes, u: f64, tol: Tolerance) -> bo
         let point = tubes.point_on(radial, cos_v, sin_v);
         let (gap, normal) = other.offset(point);
         let own = radial * cos_v + tubes.axis * sin_v;
-        gap.abs() <= tol.confusion && own.cross(normal).magnitude() <= tol.angular
+        gap.abs() <= tol.confusion
+            && Direction::from_unit_vector(own)
+                .is_parallel(Direction::from_unit_vector(normal), tol.angular)
     })
 }
 

@@ -9,6 +9,7 @@
 //! carries onto a line, folded over itself: its parameter is then solved
 //! for in closed form.
 
+use crate::Direction;
 use crate::geometry::curves::Curve2D;
 use crate::geometry::surfaces::uv_curve::{from_curve, to_curve};
 use crate::geometry::surfaces::{Curve3DToUvError, UvCurveTo3DError};
@@ -77,7 +78,7 @@ impl std::error::Error for ExtrusionSurfaceConstructionError {}
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExtrusionSurface {
     profile: Curve,
-    direction: Vector,
+    direction: Direction,
     section: Section,
 }
 
@@ -106,7 +107,17 @@ impl ExtrusionSurface {
     ///     Some(ExtrusionSurfaceConstructionError::SweepsNoArea)
     /// );
     /// ```
+    #[inline]
     pub fn new(
+        profile: Curve,
+        direction: impl Into<Vector>,
+    ) -> Result<ExtrusionSurface, ExtrusionSurfaceConstructionError> {
+        Self::new_with_vectors(profile, direction.into())
+    }
+
+    /// The body of [`new`](Self::new) over plain vectors, compiled
+    /// once: only the conversion of its arguments is generic.
+    fn new_with_vectors(
         profile: Curve,
         direction: Vector,
     ) -> Result<ExtrusionSurface, ExtrusionSurfaceConstructionError> {
@@ -114,7 +125,7 @@ impl ExtrusionSurface {
             return Err(ExtrusionSurfaceConstructionError::NonFinite);
         }
         let direction = direction
-            .normalized_unless_unit()
+            .direction()
             .ok_or(ExtrusionSurfaceConstructionError::NullDirection)?;
         let section = Section::new(&profile, direction)?;
         Ok(ExtrusionSurface {
@@ -170,6 +181,7 @@ impl ExtrusionSurface {
     /// let surface = ExtrusionSurface::new(circle.into(), Vector::Z).unwrap();
     /// assert_eq!(surface.profile(), &Curve::Circle(circle));
     /// ```
+    #[inline]
     pub fn profile(&self) -> &Curve {
         &self.profile
     }
@@ -184,7 +196,8 @@ impl ExtrusionSurface {
     /// let surface = ExtrusionSurface::new(circle.into(), Vector::new(0.0, 0.0, 5.0)).unwrap();
     /// assert_eq!(surface.direction(), Vector::Z);
     /// ```
-    pub fn direction(&self) -> Vector {
+    #[inline]
+    pub fn direction(&self) -> Direction {
         self.direction
     }
 
@@ -289,7 +302,7 @@ impl ParametricSurface for ExtrusionSurface {
                 panic!("derivative: du + dv must be >= 1 (use point_at for the (0, 0) order)")
             }
             (1, 0) | (2, 0) => self.profile.derivative(u, du),
-            (0, 1) => self.direction,
+            (0, 1) => self.direction.vector(),
             (1, 1) | (0, 2) => Vector::ZERO,
             _ => {
                 panic!("derivative: order du={du}, dv={dv} is not supported (du + dv must be <= 2)")
@@ -401,7 +414,7 @@ impl Section {
     /// through its anchor perpendicular to the direction.
     fn new(
         profile: &Curve,
-        direction: Vector,
+        direction: Direction,
     ) -> Result<Section, ExtrusionSurfaceConstructionError> {
         let anchor = anchor(profile);
         Section::carried(
@@ -417,7 +430,7 @@ impl Section {
     /// zero, so a profile vector it collapses runs along the direction.
     fn carried(
         profile: &Curve,
-        linear: impl Fn(Vector) -> Vector,
+        linear: impl Fn(Direction) -> Vector,
         point: impl Fn(Point) -> Point,
     ) -> Result<Section, ExtrusionSurfaceConstructionError> {
         let section = match profile {
@@ -513,7 +526,7 @@ impl Section {
     }
 
     /// `point` carried along `direction` into the section plane.
-    fn flatten(&self, point: Point, direction: Vector) -> Point {
+    fn flatten(&self, point: Point, direction: Direction) -> Point {
         point - (point - self.origin).dot(direction) * direction
     }
 }

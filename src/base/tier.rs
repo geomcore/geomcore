@@ -8,9 +8,9 @@
 
 use crate::math::bspline::poles::PolePoint;
 use crate::{Axis, Axis2D, BoundingBox, BoundingBox2D, Frame, Frame2D, FrameConstructionError};
-use crate::{Point, Point2D, Vector, Vector2D};
+use crate::{Direction, Direction2D, Point, Point2D, Vector, Vector2D};
 use std::fmt::Debug;
-use std::ops::{Add, Mul, Neg, Sub};
+use std::ops::{Add, Deref, Mul, Neg, Sub};
 
 /// The point type of a curve tier: [`Point`] in space, [`Point2D`] in the
 /// plane. The tier-generic curve types are parametrized by it, and its
@@ -45,6 +45,10 @@ pub trait TierPoint:
     /// The tier's vector: [`Vector`] or [`Vector2D`].
     type Vector: operations::VectorOperations;
 
+    /// The tier's direction, a unit vector: [`Direction`] or
+    /// [`Direction2D`].
+    type Direction: operations::DirectionOperations<Vector = Self::Vector> + Into<Self::Vector>;
+
     /// The tier's frame: [`Frame`] or [`Frame2D`].
     type Frame: operations::FrameOperations<Point = Self>;
 
@@ -54,12 +58,14 @@ pub trait TierPoint:
 
 impl TierPoint for Point {
     type Vector = Vector;
+    type Direction = Direction;
     type Frame = Frame;
     type Axis = Axis;
 }
 
 impl TierPoint for Point2D {
     type Vector = Vector2D;
+    type Direction = Direction2D;
     type Frame = Frame2D;
     type Axis = Axis2D;
 }
@@ -186,8 +192,8 @@ pub(crate) mod operations {
         /// The zero vector.
         const ZERO: Self;
 
-        /// The dot product.
-        fn dot(self, other: Self) -> f64;
+        /// The dot product, with a vector or a direction.
+        fn dot(self, other: impl Into<Self>) -> f64;
 
         /// The Euclidean length.
         fn magnitude(self) -> f64;
@@ -198,9 +204,61 @@ pub(crate) mod operations {
         /// The unit vector along `self`, or `None` if it has zero length.
         fn normalized(self) -> Option<Self>;
 
+        /// The tier's direction.
+        type Direction: DirectionOperations<Vector = Self>;
+
+        /// The direction holding `self`, which the caller knows to be unit
+        /// (checked in debug builds).
+        fn unit_direction(self) -> Self::Direction;
+
+        /// The part of `self` across `direction` (see
+        /// [`Vector::component_perpendicular_to`]).
+        #[inline]
+        fn component_perpendicular_to<D: DirectionOperations<Vector = Self>>(
+            self,
+            direction: D,
+        ) -> Self {
+            let direction = direction.vector();
+            self - direction * self.dot(direction)
+        }
+
         /// Coordinate `k` of the vector, `k` below the tier's dimension
         /// ([`PolePoint::DIM`]).
         fn coordinate(self, k: usize) -> f64;
+    }
+
+    /// The operations of a tier's directions.
+    pub trait DirectionOperations:
+        Copy
+        + Debug
+        + PartialEq
+        + Neg<Output = Self>
+        + Mul<f64, Output = Self::Vector>
+        + Deref<Target = Self::Vector>
+    {
+        /// The tier's vector.
+        type Vector: VectorOperations;
+
+        /// The unit vector of the direction.
+        fn vector(self) -> Self::Vector;
+    }
+
+    impl DirectionOperations for Direction {
+        type Vector = Vector;
+
+        #[inline(always)]
+        fn vector(self) -> Vector {
+            Direction::vector(self)
+        }
+    }
+
+    impl DirectionOperations for Direction2D {
+        type Vector = Vector2D;
+
+        #[inline(always)]
+        fn vector(self) -> Vector2D {
+            Direction2D::vector(self)
+        }
     }
 
     /// The operations of a tier's axis-aligned boxes.
@@ -235,10 +293,10 @@ pub(crate) mod operations {
         fn origin(self) -> Self::Point;
 
         /// The unit x direction.
-        fn x_direction(self) -> <Self::Point as TierPoint>::Vector;
+        fn x_direction(self) -> <Self::Point as TierPoint>::Direction;
 
         /// The unit y direction.
-        fn y_direction(self) -> <Self::Point as TierPoint>::Vector;
+        fn y_direction(self) -> <Self::Point as TierPoint>::Direction;
 
         /// The signed distance of `offset` (a vector from the origin) off
         /// the frame's xy plane: its z coordinate in space, zero in the
@@ -265,7 +323,7 @@ pub(crate) mod operations {
         fn origin(self) -> Self::Point;
 
         /// The unit direction.
-        fn direction(self) -> <Self::Point as TierPoint>::Vector;
+        fn direction(self) -> <Self::Point as TierPoint>::Direction;
 
         /// The axis with its direction negated.
         fn reversed(self) -> Self;
@@ -309,7 +367,7 @@ pub(crate) mod operations {
         const ZERO: Vector = Vector::ZERO;
 
         #[inline]
-        fn dot(self, other: Vector) -> f64 {
+        fn dot(self, other: impl Into<Vector>) -> f64 {
             Vector::dot(self, other)
         }
 
@@ -321,6 +379,13 @@ pub(crate) mod operations {
         #[inline]
         fn is_finite(self) -> bool {
             Vector::is_finite(self)
+        }
+
+        type Direction = Direction;
+
+        #[inline(always)]
+        fn unit_direction(self) -> Direction {
+            Direction::from_unit_vector(self)
         }
 
         #[inline]
@@ -342,7 +407,7 @@ pub(crate) mod operations {
         const ZERO: Vector2D = Vector2D::ZERO;
 
         #[inline]
-        fn dot(self, other: Vector2D) -> f64 {
+        fn dot(self, other: impl Into<Vector2D>) -> f64 {
             Vector2D::dot(self, other)
         }
 
@@ -354,6 +419,13 @@ pub(crate) mod operations {
         #[inline]
         fn is_finite(self) -> bool {
             Vector2D::is_finite(self)
+        }
+
+        type Direction = Direction2D;
+
+        #[inline(always)]
+        fn unit_direction(self) -> Direction2D {
+            Direction2D::from_unit_vector(self)
         }
 
         #[inline]
@@ -379,12 +451,12 @@ pub(crate) mod operations {
         }
 
         #[inline]
-        fn x_direction(self) -> Vector {
+        fn x_direction(self) -> Direction {
             Frame::x_direction(self)
         }
 
         #[inline]
-        fn y_direction(self) -> Vector {
+        fn y_direction(self) -> Direction {
             Frame::y_direction(self)
         }
 
@@ -408,12 +480,12 @@ pub(crate) mod operations {
         }
 
         #[inline]
-        fn x_direction(self) -> Vector2D {
+        fn x_direction(self) -> Direction2D {
             Frame2D::x_direction(self)
         }
 
         #[inline]
-        fn y_direction(self) -> Vector2D {
+        fn y_direction(self) -> Direction2D {
             Frame2D::y_direction(self)
         }
 
@@ -442,7 +514,7 @@ pub(crate) mod operations {
         }
 
         #[inline]
-        fn direction(self) -> Vector {
+        fn direction(self) -> Direction {
             Axis::direction(self)
         }
 
@@ -466,7 +538,7 @@ pub(crate) mod operations {
         }
 
         #[inline]
-        fn direction(self) -> Vector2D {
+        fn direction(self) -> Direction2D {
             Axis2D::direction(self)
         }
 

@@ -63,8 +63,8 @@ pub(crate) fn plane_d0(frame: &Frame, u: f64, v: f64) -> Point {
 pub(crate) fn plane_derivative(frame: &Frame, du: u32, dv: u32) -> Vector {
     debug_assert!(du + dv >= 1);
     match (du, dv) {
-        (1, 0) => frame.x_direction(),
-        (0, 1) => frame.y_direction(),
+        (1, 0) => frame.x_direction().vector(),
+        (0, 1) => frame.y_direction().vector(),
         _ => Vector::ZERO,
     }
 }
@@ -107,7 +107,7 @@ pub(crate) fn cylinder_partial(frame: &Frame, r: f64, u: Turn, du: u32, dv: u32)
     debug_assert!(du + dv >= 1);
     match (du, dv) {
         (_, 0) => r * radial_derivative(frame, u, du),
-        (0, 1) => frame.z_direction(),
+        (0, 1) => frame.z_direction().vector(),
         _ => Vector::ZERO,
     }
 }

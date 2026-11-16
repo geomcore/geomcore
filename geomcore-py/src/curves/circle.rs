@@ -33,7 +33,7 @@ shape_methods! {
         crate::pickling::paste_back_repr!(
             slf,
             "center" => crate::values::PyPoint(this.0.center()),
-            "normal" => crate::values::PyVector(this.0.normal()),
+            "normal" => crate::values::PyVector(this.0.normal().vector()),
             "radius" => this.0.radius(),
         )
     }
@@ -103,6 +103,6 @@ shape_methods! {
     /// The unit normal of the circle's plane, on the side the circle turns
     /// counterclockwise about.
     fn normal(&self) -> PyVector {
-        PyVector(self.0.normal())
+        PyVector(self.0.normal().vector())
     }
 }

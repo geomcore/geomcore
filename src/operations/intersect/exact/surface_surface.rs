@@ -981,19 +981,13 @@ impl IntersectExact<Cylinder> for Cylinder {
     /// ```
     fn intersect_exact(&self, other: &Cylinder, tol: Tolerance) -> CylinderCylinderIntersection {
         let a1 = self.axis().direction();
-        if self
-            .axis()
-            .direction()
-            .cross(other.axis().direction())
-            .magnitude()
-            > tol.angular
-        {
+        if !self.axis().is_parallel(other.axis(), tol.angular) {
             return crossing_equal_cylinders(self, other, tol)
                 .or_else(|| crossing_cylinders(self, other, tol))
                 .unwrap_or(CylinderCylinderIntersection::NotAnalytic);
         }
         let w = other.axis().origin() - self.axis().origin();
-        let m = w - a1 * w.dot(a1);
+        let m = w.component_perpendicular_to(a1);
         let d = m.magnitude();
         let (r1, r2) = (self.radius(), other.radius());
         if d <= tol.confusion {
@@ -1042,8 +1036,8 @@ fn crossing_equal_cylinders(
     }
     let (a1, a2) = (first.axis().direction(), second.axis().direction());
     let center = axes_meeting_point(
-        (first.axis().origin(), a1),
-        (second.axis().origin(), a2),
+        (first.axis().origin(), a1.vector()),
+        (second.axis().origin(), a2.vector()),
         tol,
     )?;
     let radius = 0.5 * (r1 + r2);
@@ -1081,7 +1075,7 @@ struct AroundSphere {
 impl AroundSphere {
     fn cylinder(cylinder: &Cylinder) -> AroundSphere {
         AroundSphere {
-            axis: cylinder.axis().direction(),
+            axis: cylinder.axis().direction().vector(),
             offset: 0.0,
             cosine: 1.0,
             sphere_radius: cylinder.radius(),
@@ -1093,7 +1087,7 @@ impl AroundSphere {
         let (sine, cosine) = cone.half_angle().abs().sin_cos();
         let apex = (cone.apex() - centre).dot(axis);
         AroundSphere {
-            axis,
+            axis: axis.vector(),
             offset: apex * sine * sine,
             cosine,
             sphere_radius: apex.abs() * sine,
@@ -1223,13 +1217,13 @@ impl IntersectExact<Cone> for Cone {
     /// ```
     fn intersect_exact(&self, other: &Cone, tol: Tolerance) -> ConeConeIntersection {
         let a1 = self.frame().z_direction();
-        let a2 = other.frame().z_direction();
         let quartic = |first: &Cone, second: &Cone| {
             cones_in_general_position(first, second, tol)
                 .unwrap_or(ConeConeIntersection::NotAnalytic)
         };
-        if a1.cross(a2).magnitude() > tol.angular {
-            if self.apex().distance(other.apex()) <= tol.confusion {
+        let (own_apex, other_apex) = (self.apex(), other.apex());
+        if !self.axis().is_parallel(other.axis(), tol.angular) {
+            if own_apex.distance(other_apex) <= tol.confusion {
                 return cones_sharing_an_apex(self, other, tol);
             }
             return cones_around_a_sphere(self, other, tol).map_or_else(
@@ -1237,10 +1231,10 @@ impl IntersectExact<Cone> for Cone {
                 |conics| ConeConeIntersection::TwoConics(Box::new(conics)),
             );
         }
-        let w = other.apex() - self.apex();
+        let w = other_apex - own_apex;
         let (phi1, phi2) = (self.half_angle().abs(), other.half_angle().abs());
         let same_angle = (phi1 - phi2).abs() <= tol.angular;
-        if (w - a1 * w.dot(a1)).magnitude() > tol.confusion {
+        if !self.axis().contains(other_apex, tol) {
             return if same_angle {
                 parallel_cones_section(self, other, tol).map_or(
                     ConeConeIntersection::NotAnalytic,
@@ -1255,12 +1249,12 @@ impl IntersectExact<Cone> for Cone {
             return if same_angle {
                 ConeConeIntersection::Coincident
             } else {
-                ConeConeIntersection::ApexPoint(self.apex())
+                ConeConeIntersection::ApexPoint(own_apex)
             };
         }
         let (k1, k2) = (phi1.tan(), phi2.tan());
         let ring = |alpha: f64| {
-            Circle::new(self.apex() + a1 * alpha, a1, alpha.abs() * k1)
+            Circle::new(own_apex + a1 * alpha, a1, alpha.abs() * k1)
                 .expect("ring radius is non-negative by construction")
         };
         // Rings where the radii meet with the apexes on opposite sides,
@@ -1297,10 +1291,11 @@ fn parallel_cones_section(
     tol: Tolerance,
 ) -> Option<PlaneConeIntersection> {
     let axis = first.frame().z_direction();
-    let apart = first.apex() - second.apex();
-    let tangent = first.half_angle().tan();
+    let tangent = first.slope();
+    let second_apex = second.apex();
+    let apart = first.apex_at_slope(tangent) - second_apex;
     let normal = apart - axis * (apart.dot(axis) * (1.0 + tangent * tangent));
-    let midpoint = second.apex() + apart * 0.5;
+    let midpoint = second_apex + apart * 0.5;
     let plane = Plane::new(midpoint, normal).ok()?;
     Some(plane.intersect_exact(first, tol))
 }
@@ -1321,7 +1316,8 @@ fn parallel_cones_section(
 #[inline(never)]
 fn cones_sharing_an_apex(first: &Cone, second: &Cone, tol: Tolerance) -> ConeConeIntersection {
     let (a1, a2) = (first.frame().z_direction(), second.frame().z_direction());
-    let apex = first.apex() + (second.apex() - first.apex()) * 0.5;
+    let (first_apex, second_apex) = (first.apex(), second.apex());
+    let apex = first_apex + (second_apex - first_apex) * 0.5;
     let across = a1.cross(a2);
     let (sin_beta, cos_beta) = (across.magnitude(), a1.dot(a2));
     let normal = across * (1.0 / sin_beta);
@@ -1331,7 +1327,7 @@ fn cones_sharing_an_apex(first: &Cone, second: &Cone, tol: Tolerance) -> ConeCon
     let (sin1, cos1) = phi1.sin_cos();
     let nearest = (phi1 - phi2).abs();
     let farthest = phi1 + phi2;
-    let mut directions = [a1; 4];
+    let mut directions = [a1.vector(); 4];
     let mut tangents = [false; 4];
     let mut count = 0;
     for (centres, cos2) in [(beta, phi2.cos()), (PI - beta, -phi2.cos())] {
@@ -1425,22 +1421,22 @@ impl IntersectExact<Cylinder> for Cone {
             cone_off_cylinder_axis(self, cylinder, tol)
                 .unwrap_or(ConeCylinderIntersection::NotAnalytic)
         };
-        if a.cross(axis.direction()).magnitude() > tol.angular {
+        if !self.axis().is_parallel(axis, tol.angular) {
             return cone_and_cylinder_around_a_sphere(self, cylinder, tol)
                 .map_or_else(quartic, ConeCylinderIntersection::TwoConics);
         }
-        let w = axis.origin() - self.apex();
-        if (w - a * w.dot(a)).magnitude() > tol.confusion {
+        if !self.axis().contains(axis.origin(), tol) {
             return quartic();
         }
+        let slope = self.slope();
+        let apex = self.apex_at_slope(slope);
         if r <= tol.confusion {
-            return ConeCylinderIntersection::ApexPoint(self.apex());
+            return ConeCylinderIntersection::ApexPoint(apex);
         }
         // One latitude ring on each nappe.
-        let alpha = r / self.half_angle().tan().abs();
+        let alpha = r / slope.abs();
         let ring = |alpha: f64| {
-            Circle::new(self.apex() + a * alpha, a, r)
-                .expect("tube radius is positive by construction")
+            Circle::new(apex + a * alpha, a, r).expect("tube radius is positive by construction")
         };
         ConeCylinderIntersection::TwoCircles(ring(-alpha), ring(alpha))
     }
@@ -1455,8 +1451,8 @@ fn cone_and_cylinder_around_a_sphere(
 ) -> Option<CommonSphereConics<PlaneCylinderIntersection>> {
     let axis = cylinder.axis();
     let centre = axes_meeting_point(
-        (cone.apex(), cone.frame().z_direction()),
-        (axis.origin(), axis.direction()),
+        (cone.apex(), cone.frame().z_direction().vector()),
+        (axis.origin(), axis.direction().vector()),
         tol,
     )?;
     common_sphere_conics(
@@ -1477,8 +1473,8 @@ fn cones_around_a_sphere(
     tol: Tolerance,
 ) -> Option<CommonSphereConics<PlaneConeIntersection>> {
     let centre = axes_meeting_point(
-        (first.apex(), first.frame().z_direction()),
-        (second.apex(), second.frame().z_direction()),
+        (first.apex(), first.frame().z_direction().vector()),
+        (second.apex(), second.frame().z_direction().vector()),
         tol,
     )?;
     common_sphere_conics(
@@ -1585,9 +1581,11 @@ impl IntersectExact<Cone> for Sphere {
     /// ```
     fn intersect_exact(&self, cone: &Cone, tol: Tolerance) -> SphereConeIntersection {
         let a = cone.frame().z_direction();
-        let w = self.center() - cone.apex();
+        let slope = cone.slope();
+        let apex = cone.apex_at_slope(slope);
+        let w = self.center() - apex;
         let tc = w.dot(a);
-        let dist = (w - a * tc).magnitude();
+        let dist = w.component_perpendicular_to(a).magnitude();
         if dist > tol.confusion {
             return sphere_off_cone_axis(self, cone, tol);
         }
@@ -1598,9 +1596,9 @@ impl IntersectExact<Cone> for Sphere {
         if reach > r + tol.confusion {
             return SphereConeIntersection::Empty;
         }
-        let tan_phi = cone.half_angle().tan().abs();
+        let tan_phi = slope.abs();
         let mk = |alpha: f64| {
-            Circle::new(cone.apex() + a * alpha, a, alpha.abs() * tan_phi)
+            Circle::new(apex + a * alpha, a, alpha.abs() * tan_phi)
                 .expect("latitude radius is non-negative by construction")
         };
         let base = tc * cos_phi * cos_phi;
@@ -1613,8 +1611,8 @@ impl IntersectExact<Cone> for Sphere {
         // the apex: it lies on the sphere.
         let at_apex = |alpha: f64| alpha.abs() <= tol.confusion * cos_phi.abs();
         match (at_apex(first), at_apex(second)) {
-            (false, true) => SphereConeIntersection::CircleAndApex(mk(first), cone.apex()),
-            (true, false) => SphereConeIntersection::CircleAndApex(mk(second), cone.apex()),
+            (false, true) => SphereConeIntersection::CircleAndApex(mk(first), apex),
+            (true, false) => SphereConeIntersection::CircleAndApex(mk(second), apex),
             _ => SphereConeIntersection::TwoCircles(mk(first), mk(second)),
         }
     }
@@ -1720,25 +1718,24 @@ impl IntersectExact<Plane> for Torus {
         let n = plane.normal_direction();
         let a = self.frame().z_direction();
         let o = self.center();
-        let s = n.dot(a);
         let sin = n.cross(a).magnitude();
         // Turning the plane about the centre moves it across the torus by
         // at most the angle times the torus's reach.
         let angular = tol.angular_for_extent(major + minor);
-        if s.abs() <= angular {
+        if n.is_perpendicular(a, angular) {
             // Axis-containing plane: the axis must lie in it.
-            if ((o - plane.frame().origin()).dot(n)).abs() > tol.confusion {
+            if plane.signed_distance(o).abs() > tol.confusion {
                 return spiric_section(self, plane, tol);
             }
-            // sin is near 1 here (s near 0), so the division is safe.
+            // sin is near 1 here (n · a near 0), so the division is safe.
             let m = n.cross(a) * (1.0 / sin);
             let mk = |sgn: f64| {
                 Circle::new(o + m * (sgn * major), n, minor)
                     .expect("tube radius is positive by construction")
             };
             TorusPlaneIntersection::TwoCircles(mk(1.0), mk(-1.0))
-        } else if sin <= angular {
-            let h = (o - plane.frame().origin()).dot(n);
+        } else if n.is_parallel(a, angular) {
+            let h = plane.signed_distance(o);
             let h_abs = h.abs();
             if h_abs > minor + tol.confusion {
                 TorusPlaneIntersection::Empty
@@ -1766,7 +1763,7 @@ impl IntersectExact<Plane> for Torus {
             // the equatorial plane: two Villarceau circles of radius R,
             // centered r to either side along the line where the two
             // planes meet.
-            let through_center = ((o - plane.frame().origin()).dot(n)).abs() <= tol.confusion;
+            let through_center = plane.signed_distance(o).abs() <= tol.confusion;
             if through_center && (major * sin - minor).abs() <= tol.confusion {
                 let m = n.cross(a) * (1.0 / sin);
                 let mk = |sgn: f64| {
@@ -1825,7 +1822,7 @@ impl IntersectExact<Sphere> for Torus {
         }
         let great_circle = Circle2D::new(Point2D::new(tc, 0.0), sphere.radius())
             .expect("a sphere's radius is non-negative");
-        let ring = |section: Point2D| latitude_circle(o, a, section, tol);
+        let ring = |section: Point2D| latitude_circle(o, a.vector(), section, tol);
         match tube_section(self).intersect_exact(&great_circle, tol) {
             CircleCircle2DIntersection::Points(p, q) => {
                 let (p, q) = lower_first(p, q);
@@ -1876,14 +1873,14 @@ impl IntersectExact<Cylinder> for Torus {
         }
         let a = self.frame().z_direction();
         let o = self.center();
-        let ac = cylinder.axis().direction();
         // Coaxial when the cylinder's axis passes through the centre and
         // turning it onto the torus's moves it by at most the confusion
         // tolerance across the torus.
-        let w = cylinder.axis().origin() - o;
-        if a.cross(ac).magnitude() > tol.angular_for_extent(major + minor)
-            || (w - ac * w.dot(ac)).magnitude() > tol.confusion
-        {
+        let across_the_torus = Tolerance {
+            angular: tol.angular_for_extent(major + minor),
+            ..tol
+        };
+        if !cylinder.axis().is_coaxial(self.axis(), across_the_torus) {
             return match torus_cylinder(self, cylinder, tol) {
                 Some(OcticCut::Curve(curve)) => TorusCylinderIntersection::Octic(curve),
                 Some(OcticCut::TangentPoint(point)) => {
@@ -1944,14 +1941,17 @@ impl IntersectExact<Cone> for Torus {
         }
         let a = self.frame().z_direction();
         let o = self.center();
-        let ac = cone.frame().z_direction();
-        let w = cone.apex() - o;
+        let slope = cone.slope();
+        let apex = cone.apex_at_slope(slope);
+        let w = apex - o;
         // Coaxial when the apex lies on the axis and turning the cone's
         // axis about it moves the cone by at most the confusion tolerance
         // across the torus.
         let reach = w.magnitude() + major + minor;
-        if a.cross(ac).magnitude() > tol.angular_for_extent(reach)
-            || (w - a * w.dot(a)).magnitude() > tol.confusion
+        if !self
+            .axis()
+            .is_parallel(cone.axis(), tol.angular_for_extent(reach))
+            || !self.axis().contains(apex, tol)
         {
             return match torus_cone(self, cone, tol) {
                 Some(OcticCut::Curve(curve)) => TorusConeIntersection::Octic(curve),
@@ -1962,7 +1962,7 @@ impl IntersectExact<Cone> for Torus {
         }
         let apex = Point2D::new(w.dot(a), 0.0);
         // The generators' unit directions, from their slope.
-        let slope = cone.half_angle().tan().abs();
+        let slope = slope.abs();
         let cosine = 1.0 / (1.0 + slope * slope).sqrt();
         let sine = slope * cosine;
         let tube = (Point2D::new(0.0, major), minor);
@@ -1970,7 +1970,7 @@ impl IntersectExact<Cone> for Torus {
         for sine in [sine, -sine] {
             let generator = Vector2D::new(cosine, sine);
             let mut push = |section: Point2D, tangent: bool| {
-                if let Some(circle) = latitude_circle(o, a, section, tol) {
+                if let Some(circle) = latitude_circle(o, a.vector(), section, tol) {
                     // A ring on the apex is found from both nappes.
                     if !rings.iter().any(|r| r.circle == circle) {
                         rings.push(LatitudeRing { circle, tangent });
@@ -2032,9 +2032,11 @@ impl IntersectExact<Torus> for Torus {
         // Coaxial when turning the other torus about its centre onto this
         // one's axis moves it by at most the confusion tolerance.
         let w = other.center() - o1;
-        if a.cross(other.frame().z_direction()).magnitude() > tol.angular_for_extent(r2 + s2)
-            || (w - a * w.dot(a)).magnitude() > tol.confusion
-        {
+        let across_the_other_torus = Tolerance {
+            angular: tol.angular_for_extent(r2 + s2),
+            ..tol
+        };
+        if !self.axis().is_coaxial(other.axis(), across_the_other_torus) {
             return match torus_torus(self, other, tol) {
                 Some(OcticCut::Curve(curve)) => match curve.shared_circle() {
                     // Touching along a shared tube circle and nowhere else.
@@ -2052,7 +2054,7 @@ impl IntersectExact<Torus> for Torus {
         }
         let other_tube = Circle2D::new(Point2D::new(w.dot(a), r2), s2)
             .expect("a torus's minor radius is non-negative");
-        let ring = |section: Point2D| latitude_circle(o1, a, section, tol);
+        let ring = |section: Point2D| latitude_circle(o1, a.vector(), section, tol);
         match tube_section(self).intersect_exact(&other_tube, tol) {
             CircleCircle2DIntersection::Points(p, q) => {
                 let (p, q) = lower_first(p, q);

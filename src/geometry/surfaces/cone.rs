@@ -143,7 +143,19 @@ impl Cone {
     /// let cone = Cone::new(Point::ORIGIN, Vector::Z, 0.4, 2.0).unwrap();
     /// assert_eq!(cone.half_angle(), 0.4);
     /// ```
+    #[inline]
     pub fn new(
+        center: Point,
+        axis_direction: impl Into<Vector>,
+        half_angle: f64,
+        reference_radius: f64,
+    ) -> Result<Cone, ConeConstructionError> {
+        Self::new_with_vectors(center, axis_direction.into(), half_angle, reference_radius)
+    }
+
+    /// The body of [`new`](Self::new) over plain vectors, compiled
+    /// once: only the conversion of its arguments is generic.
+    fn new_with_vectors(
         center: Point,
         axis_direction: Vector,
         half_angle: f64,
@@ -172,7 +184,18 @@ impl Cone {
     /// assert_eq!(cone.apex(), Point::new(0.0, 0.0, 2.0));
     /// assert_eq!(cone.reference_radius(), 0.0);
     /// ```
+    #[inline]
     pub fn from_apex(
+        apex: Point,
+        axis_direction: impl Into<Vector>,
+        half_angle: f64,
+    ) -> Result<Cone, ConeConstructionError> {
+        Self::from_apex_with_vectors(apex, axis_direction.into(), half_angle)
+    }
+
+    /// The body of [`from_apex`](Self::from_apex) over plain vectors, compiled
+    /// once: only the conversion of its arguments is generic.
+    fn from_apex_with_vectors(
         apex: Point,
         axis_direction: Vector,
         half_angle: f64,
@@ -253,6 +276,7 @@ impl Cone {
     /// let cone = Cone::from_frame(Frame::WORLD, 0.4, 2.0).unwrap();
     /// assert_eq!(cone.frame(), Frame::WORLD);
     /// ```
+    #[inline]
     pub fn frame(&self) -> Frame {
         self.frame
     }
@@ -268,6 +292,7 @@ impl Cone {
     /// let cone = Cone::from_frame(Frame::WORLD, 0.4, 2.0).unwrap();
     /// assert_eq!(cone.axis().direction(), Vector::Z);
     /// ```
+    #[inline]
     pub fn axis(&self) -> Axis {
         self.frame.axis()
     }
@@ -281,6 +306,7 @@ impl Cone {
     /// let cone = Cone::from_frame(Frame::WORLD, 0.4, 2.0).unwrap();
     /// assert_eq!(cone.half_angle(), 0.4);
     /// ```
+    #[inline]
     pub fn half_angle(&self) -> f64 {
         self.half_angle
     }
@@ -295,6 +321,7 @@ impl Cone {
     /// let cone = Cone::from_frame(Frame::WORLD, 0.4, 2.0).unwrap();
     /// assert_eq!(cone.reference_radius(), 2.0);
     /// ```
+    #[inline]
     pub fn reference_radius(&self) -> f64 {
         self.reference_radius
     }
@@ -310,9 +337,24 @@ impl Cone {
     /// let apex = cone.apex();
     /// assert!((apex.z + 1.0).abs() < 1e-9);
     /// ```
+    #[inline]
     pub fn apex(&self) -> Point {
-        let v = -self.reference_radius / self.half_angle.tan();
-        self.frame.point_at(0.0, 0.0, v)
+        self.apex_at_slope(self.slope())
+    }
+
+    /// The tangent of the half-angle: the radius the cone gains per unit of
+    /// height along its axis, signed as the half-angle is.
+    #[inline]
+    pub(crate) fn slope(&self) -> f64 {
+        self.half_angle.tan()
+    }
+
+    /// The apex, from the cone's [`slope`](Self::slope): for the solvers
+    /// that need both, so that the tangent is computed once.
+    #[inline]
+    pub(crate) fn apex_at_slope(&self, slope: f64) -> Point {
+        self.frame
+            .point_at(0.0, 0.0, -self.reference_radius / slope)
     }
 
     /// The `u` isoparametric line at `u`: the generator through the point

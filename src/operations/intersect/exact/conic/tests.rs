@@ -12,7 +12,7 @@ fn check_substitution<S: Quadric>(quadric: &S, implicit: &dyn Fn(Point) -> f64) 
     )
     .unwrap();
     let (o, x, y) = (frame.origin(), frame.x_direction(), frame.y_direction());
-    let section = quadric.section(o, x, y);
+    let section = quadric.section(o, x.vector(), y.vector());
     let at = |a: f64, b: f64| o + x * a + y * b;
     let (a, b, focal) = (1.7, 0.9, 0.6);
     for t in [-2.5f64, -1.0, -0.3, 0.0, 0.4, 1.3, 2.9] {

@@ -10,7 +10,9 @@
 use std::f64::consts::TAU;
 
 use crate::base::tier::TierPoint;
-use crate::base::tier::operations::{AxisOperations, FrameOperations, VectorOperations};
+use crate::base::tier::operations::{
+    AxisOperations, DirectionOperations, FrameOperations, VectorOperations,
+};
 
 /// The vector type of the tier a frame or axis is placed in.
 type VectorOf<P> = <P as TierPoint>::Vector;
@@ -22,7 +24,7 @@ pub(crate) fn line_d0<A: AxisOperations>(axis: &A, u: f64) -> A::Point {
 
 /// First derivative of the line: the constant direction vector.
 pub(crate) fn line_d1<A: AxisOperations>(axis: &A) -> VectorOf<A::Point> {
-    axis.direction()
+    axis.direction().vector()
 }
 
 /// Evaluates the circle of radius `r` in `frame`'s plane at angle `u`:
@@ -108,7 +110,7 @@ pub(crate) fn parabola_dn<F: FrameOperations>(
 ) -> VectorOf<F::Point> {
     debug_assert!(order >= 1, "derivative order must be >= 1");
     match order {
-        1 => frame.x_direction() * (u / (2.0 * focal)) + frame.y_direction(),
+        1 => frame.x_direction() * (u / (2.0 * focal)) + frame.y_direction().vector(),
         2 => frame.x_direction() * (1.0 / (2.0 * focal)),
         _ => VectorOperations::ZERO,
     }
@@ -207,6 +209,7 @@ pub(crate) fn ellipse_parameter<F: FrameOperations>(
 ///
 /// Past `h * tol ≤ min_gradient / 2` (`tol` beyond half the smallest
 /// curvature radius, for the conics here) the answer is always `None`.
+#[inline]
 pub(crate) fn conic_proximity<F: FrameOperations>(
     frame: &F,
     p: F::Point,

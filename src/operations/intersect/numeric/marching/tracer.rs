@@ -4,6 +4,7 @@
 //! to the curve (see [`Tracer::trace`]).
 
 use super::pair::{SurfacePair, TraceBox};
+use crate::Direction;
 use crate::geometry::curves::fitting::segment_length;
 use crate::geometry::surfaces::{BSplineSurface, ParametricSurface};
 use crate::{Point, Tolerance, Vector};
@@ -439,10 +440,10 @@ where
         if length <= tol.confusion {
             return Some(0.0);
         }
-        let along = chord * (1.0 / length);
+        let along = Direction::from_unit_vector(chord * (1.0 / length));
         let middle = p + chord * 0.5;
         let guess = std::array::from_fn(|k| 0.5 * (x[k] + y[k]));
-        let z = self.correct(guess, (middle, along), contact)?;
+        let z = self.correct(guess, (middle, along.vector()), contact)?;
         let found = self.pair.point(z);
         let deviation = chord_deviation(self.pair, tol);
         if found.distance(middle) > MIDPOINT_SLACK * deviation {
@@ -463,7 +464,7 @@ where
         );
         let distance = match normals {
             (Some(na), Some(nb)) => off.dot(na).abs().max(off.dot(nb).abs()),
-            _ => (off - along * off.dot(along)).magnitude(),
+            _ => off.component_perpendicular_to(along).magnitude(),
         };
         let error = distance / (HERMITE_SLACK * tol.confusion);
         (error <= 1.0).then_some(error)

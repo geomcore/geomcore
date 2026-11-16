@@ -108,9 +108,9 @@ fn test_from_two_points_and_radii_matches_golden_case_shrinking() {
     assert_eq!(c.reference_radius(), 2.0);
     let frame = c.frame();
     assert_eq!(frame.origin(), Point::ORIGIN);
-    assert_vector3_close(frame.x_direction(), Vector::new(0.0, -1.0, 0.0));
-    assert_vector3_close(frame.y_direction(), Vector::new(1.0, 0.0, 0.0));
-    assert_vector3_close(frame.z_direction(), Vector::Z);
+    assert_vector3_close(frame.x_direction().vector(), Vector::new(0.0, -1.0, 0.0));
+    assert_vector3_close(frame.y_direction().vector(), Vector::new(1.0, 0.0, 0.0));
+    assert_vector3_close(frame.z_direction().vector(), Vector::Z);
 }
 
 #[test]
@@ -128,12 +128,12 @@ fn test_from_two_points_and_radii_matches_golden_case_growing() {
     let frame = c.frame();
     assert_eq!(frame.origin(), Point::new(1.0, 1.0, 1.0));
     assert_vector3_close(
-        frame.x_direction(),
+        frame.x_direction().vector(),
         Vector::new(-0.894427190999916, 0.447213595499958, 0.0),
     );
-    assert_vector3_close(frame.y_direction(), Vector::new(0.0, 0.0, 1.0));
+    assert_vector3_close(frame.y_direction().vector(), Vector::new(0.0, 0.0, 1.0));
     assert_vector3_close(
-        frame.z_direction(),
+        frame.z_direction().vector(),
         Vector::new(0.4472135954999579, 0.8944271909999159, 0.0),
     );
 }

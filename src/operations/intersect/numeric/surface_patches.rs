@@ -198,7 +198,8 @@ pub(crate) fn grown(b: &Aabb, tol: Tolerance) -> Aabb {
 }
 
 /// The range of `(p - origin) . direction` over the points `p` of `b`.
-pub(crate) fn reach(b: &Aabb, origin: Point, direction: Vector) -> (f64, f64) {
+pub(crate) fn reach(b: &Aabb, origin: Point, direction: impl Into<Vector>) -> (f64, f64) {
+    let direction = direction.into();
     let (o, d) = (
         [origin.x, origin.y, origin.z],
         [direction.x, direction.y, direction.z],

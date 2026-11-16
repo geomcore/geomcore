@@ -1,6 +1,7 @@
 //! The local minima of the distance between two curves
 //! ([`CurveCurveExtrema`]).
 
+use crate::Direction;
 use crate::geometry::curves::ParametricCurve;
 use crate::math::numeric::{newton_min_1d, newton_min_2d};
 use crate::operations::extrema::curve_curve_pieces::curve_curve_seeds;
@@ -570,8 +571,8 @@ where
     L: ParametricCurve,
     C: ParametricCurve,
 {
-    let unit = line.dir * (1.0 / line.dir.magnitude());
-    let perp = |v: Vector| v - unit * v.dot(unit);
+    let unit = Direction::from_unit_vector(line.dir * (1.0 / line.dir.magnitude()));
+    let perp = |v: Vector| v.component_perpendicular_to(unit);
     // Half the squared distance to the line, its first two derivatives
     // along the curve, and the curve's speed.
     let local = |t: f64| {

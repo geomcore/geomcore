@@ -143,7 +143,7 @@ impl Transform {
     /// assert!((p.y - 1.0).abs() < 1e-10);
     /// ```
     pub fn rotation(axis: Axis, angle: f64) -> Transform {
-        let d = axis.direction();
+        let d = axis.direction().vector();
         let c = angle.cos();
         let s = angle.sin();
         // Rodrigues' rotation formula: R = c*I + s*[d]x + (1-c)*(d⊗d).
@@ -214,7 +214,7 @@ impl Transform {
     /// assert!((p.y - (-1.0)).abs() < 1e-10);
     /// ```
     pub fn mirror_axis(axis: Axis) -> Transform {
-        let d = axis.direction();
+        let d = axis.direction().vector();
         let linear = mat_sub(scalar_mul(2.0, outer(d)), IDENTITY_LINEAR);
         let translation = translation_fixing(linear, axis.origin());
         Transform {
@@ -235,7 +235,7 @@ impl Transform {
     /// assert!((p.z - (-5.0)).abs() < 1e-10);
     /// ```
     pub fn mirror_plane(frame: Frame) -> Transform {
-        let n = frame.z_direction();
+        let n = frame.z_direction().vector();
         let linear = mat_sub(IDENTITY_LINEAR, scalar_mul(2.0, outer(n)));
         let translation = translation_fixing(linear, frame.origin());
         Transform {
@@ -411,8 +411,8 @@ impl Transform {
     /// let v = Vector::new(4.0, 5.0, 6.0);
     /// assert_eq!(t.apply_vector(v), v);
     /// ```
-    pub fn apply_vector(self, v: Vector) -> Vector {
-        mat_vec(self.linear, v)
+    pub fn apply_vector(self, v: impl Into<Vector>) -> Vector {
+        mat_vec(self.linear, v.into())
     }
 
     /// The rigid motion that takes the `source` placement to the `target`
@@ -588,7 +588,7 @@ fn is_similarity(columns: [Vector; 3]) -> bool {
         .all(|&length| (longest - length) <= angular * longest);
     let orthogonal = [(0, 1), (0, 2), (1, 2)]
         .iter()
-        .all(|&(i, j)| columns[i].dot(columns[j]).abs() <= angular * longest * longest);
+        .all(|&(i, j)| columns[i].is_perpendicular(columns[j], angular));
     one_length && orthogonal
 }
 

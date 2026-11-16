@@ -34,8 +34,8 @@ shape_methods! {
         crate::pickling::paste_back_repr!(
             slf,
             "center" => crate::values::PyPoint(this.0.center()),
-            "normal" => crate::values::PyVector(this.0.frame().z_direction()),
-            "x_direction" => crate::values::PyVector(this.0.frame().x_direction()),
+            "normal" => crate::values::PyVector(this.0.frame().z_direction().vector()),
+            "x_direction" => crate::values::PyVector(this.0.frame().x_direction().vector()),
             "major_radius" => this.0.major_radius(),
             "minor_radius" => this.0.minor_radius(),
         )

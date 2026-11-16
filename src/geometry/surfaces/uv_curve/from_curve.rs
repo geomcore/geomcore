@@ -34,6 +34,7 @@
 //!   other curves need a numeric inversion;
 //!   [`curve_3d_to_uv_within`](crate::curve_3d_to_uv_within) handles them.
 
+use crate::Direction;
 use std::f64::consts::{FRAC_PI_2, PI, TAU};
 use std::fmt;
 
@@ -439,7 +440,10 @@ fn conic_frame_on_plane(
     extent: f64,
     tol: Tolerance,
 ) -> Result<Frame2D, Curve3DToUvError> {
-    if conic.z_direction().cross(plane.z_direction()).magnitude() > tol.angular_for_extent(extent) {
+    if !conic
+        .axis()
+        .is_parallel(plane.axis(), tol.angular_for_extent(extent))
+    {
         return Err(Curve3DToUvError::CurveNotOnSurface);
     }
     let origin = plane_coordinates(plane, conic.origin());
@@ -472,6 +476,8 @@ fn spline_on_plane(
             .max(pole.z.abs());
     }
     let tolerance = tol.confusion.max(16.0 * f64::EPSILON * coordinate);
+    // The distance to the plane through its frame, the frame the poles are
+    // mapped by below: no `Plane` is in scope for `Plane::signed_distance`.
     if spline
         .poles()
         .iter()
@@ -489,7 +495,7 @@ fn plane_coordinates(frame: crate::Frame, p: Point) -> Point2D {
 }
 
 /// Local (x, y) components of the direction `d` in the plane `frame`.
-fn plane_components(frame: crate::Frame, d: Vector) -> Vector2D {
+fn plane_components(frame: crate::Frame, d: Direction) -> Vector2D {
     Vector2D::new(d.dot(frame.x_direction()), d.dot(frame.y_direction()))
 }
 
@@ -503,7 +509,7 @@ fn line_on_cylinder(
     tol: Tolerance,
 ) -> Result<Line2D, Curve3DToUvError> {
     let axis = frame.z_direction();
-    if line.direction().cross(axis).square_magnitude() > tol.angular * tol.angular {
+    if !line.direction().is_parallel(axis, tol.angular) {
         return Err(Curve3DToUvError::NotAnalytic);
     }
     let (x, y, z) = frame.local_coordinates(line.origin());
@@ -527,7 +533,7 @@ fn circle_on_cylinder(
 ) -> Result<Line2D, Curve3DToUvError> {
     let axis = frame.z_direction();
     let normal = circle.normal();
-    if axis.cross(normal).magnitude() > tol.angular_for_extent(circle.radius()) {
+    if !axis.is_parallel(normal, tol.angular_for_extent(circle.radius())) {
         return Err(Curve3DToUvError::NotAnalytic);
     }
     let u = frame_angle(frame, circle.frame().x_direction());
@@ -566,7 +572,10 @@ fn line_on_cone(
     let (u, v) = crate::math::elementary::surface::cone_parameters(&frame, ref_r, half_angle, foot);
     let sv =
         crate::math::elementary::surface::cone_derivative(&frame, ref_r, half_angle, u, v, 0, 1);
-    if line.direction().cross(sv).square_magnitude() > tol.angular * tol.angular {
+    if !line
+        .direction()
+        .is_parallel(Direction::from_unit_vector(sv), tol.angular)
+    {
         return Err(Curve3DToUvError::NotAnalytic);
     }
     let sign = if line.direction().dot(sv) >= 0.0 {
@@ -592,7 +601,7 @@ fn circle_on_cone(
 ) -> Result<Line2D, Curve3DToUvError> {
     let axis = frame.z_direction();
     let normal = circle.normal();
-    if axis.cross(normal).magnitude() > tol.angular_for_extent(circle.radius()) {
+    if !axis.is_parallel(normal, tol.angular_for_extent(circle.radius())) {
         return Err(Curve3DToUvError::NotAnalytic);
     }
     let cf = circle.frame();
@@ -757,7 +766,7 @@ fn circle_on_torus(
     let normal = circle.normal();
 
     let is_toroidal = oc.magnitude() < tol.confusion
-        || z.cross(normal).magnitude() <= tol.angular_for_extent(circle.radius());
+        || z.is_parallel(normal, tol.angular_for_extent(circle.radius()));
 
     if is_toroidal {
         torus_toroidal(circle, frame, maj, min)
@@ -823,7 +832,7 @@ fn torus_poloidal(circle: &Circle, frame: crate::Frame) -> Result<Line2D, Curve3
 
 /// Toroidal `u` of a unit direction: the angle of its projection into the
 /// torus's equatorial plane, with the `v` slot left at zero for the caller.
-fn torus_eval_u(frame: crate::Frame, dir: Vector) -> Point2D {
+fn torus_eval_u(frame: crate::Frame, dir: Direction) -> Point2D {
     let x = dir.dot(frame.x_direction());
     let y = dir.dot(frame.y_direction());
     Point2D::new(angle_or_zero(y, x), 0.0)
@@ -841,7 +850,8 @@ fn angular_axis(frame: crate::Frame) -> Vector {
 /// The angle of `direction` about the frame's z axis, measured from its x
 /// direction towards its y direction and wrapped into `[0, 2π)`, whatever
 /// the frame's handedness.
-fn frame_angle(frame: crate::Frame, direction: Vector) -> f64 {
+fn frame_angle(frame: crate::Frame, direction: impl Into<Vector>) -> f64 {
+    let direction = direction.into();
     angle_or_zero(
         direction.dot(frame.y_direction()),
         direction.dot(frame.x_direction()),

@@ -2,6 +2,7 @@
 //! construction from points or an implicit equation, thin wrappers over
 //! [`crate::math::elementary::surface`].
 
+use crate::Direction;
 use crate::base::frame::frame_error;
 use crate::geometry::curves::{Curve, Curve2D};
 use crate::geometry::surfaces::ElementarySurface;
@@ -87,7 +88,14 @@ impl Plane {
     /// let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
     /// assert_eq!(plane.axis().direction(), Vector::Z);
     /// ```
-    pub fn new(point: Point, normal: Vector) -> Result<Plane, PlaneConstructionError> {
+    #[inline]
+    pub fn new(point: Point, normal: impl Into<Vector>) -> Result<Plane, PlaneConstructionError> {
+        Self::new_with_vectors(point, normal.into())
+    }
+
+    /// The body of [`new`](Self::new) over plain vectors, compiled
+    /// once: only the conversion of its arguments is generic.
+    fn new_with_vectors(point: Point, normal: Vector) -> Result<Plane, PlaneConstructionError> {
         let frame = Frame::from_z(point, normal).map_err(frame_error(
             PlaneConstructionError::NonFinite,
             PlaneConstructionError::NullNormal,
@@ -231,6 +239,7 @@ impl Plane {
     /// let plane = Plane::from_frame(Frame::WORLD);
     /// assert_eq!(plane.frame(), Frame::WORLD);
     /// ```
+    #[inline]
     pub fn frame(&self) -> Frame {
         self.frame
     }
@@ -258,6 +267,7 @@ impl Plane {
     /// assert_eq!(plane.reversed_u().axis().direction(), -Vector::Z);
     /// assert_eq!(plane.normal(2.0, 3.0, Tolerance::default()), Some(Vector::Z));
     /// ```
+    #[inline]
     pub fn axis(&self) -> Axis {
         if self.frame.is_direct() {
             self.frame.axis()
@@ -279,6 +289,7 @@ impl Plane {
     /// assert_eq!(plane.signed_distance(Point::new(4.0, 5.0, 3.0)), 2.0);
     /// assert_eq!(plane.reversed_u().signed_distance(Point::new(4.0, 5.0, 3.0)), -2.0);
     /// ```
+    #[inline]
     pub fn signed_distance(&self, point: Point) -> f64 {
         (point - self.frame.origin()).dot(self.normal_direction())
     }
@@ -286,7 +297,7 @@ impl Plane {
     /// The direction of [`axis`](Self::axis) alone, the unit normal, for
     /// the intersections that need no origin: it skips copying one.
     #[inline]
-    pub(crate) fn normal_direction(&self) -> Vector {
+    pub(crate) fn normal_direction(&self) -> Direction {
         let z = self.frame.z_direction();
         if self.frame.is_direct() { z } else { -z }
     }

@@ -34,6 +34,7 @@
 //! infinity take half the degree of the product.
 
 use super::*;
+use crate::Direction;
 use crate::{Circle, Frame, Plane, Torus, TorusPlaneIntersection, TorusSphereIntersection};
 
 /// A torus's frame and radii, read as its tube circles: the circle at
@@ -42,9 +43,9 @@ use crate::{Circle, Frame, Plane, Torus, TorusPlaneIntersection, TorusSphereInte
 #[derive(Debug, Clone, Copy)]
 pub(super) struct Tubes {
     pub(super) origin: Point,
-    pub(super) x: Vector,
-    pub(super) y: Vector,
-    pub(super) axis: Vector,
+    pub(super) x: Direction,
+    pub(super) y: Direction,
+    pub(super) axis: Direction,
     pub(super) major: f64,
     pub(super) minor: f64,
 }
@@ -137,9 +138,9 @@ impl Tubes {
 #[derive(Debug, Clone, Copy)]
 pub(super) struct OtherPlane {
     origin: Point,
-    x: Vector,
-    y: Vector,
-    normal: Vector,
+    x: Direction,
+    y: Direction,
+    normal: Direction,
 }
 
 impl OtherPlane {
@@ -157,7 +158,7 @@ impl OtherPlane {
 impl SecondSurface for OtherPlane {
     #[inline]
     fn normal(&self, _point: Point) -> Vector {
-        self.normal
+        self.normal.vector()
     }
 
     #[inline]
@@ -176,7 +177,7 @@ impl SecondSurface for OtherPlane {
 
     #[inline]
     fn offset(&self, point: Point) -> (f64, Vector) {
-        ((point - self.origin).dot(self.normal), self.normal)
+        ((point - self.origin).dot(self.normal), self.normal.vector())
     }
 }
 
@@ -221,7 +222,7 @@ impl CutsTubes for OtherPlane {
     const ANGLES: [bool; 2] = [false, false];
 
     fn coefficients(&self, tubes: &Tubes) -> Coefficients {
-        let (theta, p) = tubes.angle_of(self.normal);
+        let (theta, p) = tubes.angle_of(self.normal.vector());
         let (r, h) = (tubes.minor, self.normal.dot(tubes.axis));
         let (sin, cos) = theta.sin_cos();
         Coefficients {

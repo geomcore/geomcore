@@ -34,8 +34,8 @@ shape_methods! {
         crate::pickling::paste_back_repr!(
             slf,
             "apex" => crate::values::PyPoint(this.0.apex()),
-            "normal" => crate::values::PyVector(this.0.frame().z_direction()),
-            "x_direction" => crate::values::PyVector(this.0.frame().x_direction()),
+            "normal" => crate::values::PyVector(this.0.frame().z_direction().vector()),
+            "x_direction" => crate::values::PyVector(this.0.frame().x_direction().vector()),
             "focal_distance" => this.0.focal_distance(),
         )
     }

@@ -503,7 +503,20 @@ impl TrimmedCurve<Circle> {
     /// let rest = TrimmedCurve::arc(Point::ORIGIN, start, end, -Vector::Z, tol).unwrap();
     /// assert!((rest.sweep_angle() - 3.0 * FRAC_PI_2).abs() < 1e-12);
     /// ```
+    #[inline]
     pub fn arc(
+        center: Point,
+        start: Point,
+        end: Point,
+        normal: impl Into<Vector>,
+        tol: Tolerance,
+    ) -> Result<Self, ArcConstructionError> {
+        Self::arc_with_vectors(center, start, end, normal.into(), tol)
+    }
+
+    /// The body of [`arc`](Self::arc) over plain vectors, compiled
+    /// once: only the conversion of its arguments is generic.
+    fn arc_with_vectors(
         center: Point,
         start: Point,
         end: Point,
