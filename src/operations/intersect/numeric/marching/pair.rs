@@ -23,6 +23,8 @@ pub(super) struct SurfacePair<'s, A, B> {
     /// [`trace_box`](Self::trace_box)) and seed windows (see
     /// [`seed_window`]).
     pub(super) within: Option<&'s BoundingBox>,
+    /// The size of the smaller surface (see [`smaller_size`]).
+    smaller_size: f64,
 }
 
 impl<A, B> Clone for SurfacePair<'_, A, B> {
@@ -48,6 +50,7 @@ where
             first,
             second,
             within: None,
+            smaller_size: smaller_size(first, second),
         }
     }
 
@@ -58,7 +61,22 @@ where
 
     /// The same surfaces, the second first; its parameters are [`swap`]ped.
     pub(super) fn swapped(self) -> SurfacePair<'s, B, A> {
-        SurfacePair::new(self.second, self.first).within(self.within)
+        SurfacePair {
+            first: self.second,
+            second: self.first,
+            within: self.within,
+            smaller_size: self.smaller_size,
+        }
+    }
+
+    /// The size of the smaller surface: the diagonal of a bounded side's
+    /// box, or the length an unbounded side's branches grow from (a
+    /// cylinder's radius, see [`own_size`]); infinite where neither
+    /// surface has one, as for two planes. The tracer's steps keep to a
+    /// share of it, whatever the tolerance (see
+    /// [`chord_deviation`](super::tracer::chord_deviation)).
+    pub(super) fn smaller_size(&self) -> f64 {
+        self.smaller_size
     }
 
     /// The box the seeds of a surface's unbounded parameters span against
@@ -475,7 +493,7 @@ where
         let [p, q, r] = std::array::from_fn(|k| first[k] - second[k]);
         let spread = (0.25 * (p - r) * (p - r) + q * q).sqrt();
         let mean = 0.5 * (p + r);
-        if spread + mean.abs() <= osculation(tol) {
+        if spread + mean.abs() <= osculation(first_step(*self, tol), tol) {
             return None;
         }
         // The eigenvalue of smaller magnitude, and its eigenvector.
@@ -509,7 +527,7 @@ where
             .is_some_and(|([first, second], _, _)| {
                 let [p, q, r] = std::array::from_fn(|k| first[k] - second[k]);
                 let spread = (0.25 * (p - r) * (p - r) + q * q).sqrt();
-                spread + (0.5 * (p + r)).abs() <= osculation(tol)
+                spread + (0.5 * (p + r)).abs() <= osculation(first_step(*self, tol), tol)
             })
     }
 
@@ -526,7 +544,10 @@ where
         let spread = (0.25 * (p - r) * (p - r) + q * q).sqrt();
         let mean = 0.5 * (p + r);
         let (low, high) = (mean - spread, mean + spread);
-        if low >= 0.0 || high <= 0.0 || spread + mean.abs() <= osculation(tol) {
+        if low >= 0.0
+            || high <= 0.0
+            || spread + mean.abs() <= osculation(first_step(*self, tol), tol)
+        {
             return None;
         }
         // Unit eigenvectors of `high` and `low`, in `(e1, e2)`.
@@ -605,7 +626,7 @@ where
                     tol,
                 )),
         };
-        seed_box.enlarged(growth.max(first_step(tol)))
+        seed_box.enlarged(growth.max(first_step(*self, tol)))
     }
 
     /// Whether the surfaces touch at parameters `x` (a point on both)
@@ -668,6 +689,23 @@ pub(super) fn own_box<S: ParametricSurface>(s: &S) -> Option<BoundingBox> {
         (None, Some(bspline)) => bspline.bounding_box(),
         (None, None) => None,
     }
+}
+
+/// The size of the smaller of two surfaces (see
+/// [`SurfacePair::smaller_size`]).
+fn smaller_size<A, B>(first: &A, second: &B) -> f64
+where
+    A: ParametricSurface,
+    B: ParametricSurface,
+{
+    fn size<S: ParametricSurface>(s: &S) -> f64 {
+        own_box(s)
+            .map(|b| b.diagonal().magnitude())
+            .or_else(|| own_size(s))
+            .filter(|&size| size > 0.0)
+            .unwrap_or(f64::INFINITY)
+    }
+    size(first).min(size(second))
 }
 
 /// The length a surface's unbounded branches are grown from in the
@@ -742,10 +780,10 @@ impl TraceBox {
 
 /// The difference of normal curvatures below which touching surfaces
 /// osculate: surfaces whose curvatures differ by `k` part by `k h^2 / 2`
-/// over a step `h`, within confusion over a first step when `k <= 2
+/// over a step `h`, within confusion over a first step `h` when `k <= 2
 /// confusion / h^2`.
-fn osculation(tol: Tolerance) -> f64 {
-    2.0 * tol.confusion / (first_step(tol) * first_step(tol))
+fn osculation(first_step: f64, tol: Tolerance) -> f64 {
+    2.0 * tol.confusion / (first_step * first_step)
 }
 
 /// The unit normal of `surface` at `(u, v)` where its geometry has one:

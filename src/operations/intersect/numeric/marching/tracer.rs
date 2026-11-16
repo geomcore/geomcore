@@ -21,10 +21,37 @@ pub(super) struct Cut {
 /// `tol.confusion`.
 pub(super) const CHORD_DEVIATION: f64 = 1000.0;
 
-/// The length of a trace's first step: the chord of a unit circle
-/// deviating from it by the allowed chord deviation.
-pub(super) fn first_step(tol: Tolerance) -> f64 {
-    (8.0 * CHORD_DEVIATION * tol.confusion).sqrt()
+/// Largest chord deviation allowed per traced step, as a share of the
+/// size of the smaller surface (see [`SurfacePair::smaller_size`]).
+const LARGEST_CHORD_SHARE: f64 = 1e-3;
+
+/// The chord deviation allowed per traced step on `pair`:
+/// [`CHORD_DEVIATION`] times confusion, but no more than
+/// [`LARGEST_CHORD_SHARE`] of the smaller surface's size. At the default
+/// tolerance the share binds only on surfaces smaller than a tenth of a
+/// unit. At a loose tolerance, or on a model as small against its
+/// tolerance, it keeps the steps, the closing of loops and the matching
+/// of seeds to traced curves at the scale of the geometry: a thousand
+/// times a confusion of `1e-3` is a whole unit, and seeds that far from
+/// a traced curve were taken as lying on it, so a second curve a few
+/// units away was never traced (#311).
+pub(super) fn chord_deviation<A, B>(pair: SurfacePair<A, B>, tol: Tolerance) -> f64
+where
+    A: ParametricSurface,
+    B: ParametricSurface,
+{
+    (CHORD_DEVIATION * tol.confusion).min(LARGEST_CHORD_SHARE * pair.smaller_size())
+}
+
+/// The length of a trace's first step on `pair`: the chord of a unit
+/// circle deviating from it by the allowed chord deviation (see
+/// [`chord_deviation`]).
+pub(super) fn first_step<A, B>(pair: SurfacePair<A, B>, tol: Tolerance) -> f64
+where
+    A: ParametricSurface,
+    B: ParametricSurface,
+{
+    (8.0 * chord_deviation(pair, tol)).sqrt()
 }
 
 /// How the surfaces meet where a step is taken.
@@ -137,7 +164,7 @@ where
                 parameters,
                 stalls,
                 cuts,
-            }) if !touching || length(&points) >= first_step(self.tol) => Trace::Curve {
+            }) if !touching || length(&points) >= first_step(self.pair, self.tol) => Trace::Curve {
                 points,
                 tangents,
                 parameters,
@@ -169,7 +196,7 @@ where
         // B-spline side a step crosses at most one knot (see
         // `crosses_one_knot_at_most`), so it never steps over a whole knot
         // span: within a span its control points bound the features.
-        let chord_deviation = CHORD_DEVIATION * tol.confusion;
+        let chord_deviation = chord_deviation(self.pair, tol);
         // A trace ends on closing its loop, on a parameter bound, or on the
         // trace box; this count only guards against a runaway trace
         // (a loop whose closure is missed). A curve of length `L` and
@@ -198,7 +225,7 @@ where
                 break;
             }
             let (mut x, mut p, mut t) = (seed, start, t0 * dir);
-            let mut h = first_step(tol);
+            let mut h = first_step(self.pair, tol);
             // The tangent at `y` oriented along `t`, or `t` itself where the
             // tangent does not exist.
             let oriented = |y: [f64; 4], t: Vector| {
@@ -417,7 +444,7 @@ where
         let guess = std::array::from_fn(|k| 0.5 * (x[k] + y[k]));
         let z = self.correct(guess, (middle, along), contact)?;
         let found = self.pair.point(z);
-        let deviation = CHORD_DEVIATION * tol.confusion;
+        let deviation = chord_deviation(self.pair, tol);
         if found.distance(middle) > MIDPOINT_SLACK * deviation {
             return None;
         }

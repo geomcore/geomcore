@@ -309,11 +309,12 @@ unbounded surfaces was cut at its box, the result is `Incomplete` with
 
 The confusion also sets the size of a fitted curve: each segment must
 stay within it of both surfaces, so a looser confusion takes fewer,
-longer segments. Two wavy B-spline patches cut at the default `1e-7`
-give curves of 296 and 194 poles; at `1e-3` they give one curve of 42
-poles. The same value decides what counts as a hit or a tangency, so
-loosen it for a lighter fit only where a point within it of both
-surfaces is on both. In Python, `tol=1e-3` is short for
+longer segments. The steps never grow past a thousandth of the smaller
+surface's size, so a looser confusion finds the same curves. Two wavy
+B-spline patches cut at the default `1e-7` give curves of 294 and 198
+poles; at `1e-3` the same two curves take 52 and 34 poles. The same
+value decides what counts as a hit or a tangency, so loosen it for a
+lighter fit only where a point within it of both surfaces is on both. In Python, `tol=1e-3` is short for
 `Tolerance(confusion=1e-3)`.
 
 <figure class="geom-fig">

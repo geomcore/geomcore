@@ -1931,3 +1931,75 @@ fn test_a_plane_through_a_generator_of_a_hyperboloid_ends_its_lines_at_the_cross
     }
     assert_eq!(counts, [4, 4]);
 }
+
+/// The patch `BSplineSurface::approximate` fits, 6 by 6 cubic poles, to
+/// a 9 by 9 grid over `[0, 4]^2` on the wave `z = height + amplitude
+/// sin(x + phase) cos(y)`.
+fn wave(height: f64, amplitude: f64, phase: f64) -> crate::geometry::surfaces::BSplineSurface {
+    let points: Vec<Vec<Point>> = (0..9)
+        .map(|i| {
+            (0..9)
+                .map(|j| {
+                    let (x, y) = (0.5 * f64::from(i), 0.5 * f64::from(j));
+                    Point::new(x, y, height + amplitude * (x + phase).sin() * y.cos())
+                })
+                .collect()
+        })
+        .collect();
+    crate::geometry::surfaces::BSplineSurface::approximate(
+        &points,
+        3,
+        3,
+        6,
+        6,
+        crate::PointParametrization::Centripetal,
+    )
+    .unwrap()
+}
+
+/// The largest distance from 200 points of each curve of `result` to the
+/// surfaces, as `distances` measures it.
+fn farthest_off(result: &SurfaceSurfaceIntersection, distances: impl Fn(Point) -> f64) -> f64 {
+    result
+        .curves()
+        .iter()
+        .flat_map(|piece| {
+            let (t0, t1) = piece.curve.bounds();
+            (0..=200).map(move |k| piece.curve.point_at(t0 + (t1 - t0) * f64::from(k) / 200.0))
+        })
+        .map(distances)
+        .fold(0.0, f64::max)
+}
+
+#[test]
+fn test_a_looser_tolerance_keeps_every_curve_within_it_of_both_surfaces() {
+    // Two waves cross along two curves three units apart, and a sphere
+    // cuts the first in one loop. A step's chord deviation was a thousand
+    // times confusion: at `1e-3` a whole unit, so a seed within eight units
+    // of a traced curve was taken as lying on it, and the second curve was
+    // never traced, while the loop was stepped across in a few long
+    // chords and fitted 0.7 off the sphere (#311). Steps now keep to a
+    // thousandth of the smaller surface's size.
+    use crate::Sphere;
+    let first = wave(0.0, 1.0, 0.0);
+    let second = wave(0.2, 1.0, 1.0);
+    let centre = Point::new(2.0, 2.0, 0.0);
+    let sphere = Sphere::new(centre, 1.5).unwrap();
+    for confusion in [1e-7, 3e-4, 1e-3, 1e-2] {
+        let tol = Tolerance {
+            confusion,
+            ..Tolerance::DEFAULT
+        };
+        let on_first = |p: Point| first.project_point(p, tol).distance;
+        let waves = marching_intersection(&first, &second, None, tol);
+        assert_eq!(waves.curves().len(), 2, "two waves at {confusion:e}");
+        let off = farthest_off(&waves, |p| {
+            on_first(p).max(second.project_point(p, tol).distance)
+        });
+        assert!(off <= confusion, "two waves at {confusion:e}: {off:e} off");
+        let cut = marching_intersection(&first, &sphere, None, tol);
+        assert_eq!(cut.curves().len(), 1, "sphere at {confusion:e}");
+        let off = farthest_off(&cut, |p| on_first(p).max((p.distance(centre) - 1.5).abs()));
+        assert!(off <= confusion, "sphere at {confusion:e}: {off:e} off");
+    }
+}
