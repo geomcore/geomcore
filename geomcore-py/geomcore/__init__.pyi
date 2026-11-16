@@ -661,6 +661,11 @@ class Transform:
         """Compose transformations: `self` is applied first, then `other`."""
     def apply_point(self, p: _PointLike) -> Point:
         """Apply the transformation to a point."""
+    def apply_points(self, points: _Points) -> _FloatArray:
+        """Apply the transformation to each point of `points`, a list of
+        points or an `(N, 3)` array-like, as an `(N, 3)` numpy array.
+        Other Python threads run meanwhile.
+        """
     def apply_vector(self, v: Vector) -> Vector:
         """Apply the transformation to a vector (ignores the translation part)."""
     @staticmethod
@@ -3103,6 +3108,15 @@ class _SurfaceMethods(Generic[_UIsoCurveType, _VIsoCurveType]):
         as poles give their limiting normal; returns `None` at an
         apex, whose meridians each have their own, and where no
         normal can be recovered.
+        """
+    def normals_array(
+        self, uvs: numpy.typing.ArrayLike, tol: Optional[_ToleranceLike] = None
+    ) -> _FloatArray:
+        """The unit normal at each `(u, v)` row of the `(N, 2)`
+        array-like `uvs` (`Tolerance.default()` when omitted), as
+        `normal` gives it, in an `(N, 3)` numpy array: a row of
+        NaN where `normal` returns `None`. Other Python threads run
+        meanwhile.
         """
     def curvatures(
         self, u: float, v: float, tol: Optional[_ToleranceLike] = None

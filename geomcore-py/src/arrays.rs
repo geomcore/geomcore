@@ -7,13 +7,13 @@
 //! array's address from `__array_interface__`, which the stable ABI allows
 //! where the buffer protocol does not (it joined the limited API in 3.11).
 
-use pyo3::exceptions::{PyImportError, PyValueError};
+use pyo3::exceptions::{PyImportError, PyTypeError, PyValueError};
 use pyo3::prelude::*;
-use pyo3::types::{PyModule, PyTuple};
+use pyo3::types::{PyList, PyModule, PyTuple};
 
-use geomcore::{Point, Point2D};
+use geomcore::{Point, Point2D, Vector};
 
-/// A point as a row of coordinates.
+/// A point or a vector as a row of coordinates.
 pub(crate) trait Coordinates: Copy {
     /// The number of coordinates.
     const DIMENSION: usize;
@@ -46,6 +46,18 @@ impl Coordinates for Point2D {
 
     fn from_row(row: &[f64]) -> Self {
         Point2D::new(row[0], row[1])
+    }
+}
+
+impl Coordinates for Vector {
+    const DIMENSION: usize = 3;
+
+    fn push_onto(self, row: &mut Vec<f64>) {
+        row.extend([self.x, self.y, self.z]);
+    }
+
+    fn from_row(row: &[f64]) -> Self {
+        Vector::new(row[0], row[1], row[2])
     }
 }
 
@@ -165,7 +177,7 @@ pub(crate) fn array<'py>(
     Ok(array)
 }
 
-/// An `(N, dimension)` array of `points`.
+/// An `(N, dimension)` array of `points`, or of vectors.
 pub(crate) fn point_array<'py, P: Coordinates>(
     py: Python<'py>,
     points: impl ExactSizeIterator<Item = P>,
@@ -247,4 +259,92 @@ impl<'py> FromPyObject<'py> for Pairs {
         let pairs: Vec<[f64; 2]> = object.extract()?;
         Ok(Pairs(pairs.into_iter().map(|[u, v]| (u, v)).collect()))
     }
+}
+
+/// What `object` holds when it holds many of what a scalar method takes
+/// one of: an array with more than `item_rank` axes, or a list or tuple
+/// of items rather than of numbers (of anything when `item_rank` is 0).
+fn many(object: &Bound<'_, PyAny>, item_rank: usize) -> Option<String> {
+    if is_array(object).unwrap_or(false) {
+        let shape: Vec<usize> = object.getattr("shape").ok()?.extract().ok()?;
+        if shape.len() <= item_rank {
+            return None;
+        }
+        let shape: Vec<String> = shape.iter().map(usize::to_string).collect();
+        let shape = match shape.as_slice() {
+            [single] => format!("({single},)"),
+            _ => format!("({})", shape.join(", ")),
+        };
+        return Some(format!("an array of shape {shape}"));
+    }
+    let length = if object.is_instance_of::<PyList>() || object.is_instance_of::<PyTuple>() {
+        object.len().ok()?
+    } else {
+        return None;
+    };
+    let items_are_numbers = item_rank > 0
+        && object
+            .get_item(0)
+            .is_ok_and(|first| first.extract::<f64>().is_ok());
+    if items_are_numbers {
+        return None;
+    }
+    let kind = object.get_type().name().ok()?;
+    Some(format!("a {kind} of {length}"))
+}
+
+/// `error`, or when `object` holds many of what was asked one of, a
+/// `TypeError` naming `twin`, the method that takes them all at once.
+fn one_of_many(
+    error: PyErr,
+    object: &Bound<'_, PyAny>,
+    item_rank: usize,
+    item: &str,
+    twin: Option<&str>,
+) -> PyErr {
+    let Some(given) = many(object, item_rank) else {
+        return error;
+    };
+    let next = match twin {
+        Some(twin) => format!("`{twin}` takes many at once"),
+        None => "call it once for each".to_owned(),
+    };
+    PyTypeError::new_err(format!("takes one {item}, not {given}: {next}"))
+}
+
+/// One number, for a parameter whose many go to `points_at_array`.
+pub(crate) fn number_or_points_at_array(object: &Bound<'_, PyAny>) -> PyResult<f64> {
+    object
+        .extract()
+        .map_err(|error| one_of_many(error, object, 0, "number", Some("points_at_array")))
+}
+
+/// One number, for a parameter whose many go to `normals_array`.
+pub(crate) fn number_or_normals_array(object: &Bound<'_, PyAny>) -> PyResult<f64> {
+    object
+        .extract()
+        .map_err(|error| one_of_many(error, object, 0, "number", Some("normals_array")))
+}
+
+/// One number, for a parameter of a method with no array form.
+pub(crate) fn number_alone(object: &Bound<'_, PyAny>) -> PyResult<f64> {
+    object
+        .extract()
+        .map_err(|error| one_of_many(error, object, 0, "number", None))
+}
+
+/// One point, for an argument whose many go to `project_points_array`.
+pub(crate) fn point_or_project_points_array<'py, P: FromPyObject<'py>>(
+    object: &Bound<'py, PyAny>,
+) -> PyResult<P> {
+    object
+        .extract()
+        .map_err(|error| one_of_many(error, object, 1, "point", Some("project_points_array")))
+}
+
+/// One point, for an argument whose many go to `apply_points`.
+pub(crate) fn point_or_apply_points(object: &Bound<'_, PyAny>) -> PyResult<crate::values::PyPoint> {
+    object
+        .extract()
+        .map_err(|error| one_of_many(error, object, 1, "point", Some("apply_points")))
 }

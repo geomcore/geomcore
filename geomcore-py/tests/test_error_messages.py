@@ -18,6 +18,8 @@ from geomcore import (
     Point,
     Point2D,
     PointParametrization,
+    Sphere,
+    Transform,
     TrimmedCurve,
     Vector,
 )
@@ -105,3 +107,27 @@ def test_a_curve_off_the_surface_names_its_largest_distance():
 def test_a_grid_shape_names_two_free_axes():
     with raises(ValueError, "points must have shape (N, M, 3), not (4, 4)"):
         BSplineSurface.approximate(numpy.zeros((4, 4)), 3, 3, 4, 4)
+
+
+def test_a_scalar_method_given_many_names_its_array_twin():
+    # #323: numpy's own "only 0-dimensional arrays can be converted" message
+    # named neither the cause nor the method that takes many at once.
+    sphere = Sphere(ORIGIN, 2.0)
+    with raises(TypeError, "takes one number, not an array of shape (3,): `normals_array`"):
+        sphere.normal(numpy.zeros(3), 0.0)
+    with raises(TypeError, "takes one number, not a list of 2: `points_at_array`"):
+        Circle(ORIGIN, Z, 1.0).point_at([0.0, 1.0])
+    with raises(TypeError, "takes one point, not a list of 2: `project_points_array`"):
+        sphere.project_point([ORIGIN, ORIGIN])
+    with raises(TypeError, "takes one point, not an array of shape (5, 3): `apply_points`"):
+        Transform.identity().apply_point(numpy.zeros((5, 3)))
+
+
+def test_a_scalar_method_with_no_array_twin_says_to_call_it_for_each():
+    with raises(TypeError, "takes one number, not a list of 2: call it once for each"):
+        Sphere(ORIGIN, 2.0).curvatures([0.0, 1.0], 0.0)
+
+
+def test_a_wrong_scalar_keeps_its_own_message():
+    with raises(TypeError, "must be real number, not str"):
+        Sphere(ORIGIN, 2.0).normal("a", 0.0)

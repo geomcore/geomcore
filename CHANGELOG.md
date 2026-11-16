@@ -38,6 +38,16 @@ the Python distribution are versioned in lockstep.
   `(rows, columns, 3)`, and `points_at` an `(N, 2)` array of parameters.
   `Point(array_row)` says to write `Point(*row)`. The stub types each such
   argument the same way.
+- Python: `surface.normals_array(uvs)` and `Transform.apply_points(points)`
+  return `(N, 3)` numpy arrays and release the interpreter lock (#323). A
+  normal that `normal` gives as `None`, as at a cone's apex, is a row of
+  NaN. Transforming 50 000 points takes 0.5 ms, against 87 ms through an
+  `apply_point` loop.
+  A scalar method given many, as `normal(u_array, v)` or `apply_point` of
+  an `(N, 3)` array, raises a `TypeError` naming the method that takes them
+  at once (`normals_array`, `points_at_array`, `project_points_array`,
+  `apply_points`), or saying to call it once for each, where numpy said
+  only `only 0-dimensional arrays can be converted to Python scalars`.
 - `BSplineSurface::from_flat_knots` and the `u_flat_knots` and
   `v_flat_knots` getters, in Rust and Python (#322): a surface built from
   and read as the flat knot vectors other formats store, as a curve
