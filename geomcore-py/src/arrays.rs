@@ -113,6 +113,10 @@ pub(crate) fn read_points<P: Coordinates>(
     object: &Bound<'_, PyAny>,
     name: &str,
 ) -> PyResult<Vec<P>> {
+    if object.len().is_ok_and(|length| length == 0) {
+        // An empty list, or an array of shape `(0,)`, holds no points.
+        return Ok(Vec::new());
+    }
     let (floats, _) = read(object, 1, &[P::DIMENSION], name)?;
     Ok(floats.chunks_exact(P::DIMENSION).map(P::from_row).collect())
 }
@@ -201,6 +205,21 @@ macro_rules! points_argument {
 points_argument!(Point, crate::values::PyPoint);
 points_argument!(Point2D, crate::values::PyPoint2D);
 
+/// The Rust point of a Python point class, for the curve methods that
+/// both tiers share.
+pub(crate) trait PointClass {
+    /// The Rust point.
+    type Point;
+}
+
+impl PointClass for crate::values::PyPoint {
+    type Point = Point;
+}
+
+impl PointClass for crate::values::PyPoint2D {
+    type Point = Point2D;
+}
+
 /// A grid of points given as rows of `Point` objects or as an `(n, m, 3)`
 /// array-like.
 pub(crate) struct PointGrid(pub(crate) Vec<Vec<Point>>);
@@ -210,11 +229,22 @@ impl<'py> FromPyObject<'py> for PointGrid {
         if is_array(object)? {
             return read_point_grid(object, "points").map(PointGrid);
         }
-        let rows: Vec<Vec<crate::values::PyPoint>> = object.extract()?;
-        Ok(PointGrid(
-            rows.into_iter()
-                .map(|row| row.into_iter().map(|p| p.0).collect())
-                .collect(),
-        ))
+        // Each row is a list of points or an `(M, 3)` array.
+        let rows: Vec<Points<Point>> = object.extract()?;
+        Ok(PointGrid(rows.into_iter().map(|row| row.0).collect()))
+    }
+}
+
+/// `(u, v)` pairs given as a list of pairs (tuples, lists, or rows of an
+/// array) or as an `(N, 2)` array-like.
+pub(crate) struct Pairs(pub(crate) Vec<(f64, f64)>);
+
+impl<'py> FromPyObject<'py> for Pairs {
+    fn extract_bound(object: &Bound<'py, PyAny>) -> PyResult<Self> {
+        if is_array(object)? {
+            return read_pairs(object, "uvs").map(Pairs);
+        }
+        let pairs: Vec<[f64; 2]> = object.extract()?;
+        Ok(Pairs(pairs.into_iter().map(|[u, v]| (u, v)).collect()))
     }
 }

@@ -22,31 +22,55 @@ fn nonzero_divisor(scalar: f64) -> PyResult<()> {
 }
 
 /// What `Point.__sub__` accepts: a point (giving the vector between the
-/// two) or a vector (giving the moved point).
+/// two) or a vector (giving the moved point). An operator takes the point
+/// itself, not a sequence of coordinates (#325).
 #[derive(FromPyObject)]
-enum PointOrVector {
-    Point(PyPoint),
+enum PointOrVector<'py> {
+    Point(PyRef<'py, PyPoint>),
     Vector(PyVector),
 }
 
 /// What `Point2D.__sub__` accepts: a point or a vector.
 #[derive(FromPyObject)]
-enum PointOrVector2D {
-    Point(PyPoint2D),
+enum PointOrVector2D<'py> {
+    Point(PyRef<'py, PyPoint2D>),
     Vector(PyVector2D),
 }
 
 /// A point in 3D space with `x`, `y` and `z` coordinates.
+///
+/// An argument that takes a point takes a `Point` or a sequence of three
+/// numbers, such as a tuple or a row of an array (#322).
 #[pyclass(name = "Point", module = "geomcore", eq)]
-#[derive(Clone, PartialEq)]
+#[derive(PartialEq)]
 pub(crate) struct PyPoint(pub(crate) Point);
+
+impl<'py> FromPyObject<'py> for PyPoint {
+    fn extract_bound(object: &Bound<'py, PyAny>) -> PyResult<Self> {
+        if let Ok(point) = object.cast::<PyPoint>() {
+            return Ok(PyPoint(point.borrow().0));
+        }
+        let refused = object.is_instance_of::<PyVector>();
+        let [x, y, z] = point_coordinates(object, "Point", refused)?;
+        Ok(PyPoint(Point::new(x, y, z)))
+    }
+}
 
 #[pymethods]
 impl PyPoint {
     #[new]
+    #[pyo3(signature = (x, y = None, z = None), text_signature = "(x, y, z)")]
     /// Build a point from its three coordinates.
-    fn py_new(x: f64, y: f64, z: f64) -> Self {
-        PyPoint(Point::new(x, y, z))
+    fn py_new(x: &Bound<'_, PyAny>, y: Option<f64>, z: Option<f64>) -> PyResult<Self> {
+        // A point passed whole, as `Point(row)`, says how to unpack it
+        // rather than which arguments are missing (#322).
+        let (Some(y), Some(z)) = (y, z) else {
+            return Err(pyo3::exceptions::PyTypeError::new_err(
+                "Point takes three coordinates, Point(x, y, z): write Point(*row) for a \
+                 tuple or a row of an array",
+            ));
+        };
+        Ok(PyPoint(Point::new(x.extract()?, y, z)))
     }
 
     /// The origin (0, 0, 0).
@@ -111,7 +135,7 @@ impl PyPoint {
         PyPoint(self.0 + offset.0)
     }
 
-    fn __sub__(&self, other: PointOrVector, py: Python<'_>) -> PyResult<Py<PyAny>> {
+    fn __sub__(&self, other: PointOrVector<'_>, py: Python<'_>) -> PyResult<Py<PyAny>> {
         match other {
             PointOrVector::Point(point) => Ok(PyVector(self.0 - point.0)
                 .into_pyobject(py)?
@@ -391,16 +415,62 @@ impl PyVector {
 }
 
 /// A point in 2D space (used by curves living in a surface's (u, v) domain).
+///
+/// An argument that takes a 2D point takes a `Point2D` or a sequence of
+/// two numbers (#322).
 #[pyclass(name = "Point2D", module = "geomcore", eq)]
-#[derive(Clone, PartialEq)]
+#[derive(PartialEq)]
 pub(crate) struct PyPoint2D(pub(crate) Point2D);
+
+impl<'py> FromPyObject<'py> for PyPoint2D {
+    fn extract_bound(object: &Bound<'py, PyAny>) -> PyResult<Self> {
+        if let Ok(point) = object.cast::<PyPoint2D>() {
+            return Ok(PyPoint2D(point.borrow().0));
+        }
+        let refused = object.is_instance_of::<PyVector2D>();
+        let [x, y] = point_coordinates(object, "Point2D", refused)?;
+        Ok(PyPoint2D(Point2D::new(x, y)))
+    }
+}
+
+/// The `N` coordinates of a point argument given as a sequence of numbers:
+/// a tuple, a list or a row of an array. A vector is `refused`, being a
+/// direction rather than a place, as is anything but `N` numbers.
+fn point_coordinates<const N: usize>(
+    object: &Bound<'_, PyAny>,
+    class: &str,
+    refused: bool,
+) -> PyResult<[f64; N]> {
+    let error = || {
+        let given = object
+            .get_type()
+            .name()
+            .map_or_else(|_| "?".to_owned(), |name| name.to_string());
+        pyo3::exceptions::PyTypeError::new_err(format!(
+            "expected a {class} or a sequence of {N} numbers, got {given}"
+        ))
+    };
+    if refused || object.is_instance_of::<pyo3::types::PyString>() {
+        return Err(error());
+    }
+    let coordinates: Vec<f64> = object.extract().map_err(|_| error())?;
+    coordinates.try_into().map_err(|_| error())
+}
 
 #[pymethods]
 impl PyPoint2D {
     #[new]
+    #[pyo3(signature = (x, y = None), text_signature = "(x, y)")]
     /// Build a point from its two coordinates.
-    fn py_new(x: f64, y: f64) -> Self {
-        PyPoint2D(Point2D::new(x, y))
+    fn py_new(x: &Bound<'_, PyAny>, y: Option<f64>) -> PyResult<Self> {
+        // As `Point(row)` does, a point passed whole says how to unpack it.
+        let Some(y) = y else {
+            return Err(pyo3::exceptions::PyTypeError::new_err(
+                "Point2D takes two coordinates, Point2D(x, y): write Point2D(*row) for a \
+                 tuple or a row of an array",
+            ));
+        };
+        Ok(PyPoint2D(Point2D::new(x.extract()?, y)))
     }
 
     /// The origin (0, 0).
@@ -453,7 +523,7 @@ impl PyPoint2D {
         PyPoint2D(self.0 + offset.0)
     }
 
-    fn __sub__(&self, other: PointOrVector2D, py: Python<'_>) -> PyResult<Py<PyAny>> {
+    fn __sub__(&self, other: PointOrVector2D<'_>, py: Python<'_>) -> PyResult<Py<PyAny>> {
         match other {
             PointOrVector2D::Point(point) => Ok(PyVector2D(self.0 - point.0)
                 .into_pyobject(py)?

@@ -17,8 +17,8 @@ shape_methods! {
     /// Build a non-rational Bézier curve of `degree` from `degree + 1`
     /// poles, over `[0, 1]`.
     #[new]
-    fn py_new(degree: usize, poles: Vec<PyPoint2D>) -> PyResult<Self> {
-        let poles = poles.into_iter().map(|p| p.0).collect();
+    fn py_new(degree: usize, poles: crate::arrays::Points<geomcore::Point2D>) -> PyResult<Self> {
+        let poles = poles.0;
         Ok(PyBezierCurve2D(
             BezierCurve2D::new(degree, poles).map_err(python_error)?,
         ))
@@ -26,8 +26,8 @@ shape_methods! {
 
     /// Build a rational Bézier curve with a positive weight per pole.
     #[staticmethod]
-    fn new_rational(degree: usize, poles: Vec<PyPoint2D>, weights: Vec<f64>) -> PyResult<Self> {
-        let poles = poles.into_iter().map(|p| p.0).collect();
+    fn new_rational(degree: usize, poles: crate::arrays::Points<geomcore::Point2D>, weights: Vec<f64>) -> PyResult<Self> {
+        let poles = poles.0;
         Ok(PyBezierCurve2D(
             BezierCurve2D::new_rational(degree, poles, weights).map_err(python_error)?,
         ))

@@ -120,6 +120,16 @@ Points and vectors are sequences of their coordinates. They unpack
 `numpy.array(points)` one of shape `(N, 3)`. Vectors also divide by a
 number (`v / 2`) and give their length to `abs(v)`.
 
+A point argument takes a `Point` or a sequence of its coordinates: a
+tuple, a list or a row of an array, so `circle.project_point((3, 0, 0))`
+and `Line(array[0], direction)` work. A list of points takes a list of
+those or an array of shape `(N, 3)` (`(N, 2)` in 2D), empty included, and
+a grid of poles a list of rows or an array of shape `(rows, columns, 3)`.
+A vector, a string or a sequence of the wrong length raises `TypeError`.
+`Point` itself takes three numbers: write `Point(*row)` for a row.
+Operators are stricter: `p - (1, 2, 3)` raises `TypeError`, since a tuple
+does not say whether it is a point or a vector.
+
 numpy's operators step aside for points and vectors, so a numpy number
 scales a vector from either side (`numpy.float64(2) * v` is a `Vector`).
 An array on either side of `+`, `-` or `*` raises `TypeError`, and `==`

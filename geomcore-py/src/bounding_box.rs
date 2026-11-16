@@ -23,8 +23,8 @@ impl PyBoundingBox {
     /// The smallest box holding every point of `points` (`ValueError`
     /// when there are none).
     #[staticmethod]
-    fn from_points(points: Vec<PyPoint>) -> PyResult<Self> {
-        let points = points.into_iter().map(|p| p.0);
+    fn from_points(points: crate::arrays::Points<geomcore::Point>) -> PyResult<Self> {
+        let points = points.0.into_iter();
         BoundingBox::from_points(points)
             .map(PyBoundingBox)
             .ok_or_else(|| invalid_argument("from_points needs at least one point"))
@@ -127,8 +127,8 @@ impl PyBoundingBox2D {
     /// The smallest box holding every point of `points` (`ValueError`
     /// when there are none).
     #[staticmethod]
-    fn from_points(points: Vec<PyPoint2D>) -> PyResult<Self> {
-        let points = points.into_iter().map(|p| p.0);
+    fn from_points(points: crate::arrays::Points<geomcore::Point2D>) -> PyResult<Self> {
+        let points = points.0.into_iter();
         BoundingBox2D::from_points(points)
             .map(PyBoundingBox2D)
             .ok_or_else(|| invalid_argument("from_points needs at least one point"))

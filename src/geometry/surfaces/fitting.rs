@@ -209,7 +209,7 @@ impl BSplineSurface {
             .fit_rows(&v_basis, v_pole_count)
             .and_then(|rows| grid.fit_columns(&u_basis, u_pole_count, &rows, v_pole_count))
             .ok_or(BSplineConstructionError::PoleCountMismatch)?;
-        Ok(BSplineSurface::from_flat_knots(
+        Ok(BSplineSurface::from_fitted_flat_knots(
             (u_degree, u_flat),
             (v_degree, v_flat),
             poles,
@@ -322,7 +322,7 @@ impl BSplineSurface {
             (flat, (poles, deviation))
         });
         let surface =
-            BSplineSurface::from_flat_knots((u_degree, u_flat), (v_degree, v_flat), poles);
+            BSplineSurface::from_fitted_flat_knots((u_degree, u_flat), (v_degree, v_flat), poles);
         Ok(SurfaceApproximation::new(surface, deviation, true))
     }
 }

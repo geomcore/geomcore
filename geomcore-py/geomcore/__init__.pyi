@@ -29,6 +29,17 @@ _FloatArray = numpy.typing.NDArray[numpy.float64]
 # Parameters take any sequence (a list, a tuple) or a numpy array.
 _Floats = Union[Sequence[float], numpy.typing.NDArray[Any]]
 _Ints = Union[Sequence[int], numpy.typing.NDArray[Any]]
+# A point argument takes a point, or a sequence of its coordinates: a tuple,
+# a list or a row of an array (#322). A list of points takes a list of
+# those or an `(N, 3)` (`(N, 2)`) array, empty included; a grid, rows of
+# them or an `(N, M, 3)` array.
+_PointLike = Union["Point", Sequence[float], numpy.typing.NDArray[Any]]
+_Point2DLike = Union["Point2D", Sequence[float], numpy.typing.NDArray[Any]]
+_Points = Union[Sequence[_PointLike], numpy.typing.NDArray[Any]]
+_Points2D = Union[Sequence[_Point2DLike], numpy.typing.NDArray[Any]]
+_PointGrid = Union[Sequence[_Points], numpy.typing.NDArray[Any]]
+# `(u, v)` pairs: a list of pairs or an `(N, 2)` array.
+_Pairs = Union[Sequence[Sequence[float]], numpy.typing.NDArray[Any]]
 _Self = TypeVar("_Self")
 
 __version__: str
@@ -83,7 +94,11 @@ class DiscretizationCriteriaError(GeomcoreError):
 
 @final
 class Point:
-    """A point in 3D space with `x`, `y` and `z` coordinates."""
+    """A point in 3D space with `x`, `y` and `z` coordinates.
+
+    An argument that takes a point takes a `Point` or a sequence of three
+    numbers, such as a tuple or a row of an array (#322).
+    """
     __hash__: ClassVar[None]  # type: ignore[assignment]
     def __new__(cls, x: float, y: float, z: float) -> Point: ...
     @staticmethod
@@ -98,16 +113,16 @@ class Point:
     @property
     def z(self) -> float:
         """The z coordinate."""
-    def distance(self, other: Point) -> float:
+    def distance(self, other: _PointLike) -> float:
         """Euclidean distance to another point."""
-    def coincides(self, other: Point, tol: Optional[_ToleranceLike] = None) -> bool:
+    def coincides(self, other: _PointLike, tol: Optional[_ToleranceLike] = None) -> bool:
         """Returns whether `other` is within `tol.confusion` of this point
         (`Tolerance.default()` when omitted). `==` compares coordinates
         exactly instead.
         """
     def components(self) -> Tuple[float, float, float]:
         """The coordinates as a tuple `(x, y, z)`."""
-    def midpoint(self, other: Point) -> Point:
+    def midpoint(self, other: _PointLike) -> Point:
         """The point halfway between this point and `other`."""
     def transformed(self, transform: Transform) -> Point:
         """The image of this point under `transform`, the same as
@@ -134,7 +149,11 @@ class Point:
 
 @final
 class Point2D:
-    """A point in 2D space (used by curves living in a surface's (u, v) domain)."""
+    """A point in 2D space (used by curves living in a surface's (u, v) domain).
+
+    An argument that takes a 2D point takes a `Point2D` or a sequence of
+    two numbers (#322).
+    """
     __hash__: ClassVar[None]  # type: ignore[assignment]
     def __new__(cls, x: float, y: float) -> Point2D: ...
     @staticmethod
@@ -146,16 +165,16 @@ class Point2D:
     @property
     def y(self) -> float:
         """The y coordinate."""
-    def distance(self, other: Point2D) -> float:
+    def distance(self, other: _Point2DLike) -> float:
         """Euclidean distance to another point."""
-    def coincides(self, other: Point2D, tol: Optional[_ToleranceLike] = None) -> bool:
+    def coincides(self, other: _Point2DLike, tol: Optional[_ToleranceLike] = None) -> bool:
         """Returns whether `other` is within `tol.confusion` of this point
         (`Tolerance.default()` when omitted). `==` compares coordinates
         exactly instead.
         """
     def components(self) -> Tuple[float, float]:
         """The coordinates as a tuple `(x, y)`."""
-    def midpoint(self, other: Point2D) -> Point2D:
+    def midpoint(self, other: _Point2DLike) -> Point2D:
         """The point halfway between this point and `other`."""
     def is_finite(self) -> bool:
         """Whether every coordinate is finite."""
@@ -365,22 +384,22 @@ class Vector2D:
 class Axis2D:
     """An axis in the plane: a point plus a unit direction."""
     __hash__: ClassVar[None]  # type: ignore[assignment]
-    def __new__(cls, origin: Point2D, direction: Vector2D) -> Axis2D: ...
+    def __new__(cls, origin: _Point2DLike, direction: Vector2D) -> Axis2D: ...
     def origin(self) -> Point2D:
         """The axis origin."""
     def direction(self) -> Vector2D:
         """The unit direction of the axis."""
     def point_at(self, t: float) -> Point2D:
         """The point at `t` along the axis, `origin + t * direction`."""
-    def parameter_of(self, point: Point2D) -> float:
+    def parameter_of(self, point: _Point2DLike) -> float:
         """The parameter of the foot of `point` on the axis, so that
         `point_at` gives the `closest_point`.
         """
-    def closest_point(self, point: Point2D) -> Point2D:
+    def closest_point(self, point: _Point2DLike) -> Point2D:
         """The point of the axis closest to `point`."""
-    def distance(self, point: Point2D) -> float:
+    def distance(self, point: _Point2DLike) -> float:
         """The distance from `point` to the axis."""
-    def contains(self, point: Point2D, tol: Optional[_ToleranceLike] = None) -> bool:
+    def contains(self, point: _Point2DLike, tol: Optional[_ToleranceLike] = None) -> bool:
         """Whether `point` lies on the axis, within `tol.confusion`
         (`Tolerance.default()` when omitted).
         """
@@ -399,10 +418,10 @@ class Frame2D:
     """
     __hash__: ClassVar[None]  # type: ignore[assignment]
     def __new__(
-        cls, origin: Point2D, x_direction: Vector2D, y_direction: Vector2D
+        cls, origin: _Point2DLike, x_direction: Vector2D, y_direction: Vector2D
     ) -> Frame2D: ...
     @staticmethod
-    def from_x(origin: Point2D, x_direction: Vector2D) -> Frame2D:
+    def from_x(origin: _Point2DLike, x_direction: Vector2D) -> Frame2D:
         """Build a direct frame from an origin and an x direction."""
     @staticmethod
     def world() -> Frame2D:
@@ -419,7 +438,7 @@ class Frame2D:
         """The axis through the origin along the x direction."""
     def y_axis(self) -> Axis2D:
         """The axis through the origin along the y direction."""
-    def local_coordinates(self, point: Point2D) -> Tuple[float, float]:
+    def local_coordinates(self, point: _Point2DLike) -> Tuple[float, float]:
         """The coordinates `(u, v)` of `point` along the x and y directions,
         measured from the origin.
         """
@@ -439,22 +458,22 @@ class Frame2D:
 class Axis:
     """An axis: a point plus a unit direction."""
     __hash__: ClassVar[None]  # type: ignore[assignment]
-    def __new__(cls, origin: Point, direction: Vector) -> Axis: ...
+    def __new__(cls, origin: _PointLike, direction: Vector) -> Axis: ...
     def origin(self) -> Point:
         """The axis origin."""
     def direction(self) -> Vector:
         """The unit direction of the axis."""
     def point_at(self, t: float) -> Point:
         """The point at `t` along the axis, `origin + t * direction`."""
-    def parameter_of(self, point: Point) -> float:
+    def parameter_of(self, point: _PointLike) -> float:
         """The parameter of the foot of `point` on the axis, so that
         `point_at` gives the `closest_point`.
         """
-    def closest_point(self, point: Point) -> Point:
+    def closest_point(self, point: _PointLike) -> Point:
         """The point of the axis closest to `point`."""
-    def distance(self, point: Point) -> float:
+    def distance(self, point: _PointLike) -> float:
         """The distance from `point` to the axis."""
-    def contains(self, point: Point, tol: Optional[_ToleranceLike] = None) -> bool:
+    def contains(self, point: _PointLike, tol: Optional[_ToleranceLike] = None) -> bool:
         """Whether `point` lies on the axis, within `tol.confusion`
         (`Tolerance.default()` when omitted).
         """
@@ -479,9 +498,9 @@ class Frame:
     direction or mirroring it turns its frame indirect.
     """
     __hash__: ClassVar[None]  # type: ignore[assignment]
-    def __new__(cls, origin: Point, z_direction: Vector, x_hint: Vector) -> Frame: ...
+    def __new__(cls, origin: _PointLike, z_direction: Vector, x_hint: Vector) -> Frame: ...
     @staticmethod
-    def from_z(origin: Point, z_direction: Vector) -> Frame:
+    def from_z(origin: _PointLike, z_direction: Vector) -> Frame:
         """Build a frame from an origin and main (z) direction, deriving an
         arbitrary perpendicular x direction.
         """
@@ -490,7 +509,7 @@ class Frame:
         """The world frame at the origin."""
     @staticmethod
     def from_axes(
-        origin: Point, x_direction: Vector, y_direction: Vector, z_direction: Vector
+        origin: _PointLike, x_direction: Vector, y_direction: Vector, z_direction: Vector
     ) -> Frame:
         """Build a frame from an origin and its three directions (each
         normalized internally; they must be mutually orthogonal), of
@@ -517,7 +536,7 @@ class Frame:
         """The unit z direction."""
     def axis(self) -> Axis:
         """The axis through the origin along the z direction."""
-    def local_coordinates(self, point: Point) -> Tuple[float, float, float]:
+    def local_coordinates(self, point: _PointLike) -> Tuple[float, float, float]:
         """The coordinates `(u, v, w)` of `point` along the x, y and z
         directions, measured from the origin.
         """
@@ -603,10 +622,10 @@ class Transform:
     def rotation(axis: Axis, angle: float) -> Transform:
         """Rotation by `angle` radians about `axis` (right-hand rule)."""
     @staticmethod
-    def scaling(center: Point, factor: float) -> Transform:
+    def scaling(center: _PointLike, factor: float) -> Transform:
         """Uniform scaling about `center`."""
     @staticmethod
-    def mirror_point(center: Point) -> Transform:
+    def mirror_point(center: _PointLike) -> Transform:
         """Point reflection through `center`."""
     @staticmethod
     def mirror_axis(axis: Axis) -> Transform:
@@ -640,7 +659,7 @@ class Transform:
         """
     def then(self, other: Transform) -> Transform:
         """Compose transformations: `self` is applied first, then `other`."""
-    def apply_point(self, p: Point) -> Point:
+    def apply_point(self, p: _PointLike) -> Point:
         """Apply the transformation to a point."""
     def apply_vector(self, v: Vector) -> Vector:
         """Apply the transformation to a vector (ignores the translation part)."""
@@ -676,9 +695,9 @@ class BoundingBox:
     wherever `bounding_box` reports no box for an unbounded shape.
     """
     __hash__: ClassVar[None]  # type: ignore[assignment]
-    def __new__(cls, a: Point, b: Point) -> BoundingBox: ...
+    def __new__(cls, a: _PointLike, b: _PointLike) -> BoundingBox: ...
     @staticmethod
-    def from_points(points: Sequence[Point]) -> BoundingBox:
+    def from_points(points: _Points) -> BoundingBox:
         """The smallest box holding every point of `points` (`ValueError`
         when there are none).
         """
@@ -694,16 +713,16 @@ class BoundingBox:
         """The smallest box holding both boxes."""
     def enlarged(self, distance: float) -> BoundingBox:
         """The box grown by `distance` on every side (negative shrinks it)."""
-    def encloses(self, point: Point) -> bool:
+    def encloses(self, point: _PointLike) -> bool:
         """Whether the box holds `point` on every axis."""
-    def __contains__(self, point: Point, /) -> bool: ...
-    def including(self, point: Point) -> BoundingBox:
+    def __contains__(self, point: _PointLike, /) -> bool: ...
+    def including(self, point: _PointLike) -> BoundingBox:
         """The smallest box holding this box and `point`."""
     def intersection(self, other: BoundingBox) -> Optional[BoundingBox]:
         """The box of the points the two boxes share, or `None` when they are
         apart. Boxes that only touch share a flat box.
         """
-    def distance(self, point: Point) -> float:
+    def distance(self, point: _PointLike) -> float:
         """The distance from `point` to the box: 0 for a point in it, the
         distance to the nearest point of the box otherwise.
         """
@@ -718,9 +737,9 @@ class BoundingBox2D:
     `bounding_box` reports no box for an unbounded curve.
     """
     __hash__: ClassVar[None]  # type: ignore[assignment]
-    def __new__(cls, a: Point2D, b: Point2D) -> BoundingBox2D: ...
+    def __new__(cls, a: _Point2DLike, b: _Point2DLike) -> BoundingBox2D: ...
     @staticmethod
-    def from_points(points: Sequence[Point2D]) -> BoundingBox2D:
+    def from_points(points: _Points2D) -> BoundingBox2D:
         """The smallest box holding every point of `points` (`ValueError`
         when there are none).
         """
@@ -736,16 +755,16 @@ class BoundingBox2D:
         """The smallest box holding both boxes."""
     def enlarged(self, distance: float) -> BoundingBox2D:
         """The box grown by `distance` on every side (negative shrinks it)."""
-    def encloses(self, point: Point2D) -> bool:
+    def encloses(self, point: _Point2DLike) -> bool:
         """Whether the box holds `point` on both axes."""
-    def __contains__(self, point: Point2D, /) -> bool: ...
-    def including(self, point: Point2D) -> BoundingBox2D:
+    def __contains__(self, point: _Point2DLike, /) -> bool: ...
+    def including(self, point: _Point2DLike) -> BoundingBox2D:
         """The smallest box holding this box and `point`."""
     def intersection(self, other: BoundingBox2D) -> Optional[BoundingBox2D]:
         """The box of the points the two boxes share, or `None` when they are
         apart. Boxes that only touch share a flat box.
         """
-    def distance(self, point: Point2D) -> float:
+    def distance(self, point: _Point2DLike) -> float:
         """The distance from `point` to the box: 0 for a point in it, the
         distance to the nearest point of the box otherwise.
         """
@@ -1602,6 +1621,8 @@ Curve2D = (
 )
 
 _PointType = TypeVar("_PointType")
+# A point argument of either dimension: the point, or its coordinates.
+_PointArgument = Union[_PointType, Sequence[float], numpy.typing.NDArray[Any]]
 _VectorType = TypeVar("_VectorType")
 _BoundingBoxType = TypeVar("_BoundingBoxType")
 _ProjectionType = TypeVar("_ProjectionType")
@@ -1685,7 +1706,7 @@ class _CurveMethodsInEitherDimension(
         excluded (`math.inf` when smooth everywhere).
         """
     def project_point(
-        self, point: _PointType, tol: Optional[_ToleranceLike] = None
+        self, point: _PointArgument[_PointType], tol: Optional[_ToleranceLike] = None
     ) -> _ProjectionType:
         """Projects `point` onto the curve: the closest point, as a
         projection object.
@@ -1695,7 +1716,7 @@ class _CurveMethodsInEitherDimension(
         smaller `Tolerance` to read a smaller distance.
         """
     def project_points(
-        self, points: Sequence[_PointType], tol: Optional[_ToleranceLike] = None
+        self, points: Union[Sequence[_PointArgument[_PointType]], numpy.typing.NDArray[Any]], tol: Optional[_ToleranceLike] = None
     ) -> List[_ProjectionType]:
         """Projects each point in `points` onto the curve, returning a
         projection object per point.
@@ -1707,11 +1728,11 @@ class _CurveMethodsInEitherDimension(
         returning numpy arrays `(parameters, points, distances)`:
         the parameter, the closest point and its distance per row.
         """
-    def contains(self, point: _PointType, tol: Optional[_ToleranceLike] = None) -> bool:
+    def contains(self, point: _PointArgument[_PointType], tol: Optional[_ToleranceLike] = None) -> bool:
         """Returns whether `point` lies on the curve within `tol`
         (`Tolerance.default()` when omitted).
         """
-    def parameter_of(self, point: _PointType, tol: Optional[_ToleranceLike] = None) -> float:
+    def parameter_of(self, point: _PointArgument[_PointType], tol: Optional[_ToleranceLike] = None) -> float:
         """The parameter of `point`, a point on the curve, within `tol`
         (`Tolerance.default()` when omitted). Off the curve, a
         B-spline or Bézier curve gives the parameter of the closest
@@ -1777,7 +1798,7 @@ class _CurveMethods(
     ) -> CurveSurfaceIntersection: ...
     @overload
     def extrema(
-        self, other: Point, tol: Optional[_ToleranceLike] = None
+        self, other: _PointLike, tol: Optional[_ToleranceLike] = None
     ) -> List[CurveProjection]:
         """The extrema of the distance to `other`, a point or a curve.
 
@@ -1820,13 +1841,14 @@ class _Curve2DMethods(
         geomcore curve or surface. Other Python threads run meanwhile.
         """
     def extrema(
-        self, point: Point2D, tol: Optional[_ToleranceLike] = None
+        self, point: _Point2DLike, tol: Optional[_ToleranceLike] = None
     ) -> List[CurveProjection2D]:
         """The local minima of the distance from `point` to the
         curve, an end of a bounded curve among them where the
         distance grows from it into the curve, as
         `CurveProjection2D` objects ordered by ascending distance.
-        Raises `TypeError` for anything but a `Point2D`: the
+        `point` is a `Point2D` or a sequence of its two
+        coordinates. Raises `TypeError` for anything else: the
         extrema between two 2D curves are not supported.
         """
 
@@ -1879,12 +1901,12 @@ class Line(_CurveMethods):
     """An infinite straight line in 3D, parametrized by arc length from its origin."""
     def __repr__(self) -> str: ...
     __hash__: ClassVar[None]  # type: ignore[assignment]
-    def __new__(cls, origin: Point, direction: Vector) -> Line: ...
+    def __new__(cls, origin: _PointLike, direction: Vector) -> Line: ...
     @staticmethod
     def from_axis(axis: Axis) -> Line:
         """Build a line from an axis."""
     @staticmethod
-    def from_two_points(p1: Point, p2: Point) -> Line:
+    def from_two_points(p1: _PointLike, p2: _PointLike) -> Line:
         """Build a line through two distinct points."""
     def origin(self) -> Point:
         """The line origin (point at parameter 0)."""
@@ -1901,7 +1923,7 @@ class Circle(
     """A circle in 3D, parametrized by the angle from its frame's x direction."""
     def __repr__(self) -> str: ...
     __hash__: ClassVar[None]  # type: ignore[assignment]
-    def __new__(cls, center: Point, normal: Vector, radius: float) -> Circle: ...
+    def __new__(cls, center: _PointLike, normal: Vector, radius: float) -> Circle: ...
     @staticmethod
     def from_axis(axis: Axis, radius: float) -> Circle:
         """Build a circle from an axis (center + normal) and a radius."""
@@ -1909,7 +1931,7 @@ class Circle(
     def from_frame(frame: Frame, radius: float) -> Circle:
         """Build a circle from a placement frame and a radius."""
     @staticmethod
-    def from_three_points(p1: Point, p2: Point, p3: Point) -> Circle:
+    def from_three_points(p1: _PointLike, p2: _PointLike, p3: _PointLike) -> Circle:
         """Build the circle through three non-collinear points; the curve starts
         at the first point.
         """
@@ -1954,7 +1976,7 @@ class Ellipse(
     __hash__: ClassVar[None]  # type: ignore[assignment]
     def __new__(
         cls,
-        center: Point,
+        center: _PointLike,
         normal: Vector,
         x_direction: Vector,
         major_radius: float,
@@ -1964,7 +1986,7 @@ class Ellipse(
     def from_frame(frame: Frame, major_radius: float, minor_radius: float) -> Ellipse:
         """Build an ellipse from a placement frame and the two radii."""
     @staticmethod
-    def from_center_and_points(center: Point, s1: Point, s2: Point) -> Ellipse:
+    def from_center_and_points(center: _PointLike, s1: _PointLike, s2: _PointLike) -> Ellipse:
         """Build an ellipse from its center, the major-axis end point `s1`
         and a point `s2` whose distance from the major axis is the minor
         radius.
@@ -2010,13 +2032,13 @@ class Parabola(_CurveMethods):
     def __repr__(self) -> str: ...
     __hash__: ClassVar[None]  # type: ignore[assignment]
     def __new__(
-        cls, apex: Point, normal: Vector, x_direction: Vector, focal_distance: float
+        cls, apex: _PointLike, normal: Vector, x_direction: Vector, focal_distance: float
     ) -> Parabola: ...
     @staticmethod
     def from_frame(frame: Frame, focal_distance: float) -> Parabola:
         """Build a parabola from a placement frame and focal distance."""
     @staticmethod
-    def from_focus_and_directrix(focus: Point, directrix: Line) -> Parabola:
+    def from_focus_and_directrix(focus: _PointLike, directrix: Line) -> Parabola:
         """Build the parabola of every point as far from `focus` as from
         `directrix`; the parameter runs along the directrix's direction.
         """
@@ -2046,7 +2068,7 @@ class Hyperbola(_CurveMethods):
     __hash__: ClassVar[None]  # type: ignore[assignment]
     def __new__(
         cls,
-        center: Point,
+        center: _PointLike,
         normal: Vector,
         x_direction: Vector,
         major_radius: float,
@@ -2056,7 +2078,7 @@ class Hyperbola(_CurveMethods):
     def from_frame(frame: Frame, major_radius: float, minor_radius: float) -> Hyperbola:
         """Build a hyperbola from a placement frame and the two radii."""
     @staticmethod
-    def from_center_and_points(center: Point, s1: Point, s2: Point) -> Hyperbola:
+    def from_center_and_points(center: _PointLike, s1: _PointLike, s2: _PointLike) -> Hyperbola:
         """Build a hyperbola from its center, the vertex point and a second
         point on the curve.
         """
@@ -2095,7 +2117,7 @@ class BSplineCurve(
     def __new__(
         cls,
         degree: int,
-        poles: Sequence[Point],
+        poles: _Points,
         knots: _Floats,
         multiplicities: _Ints,
         periodic: bool,
@@ -2103,7 +2125,7 @@ class BSplineCurve(
     @staticmethod
     def new_rational(
         degree: int,
-        poles: Sequence[Point],
+        poles: _Points,
         weights: _Floats,
         knots: _Floats,
         multiplicities: _Ints,
@@ -2112,7 +2134,7 @@ class BSplineCurve(
         """Build a rational B-spline (NURBS) curve with a weight per pole."""
     @staticmethod
     def interpolate(
-        points: Union[Sequence[Point], numpy.typing.ArrayLike],
+        points: _Points,
         degree: int,
         parametrization: _Parametrization = "centripetal",
     ) -> BSplineCurve:
@@ -2125,7 +2147,7 @@ class BSplineCurve(
         """
     @staticmethod
     def approximate(
-        points: Union[Sequence[Point], numpy.typing.ArrayLike],
+        points: _Points,
         degree: int,
         pole_count: int,
         parametrization: _Parametrization = "centripetal",
@@ -2139,7 +2161,7 @@ class BSplineCurve(
         """
     @staticmethod
     def approximate_within(
-        points: Union[Sequence[Point], numpy.typing.ArrayLike],
+        points: _Points,
         degree: int,
         max_deviation: float,
         parametrization: _Parametrization = "centripetal",
@@ -2159,7 +2181,7 @@ class BSplineCurve(
     @staticmethod
     def from_flat_knots(
         degree: int,
-        poles: Union[Sequence[Point], numpy.typing.ArrayLike],
+        poles: _Points,
         flat_knots: _Floats,
         weights: Optional[_Floats] = None,
         periodic: bool = False,
@@ -2172,7 +2194,7 @@ class BSplineCurve(
         """
     @staticmethod
     def clamped_uniform(
-        degree: int, poles: Union[Sequence[Point], numpy.typing.ArrayLike]
+        degree: int, poles: _Points
     ) -> BSplineCurve:
         """Build the clamped curve of `degree` with uniform knots over
         `[0, 1]`: both end knots of multiplicity `degree + 1`, and
@@ -2209,7 +2231,7 @@ class BSplineCurve(
         last pole of a periodic curve). They are the polynomial basis,
         before any weights, and sum to 1.
         """
-    def with_pole(self, index: int, pole: Point) -> BSplineCurve:
+    def with_pole(self, index: int, pole: _PointLike) -> BSplineCurve:
         """The curve with pole `index` (negative counting from the end) moved
         to `pole`, its degree, knots and weights kept.
         """
@@ -2294,7 +2316,7 @@ class BSplineCurve2D(
     def __new__(
         cls,
         degree: int,
-        poles: Sequence[Point2D],
+        poles: _Points2D,
         knots: _Floats,
         multiplicities: _Ints,
         periodic: bool,
@@ -2302,7 +2324,7 @@ class BSplineCurve2D(
     @staticmethod
     def new_rational(
         degree: int,
-        poles: Sequence[Point2D],
+        poles: _Points2D,
         weights: _Floats,
         knots: _Floats,
         multiplicities: _Ints,
@@ -2311,7 +2333,7 @@ class BSplineCurve2D(
         """Build a rational 2D B-spline (NURBS) curve with a weight per pole."""
     @staticmethod
     def interpolate(
-        points: Union[Sequence[Point2D], numpy.typing.ArrayLike],
+        points: _Points2D,
         degree: int,
         parametrization: _Parametrization = "centripetal",
     ) -> BSplineCurve2D:
@@ -2324,7 +2346,7 @@ class BSplineCurve2D(
         """
     @staticmethod
     def approximate(
-        points: Union[Sequence[Point2D], numpy.typing.ArrayLike],
+        points: _Points2D,
         degree: int,
         pole_count: int,
         parametrization: _Parametrization = "centripetal",
@@ -2339,7 +2361,7 @@ class BSplineCurve2D(
         """
     @staticmethod
     def approximate_within(
-        points: Union[Sequence[Point2D], numpy.typing.ArrayLike],
+        points: _Points2D,
         degree: int,
         max_deviation: float,
         parametrization: _Parametrization = "centripetal",
@@ -2359,7 +2381,7 @@ class BSplineCurve2D(
     @staticmethod
     def from_flat_knots(
         degree: int,
-        poles: Union[Sequence[Point2D], numpy.typing.ArrayLike],
+        poles: _Points2D,
         flat_knots: _Floats,
         weights: Optional[_Floats] = None,
         periodic: bool = False,
@@ -2372,7 +2394,7 @@ class BSplineCurve2D(
         """
     @staticmethod
     def clamped_uniform(
-        degree: int, poles: Union[Sequence[Point2D], numpy.typing.ArrayLike]
+        degree: int, poles: _Points2D
     ) -> BSplineCurve2D:
         """Build the clamped curve of `degree` with uniform knots over
         `[0, 1]`: both end knots of multiplicity `degree + 1`, and
@@ -2409,7 +2431,7 @@ class BSplineCurve2D(
         last pole of a periodic curve). They are the polynomial basis,
         before any weights, and sum to 1.
         """
-    def with_pole(self, index: int, pole: Point2D) -> BSplineCurve2D:
+    def with_pole(self, index: int, pole: _Point2DLike) -> BSplineCurve2D:
         """The curve with pole `index` (negative counting from the end) moved
         to `pole`, its degree, knots and weights kept.
         """
@@ -2492,10 +2514,10 @@ class BezierCurve(
     """
     def __repr__(self) -> str: ...
     __hash__: ClassVar[None]  # type: ignore[assignment]
-    def __new__(cls, degree: int, poles: Sequence[Point]) -> BezierCurve: ...
+    def __new__(cls, degree: int, poles: _Points) -> BezierCurve: ...
     @staticmethod
     def new_rational(
-        degree: int, poles: Sequence[Point], weights: _Floats
+        degree: int, poles: _Points, weights: _Floats
     ) -> BezierCurve:
         """Build a rational Bézier curve with a positive weight per pole."""
     @staticmethod
@@ -2539,10 +2561,10 @@ class BezierCurve2D(
     """
     def __repr__(self) -> str: ...
     __hash__: ClassVar[None]  # type: ignore[assignment]
-    def __new__(cls, degree: int, poles: Sequence[Point2D]) -> BezierCurve2D: ...
+    def __new__(cls, degree: int, poles: _Points2D) -> BezierCurve2D: ...
     @staticmethod
     def new_rational(
-        degree: int, poles: Sequence[Point2D], weights: _Floats
+        degree: int, poles: _Points2D, weights: _Floats
     ) -> BezierCurve2D:
         """Build a rational Bézier curve with a positive weight per pole."""
     @staticmethod
@@ -2615,7 +2637,7 @@ class QuarticBranch(_CurveMethods):
 class Line2D(_Curve2DMethods):
     """A straight line in a surface's 2D (u, v) parameter space."""
     __hash__: ClassVar[None]  # type: ignore[assignment]
-    def __new__(cls, origin: Point2D, direction: Vector2D) -> Line2D: ...
+    def __new__(cls, origin: _Point2DLike, direction: Vector2D) -> Line2D: ...
     def origin(self) -> Point2D:
         """The line origin (point at parameter 0)."""
     def direction(self) -> Vector2D:
@@ -2627,7 +2649,7 @@ class Line2D(_Curve2DMethods):
     def axis(self) -> Axis2D:
         """The axis of the line: its origin and unit direction."""
     @staticmethod
-    def from_two_points(p1: Point2D, p2: Point2D) -> Line2D:
+    def from_two_points(p1: _Point2DLike, p2: _Point2DLike) -> Line2D:
         """Build the line through two distinct points, with the first as origin
         and the second at positive parameter.
         """
@@ -2636,7 +2658,7 @@ class Line2D(_Curve2DMethods):
 class Circle2D(_Curve2DMethods, _BoundedCurveMethods[Point2D, Discretization2D]):
     """A circle in a surface's 2D (u, v) parameter space."""
     __hash__: ClassVar[None]  # type: ignore[assignment]
-    def __new__(cls, center: Point2D, radius: float) -> Circle2D: ...
+    def __new__(cls, center: _Point2DLike, radius: float) -> Circle2D: ...
     @staticmethod
     def from_frame(frame: Frame2D, radius: float) -> Circle2D:
         """Build a 2D circle from its placement frame and radius: centered on
@@ -2676,7 +2698,7 @@ class Ellipse2D(_Curve2DMethods, _BoundedCurveMethods[Point2D, Discretization2D]
     __hash__: ClassVar[None]  # type: ignore[assignment]
     def __new__(
         cls,
-        center: Point2D,
+        center: _Point2DLike,
         x_direction: Vector2D,
         major_radius: float,
         minor_radius: float,
@@ -2688,7 +2710,7 @@ class Ellipse2D(_Curve2DMethods, _BoundedCurveMethods[Point2D, Discretization2D]
         """Build a 2D ellipse from a placement frame and the two radii."""
     @staticmethod
     def from_center_and_points(
-        center: Point2D, s1: Point2D, s2: Point2D
+        center: _Point2DLike, s1: _Point2DLike, s2: _Point2DLike
     ) -> Ellipse2D:
         """Build a 2D ellipse from its center, the major-axis end point `s1`
         and a point `s2` whose distance from the major axis is the minor
@@ -2734,12 +2756,12 @@ class Ellipse2D(_Curve2DMethods, _BoundedCurveMethods[Point2D, Discretization2D]
 class Parabola2D(_Curve2DMethods):
     """A parabola in 2D, parametrized so the apex is at parameter 0."""
     __hash__: ClassVar[None]  # type: ignore[assignment]
-    def __new__(cls, apex: Point2D, x_direction: Vector2D, focal_distance: float) -> Parabola2D: ...
+    def __new__(cls, apex: _Point2DLike, x_direction: Vector2D, focal_distance: float) -> Parabola2D: ...
     @staticmethod
     def from_frame(frame: Frame2D, focal_distance: float) -> Parabola2D:
         """Build a 2D parabola from a placement frame and focal distance."""
     @staticmethod
-    def from_focus_and_directrix(focus: Point2D, directrix: Line2D) -> Parabola2D:
+    def from_focus_and_directrix(focus: _Point2DLike, directrix: Line2D) -> Parabola2D:
         """Build the parabola of every point as far from `focus` as from
         `directrix`; the parameter runs along the directrix's direction.
         """
@@ -2769,7 +2791,7 @@ class Hyperbola2D(_Curve2DMethods):
     __hash__: ClassVar[None]  # type: ignore[assignment]
     def __new__(
         cls,
-        center: Point2D,
+        center: _Point2DLike,
         x_direction: Vector2D,
         major_radius: float,
         minor_radius: float,
@@ -2783,7 +2805,7 @@ class Hyperbola2D(_Curve2DMethods):
         """
     @staticmethod
     def from_center_and_points(
-        center: Point2D, s1: Point2D, s2: Point2D
+        center: _Point2DLike, s1: _Point2DLike, s2: _Point2DLike
     ) -> Hyperbola2D:
         """Build a 2D hyperbola from its center, a major-axis end point `s1`
         and a second point `s2` fixing the minor radius and the side the
@@ -2831,12 +2853,12 @@ class TrimmedCurve(_CurveMethods, _BoundedCurveMethods[Point, Discretization]):
         cls, basis: Curve, start_parameter: float, end_parameter: float
     ) -> TrimmedCurve: ...
     @staticmethod
-    def segment(start: Point, end: Point) -> TrimmedCurve:
+    def segment(start: _PointLike, end: _PointLike) -> TrimmedCurve:
         """The segment from `start` to `end`, parametrised by arc length from
         `start` over `[0, |end - start|]`.
         """
     @staticmethod
-    def arc_through(start: Point, middle: Point, end: Point) -> TrimmedCurve:
+    def arc_through(start: _PointLike, middle: _PointLike, end: _PointLike) -> TrimmedCurve:
         """The arc from `start` through `middle` to `end`, on the circle
         through the three points, whose normal the points turn
         counterclockwise about. Raises `ConstructionError` when two points
@@ -2844,9 +2866,9 @@ class TrimmedCurve(_CurveMethods, _BoundedCurveMethods[Point, Discretization]):
         """
     @staticmethod
     def arc(
-        center: Point,
-        start: Point,
-        end: Point,
+        center: _PointLike,
+        start: _PointLike,
+        end: _PointLike,
         normal: Vector,
         tol: Optional[_ToleranceLike] = None,
     ) -> TrimmedCurve:
@@ -2894,12 +2916,12 @@ class TrimmedCurve2D(_Curve2DMethods, _BoundedCurveMethods[Point2D, Discretizati
         cls, basis: Curve2D, start_parameter: float, end_parameter: float
     ) -> TrimmedCurve2D: ...
     @staticmethod
-    def segment(start: Point2D, end: Point2D) -> TrimmedCurve2D:
+    def segment(start: _Point2DLike, end: _Point2DLike) -> TrimmedCurve2D:
         """The segment from `start` to `end`, parametrised by arc length from
         `start` over `[0, |end - start|]`.
         """
     @staticmethod
-    def arc_through(start: Point2D, middle: Point2D, end: Point2D) -> TrimmedCurve2D:
+    def arc_through(start: _Point2DLike, middle: _Point2DLike, end: _Point2DLike) -> TrimmedCurve2D:
         """The arc from `start` through `middle` to `end`, on the circle
         through the three points: counterclockwise when they turn left,
         clockwise otherwise. Raises `ConstructionError` when two points
@@ -2907,9 +2929,9 @@ class TrimmedCurve2D(_Curve2DMethods, _BoundedCurveMethods[Point2D, Discretizati
         """
     @staticmethod
     def arc(
-        center: Point2D,
-        start: Point2D,
-        end: Point2D,
+        center: _Point2DLike,
+        start: _Point2DLike,
+        end: _Point2DLike,
         counterclockwise: bool = True,
         tol: Optional[_ToleranceLike] = None,
     ) -> TrimmedCurve2D:
@@ -3004,7 +3026,7 @@ class _SurfaceMethods(Generic[_UIsoCurveType, _VIsoCurveType]):
         bound. An operation that builds from a parameter, such as
         `u_iso`, raises on one outside the bounds instead.
         """
-    def points_at(self, uvs: Sequence[Tuple[float, float]]) -> List[Point]:
+    def points_at(self, uvs: _Pairs) -> List[Point]:
         """Evaluate many (u, v) pairs at once."""
     def points_at_array(self, uvs: numpy.typing.ArrayLike) -> _FloatArray:
         """The points at each `(u, v)` row of the `(N, 2)` array-like
@@ -3093,7 +3115,7 @@ class _SurfaceMethods(Generic[_UIsoCurveType, _VIsoCurveType]):
         the unit normal: negative bends away from it.
         """
     def project_point(
-        self, point: Point, tol: Optional[_ToleranceLike] = None
+        self, point: _PointLike, tol: Optional[_ToleranceLike] = None
     ) -> SurfaceProjection:
         """Projects `point` onto the surface: the closest point, as a
         `SurfaceProjection`.
@@ -3103,7 +3125,7 @@ class _SurfaceMethods(Generic[_UIsoCurveType, _VIsoCurveType]):
         smaller `Tolerance` to read a smaller distance.
         """
     def project_points(
-        self, points: Sequence[Point], tol: Optional[_ToleranceLike] = None
+        self, points: _Points, tol: Optional[_ToleranceLike] = None
     ) -> List[SurfaceProjection]:
         """Projects each point in `points` onto the surface, returning a
         `SurfaceProjection` per point.
@@ -3116,12 +3138,12 @@ class _SurfaceMethods(Generic[_UIsoCurveType, _VIsoCurveType]):
         distances)`: the `(u, v)` row, the closest point and its
         distance per row.
         """
-    def contains(self, point: Point, tol: Optional[_ToleranceLike] = None) -> bool:
+    def contains(self, point: _PointLike, tol: Optional[_ToleranceLike] = None) -> bool:
         """Returns whether `point` lies on the surface within `tol`
         (`Tolerance.default()` when omitted).
         """
     def parameters_of(
-        self, point: Point, tol: Optional[_ToleranceLike] = None
+        self, point: _PointLike, tol: Optional[_ToleranceLike] = None
     ) -> Tuple[float, float]:
         """The `(u, v)` parameters of `point`, a point on the surface,
         within `tol` (`Tolerance.default()` when omitted). Off the
@@ -3338,7 +3360,7 @@ class _SidedSurfaceEvaluationMethods:
 
 class _SurfaceExtremaMethods:
     def extrema(
-        self, point: Point, tol: Optional[_ToleranceLike] = None
+        self, point: _PointLike, tol: Optional[_ToleranceLike] = None
     ) -> List[SurfaceProjection]:
         """The local minima of the distance from `point` to the
         surface, as `SurfaceProjection` objects ordered by ascending
@@ -3353,12 +3375,12 @@ class Plane(_SurfaceMethods[Line, Line]):
     """
     def __repr__(self) -> str: ...
     __hash__: ClassVar[None]  # type: ignore[assignment]
-    def __new__(cls, point: Point, normal: Vector) -> Plane: ...
+    def __new__(cls, point: _PointLike, normal: Vector) -> Plane: ...
     @staticmethod
     def from_frame(frame: Frame) -> Plane:
         """Build a plane from a placement frame (normal = frame z direction)."""
     @staticmethod
-    def from_three_points(p1: Point, p2: Point, p3: Point) -> Plane:
+    def from_three_points(p1: _PointLike, p2: _PointLike, p3: _PointLike) -> Plane:
         """Build a plane through three non-collinear points."""
     @staticmethod
     def from_coefficients(a: float, b: float, c: float, d: float) -> Plane:
@@ -3369,7 +3391,7 @@ class Plane(_SurfaceMethods[Line, Line]):
         `reversed_v()`. `normal(u, v)` gives the same direction at
         every point.
         """
-    def signed_distance(self, point: Point) -> float:
+    def signed_distance(self, point: _PointLike) -> float:
         """The signed distance from the plane to `point`: positive on the side
         the normal points to, negative on the other.
         """
@@ -3390,7 +3412,7 @@ class Cylinder(_SurfaceMethods[Line, Circle]):
     """
     def __repr__(self) -> str: ...
     __hash__: ClassVar[None]  # type: ignore[assignment]
-    def __new__(cls, center: Point, axis_direction: Vector, radius: float) -> Cylinder: ...
+    def __new__(cls, center: _PointLike, axis_direction: Vector, radius: float) -> Cylinder: ...
     @staticmethod
     def from_frame(frame: Frame, radius: float) -> Cylinder:
         """Build a cylinder from a placement frame (axis = frame z direction)."""
@@ -3428,7 +3450,7 @@ class Cone(_SurfaceMethods[Line, Circle]):
     __hash__: ClassVar[None]  # type: ignore[assignment]
     def __new__(
         cls,
-        center: Point,
+        center: _PointLike,
         axis_direction: Vector,
         half_angle: float,
         reference_radius: float,
@@ -3438,11 +3460,11 @@ class Cone(_SurfaceMethods[Line, Circle]):
         """Build a cone from a placement frame, half-angle and reference radius."""
     @staticmethod
     def from_two_points_and_radii(
-        p1: Point, p2: Point, r1: float, r2: float
+        p1: _PointLike, p2: _PointLike, r1: float, r2: float
     ) -> Cone:
         """Build a cone through two circular sections given by axis points and radii."""
     @staticmethod
-    def from_apex(apex: Point, axis_direction: Vector, half_angle: float) -> Cone:
+    def from_apex(apex: _PointLike, axis_direction: Vector, half_angle: float) -> Cone:
         """Build the cone of apex `apex` opening along `axis_direction` at
         half-angle `half_angle`; its reference circle shrinks to the apex.
         """
@@ -3478,7 +3500,7 @@ class Sphere(_SurfaceMethods[Circle, Circle]):
     """
     def __repr__(self) -> str: ...
     __hash__: ClassVar[None]  # type: ignore[assignment]
-    def __new__(cls, center: Point, radius: float) -> Sphere: ...
+    def __new__(cls, center: _PointLike, radius: float) -> Sphere: ...
     @staticmethod
     def from_frame(frame: Frame, radius: float) -> Sphere:
         """Build a sphere from a placement frame and radius."""
@@ -3516,7 +3538,7 @@ class Torus(_SurfaceMethods[Circle, Circle]):
     def __repr__(self) -> str: ...
     __hash__: ClassVar[None]  # type: ignore[assignment]
     def __new__(
-        cls, center: Point, axis_direction: Vector, major_radius: float, minor_radius: float
+        cls, center: _PointLike, axis_direction: Vector, major_radius: float, minor_radius: float
     ) -> Torus: ...
     @staticmethod
     def from_frame(frame: Frame, major_radius: float, minor_radius: float) -> Torus:
@@ -3618,7 +3640,7 @@ class BSplineSurface(
         cls,
         u_degree: int,
         v_degree: int,
-        poles: Sequence[Sequence[Point]],
+        poles: _PointGrid,
         u_knots: _Floats,
         u_multiplicities: _Ints,
         v_knots: _Floats,
@@ -3630,7 +3652,7 @@ class BSplineSurface(
     def new_rational(
         u_degree: int,
         v_degree: int,
-        poles: Sequence[Sequence[Point]],
+        poles: _PointGrid,
         weights: Sequence[_Floats],
         u_knots: _Floats,
         u_multiplicities: _Ints,
@@ -3664,9 +3686,34 @@ class BSplineSurface(
         """The distinct knots in the `v` direction."""
     def v_multiplicities(self) -> List[int]:
         """The multiplicity of each `v` knot."""
+    def u_flat_knots(self) -> List[float]:
+        """The flat knot vector in the `u` direction: each distinct knot
+        repeated by its multiplicity.
+        """
+    def v_flat_knots(self) -> List[float]:
+        """The flat knot vector in the `v` direction: each distinct knot
+        repeated by its multiplicity.
+        """
+    @staticmethod
+    def from_flat_knots(
+        u_degree: int,
+        v_degree: int,
+        poles: _PointGrid,
+        u_flat_knots: _Floats,
+        v_flat_knots: _Floats,
+        weights: Optional[Sequence[_Floats]] = None,
+        u_periodic: bool = False,
+        v_periodic: bool = False,
+    ) -> BSplineSurface:
+        """Build a surface from its flat knot vectors, the form textbooks
+        use: each distinct knot repeated by its multiplicity, so a
+        non-periodic direction of `n` poles takes `n + degree + 1` knots.
+        `weights`, a grid laid out as `poles`, make it rational. The flat
+        knots are as `u_flat_knots()` and `v_flat_knots()` give them.
+        """
     @staticmethod
     def approximate(
-        points: Union[Sequence[Sequence[Point]], numpy.typing.ArrayLike],
+        points: _PointGrid,
         u_degree: int,
         v_degree: int,
         u_pole_count: int,
@@ -3682,7 +3729,7 @@ class BSplineSurface(
         """
     @staticmethod
     def approximate_within(
-        points: Union[Sequence[Sequence[Point]], numpy.typing.ArrayLike],
+        points: _PointGrid,
         u_degree: int,
         v_degree: int,
         max_deviation: float,
@@ -3789,13 +3836,13 @@ class BezierSurface(
     def __repr__(self) -> str: ...
     __hash__: ClassVar[None]  # type: ignore[assignment]
     def __new__(
-        cls, u_degree: int, v_degree: int, poles: Sequence[Sequence[Point]]
+        cls, u_degree: int, v_degree: int, poles: _PointGrid
     ) -> BezierSurface: ...
     @staticmethod
     def new_rational(
         u_degree: int,
         v_degree: int,
-        poles: Sequence[Sequence[Point]],
+        poles: _PointGrid,
         weights: Sequence[_Floats],
     ) -> BezierSurface:
         """Build a rational Bézier surface with a positive weight per pole,
@@ -3868,7 +3915,7 @@ class TrimmedSurface:
         """The basis's point at surface parameters (u, v), inside the ranges
         or not.
         """
-    def points_at(self, uvs: Sequence[Tuple[float, float]]) -> List[Point]:
+    def points_at(self, uvs: _Pairs) -> List[Point]:
         """Evaluate many (u, v) pairs at once."""
     def first_derivatives(self, u: float, v: float) -> Tuple[Point, Tuple[Vector, Vector]]:
         """The point and the first partial derivatives `(du, dv)` at `(u, v)`."""
@@ -3879,7 +3926,7 @@ class TrimmedSurface:
         omitted), as `Surface.normal`.
         """
     def project_point(
-        self, point: Point, tol: Optional[_ToleranceLike] = None
+        self, point: _PointLike, tol: Optional[_ToleranceLike] = None
     ) -> SurfaceProjection:
         """Projects `point` onto the patch: the basis's closest point when it
         lies in the ranges, otherwise the closest point on the boundary of
@@ -3887,12 +3934,12 @@ class TrimmedSurface:
         distance inside the ranges other than the basis's closest point is
         not searched.
         """
-    def contains(self, point: Point, tol: Optional[_ToleranceLike] = None) -> bool:
+    def contains(self, point: _PointLike, tol: Optional[_ToleranceLike] = None) -> bool:
         """Returns whether `point` lies on the patch within `tol`
         (`Tolerance.default()` when omitted).
         """
     def parameters_of(
-        self, point: Point, tol: Optional[_ToleranceLike] = None
+        self, point: _PointLike, tol: Optional[_ToleranceLike] = None
     ) -> Tuple[float, float]:
         """The basis's `(u, v)` parameters of `point`, a periodic parameter
         shifted by whole periods into its range where it can be

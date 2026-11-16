@@ -19,12 +19,12 @@ shape_methods! {
     /// Build a non-rational 2D B-spline curve.
     fn py_new(
         degree: usize,
-        poles: Vec<PyPoint2D>,
+        poles: crate::arrays::Points<geomcore::Point2D>,
         knots: Vec<f64>,
         multiplicities: Vec<u32>,
         periodic: bool,
     ) -> PyResult<Self> {
-        let poles = poles.into_iter().map(|p| p.0).collect();
+        let poles = poles.0;
         Ok(PyBSplineCurve2D(
             BSplineCurve2D::new(degree, poles, knots, multiplicities, periodic)
                 .map_err(python_error)?,
@@ -35,13 +35,13 @@ shape_methods! {
     #[staticmethod]
     fn new_rational(
         degree: usize,
-        poles: Vec<PyPoint2D>,
+        poles: crate::arrays::Points<geomcore::Point2D>,
         weights: Vec<f64>,
         knots: Vec<f64>,
         multiplicities: Vec<u32>,
         periodic: bool,
     ) -> PyResult<Self> {
-        let poles = poles.into_iter().map(|p| p.0).collect();
+        let poles = poles.0;
         Ok(PyBSplineCurve2D(
             BSplineCurve2D::new_rational(degree, poles, weights, knots, multiplicities, periodic)
                 .map_err(python_error)?,
