@@ -10,6 +10,7 @@
 use crate::arrays;
 use pyo3::exceptions::PyIndexError;
 use pyo3::prelude::*;
+use pyo3::sync::PyOnceLock;
 use pyo3::types::{PyBool, PyDict, PyFloat, PyInt, PyIterator, PyList, PyTuple};
 
 /// What `__reduce__` returns: `(constructor, arguments)`, the constructor
@@ -57,16 +58,31 @@ pub(crate) fn coordinate_iterator<'py>(
 
 /// The coordinates as a one-dimensional numpy array, for `__array__`: of
 /// `float64`, or of `dtype` when one is given.
+///
+/// `numpy.array` of a tuple, looked up once, not [`arrays::array`]: for
+/// three numbers, reading the new array's address costs more than numpy's
+/// own copy, and `numpy.asarray(list_of_points)` calls this once a point
+/// (#324).
 pub(crate) fn coordinate_array<'py>(
     py: Python<'py>,
     coordinates: &[f64],
     dtype: Option<&Bound<'py, PyAny>>,
 ) -> PyResult<Bound<'py, PyAny>> {
-    let array = arrays::array(py, coordinates, &[coordinates.len()])?;
-    match dtype {
-        Some(dtype) if !dtype.is_none() => array.call_method1("astype", (dtype,)),
-        _ => Ok(array),
-    }
+    static ARRAY_AND_FLOAT64: PyOnceLock<(Py<PyAny>, Py<PyAny>)> = PyOnceLock::new();
+    let (array, float64) = ARRAY_AND_FLOAT64.get_or_try_init(py, || {
+        let numpy = arrays::numpy(py)?;
+        Ok::<_, PyErr>((
+            numpy.getattr("array")?.unbind(),
+            numpy.getattr("float64")?.unbind(),
+        ))
+    })?;
+    let dtype = match dtype {
+        Some(dtype) if !dtype.is_none() => dtype,
+        _ => float64.bind(py),
+    };
+    array
+        .bind(py)
+        .call1((PyTuple::new(py, coordinates)?, dtype))
 }
 
 /// Lists longer than this print their first [`LIST_HEAD`] items, `...` and

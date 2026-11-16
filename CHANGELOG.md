@@ -60,6 +60,12 @@ the Python distribution are versioned in lockstep.
 
 ### Fixed
 
+- Python: `points_at` and `project_points` on a list release the
+  interpreter lock for the work, as their array forms do (#324): 20 000
+  points projected on a B-spline surface by four threads take 21 ms,
+  where they took 78 ms, as long as on one thread. `numpy.array` of
+  a list of 100 000 points takes 77 ms, from 207 ms. The numpy section
+  of the Python guide points to the array forms first.
 - The viewer page says which geomcore geomcore-viewer 0.4 draws (#316):
   0.43 at the latest, since it reads the names geomcore renamed in 0.44.
   It shows how to pin geomcore for drawing until a viewer release follows
