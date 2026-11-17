@@ -130,7 +130,11 @@ src/
     ├── bspline/         the B-spline engine (poles, curve evaluation, editing,
     │                    tensor-product surfaces, exact conic nets) and errors.rs,
     │                    the errors its checks raise
-    └── numeric/         polynomial roots, Bernstein form, solvers, quadrature
+    ├── numeric/         polynomial roots, Bernstein form, solvers, quadrature
+    └── parameter_range.rs  the rules of a parameter range: the shift by whole
+                         periods, the slack at the ends, the nearest end across
+                         the seam; the trimmed curves and surfaces and the
+                         intersection router read them here
 ```
 
 Outside `src/`:

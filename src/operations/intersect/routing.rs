@@ -29,6 +29,7 @@ use crate::geometry::surfaces::{
     BSplineSurface, BezierSurface, ElementarySurface, ExtrusionSurface, ParametricSurface,
     RevolutionSurface, Surface, TrimmedSurface,
 };
+use crate::math::parameter_range::{in_range, nearest_end};
 use crate::operations::intersect::numeric::embedding_2d::{Embed, intersect_numeric_2d};
 use crate::operations::intersect::numeric::marching::marching_intersection;
 use crate::operations::intersect::results::{CurveCurveOverlapList, SurfaceSurfaceIntersection};
@@ -431,68 +432,6 @@ impl SurfaceOperand for Surface {
     #[inline]
     fn surface_basis(&self) -> SurfaceKind<'_> {
         crate::geometry::surfaces::surface_dispatch!(self, surface => surface.surface_basis().into())
-    }
-}
-
-/// The representative in `range` of a point at `parameter`, or `None`
-/// when the point lies farther than `tol.confusion` in space beyond the
-/// range.
-///
-/// On a periodic curve the parameter is first shifted by whole periods
-/// into `[range.0, range.0 + period)`. A parameter inside the range is
-/// returned as it is. One beyond an end is measured in space: the
-/// parameter excess times `speed` at that end (the line direction's
-/// length, the circle's radius, the derivative's length on other curves).
-/// Within `tol.confusion` the point is kept, snapped to that end. On a
-/// periodic curve the end measured is the nearer one modulo the period,
-/// so a range starting or ending at the seam keeps a point a hair on the
-/// other side of it. `speed` is only called for a point outside the range.
-pub(crate) fn in_range(
-    parameter: f64,
-    range: (f64, f64),
-    period: Option<f64>,
-    speed: impl FnOnce(f64) -> f64,
-    tol: Tolerance,
-) -> Option<f64> {
-    let (before_start, past_end) = match period {
-        None => {
-            if parameter >= range.0 && parameter <= range.1 {
-                return Some(parameter);
-            }
-            (range.0 - parameter, parameter - range.1)
-        }
-        Some(period) => {
-            let shifted = parameter - period * ((parameter - range.0) / period).floor();
-            if shifted <= range.1 {
-                return Some(shifted);
-            }
-            (range.0 + period - shifted, shifted - range.1)
-        }
-    };
-    let (end, excess) = if past_end > 0.0 && (before_start <= 0.0 || past_end <= before_start) {
-        (range.1, past_end)
-    } else {
-        (range.0, before_start)
-    };
-    (excess * speed(end) <= tol.confusion).then_some(end)
-}
-
-/// The end of `range` nearest `parameter`, measured modulo `period` on a
-/// periodic curve: the representative of a point that touches the range
-/// from outside it. Clamping would pick the wrong end for a point just past
-/// the seam (angle `5e-8` against a range ending at 2π).
-fn nearest_end(parameter: f64, range: (f64, f64), period: Option<f64>) -> f64 {
-    let Some(period) = period else {
-        return parameter.clamp(range.0, range.1);
-    };
-    let distance = |end: f64| {
-        let past = (parameter - end).rem_euclid(period);
-        past.min(period - past)
-    };
-    if distance(range.0) <= distance(range.1) {
-        range.0
-    } else {
-        range.1
     }
 }
 
