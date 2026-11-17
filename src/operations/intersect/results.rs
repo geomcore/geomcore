@@ -216,12 +216,11 @@ pub(crate) fn curve_surface_multiplicity(
     point: Point,
     tol: Tolerance,
 ) -> u32 {
-    let scale = tangent.magnitude() * normal.magnitude();
-    if scale == 0.0 || !scale.is_finite() {
+    if !(tangent.magnitude() * normal.magnitude()).is_finite() {
         return 1;
     }
     let extent = point.distance(Point::ORIGIN) + 1.0;
-    if (tangent.dot(normal) / scale).abs() <= tol.angular_for_extent(extent) {
+    if tangent.is_perpendicular(normal, tol.angular_for_extent(extent)) {
         2
     } else {
         1

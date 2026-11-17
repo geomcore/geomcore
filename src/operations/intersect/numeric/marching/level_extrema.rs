@@ -25,6 +25,7 @@
 //! intersection with `E` holds a point of the loop to trace from.
 
 use super::pair::{SurfacePair, swap};
+use crate::Direction;
 use crate::geometry::surfaces::{
     BSplineSurface, ElementarySurface, ParametricSurface, Plane, Torus,
 };
@@ -164,7 +165,7 @@ fn level_seeds<S: ParametricSurface>(
 fn plane_torus_seeds(plane: &Plane, torus: &Torus, tol: Tolerance) -> Vec<[f64; 4]> {
     let normal = plane.normal_direction();
     let axis = torus.frame().z_direction();
-    let Some(radial) = (normal - axis * normal.dot(axis)).normalized() else {
+    let Some(radial) = normal.component_perpendicular_to(axis).normalized() else {
         return Vec::new();
     };
     let (center, major, minor) = (torus.center(), torus.major_radius(), torus.minor_radius());
@@ -195,27 +196,27 @@ fn plane_torus_seeds(plane: &Plane, torus: &Torus, tol: Tolerance) -> Vec<[f64; 
 #[derive(Clone, Copy, Debug)]
 enum Level {
     /// `(p - origin) . normal`.
-    Plane { origin: Point, normal: Vector },
+    Plane { origin: Point, normal: Direction },
     /// `|p - center|^2 - radius^2`.
     Sphere { center: Point, radius: f64 },
     /// `|q|^2 - (q . axis)^2 - radius^2`, `q = p - origin`.
     Cylinder {
         origin: Point,
-        axis: Vector,
+        axis: Direction,
         radius: f64,
     },
     /// `|q|^2 - (1 + slope) (q . axis)^2`, `q = p - apex`, `slope` the
     /// squared tangent of the half-angle: both nappes.
     Cone {
         apex: Point,
-        axis: Vector,
+        axis: Direction,
         slope: f64,
     },
     /// `s^2 - 4 R^2 (|q|^2 - (q . axis)^2)`, `q = p - center`,
     /// `s = |q|^2 + R^2 - r^2`.
     Torus {
         center: Point,
-        axis: Vector,
+        axis: Direction,
         major: f64,
         minor: f64,
     },
@@ -254,7 +255,7 @@ impl Level {
     /// `F(p)` and its gradient.
     fn value_and_gradient(&self, p: Point) -> (f64, Vector) {
         match *self {
-            Level::Plane { origin, normal } => ((p - origin).dot(normal), normal),
+            Level::Plane { origin, normal } => ((p - origin).dot(normal), normal.vector()),
             Level::Sphere { center, radius } => {
                 let q = p - center;
                 (q.dot(q) - radius * radius, q * 2.0)
@@ -265,7 +266,7 @@ impl Level {
                 radius,
             } => {
                 let q = p - origin;
-                let across = q - axis * q.dot(axis);
+                let across = q.component_perpendicular_to(axis);
                 (across.dot(across) - radius * radius, across * 2.0)
             }
             Level::Cone { apex, axis, slope } => {
@@ -353,7 +354,7 @@ impl Level {
             Level::Sphere { center, .. } => middle - center,
             Level::Cylinder { origin, axis, .. } => {
                 let q = middle - origin;
-                q - axis * q.dot(axis)
+                q.component_perpendicular_to(axis)
             }
             Level::Cone { .. } | Level::Torus { .. } => return None,
         };

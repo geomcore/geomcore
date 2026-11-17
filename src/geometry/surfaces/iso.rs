@@ -61,7 +61,10 @@ pub(crate) fn check_iso_param(t: f64, knots: Option<&KnotVector>) -> Result<f64,
 
 /// The line `origin + t * direction`, `direction` being a unit vector. A
 /// finite parameter can still carry `origin` past `f64` range.
-pub(crate) fn iso_line(origin: Point, direction: Vector) -> Result<Line, SurfaceIsoError> {
+pub(crate) fn iso_line(
+    origin: Point,
+    direction: impl Into<Vector>,
+) -> Result<Line, SurfaceIsoError> {
     Line::new(origin, direction).map_err(|_| SurfaceIsoError::NonFinite)
 }
 
@@ -71,10 +74,11 @@ pub(crate) fn iso_line(origin: Point, direction: Vector) -> Result<Line, Surface
 /// changes sign, and a zero radius gives the degenerate circle there.
 pub(crate) fn iso_circle(
     center: Point,
-    normal: Vector,
-    x: Vector,
+    normal: impl Into<Vector>,
+    x: impl Into<Vector>,
     radius: f64,
 ) -> Result<Circle, SurfaceIsoError> {
+    let (normal, x) = (normal.into(), x.into());
     let (x, radius) = if radius < 0.0 {
         (-x, -radius)
     } else {

@@ -55,7 +55,7 @@ shape_methods! {
 
     /// The unit direction of the sweep.
     fn direction(&self) -> PyVector {
-        PyVector(self.0.direction())
+        PyVector(self.0.direction().vector())
     }
 
     /// The patch `u_range × v_range` as an exact B-spline surface

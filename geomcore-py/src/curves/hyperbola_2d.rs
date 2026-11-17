@@ -78,7 +78,7 @@ shape_methods! {
         crate::pickling::paste_back_repr!(
             slf,
             "center" => crate::values::PyPoint2D(this.0.center()),
-            "x_direction" => crate::values::PyVector2D(this.0.frame().x_direction()),
+            "x_direction" => crate::values::PyVector2D(this.0.frame().x_direction().vector()),
             "major_radius" => this.0.major_radius(),
             "minor_radius" => this.0.minor_radius(),
         )

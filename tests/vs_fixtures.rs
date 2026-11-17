@@ -220,9 +220,9 @@ fn circle_three_point_cases_match_golden_fixture() {
 
         let frame = circle.frame();
         assert_point3(frame.origin(), case.frame.origin);
-        assert_vector3(frame.x_direction(), case.frame.x_dir);
-        assert_vector3(frame.y_direction(), case.frame.y_dir);
-        assert_vector3(frame.z_direction(), case.frame.z_dir);
+        assert_vector3(frame.x_direction().vector(), case.frame.x_dir);
+        assert_vector3(frame.y_direction().vector(), case.frame.y_dir);
+        assert_vector3(frame.z_direction().vector(), case.frame.z_dir);
     }
 }
 
@@ -305,9 +305,9 @@ fn ellipses_center_two_points_match_golden_fixture() {
 
         let frame = ellipse.frame();
         assert_point3(frame.origin(), case.frame.origin);
-        assert_vector3(frame.x_direction(), case.frame.x_dir);
-        assert_vector3(frame.y_direction(), case.frame.y_dir);
-        assert_vector3(frame.z_direction(), case.frame.z_dir);
+        assert_vector3(frame.x_direction().vector(), case.frame.x_dir);
+        assert_vector3(frame.y_direction().vector(), case.frame.y_dir);
+        assert_vector3(frame.z_direction().vector(), case.frame.z_dir);
     }
 }
 
@@ -328,9 +328,9 @@ fn hyperbolas_center_two_points_match_golden_fixture() {
 
         let frame = hyperbola.frame();
         assert_point3(frame.origin(), case.frame.origin);
-        assert_vector3(frame.x_direction(), case.frame.x_dir);
-        assert_vector3(frame.y_direction(), case.frame.y_dir);
-        assert_vector3(frame.z_direction(), case.frame.z_dir);
+        assert_vector3(frame.x_direction().vector(), case.frame.x_dir);
+        assert_vector3(frame.y_direction().vector(), case.frame.y_dir);
+        assert_vector3(frame.z_direction().vector(), case.frame.z_dir);
     }
 }
 
@@ -496,9 +496,9 @@ struct SurfaceConstructionFixture {
 
 fn assert_frame_matches(frame: geomcore::Frame, expected: &FrameJson) {
     assert_point3(frame.origin(), expected.origin);
-    assert_vector3(frame.x_direction(), expected.x_dir);
-    assert_vector3(frame.y_direction(), expected.y_dir);
-    assert_vector3(frame.z_direction(), expected.z_dir);
+    assert_vector3(frame.x_direction().vector(), expected.x_dir);
+    assert_vector3(frame.y_direction().vector(), expected.y_dir);
+    assert_vector3(frame.z_direction().vector(), expected.z_dir);
 }
 
 #[test]

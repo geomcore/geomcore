@@ -52,7 +52,8 @@ fn curve_box(curve: &BSplineCurve) -> Aabb {
 
 /// The range of `t` over which `origin + t direction` lies inside `b`,
 /// with `lo > hi` when it misses `b`.
-fn clip(b: &Aabb, origin: Point, direction: Vector) -> (f64, f64) {
+fn clip(b: &Aabb, origin: Point, direction: impl Into<Vector>) -> (f64, f64) {
+    let direction = direction.into();
     let (o, d) = (
         [origin.x, origin.y, origin.z],
         [direction.x, direction.y, direction.z],

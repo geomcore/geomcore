@@ -4,6 +4,8 @@
 
 /// How smooth a shape is at a parameter.
 mod continuity;
+/// Directions, vectors of unit length by construction.
+pub(crate) mod direction;
 /// Axis and frame placement types.
 pub(crate) mod frame;
 /// A list holding up to a proven bound of items inline.
@@ -21,6 +23,7 @@ pub(crate) mod transform;
 /// Vectors in 2D and 3D space.
 pub(crate) mod vector;
 pub use continuity::Continuity;
+pub use direction::{Direction, Direction2D};
 pub use frame::{Axis, Axis2D, Frame, Frame2D, FrameConstructionError};
 pub use inline_list::InlineList;
 pub use point::{Point, Point2D};

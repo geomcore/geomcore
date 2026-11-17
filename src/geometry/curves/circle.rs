@@ -2,6 +2,7 @@
 //! circumcircle construction, thin wrappers over
 //! [`crate::math::elementary::curve`].
 
+use crate::Direction;
 use crate::base::frame::frame_error;
 use crate::base::tier::operations::FrameOperations;
 use crate::base::tier::{TierPoint, impl_for_both_tiers};
@@ -143,6 +144,7 @@ impl<P: TierPoint> GenericCircle<P> {
     /// let circle = Circle::new(Point::new(1.0, 2.0, 3.0), Vector::Z, 2.0).unwrap();
     /// assert_eq!(circle.center(), Point::new(1.0, 2.0, 3.0));
     /// ```
+    #[inline]
     pub fn center(&self) -> P {
         self.frame.origin()
     }
@@ -156,6 +158,7 @@ impl<P: TierPoint> GenericCircle<P> {
     /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
     /// assert_eq!(circle.radius(), 2.0);
     /// ```
+    #[inline]
     pub fn radius(&self) -> f64 {
         self.radius
     }
@@ -169,6 +172,7 @@ impl<P: TierPoint> GenericCircle<P> {
     /// let circle = Circle::from_frame(Frame::WORLD, 2.0).unwrap();
     /// assert_eq!(circle.frame(), Frame::WORLD);
     /// ```
+    #[inline]
     pub fn frame(&self) -> P::Frame {
         self.frame
     }
@@ -231,7 +235,18 @@ impl Circle {
     /// assert_eq!(circle.radius(), 2.0);
     /// assert_eq!(circle.normal(), Vector::Z);
     /// ```
+    #[inline]
     pub fn new(
+        center: Point,
+        normal: impl Into<Vector>,
+        radius: f64,
+    ) -> Result<Circle, CircleConstructionError> {
+        Self::new_with_vectors(center, normal.into(), radius)
+    }
+
+    /// The body of [`new`](Self::new) over plain vectors, compiled
+    /// once: only the conversion of its arguments is generic.
+    fn new_with_vectors(
         center: Point,
         normal: Vector,
         radius: f64,
@@ -353,7 +368,8 @@ impl Circle {
     /// assert_eq!(mirrored.normal(), Vector::Z);
     /// assert_eq!(mirrored.frame().z_direction(), -Vector::Z);
     /// ```
-    pub fn normal(&self) -> Vector {
+    #[inline]
+    pub fn normal(&self) -> Direction {
         if self.frame.is_direct() {
             self.frame.z_direction()
         } else {
@@ -373,6 +389,7 @@ impl Circle {
     /// assert_eq!(circle.axis().origin(), Point::new(0.0, 0.0, 1.0));
     /// assert_eq!(circle.axis().direction(), Vector::Z);
     /// ```
+    #[inline]
     pub fn axis(&self) -> Axis {
         if self.frame.is_direct() {
             self.frame.axis()

@@ -507,7 +507,7 @@ impl IntersectExact<Circle2D> for Line2D {
     fn intersect_exact(&self, circle: &Circle2D, tol: Tolerance) -> LineCircle2DIntersection {
         unit_line_meets_circle(
             self.origin(),
-            self.direction(),
+            self.direction().vector(),
             (circle.center(), circle.radius()),
             tol,
         )
@@ -575,7 +575,7 @@ impl IntersectExact<Circle> for Circle {
             self
         } else if lies_in_plane_of(self, other, tol) {
             other
-        } else if self.normal().cross(other.normal()).magnitude() <= tol.angular {
+        } else if self.normal().is_parallel(other.normal(), tol.angular) {
             // Distinct parallel planes.
             return CircleCircleIntersection::Empty;
         } else {
@@ -614,7 +614,9 @@ impl IntersectExact<Circle> for Circle {
 /// plane and turning its normal onto the host's moves it by at most the
 /// confusion tolerance.
 fn lies_in_plane_of(circle: &Circle, host: &Circle, tol: Tolerance) -> bool {
-    circle.normal().cross(host.normal()).magnitude() <= tol.angular_for_extent(circle.radius())
+    circle
+        .normal()
+        .is_parallel(host.normal(), tol.angular_for_extent(circle.radius()))
         && Plane::from_frame(host.frame()).contains(circle.center(), tol)
 }
 

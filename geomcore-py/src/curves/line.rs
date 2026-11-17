@@ -27,7 +27,7 @@ shape_methods! {
         crate::pickling::paste_back_repr!(
             slf,
             "origin" => crate::values::PyPoint(this.0.origin()),
-            "direction" => crate::values::PyVector(this.0.direction()),
+            "direction" => crate::values::PyVector(this.0.direction().vector()),
         )
     }
 
@@ -60,6 +60,6 @@ shape_methods! {
 
     /// The unit direction of the line.
     fn direction(&self) -> PyVector {
-        PyVector(self.0.direction())
+        PyVector(self.0.direction().vector())
     }
 }

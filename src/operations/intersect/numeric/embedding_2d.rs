@@ -51,7 +51,10 @@ pub(crate) trait ToSpace {
 /// A frame in space at `z = 0` with the axes of a 2D frame. The normal is
 /// `-Z` for a clockwise frame, so the angle keeps turning from `x` to `y`.
 fn frame_in_space(frame: Frame2D) -> Frame {
-    let (x, y) = (vector(frame.x_direction()), vector(frame.y_direction()));
+    let (x, y) = (
+        vector(frame.x_direction().vector()),
+        vector(frame.y_direction().vector()),
+    );
     Frame::new(point(frame.origin()), x.cross(y), x).expect("a 2D frame embeds as a frame")
 }
 
@@ -60,7 +63,7 @@ impl ToSpace for Line2D {
 
     fn to_space(&self) -> Line {
         let axis = self.axis();
-        Line::new(point(axis.origin()), vector(axis.direction()))
+        Line::new(point(axis.origin()), vector(axis.direction().vector()))
             .expect("a 2D line embeds as a line")
     }
 }

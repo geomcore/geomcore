@@ -14,8 +14,13 @@ src/
 ├── prelude.rs           the shape and operation traits, for `use geomcore::prelude::*`
 │
 ├── base/                the values every shape is built from
-│   ├── point.rs vector.rs   Point/Point2D, Vector/Vector2D
-│   ├── frame.rs             Axis, Frame and their 2D forms: where a shape is placed
+│   ├── point.rs vector.rs   Point/Point2D, Vector/Vector2D, with the predicates the
+│   │                        solvers ask (is_parallel, is_perpendicular,
+│   │                        component_perpendicular_to)
+│   ├── direction.rs         Direction/Direction2D: unit vectors by type (ADR 0054),
+│   │                        whose is_parallel and is_perpendicular skip normalizing
+│   ├── frame.rs             Axis, Frame and their 2D forms: where a shape is placed;
+│   │                        Axis::is_coaxial
 │   ├── transform.rs         Transform, and the Transformable trait of the shapes it moves
 │   ├── tolerance.rs         Tolerance: every geometric decision takes one
 │   ├── tier.rs              TierPoint: the two tiers (space, plane) the curve types are
@@ -210,6 +215,20 @@ paths.
    `#[cfg(test)] mod tests;` and its tests are in `geometry/curves/line/tests.rs`.
    Tests that only
    use the public API go in `tests/` instead.
+7. **A geometric question has one home.** Whether two directions are
+   parallel or perpendicular, whether two axes are the same line, and the
+   part of a vector across a direction are answered by
+   `Direction::is_parallel` and `Direction::is_perpendicular` between
+   directions, `Vector::is_parallel` and `Vector::is_perpendicular` between
+   vectors of any length, `Vector::component_perpendicular_to`, and
+   `Axis::is_parallel`, `Axis::contains` and `Axis::is_coaxial`, never written
+   out at the call site (`tests/one_home_per_predicate.rs` checks it). The
+   caller chooses only the angle: `tol.angular`
+   for unbounded geometry, `tol.angular_for_extent(size)` where the
+   geometry is bounded (ADR 0006). A vector the caller knows to be unit
+   becomes a direction once, through `Direction::from_unit_vector`, which
+   debug builds check (ADR 0054). Tier-generic code reaches the predicates
+   through the tier's `VectorOperations`.
 
 ## Where to start
 

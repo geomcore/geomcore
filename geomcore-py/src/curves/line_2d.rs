@@ -47,7 +47,7 @@ shape_methods! {
 
     /// The unit direction of the line.
     fn direction(&self) -> PyVector2D {
-        PyVector2D(self.0.direction())
+        PyVector2D(self.0.direction().vector())
     }
 
     fn __reduce__<'py>(slf: &pyo3::Bound<'py, Self>) -> pyo3::PyResult<pyo3::Bound<'py, pyo3::types::PyTuple>> {
@@ -60,7 +60,7 @@ shape_methods! {
         crate::pickling::paste_back_repr!(
             slf,
             "origin" => crate::values::PyPoint2D(this.0.origin()),
-            "direction" => crate::values::PyVector2D(this.0.direction()),
+            "direction" => crate::values::PyVector2D(this.0.direction().vector()),
         )
     }
 }

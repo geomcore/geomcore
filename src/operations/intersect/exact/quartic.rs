@@ -38,6 +38,7 @@
 //! Dupont, Lazard, Lazard and Petitjean ("Near-optimal parameterization
 //! of the intersection of quadrics", J. Symbolic Computation 43, 2008).
 
+use crate::Direction;
 use std::f64::consts::{FRAC_PI_2, PI, SQRT_2, TAU};
 
 use crate::geometry::curves::fitting::{hermite_knots, hermite_spline, segment_length};
@@ -177,7 +178,7 @@ macro_rules! with_rulings {
         match &curve.surfaces {
             Surfaces::Cylinders(first, second) => {
                 let ruled = RuledCylinder::new(first);
-                let other = OtherCylinder::new(second, ruled.axis);
+                let other = OtherCylinder::new(second, ruled.axis.vector());
                 let $rulings = Rulings::new(ruled, other, discriminant, reference, crossing);
                 $body
             }
@@ -640,7 +641,7 @@ pub(super) fn sphere_off_cone_axis(
     let (sin, cos) = cone.half_angle().sin_cos();
     let apex = cone.apex();
     let w = sphere.center() - apex;
-    let across = w - axis * w.dot(axis);
+    let across = w.component_perpendicular_to(axis);
     let e = across.magnitude();
     // The generator at `τ = 0` leans towards the centre.
     let toward = across * (sin.signum() / e);
@@ -792,7 +793,7 @@ pub(super) fn cone_off_cylinder_axis(
     let r = cylinder.radius();
     // From the apex across the axis to it: `W(t) = p + r ρ(t)`.
     let w = frame.origin() - cone.apex();
-    let p = w - a1 * w.dot(a1);
+    let p = w.component_perpendicular_to(a1);
     let apex_on_cylinder = (p.magnitude() - r).abs() <= tol.confusion;
     if leading.abs() <= tol.angular {
         if apex_on_cylinder {
@@ -817,7 +818,7 @@ pub(super) fn cone_off_cylinder_axis(
     let e1 = if width > 0.0 {
         x * (across_x / width) + y * (across_y / width)
     } else {
-        x
+        x.vector()
     };
     let e2 = a1.cross(e1);
     let loops = if leading > 0.0 {
@@ -966,7 +967,7 @@ fn cylinder_through_the_apex(
         frame.z_direction(),
     );
     let w = frame.origin() - cone.apex();
-    let p = w - a1 * w.dot(a1);
+    let p = w.component_perpendicular_to(a1);
     // The generator through the apex, `ρ(t₀) = −p / |p|`.
     let shared = (-p.dot(y)).atan2(-p.dot(x));
     let (sin, cos) = shared.sin_cos();
@@ -1059,7 +1060,7 @@ pub(super) fn cones_in_general_position(
     let m = a2 * w_axis - w * cos_squared;
     let form = |v: Vector| m * m.dot(v) - (a2 * a2.dot(v) - v * cos_squared) * gamma;
     // `M` across `w`, where its rank lies.
-    let along_w = w.normalized()?;
+    let along_w = w.direction()?;
     let seed = if along_w.dot(a1).abs() < 0.9 {
         a1
     } else {
@@ -1913,7 +1914,7 @@ fn touching_point(
 /// from `B(t)` along the unit `D(t)`, read from `ρ(t) = cos t x + sin t y`.
 trait Ruled: Copy {
     /// The plane of `ρ`.
-    fn plane(&self) -> (Vector, Vector);
+    fn plane(&self) -> (Direction, Direction);
 
     /// `ρ(t)` from `sin t` and `cos t`.
     #[inline]
@@ -1959,9 +1960,9 @@ trait Ruled: Copy {
 #[derive(Debug, Clone, Copy)]
 struct RuledCylinder {
     origin: Point,
-    x: Vector,
-    y: Vector,
-    axis: Vector,
+    x: Direction,
+    y: Direction,
+    axis: Direction,
     radius: f64,
 }
 
@@ -1980,13 +1981,13 @@ impl RuledCylinder {
 
 impl Ruled for RuledCylinder {
     #[inline]
-    fn plane(&self) -> (Vector, Vector) {
+    fn plane(&self) -> (Direction, Direction) {
         (self.x, self.y)
     }
 
     #[inline]
     fn generator(&self, radial: Vector) -> (Point, Vector) {
-        (self.origin + radial * self.radius, self.axis)
+        (self.origin + radial * self.radius, self.axis.vector())
     }
 
     #[inline]
@@ -2021,7 +2022,7 @@ impl Ruled for RuledCylinder {
     #[inline]
     fn offset(&self, point: Point) -> (f64, Vector) {
         let w = point - self.origin;
-        let radial = w - self.axis * w.dot(self.axis);
+        let radial = w.component_perpendicular_to(self.axis);
         let distance = radial.magnitude();
         (distance - self.radius, radial * (1.0 / distance))
     }
@@ -2032,9 +2033,9 @@ impl Ruled for RuledCylinder {
 #[derive(Debug, Clone, Copy)]
 struct RuledCone {
     apex: Point,
-    x: Vector,
-    y: Vector,
-    axis: Vector,
+    x: Direction,
+    y: Direction,
+    axis: Direction,
     sin: f64,
     cos: f64,
     /// The cone's `v` at the apex: `v = s + apex_height`.
@@ -2072,7 +2073,7 @@ impl RuledCone {
 
 impl Ruled for RuledCone {
     #[inline]
-    fn plane(&self) -> (Vector, Vector) {
+    fn plane(&self) -> (Direction, Direction) {
         (self.x, self.y)
     }
 
@@ -2207,9 +2208,9 @@ trait SecondSurface: Copy {
 #[derive(Debug, Clone, Copy)]
 struct OtherCylinder {
     origin: Point,
-    x: Vector,
-    y: Vector,
-    axis: Vector,
+    x: Direction,
+    y: Direction,
+    axis: Direction,
     radius: f64,
     /// `a₁ − (a₁·a₂) a₂`: `β = (B − origin)·` it.
     across: Vector,
@@ -2260,7 +2261,7 @@ impl SecondSurface for OtherCylinder {
     #[inline]
     fn normal(&self, point: Point) -> Vector {
         let w = point - self.origin;
-        w - self.axis * w.dot(self.axis)
+        w.component_perpendicular_to(self.axis)
     }
 
     #[inline]
@@ -2293,9 +2294,9 @@ impl SecondSurface for OtherCylinder {
 #[derive(Debug, Clone, Copy)]
 struct OtherSphere {
     center: Point,
-    x: Vector,
-    y: Vector,
-    z: Vector,
+    x: Direction,
+    y: Direction,
+    z: Direction,
     radius: f64,
 }
 
