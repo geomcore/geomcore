@@ -94,9 +94,17 @@ where
 }
 
 /// The `hits` (ordered by curve parameter) without those that are one
-/// contact with an earlier one (see [`same_contact`]). It runs once the
-/// overlaps are taken out: along an overlap every hit is one contact with
-/// the next, and merging them first would leave no run to join.
+/// contact with the hit kept before them (see [`same_contact`]), and on a
+/// periodic curve without a last hit that is one contact with the first,
+/// across the curve's seam. It runs once the overlaps are taken out: along
+/// an overlap every hit is one contact with the next, and merging them
+/// first would leave no run to join.
+///
+/// Only neighbours are compared. The roots of one contact are neighbours
+/// in curve parameter, and two hits far apart can pass the test by
+/// accident: the probes between them can land on other crossings, as at
+/// `x = 1, 2, 3` between the crossings at `x = 0` and `x = 4` of a curve
+/// meeting the surface at each integer.
 fn distinct_contacts<C, S>(
     curve: &C,
     surface: &S,
@@ -110,11 +118,17 @@ where
     let mut distinct: Vec<CurveSurfaceHit> = Vec::with_capacity(hits.len());
     for hit in hits {
         if distinct
-            .iter()
-            .all(|kept| !same_contact(curve, surface, kept, &hit, tol))
+            .last()
+            .is_none_or(|kept| !same_contact(curve, surface, kept, &hit, tol))
         {
             distinct.push(hit);
         }
+    }
+    if curve.period().is_some()
+        && let [first, .., last] = distinct.as_slice()
+        && same_contact(curve, surface, first, last, tol)
+    {
+        distinct.pop();
     }
     distinct
 }

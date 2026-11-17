@@ -214,3 +214,27 @@ fn test_hits_merge_alike_at_any_size() {
         assert_eq!(hits.len(), 1, "scale {scale}: {hits:?}");
     }
 }
+
+#[test]
+fn test_far_apart_crossings_are_not_one_contact() {
+    // z = 4t (4t - 1)(4t - 2)(4t - 3)(4t - 4) / 20 at x = 4t: the curve
+    // crosses the plane z = 0 at x = 0, 1, 2, 3 and 4. Between the
+    // crossings at x = 0 and x = 4, the probes at a quarter, a half and
+    // three quarters of the way land on the crossings at 1, 2 and 3, so
+    // the contact test compares neighbours only.
+    use crate::{BezierCurve, Plane};
+    let heights = [0.0, 0.96, -2.08, 2.08, -0.96, 0.0];
+    let poles = (0..6)
+        .map(|k| Point::new(0.8 * k as f64, 0.0, heights[k]))
+        .collect();
+    let curve = BezierCurve::new(5, poles).unwrap();
+    let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
+    let hits = intersect_curve_surface(&curve, &plane, Tolerance::DEFAULT)
+        .hits()
+        .to_vec();
+    let crossings: Vec<f64> = hits.iter().map(|hit| hit.point.x).collect();
+    assert_eq!(crossings.len(), 5, "{crossings:?}");
+    for (crossing, expected) in crossings.iter().zip(0..5) {
+        assert!((crossing - expected as f64).abs() < 1e-9, "{crossings:?}");
+    }
+}
