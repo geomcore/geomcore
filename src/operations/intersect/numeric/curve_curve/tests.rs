@@ -623,3 +623,96 @@ fn test_ellipse_and_circle_touching_at_two_points_give_both_points() {
         "closed {closed:?}, numeric {numeric:?}"
     );
 }
+
+/// The quintic Bézier `z = 4t (4t - 1)(4t - 2)(4t - 3)(4t - 4) / 20` at
+/// `x = 4t`, crossing the x axis at `x = 0, 1, 2, 3` and `4`.
+fn quintic_crossing_the_x_axis_at_each_integer() -> crate::BezierCurve {
+    let heights = [0.0, 0.96, -2.08, 2.08, -0.96, 0.0];
+    let poles = (0..6)
+        .map(|k| Point::new(0.8 * k as f64, 0.0, heights[k]))
+        .collect();
+    crate::BezierCurve::new(5, poles).unwrap()
+}
+
+/// Asserts that `hits` are the crossings at `x = 0, 1, 2, 3` and `4`.
+fn assert_crossings_at_each_integer(hits: &[CurveCurveHit]) {
+    let crossings: Vec<f64> = hits.iter().map(|hit| hit.point.x).collect();
+    assert_eq!(crossings.len(), 5, "{crossings:?}");
+    for (crossing, expected) in crossings.iter().zip(0..5) {
+        assert!((crossing - expected as f64).abs() < 1e-9, "{crossings:?}");
+    }
+}
+
+#[test]
+fn test_far_apart_crossings_with_a_segment_are_not_one_contact() {
+    // Between the crossings at x = 0 and x = 4, the probes at a quarter, a
+    // half and three quarters of the way land on the crossings at 1, 2 and
+    // 3, so the contact test compares neighbours only.
+    let tol = Tolerance::DEFAULT;
+    let curve = quintic_crossing_the_x_axis_at_each_integer();
+    let segment = crate::BezierCurve::new(
+        1,
+        vec![Point::new(-1.0, 0.0, 0.0), Point::new(5.0, 0.0, 0.0)],
+    )
+    .unwrap();
+    let result = crate::Intersect::intersect(&curve, &segment, tol);
+    assert_crossings_at_each_integer(result.hits());
+}
+
+#[test]
+fn test_far_apart_crossings_with_a_line_are_not_one_contact() {
+    let tol = Tolerance::DEFAULT;
+    let curve = quintic_crossing_the_x_axis_at_each_integer();
+    let line = Line::new(Point::ORIGIN, Vector::X).unwrap();
+    let result = crate::Intersect::intersect(&curve, &line, tol);
+    assert_crossings_at_each_integer(result.hits());
+}
+
+/// The hit of `circle` at its parameter `s` with the line along x at
+/// `(0, height)`, which the line meets at its parameter `x`.
+fn hit_on_circle_and_horizontal_line(circle: &crate::Circle, s: f64) -> CurveCurveHit {
+    let point = circle.point_at(s);
+    CurveCurveHit {
+        first_parameter: s,
+        point,
+        second_parameter: point.x,
+        multiplicity: 1,
+    }
+}
+
+#[test]
+fn test_one_contact_keeps_the_closer_hit() {
+    // The line y = 1 touches the unit circle at (0, 1). The two hits on
+    // either side are one contact; the one nearer the tangent point, where
+    // the curves come closer, is kept, wherever it comes in parameter.
+    let tol = Tolerance::DEFAULT;
+    let circle = crate::Circle::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
+    let line = Line::new(Point::new(0.0, 1.0, 0.0), Vector::X).unwrap();
+    let top = std::f64::consts::FRAC_PI_2;
+    let farther = hit_on_circle_and_horizontal_line(&circle, top - 1e-4);
+    let closer = hit_on_circle_and_horizontal_line(&circle, top + 5e-5);
+    for hits in [vec![farther, closer], vec![closer, farther]] {
+        assert_eq!(distinct_contacts(&circle, &line, hits, tol), vec![closer]);
+    }
+    let closer_first = hit_on_circle_and_horizontal_line(&circle, top - 5e-5);
+    let farther_last = hit_on_circle_and_horizontal_line(&circle, top + 1e-4);
+    assert_eq!(
+        distinct_contacts(&circle, &line, vec![closer_first, farther_last], tol),
+        vec![closer_first]
+    );
+}
+
+#[test]
+fn test_one_crossing_on_both_sides_of_a_seam_is_one_hit() {
+    // The x axis crosses the unit circle at (1, 0), on its seam, found at
+    // both ends of its parameters, and at (-1, 0).
+    let tol = Tolerance::DEFAULT;
+    let circle = crate::Circle::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
+    let line = Line::new(Point::ORIGIN, Vector::X).unwrap();
+    let (start, end) = circle.bounds();
+    let hits = [start, std::f64::consts::PI, end - 1e-12]
+        .map(|s| hit_on_circle_and_horizontal_line(&circle, s))
+        .to_vec();
+    let distinct = distinct_contacts(&circle, &line, hits.clone(), tol);
+    assert_eq!(distinct, hits[..2].to_vec());
+}

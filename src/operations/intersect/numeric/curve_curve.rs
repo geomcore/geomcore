@@ -146,9 +146,9 @@ where
     )
 }
 
-/// The hits among the distance minima `extrema` (closest first): those
-/// within `tol.confusion`, with one kept of each contact (see
-/// [`same_contact`]), ordered by first-curve parameter.
+/// The hits among the distance minima `extrema`: those within
+/// `tol.confusion`, with one kept of each contact (see
+/// [`distinct_contacts`]), ordered by first-curve parameter.
 pub(crate) fn hits_at_minima<A, B>(
     a: &A,
     b: &B,
@@ -159,7 +159,7 @@ where
     A: ParametricCurve,
     B: ParametricCurve,
 {
-    let hits: Vec<CurveCurveHit> = extrema
+    let hits = extrema
         .into_iter()
         .filter(|e| e.distance <= tol.confusion)
         .map(|e| CurveCurveHit {
@@ -169,14 +169,54 @@ where
             multiplicity: grazing_multiplicity(a, e.first_parameter, b, e.second_parameter, tol),
         })
         .collect();
-    let mut merged: Vec<CurveCurveHit> = Vec::new();
-    for h in hits {
-        if merged.iter().all(|m| !same_contact(a, b, m, &h, tol)) {
-            merged.push(h);
+    distinct_contacts(a, b, hits, tol)
+}
+
+/// `hits` ordered by first-curve parameter, without those that are one
+/// contact with the hit kept before them (see [`same_contact`]), and on a
+/// closed first curve without a last hit that is one contact with the
+/// first, across the curve's seam. Of two hits that are one contact, the
+/// one where the curves come closer is kept, the earlier on a tie.
+///
+/// Only neighbours are compared. The roots of one contact are neighbours
+/// in first-curve parameter, and two hits far apart can pass the test by
+/// accident: the probes between them can land on other crossings, as at
+/// `x = 1, 2, 3` between the crossings at `x = 0` and `x = 4` of a curve
+/// meeting the other at each integer.
+pub(crate) fn distinct_contacts<A, B>(
+    a: &A,
+    b: &B,
+    mut hits: Vec<CurveCurveHit>,
+    tol: Tolerance,
+) -> Vec<CurveCurveHit>
+where
+    A: ParametricCurve,
+    B: ParametricCurve,
+{
+    sort_by_parameter(&mut hits, |hit| hit.first_parameter);
+    let gap = |hit: &CurveCurveHit| hit.point.distance(b.point_at(hit.second_parameter));
+    let mut distinct: Vec<CurveCurveHit> = Vec::with_capacity(hits.len());
+    for hit in hits {
+        match distinct.last_mut() {
+            Some(kept) if same_contact(a, b, kept, &hit, tol) => {
+                if gap(&hit) < gap(kept) {
+                    *kept = hit;
+                }
+            }
+            _ => distinct.push(hit),
         }
     }
-    sort_by_parameter(&mut merged, |hit| hit.first_parameter);
-    merged
+    if let [first, .., last] = distinct.as_slice()
+        && a.is_closed(tol)
+        && same_contact(a, b, first, last, tol)
+    {
+        if gap(last) < gap(first) {
+            distinct.remove(0);
+        } else {
+            distinct.pop();
+        }
+    }
+    distinct
 }
 
 /// The multiplicity of a hit between `first` at `first_parameter` and
@@ -263,7 +303,7 @@ fn curvature_vector<C: ParametricCurve>(curve: &C, parameter: f64, speed: Vector
 /// transversal lens the curves part by the lens' own thickness, which
 /// exceeds confusion once the crossings are far enough apart to be two
 /// hits. A hit without parameters is never merged by the stretch.
-pub(crate) fn same_contact<A, B>(
+fn same_contact<A, B>(
     a: &A,
     b: &B,
     kept: &CurveCurveHit,
