@@ -171,6 +171,14 @@ the Python distribution are versioned in lockstep.
   `src/base` names the math. The bound of a knot removal is one function
   over any pole instead of a trait with four implementations; its
   results are unchanged. Nothing public changes.
+- Internal: the values sit under every other module (#409).
+  `BoundingBox` and `BoundingBox2D` move to `base/bounding_box.rs` and
+  `base/bounding_box_2d.rs`, so `TierPoint` names its box without reaching
+  up into `bounding_box/`, which keeps `HasBoundingBox`, `HasBoundingBox2D`
+  and the boxes of each shape family. `tests/module_dependencies.rs` fails
+  when a file under `src/base` names `math`, `geometry`, `operations` or
+  `bounding_box`. Nothing public changes: every item keeps its path at the
+  crate root.
 - Internal: the solvers ask whether directions are parallel or
   perpendicular, whether axes are coaxial and what part of a vector lies
   across a direction through the predicates of `Direction`, `Vector` and

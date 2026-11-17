@@ -5,7 +5,8 @@
 //! and bound over Bézier pieces (`tight.rs`).
 
 use super::tight::Nets;
-use super::{BoundingBox, HasBoundingBox, coordinates, point};
+use super::{BoundingBox, HasBoundingBox};
+use crate::base::tier::operations::BoxOperations;
 use crate::geometry::curves::{ParametricCurve, RangeOperations};
 use crate::geometry::surfaces::ParametricSurface;
 use crate::geometry::surfaces::{
@@ -15,13 +16,21 @@ use crate::geometry::surfaces::{
 use crate::geometry::surfaces::{elementary_surface_dispatch, surface_dispatch};
 use crate::{Point, Tolerance};
 
+fn coordinates(p: Point) -> [f64; 3] {
+    [p.x, p.y, p.z]
+}
+
+fn point([x, y, z]: [f64; 3]) -> Point {
+    Point::new(x, y, z)
+}
+
 /// The box `center ± half` on each axis.
 fn centered(center: Point, half: [f64; 3]) -> BoundingBox {
     let c = coordinates(center);
-    BoundingBox {
-        min: point(std::array::from_fn(|k| c[k] - half[k])),
-        max: point(std::array::from_fn(|k| c[k] + half[k])),
-    }
+    BoundingBox::from_corners(
+        point(std::array::from_fn(|k| c[k] - half[k])),
+        point(std::array::from_fn(|k| c[k] + half[k])),
+    )
 }
 
 impl HasBoundingBox for Plane {
@@ -100,7 +109,10 @@ impl HasBoundingBox for RevolutionSurface {
     /// lowest and highest corner. `None` for an unbounded profile.
     fn bounding_box(&self) -> Option<BoundingBox> {
         let profile_box = self.profile().bounding_box()?;
-        let (low, high) = (coordinates(profile_box.min), coordinates(profile_box.max));
+        let (low, high) = (
+            coordinates(profile_box.min_corner()),
+            coordinates(profile_box.max_corner()),
+        );
         let (mut bottom, mut top, mut radius) = (f64::INFINITY, f64::NEG_INFINITY, 0.0_f64);
         for corner in 0..8 {
             let corner = point(std::array::from_fn(|k| {
@@ -151,10 +163,7 @@ impl HasBoundingBox for RevolutionSurface {
         };
         let high = std::array::from_fn(|k| nets.largest(|p| reach(p, k, 1.0), tol.confusion));
         let low = std::array::from_fn(|k| -nets.largest(|p| -reach(p, k, -1.0), tol.confusion));
-        Some(BoundingBox {
-            min: point(low),
-            max: point(high),
-        })
+        Some(BoundingBox::from_corners(point(low), point(high)))
     }
 }
 

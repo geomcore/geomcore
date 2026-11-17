@@ -23,6 +23,8 @@ src/
 │   │                        Axis::is_coaxial
 │   ├── transform.rs         Transform, and the Transformable trait of the shapes it moves
 │   ├── tolerance.rs         Tolerance: every geometric decision takes one
+│   ├── bounding_box.rs bounding_box_2d.rs   BoundingBox and BoundingBox2D: the
+│   │                        axis-aligned boxes the shapes report
 │   ├── tier.rs              TierPoint: the two tiers (space, plane) the curve types are
 │   │                        generic over
 │   ├── pole.rs              Pole, HomogeneousPole, PolePoint: the poles a B-spline
@@ -129,7 +131,8 @@ src/
 │   │                        Completeness, InlineOrHeapList
 │   └── projection.rs    results of point projection (CurveProjection, …)
 │
-├── bounding_box/        HasBoundingBox: the box type and one file per family; also the
+├── bounding_box/        HasBoundingBox and HasBoundingBox2D, the queries that ask a
+│                        shape for its box, and one file per family; also the
 │                        culling box of the numeric searches and the tiers. tight.rs
 │                        holds the tight boxes of B-spline shapes
 │
@@ -222,9 +225,12 @@ paths.
    from them, and `tests/module_dependencies.rs` checks it. A value both
    sides need, such as `Side`, `Continuity` or `InlineList`, lives in
    `base/`. The only public items `math/` defines are the errors of the
-   B-spline engine's checks (rule 1). `base/` sits under `math/` in turn:
-   the pole algebra the engine runs on, which `TierPoint` requires, lives
-   in `base/pole.rs`, and no file under `base/` names `math`, which
+   B-spline engine's checks (rule 1). `base/` sits under every other
+   module in turn: the pole algebra the engine runs on and the box types,
+   which `TierPoint` requires, live in `base/pole.rs`,
+   `base/bounding_box.rs` and `base/bounding_box_2d.rs`, and no file under
+   `base/` names `math`, `geometry`, `operations` or `bounding_box`, nor
+   any name the crate root re-exports from them, which
    `tests/module_dependencies.rs` also checks.
 6. **Unit tests live in a sibling `tests.rs`.** `geometry/curves/line.rs` ends with
    `#[cfg(test)] mod tests;` and its tests are in `geometry/curves/line/tests.rs`.

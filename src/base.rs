@@ -1,7 +1,12 @@
 //! The values every shape is built from: the points, vectors and
 //! placements of space and the plane, the transformations that move them,
-//! the tiers that pair them, and the tolerances every query takes.
+//! the tiers that pair them, the axis-aligned boxes, and the tolerances
+//! every query takes.
 
+/// The axis-aligned box in space.
+mod bounding_box;
+/// The axis-aligned box in the plane.
+mod bounding_box_2d;
 /// How smooth a shape is at a parameter.
 mod continuity;
 /// Directions, vectors of unit length by construction.
@@ -24,6 +29,8 @@ mod tolerance;
 pub(crate) mod transform;
 /// Vectors in 2D and 3D space.
 pub(crate) mod vector;
+pub use bounding_box::BoundingBox;
+pub use bounding_box_2d::BoundingBox2D;
 pub use continuity::Continuity;
 pub use direction::{Direction, Direction2D};
 pub use frame::{Axis, Axis2D, Frame, Frame2D, FrameConstructionError};
