@@ -3,6 +3,8 @@
 
 .md-typeset figure.gc-viewer {
   margin: 1.2em 0;
+  /* Material sets figure { width: fit-content }; a viewer must use the column. */
+  width: 100%;
   border: 1px solid var(--rule);
   border-radius: 4px;
   background: var(--surface);

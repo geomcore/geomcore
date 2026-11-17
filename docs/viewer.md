@@ -127,14 +127,16 @@ height: 480
 ```
 ````
 
-`scene` is relative to `docs/` (or an absolute URL), `title` is both the
-iframe title and the visible caption, and `height` is optional. The hook
-in `docs_hooks/hooks.py` expands the block into a lazy-loaded
-`<figure class="gc-viewer">` pointing at the viewer URL configured under
-`extra.viewer_url` in `mkdocs.yml`; point that at your own deployment to
-use a self-hosted build. The full-screen link opens the same scene in a
-new tab, which is also the fallback on a phone or when the embed is
-blocked.
+`scene` is relative to the published docs root (or an absolute URL),
+`title` is both the iframe title and the visible caption, and `height`
+is optional. The hook in `docs_hooks/hooks.py` expands the block into a
+lazy-loaded `<figure class="gc-viewer">` pointing at the viewer URL
+configured under `extra.viewer_url` in `mkdocs.yml`. `extra.scene_base_url`
+is the published root relative scenes resolve against; keeping it
+separate from `site_url` lets `mkdocs serve` preview the deployed scenes.
+Point `extra.viewer_url` at your own deployment to use a self-hosted
+build. The full-screen link opens the same scene in a new tab, which is
+also the fallback on a phone or when the embed is blocked.
 
 ## What it draws
 

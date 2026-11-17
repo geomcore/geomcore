@@ -77,7 +77,8 @@ def _render_viewer_block(body: str, config) -> str:
     )
     scene = options.get("scene", "")
     if scene:
-        scene_url = scene if "://" in scene else urljoin(site_url, scene)
+        scene_base_url = config.get("extra", {}).get("scene_base_url") or site_url
+        scene_url = scene if "://" in scene else urljoin(scene_base_url, scene)
         separator = "&" if "?" in viewer_url else "?"
         viewer_url = f"{viewer_url}{separator}scene={quote(scene_url, safe=':/?=&%#')}"
 

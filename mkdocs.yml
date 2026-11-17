@@ -15,6 +15,9 @@ hooks:
 extra:
   # Base URL of the hosted viewer used by ```viewer blocks in the docs.
   viewer_url: https://geomcore.github.io/geomcore-viewer/
+  # Published root the relative scene paths resolve against. Keeping this
+  # separate from site_url lets `mkdocs serve` preview the deployed scenes.
+  scene_base_url: https://geomcore.github.io/geomcore/
 
 markdown_extensions:
   - pymdownx.superfences
