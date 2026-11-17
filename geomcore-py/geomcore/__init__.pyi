@@ -3956,8 +3956,8 @@ class TrimmedSurface(_ParametricSurfaceMethods):
     closest point when it lies in the ranges, otherwise the closest point on
     the boundary of the ranges; a local minimum of the distance inside the
     ranges other than the basis's closest point is not searched.
-    `parameters_of` shifts a periodic parameter by whole periods into its
-    range where it can. The bounding box is that of the patch's exact
+    `parameters_of` shifts the basis's parameters by whole periods into the
+    ranges when the point lies in them. The bounding box is that of the patch's exact
     rational B-spline patch, or the basis's box for a B-spline or Bézier
     basis. Pass it to `intersect` to get only the curves and points inside
     the ranges of the trimmed sides.
