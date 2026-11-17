@@ -184,6 +184,10 @@ the Python distribution are versioned in lockstep.
   fewer routed, and the count no longer moves with what the compiler
   inlines (#411): the helper that builds the conics returns the whole
   result, so they are no longer copied into it when it is not inlined.
+- CI runs clippy on the Python bindings too, with warnings denied
+  (#410); it linted only the Rust crate. The bindings read an `(N, 2)`
+  numpy array of `(u, v)` pairs and an `(n, m, 3)` grid of points with
+  about 45% and 33% fewer instructions.
 
 ### Fixed
 

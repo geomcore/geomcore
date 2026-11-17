@@ -427,10 +427,9 @@ CI runs these; run them locally first:
 
 ```sh
 cargo fmt --check
-cargo clippy --all-targets -- -D warnings
+cargo clippy --workspace --all-targets -- -D warnings
 RUSTDOCFLAGS="-D warnings" cargo doc --no-deps
 cargo test
-cargo check -p geomcore-py
 ```
 
 When you change the bindings, also build them with maturin and run
