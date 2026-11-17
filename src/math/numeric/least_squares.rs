@@ -15,9 +15,9 @@ const MAX_STEPS: usize = 100;
 /// as settled: each multiplies the damping by ten.
 const MAX_DAMPING_TRIALS: usize = 16;
 
-/// A step whose every entry is below this, taken while the damping is
-/// light, ends the iteration: the model's unknowns are near unit size, so
-/// the next step would move them below rounding.
+/// A step whose every entry is below this, found while the damping is
+/// light, ends the iteration untried: the model's unknowns are near unit
+/// size, so it would move them below rounding.
 const SETTLED_STEP: f64 = 1e-12;
 
 /// The state that minimizes the sum of the squared residuals, from
@@ -27,7 +27,8 @@ const SETTLED_STEP: f64 = 1e-12;
 /// for `index` in `0..count`: each a residual and its derivatives along
 /// the `N` entries of a step. `advance(state, step)` is the state moved by
 /// `step`. Never fails: it returns the last state that lowered the sum,
-/// once a step settles, no damping lowers the sum, or the steps run out.
+/// once the next step is below rounding, no damping lowers the sum, or
+/// the steps run out.
 #[allow(clippy::needless_range_loop)] // index arithmetic on a symmetric matrix
 pub(crate) fn levenberg_marquardt<S: Copy, const N: usize, const M: usize>(
     start: S,
@@ -73,6 +74,11 @@ pub(crate) fn levenberg_marquardt<S: Copy, const N: usize, const M: usize>(
                 damping *= 10.0;
                 continue;
             };
+            // A step below rounding, taken while the damping is light: the
+            // state is the minimum to rounding, with no need to try it.
+            if damping <= 1.0 && step.iter().all(|s| s.abs() <= SETTLED_STEP) {
+                break;
+            }
             let trial = advance(&state, step);
             let (trial_sum, trial_product, trial_gradient) = normal_equations(&trial);
             // Near the minimum the sum is flat to rounding long before the
@@ -84,9 +90,8 @@ pub(crate) fn levenberg_marquardt<S: Copy, const N: usize, const M: usize>(
             if trial_sum < sum || flat {
                 state = trial;
                 (sum, product, gradient) = (trial_sum, trial_product, trial_gradient);
-                let light = damping <= 1.0;
                 damping = (damping * 0.1).max(1e-15);
-                settled = light && step.iter().all(|s| s.abs() <= SETTLED_STEP);
+                settled = false;
                 break;
             }
             damping *= 10.0;

@@ -180,6 +180,11 @@ marching_intersection	marching_intersection/plane_own_patch	98065
 marching_intersection	marching_intersection/plane_tangent_to_cylinder_patch	1349766
 marching_intersection	marching_intersection/sphere_bspline_copy	8989854
 marching_intersection	marching_intersection/sphere_bspline_torus	200744394
+shape_fitting	shape_fitting/circle	71841
+shape_fitting	shape_fitting/circle_2d	17849
+shape_fitting	shape_fitting/cylinder	544441
+shape_fitting	shape_fitting/plane	8494
+shape_fitting	shape_fitting/sphere	27200
 swept_plane_cut	swept_plane_cut/cylinder_parallel/bspline_patch	5153777
 swept_plane_cut	swept_plane_cut/cylinder_parallel/elementary	2833
 swept_plane_cut	swept_plane_cut/cylinder_parallel/swept	7442
