@@ -377,6 +377,7 @@ impl Plain for IncompleteReason {
             IncompleteReason::BudgetExhausted => "BUDGET_EXHAUSTED",
             IncompleteReason::Unseparated => "UNSEPARATED",
             IncompleteReason::Unbounded => "UNBOUNDED",
+            IncompleteReason::LooseFit => "LOOSE_FIT",
         }
         .to_owned())
     }
@@ -386,6 +387,7 @@ impl Plain for IncompleteReason {
             "BUDGET_EXHAUSTED" => Ok(IncompleteReason::BudgetExhausted),
             "UNSEPARATED" => Ok(IncompleteReason::Unseparated),
             "UNBOUNDED" => Ok(IncompleteReason::Unbounded),
+            "LOOSE_FIT" => Ok(IncompleteReason::LooseFit),
             _ => Err(unknown("reason", &state)),
         }
     }

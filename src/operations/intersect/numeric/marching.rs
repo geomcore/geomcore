@@ -202,7 +202,9 @@ use tracer::{Cut, Trace, Tracer, chord_deviation};
 /// [`deviation`](IntersectionCurve::deviation) reports its own, within
 /// confusion where the surfaces cross, except where the parameters of a
 /// surface degenerate on the curve, as where it runs through a sphere's
-/// pole — assert residuals, not containment): exact
+/// pole — assert residuals, not containment; a curve whose deviation
+/// exceeds confusion makes the result [`Completeness::Incomplete`] with
+/// an [`IncompleteReason::LooseFit`] region over it): exact
 /// classification stays with the exact intersection
 /// ([`IntersectExact::intersect_exact`](crate::IntersectExact::intersect_exact)). Likewise
 /// a coincidence check that sees only whole surfaces (two
@@ -243,15 +245,15 @@ where
 {
     let coincident = coincidence::coincident_region(pair, &traced.coincident_seeds, tol);
     let unexplained = traced.unexplained_regions(pair);
-    let completeness = completeness_of(
-        coincident.into_iter().chain(unexplained).collect(),
-        traced.cuts.into_iter().map(cut_region).collect(),
-    );
+    let mut loose_fits = Vec::new();
     let curves = traced
         .curves
         .into_iter()
         .map(|fitted| {
             let deviation = fitted.deviation(pair);
+            if deviation > tol.confusion {
+                loose_fits.push(fitted.region());
+            }
             let [first, second] = fitted.uv_curves;
             IntersectionCurve {
                 parameter_range: fitted.curve.bounds(),
@@ -263,29 +265,46 @@ where
             }
         })
         .collect();
+    let completeness = completeness_of([
+        (
+            IncompleteReason::Unseparated,
+            coincident.into_iter().chain(unexplained).collect(),
+        ),
+        (
+            IncompleteReason::Unbounded,
+            traced.cuts.into_iter().map(cut_region).collect(),
+        ),
+        (IncompleteReason::LooseFit, loose_fits),
+    ]);
     SurfaceSurfaceIntersection::numeric(curves, traced.contact_points, completeness)
 }
 
-/// The completeness of a marching result. Sampled, unless a branch of
-/// unbounded surfaces was cut at the trace box (`cuts`, reason
-/// [`Unbounded`](IncompleteReason::Unbounded)), or the march could not
-/// separate the curves somewhere (`unseparated`, reason
-/// [`Unseparated`](IncompleteReason::Unseparated)): where the surfaces
-/// lie on each other, or at a seed no trace could leave (see
-/// [`Traced::unexplained_regions`]). With both, the reason is the
-/// stronger one (see [`stronger`]) and both kinds of region are kept.
+/// The completeness of a marching result from its regions of each
+/// reason. Sampled, unless the march could not separate the curves
+/// somewhere ([`Unseparated`](IncompleteReason::Unseparated): where the
+/// surfaces lie on each other, or at a seed no trace could leave, see
+/// [`Traced::unexplained_regions`]), a branch of unbounded surfaces was
+/// cut at the trace box ([`Unbounded`](IncompleteReason::Unbounded)), or
+/// a curve was fitted farther off than the confusion
+/// ([`LooseFit`](IncompleteReason::LooseFit), #311). With more than one,
+/// the reason is the strongest (see [`stronger`]) and every region is
+/// kept.
 fn completeness_of(
-    unseparated: Vec<SurfaceSurfaceRegion>,
-    cuts: Vec<SurfaceSurfaceRegion>,
+    regions_by_reason: [(IncompleteReason, Vec<SurfaceSurfaceRegion>); 3],
 ) -> Completeness<SurfaceSurfaceRegion> {
-    let cut = (!cuts.is_empty()).then_some(IncompleteReason::Unbounded);
-    let overlap = (!unseparated.is_empty()).then_some(IncompleteReason::Unseparated);
-    let reason = match (cut, overlap) {
-        (Some(cut), Some(overlap)) => stronger(cut, overlap),
-        (Some(reason), None) | (None, Some(reason)) => reason,
-        (None, None) => return Completeness::Sampled,
+    let reason = regions_by_reason
+        .iter()
+        .filter(|(_, regions)| !regions.is_empty())
+        .map(|&(reason, _)| reason)
+        .reduce(stronger);
+    let Some(reason) = reason else {
+        return Completeness::Sampled;
     };
-    of_reason(unseparated.into_iter().chain(cuts).collect(), reason)
+    let regions = regions_by_reason
+        .into_iter()
+        .flat_map(|(_, regions)| regions)
+        .collect();
+    of_reason(regions, reason)
 }
 
 /// The region of a branch cut at the trace box (see [`Cut`]): the
@@ -765,6 +784,33 @@ impl Fitted {
             .windows(2)
             .map(|span| distance_at(0.5 * (span[0] + span[1])))
             .fold(0.0, f64::max)
+    }
+
+    /// The region the fit covers: the ranges of its curves in parameters
+    /// and its box in space, each holding its control points, which hold
+    /// the curve.
+    fn region(&self) -> SurfaceSurfaceRegion {
+        let range = |poles: &[Point2D], coordinate: fn(&Point2D) -> f64| {
+            poles
+                .iter()
+                .map(coordinate)
+                .fold((f64::INFINITY, f64::NEG_INFINITY), |(low, high), x| {
+                    (low.min(x), high.max(x))
+                })
+        };
+        let [first, second] = [self.uv_curves[0].poles(), self.uv_curves[1].poles()];
+        let poles = self.curve.poles();
+        let (min_corner, max_corner) = poles.iter().fold((poles[0], poles[0]), |corners, &p| {
+            box_union(corners, (p, p))
+        });
+        SurfaceSurfaceRegion {
+            first_u_range: range(first, |p| p.x),
+            first_v_range: range(first, |p| p.y),
+            second_u_range: range(second, |p| p.x),
+            second_v_range: range(second, |p| p.y),
+            min_corner,
+            max_corner,
+        }
     }
 }
 

@@ -171,7 +171,10 @@ pub struct IntersectionCurve {
     /// middle of each knot span, where its fits stray furthest from the
     /// traced points, so it can miss a larger distance elsewhere. A curve
     /// fitted from a closed form (ADR 0036) samples it at the quarters of
-    /// each span; an exact curve is `0.0`.
+    /// each span; an exact curve is `0.0`. A marched curve whose deviation
+    /// exceeds the confusion distance makes the result
+    /// [`Incomplete`](crate::Completeness::Incomplete) with the reason
+    /// [`LooseFit`](crate::IncompleteReason::LooseFit).
     pub deviation: f64,
     /// The range of the parameter of `curve`, and of the curves in
     /// parameters, along which the surfaces meet: `curve`'s own bounds

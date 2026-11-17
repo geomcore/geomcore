@@ -317,6 +317,7 @@ impl PyCompleteness {
                     PyIncompleteReason::BudgetExhausted => IncompleteReason::BudgetExhausted,
                     PyIncompleteReason::Unseparated => IncompleteReason::Unseparated,
                     PyIncompleteReason::Unbounded => IncompleteReason::Unbounded,
+                    PyIncompleteReason::LooseFit => IncompleteReason::LooseFit,
                 },
                 regions: regions.to_vec(),
             },
