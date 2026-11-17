@@ -91,6 +91,9 @@ src/
 │   │   ├── routing/trimmed_surface.rs  the intersection of trimmed surfaces, with a
 │   │   │                    surface or a curve: the bases intersected, the result
 │   │   │                    clipped to the ranges (ADR 0039)
+│   │   ├── routing/trimmed_surface/shared_boundary.rs  what two trimmed surfaces of
+│   │   │                    one surface share: an overlap with area, or the edges
+│   │   │                    and corners they touch along (#406)
 │   │   ├── exact/           IntersectExact and the closed-form solvers, by family:
 │   │   │                    curve_curve.rs, curve_surface.rs, surface_surface.rs.
 │   │   │                    conic.rs and conic_2d.rs solve a conic against a quadric

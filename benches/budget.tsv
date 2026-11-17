@@ -164,6 +164,7 @@ intersect_dispatch	intersect_routed/torus_quartic/tilted_plane_routed	2104012
 intersect_dispatch	intersect_routed/trimmed/line_half_cylinder	2821
 intersect_dispatch	intersect_routed/trimmed/plane_cylinder_untrimmed	1627
 intersect_dispatch	intersect_routed/trimmed/plane_half_cylinder	1378252
+intersect_dispatch	intersect_routed/trimmed/stacked_cylinder_faces	38708
 intersect_dispatch	intersect_routed/two_cones/arcs_exact	7118
 intersect_dispatch	intersect_routed/two_cones/arcs_routed	2351394
 intersect_dispatch	intersect_routed/two_cones/around_exact	2889
@@ -207,7 +208,7 @@ swept_plane_cut	swept_plane_cut/torus_through_axis/elementary	4262
 swept_plane_cut	swept_plane_cut/torus_through_axis/swept	6415
 swept_projection	swept_projection/extrusion_bspline/bspline_patch	18789681
 swept_projection	swept_projection/extrusion_bspline/swept	3645551
-swept_projection	swept_projection/extrusion_ellipse/bspline_patch	41973757
+swept_projection	swept_projection/extrusion_ellipse/bspline_patch	42415238
 swept_projection	swept_projection/extrusion_ellipse/swept	6599694
 swept_projection	swept_projection/revolution_circle/bspline_patch	59320164
 swept_projection	swept_projection/revolution_circle/swept	421102
