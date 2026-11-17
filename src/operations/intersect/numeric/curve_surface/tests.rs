@@ -178,18 +178,25 @@ fn test_unbounded_curve_seeds_scale_with_the_operands() {
 /// A circle dipping through a plane, scaled by `scale` with the tolerance
 /// scaled alike: its numeric hits with the plane.
 fn dipping_circle_hits(scale: f64, centre_height: f64) -> Vec<CurveSurfaceHit> {
+    moved_dipping_circle_hits(scale, centre_height, 0.0)
+}
+
+/// [`dipping_circle_hits`], the circle and the plane also moved by
+/// `shift` along each axis.
+fn moved_dipping_circle_hits(scale: f64, centre_height: f64, shift: f64) -> Vec<CurveSurfaceHit> {
     use crate::{Circle, Plane};
     let tol = Tolerance {
         confusion: Tolerance::DEFAULT.confusion * scale,
         ..Tolerance::DEFAULT
     };
+    let offset = Vector::new(shift, shift, shift);
     let circle = Circle::new(
-        Point::new(0.0, 0.0, centre_height * scale),
+        Point::new(0.0, 0.0, centre_height * scale) + offset,
         Vector::Y,
         scale,
     )
     .unwrap();
-    let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
+    let plane = Plane::new(Point::ORIGIN + offset, Vector::Z).unwrap();
     intersect_curve_surface(&circle, &plane, tol)
         .hits()
         .to_vec()
@@ -207,11 +214,33 @@ fn test_hits_merge_alike_at_any_size() {
         assert_eq!(hits.len(), 2, "scale {scale}: {hits:?}");
         assert!(hits.iter().all(|hit| hit.multiplicity == 1), "{hits:?}");
     }
-    // A circle touching the plane is one contact at every size. Where in
-    // its band the contact is placed, and so its multiplicity, is #417.
+    // A circle touching the plane is one contact at every size.
     for scale in [1.0, 2f64.powi(-20), 2f64.powi(20)] {
         let hits = dipping_circle_hits(scale, 1.0);
         assert_eq!(hits.len(), 1, "scale {scale}: {hits:?}");
+        assert_eq!(hits[0].multiplicity, 2, "scale {scale}: {hits:?}");
+    }
+}
+
+#[test]
+fn test_tangent_contact_lands_on_the_touch_at_any_placement() {
+    // A circle of radius 1 touching a plane at its lowest point. Far from
+    // the origin the distance to the plane is rounding over a band about
+    // 3e-5 wide around the touch; the contact lands on the touch itself,
+    // a touch, wherever the pair sits and whatever its size.
+    for (scale, shift) in [
+        (1.0, 0.0),
+        (1.0, 1e7),
+        (2f64.powi(-20), 0.0),
+        (2f64.powi(20), 0.0),
+        (2f64.powi(20), 1e7),
+    ] {
+        let hits = moved_dipping_circle_hits(scale, 1.0, shift);
+        assert_eq!(hits.len(), 1, "scale {scale}, shift {shift}: {hits:?}");
+        let touch = Point::new(shift, shift, shift);
+        let off = hits[0].point.distance(touch) / scale;
+        assert!(off < 1e-8, "scale {scale}, shift {shift}: {off:e} {hits:?}");
+        assert_eq!(hits[0].multiplicity, 2, "{hits:?}");
     }
 }
 
