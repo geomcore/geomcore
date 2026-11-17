@@ -279,7 +279,7 @@ where
 /// which [`grazing_multiplicity`] still looks for a touch: a feature
 /// sharper than a hundred confusions is below what the tolerance resolves.
 /// It skips the curvatures of crossings at more than about 8 degrees.
-const SHARPEST_TOUCH_RADIUS_IN_CONFUSIONS: f64 = 100.0;
+pub(crate) const SHARPEST_TOUCH_RADIUS_IN_CONFUSIONS: f64 = 100.0;
 
 /// The curvature vector of `curve` at `parameter`, given its first
 /// derivative `speed` there: the second derivative perpendicular to the
