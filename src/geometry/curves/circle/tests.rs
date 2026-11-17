@@ -288,3 +288,18 @@ fn test_circle3d_transformed_zero_scale_errors() {
         Err(TransformError::Collapsed)
     );
 }
+
+#[test]
+fn test_circle3d_is_an_ellipse_of_eccentricity_zero_with_both_foci_at_its_center() {
+    use crate::Ellipse;
+    let frame = Frame::new(
+        Point::new(1.0, -2.0, 0.5),
+        Vector::new(0.2, 0.3, 1.0),
+        Vector::X,
+    )
+    .unwrap();
+    let circle = Circle::from_frame(frame, 2.5).unwrap();
+    let ellipse = Ellipse::from_frame(frame, 2.5, 2.5).unwrap();
+    assert_eq!(circle.eccentricity(), ellipse.eccentricity());
+    assert_eq!(circle.foci(), ellipse.foci());
+}

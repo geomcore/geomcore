@@ -213,6 +213,34 @@ impl<P: TierPoint> GenericCircle<P> {
     pub fn enclosed_area(&self) -> f64 {
         std::f64::consts::PI * self.radius * self.radius
     }
+
+    /// The eccentricity of a circle, 0: the limit of an ellipse whose
+    /// radii meet.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Circle2D, Point2D};
+    /// assert_eq!(Circle2D::new(Point2D::ORIGIN, 2.0).unwrap().eccentricity(), 0.0);
+    /// ```
+    pub fn eccentricity(&self) -> f64 {
+        0.0
+    }
+
+    /// The two foci of a circle, both its center, as an ellipse with equal
+    /// radii gives them.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Circle, Point, Vector};
+    /// let center = Point::new(1.0, 2.0, 3.0);
+    /// let circle = Circle::new(center, Vector::Z, 2.0).unwrap();
+    /// assert_eq!(circle.foci(), [center, center]);
+    /// ```
+    pub fn foci(&self) -> [P; 2] {
+        [self.center(); 2]
+    }
 }
 
 impl Circle {
@@ -435,6 +463,84 @@ impl Circle2D {
         let frame = Frame2D::new(center, Vector2D::X, Vector2D::Y)
             .map_err(|_| CircleConstructionError::NonFinite)?;
         Circle2D::from_frame(frame, radius)
+    }
+
+    /// Creates the circumcircle through three points, starting at `p1` and
+    /// turning through `p2` to `p3`: counterclockwise when the points turn
+    /// left, clockwise (on an indirect frame) when they turn right.
+    ///
+    /// The checks are those of [`Circle::from_three_points`]: any pairwise
+    /// distance below `Tolerance::DEFAULT.confusion` is reported as
+    /// [`CircleConstructionError::ConfusedPoints`]; otherwise, if
+    /// `|(p2-p1) × (p3-p1)| <= Tolerance::DEFAULT.confusion * max(|p2-p1|,
+    /// |p3-p1|)`, [`CircleConstructionError::CollinearPoints`] is returned.
+    /// A non-finite coordinate gives [`CircleConstructionError::NonFinite`].
+    ///
+    /// With `a = p1 - p3` and `b = p2 - p3`, the center is
+    /// `p3 + (|b|^2 * perpendicular(a) - |a|^2 * perpendicular(b)) /
+    /// (2 * (a × b))`, where `perpendicular` turns a vector a quarter turn
+    /// counterclockwise, and the radius is `|center - p1|`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`CircleConstructionError::ConfusedPoints`],
+    /// [`CircleConstructionError::CollinearPoints`] or
+    /// [`CircleConstructionError::NonFinite`] as described above.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::prelude::*;
+    /// use geomcore::{Circle2D, Point2D};
+    /// let circle = Circle2D::from_three_points(
+    ///     Point2D::new(1.0, 0.0),
+    ///     Point2D::new(0.0, 1.0),
+    ///     Point2D::new(-1.0, 0.0),
+    /// )
+    /// .unwrap();
+    /// assert!(circle.center().distance(Point2D::ORIGIN) < 1e-15);
+    /// assert!((circle.radius() - 1.0).abs() < 1e-15);
+    /// assert!(circle.is_counterclockwise());
+    /// assert!(circle.point_at(0.0).distance(Point2D::new(1.0, 0.0)) < 1e-15);
+    /// ```
+    pub fn from_three_points(
+        p1: Point2D,
+        p2: Point2D,
+        p3: Point2D,
+    ) -> Result<Circle2D, CircleConstructionError> {
+        if !p1.is_finite() || !p2.is_finite() || !p3.is_finite() {
+            return Err(CircleConstructionError::NonFinite);
+        }
+        let confusion = Tolerance::DEFAULT.confusion;
+        if p1.distance(p2) < confusion || p2.distance(p3) < confusion || p1.distance(p3) < confusion
+        {
+            return Err(CircleConstructionError::ConfusedPoints);
+        }
+
+        let (to_second, to_third) = (p2 - p1, p3 - p1);
+        let turn = to_second.cross(to_third);
+        if turn.abs() <= confusion * to_second.magnitude().max(to_third.magnitude()) {
+            return Err(CircleConstructionError::CollinearPoints);
+        }
+
+        let (a, b) = (p1 - p3, p2 - p3);
+        let center = p3
+            + (b.square_magnitude() * a.perpendicular() - a.square_magnitude() * b.perpendicular())
+                * (1.0 / (2.0 * a.cross(b)));
+        let to_start = p1 - center;
+        let x_direction = to_start
+            .normalized()
+            .ok_or(CircleConstructionError::CollinearPoints)?;
+        // The points turn left when `turn > 0`: the circle then runs
+        // counterclockwise, on a direct frame.
+        let y_direction = if turn > 0.0 {
+            x_direction.perpendicular()
+        } else {
+            -x_direction.perpendicular()
+        };
+        let frame = Frame2D::new(center, x_direction, y_direction)
+            .map_err(|_| CircleConstructionError::NonFinite)?;
+        Circle2D::from_frame(frame, to_start.magnitude())
     }
 }
 

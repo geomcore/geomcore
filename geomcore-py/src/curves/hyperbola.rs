@@ -107,6 +107,16 @@ shape_methods! {
         (PyLine(first), PyLine(second))
     }
 
+    /// The two asymptotes, lines through the center along
+    /// `major*x_dir + minor*y_dir` and `major*x_dir - minor*y_dir` of the
+    /// frame: first the one the branch approaches as its parameter grows,
+    /// then the one it approaches as its parameter falls. The other branch
+    /// shares them.
+    fn asymptotes(&self) -> (PyLine, PyLine) {
+        let [rising, falling] = self.0.asymptotes();
+        (PyLine(rising), PyLine(falling))
+    }
+
     /// The other branch: the same hyperbola mirrored through its center,
     /// with the same parametrization direction around the center.
     fn other_branch(&self) -> Self {

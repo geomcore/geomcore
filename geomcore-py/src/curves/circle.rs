@@ -111,6 +111,19 @@ shape_methods! {
         self.0.enclosed_area()
     }
 
+    /// The eccentricity of a circle, 0: the limit of an ellipse whose
+    /// radii meet.
+    fn eccentricity(&self) -> f64 {
+        self.0.eccentricity()
+    }
+
+    /// The two foci of a circle, both its center, as an ellipse with equal
+    /// radii gives them.
+    fn foci(&self) -> (PyPoint, PyPoint) {
+        let [first, second] = self.0.foci();
+        (PyPoint(first), PyPoint(second))
+    }
+
     /// The circle as an exact periodic rational quadratic B-spline over
     /// `[0, 2π]`.
     /// Its rational arcs do not keep the angle as parameter: the same

@@ -109,6 +109,21 @@ the Python distribution are versioned in lockstep.
   Python). A circle runs through the points in their order, and the
   normal of a plane or the axis of a cylinder is the one they turn
   counterclockwise about.
+- The 2D twins answer more of what their 3D classes do, in Rust and
+  Python (#197): `Circle2D::from_three_points`, starting at the first
+  point and turning counterclockwise when the points turn left, clockwise
+  otherwise; `enclosed_area` on `Circle2D` in Python; `Frame2D::flipped_x`
+  and `flipped_y`; `Axis2D::is_coaxial`. `TrimmedCurve2D::arc_through`
+  builds its circle in the plane with `Circle2D::from_three_points`.
+- `eccentricity` (0) and `foci` (both the center) on `Circle` and
+  `Circle2D`, which the other central conics have, and `asymptotes` on
+  `Hyperbola` and `Hyperbola2D`: the two lines through the center the
+  branch approaches, first as its parameter grows (#197).
+- Python: `test_parity.py` lists, for each 3D class, what its 2D twin
+  lacks, each method required, excluded with its reason, or pending in an
+  issue: `transformed` and `Transform2D` in #421, curve–curve `extrema`
+  in the plane in #422 (#197). The docstrings of `Line` and `Line2D` say
+  that the direction is normalized, so the parameter is a distance.
 
 ### Changed
 

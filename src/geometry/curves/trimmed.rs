@@ -581,14 +581,10 @@ impl TrimmedCurve2D<Circle2D> {
         middle: Point2D,
         end: Point2D,
     ) -> Result<Self, ArcConstructionError> {
-        let lift = |p: Point2D| Point::new(p.x, p.y, 0.0);
-        let arc = TrimmedCurve::arc_through(lift(start), lift(middle), lift(end))?;
-        let circle = arc.basis();
-        let center = circle.center();
-        let counterclockwise = circle.normal().z > 0.0;
-        let to_start = start - Point2D::new(center.x, center.y);
-        let circle = circle_2d(Point2D::new(center.x, center.y), to_start, counterclockwise)?;
-        Ok(Self::from_parts(circle, 0.0, arc.sweep_angle()))
+        let circle = Circle2D::from_three_points(start, middle, end)?;
+        let tol = Tolerance::DEFAULT;
+        let sweep = sweep_to(circle.parameter_of(end, tol), circle.radius(), tol);
+        Ok(Self::from_parts(circle, 0.0, sweep))
     }
 
     /// The arc about `center` from `start` to `end`, counterclockwise or

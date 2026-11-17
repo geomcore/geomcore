@@ -354,3 +354,37 @@ fn test_other_branch_mirrors_the_hyperbola_through_its_center() {
             < 1e-12
     );
 }
+
+#[test]
+fn test_hyperbola_approaches_its_asymptotes_as_the_parameter_grows_and_falls() {
+    // A point at `u` is `major * minor * e^-|u| / reach` from the asymptote
+    // its end runs along, `reach` the foci's distance from the center.
+    let tol = Tolerance::DEFAULT;
+    let hyperbola = Hyperbola::new(
+        Point::new(1.0, -2.0, 0.5),
+        Vector::new(0.2, 0.3, 1.0),
+        Vector::X,
+        2.0,
+        1.5,
+    )
+    .unwrap();
+    let [rising, falling] = hyperbola.asymptotes();
+    assert!(rising.origin().distance(hyperbola.center()) < 1e-15);
+    assert!(falling.origin().distance(hyperbola.center()) < 1e-15);
+    let gap_at_zero = 2.0 * 1.5 / 2.5;
+    for u in [1.0, 4.0, 9.0] {
+        let ahead = rising.project_point(hyperbola.point_at(u), tol).distance;
+        let behind = falling.project_point(hyperbola.point_at(-u), tol).distance;
+        let expected = gap_at_zero * f64::exp(-u);
+        assert!((ahead - expected).abs() < 1e-12, "{ahead} {expected}");
+        assert!((behind - expected).abs() < 1e-12, "{behind} {expected}");
+    }
+    // The other branch runs along the same two lines.
+    for (own, other) in hyperbola
+        .asymptotes()
+        .iter()
+        .zip(hyperbola.other_branch().asymptotes())
+    {
+        assert!(own.axis().is_coaxial(other.axis(), tol));
+    }
+}
