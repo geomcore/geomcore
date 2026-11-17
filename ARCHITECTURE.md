@@ -154,7 +154,7 @@ Outside `src/`:
 | `benches/` | Criterion benchmarks; results are discussed in `docs/benchmarks.md` |
 | `examples/` | Small Rust programs (`cargo run --example sample_conics`) |
 | `geomcore-py/` | The Python bindings: `src/` (PyO3), `geomcore/` (stubs), `tests/`, `examples/` |
-| `docs/` | The user documentation site (`mkdocs.yml`), with `guides/`, `geometry/` and `adr/` |
+| `docs/` | The user documentation site (`mkdocs.yml`), organised by Diátaxis mode: tutorials, how-to guides, reference and explanation, plus the `adr/` records |
 | `CONTEXT.md` | The glossary |
 
 ## Placement rules

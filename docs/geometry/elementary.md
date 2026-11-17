@@ -435,7 +435,10 @@ The way back: $u = \mathrm{atan2}(y, x),\; v = \mathrm{atan2}(z, \rho)$.
 <figcaption>A sphere. The red dots are the poles, where a whole circle of u is one point.</figcaption>
 </figure>
 
-<iframe src="https://geomcore.github.io/geomcore-viewer/?scene=https://geomcore.github.io/geomcore/assets/scenes/elem-sphere.json" width="100%" height="480" style="border: 1px solid #333; border-radius: 8px;" allow="fullscreen" title="A sphere, a point P(u, v) and the two iso curves through it"></iframe>
+```viewer
+scene: assets/scenes/elem-sphere.json
+title: A sphere, a point P(u, v) and the two iso curves through it
+```
 
 ### Torus
 
@@ -480,7 +483,10 @@ says which.
 <figcaption>A torus. v rounds the tube, changing the radius that u sweeps about the axis.</figcaption>
 </figure>
 
-<iframe src="https://geomcore.github.io/geomcore-viewer/?scene=https://geomcore.github.io/geomcore/assets/scenes/elem-torus.json" width="100%" height="480" style="border: 1px solid #333; border-radius: 8px;" allow="fullscreen" title="A torus, a point P(u, v) and the two iso curves through it"></iframe>
+```viewer
+scene: assets/scenes/elem-torus.json
+title: A torus, a point P(u, v) and the two iso curves through it
+```
 
 ## What the parameters measure
 
@@ -639,13 +645,7 @@ circle runs through them in order, starting at the first, and the
 normal of a plane or the axis of a cylinder is the one they turn
 counterclockwise about.
 
-## Why ten special cases
-
 Everything above can be written as NURBS — conics exactly, as rational
-quadratics — so a kernel could keep one representation. Keeping the ten
-buys four things: exactness that survives editing (a radius is stored,
-not derived), closed-form inversion (`atan2` and a dot product instead
-of Newton), closed-form intersections (plane∩cylinder is a conic, not a
-march), and recognisability (STEP names these entities; a hole stays a
-cylinder through a round trip). The cost is the pairing table in the
-intersector — see [Intersection](../guides/intersection.md).
+quadratics — so why keep ten shapes? The [explanation](../explanation/why-ten-special-cases.md)
+covers the four things the ten buy, and what the intersector pays for
+them.

@@ -58,6 +58,14 @@ validated against golden fixtures with CAD-kernel-grade tolerances
 See [ROADMAP.md](ROADMAP.md) for what's coming next and
 [CHANGELOG.md](CHANGELOG.md) for release history.
 
+## Documentation
+
+The [documentation site](https://geomcore.github.io/geomcore/) has a
+[getting-started tutorial](https://geomcore.github.io/geomcore/getting-started/),
+how-to guides, an API reference, and the
+[interactive viewer](https://geomcore.github.io/geomcore/viewer/). New
+to the kernel? Start there.
+
 ## Rust
 
 ```rust

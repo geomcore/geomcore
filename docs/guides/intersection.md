@@ -199,7 +199,10 @@ so a horizontal cut of a spline revolution is a list of `Circle`s with
 `method` `Numeric` and completeness `Complete`. A sphere cut by a coaxial cylinder, computed live below —
 two exact rings in ~0.4 µs on a Linux x86-64 desktop, single thread:
 
-<iframe src="https://geomcore.github.io/geomcore-viewer/?scene=https://geomcore.github.io/geomcore/assets/scenes/intersect-exact.json" width="100%" height="480" style="border: 1px solid #333; border-radius: 8px;" allow="fullscreen" title="Sphere and cylinder with their two exact intersection rings"></iframe>
+```viewer
+scene: assets/scenes/intersect-exact.json
+title: Sphere and cylinder with their two exact intersection rings
+```
 
 Two more landmarks, as figures:
 
@@ -213,7 +216,10 @@ Two more landmarks, as figures:
 <figcaption>Plane against sphere: a circle, a tangent point, or empty — classified, not sampled.</figcaption>
 </figure>
 
-<iframe src="https://geomcore.github.io/geomcore-viewer/?scene=https://geomcore.github.io/geomcore/assets/scenes/plane-sphere.json" width="100%" height="480" style="border: 1px solid #333; border-radius: 8px;" allow="fullscreen" title="A plane against a sphere at three distances: a circle, a tangent point, nothing"></iframe>
+```viewer
+scene: assets/scenes/plane-sphere.json
+title: A plane against a sphere at three distances: a circle, a tangent point, nothing
+```
 
 ## Numeric: curves
 
@@ -449,13 +455,13 @@ Marching is approximate by design. Its limits:
   pole comes back `Sampled` with no curves.
 
 A wavy B-spline patch through a sphere, marched live below — one fitted
-loop in ~8 ms on the same machine (the loop arrives in the viewer as
-a sampled polyline until native B-spline types land,
-[viewer#5](https://github.com/geomcore/geomcore-viewer/issues/5);
-tunable sampling density is
-[viewer#12](https://github.com/geomcore/geomcore-viewer/issues/12)):
+loop in ~8 ms on the same machine. The loop is an exact B-spline in the
+scene, so the viewer refines it as you zoom:
 
-<iframe src="https://geomcore.github.io/geomcore-viewer/?scene=https://geomcore.github.io/geomcore/assets/scenes/intersect-marching.json" width="100%" height="480" style="border: 1px solid #333; border-radius: 8px;" allow="fullscreen" title="B-spline patch and sphere with their marching intersection loop"></iframe>
+```viewer
+scene: assets/scenes/intersect-marching.json
+title: B-spline patch and sphere with their marching intersection loop
+```
 
 ## Trimmed surfaces
 
