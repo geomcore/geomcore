@@ -517,35 +517,64 @@ fn test_two_trimmed_bspline_surfaces_are_marched_and_clipped_to_the_ranges() {
 
 #[test]
 fn test_a_marched_curve_whose_fit_strays_is_cut_by_samples() {
-    // A dome, a cubic profile revolved about z, trimmed to a band below
-    // its top, cut by the plane x = 0.25: the march's fit in the dome's
-    // parameters strays by more than the confusion distance and the curve
-    // cannot be mapped to them within a tenth of it, so it is cut where
-    // samples of it leave the band.
-    let profile = BSplineCurve::new(
-        3,
-        vec![
-            Point::new(0.0, 0.0, 1.0),
-            Point::new(0.7, 0.0, 0.9),
-            Point::new(1.4, 0.0, 0.3),
-            Point::new(2.0, 0.0, 0.0),
-        ],
+    // A wall of degree 1 along x with a tent at x = 50 whose two spans
+    // are 5e-9 wide in parameter but 0.07 long in space: rounding the
+    // parameter there moves the point by more than the confusion
+    // distance, so the march's fit in the wall's parameters strays by more
+    // than it, and the curve cannot be mapped to them within a tenth of
+    // it either. Trimmed in the middle of the tent's first span and cut by
+    // the plane z = 0.3, the curve is cut where samples of it leave the
+    // range, at (50.025, 0.025).
+    let (at, half, cluster) = (50.0, 0.05, 1e-8);
+    let poles = [0.0, at, at + half, at + 2.0 * half, 100.0]
+        .iter()
+        .enumerate()
+        .map(|(i, &x)| {
+            let y = if i == 2 { half } else { 0.0 };
+            vec![Point::new(x, y, -1.0), Point::new(x, y, 1.0)]
+        })
+        .collect();
+    let knots = vec![
+        0.0,
+        at,
+        at + 0.5 * cluster,
+        at + cluster,
+        100.0 - 2.0 * half + cluster,
+    ];
+    let wall = BSplineSurface::new(
+        1,
+        1,
+        poles,
+        knots,
+        vec![2, 1, 1, 1, 2],
         vec![0.0, 1.0],
-        vec![4, 4],
+        vec![2, 2],
+        false,
         false,
     )
     .unwrap();
-    let axis = Axis::new(Point::ORIGIN, Vector::Z).unwrap();
-    let dome = RevolutionSurface::new(Curve::BSpline(profile), axis).unwrap();
-    let band = dome.clone().trimmed((0.0, TAU), (0.1, 0.9)).unwrap();
-    let plane = Plane::new(Point::new(0.25, 0.0, 0.0), Vector::X).unwrap();
+    let band = wall
+        .clone()
+        .trimmed((at + 0.25 * cluster, 60.0), (0.1, 0.9))
+        .unwrap();
+    let plane = Plane::new(Point::new(0.0, 0.0, 0.3), Vector::Z).unwrap();
     let result = band.intersect(&plane, TOL);
     assert_eq!(result.method(), IntersectionMethod::Numeric);
-    assert_eq!(result.curves().len(), 1);
-    assert!(result.curves()[0].deviation > TOL.confusion);
     assert_inside(&result, &band, &plane);
-    let whole_plane = plane.trimmed((-3.0, 3.0), (-3.0, 3.0)).unwrap();
-    assert_ends_on_boundaries(&result, &band, &whole_plane);
-    let untrimmed = dome.intersect(&plane, TOL);
+    let cut = Point::new(50.025, 0.025, 0.3);
+    let across: Vec<&IntersectionCurve> = result
+        .curves()
+        .iter()
+        .filter(|piece| {
+            let (start, end) = piece.parameter_range;
+            [start, end]
+                .iter()
+                .any(|&t| piece.curve.point_at(t).distance(cut) <= 1e-8)
+        })
+        .collect();
+    assert_eq!(across.len(), 1, "one piece ends on the cut");
+    assert!(across[0].deviation > TOL.confusion);
+    let whole_plane = plane.trimmed((-200.0, 200.0), (-200.0, 200.0)).unwrap();
+    let untrimmed = wall.intersect(&plane, TOL);
     assert_covers(&result, &untrimmed, &band, &whole_plane);
 }

@@ -506,8 +506,11 @@ where
     /// `hermite`, the middle of the step's Hermite segment in space, and
     /// the surface's point at the middle of the segment in its parameters,
     /// across [`HERMITE_SLACK`] times confusion grown by
-    /// [`PARAMETER_ROUNDING`] times the resolution of the parameters (see
-    /// [`SurfacePair::parameter_shifts`]). The segment in parameters runs
+    /// [`PARAMETER_ROUNDING`] times the coarser resolution of the two
+    /// surfaces' parameters (see [`SurfacePair::parameter_shifts`]): the
+    /// curve in space runs through the first surface's points, so a curve
+    /// in the second's parameters keeps to it no closer than the first's
+    /// rounding either. The segment in parameters runs
     /// through the parameters `x` and `y` of the step's ends, with the
     /// parameters' derivatives there, `at_start` and `at_end`, over a knot
     /// span of `span`, as the fit builds it (see `Fitted::new`).
@@ -523,15 +526,17 @@ where
         span: f64,
         hermite: Point,
     ) -> f64 {
+        let resolution = [at_start, at_end]
+            .iter()
+            .flat_map(|shifts| shifts.iter().map(|&(_, resolution)| resolution))
+            .fold(0.0, f64::max);
+        let allowance = HERMITE_SLACK * self.tol.confusion + PARAMETER_ROUNDING * resolution;
         let error_on = |surface: &dyn ParametricSurface, side: usize| {
-            let ((start, start_resolution), (end, end_resolution)) = (at_start[side], at_end[side]);
-            let (start, end) = (start?, end?);
+            let (start, end) = (at_start[side].0?, at_end[side].0?);
             let [u, v]: [f64; 2] = std::array::from_fn(|k| {
                 let index = 2 * side + k;
                 0.5 * (x[index] + y[index]) + 0.125 * span * (start[k] - end[k])
             });
-            let resolution = start_resolution.max(end_resolution);
-            let allowance = HERMITE_SLACK * self.tol.confusion + PARAMETER_ROUNDING * resolution;
             Some(surface.point_at(u, v).distance(hermite) / allowance)
         };
         error_on(self.pair.first, 0)
