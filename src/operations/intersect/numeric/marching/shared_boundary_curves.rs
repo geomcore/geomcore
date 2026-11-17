@@ -3,8 +3,8 @@
 //! along a parameter bound of both surfaces at once (see
 //! [`shared_boundary_curves`]).
 
-use super::pair::{SurfacePair, own_box, swap};
-use super::tracer::chord_deviation;
+use super::pair::{ParameterShifts, SurfacePair, own_box, swap};
+use super::tracer::{PARAMETER_SEGMENTS_FLOOR, chord_deviation, parameter_segments_error};
 use crate::Direction;
 use crate::geometry::curves::fitting::segment_length;
 use crate::geometry::surfaces::ParametricSurface;
@@ -161,7 +161,9 @@ impl BoundaryCurve {
     /// by at most the march's chord deviation, and from the cubic Hermite
     /// segment the fit passes between its ends by at most a quarter of
     /// confusion, as a traced step (see
-    /// [`Tracer::step_error`](super::tracer::Tracer)).
+    /// [`Tracer::step_error`](super::tracer::Tracer)). Each piece is then
+    /// halved until the fit's segments in the surfaces' parameters keep to
+    /// it too (see [`halve_in_parameters`](Self::halve_in_parameters)).
     /// `None` when the boundary curve is no longer than confusion.
     fn sampled<A, B>(&self, pair: SurfacePair<A, B>, tol: Tolerance) -> Option<SharedBoundaryCurve>
     where
@@ -213,23 +215,110 @@ impl BoundaryCurve {
                     .map(|tangent| (kept[k], tangent))
             })
             .unzip();
-        let mut parameters: Vec<[f64; 4]> = Vec::with_capacity(kept.len());
-        for sample in &kept {
-            let (u, v) = self.at(sample.t);
-            let foot = pair.second.project_point(sample.point, tol);
-            let x = [u, v, foot.u, foot.v];
-            parameters.push(match parameters.last() {
-                Some(&previous) => pair.nearest_turn(x, previous),
-                None => x,
-            });
+        let mut placed: Vec<Placed> = Vec::with_capacity(kept.len());
+        for (sample, tangent) in kept.into_iter().zip(tangents) {
+            let previous = placed.last().map(|before| before.parameters);
+            placed.push(self.placed(pair, sample, tangent, previous, tol));
         }
-        let touching = parameters.iter().all(|&x| pair.grazes(x, tol));
+        let touching = placed
+            .iter()
+            .all(|entry| pair.grazes(entry.parameters, tol));
+        if !touching {
+            // Where the surfaces touch, the fit interpolates the points
+            // and their parameters, and no Hermite segment is built.
+            let mut refined = vec![placed[0]];
+            for piece in placed.windows(2) {
+                self.halve_in_parameters(pair, piece[0], piece[1], 0, tol, &mut refined);
+            }
+            placed = refined;
+        }
         Some(SharedBoundaryCurve {
-            points: kept.iter().map(|sample| sample.point).collect(),
-            tangents,
-            parameters,
+            points: placed.iter().map(|entry| entry.sample.point).collect(),
+            tangents: placed.iter().map(|entry| entry.tangent).collect(),
+            parameters: placed.iter().map(|entry| entry.parameters).collect(),
             touching,
         })
+    }
+
+    /// `sample`, with its unit `tangent`, placed on both surfaces of
+    /// `pair`: its parameters on the second surface are those of its
+    /// projection there, taken on the turn nearest `previous` (the
+    /// parameters of the sample before it), so that they run continuously
+    /// along the boundary curve.
+    fn placed<A, B>(
+        &self,
+        pair: SurfacePair<A, B>,
+        sample: Sample,
+        tangent: Vector,
+        previous: Option<[f64; 4]>,
+        tol: Tolerance,
+    ) -> Placed
+    where
+        A: ParametricSurface,
+        B: ParametricSurface,
+    {
+        let (u, v) = self.at(sample.t);
+        let foot = pair.second.project_point(sample.point, tol);
+        let x = [u, v, foot.u, foot.v];
+        let parameters = previous.map_or(x, |previous| pair.nearest_turn(x, previous));
+        Placed {
+            sample,
+            tangent,
+            parameters,
+            shifts: pair.parameter_shifts(parameters, tangent, tol),
+        }
+    }
+
+    /// Pushes onto `kept` the samples after `from` up to `to`, halving the
+    /// piece between them until the Hermite segments the fit passes in
+    /// each surface's parameters keep to the segment in space, as a traced
+    /// step's do (see [`parameter_segments_error`]): a boundary curve
+    /// straight in space may run along a surface's parameters at a speed
+    /// that changes fast, as on a rational surface with uneven weights,
+    /// where the samples that keep to it in space leave the fit in
+    /// parameters far off it (#311). A piece no longer than
+    /// [`PARAMETER_SEGMENTS_FLOOR`] times confusion is not halved, as a
+    /// traced step is not checked there.
+    fn halve_in_parameters<A, B>(
+        &self,
+        pair: SurfacePair<A, B>,
+        from: Placed,
+        to: Placed,
+        halvings: usize,
+        tol: Tolerance,
+        kept: &mut Vec<Placed>,
+    ) where
+        A: ParametricSurface,
+        B: ParametricSurface,
+    {
+        let (p, q) = (from.sample.point, to.sample.point);
+        let chord = q - p;
+        let keeps = halvings >= MOST_HALVINGS
+            || chord.magnitude() <= PARAMETER_SEGMENTS_FLOOR * tol.confusion
+            || {
+                let span = segment_length(p, q, from.tangent, to.tangent);
+                let hermite = p + chord * 0.5 + (from.tangent - to.tangent) * (0.125 * span);
+                parameter_segments_error(
+                    pair,
+                    (from.parameters, &from.shifts),
+                    (to.parameters, &to.shifts),
+                    span,
+                    hermite,
+                    tol,
+                ) <= 1.0
+            };
+        let middle = (!keeps).then(|| self.sample(pair.first, 0.5 * (from.sample.t + to.sample.t)));
+        // A middle where the boundary curve stands still takes the chord's
+        // direction, as a sample does in `sampled`.
+        let Some((middle, tangent)) = middle
+            .and_then(|middle| Some((middle, middle.tangent.or_else(|| chord.normalized())?)))
+        else {
+            kept.push(to);
+            return;
+        };
+        let middle = self.placed(pair, middle, tangent, Some(from.parameters), tol);
+        self.halve_in_parameters(pair, from, middle, halvings + 1, tol, kept);
+        self.halve_in_parameters(pair, middle, to, halvings + 1, tol, kept);
     }
 
     /// The boundary curve's point and unit tangent, along increasing `t`, at
@@ -275,6 +364,17 @@ struct Sample {
     t: f64,
     point: Point,
     tangent: Option<Vector>,
+}
+
+/// A sample of a boundary curve placed on both surfaces: with its unit
+/// tangent, its parameters on both, and their shifts along the tangent
+/// (see [`SurfacePair::parameter_shifts`]).
+#[derive(Clone, Copy)]
+struct Placed {
+    sample: Sample,
+    tangent: Vector,
+    parameters: [f64; 4],
+    shifts: ParameterShifts,
 }
 
 /// Whether the piece of a boundary curve from `from` to `to` keeps to it:

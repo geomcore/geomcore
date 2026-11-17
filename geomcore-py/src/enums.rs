@@ -246,10 +246,14 @@ python_enum! {
     ///   tangent contact of a curve with a surface.
     /// - `UNBOUNDED`: a branch of two unbounded surfaces runs beyond the
     ///   box it was traced in, and continues past the regions reported.
+    /// - `LOOSE_FIT`: a marched curve was fitted farther from the surfaces
+    ///   than the confusion distance (its `deviation` exceeds it); the
+    ///   regions hold each such curve.
     PyIncompleteReason => "IncompleteReason" ("IntEnum", mixin None) {
         BudgetExhausted => "BUDGET_EXHAUSTED" = 0u8,
         Unseparated => "UNSEPARATED" = 1u8,
         Unbounded => "UNBOUNDED" = 2u8,
+        LooseFit => "LOOSE_FIT" = 3u8,
     }
 }
 
@@ -259,6 +263,7 @@ impl From<IncompleteReason> for PyIncompleteReason {
             IncompleteReason::BudgetExhausted => PyIncompleteReason::BudgetExhausted,
             IncompleteReason::Unseparated => PyIncompleteReason::Unseparated,
             IncompleteReason::Unbounded => PyIncompleteReason::Unbounded,
+            IncompleteReason::LooseFit => PyIncompleteReason::LooseFit,
         }
     }
 }

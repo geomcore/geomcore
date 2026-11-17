@@ -70,6 +70,7 @@ def test_enumerations_are_real_enums_that_list_their_members():
         "BUDGET_EXHAUSTED",
         "UNSEPARATED",
         "UNBOUNDED",
+        "LOOSE_FIT",
     ]
     assert list(PointParametrization) == ["chordal", "centripetal"]
     assert CompletenessStatus.__module__ == "geomcore"

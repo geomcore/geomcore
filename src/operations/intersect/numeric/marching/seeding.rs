@@ -282,7 +282,7 @@ where
         .flat_map(|d| [d * h, d * -h])
         .filter_map(|step| {
             let direction = step * (1.0 / h);
-            pair.meet(pair.predict(x, step), Some((p + step, direction)), tol)
+            pair.meet(pair.predict(x, step, tol), Some((p + step, direction)), tol)
         })
         .collect()
 }

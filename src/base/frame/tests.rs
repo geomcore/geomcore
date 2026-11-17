@@ -378,3 +378,29 @@ fn an_axis_or_frame_rebuilt_from_its_own_parts_is_the_same_bit_for_bit() {
         assert_eq!(rebuilt, Ok(frame));
     }
 }
+
+#[test]
+fn a_frame_2d_flipped_keeps_its_origin_and_changes_handedness() {
+    let frame = Frame2D::from_x(Point2D::new(1.0, -2.0), Vector2D::new(3.0, 4.0)).unwrap();
+    for flipped in [frame.flipped_x(), frame.flipped_y()] {
+        assert_eq!(flipped.origin(), frame.origin());
+        assert!(!flipped.is_direct());
+    }
+    assert_eq!(frame.flipped_x().x_direction(), -frame.x_direction());
+    assert_eq!(frame.flipped_x().y_direction(), frame.y_direction());
+    assert_eq!(frame.flipped_y().y_direction(), -frame.y_direction());
+    assert_eq!(frame.flipped_x().flipped_x(), frame);
+}
+
+#[test]
+fn axes_2d_are_coaxial_in_either_orientation_from_any_origin_along_the_line() {
+    let tol = crate::Tolerance::DEFAULT;
+    let axis = Axis2D::new(Point2D::new(1.0, 1.0), Vector2D::new(3.0, 4.0)).unwrap();
+    assert!(axis.is_coaxial(axis.reversed(), tol));
+    let along = Axis2D::new(axis.point_at(-7.0), Vector2D::new(-3.0, -4.0)).unwrap();
+    assert!(axis.is_coaxial(along, tol));
+    let beside = Axis2D::new(Point2D::new(1.0, 1.0 + 1e-6), Vector2D::new(3.0, 4.0)).unwrap();
+    assert!(axis.is_parallel(beside, tol.angular) && !axis.is_coaxial(beside, tol));
+    let tilted = Axis2D::new(axis.origin(), Vector2D::new(3.0, 4.0 + 1e-8)).unwrap();
+    assert!(!axis.is_coaxial(tilted, tol));
+}

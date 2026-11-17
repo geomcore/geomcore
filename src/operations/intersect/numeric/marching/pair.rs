@@ -36,6 +36,25 @@ impl<A, B> Clone for SurfacePair<'_, A, B> {
 
 impl<A, B> Copy for SurfacePair<'_, A, B> {}
 
+/// The parameter shifts and resolutions of
+/// [`SurfacePair::parameter_shifts`].
+pub(super) type ParameterShifts = [(Option<[f64; 2]>, f64); 2];
+
+/// Parameters `x` moved by `scale` times the `shifts` of each surface (see
+/// [`SurfacePair::parameter_shifts`]), unchanged on a surface without one:
+/// the shifts for a unit tangent, scaled by a step's length, predict the
+/// step's end.
+pub(super) fn moved(x: [f64; 4], shifts: &ParameterShifts, scale: f64) -> [f64; 4] {
+    let [du1, dv1] = shifts[0].0.unwrap_or([0.0, 0.0]);
+    let [du2, dv2] = shifts[1].0.unwrap_or([0.0, 0.0]);
+    [
+        x[0] + du1 * scale,
+        x[1] + dv1 * scale,
+        x[2] + du2 * scale,
+        x[3] + dv2 * scale,
+    ]
+}
+
 /// Parameters `x` of a pair read for the swapped pair: `[u2, v2, u1, v1]`.
 pub(super) fn swap(x: [f64; 4]) -> [f64; 4] {
     [x[2], x[3], x[0], x[1]]
@@ -409,22 +428,40 @@ where
 
     /// Parameters `x` moved to first order by the displacement `d` on both
     /// surfaces (unchanged on a surface whose tangent plane degenerates).
-    pub(super) fn predict(&self, x: [f64; 4], d: Vector) -> [f64; 4] {
-        let [first, second] = self.parameter_shifts(x, d);
-        let [du1, dv1] = first.unwrap_or([0.0, 0.0]);
-        let [du2, dv2] = second.unwrap_or([0.0, 0.0]);
-        [x[0] + du1, x[1] + dv1, x[2] + du2, x[3] + dv2]
+    pub(super) fn predict(&self, x: [f64; 4], d: Vector, tol: Tolerance) -> [f64; 4] {
+        moved(x, &self.parameter_shifts(x, d, tol), 1.0)
     }
 
     /// The change of parameters on each surface that moves its point at
     /// `x` by `d` to first order: the least-squares solution through the
-    /// surface's partial derivatives, `None` on a surface whose tangent
-    /// plane degenerates there.
-    pub(super) fn parameter_shifts(&self, x: [f64; 4], d: Vector) -> [Option<[f64; 2]>; 2] {
+    /// surface's partial derivatives, `None` where they span no tangent
+    /// plane within `tol` (see [`unit_normal`]), as at a sphere's pole,
+    /// where rounding leaves `Su` a tiny vector and the solution through it
+    /// runs off by whole periods. Each comes with the resolution of the
+    /// surface's parameters at `x`: how far its point moves when they move
+    /// by their rounding, `(|Su| |u| + |Sv| |v|) ε`. A curve in its
+    /// parameters keeps to a curve in space no closer than that, as on a
+    /// B-spline surface whose knots crowd a long stretch of it into a tiny
+    /// parameter span.
+    pub(super) fn parameter_shifts(
+        &self,
+        x: [f64; 4],
+        d: Vector,
+        tol: Tolerance,
+    ) -> ParameterShifts {
         let shift = |s: &dyn ParametricSurface, u: f64, v: f64| {
             let (_, [su, sv]) = s.first_derivatives(u, v);
-            let m = [[su.dot(su), su.dot(sv)], [su.dot(sv), sv.dot(sv)]];
-            solve_2x2(m, [su.dot(d), sv.dot(d)], 1e-12)
+            let (su_length, sv_length) = (su.magnitude(), sv.magnitude());
+            let widths = reference_widths(s, tol);
+            let cross_length = su.cross(sv).magnitude();
+            let shift = partials_span_a_plane(su_length, sv_length, cross_length, widths, tol)
+                .then(|| {
+                    let m = [[su.dot(su), su.dot(sv)], [su.dot(sv), sv.dot(sv)]];
+                    solve_2x2(m, [su.dot(d), sv.dot(d)], 1e-12)
+                })
+                .flatten();
+            let resolution = (su_length * u.abs() + sv_length * v.abs()) * f64::EPSILON;
+            (shift, resolution)
         };
         [
             shift(self.first, x[0], x[1]),

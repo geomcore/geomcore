@@ -41,9 +41,34 @@ the Python distribution are versioned in lockstep.
   `Direction` values (#401, ADR 0054). Write `n.vector()` where a
   `Vector` is needed, and `Some(Direction::X)` where a test compared the
   result with `Some(Vector::X)`. Python is unchanged.
+- `TrimmedSurfaceConstructionError` has two more variants,
+  `DisjointRanges` and `RangeInTwoPieces`, which `TrimmedSurface::trimmed`
+  returns (#326): a `match` on it needs their arms.
+- `IncompleteReason` has one more variant, `LooseFit` (`LOOSE_FIT` in
+  Python), which a marched surface-surface result reports (#311): a
+  `match` on it needs its arm. It is the weakest reason: a result with
+  another one keeps that one and holds both kinds of region.
 
 ### Added
 
+- A curve intersects a `TrimmedSurface`, in either order, in Rust and
+  Python (#326): the curve is intersected with the basis, a hit kept when
+  its surface parameters lie in the ranges and an overlap cut to its
+  pieces inside them, as the curves of two surfaces are (ADR 0039). A
+  face across the seam keeps its hits: on a half cylinder from 3π/2 to
+  5π/2 a hit at the basis's angle 0 is kept and reports `u = 2π`.
+  Python's `line.intersect(face)` no longer raises `TypeError`.
+- `TrimmedSurface::transformed` (`Transformable`), in Rust and Python
+  (#326): the basis maps through the transform and each range with its
+  parametrization, scaled where the parameter is a length (a cylinder's
+  height, a plane's two) and kept where it is an angle or a B-spline
+  parameter, so the image holds the image of every point of the face
+  under a scaling too.
+- `TrimmedSurface::trimmed`, in Rust and Python (#326): the face trimmed
+  again over the part of each range the new one covers, a periodic
+  direction's range read modulo the period. Python's
+  `TrimmedSurface(face, u_range, v_range)` takes a face as its basis and
+  trims it the same way.
 - `Direction` and `Direction2D` (#205): built once from a vector by
   `Vector::direction`, which returns `None` for a zero vector and a unit
   vector unchanged, bit for bit. Their `is_parallel` and
@@ -88,9 +113,36 @@ the Python distribution are versioned in lockstep.
   Python). A circle runs through the points in their order, and the
   normal of a plane or the axis of a cylinder is the one they turn
   counterclockwise about.
+- The 2D twins answer more of what their 3D classes do, in Rust and
+  Python (#197): `Circle2D::from_three_points`, starting at the first
+  point and turning counterclockwise when the points turn left, clockwise
+  otherwise; `enclosed_area` on `Circle2D` in Python; `Frame2D::flipped_x`
+  and `flipped_y`; `Axis2D::is_coaxial`. `TrimmedCurve2D::arc_through`
+  builds its circle in the plane with `Circle2D::from_three_points`.
+- `eccentricity` (0) and `foci` (both the center) on `Circle` and
+  `Circle2D`, which the other central conics have, and `asymptotes` on
+  `Hyperbola` and `Hyperbola2D`: the two lines through the center the
+  branch approaches, first as its parameter grows (#197).
+- Python: `test_parity.py` lists, for each 3D class, what its 2D twin
+  lacks, each method required, excluded with its reason, or pending in an
+  issue: `transformed` and `Transform2D` in #421, curve–curve `extrema`
+  in the plane in #422 (#197). The docstrings of `Line` and `Line2D` say
+  that the direction is normalized, so the parameter is a distance.
 
 ### Changed
 
+- Two trimmed surfaces of one surface that share only an edge or a
+  corner are no longer coincident (#406): a shared edge, as the circle
+  between two stacked faces of a cylinder or the side between two
+  squares of a plane, comes back as a `tangent` curve with its curves in
+  both patches' parameters, a shared corner as a contact point, and
+  patches are coincident only where their ranges overlap with area. It
+  holds across the seam of a periodic direction and where the bases'
+  parameters are shifted, reversed or swapped copies of each other, as
+  two frames of one cylinder on its axis; other bases keep the sampled
+  check (ADR 0039). Patches whose boxes are apart by less than the
+  confusion distance now reach this check instead of being reported
+  apart.
 - `TrimmedSurface::parameters_of` and `project_point` (the same in
   Python) read a point's parameters into the ranges by the rule the
   intersections use (#291): a parameter within the confusion distance past
@@ -120,9 +172,78 @@ the Python distribution are versioned in lockstep.
   for unbounded shapes or `tol.angular_for_extent(size)` for bounded ones
   (ADR 0006). Every converted site compared unit vectors, so no result
   changes.
+- A cone and a cylinder around a common sphere (the two ellipses of a
+  reducer) are intersected with about 8% fewer instructions typed and 4%
+  fewer routed, and the count no longer moves with what the compiler
+  inlines (#411): the helper that builds the conics returns the whole
+  result, so they are no longer copied into it when it is not inlined.
 
 ### Fixed
 
+- A marched curve fitted farther from the surfaces than the confusion is
+  reported (#311): the result is `Incomplete` with the reason `LooseFit`,
+  where it was `Sampled` like a result within the confusion. Two
+  cylinders whose axes meet at 1e-7 rad, for one, return a piece 2.4e-5
+  off them.
+- A boundary curve of one surface lying on the other (ADR 0052) is
+  sampled until its fits in both surfaces' parameters keep within the
+  confusion as well as its fit in space (#311). On a rational surface
+  with uneven weights, the boundary curve runs along its parameters at a
+  speed that changes fast, and the fit in its parameters strayed by up to
+  1.6 from a straight boundary curve 2 long.
+- The numeric curve–surface search merged hits within `sqrt(tol.confusion)`
+  of each other, a distance that is a length only at unit scale, so the
+  number of hits changed with the model's size (#416): a B-spline crossing
+  a revolution twice, 0.29 apart at unit size, came back with one hit
+  when scaled by 2^-20, and a
+  Bézier touching an extrusion at its end with two at 2^20. Two hits are
+  now one contact when the curve stays within `tol.confusion` of the
+  surface between them, as curve–curve hits already were (ADR 0034),
+  tested once the overlaps are taken out. The hull search settles a pair
+  near an earlier hit within `sqrt(tol.confusion L)`, `L` the size of the
+  curve. 3 `curve-surface` lines leave the list of the similarity judge;
+  the 3 placement lines remain (#417).
+- A tangent curve–surface contact moved with the placement of the shapes
+  (#417): where the curve grazes the surface, the gap is quadratic in the
+  parameter, so the search stopped anywhere inside a band of width about
+  `sqrt(rounding / curvature)`, which widens with the distance to the
+  origin. A Bézier touching an extrusion at its end came back 4e-5 off
+  the touch and as a crossing (`multiplicity` 1) once translated by 1e7.
+  A hit where the curve runs along the surface is now placed by Newton
+  on the touch itself, where the curve's tangent lies in the surface's
+  tangent plane, pinned at a curve end the touch lies beyond, and kept
+  only when it is still the same contact (ADR 0034). It reports
+  `multiplicity` 2. The list of the similarity judge is empty. The
+  numeric curve–surface benchmarks spend up to 1.3% more instructions.
+- A marched curve's curves in the parameters of its surfaces keep within
+  the confusion of its curve in space (#393). The march sized its steps
+  on the curve in space alone, so where a surface's parameters turn fast
+  along a cut that is straight in space, the curve in those parameters
+  strayed far from it: a plane at x = 0.25 across the plane z = 0, made
+  as a revolution of a line, came back with a `deviation` of 0.029, and
+  with 0.073 on its pieces on the ring of radii 0.5 to 2. Each step now
+  also checks the fitted segments in the parameters of both surfaces, and
+  that curve's `deviation` is 2e-8. A plane or a sphere across a torus
+  converted to a B-spline came back 1e-5 off, now 2e-8, for up to 11%
+  more work in the march. Of the 92 marched curves farther off than the
+  confusion in the marching tests, 18 remain, mostly where a curve runs
+  through a sphere's pole, where the surfaces touch, or on a B-spline
+  whose knots crowd a long stretch of it into a parameter span too fine
+  for the rounding to resolve to the confusion. A trace from a sphere's
+  pole no longer runs its angle off by about 1e12 radians: a sphere cut
+  by a cylinder through its poles came back in 6 pieces, now 3.
+- `curve_3d_to_uv_within` (the same in Python) refuses at once a curve
+  within the confusion distance of the surface but farther from it than
+  the asked deviation (#404), with `CurveNotOnSurface` and the distance.
+  The surface's projection snaps such a distance to zero, so the mapping
+  split its spans up to the 100 000 a curve gets before failing with
+  `DeviationNotReached`: a trimmed dome cut by a plane, whose marched
+  curve is 2.4e-8 off the dome against a deviation of 1e-8, took 16 s to
+  clip in a debug build and 1 s in a release one, now 0.07 s and under
+  0.01 s. The distance to the projection's point is read instead, and a
+  curve is refused only past the whole asked deviation, twice what each
+  span is held to, so a projection that stops short where the surface's
+  parametrization is singular refuses nothing.
 - A marched curve clipped by a trimmed surface ends on the face boundary
   (#314). The clip placed its cuts with the march's curve in the
   parameters of the trimmed side, which can stray from the curve by far

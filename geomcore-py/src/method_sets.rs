@@ -24,7 +24,7 @@
 //! | `bounded_curve`, `bounded_curve_2d` | `BoundedCurve(2D)`, `Discretize(2D)` | the bounded curves |
 //! | `sided_evaluation`, `sided_evaluation_2d` | the `*_sided` evaluations | B-spline and Bézier curves |
 //! | `parametric_surface` | `ParametricSurface` (with the UV curve mappings), `HasBoundingBox` | every surface and `TrimmedSurface` |
-//! | `surface` | `ReversibleSurface`, `Transformable`, `Intersect` with any curve or surface, isoparametric curves, `trimmed` | every surface |
+//! | `surface` | `ReversibleSurface`, `Transformable`, `Intersect` with any curve or surface, isoparametric curves, `trimmed` | every surface; `TrimmedSurface` writes its own `transformed`, `trimmed` and `intersect`, which map or clip its ranges |
 //! | `sided_surface_evaluation` | the `*_sided` evaluations | B-spline and Bézier surfaces |
 //! | `surface_extrema` | `extrema` | B-spline and Bézier surfaces |
 //!
@@ -1076,9 +1076,11 @@ macro_rules! parametric_surface {
 }
 pub(crate) use parametric_surface;
 
-/// The methods of a whole surface, which a `TrimmedSurface` does not
-/// have: the isoparametric curves, `ReversibleSurface`, `Transformable`,
-/// `trimmed`, and `Intersect` with any curve or surface.
+/// The methods of a whole surface: the isoparametric curves,
+/// `ReversibleSurface`, `Transformable`, `trimmed`, and `Intersect` with
+/// any curve or surface. A `TrimmedSurface` has no isoparametric curves
+/// or reversals, and writes its own transform, `trimmed` and `intersect`,
+/// which map or clip its ranges.
 macro_rules! surface {
     ($class:ident $sets:tt { $($methods:tt)* }) => {
         $crate::method_sets::shape_methods! { @next $class $sets {

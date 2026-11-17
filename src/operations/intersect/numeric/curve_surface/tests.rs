@@ -174,3 +174,96 @@ fn test_unbounded_curve_seeds_scale_with_the_operands() {
         }
     }
 }
+
+/// A circle dipping through a plane, scaled by `scale` with the tolerance
+/// scaled alike: its numeric hits with the plane.
+fn dipping_circle_hits(scale: f64, centre_height: f64) -> Vec<CurveSurfaceHit> {
+    moved_dipping_circle_hits(scale, centre_height, 0.0)
+}
+
+/// [`dipping_circle_hits`], the circle and the plane also moved by
+/// `shift` along each axis.
+fn moved_dipping_circle_hits(scale: f64, centre_height: f64, shift: f64) -> Vec<CurveSurfaceHit> {
+    use crate::{Circle, Plane};
+    let tol = Tolerance {
+        confusion: Tolerance::DEFAULT.confusion * scale,
+        ..Tolerance::DEFAULT
+    };
+    let offset = Vector::new(shift, shift, shift);
+    let circle = Circle::new(
+        Point::new(0.0, 0.0, centre_height * scale) + offset,
+        Vector::Y,
+        scale,
+    )
+    .unwrap();
+    let plane = Plane::new(Point::ORIGIN + offset, Vector::Z).unwrap();
+    intersect_curve_surface(&circle, &plane, tol)
+        .hits()
+        .to_vec()
+}
+
+#[test]
+fn test_hits_merge_alike_at_any_size() {
+    // Two crossings 0.2 radii apart. At 2^-20, a merge distance of
+    // sqrt(confusion) spans 0.32 radii and would join them, yet the circle
+    // dips 0.005 radii below the plane between them, far beyond confusion.
+    // At 2^20 it spans 3e-7 radii and would split the tangency below.
+    let crossing = (1.0_f64 - 0.1 * 0.1).sqrt();
+    for scale in [1.0, 2f64.powi(-20), 2f64.powi(20)] {
+        let hits = dipping_circle_hits(scale, crossing);
+        assert_eq!(hits.len(), 2, "scale {scale}: {hits:?}");
+        assert!(hits.iter().all(|hit| hit.multiplicity == 1), "{hits:?}");
+    }
+    // A circle touching the plane is one contact at every size.
+    for scale in [1.0, 2f64.powi(-20), 2f64.powi(20)] {
+        let hits = dipping_circle_hits(scale, 1.0);
+        assert_eq!(hits.len(), 1, "scale {scale}: {hits:?}");
+        assert_eq!(hits[0].multiplicity, 2, "scale {scale}: {hits:?}");
+    }
+}
+
+#[test]
+fn test_tangent_contact_lands_on_the_touch_at_any_placement() {
+    // A circle of radius 1 touching a plane at its lowest point. Far from
+    // the origin the distance to the plane is rounding over a band about
+    // 3e-5 wide around the touch; the contact lands on the touch itself,
+    // a touch, wherever the pair sits and whatever its size.
+    for (scale, shift) in [
+        (1.0, 0.0),
+        (1.0, 1e7),
+        (2f64.powi(-20), 0.0),
+        (2f64.powi(20), 0.0),
+        (2f64.powi(20), 1e7),
+    ] {
+        let hits = moved_dipping_circle_hits(scale, 1.0, shift);
+        assert_eq!(hits.len(), 1, "scale {scale}, shift {shift}: {hits:?}");
+        let touch = Point::new(shift, shift, shift);
+        let off = hits[0].point.distance(touch) / scale;
+        assert!(off < 1e-8, "scale {scale}, shift {shift}: {off:e} {hits:?}");
+        assert_eq!(hits[0].multiplicity, 2, "{hits:?}");
+    }
+}
+
+#[test]
+fn test_far_apart_crossings_are_not_one_contact() {
+    // z = 4t (4t - 1)(4t - 2)(4t - 3)(4t - 4) / 20 at x = 4t: the curve
+    // crosses the plane z = 0 at x = 0, 1, 2, 3 and 4. Between the
+    // crossings at x = 0 and x = 4, the probes at a quarter, a half and
+    // three quarters of the way land on the crossings at 1, 2 and 3, so
+    // the contact test compares neighbours only.
+    use crate::{BezierCurve, Plane};
+    let heights = [0.0, 0.96, -2.08, 2.08, -0.96, 0.0];
+    let poles = (0..6)
+        .map(|k| Point::new(0.8 * k as f64, 0.0, heights[k]))
+        .collect();
+    let curve = BezierCurve::new(5, poles).unwrap();
+    let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
+    let hits = intersect_curve_surface(&curve, &plane, Tolerance::DEFAULT)
+        .hits()
+        .to_vec();
+    let crossings: Vec<f64> = hits.iter().map(|hit| hit.point.x).collect();
+    assert_eq!(crossings.len(), 5, "{crossings:?}");
+    for (crossing, expected) in crossings.iter().zip(0..5) {
+        assert!((crossing - expected as f64).abs() < 1e-9, "{crossings:?}");
+    }
+}

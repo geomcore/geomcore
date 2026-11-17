@@ -1761,6 +1761,18 @@ fn test_surfaces_on_one_control_net_meet_along_each_whole_boundary_curve_at_any_
         let b = rational.clone().transformed(similarity).unwrap();
         let result = Surface::from(a).intersect(&Surface::from(b), tol);
         assert_eq!(result.curves().len(), 6, "at scale {scale}, shift {shift}");
+        // The boundary curves run along the rational surface's parameters
+        // at a speed its uneven weights change fast: sampled for the fit in
+        // space alone, their fits in its parameters strayed by up to 1.6
+        // (#311).
+        for piece in result.curves() {
+            assert!(
+                piece.deviation <= tol.confusion,
+                "deviation {:e} at scale {scale}, shift {shift}",
+                piece.deviation
+            );
+        }
+        assert_eq!(result.completeness(), &Completeness::Sampled);
         for (start, end) in boundary_curves {
             let (start, end) = (moved(start), moved(end));
             let whole = result.curves().iter().any(|piece| {
@@ -1850,6 +1862,27 @@ fn test_cylinders_whose_axes_nearly_meet_return_finite_curves_in_bounded_work() 
                     .curves()
                     .iter()
                     .all(|piece| piece.deviation <= TOL.confusion)
+            );
+        } else {
+            // A piece fitted farther off than the confusion is reported
+            // (#311): at 1e-7 rad, a touching piece over (0, 1) strays by
+            // about 2.4e-5.
+            let strays = result
+                .curves()
+                .iter()
+                .any(|piece| piece.deviation > TOL.confusion);
+            assert_eq!(strays, angle == 1e-7, "at {angle}");
+            assert_eq!(
+                matches!(
+                    result.completeness(),
+                    Completeness::Incomplete {
+                        reason: IncompleteReason::LooseFit,
+                        ..
+                    }
+                ),
+                strays,
+                "at {angle}: {:?}",
+                result.completeness()
             );
         }
     }

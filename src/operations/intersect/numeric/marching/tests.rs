@@ -620,8 +620,29 @@ fn test_marching_does_not_skip_a_tent_in_a_knot_cluster() {
     ] {
         let wall = tent_wall(bump, half, at, cluster);
         let plane = Plane::new(Point::new(0.0, 0.0, z0), Vector::Z).unwrap();
-        let curves = marched_curves(&plane, &wall, tol);
+        let result = marching_intersection(&plane, &wall, None, tol);
+        let curves: Vec<&BSplineCurve> = result
+            .curves()
+            .iter()
+            .map(|piece| match &piece.curve {
+                Curve::BSpline(curve) => curve,
+                _ => panic!("a numeric curve is a B-spline"),
+            })
+            .collect();
         assert_eq!(curves.len(), 4, "cluster {cluster:e} bump {bump}");
+        // In the tent's spans, rounding the wall's parameter moves its
+        // point by more than the confusion: the fits in its parameters
+        // keep to the curve no closer, and the result says so (#311).
+        let loose: Vec<f64> = result
+            .curves()
+            .iter()
+            .map(|piece| piece.deviation)
+            .filter(|&deviation| deviation > tol.confusion)
+            .collect();
+        assert!(loose.iter().all(|&deviation| deviation < 1e-5), "{loose:?}");
+        if !loose.is_empty() {
+            assert!(loose_fit_regions(&result) >= 1);
+        }
         // The distance to the wall, exactly: to the polyline through
         // its corners in the xy plane (its projection misreports inside
         // the tiny knot spans).
@@ -994,6 +1015,11 @@ fn test_sphere_inside_a_cylinder_patch_traces_the_touching_circle() {
     ] {
         assert_eq!(result.curves().len(), 1);
         assert!(result.curves()[0].tangent);
+        // The touching circle is an interpolant of points found only to
+        // within confusion: its fit strays by about 3e-5, which the
+        // result reports (#311).
+        assert!(result.curves()[0].deviation > tol.confusion);
+        assert_eq!(loose_fit_regions(&result), 1);
         let Curve::BSpline(curve) = &result.curves()[0].curve else {
             panic!("a numeric curve is a B-spline");
         };
@@ -2001,5 +2027,17 @@ fn test_a_looser_tolerance_keeps_every_curve_within_it_of_both_surfaces() {
         assert_eq!(cut.curves().len(), 1, "sphere at {confusion:e}");
         let off = farthest_off(&cut, |p| on_first(p).max((p.distance(centre) - 1.5).abs()));
         assert!(off <= confusion, "sphere at {confusion:e}: {off:e} off");
+    }
+}
+
+/// The number of regions of `result` when it is incomplete for a loose
+/// fit (see [`IncompleteReason::LooseFit`]); panics otherwise.
+fn loose_fit_regions(result: &SurfaceSurfaceIntersection) -> usize {
+    match result.completeness() {
+        Completeness::Incomplete {
+            reason: IncompleteReason::LooseFit,
+            regions,
+        } => regions.len(),
+        other => panic!("expected a loose fit, got {other:?}"),
     }
 }

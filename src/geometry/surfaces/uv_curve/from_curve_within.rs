@@ -69,7 +69,8 @@ pub enum Curve3DToUvApproximationError {
     /// The curve is a point, or its bounds coincide.
     Collapsed,
     /// The curve is farther from the surface than half the asked deviation,
-    /// the share each sampled span is held to.
+    /// the share each sampled span is held to, at a distance above
+    /// `tol.confusion`; within it, farther than the whole asked deviation.
     CurveNotOnSurface {
         /// The largest distance found between the curve and the surface:
         /// over the evenly spaced samples when the curve leaves the surface
@@ -176,7 +177,8 @@ impl std::error::Error for Curve3DToUvApproximationError {}
 /// [`Collapsed`](Curve3DToUvApproximationError::Collapsed) when the curve
 /// is a point,
 /// [`CurveNotOnSurface`](Curve3DToUvApproximationError::CurveNotOnSurface)
-/// when it is farther from the surface than half `max_deviation`,
+/// when it is farther from the surface than half `max_deviation`, or,
+/// within `tol.confusion` of it, than `max_deviation`,
 /// [`SingularParametrization`](Curve3DToUvApproximationError::SingularParametrization)
 /// when it lingers at a sphere's pole or a cone's apex, and
 /// [`DeviationNotReached`](Curve3DToUvApproximationError::DeviationNotReached)
@@ -243,6 +245,9 @@ struct Inversion<'a, S: ?Sized, C: ?Sized> {
     first: f64,
     /// The farthest the curve may be from the surface.
     farthest: f64,
+    /// The asked deviation, the farthest the curve may be from the surface
+    /// where the projection snaps its distance to zero.
+    max_deviation: f64,
     tol: Tolerance,
     /// The UV curve sampled along the curve, increasing in parameter, which
     /// every inversion is moved by whole periods to be nearest.
@@ -269,6 +274,7 @@ where
             spline: curve.as_bspline(),
             first,
             farthest: max_deviation / SAMPLING_MARGIN,
+            max_deviation,
             tol,
             lift: Vec::with_capacity(LIFT_SAMPLE_COUNT + 1),
         };
@@ -299,7 +305,7 @@ where
                     let distance = (k + 1..=LIFT_SAMPLE_COUNT)
                         .map(|k| {
                             let point = curve.point_at(sample_parameter(k));
-                            surface.project_point(point, tol).distance
+                            surface.project_point(point, tol).point.distance(point)
                         })
                         .fold(distance, f64::max);
                     return Err(Curve3DToUvApproximationError::CurveNotOnSurface { distance });
@@ -320,17 +326,29 @@ where
     }
 
     /// The `(u, v)` of `point` on the surface, moved by whole periods to
-    /// be nearest `predicted`, refused when the point is off the surface.
+    /// be nearest `predicted`, refused when the point is off the surface:
+    /// no span through it can then be within half the asked deviation.
+    ///
+    /// The projection snaps a distance within `tol.confusion` to zero, so
+    /// below it the distance to the projection's point is read, and the
+    /// point is refused only past the whole asked deviation, twice the
+    /// share a span is held to: a clear excess, not a projection that
+    /// stopped short of the closest point, as one may where the surface's
+    /// parametrization is singular. Without this, a curve within the
+    /// confusion distance of the surface but farther than the asked
+    /// deviation splits its spans up to the most a curve gets (#404).
     fn inverted(
         &self,
         point: Point,
         predicted: Option<Point2D>,
     ) -> Result<Point2D, Curve3DToUvApproximationError> {
         let projection = self.surface.project_point(point, self.tol);
-        if projection.distance.is_nan() || projection.distance > self.farthest {
-            return Err(Curve3DToUvApproximationError::CurveNotOnSurface {
-                distance: projection.distance,
-            });
+        let distance = projection.point.distance(point);
+        if projection.distance.is_nan()
+            || projection.distance > self.farthest
+            || distance > self.max_deviation
+        {
+            return Err(Curve3DToUvApproximationError::CurveNotOnSurface { distance });
         }
         let uv = Point2D::new(projection.u, projection.v);
         let Some(predicted) = predicted else {

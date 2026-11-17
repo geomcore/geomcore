@@ -88,8 +88,12 @@ src/
 │   │   │                    result (ADR 0018)
 │   │   ├── routing/swept_plane.rs  plane cuts of the swept surfaces in closed form,
 │   │   │                    entries of the table
-│   │   ├── routing/trimmed_surface.rs  the intersection of trimmed surfaces: the bases
-│   │   │                    intersected, the result clipped to the ranges (ADR 0039)
+│   │   ├── routing/trimmed_surface.rs  the intersection of trimmed surfaces, with a
+│   │   │                    surface or a curve: the bases intersected, the result
+│   │   │                    clipped to the ranges (ADR 0039)
+│   │   ├── routing/trimmed_surface/shared_boundary.rs  what two trimmed surfaces of
+│   │   │                    one surface share: an overlap with area, or the edges
+│   │   │                    and corners they touch along (#406)
 │   │   ├── exact/           IntersectExact and the closed-form solvers, by family:
 │   │   │                    curve_curve.rs, curve_surface.rs, surface_surface.rs.
 │   │   │                    conic.rs and conic_2d.rs solve a conic against a quadric
@@ -332,7 +336,9 @@ written once, so a class has a method exactly when its core type has it.
 The surface sets split the same way: `parametric_surface` is what every
 `ParametricSurface` with a box answers, `TrimmedSurface` included, and
 `surface` what only a whole surface does (reversal, transform, iso curves,
-`trimmed`, `intersect` with curves).
+`trimmed`, `intersect` with curves). `TrimmedSurface` writes its own
+`transformed`, `trimmed` and `intersect`, whose docstrings say what
+becomes of its ranges.
 The table at the top of `method_sets.rs` says which set follows from
 which trait.
 

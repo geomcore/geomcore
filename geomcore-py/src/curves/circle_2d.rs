@@ -36,6 +36,16 @@ shape_methods! {
         ))
     }
 
+    /// Build the circle through three non-collinear points; the curve starts
+    /// at the first point and turns through the second to the third:
+    /// counterclockwise when they turn left, clockwise otherwise.
+    #[staticmethod]
+    fn from_three_points(p1: PyPoint2D, p2: PyPoint2D, p3: PyPoint2D) -> PyResult<Self> {
+        Ok(PyCircle2D(
+            Circle2D::from_three_points(p1.0, p2.0, p3.0).map_err(python_error)?,
+        ))
+    }
+
     /// The least-squares circle of `points`, with its residuals: the
     /// algebraic circle, refined on the distance. It runs through the points
     /// in their order, clockwise when they turn clockwise, from the first
@@ -69,6 +79,24 @@ shape_methods! {
     /// The length of the circle, its circumference (`2*PI*radius`).
     fn length(&self) -> f64 {
         self.0.length()
+    }
+
+    /// The area the circle encloses: its disk's (`PI*radius^2`).
+    fn enclosed_area(&self) -> f64 {
+        self.0.enclosed_area()
+    }
+
+    /// The eccentricity of a circle, 0: the limit of an ellipse whose
+    /// radii meet.
+    fn eccentricity(&self) -> f64 {
+        self.0.eccentricity()
+    }
+
+    /// The two foci of a circle, both its center, as an ellipse with equal
+    /// radii gives them.
+    fn foci(&self) -> (PyPoint2D, PyPoint2D) {
+        let [first, second] = self.0.foci();
+        (PyPoint2D(first), PyPoint2D(second))
     }
 
     /// Whether the circle turns counterclockwise as its parameter grows:

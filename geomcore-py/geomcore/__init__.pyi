@@ -410,6 +410,11 @@ class Axis2D:
         """Whether the axes have parallel directions, in either orientation,
         within `angular` (`Tolerance.default().angular` when omitted).
         """
+    def is_coaxial(self, other: Axis2D, tol: Optional[_ToleranceLike] = None) -> bool:
+        """Whether the axes are the same line, in either orientation: parallel
+        within `tol.angular`, the other origin on this axis within
+        `tol.confusion` (`Tolerance.default()` when omitted).
+        """
     def reversed(self) -> Axis2D:
         """The axis with its direction negated, through the same origin."""
     def __repr__(self) -> str: ...
@@ -437,6 +442,10 @@ class Frame2D:
         """The unit y direction."""
     def is_direct(self) -> bool:
         """Whether y is x turned a quarter turn counter-clockwise."""
+    def flipped_x(self) -> Frame2D:
+        """The frame with its x direction negated (handedness flips)."""
+    def flipped_y(self) -> Frame2D:
+        """The frame with its y direction negated (handedness flips)."""
     def x_axis(self) -> Axis2D:
         """The axis through the origin along the x direction."""
     def y_axis(self) -> Axis2D:
@@ -1009,10 +1018,14 @@ class IncompleteReason(enum.IntEnum):
       tangent contact of a curve with a surface.
     - `UNBOUNDED`: a branch of two unbounded surfaces runs beyond the
       box it was traced in, and continues past the regions reported.
+    - `LOOSE_FIT`: a marched curve was fitted farther from the surfaces
+      than the confusion distance (its `deviation` exceeds it); the
+      regions hold each such curve.
     """
     BUDGET_EXHAUSTED = 0
     UNSEPARATED = 1
     UNBOUNDED = 2
+    LOOSE_FIT = 3
 
 
 @final
@@ -1538,7 +1551,11 @@ class SurfaceSurfaceIntersection:
     def second(self) -> Surface:
         """The second operand."""
     def is_coincident(self) -> bool:
-        """Whether the surfaces are the same surface."""
+        """Whether the surfaces are the same surface. Two trimmed surfaces
+        of one surface are coincident when their ranges overlap with area;
+        ones that share only an edge or a corner are not, and report it as
+        a tangent curve or a contact point.
+        """
     def is_complete(self) -> bool:
         """Whether the result is proved to hold everything."""
     def is_empty(self) -> bool:
@@ -1910,7 +1927,7 @@ class _CurveMethods(
         """
     @overload
     def intersect(
-        self, other: _SurfaceMethods[Any, Any], tol: Optional[_ToleranceLike] = None
+        self, other: _SurfaceMethods[Any, Any] | TrimmedSurface, tol: Optional[_ToleranceLike] = None
     ) -> CurveSurfaceIntersection: ...
     @overload
     def extrema(
@@ -2014,7 +2031,10 @@ class _SidedEvaluationMethods(Generic[_PointType, _VectorType]):
 
 @final
 class Line(_CurveMethods):
-    """An infinite straight line in 3D, parametrized by arc length from its origin."""
+    """An infinite straight line in 3D, parametrized by arc length from its
+    origin: the direction is normalized, so the parameter is the distance
+    along the line whatever the length of the direction given.
+    """
     def __repr__(self) -> str: ...
     __hash__: ClassVar[None]  # type: ignore[assignment]
     def __new__(cls, origin: _PointLike, direction: Vector) -> Line: ...
@@ -2071,6 +2091,14 @@ class Circle(
         """The length of the circle, its circumference (`2*PI*radius`)."""
     def enclosed_area(self) -> float:
         """The area the circle encloses: its disk's (`PI*radius^2`)."""
+    def eccentricity(self) -> float:
+        """The eccentricity of a circle, 0: the limit of an ellipse whose
+        radii meet.
+        """
+    def foci(self) -> Tuple[Point, Point]:
+        """The two foci of a circle, both its center, as an ellipse with equal
+        radii gives them.
+        """
     def normal(self) -> Vector:
         """The unit normal of the circle's plane, on the side the circle turns
         counterclockwise about.
@@ -2226,6 +2254,13 @@ class Hyperbola(_CurveMethods):
         """
     def directrices(self) -> Tuple[Line, Line]:
         """The two directrices across the major axis, in the order of `foci`."""
+    def asymptotes(self) -> Tuple[Line, Line]:
+        """The two asymptotes, lines through the center along
+        `major*x_dir + minor*y_dir` and `major*x_dir - minor*y_dir` of the
+        frame: first the one the branch approaches as its parameter grows,
+        then the one it approaches as its parameter falls. The other branch
+        shares them.
+        """
     def other_branch(self) -> Hyperbola:
         """The other branch: the same hyperbola mirrored through its center,
         with the same parametrization direction around the center.
@@ -2772,7 +2807,11 @@ class QuarticBranch(_CurveMethods):
 
 @final
 class Line2D(_Curve2DMethods):
-    """A straight line in a surface's 2D (u, v) parameter space."""
+    """An infinite straight line in 2D, such as in a surface's (u, v) parameter
+    space, parametrized by arc length from its origin: the direction is
+    normalized, so the parameter is the distance along the line whatever the
+    length of the direction given.
+    """
     __hash__: ClassVar[None]  # type: ignore[assignment]
     def __new__(cls, origin: _Point2DLike, direction: Vector2D) -> Line2D: ...
     def origin(self) -> Point2D:
@@ -2803,6 +2842,12 @@ class Circle2D(_Curve2DMethods, _BoundedCurveMethods[Point2D, Discretization2D])
         clockwise when the frame is indirect.
         """
     @staticmethod
+    def from_three_points(p1: _Point2DLike, p2: _Point2DLike, p3: _Point2DLike) -> Circle2D:
+        """Build the circle through three non-collinear points; the curve starts
+        at the first point and turns through the second to the third:
+        counterclockwise when they turn left, clockwise otherwise.
+        """
+    @staticmethod
     def fit(points: _Points2D, tol: Optional[_ToleranceLike] = None) -> CircleFit2D:
         """The least-squares circle of `points`, with its residuals: the
         algebraic circle, refined on the distance. It runs through the points
@@ -2820,6 +2865,16 @@ class Circle2D(_Curve2DMethods, _BoundedCurveMethods[Point2D, Discretization2D])
         """The circle radius."""
     def length(self) -> float:
         """The length of the circle, its circumference (`2*PI*radius`)."""
+    def enclosed_area(self) -> float:
+        """The area the circle encloses: its disk's (`PI*radius^2`)."""
+    def eccentricity(self) -> float:
+        """The eccentricity of a circle, 0: the limit of an ellipse whose
+        radii meet.
+        """
+    def foci(self) -> Tuple[Point2D, Point2D]:
+        """The two foci of a circle, both its center, as an ellipse with equal
+        radii gives them.
+        """
     def is_counterclockwise(self) -> bool:
         """Whether the circle turns counterclockwise as its parameter grows:
         whether its frame is direct.
@@ -2978,6 +3033,13 @@ class Hyperbola2D(_Curve2DMethods):
         """
     def directrices(self) -> Tuple[Line2D, Line2D]:
         """The two directrices across the major axis, in the order of `foci`."""
+    def asymptotes(self) -> Tuple[Line2D, Line2D]:
+        """The two asymptotes, lines through the center along
+        `major*x_dir + minor*y_dir` and `major*x_dir - minor*y_dir` of the
+        frame: first the one the branch approaches as its parameter grows,
+        then the one it approaches as its parameter falls. The other branch
+        shares them.
+        """
     def other_branch(self) -> Hyperbola2D:
         """The other branch: the same hyperbola mirrored through its center,
         with the same parametrization direction around the center.
@@ -4118,12 +4180,17 @@ class TrimmedSurface(_ParametricSurfaceMethods):
     `parameters_of` shifts the basis's parameters by whole periods into the
     ranges when the point lies in them. The bounding box is that of the patch's exact
     rational B-spline patch, or the basis's box for a B-spline or Bézier
-    basis. Pass it to `intersect` to get only the curves and points inside
-    the ranges of the trimmed sides.
+    basis. Pass it to `intersect` with a curve or a surface to get only
+    the hits, overlaps, curves and points inside the ranges of the trimmed
+    sides. `transformed` maps the ranges with the basis's parametrization,
+    and `trimmed` intersects them.
     """
     __hash__: ClassVar[None]  # type: ignore[assignment]
     def __new__(
-        cls, basis: _SurfaceMethods[Any, Any], u_range: Tuple[float, float], v_range: Tuple[float, float]
+        cls,
+        basis: _SurfaceMethods[Any, Any] | TrimmedSurface,
+        u_range: Tuple[float, float],
+        v_range: Tuple[float, float],
     ) -> TrimmedSurface: ...
     def basis(self) -> Surface:
         """The basis surface."""
@@ -4131,18 +4198,50 @@ class TrimmedSurface(_ParametricSurfaceMethods):
         """The `(first, last)` range of `u`."""
     def v_range(self) -> Tuple[float, float]:
         """The `(first, last)` range of `v`."""
+    def trimmed(
+        self, u_range: Tuple[float, float], v_range: Tuple[float, float]
+    ) -> TrimmedSurface:
+        """The patch of the same basis over the part of each range that
+        `u_range` and `v_range`, each `(first, last)`, cover. A periodic
+        direction's range is read modulo the period, so `(0, π/4)` on a
+        face from 3π/2 to 5π/2 of a cylinder gives `(2π, 2π + π/4)`, and a
+        whole period keeps the face's range. Raises
+        `TrimmedSurfaceConstructionError` for non-finite ends, an empty
+        range, one longer than a period, one that does not overlap the
+        face's range, or one that meets it in two pieces, on either side
+        of the seam.
+        """
+    def transformed(self, transform: Transform) -> TrimmedSurface:
+        """The image of the patch under `transform`: the basis's image, its
+        ranges mapped with its parametrization, so a range of a parameter
+        that is a length (a cylinder's height) scales with the transform
+        and the image holds the image of every point of the patch. Raises
+        `ConstructionError` when the transform collapses the surface (a
+        zero scale) or overflows.
+        """
+    @overload
+    def intersect(
+        self, other: _CurveMethods, tol: Optional[_ToleranceLike] = None
+    ) -> CurveSurfaceIntersection:
+        """Intersects with any curve, surface or trimmed surface, in either
+        order.
+
+        Returns a `CurveSurfaceIntersection` or
+        `SurfaceSurfaceIntersection`, by pair family, holding this object
+        as `first` and `other` as `second`: the intersection with the
+        basis, clipped to the ranges. A curve keeps the hits whose surface
+        parameters lie in the ranges, given there (shifted by a period on
+        a face across the seam), and the pieces of its overlaps inside
+        them. Two surfaces keep their curves cut to the pieces inside the
+        ranges of each trimmed side (each curve's `parameter_range`), and
+        their contact points inside them. Raises `TypeError` for a 2D
+        curve, and for an object that is not a geomcore curve or surface.
+        Other Python threads run meanwhile.
+        """
+    @overload
     def intersect(
         self, other: _SurfaceMethods[Any, Any] | TrimmedSurface, tol: Optional[_ToleranceLike] = None
-    ) -> SurfaceSurfaceIntersection:
-        """Intersects with any surface or trimmed surface, in either order.
-
-        Returns a `SurfaceSurfaceIntersection` holding this object as
-        `first` and `other` as `second`: the intersection of the bases,
-        its curves cut to the pieces inside the ranges of each trimmed side
-        (each curve's `parameter_range`), and its contact points kept when
-        inside them. Raises `TypeError` for a curve, and for an object that
-        is not a geomcore surface. Other Python threads run meanwhile.
-        """
+    ) -> SurfaceSurfaceIntersection: ...
     def __repr__(self) -> str: ...
 
 __all__ = [

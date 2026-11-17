@@ -1,7 +1,7 @@
 use crate::geometry::curves::ParametricCurve;
 use crate::geometry::curves::PointExtrema;
 use crate::geometry::surfaces::ParametricSurface;
-use crate::operations::intersect::numeric::curve_surface::search_curve_surface;
+use crate::operations::intersect::numeric::curve_surface::intersect_curve_surface;
 use crate::{
     Circle, CircleSurfaceIntersection, Cone, ConicSurfaceHit, ConicSurfaceIntersection, Cylinder,
     Ellipse, Frame, Hyperbola, IntersectExact, Line, LinePlaneIntersection,
@@ -216,7 +216,7 @@ fn test_line3d_intersect_torus_matches_generic() {
         };
         let line = Line::new(origin, dir).unwrap();
         let analytic = line.intersect_exact(&torus, tol);
-        let generic = search_curve_surface(&line, &torus, tol);
+        let generic = intersect_curve_surface(&line, &torus, tol).hits().to_vec();
         match analytic {
             LineTorusIntersection::Hits(hits) => {
                 assert_eq!(
@@ -672,7 +672,7 @@ fn test_ellipse3d_intersect_sphere_crosscheck() {
                 assert!(sphere.contains(h.point, tol));
             }
             // Generic solver agrees on the count.
-            let generic = search_curve_surface(&e, &sphere, tol);
+            let generic = intersect_curve_surface(&e, &sphere, tol).hits().to_vec();
             assert_eq!(generic.len(), hits.len());
         }
         _ => panic!("expected hits"),
@@ -811,7 +811,7 @@ fn test_parabola3d_intersect_cylinder_crosscheck() {
                 assert!(p.contains(h.point, tol));
                 assert!(cylinder.contains(h.point, tol));
             }
-            let generic = search_curve_surface(&p, &cylinder, tol);
+            let generic = intersect_curve_surface(&p, &cylinder, tol).hits().to_vec();
             assert_eq!(generic.len(), hits.len());
         }
         _ => panic!("expected hits"),
@@ -829,7 +829,7 @@ fn test_hyperbola3d_intersect_cone_crosscheck() {
             for h in &hits {
                 assert!(cone.contains(h.point, tol));
             }
-            let generic = search_curve_surface(&h, &cone, tol);
+            let generic = intersect_curve_surface(&h, &cone, tol).hits().to_vec();
             assert_eq!(generic.len(), hits.len());
         }
         _ => panic!("expected hits"),
@@ -1034,7 +1034,9 @@ fn test_circle_torus_matches_generic() {
         };
         let circle = Circle::new(center, normal, 0.5 + 4.0 * next()).unwrap();
         let exact = circle_torus_hits(&circle, &torus);
-        let generic = search_curve_surface(&circle, &torus, tol);
+        let generic = intersect_curve_surface(&circle, &torus, tol)
+            .hits()
+            .to_vec();
         assert_eq!(exact.len(), generic.len(), "count mismatch for {circle:?}");
         for (h, g) in exact.iter().zip(generic.iter()) {
             assert!(

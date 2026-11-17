@@ -312,12 +312,18 @@ march, and the tight boxes (see `tight_bounding_box`) after a march that
 found nothing. Where a branch of two
 unbounded surfaces was cut at its box, the result is `Incomplete` with
 `Unbounded` as its reason, and its regions mark where the cuts are.
+Where a curve's `deviation` exceeds the confusion, the result is
+`Incomplete` with `LooseFit` (`LOOSE_FIT` in Python), and a region holds
+each such curve: it is returned, but lies only within its deviation of
+the surfaces. That happens where a surface's parameters degenerate on
+the curve (a sphere's pole), where their rounding is coarser than the
+confusion, and along a touch.
 
 The confusion also sets the size of a fitted curve: each segment must
 stay within it of both surfaces, so a looser confusion takes fewer,
 longer segments. The steps never grow past a thousandth of the smaller
 surface's size, so a looser confusion finds the same curves. Two wavy
-B-spline patches cut at the default `1e-7` give curves of 294 and 198
+B-spline patches cut at the default `1e-7` give curves of 298 and 198
 poles; at `1e-3` the same two curves take 52 and 34 poles. The same
 value decides what counts as a hit or a tangency, so loosen it for a
 lighter fit only where a point within it of both surfaces is on both. In Python, `tol=1e-3` is short for
@@ -506,9 +512,91 @@ and has no closed form come back `Sampled` with curves ending on the
 ranges instead of cut and `Incomplete`. An exact curve that runs to
 infinity, a line or a `QuarticBranch`, is cut where it leaves the
 ranges, and the result stays exact. Contact points outside the ranges are dropped, and two
-patches of one surface are coincident only where they overlap. A curve
-and a trimmed surface do not intersect yet: intersect the curve with
-the `basis()`.
+patches of one surface are coincident only where they overlap with area.
+Two that only touch report where: a shared edge is a `tangent` curve
+with its curves in both patches' parameters, and a shared corner a
+contact point. Two faces of one cylinder stacked at height 1 meet along
+the circle there:
+
+=== "Python"
+
+    ```python
+    import math
+    from geomcore import Cylinder, Point, Vector
+
+    cylinder = Cylinder(Point.origin(), Vector.unit_z(), 1.0)
+    low = cylinder.trimmed((0.0, 2 * math.pi), (0.0, 1.0))
+    high = cylinder.trimmed((0.0, 2 * math.pi), (1.0, 2.0))
+    result = low.intersect(high)
+    assert not result.is_coincident()
+    (edge,) = result.curves               # the circle at height 1
+    assert edge.tangent
+    ```
+
+=== "Rust"
+
+    ```rust
+    use geomcore::prelude::*;
+    use geomcore::{Cylinder, Point, Tolerance, Vector};
+    use std::f64::consts::TAU;
+
+    let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
+    let low = cylinder.trimmed((0.0, TAU), (0.0, 1.0)).unwrap();
+    let high = cylinder.trimmed((0.0, TAU), (1.0, 2.0)).unwrap();
+    let result = low.intersect(&high, Tolerance::DEFAULT);
+    assert!(!result.is_coincident());
+    assert_eq!(result.curves().len(), 1); // the circle at height 1
+    ```
+
+This needs the two bases to parametrize the surface alike, up to
+shifted, reversed or swapped parameters, as two frames of one cylinder
+on its axis do; patches of bases parametrized otherwise are still
+coincident when they only touch (ADR 0039).
+
+A curve meets a trimmed surface, in either order, as it meets the
+basis, clipped to the ranges: a hit is kept when its surface parameters
+lie in them, and reports them there, so a hit at a cylinder's angle 0
+on a face from 3π/2 to 5π/2 reports `u = 2π`. An overlap, a stretch of
+the curve lying on the basis, is cut to its pieces inside the ranges.
+Filtering the basis's hits on `u_range()` by hand would miss that hit,
+one period below the range.
+
+=== "Python"
+
+    ```python
+    import math
+    from geomcore import Cylinder, Line, Point, Vector
+
+    cylinder = Cylinder(Point.origin(), Vector.unit_z(), 1.0)
+    face = cylinder.trimmed((1.5 * math.pi, 2.5 * math.pi), (0.0, 5.0))
+    line = Line(Point(-5.0, 0.0, 1.0), Vector.unit_x())
+    (hit,) = line.intersect(face).hits     # only the side x >= 0
+    assert math.isclose(hit.u, 2 * math.pi)
+    ```
+
+=== "Rust"
+
+    ```rust
+    use geomcore::prelude::*;
+    use geomcore::{Cylinder, Line, Point, Tolerance, Vector};
+    use std::f64::consts::{PI, TAU};
+
+    let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
+    let face = cylinder.trimmed((1.5 * PI, 2.5 * PI), (0.0, 5.0)).unwrap();
+    let line = Line::new(Point::new(-5.0, 0.0, 1.0), Vector::X).unwrap();
+    let result = line.intersect(&face, Tolerance::DEFAULT);
+    assert_eq!(result.hits().len(), 1); // only the side x >= 0
+    assert!((result.hits()[0].surface_parameters.0 - TAU).abs() < 1e-12);
+    ```
+
+A face moves with `transformed`: the basis maps through the transform
+and each range with the basis's parametrization, scaled where the
+parameter is a length (a cylinder's height) and kept where it is an
+angle, so the image holds the image of every point of the face. Moving
+the basis and trimming it to the same ranges is wrong under a scaling.
+`face.trimmed(u_range, v_range)` trims a face again, over the part of
+each range the new one covers; a periodic direction's range is read
+modulo the period.
 
 All the scenes on this page were computed by the kernel itself —
 see `docs/assets/scenes/gen_scenes.py` — not drawn by hand.

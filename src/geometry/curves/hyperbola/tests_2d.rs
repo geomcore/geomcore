@@ -257,3 +257,19 @@ fn test_hyperbola2d_other_branch_turns_the_same_way() {
     let mirrored = center + (center - hyperbola.point_at(0.3));
     assert!(other.point_at(0.3).distance(mirrored) < 1e-12);
 }
+
+#[test]
+fn test_hyperbola2d_asymptotes_turn_with_its_frame() {
+    // On an indirect frame the rising end runs along `major*x - minor*|y|`
+    // in world terms: the asymptotes follow the frame's own y direction.
+    let tol = Tolerance::DEFAULT;
+    let indirect = Frame2D::new(Point2D::new(1.0, -2.0), Vector2D::X, -Vector2D::Y).unwrap();
+    let hyperbola = Hyperbola2D::from_frame(indirect, 4.0, 3.0).unwrap();
+    let [rising, falling] = hyperbola.asymptotes();
+    assert_eq!(rising.origin(), Point2D::new(1.0, -2.0));
+    assert!((rising.direction().vector() - Vector2D::new(0.8, -0.6)).magnitude() < 1e-15);
+    assert!((falling.direction().vector() - Vector2D::new(0.8, 0.6)).magnitude() < 1e-15);
+    let expected = 4.0 * 3.0 / 5.0 * f64::exp(-8.0);
+    let ahead = rising.project_point(hyperbola.point_at(8.0), tol).distance;
+    assert!((ahead - expected).abs() < 1e-12);
+}
