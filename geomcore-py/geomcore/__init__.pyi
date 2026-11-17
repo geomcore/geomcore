@@ -1542,7 +1542,11 @@ class SurfaceSurfaceIntersection:
     def second(self) -> Surface:
         """The second operand."""
     def is_coincident(self) -> bool:
-        """Whether the surfaces are the same surface."""
+        """Whether the surfaces are the same surface. Two trimmed surfaces
+        of one surface are coincident when their ranges overlap with area;
+        ones that share only an edge or a corner are not, and report it as
+        a tangent curve or a contact point.
+        """
     def is_complete(self) -> bool:
         """Whether the result is proved to hold everything."""
     def is_empty(self) -> bool:

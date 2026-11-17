@@ -1161,7 +1161,10 @@ intersection_result! {
             .collect()
     }
 
-    /// Whether the surfaces are the same surface.
+    /// Whether the surfaces are the same surface. Two trimmed surfaces
+    /// of one surface are coincident when their ranges overlap with area;
+    /// ones that share only an edge or a corner are not, and report it as
+    /// a tangent curve or a contact point.
     fn is_coincident(&self) -> bool {
         self.result.is_coincident()
     }

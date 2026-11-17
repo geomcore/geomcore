@@ -31,6 +31,9 @@ use crate::{
     BoundingBox, CurveSurfaceHit, HasBoundingBox, Point2D, Tolerance, TrimmedSurface, Vector2D,
     curve_3d_to_uv_within,
 };
+use shared_boundary::{Shared, shared};
+
+mod shared_boundary;
 
 /// How much the march's box grows past the trimmed sides' box, as a
 /// fraction of its diagonal: a branch is traced a little past the ranges,
@@ -64,9 +67,10 @@ pub(super) fn route_restricted<A: SurfaceOperand, B: SurfaceOperand>(
         second.and_then(|side| side.1),
     ];
     let within = match boxes {
-        [Some(one), Some(other)] => match one.intersection(other) {
+        [Some(one), Some(other)] => match one.enlarged(tol.confusion).intersection(other) {
             Some(both) => Some(both),
-            // The patches lie in disjoint boxes: they cannot meet.
+            // The patches lie in boxes farther apart than the confusion
+            // distance: they cannot meet.
             None => return SurfaceSurfaceIntersection::exact(Vec::new(), Vec::new(), false),
         },
         [one, other] => one.or(other),
@@ -89,8 +93,18 @@ pub(super) fn route_restricted<A: SurfaceOperand, B: SurfaceOperand>(
                 .flatten()
                 .all(|side| side.holds_point(point, tol))
         });
-        if let [Some(one), Some(other)] = sides {
-            *coincident = *coincident && rectangles_overlap(&one, &other, tol);
+        if let [Some(one), Some(other)] = sides
+            && *coincident
+        {
+            match shared(&one, &other, tol) {
+                Some(Shared::Area) => {}
+                Some(Shared::Boundary(boundary)) => {
+                    *coincident = false;
+                    curves.extend(boundary.edges);
+                    contact_points.extend(boundary.corners);
+                }
+                None => *coincident = rectangles_overlap(&one, &other, tol),
+            }
         }
     })
 }

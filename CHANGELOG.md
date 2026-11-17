@@ -116,6 +116,18 @@ the Python distribution are versioned in lockstep.
 
 ### Changed
 
+- Two trimmed surfaces of one surface that share only an edge or a
+  corner are no longer coincident (#406): a shared edge, as the circle
+  between two stacked faces of a cylinder or the side between two
+  squares of a plane, comes back as a `tangent` curve with its curves in
+  both patches' parameters, a shared corner as a contact point, and
+  patches are coincident only where their ranges overlap with area. It
+  holds across the seam of a periodic direction and where the bases'
+  parameters are shifted, reversed or swapped copies of each other, as
+  two frames of one cylinder on its axis; other bases keep the sampled
+  check (ADR 0039). Patches whose boxes are apart by less than the
+  confusion distance now reach this check instead of being reported
+  apart.
 - `TrimmedSurface::parameters_of` and `project_point` (the same in
   Python) read a point's parameters into the ranges by the rule the
   intersections use (#291): a parameter within the confusion distance past
@@ -145,6 +157,11 @@ the Python distribution are versioned in lockstep.
   for unbounded shapes or `tol.angular_for_extent(size)` for bounded ones
   (ADR 0006). Every converted site compared unit vectors, so no result
   changes.
+- A cone and a cylinder around a common sphere (the two ellipses of a
+  reducer) are intersected with about 8% fewer instructions typed and 4%
+  fewer routed, and the count no longer moves with what the compiler
+  inlines (#411): the helper that builds the conics returns the whole
+  result, so they are no longer copied into it when it is not inlined.
 
 ### Fixed
 

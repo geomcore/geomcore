@@ -506,7 +506,46 @@ and has no closed form come back `Sampled` with curves ending on the
 ranges instead of cut and `Incomplete`. An exact curve that runs to
 infinity, a line or a `QuarticBranch`, is cut where it leaves the
 ranges, and the result stays exact. Contact points outside the ranges are dropped, and two
-patches of one surface are coincident only where they overlap.
+patches of one surface are coincident only where they overlap with area.
+Two that only touch report where: a shared edge is a `tangent` curve
+with its curves in both patches' parameters, and a shared corner a
+contact point. Two faces of one cylinder stacked at height 1 meet along
+the circle there:
+
+=== "Python"
+
+    ```python
+    import math
+    from geomcore import Cylinder, Point, Vector
+
+    cylinder = Cylinder(Point.origin(), Vector.unit_z(), 1.0)
+    low = cylinder.trimmed((0.0, 2 * math.pi), (0.0, 1.0))
+    high = cylinder.trimmed((0.0, 2 * math.pi), (1.0, 2.0))
+    result = low.intersect(high)
+    assert not result.is_coincident()
+    (edge,) = result.curves               # the circle at height 1
+    assert edge.tangent
+    ```
+
+=== "Rust"
+
+    ```rust
+    use geomcore::prelude::*;
+    use geomcore::{Cylinder, Point, Tolerance, Vector};
+    use std::f64::consts::TAU;
+
+    let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
+    let low = cylinder.trimmed((0.0, TAU), (0.0, 1.0)).unwrap();
+    let high = cylinder.trimmed((0.0, TAU), (1.0, 2.0)).unwrap();
+    let result = low.intersect(&high, Tolerance::DEFAULT);
+    assert!(!result.is_coincident());
+    assert_eq!(result.curves().len(), 1); // the circle at height 1
+    ```
+
+This needs the two bases to parametrize the surface alike, up to
+shifted, reversed or swapped parameters, as two frames of one cylinder
+on its axis do; patches of bases parametrized otherwise are still
+coincident when they only touch (ADR 0039).
 
 A curve meets a trimmed surface, in either order, as it meets the
 basis, clipped to the ranges: a hit is kept when its surface parameters
