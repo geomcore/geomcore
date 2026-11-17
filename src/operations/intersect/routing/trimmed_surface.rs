@@ -1,6 +1,9 @@
 //! The intersection of trimmed surfaces: the bases are intersected, by a
 //! closed form or by a march held to the box of the trimmed sides, and
-//! the result is clipped to each side's parameter ranges (ADR 0039).
+//! the result is clipped to each side's parameter ranges (ADR 0039). A
+//! curve meets a trimmed surface the same way: the curve is intersected
+//! with the basis, a hit kept when its parameters lie in the ranges and
+//! an overlap clipped as a curve of two surfaces is.
 //!
 //! A curve is clipped through its curve in the parameters of each trimmed
 //! side: where that curve crosses a side of the parameter rectangle, or a
@@ -18,10 +21,14 @@ use crate::geometry::curves::{
 };
 use crate::geometry::surfaces::uv_curve::from_curve::{OnSurfaceCheck, meridian_arc_to_uv};
 use crate::geometry::surfaces::{ParametricSurface, Restriction};
-use crate::operations::intersect::results::{IntersectionCurve, SurfaceSurfaceIntersection};
-use crate::operations::intersect::routing::{Intersect, SurfaceOperand, route_within};
+use crate::operations::intersect::results::{
+    CurveSurfaceIntersection, CurveSurfaceOverlap, IntersectionCurve, SurfaceSurfaceIntersection,
+};
+use crate::operations::intersect::routing::{
+    CurveOperand, Intersect, SurfaceOperand, route_within,
+};
 use crate::{
-    BoundingBox, HasBoundingBox, Point2D, Tolerance, TrimmedSurface, Vector2D,
+    BoundingBox, CurveSurfaceHit, HasBoundingBox, Point2D, Tolerance, TrimmedSurface, Vector2D,
     curve_3d_to_uv_within,
 };
 
@@ -85,6 +92,60 @@ pub(super) fn route_restricted<A: SurfaceOperand, B: SurfaceOperand>(
         if let [Some(one), Some(other)] = sides {
             *coincident = *coincident && rectangles_overlap(&one, &other, tol);
         }
+    })
+}
+
+/// Clips `on_basis`, the intersection of `curve` with the basis of
+/// `face`, to the face's ranges. A hit is kept when its surface parameters
+/// lie in the ranges, within the confusion distance in space past an end,
+/// and reports their representative there: on a face across the seam of a
+/// periodic direction, shifted by a period. An overlap, a stretch of the
+/// curve on the basis, is cut as a curve of two surfaces is (see
+/// [`clipped`]) into its pieces inside the ranges.
+pub(super) fn clip_to_face<C: CurveOperand, S: ParametricSurface + HasBoundingBox>(
+    on_basis: CurveSurfaceIntersection,
+    curve: &C,
+    face: &TrimmedSurface<S>,
+    tol: Tolerance,
+) -> CurveSurfaceIntersection {
+    let side = face.restriction();
+    on_basis.restricted(|hits, overlaps| {
+        *hits = hits
+            .iter()
+            .filter_map(|&hit| {
+                let surface_parameters = side.representative(hit.surface_parameters, tol)?;
+                Some(CurveSurfaceHit {
+                    surface_parameters,
+                    ..hit
+                })
+            })
+            .collect();
+        if overlaps.is_empty() {
+            return;
+        }
+        let unbounded = overlaps.iter().any(|overlap| {
+            !(overlap.curve_range.0.is_finite() && overlap.curve_range.1.is_finite())
+        });
+        let within = if unbounded { face.bounding_box() } else { None };
+        let curve = curve.untrimmed_curve();
+        *overlaps = std::mem::take(overlaps)
+            .into_iter()
+            .flat_map(|overlap| {
+                let stretch = IntersectionCurve {
+                    curve: curve.clone(),
+                    first_uv_curve: None,
+                    second_uv_curve: None,
+                    tangent: false,
+                    deviation: 0.0,
+                    parameter_range: overlap.curve_range,
+                };
+                clipped(stretch, [Some(side), None], within, tol)
+            })
+            .map(|piece| CurveSurfaceOverlap {
+                curve_range: piece.parameter_range,
+            })
+            .collect();
+        overlaps.sort_by(|a, b| a.curve_range.0.total_cmp(&b.curve_range.0));
     })
 }
 

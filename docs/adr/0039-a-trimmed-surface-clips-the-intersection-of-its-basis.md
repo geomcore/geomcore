@@ -21,5 +21,5 @@ The result keeps the curve of the bases and says which piece of it lies on both 
 ## Consequences
 
 - Breaking in Rust: a struct literal of `IntersectionCurve` needs `parameter_range`.
-- A curve and a trimmed surface do not intersect yet: the Python `intersect` raises `TypeError` for the pair, and Rust has no implementation. A curve against the basis, filtered by the patch's `contains`, does it meanwhile.
+- A curve and a trimmed surface do not intersect yet: the Python `intersect` raises `TypeError` for the pair, and Rust has no implementation. A curve against the basis, filtered by the patch's `contains`, does it meanwhile. *Amended (#326):* they do, in either order, by the same steps: the curve is intersected with the basis, a hit is kept when its surface parameters lie in the ranges (with the slack and the shift by periods of step 3) and reports their representative there, and an overlap is clipped as a curve of step 2, mapped to the basis's parameters and cut at the sides of the rectangle. The hits stay those of the basis's solver, so the method and completeness are kept.
 - A trimmed surface's projection is the basis's closest point when it lies in the ranges, otherwise the closest point on the boundary; another local minimum inside the ranges is not searched.
