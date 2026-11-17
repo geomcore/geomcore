@@ -17,6 +17,7 @@ Requires valgrind and callgrind_annotate on the PATH.
 """
 
 import argparse
+import fcntl
 import json
 import os
 import re
@@ -39,6 +40,9 @@ DIFF_ROWS = 15
 # The count depends on the binary's path, so every run uses this one (see
 # stage_target). The environment is fixed too.
 STAGING_DIRECTORY = Path("/tmp/geomcore-benchmark-budget")
+# Every checkout stages into that one directory, so two runs at once would
+# measure each other's binaries: a run holds this lock from start to end.
+STAGING_LOCK = Path("/tmp/geomcore-benchmark-budget.lock")
 CLEAN_ENVIRONMENT = {"PATH": "/usr/bin:/bin"}
 # The bench binaries are linked without RELRO. LLD, rust's default linker,
 # can make the writable segment all RELRO, and valgrind 3.22 then reads no
@@ -310,7 +314,13 @@ def main():
     arguments = parser.parse_args()
     if shutil.which("valgrind") is None or shutil.which("callgrind_annotate") is None:
         sys.exit("valgrind and callgrind_annotate must be on the PATH")
-    sys.exit(arguments.run(arguments, arguments.jobs))
+    with open(STAGING_LOCK, "w") as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            print(f"waiting for another run to release {STAGING_LOCK}", file=sys.stderr, flush=True)
+            fcntl.flock(lock, fcntl.LOCK_EX)
+        sys.exit(arguments.run(arguments, arguments.jobs))
 
 
 if __name__ == "__main__":
