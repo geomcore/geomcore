@@ -36,6 +36,26 @@ shape_methods! {
         ))
     }
 
+    /// The least-squares circle of `points`, with its residuals: the
+    /// algebraic circle, refined on the distance. It runs through the points
+    /// in their order, clockwise when they turn clockwise, from the first
+    /// one's direction at parameter 0.
+    ///
+    /// `points` is a list of points or an `(N, 2)` array-like, and `tol` is
+    /// `Tolerance.default()` when omitted. Raises `FitError` below 3 points,
+    /// or when every point lies within `tol.confusion` of their centroid or
+    /// of their least-squares line.
+    #[staticmethod]
+    #[pyo3(signature = (points, tol = None))]
+    fn fit(
+        points: crate::arrays::Points<geomcore::Point2D>,
+        tol: Option<crate::values::ToleranceArgument>,
+    ) -> PyResult<crate::fit::PyCircleFit2D> {
+        Ok(crate::fit::PyCircleFit2D(
+            Circle2D::fit(&points.0, crate::tolerance(tol)).map_err(python_error)?,
+        ))
+    }
+
     /// The circle center.
     fn center(&self) -> PyPoint2D {
         PyPoint2D(self.0.center())

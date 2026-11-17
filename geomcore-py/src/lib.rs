@@ -121,6 +121,7 @@ mod bounding_box;
 mod curves;
 mod discretization;
 mod enums;
+mod fit;
 mod intersect;
 mod method_sets;
 mod pickling;
@@ -134,6 +135,7 @@ use arguments::{curve_2d_classes, curve_classes, surface_classes};
 use bounding_box::{PyBoundingBox, PyBoundingBox2D};
 use curves::{PyTrimmedCurve, PyTrimmedCurve2D};
 use discretization::{PyDiscretization, PyDiscretization2D};
+use fit::{PyCircleFit, PyCircleFit2D, PyCylinderFit, PyPlaneFit, PySphereFit};
 use intersect::py_curve_curve_extrema;
 use results::{
     PyCompleteness, PyCurveCurveExtrema, PyCurveCurveExtremum, PyCurveCurveHit, PyCurveCurveHit2D,
@@ -194,6 +196,11 @@ fn geomcore_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyCurveApproximation>()?;
     m.add_class::<PyCurveApproximation2D>()?;
     m.add_class::<PySurfaceApproximation>()?;
+    m.add_class::<PyPlaneFit>()?;
+    m.add_class::<PyCircleFit>()?;
+    m.add_class::<PyCircleFit2D>()?;
+    m.add_class::<PySphereFit>()?;
+    m.add_class::<PyCylinderFit>()?;
 
     curve_classes::add_to(m)?;
     curve_2d_classes::add_to(m)?;

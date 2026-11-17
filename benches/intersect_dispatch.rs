@@ -8,7 +8,9 @@
 //! with a cylinder off its axis, are timed alone: their routed result fits
 //! each loop of the quartic they meet in. So are a torus against a plane
 //! and a sphere in no special position, and against a cylinder and a cone
-//! off its axis.
+//! off its axis. A plane across a half cylinder is timed trimmed, against
+//! the same pair untrimmed: the gap is the box of the patch and the
+//! clipping of the ellipse to its ranges.
 //!
 //! Informational only, like `eval_throughput`; not a correctness gate.
 
@@ -18,8 +20,8 @@ use std::hint::black_box;
 use geomcore::prelude::*;
 use geomcore::{
     Circle, Circle2D, Cone, ConeConeIntersection, Curve, Cylinder, ElementaryCurve,
-    ElementarySurface, Ellipse, Frame, Line, Plane, Point, Point2D, Sphere, Surface, Tolerance,
-    Torus, Vector,
+    ElementarySurface, Ellipse, Frame, IntersectionMethod, Line, Plane, Point, Point2D, Sphere,
+    Surface, Tolerance, Torus, Vector,
 };
 
 const BATCH: usize = 1024;
@@ -587,6 +589,28 @@ fn bench_torus_octics(c: &mut Criterion) {
     group.finish();
 }
 
+/// A plane across a half cylinder, a trimmed exact pair: one ellipse,
+/// clipped to half of it, and the same pair untrimmed.
+fn bench_trimmed(c: &mut Criterion) {
+    let tol = Tolerance::default();
+    let mut group = c.benchmark_group("intersect_routed/trimmed");
+    let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
+    let half = cylinder
+        .trimmed((0.0, std::f64::consts::PI), (-5.0, 5.0))
+        .unwrap();
+    let plane = Plane::new(Point::ORIGIN, Vector::new(0.0, 1.0, 1.0)).unwrap();
+    let result = plane.intersect(&half, tol);
+    assert_eq!(result.method(), IntersectionMethod::Exact);
+    assert_eq!(result.curves().len(), 1);
+    group.bench_function("plane_half_cylinder", |b| {
+        b.iter(|| black_box(black_box(&plane).intersect(&half, tol)))
+    });
+    group.bench_function("plane_cylinder_untrimmed", |b| {
+        b.iter(|| black_box(black_box(&plane).intersect(&cylinder, tol)))
+    });
+    group.finish();
+}
+
 criterion_group!(
     benches,
     bench_intersect_dispatch,
@@ -596,6 +620,7 @@ criterion_group!(
     bench_two_cones,
     bench_sphere_quadrics,
     bench_torus_quartics,
-    bench_torus_octics
+    bench_torus_octics,
+    bench_trimmed
 );
 criterion_main!(benches);

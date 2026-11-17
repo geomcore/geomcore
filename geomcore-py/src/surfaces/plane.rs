@@ -55,6 +55,26 @@ shape_methods! {
         ))
     }
 
+    /// The least-squares plane of `points`, with its residuals: through
+    /// their centroid, across their axis of least spread. Its normal is the
+    /// one the points, in their order, turn counterclockwise about, and its
+    /// x direction points towards the first point.
+    ///
+    /// `points` is a list of points or an `(N, 3)` array-like, and `tol` is
+    /// `Tolerance.default()` when omitted. Raises `FitError` below 3 points,
+    /// or when every point lies within `tol.confusion` of their centroid or
+    /// of their least-squares line.
+    #[staticmethod]
+    #[pyo3(signature = (points, tol = None))]
+    fn fit(
+        points: crate::arrays::Points<geomcore::Point>,
+        tol: Option<crate::values::ToleranceArgument>,
+    ) -> PyResult<crate::fit::PyPlaneFit> {
+        Ok(crate::fit::PyPlaneFit(
+            Plane::fit(&points.0, crate::tolerance(tol)).map_err(python_error)?,
+        ))
+    }
+
     /// Build a plane from the equation `a*x + b*y + c*z + d = 0`.
     #[staticmethod]
     fn from_coefficients(a: f64, b: f64, c: f64, d: f64) -> PyResult<Self> {

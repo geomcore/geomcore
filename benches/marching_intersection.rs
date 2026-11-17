@@ -3,7 +3,10 @@
 //! Times the routed `intersect` on two bicubic 6×6 B-spline surfaces over
 //! `[0, 5]^2`, with heights `sin(0.7 i j)` and `0.5 cos(1.3 i) cos(1.1 j)`
 //! at their poles `(i, j)`. They cross in six curves: five open across the
-//! footprint and one closed loop. Also times elementary pairs:
+//! footprint and one closed loop. Then the same pair trimmed, the first to
+//! `[0.4, 2.6] × [0.3, 2.2]` and the second to `[0.6, 2.8] × [0.5, 2.7]`:
+//! the march held to the box of the patches, its curves clipped to their
+//! ranges. Also times elementary pairs:
 //! - the B-spline form of a torus of radii 3 and 1 about z against the
 //!   plane through `(0.5, 0, 0.2)` tilted 0.6 radians about y (two closed
 //!   curves);
@@ -125,6 +128,12 @@ fn bench_marching_intersection(c: &mut Criterion) {
     assert_marched(&wavy, &bumpy, tol);
     group.bench_function("bspline_surface_pair", |b| {
         b.iter(|| black_box(black_box(&wavy).intersect(&bumpy, tol)))
+    });
+    let wavy_patch = wavy.clone().trimmed((0.4, 2.6), (0.3, 2.2)).unwrap();
+    let bumpy_patch = bumpy.clone().trimmed((0.6, 2.8), (0.5, 2.7)).unwrap();
+    assert_marched(&wavy_patch, &bumpy_patch, tol);
+    group.bench_function("trimmed_bspline_pair", |b| {
+        b.iter(|| black_box(black_box(&wavy_patch).intersect(&bumpy_patch, tol)))
     });
     let torus = Torus::new(Point::ORIGIN, Vector::Z, 3.0, 1.0)
         .unwrap()

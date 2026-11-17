@@ -10,13 +10,14 @@
 //! overlaps.
 
 use super::closed_form::Ranges;
-use super::{CurveBasis, CurveTier, coincident_overlaps, in_range, kept_parameter};
+use super::{CurveBasis, CurveTier, coincident_overlaps, kept_parameter};
 use crate::InlineList;
 use crate::base::tier::TierPoint;
 use crate::geometry::curves::{
     Circle, Circle2D, Curve, Line, Line2D, ParametricCurve, PointExtrema,
 };
 use crate::geometry::surfaces::ParametricSurface;
+use crate::math::parameter_range::in_range;
 use crate::operations::intersect::results::{
     CurveCurveHitList, CurveCurveOverlapList, CurveSurfaceOverlapList,
 };
