@@ -43,6 +43,7 @@ pub(crate) fn representative(
 /// periodic curve the end measured is the nearer one modulo the period,
 /// so a range starting or ending at the seam keeps a point a hair on the
 /// other side of it. `speed` is only called for a point outside the range.
+#[inline]
 pub(crate) fn in_range(
     parameter: f64,
     range: (f64, f64),
