@@ -144,6 +144,18 @@ the Python distribution are versioned in lockstep.
 
 ### Fixed
 
+- `curve_3d_to_uv_within` (the same in Python) refuses at once a curve
+  within the confusion distance of the surface but farther from it than
+  the asked deviation (#404), with `CurveNotOnSurface` and the distance.
+  The surface's projection snaps such a distance to zero, so the mapping
+  split its spans up to the 100 000 a curve gets before failing with
+  `DeviationNotReached`: a trimmed dome cut by a plane, whose marched
+  curve is 2.4e-8 off the dome against a deviation of 1e-8, took 16 s to
+  clip in a debug build and 1 s in a release one, now 0.07 s and under
+  0.01 s. The distance to the projection's point is read instead, and a
+  curve is refused only past the whole asked deviation, twice what each
+  span is held to, so a projection that stops short where the surface's
+  parametrization is singular refuses nothing.
 - A marched curve clipped by a trimmed surface ends on the face boundary
   (#314). The clip placed its cuts with the march's curve in the
   parameters of the trimmed side, which can stray from the curve by far
