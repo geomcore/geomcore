@@ -137,22 +137,25 @@ fn curve_surface(a: &Curve, b: &Surface, tol: Tolerance) -> (String, Vec<Point>)
     (text, result.hits().iter().map(|hit| hit.point).collect())
 }
 
-/// The number of hits of a curve-surface intersection and their
-/// multiplicities. Not its completeness: the region a shallow contact
-/// leaves still comes and goes with the placement (#429). Nor its points:
-/// a crossing at the slope `a` is within confusion over `2 tol.confusion
-/// / a` of the curve, 20 units for the segment of [`shallow_curves`], and
-/// rounding places the hit anywhere in that stretch.
-fn curve_surface_contacts(a: &Curve, b: &Surface, tol: Tolerance) -> (String, Vec<Point>) {
-    let result = a.intersect(b, tol);
-    let multiplicities: Vec<u32> = result.hits().iter().map(|hit| hit.multiplicity).collect();
-    let text = format!(
-        "{} hits={} multiplicities={multiplicities:?} overlaps={}",
-        method(result.method()),
-        result.hits().len(),
-        result.overlaps().len()
-    );
-    (text, Vec::new())
+/// [`curve_surface`] with the points of the touches only (hits of
+/// multiplicity 2). A crossing at the sine `a` moves along the curve by
+/// `e / a` when the shapes move by `e`, and moving them far from the
+/// origin rounds their coordinates by such an `e` before any search: at
+/// the translation 1e7, about 1e-9 for the segment of [`shallow_curves`],
+/// whose crossing at the slope 1e-8 so moves by 0.1 along it, on the
+/// shapes as given. No search can hold that point to [`POINT_SLACK`]
+/// (#429). A touch is placed by where the curve's tangent lies in the
+/// surface's tangent plane, which has no such difference.
+fn curve_surface_touches(a: &Curve, b: &Surface, tol: Tolerance) -> (String, Vec<Point>) {
+    let (text, _) = curve_surface(a, b, tol);
+    let touches = a
+        .intersect(b, tol)
+        .hits()
+        .iter()
+        .filter(|hit| hit.multiplicity == 2)
+        .map(|hit| hit.point)
+        .collect();
+    (text, touches)
 }
 
 fn surface_surface(a: &Surface, b: &Surface, tol: Tolerance) -> (String, Vec<Point>) {
@@ -318,7 +321,9 @@ fn curve_surface_intersections_are_similarity_invariant() {
 /// that frame: a segment crossing it at a slope of 1e-8, which neither
 /// bends into a touch, and a parabolic Bézier arc touching it. The
 /// samples cross or touch at clear angles, so these are where a
-/// multiplicity read from the angle alone moves with the placement (#428).
+/// multiplicity read from the angle alone moves with the placement (#428),
+/// and where rounding decided whether the search proved its hits complete
+/// (#429).
 fn shallow_curves() -> Vec<Curve> {
     let into_frame = Transform::between_frames(Frame::WORLD, tilted_frame());
     let slope = 1e-8;
@@ -358,7 +363,7 @@ fn shallow_curve_surface_intersections_are_similarity_invariant() {
             &shallow_curves(),
             &[plane],
             false,
-            curve_surface_contacts,
+            curve_surface_touches,
         ),
     );
 }

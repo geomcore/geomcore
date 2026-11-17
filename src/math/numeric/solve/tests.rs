@@ -79,3 +79,25 @@ fn test_brent_minimum() {
     let x = brent_minimum(|x| (x - 2.0).powi(4) + (x - 2.0).powi(2), -5.0, 5.0, 1e-10);
     assert!((x - 2.0).abs() < 1e-7);
 }
+
+#[test]
+fn test_solve_3x3_verdict_does_not_depend_on_the_units_of_the_unknowns() {
+    // A Newton step on `C(t) - S(u, v)` for a segment crossing a plane at
+    // a slope of 1e-8: the column of `t` is the segment's derivative, a
+    // length, those of the plane's `u` and `v` have no unit. Scaling the
+    // model scales the first column alone, and the verdict stays (#429).
+    let slope = 1e-8;
+    for scale in [1.0, 2f64.powi(20), 2f64.powi(-20)] {
+        let along = 200.0 * scale;
+        let jacobian = [
+            [along, -1.0, 0.0],
+            [0.0, 0.0, -1.0],
+            [along * slope, 0.0, 0.0],
+        ];
+        let step = solve_3x3(jacobian, [0.0, 0.0, -scale * 1e-6], 1e-14).unwrap();
+        assert!(
+            (step[0] * along + 100.0 * scale).abs() <= 1e-9 * scale,
+            "{step:?}"
+        );
+    }
+}

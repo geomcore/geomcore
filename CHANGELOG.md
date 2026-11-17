@@ -238,6 +238,23 @@ the Python distribution are versioned in lockstep.
   or touching a cylinder from inside is a touch. The similarity judge
   compares curve–surface multiplicities and gains a segment and an arc
   meeting a plane at a shallow angle; its list stays empty.
+- A shallow curve–surface contact was proven complete or not depending on
+  where the shapes sat and on their size (#429). Two decisions of the
+  hull search read rounding. Its linear solves called a system singular
+  against the sum of the whole matrix, whose columns have different
+  units: scaling the model by 2^20 made the Newton step at a segment
+  crossing a plane at a slope of 1e-8 singular, and the search left an
+  `Unseparated` region and a hit 7 units off the crossing. A pivot is now
+  read against its own column. And its proof that a curve piece meets a
+  surface piece at most once is a tie for a piece ending at a tangent
+  contact, which rounding broke toward a proof once translated by 1e7:
+  an arc touching a plane came back complete, `Incomplete` at the origin.
+  The directions the proof reads are now widened by the rounding of the
+  control points, so a tie is no proof at any placement. The similarity
+  judge compares the shallow pair's completeness and the touch's point;
+  a crossing's point at a slope of 1e-8 moves by 0.1 when the shapes are
+  translated by 1e7, from the rounding of the moved shapes themselves,
+  and is left out.
 - A marched curve's curves in the parameters of its surfaces keep within
   the confusion of its curve in space (#393). The march sized its steps
   on the curve in space alone, so where a surface's parameters turn fast
