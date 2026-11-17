@@ -156,6 +156,35 @@ the Python distribution are versioned in lockstep.
 
 ### Fixed
 
+- A marched curve's curves in the parameters of its surfaces keep within
+  the confusion of its curve in space (#393). The march sized its steps
+  on the curve in space alone, so where a surface's parameters turn fast
+  along a cut that is straight in space, the curve in those parameters
+  strayed far from it: a plane at x = 0.25 across the plane z = 0, made
+  as a revolution of a line, came back with a `deviation` of 0.029, and
+  with 0.073 on its pieces on the ring of radii 0.5 to 2. Each step now
+  also checks the fitted segments in the parameters of both surfaces, and
+  that curve's `deviation` is 2e-8. A plane or a sphere across a torus
+  converted to a B-spline came back 1e-5 off, now 2e-8, for up to 11%
+  more work in the march. Of the 92 marched curves farther off than the
+  confusion in the marching tests, 18 remain, mostly where a curve runs
+  through a sphere's pole, where the surfaces touch, or on a B-spline
+  whose knots crowd a long stretch of it into a parameter span too fine
+  for the rounding to resolve to the confusion. A trace from a sphere's
+  pole no longer runs its angle off by about 1e12 radians: a sphere cut
+  by a cylinder through its poles came back in 6 pieces, now 3.
+- `curve_3d_to_uv_within` (the same in Python) refuses at once a curve
+  within the confusion distance of the surface but farther from it than
+  the asked deviation (#404), with `CurveNotOnSurface` and the distance.
+  The surface's projection snaps such a distance to zero, so the mapping
+  split its spans up to the 100 000 a curve gets before failing with
+  `DeviationNotReached`: a trimmed dome cut by a plane, whose marched
+  curve is 2.4e-8 off the dome against a deviation of 1e-8, took 16 s to
+  clip in a debug build and 1 s in a release one, now 0.07 s and under
+  0.01 s. The distance to the projection's point is read instead, and a
+  curve is refused only past the whole asked deviation, twice what each
+  span is held to, so a projection that stops short where the surface's
+  parametrization is singular refuses nothing.
 - A marched curve clipped by a trimmed surface ends on the face boundary
   (#314). The clip placed its cuts with the march's curve in the
   parameters of the trimmed side, which can stray from the curve by far
