@@ -445,7 +445,7 @@ where
     /// confusion, or, on a step longer than [`PARAMETER_SEGMENTS_FLOOR`]
     /// times confusion, the error of the segments in the parameters of
     /// each surface (see
-    /// [`parameter_segments_error`](Self::parameter_segments_error)) when
+    /// [`parameter_segments_error`]) when
     /// larger. Where they touch, the points of contact are found only to
     /// within confusion, which the chord bound alone covers: the error is
     /// zero. The midpoint is the midpoint of the parameters corrected onto
@@ -495,54 +495,16 @@ where
             return (error <= 1.0).then_some((error, None));
         }
         let end_shifts = self.pair.parameter_shifts(y, tq, tol);
-        let in_parameters =
-            self.parameter_segments_error((x, start_shifts), (y, &end_shifts), span, hermite);
+        let in_parameters = parameter_segments_error(
+            self.pair,
+            (x, start_shifts),
+            (y, &end_shifts),
+            span,
+            hermite,
+            tol,
+        );
         let error = error.max(in_parameters);
         (error <= 1.0).then_some((error, Some(end_shifts)))
-    }
-
-    /// The error of the step's Hermite segments in the parameters of each
-    /// surface, as a share of its allowance: the distance between
-    /// `hermite`, the middle of the step's Hermite segment in space, and
-    /// the surface's point at the middle of the segment in its parameters,
-    /// across [`HERMITE_SLACK`] times confusion grown by
-    /// [`PARAMETER_ROUNDING`] times the coarser resolution of the two
-    /// surfaces' parameters (see [`SurfacePair::parameter_shifts`]): the
-    /// curve in space runs through the first surface's points, so a curve
-    /// in the second's parameters keeps to it no closer than the first's
-    /// rounding either. The segment in parameters runs
-    /// through the parameters `x` and `y` of the step's ends, with the
-    /// parameters' derivatives there, `at_start` and `at_end`, over a knot
-    /// span of `span`, as the fit builds it (see `Fitted::new`).
-    /// Where the parameters turn fast along a curve straight in space, it
-    /// strays from the curve far more than the segment in space does
-    /// (#393). A surface whose tangent plane degenerates at either end is
-    /// left out: the fit takes its derivative there from the neighbouring
-    /// points.
-    fn parameter_segments_error(
-        &self,
-        (x, at_start): ([f64; 4], &ParameterShifts),
-        (y, at_end): ([f64; 4], &ParameterShifts),
-        span: f64,
-        hermite: Point,
-    ) -> f64 {
-        let resolution = [at_start, at_end]
-            .iter()
-            .flat_map(|shifts| shifts.iter().map(|&(_, resolution)| resolution))
-            .fold(0.0, f64::max);
-        let allowance = HERMITE_SLACK * self.tol.confusion + PARAMETER_ROUNDING * resolution;
-        let error_on = |surface: &dyn ParametricSurface, side: usize| {
-            let (start, end) = (at_start[side].0?, at_end[side].0?);
-            let [u, v]: [f64; 2] = std::array::from_fn(|k| {
-                let index = 2 * side + k;
-                0.5 * (x[index] + y[index]) + 0.125 * span * (start[k] - end[k])
-            });
-            Some(surface.point_at(u, v).distance(hermite) / allowance)
-        };
-        error_on(self.pair.first, 0)
-            .into_iter()
-            .chain(error_on(self.pair.second, 1))
-            .fold(0.0, f64::max)
     }
 
     /// Whether the move from parameters `x` to parameters `y` crosses at
@@ -603,6 +565,53 @@ where
     }
 }
 
+/// The error of a step's Hermite segments in the parameters of each
+/// surface of `pair`, as a share of its allowance: the distance between
+/// `hermite`, the middle of the step's Hermite segment in space, and the
+/// surface's point at the middle of the segment in its parameters, across
+/// [`HERMITE_SLACK`] times confusion grown by [`PARAMETER_ROUNDING`] times
+/// the coarser resolution of the two surfaces' parameters (see
+/// [`SurfacePair::parameter_shifts`]): the curve in space runs through the
+/// first surface's points, so a curve in the second's parameters keeps to
+/// it no closer than the first's rounding either. The segment in
+/// parameters runs through the parameters `x` and `y` of the step's ends,
+/// with the parameters' derivatives there, `at_start` and `at_end`, over
+/// a knot span of `span`, as the fit builds it (see `Fitted::new`).
+/// Where the parameters turn fast along a curve straight in space, it
+/// strays from the curve far more than the segment in space does (#393).
+/// A surface whose tangent plane degenerates at either end is left out:
+/// the fit takes its derivative there from the neighbouring points.
+pub(super) fn parameter_segments_error<A, B>(
+    pair: SurfacePair<A, B>,
+    (x, at_start): ([f64; 4], &ParameterShifts),
+    (y, at_end): ([f64; 4], &ParameterShifts),
+    span: f64,
+    hermite: Point,
+    tol: Tolerance,
+) -> f64
+where
+    A: ParametricSurface,
+    B: ParametricSurface,
+{
+    let resolution = [at_start, at_end]
+        .iter()
+        .flat_map(|shifts| shifts.iter().map(|&(_, resolution)| resolution))
+        .fold(0.0, f64::max);
+    let allowance = HERMITE_SLACK * tol.confusion + PARAMETER_ROUNDING * resolution;
+    let error_on = |surface: &dyn ParametricSurface, side: usize| {
+        let (start, end) = (at_start[side].0?, at_end[side].0?);
+        let [u, v]: [f64; 2] = std::array::from_fn(|k| {
+            let index = 2 * side + k;
+            0.5 * (x[index] + y[index]) + 0.125 * span * (start[k] - end[k])
+        });
+        Some(surface.point_at(u, v).distance(hermite) / allowance)
+    };
+    error_on(pair.first, 0)
+        .into_iter()
+        .chain(error_on(pair.second, 1))
+        .fold(0.0, f64::max)
+}
+
 /// Multiple of the chord deviation a step's midpoint may stray from its
 /// chord (see [`Tracer::step_error`]).
 const MIDPOINT_SLACK: f64 = 2.0;
@@ -617,7 +626,7 @@ const HERMITE_SLACK: f64 = 0.25;
 /// Multiple of the resolution of a surface's parameters (see
 /// [`SurfacePair::parameter_shifts`]) by which the allowance of the
 /// segments in its parameters grows (see
-/// [`Tracer::parameter_segments_error`]): the rounding of the parameters
+/// [`parameter_segments_error`]): the rounding of the parameters
 /// at the segment's middle, and of the surface's point there.
 const PARAMETER_ROUNDING: f64 = 4.0;
 
@@ -628,7 +637,7 @@ const PARAMETER_ROUNDING: f64 = 4.0;
 /// `step⁴ / d³`, which only steps shorter than confusion would keep within
 /// it once `d` nears confusion: the trace would stall there. Shorter steps
 /// keep their fit in parameters as it is, and its deviation reports it.
-const PARAMETER_SEGMENTS_FLOOR: f64 = 16.0;
+pub(super) const PARAMETER_SEGMENTS_FLOOR: f64 = 16.0;
 
 /// Whether the move from parameters `from` to parameters `to` on `surface`
 /// crosses at most one knot in its parameter `direction` (0 for u, 1 for

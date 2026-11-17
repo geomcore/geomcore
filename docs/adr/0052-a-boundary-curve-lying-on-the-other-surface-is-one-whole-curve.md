@@ -16,3 +16,5 @@ A boundary curve is an iso-curve of its own surface, so its points are found on 
 ## Consequences
 
 A pair whose boundary curves lie on each other's surfaces reports each shared boundary curve as one curve, with the same count at every size and placement. Every pair of surfaces with a bounded parameter pays the check of its boundary curves: a box test, and one projection for a boundary curve inside the other surface's box.
+
+Amended (#311): the sampled pieces are halved further until the Hermite segments of the fits in both surfaces' parameters keep to the segment in space, as a traced step's do (#393), which needs the projection of each sample kept. A straight boundary curve of the rational surface on one control net runs along that surface's parameters at a speed its uneven weights change fast; sampled for the fit in space alone, it took five points, and its fit in the rational surface's parameters strayed by up to 1.6 from a curve 2 long. A piece no longer than 16 confusions is not halved, as a traced step is not checked there.

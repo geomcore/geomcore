@@ -1018,10 +1018,14 @@ class IncompleteReason(enum.IntEnum):
       tangent contact of a curve with a surface.
     - `UNBOUNDED`: a branch of two unbounded surfaces runs beyond the
       box it was traced in, and continues past the regions reported.
+    - `LOOSE_FIT`: a marched curve was fitted farther from the surfaces
+      than the confusion distance (its `deviation` exceeds it); the
+      regions hold each such curve.
     """
     BUDGET_EXHAUSTED = 0
     UNSEPARATED = 1
     UNBOUNDED = 2
+    LOOSE_FIT = 3
 
 
 @final

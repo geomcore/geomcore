@@ -574,6 +574,19 @@ fn test_a_marched_curve_whose_fit_strays_is_cut_by_samples() {
         .collect();
     assert_eq!(across.len(), 1, "one piece ends on the cut");
     assert!(across[0].deviation > TOL.confusion);
+    // The fit farther off than the confusion is reported, through the clip
+    // (#311).
+    assert!(
+        matches!(
+            result.completeness(),
+            Completeness::Incomplete {
+                reason: IncompleteReason::LooseFit,
+                ..
+            }
+        ),
+        "{:?}",
+        result.completeness()
+    );
     let whole_plane = plane.trimmed((-200.0, 200.0), (-200.0, 200.0)).unwrap();
     let untrimmed = wall.intersect(&plane, TOL);
     assert_covers(&result, &untrimmed, &band, &whole_plane);

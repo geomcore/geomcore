@@ -44,6 +44,10 @@ the Python distribution are versioned in lockstep.
 - `TrimmedSurfaceConstructionError` has two more variants,
   `DisjointRanges` and `RangeInTwoPieces`, which `TrimmedSurface::trimmed`
   returns (#326): a `match` on it needs their arms.
+- `IncompleteReason` has one more variant, `LooseFit` (`LOOSE_FIT` in
+  Python), which a marched surface-surface result reports (#311): a
+  `match` on it needs its arm. It is the weakest reason: a result with
+  another one keeps that one and holds both kinds of region.
 
 ### Added
 
@@ -176,6 +180,29 @@ the Python distribution are versioned in lockstep.
 
 ### Fixed
 
+- A marched curve fitted farther from the surfaces than the confusion is
+  reported (#311): the result is `Incomplete` with the reason `LooseFit`,
+  where it was `Sampled` like a result within the confusion. Two
+  cylinders whose axes meet at 1e-7 rad, for one, return a piece 2.4e-5
+  off them.
+- A boundary curve of one surface lying on the other (ADR 0052) is
+  sampled until its fits in both surfaces' parameters keep within the
+  confusion as well as its fit in space (#311). On a rational surface
+  with uneven weights, the boundary curve runs along its parameters at a
+  speed that changes fast, and the fit in its parameters strayed by up to
+  1.6 from a straight boundary curve 2 long.
+- The numeric curve–surface search merged hits within `sqrt(tol.confusion)`
+  of each other, a distance that is a length only at unit scale, so the
+  number of hits changed with the model's size (#416): a B-spline crossing
+  a revolution twice, 0.29 apart at unit size, came back with one hit
+  when scaled by 2^-20, and a
+  Bézier touching an extrusion at its end with two at 2^20. Two hits are
+  now one contact when the curve stays within `tol.confusion` of the
+  surface between them, as curve–curve hits already were (ADR 0034),
+  tested once the overlaps are taken out. The hull search settles a pair
+  near an earlier hit within `sqrt(tol.confusion L)`, `L` the size of the
+  curve. 3 `curve-surface` lines leave the list of the similarity judge;
+  the 3 placement lines remain (#417).
 - A marched curve's curves in the parameters of its surfaces keep within
   the confusion of its curve in space (#393). The march sized its steps
   on the curve in space alone, so where a surface's parameters turn fast
