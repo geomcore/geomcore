@@ -9,6 +9,17 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+## [0.49.0] - 2026-11-17
+
+Results no longer depend on the model's size or placement. Curve–surface
+and curve–curve contacts are merged, placed and proven complete the same
+way at any scale and anywhere in space, and the similarity judge of
+ADR 0051 now passes with no known failures. Directions are their own
+type, `Direction`, unit vectors by construction. A curve intersects a
+trimmed surface, and trimmed surfaces move, trim further and answer every
+surface method in Python. The elementary shapes fit to points by least
+squares, and the 2D twins answer more of what their 3D classes do.
+
 ### Breaking
 
 - `QuarticBranch::surfaces` (`surfaces()` in Python) gives the two
@@ -3903,7 +3914,8 @@ Behaviour, in Rust and Python alike:
 - Golden-fixture validation of all numeric results at 1e-7 tolerance, and
   criterion throughput benchmarks (`docs/benchmarks.md`).
 
-[Unreleased]: https://github.com/geomcore/geomcore/compare/v0.48.0...HEAD
+[Unreleased]: https://github.com/geomcore/geomcore/compare/v0.49.0...HEAD
+[0.49.0]: https://github.com/geomcore/geomcore/compare/v0.48.0...v0.49.0
 [0.48.0]: https://github.com/geomcore/geomcore/compare/v0.47.0...v0.48.0
 [0.47.0]: https://github.com/geomcore/geomcore/compare/v0.46.0...v0.47.0
 [0.46.0]: https://github.com/geomcore/geomcore/compare/v0.45.0...v0.46.0
