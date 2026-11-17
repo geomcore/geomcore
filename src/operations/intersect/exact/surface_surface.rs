@@ -1121,6 +1121,13 @@ fn axes_meeting_point(
 /// surface is on the other. The planes meet on the line `L₁ = L₂ = 0`,
 /// where `|x| = ρ`: the conics cross where it meets the sphere, at the
 /// points where both surfaces touch it.
+///
+/// Always inlined: out of line, it takes the two surfaces through memory,
+/// loses the cylinder's constant offset and cosine, and returns the
+/// conics in a temporary the caller copies, about 6% more on a cone and a
+/// cylinder. The sections are cut last, from the two planes, not in the
+/// closure that builds each plane, which the compiler kept out of line.
+#[inline(always)]
 fn common_sphere_conics<S>(
     first: AroundSphere,
     second: AroundSphere,
@@ -1138,9 +1145,9 @@ fn common_sphere_conics<S>(
         let normal = a1 * (1.0 / first.cosine) - a2 * (sign / second.cosine);
         let offset = first.offset / first.cosine - sign * second.offset / second.cosine;
         let foot = centre + normal * (offset / normal.dot(normal));
-        Plane::new(foot, normal).ok().map(|plane| section(&plane))
+        Plane::new(foot, normal).ok()
     };
-    let sections = [plane(1.0)?, plane(-1.0)?];
+    let planes = [plane(1.0)?, plane(-1.0)?];
     // The line where `x·a₁ = offset₁` and `x·a₂ = offset₂`, from its
     // point nearest the centre along the direction across both axes.
     let c = a1.dot(a2);
@@ -1164,7 +1171,7 @@ fn common_sphere_conics<S>(
         2
     };
     Some(CommonSphereConics {
-        sections,
+        sections: [section(&planes[0]), section(&planes[1])],
         touching_points,
         touching_count,
     })
@@ -1413,20 +1420,11 @@ impl IntersectExact<Cylinder> for Cone {
         let a = self.frame().z_direction();
         let axis = cylinder.axis();
         let r = cylinder.radius();
-        let quartic = || {
-            if r <= tol.confusion {
-                // A line, not a tube: it meets the cone at points.
-                return ConeCylinderIntersection::NotAnalytic;
-            }
-            cone_off_cylinder_axis(self, cylinder, tol)
-                .unwrap_or(ConeCylinderIntersection::NotAnalytic)
-        };
         if !self.axis().is_parallel(axis, tol.angular) {
-            return cone_and_cylinder_around_a_sphere(self, cylinder, tol)
-                .map_or_else(quartic, ConeCylinderIntersection::TwoConics);
+            return cone_and_crossing_cylinder(self, cylinder, tol);
         }
         if !self.axis().contains(axis.origin(), tol) {
-            return quartic();
+            return cone_cylinder_quartic(self, cylinder, tol);
         }
         let slope = self.slope();
         let apex = self.apex_at_slope(slope);
@@ -1442,26 +1440,51 @@ impl IntersectExact<Cylinder> for Cone {
     }
 }
 
-/// The conics of a cone and a cylinder whose axes meet at a point as far
-/// from both, cut from the cylinder; `None` otherwise.
-fn cone_and_cylinder_around_a_sphere(
+/// A cone and a cylinder whose axes are not parallel: the conics cut from
+/// the cylinder when the axes meet at a point as far from both, the
+/// quartic otherwise.
+///
+/// It returns the whole result, not the conics alone, so that the caller
+/// hands down its own return slot and the conics are not copied into it
+/// when this function is not inlined.
+fn cone_and_crossing_cylinder(
     cone: &Cone,
     cylinder: &Cylinder,
     tol: Tolerance,
-) -> Option<CommonSphereConics<PlaneCylinderIntersection>> {
+) -> ConeCylinderIntersection {
     let axis = cylinder.axis();
-    let centre = axes_meeting_point(
+    let Some(centre) = axes_meeting_point(
         (cone.apex(), cone.frame().z_direction().vector()),
         (axis.origin(), axis.direction().vector()),
         tol,
-    )?;
-    common_sphere_conics(
+    ) else {
+        return cone_cylinder_quartic(cone, cylinder, tol);
+    };
+    let conics = common_sphere_conics(
         AroundSphere::cone(cone, centre),
         AroundSphere::cylinder(cylinder),
         centre,
         |plane| plane.intersect_exact(cylinder, tol),
         tol,
-    )
+    );
+    match conics {
+        Some(conics) => ConeCylinderIntersection::TwoConics(conics),
+        None => cone_cylinder_quartic(cone, cylinder, tol),
+    }
+}
+
+/// The space quartic of a cone and a cylinder whose axes do not coincide,
+/// or [`ConeCylinderIntersection::NotAnalytic`].
+fn cone_cylinder_quartic(
+    cone: &Cone,
+    cylinder: &Cylinder,
+    tol: Tolerance,
+) -> ConeCylinderIntersection {
+    if cylinder.radius() <= tol.confusion {
+        // A line, not a tube: it meets the cone at points.
+        return ConeCylinderIntersection::NotAnalytic;
+    }
+    cone_off_cylinder_axis(cone, cylinder, tol).unwrap_or(ConeCylinderIntersection::NotAnalytic)
 }
 
 /// The conics of two cones whose axes meet at a point as far from both,

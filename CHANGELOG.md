@@ -141,6 +141,11 @@ the Python distribution are versioned in lockstep.
   for unbounded shapes or `tol.angular_for_extent(size)` for bounded ones
   (ADR 0006). Every converted site compared unit vectors, so no result
   changes.
+- A cone and a cylinder around a common sphere (the two ellipses of a
+  reducer) are intersected with about 8% fewer instructions typed and 4%
+  fewer routed, and the count no longer moves with what the compiler
+  inlines (#411): the helper that builds the conics returns the whole
+  result, so they are no longer copied into it when it is not inlined.
 
 ### Fixed
 
