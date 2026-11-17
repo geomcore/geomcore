@@ -136,10 +136,8 @@ pub(crate) fn read_points<P: Coordinates>(
 /// The `(u, v)` pairs of an `(N, 2)` array-like.
 pub(crate) fn read_pairs(object: &Bound<'_, PyAny>, name: &str) -> PyResult<Vec<(f64, f64)>> {
     let (floats, _) = read(object, 1, &[2], name)?;
-    Ok(floats
-        .chunks_exact(2)
-        .map(|pair| (pair[0], pair[1]))
-        .collect())
+    let (pairs, _) = floats.as_chunks::<2>();
+    Ok(pairs.iter().map(|&[u, v]| (u, v)).collect())
 }
 
 /// The rows of points of an `(n, m, 3)` array-like.
@@ -151,7 +149,13 @@ pub(crate) fn read_point_grid(object: &Bound<'_, PyAny>, name: &str) -> PyResult
     }
     Ok(floats
         .chunks_exact(row_length)
-        .map(|row| row.chunks_exact(3).map(Point::from_row).collect())
+        .map(|row| {
+            let (points, _) = row.as_chunks::<3>();
+            points
+                .iter()
+                .map(|&[x, y, z]| Point::new(x, y, z))
+                .collect()
+        })
         .collect())
 }
 
