@@ -13,6 +13,7 @@ use crate::geometry::curves::{
 };
 use crate::geometry::curves::{RangeOperations, ReversibleCurve};
 use crate::math::bspline::curve as bspline_math;
+use crate::math::parameter_range::representative;
 use crate::operations::projection::{CurveProjection, grows_inward, snap_distance};
 use crate::{BSplineSplitError, Continuity, Frame, Frame2D, Point, Point2D, Tolerance, Vector};
 use crate::{Transform, TransformError, Transformable};
@@ -157,11 +158,8 @@ fn restrict<P: TierPoint>(
     let mut out: Vec<CurveProjection<P>> = extrema
         .into_iter()
         .filter_map(|e| {
-            let t = match period {
-                Some(period) => first + (e.parameter - first).rem_euclid(period),
-                None => e.parameter,
-            };
-            (first <= t && t <= last).then_some(CurveProjection { parameter: t, ..e })
+            representative(e.parameter, (first, last), period)
+                .map(|parameter| CurveProjection { parameter, ..e })
         })
         .collect();
     for t in [first, last] {

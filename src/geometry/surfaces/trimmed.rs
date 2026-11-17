@@ -11,7 +11,8 @@ use crate::Continuity;
 use crate::geometry::surfaces::{
     Curve3DToUvError, ParametricSurface, Surface, SurfaceCurvatures, UvCurveTo3DError,
 };
-use crate::operations::intersect::routing::in_range;
+use crate::math::numeric::newton_min_1d;
+use crate::math::parameter_range::in_range;
 use crate::{BoundingBox, Direction, HasBoundingBox, Point, SurfaceProjection, Tolerance, Vector};
 use std::fmt;
 
@@ -180,23 +181,6 @@ impl<S: ParametricSurface> TrimmedSurface<S> {
         })
     }
 
-    /// The representative of `(u, v)`, a point of the basis, in the ranges:
-    /// a periodic parameter shifted by whole periods into its range where
-    /// it can be, else left as it is.
-    fn representative(&self, (u, v): (f64, f64)) -> (f64, f64) {
-        let shifted = |x: f64, range: (f64, f64), period: Option<f64>| match period {
-            Some(period) => {
-                let into = x - period * ((x - range.0) / period).floor();
-                if into <= range.1 { into } else { x }
-            }
-            None => x,
-        };
-        (
-            shifted(u, self.u_range, self.basis.u_period()),
-            shifted(v, self.v_range, self.basis.v_period()),
-        )
-    }
-
     /// The basis and the ranges, as the router clips an intersection of
     /// the basis to them.
     pub(crate) fn restriction(&self) -> Restriction<'_> {
@@ -208,8 +192,8 @@ impl<S: ParametricSurface> TrimmedSurface<S> {
     }
 
     /// The closest point to `point` on the boundary: on each of the four
-    /// sides, the best of 33 samples, refined by Newton's method on the
-    /// side's parameter.
+    /// sides, the best of 33 samples, refined by the bounded Newton
+    /// minimisation of half the squared distance along the side.
     fn closest_on_boundary(&self, point: Point) -> SurfaceProjection {
         const SAMPLES: usize = 32;
         let ((u0, u1), (v0, v1)) = (self.u_range, self.v_range);
@@ -228,11 +212,11 @@ impl<S: ParametricSurface> TrimmedSurface<S> {
                 let (u, v) = uv(s);
                 self.basis.point_at(u, v).distance(point)
             };
-            let mut s = (0..=SAMPLES)
+            let seed = (0..=SAMPLES)
                 .map(|k| low + (high - low) * k as f64 / SAMPLES as f64)
                 .min_by(|a, b| distance(*a).total_cmp(&distance(*b)))
                 .unwrap_or(low);
-            for _ in 0..20 {
+            let half_squared_distance = |s: f64| {
                 let (u, v) = uv(s);
                 let (at, first, second) = self.basis.second_derivatives(u, v);
                 let (tangent, curvature) = if along_u {
@@ -241,18 +225,13 @@ impl<S: ParametricSurface> TrimmedSurface<S> {
                     (first[1], second[2])
                 };
                 let offset = at - point;
-                let slope = offset.dot(tangent);
-                let bend = tangent.dot(tangent) + offset.dot(curvature);
-                if bend <= 0.0 {
-                    break;
-                }
-                let next = (s - slope / bend).clamp(low, high);
-                let moved = (next - s).abs();
-                s = next;
-                if moved <= 1e-15 * (1.0 + s.abs()) {
-                    break;
-                }
-            }
+                (
+                    0.5 * offset.dot(offset),
+                    offset.dot(tangent),
+                    tangent.dot(tangent) + offset.dot(curvature),
+                )
+            };
+            let s = newton_min_1d(half_squared_distance, seed, Some((low, high)), 1e-15, 20);
             let (u, v) = uv(s);
             let at = self.basis.point_at(u, v);
             let candidate = SurfaceProjection {
@@ -377,8 +356,10 @@ impl<S: ParametricSurface> ParametricSurface for TrimmedSurface<S> {
     fn project_point(&self, point: Point, tol: Tolerance) -> SurfaceProjection {
         use crate::operations::projection::snap_distance;
         let on_basis = self.basis.project_point(point, tol);
-        let (u, v) = self.representative((on_basis.u, on_basis.v));
-        if self.restriction().holds((u, v), tol) {
+        if let Some((u, v)) = self
+            .restriction()
+            .representative((on_basis.u, on_basis.v), tol)
+        {
             return SurfaceProjection { u, v, ..on_basis };
         }
         let mut projection = self.closest_on_boundary(point);
@@ -386,10 +367,13 @@ impl<S: ParametricSurface> ParametricSurface for TrimmedSurface<S> {
         projection
     }
 
-    /// The basis's parameters of `point`, a periodic parameter shifted by
-    /// whole periods into its range where it can be.
+    /// The basis's parameters of `point`, shifted by whole periods into
+    /// the ranges when the point lies in them; the basis's own otherwise.
     fn parameters_of(&self, point: Point, tol: Tolerance) -> (f64, f64) {
-        self.representative(self.basis.parameters_of(point, tol))
+        let on_basis = self.basis.parameters_of(point, tol);
+        self.restriction()
+            .representative(on_basis, tol)
+            .unwrap_or(on_basis)
     }
 
     /// The basis's own: the parametrization is the same.
@@ -450,10 +434,11 @@ pub(crate) struct Restriction<'s> {
 }
 
 impl Restriction<'_> {
-    /// Whether the basis point at `(u, v)` lies in the ranges, within
-    /// `tol.confusion` in space past an end, a periodic parameter compared
-    /// modulo its period.
-    pub(crate) fn holds(&self, (u, v): (f64, f64), tol: Tolerance) -> bool {
+    /// The representative of `(u, v)`, a point of the basis, in the
+    /// ranges: each parameter as [`in_range`] keeps it, a periodic one
+    /// shifted by whole periods and one within `tol.confusion` in space
+    /// past an end snapped to it. `None` when the point lies outside.
+    pub(crate) fn representative(&self, (u, v): (f64, f64), tol: Tolerance) -> Option<(f64, f64)> {
         let speed = |along_u: bool| {
             move |_end: f64| {
                 let (_, [du, dv]) = self.basis.first_derivatives(u, v);
@@ -464,8 +449,16 @@ impl Restriction<'_> {
                 }
             }
         };
-        in_range(u, self.u_range, self.basis.u_period(), speed(true), tol).is_some()
-            && in_range(v, self.v_range, self.basis.v_period(), speed(false), tol).is_some()
+        let u = in_range(u, self.u_range, self.basis.u_period(), speed(true), tol)?;
+        let v = in_range(v, self.v_range, self.basis.v_period(), speed(false), tol)?;
+        Some((u, v))
+    }
+
+    /// Whether the basis point at `(u, v)` lies in the ranges, within
+    /// `tol.confusion` in space past an end, a periodic parameter compared
+    /// modulo its period.
+    pub(crate) fn holds(&self, uv: (f64, f64), tol: Tolerance) -> bool {
+        self.representative(uv, tol).is_some()
     }
 
     /// Whether `point`, a point of the basis, lies in the ranges.

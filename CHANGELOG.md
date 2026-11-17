@@ -91,6 +91,20 @@ the Python distribution are versioned in lockstep.
 
 ### Changed
 
+- `TrimmedSurface::parameters_of` and `project_point` (the same in
+  Python) read a point's parameters into the ranges by the rule the
+  intersections use (#291): a parameter within the confusion distance past
+  an end comes back as that end, and `parameters_of` of a point outside
+  the ranges gives the basis's parameters as they are, where it shifted a
+  periodic one into its range on its own.
+- Internal: the rules of a parameter range (the shift by whole periods,
+  the slack at the ends, the nearest end across the seam) live in one
+  module under the shapes, `math/parameter_range.rs`, which the trimmed
+  curves, the trimmed surfaces and the intersection router call (#291).
+  Nothing under `geometry/` imports the router any more, and
+  `tests/module_dependencies.rs` checks it. The closest point on a trimmed
+  surface's boundary is refined by the shared bounded Newton minimisation.
+  New benchmark ids time a trimmed exact pair and a trimmed marched pair.
 - Internal: the math under the shapes no longer depends on them, and
   `tests/module_dependencies.rs` checks it. `Side`, `Continuity` and
   `InlineList` move to `base/`; the errors the B-spline engine raises

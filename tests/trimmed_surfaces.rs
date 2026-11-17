@@ -468,3 +468,84 @@ fn test_a_closed_fitted_loop_keeps_a_piece_across_its_start_whole() {
     let untrimmed = wide.intersect(&narrow, TOL);
     assert_covers(&result, &untrimmed, &side, &short_wall);
 }
+
+/// A bicubic B-spline surface over `[0, 3]²`, its 6 × 6 poles at `(i, j)`
+/// lifted to `height(i, j)`.
+fn bspline_surface(height: impl Fn(f64, f64) -> f64) -> BSplineSurface {
+    let poles = (0..6)
+        .map(|i| {
+            (0..6)
+                .map(|j| {
+                    let (x, y) = (f64::from(i), f64::from(j));
+                    Point::new(x, y, height(x, y))
+                })
+                .collect()
+        })
+        .collect();
+    let (knots, multiplicities) = (vec![0.0, 1.0, 2.0, 3.0], vec![4, 1, 1, 4]);
+    BSplineSurface::new(
+        3,
+        3,
+        poles,
+        knots.clone(),
+        multiplicities.clone(),
+        knots,
+        multiplicities,
+        false,
+        false,
+    )
+    .unwrap()
+}
+
+#[test]
+fn test_two_trimmed_bspline_surfaces_are_marched_and_clipped_to_the_ranges() {
+    // Two wavy sheets with no closed form cross in several curves; the
+    // march runs on the bases and its curves are clipped to both patches.
+    let wavy = bspline_surface(|x, y| (0.7 * x * y).sin());
+    let bumpy = bspline_surface(|x, y| 0.5 * (1.3 * x).cos() * (1.1 * y).cos());
+    let a = wavy.clone().trimmed((0.4, 2.6), (0.3, 2.2)).unwrap();
+    let b = bumpy.clone().trimmed((0.6, 2.8), (0.5, 2.7)).unwrap();
+    let result = a.intersect(&b, TOL);
+    assert_eq!(result.method(), IntersectionMethod::Numeric);
+    assert_eq!(*result.completeness(), Completeness::Sampled);
+    assert!(!result.curves().is_empty());
+    assert_inside(&result, &a, &b);
+    assert_ends_on_boundaries(&result, &a, &b);
+    let untrimmed = wavy.intersect(&bumpy, TOL);
+    assert_covers(&result, &untrimmed, &a, &b);
+}
+
+#[test]
+fn test_a_marched_curve_whose_fit_strays_is_cut_by_samples() {
+    // A dome, a cubic profile revolved about z, trimmed to a band below
+    // its top, cut by the plane x = 0.25: the march's fit in the dome's
+    // parameters strays by more than the confusion distance and the curve
+    // cannot be mapped to them within a tenth of it, so it is cut where
+    // samples of it leave the band.
+    let profile = BSplineCurve::new(
+        3,
+        vec![
+            Point::new(0.0, 0.0, 1.0),
+            Point::new(0.7, 0.0, 0.9),
+            Point::new(1.4, 0.0, 0.3),
+            Point::new(2.0, 0.0, 0.0),
+        ],
+        vec![0.0, 1.0],
+        vec![4, 4],
+        false,
+    )
+    .unwrap();
+    let axis = Axis::new(Point::ORIGIN, Vector::Z).unwrap();
+    let dome = RevolutionSurface::new(Curve::BSpline(profile), axis).unwrap();
+    let band = dome.clone().trimmed((0.0, TAU), (0.1, 0.9)).unwrap();
+    let plane = Plane::new(Point::new(0.25, 0.0, 0.0), Vector::X).unwrap();
+    let result = band.intersect(&plane, TOL);
+    assert_eq!(result.method(), IntersectionMethod::Numeric);
+    assert_eq!(result.curves().len(), 1);
+    assert!(result.curves()[0].deviation > TOL.confusion);
+    assert_inside(&result, &band, &plane);
+    let whole_plane = plane.trimmed((-3.0, 3.0), (-3.0, 3.0)).unwrap();
+    assert_ends_on_boundaries(&result, &band, &whole_plane);
+    let untrimmed = dome.intersect(&plane, TOL);
+    assert_covers(&result, &untrimmed, &band, &whole_plane);
+}
