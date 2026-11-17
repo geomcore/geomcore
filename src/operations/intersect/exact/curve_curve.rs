@@ -613,7 +613,6 @@ impl IntersectExact<Circle> for Circle {
 /// Whether `circle` lies in the plane of `host`: its centre is on that
 /// plane and turning its normal onto the host's moves it by at most the
 /// confusion tolerance.
-#[inline]
 fn lies_in_plane_of(circle: &Circle, host: &Circle, tol: Tolerance) -> bool {
     circle
         .normal()

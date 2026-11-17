@@ -414,6 +414,7 @@ fn halve<const N: usize>(c: &[f64; N]) -> ([f64; N], [f64; N]) {
 /// The Bernstein coefficients over `σ` in `[0, 1]` of each basis
 /// function at `t = α + 2 atan(2σ − 1)`, times `(1 + s²)^K`: `out[j]`
 /// for `φ_j`.
+#[inline]
 fn chart_basis<const N: usize>(alpha: f64) -> [[f64; N]; N] {
     let degree = N - 1;
     let half = N / 2;
@@ -450,8 +451,7 @@ fn chart_basis<const N: usize>(alpha: f64) -> [[f64; N]; N] {
         }
         out
     };
-    let mut basis = [[0.0; N]; N];
-    for (j, row) in basis.iter_mut().enumerate() {
+    std::array::from_fn(|j| {
         let k = j.div_ceil(2);
         let power = &powers[2 * k];
         let re: Vec<f64> = power.iter().map(|p| p.0).collect();
@@ -474,13 +474,13 @@ fn chart_basis<const N: usize>(alpha: f64) -> [[f64; N]; N] {
         };
         let mut power_s = multiply(&trig, &one_plus_square(half - k));
         power_s.resize(N, 0.0);
-        *row = bernstein_on_unit(&power_s, degree);
-    }
-    basis
+        bernstein_on_unit(&power_s, degree)
+    })
 }
 
 /// The Bernstein coefficients over `σ` in `[0, 1]` of the polynomial with
 /// power coefficients `a` in `s = 2σ − 1`.
+#[inline]
 fn bernstein_on_unit<const N: usize>(a: &[f64], degree: usize) -> [f64; N] {
     let binomial = |n: usize, k: usize| -> f64 {
         (0..k).fold(1.0, |acc, i| acc * (n - i) as f64 / (i + 1) as f64)

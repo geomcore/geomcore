@@ -183,6 +183,7 @@ where
 /// accident: the probes between them can land on other crossings, as at
 /// `x = 1, 2, 3` between the crossings at `x = 0` and `x = 4` of a curve
 /// meeting the other at each integer.
+#[inline]
 pub(crate) fn distinct_contacts<A, B>(
     a: &A,
     b: &B,
