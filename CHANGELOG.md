@@ -106,6 +106,25 @@ the Python distribution are versioned in lockstep.
   loop takes 92 poles within 1e-4 of both. A model as small against its
   tolerance, a patch a few thousandths across at the default, gains the
   same.
+- A curve lying on an extrusion or a revolution came back from the
+  numeric search as up to 127 sampled hits along it and no overlap, and
+  their number changed with the model's size and placement (#300): a line
+  on the extrusion or the revolution of that line, a circle on its own
+  extrusion. The sampled search's hits are now joined into an overlap,
+  as the hull search's are, so these pairs report one overlap over the
+  curve's whole range and no hit, still `Sampled`. A run still on the
+  surface a model size (`tol.confusion / tol.angular`) along an unbounded
+  curve now runs to its end, so the line's overlap is unbounded instead of
+  ending where far coordinates round off.
+- An unbounded line, parabola or hyperbola against a surface with no box
+  (a plane, cylinder or cone, or a sweep of an unbounded profile) was
+  seeded over the parameters `[-10, 10]`, whatever the size of the model
+  (#300): a parabola crossing the extrusion of a line in 2 points, scaled
+  by 2^20, met it in 1, and crossing the extrusion of a circle, in none.
+  The seeds now span a box around the curve's and the surface's anchors,
+  five sizes of the pair wide, as the march's seeding windows do, so the
+  same hits come back at any size and placement. 15 `curve-surface` lines
+  leave the list of the similarity judge; 6 remain.
 
 ## [0.48.0] - 2026-11-16
 

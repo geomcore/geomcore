@@ -109,3 +109,68 @@ fn test_generic_segment_plane_hit() {
     assert!((hits[0].curve_parameter - 0.5).abs() < 1e-9);
     assert_eq!(hits[0].point, Point::new(1.0, 0.0, 0.0));
 }
+
+/// A parabola crossing the extrusion of a line, and the revolution of
+/// that line, neither of which has a box: the seeds span a box placed on
+/// the operands and sized by the parabola, so the pair scaled by 2^20 or
+/// 2^-20 meets in the same hits, scaled. A window of fixed parameters
+/// held the hits only at one size.
+#[test]
+fn test_unbounded_curve_seeds_scale_with_the_operands() {
+    use crate::{
+        Axis, ExtrusionSurface, Frame, Parabola, RevolutionSurface, Surface, Transform,
+        Transformable,
+    };
+    let frame = Frame::new(
+        Point::new(1.0, -2.0, 0.5),
+        Vector::new(0.3, -0.4, 0.86),
+        Vector::new(1.0, 0.2, 0.0),
+    )
+    .unwrap();
+    let parabola = Parabola::new(
+        frame.origin(),
+        frame.z_direction(),
+        frame.x_direction(),
+        0.8,
+    )
+    .unwrap();
+    let line = Line::new(frame.origin(), Vector::new(0.3, 0.9, -0.2)).unwrap();
+    let surfaces: [Surface; 2] = [
+        ExtrusionSurface::new(line.into(), Vector::new(0.2, -0.1, 1.5))
+            .unwrap()
+            .into(),
+        RevolutionSurface::new(line.into(), Axis::new(Point::ORIGIN, Vector::Z).unwrap())
+            .unwrap()
+            .into(),
+    ];
+    for (surface, count) in surfaces.iter().zip([2, 3]) {
+        let reference: Vec<Point> = search_curve_surface(&parabola, surface, Tolerance::DEFAULT)
+            .iter()
+            .map(|hit| hit.point)
+            .collect();
+        assert_eq!(reference.len(), count, "{reference:?}");
+        for scale in [2f64.powi(-20), 2f64.powi(20)] {
+            let tol = Tolerance::new(
+                Tolerance::DEFAULT.confusion * scale,
+                Tolerance::DEFAULT.angular,
+                Tolerance::DEFAULT.parametric,
+            )
+            .unwrap();
+            let resize = Transform::scaling(Point::ORIGIN, scale);
+            let back = Transform::scaling(Point::ORIGIN, 1.0 / scale);
+            let hits = search_curve_surface(
+                &parabola.transformed(resize).unwrap(),
+                &surface.clone().transformed(resize).unwrap(),
+                tol,
+            );
+            assert_eq!(hits.len(), count, "scale {scale:e}: {hits:?}");
+            for (hit, expected) in hits.iter().zip(&reference) {
+                let point = back.apply_point(hit.point);
+                assert!(
+                    point.distance(*expected) < 1e-6,
+                    "scale {scale:e}: {hits:?}"
+                );
+            }
+        }
+    }
+}

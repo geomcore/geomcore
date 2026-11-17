@@ -7,6 +7,7 @@ use crate::geometry::surfaces::{ExtrusionSurface, ParametricSurface};
 use crate::math::numeric::boxtree::Aabb;
 use crate::math::numeric::{brent_minimum, newton_3d};
 use crate::operations::intersect::numeric::curve_surface_hull::CurveSurfaceHits;
+use crate::operations::intersect::numeric::marching::{REACH, anchor, own_size};
 use crate::operations::intersect::numeric::{overlap_runs, pairs_with_bspline};
 use crate::operations::intersect::results::sort_by_parameter;
 use crate::operations::intersect::{
@@ -14,9 +15,9 @@ use crate::operations::intersect::{
 };
 use crate::{Frame, HasBoundingBox, Point, Tolerance, Transform, Transformable};
 
-/// The window an unbounded curve is seeded over when nothing bounds the
-/// search: no box is known for the surface, or the curve is not one whose
-/// reach can be worked out.
+/// The window an unbounded curve defined outside the crate is seeded
+/// over when nothing bounds the search: no box is known for the surface,
+/// and the curve's parameters say nothing of where its points lie.
 const WINDOW: f64 = 10.0;
 
 /// Intersects any parametric curve with any parametric surface by the
@@ -32,7 +33,8 @@ const WINDOW: f64 = 10.0;
 /// every hit was found. Where the curve lies on the surface, the hits and
 /// regions the search leaves along it are joined into an overlap, and the
 /// result stays [`Incomplete`](crate::Completeness::Incomplete) with an
-/// `Unseparated` region over it (see
+/// `Unseparated` region over it, or [`Sampled`](crate::Completeness::Sampled)
+/// when samples found the hits (see
 /// [`CurveSurfaceIntersection::overlaps`]).
 ///
 /// # Examples
@@ -106,8 +108,10 @@ where
 /// B-spline or surface of revolution of a bounded profile (whose box is
 /// known) and the curve is elementary (whose reach is). Against an
 /// extrusion of a bounded profile, it seeds the range whose points lie in
-/// the prism the profile's box sweeps. An unbounded curve without such a
-/// bound seeds `[-10, 10]`. Overlapping
+/// the prism the profile's box sweeps. An unbounded elementary curve
+/// without such a bound seeds the range whose points lie in a box placed
+/// on the operands (see [`operand_box`]), so the seeds scale and move
+/// with them; any other unbounded curve seeds `[-10, 10]`. Overlapping
 /// pairs yield dense hit sets along the overlap; the routed
 /// [`Intersect`](crate::Intersect) calls this search only for pairs
 /// without a closed form, and solves the others exactly, tangency and
@@ -194,6 +198,45 @@ where
     pairs_with_bspline::inside(elementary, &surface_box(surface, tol)?)
 }
 
+/// The box an unbounded elementary curve is seeded across when nothing
+/// else bounds the search: the box around the curve's and the surface's
+/// anchors (their points at parameter 0), grown by [`REACH`] sizes of the
+/// pair. The pair's size is the larger own size of the curve (a
+/// parabola's focal distance, a hyperbola's major radius) and of the
+/// surface (see [`own_size`]), else the distance between the anchors;
+/// where the pair has no length at all, the box is the model's cube
+/// around them, of side `confusion / angular` (ADR 0006), as the march's
+/// seeding box (ADR 0051).
+fn operand_box<S: ParametricSurface>(curve: ElementaryCurve, surface: &S, tol: Tolerance) -> Aabb {
+    let curve_size = match curve {
+        ElementaryCurve::Parabola(parabola) => Some(parabola.focal_distance()),
+        ElementaryCurve::Hyperbola(hyperbola) => Some(hyperbola.major_radius()),
+        _ => None,
+    };
+    let (low, high) = curve.bounds();
+    let curve_anchor = curve.point_at(0.0f64.clamp(low, high));
+    let surface_anchor = anchor(surface);
+    let size = match (curve_size, own_size(surface)) {
+        (Some(first), Some(second)) => first.max(second),
+        (Some(size), None) | (None, Some(size)) => size,
+        (None, None) => curve_anchor.distance(surface_anchor),
+    };
+    let reach = if size > 0.0 {
+        REACH * size
+    } else {
+        0.5 * tol.confusion / tol.angular
+    };
+    let (a, b) = (curve_anchor, surface_anchor);
+    [
+        a.x.min(b.x) - reach,
+        a.y.min(b.y) - reach,
+        a.z.min(b.z) - reach,
+        a.x.max(b.x) + reach,
+        a.y.max(b.y) + reach,
+        a.z.max(b.z) + reach,
+    ]
+}
+
 /// [`range_reaching`] for an extrusion. It is unbounded along its
 /// direction, but it lies in the prism swept by its profile's box: in a
 /// frame whose z axis is the direction, the box of the profile's box
@@ -247,6 +290,34 @@ fn on_curve<C: ParametricCurve>(curve: &C, t: f64, tol: Tolerance) -> Option<f64
     ((t - end).abs() * tangent.magnitude() <= tol.confusion).then_some(end)
 }
 
+/// The range of curve parameters the sampled search seeds: the curve's
+/// bounds, or for an unbounded curve the range of its points that can
+/// meet the surface (see [`search_curve_surface`]). A range whose start
+/// is above its end means the curve cannot reach the surface.
+pub(crate) fn seeded_range<C, S>(curve: &C, surface: &S, tol: Tolerance) -> (f64, f64)
+where
+    C: ParametricCurve,
+    S: ParametricSurface,
+{
+    let (t0, t1) = curve.bounds();
+    if t0.is_finite() && t1.is_finite() {
+        return (t0, t1);
+    }
+    let (a, b) = match range_reaching(curve, surface, tol) {
+        // A missed box, or a finite range: a curve along an extrusion's
+        // direction and inside its prism stays in it for every parameter,
+        // so its range says nothing.
+        Some((a, b)) if a > b || (a.is_finite() && b.is_finite()) => (a, b),
+        _ => curve
+            .as_elementary()
+            .and_then(|elementary| {
+                pairs_with_bspline::inside(elementary, &operand_box(elementary, surface, tol))
+            })
+            .unwrap_or((-WINDOW, WINDOW)),
+    };
+    (t0.max(a), t1.min(b))
+}
+
 /// The sampled search of [`search_curve_surface`].
 pub(crate) fn sampled_curve_surface<C, S>(
     curve: &C,
@@ -257,19 +328,7 @@ where
     C: ParametricCurve,
     S: ParametricSurface,
 {
-    let (t0, t1) = curve.bounds();
-    let (lo, hi) = if t0.is_finite() && t1.is_finite() {
-        (t0, t1)
-    } else {
-        let within = |a: f64, b: f64| (t0.max(a), t1.min(b));
-        match range_reaching(curve, surface, tol) {
-            // A missed box, or a finite range: a curve along an
-            // extrusion's direction and inside its prism stays in it for
-            // every parameter, so its range says nothing.
-            Some((a, b)) if a > b || (a.is_finite() && b.is_finite()) => within(a, b),
-            _ => within(-WINDOW, WINDOW),
-        }
-    };
+    let (lo, hi) = seeded_range(curve, surface, tol);
     // The curve cannot reach the surface's box: no hit exists.
     if lo > hi {
         return Vec::new();

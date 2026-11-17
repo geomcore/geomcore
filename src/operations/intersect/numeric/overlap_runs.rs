@@ -13,6 +13,10 @@
 //! halving, and reported as an overlap: the hits inside it are dropped,
 //! and the regions inside it give way to one region over it. The result
 //! stays `Incomplete`, since samples, not a proof, found the overlap.
+//!
+//! The sampled curve-surface search proves nothing and leaves no region:
+//! where the curve lies on the surface, its hits crowd along it, and they
+//! are joined the same way. That result stays `Sampled`.
 
 use crate::geometry::curves::ParametricCurve;
 use crate::geometry::surfaces::ParametricSurface;
@@ -46,8 +50,7 @@ const CLOSEST_APPROACH_STEPS: usize = 60;
 
 /// Joins the hits and regions of a numeric curve-surface search into the
 /// curve's runs lying on the surface (see the module documentation).
-/// A result without an incomplete region has no run and comes back as
-/// it is.
+/// A complete result has no run and comes back as it is.
 pub(crate) fn curve_surface_overlaps<C, S>(
     curve: &C,
     surface: &S,
@@ -63,8 +66,16 @@ where
     C: ParametricCurve,
     S: ParametricSurface,
 {
-    let Completeness::Incomplete { reason, regions } = completeness else {
-        return (hits, Vec::new(), completeness);
+    // A sampled search leaves no region: its hits alone show the runs,
+    // and the result stays sampled.
+    let (reason, regions) = match completeness {
+        Completeness::Complete => return (hits, Vec::new(), completeness),
+        Completeness::Sampled => (None, Vec::new()),
+        Completeness::Incomplete { reason, regions } => (Some(reason), regions),
+    };
+    let rebuilt = |reason: Option<IncompleteReason>, regions| match reason {
+        Some(reason) => Completeness::Incomplete { reason, regions },
+        None => Completeness::Sampled,
     };
     let mut on = |t: f64, spacing: f64| {
         let (p, d) = curve.first_derivatives(t);
@@ -84,7 +95,12 @@ where
         .map(|hit| (hit.curve_parameter, hit.curve_parameter))
         .chain(regions.iter().map(|region| region.curve_range))
         .collect();
-    let runs = lying_runs(anchors, curve.bounds(), &mut on);
+    let runs = lying_runs(
+        anchors,
+        curve.bounds(),
+        &mut on,
+        &across_the_model(curve, tol),
+    );
     let runs: Vec<(f64, f64)> = runs
         .into_iter()
         .filter(|&run| {
@@ -98,17 +114,20 @@ where
         })
         .collect();
     if runs.is_empty() {
-        return (
-            hits,
-            Vec::new(),
-            Completeness::Incomplete { reason, regions },
-        );
+        return (hits, Vec::new(), rebuilt(reason, regions));
     }
     let inside = |t: f64| runs.iter().any(|&run| covers(curve, run, t, tol));
     let hits = hits
         .into_iter()
         .filter(|hit| !inside(hit.curve_parameter))
         .collect();
+    let overlaps = runs
+        .iter()
+        .map(|&curve_range| CurveSurfaceOverlap { curve_range })
+        .collect();
+    let Some(reason) = reason else {
+        return (hits, overlaps, Completeness::Sampled);
+    };
     let reason = reason_beside_overlaps(
         reason,
         regions.iter().map(|region| region.curve_range),
@@ -136,10 +155,6 @@ where
         });
     }
     let regions = merged(regions);
-    let overlaps = runs
-        .into_iter()
-        .map(|curve_range| CurveSurfaceOverlap { curve_range })
-        .collect();
     (hits, overlaps, Completeness::Incomplete { reason, regions })
 }
 
@@ -195,9 +210,12 @@ where
         .map(|hit| (hit.first_parameter, hit.first_parameter))
         .chain(regions.iter().map(|region| region.first_range))
         .collect();
-    let runs = lying_runs(anchors, first.bounds(), &mut |t, spacing| {
-        follower.lies(t, spacing)
-    });
+    let runs = lying_runs(
+        anchors,
+        first.bounds(),
+        &mut |t, spacing| follower.lies(t, spacing),
+        &across_the_model(first, tol),
+    );
     let mut overlaps = Vec::new();
     let mut contact_runs = Vec::new();
     for run in runs {
@@ -453,11 +471,13 @@ impl<A: ParametricCurve, B: ParametricCurve> Follower<'_, A, B> {
 /// `RUN_SAMPLES - 1` points between them. A chain of two probes or more is
 /// extended at each end to where the curve leaves the other operand,
 /// found between the chain's end and the next probe (or the curve's
-/// `bounds`).
+/// `bounds`); toward an unbounded end, a run still on the other operand
+/// `far(end, t)` from its end runs to that end (see [`run_end`]).
 fn lying_runs(
     anchors: Vec<(f64, f64)>,
     bounds: (f64, f64),
     on: &mut impl FnMut(f64, f64) -> bool,
+    far: &impl Fn(f64, f64) -> bool,
 ) -> Vec<(f64, f64)> {
     let mut probes: Vec<f64> = anchors
         .into_iter()
@@ -512,8 +532,8 @@ fn lying_runs(
             };
             let length = high - low;
             (
-                run_end(low, below, length, on),
-                run_end(high, above, length, on),
+                run_end(low, below, length, on, far),
+                run_end(high, above, length, on, far),
             )
         })
         .collect()
@@ -522,8 +542,17 @@ fn lying_runs(
 /// Where the run ending at `end` (on the other operand) stops, moving
 /// toward `limit`: the last point on the other operand, found by halving
 /// between the last sample on it and the first off it. Toward an
-/// infinite limit the step starts at the run's `length` and doubles.
-fn run_end(end: f64, limit: f64, length: f64, on: &mut impl FnMut(f64, f64) -> bool) -> f64 {
+/// infinite limit the step starts at the run's `length` and doubles, and
+/// a run still on the other operand `far(end, t)` from `end` reaches the
+/// limit: beyond the model, the rounding of far coordinates, not the
+/// geometry, would end it.
+fn run_end(
+    end: f64,
+    limit: f64,
+    length: f64,
+    on: &mut impl FnMut(f64, f64) -> bool,
+    far: &impl Fn(f64, f64) -> bool,
+) -> f64 {
     if limit == end {
         return end;
     }
@@ -551,6 +580,9 @@ fn run_end(end: f64, limit: f64, length: f64, on: &mut impl FnMut(f64, f64) -> b
             if !on(t, step) {
                 first_off = Some(t);
                 break;
+            }
+            if far(end, t) {
+                return limit;
             }
             last_on = t;
             step *= 2.0;
@@ -616,6 +648,14 @@ fn reason_beside_overlaps<C: ParametricCurve>(
     } else {
         reason
     }
+}
+
+/// Whether the curve's point at the second parameter lies a model size
+/// (`tol.confusion / tol.angular`, ADR 0006) or more from its point at the
+/// first: a run on the other operand that far along is across the model.
+fn across_the_model<C: ParametricCurve>(curve: &C, tol: Tolerance) -> impl Fn(f64, f64) -> bool {
+    let size = tol.confusion / tol.angular;
+    move |from, to| curve.point_at(from).distance(curve.point_at(to)) >= size
 }
 
 /// Whether the curve over `run` is longer in space than `tol.confusion`

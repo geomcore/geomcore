@@ -18,6 +18,8 @@ mod seeding;
 mod shared_boundary_curves;
 mod tracer;
 
+pub(crate) use pair::{REACH, anchor, own_size};
+
 use crate::BSplineConstructionError;
 use crate::geometry::curves::fitting::{
     hermite_knots, hermite_spline, interpolate_with_companions, without_confused,

@@ -730,7 +730,11 @@ impl CurveSurfaceIntersection {
     /// On the numeric path an overlap is joined from the hits and regions
     /// the search left where the curve and surface never separated, and
     /// its ends lie within `tol.confusion` in space of the true ones; the
-    /// result stays incomplete, with an `Unseparated` region over it.
+    /// result stays incomplete, with an `Unseparated` region over it. A
+    /// sampled search's hits along the curve are joined alike, and the
+    /// result stays sampled. An overlap still on the surface a model size
+    /// (`tol.confusion / tol.angular`) along an unbounded curve runs to
+    /// its end.
     ///
     /// # Examples
     ///

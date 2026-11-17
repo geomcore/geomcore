@@ -673,12 +673,12 @@ where
 
 /// How many sizes of a pair of unbounded surfaces the seeding box reaches
 /// from a surface's anchor (see [`SurfacePair::seeding_box`]).
-const REACH: f64 = 5.0;
+pub(crate) const REACH: f64 = 5.0;
 
 /// The point of `s` at parameters `(0, 0)`, each brought into its bounds:
 /// a point fixed on the surface, which a similarity moves with it (a
 /// plane's origin, a point of a cylinder's or cone's reference circle).
-fn anchor<S: ParametricSurface>(s: &S) -> Point {
+pub(crate) fn anchor<S: ParametricSurface>(s: &S) -> Point {
     let into = |(low, high): (f64, f64)| 0.0f64.clamp(low, high);
     s.point_at(into(s.u_bounds()), into(s.v_bounds()))
 }
@@ -715,7 +715,7 @@ where
 /// profile box. `None` where there is none: a plane, a cone placed at its
 /// apex (reference radius 0), or a sweep whose profile is itself
 /// unbounded.
-fn own_size<S: ParametricSurface>(s: &S) -> Option<f64> {
+pub(crate) fn own_size<S: ParametricSurface>(s: &S) -> Option<f64> {
     if let Some(elementary) = s.as_elementary() {
         return match elementary {
             ElementarySurface::Cylinder(cylinder) => Some(cylinder.radius()),
