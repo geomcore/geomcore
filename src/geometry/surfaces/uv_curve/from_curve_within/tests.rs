@@ -194,6 +194,27 @@ fn the_degenerate_pairs_are_refused() {
     );
 }
 
+#[test]
+fn a_curve_within_confusion_but_beyond_the_deviation_is_refused_at_once() {
+    // A circle 3e-8 outside a cylinder: within the confusion distance,
+    // where the projection snaps the distance to zero, but three times a
+    // deviation of 1e-8, which no number of spans reaches. It is refused
+    // with its distance before any span is built, not after splitting
+    // spans up to the most a curve gets (#404).
+    let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
+    let outside = Circle::new(Point::ORIGIN, Vector::Z, 2.0 + 3e-8).unwrap();
+    let Err(Curve3DToUvApproximationError::CurveNotOnSurface { distance }) =
+        curve_3d_to_uv_within(&cylinder, &outside, 1e-8, TOL)
+    else {
+        panic!("a circle 3e-8 outside the cylinder is off it at a deviation of 1e-8");
+    };
+    assert!((distance - 3e-8).abs() < 1e-12, "{distance}");
+    // A circle 3e-9 outside, within half the deviation, is mapped.
+    let near = Circle::new(Point::ORIGIN, Vector::Z, 2.0 + 3e-9).unwrap();
+    let approximation = approximated(&cylinder, &near, 1e-8);
+    assert!(approximation.deviation() < 4e-9);
+}
+
 /// The UV curve's point at `t` on a sphere centered at the origin, its `u`
 /// brought into `[0, 2π)`.
 fn uv_in_period(approximation: &CurveApproximation2D, t: f64) -> Point2D {
