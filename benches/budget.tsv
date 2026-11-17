@@ -200,7 +200,7 @@ swept_plane_cut	swept_plane_cut/revolution_bspline_perpendicular/swept	42308
 swept_plane_cut	swept_plane_cut/torus_perpendicular/bspline_patch	54362739
 swept_plane_cut	swept_plane_cut/torus_perpendicular/elementary	4387
 swept_plane_cut	swept_plane_cut/torus_perpendicular/swept	5609
-swept_plane_cut	swept_plane_cut/torus_tangent/bspline_patch	19057345
+swept_plane_cut	swept_plane_cut/torus_tangent/bspline_patch	19376018
 swept_plane_cut	swept_plane_cut/torus_tangent/elementary	2401
 swept_plane_cut	swept_plane_cut/torus_tangent/swept	4982
 swept_plane_cut	swept_plane_cut/torus_through_axis/bspline_patch	38643088
