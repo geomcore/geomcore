@@ -267,3 +267,95 @@ fn test_far_apart_crossings_are_not_one_contact() {
         assert!((crossing - expected as f64).abs() < 1e-9, "{crossings:?}");
     }
 }
+
+/// The similarities a hit's multiplicity must not depend on (ADR 0051):
+/// none, two translations and two scales about the origin, each with its
+/// factor on lengths.
+fn similarities() -> [(&'static str, Transform, f64); 5] {
+    [
+        ("none", Transform::IDENTITY, 1.0),
+        (
+            "translation 1e3",
+            Transform::translation(Vector::new(1e3, -2e3, 1.5e3)),
+            1.0,
+        ),
+        (
+            "translation 1e7",
+            Transform::translation(Vector::new(1e7, -2e7, 1.5e7)),
+            1.0,
+        ),
+        (
+            "scale 2^-20",
+            Transform::scaling(Point::ORIGIN, 2f64.powi(-20)),
+            2f64.powi(-20),
+        ),
+        (
+            "scale 2^20",
+            Transform::scaling(Point::ORIGIN, 2f64.powi(20)),
+            2f64.powi(20),
+        ),
+    ]
+}
+
+/// The tolerance of a model scaled by `scale`.
+fn scaled_tolerance(scale: f64) -> Tolerance {
+    Tolerance {
+        confusion: Tolerance::DEFAULT.confusion * scale,
+        ..Tolerance::DEFAULT
+    }
+}
+
+#[test]
+fn test_shallow_crossing_is_a_crossing_at_any_placement_and_size() {
+    // A segment crossing the plane z = 0 at a slope of 1e-8, its ends 1e-6
+    // off the plane: a crossing, which neither the line nor the plane bends
+    // into a touch (#428).
+    use crate::{BSplineCurve, Intersect, Plane};
+    let slope = 1e-8;
+    let poles = vec![
+        Point::new(-100.0, 0.0, -100.0 * slope),
+        Point::new(100.0, 0.0, 100.0 * slope),
+    ];
+    let segment = BSplineCurve::new(1, poles, vec![0.0, 1.0], vec![2, 2], false).unwrap();
+    let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
+    for (name, transform, scale) in similarities() {
+        let segment = segment.clone().transformed(transform).unwrap();
+        let plane = plane.transformed(transform).unwrap();
+        let result = segment.intersect(&plane, scaled_tolerance(scale));
+        let multiplicities: Vec<u32> = result.hits().iter().map(|hit| hit.multiplicity).collect();
+        assert_eq!(multiplicities, [1], "{name}: {:?}", result.hits());
+    }
+}
+
+#[test]
+fn test_shallow_touch_is_a_touch_at_any_placement_and_size() {
+    // A unit circle standing on a plane, and a unit circle inside a
+    // cylinder of radius 2, both touching at the origin: the numeric
+    // search reads one touch wherever the pair sits and whatever its size.
+    use crate::{Circle, Cylinder, Plane};
+    let standing = Circle::new(Point::new(0.0, 0.0, 1.0), Vector::Y, 1.0).unwrap();
+    let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
+    let inside = Circle::new(Point::new(0.0, 0.0, 1.0), Vector::Y, 1.0).unwrap();
+    let cylinder = Cylinder::new(Point::new(0.0, 0.0, 2.0), Vector::Y, 2.0).unwrap();
+    for (name, transform, scale) in similarities() {
+        let tol = scaled_tolerance(scale);
+        let standing = standing.transformed(transform).unwrap();
+        let plane = plane.transformed(transform).unwrap();
+        let hits = intersect_curve_surface(&standing, &plane, tol)
+            .hits()
+            .to_vec();
+        let multiplicities: Vec<u32> = hits.iter().map(|hit| hit.multiplicity).collect();
+        assert_eq!(multiplicities, [2], "circle on a plane, {name}: {hits:?}");
+        let inside = inside.transformed(transform).unwrap();
+        let cylinder = cylinder.transformed(transform).unwrap();
+        let hits = intersect_curve_surface(&inside, &cylinder, tol)
+            .hits()
+            .to_vec();
+        let multiplicities: Vec<u32> = hits.iter().map(|hit| hit.multiplicity).collect();
+        assert_eq!(
+            multiplicities,
+            [2],
+            "circle in a cylinder, {name}: {hits:?}"
+        );
+    }
+}

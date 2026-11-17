@@ -376,11 +376,7 @@ impl PieceTests<'_> {
             curve_parameter: t,
             surface_parameters: (u, v),
             point,
-            multiplicity: {
-                let (_, tangent) = self.curve.first_derivatives(t);
-                let (_, [su, sv]) = self.surface.first_derivatives(u, v);
-                curve_surface_multiplicity(tangent, su.cross(sv), point, self.tol)
-            },
+            multiplicity: curve_surface_multiplicity(self.curve, t, self.surface, (u, v), self.tol),
         };
         self.found.push((hit, distance));
         Some(point)
