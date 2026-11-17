@@ -306,12 +306,18 @@ march, and the tight boxes (see `tight_bounding_box`) after a march that
 found nothing. Where a branch of two
 unbounded surfaces was cut at its box, the result is `Incomplete` with
 `Unbounded` as its reason, and its regions mark where the cuts are.
+Where a curve's `deviation` exceeds the confusion, the result is
+`Incomplete` with `LooseFit` (`LOOSE_FIT` in Python), and a region holds
+each such curve: it is returned, but lies only within its deviation of
+the surfaces. That happens where a surface's parameters degenerate on
+the curve (a sphere's pole), where their rounding is coarser than the
+confusion, and along a touch.
 
 The confusion also sets the size of a fitted curve: each segment must
 stay within it of both surfaces, so a looser confusion takes fewer,
 longer segments. The steps never grow past a thousandth of the smaller
 surface's size, so a looser confusion finds the same curves. Two wavy
-B-spline patches cut at the default `1e-7` give curves of 294 and 198
+B-spline patches cut at the default `1e-7` give curves of 298 and 198
 poles; at `1e-3` the same two curves take 52 and 34 poles. The same
 value decides what counts as a hit or a tangency, so loosen it for a
 lighter fit only where a point within it of both surfaces is on both. In Python, `tol=1e-3` is short for

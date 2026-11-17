@@ -174,7 +174,10 @@ pub struct IntersectionCurve {
     /// each span; an exact curve is `0.0`. An edge shared by two
     /// trimmed surfaces of one surface lies on the first, and its
     /// deviation is how far the second's boundary is from it, within the
-    /// confusion distance.
+    /// confusion distance. A marched curve whose deviation exceeds the
+    /// confusion distance makes the result
+    /// [`Incomplete`](crate::Completeness::Incomplete) with the reason
+    /// [`LooseFit`](crate::IncompleteReason::LooseFit).
     pub deviation: f64,
     /// The range of the parameter of `curve`, and of the curves in
     /// parameters, along which the surfaces meet: `curve`'s own bounds
