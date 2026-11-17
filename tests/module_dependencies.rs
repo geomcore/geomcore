@@ -5,6 +5,11 @@
 //! modules, nor any name the crate root re-exports from them. It works on
 //! the values of `base/` and on its own types.
 //!
+//! The values sit under the math: no production file under `src/base/`
+//! names the `math` module, nor any name the crate root re-exports from it.
+//! The pole algebra the B-spline engine runs on lives in `base/pole.rs`, so
+//! the tier trait requires it without reaching up.
+//!
 //! Curves do not depend on surfaces: a surface owns the mapping between its
 //! UV curves and 3D curves both ways (ADRs 0030, 0031), so no production
 //! file under `src/geometry/curves/` names `crate::geometry::surfaces`, nor
@@ -178,6 +183,38 @@ fn no_math_source_names_a_shape_or_an_operation() {
     assert!(
         offenders.is_empty(),
         "math must not depend on the shapes or the operations: {offenders:#?}"
+    );
+}
+
+#[test]
+fn no_base_source_names_the_math() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let names = reexported_names(root, "math::bspline::errors");
+    // A parse that found nothing would pass every file, so pin the list.
+    for expected in ["BSplineConstructionError", "KnotRemovalError"] {
+        assert!(
+            names.iter().any(|name| name == expected),
+            "{expected} missing from {names:?}"
+        );
+    }
+
+    let files = production_files(&root.join("src/base"));
+    assert!(files.len() > 5, "only {} base files", files.len());
+    let mut offenders = Vec::new();
+    for path in &files {
+        let code = code_of(&fs::read_to_string(path).unwrap());
+        if code.contains("crate::math") {
+            offenders.push(format!("{}: crate::math", path.display()));
+        }
+        for name in &names {
+            if names_word(&code, name) {
+                offenders.push(format!("{}: {name}", path.display()));
+            }
+        }
+    }
+    assert!(
+        offenders.is_empty(),
+        "base must not depend on the math: {offenders:#?}"
     );
 }
 

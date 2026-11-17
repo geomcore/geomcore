@@ -25,6 +25,8 @@ src/
 │   ├── tolerance.rs         Tolerance: every geometric decision takes one
 │   ├── tier.rs              TierPoint: the two tiers (space, plane) the curve types are
 │   │                        generic over
+│   ├── pole.rs              Pole, HomogeneousPole, PolePoint: the poles a B-spline
+│   │                        blends, points or weighted points, for both tiers
 │   ├── side.rs continuity.rs   Side and Continuity: the one-sided queries at a knot
 │   │                        or a seam, and how smooth a shape is there
 │   └── inline_list.rs       InlineList: up to a proven bound of items, without allocating
@@ -134,7 +136,7 @@ src/
 └── math/                internal math under the curves and surfaces
     ├── elementary/      closed-form formulas of the elementary curves and surfaces,
     │                    and fitting.rs, the numbers under their least-squares fits
-    ├── bspline/         the B-spline engine (poles, curve evaluation, editing,
+    ├── bspline/         the B-spline engine (curve evaluation, editing,
     │                    tensor-product surfaces, exact conic nets) and errors.rs,
     │                    the errors its checks raise
     ├── numeric/         polynomial roots, Bernstein form, solvers, quadrature,
@@ -220,9 +222,10 @@ paths.
    from them, and `tests/module_dependencies.rs` checks it. A value both
    sides need, such as `Side`, `Continuity` or `InlineList`, lives in
    `base/`. The only public items `math/` defines are the errors of the
-   B-spline engine's checks (rule 1). `base/` and `math/` form one level:
-   `TierPoint` requires the engine's `PolePoint`, so `base/tier.rs`
-   imports from `math/`.
+   B-spline engine's checks (rule 1). `base/` sits under `math/` in turn:
+   the pole algebra the engine runs on, which `TierPoint` requires, lives
+   in `base/pole.rs`, and no file under `base/` names `math`, which
+   `tests/module_dependencies.rs` also checks.
 6. **Unit tests live in a sibling `tests.rs`.** `geometry/curves/line.rs` ends with
    `#[cfg(test)] mod tests;` and its tests are in `geometry/curves/line/tests.rs`.
    Tests that only

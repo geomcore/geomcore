@@ -19,8 +19,9 @@
 
 use std::sync::OnceLock;
 
-pub(crate) use super::poles::{HomogeneousPole, Pole, PolePoint, Poles};
+pub(crate) use super::poles::Poles;
 use crate::Side;
+use crate::base::pole::{Pole, PolePoint};
 use crate::base::tier::TierPoint;
 use crate::base::tier::operations::VectorOperations;
 use crate::math::bspline::errors::BSplineConstructionError;

@@ -12,12 +12,12 @@ use crate::BSplineConstructionError;
 use crate::Point;
 use crate::Point2D;
 use crate::Vector;
+use crate::base::pole::Pole;
 use crate::base::tier::TierPoint;
 use crate::geometry::approximation::GenericCurveApproximation;
 use crate::geometry::curves::all_finite;
 use crate::geometry::curves::{BSplineCurve, BSplineCurve2D, GenericBSplineCurve};
 use crate::math::bspline::curve as math;
-use crate::math::bspline::curve::Pole;
 
 /// How fitting assigns a parameter to each data point.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -9,6 +9,7 @@
 //! discretization exist once for both tiers (ADR 0014).
 
 use crate::Side;
+use crate::base::pole::PolePoint;
 use crate::base::tier::operations::{DirectionOperations, VectorOperations};
 use crate::base::tier::{TierPoint, impl_for_both_tiers};
 use crate::geometry::curves::ReversibleCurve;
@@ -19,7 +20,6 @@ use crate::geometry::curves::{
 use crate::math::bspline::curve as math;
 use crate::math::bspline::curve::SpanEnds;
 use crate::math::bspline::editing::{self, Elevation, Insertion, Lanes};
-use crate::math::bspline::poles::PolePoint;
 use crate::math::numeric::boxtree::{BoxTree, Lazy};
 use crate::math::numeric::quadrature;
 use crate::operations::projection::{CurveProjection, grows_inward, snap_distance};

@@ -6,7 +6,7 @@
 //! names are its two instances: `Circle = GenericCircle<Point>` in space
 //! and `Circle2D = GenericCircle<Point2D>` in the plane.
 
-use crate::math::bspline::poles::PolePoint;
+use crate::base::pole::PolePoint;
 use crate::{Axis, Axis2D, BoundingBox, BoundingBox2D, Frame, Frame2D, FrameConstructionError};
 use crate::{Direction, Direction2D, Point, Point2D, Vector, Vector2D};
 use std::fmt::Debug;

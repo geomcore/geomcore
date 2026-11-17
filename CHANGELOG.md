@@ -164,6 +164,13 @@ the Python distribution are versioned in lockstep.
   `DegreeElevationError`, `BSplineSplitError`) move to
   `math/bspline/errors.rs`, beside the checks that raise them. Nothing
   public changes: every item keeps its path at the crate root.
+- Internal: the values no longer depend on the math. The pole algebra
+  the B-spline engine runs on (`Pole`, `HomogeneousPole`, `PolePoint`)
+  moves to `base/pole.rs`, so `TierPoint` requires it without importing
+  from `math/`, and `tests/module_dependencies.rs` fails when a file under
+  `src/base` names the math. The bound of a knot removal is one function
+  over any pole instead of a trait with four implementations; its
+  results are unchanged. Nothing public changes.
 - Internal: the solvers ask whether directions are parallel or
   perpendicular, whether axes are coaxial and what part of a vector lies
   across a direction through the predicates of `Direction`, `Vector` and
