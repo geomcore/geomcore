@@ -884,3 +884,234 @@ fn test_a_face_trimmed_again_reads_a_periodic_range_modulo_the_period() {
         Err(TrimmedSurfaceConstructionError::ExceedsPeriod)
     );
 }
+
+/// Whether `x` lies in `range`, within `1e-9`, shifted by whole periods
+/// when `period` is given.
+fn in_range(x: f64, (start, end): (f64, f64), period: Option<f64>) -> bool {
+    let x = match period {
+        Some(period) => x - period * ((x - start + 1e-9) / period).floor(),
+        None => x,
+    };
+    x >= start - 1e-9 && x <= end + 1e-9
+}
+
+/// Whether `uv` lies in the ranges of `patch`, a periodic parameter
+/// shifted by whole periods when `modulo` is set.
+fn in_ranges<S: ParametricSurface>(patch: &TrimmedSurface<S>, uv: Point2D, modulo: bool) -> bool {
+    let basis = patch.basis();
+    let (u_period, v_period) = if modulo {
+        (basis.u_period(), basis.v_period())
+    } else {
+        (None, None)
+    };
+    in_range(uv.x, patch.u_range(), u_period) && in_range(uv.y, patch.v_range(), v_period)
+}
+
+/// The one curve of `result`, an edge shared by `a` and `b`: exact,
+/// tangent, its curve in each patch's parameters on the curve and inside
+/// that patch's ranges, its middle as they are written, no period away.
+fn shared_edge<A: ParametricSurface, B: ParametricSurface>(
+    result: &SurfaceSurfaceIntersection,
+    a: &TrimmedSurface<A>,
+    b: &TrimmedSurface<B>,
+) -> IntersectionCurve {
+    assert!(!result.is_coincident(), "{result:?}");
+    assert!(result.contact_points().is_empty(), "{result:?}");
+    let [edge] = result.curves() else {
+        panic!("one shared edge: {result:?}")
+    };
+    assert!(edge.tangent);
+    assert!(edge.deviation <= 1e-7);
+    let (start, end) = edge.parameter_range;
+    let first = edge.first_uv_curve.as_ref().unwrap();
+    let second = edge.second_uv_curve.as_ref().unwrap();
+    for i in 0..=20 {
+        let t = start + (end - start) * f64::from(i) / 20.0;
+        let point = edge.curve.point_at(t);
+        let (on_a, on_b) = (first.point_at(t), second.point_at(t));
+        assert!(a.point_at(on_a.x, on_a.y).distance(point) < 1e-12);
+        assert!(b.point_at(on_b.x, on_b.y).distance(point) <= edge.deviation + 1e-12);
+        let modulo = i != 10;
+        assert!(in_ranges(a, on_a, modulo) && in_ranges(b, on_b, modulo));
+    }
+    edge.clone()
+}
+
+#[test]
+fn test_stacked_faces_of_a_cylinder_meet_along_their_circle() {
+    let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
+    let low = cylinder.trimmed((0.0, TAU), (0.0, 1.0)).unwrap();
+    let high = cylinder.trimmed((0.0, TAU), (1.0, 2.0)).unwrap();
+    let result = low.intersect(&high, TOL);
+    assert_eq!(result.method(), IntersectionMethod::Exact);
+    let edge = shared_edge(&result, &low, &high);
+    let Curve::Circle(circle) = &edge.curve else {
+        panic!("a circle: {edge:?}")
+    };
+    assert!((circle.center().z - 1.0).abs() < 1e-12 && (circle.radius() - 1.0).abs() < 1e-12);
+    assert_eq!(edge.parameter_range, (0.0, TAU));
+    // In the other order, the curves in parameters swap.
+    let swapped = shared_edge(&high.intersect(&low, TOL), &high, &low);
+    assert_eq!(swapped.first_uv_curve, edge.second_uv_curve);
+    assert_eq!(swapped.second_uv_curve, edge.first_uv_curve);
+}
+
+#[test]
+fn test_adjacent_squares_of_a_plane_meet_along_their_side() {
+    let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
+    let left = plane.trimmed((0.0, 1.0), (0.0, 1.0)).unwrap();
+    let right = plane.trimmed((1.0, 2.0), (0.0, 1.0)).unwrap();
+    let edge = shared_edge(&left.intersect(&right, TOL), &left, &right);
+    let (start, end) = edge.parameter_range;
+    let ends = [edge.curve.point_at(start), edge.curve.point_at(end)];
+    assert!(ends[0].distance(Point::new(1.0, 0.0, 0.0)) < 1e-12);
+    assert!(ends[1].distance(Point::new(1.0, 1.0, 0.0)) < 1e-12);
+    // A side shared in part: only the common piece.
+    let lower_right = plane.trimmed((1.0, 2.0), (-0.5, 0.5)).unwrap();
+    let edge = shared_edge(&left.intersect(&lower_right, TOL), &left, &lower_right);
+    assert_eq!(edge.parameter_range, (0.0, 0.5));
+}
+
+#[test]
+fn test_an_edge_across_the_seam_is_one_curve_in_each_faces_parameters() {
+    let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
+    // The same half, written below the seam on one face, above it on the
+    // other.
+    let low = cylinder
+        .trimmed((-FRAC_PI_2, FRAC_PI_2), (0.0, 1.0))
+        .unwrap();
+    let high = cylinder.trimmed((1.5 * PI, 2.5 * PI), (1.0, 2.0)).unwrap();
+    let edge = shared_edge(&low.intersect(&high, TOL), &low, &high);
+    assert_eq!(edge.parameter_range, (-FRAC_PI_2, FRAC_PI_2));
+    // Two halves side by side share their two generators, one at the
+    // seam of the second.
+    let east = cylinder.trimmed((1.5 * PI, 2.5 * PI), (0.0, 1.0)).unwrap();
+    let west = cylinder.trimmed((FRAC_PI_2, 1.5 * PI), (0.0, 1.0)).unwrap();
+    let result = east.intersect(&west, TOL);
+    assert!(!result.is_coincident() && result.contact_points().is_empty());
+    let mut feet: Vec<Point> = result
+        .curves()
+        .iter()
+        .map(|edge| {
+            assert!(edge.tangent);
+            let Curve::Line(line) = &edge.curve else {
+                panic!("a generator: {edge:?}")
+            };
+            assert_eq!(edge.parameter_range, (0.0, 1.0));
+            line.point_at(0.0)
+        })
+        .collect();
+    feet.sort_by(|p, q| p.y.total_cmp(&q.y));
+    assert_eq!(feet.len(), 2);
+    assert!(feet[0].distance(Point::new(0.0, -1.0, 0.0)) < 1e-12);
+    assert!(feet[1].distance(Point::new(0.0, 1.0, 0.0)) < 1e-12);
+}
+
+#[test]
+fn test_faces_meeting_at_a_corner_touch_at_a_point() {
+    let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
+    let a = plane.trimmed((0.0, 1.0), (0.0, 1.0)).unwrap();
+    let b = plane.trimmed((1.0, 2.0), (1.0, 2.0)).unwrap();
+    let result = a.intersect(&b, TOL);
+    assert!(!result.is_coincident() && result.curves().is_empty());
+    assert_eq!(result.contact_points(), [Point::new(1.0, 1.0, 0.0)]);
+    // Two quarters of a cylinder, diagonal across height 1, touch at the
+    // two corners where their angles meet.
+    let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
+    let low = cylinder.trimmed((0.0, PI), (0.0, 1.0)).unwrap();
+    let high = cylinder.trimmed((PI, TAU), (1.0, 2.0)).unwrap();
+    let result = low.intersect(&high, TOL);
+    assert!(!result.is_coincident() && result.curves().is_empty());
+    let mut points = result.contact_points().to_vec();
+    points.sort_by(|p, q| p.x.total_cmp(&q.x));
+    assert_eq!(points.len(), 2);
+    assert!(points[0].distance(Point::new(-1.0, 0.0, 1.0)) < 1e-12);
+    assert!(points[1].distance(Point::new(1.0, 0.0, 1.0)) < 1e-12);
+}
+
+#[test]
+fn test_faces_a_hair_apart_or_overlapping_by_a_hair_share_their_edge() {
+    let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
+    let left = plane.trimmed((0.0, 1.0), (0.0, 1.0)).unwrap();
+    for gap in [-5e-8, 5e-8] {
+        let right = plane.trimmed((1.0 + gap, 2.0), (0.0, 1.0)).unwrap();
+        let edge = shared_edge(&left.intersect(&right, TOL), &left, &right);
+        // Reported on the first face's side: a gap is its deviation from
+        // the second, which a hair of overlap does not have.
+        assert!((edge.curve.point_at(0.0).x - 1.0).abs() < 1e-15);
+        assert!((edge.deviation - gap.max(0.0)).abs() < 1e-15, "{edge:?}");
+    }
+    // Farther apart than the confusion distance: nothing.
+    let right = plane.trimmed((1.0 + 1e-6, 2.0), (0.0, 1.0)).unwrap();
+    assert!(left.intersect(&right, TOL).is_empty());
+}
+
+#[test]
+fn test_faces_overlapping_with_area_stay_coincident() {
+    let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
+    let left = plane.trimmed((0.0, 1.0), (0.0, 1.0)).unwrap();
+    // A strip a thousandth wide, which no grid of samples would see.
+    let strip = plane.trimmed((0.999, 2.0), (0.4, 0.401)).unwrap();
+    let result = left.intersect(&strip, TOL);
+    assert!(result.is_coincident() && result.curves().is_empty());
+    // Overlapping, and sharing a further edge across the seam.
+    let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
+    let most = cylinder.trimmed((0.0, 1.5 * PI), (0.0, 1.0)).unwrap();
+    let rest = cylinder.trimmed((PI, TAU), (0.0, 1.0)).unwrap();
+    let result = most.intersect(&rest, TOL);
+    assert!(result.is_coincident() && result.curves().is_empty());
+    // A face across the seam inside a whole turn.
+    let around = cylinder.trimmed((0.0, TAU), (-1.0, 1.0)).unwrap();
+    let across = cylinder.trimmed((1.5 * PI, 2.5 * PI), (0.0, 0.5)).unwrap();
+    assert!(around.intersect(&across, TOL).is_coincident());
+}
+
+#[test]
+fn test_faces_of_one_cylinder_built_on_other_frames_share_their_edge() {
+    let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
+    let low = cylinder.trimmed((0.0, TAU), (0.0, 1.0)).unwrap();
+    // The axis reversed, the frame turned and moved along it: the height
+    // on it is 2 - z, and its angle runs the other way.
+    let frame = Frame::new(
+        Point::new(0.0, 0.0, 2.0),
+        -Vector::Z,
+        Vector::new(1.0, 1.0, 0.0),
+    )
+    .unwrap();
+    let other = Cylinder::from_frame(frame, 1.0).unwrap();
+    let high = other.trimmed((0.0, TAU), (0.0, 1.0)).unwrap();
+    let edge = shared_edge(&low.intersect(&high, TOL), &low, &high);
+    assert_eq!(edge.parameter_range, (0.0, TAU));
+    // Half of each: they share the eighth of the circle from angle 0 to
+    // π/4, where the other's angle 0 lies.
+    let low_half = cylinder.trimmed((0.0, PI), (0.0, 1.0)).unwrap();
+    let high_half = other.trimmed((0.0, PI), (0.0, 1.0)).unwrap();
+    let edge = shared_edge(&low_half.intersect(&high_half, TOL), &low_half, &high_half);
+    let (start, end) = edge.parameter_range;
+    assert!((end - start - 0.25 * PI).abs() < 1e-9, "{edge:?}");
+    // Overlapping with area, on the other frame: coincident.
+    let overlapping = other.trimmed((0.0, TAU), (0.0, 1.5)).unwrap();
+    assert!(low.intersect(&overlapping, TOL).is_coincident());
+}
+
+#[test]
+fn test_squares_of_one_plane_on_a_frame_turned_a_quarter_share_their_side() {
+    let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
+    let left = plane.trimmed((0.0, 1.0), (0.0, 1.0)).unwrap();
+    // u along y and v along -x: the square x in (1, 2), y in (0, 1).
+    let frame = Frame::new(Point::ORIGIN, Vector::Z, Vector::Y).unwrap();
+    let turned = Plane::from_frame(frame);
+    let right = turned.trimmed((0.0, 1.0), (-2.0, -1.0)).unwrap();
+    let edge = shared_edge(&left.intersect(&right, TOL), &left, &right);
+    assert_eq!(edge.parameter_range, (0.0, 1.0));
+}
+
+#[test]
+fn test_faces_of_one_spline_surface_share_their_edge() {
+    let sheet = bspline_surface(|x, y| (0.7 * x * y).sin());
+    let near = sheet.clone().trimmed((0.0, 1.5), (0.5, 2.5)).unwrap();
+    let far = sheet.trimmed((1.5, 3.0), (0.0, 2.0)).unwrap();
+    let result = near.intersect(&far, TOL);
+    let edge = shared_edge(&result, &near, &far);
+    assert_eq!(edge.parameter_range, (0.5, 2.0));
+}

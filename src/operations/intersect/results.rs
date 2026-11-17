@@ -171,7 +171,10 @@ pub struct IntersectionCurve {
     /// middle of each knot span, where its fits stray furthest from the
     /// traced points, so it can miss a larger distance elsewhere. A curve
     /// fitted from a closed form (ADR 0036) samples it at the quarters of
-    /// each span; an exact curve is `0.0`.
+    /// each span; an exact curve is `0.0`. An edge shared by two
+    /// trimmed surfaces of one surface lies on the first, and its
+    /// deviation is how far the second's boundary is from it, within the
+    /// confusion distance.
     pub deviation: f64,
     /// The range of the parameter of `curve`, and of the curves in
     /// parameters, along which the surfaces meet: `curve`'s own bounds
@@ -1058,6 +1061,17 @@ impl SurfaceSurfaceIntersection {
     }
 
     /// Whether the surfaces are the same surface.
+    ///
+    /// Two [`TrimmedSurface`](crate::TrimmedSurface)s of one surface are
+    /// coincident when their ranges overlap with area: over more than the
+    /// confusion distance in space in both directions. Ones that share
+    /// only an edge, as two stacked faces of a cylinder, are not: the edge
+    /// is a [`curve`](Self::curves), `tangent`, with its curves in the
+    /// parameters of both, and a corner is a
+    /// [contact point](Self::contact_points). This holds where the bases
+    /// parametrize the surface alike, up to shifted, reversed or swapped
+    /// parameters; otherwise the patches are coincident when a 9 × 9 grid
+    /// of either has a point in the other (ADR 0039).
     ///
     /// On the numeric path this is found from samples: every sample of
     /// each surface lies on the other, with the normals parallel. The
