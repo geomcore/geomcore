@@ -4,7 +4,9 @@ use crate::method_sets::*;
 use crate::values::PyAxis;
 use geomcore::Line;
 
-/// An infinite straight line in 3D, parametrized by arc length from its origin.
+/// An infinite straight line in 3D, parametrized by arc length from its
+/// origin: the direction is normalized, so the parameter is the distance
+/// along the line whatever the length of the direction given.
 #[pyclass(name = "Line", module = "geomcore", eq)]
 #[derive(Clone, PartialEq)]
 pub(crate) struct PyLine(pub(crate) Line);

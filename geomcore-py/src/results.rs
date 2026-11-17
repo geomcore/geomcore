@@ -317,6 +317,7 @@ impl PyCompleteness {
                     PyIncompleteReason::BudgetExhausted => IncompleteReason::BudgetExhausted,
                     PyIncompleteReason::Unseparated => IncompleteReason::Unseparated,
                     PyIncompleteReason::Unbounded => IncompleteReason::Unbounded,
+                    PyIncompleteReason::LooseFit => IncompleteReason::LooseFit,
                 },
                 regions: regions.to_vec(),
             },
@@ -1045,9 +1046,11 @@ pub(crate) struct PyCurveSurfaceIntersection {
 }
 
 impl PyCurveSurfaceIntersection {
-    /// Whether the call was made on the surface.
+    /// Whether the call was made on the surface, whole or trimmed.
     fn surface_first(&self, py: Python<'_>) -> bool {
-        surface_classes::of(self.first.bind(py)).is_some()
+        let first = self.first.bind(py);
+        first.cast::<crate::surfaces::PyTrimmedSurface>().is_ok()
+            || surface_classes::of(first).is_some()
     }
 
     fn repr_content(&self, _py: Python<'_>) -> PyResult<String> {
@@ -1158,7 +1161,10 @@ intersection_result! {
             .collect()
     }
 
-    /// Whether the surfaces are the same surface.
+    /// Whether the surfaces are the same surface. Two trimmed surfaces
+    /// of one surface are coincident when their ranges overlap with area;
+    /// ones that share only an edge or a corner are not, and report it as
+    /// a tangent curve or a contact point.
     fn is_coincident(&self) -> bool {
         self.result.is_coincident()
     }

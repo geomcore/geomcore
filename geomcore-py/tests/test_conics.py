@@ -6,9 +6,13 @@ import pytest
 
 import geomcore
 from geomcore import (
+    Axis2D,
+    Circle,
+    Circle2D,
     Cone,
     Ellipse,
     Ellipse2D,
+    Frame2D,
     Hyperbola,
     Hyperbola2D,
     Line,
@@ -54,6 +58,43 @@ def test_hyperbola_other_branch_mirrors_through_the_center():
     planar = Hyperbola2D(Point2D(0.0, 0.0), Vector2D(1.0, 0.0), 2.0, 1.5)
     assert planar.other_branch().point_at(0.0).x == pytest.approx(-2.0)
     assert planar.foci()[0].x == pytest.approx(2.5)
+
+
+def test_circles_give_their_foci_as_points_of_their_tier():
+    # #197: a circle answers what the other central conics do.
+    center = Point(1.0, 2.0, 3.0)
+    assert Circle(center, Vector.unit_z(), 2.0).foci() == (center, center)
+    flat = Circle2D(Point2D(1.0, 2.0), 2.0)
+    assert flat.foci() == (Point2D(1.0, 2.0), Point2D(1.0, 2.0))
+    assert flat.eccentricity() == 0.0
+    assert flat.enclosed_area() == pytest.approx(4.0 * math.pi)
+
+
+def test_circle_2d_from_three_points_takes_point_likes_and_raises_on_collinear_ones():
+    circle = Circle2D.from_three_points((1.0, 0.0), Point2D(0.0, 1.0), [-1.0, 0.0])
+    assert circle.center().distance(Point2D(0.0, 0.0)) < 1e-15
+    assert circle.is_counterclockwise()
+    with pytest.raises(geomcore.ConstructionError, match="collinear"):
+        Circle2D.from_three_points((0.0, 0.0), (1.0, 0.0), (2.0, 0.0))
+
+
+def test_hyperbola_asymptotes_are_lines_of_its_tier():
+    rising, falling = Hyperbola(Point.origin(), Vector.unit_z(), Vector.unit_x(), 4.0, 3.0).asymptotes()
+    assert isinstance(rising, Line) and isinstance(falling, Line)
+    assert rising.direction().y == pytest.approx(0.6)
+    flat = Hyperbola2D(Point2D(0.0, 0.0), Vector2D(1.0, 0.0), 4.0, 3.0).asymptotes()
+    assert [type(line) for line in flat] == [Line2D, Line2D]
+    assert flat[1].direction().y == pytest.approx(-0.6)
+
+
+def test_frame_2d_flips_and_axis_2d_coaxiality():
+    frame = Frame2D.world()
+    assert frame.flipped_x().x_direction() == Vector2D(-1.0, 0.0)
+    assert not frame.flipped_y().is_direct()
+    axis = Axis2D(Point2D(0.0, 0.0), Vector2D(1.0, 0.0))
+    shifted = Axis2D(Point2D(5.0, 1e-4), Vector2D(-1.0, 0.0))
+    assert not axis.is_coaxial(shifted)
+    assert axis.is_coaxial(shifted, 1e-3)
 
 
 def test_parabola_from_focus_and_directrix_keeps_equal_distances():

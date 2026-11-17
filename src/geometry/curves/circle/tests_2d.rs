@@ -113,3 +113,69 @@ fn test_circle2d_project_point_at_seam_reports_start() {
     assert_eq!(proj.parameter, 0.0);
     assert!(circle.parameter_of(point, tol) > std::f64::consts::PI);
 }
+
+#[test]
+fn test_circle2d_from_three_points_passes_through_them_in_order() {
+    let tol = Tolerance::DEFAULT;
+    let (p1, p2, p3) = (
+        Point2D::new(3.0, 1.0),
+        Point2D::new(-1.0, 4.0),
+        Point2D::new(-2.0, -1.5),
+    );
+    for (first, second, third, counterclockwise) in [(p1, p2, p3, true), (p3, p2, p1, false)] {
+        let circle = Circle2D::from_three_points(first, second, third).unwrap();
+        assert_eq!(circle.is_counterclockwise(), counterclockwise);
+        assert!(circle.point_at(0.0).distance(first) < 1e-14);
+        let (u2, u3) = (
+            circle.parameter_of(second, tol),
+            circle.parameter_of(third, tol),
+        );
+        assert!(0.0 < u2 && u2 < u3);
+        for point in [first, second, third] {
+            assert!((circle.center().distance(point) - circle.radius()).abs() < 1e-14);
+        }
+    }
+}
+
+#[test]
+fn test_circle2d_from_three_points_matches_the_circle_in_space() {
+    use crate::{Circle, Point};
+    let lift = |p: Point2D| Point::new(p.x, p.y, 0.0);
+    let (p1, p2, p3) = (
+        Point2D::new(0.5, 0.25),
+        Point2D::new(1e3, 2.0),
+        Point2D::new(-7.0, 1e2),
+    );
+    let flat = Circle2D::from_three_points(p1, p2, p3).unwrap();
+    let spatial = Circle::from_three_points(lift(p1), lift(p2), lift(p3)).unwrap();
+    assert!(lift(flat.center()).distance(spatial.center()) < 1e-10);
+    assert!((flat.radius() - spatial.radius()).abs() < 1e-10);
+}
+
+#[test]
+fn test_circle2d_from_three_points_errors() {
+    let (a, b) = (Point2D::ORIGIN, Point2D::new(1.0, 0.0));
+    assert_eq!(
+        Circle2D::from_three_points(a, b, Point2D::new(1.0, 1e-9)),
+        Err(CircleConstructionError::ConfusedPoints)
+    );
+    assert_eq!(
+        Circle2D::from_three_points(a, b, Point2D::new(2.0, 1e-9)),
+        Err(CircleConstructionError::CollinearPoints)
+    );
+    assert_eq!(
+        Circle2D::from_three_points(a, b, Point2D::new(f64::NAN, 1.0)),
+        Err(CircleConstructionError::NonFinite)
+    );
+}
+
+#[test]
+fn test_a_circle_is_an_ellipse_of_eccentricity_zero_with_both_foci_at_its_center() {
+    use crate::Ellipse2D;
+    let frame = Frame2D::from_x(Point2D::new(1.0, -2.0), Vector2D::new(3.0, 4.0)).unwrap();
+    let circle = Circle2D::from_frame(frame, 2.5).unwrap();
+    let ellipse = Ellipse2D::from_frame(frame, 2.5, 2.5).unwrap();
+    assert_eq!(circle.eccentricity(), ellipse.eccentricity());
+    assert_eq!(circle.foci(), ellipse.foci());
+    assert_eq!(circle.foci(), [frame.origin(); 2]);
+}

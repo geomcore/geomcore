@@ -16,8 +16,12 @@
 //! any name the crate root re-exports from it, such as `Plane` reached
 //! through `crate::Plane`.
 //!
-//! Only the files under `src/geometry/curves/` are read. `QuarticBranch`
-//! lives beside the quartic it is a piece of, under
+//! The shapes do not depend on the intersection router: no production
+//! file under `src/geometry/` names `intersect::routing`. The rules of a
+//! parameter range they share with it live in `src/math/` (#291).
+//!
+//! Only the files under `src/geometry/curves/` are read for the curves.
+//! `QuarticBranch` lives beside the quartic it is a piece of, under
 //! `src/operations/intersect/exact/quartic/`, and holds the cones or the
 //! cone and cylinder it lies on (ADR 0042): through that variant the
 //! `Curve` enum reaches surfaces, and this check does not see it.
@@ -211,5 +215,21 @@ fn no_base_source_names_the_math() {
     assert!(
         offenders.is_empty(),
         "base must not depend on the math: {offenders:#?}"
+    );
+}
+
+#[test]
+fn no_shape_source_names_the_intersection_router() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let files = production_files(&root.join("src/geometry"));
+    assert!(files.len() > 20, "only {} shape files", files.len());
+    let offenders: Vec<String> = files
+        .iter()
+        .filter(|path| code_of(&fs::read_to_string(path).unwrap()).contains("intersect::routing"))
+        .map(|path| path.display().to_string())
+        .collect();
+    assert!(
+        offenders.is_empty(),
+        "the shapes must not depend on the intersection router: {offenders:#?}"
     );
 }

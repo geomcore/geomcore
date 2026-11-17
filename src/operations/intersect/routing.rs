@@ -29,6 +29,7 @@ use crate::geometry::surfaces::{
     BSplineSurface, BezierSurface, ElementarySurface, ExtrusionSurface, ParametricSurface,
     RevolutionSurface, Surface, TrimmedSurface,
 };
+use crate::math::parameter_range::{in_range, nearest_end};
 use crate::operations::intersect::numeric::embedding_2d::{Embed, intersect_numeric_2d};
 use crate::operations::intersect::numeric::marching::marching_intersection;
 use crate::operations::intersect::results::{CurveCurveOverlapList, SurfaceSurfaceIntersection};
@@ -41,7 +42,7 @@ use crate::{
     BoundingBox, HasBoundingBox, Point, Point2D, TierPoint, Tolerance, Transform, Transformable,
     Vector,
 };
-use trimmed_surface::{route_restricted, trimmed};
+use trimmed_surface::{clip_to_face, route_restricted, trimmed};
 
 // The list macros come before the submodules, which use `shapes!` too.
 
@@ -245,6 +246,11 @@ pub(crate) trait CurveOperand: ParametricCurve {
     fn moved_by(&self, offset: Vector) -> Option<Self>
     where
         Self: Sized;
+
+    /// The curve whose parameters the result's ranges are in, as a
+    /// [`Curve`]: the curve itself, or a trimmed curve's basis. Read only
+    /// to clip an overlap with a trimmed surface.
+    fn untrimmed_curve(&self) -> Curve;
 }
 
 /// `curve` moved by `offset`; `None` where it overflows.
@@ -269,6 +275,10 @@ macro_rules! own_curve_basis {
             fn moved_by(&self, offset: Vector) -> Option<$curve> {
                 translated(self, offset)
             }
+
+            fn untrimmed_curve(&self) -> Curve {
+                (*self).into()
+            }
         }
     )*};
 }
@@ -287,6 +297,10 @@ impl CurveOperand for BSplineCurve {
     fn moved_by(&self, offset: Vector) -> Option<BSplineCurve> {
         translated(self, offset)
     }
+
+    fn untrimmed_curve(&self) -> Curve {
+        self.clone().into()
+    }
 }
 
 impl CurveOperand for BezierCurve {
@@ -299,6 +313,10 @@ impl CurveOperand for BezierCurve {
     #[inline]
     fn moved_by(&self, offset: Vector) -> Option<BezierCurve> {
         translated(self, offset)
+    }
+
+    fn untrimmed_curve(&self) -> Curve {
+        self.clone().into()
     }
 }
 
@@ -313,6 +331,10 @@ impl CurveOperand for QuarticBranch {
     fn moved_by(&self, offset: Vector) -> Option<QuarticBranch> {
         translated(self, offset)
     }
+
+    fn untrimmed_curve(&self) -> Curve {
+        self.clone().into()
+    }
 }
 
 impl CurveOperand for Curve {
@@ -325,6 +347,10 @@ impl CurveOperand for Curve {
     #[inline]
     fn moved_by(&self, offset: Vector) -> Option<Curve> {
         translated(self, offset)
+    }
+
+    fn untrimmed_curve(&self) -> Curve {
+        self.clone()
     }
 }
 
@@ -347,6 +373,11 @@ impl<C: CurveOperand> CurveOperand for TrimmedCurve<C> {
             self.start_parameter(),
             self.end_parameter(),
         ))
+    }
+
+    /// The basis: the result's ranges are in its parameters.
+    fn untrimmed_curve(&self) -> Curve {
+        self.basis().untrimmed_curve()
     }
 }
 
@@ -431,68 +462,6 @@ impl SurfaceOperand for Surface {
     #[inline]
     fn surface_basis(&self) -> SurfaceKind<'_> {
         crate::geometry::surfaces::surface_dispatch!(self, surface => surface.surface_basis().into())
-    }
-}
-
-/// The representative in `range` of a point at `parameter`, or `None`
-/// when the point lies farther than `tol.confusion` in space beyond the
-/// range.
-///
-/// On a periodic curve the parameter is first shifted by whole periods
-/// into `[range.0, range.0 + period)`. A parameter inside the range is
-/// returned as it is. One beyond an end is measured in space: the
-/// parameter excess times `speed` at that end (the line direction's
-/// length, the circle's radius, the derivative's length on other curves).
-/// Within `tol.confusion` the point is kept, snapped to that end. On a
-/// periodic curve the end measured is the nearer one modulo the period,
-/// so a range starting or ending at the seam keeps a point a hair on the
-/// other side of it. `speed` is only called for a point outside the range.
-pub(crate) fn in_range(
-    parameter: f64,
-    range: (f64, f64),
-    period: Option<f64>,
-    speed: impl FnOnce(f64) -> f64,
-    tol: Tolerance,
-) -> Option<f64> {
-    let (before_start, past_end) = match period {
-        None => {
-            if parameter >= range.0 && parameter <= range.1 {
-                return Some(parameter);
-            }
-            (range.0 - parameter, parameter - range.1)
-        }
-        Some(period) => {
-            let shifted = parameter - period * ((parameter - range.0) / period).floor();
-            if shifted <= range.1 {
-                return Some(shifted);
-            }
-            (range.0 + period - shifted, shifted - range.1)
-        }
-    };
-    let (end, excess) = if past_end > 0.0 && (before_start <= 0.0 || past_end <= before_start) {
-        (range.1, past_end)
-    } else {
-        (range.0, before_start)
-    };
-    (excess * speed(end) <= tol.confusion).then_some(end)
-}
-
-/// The end of `range` nearest `parameter`, measured modulo `period` on a
-/// periodic curve: the representative of a point that touches the range
-/// from outside it. Clamping would pick the wrong end for a point just past
-/// the seam (angle `5e-8` against a range ending at 2π).
-fn nearest_end(parameter: f64, range: (f64, f64), period: Option<f64>) -> f64 {
-    let Some(period) = period else {
-        return parameter.clamp(range.0, range.1);
-    };
-    let distance = |end: f64| {
-        let past = (parameter - end).rem_euclid(period);
-        past.min(period - past)
-    };
-    if distance(range.0) <= distance(range.1) {
-        range.0
-    } else {
-        range.1
     }
 }
 
@@ -678,6 +647,80 @@ macro_rules! trimmed_curve_surface {
 }
 
 surface_operands!(trimmed_curve_surface);
+
+/// Intersects a curve with a trimmed surface: the curve is intersected
+/// with the basis, and the hits and overlaps clipped to the ranges (see
+/// `trimmed_surface`).
+#[inline]
+fn route_curve_trimmed_surface<'s, C: CurveOperand, X: SurfaceOperand>(
+    curve: &C,
+    face: &'s TrimmedSurface<X>,
+    tol: Tolerance,
+) -> CurveSurfaceIntersection
+where
+    C::Basis: ExactFamily<X::Basis<'s>, Family = CurveSurfaceIntersection>,
+{
+    let on_basis = route_curve_surface(curve, face.basis(), tol);
+    clip_to_face(on_basis, curve, face, tol)
+}
+
+/// Implements [`Intersect`] between each curve and a trimmed surface over
+/// any surface operand, in both orders.
+macro_rules! curve_trimmed_surface {
+    ([$($curve:ty),*]) => {$(
+        impl<X: SurfaceOperand + 'static> Intersect<TrimmedSurface<X>> for $curve
+        where
+            for<'a> <$curve as CurveOperand>::Basis:
+                ExactFamily<X::Basis<'a>, Family = CurveSurfaceIntersection>,
+        {
+            type Output = CurveSurfaceIntersection;
+
+            #[inline]
+            fn intersect(&self, other: &TrimmedSurface<X>, tol: Tolerance) -> CurveSurfaceIntersection {
+                route_curve_trimmed_surface(self, other, tol)
+            }
+        }
+
+        impl<X: SurfaceOperand + 'static> Intersect<$curve> for TrimmedSurface<X>
+        where
+            for<'a> <$curve as CurveOperand>::Basis:
+                ExactFamily<X::Basis<'a>, Family = CurveSurfaceIntersection>,
+        {
+            type Output = CurveSurfaceIntersection;
+
+            #[inline]
+            fn intersect(&self, other: &$curve, tol: Tolerance) -> CurveSurfaceIntersection {
+                route_curve_trimmed_surface(other, self, tol)
+            }
+        }
+    )*};
+}
+
+curve_operands!(curve_trimmed_surface);
+
+impl<Y: CurveOperand, X: SurfaceOperand + 'static> Intersect<TrimmedSurface<X>> for TrimmedCurve<Y>
+where
+    for<'a> Y::Basis: ExactFamily<X::Basis<'a>, Family = CurveSurfaceIntersection>,
+{
+    type Output = CurveSurfaceIntersection;
+
+    #[inline]
+    fn intersect(&self, other: &TrimmedSurface<X>, tol: Tolerance) -> CurveSurfaceIntersection {
+        route_curve_trimmed_surface(self, other, tol)
+    }
+}
+
+impl<Y: CurveOperand, X: SurfaceOperand + 'static> Intersect<TrimmedCurve<Y>> for TrimmedSurface<X>
+where
+    for<'a> Y::Basis: ExactFamily<X::Basis<'a>, Family = CurveSurfaceIntersection>,
+{
+    type Output = CurveSurfaceIntersection;
+
+    #[inline]
+    fn intersect(&self, other: &TrimmedCurve<Y>, tol: Tolerance) -> CurveSurfaceIntersection {
+        route_curve_trimmed_surface(other, self, tol)
+    }
+}
 
 /// Intersects two surfaces: in closed form when the table lists the
 /// pair, by marching otherwise. The pair is matched on the two kinds: the

@@ -130,7 +130,7 @@ fn test_predict_follows_a_displacement_on_both_planes() {
     let pair = SurfacePair::new(&xy, &zy);
     let x = parameters_of(&pair, Point::new(0.0, 0.25, 0.0));
     let d = Vector::new(0.0, 1.5, 0.0);
-    let y = pair.predict(x, d);
+    let y = pair.predict(x, d, Tolerance::DEFAULT);
     let expected = Point::new(0.0, 1.75, 0.0);
     assert!(pair.point(y).distance(expected) < 1e-12);
     assert!(zy.point_at(y[2], y[3]).distance(expected) < 1e-12);

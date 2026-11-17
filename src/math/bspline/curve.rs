@@ -209,6 +209,7 @@ impl KnotVector {
     /// The parameter range `(first, last)`: the clamped span
     /// `[flat[degree], flat[len - 1 - degree]]`, or a periodic direction's
     /// whole period `[knots[0], knots[last]]`.
+    #[inline]
     pub(crate) fn bounds(&self) -> (f64, f64) {
         let flat = &self.flat;
         if self.periodic {
@@ -219,6 +220,7 @@ impl KnotVector {
     }
 
     /// The period of a periodic direction.
+    #[inline]
     pub(crate) fn period(&self) -> Option<f64> {
         let (first, last) = self.bounds();
         self.periodic.then_some(last - first)

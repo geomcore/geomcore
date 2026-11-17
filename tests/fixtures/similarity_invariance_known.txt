@@ -1,6 +1,0 @@
-curve-surface 4:Hyperbola x 6:Extrusion | translation 1e7
-curve-surface 6:BSpline x 9:Revolution | scale 2^-20
-curve-surface 7:Bezier x 7:Extrusion | scale 2^20
-curve-surface 7:Bezier x 7:Extrusion | translation 1e7
-curve-surface 8:Bezier x 7:Extrusion | scale 2^20
-curve-surface 8:Bezier x 7:Extrusion | translation 1e7

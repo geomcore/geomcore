@@ -267,6 +267,31 @@ impl<P: TierPoint> GenericHyperbola<P> {
             GenericLine::new(center + x * offset, y).expect("a frame direction is a unit vector")
         })
     }
+
+    /// The two asymptotes, lines through the center along
+    /// `major*x_dir + minor*y_dir` and `major*x_dir - minor*y_dir`: first
+    /// the one the branch approaches as its parameter grows, then the one
+    /// it approaches as its parameter falls. The other branch shares them.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Frame, Hyperbola, Point, Vector};
+    /// let hyperbola = Hyperbola::from_frame(Frame::WORLD, 4.0, 3.0).unwrap();
+    /// let [rising, falling] = hyperbola.asymptotes();
+    /// assert_eq!(rising.origin(), Point::ORIGIN);
+    /// assert_eq!(rising.direction(), Vector::new(0.8, 0.6, 0.0));
+    /// assert_eq!(falling.direction(), Vector::new(0.8, -0.6, 0.0));
+    /// ```
+    pub fn asymptotes(&self) -> [GenericLine<P>; 2] {
+        let along_major = self.frame.x_direction() * self.major_radius;
+        let along_minor = self.frame.y_direction() * self.minor_radius;
+        let center = self.center();
+        [along_major + along_minor, along_major - along_minor].map(|direction| {
+            GenericLine::new(center, direction)
+                .expect("the radii are positive and the frame directions orthogonal")
+        })
+    }
 }
 
 impl Hyperbola {

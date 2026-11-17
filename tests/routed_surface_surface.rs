@@ -270,3 +270,40 @@ fn test_patches_that_meet_stay_sampled() {
     assert!(!result.curves().is_empty());
     assert_eq!(result.completeness(), &Completeness::Sampled);
 }
+
+#[test]
+fn test_a_marched_curve_in_parameters_keeps_to_its_curve_in_space() {
+    // A plane, as a revolution of a line, cut by the plane x = 0.25: a
+    // straight line in space, along which the angle around the axis turns
+    // by nearly three radians, most of it where the line passes the axis.
+    // The march sized its steps on the curve in space alone, about a unit
+    // long, and the curve in the angle strayed 0.029 from it (#393).
+    let profile = Line::new(Point::ORIGIN, Vector::X).unwrap();
+    let axis = Axis::new(Point::ORIGIN, Vector::Z).unwrap();
+    let ring = RevolutionSurface::new(Curve::Line(profile), axis).unwrap();
+    let plane = Plane::new(Point::new(0.25, 0.0, 0.0), Vector::X).unwrap();
+    let result = ring.intersect(&plane, TOL);
+    assert_eq!(result.method(), IntersectionMethod::Numeric);
+    assert!(!result.curves().is_empty());
+    for piece in result.curves() {
+        assert!(piece.deviation <= TOL.confusion, "{}", piece.deviation);
+        let uv_curve = piece.first_uv_curve.as_ref().expect("a marched curve");
+        let (start, end) = piece.parameter_range;
+        for i in 0..=1000 {
+            let t = start + (end - start) * f64::from(i) / 1000.0;
+            let uv = uv_curve.point_at(t);
+            let off = ring.point_at(uv.x, uv.y).distance(piece.curve.point_at(t));
+            assert!(off <= TOL.confusion, "{off:e} at {t}");
+        }
+    }
+    // Its pieces on the ring trimmed to radii 0.5 to 2 keep within the
+    // confusion too: they were 0.073 off (#314).
+    let trimmed = ring
+        .trimmed((0.0, std::f64::consts::TAU), (0.5, 2.0))
+        .unwrap();
+    let pieces = trimmed.intersect(&plane, TOL);
+    assert_eq!(pieces.curves().len(), 2);
+    for piece in pieces.curves() {
+        assert!(piece.deviation <= TOL.confusion, "{}", piece.deviation);
+    }
+}

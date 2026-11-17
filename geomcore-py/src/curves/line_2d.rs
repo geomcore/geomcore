@@ -4,7 +4,10 @@ use crate::method_sets::*;
 use crate::values::PyAxis2D;
 use geomcore::Line2D;
 
-/// A straight line in a surface's 2D (u, v) parameter space.
+/// An infinite straight line in 2D, such as in a surface's (u, v) parameter
+/// space, parametrized by arc length from its origin: the direction is
+/// normalized, so the parameter is the distance along the line whatever the
+/// length of the direction given.
 #[pyclass(name = "Line2D", module = "geomcore", eq)]
 #[derive(Clone, PartialEq)]
 pub(crate) struct PyLine2D(pub(crate) Line2D);

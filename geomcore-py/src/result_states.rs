@@ -377,6 +377,7 @@ impl Plain for IncompleteReason {
             IncompleteReason::BudgetExhausted => "BUDGET_EXHAUSTED",
             IncompleteReason::Unseparated => "UNSEPARATED",
             IncompleteReason::Unbounded => "UNBOUNDED",
+            IncompleteReason::LooseFit => "LOOSE_FIT",
         }
         .to_owned())
     }
@@ -386,6 +387,7 @@ impl Plain for IncompleteReason {
             "BUDGET_EXHAUSTED" => Ok(IncompleteReason::BudgetExhausted),
             "UNSEPARATED" => Ok(IncompleteReason::Unseparated),
             "UNBOUNDED" => Ok(IncompleteReason::Unbounded),
+            "LOOSE_FIT" => Ok(IncompleteReason::LooseFit),
             _ => Err(unknown("reason", &state)),
         }
     }
@@ -690,3 +692,42 @@ use crate::surfaces::PyBSplineSurface;
 approximation_state!(geomcore::CurveApproximation, PyBSplineCurve, curve);
 approximation_state!(geomcore::CurveApproximation2D, PyBSplineCurve2D, curve);
 approximation_state!(geomcore::SurfaceApproximation, PyBSplineSurface, surface);
+
+/// Implements [`Plain`] for a fit whose shape is held in Python as
+/// `$class`: the shape pickled as itself, with its two residuals.
+macro_rules! fit_state {
+    ($fit:ty, $class:ident) => {
+        impl Plain for $fit {
+            type State = (Py<PyAny>, f64, f64);
+
+            fn state(&self, py: Python<'_>) -> PyResult<Self::State> {
+                Ok((
+                    $class(*self.shape()).into_py_any(py)?,
+                    self.root_mean_square_residual(),
+                    self.maximum_residual(),
+                ))
+            }
+
+            fn from_state(
+                py: Python<'_>,
+                (shape, root_mean_square_residual, maximum_residual): Self::State,
+            ) -> PyResult<Self> {
+                let shape = shape.bind(py).cast::<$class>()?.borrow().0;
+                Ok(<$fit>::from_parts(
+                    shape,
+                    root_mean_square_residual,
+                    maximum_residual,
+                ))
+            }
+        }
+    };
+}
+
+use crate::curves::{PyCircle, PyCircle2D};
+use crate::surfaces::{PyCylinder, PyPlane, PySphere};
+
+fit_state!(geomcore::PlaneFit, PyPlane);
+fit_state!(geomcore::CircleFit, PyCircle);
+fit_state!(geomcore::CircleFit2D, PyCircle2D);
+fit_state!(geomcore::SphereFit, PySphere);
+fit_state!(geomcore::CylinderFit, PyCylinder);

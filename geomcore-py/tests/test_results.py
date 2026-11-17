@@ -1,6 +1,7 @@
 """Intersection results: the routed `intersect` and the classes it returns."""
 
 import math
+import pickle
 
 import pytest
 
@@ -556,6 +557,23 @@ def test_numeric_curve_lying_on_a_surface_is_an_overlap():
     assert [overlap.curve_range for overlap in result.overlaps] == [(0.0, 1.0)]
     assert result.completeness.status == CompletenessStatus.INCOMPLETE
     assert result.completeness.reason == IncompleteReason.UNSEPARATED
+
+
+def test_a_marched_curve_fitted_farther_off_than_asked_is_reported():
+    # Cylinders whose axes meet at 1e-7 rad: a piece of the march strays by
+    # about 2.4e-5 from the surfaces (#311). The reason crosses the binding
+    # and survives a pickle.
+    angle = 1e-7
+    first = Cylinder(Point(0, 0, 0), Vector(0, 0, 1), 2.0)
+    second = Cylinder(Point(0, 0, 0), Vector(math.sin(angle), 0, math.cos(angle)), 1.5)
+    result = first.intersect(second)
+    assert any(curve.deviation > 1e-7 for curve in result.curves)
+    assert result.completeness.status is CompletenessStatus.INCOMPLETE
+    assert result.completeness.reason is IncompleteReason.LOOSE_FIT
+    assert result.completeness.regions
+    restored = pickle.loads(pickle.dumps(result.completeness))
+    assert restored.reason is IncompleteReason.LOOSE_FIT
+    assert restored == result.completeness
 
 
 def test_numeric_collinear_curves_are_an_overlap():

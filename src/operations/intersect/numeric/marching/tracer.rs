@@ -3,7 +3,7 @@
 //! intersection, corrected onto both surfaces, and halved until it keeps
 //! to the curve (see [`Tracer::trace`]).
 
-use super::pair::{SurfacePair, TraceBox};
+use super::pair::{ParameterShifts, SurfacePair, TraceBox, moved};
 use crate::Direction;
 use crate::geometry::curves::fitting::segment_length;
 use crate::geometry::surfaces::{BSplineSurface, ParametricSurface};
@@ -235,7 +235,16 @@ where
             };
             // Curvature of the last accepted step (none before the first).
             let mut last_curvature = 0.0;
+            // The parameters' derivatives along the tangent at the last
+            // accepted point, when its step's error measured them.
+            let mut shifts_found = None;
             for _ in 0..SAFETY_STEP_LIMIT {
+                // The parameters' derivatives along the tangent at `x`,
+                // which predict every try of the step and start its
+                // segments in parameters (see `step_error`).
+                let shifts = shifts_found
+                    .take()
+                    .unwrap_or_else(|| pair.parameter_shifts(x, t, tol));
                 // Predict along the tangent, correct onto both surfaces in
                 // the plane normal to it; halve the step until the result
                 // stays on this branch with a small chord deviation.
@@ -243,7 +252,7 @@ where
                 let mut boundary_point = None;
                 while h >= tol.confusion {
                     let target = p + t * h;
-                    let guess = pair.predict(x, t * h);
+                    let guess = moved(x, &shifts, h);
                     if let Some((pin, bound)) = pair.leaving(x, guess) {
                         // The step leaves a parameter domain: end on its
                         // boundary.
@@ -253,7 +262,9 @@ where
                             if (q - p).dot(t) >= 0.0
                                 && q.distance(p) <= 2.0 * h
                                 && self.crosses_one_knot_at_most(x, y)
-                                && self.step_error((x, p, t), (y, q, tq), contact).is_some()
+                                && self
+                                    .step_error((x, p, t, &shifts), (y, q, tq), contact)
+                                    .is_some()
                             {
                                 boundary_point = Some((q, tq, y));
                                 break;
@@ -293,10 +304,12 @@ where
                             && chord * turn <= 32.0 * chord_deviation
                             && smooth
                             && self.crosses_one_knot_at_most(x, y)
-                            && let Some(error) = self.step_error((x, p, t), (y, q, ty), contact)
+                            && let Some((error, end_shifts)) =
+                                self.step_error((x, p, t, &shifts), (y, q, ty), contact)
                             && !onto_another_branch()
                         {
-                            step = Some((y, q, ty, turn / chord.max(f64::MIN_POSITIVE), error));
+                            let curvature = turn / chord.max(f64::MIN_POSITIVE);
+                            step = Some((y, q, ty, curvature, error, end_shifts));
                             break;
                         }
                     }
@@ -315,7 +328,7 @@ where
                     }
                     break;
                 }
-                let Some((y, q, ty, curvature, error)) = step else {
+                let Some((y, q, ty, curvature, error, end_shifts)) = step else {
                     stalls.push(x);
                     break;
                 };
@@ -345,6 +358,7 @@ where
                 half.push((q, ty, y));
                 (x, p, t) = (y, q, ty);
                 last_curvature = curvature;
+                shifts_found = end_shifts;
                 // The Hermite error grows as the fourth power of the step:
                 // the next step aims at nine tenths of the allowance.
                 let hermite_step = 0.9 * h / error.max(f64::MIN_POSITIVE).powf(0.25);
@@ -415,30 +429,39 @@ where
     }
 
     /// The error of the step between the traced points `p` (parameters
-    /// `x`, unit tangent `tp`) and `q` (parameters `y`, unit tangent `tq`)
-    /// as a share of its allowance, or `None` when it is too large. The
-    /// step is too large when the intersection cannot be found at its
+    /// `x`, unit tangent `tp`, along which the parameters shift by
+    /// `start_shifts`, see [`SurfacePair::parameter_shifts`]) and `q`
+    /// (parameters `y`, unit tangent `tq`) as a share of its allowance,
+    /// with the parameters' shifts along `tq` at `y` when it measured them
+    /// (the next step starts with them), or `None` when it is too large.
+    /// The step is too large when the intersection cannot be found at its
     /// midpoint, or strays there from the chord by more than
     /// [`MIDPOINT_SLACK`] chord deviations. Where the surfaces cross, the
-    /// error is the distance to either surface there, along its normal, of
-    /// the cubic Hermite segment the fit passes between the points (see
-    /// [`hermite_spline`](crate::geometry::curves::fitting::hermite_spline)), across
-    /// [`HERMITE_SLACK`] times confusion. Where they touch, the points of
-    /// contact are found only to within confusion, which the chord bound
-    /// alone covers: the error is zero. The midpoint is the midpoint of
-    /// the parameters corrected onto both surfaces in the plane through
-    /// the chord's midpoint, normal to it.
+    /// error is that of the cubic Hermite segments the fit passes between
+    /// the points (see
+    /// [`hermite_spline`](crate::geometry::curves::fitting::hermite_spline)),
+    /// at their middle: the distance of the segment in space to either
+    /// surface, along its normal, across [`HERMITE_SLACK`] times
+    /// confusion, or, on a step longer than [`PARAMETER_SEGMENTS_FLOOR`]
+    /// times confusion, the error of the segments in the parameters of
+    /// each surface (see
+    /// [`parameter_segments_error`]) when
+    /// larger. Where they touch, the points of contact are found only to
+    /// within confusion, which the chord bound alone covers: the error is
+    /// zero. The midpoint is the midpoint of the parameters corrected onto
+    /// both surfaces in the plane through the chord's midpoint, normal to
+    /// it.
     fn step_error(
         &self,
-        (x, p, tp): ([f64; 4], Point, Vector),
+        (x, p, tp, start_shifts): ([f64; 4], Point, Vector, &ParameterShifts),
         (y, q, tq): ([f64; 4], Point, Vector),
         contact: Contact,
-    ) -> Option<f64> {
+    ) -> Option<(f64, Option<ParameterShifts>)> {
         let tol = self.tol;
         let chord = q - p;
         let length = chord.magnitude();
         if length <= tol.confusion {
-            return Some(0.0);
+            return Some((0.0, None));
         }
         let along = Direction::from_unit_vector(chord * (1.0 / length));
         let middle = p + chord * 0.5;
@@ -450,9 +473,10 @@ where
             return None;
         }
         if contact == Contact::Touching {
-            return Some(0.0);
+            return Some((0.0, None));
         }
-        let hermite = middle + (tp - tq) * (0.125 * segment_length(p, q, tp, tq));
+        let span = segment_length(p, q, tp, tq);
+        let hermite = middle + (tp - tq) * (0.125 * span);
         // Along each normal only, the segment's distance to that surface to
         // first order: near a tangency the found midpoint is known only to
         // confusion over the angle between the surfaces across the curve,
@@ -467,7 +491,20 @@ where
             _ => off.component_perpendicular_to(along).magnitude(),
         };
         let error = distance / (HERMITE_SLACK * tol.confusion);
-        (error <= 1.0).then_some(error)
+        if error > 1.0 || length <= PARAMETER_SEGMENTS_FLOOR * tol.confusion {
+            return (error <= 1.0).then_some((error, None));
+        }
+        let end_shifts = self.pair.parameter_shifts(y, tq, tol);
+        let in_parameters = parameter_segments_error(
+            self.pair,
+            (x, start_shifts),
+            (y, &end_shifts),
+            span,
+            hermite,
+            tol,
+        );
+        let error = error.max(in_parameters);
+        (error <= 1.0).then_some((error, Some(end_shifts)))
     }
 
     /// Whether the move from parameters `x` to parameters `y` crosses at
@@ -528,6 +565,53 @@ where
     }
 }
 
+/// The error of a step's Hermite segments in the parameters of each
+/// surface of `pair`, as a share of its allowance: the distance between
+/// `hermite`, the middle of the step's Hermite segment in space, and the
+/// surface's point at the middle of the segment in its parameters, across
+/// [`HERMITE_SLACK`] times confusion grown by [`PARAMETER_ROUNDING`] times
+/// the coarser resolution of the two surfaces' parameters (see
+/// [`SurfacePair::parameter_shifts`]): the curve in space runs through the
+/// first surface's points, so a curve in the second's parameters keeps to
+/// it no closer than the first's rounding either. The segment in
+/// parameters runs through the parameters `x` and `y` of the step's ends,
+/// with the parameters' derivatives there, `at_start` and `at_end`, over
+/// a knot span of `span`, as the fit builds it (see `Fitted::new`).
+/// Where the parameters turn fast along a curve straight in space, it
+/// strays from the curve far more than the segment in space does (#393).
+/// A surface whose tangent plane degenerates at either end is left out:
+/// the fit takes its derivative there from the neighbouring points.
+pub(super) fn parameter_segments_error<A, B>(
+    pair: SurfacePair<A, B>,
+    (x, at_start): ([f64; 4], &ParameterShifts),
+    (y, at_end): ([f64; 4], &ParameterShifts),
+    span: f64,
+    hermite: Point,
+    tol: Tolerance,
+) -> f64
+where
+    A: ParametricSurface,
+    B: ParametricSurface,
+{
+    let resolution = [at_start, at_end]
+        .iter()
+        .flat_map(|shifts| shifts.iter().map(|&(_, resolution)| resolution))
+        .fold(0.0, f64::max);
+    let allowance = HERMITE_SLACK * tol.confusion + PARAMETER_ROUNDING * resolution;
+    let error_on = |surface: &dyn ParametricSurface, side: usize| {
+        let (start, end) = (at_start[side].0?, at_end[side].0?);
+        let [u, v]: [f64; 2] = std::array::from_fn(|k| {
+            let index = 2 * side + k;
+            0.5 * (x[index] + y[index]) + 0.125 * span * (start[k] - end[k])
+        });
+        Some(surface.point_at(u, v).distance(hermite) / allowance)
+    };
+    error_on(pair.first, 0)
+        .into_iter()
+        .chain(error_on(pair.second, 1))
+        .fold(0.0, f64::max)
+}
+
 /// Multiple of the chord deviation a step's midpoint may stray from its
 /// chord (see [`Tracer::step_error`]).
 const MIDPOINT_SLACK: f64 = 2.0;
@@ -538,6 +622,22 @@ const MIDPOINT_SLACK: f64 = 2.0;
 /// segment's error peaks about its middle, so the curve keeps within
 /// confusion of the intersection.
 const HERMITE_SLACK: f64 = 0.25;
+
+/// Multiple of the resolution of a surface's parameters (see
+/// [`SurfacePair::parameter_shifts`]) by which the allowance of the
+/// segments in its parameters grows (see
+/// [`parameter_segments_error`]): the rounding of the parameters
+/// at the segment's middle, and of the surface's point there.
+const PARAMETER_ROUNDING: f64 = 4.0;
+
+/// Multiple of `tol.confusion` a step must exceed for the Hermite segments
+/// in parameters to be checked (see [`Tracer::step_error`]). Near a point
+/// where a surface's parameters degenerate (a pole), the segment in
+/// parameters of a curve passing it at a distance `d` strays by about
+/// `step⁴ / d³`, which only steps shorter than confusion would keep within
+/// it once `d` nears confusion: the trace would stall there. Shorter steps
+/// keep their fit in parameters as it is, and its deviation reports it.
+pub(super) const PARAMETER_SEGMENTS_FLOOR: f64 = 16.0;
 
 /// Whether the move from parameters `from` to parameters `to` on `surface`
 /// crosses at most one knot in its parameter `direction` (0 for u, 1 for

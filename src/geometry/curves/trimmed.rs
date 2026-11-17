@@ -13,6 +13,7 @@ use crate::geometry::curves::{
 };
 use crate::geometry::curves::{RangeOperations, ReversibleCurve};
 use crate::math::bspline::curve as bspline_math;
+use crate::math::parameter_range::representative;
 use crate::operations::projection::{CurveProjection, grows_inward, snap_distance};
 use crate::{BSplineSplitError, Continuity, Frame, Frame2D, Point, Point2D, Tolerance, Vector};
 use crate::{Transform, TransformError, Transformable};
@@ -157,11 +158,8 @@ fn restrict<P: TierPoint>(
     let mut out: Vec<CurveProjection<P>> = extrema
         .into_iter()
         .filter_map(|e| {
-            let t = match period {
-                Some(period) => first + (e.parameter - first).rem_euclid(period),
-                None => e.parameter,
-            };
-            (first <= t && t <= last).then_some(CurveProjection { parameter: t, ..e })
+            representative(e.parameter, (first, last), period)
+                .map(|parameter| CurveProjection { parameter, ..e })
         })
         .collect();
     for t in [first, last] {
@@ -583,14 +581,10 @@ impl TrimmedCurve2D<Circle2D> {
         middle: Point2D,
         end: Point2D,
     ) -> Result<Self, ArcConstructionError> {
-        let lift = |p: Point2D| Point::new(p.x, p.y, 0.0);
-        let arc = TrimmedCurve::arc_through(lift(start), lift(middle), lift(end))?;
-        let circle = arc.basis();
-        let center = circle.center();
-        let counterclockwise = circle.normal().z > 0.0;
-        let to_start = start - Point2D::new(center.x, center.y);
-        let circle = circle_2d(Point2D::new(center.x, center.y), to_start, counterclockwise)?;
-        Ok(Self::from_parts(circle, 0.0, arc.sweep_angle()))
+        let circle = Circle2D::from_three_points(start, middle, end)?;
+        let tol = Tolerance::DEFAULT;
+        let sweep = sweep_to(circle.parameter_of(end, tol), circle.radius(), tol);
+        Ok(Self::from_parts(circle, 0.0, sweep))
     }
 
     /// The arc about `center` from `start` to `end`, counterclockwise or

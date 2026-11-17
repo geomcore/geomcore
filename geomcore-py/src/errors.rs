@@ -41,6 +41,12 @@ create_exception!(
 );
 create_exception!(
     geomcore,
+    FitError,
+    ConstructionError,
+    "A shape could not be fitted to the given points: too few of them, or too degenerate for the shape (collinear for a circle, coplanar for a sphere or a cylinder)."
+);
+create_exception!(
+    geomcore,
     KnotInsertionError,
     GeomcoreError,
     "A knot could not be inserted into a B-spline."
@@ -123,6 +129,7 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
         "TrimmedSurfaceConstructionError",
         py.get_type::<TrimmedSurfaceConstructionError>(),
     )?;
+    m.add("FitError", py.get_type::<FitError>())?;
     m.add("KnotInsertionError", py.get_type::<KnotInsertionError>())?;
     m.add("KnotRemovalError", py.get_type::<KnotRemovalError>())?;
     m.add(
@@ -254,6 +261,7 @@ map_error!(ConstructionError:
 map_error!(FrameConstructionError: geomcore::FrameConstructionError);
 map_error!(TrimmedCurveConstructionError: geomcore::TrimmedCurveConstructionError);
 map_error!(TrimmedSurfaceConstructionError: geomcore::TrimmedSurfaceConstructionError);
+map_error!(FitError: geomcore::FitError);
 map_error!(KnotInsertionError: geomcore::KnotInsertionError);
 map_error!(KnotRemovalError: geomcore::KnotRemovalError);
 map_error!(DegreeElevationError: geomcore::DegreeElevationError);

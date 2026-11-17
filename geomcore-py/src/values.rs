@@ -955,6 +955,14 @@ impl PyAxis2D {
         self.0.is_parallel(other.0, angular_bound(angular))
     }
 
+    /// Whether the axes are the same line, in either orientation: parallel
+    /// within `tol.angular`, the other origin on this axis within
+    /// `tol.confusion` (`Tolerance.default()` when omitted).
+    #[pyo3(signature = (other, tol = None))]
+    fn is_coaxial(&self, other: &PyAxis2D, tol: Option<ToleranceArgument>) -> bool {
+        self.0.is_coaxial(other.0, crate::tolerance(tol))
+    }
+
     /// The axis with its direction negated, through the same origin.
     fn reversed(&self) -> PyAxis2D {
         PyAxis2D(self.0.reversed())
@@ -1032,6 +1040,16 @@ impl PyFrame2D {
     /// Whether y is x turned a quarter turn counter-clockwise.
     fn is_direct(&self) -> bool {
         self.0.is_direct()
+    }
+
+    /// The frame with its x direction negated (handedness flips).
+    fn flipped_x(&self) -> Self {
+        PyFrame2D(self.0.flipped_x())
+    }
+
+    /// The frame with its y direction negated (handedness flips).
+    fn flipped_y(&self) -> Self {
+        PyFrame2D(self.0.flipped_y())
     }
 
     /// The axis through the origin along the x direction.

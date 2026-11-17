@@ -8,7 +8,10 @@
 //! with a cylinder off its axis, are timed alone: their routed result fits
 //! each loop of the quartic they meet in. So are a torus against a plane
 //! and a sphere in no special position, and against a cylinder and a cone
-//! off its axis.
+//! off its axis. A plane across a half cylinder is timed trimmed, against
+//! the same pair untrimmed: the gap is the box of the patch and the
+//! clipping of the ellipse to its ranges. So is a line across the half
+//! cylinder, whose hits are filtered by the ranges.
 //!
 //! Informational only, like `eval_throughput`; not a correctness gate.
 
@@ -18,8 +21,8 @@ use std::hint::black_box;
 use geomcore::prelude::*;
 use geomcore::{
     Circle, Circle2D, Cone, ConeConeIntersection, Curve, Cylinder, ElementaryCurve,
-    ElementarySurface, Ellipse, Frame, Line, Plane, Point, Point2D, Sphere, Surface, Tolerance,
-    Torus, Vector,
+    ElementarySurface, Ellipse, Frame, IntersectionMethod, Line, Plane, Point, Point2D, Sphere,
+    Surface, Tolerance, Torus, Vector,
 };
 
 const BATCH: usize = 1024;
@@ -587,6 +590,53 @@ fn bench_torus_octics(c: &mut Criterion) {
     group.finish();
 }
 
+/// A plane across a half cylinder, a trimmed exact pair: one ellipse,
+/// clipped to half of it, and the same pair untrimmed. Then a line across
+/// the half cylinder, a curve and a trimmed surface, and two faces of the
+/// cylinder sharing an edge.
+fn bench_trimmed(c: &mut Criterion) {
+    let tol = Tolerance::default();
+    let mut group = c.benchmark_group("intersect_routed/trimmed");
+    let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
+    let half = cylinder
+        .trimmed((0.0, std::f64::consts::PI), (-5.0, 5.0))
+        .unwrap();
+    let plane = Plane::new(Point::ORIGIN, Vector::new(0.0, 1.0, 1.0)).unwrap();
+    let result = plane.intersect(&half, tol);
+    assert_eq!(result.method(), IntersectionMethod::Exact);
+    assert_eq!(result.curves().len(), 1);
+    group.bench_function("plane_half_cylinder", |b| {
+        b.iter(|| black_box(black_box(&plane).intersect(&half, tol)))
+    });
+    group.bench_function("plane_cylinder_untrimmed", |b| {
+        b.iter(|| black_box(black_box(&plane).intersect(&cylinder, tol)))
+    });
+    // A line across the cylinder, which keeps one of its two hits on the
+    // half: the curve against the basis, and the hits filtered.
+    let line = Line::new(Point::new(0.5, -5.0, 1.0), Vector::Y).unwrap();
+    let result = line.intersect(&half, tol);
+    assert_eq!(result.method(), IntersectionMethod::Exact);
+    assert_eq!(result.hits().len(), 1);
+    group.bench_function("line_half_cylinder", |b| {
+        b.iter(|| black_box(black_box(&line).intersect(&half, tol)))
+    });
+    // Two faces of the cylinder stacked at height 1, which share its
+    // circle there: the bases coincide and the shared edge is built.
+    let low = cylinder
+        .trimmed((0.0, std::f64::consts::TAU), (0.0, 1.0))
+        .unwrap();
+    let high = cylinder
+        .trimmed((0.0, std::f64::consts::TAU), (1.0, 2.0))
+        .unwrap();
+    let result = low.intersect(&high, tol);
+    assert!(!result.is_coincident());
+    assert_eq!(result.curves().len(), 1);
+    group.bench_function("stacked_cylinder_faces", |b| {
+        b.iter(|| black_box(black_box(&low).intersect(&high, tol)))
+    });
+    group.finish();
+}
+
 criterion_group!(
     benches,
     bench_intersect_dispatch,
@@ -596,6 +646,7 @@ criterion_group!(
     bench_two_cones,
     bench_sphere_quadrics,
     bench_torus_quartics,
-    bench_torus_octics
+    bench_torus_octics,
+    bench_trimmed
 );
 criterion_main!(benches);

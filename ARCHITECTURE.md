@@ -69,6 +69,8 @@ src/
 │   │   └── conversion.rs fitting.rs
 │   ├── approximation.rs         the results of the operations within a deviation:
 │   │                            CurveApproximation, SurfaceApproximation
+│   ├── fit.rs                   the least-squares fits of planes, circles, spheres
+│   │                            and cylinders to points: Fit and FitError
 │   └── enum_variants.rs         the macros that expand a shape enum's variant list
 │                                (ADR 0017)
 │
@@ -88,8 +90,12 @@ src/
 │   │   │                    result (ADR 0018)
 │   │   ├── routing/swept_plane.rs  plane cuts of the swept surfaces in closed form,
 │   │   │                    entries of the table
-│   │   ├── routing/trimmed_surface.rs  the intersection of trimmed surfaces: the bases
-│   │   │                    intersected, the result clipped to the ranges (ADR 0039)
+│   │   ├── routing/trimmed_surface.rs  the intersection of trimmed surfaces, with a
+│   │   │                    surface or a curve: the bases intersected, the result
+│   │   │                    clipped to the ranges (ADR 0039)
+│   │   ├── routing/trimmed_surface/shared_boundary.rs  what two trimmed surfaces of
+│   │   │                    one surface share: an overlap with area, or the edges
+│   │   │                    and corners they touch along (#406)
 │   │   ├── exact/           IntersectExact and the closed-form solvers, by family:
 │   │   │                    curve_curve.rs, curve_surface.rs, surface_surface.rs.
 │   │   │                    conic.rs and conic_2d.rs solve a conic against a quadric
@@ -128,11 +134,17 @@ src/
 │                        holds the tight boxes of B-spline shapes
 │
 └── math/                internal math under the curves and surfaces
-    ├── elementary/      closed-form formulas of the elementary curves and surfaces
+    ├── elementary/      closed-form formulas of the elementary curves and surfaces,
+    │                    and fitting.rs, the numbers under their least-squares fits
     ├── bspline/         the B-spline engine (curve evaluation, editing,
     │                    tensor-product surfaces, exact conic nets) and errors.rs,
     │                    the errors its checks raise
-    └── numeric/         polynomial roots, Bernstein form, solvers, quadrature
+    ├── numeric/         polynomial roots, Bernstein form, solvers, quadrature,
+    │                    symmetric eigenvectors, Levenberg–Marquardt steps
+    └── parameter_range.rs  the rules of a parameter range: the shift by whole
+                         periods, the slack at the ends, the nearest end across
+                         the seam; the trimmed curves and surfaces and the
+                         intersection router read them here
 ```
 
 Outside `src/`:
@@ -308,6 +320,7 @@ files are:
 | `enums.rs` | the enumerations Python sees as `enum` classes: `Side`, `PointParametrization`, `IntersectionMethod`, `CompletenessStatus`, `IncompleteReason` |
 | `bounding_box.rs`, `discretization.rs` | the classes of those operations |
 | `approximation.rs` | `CurveApproximation`, `CurveApproximation2D`, `SurfaceApproximation`: what the operations within a deviation return |
+| `fit.rs` | `PlaneFit`, `CircleFit`, `CircleFit2D`, `SphereFit`, `CylinderFit`: what the least-squares fits return |
 | `arrays.rs` | the numpy bridge: the bulk queries that read and return float arrays |
 | `pickling.rs` | pickling and the coordinate protocols the value classes share |
 | `method_sets.rs` | the method sets the curve and surface classes share |
@@ -326,7 +339,9 @@ written once, so a class has a method exactly when its core type has it.
 The surface sets split the same way: `parametric_surface` is what every
 `ParametricSurface` with a box answers, `TrimmedSurface` included, and
 `surface` what only a whole surface does (reversal, transform, iso curves,
-`trimmed`, `intersect` with curves).
+`trimmed`, `intersect` with curves). `TrimmedSurface` writes its own
+`transformed`, `trimmed` and `intersect`, whose docstrings say what
+becomes of its ranges.
 The table at the top of `method_sets.rs` says which set follows from
 which trait.
 
@@ -390,6 +405,7 @@ checks.
 | Golden fixtures | `vs_fixtures.rs`, `bezier_fixtures.rs`, `discretization_fixtures.rs`, `intersect_2d_fixtures.rs`, `swept_fixtures.rs` |
 | B-splines and Bézier | `bspline_construction_and_shape.rs`, `bspline_tiers.rs`, `degree_elevation.rs`, `bezier_surface.rs` |
 | Projection | `projection_point.rs` |
+| Fitting | `least_squares_fits.rs` |
 | UV curves | `uv_curve_to_3d.rs`, `uv_curve_composition.rs`, `uv_curve_to_3d_within.rs` |
 | Intersection | `routed_intersections.rs`, `routed_surface_surface.rs`, `trimmed_surfaces.rs`, `bezier_intersections.rs`, `bezier_through_enums.rs`, `intersection_fingerprints.rs` |
 | Bounding boxes | `bounding_box.rs`, `bounding_box_allocation.rs` |

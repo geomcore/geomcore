@@ -110,15 +110,17 @@ pub(crate) fn both<R: Region>(a: Completeness<R>, b: Completeness<R>) -> Complet
 }
 
 /// The stronger of two reasons: out of budget over an unbounded branch
-/// over a pair that never separates.
+/// over a pair that never separates over a loose fit.
 pub(crate) fn stronger(a: IncompleteReason, b: IncompleteReason) -> IncompleteReason {
     let reasons = [a, b];
     if reasons.contains(&IncompleteReason::BudgetExhausted) {
         IncompleteReason::BudgetExhausted
     } else if reasons.contains(&IncompleteReason::Unbounded) {
         IncompleteReason::Unbounded
-    } else {
+    } else if reasons.contains(&IncompleteReason::Unseparated) {
         IncompleteReason::Unseparated
+    } else {
+        IncompleteReason::LooseFit
     }
 }
 
@@ -179,10 +181,12 @@ pub(crate) fn merged<R: Region>(mut regions: Vec<R>) -> Vec<R> {
 ///
 /// Where a result has more than one kind of trouble, its reason is the
 /// strongest of them, in this order: [`BudgetExhausted`](Self::BudgetExhausted)
-/// over [`Unbounded`](Self::Unbounded) over [`Unseparated`](Self::Unseparated).
+/// over [`Unbounded`](Self::Unbounded) over [`Unseparated`](Self::Unseparated)
+/// over [`LooseFit`](Self::LooseFit).
 /// A larger budget would settle the first; the second needs the branches
 /// followed beyond their box, which the search does not do; the third
-/// is where the search cannot separate the pieces at all. Every region
+/// is where the search cannot separate the pieces at all; the last is a
+/// curve found but fitted farther off than asked. Every region
 /// of every kind is kept, so the reason names the strongest cause, never
 /// hiding a region.
 ///
@@ -244,4 +248,17 @@ pub enum IncompleteReason {
     /// ends the branches on their ranges instead, and they are not
     /// reported.
     Unbounded,
+    /// A marched curve was fitted farther from the surfaces than the
+    /// confusion distance: its [`deviation`](crate::IntersectionCurve::deviation)
+    /// exceeds `tol.confusion`. The curve is returned, and its regions
+    /// hold each such curve: its parameter ranges on both surfaces and its
+    /// box. The intersection runs there, but within the curve's
+    /// deviation, not within confusion. It happens where a surface's
+    /// parameters degenerate on the curve (a sphere's pole, a fold of an
+    /// extrusion), where their rounding is coarser than the confusion (a
+    /// B-spline whose knots crowd a long stretch into a tiny span), and
+    /// along a touch, where the curve is an interpolant of points found
+    /// only to within confusion. Outside the regions the marching search
+    /// is as sampled as before.
+    LooseFit,
 }
