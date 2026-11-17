@@ -900,6 +900,7 @@ def _classes_without_a_twin():
         cls = getattr(geomcore, name)
         if (
             inspect.isclass(cls)
+            and not name.startswith("_")
             and not name.endswith("2D")
             and not issubclass(cls, BaseException)
             and not hasattr(geomcore, name + "2D")
