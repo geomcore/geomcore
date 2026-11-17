@@ -12,7 +12,7 @@ use crate::geometry::surfaces::{
     RevolutionSurface, Sphere, SurfaceIsoError, Torus, UvCurveTo3DError,
 };
 use crate::math::elementary::surface::{self as elementary, Turn};
-use crate::{Point, SurfaceProjection, Tolerance, Vector};
+use crate::{Direction, Point, SurfaceProjection, Tolerance, Vector};
 use crate::{Transform, TransformError, Transformable};
 
 /// Calls `worker!` on the variants of [`Surface`] or of
@@ -200,7 +200,7 @@ impl ParametricSurface for Surface {
         surface_dispatch!(self, s => s.second_derivatives(u, v))
     }
 
-    fn normal(&self, u: f64, v: f64, tol: Tolerance) -> Option<Vector> {
+    fn normal(&self, u: f64, v: f64, tol: Tolerance) -> Option<Direction> {
         surface_dispatch!(self, s => ParametricSurface::normal(s, u, v, tol))
     }
 
@@ -424,7 +424,7 @@ impl ParametricSurface for ElementarySurface {
         elementary_surface_dispatch!(self, s => s.second_derivatives(u, v))
     }
 
-    fn normal(&self, u: f64, v: f64, tol: Tolerance) -> Option<Vector> {
+    fn normal(&self, u: f64, v: f64, tol: Tolerance) -> Option<Direction> {
         elementary_surface_dispatch!(self, s => ParametricSurface::normal(s, u, v, tol))
     }
 

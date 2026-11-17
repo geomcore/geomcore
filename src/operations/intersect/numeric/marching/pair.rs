@@ -656,7 +656,7 @@ where
                 geometric_normal(self.first, x[0], x[1], tol),
                 geometric_normal(self.second, x[2], x[3], tol),
             );
-            return matches!(normals, (Some(na), Some(nb)) if Direction::from_unit_vector(na).is_parallel(Direction::from_unit_vector(nb), tol.angular));
+            return matches!(normals, (Some(na), Some(nb)) if na.is_parallel(nb, tol.angular));
         };
         let sine = na.cross(nb).magnitude();
         if sine <= tol.angular {
@@ -800,7 +800,7 @@ fn geometric_normal<S: ParametricSurface + ?Sized>(
     u: f64,
     v: f64,
     tol: Tolerance,
-) -> Option<Vector> {
+) -> Option<Direction> {
     let normal = surface.normal(u, v, tol)?;
     let (_, [su, sv]) = surface.first_derivatives(u, v);
     if unit_normal(surface, su, sv, tol).is_some() {
@@ -822,11 +822,7 @@ fn geometric_normal<S: ParametricSurface + ?Sized>(
     let agrees = |fraction: f64| {
         surface
             .normal(u + fraction * du, v + fraction * dv, tol)
-            .is_some_and(|other| {
-                other.dot(normal) > 0.0
-                    && Direction::from_unit_vector(other)
-                        .is_parallel(Direction::from_unit_vector(normal), tol.angular)
-            })
+            .is_some_and(|other| other.dot(normal) > 0.0 && other.is_parallel(normal, tol.angular))
     };
     (agrees(1.0 / 3.0) && agrees(2.0 / 3.0)).then_some(normal)
 }

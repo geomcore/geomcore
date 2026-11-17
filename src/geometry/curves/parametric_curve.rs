@@ -7,7 +7,7 @@ use crate::base::tier::TierPoint;
 use crate::geometry::curves::BSplineCurve;
 use crate::geometry::curves::ElementaryCurve;
 use crate::operations::projection::CurveProjection;
-use crate::{Continuity, Point, Tolerance, Vector};
+use crate::{Continuity, Direction, Point, Tolerance, Vector};
 
 /// Common interface for 3D parametric curves. Implement this to add a new
 /// curve type that can be used generically (see [`Curve`](crate::Curve) for a
@@ -140,7 +140,7 @@ pub trait ParametricCurve {
         )
     }
 
-    /// Unit tangent `C'/|C'|` at parameter `u`, or `None` where the speed
+    /// Unit tangent at parameter `u`, the [`Direction`] of `C'/|C'|`, or `None` where the speed
     /// vanishes (a cusp or a stop). The speed counts as zero when the
     /// distance `|C'| × width` it would cover across the parameter range
     /// (`width = last - first` of [`bounds`](Self::bounds), the model size
@@ -152,18 +152,20 @@ pub trait ParametricCurve {
     ///
     /// ```
     /// use geomcore::prelude::*;
-    /// use geomcore::{Circle, Line, Point, Tolerance, Vector};
+    /// use geomcore::{Circle, Direction, Line, Point, Tolerance, Vector};
     ///
     /// let line = Line::new(Point::ORIGIN, Vector::X).unwrap();
-    /// assert_eq!(line.tangent(5.0, Tolerance::DEFAULT), Some(Vector::X));
+    /// assert_eq!(line.tangent(5.0, Tolerance::DEFAULT), Some(Direction::X));
     ///
     /// let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
-    /// assert_eq!(circle.tangent(0.0, Tolerance::DEFAULT), Some(Vector::Y));
+    /// assert_eq!(circle.tangent(0.0, Tolerance::DEFAULT), Some(Direction::Y));
     /// ```
-    fn tangent(&self, u: f64, tol: Tolerance) -> Option<Vector> {
+    fn tangent(&self, u: f64, tol: Tolerance) -> Option<Direction> {
         let (_, first_derivative) = self.first_derivatives(u);
         let speed = regular_speed(first_derivative, tol.reference_width(self.bounds()), tol)?;
-        Some(first_derivative * (1.0 / speed))
+        Some(Direction::from_unit_vector(
+            first_derivative * (1.0 / speed),
+        ))
     }
 
     /// Scalar curvature `|C' × C''| / |C'|³` (the turn rate `|dT/ds|` of

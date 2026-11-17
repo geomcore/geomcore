@@ -34,6 +34,13 @@ the Python distribution are versioned in lockstep.
   where they took a zero `w` as no direction at all, `w.direction()` is
   `None`.
 - `TierPoint` has a `Direction` associated type.
+- `ParametricSurface::normal` returns `Option<Direction>`,
+  `ParametricCurve::tangent` `Option<Direction>` and
+  `ParametricCurve2D::tangent` `Option<Direction2D>`, and the
+  `min_direction` and `max_direction` of `SurfaceCurvatures` are
+  `Direction` values (#401, ADR 0054). Write `n.vector()` where a
+  `Vector` is needed, and `Some(Direction::X)` where a test compared the
+  result with `Some(Vector::X)`. Python is unchanged.
 
 ### Added
 

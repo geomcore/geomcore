@@ -149,7 +149,7 @@ fn kinked() -> BSplineCurve2D {
 #[test]
 fn test_line_is_straight() {
     let l = line();
-    assert_eq!(l.tangent(5.0, TOL), Some(Vector2D::X));
+    assert_eq!(l.tangent(5.0, TOL), Some(Direction2D::X));
     assert_eq!(l.curvature(5.0, TOL), Some(0.0));
     assert_eq!(l.curvature_center(5.0, TOL), None);
 }
@@ -157,7 +157,7 @@ fn test_line_is_straight() {
 #[test]
 fn test_counterclockwise_circle_has_positive_curvature_about_its_center() {
     let c = circle();
-    assert_eq!(c.tangent(0.0, TOL), Some(Vector2D::Y));
+    assert_eq!(c.tangent(0.0, TOL), Some(Direction2D::Y));
     assert_eq!(c.curvature(0.0, TOL), Some(0.5));
     assert_eq!(c.curvature_center(0.0, TOL), Some(Point2D::ORIGIN));
 }
@@ -165,7 +165,7 @@ fn test_counterclockwise_circle_has_positive_curvature_about_its_center() {
 #[test]
 fn test_clockwise_circle_has_negative_curvature_about_its_center() {
     let c = clockwise_circle();
-    assert_eq!(c.tangent(0.0, TOL), Some(-Vector2D::Y));
+    assert_eq!(c.tangent(0.0, TOL), Some(-Direction2D::Y));
     assert_eq!(c.curvature(0.0, TOL), Some(-0.5));
     assert_eq!(c.curvature_center(0.0, TOL), Some(Point2D::ORIGIN));
 }
@@ -181,7 +181,7 @@ fn test_offset_circle_center_is_its_own() {
 #[test]
 fn test_bspline_arch_turns_right() {
     let a = arch();
-    assert_eq!(a.tangent(0.5, TOL), Some(Vector2D::X));
+    assert_eq!(a.tangent(0.5, TOL), Some(Direction2D::X));
     assert_eq!(a.curvature(0.5, TOL), Some(-1.0));
     // The osculating circle sits below the arch, at (1, 0.5 - 1).
     let center = a.curvature_center(0.5, TOL).unwrap();

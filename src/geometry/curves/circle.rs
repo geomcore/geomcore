@@ -455,6 +455,7 @@ impl_for_both_tiers! {
             self.point_at(u).distance(point) <= tol.confusion
         }
 
+        #[inline]
         fn project_point(&self, point: P, tol: Tolerance) -> CurveProjection<P> {
             let u = self.parameter_of(point, tol);
             let foot = self.point_at(u);

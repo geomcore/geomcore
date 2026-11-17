@@ -13,7 +13,7 @@ use crate::arguments::{curve_2d_classes, curve_classes};
 use geomcore::{
     Completeness, CurveCurveExtrema, CurveCurveExtremum, CurveCurveOverlap, CurveCurveRegion,
     CurveProjection, CurveSurfaceHit, CurveSurfaceIntersection, CurveSurfaceOverlap,
-    CurveSurfaceRegion, Discretization, Discretization2D, GenericCurveCurveHit,
+    CurveSurfaceRegion, Direction, Discretization, Discretization2D, GenericCurveCurveHit,
     GenericCurveCurveIntersection, IncompleteReason, IntersectionCurve, IntersectionMethod, Point,
     Point2D, SurfaceCurvatures, SurfaceProjection, SurfaceSurfaceIntersection,
     SurfaceSurfaceRegion, TierPoint, Vector,
@@ -575,6 +575,14 @@ impl Plain for SurfaceProjection {
     }
 }
 
+/// The direction pickled as the unit vector `state`, unchanged: `None`
+/// only for a state that no direction wrote, a zero vector.
+fn direction_from_state(py: Python<'_>, state: [f64; 3]) -> PyResult<Direction> {
+    Vector::from_state(py, state)?
+        .direction()
+        .ok_or_else(|| PyValueError::new_err("a pickled direction is a zero vector"))
+}
+
 impl Plain for SurfaceCurvatures {
     type State = (f64, f64, [f64; 3], [f64; 3], f64, f64);
 
@@ -596,8 +604,8 @@ impl Plain for SurfaceCurvatures {
         Ok(SurfaceCurvatures {
             min_curvature: min,
             max_curvature: max,
-            min_direction: Vector::from_state(py, min_direction)?,
-            max_direction: Vector::from_state(py, max_direction)?,
+            min_direction: direction_from_state(py, min_direction)?,
+            max_direction: direction_from_state(py, max_direction)?,
             mean,
             gaussian,
         })

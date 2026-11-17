@@ -260,12 +260,12 @@ impl Plane {
     ///
     /// ```
     /// use geomcore::prelude::*;
-    /// use geomcore::{Plane, Point, Tolerance, Vector};
+    /// use geomcore::{Direction, Plane, Point, Tolerance, Vector};
     /// let plane = Plane::new(Point::new(0.0, 0.0, 1.0), Vector::Z).unwrap();
     /// assert_eq!(plane.axis().origin(), Point::new(0.0, 0.0, 1.0));
     /// assert_eq!(plane.axis().direction(), Vector::Z);
     /// assert_eq!(plane.reversed_u().axis().direction(), -Vector::Z);
-    /// assert_eq!(plane.normal(2.0, 3.0, Tolerance::default()), Some(Vector::Z));
+    /// assert_eq!(plane.normal(2.0, 3.0, Tolerance::default()), Some(Direction::Z));
     /// ```
     #[inline]
     pub fn axis(&self) -> Axis {

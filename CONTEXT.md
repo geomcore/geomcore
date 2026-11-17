@@ -104,7 +104,7 @@ Two values are equal when they are the same value, field by field (`==`). Equali
 _Avoid_: equal for points that merely coincide, fuzzy or approximate equality
 
 **Direction**:
-A vector of unit length, by type (`Direction`, `Direction2D`): an axis's direction, a frame's axes, a circle's normal, a line's direction. It is normalized once, when built from a vector, so comparing two directions takes their angle alone (ADR 0054).
+A vector of unit length, by type (`Direction`, `Direction2D`): an axis's direction, a frame's axes, a circle's normal, a line's direction, a surface's normal, a curve's tangent. It is normalized once, when built from a vector, so comparing two directions takes their angle alone (ADR 0054).
 _Avoid_: unit vector for the type, dir
 
 **Parallel**:

@@ -238,11 +238,11 @@ fn test_normal_plane_is_constant_z() {
     let tol = Tolerance::DEFAULT;
     assert_eq!(
         ParametricSurface::normal(&p, 1.0, -2.0, tol),
-        Some(Vector::Z)
+        Some(Direction::Z)
     );
     assert_eq!(
         ParametricSurface::normal(&p, 0.0, 0.0, tol),
-        Some(p.axis().direction().vector())
+        Some(p.axis().direction())
     );
 }
 
@@ -250,7 +250,7 @@ fn test_normal_plane_is_constant_z() {
 fn test_normal_cylinder_points_radially_outward() {
     let c = cylinder();
     let tol = Tolerance::DEFAULT;
-    assert_eq!(c.normal(0.0, 3.0, tol), Some(Vector::X));
+    assert_eq!(c.normal(0.0, 3.0, tol), Some(Direction::X));
 }
 
 #[test]
@@ -267,7 +267,7 @@ fn test_normal_cone_matches_tilted_radial() {
 fn test_normal_sphere_points_outward_and_recovers_at_poles() {
     let s = sphere();
     let tol = Tolerance::DEFAULT;
-    assert_eq!(s.normal(0.0, 0.0, tol), Some(Vector::X));
+    assert_eq!(s.normal(0.0, 0.0, tol), Some(Direction::X));
     // Singular points recover their limiting (outward) normal via rung 2.
     let north = s.normal(0.0, FRAC_PI_2, tol).unwrap();
     assert!((north - Vector::Z).magnitude() < 1e-9);
@@ -279,7 +279,7 @@ fn test_normal_sphere_points_outward_and_recovers_at_poles() {
 fn test_normal_torus_points_outward_on_outer_equator() {
     let t = torus();
     let tol = Tolerance::DEFAULT;
-    assert_eq!(t.normal(0.0, 0.0, tol), Some(Vector::X));
+    assert_eq!(t.normal(0.0, 0.0, tol), Some(Direction::X));
 }
 
 #[test]
@@ -313,7 +313,10 @@ fn test_normal_bspline_agrees_with_cross_of_partials() {
     let tol = Tolerance::DEFAULT;
     let (_, [su, sv]) = b.first_derivatives(0.3, 0.4);
     let expected = su.cross(sv) * (1.0 / su.cross(sv).magnitude());
-    assert_eq!(b.normal(0.3, 0.4, tol), Some(expected));
+    assert_eq!(
+        b.normal(0.3, 0.4, tol).map(Direction::vector),
+        Some(expected)
+    );
 }
 
 #[test]
@@ -859,8 +862,8 @@ fn test_curvatures_plane_are_zero() {
         SurfaceCurvatures {
             min_curvature: 0.0,
             max_curvature: 0.0,
-            min_direction: Vector::X,
-            max_direction: Vector::Y,
+            min_direction: Direction::X,
+            max_direction: Direction::Y,
             mean: 0.0,
             gaussian: 0.0,
         }
@@ -979,8 +982,8 @@ fn test_curvatures_saddle_directions_carry_principal_curvatures() {
     let surface = bspline();
     for (u, v) in [(0.5, 0.5), (0.1, 0.8), (0.9, 0.3)] {
         let c = surface.curvatures(u, v, tol).unwrap();
-        let along_min = normal_curvature_along(&surface, u, v, c.min_direction);
-        let along_max = normal_curvature_along(&surface, u, v, c.max_direction);
+        let along_min = normal_curvature_along(&surface, u, v, c.min_direction.vector());
+        let along_max = normal_curvature_along(&surface, u, v, c.max_direction.vector());
         assert!((along_min - c.min_curvature).abs() < 1e-14);
         assert!((along_max - c.max_curvature).abs() < 1e-14);
         let squared = 1.0 + u * u + v * v;
