@@ -1,3 +1,0 @@
-curve-surface 4:Hyperbola x 6:Extrusion | translation 1e7
-curve-surface 7:Bezier x 7:Extrusion | translation 1e7
-curve-surface 8:Bezier x 7:Extrusion | translation 1e7

@@ -203,6 +203,18 @@ the Python distribution are versioned in lockstep.
   near an earlier hit within `sqrt(tol.confusion L)`, `L` the size of the
   curve. 3 `curve-surface` lines leave the list of the similarity judge;
   the 3 placement lines remain (#417).
+- A tangent curve–surface contact moved with the placement of the shapes
+  (#417): where the curve grazes the surface, the gap is quadratic in the
+  parameter, so the search stopped anywhere inside a band of width about
+  `sqrt(rounding / curvature)`, which widens with the distance to the
+  origin. A Bézier touching an extrusion at its end came back 4e-5 off
+  the touch and as a crossing (`multiplicity` 1) once translated by 1e7.
+  A hit where the curve runs along the surface is now placed by Newton
+  on the touch itself, where the curve's tangent lies in the surface's
+  tangent plane, pinned at a curve end the touch lies beyond, and kept
+  only when it is still the same contact (ADR 0034). It reports
+  `multiplicity` 2. The list of the similarity judge is empty. The
+  numeric curve–surface benchmarks spend up to 2% more instructions.
 - A marched curve's curves in the parameters of its surfaces keep within
   the confusion of its curve in space (#393). The march sized its steps
   on the curve in space alone, so where a surface's parameters turn fast

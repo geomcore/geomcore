@@ -5,7 +5,8 @@
 use crate::geometry::curves::{ElementaryCurve, ParametricCurve};
 use crate::geometry::surfaces::{ExtrusionSurface, ParametricSurface};
 use crate::math::numeric::boxtree::Aabb;
-use crate::math::numeric::{brent_minimum, newton_3d};
+use crate::math::numeric::{brent_minimum, newton_3d, solve_3x3};
+use crate::operations::intersect::numeric::curve_curve::SHARPEST_TOUCH_RADIUS_IN_CONFUSIONS;
 use crate::operations::intersect::numeric::curve_surface_hull::CurveSurfaceHits;
 use crate::operations::intersect::numeric::marching::{REACH, anchor, own_size};
 use crate::operations::intersect::numeric::{overlap_runs, pairs_with_bspline};
@@ -90,7 +91,140 @@ where
     let (hits, overlaps, completeness) =
         overlap_runs::curve_surface_overlaps(curve, surface, hits.into_hits(), completeness, tol);
     let hits = distinct_contacts(curve, surface, hits, tol);
+    let hits = placed_contacts(curve, surface, hits, tol);
     CurveSurfaceIntersection::numeric(hits, overlaps, completeness)
+}
+
+/// Newton steps placing a contact (see [`placed_contact`]).
+const CONTACT_STEPS: usize = 16;
+
+/// The `hits` with each tangent contact placed where the curve touches
+/// the surface (see [`placed_contact`]), ordered by curve parameter.
+fn placed_contacts<C, S>(
+    curve: &C,
+    surface: &S,
+    hits: Vec<CurveSurfaceHit>,
+    tol: Tolerance,
+) -> Vec<CurveSurfaceHit>
+where
+    C: ParametricCurve,
+    S: ParametricSurface,
+{
+    let mut placed: Vec<CurveSurfaceHit> = hits
+        .into_iter()
+        .map(|hit| placed_contact(curve, surface, &hit, tol).unwrap_or(hit))
+        .collect();
+    sort_by_parameter(&mut placed, |hit| hit.curve_parameter);
+    placed
+}
+
+/// The contact `hit` belongs to, placed where the curve touches the
+/// surface, or `None` when `hit` is no touch.
+///
+/// A hit is found by bringing `C(t) - S(u, v)` within `tol.confusion`.
+/// Near a tangent contact that residual stays within rounding over a band
+/// about `sqrt(noise / curvature)` wide, and far from the origin the noise
+/// is the rounding of the coordinates: the hit lands anywhere in the band,
+/// and where depends on the placement. The touch is where the curve's
+/// tangent lies in the surface's tangent plane: the root of
+/// `C'(t) . (S_u x S_v)` at the foot `(u, v)` of `C(t)`, whose foot
+/// equations `(C - S) . S_u = (C - S) . S_v = 0` hold. Newton's method
+/// solves the three together from the hit. The tangency equation has no
+/// difference of far coordinates, so its root does not move with the
+/// placement. A step past a non-periodic end of the curve pins `t` there,
+/// and the foot alone is then solved: the touch is at the end.
+///
+/// The touch replaces the hit when it lies within `tol.confusion` of the
+/// surface and is one contact with the hit (see [`same_contact`]); it has
+/// multiplicity 2, as the tangent lies in the tangent plane there. A clear
+/// crossing is told apart from the sine between the tangent and the
+/// surface alone, as curve–curve hits are (ADR 0034): a touch at the sine
+/// `s` needs a radius of curvature of at most `2 tol.confusion / s^2`, so
+/// a crossing whose radius would fall under
+/// [`SHARPEST_TOUCH_RADIUS_IN_CONFUSIONS`] confusions is no touch.
+fn placed_contact<C, S>(
+    curve: &C,
+    surface: &S,
+    hit: &CurveSurfaceHit,
+    tol: Tolerance,
+) -> Option<CurveSurfaceHit>
+where
+    C: ParametricCurve,
+    S: ParametricSurface,
+{
+    let (mut t, (mut u, mut v)) = (hit.curve_parameter, hit.surface_parameters);
+    let tangent = curve.derivative(t, 1);
+    let (_, [su, sv]) = surface.first_derivatives(u, v);
+    let normal = su.cross(sv);
+    let sine = tangent.dot(normal).abs() / (tangent.magnitude() * normal.magnitude());
+    let clear_crossing = sine * sine > 2.0 / SHARPEST_TOUCH_RADIUS_IN_CONFUSIONS;
+    if clear_crossing || sine.is_nan() {
+        return None;
+    }
+    let bounds = curve.period().is_none().then(|| curve.bounds());
+    let mut pinned = false;
+    let mut moved = f64::INFINITY;
+    for _ in 0..CONTACT_STEPS {
+        let (c, d1, d2) = curve.second_derivatives(t);
+        let (s, [su, sv], [suu, suv, svv]) = surface.second_derivatives(u, v);
+        let normal = su.cross(sv);
+        let gap = c - s;
+        let along_t = if pinned {
+            [1.0, 0.0, 0.0]
+        } else {
+            [
+                d2.dot(normal),
+                d1.dot(suu.cross(sv) + su.cross(suv)),
+                d1.dot(suv.cross(sv) + su.cross(svv)),
+            ]
+        };
+        let jacobian = [
+            [
+                d1.dot(su),
+                gap.dot(suu) - su.dot(su),
+                gap.dot(suv) - sv.dot(su),
+            ],
+            [
+                d1.dot(sv),
+                gap.dot(suv) - su.dot(sv),
+                gap.dot(svv) - sv.dot(sv),
+            ],
+            along_t,
+        ];
+        let tangency = if pinned { 0.0 } else { d1.dot(normal) };
+        let step = solve_3x3(jacobian, [-gap.dot(su), -gap.dot(sv), -tangency], 1e-14)?;
+        let mut next_t = t + step[0];
+        if let Some((low, high)) = bounds
+            && !(low..=high).contains(&next_t)
+        {
+            next_t = next_t.clamp(low, high);
+            pinned = true;
+        }
+        moved = (next_t - t).abs() * d1.magnitude()
+            + step[1].abs() * su.magnitude()
+            + step[2].abs() * sv.magnitude();
+        (t, u, v) = (next_t, u + step[1], v + step[2]);
+        if !moved.is_finite() {
+            return None;
+        }
+        if moved <= 1e-3 * tol.confusion {
+            break;
+        }
+    }
+    if moved > tol.confusion {
+        return None;
+    }
+    let point = curve.point_at(t);
+    if point.distance(surface.point_at(u, v)) > tol.confusion {
+        return None;
+    }
+    let touch = CurveSurfaceHit {
+        curve_parameter: t,
+        surface_parameters: (u, v),
+        point,
+        multiplicity: 2,
+    };
+    same_contact(curve, surface, hit, &touch, tol).then_some(touch)
 }
 
 /// The `hits` (ordered by curve parameter) without those that are one
