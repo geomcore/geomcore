@@ -11,13 +11,12 @@ use crate::operations::intersect::numeric::bezier_pieces::{
     CurvePieces, apart_along, bounding_box, box_size, cross, curves_meet_at_most_once, dot,
     euclidean, norm, sub,
 };
-use crate::operations::intersect::numeric::curve_curve::same_contact;
+use crate::operations::intersect::numeric::curve_curve::distinct_contacts;
 use crate::operations::intersect::numeric::parameter_domain::ParameterDomain;
 use crate::operations::intersect::numeric::subdivision::{
     Node, OnceExhausted, PairTests, Subdivision, Visit, interval,
 };
 use crate::operations::intersect::results::completeness::box_union;
-use crate::operations::intersect::results::sort_by_parameter;
 use crate::operations::intersect::{Completeness, CurveCurveHit, CurveCurveRegion};
 use crate::{Point, Tolerance};
 use std::ops::Deref;
@@ -47,10 +46,9 @@ impl CurveCurveHits {
         Self::new(hits, Completeness::Sampled)
     }
 
-    /// Adds the `sampled` hits of the curves `a` and `b` that are not one
-    /// contact with a hit already found (see
-    /// [`same_contact`](super::curve_curve::same_contact)), keeping the
-    /// order by first-curve parameter.
+    /// Adds the `sampled` hits of the curves `a` and `b`, keeping one of
+    /// each contact among them and the hits already found (see
+    /// [`distinct_contacts`]) and the order by first-curve parameter.
     pub(crate) fn add_sampled<A, B>(
         &mut self,
         a: &A,
@@ -61,12 +59,9 @@ impl CurveCurveHits {
         A: ParametricCurve,
         B: ParametricCurve,
     {
-        for hit in sampled {
-            if self.hits.iter().all(|h| !same_contact(a, b, h, &hit, tol)) {
-                self.hits.push(hit);
-            }
-        }
-        sort_by_parameter(&mut self.hits, |hit| hit.first_parameter);
+        let mut hits = std::mem::take(&mut self.hits);
+        hits.extend(sampled);
+        self.hits = distinct_contacts(a, b, hits, tol);
     }
 
     /// The hits, ordered by first-curve parameter, without the

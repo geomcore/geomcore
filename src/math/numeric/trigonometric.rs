@@ -414,6 +414,7 @@ fn halve<const N: usize>(c: &[f64; N]) -> ([f64; N], [f64; N]) {
 /// The Bernstein coefficients over `σ` in `[0, 1]` of each basis
 /// function at `t = α + 2 atan(2σ − 1)`, times `(1 + s²)^K`: `out[j]`
 /// for `φ_j`.
+#[inline]
 fn chart_basis<const N: usize>(alpha: f64) -> [[f64; N]; N] {
     let degree = N - 1;
     let half = N / 2;
@@ -479,6 +480,7 @@ fn chart_basis<const N: usize>(alpha: f64) -> [[f64; N]; N] {
 
 /// The Bernstein coefficients over `σ` in `[0, 1]` of the polynomial with
 /// power coefficients `a` in `s = 2σ − 1`.
+#[inline]
 fn bernstein_on_unit<const N: usize>(a: &[f64], degree: usize) -> [f64; N] {
     let binomial = |n: usize, k: usize| -> f64 {
         (0..k).fold(1.0, |acc, i| acc * (n - i) as f64 / (i + 1) as f64)

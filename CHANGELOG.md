@@ -316,6 +316,15 @@ the Python distribution are versioned in lockstep.
   run on over a second turn. The parameter of a fitted curve, its arc
   length to within 1e-4, is documented on `IntersectionCurve` and in the
   intersection guide.
+- The numeric curve–curve search merged a hit into any hit kept before it
+  that it was one contact with, and between two hits far apart the test's
+  probes can land on other crossings (#425): a quintic Bézier crossing a
+  segment of the x axis at x = 0, 1, 2, 3 and 4 lost the crossing at 4,
+  and the x axis itself the crossing at 0. A hit is now compared with its
+  neighbour in parameter on the first curve, and on a closed first curve
+  the last with the first, as curve–surface hits are since #416; of two
+  hits that are one contact, the one where the curves come closer is
+  kept.
 
 ## [0.48.0] - 2026-11-16
 

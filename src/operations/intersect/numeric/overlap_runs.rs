@@ -20,9 +20,8 @@
 
 use crate::geometry::curves::ParametricCurve;
 use crate::geometry::surfaces::ParametricSurface;
-use crate::operations::intersect::numeric::curve_curve::{grazing_multiplicity, same_contact};
+use crate::operations::intersect::numeric::curve_curve::{distinct_contacts, grazing_multiplicity};
 use crate::operations::intersect::results::completeness::{meet, merged};
-use crate::operations::intersect::results::sort_by_parameter;
 use crate::operations::intersect::{
     Completeness, CurveCurveHit, CurveCurveOverlap, CurveCurveRegion, CurveSurfaceHit,
     CurveSurfaceOverlap, CurveSurfaceRegion, IncompleteReason,
@@ -248,18 +247,8 @@ where
         .filter(|hit| !inside(hit.first_parameter))
         .collect();
     hits.extend(contacts.iter().map(|&(_, hit)| hit));
-    sort_by_parameter(&mut hits, |hit| hit.first_parameter);
     // Two contacts on either side of one tangency are one contact.
-    let mut distinct: Vec<CurveCurveHit> = Vec::new();
-    for hit in hits {
-        if distinct
-            .iter()
-            .all(|kept| !same_contact(first, second, kept, &hit, tol))
-        {
-            distinct.push(hit);
-        }
-    }
-    let hits = distinct;
+    let hits = distinct_contacts(first, second, hits, tol);
     let accounted_by_contact = |region: &CurveCurveRegion| {
         contacts
             .iter()
