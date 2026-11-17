@@ -20,8 +20,9 @@ use std::path::PathBuf;
 use common::samples::{curves, parameters, surface_parameters, surfaces, tilted_frame};
 use geomcore::prelude::*;
 use geomcore::{
-    BSplineCurve, BezierCurve, Completeness, Curve, Frame, IntersectionMethod, Plane, Point,
-    Surface, Tolerance, Transform, Vector, curve_curve_extrema,
+    BSplineCurve, BezierCurve, Circle, Completeness, Curve, ExtrusionSurface, Frame,
+    IntersectionMethod, Line, Plane, Point, Surface, Tolerance, Transform, Vector,
+    curve_curve_extrema,
 };
 
 /// A similarity, its factor on lengths and its inverse.
@@ -364,6 +365,50 @@ fn shallow_curve_surface_intersections_are_similarity_invariant() {
             &[plane],
             false,
             curve_surface_touches,
+        ),
+    );
+}
+
+/// Circles of radius 1 dipping through the plane `z = 0` of
+/// [`tilted_frame`], crossing it twice at 1, 2 and 4 degrees. The plane
+/// is the extrusion of a line, which no exact solver takes, so the
+/// sampled search finds the hits; the two crossings of the smallest dips
+/// lie within one step of its samples, so Newton from the closest
+/// samples finds both, and a minimisation from the one dip between them
+/// finds one. Newton read the tolerance, a length, as its pivot ratio:
+/// at the scale 2^20 it took these systems for singular (#434).
+fn dipping_circles() -> Vec<Curve> {
+    let into_frame = Transform::between_frames(Frame::WORLD, tilted_frame());
+    [1.0f64, 2.0, 4.0]
+        .into_iter()
+        .map(|degrees| {
+            let depth = 1.0 - degrees.to_radians().cos();
+            let frame =
+                Frame::new(Point::new(0.0, 0.0, 1.0 - depth), Vector::Y, Vector::X).unwrap();
+            Curve::from(Circle::from_frame(frame, 1.0).unwrap())
+                .transformed(into_frame)
+                .unwrap()
+        })
+        .collect()
+}
+
+#[test]
+fn sampled_curve_surface_intersections_are_similarity_invariant() {
+    let into_frame = Transform::between_frames(Frame::WORLD, tilted_frame());
+    let line = Line::new(Point::ORIGIN, Vector::X).unwrap();
+    let plane: Surface = ExtrusionSurface::new(line.into(), Vector::Y)
+        .unwrap()
+        .transformed(into_frame)
+        .unwrap()
+        .into();
+    report(
+        "sampled-curve-surface",
+        compare_pairs(
+            "sampled-curve-surface",
+            &dipping_circles(),
+            &[plane],
+            false,
+            curve_surface,
         ),
     );
 }
