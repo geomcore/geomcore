@@ -450,7 +450,8 @@ fn chart_basis<const N: usize>(alpha: f64) -> [[f64; N]; N] {
         }
         out
     };
-    std::array::from_fn(|j| {
+    let mut basis = [[0.0; N]; N];
+    for (j, row) in basis.iter_mut().enumerate() {
         let k = j.div_ceil(2);
         let power = &powers[2 * k];
         let re: Vec<f64> = power.iter().map(|p| p.0).collect();
@@ -473,8 +474,9 @@ fn chart_basis<const N: usize>(alpha: f64) -> [[f64; N]; N] {
         };
         let mut power_s = multiply(&trig, &one_plus_square(half - k));
         power_s.resize(N, 0.0);
-        bernstein_on_unit(&power_s, degree)
-    })
+        *row = bernstein_on_unit(&power_s, degree);
+    }
+    basis
 }
 
 /// The Bernstein coefficients over `σ` in `[0, 1]` of the polynomial with

@@ -39,6 +39,7 @@ impl QuadraticSolution {
     /// pair are one double root at `t*`. The tolerance is a distance, so
     /// this (not the roots' separation in parameter space, which input
     /// rounding of `δ` widens to about `sqrt(2*rho*δ)`) decides contact.
+    #[inline]
     pub(crate) fn touching_at(self, vertex: f64, touches: impl Fn(f64) -> bool) -> Self {
         match self {
             Self::Two(..) | Self::Empty if vertex.is_finite() && touches(vertex) => {
