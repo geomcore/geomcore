@@ -12,6 +12,10 @@ theme:
 hooks:
   - docs_hooks/hooks.py
 
+extra:
+  # Base URL of the hosted viewer used by ```viewer blocks in the docs.
+  viewer_url: https://geomcore.github.io/geomcore-viewer/
+
 markdown_extensions:
   - pymdownx.superfences
   - pymdownx.highlight:
@@ -25,6 +29,7 @@ markdown_extensions:
 extra_css:
   - stylesheets/figures.css
   - stylesheets/highlight.css
+  - stylesheets/viewer.css
 
 extra_javascript:
   - https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-svg.js
@@ -32,21 +37,27 @@ extra_javascript:
 
 nav:
   - Home: index.md
-  - Geometry:
-    - Elementary curves & surfaces: geometry/elementary.md
-  - NURBS:
-    - Overview: nurbs/index.md
-    - Curves: nurbs/curves.md
-    - Surfaces: nurbs/surfaces.md
-    - Editing & fitting: nurbs/editing-fitting.md
-  - Guides:
+  - Tutorials:
+    - Getting started: getting-started.md
+  - How-to guides:
+    - Visualize with the viewer: viewer.md
     - Projection & containment: guides/projection.md
     - Intersection: guides/intersection.md
-    - Discretization: guides/discretization.md
-    - Curve on surface: guides/parametrization.md
-  - Viewer: viewer.md
-  - Python: python.md
-  - Roadmap: roadmap.md
+    - Discretize a curve: guides/discretization.md
+    - Map a curve onto a surface: guides/parametrization.md
+  - Reference:
+    - Elementary curves & surfaces: geometry/elementary.md
+    - NURBS:
+      - Curves: nurbs/curves.md
+      - Surfaces: nurbs/surfaces.md
+      - Editing & fitting: nurbs/editing-fitting.md
+    - Python API: python.md
+    - Throughput baseline: benchmarks.md
+  - Explanation:
+    - "NURBS: from Bézier to B-spline": nurbs/index.md
+    - Why ten special cases: explanation/why-ten-special-cases.md
+    - Design decisions: adr/index.md
+    - Roadmap: roadmap.md
 
 exclude_docs: |
   superpowers/*

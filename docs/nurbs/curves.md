@@ -122,11 +122,9 @@ carrying a proven chord-deviation and angle-deviation bound — see
 
 ## View it
 
-From a script or notebook, send the real objects — B-splines travel
-sampled (curve → 256-segment polyline) until native protocol types land
-([viewer#5](https://github.com/geomcore/geomcore-viewer/issues/5)):
-
-The viewer does not draw geomcore 0.44 or later yet: see [Viewer](../viewer.md#install).
+From a script or notebook, send the real objects. A B-spline travels
+exact — degree, poles, weights, knots and multiplicities — and the
+viewer evaluates it with de Boor, refining the display with the zoom:
 
 === "Python"
 

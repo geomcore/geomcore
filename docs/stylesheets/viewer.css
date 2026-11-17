@@ -1,0 +1,41 @@
+/* Interactive geomcore-viewer embeds, expanded from ```viewer blocks by
+   docs_hooks/hooks.py. */
+
+.md-typeset figure.gc-viewer {
+  margin: 1.2em 0;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.md-typeset figure.gc-viewer iframe {
+  display: block;
+  width: 100%;
+  height: var(--gc-viewer-height, 480px);
+  border: 0;
+  background: var(--surface);
+}
+
+.md-typeset figure.gc-viewer figcaption {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5em 1em;
+  padding: 8px 12px;
+  border-top: 1px solid var(--rule);
+  font-size: 0.78em;
+  color: var(--ink-3);
+}
+
+.md-typeset figure.gc-viewer figcaption a {
+  white-space: nowrap;
+}
+
+@media screen and (max-width: 44.9375em) {
+  .md-typeset figure.gc-viewer iframe {
+    height: min(var(--gc-viewer-height, 480px), 70vh);
+    min-height: 320px;
+  }
+}
