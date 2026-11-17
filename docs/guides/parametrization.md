@@ -24,7 +24,10 @@ what the parameters measure (see [Elementary](../geometry/elementary.md#what-the
 <figcaption>A uniform grid in (u, v) is not uniform on the surface: the metric stretches it.</figcaption>
 </figure>
 
-<iframe src="https://geomcore.github.io/geomcore-viewer/?scene=https://geomcore.github.io/geomcore/assets/scenes/param-grid.json" width="100%" height="480" style="border: 1px solid #333; border-radius: 8px;" allow="fullscreen" title="A uniform (u, v) grid on a sphere, one cell at the equator and one against the pole"></iframe>
+```viewer
+scene: assets/scenes/param-grid.json
+title: A uniform (u, v) grid on a sphere, one cell at the equator and one against the pole
+```
 
 ## Analytic UV curves
 
@@ -70,28 +73,40 @@ A few images across the surfaces:
 <figcaption>On a cylinder: coaxial circles are horizontal lines, generators vertical ones.</figcaption>
 </figure>
 
-<iframe src="https://geomcore.github.io/geomcore-viewer/?scene=https://geomcore.github.io/geomcore/assets/scenes/param-cylinder.json" width="100%" height="480" style="border: 1px solid #333; border-radius: 8px;" allow="fullscreen" title="Three curves on a cylinder and their images in (u, v)"></iframe>
+```viewer
+scene: assets/scenes/param-cylinder.json
+title: Three curves on a cylinder and their images in (u, v)
+```
 
 <figure class="geom-fig">
 <img src="../../assets/figures/parametric-domain/04-three-curves-on-a-cone.svg" alt="Curves on a cone">
 <figcaption>On a cone the same construction winds with the growing radius.</figcaption>
 </figure>
 
-<iframe src="https://geomcore.github.io/geomcore-viewer/?scene=https://geomcore.github.io/geomcore/assets/scenes/param-cone.json" width="100%" height="480" style="border: 1px solid #333; border-radius: 8px;" allow="fullscreen" title="Three curves on a cone and their images in (u, v)"></iframe>
+```viewer
+scene: assets/scenes/param-cone.json
+title: Three curves on a cone and their images in (u, v)
+```
 
 <figure class="geom-fig">
 <img src="../../assets/figures/parametric-domain/05-three-curves-on-a-sphere.svg" alt="Curves on a sphere">
 <figcaption>On a sphere: parallels are horizontal, meridians vertical — and both pinch at the poles.</figcaption>
 </figure>
 
-<iframe src="https://geomcore.github.io/geomcore-viewer/?scene=https://geomcore.github.io/geomcore/assets/scenes/param-sphere.json" width="100%" height="480" style="border: 1px solid #333; border-radius: 8px;" allow="fullscreen" title="Three curves on a sphere and their images in (u, v)"></iframe>
+```viewer
+scene: assets/scenes/param-sphere.json
+title: Three curves on a sphere and their images in (u, v)
+```
 
 <figure class="geom-fig">
 <img src="../../assets/figures/parametric-domain/06-three-curves-on-a-torus.svg" alt="Curves on a torus">
 <figcaption>On a torus both families close: the rectangle glues into the surface itself.</figcaption>
 </figure>
 
-<iframe src="https://geomcore.github.io/geomcore-viewer/?scene=https://geomcore.github.io/geomcore/assets/scenes/param-torus.json" width="100%" height="480" style="border: 1px solid #333; border-radius: 8px;" allow="fullscreen" title="Three curves on a torus and their images in (u, v)"></iframe>
+```viewer
+scene: assets/scenes/param-torus.json
+title: Three curves on a torus and their images in (u, v)
+```
 
 ## Within a deviation
 
@@ -159,8 +174,7 @@ its exact length or projection, would need a `Helix` type of its own.
 
 The viewer draws a UV curve twice: on the surface in 3D and in its own
 $(u, v)$ pane. Pass the 2D curve with the already-added surface's
-handle. The viewer does not draw geomcore 0.44 or later yet: see
-[Viewer](../viewer.md#install).
+handle.
 
 === "Python"
 

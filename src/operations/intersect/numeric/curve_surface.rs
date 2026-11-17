@@ -597,11 +597,6 @@ where
             hits.push(hit);
         }
     };
-    let multiplicity_at = |t: f64, u: f64, v: f64, point: Point| {
-        let (_, tangent) = curve.first_derivatives(t);
-        let (_, [su, sv]) = surface.first_derivatives(u, v);
-        curve_surface_multiplicity(tangent, su.cross(sv), point, tol)
-    };
     for i in order {
         let t = samples[i].0;
         let proj = surface.project_point(curve.point_at(t), tol);
@@ -630,7 +625,7 @@ where
                         curve_parameter: rt,
                         surface_parameters: (ru, rv),
                         point: p,
-                        multiplicity: multiplicity_at(rt, ru, rv, p),
+                        multiplicity: curve_surface_multiplicity(curve, rt, surface, (ru, rv), tol),
                     },
                 );
                 continue;
@@ -656,7 +651,13 @@ where
                         curve_parameter: rt,
                         surface_parameters: (proj.u, proj.v),
                         point: p,
-                        multiplicity: multiplicity_at(rt, proj.u, proj.v, p),
+                        multiplicity: curve_surface_multiplicity(
+                            curve,
+                            rt,
+                            surface,
+                            (proj.u, proj.v),
+                            tol,
+                        ),
                     },
                 );
             }

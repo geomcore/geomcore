@@ -110,10 +110,9 @@ vector, and keeps the span it came from as its bounds. `to_bspline()`
 turns one back into a B-spline, and `from_bspline` accepts a B-spline
 that is a single clamped span.
 
-The pieces are what the viewer can *not* yet take directly — trimmed
-curves have no scene mapping in the Python client
-([viewer#6](https://github.com/geomcore/geomcore-viewer/issues/6)) —
-so sample them to polylines for display.
+A Bézier piece converts back to a B-spline with `to_bspline()`, which
+the viewer draws exactly. Trimmed curves and bounding boxes have scene
+mappings too, so there is no need to sample them by hand.
 
 ## Fitting
 
@@ -197,7 +196,7 @@ gives the box of the poles, which holds the curve but may be wider than
 it (elementary shapes get closed-form boxes, which touch them), and
 `tight_bounding_box(tol)` the box whose every side is within
 `tol.confusion` of the shape, for a collision pre-check — available on
-every curve and surface.
+every curve and surface. The viewer draws a box as its twelve edges.
 
 === "Python"
 
@@ -214,6 +213,3 @@ every curve and surface.
     let bb = curve.bounding_box().unwrap();
     assert_eq!((bb.min_corner(), bb.max_corner()), (Point::new(0.0, 0.0, 0.0), Point::new(1.0, 1.0, 0.0)));
     ```
-
-Boxes have no viewer mapping yet
-([viewer#8](https://github.com/geomcore/geomcore-viewer/issues/8)).

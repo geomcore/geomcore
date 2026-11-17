@@ -244,7 +244,11 @@ pub(crate) const SHARPEST_TOUCH_RADIUS_IN_CONFUSIONS: f64 = 100.0;
 /// The curvature vector of `curve` at `parameter`, given its first
 /// derivative `speed` there: the second derivative perpendicular to the
 /// tangent, over the squared speed.
-fn curvature_vector<C: ParametricCurve>(curve: &C, parameter: f64, speed: Vector) -> Vector {
+pub(crate) fn curvature_vector<C: ParametricCurve>(
+    curve: &C,
+    parameter: f64,
+    speed: Vector,
+) -> Vector {
     let acceleration = curve.derivative(parameter, 2);
     let unit_tangent = Direction::from_unit_vector(speed * (1.0 / speed.magnitude()));
     acceleration.component_perpendicular_to(unit_tangent) * (1.0 / speed.dot(speed))

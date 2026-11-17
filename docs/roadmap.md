@@ -5,6 +5,6 @@ The full, ordered roadmap lives in
 
 Documentation-related milestones:
 
-- Hosted tutorials (this site).
+- Getting-started tutorial and the Diátaxis organisation on this site.
 - API reference generated from docstrings (mkdocstrings) for Python,
   alongside [docs.rs](https://docs.rs/geomcore) for Rust.
