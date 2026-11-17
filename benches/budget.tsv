@@ -190,7 +190,7 @@ shape_fitting	shape_fitting/cylinder	553387
 shape_fitting	shape_fitting/plane	8488
 shape_fitting	shape_fitting/sphere	27193
 swept_plane_cut	swept_plane_cut/cylinder_parallel/bspline_patch	5153777
-swept_plane_cut	swept_plane_cut/cylinder_parallel/elementary	2833
+swept_plane_cut	swept_plane_cut/cylinder_parallel/elementary	2862
 swept_plane_cut	swept_plane_cut/cylinder_parallel/swept	7555
 swept_plane_cut	swept_plane_cut/extrusion_bspline_oblique/bspline_patch	7181339
 swept_plane_cut	swept_plane_cut/extrusion_bspline_oblique/swept	7131
@@ -203,7 +203,7 @@ swept_plane_cut	swept_plane_cut/torus_tangent/bspline_patch	19057345
 swept_plane_cut	swept_plane_cut/torus_tangent/elementary	2371
 swept_plane_cut	swept_plane_cut/torus_tangent/swept	4982
 swept_plane_cut	swept_plane_cut/torus_through_axis/bspline_patch	38643088
-swept_plane_cut	swept_plane_cut/torus_through_axis/elementary	4262
+swept_plane_cut	swept_plane_cut/torus_through_axis/elementary	4305
 swept_plane_cut	swept_plane_cut/torus_through_axis/swept	6415
 swept_projection	swept_projection/extrusion_bspline/bspline_patch	18789681
 swept_projection	swept_projection/extrusion_bspline/swept	3645551
