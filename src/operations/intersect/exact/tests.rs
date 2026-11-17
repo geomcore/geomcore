@@ -11,7 +11,7 @@ use crate::operations::intersect::{
 };
 
 use crate::operations::intersect::numeric::curve_curve::search_curve_curve;
-use crate::operations::intersect::numeric::curve_surface::{search_curve_surface, seeded_range};
+use crate::operations::intersect::numeric::curve_surface::{intersect_curve_surface, seeded_range};
 use crate::{Frame, Point, TorusConeIntersection, Vector};
 
 const TOL: Tolerance = Tolerance::DEFAULT;
@@ -385,7 +385,7 @@ fn test_curve_surface_intersection_matches_numeric() {
                 continue;
             }
             let hits = result.hits();
-            let numeric = search_curve_surface(curve, surface, TOL);
+            let numeric = intersect_curve_surface(curve, surface, TOL).hits().to_vec();
             let near = |p: Point, q: Point| {
                 (p - q).magnitude() <= 1e-6 * (1.0 + p.distance(Point::ORIGIN))
             };

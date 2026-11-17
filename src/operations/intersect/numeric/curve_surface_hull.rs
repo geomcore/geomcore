@@ -21,7 +21,7 @@ use crate::operations::intersect::results::sort_by_parameter;
 use crate::operations::intersect::{
     Completeness, CurveSurfaceHit, CurveSurfaceRegion, curve_surface_multiplicity,
 };
-use crate::{Point, Tolerance};
+use crate::{HasBoundingBox, Point, Tolerance};
 use std::ops::Deref;
 
 /// The hits of a numeric curve–surface intersection, ordered by curve
@@ -53,8 +53,8 @@ impl CurveSurfaceHits {
     }
 
     /// The hits of two searches of one curve against two parts of a
-    /// surface: those of `other` farther than `sqrt(tol.confusion)` from
-    /// every hit of `self` join them, and so do the regions of both.
+    /// surface: those of `other` farther than `tol.confusion` from every
+    /// hit of `self` join them, and so do the regions of both.
     pub(crate) fn join(self, other: CurveSurfaceHits, tol: Tolerance) -> Self {
         let mut joined = CurveSurfaceHits {
             hits: self.hits,
@@ -64,15 +64,16 @@ impl CurveSurfaceHits {
         joined
     }
 
-    /// Adds the `sampled` hits farther than `sqrt(tol.confusion)` from
-    /// every hit already found, keeping the order by curve parameter.
+    /// Adds the `sampled` hits farther than `tol.confusion` from every hit
+    /// already found, keeping the order by curve parameter. Two hits of one
+    /// grazing contact both stay: they merge once the overlaps are taken
+    /// out, by a test that does not depend on size.
     pub(crate) fn add_sampled(&mut self, sampled: Vec<CurveSurfaceHit>, tol: Tolerance) {
-        let merge_gap = tol.confusion.sqrt();
         for hit in sampled {
             if self
                 .hits
                 .iter()
-                .all(|h| h.point.distance(hit.point) > merge_gap)
+                .all(|h| h.point.distance(hit.point) > tol.confusion)
             {
                 self.hits.push(hit);
             }
@@ -144,9 +145,11 @@ const NEWTON_STEPS: usize = 32;
 /// - once the pieces provably meet at most once (see
 ///   [`meets_at_most_once`]), solved by Newton's method on `C(t) = S(u,
 ///   v)` from the pair's centre, against the B-splines themselves. A hit
-///   within the pair settles it, and so does one within the merging
-///   distance below of the whole curve piece, as the pair's hit would
-///   merge into it; any other hit is still kept. (Near a shallow
+///   within the pair settles it, and so does one within the contact
+///   spread of the whole curve piece: `sqrt(tol.confusion L)`, `L` the
+///   diagonal of the curve's pole box, about how far apart the two roots
+///   of a grazing contact sit on a shape of that size, so the pair's own
+///   hit would be one contact with it. Any other hit is still kept. (Near a shallow
 ///   crossing, the pieces beside it stay within `tol.confusion` of each
 ///   other without meeting.)
 ///
@@ -160,8 +163,8 @@ const NEWTON_STEPS: usize = 32;
 /// still pending are left unsettled too. Either way, the result is
 /// incomplete, with the unsettled pairs as its regions.
 ///
-/// Hits within `sqrt(tol.confusion)` of each other merge, as in the
-/// sampled search, keeping the one closest to the surface.
+/// Hits within `tol.confusion` of each other merge, keeping the one
+/// closest to the surface.
 pub(crate) fn bspline_curve_surface(
     curve: &BSplineCurve,
     range: ParameterDomain,
@@ -274,7 +277,7 @@ impl PairTests for PieceTests<'_> {
                 && let Some(hit) = self.record(x)
             {
                 let merges = || {
-                    let gap = self.merge_gap();
+                    let gap = self.contact_spread();
                     curve_points
                         .iter()
                         .all(|p| norm(sub(*p, [hit.x, hit.y, hit.z])) <= gap)
@@ -383,19 +386,28 @@ impl PieceTests<'_> {
         Some(point)
     }
 
-    /// The distance within which hits merge.
-    fn merge_gap(&self) -> f64 {
-        self.tol.confusion.sqrt()
+    /// How far apart the two roots of a grazing contact sit on a shape of
+    /// the curve's size: `sqrt(tol.confusion L)`, `L` the diagonal of the
+    /// curve's pole box. It scales with the shapes, as a length must. Only
+    /// a hit found outside its pair asks for it, so it is not kept.
+    fn contact_spread(&self) -> f64 {
+        let size = self
+            .curve
+            .bounding_box()
+            .map_or(0.0, |pole_box| pole_box.diagonal().magnitude());
+        (self.tol.confusion * size).sqrt()
     }
 
-    /// The hits found, merged within `sqrt(tol.confusion)` (the closest to
-    /// the surface kept), ordered by curve parameter.
+    /// The hits found, merged within `tol.confusion` (the closest to the
+    /// surface kept), ordered by curve parameter.
     fn hits(mut self) -> Vec<CurveSurfaceHit> {
         self.found.sort_by(|a, b| a.1.total_cmp(&b.1));
-        let merge_gap = self.merge_gap();
         let mut hits: Vec<CurveSurfaceHit> = Vec::new();
         for (hit, _) in self.found {
-            if hits.iter().all(|h| h.point.distance(hit.point) > merge_gap) {
+            if hits
+                .iter()
+                .all(|h| h.point.distance(hit.point) > self.tol.confusion)
+            {
                 hits.push(hit);
             }
         }

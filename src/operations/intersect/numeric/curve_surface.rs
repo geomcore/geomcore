@@ -89,7 +89,97 @@ where
     let completeness = hits.completeness().clone();
     let (hits, overlaps, completeness) =
         overlap_runs::curve_surface_overlaps(curve, surface, hits.into_hits(), completeness, tol);
+    let hits = distinct_contacts(curve, surface, hits, tol);
     CurveSurfaceIntersection::numeric(hits, overlaps, completeness)
+}
+
+/// The `hits` (ordered by curve parameter) without those that are one
+/// contact with the hit kept before them (see [`same_contact`]), and on a
+/// periodic curve without a last hit that is one contact with the first,
+/// across the curve's seam. It runs once the overlaps are taken out: along
+/// an overlap every hit is one contact with the next, and merging them
+/// first would leave no run to join.
+///
+/// Only neighbours are compared. The roots of one contact are neighbours
+/// in curve parameter, and two hits far apart can pass the test by
+/// accident: the probes between them can land on other crossings, as at
+/// `x = 1, 2, 3` between the crossings at `x = 0` and `x = 4` of a curve
+/// meeting the surface at each integer.
+fn distinct_contacts<C, S>(
+    curve: &C,
+    surface: &S,
+    hits: Vec<CurveSurfaceHit>,
+    tol: Tolerance,
+) -> Vec<CurveSurfaceHit>
+where
+    C: ParametricCurve,
+    S: ParametricSurface,
+{
+    let mut distinct: Vec<CurveSurfaceHit> = Vec::with_capacity(hits.len());
+    for hit in hits {
+        if distinct
+            .last()
+            .is_none_or(|kept| !same_contact(curve, surface, kept, &hit, tol))
+        {
+            distinct.push(hit);
+        }
+    }
+    if curve.period().is_some()
+        && let [first, .., last] = distinct.as_slice()
+        && same_contact(curve, surface, first, last, tol)
+    {
+        distinct.pop();
+    }
+    distinct
+}
+
+/// Whether the hits `kept` and `hit` of `curve` on `surface` are one
+/// contact, so that only one of them is reported.
+///
+/// They are when they lie within `tol.confusion` of each other, or when
+/// the curve stays within `tol.confusion` of the surface between them:
+/// checked at the quarter, half and three-quarter points of the way from
+/// one hit's parameters to the other's, the surface parameters taken the
+/// shorter way round a period. The distance between the hits is not the
+/// test, since it has no size-free threshold: at a near-tangent contact
+/// the two roots sit about `sqrt(2 tol.confusion R)` apart, `R` the
+/// radius of the curve's curvature relative to the surface, yet the curve
+/// stays within confusion of the surface between them. Between two
+/// transversal crossings the curve leaves the surface by more than
+/// confusion once they are far enough apart to be two hits.
+fn same_contact<C, S>(
+    curve: &C,
+    surface: &S,
+    kept: &CurveSurfaceHit,
+    hit: &CurveSurfaceHit,
+    tol: Tolerance,
+) -> bool
+where
+    C: ParametricCurve,
+    S: ParametricSurface,
+{
+    if kept.point.distance(hit.point) <= tol.confusion {
+        return true;
+    }
+    let shorter = |from: f64, to: f64, period: Option<f64>| match period {
+        Some(period) if period > 0.0 => {
+            let step = to - from;
+            step - period * (step / period).round()
+        }
+        _ => to - from,
+    };
+    let (t0, (u0, v0)) = (kept.curve_parameter, kept.surface_parameters);
+    let (t1, (u1, v1)) = (hit.curve_parameter, hit.surface_parameters);
+    let (dt, du, dv) = (
+        shorter(t0, t1, curve.period()),
+        shorter(u0, u1, surface.u_period()),
+        shorter(v0, v1, surface.v_period()),
+    );
+    [0.25, 0.5, 0.75].into_iter().all(|fraction| {
+        let on_curve = curve.point_at(t0 + dt * fraction);
+        let on_surface = surface.point_at(u0 + du * fraction, v0 + dv * fraction);
+        on_curve.distance(on_surface) <= tol.confusion
+    })
 }
 
 /// Generic curve-surface intersection for any parametric curve and surface.
@@ -361,15 +451,14 @@ where
     order.truncate(KEEP);
     order.extend(other_dips);
     let mut hits: Vec<CurveSurfaceHit> = Vec::new();
-    // Contact-level dedupe (sqrt scale): near-tangent seeds reach distinct
-    // points of one grazing contact; transversal hits are far apart by
-    // comparison. Extrema (stationary points) keep tight dedupe elsewhere
-    // — distinct minima are real data.
-    let merge_gap = tol.confusion.sqrt();
+    // Seeds converging onto one point keep one hit. Near-tangent seeds
+    // reach distinct points of one grazing contact, and those stay: the
+    // contacts merge once the overlaps are taken out (see
+    // [`distinct_contacts`]), with a test that does not depend on size.
     let push = |hits: &mut Vec<CurveSurfaceHit>, hit: CurveSurfaceHit| {
         if !hits
             .iter()
-            .any(|h| h.point.distance(hit.point) <= merge_gap)
+            .any(|h| h.point.distance(hit.point) <= tol.confusion)
         {
             hits.push(hit);
         }

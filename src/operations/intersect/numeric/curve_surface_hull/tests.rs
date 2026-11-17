@@ -4,7 +4,9 @@ use crate::geometry::curves::{Curve, ParametricCurve, TrimmedCurve};
 use crate::geometry::surfaces::Surface;
 use crate::operations::intersect::IncompleteReason;
 use crate::operations::intersect::numeric::curve_surface::sampled_curve_surface;
-use crate::operations::intersect::numeric::curve_surface::search_curve_surface;
+use crate::operations::intersect::numeric::curve_surface::{
+    intersect_curve_surface, search_curve_surface,
+};
 use crate::operations::intersect::results::completeness::Region;
 
 const TOL: Tolerance = Tolerance::DEFAULT;
@@ -466,7 +468,7 @@ fn assert_sampled_hits_kept(hits: &CurveSurfaceHits, curve: &BSplineCurve, plane
         assert!(plane.project_point(hit.point, TOL).distance <= TOL.confusion);
     }
     for hit in sampled_curve_surface(curve, plane, TOL) {
-        let near = |h: &CurveSurfaceHit| h.point.distance(hit.point) <= TOL.confusion.sqrt();
+        let near = |h: &CurveSurfaceHit| h.point.distance(hit.point) <= TOL.confusion;
         assert!(hits.iter().any(near), "{hit:?} missing from {hits:?}");
     }
 }
@@ -516,11 +518,21 @@ fn test_tangent_contact_is_unseparated_around_it() {
         assert!(t0 <= 0.5 + 1e-3 && t1 >= 0.5 - 1e-3, "{region:?}");
         assert!(t1 - t0 < 1e-2, "{region:?}");
     }
+    // The search keeps the points of the grazing contact it reached; they
+    // are one contact, reported once by the intersection.
     let hits = search_curve_surface(&tangent, &plane, TOL);
     assert_eq!(hits.completeness(), found.completeness());
-    assert_eq!(hits.len(), 1, "{hits:?}");
-    assert!(hits[0].point.distance(contact) < TOL.confusion.sqrt());
+    assert!(!hits.is_empty());
+    for hit in &hits {
+        assert!(
+            hit.point.distance(contact) < TOL.confusion.sqrt(),
+            "{hit:?}"
+        );
+    }
     assert_sampled_hits_kept(&hits, &tangent, &plane);
+    let reported = intersect_curve_surface(&tangent, &plane, TOL);
+    assert_eq!(reported.hits().len(), 1, "{reported:?}");
+    assert!(reported.hits()[0].point.distance(contact) < TOL.confusion.sqrt());
 }
 
 #[test]
