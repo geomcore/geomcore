@@ -9,6 +9,22 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+### Fixed
+
+- The sampled curve–surface search finds the same hits at any size (#434).
+  Its Newton steps read the tolerance, a length, as the pivot ratio of
+  their linear solve, so at a large scale a crossing at a few degrees
+  counted as singular and a curve crossing a surface twice within one
+  sample step lost a hit. The ratio is now a fixed `1e-14`, and the
+  iteration settles once a step moves the points by a thousandth of the
+  tolerance, where it added a curve parameter's step to the surface
+  parameters' steps.
+- The sampled curve–surface search reports a hit Newton found on a
+  periodic curve or surface with its parameters within their period, as
+  documented. A hit of a curve lying on the surface, reached past the
+  period, escaped the overlap and showed as a stray touch far from the
+  origin.
+
 ## [0.49.0] - 2026-11-17
 
 Results no longer depend on the model's size or placement. Curve–surface

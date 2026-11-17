@@ -104,6 +104,11 @@ impl ParameterDomain {
         }
     }
 
+    /// `u` wrapped into a period, or left as it is in an interval.
+    pub(crate) fn wrap_period(self, u: f64) -> f64 {
+        if self.is_periodic() { self.wrap(u) } else { u }
+    }
+
     /// The signed step from `u` to `v`, the shorter way round a period.
     pub(crate) fn step(self, u: f64, v: f64) -> f64 {
         match self {

@@ -9,6 +9,7 @@ use crate::math::numeric::{brent_minimum, newton_3d, solve_3x3};
 use crate::operations::intersect::numeric::curve_curve::SHARPEST_TOUCH_RADIUS_IN_CONFUSIONS;
 use crate::operations::intersect::numeric::curve_surface_hull::CurveSurfaceHits;
 use crate::operations::intersect::numeric::marching::{REACH, anchor, own_size};
+use crate::operations::intersect::numeric::parameter_domain::ParameterDomain;
 use crate::operations::intersect::numeric::{overlap_runs, pairs_with_bspline};
 use crate::operations::intersect::results::sort_by_parameter;
 use crate::operations::intersect::{
@@ -503,8 +504,13 @@ fn range_reaching_extrusion(
 /// lies within `tol.confusion` beyond it, `None` further out: Newton
 /// is not held to the bounds, and from a seed near an end of a trimmed
 /// piece it reaches a hit of the basis curve beyond it (#308). A
-/// periodic curve has every parameter on it.
+/// periodic curve has every parameter on it, wrapped into its period:
+/// an overlap takes out the hits within its range of parameters.
 fn on_curve<C: ParametricCurve>(curve: &C, t: f64, tol: Tolerance) -> Option<f64> {
+    let domain = ParameterDomain::of(curve);
+    if domain.is_periodic() {
+        return Some(domain.wrap_period(t));
+    }
     let (first, last) = curve.bounds();
     if curve.period().is_some() || (first <= t && t <= last) {
         return Some(t);
@@ -584,6 +590,8 @@ where
         .collect();
     order.truncate(KEEP);
     order.extend(other_dips);
+    let u_domain = ParameterDomain::from_bounds(surface.u_bounds(), surface.u_period());
+    let v_domain = ParameterDomain::from_bounds(surface.v_bounds(), surface.v_period());
     let mut hits: Vec<CurveSurfaceHit> = Vec::new();
     // Seeds converging onto one point keep one hit. Near-tangent seeds
     // reach distinct points of one grazing contact, and those stay: the
@@ -613,10 +621,13 @@ where
                 [ct.z, -su.z, -sv.z],
             ]
         };
-        let solved = newton_3d(f, jac, [t, proj.u, proj.v], tol.confusion, 50);
+        // Settled once a step moves the points by a thousandth of the
+        // tolerance, as in `placed_contact`.
+        let solved = newton_3d(f, jac, [t, proj.u, proj.v], 1e-3 * tol.confusion, 50);
         if let Some([rt, ru, rv]) = solved
             && let Some(rt) = on_curve(curve, rt, tol)
         {
+            let (ru, rv) = (u_domain.wrap_period(ru), v_domain.wrap_period(rv));
             let p = curve.point_at(rt);
             if p.distance(surface.point_at(ru, rv)) <= tol.confusion {
                 push(

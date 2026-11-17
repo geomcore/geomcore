@@ -108,8 +108,13 @@ pub(crate) fn solve_square<const N: usize>(
     Some(x)
 }
 
-/// Newton iteration for `f(x) = 0` in 3 unknowns from `x0`, with
-/// backtracking. Converges on `|dx| <= tol * (1 + |x|)`.
+/// Newton iteration for `f(x) = 0` in 3 unknowns from `x`, with
+/// backtracking. Converges once the step, measured in the units of `f`,
+/// is at most `tol`: each unknown's step times the length of its column
+/// of the Jacobian, so unknowns in different units (a curve's parameter
+/// and a plane's coordinates) add up to a length when `f` is one. A pivot
+/// below `1e-14` of its column counts as singular, a ratio that does not
+/// change with the size of the model.
 pub(crate) fn newton_3d(
     mut f: impl FnMut([f64; 3]) -> [f64; 3],
     mut jac: impl FnMut([f64; 3]) -> [[f64; 3]; 3],
@@ -121,11 +126,15 @@ pub(crate) fn newton_3d(
     let mut best = norm(f(x));
     for _ in 0..max_iter {
         let fx = f(x);
-        let delta = solve_3x3(jac(x), [-fx[0], -fx[1], -fx[2]], tol)?;
-        let (mut s0, mut s1, mut s2) = (delta[0], delta[1], delta[2]);
+        let jacobian = jac(x);
+        let column_lengths: [f64; 3] = std::array::from_fn(|col| {
+            norm([jacobian[0][col], jacobian[1][col], jacobian[2][col]]).sqrt()
+        });
+        let delta = solve_3x3(jacobian, [-fx[0], -fx[1], -fx[2]], 1e-14)?;
+        let mut step = delta;
         let mut improved = false;
         for _ in 0..12 {
-            let trial = [x[0] + s0, x[1] + s1, x[2] + s2];
+            let trial = [x[0] + step[0], x[1] + step[1], x[2] + step[2]];
             let value = norm(f(trial));
             if value < best {
                 x = trial;
@@ -133,14 +142,13 @@ pub(crate) fn newton_3d(
                 improved = true;
                 break;
             }
-            s0 *= 0.5;
-            s1 *= 0.5;
-            s2 *= 0.5;
+            step = step.map(|s| 0.5 * s);
         }
         if !improved {
             return Some(x);
         }
-        if s0.abs() + s1.abs() + s2.abs() <= tol * (3.0 + x[0].abs() + x[1].abs() + x[2].abs()) {
+        let moved: f64 = (0..3).map(|k| step[k].abs() * column_lengths[k]).sum();
+        if moved <= tol {
             return Some(x);
         }
     }
